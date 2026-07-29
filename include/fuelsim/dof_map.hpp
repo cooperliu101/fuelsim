@@ -31,7 +31,7 @@ class DofMap final {
     LocalDofs element_dofs(const Quad4Element& element) const;
 
   private:
-    std::size_t node_count_;
+    std::size_t _node_count;
 };
 
 } // namespace fuelsim

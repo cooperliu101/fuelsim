@@ -17,7 +17,7 @@ class PetscSession final {
     PetscSession& operator=(const PetscSession&) = delete;
 
   private:
-    bool owns_initialization_;
+    bool _owns_initialization;
 };
 
 struct SolverOptions final {

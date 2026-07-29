@@ -172,10 +172,10 @@ bool test_element_jacobian() {
     return passed;
 }
 
-bool test_interface_case(const std::string& name,
-                         const fuelsim::Line2RzGapContactKernel& kernel,
-                         const fuelsim::Line2RzInterfaceGeometry& geometry,
-                         const fuelsim::LocalValues& state) {
+bool test_heat_interface_case(const std::string& name,
+                              const fuelsim::Line2RzGapHeatKernel& kernel,
+                              const fuelsim::Line2RzHeatGeometry& geometry,
+                              const fuelsim::LocalValues& state) {
     const fuelsim::LocalValues direction = {
         0.7,    -0.4,    0.3,     -0.6,   0.2e-6,  -0.4e-6,
         0.5e-6, -0.1e-6, -0.3e-6, 0.6e-6, -0.2e-6, 0.4e-6,
@@ -218,47 +218,107 @@ bool test_interface_case(const std::string& name,
     const fuelsim::LocalResidual residual = kernel.residual(geometry, state);
     double thermal_sum = 0.0;
     double thermal_scale = 0.0;
-    double radial_sum = 0.0;
-    double radial_scale = 0.0;
     for (std::size_t row = 0; row < 4; ++row) {
         thermal_sum += residual[row];
         thermal_scale += std::abs(residual[row]);
     }
-    for (std::size_t row = 4; row < 8; ++row) {
-        radial_sum += residual[row];
-        radial_scale += std::abs(residual[row]);
-    }
     passed = check(std::abs(thermal_sum) < 1.0e-13 * (1.0 + thermal_scale),
                    name + " interface conserves heat") &&
              passed;
-    passed = check(std::abs(radial_sum) < 1.0e-13 * (1.0 + radial_scale),
-                   name + " interface conserves radial force") &&
-             passed;
 
-    for (std::size_t row = 8; row < fuelsim::local_dof_count; ++row) {
+    for (std::size_t row = 4; row < fuelsim::local_dof_count; ++row) {
         passed = check(residual[row] == 0.0,
-                       name + " frictionless interface has zero axial "
-                              "residual") &&
+                       name + " gap heat kernel has no mechanical residual") &&
                  passed;
     }
 
-    std::cout << name << "_interface_jacobian_maximum_scaled_error="
+    std::cout << name << "_heat_jacobian_maximum_scaled_error="
               << maximum_jacobian_error << '\n';
     return passed;
 }
 
-bool test_gap_contact_interface() {
+bool test_contact_interface_case(
+    const std::string& name, const fuelsim::NodeToLineRzContactKernel& kernel,
+    const fuelsim::NodeToLineRzContactGeometry& geometry,
+    const fuelsim::LocalValues& state) {
+    const fuelsim::LocalValues direction = {
+        0.7,    -0.4,    0.3,     -0.6,   0.2e-6,  -0.4e-6,
+        0.5e-6, -0.1e-6, -0.3e-6, 0.6e-6, -0.2e-6, 0.4e-6,
+    };
+    const fuelsim::LocalSystem system = kernel.linearize(geometry, state);
+
+    constexpr double step = 1.0e-4;
+    fuelsim::LocalValues plus = state;
+    fuelsim::LocalValues minus = state;
+    for (std::size_t dof = 0; dof < state.size(); ++dof) {
+        plus[dof] += step * direction[dof];
+        minus[dof] -= step * direction[dof];
+    }
+    const fuelsim::LocalResidual plus_residual =
+        kernel.residual(geometry, plus);
+    const fuelsim::LocalResidual minus_residual =
+        kernel.residual(geometry, minus);
+
+    bool passed = true;
+    double maximum_jacobian_error = 0.0;
+    for (std::size_t row = 0; row < system.residual.size(); ++row) {
+        double ad_direction = 0.0;
+        for (std::size_t column = 0; column < direction.size(); ++column) {
+            ad_direction +=
+                system.jacobian[row * fuelsim::local_dof_count + column] *
+                direction[column];
+        }
+        const double finite_difference =
+            (plus_residual[row] - minus_residual[row]) / (2.0 * step);
+        const double error = scaled_error(ad_direction, finite_difference);
+        maximum_jacobian_error = std::max(maximum_jacobian_error, error);
+        passed =
+            check(error < 1.0e-7, name + " contact AD Jacobian row " +
+                                      std::to_string(row) +
+                                      " matches centered finite difference") &&
+            passed;
+    }
+
+    const fuelsim::LocalResidual residual = kernel.residual(geometry, state);
+    double radial_sum = 0.0;
+    double radial_scale = 0.0;
+    for (std::size_t row = 4; row < 8; ++row) {
+        radial_sum += residual[row];
+        radial_scale += std::abs(residual[row]);
+    }
+    passed = check(std::abs(radial_sum) < 1.0e-13 * (1.0 + radial_scale),
+                   name + " contact conserves radial force") &&
+             passed;
+    for (std::size_t row = 0; row < 4; ++row)
+        passed = check(residual[row] == 0.0,
+                       name + " contact has no thermal residual") &&
+                 passed;
+    for (std::size_t row = 8; row < fuelsim::local_dof_count; ++row)
+        passed = check(residual[row] == 0.0,
+                       name + " frictionless contact has no axial residual") &&
+                 passed;
+
+    std::cout << name << "_contact_jacobian_maximum_scaled_error="
+              << maximum_jacobian_error << '\n';
+    return passed;
+}
+
+bool test_gap_heat_and_normal_contact() {
     const fuelsim::Line2InterfaceSideCoordinates fuel = {{
         {0.004120, 0.0},
-        {0.004120, 0.010},
+        {0.004120, 0.001},
     }};
     const fuelsim::Line2InterfaceSideCoordinates cladding = {{
         {0.004122, 0.0},
-        {0.004122, 0.010},
+        {0.004122, 0.001002},
     }};
-    const fuelsim::Line2RzInterfaceGeometry geometry =
-        fuelsim::make_line2_rz_interface_geometry(fuel, cladding);
-    const fuelsim::Line2RzGapContactKernel kernel({0.4, 1.0e-6, 1.0e14});
+    const fuelsim::Line2RzHeatGeometry heat_geometry =
+        fuelsim::make_line2_rz_heat_geometry(fuel, cladding);
+    const fuelsim::Line2RzGapHeatKernel heat_kernel({0.4, 1.0e-6});
+    const fuelsim::NodeToLineRzContactGeometry contact_geometry =
+        fuelsim::make_node_to_line_rz_contact_geometry(fuel, cladding, 1,
+                                                       false);
+    const fuelsim::NodeToLineRzContactKernel contact_kernel({1.0e14});
 
     const fuelsim::LocalValues open_state = {
         750.0,  740.0, 610.0, 620.0, 0.2e-6, 0.3e-6,
@@ -273,27 +333,45 @@ bool test_gap_contact_interface() {
         0.0,   0.0,   0.0,   0.0,   0.0,    0.0,
     };
 
-    bool passed = test_interface_case("open", kernel, geometry, open_state);
-    passed = test_interface_case("minimum_gap", kernel, geometry,
-                                 minimum_gap_state) &&
+    bool passed = test_heat_interface_case("open", heat_kernel, heat_geometry,
+                                           open_state);
+    passed = test_heat_interface_case("minimum_gap", heat_kernel, heat_geometry,
+                                      minimum_gap_state) &&
              passed;
-    passed =
-        test_interface_case("closed", kernel, geometry, closed_state) && passed;
+    passed = test_contact_interface_case("closed", contact_kernel,
+                                         contact_geometry, closed_state) &&
+             passed;
 
-    const fuelsim::InterfaceQuadratureValues open_values =
-        kernel.quadrature_values(geometry, open_state);
-    const fuelsim::InterfaceQuadratureValues closed_values =
-        kernel.quadrature_values(geometry, closed_state);
-    for (const fuelsim::InterfaceQuadratureValue& value : open_values) {
-        passed = check(value.gap > 1.0e-6 && value.pressure == 0.0,
-                       "open interface has positive gap and zero pressure") &&
+    const fuelsim::HeatQuadratureValues open_values =
+        heat_kernel.quadrature_values(heat_geometry, open_state);
+    for (const fuelsim::HeatQuadratureValue& value : open_values) {
+        passed = check(value.gap > 1.0e-6 && value.weighted_measure > 0.0,
+                       "open gap heat point has positive gap and measure") &&
                  passed;
     }
-    for (const fuelsim::InterfaceQuadratureValue& value : closed_values) {
-        passed = check(value.gap < 0.0 && value.pressure > 0.0,
-                       "closed interface has penetration pressure") &&
-                 passed;
-    }
+
+    const fuelsim::ContactPointValue open_contact =
+        contact_kernel.value(contact_geometry, open_state);
+    const fuelsim::ContactPointValue closed_contact =
+        contact_kernel.value(contact_geometry, closed_state);
+    passed = check(open_contact.projected && open_contact.gap > 0.0 &&
+                       open_contact.pressure == 0.0,
+                   "open NTS node projects with zero pressure") &&
+             passed;
+    passed = check(closed_contact.projected && closed_contact.gap < 0.0 &&
+                       closed_contact.pressure > 0.0 &&
+                       closed_contact.contact_force > 0.0,
+                   "closed NTS node develops pressure and nodal force") &&
+             passed;
+
+    fuelsim::LocalValues outside_state = closed_state;
+    outside_state[9] = 5.0e-6;
+    const fuelsim::ContactPointValue outside_contact =
+        contact_kernel.value(contact_geometry, outside_state);
+    passed = check(!outside_contact.projected &&
+                       outside_contact.contact_force == 0.0,
+                   "out-of-segment NTS projection is inactive") &&
+             passed;
     return passed;
 }
 
@@ -303,6 +381,7 @@ bool test_m1_dof_layout() {
         0.0041,
         0.0046,
         0.010,
+        0.01002,
         2,
         1,
         2,
@@ -325,8 +404,13 @@ bool test_m1_dof_layout() {
     const fuelsim::M1Problem problem(parameters);
 
     bool passed = true;
-    passed = check(problem.interface_count() == parameters.axial_elements,
-                   "M1 has one interface contribution per axial element") &&
+    passed =
+        check(problem.thermal_interface_count() == parameters.axial_elements,
+              "M1 has one STS heat contribution per fuel axial element") &&
+        passed;
+    passed = check(problem.contact_contribution_count() >
+                       problem.thermal_interface_count(),
+                   "M1 has local NTS candidate contributions") &&
              passed;
     passed = check(problem.dof_count() ==
                        3 * (problem.fuel_mesh().nodes().size() +
@@ -334,7 +418,7 @@ bool test_m1_dof_layout() {
                    "M1 uses one field-major map for both independent meshes") &&
              passed;
 
-    const fuelsim::LocalDofs interface = problem.interface_dofs(0);
+    const fuelsim::LocalDofs interface = problem.thermal_interface_dofs(0);
     const std::size_t fuel_outer =
         problem.fuel_mesh().node_id(problem.fuel_mesh().radial_elements(), 0);
     const std::size_t cladding_inner = problem.cladding_mesh().node_id(0, 0);
@@ -344,6 +428,14 @@ bool test_m1_dof_layout() {
                            problem.dof_map().temperature(
                                problem.cladding_global_node(cladding_inner)),
                    "M1 interface DOFs preserve fuel/cladding node ownership") &&
+             passed;
+    const std::vector<fuelsim::ContactNodeSummary> contact_nodes =
+        problem.summarize_contact_nodes(problem.initial_state());
+    passed = check(std::all_of(contact_nodes.begin(), contact_nodes.end(),
+                               [](const fuelsim::ContactNodeSummary& node) {
+                                   return node.projected;
+                               }),
+                   "taller cladding contains every initial NTS projection") &&
              passed;
     return passed;
 }
@@ -355,7 +447,7 @@ int main() {
     bool passed = true;
     passed = test_mesh_and_geometry() && passed;
     passed = test_element_jacobian() && passed;
-    passed = test_gap_contact_interface() && passed;
+    passed = test_gap_heat_and_normal_contact() && passed;
     passed = test_m1_dof_layout() && passed;
 
     if (!passed)

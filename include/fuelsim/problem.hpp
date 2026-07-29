@@ -72,12 +72,12 @@ class M0Problem final : public NonlinearProblem {
     void build_dirichlet_conditions();
     void add_pressure_residual(std::vector<double>& residual) const;
 
-    M0Parameters parameters_;
-    StructuredRzMesh mesh_;
-    DofMap dof_map_;
-    Quad4RzThermoelasticKernel kernel_;
-    std::vector<Quad4RzGeometry> geometries_;
-    std::vector<DirichletCondition> dirichlet_conditions_;
+    M0Parameters _parameters;
+    StructuredRzMesh _mesh;
+    DofMap _dof_map;
+    Quad4RzThermoelasticKernel _kernel;
+    std::vector<Quad4RzGeometry> _geometries;
+    std::vector<DirichletCondition> _dirichlet_conditions;
 };
 
 } // namespace fuelsim

@@ -21,7 +21,7 @@
     xmin = 0.004122
     xmax = 0.004692
     ymin = 0.0
-    ymax = 0.010
+    ymax = 0.010020
     boundary_name_prefix = clad
     boundary_id_offset = 10
   []
@@ -280,7 +280,7 @@
   [fuel_surface]
     type = NodalValueSampler
     boundary = fuel_right
-    variable = 'T disp_x disp_y contact_pressure'
+    variable = 'T disp_x disp_y contact_pressure nodal_area penetration'
     sort_by = y
     use_displaced_mesh = false
   []

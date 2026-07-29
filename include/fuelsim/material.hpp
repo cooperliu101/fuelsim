@@ -43,9 +43,9 @@ class IsotropicThermoelasticMaterial final {
                               const adlite::Scalar& temperature) const;
 
   private:
-    ThermoelasticProperties properties_;
-    double lame_lambda_;
-    double shear_modulus_;
+    ThermoelasticProperties _properties;
+    double _lame_lambda;
+    double _shear_modulus;
 };
 
 } // namespace fuelsim

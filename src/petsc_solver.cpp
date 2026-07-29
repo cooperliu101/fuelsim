@@ -173,18 +173,18 @@ PetscErrorCode form_jacobian(SNES, Vec state, Mat jacobian, Mat preconditioner,
 } // namespace
 
 PetscSession::PetscSession(int& argc, char**& argv, const char* help)
-    : owns_initialization_(false) {
+    : _owns_initialization(false) {
     PetscBool initialized = PETSC_FALSE;
     check_petsc(PetscInitialized(&initialized), "PetscInitialized");
     if (initialized == PETSC_FALSE) {
         check_petsc(PetscInitialize(&argc, &argv, nullptr, help),
                     "PetscInitialize");
-        owns_initialization_ = true;
+        _owns_initialization = true;
     }
 }
 
 PetscSession::~PetscSession() {
-    if (!owns_initialization_)
+    if (!_owns_initialization)
         return;
 
     PetscBool finalized = PETSC_FALSE;

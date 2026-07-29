@@ -14,6 +14,7 @@ fuelsim::M1Parameters make_reference_case() {
         0.004122,
         0.004692,
         0.010,
+        0.010020,
         40,
         6,
         10,
@@ -112,10 +113,18 @@ int main(int argc, char** argv) {
                   << '\n';
         std::cout << "minimum_gap=" << interface.minimum_gap << '\n';
         std::cout << "maximum_gap=" << interface.maximum_gap << '\n';
+        std::cout << "minimum_contact_gap=" << interface.minimum_contact_gap
+                  << '\n';
         std::cout << "maximum_contact_pressure="
                   << interface.maximum_contact_pressure << '\n';
         std::cout << "total_heat_rate=" << interface.total_heat_rate << '\n';
         std::cout << "total_contact_force=" << interface.total_contact_force
+                  << '\n';
+        std::cout << "projected_contact_nodes="
+                  << interface.projected_contact_nodes << '\n';
+        std::cout << "active_contact_nodes=" << interface.active_contact_nodes
+                  << '\n';
+        std::cout << "active_contact_length=" << interface.active_contact_length
                   << '\n';
 
         return continuation.completed && result.converged ? 0 : 1;

@@ -49,8 +49,8 @@ class Quad4RzThermoelasticKernel final {
     void residual_ad(const Quad4RzGeometry& geometry,
                      const LocalAdValues& state, LocalAdValues& residual) const;
 
-    IsotropicThermoelasticMaterial material_;
-    double volumetric_heat_source_;
+    IsotropicThermoelasticMaterial _material;
+    double _volumetric_heat_source;
 };
 
 } // namespace fuelsim

@@ -11,71 +11,115 @@ namespace fuelsim {
 
 constexpr std::size_t line2_interface_side_node_count = 2;
 constexpr std::size_t line2_interface_node_count = 4;
-constexpr std::size_t line2_interface_local_dof_count = local_dof_count;
 constexpr std::size_t line2_interface_quadrature_point_count = 2;
-constexpr std::size_t line2_interface_jacobian_size = local_jacobian_size;
 
 using Line2InterfaceSideCoordinates =
     std::array<RzPoint, line2_interface_side_node_count>;
 
-struct Line2RzInterfaceQuadraturePoint final {
-    std::array<double, line2_interface_side_node_count> shape;
-    double fuel_radius;
-    double clad_radius;
-    double weighted_measure;
+struct Line2RzHeatQuadraturePoint final {
+    std::array<double, line2_interface_side_node_count> fuel_shape;
+    std::array<double, line2_interface_side_node_count> cladding_shape;
+    double fuel_reference_radius;
+    double cladding_reference_radius;
 };
 
-struct Line2RzInterfaceGeometry final {
-    std::array<Line2RzInterfaceQuadraturePoint,
+struct Line2RzHeatGeometry final {
+    Line2InterfaceSideCoordinates fuel_coordinates;
+    Line2InterfaceSideCoordinates cladding_coordinates;
+    std::array<Line2RzHeatQuadraturePoint,
                line2_interface_quadrature_point_count>
         points;
 };
 
-struct GapContactProperties final {
+struct GapHeatProperties final {
     double gap_conductivity;
     double minimum_gap;
-    double penalty;
 };
 
-struct InterfaceQuadratureValue final {
+struct HeatQuadratureValue final {
     double gap;
     // Positive heat flux transfers energy from fuel to cladding.
     double heat_flux;
-    double pressure;
+    double weighted_measure;
 };
 
-using InterfaceQuadratureValues =
-    std::array<InterfaceQuadratureValue,
-               line2_interface_quadrature_point_count>;
+using HeatQuadratureValues =
+    std::array<HeatQuadratureValue, line2_interface_quadrature_point_count>;
 
-Line2RzInterfaceGeometry make_line2_rz_interface_geometry(
+Line2RzHeatGeometry make_line2_rz_heat_geometry(
     const Line2InterfaceSideCoordinates& fuel_coordinates,
-    const Line2InterfaceSideCoordinates& clad_coordinates);
+    const Line2InterfaceSideCoordinates& cladding_coordinates);
 
-class Line2RzGapContactKernel final {
+class Line2RzGapHeatKernel final {
   public:
-    explicit Line2RzGapContactKernel(GapContactProperties properties);
+    explicit Line2RzGapHeatKernel(GapHeatProperties properties);
 
-    const GapContactProperties& properties() const noexcept;
+    const GapHeatProperties& properties() const noexcept;
 
     // Fixed ordering:
     // [Tf0, Tf1, Tc0, Tc1, urf0, urf1, urc0, urc1,
     //  uzf0, uzf1, uzc0, uzc1].
-    LocalResidual residual(const Line2RzInterfaceGeometry& geometry,
+    LocalResidual residual(const Line2RzHeatGeometry& geometry,
                            const LocalValues& state) const;
-
-    LocalSystem linearize(const Line2RzInterfaceGeometry& geometry,
+    LocalSystem linearize(const Line2RzHeatGeometry& geometry,
                           const LocalValues& state) const;
-
-    InterfaceQuadratureValues
-    quadrature_values(const Line2RzInterfaceGeometry& geometry,
-                      const LocalValues& state) const;
+    HeatQuadratureValues quadrature_values(const Line2RzHeatGeometry& geometry,
+                                           const LocalValues& state) const;
 
   private:
-    void residual_ad(const Line2RzInterfaceGeometry& geometry,
+    void residual_ad(const Line2RzHeatGeometry& geometry,
                      const LocalAdValues& state, LocalAdValues& residual) const;
 
-    GapContactProperties properties_;
+    GapHeatProperties _properties;
+};
+
+struct NodeToLineRzContactGeometry final {
+    Line2InterfaceSideCoordinates fuel_edge_coordinates;
+    Line2InterfaceSideCoordinates cladding_segment_coordinates;
+    std::size_t secondary_local_node;
+    bool cladding_segment_includes_upper_endpoint;
+};
+
+struct NormalContactProperties final {
+    // Pressure per unit penetration, in Pa/m.
+    double penalty;
+};
+
+struct ContactPointValue final {
+    bool projected;
+    double gap;
+    double pressure;
+    double tributary_area;
+    double tributary_length;
+    double contact_force;
+};
+
+NodeToLineRzContactGeometry make_node_to_line_rz_contact_geometry(
+    const Line2InterfaceSideCoordinates& fuel_edge_coordinates,
+    const Line2InterfaceSideCoordinates& cladding_segment_coordinates,
+    std::size_t secondary_local_node,
+    bool cladding_segment_includes_upper_endpoint);
+
+class NodeToLineRzContactKernel final {
+  public:
+    explicit NodeToLineRzContactKernel(NormalContactProperties properties);
+
+    const NormalContactProperties& properties() const noexcept;
+
+    // The local ordering is identical to Line2RzGapHeatKernel. Only the
+    // selected fuel node and the two cladding nodes receive radial residuals.
+    LocalResidual residual(const NodeToLineRzContactGeometry& geometry,
+                           const LocalValues& state) const;
+    LocalSystem linearize(const NodeToLineRzContactGeometry& geometry,
+                          const LocalValues& state) const;
+    ContactPointValue value(const NodeToLineRzContactGeometry& geometry,
+                            const LocalValues& state) const;
+
+  private:
+    void residual_ad(const NodeToLineRzContactGeometry& geometry,
+                     const LocalAdValues& state, LocalAdValues& residual) const;
+
+    NormalContactProperties _properties;
 };
 
 } // namespace fuelsim

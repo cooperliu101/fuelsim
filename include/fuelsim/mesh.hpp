@@ -51,24 +51,24 @@ class StructuredRzMesh final {
     double length() const noexcept;
 
   private:
-    double inner_radius_ = 0.0;
-    double outer_radius_ = 0.0;
-    double length_ = 0.0;
-    std::size_t radial_elements_ = 0;
-    std::size_t axial_elements_ = 0;
+    double _inner_radius = 0.0;
+    double _outer_radius = 0.0;
+    double _length = 0.0;
+    std::size_t _radial_elements = 0;
+    std::size_t _axial_elements = 0;
 
-    std::vector<RzPoint> nodes_;
-    std::vector<Quad4Element> elements_;
+    std::vector<RzPoint> _nodes;
+    std::vector<Quad4Element> _elements;
 
-    std::vector<std::size_t> radial_inner_nodes_;
-    std::vector<std::size_t> radial_outer_nodes_;
-    std::vector<std::size_t> bottom_nodes_;
-    std::vector<std::size_t> top_nodes_;
+    std::vector<std::size_t> _radial_inner_nodes;
+    std::vector<std::size_t> _radial_outer_nodes;
+    std::vector<std::size_t> _bottom_nodes;
+    std::vector<std::size_t> _top_nodes;
 
-    std::vector<Line2BoundaryElement> radial_inner_elements_;
-    std::vector<Line2BoundaryElement> radial_outer_elements_;
-    std::vector<Line2BoundaryElement> bottom_elements_;
-    std::vector<Line2BoundaryElement> top_elements_;
+    std::vector<Line2BoundaryElement> _radial_inner_elements;
+    std::vector<Line2BoundaryElement> _radial_outer_elements;
+    std::vector<Line2BoundaryElement> _bottom_elements;
+    std::vector<Line2BoundaryElement> _top_elements;
 };
 
 } // namespace fuelsim

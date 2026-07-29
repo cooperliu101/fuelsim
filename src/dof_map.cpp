@@ -5,7 +5,7 @@
 
 namespace fuelsim {
 
-DofMap::DofMap(std::size_t node_count) : node_count_(node_count) {
+DofMap::DofMap(std::size_t node_count) : _node_count(node_count) {
     if (node_count == 0)
         throw std::invalid_argument("DofMap node_count must be positive");
     if (node_count > std::numeric_limits<std::size_t>::max() / 3)
@@ -13,24 +13,24 @@ DofMap::DofMap(std::size_t node_count) : node_count_(node_count) {
 }
 
 std::size_t DofMap::node_count() const noexcept {
-    return node_count_;
+    return _node_count;
 }
 
 std::size_t DofMap::dof_count() const noexcept {
-    return 3 * node_count_;
+    return 3 * _node_count;
 }
 
 std::size_t DofMap::dof(Field field, std::size_t node) const {
-    if (node >= node_count_)
+    if (node >= _node_count)
         throw std::out_of_range("DofMap node index is out of range");
 
     switch (field) {
     case Field::temperature:
         return node;
     case Field::radial_displacement:
-        return node_count_ + node;
+        return _node_count + node;
     case Field::axial_displacement:
-        return 2 * node_count_ + node;
+        return 2 * _node_count + node;
     }
     throw std::invalid_argument("Unknown DofMap field");
 }

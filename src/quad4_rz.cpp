@@ -122,7 +122,7 @@ Quad4RzGeometry make_quad4_rz_geometry(const Quad4Coordinates& coordinates) {
 
 Quad4RzThermoelasticKernel::Quad4RzThermoelasticKernel(
     IsotropicThermoelasticMaterial material, double volumetric_heat_source)
-    : material_(material), volumetric_heat_source_(volumetric_heat_source) {}
+    : _material(material), _volumetric_heat_source(volumetric_heat_source) {}
 
 LocalResidual
 Quad4RzThermoelasticKernel::residual(const Quad4RzGeometry& geometry,
@@ -166,7 +166,7 @@ Quad4RzThermoelasticKernel::stress_values(const Quad4RzGeometry& geometry,
     std::array<AxisymmetricStressValues, 4> result{};
     for (std::size_t q = 0; q < geometry.points.size(); ++q) {
         const AxisymmetricStress stress =
-            stress_at_point(geometry.points[q], passive_state, material_);
+            stress_at_point(geometry.points[q], passive_state, _material);
         result[q] = {stress.rr.value(), stress.zz.value(), stress.hoop.value(),
                      stress.rz.value()};
     }
@@ -184,9 +184,9 @@ void Quad4RzThermoelasticKernel::residual_ad(const Quad4RzGeometry& geometry,
             interpolate(point.gradient_r, state, 0);
         const adlite::Scalar gradient_temperature_z =
             interpolate(point.gradient_z, state, 0);
-        const adlite::Scalar conductivity = material_.conductivity(temperature);
+        const adlite::Scalar conductivity = _material.conductivity(temperature);
         const AxisymmetricStress stress =
-            stress_at_point(point, state, material_);
+            stress_at_point(point, state, _material);
 
         for (std::size_t node = 0; node < 4; ++node) {
             residual[node] +=
@@ -194,7 +194,7 @@ void Quad4RzThermoelasticKernel::residual_ad(const Quad4RzGeometry& geometry,
                 (conductivity *
                      (point.gradient_r[node] * gradient_temperature_r +
                       point.gradient_z[node] * gradient_temperature_z) -
-                 volumetric_heat_source_ * point.shape[node]);
+                 _volumetric_heat_source * point.shape[node]);
 
             residual[4 + node] +=
                 point.weighted_measure *

@@ -29,47 +29,47 @@ void append_boundary_conditions(const std::vector<std::size_t>& nodes,
 } // namespace
 
 M0Problem::M0Problem(M0Parameters parameters)
-    : parameters_(parameters),
-      mesh_(StructuredRzMesh::make_annulus(
+    : _parameters(parameters),
+      _mesh(StructuredRzMesh::make_annulus(
           parameters.inner_radius, parameters.outer_radius, parameters.length,
           parameters.radial_elements, parameters.axial_elements)),
-      dof_map_(mesh_.nodes().size()),
-      kernel_(IsotropicThermoelasticMaterial(parameters.fuel),
+      _dof_map(_mesh.nodes().size()),
+      _kernel(IsotropicThermoelasticMaterial(parameters.fuel),
               parameters.volumetric_heat_source) {
-    if (!(parameters_.inner_pressure >= 0.0) ||
-        !(parameters_.outer_pressure >= 0.0))
+    if (!(_parameters.inner_pressure >= 0.0) ||
+        !(_parameters.outer_pressure >= 0.0))
         throw std::invalid_argument("M0Problem pressures must be nonnegative");
 
-    geometries_.reserve(mesh_.elements().size());
-    for (const Quad4Element& element : mesh_.elements())
-        geometries_.push_back(
-            make_quad4_rz_geometry(element_coordinates(mesh_, element)));
+    _geometries.reserve(_mesh.elements().size());
+    for (const Quad4Element& element : _mesh.elements())
+        _geometries.push_back(
+            make_quad4_rz_geometry(element_coordinates(_mesh, element)));
 
     build_dirichlet_conditions();
 }
 
 const M0Parameters& M0Problem::parameters() const noexcept {
-    return parameters_;
+    return _parameters;
 }
 
 const StructuredRzMesh& M0Problem::mesh() const noexcept {
-    return mesh_;
+    return _mesh;
 }
 
 const DofMap& M0Problem::dof_map() const noexcept {
-    return dof_map_;
+    return _dof_map;
 }
 
 const Quad4RzThermoelasticKernel& M0Problem::kernel() const noexcept {
-    return kernel_;
+    return _kernel;
 }
 
 std::size_t M0Problem::dof_count() const noexcept {
-    return dof_map_.dof_count();
+    return _dof_map.dof_count();
 }
 
 std::size_t M0Problem::element_count() const noexcept {
-    return mesh_.elements().size();
+    return _mesh.elements().size();
 }
 
 std::size_t M0Problem::contribution_count() const noexcept {
@@ -78,21 +78,21 @@ std::size_t M0Problem::contribution_count() const noexcept {
 
 const std::vector<DirichletCondition>&
 M0Problem::dirichlet_conditions() const noexcept {
-    return dirichlet_conditions_;
+    return _dirichlet_conditions;
 }
 
 std::vector<double> M0Problem::initial_state() const {
     std::vector<double> state(dof_count(), 0.0);
-    for (std::size_t node = 0; node < mesh_.nodes().size(); ++node)
-        state[dof_map_.temperature(node)] = parameters_.initial_temperature;
+    for (std::size_t node = 0; node < _mesh.nodes().size(); ++node)
+        state[_dof_map.temperature(node)] = _parameters.initial_temperature;
 
-    for (const DirichletCondition& condition : dirichlet_conditions_)
+    for (const DirichletCondition& condition : _dirichlet_conditions)
         state[condition.dof] = condition.value;
     return state;
 }
 
 LocalDofs M0Problem::element_dofs(std::size_t element_index) const {
-    return dof_map_.element_dofs(mesh_.elements().at(element_index));
+    return _dof_map.element_dofs(_mesh.elements().at(element_index));
 }
 
 LocalValues
@@ -103,12 +103,12 @@ M0Problem::element_state(std::size_t element_index,
 
 LocalResidual M0Problem::element_residual(std::size_t element_index,
                                           const LocalValues& state) const {
-    return kernel_.residual(geometries_.at(element_index), state);
+    return _kernel.residual(_geometries.at(element_index), state);
 }
 
 LocalSystem M0Problem::linearize_element(std::size_t element_index,
                                          const LocalValues& state) const {
-    return kernel_.linearize(geometries_.at(element_index), state);
+    return _kernel.linearize(_geometries.at(element_index), state);
 }
 
 LocalDofs M0Problem::contribution_dofs(std::size_t contribution_index) const {
@@ -132,32 +132,32 @@ void M0Problem::add_state_independent_residual(
 
 const Quad4RzGeometry&
 M0Problem::element_geometry(std::size_t element_index) const {
-    return geometries_.at(element_index);
+    return _geometries.at(element_index);
 }
 
 void M0Problem::build_dirichlet_conditions() {
     append_boundary_conditions(
-        mesh_.boundary_nodes(BoundaryId::radial_outer), Field::temperature,
-        parameters_.outer_temperature, dof_map_, dirichlet_conditions_);
+        _mesh.boundary_nodes(BoundaryId::radial_outer), Field::temperature,
+        _parameters.outer_temperature, _dof_map, _dirichlet_conditions);
 
-    if (parameters_.inner_radius == 0.0) {
+    if (_parameters.inner_radius == 0.0) {
         append_boundary_conditions(
-            mesh_.boundary_nodes(BoundaryId::radial_inner),
-            Field::radial_displacement, 0.0, dof_map_, dirichlet_conditions_);
+            _mesh.boundary_nodes(BoundaryId::radial_inner),
+            Field::radial_displacement, 0.0, _dof_map, _dirichlet_conditions);
     }
 
-    append_boundary_conditions(mesh_.boundary_nodes(BoundaryId::bottom),
-                               Field::axial_displacement, 0.0, dof_map_,
-                               dirichlet_conditions_);
+    append_boundary_conditions(_mesh.boundary_nodes(BoundaryId::bottom),
+                               Field::axial_displacement, 0.0, _dof_map,
+                               _dirichlet_conditions);
 
-    std::sort(dirichlet_conditions_.begin(), dirichlet_conditions_.end(),
+    std::sort(_dirichlet_conditions.begin(), _dirichlet_conditions.end(),
               [](const DirichletCondition& lhs, const DirichletCondition& rhs) {
                   return lhs.dof < rhs.dof;
               });
 
-    for (std::size_t index = 1; index < dirichlet_conditions_.size(); ++index) {
-        const DirichletCondition& previous = dirichlet_conditions_[index - 1];
-        const DirichletCondition& current = dirichlet_conditions_[index];
+    for (std::size_t index = 1; index < _dirichlet_conditions.size(); ++index) {
+        const DirichletCondition& previous = _dirichlet_conditions[index - 1];
+        const DirichletCondition& current = _dirichlet_conditions[index];
         if (previous.dof != current.dof)
             continue;
         if (previous.value != current.value)
@@ -180,9 +180,9 @@ void M0Problem::add_pressure_residual(std::vector<double>& residual) const {
             return;
 
         for (const Line2BoundaryElement& edge :
-             mesh_.boundary_elements(boundary)) {
-            const RzPoint& first = mesh_.nodes().at(edge.nodes[0]);
-            const RzPoint& second = mesh_.nodes().at(edge.nodes[1]);
+             _mesh.boundary_elements(boundary)) {
+            const RzPoint& first = _mesh.nodes().at(edge.nodes[0]);
+            const RzPoint& second = _mesh.nodes().at(edge.nodes[1]);
             const double dr = second.r - first.r;
             const double dz = second.z - first.z;
             const double line_jacobian = 0.5 * std::sqrt(dr * dr + dz * dz);
@@ -197,7 +197,7 @@ void M0Problem::add_pressure_residual(std::vector<double>& residual) const {
 
                 for (std::size_t node = 0; node < 2; ++node) {
                     const std::size_t dof =
-                        dof_map_.radial_displacement(edge.nodes[node]);
+                        _dof_map.radial_displacement(edge.nodes[node]);
                     residual[dof] +=
                         measure * pressure * normal_r * shape[node];
                 }
@@ -205,8 +205,8 @@ void M0Problem::add_pressure_residual(std::vector<double>& residual) const {
         }
     };
 
-    add_boundary(BoundaryId::radial_inner, parameters_.inner_pressure, -1.0);
-    add_boundary(BoundaryId::radial_outer, parameters_.outer_pressure, 1.0);
+    add_boundary(BoundaryId::radial_inner, _parameters.inner_pressure, -1.0);
+    add_boundary(BoundaryId::radial_outer, _parameters.outer_pressure, 1.0);
 }
 
 } // namespace fuelsim

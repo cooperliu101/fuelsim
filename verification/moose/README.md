@@ -32,7 +32,9 @@ The final row of `m0_simple_fuel_rz_out.csv` is the acceptance snapshot used by
 ## M1 fuel, cladding, gap heat, and contact
 
 `m1_fuel_cladding_gap_rz.i` matches the default fuelsim M1 geometry, materials,
-mesh counts, heat-source continuation, and normal penalty coefficient.
+mesh counts, heat-source continuation, and normal penalty coefficient. The
+fuel is 10.000 mm high and the cladding is 10.020 mm high, leaving 20 um of
+axial projection margin in the reference geometry.
 
 The contact normalization is essential:
 
@@ -43,10 +45,11 @@ normalize_penalty = true
 ```
 
 MOOSE's node-face penalty is a nodal spring. Multiplication by its RZ nodal
-area makes the nodal force `K*A*g`, which is the lumped counterpart of
-fuelsim's interface traction `p=K*max(-g,0)`. A MOOSE mortar-penalty input with
-the same numeric `penalty` does not have this meaning and is not an equivalent
-oracle.
+area makes the nodal force `K*A*g`. Fuelsim now uses the same NTS
+discretization: a unique fuel-node projection, current fuel half-edge
+tributary area, and equal-and-opposite force distributed by the cladding line
+shape functions. A MOOSE mortar-penalty input with the same numeric `penalty`
+does not have this meaning and is not an equivalent oracle.
 
 The checked run used:
 
@@ -72,17 +75,27 @@ source /home/cooper/miniforge/etc/profile.d/conda.sh
 conda activate moose
 /home/cooper/projects/july/july-opt \
   -i m1_fuel_cladding_gap_rz.i \
-  Outputs/file_base=/tmp/fuelsim_m1_final_check \
-  Outputs/exodus=false
+  Outputs/file_base=/tmp/fuelsim_m1_nts/m1 \
+  Outputs/exodus=false \
+  Outputs/console=false
 ```
 
 The checked output was byte-for-byte identical to
-`m1_fuel_cladding_gap_rz_out.csv`. Its final row supplies six M1 acceptance
-values in `tests/solver_tests.cpp`: three temperatures and three
-displacements. All six fuelsim differences are below 1%.
+`m1_fuel_cladding_gap_rz_out.csv`. The final fuel-surface vector postprocessor
+output is preserved as `m1_fuel_surface_final.csv`. The scalar final row
+supplies three temperatures and three displacements, while the surface file
+supplies all 11 node coordinates, displacements, contact pressures, nodal
+areas, and penetrations used by `tests/solver_tests.cpp`.
 
-Peak node pressure is diagnostic rather than an acceptance scalar. On this
-mesh MOOSE reports 5.450439 MPa while fuelsim reports about 6.63 MPa; the
-different endpoint/contact interpolation makes the peak mesh-sensitive.
-Future pressure validation should use a refined-mesh total load or
-area-weighted norm.
+The final fuelsim-to-MOOSE differences are:
+
+```text
+contact pressure relative L2 error:       0.2207%
+maximum nodal pressure relative error:    0.3328%
+total contact force relative error:       0.0443%
+projected / active fuel surface nodes:    11 / 11
+```
+
+All six temperature/displacement differences are also below 1%. Contact
+pressure is therefore an acceptance metric rather than a diagnostic-only
+quantity.
