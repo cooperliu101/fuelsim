@@ -86,7 +86,30 @@ int main(int argc, char** argv) {
                   << '\n';
         std::cout << "nonlinear_iterations_last_step="
                   << result.nonlinear_iterations << '\n';
+        std::cout << "nonlinear_iterations_total="
+                  << continuation.total_nonlinear_iterations << '\n';
         std::cout << "residual_norm_last_step=" << result.residual_norm << '\n';
+        std::cout << "timing_problem_setup="
+                  << continuation.problem_setup_seconds << '\n';
+        std::cout << "timing_solver_setup="
+                  << continuation.aggregate_timing.setup_seconds << '\n';
+        std::cout << "timing_nonlinear_solve="
+                  << continuation.aggregate_timing.nonlinear_solve_seconds
+                  << '\n';
+        std::cout << "timing_residual_callbacks="
+                  << continuation.aggregate_timing.residual_callback_seconds
+                  << '\n';
+        std::cout << "timing_jacobian_callbacks="
+                  << continuation.aggregate_timing.jacobian_callback_seconds
+                  << '\n';
+        std::cout << "timing_load_path_total=" << continuation.total_seconds
+                  << '\n';
+        std::cout << "residual_evaluations="
+                  << continuation.aggregate_timing.residual_evaluations << '\n';
+        std::cout << "jacobian_evaluations="
+                  << continuation.aggregate_timing.jacobian_evaluations << '\n';
+        std::cout << "petsc_workspace_setups="
+                  << continuation.aggregate_timing.workspace_setups << '\n';
         std::cout << "temperature_center="
                   << result.state[dofs.temperature(
                          problem.fuel_global_node(fuel_axis_mid))]

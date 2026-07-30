@@ -54,7 +54,7 @@ bool test_thermal_cylinder() {
     };
 
     fuelsim::M0Problem problem(parameters);
-    const fuelsim::PetscSequentialSolver solver;
+    fuelsim::PetscSequentialSolver solver;
     const fuelsim::SolveResult result =
         solver.solve(problem, problem.initial_state());
 
@@ -93,7 +93,7 @@ bool test_free_thermal_expansion() {
     };
 
     const fuelsim::M0Problem problem(parameters);
-    const fuelsim::PetscSequentialSolver solver;
+    fuelsim::PetscSequentialSolver solver;
     const fuelsim::SolveResult result =
         solver.solve(problem, problem.initial_state());
 
@@ -170,7 +170,7 @@ bool test_lame_open_ended_cylinder() {
     };
 
     const fuelsim::M0Problem problem(parameters);
-    const fuelsim::PetscSequentialSolver solver;
+    fuelsim::PetscSequentialSolver solver;
     const fuelsim::SolveResult result =
         solver.solve(problem, problem.initial_state());
 
@@ -246,7 +246,7 @@ bool test_moose_reference() {
     };
 
     const fuelsim::M0Problem problem(parameters);
-    const fuelsim::PetscSequentialSolver solver;
+    fuelsim::PetscSequentialSolver solver;
     const fuelsim::SolveResult result =
         solver.solve(problem, problem.initial_state());
 
@@ -340,7 +340,7 @@ bool test_m1_open_gap_analytic_thermal() {
         1.0e14,
     };
     const fuelsim::M1Problem problem(parameters);
-    const fuelsim::PetscSequentialSolver solver;
+    fuelsim::PetscSequentialSolver solver;
     const fuelsim::SolveResult result =
         solver.solve(problem, problem.initial_state());
 
@@ -565,6 +565,19 @@ bool test_m1_closed_gap_end_to_end() {
                        target_parameters.axial_elements + 1,
                    "M1 taller cladding contains every NTS projection") &&
              passed;
+    passed = check(continuation.aggregate_timing.workspace_setups == 1,
+                   "M1 load path creates one reusable PETSc workspace") &&
+             passed;
+    passed = check(continuation.aggregate_timing.solve_calls == load_steps,
+                   "M1 load path reuses the workspace for all load steps") &&
+             passed;
+    passed =
+        check(continuation.aggregate_timing.residual_evaluations > 0 &&
+                  continuation.aggregate_timing.jacobian_evaluations > 0 &&
+                  continuation.aggregate_timing.nonlinear_solve_seconds > 0.0 &&
+                  continuation.total_seconds > 0.0,
+              "M1 load path reports internal solver timing and evaluations") &&
+        passed;
     passed = check(heat_balance_error < 1.0e-8,
                    "M1 closed-gap interface heat balances generated power") &&
              passed;
@@ -624,6 +637,21 @@ bool test_m1_closed_gap_end_to_end() {
               << interface.projected_contact_nodes << '\n';
     std::cout << "m1_active_contact_nodes=" << interface.active_contact_nodes
               << '\n';
+    std::cout << "m1_total_nonlinear_iterations="
+              << continuation.total_nonlinear_iterations << '\n';
+    std::cout << "m1_timing_problem_setup="
+              << continuation.problem_setup_seconds << '\n';
+    std::cout << "m1_timing_solver_setup="
+              << continuation.aggregate_timing.setup_seconds << '\n';
+    std::cout << "m1_timing_nonlinear_solve="
+              << continuation.aggregate_timing.nonlinear_solve_seconds << '\n';
+    std::cout << "m1_timing_residual_callbacks="
+              << continuation.aggregate_timing.residual_callback_seconds
+              << '\n';
+    std::cout << "m1_timing_jacobian_callbacks="
+              << continuation.aggregate_timing.jacobian_callback_seconds
+              << '\n';
+    std::cout << "m1_timing_total=" << continuation.total_seconds << '\n';
     std::cout << "m1_heat_balance_relative_error=" << heat_balance_error
               << '\n';
     std::cout << "m1_moose_temperature_center_relative_error="

@@ -166,6 +166,11 @@ const NodeToLineRzContactKernel& M1Problem::contact_kernel() const noexcept {
     return _contact_kernel;
 }
 
+void M1Problem::set_volumetric_heat_source(double volumetric_heat_source) {
+    _fuel_kernel.set_volumetric_heat_source(volumetric_heat_source);
+    _parameters.volumetric_heat_source = volumetric_heat_source;
+}
+
 std::size_t M1Problem::fuel_node_count() const noexcept {
     return _fuel_mesh.nodes().size();
 }

@@ -401,7 +401,7 @@ bool test_m1_dof_layout() {
         1.0e-6,
         1.0e14,
     };
-    const fuelsim::M1Problem problem(parameters);
+    fuelsim::M1Problem problem(parameters);
 
     bool passed = true;
     passed =
@@ -436,6 +436,27 @@ bool test_m1_dof_layout() {
                                    return node.projected;
                                }),
                    "taller cladding contains every initial NTS projection") &&
+             passed;
+
+    const fuelsim::LocalValues initial_element_state =
+        problem.contribution_state(0, problem.initial_state());
+    const fuelsim::LocalResidual source_residual =
+        problem.contribution_residual(0, initial_element_state);
+    problem.set_volumetric_heat_source(2.0 * parameters.volumetric_heat_source);
+    const fuelsim::LocalResidual doubled_source_residual =
+        problem.contribution_residual(0, initial_element_state);
+    for (std::size_t node = 0; node < fuelsim::quad4_node_count; ++node) {
+        passed = check(std::abs(doubled_source_residual[node] -
+                                2.0 * source_residual[node]) <
+                           1.0e-12 * (1.0 + std::abs(source_residual[node])),
+                       "M1 updates heat loading without rebuilding geometry") &&
+                 passed;
+    }
+    passed = check(problem.parameters().volumetric_heat_source ==
+                           2.0 * parameters.volumetric_heat_source &&
+                       problem.fuel_kernel().volumetric_heat_source() ==
+                           problem.parameters().volumetric_heat_source,
+                   "M1 heat-source parameter and kernel remain synchronized") &&
              passed;
     return passed;
 }

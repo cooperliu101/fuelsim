@@ -1,0 +1,81 @@
+# Single-core benchmarks
+
+`fuelsim_m1_single_core_benchmark` is the manual medium M1 benchmark. It uses:
+
+```text
+fuel mesh:       100 radial x 64 axial
+cladding mesh:    16 radial x 64 axial
+nodes/elements:  7,670 / 7,424
+solution DOFs:   23,010
+load steps:      20
+linear solve:    PETSc sequential LU
+```
+
+It is intentionally not a CTest because one run takes tens of seconds. Build
+Release and run it on one pinned core:
+
+```bash
+cmake -S . -B build \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_PREFIX_PATH=/tmp/adlite-fuelsim-install
+cmake --build build --parallel
+
+env \
+  OMP_NUM_THREADS=1 \
+  OPENBLAS_NUM_THREADS=1 \
+  MKL_NUM_THREADS=1 \
+  NUMEXPR_NUM_THREADS=1 \
+  taskset -c 0 \
+  ./build/fuelsim_m1_single_core_benchmark
+```
+
+The matching MOOSE command is:
+
+```bash
+env \
+  OMP_NUM_THREADS=1 \
+  OPENBLAS_NUM_THREADS=1 \
+  MKL_NUM_THREADS=1 \
+  NUMEXPR_NUM_THREADS=1 \
+  taskset -c 0 \
+  /home/cooper/projects/july/july-opt \
+    -i verification/moose/m1_fuel_cladding_gap_rz.i \
+    Mesh/fuel_mesh/nx=100 \
+    Mesh/fuel_mesh/ny=64 \
+    Mesh/clad_mesh/nx=16 \
+    Mesh/clad_mesh/ny=64 \
+    Outputs/csv=false \
+    Outputs/exodus=false \
+    Outputs/console=false
+```
+
+## 2026-07-31 measurements
+
+Both executables were Release builds pinned to CPU 0. MOOSE used one MPI
+process and one thread.
+
+```text
+default 1,584-DOF case, five-run medians:
+  fuelsim optimized: 2.00 s
+  MOOSE:             3.21 s
+  ratio:             fuelsim 1.61x faster
+
+default case, paired three-run medians:
+  fuelsim 319e173 baseline: 2.23 s
+  fuelsim optimized:        1.95 s
+  object-reuse improvement: 12.6% less wall time
+
+medium 23,010-DOF case, two-run means:
+  fuelsim: 40.45 s, observed range 38.45-42.44 s
+  MOOSE:   54.97 s, observed range 50.69-59.24 s
+  ratio:   fuelsim 1.36x faster
+```
+
+The medium fuelsim run created one PETSc workspace for all 20 steps and
+reported 62 Jacobian evaluations and 82 residual evaluations. Its warmed
+internal load-path time was 37.96 s, including 14.79 s in Jacobian callbacks
+and 6.12 s in residual callbacks.
+
+These are end-to-end timings for the current reference model and direct
+solver. Re-run them after changes to hardware, mesh, PETSc, linear solver,
+material models, or contact algorithms.

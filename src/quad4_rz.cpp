@@ -122,7 +122,23 @@ Quad4RzGeometry make_quad4_rz_geometry(const Quad4Coordinates& coordinates) {
 
 Quad4RzThermoelasticKernel::Quad4RzThermoelasticKernel(
     IsotropicThermoelasticMaterial material, double volumetric_heat_source)
-    : _material(material), _volumetric_heat_source(volumetric_heat_source) {}
+    : _material(material), _volumetric_heat_source(0.0) {
+    set_volumetric_heat_source(volumetric_heat_source);
+}
+
+double Quad4RzThermoelasticKernel::volumetric_heat_source() const noexcept {
+    return _volumetric_heat_source;
+}
+
+void Quad4RzThermoelasticKernel::set_volumetric_heat_source(
+    double volumetric_heat_source) {
+    if (!std::isfinite(volumetric_heat_source) ||
+        !(volumetric_heat_source >= 0.0))
+        throw std::invalid_argument(
+            "Quad4RzThermoelasticKernel volumetric heat source must be finite "
+            "and nonnegative");
+    _volumetric_heat_source = volumetric_heat_source;
+}
 
 LocalResidual
 Quad4RzThermoelasticKernel::residual(const Quad4RzGeometry& geometry,

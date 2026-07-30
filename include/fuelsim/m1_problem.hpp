@@ -71,6 +71,8 @@ class M1Problem final : public NonlinearProblem {
     const Line2RzGapHeatKernel& gap_heat_kernel() const noexcept;
     const NodeToLineRzContactKernel& contact_kernel() const noexcept;
 
+    void set_volumetric_heat_source(double volumetric_heat_source);
+
     std::size_t fuel_node_count() const noexcept;
     std::size_t cladding_node_offset() const noexcept;
     std::size_t fuel_global_node(std::size_t local_node) const;

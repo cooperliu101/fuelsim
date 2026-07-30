@@ -35,6 +35,9 @@ class Quad4RzThermoelasticKernel final {
     Quad4RzThermoelasticKernel(IsotropicThermoelasticMaterial material,
                                double volumetric_heat_source);
 
+    double volumetric_heat_source() const noexcept;
+    void set_volumetric_heat_source(double volumetric_heat_source);
+
     LocalResidual residual(const Quad4RzGeometry& geometry,
                            const LocalValues& state) const;
 

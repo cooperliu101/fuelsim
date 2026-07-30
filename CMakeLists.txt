@@ -68,6 +68,12 @@ add_executable(fuelsim src/main.cpp)
 target_link_libraries(fuelsim PRIVATE fuelsim::petsc)
 fuelsim_enable_warnings(fuelsim)
 
+add_executable(fuelsim_m1_single_core_benchmark
+    benchmarks/m1_single_core.cpp
+)
+target_link_libraries(fuelsim_m1_single_core_benchmark PRIVATE fuelsim::petsc)
+fuelsim_enable_warnings(fuelsim_m1_single_core_benchmark)
+
 include(CTest)
 
 if(BUILD_TESTING)

@@ -10,8 +10,12 @@ namespace fuelsim {
 
 struct M1LoadStepResult final {
     SolveResult solve;
-    std::size_t completed_steps;
-    bool completed;
+    std::size_t completed_steps = 0;
+    bool completed = false;
+    int total_nonlinear_iterations = 0;
+    double problem_setup_seconds = 0.0;
+    double total_seconds = 0.0;
+    SolveTiming aggregate_timing;
 };
 
 class M1LoadStepper final {
