@@ -1,4 +1,4 @@
-#include "fuelsim/m1_solver.hpp"
+#include "fuelsim/steady_fuel_cladding_solver.hpp"
 
 #include <chrono>
 #include <stdexcept>
@@ -28,9 +28,9 @@ void accumulate_timing(SolveTiming& total, const SolveTiming& step) {
 
 } // namespace
 
-M1LoadStepResult M1LoadStepper::solve(const M1Parameters& target_parameters,
-                                      std::size_t load_steps,
-                                      const SolverOptions& options) const {
+SteadyFuelCladdingLoadResult SteadyFuelCladdingLoadStepper::solve(
+    const SteadyFuelCladdingParameters& target_parameters,
+    std::size_t load_steps, const SolverOptions& options) const {
     return solve(
         target_parameters,
         StructuredRzMesh::make_annulus(0.0, target_parameters.fuel_radius,
@@ -46,21 +46,20 @@ M1LoadStepResult M1LoadStepper::solve(const M1Parameters& target_parameters,
         load_steps, options);
 }
 
-M1LoadStepResult M1LoadStepper::solve(const M1Parameters& target_parameters,
-                                      StructuredRzMesh fuel_mesh,
-                                      StructuredRzMesh cladding_mesh,
-                                      std::size_t load_steps,
-                                      const SolverOptions& options) const {
+SteadyFuelCladdingLoadResult SteadyFuelCladdingLoadStepper::solve(
+    const SteadyFuelCladdingParameters& target_parameters,
+    StructuredRzMesh fuel_mesh, StructuredRzMesh cladding_mesh,
+    std::size_t load_steps, const SolverOptions& options) const {
     if (load_steps == 0)
         throw std::invalid_argument(
-            "M1LoadStepper load_steps must be positive");
+            "SteadyFuelCladdingLoadStepper load_steps must be positive");
 
     const SteadyClock::time_point total_start = SteadyClock::now();
     const SteadyClock::time_point problem_setup_start = SteadyClock::now();
-    M1Problem problem(target_parameters, std::move(fuel_mesh),
-                      std::move(cladding_mesh));
+    SteadyFuelCladdingProblem problem(target_parameters, std::move(fuel_mesh),
+                                      std::move(cladding_mesh));
 
-    M1LoadStepResult result;
+    SteadyFuelCladdingLoadResult result;
     result.problem_setup_seconds = seconds_since(problem_setup_start);
 
     PetscSequentialSolver nonlinear_solver;

@@ -1,5 +1,5 @@
-#ifndef FUELSIM_M1_PROBLEM_HPP
-#define FUELSIM_M1_PROBLEM_HPP
+#ifndef FUELSIM_STEADY_FUEL_CLADDING_PROBLEM_HPP
+#define FUELSIM_STEADY_FUEL_CLADDING_PROBLEM_HPP
 
 #include <array>
 #include <cstddef>
@@ -14,7 +14,7 @@
 
 namespace fuelsim {
 
-struct M1Parameters final {
+struct SteadyFuelCladdingParameters final {
     double fuel_radius;
     double cladding_inner_radius;
     double cladding_outer_radius;
@@ -58,13 +58,14 @@ struct InterfaceSummary final {
     double active_contact_length;
 };
 
-class M1Problem final : public NonlinearProblem {
+class SteadyFuelCladdingProblem final : public NonlinearProblem {
   public:
-    explicit M1Problem(M1Parameters parameters);
-    M1Problem(M1Parameters parameters, StructuredRzMesh fuel_mesh,
-              StructuredRzMesh cladding_mesh);
+    explicit SteadyFuelCladdingProblem(SteadyFuelCladdingParameters parameters);
+    SteadyFuelCladdingProblem(SteadyFuelCladdingParameters parameters,
+                              StructuredRzMesh fuel_mesh,
+                              StructuredRzMesh cladding_mesh);
 
-    const M1Parameters& parameters() const noexcept;
+    const SteadyFuelCladdingParameters& parameters() const noexcept;
     const StructuredRzMesh& fuel_mesh() const noexcept;
     const StructuredRzMesh& cladding_mesh() const noexcept;
     const DofMap& dof_map() const noexcept;
@@ -125,7 +126,7 @@ class M1Problem final : public NonlinearProblem {
     void build_geometries();
     void build_dirichlet_conditions();
 
-    M1Parameters _parameters;
+    SteadyFuelCladdingParameters _parameters;
     StructuredRzMesh _fuel_mesh;
     StructuredRzMesh _cladding_mesh;
     DofMap _dof_map;

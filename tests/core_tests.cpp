@@ -1,9 +1,9 @@
 #include "fuelsim/dof_map.hpp"
 #include "fuelsim/interface.hpp"
-#include "fuelsim/m1_problem.hpp"
 #include "fuelsim/material.hpp"
 #include "fuelsim/mesh.hpp"
 #include "fuelsim/quad4_rz.hpp"
+#include "fuelsim/steady_fuel_cladding_problem.hpp"
 
 #include <algorithm>
 #include <array>
@@ -376,7 +376,7 @@ bool test_gap_heat_and_normal_contact() {
 }
 
 bool test_m1_dof_layout() {
-    const fuelsim::M1Parameters parameters = {
+    const fuelsim::SteadyFuelCladdingParameters parameters = {
         0.004,
         0.0041,
         0.0046,
@@ -401,7 +401,7 @@ bool test_m1_dof_layout() {
         1.0e-6,
         1.0e14,
     };
-    fuelsim::M1Problem problem(parameters);
+    fuelsim::SteadyFuelCladdingProblem problem(parameters);
 
     bool passed = true;
     passed =

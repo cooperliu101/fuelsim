@@ -44,12 +44,12 @@ add_library(fuelsim_core
     src/dof_map.cpp
     src/inelastic_material.cpp
     src/interface.cpp
-    src/m1_problem.cpp
-    src/m2_problem.cpp
+    src/steady_fuel_cladding_problem.cpp
+    src/transient_fuel_cladding_problem.cpp
     src/material.cpp
     src/mesh.cpp
     src/nonlinear_problem.cpp
-    src/problem.cpp
+    src/steady_single_region_problem.cpp
     src/quad4_rz.cpp
     src/quad4_rz_transient.cpp
 )
@@ -77,9 +77,22 @@ target_link_libraries(fuelsim_exodus
 )
 fuelsim_enable_warnings(fuelsim_exodus)
 
+add_library(fuelsim_input
+    src/case_input.cpp
+    src/input_file.cpp
+)
+add_library(fuelsim::input ALIAS fuelsim_input)
+
+target_include_directories(fuelsim_input
+    PUBLIC
+        "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+)
+target_link_libraries(fuelsim_input PUBLIC fuelsim::core)
+fuelsim_enable_warnings(fuelsim_input)
+
 add_library(fuelsim_petsc
-    src/m1_solver.cpp
-    src/m2_solver.cpp
+    src/steady_fuel_cladding_solver.cpp
+    src/transient_fuel_cladding_solver.cpp
     src/petsc_solver.cpp
 )
 add_library(fuelsim::petsc ALIAS fuelsim_petsc)
@@ -95,12 +108,10 @@ fuelsim_link_petsc(fuelsim_petsc)
 fuelsim_enable_warnings(fuelsim_petsc)
 
 add_executable(fuelsim src/main.cpp)
-target_link_libraries(fuelsim PRIVATE fuelsim::petsc)
+target_link_libraries(fuelsim
+    PRIVATE fuelsim::input fuelsim::exodus fuelsim::petsc
+)
 fuelsim_enable_warnings(fuelsim)
-
-add_executable(fuelsim_m2 src/m2_main.cpp)
-target_link_libraries(fuelsim_m2 PRIVATE fuelsim::petsc)
-fuelsim_enable_warnings(fuelsim_m2)
 
 add_executable(fuelsim_m1_single_core_benchmark
     benchmarks/m1_single_core.cpp
@@ -111,6 +122,17 @@ fuelsim_enable_warnings(fuelsim_m1_single_core_benchmark)
 include(CTest)
 
 if(BUILD_TESTING)
+    add_executable(fuelsim_input_tests tests/input_tests.cpp)
+    target_link_libraries(fuelsim_input_tests PRIVATE fuelsim::input)
+    fuelsim_enable_warnings(fuelsim_input_tests)
+    add_test(NAME fuelsim_input_tests
+        COMMAND fuelsim_input_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_fuel_cladding.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_fuel_cladding_pcmi.fsi"
+            "${CMAKE_CURRENT_BINARY_DIR}/malformed_input.fsi"
+    )
+    set_tests_properties(fuelsim_input_tests PROPERTIES LABELS "unit")
+
     add_executable(fuelsim_exodus_mesh_io_tests
         tests/exodus_mesh_io_tests.cpp
     )
@@ -209,8 +231,19 @@ if(BUILD_TESTING)
         PROPERTIES LABELS "acceptance"
     )
 
-    add_test(NAME fuelsim_m2_generic_demonstration COMMAND fuelsim_m2)
-    set_tests_properties(fuelsim_m2_generic_demonstration
+    add_test(NAME fuelsim_steady_input_card
+        COMMAND fuelsim -i
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_fuel_cladding.fsi"
+    )
+    set_tests_properties(fuelsim_steady_input_card
+        PROPERTIES LABELS "acceptance"
+    )
+
+    add_test(NAME fuelsim_transient_input_card
+        COMMAND fuelsim -i
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_fuel_cladding_pcmi.fsi"
+    )
+    set_tests_properties(fuelsim_transient_input_card
         PROPERTIES LABELS "acceptance"
     )
 endif()

@@ -1,22 +1,22 @@
-#ifndef FUELSIM_M2_PROBLEM_HPP
-#define FUELSIM_M2_PROBLEM_HPP
+#ifndef FUELSIM_TRANSIENT_FUEL_CLADDING_PROBLEM_HPP
+#define FUELSIM_TRANSIENT_FUEL_CLADDING_PROBLEM_HPP
 
 #include <cstddef>
 #include <vector>
 
-#include "fuelsim/m1_problem.hpp"
 #include "fuelsim/nonlinear_problem.hpp"
 #include "fuelsim/quad4_rz_transient.hpp"
+#include "fuelsim/steady_fuel_cladding_problem.hpp"
 
 namespace fuelsim {
 
-struct M2Parameters final {
-    M1Parameters base;
+struct TransientFuelCladdingParameters final {
+    SteadyFuelCladdingParameters steady;
     TransientInelasticProperties fuel;
     TransientInelasticProperties cladding;
 };
 
-struct M2TimeStepInput final {
+struct TransientStepInput final {
     double end_time;
     double volumetric_heat_source;
 };
@@ -26,14 +26,16 @@ struct RegionInelasticSummary final {
     double maximum_equivalent_creep_strain;
 };
 
-class M2Problem final : public NonlinearProblem {
+class TransientFuelCladdingProblem final : public NonlinearProblem {
   public:
-    explicit M2Problem(M2Parameters parameters);
-    M2Problem(M2Parameters parameters, StructuredRzMesh fuel_mesh,
-              StructuredRzMesh cladding_mesh);
+    explicit TransientFuelCladdingProblem(
+        TransientFuelCladdingParameters parameters);
+    TransientFuelCladdingProblem(TransientFuelCladdingParameters parameters,
+                                 StructuredRzMesh fuel_mesh,
+                                 StructuredRzMesh cladding_mesh);
 
-    const M2Parameters& parameters() const noexcept;
-    const M1Problem& base_problem() const noexcept;
+    const TransientFuelCladdingParameters& parameters() const noexcept;
+    const SteadyFuelCladdingProblem& steady_problem() const noexcept;
     const Quad4RzTransientKernel& fuel_kernel() const noexcept;
     const Quad4RzTransientKernel& cladding_kernel() const noexcept;
 
@@ -44,7 +46,7 @@ class M2Problem final : public NonlinearProblem {
     double active_time_step() const;
     double active_end_time() const;
 
-    void begin_time_step(const M2TimeStepInput& input);
+    void begin_time_step(const TransientStepInput& input);
     void commit_time_step(const std::vector<double>& converged_solution);
     void rollback_time_step() noexcept;
 
@@ -79,8 +81,8 @@ class M2Problem final : public NonlinearProblem {
     committed_element_temperature(std::size_t contribution_index) const;
     void require_active_time_step() const;
 
-    M2Parameters _parameters;
-    M1Problem _base_problem;
+    TransientFuelCladdingParameters _parameters;
+    SteadyFuelCladdingProblem _steady_problem;
     Quad4RzTransientKernel _fuel_kernel;
     Quad4RzTransientKernel _cladding_kernel;
     std::vector<Quad4MaterialHistory> _fuel_material_history;

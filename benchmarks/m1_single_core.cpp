@@ -1,5 +1,5 @@
-#include "fuelsim/m1_solver.hpp"
 #include "fuelsim/petsc_solver.hpp"
+#include "fuelsim/steady_fuel_cladding_solver.hpp"
 
 #include <cstddef>
 #include <exception>
@@ -13,7 +13,7 @@ constexpr std::size_t cladding_radial_elements = 16;
 constexpr std::size_t axial_elements = 64;
 constexpr std::size_t load_steps = 20;
 
-fuelsim::M1Parameters make_medium_case() {
+fuelsim::SteadyFuelCladdingParameters make_medium_case() {
     return {
         0.004120,
         0.004122,
@@ -57,11 +57,12 @@ int main(int argc, char** argv) {
             "fuelsim M1 single-core benchmark: 23,010 DOFs and 20 load "
             "steps\n");
 
-        const fuelsim::M1Parameters parameters = make_medium_case();
+        const fuelsim::SteadyFuelCladdingParameters parameters =
+            make_medium_case();
         fuelsim::SolverOptions options;
         options.maximum_iterations = 50;
-        const fuelsim::M1LoadStepper load_stepper;
-        const fuelsim::M1LoadStepResult result =
+        const fuelsim::SteadyFuelCladdingLoadStepper load_stepper;
+        const fuelsim::SteadyFuelCladdingLoadResult result =
             load_stepper.solve(parameters, load_steps, options);
 
         const std::size_t nodes =

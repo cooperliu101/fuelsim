@@ -1,6 +1,6 @@
 #include "fuelsim/inelastic_material.hpp"
-#include "fuelsim/m2_problem.hpp"
 #include "fuelsim/quad4_rz_transient.hpp"
+#include "fuelsim/transient_fuel_cladding_problem.hpp"
 
 #include <algorithm>
 #include <array>
@@ -860,8 +860,8 @@ bool test_coupled_transient_element_jacobian() {
     return passed;
 }
 
-fuelsim::M2Parameters transaction_parameters() {
-    const fuelsim::M1Parameters base = {
+fuelsim::TransientFuelCladdingParameters transaction_parameters() {
+    const fuelsim::SteadyFuelCladdingParameters base = {
         1.0,
         1.1,
         1.2,
@@ -887,14 +887,14 @@ fuelsim::M2Parameters transaction_parameters() {
 }
 
 bool test_problem_history_transaction() {
-    fuelsim::M2Problem problem(transaction_parameters());
+    fuelsim::TransientFuelCladdingProblem problem(transaction_parameters());
     const std::vector<double> initial_solution = problem.committed_solution();
     const fuelsim::MaterialPointState initial_history =
         problem.fuel_material_history(0)[0];
 
     problem.begin_time_step({1.0, 50.0});
     std::vector<double> trial_solution = initial_solution;
-    const fuelsim::M1Problem& base = problem.base_problem();
+    const fuelsim::SteadyFuelCladdingProblem& base = problem.steady_problem();
     const fuelsim::DofMap& dofs = base.dof_map();
     for (std::size_t local_node = 0;
          local_node < base.fuel_mesh().nodes().size(); ++local_node) {

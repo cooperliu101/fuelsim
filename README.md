@@ -1,7 +1,7 @@
 # fuelsim
 
-`fuelsim` 是一个依赖精简的 C++17 核燃料性能有限元程序。默认
-`fuelsim` 可执行程序保留 M1 稳态回归，包含：
+`fuelsim` 是一个依赖精简的 C++17 核燃料性能有限元程序。统一可执行程序
+通过输入卡选择稳态或瞬态燃料—包壳问题。稳态问题包含：
 
 - 两个独立的 2D 轴对称 RZ Quad4 网格：燃料与包壳节点不合并；
 - 稳态温度相关热传导、燃料体积热源和小应变热弹性；
@@ -10,7 +10,7 @@
 - ADlite 生成体单元和界面的局部 Jacobian；
 - PETSc SNES、KSP 和 AIJ 稀疏矩阵完成串行 Newton 求解。
 
-新增的 `fuelsim_m2` 可执行程序在同一接触离散上实现：
+瞬态问题在同一接触离散上实现：
 
 - M2.1：一致热容矩阵、Backward Euler 物理时间积分、热源斜坡、
   committed/trial/commit/rollback 和失败步 cutback；
@@ -92,17 +92,23 @@ fuelsim 重建等价参考网格。M0、M2.1 和 M2.2 选择单区域块 0；M1�
 PETSc 求解。当前直接 I/O 为串行文件操作；PETSc/MPI 求解能力不受影响，
 分布式网格划分与通信将作为后续独立功能实现。
 
-运行默认 M1 工况：
+运行稳态燃料—包壳工况：
 
 ```bash
-./build/fuelsim
+./build/fuelsim -i verification/fuelsim/steady_fuel_cladding.fsi
 ```
 
-运行 M2 通用算法演示：
+运行带包壳塑性—蠕变耦合的瞬态 PCMI 工况：
 
 ```bash
-./build/fuelsim_m2
+./build/fuelsim -i \
+  verification/fuelsim/transient_fuel_cladding_pcmi.fsi
 ```
+
+输入卡采用严格、带版本号的 MOOSE 风格分段文本；未知段、未知键、重复键和
+不适用于所选本构模型的参数都会立即报错。网格尺寸和几何只从 Exodus 文件
+读取，不在输入卡中重复维护。完整字段说明见
+[输入卡说明](docs/input-card.md)。
 
 运行 M2.3 PCMI—MOOSE 验收：
 
@@ -118,16 +124,18 @@ PETSc 求解。当前直接 I/O 为串行文件操作；PETSc/MPI 求解能力�
   verification/moose/m1_fuel_cladding_gap_rz_mesh.e
 ```
 
-默认工况将热源分成 20 个线性载荷步，以稳定跨越接触活动集的切换。
+稳态示例将热源分成 20 个线性载荷步，以稳定跨越接触活动集的切换。
 PETSc 选项仍可在命令行覆盖，例如：
 
 ```bash
-./build/fuelsim -snes_monitor -ksp_error_if_not_converged
+./build/fuelsim \
+  -i verification/fuelsim/steady_fuel_cladding.fsi \
+  -snes_monitor -ksp_error_if_not_converged
 ```
 
 当前只支持一个 MPI rank。
 
-默认程序会同时输出问题构造、PETSc 设置、非线性求解、残量回调和 Jacobian
+程序会同时输出问题构造、PETSc 设置、非线性求解、残量回调和 Jacobian
 回调的内部计时。20 个载荷步复用同一个 M1 几何、SNES、Vec、Mat、矩阵非零
 结构和回调缓冲区；热源只更新具体的燃料核参数。
 
@@ -201,6 +209,8 @@ q = yield_old + H*delta_ep               coupled active branch
 
 CTest 覆盖：
 
+- 严格输入语法、物理问题调度、未知键和本构条件字段拒绝；
+- 稳态与瞬态输入卡读取 MOOSE Exodus 网格的端到端求解；
 - RZ 体积积分、形函数和梯度恒等式；
 - 体单元 AD Jacobian 与中心差分方向导数；
 - 开放、最小热隙饱和和闭合接触三种界面分支的 AD Jacobian；

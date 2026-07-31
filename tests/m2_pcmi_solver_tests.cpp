@@ -1,7 +1,7 @@
 #include "fuelsim/exodus_mesh_io.hpp"
-#include "fuelsim/m2_problem.hpp"
-#include "fuelsim/m2_solver.hpp"
 #include "fuelsim/petsc_solver.hpp"
+#include "fuelsim/transient_fuel_cladding_problem.hpp"
+#include "fuelsim/transient_fuel_cladding_solver.hpp"
 
 #include <algorithm>
 #include <array>
@@ -30,8 +30,8 @@ double relative_error(double actual, double expected) {
     return std::abs(actual - expected) / std::abs(expected);
 }
 
-fuelsim::M2Parameters pcmi_parameters() {
-    const fuelsim::M1Parameters base = {
+fuelsim::TransientFuelCladdingParameters pcmi_parameters() {
+    const fuelsim::SteadyFuelCladdingParameters base = {
         0.004120,
         0.004121,
         0.004692,
@@ -94,20 +94,21 @@ struct CladdingMetrics final {
     std::vector<CladdingPointValue> points;
 };
 
-CladdingMetrics cladding_metrics(const fuelsim::M2Problem& problem,
-                                 const std::vector<double>& state) {
+CladdingMetrics
+cladding_metrics(const fuelsim::TransientFuelCladdingProblem& problem,
+                 const std::vector<double>& state) {
     double measure = 0.0;
     double weighted_plastic = 0.0;
     double weighted_creep = 0.0;
     double weighted_equivalent_stress = 0.0;
     double maximum_plastic = 0.0;
     double maximum_creep = 0.0;
-    const fuelsim::M1Problem& base = problem.base_problem();
+    const fuelsim::SteadyFuelCladdingProblem& base = problem.steady_problem();
     const fuelsim::StructuredRzMesh& mesh = base.cladding_mesh();
     std::vector<CladdingPointValue> points;
     points.reserve(base.cladding_element_count() * 4);
     const fuelsim::ThermoelasticProperties& properties =
-        problem.parameters().base.cladding;
+        problem.parameters().steady.cladding;
     const double shear_modulus =
         properties.young_modulus / (2.0 * (1.0 + properties.poisson_ratio));
     const double lame_lambda = properties.young_modulus *
@@ -236,9 +237,10 @@ void finalize_pointwise_error(PointwiseError& error, double difference_squared,
                             : std::numeric_limits<double>::infinity();
 }
 
-bool fuel_history_is_elastic(const fuelsim::M2Problem& problem) {
+bool fuel_history_is_elastic(
+    const fuelsim::TransientFuelCladdingProblem& problem) {
     for (std::size_t element = 0;
-         element < problem.base_problem().fuel_element_count(); ++element) {
+         element < problem.steady_problem().fuel_element_count(); ++element) {
         for (const fuelsim::MaterialPointState& point :
              problem.fuel_material_history(element)) {
             if (point.equivalent_plastic_strain != 0.0 ||
@@ -260,20 +262,21 @@ bool test_pcmi_coupled_cladding(const std::string& mesh_path) {
         fuelsim::StructuredRzMesh::from_unstructured_block(
             imported, "clad",
             {"clad_left", "clad_right", "clad_bottom", "clad_top"});
-    fuelsim::M2Problem problem(pcmi_parameters(), fuel, cladding_mesh);
-    const fuelsim::M2TimeOptions time_options = {
+    fuelsim::TransientFuelCladdingProblem problem(pcmi_parameters(), fuel,
+                                                  cladding_mesh);
+    const fuelsim::TransientTimeOptions time_options = {
         20.0, 1.0, 0.125, 1.0, 1.0, 0.5, 3, 20.0,
     };
     fuelsim::SolverOptions solver_options;
     solver_options.maximum_iterations = 80;
 
-    const fuelsim::M2TimeStepper time_stepper;
-    const fuelsim::M2TransientResult result =
+    const fuelsim::TransientFuelCladdingTimeStepper time_stepper;
+    const fuelsim::TransientFuelCladdingResult result =
         time_stepper.solve(problem, time_options, solver_options);
     if (!result.completed)
         return check(false, "PCMI transient completes all twenty time steps");
 
-    const fuelsim::M1Problem& base = problem.base_problem();
+    const fuelsim::SteadyFuelCladdingProblem& base = problem.steady_problem();
     const fuelsim::DofMap& dofs = base.dof_map();
     const std::size_t axial_mid = base.fuel_mesh().axial_elements() / 2;
     const std::size_t fuel_center = base.fuel_mesh().node_id(0, axial_mid);
@@ -503,7 +506,7 @@ bool test_pcmi_coupled_cladding(const std::string& mesh_path) {
              passed;
     passed =
         check(interface.projected_contact_nodes ==
-                  problem.parameters().base.axial_elements + 1,
+                  problem.parameters().steady.axial_elements + 1,
               "PCMI taller cladding contains every fuel-node projection") &&
         passed;
     passed = check(interface.active_contact_nodes > 0 &&

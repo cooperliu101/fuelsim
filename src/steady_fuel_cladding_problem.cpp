@@ -1,4 +1,4 @@
-#include "fuelsim/m1_problem.hpp"
+#include "fuelsim/steady_fuel_cladding_problem.hpp"
 
 #include <algorithm>
 #include <array>
@@ -15,7 +15,8 @@ std::size_t checked_node_count(const StructuredRzMesh& fuel,
     const std::size_t fuel_nodes = fuel.nodes().size();
     const std::size_t cladding_nodes = cladding.nodes().size();
     if (fuel_nodes > std::numeric_limits<std::size_t>::max() - cladding_nodes)
-        throw std::length_error("M1Problem combined node count overflows");
+        throw std::length_error(
+            "SteadyFuelCladdingProblem combined node count overflows");
     return fuel_nodes + cladding_nodes;
 }
 
@@ -65,10 +66,10 @@ void validate_dirichlet_conditions(
         if (previous.dof != current.dof)
             continue;
         if (previous.value != current.value)
-            throw std::invalid_argument(
-                "M1Problem has conflicting Dirichlet conditions");
+            throw std::invalid_argument("SteadyFuelCladdingProblem has "
+                                        "conflicting Dirichlet conditions");
         throw std::invalid_argument(
-            "M1Problem has duplicate Dirichlet conditions");
+            "SteadyFuelCladdingProblem has duplicate Dirichlet conditions");
     }
 }
 
@@ -82,14 +83,15 @@ find_containing_segment(double z, const StructuredRzMesh& mesh,
         if (z >= lower && (z < upper || (includes_upper && z <= upper)))
             return edge;
     }
-    throw std::invalid_argument(
-        "M1Problem interface point is outside the cladding surface");
+    throw std::invalid_argument("SteadyFuelCladdingProblem interface point is "
+                                "outside the cladding surface");
 }
 
 } // namespace
 
-M1Problem::M1Problem(M1Parameters parameters)
-    : M1Problem(
+SteadyFuelCladdingProblem::SteadyFuelCladdingProblem(
+    SteadyFuelCladdingParameters parameters)
+    : SteadyFuelCladdingProblem(
           parameters,
           StructuredRzMesh::make_annulus(
               0.0, parameters.fuel_radius, parameters.fuel_length,
@@ -100,8 +102,9 @@ M1Problem::M1Problem(M1Parameters parameters)
               parameters.cladding_radial_elements, parameters.axial_elements)) {
 }
 
-M1Problem::M1Problem(M1Parameters parameters, StructuredRzMesh fuel_mesh,
-                     StructuredRzMesh cladding_mesh)
+SteadyFuelCladdingProblem::SteadyFuelCladdingProblem(
+    SteadyFuelCladdingParameters parameters, StructuredRzMesh fuel_mesh,
+    StructuredRzMesh cladding_mesh)
     : _parameters(parameters), _fuel_mesh(std::move(fuel_mesh)),
       _cladding_mesh(std::move(cladding_mesh)),
       _dof_map(checked_node_count(_fuel_mesh, _cladding_mesh)),
@@ -130,126 +133,140 @@ M1Problem::M1Problem(M1Parameters parameters, StructuredRzMesh fuel_mesh,
                        _parameters.cladding_outer_radius) ||
         !same_geometry(_cladding_mesh.length(), _parameters.cladding_length))
         throw std::invalid_argument(
-            "M1Problem imported meshes do not match M1Parameters");
+            "SteadyFuelCladdingProblem imported meshes do not match "
+            "SteadyFuelCladdingParameters");
     if (!(_parameters.cladding_inner_radius > _parameters.fuel_radius))
-        throw std::invalid_argument(
-            "M1Problem requires a positive initial fuel-cladding gap");
+        throw std::invalid_argument("SteadyFuelCladdingProblem requires a "
+                                    "positive initial fuel-cladding gap");
     if (!std::isfinite(_parameters.fuel_length) ||
         !(_parameters.fuel_length > 0.0) ||
         !std::isfinite(_parameters.cladding_length) ||
         !(_parameters.cladding_length >= _parameters.fuel_length))
-        throw std::invalid_argument(
-            "M1Problem cladding_length must be at least fuel_length");
+        throw std::invalid_argument("SteadyFuelCladdingProblem cladding_length "
+                                    "must be at least fuel_length");
     if (!std::isfinite(_parameters.volumetric_heat_source) ||
         !(_parameters.volumetric_heat_source >= 0.0))
-        throw std::invalid_argument(
-            "M1Problem volumetric_heat_source must be finite and "
-            "nonnegative");
+        throw std::invalid_argument("SteadyFuelCladdingProblem "
+                                    "volumetric_heat_source must be finite and "
+                                    "nonnegative");
     if (!(_parameters.gap_conductivity > 0.0))
         throw std::invalid_argument(
-            "M1Problem gap_conductivity must be positive");
+            "SteadyFuelCladdingProblem gap_conductivity must be positive");
     if (!(_parameters.contact_penalty > 0.0))
         throw std::invalid_argument(
-            "M1Problem contact_penalty must be positive");
+            "SteadyFuelCladdingProblem contact_penalty must be positive");
     if (!std::isfinite(_parameters.outer_temperature) ||
         !(_parameters.outer_temperature > 0.0) ||
         !std::isfinite(_parameters.initial_temperature) ||
         !(_parameters.initial_temperature > 0.0))
-        throw std::invalid_argument(
-            "M1Problem temperatures must be finite and positive");
+        throw std::invalid_argument("SteadyFuelCladdingProblem temperatures "
+                                    "must be finite and positive");
 
     build_geometries();
     build_dirichlet_conditions();
 }
 
-const M1Parameters& M1Problem::parameters() const noexcept {
+const SteadyFuelCladdingParameters&
+SteadyFuelCladdingProblem::parameters() const noexcept {
     return _parameters;
 }
 
-const StructuredRzMesh& M1Problem::fuel_mesh() const noexcept {
+const StructuredRzMesh& SteadyFuelCladdingProblem::fuel_mesh() const noexcept {
     return _fuel_mesh;
 }
 
-const StructuredRzMesh& M1Problem::cladding_mesh() const noexcept {
+const StructuredRzMesh&
+SteadyFuelCladdingProblem::cladding_mesh() const noexcept {
     return _cladding_mesh;
 }
 
-const DofMap& M1Problem::dof_map() const noexcept {
+const DofMap& SteadyFuelCladdingProblem::dof_map() const noexcept {
     return _dof_map;
 }
 
-const Quad4RzThermoelasticKernel& M1Problem::fuel_kernel() const noexcept {
+const Quad4RzThermoelasticKernel&
+SteadyFuelCladdingProblem::fuel_kernel() const noexcept {
     return _fuel_kernel;
 }
 
-const Quad4RzThermoelasticKernel& M1Problem::cladding_kernel() const noexcept {
+const Quad4RzThermoelasticKernel&
+SteadyFuelCladdingProblem::cladding_kernel() const noexcept {
     return _cladding_kernel;
 }
 
-const Line2RzGapHeatKernel& M1Problem::gap_heat_kernel() const noexcept {
+const Line2RzGapHeatKernel&
+SteadyFuelCladdingProblem::gap_heat_kernel() const noexcept {
     return _gap_heat_kernel;
 }
 
-const NodeToLineRzContactKernel& M1Problem::contact_kernel() const noexcept {
+const NodeToLineRzContactKernel&
+SteadyFuelCladdingProblem::contact_kernel() const noexcept {
     return _contact_kernel;
 }
 
-void M1Problem::set_volumetric_heat_source(double volumetric_heat_source) {
+void SteadyFuelCladdingProblem::set_volumetric_heat_source(
+    double volumetric_heat_source) {
     _fuel_kernel.set_volumetric_heat_source(volumetric_heat_source);
     _parameters.volumetric_heat_source = volumetric_heat_source;
 }
 
-std::size_t M1Problem::fuel_node_count() const noexcept {
+std::size_t SteadyFuelCladdingProblem::fuel_node_count() const noexcept {
     return _fuel_mesh.nodes().size();
 }
 
-std::size_t M1Problem::cladding_node_offset() const noexcept {
+std::size_t SteadyFuelCladdingProblem::cladding_node_offset() const noexcept {
     return fuel_node_count();
 }
 
-std::size_t M1Problem::fuel_global_node(std::size_t local_node) const {
+std::size_t
+SteadyFuelCladdingProblem::fuel_global_node(std::size_t local_node) const {
     if (local_node >= fuel_node_count())
-        throw std::out_of_range("M1Problem fuel node is out of range");
+        throw std::out_of_range(
+            "SteadyFuelCladdingProblem fuel node is out of range");
     return local_node;
 }
 
-std::size_t M1Problem::cladding_global_node(std::size_t local_node) const {
+std::size_t
+SteadyFuelCladdingProblem::cladding_global_node(std::size_t local_node) const {
     if (local_node >= _cladding_mesh.nodes().size())
-        throw std::out_of_range("M1Problem cladding node is out of range");
+        throw std::out_of_range(
+            "SteadyFuelCladdingProblem cladding node is out of range");
     return cladding_node_offset() + local_node;
 }
 
-std::size_t M1Problem::dof_count() const noexcept {
+std::size_t SteadyFuelCladdingProblem::dof_count() const noexcept {
     return _dof_map.dof_count();
 }
 
-std::size_t M1Problem::contribution_count() const noexcept {
+std::size_t SteadyFuelCladdingProblem::contribution_count() const noexcept {
     return fuel_element_count() + cladding_element_count() +
            thermal_interface_count() + contact_contribution_count();
 }
 
-std::size_t M1Problem::fuel_element_count() const noexcept {
+std::size_t SteadyFuelCladdingProblem::fuel_element_count() const noexcept {
     return _fuel_mesh.elements().size();
 }
 
-std::size_t M1Problem::cladding_element_count() const noexcept {
+std::size_t SteadyFuelCladdingProblem::cladding_element_count() const noexcept {
     return _cladding_mesh.elements().size();
 }
 
-std::size_t M1Problem::thermal_interface_count() const noexcept {
+std::size_t
+SteadyFuelCladdingProblem::thermal_interface_count() const noexcept {
     return _thermal_interface_geometries.size();
 }
 
-std::size_t M1Problem::contact_contribution_count() const noexcept {
+std::size_t
+SteadyFuelCladdingProblem::contact_contribution_count() const noexcept {
     return _contact_geometries.size();
 }
 
 const std::vector<DirichletCondition>&
-M1Problem::dirichlet_conditions() const noexcept {
+SteadyFuelCladdingProblem::dirichlet_conditions() const noexcept {
     return _dirichlet_conditions;
 }
 
-std::vector<double> M1Problem::initial_state() const {
+std::vector<double> SteadyFuelCladdingProblem::initial_state() const {
     std::vector<double> state(dof_count(), 0.0);
     for (std::size_t node = 0; node < _dof_map.node_count(); ++node)
         state[_dof_map.temperature(node)] = _parameters.initial_temperature;
@@ -259,7 +276,8 @@ std::vector<double> M1Problem::initial_state() const {
     return state;
 }
 
-LocalDofs M1Problem::contribution_dofs(std::size_t contribution_index) const {
+LocalDofs SteadyFuelCladdingProblem::contribution_dofs(
+    std::size_t contribution_index) const {
     if (contribution_index < fuel_element_count())
         return fuel_element_dofs(contribution_index);
 
@@ -275,8 +293,8 @@ LocalDofs M1Problem::contribution_dofs(std::size_t contribution_index) const {
     return contact_contribution_dofs(contribution_index);
 }
 
-LocalResidual M1Problem::contribution_residual(std::size_t contribution_index,
-                                               const LocalValues& state) const {
+LocalResidual SteadyFuelCladdingProblem::contribution_residual(
+    std::size_t contribution_index, const LocalValues& state) const {
     if (contribution_index < fuel_element_count())
         return _fuel_kernel.residual(_fuel_geometries.at(contribution_index),
                                      state);
@@ -296,8 +314,8 @@ LocalResidual M1Problem::contribution_residual(std::size_t contribution_index,
                                     state);
 }
 
-LocalSystem M1Problem::linearize_contribution(std::size_t contribution_index,
-                                              const LocalValues& state) const {
+LocalSystem SteadyFuelCladdingProblem::linearize_contribution(
+    std::size_t contribution_index, const LocalValues& state) const {
     if (contribution_index < fuel_element_count())
         return _fuel_kernel.linearize(_fuel_geometries.at(contribution_index),
                                       state);
@@ -317,51 +335,57 @@ LocalSystem M1Problem::linearize_contribution(std::size_t contribution_index,
                                      state);
 }
 
-LocalDofs M1Problem::fuel_element_dofs(std::size_t element_index) const {
+LocalDofs
+SteadyFuelCladdingProblem::fuel_element_dofs(std::size_t element_index) const {
     const Quad4Element& element = _fuel_mesh.elements().at(element_index);
     return _dof_map.local_dofs(global_element_nodes(element, 0));
 }
 
-LocalDofs M1Problem::cladding_element_dofs(std::size_t element_index) const {
+LocalDofs SteadyFuelCladdingProblem::cladding_element_dofs(
+    std::size_t element_index) const {
     const Quad4Element& element = _cladding_mesh.elements().at(element_index);
     return _dof_map.local_dofs(
         global_element_nodes(element, cladding_node_offset()));
 }
 
-LocalDofs M1Problem::thermal_interface_dofs(std::size_t interface_index) const {
+LocalDofs SteadyFuelCladdingProblem::thermal_interface_dofs(
+    std::size_t interface_index) const {
     return _dof_map.local_dofs(_thermal_interface_nodes.at(interface_index));
 }
 
-LocalDofs
-M1Problem::contact_contribution_dofs(std::size_t contact_index) const {
+LocalDofs SteadyFuelCladdingProblem::contact_contribution_dofs(
+    std::size_t contact_index) const {
     return _dof_map.local_dofs(_contact_contribution_nodes.at(contact_index));
 }
 
-const Quad4RzGeometry&
-M1Problem::fuel_element_geometry(std::size_t element_index) const {
+const Quad4RzGeometry& SteadyFuelCladdingProblem::fuel_element_geometry(
+    std::size_t element_index) const {
     return _fuel_geometries.at(element_index);
 }
 
-const Quad4RzGeometry&
-M1Problem::cladding_element_geometry(std::size_t element_index) const {
+const Quad4RzGeometry& SteadyFuelCladdingProblem::cladding_element_geometry(
+    std::size_t element_index) const {
     return _cladding_geometries.at(element_index);
 }
 
 const Line2RzHeatGeometry&
-M1Problem::thermal_interface_geometry(std::size_t interface_index) const {
+SteadyFuelCladdingProblem::thermal_interface_geometry(
+    std::size_t interface_index) const {
     return _thermal_interface_geometries.at(interface_index);
 }
 
 const NodeToLineRzContactGeometry&
-M1Problem::contact_contribution_geometry(std::size_t contact_index) const {
+SteadyFuelCladdingProblem::contact_contribution_geometry(
+    std::size_t contact_index) const {
     return _contact_geometries.at(contact_index);
 }
 
 std::vector<ContactNodeSummary>
-M1Problem::summarize_contact_nodes(const std::vector<double>& state) const {
+SteadyFuelCladdingProblem::summarize_contact_nodes(
+    const std::vector<double>& state) const {
     if (state.size() != dof_count())
         throw std::invalid_argument(
-            "M1Problem contact summary state size mismatch");
+            "SteadyFuelCladdingProblem contact summary state size mismatch");
 
     const auto& fuel_nodes =
         _fuel_mesh.boundary_nodes(BoundaryId::radial_outer);
@@ -407,11 +431,11 @@ M1Problem::summarize_contact_nodes(const std::vector<double>& state) const {
     return result;
 }
 
-InterfaceSummary
-M1Problem::summarize_interface(const std::vector<double>& state) const {
+InterfaceSummary SteadyFuelCladdingProblem::summarize_interface(
+    const std::vector<double>& state) const {
     if (state.size() != dof_count())
         throw std::invalid_argument(
-            "M1Problem interface summary state size mismatch");
+            "SteadyFuelCladdingProblem interface summary state size mismatch");
 
     InterfaceSummary summary = {
         std::numeric_limits<double>::infinity(),
@@ -457,16 +481,17 @@ M1Problem::summarize_interface(const std::vector<double>& state) const {
     }
 
     if (thermal_interface_count() == 0 || contact_contribution_count() == 0)
-        throw std::logic_error("M1Problem has no interface contributions");
+        throw std::logic_error(
+            "SteadyFuelCladdingProblem has no interface contributions");
     return summary;
 }
 
-void M1Problem::add_state_independent_residual(
+void SteadyFuelCladdingProblem::add_state_independent_residual(
     std::vector<double>& residual) const {
     (void)residual;
 }
 
-void M1Problem::build_geometries() {
+void SteadyFuelCladdingProblem::build_geometries() {
     _fuel_geometries.reserve(_fuel_mesh.elements().size());
     for (const Quad4Element& element : _fuel_mesh.elements())
         _fuel_geometries.push_back(
@@ -499,9 +524,9 @@ void M1Problem::build_geometries() {
         const std::size_t upper_segment = find_containing_segment(
             upper_gauss_z, _cladding_mesh, cladding_edges);
         if (lower_segment != upper_segment)
-            throw std::invalid_argument(
-                "M1Problem requires each fuel edge's thermal Gauss points "
-                "to project to one cladding segment");
+            throw std::invalid_argument("SteadyFuelCladdingProblem requires "
+                                        "each fuel edge's thermal Gauss points "
+                                        "to project to one cladding segment");
 
         const Line2BoundaryElement& cladding_edge =
             cladding_edges[lower_segment];
@@ -556,7 +581,7 @@ void M1Problem::build_geometries() {
     }
 }
 
-void M1Problem::build_dirichlet_conditions() {
+void SteadyFuelCladdingProblem::build_dirichlet_conditions() {
     append_boundary_conditions(
         _cladding_mesh.boundary_nodes(BoundaryId::radial_outer),
         cladding_node_offset(), Field::temperature,

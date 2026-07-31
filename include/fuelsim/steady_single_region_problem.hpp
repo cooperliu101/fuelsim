@@ -1,5 +1,5 @@
-#ifndef FUELSIM_PROBLEM_HPP
-#define FUELSIM_PROBLEM_HPP
+#ifndef FUELSIM_STEADY_SINGLE_REGION_PROBLEM_HPP
+#define FUELSIM_STEADY_SINGLE_REGION_PROBLEM_HPP
 
 #include <array>
 #include <cstddef>
@@ -13,7 +13,7 @@
 
 namespace fuelsim {
 
-struct M0Parameters final {
+struct SteadySingleRegionParameters final {
     double inner_radius;
     double outer_radius;
     double length;
@@ -29,12 +29,13 @@ struct M0Parameters final {
     double outer_pressure;
 };
 
-class M0Problem final : public NonlinearProblem {
+class SteadySingleRegionProblem final : public NonlinearProblem {
   public:
-    explicit M0Problem(M0Parameters parameters);
-    M0Problem(M0Parameters parameters, StructuredRzMesh mesh);
+    explicit SteadySingleRegionProblem(SteadySingleRegionParameters parameters);
+    SteadySingleRegionProblem(SteadySingleRegionParameters parameters,
+                              StructuredRzMesh mesh);
 
-    const M0Parameters& parameters() const noexcept;
+    const SteadySingleRegionParameters& parameters() const noexcept;
     const StructuredRzMesh& mesh() const noexcept;
     const DofMap& dof_map() const noexcept;
     const Quad4RzThermoelasticKernel& kernel() const noexcept;
@@ -73,7 +74,7 @@ class M0Problem final : public NonlinearProblem {
     void build_dirichlet_conditions();
     void add_pressure_residual(std::vector<double>& residual) const;
 
-    M0Parameters _parameters;
+    SteadySingleRegionParameters _parameters;
     StructuredRzMesh _mesh;
     DofMap _dof_map;
     Quad4RzThermoelasticKernel _kernel;

@@ -1,7 +1,7 @@
 #include "fuelsim/exodus_mesh_io.hpp"
-#include "fuelsim/m1_problem.hpp"
-#include "fuelsim/m1_solver.hpp"
 #include "fuelsim/petsc_solver.hpp"
+#include "fuelsim/steady_fuel_cladding_problem.hpp"
+#include "fuelsim/steady_fuel_cladding_solver.hpp"
 
 #include <algorithm>
 #include <array>
@@ -26,7 +26,7 @@ double relative_error(double actual, double expected) {
     return std::abs(actual - expected) / std::max(std::abs(expected), 1.0e-30);
 }
 
-fuelsim::M1Parameters reference_parameters() {
+fuelsim::SteadyFuelCladdingParameters reference_parameters() {
     return {
         0.004120,
         0.004122,
@@ -97,18 +97,20 @@ bool run_comparison(const char* mesh_path) {
               "MOOSE blocks convert to the expected fuelsim meshes") &&
         passed;
 
-    const fuelsim::M1Parameters parameters = reference_parameters();
+    const fuelsim::SteadyFuelCladdingParameters parameters =
+        reference_parameters();
     fuelsim::SolverOptions options;
     options.maximum_iterations = 50;
     constexpr std::size_t load_steps = 20;
-    const fuelsim::M1LoadStepper load_stepper;
-    const fuelsim::M1LoadStepResult continuation =
+    const fuelsim::SteadyFuelCladdingLoadStepper load_stepper;
+    const fuelsim::SteadyFuelCladdingLoadResult continuation =
         load_stepper.solve(parameters, fuel, cladding, load_steps, options);
     passed = check(continuation.completed && continuation.solve.converged,
                    "M1 solve on the MOOSE Exodus mesh converged") &&
              passed;
 
-    const fuelsim::M1Problem problem(parameters, fuel, cladding);
+    const fuelsim::SteadyFuelCladdingProblem problem(parameters, fuel,
+                                                     cladding);
     const fuelsim::SolveResult& result = continuation.solve;
     const std::size_t axial_mid = fuel.axial_elements() / 2;
     const std::size_t fuel_center = fuel.node_id(0, axial_mid);

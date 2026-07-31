@@ -1,4 +1,4 @@
-#include "fuelsim/problem.hpp"
+#include "fuelsim/steady_single_region_problem.hpp"
 
 #include <algorithm>
 #include <array>
@@ -29,14 +29,16 @@ void append_boundary_conditions(const std::vector<std::size_t>& nodes,
 
 } // namespace
 
-M0Problem::M0Problem(M0Parameters parameters)
-    : M0Problem(parameters,
-                StructuredRzMesh::make_annulus(
-                    parameters.inner_radius, parameters.outer_radius,
-                    parameters.length, parameters.radial_elements,
-                    parameters.axial_elements)) {}
+SteadySingleRegionProblem::SteadySingleRegionProblem(
+    SteadySingleRegionParameters parameters)
+    : SteadySingleRegionProblem(
+          parameters, StructuredRzMesh::make_annulus(
+                          parameters.inner_radius, parameters.outer_radius,
+                          parameters.length, parameters.radial_elements,
+                          parameters.axial_elements)) {}
 
-M0Problem::M0Problem(M0Parameters parameters, StructuredRzMesh mesh)
+SteadySingleRegionProblem::SteadySingleRegionProblem(
+    SteadySingleRegionParameters parameters, StructuredRzMesh mesh)
     : _parameters(parameters), _mesh(std::move(mesh)),
       _dof_map(_mesh.nodes().size()),
       _kernel(IsotropicThermoelasticMaterial(parameters.fuel),
@@ -52,10 +54,12 @@ M0Problem::M0Problem(M0Parameters parameters, StructuredRzMesh mesh)
         !same_geometry(_mesh.outer_radius(), _parameters.outer_radius) ||
         !same_geometry(_mesh.length(), _parameters.length))
         throw std::invalid_argument(
-            "M0Problem imported mesh does not match M0Parameters");
+            "SteadySingleRegionProblem imported mesh does not match "
+            "SteadySingleRegionParameters");
     if (!(_parameters.inner_pressure >= 0.0) ||
         !(_parameters.outer_pressure >= 0.0))
-        throw std::invalid_argument("M0Problem pressures must be nonnegative");
+        throw std::invalid_argument(
+            "SteadySingleRegionProblem pressures must be nonnegative");
 
     _geometries.reserve(_mesh.elements().size());
     for (const Quad4Element& element : _mesh.elements())
@@ -65,40 +69,42 @@ M0Problem::M0Problem(M0Parameters parameters, StructuredRzMesh mesh)
     build_dirichlet_conditions();
 }
 
-const M0Parameters& M0Problem::parameters() const noexcept {
+const SteadySingleRegionParameters&
+SteadySingleRegionProblem::parameters() const noexcept {
     return _parameters;
 }
 
-const StructuredRzMesh& M0Problem::mesh() const noexcept {
+const StructuredRzMesh& SteadySingleRegionProblem::mesh() const noexcept {
     return _mesh;
 }
 
-const DofMap& M0Problem::dof_map() const noexcept {
+const DofMap& SteadySingleRegionProblem::dof_map() const noexcept {
     return _dof_map;
 }
 
-const Quad4RzThermoelasticKernel& M0Problem::kernel() const noexcept {
+const Quad4RzThermoelasticKernel&
+SteadySingleRegionProblem::kernel() const noexcept {
     return _kernel;
 }
 
-std::size_t M0Problem::dof_count() const noexcept {
+std::size_t SteadySingleRegionProblem::dof_count() const noexcept {
     return _dof_map.dof_count();
 }
 
-std::size_t M0Problem::element_count() const noexcept {
+std::size_t SteadySingleRegionProblem::element_count() const noexcept {
     return _mesh.elements().size();
 }
 
-std::size_t M0Problem::contribution_count() const noexcept {
+std::size_t SteadySingleRegionProblem::contribution_count() const noexcept {
     return element_count();
 }
 
 const std::vector<DirichletCondition>&
-M0Problem::dirichlet_conditions() const noexcept {
+SteadySingleRegionProblem::dirichlet_conditions() const noexcept {
     return _dirichlet_conditions;
 }
 
-std::vector<double> M0Problem::initial_state() const {
+std::vector<double> SteadySingleRegionProblem::initial_state() const {
     std::vector<double> state(dof_count(), 0.0);
     for (std::size_t node = 0; node < _mesh.nodes().size(); ++node)
         state[_dof_map.temperature(node)] = _parameters.initial_temperature;
@@ -108,51 +114,54 @@ std::vector<double> M0Problem::initial_state() const {
     return state;
 }
 
-LocalDofs M0Problem::element_dofs(std::size_t element_index) const {
+LocalDofs
+SteadySingleRegionProblem::element_dofs(std::size_t element_index) const {
     return _dof_map.element_dofs(_mesh.elements().at(element_index));
 }
 
-LocalValues
-M0Problem::element_state(std::size_t element_index,
-                         const std::vector<double>& global_state) const {
+LocalValues SteadySingleRegionProblem::element_state(
+    std::size_t element_index, const std::vector<double>& global_state) const {
     return contribution_state(element_index, global_state);
 }
 
-LocalResidual M0Problem::element_residual(std::size_t element_index,
-                                          const LocalValues& state) const {
+LocalResidual
+SteadySingleRegionProblem::element_residual(std::size_t element_index,
+                                            const LocalValues& state) const {
     return _kernel.residual(_geometries.at(element_index), state);
 }
 
-LocalSystem M0Problem::linearize_element(std::size_t element_index,
-                                         const LocalValues& state) const {
+LocalSystem
+SteadySingleRegionProblem::linearize_element(std::size_t element_index,
+                                             const LocalValues& state) const {
     return _kernel.linearize(_geometries.at(element_index), state);
 }
 
-LocalDofs M0Problem::contribution_dofs(std::size_t contribution_index) const {
+LocalDofs SteadySingleRegionProblem::contribution_dofs(
+    std::size_t contribution_index) const {
     return element_dofs(contribution_index);
 }
 
-LocalResidual M0Problem::contribution_residual(std::size_t contribution_index,
-                                               const LocalValues& state) const {
+LocalResidual SteadySingleRegionProblem::contribution_residual(
+    std::size_t contribution_index, const LocalValues& state) const {
     return element_residual(contribution_index, state);
 }
 
-LocalSystem M0Problem::linearize_contribution(std::size_t contribution_index,
-                                              const LocalValues& state) const {
+LocalSystem SteadySingleRegionProblem::linearize_contribution(
+    std::size_t contribution_index, const LocalValues& state) const {
     return linearize_element(contribution_index, state);
 }
 
-void M0Problem::add_state_independent_residual(
+void SteadySingleRegionProblem::add_state_independent_residual(
     std::vector<double>& residual) const {
     add_pressure_residual(residual);
 }
 
 const Quad4RzGeometry&
-M0Problem::element_geometry(std::size_t element_index) const {
+SteadySingleRegionProblem::element_geometry(std::size_t element_index) const {
     return _geometries.at(element_index);
 }
 
-void M0Problem::build_dirichlet_conditions() {
+void SteadySingleRegionProblem::build_dirichlet_conditions() {
     append_boundary_conditions(
         _mesh.boundary_nodes(BoundaryId::radial_outer), Field::temperature,
         _parameters.outer_temperature, _dof_map, _dirichlet_conditions);
@@ -178,14 +187,15 @@ void M0Problem::build_dirichlet_conditions() {
         if (previous.dof != current.dof)
             continue;
         if (previous.value != current.value)
-            throw std::invalid_argument(
-                "M0Problem has conflicting Dirichlet conditions");
+            throw std::invalid_argument("SteadySingleRegionProblem has "
+                                        "conflicting Dirichlet conditions");
         throw std::invalid_argument(
-            "M0Problem has duplicate Dirichlet conditions");
+            "SteadySingleRegionProblem has duplicate Dirichlet conditions");
     }
 }
 
-void M0Problem::add_pressure_residual(std::vector<double>& residual) const {
+void SteadySingleRegionProblem::add_pressure_residual(
+    std::vector<double>& residual) const {
     const std::array<double, 2> gauss = {
         -0.577350269189625764509148780501957456,
         0.577350269189625764509148780501957456,

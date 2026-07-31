@@ -1,9 +1,9 @@
 #include "fuelsim/exodus_mesh_io.hpp"
-#include "fuelsim/m2_problem.hpp"
-#include "fuelsim/m2_solver.hpp"
 #include "fuelsim/nonlinear_problem.hpp"
 #include "fuelsim/petsc_solver.hpp"
 #include "fuelsim/quad4_rz_transient.hpp"
+#include "fuelsim/transient_fuel_cladding_problem.hpp"
+#include "fuelsim/transient_fuel_cladding_solver.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -234,7 +234,7 @@ bool test_moose_mesh_backward_euler_heat_source(const std::string& mesh_path) {
     return passed;
 }
 
-fuelsim::M2Parameters zero_source_m2_parameters() {
+fuelsim::TransientFuelCladdingParameters zero_source_m2_parameters() {
     const fuelsim::ThermoelasticProperties fuel =
         constant_material(4.0, 2.0e11, 0.3, 1.0e-5);
     const fuelsim::ThermoelasticProperties cladding =
@@ -280,14 +280,16 @@ bool material_history_is_zero(const fuelsim::Quad4MaterialHistory& history) {
     return true;
 }
 
-bool m2_histories_are_zero(const fuelsim::M2Problem& problem) {
+bool m2_histories_are_zero(
+    const fuelsim::TransientFuelCladdingProblem& problem) {
     for (std::size_t element = 0;
-         element < problem.base_problem().fuel_element_count(); ++element) {
+         element < problem.steady_problem().fuel_element_count(); ++element) {
         if (!material_history_is_zero(problem.fuel_material_history(element)))
             return false;
     }
     for (std::size_t element = 0;
-         element < problem.base_problem().cladding_element_count(); ++element) {
+         element < problem.steady_problem().cladding_element_count();
+         ++element) {
         if (!material_history_is_zero(
                 problem.cladding_material_history(element)))
             return false;
@@ -296,14 +298,14 @@ bool m2_histories_are_zero(const fuelsim::M2Problem& problem) {
 }
 
 bool test_m2_zero_source_history_and_interface() {
-    fuelsim::M2Problem problem(zero_source_m2_parameters());
+    fuelsim::TransientFuelCladdingProblem problem(zero_source_m2_parameters());
     const std::vector<double> initial_state = problem.committed_solution();
-    const fuelsim::M2TimeOptions time_options = {
+    const fuelsim::TransientTimeOptions time_options = {
         2.0, 1.0, 1.0, 1.0, 1.0, 0.5, 0, 0.0,
     };
 
-    const fuelsim::M2TimeStepper time_stepper;
-    const fuelsim::M2TransientResult result =
+    const fuelsim::TransientFuelCladdingTimeStepper time_stepper;
+    const fuelsim::TransientFuelCladdingResult result =
         time_stepper.solve(problem, time_options);
 
     bool passed = check(result.completed && result.last_attempt.converged,
@@ -355,7 +357,7 @@ bool test_m2_zero_source_history_and_interface() {
     const fuelsim::InterfaceSummary interface =
         problem.summarize_interface(result.committed_state);
     const std::size_t expected_projected_nodes =
-        problem.parameters().base.axial_elements + 1;
+        problem.parameters().steady.axial_elements + 1;
     passed =
         check(interface.projected_contact_nodes == expected_projected_nodes,
               "M2 preserves every fuel-surface contact projection") &&

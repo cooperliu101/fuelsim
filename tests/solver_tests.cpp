@@ -1,8 +1,8 @@
 #include "fuelsim/exodus_mesh_io.hpp"
-#include "fuelsim/m1_problem.hpp"
-#include "fuelsim/m1_solver.hpp"
 #include "fuelsim/petsc_solver.hpp"
-#include "fuelsim/problem.hpp"
+#include "fuelsim/steady_fuel_cladding_problem.hpp"
+#include "fuelsim/steady_fuel_cladding_solver.hpp"
+#include "fuelsim/steady_single_region_problem.hpp"
 
 #include <algorithm>
 #include <array>
@@ -40,7 +40,7 @@ bool test_thermal_cylinder() {
     constexpr double heat_source = 2.0e8;
     constexpr double outer_temperature = 600.0;
 
-    const fuelsim::M0Parameters parameters = {
+    const fuelsim::SteadySingleRegionParameters parameters = {
         0.0,
         radius,
         length,
@@ -54,7 +54,7 @@ bool test_thermal_cylinder() {
         0.0,
     };
 
-    fuelsim::M0Problem problem(parameters);
+    fuelsim::SteadySingleRegionProblem problem(parameters);
     fuelsim::PetscSequentialSolver solver;
     const fuelsim::SolveResult result =
         solver.solve(problem, problem.initial_state());
@@ -88,12 +88,12 @@ bool test_free_thermal_expansion() {
     constexpr double temperature = 700.0;
     constexpr double temperature_change = 100.0;
 
-    const fuelsim::M0Parameters parameters = {
+    const fuelsim::SteadySingleRegionParameters parameters = {
         0.0, radius,      length, 8,   4,   constant_material(4.0, alpha),
         0.0, temperature, 600.0,  0.0, 0.0,
     };
 
-    const fuelsim::M0Problem problem(parameters);
+    const fuelsim::SteadySingleRegionProblem problem(parameters);
     fuelsim::PetscSequentialSolver solver;
     const fuelsim::SolveResult result =
         solver.solve(problem, problem.initial_state());
@@ -165,12 +165,12 @@ bool test_lame_open_ended_cylinder() {
     material.young_modulus = young_modulus;
     material.poisson_ratio = poisson_ratio;
 
-    const fuelsim::M0Parameters parameters = {
+    const fuelsim::SteadySingleRegionParameters parameters = {
         inner_radius, outer_radius, length, 48,       2,   material,
         0.0,          600.0,        600.0,  pressure, 0.0,
     };
 
-    const fuelsim::M0Problem problem(parameters);
+    const fuelsim::SteadySingleRegionProblem problem(parameters);
     fuelsim::PetscSequentialSolver solver;
     const fuelsim::SolveResult result =
         solver.solve(problem, problem.initial_state());
@@ -225,7 +225,7 @@ bool test_lame_open_ended_cylinder() {
 }
 
 bool test_moose_reference(const std::string& mesh_path) {
-    const fuelsim::M0Parameters parameters = {
+    const fuelsim::SteadySingleRegionParameters parameters = {
         0.0,
         0.00412,
         0.010,
@@ -252,7 +252,7 @@ bool test_moose_reference(const std::string& mesh_path) {
         fuelsim::StructuredRzMesh::from_unstructured_block(
             imported, 0,
             {"fuel_left", "fuel_right", "fuel_bottom", "fuel_top"});
-    const fuelsim::M0Problem problem(parameters, imported_mesh);
+    const fuelsim::SteadySingleRegionProblem problem(parameters, imported_mesh);
     fuelsim::PetscSequentialSolver solver;
     const fuelsim::SolveResult result =
         solver.solve(problem, problem.initial_state());
@@ -328,7 +328,7 @@ bool test_m1_open_gap_analytic_thermal() {
     constexpr double heat_source = 1.0e8;
     constexpr double outer_temperature = 600.0;
 
-    const fuelsim::M1Parameters parameters = {
+    const fuelsim::SteadyFuelCladdingParameters parameters = {
         fuel_radius,
         cladding_inner_radius,
         cladding_outer_radius,
@@ -346,7 +346,7 @@ bool test_m1_open_gap_analytic_thermal() {
         1.0e-6,
         1.0e14,
     };
-    const fuelsim::M1Problem problem(parameters);
+    const fuelsim::SteadyFuelCladdingProblem problem(parameters);
     fuelsim::PetscSequentialSolver solver;
     const fuelsim::SolveResult result =
         solver.solve(problem, problem.initial_state());
@@ -428,7 +428,7 @@ bool test_m1_open_gap_analytic_thermal() {
     return passed;
 }
 
-fuelsim::M1Parameters m1_reference_parameters() {
+fuelsim::SteadyFuelCladdingParameters m1_reference_parameters() {
     return {
         0.004120,
         0.004122,
@@ -464,7 +464,8 @@ fuelsim::M1Parameters m1_reference_parameters() {
 }
 
 bool test_m1_closed_gap_end_to_end(const std::string& mesh_path) {
-    const fuelsim::M1Parameters target_parameters = m1_reference_parameters();
+    const fuelsim::SteadyFuelCladdingParameters target_parameters =
+        m1_reference_parameters();
     const fuelsim::UnstructuredQuad4Mesh imported =
         fuelsim::ExodusMeshIo::read_quad4(mesh_path);
     const fuelsim::StructuredRzMesh fuel =
@@ -479,12 +480,14 @@ bool test_m1_closed_gap_end_to_end(const std::string& mesh_path) {
     options.maximum_iterations = 50;
 
     constexpr std::size_t load_steps = 20;
-    const fuelsim::M1LoadStepper load_stepper;
-    const fuelsim::M1LoadStepResult continuation = load_stepper.solve(
-        target_parameters, fuel, cladding, load_steps, options);
+    const fuelsim::SteadyFuelCladdingLoadStepper load_stepper;
+    const fuelsim::SteadyFuelCladdingLoadResult continuation =
+        load_stepper.solve(target_parameters, fuel, cladding, load_steps,
+                           options);
     const fuelsim::SolveResult& result = continuation.solve;
 
-    const fuelsim::M1Problem problem(target_parameters, fuel, cladding);
+    const fuelsim::SteadyFuelCladdingProblem problem(target_parameters, fuel,
+                                                     cladding);
 
     const std::size_t axial_mid = problem.fuel_mesh().axial_elements() / 2;
     const std::size_t fuel_center_local =
@@ -515,7 +518,8 @@ bool test_m1_closed_gap_end_to_end(const std::string& mesh_path) {
         problem.summarize_contact_nodes(result.state);
 
     constexpr double pi = 3.141592653589793238462643383279502884;
-    const fuelsim::M1Parameters& parameters = problem.parameters();
+    const fuelsim::SteadyFuelCladdingParameters& parameters =
+        problem.parameters();
     const double expected_heat_rate =
         parameters.volumetric_heat_source * pi * parameters.fuel_radius *
         parameters.fuel_radius * parameters.fuel_length;

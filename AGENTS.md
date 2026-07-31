@@ -84,6 +84,8 @@ committed/trial/commit/rollback。M2.2 增加通用 J2 Norton 蠕变、J2
 
 - `fuelsim_core`：网格、自由度、材料、Quad4 RZ 核和问题定义，仅依赖
   ADlite。
+- `fuelsim_input`：严格解析带版本号的 `.fsi` 输入卡并生成具体案例定义，
+  仅依赖 `fuelsim_core`；不实现对象工厂、表达式求值或兼容别名。
 - `fuelsim_exodus`：使用 Exodus API 在 `.e` 文件和 fuelsim 自有非结构
   Quad4 网格之间转换，保留元素块、节点集和边集的 ID 与名称；不使用
   DMPlex，不暴露 Exodus 类型。
@@ -94,11 +96,19 @@ committed/trial/commit/rollback。M2.2 增加通用 J2 Norton 蠕变、J2
 - 不复制 MOOSE 的对象工厂、继承层次或输入参数系统。
 - 不复制 jax_fuel 的运行时声明式 Kernel 注册系统。
 - 新物理先形成具体、可验证的局部残量，再考虑通用化。
-- M2 使用具体的 `M2Problem`、`M2TimeStepper` 和
-  `Quad4RzTransientKernel`；不得把时间状态职责塞入 PETSc 回调。
+- 生产问题类型使用有物理含义的 `SteadySingleRegionProblem`、
+  `SteadyFuelCladdingProblem`、`TransientFuelCladdingProblem` 和
+  `TransientFuelCladdingTimeStepper`；M0/M1/M2 只作为路线与回归名称，
+  不得重新引入 `M1Problem`、`M2Problem` 一类生产 API。
+- 瞬态问题使用具体的 `TransientFuelCladdingProblem`、
+  `TransientFuelCladdingTimeStepper` 和 `Quad4RzTransientKernel`；不得把
+  时间状态职责塞入 PETSc 回调。
 - 不增加材料工厂或标量泛型层；真实燃料/包壳关联应在通用状态事务稳定后
   作为单独里程碑实现。
 - 除非用户明确要求，不增加旧 API 别名、适配器或兼容层。
+- 用户运行入口固定为 `fuelsim -i <case.fsi>`。输入 v1 使用 SI 单位和严格
+  字段集合，不提供 include、宏、表达式、单位换算、旧键别名或隐式默认问题；
+  网格几何与离散规模必须来自 Exodus 文件。
 
 ## 必须执行的验收
 

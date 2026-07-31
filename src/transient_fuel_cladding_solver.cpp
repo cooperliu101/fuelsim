@@ -1,4 +1,4 @@
-#include "fuelsim/m2_solver.hpp"
+#include "fuelsim/transient_fuel_cladding_solver.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -14,7 +14,8 @@ using SteadyClock = std::chrono::steady_clock;
 
 class TimeStepTransaction final {
   public:
-    TimeStepTransaction(M2Problem& problem, const M2TimeStepInput& input)
+    TimeStepTransaction(TransientFuelCladdingProblem& problem,
+                        const TransientStepInput& input)
         : _problem(problem), _committed(false) {
         _problem.begin_time_step(input);
     }
@@ -33,7 +34,7 @@ class TimeStepTransaction final {
     }
 
   private:
-    M2Problem& _problem;
+    TransientFuelCladdingProblem& _problem;
     bool _committed;
 };
 
@@ -53,44 +54,46 @@ void accumulate_timing(SolveTiming& total, const SolveTiming& step) {
     total.solve_calls += step.solve_calls;
 }
 
-void validate_time_options(const M2Problem& problem,
-                           const M2TimeOptions& options) {
+void validate_time_options(const TransientFuelCladdingProblem& problem,
+                           const TransientTimeOptions& options) {
     if (problem.time_step_active())
-        throw std::logic_error(
-            "M2TimeStepper cannot start with an active problem time step");
+        throw std::logic_error("TransientFuelCladdingTimeStepper cannot start "
+                               "with an active problem time step");
     if (!std::isfinite(options.end_time) ||
         !(options.end_time > problem.committed_time()))
-        throw std::invalid_argument(
-            "M2TimeStepper end_time must be finite and greater than the "
-            "committed time");
+        throw std::invalid_argument("TransientFuelCladdingTimeStepper end_time "
+                                    "must be finite and greater than the "
+                                    "committed time");
     if (!std::isfinite(options.initial_time_step) ||
         !std::isfinite(options.minimum_time_step) ||
         !std::isfinite(options.maximum_time_step) ||
         !(options.minimum_time_step > 0.0) ||
         !(options.initial_time_step >= options.minimum_time_step) ||
         !(options.maximum_time_step >= options.initial_time_step))
-        throw std::invalid_argument(
-            "M2TimeStepper requires 0 < minimum_time_step <= "
-            "initial_time_step <= maximum_time_step");
+        throw std::invalid_argument("TransientFuelCladdingTimeStepper requires "
+                                    "0 < minimum_time_step <= "
+                                    "initial_time_step <= maximum_time_step");
     if (!std::isfinite(options.growth_factor) ||
         !(options.growth_factor >= 1.0))
         throw std::invalid_argument(
-            "M2TimeStepper growth_factor must be finite and at least one");
+            "TransientFuelCladdingTimeStepper growth_factor must be finite and "
+            "at least one");
     if (!std::isfinite(options.cutback_factor) ||
         !(options.cutback_factor > 0.0 && options.cutback_factor < 1.0))
         throw std::invalid_argument(
-            "M2TimeStepper cutback_factor must lie strictly between zero and "
+            "TransientFuelCladdingTimeStepper cutback_factor must lie strictly "
+            "between zero and "
             "one");
     if (!std::isfinite(options.heat_source_ramp_time) ||
         !(options.heat_source_ramp_time >= 0.0))
-        throw std::invalid_argument(
-            "M2TimeStepper heat_source_ramp_time must be finite and "
-            "nonnegative");
+        throw std::invalid_argument("TransientFuelCladdingTimeStepper "
+                                    "heat_source_ramp_time must be finite and "
+                                    "nonnegative");
 }
 
-double heat_source_at_time(const M2Problem& problem,
-                           const M2TimeOptions& options, double time) {
-    const double target = problem.parameters().base.volumetric_heat_source;
+double heat_source_at_time(const TransientFuelCladdingProblem& problem,
+                           const TransientTimeOptions& options, double time) {
+    const double target = problem.parameters().steady.volumetric_heat_source;
     if (options.heat_source_ramp_time == 0.0)
         return target;
     return target * std::min(time / options.heat_source_ramp_time, 1.0);
@@ -104,13 +107,14 @@ bool reaches_end(double time, double end_time) {
 
 } // namespace
 
-M2TransientResult
-M2TimeStepper::solve(M2Problem& problem, const M2TimeOptions& time_options,
-                     const SolverOptions& solver_options) const {
+TransientFuelCladdingResult TransientFuelCladdingTimeStepper::solve(
+    TransientFuelCladdingProblem& problem,
+    const TransientTimeOptions& time_options,
+    const SolverOptions& solver_options) const {
     validate_time_options(problem, time_options);
     const SteadyClock::time_point total_start = SteadyClock::now();
 
-    M2TransientResult result;
+    TransientFuelCladdingResult result;
     PetscSequentialSolver nonlinear_solver;
     double next_time_step = time_options.initial_time_step;
 

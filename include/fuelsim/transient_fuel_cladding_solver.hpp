@@ -1,15 +1,15 @@
-#ifndef FUELSIM_M2_SOLVER_HPP
-#define FUELSIM_M2_SOLVER_HPP
+#ifndef FUELSIM_TRANSIENT_FUEL_CLADDING_SOLVER_HPP
+#define FUELSIM_TRANSIENT_FUEL_CLADDING_SOLVER_HPP
 
 #include <cstddef>
 #include <vector>
 
-#include "fuelsim/m2_problem.hpp"
 #include "fuelsim/petsc_solver.hpp"
+#include "fuelsim/transient_fuel_cladding_problem.hpp"
 
 namespace fuelsim {
 
-struct M2TimeOptions final {
+struct TransientTimeOptions final {
     double end_time;
     double initial_time_step;
     double minimum_time_step;
@@ -20,7 +20,7 @@ struct M2TimeOptions final {
     double heat_source_ramp_time;
 };
 
-struct M2AcceptedStep final {
+struct TransientAcceptedStep final {
     double time;
     double time_step;
     double volumetric_heat_source;
@@ -30,10 +30,10 @@ struct M2AcceptedStep final {
     RegionInelasticSummary cladding_history;
 };
 
-struct M2TransientResult final {
+struct TransientFuelCladdingResult final {
     SolveResult last_attempt;
     std::vector<double> committed_state;
-    std::vector<M2AcceptedStep> accepted_steps;
+    std::vector<TransientAcceptedStep> accepted_steps;
     bool completed = false;
     std::size_t total_cutbacks = 0;
     int total_nonlinear_iterations = 0;
@@ -42,10 +42,11 @@ struct M2TransientResult final {
     SolveTiming aggregate_timing;
 };
 
-class M2TimeStepper final {
+class TransientFuelCladdingTimeStepper final {
   public:
-    M2TransientResult
-    solve(M2Problem& problem, const M2TimeOptions& time_options,
+    TransientFuelCladdingResult
+    solve(TransientFuelCladdingProblem& problem,
+          const TransientTimeOptions& time_options,
           const SolverOptions& solver_options = SolverOptions{}) const;
 };
 
