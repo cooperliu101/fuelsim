@@ -101,6 +101,10 @@ class M1Problem final : public NonlinearProblem {
     LocalDofs thermal_interface_dofs(std::size_t interface_index) const;
     LocalDofs contact_contribution_dofs(std::size_t contact_index) const;
 
+    const Quad4RzGeometry&
+    fuel_element_geometry(std::size_t element_index) const;
+    const Quad4RzGeometry&
+    cladding_element_geometry(std::size_t element_index) const;
     const Line2RzHeatGeometry&
     thermal_interface_geometry(std::size_t interface_index) const;
     const NodeToLineRzContactGeometry&

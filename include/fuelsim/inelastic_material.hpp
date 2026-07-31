@@ -1,0 +1,81 @@
+#ifndef FUELSIM_INELASTIC_MATERIAL_HPP
+#define FUELSIM_INELASTIC_MATERIAL_HPP
+
+#include "fuelsim/material.hpp"
+
+#include <array>
+
+namespace fuelsim {
+
+enum class InelasticBehavior {
+    elastic,
+    norton_creep,
+    j2_plasticity,
+};
+
+struct NortonCreepProperties final {
+    double coefficient;
+    double reference_stress;
+    double stress_exponent;
+};
+
+struct J2PlasticityProperties final {
+    double yield_stress;
+    double isotropic_hardening_modulus;
+};
+
+struct TransientInelasticProperties final {
+    double density;
+    double specific_heat;
+    InelasticBehavior behavior;
+    NortonCreepProperties creep;
+    J2PlasticityProperties plasticity;
+};
+
+struct MaterialPointState final {
+    std::array<double, 4> plastic_strain{};
+    std::array<double, 4> creep_strain{};
+    double equivalent_plastic_strain = 0.0;
+    double equivalent_creep_strain = 0.0;
+};
+
+struct MaterialPointTrialState final {
+    std::array<adlite::Scalar, 4> plastic_strain{};
+    std::array<adlite::Scalar, 4> creep_strain{};
+    adlite::Scalar equivalent_plastic_strain{0.0};
+    adlite::Scalar equivalent_creep_strain{0.0};
+};
+
+struct InelasticStressResponse final {
+    AxisymmetricStress stress;
+    MaterialPointTrialState trial_state;
+};
+
+class IsotropicInelasticMaterial final {
+  public:
+    IsotropicInelasticMaterial(ThermoelasticProperties thermoelastic_properties,
+                               TransientInelasticProperties properties);
+
+    const TransientInelasticProperties& properties() const noexcept;
+
+    adlite::Scalar conductivity(const adlite::Scalar& temperature) const;
+
+    InelasticStressResponse
+    response(const adlite::Scalar& strain_rr, const adlite::Scalar& strain_zz,
+             const adlite::Scalar& strain_hoop, const adlite::Scalar& strain_rz,
+             const adlite::Scalar& temperature, double time_step,
+             const MaterialPointState& committed) const;
+
+    static MaterialPointState
+    state_values(const MaterialPointTrialState& trial_state);
+
+  private:
+    IsotropicThermoelasticMaterial _thermoelastic_material;
+    TransientInelasticProperties _properties;
+    double _lame_lambda;
+    double _shear_modulus;
+};
+
+} // namespace fuelsim
+
+#endif

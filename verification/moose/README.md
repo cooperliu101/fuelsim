@@ -99,3 +99,191 @@ projected / active fuel surface nodes:    11 / 11
 All six temperature/displacement differences are also below 1%. Contact
 pressure is therefore an acceptance metric rather than a diagnostic-only
 quantity.
+
+## M2.1 transient heat capacity
+
+`m21_transient_heat_rz.i` isolates the consistent transient heat-capacity
+residual on a 4x2 Quad4 RZ mesh. The cylinder is insulated, has uniform
+properties, and is heated by a constant volumetric source:
+
+```text
+density = 10000 kg/m^3
+specific_heat = 300 J/(kg K)
+heat_source = 3e6 W/m^3
+initial_temperature = 600 K
+```
+
+The exact spatially uniform solution is `T(t) = 600 + t` K. The MOOSE objects
+used by this reference are:
+
+```text
+ADHeatConduction
+ADHeatConductionTimeDerivative
+ADBodyForce
+ADGenericConstantMaterial
+```
+
+Both thermal kernels explicitly use the reference mesh. The time integrator is
+implicit Euler with `dt=1 s` and `end_time=10 s`. Reproduce the checked run
+from this directory with:
+
+```bash
+source /home/cooper/miniforge/etc/profile.d/conda.sh
+conda activate moose
+/home/cooper/projects/july/july-opt \
+  -i m21_transient_heat_rz.i \
+  Outputs/file_base=/tmp/fuelsim_m21_transient_heat_rz \
+  Outputs/console=false
+```
+
+`m21_transient_heat_rz_out.csv` preserves the complete 11-row temperature
+history. At the final time:
+
+```text
+MOOSE average temperature:        610 K
+analytic average temperature:     610 K
+relative error:                   0%
+MOOSE nodal L2 error:             0
+acceptance threshold:             < 0.1%
+```
+
+This case verifies the heat-capacity term and time integration. A nonuniform
+manufactured solution is still required before claiming spatial transient
+conduction verification.
+
+## M2.2 Norton creep
+
+`m22_norton_creep_rz.i` is a one-Quad4 homogeneous RZ material-point proxy.
+It applies a constant 100 MPa axial tensile traction to an isotropic cylinder
+with `E=200 GPa` and `nu=0.3`. The generic secondary Norton law uses:
+
+```text
+coefficient = 1e-30 Pa^-3 s^-1
+n_exponent = 3
+m_exponent = 0
+activation_energy = 0
+```
+
+The MOOSE constitutive chain is:
+
+```text
+ADPowerLawCreepStressUpdate
+  -> ADComputeMultipleInelasticStress
+  -> AD small incremental strain mechanics
+```
+
+`ADMaterialRealAux` exposes the stateful `effective_creep_strain` property.
+Using the non-AD `MaterialRealAux` object is not equivalent and produces an
+AD/non-AD material-property error. Reproduce the checked run with:
+
+```bash
+source /home/cooper/miniforge/etc/profile.d/conda.sh
+conda activate moose
+/home/cooper/projects/july/july-opt \
+  -i m22_norton_creep_rz.i \
+  Outputs/file_base=/tmp/fuelsim_m22_norton_creep_rz \
+  Outputs/console=false
+```
+
+For the nominal constant stress, the analytic values at `t=100 s` are
+`effective_creep_strain=1e-4` and
+`axial_displacement=0.001*(100e6/200e9 + 1e-4)=6e-7 m`.
+The final row of `m22_norton_creep_rz_out.csv` gives:
+
+```text
+axial stress:                     99.998007620195 MPa
+stress error from 100 MPa:        0.0019924%
+effective creep strain:           9.9991036503199e-5
+effective creep strain error:     0.0089635%
+axial displacement:               5.9997808603447e-7 m
+axial displacement error:         0.0036523%
+acceptance threshold for each:    < 0.1%
+```
+
+The axial, radial, and hoop creep strains have the expected J2 ratio
+`1 : -0.5 : -0.5`, so the creep strain is deviatoric to output precision.
+
+## M2.2 J2 plasticity
+
+`m22_j2_plastic_rz.i` uses the same one-Quad4 RZ material-point geometry and
+applies a monotonic axial strain of 0.002. The material constants are:
+
+```text
+E = 200 GPa
+nu = 0.3
+yield_stress = 200 MPa
+hardening_constant = 2 GPa
+```
+
+The MOOSE constitutive chain is:
+
+```text
+ADIsotropicPlasticityStressUpdate
+  -> ADComputeMultipleInelasticStress
+  -> AD small incremental strain mechanics
+```
+
+Reproduce the checked run with:
+
+```bash
+source /home/cooper/miniforge/etc/profile.d/conda.sh
+conda activate moose
+/home/cooper/projects/july/july-opt \
+  -i m22_j2_plastic_rz.i \
+  Outputs/file_base=/tmp/fuelsim_m22_j2_plastic_rz \
+  Outputs/console=false
+```
+
+For linear isotropic hardening, the one-dimensional analytic final state is:
+
+```text
+effective plastic strain:
+  (E*strain - yield_stress)/(E + hardening_constant)
+  = 9.9009900990099e-4
+
+axial stress:
+  E*(strain - effective_plastic_strain)
+  = 201.9801980198 MPa
+```
+
+The final row of `m22_j2_plastic_rz_out.csv` matches both values to the printed
+precision:
+
+```text
+MOOSE effective plastic strain:   9.9009900990099e-4
+MOOSE axial stress:               201.9801980198 MPa
+relative errors:                  < 1e-12%
+acceptance threshold for each:    < 0.1%
+```
+
+The axial, radial, and hoop plastic strains also have the J2 ratio
+`1 : -0.5 : -0.5`. This monotonic case does not replace a future unload/reload
+history test.
+
+## M2 reference environment and conventions
+
+All three M2 reference inputs were syntax-checked and solved with one MPI rank
+and one thread using:
+
+```text
+MOOSE commit:          93b11698be3fcd33049ae73e32f411fb2985261d
+July commit:           a96d73792bee7c5f54eb65e33b04487b24276a27
+Executable SHA256:     1cb3a0fbf5650addd087ceeb8521f82d2ddb11650c0932b7ec274226430e0ee4
+Result:                every time step reported Solve Converged!
+```
+
+The July worktree was dirty, so the executable hash remains part of the
+provenance. For these RZ cases MOOSE component names map as follows:
+
+```text
+xx = radial
+yy = axial
+zz = hoop
+xy = rz shear
+```
+
+Both inelastic models require incremental strain and committed quadrature-point
+history. Trial history must be recomputed from the same old state during every
+global Newton or line-search evaluation and committed only after a converged
+time step. If creep and plasticity are later combined in one MOOSE reference,
+the required model order is `inelastic_models = 'creep plasticity'`.

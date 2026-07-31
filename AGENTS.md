@@ -19,6 +19,10 @@ M1 使用两个独立的结构化 Quad4 网格、燃料侧 STS 热接触、燃�
 [T(:), ur(:), uz(:)]
 ```
 
+M2.1 在相同空间离散上增加 Backward Euler 一致热容、物理时间步和
+committed/trial/commit/rollback。M2.2 增加互斥的通用 J2 Norton 蠕变或
+J2 线性硬化塑性；当前不包含真实燃料或包壳经验模型。
+
 ## 依赖与 C++ 约束
 
 - 仅使用 C++17。
@@ -43,7 +47,16 @@ M1 使用两个独立的结构化 Quad4 网格、燃料侧 STS 热接触、燃�
 - ADlite 只按 12 个体单元或界面局部自由度播种，禁止按全局自由度播种。
 - RZ 积分测度为完整的 `2*pi*r*detJ*w`。
 - 应变和应力分量顺序为 `[rr, zz, hoop, rz]`，`rz` 是张量剪应变。
-- 历史变量以后使用 `double` 保存；只有 trial state 使用 ADlite。
+- 历史变量使用 `double` 保存；只有 trial state 使用 ADlite。
+- M2 热容使用参考构形一致质量矩阵：
+  `N_i*rho*cp*(T_new-T_old)/dt`，不包含位移惯性。
+- M2 的所有 Newton、线搜索和失败重试必须从同一 committed 积分点状态
+  重算 trial；只能在最终收敛解上重算一次并提交。
+- 失败时间步必须同时回滚 nodal state、积分点历史、物理时间和热源；失败
+  `SolveResult.state` 不得作为重试初值。
+- 轴对称 J2 内积的 `rz` 项必须乘 2；塑性与蠕变应变增量必须无迹。
+- Norton 首版为 `rate=A*(q/q_ref)^n` 的等温后向 Euler 更新；J2 首版为
+  线性各向同性硬化闭式径向返回。同一材料点不得同时启用两者。
 - PETSc Dirichlet 约束使用 `F_i=x_i-g_i` 和只清行的
   `MatZeroRows(..., diagonal=1)`。
 - 当前只支持一个 MPI rank，不得把每个 rank 重复装配全模型称为并行。
@@ -71,6 +84,10 @@ M1 使用两个独立的结构化 Quad4 网格、燃料侧 STS 热接触、燃�
 - 不复制 MOOSE 的对象工厂、继承层次或输入参数系统。
 - 不复制 jax_fuel 的运行时声明式 Kernel 注册系统。
 - 新物理先形成具体、可验证的局部残量，再考虑通用化。
+- M2 使用具体的 `M2Problem`、`M2TimeStepper` 和
+  `Quad4RzTransientKernel`；不得把时间状态职责塞入 PETSc 回调。
+- 不增加材料工厂或标量泛型层；真实燃料/包壳关联应在通用状态事务稳定后
+  作为单独里程碑实现。
 - 除非用户明确要求，不增加旧 API 别名、适配器或兼容层。
 
 ## 必须执行的验收
@@ -94,6 +111,14 @@ PETSc/MPICH 测试在受限沙盒内可能出现 `OFI EP enable failed`。遇到
 2. 相关解析解；
 3. 默认端到端求解；
 4. 匹配物理、罚参数、加载路径和网格设置的 MOOSE 对标量。
+
+M2 还必须检查：
+
+1. residual/Jacobian 重复调用不修改 committed 历史；
+2. 接受步只提交一次，拒绝步完整回滚；
+3. 活跃蠕变与塑性分支的 AD 切线分别通过中心差分；
+4. 多时间步只构造一次 PETSc 工作区；
+5. MOOSE 瞬态温度、应力、位移和等效非弹性应变误差均小于 `0.1%`。
 
 性能修改还必须检查：
 

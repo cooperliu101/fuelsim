@@ -309,6 +309,16 @@ M1Problem::contact_contribution_dofs(std::size_t contact_index) const {
     return _dof_map.local_dofs(_contact_contribution_nodes.at(contact_index));
 }
 
+const Quad4RzGeometry&
+M1Problem::fuel_element_geometry(std::size_t element_index) const {
+    return _fuel_geometries.at(element_index);
+}
+
+const Quad4RzGeometry&
+M1Problem::cladding_element_geometry(std::size_t element_index) const {
+    return _cladding_geometries.at(element_index);
+}
+
 const Line2RzHeatGeometry&
 M1Problem::thermal_interface_geometry(std::size_t interface_index) const {
     return _thermal_interface_geometries.at(interface_index);

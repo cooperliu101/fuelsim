@@ -31,13 +31,16 @@ endfunction()
 
 add_library(fuelsim_core
     src/dof_map.cpp
+    src/inelastic_material.cpp
     src/interface.cpp
     src/m1_problem.cpp
+    src/m2_problem.cpp
     src/material.cpp
     src/mesh.cpp
     src/nonlinear_problem.cpp
     src/problem.cpp
     src/quad4_rz.cpp
+    src/quad4_rz_transient.cpp
 )
 add_library(fuelsim::core ALIAS fuelsim_core)
 
@@ -50,6 +53,7 @@ fuelsim_enable_warnings(fuelsim_core)
 
 add_library(fuelsim_petsc
     src/m1_solver.cpp
+    src/m2_solver.cpp
     src/petsc_solver.cpp
 )
 add_library(fuelsim::petsc ALIAS fuelsim_petsc)
@@ -68,6 +72,10 @@ add_executable(fuelsim src/main.cpp)
 target_link_libraries(fuelsim PRIVATE fuelsim::petsc)
 fuelsim_enable_warnings(fuelsim)
 
+add_executable(fuelsim_m2 src/m2_main.cpp)
+target_link_libraries(fuelsim_m2 PRIVATE fuelsim::petsc)
+fuelsim_enable_warnings(fuelsim_m2)
+
 add_executable(fuelsim_m1_single_core_benchmark
     benchmarks/m1_single_core.cpp
 )
@@ -83,9 +91,40 @@ if(BUILD_TESTING)
     add_test(NAME fuelsim_core_tests COMMAND fuelsim_core_tests)
     set_tests_properties(fuelsim_core_tests PROPERTIES LABELS "unit")
 
+    add_executable(fuelsim_m2_core_tests tests/m2_core_tests.cpp)
+    target_link_libraries(fuelsim_m2_core_tests PRIVATE fuelsim::core)
+    fuelsim_enable_warnings(fuelsim_m2_core_tests)
+    add_test(NAME fuelsim_m2_core_tests COMMAND fuelsim_m2_core_tests)
+    set_tests_properties(fuelsim_m2_core_tests PROPERTIES LABELS "unit")
+
     add_executable(fuelsim_solver_tests tests/solver_tests.cpp)
     target_link_libraries(fuelsim_solver_tests PRIVATE fuelsim::petsc)
     fuelsim_enable_warnings(fuelsim_solver_tests)
     add_test(NAME fuelsim_solver_tests COMMAND fuelsim_solver_tests)
     set_tests_properties(fuelsim_solver_tests PROPERTIES LABELS "acceptance")
+
+    add_executable(fuelsim_m2_solver_tests tests/m2_solver_tests.cpp)
+    target_link_libraries(fuelsim_m2_solver_tests PRIVATE fuelsim::petsc)
+    fuelsim_enable_warnings(fuelsim_m2_solver_tests)
+    add_test(NAME fuelsim_m2_solver_tests COMMAND fuelsim_m2_solver_tests)
+    set_tests_properties(fuelsim_m2_solver_tests PROPERTIES LABELS "acceptance")
+
+    add_executable(fuelsim_m2_inelastic_solver_tests
+        tests/m2_inelastic_solver_tests.cpp
+    )
+    target_link_libraries(fuelsim_m2_inelastic_solver_tests
+        PRIVATE fuelsim::petsc
+    )
+    fuelsim_enable_warnings(fuelsim_m2_inelastic_solver_tests)
+    add_test(NAME fuelsim_m2_inelastic_solver_tests
+        COMMAND fuelsim_m2_inelastic_solver_tests
+    )
+    set_tests_properties(fuelsim_m2_inelastic_solver_tests
+        PROPERTIES LABELS "acceptance"
+    )
+
+    add_test(NAME fuelsim_m2_generic_demonstration COMMAND fuelsim_m2)
+    set_tests_properties(fuelsim_m2_generic_demonstration
+        PROPERTIES LABELS "acceptance"
+    )
 endif()
