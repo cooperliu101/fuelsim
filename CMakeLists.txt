@@ -126,6 +126,21 @@ if(BUILD_TESTING)
         LABELS "dependency"
     )
 
+    add_executable(fuelsim_m1_exodus_moose_tests
+        tests/m1_exodus_moose_tests.cpp
+    )
+    target_link_libraries(fuelsim_m1_exodus_moose_tests
+        PRIVATE fuelsim::exodus fuelsim::petsc
+    )
+    fuelsim_enable_warnings(fuelsim_m1_exodus_moose_tests)
+    add_test(NAME fuelsim_m1_exodus_moose_tests
+        COMMAND fuelsim_m1_exodus_moose_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m1_fuel_cladding_gap_rz_mesh.e"
+    )
+    set_tests_properties(fuelsim_m1_exodus_moose_tests PROPERTIES
+        LABELS "acceptance"
+    )
+
     add_executable(fuelsim_core_tests tests/core_tests.cpp)
     target_link_libraries(fuelsim_core_tests PRIVATE fuelsim::core)
     fuelsim_enable_warnings(fuelsim_core_tests)

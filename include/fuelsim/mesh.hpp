@@ -4,6 +4,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <vector>
 
 namespace fuelsim {
@@ -21,6 +22,28 @@ struct Line2BoundaryElement final {
     std::array<std::size_t, 2> nodes;
 };
 
+struct ElementBlockInfo final {
+    std::int64_t id;
+    std::string name;
+};
+
+struct NodeSet final {
+    std::int64_t id;
+    std::string name;
+    std::vector<std::size_t> nodes;
+};
+
+struct ElementSide final {
+    std::size_t element;
+    std::size_t local_side;
+};
+
+struct SideSet final {
+    std::int64_t id;
+    std::string name;
+    std::vector<ElementSide> sides;
+};
+
 enum class BoundaryId {
     radial_inner,
     radial_outer,
@@ -32,16 +55,36 @@ class UnstructuredQuad4Mesh final {
   public:
     UnstructuredQuad4Mesh(std::vector<RzPoint> nodes,
                           std::vector<Quad4Element> elements,
-                          std::vector<std::int64_t> element_block_ids);
+                          std::vector<std::int64_t> element_block_ids,
+                          std::vector<ElementBlockInfo> element_blocks,
+                          std::vector<NodeSet> node_sets,
+                          std::vector<SideSet> side_sets);
 
     const std::vector<RzPoint>& nodes() const noexcept;
     const std::vector<Quad4Element>& elements() const noexcept;
     const std::vector<std::int64_t>& element_block_ids() const noexcept;
+    const std::vector<ElementBlockInfo>& element_blocks() const noexcept;
+    const std::vector<NodeSet>& node_sets() const noexcept;
+    const std::vector<SideSet>& side_sets() const noexcept;
+
+    const ElementBlockInfo& element_block(const std::string& name) const;
+    const NodeSet& node_set(const std::string& name) const;
+    const SideSet& side_set(const std::string& name) const;
 
   private:
     std::vector<RzPoint> _nodes;
     std::vector<Quad4Element> _elements;
     std::vector<std::int64_t> _element_block_ids;
+    std::vector<ElementBlockInfo> _element_blocks;
+    std::vector<NodeSet> _node_sets;
+    std::vector<SideSet> _side_sets;
+};
+
+struct RzBoundaryNames final {
+    std::string radial_inner;
+    std::string radial_outer;
+    std::string bottom;
+    std::string top;
 };
 
 class StructuredRzMesh final {
@@ -50,6 +93,10 @@ class StructuredRzMesh final {
                                          double outer_radius, double length,
                                          std::size_t radial_elements,
                                          std::size_t axial_elements);
+    static StructuredRzMesh
+    from_unstructured_block(const UnstructuredQuad4Mesh& source,
+                            const std::string& block_name,
+                            const RzBoundaryNames& boundary_names);
 
     const std::vector<RzPoint>& nodes() const noexcept;
     const std::vector<Quad4Element>& elements() const noexcept;

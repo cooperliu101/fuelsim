@@ -31,13 +31,34 @@ void accumulate_timing(SolveTiming& total, const SolveTiming& step) {
 M1LoadStepResult M1LoadStepper::solve(const M1Parameters& target_parameters,
                                       std::size_t load_steps,
                                       const SolverOptions& options) const {
+    return solve(
+        target_parameters,
+        StructuredRzMesh::make_annulus(0.0, target_parameters.fuel_radius,
+                                       target_parameters.fuel_length,
+                                       target_parameters.fuel_radial_elements,
+                                       target_parameters.axial_elements),
+        StructuredRzMesh::make_annulus(
+            target_parameters.cladding_inner_radius,
+            target_parameters.cladding_outer_radius,
+            target_parameters.cladding_length,
+            target_parameters.cladding_radial_elements,
+            target_parameters.axial_elements),
+        load_steps, options);
+}
+
+M1LoadStepResult M1LoadStepper::solve(const M1Parameters& target_parameters,
+                                      StructuredRzMesh fuel_mesh,
+                                      StructuredRzMesh cladding_mesh,
+                                      std::size_t load_steps,
+                                      const SolverOptions& options) const {
     if (load_steps == 0)
         throw std::invalid_argument(
             "M1LoadStepper load_steps must be positive");
 
     const SteadyClock::time_point total_start = SteadyClock::now();
     const SteadyClock::time_point problem_setup_start = SteadyClock::now();
-    M1Problem problem(target_parameters);
+    M1Problem problem(target_parameters, std::move(fuel_mesh),
+                      std::move(cladding_mesh));
 
     M1LoadStepResult result;
     result.problem_setup_seconds = seconds_since(problem_setup_start);

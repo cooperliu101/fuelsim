@@ -41,7 +41,10 @@ bool meshes_equal(const fuelsim::UnstructuredQuad4Mesh& lhs,
                   const fuelsim::UnstructuredQuad4Mesh& rhs) {
     if (lhs.nodes().size() != rhs.nodes().size() ||
         lhs.elements().size() != rhs.elements().size() ||
-        lhs.element_block_ids() != rhs.element_block_ids())
+        lhs.element_block_ids() != rhs.element_block_ids() ||
+        lhs.element_blocks().size() != rhs.element_blocks().size() ||
+        lhs.node_sets().size() != rhs.node_sets().size() ||
+        lhs.side_sets().size() != rhs.side_sets().size())
         return false;
 
     for (std::size_t node = 0; node < lhs.nodes().size(); ++node) {
@@ -52,6 +55,33 @@ bool meshes_equal(const fuelsim::UnstructuredQuad4Mesh& lhs,
     for (std::size_t element = 0; element < lhs.elements().size(); ++element) {
         if (lhs.elements()[element].nodes != rhs.elements()[element].nodes)
             return false;
+    }
+    for (std::size_t block = 0; block < lhs.element_blocks().size(); ++block) {
+        if (lhs.element_blocks()[block].id != rhs.element_blocks()[block].id ||
+            lhs.element_blocks()[block].name !=
+                rhs.element_blocks()[block].name)
+            return false;
+    }
+    for (std::size_t set = 0; set < lhs.node_sets().size(); ++set) {
+        if (lhs.node_sets()[set].id != rhs.node_sets()[set].id ||
+            lhs.node_sets()[set].name != rhs.node_sets()[set].name ||
+            lhs.node_sets()[set].nodes != rhs.node_sets()[set].nodes)
+            return false;
+    }
+    for (std::size_t set = 0; set < lhs.side_sets().size(); ++set) {
+        if (lhs.side_sets()[set].id != rhs.side_sets()[set].id ||
+            lhs.side_sets()[set].name != rhs.side_sets()[set].name ||
+            lhs.side_sets()[set].sides.size() !=
+                rhs.side_sets()[set].sides.size())
+            return false;
+        for (std::size_t side = 0; side < lhs.side_sets()[set].sides.size();
+             ++side) {
+            if (lhs.side_sets()[set].sides[side].element !=
+                    rhs.side_sets()[set].sides[side].element ||
+                lhs.side_sets()[set].sides[side].local_side !=
+                    rhs.side_sets()[set].sides[side].local_side)
+                return false;
+        }
     }
     return true;
 }
@@ -73,12 +103,31 @@ bool run_tests(const char* path) {
     }
 
     const fuelsim::UnstructuredQuad4Mesh two_block_mesh(
-        fixture.nodes(), fixture.elements(), std::vector<std::int64_t>{7, 9});
+        fixture.nodes(), fixture.elements(), std::vector<std::int64_t>{7, 9},
+        std::vector<fuelsim::ElementBlockInfo>{{7, "fuel"}, {9, "clad"}},
+        std::vector<fuelsim::NodeSet>{{10, "sample_nodes", {0, 3}}},
+        std::vector<fuelsim::SideSet>{
+            {20, "sample_sides", {{{0, 0}, {1, 0}}}}});
     fuelsim::ExodusMeshIo::write_quad4(path, two_block_mesh);
     const fuelsim::UnstructuredQuad4Mesh round_trip =
         fuelsim::ExodusMeshIo::read_quad4(path);
     if (!meshes_equal(two_block_mesh, round_trip)) {
         std::cerr << "Exodus Quad4 write/read round trip changed the mesh\n";
+        return false;
+    }
+
+    const fuelsim::UnstructuredQuad4Mesh interleaved_blocks(
+        fixture.nodes(), fixture.elements(), std::vector<std::int64_t>{9, 7},
+        std::vector<fuelsim::ElementBlockInfo>{{7, "fuel"}, {9, "clad"}},
+        std::vector<fuelsim::NodeSet>{},
+        std::vector<fuelsim::SideSet>{{20, "clad_side", {{{0, 0}}}}});
+    fuelsim::ExodusMeshIo::write_quad4(path, interleaved_blocks);
+    const fuelsim::UnstructuredQuad4Mesh reordered =
+        fuelsim::ExodusMeshIo::read_quad4(path);
+    if (reordered.elements()[1].nodes != fixture.elements()[0].nodes ||
+        reordered.side_set("clad_side").sides[0].element != 1) {
+        std::cerr << "Exodus side set did not follow block-grouped element "
+                     "numbering\n";
         return false;
     }
 

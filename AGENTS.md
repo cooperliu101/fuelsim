@@ -85,7 +85,8 @@ committed/trial/commit/rollback。M2.2 增加通用 J2 Norton 蠕变、J2
 - `fuelsim_core`：网格、自由度、材料、Quad4 RZ 核和问题定义，仅依赖
   ADlite。
 - `fuelsim_exodus`：使用 Exodus API 在 `.e` 文件和 fuelsim 自有非结构
-  Quad4 网格之间转换；不使用 DMPlex，不暴露 Exodus 类型。
+  Quad4 网格之间转换，保留元素块、节点集和边集的 ID 与名称；不使用
+  DMPlex，不暴露 Exodus 类型。
 - `fuelsim_petsc`：PETSc 会话、稀疏装配和 SNES 求解。
 - `NonlinearProblem` 只作为求解器端口；不得扩张成 MOOSE 式对象工厂。
 - M1 燃料和包壳节点必须保持独立；默认包壳高度比芯块高 `20 um`，界面通过
@@ -129,6 +130,11 @@ PETSc/MPICH 测试在受限沙盒内可能出现 `OFI EP enable failed`。遇到
 2. 相关解析解；
 3. 默认端到端求解；
 4. 匹配物理、罚参数、加载路径和网格设置的 MOOSE 对标量。
+
+M1 的 Exodus 接入还必须运行 `fuelsim_m1_exodus_moose_tests`，读取
+`verification/moose/m1_fuel_cladding_gap_rz_mesh.e`，不得在测试内用
+fuelsim 重新生成等价网格。当前 M1 允许从一般非结构 Quad4 文件读取元数据，
+但转换到求解网格时，每个 `fuel`/`clad` 块必须是完整张量积 RZ 网格。
 
 M2 还必须检查：
 

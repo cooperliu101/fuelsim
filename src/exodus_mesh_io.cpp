@@ -70,8 +70,97 @@ std::string normalized_topology(const char* topology) {
 
 struct BlockConnectivity final {
     std::int64_t _id;
+    std::string _name;
     std::vector<std::int64_t> _nodes;
+    std::vector<std::size_t> _source_elements;
 };
+
+std::string read_entity_name(int exoid, ex_entity_type type, std::int64_t id,
+                             std::size_t maximum_length) {
+    std::vector<char> name(maximum_length + 1U, '\0');
+    check_exodus(ex_get_name(exoid, type, id, name.data()),
+                 "Could not read Exodus entity name");
+    return std::string(name.data());
+}
+
+std::vector<NodeSet> read_node_sets(int exoid, std::size_t set_count,
+                                    std::size_t maximum_name_length) {
+    std::vector<NodeSet> result;
+    if (set_count == 0)
+        return result;
+
+    std::vector<std::int64_t> set_ids(set_count);
+    check_exodus(ex_get_ids(exoid, EX_NODE_SET, set_ids.data()),
+                 "Could not read Exodus node set IDs");
+    result.reserve(set_count);
+    for (const std::int64_t set_id : set_ids) {
+        std::int64_t entry_count = 0;
+        std::int64_t factor_count = 0;
+        check_exodus(ex_get_set_param(exoid, EX_NODE_SET, set_id, &entry_count,
+                                      &factor_count),
+                     "Could not read Exodus node set parameters");
+        std::vector<std::int64_t> entries(
+            checked_size(entry_count, "Exodus node set size"));
+        if (!entries.empty())
+            check_exodus(
+                ex_get_set(exoid, EX_NODE_SET, set_id, entries.data(), nullptr),
+                "Could not read Exodus node set");
+        NodeSet set{
+            set_id,
+            read_entity_name(exoid, EX_NODE_SET, set_id, maximum_name_length),
+            {}};
+        set.nodes.reserve(entries.size());
+        for (const std::int64_t entry : entries) {
+            if (entry <= 0)
+                throw std::runtime_error(
+                    "Exodus node set contains an invalid node ID");
+            set.nodes.push_back(static_cast<std::size_t>(entry - 1));
+        }
+        result.push_back(std::move(set));
+    }
+    return result;
+}
+
+std::vector<SideSet> read_side_sets(int exoid, std::size_t set_count,
+                                    std::size_t maximum_name_length) {
+    std::vector<SideSet> result;
+    if (set_count == 0)
+        return result;
+
+    std::vector<std::int64_t> set_ids(set_count);
+    check_exodus(ex_get_ids(exoid, EX_SIDE_SET, set_ids.data()),
+                 "Could not read Exodus side set IDs");
+    result.reserve(set_count);
+    for (const std::int64_t set_id : set_ids) {
+        std::int64_t entry_count = 0;
+        std::int64_t factor_count = 0;
+        check_exodus(ex_get_set_param(exoid, EX_SIDE_SET, set_id, &entry_count,
+                                      &factor_count),
+                     "Could not read Exodus side set parameters");
+        const std::size_t count =
+            checked_size(entry_count, "Exodus side set size");
+        std::vector<std::int64_t> elements(count);
+        std::vector<std::int64_t> sides(count);
+        if (count != 0)
+            check_exodus(ex_get_set(exoid, EX_SIDE_SET, set_id, elements.data(),
+                                    sides.data()),
+                         "Could not read Exodus side set");
+        SideSet set{
+            set_id,
+            read_entity_name(exoid, EX_SIDE_SET, set_id, maximum_name_length),
+            {}};
+        set.sides.reserve(count);
+        for (std::size_t entry = 0; entry < count; ++entry) {
+            if (elements[entry] <= 0 || sides[entry] <= 0 || sides[entry] > 4)
+                throw std::runtime_error(
+                    "Exodus side set contains an invalid Quad4 side");
+            set.sides.push_back({static_cast<std::size_t>(elements[entry] - 1),
+                                 static_cast<std::size_t>(sides[entry] - 1)});
+        }
+        result.push_back(std::move(set));
+    }
+    return result;
+}
 
 } // namespace
 
@@ -86,6 +175,13 @@ UnstructuredQuad4Mesh ExodusMeshIo::read_quad4(const std::string& path) {
                                  "': " + ex_strerror(exoid));
     ExodusFile file(exoid);
     ex_set_int64_status(file.id(), EX_ALL_INT64_API);
+    const std::int64_t maximum_name_length =
+        ex_inquire_int(file.id(), EX_INQ_DB_MAX_ALLOWED_NAME_LENGTH);
+    if (maximum_name_length < 0)
+        throw std::runtime_error("Could not read Exodus maximum name length");
+    check_exodus(ex_set_max_name_length(file.id(),
+                                        static_cast<int>(maximum_name_length)),
+                 "Could not set Exodus maximum read name length");
 
     ex_init_params parameters{};
     check_exodus(ex_get_init_ext(file.id(), &parameters),
@@ -97,6 +193,10 @@ UnstructuredQuad4Mesh ExodusMeshIo::read_quad4(const std::string& path) {
         checked_size(parameters.num_nodes, "Exodus node count");
     const std::size_t block_count =
         checked_size(parameters.num_elem_blk, "Exodus element block count");
+    const std::size_t node_set_count =
+        checked_size(parameters.num_node_sets, "Exodus node set count");
+    const std::size_t side_set_count =
+        checked_size(parameters.num_side_sets, "Exodus side set count");
     if (node_count == 0 || block_count == 0)
         throw std::runtime_error(
             "Exodus Quad4 mesh must contain nodes and element blocks");
@@ -118,10 +218,17 @@ UnstructuredQuad4Mesh ExodusMeshIo::read_quad4(const std::string& path) {
 
     std::vector<Quad4Element> elements;
     std::vector<std::int64_t> element_block_ids;
+    std::vector<ElementBlockInfo> element_blocks;
+    element_blocks.reserve(block_count);
     elements.reserve(checked_size(parameters.num_elem, "Exodus element count"));
     element_block_ids.reserve(elements.capacity());
 
     for (const std::int64_t block_id : block_ids) {
+        element_blocks.push_back(
+            {block_id,
+             read_entity_name(file.id(), EX_ELEM_BLOCK, block_id,
+                              checked_size(maximum_name_length,
+                                           "Exodus maximum name length"))});
         ex_block block{};
         block.id = block_id;
         block.type = EX_ELEM_BLOCK;
@@ -164,9 +271,17 @@ UnstructuredQuad4Mesh ExodusMeshIo::read_quad4(const std::string& path) {
         throw std::runtime_error(
             "Exodus element count does not match its element blocks");
 
+    std::vector<NodeSet> node_sets = read_node_sets(
+        file.id(), node_set_count,
+        checked_size(maximum_name_length, "Exodus maximum name length"));
+    std::vector<SideSet> side_sets = read_side_sets(
+        file.id(), side_set_count,
+        checked_size(maximum_name_length, "Exodus maximum name length"));
+
     file.close();
-    return UnstructuredQuad4Mesh(std::move(nodes), std::move(elements),
-                                 std::move(element_block_ids));
+    return UnstructuredQuad4Mesh(
+        std::move(nodes), std::move(elements), std::move(element_block_ids),
+        std::move(element_blocks), std::move(node_sets), std::move(side_sets));
 }
 
 void ExodusMeshIo::write_quad4(const std::string& path,
@@ -183,6 +298,9 @@ void ExodusMeshIo::write_quad4(const std::string& path,
     ex_set_int64_status(file.id(), EX_ALL_INT64_API);
 
     std::vector<BlockConnectivity> blocks;
+    blocks.reserve(mesh.element_blocks().size());
+    for (const ElementBlockInfo& block : mesh.element_blocks())
+        blocks.push_back({block.id, block.name, {}, {}});
     const std::vector<Quad4Element>& elements = mesh.elements();
     const std::vector<std::int64_t>& block_ids = mesh.element_block_ids();
     for (std::size_t element = 0; element < elements.size(); ++element) {
@@ -191,10 +309,9 @@ void ExodusMeshIo::write_quad4(const std::string& path,
                                       const BlockConnectivity& candidate) {
                                       return candidate._id == block_id;
                                   });
-        if (block == blocks.end()) {
-            blocks.push_back({block_ids[element], {}});
-            block = blocks.end() - 1;
-        }
+        if (block == blocks.end())
+            throw std::logic_error("Mesh element references an unknown block");
+        block->_source_elements.push_back(element);
         block->_nodes.reserve(block->_nodes.size() + 4U);
         for (const std::size_t node : elements[element].nodes) {
             if (node >= static_cast<std::size_t>(
@@ -213,6 +330,10 @@ void ExodusMeshIo::write_quad4(const std::string& path,
     parameters.num_nodes = checked_count(mesh.nodes().size(), "Node count");
     parameters.num_elem = checked_count(elements.size(), "Element count");
     parameters.num_elem_blk = checked_count(blocks.size(), "Block count");
+    parameters.num_node_sets =
+        checked_count(mesh.node_sets().size(), "Node set count");
+    parameters.num_side_sets =
+        checked_count(mesh.side_sets().size(), "Side set count");
     check_exodus(ex_put_init_ext(file.id(), &parameters),
                  "Could not write Exodus model parameters");
 
@@ -233,6 +354,8 @@ void ExodusMeshIo::write_quad4(const std::string& path,
     check_exodus(ex_put_coord_names(file.id(), coordinate_names),
                  "Could not write Exodus coordinate names");
 
+    std::vector<std::int64_t> written_element_ids(elements.size(), 0);
+    std::int64_t next_element_id = 1;
     for (const BlockConnectivity& block : blocks) {
         const std::int64_t block_element_count =
             checked_count(block._nodes.size() / 4U, "Block element count");
@@ -242,6 +365,62 @@ void ExodusMeshIo::write_quad4(const std::string& path,
         check_exodus(ex_put_conn(file.id(), EX_ELEM_BLOCK, block._id,
                                  block._nodes.data(), nullptr, nullptr),
                      "Could not write Exodus Quad4 connectivity");
+        if (!block._name.empty())
+            check_exodus(ex_put_name(file.id(), EX_ELEM_BLOCK, block._id,
+                                     block._name.c_str()),
+                         "Could not write Exodus element block name");
+        for (const std::size_t source_element : block._source_elements)
+            written_element_ids[source_element] = next_element_id++;
+    }
+
+    for (const NodeSet& set : mesh.node_sets()) {
+        std::vector<std::int64_t> entries;
+        entries.reserve(set.nodes.size());
+        for (const std::size_t node : set.nodes) {
+            if (node >= static_cast<std::size_t>(
+                            std::numeric_limits<std::int64_t>::max()))
+                throw std::length_error("Exodus node set ID is out of range");
+            entries.push_back(static_cast<std::int64_t>(node) + 1);
+        }
+        check_exodus(
+            ex_put_set_param(file.id(), EX_NODE_SET, set.id,
+                             checked_count(entries.size(), "Node set size"), 0),
+            "Could not write Exodus node set parameters");
+        if (!entries.empty())
+            check_exodus(ex_put_set(file.id(), EX_NODE_SET, set.id,
+                                    entries.data(), nullptr),
+                         "Could not write Exodus node set");
+        if (!set.name.empty())
+            check_exodus(
+                ex_put_name(file.id(), EX_NODE_SET, set.id, set.name.c_str()),
+                "Could not write Exodus node set name");
+    }
+
+    for (const SideSet& set : mesh.side_sets()) {
+        std::vector<std::int64_t> set_elements;
+        std::vector<std::int64_t> set_sides;
+        set_elements.reserve(set.sides.size());
+        set_sides.reserve(set.sides.size());
+        for (const ElementSide& side : set.sides) {
+            if (side.element >= static_cast<std::size_t>(
+                                    std::numeric_limits<std::int64_t>::max()))
+                throw std::length_error(
+                    "Exodus side set element ID is out of range");
+            set_elements.push_back(written_element_ids.at(side.element));
+            set_sides.push_back(static_cast<std::int64_t>(side.local_side) + 1);
+        }
+        check_exodus(ex_put_set_param(
+                         file.id(), EX_SIDE_SET, set.id,
+                         checked_count(set.sides.size(), "Side set size"), 0),
+                     "Could not write Exodus side set parameters");
+        if (!set_elements.empty())
+            check_exodus(ex_put_set(file.id(), EX_SIDE_SET, set.id,
+                                    set_elements.data(), set_sides.data()),
+                         "Could not write Exodus side set");
+        if (!set.name.empty())
+            check_exodus(
+                ex_put_name(file.id(), EX_SIDE_SET, set.id, set.name.c_str()),
+                "Could not write Exodus side set name");
     }
 
     file.close();

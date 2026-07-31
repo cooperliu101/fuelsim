@@ -87,9 +87,31 @@ supplies three temperatures and three displacements, while the surface file
 supplies all 11 node coordinates, displacements, contact pressures, nodal
 areas, and penetrations used by `tests/solver_tests.cpp`.
 
+The MOOSE-generated comparison mesh is tracked as
+`m1_fuel_cladding_gap_rz_mesh.e`. Recreate the mesh-only file with:
+
+```bash
+/home/cooper/projects/july/july-opt \
+  --mesh-only m1_fuel_cladding_gap_rz_mesh.e \
+  -i m1_fuel_cladding_gap_rz.i
+```
+
+Its SHA256 is:
+
+```text
+ab1a3da68b8cfa0f630b0ad61865970a0fe6492c4b10a846d80badb51a7cf979
+```
+
+The file contains 528 nodes and 460 Quad4 elements. The `fuel=0` and
+`clad=1` blocks, together with the named MOOSE node and side sets, are read
+through the direct Exodus API. `fuelsim_m1_exodus_moose_tests` reconstructs
+the two current structured RZ blocks from those entities and runs the M1
+solver on the imported mesh; it does not regenerate the mesh in fuelsim.
+
 The final fuelsim-to-MOOSE differences are:
 
 ```text
+maximum six-point temperature/displacement error: 0.02530%
 contact pressure relative L2 error:       0.2207%
 maximum nodal pressure relative error:    0.3328%
 total contact force relative error:       0.0443%

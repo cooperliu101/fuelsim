@@ -23,6 +23,10 @@ class M1LoadStepper final {
     M1LoadStepResult
     solve(const M1Parameters& target_parameters, std::size_t load_steps,
           const SolverOptions& options = SolverOptions{}) const;
+    M1LoadStepResult
+    solve(const M1Parameters& target_parameters, StructuredRzMesh fuel_mesh,
+          StructuredRzMesh cladding_mesh, std::size_t load_steps,
+          const SolverOptions& options = SolverOptions{}) const;
 };
 
 } // namespace fuelsim

@@ -5,6 +5,7 @@
 #include <cmath>
 #include <limits>
 #include <stdexcept>
+#include <utility>
 
 namespace fuelsim {
 namespace {
@@ -88,14 +89,21 @@ find_containing_segment(double z, const StructuredRzMesh& mesh,
 } // namespace
 
 M1Problem::M1Problem(M1Parameters parameters)
-    : _parameters(parameters),
-      _fuel_mesh(StructuredRzMesh::make_annulus(
-          0.0, parameters.fuel_radius, parameters.fuel_length,
-          parameters.fuel_radial_elements, parameters.axial_elements)),
-      _cladding_mesh(StructuredRzMesh::make_annulus(
-          parameters.cladding_inner_radius, parameters.cladding_outer_radius,
-          parameters.cladding_length, parameters.cladding_radial_elements,
-          parameters.axial_elements)),
+    : M1Problem(
+          parameters,
+          StructuredRzMesh::make_annulus(
+              0.0, parameters.fuel_radius, parameters.fuel_length,
+              parameters.fuel_radial_elements, parameters.axial_elements),
+          StructuredRzMesh::make_annulus(
+              parameters.cladding_inner_radius,
+              parameters.cladding_outer_radius, parameters.cladding_length,
+              parameters.cladding_radial_elements, parameters.axial_elements)) {
+}
+
+M1Problem::M1Problem(M1Parameters parameters, StructuredRzMesh fuel_mesh,
+                     StructuredRzMesh cladding_mesh)
+    : _parameters(parameters), _fuel_mesh(std::move(fuel_mesh)),
+      _cladding_mesh(std::move(cladding_mesh)),
       _dof_map(checked_node_count(_fuel_mesh, _cladding_mesh)),
       _fuel_kernel(IsotropicThermoelasticMaterial(parameters.fuel),
                    parameters.volumetric_heat_source),
@@ -103,6 +111,26 @@ M1Problem::M1Problem(M1Parameters parameters)
                        0.0),
       _gap_heat_kernel({parameters.gap_conductivity, parameters.minimum_gap}),
       _contact_kernel({parameters.contact_penalty}) {
+    const auto same_geometry = [](double actual, double expected) {
+        const double scale =
+            std::max({1.0, std::abs(actual), std::abs(expected)});
+        return std::abs(actual - expected) <= 1.0e-12 * scale;
+    };
+    if (_fuel_mesh.radial_elements() != _parameters.fuel_radial_elements ||
+        _cladding_mesh.radial_elements() !=
+            _parameters.cladding_radial_elements ||
+        _fuel_mesh.axial_elements() != _parameters.axial_elements ||
+        _cladding_mesh.axial_elements() != _parameters.axial_elements ||
+        !same_geometry(_fuel_mesh.inner_radius(), 0.0) ||
+        !same_geometry(_fuel_mesh.outer_radius(), _parameters.fuel_radius) ||
+        !same_geometry(_fuel_mesh.length(), _parameters.fuel_length) ||
+        !same_geometry(_cladding_mesh.inner_radius(),
+                       _parameters.cladding_inner_radius) ||
+        !same_geometry(_cladding_mesh.outer_radius(),
+                       _parameters.cladding_outer_radius) ||
+        !same_geometry(_cladding_mesh.length(), _parameters.cladding_length))
+        throw std::invalid_argument(
+            "M1Problem imported meshes do not match M1Parameters");
     if (!(_parameters.cladding_inner_radius > _parameters.fuel_radius))
         throw std::invalid_argument(
             "M1Problem requires a positive initial fuel-cladding gap");

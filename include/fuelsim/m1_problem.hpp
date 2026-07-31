@@ -61,6 +61,8 @@ struct InterfaceSummary final {
 class M1Problem final : public NonlinearProblem {
   public:
     explicit M1Problem(M1Parameters parameters);
+    M1Problem(M1Parameters parameters, StructuredRzMesh fuel_mesh,
+              StructuredRzMesh cladding_mesh);
 
     const M1Parameters& parameters() const noexcept;
     const StructuredRzMesh& fuel_mesh() const noexcept;

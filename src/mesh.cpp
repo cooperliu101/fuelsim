@@ -1,17 +1,56 @@
 #include "fuelsim/mesh.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <stdexcept>
 #include <utility>
 
 namespace fuelsim {
+namespace {
+
+bool same_coordinate(double lhs, double rhs) {
+    const double scale = std::max({1.0, std::abs(lhs), std::abs(rhs)});
+    return std::abs(lhs - rhs) <= 1.0e-12 * scale;
+}
+
+std::size_t coordinate_index(const std::vector<double>& coordinates,
+                             double value) {
+    for (std::size_t index = 0; index < coordinates.size(); ++index) {
+        if (same_coordinate(coordinates[index], value))
+            return index;
+    }
+    throw std::invalid_argument(
+        "StructuredRzMesh node does not lie on the reconstructed grid");
+}
+
+std::vector<double>
+sorted_unique_coordinates(const UnstructuredQuad4Mesh& source,
+                          const std::vector<bool>& used_nodes, bool radial) {
+    std::vector<double> coordinates;
+    for (std::size_t node = 0; node < source.nodes().size(); ++node) {
+        if (used_nodes[node])
+            coordinates.push_back(radial ? source.nodes()[node].r
+                                         : source.nodes()[node].z);
+    }
+    std::sort(coordinates.begin(), coordinates.end());
+    coordinates.erase(
+        std::unique(coordinates.begin(), coordinates.end(), same_coordinate),
+        coordinates.end());
+    return coordinates;
+}
+
+} // namespace
 
 UnstructuredQuad4Mesh::UnstructuredQuad4Mesh(
     std::vector<RzPoint> nodes, std::vector<Quad4Element> elements,
-    std::vector<std::int64_t> element_block_ids)
+    std::vector<std::int64_t> element_block_ids,
+    std::vector<ElementBlockInfo> element_blocks,
+    std::vector<NodeSet> node_sets, std::vector<SideSet> side_sets)
     : _nodes(std::move(nodes)), _elements(std::move(elements)),
-      _element_block_ids(std::move(element_block_ids)) {
+      _element_block_ids(std::move(element_block_ids)),
+      _element_blocks(std::move(element_blocks)),
+      _node_sets(std::move(node_sets)), _side_sets(std::move(side_sets)) {
     if (_nodes.empty())
         throw std::invalid_argument(
             "UnstructuredQuad4Mesh requires at least one node");
@@ -28,14 +67,77 @@ UnstructuredQuad4Mesh::UnstructuredQuad4Mesh(
                 "UnstructuredQuad4Mesh requires finite RZ coordinates and "
                 "nonnegative radius");
     }
-    for (std::size_t index = 0; index < _elements.size(); ++index) {
-        if (_element_block_ids[index] <= 0)
+    if (_element_blocks.empty())
+        throw std::invalid_argument(
+            "UnstructuredQuad4Mesh requires element block metadata");
+    for (std::size_t block = 0; block < _element_blocks.size(); ++block) {
+        if (_element_blocks[block].id < 0)
             throw std::invalid_argument(
-                "UnstructuredQuad4Mesh block IDs must be positive");
+                "UnstructuredQuad4Mesh block IDs must be nonnegative");
+        for (std::size_t previous = 0; previous < block; ++previous) {
+            if (_element_blocks[previous].id == _element_blocks[block].id)
+                throw std::invalid_argument(
+                    "UnstructuredQuad4Mesh block IDs must be unique");
+            if (!_element_blocks[block].name.empty() &&
+                _element_blocks[previous].name == _element_blocks[block].name)
+                throw std::invalid_argument(
+                    "UnstructuredQuad4Mesh block names must be unique");
+        }
+    }
+    for (std::size_t index = 0; index < _elements.size(); ++index) {
+        const bool known_block = std::any_of(
+            _element_blocks.begin(), _element_blocks.end(),
+            [id = _element_block_ids[index]](const ElementBlockInfo& block) {
+                return block.id == id;
+            });
+        if (!known_block)
+            throw std::invalid_argument(
+                "UnstructuredQuad4Mesh element references an unknown block");
         for (const std::size_t node : _elements[index].nodes) {
             if (node >= _nodes.size())
                 throw std::out_of_range(
                     "UnstructuredQuad4Mesh connectivity is out of range");
+        }
+    }
+
+    for (std::size_t set = 0; set < _node_sets.size(); ++set) {
+        const NodeSet& node_set = _node_sets[set];
+        if (node_set.id < 0)
+            throw std::invalid_argument(
+                "UnstructuredQuad4Mesh node set IDs must be nonnegative");
+        for (std::size_t previous_index = 0; previous_index < set;
+             ++previous_index) {
+            const NodeSet& previous = _node_sets[previous_index];
+            if (previous.id == node_set.id ||
+                (!node_set.name.empty() && previous.name == node_set.name))
+                throw std::invalid_argument(
+                    "UnstructuredQuad4Mesh node set IDs and names must be "
+                    "unique");
+        }
+        for (const std::size_t node : node_set.nodes) {
+            if (node >= _nodes.size())
+                throw std::out_of_range(
+                    "UnstructuredQuad4Mesh node set is out of range");
+        }
+    }
+    for (std::size_t set = 0; set < _side_sets.size(); ++set) {
+        const SideSet& side_set = _side_sets[set];
+        if (side_set.id < 0)
+            throw std::invalid_argument(
+                "UnstructuredQuad4Mesh side set IDs must be nonnegative");
+        for (std::size_t previous_index = 0; previous_index < set;
+             ++previous_index) {
+            const SideSet& previous = _side_sets[previous_index];
+            if (previous.id == side_set.id ||
+                (!side_set.name.empty() && previous.name == side_set.name))
+                throw std::invalid_argument(
+                    "UnstructuredQuad4Mesh side set IDs and names must be "
+                    "unique");
+        }
+        for (const ElementSide& side : side_set.sides) {
+            if (side.element >= _elements.size() || side.local_side >= 4U)
+                throw std::out_of_range(
+                    "UnstructuredQuad4Mesh side set is out of range");
         }
     }
 }
@@ -52,6 +154,260 @@ UnstructuredQuad4Mesh::elements() const noexcept {
 const std::vector<std::int64_t>&
 UnstructuredQuad4Mesh::element_block_ids() const noexcept {
     return _element_block_ids;
+}
+
+const std::vector<ElementBlockInfo>&
+UnstructuredQuad4Mesh::element_blocks() const noexcept {
+    return _element_blocks;
+}
+
+const std::vector<NodeSet>& UnstructuredQuad4Mesh::node_sets() const noexcept {
+    return _node_sets;
+}
+
+const std::vector<SideSet>& UnstructuredQuad4Mesh::side_sets() const noexcept {
+    return _side_sets;
+}
+
+const ElementBlockInfo&
+UnstructuredQuad4Mesh::element_block(const std::string& name) const {
+    const auto block =
+        std::find_if(_element_blocks.begin(), _element_blocks.end(),
+                     [&name](const ElementBlockInfo& candidate) {
+                         return candidate.name == name;
+                     });
+    if (block == _element_blocks.end())
+        throw std::invalid_argument("Unknown element block: " + name);
+    return *block;
+}
+
+const NodeSet& UnstructuredQuad4Mesh::node_set(const std::string& name) const {
+    const auto set = std::find_if(
+        _node_sets.begin(), _node_sets.end(),
+        [&name](const NodeSet& candidate) { return candidate.name == name; });
+    if (set == _node_sets.end())
+        throw std::invalid_argument("Unknown node set: " + name);
+    return *set;
+}
+
+const SideSet& UnstructuredQuad4Mesh::side_set(const std::string& name) const {
+    const auto set = std::find_if(
+        _side_sets.begin(), _side_sets.end(),
+        [&name](const SideSet& candidate) { return candidate.name == name; });
+    if (set == _side_sets.end())
+        throw std::invalid_argument("Unknown side set: " + name);
+    return *set;
+}
+
+StructuredRzMesh StructuredRzMesh::from_unstructured_block(
+    const UnstructuredQuad4Mesh& source, const std::string& block_name,
+    const RzBoundaryNames& boundary_names) {
+    const std::int64_t block_id = source.element_block(block_name).id;
+    std::vector<bool> used_nodes(source.nodes().size(), false);
+    std::size_t block_element_count = 0;
+    for (std::size_t element = 0; element < source.elements().size();
+         ++element) {
+        if (source.element_block_ids()[element] != block_id)
+            continue;
+        ++block_element_count;
+        for (const std::size_t node : source.elements()[element].nodes)
+            used_nodes[node] = true;
+    }
+    if (block_element_count == 0)
+        throw std::invalid_argument("Element block is empty: " + block_name);
+
+    const std::vector<double> radial_coordinates =
+        sorted_unique_coordinates(source, used_nodes, true);
+    const std::vector<double> axial_coordinates =
+        sorted_unique_coordinates(source, used_nodes, false);
+    if (radial_coordinates.size() < 2 || axial_coordinates.size() < 2)
+        throw std::invalid_argument(
+            "StructuredRzMesh block requires at least one element per axis");
+
+    const std::size_t radial_nodes = radial_coordinates.size();
+    const std::size_t axial_nodes = axial_coordinates.size();
+    if (radial_nodes > std::numeric_limits<std::size_t>::max() / axial_nodes)
+        throw std::length_error("StructuredRzMesh node count overflows");
+    const std::size_t expected_node_count = radial_nodes * axial_nodes;
+    const std::size_t radial_elements = radial_nodes - 1;
+    const std::size_t axial_elements = axial_nodes - 1;
+    if (radial_elements >
+        std::numeric_limits<std::size_t>::max() / axial_elements)
+        throw std::length_error("StructuredRzMesh element count overflows");
+    if (block_element_count != radial_elements * axial_elements)
+        throw std::invalid_argument(
+            "Element block is not a complete structured Quad4 grid");
+
+    StructuredRzMesh mesh;
+    mesh._inner_radius = radial_coordinates.front();
+    mesh._outer_radius = radial_coordinates.back();
+    mesh._length = axial_coordinates.back() - axial_coordinates.front();
+    mesh._radial_elements = radial_elements;
+    mesh._axial_elements = axial_elements;
+    mesh._nodes.resize(expected_node_count);
+
+    const std::size_t invalid_node = std::numeric_limits<std::size_t>::max();
+    std::vector<std::size_t> source_to_local(source.nodes().size(),
+                                             invalid_node);
+    std::vector<bool> local_node_found(expected_node_count, false);
+    for (std::size_t source_node = 0; source_node < source.nodes().size();
+         ++source_node) {
+        if (!used_nodes[source_node])
+            continue;
+        const RzPoint& point = source.nodes()[source_node];
+        const std::size_t radial =
+            coordinate_index(radial_coordinates, point.r);
+        const std::size_t axial = coordinate_index(axial_coordinates, point.z);
+        const std::size_t local = axial * radial_nodes + radial;
+        if (local_node_found[local])
+            throw std::invalid_argument(
+                "Element block contains duplicate grid coordinates");
+        local_node_found[local] = true;
+        source_to_local[source_node] = local;
+        mesh._nodes[local] = point;
+    }
+    if (std::find(local_node_found.begin(), local_node_found.end(), false) !=
+        local_node_found.end())
+        throw std::invalid_argument(
+            "Element block is missing a structured grid node");
+
+    std::vector<bool> cell_found(radial_elements * axial_elements, false);
+    mesh._elements.reserve(block_element_count);
+    for (std::size_t source_element = 0;
+         source_element < source.elements().size(); ++source_element) {
+        if (source.element_block_ids()[source_element] != block_id)
+            continue;
+        Quad4Element element{};
+        std::size_t minimum_radial = radial_elements;
+        std::size_t maximum_radial = 0;
+        std::size_t minimum_axial = axial_elements;
+        std::size_t maximum_axial = 0;
+        for (std::size_t local_node = 0; local_node < 4U; ++local_node) {
+            const std::size_t mapped = source_to_local.at(
+                source.elements()[source_element].nodes[local_node]);
+            if (mapped == invalid_node)
+                throw std::invalid_argument(
+                    "Element block connectivity crosses block boundaries");
+            element.nodes[local_node] = mapped;
+            const std::size_t radial = mapped % radial_nodes;
+            const std::size_t axial = mapped / radial_nodes;
+            minimum_radial = std::min(minimum_radial, radial);
+            maximum_radial = std::max(maximum_radial, radial);
+            minimum_axial = std::min(minimum_axial, axial);
+            maximum_axial = std::max(maximum_axial, axial);
+        }
+        if (maximum_radial != minimum_radial + 1 ||
+            maximum_axial != minimum_axial + 1)
+            throw std::invalid_argument(
+                "Element block contains a non-grid-aligned Quad4");
+        const std::size_t cell =
+            minimum_axial * radial_elements + minimum_radial;
+        if (cell_found[cell])
+            throw std::invalid_argument(
+                "Element block contains duplicate structured cells");
+        cell_found[cell] = true;
+        mesh._elements.push_back(element);
+    }
+
+    const auto map_boundary = [&](const std::string& name, bool sort_by_axial,
+                                  double fixed_coordinate, bool check_radial) {
+        const NodeSet& source_set = source.node_set(name);
+        std::vector<std::size_t> local_nodes;
+        local_nodes.reserve(source_set.nodes.size());
+        for (const std::size_t source_node : source_set.nodes) {
+            const std::size_t local = source_to_local.at(source_node);
+            if (local == invalid_node)
+                throw std::invalid_argument(
+                    "Node set crosses element blocks: " + name);
+            const RzPoint& point = source.nodes()[source_node];
+            const double coordinate = check_radial ? point.r : point.z;
+            if (!same_coordinate(coordinate, fixed_coordinate))
+                throw std::invalid_argument(
+                    "Node set is not on the expected RZ boundary: " + name);
+            local_nodes.push_back(local);
+        }
+        std::sort(local_nodes.begin(), local_nodes.end(),
+                  [&](std::size_t lhs, std::size_t rhs) {
+                      const RzPoint& lhs_point = mesh._nodes[lhs];
+                      const RzPoint& rhs_point = mesh._nodes[rhs];
+                      return sort_by_axial ? lhs_point.z < rhs_point.z
+                                           : lhs_point.r < rhs_point.r;
+                  });
+        if (std::adjacent_find(local_nodes.begin(), local_nodes.end()) !=
+            local_nodes.end())
+            throw std::invalid_argument("Node set contains duplicates: " +
+                                        name);
+        return local_nodes;
+    };
+
+    mesh._radial_inner_nodes = map_boundary(boundary_names.radial_inner, true,
+                                            mesh._inner_radius, true);
+    mesh._radial_outer_nodes = map_boundary(boundary_names.radial_outer, true,
+                                            mesh._outer_radius, true);
+    mesh._bottom_nodes = map_boundary(boundary_names.bottom, false,
+                                      axial_coordinates.front(), false);
+    mesh._top_nodes = map_boundary(boundary_names.top, false,
+                                   axial_coordinates.back(), false);
+    if (mesh._radial_inner_nodes.size() != axial_nodes ||
+        mesh._radial_outer_nodes.size() != axial_nodes ||
+        mesh._bottom_nodes.size() != radial_nodes ||
+        mesh._top_nodes.size() != radial_nodes)
+        throw std::invalid_argument(
+            "StructuredRzMesh boundary node counts do not match the grid");
+
+    const auto validate_side_set = [&](const std::string& name,
+                                       std::size_t expected_sides,
+                                       double fixed_coordinate,
+                                       bool check_radial,
+                                       const std::vector<std::size_t>&
+                                           expected_boundary_nodes) {
+        const SideSet& source_set = source.side_set(name);
+        if (source_set.sides.size() != expected_sides)
+            throw std::invalid_argument(
+                "StructuredRzMesh side set count does not match the grid: " +
+                name);
+        for (const ElementSide& side : source_set.sides) {
+            if (source.element_block_ids().at(side.element) != block_id)
+                throw std::invalid_argument(
+                    "Side set crosses element blocks: " + name);
+            const Quad4Element& element = source.elements().at(side.element);
+            const std::array<std::size_t, 2> side_nodes = {
+                element.nodes[side.local_side],
+                element.nodes[(side.local_side + 1U) % 4U]};
+            for (const std::size_t source_node : side_nodes) {
+                const RzPoint& point = source.nodes().at(source_node);
+                const double coordinate = check_radial ? point.r : point.z;
+                const std::size_t local_node = source_to_local.at(source_node);
+                if (!same_coordinate(coordinate, fixed_coordinate) ||
+                    std::find(expected_boundary_nodes.begin(),
+                              expected_boundary_nodes.end(),
+                              local_node) == expected_boundary_nodes.end())
+                    throw std::invalid_argument(
+                        "Side set is not on the expected RZ boundary: " + name);
+            }
+        }
+    };
+    validate_side_set(boundary_names.radial_inner, axial_elements,
+                      mesh._inner_radius, true, mesh._radial_inner_nodes);
+    validate_side_set(boundary_names.radial_outer, axial_elements,
+                      mesh._outer_radius, true, mesh._radial_outer_nodes);
+    validate_side_set(boundary_names.bottom, radial_elements,
+                      axial_coordinates.front(), false, mesh._bottom_nodes);
+    validate_side_set(boundary_names.top, radial_elements,
+                      axial_coordinates.back(), false, mesh._top_nodes);
+
+    const auto make_edges = [](const std::vector<std::size_t>& nodes) {
+        std::vector<Line2BoundaryElement> edges;
+        edges.reserve(nodes.size() - 1);
+        for (std::size_t edge = 0; edge + 1 < nodes.size(); ++edge)
+            edges.push_back({{{nodes[edge], nodes[edge + 1]}}});
+        return edges;
+    };
+    mesh._radial_inner_elements = make_edges(mesh._radial_inner_nodes);
+    mesh._radial_outer_elements = make_edges(mesh._radial_outer_nodes);
+    mesh._bottom_elements = make_edges(mesh._bottom_nodes);
+    mesh._top_elements = make_edges(mesh._top_nodes);
+    return mesh;
 }
 
 StructuredRzMesh StructuredRzMesh::make_annulus(double inner_radius,
