@@ -1,3 +1,4 @@
+#include "fuelsim/exodus_mesh_io.hpp"
 #include "fuelsim/m2_problem.hpp"
 #include "fuelsim/m2_solver.hpp"
 #include "fuelsim/nonlinear_problem.hpp"
@@ -11,6 +12,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -39,91 +41,102 @@ fuelsim::TransientInelasticProperties elastic_transient_properties() {
     };
 }
 
-class SingleElementTransientProblem final : public fuelsim::NonlinearProblem {
+class ImportedTransientHeatProblem final : public fuelsim::NonlinearProblem {
   public:
-    SingleElementTransientProblem()
-        : _geometry(fuelsim::make_quad4_rz_geometry({{
-              {0.0, 0.0},
-              {0.004, 0.0},
-              {0.004, 0.010},
-              {0.0, 0.010},
-          }})),
+    explicit ImportedTransientHeatProblem(fuelsim::StructuredRzMesh mesh)
+        : _mesh(std::move(mesh)), _dof_map(_mesh.nodes().size()),
           _kernel(fuelsim::IsotropicInelasticMaterial(
                       constant_material(2.0, 2.0e11, 0.3, 0.0),
                       elastic_transient_properties()),
                   3.0e6),
-          _committed_temperature{600.0, 600.0, 600.0, 600.0},
-          _committed_material{}, _dofs{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11},
-          _dirichlet_conditions{
-              {4, 0.0}, {5, 0.0}, {6, 0.0},  {7, 0.0},
-              {8, 0.0}, {9, 0.0}, {10, 0.0}, {11, 0.0},
-          },
-          _time_step(1.0) {}
+          _committed_temperature(_mesh.elements().size()),
+          _committed_material(_mesh.elements().size()),
+          _committed_solution(_dof_map.dof_count(), 0.0), _time_step(1.0) {
+        _geometries.reserve(_mesh.elements().size());
+        for (std::size_t element = 0; element < _mesh.elements().size();
+             ++element) {
+            fuelsim::Quad4Coordinates coordinates{};
+            for (std::size_t node = 0; node < coordinates.size(); ++node)
+                coordinates[node] =
+                    _mesh.nodes().at(_mesh.elements()[element].nodes[node]);
+            _geometries.push_back(fuelsim::make_quad4_rz_geometry(coordinates));
+            _committed_temperature[element].fill(600.0);
+        }
+        for (std::size_t node = 0; node < _mesh.nodes().size(); ++node) {
+            _committed_solution[_dof_map.temperature(node)] = 600.0;
+            _dirichlet_conditions.push_back(
+                {_dof_map.radial_displacement(node), 0.0});
+            _dirichlet_conditions.push_back(
+                {_dof_map.axial_displacement(node), 0.0});
+        }
+    }
 
     std::vector<double> initial_state() const {
-        std::vector<double> state(fuelsim::local_dof_count, 0.0);
-        for (std::size_t node = 0; node < fuelsim::quad4_node_count; ++node)
-            state[node] = _committed_temperature[node];
-        return state;
+        return _committed_solution;
     }
 
     void commit(const std::vector<double>& converged_state) {
         if (converged_state.size() != dof_count())
             throw std::invalid_argument(
-                "SingleElementTransientProblem committed state size "
+                "ImportedTransientHeatProblem committed state size "
                 "mismatch");
 
-        fuelsim::LocalValues local_state{};
-        std::copy(converged_state.begin(), converged_state.end(),
-                  local_state.begin());
-        _committed_material = _kernel.trial_state_values(
-            _geometry, local_state, _committed_material, _time_step);
-        for (std::size_t node = 0; node < fuelsim::quad4_node_count; ++node)
-            _committed_temperature[node] = converged_state[node];
+        std::vector<fuelsim::Quad4MaterialHistory> staged_material(
+            _committed_material.size());
+        std::vector<fuelsim::Quad4TemperatureHistory> staged_temperature(
+            _committed_temperature.size());
+        for (std::size_t element = 0; element < contribution_count();
+             ++element) {
+            const fuelsim::LocalValues local_state =
+                contribution_state(element, converged_state);
+            staged_material[element] = _kernel.trial_state_values(
+                _geometries[element], local_state, _committed_material[element],
+                _time_step);
+            for (std::size_t node = 0; node < fuelsim::quad4_node_count; ++node)
+                staged_temperature[element][node] = local_state[node];
+        }
+        _committed_material.swap(staged_material);
+        _committed_temperature.swap(staged_temperature);
+        _committed_solution = converged_state;
     }
 
-    const fuelsim::Quad4TemperatureHistory&
-    committed_temperature() const noexcept {
-        return _committed_temperature;
+    double committed_temperature(std::size_t node) const {
+        return _committed_solution.at(_dof_map.temperature(node));
+    }
+
+    std::size_t node_count() const noexcept {
+        return _mesh.nodes().size();
     }
 
     std::size_t dof_count() const noexcept override {
-        return fuelsim::local_dof_count;
+        return _dof_map.dof_count();
     }
 
     std::size_t contribution_count() const noexcept override {
-        return 1;
+        return _mesh.elements().size();
     }
 
     fuelsim::LocalDofs
     contribution_dofs(std::size_t contribution_index) const override {
-        if (contribution_index != 0)
-            throw std::out_of_range(
-                "SingleElementTransientProblem contribution is out of "
-                "range");
-        return _dofs;
+        return _dof_map.element_dofs(_mesh.elements().at(contribution_index));
     }
 
     fuelsim::LocalResidual
     contribution_residual(std::size_t contribution_index,
                           const fuelsim::LocalValues& state) const override {
-        if (contribution_index != 0)
-            throw std::out_of_range(
-                "SingleElementTransientProblem contribution is out of "
-                "range");
-        return _kernel.residual(_geometry, state, _committed_temperature,
-                                _committed_material, _time_step);
+        return _kernel.residual(_geometries.at(contribution_index), state,
+                                _committed_temperature.at(contribution_index),
+                                _committed_material.at(contribution_index),
+                                _time_step);
     }
 
     fuelsim::LocalSystem
     linearize_contribution(std::size_t contribution_index,
                            const fuelsim::LocalValues& state) const override {
-        if (contribution_index != 0)
-            throw std::out_of_range(
-                "SingleElementTransientProblem contribution is out of "
-                "range");
-        return _kernel.linearize(_geometry, state, _committed_temperature,
-                                 _committed_material, _time_step);
+        return _kernel.linearize(_geometries.at(contribution_index), state,
+                                 _committed_temperature.at(contribution_index),
+                                 _committed_material.at(contribution_index),
+                                 _time_step);
     }
 
     const std::vector<fuelsim::DirichletCondition>&
@@ -138,33 +151,42 @@ class SingleElementTransientProblem final : public fuelsim::NonlinearProblem {
     }
 
   private:
-    fuelsim::Quad4RzGeometry _geometry;
+    fuelsim::StructuredRzMesh _mesh;
+    fuelsim::DofMap _dof_map;
+    std::vector<fuelsim::Quad4RzGeometry> _geometries;
     fuelsim::Quad4RzTransientKernel _kernel;
-    fuelsim::Quad4TemperatureHistory _committed_temperature;
-    fuelsim::Quad4MaterialHistory _committed_material;
-    fuelsim::LocalDofs _dofs;
+    std::vector<fuelsim::Quad4TemperatureHistory> _committed_temperature;
+    std::vector<fuelsim::Quad4MaterialHistory> _committed_material;
+    std::vector<double> _committed_solution;
     std::vector<fuelsim::DirichletCondition> _dirichlet_conditions;
     double _time_step;
 };
 
-bool test_single_element_backward_euler_heat_source() {
+bool test_moose_mesh_backward_euler_heat_source(const std::string& mesh_path) {
     constexpr std::size_t step_count = 10;
     constexpr double expected_temperature = 610.0;
     // verification/moose/m21_transient_heat_rz_out.csv at t = 10 s.
     constexpr double moose_snapshot_temperature = 610.0;
 
-    SingleElementTransientProblem problem;
+    const fuelsim::UnstructuredQuad4Mesh imported =
+        fuelsim::ExodusMeshIo::read_quad4(mesh_path);
+    fuelsim::StructuredRzMesh mesh =
+        fuelsim::StructuredRzMesh::from_unstructured_block(
+            imported, 0, {"left", "right", "bottom", "top"});
+    ImportedTransientHeatProblem problem(std::move(mesh));
     fuelsim::PetscSequentialSolver solver;
     std::vector<double> state = problem.initial_state();
     std::size_t workspace_setups = 0;
     std::size_t solve_calls = 0;
-    bool passed = true;
+    bool passed =
+        check(problem.node_count() == 15 && problem.contribution_count() == 8,
+              "M2.1 uses all 8 elements from the MOOSE Exodus mesh");
 
     for (std::size_t step = 0; step < step_count; ++step) {
         const fuelsim::SolveResult result = solver.solve(problem, state);
-        passed = check(result.converged, "single-element backward-Euler step " +
-                                             std::to_string(step + 1) +
-                                             " converged") &&
+        passed = check(result.converged,
+                       "M2.1 MOOSE-mesh backward-Euler step " +
+                           std::to_string(step + 1) + " converged") &&
                  passed;
         workspace_setups += result.timing.workspace_setups;
         solve_calls += result.timing.solve_calls;
@@ -177,22 +199,23 @@ bool test_single_element_backward_euler_heat_source() {
 
     double maximum_temperature_error = 0.0;
     double average_temperature = 0.0;
-    for (double temperature : problem.committed_temperature()) {
+    for (std::size_t node = 0; node < problem.node_count(); ++node) {
+        const double temperature = problem.committed_temperature(node);
         maximum_temperature_error =
             std::max(maximum_temperature_error,
                      std::abs(temperature - expected_temperature));
         average_temperature += temperature;
     }
-    average_temperature /= static_cast<double>(fuelsim::quad4_node_count);
+    average_temperature /= static_cast<double>(problem.node_count());
     const double moose_snapshot_relative_error =
         std::abs(average_temperature - moose_snapshot_temperature) /
         moose_snapshot_temperature;
 
     passed = check(maximum_temperature_error < 1.0e-9,
-                   "single-element temperature reaches 610 K") &&
+                   "M2.1 MOOSE-mesh temperature reaches 610 K") &&
              passed;
     passed = check(moose_snapshot_relative_error < 1.0e-3,
-                   "single-element temperature differs from the MOOSE "
+                   "M2.1 temperature differs from the MOOSE "
                    "snapshot by less than 0.1%") &&
              passed;
     passed = check(workspace_setups == 1,
@@ -202,13 +225,12 @@ bool test_single_element_backward_euler_heat_source() {
                    "one PETSc solve is issued per backward-Euler step") &&
              passed;
 
-    std::cout << "m2_single_element_temperature=" << average_temperature
+    std::cout << "m21_moose_mesh_average_temperature=" << average_temperature
               << '\n';
-    std::cout << "m2_single_element_moose_relative_error="
+    std::cout << "m21_moose_mesh_relative_error="
               << moose_snapshot_relative_error << '\n';
-    std::cout << "m2_single_element_workspace_setups=" << workspace_setups
-              << '\n';
-    std::cout << "m2_single_element_solve_calls=" << solve_calls << '\n';
+    std::cout << "m21_moose_mesh_workspace_setups=" << workspace_setups << '\n';
+    std::cout << "m21_moose_mesh_solve_calls=" << solve_calls << '\n';
     return passed;
 }
 
@@ -365,13 +387,20 @@ bool test_m2_zero_source_history_and_interface() {
 } // namespace
 
 int main(int argc, char** argv) {
+    if (argc != 2) {
+        std::cerr << "Usage: fuelsim_m2_solver_tests <m21_mesh.e>\n";
+        return 2;
+    }
+
     try {
+        const std::string m21_mesh_path = argv[1];
         std::cout << std::scientific << std::setprecision(12);
         fuelsim::PetscSession session(
             argc, argv, "fuelsim M2 transient solver acceptance tests\n");
 
         bool passed = true;
-        passed = test_single_element_backward_euler_heat_source() && passed;
+        passed =
+            test_moose_mesh_backward_euler_heat_source(m21_mesh_path) && passed;
         passed = test_m2_zero_source_history_and_interface() && passed;
         if (!passed)
             return 1;

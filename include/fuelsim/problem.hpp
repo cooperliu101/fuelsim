@@ -32,6 +32,7 @@ struct M0Parameters final {
 class M0Problem final : public NonlinearProblem {
   public:
     explicit M0Problem(M0Parameters parameters);
+    M0Problem(M0Parameters parameters, StructuredRzMesh mesh);
 
     const M0Parameters& parameters() const noexcept;
     const StructuredRzMesh& mesh() const noexcept;

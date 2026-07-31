@@ -29,6 +29,8 @@ struct RegionInelasticSummary final {
 class M2Problem final : public NonlinearProblem {
   public:
     explicit M2Problem(M2Parameters parameters);
+    M2Problem(M2Parameters parameters, StructuredRzMesh fuel_mesh,
+              StructuredRzMesh cladding_mesh);
 
     const M2Parameters& parameters() const noexcept;
     const M1Problem& base_problem() const noexcept;

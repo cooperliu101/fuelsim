@@ -97,6 +97,10 @@ class StructuredRzMesh final {
     from_unstructured_block(const UnstructuredQuad4Mesh& source,
                             const std::string& block_name,
                             const RzBoundaryNames& boundary_names);
+    static StructuredRzMesh
+    from_unstructured_block(const UnstructuredQuad4Mesh& source,
+                            std::int64_t block_id,
+                            const RzBoundaryNames& boundary_names);
 
     const std::vector<RzPoint>& nodes() const noexcept;
     const std::vector<Quad4Element>& elements() const noexcept;

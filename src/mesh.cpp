@@ -202,7 +202,21 @@ const SideSet& UnstructuredQuad4Mesh::side_set(const std::string& name) const {
 StructuredRzMesh StructuredRzMesh::from_unstructured_block(
     const UnstructuredQuad4Mesh& source, const std::string& block_name,
     const RzBoundaryNames& boundary_names) {
-    const std::int64_t block_id = source.element_block(block_name).id;
+    return from_unstructured_block(source, source.element_block(block_name).id,
+                                   boundary_names);
+}
+
+StructuredRzMesh StructuredRzMesh::from_unstructured_block(
+    const UnstructuredQuad4Mesh& source, std::int64_t block_id,
+    const RzBoundaryNames& boundary_names) {
+    const bool known_block = std::any_of(
+        source.element_blocks().begin(), source.element_blocks().end(),
+        [block_id](const ElementBlockInfo& block) {
+            return block.id == block_id;
+        });
+    if (!known_block)
+        throw std::invalid_argument("Unknown element block ID: " +
+                                    std::to_string(block_id));
     std::vector<bool> used_nodes(source.nodes().size(), false);
     std::size_t block_element_count = 0;
     for (std::size_t element = 0; element < source.elements().size();
@@ -214,7 +228,8 @@ StructuredRzMesh StructuredRzMesh::from_unstructured_block(
             used_nodes[node] = true;
     }
     if (block_element_count == 0)
-        throw std::invalid_argument("Element block is empty: " + block_name);
+        throw std::invalid_argument("Element block is empty: " +
+                                    std::to_string(block_id));
 
     const std::vector<double> radial_coordinates =
         sorted_unique_coordinates(source, used_nodes, true);

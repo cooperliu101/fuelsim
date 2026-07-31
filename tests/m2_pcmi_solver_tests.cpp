@@ -1,3 +1,4 @@
+#include "fuelsim/exodus_mesh_io.hpp"
 #include "fuelsim/m2_problem.hpp"
 #include "fuelsim/m2_solver.hpp"
 #include "fuelsim/petsc_solver.hpp"
@@ -248,8 +249,18 @@ bool fuel_history_is_elastic(const fuelsim::M2Problem& problem) {
     return true;
 }
 
-bool test_pcmi_coupled_cladding() {
-    fuelsim::M2Problem problem(pcmi_parameters());
+bool test_pcmi_coupled_cladding(const std::string& mesh_path) {
+    const fuelsim::UnstructuredQuad4Mesh imported =
+        fuelsim::ExodusMeshIo::read_quad4(mesh_path);
+    const fuelsim::StructuredRzMesh fuel =
+        fuelsim::StructuredRzMesh::from_unstructured_block(
+            imported, "fuel",
+            {"fuel_left", "fuel_right", "fuel_bottom", "fuel_top"});
+    const fuelsim::StructuredRzMesh cladding_mesh =
+        fuelsim::StructuredRzMesh::from_unstructured_block(
+            imported, "clad",
+            {"clad_left", "clad_right", "clad_bottom", "clad_top"});
+    fuelsim::M2Problem problem(pcmi_parameters(), fuel, cladding_mesh);
     const fuelsim::M2TimeOptions time_options = {
         20.0, 1.0, 0.125, 1.0, 1.0, 0.5, 3, 20.0,
     };
@@ -674,12 +685,18 @@ bool test_pcmi_coupled_cladding() {
 } // namespace
 
 int main(int argc, char** argv) {
+    if (argc != 2) {
+        std::cerr << "Usage: fuelsim_m2_pcmi_solver_tests <mesh.e>\n";
+        return 2;
+    }
+
     try {
+        const std::string mesh_path = argv[1];
         std::cout << std::scientific << std::setprecision(12);
         fuelsim::PetscSession session(
             argc, argv,
             "fuelsim M2 PCMI coupled cladding MOOSE comparison tests\n");
-        if (!test_pcmi_coupled_cladding())
+        if (!test_pcmi_coupled_cladding(mesh_path))
             return 1;
         std::cout << "[PASS] fuelsim M2 PCMI coupled cladding tests\n";
         return 0;

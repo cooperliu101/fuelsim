@@ -1,3 +1,4 @@
+#include "fuelsim/exodus_mesh_io.hpp"
 #include "fuelsim/m1_problem.hpp"
 #include "fuelsim/m1_solver.hpp"
 #include "fuelsim/petsc_solver.hpp"
@@ -223,7 +224,7 @@ bool test_lame_open_ended_cylinder() {
     return passed;
 }
 
-bool test_moose_reference() {
+bool test_moose_reference(const std::string& mesh_path) {
     const fuelsim::M0Parameters parameters = {
         0.0,
         0.00412,
@@ -245,7 +246,13 @@ bool test_moose_reference() {
         0.0,
     };
 
-    const fuelsim::M0Problem problem(parameters);
+    const fuelsim::UnstructuredQuad4Mesh imported =
+        fuelsim::ExodusMeshIo::read_quad4(mesh_path);
+    const fuelsim::StructuredRzMesh imported_mesh =
+        fuelsim::StructuredRzMesh::from_unstructured_block(
+            imported, 0,
+            {"fuel_left", "fuel_right", "fuel_bottom", "fuel_top"});
+    const fuelsim::M0Problem problem(parameters, imported_mesh);
     fuelsim::PetscSequentialSolver solver;
     const fuelsim::SolveResult result =
         solver.solve(problem, problem.initial_state());
@@ -456,18 +463,28 @@ fuelsim::M1Parameters m1_reference_parameters() {
     };
 }
 
-bool test_m1_closed_gap_end_to_end() {
+bool test_m1_closed_gap_end_to_end(const std::string& mesh_path) {
     const fuelsim::M1Parameters target_parameters = m1_reference_parameters();
+    const fuelsim::UnstructuredQuad4Mesh imported =
+        fuelsim::ExodusMeshIo::read_quad4(mesh_path);
+    const fuelsim::StructuredRzMesh fuel =
+        fuelsim::StructuredRzMesh::from_unstructured_block(
+            imported, "fuel",
+            {"fuel_left", "fuel_right", "fuel_bottom", "fuel_top"});
+    const fuelsim::StructuredRzMesh cladding =
+        fuelsim::StructuredRzMesh::from_unstructured_block(
+            imported, "clad",
+            {"clad_left", "clad_right", "clad_bottom", "clad_top"});
     fuelsim::SolverOptions options;
     options.maximum_iterations = 50;
 
     constexpr std::size_t load_steps = 20;
     const fuelsim::M1LoadStepper load_stepper;
-    const fuelsim::M1LoadStepResult continuation =
-        load_stepper.solve(target_parameters, load_steps, options);
+    const fuelsim::M1LoadStepResult continuation = load_stepper.solve(
+        target_parameters, fuel, cladding, load_steps, options);
     const fuelsim::SolveResult& result = continuation.solve;
 
-    const fuelsim::M1Problem problem(target_parameters);
+    const fuelsim::M1Problem problem(target_parameters, fuel, cladding);
 
     const std::size_t axial_mid = problem.fuel_mesh().axial_elements() / 2;
     const std::size_t fuel_center_local =
@@ -678,7 +695,14 @@ bool test_m1_closed_gap_end_to_end() {
 } // namespace
 
 int main(int argc, char** argv) {
+    if (argc != 3) {
+        std::cerr << "Usage: fuelsim_solver_tests <m0_mesh.e> <m1_mesh.e>\n";
+        return 2;
+    }
+
     try {
+        const std::string m0_mesh_path = argv[1];
+        const std::string m1_mesh_path = argv[2];
         std::cout << std::scientific << std::setprecision(12);
         fuelsim::PetscSession session(
             argc, argv, "fuelsim M0 and M1 numerical acceptance tests\n");
@@ -687,9 +711,9 @@ int main(int argc, char** argv) {
         passed = test_thermal_cylinder() && passed;
         passed = test_free_thermal_expansion() && passed;
         passed = test_lame_open_ended_cylinder() && passed;
-        passed = test_moose_reference() && passed;
+        passed = test_moose_reference(m0_mesh_path) && passed;
         passed = test_m1_open_gap_analytic_thermal() && passed;
-        passed = test_m1_closed_gap_end_to_end() && passed;
+        passed = test_m1_closed_gap_end_to_end(m1_mesh_path) && passed;
         if (!passed)
             return 1;
 

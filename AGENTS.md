@@ -131,10 +131,12 @@ PETSc/MPICH 测试在受限沙盒内可能出现 `OFI EP enable failed`。遇到
 3. 默认端到端求解；
 4. 匹配物理、罚参数、加载路径和网格设置的 MOOSE 对标量。
 
-M1 的 Exodus 接入还必须运行 `fuelsim_m1_exodus_moose_tests`，读取
-`verification/moose/m1_fuel_cladding_gap_rz_mesh.e`，不得在测试内用
-fuelsim 重新生成等价网格。当前 M1 允许从一般非结构 Quad4 文件读取元数据，
-但转换到求解网格时，每个 `fuel`/`clad` 块必须是完整张量积 RZ 网格。
+所有 fuelsim-to-MOOSE 对比必须读取 `verification/moose/` 下由对应 MOOSE
+输入生成并追踪的 `*_mesh.e`，不得在对比测试内使用 `make_annulus` 或硬编码
+坐标重建等价网格。纯解析、局部 Jacobian 和事务测试不受此限制。M0、M2.1
+和 M2.2 使用单区域块 0；M1、M2.3 使用命名的 `fuel`/`clad` 块。当前可从
+一般非结构 Quad4 文件读取元数据，但转换到求解网格时，每个选中块必须是
+完整张量积 RZ 网格。M1 还必须运行 `fuelsim_m1_exodus_moose_tests`。
 
 M2 还必须检查：
 

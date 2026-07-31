@@ -84,12 +84,13 @@ ctest --test-dir build --output-on-failure
 
 `fuelsim_exodus` 将 2D 非结构 Quad4 的节点、连接关系、元素块、节点集和边集
 转换为 fuelsim 自有网格对象；专项 CTest 通过 Exodus API 写出并逐项回读。
-M1 还会读取仓库内由 MOOSE 生成的 `.e` 网格，根据 `fuel`、`clad` 块及其
-命名边界重建当前求解器所需的两个结构化 RZ 块，再在导入网格上完成数值
-对比。一般非结构 Quad4 可进入 I/O 层，但当前 M1 装配仍要求每个物理块为
-完整张量积 RZ 网格。`fuelsim_core` 仍只依赖 ADlite，`fuelsim_petsc` 仍只
-处理 PETSc 求解。当前直接 I/O 为串行文件操作；PETSc/MPI 求解能力不受
-影响，分布式网格划分与通信将作为后续独立功能实现。
+所有 MOOSE 对比都会读取仓库内由对应 MOOSE 输入生成的 `*_mesh.e`，不再由
+fuelsim 重建等价参考网格。M0、M2.1 和 M2.2 选择单区域块 0；M1、M2.3
+根据 `fuel`、`clad` 块及其命名边界重建当前求解器所需的两个结构化 RZ 块。
+一般非结构 Quad4 可进入 I/O 层，但当前体单元装配仍要求所选物理块为完整
+张量积 RZ 网格。`fuelsim_core` 仍只依赖 ADlite，`fuelsim_petsc` 仍只处理
+PETSc 求解。当前直接 I/O 为串行文件操作；PETSc/MPI 求解能力不受影响，
+分布式网格划分与通信将作为后续独立功能实现。
 
 运行默认 M1 工况：
 
@@ -106,7 +107,8 @@ M1 还会读取仓库内由 MOOSE 生成的 `.e` 网格，根据 `fuel`、`clad`
 运行 M2.3 PCMI—MOOSE 验收：
 
 ```bash
-./build/fuelsim_m2_pcmi_solver_tests
+./build/fuelsim_m2_pcmi_solver_tests \
+  verification/moose/m23_pcmi_coupled_cladding_rz_mesh.e
 ```
 
 运行 MOOSE Exodus 网格驱动的 M1 验收：
@@ -210,8 +212,8 @@ CTest 覆盖：
 - 开放气隙燃料—包壳圆柱的解析热阻解；
 - 闭合气隙的 20 步端到端求解；
 - 匹配物理与网格设置的 MOOSE 温度、位移、接触压力分布及总反力对比；
-- 直接读取 MOOSE 生成的 Exodus 网格，核对块、节点集和边集，并在该网格上
-  重复上述 M1 逐点验收；
+- M0、M1、M2.1、M2.2 四条材料路径和 M2.3 PCMI 全部直接读取各自 MOOSE
+  输入生成的 Exodus 网格，核对块、节点集和边集后再执行对比；
 - M2 瞬态体单元 AD Jacobian、一致热容矩阵和均匀绝热升温解析解；
 - J2 塑性闭式径向返回、卸载和活跃分支 AD 切线；
 - Norton `n=1` 解析根、非线性局部残量和活跃分支 AD 切线；

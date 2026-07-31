@@ -27,7 +27,24 @@ summarize_history(const std::vector<Quad4MaterialHistory>& history) noexcept {
 } // namespace
 
 M2Problem::M2Problem(M2Parameters parameters)
-    : _parameters(parameters), _base_problem(parameters.base),
+    : M2Problem(
+          parameters,
+          StructuredRzMesh::make_annulus(0.0, parameters.base.fuel_radius,
+                                         parameters.base.fuel_length,
+                                         parameters.base.fuel_radial_elements,
+                                         parameters.base.axial_elements),
+          StructuredRzMesh::make_annulus(
+              parameters.base.cladding_inner_radius,
+              parameters.base.cladding_outer_radius,
+              parameters.base.cladding_length,
+              parameters.base.cladding_radial_elements,
+              parameters.base.axial_elements)) {}
+
+M2Problem::M2Problem(M2Parameters parameters, StructuredRzMesh fuel_mesh,
+                     StructuredRzMesh cladding_mesh)
+    : _parameters(parameters),
+      _base_problem(parameters.base, std::move(fuel_mesh),
+                    std::move(cladding_mesh)),
       _fuel_kernel(
           IsotropicInelasticMaterial(parameters.base.fuel, parameters.fuel),
           0.0),

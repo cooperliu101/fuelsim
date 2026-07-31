@@ -4,6 +4,7 @@
 #include <array>
 #include <cmath>
 #include <stdexcept>
+#include <utility>
 
 namespace fuelsim {
 namespace {
@@ -29,13 +30,29 @@ void append_boundary_conditions(const std::vector<std::size_t>& nodes,
 } // namespace
 
 M0Problem::M0Problem(M0Parameters parameters)
-    : _parameters(parameters),
-      _mesh(StructuredRzMesh::make_annulus(
-          parameters.inner_radius, parameters.outer_radius, parameters.length,
-          parameters.radial_elements, parameters.axial_elements)),
+    : M0Problem(parameters,
+                StructuredRzMesh::make_annulus(
+                    parameters.inner_radius, parameters.outer_radius,
+                    parameters.length, parameters.radial_elements,
+                    parameters.axial_elements)) {}
+
+M0Problem::M0Problem(M0Parameters parameters, StructuredRzMesh mesh)
+    : _parameters(parameters), _mesh(std::move(mesh)),
       _dof_map(_mesh.nodes().size()),
       _kernel(IsotropicThermoelasticMaterial(parameters.fuel),
               parameters.volumetric_heat_source) {
+    const auto same_geometry = [](double actual, double expected) {
+        const double scale =
+            std::max({1.0, std::abs(actual), std::abs(expected)});
+        return std::abs(actual - expected) <= 1.0e-12 * scale;
+    };
+    if (_mesh.radial_elements() != _parameters.radial_elements ||
+        _mesh.axial_elements() != _parameters.axial_elements ||
+        !same_geometry(_mesh.inner_radius(), _parameters.inner_radius) ||
+        !same_geometry(_mesh.outer_radius(), _parameters.outer_radius) ||
+        !same_geometry(_mesh.length(), _parameters.length))
+        throw std::invalid_argument(
+            "M0Problem imported mesh does not match M0Parameters");
     if (!(_parameters.inner_pressure >= 0.0) ||
         !(_parameters.outer_pressure >= 0.0))
         throw std::invalid_argument("M0Problem pressures must be nonnegative");

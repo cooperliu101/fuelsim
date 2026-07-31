@@ -1,3 +1,4 @@
+#include "fuelsim/exodus_mesh_io.hpp"
 #include "fuelsim/nonlinear_problem.hpp"
 #include "fuelsim/petsc_solver.hpp"
 #include "fuelsim/quad4_rz_transient.hpp"
@@ -76,6 +77,29 @@ fuelsim::TransientInelasticProperties coupled_properties() {
     };
 }
 
+fuelsim::Quad4Coordinates
+single_element_coordinates(const std::string& mesh_path) {
+    const fuelsim::UnstructuredQuad4Mesh imported =
+        fuelsim::ExodusMeshIo::read_quad4(mesh_path);
+    const fuelsim::StructuredRzMesh mesh =
+        fuelsim::StructuredRzMesh::from_unstructured_block(
+            imported, 0, {"left", "right", "bottom", "top"});
+    if (mesh.elements().size() != 1 || mesh.nodes().size() != 4)
+        throw std::invalid_argument(
+            "M2.2 MOOSE comparison mesh must contain one Quad4 element");
+    if (std::abs(mesh.inner_radius()) > 1.0e-15 ||
+        std::abs(mesh.outer_radius() - radius) > 1.0e-15 ||
+        std::abs(mesh.length() - height) > 1.0e-15)
+        throw std::invalid_argument(
+            "M2.2 MOOSE comparison mesh dimensions do not match the case");
+
+    fuelsim::Quad4Coordinates coordinates{};
+    for (std::size_t node = 0; node < coordinates.size(); ++node)
+        coordinates[node] =
+            mesh.nodes().at(mesh.elements().front().nodes[node]);
+    return coordinates;
+}
+
 bool histories_equal(const fuelsim::Quad4MaterialHistory& lhs,
                      const fuelsim::Quad4MaterialHistory& rhs) {
     for (std::size_t point = 0; point < lhs.size(); ++point) {
@@ -99,13 +123,9 @@ class SingleElementInelasticProblem final : public fuelsim::NonlinearProblem {
   public:
     SingleElementInelasticProblem(
         fuelsim::TransientInelasticProperties properties,
-        LoadingMode loading_mode, double time_step)
-        : _geometry(fuelsim::make_quad4_rz_geometry({{
-              {0.0, 0.0},
-              {radius, 0.0},
-              {radius, height},
-              {0.0, height},
-          }})),
+        LoadingMode loading_mode, double time_step,
+        const fuelsim::Quad4Coordinates& coordinates)
+        : _geometry(fuelsim::make_quad4_rz_geometry(coordinates)),
           _kernel(fuelsim::IsotropicInelasticMaterial(
                       thermoelastic_properties(), properties),
                   0.0),
@@ -391,7 +411,7 @@ LoadPathResult solve_load_path(SingleElementInelasticProblem& problem,
     };
 }
 
-bool test_j2_moose_comparison() {
+bool test_j2_moose_comparison(const std::string& mesh_path) {
     constexpr std::size_t step_count = 10;
     constexpr double time_step = 0.1;
     constexpr double moose_axial_stress = 201980198.0198;
@@ -399,7 +419,8 @@ bool test_j2_moose_comparison() {
     constexpr double moose_top_displacement = 2.0e-6;
 
     SingleElementInelasticProblem problem(
-        j2_properties(), LoadingMode::prescribed_top_displacement, time_step);
+        j2_properties(), LoadingMode::prescribed_top_displacement, time_step,
+        single_element_coordinates(mesh_path));
     const LoadPathResult result =
         solve_load_path(problem, step_count, time_step);
 
@@ -467,7 +488,7 @@ bool test_j2_moose_comparison() {
     return passed;
 }
 
-bool test_norton_moose_comparison() {
+bool test_norton_moose_comparison(const std::string& mesh_path) {
     constexpr std::size_t step_count = 10;
     constexpr double time_step = 10.0;
     constexpr double moose_axial_stress = 99998007.620195;
@@ -475,7 +496,8 @@ bool test_norton_moose_comparison() {
     constexpr double moose_top_displacement = 5.9997808603447e-7;
 
     SingleElementInelasticProblem problem(
-        norton_properties(), LoadingMode::axial_traction, time_step);
+        norton_properties(), LoadingMode::axial_traction, time_step,
+        single_element_coordinates(mesh_path));
     const LoadPathResult result =
         solve_load_path(problem, step_count, time_step);
 
@@ -544,7 +566,8 @@ bool test_norton_moose_comparison() {
     return passed;
 }
 
-bool test_coupled_moose_comparison() {
+bool test_coupled_moose_comparison(const std::string& displacement_mesh_path,
+                                   const std::string& traction_mesh_path) {
     constexpr std::size_t step_count = 10;
     constexpr double time_step = 0.1;
     constexpr double moose_axial_stress = 200999992.08159;
@@ -556,7 +579,8 @@ bool test_coupled_moose_comparison() {
     constexpr double analytic_top_displacement = 1.75064818025e-6;
 
     SingleElementInelasticProblem problem(
-        coupled_properties(), LoadingMode::ramped_axial_traction, time_step);
+        coupled_properties(), LoadingMode::ramped_axial_traction, time_step,
+        single_element_coordinates(traction_mesh_path));
     const LoadPathResult result =
         solve_load_path(problem, step_count, time_step);
 
@@ -593,7 +617,7 @@ bool test_coupled_moose_comparison() {
     constexpr double displacement_control_moose_displacement = 2.0e-6;
     SingleElementInelasticProblem displacement_control_problem(
         coupled_properties(), LoadingMode::prescribed_top_displacement,
-        time_step);
+        time_step, single_element_coordinates(displacement_mesh_path));
     const LoadPathResult displacement_control_result =
         solve_load_path(displacement_control_problem, step_count, time_step);
     const double displacement_control_stress =
@@ -721,15 +745,28 @@ bool test_coupled_moose_comparison() {
 } // namespace
 
 int main(int argc, char** argv) {
+    if (argc != 5) {
+        std::cerr << "Usage: fuelsim_m2_inelastic_solver_tests "
+                     "<j2_mesh.e> <norton_mesh.e> <coupled_mesh.e> "
+                     "<coupled_traction_mesh.e>\n";
+        return 2;
+    }
+
     try {
+        const std::string j2_mesh_path = argv[1];
+        const std::string norton_mesh_path = argv[2];
+        const std::string coupled_mesh_path = argv[3];
+        const std::string coupled_traction_mesh_path = argv[4];
         std::cout << std::scientific << std::setprecision(12);
         fuelsim::PetscSession session(
             argc, argv, "fuelsim M2.2 inelastic single-element solver tests\n");
 
         bool passed = true;
-        passed = test_j2_moose_comparison() && passed;
-        passed = test_norton_moose_comparison() && passed;
-        passed = test_coupled_moose_comparison() && passed;
+        passed = test_j2_moose_comparison(j2_mesh_path) && passed;
+        passed = test_norton_moose_comparison(norton_mesh_path) && passed;
+        passed = test_coupled_moose_comparison(coupled_mesh_path,
+                                               coupled_traction_mesh_path) &&
+                 passed;
         if (!passed)
             return 1;
 
