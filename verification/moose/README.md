@@ -260,9 +260,88 @@ The axial, radial, and hoop plastic strains also have the J2 ratio
 `1 : -0.5 : -0.5`. This monotonic case does not replace a future unload/reload
 history test.
 
+## M2.2 coupled plasticity and creep
+
+The two coupled references use the same one-Quad4 RZ geometry and:
+
+```text
+E = 200 GPa
+nu = 0.3
+fuelsim Norton A = 1e-4
+fuelsim q_ref = 1e8 Pa
+n = 3
+yield_stress = 200 MPa
+hardening_constant = 2 GPa
+dt = 0.1 s
+```
+
+MOOSE defines its power law as `rate=coefficient*q^n`, so the equivalent
+coefficient is `A/q_ref^n=1e-28 Pa^-3 s^-1`. Its coupled chain is:
+
+```text
+ADPowerLawCreepStressUpdate
+ADIsotropicPlasticityStressUpdate
+  -> ADComputeMultipleInelasticStress
+     inelastic_models = 'creep plasticity'
+  -> AD small incremental strain mechanics
+```
+
+The creep-first order is required by MOOSE. `ADComputeMultipleInelasticStress`
+iterates both updates to a common stress; fuelsim solves the equivalent
+coaxial J2 fixed point directly as one scalar equation.
+
+`m22_coupled_plastic_creep_traction_rz.i` ramps axial traction to `201 MPa`.
+At `t=1 s`, the independent uniaxial history gives:
+
+```text
+axial stress = 201 MPa
+effective plastic strain = (201 MPa - 200 MPa)/2 GPa = 5e-4
+effective creep strain = sum[dt*A*(sigma_k/q_ref)^3]
+                       = 2.4564818025e-4
+axial displacement = 1.75064818025e-6 m
+```
+
+The final fuelsim-to-MOOSE relative errors are:
+
+```text
+axial stress:                       0.00000394%
+effective plastic strain:           0.001188%
+effective creep strain:             0.000472%
+axial displacement:                 0.000408%
+acceptance threshold for each:      < 0.1%
+```
+
+`m22_coupled_plastic_creep_rz.i` prescribes a final axial strain of `0.002`,
+so plasticity and creep compete for the same total inelastic strain. Its final
+MOOSE values are:
+
+```text
+axial stress:                       200.96336863564 MPa
+effective plastic strain:           4.8168428343307e-4
+effective creep strain:             5.1349887359505e-4
+axial displacement:                 2e-6 m
+```
+
+The corresponding fuelsim relative errors are `0.00000277%`, `0.000571%`,
+`0.000541%`, and `0%`. Both references therefore pass the `0.1%` gate for
+stress, both histories, and displacement.
+
+Reproduce either checked run by replacing the input and temporary file base:
+
+```bash
+source /home/cooper/miniforge/etc/profile.d/conda.sh
+conda activate moose
+/home/cooper/projects/july/july-opt \
+  -i m22_coupled_plastic_creep_traction_rz.i \
+  Outputs/file_base=/tmp/fuelsim_m22_coupled_traction
+```
+
+Both regenerated CSV files were byte-for-byte identical to their tracked
+`_out.csv` snapshots.
+
 ## M2 reference environment and conventions
 
-All three M2 reference inputs were syntax-checked and solved with one MPI rank
+All five M2 reference inputs were syntax-checked and solved with one MPI rank
 and one thread using:
 
 ```text
@@ -285,5 +364,5 @@ xy = rz shear
 Both inelastic models require incremental strain and committed quadrature-point
 history. Trial history must be recomputed from the same old state during every
 global Newton or line-search evaluation and committed only after a converged
-time step. If creep and plasticity are later combined in one MOOSE reference,
-the required model order is `inelastic_models = 'creep plasticity'`.
+time step. Coupled references use the required model order
+`inelastic_models = 'creep plasticity'`.

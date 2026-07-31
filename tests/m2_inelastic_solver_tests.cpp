@@ -24,6 +24,7 @@ constexpr double moose_relative_tolerance = 1.0e-3;
 enum class LoadingMode {
     prescribed_top_displacement,
     axial_traction,
+    ramped_axial_traction,
 };
 
 bool check(bool condition, const std::string& message) {
@@ -62,6 +63,16 @@ fuelsim::TransientInelasticProperties norton_properties() {
         fuelsim::InelasticBehavior::norton_creep,
         {1.0e-30, 1.0, 3.0},
         {1.0, 0.0},
+    };
+}
+
+fuelsim::TransientInelasticProperties coupled_properties() {
+    return {
+        1.0,
+        1.0,
+        fuelsim::InelasticBehavior::norton_creep_j2_plasticity,
+        {1.0e-4, 1.0e8, 3.0},
+        {2.0e8, 2.0e9},
     };
 }
 
@@ -137,6 +148,10 @@ class SingleElementInelasticProblem final : public fuelsim::NonlinearProblem {
             throw std::invalid_argument(
                 "SingleElementInelasticProblem end time must be finite and "
                 "positive");
+        if (_loading_mode == LoadingMode::ramped_axial_traction) {
+            _traction = 2.01e8 * end_time;
+            return;
+        }
         if (_loading_mode != LoadingMode::prescribed_top_displacement)
             return;
 
@@ -239,7 +254,7 @@ class SingleElementInelasticProblem final : public fuelsim::NonlinearProblem {
   protected:
     void add_state_independent_residual(
         std::vector<double>& residual) const override {
-        if (_loading_mode != LoadingMode::axial_traction)
+        if (_loading_mode == LoadingMode::prescribed_top_displacement)
             return;
         if (residual.size() != dof_count())
             throw std::logic_error(
@@ -296,13 +311,11 @@ average_equivalent_creep_strain(const fuelsim::Quad4MaterialHistory& history) {
 }
 
 double maximum_inelastic_trace(const fuelsim::Quad4MaterialHistory& history,
-                               LoadingMode loading_mode) {
+                               bool plastic_strain) {
     double maximum = 0.0;
     for (const fuelsim::MaterialPointState& point : history) {
         const std::array<double, 4>& strain =
-            loading_mode == LoadingMode::prescribed_top_displacement
-                ? point.plastic_strain
-                : point.creep_strain;
+            plastic_strain ? point.plastic_strain : point.creep_strain;
         maximum =
             std::max(maximum, std::abs(strain[0] + strain[1] + strain[2]));
     }
@@ -402,8 +415,8 @@ bool test_j2_moose_comparison() {
         relative_error(equivalent_plastic, moose_equivalent_plastic);
     const double displacement_error =
         relative_error(top_displacement, moose_top_displacement);
-    const double maximum_trace = maximum_inelastic_trace(
-        problem.committed_material(), LoadingMode::prescribed_top_displacement);
+    const double maximum_trace =
+        maximum_inelastic_trace(problem.committed_material(), true);
 
     bool passed =
         check(result.converged, "J2 ten-step PETSc load path converged");
@@ -478,8 +491,8 @@ bool test_norton_moose_comparison() {
         relative_error(equivalent_creep, moose_equivalent_creep);
     const double displacement_error =
         relative_error(top_displacement, moose_top_displacement);
-    const double maximum_trace = maximum_inelastic_trace(
-        problem.committed_material(), LoadingMode::axial_traction);
+    const double maximum_trace =
+        maximum_inelastic_trace(problem.committed_material(), false);
 
     bool passed =
         check(result.converged, "Norton ten-step PETSc load path converged");
@@ -531,6 +544,180 @@ bool test_norton_moose_comparison() {
     return passed;
 }
 
+bool test_coupled_moose_comparison() {
+    constexpr std::size_t step_count = 10;
+    constexpr double time_step = 0.1;
+    constexpr double moose_axial_stress = 200999992.08159;
+    constexpr double moose_equivalent_plastic = 4.9999406119027e-4;
+    constexpr double moose_equivalent_creep = 2.4564701918764e-4;
+    constexpr double moose_top_displacement = 1.7506410289082e-6;
+    constexpr double analytic_equivalent_plastic = 5.0e-4;
+    constexpr double analytic_equivalent_creep = 2.4564818025e-4;
+    constexpr double analytic_top_displacement = 1.75064818025e-6;
+
+    SingleElementInelasticProblem problem(
+        coupled_properties(), LoadingMode::ramped_axial_traction, time_step);
+    const LoadPathResult result =
+        solve_load_path(problem, step_count, time_step);
+
+    const double axial_stress = average_axial_stress(problem.last_stress());
+    const double equivalent_plastic =
+        average_equivalent_plastic_strain(problem.committed_material());
+    const double equivalent_creep =
+        average_equivalent_creep_strain(problem.committed_material());
+    const double top_displacement = 0.5 * (result.state[10] + result.state[11]);
+    const double top_displacement_spread =
+        std::abs(result.state[10] - result.state[11]);
+    const double stress_error =
+        relative_error(axial_stress, moose_axial_stress);
+    const double plastic_error =
+        relative_error(equivalent_plastic, moose_equivalent_plastic);
+    const double creep_error =
+        relative_error(equivalent_creep, moose_equivalent_creep);
+    const double displacement_error =
+        relative_error(top_displacement, moose_top_displacement);
+    const double analytic_plastic_error =
+        relative_error(equivalent_plastic, analytic_equivalent_plastic);
+    const double analytic_creep_error =
+        relative_error(equivalent_creep, analytic_equivalent_creep);
+    const double analytic_displacement_error =
+        relative_error(top_displacement, analytic_top_displacement);
+    const double maximum_plastic_trace =
+        maximum_inelastic_trace(problem.committed_material(), true);
+    const double maximum_creep_trace =
+        maximum_inelastic_trace(problem.committed_material(), false);
+
+    constexpr double displacement_control_moose_stress = 200963368.63564;
+    constexpr double displacement_control_moose_plastic = 4.8168428343307e-4;
+    constexpr double displacement_control_moose_creep = 5.1349887359505e-4;
+    constexpr double displacement_control_moose_displacement = 2.0e-6;
+    SingleElementInelasticProblem displacement_control_problem(
+        coupled_properties(), LoadingMode::prescribed_top_displacement,
+        time_step);
+    const LoadPathResult displacement_control_result =
+        solve_load_path(displacement_control_problem, step_count, time_step);
+    const double displacement_control_stress =
+        average_axial_stress(displacement_control_problem.last_stress());
+    const double displacement_control_plastic =
+        average_equivalent_plastic_strain(
+            displacement_control_problem.committed_material());
+    const double displacement_control_creep = average_equivalent_creep_strain(
+        displacement_control_problem.committed_material());
+    const double displacement_control_displacement =
+        0.5 * (displacement_control_result.state[10] +
+               displacement_control_result.state[11]);
+    const double displacement_control_stress_error = relative_error(
+        displacement_control_stress, displacement_control_moose_stress);
+    const double displacement_control_plastic_error = relative_error(
+        displacement_control_plastic, displacement_control_moose_plastic);
+    const double displacement_control_creep_error = relative_error(
+        displacement_control_creep, displacement_control_moose_creep);
+    const double displacement_control_displacement_error =
+        relative_error(displacement_control_displacement,
+                       displacement_control_moose_displacement);
+
+    bool passed =
+        check(result.converged,
+              "coupled plastic-creep ten-step PETSc load path converged");
+    passed = check(result.workspace_setups == 1,
+                   "coupled load path creates one reusable PETSc workspace") &&
+             passed;
+    passed = check(result.solve_calls == step_count,
+                   "coupled load path issues ten PETSc solve calls") &&
+             passed;
+    passed = check(result.callbacks_preserved_history,
+                   "coupled residual and Jacobian callbacks do not commit "
+                   "history") &&
+             passed;
+    passed = check(problem.committed_steps() == step_count,
+                   "coupled history is committed after every accepted step") &&
+             passed;
+    passed = check(temperatures_are_committed(problem.committed_temperature()),
+                   "coupled committed temperature remains 600 K") &&
+             passed;
+    passed = check(equivalent_plastic > 0.0 && equivalent_creep > 0.0,
+                   "coupled load path commits plastic and creep history at the "
+                   "same material points") &&
+             passed;
+    passed = check(stress_error < moose_relative_tolerance,
+                   "coupled final axial stress matches MOOSE within 0.1%") &&
+             passed;
+    passed =
+        check(plastic_error < moose_relative_tolerance,
+              "coupled final equivalent plastic strain matches MOOSE within "
+              "0.1%") &&
+        passed;
+    passed = check(creep_error < moose_relative_tolerance,
+                   "coupled final equivalent creep strain matches MOOSE within "
+                   "0.1%") &&
+             passed;
+    passed =
+        check(displacement_error < moose_relative_tolerance,
+              "coupled final top displacement matches MOOSE within 0.1%") &&
+        passed;
+    passed = check(analytic_plastic_error < 1.0e-8 &&
+                       analytic_creep_error < 1.0e-8 &&
+                       analytic_displacement_error < 1.0e-8,
+                   "coupled traction path matches its independent uniaxial "
+                   "history solution") &&
+             passed;
+    passed = check(top_displacement_spread < 1.0e-12,
+                   "coupled top-side axial displacement is uniform") &&
+             passed;
+    passed =
+        check(maximum_plastic_trace < 1.0e-12 && maximum_creep_trace < 1.0e-12,
+              "coupled committed plastic and creep strains are trace-free") &&
+        passed;
+    passed = check(displacement_control_result.converged &&
+                       displacement_control_result.workspace_setups == 1 &&
+                       displacement_control_result.callbacks_preserved_history,
+                   "coupled displacement-control PETSc path converges with one "
+                   "workspace and immutable callback history") &&
+             passed;
+    passed =
+        check(displacement_control_stress_error < moose_relative_tolerance &&
+                  displacement_control_plastic_error <
+                      moose_relative_tolerance &&
+                  displacement_control_creep_error < moose_relative_tolerance &&
+                  displacement_control_displacement_error <
+                      moose_relative_tolerance,
+              "coupled displacement-control stress, histories, and "
+              "displacement match MOOSE within 0.1%") &&
+        passed;
+
+    std::cout << "m22_coupled_axial_stress=" << axial_stress << '\n';
+    std::cout << "m22_coupled_equivalent_plastic=" << equivalent_plastic
+              << '\n';
+    std::cout << "m22_coupled_equivalent_creep=" << equivalent_creep << '\n';
+    std::cout << "m22_coupled_top_displacement=" << top_displacement << '\n';
+    std::cout << "m22_coupled_stress_relative_error=" << stress_error << '\n';
+    std::cout << "m22_coupled_plastic_relative_error=" << plastic_error << '\n';
+    std::cout << "m22_coupled_creep_relative_error=" << creep_error << '\n';
+    std::cout << "m22_coupled_displacement_relative_error="
+              << displacement_error << '\n';
+    std::cout << "m22_coupled_analytic_plastic_relative_error="
+              << analytic_plastic_error << '\n';
+    std::cout << "m22_coupled_analytic_creep_relative_error="
+              << analytic_creep_error << '\n';
+    std::cout << "m22_coupled_analytic_displacement_relative_error="
+              << analytic_displacement_error << '\n';
+    std::cout << "m22_coupled_maximum_plastic_trace=" << maximum_plastic_trace
+              << '\n';
+    std::cout << "m22_coupled_maximum_creep_trace=" << maximum_creep_trace
+              << '\n';
+    std::cout << "m22_coupled_workspace_setups=" << result.workspace_setups
+              << '\n';
+    std::cout << "m22_coupled_displacement_control_stress_relative_error="
+              << displacement_control_stress_error << '\n';
+    std::cout << "m22_coupled_displacement_control_plastic_relative_error="
+              << displacement_control_plastic_error << '\n';
+    std::cout << "m22_coupled_displacement_control_creep_relative_error="
+              << displacement_control_creep_error << '\n';
+    std::cout << "m22_coupled_displacement_control_displacement_relative_error="
+              << displacement_control_displacement_error << '\n';
+    return passed;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -542,6 +729,7 @@ int main(int argc, char** argv) {
         bool passed = true;
         passed = test_j2_moose_comparison() && passed;
         passed = test_norton_moose_comparison() && passed;
+        passed = test_coupled_moose_comparison() && passed;
         if (!passed)
             return 1;
 

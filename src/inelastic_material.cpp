@@ -1,5 +1,6 @@
 #include "fuelsim/inelastic_material.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstddef>
@@ -15,6 +16,20 @@ constexpr int maximum_creep_iterations = 100;
 struct NortonRoot final {
     double equivalent_stress;
     double trial_stress_derivative;
+    double relaxed_fraction;
+};
+
+struct CoupledUpdate final {
+    double equivalent_stress;
+    double stress_derivative;
+    double plastic_increment;
+    double plastic_increment_derivative;
+    double creep_increment;
+    double creep_increment_derivative;
+};
+
+struct CreepIncrement final {
+    double value;
 };
 
 void validate_material_point_state(const MaterialPointState& state) {
@@ -49,121 +64,326 @@ passive_trial_state(const MaterialPointState& committed) {
     return trial;
 }
 
+void validate_norton_properties(const NortonCreepProperties& creep) {
+    if (!std::isfinite(creep.coefficient) || !(creep.coefficient >= 0.0))
+        throw std::invalid_argument(
+            "Norton creep coefficient must be finite and nonnegative");
+    if (!std::isfinite(creep.reference_stress) ||
+        !(creep.reference_stress > 0.0))
+        throw std::invalid_argument(
+            "Norton creep reference_stress must be finite and positive");
+    if (!std::isfinite(creep.stress_exponent) ||
+        !(creep.stress_exponent >= 1.0))
+        throw std::invalid_argument(
+            "Norton creep stress_exponent must be finite and at least one");
+}
+
+void validate_plasticity_properties(const J2PlasticityProperties& plasticity) {
+    if (!std::isfinite(plasticity.yield_stress) ||
+        !(plasticity.yield_stress > 0.0))
+        throw std::invalid_argument(
+            "J2 plasticity yield_stress must be finite and positive");
+    if (!std::isfinite(plasticity.isotropic_hardening_modulus) ||
+        !(plasticity.isotropic_hardening_modulus >= 0.0))
+        throw std::invalid_argument(
+            "J2 plasticity isotropic_hardening_modulus must be finite and "
+            "nonnegative");
+}
+
+double log_add_exp(double first, double second) {
+    const double maximum = std::max(first, second);
+    if (std::isinf(maximum))
+        return maximum;
+    return maximum + std::log1p(std::exp(std::min(first, second) - maximum));
+}
+
+double second_exponential_weight(double first, double second) {
+    if (second >= first)
+        return 1.0 / (1.0 + std::exp(first - second));
+    const double ratio = std::exp(second - first);
+    return ratio / (1.0 + ratio);
+}
+
+NortonRoot solve_power_law_equivalent_stress(
+    double driving_stress, double log_stress_coefficient, double time_step,
+    const NortonCreepProperties& creep) {
+    if (time_step == 0.0 || creep.coefficient == 0.0 ||
+        log_stress_coefficient == -std::numeric_limits<double>::infinity())
+        return {driving_stress, 1.0, 0.0};
+    if (!(driving_stress > 0.0)) {
+        if (creep.stress_exponent > 1.0)
+            return {driving_stress, 1.0, 0.0};
+
+        const double log_linear_coefficient =
+            log_stress_coefficient + std::log(time_step) +
+            std::log(creep.coefficient) - std::log(creep.reference_stress);
+        if (std::isnan(log_linear_coefficient))
+            throw std::overflow_error(
+                "Norton creep linear coefficient is not a number");
+        if (log_linear_coefficient == -std::numeric_limits<double>::infinity())
+            return {driving_stress, 1.0, 0.0};
+        if (log_linear_coefficient == std::numeric_limits<double>::infinity())
+            return {driving_stress, 0.0, 0.0};
+        const double log_denominator = log_add_exp(0.0, log_linear_coefficient);
+        return {
+            driving_stress,
+            std::exp(-log_denominator),
+            0.0,
+        };
+    }
+
+    const double log_driving_stress = std::log(driving_stress);
+    const double log_coefficient =
+        log_stress_coefficient + std::log(time_step) +
+        std::log(creep.coefficient) - log_driving_stress +
+        creep.stress_exponent *
+            (log_driving_stress - std::log(creep.reference_stress));
+    if (std::isnan(log_coefficient))
+        throw std::overflow_error(
+            "Norton creep dimensionless local coefficient is not a number");
+    if (log_coefficient == -std::numeric_limits<double>::infinity())
+        return {driving_stress, 1.0, 0.0};
+    if (log_coefficient == std::numeric_limits<double>::infinity())
+        throw std::overflow_error(
+            "Norton creep logarithmic local coefficient overflowed");
+
+    double log_stress_ratio = 0.0;
+    if (creep.stress_exponent == 1.0) {
+        log_stress_ratio = log_add_exp(0.0, log_coefficient);
+    } else {
+        const double tolerance = 64.0 * std::numeric_limits<double>::epsilon();
+        const double initial_residual = log_add_exp(0.0, log_coefficient);
+        if (initial_residual == 0.0)
+            return {driving_stress, 1.0, 0.0};
+
+        constexpr double log_two = 0.693147180559945309417232121458176568;
+        double lower = 0.0;
+        double upper = std::max(log_two, (log_coefficient + log_two) /
+                                             creep.stress_exponent);
+        double current = log_coefficient > 0.0
+                             ? log_coefficient / creep.stress_exponent
+                             : std::exp(log_coefficient);
+        if (!std::isfinite(upper) || !(upper > lower))
+            throw std::overflow_error(
+                "Norton creep logarithmic root bracket is invalid");
+        if (!std::isfinite(current) || !(current > lower) || !(current < upper))
+            current = 0.5 * (lower + upper);
+
+        bool converged = false;
+        for (int iteration = 0; iteration < maximum_creep_iterations;
+             ++iteration) {
+            const double first = -current;
+            const double second =
+                log_coefficient - creep.stress_exponent * current;
+            const double residual = log_add_exp(first, second);
+            if (!std::isfinite(residual))
+                throw std::overflow_error(
+                    "Norton creep logarithmic residual is not finite");
+            if (std::fabs(residual) <= tolerance) {
+                converged = true;
+                break;
+            }
+
+            if (residual > 0.0)
+                lower = current;
+            else
+                upper = current;
+            if (upper - lower <=
+                tolerance * std::max(1.0, std::fabs(current))) {
+                current = 0.5 * (lower + upper);
+                converged = true;
+                break;
+            }
+
+            const double weight = second_exponential_weight(first, second);
+            const double derivative =
+                -(1.0 + (creep.stress_exponent - 1.0) * weight);
+            double candidate = std::isfinite(derivative)
+                                   ? current - residual / derivative
+                                   : 0.5 * (lower + upper);
+            if (!std::isfinite(candidate) || !(candidate > lower) ||
+                !(candidate < upper) || candidate == current)
+                candidate = 0.5 * (lower + upper);
+            current = candidate;
+        }
+        if (!converged)
+            throw std::runtime_error(
+                "Norton creep logarithmic local Newton solve did not "
+                "converge");
+        log_stress_ratio = current;
+    }
+
+    const double stress_ratio = std::exp(-log_stress_ratio);
+    const double relaxed_fraction = -std::expm1(-log_stress_ratio);
+    const double log_equivalent_stress = log_driving_stress - log_stress_ratio;
+    const double minimum_log =
+        std::log(std::numeric_limits<double>::denorm_min());
+    const double equivalent_stress = log_equivalent_stress <= minimum_log
+                                         ? 0.0
+                                         : std::exp(log_equivalent_stress);
+    const double derivative_denominator =
+        stress_ratio + creep.stress_exponent * relaxed_fraction;
+    const double driving_stress_derivative =
+        derivative_denominator == 0.0 ? 0.0
+                                      : stress_ratio / derivative_denominator;
+    if (!std::isfinite(equivalent_stress) ||
+        !std::isfinite(driving_stress_derivative) ||
+        !(driving_stress_derivative >= 0.0) ||
+        !std::isfinite(relaxed_fraction) || !(relaxed_fraction >= 0.0) ||
+        !(relaxed_fraction <= 1.0))
+        throw std::overflow_error(
+            "Norton creep logarithmic root or derivative is not finite");
+
+    return {
+        equivalent_stress,
+        driving_stress_derivative,
+        relaxed_fraction,
+    };
+}
+
 NortonRoot solve_norton_equivalent_stress(double trial_stress,
                                           double shear_modulus,
                                           double time_step,
                                           const NortonCreepProperties& creep) {
+    return solve_power_law_equivalent_stress(
+        trial_stress, std::log(3.0) + std::log(shear_modulus), time_step,
+        creep);
+}
+
+CreepIncrement evaluate_creep_increment(double equivalent_stress,
+                                        double time_step,
+                                        const NortonCreepProperties& creep) {
     if (time_step == 0.0 || creep.coefficient == 0.0)
-        return {trial_stress, 1.0};
-    if (!(trial_stress > 0.0)) {
-        if (creep.stress_exponent > 1.0)
-            return {trial_stress, 1.0};
+        return {0.0};
+    if (!(equivalent_stress > 0.0))
+        return {0.0};
 
-        const double log_linear_coefficient =
-            std::log(3.0) + std::log(shear_modulus) + std::log(time_step) +
-            std::log(creep.coefficient) - std::log(creep.reference_stress);
-        const double minimum_log =
-            std::log(std::numeric_limits<double>::denorm_min());
-        const double maximum_log = std::log(std::numeric_limits<double>::max());
-        if (log_linear_coefficient <= minimum_log)
-            return {trial_stress, 1.0};
-        if (log_linear_coefficient >= maximum_log)
-            return {trial_stress, 0.0};
-        const double linear_coefficient = std::exp(log_linear_coefficient);
-        return {
-            trial_stress,
-            1.0 / (1.0 + linear_coefficient),
-        };
-    }
-
-    const double log_coefficient =
-        std::log(3.0) + std::log(shear_modulus) + std::log(time_step) +
-        std::log(creep.coefficient) - std::log(trial_stress) +
+    const double log_increment =
+        std::log(time_step) + std::log(creep.coefficient) +
         creep.stress_exponent *
-            (std::log(trial_stress) - std::log(creep.reference_stress));
-    if (std::isnan(log_coefficient))
+            (std::log(equivalent_stress) - std::log(creep.reference_stress));
+    if (std::isnan(log_increment))
         throw std::overflow_error(
-            "Norton creep dimensionless local coefficient is not a number");
+            "Norton creep increment logarithm is not a number");
 
     const double minimum_log =
         std::log(std::numeric_limits<double>::denorm_min());
     const double maximum_log = std::log(std::numeric_limits<double>::max());
-    if (log_coefficient <= minimum_log)
-        return {trial_stress, 1.0};
-    if (!std::isfinite(log_coefficient) || log_coefficient >= maximum_log)
-        throw std::overflow_error(
-            "Norton creep dimensionless local coefficient overflowed");
-    const double coefficient = std::exp(log_coefficient);
+    if (log_increment <= minimum_log)
+        return {0.0};
+    if (!std::isfinite(log_increment) || log_increment >= maximum_log)
+        throw std::overflow_error("Norton creep increment overflowed");
 
-    if (creep.stress_exponent == 1.0) {
-        const double denominator = 1.0 + coefficient;
-        if (!std::isfinite(denominator))
-            throw std::overflow_error(
-                "Norton creep linear local equation overflowed");
+    const double increment = std::exp(log_increment);
+    if (!std::isfinite(increment) || !(increment >= 0.0))
+        throw std::overflow_error("Norton creep increment is not finite");
+    return {increment};
+}
+
+CoupledUpdate solve_coupled_update(double trial_stress, double shear_modulus,
+                                   double time_step,
+                                   const NortonCreepProperties& creep,
+                                   const J2PlasticityProperties& plasticity,
+                                   double committed_equivalent_plastic_strain) {
+    const double current_yield_stress =
+        plasticity.yield_stress + plasticity.isotropic_hardening_modulus *
+                                      committed_equivalent_plastic_strain;
+    if (!std::isfinite(current_yield_stress))
+        throw std::overflow_error(
+            "Coupled plastic-creep current yield stress is not finite");
+
+    const NortonRoot creep_only = solve_norton_equivalent_stress(
+        trial_stress, shear_modulus, time_step, creep);
+    const double inverse_three_shear_modulus = (1.0 / 3.0) / shear_modulus;
+    if (!(creep_only.equivalent_stress > current_yield_stress)) {
+        const double creep_increment = trial_stress *
+                                       creep_only.relaxed_fraction *
+                                       inverse_three_shear_modulus;
+        const double creep_increment_derivative =
+            (1.0 - creep_only.trial_stress_derivative) *
+            inverse_three_shear_modulus;
         return {
-            trial_stress / denominator,
-            1.0 / denominator,
+            creep_only.equivalent_stress,
+            creep_only.trial_stress_derivative,
+            0.0,
+            0.0,
+            creep_increment,
+            creep_increment_derivative,
         };
     }
 
-    double lower = 0.0;
-    double upper = 1.0;
-    double current = coefficient > 1.0
-                         ? std::exp(-log_coefficient / creep.stress_exponent)
-                         : 1.0;
-    const double tolerance = 64.0 * std::numeric_limits<double>::epsilon();
-
-    bool converged = false;
-    for (int iteration = 0; iteration < maximum_creep_iterations; ++iteration) {
-        const double power = std::pow(current, creep.stress_exponent);
-        const double scaled_power = coefficient * power;
-        const double residual = current + scaled_power - 1.0;
-
-        if (std::isfinite(residual) && std::fabs(residual) <= tolerance) {
-            converged = true;
-            break;
-        }
-
-        if (residual > 0.0 || !std::isfinite(residual))
-            upper = current;
-        else
-            lower = current;
-
-        if (upper - lower <= tolerance) {
-            current = 0.5 * (lower + upper);
-            converged = true;
-            break;
-        }
-
-        const double derivative =
-            1.0 + creep.stress_exponent * scaled_power / current;
-        double candidate = std::isfinite(derivative)
-                               ? current - residual / derivative
-                               : 0.5 * (lower + upper);
-        if (!std::isfinite(candidate) || !(candidate > lower) ||
-            !(candidate < upper) || candidate == current)
-            candidate = 0.5 * (lower + upper);
-        current = candidate;
+    const double hardening = plasticity.isotropic_hardening_modulus;
+    if (hardening == 0.0) {
+        const CreepIncrement creep_increment =
+            evaluate_creep_increment(current_yield_stress, time_step, creep);
+        const double plastic_increment = (trial_stress - current_yield_stress) *
+                                             inverse_three_shear_modulus -
+                                         creep_increment.value;
+        if (!std::isfinite(plastic_increment) || !(plastic_increment > 0.0))
+            throw std::runtime_error(
+                "Coupled perfect-plastic update produced a nonpositive "
+                "plastic increment");
+        return {
+            current_yield_stress,  0.0,
+            plastic_increment,     inverse_three_shear_modulus,
+            creep_increment.value, 0.0,
+        };
     }
 
-    if (!converged)
-        throw std::runtime_error(
-            "Norton creep local Newton solve did not converge");
-
-    const double derivative_term =
-        creep.stress_exponent * ((1.0 - current) / current);
-    const double trial_stress_derivative =
-        std::isinf(derivative_term) ? 0.0 : 1.0 / (1.0 + derivative_term);
-    const double equivalent_stress = trial_stress * current;
-    if (std::isnan(derivative_term) ||
-        !std::isfinite(trial_stress_derivative) ||
-        !(trial_stress_derivative >= 0.0) || !std::isfinite(equivalent_stress))
+    double hardening_weight = 0.0;
+    double inverse_denominator = 0.0;
+    double log_root_stress_coefficient = 0.0;
+    if (hardening <= shear_modulus) {
+        const double ratio = hardening / shear_modulus;
+        const double scaled_denominator = 3.0 + ratio;
+        hardening_weight = ratio / scaled_denominator;
+        inverse_denominator = (1.0 / scaled_denominator) / shear_modulus;
+        log_root_stress_coefficient =
+            std::log(hardening) + std::log(3.0 / scaled_denominator);
+    } else {
+        const double ratio = shear_modulus / hardening;
+        const double scaled_denominator = 1.0 + 3.0 * ratio;
+        hardening_weight = 1.0 / scaled_denominator;
+        inverse_denominator = (1.0 / scaled_denominator) / hardening;
+        log_root_stress_coefficient =
+            std::log(shear_modulus) + std::log(3.0 / scaled_denominator);
+    }
+    const double root_driving_stress =
+        current_yield_stress +
+        hardening_weight * (trial_stress - current_yield_stress);
+    if (!std::isfinite(inverse_denominator) || !(inverse_denominator > 0.0) ||
+        !std::isfinite(root_driving_stress) || !(root_driving_stress > 0.0) ||
+        !std::isfinite(log_root_stress_coefficient))
         throw std::overflow_error(
-            "Norton creep consistent derivative is not finite");
+            "Coupled plastic-creep transformed root is invalid");
+
+    const NortonRoot root = solve_power_law_equivalent_stress(
+        root_driving_stress, log_root_stress_coefficient, time_step, creep);
+    const CreepIncrement creep_increment =
+        evaluate_creep_increment(root.equivalent_stress, time_step, creep);
+    const double plastic_increment =
+        (trial_stress - current_yield_stress -
+         3.0 * (shear_modulus * creep_increment.value)) *
+        inverse_denominator;
+    const double plastic_increment_derivative =
+        root.trial_stress_derivative * inverse_denominator;
+    const double stress_derivative =
+        hardening_weight * root.trial_stress_derivative;
+    const double creep_increment_derivative =
+        (1.0 - root.trial_stress_derivative) * inverse_three_shear_modulus;
+    if (!std::isfinite(root.equivalent_stress) ||
+        !std::isfinite(stress_derivative) ||
+        !std::isfinite(plastic_increment) || !(plastic_increment > 0.0) ||
+        !std::isfinite(plastic_increment_derivative) ||
+        !std::isfinite(creep_increment.value) ||
+        !std::isfinite(creep_increment_derivative))
+        throw std::overflow_error(
+            "Coupled plastic-creep update or derivative is not finite");
 
     return {
-        equivalent_stress,
-        trial_stress_derivative,
+        root.equivalent_stress, stress_derivative,
+        plastic_increment,      plastic_increment_derivative,
+        creep_increment.value,  creep_increment_derivative,
     };
 }
 
@@ -204,32 +424,14 @@ IsotropicInelasticMaterial::IsotropicInelasticMaterial(
     case InelasticBehavior::elastic:
         break;
     case InelasticBehavior::norton_creep:
-        if (!std::isfinite(_properties.creep.coefficient) ||
-            !(_properties.creep.coefficient >= 0.0))
-            throw std::invalid_argument(
-                "Norton creep coefficient must be finite and nonnegative");
-        if (!std::isfinite(_properties.creep.reference_stress) ||
-            !(_properties.creep.reference_stress > 0.0))
-            throw std::invalid_argument(
-                "Norton creep reference_stress must be finite and positive");
-        if (!std::isfinite(_properties.creep.stress_exponent) ||
-            !(_properties.creep.stress_exponent >= 1.0))
-            throw std::invalid_argument(
-                "Norton creep stress_exponent must be finite and at least "
-                "one");
+        validate_norton_properties(_properties.creep);
         break;
     case InelasticBehavior::j2_plasticity:
-        if (!std::isfinite(_properties.plasticity.yield_stress) ||
-            !(_properties.plasticity.yield_stress > 0.0))
-            throw std::invalid_argument(
-                "J2 plasticity yield_stress must be finite and "
-                "positive");
-        if (!std::isfinite(
-                _properties.plasticity.isotropic_hardening_modulus) ||
-            !(_properties.plasticity.isotropic_hardening_modulus >= 0.0))
-            throw std::invalid_argument(
-                "J2 plasticity isotropic_hardening_modulus must be finite "
-                "and nonnegative");
+        validate_plasticity_properties(_properties.plasticity);
+        break;
+    case InelasticBehavior::norton_creep_j2_plasticity:
+        validate_norton_properties(_properties.creep);
+        validate_plasticity_properties(_properties.plasticity);
         break;
     default:
         throw std::invalid_argument(
@@ -296,20 +498,21 @@ InelasticStressResponse IsotropicInelasticMaterial::response(
         stress_trial.hoop - mean_stress,
         stress_trial.rz,
     };
-    const adlite::Scalar deviatoric_norm_squared =
-        deviatoric_trial[0] * deviatoric_trial[0] +
-        deviatoric_trial[1] * deviatoric_trial[1] +
-        deviatoric_trial[2] * deviatoric_trial[2] +
-        2.0 * deviatoric_trial[3] * deviatoric_trial[3];
-    if (!std::isfinite(deviatoric_norm_squared.value()) ||
-        !(deviatoric_norm_squared.value() >= 0.0))
-        throw std::overflow_error(
-            "Inelastic material trial deviatoric stress is not finite");
-
+    const bool zero_deviatoric_stress = deviatoric_trial[0].value() == 0.0 &&
+                                        deviatoric_trial[1].value() == 0.0 &&
+                                        deviatoric_trial[2].value() == 0.0 &&
+                                        deviatoric_trial[3].value() == 0.0;
+    constexpr double square_root_two = 1.414213562373095048801688724209698079;
+    constexpr double square_root_three_halves =
+        1.224744871391589049098642037352945695;
     const adlite::Scalar equivalent_trial_stress =
-        deviatoric_norm_squared.value() == 0.0
+        zero_deviatoric_stress
             ? adlite::Scalar(0.0)
-            : adlite::sqrt(1.5 * deviatoric_norm_squared);
+            : square_root_three_halves *
+                  adlite::hypot(
+                      adlite::hypot(deviatoric_trial[0], deviatoric_trial[1]),
+                      adlite::hypot(deviatoric_trial[2],
+                                    square_root_two * deviatoric_trial[3]));
     if (!std::isfinite(equivalent_trial_stress.value()))
         throw std::overflow_error(
             "Inelastic material trial equivalent stress is not finite");
@@ -358,6 +561,57 @@ InelasticStressResponse IsotropicInelasticMaterial::response(
         return {stress, trial_state};
     }
 
+    if (_properties.behavior == InelasticBehavior::norton_creep_j2_plasticity) {
+        const CoupledUpdate update = solve_coupled_update(
+            equivalent_trial_stress.value(), _shear_modulus, time_step,
+            _properties.creep, _properties.plasticity,
+            committed.equivalent_plastic_strain);
+        if (equivalent_trial_stress.value() == 0.0) {
+            const adlite::Scalar stress_scale = update.stress_derivative;
+            const AxisymmetricStress stress =
+                returned_stress(mean_stress, deviatoric_trial, stress_scale);
+            for (std::size_t component = 0; component < component_count;
+                 ++component) {
+                trial_state.creep_strain[component] =
+                    committed.creep_strain[component] +
+                    (1.0 - stress_scale) * deviatoric_trial[component] /
+                        (2.0 * _shear_modulus);
+            }
+            return {stress, trial_state};
+        }
+
+        const adlite::Scalar returned_equivalent_stress =
+            adlite::compose(update.equivalent_stress, equivalent_trial_stress,
+                            update.stress_derivative);
+        const adlite::Scalar plastic_increment =
+            adlite::compose(update.plastic_increment, equivalent_trial_stress,
+                            update.plastic_increment_derivative);
+        const adlite::Scalar creep_increment =
+            adlite::compose(update.creep_increment, equivalent_trial_stress,
+                            update.creep_increment_derivative);
+        const adlite::Scalar stress_scale =
+            returned_equivalent_stress / equivalent_trial_stress;
+        const AxisymmetricStress stress =
+            returned_stress(mean_stress, deviatoric_trial, stress_scale);
+
+        for (std::size_t component = 0; component < component_count;
+             ++component) {
+            const adlite::Scalar flow_direction =
+                1.5 * deviatoric_trial[component] / equivalent_trial_stress;
+            trial_state.plastic_strain[component] =
+                committed.plastic_strain[component] +
+                plastic_increment * flow_direction;
+            trial_state.creep_strain[component] =
+                committed.creep_strain[component] +
+                creep_increment * flow_direction;
+        }
+        trial_state.equivalent_plastic_strain =
+            committed.equivalent_plastic_strain + plastic_increment;
+        trial_state.equivalent_creep_strain =
+            committed.equivalent_creep_strain + creep_increment;
+        return {stress, trial_state};
+    }
+
     if (time_step == 0.0 || _properties.creep.coefficient == 0.0)
         return {stress_trial, trial_state};
 
@@ -381,9 +635,15 @@ InelasticStressResponse IsotropicInelasticMaterial::response(
     const adlite::Scalar returned_equivalent_stress =
         adlite::compose(root.equivalent_stress, equivalent_trial_stress,
                         root.trial_stress_derivative);
+    const double inverse_three_shear_modulus = (1.0 / 3.0) / _shear_modulus;
+    const double creep_increment_value = equivalent_trial_stress.value() *
+                                         root.relaxed_fraction *
+                                         inverse_three_shear_modulus;
+    const double creep_increment_derivative =
+        (1.0 - root.trial_stress_derivative) * inverse_three_shear_modulus;
     const adlite::Scalar creep_increment =
-        (equivalent_trial_stress - returned_equivalent_stress) /
-        (3.0 * _shear_modulus);
+        adlite::compose(creep_increment_value, equivalent_trial_stress,
+                        creep_increment_derivative);
     const adlite::Scalar stress_scale =
         returned_equivalent_stress / equivalent_trial_stress;
     const AxisymmetricStress stress =

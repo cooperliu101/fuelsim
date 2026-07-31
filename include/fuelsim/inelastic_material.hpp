@@ -11,6 +11,7 @@ enum class InelasticBehavior {
     elastic,
     norton_creep,
     j2_plasticity,
+    norton_creep_j2_plasticity,
 };
 
 struct NortonCreepProperties final {

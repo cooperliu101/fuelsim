@@ -14,7 +14,8 @@
 
 - M2.1：一致热容矩阵、Backward Euler 物理时间积分、热源斜坡、
   committed/trial/commit/rollback 和失败步 cutback；
-- M2.2：通用小应变 J2 Norton 蠕变或 J2 线性各向同性硬化塑性；
+- M2.2：通用小应变 J2 Norton 蠕变、J2 线性各向同性硬化塑性及同一
+  材料点的全隐式耦合；
 - 燃料、包壳各自独立的积分点 `double` 历史，Newton 回调内只生成
   ADlite trial 状态；
 - 瞬态热传导与准静态力学耦合，PETSc 工作区跨时间步复用。
@@ -136,10 +137,15 @@ M2 热容残量和非弹性更新为：
 Rcap_i = integral(N_i*rho*cp*(Tnew-Told)/dt*2*pi*r*dA)
 q_creep + 3*G*dt*A*(q_creep/q_ref)^n = q_trial
 delta_ep = max((q_trial-yield_old)/(3*G+H), 0)
+
+q_trial = q + 3*G*(delta_ep+delta_ec)
+delta_ec = dt*A*(q/q_ref)^n
+q = yield_old + H*delta_ep               coupled active branch
 ```
 
-同一材料点当前只能选择 `elastic`、`norton_creep` 或
-`j2_plasticity` 之一；尚未实现塑性—蠕变联合更新。
+材料点可选择 `elastic`、`norton_creep`、`j2_plasticity` 或
+`norton_creep_j2_plasticity`。耦合分支先判断蠕变松弛后是否仍然超出
+屈服面，再同时求解塑性和蠕变增量。
 
 ## 当前验收
 
@@ -159,9 +165,10 @@ CTest 覆盖：
 - M2 瞬态体单元 AD Jacobian、一致热容矩阵和均匀绝热升温解析解；
 - J2 塑性闭式径向返回、卸载和活跃分支 AD 切线；
 - Norton `n=1` 解析根、非线性局部残量和活跃分支 AD 切线；
+- 塑性—蠕变耦合应力平衡、屈服一致性、退化分支、极端尺度和 AD 切线；
 - M2 committed 状态不受残量/Jacobian 回调影响，接受步提交且拒绝步回滚；
-- 两步 M2 PETSc 工作区复用和 20 步非零蠕变/塑性燃料—包壳演示；
-- MOOSE 瞬态热容、Norton 蠕变和 J2 塑性独立参考。
+- 两步 M2 PETSc 工作区复用和 20 步同点非零蠕变/塑性燃料—包壳演示；
+- MOOSE 瞬态热容、Norton、J2 及两套耦合载荷路径参考。
 
 独立 MOOSE 输入、结果快照和运行条件位于
 `verification/moose/`。
@@ -172,7 +179,10 @@ CTest 覆盖：
 
 M2 的 MOOSE 最小参考中，均匀瞬态升温终值误差为 `0`；Norton 的应力、
 等效蠕变和位移误差分别为 `0.0019924%`、`0.0089635%` 和
-`0.0036523%`；J2 应力和等效塑性应变与解析值在输出精度内一致。
+`0.0036523%`；J2 应力和等效塑性应变与解析值在输出精度内一致。耦合
+牵引路径的应力、等效塑性、等效蠕变和位移误差分别为
+`0.00000394%`、`0.001188%`、`0.000472%` 和 `0.000408%`；位移控制路径
+四项误差也均小于 `0.001%`。
 
 ## 单核性能
 
@@ -199,6 +209,5 @@ Gauss 点仍必须投影到同一个包壳线段。不支持通用非匹配 mort
 
 M2.2 只提供与具体材料无关的等温 Norton 幂律和线性硬化 J2 算法。暂不
 实现温度、辐照、燃耗、孔隙率或应力相关的真实燃料/包壳经验关联，也不
-支持同一材料点的塑性—蠕变联合更新、裂变气体、燃料重定位或开裂。后续
-真实模型必须在当前状态事务、局部 AD Jacobian 和独立 MOOSE 回归基础上
-逐项加入。
+支持有限应变、非共轴多机制、裂变气体、燃料重定位或开裂。后续真实模型
+必须在当前状态事务、局部 AD Jacobian 和独立 MOOSE 回归基础上逐项加入。

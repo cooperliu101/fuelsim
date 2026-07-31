@@ -64,6 +64,18 @@ plastic_properties(double yield_stress, double hardening_modulus) {
     };
 }
 
+fuelsim::TransientInelasticProperties
+coupled_properties(double coefficient, double reference_stress, double exponent,
+                   double yield_stress, double hardening_modulus) {
+    return {
+        10.0,
+        20.0,
+        fuelsim::InelasticBehavior::norton_creep_j2_plasticity,
+        {coefficient, reference_stress, exponent},
+        {yield_stress, hardening_modulus},
+    };
+}
+
 double equivalent_stress(const fuelsim::AxisymmetricStress& stress) {
     const double mean =
         (stress.rr.value() + stress.zz.value() + stress.hoop.value()) / 3.0;
@@ -299,6 +311,80 @@ bool test_norton_creep_material_point() {
                    "consistent tangent") &&
              passed;
 
+    const fuelsim::IsotropicInelasticMaterial subnormal_material(
+        small_scale_elastic, creep_properties(1.0e-300, 1.0e-300, 2.0));
+    const fuelsim::InelasticStressResponse subnormal =
+        subnormal_material.response(
+            (2.0 / 3.0) * 1.0e-300, (-1.0 / 3.0) * 1.0e-300,
+            (-1.0 / 3.0) * 1.0e-300, 0.0, 600.0, 1.0, committed);
+    const double subnormal_stress = 1.5 * subnormal.stress.rr.value();
+    const double expected_subnormal_ratio = (-1.0 + std::sqrt(7.0)) / 3.0;
+    passed = check(subnormal_stress > 0.0 &&
+                       std::abs(subnormal_stress /
+                                    (expected_subnormal_ratio * 1.0e-300) -
+                                1.0) < 1.0e-12,
+                   "Norton AD hypot norm preserves a subnormal-scale trial "
+                   "stress") &&
+             passed;
+
+    constexpr double huge_trial_stress = 1.0e300;
+    constexpr double huge_reference_stress = 1.0e100;
+    constexpr double huge_creep_coefficient = 1.0e250;
+    const fuelsim::IsotropicInelasticMaterial logarithmic_root_material(
+        small_scale_elastic,
+        creep_properties(huge_creep_coefficient, huge_reference_stress, 2.0));
+    const fuelsim::InelasticStressResponse logarithmic_root =
+        logarithmic_root_material.response(
+            (2.0 / 3.0) * huge_trial_stress, (-1.0 / 3.0) * huge_trial_stress,
+            (-1.0 / 3.0) * huge_trial_stress, 0.0, 600.0, 1.0, committed);
+    const double logarithmic_root_stress =
+        1.5 * logarithmic_root.stress.rr.value();
+    const double expected_logarithmic_root = std::sqrt(
+        huge_trial_stress / (1.5 * huge_creep_coefficient /
+                             (huge_reference_stress * huge_reference_stress)));
+    passed =
+        check(std::isfinite(logarithmic_root_stress) &&
+                  logarithmic_root_stress > 0.0 &&
+                  std::abs(logarithmic_root_stress / expected_logarithmic_root -
+                           1.0) < 1.0e-12,
+              "Norton logarithmic root remains finite when its "
+              "dimensionless coefficient exceeds double range") &&
+        passed;
+
+    const fuelsim::ThermoelasticProperties overflow_three_g_elastic = {
+        0.0, 1.0, 1.6e308, 0.0, 0.0, 600.0,
+    };
+    constexpr double overflow_three_g_young_modulus = 1.6e308;
+    const double overflow_three_g_coefficient =
+        (2.0 / 3.0) / overflow_three_g_young_modulus;
+    const fuelsim::IsotropicInelasticMaterial overflow_three_g_material(
+        overflow_three_g_elastic,
+        creep_properties(overflow_three_g_coefficient, 1.0, 1.0));
+    constexpr double overflow_three_g_trial_stress = 48.0;
+    const double overflow_three_g_strain_scale =
+        overflow_three_g_trial_stress / overflow_three_g_young_modulus;
+    const fuelsim::InelasticStressResponse overflow_three_g =
+        overflow_three_g_material.response(
+            (2.0 / 3.0) * overflow_three_g_strain_scale,
+            (-1.0 / 3.0) * overflow_three_g_strain_scale,
+            (-1.0 / 3.0) * overflow_three_g_strain_scale, 0.0, 600.0, 1.0,
+            committed);
+    const fuelsim::MaterialPointState overflow_three_g_state =
+        fuelsim::IsotropicInelasticMaterial::state_values(
+            overflow_three_g.trial_state);
+    const double overflow_three_g_stress =
+        equivalent_stress(overflow_three_g.stress);
+    const double expected_overflow_three_g_creep =
+        overflow_three_g_coefficient * overflow_three_g_stress;
+    passed = check(std::abs(overflow_three_g_stress - 24.0) < 1.0e-12 &&
+                       expected_overflow_three_g_creep > 0.0 &&
+                       std::abs(overflow_three_g_state.equivalent_creep_strain /
+                                    expected_overflow_three_g_creep -
+                                1.0) < 1.0e-12,
+                   "Norton stress and creep history remain consistent when 3G "
+                   "exceeds double range") &&
+             passed;
+
     std::cout << "m22_norton_equivalent_stress="
               << equivalent_stress(response.stress) << '\n';
     std::cout << "m22_norton_equivalent_creep_strain="
@@ -312,6 +398,278 @@ bool test_norton_creep_material_point() {
               << extreme_scale_stress << '\n';
     std::cout << "m22_norton_large_beta_tangent="
               << actual_large_beta_derivative << '\n';
+    std::cout << "m22_norton_subnormal_equivalent_stress=" << subnormal_stress
+              << '\n';
+    std::cout << "m22_norton_logarithmic_root_equivalent_stress="
+              << logarithmic_root_stress << '\n';
+    return passed;
+}
+
+bool test_coupled_plastic_creep_material_point() {
+    constexpr double coefficient = 0.02;
+    constexpr double reference_stress = 10.0;
+    constexpr double exponent = 2.0;
+    constexpr double yield_stress = 20.0;
+    constexpr double hardening = 40.0;
+    constexpr double time_step = 0.1;
+    constexpr double shear_modulus = 80.0;
+    constexpr double trial_stress = 48.0;
+    const fuelsim::IsotropicInelasticMaterial material(
+        simple_thermoelastic(),
+        coupled_properties(coefficient, reference_stress, exponent,
+                           yield_stress, hardening));
+    const fuelsim::MaterialPointState committed{};
+    const fuelsim::InelasticStressResponse response =
+        material.response(0.2, -0.1, -0.1, 0.0, 600.0, time_step, committed);
+    const fuelsim::MaterialPointState state =
+        fuelsim::IsotropicInelasticMaterial::state_values(response.trial_state);
+    const double stress = equivalent_stress(response.stress);
+    const double expected_creep =
+        time_step * coefficient * std::pow(stress / reference_stress, exponent);
+    const double stress_balance =
+        stress +
+        3.0 * shear_modulus *
+            (state.equivalent_plastic_strain + state.equivalent_creep_strain) -
+        trial_stress;
+    const double yield_residual =
+        stress - (yield_stress + hardening * state.equivalent_plastic_strain);
+
+    bool passed =
+        check(state.equivalent_plastic_strain > 0.0 &&
+                  state.equivalent_creep_strain > 0.0,
+              "coupled update activates plastic and creep strain at one "
+              "material point");
+    passed =
+        check(std::abs(state.equivalent_creep_strain - expected_creep) <
+                  1.0e-13,
+              "coupled creep increment satisfies the backward-Euler Norton "
+              "law") &&
+        passed;
+    passed = check(std::abs(stress_balance) < 1.0e-12,
+                   "coupled update satisfies deviatoric stress balance") &&
+             passed;
+    passed = check(std::abs(yield_residual) < 1.0e-12,
+                   "coupled update ends on the hardened yield surface") &&
+             passed;
+    passed =
+        check(std::abs(inelastic_trace(state.plastic_strain)) < 1.0e-14 &&
+                  std::abs(inelastic_trace(state.creep_strain)) < 1.0e-14,
+              "coupled plastic and creep strain increments are trace free") &&
+        passed;
+    passed = check(same_state(committed, fuelsim::MaterialPointState{}),
+                   "coupled trial evaluation does not mutate committed "
+                   "state") &&
+             passed;
+
+    const adlite::Scalar active_rr = adlite::Scalar::independent(0.2, 0, 1);
+    const fuelsim::InelasticStressResponse active = material.response(
+        active_rr, -0.1, -0.1, 0.0, 600.0, time_step, committed);
+    constexpr double perturbation = 1.0e-6;
+    const double plus = material
+                            .response(0.2 + perturbation, -0.1, -0.1, 0.0,
+                                      600.0, time_step, committed)
+                            .stress.rr.value();
+    const double minus = material
+                             .response(0.2 - perturbation, -0.1, -0.1, 0.0,
+                                       600.0, time_step, committed)
+                             .stress.rr.value();
+    const double finite_difference = (plus - minus) / (2.0 * perturbation);
+    const double derivative_error =
+        scaled_error(active.stress.rr.derivative(0), finite_difference);
+    passed = check(derivative_error < 1.0e-9,
+                   "coupled material AD tangent matches centered finite "
+                   "difference") &&
+             passed;
+
+    const fuelsim::IsotropicInelasticMaterial creep_limit(
+        simple_thermoelastic(),
+        coupled_properties(coefficient, reference_stress, exponent, 100.0,
+                           hardening));
+    const fuelsim::MaterialPointState creep_limit_state =
+        fuelsim::IsotropicInelasticMaterial::state_values(
+            creep_limit
+                .response(0.2, -0.1, -0.1, 0.0, 600.0, time_step, committed)
+                .trial_state);
+    passed = check(creep_limit_state.equivalent_plastic_strain == 0.0 &&
+                       creep_limit_state.equivalent_creep_strain > 0.0,
+                   "strong creep below yield leaves the coupled plastic branch "
+                   "inactive") &&
+             passed;
+
+    const fuelsim::IsotropicInelasticMaterial plastic_limit(
+        simple_thermoelastic(),
+        coupled_properties(0.0, reference_stress, exponent, yield_stress,
+                           hardening));
+    const fuelsim::MaterialPointState plastic_limit_state =
+        fuelsim::IsotropicInelasticMaterial::state_values(
+            plastic_limit
+                .response(0.2, -0.1, -0.1, 0.0, 600.0, time_step, committed)
+                .trial_state);
+    const double expected_plastic =
+        (trial_stress - yield_stress) / (3.0 * shear_modulus + hardening);
+    passed = check(std::abs(plastic_limit_state.equivalent_plastic_strain -
+                            expected_plastic) < 1.0e-14 &&
+                       plastic_limit_state.equivalent_creep_strain == 0.0,
+                   "zero Norton coefficient reduces the coupled update to J2 "
+                   "plasticity") &&
+             passed;
+
+    const fuelsim::IsotropicInelasticMaterial perfect_plastic(
+        simple_thermoelastic(),
+        coupled_properties(coefficient, reference_stress, exponent,
+                           yield_stress, 0.0));
+    const fuelsim::InelasticStressResponse perfect_response =
+        perfect_plastic.response(0.2, -0.1, -0.1, 0.0, 600.0, time_step,
+                                 committed);
+    const fuelsim::MaterialPointState perfect_state =
+        fuelsim::IsotropicInelasticMaterial::state_values(
+            perfect_response.trial_state);
+    passed = check(std::abs(equivalent_stress(perfect_response.stress) -
+                            yield_stress) < 1.0e-13 &&
+                       perfect_state.equivalent_plastic_strain > 0.0 &&
+                       perfect_state.equivalent_creep_strain > 0.0,
+                   "coupled perfect plasticity keeps stress on the fixed yield "
+                   "surface") &&
+             passed;
+
+    const fuelsim::IsotropicInelasticMaterial tiny_hardening(
+        simple_thermoelastic(),
+        coupled_properties(coefficient, reference_stress, exponent,
+                           yield_stress,
+                           std::numeric_limits<double>::denorm_min()));
+    const fuelsim::InelasticStressResponse tiny_hardening_response =
+        tiny_hardening.response(0.2, -0.1, -0.1, 0.0, 600.0, time_step,
+                                committed);
+    const fuelsim::MaterialPointState tiny_hardening_state =
+        fuelsim::IsotropicInelasticMaterial::state_values(
+            tiny_hardening_response.trial_state);
+    passed =
+        check(std::abs(equivalent_stress(tiny_hardening_response.stress) -
+                       equivalent_stress(perfect_response.stress)) < 1.0e-13 &&
+                  std::abs(tiny_hardening_state.equivalent_plastic_strain -
+                           perfect_state.equivalent_plastic_strain) < 1.0e-13 &&
+                  std::abs(tiny_hardening_state.equivalent_creep_strain -
+                           perfect_state.equivalent_creep_strain) < 1.0e-13,
+              "vanishing hardening approaches the coupled perfect-plastic "
+              "solution without cancellation") &&
+        passed;
+
+    const fuelsim::ThermoelasticProperties large_modulus_elastic = {
+        0.0, 1.0, 6.0e307, 0.0, 0.0, 600.0,
+    };
+    const fuelsim::IsotropicInelasticMaterial large_modulus_material(
+        large_modulus_elastic,
+        coupled_properties(0.0, reference_stress, exponent, yield_stress,
+                           1.0e308));
+    constexpr double large_modulus_trial_stress = 48.0;
+    constexpr double large_young_modulus = 6.0e307;
+    const double strain_scale =
+        large_modulus_trial_stress / large_young_modulus;
+    const fuelsim::InelasticStressResponse large_modulus_response =
+        large_modulus_material.response(
+            (2.0 / 3.0) * strain_scale, (-1.0 / 3.0) * strain_scale,
+            (-1.0 / 3.0) * strain_scale, 0.0, 600.0, time_step, committed);
+    const fuelsim::MaterialPointState large_modulus_state =
+        fuelsim::IsotropicInelasticMaterial::state_values(
+            large_modulus_response.trial_state);
+    const double expected_large_modulus_stress =
+        yield_stress +
+        (10.0 / 19.0) * (large_modulus_trial_stress - yield_stress);
+    const double expected_large_modulus_plastic =
+        ((large_modulus_trial_stress - yield_stress) / 1.9) * 1.0e-308;
+    passed = check(std::abs(equivalent_stress(large_modulus_response.stress) -
+                            expected_large_modulus_stress) < 1.0e-12 &&
+                       std::abs(large_modulus_state.equivalent_plastic_strain /
+                                    expected_large_modulus_plastic -
+                                1.0) < 1.0e-12 &&
+                       large_modulus_state.equivalent_creep_strain == 0.0,
+                   "scaled coupled weights preserve a finite solution when "
+                   "3G plus hardening exceeds double range") &&
+             passed;
+
+    const fuelsim::ThermoelasticProperties overflow_three_g_elastic = {
+        0.0, 1.0, 1.6e308, 0.0, 0.0, 600.0,
+    };
+    const fuelsim::IsotropicInelasticMaterial overflow_three_g_material(
+        overflow_three_g_elastic,
+        coupled_properties(0.0, reference_stress, exponent, yield_stress,
+                           1.0e308));
+    constexpr double overflow_three_g_trial_stress = 48.0;
+    constexpr double overflow_three_g_young_modulus = 1.6e308;
+    const double overflow_three_g_strain_scale =
+        overflow_three_g_trial_stress / overflow_three_g_young_modulus;
+    const fuelsim::InelasticStressResponse overflow_three_g_response =
+        overflow_three_g_material.response(
+            (2.0 / 3.0) * overflow_three_g_strain_scale,
+            (-1.0 / 3.0) * overflow_three_g_strain_scale,
+            (-1.0 / 3.0) * overflow_three_g_strain_scale, 0.0, 600.0, time_step,
+            committed);
+    const fuelsim::MaterialPointState overflow_three_g_state =
+        fuelsim::IsotropicInelasticMaterial::state_values(
+            overflow_three_g_response.trial_state);
+    const double expected_overflow_three_g_stress =
+        yield_stress +
+        (1.0 / 3.4) * (overflow_three_g_trial_stress - yield_stress);
+    const double expected_overflow_three_g_plastic =
+        ((overflow_three_g_trial_stress - yield_stress) / 3.4) * 1.0e-308;
+    passed =
+        check(std::isfinite(
+                  equivalent_stress(overflow_three_g_response.stress)) &&
+                  std::isfinite(
+                      overflow_three_g_state.equivalent_plastic_strain) &&
+                  std::abs(equivalent_stress(overflow_three_g_response.stress) -
+                           expected_overflow_three_g_stress) < 1.0e-12 &&
+                  std::abs(overflow_three_g_state.equivalent_plastic_strain /
+                               expected_overflow_three_g_plastic -
+                           1.0) < 1.0e-12 &&
+                  overflow_three_g_state.equivalent_creep_strain == 0.0,
+              "logarithmic coupled coefficient preserves a finite solution "
+              "when 3G exceeds double range") &&
+        passed;
+
+    const fuelsim::ThermoelasticProperties small_modulus_elastic = {
+        0.0, 1.0, 6.0e-309, 0.0, 0.0, 600.0,
+    };
+    const fuelsim::IsotropicInelasticMaterial small_modulus_material(
+        small_modulus_elastic,
+        coupled_properties(0.0, reference_stress, exponent,
+                           std::numeric_limits<double>::denorm_min(), 0.0));
+    constexpr double small_modulus_trial_stress = 1.0e-308;
+    constexpr double small_young_modulus = 6.0e-309;
+    const double small_modulus_strain_scale =
+        small_modulus_trial_stress / small_young_modulus;
+    const fuelsim::InelasticStressResponse small_modulus_response =
+        small_modulus_material.response(
+            (2.0 / 3.0) * small_modulus_strain_scale,
+            (-1.0 / 3.0) * small_modulus_strain_scale,
+            (-1.0 / 3.0) * small_modulus_strain_scale, 0.0, 600.0, time_step,
+            committed);
+    const fuelsim::MaterialPointState small_modulus_state =
+        fuelsim::IsotropicInelasticMaterial::state_values(
+            small_modulus_response.trial_state);
+    const double expected_small_modulus_plastic =
+        (small_modulus_trial_stress -
+         std::numeric_limits<double>::denorm_min()) /
+        (1.5 * small_young_modulus);
+    passed =
+        check(std::isfinite(small_modulus_state.equivalent_plastic_strain) &&
+                  std::abs(small_modulus_state.equivalent_plastic_strain /
+                               expected_small_modulus_plastic -
+                           1.0) < 1.0e-12 &&
+                  small_modulus_state.equivalent_creep_strain == 0.0,
+              "scaled inverse shear modulus remains finite when 1/G exceeds "
+              "double range") &&
+        passed;
+
+    std::cout << "m22_coupled_equivalent_stress=" << stress << '\n';
+    std::cout << "m22_coupled_equivalent_plastic_strain="
+              << state.equivalent_plastic_strain << '\n';
+    std::cout << "m22_coupled_equivalent_creep_strain="
+              << state.equivalent_creep_strain << '\n';
+    std::cout << "m22_coupled_stress_balance=" << stress_balance << '\n';
+    std::cout << "m22_coupled_yield_residual=" << yield_residual << '\n';
+    std::cout << "m22_coupled_material_ad_scaled_error=" << derivative_error
+              << '\n';
     return passed;
 }
 
@@ -432,6 +790,76 @@ bool test_transient_element() {
     return passed;
 }
 
+bool test_coupled_transient_element_jacobian() {
+    const fuelsim::Quad4RzGeometry geometry = test_geometry();
+    const fuelsim::Quad4RzTransientKernel kernel(
+        fuelsim::IsotropicInelasticMaterial(
+            simple_thermoelastic(),
+            coupled_properties(0.02, 10.0, 2.0, 20.0, 40.0)),
+        0.0);
+    const fuelsim::Quad4TemperatureHistory old_temperature = {
+        600.0,
+        600.0,
+        600.0,
+        600.0,
+    };
+    const fuelsim::Quad4MaterialHistory history{};
+    const fuelsim::LocalValues state = {
+        600.0, 600.0, 600.0, 600.0, -0.1, -0.2, -0.2, -0.1, 0.0, 0.0, 0.2, 0.2,
+    };
+    const fuelsim::LocalValues direction = {
+        0.0, 0.0, 0.0, 0.0, 0.2, -0.4, 0.5, -0.1, -0.3, 0.6, -0.2, 0.4,
+    };
+    constexpr double time_step = 0.1;
+    const fuelsim::LocalSystem system =
+        kernel.linearize(geometry, state, old_temperature, history, time_step);
+    constexpr double perturbation = 1.0e-6;
+    fuelsim::LocalValues plus = state;
+    fuelsim::LocalValues minus = state;
+    for (std::size_t dof = 0; dof < state.size(); ++dof) {
+        plus[dof] += perturbation * direction[dof];
+        minus[dof] -= perturbation * direction[dof];
+    }
+    const fuelsim::LocalResidual plus_residual =
+        kernel.residual(geometry, plus, old_temperature, history, time_step);
+    const fuelsim::LocalResidual minus_residual =
+        kernel.residual(geometry, minus, old_temperature, history, time_step);
+
+    double maximum_error = 0.0;
+    for (std::size_t row = 0; row < system.residual.size(); ++row) {
+        double ad_direction = 0.0;
+        for (std::size_t column = 0; column < direction.size(); ++column) {
+            ad_direction +=
+                system.jacobian[row * fuelsim::quad4_local_dof_count + column] *
+                direction[column];
+        }
+        const double finite_difference =
+            (plus_residual[row] - minus_residual[row]) / (2.0 * perturbation);
+        maximum_error = std::max(maximum_error,
+                                 scaled_error(ad_direction, finite_difference));
+    }
+
+    const fuelsim::Quad4MaterialHistory trial =
+        kernel.trial_state_values(geometry, state, history, time_step);
+    bool both_histories_active = true;
+    for (const fuelsim::MaterialPointState& point : trial) {
+        both_histories_active = point.equivalent_plastic_strain > 0.0 &&
+                                point.equivalent_creep_strain > 0.0 &&
+                                both_histories_active;
+    }
+    bool passed =
+        check(maximum_error < 1.0e-7,
+              "coupled transient Quad4 AD Jacobian matches centered finite "
+              "difference");
+    passed = check(both_histories_active,
+                   "coupled transient Quad4 activates both histories at every "
+                   "quadrature point") &&
+             passed;
+    std::cout << "m22_coupled_element_jacobian_maximum_scaled_error="
+              << maximum_error << '\n';
+    return passed;
+}
+
 fuelsim::M2Parameters transaction_parameters() {
     const fuelsim::M1Parameters base = {
         1.0,
@@ -453,7 +881,7 @@ fuelsim::M2Parameters transaction_parameters() {
     };
     return {
         base,
-        creep_properties(1.0e-4, 1.0, 1.0),
+        coupled_properties(1.0e-4, 1.0, 1.0, 1.0, 10.0),
         plastic_properties(1.0, 10.0),
     };
 }
@@ -485,15 +913,20 @@ bool test_problem_history_transaction() {
               "Newton residual and Jacobian callbacks do not mutate "
               "committed history");
     problem.commit_time_step(trial_solution);
+    const fuelsim::RegionInelasticSummary committed_history =
+        problem.summarize_fuel_history();
+    const double committed_plastic =
+        committed_history.maximum_equivalent_plastic_strain;
     const double committed_creep =
-        problem.summarize_fuel_history().maximum_equivalent_creep_strain;
+        committed_history.maximum_equivalent_creep_strain;
     passed = check(problem.committed_time() == 1.0 &&
                        problem.committed_heat_source() == 50.0 &&
                        !problem.time_step_active(),
                    "accepted M2 time step commits time, load, and phase") &&
              passed;
-    passed = check(committed_creep > 0.0,
-                   "accepted M2 time step commits nonzero creep history") &&
+    passed = check(committed_plastic > 0.0 && committed_creep > 0.0,
+                   "accepted M2 time step commits coupled plastic and creep "
+                   "history") &&
              passed;
     passed = check(problem.committed_solution() == trial_solution,
                    "accepted M2 time step commits the converged nodal state") &&
@@ -510,6 +943,9 @@ bool test_problem_history_transaction() {
         check(
             problem.summarize_fuel_history().maximum_equivalent_creep_strain ==
                     committed_creep &&
+                problem.summarize_fuel_history()
+                        .maximum_equivalent_plastic_strain ==
+                    committed_plastic &&
                 problem.committed_solution() == trial_solution,
             "rollback preserves committed nodal and material history") &&
         passed;
@@ -533,7 +969,10 @@ bool test_problem_history_transaction() {
         check(problem.committed_time() == 1.0 &&
                   problem.committed_solution() == trial_solution &&
                   problem.summarize_fuel_history()
-                          .maximum_equivalent_creep_strain == committed_creep,
+                          .maximum_equivalent_creep_strain == committed_creep &&
+                  problem.summarize_fuel_history()
+                          .maximum_equivalent_plastic_strain ==
+                      committed_plastic,
               "failed commit retains the previous complete transaction") &&
         passed;
 
@@ -549,6 +988,8 @@ bool test_problem_history_transaction() {
         passed;
 
     std::cout << "m21_committed_time=" << problem.committed_time() << '\n';
+    std::cout << "m22_committed_maximum_plastic_strain=" << committed_plastic
+              << '\n';
     std::cout << "m22_committed_maximum_creep_strain=" << committed_creep
               << '\n';
     return passed;
@@ -562,7 +1003,9 @@ int main() {
         bool passed = true;
         passed = test_j2_plasticity_material_point() && passed;
         passed = test_norton_creep_material_point() && passed;
+        passed = test_coupled_plastic_creep_material_point() && passed;
         passed = test_transient_element() && passed;
+        passed = test_coupled_transient_element_jacobian() && passed;
         passed = test_problem_history_transaction() && passed;
         if (!passed)
             return 1;

@@ -59,11 +59,11 @@ fuelsim::M2Parameters make_generic_demonstration_case() {
     const fuelsim::TransientInelasticProperties cladding = {
         6500.0,
         330.0,
-        fuelsim::InelasticBehavior::j2_plasticity,
+        fuelsim::InelasticBehavior::norton_creep_j2_plasticity,
         {
-            0.0,
-            1.0,
-            1.0,
+            1.0e-5,
+            5.0e6,
+            3.0,
         },
         {
             5.0e6,
@@ -80,7 +80,7 @@ int main(int argc, char** argv) {
         fuelsim::PetscSession session(
             argc, argv,
             "fuelsim M2 generic demonstration: transient heat capacity, "
-            "Norton creep, and J2 plasticity\n");
+            "Norton creep, J2 plasticity, and their coupled update\n");
 
         fuelsim::M2Problem problem(make_generic_demonstration_case());
         const fuelsim::M2TimeOptions time_options = {
@@ -112,6 +112,8 @@ int main(int argc, char** argv) {
                   << fuel_history.maximum_equivalent_creep_strain << '\n';
         std::cout << "cladding_maximum_equivalent_plastic_strain="
                   << cladding_history.maximum_equivalent_plastic_strain << '\n';
+        std::cout << "cladding_maximum_equivalent_creep_strain="
+                  << cladding_history.maximum_equivalent_creep_strain << '\n';
         std::cout << "minimum_gap=" << interface.minimum_gap << '\n';
         std::cout << "maximum_contact_pressure="
                   << interface.maximum_contact_pressure << '\n';
@@ -125,6 +127,7 @@ int main(int argc, char** argv) {
             result.aggregate_timing.workspace_setups == 1 &&
             fuel_history.maximum_equivalent_creep_strain > 0.0 &&
             cladding_history.maximum_equivalent_plastic_strain > 0.0 &&
+            cladding_history.maximum_equivalent_creep_strain > 0.0 &&
             interface.projected_contact_nodes ==
                 problem.parameters().base.axial_elements + 1;
         return accepted ? 0 : 1;
