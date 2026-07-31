@@ -312,10 +312,7 @@ PetscSequentialSolver::solve(const NonlinearProblem& problem,
         throw std::invalid_argument(
             "PetscSequentialSolver tolerances and iterations must be positive");
 
-    PetscMPIInt world_size = 0;
-    const int mpi_code = MPI_Comm_size(PETSC_COMM_WORLD, &world_size);
-    if (mpi_code != MPI_SUCCESS)
-        throw std::runtime_error("MPI_Comm_size failed");
+    const PetscMPIInt world_size = PetscGlobalSize;
     if (world_size != 1)
         throw std::invalid_argument(
             "PetscSequentialSolver supports exactly one MPI rank");

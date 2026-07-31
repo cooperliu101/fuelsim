@@ -58,6 +58,55 @@ cmake --build build --parallel
 ctest --test-dir build --output-on-failure
 ```
 
+### 启用 Exodus 网格支持
+
+原 `moose` Conda 环境中的 PETSc 3.25.2 未启用 Exodus。为避免覆盖 MOOSE
+和 July 使用的 PETSc，可将同版本 PETSc 单独安装到新前缀，并复用 Conda
+环境中的 MPICH、BLAS/LAPACK、HDF5、NetCDF 和 zlib。PnetCDF 与 SEACAS
+Exodus 由 PETSc 的包配置下载并作为 PETSc 传递依赖构建：
+
+```bash
+git clone --branch v3.25.2 --depth 1 \
+  https://gitlab.com/petsc/petsc.git /tmp/petsc-3.25.2-exodus-src
+
+./scripts/build_petsc_exodus.sh \
+  /tmp/petsc-3.25.2-exodus-src \
+  /home/cooper/.local/petsc-3.25.2-exodus \
+  /home/cooper/miniforge/envs/moose
+```
+
+使用该 PETSc 构建 fuelsim 时，必须显式要求 Exodus，防止 `pkg-config`
+静默选择原 Conda PETSc：
+
+```bash
+env \
+  PATH=/home/cooper/miniforge/envs/moose/bin:/usr/local/bin:/usr/bin:/bin \
+  PKG_CONFIG_PATH=/home/cooper/.local/petsc-3.25.2-exodus/lib/pkgconfig \
+  cmake -S . -B build-exodus \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_CXX_COMPILER=/home/cooper/miniforge/envs/moose/bin/c++ \
+    -DCMAKE_PREFIX_PATH=/tmp/adlite-fuelsim-install \
+    -DFUELSIM_REQUIRE_PETSC_EXODUS=ON
+
+cmake --build build-exodus --parallel
+ctest --test-dir build-exodus --output-on-failure
+
+ldd build-exodus/fuelsim | grep libpetsc
+```
+
+此构建使用 Conda 的普通 `c++` 驱动；MPI 仍由启用 MPICH 的 PETSc 共享库
+传递提供，不会把 PETSc 变成串行库。不要在这个构建目录中改用 Conda
+`mpicxx`，因为该包装器会把原 `moose/lib` RPATH 放在新 PETSc 前面，造成
+运行时误加载旧 `libpetsc.so`。上面的 `ldd` 结果应指向
+`/home/cooper/.local/petsc-3.25.2-exodus/lib/libpetsc.so`。
+
+`FUELSIM_REQUIRE_PETSC_EXODUS=ON` 会在配置阶段检查
+`PETSC_HAVE_EXODUSII`。对应专项 CTest 仅链接 PETSc，写出一份独立于 PETSc
+生成的两单元 Quad4 Exodus fixture，再用 `DMPlexCreateExodusFromFile` 读取并
+验证二维、2 个单元、6 个节点、每单元 4 个节点及元素块标签。
+`fuelsim_core` 仍只依赖 ADlite；Exodus、NetCDF、HDF5、PnetCDF 和 MPI
+均保持为 PETSc 的传递依赖。
+
 运行默认 M1 工况：
 
 ```bash
