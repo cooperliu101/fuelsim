@@ -1,9 +1,58 @@
 #include "fuelsim/mesh.hpp"
 
+#include <cmath>
 #include <limits>
 #include <stdexcept>
+#include <utility>
 
 namespace fuelsim {
+
+UnstructuredQuad4Mesh::UnstructuredQuad4Mesh(
+    std::vector<RzPoint> nodes, std::vector<Quad4Element> elements,
+    std::vector<std::int64_t> element_block_ids)
+    : _nodes(std::move(nodes)), _elements(std::move(elements)),
+      _element_block_ids(std::move(element_block_ids)) {
+    if (_nodes.empty())
+        throw std::invalid_argument(
+            "UnstructuredQuad4Mesh requires at least one node");
+    if (_elements.empty())
+        throw std::invalid_argument(
+            "UnstructuredQuad4Mesh requires at least one element");
+    if (_elements.size() != _element_block_ids.size())
+        throw std::invalid_argument(
+            "UnstructuredQuad4Mesh block ID count must match element count");
+
+    for (const RzPoint& node : _nodes) {
+        if (!std::isfinite(node.r) || !std::isfinite(node.z) || node.r < 0.0)
+            throw std::invalid_argument(
+                "UnstructuredQuad4Mesh requires finite RZ coordinates and "
+                "nonnegative radius");
+    }
+    for (std::size_t index = 0; index < _elements.size(); ++index) {
+        if (_element_block_ids[index] <= 0)
+            throw std::invalid_argument(
+                "UnstructuredQuad4Mesh block IDs must be positive");
+        for (const std::size_t node : _elements[index].nodes) {
+            if (node >= _nodes.size())
+                throw std::out_of_range(
+                    "UnstructuredQuad4Mesh connectivity is out of range");
+        }
+    }
+}
+
+const std::vector<RzPoint>& UnstructuredQuad4Mesh::nodes() const noexcept {
+    return _nodes;
+}
+
+const std::vector<Quad4Element>&
+UnstructuredQuad4Mesh::elements() const noexcept {
+    return _elements;
+}
+
+const std::vector<std::int64_t>&
+UnstructuredQuad4Mesh::element_block_ids() const noexcept {
+    return _element_block_ids;
+}
 
 StructuredRzMesh StructuredRzMesh::make_annulus(double inner_radius,
                                                 double outer_radius,

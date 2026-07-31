@@ -31,7 +31,8 @@ committed/trial/commit/rollback。M2.2 增加通用 J2 Norton 蠕变、J2
 - 允许使用 `std::vector`、`std::array` 等标准库模板。
 - 自动微分只能使用用户的 ADlite 软件包和具体类型
   `adlite::Scalar`。
-- 除 ADlite 外，唯一允许的外部数值依赖为 PETSc。
+- 除 ADlite 外，唯一允许的外部数值依赖为 PETSc；Exodus 仅作为直接网格
+  I/O 依赖。
 - MPI、BLAS、LAPACK、MUMPS、Hypre 等只能作为 PETSc 的传递依赖，不得由
   fuelsim 单独发现或链接。
 - 不引入 Eigen、Boost、fmt、JSON/YAML、CLI、日志或第三方测试框架。
@@ -83,6 +84,8 @@ committed/trial/commit/rollback。M2.2 增加通用 J2 Norton 蠕变、J2
 
 - `fuelsim_core`：网格、自由度、材料、Quad4 RZ 核和问题定义，仅依赖
   ADlite。
+- `fuelsim_exodus`：使用 Exodus API 在 `.e` 文件和 fuelsim 自有非结构
+  Quad4 网格之间转换；不使用 DMPlex，不暴露 Exodus 类型。
 - `fuelsim_petsc`：PETSc 会话、稀疏装配和 SNES 求解。
 - `NonlinearProblem` 只作为求解器端口；不得扩张成 MOOSE 式对象工厂。
 - M1 燃料和包壳节点必须保持独立；默认包壳高度比芯块高 `20 um`，界面通过
@@ -98,25 +101,24 @@ committed/trial/commit/rollback。M2.2 增加通用 J2 Norton 蠕变、J2
 
 ## 必须执行的验收
 
-后续开发以独立的 Exodus-enabled PETSc 为主入口。旧 `moose` Conda PETSc
-保留用于兼容回归，不得覆盖或删除。先安装 ADlite，然后使用新 PETSc：
+后续开发使用原 `moose` Conda PETSc，并直接链接独立的串行 Exodus I/O
+库。PETSc 不需要启用 Exodus；不得使用 DMPlex 或 PETSc Exodus viewer。
+先安装 ADlite 和 Exodus，然后配置 fuelsim：
 
 ```bash
 env \
   PATH=/home/cooper/miniforge/envs/moose/bin:/usr/local/bin:/usr/bin:/bin \
-  PKG_CONFIG_PATH=/home/cooper/.local/petsc-3.25.2-exodus/lib/pkgconfig \
-  cmake -S . -B build-exodus \
+  PKG_CONFIG_PATH=/home/cooper/miniforge/envs/moose/lib/pkgconfig \
+  cmake -S . -B build \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_CXX_COMPILER=/home/cooper/miniforge/envs/moose/bin/c++ \
   -DCMAKE_PREFIX_PATH=/tmp/adlite-fuelsim-install \
-  -DFUELSIM_REQUIRE_PETSC_EXODUS=ON
-cmake --build build-exodus --parallel
-ctest --test-dir build-exodus --output-on-failure
+  -DSEACASExodus_DIR=/home/cooper/.local/exodus-2024-06-27/lib/cmake/SEACASExodus
+cmake --build build --parallel
+ctest --test-dir build --output-on-failure
 ```
 
-涉及 CMake、PETSc 求解层或依赖配置的修改还必须在旧 PETSc 的 `build/`
-入口完成兼容回归。普通物理开发以新 PETSc 的完整 CTest 为准，旧入口只做
-保留性检查，不作为新增网格能力的目标环境。
+涉及 CMake、PETSc 求解层或依赖配置的修改必须完成上述入口的完整回归。
 
 PETSc/MPICH 测试在受限沙盒内可能出现 `OFI EP enable failed`。遇到该错误应在
 沙盒外重跑，不能归因于 fuelsim 数值实现。

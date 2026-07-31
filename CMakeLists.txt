@@ -13,46 +13,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(adlite 0.1.0 CONFIG REQUIRED)
 find_package(PkgConfig REQUIRED)
+find_package(SEACASExodus CONFIG REQUIRED)
 pkg_search_module(PETSC REQUIRED IMPORTED_TARGET PETSc petsc)
-
-option(FUELSIM_REQUIRE_PETSC_EXODUS
-    "Require the selected PETSc installation to provide ExodusII support"
-    OFF
-)
-
-if(FUELSIM_REQUIRE_PETSC_EXODUS)
-    include(CMakePushCheckState)
-    include(CheckCXXSourceCompiles)
-    cmake_push_check_state(RESET)
-    set(CMAKE_REQUIRED_INCLUDES ${PETSC_INCLUDE_DIRS})
-    set(CMAKE_REQUIRED_LIBRARIES PkgConfig::PETSC)
-    if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND PETSC_STATIC_LIBRARY_DIRS)
-        list(JOIN PETSC_STATIC_LIBRARY_DIRS ":" petsc_check_link_dirs)
-        set(CMAKE_REQUIRED_LINK_OPTIONS
-            "LINKER:-rpath-link,${petsc_check_link_dirs}"
-        )
-    endif()
-    check_cxx_source_compiles(
-        "#include <petscsys.h>
-         #ifndef PETSC_HAVE_EXODUSII
-         #error PETSc was built without ExodusII
-         #endif
-         int main() {
-             return PetscGlobalSize < 0;
-         }"
-        FUELSIM_PETSC_HAS_EXODUS
-    )
-    cmake_pop_check_state()
-
-    if(NOT FUELSIM_PETSC_HAS_EXODUS)
-        message(FATAL_ERROR
-            "FUELSIM_REQUIRE_PETSC_EXODUS=ON, but the selected PETSc was "
-            "built without ExodusII support or the C++ compiler cannot link "
-            "the selected library. Set PKG_CONFIG_PATH to an Exodus-enabled "
-            "PETSc prefix."
-        )
-    endif()
-endif()
 
 function(fuelsim_enable_warnings target)
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
@@ -100,6 +62,21 @@ target_include_directories(fuelsim_core
 target_link_libraries(fuelsim_core PUBLIC adlite::adlite)
 fuelsim_enable_warnings(fuelsim_core)
 
+add_library(fuelsim_exodus
+    src/exodus_mesh_io.cpp
+)
+add_library(fuelsim::exodus ALIAS fuelsim_exodus)
+
+target_include_directories(fuelsim_exodus
+    PUBLIC
+        "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+)
+target_link_libraries(fuelsim_exodus
+    PUBLIC fuelsim::core
+    PRIVATE SEACASExodus::exodus
+)
+fuelsim_enable_warnings(fuelsim_exodus)
+
 add_library(fuelsim_petsc
     src/m1_solver.cpp
     src/m2_solver.cpp
@@ -134,20 +111,20 @@ fuelsim_enable_warnings(fuelsim_m1_single_core_benchmark)
 include(CTest)
 
 if(BUILD_TESTING)
-    if(FUELSIM_REQUIRE_PETSC_EXODUS)
-        add_executable(fuelsim_petsc_exodus_smoke
-            tests/petsc_exodus_smoke.cpp
-        )
-        fuelsim_link_petsc(fuelsim_petsc_exodus_smoke)
-        fuelsim_enable_warnings(fuelsim_petsc_exodus_smoke)
-        add_test(NAME fuelsim_petsc_exodus_smoke
-            COMMAND fuelsim_petsc_exodus_smoke
-                "${CMAKE_CURRENT_BINARY_DIR}/fuelsim_two_quad_smoke.exo"
-        )
-        set_tests_properties(fuelsim_petsc_exodus_smoke PROPERTIES
-            LABELS "dependency"
-        )
-    endif()
+    add_executable(fuelsim_exodus_mesh_io_tests
+        tests/exodus_mesh_io_tests.cpp
+    )
+    target_link_libraries(fuelsim_exodus_mesh_io_tests
+        PRIVATE fuelsim::exodus
+    )
+    fuelsim_enable_warnings(fuelsim_exodus_mesh_io_tests)
+    add_test(NAME fuelsim_exodus_mesh_io_tests
+        COMMAND fuelsim_exodus_mesh_io_tests
+            "${CMAKE_CURRENT_BINARY_DIR}/fuelsim_two_quad_smoke.exo"
+    )
+    set_tests_properties(fuelsim_exodus_mesh_io_tests PROPERTIES
+        LABELS "dependency"
+    )
 
     add_executable(fuelsim_core_tests tests/core_tests.cpp)
     target_link_libraries(fuelsim_core_tests PRIVATE fuelsim::core)

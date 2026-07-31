@@ -3,6 +3,7 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <vector>
 
 namespace fuelsim {
@@ -25,6 +26,22 @@ enum class BoundaryId {
     radial_outer,
     bottom,
     top,
+};
+
+class UnstructuredQuad4Mesh final {
+  public:
+    UnstructuredQuad4Mesh(std::vector<RzPoint> nodes,
+                          std::vector<Quad4Element> elements,
+                          std::vector<std::int64_t> element_block_ids);
+
+    const std::vector<RzPoint>& nodes() const noexcept;
+    const std::vector<Quad4Element>& elements() const noexcept;
+    const std::vector<std::int64_t>& element_block_ids() const noexcept;
+
+  private:
+    std::vector<RzPoint> _nodes;
+    std::vector<Quad4Element> _elements;
+    std::vector<std::int64_t> _element_block_ids;
 };
 
 class StructuredRzMesh final {

@@ -27,8 +27,8 @@ M2 材料参数仅用于算法和软件验证，不代表真实燃料或包壳�
 
 M0 单燃料圆柱仍作为解析解和 MOOSE 回归基线保留。项目不定义自己的
 C++ 模板，不引入 Eigen、Boost、JSON/YAML、日志库或第三方测试框架。
-除 ADlite 外，唯一直接外部数值依赖是 PETSc；MPI、BLAS 和直接求解器等
-只允许作为 PETSc 的传递依赖。
+除 ADlite 外，PETSc 是唯一直接外部数值依赖，Exodus 是唯一直接网格 I/O
+依赖；MPI、BLAS 和直接求解器等只允许作为 PETSc 的传递依赖。
 
 ## 构建
 
@@ -48,69 +48,45 @@ cmake --install /tmp/adlite-fuelsim-build \
   --prefix /tmp/adlite-fuelsim-install
 ```
 
-### 旧 PETSc 兼容入口
+### 主开发入口：旧 PETSc + 直接 Exodus API
 
-原 `moose` Conda 环境中的 PETSc 构建保留用于兼容回归：
-
-```bash
-cmake -S . -B build \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_PREFIX_PATH=/tmp/adlite-fuelsim-install
-cmake --build build --parallel
-ctest --test-dir build --output-on-failure
-```
-
-### 主开发入口：Exodus-enabled PETSc
-
-原 `moose` Conda 环境中的 PETSc 3.25.2 未启用 Exodus。为避免覆盖 MOOSE
-和 July 使用的 PETSc，可将同版本 PETSc 单独安装到新前缀，并复用 Conda
-环境中的 MPICH、BLAS/LAPACK、HDF5、NetCDF 和 zlib。PnetCDF 与 SEACAS
-Exodus 由 PETSc 的包配置下载并作为 PETSc 传递依赖构建：
-
-后续 fuelsim 功能开发、完整 CTest 和网格导入验收均以这个新入口为准；
-旧入口继续保留，但不承载新增 Exodus 网格能力。
+PETSc 只负责求解，不需要启用 Exodus。Exodus 单独构建为串行 I/O 库并复用
+`moose` Conda 环境中的 NetCDF；fuelsim 不使用 DMPlex，也不使用
+`PetscViewerExodusII`。先安装独立 Exodus：
 
 ```bash
-git clone --branch v3.25.2 --depth 1 \
-  https://gitlab.com/petsc/petsc.git /tmp/petsc-3.25.2-exodus-src
+git clone --branch v2024-06-27 --depth 1 \
+  https://github.com/gsjaardema/seacas.git /tmp/seacas-exodus-src
 
-./scripts/build_petsc_exodus.sh \
-  /tmp/petsc-3.25.2-exodus-src \
-  /home/cooper/.local/petsc-3.25.2-exodus \
+./scripts/build_exodus.sh \
+  /tmp/seacas-exodus-src \
+  /home/cooper/.local/exodus-2024-06-27 \
   /home/cooper/miniforge/envs/moose
 ```
 
-使用该 PETSc 构建 fuelsim 时，必须显式要求 Exodus，防止 `pkg-config`
-静默选择原 Conda PETSc：
+然后使用原 Conda PETSc 构建 fuelsim：
 
 ```bash
 env \
   PATH=/home/cooper/miniforge/envs/moose/bin:/usr/local/bin:/usr/bin:/bin \
-  PKG_CONFIG_PATH=/home/cooper/.local/petsc-3.25.2-exodus/lib/pkgconfig \
-  cmake -S . -B build-exodus \
+  PKG_CONFIG_PATH=/home/cooper/miniforge/envs/moose/lib/pkgconfig \
+  cmake -S . -B build \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_CXX_COMPILER=/home/cooper/miniforge/envs/moose/bin/c++ \
     -DCMAKE_PREFIX_PATH=/tmp/adlite-fuelsim-install \
-    -DFUELSIM_REQUIRE_PETSC_EXODUS=ON
+    -DSEACASExodus_DIR=/home/cooper/.local/exodus-2024-06-27/lib/cmake/SEACASExodus
 
-cmake --build build-exodus --parallel
-ctest --test-dir build-exodus --output-on-failure
+env PATH=/home/cooper/miniforge/envs/moose/bin:/usr/local/bin:/usr/bin:/bin \
+  cmake --build build --parallel
 
-ldd build-exodus/fuelsim | grep libpetsc
+ctest --test-dir build --output-on-failure
 ```
 
-此构建使用 Conda 的普通 `c++` 驱动；MPI 仍由启用 MPICH 的 PETSc 共享库
-传递提供，不会把 PETSc 变成串行库。不要在这个构建目录中改用 Conda
-`mpicxx`，因为该包装器会把原 `moose/lib` RPATH 放在新 PETSc 前面，造成
-运行时误加载旧 `libpetsc.so`。上面的 `ldd` 结果应指向
-`/home/cooper/.local/petsc-3.25.2-exodus/lib/libpetsc.so`。
-
-`FUELSIM_REQUIRE_PETSC_EXODUS=ON` 会在配置阶段检查
-`PETSC_HAVE_EXODUSII`。对应专项 CTest 仅链接 PETSc，写出一份独立于 PETSc
-生成的两单元 Quad4 Exodus fixture，再用 `DMPlexCreateExodusFromFile` 读取并
-验证二维、2 个单元、6 个节点、每单元 4 个节点及元素块标签。
-`fuelsim_core` 仍只依赖 ADlite；Exodus、NetCDF、HDF5、PnetCDF 和 MPI
-均保持为 PETSc 的传递依赖。
+`fuelsim_exodus` 将 2D 非结构 Quad4 的节点、连接关系和元素块 ID 转换为
+fuelsim 自有网格对象；专项 CTest 先读取独立 fixture，再通过 Exodus API
+写出并逐项回读。`fuelsim_core` 仍只依赖 ADlite，`fuelsim_petsc` 仍只处理
+PETSc 求解。当前直接 I/O 为串行文件操作；PETSc/MPI 求解能力不受影响，
+分布式网格划分与通信将作为后续独立功能实现。
 
 运行默认 M1 工况：
 

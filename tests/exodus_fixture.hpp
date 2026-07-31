@@ -2,7 +2,7 @@
 
 namespace fuelsim::test_data {
 
-// NetCDF 64-bit-offset Exodus file generated independently from PETSc. It
+// NetCDF 64-bit-offset Exodus file generated independently from fuelsim. It
 // contains one element block (ID 7), two Quad4 cells, and six vertices.
 inline constexpr char two_quad_exodus_hex[] =
     "43444602000000000000000a000000080000000a6c656e5f737472696e6700000000002100"
