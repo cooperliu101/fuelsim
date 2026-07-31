@@ -98,15 +98,25 @@ committed/trial/commit/rollback。M2.2 增加通用 J2 Norton 蠕变、J2
 
 ## 必须执行的验收
 
-先在 `moose` Conda 环境中安装 ADlite，然后：
+后续开发以独立的 Exodus-enabled PETSc 为主入口。旧 `moose` Conda PETSc
+保留用于兼容回归，不得覆盖或删除。先安装 ADlite，然后使用新 PETSc：
 
 ```bash
-cmake -S . -B build \
+env \
+  PATH=/home/cooper/miniforge/envs/moose/bin:/usr/local/bin:/usr/bin:/bin \
+  PKG_CONFIG_PATH=/home/cooper/.local/petsc-3.25.2-exodus/lib/pkgconfig \
+  cmake -S . -B build-exodus \
   -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_PREFIX_PATH=/tmp/adlite-fuelsim-install
-cmake --build build --parallel
-ctest --test-dir build --output-on-failure
+  -DCMAKE_CXX_COMPILER=/home/cooper/miniforge/envs/moose/bin/c++ \
+  -DCMAKE_PREFIX_PATH=/tmp/adlite-fuelsim-install \
+  -DFUELSIM_REQUIRE_PETSC_EXODUS=ON
+cmake --build build-exodus --parallel
+ctest --test-dir build-exodus --output-on-failure
 ```
+
+涉及 CMake、PETSc 求解层或依赖配置的修改还必须在旧 PETSc 的 `build/`
+入口完成兼容回归。普通物理开发以新 PETSc 的完整 CTest 为准，旧入口只做
+保留性检查，不作为新增网格能力的目标环境。
 
 PETSc/MPICH 测试在受限沙盒内可能出现 `OFI EP enable failed`。遇到该错误应在
 沙盒外重跑，不能归因于 fuelsim 数值实现。

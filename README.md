@@ -32,7 +32,7 @@ C++ 模板，不引入 Eigen、Boost、JSON/YAML、日志库或第三方测试�
 
 ## 构建
 
-本机 PETSc 位于 `moose` Conda 环境。先安装 ADlite 到临时前缀：
+先安装 ADlite 到临时前缀：
 
 ```bash
 source /home/cooper/miniforge/etc/profile.d/conda.sh
@@ -48,7 +48,9 @@ cmake --install /tmp/adlite-fuelsim-build \
   --prefix /tmp/adlite-fuelsim-install
 ```
 
-随后构建和测试 `fuelsim`：
+### 旧 PETSc 兼容入口
+
+原 `moose` Conda 环境中的 PETSc 构建保留用于兼容回归：
 
 ```bash
 cmake -S . -B build \
@@ -58,12 +60,15 @@ cmake --build build --parallel
 ctest --test-dir build --output-on-failure
 ```
 
-### 启用 Exodus 网格支持
+### 主开发入口：Exodus-enabled PETSc
 
 原 `moose` Conda 环境中的 PETSc 3.25.2 未启用 Exodus。为避免覆盖 MOOSE
 和 July 使用的 PETSc，可将同版本 PETSc 单独安装到新前缀，并复用 Conda
 环境中的 MPICH、BLAS/LAPACK、HDF5、NetCDF 和 zlib。PnetCDF 与 SEACAS
 Exodus 由 PETSc 的包配置下载并作为 PETSc 传递依赖构建：
+
+后续 fuelsim 功能开发、完整 CTest 和网格导入验收均以这个新入口为准；
+旧入口继续保留，但不承载新增 Exodus 网格能力。
 
 ```bash
 git clone --branch v3.25.2 --depth 1 \
