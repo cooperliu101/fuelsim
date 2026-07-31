@@ -55,6 +55,69 @@
   []
 []
 
+[AuxVariables]
+  [stress_q0]
+    order = CONSTANT
+    family = MONOMIAL
+    block = clad
+  []
+  [stress_q1]
+    order = CONSTANT
+    family = MONOMIAL
+    block = clad
+  []
+  [stress_q2]
+    order = CONSTANT
+    family = MONOMIAL
+    block = clad
+  []
+  [stress_q3]
+    order = CONSTANT
+    family = MONOMIAL
+    block = clad
+  []
+  [plastic_q0]
+    order = CONSTANT
+    family = MONOMIAL
+    block = clad
+  []
+  [plastic_q1]
+    order = CONSTANT
+    family = MONOMIAL
+    block = clad
+  []
+  [plastic_q2]
+    order = CONSTANT
+    family = MONOMIAL
+    block = clad
+  []
+  [plastic_q3]
+    order = CONSTANT
+    family = MONOMIAL
+    block = clad
+  []
+  [creep_q0]
+    order = CONSTANT
+    family = MONOMIAL
+    block = clad
+  []
+  [creep_q1]
+    order = CONSTANT
+    family = MONOMIAL
+    block = clad
+  []
+  [creep_q2]
+    order = CONSTANT
+    family = MONOMIAL
+    block = clad
+  []
+  [creep_q3]
+    order = CONSTANT
+    family = MONOMIAL
+    block = clad
+  []
+[]
+
 [Physics/SolidMechanics/QuasiStatic]
   [fuel]
     block = fuel
@@ -104,6 +167,93 @@
     value = 1.0e7
     function = heat_ramp
     use_displaced_mesh = false
+  []
+[]
+
+[AuxKernels]
+  [stress_q0]
+    type = ADMaterialRealAux
+    variable = stress_q0
+    property = vonmises_stress
+    selected_qp = 0
+    block = clad
+  []
+  [stress_q1]
+    type = ADMaterialRealAux
+    variable = stress_q1
+    property = vonmises_stress
+    selected_qp = 1
+    block = clad
+  []
+  [stress_q2]
+    type = ADMaterialRealAux
+    variable = stress_q2
+    property = vonmises_stress
+    selected_qp = 2
+    block = clad
+  []
+  [stress_q3]
+    type = ADMaterialRealAux
+    variable = stress_q3
+    property = vonmises_stress
+    selected_qp = 3
+    block = clad
+  []
+  [plastic_q0]
+    type = ADMaterialRealAux
+    variable = plastic_q0
+    property = effective_plastic_strain
+    selected_qp = 0
+    block = clad
+  []
+  [plastic_q1]
+    type = ADMaterialRealAux
+    variable = plastic_q1
+    property = effective_plastic_strain
+    selected_qp = 1
+    block = clad
+  []
+  [plastic_q2]
+    type = ADMaterialRealAux
+    variable = plastic_q2
+    property = effective_plastic_strain
+    selected_qp = 2
+    block = clad
+  []
+  [plastic_q3]
+    type = ADMaterialRealAux
+    variable = plastic_q3
+    property = effective_plastic_strain
+    selected_qp = 3
+    block = clad
+  []
+  [creep_q0]
+    type = ADMaterialRealAux
+    variable = creep_q0
+    property = effective_creep_strain
+    selected_qp = 0
+    block = clad
+  []
+  [creep_q1]
+    type = ADMaterialRealAux
+    variable = creep_q1
+    property = effective_creep_strain
+    selected_qp = 1
+    block = clad
+  []
+  [creep_q2]
+    type = ADMaterialRealAux
+    variable = creep_q2
+    property = effective_creep_strain
+    selected_qp = 2
+    block = clad
+  []
+  [creep_q3]
+    type = ADMaterialRealAux
+    variable = creep_q3
+    property = effective_creep_strain
+    selected_qp = 3
+    block = clad
   []
 []
 
@@ -327,6 +477,19 @@
 []
 
 [VectorPostprocessors]
+  [clad_qp_coordinates]
+    type = ElementMaterialSampler
+    property = thermal_conductivity
+    block = clad
+    execute_on = timestep_end
+  []
+  [clad_qp_values]
+    type = ElementValueSampler
+    variable = 'stress_q0 stress_q1 stress_q2 stress_q3 plastic_q0 plastic_q1 plastic_q2 plastic_q3 creep_q0 creep_q1 creep_q2 creep_q3'
+    block = clad
+    sort_by = id
+    execute_on = timestep_end
+  []
   [fuel_surface]
     type = NodalValueSampler
     boundary = fuel_right

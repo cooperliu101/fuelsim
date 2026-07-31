@@ -382,9 +382,13 @@ conda activate moose
 ```
 
 All 20 steps converged. Two independent runs produced byte-for-byte identical
-scalar and final fuel-surface CSVs. The tracked snapshots are
+scalar, final fuel-surface, quadrature-point coordinate, and quadrature-point
+value CSVs. The tracked snapshots are
 `m23_pcmi_coupled_cladding_rz_out.csv` and
-`m23_pcmi_coupled_cladding_rz_fuel_surface_final.csv`. Final differences are:
+`m23_pcmi_coupled_cladding_rz_fuel_surface_final.csv`, plus
+`m23_pcmi_coupled_cladding_rz_clad_qp_coordinates_final.csv` and
+`m23_pcmi_coupled_cladding_rz_clad_qp_values_final.csv`. Final scalar and
+contact differences are:
 
 ```text
 maximum temperature relative error:       0.00025%
@@ -400,6 +404,27 @@ projected / active fuel surface nodes:     5 / 5
 
 Temperature, displacement, stress, and both history metrics pass the `<0.1%`
 gate. The pressure-vector and force metrics pass the `<1%` contact gate.
+
+The cladding pointwise comparison covers all `8 elements x 4 QPs = 32`
+integration points. `ADMaterialRealAux` with `selected_qp` extracts the three
+AD material properties, while a separate sampler preserves element IDs, QP
+IDs, and physical coordinates. MOOSE orders local points as
+`[--, +-, -+, ++]`; the comparison reorders them to fuelsim's
+`[--, +-, ++, -+]`. The maximum coordinate difference is
+`1.99e-17 m`. Distribution errors are:
+
+```text
+                                      relative L2   maximum relative   maximum absolute
+von Mises stress:                     0.0124%       0.0334%            1.9007e3 Pa
+effective plastic strain:            0.1389%       0.2920%            9.5033e-7
+effective creep strain:              0.0769%       0.1884%            2.7958e-7
+```
+
+The maximum relative stress and creep errors occur at local cladding element
+6, QP 3 (`r=4.181333 mm`, `z=9.490631 mm`; MOOSE element 30, QP 2). The
+maximum relative plastic error occurs at local element 7, QP 2
+(`r=4.631667 mm`, `z=9.490631 mm`; MOOSE element 31, QP 3). Pointwise gates
+are relative L2 `<0.2%` and maximum relative error `<0.5%` for each field.
 
 ## M2 reference environment and conventions
 

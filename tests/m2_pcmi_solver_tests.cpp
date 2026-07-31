@@ -11,6 +11,7 @@
 #include <iostream>
 #include <limits>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -75,15 +76,24 @@ fuelsim::M2Parameters pcmi_parameters() {
     return {base, fuel, cladding};
 }
 
-struct WeightedHistory final {
+struct CladdingPointValue final {
+    double radius;
+    double axial_coordinate;
+    double equivalent_stress;
+    double equivalent_plastic_strain;
+    double equivalent_creep_strain;
+};
+
+struct CladdingMetrics final {
     double average_plastic;
     double average_creep;
     double average_equivalent_stress;
     double maximum_plastic;
     double maximum_creep;
+    std::vector<CladdingPointValue> points;
 };
 
-WeightedHistory cladding_history(const fuelsim::M2Problem& problem,
+CladdingMetrics cladding_metrics(const fuelsim::M2Problem& problem,
                                  const std::vector<double>& state) {
     double measure = 0.0;
     double weighted_plastic = 0.0;
@@ -91,6 +101,10 @@ WeightedHistory cladding_history(const fuelsim::M2Problem& problem,
     double weighted_equivalent_stress = 0.0;
     double maximum_plastic = 0.0;
     double maximum_creep = 0.0;
+    const fuelsim::M1Problem& base = problem.base_problem();
+    const fuelsim::StructuredRzMesh& mesh = base.cladding_mesh();
+    std::vector<CladdingPointValue> points;
+    points.reserve(base.cladding_element_count() * 4);
     const fuelsim::ThermoelasticProperties& properties =
         problem.parameters().base.cladding;
     const double shear_modulus =
@@ -99,12 +113,12 @@ WeightedHistory cladding_history(const fuelsim::M2Problem& problem,
                                properties.poisson_ratio /
                                ((1.0 + properties.poisson_ratio) *
                                 (1.0 - 2.0 * properties.poisson_ratio));
-    for (std::size_t element = 0;
-         element < problem.base_problem().cladding_element_count(); ++element) {
+    for (std::size_t element = 0; element < base.cladding_element_count();
+         ++element) {
         const fuelsim::Quad4RzGeometry& geometry =
-            problem.base_problem().cladding_element_geometry(element);
-        const fuelsim::LocalDofs dofs =
-            problem.base_problem().cladding_element_dofs(element);
+            base.cladding_element_geometry(element);
+        const fuelsim::Quad4Element& mesh_element = mesh.elements()[element];
+        const fuelsim::LocalDofs dofs = base.cladding_element_dofs(element);
         fuelsim::LocalValues local_state{};
         for (std::size_t dof = 0; dof < dofs.size(); ++dof)
             local_state[dof] = state[dofs[dof]];
@@ -114,6 +128,7 @@ WeightedHistory cladding_history(const fuelsim::M2Problem& problem,
             const fuelsim::RzQuadraturePoint& point = geometry.points[q];
             double temperature = 0.0;
             double radial_displacement = 0.0;
+            double axial_coordinate = 0.0;
             double strain_rr = 0.0;
             double strain_zz = 0.0;
             double strain_rz = 0.0;
@@ -121,6 +136,8 @@ WeightedHistory cladding_history(const fuelsim::M2Problem& problem,
                 temperature += point.shape[node] * local_state[node];
                 radial_displacement +=
                     point.shape[node] * local_state[4 + node];
+                axial_coordinate += point.shape[node] *
+                                    mesh.nodes()[mesh_element.nodes[node]].z;
                 strain_rr += point.gradient_r[node] * local_state[4 + node];
                 strain_zz += point.gradient_z[node] * local_state[8 + node];
                 strain_rz +=
@@ -168,6 +185,9 @@ WeightedHistory cladding_history(const fuelsim::M2Problem& problem,
                 std::max(maximum_plastic, history[q].equivalent_plastic_strain);
             maximum_creep =
                 std::max(maximum_creep, history[q].equivalent_creep_strain);
+            points.push_back({point.radius, axial_coordinate, equivalent_stress,
+                              history[q].equivalent_plastic_strain,
+                              history[q].equivalent_creep_strain});
         }
     }
     if (!(measure > 0.0))
@@ -179,7 +199,40 @@ WeightedHistory cladding_history(const fuelsim::M2Problem& problem,
         weighted_equivalent_stress / measure,
         maximum_plastic,
         maximum_creep,
+        std::move(points),
     };
+}
+
+struct PointwiseError final {
+    double relative_l2 = 0.0;
+    double maximum_absolute = 0.0;
+    double maximum_relative = 0.0;
+    std::size_t maximum_absolute_point = 0;
+    std::size_t maximum_relative_point = 0;
+};
+
+void add_pointwise_error(PointwiseError& error, double actual, double expected,
+                         std::size_t point, double& difference_squared,
+                         double& reference_squared) {
+    const double absolute = std::abs(actual - expected);
+    const double relative = relative_error(actual, expected);
+    difference_squared += absolute * absolute;
+    reference_squared += expected * expected;
+    if (absolute > error.maximum_absolute) {
+        error.maximum_absolute = absolute;
+        error.maximum_absolute_point = point;
+    }
+    if (relative > error.maximum_relative) {
+        error.maximum_relative = relative;
+        error.maximum_relative_point = point;
+    }
+}
+
+void finalize_pointwise_error(PointwiseError& error, double difference_squared,
+                              double reference_squared) {
+    error.relative_l2 = reference_squared > 0.0
+                            ? std::sqrt(difference_squared / reference_squared)
+                            : std::numeric_limits<double>::infinity();
 }
 
 bool fuel_history_is_elastic(const fuelsim::M2Problem& problem) {
@@ -241,7 +294,7 @@ bool test_pcmi_coupled_cladding() {
         problem.summarize_interface(state);
     const std::vector<fuelsim::ContactNodeSummary> contact_nodes =
         base.summarize_contact_nodes(state);
-    const WeightedHistory history = cladding_history(problem, state);
+    const CladdingMetrics cladding = cladding_metrics(problem, state);
 
     // Generated by verification/moose/m23_pcmi_coupled_cladding_rz.i. The
     // fuel is elastic, while the cladding uses coupled Norton creep and J2
@@ -261,6 +314,74 @@ bool test_pcmi_coupled_cladding() {
         730945.89357970, 735854.19529622, 777525.10021447,
         640537.88144925, 858282.65485111,
     };
+    // MOOSE QP ordering is [--, +-, -+, ++]. References below are reordered
+    // to fuelsim's [--, +-, ++, -+] convention within each element.
+    constexpr std::array<CladdingPointValue, 32> expected_cladding_points = {{
+        {4.1813332490732002e-3, 5.2936878783998997e-4, 5.5379798327145996e6,
+         2.6898991635728998e-4, 1.3147469050565000e-4},
+        {4.3461667509268002e-3, 5.2936878783998997e-4, 5.5059675508802002e6,
+         2.5298377544010002e-4, 1.2921153876656999e-4},
+        {4.3461667509268002e-3, 1.9756312121599999e-3, 5.5033337755910000e6,
+         2.5166688779551999e-4, 1.2869950224100001e-4},
+        {4.1813332490732002e-3, 1.9756312121599999e-3, 5.5348683751563001e6,
+         2.6743418757814002e-4, 1.3111171361262000e-4},
+        {4.4668332490732003e-3, 5.2936878783998997e-4, 5.4566641267114002e6,
+         2.2833206335568000e-4, 1.2548489788044001e-4},
+        {4.6316667509268003e-3, 5.2936878783998997e-4, 5.4302810392854000e6,
+         2.1514051964269999e-4, 1.2355554119910999e-4},
+        {4.6316667509268003e-3, 1.9756312121599999e-3, 5.4298935069199996e6,
+         2.1494675345997999e-4, 1.2341438586164000e-4},
+        {4.4668332490732003e-3, 1.9756312121599999e-3, 5.4563087917584004e6,
+         2.2815439587921000e-4, 1.2533510884110000e-4},
+        {4.1813332490732002e-3, 3.0343687878399998e-3, 5.5275841168417996e6,
+         2.6379205842088998e-4, 1.3002439365296999e-4},
+        {4.3461667509268002e-3, 3.0343687878399998e-3, 5.4955834560783003e6,
+         2.4779172803918002e-4, 1.2752955822262999e-4},
+        {4.3461667509268002e-3, 4.4806312121600002e-3, 5.4822938984810999e6,
+         2.4114694924055999e-4, 1.2581887569787999e-4},
+        {4.1813332490732002e-3, 4.4806312121600002e-3, 5.5137954443515996e6,
+         2.5689772217579000e-4, 1.2818256306923001e-4},
+        {4.4668332490732003e-3, 3.0343687878399998e-3, 5.4476035984185003e6,
+         2.2380179920927001e-4, 1.2403420161417999e-4},
+        {4.6316667509268003e-3, 3.0343687878399998e-3, 5.4206822509414004e6,
+         2.1034112547070000e-4, 1.2205356963625000e-4},
+        {4.6316667509268003e-3, 4.4806312121600002e-3, 5.4051499993891995e6,
+         2.0257499969460999e-4, 1.2013173565021000e-4},
+        {4.4668332490732003e-3, 4.4806312121600002e-3, 5.4314295954711000e6,
+         2.1571479773552999e-4, 1.2195859726964000e-4},
+        {4.1813332490732002e-3, 5.5393687878400001e-3, 5.4938910727728996e6,
+         2.4694553638645000e-4, 1.2500539810722999e-4},
+        {4.3461667509268002e-3, 5.5393687878400001e-3, 5.4688791733983001e6,
+         2.3443958669912000e-4, 1.2366093035905999e-4},
+        {4.3461667509268002e-3, 6.9856312121599996e-3, 5.4564076657935996e6,
+         2.2820383289681999e-4, 1.2351657712684000e-4},
+        {4.1813332490732002e-3, 6.9856312121599996e-3, 5.4803377481268002e6,
+         2.4016887406340000e-4, 1.2469834667407000e-4},
+        {4.4668332490732003e-3, 5.5393687878400001e-3, 5.4206495705773998e6,
+         2.1032478528872000e-4, 1.2052486163370000e-4},
+        {4.6316667509268003e-3, 5.5393687878400001e-3, 5.4018147255169004e6,
+         2.0090736275846000e-4, 1.1980113628869000e-4},
+        {4.6316667509268003e-3, 6.9856312121599996e-3, 5.3878462224150999e6,
+         1.9392311120754001e-4, 1.2005385380186001e-4},
+        {4.4668332490732003e-3, 6.9856312121599996e-3, 5.4053743719853004e6,
+         2.0268718599262999e-4, 1.2063673105502000e-4},
+        {4.1813332490732002e-3, 8.0443687878399995e-3, 5.5354679527030997e6,
+         2.6773397635156999e-4, 1.3245590693081001e-4},
+        {4.3461667509268002e-3, 8.0443687878399995e-3, 5.5086660131898001e6,
+         2.5433300659488998e-4, 1.3121843774056000e-4},
+        {4.3461667509268002e-3, 9.4906312121600007e-3, 5.6562687041458003e6,
+         3.2813435207290002e-4, 1.4632416039005001e-4},
+        {4.1813332490732002e-3, 9.4906312121600007e-3, 5.6897500752656003e6,
+         3.4487503763279003e-4, 1.4842972583189001e-4},
+        {4.4668332490732003e-3, 8.0443687878399995e-3, 5.4533520390095003e6,
+         2.2667601950473001e-4, 1.2812863288300000e-4},
+        {4.6316667509268003e-3, 8.0443687878399995e-3, 5.4349630495820995e6,
+         2.1748152479104000e-4, 1.2746111025778000e-4},
+        {4.6316667509268003e-3, 9.4906312121600007e-3, 5.5556306027846001e6,
+         2.7781530139228000e-4, 1.3918892029350999e-4},
+        {4.4668332490732003e-3, 9.4906312121600007e-3, 5.5804350404331004e6,
+         2.9021752021653001e-4, 1.4038988537948000e-4},
+    }};
 
     const double temperature_center_error =
         relative_error(temperature_center, expected_temperature_center);
@@ -277,11 +398,11 @@ bool test_pcmi_coupled_cladding() {
     const double axial_fuel_top_error =
         relative_error(axial_fuel_top, expected_axial_fuel_top);
     const double average_plastic_error =
-        relative_error(history.average_plastic, expected_average_plastic);
+        relative_error(cladding.average_plastic, expected_average_plastic);
     const double average_creep_error =
-        relative_error(history.average_creep, expected_average_creep);
+        relative_error(cladding.average_creep, expected_average_creep);
     const double average_equivalent_stress_error = relative_error(
-        history.average_equivalent_stress, expected_average_equivalent_stress);
+        cladding.average_equivalent_stress, expected_average_equivalent_stress);
     const double total_contact_force_error = relative_error(
         interface.total_contact_force, expected_total_contact_force);
     double pressure_difference_squared = 0.0;
@@ -306,6 +427,57 @@ bool test_pcmi_coupled_cladding() {
             ? std::sqrt(pressure_difference_squared /
                         pressure_reference_squared)
             : std::numeric_limits<double>::infinity();
+    PointwiseError point_stress_error;
+    PointwiseError point_plastic_error;
+    PointwiseError point_creep_error;
+    double point_stress_difference_squared = 0.0;
+    double point_stress_reference_squared = 0.0;
+    double point_plastic_difference_squared = 0.0;
+    double point_plastic_reference_squared = 0.0;
+    double point_creep_difference_squared = 0.0;
+    double point_creep_reference_squared = 0.0;
+    double maximum_point_location_error = 0.0;
+    if (cladding.points.size() == expected_cladding_points.size()) {
+        for (std::size_t point = 0; point < cladding.points.size(); ++point) {
+            const CladdingPointValue& actual = cladding.points[point];
+            const CladdingPointValue& expected =
+                expected_cladding_points[point];
+            maximum_point_location_error =
+                std::max({maximum_point_location_error,
+                          std::abs(actual.radius - expected.radius),
+                          std::abs(actual.axial_coordinate -
+                                   expected.axial_coordinate)});
+            add_pointwise_error(point_stress_error, actual.equivalent_stress,
+                                expected.equivalent_stress, point,
+                                point_stress_difference_squared,
+                                point_stress_reference_squared);
+            add_pointwise_error(point_plastic_error,
+                                actual.equivalent_plastic_strain,
+                                expected.equivalent_plastic_strain, point,
+                                point_plastic_difference_squared,
+                                point_plastic_reference_squared);
+            add_pointwise_error(
+                point_creep_error, actual.equivalent_creep_strain,
+                expected.equivalent_creep_strain, point,
+                point_creep_difference_squared, point_creep_reference_squared);
+        }
+        finalize_pointwise_error(point_stress_error,
+                                 point_stress_difference_squared,
+                                 point_stress_reference_squared);
+        finalize_pointwise_error(point_plastic_error,
+                                 point_plastic_difference_squared,
+                                 point_plastic_reference_squared);
+        finalize_pointwise_error(point_creep_error,
+                                 point_creep_difference_squared,
+                                 point_creep_reference_squared);
+    } else {
+        point_stress_error.relative_l2 =
+            std::numeric_limits<double>::infinity();
+        point_plastic_error.relative_l2 =
+            std::numeric_limits<double>::infinity();
+        point_creep_error.relative_l2 = std::numeric_limits<double>::infinity();
+        maximum_point_location_error = std::numeric_limits<double>::infinity();
+    }
 
     bool passed = check(result.accepted_steps.size() == 20,
                         "PCMI transient commits twenty accepted steps");
@@ -330,8 +502,9 @@ bool test_pcmi_coupled_cladding() {
                    "contact pressure") &&
              passed;
     passed =
-        check(history.average_plastic > 0.0 && history.average_creep > 0.0 &&
-                  history.maximum_plastic > 0.0 && history.maximum_creep > 0.0,
+        check(cladding.average_plastic > 0.0 && cladding.average_creep > 0.0 &&
+                  cladding.maximum_plastic > 0.0 &&
+                  cladding.maximum_creep > 0.0,
               "PCMI cladding accumulates plastic and creep history") &&
         passed;
     passed = check(temperature_center_error < 1.0e-3 &&
@@ -355,6 +528,27 @@ bool test_pcmi_coupled_cladding() {
         check(average_equivalent_stress_error < 1.0e-3,
               "PCMI average equivalent stress matches MOOSE within 0.1%") &&
         passed;
+    passed = check(cladding.points.size() == expected_cladding_points.size(),
+                   "PCMI and MOOSE cladding integration-point counts match") &&
+             passed;
+    passed =
+        check(maximum_point_location_error < 1.0e-12,
+              "PCMI and MOOSE cladding integration-point locations match") &&
+        passed;
+    passed =
+        check(point_stress_error.relative_l2 < 2.0e-3 &&
+                  point_stress_error.maximum_relative < 5.0e-3,
+              "PCMI pointwise equivalent-stress L2 and maximum errors pass") &&
+        passed;
+    passed =
+        check(point_plastic_error.relative_l2 < 2.0e-3 &&
+                  point_plastic_error.maximum_relative < 5.0e-3,
+              "PCMI pointwise plastic-strain L2 and maximum errors pass") &&
+        passed;
+    passed = check(point_creep_error.relative_l2 < 2.0e-3 &&
+                       point_creep_error.maximum_relative < 5.0e-3,
+                   "PCMI pointwise creep-strain L2 and maximum errors pass") &&
+             passed;
     passed =
         check(contact_nodes.size() == expected_contact_pressure.size(),
               "PCMI and MOOSE pressure vectors have the same node count") &&
@@ -389,15 +583,15 @@ bool test_pcmi_coupled_cladding() {
     std::cout << "pcmi_active_contact_nodes=" << interface.active_contact_nodes
               << '\n';
     std::cout << "pcmi_cladding_average_equivalent_plastic_strain="
-              << history.average_plastic << '\n';
+              << cladding.average_plastic << '\n';
     std::cout << "pcmi_cladding_average_equivalent_creep_strain="
-              << history.average_creep << '\n';
+              << cladding.average_creep << '\n';
     std::cout << "pcmi_cladding_average_equivalent_stress="
-              << history.average_equivalent_stress << '\n';
+              << cladding.average_equivalent_stress << '\n';
     std::cout << "pcmi_cladding_maximum_equivalent_plastic_strain="
-              << history.maximum_plastic << '\n';
+              << cladding.maximum_plastic << '\n';
     std::cout << "pcmi_cladding_maximum_equivalent_creep_strain="
-              << history.maximum_creep << '\n';
+              << cladding.maximum_creep << '\n';
     for (std::size_t node = 0; node < contact_nodes.size(); ++node) {
         std::cout << "pcmi_contact_pressure_" << node << '='
                   << contact_nodes[node].pressure << '\n';
@@ -422,6 +616,52 @@ bool test_pcmi_coupled_cladding() {
               << average_creep_error << '\n';
     std::cout << "pcmi_moose_average_equivalent_stress_relative_error="
               << average_equivalent_stress_error << '\n';
+    std::cout << "pcmi_moose_qp_maximum_location_absolute_error="
+              << maximum_point_location_error << '\n';
+    std::cout << "pcmi_moose_qp_equivalent_stress_relative_l2="
+              << point_stress_error.relative_l2 << '\n';
+    std::cout << "pcmi_moose_qp_equivalent_stress_maximum_absolute_error="
+              << point_stress_error.maximum_absolute << '\n';
+    std::cout
+        << "pcmi_moose_qp_equivalent_stress_maximum_absolute_local_element="
+        << point_stress_error.maximum_absolute_point / 4 << '\n';
+    std::cout << "pcmi_moose_qp_equivalent_stress_maximum_absolute_qp="
+              << point_stress_error.maximum_absolute_point % 4 << '\n';
+    std::cout << "pcmi_moose_qp_equivalent_stress_maximum_relative_error="
+              << point_stress_error.maximum_relative << '\n';
+    std::cout
+        << "pcmi_moose_qp_equivalent_stress_maximum_relative_local_element="
+        << point_stress_error.maximum_relative_point / 4 << '\n';
+    std::cout << "pcmi_moose_qp_equivalent_stress_maximum_relative_qp="
+              << point_stress_error.maximum_relative_point % 4 << '\n';
+    std::cout << "pcmi_moose_qp_plastic_strain_relative_l2="
+              << point_plastic_error.relative_l2 << '\n';
+    std::cout << "pcmi_moose_qp_plastic_strain_maximum_absolute_error="
+              << point_plastic_error.maximum_absolute << '\n';
+    std::cout << "pcmi_moose_qp_plastic_strain_maximum_absolute_local_element="
+              << point_plastic_error.maximum_absolute_point / 4 << '\n';
+    std::cout << "pcmi_moose_qp_plastic_strain_maximum_absolute_qp="
+              << point_plastic_error.maximum_absolute_point % 4 << '\n';
+    std::cout << "pcmi_moose_qp_plastic_strain_maximum_relative_error="
+              << point_plastic_error.maximum_relative << '\n';
+    std::cout << "pcmi_moose_qp_plastic_strain_maximum_relative_local_element="
+              << point_plastic_error.maximum_relative_point / 4 << '\n';
+    std::cout << "pcmi_moose_qp_plastic_strain_maximum_relative_qp="
+              << point_plastic_error.maximum_relative_point % 4 << '\n';
+    std::cout << "pcmi_moose_qp_creep_strain_relative_l2="
+              << point_creep_error.relative_l2 << '\n';
+    std::cout << "pcmi_moose_qp_creep_strain_maximum_absolute_error="
+              << point_creep_error.maximum_absolute << '\n';
+    std::cout << "pcmi_moose_qp_creep_strain_maximum_absolute_local_element="
+              << point_creep_error.maximum_absolute_point / 4 << '\n';
+    std::cout << "pcmi_moose_qp_creep_strain_maximum_absolute_qp="
+              << point_creep_error.maximum_absolute_point % 4 << '\n';
+    std::cout << "pcmi_moose_qp_creep_strain_maximum_relative_error="
+              << point_creep_error.maximum_relative << '\n';
+    std::cout << "pcmi_moose_qp_creep_strain_maximum_relative_local_element="
+              << point_creep_error.maximum_relative_point / 4 << '\n';
+    std::cout << "pcmi_moose_qp_creep_strain_maximum_relative_qp="
+              << point_creep_error.maximum_relative_point % 4 << '\n';
     std::cout << "pcmi_moose_contact_pressure_relative_l2="
               << contact_pressure_relative_l2 << '\n';
     std::cout << "pcmi_moose_contact_pressure_maximum_point_relative_error="
