@@ -339,9 +339,71 @@ conda activate moose
 Both regenerated CSV files were byte-for-byte identical to their tracked
 `_out.csv` snapshots.
 
+## M2.3 PCMI with coupled cladding plasticity and creep
+
+`m23_pcmi_coupled_cladding_rz.i` is the end-to-end PCMI reference. It uses
+separate fuel and cladding meshes with matching axial divisions:
+
+```text
+fuel radius / height:             4.120 mm / 10.000 mm
+cladding inner / outer radius:    4.121 mm / 4.692 mm
+cladding height:                  10.020 mm
+initial mechanical gap:           1 um
+mesh:                             fuel 6x4, cladding 2x4 Quad4
+time integration:                 20 steps, dt=1 s
+fuel heat source:                 linear ramp to 2e8 W/m^3
+fuel / cladding initial T:        600 K / 600 K
+cladding outer T:                 600 K
+gap conductivity / minimum gap:  0.4 W/(m K) / 1 um
+normalized contact penalty:       1e14 Pa/m
+```
+
+The fuel is thermoelastic with `E=200 GPa`, `nu=0.316`, and
+`alpha=10e-6 1/K`. The cladding uses `E=75 GPa`, `nu=0.3`, zero thermal
+expansion for this isolated pellet-driven regression, and the coupled law:
+
+```text
+fuelsim Norton A / q_ref / n:     1e-5 / 5e6 Pa / 3
+MOOSE Norton coefficient:         8e-26 Pa^-3 s^-1
+yield stress / hardening:         5 MPa / 2 GPa
+```
+
+This is a generic algorithm-verification material set, not a calibrated fuel
+or cladding model. The taller cladding preserves all fuel-node projections
+after axial thermal expansion. Reproduce the checked run with:
+
+```bash
+source /home/cooper/miniforge/etc/profile.d/conda.sh
+conda activate moose
+/home/cooper/projects/july/july-opt \
+  -i m23_pcmi_coupled_cladding_rz.i \
+  Outputs/file_base=/tmp/fuelsim_m23_pcmi \
+  Outputs/console=false
+```
+
+All 20 steps converged. Two independent runs produced byte-for-byte identical
+scalar and final fuel-surface CSVs. The tracked snapshots are
+`m23_pcmi_coupled_cladding_rz_out.csv` and
+`m23_pcmi_coupled_cladding_rz_fuel_surface_final.csv`. Final differences are:
+
+```text
+maximum temperature relative error:       0.00025%
+maximum displacement relative error:      0.0243%
+average von Mises stress error:            0.00431%
+average effective plastic strain error:   0.0489%
+average effective creep strain error:     0.0359%
+contact pressure relative L2 error:        0.0624%
+maximum nodal pressure relative error:     0.1037%
+total contact force relative error:        0.00027%
+projected / active fuel surface nodes:     5 / 5
+```
+
+Temperature, displacement, stress, and both history metrics pass the `<0.1%`
+gate. The pressure-vector and force metrics pass the `<1%` contact gate.
+
 ## M2 reference environment and conventions
 
-All five M2 reference inputs were syntax-checked and solved with one MPI rank
+All six M2 reference inputs were syntax-checked and solved with one MPI rank
 and one thread using:
 
 ```text

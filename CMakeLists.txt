@@ -123,6 +123,20 @@ if(BUILD_TESTING)
         PROPERTIES LABELS "acceptance"
     )
 
+    add_executable(fuelsim_m2_pcmi_solver_tests
+        tests/m2_pcmi_solver_tests.cpp
+    )
+    target_link_libraries(fuelsim_m2_pcmi_solver_tests
+        PRIVATE fuelsim::petsc
+    )
+    fuelsim_enable_warnings(fuelsim_m2_pcmi_solver_tests)
+    add_test(NAME fuelsim_m2_pcmi_solver_tests
+        COMMAND fuelsim_m2_pcmi_solver_tests
+    )
+    set_tests_properties(fuelsim_m2_pcmi_solver_tests
+        PROPERTIES LABELS "acceptance"
+    )
+
     add_test(NAME fuelsim_m2_generic_demonstration COMMAND fuelsim_m2)
     set_tests_properties(fuelsim_m2_generic_demonstration
         PROPERTIES LABELS "acceptance"
