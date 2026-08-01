@@ -150,8 +150,11 @@ PETSc/MPICH 测试在受限沙盒内可能出现 `OFI EP enable failed`。遇到
 输入生成并追踪的 `*_mesh.e`，不得在对比测试内使用 `make_annulus` 或硬编码
 坐标重建等价网格。纯解析、局部 Jacobian 和事务测试不受此限制。M0、M2.1
 和 M2.2 使用单区域块 0；M1、M2.3 使用命名的 `fuel`/`clad` 块。当前可从
-一般非结构 Quad4 文件读取元数据，但转换到求解网格时，每个选中块必须是
-完整张量积 RZ 网格。M1 还必须运行 `fuelsim_m1_exodus_moose_tests`。
+一般非结构 Quad4 文件读取元数据，生产求解网格必须保留每个选中块的原始
+节点坐标和 Quad4 连接关系，不得重建张量积网格。M1 必须同时运行
+`fuelsim_m1_exodus_moose_tests` 和 `fuelsim_m1_unstructured_moose_tests`；
+后者逐节点比较温度、径向位移和轴向位移，并逐接触节点比较压力。各量的
+相对 L2 误差与相对最大范数误差都必须小于 `1%`。
 
 M2 还必须检查：
 

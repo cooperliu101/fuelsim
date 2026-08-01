@@ -80,7 +80,7 @@ const RegionDefinition& TransientProblem::region(std::size_t index) const {
     return _spatial_model.region(index);
 }
 
-const StructuredRzMesh& TransientProblem::region_mesh(std::size_t index) const {
+const RegionMesh& TransientProblem::region_mesh(std::size_t index) const {
     return _spatial_model.region_mesh(index);
 }
 

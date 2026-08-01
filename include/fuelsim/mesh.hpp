@@ -81,6 +81,48 @@ class UnstructuredQuad4Mesh final {
     std::vector<SideSet> _side_sets;
 };
 
+enum class RegionBoundaryKind {
+    radial_inner,
+    radial_outer,
+    bottom,
+    top,
+    general,
+};
+
+struct RegionBoundary final {
+    RegionBoundaryKind kind;
+    std::vector<std::size_t> nodes;
+    std::vector<Line2BoundaryElement> elements;
+};
+
+class RegionMesh final {
+  public:
+    static RegionMesh
+    from_unstructured_block(const UnstructuredQuad4Mesh& source,
+                            const std::string& block_name);
+    static RegionMesh
+    from_unstructured_block(const UnstructuredQuad4Mesh& source,
+                            std::int64_t block_id);
+
+    const std::vector<RzPoint>& nodes() const noexcept;
+    const std::vector<Quad4Element>& elements() const noexcept;
+    const std::vector<std::size_t>& source_node_ids() const noexcept;
+    const std::vector<std::size_t>& source_element_ids() const noexcept;
+    std::int64_t block_id() const noexcept;
+
+    RegionBoundary map_side_set(const UnstructuredQuad4Mesh& source,
+                                const std::string& side_set_name) const;
+
+  private:
+    std::int64_t _block_id = -1;
+    std::vector<RzPoint> _nodes;
+    std::vector<Quad4Element> _elements;
+    std::vector<std::size_t> _source_node_ids;
+    std::vector<std::size_t> _source_element_ids;
+    std::vector<std::size_t> _source_node_to_local;
+    std::vector<std::size_t> _source_element_to_local;
+};
+
 struct RzBoundaryNames final {
     std::string radial_inner;
     std::string radial_outer;

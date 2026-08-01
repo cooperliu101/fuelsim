@@ -178,6 +178,23 @@ if(BUILD_TESTING)
         LABELS "acceptance"
     )
 
+    add_executable(fuelsim_m1_unstructured_moose_tests
+        tests/m1_unstructured_moose_tests.cpp
+    )
+    target_link_libraries(fuelsim_m1_unstructured_moose_tests
+        PRIVATE fuelsim::input fuelsim::exodus fuelsim::petsc
+    )
+    fuelsim_enable_warnings(fuelsim_m1_unstructured_moose_tests)
+    add_test(NAME fuelsim_m1_unstructured_moose_tests
+        COMMAND fuelsim_m1_unstructured_moose_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_fuel_cladding_unstructured.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m1_fuel_cladding_unstructured_rz_all_nodes_final.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m1_fuel_cladding_unstructured_rz_fuel_surface_final.csv"
+    )
+    set_tests_properties(fuelsim_m1_unstructured_moose_tests PROPERTIES
+        LABELS "acceptance"
+    )
+
     add_executable(fuelsim_core_tests tests/core_tests.cpp)
     target_link_libraries(fuelsim_core_tests PRIVATE fuelsim_test_support)
     fuelsim_enable_warnings(fuelsim_core_tests)

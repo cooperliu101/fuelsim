@@ -88,7 +88,7 @@ class SteadyProblem final : public NonlinearProblem {
     std::size_t region_count() const noexcept;
     std::size_t region_index(const std::string& name) const;
     const RegionDefinition& region(std::size_t region_index) const;
-    const StructuredRzMesh& region_mesh(std::size_t region_index) const;
+    const RegionMesh& region_mesh(std::size_t region_index) const;
     const Quad4RzThermoelasticKernel&
     region_kernel(std::size_t region_index) const;
     std::size_t region_node_offset(std::size_t region_index) const;
@@ -134,24 +134,24 @@ class SteadyProblem final : public NonlinearProblem {
   private:
     struct ResolvedBoundary final {
         std::size_t region;
-        StructuredRzBoundary boundary;
+        RegionBoundary boundary;
     };
 
     struct PressureLoad final {
         std::size_t region;
-        StructuredRzBoundary boundary;
+        RegionBoundary boundary;
         double pressure;
     };
 
     SteadyProblem(SteadyProblemDefinition definition,
                   const UnstructuredQuad4Mesh& source_mesh,
                   std::vector<std::int64_t> block_ids,
-                  std::vector<StructuredRzMesh> meshes);
+                  std::vector<RegionMesh> meshes);
 
     static std::vector<std::int64_t>
     resolve_block_ids(const SteadyProblemDefinition& definition,
                       const UnstructuredQuad4Mesh& source_mesh);
-    static std::vector<StructuredRzMesh>
+    static std::vector<RegionMesh>
     build_meshes(const SteadyProblemDefinition& definition,
                  const UnstructuredQuad4Mesh& source_mesh);
 
@@ -166,7 +166,7 @@ class SteadyProblem final : public NonlinearProblem {
 
     SteadyProblemDefinition _definition;
     std::vector<std::int64_t> _block_ids;
-    std::vector<StructuredRzMesh> _meshes;
+    std::vector<RegionMesh> _meshes;
     std::vector<std::size_t> _node_offsets;
     std::vector<std::size_t> _element_offsets;
     DofMap _dof_map;

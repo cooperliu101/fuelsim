@@ -214,6 +214,209 @@ UnstructuredQuad4Mesh::side_set_block_id(const std::string& name) const {
     return block_id;
 }
 
+RegionMesh
+RegionMesh::from_unstructured_block(const UnstructuredQuad4Mesh& source,
+                                    const std::string& block_name) {
+    return from_unstructured_block(source, source.element_block(block_name).id);
+}
+
+RegionMesh
+RegionMesh::from_unstructured_block(const UnstructuredQuad4Mesh& source,
+                                    std::int64_t block_id) {
+    const bool known_block = std::any_of(
+        source.element_blocks().begin(), source.element_blocks().end(),
+        [block_id](const ElementBlockInfo& block) {
+            return block.id == block_id;
+        });
+    if (!known_block)
+        throw std::invalid_argument("Unknown element block ID: " +
+                                    std::to_string(block_id));
+
+    const std::size_t invalid = std::numeric_limits<std::size_t>::max();
+    RegionMesh mesh;
+    mesh._block_id = block_id;
+    mesh._source_node_to_local.assign(source.nodes().size(), invalid);
+    mesh._source_element_to_local.assign(source.elements().size(), invalid);
+
+    std::vector<bool> used_nodes(source.nodes().size(), false);
+    for (std::size_t source_element = 0;
+         source_element < source.elements().size(); ++source_element) {
+        if (source.element_block_ids()[source_element] != block_id)
+            continue;
+        mesh._source_element_to_local[source_element] =
+            mesh._source_element_ids.size();
+        mesh._source_element_ids.push_back(source_element);
+        for (std::size_t node : source.elements()[source_element].nodes)
+            used_nodes[node] = true;
+    }
+    if (mesh._source_element_ids.empty())
+        throw std::invalid_argument("Element block is empty: " +
+                                    std::to_string(block_id));
+
+    for (std::size_t source_node = 0; source_node < source.nodes().size();
+         ++source_node) {
+        if (!used_nodes[source_node])
+            continue;
+        mesh._source_node_to_local[source_node] = mesh._nodes.size();
+        mesh._source_node_ids.push_back(source_node);
+        mesh._nodes.push_back(source.nodes()[source_node]);
+    }
+
+    mesh._elements.reserve(mesh._source_element_ids.size());
+    for (std::size_t source_element : mesh._source_element_ids) {
+        Quad4Element element{};
+        for (std::size_t node = 0; node < element.nodes.size(); ++node) {
+            const std::size_t local = mesh._source_node_to_local.at(
+                source.elements()[source_element].nodes[node]);
+            if (local == invalid)
+                throw std::logic_error(
+                    "RegionMesh connectivity crosses element blocks");
+            element.nodes[node] = local;
+        }
+        mesh._elements.push_back(element);
+    }
+    return mesh;
+}
+
+const std::vector<RzPoint>& RegionMesh::nodes() const noexcept {
+    return _nodes;
+}
+
+const std::vector<Quad4Element>& RegionMesh::elements() const noexcept {
+    return _elements;
+}
+
+const std::vector<std::size_t>& RegionMesh::source_node_ids() const noexcept {
+    return _source_node_ids;
+}
+
+const std::vector<std::size_t>&
+RegionMesh::source_element_ids() const noexcept {
+    return _source_element_ids;
+}
+
+std::int64_t RegionMesh::block_id() const noexcept {
+    return _block_id;
+}
+
+RegionBoundary
+RegionMesh::map_side_set(const UnstructuredQuad4Mesh& source,
+                         const std::string& side_set_name) const {
+    if (source.side_set_block_id(side_set_name) != _block_id)
+        throw std::invalid_argument(
+            "Side set belongs to an unexpected block: " + side_set_name);
+
+    const std::size_t invalid = std::numeric_limits<std::size_t>::max();
+    std::vector<Line2BoundaryElement> elements;
+    std::vector<RzPoint> adjacent_centroids;
+    const SideSet& side_set = source.side_set(side_set_name);
+    elements.reserve(side_set.sides.size());
+    adjacent_centroids.reserve(side_set.sides.size());
+    for (const ElementSide& side : side_set.sides) {
+        if (_source_element_to_local.at(side.element) == invalid)
+            throw std::invalid_argument("Side set is outside its region: " +
+                                        side_set_name);
+        const Quad4Element& source_element = source.elements().at(side.element);
+        const std::size_t first_source =
+            source_element.nodes.at(side.local_side);
+        const std::size_t second_source =
+            source_element.nodes.at((side.local_side + 1U) % 4U);
+        const std::size_t first = _source_node_to_local.at(first_source);
+        const std::size_t second = _source_node_to_local.at(second_source);
+        if (first == invalid || second == invalid)
+            throw std::logic_error("RegionMesh side-set node mapping failed");
+        elements.push_back({{{first, second}}});
+        RzPoint centroid{0.0, 0.0};
+        for (std::size_t node : source_element.nodes) {
+            centroid.r += source.nodes().at(node).r / 4.0;
+            centroid.z += source.nodes().at(node).z / 4.0;
+        }
+        adjacent_centroids.push_back(centroid);
+    }
+
+    const RzPoint& reference_point = _nodes.at(elements.front().nodes[0]);
+    const auto all_on = [&](bool radial) {
+        const double coordinate =
+            radial ? reference_point.r : reference_point.z;
+        return std::all_of(elements.begin(), elements.end(),
+                           [&](const Line2BoundaryElement& edge) {
+                               return std::all_of(
+                                   edge.nodes.begin(), edge.nodes.end(),
+                                   [&](std::size_t node) {
+                                       const RzPoint& point = _nodes.at(node);
+                                       return same_coordinate(radial ? point.r
+                                                                     : point.z,
+                                                              coordinate);
+                                   });
+                           });
+    };
+    const auto material_side = [&](bool radial) {
+        const double coordinate =
+            radial ? reference_point.r : reference_point.z;
+        int side = 0;
+        for (const RzPoint& centroid : adjacent_centroids) {
+            const double value = radial ? centroid.r : centroid.z;
+            if (same_coordinate(value, coordinate))
+                return 0;
+            const int current = value > coordinate ? 1 : -1;
+            if (side != 0 && current != side)
+                return 0;
+            side = current;
+        }
+        return side;
+    };
+
+    RegionBoundaryKind kind = RegionBoundaryKind::general;
+    bool sort_by_axial = false;
+    const int radial_material_side = all_on(true) ? material_side(true) : 0;
+    const int axial_material_side = all_on(false) ? material_side(false) : 0;
+    if (radial_material_side > 0) {
+        kind = RegionBoundaryKind::radial_inner;
+        sort_by_axial = true;
+    } else if (radial_material_side < 0) {
+        kind = RegionBoundaryKind::radial_outer;
+        sort_by_axial = true;
+    } else if (axial_material_side > 0) {
+        kind = RegionBoundaryKind::bottom;
+    } else if (axial_material_side < 0) {
+        kind = RegionBoundaryKind::top;
+    }
+
+    if (kind != RegionBoundaryKind::general) {
+        for (Line2BoundaryElement& edge : elements) {
+            const RzPoint& first = _nodes.at(edge.nodes[0]);
+            const RzPoint& second = _nodes.at(edge.nodes[1]);
+            if ((sort_by_axial && first.z > second.z) ||
+                (!sort_by_axial && first.r > second.r))
+                std::swap(edge.nodes[0], edge.nodes[1]);
+        }
+        std::sort(elements.begin(), elements.end(),
+                  [&](const Line2BoundaryElement& lhs,
+                      const Line2BoundaryElement& rhs) {
+                      const RzPoint& lhs_point = _nodes.at(lhs.nodes[0]);
+                      const RzPoint& rhs_point = _nodes.at(rhs.nodes[0]);
+                      return sort_by_axial ? lhs_point.z < rhs_point.z
+                                           : lhs_point.r < rhs_point.r;
+                  });
+    }
+
+    std::vector<std::size_t> nodes;
+    for (const Line2BoundaryElement& edge : elements)
+        nodes.insert(nodes.end(), edge.nodes.begin(), edge.nodes.end());
+    std::sort(nodes.begin(), nodes.end(),
+              [&](std::size_t lhs, std::size_t rhs) {
+                  if (kind == RegionBoundaryKind::radial_inner ||
+                      kind == RegionBoundaryKind::radial_outer)
+                      return _nodes[lhs].z < _nodes[rhs].z;
+                  if (kind == RegionBoundaryKind::bottom ||
+                      kind == RegionBoundaryKind::top)
+                      return _nodes[lhs].r < _nodes[rhs].r;
+                  return _source_node_ids[lhs] < _source_node_ids[rhs];
+              });
+    nodes.erase(std::unique(nodes.begin(), nodes.end()), nodes.end());
+    return {kind, std::move(nodes), std::move(elements)};
+}
+
 StructuredRzMesh
 StructuredRzMesh::from_unstructured_block(const UnstructuredQuad4Mesh& source,
                                           const std::string& block_name) {

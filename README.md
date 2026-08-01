@@ -89,8 +89,10 @@ ctest --test-dir build --output-on-failure
 块名，而是由边集相邻单元自动确定所属区域。这样同一入口既能分析单独芯块
 或包壳，也能组合芯块—包壳以及芯块—包壳1—包壳2。所有 MOOSE 对比都会
 读取仓库内由对应 MOOSE 输入生成的 `*_mesh.e`。一般非结构 Quad4 可进入
-I/O 层，但当前每个选中块仍须能转换为完整张量积 RZ 网格。直接 Exodus I/O
-为串行操作；当前求解器也只允许一个 MPI rank。
+I/O 层，生产问题会保留每个选中块的原始节点坐标和 Quad4 连接关系，不再
+重建张量积 RZ 网格。单元仍须具有有效的正 Jacobian；当前接触实现另外要求
+参与接触的边集是轴对称圆柱面。直接 Exodus I/O 为串行操作；当前求解器也
+只允许一个 MPI rank。
 
 运行稳态燃料—包壳工况：
 
@@ -122,6 +124,15 @@ I/O 层，但当前每个选中块仍须能转换为完整张量积 RZ 网格。
 ```bash
 ./build/fuelsim_m1_exodus_moose_tests \
   verification/moose/m1_fuel_cladding_gap_rz_mesh.e
+```
+
+运行内部节点畸变、不可转换为张量积网格的 M1 全场验收：
+
+```bash
+./build/fuelsim_m1_unstructured_moose_tests \
+  verification/fuelsim/steady_fuel_cladding_unstructured.fsi \
+  verification/moose/m1_fuel_cladding_unstructured_rz_all_nodes_final.csv \
+  verification/moose/m1_fuel_cladding_unstructured_rz_fuel_surface_final.csv
 ```
 
 稳态示例将热源分成 20 个线性载荷步，以稳定跨越接触活动集的切换。
@@ -241,6 +252,12 @@ CTest 覆盖：
 默认 M1 最终步与 MOOSE 的接触压力相对 L2 误差为 `0.2207%`，最大节点
 相对误差为 `0.3328%`，总接触反力相对误差为 `0.0443%`；11 个燃料表面
 节点均成功投影且处于接触状态。
+
+内部节点畸变的非张量 M1 网格保留全部原始 Exodus 连接关系。与 MOOSE
+逐节点全场比较时，温度、径向位移、轴向位移和接触压力的相对 L2 误差
+分别为 `0.00990%`、`0.06393%`、`0.01772%`、`0.21727%`，相对最大范数
+误差分别为 `0.07107%`、`0.18903%`、`0.02529%`、`0.32887%`，八项均
+低于 `1%`。
 
 M2 的 MOOSE 最小参考中，均匀瞬态升温终值误差为 `0`；Norton 的应力、
 等效蠕变和位移误差分别为 `0.0019924%`、`0.0089635%` 和

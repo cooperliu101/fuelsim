@@ -13,9 +13,9 @@ namespace {
 constexpr double pi = 3.141592653589793238462643383279502884;
 constexpr double gauss = 0.577350269189625764509148780501957456;
 
-std::size_t checked_total_nodes(const std::vector<StructuredRzMesh>& meshes) {
+std::size_t checked_total_nodes(const std::vector<RegionMesh>& meshes) {
     std::size_t total = 0;
-    for (const StructuredRzMesh& mesh : meshes) {
+    for (const RegionMesh& mesh : meshes) {
         if (mesh.nodes().size() >
             std::numeric_limits<std::size_t>::max() - total)
             throw std::length_error("SteadyProblem node count overflows");
@@ -24,7 +24,7 @@ std::size_t checked_total_nodes(const std::vector<StructuredRzMesh>& meshes) {
     return total;
 }
 
-Quad4Coordinates element_coordinates(const StructuredRzMesh& mesh,
+Quad4Coordinates element_coordinates(const RegionMesh& mesh,
                                      const Quad4Element& element) {
     Quad4Coordinates coordinates{};
     for (std::size_t node = 0; node < element.nodes.size(); ++node)
@@ -33,8 +33,7 @@ Quad4Coordinates element_coordinates(const StructuredRzMesh& mesh,
 }
 
 Line2InterfaceSideCoordinates
-edge_coordinates(const StructuredRzMesh& mesh,
-                 const Line2BoundaryElement& edge) {
+edge_coordinates(const RegionMesh& mesh, const Line2BoundaryElement& edge) {
     return {{mesh.nodes().at(edge.nodes[0]), mesh.nodes().at(edge.nodes[1])}};
 }
 
@@ -118,7 +117,7 @@ void validate_dirichlet_conditions(
 }
 
 std::size_t
-find_containing_segment(double z, const StructuredRzMesh& mesh,
+find_containing_segment(double z, const RegionMesh& mesh,
                         const std::vector<Line2BoundaryElement>& edges) {
     for (std::size_t edge = 0; edge < edges.size(); ++edge) {
         const double lower = mesh.nodes().at(edges[edge].nodes[0]).z;
@@ -130,11 +129,11 @@ find_containing_segment(double z, const StructuredRzMesh& mesh,
     throw std::invalid_argument("Contact point is outside the primary surface");
 }
 
-void validate_connected_radial_boundary(const StructuredRzMesh& mesh,
-                                        const StructuredRzBoundary& boundary,
+void validate_connected_radial_boundary(const RegionMesh& mesh,
+                                        const RegionBoundary& boundary,
                                         const std::string& name) {
-    if (boundary.id != BoundaryId::radial_inner &&
-        boundary.id != BoundaryId::radial_outer)
+    if (boundary.kind != RegionBoundaryKind::radial_inner &&
+        boundary.kind != RegionBoundaryKind::radial_outer)
         throw std::invalid_argument("Contact requires radial RZ side sets: " +
                                     name);
     if (boundary.elements.empty())
@@ -164,14 +163,14 @@ SteadyProblem::resolve_block_ids(const SteadyProblemDefinition& definition,
     return result;
 }
 
-std::vector<StructuredRzMesh>
+std::vector<RegionMesh>
 SteadyProblem::build_meshes(const SteadyProblemDefinition& definition,
                             const UnstructuredQuad4Mesh& source_mesh) {
-    std::vector<StructuredRzMesh> result;
+    std::vector<RegionMesh> result;
     result.reserve(definition.regions.size());
     for (const RegionDefinition& region : definition.regions)
-        result.push_back(StructuredRzMesh::from_unstructured_block(
-            source_mesh, region.block));
+        result.push_back(
+            RegionMesh::from_unstructured_block(source_mesh, region.block));
     return result;
 }
 
@@ -184,7 +183,7 @@ SteadyProblem::SteadyProblem(SteadyProblemDefinition definition,
 SteadyProblem::SteadyProblem(SteadyProblemDefinition definition,
                              const UnstructuredQuad4Mesh& source_mesh,
                              std::vector<std::int64_t> block_ids,
-                             std::vector<StructuredRzMesh> meshes)
+                             std::vector<RegionMesh> meshes)
     : _definition(std::move(definition)), _block_ids(std::move(block_ids)),
       _meshes(std::move(meshes)), _dof_map(checked_total_nodes(_meshes)),
       _load_factor(1.0) {
@@ -194,7 +193,7 @@ SteadyProblem::SteadyProblem(SteadyProblemDefinition definition,
     _element_offsets.reserve(_meshes.size() + 1);
     _node_offsets.push_back(0);
     _element_offsets.push_back(0);
-    for (const StructuredRzMesh& mesh : _meshes) {
+    for (const RegionMesh& mesh : _meshes) {
         _node_offsets.push_back(_node_offsets.back() + mesh.nodes().size());
         _element_offsets.push_back(_element_offsets.back() +
                                    mesh.elements().size());
@@ -235,7 +234,7 @@ const RegionDefinition& SteadyProblem::region(std::size_t index) const {
     return _definition.regions.at(index);
 }
 
-const StructuredRzMesh& SteadyProblem::region_mesh(std::size_t index) const {
+const RegionMesh& SteadyProblem::region_mesh(std::size_t index) const {
     return _meshes.at(index);
 }
 
@@ -417,14 +416,14 @@ SteadyProblem::resolve_boundary(const UnstructuredQuad4Mesh& source_mesh,
     const std::size_t region_value =
         static_cast<std::size_t>(found - _block_ids.begin());
     return {region_value,
-            _meshes[region_value].map_side_set(source_mesh, name, block_id)};
+            _meshes[region_value].map_side_set(source_mesh, name)};
 }
 
 void SteadyProblem::build_volume_geometries() {
     _region_geometries.resize(region_count());
     for (std::size_t region_value = 0; region_value < region_count();
          ++region_value) {
-        const StructuredRzMesh& mesh = _meshes[region_value];
+        const RegionMesh& mesh = _meshes[region_value];
         std::vector<Quad4RzGeometry>& geometries =
             _region_geometries[region_value];
         geometries.reserve(mesh.elements().size());
@@ -458,8 +457,8 @@ void SteadyProblem::build_contacts(const UnstructuredQuad4Mesh& source_mesh) {
                                            secondary.boundary,
                                            contact_definition.secondary);
 
-        const StructuredRzMesh& primary_mesh = _meshes[primary.region];
-        const StructuredRzMesh& secondary_mesh = _meshes[secondary.region];
+        const RegionMesh& primary_mesh = _meshes[primary.region];
+        const RegionMesh& secondary_mesh = _meshes[secondary.region];
         const double primary_radius =
             primary_mesh.nodes().at(primary.boundary.nodes.front()).r;
         const double secondary_radius =
@@ -581,8 +580,8 @@ void SteadyProblem::build_boundary_conditions(
             if (definition.value < 0.0)
                 throw std::invalid_argument(
                     "Pressure boundary conditions must be nonnegative");
-            if (resolved.boundary.id != BoundaryId::radial_inner &&
-                resolved.boundary.id != BoundaryId::radial_outer)
+            if (resolved.boundary.kind != RegionBoundaryKind::radial_inner &&
+                resolved.boundary.kind != RegionBoundaryKind::radial_outer)
                 throw std::invalid_argument(
                     "Pressure currently requires a radial boundary: " +
                     definition.boundary);
@@ -609,8 +608,8 @@ void SteadyProblem::add_pressure_residual(std::vector<double>& residual) const {
         if (load.pressure == 0.0)
             continue;
         const double normal_r =
-            load.boundary.id == BoundaryId::radial_inner ? -1.0 : 1.0;
-        const StructuredRzMesh& mesh = _meshes[load.region];
+            load.boundary.kind == RegionBoundaryKind::radial_inner ? -1.0 : 1.0;
+        const RegionMesh& mesh = _meshes[load.region];
         for (const Line2BoundaryElement& edge : load.boundary.elements) {
             const RzPoint& first = mesh.nodes().at(edge.nodes[0]);
             const RzPoint& second = mesh.nodes().at(edge.nodes[1]);
@@ -640,7 +639,7 @@ SteadyProblem::summarize_contact_nodes(std::size_t contact_value,
         throw std::invalid_argument(
             "SteadyProblem contact summary state size mismatch");
     const ResolvedBoundary& secondary = _secondary_boundaries.at(contact_value);
-    const StructuredRzMesh& mesh = _meshes[secondary.region];
+    const RegionMesh& mesh = _meshes[secondary.region];
     std::vector<ContactNodeSummary> result;
     result.reserve(secondary.boundary.nodes.size());
     for (std::size_t node : secondary.boundary.nodes) {

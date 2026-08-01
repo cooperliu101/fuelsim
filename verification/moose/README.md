@@ -11,6 +11,7 @@ files.
 | --- | --- | ---: | --- |
 | M0 | `m0_simple_fuel_rz_mesh.e` | 451 / 400 | `317a7cf29b15e03ac19b8b67e12301150cca1480b72fae89ded9408fb81162d3` |
 | M1 | `m1_fuel_cladding_gap_rz_mesh.e` | 528 / 460 | `ab1a3da68b8cfa0f630b0ad61865970a0fe6492c4b10a846d80badb51a7cf979` |
+| M1 non-tensor | `m1_fuel_cladding_unstructured_rz_mesh.e` | 528 / 460 | `2a934add4a14eba20375a11bead535843522fbf2fcd5b31dd38c36e0a1ae6f42` |
 | M2.1 | `m21_transient_heat_rz_mesh.e` | 15 / 8 | `bb6615a4c1800cdb64cadc6aad36b8d1dbe4f1f24f4fc114878f5413f39b6fb3` |
 | M2.2 J2 | `m22_j2_plastic_rz_mesh.e` | 4 / 1 | `a5f272294d36767d3d91e74b1471263f444f7b9c9eacb10a3359493538f96a69` |
 | M2.2 Norton | `m22_norton_creep_rz_mesh.e` | 4 / 1 | `ec33e81651ce9ae3b3cefef8375a4e7256327be1a7ceede813cd3ea1ca7bcec7` |
@@ -154,6 +155,59 @@ projected / active fuel surface nodes:    11 / 11
 All six temperature/displacement differences are also below 1%. Contact
 pressure is therefore an acceptance metric rather than a diagnostic-only
 quantity.
+
+### M1 non-tensor Quad4 full-field comparison
+
+`m1_fuel_cladding_unstructured_rz.i` reuses the M1 materials, load path,
+boundary conditions, and contact parameters, then applies a deterministic
+coordinate transform to interior fuel and cladding nodes. The external and
+contact boundaries remain cylindrical, but neither block can be represented
+as a tensor product of its unique radial and axial coordinates. The tracked
+mesh therefore isolates support for original Exodus Quad4 connectivity from
+future generalization of the contact-surface geometry.
+
+The production `RegionMesh` reads all 528 nodes and 460 elements without
+coordinate reconstruction. `fuelsim_m1_unstructured_moose_tests` first checks
+that the legacy structured conversion rejects both blocks, then compares every
+temperature and displacement node and all 11 secondary contact-pressure
+nodes. For a field `u`, the reported metrics are:
+
+```text
+relative L2           = sqrt(sum((u_fuelsim-u_moose)^2)/sum(u_moose^2))
+relative maximum norm = max(abs(u_fuelsim-u_moose))/max(abs(u_moose))
+```
+
+The checked run used the same executable provenance and 20-step loading listed
+above. Reproduce the reference with:
+
+```bash
+env PATH=/home/cooper/miniforge/envs/moose/bin:/usr/local/bin:/usr/bin:/bin \
+  OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 \
+  /home/cooper/projects/july/july-opt \
+  -i m1_fuel_cladding_unstructured_rz.i \
+  Outputs/file_base=/tmp/fuelsim_m1_unstructured/m1 \
+  Outputs/exodus=false Outputs/console=false
+```
+
+The final MOOSE snapshots are tracked as
+`m1_fuel_cladding_unstructured_rz_all_nodes_final.csv` and
+`m1_fuel_cladding_unstructured_rz_fuel_surface_final.csv`. Their SHA256 values
+are respectively:
+
+```text
+9d6b64870a9f3d6a5852eae7e93bba845d69c1e882ea3b978070f1c6b23f095f
+7a4cd89c380a268e23c828d37c867aba532cd85e38081ea6ebcb1e275b85d332
+```
+
+The accepted fuelsim-to-MOOSE errors are:
+
+```text
+temperature relative L2 / maximum:          0.00990% / 0.07107%
+radial displacement relative L2 / maximum:  0.06393% / 0.18903%
+axial displacement relative L2 / maximum:   0.01772% / 0.02529%
+contact pressure relative L2 / maximum:      0.21727% / 0.32887%
+acceptance threshold for each:               < 1%
+```
 
 ## M2.1 transient heat capacity
 

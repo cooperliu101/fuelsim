@@ -41,7 +41,7 @@ class TransientProblem final : public NonlinearProblem {
     const DofMap& dof_map() const noexcept;
     std::size_t region_count() const noexcept;
     const RegionDefinition& region(std::size_t region_index) const;
-    const StructuredRzMesh& region_mesh(std::size_t region_index) const;
+    const RegionMesh& region_mesh(std::size_t region_index) const;
     const Quad4RzTransientKernel& region_kernel(std::size_t region_index) const;
     const Quad4RzGeometry&
     region_element_geometry(std::size_t region_index,
