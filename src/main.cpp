@@ -1,8 +1,7 @@
 #include "fuelsim/case_input.hpp"
 #include "fuelsim/exodus_mesh_io.hpp"
 #include "fuelsim/petsc_solver.hpp"
-#include "fuelsim/steady_fuel_cladding_solver.hpp"
-#include "fuelsim/transient_fuel_cladding_solver.hpp"
+#include "fuelsim/problem_solver.hpp"
 
 #include <cstddef>
 #include <exception>
@@ -23,8 +22,8 @@ class CaseOutput final {
             if (!_csv)
                 throw std::runtime_error("Could not open CSV output file '" +
                                          options.csv_file + "'");
-            _csv << "metric,value\n";
-            _csv << std::scientific << std::setprecision(12);
+            _csv << "metric,value\n"
+                 << std::scientific << std::setprecision(12);
         }
         if (_console)
             std::cout << std::boolalpha << std::scientific
@@ -100,73 +99,56 @@ std::string extract_input_path(int& argc, char** argv) {
 
 fuelsim::SolverOptions
 solver_options(const fuelsim::NonlinearSolverInput& input) {
-    return {
-        input.absolute_tolerance,
-        input.relative_tolerance,
-        input.step_tolerance,
-        input.maximum_iterations,
-    };
+    return {input.absolute_tolerance, input.relative_tolerance,
+            input.step_tolerance, input.maximum_iterations};
 }
 
-struct ImportedFuelCladdingMeshes final {
-    fuelsim::StructuredRzMesh fuel;
-    fuelsim::StructuredRzMesh cladding;
-};
-
-ImportedFuelCladdingMeshes
-read_meshes(const fuelsim::FuelSimCaseDefinition& definition) {
-    const fuelsim::UnstructuredQuad4Mesh source =
-        fuelsim::ExodusMeshIo::read_quad4(definition.mesh.file);
-    return {
-        fuelsim::StructuredRzMesh::from_unstructured_block(
-            source, definition.mesh.fuel.block,
-            definition.mesh.fuel.boundaries),
-        fuelsim::StructuredRzMesh::from_unstructured_block(
-            source, definition.mesh.cladding.block,
-            definition.mesh.cladding.boundaries),
-    };
+void write_interface_summary(const std::string& name,
+                             const fuelsim::InterfaceSummary& summary,
+                             CaseOutput& output) {
+    const std::string prefix = "contact." + name + ".";
+    output.value(prefix + "minimum_gap", summary.minimum_gap);
+    output.value(prefix + "maximum_contact_pressure",
+                 summary.maximum_contact_pressure);
+    output.value(prefix + "total_heat_rate", summary.total_heat_rate);
+    output.value(prefix + "total_contact_force", summary.total_contact_force);
+    output.value(prefix + "projected_contact_nodes",
+                 summary.projected_contact_nodes);
+    output.value(prefix + "active_contact_nodes", summary.active_contact_nodes);
 }
 
 bool run_steady(const fuelsim::FuelSimCaseDefinition& definition,
-                const ImportedFuelCladdingMeshes& meshes, CaseOutput& output) {
-    const fuelsim::SteadyFuelCladdingParameters parameters =
-        definition.steady_parameters(meshes.fuel, meshes.cladding);
-    const fuelsim::SteadyFuelCladdingLoadStepper load_stepper;
-    const fuelsim::SteadyFuelCladdingLoadResult result =
-        load_stepper.solve(parameters, meshes.fuel, meshes.cladding,
-                           definition.steady_execution.load_steps,
-                           solver_options(definition.solver));
-    const fuelsim::SteadyFuelCladdingProblem problem(parameters, meshes.fuel,
-                                                     meshes.cladding);
-    const fuelsim::InterfaceSummary interface =
-        problem.summarize_interface(result.solve.state);
-
-    output.value("problem", "steady_fuel_cladding");
+                const fuelsim::UnstructuredQuad4Mesh& source,
+                CaseOutput& output) {
+    fuelsim::SteadyProblem problem(definition.steady_definition(), source);
+    const fuelsim::SteadyResult result =
+        fuelsim::solve_steady(problem, definition.steady_execution.load_steps,
+                              solver_options(definition.solver));
+    output.value("problem", "steady");
     output.value("completed", result.completed && result.solve.converged);
     output.value("convergence_reason", fuelsim::petsc_convergence_reason_name(
                                            result.solve.convergence_reason));
+    output.value("regions", problem.region_count());
+    output.value("contacts", problem.contact_count());
     output.value("load_steps_completed", result.completed_steps);
     output.value("nonlinear_iterations_total",
                  result.total_nonlinear_iterations);
     output.value("residual_norm", result.solve.residual_norm);
-    output.value("minimum_gap", interface.minimum_gap);
-    output.value("maximum_contact_pressure",
-                 interface.maximum_contact_pressure);
-    output.value("total_contact_force", interface.total_contact_force);
-    output.value("projected_contact_nodes", interface.projected_contact_nodes);
-    output.value("active_contact_nodes", interface.active_contact_nodes);
     output.value("petsc_workspace_setups",
                  result.aggregate_timing.workspace_setups);
     output.value("total_seconds", result.total_seconds);
+    for (std::size_t contact = 0; contact < problem.contact_count(); ++contact)
+        write_interface_summary(
+            problem.contact(contact).name,
+            problem.summarize_interface(contact, result.solve.state), output);
     return result.completed && result.solve.converged;
 }
 
 bool run_transient(const fuelsim::FuelSimCaseDefinition& definition,
-                   const ImportedFuelCladdingMeshes& meshes,
+                   const fuelsim::UnstructuredQuad4Mesh& source,
                    CaseOutput& output) {
-    fuelsim::TransientFuelCladdingProblem problem(
-        definition.transient_parameters(meshes.fuel, meshes.cladding),
-        meshes.fuel, meshes.cladding);
+    fuelsim::TransientProblem problem(definition.transient_definition(),
+                                      source);
     const fuelsim::TransientTimeOptions time_options = {
         definition.transient_execution.end_time,
         definition.transient_execution.initial_time_step,
@@ -175,42 +157,37 @@ bool run_transient(const fuelsim::FuelSimCaseDefinition& definition,
         definition.transient_execution.growth_factor,
         definition.transient_execution.cutback_factor,
         definition.transient_execution.maximum_cutbacks,
-        definition.physics.heat_source_ramp_time,
-    };
-    const fuelsim::TransientFuelCladdingTimeStepper time_stepper;
-    const fuelsim::TransientFuelCladdingResult result = time_stepper.solve(
+        definition.transient_execution.heat_source_ramp_time};
+    const fuelsim::TransientResult result = fuelsim::solve_transient(
         problem, time_options, solver_options(definition.solver));
-    const fuelsim::RegionInelasticSummary fuel_history =
-        problem.summarize_fuel_history();
-    const fuelsim::RegionInelasticSummary cladding_history =
-        problem.summarize_cladding_history();
-    const fuelsim::InterfaceSummary interface =
-        problem.summarize_interface(result.committed_state);
-
-    output.value("problem", "transient_fuel_cladding");
+    output.value("problem", "transient");
     output.value("completed", result.completed);
+    output.value("regions", problem.region_count());
+    output.value("contacts", definition.contacts.size());
     output.value("committed_time", result.committed_time);
     output.value("accepted_steps", result.accepted_steps.size());
     output.value("total_cutbacks", result.total_cutbacks);
     output.value("nonlinear_iterations_total",
                  result.total_nonlinear_iterations);
-    output.value("fuel_maximum_equivalent_plastic_strain",
-                 fuel_history.maximum_equivalent_plastic_strain);
-    output.value("fuel_maximum_equivalent_creep_strain",
-                 fuel_history.maximum_equivalent_creep_strain);
-    output.value("cladding_maximum_equivalent_plastic_strain",
-                 cladding_history.maximum_equivalent_plastic_strain);
-    output.value("cladding_maximum_equivalent_creep_strain",
-                 cladding_history.maximum_equivalent_creep_strain);
-    output.value("minimum_gap", interface.minimum_gap);
-    output.value("maximum_contact_pressure",
-                 interface.maximum_contact_pressure);
-    output.value("total_contact_force", interface.total_contact_force);
-    output.value("projected_contact_nodes", interface.projected_contact_nodes);
-    output.value("active_contact_nodes", interface.active_contact_nodes);
     output.value("petsc_workspace_setups",
                  result.aggregate_timing.workspace_setups);
     output.value("total_seconds", result.total_seconds);
+    for (std::size_t region = 0; region < problem.region_count(); ++region) {
+        const fuelsim::RegionInelasticSummary summary =
+            problem.summarize_region_history(region);
+        const std::string prefix =
+            "region." + problem.region(region).name + ".";
+        output.value(prefix + "maximum_equivalent_plastic_strain",
+                     summary.maximum_equivalent_plastic_strain);
+        output.value(prefix + "maximum_equivalent_creep_strain",
+                     summary.maximum_equivalent_creep_strain);
+    }
+    for (std::size_t contact = 0; contact < definition.contacts.size();
+         ++contact)
+        write_interface_summary(
+            definition.contacts[contact].name,
+            problem.summarize_interface(contact, result.committed_state),
+            output);
     return result.completed;
 }
 
@@ -223,16 +200,16 @@ int main(int argc, char** argv) {
             fuelsim::CaseInputReader::read(input_path);
         fuelsim::PetscSession session(
             argc, argv,
-            "fuelsim input-driven axisymmetric fuel-cladding solver\n");
-        const ImportedFuelCladdingMeshes meshes = read_meshes(definition);
+            "fuelsim input-driven axisymmetric multi-region solver\n");
+        const fuelsim::UnstructuredQuad4Mesh source =
+            fuelsim::ExodusMeshIo::read_quad4(definition.mesh_file);
         CaseOutput output(definition.outputs);
         output.value("input_file", input_path);
-        output.value("mesh_file", definition.mesh.file);
-
+        output.value("mesh_file", definition.mesh_file);
         const bool completed =
-            definition.problem == fuelsim::CaseProblem::steady_fuel_cladding
-                ? run_steady(definition, meshes, output)
-                : run_transient(definition, meshes, output);
+            definition.problem == fuelsim::CaseProblem::steady
+                ? run_steady(definition, source, output)
+                : run_transient(definition, source, output);
         return completed ? 0 : 1;
     } catch (const std::exception& error) {
         std::cerr << "fuelsim failed: " << error.what() << '\n';

@@ -1,54 +1,65 @@
 # fuelsim 输入卡 v1
 
-`fuelsim` 通过一个显式输入文件选择物理问题：
+`fuelsim` 只使用一个显式输入文件：
 
 ```bash
 ./build/fuelsim -i case.fsi [PETSc options]
 ```
 
-输入卡使用 MOOSE 风格的嵌套段和 `key = value`。`#` 开始行内注释；值可用
-单引号或双引号包围。相对路径以输入卡所在目录为基准。v1 所有数值采用 SI
-单位，不执行表达式求值或单位换算。
+输入卡采用 MOOSE 风格的嵌套段和 `key = value`。`#` 开始行内注释；相对
+路径以输入卡所在目录为基准。v1 的数值全部使用 SI 单位，不支持 include、
+宏、表达式、单位换算、旧键别名或兼容层。未知段、未知键、重复项、非法值
+和缺少必填键都会立即报错。
 
-解析是严格的：未知段、未知键、重复段、重复键、未闭合段、非法数值和缺少
-必填键都会报出文件与行号。v1 不提供 include、宏、旧键别名或兼容层。
+## 问题与单一网格
 
-## 物理问题
+`[Case]` 的 `problem` 只能是：
 
-`[Case]` 的 `problem` 只能为：
+- `steady`：稳态热传导和准静态热弹性，使用线性载荷步；
+- `transient`：Backward Euler 热传导、准静态力学和积分点非弹性历史。
 
-- `steady_fuel_cladding`：稳态热传导与准静态热弹性，使用线性载荷步；
-- `transient_fuel_cladding`：Backward Euler 热传导、准静态力学与积分点
-  非弹性历史，使用可 cutback 的物理时间步。
+对应的两个生产 C++ 类型是 `SteadyProblem` 和 `TransientProblem`。M0、M1、
+M2 只作为路线和回归名称。
 
-生产 C++ 类型对应为 `SteadyFuelCladdingProblem` 和
-`TransientFuelCladdingProblem`。M1/M2 仅用于路线和回归命名。
-
-## 网格
-
-`[Mesh]` 当前只接受 `type = exodus`。`file` 指向 `.e` 文件；`[fuel]` 和
-`[cladding]` 分别指定元素块及 `radial_inner`、`radial_outer`、`bottom`、
-`top` 四个命名边界。半径、高度、节点数和单元数从 Exodus 文件推导，不在
-输入卡中重复声明。
-
-I/O 层可以读取一般非结构 Quad4；当前求解装配要求选中的燃料和包壳块各自
-能转换为完整的张量积 RZ 网格。
-
-## 材料与本构
-
-燃料和包壳的 `[Materials]` 子段都需要热弹性字段：
+`[Mesh]` 只接受一个 Exodus 文件：
 
 ```text
-conductivity_inverse_temperature
-conductivity_constant
-young_modulus
-poisson_ratio
-thermal_expansion
-reference_temperature
+[Mesh]
+  type = exodus
+  file = model.e
+[]
 ```
 
-瞬态问题还需要 `density`、`specific_heat` 和 `inelastic_model`。模型及其
-条件字段为：
+文件可以包含多个 Quad4 元素块、节点集和边集。I/O 层保留这些元数据；当前
+每个参与求解的元素块必须是完整的张量积 RZ 网格。输入卡不重复定义半径、
+高度和离散规模。
+
+## 自由区域组合
+
+`[Regions]` 下每个子段定义一个物理区域，子段名是区域名，`block` 是同一
+Exodus 文件中的元素块名：
+
+```text
+[Regions]
+  [pellet]
+    block = fuel
+    conductivity_inverse_temperature = 3824
+    conductivity_constant = 0.61
+    young_modulus = 2e11
+    poisson_ratio = 0.316
+    thermal_expansion = 1e-5
+    reference_temperature = 600
+    initial_temperature = 600
+    volumetric_heat_source = 2e8
+  []
+[]
+```
+
+区域数量不固定，因此同一结构可表示单独芯块、单独包壳、芯块—包壳，或
+芯块—包壳1—包壳2。每个元素块只能声明一次，区域节点与自由度保持独立。
+
+瞬态问题的每个区域还必须给出 `density`、`specific_heat` 和
+`inelastic_model`。可选模型及条件字段为：
 
 | `inelastic_model` | 额外字段 |
 | --- | --- |
@@ -57,38 +68,97 @@ reference_temperature
 | `j2_plasticity` | `yield_stress`, `hardening_modulus` |
 | `norton_creep_j2_plasticity` | 上述蠕变与塑性字段全部需要 |
 
-为避免输入歧义，不适用于所选模型的字段也会被拒绝。
+不适用于所选模型的字段会被拒绝。
 
-## 物理、时间推进和求解器
+## 接触
 
-`[Physics]` 定义初始/外边界温度、最终体积热源、气隙导热、最小有效热隙和
-接触罚参数。瞬态热源斜坡由 `heat_source_ramp_time` 定义。
-
-稳态 `[Executioner]` 使用：
-
-```text
-type = steady
-load_steps = <positive integer>
-```
-
-瞬态 `[Executioner]` 使用：
+每个 `[Contact/<name>]` 只声明 MOOSE 风格的 `primary` 和 `secondary` 边集。
+不得声明 `primary_block` 或 `secondary_block`；fuelsim 通过边集相邻单元读取
+块 ID，再匹配到 `[Regions]`：
 
 ```text
-type = transient
-end_time
-initial_time_step
-minimum_time_step
-maximum_time_step
-growth_factor
-cutback_factor
-maximum_cutbacks
+[Contact]
+  [pellet_clad]
+    primary = clad_inner
+    secondary = pellet_outer
+
+    [thermal]
+      gap_conductivity = 0.4
+      minimum_gap = 1e-6
+    []
+
+    [mechanical]
+      formulation = penalty
+      penalty = 1e14
+    []
+  []
+[]
 ```
 
-`[Solver]` 可配置 PETSc SNES 的 `absolute_tolerance`、
-`relative_tolerance`、`step_tolerance` 和 `maximum_iterations`。`-i` 与输入
-文件名会在 PETSc 初始化前从参数中移除，其他 PETSc 命令行选项继续生效。
+一个接触对至少包含 `[thermal]` 或 `[mechanical]`，也可以同时包含两者。
+当前 RZ 实现要求 primary 是外侧圆柱面、secondary 是内侧圆柱面；两者必须
+来自不同区域且各自形成连续的轴向边链。热接触采用 secondary-side STS
+积分，机械接触采用 secondary 节点到 primary 线段的唯一 NTS 投影。
 
-`[Outputs]` 的 `console` 控制键值摘要；可选 `csv` 将相同摘要写为
+`[Contact]` 段本身是必需的，但可以为空，以支持不含接触的单区域问题。
+
+## 边界条件
+
+边界条件同样只引用 Exodus 边集，所属区域由相邻单元自动确定：
+
+```text
+[BoundaryConditions]
+  [axis]
+    type = dirichlet
+    boundary = fuel_axis
+    field = radial_displacement
+    value = 0
+  []
+
+  [external_pressure]
+    type = pressure
+    boundary = clad_outer
+    value = 1.5e7
+  []
+[]
+```
+
+`dirichlet` 的 `field` 只能为 `temperature`、`radial_displacement` 或
+`axial_displacement`。`pressure` 不接受 `field`，当前只能施加在径向边界。
+`[BoundaryConditions]` 段本身必需，但可以为空。
+
+## 时间推进、求解与输出
+
+稳态执行器为：
+
+```text
+[Executioner]
+  type = steady
+  load_steps = 20
+[]
+```
+
+瞬态执行器为：
+
+```text
+[Executioner]
+  type = transient
+  end_time = 20
+  initial_time_step = 1
+  minimum_time_step = 0.125
+  maximum_time_step = 1
+  growth_factor = 1
+  cutback_factor = 0.5
+  maximum_cutbacks = 3
+  heat_source_ramp_time = 20
+[]
+```
+
+`[Solver]` 可设置 `absolute_tolerance`、`relative_tolerance`、
+`step_tolerance` 和 `maximum_iterations`；省略时分别为 `1e-8`、`1e-10`、
+`1e-12` 和 `40`。其他 PETSc 命令行选项仍可直接覆盖默认行为。
+
+`[Outputs]` 的 `console` 默认为 `true`；可选 `csv` 将同一组命名指标写为
 `metric,value` 文件。
 
 仓库中的可运行示例为：

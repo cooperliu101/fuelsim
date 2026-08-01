@@ -1,12 +1,13 @@
 # fuelsim
 
 `fuelsim` 是一个依赖精简的 C++17 核燃料性能有限元程序。统一可执行程序
-通过输入卡选择稳态或瞬态燃料—包壳问题。稳态问题包含：
+通过输入卡选择 `SteadyProblem` 或 `TransientProblem`，并从一个 Exodus
+文件自由组合任意数量的物理区域。稳态问题包含：
 
-- 两个独立的 2D 轴对称 RZ Quad4 网格：燃料与包壳节点不合并；
-- 稳态温度相关热传导、燃料体积热源和小应变热弹性；
-- 燃料侧 STS 积分并投影到包壳线段的气隙导热；
-- 与 MOOSE/JAX 实现一致的燃料节点到包壳线段 NTS 无摩擦罚接触；
+- 一个 `.e` 文件中的多个独立 2D 轴对称 RZ Quad4 区域，区域间节点不合并；
+- 每个区域独立的稳态温度相关热传导、体积热源和小应变热弹性；
+- 由 `primary`、`secondary` 边集定义的 STS 气隙导热；
+- 与 MOOSE/JAX 实现一致的 secondary 节点到 primary 线段 NTS 无摩擦罚接触；
 - ADlite 生成体单元和界面的局部 Jacobian；
 - PETSc SNES、KSP 和 AIJ 稀疏矩阵完成串行 Newton 求解。
 
@@ -82,15 +83,14 @@ env PATH=/home/cooper/miniforge/envs/moose/bin:/usr/local/bin:/usr/bin:/bin \
 ctest --test-dir build --output-on-failure
 ```
 
-`fuelsim_exodus` 将 2D 非结构 Quad4 的节点、连接关系、元素块、节点集和边集
-转换为 fuelsim 自有网格对象；专项 CTest 通过 Exodus API 写出并逐项回读。
-所有 MOOSE 对比都会读取仓库内由对应 MOOSE 输入生成的 `*_mesh.e`，不再由
-fuelsim 重建等价参考网格。M0、M2.1 和 M2.2 选择单区域块 0；M1、M2.3
-根据 `fuel`、`clad` 块及其命名边界重建当前求解器所需的两个结构化 RZ 块。
-一般非结构 Quad4 可进入 I/O 层，但当前体单元装配仍要求所选物理块为完整
-张量积 RZ 网格。`fuelsim_core` 仍只依赖 ADlite，`fuelsim_petsc` 仍只处理
-PETSc 求解。当前直接 I/O 为串行文件操作；PETSc/MPI 求解能力不受影响，
-分布式网格划分与通信将作为后续独立功能实现。
+`fuelsim_exodus` 将一个 2D 非结构 Quad4 文件的节点、连接关系、元素块、
+节点集和边集转换为 fuelsim 自有网格对象；专项 CTest 通过 Exodus API
+写出并逐项回读。每个 `[Regions/<name>]` 选择一个元素块；接触不再重复声明
+块名，而是由边集相邻单元自动确定所属区域。这样同一入口既能分析单独芯块
+或包壳，也能组合芯块—包壳以及芯块—包壳1—包壳2。所有 MOOSE 对比都会
+读取仓库内由对应 MOOSE 输入生成的 `*_mesh.e`。一般非结构 Quad4 可进入
+I/O 层，但当前每个选中块仍须能转换为完整张量积 RZ 网格。直接 Exodus I/O
+为串行操作；当前求解器也只允许一个 MPI rank。
 
 运行稳态燃料—包壳工况：
 
@@ -136,8 +136,8 @@ PETSc 选项仍可在命令行覆盖，例如：
 当前只支持一个 MPI rank。
 
 程序会同时输出问题构造、PETSc 设置、非线性求解、残量回调和 Jacobian
-回调的内部计时。20 个载荷步复用同一个 M1 几何、SNES、Vec、Mat、矩阵非零
-结构和回调缓冲区；热源只更新具体的燃料核参数。
+回调的内部计时。20 个载荷步复用同一问题几何、SNES、Vec、Mat、矩阵非零
+结构和回调缓冲区；热源只更新各区域的具体核参数。
 
 M2 同样复用几何和 PETSc 工作区，但每个成功时间步会提交 nodal 温度/位移
 以及积分点非弹性历史。失败尝试从最后一个 committed 状态重启，不会把
@@ -159,29 +159,29 @@ M2 同样复用几何和 PETSc 工作区，但每个成功时间步会提交 nod
 ```
 
 热界面的四个节点按
-`[fuel0, fuel1, cladding0, cladding1]` 排列，对应：
+`[secondary0, secondary1, primary0, primary1]` 排列，对应：
 
 ```text
-[Tf0, Tf1, Tc0, Tc1,
- urf0, urf1, urc0, urc1,
- uzf0, uzf1, uzc0, uzc1]
+[Ts0, Ts1, Tp0, Tp1,
+ urs0, urs1, urp0, urp1,
+ uzs0, uzs1, uzp0, uzp1]
 ```
 
 当前间隙和界面定律为：
 
 ```text
-g = (Rc + urc) - (Rf + urf)
+g = (Rp + urp) - (Rs + urs)
 h = gap_conductivity / max(g, minimum_gap)
-q = h * (Tf - Tc)
+q = h * (Ts - Tp)
 p = contact_penalty * max(-g, 0)
 ```
 
-`q>0` 表示热量由燃料流向包壳，`p>0` 表示压缩接触压力。
-`contact_penalty` 的单位为 `Pa/m`。热接触在当前燃料表面
-`2*pi*r*J` 上积分，并把相反热流投影到包壳节点。机械接触以燃料表面节点
-为 secondary、包壳线段为 primary；每个燃料节点只有一个有效投影，节点
-反力按当前燃料半边面积集总后，通过包壳线段形函数分配相反反力。两种界面
-残量均离散守恒，投影、面积和界面定律都由 ADlite 线性化。
+`q>0` 表示热量由 secondary 流向 primary，`p>0` 表示压缩接触压力。
+`contact_penalty` 的单位为 `Pa/m`。热接触在当前 secondary 表面
+`2*pi*r*J` 上积分，并把相反热流投影到 primary 节点。每个 secondary
+节点只有一个有效机械投影，节点反力按当前 secondary 半边面积集总后，通过
+primary 线段形函数分配相反反力。两种界面残量均离散守恒，投影、面积和
+界面定律都由 ADlite 线性化。
 
 默认燃料高度为 `10.000 mm`，包壳高度为 `10.020 mm`。顶部额外的
 `20 um` 轴向裕量用于防止燃料热膨胀后越过包壳接触面。
@@ -210,6 +210,7 @@ q = yield_old + H*delta_ep               coupled active branch
 CTest 覆盖：
 
 - 严格输入语法、物理问题调度、未知键和本构条件字段拒绝；
+- 单区域、三层区域和两对 `primary/secondary` 接触的自由组合；
 - 稳态与瞬态输入卡读取 MOOSE Exodus 网格的端到端求解；
 - RZ 体积积分、形函数和梯度恒等式；
 - 体单元 AD Jacobian 与中心差分方向导数；

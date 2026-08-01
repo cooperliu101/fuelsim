@@ -40,14 +40,66 @@ const InputEntry& required_entry(const InputDocument& document,
     return *entry;
 }
 
-void validate_sections(const InputDocument& document,
-                       const std::vector<std::string>& allowed) {
+const InputSection* find_section(const InputDocument& document,
+                                 const std::string& path) {
+    const auto found =
+        std::find_if(document.sections().begin(), document.sections().end(),
+                     [&path](const InputSection& section) {
+                         return section.path() == path;
+                     });
+    return found == document.sections().end() ? nullptr : &*found;
+}
+
+std::vector<const InputSection*> direct_children(const InputDocument& document,
+                                                 const std::string& parent) {
+    std::vector<const InputSection*> result;
+    const std::string prefix = parent + "/";
     for (const InputSection& section : document.sections()) {
-        if (std::find(allowed.begin(), allowed.end(), section.path()) ==
-            allowed.end())
-            throw std::invalid_argument(
-                document.source_path() + ":" + std::to_string(section.line()) +
-                ": unknown section [" + section.path() + "]");
+        if (section.path().compare(0, prefix.size(), prefix) != 0)
+            continue;
+        const std::string suffix = section.path().substr(prefix.size());
+        if (suffix.find('/') == std::string::npos)
+            result.push_back(&section);
+    }
+    return result;
+}
+
+std::string leaf_name(const InputSection& section) {
+    const std::size_t separator = section.path().find_last_of('/');
+    return separator == std::string::npos
+               ? section.path()
+               : section.path().substr(separator + 1);
+}
+
+void validate_sections(const InputDocument& document) {
+    const std::vector<std::string> fixed = {
+        "Case",        "Mesh",   "Regions", "Contact", "BoundaryConditions",
+        "Executioner", "Solver", "Outputs"};
+    for (const InputSection& section : document.sections()) {
+        if (std::find(fixed.begin(), fixed.end(), section.path()) !=
+            fixed.end())
+            continue;
+        const std::string& path = section.path();
+        const bool region = path.compare(0, 8, "Regions/") == 0 &&
+                            path.find('/', 8) == std::string::npos;
+        const bool boundary = path.compare(0, 19, "BoundaryConditions/") == 0 &&
+                              path.find('/', 19) == std::string::npos;
+        bool contact = false;
+        if (path.compare(0, 8, "Contact/") == 0) {
+            const std::string suffix = path.substr(8);
+            const std::size_t separator = suffix.find('/');
+            contact = separator == std::string::npos;
+            if (separator != std::string::npos) {
+                const std::string child = suffix.substr(separator + 1);
+                contact =
+                    suffix.find('/', separator + 1) == std::string::npos &&
+                    (child == "thermal" || child == "mechanical");
+            }
+        }
+        if (!region && !boundary && !contact)
+            throw std::invalid_argument(document.source_path() + ":" +
+                                        std::to_string(section.line()) +
+                                        ": unknown section [" + path + "]");
     }
 }
 
@@ -118,14 +170,11 @@ int read_optional_int(const InputDocument& document,
     const InputEntry* entry = find_entry(section, key);
     if (entry == nullptr)
         return fallback;
-    if (!entry->value.empty() && entry->value.front() == '-')
-        value_error(document, *entry,
-                    "key '" + key + "' requires a nonnegative integer value");
-    const std::size_t value = parse_size(document, *entry);
-    if (value > static_cast<std::size_t>(std::numeric_limits<int>::max()))
+    const std::size_t result = parse_size(document, *entry);
+    if (result > static_cast<std::size_t>(std::numeric_limits<int>::max()))
         value_error(document, *entry,
                     "key '" + key + "' is outside the supported range");
-    return static_cast<int>(value);
+    return static_cast<int>(result);
 }
 
 bool read_optional_bool(const InputDocument& document,
@@ -150,12 +199,11 @@ std::string read_optional_string(const InputSection& section,
 }
 
 void forbid_key(const InputDocument& document, const InputSection& section,
-                const std::string& key, const std::string& model) {
+                const std::string& key, const std::string& context) {
     const InputEntry* entry = find_entry(section, key);
     if (entry != nullptr)
         value_error(document, *entry,
-                    "key '" + key + "' is not valid for inelastic_model='" +
-                        model + "'");
+                    "key '" + key + "' is not valid for " + context);
 }
 
 ThermoelasticProperties read_thermoelastic(const InputDocument& document,
@@ -176,70 +224,56 @@ TransientInelasticProperties read_transient(const InputDocument& document,
     InelasticBehavior behavior = InelasticBehavior::elastic;
     NortonCreepProperties creep{0.0, 1.0, 1.0};
     J2PlasticityProperties plasticity{1.0, 0.0};
-
     if (model == "elastic") {
-        forbid_key(document, section, "creep_coefficient", model);
-        forbid_key(document, section, "creep_reference_stress", model);
-        forbid_key(document, section, "creep_exponent", model);
-        forbid_key(document, section, "yield_stress", model);
-        forbid_key(document, section, "hardening_modulus", model);
+        forbid_key(document, section, "creep_coefficient",
+                   "inelastic_model='elastic'");
+        forbid_key(document, section, "creep_reference_stress",
+                   "inelastic_model='elastic'");
+        forbid_key(document, section, "creep_exponent",
+                   "inelastic_model='elastic'");
+        forbid_key(document, section, "yield_stress",
+                   "inelastic_model='elastic'");
+        forbid_key(document, section, "hardening_modulus",
+                   "inelastic_model='elastic'");
     } else if (model == "norton_creep") {
         behavior = InelasticBehavior::norton_creep;
-        creep = {
-            read_double(document, section, "creep_coefficient"),
-            read_double(document, section, "creep_reference_stress"),
-            read_double(document, section, "creep_exponent"),
-        };
+        creep = {read_double(document, section, "creep_coefficient"),
+                 read_double(document, section, "creep_reference_stress"),
+                 read_double(document, section, "creep_exponent")};
         forbid_key(document, section, "yield_stress", model);
         forbid_key(document, section, "hardening_modulus", model);
     } else if (model == "j2_plasticity") {
         behavior = InelasticBehavior::j2_plasticity;
-        plasticity = {
-            read_double(document, section, "yield_stress"),
-            read_double(document, section, "hardening_modulus"),
-        };
+        plasticity = {read_double(document, section, "yield_stress"),
+                      read_double(document, section, "hardening_modulus")};
         forbid_key(document, section, "creep_coefficient", model);
         forbid_key(document, section, "creep_reference_stress", model);
         forbid_key(document, section, "creep_exponent", model);
     } else if (model == "norton_creep_j2_plasticity") {
         behavior = InelasticBehavior::norton_creep_j2_plasticity;
-        creep = {
-            read_double(document, section, "creep_coefficient"),
-            read_double(document, section, "creep_reference_stress"),
-            read_double(document, section, "creep_exponent"),
-        };
-        plasticity = {
-            read_double(document, section, "yield_stress"),
-            read_double(document, section, "hardening_modulus"),
-        };
+        creep = {read_double(document, section, "creep_coefficient"),
+                 read_double(document, section, "creep_reference_stress"),
+                 read_double(document, section, "creep_exponent")};
+        plasticity = {read_double(document, section, "yield_stress"),
+                      read_double(document, section, "hardening_modulus")};
     } else {
         value_error(document,
                     required_entry(document, section, "inelastic_model"),
                     "unknown inelastic_model '" + model + "'");
     }
-
-    return {
-        read_double(document, section, "density"),
-        read_double(document, section, "specific_heat"),
-        behavior,
-        creep,
-        plasticity,
-    };
+    return {read_double(document, section, "density"),
+            read_double(document, section, "specific_heat"), behavior, creep,
+            plasticity};
 }
 
-MeshRegionInput read_region(const InputDocument& document,
-                            const InputSection& section) {
-    validate_keys(document, section,
-                  {"block", "radial_inner", "radial_outer", "bottom", "top"});
-    return {
-        read_string(document, section, "block"),
-        {
-            read_string(document, section, "radial_inner"),
-            read_string(document, section, "radial_outer"),
-            read_string(document, section, "bottom"),
-            read_string(document, section, "top"),
-        },
-    };
+Field parse_field(const InputDocument& document, const InputEntry& entry) {
+    if (entry.value == "temperature")
+        return Field::temperature;
+    if (entry.value == "radial_displacement")
+        return Field::radial_displacement;
+    if (entry.value == "axial_displacement")
+        return Field::axial_displacement;
+    value_error(document, entry, "unknown field '" + entry.value + "'");
 }
 
 std::string resolved_path(const std::string& input_path,
@@ -247,54 +281,130 @@ std::string resolved_path(const std::string& input_path,
     const std::filesystem::path configured(configured_path);
     if (configured.is_absolute())
         return configured.lexically_normal().string();
-    const std::filesystem::path parent =
-        std::filesystem::absolute(input_path).parent_path();
-    return (parent / configured).lexically_normal().string();
+    return (std::filesystem::absolute(input_path).parent_path() / configured)
+        .lexically_normal()
+        .string();
+}
+
+CaseRegionDefinition read_region(const InputDocument& document,
+                                 const InputSection& section,
+                                 CaseProblem problem) {
+    std::vector<std::string> keys = {
+        "block",
+        "conductivity_inverse_temperature",
+        "conductivity_constant",
+        "young_modulus",
+        "poisson_ratio",
+        "thermal_expansion",
+        "reference_temperature",
+        "initial_temperature",
+        "volumetric_heat_source",
+    };
+    if (problem == CaseProblem::transient) {
+        keys.insert(keys.end(),
+                    {"density", "specific_heat", "inelastic_model",
+                     "creep_coefficient", "creep_reference_stress",
+                     "creep_exponent", "yield_stress", "hardening_modulus"});
+    }
+    validate_keys(document, section, keys);
+    CaseRegionDefinition result{};
+    result.spatial = {leaf_name(section),
+                      read_string(document, section, "block"),
+                      read_thermoelastic(document, section),
+                      read_double(document, section, "volumetric_heat_source"),
+                      read_double(document, section, "initial_temperature")};
+    if (problem == CaseProblem::transient)
+        result.transient_material = read_transient(document, section);
+    return result;
+}
+
+ContactDefinition read_contact(const InputDocument& document,
+                               const InputSection& section) {
+    validate_keys(document, section, {"primary", "secondary"});
+    const std::string base = section.path();
+    const InputSection* thermal = find_section(document, base + "/thermal");
+    const InputSection* mechanical =
+        find_section(document, base + "/mechanical");
+    if (thermal == nullptr && mechanical == nullptr)
+        throw std::invalid_argument(
+            document.source_path() + ":" + std::to_string(section.line()) +
+            ": contact [" + base + "] requires [thermal] or [mechanical]");
+    ContactDefinition result{leaf_name(section),
+                             read_string(document, section, "primary"),
+                             read_string(document, section, "secondary"),
+                             thermal != nullptr,
+                             mechanical != nullptr,
+                             1.0,
+                             1.0,
+                             1.0};
+    if (thermal != nullptr) {
+        validate_keys(document, *thermal, {"gap_conductivity", "minimum_gap"});
+        result.gap_conductivity =
+            read_double(document, *thermal, "gap_conductivity");
+        result.minimum_gap = read_double(document, *thermal, "minimum_gap");
+    }
+    if (mechanical != nullptr) {
+        validate_keys(document, *mechanical, {"formulation", "penalty"});
+        const std::string formulation =
+            read_string(document, *mechanical, "formulation");
+        if (formulation != "penalty")
+            value_error(document, mechanical->entry("formulation"),
+                        "only mechanical formulation 'penalty' is supported");
+        result.penalty = read_double(document, *mechanical, "penalty");
+    }
+    return result;
+}
+
+BoundaryConditionDefinition
+read_boundary_condition(const InputDocument& document,
+                        const InputSection& section) {
+    validate_keys(document, section, {"type", "boundary", "field", "value"});
+    const std::string type = read_string(document, section, "type");
+    if (type == "dirichlet") {
+        return {
+            leaf_name(section), BoundaryConditionType::dirichlet,
+            read_string(document, section, "boundary"),
+            parse_field(document, required_entry(document, section, "field")),
+            read_double(document, section, "value")};
+    }
+    if (type == "pressure") {
+        forbid_key(document, section, "field", "type='pressure'");
+        return {leaf_name(section), BoundaryConditionType::pressure,
+                read_string(document, section, "boundary"),
+                Field::radial_displacement,
+                read_double(document, section, "value")};
+    }
+    value_error(document, section.entry("type"),
+                "unknown boundary-condition type '" + type + "'");
 }
 
 } // namespace
 
-SteadyFuelCladdingParameters FuelSimCaseDefinition::steady_parameters(
-    const StructuredRzMesh& fuel_mesh,
-    const StructuredRzMesh& cladding_mesh) const {
-    return {
-        fuel_mesh.outer_radius(),
-        cladding_mesh.inner_radius(),
-        cladding_mesh.outer_radius(),
-        fuel_mesh.length(),
-        cladding_mesh.length(),
-        fuel_mesh.radial_elements(),
-        cladding_mesh.radial_elements(),
-        fuel_mesh.axial_elements(),
-        fuel_thermoelastic,
-        cladding_thermoelastic,
-        physics.final_heat_source,
-        physics.outer_temperature,
-        physics.initial_temperature,
-        physics.gap_conductivity,
-        physics.minimum_gap,
-        physics.contact_penalty,
-    };
+SteadyProblemDefinition FuelSimCaseDefinition::steady_definition() const {
+    SteadyProblemDefinition result;
+    result.contacts = contacts;
+    result.boundary_conditions = boundary_conditions;
+    result.regions.reserve(regions.size());
+    for (const CaseRegionDefinition& region : regions)
+        result.regions.push_back(region.spatial);
+    return result;
 }
 
-TransientFuelCladdingParameters FuelSimCaseDefinition::transient_parameters(
-    const StructuredRzMesh& fuel_mesh,
-    const StructuredRzMesh& cladding_mesh) const {
-    return {
-        steady_parameters(fuel_mesh, cladding_mesh),
-        fuel_transient,
-        cladding_transient,
-    };
+TransientProblemDefinition FuelSimCaseDefinition::transient_definition() const {
+    TransientProblemDefinition result;
+    result.spatial = steady_definition();
+    result.regions.reserve(regions.size());
+    for (const CaseRegionDefinition& region : regions)
+        result.regions.push_back(
+            {region.spatial.name, region.transient_material});
+    return result;
 }
 
 FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
     const InputDocument document = InputParser::parse_file(path);
-    validate_sections(document,
-                      {"Case", "Mesh", "Mesh/fuel", "Mesh/cladding",
-                       "Materials", "Materials/fuel", "Materials/cladding",
-                       "Physics", "Executioner", "Solver", "Outputs"});
-
+    validate_sections(document);
     FuelSimCaseDefinition result{};
+
     const InputSection& case_section = document.section("Case");
     validate_keys(document, case_section, {"version", "problem"});
     const std::size_t version = read_size(document, case_section, "version");
@@ -304,79 +414,51 @@ FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
                         std::to_string(version) + "'");
     result.version = 1;
     const std::string problem = read_string(document, case_section, "problem");
-    if (problem == "steady_fuel_cladding")
-        result.problem = CaseProblem::steady_fuel_cladding;
-    else if (problem == "transient_fuel_cladding")
-        result.problem = CaseProblem::transient_fuel_cladding;
+    if (problem == "steady")
+        result.problem = CaseProblem::steady;
+    else if (problem == "transient")
+        result.problem = CaseProblem::transient;
     else
         value_error(document, case_section.entry("problem"),
                     "unknown problem '" + problem + "'");
 
-    const InputSection& mesh_section = document.section("Mesh");
-    validate_keys(document, mesh_section, {"type", "file"});
-    const std::string mesh_type = read_string(document, mesh_section, "type");
-    if (mesh_type != "exodus")
-        value_error(document, mesh_section.entry("type"),
+    const InputSection& mesh = document.section("Mesh");
+    validate_keys(document, mesh, {"type", "file"});
+    if (read_string(document, mesh, "type") != "exodus")
+        value_error(document, mesh.entry("type"),
                     "only mesh type 'exodus' is supported");
-    result.mesh.file =
-        resolved_path(path, read_string(document, mesh_section, "file"));
-    result.mesh.fuel = read_region(document, document.section("Mesh/fuel"));
-    result.mesh.cladding =
-        read_region(document, document.section("Mesh/cladding"));
+    result.mesh_file = resolved_path(path, read_string(document, mesh, "file"));
 
-    const InputSection& materials = document.section("Materials");
-    validate_keys(document, materials, {});
-    const InputSection& fuel_material = document.section("Materials/fuel");
-    const InputSection& cladding_material =
-        document.section("Materials/cladding");
-    const std::vector<std::string> steady_material_keys = {
-        "conductivity_inverse_temperature",
-        "conductivity_constant",
-        "young_modulus",
-        "poisson_ratio",
-        "thermal_expansion",
-        "reference_temperature"};
-    std::vector<std::string> material_keys = steady_material_keys;
-    if (result.problem == CaseProblem::transient_fuel_cladding) {
-        material_keys.insert(material_keys.end(),
-                             {"density", "specific_heat", "inelastic_model",
-                              "creep_coefficient", "creep_reference_stress",
-                              "creep_exponent", "yield_stress",
-                              "hardening_modulus"});
-    }
-    validate_keys(document, fuel_material, material_keys);
-    validate_keys(document, cladding_material, material_keys);
-    result.fuel_thermoelastic = read_thermoelastic(document, fuel_material);
-    result.cladding_thermoelastic =
-        read_thermoelastic(document, cladding_material);
-    if (result.problem == CaseProblem::transient_fuel_cladding) {
-        result.fuel_transient = read_transient(document, fuel_material);
-        result.cladding_transient = read_transient(document, cladding_material);
-    }
+    const InputSection& regions = document.section("Regions");
+    validate_keys(document, regions, {});
+    for (const InputSection* section : direct_children(document, "Regions"))
+        result.regions.push_back(
+            read_region(document, *section, result.problem));
+    if (result.regions.empty())
+        throw std::invalid_argument(path +
+                                    ": [Regions] requires a child region");
 
-    const InputSection& physics = document.section("Physics");
-    validate_keys(document, physics,
-                  {"initial_temperature", "outer_temperature",
-                   "final_heat_source", "heat_source_ramp_time",
-                   "gap_conductivity", "minimum_gap", "contact_penalty"});
-    result.physics = {
-        read_double(document, physics, "initial_temperature"),
-        read_double(document, physics, "outer_temperature"),
-        read_double(document, physics, "final_heat_source"),
-        read_optional_double(document, physics, "heat_source_ramp_time", 0.0),
-        read_double(document, physics, "gap_conductivity"),
-        read_double(document, physics, "minimum_gap"),
-        read_double(document, physics, "contact_penalty"),
-    };
+    const InputSection& contacts = document.section("Contact");
+    validate_keys(document, contacts, {});
+    for (const InputSection* section : direct_children(document, "Contact"))
+        result.contacts.push_back(read_contact(document, *section));
+
+    const InputSection& boundary_conditions =
+        document.section("BoundaryConditions");
+    validate_keys(document, boundary_conditions, {});
+    for (const InputSection* section :
+         direct_children(document, "BoundaryConditions"))
+        result.boundary_conditions.push_back(
+            read_boundary_condition(document, *section));
 
     const InputSection& executioner = document.section("Executioner");
     const std::string executioner_type =
         read_string(document, executioner, "type");
-    if (result.problem == CaseProblem::steady_fuel_cladding) {
+    if (result.problem == CaseProblem::steady) {
         validate_keys(document, executioner, {"type", "load_steps"});
         if (executioner_type != "steady")
             value_error(document, executioner.entry("type"),
-                        "steady_fuel_cladding requires type='steady'");
+                        "problem='steady' requires type='steady'");
         result.steady_execution.load_steps =
             read_size(document, executioner, "load_steps");
         if (result.steady_execution.load_steps == 0)
@@ -386,10 +468,11 @@ FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
         validate_keys(document, executioner,
                       {"type", "end_time", "initial_time_step",
                        "minimum_time_step", "maximum_time_step",
-                       "growth_factor", "cutback_factor", "maximum_cutbacks"});
+                       "growth_factor", "cutback_factor", "maximum_cutbacks",
+                       "heat_source_ramp_time"});
         if (executioner_type != "transient")
             value_error(document, executioner.entry("type"),
-                        "transient_fuel_cladding requires type='transient'");
+                        "problem='transient' requires type='transient'");
         result.transient_execution = {
             read_double(document, executioner, "end_time"),
             read_double(document, executioner, "initial_time_step"),
@@ -398,7 +481,7 @@ FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
             read_double(document, executioner, "growth_factor"),
             read_double(document, executioner, "cutback_factor"),
             read_size(document, executioner, "maximum_cutbacks"),
-        };
+            read_double(document, executioner, "heat_source_ramp_time")};
     }
 
     const InputSection& solver = document.section("Solver");
@@ -409,20 +492,13 @@ FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
         read_optional_double(document, solver, "absolute_tolerance", 1.0e-8),
         read_optional_double(document, solver, "relative_tolerance", 1.0e-10),
         read_optional_double(document, solver, "step_tolerance", 1.0e-12),
-        read_optional_int(document, solver, "maximum_iterations", 40),
-    };
-    if (!(result.solver.absolute_tolerance > 0.0))
-        value_error(document, solver.entry("absolute_tolerance"),
-                    "absolute_tolerance must be positive");
-    if (!(result.solver.relative_tolerance > 0.0))
-        value_error(document, solver.entry("relative_tolerance"),
-                    "relative_tolerance must be positive");
-    if (!(result.solver.step_tolerance > 0.0))
-        value_error(document, solver.entry("step_tolerance"),
-                    "step_tolerance must be positive");
-    if (result.solver.maximum_iterations <= 0)
-        value_error(document, solver.entry("maximum_iterations"),
-                    "maximum_iterations must be positive");
+        read_optional_int(document, solver, "maximum_iterations", 40)};
+    if (!(result.solver.absolute_tolerance > 0.0) ||
+        !(result.solver.relative_tolerance > 0.0) ||
+        !(result.solver.step_tolerance > 0.0) ||
+        result.solver.maximum_iterations <= 0)
+        throw std::invalid_argument(
+            path + ": solver tolerances and iteration limit must be positive");
 
     const InputSection& outputs = document.section("Outputs");
     validate_keys(document, outputs, {"console", "csv"});

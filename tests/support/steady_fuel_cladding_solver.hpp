@@ -4,7 +4,7 @@
 #include <cstddef>
 
 #include "fuelsim/petsc_solver.hpp"
-#include "fuelsim/steady_fuel_cladding_problem.hpp"
+#include "support/steady_fuel_cladding_problem.hpp"
 
 namespace fuelsim {
 

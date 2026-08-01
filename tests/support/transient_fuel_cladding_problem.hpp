@@ -6,7 +6,7 @@
 
 #include "fuelsim/nonlinear_problem.hpp"
 #include "fuelsim/quad4_rz_transient.hpp"
-#include "fuelsim/steady_fuel_cladding_problem.hpp"
+#include "support/steady_fuel_cladding_problem.hpp"
 
 namespace fuelsim {
 

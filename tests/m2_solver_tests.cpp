@@ -2,8 +2,8 @@
 #include "fuelsim/nonlinear_problem.hpp"
 #include "fuelsim/petsc_solver.hpp"
 #include "fuelsim/quad4_rz_transient.hpp"
-#include "fuelsim/transient_fuel_cladding_problem.hpp"
-#include "fuelsim/transient_fuel_cladding_solver.hpp"
+#include "support/transient_fuel_cladding_problem.hpp"
+#include "support/transient_fuel_cladding_solver.hpp"
 
 #include <algorithm>
 #include <cmath>

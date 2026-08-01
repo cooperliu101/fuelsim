@@ -4,16 +4,16 @@
 
 ## 目标与当前范围
 
-`fuelsim` 使用 C++17 开发核燃料性能有限元程序。当前 M1 是串行 2D
-轴对称 RZ 燃料—包壳稳态热弹性求解器：
+`fuelsim` 使用 C++17 开发核燃料性能有限元程序。当前生产入口从一个 Exodus
+文件自由组合任意数量的 2D 轴对称 RZ 区域，并选择稳态或瞬态求解：
 
 ```text
 体单元/界面固定 12 DOF -> ADlite 局部 Jacobian
                        -> PETSc 统一稀疏装配 -> SNES Newton
 ```
 
-M1 使用两个独立的结构化 Quad4 网格、燃料侧 STS 热接触、燃料节点到
-包壳线段的唯一 NTS 机械接触和 field-major 全局自由度：
+接触使用 secondary-side STS 热接触、secondary 节点到 primary 线段的唯一
+NTS 机械接触和 field-major 全局自由度：
 
 ```text
 [T(:), ur(:), uz(:)]
@@ -68,12 +68,14 @@ committed/trial/commit/rollback。M2.2 增加通用 J2 Norton 蠕变、J2
   `MatZeroRows(..., diagonal=1)`。
 - 当前只支持一个 MPI rank，不得把每个 rank 重复装配全模型称为并行。
 - 不隐式夹持异常材料值或几何值；非法结构输入应明确报错。
-- 界面间隙为 `g=(Rc+urc)-(Rf+urf)`；开放为正、穿透为负。
+- 界面间隙为 `g=(Rp+urp)-(Rs+urs)`；primary 在外、secondary 在内，开放为
+  正、穿透为负。
 - 气隙导热为 `h=k_gap/max(g,g_min)`。
 - 法向压力为 `p=penalty*max(-g,0)`，罚参数单位为 `Pa/m`。
-- 热接触在燃料侧当前表面测度上积分，并将相反热流投影到包壳节点。
-- 机械接触采用唯一 NTS 投影；燃料节点反力按当前燃料半边面积集总，并按
-  包壳线段形函数分配相反反力。
+- 热接触在 secondary 当前表面测度上积分，并将相反热流投影到 primary
+  节点。
+- 机械接触采用唯一 NTS 投影；secondary 节点反力按当前半边面积集总，并按
+  primary 线段形函数分配相反反力。
 - 热接触与机械接触都必须离散守恒。
 - 一个 M1 载荷路径只能构造一次问题几何，并在所有载荷步复用同一组
   SNES、Vec、Mat、非零结构和回调缓冲区；载荷步只更新具体热源参数。
@@ -91,24 +93,27 @@ committed/trial/commit/rollback。M2.2 增加通用 J2 Norton 蠕变、J2
   DMPlex，不暴露 Exodus 类型。
 - `fuelsim_petsc`：PETSc 会话、稀疏装配和 SNES 求解。
 - `NonlinearProblem` 只作为求解器端口；不得扩张成 MOOSE 式对象工厂。
-- M1 燃料和包壳节点必须保持独立；默认包壳高度比芯块高 `20 um`，界面通过
-  轴向投影耦合。
+- 所有区域节点必须保持独立；默认 PCMI 包壳高度比芯块高 `20 um`，界面
+  通过轴向投影耦合。
 - 不复制 MOOSE 的对象工厂、继承层次或输入参数系统。
 - 不复制 jax_fuel 的运行时声明式 Kernel 注册系统。
 - 新物理先形成具体、可验证的局部残量，再考虑通用化。
-- 生产问题类型使用有物理含义的 `SteadySingleRegionProblem`、
-  `SteadyFuelCladdingProblem`、`TransientFuelCladdingProblem` 和
-  `TransientFuelCladdingTimeStepper`；M0/M1/M2 只作为路线与回归名称，
-  不得重新引入 `M1Problem`、`M2Problem` 一类生产 API。
-- 瞬态问题使用具体的 `TransientFuelCladdingProblem`、
-  `TransientFuelCladdingTimeStepper` 和 `Quad4RzTransientKernel`；不得把
-  时间状态职责塞入 PETSc 回调。
+- 生产问题类型只保留 `SteadyProblem` 和 `TransientProblem`；M0/M1/M2
+  只作为路线与回归名称。旧的专用问题类只能留在 `tests/support` 中支撑
+  已有回归，不得重新进入公共头文件或生产库。
+- `SteadyProblem` 和 `TransientProblem` 从一个 `UnstructuredQuad4Mesh`
+  选择任意数量的命名块；每个块独立建立区域自由度与材料。
+- Contact 输入只接受 `primary` 和 `secondary` 边集名，不接受主/从 block；
+  所属区域必须由 Exodus 边集相邻单元解析。每个接触对可独立启用热接触、
+  机械接触或两者。
+- 瞬态问题使用 `TransientProblem`、自由函数 `solve_transient` 和
+  `Quad4RzTransientKernel`；不得把时间状态职责塞入 PETSc 回调。
 - 不增加材料工厂或标量泛型层；真实燃料/包壳关联应在通用状态事务稳定后
   作为单独里程碑实现。
 - 除非用户明确要求，不增加旧 API 别名、适配器或兼容层。
-- 用户运行入口固定为 `fuelsim -i <case.fsi>`。输入 v1 使用 SI 单位和严格
-  字段集合，不提供 include、宏、表达式、单位换算、旧键别名或隐式默认问题；
-  网格几何与离散规模必须来自 Exodus 文件。
+- 用户运行入口固定为 `fuelsim -i <case.fsi>`。输入 v1 只接受一个 Exodus
+  文件，使用 SI 单位和严格字段集合，不提供 include、宏、表达式、单位换算、
+  旧键别名或隐式默认问题；网格几何与离散规模必须来自 Exodus 文件。
 
 ## 必须执行的验收
 

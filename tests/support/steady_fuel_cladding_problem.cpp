@@ -1,4 +1,4 @@
-#include "fuelsim/steady_fuel_cladding_problem.hpp"
+#include "support/steady_fuel_cladding_problem.hpp"
 
 #include <algorithm>
 #include <array>
@@ -511,14 +511,14 @@ void SteadyFuelCladdingProblem::build_geometries() {
     _thermal_interface_nodes.reserve(fuel_edges.size());
     _thermal_interface_geometries.reserve(fuel_edges.size());
     for (const Line2BoundaryElement& fuel_edge : fuel_edges) {
-        const Line2InterfaceSideCoordinates fuel_coordinates =
+        const Line2InterfaceSideCoordinates secondary_coordinates =
             edge_coordinates(_fuel_mesh, fuel_edge);
         const double lower_gauss_z =
-            0.5 * (1.0 + gauss) * fuel_coordinates[0].z +
-            0.5 * (1.0 - gauss) * fuel_coordinates[1].z;
+            0.5 * (1.0 + gauss) * secondary_coordinates[0].z +
+            0.5 * (1.0 - gauss) * secondary_coordinates[1].z;
         const double upper_gauss_z =
-            0.5 * (1.0 - gauss) * fuel_coordinates[0].z +
-            0.5 * (1.0 + gauss) * fuel_coordinates[1].z;
+            0.5 * (1.0 - gauss) * secondary_coordinates[0].z +
+            0.5 * (1.0 + gauss) * secondary_coordinates[1].z;
         const std::size_t lower_segment = find_containing_segment(
             lower_gauss_z, _cladding_mesh, cladding_edges);
         const std::size_t upper_segment = find_containing_segment(
@@ -530,7 +530,7 @@ void SteadyFuelCladdingProblem::build_geometries() {
 
         const Line2BoundaryElement& cladding_edge =
             cladding_edges[lower_segment];
-        const Line2InterfaceSideCoordinates cladding_coordinates =
+        const Line2InterfaceSideCoordinates primary_coordinates =
             edge_coordinates(_cladding_mesh, cladding_edge);
         _thermal_interface_nodes.push_back({
             fuel_global_node(fuel_edge.nodes[0]),
@@ -539,18 +539,18 @@ void SteadyFuelCladdingProblem::build_geometries() {
             cladding_global_node(cladding_edge.nodes[1]),
         });
         _thermal_interface_geometries.push_back(make_line2_rz_heat_geometry(
-            fuel_coordinates, cladding_coordinates));
+            secondary_coordinates, primary_coordinates));
     }
 
     for (std::size_t fuel_edge_index = 0; fuel_edge_index < fuel_edges.size();
          ++fuel_edge_index) {
         const Line2BoundaryElement& fuel_edge = fuel_edges[fuel_edge_index];
-        const Line2InterfaceSideCoordinates fuel_coordinates =
+        const Line2InterfaceSideCoordinates secondary_coordinates =
             edge_coordinates(_fuel_mesh, fuel_edge);
 
         for (std::size_t secondary = 0;
              secondary < line2_interface_side_node_count; ++secondary) {
-            const double secondary_z = fuel_coordinates[secondary].z;
+            const double secondary_z = secondary_coordinates[secondary].z;
             const std::size_t containing = find_containing_segment(
                 secondary_z, _cladding_mesh, cladding_edges);
             const std::size_t first_candidate =
@@ -562,7 +562,7 @@ void SteadyFuelCladdingProblem::build_geometries() {
                  candidate <= last_candidate; ++candidate) {
                 const Line2BoundaryElement& cladding_edge =
                     cladding_edges[candidate];
-                const Line2InterfaceSideCoordinates cladding_coordinates =
+                const Line2InterfaceSideCoordinates primary_coordinates =
                     edge_coordinates(_cladding_mesh, cladding_edge);
                 _contact_contribution_nodes.push_back({
                     fuel_global_node(fuel_edge.nodes[0]),
@@ -572,7 +572,7 @@ void SteadyFuelCladdingProblem::build_geometries() {
                 });
                 _contact_geometries.push_back(
                     make_node_to_line_rz_contact_geometry(
-                        fuel_coordinates, cladding_coordinates, secondary,
+                        secondary_coordinates, primary_coordinates, secondary,
                         candidate + 1 == cladding_edges.size()));
                 _contact_secondary_axial_indices.push_back(fuel_edge_index +
                                                            secondary);

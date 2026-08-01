@@ -17,15 +17,15 @@ using Line2InterfaceSideCoordinates =
     std::array<RzPoint, line2_interface_side_node_count>;
 
 struct Line2RzHeatQuadraturePoint final {
-    std::array<double, line2_interface_side_node_count> fuel_shape;
-    std::array<double, line2_interface_side_node_count> cladding_shape;
-    double fuel_reference_radius;
-    double cladding_reference_radius;
+    std::array<double, line2_interface_side_node_count> secondary_shape;
+    std::array<double, line2_interface_side_node_count> primary_shape;
+    double secondary_reference_radius;
+    double primary_reference_radius;
 };
 
 struct Line2RzHeatGeometry final {
-    Line2InterfaceSideCoordinates fuel_coordinates;
-    Line2InterfaceSideCoordinates cladding_coordinates;
+    Line2InterfaceSideCoordinates secondary_coordinates;
+    Line2InterfaceSideCoordinates primary_coordinates;
     std::array<Line2RzHeatQuadraturePoint,
                line2_interface_quadrature_point_count>
         points;
@@ -38,7 +38,7 @@ struct GapHeatProperties final {
 
 struct HeatQuadratureValue final {
     double gap;
-    // Positive heat flux transfers energy from fuel to cladding.
+    // Positive heat flux transfers energy from secondary to primary.
     double heat_flux;
     double weighted_measure;
 };
@@ -47,8 +47,8 @@ using HeatQuadratureValues =
     std::array<HeatQuadratureValue, line2_interface_quadrature_point_count>;
 
 Line2RzHeatGeometry make_line2_rz_heat_geometry(
-    const Line2InterfaceSideCoordinates& fuel_coordinates,
-    const Line2InterfaceSideCoordinates& cladding_coordinates);
+    const Line2InterfaceSideCoordinates& secondary_coordinates,
+    const Line2InterfaceSideCoordinates& primary_coordinates);
 
 class Line2RzGapHeatKernel final {
   public:
@@ -57,8 +57,8 @@ class Line2RzGapHeatKernel final {
     const GapHeatProperties& properties() const noexcept;
 
     // Fixed ordering:
-    // [Tf0, Tf1, Tc0, Tc1, urf0, urf1, urc0, urc1,
-    //  uzf0, uzf1, uzc0, uzc1].
+    // [Ts0, Ts1, Tp0, Tp1, urs0, urs1, urp0, urp1,
+    //  uzs0, uzs1, uzp0, uzp1].
     LocalResidual residual(const Line2RzHeatGeometry& geometry,
                            const LocalValues& state) const;
     LocalSystem linearize(const Line2RzHeatGeometry& geometry,
@@ -74,10 +74,10 @@ class Line2RzGapHeatKernel final {
 };
 
 struct NodeToLineRzContactGeometry final {
-    Line2InterfaceSideCoordinates fuel_edge_coordinates;
-    Line2InterfaceSideCoordinates cladding_segment_coordinates;
+    Line2InterfaceSideCoordinates secondary_edge_coordinates;
+    Line2InterfaceSideCoordinates primary_segment_coordinates;
     std::size_t secondary_local_node;
-    bool cladding_segment_includes_upper_endpoint;
+    bool primary_segment_includes_upper_endpoint;
 };
 
 struct NormalContactProperties final {
@@ -95,10 +95,10 @@ struct ContactPointValue final {
 };
 
 NodeToLineRzContactGeometry make_node_to_line_rz_contact_geometry(
-    const Line2InterfaceSideCoordinates& fuel_edge_coordinates,
-    const Line2InterfaceSideCoordinates& cladding_segment_coordinates,
+    const Line2InterfaceSideCoordinates& secondary_edge_coordinates,
+    const Line2InterfaceSideCoordinates& primary_segment_coordinates,
     std::size_t secondary_local_node,
-    bool cladding_segment_includes_upper_endpoint);
+    bool primary_segment_includes_upper_endpoint);
 
 class NodeToLineRzContactKernel final {
   public:
@@ -107,7 +107,8 @@ class NodeToLineRzContactKernel final {
     const NormalContactProperties& properties() const noexcept;
 
     // The local ordering is identical to Line2RzGapHeatKernel. Only the
-    // selected fuel node and the two cladding nodes receive radial residuals.
+    // selected secondary node and the two primary nodes receive radial
+    // residuals.
     LocalResidual residual(const NodeToLineRzContactGeometry& geometry,
                            const LocalValues& state) const;
     LocalSystem linearize(const NodeToLineRzContactGeometry& geometry,

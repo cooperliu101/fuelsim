@@ -1,8 +1,8 @@
 #include "fuelsim/exodus_mesh_io.hpp"
 #include "fuelsim/petsc_solver.hpp"
-#include "fuelsim/steady_fuel_cladding_problem.hpp"
-#include "fuelsim/steady_fuel_cladding_solver.hpp"
-#include "fuelsim/steady_single_region_problem.hpp"
+#include "support/steady_fuel_cladding_problem.hpp"
+#include "support/steady_fuel_cladding_solver.hpp"
+#include "support/steady_single_region_problem.hpp"
 
 #include <algorithm>
 #include <array>

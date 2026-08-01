@@ -1,5 +1,5 @@
 #include "fuelsim/petsc_solver.hpp"
-#include "fuelsim/steady_fuel_cladding_solver.hpp"
+#include "support/steady_fuel_cladding_solver.hpp"
 
 #include <cstddef>
 #include <exception>

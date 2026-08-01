@@ -1,41 +1,24 @@
 #ifndef FUELSIM_CASE_INPUT_HPP
 #define FUELSIM_CASE_INPUT_HPP
 
-#include "fuelsim/inelastic_material.hpp"
 #include "fuelsim/input_file.hpp"
-#include "fuelsim/mesh.hpp"
-#include "fuelsim/steady_fuel_cladding_problem.hpp"
-#include "fuelsim/transient_fuel_cladding_problem.hpp"
+#include "fuelsim/steady_problem.hpp"
+#include "fuelsim/transient_problem.hpp"
 
 #include <cstddef>
 #include <string>
+#include <vector>
 
 namespace fuelsim {
 
 enum class CaseProblem {
-    steady_fuel_cladding,
-    transient_fuel_cladding,
+    steady,
+    transient,
 };
 
-struct MeshRegionInput final {
-    std::string block;
-    RzBoundaryNames boundaries;
-};
-
-struct FuelCladdingMeshInput final {
-    std::string file;
-    MeshRegionInput fuel;
-    MeshRegionInput cladding;
-};
-
-struct FuelCladdingPhysicsInput final {
-    double initial_temperature;
-    double outer_temperature;
-    double final_heat_source;
-    double heat_source_ramp_time;
-    double gap_conductivity;
-    double minimum_gap;
-    double contact_penalty;
+struct CaseRegionDefinition final {
+    RegionDefinition spatial;
+    TransientInelasticProperties transient_material;
 };
 
 struct SteadyExecutionInput final {
@@ -50,6 +33,7 @@ struct TransientExecutionInput final {
     double growth_factor;
     double cutback_factor;
     std::size_t maximum_cutbacks;
+    double heat_source_ramp_time;
 };
 
 struct NonlinearSolverInput final {
@@ -67,23 +51,17 @@ struct CaseOutputInput final {
 struct FuelSimCaseDefinition final {
     int version;
     CaseProblem problem;
-    FuelCladdingMeshInput mesh;
-    ThermoelasticProperties fuel_thermoelastic;
-    ThermoelasticProperties cladding_thermoelastic;
-    TransientInelasticProperties fuel_transient;
-    TransientInelasticProperties cladding_transient;
-    FuelCladdingPhysicsInput physics;
+    std::string mesh_file;
+    std::vector<CaseRegionDefinition> regions;
+    std::vector<ContactDefinition> contacts;
+    std::vector<BoundaryConditionDefinition> boundary_conditions;
     SteadyExecutionInput steady_execution;
     TransientExecutionInput transient_execution;
     NonlinearSolverInput solver;
     CaseOutputInput outputs;
 
-    SteadyFuelCladdingParameters
-    steady_parameters(const StructuredRzMesh& fuel_mesh,
-                      const StructuredRzMesh& cladding_mesh) const;
-    TransientFuelCladdingParameters
-    transient_parameters(const StructuredRzMesh& fuel_mesh,
-                         const StructuredRzMesh& cladding_mesh) const;
+    SteadyProblemDefinition steady_definition() const;
+    TransientProblemDefinition transient_definition() const;
 };
 
 class CaseInputReader final {

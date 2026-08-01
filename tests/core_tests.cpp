@@ -3,7 +3,7 @@
 #include "fuelsim/material.hpp"
 #include "fuelsim/mesh.hpp"
 #include "fuelsim/quad4_rz.hpp"
-#include "fuelsim/steady_fuel_cladding_problem.hpp"
+#include "support/steady_fuel_cladding_problem.hpp"
 
 #include <algorithm>
 #include <array>

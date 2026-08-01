@@ -44,12 +44,11 @@ add_library(fuelsim_core
     src/dof_map.cpp
     src/inelastic_material.cpp
     src/interface.cpp
-    src/steady_fuel_cladding_problem.cpp
-    src/transient_fuel_cladding_problem.cpp
+    src/steady_problem.cpp
+    src/transient_problem.cpp
     src/material.cpp
     src/mesh.cpp
     src/nonlinear_problem.cpp
-    src/steady_single_region_problem.cpp
     src/quad4_rz.cpp
     src/quad4_rz_transient.cpp
 )
@@ -91,8 +90,7 @@ target_link_libraries(fuelsim_input PUBLIC fuelsim::core)
 fuelsim_enable_warnings(fuelsim_input)
 
 add_library(fuelsim_petsc
-    src/steady_fuel_cladding_solver.cpp
-    src/transient_fuel_cladding_solver.cpp
+    src/problem_solver.cpp
     src/petsc_solver.cpp
 )
 add_library(fuelsim::petsc ALIAS fuelsim_petsc)
@@ -113,15 +111,32 @@ target_link_libraries(fuelsim
 )
 fuelsim_enable_warnings(fuelsim)
 
-add_executable(fuelsim_m1_single_core_benchmark
-    benchmarks/m1_single_core.cpp
-)
-target_link_libraries(fuelsim_m1_single_core_benchmark PRIVATE fuelsim::petsc)
-fuelsim_enable_warnings(fuelsim_m1_single_core_benchmark)
-
 include(CTest)
 
 if(BUILD_TESTING)
+    add_library(fuelsim_test_support
+        tests/support/steady_single_region_problem.cpp
+        tests/support/steady_fuel_cladding_problem.cpp
+        tests/support/steady_fuel_cladding_solver.cpp
+        tests/support/transient_fuel_cladding_problem.cpp
+        tests/support/transient_fuel_cladding_solver.cpp
+    )
+    target_include_directories(fuelsim_test_support
+        PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/tests"
+    )
+    target_link_libraries(fuelsim_test_support
+        PUBLIC fuelsim::core fuelsim::petsc
+    )
+    fuelsim_enable_warnings(fuelsim_test_support)
+
+    add_executable(fuelsim_m1_single_core_benchmark
+        benchmarks/m1_single_core.cpp
+    )
+    target_link_libraries(fuelsim_m1_single_core_benchmark
+        PRIVATE fuelsim_test_support
+    )
+    fuelsim_enable_warnings(fuelsim_m1_single_core_benchmark)
+
     add_executable(fuelsim_input_tests tests/input_tests.cpp)
     target_link_libraries(fuelsim_input_tests PRIVATE fuelsim::input)
     fuelsim_enable_warnings(fuelsim_input_tests)
@@ -152,7 +167,7 @@ if(BUILD_TESTING)
         tests/m1_exodus_moose_tests.cpp
     )
     target_link_libraries(fuelsim_m1_exodus_moose_tests
-        PRIVATE fuelsim::exodus fuelsim::petsc
+        PRIVATE fuelsim_test_support fuelsim::exodus
     )
     fuelsim_enable_warnings(fuelsim_m1_exodus_moose_tests)
     add_test(NAME fuelsim_m1_exodus_moose_tests
@@ -164,20 +179,26 @@ if(BUILD_TESTING)
     )
 
     add_executable(fuelsim_core_tests tests/core_tests.cpp)
-    target_link_libraries(fuelsim_core_tests PRIVATE fuelsim::core)
+    target_link_libraries(fuelsim_core_tests PRIVATE fuelsim_test_support)
     fuelsim_enable_warnings(fuelsim_core_tests)
     add_test(NAME fuelsim_core_tests COMMAND fuelsim_core_tests)
     set_tests_properties(fuelsim_core_tests PROPERTIES LABELS "unit")
 
+    add_executable(fuelsim_multi_region_tests tests/multi_region_tests.cpp)
+    target_link_libraries(fuelsim_multi_region_tests PRIVATE fuelsim::core)
+    fuelsim_enable_warnings(fuelsim_multi_region_tests)
+    add_test(NAME fuelsim_multi_region_tests COMMAND fuelsim_multi_region_tests)
+    set_tests_properties(fuelsim_multi_region_tests PROPERTIES LABELS "unit")
+
     add_executable(fuelsim_m2_core_tests tests/m2_core_tests.cpp)
-    target_link_libraries(fuelsim_m2_core_tests PRIVATE fuelsim::core)
+    target_link_libraries(fuelsim_m2_core_tests PRIVATE fuelsim_test_support)
     fuelsim_enable_warnings(fuelsim_m2_core_tests)
     add_test(NAME fuelsim_m2_core_tests COMMAND fuelsim_m2_core_tests)
     set_tests_properties(fuelsim_m2_core_tests PROPERTIES LABELS "unit")
 
     add_executable(fuelsim_solver_tests tests/solver_tests.cpp)
     target_link_libraries(fuelsim_solver_tests
-        PRIVATE fuelsim::exodus fuelsim::petsc
+        PRIVATE fuelsim_test_support fuelsim::exodus
     )
     fuelsim_enable_warnings(fuelsim_solver_tests)
     add_test(NAME fuelsim_solver_tests
@@ -189,7 +210,7 @@ if(BUILD_TESTING)
 
     add_executable(fuelsim_m2_solver_tests tests/m2_solver_tests.cpp)
     target_link_libraries(fuelsim_m2_solver_tests
-        PRIVATE fuelsim::exodus fuelsim::petsc
+        PRIVATE fuelsim_test_support fuelsim::exodus
     )
     fuelsim_enable_warnings(fuelsim_m2_solver_tests)
     add_test(NAME fuelsim_m2_solver_tests
@@ -220,7 +241,7 @@ if(BUILD_TESTING)
         tests/m2_pcmi_solver_tests.cpp
     )
     target_link_libraries(fuelsim_m2_pcmi_solver_tests
-        PRIVATE fuelsim::exodus fuelsim::petsc
+        PRIVATE fuelsim_test_support fuelsim::exodus
     )
     fuelsim_enable_warnings(fuelsim_m2_pcmi_solver_tests)
     add_test(NAME fuelsim_m2_pcmi_solver_tests

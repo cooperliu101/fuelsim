@@ -199,6 +199,28 @@ const SideSet& UnstructuredQuad4Mesh::side_set(const std::string& name) const {
     return *set;
 }
 
+std::int64_t
+UnstructuredQuad4Mesh::side_set_block_id(const std::string& name) const {
+    const SideSet& set = side_set(name);
+    if (set.sides.empty())
+        throw std::invalid_argument("Side set is empty: " + name);
+    const std::int64_t block_id =
+        _element_block_ids.at(set.sides.front().element);
+    for (const ElementSide& side : set.sides) {
+        if (_element_block_ids.at(side.element) != block_id)
+            throw std::invalid_argument("Side set crosses element blocks: " +
+                                        name);
+    }
+    return block_id;
+}
+
+StructuredRzMesh
+StructuredRzMesh::from_unstructured_block(const UnstructuredQuad4Mesh& source,
+                                          const std::string& block_name) {
+    return from_unstructured_block(source, source.element_block(block_name).id,
+                                   {});
+}
+
 StructuredRzMesh StructuredRzMesh::from_unstructured_block(
     const UnstructuredQuad4Mesh& source, const std::string& block_name,
     const RzBoundaryNames& boundary_names) {
@@ -326,10 +348,23 @@ StructuredRzMesh StructuredRzMesh::from_unstructured_block(
 
     const auto map_boundary = [&](const std::string& name, bool sort_by_axial,
                                   double fixed_coordinate, bool check_radial) {
-        const NodeSet& source_set = source.node_set(name);
         std::vector<std::size_t> local_nodes;
-        local_nodes.reserve(source_set.nodes.size());
-        for (const std::size_t source_node : source_set.nodes) {
+        std::vector<std::size_t> source_nodes;
+        if (name.empty()) {
+            for (std::size_t source_node = 0;
+                 source_node < source.nodes().size(); ++source_node) {
+                if (!used_nodes[source_node])
+                    continue;
+                const RzPoint& point = source.nodes()[source_node];
+                const double coordinate = check_radial ? point.r : point.z;
+                if (same_coordinate(coordinate, fixed_coordinate))
+                    source_nodes.push_back(source_node);
+            }
+        } else {
+            source_nodes = source.node_set(name).nodes;
+        }
+        local_nodes.reserve(source_nodes.size());
+        for (const std::size_t source_node : source_nodes) {
             const std::size_t local = source_to_local.at(source_node);
             if (local == invalid_node)
                 throw std::invalid_argument(
@@ -402,14 +437,18 @@ StructuredRzMesh StructuredRzMesh::from_unstructured_block(
             }
         }
     };
-    validate_side_set(boundary_names.radial_inner, axial_elements,
-                      mesh._inner_radius, true, mesh._radial_inner_nodes);
-    validate_side_set(boundary_names.radial_outer, axial_elements,
-                      mesh._outer_radius, true, mesh._radial_outer_nodes);
-    validate_side_set(boundary_names.bottom, radial_elements,
-                      axial_coordinates.front(), false, mesh._bottom_nodes);
-    validate_side_set(boundary_names.top, radial_elements,
-                      axial_coordinates.back(), false, mesh._top_nodes);
+    if (!boundary_names.radial_inner.empty())
+        validate_side_set(boundary_names.radial_inner, axial_elements,
+                          mesh._inner_radius, true, mesh._radial_inner_nodes);
+    if (!boundary_names.radial_outer.empty())
+        validate_side_set(boundary_names.radial_outer, axial_elements,
+                          mesh._outer_radius, true, mesh._radial_outer_nodes);
+    if (!boundary_names.bottom.empty())
+        validate_side_set(boundary_names.bottom, radial_elements,
+                          axial_coordinates.front(), false, mesh._bottom_nodes);
+    if (!boundary_names.top.empty())
+        validate_side_set(boundary_names.top, radial_elements,
+                          axial_coordinates.back(), false, mesh._top_nodes);
 
     const auto make_edges = [](const std::vector<std::size_t>& nodes) {
         std::vector<Line2BoundaryElement> edges;
@@ -423,6 +462,105 @@ StructuredRzMesh StructuredRzMesh::from_unstructured_block(
     mesh._bottom_elements = make_edges(mesh._bottom_nodes);
     mesh._top_elements = make_edges(mesh._top_nodes);
     return mesh;
+}
+
+StructuredRzBoundary
+StructuredRzMesh::map_side_set(const UnstructuredQuad4Mesh& source,
+                               const std::string& side_set_name,
+                               std::int64_t expected_block_id) const {
+    if (source.side_set_block_id(side_set_name) != expected_block_id)
+        throw std::invalid_argument(
+            "Side set belongs to an unexpected block: " + side_set_name);
+
+    const SideSet& source_set = source.side_set(side_set_name);
+    const auto local_node = [&](std::size_t source_node) {
+        const RzPoint& source_point = source.nodes().at(source_node);
+        const auto found = std::find_if(
+            _nodes.begin(), _nodes.end(), [&](const RzPoint& point) {
+                return same_coordinate(point.r, source_point.r) &&
+                       same_coordinate(point.z, source_point.z);
+            });
+        if (found == _nodes.end())
+            throw std::invalid_argument("Side set node is outside its block: " +
+                                        side_set_name);
+        return static_cast<std::size_t>(found - _nodes.begin());
+    };
+
+    std::vector<Line2BoundaryElement> elements;
+    elements.reserve(source_set.sides.size());
+    for (const ElementSide& side : source_set.sides) {
+        const Quad4Element& element = source.elements().at(side.element);
+        std::array<std::size_t, 2> nodes = {
+            local_node(element.nodes.at(side.local_side)),
+            local_node(element.nodes.at((side.local_side + 1U) % 4U)),
+        };
+        const RzPoint& first = _nodes.at(nodes[0]);
+        const RzPoint& second = _nodes.at(nodes[1]);
+        if (first.z > second.z ||
+            (same_coordinate(first.z, second.z) && first.r > second.r))
+            std::swap(nodes[0], nodes[1]);
+        elements.push_back({nodes});
+    }
+
+    const auto all_on = [&](double coordinate, bool radial) {
+        return std::all_of(elements.begin(), elements.end(),
+                           [&](const Line2BoundaryElement& edge) {
+                               return std::all_of(
+                                   edge.nodes.begin(), edge.nodes.end(),
+                                   [&](std::size_t node) {
+                                       const RzPoint& point = _nodes.at(node);
+                                       return same_coordinate(radial ? point.r
+                                                                     : point.z,
+                                                              coordinate);
+                                   });
+                           });
+    };
+
+    const auto axial_bounds = std::minmax_element(
+        _nodes.begin(), _nodes.end(),
+        [](const RzPoint& lhs, const RzPoint& rhs) { return lhs.z < rhs.z; });
+    const double bottom = axial_bounds.first->z;
+    const double top = axial_bounds.second->z;
+
+    BoundaryId id = BoundaryId::radial_inner;
+    bool sort_by_axial = true;
+    if (all_on(_inner_radius, true)) {
+        id = BoundaryId::radial_inner;
+    } else if (all_on(_outer_radius, true)) {
+        id = BoundaryId::radial_outer;
+    } else if (all_on(bottom, false)) {
+        id = BoundaryId::bottom;
+        sort_by_axial = false;
+    } else if (all_on(top, false)) {
+        id = BoundaryId::top;
+        sort_by_axial = false;
+    } else {
+        throw std::invalid_argument(
+            "Side set is not on one structured RZ boundary: " + side_set_name);
+    }
+
+    std::sort(
+        elements.begin(), elements.end(),
+        [&](const Line2BoundaryElement& lhs, const Line2BoundaryElement& rhs) {
+            const RzPoint& lhs_point = _nodes.at(lhs.nodes[0]);
+            const RzPoint& rhs_point = _nodes.at(rhs.nodes[0]);
+            return sort_by_axial ? lhs_point.z < rhs_point.z
+                                 : lhs_point.r < rhs_point.r;
+        });
+
+    std::vector<std::size_t> nodes;
+    for (const Line2BoundaryElement& edge : elements) {
+        nodes.insert(nodes.end(), edge.nodes.begin(), edge.nodes.end());
+    }
+    std::sort(nodes.begin(), nodes.end(),
+              [&](std::size_t lhs, std::size_t rhs) {
+                  const RzPoint& lhs_point = _nodes.at(lhs);
+                  const RzPoint& rhs_point = _nodes.at(rhs);
+                  return sort_by_axial ? lhs_point.z < rhs_point.z
+                                       : lhs_point.r < rhs_point.r;
+              });
+    nodes.erase(std::unique(nodes.begin(), nodes.end()), nodes.end());
+    return {id, std::move(nodes), std::move(elements)};
 }
 
 StructuredRzMesh StructuredRzMesh::make_annulus(double inner_radius,

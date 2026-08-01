@@ -1,0 +1,259 @@
+#include "fuelsim/steady_problem.hpp"
+#include "fuelsim/transient_problem.hpp"
+
+#include <algorithm>
+#include <cmath>
+#include <exception>
+#include <iostream>
+#include <string>
+#include <utility>
+#include <vector>
+
+namespace {
+
+bool check(bool condition, const std::string& message) {
+    if (condition)
+        return true;
+    std::cerr << "[FAIL] " << message << '\n';
+    return false;
+}
+
+fuelsim::UnstructuredQuad4Mesh three_region_mesh() {
+    return fuelsim::UnstructuredQuad4Mesh(
+        {
+            {0.0, 0.0},
+            {1.0, 0.0},
+            {1.0, 1.0},
+            {0.0, 1.0},
+            {1.1, 0.0},
+            {1.2, 0.0},
+            {1.2, 1.0},
+            {1.1, 1.0},
+            {1.3, 0.0},
+            {1.4, 0.0},
+            {1.4, 1.0},
+            {1.3, 1.0},
+        },
+        {
+            {{{0, 1, 2, 3}}},
+            {{{4, 5, 6, 7}}},
+            {{{8, 9, 10, 11}}},
+        },
+        {1, 2, 3},
+        {
+            {1, "pellet"},
+            {2, "clad_1"},
+            {3, "clad_2"},
+        },
+        {},
+        {
+            {11, "pellet_axis", {{{0, 3}}}},
+            {12, "pellet_outer", {{{0, 1}}}},
+            {13, "pellet_bottom", {{{0, 0}}}},
+            {14, "pellet_top", {{{0, 2}}}},
+            {21, "clad_1_inner", {{{1, 3}}}},
+            {22, "clad_1_outer", {{{1, 1}}}},
+            {23, "clad_1_bottom", {{{1, 0}}}},
+            {24, "clad_1_top", {{{1, 2}}}},
+            {31, "clad_2_inner", {{{2, 3}}}},
+            {32, "clad_2_outer", {{{2, 1}}}},
+            {33, "clad_2_bottom", {{{2, 0}}}},
+            {34, "clad_2_top", {{{2, 2}}}},
+        });
+}
+
+fuelsim::ThermoelasticProperties thermoelastic(double conductivity) {
+    return {0.0, conductivity, 2.0e11, 0.3, 1.0e-5, 300.0};
+}
+
+fuelsim::RegionDefinition region(const std::string& name,
+                                 const std::string& block,
+                                 double initial_temperature,
+                                 double heat_source) {
+    return {name, block, thermoelastic(10.0), heat_source, initial_temperature};
+}
+
+fuelsim::ContactDefinition contact(const std::string& name,
+                                   const std::string& primary,
+                                   const std::string& secondary) {
+    return {name, primary, secondary, true, true, 0.2, 1.0e-5, 1.0e14};
+}
+
+fuelsim::BoundaryConditionDefinition dirichlet(const std::string& name,
+                                               const std::string& boundary,
+                                               fuelsim::Field field,
+                                               double value) {
+    return {name, fuelsim::BoundaryConditionType::dirichlet, boundary, field,
+            value};
+}
+
+fuelsim::SteadyProblemDefinition single_region_definition() {
+    return {{region("pellet", "pellet", 500.0, 2.0e5)},
+            {},
+            {
+                dirichlet("axis", "pellet_axis",
+                          fuelsim::Field::radial_displacement, 0.0),
+                dirichlet("bottom", "pellet_bottom",
+                          fuelsim::Field::axial_displacement, 0.0),
+                dirichlet("outer_temperature", "pellet_outer",
+                          fuelsim::Field::temperature, 300.0),
+            }};
+}
+
+fuelsim::SteadyProblemDefinition three_region_definition() {
+    return {{region("pellet", "pellet", 500.0, 2.0e5),
+             region("inner_clad", "clad_1", 400.0, 0.0),
+             region("outer_clad", "clad_2", 300.0, 0.0)},
+            {contact("pellet_to_inner", "clad_1_inner", "pellet_outer"),
+             contact("inner_to_outer", "clad_2_inner", "clad_1_outer")},
+            {
+                dirichlet("axis", "pellet_axis",
+                          fuelsim::Field::radial_displacement, 0.0),
+                dirichlet("pellet_bottom", "pellet_bottom",
+                          fuelsim::Field::axial_displacement, 0.0),
+                dirichlet("inner_bottom", "clad_1_bottom",
+                          fuelsim::Field::axial_displacement, 0.0),
+                dirichlet("outer_bottom", "clad_2_bottom",
+                          fuelsim::Field::axial_displacement, 0.0),
+                dirichlet("outer_temperature", "clad_2_outer",
+                          fuelsim::Field::temperature, 300.0),
+            }};
+}
+
+fuelsim::TransientInelasticProperties elastic_transient_material() {
+    return {10.0,
+            20.0,
+            fuelsim::InelasticBehavior::elastic,
+            {0.0, 1.0, 1.0},
+            {1.0, 0.0}};
+}
+
+bool test_single_region(const fuelsim::UnstructuredQuad4Mesh& mesh) {
+    const fuelsim::SteadyProblem problem(single_region_definition(), mesh);
+    const std::vector<double> state = problem.initial_state();
+    bool passed =
+        check(problem.region_count() == 1 && problem.contact_count() == 0,
+              "one Exodus block forms a standalone steady problem") &&
+        check(problem.region_index("pellet") == 0 &&
+                  problem.region_node_offset(0) == 0 &&
+                  problem.region_element_offset(0) == 0,
+              "single-region indices start at zero") &&
+        check(problem.dof_count() == 12 &&
+                  problem.volume_contribution_count() == 1 &&
+                  problem.contribution_count() == 1,
+              "single Quad4 region has one 12-DOF contribution") &&
+        check(state[problem.dof_map().temperature(0)] == 500.0 &&
+                  state[problem.dof_map().temperature(1)] == 300.0,
+              "region initial temperature and boundary value are applied");
+
+    const fuelsim::LocalValues local = problem.contribution_state(0, state);
+    const fuelsim::LocalSystem system =
+        problem.linearize_contribution(0, local);
+    passed =
+        check(std::all_of(system.residual.begin(), system.residual.end(),
+                          [](double value) { return std::isfinite(value); }),
+              "single-region AD residual is finite") &&
+        passed;
+    return passed;
+}
+
+bool test_three_regions(const fuelsim::UnstructuredQuad4Mesh& mesh) {
+    const fuelsim::SteadyProblem problem(three_region_definition(), mesh);
+    const std::vector<double> state = problem.initial_state();
+    bool passed =
+        check(mesh.side_set_block_id("pellet_outer") == 1 &&
+                  mesh.side_set_block_id("clad_1_inner") == 2 &&
+                  mesh.side_set_block_id("clad_2_inner") == 3,
+              "side-set ownership is inferred from adjacent Exodus elements") &&
+        check(problem.region_count() == 3 && problem.contact_count() == 2,
+              "three regions and two named contact pairs are composed") &&
+        check(problem.region_node_offset(0) == 0 &&
+                  problem.region_node_offset(1) == 4 &&
+                  problem.region_node_offset(2) == 8,
+              "arbitrary regions receive independent node ranges") &&
+        check(problem.region_element_offset(0) == 0 &&
+                  problem.region_element_offset(1) == 1 &&
+                  problem.region_element_offset(2) == 2,
+              "arbitrary regions receive independent element ranges") &&
+        check(
+            problem.dof_count() == 36 &&
+                problem.volume_contribution_count() == 3 &&
+                problem.contribution_count() == 9,
+            "three volumes, two STS edges, and four NTS nodes are assembled") &&
+        check(problem.contact(0).primary == "clad_1_inner" &&
+                  problem.contact(0).secondary == "pellet_outer" &&
+                  problem.contact(1).primary == "clad_2_inner" &&
+                  problem.contact(1).secondary == "clad_1_outer",
+              "contacts contain only primary and secondary side-set names");
+
+    for (std::size_t contribution = problem.volume_contribution_count();
+         contribution < problem.contribution_count(); ++contribution) {
+        const fuelsim::LocalValues local =
+            problem.contribution_state(contribution, state);
+        const fuelsim::LocalSystem system =
+            problem.linearize_contribution(contribution, local);
+        passed = check(std::all_of(
+                           system.residual.begin(), system.residual.end(),
+                           [](double value) { return std::isfinite(value); }),
+                       "multi-contact AD residual is finite") &&
+                 passed;
+    }
+    return passed;
+}
+
+bool test_transient_regions(const fuelsim::UnstructuredQuad4Mesh& mesh) {
+    fuelsim::TransientProblemDefinition definition;
+    definition.spatial = three_region_definition();
+    for (const fuelsim::RegionDefinition& region : definition.spatial.regions)
+        definition.regions.push_back(
+            {region.name, elastic_transient_material()});
+
+    fuelsim::TransientProblem problem(std::move(definition), mesh);
+    const std::vector<double> initial = problem.committed_solution();
+    problem.begin_time_step({1.0, 0.5});
+    const fuelsim::LocalValues local = problem.contribution_state(2, initial);
+    (void)problem.linearize_contribution(2, local);
+    problem.rollback_time_step();
+
+    bool passed =
+        check(problem.region_count() == 3 && problem.committed_time() == 0.0 &&
+                  problem.committed_solution() == initial &&
+                  !problem.time_step_active(),
+              "three-region transient rollback preserves committed state");
+
+    problem.begin_time_step({1.0, 1.0});
+    problem.commit_time_step(initial);
+    passed = check(problem.committed_time() == 1.0 &&
+                       problem.committed_load_factor() == 1.0 &&
+                       !problem.time_step_active(),
+                   "three-region transient state commits once") &&
+             passed;
+    for (std::size_t region = 0; region < problem.region_count(); ++region) {
+        const fuelsim::RegionInelasticSummary summary =
+            problem.summarize_region_history(region);
+        passed = check(summary.maximum_equivalent_plastic_strain == 0.0 &&
+                           summary.maximum_equivalent_creep_strain == 0.0,
+                       "elastic region keeps zero inelastic history") &&
+                 passed;
+    }
+    return passed;
+}
+
+} // namespace
+
+int main() {
+    try {
+        const fuelsim::UnstructuredQuad4Mesh mesh = three_region_mesh();
+        const bool passed = test_single_region(mesh) &&
+                            test_three_regions(mesh) &&
+                            test_transient_regions(mesh);
+        if (!passed)
+            return 1;
+        std::cout << "[PASS] single- and multi-region problem tests\n";
+        return 0;
+    } catch (const std::exception& error) {
+        std::cerr << "[FAIL] multi-region tests raised: " << error.what()
+                  << '\n';
+        return 1;
+    }
+}

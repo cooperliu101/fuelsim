@@ -78,24 +78,29 @@ bool run_tests(const std::string& steady_path,
 
     bool passed =
         check(steady.version == 1 &&
-                  steady.problem == fuelsim::CaseProblem::steady_fuel_cladding,
+                  steady.problem == fuelsim::CaseProblem::steady,
               "steady input selects the physical steady problem") &&
-        check(steady.mesh.fuel.block == "fuel" &&
-                  steady.mesh.cladding.block == "clad",
-              "steady input preserves Exodus block roles") &&
+        check(steady.regions.size() == 2 &&
+                  steady.regions[0].spatial.block == "fuel" &&
+                  steady.regions[1].spatial.block == "clad",
+              "steady input preserves arbitrary Exodus regions") &&
+        check(steady.contacts.size() == 1 &&
+                  steady.contacts[0].primary == "clad_left" &&
+                  steady.contacts[0].secondary == "fuel_right" &&
+                  steady.contacts[0].thermal && steady.contacts[0].mechanical,
+              "contact is defined only by primary and secondary side sets") &&
         check(steady.steady_execution.load_steps == 20 &&
                   steady.solver.maximum_iterations == 50,
               "steady execution and solver fields are parsed") &&
-        check(transient.problem ==
-                  fuelsim::CaseProblem::transient_fuel_cladding,
+        check(transient.problem == fuelsim::CaseProblem::transient,
               "transient input selects the physical transient problem") &&
-        check(transient.fuel_transient.behavior ==
+        check(transient.regions[0].transient_material.behavior ==
                       fuelsim::InelasticBehavior::elastic &&
-                  transient.cladding_transient.behavior ==
+                  transient.regions[1].transient_material.behavior ==
                       fuelsim::InelasticBehavior::norton_creep_j2_plasticity,
               "transient material behaviors are parsed") &&
         check(transient.transient_execution.end_time == 20.0 &&
-                  transient.physics.heat_source_ramp_time == 20.0 &&
+                  transient.transient_execution.heat_source_ramp_time == 20.0 &&
                   transient.solver.maximum_iterations == 80,
               "transient execution, ramp, and solver fields are parsed");
 
@@ -128,6 +133,16 @@ bool run_tests(const std::string& steady_path,
                                  "\n    yield_stress = 1e8");
     passed = expect_case_failure(malformed_path, invalid_material_case,
                                  "not valid for inelastic_model='elastic'") &&
+             passed;
+
+    std::string block_contact_case = read_text(steady_path);
+    const std::string primary = "primary = clad_left";
+    const std::size_t primary_position = block_contact_case.find(primary);
+    if (primary_position == std::string::npos)
+        return check(false, "steady fixture has the expected primary key");
+    block_contact_case.insert(primary_position, "primary_block = clad\n    ");
+    passed = expect_case_failure(malformed_path, block_contact_case,
+                                 "unknown key 'primary_block'") &&
              passed;
     return passed;
 }

@@ -70,6 +70,7 @@ class UnstructuredQuad4Mesh final {
     const ElementBlockInfo& element_block(const std::string& name) const;
     const NodeSet& node_set(const std::string& name) const;
     const SideSet& side_set(const std::string& name) const;
+    std::int64_t side_set_block_id(const std::string& name) const;
 
   private:
     std::vector<RzPoint> _nodes;
@@ -87,6 +88,12 @@ struct RzBoundaryNames final {
     std::string top;
 };
 
+struct StructuredRzBoundary final {
+    BoundaryId id;
+    std::vector<std::size_t> nodes;
+    std::vector<Line2BoundaryElement> elements;
+};
+
 class StructuredRzMesh final {
   public:
     static StructuredRzMesh make_annulus(double inner_radius,
@@ -97,6 +104,9 @@ class StructuredRzMesh final {
     from_unstructured_block(const UnstructuredQuad4Mesh& source,
                             const std::string& block_name,
                             const RzBoundaryNames& boundary_names);
+    static StructuredRzMesh
+    from_unstructured_block(const UnstructuredQuad4Mesh& source,
+                            const std::string& block_name);
     static StructuredRzMesh
     from_unstructured_block(const UnstructuredQuad4Mesh& source,
                             std::int64_t block_id,
@@ -117,6 +127,10 @@ class StructuredRzMesh final {
     double inner_radius() const noexcept;
     double outer_radius() const noexcept;
     double length() const noexcept;
+
+    StructuredRzBoundary map_side_set(const UnstructuredQuad4Mesh& source,
+                                      const std::string& side_set_name,
+                                      std::int64_t expected_block_id) const;
 
   private:
     double _inner_radius = 0.0;
