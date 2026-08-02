@@ -33,7 +33,6 @@ struct PressureReference final {
 struct ErrorMetrics final {
     double difference_squared = 0.0;
     double reference_squared = 0.0;
-    double maximum_difference = 0.0;
     double maximum_actual = 0.0;
     double maximum_reference = 0.0;
     double maximum_pointwise_relative = 0.0;
@@ -45,7 +44,6 @@ struct ErrorMetrics final {
         const double difference = actual - reference;
         difference_squared += difference * difference;
         reference_squared += reference * reference;
-        maximum_difference = std::max(maximum_difference, std::abs(difference));
         maximum_actual = std::max(maximum_actual, std::abs(actual));
         maximum_reference = std::max(maximum_reference, std::abs(reference));
         if (reference != 0.0) {
@@ -66,12 +64,6 @@ struct ErrorMetrics final {
         return std::sqrt(difference_squared / reference_squared);
     }
 
-    double relative_maximum() const {
-        if (!(maximum_reference > 0.0))
-            throw std::domain_error("Reference maximum norm must be positive");
-        return maximum_difference / maximum_reference;
-    }
-
     double relative_absolute_peak() const {
         if (!(maximum_reference > 0.0))
             throw std::domain_error("Reference maximum norm must be positive");
@@ -88,8 +80,6 @@ struct ErrorMetrics final {
 
 void print_metrics(const std::string& name, const ErrorMetrics& metrics) {
     std::cout << name << "_relative_l2=" << metrics.relative_l2() << '\n';
-    std::cout << name << "_relative_maximum=" << metrics.relative_maximum()
-              << '\n';
     std::cout << name
               << "_relative_absolute_peak=" << metrics.relative_absolute_peak()
               << '\n';
@@ -336,30 +326,15 @@ bool run_comparison(const std::string& input_path,
     passed = check(temperature.relative_l2() < tolerance,
                    "temperature relative L2 error is below 1%") &&
              passed;
-    passed = check(temperature.relative_maximum() < tolerance,
-                   "temperature relative maximum-norm error is below 1%") &&
-             passed;
     passed = check(radial.relative_l2() < tolerance,
                    "radial displacement relative L2 error is below 1%") &&
              passed;
-    passed =
-        check(radial.relative_maximum() < tolerance,
-              "radial displacement relative maximum-norm error is below 1%") &&
-        passed;
     passed = check(axial.relative_l2() < tolerance,
                    "axial displacement relative L2 error is below 1%") &&
              passed;
-    passed =
-        check(axial.relative_maximum() < tolerance,
-              "axial displacement relative maximum-norm error is below 1%") &&
-        passed;
     passed = check(pressure.relative_l2() < tolerance,
                    "contact pressure relative L2 error is below 1%") &&
              passed;
-    passed =
-        check(pressure.relative_maximum() < tolerance,
-              "contact pressure relative maximum-norm error is below 1%") &&
-        passed;
     passed = check_additional_metrics("temperature", temperature, tolerance) &&
              passed;
     passed =

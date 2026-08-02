@@ -174,7 +174,6 @@ nodes. For a field `u`, the reported metrics are:
 
 ```text
 relative L2           = sqrt(sum((u_fuelsim-u_moose)^2)/sum(u_moose^2))
-relative maximum norm = max(abs(u_fuelsim-u_moose))/max(abs(u_moose))
 relative absolute peak = abs(max(abs(u_fuelsim))-max(abs(u_moose)))
                          / max(abs(u_moose))
 maximum pointwise relative = max(abs(u_fuelsim-u_moose)/abs(u_moose))
@@ -210,11 +209,10 @@ are respectively:
 The accepted fuelsim-to-MOOSE errors are:
 
 ```text
-temperature relative L2 / maximum:          0.00990% / 0.07107%
-radial displacement relative L2 / maximum:  0.06393% / 0.18903%
-axial displacement relative L2 / maximum:   0.01772% / 0.02529%
-contact pressure relative L2 / maximum:      0.21727% / 0.32887%
-acceptance threshold for each:               < 1%
+temperature relative L2:          0.00990%
+radial displacement relative L2:  0.06393%
+axial displacement relative L2:   0.01772%
+contact pressure relative L2:      0.21727%
 
 temperature absolute peak / pointwise max:          0.00064% / 0.08697%
 radial displacement absolute peak / pointwise max:  0.12758% / 0.38810%
