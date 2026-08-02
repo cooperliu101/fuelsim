@@ -17,6 +17,18 @@
 
 namespace {
 
+constexpr double nodal_standard_tolerance = 1.0e-3;
+constexpr double radial_peak_tolerance = 1.5e-3;
+constexpr double radial_pointwise_tolerance = 3.0e-3;
+constexpr double contact_pressure_tolerance = 1.2e-3;
+constexpr double stress_l2_tolerance = 2.0e-4;
+constexpr double stress_peak_tolerance = 5.0e-4;
+constexpr double plastic_l2_tolerance = 1.6e-3;
+constexpr double plastic_peak_tolerance = 3.0e-3;
+constexpr double plastic_pointwise_tolerance = 3.2e-3;
+constexpr double creep_l2_tolerance = 1.0e-3;
+constexpr double creep_peak_tolerance = 2.0e-3;
+
 bool check(bool condition, const std::string& message) {
     if (condition)
         return true;
@@ -505,19 +517,22 @@ bool test_pcmi_coupled_cladding(const std::string& input_path,
                    "PCMI compares every MOOSE node at matching coordinates") &&
              passed;
     passed = check(fuelsim::test::relative_metrics_below(
-                       full_fields.temperature, 1.0e-3),
+                       full_fields.temperature, nodal_standard_tolerance),
                    "PCMI full-field temperature three errors pass") &&
              passed;
     passed =
-        check(full_fields.radial_displacement.relative_l2() < 1.0e-3 &&
+        check(full_fields.radial_displacement.relative_l2() <
+                  nodal_standard_tolerance &&
                   full_fields.radial_displacement.relative_absolute_peak() <
-                      5.0e-3 &&
+                      radial_peak_tolerance &&
                   full_fields.radial_displacement
-                          .maximum_pointwise_relative_error() < 5.0e-3,
+                          .maximum_pointwise_relative_error() <
+                      radial_pointwise_tolerance,
               "PCMI full-field radial displacement three errors pass") &&
         passed;
     passed = check(fuelsim::test::relative_metrics_below(
-                       full_fields.axial_displacement, 1.0e-3),
+                       full_fields.axial_displacement,
+                       nodal_standard_tolerance),
                    "PCMI full-field axial displacement three errors pass") &&
              passed;
     fuelsim::test::print_relative_metrics("pcmi_temperature",
@@ -528,15 +543,18 @@ bool test_pcmi_coupled_cladding(const std::string& input_path,
                                           full_fields.axial_displacement);
     passed = check_scalar_metrics("pcmi_average_plastic_strain",
                                   cladding.average_plastic,
-                                  expected_average_plastic, 1.0e-3) &&
+                                  expected_average_plastic,
+                                  nodal_standard_tolerance) &&
              passed;
     passed = check_scalar_metrics("pcmi_average_creep_strain",
                                   cladding.average_creep,
-                                  expected_average_creep, 1.0e-3) &&
+                                  expected_average_creep,
+                                  nodal_standard_tolerance) &&
              passed;
     passed = check_scalar_metrics("pcmi_average_equivalent_stress",
                                   cladding.average_equivalent_stress,
-                                  expected_average_equivalent_stress, 1.0e-3) &&
+                                  expected_average_equivalent_stress,
+                                  nodal_standard_tolerance) &&
              passed;
     passed = check(cladding.points.size() == expected_cladding_points.size(),
                    "PCMI and MOOSE cladding integration-point counts match") &&
@@ -545,30 +563,38 @@ bool test_pcmi_coupled_cladding(const std::string& input_path,
         check(maximum_point_location_error < 1.0e-12,
               "PCMI and MOOSE cladding integration-point locations match") &&
         passed;
-    passed = check(point_stress_error.relative_l2 < 2.0e-3 &&
-                       point_stress_error.relative_absolute_peak < 5.0e-3 &&
-                       point_stress_error.maximum_relative < 5.0e-3,
+    passed = check(point_stress_error.relative_l2 < stress_l2_tolerance &&
+                       point_stress_error.relative_absolute_peak <
+                           stress_peak_tolerance &&
+                       point_stress_error.maximum_relative <
+                           stress_peak_tolerance,
                    "PCMI pointwise equivalent-stress three errors pass") &&
              passed;
-    passed = check(point_plastic_error.relative_l2 < 2.0e-3 &&
-                       point_plastic_error.relative_absolute_peak < 5.0e-3 &&
-                       point_plastic_error.maximum_relative < 5.0e-3,
+    passed = check(point_plastic_error.relative_l2 < plastic_l2_tolerance &&
+                       point_plastic_error.relative_absolute_peak <
+                           plastic_peak_tolerance &&
+                       point_plastic_error.maximum_relative <
+                           plastic_pointwise_tolerance,
                    "PCMI pointwise plastic-strain three errors pass") &&
              passed;
-    passed = check(point_creep_error.relative_l2 < 2.0e-3 &&
-                       point_creep_error.relative_absolute_peak < 5.0e-3 &&
-                       point_creep_error.maximum_relative < 5.0e-3,
+    passed = check(point_creep_error.relative_l2 < creep_l2_tolerance &&
+                       point_creep_error.relative_absolute_peak <
+                           creep_peak_tolerance &&
+                       point_creep_error.maximum_relative <
+                           creep_peak_tolerance,
                    "PCMI pointwise creep-strain three errors pass") &&
              passed;
     passed =
-        check(fuelsim::test::relative_metrics_below(pressure_metrics, 1.0e-2),
+        check(fuelsim::test::relative_metrics_below(
+                  pressure_metrics, contact_pressure_tolerance),
               "PCMI full-field contact pressure three errors pass") &&
         passed;
     fuelsim::test::print_relative_metrics("pcmi_contact_pressure",
                                           pressure_metrics);
     passed = check_scalar_metrics("pcmi_total_contact_force",
                                   interface.total_contact_force,
-                                  expected_total_contact_force, 1.0e-2) &&
+                                  expected_total_contact_force,
+                                  nodal_standard_tolerance) &&
              passed;
 
     std::cout << "pcmi_temperature_center=" << temperature_center << '\n';

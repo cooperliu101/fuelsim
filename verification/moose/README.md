@@ -594,11 +594,11 @@ projected / active fuel surface nodes:     5 / 5
 
 Temperature and axial displacement pass `<0.1%` for all three metrics. Radial
 displacement passes relative L2 `<0.1%`; its relative absolute-peak and maximum
-pointwise-relative gates are `<0.5%`. The largest difference is about
-`6.45 nm` at source node 48 on the top cladding inner surface. Tightening the
-nonlinear tolerances and halving `dt` did not change this localized contact
-endpoint difference. The pressure-vector metrics and force pass the `<1%`
-contact gate. Stress and both average history metrics pass `<0.1%`.
+pointwise-relative gates are `<0.15%` and `<0.30%`. The largest difference is
+about `6.45 nm` at source node 48 on the top cladding inner surface. Tightening
+the nonlinear tolerances and halving `dt` did not change this localized contact
+endpoint difference. The pressure-vector metrics pass `<0.12%`, and total
+force passes `<0.1%`. Stress and both average history metrics pass `<0.1%`.
 
 The cladding pointwise comparison covers all `8 elements x 4 QPs = 32`
 integration points. `ADMaterialRealAux` with `selected_qp` extracts the three
@@ -619,7 +619,9 @@ The maximum relative stress and creep errors occur at local cladding element
 6, QP 3 (`r=4.181333 mm`, `z=9.490631 mm`; MOOSE element 30, QP 2). The
 maximum relative plastic error occurs at local element 7, QP 2
 (`r=4.631667 mm`, `z=9.490631 mm`; MOOSE element 31, QP 3). Pointwise gates
-are relative L2 `<0.2%` and maximum relative error `<0.5%` for each field.
+are stress L2/peak/pointwise `<0.02%`/`<0.05%`/`<0.05%`, plastic strain
+`<0.16%`/`<0.30%`/`<0.32%`, and creep strain
+`<0.10%`/`<0.20%`/`<0.20%`.
 
 ## M2 reference environment and conventions
 
