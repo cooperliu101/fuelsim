@@ -34,14 +34,30 @@ struct ErrorMetrics final {
     double difference_squared = 0.0;
     double reference_squared = 0.0;
     double maximum_difference = 0.0;
+    double maximum_actual = 0.0;
     double maximum_reference = 0.0;
+    double maximum_pointwise_relative = 0.0;
+    double maximum_zero_reference_difference = 0.0;
+    std::size_t nonzero_reference_count = 0;
+    std::size_t zero_reference_count = 0;
 
     void add(double actual, double reference) {
         const double difference = actual - reference;
         difference_squared += difference * difference;
         reference_squared += reference * reference;
         maximum_difference = std::max(maximum_difference, std::abs(difference));
+        maximum_actual = std::max(maximum_actual, std::abs(actual));
         maximum_reference = std::max(maximum_reference, std::abs(reference));
+        if (reference != 0.0) {
+            maximum_pointwise_relative =
+                std::max(maximum_pointwise_relative,
+                         std::abs(difference) / std::abs(reference));
+            ++nonzero_reference_count;
+        } else {
+            maximum_zero_reference_difference = std::max(
+                maximum_zero_reference_difference, std::abs(difference));
+            ++zero_reference_count;
+        }
     }
 
     double relative_l2() const {
@@ -55,13 +71,52 @@ struct ErrorMetrics final {
             throw std::domain_error("Reference maximum norm must be positive");
         return maximum_difference / maximum_reference;
     }
+
+    double relative_absolute_peak() const {
+        if (!(maximum_reference > 0.0))
+            throw std::domain_error("Reference maximum norm must be positive");
+        return std::abs(maximum_actual - maximum_reference) / maximum_reference;
+    }
+
+    double maximum_pointwise_relative_error() const {
+        if (nonzero_reference_count == 0)
+            throw std::domain_error(
+                "Pointwise relative error requires a nonzero reference");
+        return maximum_pointwise_relative;
+    }
 };
+
+void print_metrics(const std::string& name, const ErrorMetrics& metrics) {
+    std::cout << name << "_relative_l2=" << metrics.relative_l2() << '\n';
+    std::cout << name << "_relative_maximum=" << metrics.relative_maximum()
+              << '\n';
+    std::cout << name
+              << "_relative_absolute_peak=" << metrics.relative_absolute_peak()
+              << '\n';
+    std::cout << name << "_maximum_pointwise_relative="
+              << metrics.maximum_pointwise_relative_error() << '\n';
+    std::cout << name
+              << "_zero_reference_count=" << metrics.zero_reference_count
+              << '\n';
+    std::cout << name << "_maximum_zero_reference_absolute_difference="
+              << metrics.maximum_zero_reference_difference << '\n';
+}
 
 bool check(bool condition, const std::string& message) {
     if (condition)
         return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
+}
+
+bool check_additional_metrics(const std::string& name,
+                              const ErrorMetrics& metrics, double tolerance) {
+    bool passed = check(metrics.relative_absolute_peak() < tolerance,
+                        name + " relative absolute-peak error is below 1%");
+    passed = check(metrics.maximum_pointwise_relative_error() < tolerance,
+                   name + " maximum pointwise relative error is below 1%") &&
+             passed;
+    return passed;
 }
 
 std::vector<std::string> split_csv_line(const std::string& line) {
@@ -305,23 +360,21 @@ bool run_comparison(const std::string& input_path,
         check(pressure.relative_maximum() < tolerance,
               "contact pressure relative maximum-norm error is below 1%") &&
         passed;
+    passed = check_additional_metrics("temperature", temperature, tolerance) &&
+             passed;
+    passed =
+        check_additional_metrics("radial displacement", radial, tolerance) &&
+        passed;
+    passed = check_additional_metrics("axial displacement", axial, tolerance) &&
+             passed;
+    passed =
+        check_additional_metrics("contact pressure", pressure, tolerance) &&
+        passed;
 
-    std::cout << "unstructured_temperature_relative_l2="
-              << temperature.relative_l2() << '\n';
-    std::cout << "unstructured_temperature_relative_maximum="
-              << temperature.relative_maximum() << '\n';
-    std::cout << "unstructured_radial_displacement_relative_l2="
-              << radial.relative_l2() << '\n';
-    std::cout << "unstructured_radial_displacement_relative_maximum="
-              << radial.relative_maximum() << '\n';
-    std::cout << "unstructured_axial_displacement_relative_l2="
-              << axial.relative_l2() << '\n';
-    std::cout << "unstructured_axial_displacement_relative_maximum="
-              << axial.relative_maximum() << '\n';
-    std::cout << "unstructured_contact_pressure_relative_l2="
-              << pressure.relative_l2() << '\n';
-    std::cout << "unstructured_contact_pressure_relative_maximum="
-              << pressure.relative_maximum() << '\n';
+    print_metrics("unstructured_temperature", temperature);
+    print_metrics("unstructured_radial_displacement", radial);
+    print_metrics("unstructured_axial_displacement", axial);
+    print_metrics("unstructured_contact_pressure", pressure);
     return passed;
 }
 

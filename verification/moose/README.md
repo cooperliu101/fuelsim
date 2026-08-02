@@ -175,7 +175,15 @@ nodes. For a field `u`, the reported metrics are:
 ```text
 relative L2           = sqrt(sum((u_fuelsim-u_moose)^2)/sum(u_moose^2))
 relative maximum norm = max(abs(u_fuelsim-u_moose))/max(abs(u_moose))
+relative absolute peak = abs(max(abs(u_fuelsim))-max(abs(u_moose)))
+                         / max(abs(u_moose))
+maximum pointwise relative = max(abs(u_fuelsim-u_moose)/abs(u_moose))
+                             over points where u_moose is nonzero
 ```
+
+Reference-zero points are excluded only from the undefined pointwise division.
+Their count and maximum absolute difference are reported separately; no
+denominator floor is introduced.
 
 The checked run used the same executable provenance and 20-step loading listed
 above. Reproduce the reference with:
@@ -207,6 +215,15 @@ radial displacement relative L2 / maximum:  0.06393% / 0.18903%
 axial displacement relative L2 / maximum:   0.01772% / 0.02529%
 contact pressure relative L2 / maximum:      0.21727% / 0.32887%
 acceptance threshold for each:               < 1%
+
+temperature absolute peak / pointwise max:          0.00064% / 0.08697%
+radial displacement absolute peak / pointwise max:  0.12758% / 0.38810%
+axial displacement absolute peak / pointwise max:   0.02529% / 0.75970%
+contact pressure absolute peak / pointwise max:     0.32887% / 0.32887%
+acceptance threshold for each:                       < 1%
+
+radial / axial zero-reference nodes:                 11 / 48
+maximum absolute difference at those nodes:          0 / 0
 ```
 
 ## M2.1 transient heat capacity
