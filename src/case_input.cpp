@@ -637,7 +637,8 @@ FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
                       {"type", "end_time", "initial_time_step",
                        "minimum_time_step", "maximum_time_step",
                        "growth_factor", "cutback_factor", "maximum_cutbacks",
-                       "load_ramp_time", "restart"});
+                       "load_ramp_time", "restart",
+                       "target_nonlinear_iterations", "iteration_window"});
         if (executioner_type != "transient")
             value_error(document, executioner.entry("type"),
                         "problem='transient' requires type='transient'");
@@ -650,11 +651,25 @@ FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
             read_double(document, executioner, "cutback_factor"),
             read_size(document, executioner, "maximum_cutbacks"),
             read_double(document, executioner, "load_ramp_time"),
-            {}};
+            {},
+            read_optional_size(document, executioner,
+                               "target_nonlinear_iterations", 0),
+            read_optional_size(document, executioner, "iteration_window", 0)};
         const std::string restart =
             read_optional_string(executioner, "restart", {});
         result.transient_execution.restart_file =
             restart.empty() ? std::string{} : resolved_path(path, restart);
+        if (result.transient_execution.target_nonlinear_iterations == 0 &&
+            result.transient_execution.iteration_window != 0)
+            value_error(document, executioner.entry("iteration_window"),
+                        "iteration_window requires positive "
+                        "target_nonlinear_iterations");
+        if (result.transient_execution.target_nonlinear_iterations > 0 &&
+            result.transient_execution.iteration_window >=
+                result.transient_execution.target_nonlinear_iterations)
+            value_error(document, executioner.entry("iteration_window"),
+                        "iteration_window must be smaller than "
+                        "target_nonlinear_iterations");
     }
 
     const InputSection& solver = document.section("Solver");

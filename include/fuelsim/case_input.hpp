@@ -35,6 +35,8 @@ struct TransientExecutionInput final {
     std::size_t maximum_cutbacks;
     double load_ramp_time;
     std::string restart_file;
+    std::size_t target_nonlinear_iterations;
+    std::size_t iteration_window;
 };
 
 struct NonlinearSolverInput final {

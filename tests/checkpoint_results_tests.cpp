@@ -264,12 +264,16 @@ bool run_tests(const std::string& steady_input_path,
     passed = check(first.completed && observer.steps() == 10,
                    "first restart segment commits ten observed steps") &&
              passed;
-    fuelsim::TransientCheckpointIo::write(checkpoint_path, split);
+    fuelsim::TransientCheckpointIo::write(checkpoint_path, split, 1.0);
     const fuelsim::TransientCommittedState split_state =
         split.committed_state();
 
     fuelsim::TransientProblem restarted(input.transient_definition(), mesh);
-    fuelsim::TransientCheckpointIo::restore(checkpoint_path, restarted);
+    const double restored_time_step =
+        fuelsim::TransientCheckpointIo::restore(checkpoint_path, restarted);
+    passed = check(restored_time_step == 1.0,
+                   "restart preserves the committed controller step") &&
+             passed;
     passed =
         compare_committed_states(split_state, restarted.committed_state()) &&
         passed;
@@ -288,8 +292,8 @@ bool run_tests(const std::string& steady_input_path,
     fuelsim::TransientProblem changed_problem(std::move(changed), mesh);
     passed = expect_failure(
                  [&]() {
-                     fuelsim::TransientCheckpointIo::restore(checkpoint_path,
-                                                             changed_problem);
+                     (void)fuelsim::TransientCheckpointIo::restore(
+                         checkpoint_path, changed_problem);
                  },
                  "signature", "checkpoint rejects a changed material model") &&
              passed;
@@ -298,12 +302,20 @@ bool run_tests(const std::string& steady_input_path,
     passed = expect_failure(
                  [&]() {
                      fuelsim::TransientCheckpointIo::write(checkpoint_path,
-                                                           mismatch);
+                                                           mismatch, 1.0);
                  },
                  "active time step",
                  "checkpoint cannot capture uncommitted trial state") &&
              passed;
     mismatch.rollback_time_step();
+    passed =
+        expect_failure(
+            [&]() {
+                fuelsim::TransientCheckpointIo::write(checkpoint_path, mismatch,
+                                                      0.0);
+            },
+            "next time step", "checkpoint rejects invalid controller state") &&
+        passed;
 
     {
         std::fstream file(checkpoint_path,
@@ -320,8 +332,8 @@ bool run_tests(const std::string& steady_input_path,
     }
     passed = expect_failure(
                  [&]() {
-                     fuelsim::TransientCheckpointIo::restore(checkpoint_path,
-                                                             mismatch);
+                     (void)fuelsim::TransientCheckpointIo::restore(
+                         checkpoint_path, mismatch);
                  },
                  "checksum", "checkpoint detects payload corruption") &&
              passed;

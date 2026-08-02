@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cerrno>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <fstream>
@@ -16,7 +17,7 @@ namespace {
 constexpr std::array<unsigned char, 16> checkpoint_magic = {
     'F', 'U', 'E', 'L', 'S', 'I', 'M', '_',
     'C', 'H', 'E', 'C', 'K', 'P', 'T', '\0'};
-constexpr std::uint32_t checkpoint_version = 1U;
+constexpr std::uint32_t checkpoint_version = 2U;
 constexpr std::uint32_t endian_marker = 0x01020304U;
 constexpr std::uint64_t fnv_offset = 14695981039346656037ULL;
 constexpr std::uint64_t fnv_prime = 1099511628211ULL;
@@ -143,12 +144,14 @@ void read_material_point(BinaryCursor& payload, MaterialPointState& state,
     stress.rz = payload.read_double();
 }
 
-BinaryBuffer state_payload(const TransientProblem& problem) {
+BinaryBuffer state_payload(const TransientProblem& problem,
+                           double next_time_step) {
     const TransientCommittedState state = problem.committed_state();
     BinaryBuffer payload;
     payload.append_u64(problem.committed_state_signature());
     payload.append_double(state.time);
     payload.append_double(state.load_factor);
+    payload.append_double(next_time_step);
     payload.append_u64(static_cast<std::uint64_t>(state.solution.size()));
     for (const double value : state.solution)
         payload.append_double(value);
@@ -222,21 +225,25 @@ void write_atomic(const std::string& path,
 } // namespace
 
 void TransientCheckpointIo::write(const std::string& path,
-                                  const TransientProblem& problem) {
+                                  const TransientProblem& problem,
+                                  double next_time_step) {
     if (path.empty())
         throw std::invalid_argument("Checkpoint path must not be empty");
     if (problem.time_step_active())
         throw std::logic_error(
             "Checkpoint cannot be written during an active time step");
-    const BinaryBuffer payload = state_payload(problem);
+    if (!std::isfinite(next_time_step) || !(next_time_step > 0.0))
+        throw std::invalid_argument(
+            "Checkpoint next time step must be finite and positive");
+    const BinaryBuffer payload = state_payload(problem, next_time_step);
     BinaryBuffer file;
     append_checkpoint_header(file, payload.bytes());
     file.append_bytes(payload.bytes().data(), payload.bytes().size());
     write_atomic(path, file.bytes());
 }
 
-void TransientCheckpointIo::restore(const std::string& path,
-                                    TransientProblem& problem) {
+double TransientCheckpointIo::restore(const std::string& path,
+                                      TransientProblem& problem) {
     const std::vector<unsigned char> file = read_file(path);
     BinaryCursor header(file);
     std::array<unsigned char, checkpoint_magic.size()> magic{};
@@ -264,6 +271,9 @@ void TransientCheckpointIo::restore(const std::string& path,
     TransientCommittedState state;
     state.time = payload.read_double();
     state.load_factor = payload.read_double();
+    const double next_time_step = payload.read_double();
+    if (!std::isfinite(next_time_step) || !(next_time_step > 0.0))
+        throw std::runtime_error("Checkpoint next time step is invalid");
     const std::uint64_t solution_size = payload.read_u64();
     if (solution_size != problem.dof_count())
         throw std::runtime_error(
@@ -295,6 +305,7 @@ void TransientCheckpointIo::restore(const std::string& path,
     if (!payload.at_end())
         throw std::runtime_error("Checkpoint payload contains trailing data");
     problem.restore_committed_state(std::move(state));
+    return next_time_step;
 }
 
 } // namespace fuelsim

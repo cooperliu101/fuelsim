@@ -31,11 +31,30 @@ struct TransientTimeOptions final {
     double cutback_factor;
     std::size_t maximum_cutbacks_per_step;
     double load_ramp_time;
+    std::size_t target_nonlinear_iterations = 0;
+    std::size_t iteration_window = 0;
+};
+
+enum class TransientTerminationReason {
+    not_started,
+    completed,
+    maximum_cutbacks,
+    minimum_time_step,
+};
+
+struct TransientRejectedStep final {
+    double attempted_end_time;
+    double time_step;
+    std::size_t cutback_index;
+    int nonlinear_iterations;
+    int convergence_reason;
+    double residual_norm;
 };
 
 struct TransientAcceptedStep final {
     double time;
     double time_step;
+    double next_time_step;
     double load_factor;
     std::size_t cutbacks;
     int nonlinear_iterations;
@@ -46,13 +65,20 @@ struct TransientResult final {
     SolveResult last_attempt;
     std::vector<double> committed_state;
     std::vector<TransientAcceptedStep> accepted_steps;
+    std::vector<TransientRejectedStep> rejected_steps;
     bool completed = false;
     std::size_t total_cutbacks = 0;
     int total_nonlinear_iterations = 0;
     double committed_time = 0.0;
+    double next_time_step = 0.0;
     double total_seconds = 0.0;
     SolveTiming aggregate_timing;
+    TransientTerminationReason termination_reason =
+        TransientTerminationReason::not_started;
 };
+
+const char*
+transient_termination_reason_name(TransientTerminationReason reason) noexcept;
 
 class TransientStepObserver {
   public:

@@ -43,6 +43,7 @@ endfunction()
 add_library(fuelsim_core
     src/boundary.cpp
     src/dof_map.cpp
+    src/diagnostics.cpp
     src/inelastic_material.cpp
     src/interface.cpp
     src/steady_problem.cpp
@@ -218,6 +219,7 @@ if(BUILD_TESTING)
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_heat_moose.fsi"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_table_convection_moose.fsi"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m31_transient_table_convection_rz_all_nodes_final.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_fuel_cladding_pcmi.fsi"
     )
     set_tests_properties(fuelsim_m3_load_boundary_tests PROPERTIES
         LABELS "acceptance"
@@ -386,5 +388,14 @@ if(BUILD_TESTING)
     )
     set_tests_properties(fuelsim_transient_input_card
         PROPERTIES LABELS "acceptance"
+    )
+
+    add_test(NAME fuelsim_transient_jacobian_check
+        COMMAND fuelsim -i
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_table_convection_moose.fsi"
+            --check-jacobian
+    )
+    set_tests_properties(fuelsim_transient_jacobian_check
+        PROPERTIES LABELS "integration"
     )
 endif()

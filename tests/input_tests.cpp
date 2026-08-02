@@ -94,7 +94,9 @@ bool verify_m3_output_input(const std::string& path,
             definition.boundary_conditions.back().type ==
                 fuelsim::BoundaryConditionType::convection &&
             definition.boundary_conditions.back().coefficient_function ==
-                "power",
+                "power" &&
+            definition.transient_execution.target_nonlinear_iterations == 6 &&
+            definition.transient_execution.iteration_window == 2,
         "restart, time functions, convection and outputs are parsed");
 }
 
@@ -223,7 +225,9 @@ bool run_tests(const std::string& steady_path,
     if (executioner_position == std::string::npos)
         return check(false, "transient fixture has an executioner type");
     m3_case.insert(executioner_position + executioner_type.size(),
-                   "\n  restart = restart.bin");
+                   "\n  restart = restart.bin"
+                   "\n  target_nonlinear_iterations = 6"
+                   "\n  iteration_window = 2");
     const std::size_t output_position = m3_case.find(console);
     if (output_position == std::string::npos)
         return check(false, "transient fixture has the expected console key");
@@ -250,6 +254,15 @@ bool run_tests(const std::string& steady_path,
                           "times = 0 0 5");
     passed = expect_case_failure(malformed_path, invalid_table,
                                  "strictly increasing") &&
+             passed;
+
+    std::string invalid_window = m3_case;
+    const std::string valid_window = "iteration_window = 2";
+    const std::size_t valid_window_position = invalid_window.find(valid_window);
+    invalid_window.replace(valid_window_position, valid_window.size(),
+                           "iteration_window = 6");
+    passed = expect_case_failure(malformed_path, invalid_window,
+                                 "must be smaller") &&
              passed;
 
     std::string orphan_interval = read_text(transient_path);

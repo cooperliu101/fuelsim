@@ -1,3 +1,4 @@
+#include "fuelsim/diagnostics.hpp"
 #include "fuelsim/steady_problem.hpp"
 #include "fuelsim/transient_problem.hpp"
 
@@ -186,6 +187,30 @@ bool test_time_controlled_pressure(const fuelsim::UnstructuredQuad4Mesh& mesh) {
     return passed;
 }
 
+bool test_global_field_diagnostics(const fuelsim::UnstructuredQuad4Mesh& mesh) {
+    fuelsim::SteadyProblem problem(single_region_definition(), mesh);
+    const std::vector<double> state = problem.initial_state();
+    std::vector<double> direction(problem.dof_count(), 0.0);
+    for (std::size_t node = 0; node < problem.dof_map().node_count(); ++node) {
+        direction[problem.dof_map().temperature(node)] = 0.2;
+        direction[problem.dof_map().radial_displacement(node)] = 1.0e-6;
+        direction[problem.dof_map().axial_displacement(node)] = -0.7e-6;
+    }
+    const fuelsim::DirectionalJacobianCheck diagnostic =
+        fuelsim::check_directional_jacobian(problem, problem.dof_map(), state,
+                                            direction, 1.0e-4);
+    bool passed = true;
+    for (std::size_t field = 0; field < 3; ++field) {
+        const double reference =
+            diagnostic.finite_difference_directional_derivative.l2[field];
+        passed =
+            check(diagnostic.difference.l2[field] <= 1.0e-7 * (1.0 + reference),
+                  "global field Jacobian matches centered differences") &&
+            passed;
+    }
+    return passed;
+}
+
 bool test_three_regions(const fuelsim::UnstructuredQuad4Mesh& mesh) {
     const fuelsim::SteadyProblem problem(three_region_definition(), mesh);
     const std::vector<double> state = problem.initial_state();
@@ -275,7 +300,8 @@ int main() {
         const fuelsim::UnstructuredQuad4Mesh mesh = three_region_mesh();
         const bool passed =
             test_single_region(mesh) && test_time_controlled_pressure(mesh) &&
-            test_three_regions(mesh) && test_transient_regions(mesh);
+            test_global_field_diagnostics(mesh) && test_three_regions(mesh) &&
+            test_transient_regions(mesh);
         if (!passed)
             return 1;
         std::cout << "[PASS] single- and multi-region problem tests\n";

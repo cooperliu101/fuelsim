@@ -1,26 +1,33 @@
 #include "fuelsim/case_input.hpp"
 #include "fuelsim/checkpoint_io.hpp"
+#include "fuelsim/diagnostics.hpp"
 #include "fuelsim/exodus_mesh_io.hpp"
 #include "fuelsim/petsc_solver.hpp"
 #include "fuelsim/problem_solver.hpp"
 #include "fuelsim/results_io.hpp"
 
+#include <algorithm>
+#include <array>
+#include <cmath>
 #include <cstddef>
 #include <exception>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <stdexcept>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace {
 
 class CaseOutput final {
   public:
-    explicit CaseOutput(const fuelsim::CaseOutputInput& options)
-        : _console(options.console) {
+    explicit CaseOutput(const fuelsim::CaseOutputInput& options,
+                        bool force_console = false)
+        : _console(options.console || force_console) {
         if (!options.csv_file.empty()) {
             _csv.open(options.csv_file, std::ios::out | std::ios::trunc);
             if (!_csv)
@@ -78,27 +85,39 @@ class CaseOutput final {
     std::ofstream _csv;
 };
 
-std::string extract_input_path(int& argc, char** argv) {
+struct CommandLine final {
     std::string input_path;
+    bool check_jacobian = false;
+};
+
+CommandLine extract_command_line(int& argc, char** argv) {
+    CommandLine result;
     int output = 1;
     for (int argument = 1; argument < argc; ++argument) {
         const std::string value = argv[argument];
+        if (value == "--check-jacobian") {
+            if (result.check_jacobian)
+                throw std::invalid_argument(
+                    "fuelsim accepts --check-jacobian only once");
+            result.check_jacobian = true;
+            continue;
+        }
         if (value != "-i") {
             argv[output++] = argv[argument];
             continue;
         }
-        if (!input_path.empty())
+        if (!result.input_path.empty())
             throw std::invalid_argument("fuelsim accepts exactly one -i file");
         if (argument + 1 >= argc)
             throw std::invalid_argument("fuelsim -i requires an input file");
-        input_path = argv[++argument];
+        result.input_path = argv[++argument];
     }
-    if (input_path.empty())
+    if (result.input_path.empty())
         throw std::invalid_argument(
-            "Usage: fuelsim -i <case.fsi> [PETSc options]");
+            "Usage: fuelsim -i <case.fsi> [--check-jacobian] [PETSc options]");
     argc = output;
     argv[argc] = nullptr;
-    return input_path;
+    return result;
 }
 
 fuelsim::SolverOptions
@@ -121,10 +140,68 @@ void write_interface_summary(const std::string& name,
     output.value(prefix + "active_contact_nodes", summary.active_contact_nodes);
 }
 
+std::vector<double> diagnostic_direction(const fuelsim::DofMap& dof_map) {
+    std::vector<double> result(dof_map.dof_count(), 0.0);
+    for (std::size_t node = 0; node < dof_map.node_count(); ++node) {
+        const double index = static_cast<double>(node % 7);
+        result[dof_map.temperature(node)] = 0.25 + 0.05 * index;
+        result[dof_map.radial_displacement(node)] =
+            1.0e-6 * (0.4 + 0.1 * index);
+        result[dof_map.axial_displacement(node)] =
+            -1.0e-6 * (0.3 + 0.07 * index);
+    }
+    return result;
+}
+
+bool write_jacobian_check(const fuelsim::NonlinearProblem& problem,
+                          const fuelsim::DofMap& dof_map,
+                          const std::vector<double>& state,
+                          CaseOutput& output) {
+    const fuelsim::DirectionalJacobianCheck check =
+        fuelsim::check_directional_jacobian(
+            problem, dof_map, state, diagnostic_direction(dof_map), 1.0e-4);
+    const std::array<const char*, 3> fields = {"temperature", "radial",
+                                               "axial"};
+    bool passed = true;
+    for (std::size_t field = 0; field < fields.size(); ++field) {
+        const std::string prefix =
+            "jacobian." + std::string(fields[field]) + ".";
+        const double reference =
+            check.finite_difference_directional_derivative.l2[field];
+        const double difference = check.difference.l2[field];
+        const double relative =
+            reference > 0.0
+                ? difference / reference
+                : (difference == 0.0 ? 0.0
+                                     : std::numeric_limits<double>::infinity());
+        output.value(prefix + "residual_l2", check.residual.l2[field]);
+        output.value(prefix + "analytic_l2",
+                     check.analytic_directional_derivative.l2[field]);
+        output.value(prefix + "finite_difference_l2", reference);
+        output.value(prefix + "difference_l2", difference);
+        output.value(prefix + "relative_l2", relative);
+        output.value(prefix + "maximum_absolute_difference",
+                     check.difference.maximum_absolute[field]);
+        passed =
+            difference <= 1.0e-6 * (1.0 + reference) &&
+            check.difference.maximum_absolute[field] <=
+                1.0e-6 * (1.0 + check.finite_difference_directional_derivative
+                                    .maximum_absolute[field]) &&
+            passed;
+    }
+    output.value("jacobian.check_passed", passed);
+    return passed;
+}
+
 bool run_steady(const fuelsim::FuelSimCaseDefinition& definition,
                 const fuelsim::UnstructuredQuad4Mesh& source,
-                CaseOutput& output) {
+                CaseOutput& output, bool check_jacobian) {
     fuelsim::SteadyProblem problem(definition.steady_definition(), source);
+    if (check_jacobian) {
+        problem.set_load_factor(1.0);
+        return write_jacobian_check(problem, problem.dof_map(),
+                                    problem.initial_state(), output);
+    }
     const fuelsim::SteadyResult result =
         fuelsim::solve_steady(problem, definition.steady_execution.load_steps,
                               solver_options(definition.solver));
@@ -162,13 +239,14 @@ class TransientOutputObserver final : public fuelsim::TransientStepObserver {
           _checkpoint_interval(checkpoint_interval), _accepted_steps(0) {}
 
     void accepted_step(const fuelsim::TransientProblem& problem,
-                       const fuelsim::TransientAcceptedStep&) override {
+                       const fuelsim::TransientAcceptedStep& step) override {
         ++_accepted_steps;
         if (_results != nullptr)
             _results->append(problem);
         if (!_checkpoint_file.empty() &&
             _accepted_steps % _checkpoint_interval == 0)
-            fuelsim::TransientCheckpointIo::write(_checkpoint_file, problem);
+            fuelsim::TransientCheckpointIo::write(_checkpoint_file, problem,
+                                                  step.next_time_step);
     }
 
   private:
@@ -180,12 +258,46 @@ class TransientOutputObserver final : public fuelsim::TransientStepObserver {
 
 bool run_transient(const fuelsim::FuelSimCaseDefinition& definition,
                    const fuelsim::UnstructuredQuad4Mesh& source,
-                   CaseOutput& output) {
+                   CaseOutput& output, bool check_jacobian) {
     fuelsim::TransientProblem problem(definition.transient_definition(),
                                       source);
+    double restart_time_step = 0.0;
     if (!definition.transient_execution.restart_file.empty())
-        fuelsim::TransientCheckpointIo::restore(
+        restart_time_step = fuelsim::TransientCheckpointIo::restore(
             definition.transient_execution.restart_file, problem);
+    if (check_jacobian) {
+        if (!(problem.committed_time() <
+              definition.transient_execution.end_time))
+            throw std::invalid_argument(
+                "Jacobian check requires a remaining transient time step");
+        double end_time = std::min(
+            definition.transient_execution.end_time,
+            problem.committed_time() +
+                (restart_time_step > 0.0
+                     ? restart_time_step
+                     : definition.transient_execution.initial_time_step));
+        for (const double event : problem.time_events()) {
+            if (event > problem.committed_time() && event < end_time) {
+                end_time = event;
+                break;
+            }
+        }
+        const double load_factor =
+            definition.transient_execution.load_ramp_time == 0.0
+                ? 1.0
+                : std::min(end_time /
+                               definition.transient_execution.load_ramp_time,
+                           1.0);
+        problem.begin_time_step({end_time, load_factor});
+        std::vector<double> state = problem.committed_solution();
+        for (const fuelsim::DirichletCondition& condition :
+             problem.dirichlet_conditions())
+            state.at(condition.dof) = condition.value;
+        const bool passed =
+            write_jacobian_check(problem, problem.dof_map(), state, output);
+        problem.rollback_time_step();
+        return passed;
+    }
     std::unique_ptr<fuelsim::ExodusTransientResultsWriter> results;
     if (!definition.outputs.exodus_file.empty()) {
         results = std::make_unique<fuelsim::ExodusTransientResultsWriter>(
@@ -197,24 +309,47 @@ bool run_transient(const fuelsim::FuelSimCaseDefinition& definition,
                                      definition.outputs.checkpoint_interval);
     const fuelsim::TransientTimeOptions time_options = {
         definition.transient_execution.end_time,
-        definition.transient_execution.initial_time_step,
+        restart_time_step > 0.0
+            ? restart_time_step
+            : definition.transient_execution.initial_time_step,
         definition.transient_execution.minimum_time_step,
         definition.transient_execution.maximum_time_step,
         definition.transient_execution.growth_factor,
         definition.transient_execution.cutback_factor,
         definition.transient_execution.maximum_cutbacks,
-        definition.transient_execution.load_ramp_time};
+        definition.transient_execution.load_ramp_time,
+        definition.transient_execution.target_nonlinear_iterations,
+        definition.transient_execution.iteration_window};
     const fuelsim::TransientResult result = fuelsim::solve_transient(
         problem, time_options, solver_options(definition.solver), &observer);
     if (!definition.outputs.checkpoint_file.empty())
         fuelsim::TransientCheckpointIo::write(
-            definition.outputs.checkpoint_file, problem);
+            definition.outputs.checkpoint_file, problem, result.next_time_step);
     output.value("problem", "transient");
     output.value("completed", result.completed);
+    output.value(
+        "termination_reason",
+        fuelsim::transient_termination_reason_name(result.termination_reason));
     output.value("regions", problem.region_count());
     output.value("contacts", definition.contacts.size());
     output.value("committed_time", result.committed_time);
+    output.value("next_time_step", result.next_time_step);
     output.value("accepted_steps", result.accepted_steps.size());
+    output.value("rejected_steps", result.rejected_steps.size());
+    if (!result.rejected_steps.empty()) {
+        const fuelsim::TransientRejectedStep& rejected =
+            result.rejected_steps.back();
+        output.value("last_rejected.attempted_end_time",
+                     rejected.attempted_end_time);
+        output.value("last_rejected.time_step", rejected.time_step);
+        output.value("last_rejected.cutback_index", rejected.cutback_index);
+        output.value("last_rejected.nonlinear_iterations",
+                     rejected.nonlinear_iterations);
+        output.value("last_rejected.convergence_reason",
+                     fuelsim::petsc_convergence_reason_name(
+                         rejected.convergence_reason));
+        output.value("last_rejected.residual_norm", rejected.residual_norm);
+    }
     output.value("total_cutbacks", result.total_cutbacks);
     output.value("nonlinear_iterations_total",
                  result.total_nonlinear_iterations);
@@ -244,21 +379,22 @@ bool run_transient(const fuelsim::FuelSimCaseDefinition& definition,
 
 int main(int argc, char** argv) {
     try {
-        const std::string input_path = extract_input_path(argc, argv);
+        const CommandLine command = extract_command_line(argc, argv);
         const fuelsim::FuelSimCaseDefinition definition =
-            fuelsim::CaseInputReader::read(input_path);
+            fuelsim::CaseInputReader::read(command.input_path);
         fuelsim::PetscSession session(
             argc, argv,
             "fuelsim input-driven axisymmetric multi-region solver\n");
         const fuelsim::UnstructuredQuad4Mesh source =
             fuelsim::ExodusMeshIo::read_quad4(definition.mesh_file);
-        CaseOutput output(definition.outputs);
-        output.value("input_file", input_path);
+        CaseOutput output(definition.outputs, command.check_jacobian);
+        output.value("input_file", command.input_path);
         output.value("mesh_file", definition.mesh_file);
         const bool completed =
             definition.problem == fuelsim::CaseProblem::steady
-                ? run_steady(definition, source, output)
-                : run_transient(definition, source, output);
+                ? run_steady(definition, source, output, command.check_jacobian)
+                : run_transient(definition, source, output,
+                                command.check_jacobian);
         return completed ? 0 : 1;
     } catch (const std::exception& error) {
         std::cerr << "fuelsim failed: " << error.what() << '\n';

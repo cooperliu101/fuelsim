@@ -30,18 +30,20 @@ bool test_time_event_alignment(const std::string& input_path) {
         "events", std::vector<double>{0.0, 0.75, 2.0},
         std::vector<double>{1.0, 1.0, 1.0});
     fuelsim::TransientProblem problem(std::move(definition), mesh);
-    const fuelsim::TransientTimeOptions time_options = {2.0, 2.0, 0.125, 2.0,
-                                                        1.0, 0.5, 2,     20.0};
+    const fuelsim::TransientTimeOptions time_options = {
+        2.0, 0.5, 0.125, 2.0, 2.0, 0.5, 2, 20.0, 4, 1};
     const fuelsim::SolverOptions solver_options = {
         input.solver.absolute_tolerance, input.solver.relative_tolerance,
         input.solver.step_tolerance, input.solver.maximum_iterations};
     const fuelsim::TransientResult result =
         fuelsim::solve_transient(problem, time_options, solver_options);
-    return check(result.completed && result.accepted_steps.size() == 2 &&
-                     result.accepted_steps[0].time == 0.75 &&
-                     result.accepted_steps[1].time == 2.0,
-                 "time stepping lands exactly on table events without losing "
-                 "the controller step");
+    return check(result.completed && result.accepted_steps.size() == 3 &&
+                     result.accepted_steps[0].time == 0.5 &&
+                     result.accepted_steps[1].time == 0.75 &&
+                     result.accepted_steps[2].time == 2.0 &&
+                     result.accepted_steps[2].time_step == 1.25,
+                 "iteration-adaptive stepping grows, lands on an event, and "
+                 "preserves the controller step");
 }
 
 bool test_moose_time_table_convection(const std::string& input_path,
@@ -99,12 +101,50 @@ bool test_moose_time_table_convection(const std::string& input_path,
     return passed;
 }
 
+bool test_failure_diagnostics(const std::string& input_path) {
+    const fuelsim::FuelSimCaseDefinition input =
+        fuelsim::CaseInputReader::read(input_path);
+    const fuelsim::UnstructuredQuad4Mesh mesh =
+        fuelsim::ExodusMeshIo::read_quad4(input.mesh_file);
+    fuelsim::TransientProblem problem(input.transient_definition(), mesh);
+    const fuelsim::TransientTimeOptions time_options = {1.0, 1.0, 0.125, 1.0,
+                                                        1.0, 0.5, 0,     20.0};
+    const fuelsim::SolverOptions solver_options = {
+        input.solver.absolute_tolerance, input.solver.relative_tolerance,
+        input.solver.step_tolerance, 1};
+    const fuelsim::TransientResult result =
+        fuelsim::solve_transient(problem, time_options, solver_options);
+    bool passed =
+        check(!result.completed && result.rejected_steps.size() == 1 &&
+                  result.termination_reason ==
+                      fuelsim::TransientTerminationReason::maximum_cutbacks &&
+                  result.rejected_steps[0].time_step == 1.0 &&
+                  result.committed_time == 0.0,
+              "failed nonlinear step is categorized and leaves committed time "
+              "unchanged");
+    fuelsim::TransientProblem minimum_problem(input.transient_definition(),
+                                              mesh);
+    const fuelsim::TransientTimeOptions minimum_options = {
+        1.0, 1.0, 0.75, 1.0, 1.0, 0.5, 3, 20.0};
+    const fuelsim::TransientResult minimum_result = fuelsim::solve_transient(
+        minimum_problem, minimum_options, solver_options);
+    passed =
+        check(!minimum_result.completed &&
+                  minimum_result.termination_reason ==
+                      fuelsim::TransientTerminationReason::minimum_time_step &&
+                  minimum_result.rejected_steps.size() == 1 &&
+                  minimum_result.committed_time == 0.0,
+              "failed step distinguishes the minimum-time-step limit") &&
+        passed;
+    return passed;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 4) {
+    if (argc != 5) {
         std::cerr << "Usage: fuelsim_m3_load_boundary_tests <m21.fsi> "
-                     "<m31.fsi> <m31-all-nodes.csv>\n";
+                     "<m31.fsi> <m31-all-nodes.csv> <pcmi.fsi>\n";
         return 2;
     }
     try {
@@ -112,7 +152,8 @@ int main(int argc, char** argv) {
         fuelsim::PetscSession session(
             argc, argv, "fuelsim M3.1 time loads and boundary test\n");
         if (!test_time_event_alignment(argv[1]) ||
-            !test_moose_time_table_convection(argv[2], argv[3]))
+            !test_moose_time_table_convection(argv[2], argv[3]) ||
+            !test_failure_diagnostics(argv[4]))
             return 1;
         std::cout << "[PASS] fuelsim M3.1 time loads and boundary test\n";
         return 0;

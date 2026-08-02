@@ -206,6 +206,8 @@ Quad4 的 12-DOF ADlite 局部贡献装配，因此残量和温度切线保持�
   cutback_factor = 0.5
   maximum_cutbacks = 3
   load_ramp_time = 20
+  target_nonlinear_iterations = 6
+  iteration_window = 2
   restart = previous.checkpoint
 []
 ```
@@ -219,10 +221,22 @@ Quad4 的 12-DOF ADlite 局部贡献装配，因此残量和温度切线保持�
 `minimum_time_step`，因为事件时刻优先于最小重试步长；若该事件步求解失败，
 后续 cutback 仍受最小步长约束。
 
+`target_nonlinear_iterations` 和 `iteration_window` 可选。目标为正时，成功步的
+非线性迭代数低于 `target-window` 会按 `growth_factor` 增长下一名义步长，
+高于 `target+window` 会按 `cutback_factor` 缩短下一步，窗口内保持不变；
+结果始终限制在最小/最大步长内。目标省略或为零时，保持每个成功步均增长的
+原行为，此时窗口必须为零。窗口必须小于目标。
+
+每次未收敛尝试都会记录尝试终点、步长、cutback 序号、非线性迭代数、PETSc
+收敛原因和残量范数；最终停止原因区分 `completed`、`maximum_cutbacks` 和
+`minimum_time_step`。拒绝步仍完整回滚 committed 状态。
+
 `restart` 为可选的严格重启动文件。它恢复已提交的节点温度/位移、物理时间、
 载荷因子、全部积分点塑性/蠕变历史和已提交应力。文件的版本、字节序、长度、
 校验和、网格、材料、边界条件、接触及局部装配拓扑必须与当前问题一致；不
 匹配时立即停止。重启动不保存 Newton trial、活动时间步或失败尝试。
+格式 v2 还保存成功提交后控制器给出的下一名义时间步，因此自适应计算从检查
+点继续时不会重新使用输入卡的初始步长。
 
 `[Solver]` 可设置 `absolute_tolerance`、`relative_tolerance`、
 `step_tolerance` 和 `maximum_iterations`；省略时分别为 `1e-8`、`1e-10`、
@@ -252,6 +266,17 @@ Quad4 的 12-DOF ADlite 局部贡献装配，因此残量和温度切线保持�
 结果文件不得覆盖输入网格，也不得与检查点同名。相对路径都以输入卡目录为
 基准。重启动后的 Exodus 输出会新建一个结果文件，并以恢复时刻作为第一个
 结果步，不尝试修改上一段结果文件。
+
+全局场级 Jacobian 诊断入口为：
+
+```bash
+fuelsim -i case.fsi --check-jacobian
+```
+
+该模式不执行完整载荷路径；稳态在完整载荷初值、瞬态在下一物理时间步的
+committed 初值上装配解析方向导数，并与中心差分比较。输出按温度、径向位移
+和轴向位移分别给出残量 L2、解析/差分方向导数 L2、差值 L2、相对 L2 和最大
+绝对差。Dirichlet 行采用与 PETSc 回调完全相同的 `F_i=x_i-g_i`。
 
 仓库中的可运行示例为：
 

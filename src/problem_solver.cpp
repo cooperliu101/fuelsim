@@ -91,6 +91,14 @@ void validate_time_options(const TransientProblem& problem,
     if (!std::isfinite(options.load_ramp_time) || options.load_ramp_time < 0.0)
         throw std::invalid_argument(
             "solve_transient ramp time must be finite and nonnegative");
+    if (options.target_nonlinear_iterations == 0 &&
+        options.iteration_window != 0)
+        throw std::invalid_argument(
+            "solve_transient iteration window requires a target");
+    if (options.target_nonlinear_iterations > 0 &&
+        options.iteration_window >= options.target_nonlinear_iterations)
+        throw std::invalid_argument(
+            "solve_transient iteration window must be smaller than target");
 }
 
 double load_factor_at_time(const TransientTimeOptions& options, double time) {
@@ -109,6 +117,38 @@ initial_guess_with_dirichlet_values(const NonlinearProblem& problem,
     for (const DirichletCondition& condition : problem.dirichlet_conditions())
         result.at(condition.dof) = condition.value;
     return result;
+}
+
+double accepted_next_time_step(const TransientTimeOptions& options,
+                               double actual_time_step,
+                               double controller_time_step,
+                               bool event_truncated, std::size_t cutbacks,
+                               int nonlinear_iterations) {
+    const double base = event_truncated && cutbacks == 0 ? controller_time_step
+                                                         : actual_time_step;
+    if (options.target_nonlinear_iterations == 0)
+        return std::min(options.maximum_time_step,
+                        base * options.growth_factor);
+    const std::size_t iterations =
+        nonlinear_iterations < 0
+            ? 0
+            : static_cast<std::size_t>(nonlinear_iterations);
+    const std::size_t lower =
+        options.target_nonlinear_iterations - options.iteration_window;
+    const std::size_t upper =
+        options.target_nonlinear_iterations >
+                std::numeric_limits<std::size_t>::max() -
+                    options.iteration_window
+            ? std::numeric_limits<std::size_t>::max()
+            : options.target_nonlinear_iterations + options.iteration_window;
+    if (iterations < lower)
+        return std::min(options.maximum_time_step,
+                        base * options.growth_factor);
+    if (iterations > upper)
+        return std::max(options.minimum_time_step,
+                        base * options.cutback_factor);
+    return std::clamp(base, options.minimum_time_step,
+                      options.maximum_time_step);
 }
 
 } // namespace
@@ -202,26 +242,35 @@ TransientResult solve_transient(TransientProblem& problem,
                      ++region)
                     histories.push_back(
                         problem.summarize_region_history(region));
+                next_time_step = accepted_next_time_step(
+                    options, time_step, controller_time_step, event_truncated,
+                    cutbacks, result.last_attempt.nonlinear_iterations);
                 result.accepted_steps.push_back(
-                    {problem.committed_time(), time_step,
+                    {problem.committed_time(), time_step, next_time_step,
                      problem.committed_load_factor(), cutbacks,
                      result.last_attempt.nonlinear_iterations,
                      std::move(histories)});
                 if (observer != nullptr)
                     observer->accepted_step(problem,
                                             result.accepted_steps.back());
-                const double growth_base = event_truncated && cutbacks == 0
-                                               ? controller_time_step
-                                               : time_step;
-                next_time_step = std::min(options.maximum_time_step,
-                                          growth_base * options.growth_factor);
                 break;
             }
-            if (cutbacks >= options.maximum_cutbacks_per_step)
+            result.rejected_steps.push_back(
+                {problem.committed_time() + time_step, time_step, cutbacks,
+                 result.last_attempt.nonlinear_iterations,
+                 result.last_attempt.convergence_reason,
+                 result.last_attempt.residual_norm});
+            if (cutbacks >= options.maximum_cutbacks_per_step) {
+                result.termination_reason =
+                    TransientTerminationReason::maximum_cutbacks;
                 break;
+            }
             const double reduced = time_step * options.cutback_factor;
-            if (reduced < options.minimum_time_step)
+            if (reduced < options.minimum_time_step) {
+                result.termination_reason =
+                    TransientTerminationReason::minimum_time_step;
                 break;
+            }
             time_step = reduced;
             ++cutbacks;
             ++result.total_cutbacks;
@@ -230,10 +279,28 @@ TransientResult solve_transient(TransientProblem& problem,
             break;
     }
     result.completed = reaches_end(problem.committed_time(), options.end_time);
+    if (result.completed)
+        result.termination_reason = TransientTerminationReason::completed;
     result.committed_state = problem.committed_solution();
     result.committed_time = problem.committed_time();
+    result.next_time_step = next_time_step;
     result.total_seconds = seconds_since(start);
     return result;
+}
+
+const char*
+transient_termination_reason_name(TransientTerminationReason reason) noexcept {
+    switch (reason) {
+    case TransientTerminationReason::not_started:
+        return "not_started";
+    case TransientTerminationReason::completed:
+        return "completed";
+    case TransientTerminationReason::maximum_cutbacks:
+        return "maximum_cutbacks";
+    case TransientTerminationReason::minimum_time_step:
+        return "minimum_time_step";
+    }
+    return "unknown";
 }
 
 } // namespace fuelsim
