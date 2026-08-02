@@ -291,15 +291,19 @@ bool test_contact_interface_case(
     passed = check(std::abs(radial_sum) < 1.0e-13 * (1.0 + radial_scale),
                    name + " contact conserves radial force") &&
              passed;
+    double axial_sum = 0.0;
+    double axial_scale = 0.0;
+    for (std::size_t row = 8; row < 12; ++row) {
+        axial_sum += residual[row];
+        axial_scale += std::abs(residual[row]);
+    }
+    passed = check(std::abs(axial_sum) < 1.0e-13 * (1.0 + axial_scale),
+                   name + " contact conserves axial force") &&
+             passed;
     for (std::size_t row = 0; row < 4; ++row)
         passed = check(residual[row] == 0.0,
                        name + " contact has no thermal residual") &&
                  passed;
-    for (std::size_t row = 8; row < fuelsim::local_dof_count; ++row)
-        passed = check(residual[row] == 0.0,
-                       name + " frictionless contact has no axial residual") &&
-                 passed;
-
     std::cout << name << "_contact_jacobian_maximum_scaled_error="
               << maximum_jacobian_error << '\n';
     return passed;
@@ -373,6 +377,42 @@ bool test_gap_heat_and_normal_contact() {
     passed = check(!outside_contact.projected &&
                        outside_contact.contact_force == 0.0,
                    "out-of-segment NTS projection is inactive") &&
+             passed;
+
+    const fuelsim::Line2InterfaceSideCoordinates lower_pellet = {{
+        {0.0, 0.001000},
+        {0.004, 0.001000},
+    }};
+    const fuelsim::Line2InterfaceSideCoordinates upper_pellet = {{
+        {0.0, 0.001002},
+        {0.0041, 0.001002},
+    }};
+    const fuelsim::Line2RzHeatGeometry axial_heat_geometry =
+        fuelsim::make_line2_rz_heat_geometry(lower_pellet, upper_pellet);
+    const fuelsim::NodeToLineRzContactGeometry axial_contact_geometry =
+        fuelsim::make_node_to_line_rz_contact_geometry(
+            lower_pellet, upper_pellet, 1, true);
+    const fuelsim::LocalValues axial_open_state = {
+        750.0, 740.0, 610.0, 620.0, 0.0, 0.0,
+        0.0,   0.0,   0.2e-6, 0.3e-6, 0.0, 0.0,
+    };
+    const fuelsim::LocalValues axial_closed_state = {
+        750.0, 740.0, 610.0, 620.0, 0.0, 0.0,
+        0.0,   0.0,   3.0e-6, 3.2e-6, 0.0, 0.0,
+    };
+    passed = test_heat_interface_case("axial_open", heat_kernel,
+                                      axial_heat_geometry,
+                                      axial_open_state) &&
+             passed;
+    passed = test_contact_interface_case(
+                 "axial_closed", contact_kernel, axial_contact_geometry,
+                 axial_closed_state) &&
+             passed;
+    const fuelsim::ContactPointValue axial_contact = contact_kernel.value(
+        axial_contact_geometry, axial_closed_state);
+    passed = check(axial_contact.projected && axial_contact.gap < 0.0 &&
+                       axial_contact.pressure > 0.0,
+                   "horizontal pellet faces develop axial contact") &&
              passed;
     return passed;
 }

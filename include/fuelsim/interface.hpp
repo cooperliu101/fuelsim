@@ -19,13 +19,14 @@ using Line2InterfaceSideCoordinates =
 struct Line2RzHeatQuadraturePoint final {
     std::array<double, line2_interface_side_node_count> secondary_shape;
     std::array<double, line2_interface_side_node_count> primary_shape;
-    double secondary_reference_radius;
-    double primary_reference_radius;
+    double integration_weight;
+    double normal_orientation;
 };
 
 struct Line2RzHeatGeometry final {
     Line2InterfaceSideCoordinates secondary_coordinates;
     Line2InterfaceSideCoordinates primary_coordinates;
+    bool radial_reference_geometry;
     std::array<Line2RzHeatQuadraturePoint,
                line2_interface_quadrature_point_count>
         points;
@@ -49,6 +50,11 @@ using HeatQuadratureValues =
 Line2RzHeatGeometry make_line2_rz_heat_geometry(
     const Line2InterfaceSideCoordinates& secondary_coordinates,
     const Line2InterfaceSideCoordinates& primary_coordinates);
+
+Line2RzHeatGeometry make_line2_rz_heat_geometry(
+    const Line2InterfaceSideCoordinates& secondary_coordinates,
+    const Line2InterfaceSideCoordinates& primary_coordinates,
+    double secondary_coordinate_lower, double secondary_coordinate_upper);
 
 class Line2RzGapHeatKernel final {
   public:
@@ -77,7 +83,10 @@ struct NodeToLineRzContactGeometry final {
     Line2InterfaceSideCoordinates secondary_edge_coordinates;
     Line2InterfaceSideCoordinates primary_segment_coordinates;
     std::size_t secondary_local_node;
-    bool primary_segment_includes_upper_endpoint;
+    bool primary_segment_includes_second_endpoint;
+    double normal_orientation;
+    double reference_primary_fraction;
+    bool radial_reference_geometry;
 };
 
 struct NormalContactProperties final {
@@ -106,9 +115,9 @@ class NodeToLineRzContactKernel final {
 
     const NormalContactProperties& properties() const noexcept;
 
-    // The local ordering is identical to Line2RzGapHeatKernel. Only the
-    // selected secondary node and the two primary nodes receive radial
-    // residuals.
+    // The local ordering is identical to Line2RzGapHeatKernel. The selected
+    // secondary node and the two primary nodes receive radial and axial
+    // residuals along the current primary-segment normal.
     LocalResidual residual(const NodeToLineRzContactGeometry& geometry,
                            const LocalValues& state) const;
     LocalSystem linearize(const NodeToLineRzContactGeometry& geometry,

@@ -18,6 +18,7 @@ files.
 | M2.2 coupled displacement | `m22_coupled_plastic_creep_rz_mesh.e` | 4 / 1 | `528411ed474f58b85cc4601a66a3979325beaee93b84f04c7ababaf6ad0a54aa` |
 | M2.2 coupled traction | `m22_coupled_plastic_creep_traction_rz_mesh.e` | 4 / 1 | `664e7f6f8bfddd765db623592bdda769897f71bf3712d7d7b69f09070dd5f984` |
 | M2.3 PCMI | `m23_pcmi_coupled_cladding_rz_mesh.e` | 50 / 32 | `cb6d53013f131976187f58a80bd8e1db6517e2e3a9476482a2c8f9b57ee8ff00` |
+| M3.3 two-pellet contact | `m33_two_pellet_contact_rz_mesh.e` | 36 / 20 | `90c90396384397cbd0c993f35ac90c6e402996c77454820c009a653e8748f474` |
 
 Generate any snapshot from this directory by replacing `<case>` with the input
 stem:

@@ -225,6 +225,27 @@ if(BUILD_TESTING)
         LABELS "acceptance"
     )
 
+    add_executable(fuelsim_m3_contact_tests
+        tests/m3_contact_tests.cpp
+    )
+    target_link_libraries(fuelsim_m3_contact_tests
+        PRIVATE
+            fuelsim_moose_test_support
+            fuelsim::input
+            fuelsim::exodus
+            fuelsim::petsc
+    )
+    fuelsim_enable_warnings(fuelsim_m3_contact_tests)
+    add_test(NAME fuelsim_m3_contact_tests
+        COMMAND fuelsim_m3_contact_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_two_pellet_contact_moose.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m33_two_pellet_contact_rz_out_all_nodes_0001.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m33_two_pellet_contact_rz_out_lower_surface_0001.csv"
+    )
+    set_tests_properties(fuelsim_m3_contact_tests PROPERTIES
+        LABELS "acceptance"
+    )
+
     add_executable(fuelsim_m1_exodus_moose_tests
         tests/m1_exodus_moose_tests.cpp
     )

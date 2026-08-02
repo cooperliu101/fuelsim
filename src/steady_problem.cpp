@@ -167,39 +167,156 @@ void validate_dirichlet_conditions(
     }
 }
 
-std::size_t
-find_containing_segment(double z, const RegionMesh& mesh,
-                        const std::vector<Line2BoundaryElement>& edges) {
-    for (std::size_t edge = 0; edge < edges.size(); ++edge) {
-        const double lower = mesh.nodes().at(edges[edge].nodes[0]).z;
-        const double upper = mesh.nodes().at(edges[edge].nodes[1]).z;
-        const bool includes_upper = edge + 1 == edges.size();
-        if (z >= lower && (z < upper || (includes_upper && z <= upper)))
-            return edge;
-    }
-    throw std::invalid_argument("Contact point is outside the primary surface");
-}
-
-void validate_connected_radial_boundary(const RegionMesh& mesh,
-                                        const RegionBoundary& boundary,
-                                        const std::string& name) {
-    if (boundary.kind != RegionBoundaryKind::radial_inner &&
-        boundary.kind != RegionBoundaryKind::radial_outer)
-        throw std::invalid_argument("Contact requires radial RZ side sets: " +
-                                    name);
+RegionBoundary ordered_connected_boundary(const RegionMesh& mesh,
+                                          RegionBoundary boundary,
+                                          const std::string& name) {
     if (boundary.elements.empty())
         throw std::invalid_argument("Contact side set is empty: " + name);
-    for (std::size_t edge = 1; edge < boundary.elements.size(); ++edge) {
-        const double previous_upper =
-            mesh.nodes().at(boundary.elements[edge - 1].nodes[1]).z;
-        const double current_lower =
-            mesh.nodes().at(boundary.elements[edge].nodes[0]).z;
-        const double scale =
-            std::max({1.0, std::abs(previous_upper), std::abs(current_lower)});
-        if (std::abs(previous_upper - current_lower) > 1.0e-12 * scale)
-            throw std::invalid_argument(
-                "Contact side set must be one connected axial chain: " + name);
+
+    std::vector<std::size_t> degree(mesh.nodes().size(), 0);
+    for (const Line2BoundaryElement& edge : boundary.elements) {
+        if (edge.nodes[0] == edge.nodes[1])
+            throw std::invalid_argument("Contact side set has a zero edge: " +
+                                        name);
+        for (std::size_t node : edge.nodes) {
+            if (++degree.at(node) > 2)
+                throw std::invalid_argument(
+                    "Contact side set must not branch: " + name);
+        }
     }
+    std::vector<std::size_t> endpoints;
+    for (std::size_t node = 0; node < degree.size(); ++node) {
+        if (degree[node] == 1)
+            endpoints.push_back(node);
+    }
+    if (endpoints.size() != 2)
+        throw std::invalid_argument(
+            "Contact side set must be one open connected chain: " + name);
+
+    const auto coordinate_less = [&](std::size_t lhs, std::size_t rhs) {
+        const RzPoint& left = mesh.nodes().at(lhs);
+        const RzPoint& right = mesh.nodes().at(rhs);
+        if (left.r != right.r)
+            return left.r < right.r;
+        if (left.z != right.z)
+            return left.z < right.z;
+        return lhs < rhs;
+    };
+    std::size_t current = coordinate_less(endpoints[0], endpoints[1])
+                              ? endpoints[0]
+                              : endpoints[1];
+    std::vector<bool> used(boundary.elements.size(), false);
+    std::vector<Line2BoundaryElement> ordered;
+    std::vector<std::size_t> nodes = {current};
+    ordered.reserve(boundary.elements.size());
+    nodes.reserve(boundary.elements.size() + 1);
+    for (std::size_t position = 0; position < boundary.elements.size();
+         ++position) {
+        std::size_t selected = boundary.elements.size();
+        Line2BoundaryElement oriented{};
+        for (std::size_t edge = 0; edge < boundary.elements.size(); ++edge) {
+            if (used[edge])
+                continue;
+            const Line2BoundaryElement& candidate = boundary.elements[edge];
+            if (candidate.nodes[0] == current) {
+                selected = edge;
+                oriented = candidate;
+                break;
+            }
+            if (candidate.nodes[1] == current) {
+                selected = edge;
+                oriented = {{{candidate.nodes[1], candidate.nodes[0]}}};
+                break;
+            }
+        }
+        if (selected == boundary.elements.size())
+            throw std::invalid_argument(
+                "Contact side set must be one connected chain: " + name);
+        used[selected] = true;
+        ordered.push_back(oriented);
+        current = oriented.nodes[1];
+        nodes.push_back(current);
+    }
+    boundary.nodes = std::move(nodes);
+    boundary.elements = std::move(ordered);
+    return boundary;
+}
+
+double projection_fraction(const RzPoint& point,
+                           const Line2InterfaceSideCoordinates& segment) {
+    const double dr = segment[1].r - segment[0].r;
+    const double dz = segment[1].z - segment[0].z;
+    return ((point.r - segment[0].r) * dr +
+            (point.z - segment[0].z) * dz) /
+           (dr * dr + dz * dz);
+}
+
+bool projection_interval(
+    const Line2InterfaceSideCoordinates& secondary,
+    const Line2InterfaceSideCoordinates& primary, double& lower,
+    double& upper) {
+    const RzPoint midpoint = {
+        0.5 * (secondary[0].r + secondary[1].r),
+        0.5 * (secondary[0].z + secondary[1].z),
+    };
+    const RzPoint half = {
+        0.5 * (secondary[1].r - secondary[0].r),
+        0.5 * (secondary[1].z - secondary[0].z),
+    };
+    const double center = projection_fraction(midpoint, primary);
+    const double slope =
+        projection_fraction({midpoint.r + half.r, midpoint.z + half.z},
+                            primary) -
+        center;
+    lower = -1.0;
+    upper = 1.0;
+    const double tolerance =
+        64.0 * std::numeric_limits<double>::epsilon();
+    if (std::abs(slope) <= tolerance) {
+        return center >= -tolerance && center <= 1.0 + tolerance;
+    }
+    double first = (0.0 - center) / slope;
+    double second = (1.0 - center) / slope;
+    if (first > second)
+        std::swap(first, second);
+    lower = std::max(lower, first);
+    upper = std::min(upper, second);
+    lower = std::max(-1.0, std::min(1.0, lower));
+    upper = std::max(-1.0, std::min(1.0, upper));
+    return upper - lower > tolerance;
+}
+
+std::size_t closest_primary_segment(
+    const RzPoint& point, const RegionMesh& primary_mesh,
+    const std::vector<Line2BoundaryElement>& primary_edges) {
+    std::size_t selected = primary_edges.size();
+    double minimum_distance = std::numeric_limits<double>::infinity();
+    constexpr double tolerance = 1.0e-12;
+    for (std::size_t edge = 0; edge < primary_edges.size(); ++edge) {
+        const Line2InterfaceSideCoordinates coordinates =
+            edge_coordinates(primary_mesh, primary_edges[edge]);
+        const double fraction = projection_fraction(point, coordinates);
+        if (fraction < -tolerance || fraction > 1.0 + tolerance)
+            continue;
+        const double clipped = std::max(0.0, std::min(1.0, fraction));
+        const double dr = coordinates[0].r +
+                              clipped *
+                                  (coordinates[1].r - coordinates[0].r) -
+                          point.r;
+        const double dz = coordinates[0].z +
+                              clipped *
+                                  (coordinates[1].z - coordinates[0].z) -
+                          point.z;
+        const double distance = std::hypot(dr, dz);
+        if (distance < minimum_distance) {
+            selected = edge;
+            minimum_distance = distance;
+        }
+    }
+    if (selected == primary_edges.size())
+        throw std::invalid_argument(
+            "Contact node is outside the primary surface projection");
+    return selected;
 }
 
 } // namespace
@@ -607,23 +724,14 @@ void SteadyProblem::build_contacts(const UnstructuredQuad4Mesh& source_mesh) {
         if (primary.region == secondary.region)
             throw std::invalid_argument("Self-contact is not supported: " +
                                         contact_definition.name);
-        validate_connected_radial_boundary(_meshes[primary.region],
-                                           primary.boundary,
-                                           contact_definition.primary);
-        validate_connected_radial_boundary(_meshes[secondary.region],
-                                           secondary.boundary,
-                                           contact_definition.secondary);
-
         const RegionMesh& primary_mesh = _meshes[primary.region];
         const RegionMesh& secondary_mesh = _meshes[secondary.region];
-        const double primary_radius =
-            primary_mesh.nodes().at(primary.boundary.nodes.front()).r;
-        const double secondary_radius =
-            secondary_mesh.nodes().at(secondary.boundary.nodes.front()).r;
-        if (!(primary_radius > secondary_radius))
-            throw std::invalid_argument(
-                "RZ contact currently requires primary outside secondary: " +
-                contact_definition.name);
+        primary.boundary = ordered_connected_boundary(
+            primary_mesh, std::move(primary.boundary),
+            contact_definition.primary);
+        secondary.boundary = ordered_connected_boundary(
+            secondary_mesh, std::move(secondary.boundary),
+            contact_definition.secondary);
 
         _thermal_kernels.emplace_back(GapHeatProperties{
             contact_definition.thermal ? contact_definition.gap_conductivity
@@ -637,33 +745,62 @@ void SteadyProblem::build_contacts(const UnstructuredQuad4Mesh& source_mesh) {
                  secondary.boundary.elements) {
                 const Line2InterfaceSideCoordinates secondary_coordinates =
                     edge_coordinates(secondary_mesh, secondary_edge);
-                const double lower_gauss_z =
-                    0.5 * (1.0 + gauss) * secondary_coordinates[0].z +
-                    0.5 * (1.0 - gauss) * secondary_coordinates[1].z;
-                const double upper_gauss_z =
-                    0.5 * (1.0 - gauss) * secondary_coordinates[0].z +
-                    0.5 * (1.0 + gauss) * secondary_coordinates[1].z;
-                const std::size_t lower_segment = find_containing_segment(
-                    lower_gauss_z, primary_mesh, primary.boundary.elements);
-                const std::size_t upper_segment = find_containing_segment(
-                    upper_gauss_z, primary_mesh, primary.boundary.elements);
-                if (lower_segment != upper_segment)
+                struct ThermalProjection final {
+                    std::size_t primary_edge;
+                    double lower;
+                    double upper;
+                };
+                std::vector<ThermalProjection> projections;
+                for (std::size_t primary_edge = 0;
+                     primary_edge < primary.boundary.elements.size();
+                     ++primary_edge) {
+                    double lower = 0.0;
+                    double upper = 0.0;
+                    if (projection_interval(
+                            secondary_coordinates,
+                            edge_coordinates(
+                                primary_mesh,
+                                primary.boundary.elements[primary_edge]),
+                            lower, upper))
+                        projections.push_back(
+                            {primary_edge, lower, upper});
+                }
+                std::sort(projections.begin(), projections.end(),
+                          [](const ThermalProjection& lhs,
+                             const ThermalProjection& rhs) {
+                              return lhs.lower < rhs.lower;
+                          });
+                double covered = -1.0;
+                constexpr double coverage_tolerance = 1.0e-10;
+                for (const ThermalProjection& projection : projections) {
+                    if (projection.lower > covered + coverage_tolerance ||
+                        projection.lower < covered - coverage_tolerance)
+                        throw std::invalid_argument(
+                            "Secondary thermal edge projection has a gap or "
+                            "overlap on the primary surface: " +
+                            contact_definition.name);
+                    covered = projection.upper;
+                }
+                if (covered < 1.0 - coverage_tolerance)
                     throw std::invalid_argument(
-                        "Each secondary thermal edge must project to one "
-                        "primary segment: " +
+                        "Secondary thermal edge is outside the primary "
+                        "surface projection: " +
                         contact_definition.name);
-                const Line2BoundaryElement& primary_edge =
-                    primary.boundary.elements[lower_segment];
-                _thermal_contact_indices.push_back(contact_value);
-                _thermal_nodes.push_back({
-                    global_node(secondary.region, secondary_edge.nodes[0]),
-                    global_node(secondary.region, secondary_edge.nodes[1]),
-                    global_node(primary.region, primary_edge.nodes[0]),
-                    global_node(primary.region, primary_edge.nodes[1]),
-                });
-                _thermal_geometries.push_back(make_line2_rz_heat_geometry(
-                    secondary_coordinates,
-                    edge_coordinates(primary_mesh, primary_edge)));
+                for (const ThermalProjection& projection : projections) {
+                    const Line2BoundaryElement& primary_edge =
+                        primary.boundary.elements[projection.primary_edge];
+                    _thermal_contact_indices.push_back(contact_value);
+                    _thermal_nodes.push_back({
+                        global_node(secondary.region, secondary_edge.nodes[0]),
+                        global_node(secondary.region, secondary_edge.nodes[1]),
+                        global_node(primary.region, primary_edge.nodes[0]),
+                        global_node(primary.region, primary_edge.nodes[1]),
+                    });
+                    _thermal_geometries.push_back(make_line2_rz_heat_geometry(
+                        secondary_coordinates,
+                        edge_coordinates(primary_mesh, primary_edge),
+                        projection.lower, projection.upper));
+                }
             }
         }
 
@@ -678,9 +815,9 @@ void SteadyProblem::build_contacts(const UnstructuredQuad4Mesh& source_mesh) {
                 for (std::size_t secondary_node = 0;
                      secondary_node < line2_interface_side_node_count;
                      ++secondary_node) {
-                    const double z = secondary_coordinates[secondary_node].z;
-                    const std::size_t containing = find_containing_segment(
-                        z, primary_mesh, primary.boundary.elements);
+                    const std::size_t containing = closest_primary_segment(
+                        secondary_coordinates[secondary_node], primary_mesh,
+                        primary.boundary.elements);
                     const std::size_t first =
                         containing == 0 ? 0 : containing - 1;
                     const std::size_t last = std::min(
@@ -892,7 +1029,8 @@ SteadyProblem::summarize_contact_nodes(std::size_t contact_value,
     std::vector<ContactNodeSummary> result;
     result.reserve(secondary.boundary.nodes.size());
     for (std::size_t node : secondary.boundary.nodes) {
-        result.push_back({mesh.nodes().at(node).z, false,
+        result.push_back({mesh.nodes().at(node).r, mesh.nodes().at(node).z,
+                          false,
                           std::numeric_limits<double>::infinity(), 0.0, 0.0,
                           0.0, 0.0});
     }

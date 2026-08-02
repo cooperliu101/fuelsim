@@ -63,6 +63,36 @@ fuelsim::UnstructuredQuad4Mesh three_region_mesh() {
         });
 }
 
+fuelsim::UnstructuredQuad4Mesh two_pellet_nonmatching_mesh() {
+    return fuelsim::UnstructuredQuad4Mesh(
+        {
+            {0.0, 0.0},         {0.002, 0.0},        {0.004, 0.0},
+            {0.0, 0.001},       {0.002, 0.001},      {0.004, 0.001},
+            {0.0, 0.001002},    {0.001, 0.001002},   {0.0025, 0.001002},
+            {0.0041, 0.001002}, {0.0, 0.002},        {0.001, 0.002},
+            {0.0025, 0.002},    {0.0041, 0.002},
+        },
+        {
+            {{{0, 1, 4, 3}}},
+            {{{1, 2, 5, 4}}},
+            {{{6, 7, 11, 10}}},
+            {{{7, 8, 12, 11}}},
+            {{{8, 9, 13, 12}}},
+        },
+        {10, 10, 20, 20, 20},
+        {{10, "lower_pellet"}, {20, "upper_pellet"}}, {},
+        {
+            {101, "lower_axis", {{{0, 3}}}},
+            {102, "lower_bottom", {{{0, 0}, {1, 0}}}},
+            {103, "lower_top", {{{0, 2}, {1, 2}}}},
+            {104, "lower_outer", {{{1, 1}}}},
+            {201, "upper_axis", {{{2, 3}}}},
+            {202, "upper_bottom", {{{2, 0}, {3, 0}, {4, 0}}}},
+            {203, "upper_top", {{{2, 2}, {3, 2}, {4, 2}}}},
+            {204, "upper_outer", {{{4, 1}}}},
+        });
+}
+
 fuelsim::ThermoelasticProperties thermoelastic(double conductivity) {
     return {0.0, conductivity, 2.0e11, 0.3, 1.0e-5, 300.0};
 }
@@ -255,6 +285,50 @@ bool test_three_regions(const fuelsim::UnstructuredQuad4Mesh& mesh) {
     return passed;
 }
 
+bool test_nonmatching_pellet_faces() {
+    const fuelsim::UnstructuredQuad4Mesh mesh =
+        two_pellet_nonmatching_mesh();
+    fuelsim::SteadyProblemDefinition definition = {
+        {region("lower", "lower_pellet", 700.0, 0.0),
+         region("upper", "upper_pellet", 500.0, 0.0)},
+        {contact("pellet_stack", "upper_bottom", "lower_top")},
+        {}};
+    const fuelsim::SteadyProblem problem(std::move(definition), mesh);
+    const std::vector<double> state = problem.initial_state();
+    bool passed =
+        check(problem.region_count() == 2 && problem.contact_count() == 1,
+              "two pellet blocks form one axial contact pair");
+    for (std::size_t contribution = problem.volume_contribution_count();
+         contribution < problem.contribution_count(); ++contribution) {
+        const fuelsim::LocalResidual residual = problem.contribution_residual(
+            contribution,
+            problem.contribution_state(contribution, state));
+        passed =
+            check(std::all_of(residual.begin(), residual.end(),
+                              [](double value) { return std::isfinite(value); }),
+                  "nonmatching pellet-face contribution is finite") &&
+            passed;
+    }
+
+    const fuelsim::InterfaceSummary summary =
+        problem.summarize_interface(0, state);
+    const double expected_area =
+        3.141592653589793238462643383279502884 * 0.004 * 0.004;
+    const double expected_heat_rate =
+        expected_area * (0.2 / 1.0e-5) * (700.0 - 500.0);
+    std::cout << "nonmatching_heat_rate=" << summary.total_heat_rate
+              << " expected=" << expected_heat_rate << '\n';
+    passed =
+        check(std::abs(summary.total_heat_rate - expected_heat_rate) <
+                  1.0e-12 * expected_heat_rate,
+              "split nonmatching STS integration covers the full pellet face") &&
+        check(summary.projected_contact_nodes == 3 &&
+                  summary.active_contact_nodes == 0,
+              "all nonmatching pellet-face NTS nodes project uniquely") &&
+        passed;
+    return passed;
+}
+
 bool test_transient_regions(const fuelsim::UnstructuredQuad4Mesh& mesh) {
     fuelsim::TransientProblemDefinition definition;
     definition.spatial = three_region_definition();
@@ -301,7 +375,7 @@ int main() {
         const bool passed =
             test_single_region(mesh) && test_time_controlled_pressure(mesh) &&
             test_global_field_diagnostics(mesh) && test_three_regions(mesh) &&
-            test_transient_regions(mesh);
+            test_nonmatching_pellet_faces() && test_transient_regions(mesh);
         if (!passed)
             return 1;
         std::cout << "[PASS] single- and multi-region problem tests\n";

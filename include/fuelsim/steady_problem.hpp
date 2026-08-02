@@ -69,6 +69,7 @@ struct SteadyProblemDefinition final {
 };
 
 struct ContactNodeSummary final {
+    double r;
     double z;
     bool projected;
     double gap;

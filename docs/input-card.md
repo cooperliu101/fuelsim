@@ -35,9 +35,9 @@ M2 只作为路线和回归名称。
 每个 Quad4 在积分点必须具有正 Jacobian。输入卡不重复定义半径、高度和
 离散规模。
 
-Dirichlet 边界可使用任意属于该区域的边集。当前热接触和机械接触仍要求
-`primary`、`secondary` 是轴对称圆柱面，并由边集相邻单元自动确定内外侧；
-这一接触几何限制独立于体网格是否结构化。
+Dirichlet 和接触边界可使用任意属于所选区域的边集。每个接触面必须是一条
+不分叉的开放 Line2 边链；圆柱侧面、水平芯块端面和斜面均可使用。接触两侧
+的分段无须匹配，但 secondary 的投影必须被 primary 边链完整且唯一地覆盖。
 
 ## 时间函数
 
@@ -127,9 +127,10 @@ Dirichlet 边界可使用任意属于该区域的边集。当前热接触和机�
 ```
 
 一个接触对至少包含 `[thermal]` 或 `[mechanical]`，也可以同时包含两者。
-当前 RZ 实现要求 primary 是外侧圆柱面、secondary 是内侧圆柱面；两者必须
-来自不同区域且各自形成连续的轴向边链。热接触采用 secondary-side STS
-积分，机械接触采用 secondary 节点到 primary 线段的唯一 NTS 投影。
+两者必须来自不同区域且各自形成一条不分叉的开放边链。热接触按投影重叠
+区间切分 secondary-side STS 积分，机械接触采用 secondary 节点到 primary
+线段的唯一 NTS 投影；二维法向同时装配径向和轴向反力。当前是小滑移候选面
+策略：每个从节点预建参考最近主段及相邻段，位移不得跨越更多主段。
 
 `[Contact]` 段本身是必需的，但可以为空，以支持不含接触的单区域问题。
 
@@ -283,6 +284,7 @@ committed 初值上装配解析方向导数，并与中心差分比较。输出�
 - [`steady_single_fuel_moose.fsi`](../verification/fuelsim/steady_single_fuel_moose.fsi)
 - [`steady_fuel_cladding.fsi`](../verification/fuelsim/steady_fuel_cladding.fsi)
 - [`steady_fuel_cladding_unstructured.fsi`](../verification/fuelsim/steady_fuel_cladding_unstructured.fsi)
+- [`steady_two_pellet_contact_moose.fsi`](../verification/fuelsim/steady_two_pellet_contact_moose.fsi)
 - [`transient_heat_moose.fsi`](../verification/fuelsim/transient_heat_moose.fsi)
 - [`transient_table_convection_moose.fsi`](../verification/fuelsim/transient_table_convection_moose.fsi)
 - [`transient_j2_plastic_moose.fsi`](../verification/fuelsim/transient_j2_plastic_moose.fsi)
@@ -291,8 +293,9 @@ committed 初值上装配解析方向导数，并与中心差分比较。输出�
 - [`transient_coupled_traction_moose.fsi`](../verification/fuelsim/transient_coupled_traction_moose.fsi)
 - [`transient_fuel_cladding_pcmi.fsi`](../verification/fuelsim/transient_fuel_cladding_pcmi.fsi)
 
-上述十张卡分别驱动 M0、两套 M1、M2.1、M3.1、四套 M2.2 和 M2.3 的
+上述十一张卡分别驱动 M0、两套 M1、M2.1、M3.1、四套 M2.2、M2.3 和
+M3.3 的
 fuelsim-to-MOOSE 对比；测试程序不再直接构造这些案例的材料、载荷路径或
 网格选择参数。每个对比读取 MOOSE 最终时刻的全部节点，统一检查温度、
-径向位移和轴向位移的三项误差；M1 和 M2.3 还检查全部接触节点的压力三项
-误差。
+径向位移和轴向位移的三项误差；M1、M2.3 和 M3.3 还检查全部接触节点的
+压力三项误差。

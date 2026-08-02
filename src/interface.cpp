@@ -14,6 +14,8 @@ struct HeatAdQuadratureValue final {
     adlite::Scalar gap;
     adlite::Scalar heat_flux;
     adlite::Scalar weighted_measure;
+    adlite::Scalar primary_shape_0;
+    adlite::Scalar primary_shape_1;
 };
 
 struct ContactAdValue final {
@@ -25,28 +27,64 @@ struct ContactAdValue final {
     adlite::Scalar contact_force;
     adlite::Scalar primary_shape_0;
     adlite::Scalar primary_shape_1;
+    adlite::Scalar normal_r;
+    adlite::Scalar normal_z;
 };
 
 bool finite_point(const RzPoint& point) {
     return std::isfinite(point.r) && std::isfinite(point.z);
 }
 
-void validate_cylindrical_line(const Line2InterfaceSideCoordinates& coordinates,
-                               const char* name) {
+void validate_line(const Line2InterfaceSideCoordinates& coordinates,
+                   const char* name) {
     for (const RzPoint& point : coordinates) {
         if (!finite_point(point))
             throw std::invalid_argument(std::string(name) +
                                         " requires finite coordinates");
-        if (!(point.r > 0.0))
+        if (!(point.r >= 0.0))
             throw std::invalid_argument(std::string(name) +
-                                        " requires positive radii");
+                                        " requires nonnegative radii");
     }
-    if (!(coordinates[1].z > coordinates[0].z))
+    const double dr = coordinates[1].r - coordinates[0].r;
+    const double dz = coordinates[1].z - coordinates[0].z;
+    if (!(std::hypot(dr, dz) > 0.0))
         throw std::invalid_argument(std::string(name) +
-                                    " requires bottom-to-top nodes");
-    if (coordinates[0].r != coordinates[1].r)
-        throw std::invalid_argument(std::string(name) +
-                                    " requires a cylindrical axial line");
+                                    " requires a nonzero line length");
+}
+
+double reference_projection_fraction(
+    const RzPoint& secondary,
+    const Line2InterfaceSideCoordinates& primary_coordinates) {
+    const double tangent_r =
+        primary_coordinates[1].r - primary_coordinates[0].r;
+    const double tangent_z =
+        primary_coordinates[1].z - primary_coordinates[0].z;
+    const double length_squared =
+        tangent_r * tangent_r + tangent_z * tangent_z;
+    return ((secondary.r - primary_coordinates[0].r) * tangent_r +
+            (secondary.z - primary_coordinates[0].z) * tangent_z) /
+           length_squared;
+}
+
+double reference_normal_orientation(
+    const RzPoint& secondary,
+    const Line2InterfaceSideCoordinates& primary_coordinates,
+    double primary_fraction) {
+    const double tangent_r =
+        primary_coordinates[1].r - primary_coordinates[0].r;
+    const double tangent_z =
+        primary_coordinates[1].z - primary_coordinates[0].z;
+    const double length = std::hypot(tangent_r, tangent_z);
+    const double delta_r =
+        primary_coordinates[0].r + primary_fraction * tangent_r - secondary.r;
+    const double delta_z =
+        primary_coordinates[0].z + primary_fraction * tangent_z - secondary.z;
+    const double raw_gap =
+        delta_r * tangent_z / length - delta_z * tangent_r / length;
+    if (raw_gap == 0.0)
+        throw std::invalid_argument(
+            "Contact surfaces require a positive reference normal gap");
+    return raw_gap > 0.0 ? 1.0 : -1.0;
 }
 
 adlite::Scalar
@@ -63,20 +101,91 @@ evaluate_heat_quadrature(const Line2RzHeatGeometry& geometry,
                          const Line2RzHeatQuadraturePoint& point,
                          const LocalAdValues& state,
                          const GapHeatProperties& properties) {
+    if (geometry.radial_reference_geometry) {
+        const adlite::Scalar secondary_temperature =
+            interpolate(point.secondary_shape, state, 0);
+        const adlite::Scalar primary_temperature =
+            interpolate(point.primary_shape, state, 2);
+        const adlite::Scalar secondary_radius =
+            point.secondary_shape[0] *
+                (geometry.secondary_coordinates[0].r + state[4]) +
+            point.secondary_shape[1] *
+                (geometry.secondary_coordinates[1].r + state[5]);
+        const adlite::Scalar primary_radius =
+            point.primary_shape[0] *
+                (geometry.primary_coordinates[0].r + state[6]) +
+            point.primary_shape[1] *
+                (geometry.primary_coordinates[1].r + state[7]);
+        const adlite::Scalar gap = primary_radius - secondary_radius;
+        const adlite::Scalar thermal_gap =
+            adlite::max(gap, adlite::Scalar(properties.minimum_gap));
+        const adlite::Scalar heat_flux =
+            properties.gap_conductivity / thermal_gap *
+            (secondary_temperature - primary_temperature);
+        const adlite::Scalar secondary_radius_0 =
+            geometry.secondary_coordinates[0].r + state[4];
+        const adlite::Scalar secondary_radius_1 =
+            geometry.secondary_coordinates[1].r + state[5];
+        const adlite::Scalar secondary_axial_0 =
+            geometry.secondary_coordinates[0].z + state[8];
+        const adlite::Scalar secondary_axial_1 =
+            geometry.secondary_coordinates[1].z + state[9];
+        const adlite::Scalar surface_jacobian =
+            0.5 * adlite::hypot(secondary_radius_1 - secondary_radius_0,
+                                secondary_axial_1 - secondary_axial_0);
+        return {gap,
+                heat_flux,
+                2.0 * pi * secondary_radius * surface_jacobian *
+                    point.integration_weight,
+                adlite::Scalar(point.primary_shape[0]),
+                adlite::Scalar(point.primary_shape[1])};
+    }
+
+    const adlite::Scalar secondary_radius =
+        point.secondary_shape[0] *
+            (geometry.secondary_coordinates[0].r + state[4]) +
+        point.secondary_shape[1] *
+            (geometry.secondary_coordinates[1].r + state[5]);
+    const adlite::Scalar secondary_axial =
+        point.secondary_shape[0] *
+            (geometry.secondary_coordinates[0].z + state[8]) +
+        point.secondary_shape[1] *
+            (geometry.secondary_coordinates[1].z + state[9]);
+    const adlite::Scalar primary_radius_0 =
+        geometry.primary_coordinates[0].r + state[6];
+    const adlite::Scalar primary_radius_1 =
+        geometry.primary_coordinates[1].r + state[7];
+    const adlite::Scalar primary_axial_0 =
+        geometry.primary_coordinates[0].z + state[10];
+    const adlite::Scalar primary_axial_1 =
+        geometry.primary_coordinates[1].z + state[11];
+    const adlite::Scalar tangent_r = primary_radius_1 - primary_radius_0;
+    const adlite::Scalar tangent_z = primary_axial_1 - primary_axial_0;
+    const adlite::Scalar tangent_length = adlite::hypot(tangent_r, tangent_z);
+    const adlite::Scalar primary_fraction =
+        ((secondary_radius - primary_radius_0) * tangent_r +
+         (secondary_axial - primary_axial_0) * tangent_z) /
+        (tangent_length * tangent_length);
+    const adlite::Scalar primary_shape_0 = 1.0 - primary_fraction;
+    const adlite::Scalar primary_shape_1 = primary_fraction;
+    const adlite::Scalar primary_radius =
+        primary_shape_0 * primary_radius_0 +
+        primary_shape_1 * primary_radius_1;
+    const adlite::Scalar primary_axial =
+        primary_shape_0 * primary_axial_0 +
+        primary_shape_1 * primary_axial_1;
+    const adlite::Scalar normal_r =
+        point.normal_orientation * tangent_z / tangent_length;
+    const adlite::Scalar normal_z =
+        -point.normal_orientation * tangent_r / tangent_length;
+    const adlite::Scalar gap =
+        (primary_radius - secondary_radius) * normal_r +
+        (primary_axial - secondary_axial) * normal_z;
+
     const adlite::Scalar secondary_temperature =
         interpolate(point.secondary_shape, state, 0);
     const adlite::Scalar primary_temperature =
-        interpolate(point.primary_shape, state, 2);
-    const adlite::Scalar secondary_radial_displacement =
-        interpolate(point.secondary_shape, state, 4);
-    const adlite::Scalar primary_radial_displacement =
-        interpolate(point.primary_shape, state, 6);
-
-    const adlite::Scalar secondary_radius =
-        point.secondary_reference_radius + secondary_radial_displacement;
-    const adlite::Scalar primary_radius =
-        point.primary_reference_radius + primary_radial_displacement;
-    const adlite::Scalar gap = primary_radius - secondary_radius;
+        primary_shape_0 * state[2] + primary_shape_1 * state[3];
     const adlite::Scalar thermal_gap =
         adlite::max(gap, adlite::Scalar(properties.minimum_gap));
     const adlite::Scalar conductance =
@@ -98,18 +207,19 @@ evaluate_heat_quadrature(const Line2RzHeatGeometry& geometry,
     const adlite::Scalar surface_jacobian =
         adlite::sqrt(dr_dxi * dr_dxi + dz_dxi * dz_dxi);
     const adlite::Scalar weighted_measure =
-        2.0 * pi * secondary_radius * surface_jacobian;
+        2.0 * pi * secondary_radius * surface_jacobian *
+        point.integration_weight;
 
-    return {gap, heat_flux, weighted_measure};
+    return {gap, heat_flux, weighted_measure, primary_shape_0,
+            primary_shape_1};
 }
 
-bool projection_is_inside(double secondary_z, double primary_z_0,
-                          double primary_z_1, bool includes_upper_endpoint) {
-    if (secondary_z < primary_z_0)
+bool projection_is_inside(double fraction, bool includes_second_endpoint) {
+    if (fraction < 0.0)
         return false;
-    if (includes_upper_endpoint)
-        return secondary_z <= primary_z_1;
-    return secondary_z < primary_z_1;
+    if (includes_second_endpoint)
+        return fraction <= 1.0;
+    return fraction < 1.0;
 }
 
 ContactAdValue evaluate_contact(const NodeToLineRzContactGeometry& geometry,
@@ -118,15 +228,89 @@ ContactAdValue evaluate_contact(const NodeToLineRzContactGeometry& geometry,
     const std::size_t secondary = geometry.secondary_local_node;
     const std::size_t other = secondary == 0 ? 1 : 0;
 
+    if (geometry.radial_reference_geometry) {
+        const adlite::Scalar secondary_z =
+            geometry.secondary_edge_coordinates[secondary].z +
+            state[8 + secondary];
+        const adlite::Scalar primary_z_0 =
+            geometry.primary_segment_coordinates[0].z + state[10];
+        const adlite::Scalar primary_z_1 =
+            geometry.primary_segment_coordinates[1].z + state[11];
+        if (!projection_is_inside(
+                ((secondary_z - primary_z_0) / (primary_z_1 - primary_z_0))
+                    .value(),
+                geometry.primary_segment_includes_second_endpoint))
+            return {false,
+                    adlite::Scalar(0.0), adlite::Scalar(0.0),
+                    adlite::Scalar(0.0), adlite::Scalar(0.0),
+                    adlite::Scalar(0.0), adlite::Scalar(0.0),
+                    adlite::Scalar(0.0), adlite::Scalar(0.0),
+                    adlite::Scalar(0.0)};
+        const adlite::Scalar fraction =
+            (secondary_z - primary_z_0) / (primary_z_1 - primary_z_0);
+        const adlite::Scalar shape_0 = 1.0 - fraction;
+        const adlite::Scalar shape_1 = fraction;
+        const adlite::Scalar secondary_radius =
+            geometry.secondary_edge_coordinates[secondary].r +
+            state[4 + secondary];
+        const adlite::Scalar primary_radius =
+            shape_0 *
+                (geometry.primary_segment_coordinates[0].r + state[6]) +
+            shape_1 *
+                (geometry.primary_segment_coordinates[1].r + state[7]);
+        const adlite::Scalar gap = primary_radius - secondary_radius;
+        const adlite::Scalar pressure =
+            properties.penalty * adlite::max(-gap, adlite::Scalar(0.0));
+        const adlite::Scalar other_radius =
+            geometry.secondary_edge_coordinates[other].r + state[4 + other];
+        const adlite::Scalar other_z =
+            geometry.secondary_edge_coordinates[other].z + state[8 + other];
+        const adlite::Scalar edge_length =
+            adlite::hypot(other_radius - secondary_radius,
+                          other_z - secondary_z);
+        const adlite::Scalar tributary_length = 0.5 * edge_length;
+        const adlite::Scalar tributary_area =
+            2.0 * pi * secondary_radius * tributary_length;
+        const adlite::Scalar force = pressure * tributary_area;
+        return {true, gap, pressure, tributary_area, tributary_length, force,
+                shape_0, shape_1, adlite::Scalar(1.0),
+                adlite::Scalar(0.0)};
+    }
+
+    const adlite::Scalar secondary_radius =
+        geometry.secondary_edge_coordinates[secondary].r + state[4 + secondary];
     const adlite::Scalar secondary_z =
         geometry.secondary_edge_coordinates[secondary].z + state[8 + secondary];
+    const adlite::Scalar primary_radius_0 =
+        geometry.primary_segment_coordinates[0].r + state[6];
+    const adlite::Scalar primary_radius_1 =
+        geometry.primary_segment_coordinates[1].r + state[7];
     const adlite::Scalar primary_z_0 =
         geometry.primary_segment_coordinates[0].z + state[10];
     const adlite::Scalar primary_z_1 =
         geometry.primary_segment_coordinates[1].z + state[11];
-    const bool projected = projection_is_inside(
-        secondary_z.value(), primary_z_0.value(), primary_z_1.value(),
-        geometry.primary_segment_includes_upper_endpoint);
+    const adlite::Scalar tangent_r = primary_radius_1 - primary_radius_0;
+    const adlite::Scalar tangent_z = primary_z_1 - primary_z_0;
+    const adlite::Scalar tangent_length = adlite::hypot(tangent_r, tangent_z);
+    adlite::Scalar primary_fraction =
+        ((secondary_radius - primary_radius_0) * tangent_r +
+         (secondary_z - primary_z_0) * tangent_z) /
+        (tangent_length * tangent_length);
+    bool projected = projection_is_inside(
+        primary_fraction.value(),
+        geometry.primary_segment_includes_second_endpoint);
+    constexpr double endpoint_tolerance = 1.0e-12;
+    if (!projected && primary_fraction.value() < 0.0 &&
+        std::abs(geometry.reference_primary_fraction) <= endpoint_tolerance) {
+        primary_fraction = 0.0;
+        projected = true;
+    } else if (!projected && primary_fraction.value() > 1.0 &&
+               geometry.primary_segment_includes_second_endpoint &&
+               std::abs(geometry.reference_primary_fraction - 1.0) <=
+                   endpoint_tolerance) {
+        primary_fraction = 1.0;
+        projected = true;
+    }
 
     if (!projected) {
         return {
@@ -138,23 +322,24 @@ ContactAdValue evaluate_contact(const NodeToLineRzContactGeometry& geometry,
             adlite::Scalar(0.0),
             adlite::Scalar(0.0),
             adlite::Scalar(0.0),
+            adlite::Scalar(0.0),
+            adlite::Scalar(0.0),
         };
     }
 
-    const adlite::Scalar axial_fraction =
-        (secondary_z - primary_z_0) / (primary_z_1 - primary_z_0);
-    const adlite::Scalar primary_shape_0 = 1.0 - axial_fraction;
-    const adlite::Scalar primary_shape_1 = axial_fraction;
-
-    const adlite::Scalar secondary_radius =
-        geometry.secondary_edge_coordinates[secondary].r + state[4 + secondary];
-    const adlite::Scalar primary_radius_0 =
-        geometry.primary_segment_coordinates[0].r + state[6];
-    const adlite::Scalar primary_radius_1 =
-        geometry.primary_segment_coordinates[1].r + state[7];
+    const adlite::Scalar primary_shape_0 = 1.0 - primary_fraction;
+    const adlite::Scalar primary_shape_1 = primary_fraction;
     const adlite::Scalar primary_radius =
         primary_shape_0 * primary_radius_0 + primary_shape_1 * primary_radius_1;
-    const adlite::Scalar gap = primary_radius - secondary_radius;
+    const adlite::Scalar primary_z =
+        primary_shape_0 * primary_z_0 + primary_shape_1 * primary_z_1;
+    const adlite::Scalar normal_r =
+        geometry.normal_orientation * tangent_z / tangent_length;
+    const adlite::Scalar normal_z =
+        -geometry.normal_orientation * tangent_r / tangent_length;
+    const adlite::Scalar gap =
+        (primary_radius - secondary_radius) * normal_r +
+        (primary_z - secondary_z) * normal_z;
     const adlite::Scalar penetration = adlite::max(-gap, adlite::Scalar(0.0));
     const adlite::Scalar pressure = properties.penalty * penetration;
 
@@ -167,7 +352,8 @@ ContactAdValue evaluate_contact(const NodeToLineRzContactGeometry& geometry,
     const adlite::Scalar edge_length = adlite::sqrt(dr * dr + dz * dz);
     const adlite::Scalar tributary_length = 0.5 * edge_length;
     const adlite::Scalar tributary_area =
-        2.0 * pi * secondary_radius * tributary_length;
+        2.0 * pi * 0.5 * edge_length *
+        (2.0 * secondary_radius + other_radius) / 3.0;
     const adlite::Scalar contact_force = pressure * tributary_area;
 
     return {
@@ -179,6 +365,8 @@ ContactAdValue evaluate_contact(const NodeToLineRzContactGeometry& geometry,
         contact_force,
         primary_shape_0,
         primary_shape_1,
+        normal_r,
+        normal_z,
     };
 }
 
@@ -187,13 +375,24 @@ ContactAdValue evaluate_contact(const NodeToLineRzContactGeometry& geometry,
 Line2RzHeatGeometry make_line2_rz_heat_geometry(
     const Line2InterfaceSideCoordinates& secondary_coordinates,
     const Line2InterfaceSideCoordinates& primary_coordinates) {
-    validate_cylindrical_line(secondary_coordinates,
-                              "Line2RzHeatGeometry secondary");
-    validate_cylindrical_line(primary_coordinates,
-                              "Line2RzHeatGeometry primary");
-    if (!(primary_coordinates[0].r > secondary_coordinates[0].r))
+    return make_line2_rz_heat_geometry(secondary_coordinates,
+                                       primary_coordinates, -1.0, 1.0);
+}
+
+Line2RzHeatGeometry make_line2_rz_heat_geometry(
+    const Line2InterfaceSideCoordinates& secondary_coordinates,
+    const Line2InterfaceSideCoordinates& primary_coordinates,
+    double secondary_coordinate_lower, double secondary_coordinate_upper) {
+    validate_line(secondary_coordinates, "Line2RzHeatGeometry secondary");
+    validate_line(primary_coordinates, "Line2RzHeatGeometry primary");
+    if (!std::isfinite(secondary_coordinate_lower) ||
+        !std::isfinite(secondary_coordinate_upper) ||
+        secondary_coordinate_lower < -1.0 ||
+        secondary_coordinate_upper > 1.0 ||
+        !(secondary_coordinate_upper > secondary_coordinate_lower))
         throw std::invalid_argument(
-            "Line2RzHeatGeometry requires a positive reference gap");
+            "Line2RzHeatGeometry requires a nonempty secondary interval in "
+            "[-1,1]");
 
     constexpr double gauss = 0.577350269189625764509148780501957456;
     const std::array<double, line2_interface_quadrature_point_count> locations =
@@ -202,18 +401,27 @@ Line2RzHeatGeometry make_line2_rz_heat_geometry(
     Line2RzHeatGeometry geometry{};
     geometry.secondary_coordinates = secondary_coordinates;
     geometry.primary_coordinates = primary_coordinates;
+    geometry.radial_reference_geometry =
+        secondary_coordinates[0].r == secondary_coordinates[1].r &&
+        primary_coordinates[0].r == primary_coordinates[1].r &&
+        primary_coordinates[0].r > secondary_coordinates[0].r;
     for (std::size_t q = 0; q < geometry.points.size(); ++q) {
-        const double secondary_xi = locations[q];
+        const double secondary_xi =
+            0.5 * ((1.0 - locations[q]) * secondary_coordinate_lower +
+                   (1.0 + locations[q]) * secondary_coordinate_upper);
         const std::array<double, 2> secondary_shape = {
             0.5 * (1.0 - secondary_xi),
             0.5 * (1.0 + secondary_xi),
         };
-        const double secondary_z =
+        const RzPoint secondary_point = {
+            secondary_shape[0] * secondary_coordinates[0].r +
+                secondary_shape[1] * secondary_coordinates[1].r,
             secondary_shape[0] * secondary_coordinates[0].z +
-            secondary_shape[1] * secondary_coordinates[1].z;
+                secondary_shape[1] * secondary_coordinates[1].z,
+        };
         const double primary_fraction =
-            (secondary_z - primary_coordinates[0].z) /
-            (primary_coordinates[1].z - primary_coordinates[0].z);
+            reference_projection_fraction(secondary_point,
+                                          primary_coordinates);
         if (primary_fraction < 0.0 || primary_fraction > 1.0)
             throw std::invalid_argument(
                 "Line2RzHeatGeometry secondary Gauss point does not project "
@@ -225,12 +433,10 @@ Line2RzHeatGeometry make_line2_rz_heat_geometry(
             1.0 - primary_fraction,
             primary_fraction,
         };
-        point.secondary_reference_radius =
-            secondary_shape[0] * secondary_coordinates[0].r +
-            secondary_shape[1] * secondary_coordinates[1].r;
-        point.primary_reference_radius =
-            point.primary_shape[0] * primary_coordinates[0].r +
-            point.primary_shape[1] * primary_coordinates[1].r;
+        point.integration_weight =
+            0.5 * (secondary_coordinate_upper - secondary_coordinate_lower);
+        point.normal_orientation = reference_normal_orientation(
+            secondary_point, primary_coordinates, primary_fraction);
     }
     return geometry;
 }
@@ -313,8 +519,10 @@ void Line2RzGapHeatKernel::residual_ad(const Line2RzHeatGeometry& geometry,
              ++node) {
             residual[node] += value.weighted_measure *
                               point.secondary_shape[node] * value.heat_flux;
-            residual[2 + node] -= value.weighted_measure *
-                                  point.primary_shape[node] * value.heat_flux;
+            const adlite::Scalar primary_shape =
+                node == 0 ? value.primary_shape_0 : value.primary_shape_1;
+            residual[2 + node] -=
+                value.weighted_measure * primary_shape * value.heat_flux;
         }
     }
 }
@@ -324,23 +532,35 @@ NodeToLineRzContactGeometry make_node_to_line_rz_contact_geometry(
     const Line2InterfaceSideCoordinates& primary_segment_coordinates,
     std::size_t secondary_local_node,
     bool primary_segment_includes_upper_endpoint) {
-    validate_cylindrical_line(secondary_edge_coordinates,
-                              "NodeToLineRzContactGeometry secondary");
-    validate_cylindrical_line(primary_segment_coordinates,
-                              "NodeToLineRzContactGeometry primary");
+    validate_line(secondary_edge_coordinates,
+                  "NodeToLineRzContactGeometry secondary");
+    validate_line(primary_segment_coordinates,
+                  "NodeToLineRzContactGeometry primary");
     if (secondary_local_node >= line2_interface_side_node_count)
         throw std::invalid_argument(
             "NodeToLineRzContactGeometry secondary node is out of range");
-    if (!(primary_segment_coordinates[0].r >
-          secondary_edge_coordinates[secondary_local_node].r))
-        throw std::invalid_argument(
-            "NodeToLineRzContactGeometry requires a positive reference gap");
+    const RzPoint secondary_point =
+        secondary_edge_coordinates[secondary_local_node];
+    const double primary_fraction = reference_projection_fraction(
+        secondary_point, primary_segment_coordinates);
+    const double closest_fraction =
+        std::max(0.0, std::min(1.0, primary_fraction));
+    const double orientation = reference_normal_orientation(
+        secondary_point, primary_segment_coordinates, closest_fraction);
 
     return {
         secondary_edge_coordinates,
         primary_segment_coordinates,
         secondary_local_node,
         primary_segment_includes_upper_endpoint,
+        orientation,
+        primary_fraction,
+        secondary_edge_coordinates[0].r ==
+                secondary_edge_coordinates[1].r &&
+            primary_segment_coordinates[0].r ==
+                primary_segment_coordinates[1].r &&
+            primary_segment_coordinates[0].r >
+                secondary_edge_coordinates[secondary_local_node].r,
     };
 }
 
@@ -415,8 +635,12 @@ void NodeToLineRzContactKernel::residual_ad(
 
     const std::size_t secondary = geometry.secondary_local_node;
     residual[4 + secondary] += value.contact_force;
-    residual[6] -= value.primary_shape_0 * value.contact_force;
-    residual[7] -= value.primary_shape_1 * value.contact_force;
+    residual[4 + secondary] *= value.normal_r;
+    residual[6] -= value.primary_shape_0 * value.contact_force * value.normal_r;
+    residual[7] -= value.primary_shape_1 * value.contact_force * value.normal_r;
+    residual[8 + secondary] += value.contact_force * value.normal_z;
+    residual[10] -= value.primary_shape_0 * value.contact_force * value.normal_z;
+    residual[11] -= value.primary_shape_1 * value.contact_force * value.normal_z;
 }
 
 } // namespace fuelsim
