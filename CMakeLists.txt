@@ -481,4 +481,24 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_transient_jacobian_check
         PROPERTIES LABELS "integration"
     )
+
+    get_property(FUELSIM_REGISTERED_TESTS DIRECTORY PROPERTY TESTS)
+    list(JOIN FUELSIM_REGISTERED_TESTS "\n" FUELSIM_REGISTERED_TEST_TEXT)
+    file(GENERATE
+        OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/fuelsim_registered_tests.txt"
+        CONTENT "${FUELSIM_REGISTERED_TEST_TEXT}\n"
+    )
+    add_executable(fuelsim_verification_matrix_tests
+        tests/verification_matrix_tests.cpp
+    )
+    fuelsim_enable_warnings(fuelsim_verification_matrix_tests)
+    add_test(NAME fuelsim_verification_matrix_tests
+        COMMAND fuelsim_verification_matrix_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/verification_matrix.tsv"
+            "${CMAKE_CURRENT_SOURCE_DIR}"
+            "${CMAKE_CURRENT_BINARY_DIR}/fuelsim_registered_tests.txt"
+    )
+    set_tests_properties(fuelsim_verification_matrix_tests PROPERTIES
+        LABELS "audit;release"
+    )
 endif()
