@@ -212,6 +212,7 @@ std::uint64_t TransientProblem::committed_state_signature() const {
         hash_thermoelastic(hash, spatial.material);
         hash_double(hash, spatial.volumetric_heat_source);
         hash_double(hash, spatial.initial_temperature);
+        hash_string(hash, spatial.heat_source_function);
         hash_double(hash, transient.density);
         hash_double(hash, transient.specific_heat);
         hash_integer(hash, static_cast<std::int64_t>(transient.behavior));
@@ -255,6 +256,20 @@ std::uint64_t TransientProblem::committed_state_signature() const {
         hash_integer(hash, static_cast<std::int64_t>(boundary.field));
         hash_double(hash, boundary.value);
         hash_integer(hash, boundary.scale_with_load ? 1 : 0);
+        hash_string(hash, boundary.function);
+        hash_double(hash, boundary.heat_transfer_coefficient);
+        hash_double(hash, boundary.ambient_temperature);
+        hash_string(hash, boundary.coefficient_function);
+        hash_string(hash, boundary.ambient_temperature_function);
+    }
+    for (const PiecewiseLinearTimeTable& table :
+         _definition.spatial.time_tables) {
+        hash_string(hash, table.name());
+        hash_size(hash, table.times().size());
+        for (std::size_t entry = 0; entry < table.times().size(); ++entry) {
+            hash_double(hash, table.times()[entry]);
+            hash_double(hash, table.values()[entry]);
+        }
     }
     hash_size(hash, contribution_count());
     for (std::size_t contribution = 0; contribution < contribution_count();
@@ -264,6 +279,16 @@ std::uint64_t TransientProblem::committed_state_signature() const {
             hash_size(hash, dof);
     }
     return hash;
+}
+
+std::vector<double> TransientProblem::time_events() const {
+    std::vector<double> result;
+    for (const PiecewiseLinearTimeTable& table :
+         _definition.spatial.time_tables)
+        result.insert(result.end(), table.times().begin(), table.times().end());
+    std::sort(result.begin(), result.end());
+    result.erase(std::unique(result.begin(), result.end()), result.end());
+    return result;
 }
 
 TransientCommittedState TransientProblem::committed_state() const {
@@ -325,13 +350,13 @@ void TransientProblem::restore_committed_state(TransientCommittedState state) {
     _active_time_step = 0.0;
     _active_end_time = _committed_time;
     _active_load_factor = _committed_load_factor;
-    for (std::size_t region_value = 0; region_value < region_count();
-         ++region_value) {
-        _region_kernels[region_value].set_volumetric_heat_source(
-            _committed_load_factor *
-            _definition.spatial.regions[region_value].volumetric_heat_source);
-    }
+    _spatial_model.set_time(_committed_time);
     _spatial_model.set_load_factor(_committed_load_factor);
+    for (std::size_t region_value = 0; region_value < region_count();
+         ++region_value)
+        _region_kernels[region_value].set_volumetric_heat_source(
+            _spatial_model.region_kernel(region_value)
+                .volumetric_heat_source());
 }
 
 void TransientProblem::begin_time_step(const TransientStepInput& input) {
@@ -347,13 +372,22 @@ void TransientProblem::begin_time_step(const TransientStepInput& input) {
     _active_time_step = input.end_time - _committed_time;
     _active_end_time = input.end_time;
     _active_load_factor = input.load_factor;
-    for (std::size_t region_value = 0; region_value < region_count();
-         ++region_value) {
-        _region_kernels[region_value].set_volumetric_heat_source(
-            input.load_factor *
-            _definition.spatial.regions[region_value].volumetric_heat_source);
+    try {
+        _spatial_model.set_time(input.end_time);
+        _spatial_model.set_load_factor(input.load_factor);
+    } catch (...) {
+        _spatial_model.set_time(_committed_time);
+        _spatial_model.set_load_factor(_committed_load_factor);
+        _active_time_step = 0.0;
+        _active_end_time = _committed_time;
+        _active_load_factor = _committed_load_factor;
+        throw;
     }
-    _spatial_model.set_load_factor(input.load_factor);
+    for (std::size_t region_value = 0; region_value < region_count();
+         ++region_value)
+        _region_kernels[region_value].set_volumetric_heat_source(
+            _spatial_model.region_kernel(region_value)
+                .volumetric_heat_source());
     _time_step_active = true;
 }
 
@@ -414,13 +448,13 @@ void TransientProblem::commit_time_step(
 void TransientProblem::rollback_time_step() noexcept {
     if (!_time_step_active)
         return;
-    for (std::size_t region_value = 0; region_value < region_count();
-         ++region_value) {
-        _region_kernels[region_value].set_volumetric_heat_source(
-            _committed_load_factor *
-            _definition.spatial.regions[region_value].volumetric_heat_source);
-    }
+    _spatial_model.set_time(_committed_time);
     _spatial_model.set_load_factor(_committed_load_factor);
+    for (std::size_t region_value = 0; region_value < region_count();
+         ++region_value)
+        _region_kernels[region_value].set_volumetric_heat_source(
+            _spatial_model.region_kernel(region_value)
+                .volumetric_heat_source());
     _active_time_step = 0.0;
     _active_end_time = _committed_time;
     _active_load_factor = _committed_load_factor;

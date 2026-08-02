@@ -154,10 +154,27 @@ TransientResult solve_transient(TransientProblem& problem,
     const SteadyClock::time_point start = SteadyClock::now();
     TransientResult result;
     PetscSequentialSolver solver;
+    const std::vector<double> events = problem.time_events();
     double next_time_step = options.initial_time_step;
     while (!reaches_end(problem.committed_time(), options.end_time)) {
-        double time_step = std::min(
+        const double controller_time_step = std::min(
             next_time_step, options.end_time - problem.committed_time());
+        double time_step = controller_time_step;
+        bool event_truncated = false;
+        for (const double event : events) {
+            if (reaches_end(problem.committed_time(), event))
+                continue;
+            if (event >= options.end_time ||
+                reaches_end(event, options.end_time))
+                break;
+            const double event_step = event - problem.committed_time();
+            if (event_step < time_step &&
+                !reaches_end(event, problem.committed_time() + time_step)) {
+                time_step = event_step;
+                event_truncated = true;
+            }
+            break;
+        }
         std::size_t cutbacks = 0;
         for (;;) {
             const double end_time = problem.committed_time() + time_step;
@@ -193,8 +210,11 @@ TransientResult solve_transient(TransientProblem& problem,
                 if (observer != nullptr)
                     observer->accepted_step(problem,
                                             result.accepted_steps.back());
+                const double growth_base = event_truncated && cutbacks == 0
+                                               ? controller_time_step
+                                               : time_step;
                 next_time_step = std::min(options.maximum_time_step,
-                                          time_step * options.growth_factor);
+                                          growth_base * options.growth_factor);
                 break;
             }
             if (cutbacks >= options.maximum_cutbacks_per_step)

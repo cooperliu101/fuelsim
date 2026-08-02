@@ -1,12 +1,14 @@
 #ifndef FUELSIM_STEADY_PROBLEM_HPP
 #define FUELSIM_STEADY_PROBLEM_HPP
 
+#include "fuelsim/boundary.hpp"
 #include "fuelsim/dof_map.hpp"
 #include "fuelsim/interface.hpp"
 #include "fuelsim/material.hpp"
 #include "fuelsim/mesh.hpp"
 #include "fuelsim/nonlinear_problem.hpp"
 #include "fuelsim/quad4_rz.hpp"
+#include "fuelsim/time_table.hpp"
 
 #include <array>
 #include <cstddef>
@@ -24,6 +26,7 @@ struct RegionDefinition final {
     double volumetric_heat_source;
     double initial_temperature;
     std::int64_t block_id = -1;
+    std::string heat_source_function{};
 };
 
 struct ContactDefinition final {
@@ -41,6 +44,7 @@ enum class BoundaryConditionType {
     dirichlet,
     pressure,
     traction,
+    convection,
 };
 
 struct BoundaryConditionDefinition final {
@@ -50,12 +54,18 @@ struct BoundaryConditionDefinition final {
     Field field;
     double value;
     bool scale_with_load = false;
+    std::string function{};
+    double heat_transfer_coefficient = 0.0;
+    double ambient_temperature = 0.0;
+    std::string coefficient_function{};
+    std::string ambient_temperature_function{};
 };
 
 struct SteadyProblemDefinition final {
     std::vector<RegionDefinition> regions;
     std::vector<ContactDefinition> contacts;
     std::vector<BoundaryConditionDefinition> boundary_conditions;
+    std::vector<PiecewiseLinearTimeTable> time_tables{};
 };
 
 struct ContactNodeSummary final {
@@ -109,6 +119,8 @@ class SteadyProblem final : public NonlinearProblem {
 
     void set_load_factor(double load_factor);
     double load_factor() const noexcept;
+    void set_time(double time);
+    double time() const noexcept;
 
     std::vector<double> initial_state() const;
     std::vector<ContactNodeSummary>
@@ -147,6 +159,7 @@ class SteadyProblem final : public NonlinearProblem {
         RegionBoundary boundary;
         double pressure;
         bool scale_with_load;
+        std::string function;
     };
 
     struct TractionLoad final {
@@ -155,11 +168,21 @@ class SteadyProblem final : public NonlinearProblem {
         Field field;
         double traction;
         bool scale_with_load;
+        std::string function;
     };
 
-    struct ScaledDirichlet final {
+    struct ControlledDirichlet final {
         std::size_t dof;
         double value;
+        bool scale_with_load;
+        std::string function;
+    };
+
+    struct ConvectionLoad final {
+        double heat_transfer_coefficient;
+        double ambient_temperature;
+        std::string coefficient_function;
+        std::string ambient_temperature_function;
     };
 
     SteadyProblem(SteadyProblemDefinition definition,
@@ -183,6 +206,10 @@ class SteadyProblem final : public NonlinearProblem {
     void build_boundary_conditions(const UnstructuredQuad4Mesh& source_mesh);
     void add_pressure_residual(std::vector<double>& residual) const;
     void add_traction_residual(std::vector<double>& residual) const;
+    double function_value(const std::string& name) const;
+    double load_multiplier(bool scale_with_load,
+                           const std::string& function) const;
+    void refresh_controlled_values();
 
     SteadyProblemDefinition _definition;
     std::vector<std::int64_t> _block_ids;
@@ -205,11 +232,18 @@ class SteadyProblem final : public NonlinearProblem {
     std::vector<ResolvedBoundary> _primary_boundaries;
     std::vector<ResolvedBoundary> _secondary_boundaries;
 
+    std::vector<Line2RzConvectionKernel> _convection_kernels;
+    std::vector<ConvectionLoad> _convection_loads;
+    std::vector<std::size_t> _convection_load_indices;
+    std::vector<std::array<std::size_t, 4>> _convection_nodes;
+    std::vector<Line2RzConvectionGeometry> _convection_geometries;
+
     std::vector<DirichletCondition> _dirichlet_conditions;
-    std::vector<ScaledDirichlet> _scaled_dirichlet_conditions;
+    std::vector<ControlledDirichlet> _controlled_dirichlet_conditions;
     std::vector<PressureLoad> _pressure_loads;
     std::vector<TractionLoad> _traction_loads;
     double _load_factor;
+    double _time;
 };
 
 } // namespace fuelsim

@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <limits>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -73,8 +74,9 @@ std::string leaf_name(const InputSection& section) {
 
 void validate_sections(const InputDocument& document) {
     const std::vector<std::string> fixed = {
-        "Case",        "Mesh",   "Regions", "Contact", "BoundaryConditions",
-        "Executioner", "Solver", "Outputs"};
+        "Case",        "Mesh",    "TimeFunctions",
+        "Regions",     "Contact", "BoundaryConditions",
+        "Executioner", "Solver",  "Outputs"};
     for (const InputSection& section : document.sections()) {
         if (std::find(fixed.begin(), fixed.end(), section.path()) !=
             fixed.end())
@@ -84,6 +86,8 @@ void validate_sections(const InputDocument& document) {
                             path.find('/', 8) == std::string::npos;
         const bool boundary = path.compare(0, 19, "BoundaryConditions/") == 0 &&
                               path.find('/', 19) == std::string::npos;
+        const bool function = path.compare(0, 14, "TimeFunctions/") == 0 &&
+                              path.find('/', 14) == std::string::npos;
         bool contact = false;
         if (path.compare(0, 8, "Contact/") == 0) {
             const std::string suffix = path.substr(8);
@@ -96,7 +100,7 @@ void validate_sections(const InputDocument& document) {
                     (child == "thermal" || child == "mechanical");
             }
         }
-        if (!region && !boundary && !contact)
+        if (!region && !boundary && !function && !contact)
             throw std::invalid_argument(document.source_path() + ":" +
                                         std::to_string(section.line()) +
                                         ": unknown section [" + path + "]");
@@ -140,6 +144,24 @@ double read_optional_double(const InputDocument& document,
                             double fallback) {
     const InputEntry* entry = find_entry(section, key);
     return entry == nullptr ? fallback : parse_double(document, *entry);
+}
+
+std::vector<double> parse_double_list(const InputDocument& document,
+                                      const InputEntry& entry) {
+    std::istringstream input(entry.value);
+    std::vector<double> result;
+    double value = 0.0;
+    while (input >> value) {
+        if (!std::isfinite(value))
+            value_error(document, entry,
+                        "key '" + entry.key + "' requires finite real values");
+        result.push_back(value);
+    }
+    if (!input.eof() || result.empty())
+        value_error(document, entry,
+                    "key '" + entry.key +
+                        "' requires a whitespace-separated real list");
+    return result;
 }
 
 std::size_t parse_size(const InputDocument& document, const InputEntry& entry) {
@@ -211,6 +233,15 @@ void forbid_key(const InputDocument& document, const InputSection& section,
     if (entry != nullptr)
         value_error(document, *entry,
                     "key '" + key + "' is not valid for " + context);
+}
+
+void forbid_convection_keys(const InputDocument& document,
+                            const InputSection& section,
+                            const std::string& context) {
+    forbid_key(document, section, "heat_transfer_coefficient", context);
+    forbid_key(document, section, "ambient_temperature", context);
+    forbid_key(document, section, "coefficient_function", context);
+    forbid_key(document, section, "ambient_temperature_function", context);
 }
 
 ThermoelasticProperties read_thermoelastic(const InputDocument& document,
@@ -307,6 +338,7 @@ CaseRegionDefinition read_region(const InputDocument& document,
         "reference_temperature",
         "initial_temperature",
         "volumetric_heat_source",
+        "heat_source_function",
     };
     if (problem == CaseProblem::transient) {
         keys.insert(keys.end(),
@@ -338,6 +370,8 @@ CaseRegionDefinition read_region(const InputDocument& document,
                       read_double(document, section, "volumetric_heat_source"),
                       read_double(document, section, "initial_temperature"),
                       resolved_block_id};
+    result.spatial.heat_source_function =
+        read_optional_string(section, "heat_source_function", {});
     if (problem == CaseProblem::transient)
         result.transient_material = read_transient(document, section);
     return result;
@@ -384,40 +418,80 @@ BoundaryConditionDefinition
 read_boundary_condition(const InputDocument& document,
                         const InputSection& section) {
     validate_keys(document, section,
-                  {"type", "boundary", "field", "value", "scale_with_load"});
+                  {"type", "boundary", "field", "value", "scale_with_load",
+                   "function", "heat_transfer_coefficient",
+                   "ambient_temperature", "coefficient_function",
+                   "ambient_temperature_function"});
     const std::string type = read_string(document, section, "type");
     const bool scale_with_load =
         read_optional_bool(document, section, "scale_with_load", false);
+    const std::string function = read_optional_string(section, "function", {});
+    if (scale_with_load && !function.empty())
+        value_error(document, section.entry("scale_with_load"),
+                    "scale_with_load cannot be combined with function");
     if (type == "dirichlet") {
-        return {
+        forbid_convection_keys(document, section, "type='dirichlet'");
+        BoundaryConditionDefinition result{
             leaf_name(section),
             BoundaryConditionType::dirichlet,
             read_string(document, section, "boundary"),
             parse_field(document, required_entry(document, section, "field")),
             read_double(document, section, "value"),
             scale_with_load};
+        result.function = function;
+        return result;
     }
     if (type == "pressure") {
         forbid_key(document, section, "field", "type='pressure'");
-        return {leaf_name(section),
-                BoundaryConditionType::pressure,
-                read_string(document, section, "boundary"),
-                Field::radial_displacement,
-                read_double(document, section, "value"),
-                scale_with_load};
+        forbid_convection_keys(document, section, "type='pressure'");
+        BoundaryConditionDefinition result{
+            leaf_name(section),
+            BoundaryConditionType::pressure,
+            read_string(document, section, "boundary"),
+            Field::radial_displacement,
+            read_double(document, section, "value"),
+            scale_with_load};
+        result.function = function;
+        return result;
     }
     if (type == "traction") {
+        forbid_convection_keys(document, section, "type='traction'");
         const Field field =
             parse_field(document, required_entry(document, section, "field"));
         if (field == Field::temperature)
             value_error(document, section.entry("field"),
                         "traction requires a displacement field");
-        return {leaf_name(section),
-                BoundaryConditionType::traction,
-                read_string(document, section, "boundary"),
-                field,
-                read_double(document, section, "value"),
-                scale_with_load};
+        BoundaryConditionDefinition result{
+            leaf_name(section),
+            BoundaryConditionType::traction,
+            read_string(document, section, "boundary"),
+            field,
+            read_double(document, section, "value"),
+            scale_with_load};
+        result.function = function;
+        return result;
+    }
+    if (type == "convection") {
+        forbid_key(document, section, "field", "type='convection'");
+        forbid_key(document, section, "value", "type='convection'");
+        forbid_key(document, section, "scale_with_load", "type='convection'");
+        forbid_key(document, section, "function", "type='convection'");
+        BoundaryConditionDefinition result{
+            leaf_name(section),
+            BoundaryConditionType::convection,
+            read_string(document, section, "boundary"),
+            Field::temperature,
+            0.0,
+            false};
+        result.heat_transfer_coefficient =
+            read_double(document, section, "heat_transfer_coefficient");
+        result.ambient_temperature =
+            read_double(document, section, "ambient_temperature");
+        result.coefficient_function =
+            read_optional_string(section, "coefficient_function", {});
+        result.ambient_temperature_function =
+            read_optional_string(section, "ambient_temperature_function", {});
+        return result;
     }
     value_error(document, section.entry("type"),
                 "unknown boundary-condition type '" + type + "'");
@@ -429,6 +503,7 @@ SteadyProblemDefinition FuelSimCaseDefinition::steady_definition() const {
     SteadyProblemDefinition result;
     result.contacts = contacts;
     result.boundary_conditions = boundary_conditions;
+    result.time_tables = time_tables;
     result.regions.reserve(regions.size());
     for (const CaseRegionDefinition& region : regions)
         result.regions.push_back(region.spatial);
@@ -474,6 +549,24 @@ FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
                     "only mesh type 'exodus' is supported");
     result.mesh_file = resolved_path(path, read_string(document, mesh, "file"));
 
+    const InputSection* time_functions =
+        find_section(document, "TimeFunctions");
+    if (time_functions != nullptr) {
+        validate_keys(document, *time_functions, {});
+        for (const InputSection* section :
+             direct_children(document, "TimeFunctions")) {
+            validate_keys(document, *section, {"type", "times", "values"});
+            if (read_string(document, *section, "type") != "piecewise_linear")
+                value_error(document, section->entry("type"),
+                            "only time-function type 'piecewise_linear' is "
+                            "supported");
+            result.time_tables.emplace_back(
+                leaf_name(*section),
+                parse_double_list(document, section->entry("times")),
+                parse_double_list(document, section->entry("values")));
+        }
+    }
+
     const InputSection& regions = document.section("Regions");
     validate_keys(document, regions, {});
     for (const InputSection* section : direct_children(document, "Regions"))
@@ -495,6 +588,36 @@ FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
          direct_children(document, "BoundaryConditions"))
         result.boundary_conditions.push_back(
             read_boundary_condition(document, *section));
+
+    const auto require_function = [&](const std::string& name,
+                                      const std::string& owner) {
+        if (name.empty())
+            return;
+        const auto found =
+            std::find_if(result.time_tables.begin(), result.time_tables.end(),
+                         [&name](const PiecewiseLinearTimeTable& table) {
+                             return table.name() == name;
+                         });
+        if (found == result.time_tables.end())
+            throw std::invalid_argument(path + ": " + owner +
+                                        " references unknown time function '" +
+                                        name + "'");
+    };
+    for (const CaseRegionDefinition& region : result.regions)
+        require_function(region.spatial.heat_source_function,
+                         "region '" + region.spatial.name + "'");
+    for (const BoundaryConditionDefinition& boundary :
+         result.boundary_conditions) {
+        require_function(boundary.function,
+                         "boundary condition '" + boundary.name + "'");
+        require_function(boundary.coefficient_function,
+                         "boundary condition '" + boundary.name + "'");
+        require_function(boundary.ambient_temperature_function,
+                         "boundary condition '" + boundary.name + "'");
+    }
+    if (result.problem == CaseProblem::steady && !result.time_tables.empty())
+        throw std::invalid_argument(
+            path + ": time functions are only valid for transient cases");
 
     const InputSection& executioner = document.section("Executioner");
     const std::string executioner_type =

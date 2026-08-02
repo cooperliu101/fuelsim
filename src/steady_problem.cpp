@@ -37,6 +37,40 @@ edge_coordinates(const RegionMesh& mesh, const Line2BoundaryElement& edge) {
     return {{mesh.nodes().at(edge.nodes[0]), mesh.nodes().at(edge.nodes[1])}};
 }
 
+std::pair<std::size_t, std::array<std::size_t, 2>>
+edge_parent(const RegionMesh& mesh, const Line2BoundaryElement& edge) {
+    std::size_t parent = mesh.elements().size();
+    std::array<std::size_t, 2> local_nodes{};
+    for (std::size_t element_index = 0; element_index < mesh.elements().size();
+         ++element_index) {
+        const Quad4Element& element = mesh.elements()[element_index];
+        std::array<std::size_t, 2> candidate{};
+        bool contains = true;
+        for (std::size_t edge_node = 0; edge_node < 2; ++edge_node) {
+            const auto found =
+                std::find(element.nodes.begin(), element.nodes.end(),
+                          edge.nodes[edge_node]);
+            if (found == element.nodes.end()) {
+                contains = false;
+                break;
+            }
+            candidate[edge_node] =
+                static_cast<std::size_t>(found - element.nodes.begin());
+        }
+        if (!contains)
+            continue;
+        if (parent != mesh.elements().size())
+            throw std::invalid_argument(
+                "Boundary edge has more than one adjacent region element");
+        parent = element_index;
+        local_nodes = candidate;
+    }
+    if (parent == mesh.elements().size())
+        throw std::invalid_argument(
+            "Boundary edge has no adjacent region element");
+    return {parent, local_nodes};
+}
+
 void validate_definitions(const SteadyProblemDefinition& definition) {
     if (definition.regions.empty())
         throw std::invalid_argument(
@@ -68,6 +102,16 @@ void validate_definitions(const SteadyProblemDefinition& definition) {
                     "Duplicate region block: " +
                     (value.block.empty() ? std::to_string(value.block_id)
                                          : value.block));
+        }
+    }
+    for (std::size_t table = 0; table < definition.time_tables.size();
+         ++table) {
+        for (std::size_t previous = 0; previous < table; ++previous) {
+            if (definition.time_tables[previous].name() ==
+                definition.time_tables[table].name())
+                throw std::invalid_argument(
+                    "Duplicate time-table name: " +
+                    definition.time_tables[table].name());
         }
     }
     for (std::size_t contact = 0; contact < definition.contacts.size();
@@ -212,7 +256,7 @@ SteadyProblem::SteadyProblem(SteadyProblemDefinition definition,
                              std::vector<RegionMesh> meshes)
     : _definition(std::move(definition)), _block_ids(std::move(block_ids)),
       _meshes(std::move(meshes)), _dof_map(checked_total_nodes(_meshes)),
-      _load_factor(1.0) {
+      _load_factor(1.0), _time(0.0) {
     validate_definitions(_definition);
 
     _node_offsets.reserve(_meshes.size() + 1);
@@ -234,6 +278,7 @@ SteadyProblem::SteadyProblem(SteadyProblemDefinition definition,
     build_volume_geometries();
     build_contacts(source_mesh);
     build_boundary_conditions(source_mesh);
+    refresh_controlled_values();
 }
 
 const SteadyProblemDefinition& SteadyProblem::definition() const noexcept {
@@ -308,28 +353,84 @@ void SteadyProblem::set_load_factor(double value) {
         throw std::invalid_argument(
             "SteadyProblem load factor must be finite and nonnegative");
     _load_factor = value;
-    for (std::size_t region_value = 0; region_value < region_count();
-         ++region_value) {
-        _region_kernels[region_value].set_volumetric_heat_source(
-            value * _definition.regions[region_value].volumetric_heat_source);
-    }
-    for (const ScaledDirichlet& scaled : _scaled_dirichlet_conditions) {
-        const auto condition = std::lower_bound(
-            _dirichlet_conditions.begin(), _dirichlet_conditions.end(),
-            scaled.dof,
-            [](const DirichletCondition& candidate, std::size_t dof) {
-                return candidate.dof < dof;
-            });
-        if (condition == _dirichlet_conditions.end() ||
-            condition->dof != scaled.dof)
-            throw std::logic_error(
-                "SteadyProblem scaled Dirichlet mapping is invalid");
-        condition->value = value * scaled.value;
-    }
+    refresh_controlled_values();
 }
 
 double SteadyProblem::load_factor() const noexcept {
     return _load_factor;
+}
+
+void SteadyProblem::set_time(double value) {
+    if (!std::isfinite(value) || value < 0.0)
+        throw std::invalid_argument(
+            "SteadyProblem time must be finite and nonnegative");
+    _time = value;
+    refresh_controlled_values();
+}
+
+double SteadyProblem::time() const noexcept {
+    return _time;
+}
+
+double SteadyProblem::function_value(const std::string& name) const {
+    const auto found = std::find_if(
+        _definition.time_tables.begin(), _definition.time_tables.end(),
+        [&name](const PiecewiseLinearTimeTable& table) {
+            return table.name() == name;
+        });
+    if (found == _definition.time_tables.end())
+        throw std::invalid_argument("Unknown time-table function: " + name);
+    return found->value(_time);
+}
+
+double SteadyProblem::load_multiplier(bool scale_with_load,
+                                      const std::string& function) const {
+    if (!function.empty())
+        return function_value(function);
+    return scale_with_load ? _load_factor : 1.0;
+}
+
+void SteadyProblem::refresh_controlled_values() {
+    for (std::size_t region_value = 0; region_value < region_count();
+         ++region_value) {
+        const RegionDefinition& region = _definition.regions[region_value];
+        const double multiplier =
+            region.heat_source_function.empty()
+                ? _load_factor
+                : function_value(region.heat_source_function);
+        _region_kernels[region_value].set_volumetric_heat_source(
+            multiplier * region.volumetric_heat_source);
+    }
+    for (const ControlledDirichlet& controlled :
+         _controlled_dirichlet_conditions) {
+        const auto condition = std::lower_bound(
+            _dirichlet_conditions.begin(), _dirichlet_conditions.end(),
+            controlled.dof,
+            [](const DirichletCondition& candidate, std::size_t dof) {
+                return candidate.dof < dof;
+            });
+        if (condition == _dirichlet_conditions.end() ||
+            condition->dof != controlled.dof)
+            throw std::logic_error(
+                "SteadyProblem controlled Dirichlet mapping is invalid");
+        condition->value =
+            load_multiplier(controlled.scale_with_load, controlled.function) *
+            controlled.value;
+    }
+    for (std::size_t load = 0; load < _convection_loads.size(); ++load) {
+        const ConvectionLoad& convection = _convection_loads[load];
+        const double coefficient_multiplier =
+            convection.coefficient_function.empty()
+                ? 1.0
+                : function_value(convection.coefficient_function);
+        const double ambient_multiplier =
+            convection.ambient_temperature_function.empty()
+                ? 1.0
+                : function_value(convection.ambient_temperature_function);
+        _convection_kernels[load].set_properties(
+            {coefficient_multiplier * convection.heat_transfer_coefficient,
+             ambient_multiplier * convection.ambient_temperature});
+    }
 }
 
 std::vector<double> SteadyProblem::initial_state() const {
@@ -354,7 +455,7 @@ std::size_t SteadyProblem::dof_count() const noexcept {
 
 std::size_t SteadyProblem::contribution_count() const noexcept {
     return _element_offsets.back() + _thermal_geometries.size() +
-           _mechanical_geometries.size();
+           _mechanical_geometries.size() + _convection_geometries.size();
 }
 
 const std::vector<DirichletCondition>&
@@ -389,7 +490,10 @@ SteadyProblem::contribution_dofs(std::size_t contribution_index) const {
     if (contribution_index < _thermal_nodes.size())
         return _dof_map.local_dofs(_thermal_nodes.at(contribution_index));
     contribution_index -= _thermal_nodes.size();
-    return _dof_map.local_dofs(_mechanical_nodes.at(contribution_index));
+    if (contribution_index < _mechanical_nodes.size())
+        return _dof_map.local_dofs(_mechanical_nodes.at(contribution_index));
+    contribution_index -= _mechanical_nodes.size();
+    return _dof_map.local_dofs(_convection_nodes.at(contribution_index));
 }
 
 LocalResidual
@@ -408,6 +512,13 @@ SteadyProblem::contribution_residual(std::size_t contribution_index,
             _thermal_geometries[contribution_index], state);
     }
     contribution_index -= _thermal_geometries.size();
+    if (contribution_index >= _mechanical_geometries.size()) {
+        contribution_index -= _mechanical_geometries.size();
+        const std::size_t load =
+            _convection_load_indices.at(contribution_index);
+        return _convection_kernels[load].residual(
+            _convection_geometries.at(contribution_index), state);
+    }
     const std::size_t contact_value =
         _mechanical_contact_indices.at(contribution_index);
     return _mechanical_kernels[contact_value].residual(
@@ -430,6 +541,13 @@ SteadyProblem::linearize_contribution(std::size_t contribution_index,
             _thermal_geometries[contribution_index], state);
     }
     contribution_index -= _thermal_geometries.size();
+    if (contribution_index >= _mechanical_geometries.size()) {
+        contribution_index -= _mechanical_geometries.size();
+        const std::size_t load =
+            _convection_load_indices.at(contribution_index);
+        return _convection_kernels[load].linearize(
+            _convection_geometries.at(contribution_index), state);
+    }
     const std::size_t contact_value =
         _mechanical_contact_indices.at(contribution_index);
     return _mechanical_kernels[contact_value].linearize(
@@ -608,17 +726,23 @@ void SteadyProblem::build_boundary_conditions(
                                         "and values must be valid");
         ResolvedBoundary resolved =
             resolve_boundary(source_mesh, definition.boundary);
+        if (definition.scale_with_load && !definition.function.empty())
+            throw std::invalid_argument(
+                "Boundary condition cannot combine scale_with_load and a "
+                "time function: " +
+                definition.name);
         if (definition.type == BoundaryConditionType::dirichlet) {
             for (std::size_t local_node : resolved.boundary.nodes) {
                 const std::size_t dof = _dof_map.dof(
                     definition.field, global_node(resolved.region, local_node));
                 _dirichlet_conditions.push_back(
-                    {dof, definition.scale_with_load
-                              ? _load_factor * definition.value
-                              : definition.value});
-                if (definition.scale_with_load)
-                    _scaled_dirichlet_conditions.push_back(
-                        {dof, definition.value});
+                    {dof, load_multiplier(definition.scale_with_load,
+                                          definition.function) *
+                              definition.value});
+                if (definition.scale_with_load || !definition.function.empty())
+                    _controlled_dirichlet_conditions.push_back(
+                        {dof, definition.value, definition.scale_with_load,
+                         definition.function});
             }
         } else if (definition.type == BoundaryConditionType::pressure) {
             if (definition.value < 0.0)
@@ -631,16 +755,50 @@ void SteadyProblem::build_boundary_conditions(
                     definition.boundary);
             _pressure_loads.push_back(
                 {resolved.region, std::move(resolved.boundary),
-                 definition.value, definition.scale_with_load});
-        } else {
+                 definition.value, definition.scale_with_load,
+                 definition.function});
+        } else if (definition.type == BoundaryConditionType::traction) {
             if (definition.field == Field::temperature)
                 throw std::invalid_argument(
                     "Traction requires a displacement field: " +
                     definition.boundary);
-            _traction_loads.push_back({resolved.region,
-                                       std::move(resolved.boundary),
-                                       definition.field, definition.value,
-                                       definition.scale_with_load});
+            _traction_loads.push_back(
+                {resolved.region, std::move(resolved.boundary),
+                 definition.field, definition.value, definition.scale_with_load,
+                 definition.function});
+        } else {
+            if (!(definition.heat_transfer_coefficient > 0.0) ||
+                !(definition.ambient_temperature > 0.0))
+                throw std::invalid_argument(
+                    "Convection coefficient and ambient temperature must be "
+                    "positive: " +
+                    definition.name);
+            const std::size_t load = _convection_loads.size();
+            _convection_loads.push_back(
+                {definition.heat_transfer_coefficient,
+                 definition.ambient_temperature,
+                 definition.coefficient_function,
+                 definition.ambient_temperature_function});
+            _convection_kernels.emplace_back(
+                ConvectionProperties{definition.heat_transfer_coefficient,
+                                     definition.ambient_temperature});
+            const RegionMesh& mesh = _meshes[resolved.region];
+            for (const Line2BoundaryElement& edge :
+                 resolved.boundary.elements) {
+                const auto parent = edge_parent(mesh, edge);
+                const Quad4Element& element = mesh.elements().at(parent.first);
+                std::array<std::size_t, 4> nodes{};
+                for (std::size_t node = 0; node < nodes.size(); ++node)
+                    nodes[node] =
+                        global_node(resolved.region, element.nodes[node]);
+                _convection_nodes.push_back(nodes);
+                _convection_geometries.push_back(
+                    make_line2_rz_convection_geometry(
+                        {{mesh.nodes().at(edge.nodes[0]),
+                          mesh.nodes().at(edge.nodes[1])}},
+                        parent.second));
+                _convection_load_indices.push_back(load);
+            }
         }
     }
     validate_dirichlet_conditions(_dirichlet_conditions);
@@ -661,7 +819,11 @@ void SteadyProblem::add_pressure_residual(std::vector<double>& residual) const {
     const std::array<double, 2> locations = {-gauss, gauss};
     for (const PressureLoad& load : _pressure_loads) {
         const double pressure =
-            (load.scale_with_load ? _load_factor : 1.0) * load.pressure;
+            load_multiplier(load.scale_with_load, load.function) *
+            load.pressure;
+        if (pressure < 0.0)
+            throw std::domain_error(
+                "Pressure time function produced a negative load");
         if (pressure == 0.0)
             continue;
         const double normal_r =
@@ -693,7 +855,8 @@ void SteadyProblem::add_traction_residual(std::vector<double>& residual) const {
     const std::array<double, 2> locations = {-gauss, gauss};
     for (const TractionLoad& load : _traction_loads) {
         const double traction =
-            (load.scale_with_load ? _load_factor : 1.0) * load.traction;
+            load_multiplier(load.scale_with_load, load.function) *
+            load.traction;
         if (traction == 0.0)
             continue;
         const RegionMesh& mesh = _meshes[load.region];

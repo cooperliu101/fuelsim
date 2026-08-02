@@ -41,10 +41,12 @@ function(fuelsim_link_petsc target)
 endfunction()
 
 add_library(fuelsim_core
+    src/boundary.cpp
     src/dof_map.cpp
     src/inelastic_material.cpp
     src/interface.cpp
     src/steady_problem.cpp
+    src/time_table.cpp
     src/transient_problem.cpp
     src/material.cpp
     src/mesh.cpp
@@ -198,6 +200,27 @@ if(BUILD_TESTING)
     )
     set_tests_properties(fuelsim_checkpoint_results_tests PROPERTIES
         LABELS "integration"
+    )
+
+    add_executable(fuelsim_m3_load_boundary_tests
+        tests/m3_load_boundary_tests.cpp
+    )
+    target_link_libraries(fuelsim_m3_load_boundary_tests
+        PRIVATE
+            fuelsim_moose_test_support
+            fuelsim::input
+            fuelsim::exodus
+            fuelsim::petsc
+    )
+    fuelsim_enable_warnings(fuelsim_m3_load_boundary_tests)
+    add_test(NAME fuelsim_m3_load_boundary_tests
+        COMMAND fuelsim_m3_load_boundary_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_heat_moose.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_table_convection_moose.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m31_transient_table_convection_rz_all_nodes_final.csv"
+    )
+    set_tests_properties(fuelsim_m3_load_boundary_tests PROPERTIES
+        LABELS "acceptance"
     )
 
     add_executable(fuelsim_m1_exodus_moose_tests

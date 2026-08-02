@@ -79,15 +79,23 @@ bool verify_m3_output_input(const std::string& path,
     const fuelsim::FuelSimCaseDefinition definition =
         fuelsim::CaseInputReader::read(path);
     const int remove_status = std::remove(path.c_str());
-    return check(remove_status == 0 &&
-                     definition.transient_execution.restart_file.find(
-                         "restart.bin") != std::string::npos &&
-                     definition.outputs.exodus_file.find("results.e") !=
-                         std::string::npos &&
-                     definition.outputs.checkpoint_file.find(
-                         "checkpoint.bin") != std::string::npos &&
-                     definition.outputs.checkpoint_interval == 5,
-                 "restart and engineering output paths are resolved");
+    return check(
+        remove_status == 0 &&
+            definition.transient_execution.restart_file.find("restart.bin") !=
+                std::string::npos &&
+            definition.outputs.exodus_file.find("results.e") !=
+                std::string::npos &&
+            definition.outputs.checkpoint_file.find("checkpoint.bin") !=
+                std::string::npos &&
+            definition.outputs.checkpoint_interval == 5 &&
+            definition.time_tables.size() == 1 &&
+            definition.time_tables[0].value(1.0) == 0.5 &&
+            definition.regions[0].spatial.heat_source_function == "power" &&
+            definition.boundary_conditions.back().type ==
+                fuelsim::BoundaryConditionType::convection &&
+            definition.boundary_conditions.back().coefficient_function ==
+                "power",
+        "restart, time functions, convection and outputs are parsed");
 }
 
 bool run_tests(const std::string& steady_path,
@@ -186,6 +194,30 @@ bool run_tests(const std::string& steady_path,
              passed;
 
     std::string m3_case = read_text(transient_path);
+    m3_case.insert(0, "[TimeFunctions]\n  [power]\n    type = "
+                      "piecewise_linear\n    times = 0 2 5\n    values = 0 1 "
+                      "0.4\n  []\n[]\n\n");
+    const std::string heat_source = "volumetric_heat_source = 2e8";
+    const std::size_t heat_source_position = m3_case.find(heat_source);
+    if (heat_source_position == std::string::npos)
+        return check(false, "transient fixture has the expected heat source");
+    m3_case.insert(heat_source_position + heat_source.size(),
+                   "\n    heat_source_function = power");
+    const std::string executioner_start = "\n[Executioner]";
+    const std::size_t executioner_start_position =
+        m3_case.find(executioner_start);
+    if (executioner_start_position == std::string::npos)
+        return check(false, "transient fixture has an executioner section");
+    const std::size_t boundary_close =
+        m3_case.rfind("[]", executioner_start_position);
+    if (boundary_close == std::string::npos)
+        return check(false, "transient fixture closes boundary conditions");
+    m3_case.insert(
+        boundary_close,
+        "  [coolant]\n    type = convection\n    boundary = clad_outer\n"
+        "    heat_transfer_coefficient = 1000\n"
+        "    ambient_temperature = 600\n"
+        "    coefficient_function = power\n  []\n");
     const std::string executioner_type = "type = transient";
     const std::size_t executioner_position = m3_case.find(executioner_type);
     if (executioner_position == std::string::npos)
@@ -199,6 +231,26 @@ bool run_tests(const std::string& steady_path,
                    "\n  exodus = results.e\n  checkpoint = checkpoint.bin"
                    "\n  checkpoint_interval = 5");
     passed = verify_m3_output_input(malformed_path, m3_case) && passed;
+
+    std::string unknown_function = read_text(transient_path);
+    const std::size_t unknown_heat_position =
+        unknown_function.find(heat_source);
+    unknown_function.insert(unknown_heat_position + heat_source.size(),
+                            "\n    heat_source_function = missing");
+    passed = expect_case_failure(malformed_path, unknown_function,
+                                 "unknown time function 'missing'") &&
+             passed;
+
+    std::string invalid_table = m3_case;
+    const std::string valid_times = "times = 0 2 5";
+    const std::size_t valid_times_position = invalid_table.find(valid_times);
+    if (valid_times_position == std::string::npos)
+        return check(false, "M3 fixture has time-table nodes");
+    invalid_table.replace(valid_times_position, valid_times.size(),
+                          "times = 0 0 5");
+    passed = expect_case_failure(malformed_path, invalid_table,
+                                 "strictly increasing") &&
+             passed;
 
     std::string orphan_interval = read_text(transient_path);
     const std::size_t orphan_output = orphan_interval.find(console);

@@ -1,8 +1,10 @@
+#include "fuelsim/boundary.hpp"
 #include "fuelsim/dof_map.hpp"
 #include "fuelsim/interface.hpp"
 #include "fuelsim/material.hpp"
 #include "fuelsim/mesh.hpp"
 #include "fuelsim/quad4_rz.hpp"
+#include "fuelsim/time_table.hpp"
 #include "support/steady_fuel_cladding_problem.hpp"
 
 #include <algorithm>
@@ -461,6 +463,61 @@ bool test_m1_dof_layout() {
     return passed;
 }
 
+bool test_time_table_and_convection() {
+    const fuelsim::PiecewiseLinearTimeTable table("power", {0.0, 2.0, 5.0},
+                                                  {0.0, 1.0, 0.4});
+    bool passed =
+        check(table.value(0.0) == 0.0 && table.value(1.0) == 0.5 &&
+                  table.value(3.0) == 0.8 && table.value(8.0) == 0.4,
+              "piecewise-linear table interpolates and holds endpoints");
+
+    const fuelsim::Line2RzConvectionGeometry geometry =
+        fuelsim::make_line2_rz_convection_geometry(
+            {{{0.005, 0.0}, {0.005, 0.01}}}, {{1, 2}});
+    const fuelsim::Line2RzConvectionKernel kernel({1000.0, 500.0});
+    const fuelsim::LocalValues state = {
+        590.0, 600.0, 600.0, 610.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+    };
+    const fuelsim::LocalValues direction = {
+        0.2, -0.7, 0.4, 0.3, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+    };
+    const fuelsim::LocalSystem system = kernel.linearize(geometry, state);
+    const double expected_heat = 1000.0 * 100.0 * 2.0 * pi * 0.005 * 0.01;
+    passed = check(scaled_error(system.residual[1] + system.residual[2],
+                                expected_heat) < 1.0e-13,
+                   "convection integrates the RZ surface heat loss") &&
+             passed;
+
+    constexpr double step = 1.0e-4;
+    fuelsim::LocalValues plus = state;
+    fuelsim::LocalValues minus = state;
+    for (std::size_t dof = 0; dof < state.size(); ++dof) {
+        plus[dof] += step * direction[dof];
+        minus[dof] -= step * direction[dof];
+    }
+    const fuelsim::LocalResidual plus_residual =
+        kernel.residual(geometry, plus);
+    const fuelsim::LocalResidual minus_residual =
+        kernel.residual(geometry, minus);
+    double maximum_error = 0.0;
+    for (std::size_t row = 0; row < state.size(); ++row) {
+        double tangent = 0.0;
+        for (std::size_t column = 0; column < state.size(); ++column)
+            tangent += system.jacobian[row * state.size() + column] *
+                       direction[column];
+        const double finite_difference =
+            (plus_residual[row] - minus_residual[row]) / (2.0 * step);
+        maximum_error =
+            std::max(maximum_error, scaled_error(tangent, finite_difference));
+    }
+    std::cout << "convection_directional_jacobian_error=" << maximum_error
+              << '\n';
+    passed = check(maximum_error < 1.0e-10,
+                   "convection AD Jacobian matches centered differences") &&
+             passed;
+    return passed;
+}
+
 } // namespace
 
 int main() {
@@ -470,9 +527,11 @@ int main() {
     passed = test_element_jacobian() && passed;
     passed = test_gap_heat_and_normal_contact() && passed;
     passed = test_m1_dof_layout() && passed;
+    passed = test_time_table_and_convection() && passed;
 
     if (!passed)
         return 1;
     std::cout << "[PASS] fuelsim core geometry, DOF, and AD Jacobian tests\n";
     return 0;
 }
+#include "fuelsim/boundary.hpp"

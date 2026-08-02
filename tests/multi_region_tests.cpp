@@ -157,6 +157,35 @@ bool test_single_region(const fuelsim::UnstructuredQuad4Mesh& mesh) {
     return passed;
 }
 
+bool test_time_controlled_pressure(const fuelsim::UnstructuredQuad4Mesh& mesh) {
+    fuelsim::SteadyProblemDefinition definition = single_region_definition();
+    definition.time_tables.emplace_back("pressure_history",
+                                        std::vector<double>{0.0, 1.0},
+                                        std::vector<double>{1.0, 2.0});
+    fuelsim::BoundaryConditionDefinition pressure{
+        "outer_pressure",
+        fuelsim::BoundaryConditionType::pressure,
+        "pellet_outer",
+        fuelsim::Field::radial_displacement,
+        10.0,
+        false};
+    pressure.function = "pressure_history";
+    definition.boundary_conditions.push_back(std::move(pressure));
+    fuelsim::SteadyProblem problem(std::move(definition), mesh);
+    std::vector<double> first(problem.dof_count(), 0.0);
+    problem.set_time(0.0);
+    problem.add_external_residual(first);
+    std::vector<double> second(problem.dof_count(), 0.0);
+    problem.set_time(1.0);
+    problem.add_external_residual(second);
+    bool passed = true;
+    for (std::size_t dof = 0; dof < first.size(); ++dof)
+        passed = check(std::abs(second[dof] - 2.0 * first[dof]) < 1.0e-12,
+                       "pressure time table scales the assembled load") &&
+                 passed;
+    return passed;
+}
+
 bool test_three_regions(const fuelsim::UnstructuredQuad4Mesh& mesh) {
     const fuelsim::SteadyProblem problem(three_region_definition(), mesh);
     const std::vector<double> state = problem.initial_state();
@@ -244,9 +273,9 @@ bool test_transient_regions(const fuelsim::UnstructuredQuad4Mesh& mesh) {
 int main() {
     try {
         const fuelsim::UnstructuredQuad4Mesh mesh = three_region_mesh();
-        const bool passed = test_single_region(mesh) &&
-                            test_three_regions(mesh) &&
-                            test_transient_regions(mesh);
+        const bool passed =
+            test_single_region(mesh) && test_time_controlled_pressure(mesh) &&
+            test_three_regions(mesh) && test_transient_regions(mesh);
         if (!passed)
             return 1;
         std::cout << "[PASS] single- and multi-region problem tests\n";

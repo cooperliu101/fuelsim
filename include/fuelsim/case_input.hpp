@@ -59,6 +59,7 @@ struct FuelSimCaseDefinition final {
     std::vector<CaseRegionDefinition> regions;
     std::vector<ContactDefinition> contacts;
     std::vector<BoundaryConditionDefinition> boundary_conditions;
+    std::vector<PiecewiseLinearTimeTable> time_tables;
     SteadyExecutionInput steady_execution;
     TransientExecutionInput transient_execution;
     NonlinearSolverInput solver;

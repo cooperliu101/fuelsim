@@ -39,6 +39,25 @@ Dirichlet 边界可使用任意属于该区域的边集。当前热接触和机�
 `primary`、`secondary` 是轴对称圆柱面，并由边集相邻单元自动确定内外侧；
 这一接触几何限制独立于体网格是否结构化。
 
+## 时间函数
+
+瞬态卡可定义具体的分段线性时间表：
+
+```text
+[TimeFunctions]
+  [power]
+    type = piecewise_linear
+    times = 0 2.5 5 10
+    values = 0 1 0.5 1
+  []
+[]
+```
+
+`times` 和 `values` 是长度相同、至少包含两个值的空格分隔列表。时间必须
+有限、非负且严格递增，值必须有限；首末区间外保持端点值，不外推。表内每个
+时刻都是执行器必须准确命中的事件。名称必须唯一，引用未知名称会在解析时
+报错。稳态卡不接受 `[TimeFunctions]`。
+
 ## 自由区域组合
 
 `[Regions]` 下每个子段定义一个物理区域，子段名是区域名。每个区域必须
@@ -58,6 +77,7 @@ Dirichlet 边界可使用任意属于该区域的边集。当前热接触和机�
     reference_temperature = 600
     initial_temperature = 600
     volumetric_heat_source = 2e8
+    heat_source_function = power
   []
 []
 ```
@@ -76,6 +96,10 @@ Dirichlet 边界可使用任意属于该区域的边集。当前热接触和机�
 | `norton_creep_j2_plasticity` | 上述蠕变与塑性字段全部需要 |
 
 不适用于所选模型的字段会被拒绝。
+
+`heat_source_function` 可选；存在时，当前体积热源为
+`volumetric_heat_source * function(time)`。未设置时沿用执行器
+`load_ramp_time` 的全局载荷因子。
 
 ## 接触
 
@@ -135,6 +159,27 @@ Dirichlet 边界可使用任意属于该区域的边集。当前热接触和机�
 `traction` 必须声明一个位移 `field`，`value` 是该分量上的有符号表面牵引；
 它使用参考 RZ 表面测度积分。`dirichlet`、`pressure` 和 `traction` 都可设置
 `scale_with_load = true`，使 `value` 乘以当前执行器载荷因子；默认不缩放。
+也可用 `function = <name>` 使 `value` 乘以时间表值；`function` 与
+`scale_with_load` 互斥。压力在任一求值时刻都必须非负。
+
+对流热边界写为：
+
+```text
+[BoundaryConditions]
+  [coolant]
+    type = convection
+    boundary = clad_outer
+    heat_transfer_coefficient = 1000
+    ambient_temperature = 500
+    coefficient_function = coolant_flow
+    ambient_temperature_function = coolant_temperature
+  []
+[]
+```
+
+两个函数均可省略；存在时分别乘以对应基值。换热系数允许时间表计算为零但
+不能为负，环境温度必须始终为正。对流项使用参考 RZ 表面测度并作为邻接
+Quad4 的 12-DOF ADlite 局部贡献装配，因此残量和温度切线保持一致。
 `[BoundaryConditions]` 段本身必需，但可以为空。
 
 ## 时间推进、求解与输出
@@ -168,6 +213,11 @@ Dirichlet 边界可使用任意属于该区域的边集。当前热接触和机�
 瞬态载荷因子为 `min(time/load_ramp_time, 1)`；`load_ramp_time = 0` 表示从
 首步起使用完整载荷。该因子同时控制各区域 `volumetric_heat_source` 和所有
 显式设置 `scale_with_load = true` 的边界条件。
+
+时间推进会在不改变名义时间步控制器的前提下截短当前步，以准确命中下一
+时间表节点；随后恢复原名义步长增长路径。事件间隔可以小于
+`minimum_time_step`，因为事件时刻优先于最小重试步长；若该事件步求解失败，
+后续 cutback 仍受最小步长约束。
 
 `restart` 为可选的严格重启动文件。它恢复已提交的节点温度/位移、物理时间、
 载荷因子、全部积分点塑性/蠕变历史和已提交应力。文件的版本、字节序、长度、
@@ -209,13 +259,14 @@ Dirichlet 边界可使用任意属于该区域的边集。当前热接触和机�
 - [`steady_fuel_cladding.fsi`](../verification/fuelsim/steady_fuel_cladding.fsi)
 - [`steady_fuel_cladding_unstructured.fsi`](../verification/fuelsim/steady_fuel_cladding_unstructured.fsi)
 - [`transient_heat_moose.fsi`](../verification/fuelsim/transient_heat_moose.fsi)
+- [`transient_table_convection_moose.fsi`](../verification/fuelsim/transient_table_convection_moose.fsi)
 - [`transient_j2_plastic_moose.fsi`](../verification/fuelsim/transient_j2_plastic_moose.fsi)
 - [`transient_norton_creep_moose.fsi`](../verification/fuelsim/transient_norton_creep_moose.fsi)
 - [`transient_coupled_displacement_moose.fsi`](../verification/fuelsim/transient_coupled_displacement_moose.fsi)
 - [`transient_coupled_traction_moose.fsi`](../verification/fuelsim/transient_coupled_traction_moose.fsi)
 - [`transient_fuel_cladding_pcmi.fsi`](../verification/fuelsim/transient_fuel_cladding_pcmi.fsi)
 
-上述九张卡分别驱动 M0、两套 M1、M2.1、四套 M2.2 和 M2.3 的
+上述十张卡分别驱动 M0、两套 M1、M2.1、M3.1、四套 M2.2 和 M2.3 的
 fuelsim-to-MOOSE 对比；测试程序不再直接构造这些案例的材料、载荷路径或
 网格选择参数。每个对比读取 MOOSE 最终时刻的全部节点，统一检查温度、
 径向位移和轴向位移的三项误差；M1 和 M2.3 还检查全部接触节点的压力三项
