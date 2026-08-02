@@ -115,7 +115,7 @@ TransientFuelCladdingResult TransientFuelCladdingTimeStepper::solve(
     const SteadyClock::time_point total_start = SteadyClock::now();
 
     TransientFuelCladdingResult result;
-    PetscSequentialSolver nonlinear_solver;
+    PetscSolver nonlinear_solver;
     double next_time_step = time_options.initial_time_step;
 
     while (!reaches_end(problem.committed_time(), time_options.end_time)) {

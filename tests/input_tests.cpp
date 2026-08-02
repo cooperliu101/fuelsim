@@ -96,8 +96,12 @@ bool verify_m3_output_input(const std::string& path,
             definition.boundary_conditions.back().coefficient_function ==
                 "power" &&
             definition.transient_execution.target_nonlinear_iterations == 6 &&
-            definition.transient_execution.iteration_window == 2,
-        "restart, time functions, convection and outputs are parsed");
+            definition.transient_execution.iteration_window == 2 &&
+            definition.solver.linear_solver == "gmres" &&
+            definition.solver.preconditioner == "field_split" &&
+            definition.solver.linear_relative_tolerance == 1.0e-7 &&
+            definition.solver.maximum_linear_iterations == 700,
+        "restart, time functions, convection, solver and outputs are parsed");
 }
 
 bool run_tests(const std::string& steady_path,
@@ -128,7 +132,11 @@ bool run_tests(const std::string& steady_path,
                   steady.contacts[0].thermal && steady.contacts[0].mechanical,
               "contact is defined only by primary and secondary side sets") &&
         check(steady.steady_execution.load_steps == 20 &&
-                  steady.solver.maximum_iterations == 50,
+                  steady.solver.maximum_iterations == 50 &&
+                  steady.solver.linear_solver == "automatic" &&
+                  steady.solver.preconditioner == "automatic" &&
+                  steady.solver.linear_relative_tolerance == 1.0e-8 &&
+                  steady.solver.maximum_linear_iterations == 500,
               "steady execution and solver fields are parsed") &&
         check(transient.problem == fuelsim::CaseProblem::transient,
               "transient input selects the physical transient problem") &&
@@ -228,6 +236,15 @@ bool run_tests(const std::string& steady_path,
                    "\n  restart = restart.bin"
                    "\n  target_nonlinear_iterations = 6"
                    "\n  iteration_window = 2");
+    const std::string solver_start = "[Solver]";
+    const std::size_t solver_position = m3_case.find(solver_start);
+    if (solver_position == std::string::npos)
+        return check(false, "transient fixture has a solver section");
+    m3_case.insert(solver_position + solver_start.size(),
+                   "\n  linear_solver = gmres"
+                   "\n  preconditioner = field_split"
+                   "\n  linear_relative_tolerance = 1e-7"
+                   "\n  maximum_linear_iterations = 700");
     const std::size_t output_position = m3_case.find(console);
     if (output_position == std::string::npos)
         return check(false, "transient fixture has the expected console key");
@@ -235,6 +252,17 @@ bool run_tests(const std::string& steady_path,
                    "\n  exodus = results.e\n  checkpoint = checkpoint.bin"
                    "\n  checkpoint_interval = 5");
     passed = verify_m3_output_input(malformed_path, m3_case) && passed;
+
+    std::string invalid_preconditioner = m3_case;
+    const std::string valid_preconditioner = "preconditioner = field_split";
+    const std::size_t preconditioner_position =
+        invalid_preconditioner.find(valid_preconditioner);
+    invalid_preconditioner.replace(preconditioner_position,
+                                   valid_preconditioner.size(),
+                                   "preconditioner = magic");
+    passed = expect_case_failure(malformed_path, invalid_preconditioner,
+                                 "preconditioner must be") &&
+             passed;
 
     std::string unknown_function = read_text(transient_path);
     const std::size_t unknown_heat_position =

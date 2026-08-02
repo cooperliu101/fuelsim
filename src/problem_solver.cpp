@@ -159,7 +159,7 @@ SteadyResult solve_steady(SteadyProblem& problem, std::size_t load_steps,
         throw std::invalid_argument("solve_steady load_steps must be positive");
     const SteadyClock::time_point start = SteadyClock::now();
     SteadyResult result;
-    PetscSequentialSolver solver;
+    PetscSolver solver;
     std::vector<double> state = problem.initial_state();
     for (std::size_t step = 1; step <= load_steps; ++step) {
         problem.set_load_factor(static_cast<double>(step) /
@@ -193,7 +193,7 @@ TransientResult solve_transient(TransientProblem& problem,
     validate_time_options(problem, options);
     const SteadyClock::time_point start = SteadyClock::now();
     TransientResult result;
-    PetscSequentialSolver solver;
+    PetscSolver solver;
     const std::vector<double> events = problem.time_events();
     double next_time_step = options.initial_time_step;
     while (!reaches_end(problem.committed_time(), options.end_time)) {

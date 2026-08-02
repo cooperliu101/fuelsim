@@ -54,7 +54,7 @@ int main(int argc, char** argv) {
     try {
         fuelsim::PetscSession session(
             argc, argv,
-            "fuelsim M1 single-core benchmark: 23,010 DOFs and 20 load "
+            "fuelsim M1 benchmark: 23,010 DOFs and 20 load "
             "steps\n");
 
         const fuelsim::SteadyFuelCladdingParameters parameters =
@@ -71,8 +71,12 @@ int main(int argc, char** argv) {
         const std::size_t elements =
             (fuel_radial_elements + cladding_radial_elements) * axial_elements;
 
+        if (session.rank() != 0)
+            return result.completed && result.solve.converged ? 0 : 1;
+
         std::cout << std::boolalpha << std::scientific << std::setprecision(12);
-        std::cout << "case=m1-medium-single-core\n";
+        std::cout << "case=m1-medium\n";
+        std::cout << "mpi_ranks=" << session.size() << '\n';
         std::cout << "nodes=" << nodes << '\n';
         std::cout << "elements=" << elements << '\n';
         std::cout << "dofs=" << 3 * nodes << '\n';

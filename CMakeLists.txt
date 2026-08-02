@@ -332,6 +332,68 @@ if(BUILD_TESTING)
     add_test(NAME fuelsim_solver_tests COMMAND fuelsim_solver_tests)
     set_tests_properties(fuelsim_solver_tests PROPERTIES LABELS "acceptance")
 
+    find_program(FUELSIM_MPIEXEC_EXECUTABLE
+        NAMES mpiexec
+        HINTS "${PETSC_PREFIX}/bin"
+        NO_DEFAULT_PATH
+    )
+    if(FUELSIM_MPIEXEC_EXECUTABLE)
+        add_test(NAME fuelsim_mpi_solver_tests
+            COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2
+                $<TARGET_FILE:fuelsim_solver_tests>
+                -ksp_type preonly
+                -pc_type lu
+                -pc_factor_mat_solver_type mumps
+        )
+        set_tests_properties(fuelsim_mpi_solver_tests PROPERTIES
+            LABELS "acceptance;parallel"
+            PROCESSORS 2
+        )
+
+        add_executable(fuelsim_mpi_equivalence_tests
+            tests/mpi_equivalence_tests.cpp
+        )
+        target_link_libraries(fuelsim_mpi_equivalence_tests
+            PRIVATE fuelsim::input fuelsim::exodus fuelsim::petsc
+        )
+        fuelsim_enable_warnings(fuelsim_mpi_equivalence_tests)
+        add_test(NAME fuelsim_mpi_reference
+            COMMAND fuelsim_mpi_equivalence_tests
+                write
+                "${CMAKE_CURRENT_BINARY_DIR}/m34_one_rank_state.txt"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_two_pellet_contact_moose.fsi"
+        )
+        set_tests_properties(fuelsim_mpi_reference PROPERTIES
+            FIXTURES_SETUP m34_mpi_reference
+            LABELS "integration;parallel"
+        )
+        add_test(NAME fuelsim_mpi_equivalence
+            COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2
+                $<TARGET_FILE:fuelsim_mpi_equivalence_tests>
+                compare
+                "${CMAKE_CURRENT_BINARY_DIR}/m34_one_rank_state.txt"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_two_pellet_contact_moose.fsi"
+        )
+        set_tests_properties(fuelsim_mpi_equivalence PROPERTIES
+            FIXTURES_REQUIRED m34_mpi_reference
+            LABELS "acceptance;parallel"
+            PROCESSORS 2
+        )
+        add_test(NAME fuelsim_mpi_field_split
+            COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2
+                $<TARGET_FILE:fuelsim_mpi_equivalence_tests>
+                compare_field_split
+                "${CMAKE_CURRENT_BINARY_DIR}/m34_one_rank_state.txt"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_two_pellet_contact_moose.fsi"
+        )
+        set_tests_properties(fuelsim_mpi_field_split PROPERTIES
+            FIXTURES_REQUIRED m34_mpi_reference
+            LABELS "acceptance;parallel"
+            PROCESSORS 2
+            TIMEOUT 60
+        )
+    endif()
+
     add_executable(fuelsim_m2_solver_tests tests/m2_solver_tests.cpp)
     target_link_libraries(fuelsim_m2_solver_tests
         PRIVATE

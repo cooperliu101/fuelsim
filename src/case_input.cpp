@@ -675,18 +675,41 @@ FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
     const InputSection& solver = document.section("Solver");
     validate_keys(document, solver,
                   {"absolute_tolerance", "relative_tolerance", "step_tolerance",
-                   "maximum_iterations"});
+                   "maximum_iterations", "linear_solver", "preconditioner",
+                   "linear_relative_tolerance",
+                   "maximum_linear_iterations"});
     result.solver = {
         read_optional_double(document, solver, "absolute_tolerance", 1.0e-8),
         read_optional_double(document, solver, "relative_tolerance", 1.0e-10),
         read_optional_double(document, solver, "step_tolerance", 1.0e-12),
-        read_optional_int(document, solver, "maximum_iterations", 40)};
+        read_optional_int(document, solver, "maximum_iterations", 40),
+        read_optional_string(solver, "linear_solver", "automatic"),
+        read_optional_string(solver, "preconditioner", "automatic"),
+        read_optional_double(document, solver, "linear_relative_tolerance",
+                             1.0e-8),
+        read_optional_int(document, solver, "maximum_linear_iterations",
+                          500)};
     if (!(result.solver.absolute_tolerance > 0.0) ||
         !(result.solver.relative_tolerance > 0.0) ||
         !(result.solver.step_tolerance > 0.0) ||
-        result.solver.maximum_iterations <= 0)
+        result.solver.maximum_iterations <= 0 ||
+        !(result.solver.linear_relative_tolerance > 0.0) ||
+        result.solver.maximum_linear_iterations <= 0)
         throw std::invalid_argument(
             path + ": solver tolerances and iteration limit must be positive");
+    if (result.solver.linear_solver != "automatic" &&
+        result.solver.linear_solver != "direct" &&
+        result.solver.linear_solver != "gmres")
+        throw std::invalid_argument(
+            path + ": linear_solver must be automatic, direct, or gmres");
+    if (result.solver.preconditioner != "automatic" &&
+        result.solver.preconditioner != "lu" &&
+        result.solver.preconditioner != "block_jacobi" &&
+        result.solver.preconditioner != "field_split" &&
+        result.solver.preconditioner != "hypre")
+        throw std::invalid_argument(
+            path + ": preconditioner must be automatic, lu, block_jacobi, "
+                   "field_split, or hypre");
 
     const InputSection& outputs = document.section("Outputs");
     validate_keys(

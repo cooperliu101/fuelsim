@@ -52,11 +52,31 @@ bool test_thermal_cylinder() {
     };
 
     fuelsim::SteadySingleRegionProblem problem(parameters);
-    fuelsim::PetscSequentialSolver solver;
+    fuelsim::PetscSolver solver;
     const fuelsim::SolveResult result =
         solver.solve(problem, problem.initial_state());
 
     bool passed = check(result.converged, "thermal cylinder SNES converged");
+    const std::size_t expected_begin =
+        problem.contribution_count() *
+        static_cast<std::size_t>(result.mpi_rank) /
+        static_cast<std::size_t>(result.mpi_size);
+    const std::size_t expected_end =
+        problem.contribution_count() *
+        static_cast<std::size_t>(result.mpi_rank + 1) /
+        static_cast<std::size_t>(result.mpi_size);
+    passed =
+        check(result.local_contribution_begin == expected_begin &&
+                  result.local_contribution_end == expected_end,
+              "PETSc rank owns its exact nonoverlapping contribution range") &&
+        passed;
+    if (result.mpi_size > 1)
+        passed =
+            check(result.local_contribution_end -
+                          result.local_contribution_begin <
+                      problem.contribution_count(),
+                  "MPI rank does not repeat the complete model assembly") &&
+            passed;
     double maximum_scaled_error = 0.0;
     const double center_rise =
         heat_source * radius * radius / (4.0 * conductivity);
@@ -91,7 +111,7 @@ bool test_free_thermal_expansion() {
     };
 
     const fuelsim::SteadySingleRegionProblem problem(parameters);
-    fuelsim::PetscSequentialSolver solver;
+    fuelsim::PetscSolver solver;
     const fuelsim::SolveResult result =
         solver.solve(problem, problem.initial_state());
 
@@ -168,7 +188,7 @@ bool test_lame_open_ended_cylinder() {
     };
 
     const fuelsim::SteadySingleRegionProblem problem(parameters);
-    fuelsim::PetscSequentialSolver solver;
+    fuelsim::PetscSolver solver;
     const fuelsim::SolveResult result =
         solver.solve(problem, problem.initial_state());
 
@@ -251,7 +271,7 @@ bool test_m1_open_gap_analytic_thermal() {
         1.0e14,
     };
     const fuelsim::SteadyFuelCladdingProblem problem(parameters);
-    fuelsim::PetscSequentialSolver solver;
+    fuelsim::PetscSolver solver;
     const fuelsim::SolveResult result =
         solver.solve(problem, problem.initial_state());
 
@@ -335,11 +355,6 @@ bool test_m1_open_gap_analytic_thermal() {
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 1) {
-        std::cerr << "Usage: fuelsim_solver_tests\n";
-        return 2;
-    }
-
     try {
         std::cout << std::scientific << std::setprecision(12);
         fuelsim::PetscSession session(

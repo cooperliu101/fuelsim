@@ -239,9 +239,19 @@ Quad4 的 12-DOF ADlite 局部贡献装配，因此残量和温度切线保持�
 格式 v2 还保存成功提交后控制器给出的下一名义时间步，因此自适应计算从检查
 点继续时不会重新使用输入卡的初始步长。
 
-`[Solver]` 可设置 `absolute_tolerance`、`relative_tolerance`、
+`[Solver]` 可设置非线性 `absolute_tolerance`、`relative_tolerance`、
 `step_tolerance` 和 `maximum_iterations`；省略时分别为 `1e-8`、`1e-10`、
-`1e-12` 和 `40`。其他 PETSc 命令行选项仍可直接覆盖默认行为。
+`1e-12` 和 `40`。线性选项为：
+
+- `linear_solver = automatic|direct|gmres`；
+- `preconditioner = automatic|lu|block_jacobi|field_split|hypre`；
+- `linear_relative_tolerance`，默认 `1e-8`；
+- `maximum_linear_iterations`，默认 `500`。
+
+`automatic` 使用直接 LU：单 rank 采用 PETSc LU，多 rank 采用 PETSc 的 MUMPS
+分解。选择 `block_jacobi`、`field_split` 或 `hypre` 会自动选 GMRES；
+`field_split` 按固定 `[T(:)]` 和 `[ur(:), uz(:)]` 建立乘法场分裂。具体 PETSc
+命令行选项仍在上述设置之后生效，可用于选择 HYPRE 子类型和场分裂子 KSP。
 
 `[Outputs]` 的 `console` 默认为 `true`；可选 `csv` 将同一组命名指标写为
 `metric,value` 文件。`exodus` 写出可后处理的场结果；稳态写一个最终步，

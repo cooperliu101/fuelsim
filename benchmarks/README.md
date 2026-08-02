@@ -8,7 +8,7 @@ cladding mesh:    16 radial x 64 axial
 nodes/elements:  7,670 / 7,424
 solution DOFs:   23,010
 load steps:      20
-linear solve:    PETSc sequential LU
+linear solve:    PETSc LU (1 rank) or MUMPS (multiple ranks)
 ```
 
 It is intentionally not a CTest because one run takes tens of seconds. Build
@@ -79,3 +79,26 @@ and 6.12 s in residual callbacks.
 These are end-to-end timings for the current reference model and direct
 solver. Re-run them after changes to hardware, mesh, PETSc, linear solver,
 material models, or contact algorithms.
+
+## 2026-08-02 M3.4 measurements
+
+All OpenMP/OpenBLAS/MKL/NumExpr thread counts were one. The 1-rank runs were
+pinned to CPU 0; the 2-rank run was pinned to CPUs 0 and 1.
+
+```text
+default 1,584 DOF, 20 steps, three-run paired medians:
+  697762f baseline: 0.893109 s
+  M3.4:             0.872064 s
+  change:           2.36% faster
+
+medium 23,010 DOF, 20 steps:
+  697762f 1 rank: 27.6641 s
+  M3.4     1 rank: 27.6630 s
+  M3.4     2 ranks: 10.3542 s
+  observed 2-rank speedup over current 1-rank: 2.67x
+```
+
+Every medium run completed 62 nonlinear iterations with 82 residual and 62
+Jacobian callbacks and created one PETSc workspace. The 2-rank result uses
+distributed contribution assembly and PETSc MUMPS; it is not a claim of
+general strong scaling beyond this two-rank measurement.

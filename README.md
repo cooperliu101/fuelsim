@@ -9,7 +9,8 @@
 - 由 `primary`、`secondary` 边集定义的 STS 气隙导热；
 - 与 MOOSE/JAX 实现一致的 secondary 节点到 primary 线段 NTS 无摩擦罚接触；
 - ADlite 生成体单元和界面的局部 Jacobian；
-- PETSc SNES、KSP 和 AIJ 稀疏矩阵完成串行 Newton 求解。
+- PETSc SNES、KSP 和分布式 AIJ 稀疏矩阵完成 Newton 求解；局部贡献按 MPI
+  rank 唯一分区装配。
 
 瞬态问题在同一接触离散上实现：
 
@@ -101,8 +102,9 @@ ctest --test-dir build --output-on-failure
 I/O 层，生产问题会保留每个选中块的原始节点坐标和 Quad4 连接关系，不再
 重建张量积 RZ 网格。单元仍须具有有效的正 Jacobian。接触边界可以是圆柱
 侧面、水平芯块端面或斜面，并支持非匹配 Line2 分段；每侧必须是一条不分叉
-的开放边链，且从面投影须被主面完整覆盖。直接 Exodus I/O 为串行操作；
-当前求解器也只允许一个 MPI rank。
+的开放边链，且从面投影须被主面完整覆盖。直接 Exodus I/O 仍是串行 API，
+当前由每个 rank 独立读取同一文件；问题几何和回调完整状态也暂在各 rank
+复制，但 Vec、Mat、SNES、贡献计算和线性求解均为真实分布式对象。
 
 运行稳态燃料—包壳工况：
 
@@ -173,7 +175,15 @@ PETSc 选项仍可在命令行覆盖，例如：
   -snes_monitor -ksp_error_if_not_converged
 ```
 
-当前只支持一个 MPI rank。
+多 rank 默认使用 PETSc 并行 MUMPS 直接分解；也可在 `[Solver]` 选择
+`gmres` 与 `block_jacobi`、`field_split` 或 `hypre`。例如：
+
+```bash
+mpiexec -n 2 ./build/fuelsim \
+  -i verification/fuelsim/steady_fuel_cladding.fsi
+```
+
+只有 rank 0 写 console、CSV、Exodus 和 checkpoint，避免并行文件竞争。
 
 程序会同时输出问题构造、PETSc 设置、非线性求解、残量回调和 Jacobian
 回调的内部计时。20 个载荷步复用同一问题几何、SNES、Vec、Mat、矩阵非零

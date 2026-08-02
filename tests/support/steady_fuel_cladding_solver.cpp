@@ -62,7 +62,7 @@ SteadyFuelCladdingLoadResult SteadyFuelCladdingLoadStepper::solve(
     SteadyFuelCladdingLoadResult result;
     result.problem_setup_seconds = seconds_since(problem_setup_start);
 
-    PetscSequentialSolver nonlinear_solver;
+    PetscSolver nonlinear_solver;
     std::vector<double> state = problem.initial_state();
 
     for (std::size_t step = 1; step <= load_steps; ++step) {

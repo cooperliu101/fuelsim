@@ -66,7 +66,9 @@ committed/trial/commit/rollback。M2.2 增加通用 J2 Norton 蠕变、J2
   不得通过直接平方和或显式构造超范围幂律系数破坏极端尺度。
 - PETSc Dirichlet 约束使用 `F_i=x_i-g_i` 和只清行的
   `MatZeroRows(..., diagonal=1)`。
-- 当前只支持一个 MPI rank，不得把每个 rank 重复装配全模型称为并行。
+- PETSc Vec、Mat、SNES 和局部贡献装配支持多个 MPI rank；每个贡献只由一个
+  rank 计算，不得退化为每个 rank 重复装配全模型。当前 Exodus 读取、问题
+  几何和回调所需完整状态仍在各 rank 复制，输出文件只由 rank 0 写入。
 - 不隐式夹持异常材料值或几何值；非法结构输入应明确报错。
 - 界面间隙为 `g=(Rp+urp)-(Rs+urs)`；primary 在外、secondary 在内，开放为
   正、穿透为负。
@@ -176,6 +178,8 @@ M2 还必须检查：
 2. 固定 CPU 且 OMP/OpenBLAS/MKL/NUMEXPR 均为 1 线程；
 3. `benchmarks/` 中 23,010 DOF、20 步算例至少完成一次；
 4. MOOSE 使用相同网格、物理、载荷步、直接求解器并关闭文件输出。
+5. 并行修改必须通过 1-rank/2-rank 逐自由度等价性和 2-rank 非重复贡献区间
+   检查；不得仅以多进程能够启动作为并行验收。
 
 构建成功不等于数值验收通过。只有相关 CTest、解析指标和 MOOSE 指标全部
 满足门槛后，才能声称功能完成。

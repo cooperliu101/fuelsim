@@ -44,6 +44,10 @@ struct NonlinearSolverInput final {
     double relative_tolerance;
     double step_tolerance;
     int maximum_iterations;
+    std::string linear_solver;
+    std::string preconditioner;
+    double linear_relative_tolerance;
+    int maximum_linear_iterations;
 };
 
 struct CaseOutputInput final {

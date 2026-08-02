@@ -18,15 +18,38 @@ class PetscSession final {
     PetscSession(const PetscSession&) = delete;
     PetscSession& operator=(const PetscSession&) = delete;
 
+    int rank() const noexcept;
+    int size() const noexcept;
+
   private:
     bool _owns_initialization;
+    int _rank;
+    int _size;
 };
 
 struct SolverOptions final {
+    enum class LinearSolver {
+        automatic,
+        direct,
+        gmres,
+    };
+
+    enum class Preconditioner {
+        automatic,
+        lu,
+        block_jacobi,
+        field_split,
+        hypre,
+    };
+
     double absolute_tolerance = 1.0e-8;
     double relative_tolerance = 1.0e-10;
     double step_tolerance = 1.0e-12;
     int maximum_iterations = 40;
+    LinearSolver linear_solver = LinearSolver::automatic;
+    Preconditioner preconditioner = Preconditioner::automatic;
+    double linear_relative_tolerance = 1.0e-8;
+    int maximum_linear_iterations = 500;
 };
 
 struct SolveTiming final {
@@ -48,15 +71,19 @@ struct SolveResult final {
     int convergence_reason = 0;
     bool converged = false;
     SolveTiming timing;
+    int mpi_rank = 0;
+    int mpi_size = 1;
+    std::size_t local_contribution_begin = 0;
+    std::size_t local_contribution_end = 0;
 };
 
-class PetscSequentialSolver final {
+class PetscSolver final {
   public:
-    PetscSequentialSolver();
-    ~PetscSequentialSolver();
+    PetscSolver();
+    ~PetscSolver();
 
-    PetscSequentialSolver(const PetscSequentialSolver&) = delete;
-    PetscSequentialSolver& operator=(const PetscSequentialSolver&) = delete;
+    PetscSolver(const PetscSolver&) = delete;
+    PetscSolver& operator=(const PetscSolver&) = delete;
 
     SolveResult solve(const NonlinearProblem& problem,
                       const std::vector<double>& initial_state,
