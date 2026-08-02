@@ -33,7 +33,7 @@ struct TransientExecutionInput final {
     double growth_factor;
     double cutback_factor;
     std::size_t maximum_cutbacks;
-    double heat_source_ramp_time;
+    double load_ramp_time;
 };
 
 struct NonlinearSolverInput final {

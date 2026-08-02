@@ -1,7 +1,6 @@
+#include "fuelsim/case_input.hpp"
 #include "fuelsim/exodus_mesh_io.hpp"
-#include "fuelsim/petsc_solver.hpp"
-#include "support/transient_fuel_cladding_problem.hpp"
-#include "support/transient_fuel_cladding_solver.hpp"
+#include "fuelsim/problem_solver.hpp"
 
 #include <algorithm>
 #include <array>
@@ -30,51 +29,51 @@ double relative_error(double actual, double expected) {
     return std::abs(actual - expected) / std::abs(expected);
 }
 
-fuelsim::TransientFuelCladdingParameters pcmi_parameters() {
-    const fuelsim::SteadyFuelCladdingParameters base = {
-        0.004120,
-        0.004121,
-        0.004692,
-        0.010,
-        0.010020,
-        6,
-        2,
-        4,
-        {
-            3824.0,
-            0.61,
-            2.0e11,
-            0.316,
-            10.0e-6,
-            600.0,
-        },
-        {
-            0.0,
-            16.0,
-            75.0e9,
-            0.3,
-            0.0,
-            600.0,
-        },
-        2.0e8,
-        600.0,
-        600.0,
-        0.4,
-        1.0e-6,
-        1.0e14,
-    };
-    const fuelsim::TransientInelasticProperties fuel = {
-        10970.0,         300.0,      fuelsim::InelasticBehavior::elastic,
-        {0.0, 1.0, 1.0}, {1.0, 0.0},
-    };
-    const fuelsim::TransientInelasticProperties cladding = {
-        6500.0,
-        330.0,
-        fuelsim::InelasticBehavior::norton_creep_j2_plasticity,
-        {1.0e-5, 5.0e6, 3.0},
-        {5.0e6, 2.0e9},
-    };
-    return {base, fuel, cladding};
+struct ErrorMetrics final {
+    double difference_squared = 0.0;
+    double reference_squared = 0.0;
+    double maximum_actual = 0.0;
+    double maximum_reference = 0.0;
+    double maximum_pointwise_relative = 0.0;
+
+    void add(double actual, double reference) {
+        const double difference = actual - reference;
+        difference_squared += difference * difference;
+        reference_squared += reference * reference;
+        maximum_actual = std::max(maximum_actual, std::abs(actual));
+        maximum_reference = std::max(maximum_reference, std::abs(reference));
+        maximum_pointwise_relative = std::max(
+            maximum_pointwise_relative, relative_error(actual, reference));
+    }
+
+    double relative_l2() const {
+        return std::sqrt(difference_squared / reference_squared);
+    }
+
+    double relative_absolute_peak() const {
+        return std::abs(maximum_actual - maximum_reference) / maximum_reference;
+    }
+};
+
+bool check_metrics(const std::string& name, const ErrorMetrics& metrics,
+                   double tolerance) {
+    std::cout << name << "_relative_l2=" << metrics.relative_l2() << '\n';
+    std::cout << name
+              << "_relative_absolute_peak=" << metrics.relative_absolute_peak()
+              << '\n';
+    std::cout << name << "_maximum_pointwise_relative="
+              << metrics.maximum_pointwise_relative << '\n';
+    return check(metrics.relative_l2() < tolerance &&
+                     metrics.relative_absolute_peak() < tolerance &&
+                     metrics.maximum_pointwise_relative < tolerance,
+                 name + " three MOOSE error metrics pass");
+}
+
+bool check_scalar_metrics(const std::string& name, double actual,
+                          double reference, double tolerance) {
+    ErrorMetrics metrics;
+    metrics.add(actual, reference);
+    return check_metrics(name, metrics, tolerance);
 }
 
 struct CladdingPointValue final {
@@ -94,90 +93,41 @@ struct CladdingMetrics final {
     std::vector<CladdingPointValue> points;
 };
 
-CladdingMetrics
-cladding_metrics(const fuelsim::TransientFuelCladdingProblem& problem,
-                 const std::vector<double>& state) {
+CladdingMetrics cladding_metrics(const fuelsim::TransientProblem& problem,
+                                 std::size_t cladding_region) {
     double measure = 0.0;
     double weighted_plastic = 0.0;
     double weighted_creep = 0.0;
     double weighted_equivalent_stress = 0.0;
     double maximum_plastic = 0.0;
     double maximum_creep = 0.0;
-    const fuelsim::SteadyFuelCladdingProblem& base = problem.steady_problem();
-    const fuelsim::StructuredRzMesh& mesh = base.cladding_mesh();
+    const fuelsim::RegionMesh& mesh = problem.region_mesh(cladding_region);
     std::vector<CladdingPointValue> points;
-    points.reserve(base.cladding_element_count() * 4);
-    const fuelsim::ThermoelasticProperties& properties =
-        problem.parameters().steady.cladding;
-    const double shear_modulus =
-        properties.young_modulus / (2.0 * (1.0 + properties.poisson_ratio));
-    const double lame_lambda = properties.young_modulus *
-                               properties.poisson_ratio /
-                               ((1.0 + properties.poisson_ratio) *
-                                (1.0 - 2.0 * properties.poisson_ratio));
-    for (std::size_t element = 0; element < base.cladding_element_count();
-         ++element) {
+    points.reserve(mesh.elements().size() * 4);
+    for (std::size_t element = 0; element < mesh.elements().size(); ++element) {
         const fuelsim::Quad4RzGeometry& geometry =
-            base.cladding_element_geometry(element);
+            problem.region_element_geometry(cladding_region, element);
         const fuelsim::Quad4Element& mesh_element = mesh.elements()[element];
-        const fuelsim::LocalDofs dofs = base.cladding_element_dofs(element);
-        fuelsim::LocalValues local_state{};
-        for (std::size_t dof = 0; dof < dofs.size(); ++dof)
-            local_state[dof] = state[dofs[dof]];
         const fuelsim::Quad4MaterialHistory& history =
-            problem.cladding_material_history(element);
+            problem.material_history(cladding_region, element);
+        const std::array<fuelsim::AxisymmetricStressValues, 4>& stresses =
+            problem.material_stress(cladding_region, element);
         for (std::size_t q = 0; q < history.size(); ++q) {
             const fuelsim::RzQuadraturePoint& point = geometry.points[q];
-            double temperature = 0.0;
-            double radial_displacement = 0.0;
             double axial_coordinate = 0.0;
-            double strain_rr = 0.0;
-            double strain_zz = 0.0;
-            double strain_rz = 0.0;
             for (std::size_t node = 0; node < 4; ++node) {
-                temperature += point.shape[node] * local_state[node];
-                radial_displacement +=
-                    point.shape[node] * local_state[4 + node];
                 axial_coordinate += point.shape[node] *
                                     mesh.nodes()[mesh_element.nodes[node]].z;
-                strain_rr += point.gradient_r[node] * local_state[4 + node];
-                strain_zz += point.gradient_z[node] * local_state[8 + node];
-                strain_rz +=
-                    0.5 * (point.gradient_z[node] * local_state[4 + node] +
-                           point.gradient_r[node] * local_state[8 + node]);
             }
-            const double thermal_strain =
-                properties.thermal_expansion *
-                (temperature - properties.reference_temperature);
-            const double elastic_rr = strain_rr - history[q].plastic_strain[0] -
-                                      history[q].creep_strain[0] -
-                                      thermal_strain;
-            const double elastic_zz = strain_zz - history[q].plastic_strain[1] -
-                                      history[q].creep_strain[1] -
-                                      thermal_strain;
-            const double elastic_hoop = radial_displacement / point.radius -
-                                        history[q].plastic_strain[2] -
-                                        history[q].creep_strain[2] -
-                                        thermal_strain;
-            const double elastic_rz = strain_rz - history[q].plastic_strain[3] -
-                                      history[q].creep_strain[3];
-            const double trace = elastic_rr + elastic_zz + elastic_hoop;
-            const double stress_rr =
-                2.0 * shear_modulus * elastic_rr + lame_lambda * trace;
-            const double stress_zz =
-                2.0 * shear_modulus * elastic_zz + lame_lambda * trace;
-            const double stress_hoop =
-                2.0 * shear_modulus * elastic_hoop + lame_lambda * trace;
-            const double stress_rz = 2.0 * shear_modulus * elastic_rz;
+            const fuelsim::AxisymmetricStressValues& stress = stresses[q];
             const double mean_stress =
-                (stress_rr + stress_zz + stress_hoop) / 3.0;
-            const double deviator_rr = stress_rr - mean_stress;
-            const double deviator_zz = stress_zz - mean_stress;
-            const double deviator_hoop = stress_hoop - mean_stress;
+                (stress.rr + stress.zz + stress.hoop) / 3.0;
             const double equivalent_stress = std::sqrt(
                 1.5 *
-                (deviator_rr * deviator_rr + deviator_zz * deviator_zz +
-                 deviator_hoop * deviator_hoop + 2.0 * stress_rz * stress_rz));
+                ((stress.rr - mean_stress) * (stress.rr - mean_stress) +
+                 (stress.zz - mean_stress) * (stress.zz - mean_stress) +
+                 (stress.hoop - mean_stress) * (stress.hoop - mean_stress) +
+                 2.0 * stress.rz * stress.rz));
             const double weight = point.weighted_measure;
             measure += weight;
             weighted_plastic += weight * history[q].equivalent_plastic_strain;
@@ -207,8 +157,11 @@ cladding_metrics(const fuelsim::TransientFuelCladdingProblem& problem,
 
 struct PointwiseError final {
     double relative_l2 = 0.0;
+    double relative_absolute_peak = 0.0;
     double maximum_absolute = 0.0;
     double maximum_relative = 0.0;
+    double maximum_actual = 0.0;
+    double maximum_reference = 0.0;
     std::size_t maximum_absolute_point = 0;
     std::size_t maximum_relative_point = 0;
 };
@@ -220,6 +173,9 @@ void add_pointwise_error(PointwiseError& error, double actual, double expected,
     const double relative = relative_error(actual, expected);
     difference_squared += absolute * absolute;
     reference_squared += expected * expected;
+    error.maximum_actual = std::max(error.maximum_actual, std::abs(actual));
+    error.maximum_reference =
+        std::max(error.maximum_reference, std::abs(expected));
     if (absolute > error.maximum_absolute) {
         error.maximum_absolute = absolute;
         error.maximum_absolute_point = point;
@@ -235,14 +191,20 @@ void finalize_pointwise_error(PointwiseError& error, double difference_squared,
     error.relative_l2 = reference_squared > 0.0
                             ? std::sqrt(difference_squared / reference_squared)
                             : std::numeric_limits<double>::infinity();
+    error.relative_absolute_peak =
+        error.maximum_reference > 0.0
+            ? std::abs(error.maximum_actual - error.maximum_reference) /
+                  error.maximum_reference
+            : std::numeric_limits<double>::infinity();
 }
 
-bool fuel_history_is_elastic(
-    const fuelsim::TransientFuelCladdingProblem& problem) {
+bool fuel_history_is_elastic(const fuelsim::TransientProblem& problem,
+                             std::size_t fuel_region) {
     for (std::size_t element = 0;
-         element < problem.steady_problem().fuel_element_count(); ++element) {
+         element < problem.region_mesh(fuel_region).elements().size();
+         ++element) {
         for (const fuelsim::MaterialPointState& point :
-             problem.fuel_material_history(element)) {
+             problem.material_history(fuel_region, element)) {
             if (point.equivalent_plastic_strain != 0.0 ||
                 point.equivalent_creep_strain != 0.0)
                 return false;
@@ -251,64 +213,93 @@ bool fuel_history_is_elastic(
     return true;
 }
 
-bool test_pcmi_coupled_cladding(const std::string& mesh_path) {
-    const fuelsim::UnstructuredQuad4Mesh imported =
-        fuelsim::ExodusMeshIo::read_quad4(mesh_path);
-    const fuelsim::StructuredRzMesh fuel =
-        fuelsim::StructuredRzMesh::from_unstructured_block(
-            imported, "fuel",
-            {"fuel_left", "fuel_right", "fuel_bottom", "fuel_top"});
-    const fuelsim::StructuredRzMesh cladding_mesh =
-        fuelsim::StructuredRzMesh::from_unstructured_block(
-            imported, "clad",
-            {"clad_left", "clad_right", "clad_bottom", "clad_top"});
-    fuelsim::TransientFuelCladdingProblem problem(pcmi_parameters(), fuel,
-                                                  cladding_mesh);
-    const fuelsim::TransientTimeOptions time_options = {
-        20.0, 1.0, 0.125, 1.0, 1.0, 0.5, 3, 20.0,
-    };
-    fuelsim::SolverOptions solver_options;
-    solver_options.maximum_iterations = 80;
+bool same_coordinate(double lhs, double rhs) {
+    const double scale = std::max({1.0, std::abs(lhs), std::abs(rhs)});
+    return std::abs(lhs - rhs) <= 1.0e-12 * scale;
+}
 
-    const fuelsim::TransientFuelCladdingTimeStepper time_stepper;
-    const fuelsim::TransientFuelCladdingResult result =
-        time_stepper.solve(problem, time_options, solver_options);
+std::size_t find_node(const fuelsim::RegionMesh& mesh, double radius,
+                      double axial_coordinate) {
+    for (std::size_t node = 0; node < mesh.nodes().size(); ++node) {
+        if (same_coordinate(mesh.nodes()[node].r, radius) &&
+            same_coordinate(mesh.nodes()[node].z, axial_coordinate))
+            return node;
+    }
+    throw std::invalid_argument("PCMI comparison point is not in the mesh");
+}
+
+fuelsim::SolverOptions
+solver_options(const fuelsim::FuelSimCaseDefinition& definition) {
+    return {definition.solver.absolute_tolerance,
+            definition.solver.relative_tolerance,
+            definition.solver.step_tolerance,
+            definition.solver.maximum_iterations};
+}
+
+fuelsim::TransientTimeOptions
+time_options(const fuelsim::FuelSimCaseDefinition& definition) {
+    return {definition.transient_execution.end_time,
+            definition.transient_execution.initial_time_step,
+            definition.transient_execution.minimum_time_step,
+            definition.transient_execution.maximum_time_step,
+            definition.transient_execution.growth_factor,
+            definition.transient_execution.cutback_factor,
+            definition.transient_execution.maximum_cutbacks,
+            definition.transient_execution.load_ramp_time};
+}
+
+bool test_pcmi_coupled_cladding(const std::string& input_path) {
+    const fuelsim::FuelSimCaseDefinition definition =
+        fuelsim::CaseInputReader::read(input_path);
+    if (definition.problem != fuelsim::CaseProblem::transient)
+        throw std::invalid_argument(
+            "PCMI comparison requires a transient input card");
+    const fuelsim::UnstructuredQuad4Mesh imported =
+        fuelsim::ExodusMeshIo::read_quad4(definition.mesh_file);
+    fuelsim::TransientProblem problem(definition.transient_definition(),
+                                      imported);
+    const fuelsim::TransientResult result = fuelsim::solve_transient(
+        problem, time_options(definition), solver_options(definition));
     if (!result.completed)
         return check(false, "PCMI transient completes all twenty time steps");
 
-    const fuelsim::SteadyFuelCladdingProblem& base = problem.steady_problem();
-    const fuelsim::DofMap& dofs = base.dof_map();
-    const std::size_t axial_mid = base.fuel_mesh().axial_elements() / 2;
-    const std::size_t fuel_center = base.fuel_mesh().node_id(0, axial_mid);
-    const std::size_t fuel_surface =
-        base.fuel_mesh().node_id(base.fuel_mesh().radial_elements(), axial_mid);
+    const std::size_t fuel_region = problem.region_index("fuel");
+    const std::size_t cladding_region = problem.region_index("cladding");
+    const fuelsim::RegionMesh& fuel_mesh = problem.region_mesh(fuel_region);
+    const fuelsim::RegionMesh& cladding_mesh =
+        problem.region_mesh(cladding_region);
+    const std::size_t fuel_center = find_node(fuel_mesh, 0.0, 0.005);
+    const std::size_t fuel_surface = find_node(fuel_mesh, 0.004120, 0.005);
     const std::size_t cladding_inner =
-        base.cladding_mesh().node_id(0, axial_mid);
-    const std::size_t cladding_outer = base.cladding_mesh().node_id(
-        base.cladding_mesh().radial_elements(), axial_mid);
-    const std::size_t fuel_axis_top =
-        base.fuel_mesh().node_id(0, base.fuel_mesh().axial_elements());
+        find_node(cladding_mesh, 0.004121, 0.00501);
+    const std::size_t cladding_outer =
+        find_node(cladding_mesh, 0.004692, 0.00501);
+    const std::size_t fuel_axis_top = find_node(fuel_mesh, 0.0, 0.010);
+    const std::size_t fuel_offset = problem.region_node_offset(fuel_region);
+    const std::size_t cladding_offset =
+        problem.region_node_offset(cladding_region);
+    const fuelsim::DofMap& dofs = problem.dof_map();
 
     const std::vector<double>& state = result.committed_state;
     const double temperature_center =
-        state[dofs.temperature(base.fuel_global_node(fuel_center))];
+        state[dofs.temperature(fuel_offset + fuel_center)];
     const double temperature_fuel_surface =
-        state[dofs.temperature(base.fuel_global_node(fuel_surface))];
+        state[dofs.temperature(fuel_offset + fuel_surface)];
     const double temperature_cladding_inner =
-        state[dofs.temperature(base.cladding_global_node(cladding_inner))];
+        state[dofs.temperature(cladding_offset + cladding_inner)];
     const double radial_fuel_surface =
-        state[dofs.radial_displacement(base.fuel_global_node(fuel_surface))];
-    const double radial_cladding_inner = state[dofs.radial_displacement(
-        base.cladding_global_node(cladding_inner))];
-    const double radial_cladding_outer = state[dofs.radial_displacement(
-        base.cladding_global_node(cladding_outer))];
+        state[dofs.radial_displacement(fuel_offset + fuel_surface)];
+    const double radial_cladding_inner =
+        state[dofs.radial_displacement(cladding_offset + cladding_inner)];
+    const double radial_cladding_outer =
+        state[dofs.radial_displacement(cladding_offset + cladding_outer)];
     const double axial_fuel_top =
-        state[dofs.axial_displacement(base.fuel_global_node(fuel_axis_top))];
+        state[dofs.axial_displacement(fuel_offset + fuel_axis_top)];
     const fuelsim::InterfaceSummary interface =
-        problem.summarize_interface(state);
+        problem.summarize_interface(0, state);
     const std::vector<fuelsim::ContactNodeSummary> contact_nodes =
-        base.summarize_contact_nodes(state);
-    const CladdingMetrics cladding = cladding_metrics(problem, state);
+        problem.summarize_contact_nodes(0, state);
+    const CladdingMetrics cladding = cladding_metrics(problem, cladding_region);
 
     // Generated by verification/moose/m23_pcmi_coupled_cladding_rz.i. The
     // fuel is elastic, while the cladding uses coupled Norton creep and J2
@@ -419,28 +410,28 @@ bool test_pcmi_coupled_cladding(const std::string& mesh_path) {
         cladding.average_equivalent_stress, expected_average_equivalent_stress);
     const double total_contact_force_error = relative_error(
         interface.total_contact_force, expected_total_contact_force);
-    double pressure_difference_squared = 0.0;
-    double pressure_reference_squared = 0.0;
-    double pressure_maximum_point_error = 0.0;
+    ErrorMetrics temperature_metrics;
+    temperature_metrics.add(temperature_center, expected_temperature_center);
+    temperature_metrics.add(temperature_fuel_surface,
+                            expected_temperature_fuel_surface);
+    temperature_metrics.add(temperature_cladding_inner,
+                            expected_temperature_cladding_inner);
+    ErrorMetrics radial_displacement_metrics;
+    radial_displacement_metrics.add(radial_fuel_surface,
+                                    expected_radial_fuel_surface);
+    radial_displacement_metrics.add(radial_cladding_inner,
+                                    expected_radial_cladding_inner);
+    radial_displacement_metrics.add(radial_cladding_outer,
+                                    expected_radial_cladding_outer);
+    ErrorMetrics axial_displacement_metrics;
+    axial_displacement_metrics.add(axial_fuel_top, expected_axial_fuel_top);
+    ErrorMetrics pressure_metrics;
     if (contact_nodes.size() == expected_contact_pressure.size()) {
         for (std::size_t node = 0; node < expected_contact_pressure.size();
-             ++node) {
-            const double difference =
-                contact_nodes[node].pressure - expected_contact_pressure[node];
-            pressure_difference_squared += difference * difference;
-            pressure_reference_squared += expected_contact_pressure[node] *
-                                          expected_contact_pressure[node];
-            pressure_maximum_point_error =
-                std::max(pressure_maximum_point_error,
-                         relative_error(contact_nodes[node].pressure,
-                                        expected_contact_pressure[node]));
-        }
+             ++node)
+            pressure_metrics.add(contact_nodes[node].pressure,
+                                 expected_contact_pressure[node]);
     }
-    const double contact_pressure_relative_l2 =
-        pressure_reference_squared > 0.0
-            ? std::sqrt(pressure_difference_squared /
-                        pressure_reference_squared)
-            : std::numeric_limits<double>::infinity();
     PointwiseError point_stress_error;
     PointwiseError point_plastic_error;
     PointwiseError point_creep_error;
@@ -501,12 +492,11 @@ bool test_pcmi_coupled_cladding(const std::string& mesh_path) {
     passed = check(result.total_cutbacks == 0,
                    "PCMI reference path converges without cutbacks") &&
              passed;
-    passed = check(fuel_history_is_elastic(problem),
+    passed = check(fuel_history_is_elastic(problem, fuel_region),
                    "PCMI fuel remains on the elastic material path") &&
              passed;
     passed =
-        check(interface.projected_contact_nodes ==
-                  problem.parameters().steady.axial_elements + 1,
+        check(interface.projected_contact_nodes == contact_nodes.size(),
               "PCMI taller cladding contains every fuel-node projection") &&
         passed;
     passed = check(interface.active_contact_nodes > 0 &&
@@ -521,27 +511,26 @@ bool test_pcmi_coupled_cladding(const std::string& mesh_path) {
                   cladding.maximum_creep > 0.0,
               "PCMI cladding accumulates plastic and creep history") &&
         passed;
-    passed = check(temperature_center_error < 1.0e-3 &&
-                       temperature_fuel_surface_error < 1.0e-3 &&
-                       temperature_cladding_inner_error < 1.0e-3,
-                   "PCMI temperatures match MOOSE within 0.1%") &&
+    passed = check_metrics("pcmi_temperature", temperature_metrics, 1.0e-3) &&
              passed;
-    passed = check(radial_fuel_surface_error < 1.0e-3 &&
-                       radial_cladding_inner_error < 1.0e-3 &&
-                       radial_cladding_outer_error < 1.0e-3 &&
-                       axial_fuel_top_error < 1.0e-3,
-                   "PCMI displacements match MOOSE within 0.1%") &&
+    passed = check_metrics("pcmi_radial_displacement",
+                           radial_displacement_metrics, 1.0e-3) &&
              passed;
-    passed = check(average_plastic_error < 1.0e-3,
-                   "PCMI average plastic strain matches MOOSE within 0.1%") &&
+    passed = check_metrics("pcmi_axial_displacement",
+                           axial_displacement_metrics, 1.0e-3) &&
              passed;
-    passed = check(average_creep_error < 1.0e-3,
-                   "PCMI average creep strain matches MOOSE within 0.1%") &&
+    passed = check_scalar_metrics("pcmi_average_plastic_strain",
+                                  cladding.average_plastic,
+                                  expected_average_plastic, 1.0e-3) &&
              passed;
-    passed =
-        check(average_equivalent_stress_error < 1.0e-3,
-              "PCMI average equivalent stress matches MOOSE within 0.1%") &&
-        passed;
+    passed = check_scalar_metrics("pcmi_average_creep_strain",
+                                  cladding.average_creep,
+                                  expected_average_creep, 1.0e-3) &&
+             passed;
+    passed = check_scalar_metrics("pcmi_average_equivalent_stress",
+                                  cladding.average_equivalent_stress,
+                                  expected_average_equivalent_stress, 1.0e-3) &&
+             passed;
     passed = check(cladding.points.size() == expected_cladding_points.size(),
                    "PCMI and MOOSE cladding integration-point counts match") &&
              passed;
@@ -549,32 +538,30 @@ bool test_pcmi_coupled_cladding(const std::string& mesh_path) {
         check(maximum_point_location_error < 1.0e-12,
               "PCMI and MOOSE cladding integration-point locations match") &&
         passed;
-    passed =
-        check(point_stress_error.relative_l2 < 2.0e-3 &&
-                  point_stress_error.maximum_relative < 5.0e-3,
-              "PCMI pointwise equivalent-stress L2 and maximum errors pass") &&
-        passed;
-    passed =
-        check(point_plastic_error.relative_l2 < 2.0e-3 &&
-                  point_plastic_error.maximum_relative < 5.0e-3,
-              "PCMI pointwise plastic-strain L2 and maximum errors pass") &&
-        passed;
+    passed = check(point_stress_error.relative_l2 < 2.0e-3 &&
+                       point_stress_error.relative_absolute_peak < 5.0e-3 &&
+                       point_stress_error.maximum_relative < 5.0e-3,
+                   "PCMI pointwise equivalent-stress three errors pass") &&
+             passed;
+    passed = check(point_plastic_error.relative_l2 < 2.0e-3 &&
+                       point_plastic_error.relative_absolute_peak < 5.0e-3 &&
+                       point_plastic_error.maximum_relative < 5.0e-3,
+                   "PCMI pointwise plastic-strain three errors pass") &&
+             passed;
     passed = check(point_creep_error.relative_l2 < 2.0e-3 &&
+                       point_creep_error.relative_absolute_peak < 5.0e-3 &&
                        point_creep_error.maximum_relative < 5.0e-3,
-                   "PCMI pointwise creep-strain L2 and maximum errors pass") &&
+                   "PCMI pointwise creep-strain three errors pass") &&
              passed;
     passed =
         check(contact_nodes.size() == expected_contact_pressure.size(),
               "PCMI and MOOSE pressure vectors have the same node count") &&
         passed;
-    passed = check(contact_pressure_relative_l2 < 1.0e-2,
-                   "PCMI contact-pressure L2 error is below 1%") &&
+    passed = check_metrics("pcmi_contact_pressure", pressure_metrics, 1.0e-2) &&
              passed;
-    passed = check(pressure_maximum_point_error < 1.0e-2,
-                   "PCMI maximum nodal pressure error is below 1%") &&
-             passed;
-    passed = check(total_contact_force_error < 1.0e-2,
-                   "PCMI total contact-force error is below 1%") &&
+    passed = check_scalar_metrics("pcmi_total_contact_force",
+                                  interface.total_contact_force,
+                                  expected_total_contact_force, 1.0e-2) &&
              passed;
 
     std::cout << "pcmi_temperature_center=" << temperature_center << '\n';
@@ -634,6 +621,8 @@ bool test_pcmi_coupled_cladding(const std::string& mesh_path) {
               << maximum_point_location_error << '\n';
     std::cout << "pcmi_moose_qp_equivalent_stress_relative_l2="
               << point_stress_error.relative_l2 << '\n';
+    std::cout << "pcmi_moose_qp_equivalent_stress_relative_absolute_peak="
+              << point_stress_error.relative_absolute_peak << '\n';
     std::cout << "pcmi_moose_qp_equivalent_stress_maximum_absolute_error="
               << point_stress_error.maximum_absolute << '\n';
     std::cout
@@ -650,6 +639,8 @@ bool test_pcmi_coupled_cladding(const std::string& mesh_path) {
               << point_stress_error.maximum_relative_point % 4 << '\n';
     std::cout << "pcmi_moose_qp_plastic_strain_relative_l2="
               << point_plastic_error.relative_l2 << '\n';
+    std::cout << "pcmi_moose_qp_plastic_strain_relative_absolute_peak="
+              << point_plastic_error.relative_absolute_peak << '\n';
     std::cout << "pcmi_moose_qp_plastic_strain_maximum_absolute_error="
               << point_plastic_error.maximum_absolute << '\n';
     std::cout << "pcmi_moose_qp_plastic_strain_maximum_absolute_local_element="
@@ -664,6 +655,8 @@ bool test_pcmi_coupled_cladding(const std::string& mesh_path) {
               << point_plastic_error.maximum_relative_point % 4 << '\n';
     std::cout << "pcmi_moose_qp_creep_strain_relative_l2="
               << point_creep_error.relative_l2 << '\n';
+    std::cout << "pcmi_moose_qp_creep_strain_relative_absolute_peak="
+              << point_creep_error.relative_absolute_peak << '\n';
     std::cout << "pcmi_moose_qp_creep_strain_maximum_absolute_error="
               << point_creep_error.maximum_absolute << '\n';
     std::cout << "pcmi_moose_qp_creep_strain_maximum_absolute_local_element="
@@ -676,10 +669,6 @@ bool test_pcmi_coupled_cladding(const std::string& mesh_path) {
               << point_creep_error.maximum_relative_point / 4 << '\n';
     std::cout << "pcmi_moose_qp_creep_strain_maximum_relative_qp="
               << point_creep_error.maximum_relative_point % 4 << '\n';
-    std::cout << "pcmi_moose_contact_pressure_relative_l2="
-              << contact_pressure_relative_l2 << '\n';
-    std::cout << "pcmi_moose_contact_pressure_maximum_point_relative_error="
-              << pressure_maximum_point_error << '\n';
     std::cout << "pcmi_moose_total_contact_force_relative_error="
               << total_contact_force_error << '\n';
     return passed;
@@ -689,17 +678,17 @@ bool test_pcmi_coupled_cladding(const std::string& mesh_path) {
 
 int main(int argc, char** argv) {
     if (argc != 2) {
-        std::cerr << "Usage: fuelsim_m2_pcmi_solver_tests <mesh.e>\n";
+        std::cerr << "Usage: fuelsim_m2_pcmi_solver_tests <pcmi.fsi>\n";
         return 2;
     }
 
     try {
-        const std::string mesh_path = argv[1];
+        const std::string input_path = argv[1];
         std::cout << std::scientific << std::setprecision(12);
         fuelsim::PetscSession session(
             argc, argv,
             "fuelsim M2 PCMI coupled cladding MOOSE comparison tests\n");
-        if (!test_pcmi_coupled_cladding(mesh_path))
+        if (!test_pcmi_coupled_cladding(input_path))
             return 1;
         std::cout << "[PASS] fuelsim M2 PCMI coupled cladding tests\n";
         return 0;

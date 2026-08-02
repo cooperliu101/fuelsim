@@ -23,6 +23,7 @@ struct RegionDefinition final {
     ThermoelasticProperties material;
     double volumetric_heat_source;
     double initial_temperature;
+    std::int64_t block_id = -1;
 };
 
 struct ContactDefinition final {
@@ -39,6 +40,7 @@ struct ContactDefinition final {
 enum class BoundaryConditionType {
     dirichlet,
     pressure,
+    traction,
 };
 
 struct BoundaryConditionDefinition final {
@@ -47,6 +49,7 @@ struct BoundaryConditionDefinition final {
     std::string boundary;
     Field field;
     double value;
+    bool scale_with_load = false;
 };
 
 struct SteadyProblemDefinition final {
@@ -141,6 +144,20 @@ class SteadyProblem final : public NonlinearProblem {
         std::size_t region;
         RegionBoundary boundary;
         double pressure;
+        bool scale_with_load;
+    };
+
+    struct TractionLoad final {
+        std::size_t region;
+        RegionBoundary boundary;
+        Field field;
+        double traction;
+        bool scale_with_load;
+    };
+
+    struct ScaledDirichlet final {
+        std::size_t dof;
+        double value;
     };
 
     SteadyProblem(SteadyProblemDefinition definition,
@@ -163,6 +180,7 @@ class SteadyProblem final : public NonlinearProblem {
     void build_contacts(const UnstructuredQuad4Mesh& source_mesh);
     void build_boundary_conditions(const UnstructuredQuad4Mesh& source_mesh);
     void add_pressure_residual(std::vector<double>& residual) const;
+    void add_traction_residual(std::vector<double>& residual) const;
 
     SteadyProblemDefinition _definition;
     std::vector<std::int64_t> _block_ids;
@@ -186,7 +204,9 @@ class SteadyProblem final : public NonlinearProblem {
     std::vector<ResolvedBoundary> _secondary_boundaries;
 
     std::vector<DirichletCondition> _dirichlet_conditions;
+    std::vector<ScaledDirichlet> _scaled_dirichlet_conditions;
     std::vector<PressureLoad> _pressure_loads;
+    std::vector<TractionLoad> _traction_loads;
     double _load_factor;
 };
 

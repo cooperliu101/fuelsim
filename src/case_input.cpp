@@ -291,6 +291,7 @@ CaseRegionDefinition read_region(const InputDocument& document,
                                  CaseProblem problem) {
     std::vector<std::string> keys = {
         "block",
+        "block_id",
         "conductivity_inverse_temperature",
         "conductivity_constant",
         "young_modulus",
@@ -307,12 +308,29 @@ CaseRegionDefinition read_region(const InputDocument& document,
                      "creep_exponent", "yield_stress", "hardening_modulus"});
     }
     validate_keys(document, section, keys);
+    const InputEntry* block = find_entry(section, "block");
+    const InputEntry* block_id = find_entry(section, "block_id");
+    if ((block == nullptr) == (block_id == nullptr))
+        throw std::invalid_argument(
+            document.source_path() + ":" + std::to_string(section.line()) +
+            ": region [" + section.path() +
+            "] requires exactly one of 'block' or 'block_id'");
+    std::int64_t resolved_block_id = -1;
+    if (block_id != nullptr) {
+        const std::size_t value = parse_size(document, *block_id);
+        if (value >
+            static_cast<std::size_t>(std::numeric_limits<std::int64_t>::max()))
+            value_error(document, *block_id,
+                        "key 'block_id' is outside the supported range");
+        resolved_block_id = static_cast<std::int64_t>(value);
+    }
     CaseRegionDefinition result{};
     result.spatial = {leaf_name(section),
-                      read_string(document, section, "block"),
+                      block == nullptr ? std::string{} : block->value,
                       read_thermoelastic(document, section),
                       read_double(document, section, "volumetric_heat_source"),
-                      read_double(document, section, "initial_temperature")};
+                      read_double(document, section, "initial_temperature"),
+                      resolved_block_id};
     if (problem == CaseProblem::transient)
         result.transient_material = read_transient(document, section);
     return result;
@@ -358,21 +376,41 @@ ContactDefinition read_contact(const InputDocument& document,
 BoundaryConditionDefinition
 read_boundary_condition(const InputDocument& document,
                         const InputSection& section) {
-    validate_keys(document, section, {"type", "boundary", "field", "value"});
+    validate_keys(document, section,
+                  {"type", "boundary", "field", "value", "scale_with_load"});
     const std::string type = read_string(document, section, "type");
+    const bool scale_with_load =
+        read_optional_bool(document, section, "scale_with_load", false);
     if (type == "dirichlet") {
         return {
-            leaf_name(section), BoundaryConditionType::dirichlet,
+            leaf_name(section),
+            BoundaryConditionType::dirichlet,
             read_string(document, section, "boundary"),
             parse_field(document, required_entry(document, section, "field")),
-            read_double(document, section, "value")};
+            read_double(document, section, "value"),
+            scale_with_load};
     }
     if (type == "pressure") {
         forbid_key(document, section, "field", "type='pressure'");
-        return {leaf_name(section), BoundaryConditionType::pressure,
+        return {leaf_name(section),
+                BoundaryConditionType::pressure,
                 read_string(document, section, "boundary"),
                 Field::radial_displacement,
-                read_double(document, section, "value")};
+                read_double(document, section, "value"),
+                scale_with_load};
+    }
+    if (type == "traction") {
+        const Field field =
+            parse_field(document, required_entry(document, section, "field"));
+        if (field == Field::temperature)
+            value_error(document, section.entry("field"),
+                        "traction requires a displacement field");
+        return {leaf_name(section),
+                BoundaryConditionType::traction,
+                read_string(document, section, "boundary"),
+                field,
+                read_double(document, section, "value"),
+                scale_with_load};
     }
     value_error(document, section.entry("type"),
                 "unknown boundary-condition type '" + type + "'");
@@ -469,7 +507,7 @@ FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
                       {"type", "end_time", "initial_time_step",
                        "minimum_time_step", "maximum_time_step",
                        "growth_factor", "cutback_factor", "maximum_cutbacks",
-                       "heat_source_ramp_time"});
+                       "load_ramp_time"});
         if (executioner_type != "transient")
             value_error(document, executioner.entry("type"),
                         "problem='transient' requires type='transient'");
@@ -481,7 +519,7 @@ FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
             read_double(document, executioner, "growth_factor"),
             read_double(document, executioner, "cutback_factor"),
             read_size(document, executioner, "maximum_cutbacks"),
-            read_double(document, executioner, "heat_source_ramp_time")};
+            read_double(document, executioner, "load_ramp_time")};
     }
 
     const InputSection& solver = document.section("Solver");

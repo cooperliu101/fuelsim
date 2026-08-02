@@ -50,6 +50,7 @@ TransientProblem::TransientProblem(TransientProblemDefinition definition,
     validate_definition(_definition);
     _region_kernels.reserve(region_count());
     _material_histories.resize(region_count());
+    _material_stresses.resize(region_count());
     for (std::size_t region_value = 0; region_value < region_count();
          ++region_value) {
         _region_kernels.emplace_back(
@@ -59,8 +60,11 @@ TransientProblem::TransientProblem(TransientProblemDefinition definition,
             0.0);
         _material_histories[region_value].resize(
             _spatial_model.region_element_count(region_value));
+        _material_stresses[region_value].resize(
+            _spatial_model.region_element_count(region_value));
     }
     _spatial_model.set_load_factor(0.0);
+    _committed_solution = _spatial_model.initial_state();
 }
 
 const TransientProblemDefinition&
@@ -74,6 +78,15 @@ const DofMap& TransientProblem::dof_map() const noexcept {
 
 std::size_t TransientProblem::region_count() const noexcept {
     return _definition.spatial.regions.size();
+}
+
+std::size_t TransientProblem::region_index(const std::string& name) const {
+    return _spatial_model.region_index(name);
+}
+
+std::size_t
+TransientProblem::region_node_offset(std::size_t region_value) const {
+    return _spatial_model.region_node_offset(region_value);
 }
 
 const RegionDefinition& TransientProblem::region(std::size_t index) const {
@@ -141,6 +154,7 @@ void TransientProblem::begin_time_step(const TransientStepInput& input) {
             input.load_factor *
             _definition.spatial.regions[region_value].volumetric_heat_source);
     }
+    _spatial_model.set_load_factor(input.load_factor);
     _time_step_active = true;
 }
 
@@ -161,9 +175,13 @@ void TransientProblem::commit_time_step(
     }
 
     std::vector<std::vector<Quad4MaterialHistory>> staged(region_count());
+    std::vector<std::vector<std::array<AxisymmetricStressValues, 4>>>
+        staged_stresses(region_count());
     for (std::size_t region_value = 0; region_value < region_count();
          ++region_value) {
         staged[region_value].resize(
+            _spatial_model.region_element_count(region_value));
+        staged_stresses[region_value].resize(
             _spatial_model.region_element_count(region_value));
         const std::size_t offset =
             _spatial_model.region_element_offset(region_value);
@@ -176,10 +194,16 @@ void TransientProblem::commit_time_step(
                     region_element_geometry(region_value, element), state,
                     _material_histories[region_value][element],
                     _active_time_step);
+            staged_stresses[region_value][element] =
+                _region_kernels[region_value].stress_values(
+                    region_element_geometry(region_value, element), state,
+                    _material_histories[region_value][element],
+                    _active_time_step);
         }
     }
 
     _material_histories.swap(staged);
+    _material_stresses.swap(staged_stresses);
     _committed_solution = converged_solution;
     _committed_time = _active_end_time;
     _committed_load_factor = _active_load_factor;
@@ -197,6 +221,7 @@ void TransientProblem::rollback_time_step() noexcept {
             _committed_load_factor *
             _definition.spatial.regions[region_value].volumetric_heat_source);
     }
+    _spatial_model.set_load_factor(_committed_load_factor);
     _active_time_step = 0.0;
     _active_end_time = _committed_time;
     _active_load_factor = _committed_load_factor;
@@ -209,6 +234,12 @@ TransientProblem::material_history(std::size_t region_value,
     return _material_histories.at(region_value).at(element_index);
 }
 
+const std::array<AxisymmetricStressValues, 4>&
+TransientProblem::material_stress(std::size_t region_value,
+                                  std::size_t element_index) const {
+    return _material_stresses.at(region_value).at(element_index);
+}
+
 RegionInelasticSummary
 TransientProblem::summarize_region_history(std::size_t region_value) const {
     return summarize_history(_material_histories.at(region_value));
@@ -218,6 +249,11 @@ InterfaceSummary
 TransientProblem::summarize_interface(std::size_t contact_index,
                                       const std::vector<double>& state) const {
     return _spatial_model.summarize_interface(contact_index, state);
+}
+
+std::vector<ContactNodeSummary> TransientProblem::summarize_contact_nodes(
+    std::size_t contact_index, const std::vector<double>& state) const {
+    return _spatial_model.summarize_contact_nodes(contact_index, state);
 }
 
 std::size_t TransientProblem::dof_count() const noexcept {

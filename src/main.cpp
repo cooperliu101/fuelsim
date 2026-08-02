@@ -157,7 +157,7 @@ bool run_transient(const fuelsim::FuelSimCaseDefinition& definition,
         definition.transient_execution.growth_factor,
         definition.transient_execution.cutback_factor,
         definition.transient_execution.maximum_cutbacks,
-        definition.transient_execution.heat_source_ramp_time};
+        definition.transient_execution.load_ramp_time};
     const fuelsim::TransientResult result = fuelsim::solve_transient(
         problem, time_options, solver_options(definition.solver));
     output.value("problem", "transient");

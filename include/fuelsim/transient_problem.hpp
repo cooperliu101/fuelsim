@@ -40,6 +40,8 @@ class TransientProblem final : public NonlinearProblem {
     const TransientProblemDefinition& definition() const noexcept;
     const DofMap& dof_map() const noexcept;
     std::size_t region_count() const noexcept;
+    std::size_t region_index(const std::string& name) const;
+    std::size_t region_node_offset(std::size_t region_index) const;
     const RegionDefinition& region(std::size_t region_index) const;
     const RegionMesh& region_mesh(std::size_t region_index) const;
     const Quad4RzTransientKernel& region_kernel(std::size_t region_index) const;
@@ -60,11 +62,16 @@ class TransientProblem final : public NonlinearProblem {
 
     const Quad4MaterialHistory&
     material_history(std::size_t region_index, std::size_t element_index) const;
+    const std::array<AxisymmetricStressValues, 4>&
+    material_stress(std::size_t region_index, std::size_t element_index) const;
     RegionInelasticSummary
     summarize_region_history(std::size_t region_index) const;
     InterfaceSummary
     summarize_interface(std::size_t contact_index,
                         const std::vector<double>& state) const;
+    std::vector<ContactNodeSummary>
+    summarize_contact_nodes(std::size_t contact_index,
+                            const std::vector<double>& state) const;
 
     std::size_t dof_count() const noexcept override;
     std::size_t contribution_count() const noexcept override;
@@ -90,6 +97,8 @@ class TransientProblem final : public NonlinearProblem {
     SteadyProblem _spatial_model;
     std::vector<Quad4RzTransientKernel> _region_kernels;
     std::vector<std::vector<Quad4MaterialHistory>> _material_histories;
+    std::vector<std::vector<std::array<AxisymmetricStressValues, 4>>>
+        _material_stresses;
     std::vector<double> _committed_solution;
     double _committed_time;
     double _committed_load_factor;

@@ -43,9 +43,11 @@ void validate_definitions(const SteadyProblemDefinition& definition) {
             "SteadyProblem requires at least one region");
     for (std::size_t region = 0; region < definition.regions.size(); ++region) {
         const RegionDefinition& value = definition.regions[region];
-        if (value.name.empty() || value.block.empty())
+        if (value.name.empty() || (value.block.empty() && value.block_id < 0) ||
+            (!value.block.empty() && value.block_id >= 0))
             throw std::invalid_argument(
-                "SteadyProblem region names and blocks must not be empty");
+                "SteadyProblem regions require a name and exactly one block "
+                "selector");
         if (!std::isfinite(value.volumetric_heat_source) ||
             value.volumetric_heat_source < 0.0)
             throw std::invalid_argument("SteadyProblem region heat sources "
@@ -58,9 +60,14 @@ void validate_definitions(const SteadyProblemDefinition& definition) {
             if (definition.regions[previous].name == value.name)
                 throw std::invalid_argument("Duplicate region name: " +
                                             value.name);
-            if (definition.regions[previous].block == value.block)
-                throw std::invalid_argument("Duplicate region block: " +
-                                            value.block);
+            if ((!value.block.empty() &&
+                 definition.regions[previous].block == value.block) ||
+                (value.block_id >= 0 &&
+                 definition.regions[previous].block_id == value.block_id))
+                throw std::invalid_argument(
+                    "Duplicate region block: " +
+                    (value.block.empty() ? std::to_string(value.block_id)
+                                         : value.block));
         }
     }
     for (std::size_t contact = 0; contact < definition.contacts.size();
@@ -158,8 +165,22 @@ SteadyProblem::resolve_block_ids(const SteadyProblemDefinition& definition,
                                  const UnstructuredQuad4Mesh& source_mesh) {
     std::vector<std::int64_t> result;
     result.reserve(definition.regions.size());
-    for (const RegionDefinition& region : definition.regions)
-        result.push_back(source_mesh.element_block(region.block).id);
+    for (const RegionDefinition& region : definition.regions) {
+        const std::int64_t id =
+            region.block_id >= 0 ? region.block_id
+                                 : source_mesh.element_block(region.block).id;
+        const bool known = std::any_of(
+            source_mesh.element_blocks().begin(),
+            source_mesh.element_blocks().end(),
+            [id](const ElementBlockInfo& block) { return block.id == id; });
+        if (!known)
+            throw std::invalid_argument("Unknown element block ID: " +
+                                        std::to_string(id));
+        if (std::find(result.begin(), result.end(), id) != result.end())
+            throw std::invalid_argument("Duplicate resolved region block ID: " +
+                                        std::to_string(id));
+        result.push_back(id);
+    }
     return result;
 }
 
@@ -168,9 +189,14 @@ SteadyProblem::build_meshes(const SteadyProblemDefinition& definition,
                             const UnstructuredQuad4Mesh& source_mesh) {
     std::vector<RegionMesh> result;
     result.reserve(definition.regions.size());
-    for (const RegionDefinition& region : definition.regions)
-        result.push_back(
-            RegionMesh::from_unstructured_block(source_mesh, region.block));
+    for (const RegionDefinition& region : definition.regions) {
+        if (region.block_id >= 0)
+            result.push_back(RegionMesh::from_unstructured_block(
+                source_mesh, region.block_id));
+        else
+            result.push_back(
+                RegionMesh::from_unstructured_block(source_mesh, region.block));
+    }
     return result;
 }
 
@@ -286,6 +312,19 @@ void SteadyProblem::set_load_factor(double value) {
          ++region_value) {
         _region_kernels[region_value].set_volumetric_heat_source(
             value * _definition.regions[region_value].volumetric_heat_source);
+    }
+    for (const ScaledDirichlet& scaled : _scaled_dirichlet_conditions) {
+        const auto condition = std::lower_bound(
+            _dirichlet_conditions.begin(), _dirichlet_conditions.end(),
+            scaled.dof,
+            [](const DirichletCondition& candidate, std::size_t dof) {
+                return candidate.dof < dof;
+            });
+        if (condition == _dirichlet_conditions.end() ||
+            condition->dof != scaled.dof)
+            throw std::logic_error(
+                "SteadyProblem scaled Dirichlet mapping is invalid");
+        condition->value = value * scaled.value;
     }
 }
 
@@ -571,12 +610,17 @@ void SteadyProblem::build_boundary_conditions(
             resolve_boundary(source_mesh, definition.boundary);
         if (definition.type == BoundaryConditionType::dirichlet) {
             for (std::size_t local_node : resolved.boundary.nodes) {
+                const std::size_t dof = _dof_map.dof(
+                    definition.field, global_node(resolved.region, local_node));
                 _dirichlet_conditions.push_back(
-                    {_dof_map.dof(definition.field,
-                                  global_node(resolved.region, local_node)),
-                     definition.value});
+                    {dof, definition.scale_with_load
+                              ? _load_factor * definition.value
+                              : definition.value});
+                if (definition.scale_with_load)
+                    _scaled_dirichlet_conditions.push_back(
+                        {dof, definition.value});
             }
-        } else {
+        } else if (definition.type == BoundaryConditionType::pressure) {
             if (definition.value < 0.0)
                 throw std::invalid_argument(
                     "Pressure boundary conditions must be nonnegative");
@@ -585,9 +629,18 @@ void SteadyProblem::build_boundary_conditions(
                 throw std::invalid_argument(
                     "Pressure currently requires a radial boundary: " +
                     definition.boundary);
-            _pressure_loads.push_back({resolved.region,
+            _pressure_loads.push_back(
+                {resolved.region, std::move(resolved.boundary),
+                 definition.value, definition.scale_with_load});
+        } else {
+            if (definition.field == Field::temperature)
+                throw std::invalid_argument(
+                    "Traction requires a displacement field: " +
+                    definition.boundary);
+            _traction_loads.push_back({resolved.region,
                                        std::move(resolved.boundary),
-                                       definition.value});
+                                       definition.field, definition.value,
+                                       definition.scale_with_load});
         }
     }
     validate_dirichlet_conditions(_dirichlet_conditions);
@@ -596,16 +649,20 @@ void SteadyProblem::build_boundary_conditions(
 void SteadyProblem::add_state_independent_residual(
     std::vector<double>& residual) const {
     add_pressure_residual(residual);
+    add_traction_residual(residual);
 }
 
 void SteadyProblem::add_external_residual(std::vector<double>& residual) const {
     add_pressure_residual(residual);
+    add_traction_residual(residual);
 }
 
 void SteadyProblem::add_pressure_residual(std::vector<double>& residual) const {
     const std::array<double, 2> locations = {-gauss, gauss};
     for (const PressureLoad& load : _pressure_loads) {
-        if (load.pressure == 0.0)
+        const double pressure =
+            (load.scale_with_load ? _load_factor : 1.0) * load.pressure;
+        if (pressure == 0.0)
             continue;
         const double normal_r =
             load.boundary.kind == RegionBoundaryKind::radial_inner ? -1.0 : 1.0;
@@ -625,7 +682,36 @@ void SteadyProblem::add_pressure_residual(std::vector<double>& residual) const {
                     const std::size_t dof = _dof_map.radial_displacement(
                         global_node(load.region, edge.nodes[node]));
                     residual[dof] +=
-                        measure * load.pressure * normal_r * shape[node];
+                        measure * pressure * normal_r * shape[node];
+                }
+            }
+        }
+    }
+}
+
+void SteadyProblem::add_traction_residual(std::vector<double>& residual) const {
+    const std::array<double, 2> locations = {-gauss, gauss};
+    for (const TractionLoad& load : _traction_loads) {
+        const double traction =
+            (load.scale_with_load ? _load_factor : 1.0) * load.traction;
+        if (traction == 0.0)
+            continue;
+        const RegionMesh& mesh = _meshes[load.region];
+        for (const Line2BoundaryElement& edge : load.boundary.elements) {
+            const RzPoint& first = mesh.nodes().at(edge.nodes[0]);
+            const RzPoint& second = mesh.nodes().at(edge.nodes[1]);
+            const double dr = second.r - first.r;
+            const double dz = second.z - first.z;
+            const double line_jacobian = 0.5 * std::sqrt(dr * dr + dz * dz);
+            for (double xi : locations) {
+                const std::array<double, 2> shape = {0.5 * (1.0 - xi),
+                                                     0.5 * (1.0 + xi)};
+                const double radius = shape[0] * first.r + shape[1] * second.r;
+                const double measure = 2.0 * pi * radius * line_jacobian;
+                for (std::size_t node = 0; node < 2; ++node) {
+                    const std::size_t dof = _dof_map.dof(
+                        load.field, global_node(load.region, edge.nodes[node]));
+                    residual[dof] -= measure * traction * shape[node];
                 }
             }
         }

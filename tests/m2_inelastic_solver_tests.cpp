@@ -1,32 +1,21 @@
+#include "fuelsim/case_input.hpp"
 #include "fuelsim/exodus_mesh_io.hpp"
-#include "fuelsim/nonlinear_problem.hpp"
-#include "fuelsim/petsc_solver.hpp"
-#include "fuelsim/quad4_rz_transient.hpp"
+#include "fuelsim/problem_solver.hpp"
 
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <exception>
 #include <iomanip>
 #include <iostream>
 #include <limits>
 #include <stdexcept>
 #include <string>
-#include <vector>
 
 namespace {
 
-constexpr double radius = 1.0e-3;
-constexpr double height = 1.0e-3;
-constexpr double temperature = 600.0;
-constexpr double pi = 3.141592653589793238462643383279502884;
 constexpr double moose_relative_tolerance = 1.0e-3;
-
-enum class LoadingMode {
-    prescribed_top_displacement,
-    axial_traction,
-    ramped_axial_traction,
-};
 
 bool check(bool condition, const std::string& message) {
     if (condition)
@@ -41,299 +30,113 @@ double relative_error(double actual, double expected) {
     return std::abs(actual - expected) / std::abs(expected);
 }
 
-fuelsim::ThermoelasticProperties thermoelastic_properties() {
-    return {
-        0.0, 1.0, 2.0e11, 0.3, 0.0, temperature,
-    };
+bool check_scalar_metrics(const std::string& name, double actual,
+                          double reference, double tolerance) {
+    const double relative_l2 = relative_error(actual, reference);
+    const double relative_absolute_peak =
+        std::abs(std::abs(actual) - std::abs(reference)) / std::abs(reference);
+    const double maximum_pointwise_relative = relative_l2;
+    std::cout << name << "_relative_l2=" << relative_l2 << '\n';
+    std::cout << name << "_relative_absolute_peak=" << relative_absolute_peak
+              << '\n';
+    std::cout << name
+              << "_maximum_pointwise_relative=" << maximum_pointwise_relative
+              << '\n';
+    return check(relative_l2 < tolerance &&
+                     relative_absolute_peak < tolerance &&
+                     maximum_pointwise_relative < tolerance,
+                 name + " three MOOSE error metrics pass");
 }
 
-fuelsim::TransientInelasticProperties j2_properties() {
-    return {
-        1.0,
-        1.0,
-        fuelsim::InelasticBehavior::j2_plasticity,
-        {0.0, 1.0, 1.0},
-        {2.0e8, 2.0e9},
-    };
+fuelsim::SolverOptions
+solver_options(const fuelsim::FuelSimCaseDefinition& definition) {
+    return {definition.solver.absolute_tolerance,
+            definition.solver.relative_tolerance,
+            definition.solver.step_tolerance,
+            definition.solver.maximum_iterations};
 }
 
-fuelsim::TransientInelasticProperties norton_properties() {
-    return {
-        1.0,
-        1.0,
-        fuelsim::InelasticBehavior::norton_creep,
-        {1.0e-30, 1.0, 3.0},
-        {1.0, 0.0},
-    };
+fuelsim::TransientTimeOptions
+time_options(const fuelsim::FuelSimCaseDefinition& definition) {
+    return {definition.transient_execution.end_time,
+            definition.transient_execution.initial_time_step,
+            definition.transient_execution.minimum_time_step,
+            definition.transient_execution.maximum_time_step,
+            definition.transient_execution.growth_factor,
+            definition.transient_execution.cutback_factor,
+            definition.transient_execution.maximum_cutbacks,
+            definition.transient_execution.load_ramp_time};
 }
 
-fuelsim::TransientInelasticProperties coupled_properties() {
-    return {
-        1.0,
-        1.0,
-        fuelsim::InelasticBehavior::norton_creep_j2_plasticity,
-        {1.0e-4, 1.0e8, 3.0},
-        {2.0e8, 2.0e9},
-    };
-}
-
-fuelsim::Quad4Coordinates
-single_element_coordinates(const std::string& mesh_path) {
-    const fuelsim::UnstructuredQuad4Mesh imported =
-        fuelsim::ExodusMeshIo::read_quad4(mesh_path);
-    const fuelsim::StructuredRzMesh mesh =
-        fuelsim::StructuredRzMesh::from_unstructured_block(
-            imported, 0, {"left", "right", "bottom", "top"});
-    if (mesh.elements().size() != 1 || mesh.nodes().size() != 4)
-        throw std::invalid_argument(
-            "M2.2 MOOSE comparison mesh must contain one Quad4 element");
-    if (std::abs(mesh.inner_radius()) > 1.0e-15 ||
-        std::abs(mesh.outer_radius() - radius) > 1.0e-15 ||
-        std::abs(mesh.length() - height) > 1.0e-15)
-        throw std::invalid_argument(
-            "M2.2 MOOSE comparison mesh dimensions do not match the case");
-
-    fuelsim::Quad4Coordinates coordinates{};
-    for (std::size_t node = 0; node < coordinates.size(); ++node)
-        coordinates[node] =
-            mesh.nodes().at(mesh.elements().front().nodes[node]);
-    return coordinates;
-}
-
-bool histories_equal(const fuelsim::Quad4MaterialHistory& lhs,
-                     const fuelsim::Quad4MaterialHistory& rhs) {
-    for (std::size_t point = 0; point < lhs.size(); ++point) {
-        if (lhs[point].equivalent_plastic_strain !=
-                rhs[point].equivalent_plastic_strain ||
-            lhs[point].equivalent_creep_strain !=
-                rhs[point].equivalent_creep_strain)
-            return false;
-        for (std::size_t component = 0; component < 4; ++component) {
-            if (lhs[point].plastic_strain[component] !=
-                    rhs[point].plastic_strain[component] ||
-                lhs[point].creep_strain[component] !=
-                    rhs[point].creep_strain[component])
-                return false;
-        }
-    }
-    return true;
-}
-
-class SingleElementInelasticProblem final : public fuelsim::NonlinearProblem {
+class TransientCaseRun final {
   public:
-    SingleElementInelasticProblem(
-        fuelsim::TransientInelasticProperties properties,
-        LoadingMode loading_mode, double time_step,
-        const fuelsim::Quad4Coordinates& coordinates)
-        : _geometry(fuelsim::make_quad4_rz_geometry(coordinates)),
-          _kernel(fuelsim::IsotropicInelasticMaterial(
-                      thermoelastic_properties(), properties),
-                  0.0),
-          _committed_temperature{
-              temperature,
-              temperature,
-              temperature,
-              temperature,
-          },
-          _committed_material{}, _last_stress{},
-          _dofs{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11},
-          _dirichlet_conditions{
-              {4, 0.0},
-              {7, 0.0},
-              {8, 0.0},
-              {9, 0.0},
-          },
-          _loading_mode(loading_mode), _time_step(time_step),
-          _traction(loading_mode == LoadingMode::axial_traction ? 1.0e8 : 0.0),
-          _committed_steps(0) {
-        if (!std::isfinite(_time_step) || !(_time_step > 0.0))
+    explicit TransientCaseRun(const std::string& input_path)
+        : _definition(fuelsim::CaseInputReader::read(input_path)),
+          _source(fuelsim::ExodusMeshIo::read_quad4(_definition.mesh_file)),
+          _problem(_definition.transient_definition(), _source),
+          _result(fuelsim::solve_transient(_problem, time_options(_definition),
+                                           solver_options(_definition))) {
+        if (_definition.problem != fuelsim::CaseProblem::transient)
             throw std::invalid_argument(
-                "SingleElementInelasticProblem time step must be finite and "
-                "positive");
-        if (_loading_mode == LoadingMode::prescribed_top_displacement) {
-            _dirichlet_conditions.push_back({10, 0.0});
-            _dirichlet_conditions.push_back({11, 0.0});
-        }
-    }
-
-    std::vector<double> initial_state() const {
-        std::vector<double> state(fuelsim::local_dof_count, 0.0);
-        for (std::size_t node = 0; node < fuelsim::quad4_node_count; ++node)
-            state[node] = _committed_temperature[node];
-        return state;
-    }
-
-    void set_step_end_time(double end_time) {
-        if (!std::isfinite(end_time) || !(end_time > 0.0))
+                "M2.2 comparison requires a transient input card");
+        if (_problem.region_count() != 1 ||
+            _problem.region_mesh(0).elements().size() != 1)
             throw std::invalid_argument(
-                "SingleElementInelasticProblem end time must be finite and "
-                "positive");
-        if (_loading_mode == LoadingMode::ramped_axial_traction) {
-            _traction = 2.01e8 * end_time;
-            return;
-        }
-        if (_loading_mode != LoadingMode::prescribed_top_displacement)
-            return;
-
-        const double top_displacement = height * 0.002 * end_time;
-        _dirichlet_conditions[4].value = top_displacement;
-        _dirichlet_conditions[5].value = top_displacement;
+                "M2.2 comparison input requires one region and one Quad4");
     }
 
-    void apply_dirichlet_values(std::vector<double>& state) const {
-        if (state.size() != dof_count())
-            throw std::invalid_argument(
-                "SingleElementInelasticProblem state size mismatch");
-        for (const fuelsim::DirichletCondition& condition :
-             _dirichlet_conditions)
-            state[condition.dof] = condition.value;
+    const fuelsim::FuelSimCaseDefinition& definition() const noexcept {
+        return _definition;
     }
 
-    void commit(const std::vector<double>& converged_state) {
-        if (converged_state.size() != dof_count())
-            throw std::invalid_argument(
-                "SingleElementInelasticProblem committed state size "
-                "mismatch");
-
-        fuelsim::LocalValues local_state{};
-        std::copy(converged_state.begin(), converged_state.end(),
-                  local_state.begin());
-        const std::array<fuelsim::AxisymmetricStressValues, 4> staged_stress =
-            _kernel.stress_values(_geometry, local_state, _committed_material,
-                                  _time_step);
-        const fuelsim::Quad4MaterialHistory staged_material =
-            _kernel.trial_state_values(_geometry, local_state,
-                                       _committed_material, _time_step);
-
-        for (std::size_t node = 0; node < fuelsim::quad4_node_count; ++node) {
-            const double value = converged_state[node];
-            if (!std::isfinite(value) || !(value > 0.0))
-                throw std::domain_error(
-                    "SingleElementInelasticProblem committed temperature "
-                    "must be finite and positive");
-            _committed_temperature[node] = value;
-        }
-        _last_stress = staged_stress;
-        _committed_material = staged_material;
-        ++_committed_steps;
+    const fuelsim::UnstructuredQuad4Mesh& source() const noexcept {
+        return _source;
     }
 
-    const fuelsim::Quad4MaterialHistory& committed_material() const noexcept {
-        return _committed_material;
+    const fuelsim::TransientProblem& problem() const noexcept {
+        return _problem;
     }
 
-    const fuelsim::Quad4TemperatureHistory&
-    committed_temperature() const noexcept {
-        return _committed_temperature;
-    }
-
-    const std::array<fuelsim::AxisymmetricStressValues, 4>&
-    last_stress() const noexcept {
-        return _last_stress;
-    }
-
-    std::size_t committed_steps() const noexcept {
-        return _committed_steps;
-    }
-
-    std::size_t dof_count() const noexcept override {
-        return fuelsim::local_dof_count;
-    }
-
-    std::size_t contribution_count() const noexcept override {
-        return 1;
-    }
-
-    fuelsim::LocalDofs
-    contribution_dofs(std::size_t contribution_index) const override {
-        require_single_contribution(contribution_index);
-        return _dofs;
-    }
-
-    fuelsim::LocalResidual
-    contribution_residual(std::size_t contribution_index,
-                          const fuelsim::LocalValues& state) const override {
-        require_single_contribution(contribution_index);
-        return _kernel.residual(_geometry, state, _committed_temperature,
-                                _committed_material, _time_step);
-    }
-
-    fuelsim::LocalSystem
-    linearize_contribution(std::size_t contribution_index,
-                           const fuelsim::LocalValues& state) const override {
-        require_single_contribution(contribution_index);
-        return _kernel.linearize(_geometry, state, _committed_temperature,
-                                 _committed_material, _time_step);
-    }
-
-    const std::vector<fuelsim::DirichletCondition>&
-    dirichlet_conditions() const noexcept override {
-        return _dirichlet_conditions;
-    }
-
-  protected:
-    void add_state_independent_residual(
-        std::vector<double>& residual) const override {
-        if (_loading_mode == LoadingMode::prescribed_top_displacement)
-            return;
-        if (residual.size() != dof_count())
-            throw std::logic_error(
-                "SingleElementInelasticProblem residual size mismatch");
-
-        const double top_area = pi * radius * radius;
-        residual[10] -= _traction * 2.0 * top_area / 3.0;
-        residual[11] -= _traction * top_area / 3.0;
+    const fuelsim::TransientResult& result() const noexcept {
+        return _result;
     }
 
   private:
-    static void require_single_contribution(std::size_t index) {
-        if (index != 0)
-            throw std::out_of_range(
-                "SingleElementInelasticProblem contribution is out of "
-                "range");
-    }
-
-    fuelsim::Quad4RzGeometry _geometry;
-    fuelsim::Quad4RzTransientKernel _kernel;
-    fuelsim::Quad4TemperatureHistory _committed_temperature;
-    fuelsim::Quad4MaterialHistory _committed_material;
-    std::array<fuelsim::AxisymmetricStressValues, 4> _last_stress;
-    fuelsim::LocalDofs _dofs;
-    std::vector<fuelsim::DirichletCondition> _dirichlet_conditions;
-    LoadingMode _loading_mode;
-    double _time_step;
-    double _traction;
-    std::size_t _committed_steps;
+    fuelsim::FuelSimCaseDefinition _definition;
+    fuelsim::UnstructuredQuad4Mesh _source;
+    fuelsim::TransientProblem _problem;
+    fuelsim::TransientResult _result;
 };
 
-double average_axial_stress(
-    const std::array<fuelsim::AxisymmetricStressValues, 4>& stresses) {
-    double sum = 0.0;
-    for (const fuelsim::AxisymmetricStressValues& stress : stresses)
-        sum += stress.zz;
-    return sum / static_cast<double>(stresses.size());
+double average_axial_stress(const TransientCaseRun& run) {
+    double value = 0.0;
+    for (const fuelsim::AxisymmetricStressValues& stress :
+         run.problem().material_stress(0, 0))
+        value += stress.zz / 4.0;
+    return value;
 }
 
-double average_equivalent_plastic_strain(
-    const fuelsim::Quad4MaterialHistory& history) {
-    double sum = 0.0;
-    for (const fuelsim::MaterialPointState& point : history)
-        sum += point.equivalent_plastic_strain;
-    return sum / static_cast<double>(history.size());
+double average_equivalent_plastic(const TransientCaseRun& run) {
+    double value = 0.0;
+    for (const fuelsim::MaterialPointState& point :
+         run.problem().material_history(0, 0))
+        value += point.equivalent_plastic_strain / 4.0;
+    return value;
 }
 
-double
-average_equivalent_creep_strain(const fuelsim::Quad4MaterialHistory& history) {
-    double sum = 0.0;
-    for (const fuelsim::MaterialPointState& point : history)
-        sum += point.equivalent_creep_strain;
-    return sum / static_cast<double>(history.size());
+double average_equivalent_creep(const TransientCaseRun& run) {
+    double value = 0.0;
+    for (const fuelsim::MaterialPointState& point :
+         run.problem().material_history(0, 0))
+        value += point.equivalent_creep_strain / 4.0;
+    return value;
 }
 
-double maximum_inelastic_trace(const fuelsim::Quad4MaterialHistory& history,
+double maximum_inelastic_trace(const TransientCaseRun& run,
                                bool plastic_strain) {
     double maximum = 0.0;
-    for (const fuelsim::MaterialPointState& point : history) {
+    for (const fuelsim::MaterialPointState& point :
+         run.problem().material_history(0, 0)) {
         const std::array<double, 4>& strain =
             plastic_strain ? point.plastic_strain : point.creep_strain;
         maximum =
@@ -342,234 +145,102 @@ double maximum_inelastic_trace(const fuelsim::Quad4MaterialHistory& history,
     return maximum;
 }
 
-bool temperatures_are_committed(
-    const fuelsim::Quad4TemperatureHistory& history) {
-    for (double value : history) {
-        if (std::abs(value - temperature) > 1.0e-12)
+double average_top_displacement(const TransientCaseRun& run) {
+    const fuelsim::RegionBoundary top =
+        run.problem().region_mesh(0).map_side_set(run.source(), "top");
+    double value = 0.0;
+    for (std::size_t node : top.nodes) {
+        value += run.result().committed_state.at(
+            run.problem().dof_map().axial_displacement(node));
+    }
+    return value / static_cast<double>(top.nodes.size());
+}
+
+bool temperatures_are_600(const TransientCaseRun& run) {
+    for (std::size_t node = 0; node < run.problem().dof_map().node_count();
+         ++node) {
+        if (std::abs(run.result().committed_state.at(
+                         run.problem().dof_map().temperature(node)) -
+                     600.0) > 1.0e-12)
             return false;
     }
     return true;
 }
 
-struct LoadPathResult final {
-    std::vector<double> state;
-    std::size_t workspace_setups;
-    std::size_t solve_calls;
-    bool converged;
-    bool callbacks_preserved_history;
-};
-
-LoadPathResult solve_load_path(SingleElementInelasticProblem& problem,
-                               std::size_t step_count, double time_step) {
-    fuelsim::PetscSequentialSolver solver;
-    std::vector<double> state = problem.initial_state();
-    std::size_t workspace_setups = 0;
-    std::size_t solve_calls = 0;
-    bool converged = true;
-    bool callbacks_preserved_history = true;
-    const fuelsim::SolverOptions options = {
-        1.0e-10,
-        1.0e-10,
-        1.0e-12,
-        40,
-    };
-
-    for (std::size_t step = 0; step < step_count; ++step) {
-        const double end_time = static_cast<double>(step + 1) * time_step;
-        problem.set_step_end_time(end_time);
-        problem.apply_dirichlet_values(state);
-        const fuelsim::Quad4MaterialHistory history_before =
-            problem.committed_material();
-        const fuelsim::SolveResult result =
-            solver.solve(problem, state, options);
-        workspace_setups += result.timing.workspace_setups;
-        solve_calls += result.timing.solve_calls;
-        callbacks_preserved_history =
-            histories_equal(history_before, problem.committed_material()) &&
-            callbacks_preserved_history;
-        if (!result.converged) {
-            std::cerr << "[FAIL] load step " << step + 1 << " PETSc reason="
-                      << fuelsim::petsc_convergence_reason_name(
-                             result.convergence_reason)
-                      << ", iterations=" << result.nonlinear_iterations
-                      << ", residual_norm=" << result.residual_norm << '\n';
-            converged = false;
-            state = result.state;
-            break;
-        }
-
-        problem.commit(result.state);
-        state = result.state;
-    }
-
-    return {
-        state,
-        workspace_setups,
-        solve_calls,
-        converged,
-        callbacks_preserved_history,
-    };
+bool common_run_checks(const std::string& name, const TransientCaseRun& run,
+                       std::size_t expected_steps) {
+    bool passed =
+        check(run.result().completed, name + " input-card load path converged");
+    passed = check(run.result().accepted_steps.size() == expected_steps,
+                   name + " commits every configured time step") &&
+             passed;
+    passed = check(run.result().aggregate_timing.workspace_setups == 1,
+                   name + " reuses one PETSc workspace") &&
+             passed;
+    passed = check(temperatures_are_600(run),
+                   name + " committed temperature remains 600 K") &&
+             passed;
+    return passed;
 }
 
-bool test_j2_moose_comparison(const std::string& mesh_path) {
-    constexpr std::size_t step_count = 10;
-    constexpr double time_step = 0.1;
+bool test_j2_moose_comparison(const std::string& input_path) {
     constexpr double moose_axial_stress = 201980198.0198;
     constexpr double moose_equivalent_plastic = 0.000990099009901;
     constexpr double moose_top_displacement = 2.0e-6;
+    const TransientCaseRun run(input_path);
+    const double axial_stress = average_axial_stress(run);
+    const double equivalent_plastic = average_equivalent_plastic(run);
+    const double top_displacement = average_top_displacement(run);
 
-    SingleElementInelasticProblem problem(
-        j2_properties(), LoadingMode::prescribed_top_displacement, time_step,
-        single_element_coordinates(mesh_path));
-    const LoadPathResult result =
-        solve_load_path(problem, step_count, time_step);
-
-    const double axial_stress = average_axial_stress(problem.last_stress());
-    const double equivalent_plastic =
-        average_equivalent_plastic_strain(problem.committed_material());
-    const double top_displacement = 0.5 * (result.state[10] + result.state[11]);
-    const double top_displacement_spread =
-        std::abs(result.state[10] - result.state[11]);
-    const double stress_error =
-        relative_error(axial_stress, moose_axial_stress);
-    const double plastic_error =
-        relative_error(equivalent_plastic, moose_equivalent_plastic);
-    const double displacement_error =
-        relative_error(top_displacement, moose_top_displacement);
-    const double maximum_trace =
-        maximum_inelastic_trace(problem.committed_material(), true);
-
-    bool passed =
-        check(result.converged, "J2 ten-step PETSc load path converged");
-    passed = check(result.workspace_setups == 1,
-                   "J2 load path creates one reusable PETSc workspace") &&
-             passed;
-    passed = check(result.solve_calls == step_count,
-                   "J2 load path issues ten PETSc solve calls") &&
-             passed;
+    bool passed = common_run_checks("J2", run, 10);
     passed =
-        check(result.callbacks_preserved_history,
-              "J2 residual and Jacobian callbacks do not commit history") &&
+        check_scalar_metrics("m22_j2_axial_stress", axial_stress,
+                             moose_axial_stress, moose_relative_tolerance) &&
         passed;
-    passed = check(problem.committed_steps() == step_count,
-                   "J2 history is committed after every accepted step") &&
+    passed = check_scalar_metrics("m22_j2_equivalent_plastic",
+                                  equivalent_plastic, moose_equivalent_plastic,
+                                  moose_relative_tolerance) &&
              passed;
-    passed = check(temperatures_are_committed(problem.committed_temperature()),
-                   "J2 committed temperature remains 600 K") &&
+    passed = check_scalar_metrics("m22_j2_top_displacement", top_displacement,
+                                  moose_top_displacement,
+                                  moose_relative_tolerance) &&
              passed;
-    passed = check(stress_error < moose_relative_tolerance,
-                   "J2 final axial stress matches MOOSE within 0.1%") &&
+    passed = check(maximum_inelastic_trace(run, true) < 1.0e-12,
+                   "J2 plastic strain is trace-free") &&
              passed;
-    passed = check(plastic_error < moose_relative_tolerance,
-                   "J2 final equivalent plastic strain matches MOOSE within "
-                   "0.1%") &&
-             passed;
-    passed = check(displacement_error < moose_relative_tolerance,
-                   "J2 final top displacement matches MOOSE within 0.1%") &&
-             passed;
-    passed = check(top_displacement_spread < 1.0e-12,
-                   "J2 top-side axial displacement is uniform") &&
-             passed;
-    passed = check(maximum_trace < 1.0e-12,
-                   "J2 committed plastic strain is trace-free") &&
-             passed;
-
-    std::cout << "m22_j2_axial_stress=" << axial_stress << '\n';
-    std::cout << "m22_j2_equivalent_plastic=" << equivalent_plastic << '\n';
-    std::cout << "m22_j2_top_displacement=" << top_displacement << '\n';
-    std::cout << "m22_j2_stress_relative_error=" << stress_error << '\n';
-    std::cout << "m22_j2_plastic_relative_error=" << plastic_error << '\n';
-    std::cout << "m22_j2_displacement_relative_error=" << displacement_error
-              << '\n';
-    std::cout << "m22_j2_top_displacement_spread=" << top_displacement_spread
-              << '\n';
-    std::cout << "m22_j2_maximum_plastic_trace=" << maximum_trace << '\n';
-    std::cout << "m22_j2_workspace_setups=" << result.workspace_setups << '\n';
     return passed;
 }
 
-bool test_norton_moose_comparison(const std::string& mesh_path) {
-    constexpr std::size_t step_count = 10;
-    constexpr double time_step = 10.0;
+bool test_norton_moose_comparison(const std::string& input_path) {
     constexpr double moose_axial_stress = 99998007.620195;
     constexpr double moose_equivalent_creep = 9.9991036503199e-5;
     constexpr double moose_top_displacement = 5.9997808603447e-7;
+    const TransientCaseRun run(input_path);
+    const double axial_stress = average_axial_stress(run);
+    const double equivalent_creep = average_equivalent_creep(run);
+    const double top_displacement = average_top_displacement(run);
 
-    SingleElementInelasticProblem problem(
-        norton_properties(), LoadingMode::axial_traction, time_step,
-        single_element_coordinates(mesh_path));
-    const LoadPathResult result =
-        solve_load_path(problem, step_count, time_step);
-
-    const double axial_stress = average_axial_stress(problem.last_stress());
-    const double equivalent_creep =
-        average_equivalent_creep_strain(problem.committed_material());
-    const double top_displacement = 0.5 * (result.state[10] + result.state[11]);
-    const double top_displacement_spread =
-        std::abs(result.state[10] - result.state[11]);
-    const double stress_error =
-        relative_error(axial_stress, moose_axial_stress);
-    const double creep_error =
-        relative_error(equivalent_creep, moose_equivalent_creep);
-    const double displacement_error =
-        relative_error(top_displacement, moose_top_displacement);
-    const double maximum_trace =
-        maximum_inelastic_trace(problem.committed_material(), false);
-
-    bool passed =
-        check(result.converged, "Norton ten-step PETSc load path converged");
-    passed = check(result.workspace_setups == 1,
-                   "Norton load path creates one reusable PETSc workspace") &&
+    bool passed = common_run_checks("Norton", run, 10);
+    passed =
+        check_scalar_metrics("m22_norton_axial_stress", axial_stress,
+                             moose_axial_stress, moose_relative_tolerance) &&
+        passed;
+    passed = check_scalar_metrics("m22_norton_equivalent_creep",
+                                  equivalent_creep, moose_equivalent_creep,
+                                  moose_relative_tolerance) &&
              passed;
-    passed = check(result.solve_calls == step_count,
-                   "Norton load path issues ten PETSc solve calls") &&
+    passed = check_scalar_metrics("m22_norton_top_displacement",
+                                  top_displacement, moose_top_displacement,
+                                  moose_relative_tolerance) &&
              passed;
-    passed = check(result.callbacks_preserved_history,
-                   "Norton residual and Jacobian callbacks do not commit "
-                   "history") &&
+    passed = check(maximum_inelastic_trace(run, false) < 1.0e-12,
+                   "Norton creep strain is trace-free") &&
              passed;
-    passed = check(problem.committed_steps() == step_count,
-                   "Norton history is committed after every accepted step") &&
-             passed;
-    passed = check(temperatures_are_committed(problem.committed_temperature()),
-                   "Norton committed temperature remains 600 K") &&
-             passed;
-    passed = check(stress_error < moose_relative_tolerance,
-                   "Norton final axial stress matches MOOSE within 0.1%") &&
-             passed;
-    passed = check(creep_error < moose_relative_tolerance,
-                   "Norton final equivalent creep strain matches MOOSE within "
-                   "0.1%") &&
-             passed;
-    passed = check(displacement_error < moose_relative_tolerance,
-                   "Norton final top displacement matches MOOSE within 0.1%") &&
-             passed;
-    passed = check(top_displacement_spread < 1.0e-12,
-                   "Norton top-side axial displacement is uniform") &&
-             passed;
-    passed = check(maximum_trace < 1.0e-12,
-                   "Norton committed creep strain is trace-free") &&
-             passed;
-
-    std::cout << "m22_norton_axial_stress=" << axial_stress << '\n';
-    std::cout << "m22_norton_equivalent_creep=" << equivalent_creep << '\n';
-    std::cout << "m22_norton_top_displacement=" << top_displacement << '\n';
-    std::cout << "m22_norton_stress_relative_error=" << stress_error << '\n';
-    std::cout << "m22_norton_creep_relative_error=" << creep_error << '\n';
-    std::cout << "m22_norton_displacement_relative_error=" << displacement_error
-              << '\n';
-    std::cout << "m22_norton_top_displacement_spread="
-              << top_displacement_spread << '\n';
-    std::cout << "m22_norton_maximum_creep_trace=" << maximum_trace << '\n';
-    std::cout << "m22_norton_workspace_setups=" << result.workspace_setups
-              << '\n';
     return passed;
 }
 
-bool test_coupled_moose_comparison(const std::string& displacement_mesh_path,
-                                   const std::string& traction_mesh_path) {
-    constexpr std::size_t step_count = 10;
-    constexpr double time_step = 0.1;
+bool test_coupled_moose_comparison(const std::string& displacement_input,
+                                   const std::string& traction_input) {
     constexpr double moose_axial_stress = 200999992.08159;
     constexpr double moose_equivalent_plastic = 4.9999406119027e-4;
     constexpr double moose_equivalent_creep = 2.4564701918764e-4;
@@ -577,168 +248,69 @@ bool test_coupled_moose_comparison(const std::string& displacement_mesh_path,
     constexpr double analytic_equivalent_plastic = 5.0e-4;
     constexpr double analytic_equivalent_creep = 2.4564818025e-4;
     constexpr double analytic_top_displacement = 1.75064818025e-6;
+    const TransientCaseRun traction(traction_input);
+    const double axial_stress = average_axial_stress(traction);
+    const double equivalent_plastic = average_equivalent_plastic(traction);
+    const double equivalent_creep = average_equivalent_creep(traction);
+    const double top_displacement = average_top_displacement(traction);
 
-    SingleElementInelasticProblem problem(
-        coupled_properties(), LoadingMode::ramped_axial_traction, time_step,
-        single_element_coordinates(traction_mesh_path));
-    const LoadPathResult result =
-        solve_load_path(problem, step_count, time_step);
-
-    const double axial_stress = average_axial_stress(problem.last_stress());
-    const double equivalent_plastic =
-        average_equivalent_plastic_strain(problem.committed_material());
-    const double equivalent_creep =
-        average_equivalent_creep_strain(problem.committed_material());
-    const double top_displacement = 0.5 * (result.state[10] + result.state[11]);
-    const double top_displacement_spread =
-        std::abs(result.state[10] - result.state[11]);
-    const double stress_error =
-        relative_error(axial_stress, moose_axial_stress);
-    const double plastic_error =
-        relative_error(equivalent_plastic, moose_equivalent_plastic);
-    const double creep_error =
-        relative_error(equivalent_creep, moose_equivalent_creep);
-    const double displacement_error =
-        relative_error(top_displacement, moose_top_displacement);
-    const double analytic_plastic_error =
-        relative_error(equivalent_plastic, analytic_equivalent_plastic);
-    const double analytic_creep_error =
-        relative_error(equivalent_creep, analytic_equivalent_creep);
-    const double analytic_displacement_error =
-        relative_error(top_displacement, analytic_top_displacement);
-    const double maximum_plastic_trace =
-        maximum_inelastic_trace(problem.committed_material(), true);
-    const double maximum_creep_trace =
-        maximum_inelastic_trace(problem.committed_material(), false);
-
-    constexpr double displacement_control_moose_stress = 200963368.63564;
-    constexpr double displacement_control_moose_plastic = 4.8168428343307e-4;
-    constexpr double displacement_control_moose_creep = 5.1349887359505e-4;
-    constexpr double displacement_control_moose_displacement = 2.0e-6;
-    SingleElementInelasticProblem displacement_control_problem(
-        coupled_properties(), LoadingMode::prescribed_top_displacement,
-        time_step, single_element_coordinates(displacement_mesh_path));
-    const LoadPathResult displacement_control_result =
-        solve_load_path(displacement_control_problem, step_count, time_step);
-    const double displacement_control_stress =
-        average_axial_stress(displacement_control_problem.last_stress());
-    const double displacement_control_plastic =
-        average_equivalent_plastic_strain(
-            displacement_control_problem.committed_material());
-    const double displacement_control_creep = average_equivalent_creep_strain(
-        displacement_control_problem.committed_material());
-    const double displacement_control_displacement =
-        0.5 * (displacement_control_result.state[10] +
-               displacement_control_result.state[11]);
-    const double displacement_control_stress_error = relative_error(
-        displacement_control_stress, displacement_control_moose_stress);
-    const double displacement_control_plastic_error = relative_error(
-        displacement_control_plastic, displacement_control_moose_plastic);
-    const double displacement_control_creep_error = relative_error(
-        displacement_control_creep, displacement_control_moose_creep);
-    const double displacement_control_displacement_error =
-        relative_error(displacement_control_displacement,
-                       displacement_control_moose_displacement);
-
-    bool passed =
-        check(result.converged,
-              "coupled plastic-creep ten-step PETSc load path converged");
-    passed = check(result.workspace_setups == 1,
-                   "coupled load path creates one reusable PETSc workspace") &&
-             passed;
-    passed = check(result.solve_calls == step_count,
-                   "coupled load path issues ten PETSc solve calls") &&
-             passed;
-    passed = check(result.callbacks_preserved_history,
-                   "coupled residual and Jacobian callbacks do not commit "
-                   "history") &&
-             passed;
-    passed = check(problem.committed_steps() == step_count,
-                   "coupled history is committed after every accepted step") &&
-             passed;
-    passed = check(temperatures_are_committed(problem.committed_temperature()),
-                   "coupled committed temperature remains 600 K") &&
-             passed;
-    passed = check(equivalent_plastic > 0.0 && equivalent_creep > 0.0,
-                   "coupled load path commits plastic and creep history at the "
-                   "same material points") &&
-             passed;
-    passed = check(stress_error < moose_relative_tolerance,
-                   "coupled final axial stress matches MOOSE within 0.1%") &&
-             passed;
+    bool passed = common_run_checks("coupled traction", traction, 10);
     passed =
-        check(plastic_error < moose_relative_tolerance,
-              "coupled final equivalent plastic strain matches MOOSE within "
-              "0.1%") &&
+        check_scalar_metrics("m22_coupled_traction_axial_stress", axial_stress,
+                             moose_axial_stress, moose_relative_tolerance) &&
         passed;
-    passed = check(creep_error < moose_relative_tolerance,
-                   "coupled final equivalent creep strain matches MOOSE within "
-                   "0.1%") &&
+    passed = check_scalar_metrics("m22_coupled_traction_equivalent_plastic",
+                                  equivalent_plastic, moose_equivalent_plastic,
+                                  moose_relative_tolerance) &&
              passed;
-    passed =
-        check(displacement_error < moose_relative_tolerance,
-              "coupled final top displacement matches MOOSE within 0.1%") &&
-        passed;
-    passed = check(analytic_plastic_error < 1.0e-8 &&
-                       analytic_creep_error < 1.0e-8 &&
-                       analytic_displacement_error < 1.0e-8,
-                   "coupled traction path matches its independent uniaxial "
-                   "history solution") &&
+    passed = check_scalar_metrics("m22_coupled_traction_equivalent_creep",
+                                  equivalent_creep, moose_equivalent_creep,
+                                  moose_relative_tolerance) &&
              passed;
-    passed = check(top_displacement_spread < 1.0e-12,
-                   "coupled top-side axial displacement is uniform") &&
+    passed = check_scalar_metrics("m22_coupled_traction_top_displacement",
+                                  top_displacement, moose_top_displacement,
+                                  moose_relative_tolerance) &&
              passed;
-    passed =
-        check(maximum_plastic_trace < 1.0e-12 && maximum_creep_trace < 1.0e-12,
-              "coupled committed plastic and creep strains are trace-free") &&
-        passed;
-    passed = check(displacement_control_result.converged &&
-                       displacement_control_result.workspace_setups == 1 &&
-                       displacement_control_result.callbacks_preserved_history,
-                   "coupled displacement-control PETSc path converges with one "
-                   "workspace and immutable callback history") &&
+    passed = check(relative_error(equivalent_plastic,
+                                  analytic_equivalent_plastic) < 1.0e-8 &&
+                       relative_error(equivalent_creep,
+                                      analytic_equivalent_creep) < 1.0e-8 &&
+                       relative_error(top_displacement,
+                                      analytic_top_displacement) < 1.0e-8,
+                   "coupled traction matches independent uniaxial history") &&
              passed;
-    passed =
-        check(displacement_control_stress_error < moose_relative_tolerance &&
-                  displacement_control_plastic_error <
-                      moose_relative_tolerance &&
-                  displacement_control_creep_error < moose_relative_tolerance &&
-                  displacement_control_displacement_error <
-                      moose_relative_tolerance,
-              "coupled displacement-control stress, histories, and "
-              "displacement match MOOSE within 0.1%") &&
-        passed;
+    passed = check(maximum_inelastic_trace(traction, true) < 1.0e-12 &&
+                       maximum_inelastic_trace(traction, false) < 1.0e-12,
+                   "coupled traction inelastic strains are trace-free") &&
+             passed;
 
-    std::cout << "m22_coupled_axial_stress=" << axial_stress << '\n';
-    std::cout << "m22_coupled_equivalent_plastic=" << equivalent_plastic
-              << '\n';
-    std::cout << "m22_coupled_equivalent_creep=" << equivalent_creep << '\n';
-    std::cout << "m22_coupled_top_displacement=" << top_displacement << '\n';
-    std::cout << "m22_coupled_stress_relative_error=" << stress_error << '\n';
-    std::cout << "m22_coupled_plastic_relative_error=" << plastic_error << '\n';
-    std::cout << "m22_coupled_creep_relative_error=" << creep_error << '\n';
-    std::cout << "m22_coupled_displacement_relative_error="
-              << displacement_error << '\n';
-    std::cout << "m22_coupled_analytic_plastic_relative_error="
-              << analytic_plastic_error << '\n';
-    std::cout << "m22_coupled_analytic_creep_relative_error="
-              << analytic_creep_error << '\n';
-    std::cout << "m22_coupled_analytic_displacement_relative_error="
-              << analytic_displacement_error << '\n';
-    std::cout << "m22_coupled_maximum_plastic_trace=" << maximum_plastic_trace
-              << '\n';
-    std::cout << "m22_coupled_maximum_creep_trace=" << maximum_creep_trace
-              << '\n';
-    std::cout << "m22_coupled_workspace_setups=" << result.workspace_setups
-              << '\n';
-    std::cout << "m22_coupled_displacement_control_stress_relative_error="
-              << displacement_control_stress_error << '\n';
-    std::cout << "m22_coupled_displacement_control_plastic_relative_error="
-              << displacement_control_plastic_error << '\n';
-    std::cout << "m22_coupled_displacement_control_creep_relative_error="
-              << displacement_control_creep_error << '\n';
-    std::cout << "m22_coupled_displacement_control_displacement_relative_error="
-              << displacement_control_displacement_error << '\n';
+    constexpr double displacement_moose_stress = 200963368.63564;
+    constexpr double displacement_moose_plastic = 4.8168428343307e-4;
+    constexpr double displacement_moose_creep = 5.1349887359505e-4;
+    constexpr double displacement_moose_displacement = 2.0e-6;
+    const TransientCaseRun displacement(displacement_input);
+    passed =
+        common_run_checks("coupled displacement", displacement, 10) && passed;
+    passed = check_scalar_metrics("m22_coupled_displacement_axial_stress",
+                                  average_axial_stress(displacement),
+                                  displacement_moose_stress,
+                                  moose_relative_tolerance) &&
+             passed;
+    passed = check_scalar_metrics("m22_coupled_displacement_equivalent_plastic",
+                                  average_equivalent_plastic(displacement),
+                                  displacement_moose_plastic,
+                                  moose_relative_tolerance) &&
+             passed;
+    passed = check_scalar_metrics("m22_coupled_displacement_equivalent_creep",
+                                  average_equivalent_creep(displacement),
+                                  displacement_moose_creep,
+                                  moose_relative_tolerance) &&
+             passed;
+    passed = check_scalar_metrics("m22_coupled_displacement_top_displacement",
+                                  average_top_displacement(displacement),
+                                  displacement_moose_displacement,
+                                  moose_relative_tolerance) &&
+             passed;
     return passed;
 }
 
@@ -747,34 +319,23 @@ bool test_coupled_moose_comparison(const std::string& displacement_mesh_path,
 int main(int argc, char** argv) {
     if (argc != 5) {
         std::cerr << "Usage: fuelsim_m2_inelastic_solver_tests "
-                     "<j2_mesh.e> <norton_mesh.e> <coupled_mesh.e> "
-                     "<coupled_traction_mesh.e>\n";
+                     "<j2.fsi> <norton.fsi> <coupled_displacement.fsi> "
+                     "<coupled_traction.fsi>\n";
         return 2;
     }
-
     try {
-        const std::string j2_mesh_path = argv[1];
-        const std::string norton_mesh_path = argv[2];
-        const std::string coupled_mesh_path = argv[3];
-        const std::string coupled_traction_mesh_path = argv[4];
         std::cout << std::scientific << std::setprecision(12);
         fuelsim::PetscSession session(
-            argc, argv, "fuelsim M2.2 inelastic single-element solver tests\n");
-
-        bool passed = true;
-        passed = test_j2_moose_comparison(j2_mesh_path) && passed;
-        passed = test_norton_moose_comparison(norton_mesh_path) && passed;
-        passed = test_coupled_moose_comparison(coupled_mesh_path,
-                                               coupled_traction_mesh_path) &&
-                 passed;
+            argc, argv, "fuelsim input-card M2.2 MOOSE comparison tests\n");
+        bool passed = test_j2_moose_comparison(argv[1]);
+        passed = test_norton_moose_comparison(argv[2]) && passed;
+        passed = test_coupled_moose_comparison(argv[3], argv[4]) && passed;
         if (!passed)
             return 1;
-
-        std::cout << "[PASS] fuelsim M2.2 inelastic solver acceptance tests\n";
+        std::cout << "[PASS] input-card M2.2 MOOSE comparison tests\n";
         return 0;
     } catch (const std::exception& error) {
-        std::cerr << "[FAIL] M2.2 inelastic solver tests raised: "
-                  << error.what() << '\n';
+        std::cerr << "[FAIL] M2.2 tests raised: " << error.what() << '\n';
         return 1;
     }
 }

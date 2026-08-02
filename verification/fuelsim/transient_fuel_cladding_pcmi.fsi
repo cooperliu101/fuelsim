@@ -101,7 +101,7 @@
   growth_factor = 1
   cutback_factor = 0.5
   maximum_cutbacks = 3
-  heat_source_ramp_time = 20
+  load_ramp_time = 20
 []
 
 [Solver]

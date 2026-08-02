@@ -70,11 +70,17 @@ bool expect_case_failure(const std::string& path, const std::string& contents,
 
 bool run_tests(const std::string& steady_path,
                const std::string& transient_path,
+               const std::string& scaled_displacement_path,
+               const std::string& traction_path,
                const std::string& malformed_path) {
     const fuelsim::FuelSimCaseDefinition steady =
         fuelsim::CaseInputReader::read(steady_path);
     const fuelsim::FuelSimCaseDefinition transient =
         fuelsim::CaseInputReader::read(transient_path);
+    const fuelsim::FuelSimCaseDefinition scaled_displacement =
+        fuelsim::CaseInputReader::read(scaled_displacement_path);
+    const fuelsim::FuelSimCaseDefinition traction =
+        fuelsim::CaseInputReader::read(traction_path);
 
     bool passed =
         check(steady.version == 1 &&
@@ -100,9 +106,21 @@ bool run_tests(const std::string& steady_path,
                       fuelsim::InelasticBehavior::norton_creep_j2_plasticity,
               "transient material behaviors are parsed") &&
         check(transient.transient_execution.end_time == 20.0 &&
-                  transient.transient_execution.heat_source_ramp_time == 20.0 &&
+                  transient.transient_execution.load_ramp_time == 20.0 &&
                   transient.solver.maximum_iterations == 80,
-              "transient execution, ramp, and solver fields are parsed");
+              "transient execution, ramp, and solver fields are parsed") &&
+        check(
+            scaled_displacement.regions.size() == 1 &&
+                scaled_displacement.regions[0].spatial.block.empty() &&
+                scaled_displacement.regions[0].spatial.block_id == 0 &&
+                scaled_displacement.boundary_conditions.back().scale_with_load,
+            "block ID and scaled displacement are parsed") &&
+        check(traction.boundary_conditions.back().type ==
+                      fuelsim::BoundaryConditionType::traction &&
+                  traction.boundary_conditions.back().field ==
+                      fuelsim::Field::axial_displacement &&
+                  traction.boundary_conditions.back().scale_with_load,
+              "scaled axial traction is parsed");
 
     passed = expect_parse_failure(malformed_path,
                                   "[Case]\n  version = 1\n  version = 1\n[]\n",
@@ -150,14 +168,15 @@ bool run_tests(const std::string& steady_path,
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 4) {
+    if (argc != 6) {
         std::cerr << "Usage: fuelsim_input_tests <steady.fsi> "
-                     "<transient.fsi> <malformed.fsi>\n";
+                     "<transient.fsi> <scaled-displacement.fsi> "
+                     "<traction.fsi> <malformed.fsi>\n";
         return 2;
     }
 
     try {
-        if (!run_tests(argv[1], argv[2], argv[3]))
+        if (!run_tests(argv[1], argv[2], argv[3], argv[4], argv[5]))
             return 1;
         std::cout << "[PASS] fuelsim strict input-card tests\n";
         return 0;

@@ -30,7 +30,7 @@ struct TransientTimeOptions final {
     double growth_factor;
     double cutback_factor;
     std::size_t maximum_cutbacks_per_step;
-    double heat_source_ramp_time;
+    double load_ramp_time;
 };
 
 struct TransientAcceptedStep final {

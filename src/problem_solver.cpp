@@ -84,16 +84,27 @@ void validate_time_options(const TransientProblem& problem,
         !(options.cutback_factor > 0.0 && options.cutback_factor < 1.0))
         throw std::invalid_argument(
             "solve_transient cutback factor must lie between zero and one");
-    if (!std::isfinite(options.heat_source_ramp_time) ||
-        options.heat_source_ramp_time < 0.0)
+    if (!std::isfinite(options.load_ramp_time) || options.load_ramp_time < 0.0)
         throw std::invalid_argument(
             "solve_transient ramp time must be finite and nonnegative");
 }
 
 double load_factor_at_time(const TransientTimeOptions& options, double time) {
-    if (options.heat_source_ramp_time == 0.0)
+    if (options.load_ramp_time == 0.0)
         return 1.0;
-    return std::min(time / options.heat_source_ramp_time, 1.0);
+    return std::min(time / options.load_ramp_time, 1.0);
+}
+
+std::vector<double>
+initial_guess_with_dirichlet_values(const NonlinearProblem& problem,
+                                    const std::vector<double>& state) {
+    if (state.size() != problem.dof_count())
+        throw std::invalid_argument(
+            "Dirichlet initial-guess state size does not match problem");
+    std::vector<double> result = state;
+    for (const DirichletCondition& condition : problem.dirichlet_conditions())
+        result.at(condition.dof) = condition.value;
+    return result;
 }
 
 } // namespace
@@ -109,7 +120,9 @@ SteadyResult solve_steady(SteadyProblem& problem, std::size_t load_steps,
     for (std::size_t step = 1; step <= load_steps; ++step) {
         problem.set_load_factor(static_cast<double>(step) /
                                 static_cast<double>(load_steps));
-        SolveResult attempt = solver.solve(problem, state, options);
+        SolveResult attempt = solver.solve(
+            problem, initial_guess_with_dirichlet_values(problem, state),
+            options);
         accumulate_timing(result.aggregate_timing, attempt.timing);
         result.total_nonlinear_iterations += attempt.nonlinear_iterations;
         if (!attempt.converged) {
@@ -148,8 +161,11 @@ TransientResult solve_transient(TransientProblem& problem,
                 TimeStepTransaction transaction(
                     problem,
                     {end_time, load_factor_at_time(options, end_time)});
-                attempt = solver.solve(problem, problem.committed_solution(),
-                                       solver_options);
+                attempt =
+                    solver.solve(problem,
+                                 initial_guess_with_dirichlet_values(
+                                     problem, problem.committed_solution()),
+                                 solver_options);
                 accumulate_timing(result.aggregate_timing, attempt.timing);
                 result.total_nonlinear_iterations +=
                     attempt.nonlinear_iterations;

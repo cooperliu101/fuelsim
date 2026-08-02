@@ -41,8 +41,10 @@ Dirichlet 边界可使用任意属于该区域的边集。当前热接触和机�
 
 ## 自由区域组合
 
-`[Regions]` 下每个子段定义一个物理区域，子段名是区域名，`block` 是同一
-Exodus 文件中的元素块名：
+`[Regions]` 下每个子段定义一个物理区域，子段名是区域名。每个区域必须
+用且只能用 `block` 或 `block_id` 选择同一 Exodus 文件中的元素块；有块名
+时优先使用更易读的 `block`，无块名的 MOOSE 单区域网格可使用非负
+`block_id`：
 
 ```text
 [Regions]
@@ -130,6 +132,9 @@ Exodus 文件中的元素块名：
 
 `dirichlet` 的 `field` 只能为 `temperature`、`radial_displacement` 或
 `axial_displacement`。`pressure` 不接受 `field`，当前只能施加在径向边界。
+`traction` 必须声明一个位移 `field`，`value` 是该分量上的有符号表面牵引；
+它使用参考 RZ 表面测度积分。`dirichlet`、`pressure` 和 `traction` 都可设置
+`scale_with_load = true`，使 `value` 乘以当前执行器载荷因子；默认不缩放。
 `[BoundaryConditions]` 段本身必需，但可以为空。
 
 ## 时间推进、求解与输出
@@ -155,9 +160,13 @@ Exodus 文件中的元素块名：
   growth_factor = 1
   cutback_factor = 0.5
   maximum_cutbacks = 3
-  heat_source_ramp_time = 20
+  load_ramp_time = 20
 []
 ```
+
+瞬态载荷因子为 `min(time/load_ramp_time, 1)`；`load_ramp_time = 0` 表示从
+首步起使用完整载荷。该因子同时控制各区域 `volumetric_heat_source` 和所有
+显式设置 `scale_with_load = true` 的边界条件。
 
 `[Solver]` 可设置 `absolute_tolerance`、`relative_tolerance`、
 `step_tolerance` 和 `maximum_iterations`；省略时分别为 `1e-8`、`1e-10`、
@@ -168,5 +177,16 @@ Exodus 文件中的元素块名：
 
 仓库中的可运行示例为：
 
+- [`steady_single_fuel_moose.fsi`](../verification/fuelsim/steady_single_fuel_moose.fsi)
 - [`steady_fuel_cladding.fsi`](../verification/fuelsim/steady_fuel_cladding.fsi)
+- [`steady_fuel_cladding_unstructured.fsi`](../verification/fuelsim/steady_fuel_cladding_unstructured.fsi)
+- [`transient_heat_moose.fsi`](../verification/fuelsim/transient_heat_moose.fsi)
+- [`transient_j2_plastic_moose.fsi`](../verification/fuelsim/transient_j2_plastic_moose.fsi)
+- [`transient_norton_creep_moose.fsi`](../verification/fuelsim/transient_norton_creep_moose.fsi)
+- [`transient_coupled_displacement_moose.fsi`](../verification/fuelsim/transient_coupled_displacement_moose.fsi)
+- [`transient_coupled_traction_moose.fsi`](../verification/fuelsim/transient_coupled_traction_moose.fsi)
 - [`transient_fuel_cladding_pcmi.fsi`](../verification/fuelsim/transient_fuel_cladding_pcmi.fsi)
+
+上述九张卡分别驱动 M0、两套 M1、M2.1、四套 M2.2 和 M2.3 的
+fuelsim-to-MOOSE 对比；测试程序不再直接构造这些案例的材料、载荷路径或
+网格选择参数。

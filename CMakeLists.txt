@@ -144,6 +144,8 @@ if(BUILD_TESTING)
         COMMAND fuelsim_input_tests
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_fuel_cladding.fsi"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_fuel_cladding_pcmi.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_coupled_displacement_moose.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_coupled_traction_moose.fsi"
             "${CMAKE_CURRENT_BINARY_DIR}/malformed_input.fsi"
     )
     set_tests_properties(fuelsim_input_tests PROPERTIES LABELS "unit")
@@ -167,12 +169,12 @@ if(BUILD_TESTING)
         tests/m1_exodus_moose_tests.cpp
     )
     target_link_libraries(fuelsim_m1_exodus_moose_tests
-        PRIVATE fuelsim_test_support fuelsim::exodus
+        PRIVATE fuelsim::input fuelsim::exodus fuelsim::petsc
     )
     fuelsim_enable_warnings(fuelsim_m1_exodus_moose_tests)
     add_test(NAME fuelsim_m1_exodus_moose_tests
         COMMAND fuelsim_m1_exodus_moose_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m1_fuel_cladding_gap_rz_mesh.e"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_fuel_cladding.fsi"
     )
     set_tests_properties(fuelsim_m1_exodus_moose_tests PROPERTIES
         LABELS "acceptance"
@@ -192,6 +194,19 @@ if(BUILD_TESTING)
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m1_fuel_cladding_unstructured_rz_fuel_surface_final.csv"
     )
     set_tests_properties(fuelsim_m1_unstructured_moose_tests PROPERTIES
+        LABELS "acceptance"
+    )
+
+    add_executable(fuelsim_m0_moose_tests tests/m0_moose_tests.cpp)
+    target_link_libraries(fuelsim_m0_moose_tests
+        PRIVATE fuelsim::input fuelsim::exodus fuelsim::petsc
+    )
+    fuelsim_enable_warnings(fuelsim_m0_moose_tests)
+    add_test(NAME fuelsim_m0_moose_tests
+        COMMAND fuelsim_m0_moose_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_single_fuel_moose.fsi"
+    )
+    set_tests_properties(fuelsim_m0_moose_tests PROPERTIES
         LABELS "acceptance"
     )
 
@@ -215,24 +230,20 @@ if(BUILD_TESTING)
 
     add_executable(fuelsim_solver_tests tests/solver_tests.cpp)
     target_link_libraries(fuelsim_solver_tests
-        PRIVATE fuelsim_test_support fuelsim::exodus
+        PRIVATE fuelsim_test_support
     )
     fuelsim_enable_warnings(fuelsim_solver_tests)
-    add_test(NAME fuelsim_solver_tests
-        COMMAND fuelsim_solver_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m0_simple_fuel_rz_mesh.e"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m1_fuel_cladding_gap_rz_mesh.e"
-    )
+    add_test(NAME fuelsim_solver_tests COMMAND fuelsim_solver_tests)
     set_tests_properties(fuelsim_solver_tests PROPERTIES LABELS "acceptance")
 
     add_executable(fuelsim_m2_solver_tests tests/m2_solver_tests.cpp)
     target_link_libraries(fuelsim_m2_solver_tests
-        PRIVATE fuelsim_test_support fuelsim::exodus
+        PRIVATE fuelsim::input fuelsim::exodus fuelsim::petsc
     )
     fuelsim_enable_warnings(fuelsim_m2_solver_tests)
     add_test(NAME fuelsim_m2_solver_tests
         COMMAND fuelsim_m2_solver_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m21_transient_heat_rz_mesh.e"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_heat_moose.fsi"
     )
     set_tests_properties(fuelsim_m2_solver_tests PROPERTIES LABELS "acceptance")
 
@@ -240,15 +251,15 @@ if(BUILD_TESTING)
         tests/m2_inelastic_solver_tests.cpp
     )
     target_link_libraries(fuelsim_m2_inelastic_solver_tests
-        PRIVATE fuelsim::exodus fuelsim::petsc
+        PRIVATE fuelsim::input fuelsim::exodus fuelsim::petsc
     )
     fuelsim_enable_warnings(fuelsim_m2_inelastic_solver_tests)
     add_test(NAME fuelsim_m2_inelastic_solver_tests
         COMMAND fuelsim_m2_inelastic_solver_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m22_j2_plastic_rz_mesh.e"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m22_norton_creep_rz_mesh.e"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m22_coupled_plastic_creep_rz_mesh.e"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m22_coupled_plastic_creep_traction_rz_mesh.e"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_j2_plastic_moose.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_norton_creep_moose.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_coupled_displacement_moose.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_coupled_traction_moose.fsi"
     )
     set_tests_properties(fuelsim_m2_inelastic_solver_tests
         PROPERTIES LABELS "acceptance"
@@ -258,12 +269,12 @@ if(BUILD_TESTING)
         tests/m2_pcmi_solver_tests.cpp
     )
     target_link_libraries(fuelsim_m2_pcmi_solver_tests
-        PRIVATE fuelsim_test_support fuelsim::exodus
+        PRIVATE fuelsim::input fuelsim::exodus fuelsim::petsc
     )
     fuelsim_enable_warnings(fuelsim_m2_pcmi_solver_tests)
     add_test(NAME fuelsim_m2_pcmi_solver_tests
         COMMAND fuelsim_m2_pcmi_solver_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m23_pcmi_coupled_cladding_rz_mesh.e"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_fuel_cladding_pcmi.fsi"
     )
     set_tests_properties(fuelsim_m2_pcmi_solver_tests
         PROPERTIES LABELS "acceptance"
