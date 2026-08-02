@@ -164,6 +164,13 @@ std::size_t read_size(const InputDocument& document,
     return parse_size(document, required_entry(document, section, key));
 }
 
+std::size_t read_optional_size(const InputDocument& document,
+                               const InputSection& section,
+                               const std::string& key, std::size_t fallback) {
+    const InputEntry* entry = find_entry(section, key);
+    return entry == nullptr ? fallback : parse_size(document, *entry);
+}
+
 int read_optional_int(const InputDocument& document,
                       const InputSection& section, const std::string& key,
                       int fallback) {
@@ -507,7 +514,7 @@ FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
                       {"type", "end_time", "initial_time_step",
                        "minimum_time_step", "maximum_time_step",
                        "growth_factor", "cutback_factor", "maximum_cutbacks",
-                       "load_ramp_time"});
+                       "load_ramp_time", "restart"});
         if (executioner_type != "transient")
             value_error(document, executioner.entry("type"),
                         "problem='transient' requires type='transient'");
@@ -519,7 +526,12 @@ FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
             read_double(document, executioner, "growth_factor"),
             read_double(document, executioner, "cutback_factor"),
             read_size(document, executioner, "maximum_cutbacks"),
-            read_double(document, executioner, "load_ramp_time")};
+            read_double(document, executioner, "load_ramp_time"),
+            {}};
+        const std::string restart =
+            read_optional_string(executioner, "restart", {});
+        result.transient_execution.restart_file =
+            restart.empty() ? std::string{} : resolved_path(path, restart);
     }
 
     const InputSection& solver = document.section("Solver");
@@ -539,12 +551,44 @@ FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
             path + ": solver tolerances and iteration limit must be positive");
 
     const InputSection& outputs = document.section("Outputs");
-    validate_keys(document, outputs, {"console", "csv"});
+    validate_keys(
+        document, outputs,
+        {"console", "csv", "exodus", "checkpoint", "checkpoint_interval"});
     result.outputs.console =
         read_optional_bool(document, outputs, "console", true);
     const std::string csv = read_optional_string(outputs, "csv", {});
     result.outputs.csv_file =
         csv.empty() ? std::string{} : resolved_path(path, csv);
+    const std::string exodus = read_optional_string(outputs, "exodus", {});
+    result.outputs.exodus_file =
+        exodus.empty() ? std::string{} : resolved_path(path, exodus);
+    const std::string checkpoint =
+        read_optional_string(outputs, "checkpoint", {});
+    result.outputs.checkpoint_file =
+        checkpoint.empty() ? std::string{} : resolved_path(path, checkpoint);
+    result.outputs.checkpoint_interval =
+        read_optional_size(document, outputs, "checkpoint_interval", 1);
+    if (!result.outputs.exodus_file.empty() &&
+        result.outputs.exodus_file == result.mesh_file)
+        throw std::invalid_argument(
+            path + ": Exodus results must not overwrite the input mesh");
+    if (!result.outputs.exodus_file.empty() &&
+        result.outputs.exodus_file == result.outputs.checkpoint_file)
+        throw std::invalid_argument(
+            path + ": Exodus results and checkpoint paths must differ");
+    if (result.problem == CaseProblem::steady &&
+        (!result.outputs.checkpoint_file.empty() ||
+         find_entry(outputs, "checkpoint_interval") != nullptr))
+        throw std::invalid_argument(
+            path + ": checkpoint output is only valid for transient cases");
+    if (result.outputs.checkpoint_file.empty() &&
+        find_entry(outputs, "checkpoint_interval") != nullptr)
+        value_error(document, outputs.entry("checkpoint_interval"),
+                    "checkpoint_interval requires checkpoint");
+    if (!result.outputs.checkpoint_file.empty() &&
+        result.outputs.checkpoint_interval == 0)
+        value_error(document, outputs.entry("checkpoint_interval"),
+                    "checkpoint_interval must be positive");
     return result;
 }
 

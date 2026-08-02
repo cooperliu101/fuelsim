@@ -62,7 +62,9 @@ target_link_libraries(fuelsim_core PUBLIC adlite::adlite)
 fuelsim_enable_warnings(fuelsim_core)
 
 add_library(fuelsim_exodus
+    src/checkpoint_io.cpp
     src/exodus_mesh_io.cpp
+    src/results_io.cpp
 )
 add_library(fuelsim::exodus ALIAS fuelsim_exodus)
 
@@ -174,6 +176,28 @@ if(BUILD_TESTING)
     )
     set_tests_properties(fuelsim_exodus_mesh_io_tests PROPERTIES
         LABELS "dependency"
+    )
+
+    add_executable(fuelsim_checkpoint_results_tests
+        tests/checkpoint_results_tests.cpp
+    )
+    target_link_libraries(fuelsim_checkpoint_results_tests
+        PRIVATE
+            fuelsim::input
+            fuelsim::exodus
+            fuelsim::petsc
+            SEACASExodus::exodus
+    )
+    fuelsim_enable_warnings(fuelsim_checkpoint_results_tests)
+    add_test(NAME fuelsim_checkpoint_results_tests
+        COMMAND fuelsim_checkpoint_results_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_fuel_cladding.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_fuel_cladding_pcmi.fsi"
+            "${CMAKE_CURRENT_BINARY_DIR}/m3_checkpoint.bin"
+            "${CMAKE_CURRENT_BINARY_DIR}/m3_results.e"
+    )
+    set_tests_properties(fuelsim_checkpoint_results_tests PROPERTIES
+        LABELS "integration"
     )
 
     add_executable(fuelsim_m1_exodus_moose_tests

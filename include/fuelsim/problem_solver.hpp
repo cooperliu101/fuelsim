@@ -54,10 +54,18 @@ struct TransientResult final {
     SolveTiming aggregate_timing;
 };
 
+class TransientStepObserver {
+  public:
+    virtual ~TransientStepObserver() = default;
+    virtual void accepted_step(const TransientProblem& problem,
+                               const TransientAcceptedStep& step) = 0;
+};
+
 TransientResult
 solve_transient(TransientProblem& problem,
                 const TransientTimeOptions& time_options,
-                const SolverOptions& solver_options = SolverOptions{});
+                const SolverOptions& solver_options = SolverOptions{},
+                TransientStepObserver* observer = nullptr);
 
 } // namespace fuelsim
 

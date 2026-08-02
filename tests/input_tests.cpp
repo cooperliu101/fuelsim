@@ -68,6 +68,28 @@ bool expect_case_failure(const std::string& path, const std::string& contents,
                  "invalid case reports '" + expected_message + "'");
 }
 
+bool verify_m3_output_input(const std::string& path,
+                            const std::string& contents) {
+    {
+        std::ofstream output(path, std::ios::out | std::ios::trunc);
+        if (!output)
+            return check(false, "could not create M3 input fixture");
+        output << contents;
+    }
+    const fuelsim::FuelSimCaseDefinition definition =
+        fuelsim::CaseInputReader::read(path);
+    const int remove_status = std::remove(path.c_str());
+    return check(remove_status == 0 &&
+                     definition.transient_execution.restart_file.find(
+                         "restart.bin") != std::string::npos &&
+                     definition.outputs.exodus_file.find("results.e") !=
+                         std::string::npos &&
+                     definition.outputs.checkpoint_file.find(
+                         "checkpoint.bin") != std::string::npos &&
+                     definition.outputs.checkpoint_interval == 5,
+                 "restart and engineering output paths are resolved");
+}
+
 bool run_tests(const std::string& steady_path,
                const std::string& transient_path,
                const std::string& scaled_displacement_path,
@@ -161,6 +183,37 @@ bool run_tests(const std::string& steady_path,
     block_contact_case.insert(primary_position, "primary_block = clad\n    ");
     passed = expect_case_failure(malformed_path, block_contact_case,
                                  "unknown key 'primary_block'") &&
+             passed;
+
+    std::string m3_case = read_text(transient_path);
+    const std::string executioner_type = "type = transient";
+    const std::size_t executioner_position = m3_case.find(executioner_type);
+    if (executioner_position == std::string::npos)
+        return check(false, "transient fixture has an executioner type");
+    m3_case.insert(executioner_position + executioner_type.size(),
+                   "\n  restart = restart.bin");
+    const std::size_t output_position = m3_case.find(console);
+    if (output_position == std::string::npos)
+        return check(false, "transient fixture has the expected console key");
+    m3_case.insert(output_position + console.size(),
+                   "\n  exodus = results.e\n  checkpoint = checkpoint.bin"
+                   "\n  checkpoint_interval = 5");
+    passed = verify_m3_output_input(malformed_path, m3_case) && passed;
+
+    std::string orphan_interval = read_text(transient_path);
+    const std::size_t orphan_output = orphan_interval.find(console);
+    orphan_interval.insert(orphan_output + console.size(),
+                           "\n  checkpoint_interval = 2");
+    passed = expect_case_failure(malformed_path, orphan_interval,
+                                 "checkpoint_interval requires checkpoint") &&
+             passed;
+
+    std::string steady_checkpoint = read_text(steady_path);
+    const std::size_t steady_output = steady_checkpoint.find(console);
+    steady_checkpoint.insert(steady_output + console.size(),
+                             "\n  checkpoint = checkpoint.bin");
+    passed = expect_case_failure(malformed_path, steady_checkpoint,
+                                 "only valid for transient cases") &&
              passed;
     return passed;
 }

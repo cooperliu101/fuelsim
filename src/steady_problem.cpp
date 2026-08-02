@@ -761,6 +761,17 @@ SteadyProblem::summarize_contact_nodes(std::size_t contact_value,
     return result;
 }
 
+std::vector<std::size_t>
+SteadyProblem::contact_secondary_source_nodes(std::size_t contact_value) const {
+    const ResolvedBoundary& secondary = _secondary_boundaries.at(contact_value);
+    const RegionMesh& mesh = _meshes.at(secondary.region);
+    std::vector<std::size_t> result;
+    result.reserve(secondary.boundary.nodes.size());
+    for (const std::size_t node : secondary.boundary.nodes)
+        result.push_back(mesh.source_node_ids().at(node));
+    return result;
+}
+
 InterfaceSummary
 SteadyProblem::summarize_interface(std::size_t contact_value,
                                    const std::vector<double>& state) const {

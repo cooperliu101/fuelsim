@@ -161,6 +161,7 @@ Dirichlet 边界可使用任意属于该区域的边集。当前热接触和机�
   cutback_factor = 0.5
   maximum_cutbacks = 3
   load_ramp_time = 20
+  restart = previous.checkpoint
 []
 ```
 
@@ -168,12 +169,39 @@ Dirichlet 边界可使用任意属于该区域的边集。当前热接触和机�
 首步起使用完整载荷。该因子同时控制各区域 `volumetric_heat_source` 和所有
 显式设置 `scale_with_load = true` 的边界条件。
 
+`restart` 为可选的严格重启动文件。它恢复已提交的节点温度/位移、物理时间、
+载荷因子、全部积分点塑性/蠕变历史和已提交应力。文件的版本、字节序、长度、
+校验和、网格、材料、边界条件、接触及局部装配拓扑必须与当前问题一致；不
+匹配时立即停止。重启动不保存 Newton trial、活动时间步或失败尝试。
+
 `[Solver]` 可设置 `absolute_tolerance`、`relative_tolerance`、
 `step_tolerance` 和 `maximum_iterations`；省略时分别为 `1e-8`、`1e-10`、
 `1e-12` 和 `40`。其他 PETSc 命令行选项仍可直接覆盖默认行为。
 
 `[Outputs]` 的 `console` 默认为 `true`；可选 `csv` 将同一组命名指标写为
-`metric,value` 文件。
+`metric,value` 文件。`exodus` 写出可后处理的场结果；稳态写一个最终步，
+瞬态写初始/重启动状态和每个成功提交的时间步。节点变量包括温度、径向与
+轴向位移，以及各接触对 secondary 节点上的间隙和压力；单元变量保留四个
+积分点的应力、塑性应变、蠕变应变及两种等效应变；全局变量记录载荷因子、
+界面总热流和总接触力。未属于所选求解区域或未投影的值写为 `NaN`。
+
+瞬态还可设置 `checkpoint` 和正整数 `checkpoint_interval`：
+
+```text
+[Outputs]
+  console = true
+  csv = summary.csv
+  exodus = fields.e
+  checkpoint = latest.checkpoint
+  checkpoint_interval = 5
+[]
+```
+
+检查点只在成功提交后按间隔原子替换，并在执行结束或失败退出前再次保存最后
+提交态。`checkpoint_interval` 默认是 `1`，不能单独出现；稳态不接受检查点。
+结果文件不得覆盖输入网格，也不得与检查点同名。相对路径都以输入卡目录为
+基准。重启动后的 Exodus 输出会新建一个结果文件，并以恢复时刻作为第一个
+结果步，不尝试修改上一段结果文件。
 
 仓库中的可运行示例为：
 

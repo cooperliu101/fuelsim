@@ -7,6 +7,7 @@
 #include "fuelsim/steady_problem.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -30,6 +31,15 @@ struct TransientStepInput final {
 struct RegionInelasticSummary final {
     double maximum_equivalent_plastic_strain;
     double maximum_equivalent_creep_strain;
+};
+
+struct TransientCommittedState final {
+    std::vector<double> solution;
+    std::vector<std::vector<Quad4MaterialHistory>> material_histories;
+    std::vector<std::vector<std::array<AxisymmetricStressValues, 4>>>
+        material_stresses;
+    double time = 0.0;
+    double load_factor = 0.0;
 };
 
 class TransientProblem final : public NonlinearProblem {
@@ -56,6 +66,10 @@ class TransientProblem final : public NonlinearProblem {
     double active_time_step() const;
     double active_end_time() const;
 
+    std::uint64_t committed_state_signature() const;
+    TransientCommittedState committed_state() const;
+    void restore_committed_state(TransientCommittedState state);
+
     void begin_time_step(const TransientStepInput& input);
     void commit_time_step(const std::vector<double>& converged_solution);
     void rollback_time_step() noexcept;
@@ -72,6 +86,8 @@ class TransientProblem final : public NonlinearProblem {
     std::vector<ContactNodeSummary>
     summarize_contact_nodes(std::size_t contact_index,
                             const std::vector<double>& state) const;
+    std::vector<std::size_t>
+    contact_secondary_source_nodes(std::size_t contact_index) const;
 
     std::size_t dof_count() const noexcept override;
     std::size_t contribution_count() const noexcept override;

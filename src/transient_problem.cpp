@@ -2,11 +2,72 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
+#include <limits>
 #include <stdexcept>
 #include <utility>
 
 namespace fuelsim {
 namespace {
+
+constexpr std::uint64_t fnv_offset = 14695981039346656037ULL;
+constexpr std::uint64_t fnv_prime = 1099511628211ULL;
+
+void hash_bytes(std::uint64_t& hash, const void* data, std::size_t size) {
+    const auto* bytes = static_cast<const unsigned char*>(data);
+    for (std::size_t index = 0; index < size; ++index) {
+        hash ^= static_cast<std::uint64_t>(bytes[index]);
+        hash *= fnv_prime;
+    }
+}
+
+void hash_size(std::uint64_t& hash, std::size_t value) {
+    const std::uint64_t encoded = static_cast<std::uint64_t>(value);
+    hash_bytes(hash, &encoded, sizeof(encoded));
+}
+
+void hash_integer(std::uint64_t& hash, std::int64_t value) {
+    hash_bytes(hash, &value, sizeof(value));
+}
+
+void hash_double(std::uint64_t& hash, double value) {
+    std::uint64_t encoded = 0;
+    static_assert(sizeof(encoded) == sizeof(value));
+    std::memcpy(&encoded, &value, sizeof(value));
+    hash_bytes(hash, &encoded, sizeof(encoded));
+}
+
+void hash_string(std::uint64_t& hash, const std::string& value) {
+    hash_size(hash, value.size());
+    hash_bytes(hash, value.data(), value.size());
+}
+
+void hash_thermoelastic(std::uint64_t& hash,
+                        const ThermoelasticProperties& material) {
+    hash_double(hash, material.conductivity_inverse_temperature);
+    hash_double(hash, material.conductivity_offset);
+    hash_double(hash, material.young_modulus);
+    hash_double(hash, material.poisson_ratio);
+    hash_double(hash, material.thermal_expansion);
+    hash_double(hash, material.reference_temperature);
+}
+
+bool finite_stress(const AxisymmetricStressValues& stress) {
+    return std::isfinite(stress.rr) && std::isfinite(stress.zz) &&
+           std::isfinite(stress.hoop) && std::isfinite(stress.rz);
+}
+
+bool valid_material_state(const MaterialPointState& state) {
+    for (std::size_t component = 0; component < 4; ++component) {
+        if (!std::isfinite(state.plastic_strain[component]) ||
+            !std::isfinite(state.creep_strain[component]))
+            return false;
+    }
+    return std::isfinite(state.equivalent_plastic_strain) &&
+           state.equivalent_plastic_strain >= 0.0 &&
+           std::isfinite(state.equivalent_creep_strain) &&
+           state.equivalent_creep_strain >= 0.0;
+}
 
 RegionInelasticSummary
 summarize_history(const std::vector<Quad4MaterialHistory>& history) noexcept {
@@ -135,6 +196,144 @@ double TransientProblem::active_end_time() const {
     return _active_end_time;
 }
 
+std::uint64_t TransientProblem::committed_state_signature() const {
+    std::uint64_t hash = fnv_offset;
+    hash_size(hash, dof_count());
+    hash_size(hash, region_count());
+    for (std::size_t region_value = 0; region_value < region_count();
+         ++region_value) {
+        const RegionDefinition& spatial =
+            _definition.spatial.regions[region_value];
+        const TransientInelasticProperties& transient =
+            _definition.regions[region_value].material;
+        hash_string(hash, spatial.name);
+        hash_string(hash, spatial.block);
+        hash_integer(hash, spatial.block_id);
+        hash_thermoelastic(hash, spatial.material);
+        hash_double(hash, spatial.volumetric_heat_source);
+        hash_double(hash, spatial.initial_temperature);
+        hash_double(hash, transient.density);
+        hash_double(hash, transient.specific_heat);
+        hash_integer(hash, static_cast<std::int64_t>(transient.behavior));
+        hash_double(hash, transient.creep.coefficient);
+        hash_double(hash, transient.creep.reference_stress);
+        hash_double(hash, transient.creep.stress_exponent);
+        hash_double(hash, transient.plasticity.yield_stress);
+        hash_double(hash, transient.plasticity.isotropic_hardening_modulus);
+
+        const RegionMesh& mesh = region_mesh(region_value);
+        hash_size(hash, mesh.nodes().size());
+        for (const RzPoint& point : mesh.nodes()) {
+            hash_double(hash, point.r);
+            hash_double(hash, point.z);
+        }
+        hash_size(hash, mesh.elements().size());
+        for (const Quad4Element& element : mesh.elements()) {
+            for (const std::size_t node : element.nodes)
+                hash_size(hash, node);
+        }
+        for (const std::size_t source : mesh.source_node_ids())
+            hash_size(hash, source);
+        for (const std::size_t source : mesh.source_element_ids())
+            hash_size(hash, source);
+    }
+    for (const ContactDefinition& contact : _definition.spatial.contacts) {
+        hash_string(hash, contact.name);
+        hash_string(hash, contact.primary);
+        hash_string(hash, contact.secondary);
+        hash_integer(hash, contact.thermal ? 1 : 0);
+        hash_integer(hash, contact.mechanical ? 1 : 0);
+        hash_double(hash, contact.gap_conductivity);
+        hash_double(hash, contact.minimum_gap);
+        hash_double(hash, contact.penalty);
+    }
+    for (const BoundaryConditionDefinition& boundary :
+         _definition.spatial.boundary_conditions) {
+        hash_string(hash, boundary.name);
+        hash_integer(hash, static_cast<std::int64_t>(boundary.type));
+        hash_string(hash, boundary.boundary);
+        hash_integer(hash, static_cast<std::int64_t>(boundary.field));
+        hash_double(hash, boundary.value);
+        hash_integer(hash, boundary.scale_with_load ? 1 : 0);
+    }
+    hash_size(hash, contribution_count());
+    for (std::size_t contribution = 0; contribution < contribution_count();
+         ++contribution) {
+        const LocalDofs dofs = contribution_dofs(contribution);
+        for (const std::size_t dof : dofs)
+            hash_size(hash, dof);
+    }
+    return hash;
+}
+
+TransientCommittedState TransientProblem::committed_state() const {
+    return {_committed_solution, _material_histories, _material_stresses,
+            _committed_time, _committed_load_factor};
+}
+
+void TransientProblem::restore_committed_state(TransientCommittedState state) {
+    if (_time_step_active)
+        throw std::logic_error(
+            "TransientProblem cannot restore during an active time step");
+    if (state.solution.size() != dof_count() ||
+        state.material_histories.size() != region_count() ||
+        state.material_stresses.size() != region_count())
+        throw std::invalid_argument(
+            "Transient committed state layout does not match the problem");
+    if (!std::isfinite(state.time) || state.time < 0.0 ||
+        !std::isfinite(state.load_factor) || state.load_factor < 0.0)
+        throw std::invalid_argument(
+            "Transient committed time and load factor must be valid");
+    for (std::size_t node = 0; node < dof_map().node_count(); ++node) {
+        const double temperature =
+            state.solution.at(dof_map().temperature(node));
+        if (!std::isfinite(temperature) || !(temperature > 0.0) ||
+            !std::isfinite(
+                state.solution.at(dof_map().radial_displacement(node))) ||
+            !std::isfinite(
+                state.solution.at(dof_map().axial_displacement(node))))
+            throw std::invalid_argument(
+                "Transient committed nodal state must be finite with "
+                "positive temperatures");
+    }
+    for (std::size_t region_value = 0; region_value < region_count();
+         ++region_value) {
+        const std::size_t elements =
+            region_mesh(region_value).elements().size();
+        if (state.material_histories[region_value].size() != elements ||
+            state.material_stresses[region_value].size() != elements)
+            throw std::invalid_argument(
+                "Transient committed element state layout does not match");
+        for (std::size_t element = 0; element < elements; ++element) {
+            for (std::size_t q = 0; q < 4; ++q) {
+                if (!valid_material_state(
+                        state.material_histories[region_value][element][q]) ||
+                    !finite_stress(
+                        state.material_stresses[region_value][element][q]))
+                    throw std::invalid_argument(
+                        "Transient committed integration-point state is "
+                        "invalid");
+            }
+        }
+    }
+
+    _committed_solution = std::move(state.solution);
+    _material_histories = std::move(state.material_histories);
+    _material_stresses = std::move(state.material_stresses);
+    _committed_time = state.time;
+    _committed_load_factor = state.load_factor;
+    _active_time_step = 0.0;
+    _active_end_time = _committed_time;
+    _active_load_factor = _committed_load_factor;
+    for (std::size_t region_value = 0; region_value < region_count();
+         ++region_value) {
+        _region_kernels[region_value].set_volumetric_heat_source(
+            _committed_load_factor *
+            _definition.spatial.regions[region_value].volumetric_heat_source);
+    }
+    _spatial_model.set_load_factor(_committed_load_factor);
+}
+
 void TransientProblem::begin_time_step(const TransientStepInput& input) {
     if (_time_step_active)
         throw std::logic_error(
@@ -254,6 +453,11 @@ TransientProblem::summarize_interface(std::size_t contact_index,
 std::vector<ContactNodeSummary> TransientProblem::summarize_contact_nodes(
     std::size_t contact_index, const std::vector<double>& state) const {
     return _spatial_model.summarize_contact_nodes(contact_index, state);
+}
+
+std::vector<std::size_t> TransientProblem::contact_secondary_source_nodes(
+    std::size_t contact_index) const {
+    return _spatial_model.contact_secondary_source_nodes(contact_index);
 }
 
 std::size_t TransientProblem::dof_count() const noexcept {

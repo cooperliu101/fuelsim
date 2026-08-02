@@ -34,6 +34,7 @@ struct TransientExecutionInput final {
     double cutback_factor;
     std::size_t maximum_cutbacks;
     double load_ramp_time;
+    std::string restart_file;
 };
 
 struct NonlinearSolverInput final {
@@ -46,6 +47,9 @@ struct NonlinearSolverInput final {
 struct CaseOutputInput final {
     bool console;
     std::string csv_file;
+    std::string exodus_file;
+    std::string checkpoint_file;
+    std::size_t checkpoint_interval;
 };
 
 struct FuelSimCaseDefinition final {

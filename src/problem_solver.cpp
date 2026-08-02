@@ -65,10 +65,14 @@ void validate_time_options(const TransientProblem& problem,
     if (problem.time_step_active())
         throw std::logic_error(
             "solve_transient cannot start with an active time step");
+    const double time_scale = std::max(
+        {1.0, std::abs(problem.committed_time()), std::abs(options.end_time)});
+    const double time_tolerance =
+        16.0 * std::numeric_limits<double>::epsilon() * time_scale;
     if (!std::isfinite(options.end_time) ||
-        options.end_time <= problem.committed_time())
+        options.end_time < problem.committed_time() - time_tolerance)
         throw std::invalid_argument(
-            "solve_transient end time must exceed committed time");
+            "solve_transient end time must not precede committed time");
     if (!std::isfinite(options.initial_time_step) ||
         !std::isfinite(options.minimum_time_step) ||
         !std::isfinite(options.maximum_time_step) ||
@@ -144,7 +148,8 @@ SteadyResult solve_steady(SteadyProblem& problem, std::size_t load_steps,
 
 TransientResult solve_transient(TransientProblem& problem,
                                 const TransientTimeOptions& options,
-                                const SolverOptions& solver_options) {
+                                const SolverOptions& solver_options,
+                                TransientStepObserver* observer) {
     validate_time_options(problem, options);
     const SteadyClock::time_point start = SteadyClock::now();
     TransientResult result;
@@ -185,6 +190,9 @@ TransientResult solve_transient(TransientProblem& problem,
                      problem.committed_load_factor(), cutbacks,
                      result.last_attempt.nonlinear_iterations,
                      std::move(histories)});
+                if (observer != nullptr)
+                    observer->accepted_step(problem,
+                                            result.accepted_steps.back());
                 next_time_step = std::min(options.maximum_time_step,
                                           time_step * options.growth_factor);
                 break;

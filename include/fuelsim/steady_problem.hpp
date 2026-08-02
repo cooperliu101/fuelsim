@@ -114,6 +114,8 @@ class SteadyProblem final : public NonlinearProblem {
     std::vector<ContactNodeSummary>
     summarize_contact_nodes(std::size_t contact_index,
                             const std::vector<double>& state) const;
+    std::vector<std::size_t>
+    contact_secondary_source_nodes(std::size_t contact_index) const;
     InterfaceSummary
     summarize_interface(std::size_t contact_index,
                         const std::vector<double>& state) const;

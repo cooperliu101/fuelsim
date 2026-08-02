@@ -22,6 +22,10 @@
 - 燃料、包壳各自独立的积分点 `double` 历史，Newton 回调内只生成
   ADlite trial 状态；
 - 瞬态热传导与准静态力学耦合，PETSc 工作区跨时间步复用。
+- 版本化二进制检查点保存完整 committed 状态，并通过模型签名、字节序、
+  长度和校验和执行严格重启动；
+- Exodus 场结果包含节点温度/位移/接触量、四积分点应力与非弹性历史，以及
+  守恒界面总量。
 
 M2 材料参数仅用于算法和软件验证，不代表真实燃料或包壳经验模型。
 具体状态契约、算法和边界见 [M2 设计说明](docs/m2.md)。
@@ -111,6 +115,25 @@ I/O 层，生产问题会保留每个选中块的原始节点坐标和 Quad4 连
 不适用于所选本构模型的参数都会立即报错。网格尺寸和几何只从 Exodus 文件
 读取，不在输入卡中重复维护。完整字段说明见
 [输入卡说明](docs/input-card.md)。
+
+瞬态工程输出示例：
+
+```text
+[Executioner]
+  type = transient
+  # 其余时间推进字段省略
+  restart = previous.checkpoint
+[]
+
+[Outputs]
+  exodus = fields.e
+  checkpoint = latest.checkpoint
+  checkpoint_interval = 5
+[]
+```
+
+检查点只包含最后一个成功提交态，不包含 Newton trial 或失败时间步。严格
+状态与文件契约见 [M3 工程化说明](docs/m3.md)。
 
 运行 M2.3 PCMI—MOOSE 验收：
 
