@@ -277,6 +277,12 @@
 []
 
 [VectorPostprocessors]
+  [all_nodes]
+    type = NodalValueSampler
+    variable = 'T disp_x disp_y'
+    sort_by = id
+    use_displaced_mesh = false
+  []
   [fuel_surface]
     type = NodalValueSampler
     boundary = fuel_right

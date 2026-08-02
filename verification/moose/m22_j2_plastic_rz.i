@@ -13,6 +13,9 @@
 []
 
 [AuxVariables]
+  [T]
+    initial_condition = 600
+  []
   [effective_plastic_strain]
     order = CONSTANT
     family = MONOMIAL
@@ -139,6 +142,15 @@
   compute_scaling_once = false
   petsc_options_iname = '-pc_type'
   petsc_options_value = 'lu'
+[]
+
+[VectorPostprocessors]
+  [all_nodes]
+    type = NodalValueSampler
+    variable = 'T disp_x disp_y'
+    sort_by = id
+    use_displaced_mesh = false
+  []
 []
 
 [Outputs]

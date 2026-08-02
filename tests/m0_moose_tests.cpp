@@ -1,10 +1,8 @@
 #include "fuelsim/case_input.hpp"
 #include "fuelsim/exodus_mesh_io.hpp"
 #include "fuelsim/problem_solver.hpp"
+#include "support/moose_field_comparison.hpp"
 
-#include <algorithm>
-#include <cmath>
-#include <cstddef>
 #include <exception>
 #include <iomanip>
 #include <iostream>
@@ -14,33 +12,6 @@
 
 namespace {
 
-struct ErrorMetrics final {
-    double difference_squared = 0.0;
-    double reference_squared = 0.0;
-    double maximum_actual = 0.0;
-    double maximum_reference = 0.0;
-    double maximum_pointwise_relative = 0.0;
-
-    void add(double actual, double reference) {
-        const double difference = actual - reference;
-        difference_squared += difference * difference;
-        reference_squared += reference * reference;
-        maximum_actual = std::max(maximum_actual, std::abs(actual));
-        maximum_reference = std::max(maximum_reference, std::abs(reference));
-        maximum_pointwise_relative =
-            std::max(maximum_pointwise_relative,
-                     std::abs(difference) / std::abs(reference));
-    }
-
-    double relative_l2() const {
-        return std::sqrt(difference_squared / reference_squared);
-    }
-
-    double relative_absolute_peak() const {
-        return std::abs(maximum_actual - maximum_reference) / maximum_reference;
-    }
-};
-
 bool check(bool condition, const std::string& message) {
     if (condition)
         return true;
@@ -48,36 +19,8 @@ bool check(bool condition, const std::string& message) {
     return false;
 }
 
-bool check_metrics(const std::string& name, const ErrorMetrics& metrics,
-                   double tolerance) {
-    std::cout << name << "_relative_l2=" << metrics.relative_l2() << '\n';
-    std::cout << name
-              << "_relative_absolute_peak=" << metrics.relative_absolute_peak()
-              << '\n';
-    std::cout << name << "_maximum_pointwise_relative="
-              << metrics.maximum_pointwise_relative << '\n';
-    return check(metrics.relative_l2() < tolerance &&
-                     metrics.relative_absolute_peak() < tolerance &&
-                     metrics.maximum_pointwise_relative < tolerance,
-                 name + " three MOOSE error metrics pass");
-}
-
-bool same_coordinate(double lhs, double rhs) {
-    const double scale = std::max({1.0, std::abs(lhs), std::abs(rhs)});
-    return std::abs(lhs - rhs) <= 1.0e-12 * scale;
-}
-
-std::size_t find_node(const fuelsim::RegionMesh& mesh, double radius,
-                      double axial_coordinate) {
-    for (std::size_t node = 0; node < mesh.nodes().size(); ++node) {
-        if (same_coordinate(mesh.nodes()[node].r, radius) &&
-            same_coordinate(mesh.nodes()[node].z, axial_coordinate))
-            return node;
-    }
-    throw std::invalid_argument("M0 comparison point is not in the mesh");
-}
-
-bool run_comparison(const std::string& input_path) {
+bool run_comparison(const std::string& input_path,
+                    const std::string& nodal_reference_path) {
     const fuelsim::FuelSimCaseDefinition definition =
         fuelsim::CaseInputReader::read(input_path);
     if (definition.problem != fuelsim::CaseProblem::steady)
@@ -99,47 +42,49 @@ bool run_comparison(const std::string& input_path) {
                    "M0 input card selects the complete MOOSE block") &&
              passed;
 
-    const fuelsim::RegionMesh& mesh = problem.region_mesh(0);
-    const fuelsim::DofMap& dofs = problem.dof_map();
-    const std::vector<double>& state = result.solve.state;
-    const std::size_t axis_mid = find_node(mesh, 0.0, 0.005);
-    const std::size_t outer_mid = find_node(mesh, 0.00412, 0.005);
-    const std::size_t outer_top = find_node(mesh, 0.00412, 0.010);
-    const std::size_t axis_top = find_node(mesh, 0.0, 0.010);
-
-    ErrorMetrics temperature;
-    ErrorMetrics radial_displacement;
-    ErrorMetrics axial_displacement;
-    temperature.add(state[dofs.temperature(axis_mid)], 733.4201407826);
-    radial_displacement.add(state[dofs.radial_displacement(outer_mid)],
-                            2.5827190582385e-6);
-    radial_displacement.add(state[dofs.radial_displacement(outer_top)],
-                            3.5772306219751e-6);
-    axial_displacement.add(state[dofs.axial_displacement(axis_top)],
-                           8.7881251481059e-6);
+    const std::vector<fuelsim::test::NodalFieldReference> reference =
+        fuelsim::test::read_moose_nodal_reference(nodal_reference_path);
+    const fuelsim::test::NodalFieldComparison fields =
+        fuelsim::test::compare_moose_nodal_fields(problem, result.solve.state,
+                                                  reference);
     constexpr double tolerance = 1.0e-10;
-    passed = check_metrics("m0_temperature", temperature, tolerance) && passed;
-    passed = check_metrics("m0_radial_displacement", radial_displacement,
-                           tolerance) &&
+    passed = check(fields.node_count == source.nodes().size() &&
+                       fields.maximum_coordinate_difference < 1.0e-12,
+                   "M0 compares every MOOSE node at matching coordinates") &&
              passed;
-    passed =
-        check_metrics("m0_axial_displacement", axial_displacement, tolerance) &&
-        passed;
+    passed = check(fuelsim::test::relative_metrics_below(fields.temperature,
+                                                         tolerance),
+                   "M0 full-field temperature three errors pass") &&
+             passed;
+    passed = check(fuelsim::test::relative_metrics_below(
+                       fields.radial_displacement, tolerance),
+                   "M0 full-field radial displacement three errors pass") &&
+             passed;
+    passed = check(fuelsim::test::relative_metrics_below(
+                       fields.axial_displacement, tolerance),
+                   "M0 full-field axial displacement three errors pass") &&
+             passed;
+    fuelsim::test::print_relative_metrics("m0_temperature", fields.temperature);
+    fuelsim::test::print_relative_metrics("m0_radial_displacement",
+                                          fields.radial_displacement);
+    fuelsim::test::print_relative_metrics("m0_axial_displacement",
+                                          fields.axial_displacement);
     return passed;
 }
 
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 2) {
-        std::cerr << "Usage: fuelsim_m0_moose_tests <m0.fsi>\n";
+    if (argc != 3) {
+        std::cerr << "Usage: fuelsim_m0_moose_tests <m0.fsi> "
+                     "<all-nodes.csv>\n";
         return 2;
     }
     try {
         std::cout << std::scientific << std::setprecision(12);
         fuelsim::PetscSession session(
             argc, argv, "fuelsim input-card M0 MOOSE comparison\n");
-        if (!run_comparison(argv[1]))
+        if (!run_comparison(argv[1], argv[2]))
             return 1;
         std::cout << "[PASS] input-card M0 MOOSE comparison\n";
         return 0;

@@ -1,14 +1,13 @@
 #include "fuelsim/case_input.hpp"
 #include "fuelsim/exodus_mesh_io.hpp"
 #include "fuelsim/problem_solver.hpp"
+#include "support/moose_field_comparison.hpp"
 
-#include <algorithm>
-#include <cmath>
-#include <cstddef>
 #include <exception>
 #include <iomanip>
 #include <iostream>
 #include <string>
+#include <vector>
 
 namespace {
 
@@ -19,8 +18,8 @@ bool check(bool condition, const std::string& message) {
     return false;
 }
 
-bool test_moose_mesh_backward_euler_heat_source(const std::string& input_path) {
-    constexpr double expected_temperature = 610.0;
+bool test_moose_mesh_backward_euler_heat_source(
+    const std::string& input_path, const std::string& nodal_reference_path) {
     const fuelsim::FuelSimCaseDefinition definition =
         fuelsim::CaseInputReader::read(input_path);
     if (definition.problem != fuelsim::CaseProblem::transient)
@@ -53,28 +52,26 @@ bool test_moose_mesh_backward_euler_heat_source(const std::string& input_path) {
                    "M2.1 input-card transient completes ten steps") &&
              passed;
 
-    double difference_squared = 0.0;
-    double reference_squared = 0.0;
-    double maximum_actual = 0.0;
-    double maximum_pointwise_relative = 0.0;
-    for (std::size_t node = 0; node < problem.dof_map().node_count(); ++node) {
-        const double actual =
-            result.committed_state.at(problem.dof_map().temperature(node));
-        const double difference = actual - expected_temperature;
-        difference_squared += difference * difference;
-        reference_squared += expected_temperature * expected_temperature;
-        maximum_actual = std::max(maximum_actual, std::abs(actual));
-        maximum_pointwise_relative =
-            std::max(maximum_pointwise_relative,
-                     std::abs(difference) / expected_temperature);
-    }
-    const double relative_l2 =
-        std::sqrt(difference_squared / reference_squared);
-    const double relative_absolute_peak =
-        std::abs(maximum_actual - expected_temperature) / expected_temperature;
-    passed = check(relative_l2 < 1.0e-3 && relative_absolute_peak < 1.0e-3 &&
-                       maximum_pointwise_relative < 1.0e-3,
-                   "M2.1 three MOOSE temperature metrics are below 0.1%") &&
+    const std::vector<fuelsim::test::NodalFieldReference> reference =
+        fuelsim::test::read_moose_nodal_reference(nodal_reference_path);
+    const fuelsim::test::NodalFieldComparison fields =
+        fuelsim::test::compare_moose_nodal_fields(
+            problem, result.committed_state, reference);
+    passed = check(fields.node_count == imported.nodes().size() &&
+                       fields.maximum_coordinate_difference < 1.0e-12,
+                   "M2.1 compares every MOOSE node at matching coordinates") &&
+             passed;
+    passed =
+        check(fuelsim::test::relative_metrics_below(fields.temperature, 1.0e-3),
+              "M2.1 full-field temperature three errors pass") &&
+        passed;
+    passed = check(fuelsim::test::absolute_metrics_below(
+                       fields.radial_displacement, 1.0e-12),
+                   "M2.1 zero radial field three absolute errors pass") &&
+             passed;
+    passed = check(fuelsim::test::absolute_metrics_below(
+                       fields.axial_displacement, 1.0e-12),
+                   "M2.1 zero axial field three absolute errors pass") &&
              passed;
     passed = check(result.aggregate_timing.workspace_setups == 1,
                    "ten backward-Euler steps create one PETSc workspace") &&
@@ -83,26 +80,28 @@ bool test_moose_mesh_backward_euler_heat_source(const std::string& input_path) {
                    "one PETSc solve is issued per backward-Euler step") &&
              passed;
 
-    std::cout << "m21_temperature_relative_l2=" << relative_l2 << '\n';
-    std::cout << "m21_temperature_relative_absolute_peak="
-              << relative_absolute_peak << '\n';
-    std::cout << "m21_temperature_maximum_pointwise_relative="
-              << maximum_pointwise_relative << '\n';
+    fuelsim::test::print_relative_metrics("m21_temperature",
+                                          fields.temperature);
+    fuelsim::test::print_absolute_metrics("m21_radial_displacement",
+                                          fields.radial_displacement);
+    fuelsim::test::print_absolute_metrics("m21_axial_displacement",
+                                          fields.axial_displacement);
     return passed;
 }
 
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 2) {
-        std::cerr << "Usage: fuelsim_m2_solver_tests <m21.fsi>\n";
+    if (argc != 3) {
+        std::cerr << "Usage: fuelsim_m2_solver_tests <m21.fsi> "
+                     "<all-nodes.csv>\n";
         return 2;
     }
     try {
         std::cout << std::scientific << std::setprecision(12);
         fuelsim::PetscSession session(
             argc, argv, "fuelsim input-card M2.1 MOOSE comparison test\n");
-        if (!test_moose_mesh_backward_euler_heat_source(argv[1]))
+        if (!test_moose_mesh_backward_euler_heat_source(argv[1], argv[2]))
             return 1;
         std::cout << "[PASS] input-card M2.1 MOOSE comparison test\n";
         return 0;

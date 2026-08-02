@@ -1,6 +1,7 @@
 #include "fuelsim/case_input.hpp"
 #include "fuelsim/exodus_mesh_io.hpp"
 #include "fuelsim/problem_solver.hpp"
+#include "support/moose_field_comparison.hpp"
 
 #include <algorithm>
 #include <array>
@@ -248,7 +249,9 @@ time_options(const fuelsim::FuelSimCaseDefinition& definition) {
             definition.transient_execution.load_ramp_time};
 }
 
-bool test_pcmi_coupled_cladding(const std::string& input_path) {
+bool test_pcmi_coupled_cladding(const std::string& input_path,
+                                const std::string& nodal_reference_path,
+                                const std::string& pressure_reference_path) {
     const fuelsim::FuelSimCaseDefinition definition =
         fuelsim::CaseInputReader::read(input_path);
     if (definition.problem != fuelsim::CaseProblem::transient)
@@ -315,10 +318,6 @@ bool test_pcmi_coupled_cladding(const std::string& input_path) {
     constexpr double expected_average_creep = 1.2769576281297e-4;
     constexpr double expected_average_equivalent_stress = 5483125.7680798;
     constexpr double expected_total_contact_force = 191.06119157558877;
-    constexpr std::array<double, 5> expected_contact_pressure = {
-        730945.89357970, 735854.19529622, 777525.10021447,
-        640537.88144925, 858282.65485111,
-    };
     // MOOSE QP ordering is [--, +-, -+, ++]. References below are reordered
     // to fuelsim's [--, +-, ++, -+] convention within each element.
     constexpr std::array<CladdingPointValue, 32> expected_cladding_points = {{
@@ -410,28 +409,18 @@ bool test_pcmi_coupled_cladding(const std::string& input_path) {
         cladding.average_equivalent_stress, expected_average_equivalent_stress);
     const double total_contact_force_error = relative_error(
         interface.total_contact_force, expected_total_contact_force);
-    ErrorMetrics temperature_metrics;
-    temperature_metrics.add(temperature_center, expected_temperature_center);
-    temperature_metrics.add(temperature_fuel_surface,
-                            expected_temperature_fuel_surface);
-    temperature_metrics.add(temperature_cladding_inner,
-                            expected_temperature_cladding_inner);
-    ErrorMetrics radial_displacement_metrics;
-    radial_displacement_metrics.add(radial_fuel_surface,
-                                    expected_radial_fuel_surface);
-    radial_displacement_metrics.add(radial_cladding_inner,
-                                    expected_radial_cladding_inner);
-    radial_displacement_metrics.add(radial_cladding_outer,
-                                    expected_radial_cladding_outer);
-    ErrorMetrics axial_displacement_metrics;
-    axial_displacement_metrics.add(axial_fuel_top, expected_axial_fuel_top);
-    ErrorMetrics pressure_metrics;
-    if (contact_nodes.size() == expected_contact_pressure.size()) {
-        for (std::size_t node = 0; node < expected_contact_pressure.size();
-             ++node)
-            pressure_metrics.add(contact_nodes[node].pressure,
-                                 expected_contact_pressure[node]);
-    }
+    const std::vector<fuelsim::test::NodalFieldReference> nodal_reference =
+        fuelsim::test::read_moose_nodal_reference(nodal_reference_path);
+    const fuelsim::test::NodalFieldComparison full_fields =
+        fuelsim::test::compare_moose_nodal_fields(
+            problem, result.committed_state, nodal_reference);
+    std::vector<double> pressure_coordinates;
+    const std::vector<double> pressure_reference =
+        fuelsim::test::read_moose_contact_pressure_reference(
+            pressure_reference_path, pressure_coordinates);
+    const fuelsim::test::FieldErrorMetrics pressure_metrics =
+        fuelsim::test::compare_moose_contact_pressure(
+            contact_nodes, pressure_reference, pressure_coordinates, 1.0e-12);
     PointwiseError point_stress_error;
     PointwiseError point_plastic_error;
     PointwiseError point_creep_error;
@@ -511,14 +500,32 @@ bool test_pcmi_coupled_cladding(const std::string& input_path) {
                   cladding.maximum_creep > 0.0,
               "PCMI cladding accumulates plastic and creep history") &&
         passed;
-    passed = check_metrics("pcmi_temperature", temperature_metrics, 1.0e-3) &&
+    passed = check(full_fields.node_count == imported.nodes().size() &&
+                       full_fields.maximum_coordinate_difference < 1.0e-12,
+                   "PCMI compares every MOOSE node at matching coordinates") &&
              passed;
-    passed = check_metrics("pcmi_radial_displacement",
-                           radial_displacement_metrics, 1.0e-3) &&
+    passed = check(fuelsim::test::relative_metrics_below(
+                       full_fields.temperature, 1.0e-3),
+                   "PCMI full-field temperature three errors pass") &&
              passed;
-    passed = check_metrics("pcmi_axial_displacement",
-                           axial_displacement_metrics, 1.0e-3) &&
+    passed =
+        check(full_fields.radial_displacement.relative_l2() < 1.0e-3 &&
+                  full_fields.radial_displacement.relative_absolute_peak() <
+                      5.0e-3 &&
+                  full_fields.radial_displacement
+                          .maximum_pointwise_relative_error() < 5.0e-3,
+              "PCMI full-field radial displacement three errors pass") &&
+        passed;
+    passed = check(fuelsim::test::relative_metrics_below(
+                       full_fields.axial_displacement, 1.0e-3),
+                   "PCMI full-field axial displacement three errors pass") &&
              passed;
+    fuelsim::test::print_relative_metrics("pcmi_temperature",
+                                          full_fields.temperature);
+    fuelsim::test::print_relative_metrics("pcmi_radial_displacement",
+                                          full_fields.radial_displacement);
+    fuelsim::test::print_relative_metrics("pcmi_axial_displacement",
+                                          full_fields.axial_displacement);
     passed = check_scalar_metrics("pcmi_average_plastic_strain",
                                   cladding.average_plastic,
                                   expected_average_plastic, 1.0e-3) &&
@@ -554,11 +561,11 @@ bool test_pcmi_coupled_cladding(const std::string& input_path) {
                    "PCMI pointwise creep-strain three errors pass") &&
              passed;
     passed =
-        check(contact_nodes.size() == expected_contact_pressure.size(),
-              "PCMI and MOOSE pressure vectors have the same node count") &&
+        check(fuelsim::test::relative_metrics_below(pressure_metrics, 1.0e-2),
+              "PCMI full-field contact pressure three errors pass") &&
         passed;
-    passed = check_metrics("pcmi_contact_pressure", pressure_metrics, 1.0e-2) &&
-             passed;
+    fuelsim::test::print_relative_metrics("pcmi_contact_pressure",
+                                          pressure_metrics);
     passed = check_scalar_metrics("pcmi_total_contact_force",
                                   interface.total_contact_force,
                                   expected_total_contact_force, 1.0e-2) &&
@@ -677,8 +684,9 @@ bool test_pcmi_coupled_cladding(const std::string& input_path) {
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 2) {
-        std::cerr << "Usage: fuelsim_m2_pcmi_solver_tests <pcmi.fsi>\n";
+    if (argc != 4) {
+        std::cerr << "Usage: fuelsim_m2_pcmi_solver_tests <pcmi.fsi> "
+                     "<all-nodes.csv> <contact-pressure.csv>\n";
         return 2;
     }
 
@@ -688,7 +696,7 @@ int main(int argc, char** argv) {
         fuelsim::PetscSession session(
             argc, argv,
             "fuelsim M2 PCMI coupled cladding MOOSE comparison tests\n");
-        if (!test_pcmi_coupled_cladding(input_path))
+        if (!test_pcmi_coupled_cladding(input_path, argv[2], argv[3]))
             return 1;
         std::cout << "[PASS] fuelsim M2 PCMI coupled cladding tests\n";
         return 0;

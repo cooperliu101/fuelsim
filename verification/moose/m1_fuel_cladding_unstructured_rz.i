@@ -14,12 +14,3 @@
     y_function = 'if(x < 0.004121, y + 5.0e-5*sin(pi*x/0.00412)*sin(pi*y/0.010), y + 5.0e-5*sin(pi*(x-0.004122)/0.00057)*sin(pi*y/0.010020))'
   []
 []
-
-[VectorPostprocessors]
-  [all_nodes]
-    type = NodalValueSampler
-    variable = 'T disp_x disp_y'
-    sort_by = id
-    use_displaced_mesh = false
-  []
-[]

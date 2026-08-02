@@ -1,6 +1,7 @@
 #include "fuelsim/case_input.hpp"
 #include "fuelsim/exodus_mesh_io.hpp"
 #include "fuelsim/problem_solver.hpp"
+#include "support/moose_field_comparison.hpp"
 
 #include <algorithm>
 #include <array>
@@ -168,7 +169,8 @@ bool temperatures_are_600(const TransientCaseRun& run) {
 }
 
 bool common_run_checks(const std::string& name, const TransientCaseRun& run,
-                       std::size_t expected_steps) {
+                       std::size_t expected_steps,
+                       const std::string& nodal_reference_path) {
     bool passed =
         check(run.result().completed, name + " input-card load path converged");
     passed = check(run.result().accepted_steps.size() == expected_steps,
@@ -180,10 +182,40 @@ bool common_run_checks(const std::string& name, const TransientCaseRun& run,
     passed = check(temperatures_are_600(run),
                    name + " committed temperature remains 600 K") &&
              passed;
+    const std::vector<fuelsim::test::NodalFieldReference> reference =
+        fuelsim::test::read_moose_nodal_reference(nodal_reference_path);
+    const fuelsim::test::NodalFieldComparison fields =
+        fuelsim::test::compare_moose_nodal_fields(
+            run.problem(), run.result().committed_state, reference);
+    passed =
+        check(fields.node_count == run.source().nodes().size() &&
+                  fields.maximum_coordinate_difference < 1.0e-12,
+              name + " compares every MOOSE node at matching coordinates") &&
+        passed;
+    passed = check(fuelsim::test::relative_metrics_below(
+                       fields.temperature, moose_relative_tolerance),
+                   name + " full-field temperature three errors pass") &&
+             passed;
+    passed =
+        check(fuelsim::test::relative_metrics_below(fields.radial_displacement,
+                                                    moose_relative_tolerance),
+              name + " full-field radial displacement three errors pass") &&
+        passed;
+    passed = check(fuelsim::test::relative_metrics_below(
+                       fields.axial_displacement, moose_relative_tolerance),
+                   name + " full-field axial displacement three errors pass") &&
+             passed;
+    fuelsim::test::print_relative_metrics("m22_" + name + "_temperature",
+                                          fields.temperature);
+    fuelsim::test::print_relative_metrics(
+        "m22_" + name + "_radial_displacement", fields.radial_displacement);
+    fuelsim::test::print_relative_metrics("m22_" + name + "_axial_displacement",
+                                          fields.axial_displacement);
     return passed;
 }
 
-bool test_j2_moose_comparison(const std::string& input_path) {
+bool test_j2_moose_comparison(const std::string& input_path,
+                              const std::string& nodal_reference_path) {
     constexpr double moose_axial_stress = 201980198.0198;
     constexpr double moose_equivalent_plastic = 0.000990099009901;
     constexpr double moose_top_displacement = 2.0e-6;
@@ -192,7 +224,7 @@ bool test_j2_moose_comparison(const std::string& input_path) {
     const double equivalent_plastic = average_equivalent_plastic(run);
     const double top_displacement = average_top_displacement(run);
 
-    bool passed = common_run_checks("J2", run, 10);
+    bool passed = common_run_checks("j2", run, 10, nodal_reference_path);
     passed =
         check_scalar_metrics("m22_j2_axial_stress", axial_stress,
                              moose_axial_stress, moose_relative_tolerance) &&
@@ -211,7 +243,8 @@ bool test_j2_moose_comparison(const std::string& input_path) {
     return passed;
 }
 
-bool test_norton_moose_comparison(const std::string& input_path) {
+bool test_norton_moose_comparison(const std::string& input_path,
+                                  const std::string& nodal_reference_path) {
     constexpr double moose_axial_stress = 99998007.620195;
     constexpr double moose_equivalent_creep = 9.9991036503199e-5;
     constexpr double moose_top_displacement = 5.9997808603447e-7;
@@ -220,7 +253,7 @@ bool test_norton_moose_comparison(const std::string& input_path) {
     const double equivalent_creep = average_equivalent_creep(run);
     const double top_displacement = average_top_displacement(run);
 
-    bool passed = common_run_checks("Norton", run, 10);
+    bool passed = common_run_checks("norton", run, 10, nodal_reference_path);
     passed =
         check_scalar_metrics("m22_norton_axial_stress", axial_stress,
                              moose_axial_stress, moose_relative_tolerance) &&
@@ -240,7 +273,9 @@ bool test_norton_moose_comparison(const std::string& input_path) {
 }
 
 bool test_coupled_moose_comparison(const std::string& displacement_input,
-                                   const std::string& traction_input) {
+                                   const std::string& traction_input,
+                                   const std::string& displacement_reference,
+                                   const std::string& traction_reference) {
     constexpr double moose_axial_stress = 200999992.08159;
     constexpr double moose_equivalent_plastic = 4.9999406119027e-4;
     constexpr double moose_equivalent_creep = 2.4564701918764e-4;
@@ -254,7 +289,8 @@ bool test_coupled_moose_comparison(const std::string& displacement_input,
     const double equivalent_creep = average_equivalent_creep(traction);
     const double top_displacement = average_top_displacement(traction);
 
-    bool passed = common_run_checks("coupled traction", traction, 10);
+    bool passed =
+        common_run_checks("coupled_traction", traction, 10, traction_reference);
     passed =
         check_scalar_metrics("m22_coupled_traction_axial_stress", axial_stress,
                              moose_axial_stress, moose_relative_tolerance) &&
@@ -289,8 +325,9 @@ bool test_coupled_moose_comparison(const std::string& displacement_input,
     constexpr double displacement_moose_creep = 5.1349887359505e-4;
     constexpr double displacement_moose_displacement = 2.0e-6;
     const TransientCaseRun displacement(displacement_input);
-    passed =
-        common_run_checks("coupled displacement", displacement, 10) && passed;
+    passed = common_run_checks("coupled_displacement", displacement, 10,
+                               displacement_reference) &&
+             passed;
     passed = check_scalar_metrics("m22_coupled_displacement_axial_stress",
                                   average_axial_stress(displacement),
                                   displacement_moose_stress,
@@ -317,19 +354,23 @@ bool test_coupled_moose_comparison(const std::string& displacement_input,
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 5) {
+    if (argc != 9) {
         std::cerr << "Usage: fuelsim_m2_inelastic_solver_tests "
                      "<j2.fsi> <norton.fsi> <coupled_displacement.fsi> "
-                     "<coupled_traction.fsi>\n";
+                     "<coupled_traction.fsi> <j2-nodes.csv> "
+                     "<norton-nodes.csv> <coupled-displacement-nodes.csv> "
+                     "<coupled-traction-nodes.csv>\n";
         return 2;
     }
     try {
         std::cout << std::scientific << std::setprecision(12);
         fuelsim::PetscSession session(
             argc, argv, "fuelsim input-card M2.2 MOOSE comparison tests\n");
-        bool passed = test_j2_moose_comparison(argv[1]);
-        passed = test_norton_moose_comparison(argv[2]) && passed;
-        passed = test_coupled_moose_comparison(argv[3], argv[4]) && passed;
+        bool passed = test_j2_moose_comparison(argv[1], argv[5]);
+        passed = test_norton_moose_comparison(argv[2], argv[6]) && passed;
+        passed =
+            test_coupled_moose_comparison(argv[3], argv[4], argv[7], argv[8]) &&
+            passed;
         if (!passed)
             return 1;
         std::cout << "[PASS] input-card M2.2 MOOSE comparison tests\n";

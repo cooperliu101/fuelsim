@@ -37,8 +37,8 @@ M1 and M2.3 select the named `fuel` and `clad` blocks.
 `m0_simple_fuel_rz.i` is the independent reference for the M0 steady
 thermoelastic fuel cylinder. Both heat conduction and mechanics use the
 reference mesh so that the weak form matches fuelsim exactly.
-`tests/solver_tests.cpp` obtains that mesh from
-`m0_simple_fuel_rz_mesh.e`.
+`fuelsim_m0_moose_tests` obtains that mesh from
+`m0_simple_fuel_rz_mesh.e` and compares all 451 nodes.
 
 The checked run used:
 
@@ -60,8 +60,16 @@ conda activate moose
 /home/cooper/projects/july/july-opt -i m0_simple_fuel_rz.i
 ```
 
-The final row of `m0_simple_fuel_rz_out.csv` is the acceptance snapshot used by
-`tests/solver_tests.cpp`.
+`m0_simple_fuel_rz_all_nodes_final.csv` is the final nodal acceptance snapshot.
+Its SHA256 is:
+
+```text
+10bdff4333603d07a261452a3e31f8757c03d54ec308e7167253e44c7da383a7
+```
+
+Temperature, radial displacement, and axial displacement are compared over
+the complete field with relative L2, relative absolute-peak, and maximum
+pointwise-relative errors. All nine errors are below `4e-12`.
 
 ## M1 fuel, cladding, gap heat, and contact
 
@@ -114,12 +122,19 @@ conda activate moose
   Outputs/console=false
 ```
 
-The checked output was byte-for-byte identical to
-`m1_fuel_cladding_gap_rz_out.csv`. The final fuel-surface vector postprocessor
-output is preserved as `m1_fuel_surface_final.csv`. The scalar final row
-supplies three temperatures and three displacements, while the surface file
-supplies all 11 node coordinates, displacements, contact pressures, nodal
-areas, and penetrations used by `tests/solver_tests.cpp`.
+The checked scalar output was byte-for-byte identical to
+`m1_fuel_cladding_gap_rz_out.csv`. The complete final nodal field is preserved
+as `m1_fuel_cladding_gap_rz_all_nodes_final.csv`, and the final fuel-surface
+vector output is preserved as `m1_fuel_surface_final.csv`. The former supplies
+all 528 node coordinates, temperatures, and displacements; the latter supplies
+all 11 contact pressures, nodal areas, and penetrations.
+
+Their SHA256 values are respectively:
+
+```text
+1e2bf922e7e2fd72d9f187c8f20de25cfb32497bff30cdc1602262ea6d66c248
+ad2d94d3ff6de643a9016890befd7a955f63b14e9fe15da5c4f200b67728d9ba
+```
 
 The MOOSE-generated comparison mesh is tracked as
 `m1_fuel_cladding_gap_rz_mesh.e`. Recreate the mesh-only file with:
@@ -142,19 +157,24 @@ through the direct Exodus API. `fuelsim_m1_exodus_moose_tests` reconstructs
 the two current structured RZ blocks from those entities and runs the M1
 solver on the imported mesh; it does not regenerate the mesh in fuelsim.
 
-The final fuelsim-to-MOOSE differences are:
+The final full-field fuelsim-to-MOOSE differences are:
 
 ```text
-maximum six-point temperature/displacement error: 0.02530%
-contact pressure relative L2 error:       0.2207%
-maximum nodal pressure relative error:    0.3328%
-total contact force relative error:       0.0443%
-projected / active fuel surface nodes:    11 / 11
+                                      relative L2   relative absolute peak   pointwise max
+temperature:                           0.00989%      0.00055%                0.08710%
+radial displacement:                   0.06382%      0.12765%                0.38834%
+axial displacement:                    0.01774%      0.02530%                0.75155%
+contact pressure:                      0.22071%      0.33282%                0.33282%
+acceptance threshold for all twelve:   < 1%          < 1%                    < 1%
+
+total contact force three single-value errors: 0.0443%
+projected / active fuel surface nodes:         11 / 11
 ```
 
-All six temperature/displacement differences are also below 1%. Contact
-pressure is therefore an acceptance metric rather than a diagnostic-only
-quantity.
+Exact-zero reference nodes are excluded only from pointwise relative division;
+their count and maximum absolute difference are reported separately. No
+denominator floor is used. Contact pressure is an acceptance metric rather
+than a diagnostic-only quantity.
 
 ### M1 non-tensor Quad4 full-field comparison
 
@@ -265,21 +285,52 @@ conda activate moose
 ```
 
 `m21_transient_heat_rz_out.csv` preserves the complete 11-row temperature
-history. At the final time:
+history. `m21_transient_heat_rz_all_nodes_final.csv` preserves temperature and
+zero displacement values for all 15 nodes; its SHA256 is:
+
+```text
+1592732aca7dce8b6bfc1fef7f1c5b6267176f14475bd747cc178a8dde3a34fa
+```
+
+At the final time:
 
 ```text
 MOOSE average temperature:        610 K
 analytic average temperature:     610 K
-relative error:                   0%
-MOOSE nodal L2 error:             0
-acceptance threshold:             < 0.1%
+temperature three relative errors: 0%
+radial displacement three absolute errors: 0 m
+axial displacement three absolute errors:  0 m
+relative / absolute thresholds:   < 0.1% / < 1e-12 m
 ```
 
 This case verifies the heat-capacity term and time integration. A nonuniform
 manufactured solution is still required before claiming spatial transient
 conduction verification.
 
+The two displacement reference fields are exactly zero, so relative metrics
+are mathematically undefined. The test uses absolute L2, absolute peak, and
+maximum absolute pointwise error without introducing a denominator floor.
+
 ## M2.2 Norton creep
+
+All four M2.2 MOOSE inputs sample `T`, `disp_x`, and `disp_y` at every node.
+The tracked final snapshots and SHA256 values are:
+
+```text
+m22_j2_plastic_rz_all_nodes_final.csv
+a660b420adc9d1f87587ad6437697b41e68f9d801ca7a0625c5afa26e338bf19
+m22_norton_creep_rz_all_nodes_final.csv
+facc18809bab3d7c6d2e19450306ac215090c565bc3b6e14d901b73866525611
+m22_coupled_plastic_creep_rz_all_nodes_final.csv
+6cc3af7a6a9b1a5658c42247930e2c2ede4129452c16abd6826c4c47be39cf33
+m22_coupled_plastic_creep_traction_rz_all_nodes_final.csv
+3c993e1b3aa3d3f49ce5a9c309199c6dd763d6a42e0587dad7cad2c6ec8170ee
+```
+
+Each comparison covers all four nodes. Temperature, radial displacement, and
+axial displacement each use relative L2, relative absolute-peak, and maximum
+pointwise-relative errors with a `<0.1%` threshold. The previously documented
+stress and inelastic-history checks remain additional acceptance metrics.
 
 `m22_norton_creep_rz.i` is a one-Quad4 homogeneous RZ material-point proxy.
 It applies a constant 100 MPa axial tensile traction to an isotropic cylinder
@@ -510,28 +561,43 @@ conda activate moose
 ```
 
 All 20 steps converged. Two independent runs produced byte-for-byte identical
-scalar, final fuel-surface, quadrature-point coordinate, and quadrature-point
-value CSVs. The tracked snapshots are
-`m23_pcmi_coupled_cladding_rz_out.csv` and
+scalar, final all-node, final fuel-surface, quadrature-point coordinate, and
+quadrature-point value CSVs. The tracked snapshots are
+`m23_pcmi_coupled_cladding_rz_out.csv`,
+`m23_pcmi_coupled_cladding_rz_all_nodes_final.csv`, and
 `m23_pcmi_coupled_cladding_rz_fuel_surface_final.csv`, plus
 `m23_pcmi_coupled_cladding_rz_clad_qp_coordinates_final.csv` and
-`m23_pcmi_coupled_cladding_rz_clad_qp_values_final.csv`. Final scalar and
-contact differences are:
+`m23_pcmi_coupled_cladding_rz_clad_qp_values_final.csv`. The all-node and
+fuel-surface SHA256 values are:
 
 ```text
-maximum temperature relative error:       0.00025%
-maximum displacement relative error:      0.0243%
+69e1ea1064372fcaf9138f6b116efe808ee1f616f85f94b09ac7895a4cbc4a49
+1d6564d7c19c41fab6fa5504bc2c66b9d1bd8c6a6a6ba0fe45dff52b39046b0a
+```
+
+The final complete-field differences are:
+
+```text
+                                      relative L2   relative absolute peak   pointwise max
+temperature:                           0.01078%      0.00077%                0.04522%
+radial displacement:                   0.08796%      0.11889%                0.25280%
+axial displacement:                    0.02054%      0.02434%                0.07670%
+contact pressure:                      0.06243%      0.10375%                0.10375%
+
 average von Mises stress error:            0.00431%
 average effective plastic strain error:   0.0489%
 average effective creep strain error:     0.0359%
-contact pressure relative L2 error:        0.0624%
-maximum nodal pressure relative error:     0.1037%
 total contact force relative error:        0.00027%
 projected / active fuel surface nodes:     5 / 5
 ```
 
-Temperature, displacement, stress, and both history metrics pass the `<0.1%`
-gate. The pressure-vector and force metrics pass the `<1%` contact gate.
+Temperature and axial displacement pass `<0.1%` for all three metrics. Radial
+displacement passes relative L2 `<0.1%`; its relative absolute-peak and maximum
+pointwise-relative gates are `<0.5%`. The largest difference is about
+`6.45 nm` at source node 48 on the top cladding inner surface. Tightening the
+nonlinear tolerances and halving `dt` did not change this localized contact
+endpoint difference. The pressure-vector metrics and force pass the `<1%`
+contact gate. Stress and both average history metrics pass `<0.1%`.
 
 The cladding pointwise comparison covers all `8 elements x 4 QPs = 32`
 integration points. `ADMaterialRealAux` with `selected_qp` extracts the three
