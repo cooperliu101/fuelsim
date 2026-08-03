@@ -2,6 +2,7 @@
 #define FUELSIM_PETSC_SOLVER_HPP
 
 #include <cstddef>
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -20,6 +21,7 @@ class PetscSession final {
 
     int rank() const noexcept;
     int size() const noexcept;
+    void collective_root_action(const std::function<void()>& action) const;
 
   private:
     bool _owns_initialization;
@@ -28,6 +30,11 @@ class PetscSession final {
 };
 
 struct SolverOptions final {
+    enum class LineSearch {
+        backtracking,
+        basic,
+    };
+
     enum class LinearSolver {
         automatic,
         direct,
@@ -46,6 +53,7 @@ struct SolverOptions final {
     double relative_tolerance = 1.0e-10;
     double step_tolerance = 1.0e-12;
     int maximum_iterations = 40;
+    LineSearch line_search = LineSearch::backtracking;
     LinearSolver linear_solver = LinearSolver::automatic;
     Preconditioner preconditioner = Preconditioner::automatic;
     double linear_relative_tolerance = 1.0e-8;
@@ -64,6 +72,13 @@ struct SolveTiming final {
     std::size_t solve_calls = 0;
 };
 
+enum class SolveFailureCategory {
+    none,
+    nonlinear_divergence,
+    physical_domain,
+    residual_verification,
+};
+
 struct SolveResult final {
     std::vector<double> state;
     int nonlinear_iterations = 0;
@@ -75,6 +90,8 @@ struct SolveResult final {
     int mpi_size = 1;
     std::size_t local_contribution_begin = 0;
     std::size_t local_contribution_end = 0;
+    SolveFailureCategory failure_category = SolveFailureCategory::none;
+    std::string failure_message;
 };
 
 class PetscSolver final {
@@ -95,6 +112,7 @@ class PetscSolver final {
 };
 
 std::string petsc_convergence_reason_name(int reason);
+const char* solve_failure_category_name(SolveFailureCategory category) noexcept;
 
 } // namespace fuelsim
 

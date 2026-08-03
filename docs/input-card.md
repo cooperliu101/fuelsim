@@ -11,6 +11,15 @@
 宏、表达式、单位换算、旧键别名或兼容层。未知段、未知键、重复项、非法值
 和缺少必填键都会立即报错。
 
+每张卡都必须显式声明格式版本和物理问题：
+
+```text
+[Case]
+  version = 1
+  problem = transient
+[]
+```
+
 ## 问题与单一网格
 
 `[Case]` 的 `problem` 只能是：
@@ -131,6 +140,8 @@ Dirichlet 和接触边界可使用任意属于所选区域的边集。每个接�
 区间切分 secondary-side STS 积分，机械接触采用 secondary 节点到 primary
 线段的唯一 NTS 投影；二维法向同时装配径向和轴向反力。当前是小滑移候选面
 策略：每个从节点预建参考最近主段及相邻段，位移不得跨越更多主段。
+Newton 试探状态一旦离开候选窗口会作为物理域错误交给回溯线搜索；若仍无法
+恢复则拒绝当前载荷步或时间步，不再静默返回零接触力。热接触采用相同策略。
 
 `[Contact]` 段本身是必需的，但可以为空，以支持不含接触的单区域问题。
 
@@ -191,8 +202,15 @@ Quad4 的 12-DOF ADlite 局部贡献装配，因此残量和温度切线保持�
 [Executioner]
   type = steady
   load_steps = 20
+  cutback_factor = 0.5
+  maximum_cutbacks = 12
+  minimum_load_increment = 1e-6
 []
 ```
+
+后三项可省略并使用上示默认值。名义载荷步失败时，执行器缩小从最近成功载荷
+到目标载荷的增量；成功的中间状态成为下一次尝试的初值。最小载荷增量会实际
+尝试一次后才报告失败。
 
 瞬态执行器为：
 
@@ -229,8 +247,9 @@ Quad4 的 12-DOF ADlite 局部贡献装配，因此残量和温度切线保持�
 原行为，此时窗口必须为零。窗口必须小于目标。
 
 每次未收敛尝试都会记录尝试终点、步长、cutback 序号、非线性迭代数、PETSc
-收敛原因和残量范数；最终停止原因区分 `completed`、`maximum_cutbacks` 和
-`minimum_time_step`。拒绝步仍完整回滚 committed 状态。
+收敛原因、残量范数、失败类别和物理域消息；最终停止原因区分 `completed`、
+`maximum_cutbacks` 和 `minimum_time_step`。拒绝步仍完整回滚 committed
+状态；最小时间步会实际求解一次，只有该次也失败才终止。
 
 `restart` 为可选的严格重启动文件。它恢复已提交的节点温度/位移、物理时间、
 载荷因子、全部积分点塑性/蠕变历史和已提交应力。文件的版本、字节序、长度、
@@ -252,31 +271,45 @@ Quad4 的 12-DOF ADlite 局部贡献装配，因此残量和温度切线保持�
 分解。选择 `block_jacobi`、`field_split` 或 `hypre` 会自动选 GMRES；
 `field_split` 按固定 `[T(:)]` 和 `[ur(:), uz(:)]` 建立乘法场分裂。具体 PETSc
 命令行选项仍在上述设置之后生效，可用于选择 HYPRE 子类型和场分裂子 KSP。
+非线性默认使用 PETSc backtracking line search；物理域错误会触发回溯。即使
+PETSc 返回正收敛原因，fuelsim 仍按配置的绝对/相对门槛复核最终残量，步长
+停滞不能单独算作成功。因热—力残量单位不同，独立复核采用“最终总残量至少
+比本次初始残量降低 `1e6` 倍”，并设 `10*sqrt(machine epsilon)` 绝对数值
+噪声底线；配置的绝对/相对门槛更宽时仍以配置为准。
 
 `[Outputs]` 的 `console` 默认为 `true`；可选 `csv` 将同一组命名指标写为
 `metric,value` 文件。`exodus` 写出可后处理的场结果；稳态写一个最终步，
-瞬态写初始/重启动状态和每个成功提交的时间步。节点变量包括温度、径向与
+瞬态按 `exodus_interval` 写初始/重启动状态、成功提交步及最终状态。节点变量包括温度、径向与
 轴向位移，以及各接触对 secondary 节点上的间隙和压力；单元变量保留四个
 积分点的应力、塑性应变、蠕变应变及两种等效应变；全局变量记录载荷因子、
 界面总热流和总接触力。未属于所选求解区域或未投影的值写为 `NaN`。
 
-瞬态还可设置 `checkpoint` 和正整数 `checkpoint_interval`：
+瞬态还可设置输出频率、工程标量时程、进度和检查点：
 
 ```text
 [Outputs]
   console = true
   csv = summary.csv
   exodus = fields.e
+  exodus_interval = 10
+  history = engineering_history.csv
+  history_interval = 1
+  progress_interval = 10
   checkpoint = latest.checkpoint
   checkpoint_interval = 5
 []
 ```
 
-检查点只在成功提交后按间隔原子替换，并在执行结束或失败退出前再次保存最后
-提交态。`checkpoint_interval` 默认是 `1`，不能单独出现；稳态不接受检查点。
-结果文件不得覆盖输入网格，也不得与检查点同名。相对路径都以输入卡目录为
-基准。重启动后的 Exodus 输出会新建一个结果文件，并以恢复时刻作为第一个
-结果步，不尝试修改上一段结果文件。
+`exodus_interval`、`history_interval` 和 `progress_interval` 均按成功步计数，
+默认为 `1`；无论频率如何，结束或失败时仍写出最后 committed 状态。工程时程
+按区域名称记录最高温度及最大塑性/蠕变等效应变，按接触名称记录最小间隙、
+最大压力、总热流和总反力。检查点只在成功提交后按间隔原子替换，并在执行
+结束或失败退出前再次保存最后提交态。
+
+CSV、Exodus、工程时程和检查点彼此不得同名，也不得覆盖输入卡、输入网格或
+重启动检查点。相对路径都以输入卡目录为基准。重启动后的 Exodus 和工程
+时程自动使用首个空闲的 `.partN` 文件，并以恢复时刻作为第一条记录，不修改
+上一段结果。
 
 全局场级 Jacobian 诊断入口为：
 

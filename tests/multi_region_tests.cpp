@@ -1,4 +1,6 @@
 #include "fuelsim/diagnostics.hpp"
+#include "fuelsim/petsc_solver.hpp"
+#include "fuelsim/problem_solver.hpp"
 #include "fuelsim/steady_problem.hpp"
 #include "fuelsim/transient_problem.hpp"
 
@@ -242,7 +244,7 @@ bool test_global_field_diagnostics(const fuelsim::UnstructuredQuad4Mesh& mesh) {
 }
 
 bool test_three_regions(const fuelsim::UnstructuredQuad4Mesh& mesh) {
-    const fuelsim::SteadyProblem problem(three_region_definition(), mesh);
+    fuelsim::SteadyProblem problem(three_region_definition(), mesh);
     const std::vector<double> state = problem.initial_state();
     bool passed =
         check(mesh.side_set_block_id("pellet_outer") == 1 &&
@@ -281,6 +283,37 @@ bool test_three_regions(const fuelsim::UnstructuredQuad4Mesh& mesh) {
                            [](double value) { return std::isfinite(value); }),
                        "multi-contact AD residual is finite") &&
                  passed;
+    }
+    fuelsim::SteadyProblemDefinition solve_definition =
+        three_region_definition();
+    for (fuelsim::RegionDefinition& region_value : solve_definition.regions) {
+        region_value.initial_temperature = 300.0;
+        region_value.volumetric_heat_source = 0.0;
+    }
+    solve_definition.regions.front().volumetric_heat_source = 2.0e2;
+    fuelsim::SteadyProblem solve_problem(std::move(solve_definition), mesh);
+    const fuelsim::SteadyResult solve = fuelsim::solve_steady(
+        solve_problem, {4, 0.5, 12, 1.0e-6}, fuelsim::SolverOptions{});
+    if (!solve.completed)
+        std::cerr << "multi-contact solve failure: "
+                  << fuelsim::solve_failure_category_name(
+                         solve.solve.failure_category)
+                  << ": " << solve.solve.failure_message << '\n';
+    passed =
+        check(solve.completed && solve.solve.converged,
+              "three-region two-contact PETSc solve converges") &&
+        passed;
+    if (solve.completed && solve.solve.converged) {
+        for (std::size_t contact_value = 0;
+             contact_value < solve_problem.contact_count(); ++contact_value) {
+            const fuelsim::InterfaceSummary summary =
+                solve_problem.summarize_interface(contact_value,
+                                                  solve.solve.state);
+            passed = check(summary.projected_contact_nodes > 0 &&
+                               summary.unprojected_contact_nodes == 0,
+                           "every converged contact pair remains projected") &&
+                     passed;
+        }
     }
     return passed;
 }
@@ -369,8 +402,10 @@ bool test_transient_regions(const fuelsim::UnstructuredQuad4Mesh& mesh) {
 
 } // namespace
 
-int main() {
+int main(int argc, char** argv) {
     try {
+        fuelsim::PetscSession session(
+            argc, argv, "fuelsim multi-region contact solve tests\n");
         const fuelsim::UnstructuredQuad4Mesh mesh = three_region_mesh();
         const bool passed =
             test_single_region(mesh) && test_time_controlled_pressure(mesh) &&

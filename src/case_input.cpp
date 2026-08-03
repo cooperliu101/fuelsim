@@ -623,7 +623,9 @@ FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
     const std::string executioner_type =
         read_string(document, executioner, "type");
     if (result.problem == CaseProblem::steady) {
-        validate_keys(document, executioner, {"type", "load_steps"});
+        validate_keys(document, executioner,
+                      {"type", "load_steps", "cutback_factor",
+                       "maximum_cutbacks", "minimum_load_increment"});
         if (executioner_type != "steady")
             value_error(document, executioner.entry("type"),
                         "problem='steady' requires type='steady'");
@@ -632,6 +634,21 @@ FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
         if (result.steady_execution.load_steps == 0)
             value_error(document, executioner.entry("load_steps"),
                         "load_steps must be positive");
+        result.steady_execution.cutback_factor = read_optional_double(
+            document, executioner, "cutback_factor", 0.5);
+        result.steady_execution.maximum_cutbacks = read_optional_size(
+            document, executioner, "maximum_cutbacks", 12);
+        result.steady_execution.minimum_load_increment = read_optional_double(
+            document, executioner, "minimum_load_increment", 1.0e-6);
+        if (!(result.steady_execution.cutback_factor > 0.0 &&
+              result.steady_execution.cutback_factor < 1.0))
+            value_error(document, executioner.entry("cutback_factor"),
+                        "cutback_factor must lie between zero and one");
+        if (!(result.steady_execution.minimum_load_increment > 0.0 &&
+              result.steady_execution.minimum_load_increment <= 1.0))
+            value_error(document,
+                        executioner.entry("minimum_load_increment"),
+                        "minimum_load_increment must lie in (0, 1]");
     } else {
         validate_keys(document, executioner,
                       {"type", "end_time", "initial_time_step",
@@ -714,7 +731,9 @@ FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
     const InputSection& outputs = document.section("Outputs");
     validate_keys(
         document, outputs,
-        {"console", "csv", "exodus", "checkpoint", "checkpoint_interval"});
+        {"console", "csv", "exodus", "exodus_interval", "history",
+         "history_interval", "progress_interval", "checkpoint",
+         "checkpoint_interval"});
     result.outputs.console =
         read_optional_bool(document, outputs, "console", true);
     const std::string csv = read_optional_string(outputs, "csv", {});
@@ -723,25 +742,75 @@ FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
     const std::string exodus = read_optional_string(outputs, "exodus", {});
     result.outputs.exodus_file =
         exodus.empty() ? std::string{} : resolved_path(path, exodus);
+    result.outputs.exodus_interval =
+        read_optional_size(document, outputs, "exodus_interval", 1);
+    const std::string history = read_optional_string(outputs, "history", {});
+    result.outputs.history_file =
+        history.empty() ? std::string{} : resolved_path(path, history);
+    result.outputs.history_interval =
+        read_optional_size(document, outputs, "history_interval", 1);
+    result.outputs.progress_interval =
+        read_optional_size(document, outputs, "progress_interval", 1);
     const std::string checkpoint =
         read_optional_string(outputs, "checkpoint", {});
     result.outputs.checkpoint_file =
         checkpoint.empty() ? std::string{} : resolved_path(path, checkpoint);
     result.outputs.checkpoint_interval =
         read_optional_size(document, outputs, "checkpoint_interval", 1);
-    if (!result.outputs.exodus_file.empty() &&
-        result.outputs.exodus_file == result.mesh_file)
-        throw std::invalid_argument(
-            path + ": Exodus results must not overwrite the input mesh");
-    if (!result.outputs.exodus_file.empty() &&
-        result.outputs.exodus_file == result.outputs.checkpoint_file)
-        throw std::invalid_argument(
-            path + ": Exodus results and checkpoint paths must differ");
+    const std::string input_file =
+        std::filesystem::absolute(path).lexically_normal().string();
+    const std::vector<std::pair<std::string, std::string>> protected_inputs = {
+        {"input card", input_file},
+        {"input mesh", result.mesh_file},
+        {"restart checkpoint", result.transient_execution.restart_file},
+    };
+    const std::vector<std::pair<std::string, std::string>> output_paths = {
+        {"CSV output", result.outputs.csv_file},
+        {"Exodus results", result.outputs.exodus_file},
+        {"engineering history", result.outputs.history_file},
+        {"checkpoint output", result.outputs.checkpoint_file},
+    };
+    for (const auto& output_path : output_paths) {
+        if (output_path.second.empty())
+            continue;
+        for (const auto& protected_input : protected_inputs) {
+            if (!protected_input.second.empty() &&
+                output_path.second == protected_input.second)
+                throw std::invalid_argument(
+                    path + ": " + output_path.first +
+                    " must not overwrite the " + protected_input.first);
+        }
+    }
+    for (std::size_t first = 0; first < output_paths.size(); ++first) {
+        if (output_paths[first].second.empty())
+            continue;
+        for (std::size_t second = first + 1; second < output_paths.size();
+             ++second) {
+            if (!output_paths[second].second.empty() &&
+                output_paths[first].second == output_paths[second].second)
+                throw std::invalid_argument(
+                    path + ": " + output_paths[first].first + " and " +
+                    output_paths[second].first + " paths must differ");
+        }
+    }
     if (result.problem == CaseProblem::steady &&
-        (!result.outputs.checkpoint_file.empty() ||
+        (!result.outputs.history_file.empty() ||
+         find_entry(outputs, "history_interval") != nullptr ||
+         find_entry(outputs, "progress_interval") != nullptr ||
+         find_entry(outputs, "exodus_interval") != nullptr ||
+         !result.outputs.checkpoint_file.empty() ||
          find_entry(outputs, "checkpoint_interval") != nullptr))
         throw std::invalid_argument(
-            path + ": checkpoint output is only valid for transient cases");
+            path + ": transient output controls are only valid for transient "
+                   "cases");
+    if (result.outputs.exodus_file.empty() &&
+        find_entry(outputs, "exodus_interval") != nullptr)
+        value_error(document, outputs.entry("exodus_interval"),
+                    "exodus_interval requires exodus");
+    if (result.outputs.history_file.empty() &&
+        find_entry(outputs, "history_interval") != nullptr)
+        value_error(document, outputs.entry("history_interval"),
+                    "history_interval requires history");
     if (result.outputs.checkpoint_file.empty() &&
         find_entry(outputs, "checkpoint_interval") != nullptr)
         value_error(document, outputs.entry("checkpoint_interval"),
@@ -750,6 +819,11 @@ FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
         result.outputs.checkpoint_interval == 0)
         value_error(document, outputs.entry("checkpoint_interval"),
                     "checkpoint_interval must be positive");
+    if (result.outputs.exodus_interval == 0 ||
+        result.outputs.history_interval == 0 ||
+        result.outputs.progress_interval == 0)
+        throw std::invalid_argument(
+            path + ": output intervals must be positive");
     return result;
 }
 

@@ -23,6 +23,9 @@ struct CaseRegionDefinition final {
 
 struct SteadyExecutionInput final {
     std::size_t load_steps;
+    double cutback_factor;
+    std::size_t maximum_cutbacks;
+    double minimum_load_increment;
 };
 
 struct TransientExecutionInput final {
@@ -54,6 +57,10 @@ struct CaseOutputInput final {
     bool console;
     std::string csv_file;
     std::string exodus_file;
+    std::size_t exodus_interval;
+    std::string history_file;
+    std::size_t history_interval;
+    std::size_t progress_interval;
     std::string checkpoint_file;
     std::size_t checkpoint_interval;
 };

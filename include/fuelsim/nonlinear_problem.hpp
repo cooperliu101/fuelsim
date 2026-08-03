@@ -32,6 +32,8 @@ class NonlinearProblem {
     virtual const std::vector<DirichletCondition>&
     dirichlet_conditions() const noexcept = 0;
 
+    virtual void validate_state(const std::vector<double>& state) const;
+
     LocalValues
     contribution_state(std::size_t contribution_index,
                        const std::vector<double>& global_state) const;

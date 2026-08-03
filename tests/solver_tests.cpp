@@ -8,7 +8,9 @@
 #include <exception>
 #include <iomanip>
 #include <iostream>
+#include <stdexcept>
 #include <string>
+#include <vector>
 
 namespace {
 
@@ -28,6 +30,129 @@ fuelsim::ThermoelasticProperties constant_material(double conductivity,
     return {
         0.0, conductivity, 75.0e9, 0.3, thermal_expansion, 600.0,
     };
+}
+
+class LogDomainProblem final : public fuelsim::NonlinearProblem {
+  public:
+    std::size_t dof_count() const noexcept override {
+        return fuelsim::local_dof_count;
+    }
+    std::size_t contribution_count() const noexcept override {
+        return 1;
+    }
+    fuelsim::LocalDofs contribution_dofs(std::size_t index) const override {
+        if (index != 0)
+            throw std::out_of_range("LogDomainProblem contribution index");
+        fuelsim::LocalDofs dofs{};
+        for (std::size_t dof = 0; dof < dofs.size(); ++dof)
+            dofs[dof] = dof;
+        return dofs;
+    }
+    fuelsim::LocalResidual
+    contribution_residual(std::size_t,
+                          const fuelsim::LocalValues& state) const override {
+        fuelsim::LocalResidual residual{};
+        for (std::size_t dof = 0; dof < state.size(); ++dof) {
+            if (!(state[dof] > 0.0))
+                throw std::domain_error(
+                    "log-domain Newton iterate must remain positive");
+            residual[dof] = std::log(state[dof]) + 10.0;
+        }
+        return residual;
+    }
+    fuelsim::LocalSystem
+    linearize_contribution(std::size_t index,
+                           const fuelsim::LocalValues& state) const override {
+        fuelsim::LocalSystem system{};
+        system.residual = contribution_residual(index, state);
+        for (std::size_t dof = 0; dof < state.size(); ++dof)
+            system.jacobian[dof * state.size() + dof] = 1.0 / state[dof];
+        return system;
+    }
+    const std::vector<fuelsim::DirichletCondition>&
+    dirichlet_conditions() const noexcept override {
+        return _conditions;
+    }
+
+  protected:
+    void add_state_independent_residual(
+        std::vector<double>&) const override {}
+
+  private:
+    std::vector<fuelsim::DirichletCondition> _conditions;
+};
+
+class StagnatingProblem final : public fuelsim::NonlinearProblem {
+  public:
+    std::size_t dof_count() const noexcept override {
+        return fuelsim::local_dof_count;
+    }
+    std::size_t contribution_count() const noexcept override {
+        return 1;
+    }
+    fuelsim::LocalDofs contribution_dofs(std::size_t) const override {
+        fuelsim::LocalDofs dofs{};
+        for (std::size_t dof = 0; dof < dofs.size(); ++dof)
+            dofs[dof] = dof;
+        return dofs;
+    }
+    fuelsim::LocalResidual
+    contribution_residual(std::size_t,
+                          const fuelsim::LocalValues&) const override {
+        fuelsim::LocalResidual residual{};
+        residual.fill(1.0);
+        return residual;
+    }
+    fuelsim::LocalSystem
+    linearize_contribution(std::size_t index,
+                           const fuelsim::LocalValues& state) const override {
+        fuelsim::LocalSystem system{};
+        system.residual = contribution_residual(index, state);
+        for (std::size_t dof = 0; dof < state.size(); ++dof)
+            system.jacobian[dof * state.size() + dof] = 1.0e20;
+        return system;
+    }
+    const std::vector<fuelsim::DirichletCondition>&
+    dirichlet_conditions() const noexcept override {
+        return _conditions;
+    }
+
+  protected:
+    void add_state_independent_residual(
+        std::vector<double>&) const override {}
+
+  private:
+    std::vector<fuelsim::DirichletCondition> _conditions;
+};
+
+bool test_global_newton_safeguards() {
+    LogDomainProblem domain_problem;
+    fuelsim::PetscSolver domain_solver;
+    const std::vector<double> initial(fuelsim::local_dof_count, 1.0);
+    const fuelsim::SolveResult domain =
+        domain_solver.solve(domain_problem, initial);
+    bool passed = check(domain.converged,
+                        "backtracking recovers a physical-domain overshoot");
+    const double target = std::exp(-10.0);
+    for (double value : domain.state)
+        passed = check(std::abs(value - target) < 1.0e-10 * target,
+                       "backtracking reaches the positive logarithmic root") &&
+                 passed;
+
+    StagnatingProblem stagnating_problem;
+    fuelsim::PetscSolver stagnating_solver;
+    fuelsim::SolverOptions options;
+    options.line_search = fuelsim::SolverOptions::LineSearch::basic;
+    options.step_tolerance = 1.0e-8;
+    const fuelsim::SolveResult stagnating =
+        stagnating_solver.solve(stagnating_problem, initial, options);
+    passed = check(stagnating.convergence_reason > 0 &&
+                       !stagnating.converged &&
+                       stagnating.failure_category ==
+                           fuelsim::SolveFailureCategory::residual_verification,
+                   "positive step-stagnation reason fails residual review") &&
+             passed;
+    return passed;
 }
 
 bool test_thermal_cylinder() {
@@ -361,6 +486,7 @@ int main(int argc, char** argv) {
             argc, argv, "fuelsim M0 and M1 numerical acceptance tests\n");
 
         bool passed = true;
+        passed = test_global_newton_safeguards() && passed;
         passed = test_thermal_cylinder() && passed;
         passed = test_free_thermal_expansion() && passed;
         passed = test_lame_open_ended_cylinder() && passed;

@@ -8,6 +8,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -40,12 +41,80 @@ std::vector<double> read_reference(const std::string& path) {
     return result;
 }
 
+std::vector<double>
+flatten_transient_state(const fuelsim::TransientProblem& problem) {
+    std::vector<double> result = {problem.committed_time(),
+                                  problem.committed_load_factor()};
+    result.insert(result.end(), problem.committed_solution().begin(),
+                  problem.committed_solution().end());
+    for (std::size_t region = 0; region < problem.region_count(); ++region) {
+        for (std::size_t element = 0;
+             element < problem.region_mesh(region).elements().size();
+             ++element) {
+            const fuelsim::Quad4MaterialHistory& history =
+                problem.material_history(region, element);
+            const auto& stresses = problem.material_stress(region, element);
+            for (std::size_t q = 0; q < history.size(); ++q) {
+                result.insert(result.end(), history[q].plastic_strain.begin(),
+                              history[q].plastic_strain.end());
+                result.insert(result.end(), history[q].creep_strain.begin(),
+                              history[q].creep_strain.end());
+                result.push_back(history[q].equivalent_plastic_strain);
+                result.push_back(history[q].equivalent_creep_strain);
+                result.push_back(stresses[q].rr);
+                result.push_back(stresses[q].zz);
+                result.push_back(stresses[q].hoop);
+                result.push_back(stresses[q].rz);
+            }
+        }
+    }
+    return result;
+}
+
+void compare_reference(const std::string& path,
+                       const std::vector<double>& state, double tolerance) {
+    const std::vector<double> reference = read_reference(path);
+    if (reference.size() != state.size())
+        throw std::runtime_error("MPI reference state size differs");
+    double maximum_absolute = 0.0;
+    double maximum_scaled = 0.0;
+    std::size_t maximum_scaled_index = 0;
+    for (std::size_t value = 0; value < reference.size(); ++value) {
+        const double difference = std::abs(state[value] - reference[value]);
+        maximum_absolute = std::max(maximum_absolute, difference);
+        const double scaled =
+            difference / (1.0 + std::abs(reference[value]));
+        if (scaled > maximum_scaled) {
+            maximum_scaled = scaled;
+            maximum_scaled_index = value;
+        }
+    }
+    if (!(maximum_scaled < tolerance)) {
+        std::ostringstream message;
+        message << std::scientific << std::setprecision(12)
+                << "one/two-rank state difference exceeds tolerance: "
+                << "maximum absolute=" << maximum_absolute
+                << ", maximum scaled=" << maximum_scaled
+                << ", index=" << maximum_scaled_index
+                << ", one-rank=" << reference[maximum_scaled_index]
+                << ", two-rank=" << state[maximum_scaled_index];
+        throw std::runtime_error(message.str());
+    }
+    std::cout << std::scientific << std::setprecision(12)
+              << "mpi_equivalence_maximum_absolute=" << maximum_absolute
+              << '\n'
+              << "mpi_equivalence_maximum_scaled=" << maximum_scaled << '\n';
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
     if (argc < 4) {
         std::cerr << "Usage: fuelsim_mpi_equivalence_tests "
-                     "<write|compare|compare_field_split> <reference> "
+                     "<write|compare|compare_field_split|compare_block_jacobi|"
+                     "compare_hypre|write_transient|compare_transient|"
+                     "test_io_failure> "
+                     "<reference> "
                      "<case.fsi> [PETSc options]\n";
         return 2;
     }
@@ -60,26 +129,105 @@ int main(int argc, char** argv) {
 
         fuelsim::PetscSession session(
             argc, argv, "fuelsim one/two-rank equivalence test\n");
+        if (mode == "test_io_failure") {
+            if (session.size() != 2)
+                throw std::invalid_argument(
+                    "Collective I/O failure test requires two ranks");
+            bool caught = false;
+            try {
+                session.collective_root_action([]() {
+                    throw std::runtime_error("intentional root I/O failure");
+                });
+            } catch (const std::runtime_error& error) {
+                caught = std::string(error.what()).find(
+                             "collective root-rank I/O failed") !=
+                         std::string::npos;
+            }
+            if (!caught)
+                throw std::runtime_error(
+                    "Collective root I/O failure did not reach every rank");
+            session.collective_root_action([]() {});
+            if (session.rank() == 0)
+                std::cout << "[PASS] root I/O failure reached every rank\n";
+            return 0;
+        }
         const fuelsim::FuelSimCaseDefinition definition =
             fuelsim::CaseInputReader::read(input_path);
         const fuelsim::UnstructuredQuad4Mesh source =
             fuelsim::ExodusMeshIo::read_quad4(definition.mesh_file);
-        fuelsim::SteadyProblem problem(definition.steady_definition(), source);
         fuelsim::SolverOptions options;
         options.absolute_tolerance = definition.solver.absolute_tolerance;
         options.relative_tolerance = definition.solver.relative_tolerance;
         options.step_tolerance = definition.solver.step_tolerance;
         options.maximum_iterations = definition.solver.maximum_iterations;
+        if (definition.problem == fuelsim::CaseProblem::transient) {
+            if (mode != "write_transient" && mode != "compare_transient")
+                throw std::invalid_argument(
+                    "Transient MPI case requires write_transient or "
+                    "compare_transient mode");
+            fuelsim::TransientProblem problem(
+                definition.transient_definition(), source);
+            const fuelsim::TransientExecutionInput& execution =
+                definition.transient_execution;
+            const fuelsim::TransientResult result = fuelsim::solve_transient(
+                problem,
+                {execution.end_time, execution.initial_time_step,
+                 execution.minimum_time_step, execution.maximum_time_step,
+                 execution.growth_factor, execution.cutback_factor,
+                 execution.maximum_cutbacks, execution.load_ramp_time,
+                 execution.target_nonlinear_iterations,
+                 execution.iteration_window},
+                options);
+            if (!result.completed ||
+                result.aggregate_timing.workspace_setups != 1)
+                throw std::runtime_error(
+                    "Transient MPI equivalence solve failed or rebuilt its "
+                    "workspace");
+            const std::vector<double> state =
+                flatten_transient_state(problem);
+            if (mode == "write_transient") {
+                if (session.size() != 1)
+                    throw std::invalid_argument(
+                        "Transient MPI reference requires one rank");
+                write_reference(reference_path, state);
+                std::cout << "[PASS] wrote transient one-rank MPI reference\n";
+                return 0;
+            }
+            if (session.size() != 2)
+                throw std::invalid_argument(
+                    "Transient MPI comparison requires exactly two ranks");
+            if (session.rank() == 0) {
+                // Distributed assembly changes the summation order. The mixed
+                // absolute/relative gate still checks every stored value while
+                // allowing sub-micro-Pascal roundoff in nominally zero stress
+                // components.
+                compare_reference(reference_path, state, 1.0e-7);
+                std::cout << "[PASS] transient nodal and integration-point "
+                             "history MPI equivalence\n";
+            }
+            return 0;
+        }
+
+        fuelsim::SteadyProblem problem(definition.steady_definition(), source);
         const bool field_split = mode == "compare_field_split";
+        const bool block_jacobi = mode == "compare_block_jacobi";
+        const bool hypre = mode == "compare_hypre";
         options.linear_solver =
-            field_split ? fuelsim::SolverOptions::LinearSolver::gmres
-                        : fuelsim::SolverOptions::LinearSolver::direct;
+            field_split || block_jacobi || hypre
+                ? fuelsim::SolverOptions::LinearSolver::gmres
+                : fuelsim::SolverOptions::LinearSolver::direct;
         options.preconditioner =
-            field_split
-                ? fuelsim::SolverOptions::Preconditioner::field_split
-                : fuelsim::SolverOptions::Preconditioner::lu;
+            field_split     ? fuelsim::SolverOptions::Preconditioner::field_split
+            : block_jacobi ? fuelsim::SolverOptions::Preconditioner::block_jacobi
+            : hypre        ? fuelsim::SolverOptions::Preconditioner::hypre
+                           : fuelsim::SolverOptions::Preconditioner::lu;
         const fuelsim::SteadyResult result = fuelsim::solve_steady(
-            problem, definition.steady_execution.load_steps, options);
+            problem,
+            {definition.steady_execution.load_steps,
+             definition.steady_execution.cutback_factor,
+             definition.steady_execution.maximum_cutbacks,
+             definition.steady_execution.minimum_load_increment},
+            options);
         if (!result.completed || !result.solve.converged)
             throw std::runtime_error("MPI equivalence solve did not converge");
         if (result.aggregate_timing.workspace_setups != 1)
@@ -94,23 +242,11 @@ int main(int argc, char** argv) {
             std::cout << "[PASS] wrote one-rank MPI reference\n";
             return 0;
         }
-        if (mode != "compare" && !field_split)
+        if (mode != "compare" && !field_split && !block_jacobi && !hypre)
             throw std::invalid_argument("Unknown MPI equivalence mode: " + mode);
         if (session.size() != 2)
             throw std::invalid_argument(
                 "MPI comparison must run with exactly two ranks");
-        const std::vector<double> reference = read_reference(reference_path);
-        if (reference.size() != result.solve.state.size())
-            throw std::runtime_error("MPI reference state size differs");
-        double maximum_absolute = 0.0;
-        double maximum_scaled = 0.0;
-        for (std::size_t dof = 0; dof < reference.size(); ++dof) {
-            const double difference =
-                std::abs(result.solve.state[dof] - reference[dof]);
-            maximum_absolute = std::max(maximum_absolute, difference);
-            maximum_scaled = std::max(
-                maximum_scaled, difference / (1.0 + std::abs(reference[dof])));
-        }
         const std::size_t expected_begin =
             problem.contribution_count() *
             static_cast<std::size_t>(result.solve.mpi_rank) / 2U;
@@ -121,18 +257,15 @@ int main(int argc, char** argv) {
             result.solve.local_contribution_end != expected_end)
             throw std::runtime_error(
                 "MPI contribution partition differs from ownership contract");
-        const double tolerance = field_split ? 1.0e-7 : 1.0e-10;
-        if (!(maximum_scaled < tolerance))
-            throw std::runtime_error(
-                "one/two-rank state difference exceeds tolerance");
         if (session.rank() == 0) {
-            std::cout << std::scientific << std::setprecision(12)
-                      << "mpi_equivalence_maximum_absolute="
-                      << maximum_absolute << '\n'
-                      << "mpi_equivalence_maximum_scaled=" << maximum_scaled
-                      << '\n'
-                      << "[PASS] one/two-rank state equivalence"
-                      << (field_split ? " with field split\n" : "\n");
+            compare_reference(reference_path, result.solve.state,
+                              field_split || block_jacobi || hypre ? 1.0e-7
+                                                                   : 1.0e-10);
+            std::cout << "[PASS] one/two-rank state equivalence"
+                      << (field_split     ? " with field split\n"
+                          : block_jacobi ? " with block Jacobi\n"
+                          : hypre        ? " with hypre\n"
+                                         : "\n");
         }
         return 0;
     } catch (const std::exception& error) {

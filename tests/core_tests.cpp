@@ -379,6 +379,19 @@ bool test_gap_heat_and_normal_contact() {
                    "out-of-segment NTS projection is inactive") &&
              passed;
 
+    const fuelsim::NodeToLineRzContactGeometry radial_endpoint_geometry =
+        fuelsim::make_node_to_line_rz_contact_geometry(fuel, cladding, 0,
+                                                       true);
+    fuelsim::LocalValues radial_endpoint_state = closed_state;
+    radial_endpoint_state[8] = -1.0e-12;
+    const fuelsim::ContactPointValue radial_endpoint =
+        contact_kernel.value(radial_endpoint_geometry,
+                             radial_endpoint_state);
+    passed = check(radial_endpoint.projected,
+                   "radial NTS reference endpoint retains projection after "
+                   "roundoff-scale axial motion") &&
+             passed;
+
     const fuelsim::Line2InterfaceSideCoordinates lower_pellet = {{
         {0.0, 0.001000},
         {0.004, 0.001000},
@@ -413,6 +426,42 @@ bool test_gap_heat_and_normal_contact() {
     passed = check(axial_contact.projected && axial_contact.gap < 0.0 &&
                        axial_contact.pressure > 0.0,
                    "horizontal pellet faces develop axial contact") &&
+             passed;
+
+    const fuelsim::Line2InterfaceSideCoordinates sloped_secondary = {{
+        {0.004200, 0.000200},
+        {0.004800, 0.000800},
+    }};
+    const fuelsim::Line2InterfaceSideCoordinates sloped_primary = {{
+        {0.004002, -0.000002},
+        {0.005002, 0.000998},
+    }};
+    const fuelsim::Line2RzHeatGeometry sloped_heat_geometry =
+        fuelsim::make_line2_rz_heat_geometry(sloped_secondary,
+                                             sloped_primary);
+    const fuelsim::NodeToLineRzContactGeometry sloped_contact_geometry =
+        fuelsim::make_node_to_line_rz_contact_geometry(
+            sloped_secondary, sloped_primary, 1, true);
+    const fuelsim::LocalValues sloped_closed_state = {
+        750.0, 740.0, 610.0, 620.0, 3.0e-6, 3.0e-6,
+        0.0,   0.0,   -3.0e-6, -3.0e-6, 0.0, 0.0,
+    };
+    passed = test_heat_interface_case("sloped_open", heat_kernel,
+                                      sloped_heat_geometry, open_state) &&
+             passed;
+    passed = test_contact_interface_case(
+                 "sloped_closed", contact_kernel, sloped_contact_geometry,
+                 sloped_closed_state) &&
+             passed;
+    const fuelsim::LocalResidual sloped_residual = contact_kernel.residual(
+        sloped_contact_geometry, sloped_closed_state);
+    const fuelsim::ContactPointValue sloped_contact = contact_kernel.value(
+        sloped_contact_geometry, sloped_closed_state);
+    passed = check(sloped_contact.projected && sloped_contact.gap < 0.0 &&
+                       sloped_contact.pressure > 0.0 &&
+                       std::abs(sloped_residual[5]) > 0.0 &&
+                       std::abs(sloped_residual[9]) > 0.0,
+                   "45-degree contact activates both normal components") &&
              passed;
     return passed;
 }

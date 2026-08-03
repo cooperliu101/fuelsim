@@ -7,9 +7,26 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <fstream>
 #include <string>
 
 namespace fuelsim {
+
+std::string next_results_segment_path(const std::string& configured_path);
+
+class EngineeringHistoryWriter final {
+  public:
+    EngineeringHistoryWriter(std::string path,
+                             const TransientProblem& problem);
+
+    void append(const TransientProblem& problem, double time_step,
+                double next_time_step, int nonlinear_iterations);
+
+  private:
+    std::string _path;
+    std::uint64_t _problem_signature;
+    std::ofstream _stream;
+};
 
 class ExodusResultsIo final {
   public:

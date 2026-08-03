@@ -159,6 +159,8 @@ void write_interface_summary(const std::string& name,
     output.value(prefix + "total_contact_force", summary.total_contact_force);
     output.value(prefix + "projected_contact_nodes",
                  summary.projected_contact_nodes);
+    output.value(prefix + "unprojected_contact_nodes",
+                 summary.unprojected_contact_nodes);
     output.value(prefix + "active_contact_nodes", summary.active_contact_nodes);
 }
 
@@ -217,7 +219,8 @@ bool write_jacobian_check(const fuelsim::NonlinearProblem& problem,
 
 bool run_steady(const fuelsim::FuelSimCaseDefinition& definition,
                 const fuelsim::UnstructuredQuad4Mesh& source,
-                CaseOutput& output, bool check_jacobian, bool write_files) {
+                CaseOutput& output, bool check_jacobian,
+                const fuelsim::PetscSession& session) {
     fuelsim::SteadyProblem problem(definition.steady_definition(), source);
     if (check_jacobian) {
         problem.set_load_factor(1.0);
@@ -225,7 +228,11 @@ bool run_steady(const fuelsim::FuelSimCaseDefinition& definition,
                                     problem.initial_state(), output);
     }
     const fuelsim::SteadyResult result =
-        fuelsim::solve_steady(problem, definition.steady_execution.load_steps,
+        fuelsim::solve_steady(problem,
+                              {definition.steady_execution.load_steps,
+                               definition.steady_execution.cutback_factor,
+                               definition.steady_execution.maximum_cutbacks,
+                               definition.steady_execution.minimum_load_increment},
                               solver_options(definition.solver));
     output.value("problem", "steady");
     output.value("completed", result.completed && result.solve.converged);
@@ -234,54 +241,133 @@ bool run_steady(const fuelsim::FuelSimCaseDefinition& definition,
     output.value("regions", problem.region_count());
     output.value("contacts", problem.contact_count());
     output.value("load_steps_completed", result.completed_steps);
+    output.value("rejected_load_steps", result.rejected_steps.size());
+    output.value("load_cutbacks", result.total_cutbacks);
     output.value("nonlinear_iterations_total",
                  result.total_nonlinear_iterations);
     output.value("residual_norm", result.solve.residual_norm);
+    output.value("failure_category", fuelsim::solve_failure_category_name(
+                                         result.solve.failure_category));
+    if (!result.solve.failure_message.empty())
+        output.value("failure_message", result.solve.failure_message);
     output.value("petsc_workspace_setups",
                  result.aggregate_timing.workspace_setups);
     output.value("total_seconds", result.total_seconds);
-    for (std::size_t contact = 0; contact < problem.contact_count(); ++contact)
-        write_interface_summary(
-            problem.contact(contact).name,
-            problem.summarize_interface(contact, result.solve.state), output);
-    if (write_files && result.completed && result.solve.converged &&
+    if (result.completed && result.solve.converged) {
+        for (std::size_t contact = 0; contact < problem.contact_count();
+             ++contact)
+            write_interface_summary(
+                problem.contact(contact).name,
+                problem.summarize_interface(contact, result.solve.state),
+                output);
+    }
+    if (result.completed && result.solve.converged &&
         !definition.outputs.exodus_file.empty())
-        fuelsim::ExodusResultsIo::write_steady(definition.outputs.exodus_file,
-                                               source, problem,
-                                               result.solve.state);
+        session.collective_root_action([&]() {
+            fuelsim::ExodusResultsIo::write_steady(
+                definition.outputs.exodus_file, source, problem,
+                result.solve.state);
+        });
     return result.completed && result.solve.converged;
 }
 
 class TransientOutputObserver final : public fuelsim::TransientStepObserver {
   public:
     TransientOutputObserver(fuelsim::ExodusTransientResultsWriter* results,
+                            fuelsim::EngineeringHistoryWriter* history,
                             std::string checkpoint_file,
-                            std::size_t checkpoint_interval)
-        : _results(results), _checkpoint_file(std::move(checkpoint_file)),
-          _checkpoint_interval(checkpoint_interval), _accepted_steps(0) {}
+                            std::size_t exodus_interval,
+                            std::size_t history_interval,
+                            std::size_t progress_interval,
+                            std::size_t checkpoint_interval,
+                            const fuelsim::PetscSession& session,
+                            CaseOutput& output)
+        : _results(results), _history(history),
+          _checkpoint_file(std::move(checkpoint_file)),
+          _exodus_interval(exodus_interval),
+          _history_interval(history_interval),
+          _progress_interval(progress_interval),
+          _checkpoint_interval(checkpoint_interval), _accepted_steps(0),
+          _exodus_at_latest(true), _history_at_latest(true),
+          _last_time_step(0.0), _last_next_time_step(0.0),
+          _last_nonlinear_iterations(0),
+          _session(session), _output(output) {}
 
     void accepted_step(const fuelsim::TransientProblem& problem,
                        const fuelsim::TransientAcceptedStep& step) override {
         ++_accepted_steps;
-        if (_results != nullptr)
-            _results->append(problem);
-        if (!_checkpoint_file.empty() &&
-            _accepted_steps % _checkpoint_interval == 0)
-            fuelsim::TransientCheckpointIo::write(_checkpoint_file, problem,
-                                                  step.next_time_step);
+        _last_time_step = step.time_step;
+        _last_next_time_step = step.next_time_step;
+        _last_nonlinear_iterations = step.nonlinear_iterations;
+        _exodus_at_latest = false;
+        _history_at_latest = false;
+        _session.collective_root_action([&]() {
+            if (_results != nullptr &&
+                _accepted_steps % _exodus_interval == 0) {
+                _results->append(problem);
+                _exodus_at_latest = true;
+            }
+            if (_history != nullptr &&
+                _accepted_steps % _history_interval == 0) {
+                _history->append(problem, step.time_step, step.next_time_step,
+                                 step.nonlinear_iterations);
+                _history_at_latest = true;
+            }
+            if (_accepted_steps % _progress_interval == 0) {
+                _output.value("progress.accepted_steps", _accepted_steps);
+                _output.value("progress.time", step.time);
+                _output.value("progress.time_step", step.time_step);
+                _output.value("progress.next_time_step", step.next_time_step);
+                _output.value("progress.nonlinear_iterations",
+                              step.nonlinear_iterations);
+                _output.value("progress.cutbacks", step.cutbacks);
+            }
+            if (!_checkpoint_file.empty() &&
+                _accepted_steps % _checkpoint_interval == 0)
+                fuelsim::TransientCheckpointIo::write(
+                    _checkpoint_file, problem, step.next_time_step);
+        });
+    }
+
+    void finalize(const fuelsim::TransientProblem& problem,
+                  double next_time_step) {
+        _session.collective_root_action([&]() {
+            if (_results != nullptr && !_exodus_at_latest)
+                _results->append(problem);
+            if (_history != nullptr && !_history_at_latest)
+                _history->append(problem, _last_time_step,
+                                 _last_next_time_step,
+                                 _last_nonlinear_iterations);
+            if (!_checkpoint_file.empty())
+                fuelsim::TransientCheckpointIo::write(
+                    _checkpoint_file, problem, next_time_step);
+        });
+        _exodus_at_latest = true;
+        _history_at_latest = true;
     }
 
   private:
     fuelsim::ExodusTransientResultsWriter* _results;
+    fuelsim::EngineeringHistoryWriter* _history;
     std::string _checkpoint_file;
+    std::size_t _exodus_interval;
+    std::size_t _history_interval;
+    std::size_t _progress_interval;
     std::size_t _checkpoint_interval;
     std::size_t _accepted_steps;
+    bool _exodus_at_latest;
+    bool _history_at_latest;
+    double _last_time_step;
+    double _last_next_time_step;
+    int _last_nonlinear_iterations;
+    const fuelsim::PetscSession& _session;
+    CaseOutput& _output;
 };
 
 bool run_transient(const fuelsim::FuelSimCaseDefinition& definition,
                    const fuelsim::UnstructuredQuad4Mesh& source,
                    CaseOutput& output, bool check_jacobian,
-                   bool write_files) {
+                   const fuelsim::PetscSession& session) {
     fuelsim::TransientProblem problem(definition.transient_definition(),
                                       source);
     double restart_time_step = 0.0;
@@ -322,16 +408,48 @@ bool run_transient(const fuelsim::FuelSimCaseDefinition& definition,
         return passed;
     }
     std::unique_ptr<fuelsim::ExodusTransientResultsWriter> results;
-    if (write_files && !definition.outputs.exodus_file.empty()) {
-        results = std::make_unique<fuelsim::ExodusTransientResultsWriter>(
-            definition.outputs.exodus_file, source, problem);
-        results->append(problem);
-    }
-    TransientOutputObserver observer(results.get(),
-                                     write_files
-                                         ? definition.outputs.checkpoint_file
-                                         : std::string{},
-                                     definition.outputs.checkpoint_interval);
+    std::unique_ptr<fuelsim::EngineeringHistoryWriter> history;
+    std::string results_path;
+    if (!definition.outputs.exodus_file.empty())
+        session.collective_root_action([&]() {
+            results_path =
+                definition.transient_execution.restart_file.empty()
+                    ? definition.outputs.exodus_file
+                    : fuelsim::next_results_segment_path(
+                          definition.outputs.exodus_file);
+            results =
+                std::make_unique<fuelsim::ExodusTransientResultsWriter>(
+                    results_path, source, problem);
+            results->append(problem);
+        });
+    if (!results_path.empty())
+        output.value("results_file", results_path);
+    std::string history_path;
+    if (!definition.outputs.history_file.empty())
+        session.collective_root_action([&]() {
+            history_path =
+                definition.transient_execution.restart_file.empty()
+                    ? definition.outputs.history_file
+                    : fuelsim::next_results_segment_path(
+                          definition.outputs.history_file);
+            history = std::make_unique<fuelsim::EngineeringHistoryWriter>(
+                history_path, problem);
+            history->append(problem, 0.0,
+                            restart_time_step > 0.0
+                                ? restart_time_step
+                                : definition.transient_execution
+                                      .initial_time_step,
+                            0);
+        });
+    if (!history_path.empty())
+        output.value("history_file", history_path);
+    TransientOutputObserver observer(results.get(), history.get(),
+                                     definition.outputs.checkpoint_file,
+                                     definition.outputs.exodus_interval,
+                                     definition.outputs.history_interval,
+                                     definition.outputs.progress_interval,
+                                     definition.outputs.checkpoint_interval,
+                                     session, output);
     const fuelsim::TransientTimeOptions time_options = {
         definition.transient_execution.end_time,
         restart_time_step > 0.0
@@ -347,9 +465,7 @@ bool run_transient(const fuelsim::FuelSimCaseDefinition& definition,
         definition.transient_execution.iteration_window};
     const fuelsim::TransientResult result = fuelsim::solve_transient(
         problem, time_options, solver_options(definition.solver), &observer);
-    if (write_files && !definition.outputs.checkpoint_file.empty())
-        fuelsim::TransientCheckpointIo::write(
-            definition.outputs.checkpoint_file, problem, result.next_time_step);
+    observer.finalize(problem, result.next_time_step);
     output.value("problem", "transient");
     output.value("completed", result.completed);
     output.value(
@@ -374,6 +490,12 @@ bool run_transient(const fuelsim::FuelSimCaseDefinition& definition,
                      fuelsim::petsc_convergence_reason_name(
                          rejected.convergence_reason));
         output.value("last_rejected.residual_norm", rejected.residual_norm);
+        output.value("last_rejected.failure_category",
+                     fuelsim::solve_failure_category_name(
+                         rejected.failure_category));
+        if (!rejected.failure_message.empty())
+            output.value("last_rejected.failure_message",
+                         rejected.failure_message);
     }
     output.value("total_cutbacks", result.total_cutbacks);
     output.value("nonlinear_iterations_total",
@@ -413,17 +535,23 @@ int main(int argc, char** argv) {
         const bool root_rank = session.rank() == 0;
         const fuelsim::UnstructuredQuad4Mesh source =
             fuelsim::ExodusMeshIo::read_quad4(definition.mesh_file);
-        CaseOutput output(definition.outputs, command.check_jacobian,
-                          root_rank);
-        output.value("input_file", command.input_path);
-        output.value("mesh_file", definition.mesh_file);
-        output.value("mpi_ranks", session.size());
+        std::unique_ptr<CaseOutput> output;
+        if (!root_rank)
+            output = std::make_unique<CaseOutput>(
+                definition.outputs, command.check_jacobian, false);
+        session.collective_root_action([&]() {
+            output = std::make_unique<CaseOutput>(
+                definition.outputs, command.check_jacobian, true);
+        });
+        output->value("input_file", command.input_path);
+        output->value("mesh_file", definition.mesh_file);
+        output->value("mpi_ranks", session.size());
         const bool completed =
             definition.problem == fuelsim::CaseProblem::steady
-                ? run_steady(definition, source, output, command.check_jacobian,
-                             root_rank)
-                : run_transient(definition, source, output,
-                                command.check_jacobian, root_rank);
+                ? run_steady(definition, source, *output,
+                             command.check_jacobian, session)
+                : run_transient(definition, source, *output,
+                                command.check_jacobian, session);
         return completed ? 0 : 1;
     } catch (const std::exception& error) {
         std::cerr << "fuelsim failed: " << error.what() << '\n';

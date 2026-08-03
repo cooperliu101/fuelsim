@@ -8,6 +8,9 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <filesystem>
+#include <fstream>
+#include <iomanip>
 #include <limits>
 #include <stdexcept>
 #include <string>
@@ -74,21 +77,23 @@ std::vector<char*> variable_name_pointers(std::vector<std::string>& names) {
     return result;
 }
 
-std::vector<std::string> nodal_variable_names(std::size_t contacts) {
+std::vector<std::string>
+nodal_variable_names(const std::vector<ContactDefinition>& contacts) {
     std::vector<std::string> result = {"temperature", "displacement_r",
                                        "displacement_z"};
-    for (std::size_t contact = 0; contact < contacts; ++contact) {
-        result.push_back("contact_gap_" + std::to_string(contact));
-        result.push_back("contact_pressure_" + std::to_string(contact));
+    for (const ContactDefinition& contact : contacts) {
+        result.push_back("contact_gap_" + contact.name);
+        result.push_back("contact_pressure_" + contact.name);
     }
     return result;
 }
 
-std::vector<std::string> global_variable_names(std::size_t contacts) {
+std::vector<std::string>
+global_variable_names(const std::vector<ContactDefinition>& contacts) {
     std::vector<std::string> result = {"load_factor"};
-    for (std::size_t contact = 0; contact < contacts; ++contact) {
-        result.push_back("contact_heat_rate_" + std::to_string(contact));
-        result.push_back("contact_force_" + std::to_string(contact));
+    for (const ContactDefinition& contact : contacts) {
+        result.push_back("contact_heat_rate_" + contact.name);
+        result.push_back("contact_force_" + contact.name);
     }
     return result;
 }
@@ -231,7 +236,7 @@ void fill_steady_nodal(const UnstructuredQuad4Mesh& mesh,
                        const std::vector<double>& state,
                        std::vector<std::vector<double>>& values) {
     const double missing = std::numeric_limits<double>::quiet_NaN();
-    values.assign(nodal_variable_names(problem.contact_count()).size(),
+    values.assign(nodal_variable_names(problem.definition().contacts).size(),
                   std::vector<double>(mesh.nodes().size(), missing));
     std::vector<bool> present(mesh.nodes().size(), false);
     for (std::size_t region = 0; region < problem.region_count(); ++region) {
@@ -272,9 +277,11 @@ void fill_steady_nodal(const UnstructuredQuad4Mesh& mesh,
 void fill_transient_nodal(const UnstructuredQuad4Mesh& mesh,
                           const TransientProblem& problem,
                           std::vector<std::vector<double>>& values) {
-    const std::size_t contacts = problem.definition().spatial.contacts.size();
+    const std::vector<ContactDefinition>& contact_definitions =
+        problem.definition().spatial.contacts;
+    const std::size_t contacts = contact_definitions.size();
     const double missing = std::numeric_limits<double>::quiet_NaN();
-    values.assign(nodal_variable_names(contacts).size(),
+    values.assign(nodal_variable_names(contact_definitions).size(),
                   std::vector<double>(mesh.nodes().size(), missing));
     std::vector<bool> present(mesh.nodes().size(), false);
     const std::vector<double>& state = problem.committed_solution();
@@ -409,6 +416,95 @@ transient_elements(const UnstructuredQuad4Mesh& mesh,
 
 } // namespace
 
+std::string next_results_segment_path(const std::string& configured_path) {
+    if (configured_path.empty())
+        throw std::invalid_argument(
+            "Results segment path requires a configured path");
+    const std::filesystem::path configured(configured_path);
+    const std::filesystem::path directory = configured.parent_path();
+    const std::string stem = configured.stem().string();
+    const std::string extension = configured.extension().string();
+    for (std::size_t segment = 1;; ++segment) {
+        const std::filesystem::path candidate =
+            directory /
+            (stem + ".part" + std::to_string(segment) + extension);
+        if (!std::filesystem::exists(candidate))
+            return candidate.string();
+    }
+}
+
+EngineeringHistoryWriter::EngineeringHistoryWriter(
+    std::string path, const TransientProblem& problem)
+    : _path(std::move(path)),
+      _problem_signature(problem.committed_state_signature()) {
+    if (_path.empty())
+        throw std::invalid_argument(
+            "Engineering history path must not be empty");
+    _stream.open(_path, std::ios::out | std::ios::trunc);
+    if (!_stream)
+        throw std::runtime_error(
+            "Could not open engineering history file '" + _path + "'");
+    _stream.exceptions(std::ios::badbit | std::ios::failbit);
+    _stream << "time,time_step,next_time_step,load_factor,"
+               "nonlinear_iterations";
+    for (std::size_t region = 0; region < problem.region_count(); ++region) {
+        const std::string prefix = ",region_" + problem.region(region).name;
+        _stream << prefix << "_maximum_temperature" << prefix
+                << "_maximum_equivalent_plastic_strain" << prefix
+                << "_maximum_equivalent_creep_strain";
+    }
+    for (const ContactDefinition& contact :
+         problem.definition().spatial.contacts) {
+        const std::string prefix = ",contact_" + contact.name;
+        _stream << prefix << "_minimum_gap" << prefix
+                << "_maximum_pressure" << prefix << "_total_heat_rate"
+                << prefix << "_total_force";
+    }
+    _stream << '\n' << std::scientific << std::setprecision(12);
+}
+
+void EngineeringHistoryWriter::append(const TransientProblem& problem,
+                                      double time_step,
+                                      double next_time_step,
+                                      int nonlinear_iterations) {
+    if (problem.time_step_active())
+        throw std::logic_error(
+            "Engineering history cannot be written during an active time step");
+    if (problem.committed_state_signature() != _problem_signature)
+        throw std::invalid_argument(
+            "Engineering history problem does not match writer model");
+    _stream << problem.committed_time() << ',' << time_step << ','
+            << next_time_step << ',' << problem.committed_load_factor() << ','
+            << nonlinear_iterations;
+    const std::vector<double>& state = problem.committed_solution();
+    for (std::size_t region = 0; region < problem.region_count(); ++region) {
+        double maximum_temperature =
+            -std::numeric_limits<double>::infinity();
+        const std::size_t offset = problem.region_node_offset(region);
+        for (std::size_t local = 0;
+             local < problem.region_mesh(region).nodes().size(); ++local)
+            maximum_temperature = std::max(
+                maximum_temperature,
+                state.at(problem.dof_map().temperature(offset + local)));
+        const RegionInelasticSummary history =
+            problem.summarize_region_history(region);
+        _stream << ',' << maximum_temperature << ','
+                << history.maximum_equivalent_plastic_strain << ','
+                << history.maximum_equivalent_creep_strain;
+    }
+    for (std::size_t contact = 0;
+         contact < problem.definition().spatial.contacts.size(); ++contact) {
+        const InterfaceSummary summary =
+            problem.summarize_interface(contact, state);
+        _stream << ',' << summary.minimum_gap << ','
+                << summary.maximum_contact_pressure << ','
+                << summary.total_heat_rate << ','
+                << summary.total_contact_force;
+    }
+    _stream << '\n';
+    _stream.flush();
+}
+
 void ExodusResultsIo::write_steady(const std::string& path,
                                    const UnstructuredQuad4Mesh& mesh,
                                    const SteadyProblem& problem,
@@ -416,10 +512,10 @@ void ExodusResultsIo::write_steady(const std::string& path,
     if (path.empty())
         throw std::invalid_argument("Exodus result path must not be empty");
     const std::vector<std::string> nodal =
-        nodal_variable_names(problem.contact_count());
+        nodal_variable_names(problem.definition().contacts);
     const std::vector<std::string> element = stress_variable_names();
     const std::vector<std::string> global =
-        global_variable_names(problem.contact_count());
+        global_variable_names(problem.definition().contacts);
     define_variables(path, mesh, nodal, element, global);
     std::vector<std::vector<double>> nodal_values;
     fill_steady_nodal(mesh, problem, state, nodal_values);
@@ -437,9 +533,9 @@ ExodusTransientResultsWriter::ExodusTransientResultsWriter(
         throw std::invalid_argument("Exodus result path must not be empty");
     define_variables(
         _path, _mesh,
-        nodal_variable_names(problem.definition().spatial.contacts.size()),
+        nodal_variable_names(problem.definition().spatial.contacts),
         transient_element_variable_names(),
-        global_variable_names(problem.definition().spatial.contacts.size()));
+        global_variable_names(problem.definition().spatial.contacts));
 }
 
 void ExodusTransientResultsWriter::append(const TransientProblem& problem) {

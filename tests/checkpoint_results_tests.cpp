@@ -11,6 +11,7 @@
 #include <cmath>
 #include <cstdio>
 #include <exception>
+#include <filesystem>
 #include <fstream>
 #include <functional>
 #include <iostream>
@@ -196,7 +197,12 @@ bool verify_steady_results(const fuelsim::FuelSimCaseDefinition& input,
         input.solver.absolute_tolerance, input.solver.relative_tolerance,
         input.solver.step_tolerance, input.solver.maximum_iterations};
     const fuelsim::SteadyResult result = fuelsim::solve_steady(
-        problem, input.steady_execution.load_steps, solver);
+        problem,
+        {input.steady_execution.load_steps,
+         input.steady_execution.cutback_factor,
+         input.steady_execution.maximum_cutbacks,
+         input.steady_execution.minimum_load_increment},
+        solver);
     if (!check(result.completed && result.solve.converged,
                "steady result fixture converges"))
         return false;
@@ -236,10 +242,28 @@ bool run_tests(const std::string& steady_input_path,
                const std::string& results_path) {
     const fuelsim::FuelSimCaseDefinition steady_input =
         fuelsim::CaseInputReader::read(steady_input_path);
+    const std::filesystem::path configured_results(results_path);
+    const std::filesystem::path first_segment =
+        configured_results.parent_path() /
+        (configured_results.stem().string() + ".part1" +
+         configured_results.extension().string());
+    {
+        std::ofstream occupied(first_segment);
+        occupied << "previous segment";
+    }
+    const std::filesystem::path second_segment =
+        configured_results.parent_path() /
+        (configured_results.stem().string() + ".part2" +
+         configured_results.extension().string());
+    bool passed =
+        check(fuelsim::next_results_segment_path(results_path) ==
+                  second_segment.string(),
+              "restart result segmentation preserves occupied earlier files");
+    std::filesystem::remove(first_segment);
     const fuelsim::UnstructuredQuad4Mesh steady_mesh =
         fuelsim::ExodusMeshIo::read_quad4(steady_input.mesh_file);
-    bool passed =
-        verify_steady_results(steady_input, steady_mesh, results_path);
+    passed = verify_steady_results(steady_input, steady_mesh, results_path) &&
+             passed;
 
     const fuelsim::FuelSimCaseDefinition input =
         fuelsim::CaseInputReader::read(transient_input_path);
@@ -261,24 +285,49 @@ bool run_tests(const std::string& steady_input_path,
     ResultsObserver observer(writer);
     const fuelsim::TransientResult first =
         fuelsim::solve_transient(split, time_options(10.0), solver, &observer);
-    passed = check(first.completed && observer.steps() == 10,
-                   "first restart segment commits ten observed steps") &&
+    passed = check(first.completed &&
+                       observer.steps() == first.accepted_steps.size(),
+                   "first restart segment observes every accepted step") &&
              passed;
-    fuelsim::TransientCheckpointIo::write(checkpoint_path, split, 1.0);
+    const std::string history_path = results_path + ".history.csv";
+    {
+        fuelsim::EngineeringHistoryWriter history(history_path, split);
+        history.append(split, 1.0, 1.0, first.last_attempt.nonlinear_iterations);
+    }
+    {
+        std::ifstream history(history_path);
+        std::string header;
+        std::string values;
+        std::getline(history, header);
+        std::getline(history, values);
+        passed =
+            check(header.find("region_cladding_maximum_temperature") !=
+                          std::string::npos &&
+                      header.find("contact_fuel_cladding_minimum_gap") !=
+                          std::string::npos &&
+                      !values.empty(),
+                  "engineering history uses named region/contact columns") &&
+            passed;
+    }
+    std::filesystem::remove(history_path);
+    fuelsim::TransientCheckpointIo::write(checkpoint_path, split,
+                                          first.next_time_step);
     const fuelsim::TransientCommittedState split_state =
         split.committed_state();
 
     fuelsim::TransientProblem restarted(input.transient_definition(), mesh);
     const double restored_time_step =
         fuelsim::TransientCheckpointIo::restore(checkpoint_path, restarted);
-    passed = check(restored_time_step == 1.0,
+    passed = check(restored_time_step == first.next_time_step,
                    "restart preserves the committed controller step") &&
              passed;
     passed =
         compare_committed_states(split_state, restarted.committed_state()) &&
         passed;
-    const fuelsim::TransientResult second =
-        fuelsim::solve_transient(restarted, time_options(20.0), solver);
+    fuelsim::TransientTimeOptions restart_options = time_options(20.0);
+    restart_options.initial_time_step = restored_time_step;
+    const fuelsim::TransientResult second = fuelsim::solve_transient(
+        restarted, restart_options, solver);
     passed = check(second.completed, "restarted PCMI solve reaches end time") &&
              compare_committed_states(uninterrupted.committed_state(),
                                       restarted.committed_state()) &&

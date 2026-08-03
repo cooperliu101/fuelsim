@@ -94,6 +94,7 @@ class TransientProblem final : public NonlinearProblem {
     std::size_t contribution_count() const noexcept override;
     const std::vector<DirichletCondition>&
     dirichlet_conditions() const noexcept override;
+    void validate_state(const std::vector<double>& state) const override;
     LocalDofs contribution_dofs(std::size_t contribution_index) const override;
     LocalResidual
     contribution_residual(std::size_t contribution_index,

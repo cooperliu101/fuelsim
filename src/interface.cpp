@@ -162,10 +162,20 @@ evaluate_heat_quadrature(const Line2RzHeatGeometry& geometry,
     const adlite::Scalar tangent_r = primary_radius_1 - primary_radius_0;
     const adlite::Scalar tangent_z = primary_axial_1 - primary_axial_0;
     const adlite::Scalar tangent_length = adlite::hypot(tangent_r, tangent_z);
-    const adlite::Scalar primary_fraction =
+    adlite::Scalar primary_fraction =
         ((secondary_radius - primary_radius_0) * tangent_r +
          (secondary_axial - primary_axial_0) * tangent_z) /
         (tangent_length * tangent_length);
+    constexpr double projection_tolerance = 1.0e-12;
+    if (primary_fraction.value() < -projection_tolerance ||
+        primary_fraction.value() > 1.0 + projection_tolerance)
+        throw std::domain_error(
+            "Thermal contact quadrature point left its primary segment; the "
+            "current small-sliding projection is no longer valid");
+    if (primary_fraction.value() < 0.0)
+        primary_fraction = 0.0;
+    else if (primary_fraction.value() > 1.0)
+        primary_fraction = 1.0;
     const adlite::Scalar primary_shape_0 = 1.0 - primary_fraction;
     const adlite::Scalar primary_shape_1 = primary_fraction;
     const adlite::Scalar primary_radius =
@@ -236,18 +246,31 @@ ContactAdValue evaluate_contact(const NodeToLineRzContactGeometry& geometry,
             geometry.primary_segment_coordinates[0].z + state[10];
         const adlite::Scalar primary_z_1 =
             geometry.primary_segment_coordinates[1].z + state[11];
-        if (!projection_is_inside(
-                ((secondary_z - primary_z_0) / (primary_z_1 - primary_z_0))
-                    .value(),
-                geometry.primary_segment_includes_second_endpoint))
+        adlite::Scalar fraction =
+            (secondary_z - primary_z_0) / (primary_z_1 - primary_z_0);
+        bool projected = projection_is_inside(
+            fraction.value(),
+            geometry.primary_segment_includes_second_endpoint);
+        constexpr double endpoint_tolerance = 1.0e-12;
+        if (!projected && fraction.value() < 0.0 &&
+            std::abs(geometry.reference_primary_fraction) <=
+                endpoint_tolerance) {
+            fraction = 0.0;
+            projected = true;
+        } else if (!projected && fraction.value() > 1.0 &&
+                   geometry.primary_segment_includes_second_endpoint &&
+                   std::abs(geometry.reference_primary_fraction - 1.0) <=
+                       endpoint_tolerance) {
+            fraction = 1.0;
+            projected = true;
+        }
+        if (!projected)
             return {false,
                     adlite::Scalar(0.0), adlite::Scalar(0.0),
                     adlite::Scalar(0.0), adlite::Scalar(0.0),
                     adlite::Scalar(0.0), adlite::Scalar(0.0),
                     adlite::Scalar(0.0), adlite::Scalar(0.0),
                     adlite::Scalar(0.0)};
-        const adlite::Scalar fraction =
-            (secondary_z - primary_z_0) / (primary_z_1 - primary_z_0);
         const adlite::Scalar shape_0 = 1.0 - fraction;
         const adlite::Scalar shape_1 = fraction;
         const adlite::Scalar secondary_radius =
@@ -634,8 +657,7 @@ void NodeToLineRzContactKernel::residual_ad(
         return;
 
     const std::size_t secondary = geometry.secondary_local_node;
-    residual[4 + secondary] += value.contact_force;
-    residual[4 + secondary] *= value.normal_r;
+    residual[4 + secondary] += value.contact_force * value.normal_r;
     residual[6] -= value.primary_shape_0 * value.contact_force * value.normal_r;
     residual[7] -= value.primary_shape_1 * value.contact_force * value.normal_r;
     residual[8 + secondary] += value.contact_force * value.normal_z;

@@ -4,6 +4,12 @@
 
 namespace fuelsim {
 
+void NonlinearProblem::validate_state(const std::vector<double>& state) const {
+    if (state.size() != dof_count())
+        throw std::invalid_argument(
+            "NonlinearProblem validation state size does not match problem");
+}
+
 LocalValues NonlinearProblem::contribution_state(
     std::size_t contribution_index,
     const std::vector<double>& global_state) const {

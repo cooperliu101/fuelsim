@@ -207,7 +207,7 @@ NortonRoot solve_power_law_equivalent_stress(
             current = candidate;
         }
         if (!converged)
-            throw std::runtime_error(
+            throw std::domain_error(
                 "Norton creep logarithmic local Newton solve did not "
                 "converge");
         log_stress_ratio = current;
@@ -320,7 +320,7 @@ CoupledUpdate solve_coupled_update(double trial_stress, double shear_modulus,
                                              inverse_three_shear_modulus -
                                          creep_increment.value;
         if (!std::isfinite(plastic_increment) || !(plastic_increment > 0.0))
-            throw std::runtime_error(
+            throw std::domain_error(
                 "Coupled perfect-plastic update produced a nonpositive "
                 "plastic increment");
         return {

@@ -87,7 +87,12 @@ bool run_comparison(const std::string& input_path,
         definition.solver.step_tolerance,
         definition.solver.maximum_iterations};
     const fuelsim::SteadyResult result = fuelsim::solve_steady(
-        problem, definition.steady_execution.load_steps, options);
+        problem,
+        {definition.steady_execution.load_steps,
+         definition.steady_execution.cutback_factor,
+         definition.steady_execution.maximum_cutbacks,
+         definition.steady_execution.minimum_load_increment},
+        options);
     passed = check(result.completed && result.solve.converged,
                    "M3.3 two-pellet contact solve converges") &&
              passed;

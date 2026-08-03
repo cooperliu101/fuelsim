@@ -11,6 +11,10 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+option(FUELSIM_ENABLE_SANITIZERS
+       "Build with AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
+option(FUELSIM_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
+
 find_package(adlite 0.1.0 CONFIG REQUIRED)
 find_package(PkgConfig REQUIRED)
 find_package(SEACASExodus CONFIG REQUIRED)
@@ -25,8 +29,23 @@ function(fuelsim_enable_warnings target)
             -Wconversion
             -Wsign-conversion
         )
+        if(FUELSIM_WARNINGS_AS_ERRORS)
+            target_compile_options("${target}" PRIVATE -Werror)
+        endif()
+        if(FUELSIM_ENABLE_SANITIZERS)
+            target_compile_options("${target}" PRIVATE
+                -fsanitize=address,undefined
+                -fno-omit-frame-pointer
+            )
+            target_link_options("${target}" PRIVATE
+                -fsanitize=address,undefined
+            )
+        endif()
     elseif(MSVC)
         target_compile_options("${target}" PRIVATE /W4 /permissive-)
+        if(FUELSIM_WARNINGS_AS_ERRORS)
+            target_compile_options("${target}" PRIVATE /WX)
+        endif()
     endif()
 endfunction()
 
@@ -220,6 +239,7 @@ if(BUILD_TESTING)
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_table_convection_moose.fsi"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m31_transient_table_convection_rz_all_nodes_final.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_fuel_cladding_pcmi.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_pressure_boundary.fsi"
     )
     set_tests_properties(fuelsim_m3_load_boundary_tests PROPERTIES
         LABELS "acceptance"
@@ -313,10 +333,12 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_core_tests PROPERTIES LABELS "unit")
 
     add_executable(fuelsim_multi_region_tests tests/multi_region_tests.cpp)
-    target_link_libraries(fuelsim_multi_region_tests PRIVATE fuelsim::core)
+    target_link_libraries(fuelsim_multi_region_tests
+        PRIVATE fuelsim::core fuelsim::petsc
+    )
     fuelsim_enable_warnings(fuelsim_multi_region_tests)
     add_test(NAME fuelsim_multi_region_tests COMMAND fuelsim_multi_region_tests)
-    set_tests_properties(fuelsim_multi_region_tests PROPERTIES LABELS "unit")
+    set_tests_properties(fuelsim_multi_region_tests PROPERTIES LABELS "acceptance")
 
     add_executable(fuelsim_m2_core_tests tests/m2_core_tests.cpp)
     target_link_libraries(fuelsim_m2_core_tests PRIVATE fuelsim_test_support)
@@ -391,6 +413,67 @@ if(BUILD_TESTING)
             LABELS "acceptance;parallel"
             PROCESSORS 2
             TIMEOUT 60
+        )
+        add_test(NAME fuelsim_mpi_block_jacobi
+            COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2
+                $<TARGET_FILE:fuelsim_mpi_equivalence_tests>
+                compare_block_jacobi
+                "${CMAKE_CURRENT_BINARY_DIR}/m34_one_rank_state.txt"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_two_pellet_contact_moose.fsi"
+        )
+        set_tests_properties(fuelsim_mpi_block_jacobi PROPERTIES
+            FIXTURES_REQUIRED m34_mpi_reference
+            LABELS "integration;parallel"
+            PROCESSORS 2
+            TIMEOUT 60
+        )
+        add_test(NAME fuelsim_mpi_hypre
+            COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2
+                $<TARGET_FILE:fuelsim_mpi_equivalence_tests>
+                compare_hypre
+                "${CMAKE_CURRENT_BINARY_DIR}/m34_one_rank_state.txt"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_two_pellet_contact_moose.fsi"
+        )
+        set_tests_properties(fuelsim_mpi_hypre PROPERTIES
+            FIXTURES_REQUIRED m34_mpi_reference
+            LABELS "integration;parallel"
+            PROCESSORS 2
+            TIMEOUT 120
+        )
+        add_test(NAME fuelsim_transient_mpi_reference
+            COMMAND fuelsim_mpi_equivalence_tests
+                write_transient
+                "${CMAKE_CURRENT_BINARY_DIR}/m35_transient_one_rank_state.txt"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_coupled_traction_moose.fsi"
+        )
+        set_tests_properties(fuelsim_transient_mpi_reference PROPERTIES
+            FIXTURES_SETUP m35_transient_mpi_reference
+            LABELS "integration;parallel"
+        )
+        add_test(NAME fuelsim_transient_mpi_equivalence
+            COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2
+                $<TARGET_FILE:fuelsim_mpi_equivalence_tests>
+                compare_transient
+                "${CMAKE_CURRENT_BINARY_DIR}/m35_transient_one_rank_state.txt"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_coupled_traction_moose.fsi"
+        )
+        set_tests_properties(fuelsim_transient_mpi_equivalence PROPERTIES
+            FIXTURES_REQUIRED m35_transient_mpi_reference
+            LABELS "acceptance;parallel"
+            PROCESSORS 2
+            TIMEOUT 60
+        )
+        add_test(NAME fuelsim_mpi_root_io_failure
+            COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2
+                $<TARGET_FILE:fuelsim_mpi_equivalence_tests>
+                test_io_failure
+                unused-reference
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_two_pellet_contact_moose.fsi"
+        )
+        set_tests_properties(fuelsim_mpi_root_io_failure PROPERTIES
+            LABELS "integration;parallel"
+            PROCESSORS 2
+            TIMEOUT 30
         )
     endif()
 
@@ -499,6 +582,15 @@ if(BUILD_TESTING)
             "${CMAKE_CURRENT_BINARY_DIR}/fuelsim_registered_tests.txt"
     )
     set_tests_properties(fuelsim_verification_matrix_tests PROPERTIES
+        LABELS "audit;release"
+    )
+    add_test(NAME fuelsim_moose_reference_sha256
+        COMMAND "${CMAKE_COMMAND}"
+            "-DROOT=${CMAKE_CURRENT_SOURCE_DIR}/verification/moose"
+            "-DMANIFEST=${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/SHA256SUMS"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifySha256.cmake"
+    )
+    set_tests_properties(fuelsim_moose_reference_sha256 PROPERTIES
         LABELS "audit;release"
     )
 endif()

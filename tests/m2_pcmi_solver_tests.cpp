@@ -243,10 +243,16 @@ std::size_t find_node(const fuelsim::RegionMesh& mesh, double radius,
 
 fuelsim::SolverOptions
 solver_options(const fuelsim::FuelSimCaseDefinition& definition) {
-    return {definition.solver.absolute_tolerance,
-            definition.solver.relative_tolerance,
-            definition.solver.step_tolerance,
-            definition.solver.maximum_iterations};
+    fuelsim::SolverOptions options{
+        definition.solver.absolute_tolerance,
+        definition.solver.relative_tolerance,
+        definition.solver.step_tolerance,
+        definition.solver.maximum_iterations};
+    // The tracked MOOSE snapshot uses the fixed 20 x 1 s load path. Keep that
+    // comparison path independent of the production default line search,
+    // whose contact-onset cutback deliberately changes the time grid.
+    options.line_search = fuelsim::SolverOptions::LineSearch::basic;
+    return options;
 }
 
 fuelsim::TransientTimeOptions

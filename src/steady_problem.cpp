@@ -1062,6 +1062,28 @@ SteadyProblem::summarize_contact_nodes(std::size_t contact_value,
     return result;
 }
 
+void SteadyProblem::validate_state(const std::vector<double>& state) const {
+    NonlinearProblem::validate_state(state);
+    for (std::size_t contact_value = 0; contact_value < contact_count();
+         ++contact_value) {
+        if (!_definition.contacts[contact_value].mechanical)
+            continue;
+        std::size_t unprojected = 0;
+        for (const ContactNodeSummary& node :
+             summarize_contact_nodes(contact_value, state)) {
+            if (!node.projected)
+                ++unprojected;
+        }
+        if (unprojected != 0)
+            throw std::domain_error(
+                "Mechanical contact '" +
+                _definition.contacts[contact_value].name + "' lost projection " +
+                "for " + std::to_string(unprojected) +
+                " secondary nodes; the current small-sliding candidate window "
+                "is no longer valid");
+    }
+}
+
 std::vector<std::size_t>
 SteadyProblem::contact_secondary_source_nodes(std::size_t contact_value) const {
     const ResolvedBoundary& secondary = _secondary_boundaries.at(contact_value);
@@ -1085,6 +1107,7 @@ SteadyProblem::summarize_interface(std::size_t contact_value,
         0.0,
         0.0,
         0.0,
+        0,
         0,
         0,
         0.0,
@@ -1122,8 +1145,10 @@ SteadyProblem::summarize_interface(std::size_t contact_value,
     if (has_mechanical) {
         for (const ContactNodeSummary& node :
              summarize_contact_nodes(contact_value, state)) {
-            if (!node.projected)
+            if (!node.projected) {
+                ++summary.unprojected_contact_nodes;
                 continue;
+            }
             ++summary.projected_contact_nodes;
             summary.minimum_contact_gap =
                 std::min(summary.minimum_contact_gap, node.gap);

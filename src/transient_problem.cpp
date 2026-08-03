@@ -507,6 +507,11 @@ TransientProblem::dirichlet_conditions() const noexcept {
     return _spatial_model.dirichlet_conditions();
 }
 
+void TransientProblem::validate_state(const std::vector<double>& state) const {
+    require_active_time_step();
+    _spatial_model.validate_state(state);
+}
+
 LocalDofs
 TransientProblem::contribution_dofs(std::size_t contribution_index) const {
     return _spatial_model.contribution_dofs(contribution_index);

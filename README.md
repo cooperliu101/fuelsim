@@ -148,14 +148,18 @@ I/O 层，生产问题会保留每个选中块的原始节点坐标和 Quad4 连
 
 ```bash
 ./build/fuelsim_m2_pcmi_solver_tests \
-  verification/moose/m23_pcmi_coupled_cladding_rz_mesh.e
+  verification/fuelsim/transient_fuel_cladding_pcmi.fsi \
+  verification/moose/m23_pcmi_coupled_cladding_rz_all_nodes_final.csv \
+  verification/moose/m23_pcmi_coupled_cladding_rz_fuel_surface_final.csv
 ```
 
 运行 MOOSE Exodus 网格驱动的 M1 验收：
 
 ```bash
 ./build/fuelsim_m1_exodus_moose_tests \
-  verification/moose/m1_fuel_cladding_gap_rz_mesh.e
+  verification/fuelsim/steady_fuel_cladding.fsi \
+  verification/moose/m1_fuel_cladding_gap_rz_all_nodes_final.csv \
+  verification/moose/m1_fuel_surface_final.csv
 ```
 
 运行内部节点畸变、不可转换为张量积网格的 M1 全场验收：
@@ -238,7 +242,7 @@ primary 线段形函数分配相反反力。两种界面残量均离散守恒，
 `20 um` 轴向裕量用于防止燃料热膨胀后越过包壳接触面。
 
 PETSc Dirichlet 行采用 `F_i=x_i-g_i`，Jacobian 只清约束行并置单位对角。
-默认使用 Newton basic line search，用户传入的 PETSc 选项可覆盖默认值。
+默认使用 Newton backtracking line search；物理域错误触发回退，正收敛原因仍须通过残量复核。
 
 M2 热容残量和非弹性更新为：
 
@@ -359,7 +363,8 @@ M2.3 PCMI 算例采用弹性芯块和耦合 Norton—J2 包壳。20 s 末，5 �
 
 一般 Line2 接触允许非匹配分段并支持圆柱侧面、水平端面和斜面，但每侧必须
 是一条不分叉的开放边链，secondary 投影必须被 primary 完整覆盖。当前仍不
-支持 mortar、摩擦、位移惯性或有限应变；多 rank 下网格、问题几何和回调
+支持大滑移动态候选面、mortar、摩擦、位移惯性或有限应变；候选窗口外状态
+会显式拒步。多 rank 下网格、问题几何和回调
 完整状态仍在各 rank 复制。
 
 M2.2 只提供与具体材料无关的等温 Norton 幂律和线性硬化 J2 算法。暂不

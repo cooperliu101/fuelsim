@@ -2,6 +2,7 @@
 #include "fuelsim/input_file.hpp"
 
 #include <cstdio>
+#include <cstdint>
 #include <exception>
 #include <fstream>
 #include <iostream>
@@ -85,6 +86,11 @@ bool verify_m3_output_input(const std::string& path,
                 std::string::npos &&
             definition.outputs.exodus_file.find("results.e") !=
                 std::string::npos &&
+            definition.outputs.exodus_interval == 3 &&
+            definition.outputs.history_file.find("history.csv") !=
+                std::string::npos &&
+            definition.outputs.history_interval == 2 &&
+            definition.outputs.progress_interval == 4 &&
             definition.outputs.checkpoint_file.find("checkpoint.bin") !=
                 std::string::npos &&
             definition.outputs.checkpoint_interval == 5 &&
@@ -102,6 +108,44 @@ bool verify_m3_output_input(const std::string& path,
             definition.solver.linear_relative_tolerance == 1.0e-7 &&
             definition.solver.maximum_linear_iterations == 700,
         "restart, time functions, convection, solver and outputs are parsed");
+}
+
+bool fuzz_input_parser(const std::string& seed, const std::string& path) {
+    std::uint64_t generator = 0x6a09e667f3bcc909ULL;
+    for (std::size_t iteration = 0; iteration < 512; ++iteration) {
+        std::string mutation = seed;
+        generator = generator * 6364136223846793005ULL + 1ULL;
+        const std::size_t edits = 1 + static_cast<std::size_t>(generator % 8);
+        for (std::size_t edit = 0; edit < edits && !mutation.empty(); ++edit) {
+            generator = generator * 6364136223846793005ULL + 1ULL;
+            const std::size_t position =
+                static_cast<std::size_t>(generator % mutation.size());
+            generator = generator * 6364136223846793005ULL + 1ULL;
+            mutation[position] = static_cast<char>(generator & 0x7fU);
+        }
+        if (iteration % 7 == 0 && !mutation.empty()) {
+            generator = generator * 6364136223846793005ULL + 1ULL;
+            mutation.resize(static_cast<std::size_t>(generator %
+                                                     mutation.size()));
+        }
+        {
+            std::ofstream output(path, std::ios::out | std::ios::trunc);
+            if (!output)
+                return check(false, "could not create parser fuzz fixture");
+            output << mutation;
+        }
+        try {
+            (void)fuelsim::InputParser::parse_file(path);
+        } catch (const std::exception&) {
+        } catch (...) {
+            std::remove(path.c_str());
+            return check(false,
+                         "parser fuzz mutation raised a non-standard error");
+        }
+    }
+    const int remove_status = std::remove(path.c_str());
+    return check(remove_status == 0,
+                 "deterministic parser fuzz mutations complete safely");
 }
 
 bool run_tests(const std::string& steady_path,
@@ -132,6 +176,9 @@ bool run_tests(const std::string& steady_path,
                   steady.contacts[0].thermal && steady.contacts[0].mechanical,
               "contact is defined only by primary and secondary side sets") &&
         check(steady.steady_execution.load_steps == 20 &&
+                  steady.steady_execution.cutback_factor == 0.5 &&
+                  steady.steady_execution.maximum_cutbacks == 12 &&
+                  steady.steady_execution.minimum_load_increment == 1.0e-6 &&
                   steady.solver.maximum_iterations == 50 &&
                   steady.solver.linear_solver == "automatic" &&
                   steady.solver.preconditioner == "automatic" &&
@@ -249,7 +296,10 @@ bool run_tests(const std::string& steady_path,
     if (output_position == std::string::npos)
         return check(false, "transient fixture has the expected console key");
     m3_case.insert(output_position + console.size(),
-                   "\n  exodus = results.e\n  checkpoint = checkpoint.bin"
+                   "\n  exodus = results.e\n  exodus_interval = 3"
+                   "\n  history = history.csv\n  history_interval = 2"
+                   "\n  progress_interval = 4"
+                   "\n  checkpoint = checkpoint.bin"
                    "\n  checkpoint_interval = 5");
     passed = verify_m3_output_input(malformed_path, m3_case) && passed;
 
@@ -307,6 +357,30 @@ bool run_tests(const std::string& steady_path,
                              "\n  checkpoint = checkpoint.bin");
     passed = expect_case_failure(malformed_path, steady_checkpoint,
                                  "only valid for transient cases") &&
+             passed;
+    std::string mesh_overwrite = read_text(steady_path);
+    const std::string mesh_file =
+        "file = ../moose/m1_fuel_cladding_gap_rz_mesh.e";
+    const std::size_t mesh_output = mesh_overwrite.find(console);
+    if (mesh_overwrite.find(mesh_file) == std::string::npos ||
+        mesh_output == std::string::npos)
+        return check(false, "steady fixture has expected mesh and output");
+    mesh_overwrite.insert(mesh_output + console.size(),
+                          "\n  csv = ../moose/"
+                          "m1_fuel_cladding_gap_rz_mesh.e");
+    passed = expect_case_failure(malformed_path, mesh_overwrite,
+                                 "must not overwrite the input mesh") &&
+             passed;
+
+    std::string output_collision = read_text(transient_path);
+    const std::size_t collision_output = output_collision.find(console);
+    output_collision.insert(collision_output + console.size(),
+                            "\n  csv = collision.dat"
+                            "\n  checkpoint = collision.dat");
+    passed = expect_case_failure(malformed_path, output_collision,
+                                 "paths must differ") &&
+             passed;
+    passed = fuzz_input_parser(read_text(transient_path), malformed_path) &&
              passed;
     return passed;
 }

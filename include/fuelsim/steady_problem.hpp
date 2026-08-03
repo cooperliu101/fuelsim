@@ -87,6 +87,7 @@ struct InterfaceSummary final {
     double total_heat_rate;
     double total_contact_force;
     std::size_t projected_contact_nodes;
+    std::size_t unprojected_contact_nodes;
     std::size_t active_contact_nodes;
     double active_contact_length;
 };
@@ -138,6 +139,7 @@ class SteadyProblem final : public NonlinearProblem {
     std::size_t contribution_count() const noexcept override;
     const std::vector<DirichletCondition>&
     dirichlet_conditions() const noexcept override;
+    void validate_state(const std::vector<double>& state) const override;
     LocalDofs contribution_dofs(std::size_t contribution_index) const override;
     LocalResidual
     contribution_residual(std::size_t contribution_index,

@@ -6,20 +6,39 @@
 #include "fuelsim/transient_problem.hpp"
 
 #include <cstddef>
+#include <string>
 #include <vector>
 
 namespace fuelsim {
 
+struct SteadyLoadOptions final {
+    std::size_t load_steps = 1;
+    double cutback_factor = 0.5;
+    std::size_t maximum_cutbacks_per_step = 12;
+    double minimum_load_increment = 1.0e-6;
+};
+
+struct SteadyRejectedLoadStep final {
+    double attempted_load_factor;
+    double load_increment;
+    std::size_t cutback_index;
+    SolveFailureCategory failure_category;
+    std::string failure_message;
+};
+
 struct SteadyResult final {
     SolveResult solve;
+    std::vector<SteadyRejectedLoadStep> rejected_steps;
     std::size_t completed_steps = 0;
+    std::size_t total_cutbacks = 0;
     bool completed = false;
     int total_nonlinear_iterations = 0;
     double total_seconds = 0.0;
     SolveTiming aggregate_timing;
 };
 
-SteadyResult solve_steady(SteadyProblem& problem, std::size_t load_steps,
+SteadyResult solve_steady(SteadyProblem& problem,
+                          const SteadyLoadOptions& load_options,
                           const SolverOptions& options = SolverOptions{});
 
 struct TransientTimeOptions final {
@@ -49,6 +68,8 @@ struct TransientRejectedStep final {
     int nonlinear_iterations;
     int convergence_reason;
     double residual_norm;
+    SolveFailureCategory failure_category;
+    std::string failure_message;
 };
 
 struct TransientAcceptedStep final {
