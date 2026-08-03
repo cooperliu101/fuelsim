@@ -17,7 +17,7 @@ files.
 | M2.2 Norton | `m22_norton_creep_rz_mesh.e` | 4 / 1 | `ec33e81651ce9ae3b3cefef8375a4e7256327be1a7ceede813cd3ea1ca7bcec7` |
 | M2.2 coupled displacement | `m22_coupled_plastic_creep_rz_mesh.e` | 4 / 1 | `528411ed474f58b85cc4601a66a3979325beaee93b84f04c7ababaf6ad0a54aa` |
 | M2.2 coupled traction | `m22_coupled_plastic_creep_traction_rz_mesh.e` | 4 / 1 | `664e7f6f8bfddd765db623592bdda769897f71bf3712d7d7b69f09070dd5f984` |
-| M2.3 PCMI | `m23_pcmi_coupled_cladding_rz_mesh.e` | 50 / 32 | `cb6d53013f131976187f58a80bd8e1db6517e2e3a9476482a2c8f9b57ee8ff00` |
+| M2.3 nonmatching PCMI | `m23_pcmi_coupled_cladding_rz_mesh.e` | 53 / 34 | `bdcb8d22550ec68c647330e2a5214331e0b65b2bdbfdba82322824314a476b45` |
 | M3.1 time-table convection | `m31_transient_table_convection_rz_mesh.e` | 15 / 8 | `9be197728d3a52ff05e1063593eb47969dc05950e317f71a59082915ba3e7e57` |
 | M3.3 two-pellet contact | `m33_two_pellet_contact_rz_mesh.e` | 36 / 20 | `90c90396384397cbd0c993f35ac90c6e402996c77454820c009a653e8748f474` |
 
@@ -542,14 +542,15 @@ Both regenerated CSV files were byte-for-byte identical to their tracked
 ## M2.3 PCMI with coupled cladding plasticity and creep
 
 `m23_pcmi_coupled_cladding_rz.i` is the end-to-end PCMI reference. It uses
-separate fuel and cladding meshes with matching axial divisions:
+separate fuel and cladding meshes with a nonmatching 4-to-5 axial interface:
 
 ```text
 fuel radius / height:             4.120 mm / 10.000 mm
 cladding inner / outer radius:    4.121 mm / 4.692 mm
 cladding height:                  10.020 mm
 initial mechanical gap:           1 um
-mesh:                             fuel 6x4, cladding 2x4 Quad4
+mesh:                             fuel 6x4, cladding 2x5 Quad4
+contact interface:                fuel 4 edges / clad 5 edges
 time integration:                 20 steps, dt=1 s
 fuel heat source:                 linear ramp to 2e8 W/m^3
 fuel / cladding initial T:        600 K / 600 K
@@ -592,35 +593,33 @@ quadrature-point value CSVs. The tracked snapshots are
 fuel-surface SHA256 values are:
 
 ```text
-69e1ea1064372fcaf9138f6b116efe808ee1f616f85f94b09ac7895a4cbc4a49
-1d6564d7c19c41fab6fa5504bc2c66b9d1bd8c6a6a6ba0fe45dff52b39046b0a
+3fcc231563165a18ec38fc609ca08b615f7dd7a03e28edfd6317f529c50c0207
+9daa196e9f90c0f5a8f6c196c02565e9b01f4b02c7744b21ae9d8f8d28c906ae
 ```
 
 The final complete-field differences are:
 
 ```text
                                       relative L2   relative absolute peak   pointwise max
-temperature:                           0.01075%      0.00078%                0.04509%
-radial displacement:                   0.08782%      0.11875%                0.25233%
-axial displacement:                    0.02053%      0.02433%                0.07657%
-contact pressure:                      0.06209%      0.10333%                0.10333%
+temperature:                           0.00976%      0.00081%                0.04262%
+radial displacement:                   0.08349%      0.11553%                0.23673%
+axial displacement:                    0.02026%      0.02408%                0.06704%
+contact pressure:                      0.04486%      0.00805%                0.09203%
 
-average von Mises stress error:            0.00431%
-average effective plastic strain error:   0.0489%
-average effective creep strain error:     0.0359%
-total contact force relative error:        0.00027%
+average von Mises stress error:            0.00322%
+average effective plastic strain error:   0.03698%
+average effective creep strain error:     0.02812%
+total contact force relative error:        0.00065%
 projected / active fuel surface nodes:     5 / 5
 ```
 
 Temperature and axial displacement pass `<0.1%` for all three metrics. Radial
 displacement passes relative L2 `<0.095%`; its relative absolute-peak and maximum
-pointwise-relative gates are `<0.125%` and `<0.27%`. The largest difference is
-about `6.45 nm` at source node 48 on the top cladding inner surface. Tightening
-the nonlinear tolerances and halving `dt` did not change this localized contact
-endpoint difference. The pressure-vector metrics pass `<0.11%`, and total
-force passes `<0.1%`. Stress and both average history metrics pass `<0.1%`.
+pointwise-relative gates are `<0.125%` and `<0.27%`. The pressure-vector metrics
+pass `<0.11%`, and total force passes `<0.1%`. Stress and both average history
+metrics pass `<0.1%`.
 
-The cladding pointwise comparison covers all `8 elements x 4 QPs = 32`
+The cladding pointwise comparison covers all `10 elements x 4 QPs = 40`
 integration points. `ADMaterialRealAux` with `selected_qp` extracts the three
 AD material properties, while a separate sampler preserves element IDs, QP
 IDs, and physical coordinates. MOOSE orders local points as
@@ -629,17 +628,16 @@ IDs, and physical coordinates. MOOSE orders local points as
 `1.99e-17 m`. Distribution errors are:
 
 ```text
-                                      relative L2   maximum relative   maximum absolute
-von Mises stress:                     0.01238%      0.03335%           1.9007e3 Pa
-effective plastic strain:            0.13873%      0.29152%           9.5033e-7
-effective creep strain:              0.07682%      0.18805%           2.7958e-7
+                                      relative L2   relative absolute peak   pointwise max   maximum absolute
+von Mises stress:                     0.01158%      0.03239%                0.03239%        1.8434e3 Pa
+effective plastic strain:            0.13129%      0.26656%                0.28315%        9.2168e-7
+effective creep strain:              0.07111%      0.18375%                0.18375%        2.7361e-7
 ```
 
 The maximum relative stress and creep errors occur at local cladding element
-6, QP 3 (`r=4.181333 mm`, `z=9.490631 mm`; MOOSE element 30, QP 2). The
-maximum relative plastic error occurs at local element 7, QP 2
-(`r=4.631667 mm`, `z=9.490631 mm`; MOOSE element 31, QP 3). Pointwise gates
-are stress L2/peak/pointwise `<0.015%`/`<0.04%`/`<0.04%`, plastic strain
+8, QP 3. The maximum relative plastic error occurs at local element 9, QP 2.
+Pointwise gates are stress L2/peak/pointwise
+`<0.015%`/`<0.04%`/`<0.04%`, plastic strain
 `<0.15%`/`<0.29%`/`<0.305%`, and creep strain
 `<0.09%`/`<0.195%`/`<0.195%`.
 

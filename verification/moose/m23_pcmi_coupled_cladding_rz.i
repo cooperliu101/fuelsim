@@ -1,5 +1,5 @@
-# M2.3 PCMI verification: elastic fuel thermal expansion closes the gap and
-# loads a cladding with coupled Norton creep and J2 plasticity.
+# M2.3 nonmatching PCMI verification: elastic fuel thermal expansion closes
+# the gap and loads a cladding with coupled Norton creep and J2 plasticity.
 
 [Mesh]
   [fuel_mesh]
@@ -17,7 +17,7 @@
     type = GeneratedMeshGenerator
     dim = 2
     nx = 2
-    ny = 4
+    ny = 5
     xmin = 0.004121
     xmax = 0.004692
     ymin = 0.0

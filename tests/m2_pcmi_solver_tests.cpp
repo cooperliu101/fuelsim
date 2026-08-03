@@ -8,9 +8,11 @@
 #include <cmath>
 #include <cstddef>
 #include <exception>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <limits>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -34,6 +36,55 @@ bool check(bool condition, const std::string& message) {
         return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
+}
+
+std::vector<std::string> split_csv(const std::string& line) {
+    std::vector<std::string> result;
+    std::istringstream input(line);
+    std::string value;
+    while (std::getline(input, value, ','))
+        result.push_back(value);
+    return result;
+}
+
+struct CsvTable final {
+    std::vector<std::string> header;
+    std::vector<std::vector<std::string>> rows;
+};
+
+CsvTable read_csv(const std::string& path) {
+    std::ifstream input(path);
+    if (!input)
+        throw std::runtime_error("Could not read MOOSE PCMI CSV: " + path);
+    std::string line;
+    if (!std::getline(input, line))
+        throw std::invalid_argument("MOOSE PCMI CSV is empty: " + path);
+    CsvTable table;
+    table.header = split_csv(line);
+    while (std::getline(input, line)) {
+        if (line.empty())
+            continue;
+        table.rows.push_back(split_csv(line));
+    }
+    return table;
+}
+
+std::size_t column_index(const CsvTable& table, const std::string& name) {
+    const auto found =
+        std::find(table.header.begin(), table.header.end(), name);
+    if (found == table.header.end())
+        throw std::invalid_argument("MOOSE PCMI CSV is missing column: " +
+                                    name);
+    return static_cast<std::size_t>(found - table.header.begin());
+}
+
+double csv_value(const CsvTable& table,
+                 const std::vector<std::string>& row,
+                 const std::string& name) {
+    const std::size_t column = column_index(table, name);
+    if (column >= row.size())
+        throw std::invalid_argument("MOOSE PCMI CSV row is incomplete");
+    return std::stod(row[column]);
 }
 
 double relative_error(double actual, double expected) {
@@ -96,6 +147,65 @@ struct CladdingPointValue final {
     double equivalent_plastic_strain;
     double equivalent_creep_strain;
 };
+
+std::vector<CladdingPointValue>
+read_cladding_point_reference(const std::string& coordinate_path,
+                              const std::string& value_path) {
+    const CsvTable coordinates = read_csv(coordinate_path);
+    const CsvTable values = read_csv(value_path);
+    if (values.rows.empty() || coordinates.rows.size() != values.rows.size() * 4)
+        throw std::invalid_argument(
+            "MOOSE PCMI QP coordinate/value counts are inconsistent");
+    std::vector<CladdingPointValue> result;
+    result.reserve(values.rows.size() * 4);
+    constexpr std::array<std::size_t, 4> moose_qp_from_fuelsim = {0, 1, 3, 2};
+    for (const std::vector<std::string>& value_row : values.rows) {
+        const std::size_t element = static_cast<std::size_t>(
+            csv_value(values, value_row, "id"));
+        for (const std::size_t qp : moose_qp_from_fuelsim) {
+            const auto coordinate = std::find_if(
+                coordinates.rows.begin(), coordinates.rows.end(),
+                [&coordinates, element, qp](
+                    const std::vector<std::string>& row) {
+                    return static_cast<std::size_t>(
+                               csv_value(coordinates, row, "elem_id")) ==
+                               element &&
+                           static_cast<std::size_t>(
+                               csv_value(coordinates, row, "qp_id")) == qp;
+                });
+            if (coordinate == coordinates.rows.end())
+                throw std::invalid_argument(
+                    "MOOSE PCMI QP coordinate is missing");
+            const std::string suffix = std::to_string(qp);
+            result.push_back({
+                csv_value(coordinates, *coordinate, "x"),
+                csv_value(coordinates, *coordinate, "y"),
+                csv_value(values, value_row, "stress_q" + suffix),
+                csv_value(values, value_row, "plastic_q" + suffix),
+                csv_value(values, value_row, "creep_q" + suffix),
+            });
+        }
+    }
+    return result;
+}
+
+double read_final_scalar_reference(const std::string& path,
+                                   const std::string& name) {
+    const CsvTable table = read_csv(path);
+    if (table.rows.empty())
+        throw std::invalid_argument("MOOSE PCMI scalar CSV has no rows");
+    return csv_value(table, table.rows.back(), name);
+}
+
+double read_total_contact_force_reference(const std::string& path) {
+    const CsvTable table = read_csv(path);
+    double force = 0.0;
+    for (const std::vector<std::string>& row : table.rows) {
+        force += csv_value(table, row, "contact_pressure") *
+                 csv_value(table, row, "nodal_area");
+    }
+    return force;
+}
 
 struct CladdingMetrics final {
     double average_plastic;
@@ -226,21 +336,6 @@ bool fuel_history_is_elastic(const fuelsim::TransientProblem& problem,
     return true;
 }
 
-bool same_coordinate(double lhs, double rhs) {
-    const double scale = std::max({1.0, std::abs(lhs), std::abs(rhs)});
-    return std::abs(lhs - rhs) <= 1.0e-12 * scale;
-}
-
-std::size_t find_node(const fuelsim::RegionMesh& mesh, double radius,
-                      double axial_coordinate) {
-    for (std::size_t node = 0; node < mesh.nodes().size(); ++node) {
-        if (same_coordinate(mesh.nodes()[node].r, radius) &&
-            same_coordinate(mesh.nodes()[node].z, axial_coordinate))
-            return node;
-    }
-    throw std::invalid_argument("PCMI comparison point is not in the mesh");
-}
-
 fuelsim::SolverOptions
 solver_options(const fuelsim::FuelSimCaseDefinition& definition) {
     fuelsim::SolverOptions options{
@@ -277,7 +372,10 @@ time_options(const fuelsim::FuelSimCaseDefinition& definition) {
 
 bool test_pcmi_coupled_cladding(const std::string& input_path,
                                 const std::string& nodal_reference_path,
-                                const std::string& pressure_reference_path) {
+                                const std::string& pressure_reference_path,
+                                const std::string& qp_coordinate_path,
+                                const std::string& qp_value_path,
+                                const std::string& scalar_reference_path) {
     const fuelsim::FuelSimCaseDefinition definition =
         fuelsim::CaseInputReader::read(input_path);
     if (definition.problem != fuelsim::CaseProblem::transient)
@@ -294,139 +392,24 @@ bool test_pcmi_coupled_cladding(const std::string& input_path,
 
     const std::size_t fuel_region = problem.region_index("fuel");
     const std::size_t cladding_region = problem.region_index("cladding");
-    const fuelsim::RegionMesh& fuel_mesh = problem.region_mesh(fuel_region);
-    const fuelsim::RegionMesh& cladding_mesh =
-        problem.region_mesh(cladding_region);
-    const std::size_t fuel_center = find_node(fuel_mesh, 0.0, 0.005);
-    const std::size_t fuel_surface = find_node(fuel_mesh, 0.004120, 0.005);
-    const std::size_t cladding_inner =
-        find_node(cladding_mesh, 0.004121, 0.00501);
-    const std::size_t cladding_outer =
-        find_node(cladding_mesh, 0.004692, 0.00501);
-    const std::size_t fuel_axis_top = find_node(fuel_mesh, 0.0, 0.010);
-    const std::size_t fuel_offset = problem.region_node_offset(fuel_region);
-    const std::size_t cladding_offset =
-        problem.region_node_offset(cladding_region);
-    const fuelsim::DofMap& dofs = problem.dof_map();
-
     const std::vector<double>& state = result.committed_state;
-    const double temperature_center =
-        state[dofs.temperature(fuel_offset + fuel_center)];
-    const double temperature_fuel_surface =
-        state[dofs.temperature(fuel_offset + fuel_surface)];
-    const double temperature_cladding_inner =
-        state[dofs.temperature(cladding_offset + cladding_inner)];
-    const double radial_fuel_surface =
-        state[dofs.radial_displacement(fuel_offset + fuel_surface)];
-    const double radial_cladding_inner =
-        state[dofs.radial_displacement(cladding_offset + cladding_inner)];
-    const double radial_cladding_outer =
-        state[dofs.radial_displacement(cladding_offset + cladding_outer)];
-    const double axial_fuel_top =
-        state[dofs.axial_displacement(fuel_offset + fuel_axis_top)];
     const fuelsim::InterfaceSummary interface =
         problem.summarize_interface(0, state);
     const std::vector<fuelsim::ContactNodeSummary> contact_nodes =
         problem.summarize_contact_nodes(0, state);
     const CladdingMetrics cladding = cladding_metrics(problem, cladding_region);
 
-    // Generated by verification/moose/m23_pcmi_coupled_cladding_rz.i. The
-    // fuel is elastic, while the cladding uses coupled Norton creep and J2
-    // plasticity in the same material update.
-    constexpr double expected_temperature_center = 737.32437038895;
-    constexpr double expected_temperature_fuel_surface = 613.74977861649;
-    constexpr double expected_temperature_cladding_inner = 612.79216505292;
-    constexpr double expected_radial_fuel_surface = 2.9177714961082e-6;
-    constexpr double expected_radial_cladding_inner = 1.9098157198910e-6;
-    constexpr double expected_radial_cladding_outer = 1.7860488488808e-6;
-    constexpr double expected_axial_fuel_top = 9.2609839250304e-6;
-    constexpr double expected_average_plastic = 2.4156288403990e-4;
-    constexpr double expected_average_creep = 1.2769576281297e-4;
-    constexpr double expected_average_equivalent_stress = 5483125.7680798;
-    constexpr double expected_total_contact_force = 191.06119157558877;
-    // MOOSE QP ordering is [--, +-, -+, ++]. References below are reordered
-    // to fuelsim's [--, +-, ++, -+] convention within each element.
-    constexpr std::array<CladdingPointValue, 32> expected_cladding_points = {{
-        {4.1813332490732002e-3, 5.2936878783998997e-4, 5.5379798327145996e6,
-         2.6898991635728998e-4, 1.3147469050565000e-4},
-        {4.3461667509268002e-3, 5.2936878783998997e-4, 5.5059675508802002e6,
-         2.5298377544010002e-4, 1.2921153876656999e-4},
-        {4.3461667509268002e-3, 1.9756312121599999e-3, 5.5033337755910000e6,
-         2.5166688779551999e-4, 1.2869950224100001e-4},
-        {4.1813332490732002e-3, 1.9756312121599999e-3, 5.5348683751563001e6,
-         2.6743418757814002e-4, 1.3111171361262000e-4},
-        {4.4668332490732003e-3, 5.2936878783998997e-4, 5.4566641267114002e6,
-         2.2833206335568000e-4, 1.2548489788044001e-4},
-        {4.6316667509268003e-3, 5.2936878783998997e-4, 5.4302810392854000e6,
-         2.1514051964269999e-4, 1.2355554119910999e-4},
-        {4.6316667509268003e-3, 1.9756312121599999e-3, 5.4298935069199996e6,
-         2.1494675345997999e-4, 1.2341438586164000e-4},
-        {4.4668332490732003e-3, 1.9756312121599999e-3, 5.4563087917584004e6,
-         2.2815439587921000e-4, 1.2533510884110000e-4},
-        {4.1813332490732002e-3, 3.0343687878399998e-3, 5.5275841168417996e6,
-         2.6379205842088998e-4, 1.3002439365296999e-4},
-        {4.3461667509268002e-3, 3.0343687878399998e-3, 5.4955834560783003e6,
-         2.4779172803918002e-4, 1.2752955822262999e-4},
-        {4.3461667509268002e-3, 4.4806312121600002e-3, 5.4822938984810999e6,
-         2.4114694924055999e-4, 1.2581887569787999e-4},
-        {4.1813332490732002e-3, 4.4806312121600002e-3, 5.5137954443515996e6,
-         2.5689772217579000e-4, 1.2818256306923001e-4},
-        {4.4668332490732003e-3, 3.0343687878399998e-3, 5.4476035984185003e6,
-         2.2380179920927001e-4, 1.2403420161417999e-4},
-        {4.6316667509268003e-3, 3.0343687878399998e-3, 5.4206822509414004e6,
-         2.1034112547070000e-4, 1.2205356963625000e-4},
-        {4.6316667509268003e-3, 4.4806312121600002e-3, 5.4051499993891995e6,
-         2.0257499969460999e-4, 1.2013173565021000e-4},
-        {4.4668332490732003e-3, 4.4806312121600002e-3, 5.4314295954711000e6,
-         2.1571479773552999e-4, 1.2195859726964000e-4},
-        {4.1813332490732002e-3, 5.5393687878400001e-3, 5.4938910727728996e6,
-         2.4694553638645000e-4, 1.2500539810722999e-4},
-        {4.3461667509268002e-3, 5.5393687878400001e-3, 5.4688791733983001e6,
-         2.3443958669912000e-4, 1.2366093035905999e-4},
-        {4.3461667509268002e-3, 6.9856312121599996e-3, 5.4564076657935996e6,
-         2.2820383289681999e-4, 1.2351657712684000e-4},
-        {4.1813332490732002e-3, 6.9856312121599996e-3, 5.4803377481268002e6,
-         2.4016887406340000e-4, 1.2469834667407000e-4},
-        {4.4668332490732003e-3, 5.5393687878400001e-3, 5.4206495705773998e6,
-         2.1032478528872000e-4, 1.2052486163370000e-4},
-        {4.6316667509268003e-3, 5.5393687878400001e-3, 5.4018147255169004e6,
-         2.0090736275846000e-4, 1.1980113628869000e-4},
-        {4.6316667509268003e-3, 6.9856312121599996e-3, 5.3878462224150999e6,
-         1.9392311120754001e-4, 1.2005385380186001e-4},
-        {4.4668332490732003e-3, 6.9856312121599996e-3, 5.4053743719853004e6,
-         2.0268718599262999e-4, 1.2063673105502000e-4},
-        {4.1813332490732002e-3, 8.0443687878399995e-3, 5.5354679527030997e6,
-         2.6773397635156999e-4, 1.3245590693081001e-4},
-        {4.3461667509268002e-3, 8.0443687878399995e-3, 5.5086660131898001e6,
-         2.5433300659488998e-4, 1.3121843774056000e-4},
-        {4.3461667509268002e-3, 9.4906312121600007e-3, 5.6562687041458003e6,
-         3.2813435207290002e-4, 1.4632416039005001e-4},
-        {4.1813332490732002e-3, 9.4906312121600007e-3, 5.6897500752656003e6,
-         3.4487503763279003e-4, 1.4842972583189001e-4},
-        {4.4668332490732003e-3, 8.0443687878399995e-3, 5.4533520390095003e6,
-         2.2667601950473001e-4, 1.2812863288300000e-4},
-        {4.6316667509268003e-3, 8.0443687878399995e-3, 5.4349630495820995e6,
-         2.1748152479104000e-4, 1.2746111025778000e-4},
-        {4.6316667509268003e-3, 9.4906312121600007e-3, 5.5556306027846001e6,
-         2.7781530139228000e-4, 1.3918892029350999e-4},
-        {4.4668332490732003e-3, 9.4906312121600007e-3, 5.5804350404331004e6,
-         2.9021752021653001e-4, 1.4038988537948000e-4},
-    }};
-
-    const double temperature_center_error =
-        relative_error(temperature_center, expected_temperature_center);
-    const double temperature_fuel_surface_error = relative_error(
-        temperature_fuel_surface, expected_temperature_fuel_surface);
-    const double temperature_cladding_inner_error = relative_error(
-        temperature_cladding_inner, expected_temperature_cladding_inner);
-    const double radial_fuel_surface_error =
-        relative_error(radial_fuel_surface, expected_radial_fuel_surface);
-    const double radial_cladding_inner_error =
-        relative_error(radial_cladding_inner, expected_radial_cladding_inner);
-    const double radial_cladding_outer_error =
-        relative_error(radial_cladding_outer, expected_radial_cladding_outer);
-    const double axial_fuel_top_error =
-        relative_error(axial_fuel_top, expected_axial_fuel_top);
+    const double expected_average_plastic = read_final_scalar_reference(
+        scalar_reference_path, "average_effective_plastic");
+    const double expected_average_creep = read_final_scalar_reference(
+        scalar_reference_path, "average_effective_creep");
+    const double expected_average_equivalent_stress =
+        read_final_scalar_reference(scalar_reference_path,
+                                    "average_vonmises_stress");
+    const double expected_total_contact_force =
+        read_total_contact_force_reference(pressure_reference_path);
+    const std::vector<CladdingPointValue> expected_cladding_points =
+        read_cladding_point_reference(qp_coordinate_path, qp_value_path);
     const double average_plastic_error =
         relative_error(cladding.average_plastic, expected_average_plastic);
     const double average_creep_error =
@@ -499,8 +482,14 @@ bool test_pcmi_coupled_cladding(const std::string& input_path,
         maximum_point_location_error = std::numeric_limits<double>::infinity();
     }
 
-    bool passed = check(result.accepted_steps.size() == 20,
-                        "PCMI transient commits twenty accepted steps");
+    bool passed =
+        check(imported.nodes().size() == 53 &&
+                  imported.elements().size() == 34 &&
+                  imported.side_set("fuel_right").sides.size() == 4 &&
+                  imported.side_set("clad_left").sides.size() == 5,
+              "PCMI reads the tracked four-to-five nonmatching interface") &&
+        check(result.accepted_steps.size() == 20,
+              "PCMI transient commits twenty accepted steps");
     passed = check(result.aggregate_timing.workspace_setups == 1,
                    "PCMI transient reuses one PETSc workspace") &&
              passed;
@@ -611,15 +600,6 @@ bool test_pcmi_coupled_cladding(const std::string& input_path,
                                   nodal_standard_tolerance) &&
              passed;
 
-    std::cout << "pcmi_temperature_center=" << temperature_center << '\n';
-    std::cout << "pcmi_temperature_fuel_surface=" << temperature_fuel_surface
-              << '\n';
-    std::cout << "pcmi_temperature_cladding_inner="
-              << temperature_cladding_inner << '\n';
-    std::cout << "pcmi_radial_fuel_surface=" << radial_fuel_surface << '\n';
-    std::cout << "pcmi_radial_cladding_inner=" << radial_cladding_inner << '\n';
-    std::cout << "pcmi_radial_cladding_outer=" << radial_cladding_outer << '\n';
-    std::cout << "pcmi_axial_fuel_top=" << axial_fuel_top << '\n';
     std::cout << "pcmi_minimum_contact_gap=" << interface.minimum_contact_gap
               << '\n';
     std::cout << "pcmi_maximum_contact_pressure="
@@ -644,20 +624,6 @@ bool test_pcmi_coupled_cladding(const std::string& input_path,
         std::cout << "pcmi_contact_pressure_" << node << '='
                   << contact_nodes[node].pressure << '\n';
     }
-    std::cout << "pcmi_moose_temperature_center_relative_error="
-              << temperature_center_error << '\n';
-    std::cout << "pcmi_moose_temperature_fuel_surface_relative_error="
-              << temperature_fuel_surface_error << '\n';
-    std::cout << "pcmi_moose_temperature_cladding_inner_relative_error="
-              << temperature_cladding_inner_error << '\n';
-    std::cout << "pcmi_moose_radial_fuel_surface_relative_error="
-              << radial_fuel_surface_error << '\n';
-    std::cout << "pcmi_moose_radial_cladding_inner_relative_error="
-              << radial_cladding_inner_error << '\n';
-    std::cout << "pcmi_moose_radial_cladding_outer_relative_error="
-              << radial_cladding_outer_error << '\n';
-    std::cout << "pcmi_moose_axial_fuel_top_relative_error="
-              << axial_fuel_top_error << '\n';
     std::cout << "pcmi_moose_average_plastic_relative_error="
               << average_plastic_error << '\n';
     std::cout << "pcmi_moose_average_creep_relative_error="
@@ -724,9 +690,10 @@ bool test_pcmi_coupled_cladding(const std::string& input_path,
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 4) {
+    if (argc != 7) {
         std::cerr << "Usage: fuelsim_m2_pcmi_solver_tests <pcmi.fsi> "
-                     "<all-nodes.csv> <contact-pressure.csv>\n";
+                     "<all-nodes.csv> <contact-pressure.csv> "
+                     "<qp-coordinates.csv> <qp-values.csv> <scalars.csv>\n";
         return 2;
     }
 
@@ -736,7 +703,8 @@ int main(int argc, char** argv) {
         fuelsim::PetscSession session(
             argc, argv,
             "fuelsim M2 PCMI coupled cladding MOOSE comparison tests\n");
-        if (!test_pcmi_coupled_cladding(input_path, argv[2], argv[3]))
+        if (!test_pcmi_coupled_cladding(input_path, argv[2], argv[3], argv[4],
+                                        argv[5], argv[6]))
             return 1;
         std::cout << "[PASS] fuelsim M2 PCMI coupled cladding tests\n";
         return 0;
