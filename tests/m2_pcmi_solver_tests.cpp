@@ -17,17 +17,17 @@
 
 namespace {
 
-constexpr double nodal_standard_tolerance = 1.0e-3;
-constexpr double radial_peak_tolerance = 1.5e-3;
-constexpr double radial_pointwise_tolerance = 3.0e-3;
-constexpr double contact_pressure_tolerance = 1.2e-3;
-constexpr double stress_l2_tolerance = 2.0e-4;
-constexpr double stress_peak_tolerance = 5.0e-4;
-constexpr double plastic_l2_tolerance = 1.6e-3;
-constexpr double plastic_peak_tolerance = 3.0e-3;
-constexpr double plastic_pointwise_tolerance = 3.2e-3;
-constexpr double creep_l2_tolerance = 1.0e-3;
-constexpr double creep_peak_tolerance = 2.0e-3;
+constexpr double nodal_standard_tolerance = 9.5e-4;
+constexpr double radial_peak_tolerance = 1.25e-3;
+constexpr double radial_pointwise_tolerance = 2.7e-3;
+constexpr double contact_pressure_tolerance = 1.1e-3;
+constexpr double stress_l2_tolerance = 1.5e-4;
+constexpr double stress_peak_tolerance = 4.0e-4;
+constexpr double plastic_l2_tolerance = 1.5e-3;
+constexpr double plastic_peak_tolerance = 2.9e-3;
+constexpr double plastic_pointwise_tolerance = 3.05e-3;
+constexpr double creep_l2_tolerance = 9.0e-4;
+constexpr double creep_peak_tolerance = 1.95e-3;
 
 bool check(bool condition, const std::string& message) {
     if (condition)
@@ -252,6 +252,14 @@ solver_options(const fuelsim::FuelSimCaseDefinition& definition) {
     // comparison path independent of the production default line search,
     // whose contact-onset cutback deliberately changes the time grid.
     options.line_search = fuelsim::SolverOptions::LineSearch::basic;
+    options.residual_reduction_tolerance =
+        definition.solver.residual_reduction_tolerance;
+    options.field_residual_scaling =
+        definition.solver.field_residual_scaling;
+    options.temperature_residual_absolute_tolerance =
+        definition.solver.temperature_residual_absolute_tolerance;
+    options.mechanical_residual_absolute_tolerance =
+        definition.solver.mechanical_residual_absolute_tolerance;
     return options;
 }
 

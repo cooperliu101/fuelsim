@@ -171,6 +171,12 @@ bool temperatures_are_600(const TransientCaseRun& run) {
 bool common_run_checks(const std::string& name, const TransientCaseRun& run,
                        std::size_t expected_steps,
                        const std::string& nodal_reference_path) {
+    if (!run.result().completed)
+        std::cerr << name << " solve failure: "
+                  << fuelsim::solve_failure_category_name(
+                         run.result().last_attempt.failure_category)
+                  << ": " << run.result().last_attempt.failure_message
+                  << '\n';
     bool passed =
         check(run.result().completed, name + " input-card load path converged");
     passed = check(run.result().accepted_steps.size() == expected_steps,

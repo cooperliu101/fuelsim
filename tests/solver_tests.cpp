@@ -130,12 +130,22 @@ bool test_global_newton_safeguards() {
     fuelsim::PetscSolver domain_solver;
     const std::vector<double> initial(fuelsim::local_dof_count, 1.0);
     fuelsim::SolverOptions domain_options;
-    domain_options.line_search =
-        fuelsim::SolverOptions::LineSearch::backtracking;
     const fuelsim::SolveResult domain = domain_solver.solve(
         domain_problem, initial, domain_options);
-    bool passed = check(domain.converged,
-                        "backtracking recovers a physical-domain overshoot");
+    if (!domain.converged)
+        std::cerr << "log-domain failure: category="
+                  << fuelsim::solve_failure_category_name(
+                         domain.failure_category)
+                  << " reason=" << domain.convergence_reason
+                  << " residual=" << domain.residual_norm
+                  << " message=" << domain.failure_message << '\n';
+    bool passed = check(domain.converged &&
+                            domain.used_backtracking_fallback &&
+                            domain.nonlinear_attempts == 2 &&
+                            domain.basic_failure_category ==
+                                fuelsim::SolveFailureCategory::physical_domain,
+                        "BASIC failure automatically retries with "
+                        "backtracking from the original state");
     const double target = std::exp(-10.0);
     for (double value : domain.state)
         passed = check(std::abs(value - target) < 1.0e-10 * target,
@@ -146,6 +156,8 @@ bool test_global_newton_safeguards() {
     fuelsim::PetscSolver stagnating_solver;
     fuelsim::SolverOptions options;
     options.line_search = fuelsim::SolverOptions::LineSearch::basic;
+    options.backtracking_fallback = false;
+    options.field_residual_scaling = false;
     options.step_tolerance = 1.0e-8;
     const fuelsim::SolveResult stagnating =
         stagnating_solver.solve(stagnating_problem, initial, options);
@@ -181,8 +193,10 @@ bool test_thermal_cylinder() {
 
     fuelsim::SteadySingleRegionProblem problem(parameters);
     fuelsim::PetscSolver solver;
+    fuelsim::SolverOptions scaled_options;
+    scaled_options.field_residual_scaling = true;
     const fuelsim::SolveResult result =
-        solver.solve(problem, problem.initial_state());
+        solver.solve(problem, problem.initial_state(), scaled_options);
 
     bool passed = check(result.converged, "thermal cylinder SNES converged");
     const std::size_t expected_begin =
@@ -224,6 +238,69 @@ bool test_thermal_cylinder() {
     std::cout << "thermal_cylinder_maximum_scaled_error="
               << maximum_scaled_error << '\n';
     return passed;
+}
+
+double thermal_cylinder_error(std::size_t radial_elements) {
+    constexpr double radius = 0.004;
+    constexpr double length = 0.01;
+    constexpr double conductivity = 4.0;
+    constexpr double heat_source = 2.0e8;
+    constexpr double outer_temperature = 600.0;
+    const fuelsim::SteadySingleRegionParameters parameters = {
+        0.0,
+        radius,
+        length,
+        radial_elements,
+        2,
+        constant_material(conductivity, 0.0),
+        heat_source,
+        outer_temperature,
+        outer_temperature,
+        0.0,
+        0.0,
+    };
+    fuelsim::SteadySingleRegionProblem problem(parameters);
+    fuelsim::PetscSolver solver;
+    const fuelsim::SolveResult result =
+        solver.solve(problem, problem.initial_state());
+    if (!result.converged)
+        throw std::runtime_error(
+            "thermal mesh-convergence solve did not converge");
+    const double center_rise =
+        heat_source * radius * radius / (4.0 * conductivity);
+    double maximum_error = 0.0;
+    for (std::size_t node = 0; node < problem.mesh().nodes().size(); ++node) {
+        const double r = problem.mesh().nodes()[node].r;
+        const double expected =
+            outer_temperature +
+            heat_source * (radius * radius - r * r) /
+                (4.0 * conductivity);
+        const double actual =
+            result.state[problem.dof_map().temperature(node)];
+        maximum_error = std::max(maximum_error,
+                                 std::abs(actual - expected) / center_rise);
+    }
+    return maximum_error;
+}
+
+bool test_thermal_mesh_convergence() {
+    const std::array<double, 3> errors = {
+        thermal_cylinder_error(8), thermal_cylinder_error(16),
+        thermal_cylinder_error(32)};
+    const double first_ratio = errors[0] / errors[1];
+    const double second_ratio = errors[1] / errors[2];
+    const double first_order = std::log2(first_ratio);
+    const double second_order = std::log2(second_ratio);
+    std::cout << "thermal_mesh_convergence_errors=" << errors[0] << ','
+              << errors[1] << ',' << errors[2] << '\n';
+    std::cout << "thermal_mesh_convergence_ratios=" << first_ratio << ','
+              << second_ratio << '\n';
+    std::cout << "thermal_mesh_convergence_orders=" << first_order << ','
+              << second_order << '\n';
+    return check(first_order > 1.7 && second_order > 1.7 &&
+                     second_order > first_order,
+                 "successive radial mesh refinement approaches second-order "
+                 "thermal convergence");
 }
 
 bool test_free_thermal_expansion() {
@@ -324,6 +401,14 @@ bool test_lame_open_ended_cylinder() {
     const double A =
         pressure * inner_radius * inner_radius /
         (outer_radius * outer_radius - inner_radius * inner_radius);
+    std::cout << "lame_initial_field_residuals="
+              << result.initial_field_residual_norms[0] << ','
+              << result.initial_field_residual_norms[1] << ','
+              << result.initial_field_residual_norms[2] << '\n';
+    std::cout << "lame_final_scaled_field_residuals="
+              << result.final_scaled_field_residual_norms[0] << ','
+              << result.final_scaled_field_residual_norms[1] << ','
+              << result.final_scaled_field_residual_norms[2] << '\n';
     const double B =
         pressure * inner_radius * inner_radius * outer_radius * outer_radius /
         (outer_radius * outer_radius - inner_radius * inner_radius);
@@ -491,6 +576,7 @@ int main(int argc, char** argv) {
         bool passed = true;
         passed = test_global_newton_safeguards() && passed;
         passed = test_thermal_cylinder() && passed;
+        passed = test_thermal_mesh_convergence() && passed;
         passed = test_free_thermal_expansion() && passed;
         passed = test_lame_open_ended_cylinder() && passed;
         passed = test_m1_open_gap_analytic_thermal() && passed;

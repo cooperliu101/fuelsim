@@ -607,6 +607,43 @@ bool test_time_table_and_convection() {
     return passed;
 }
 
+bool test_temperature_active_thermoelastic_properties() {
+    fuelsim::ThermoelasticProperties active_properties = properties();
+    active_properties.young_modulus_temperature_coefficient = -8.0e7;
+    active_properties.poisson_ratio_temperature_coefficient = 2.0e-5;
+    active_properties.thermal_expansion_temperature_coefficient = 3.0e-9;
+    const fuelsim::IsotropicThermoelasticMaterial material(active_properties);
+    constexpr double temperature = 725.0;
+    const adlite::Scalar active_temperature =
+        adlite::Scalar::independent(temperature, 0, 1);
+    const fuelsim::AxisymmetricStress active = material.stress(
+        1.1e-3, -0.4e-3, 0.2e-3, 0.3e-3, active_temperature);
+    constexpr double step = 1.0e-3;
+    const fuelsim::AxisymmetricStress plus = material.stress(
+        1.1e-3, -0.4e-3, 0.2e-3, 0.3e-3, temperature + step);
+    const fuelsim::AxisymmetricStress minus = material.stress(
+        1.1e-3, -0.4e-3, 0.2e-3, 0.3e-3, temperature - step);
+    const std::array<double, 4> analytic = {
+        active.rr.derivative(0), active.zz.derivative(0),
+        active.hoop.derivative(0), active.rz.derivative(0)};
+    const std::array<double, 4> finite_difference = {
+        (plus.rr.value() - minus.rr.value()) / (2.0 * step),
+        (plus.zz.value() - minus.zz.value()) / (2.0 * step),
+        (plus.hoop.value() - minus.hoop.value()) / (2.0 * step),
+        (plus.rz.value() - minus.rz.value()) / (2.0 * step)};
+    double maximum_error = 0.0;
+    for (std::size_t component = 0; component < analytic.size(); ++component)
+        maximum_error =
+            std::max(maximum_error,
+                     scaled_error(analytic[component],
+                                  finite_difference[component]));
+    std::cout << "active_thermoelastic_temperature_tangent_error="
+              << maximum_error << '\n';
+    return check(maximum_error < 1.0e-8,
+                 "temperature-dependent thermoelastic AD tangent matches "
+                 "centered differences");
+}
+
 } // namespace
 
 int main() {
@@ -617,6 +654,7 @@ int main() {
     passed = test_gap_heat_and_normal_contact() && passed;
     passed = test_m1_dof_layout() && passed;
     passed = test_time_table_and_convection() && passed;
+    passed = test_temperature_active_thermoelastic_properties() && passed;
 
     if (!passed)
         return 1;

@@ -102,3 +102,24 @@ Every medium run completed 62 nonlinear iterations with 82 residual and 62
 Jacobian callbacks and created one PETSc workspace. The 2-rank result uses
 distributed contribution assembly and PETSc MUMPS; it is not a claim of
 general strong scaling beyond this two-rank measurement.
+
+## 2026-08-03 M4.0 numerical-foundation check
+
+Release builds used the same PETSc/Exodus toolchain, CPU 0, one MPI rank and
+one thread for every listed numerical library. The default 1,584-DOF case was
+paired against `a750379` after adding field residual diagnostics. Process-run
+times were:
+
+```text
+                         first run   following two median   all-three median
+  a750379 baseline:       0.874010 s       0.878382 s          0.877441 s
+  M4.0 candidate:         0.882035 s       0.884105 s          0.882035 s
+  all-three change:                                              0.52% slower
+```
+
+The constant-property path retains cached Lamé parameters, while nonzero
+temperature coefficients use the AD-active path. The current 23,010-DOF,
+20-step case completed once in `27.7143 s`, with 62 nonlinear iterations,
+82 residual callbacks, 62 Jacobian callbacks and one PETSc workspace. This is
+a regression check for the current benchmark only, not a broader scaling
+claim.

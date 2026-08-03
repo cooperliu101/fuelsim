@@ -8,6 +8,7 @@
 #include <cmath>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <string>
 #include <utility>
 #include <vector>
@@ -101,6 +102,103 @@ bool test_moose_time_table_convection(const std::string& input_path,
     fuelsim::test::print_relative_metrics("m31_convection_temperature",
                                           fields.temperature);
     return passed;
+}
+
+double temperature_relative_l2(const fuelsim::TransientProblem& problem,
+                               const std::vector<double>& actual,
+                               const std::vector<double>& reference) {
+    double difference_squared = 0.0;
+    double reference_squared = 0.0;
+    const std::size_t node_count = problem.dof_map().node_count();
+    for (std::size_t node = 0; node < node_count; ++node) {
+        const std::size_t dof = problem.dof_map().temperature(node);
+        const double difference = actual[dof] - reference[dof];
+        difference_squared += difference * difference;
+        reference_squared += reference[dof] * reference[dof];
+    }
+    return std::sqrt(difference_squared / reference_squared);
+}
+
+bool test_time_error_control(const std::string& input_path) {
+    const fuelsim::FuelSimCaseDefinition input =
+        fuelsim::CaseInputReader::read(input_path);
+    const fuelsim::UnstructuredQuad4Mesh mesh =
+        fuelsim::ExodusMeshIo::read_quad4(input.mesh_file);
+    const fuelsim::SolverOptions solver_options = {
+        input.solver.absolute_tolerance, input.solver.relative_tolerance,
+        input.solver.step_tolerance, input.solver.maximum_iterations};
+
+    fuelsim::TransientProblem reference_problem(
+        input.transient_definition(), mesh);
+    const fuelsim::TransientTimeOptions reference_options = {
+        10.0, 0.009765625, 0.009765625, 0.009765625,
+        1.0, 0.5, 0, 20.0};
+    const fuelsim::TransientResult reference = fuelsim::solve_transient(
+        reference_problem, reference_options, solver_options);
+
+    fuelsim::TransientProblem coarse_problem(input.transient_definition(),
+                                             mesh);
+    const fuelsim::TransientTimeOptions coarse_options = {
+        10.0, 2.5, 2.5, 2.5, 1.0, 0.5, 0, 20.0};
+    const fuelsim::TransientResult coarse = fuelsim::solve_transient(
+        coarse_problem, coarse_options, solver_options);
+
+    fuelsim::TransientProblem adaptive_problem(input.transient_definition(),
+                                               mesh);
+    fuelsim::TransientTimeOptions adaptive_options = {
+        10.0, 2.5, 0.01953125, 2.5, 2.0, 0.5, 20, 20.0};
+    adaptive_options.time_error_relative_tolerance = 2.0e-4;
+    adaptive_options.temperature_time_absolute_tolerance = 1.0e-3;
+    adaptive_options.displacement_time_absolute_tolerance = 1.0e-8;
+    const fuelsim::TransientResult adaptive = fuelsim::solve_transient(
+        adaptive_problem, adaptive_options, solver_options);
+
+    const double coarse_error = temperature_relative_l2(
+        adaptive_problem, coarse.committed_state, reference.committed_state);
+    const double adaptive_error = temperature_relative_l2(
+        adaptive_problem, adaptive.committed_state,
+        reference.committed_state);
+    double maximum_accepted_estimate = 0.0;
+    for (const fuelsim::TransientAcceptedStep& step :
+         adaptive.accepted_steps)
+        maximum_accepted_estimate =
+            std::max(maximum_accepted_estimate, step.time_error_estimate);
+    double maximum_rejected_estimate = 0.0;
+    double minimum_rejected_estimate =
+        std::numeric_limits<double>::infinity();
+    for (const fuelsim::TransientRejectedStep& step :
+         adaptive.rejected_steps) {
+        if (step.failure_category !=
+            fuelsim::SolveFailureCategory::time_discretization)
+            continue;
+        maximum_rejected_estimate =
+            std::max(maximum_rejected_estimate, step.time_error_estimate);
+        minimum_rejected_estimate =
+            std::min(minimum_rejected_estimate, step.time_error_estimate);
+    }
+    std::cout << "time_control_coarse_temperature_relative_l2="
+              << coarse_error << '\n';
+    std::cout << "time_control_adaptive_temperature_relative_l2="
+              << adaptive_error << '\n';
+    std::cout << "time_control_rejections="
+              << adaptive.time_error_rejections << '\n';
+    std::cout << "time_control_maximum_accepted_estimate="
+              << maximum_accepted_estimate << '\n';
+    std::cout << "time_control_minimum_rejected_estimate="
+              << minimum_rejected_estimate << '\n';
+    std::cout << "time_control_maximum_rejected_estimate="
+              << maximum_rejected_estimate << '\n';
+    std::cout << "time_control_completed=" << adaptive.completed << '\n';
+    std::cout << "time_control_accepted_steps="
+              << adaptive.accepted_steps.size() << '\n';
+    return check(reference.completed && coarse.completed &&
+                     adaptive.completed &&
+                     adaptive.time_error_rejections > 0 &&
+                     maximum_accepted_estimate <= 1.0 &&
+                     adaptive_error < 0.5 * coarse_error &&
+                     adaptive.aggregate_timing.workspace_setups == 1,
+                 "BE step-doubling rejects inaccurate steps, reuses the "
+                 "PETSc workspace, and reduces temporal error");
 }
 
 bool test_failure_diagnostics(const std::string& input_path) {
@@ -245,6 +343,7 @@ int main(int argc, char** argv) {
             argc, argv, "fuelsim M3.1 time loads and boundary test\n");
         if (!test_time_event_alignment(argv[1]) ||
             !test_moose_time_table_convection(argv[2], argv[3]) ||
+            !test_time_error_control(argv[2]) ||
             !test_failure_diagnostics(argv[4]) ||
             !test_steady_load_cutback(argv[4]) ||
             !test_pressure_production_path(argv[5]))

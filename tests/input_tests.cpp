@@ -103,10 +103,30 @@ bool verify_m3_output_input(const std::string& path,
                 "power" &&
             definition.transient_execution.target_nonlinear_iterations == 6 &&
             definition.transient_execution.iteration_window == 2 &&
+            definition.transient_execution.time_error_relative_tolerance ==
+                2.0e-4 &&
+            definition.transient_execution
+                    .temperature_time_absolute_tolerance == 1.0e-3 &&
+            definition.transient_execution
+                    .displacement_time_absolute_tolerance == 1.0e-10 &&
+            definition.transient_execution.time_error_safety_factor == 0.85 &&
             definition.solver.linear_solver == "gmres" &&
             definition.solver.preconditioner == "field_split" &&
             definition.solver.linear_relative_tolerance == 1.0e-7 &&
-            definition.solver.maximum_linear_iterations == 700,
+            definition.solver.maximum_linear_iterations == 700 &&
+            definition.solver.backtracking_fallback &&
+            definition.solver.field_residual_scaling &&
+            definition.solver.residual_reduction_tolerance == 2.0e-6 &&
+            definition.solver.temperature_residual_absolute_tolerance ==
+                3.0e-8 &&
+            definition.solver.mechanical_residual_absolute_tolerance ==
+                4.0e-6 &&
+            definition.regions[1]
+                    .transient_material.creep
+                    .coefficient_temperature_coefficient == 1.0e-8 &&
+            definition.regions[1]
+                    .transient_material.plasticity
+                    .yield_stress_temperature_coefficient == -100.0,
         "restart, time functions, convection, solver and outputs are parsed");
 }
 
@@ -282,7 +302,11 @@ bool run_tests(const std::string& steady_path,
     m3_case.insert(executioner_position + executioner_type.size(),
                    "\n  restart = restart.bin"
                    "\n  target_nonlinear_iterations = 6"
-                   "\n  iteration_window = 2");
+                   "\n  iteration_window = 2"
+                   "\n  time_error_relative_tolerance = 2e-4"
+                   "\n  temperature_time_absolute_tolerance = 1e-3"
+                   "\n  displacement_time_absolute_tolerance = 1e-10"
+                   "\n  time_error_safety_factor = 0.85");
     const std::string solver_start = "[Solver]";
     const std::size_t solver_position = m3_case.find(solver_start);
     if (solver_position == std::string::npos)
@@ -291,7 +315,22 @@ bool run_tests(const std::string& steady_path,
                    "\n  linear_solver = gmres"
                    "\n  preconditioner = field_split"
                    "\n  linear_relative_tolerance = 1e-7"
-                   "\n  maximum_linear_iterations = 700");
+                   "\n  maximum_linear_iterations = 700"
+                   "\n  backtracking_fallback = true"
+                   "\n  field_residual_scaling = true"
+                   "\n  residual_reduction_tolerance = 2e-6"
+                   "\n  temperature_residual_absolute_tolerance = 3e-8"
+                   "\n  mechanical_residual_absolute_tolerance = 4e-6");
+    const std::string creep_exponent = "creep_exponent = 3";
+    const std::size_t creep_position = m3_case.find(creep_exponent);
+    if (creep_position == std::string::npos)
+        return check(false, "transient fixture has coupled creep properties");
+    m3_case.insert(creep_position + creep_exponent.size(),
+                   "\n    creep_coefficient_temperature_coefficient = 1e-8"
+                   "\n    creep_reference_stress_temperature_coefficient = 10"
+                   "\n    creep_exponent_temperature_coefficient = 1e-4"
+                   "\n    yield_stress_temperature_coefficient = -100"
+                   "\n    hardening_temperature_coefficient = -1000");
     const std::size_t output_position = m3_case.find(console);
     if (output_position == std::string::npos)
         return check(false, "transient fixture has the expected console key");

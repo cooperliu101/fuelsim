@@ -106,6 +106,19 @@ Dirichlet 和接触边界可使用任意属于所选区域的边集。每个接�
 
 不适用于所选模型的字段会被拒绝。
 
+热弹性参数还可设置
+`young_modulus_temperature_coefficient`、
+`poisson_ratio_temperature_coefficient` 和
+`thermal_expansion_temperature_coefficient`；所选非弹性模型可对应设置
+`creep_coefficient_temperature_coefficient`、
+`creep_reference_stress_temperature_coefficient`、
+`creep_exponent_temperature_coefficient`、
+`yield_stress_temperature_coefficient` 和
+`hardening_temperature_coefficient`。所有斜率默认为零，定义为
+`property(T)=property_ref+slope*(T-reference_temperature)`，单位为对应属性
+每 K。参数以 `adlite::Scalar` 活跃求值，运行中越过物理定义域会拒绝当前
+Newton 试探值而不会夹持。它们是线性算法接口，不是已标定的真实材料模型。
+
 `heat_source_function` 可选；存在时，当前体积热源为
 `volumetric_heat_source * function(time)`。未设置时沿用执行器
 `load_ramp_time` 的全局载荷因子。
@@ -227,6 +240,10 @@ Quad4 的 12-DOF ADlite 局部贡献装配，因此残量和温度切线保持�
   load_ramp_time = 20
   target_nonlinear_iterations = 6
   iteration_window = 2
+  time_error_relative_tolerance = 2e-4
+  temperature_time_absolute_tolerance = 1e-3
+  displacement_time_absolute_tolerance = 1e-10
+  time_error_safety_factor = 0.9
   restart = previous.checkpoint
 []
 ```
@@ -245,6 +262,13 @@ Quad4 的 12-DOF ADlite 局部贡献装配，因此残量和温度切线保持�
 高于 `target+window` 会按 `cutback_factor` 缩短下一步，窗口内保持不变；
 结果始终限制在最小/最大步长内。目标省略或为零时，保持每个成功步均增长的
 原行为，此时窗口必须为零。窗口必须小于目标。
+
+`time_error_relative_tolerance` 省略或为零时不做时间离散误差控制。设为正值
+后，每个候选步从同一 committed 状态计算一个 Backward Euler 全步和两个
+半步；逐场归一化 L2 差的最大值大于 1 时完整回滚并缩步，成功时采用两个
+半步的结果。温度和两个位移场分别使用上述绝对容差，安全系数必须位于
+`(0,1)`。该估计器增加到约三倍的非线性求解工作量，但直接控制时间截断误差，
+并在进度和拒步诊断中输出 `time_error_estimate`。
 
 每次未收敛尝试都会记录尝试终点、步长、cutback 序号、非线性迭代数、PETSc
 收敛原因、残量范数、失败类别和物理域消息；最终停止原因区分 `completed`、
@@ -266,17 +290,26 @@ Quad4 的 12-DOF ADlite 局部贡献装配，因此残量和温度切线保持�
 - `preconditioner = automatic|lu|block_jacobi|field_split|hypre`；
 - `linear_relative_tolerance`，默认 `1e-8`；
 - `maximum_linear_iterations`，默认 `500`。
+- `backtracking_fallback`，默认 `true`；BASIC 失败后从原始初值用 BT 重试；
+- `residual_reduction_tolerance`，默认 `1e-6`，用于总残量和分场残量复核；
+- `temperature_residual_absolute_tolerance`，默认 `1e-8 W`；
+- `mechanical_residual_absolute_tolerance`，默认 `1e-4 N`，同时用于径向和轴向；
+- `field_residual_scaling`，默认 `false`，可选启用热/力分组的自动行缩放。
 
 `automatic` 使用直接 LU：单 rank 采用 PETSc LU，多 rank 采用 PETSc 的 MUMPS
 分解。选择 `block_jacobi`、`field_split` 或 `hypre` 会自动选 GMRES；
 `field_split` 按固定 `[T(:)]` 和 `[ur(:), uz(:)]` 建立乘法场分裂。具体 PETSc
 命令行选项仍在上述设置之后生效，可用于选择 HYPRE 子类型和场分裂子 KSP。
-非线性默认使用 PETSc BASIC 全步；可用 `-snes_linesearch_type bt` 启用回溯。
-BASIC 的物理域错误会拒绝当前求解，并由稳态载荷二分或瞬态 cutback 恢复。
+非线性默认使用 PETSc BASIC 全步。BASIC 失败时，默认从本次求解的原始初值
+自动用 BT 回溯重试；BT 仍失败才由稳态载荷二分或瞬态 cutback 恢复。
+PETSc `-snes_linesearch_type` 仍可覆盖具体类型；输入卡可关闭自动回退。
 即使 PETSc 返回正收敛原因，fuelsim 仍按配置的绝对/相对门槛复核最终残量，
-步长停滞不能单独算作成功。因热—力残量单位不同，独立复核采用“最终总残量至少
-比本次初始残量降低 `1e6` 倍”，并设 `10*sqrt(machine epsilon)` 绝对数值
-噪声底线；配置的绝对/相对门槛更宽时仍以配置为准。
+步长停滞不能单独算作成功。因热—力残量单位不同，总残量和温度/径向/轴向
+三个分场均须达到绝对门槛或至少按 `residual_reduction_tolerance` 相对降低，
+并设数值噪声底线。自动行缩放是实验性可选项：残量和 Jacobian 同行缩放，
+但其初始残量尺度随载荷步改变，默认验证路径只启用分场诊断和复核。
+两个分场绝对门槛具有明确物理单位；极小载荷或不同量级模型应在输入卡中按
+所需平衡精度显式收紧或放宽，不能用混合单位的总残量容差替代。
 
 `[Outputs]` 的 `console` 默认为 `true`；可选 `csv` 将同一组命名指标写为
 `metric,value` 文件。`exodus` 写出可后处理的场结果；稳态写一个最终步，

@@ -50,6 +50,9 @@ void hash_thermoelastic(std::uint64_t& hash,
     hash_double(hash, material.poisson_ratio);
     hash_double(hash, material.thermal_expansion);
     hash_double(hash, material.reference_temperature);
+    hash_double(hash, material.young_modulus_temperature_coefficient);
+    hash_double(hash, material.poisson_ratio_temperature_coefficient);
+    hash_double(hash, material.thermal_expansion_temperature_coefficient);
 }
 
 bool finite_stress(const AxisymmetricStressValues& stress) {
@@ -219,8 +222,20 @@ std::uint64_t TransientProblem::committed_state_signature() const {
         hash_double(hash, transient.creep.coefficient);
         hash_double(hash, transient.creep.reference_stress);
         hash_double(hash, transient.creep.stress_exponent);
+        hash_double(hash,
+                    transient.creep.coefficient_temperature_coefficient);
+        hash_double(
+            hash,
+            transient.creep.reference_stress_temperature_coefficient);
+        hash_double(hash,
+                    transient.creep.stress_exponent_temperature_coefficient);
         hash_double(hash, transient.plasticity.yield_stress);
         hash_double(hash, transient.plasticity.isotropic_hardening_modulus);
+        hash_double(
+            hash,
+            transient.plasticity.yield_stress_temperature_coefficient);
+        hash_double(hash,
+                    transient.plasticity.hardening_temperature_coefficient);
 
         const RegionMesh& mesh = region_mesh(region_value);
         hash_size(hash, mesh.nodes().size());

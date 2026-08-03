@@ -179,10 +179,19 @@ int main(int argc, char** argv) {
                  execution.iteration_window},
                 options);
             if (!result.completed ||
-                result.aggregate_timing.workspace_setups != 1)
-                throw std::runtime_error(
-                    "Transient MPI equivalence solve failed or rebuilt its "
-                    "workspace");
+                result.aggregate_timing.workspace_setups != 1) {
+                std::ostringstream message;
+                message
+                    << "Transient MPI equivalence solve failed or rebuilt "
+                       "its workspace: completed="
+                    << result.completed << ", setups="
+                    << result.aggregate_timing.workspace_setups
+                    << ", category="
+                    << fuelsim::solve_failure_category_name(
+                           result.last_attempt.failure_category)
+                    << ", message=" << result.last_attempt.failure_message;
+                throw std::runtime_error(message.str());
+            }
             const std::vector<double> state =
                 flatten_transient_state(problem);
             if (mode == "write_transient") {

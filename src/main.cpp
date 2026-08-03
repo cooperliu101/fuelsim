@@ -145,7 +145,46 @@ solver_options(const fuelsim::NonlinearSolverInput& input) {
             fuelsim::SolverOptions::Preconditioner::hypre;
     result.linear_relative_tolerance = input.linear_relative_tolerance;
     result.maximum_linear_iterations = input.maximum_linear_iterations;
+    result.backtracking_fallback = input.backtracking_fallback;
+    result.field_residual_scaling = input.field_residual_scaling;
+    result.residual_reduction_tolerance =
+        input.residual_reduction_tolerance;
+    result.temperature_residual_absolute_tolerance =
+        input.temperature_residual_absolute_tolerance;
+    result.mechanical_residual_absolute_tolerance =
+        input.mechanical_residual_absolute_tolerance;
     return result;
+}
+
+void write_solver_diagnostics(const fuelsim::SolveResult& solve,
+                              CaseOutput& output) {
+    output.value("nonlinear_attempts", solve.nonlinear_attempts);
+    output.value("used_backtracking_fallback",
+                 solve.used_backtracking_fallback);
+    if (solve.used_backtracking_fallback) {
+        output.value("basic_failure_category",
+                     fuelsim::solve_failure_category_name(
+                         solve.basic_failure_category));
+        if (!solve.basic_failure_message.empty())
+            output.value("basic_failure_message",
+                         solve.basic_failure_message);
+    }
+    const std::array<const char*, 3> fields = {"temperature", "radial",
+                                               "axial"};
+    for (std::size_t field = 0; field < fields.size(); ++field) {
+        const std::string prefix =
+            "residual." + std::string(fields[field]) + ".";
+        output.value(prefix + "initial_l2",
+                     solve.initial_field_residual_norms[field]);
+        output.value(prefix + "reference_l2",
+                     solve.field_residual_reference_norms[field]);
+        output.value(prefix + "final_l2",
+                     solve.final_field_residual_norms[field]);
+        output.value(prefix + "scaling",
+                     solve.field_residual_scalings[field]);
+        output.value(prefix + "final_scaled_l2",
+                     solve.final_scaled_field_residual_norms[field]);
+    }
 }
 
 void write_interface_summary(const std::string& name,
@@ -246,6 +285,7 @@ bool run_steady(const fuelsim::FuelSimCaseDefinition& definition,
     output.value("nonlinear_iterations_total",
                  result.total_nonlinear_iterations);
     output.value("residual_norm", result.solve.residual_norm);
+    write_solver_diagnostics(result.solve, output);
     output.value("failure_category", fuelsim::solve_failure_category_name(
                                          result.solve.failure_category));
     if (!result.solve.failure_message.empty())
@@ -321,6 +361,8 @@ class TransientOutputObserver final : public fuelsim::TransientStepObserver {
                 _output.value("progress.nonlinear_iterations",
                               step.nonlinear_iterations);
                 _output.value("progress.cutbacks", step.cutbacks);
+                _output.value("progress.time_error_estimate",
+                              step.time_error_estimate);
             }
             if (!_checkpoint_file.empty() &&
                 _accepted_steps % _checkpoint_interval == 0)
@@ -462,7 +504,11 @@ bool run_transient(const fuelsim::FuelSimCaseDefinition& definition,
         definition.transient_execution.maximum_cutbacks,
         definition.transient_execution.load_ramp_time,
         definition.transient_execution.target_nonlinear_iterations,
-        definition.transient_execution.iteration_window};
+        definition.transient_execution.iteration_window,
+        definition.transient_execution.time_error_relative_tolerance,
+        definition.transient_execution.temperature_time_absolute_tolerance,
+        definition.transient_execution.displacement_time_absolute_tolerance,
+        definition.transient_execution.time_error_safety_factor};
     const fuelsim::TransientResult result = fuelsim::solve_transient(
         problem, time_options, solver_options(definition.solver), &observer);
     observer.finalize(problem, result.next_time_step);
@@ -476,6 +522,7 @@ bool run_transient(const fuelsim::FuelSimCaseDefinition& definition,
     output.value("committed_time", result.committed_time);
     output.value("next_time_step", result.next_time_step);
     output.value("accepted_steps", result.accepted_steps.size());
+    output.value("time_error_rejections", result.time_error_rejections);
     output.value("rejected_steps", result.rejected_steps.size());
     if (!result.rejected_steps.empty()) {
         const fuelsim::TransientRejectedStep& rejected =
@@ -490,6 +537,8 @@ bool run_transient(const fuelsim::FuelSimCaseDefinition& definition,
                      fuelsim::petsc_convergence_reason_name(
                          rejected.convergence_reason));
         output.value("last_rejected.residual_norm", rejected.residual_norm);
+        output.value("last_rejected.time_error_estimate",
+                     rejected.time_error_estimate);
         output.value("last_rejected.failure_category",
                      fuelsim::solve_failure_category_name(
                          rejected.failure_category));
@@ -502,6 +551,7 @@ bool run_transient(const fuelsim::FuelSimCaseDefinition& definition,
                  result.total_nonlinear_iterations);
     output.value("petsc_workspace_setups",
                  result.aggregate_timing.workspace_setups);
+    write_solver_diagnostics(result.last_attempt, output);
     output.value("total_seconds", result.total_seconds);
     for (std::size_t region = 0; region < problem.region_count(); ++region) {
         const fuelsim::RegionInelasticSummary summary =

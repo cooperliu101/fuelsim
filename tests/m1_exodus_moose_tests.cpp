@@ -4,10 +4,12 @@
 #include "support/moose_field_comparison.hpp"
 
 #include <exception>
+#include <cmath>
 #include <iomanip>
 #include <iostream>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -116,6 +118,47 @@ bool run_comparison(const std::string& input_path,
                        interface.active_contact_nodes == 11,
                    "M1 projects and activates all fuel-surface nodes") &&
              passed;
+
+    const auto solve_penalty = [&](double penalty) {
+        fuelsim::SteadyProblemDefinition modified =
+            definition.steady_definition();
+        modified.contacts.at(0).penalty = penalty;
+        fuelsim::SteadyProblem penalty_problem(std::move(modified), source);
+        const fuelsim::SteadyResult penalty_result = fuelsim::solve_steady(
+            penalty_problem,
+            {definition.steady_execution.load_steps,
+             definition.steady_execution.cutback_factor,
+             definition.steady_execution.maximum_cutbacks,
+             definition.steady_execution.minimum_load_increment},
+            options);
+        if (!penalty_result.completed || !penalty_result.solve.converged)
+            throw std::runtime_error(
+                "M4 penalty-convergence solve did not converge");
+        return penalty_problem.summarize_interface(
+            0, penalty_result.solve.state);
+    };
+    const fuelsim::InterfaceSummary low_penalty = solve_penalty(2.5e13);
+    const fuelsim::InterfaceSummary medium_penalty = solve_penalty(5.0e13);
+    const double low_penetration = -low_penalty.minimum_contact_gap;
+    const double medium_penetration = -medium_penalty.minimum_contact_gap;
+    const double high_penetration = -interface.minimum_contact_gap;
+    const double low_to_medium_force_change = std::abs(
+        medium_penalty.total_contact_force - low_penalty.total_contact_force);
+    const double medium_to_high_force_change = std::abs(
+        interface.total_contact_force - medium_penalty.total_contact_force);
+    std::cout << "penalty_convergence_penetrations=" << low_penetration << ','
+              << medium_penetration << ',' << high_penetration << '\n';
+    std::cout << "penalty_convergence_force_changes="
+              << low_to_medium_force_change << ','
+              << medium_to_high_force_change << '\n';
+    passed =
+        check(low_penetration > medium_penetration &&
+                  medium_penetration > high_penetration &&
+                  high_penetration > 0.0 &&
+                  medium_to_high_force_change < low_to_medium_force_change,
+              "penalty refinement reduces penetration and contact-force "
+              "increments") &&
+        passed;
     return passed;
 }
 

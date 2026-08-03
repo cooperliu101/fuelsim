@@ -18,11 +18,27 @@ struct NortonCreepProperties final {
     double coefficient;
     double reference_stress;
     double stress_exponent;
+    double coefficient_temperature_coefficient = 0.0;
+    double reference_stress_temperature_coefficient = 0.0;
+    double stress_exponent_temperature_coefficient = 0.0;
 };
 
 struct J2PlasticityProperties final {
     double yield_stress;
     double isotropic_hardening_modulus;
+    double yield_stress_temperature_coefficient = 0.0;
+    double hardening_temperature_coefficient = 0.0;
+};
+
+struct ActiveNortonCreepProperties final {
+    adlite::Scalar coefficient;
+    adlite::Scalar reference_stress;
+    adlite::Scalar stress_exponent;
+};
+
+struct ActiveJ2PlasticityProperties final {
+    adlite::Scalar yield_stress;
+    adlite::Scalar isotropic_hardening_modulus;
 };
 
 struct TransientInelasticProperties final {
@@ -61,6 +77,11 @@ class IsotropicInelasticMaterial final {
 
     adlite::Scalar conductivity(const adlite::Scalar& temperature) const;
 
+    ActiveNortonCreepProperties
+    active_creep_properties(const adlite::Scalar& temperature) const;
+    ActiveJ2PlasticityProperties
+    active_plasticity_properties(const adlite::Scalar& temperature) const;
+
     InelasticStressResponse
     response(const adlite::Scalar& strain_rr, const adlite::Scalar& strain_zz,
              const adlite::Scalar& strain_hoop, const adlite::Scalar& strain_rz,
@@ -73,8 +94,6 @@ class IsotropicInelasticMaterial final {
   private:
     IsotropicThermoelasticMaterial _thermoelastic_material;
     TransientInelasticProperties _properties;
-    double _lame_lambda;
-    double _shear_modulus;
 };
 
 } // namespace fuelsim

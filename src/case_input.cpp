@@ -253,6 +253,13 @@ ThermoelasticProperties read_thermoelastic(const InputDocument& document,
         read_double(document, section, "poisson_ratio"),
         read_double(document, section, "thermal_expansion"),
         read_double(document, section, "reference_temperature"),
+        read_optional_double(document, section,
+                             "young_modulus_temperature_coefficient", 0.0),
+        read_optional_double(document, section,
+                             "poisson_ratio_temperature_coefficient", 0.0),
+        read_optional_double(
+            document, section,
+            "thermal_expansion_temperature_coefficient", 0.0),
     };
 }
 
@@ -269,31 +276,85 @@ TransientInelasticProperties read_transient(const InputDocument& document,
                    "inelastic_model='elastic'");
         forbid_key(document, section, "creep_exponent",
                    "inelastic_model='elastic'");
+        forbid_key(document, section,
+                   "creep_coefficient_temperature_coefficient",
+                   "inelastic_model='elastic'");
+        forbid_key(document, section,
+                   "creep_reference_stress_temperature_coefficient",
+                   "inelastic_model='elastic'");
+        forbid_key(document, section,
+                   "creep_exponent_temperature_coefficient",
+                   "inelastic_model='elastic'");
         forbid_key(document, section, "yield_stress",
                    "inelastic_model='elastic'");
         forbid_key(document, section, "hardening_modulus",
+                   "inelastic_model='elastic'");
+        forbid_key(document, section,
+                   "yield_stress_temperature_coefficient",
+                   "inelastic_model='elastic'");
+        forbid_key(document, section, "hardening_temperature_coefficient",
                    "inelastic_model='elastic'");
     } else if (model == "norton_creep") {
         behavior = InelasticBehavior::norton_creep;
         creep = {read_double(document, section, "creep_coefficient"),
                  read_double(document, section, "creep_reference_stress"),
-                 read_double(document, section, "creep_exponent")};
+                 read_double(document, section, "creep_exponent"),
+                 read_optional_double(
+                     document, section,
+                     "creep_coefficient_temperature_coefficient", 0.0),
+                 read_optional_double(
+                     document, section,
+                     "creep_reference_stress_temperature_coefficient", 0.0),
+                 read_optional_double(
+                     document, section,
+                     "creep_exponent_temperature_coefficient", 0.0)};
         forbid_key(document, section, "yield_stress", model);
         forbid_key(document, section, "hardening_modulus", model);
+        forbid_key(document, section,
+                   "yield_stress_temperature_coefficient", model);
+        forbid_key(document, section, "hardening_temperature_coefficient",
+                   model);
     } else if (model == "j2_plasticity") {
         behavior = InelasticBehavior::j2_plasticity;
         plasticity = {read_double(document, section, "yield_stress"),
-                      read_double(document, section, "hardening_modulus")};
+                      read_double(document, section, "hardening_modulus"),
+                      read_optional_double(
+                          document, section,
+                          "yield_stress_temperature_coefficient", 0.0),
+                      read_optional_double(
+                          document, section,
+                          "hardening_temperature_coefficient", 0.0)};
         forbid_key(document, section, "creep_coefficient", model);
         forbid_key(document, section, "creep_reference_stress", model);
         forbid_key(document, section, "creep_exponent", model);
+        forbid_key(document, section,
+                   "creep_coefficient_temperature_coefficient", model);
+        forbid_key(document, section,
+                   "creep_reference_stress_temperature_coefficient", model);
+        forbid_key(document, section,
+                   "creep_exponent_temperature_coefficient", model);
     } else if (model == "norton_creep_j2_plasticity") {
         behavior = InelasticBehavior::norton_creep_j2_plasticity;
         creep = {read_double(document, section, "creep_coefficient"),
                  read_double(document, section, "creep_reference_stress"),
-                 read_double(document, section, "creep_exponent")};
+                 read_double(document, section, "creep_exponent"),
+                 read_optional_double(
+                     document, section,
+                     "creep_coefficient_temperature_coefficient", 0.0),
+                 read_optional_double(
+                     document, section,
+                     "creep_reference_stress_temperature_coefficient", 0.0),
+                 read_optional_double(
+                     document, section,
+                     "creep_exponent_temperature_coefficient", 0.0)};
         plasticity = {read_double(document, section, "yield_stress"),
-                      read_double(document, section, "hardening_modulus")};
+                      read_double(document, section, "hardening_modulus"),
+                      read_optional_double(
+                          document, section,
+                          "yield_stress_temperature_coefficient", 0.0),
+                      read_optional_double(
+                          document, section,
+                          "hardening_temperature_coefficient", 0.0)};
     } else {
         value_error(document,
                     required_entry(document, section, "inelastic_model"),
@@ -336,6 +397,9 @@ CaseRegionDefinition read_region(const InputDocument& document,
         "poisson_ratio",
         "thermal_expansion",
         "reference_temperature",
+        "young_modulus_temperature_coefficient",
+        "poisson_ratio_temperature_coefficient",
+        "thermal_expansion_temperature_coefficient",
         "initial_temperature",
         "volumetric_heat_source",
         "heat_source_function",
@@ -344,7 +408,12 @@ CaseRegionDefinition read_region(const InputDocument& document,
         keys.insert(keys.end(),
                     {"density", "specific_heat", "inelastic_model",
                      "creep_coefficient", "creep_reference_stress",
-                     "creep_exponent", "yield_stress", "hardening_modulus"});
+                     "creep_exponent", "yield_stress", "hardening_modulus",
+                     "creep_coefficient_temperature_coefficient",
+                     "creep_reference_stress_temperature_coefficient",
+                     "creep_exponent_temperature_coefficient",
+                     "yield_stress_temperature_coefficient",
+                     "hardening_temperature_coefficient"});
     }
     validate_keys(document, section, keys);
     const InputEntry* block = find_entry(section, "block");
@@ -655,7 +724,11 @@ FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
                        "minimum_time_step", "maximum_time_step",
                        "growth_factor", "cutback_factor", "maximum_cutbacks",
                        "load_ramp_time", "restart",
-                       "target_nonlinear_iterations", "iteration_window"});
+                       "target_nonlinear_iterations", "iteration_window",
+                       "time_error_relative_tolerance",
+                       "temperature_time_absolute_tolerance",
+                       "displacement_time_absolute_tolerance",
+                       "time_error_safety_factor"});
         if (executioner_type != "transient")
             value_error(document, executioner.entry("type"),
                         "problem='transient' requires type='transient'");
@@ -671,7 +744,17 @@ FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
             {},
             read_optional_size(document, executioner,
                                "target_nonlinear_iterations", 0),
-            read_optional_size(document, executioner, "iteration_window", 0)};
+            read_optional_size(document, executioner, "iteration_window", 0),
+            read_optional_double(document, executioner,
+                                 "time_error_relative_tolerance", 0.0),
+            read_optional_double(document, executioner,
+                                 "temperature_time_absolute_tolerance",
+                                 1.0e-3),
+            read_optional_double(document, executioner,
+                                 "displacement_time_absolute_tolerance",
+                                 1.0e-10),
+            read_optional_double(document, executioner,
+                                 "time_error_safety_factor", 0.9)};
         const std::string restart =
             read_optional_string(executioner, "restart", {});
         result.transient_execution.restart_file =
@@ -687,6 +770,18 @@ FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
             value_error(document, executioner.entry("iteration_window"),
                         "iteration_window must be smaller than "
                         "target_nonlinear_iterations");
+        if (!(result.transient_execution.time_error_relative_tolerance >=
+                  0.0) ||
+            !(result.transient_execution
+                      .temperature_time_absolute_tolerance > 0.0) ||
+            !(result.transient_execution
+                      .displacement_time_absolute_tolerance > 0.0) ||
+            !(result.transient_execution.time_error_safety_factor > 0.0 &&
+              result.transient_execution.time_error_safety_factor < 1.0))
+            throw std::invalid_argument(
+                path + ": transient time-error tolerances must be finite and "
+                       "nonnegative/positive, and the safety factor must lie "
+                       "in (0, 1)");
     }
 
     const InputSection& solver = document.section("Solver");
@@ -694,7 +789,11 @@ FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
                   {"absolute_tolerance", "relative_tolerance", "step_tolerance",
                    "maximum_iterations", "linear_solver", "preconditioner",
                    "linear_relative_tolerance",
-                   "maximum_linear_iterations"});
+                   "maximum_linear_iterations", "backtracking_fallback",
+                   "field_residual_scaling",
+                   "residual_reduction_tolerance",
+                   "temperature_residual_absolute_tolerance",
+                   "mechanical_residual_absolute_tolerance"});
     result.solver = {
         read_optional_double(document, solver, "absolute_tolerance", 1.0e-8),
         read_optional_double(document, solver, "relative_tolerance", 1.0e-10),
@@ -705,12 +804,25 @@ FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
         read_optional_double(document, solver, "linear_relative_tolerance",
                              1.0e-8),
         read_optional_int(document, solver, "maximum_linear_iterations",
-                          500)};
+                          500),
+        read_optional_bool(document, solver, "backtracking_fallback", true),
+        read_optional_bool(document, solver, "field_residual_scaling", false),
+        read_optional_double(document, solver,
+                             "residual_reduction_tolerance", 1.0e-6),
+        read_optional_double(document, solver,
+                             "temperature_residual_absolute_tolerance",
+                             1.0e-8),
+        read_optional_double(document, solver,
+                             "mechanical_residual_absolute_tolerance",
+                             1.0e-4)};
     if (!(result.solver.absolute_tolerance > 0.0) ||
         !(result.solver.relative_tolerance > 0.0) ||
         !(result.solver.step_tolerance > 0.0) ||
         result.solver.maximum_iterations <= 0 ||
         !(result.solver.linear_relative_tolerance > 0.0) ||
+        !(result.solver.residual_reduction_tolerance > 0.0) ||
+        !(result.solver.temperature_residual_absolute_tolerance > 0.0) ||
+        !(result.solver.mechanical_residual_absolute_tolerance > 0.0) ||
         result.solver.maximum_linear_iterations <= 0)
         throw std::invalid_argument(
             path + ": solver tolerances and iteration limit must be positive");

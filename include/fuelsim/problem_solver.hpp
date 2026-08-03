@@ -52,6 +52,10 @@ struct TransientTimeOptions final {
     double load_ramp_time;
     std::size_t target_nonlinear_iterations = 0;
     std::size_t iteration_window = 0;
+    double time_error_relative_tolerance = 0.0;
+    double temperature_time_absolute_tolerance = 1.0e-3;
+    double displacement_time_absolute_tolerance = 1.0e-10;
+    double time_error_safety_factor = 0.9;
 };
 
 enum class TransientTerminationReason {
@@ -70,6 +74,7 @@ struct TransientRejectedStep final {
     double residual_norm;
     SolveFailureCategory failure_category;
     std::string failure_message;
+    double time_error_estimate = 0.0;
 };
 
 struct TransientAcceptedStep final {
@@ -80,6 +85,7 @@ struct TransientAcceptedStep final {
     std::size_t cutbacks;
     int nonlinear_iterations;
     std::vector<RegionInelasticSummary> region_histories;
+    double time_error_estimate = 0.0;
 };
 
 struct TransientResult final {
@@ -89,6 +95,7 @@ struct TransientResult final {
     std::vector<TransientRejectedStep> rejected_steps;
     bool completed = false;
     std::size_t total_cutbacks = 0;
+    std::size_t time_error_rejections = 0;
     int total_nonlinear_iterations = 0;
     double committed_time = 0.0;
     double next_time_step = 0.0;

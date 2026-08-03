@@ -40,6 +40,10 @@ struct TransientExecutionInput final {
     std::string restart_file;
     std::size_t target_nonlinear_iterations;
     std::size_t iteration_window;
+    double time_error_relative_tolerance;
+    double temperature_time_absolute_tolerance;
+    double displacement_time_absolute_tolerance;
+    double time_error_safety_factor;
 };
 
 struct NonlinearSolverInput final {
@@ -51,6 +55,11 @@ struct NonlinearSolverInput final {
     std::string preconditioner;
     double linear_relative_tolerance;
     int maximum_linear_iterations;
+    bool backtracking_fallback;
+    bool field_residual_scaling;
+    double residual_reduction_tolerance;
+    double temperature_residual_absolute_tolerance;
+    double mechanical_residual_absolute_tolerance;
 };
 
 struct CaseOutputInput final {

@@ -99,6 +99,18 @@ void validate_time_options(const TransientProblem& problem,
         options.iteration_window >= options.target_nonlinear_iterations)
         throw std::invalid_argument(
             "solve_transient iteration window must be smaller than target");
+    if (!std::isfinite(options.time_error_relative_tolerance) ||
+        options.time_error_relative_tolerance < 0.0 ||
+        !std::isfinite(options.temperature_time_absolute_tolerance) ||
+        !(options.temperature_time_absolute_tolerance > 0.0) ||
+        !std::isfinite(options.displacement_time_absolute_tolerance) ||
+        !(options.displacement_time_absolute_tolerance > 0.0) ||
+        !std::isfinite(options.time_error_safety_factor) ||
+        !(options.time_error_safety_factor > 0.0 &&
+          options.time_error_safety_factor < 1.0))
+        throw std::invalid_argument(
+            "solve_transient time-error tolerances must be finite and "
+            "nonnegative/positive, and safety factor must lie in (0, 1)");
 }
 
 double load_factor_at_time(const TransientTimeOptions& options, double time) {
@@ -149,6 +161,74 @@ double accepted_next_time_step(const TransientTimeOptions& options,
                         base * options.cutback_factor);
     return std::clamp(base, options.minimum_time_step,
                       options.maximum_time_step);
+}
+
+void combine_attempt(SolveResult& aggregate, const SolveResult& addition) {
+    const int nonlinear_iterations =
+        aggregate.nonlinear_iterations + addition.nonlinear_iterations;
+    const std::size_t nonlinear_attempts =
+        aggregate.nonlinear_attempts + addition.nonlinear_attempts;
+    SolveTiming timing = aggregate.timing;
+    accumulate_timing(timing, addition.timing);
+    const bool used_backtracking = aggregate.used_backtracking_fallback ||
+                                   addition.used_backtracking_fallback;
+    const SolveFailureCategory basic_failure =
+        aggregate.basic_failure_category != SolveFailureCategory::none
+            ? aggregate.basic_failure_category
+            : addition.basic_failure_category;
+    const std::string basic_message =
+        !aggregate.basic_failure_message.empty()
+            ? aggregate.basic_failure_message
+            : addition.basic_failure_message;
+    aggregate = addition;
+    aggregate.nonlinear_iterations = nonlinear_iterations;
+    aggregate.nonlinear_attempts = nonlinear_attempts;
+    aggregate.timing = timing;
+    aggregate.used_backtracking_fallback = used_backtracking;
+    aggregate.basic_failure_category = basic_failure;
+    aggregate.basic_failure_message = basic_message;
+}
+
+double step_doubling_error(const std::vector<double>& full_step,
+                           const std::vector<double>& two_half_steps,
+                           const TransientTimeOptions& options) {
+    if (full_step.size() != two_half_steps.size() ||
+        full_step.size() % 3 != 0)
+        throw std::logic_error(
+            "step-doubling states must share the [T, ur, uz] layout");
+    const std::size_t node_count = full_step.size() / 3;
+    const double square_root_node_count =
+        std::sqrt(static_cast<double>(node_count));
+    double maximum = 0.0;
+    for (std::size_t field = 0; field < 3; ++field) {
+        double difference_squared = 0.0;
+        double solution_squared = 0.0;
+        const std::size_t begin = field * node_count;
+        const std::size_t end = begin + node_count;
+        for (std::size_t dof = begin; dof < end; ++dof) {
+            const double difference = two_half_steps[dof] - full_step[dof];
+            difference_squared += difference * difference;
+            solution_squared += two_half_steps[dof] * two_half_steps[dof];
+        }
+        const double absolute_tolerance =
+            field == 0 ? options.temperature_time_absolute_tolerance
+                       : options.displacement_time_absolute_tolerance;
+        const double denominator =
+            absolute_tolerance * square_root_node_count +
+            options.time_error_relative_tolerance *
+                std::sqrt(solution_squared);
+        maximum = std::max(maximum,
+                           std::sqrt(difference_squared) / denominator);
+    }
+    return maximum;
+}
+
+double time_error_step_factor(const TransientTimeOptions& options,
+                              double error) {
+    if (!(error > 0.0))
+        return options.growth_factor;
+    return std::clamp(options.time_error_safety_factor / std::sqrt(error),
+                      0.1, options.growth_factor);
 }
 
 } // namespace
@@ -274,30 +354,131 @@ TransientResult solve_transient(TransientProblem& problem,
         for (;;) {
             const double end_time = problem.committed_time() + time_step;
             SolveResult attempt;
+            double time_error_estimate = 0.0;
+            int controller_nonlinear_iterations = 0;
+            const bool error_control =
+                options.time_error_relative_tolerance > 0.0;
+            TransientCommittedState base_state;
+            if (error_control)
+                base_state = problem.committed_state();
             try {
-                TimeStepTransaction transaction(
-                    problem,
-                    {end_time, load_factor_at_time(options, end_time)});
-                attempt = solver.solve(
-                    problem,
-                    initial_guess_with_dirichlet_values(
-                        problem, problem.committed_solution()),
-                    solver_options);
-                accumulate_timing(result.aggregate_timing, attempt.timing);
-                result.total_nonlinear_iterations += attempt.nonlinear_iterations;
-                if (attempt.converged)
-                    transaction.commit(attempt.state);
+                if (!error_control) {
+                    TimeStepTransaction transaction(
+                        problem,
+                        {end_time, load_factor_at_time(options, end_time)});
+                    attempt = solver.solve(
+                        problem,
+                        initial_guess_with_dirichlet_values(
+                            problem, problem.committed_solution()),
+                        solver_options);
+                    controller_nonlinear_iterations =
+                        attempt.nonlinear_iterations;
+                    if (attempt.converged)
+                        transaction.commit(attempt.state);
+                } else {
+                    SolveResult full_step;
+                    {
+                        TimeStepTransaction transaction(
+                            problem,
+                            {end_time,
+                             load_factor_at_time(options, end_time)});
+                        full_step = solver.solve(
+                            problem,
+                            initial_guess_with_dirichlet_values(
+                                problem, problem.committed_solution()),
+                            solver_options);
+                    }
+                    attempt = full_step;
+                    controller_nonlinear_iterations =
+                        full_step.nonlinear_iterations;
+                    if (full_step.converged) {
+                        const double half_time =
+                            base_state.time + 0.5 * time_step;
+                        SolveResult first_half;
+                        {
+                            TimeStepTransaction transaction(
+                                problem,
+                                {half_time,
+                                 load_factor_at_time(options, half_time)});
+                            first_half = solver.solve(
+                                problem,
+                                initial_guess_with_dirichlet_values(
+                                    problem, problem.committed_solution()),
+                                solver_options);
+                            if (first_half.converged)
+                                transaction.commit(first_half.state);
+                        }
+                        controller_nonlinear_iterations = std::max(
+                            controller_nonlinear_iterations,
+                            first_half.nonlinear_iterations);
+                        combine_attempt(attempt, first_half);
+                        if (!first_half.converged) {
+                            problem.restore_committed_state(
+                                std::move(base_state));
+                        } else {
+                            SolveResult second_half;
+                            {
+                                TimeStepTransaction transaction(
+                                    problem,
+                                    {end_time,
+                                     load_factor_at_time(options, end_time)});
+                                second_half = solver.solve(
+                                    problem,
+                                    initial_guess_with_dirichlet_values(
+                                        problem,
+                                        problem.committed_solution()),
+                                    solver_options);
+                                if (second_half.converged)
+                                    transaction.commit(second_half.state);
+                            }
+                            controller_nonlinear_iterations = std::max(
+                                controller_nonlinear_iterations,
+                                second_half.nonlinear_iterations);
+                            combine_attempt(attempt, second_half);
+                            if (!second_half.converged) {
+                                problem.restore_committed_state(
+                                    std::move(base_state));
+                            } else {
+                                time_error_estimate = step_doubling_error(
+                                    full_step.state, second_half.state,
+                                    options);
+                                if (!(time_error_estimate <= 1.0)) {
+                                    problem.restore_committed_state(
+                                        std::move(base_state));
+                                    attempt.converged = false;
+                                    attempt.failure_category =
+                                        SolveFailureCategory::
+                                            time_discretization;
+                                    attempt.failure_message =
+                                        "Backward-Euler step-doubling error "
+                                        "exceeded one";
+                                    ++result.time_error_rejections;
+                                }
+                            }
+                        }
+                    }
+                }
             } catch (const std::domain_error& error) {
+                if (error_control && !base_state.solution.empty())
+                    problem.restore_committed_state(std::move(base_state));
                 attempt.converged = false;
                 attempt.failure_category =
                     SolveFailureCategory::physical_domain;
                 attempt.failure_message = error.what();
             } catch (const std::overflow_error& error) {
+                if (error_control && !base_state.solution.empty())
+                    problem.restore_committed_state(std::move(base_state));
                 attempt.converged = false;
                 attempt.failure_category =
                     SolveFailureCategory::physical_domain;
                 attempt.failure_message = error.what();
+            } catch (...) {
+                if (error_control && !base_state.solution.empty())
+                    problem.restore_committed_state(std::move(base_state));
+                throw;
             }
+            accumulate_timing(result.aggregate_timing, attempt.timing);
+            result.total_nonlinear_iterations += attempt.nonlinear_iterations;
             result.last_attempt = std::move(attempt);
             if (result.last_attempt.converged) {
                 std::vector<RegionInelasticSummary> histories;
@@ -308,12 +489,21 @@ TransientResult solve_transient(TransientProblem& problem,
                         problem.summarize_region_history(region));
                 next_time_step = accepted_next_time_step(
                     options, time_step, controller_time_step, event_truncated,
-                    cutbacks, result.last_attempt.nonlinear_iterations);
+                    cutbacks, controller_nonlinear_iterations);
+                if (error_control) {
+                    const double error_limited_step =
+                        time_step *
+                        time_error_step_factor(options, time_error_estimate);
+                    next_time_step =
+                        std::clamp(std::min(next_time_step, error_limited_step),
+                                   options.minimum_time_step,
+                                   options.maximum_time_step);
+                }
                 result.accepted_steps.push_back(
                     {problem.committed_time(), time_step, next_time_step,
                      problem.committed_load_factor(), cutbacks,
                      result.last_attempt.nonlinear_iterations,
-                     std::move(histories)});
+                     std::move(histories), time_error_estimate});
                 if (observer != nullptr)
                     observer->accepted_step(problem,
                                             result.accepted_steps.back());
@@ -325,13 +515,21 @@ TransientResult solve_transient(TransientProblem& problem,
                  result.last_attempt.convergence_reason,
                  result.last_attempt.residual_norm,
                  result.last_attempt.failure_category,
-                 result.last_attempt.failure_message});
+                 result.last_attempt.failure_message, time_error_estimate});
             if (cutbacks >= options.maximum_cutbacks_per_step) {
                 result.termination_reason =
                     TransientTerminationReason::maximum_cutbacks;
                 break;
             }
-            const double reduced = time_step * options.cutback_factor;
+            double reduction_factor = options.cutback_factor;
+            if (result.last_attempt.failure_category ==
+                SolveFailureCategory::time_discretization)
+                reduction_factor = std::min(
+                    0.9,
+                    std::max(options.cutback_factor,
+                             time_error_step_factor(options,
+                                                    time_error_estimate)));
+            const double reduced = time_step * reduction_factor;
             const double minimum_tolerance =
                 16.0 * std::numeric_limits<double>::epsilon() *
                 std::max(1.0, options.minimum_time_step);

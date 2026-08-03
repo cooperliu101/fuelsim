@@ -98,6 +98,81 @@ bool same_state(const fuelsim::MaterialPointState& lhs,
            lhs.equivalent_creep_strain == rhs.equivalent_creep_strain;
 }
 
+double temperature_tangent_error(
+    const fuelsim::TransientInelasticProperties& inelastic) {
+    fuelsim::ThermoelasticProperties thermoelastic = simple_thermoelastic();
+    thermoelastic.young_modulus_temperature_coefficient = -0.08;
+    thermoelastic.poisson_ratio_temperature_coefficient = 1.0e-5;
+    thermoelastic.thermal_expansion = 1.0e-5;
+    thermoelastic.thermal_expansion_temperature_coefficient = 2.0e-8;
+    fuelsim::TransientInelasticProperties active_inelastic = inelastic;
+    if (active_inelastic.behavior == fuelsim::InelasticBehavior::norton_creep ||
+        active_inelastic.behavior ==
+            fuelsim::InelasticBehavior::norton_creep_j2_plasticity) {
+        active_inelastic.creep.coefficient_temperature_coefficient = 1.0e-4;
+        active_inelastic.creep.reference_stress_temperature_coefficient =
+            2.0e-3;
+        active_inelastic.creep.stress_exponent_temperature_coefficient =
+            1.0e-4;
+    }
+    if (active_inelastic.behavior ==
+            fuelsim::InelasticBehavior::j2_plasticity ||
+        active_inelastic.behavior ==
+            fuelsim::InelasticBehavior::norton_creep_j2_plasticity) {
+        active_inelastic.plasticity.yield_stress_temperature_coefficient =
+            -1.0e-2;
+        active_inelastic.plasticity.hardening_temperature_coefficient =
+            -2.0e-2;
+    }
+    const fuelsim::IsotropicInelasticMaterial material(thermoelastic,
+                                                        active_inelastic);
+    const fuelsim::MaterialPointState committed{};
+    constexpr double temperature = 610.0;
+    constexpr double time_step = 0.01;
+    const adlite::Scalar active_temperature =
+        adlite::Scalar::independent(temperature, 0, 1);
+    const fuelsim::InelasticStressResponse active = material.response(
+        0.2, -0.1, -0.1, 0.02, active_temperature, time_step, committed);
+    constexpr double perturbation = 1.0e-4;
+    const double plus =
+        material
+            .response(0.2, -0.1, -0.1, 0.02,
+                      temperature + perturbation, time_step, committed)
+            .stress.rr.value();
+    const double minus =
+        material
+            .response(0.2, -0.1, -0.1, 0.02,
+                      temperature - perturbation, time_step, committed)
+            .stress.rr.value();
+    return scaled_error(active.stress.rr.derivative(0),
+                        (plus - minus) / (2.0 * perturbation));
+}
+
+bool test_temperature_active_inelastic_properties() {
+    const double elastic_error = temperature_tangent_error(elastic_properties());
+    const double plastic_error =
+        temperature_tangent_error(plastic_properties(20.0, 40.0));
+    const double creep_error =
+        temperature_tangent_error(creep_properties(0.5, 1.0, 1.0));
+    const double coupled_error = temperature_tangent_error(
+        coupled_properties(0.5, 1.0, 1.0, 20.0, 40.0));
+    const double maximum_error =
+        std::max({elastic_error, plastic_error, creep_error, coupled_error});
+    std::cout << "m40_active_elastic_temperature_tangent_error="
+              << elastic_error << '\n';
+    std::cout << "m40_active_plastic_temperature_tangent_error="
+              << plastic_error << '\n';
+    std::cout << "m40_active_creep_temperature_tangent_error=" << creep_error
+              << '\n';
+    std::cout << "m40_active_coupled_temperature_tangent_error="
+              << coupled_error << '\n';
+    std::cout << "m40_active_material_temperature_tangent_error="
+              << maximum_error << '\n';
+    return check(maximum_error < 1.0e-7,
+                 "elastic, plastic, creep, and coupled temperature-active "
+                 "tangents match centered differences");
+}
+
 bool test_j2_plasticity_material_point() {
     const fuelsim::IsotropicInelasticMaterial material(
         simple_thermoelastic(), plastic_properties(20.0, 40.0));
@@ -1004,6 +1079,7 @@ int main() {
         passed = test_j2_plasticity_material_point() && passed;
         passed = test_norton_creep_material_point() && passed;
         passed = test_coupled_plastic_creep_material_point() && passed;
+        passed = test_temperature_active_inelastic_properties() && passed;
         passed = test_transient_element() && passed;
         passed = test_coupled_transient_element_jacobian() && passed;
         passed = test_problem_history_transaction() && passed;

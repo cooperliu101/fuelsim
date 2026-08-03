@@ -600,10 +600,10 @@ The final complete-field differences are:
 
 ```text
                                       relative L2   relative absolute peak   pointwise max
-temperature:                           0.01078%      0.00077%                0.04522%
-radial displacement:                   0.08796%      0.11889%                0.25280%
-axial displacement:                    0.02054%      0.02434%                0.07670%
-contact pressure:                      0.06243%      0.10375%                0.10375%
+temperature:                           0.01075%      0.00078%                0.04509%
+radial displacement:                   0.08782%      0.11875%                0.25233%
+axial displacement:                    0.02053%      0.02433%                0.07657%
+contact pressure:                      0.06209%      0.10333%                0.10333%
 
 average von Mises stress error:            0.00431%
 average effective plastic strain error:   0.0489%
@@ -613,11 +613,11 @@ projected / active fuel surface nodes:     5 / 5
 ```
 
 Temperature and axial displacement pass `<0.1%` for all three metrics. Radial
-displacement passes relative L2 `<0.1%`; its relative absolute-peak and maximum
-pointwise-relative gates are `<0.15%` and `<0.30%`. The largest difference is
+displacement passes relative L2 `<0.095%`; its relative absolute-peak and maximum
+pointwise-relative gates are `<0.125%` and `<0.27%`. The largest difference is
 about `6.45 nm` at source node 48 on the top cladding inner surface. Tightening
 the nonlinear tolerances and halving `dt` did not change this localized contact
-endpoint difference. The pressure-vector metrics pass `<0.12%`, and total
+endpoint difference. The pressure-vector metrics pass `<0.11%`, and total
 force passes `<0.1%`. Stress and both average history metrics pass `<0.1%`.
 
 The cladding pointwise comparison covers all `8 elements x 4 QPs = 32`
@@ -630,18 +630,18 @@ IDs, and physical coordinates. MOOSE orders local points as
 
 ```text
                                       relative L2   maximum relative   maximum absolute
-von Mises stress:                     0.0124%       0.0334%            1.9007e3 Pa
-effective plastic strain:            0.1389%       0.2920%            9.5033e-7
-effective creep strain:              0.0769%       0.1884%            2.7958e-7
+von Mises stress:                     0.01238%      0.03335%           1.9007e3 Pa
+effective plastic strain:            0.13873%      0.29152%           9.5033e-7
+effective creep strain:              0.07682%      0.18805%           2.7958e-7
 ```
 
 The maximum relative stress and creep errors occur at local cladding element
 6, QP 3 (`r=4.181333 mm`, `z=9.490631 mm`; MOOSE element 30, QP 2). The
 maximum relative plastic error occurs at local element 7, QP 2
 (`r=4.631667 mm`, `z=9.490631 mm`; MOOSE element 31, QP 3). Pointwise gates
-are stress L2/peak/pointwise `<0.02%`/`<0.05%`/`<0.05%`, plastic strain
-`<0.16%`/`<0.30%`/`<0.32%`, and creep strain
-`<0.10%`/`<0.20%`/`<0.20%`.
+are stress L2/peak/pointwise `<0.015%`/`<0.04%`/`<0.04%`, plastic strain
+`<0.15%`/`<0.29%`/`<0.305%`, and creep strain
+`<0.09%`/`<0.195%`/`<0.195%`.
 
 ## M2 reference environment and conventions
 
