@@ -159,8 +159,6 @@ class SteadyProblem final : public NonlinearProblem {
     };
 
     struct PressureLoad final {
-        std::size_t region;
-        RegionBoundary boundary;
         double pressure;
         bool scale_with_load;
         std::string function;
@@ -208,7 +206,6 @@ class SteadyProblem final : public NonlinearProblem {
     void build_volume_geometries();
     void build_contacts(const UnstructuredQuad4Mesh& source_mesh);
     void build_boundary_conditions(const UnstructuredQuad4Mesh& source_mesh);
-    void add_pressure_residual(std::vector<double>& residual) const;
     void add_traction_residual(std::vector<double>& residual) const;
     double function_value(const std::string& name) const;
     double load_multiplier(bool scale_with_load,
@@ -241,6 +238,11 @@ class SteadyProblem final : public NonlinearProblem {
     std::vector<std::size_t> _convection_load_indices;
     std::vector<std::array<std::size_t, 4>> _convection_nodes;
     std::vector<Line2RzConvectionGeometry> _convection_geometries;
+
+    std::vector<Line2RzPressureKernel> _pressure_kernels;
+    std::vector<std::size_t> _pressure_load_indices;
+    std::vector<std::array<std::size_t, 4>> _pressure_nodes;
+    std::vector<Line2RzPressureGeometry> _pressure_geometries;
 
     std::vector<DirichletCondition> _dirichlet_conditions;
     std::vector<ControlledDirichlet> _controlled_dirichlet_conditions;

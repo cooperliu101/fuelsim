@@ -62,7 +62,8 @@ bool finite_stress(const AxisymmetricStressValues& stress) {
 
 bool valid_material_state(const MaterialPointState& state) {
     for (std::size_t component = 0; component < 4; ++component) {
-        if (!std::isfinite(state.plastic_strain[component]) ||
+        if (!std::isfinite(state.elastic_strain[component]) ||
+            !std::isfinite(state.plastic_strain[component]) ||
             !std::isfinite(state.creep_strain[component]))
             return false;
     }
@@ -440,14 +441,18 @@ void TransientProblem::commit_time_step(
              ++element) {
             const LocalValues state =
                 contribution_state(offset + element, converged_solution);
+            const LocalValues committed_state =
+                contribution_state(offset + element, _committed_solution);
             staged[region_value][element] =
                 _region_kernels[region_value].trial_state_values(
                     region_element_geometry(region_value, element), state,
+                    committed_state,
                     _material_histories[region_value][element],
                     _active_time_step);
             staged_stresses[region_value][element] =
                 _region_kernels[region_value].stress_values(
                     region_element_geometry(region_value, element), state,
+                    committed_state,
                     _material_histories[region_value][element],
                     _active_time_step);
         }
@@ -544,7 +549,7 @@ TransientProblem::contribution_residual(std::size_t contribution_index,
             _spatial_model.element_location(contribution_index);
         return _region_kernels[location.first].residual(
             region_element_geometry(location.first, location.second), state,
-            committed_element_temperature(contribution_index),
+            committed_element_state(contribution_index),
             _material_histories[location.first][location.second],
             _active_time_step);
     }
@@ -560,7 +565,7 @@ TransientProblem::linearize_contribution(std::size_t contribution_index,
             _spatial_model.element_location(contribution_index);
         return _region_kernels[location.first].linearize(
             region_element_geometry(location.first, location.second), state,
-            committed_element_temperature(contribution_index),
+            committed_element_state(contribution_index),
             _material_histories[location.first][location.second],
             _active_time_step);
     }
@@ -572,13 +577,9 @@ void TransientProblem::add_state_independent_residual(
     _spatial_model.add_external_residual(residual);
 }
 
-Quad4TemperatureHistory TransientProblem::committed_element_temperature(
+LocalValues TransientProblem::committed_element_state(
     std::size_t contribution_index) const {
-    const LocalValues committed =
-        contribution_state(contribution_index, _committed_solution);
-    Quad4TemperatureHistory temperature{};
-    std::copy_n(committed.begin(), temperature.size(), temperature.begin());
-    return temperature;
+    return contribution_state(contribution_index, _committed_solution);
 }
 
 void TransientProblem::require_active_time_step() const {

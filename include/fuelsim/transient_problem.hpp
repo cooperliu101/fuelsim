@@ -107,8 +107,8 @@ class TransientProblem final : public NonlinearProblem {
         std::vector<double>& residual) const override;
 
   private:
-    Quad4TemperatureHistory
-    committed_element_temperature(std::size_t contribution_index) const;
+    LocalValues
+    committed_element_state(std::size_t contribution_index) const;
     void require_active_time_step() const;
 
     TransientProblemDefinition _definition;

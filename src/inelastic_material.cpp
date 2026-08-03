@@ -34,10 +34,11 @@ struct CreepIncrement final {
 
 void validate_material_point_state(const MaterialPointState& state) {
     for (std::size_t component = 0; component < component_count; ++component) {
-        if (!std::isfinite(state.plastic_strain[component]) ||
+        if (!std::isfinite(state.elastic_strain[component]) ||
+            !std::isfinite(state.plastic_strain[component]) ||
             !std::isfinite(state.creep_strain[component]))
             throw std::domain_error(
-                "Material point inelastic strains must be finite");
+                "Material point strain histories must be finite");
     }
 
     if (!std::isfinite(state.equivalent_plastic_strain) ||
@@ -56,6 +57,7 @@ MaterialPointTrialState
 passive_trial_state(const MaterialPointState& committed) {
     MaterialPointTrialState trial;
     for (std::size_t component = 0; component < component_count; ++component) {
+        trial.elastic_strain[component] = committed.elastic_strain[component];
         trial.plastic_strain[component] = committed.plastic_strain[component];
         trial.creep_strain[component] = committed.creep_strain[component];
     }
@@ -683,7 +685,7 @@ IsotropicInelasticMaterial::active_plasticity_properties(
     return active;
 }
 
-InelasticStressResponse IsotropicInelasticMaterial::response(
+InelasticStressResponse IsotropicInelasticMaterial::raw_response(
     const adlite::Scalar& strain_rr, const adlite::Scalar& strain_zz,
     const adlite::Scalar& strain_hoop, const adlite::Scalar& strain_rz,
     const adlite::Scalar& temperature, double time_step,
@@ -932,10 +934,123 @@ InelasticStressResponse IsotropicInelasticMaterial::response(
     return {stress, trial_state};
 }
 
+InelasticStressResponse IsotropicInelasticMaterial::response(
+    const adlite::Scalar& strain_rr, const adlite::Scalar& strain_zz,
+    const adlite::Scalar& strain_hoop, const adlite::Scalar& strain_rz,
+    const adlite::Scalar& temperature, double time_step,
+    const MaterialPointState& committed) const {
+    const ThermoelasticProperties& thermoelastic =
+        _thermoelastic_material.properties();
+    const ActiveThermoelasticProperties active =
+        _thermoelastic_material.active_properties(temperature);
+    const adlite::Scalar thermal_strain =
+        active.thermal_expansion *
+        (temperature - thermoelastic.reference_temperature);
+    const std::array<adlite::Scalar, component_count> elastic_trial = {
+        strain_rr - thermal_strain - committed.plastic_strain[0] -
+            committed.creep_strain[0],
+        strain_zz - thermal_strain - committed.plastic_strain[1] -
+            committed.creep_strain[1],
+        strain_hoop - thermal_strain - committed.plastic_strain[2] -
+            committed.creep_strain[2],
+        strain_rz - committed.plastic_strain[3] - committed.creep_strain[3],
+    };
+    InelasticStressResponse result =
+        raw_response(strain_rr, strain_zz, strain_hoop, strain_rz,
+                     temperature, time_step, committed);
+    for (std::size_t component = 0; component < component_count; ++component) {
+        result.trial_state.elastic_strain[component] =
+            elastic_trial[component] -
+            (result.trial_state.plastic_strain[component] -
+             committed.plastic_strain[component]) -
+            (result.trial_state.creep_strain[component] -
+             committed.creep_strain[component]);
+    }
+    return result;
+}
+
+InelasticStressResponse IsotropicInelasticMaterial::incremental_response(
+    const adlite::Scalar& strain_increment_rr,
+    const adlite::Scalar& strain_increment_zz,
+    const adlite::Scalar& strain_increment_hoop,
+    const adlite::Scalar& strain_increment_rz,
+    const AxisymmetricRotation& rotation,
+    const adlite::Scalar& temperature, double committed_temperature,
+    double time_step, const MaterialPointState& committed) const {
+    if (!std::isfinite(committed_temperature) ||
+        !(committed_temperature > 0.0))
+        throw std::domain_error(
+            "Incremental material committed temperature must be finite and "
+            "positive");
+
+    const ThermoelasticProperties& thermoelastic =
+        _thermoelastic_material.properties();
+    const adlite::Scalar old_temperature(committed_temperature);
+    const ActiveThermoelasticProperties old_properties =
+        _thermoelastic_material.active_properties(old_temperature);
+    const adlite::Scalar old_thermal_strain =
+        old_properties.thermal_expansion *
+        (old_temperature - thermoelastic.reference_temperature);
+    const std::array<adlite::Scalar, component_count> synthetic_total = {
+        committed.elastic_strain[0] + strain_increment_rr +
+            old_thermal_strain + committed.plastic_strain[0] +
+            committed.creep_strain[0],
+        committed.elastic_strain[1] + strain_increment_zz +
+            old_thermal_strain + committed.plastic_strain[1] +
+            committed.creep_strain[1],
+        committed.elastic_strain[2] + strain_increment_hoop +
+            old_thermal_strain + committed.plastic_strain[2] +
+            committed.creep_strain[2],
+        committed.elastic_strain[3] + strain_increment_rz +
+            committed.plastic_strain[3] + committed.creep_strain[3],
+    };
+
+    InelasticStressResponse result = response(
+        synthetic_total[0], synthetic_total[1], synthetic_total[2],
+        synthetic_total[3], temperature, time_step, committed);
+    const AxisymmetricStress elastic = {
+        result.trial_state.elastic_strain[0],
+        result.trial_state.elastic_strain[1],
+        result.trial_state.elastic_strain[2],
+        result.trial_state.elastic_strain[3],
+    };
+    const AxisymmetricStress plastic = {
+        result.trial_state.plastic_strain[0],
+        result.trial_state.plastic_strain[1],
+        result.trial_state.plastic_strain[2],
+        result.trial_state.plastic_strain[3],
+    };
+    const AxisymmetricStress creep = {
+        result.trial_state.creep_strain[0],
+        result.trial_state.creep_strain[1],
+        result.trial_state.creep_strain[2],
+        result.trial_state.creep_strain[3],
+    };
+    const AxisymmetricStress rotated_elastic =
+        rotate_axisymmetric_tensor(elastic, rotation);
+    const AxisymmetricStress rotated_plastic =
+        rotate_axisymmetric_tensor(plastic, rotation);
+    const AxisymmetricStress rotated_creep =
+        rotate_axisymmetric_tensor(creep, rotation);
+    result.stress = rotate_axisymmetric_tensor(result.stress, rotation);
+    result.trial_state.elastic_strain = {
+        rotated_elastic.rr, rotated_elastic.zz, rotated_elastic.hoop,
+        rotated_elastic.rz};
+    result.trial_state.plastic_strain = {
+        rotated_plastic.rr, rotated_plastic.zz, rotated_plastic.hoop,
+        rotated_plastic.rz};
+    result.trial_state.creep_strain = {
+        rotated_creep.rr, rotated_creep.zz, rotated_creep.hoop,
+        rotated_creep.rz};
+    return result;
+}
+
 MaterialPointState IsotropicInelasticMaterial::state_values(
     const MaterialPointTrialState& trial_state) {
     MaterialPointState state;
     for (std::size_t component = 0; component < component_count; ++component) {
+        state.elastic_strain[component] =
+            trial_state.elastic_strain[component].value();
         state.plastic_strain[component] =
             trial_state.plastic_strain[component].value();
         state.creep_strain[component] =

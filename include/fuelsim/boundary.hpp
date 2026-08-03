@@ -19,9 +19,41 @@ struct ConvectionProperties final {
     double ambient_temperature;
 };
 
+struct Line2RzPressureGeometry final {
+    std::array<RzPoint, 2> coordinates;
+    std::array<std::size_t, 2> local_nodes;
+};
+
+struct PressureProperties final {
+    double pressure;
+    bool use_displaced_geometry;
+};
+
 Line2RzConvectionGeometry make_line2_rz_convection_geometry(
     const std::array<RzPoint, 2>& coordinates,
     const std::array<std::size_t, 2>& local_nodes);
+
+Line2RzPressureGeometry make_line2_rz_pressure_geometry(
+    const std::array<RzPoint, 2>& coordinates,
+    const std::array<std::size_t, 2>& local_nodes);
+
+class Line2RzPressureKernel final {
+  public:
+    explicit Line2RzPressureKernel(PressureProperties properties);
+
+    const PressureProperties& properties() const noexcept;
+    void set_properties(PressureProperties properties);
+    LocalResidual residual(const Line2RzPressureGeometry& geometry,
+                           const LocalValues& state) const;
+    LocalSystem linearize(const Line2RzPressureGeometry& geometry,
+                          const LocalValues& state) const;
+
+  private:
+    void residual_ad(const Line2RzPressureGeometry& geometry,
+                     const LocalAdValues& state, LocalAdValues& residual) const;
+
+    PressureProperties _properties;
+};
 
 class Line2RzConvectionKernel final {
   public:

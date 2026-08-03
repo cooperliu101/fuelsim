@@ -1,7 +1,7 @@
 # M4.1 finite-strain nonmatching PCMI verification: elastic fuel thermal
 # expansion closes the gap and loads a cladding with coupled Norton creep and
-# J2 plasticity. EigenSolution gives the logarithmic strain increment used by
-# the fuelsim finite-strain RZ kernel.
+# J2 plasticity. The input intentionally leaves decomposition and finite-strain
+# rotation controls unset so both codes exercise MOOSE's defaults.
 
 [Mesh]
   [fuel_mesh]
@@ -124,8 +124,6 @@
   [fuel]
     block = fuel
     strain = FINITE
-    incremental = true
-    decomposition_method = EigenSolution
     add_variables = true
     temperature = T
     eigenstrain_names = 'fuel_thermal_strain'
@@ -134,8 +132,6 @@
   [clad]
     block = clad
     strain = FINITE
-    incremental = true
-    decomposition_method = EigenSolution
     add_variables = true
     temperature = T
     eigenstrain_names = 'clad_thermal_strain'
@@ -348,7 +344,6 @@
     type = ADComputeMultipleInelasticStress
     block = fuel
     inelastic_models = ''
-    perform_finite_strain_rotations = false
   []
 
   [clad_thermal]
@@ -375,7 +370,6 @@
     type = ADComputeMultipleInelasticStress
     block = clad
     inelastic_models = 'clad_creep clad_plasticity'
-    perform_finite_strain_rotations = false
     max_iterations = 100
     relative_tolerance = 1.0e-12
     absolute_tolerance = 1.0e-6

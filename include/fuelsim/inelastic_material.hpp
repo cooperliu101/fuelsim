@@ -50,6 +50,7 @@ struct TransientInelasticProperties final {
 };
 
 struct MaterialPointState final {
+    std::array<double, 4> elastic_strain{};
     std::array<double, 4> plastic_strain{};
     std::array<double, 4> creep_strain{};
     double equivalent_plastic_strain = 0.0;
@@ -57,6 +58,7 @@ struct MaterialPointState final {
 };
 
 struct MaterialPointTrialState final {
+    std::array<adlite::Scalar, 4> elastic_strain{};
     std::array<adlite::Scalar, 4> plastic_strain{};
     std::array<adlite::Scalar, 4> creep_strain{};
     adlite::Scalar equivalent_plastic_strain{0.0};
@@ -88,10 +90,25 @@ class IsotropicInelasticMaterial final {
              const adlite::Scalar& temperature, double time_step,
              const MaterialPointState& committed) const;
 
+    InelasticStressResponse incremental_response(
+        const adlite::Scalar& strain_increment_rr,
+        const adlite::Scalar& strain_increment_zz,
+        const adlite::Scalar& strain_increment_hoop,
+        const adlite::Scalar& strain_increment_rz,
+        const AxisymmetricRotation& rotation,
+        const adlite::Scalar& temperature, double committed_temperature,
+        double time_step, const MaterialPointState& committed) const;
+
     static MaterialPointState
     state_values(const MaterialPointTrialState& trial_state);
 
   private:
+    InelasticStressResponse raw_response(
+        const adlite::Scalar& strain_rr, const adlite::Scalar& strain_zz,
+        const adlite::Scalar& strain_hoop, const adlite::Scalar& strain_rz,
+        const adlite::Scalar& temperature, double time_step,
+        const MaterialPointState& committed) const;
+
     IsotropicThermoelasticMaterial _thermoelastic_material;
     TransientInelasticProperties _properties;
 };

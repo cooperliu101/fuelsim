@@ -8,7 +8,6 @@
 
 namespace fuelsim {
 
-using Quad4TemperatureHistory = std::array<double, quad4_node_count>;
 using Quad4MaterialHistory = std::array<MaterialPointState, 4>;
 
 class Quad4RzTransientKernel final {
@@ -22,29 +21,31 @@ class Quad4RzTransientKernel final {
 
     LocalResidual residual(const Quad4RzGeometry& geometry,
                            const LocalValues& current_state,
-                           const Quad4TemperatureHistory& committed_temperature,
+                           const LocalValues& committed_state,
                            const Quad4MaterialHistory& committed_material,
                            double time_step) const;
 
     LocalSystem linearize(const Quad4RzGeometry& geometry,
                           const LocalValues& current_state,
-                          const Quad4TemperatureHistory& committed_temperature,
+                          const LocalValues& committed_state,
                           const Quad4MaterialHistory& committed_material,
                           double time_step) const;
 
     Quad4MaterialHistory trial_state_values(
         const Quad4RzGeometry& geometry, const LocalValues& converged_state,
+        const LocalValues& committed_state,
         const Quad4MaterialHistory& committed_material, double time_step) const;
 
     std::array<AxisymmetricStressValues, 4>
     stress_values(const Quad4RzGeometry& geometry, const LocalValues& state,
+                  const LocalValues& committed_state,
                   const Quad4MaterialHistory& committed_material,
                   double time_step) const;
 
   private:
     void residual_ad(const Quad4RzGeometry& geometry,
                      const LocalAdValues& current_state,
-                     const Quad4TemperatureHistory& committed_temperature,
+                     const LocalValues& committed_state,
                      const Quad4MaterialHistory& committed_material,
                      double time_step, LocalAdValues& residual) const;
 

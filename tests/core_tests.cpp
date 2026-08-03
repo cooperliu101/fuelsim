@@ -210,14 +210,18 @@ bool test_finite_strain_kinematics_and_jacobian() {
         const fuelsim::AxisymmetricKinematics kinematics =
             fuelsim::evaluate_axisymmetric_kinematics(
                 point, passive_state, fuelsim::StrainFormulation::finite);
+        const auto taylor_increment = [](double stretch) {
+            const double cinv = 1.0 / (stretch * stretch) - 1.0;
+            return -0.5 * cinv + 0.25 * cinv * cinv;
+        };
         maximum_strain_error =
             std::max({maximum_strain_error,
                       std::abs(kinematics.strain_rr.value() -
-                               std::log(radial_stretch)),
+                               taylor_increment(radial_stretch)),
                       std::abs(kinematics.strain_zz.value() -
-                               std::log(axial_stretch)),
+                               taylor_increment(axial_stretch)),
                       std::abs(kinematics.strain_hoop.value() -
-                               std::log(radial_stretch)),
+                               taylor_increment(radial_stretch)),
                       std::abs(kinematics.strain_rz.value())});
         const double expected_measure =
             point.weighted_measure * radial_stretch * radial_stretch *
@@ -229,11 +233,50 @@ bool test_finite_strain_kinematics_and_jacobian() {
                          expected_measure);
     }
     passed = check(maximum_strain_error < 1.0e-14,
-                   "finite RZ uniform stretches give logarithmic strains") &&
+                   "finite RZ uniform stretches give MOOSE Taylor strain "
+                   "increments") &&
              passed;
     passed = check(maximum_measure_error < 1.0e-14,
                    "finite RZ current measure follows the deformation "
                    "Jacobian") &&
+             passed;
+
+    constexpr double old_radial_stretch = 1.03;
+    constexpr double old_axial_stretch = 0.98;
+    fuelsim::LocalValues committed_state{};
+    for (std::size_t node = 0; node < 4; ++node) {
+        committed_state[node] = 600.0;
+        committed_state[4 + node] =
+            (old_radial_stretch - 1.0) * coordinates[node].r;
+        committed_state[8 + node] =
+            (old_axial_stretch - 1.0) * coordinates[node].z;
+    }
+    double maximum_incremental_error = 0.0;
+    for (const fuelsim::RzQuadraturePoint& point : geometry.points) {
+        const fuelsim::AxisymmetricKinematics kinematics =
+            fuelsim::evaluate_axisymmetric_incremental_kinematics(
+                point, passive_state, committed_state,
+                fuelsim::StrainFormulation::finite);
+        const auto taylor_increment = [](double stretch) {
+            const double cinv = 1.0 / (stretch * stretch) - 1.0;
+            return -0.5 * cinv + 0.25 * cinv * cinv;
+        };
+        maximum_incremental_error =
+            std::max({maximum_incremental_error,
+                      std::abs(kinematics.strain_rr.value() -
+                               taylor_increment(radial_stretch /
+                                                old_radial_stretch)),
+                      std::abs(kinematics.strain_zz.value() -
+                               taylor_increment(axial_stretch /
+                                                old_axial_stretch)),
+                      std::abs(kinematics.strain_hoop.value() -
+                               taylor_increment(radial_stretch /
+                                                old_radial_stretch)),
+                      std::abs(kinematics.strain_rz.value())});
+    }
+    passed = check(maximum_incremental_error < 1.0e-14,
+                   "finite RZ strain uses current-to-committed MOOSE "
+                   "incremental deformation") &&
              passed;
 
     fuelsim::LocalValues state = uniform_state;
@@ -286,10 +329,12 @@ bool test_finite_strain_kinematics_and_jacobian() {
     passed = check(inversion_rejected,
                    "finite RZ inverted deformation is rejected") &&
              passed;
-    std::cout << "finite_strain_uniform_logarithmic_strain_error="
+    std::cout << "finite_strain_uniform_taylor_increment_error="
               << maximum_strain_error << '\n';
     std::cout << "finite_strain_current_measure_relative_error="
               << maximum_measure_error << '\n';
+    std::cout << "finite_strain_incremental_taylor_error="
+              << maximum_incremental_error << '\n';
     std::cout << "finite_strain_directional_jacobian_error="
               << maximum_jacobian_error << '\n';
     return passed;
@@ -812,6 +857,80 @@ bool test_time_table_and_convection() {
     return passed;
 }
 
+bool test_follower_pressure() {
+    const fuelsim::Line2RzPressureGeometry geometry =
+        fuelsim::make_line2_rz_pressure_geometry(
+            {{{0.005, 0.0}, {0.005, 0.01}}}, {{1, 2}});
+    constexpr double pressure = 3.0e6;
+    const fuelsim::Line2RzPressureKernel follower({pressure, true});
+    const fuelsim::LocalValues state = {
+        600.0, 600.0, 600.0, 600.0,
+        0.0,   0.001, 0.002, 0.0,
+        0.0,   0.0004, -0.0002, 0.0,
+    };
+    const fuelsim::LocalValues direction = {
+        0.0, 0.0, 0.0, 0.0,
+        0.0, 0.3, -0.2, 0.0,
+        0.0, -0.4, 0.5, 0.0,
+    };
+    const fuelsim::LocalSystem system = follower.linearize(geometry, state);
+    const double first_radius = 0.006;
+    const double second_radius = 0.007;
+    const double delta_radius = second_radius - first_radius;
+    const double delta_axial = 0.0098 - 0.0004;
+    const double expected_radial =
+        pi * pressure * delta_axial * (first_radius + second_radius);
+    const double expected_axial =
+        -pi * pressure * delta_radius * (first_radius + second_radius);
+    bool passed =
+        check(scaled_error(system.residual[5] + system.residual[6],
+                           expected_radial) < 1.0e-13 &&
+                  scaled_error(system.residual[9] + system.residual[10],
+                               expected_axial) < 1.0e-13,
+              "follower pressure uses current RZ radius and outward normal");
+
+    constexpr double step = 1.0e-7;
+    fuelsim::LocalValues plus = state;
+    fuelsim::LocalValues minus = state;
+    for (std::size_t dof = 0; dof < state.size(); ++dof) {
+        plus[dof] += step * direction[dof];
+        minus[dof] -= step * direction[dof];
+    }
+    const fuelsim::LocalResidual plus_residual = follower.residual(geometry, plus);
+    const fuelsim::LocalResidual minus_residual =
+        follower.residual(geometry, minus);
+    double maximum_error = 0.0;
+    for (std::size_t row = 0; row < state.size(); ++row) {
+        double tangent = 0.0;
+        for (std::size_t column = 0; column < state.size(); ++column)
+            tangent += system.jacobian[row * state.size() + column] *
+                       direction[column];
+        const double finite_difference =
+            (plus_residual[row] - minus_residual[row]) / (2.0 * step);
+        maximum_error =
+            std::max(maximum_error, scaled_error(tangent, finite_difference));
+    }
+    std::cout << "follower_pressure_directional_jacobian_error="
+              << maximum_error << '\n';
+    passed = check(maximum_error < 1.0e-8,
+                   "follower-pressure AD Jacobian matches centered "
+                   "differences") &&
+             passed;
+
+    const fuelsim::Line2RzPressureKernel dead({pressure, false});
+    const fuelsim::LocalSystem dead_system = dead.linearize(geometry, state);
+    const double maximum_dead_tangent = *std::max_element(
+        dead_system.jacobian.begin(), dead_system.jacobian.end(),
+        [](double left, double right) {
+            return std::abs(left) < std::abs(right);
+        });
+    passed = check(maximum_dead_tangent == 0.0,
+                   "reference pressure has an exactly zero geometric "
+                   "tangent") &&
+             passed;
+    return passed;
+}
+
 bool test_temperature_active_thermoelastic_properties() {
     fuelsim::ThermoelasticProperties active_properties = properties();
     active_properties.young_modulus_temperature_coefficient = -8.0e7;
@@ -860,6 +979,7 @@ int main() {
     passed = test_gap_heat_and_normal_contact() && passed;
     passed = test_m1_dof_layout() && passed;
     passed = test_time_table_and_convection() && passed;
+    passed = test_follower_pressure() && passed;
     passed = test_temperature_active_thermoelastic_properties() && passed;
 
     if (!passed)

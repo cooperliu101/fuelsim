@@ -5,6 +5,23 @@
 
 namespace fuelsim {
 
+AxisymmetricStress rotate_axisymmetric_tensor(
+    const AxisymmetricStress& tensor, const AxisymmetricRotation& rotation) {
+    return {
+        rotation.rr * rotation.rr * tensor.rr +
+            rotation.rz * rotation.rz * tensor.zz +
+            2.0 * rotation.rr * rotation.rz * tensor.rz,
+        rotation.zr * rotation.zr * tensor.rr +
+            rotation.zz * rotation.zz * tensor.zz +
+            2.0 * rotation.zr * rotation.zz * tensor.rz,
+        rotation.hoop * rotation.hoop * tensor.hoop,
+        rotation.rr * rotation.zr * tensor.rr +
+            rotation.rz * rotation.zz * tensor.zz +
+            (rotation.rr * rotation.zz + rotation.rz * rotation.zr) *
+                tensor.rz,
+    };
+}
+
 IsotropicThermoelasticMaterial::IsotropicThermoelasticMaterial(
     ThermoelasticProperties properties)
     : _properties(properties), _lame_lambda(0.0), _shear_modulus(0.0),

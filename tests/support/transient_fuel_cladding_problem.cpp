@@ -153,8 +153,11 @@ void TransientFuelCladdingProblem::commit_time_step(
     for (std::size_t element = 0; element < staged_fuel.size(); ++element) {
         const LocalValues state =
             contribution_state(element, converged_solution);
+        const LocalValues committed_state =
+            contribution_state(element, _committed_solution);
         staged_fuel[element] = _fuel_kernel.trial_state_values(
             _steady_problem.fuel_element_geometry(element), state,
+            committed_state,
             _fuel_material_history[element], _active_time_step);
     }
 
@@ -164,8 +167,11 @@ void TransientFuelCladdingProblem::commit_time_step(
     for (std::size_t element = 0; element < staged_cladding.size(); ++element) {
         const LocalValues state =
             contribution_state(cladding_offset + element, converged_solution);
+        const LocalValues committed_state = contribution_state(
+            cladding_offset + element, _committed_solution);
         staged_cladding[element] = _cladding_kernel.trial_state_values(
             _steady_problem.cladding_element_geometry(element), state,
+            committed_state,
             _cladding_material_history[element], _active_time_step);
     }
 
@@ -240,7 +246,7 @@ LocalResidual TransientFuelCladdingProblem::contribution_residual(
     if (contribution_index < _steady_problem.fuel_element_count()) {
         return _fuel_kernel.residual(
             _steady_problem.fuel_element_geometry(contribution_index), state,
-            committed_element_temperature(contribution_index),
+            committed_element_state(contribution_index),
             _fuel_material_history.at(contribution_index), _active_time_step);
     }
 
@@ -249,7 +255,7 @@ LocalResidual TransientFuelCladdingProblem::contribution_residual(
     if (cladding_index < _steady_problem.cladding_element_count()) {
         return _cladding_kernel.residual(
             _steady_problem.cladding_element_geometry(cladding_index), state,
-            committed_element_temperature(contribution_index),
+            committed_element_state(contribution_index),
             _cladding_material_history.at(cladding_index), _active_time_step);
     }
 
@@ -262,7 +268,7 @@ LocalSystem TransientFuelCladdingProblem::linearize_contribution(
     if (contribution_index < _steady_problem.fuel_element_count()) {
         return _fuel_kernel.linearize(
             _steady_problem.fuel_element_geometry(contribution_index), state,
-            committed_element_temperature(contribution_index),
+            committed_element_state(contribution_index),
             _fuel_material_history.at(contribution_index), _active_time_step);
     }
 
@@ -271,7 +277,7 @@ LocalSystem TransientFuelCladdingProblem::linearize_contribution(
     if (cladding_index < _steady_problem.cladding_element_count()) {
         return _cladding_kernel.linearize(
             _steady_problem.cladding_element_geometry(cladding_index), state,
-            committed_element_temperature(contribution_index),
+            committed_element_state(contribution_index),
             _cladding_material_history.at(cladding_index), _active_time_step);
     }
 
@@ -283,14 +289,9 @@ void TransientFuelCladdingProblem::add_state_independent_residual(
     (void)residual;
 }
 
-Quad4TemperatureHistory
-TransientFuelCladdingProblem::committed_element_temperature(
+LocalValues TransientFuelCladdingProblem::committed_element_state(
     std::size_t contribution_index) const {
-    const LocalValues committed =
-        contribution_state(contribution_index, _committed_solution);
-    Quad4TemperatureHistory temperature{};
-    std::copy_n(committed.begin(), temperature.size(), temperature.begin());
-    return temperature;
+    return contribution_state(contribution_index, _committed_solution);
 }
 
 void TransientFuelCladdingProblem::require_active_time_step() const {

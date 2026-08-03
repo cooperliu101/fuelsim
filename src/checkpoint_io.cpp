@@ -17,7 +17,7 @@ namespace {
 constexpr std::array<unsigned char, 16> checkpoint_magic = {
     'F', 'U', 'E', 'L', 'S', 'I', 'M', '_',
     'C', 'H', 'E', 'C', 'K', 'P', 'T', '\0'};
-constexpr std::uint32_t checkpoint_version = 2U;
+constexpr std::uint32_t checkpoint_version = 3U;
 constexpr std::uint32_t endian_marker = 0x01020304U;
 constexpr std::uint64_t fnv_offset = 14695981039346656037ULL;
 constexpr std::uint64_t fnv_prime = 1099511628211ULL;
@@ -118,6 +118,8 @@ class BinaryCursor final {
 void append_material_point(BinaryBuffer& payload,
                            const MaterialPointState& state,
                            const AxisymmetricStressValues& stress) {
+    for (const double value : state.elastic_strain)
+        payload.append_double(value);
     for (const double value : state.plastic_strain)
         payload.append_double(value);
     for (const double value : state.creep_strain)
@@ -132,6 +134,8 @@ void append_material_point(BinaryBuffer& payload,
 
 void read_material_point(BinaryCursor& payload, MaterialPointState& state,
                          AxisymmetricStressValues& stress) {
+    for (double& value : state.elastic_strain)
+        value = payload.read_double();
     for (double& value : state.plastic_strain)
         value = payload.read_double();
     for (double& value : state.creep_strain)

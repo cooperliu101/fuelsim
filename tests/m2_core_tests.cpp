@@ -92,10 +92,108 @@ double inelastic_trace(const std::array<double, 4>& strain) {
 
 bool same_state(const fuelsim::MaterialPointState& lhs,
                 const fuelsim::MaterialPointState& rhs) {
+    return lhs.elastic_strain == rhs.elastic_strain &&
+           lhs.plastic_strain == rhs.plastic_strain &&
+           lhs.creep_strain == rhs.creep_strain &&
+           lhs.equivalent_plastic_strain == rhs.equivalent_plastic_strain &&
+           lhs.equivalent_creep_strain == rhs.equivalent_creep_strain;
+}
+
+bool same_inelastic_state(const fuelsim::MaterialPointState& lhs,
+                          const fuelsim::MaterialPointState& rhs) {
     return lhs.plastic_strain == rhs.plastic_strain &&
            lhs.creep_strain == rhs.creep_strain &&
            lhs.equivalent_plastic_strain == rhs.equivalent_plastic_strain &&
            lhs.equivalent_creep_strain == rhs.equivalent_creep_strain;
+}
+
+bool test_objective_incremental_history_rotation() {
+    const fuelsim::IsotropicInelasticMaterial material(
+        simple_thermoelastic(), elastic_properties());
+    fuelsim::MaterialPointState committed;
+    committed.elastic_strain = {0.020, -0.012, -0.008, 0.006};
+    committed.plastic_strain = {0.030, -0.018, -0.012, 0.004};
+    committed.creep_strain = {-0.016, 0.010, 0.006, -0.003};
+    committed.equivalent_plastic_strain = 0.041;
+    committed.equivalent_creep_strain = 0.027;
+
+    constexpr double angle = 0.37;
+    const double cosine = std::cos(angle);
+    const double sine = std::sin(angle);
+    const fuelsim::AxisymmetricRotation rotation = {
+        cosine, -sine, sine, cosine, 1.0};
+    const std::array<double, 4> total = {
+        committed.elastic_strain[0] + committed.plastic_strain[0] +
+            committed.creep_strain[0],
+        committed.elastic_strain[1] + committed.plastic_strain[1] +
+            committed.creep_strain[1],
+        committed.elastic_strain[2] + committed.plastic_strain[2] +
+            committed.creep_strain[2],
+        committed.elastic_strain[3] + committed.plastic_strain[3] +
+            committed.creep_strain[3],
+    };
+    const fuelsim::InelasticStressResponse unrotated = material.response(
+        total[0], total[1], total[2], total[3], 600.0, 1.0, committed);
+    const fuelsim::InelasticStressResponse rotated =
+        material.incremental_response(0.0, 0.0, 0.0, 0.0, rotation, 600.0,
+                                      600.0, 1.0, committed);
+    const fuelsim::AxisymmetricStress expected_stress =
+        fuelsim::rotate_axisymmetric_tensor(unrotated.stress, rotation);
+
+    const auto rotate_values = [&](const std::array<double, 4>& values) {
+        const fuelsim::AxisymmetricStress tensor = {
+            values[0], values[1], values[2], values[3]};
+        const fuelsim::AxisymmetricStress value =
+            fuelsim::rotate_axisymmetric_tensor(tensor, rotation);
+        return std::array<double, 4>{value.rr.value(), value.zz.value(),
+                                     value.hoop.value(), value.rz.value()};
+    };
+    const fuelsim::MaterialPointState state =
+        fuelsim::IsotropicInelasticMaterial::state_values(rotated.trial_state);
+    const std::array<double, 4> expected_elastic =
+        rotate_values(committed.elastic_strain);
+    const std::array<double, 4> expected_plastic =
+        rotate_values(committed.plastic_strain);
+    const std::array<double, 4> expected_creep =
+        rotate_values(committed.creep_strain);
+    double maximum_error = 0.0;
+    for (std::size_t component = 0; component < 4; ++component) {
+        maximum_error = std::max(
+            {maximum_error,
+             std::abs(state.elastic_strain[component] -
+                      expected_elastic[component]),
+             std::abs(state.plastic_strain[component] -
+                      expected_plastic[component]),
+             std::abs(state.creep_strain[component] -
+                      expected_creep[component])});
+    }
+    maximum_error =
+        std::max({maximum_error,
+                  scaled_error(rotated.stress.rr.value(),
+                               expected_stress.rr.value()),
+                  scaled_error(rotated.stress.zz.value(),
+                               expected_stress.zz.value()),
+                  scaled_error(rotated.stress.hoop.value(),
+                               expected_stress.hoop.value()),
+                  scaled_error(rotated.stress.rz.value(),
+                               expected_stress.rz.value())});
+    bool passed =
+        check(maximum_error < 1.0e-14,
+              "incremental finite strain objectively rotates stress and all "
+              "tensor histories");
+    passed = check(
+                 std::abs(inelastic_trace(state.plastic_strain)) < 1.0e-14 &&
+                     std::abs(inelastic_trace(state.creep_strain)) < 1.0e-14 &&
+                     state.equivalent_plastic_strain ==
+                         committed.equivalent_plastic_strain &&
+                     state.equivalent_creep_strain ==
+                         committed.equivalent_creep_strain,
+                 "objective rotation preserves trace-free histories and "
+                 "equivalent scalars") &&
+             passed;
+    std::cout << "m41_objective_history_rotation_maximum_error="
+              << maximum_error << '\n';
+    return passed;
 }
 
 double temperature_tangent_error(
@@ -212,7 +310,7 @@ bool test_j2_plasticity_material_point() {
     const fuelsim::MaterialPointState unloaded_state =
         fuelsim::IsotropicInelasticMaterial::state_values(
             unloading.trial_state);
-    passed = check(same_state(state, unloaded_state),
+    passed = check(same_inelastic_state(state, unloaded_state),
                    "J2 unloading does not add plastic strain") &&
              passed;
     passed = check(equivalent_stress(unloading.stress) < 1.0e-13,
@@ -764,7 +862,7 @@ bool test_transient_element() {
         fuelsim::IsotropicInelasticMaterial(simple_thermoelastic(),
                                             elastic_properties()),
         100.0, fuelsim::StrainFormulation::small);
-    const fuelsim::Quad4TemperatureHistory old_temperature = {
+    const fuelsim::LocalValues old_temperature = {
         600.0,
         600.0,
         600.0,
@@ -851,10 +949,11 @@ bool test_transient_element() {
              passed;
 
     const fuelsim::Quad4MaterialHistory trial =
-        kernel.trial_state_values(geometry, state, history, 2.0);
+        kernel.trial_state_values(geometry, state, old_temperature, history,
+                                  2.0);
     for (std::size_t q = 0; q < trial.size(); ++q)
-        passed = check(same_state(trial[q], history[q]),
-                       "elastic transient element leaves material history "
+        passed = check(same_inelastic_state(trial[q], history[q]),
+                       "elastic transient element leaves inelastic history "
                        "unchanged") &&
                  passed;
 
@@ -874,7 +973,7 @@ bool test_coupled_transient_element_jacobian(
             simple_thermoelastic(),
             coupled_properties(0.02, 10.0, 2.0, 20.0, 40.0)),
         0.0, strain_formulation);
-    const fuelsim::Quad4TemperatureHistory old_temperature = {
+    const fuelsim::LocalValues old_temperature = {
         600.0,
         600.0,
         600.0,
@@ -917,7 +1016,8 @@ bool test_coupled_transient_element_jacobian(
     }
 
     const fuelsim::Quad4MaterialHistory trial =
-        kernel.trial_state_values(geometry, state, history, time_step);
+        kernel.trial_state_values(geometry, state, old_temperature, history,
+                                  time_step);
     bool both_histories_active = true;
     for (const fuelsim::MaterialPointState& point : trial) {
         both_histories_active = point.equivalent_plastic_strain > 0.0 &&
@@ -1090,6 +1190,7 @@ int main() {
     std::cout << std::scientific << std::setprecision(12);
     try {
         bool passed = true;
+        passed = test_objective_incremental_history_rotation() && passed;
         passed = test_j2_plasticity_material_point() && passed;
         passed = test_norton_creep_material_point() && passed;
         passed = test_coupled_plastic_creep_material_point() && passed;

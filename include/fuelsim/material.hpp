@@ -39,6 +39,17 @@ struct AxisymmetricStressValues final {
     double rz;
 };
 
+struct AxisymmetricRotation final {
+    adlite::Scalar rr{1.0};
+    adlite::Scalar rz{0.0};
+    adlite::Scalar zr{0.0};
+    adlite::Scalar zz{1.0};
+    adlite::Scalar hoop{1.0};
+};
+
+AxisymmetricStress rotate_axisymmetric_tensor(
+    const AxisymmetricStress& tensor, const AxisymmetricRotation& rotation);
+
 class IsotropicThermoelasticMaterial final {
   public:
     explicit IsotropicThermoelasticMaterial(ThermoelasticProperties properties);

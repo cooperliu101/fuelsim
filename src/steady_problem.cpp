@@ -548,6 +548,18 @@ void SteadyProblem::refresh_controlled_values() {
             {coefficient_multiplier * convection.heat_transfer_coefficient,
              ambient_multiplier * convection.ambient_temperature});
     }
+    for (std::size_t load = 0; load < _pressure_loads.size(); ++load) {
+        const PressureLoad& pressure = _pressure_loads[load];
+        const double value =
+            load_multiplier(pressure.scale_with_load, pressure.function) *
+            pressure.pressure;
+        if (value < 0.0)
+            throw std::domain_error(
+                "Pressure time function produced a negative load");
+        PressureProperties properties = _pressure_kernels[load].properties();
+        properties.pressure = value;
+        _pressure_kernels[load].set_properties(properties);
+    }
 }
 
 std::vector<double> SteadyProblem::initial_state() const {
@@ -572,7 +584,8 @@ std::size_t SteadyProblem::dof_count() const noexcept {
 
 std::size_t SteadyProblem::contribution_count() const noexcept {
     return _element_offsets.back() + _thermal_geometries.size() +
-           _mechanical_geometries.size() + _convection_geometries.size();
+           _mechanical_geometries.size() + _pressure_geometries.size() +
+           _convection_geometries.size();
 }
 
 const std::vector<DirichletCondition>&
@@ -610,6 +623,9 @@ SteadyProblem::contribution_dofs(std::size_t contribution_index) const {
     if (contribution_index < _mechanical_nodes.size())
         return _dof_map.local_dofs(_mechanical_nodes.at(contribution_index));
     contribution_index -= _mechanical_nodes.size();
+    if (contribution_index < _pressure_nodes.size())
+        return _dof_map.local_dofs(_pressure_nodes.at(contribution_index));
+    contribution_index -= _pressure_nodes.size();
     return _dof_map.local_dofs(_convection_nodes.at(contribution_index));
 }
 
@@ -629,17 +645,22 @@ SteadyProblem::contribution_residual(std::size_t contribution_index,
             _thermal_geometries[contribution_index], state);
     }
     contribution_index -= _thermal_geometries.size();
-    if (contribution_index >= _mechanical_geometries.size()) {
-        contribution_index -= _mechanical_geometries.size();
-        const std::size_t load =
-            _convection_load_indices.at(contribution_index);
-        return _convection_kernels[load].residual(
-            _convection_geometries.at(contribution_index), state);
+    if (contribution_index < _mechanical_geometries.size()) {
+        const std::size_t contact_value =
+            _mechanical_contact_indices.at(contribution_index);
+        return _mechanical_kernels[contact_value].residual(
+            _mechanical_geometries.at(contribution_index), state);
     }
-    const std::size_t contact_value =
-        _mechanical_contact_indices.at(contribution_index);
-    return _mechanical_kernels[contact_value].residual(
-        _mechanical_geometries.at(contribution_index), state);
+    contribution_index -= _mechanical_geometries.size();
+    if (contribution_index < _pressure_geometries.size()) {
+        const std::size_t load = _pressure_load_indices.at(contribution_index);
+        return _pressure_kernels[load].residual(
+            _pressure_geometries.at(contribution_index), state);
+    }
+    contribution_index -= _pressure_geometries.size();
+    const std::size_t load = _convection_load_indices.at(contribution_index);
+    return _convection_kernels[load].residual(
+        _convection_geometries.at(contribution_index), state);
 }
 
 LocalSystem
@@ -658,17 +679,22 @@ SteadyProblem::linearize_contribution(std::size_t contribution_index,
             _thermal_geometries[contribution_index], state);
     }
     contribution_index -= _thermal_geometries.size();
-    if (contribution_index >= _mechanical_geometries.size()) {
-        contribution_index -= _mechanical_geometries.size();
-        const std::size_t load =
-            _convection_load_indices.at(contribution_index);
-        return _convection_kernels[load].linearize(
-            _convection_geometries.at(contribution_index), state);
+    if (contribution_index < _mechanical_geometries.size()) {
+        const std::size_t contact_value =
+            _mechanical_contact_indices.at(contribution_index);
+        return _mechanical_kernels[contact_value].linearize(
+            _mechanical_geometries.at(contribution_index), state);
     }
-    const std::size_t contact_value =
-        _mechanical_contact_indices.at(contribution_index);
-    return _mechanical_kernels[contact_value].linearize(
-        _mechanical_geometries.at(contribution_index), state);
+    contribution_index -= _mechanical_geometries.size();
+    if (contribution_index < _pressure_geometries.size()) {
+        const std::size_t load = _pressure_load_indices.at(contribution_index);
+        return _pressure_kernels[load].linearize(
+            _pressure_geometries.at(contribution_index), state);
+    }
+    contribution_index -= _pressure_geometries.size();
+    const std::size_t load = _convection_load_indices.at(contribution_index);
+    return _convection_kernels[load].linearize(
+        _convection_geometries.at(contribution_index), state);
 }
 
 std::size_t SteadyProblem::global_node(std::size_t region_value,
@@ -886,15 +912,35 @@ void SteadyProblem::build_boundary_conditions(
             if (definition.value < 0.0)
                 throw std::invalid_argument(
                     "Pressure boundary conditions must be nonnegative");
-            if (resolved.boundary.kind != RegionBoundaryKind::radial_inner &&
-                resolved.boundary.kind != RegionBoundaryKind::radial_outer)
-                throw std::invalid_argument(
-                    "Pressure currently requires a radial boundary: " +
-                    definition.boundary);
+            const std::size_t load = _pressure_loads.size();
             _pressure_loads.push_back(
-                {resolved.region, std::move(resolved.boundary),
-                 definition.value, definition.scale_with_load,
+                {definition.value, definition.scale_with_load,
                  definition.function});
+            const bool displaced =
+                _definition.regions[resolved.region].strain_formulation ==
+                StrainFormulation::finite;
+            _pressure_kernels.emplace_back(PressureProperties{
+                load_multiplier(definition.scale_with_load,
+                                definition.function) *
+                    definition.value,
+                displaced});
+            const RegionMesh& mesh = _meshes[resolved.region];
+            for (const Line2BoundaryElement& edge :
+                 resolved.boundary.elements) {
+                const auto parent = edge_parent(mesh, edge);
+                const Quad4Element& element = mesh.elements().at(parent.first);
+                std::array<std::size_t, 4> nodes{};
+                for (std::size_t node = 0; node < nodes.size(); ++node)
+                    nodes[node] =
+                        global_node(resolved.region, element.nodes[node]);
+                _pressure_nodes.push_back(nodes);
+                _pressure_geometries.push_back(
+                    make_line2_rz_pressure_geometry(
+                        {{mesh.nodes().at(edge.nodes[0]),
+                          mesh.nodes().at(edge.nodes[1])}},
+                        parent.second));
+                _pressure_load_indices.push_back(load);
+            }
         } else if (definition.type == BoundaryConditionType::traction) {
             if (definition.field == Field::temperature)
                 throw std::invalid_argument(
@@ -944,49 +990,11 @@ void SteadyProblem::build_boundary_conditions(
 
 void SteadyProblem::add_state_independent_residual(
     std::vector<double>& residual) const {
-    add_pressure_residual(residual);
     add_traction_residual(residual);
 }
 
 void SteadyProblem::add_external_residual(std::vector<double>& residual) const {
-    add_pressure_residual(residual);
     add_traction_residual(residual);
-}
-
-void SteadyProblem::add_pressure_residual(std::vector<double>& residual) const {
-    const std::array<double, 2> locations = {-gauss, gauss};
-    for (const PressureLoad& load : _pressure_loads) {
-        const double pressure =
-            load_multiplier(load.scale_with_load, load.function) *
-            load.pressure;
-        if (pressure < 0.0)
-            throw std::domain_error(
-                "Pressure time function produced a negative load");
-        if (pressure == 0.0)
-            continue;
-        const double normal_r =
-            load.boundary.kind == RegionBoundaryKind::radial_inner ? -1.0 : 1.0;
-        const RegionMesh& mesh = _meshes[load.region];
-        for (const Line2BoundaryElement& edge : load.boundary.elements) {
-            const RzPoint& first = mesh.nodes().at(edge.nodes[0]);
-            const RzPoint& second = mesh.nodes().at(edge.nodes[1]);
-            const double dr = second.r - first.r;
-            const double dz = second.z - first.z;
-            const double line_jacobian = 0.5 * std::sqrt(dr * dr + dz * dz);
-            for (double xi : locations) {
-                const std::array<double, 2> shape = {0.5 * (1.0 - xi),
-                                                     0.5 * (1.0 + xi)};
-                const double radius = shape[0] * first.r + shape[1] * second.r;
-                const double measure = 2.0 * pi * radius * line_jacobian;
-                for (std::size_t node = 0; node < 2; ++node) {
-                    const std::size_t dof = _dof_map.radial_displacement(
-                        global_node(load.region, edge.nodes[node]));
-                    residual[dof] +=
-                        measure * pressure * normal_r * shape[node];
-                }
-            }
-        }
-    }
 }
 
 void SteadyProblem::add_traction_residual(std::vector<double>& residual) const {

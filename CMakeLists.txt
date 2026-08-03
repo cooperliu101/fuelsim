@@ -557,6 +557,26 @@ if(BUILD_TESTING)
         PROPERTIES LABELS "acceptance"
     )
 
+    add_executable(fuelsim_m42_follower_pressure_moose_tests
+        tests/m42_follower_pressure_moose_tests.cpp
+    )
+    target_link_libraries(fuelsim_m42_follower_pressure_moose_tests
+        PRIVATE
+            fuelsim_moose_test_support
+            fuelsim::input
+            fuelsim::exodus
+            fuelsim::petsc
+    )
+    fuelsim_enable_warnings(fuelsim_m42_follower_pressure_moose_tests)
+    add_test(NAME fuelsim_m42_follower_pressure_moose_tests
+        COMMAND fuelsim_m42_follower_pressure_moose_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_finite_follower_pressure.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m42_follower_pressure_rz_all_nodes_final.csv"
+    )
+    set_tests_properties(fuelsim_m42_follower_pressure_moose_tests
+        PROPERTIES LABELS "acceptance"
+    )
+
     add_test(NAME fuelsim_steady_input_card
         COMMAND fuelsim -i
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_fuel_cladding.fsi"

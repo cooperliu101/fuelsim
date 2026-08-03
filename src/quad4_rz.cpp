@@ -45,6 +45,14 @@ adlite::Scalar interpolate(const std::array<double, 4>& coefficients,
     return result;
 }
 
+double interpolate(const std::array<double, 4>& coefficients,
+                   const LocalValues& state, std::size_t offset) {
+    double result = 0.0;
+    for (std::size_t node = 0; node < 4; ++node)
+        result += coefficients[node] * state[offset + node];
+    return result;
+}
+
 AxisymmetricStress
 stress_at_point(const RzQuadraturePoint& point, const LocalAdValues& state,
                 const IsotropicThermoelasticMaterial& material,
@@ -52,9 +60,12 @@ stress_at_point(const RzQuadraturePoint& point, const LocalAdValues& state,
     const adlite::Scalar temperature = interpolate(point.shape, state, 0);
     const AxisymmetricKinematics kinematics =
         evaluate_axisymmetric_kinematics(point, state, strain_formulation);
-    return material.stress(
+    AxisymmetricStress stress = material.stress(
         kinematics.strain_rr, kinematics.strain_zz,
         kinematics.strain_hoop, kinematics.strain_rz, temperature);
+    if (strain_formulation == StrainFormulation::finite)
+        stress = rotate_axisymmetric_tensor(stress, kinematics.rotation);
+    return stress;
 }
 
 } // namespace
@@ -118,16 +129,25 @@ Quad4RzGeometry make_quad4_rz_geometry(const Quad4Coordinates& coordinates) {
 AxisymmetricKinematics evaluate_axisymmetric_kinematics(
     const RzQuadraturePoint& point, const LocalAdValues& state,
     StrainFormulation strain_formulation) {
+    const LocalValues undeformed{};
+    return evaluate_axisymmetric_incremental_kinematics(
+        point, state, undeformed, strain_formulation);
+}
+
+AxisymmetricKinematics evaluate_axisymmetric_incremental_kinematics(
+    const RzQuadraturePoint& point, const LocalAdValues& current_state,
+    const LocalValues& committed_state,
+    StrainFormulation strain_formulation) {
     const adlite::Scalar radial_displacement =
-        interpolate(point.shape, state, 4);
+        interpolate(point.shape, current_state, 4);
     const adlite::Scalar displacement_gradient_rr =
-        interpolate(point.gradient_r, state, 4);
+        interpolate(point.gradient_r, current_state, 4);
     const adlite::Scalar displacement_gradient_rz =
-        interpolate(point.gradient_z, state, 4);
+        interpolate(point.gradient_z, current_state, 4);
     const adlite::Scalar displacement_gradient_zr =
-        interpolate(point.gradient_r, state, 8);
+        interpolate(point.gradient_r, current_state, 8);
     const adlite::Scalar displacement_gradient_zz =
-        interpolate(point.gradient_z, state, 8);
+        interpolate(point.gradient_z, current_state, 8);
 
     AxisymmetricKinematics result{};
     if (strain_formulation == StrainFormulation::small) {
@@ -179,44 +199,133 @@ AxisymmetricKinematics evaluate_axisymmetric_kinematics(
     result.weighted_measure =
         point.weighted_measure * determinant_rz * deformation_hoop;
 
-    const adlite::Scalar left_cauchy_rr =
-        deformation_rr * deformation_rr + deformation_rz * deformation_rz;
-    const adlite::Scalar left_cauchy_zz =
-        deformation_zr * deformation_zr + deformation_zz * deformation_zz;
-    const adlite::Scalar left_cauchy_rz =
-        deformation_rr * deformation_zr + deformation_rz * deformation_zz;
-    const adlite::Scalar mean =
-        0.5 * (left_cauchy_rr + left_cauchy_zz);
-    const adlite::Scalar radius = adlite::hypot(
-        0.5 * (left_cauchy_rr - left_cauchy_zz), left_cauchy_rz);
-    const adlite::Scalar eigenvalue_high = mean + radius;
-    const adlite::Scalar eigenvalue_low = mean - radius;
-    if (!std::isfinite(eigenvalue_low.value()) ||
-        !(eigenvalue_low.value() > 0.0) ||
-        !std::isfinite(eigenvalue_high.value()) ||
-        !(eigenvalue_high.value() > 0.0))
+    const double old_radial_displacement =
+        interpolate(point.shape, committed_state, 4);
+    const double old_deformation_rr =
+        1.0 + interpolate(point.gradient_r, committed_state, 4);
+    const double old_deformation_rz =
+        interpolate(point.gradient_z, committed_state, 4);
+    const double old_deformation_zr =
+        interpolate(point.gradient_r, committed_state, 8);
+    const double old_deformation_zz =
+        1.0 + interpolate(point.gradient_z, committed_state, 8);
+    const double old_deformation_hoop =
+        1.0 + old_radial_displacement / point.radius;
+    const double old_determinant_rz =
+        old_deformation_rr * old_deformation_zz -
+        old_deformation_rz * old_deformation_zr;
+    if (!std::isfinite(old_determinant_rz) ||
+        !(old_determinant_rz > 0.0) ||
+        !std::isfinite(old_deformation_hoop) ||
+        !(old_deformation_hoop > 0.0))
         throw std::domain_error(
-            "Finite-strain Quad4 RZ left Cauchy-Green tensor must be "
-            "positive definite");
+            "Committed finite-strain Quad4 RZ deformation must preserve "
+            "positive Jacobian and hoop stretch");
 
-    const adlite::Scalar logarithmic_mean =
-        0.25 * (adlite::log(eigenvalue_high) +
-                adlite::log(eigenvalue_low));
-    adlite::Scalar logarithmic_slope;
-    if (radius.value() <= 1.0e-10 * mean.value())
-        logarithmic_slope = 0.5 / mean;
-    else
-        logarithmic_slope =
-            adlite::atanh(radius / mean) / (2.0 * radius);
+    const double old_inverse_rr = old_deformation_zz / old_determinant_rz;
+    const double old_inverse_rz = -old_deformation_rz / old_determinant_rz;
+    const double old_inverse_zr = -old_deformation_zr / old_determinant_rz;
+    const double old_inverse_zz = old_deformation_rr / old_determinant_rz;
+    const adlite::Scalar incremental_rr =
+        deformation_rr * old_inverse_rr +
+        deformation_rz * old_inverse_zr;
+    const adlite::Scalar incremental_rz =
+        deformation_rr * old_inverse_rz +
+        deformation_rz * old_inverse_zz;
+    const adlite::Scalar incremental_zr =
+        deformation_zr * old_inverse_rr +
+        deformation_zz * old_inverse_zr;
+    const adlite::Scalar incremental_zz =
+        deformation_zr * old_inverse_rz +
+        deformation_zz * old_inverse_zz;
+    const adlite::Scalar incremental_hoop =
+        deformation_hoop / old_deformation_hoop;
+    const adlite::Scalar incremental_determinant =
+        incremental_rr * incremental_zz -
+        incremental_rz * incremental_zr;
+    if (!std::isfinite(incremental_determinant.value()) ||
+        !(incremental_determinant.value() > 0.0) ||
+        !std::isfinite(incremental_hoop.value()) ||
+        !(incremental_hoop.value() > 0.0))
+        throw std::domain_error(
+            "Incremental finite-strain Quad4 RZ deformation must preserve "
+            "positive Jacobian and hoop stretch");
 
+    const adlite::Scalar inverse_rr =
+        incremental_zz / incremental_determinant;
+    const adlite::Scalar inverse_rz =
+        -incremental_rz / incremental_determinant;
+    const adlite::Scalar inverse_zr =
+        -incremental_zr / incremental_determinant;
+    const adlite::Scalar inverse_zz =
+        incremental_rr / incremental_determinant;
+    const adlite::Scalar inverse_hoop = 1.0 / incremental_hoop;
+
+    const adlite::Scalar cinv_rr =
+        inverse_rr * inverse_rr + inverse_rz * inverse_rz - 1.0;
+    const adlite::Scalar cinv_zz =
+        inverse_zr * inverse_zr + inverse_zz * inverse_zz - 1.0;
+    const adlite::Scalar cinv_rz =
+        inverse_rr * inverse_zr + inverse_rz * inverse_zz;
+    const adlite::Scalar cinv_hoop =
+        inverse_hoop * inverse_hoop - 1.0;
     result.strain_rr =
-        logarithmic_mean +
-        logarithmic_slope * (left_cauchy_rr - mean);
+        -0.5 * cinv_rr +
+        0.25 * (cinv_rr * cinv_rr + cinv_rz * cinv_rz);
     result.strain_zz =
-        logarithmic_mean +
-        logarithmic_slope * (left_cauchy_zz - mean);
-    result.strain_rz = logarithmic_slope * left_cauchy_rz;
-    result.strain_hoop = adlite::log(deformation_hoop);
+        -0.5 * cinv_zz +
+        0.25 * (cinv_rz * cinv_rz + cinv_zz * cinv_zz);
+    result.strain_rz =
+        -0.5 * cinv_rz + 0.25 * cinv_rz * (cinv_rr + cinv_zz);
+    result.strain_hoop =
+        -0.5 * cinv_hoop + 0.25 * cinv_hoop * cinv_hoop;
+
+    const adlite::Scalar axial_rotation = inverse_rz - inverse_zr;
+    const adlite::Scalar q = 0.25 * axial_rotation * axial_rotation;
+    const adlite::Scalar trace_minus_one =
+        inverse_rr + inverse_zz + inverse_hoop - 1.0;
+    const adlite::Scalar p = 0.25 * trace_minus_one * trace_minus_one;
+    const adlite::Scalar sum = p + q;
+    if (!std::isfinite(sum.value()) || !(sum.value() > 0.0))
+        throw std::domain_error(
+            "MOOSE Taylor finite-strain rotation has invalid p+q");
+    const adlite::Scalar p2 = p * p;
+    const adlite::Scalar p3 = p2 * p;
+    const adlite::Scalar sum2 = sum * sum;
+    const adlite::Scalar sum3 = sum2 * sum;
+    const adlite::Scalar c1_squared =
+        p + 3.0 * p2 * (1.0 - sum) / sum2 -
+        2.0 * p3 * (1.0 - sum) / sum3;
+    if (!std::isfinite(c1_squared.value()) ||
+        !(c1_squared.value() > 0.0))
+        throw std::domain_error(
+            "MOOSE Taylor finite-strain rotation has nonpositive C1 squared");
+    const adlite::Scalar c1 = adlite::sqrt(c1_squared);
+    adlite::Scalar c2;
+    if (q.value() > 0.01) {
+        c2 = (1.0 - c1) / (4.0 * q);
+    } else {
+        const adlite::Scalar q2 = q * q;
+        const adlite::Scalar q3 = q2 * q;
+        const adlite::Scalar p4 = p3 * p;
+        c2 = 0.125 +
+             q * 0.03125 * (p2 - 12.0 * (p - 1.0)) / p2 +
+             q2 * (p - 2.0) * (p2 - 10.0 * p + 32.0) / p3 +
+             q3 * (1104.0 - 992.0 * p + 376.0 * p2 - 72.0 * p3 +
+                   5.0 * p4) /
+                 (512.0 * p4);
+    }
+    const adlite::Scalar c3_test =
+        (p * q * (3.0 - q) + p3 + q * q) / sum3;
+    if (!std::isfinite(c3_test.value()) || !(c3_test.value() > 0.0))
+        throw std::domain_error(
+            "MOOSE Taylor finite-strain rotation has nonpositive C3 test");
+    const adlite::Scalar c3 = 0.5 * adlite::sqrt(c3_test);
+    result.rotation.rr = c1;
+    result.rotation.rz = -c3 * axial_rotation;
+    result.rotation.zr = c3 * axial_rotation;
+    result.rotation.zz = c1;
+    result.rotation.hoop = c1 + c2 * axial_rotation * axial_rotation;
     return result;
 }
 
@@ -307,9 +416,11 @@ void Quad4RzThermoelasticKernel::residual_ad(const Quad4RzGeometry& geometry,
         const AxisymmetricKinematics kinematics =
             evaluate_axisymmetric_kinematics(point, state,
                                              _strain_formulation);
-        const AxisymmetricStress stress = _material.stress(
+        AxisymmetricStress stress = _material.stress(
             kinematics.strain_rr, kinematics.strain_zz,
             kinematics.strain_hoop, kinematics.strain_rz, temperature);
+        if (_strain_formulation == StrainFormulation::finite)
+            stress = rotate_axisymmetric_tensor(stress, kinematics.rotation);
 
         for (std::size_t node = 0; node < 4; ++node) {
             residual[node] +=

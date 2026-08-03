@@ -77,7 +77,9 @@ bool compare_committed_states(const fuelsim::TransientCommittedState& left,
                     right.material_histories[region][element][q];
                 for (std::size_t component = 0; component < 4; ++component) {
                     passed =
-                        check(nearly_equal(a.plastic_strain[component],
+                        check(nearly_equal(a.elastic_strain[component],
+                                           b.elastic_strain[component]) &&
+                                  nearly_equal(a.plastic_strain[component],
                                            b.plastic_strain[component]) &&
                                   nearly_equal(a.creep_strain[component],
                                                b.creep_strain[component]),

@@ -96,11 +96,11 @@ Dirichlet 和接触边界可使用任意属于所选区域的边集。每个接�
 芯块—包壳1—包壳2。每个元素块只能声明一次，区域节点与自由度保持独立。
 
 每个区域必须显式设置 `strain = small` 或 `strain = finite`。`small` 使用
-参考构形小应变弱式；`finite` 从轴对称变形梯度计算 Eulerian Hencky 应变，
-并用 Cauchy 应力、当前构形梯度和当前 RZ 测度装配力学内力。热传导与热容
-仍使用参考构形。有限应变下当前压力和牵引边界是参考构形 dead load，不是
-follower load。区域发生非正 Jacobian、非正环向伸长或非正当前半径时会
-拒绝 Newton 试探态，不做隐式夹持。
+参考构形小应变弱式；`finite` 使用 MOOSE 默认的增量 Taylor 应变与 Rashid
+转动，并用 Cauchy 应力、当前构形梯度和当前 RZ 测度装配力学内力。热传导
+与热容仍使用参考构形。有限应变区域的 pressure 是当前构形 follower load；
+traction 仍是参考构形 dead load。区域发生非正 Jacobian、非正环向伸长或
+非正当前半径时会拒绝 Newton 试探态，不做隐式夹持。
 
 瞬态问题的每个区域还必须给出 `density`、`specific_heat` 和
 `inelastic_model`。可选模型及条件字段为：
@@ -190,9 +190,11 @@ Newton 试探状态一旦离开候选窗口会作为物理域错误交给回溯�
 ```
 
 `dirichlet` 的 `field` 只能为 `temperature`、`radial_displacement` 或
-`axial_displacement`。`pressure` 不接受 `field`，当前只能施加在径向边界。
-`traction` 必须声明一个位移 `field`，`value` 是该分量上的有符号表面牵引；
-它使用参考 RZ 表面测度积分。`dirichlet`、`pressure` 和 `traction` 都可设置
+`axial_displacement`。`pressure` 不接受 `field`，可施加在任意不退化的
+Line2 外边界；方向取边界相邻 Quad4 的外法向。小应变区域使用参考 RZ 表面，
+有限应变区域使用当前半径、当前法向和当前表面测度。`traction` 必须声明
+一个位移 `field`，`value` 是该分量上的有符号参考构形表面牵引。
+`dirichlet`、`pressure` 和 `traction` 都可设置
 `scale_with_load = true`，使 `value` 乘以当前执行器载荷因子；默认不缩放。
 也可用 `function = <name>` 使 `value` 乘以时间表值；`function` 与
 `scale_with_load` 互斥。压力在任一求值时刻都必须非负。
