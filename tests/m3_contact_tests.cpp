@@ -81,6 +81,45 @@ bool run_comparison(const std::string& input_path,
               "M3.3 keeps nonmatching four-to-six contact segmentation");
 
     fuelsim::SteadyProblem problem(definition.steady_definition(), source);
+    const std::vector<std::size_t> secondary_sources =
+        problem.contact_secondary_source_nodes(0);
+    std::vector<std::size_t> ordered_secondary_sources = secondary_sources;
+    std::sort(
+        ordered_secondary_sources.begin(), ordered_secondary_sources.end(),
+        [&source](std::size_t lhs, std::size_t rhs) {
+            return source.nodes().at(lhs).r < source.nodes().at(rhs).r;
+        });
+    const std::size_t sliding_source =
+        ordered_secondary_sources[ordered_secondary_sources.size() / 2];
+    std::size_t sliding_global_node = problem.dof_count();
+    for (std::size_t region = 0; region < problem.region_count(); ++region) {
+        const std::vector<std::size_t>& source_nodes =
+            problem.region_mesh(region).source_node_ids();
+        const auto found =
+            std::find(source_nodes.begin(), source_nodes.end(), sliding_source);
+        if (found == source_nodes.end())
+            continue;
+        sliding_global_node =
+            problem.region_node_offset(region) +
+            static_cast<std::size_t>(found - source_nodes.begin());
+        break;
+    }
+    if (sliding_global_node == problem.dof_count())
+        throw std::logic_error("M3.3 could not locate a secondary contact node");
+    std::vector<double> lost_projection_state = problem.initial_state();
+    lost_projection_state[problem.dof_map().radial_displacement(
+        sliding_global_node)] += 1.0e-2;
+    bool lost_projection_rejected = false;
+    try {
+        problem.validate_state(lost_projection_state);
+    } catch (const std::domain_error&) {
+        lost_projection_rejected = true;
+    }
+    passed = check(lost_projection_rejected,
+                   "M3.3 rejects a secondary node outside its fixed NTS "
+                   "candidate window") &&
+             passed;
+
     const fuelsim::SolverOptions options = {
         definition.solver.absolute_tolerance,
         definition.solver.relative_tolerance,

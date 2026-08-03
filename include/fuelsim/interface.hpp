@@ -83,6 +83,7 @@ struct NodeToLineRzContactGeometry final {
     Line2InterfaceSideCoordinates secondary_edge_coordinates;
     Line2InterfaceSideCoordinates primary_segment_coordinates;
     std::size_t secondary_local_node;
+    bool primary_segment_is_first;
     bool primary_segment_includes_second_endpoint;
     double normal_orientation;
     double reference_primary_fraction;
@@ -107,6 +108,7 @@ NodeToLineRzContactGeometry make_node_to_line_rz_contact_geometry(
     const Line2InterfaceSideCoordinates& secondary_edge_coordinates,
     const Line2InterfaceSideCoordinates& primary_segment_coordinates,
     std::size_t secondary_local_node,
+    bool primary_segment_is_first,
     bool primary_segment_includes_upper_endpoint);
 
 class NodeToLineRzContactKernel final {

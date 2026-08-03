@@ -323,7 +323,7 @@ bool test_gap_heat_and_normal_contact() {
     const fuelsim::Line2RzGapHeatKernel heat_kernel({0.4, 1.0e-6});
     const fuelsim::NodeToLineRzContactGeometry contact_geometry =
         fuelsim::make_node_to_line_rz_contact_geometry(fuel, cladding, 1,
-                                                       false);
+                                                       true, false);
     const fuelsim::NodeToLineRzContactKernel contact_kernel({1.0e14});
 
     const fuelsim::LocalValues open_state = {
@@ -381,15 +381,99 @@ bool test_gap_heat_and_normal_contact() {
 
     const fuelsim::NodeToLineRzContactGeometry radial_endpoint_geometry =
         fuelsim::make_node_to_line_rz_contact_geometry(fuel, cladding, 0,
-                                                       true);
+                                                       true, true);
     fuelsim::LocalValues radial_endpoint_state = closed_state;
-    radial_endpoint_state[8] = -1.0e-12;
+    radial_endpoint_state[8] = -5.0e-16;
     const fuelsim::ContactPointValue radial_endpoint =
         contact_kernel.value(radial_endpoint_geometry,
                              radial_endpoint_state);
     passed = check(radial_endpoint.projected,
                    "radial NTS reference endpoint retains projection after "
                    "roundoff-scale axial motion") &&
+             passed;
+
+    const fuelsim::Line2InterfaceSideCoordinates vertex_secondary = {{
+        {0.004000, 0.000500},
+        {0.004000, 0.001000},
+    }};
+    const fuelsim::Line2InterfaceSideCoordinates vertex_primary_lower = {{
+        {0.004002, 0.000000},
+        {0.004002, 0.001000},
+    }};
+    const fuelsim::Line2InterfaceSideCoordinates vertex_primary_upper = {{
+        {0.004002, 0.001000},
+        {0.004002, 0.002000},
+    }};
+    const fuelsim::NodeToLineRzContactGeometry vertex_lower_geometry =
+        fuelsim::make_node_to_line_rz_contact_geometry(
+            vertex_secondary, vertex_primary_lower, 1, true, false);
+    const fuelsim::NodeToLineRzContactGeometry vertex_upper_geometry =
+        fuelsim::make_node_to_line_rz_contact_geometry(
+            vertex_secondary, vertex_primary_upper, 1, false, false);
+    fuelsim::LocalValues vertex_state{};
+    vertex_state[5] = 3.0e-6;
+    const fuelsim::ContactPointValue vertex_lower_reference =
+        contact_kernel.value(vertex_lower_geometry, vertex_state);
+    const fuelsim::ContactPointValue vertex_upper_reference =
+        contact_kernel.value(vertex_upper_geometry, vertex_state);
+    passed = check(!vertex_lower_reference.projected &&
+                       vertex_upper_reference.projected,
+                   "internal primary vertex has one reference owner") &&
+             passed;
+    vertex_state[9] = -1.0e-8;
+    const fuelsim::ContactPointValue vertex_lower_slid =
+        contact_kernel.value(vertex_lower_geometry, vertex_state);
+    const fuelsim::ContactPointValue vertex_upper_slid =
+        contact_kernel.value(vertex_upper_geometry, vertex_state);
+    passed = check(vertex_lower_slid.projected &&
+                       !vertex_upper_slid.projected &&
+                       vertex_lower_slid.contact_force > 0.0,
+                   "internal primary vertex slide transfers unique NTS "
+                   "ownership without double force") &&
+             passed;
+    vertex_state[9] = -2.0e-3;
+    const fuelsim::ContactPointValue vertex_upper_far =
+        contact_kernel.value(vertex_upper_geometry, vertex_state);
+    passed = check(!vertex_upper_far.projected,
+                   "reference endpoint does not mask a stale far projection") &&
+             passed;
+
+    const fuelsim::Line2InterfaceSideCoordinates general_secondary = {{
+        {1.000000, 5.000000},
+        {2.000000, 5.500000},
+    }};
+    const fuelsim::Line2InterfaceSideCoordinates general_primary_lower = {{
+        {1.000000, 0.000000},
+        {4.000000, 4.000000},
+    }};
+    const fuelsim::Line2InterfaceSideCoordinates general_primary_upper = {{
+        {4.000000, 4.000000},
+        {7.000000, 8.000000},
+    }};
+    const fuelsim::NodeToLineRzContactGeometry general_lower_geometry =
+        fuelsim::make_node_to_line_rz_contact_geometry(
+            general_secondary, general_primary_lower, 1, true, false);
+    const fuelsim::NodeToLineRzContactGeometry general_upper_geometry =
+        fuelsim::make_node_to_line_rz_contact_geometry(
+            general_secondary, general_primary_upper, 1, false, true);
+    fuelsim::LocalValues general_vertex_state{};
+    const fuelsim::ContactPointValue general_lower_reference =
+        contact_kernel.value(general_lower_geometry, general_vertex_state);
+    const fuelsim::ContactPointValue general_upper_reference =
+        contact_kernel.value(general_upper_geometry, general_vertex_state);
+    passed = check(!general_lower_reference.projected &&
+                       general_upper_reference.projected,
+                   "sloped internal primary vertex has one reference owner") &&
+             passed;
+    general_vertex_state[5] = -1.0e-8;
+    general_vertex_state[9] = -1.0e-8;
+    const fuelsim::ContactPointValue general_lower_slid =
+        contact_kernel.value(general_lower_geometry, general_vertex_state);
+    const fuelsim::ContactPointValue general_upper_slid =
+        contact_kernel.value(general_upper_geometry, general_vertex_state);
+    passed = check(general_lower_slid.projected &&
+                       !general_upper_slid.projected,
+                   "sloped internal vertex slide keeps unique NTS ownership") &&
              passed;
 
     const fuelsim::Line2InterfaceSideCoordinates lower_pellet = {{
@@ -404,7 +488,7 @@ bool test_gap_heat_and_normal_contact() {
         fuelsim::make_line2_rz_heat_geometry(lower_pellet, upper_pellet);
     const fuelsim::NodeToLineRzContactGeometry axial_contact_geometry =
         fuelsim::make_node_to_line_rz_contact_geometry(
-            lower_pellet, upper_pellet, 1, true);
+            lower_pellet, upper_pellet, 1, true, true);
     const fuelsim::LocalValues axial_open_state = {
         750.0, 740.0, 610.0, 620.0, 0.0, 0.0,
         0.0,   0.0,   0.2e-6, 0.3e-6, 0.0, 0.0,
@@ -441,7 +525,7 @@ bool test_gap_heat_and_normal_contact() {
                                              sloped_primary);
     const fuelsim::NodeToLineRzContactGeometry sloped_contact_geometry =
         fuelsim::make_node_to_line_rz_contact_geometry(
-            sloped_secondary, sloped_primary, 1, true);
+            sloped_secondary, sloped_primary, 1, true, true);
     const fuelsim::LocalValues sloped_closed_state = {
         750.0, 740.0, 610.0, 620.0, 3.0e-6, 3.0e-6,
         0.0,   0.0,   -3.0e-6, -3.0e-6, 0.0, 0.0,

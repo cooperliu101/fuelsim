@@ -232,6 +232,24 @@ bool projection_is_inside(double fraction, bool includes_second_endpoint) {
     return fraction < 1.0;
 }
 
+bool clamp_owned_chain_endpoint(
+    adlite::Scalar& fraction, double reference_fraction,
+    bool primary_segment_is_first, bool includes_second_endpoint) {
+    constexpr double endpoint_tolerance = 1.0e-12;
+    const double value = fraction.value();
+    if (primary_segment_is_first && value < 0.0 &&
+        std::abs(reference_fraction) <= endpoint_tolerance) {
+        fraction = 0.0;
+        return true;
+    }
+    if (includes_second_endpoint && value > 1.0 &&
+        std::abs(reference_fraction - 1.0) <= endpoint_tolerance) {
+        fraction = 1.0;
+        return true;
+    }
+    return false;
+}
+
 ContactAdValue evaluate_contact(const NodeToLineRzContactGeometry& geometry,
                                 const LocalAdValues& state,
                                 const NormalContactProperties& properties) {
@@ -251,19 +269,11 @@ ContactAdValue evaluate_contact(const NodeToLineRzContactGeometry& geometry,
         bool projected = projection_is_inside(
             fraction.value(),
             geometry.primary_segment_includes_second_endpoint);
-        constexpr double endpoint_tolerance = 1.0e-12;
-        if (!projected && fraction.value() < 0.0 &&
-            std::abs(geometry.reference_primary_fraction) <=
-                endpoint_tolerance) {
-            fraction = 0.0;
-            projected = true;
-        } else if (!projected && fraction.value() > 1.0 &&
-                   geometry.primary_segment_includes_second_endpoint &&
-                   std::abs(geometry.reference_primary_fraction - 1.0) <=
-                       endpoint_tolerance) {
-            fraction = 1.0;
-            projected = true;
-        }
+        if (!projected)
+            projected = clamp_owned_chain_endpoint(
+                fraction, geometry.reference_primary_fraction,
+                geometry.primary_segment_is_first,
+                geometry.primary_segment_includes_second_endpoint);
         if (!projected)
             return {false,
                     adlite::Scalar(0.0), adlite::Scalar(0.0),
@@ -322,18 +332,11 @@ ContactAdValue evaluate_contact(const NodeToLineRzContactGeometry& geometry,
     bool projected = projection_is_inside(
         primary_fraction.value(),
         geometry.primary_segment_includes_second_endpoint);
-    constexpr double endpoint_tolerance = 1.0e-12;
-    if (!projected && primary_fraction.value() < 0.0 &&
-        std::abs(geometry.reference_primary_fraction) <= endpoint_tolerance) {
-        primary_fraction = 0.0;
-        projected = true;
-    } else if (!projected && primary_fraction.value() > 1.0 &&
-               geometry.primary_segment_includes_second_endpoint &&
-               std::abs(geometry.reference_primary_fraction - 1.0) <=
-                   endpoint_tolerance) {
-        primary_fraction = 1.0;
-        projected = true;
-    }
+    if (!projected)
+        projected = clamp_owned_chain_endpoint(
+            primary_fraction, geometry.reference_primary_fraction,
+            geometry.primary_segment_is_first,
+            geometry.primary_segment_includes_second_endpoint);
 
     if (!projected) {
         return {
@@ -554,6 +557,7 @@ NodeToLineRzContactGeometry make_node_to_line_rz_contact_geometry(
     const Line2InterfaceSideCoordinates& secondary_edge_coordinates,
     const Line2InterfaceSideCoordinates& primary_segment_coordinates,
     std::size_t secondary_local_node,
+    bool primary_segment_is_first,
     bool primary_segment_includes_upper_endpoint) {
     validate_line(secondary_edge_coordinates,
                   "NodeToLineRzContactGeometry secondary");
@@ -575,6 +579,7 @@ NodeToLineRzContactGeometry make_node_to_line_rz_contact_geometry(
         secondary_edge_coordinates,
         primary_segment_coordinates,
         secondary_local_node,
+        primary_segment_is_first,
         primary_segment_includes_upper_endpoint,
         orientation,
         primary_fraction,

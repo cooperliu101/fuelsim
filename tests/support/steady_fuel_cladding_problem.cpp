@@ -573,6 +573,7 @@ void SteadyFuelCladdingProblem::build_geometries() {
                 _contact_geometries.push_back(
                     make_node_to_line_rz_contact_geometry(
                         secondary_coordinates, primary_coordinates, secondary,
+                        candidate == 0,
                         candidate + 1 == cladding_edges.size()));
                 _contact_secondary_axial_indices.push_back(fuel_edge_index +
                                                            secondary);

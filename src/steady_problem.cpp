@@ -840,6 +840,7 @@ void SteadyProblem::build_contacts(const UnstructuredQuad4Mesh& source_mesh) {
                                 secondary_coordinates,
                                 edge_coordinates(primary_mesh, primary_edge),
                                 secondary_node,
+                                candidate == 0,
                                 candidate + 1 ==
                                     primary.boundary.elements.size()));
                         _mechanical_secondary_indices.push_back(edge_index +
