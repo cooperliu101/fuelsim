@@ -170,6 +170,7 @@ bool fuzz_input_parser(const std::string& seed, const std::string& path) {
 
 bool run_tests(const std::string& steady_path,
                const std::string& transient_path,
+               const std::string& finite_strain_path,
                const std::string& scaled_displacement_path,
                const std::string& traction_path,
                const std::string& malformed_path) {
@@ -177,6 +178,8 @@ bool run_tests(const std::string& steady_path,
         fuelsim::CaseInputReader::read(steady_path);
     const fuelsim::FuelSimCaseDefinition transient =
         fuelsim::CaseInputReader::read(transient_path);
+    const fuelsim::FuelSimCaseDefinition finite_strain =
+        fuelsim::CaseInputReader::read(finite_strain_path);
     const fuelsim::FuelSimCaseDefinition scaled_displacement =
         fuelsim::CaseInputReader::read(scaled_displacement_path);
     const fuelsim::FuelSimCaseDefinition traction =
@@ -207,6 +210,12 @@ bool run_tests(const std::string& steady_path,
               "steady execution and solver fields are parsed") &&
         check(transient.problem == fuelsim::CaseProblem::transient,
               "transient input selects the physical transient problem") &&
+        check(finite_strain.regions.size() == 2 &&
+                  finite_strain.regions[0].spatial.strain_formulation ==
+                      fuelsim::StrainFormulation::finite &&
+                  finite_strain.regions[1].spatial.strain_formulation ==
+                      fuelsim::StrainFormulation::finite,
+              "finite strain is parsed independently for every region") &&
         check(transient.regions[0].transient_material.behavior ==
                       fuelsim::InelasticBehavior::elastic &&
                   transient.regions[1].transient_material.behavior ==
@@ -258,6 +267,30 @@ bool run_tests(const std::string& steady_path,
                                  "\n    yield_stress = 1e8");
     passed = expect_case_failure(malformed_path, invalid_material_case,
                                  "not valid for inelastic_model='elastic'") &&
+             passed;
+
+    std::string invalid_strain_case = read_text(finite_strain_path);
+    const std::string finite_strain_key = "strain = finite";
+    const std::size_t strain_position =
+        invalid_strain_case.find(finite_strain_key);
+    if (strain_position == std::string::npos)
+        return check(false, "finite fixture has the expected strain key");
+    invalid_strain_case.replace(strain_position, finite_strain_key.size(),
+                                "strain = large");
+    passed = expect_case_failure(malformed_path, invalid_strain_case,
+                                 "unknown strain formulation 'large'") &&
+             passed;
+
+    std::string missing_strain_case = read_text(steady_path);
+    const std::string small_strain_line = "    strain = small\n";
+    const std::size_t small_strain_position =
+        missing_strain_case.find(small_strain_line);
+    if (small_strain_position == std::string::npos)
+        return check(false, "steady fixture has the expected strain key");
+    missing_strain_case.erase(small_strain_position,
+                              small_strain_line.size());
+    passed = expect_case_failure(malformed_path, missing_strain_case,
+                                 "missing required key 'strain'") &&
              passed;
 
     std::string block_contact_case = read_text(steady_path);
@@ -427,15 +460,16 @@ bool run_tests(const std::string& steady_path,
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 6) {
+    if (argc != 7) {
         std::cerr << "Usage: fuelsim_input_tests <steady.fsi> "
-                     "<transient.fsi> <scaled-displacement.fsi> "
+                     "<transient.fsi> <finite-strain.fsi> "
+                     "<scaled-displacement.fsi> "
                      "<traction.fsi> <malformed.fsi>\n";
         return 2;
     }
 
     try {
-        if (!run_tests(argv[1], argv[2], argv[3], argv[4], argv[5]))
+        if (!run_tests(argv[1], argv[2], argv[3], argv[4], argv[5], argv[6]))
             return 1;
         std::cout << "[PASS] fuelsim strict input-card tests\n";
         return 0;

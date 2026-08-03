@@ -14,7 +14,8 @@ using Quad4MaterialHistory = std::array<MaterialPointState, 4>;
 class Quad4RzTransientKernel final {
   public:
     Quad4RzTransientKernel(IsotropicInelasticMaterial material,
-                           double volumetric_heat_source);
+                           double volumetric_heat_source,
+                           StrainFormulation strain_formulation);
 
     double volumetric_heat_source() const noexcept;
     void set_volumetric_heat_source(double volumetric_heat_source);
@@ -49,6 +50,7 @@ class Quad4RzTransientKernel final {
 
     IsotropicInelasticMaterial _material;
     double _volumetric_heat_source;
+    StrainFormulation _strain_formulation;
 };
 
 } // namespace fuelsim

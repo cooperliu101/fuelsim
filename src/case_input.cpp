@@ -391,6 +391,7 @@ CaseRegionDefinition read_region(const InputDocument& document,
     std::vector<std::string> keys = {
         "block",
         "block_id",
+        "strain",
         "conductivity_inverse_temperature",
         "conductivity_constant",
         "young_modulus",
@@ -441,6 +442,14 @@ CaseRegionDefinition read_region(const InputDocument& document,
                       resolved_block_id};
     result.spatial.heat_source_function =
         read_optional_string(section, "heat_source_function", {});
+    const InputEntry strain = required_entry(document, section, "strain");
+    if (strain.value == "small")
+        result.spatial.strain_formulation = StrainFormulation::small;
+    else if (strain.value == "finite")
+        result.spatial.strain_formulation = StrainFormulation::finite;
+    else
+        value_error(document, strain,
+                    "unknown strain formulation '" + strain.value + "'");
     if (problem == CaseProblem::transient)
         result.transient_material = read_transient(document, section);
     return result;

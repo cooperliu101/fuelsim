@@ -11,6 +11,7 @@
 [Regions]
   [fuel]
     block_id = 0
+    strain = small
     conductivity_inverse_temperature = 3824
     conductivity_constant = 0.61
     young_modulus = 2e11

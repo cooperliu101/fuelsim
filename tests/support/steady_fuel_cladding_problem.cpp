@@ -109,9 +109,10 @@ SteadyFuelCladdingProblem::SteadyFuelCladdingProblem(
       _cladding_mesh(std::move(cladding_mesh)),
       _dof_map(checked_node_count(_fuel_mesh, _cladding_mesh)),
       _fuel_kernel(IsotropicThermoelasticMaterial(parameters.fuel),
-                   parameters.volumetric_heat_source),
+                   parameters.volumetric_heat_source,
+                   StrainFormulation::small),
       _cladding_kernel(IsotropicThermoelasticMaterial(parameters.cladding),
-                       0.0),
+                       0.0, StrainFormulation::small),
       _gap_heat_kernel({parameters.gap_conductivity, parameters.minimum_gap}),
       _contact_kernel({parameters.contact_penalty}) {
     const auto same_geometry = [](double actual, double expected) {

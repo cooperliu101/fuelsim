@@ -27,6 +27,7 @@ struct RegionDefinition final {
     double initial_temperature;
     std::int64_t block_id = -1;
     std::string heat_source_function{};
+    StrainFormulation strain_formulation = StrainFormulation::small;
 };
 
 struct ContactDefinition final {

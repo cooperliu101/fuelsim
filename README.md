@@ -5,7 +5,8 @@
 文件自由组合任意数量的物理区域。稳态问题包含：
 
 - 一个 `.e` 文件中的多个独立 2D 轴对称 RZ Quad4 区域，区域间节点不合并；
-- 每个区域独立的稳态温度相关热传导、体积热源和小应变热弹性；
+- 每个区域独立的稳态温度相关热传导、体积热源，以及可选小应变或有限应变
+  轴对称热弹性；
 - 由 `primary`、`secondary` 边集定义的 STS 气隙导热；
 - 与 MOOSE/JAX 实现一致的 secondary 节点到 primary 线段 NTS 无摩擦罚接触；
 - ADlite 生成体单元和界面的局部 Jacobian；
@@ -16,10 +17,12 @@
 
 - M2.1：一致热容矩阵、Backward Euler 物理时间积分、热源斜坡、
   committed/trial/commit/rollback 和失败步 cutback；
-- M2.2：通用小应变 J2 Norton 蠕变、J2 线性各向同性硬化塑性及同一
+- M2.2：通用 J2 Norton 蠕变、J2 线性各向同性硬化塑性及同一
   材料点的全隐式耦合；
 - M2.3：非匹配芯块—包壳网格上，芯块热膨胀闭合初始间隙的 PCMI 回归，
   包壳同时累积塑性与蠕变历史，并与同网格、同时间步 MOOSE 算例比较；
+- M4.1：轴对称变形梯度、Eulerian Hencky 应变和当前构形力学弱式；非匹配
+  有限应变 PCMI 的温度、位移、压力、应力及非弹性历史均与 MOOSE 逐点比较；
 - 燃料、包壳各自独立的积分点 `double` 历史，Newton 回调内只生成
   ADlite trial 状态；
 - 瞬态热传导与准静态力学耦合，PETSc 工作区跨时间步复用。
@@ -160,6 +163,18 @@ I/O 层，生产问题会保留每个选中块的原始节点坐标和 Quad4 连
   verification/moose/m23_pcmi_coupled_cladding_rz_out.csv
 ```
 
+运行有限应变 PCMI—MOOSE 验收：
+
+```bash
+./build/fuelsim_m2_pcmi_solver_tests \
+  verification/fuelsim/transient_finite_strain_pcmi.fsi \
+  verification/moose/m41_finite_strain_pcmi_rz_all_nodes_final.csv \
+  verification/moose/m41_finite_strain_pcmi_rz_fuel_surface_final.csv \
+  verification/moose/m41_finite_strain_pcmi_rz_clad_qp_coordinates_final.csv \
+  verification/moose/m41_finite_strain_pcmi_rz_clad_qp_values_final.csv \
+  verification/moose/m41_finite_strain_pcmi_rz_out.csv
+```
+
 运行 MOOSE Exodus 网格驱动的 M1 验收：
 
 ```bash
@@ -279,6 +294,8 @@ CTest 覆盖：
 - 稳态与瞬态输入卡读取 MOOSE Exodus 网格的端到端求解；
 - RZ 体积积分、形函数和梯度恒等式；
 - 体单元 AD Jacobian 与中心差分方向导数；
+- 有限应变均匀伸长的 Hencky 应变/当前测度解析解、正 Jacobian 守卫，以及
+  弹性和活跃塑性—蠕变分支的 AD Jacobian；
 - 开放、最小热隙饱和和闭合接触三种界面分支的 AD Jacobian；
 - STS 热流和 NTS 节点反力守恒；
 - 接触投影半开区间的唯一性、物理链端点支承、内部顶点滑移不双计、候选
@@ -302,6 +319,8 @@ CTest 覆盖：
 - MOOSE 瞬态热容、Norton、J2 及两套耦合载荷路径参考。
 - 芯块热膨胀闭合 1 um 间隙、5 个节点接触、包壳塑性—蠕变耦合的
   20 步 PCMI—MOOSE 端到端回归。
+- 相同非匹配网格和载荷路径上的有限应变 PCMI—MOOSE 逐节点/逐积分点回归，
+  所有指定三项误差均低于 `0.5%`。
 
 独立 MOOSE 输入、结果快照和运行条件位于
 `verification/moose/`。
@@ -352,6 +371,13 @@ M2.3 PCMI 算例采用弹性芯块和耦合 Norton—J2 包壳，接触界面为
 `0.15%/0.29%/0.305%`，蠕变应变为 `0.09%/0.195%/0.195%`，顺序均为
 相对 L2、相对绝对峰值和最大逐点相对误差。
 
+M4.1 将同一非匹配 PCMI 改为有限应变，MOOSE 使用 `strain = FINITE`、
+`decomposition_method = EigenSolution` 和关闭有限应变历史旋转的同参路径。
+温度、径向位移、轴向位移和接触压力三项误差的最大值分别为
+`0.04262%`、`0.22822%`、`0.06487%` 和 `0.09059%`。40 个包壳积分点的
+等效应力、等效塑性应变和等效蠕变应变三项误差最大值分别为
+`0.03096%`、`0.27087%` 和 `0.17985%`；全部低于统一的 `0.5%` 门槛。
+
 ## 单核性能
 
 固定 CPU 和所有数值库线程数为 1 后，默认 1,584 DOF 算例的五次运行中位数
@@ -373,15 +399,18 @@ M2.3 PCMI 算例采用弹性芯块和耦合 Norton—J2 包壳，接触界面为
 
 一般 Line2 接触允许非匹配分段并支持圆柱侧面、水平端面和斜面，但每侧必须
 是一条不分叉的开放边链，secondary 投影必须被 primary 完整覆盖。当前仍不
-支持大滑移动态候选面、mortar、摩擦、位移惯性或有限应变；候选窗口外状态
-会显式拒步。多 rank 下网格、问题几何和回调
+支持大滑移动态候选面、mortar、摩擦或位移惯性；候选窗口外状态会显式拒步。
+有限应变已支持轴对称 Hencky 应变和当前构形内力，但压力/牵引仍是参考构形
+dead load，非弹性历史尚未随有限转动客观旋转，因此一般非共轴大转动不在
+当前验证范围。多 rank 下网格、问题几何和回调
 完整状态仍在各 rank 复制。
 
 M2.2 只提供与具体材料无关的 Norton 幂律和线性硬化 J2 算法；其参数支持
 相对参考温度的线性 AD 活跃斜率，但不是标定材料关联。暂不实现辐照、燃耗、
 孔隙率或应力相关的真实燃料/包壳经验关联，也不
-支持有限应变、非共轴多机制、裂变气体、燃料重定位或开裂。后续真实模型
+支持非共轴多机制、裂变气体、燃料重定位或开裂。后续真实模型
 必须在当前状态事务、局部 AD Jacobian 和独立 MOOSE 回归基础上逐项加入。
 完整的适用边界和 M2.3 PCMI 的 qualified 门槛例外见
 [工程验证矩阵](docs/verification.md)。
-本阶段数值基础的算法、输入键和收敛证据见 [M4.0 说明](docs/m4.md)。
+本阶段数值基础和有限应变的算法、输入键及收敛证据见
+[M4 说明](docs/m4.md)。

@@ -390,7 +390,7 @@ SteadyProblem::SteadyProblem(SteadyProblemDefinition definition,
     for (const RegionDefinition& region : _definition.regions) {
         _region_kernels.emplace_back(
             IsotropicThermoelasticMaterial(region.material),
-            region.volumetric_heat_source);
+            region.volumetric_heat_source, region.strain_formulation);
     }
     build_volume_geometries();
     build_contacts(source_mesh);

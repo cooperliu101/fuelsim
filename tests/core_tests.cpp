@@ -13,6 +13,7 @@
 #include <cstddef>
 #include <iomanip>
 #include <iostream>
+#include <stdexcept>
 #include <string>
 
 namespace {
@@ -102,7 +103,8 @@ bool test_element_jacobian() {
     const fuelsim::Quad4RzGeometry geometry =
         fuelsim::make_quad4_rz_geometry(coordinates);
     const fuelsim::Quad4RzThermoelasticKernel kernel(
-        fuelsim::IsotropicThermoelasticMaterial(properties()), 2.0e8);
+        fuelsim::IsotropicThermoelasticMaterial(properties()), 2.0e8,
+        fuelsim::StrainFormulation::small);
 
     const fuelsim::LocalValues state = {
         710.0,  680.0,  650.0, 690.0,   0.0,    2.0e-6,
@@ -171,6 +173,125 @@ bool test_element_jacobian() {
         check(temperature_to_mechanics > 0.0,
               "thermal expansion produces temperature-mechanics coupling") &&
         passed;
+    return passed;
+}
+
+bool test_finite_strain_kinematics_and_jacobian() {
+    const fuelsim::Quad4Coordinates coordinates = {{
+        {1.0, 0.0},
+        {2.0, 0.0},
+        {2.0, 1.0},
+        {1.0, 1.0},
+    }};
+    const fuelsim::Quad4RzGeometry geometry =
+        fuelsim::make_quad4_rz_geometry(coordinates);
+    const fuelsim::Quad4RzThermoelasticKernel kernel(
+        fuelsim::IsotropicThermoelasticMaterial(properties()), 0.0,
+        fuelsim::StrainFormulation::finite);
+
+    constexpr double radial_stretch = 1.08;
+    constexpr double axial_stretch = 0.96;
+    fuelsim::LocalValues uniform_state{};
+    for (std::size_t node = 0; node < 4; ++node) {
+        uniform_state[node] = 600.0;
+        uniform_state[4 + node] =
+            (radial_stretch - 1.0) * coordinates[node].r;
+        uniform_state[8 + node] =
+            (axial_stretch - 1.0) * coordinates[node].z;
+    }
+    fuelsim::LocalAdValues passive_state{};
+    for (std::size_t dof = 0; dof < uniform_state.size(); ++dof)
+        passive_state[dof] = uniform_state[dof];
+
+    bool passed = true;
+    double maximum_strain_error = 0.0;
+    double maximum_measure_error = 0.0;
+    for (const fuelsim::RzQuadraturePoint& point : geometry.points) {
+        const fuelsim::AxisymmetricKinematics kinematics =
+            fuelsim::evaluate_axisymmetric_kinematics(
+                point, passive_state, fuelsim::StrainFormulation::finite);
+        maximum_strain_error =
+            std::max({maximum_strain_error,
+                      std::abs(kinematics.strain_rr.value() -
+                               std::log(radial_stretch)),
+                      std::abs(kinematics.strain_zz.value() -
+                               std::log(axial_stretch)),
+                      std::abs(kinematics.strain_hoop.value() -
+                               std::log(radial_stretch)),
+                      std::abs(kinematics.strain_rz.value())});
+        const double expected_measure =
+            point.weighted_measure * radial_stretch * radial_stretch *
+            axial_stretch;
+        maximum_measure_error =
+            std::max(maximum_measure_error,
+                     std::abs(kinematics.weighted_measure.value() -
+                              expected_measure) /
+                         expected_measure);
+    }
+    passed = check(maximum_strain_error < 1.0e-14,
+                   "finite RZ uniform stretches give logarithmic strains") &&
+             passed;
+    passed = check(maximum_measure_error < 1.0e-14,
+                   "finite RZ current measure follows the deformation "
+                   "Jacobian") &&
+             passed;
+
+    fuelsim::LocalValues state = uniform_state;
+    state[5] += 0.025;
+    state[6] += 0.015;
+    state[10] -= 0.020;
+    state[11] += 0.010;
+    const fuelsim::LocalValues direction = {
+        0.2,  -0.3, 0.4,  -0.1, 0.3,  -0.5,
+        0.2,  0.4,  -0.2, 0.35, -0.45, 0.25,
+    };
+    const fuelsim::LocalSystem system = kernel.linearize(geometry, state);
+    constexpr double step = 1.0e-5;
+    fuelsim::LocalValues plus = state;
+    fuelsim::LocalValues minus = state;
+    for (std::size_t dof = 0; dof < state.size(); ++dof) {
+        plus[dof] += step * direction[dof];
+        minus[dof] -= step * direction[dof];
+    }
+    const fuelsim::LocalResidual plus_residual = kernel.residual(geometry, plus);
+    const fuelsim::LocalResidual minus_residual =
+        kernel.residual(geometry, minus);
+    double maximum_jacobian_error = 0.0;
+    for (std::size_t row = 0; row < system.residual.size(); ++row) {
+        double ad_direction = 0.0;
+        for (std::size_t column = 0; column < direction.size(); ++column)
+            ad_direction +=
+                system.jacobian[row * fuelsim::quad4_local_dof_count + column] *
+                direction[column];
+        const double finite_difference =
+            (plus_residual[row] - minus_residual[row]) / (2.0 * step);
+        maximum_jacobian_error =
+            std::max(maximum_jacobian_error,
+                     scaled_error(ad_direction, finite_difference));
+    }
+    passed = check(maximum_jacobian_error < 2.0e-7,
+                   "finite RZ AD Jacobian matches centered finite "
+                   "difference") &&
+             passed;
+
+    fuelsim::LocalValues inverted = uniform_state;
+    for (std::size_t node = 0; node < 4; ++node)
+        inverted[4 + node] = -1.1 * coordinates[node].r;
+    bool inversion_rejected = false;
+    try {
+        (void)kernel.residual(geometry, inverted);
+    } catch (const std::domain_error&) {
+        inversion_rejected = true;
+    }
+    passed = check(inversion_rejected,
+                   "finite RZ inverted deformation is rejected") &&
+             passed;
+    std::cout << "finite_strain_uniform_logarithmic_strain_error="
+              << maximum_strain_error << '\n';
+    std::cout << "finite_strain_current_measure_relative_error="
+              << maximum_measure_error << '\n';
+    std::cout << "finite_strain_directional_jacobian_error="
+              << maximum_jacobian_error << '\n';
     return passed;
 }
 
@@ -735,6 +856,7 @@ int main() {
     bool passed = true;
     passed = test_mesh_and_geometry() && passed;
     passed = test_element_jacobian() && passed;
+    passed = test_finite_strain_kinematics_and_jacobian() && passed;
     passed = test_gap_heat_and_normal_contact() && passed;
     passed = test_m1_dof_layout() && passed;
     passed = test_time_table_and_convection() && passed;

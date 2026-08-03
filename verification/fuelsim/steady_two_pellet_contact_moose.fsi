@@ -11,6 +11,7 @@
 [Regions]
   [lower]
     block = lower_pellet
+    strain = small
     conductivity_inverse_temperature = 0
     conductivity_constant = 10
     young_modulus = 2e11
@@ -22,6 +23,7 @@
   []
   [upper]
     block = upper_pellet
+    strain = small
     conductivity_inverse_temperature = 0
     conductivity_constant = 10
     young_modulus = 2e11

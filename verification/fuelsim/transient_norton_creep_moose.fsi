@@ -11,6 +11,7 @@
 [Regions]
   [material]
     block_id = 0
+    strain = small
     conductivity_inverse_temperature = 0
     conductivity_constant = 1
     young_modulus = 2e11

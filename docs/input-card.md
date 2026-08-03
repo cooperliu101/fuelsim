@@ -78,6 +78,7 @@ Dirichlet 和接触边界可使用任意属于所选区域的边集。每个接�
 [Regions]
   [pellet]
     block = fuel
+    strain = small
     conductivity_inverse_temperature = 3824
     conductivity_constant = 0.61
     young_modulus = 2e11
@@ -93,6 +94,13 @@ Dirichlet 和接触边界可使用任意属于所选区域的边集。每个接�
 
 区域数量不固定，因此同一结构可表示单独芯块、单独包壳、芯块—包壳，或
 芯块—包壳1—包壳2。每个元素块只能声明一次，区域节点与自由度保持独立。
+
+每个区域必须显式设置 `strain = small` 或 `strain = finite`。`small` 使用
+参考构形小应变弱式；`finite` 从轴对称变形梯度计算 Eulerian Hencky 应变，
+并用 Cauchy 应力、当前构形梯度和当前 RZ 测度装配力学内力。热传导与热容
+仍使用参考构形。有限应变下当前压力和牵引边界是参考构形 dead load，不是
+follower load。区域发生非正 Jacobian、非正环向伸长或非正当前半径时会
+拒绝 Newton 试探态，不做隐式夹持。
 
 瞬态问题的每个区域还必须给出 `density`、`specific_heat` 和
 `inelastic_model`。可选模型及条件字段为：
@@ -371,10 +379,11 @@ committed 初值上装配解析方向导数，并与中心差分比较。输出�
 - [`transient_coupled_displacement_moose.fsi`](../verification/fuelsim/transient_coupled_displacement_moose.fsi)
 - [`transient_coupled_traction_moose.fsi`](../verification/fuelsim/transient_coupled_traction_moose.fsi)
 - [`transient_fuel_cladding_pcmi.fsi`](../verification/fuelsim/transient_fuel_cladding_pcmi.fsi)
+- [`transient_finite_strain_pcmi.fsi`](../verification/fuelsim/transient_finite_strain_pcmi.fsi)
 
-上述十一张卡分别驱动 M0、两套 M1、M2.1、M3.1、四套 M2.2、M2.3 和
-M3.3 的
+上述十二张卡分别驱动 M0、两套 M1、M2.1、M3.1、四套 M2.2、M2.3、
+M3.3 和 M4.1 的
 fuelsim-to-MOOSE 对比；测试程序不再直接构造这些案例的材料、载荷路径或
 网格选择参数。每个对比读取 MOOSE 最终时刻的全部节点，统一检查温度、
-径向位移和轴向位移的三项误差；M1、M2.3 和 M3.3 还检查全部接触节点的
-压力三项误差。
+径向位移和轴向位移的三项误差；M1、M2.3、M3.3 和 M4.1 还检查全部接触
+节点的压力三项误差。

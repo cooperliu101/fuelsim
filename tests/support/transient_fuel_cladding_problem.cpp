@@ -49,10 +49,10 @@ TransientFuelCladdingProblem::TransientFuelCladdingProblem(
                       std::move(cladding_mesh)),
       _fuel_kernel(
           IsotropicInelasticMaterial(parameters.steady.fuel, parameters.fuel),
-          0.0),
+          0.0, StrainFormulation::small),
       _cladding_kernel(IsotropicInelasticMaterial(parameters.steady.cladding,
                                                   parameters.cladding),
-                       0.0),
+                       0.0, StrainFormulation::small),
       _fuel_material_history(_steady_problem.fuel_element_count()),
       _cladding_material_history(_steady_problem.cladding_element_count()),
       _committed_solution(_steady_problem.initial_state()),

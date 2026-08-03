@@ -47,19 +47,14 @@ adlite::Scalar interpolate(const std::array<double, 4>& coefficients,
 
 AxisymmetricStress
 stress_at_point(const RzQuadraturePoint& point, const LocalAdValues& state,
-                const IsotropicThermoelasticMaterial& material) {
+                const IsotropicThermoelasticMaterial& material,
+                StrainFormulation strain_formulation) {
     const adlite::Scalar temperature = interpolate(point.shape, state, 0);
-    const adlite::Scalar radial_displacement =
-        interpolate(point.shape, state, 4);
-    const adlite::Scalar strain_rr = interpolate(point.gradient_r, state, 4);
-    const adlite::Scalar strain_zz = interpolate(point.gradient_z, state, 8);
-    const adlite::Scalar strain_hoop = radial_displacement / point.radius;
-    const adlite::Scalar strain_rz =
-        0.5 * (interpolate(point.gradient_z, state, 4) +
-               interpolate(point.gradient_r, state, 8));
-
-    return material.stress(strain_rr, strain_zz, strain_hoop, strain_rz,
-                           temperature);
+    const AxisymmetricKinematics kinematics =
+        evaluate_axisymmetric_kinematics(point, state, strain_formulation);
+    return material.stress(
+        kinematics.strain_rr, kinematics.strain_zz,
+        kinematics.strain_hoop, kinematics.strain_rz, temperature);
 }
 
 } // namespace
@@ -120,9 +115,116 @@ Quad4RzGeometry make_quad4_rz_geometry(const Quad4Coordinates& coordinates) {
     return geometry;
 }
 
+AxisymmetricKinematics evaluate_axisymmetric_kinematics(
+    const RzQuadraturePoint& point, const LocalAdValues& state,
+    StrainFormulation strain_formulation) {
+    const adlite::Scalar radial_displacement =
+        interpolate(point.shape, state, 4);
+    const adlite::Scalar displacement_gradient_rr =
+        interpolate(point.gradient_r, state, 4);
+    const adlite::Scalar displacement_gradient_rz =
+        interpolate(point.gradient_z, state, 4);
+    const adlite::Scalar displacement_gradient_zr =
+        interpolate(point.gradient_r, state, 8);
+    const adlite::Scalar displacement_gradient_zz =
+        interpolate(point.gradient_z, state, 8);
+
+    AxisymmetricKinematics result{};
+    if (strain_formulation == StrainFormulation::small) {
+        for (std::size_t node = 0; node < quad4_node_count; ++node) {
+            result.gradient_r[node] = point.gradient_r[node];
+            result.gradient_z[node] = point.gradient_z[node];
+        }
+        result.radius = point.radius;
+        result.weighted_measure = point.weighted_measure;
+        result.strain_rr = displacement_gradient_rr;
+        result.strain_zz = displacement_gradient_zz;
+        result.strain_hoop = radial_displacement / point.radius;
+        result.strain_rz =
+            0.5 * (displacement_gradient_rz + displacement_gradient_zr);
+        return result;
+    }
+
+    const adlite::Scalar deformation_rr = 1.0 + displacement_gradient_rr;
+    const adlite::Scalar deformation_rz = displacement_gradient_rz;
+    const adlite::Scalar deformation_zr = displacement_gradient_zr;
+    const adlite::Scalar deformation_zz = 1.0 + displacement_gradient_zz;
+    const adlite::Scalar deformation_hoop =
+        1.0 + radial_displacement / point.radius;
+    const adlite::Scalar determinant_rz =
+        deformation_rr * deformation_zz -
+        deformation_rz * deformation_zr;
+    const adlite::Scalar current_radius = point.radius + radial_displacement;
+    if (!std::isfinite(determinant_rz.value()) ||
+        !(determinant_rz.value() > 0.0) ||
+        !std::isfinite(deformation_hoop.value()) ||
+        !(deformation_hoop.value() > 0.0) ||
+        !std::isfinite(current_radius.value()) ||
+        !(current_radius.value() > 0.0))
+        throw std::domain_error(
+            "Finite-strain Quad4 RZ deformation must preserve positive "
+            "Jacobian and radius");
+
+    for (std::size_t node = 0; node < quad4_node_count; ++node) {
+        result.gradient_r[node] =
+            (deformation_zz * point.gradient_r[node] -
+             deformation_zr * point.gradient_z[node]) /
+            determinant_rz;
+        result.gradient_z[node] =
+            (-deformation_rz * point.gradient_r[node] +
+             deformation_rr * point.gradient_z[node]) /
+            determinant_rz;
+    }
+    result.radius = current_radius;
+    result.weighted_measure =
+        point.weighted_measure * determinant_rz * deformation_hoop;
+
+    const adlite::Scalar left_cauchy_rr =
+        deformation_rr * deformation_rr + deformation_rz * deformation_rz;
+    const adlite::Scalar left_cauchy_zz =
+        deformation_zr * deformation_zr + deformation_zz * deformation_zz;
+    const adlite::Scalar left_cauchy_rz =
+        deformation_rr * deformation_zr + deformation_rz * deformation_zz;
+    const adlite::Scalar mean =
+        0.5 * (left_cauchy_rr + left_cauchy_zz);
+    const adlite::Scalar radius = adlite::hypot(
+        0.5 * (left_cauchy_rr - left_cauchy_zz), left_cauchy_rz);
+    const adlite::Scalar eigenvalue_high = mean + radius;
+    const adlite::Scalar eigenvalue_low = mean - radius;
+    if (!std::isfinite(eigenvalue_low.value()) ||
+        !(eigenvalue_low.value() > 0.0) ||
+        !std::isfinite(eigenvalue_high.value()) ||
+        !(eigenvalue_high.value() > 0.0))
+        throw std::domain_error(
+            "Finite-strain Quad4 RZ left Cauchy-Green tensor must be "
+            "positive definite");
+
+    const adlite::Scalar logarithmic_mean =
+        0.25 * (adlite::log(eigenvalue_high) +
+                adlite::log(eigenvalue_low));
+    adlite::Scalar logarithmic_slope;
+    if (radius.value() <= 1.0e-10 * mean.value())
+        logarithmic_slope = 0.5 / mean;
+    else
+        logarithmic_slope =
+            adlite::atanh(radius / mean) / (2.0 * radius);
+
+    result.strain_rr =
+        logarithmic_mean +
+        logarithmic_slope * (left_cauchy_rr - mean);
+    result.strain_zz =
+        logarithmic_mean +
+        logarithmic_slope * (left_cauchy_zz - mean);
+    result.strain_rz = logarithmic_slope * left_cauchy_rz;
+    result.strain_hoop = adlite::log(deformation_hoop);
+    return result;
+}
+
 Quad4RzThermoelasticKernel::Quad4RzThermoelasticKernel(
-    IsotropicThermoelasticMaterial material, double volumetric_heat_source)
-    : _material(material), _volumetric_heat_source(0.0) {
+    IsotropicThermoelasticMaterial material, double volumetric_heat_source,
+    StrainFormulation strain_formulation)
+    : _material(material), _volumetric_heat_source(0.0),
+      _strain_formulation(strain_formulation) {
     set_volumetric_heat_source(volumetric_heat_source);
 }
 
@@ -182,7 +284,8 @@ Quad4RzThermoelasticKernel::stress_values(const Quad4RzGeometry& geometry,
     std::array<AxisymmetricStressValues, 4> result{};
     for (std::size_t q = 0; q < geometry.points.size(); ++q) {
         const AxisymmetricStress stress =
-            stress_at_point(geometry.points[q], passive_state, _material);
+            stress_at_point(geometry.points[q], passive_state, _material,
+                            _strain_formulation);
         result[q] = {stress.rr.value(), stress.zz.value(), stress.hoop.value(),
                      stress.rz.value()};
     }
@@ -201,8 +304,12 @@ void Quad4RzThermoelasticKernel::residual_ad(const Quad4RzGeometry& geometry,
         const adlite::Scalar gradient_temperature_z =
             interpolate(point.gradient_z, state, 0);
         const adlite::Scalar conductivity = _material.conductivity(temperature);
-        const AxisymmetricStress stress =
-            stress_at_point(point, state, _material);
+        const AxisymmetricKinematics kinematics =
+            evaluate_axisymmetric_kinematics(point, state,
+                                             _strain_formulation);
+        const AxisymmetricStress stress = _material.stress(
+            kinematics.strain_rr, kinematics.strain_zz,
+            kinematics.strain_hoop, kinematics.strain_rz, temperature);
 
         for (std::size_t node = 0; node < 4; ++node) {
             residual[node] +=
@@ -213,14 +320,15 @@ void Quad4RzThermoelasticKernel::residual_ad(const Quad4RzGeometry& geometry,
                  _volumetric_heat_source * point.shape[node]);
 
             residual[4 + node] +=
-                point.weighted_measure *
-                (stress.rr * point.gradient_r[node] +
-                 stress.hoop * point.shape[node] / point.radius +
-                 stress.rz * point.gradient_z[node]);
+                kinematics.weighted_measure *
+                (stress.rr * kinematics.gradient_r[node] +
+                 stress.hoop * point.shape[node] / kinematics.radius +
+                 stress.rz * kinematics.gradient_z[node]);
 
             residual[8 + node] +=
-                point.weighted_measure * (stress.zz * point.gradient_z[node] +
-                                          stress.rz * point.gradient_r[node]);
+                kinematics.weighted_measure *
+                (stress.zz * kinematics.gradient_z[node] +
+                 stress.rz * kinematics.gradient_r[node]);
         }
     }
 }

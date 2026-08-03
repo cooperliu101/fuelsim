@@ -121,7 +121,8 @@ TransientProblem::TransientProblem(TransientProblemDefinition definition,
             IsotropicInelasticMaterial(
                 _definition.spatial.regions[region_value].material,
                 _definition.regions[region_value].material),
-            0.0);
+            0.0,
+            _definition.spatial.regions[region_value].strain_formulation);
         _material_histories[region_value].resize(
             _spatial_model.region_element_count(region_value));
         _material_stresses[region_value].resize(
@@ -216,6 +217,8 @@ std::uint64_t TransientProblem::committed_state_signature() const {
         hash_double(hash, spatial.volumetric_heat_source);
         hash_double(hash, spatial.initial_temperature);
         hash_string(hash, spatial.heat_source_function);
+        hash_integer(hash,
+                     static_cast<std::int64_t>(spatial.strain_formulation));
         hash_double(hash, transient.density);
         hash_double(hash, transient.specific_heat);
         hash_integer(hash, static_cast<std::int64_t>(transient.behavior));

@@ -18,6 +18,7 @@ files.
 | M2.2 coupled displacement | `m22_coupled_plastic_creep_rz_mesh.e` | 4 / 1 | `528411ed474f58b85cc4601a66a3979325beaee93b84f04c7ababaf6ad0a54aa` |
 | M2.2 coupled traction | `m22_coupled_plastic_creep_traction_rz_mesh.e` | 4 / 1 | `664e7f6f8bfddd765db623592bdda769897f71bf3712d7d7b69f09070dd5f984` |
 | M2.3 nonmatching PCMI | `m23_pcmi_coupled_cladding_rz_mesh.e` | 53 / 34 | `bdcb8d22550ec68c647330e2a5214331e0b65b2bdbfdba82322824314a476b45` |
+| M4.1 finite-strain PCMI | `m41_finite_strain_pcmi_rz_mesh.e` | 53 / 34 | `d5c42199ed41a749467d3d77e2c0a7c7a09e59d17cdb0bdc52117ce6c707402d` |
 | M3.1 time-table convection | `m31_transient_table_convection_rz_mesh.e` | 15 / 8 | `9be197728d3a52ff05e1063593eb47969dc05950e317f71a59082915ba3e7e57` |
 | M3.3 two-pellet contact | `m33_two_pellet_contact_rz_mesh.e` | 36 / 20 | `90c90396384397cbd0c993f35ac90c6e402996c77454820c009a653e8748f474` |
 
@@ -32,7 +33,7 @@ stem:
 
 The reader preserves block, node-set, and side-set IDs and names. Single-region
 cases select block ID 0 because the default MOOSE block has no required name;
-M1 and M2.3 select the named `fuel` and `clad` blocks.
+M1, M2.3, and M4.1 select the named `fuel` and `clad` blocks.
 
 `SHA256SUMS` is the machine-checked authority for every tracked MOOSE input,
 mesh, and result snapshot. `fuelsim_moose_reference_sha256` recomputes every
@@ -640,6 +641,54 @@ Pointwise gates are stress L2/peak/pointwise
 `<0.015%`/`<0.04%`/`<0.04%`, plastic strain
 `<0.15%`/`<0.29%`/`<0.305%`, and creep strain
 `<0.09%`/`<0.195%`/`<0.195%`.
+
+## M4.1 finite-strain PCMI
+
+`m41_finite_strain_pcmi_rz.i` retains the M2.3 nonmatching 4-to-5 contact mesh,
+materials, contact parameters, and 20 one-second time steps. Both regions use
+`strain = FINITE`, `decomposition_method = EigenSolution`, and
+`perform_finite_strain_rotations = false`. This isolates axisymmetric geometric
+nonlinearity and matches fuelsim's current rotation-free inelastic history
+scope; it is not evidence for general non-coaxial large rotation.
+
+The mesh and reference snapshots were generated with one rank using:
+
+```bash
+/home/cooper/projects/july/july-opt \
+  --mesh-only m41_finite_strain_pcmi_rz_mesh.e \
+  -i m41_finite_strain_pcmi_rz.i
+
+/home/cooper/projects/july/july-opt \
+  -i m41_finite_strain_pcmi_rz.i \
+  Outputs/file_base=/tmp/fuelsim_m41/m41 \
+  Outputs/exodus=false \
+  Outputs/console=false
+```
+
+All 20 steps converged. The final comparison covers all 53 nodes, all 5 fuel
+surface contact nodes, and all 40 cladding quadrature points. Percent errors are:
+
+```text
+                                      relative L2   relative absolute peak   pointwise max
+temperature:                          0.00976%      0.00081%                0.04262%
+radial displacement:                  0.08055%      0.11100%                0.22822%
+axial displacement:                   0.02138%      0.02557%                0.06487%
+contact pressure:                     0.04471%      0.01060%                0.09059%
+QP von Mises stress:                  0.01105%      0.03096%                0.03096%
+QP effective plastic strain:          0.12522%      0.25467%                0.27087%
+QP effective creep strain:            0.06951%      0.17985%                0.17985%
+```
+
+The largest specified error is the plastic-strain pointwise value `0.27087%`;
+all metrics pass the uniform `0.5%` acceptance gate. Total contact-force error
+is `0.00098%`, and all five projected fuel nodes are active. `SHA256SUMS`
+records the tracked input, mesh, nodal, surface, quadrature-point, and scalar
+snapshots.
+
+The reference used July commit
+`a96d73792bee7c5f54eb65e33b04487b24276a27` and executable SHA256
+`1cb3a0fbf5650addd087ceeb8521f82d2ddb11650c0932b7ec274226430e0ee4`;
+the July worktree was dirty, so both identifiers are retained as provenance.
 
 ## M2 reference environment and conventions
 

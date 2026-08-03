@@ -763,7 +763,7 @@ bool test_transient_element() {
     const fuelsim::Quad4RzTransientKernel kernel(
         fuelsim::IsotropicInelasticMaterial(simple_thermoelastic(),
                                             elastic_properties()),
-        100.0);
+        100.0, fuelsim::StrainFormulation::small);
     const fuelsim::Quad4TemperatureHistory old_temperature = {
         600.0,
         600.0,
@@ -865,13 +865,15 @@ bool test_transient_element() {
     return passed;
 }
 
-bool test_coupled_transient_element_jacobian() {
+bool test_coupled_transient_element_jacobian(
+    fuelsim::StrainFormulation strain_formulation,
+    const std::string& formulation_name) {
     const fuelsim::Quad4RzGeometry geometry = test_geometry();
     const fuelsim::Quad4RzTransientKernel kernel(
         fuelsim::IsotropicInelasticMaterial(
             simple_thermoelastic(),
             coupled_properties(0.02, 10.0, 2.0, 20.0, 40.0)),
-        0.0);
+        0.0, strain_formulation);
     const fuelsim::Quad4TemperatureHistory old_temperature = {
         600.0,
         600.0,
@@ -924,14 +926,26 @@ bool test_coupled_transient_element_jacobian() {
     }
     bool passed =
         check(maximum_error < 1.0e-7,
-              "coupled transient Quad4 AD Jacobian matches centered finite "
-              "difference");
+              formulation_name +
+                  " coupled transient Quad4 AD Jacobian matches centered "
+                  "finite difference");
     passed = check(both_histories_active,
-                   "coupled transient Quad4 activates both histories at every "
-                   "quadrature point") &&
+                   formulation_name +
+                       " coupled transient Quad4 activates both histories at "
+                       "every quadrature point") &&
              passed;
-    std::cout << "m22_coupled_element_jacobian_maximum_scaled_error="
+    std::cout << formulation_name
+              << "_coupled_element_jacobian_maximum_scaled_error="
               << maximum_error << '\n';
+    return passed;
+}
+
+bool test_coupled_transient_element_jacobians() {
+    bool passed = test_coupled_transient_element_jacobian(
+        fuelsim::StrainFormulation::small, "m22_small_strain");
+    passed = test_coupled_transient_element_jacobian(
+                 fuelsim::StrainFormulation::finite, "m41_finite_strain") &&
+             passed;
     return passed;
 }
 
@@ -1081,7 +1095,7 @@ int main() {
         passed = test_coupled_plastic_creep_material_point() && passed;
         passed = test_temperature_active_inelastic_properties() && passed;
         passed = test_transient_element() && passed;
-        passed = test_coupled_transient_element_jacobian() && passed;
+        passed = test_coupled_transient_element_jacobians() && passed;
         passed = test_problem_history_transaction() && passed;
         if (!passed)
             return 1;

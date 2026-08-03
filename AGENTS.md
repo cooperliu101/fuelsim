@@ -22,7 +22,9 @@ NTS 机械接触和 field-major 全局自由度：
 M2.1 在相同空间离散上增加 Backward Euler 一致热容、物理时间步和
 committed/trial/commit/rollback。M2.2 增加通用 J2 Norton 蠕变、J2
 线性硬化塑性及两者在同一材料点的全隐式耦合；当前不包含真实燃料或包壳
-经验模型。
+经验模型。每个区域可独立选择 `small` 或 `finite` 应变；有限应变采用轴对称
+变形梯度、Eulerian Hencky 应变和当前构形力学弱式，已在非匹配网格 PCMI
+中与 MOOSE 对比。
 
 ## 依赖与 C++ 约束
 
@@ -49,6 +51,14 @@ committed/trial/commit/rollback。M2.2 增加通用 J2 Norton 蠕变、J2
 - ADlite 只按 12 个体单元或界面局部自由度播种，禁止按全局自由度播种。
 - RZ 积分测度为完整的 `2*pi*r*detJ*w`。
 - 应变和应力分量顺序为 `[rr, zz, hoop, rz]`，`rz` 是张量剪应变。
+- 小应变区域在参考构形装配力学；有限应变区域从轴对称变形梯度
+  `F=[1+ur,R, ur,Z; uz,R, 1+uz,Z]` 和 `F_hoop=1+ur/R` 计算 Eulerian
+  Hencky 应变 `0.5*log(F*F^T)`，并用 Cauchy 应力、当前构形形函数梯度和
+  `2*pi*r_current*detJ_current*w` 装配内力。
+- 有限应变试探态必须保持面内变形 Jacobian、`F_hoop` 和当前半径为正；
+  非法态必须作为 domain error 进入线搜索或拒步，不得夹持。
+- 热传导和 M2 热容继续在参考构形积分。有限应变下的压力和牵引目前是参考
+  构形 dead load，不得声称为 follower load。
 - 历史变量使用 `double` 保存；只有 trial state 使用 ADlite。
 - M2 热容使用参考构形一致质量矩阵：
   `N_i*rho*cp*(T_new-T_old)/dt`，不包含位移惯性。
@@ -113,7 +123,8 @@ committed/trial/commit/rollback。M2.2 增加通用 J2 Norton 蠕变、J2
   只作为路线与回归名称。旧的专用问题类只能留在 `tests/support` 中支撑
   已有回归，不得重新进入公共头文件或生产库。
 - `SteadyProblem` 和 `TransientProblem` 从一个 `UnstructuredQuad4Mesh`
-  选择任意数量的命名块；每个块独立建立区域自由度与材料。
+  选择任意数量的命名块；每个块独立建立区域自由度、材料和
+  `small|finite` 应变形式。
 - Contact 输入只接受 `primary` 和 `secondary` 边集名，不接受主/从 block；
   所属区域必须由 Exodus 边集相邻单元解析。每个接触对可独立启用热接触、
   机械接触或两者。
@@ -185,6 +196,20 @@ M2 还必须检查：
 5. MOOSE 瞬态温度、应力、位移、等效塑性应变和等效蠕变应变目标均小于
    `0.1%`；尚未达到目标的 M2.3 分项只能按验证矩阵中的显式 qualified 门槛
    验收，不得称为完全达到 `0.1%`。
+
+有限应变修改还必须检查：
+
+1. 均匀轴对称伸长的 Hencky 应变和当前体积测度解析解；
+2. 有限应变弹性及活跃塑性—蠕变分支的局部 AD 切线；
+3. 正 Jacobian 和正当前半径的 domain-error 路径；
+4. `fuelsim_m41_finite_strain_pcmi_tests` 的非匹配网格 PCMI 全场对比；
+5. 温度、径向/轴向位移、接触压力、等效应力、等效塑性应变和等效蠕变
+   应变的相对 L2、相对绝对峰值和最大逐点相对误差均小于 `0.5%`。
+
+当前有限应变非弹性验证只覆盖 MOOSE
+`perform_finite_strain_rotations = false` 的近共轴 PCMI 路径；历史张量尚未随
+有限转动客观旋转。没有独立旋转测试前，不得宣称支持一般非共轴大转动塑性
+或蠕变。
 
 性能修改还必须检查：
 

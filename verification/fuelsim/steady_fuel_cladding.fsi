@@ -11,6 +11,7 @@
 [Regions]
   [fuel]
     block = fuel
+    strain = small
     conductivity_inverse_temperature = 3824
     conductivity_constant = 0.61
     young_modulus = 2e11
@@ -23,6 +24,7 @@
 
   [cladding]
     block = clad
+    strain = small
     conductivity_inverse_temperature = 0
     conductivity_constant = 16
     young_modulus = 7.5e10

@@ -42,7 +42,7 @@ SteadySingleRegionProblem::SteadySingleRegionProblem(
     : _parameters(parameters), _mesh(std::move(mesh)),
       _dof_map(_mesh.nodes().size()),
       _kernel(IsotropicThermoelasticMaterial(parameters.fuel),
-              parameters.volumetric_heat_source) {
+              parameters.volumetric_heat_source, StrainFormulation::small) {
     const auto same_geometry = [](double actual, double expected) {
         const double scale =
             std::max({1.0, std::abs(actual), std::abs(expected)});

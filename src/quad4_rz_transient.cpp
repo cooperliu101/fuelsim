@@ -12,10 +12,7 @@ struct PointFields final {
     adlite::Scalar temperature;
     adlite::Scalar gradient_temperature_r;
     adlite::Scalar gradient_temperature_z;
-    adlite::Scalar strain_rr;
-    adlite::Scalar strain_zz;
-    adlite::Scalar strain_hoop;
-    adlite::Scalar strain_rz;
+    AxisymmetricKinematics kinematics;
 };
 
 adlite::Scalar interpolate(const std::array<double, quad4_node_count>& values,
@@ -36,25 +33,15 @@ double interpolate_committed_temperature(
 }
 
 PointFields point_fields(const RzQuadraturePoint& point,
-                         const LocalAdValues& state) {
+                         const LocalAdValues& state,
+                         StrainFormulation strain_formulation) {
     const adlite::Scalar temperature = interpolate(point.shape, state, 0);
-    const adlite::Scalar radial_displacement =
-        interpolate(point.shape, state, 4);
-    const adlite::Scalar strain_rr = interpolate(point.gradient_r, state, 4);
-    const adlite::Scalar strain_zz = interpolate(point.gradient_z, state, 8);
-    const adlite::Scalar strain_hoop = radial_displacement / point.radius;
-    const adlite::Scalar strain_rz =
-        0.5 * (interpolate(point.gradient_z, state, 4) +
-               interpolate(point.gradient_r, state, 8));
 
     return {
         temperature,
         interpolate(point.gradient_r, state, 0),
         interpolate(point.gradient_z, state, 0),
-        strain_rr,
-        strain_zz,
-        strain_hoop,
-        strain_rz,
+        evaluate_axisymmetric_kinematics(point, state, strain_formulation),
     };
 }
 
@@ -87,8 +74,10 @@ double volumetric_heat_capacity(const IsotropicInelasticMaterial& material) {
 } // namespace
 
 Quad4RzTransientKernel::Quad4RzTransientKernel(
-    IsotropicInelasticMaterial material, double volumetric_heat_source)
-    : _material(material), _volumetric_heat_source(0.0) {
+    IsotropicInelasticMaterial material, double volumetric_heat_source,
+    StrainFormulation strain_formulation)
+    : _material(material), _volumetric_heat_source(0.0),
+      _strain_formulation(strain_formulation) {
     (void)volumetric_heat_capacity(_material);
     set_volumetric_heat_source(volumetric_heat_source);
 }
@@ -162,7 +151,8 @@ Quad4MaterialHistory Quad4RzTransientKernel::trial_state_values(
     Quad4MaterialHistory result{};
     for (std::size_t q = 0; q < geometry.points.size(); ++q) {
         const PointFields fields =
-            point_fields(geometry.points[q], passive_state);
+            point_fields(geometry.points[q], passive_state,
+                         _strain_formulation);
         if (!std::isfinite(fields.temperature.value()) ||
             !(fields.temperature.value() > 0.0))
             throw std::domain_error(
@@ -170,8 +160,9 @@ Quad4MaterialHistory Quad4RzTransientKernel::trial_state_values(
                 "positive");
 
         const auto response = _material.response(
-            fields.strain_rr, fields.strain_zz, fields.strain_hoop,
-            fields.strain_rz, fields.temperature, time_step,
+            fields.kinematics.strain_rr, fields.kinematics.strain_zz,
+            fields.kinematics.strain_hoop, fields.kinematics.strain_rz,
+            fields.temperature, time_step,
             committed_material[q]);
         result[q] =
             IsotropicInelasticMaterial::state_values(response.trial_state);
@@ -191,10 +182,12 @@ std::array<AxisymmetricStressValues, 4> Quad4RzTransientKernel::stress_values(
     std::array<AxisymmetricStressValues, 4> result{};
     for (std::size_t q = 0; q < geometry.points.size(); ++q) {
         const PointFields fields =
-            point_fields(geometry.points[q], passive_state);
+            point_fields(geometry.points[q], passive_state,
+                         _strain_formulation);
         const InelasticStressResponse response = _material.response(
-            fields.strain_rr, fields.strain_zz, fields.strain_hoop,
-            fields.strain_rz, fields.temperature, time_step,
+            fields.kinematics.strain_rr, fields.kinematics.strain_zz,
+            fields.kinematics.strain_hoop, fields.kinematics.strain_rz,
+            fields.temperature, time_step,
             committed_material[q]);
         result[q] = {
             response.stress.rr.value(),
@@ -216,7 +209,8 @@ void Quad4RzTransientKernel::residual_ad(
 
     for (std::size_t q = 0; q < geometry.points.size(); ++q) {
         const RzQuadraturePoint& point = geometry.points[q];
-        const PointFields fields = point_fields(point, current_state);
+        const PointFields fields =
+            point_fields(point, current_state, _strain_formulation);
         const double old_temperature = interpolate_committed_temperature(
             point.shape, committed_temperature);
         const adlite::Scalar temperature_rate =
@@ -224,8 +218,9 @@ void Quad4RzTransientKernel::residual_ad(
         const adlite::Scalar conductivity =
             _material.conductivity(fields.temperature);
         const auto response = _material.response(
-            fields.strain_rr, fields.strain_zz, fields.strain_hoop,
-            fields.strain_rz, fields.temperature, time_step,
+            fields.kinematics.strain_rr, fields.kinematics.strain_zz,
+            fields.kinematics.strain_hoop, fields.kinematics.strain_rz,
+            fields.temperature, time_step,
             committed_material[q]);
         const auto& stress = response.stress;
 
@@ -239,14 +234,16 @@ void Quad4RzTransientKernel::residual_ad(
                  _volumetric_heat_source * point.shape[node]);
 
             residual[4 + node] +=
-                point.weighted_measure *
-                (stress.rr * point.gradient_r[node] +
-                 stress.hoop * point.shape[node] / point.radius +
-                 stress.rz * point.gradient_z[node]);
+                fields.kinematics.weighted_measure *
+                (stress.rr * fields.kinematics.gradient_r[node] +
+                 stress.hoop * point.shape[node] /
+                     fields.kinematics.radius +
+                 stress.rz * fields.kinematics.gradient_z[node]);
 
             residual[8 + node] +=
-                point.weighted_measure * (stress.zz * point.gradient_z[node] +
-                                          stress.rz * point.gradient_r[node]);
+                fields.kinematics.weighted_measure *
+                (stress.zz * fields.kinematics.gradient_z[node] +
+                 stress.rz * fields.kinematics.gradient_r[node]);
         }
     }
 }
