@@ -151,6 +151,8 @@ bool test_steady_load_cutback(const std::string& input_path) {
     fuelsim::SolverOptions solver_options{
         input.solver.absolute_tolerance, input.solver.relative_tolerance,
         input.solver.step_tolerance, 30};
+    solver_options.line_search =
+        fuelsim::SolverOptions::LineSearch::backtracking;
     const fuelsim::SteadyResult result = fuelsim::solve_steady(
         problem, {1, 0.5, 12, 1.0e-4}, solver_options);
     std::cout << "steady_cutback_rejected_steps="

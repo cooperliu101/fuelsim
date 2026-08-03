@@ -271,9 +271,10 @@ Quad4 的 12-DOF ADlite 局部贡献装配，因此残量和温度切线保持�
 分解。选择 `block_jacobi`、`field_split` 或 `hypre` 会自动选 GMRES；
 `field_split` 按固定 `[T(:)]` 和 `[ur(:), uz(:)]` 建立乘法场分裂。具体 PETSc
 命令行选项仍在上述设置之后生效，可用于选择 HYPRE 子类型和场分裂子 KSP。
-非线性默认使用 PETSc backtracking line search；物理域错误会触发回溯。即使
-PETSc 返回正收敛原因，fuelsim 仍按配置的绝对/相对门槛复核最终残量，步长
-停滞不能单独算作成功。因热—力残量单位不同，独立复核采用“最终总残量至少
+非线性默认使用 PETSc BASIC 全步；可用 `-snes_linesearch_type bt` 启用回溯。
+BASIC 的物理域错误会拒绝当前求解，并由稳态载荷二分或瞬态 cutback 恢复。
+即使 PETSc 返回正收敛原因，fuelsim 仍按配置的绝对/相对门槛复核最终残量，
+步长停滞不能单独算作成功。因热—力残量单位不同，独立复核采用“最终总残量至少
 比本次初始残量降低 `1e6` 倍”，并设 `10*sqrt(machine epsilon)` 绝对数值
 噪声底线；配置的绝对/相对门槛更宽时仍以配置为准。
 

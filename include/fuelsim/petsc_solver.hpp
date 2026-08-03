@@ -53,7 +53,7 @@ struct SolverOptions final {
     double relative_tolerance = 1.0e-10;
     double step_tolerance = 1.0e-12;
     int maximum_iterations = 40;
-    LineSearch line_search = LineSearch::backtracking;
+    LineSearch line_search = LineSearch::basic;
     LinearSolver linear_solver = LinearSolver::automatic;
     Preconditioner preconditioner = Preconditioner::automatic;
     double linear_relative_tolerance = 1.0e-8;

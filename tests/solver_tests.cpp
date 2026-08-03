@@ -129,8 +129,11 @@ bool test_global_newton_safeguards() {
     LogDomainProblem domain_problem;
     fuelsim::PetscSolver domain_solver;
     const std::vector<double> initial(fuelsim::local_dof_count, 1.0);
-    const fuelsim::SolveResult domain =
-        domain_solver.solve(domain_problem, initial);
+    fuelsim::SolverOptions domain_options;
+    domain_options.line_search =
+        fuelsim::SolverOptions::LineSearch::backtracking;
+    const fuelsim::SolveResult domain = domain_solver.solve(
+        domain_problem, initial, domain_options);
     bool passed = check(domain.converged,
                         "backtracking recovers a physical-domain overshoot");
     const double target = std::exp(-10.0);

@@ -519,7 +519,7 @@ class PetscSolver::Implementation final {
         SNESLineSearch line_search = nullptr;
         check_petsc(SNESGetLineSearch(_objects->snes, &line_search),
                     "SNESGetLineSearch");
-        check_petsc(SNESLineSearchSetType(line_search, SNESLINESEARCHBT),
+        check_petsc(SNESLineSearchSetType(line_search, SNESLINESEARCHBASIC),
                     "SNESLineSearchSetType");
 
         PetscInt ownership_begin = 0;

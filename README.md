@@ -242,7 +242,8 @@ primary 线段形函数分配相反反力。两种界面残量均离散守恒，
 `20 um` 轴向裕量用于防止燃料热膨胀后越过包壳接触面。
 
 PETSc Dirichlet 行采用 `F_i=x_i-g_i`，Jacobian 只清约束行并置单位对角。
-默认使用 Newton backtracking line search；物理域错误触发回退，正收敛原因仍须通过残量复核。
+默认使用 Newton BASIC 全步；用户可用 PETSc 选项切换到 backtracking。BASIC
+物理域错误由载荷步或时间步 cutback 恢复，正收敛原因仍须通过残量复核。
 
 M2 热容残量和非弹性更新为：
 
