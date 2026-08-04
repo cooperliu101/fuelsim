@@ -20,6 +20,7 @@ files.
 | M2.3 nonmatching PCMI | `m23_pcmi_coupled_cladding_rz_mesh.e` | 53 / 34 | `bdcb8d22550ec68c647330e2a5214331e0b65b2bdbfdba82322824314a476b45` |
 | M4.1 finite-strain PCMI | `m41_finite_strain_pcmi_rz_mesh.e` | 53 / 34 | `d5c42199ed41a749467d3d77e2c0a7c7a09e59d17cdb0bdc52117ce6c707402d` |
 | M4.2 follower pressure | `m22_coupled_plastic_creep_traction_rz_mesh.e` | 4 / 1 | `664e7f6f8bfddd765db623592bdda769897f71bf3712d7d7b69f09070dd5f984` |
+| M4.3 noncoaxial finite strain | `m43_noncoaxial_finite_strain_rz_mesh.e` | 4 / 1 | `171e0c6a9d35d80bb95d868a2b15afe6c277d4194b7af46334078252fc27a1e4` |
 | M3.1 time-table convection | `m31_transient_table_convection_rz_mesh.e` | 15 / 8 | `9be197728d3a52ff05e1063593eb47969dc05950e317f71a59082915ba3e7e57` |
 | M3.3 two-pellet contact | `m33_two_pellet_contact_rz_mesh.e` | 36 / 20 | `90c90396384397cbd0c993f35ac90c6e402996c77454820c009a653e8748f474` |
 
@@ -701,6 +702,43 @@ absolute-peak, and maximum-pointwise errors are at most `2.71e-10%`; the axial
 counterparts are at most `8.46e-10%`. This reference independently exercises
 current radius, current normal, current surface measure, and geometric pressure
 stiffness.
+
+## M4.3 noncoaxial multistep finite rotation
+
+`m43_noncoaxial_finite_strain_rz.i` generates one annular RZ Quad4 and leaves
+the finite-strain decomposition and rotation controls unset. Over 50 fixed
+`0.1 s` steps, the prescribed top edge is stretched, sheared to `gamma=0.8`,
+axially reversed, shear-reversed, and stretched again. The positive-shear
+stage has a polar rotation of about `20.85 degrees`; coupled J2 plasticity and
+Norton creep are active throughout the changing stress direction.
+
+The tracked mesh and snapshots were generated with one rank using:
+
+```bash
+/home/cooper/projects/july/july-opt \
+  --mesh-only m43_noncoaxial_finite_strain_rz_mesh.e \
+  -i m43_noncoaxial_finite_strain_rz.i
+
+/home/cooper/projects/july/july-opt \
+  -i m43_noncoaxial_finite_strain_rz.i \
+  Outputs/file_base=/tmp/fuelsim_m43/m43 \
+  Outputs/exodus=false \
+  Outputs/console=false
+```
+
+The automated comparison checks every accepted QP0 history row for stress,
+elastic strain, objective `combined_inelastic_strain`, effective plastic
+strain, and effective creep strain, plus all final nodes. The largest of all
+three relative metrics is the effective-creep maximum pointwise error
+`0.000486%`; every metric is below `0.5%`.
+
+MOOSE rotates stress, elastic strain, and `combined_inelastic_strain`, but its
+model-specific `plastic_strain` and `creep_strain` properties remain in their
+unrotated accumulation frames. Fuelsim rotates both model-specific tensors, so
+the MOOSE gate uses the objective combined tensor and the two equivalent
+scalars; local tests independently constrain the split tensor rotations. The
+default Rashid approximation produces about `4.9e-6` accumulated trace drift
+in both codes on this path, below the explicit `1e-5` gate.
 
 ## M2 reference environment and conventions
 

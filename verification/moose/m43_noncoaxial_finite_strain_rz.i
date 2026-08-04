@@ -1,0 +1,513 @@
+# M4.3 noncoaxial finite-strain history verification. A single annular RZ
+# Quad4 is first stretched, then sheared, axially reversed, shear-reversed,
+# and stretched again. The finite-strain decomposition and history-rotation
+# controls remain unset so MOOSE uses its Taylor/Rashid defaults.
+
+[Mesh]
+  type = GeneratedMesh
+  dim = 2
+  nx = 1
+  ny = 1
+  xmin = 0.010
+  xmax = 0.011
+  ymin = 0.0
+  ymax = 0.001
+  coord_type = RZ
+[]
+
+[GlobalParams]
+  displacements = 'disp_x disp_y'
+[]
+
+[Variables]
+  [T]
+    initial_condition = 600
+  []
+[]
+
+[AuxVariables]
+  [stress_rr]
+    order = CONSTANT
+    family = MONOMIAL
+  []
+  [stress_zz]
+    order = CONSTANT
+    family = MONOMIAL
+  []
+  [stress_hoop]
+    order = CONSTANT
+    family = MONOMIAL
+  []
+  [stress_rz]
+    order = CONSTANT
+    family = MONOMIAL
+  []
+  [elastic_rr]
+    order = CONSTANT
+    family = MONOMIAL
+  []
+  [elastic_zz]
+    order = CONSTANT
+    family = MONOMIAL
+  []
+  [elastic_hoop]
+    order = CONSTANT
+    family = MONOMIAL
+  []
+  [elastic_rz]
+    order = CONSTANT
+    family = MONOMIAL
+  []
+  [plastic_rr]
+    order = CONSTANT
+    family = MONOMIAL
+  []
+  [plastic_zz]
+    order = CONSTANT
+    family = MONOMIAL
+  []
+  [plastic_hoop]
+    order = CONSTANT
+    family = MONOMIAL
+  []
+  [plastic_rz]
+    order = CONSTANT
+    family = MONOMIAL
+  []
+  [creep_rr]
+    order = CONSTANT
+    family = MONOMIAL
+  []
+  [creep_zz]
+    order = CONSTANT
+    family = MONOMIAL
+  []
+  [creep_hoop]
+    order = CONSTANT
+    family = MONOMIAL
+  []
+  [creep_rz]
+    order = CONSTANT
+    family = MONOMIAL
+  []
+  [effective_plastic]
+    order = CONSTANT
+    family = MONOMIAL
+  []
+  [effective_creep]
+    order = CONSTANT
+    family = MONOMIAL
+  []
+  [combined_rr]
+    order = CONSTANT
+    family = MONOMIAL
+  []
+  [combined_zz]
+    order = CONSTANT
+    family = MONOMIAL
+  []
+  [combined_hoop]
+    order = CONSTANT
+    family = MONOMIAL
+  []
+  [combined_rz]
+    order = CONSTANT
+    family = MONOMIAL
+  []
+[]
+
+[Physics/SolidMechanics/QuasiStatic]
+  [solid]
+    strain = FINITE
+    add_variables = true
+    use_automatic_differentiation = true
+  []
+[]
+
+[Functions]
+  [axial_path]
+    type = PiecewiseLinear
+    x = '0 1 2 3 4 5'
+    y = '0 1e-4 1e-4 -5e-5 -5e-5 3e-5'
+  []
+  [shear_path]
+    type = PiecewiseLinear
+    x = '0 1 2 3 4 5'
+    y = '0 0 8e-4 8e-4 -6e-4 -6e-4'
+  []
+[]
+
+[Kernels]
+  [heat_time]
+    type = HeatConductionTimeDerivative
+    variable = T
+    use_displaced_mesh = false
+  []
+  [heat_conduction]
+    type = HeatConduction
+    variable = T
+    use_displaced_mesh = false
+  []
+[]
+
+[AuxKernels]
+  [stress_rr]
+    type = ADRankTwoAux
+    rank_two_tensor = stress
+    variable = stress_rr
+    index_i = 0
+    index_j = 0
+    selected_qp = 0
+  []
+  [stress_zz]
+    type = ADRankTwoAux
+    rank_two_tensor = stress
+    variable = stress_zz
+    index_i = 1
+    index_j = 1
+    selected_qp = 0
+  []
+  [stress_hoop]
+    type = ADRankTwoAux
+    rank_two_tensor = stress
+    variable = stress_hoop
+    index_i = 2
+    index_j = 2
+    selected_qp = 0
+  []
+  [stress_rz]
+    type = ADRankTwoAux
+    rank_two_tensor = stress
+    variable = stress_rz
+    index_i = 0
+    index_j = 1
+    selected_qp = 0
+  []
+  [elastic_rr]
+    type = ADRankTwoAux
+    rank_two_tensor = elastic_strain
+    variable = elastic_rr
+    index_i = 0
+    index_j = 0
+    selected_qp = 0
+  []
+  [elastic_zz]
+    type = ADRankTwoAux
+    rank_two_tensor = elastic_strain
+    variable = elastic_zz
+    index_i = 1
+    index_j = 1
+    selected_qp = 0
+  []
+  [elastic_hoop]
+    type = ADRankTwoAux
+    rank_two_tensor = elastic_strain
+    variable = elastic_hoop
+    index_i = 2
+    index_j = 2
+    selected_qp = 0
+  []
+  [elastic_rz]
+    type = ADRankTwoAux
+    rank_two_tensor = elastic_strain
+    variable = elastic_rz
+    index_i = 0
+    index_j = 1
+    selected_qp = 0
+  []
+  [plastic_rr]
+    type = ADRankTwoAux
+    rank_two_tensor = plastic_strain
+    variable = plastic_rr
+    index_i = 0
+    index_j = 0
+    selected_qp = 0
+  []
+  [plastic_zz]
+    type = ADRankTwoAux
+    rank_two_tensor = plastic_strain
+    variable = plastic_zz
+    index_i = 1
+    index_j = 1
+    selected_qp = 0
+  []
+  [plastic_hoop]
+    type = ADRankTwoAux
+    rank_two_tensor = plastic_strain
+    variable = plastic_hoop
+    index_i = 2
+    index_j = 2
+    selected_qp = 0
+  []
+  [plastic_rz]
+    type = ADRankTwoAux
+    rank_two_tensor = plastic_strain
+    variable = plastic_rz
+    index_i = 0
+    index_j = 1
+    selected_qp = 0
+  []
+  [creep_rr]
+    type = ADRankTwoAux
+    rank_two_tensor = creep_strain
+    variable = creep_rr
+    index_i = 0
+    index_j = 0
+    selected_qp = 0
+  []
+  [creep_zz]
+    type = ADRankTwoAux
+    rank_two_tensor = creep_strain
+    variable = creep_zz
+    index_i = 1
+    index_j = 1
+    selected_qp = 0
+  []
+  [creep_hoop]
+    type = ADRankTwoAux
+    rank_two_tensor = creep_strain
+    variable = creep_hoop
+    index_i = 2
+    index_j = 2
+    selected_qp = 0
+  []
+  [creep_rz]
+    type = ADRankTwoAux
+    rank_two_tensor = creep_strain
+    variable = creep_rz
+    index_i = 0
+    index_j = 1
+    selected_qp = 0
+  []
+  [effective_plastic]
+    type = ADMaterialRealAux
+    property = effective_plastic_strain
+    variable = effective_plastic
+    selected_qp = 0
+  []
+  [effective_creep]
+    type = ADMaterialRealAux
+    property = effective_creep_strain
+    variable = effective_creep
+    selected_qp = 0
+  []
+  [combined_rr]
+    type = ADRankTwoAux
+    rank_two_tensor = combined_inelastic_strain
+    variable = combined_rr
+    index_i = 0
+    index_j = 0
+    selected_qp = 0
+  []
+  [combined_zz]
+    type = ADRankTwoAux
+    rank_two_tensor = combined_inelastic_strain
+    variable = combined_zz
+    index_i = 1
+    index_j = 1
+    selected_qp = 0
+  []
+  [combined_hoop]
+    type = ADRankTwoAux
+    rank_two_tensor = combined_inelastic_strain
+    variable = combined_hoop
+    index_i = 2
+    index_j = 2
+    selected_qp = 0
+  []
+  [combined_rz]
+    type = ADRankTwoAux
+    rank_two_tensor = combined_inelastic_strain
+    variable = combined_rz
+    index_i = 0
+    index_j = 1
+    selected_qp = 0
+  []
+[]
+
+[BCs]
+  [bottom_r]
+    type = ADDirichletBC
+    variable = disp_x
+    boundary = bottom
+    value = 0
+  []
+  [bottom_z]
+    type = ADDirichletBC
+    variable = disp_y
+    boundary = bottom
+    value = 0
+  []
+  [top_r]
+    type = ADFunctionDirichletBC
+    variable = disp_x
+    boundary = top
+    function = shear_path
+  []
+  [top_z]
+    type = ADFunctionDirichletBC
+    variable = disp_y
+    boundary = top
+    function = axial_path
+  []
+[]
+
+[Materials]
+  [thermal]
+    type = GenericConstantMaterial
+    prop_names = 'thermal_conductivity density specific_heat'
+    prop_values = '1 1 1'
+  []
+  [elasticity]
+    type = ADComputeIsotropicElasticityTensor
+    youngs_modulus = 2e11
+    poissons_ratio = 0.3
+  []
+  [stress]
+    type = ADComputeMultipleInelasticStress
+    inelastic_models = 'creep plasticity'
+    max_iterations = 100
+    relative_tolerance = 1e-12
+    absolute_tolerance = 1e-6
+  []
+  [creep]
+    type = ADPowerLawCreepStressUpdate
+    coefficient = 1e-30
+    n_exponent = 3
+    m_exponent = 0
+    activation_energy = 0
+  []
+  [plasticity]
+    type = ADIsotropicPlasticityStressUpdate
+    yield_stress = 2e8
+    hardening_constant = 2e9
+  []
+[]
+
+[Preconditioning]
+  [smp]
+    type = SMP
+    full = true
+  []
+[]
+
+[Executioner]
+  type = Transient
+  solve_type = NEWTON
+  line_search = basic
+  dt = 0.1
+  end_time = 5
+  nl_max_its = 40
+  nl_abs_tol = 1e-10
+  nl_rel_tol = 1e-10
+  abort_on_solve_fail = true
+  automatic_scaling = true
+  compute_scaling_once = false
+  off_diagonals_in_auto_scaling = true
+  petsc_options_iname = '-pc_type'
+  petsc_options_value = 'lu'
+[]
+
+[Postprocessors]
+  [stress_rr]
+    type = ElementAverageValue
+    variable = stress_rr
+  []
+  [stress_zz]
+    type = ElementAverageValue
+    variable = stress_zz
+  []
+  [stress_hoop]
+    type = ElementAverageValue
+    variable = stress_hoop
+  []
+  [stress_rz]
+    type = ElementAverageValue
+    variable = stress_rz
+  []
+  [elastic_rr]
+    type = ElementAverageValue
+    variable = elastic_rr
+  []
+  [elastic_zz]
+    type = ElementAverageValue
+    variable = elastic_zz
+  []
+  [elastic_hoop]
+    type = ElementAverageValue
+    variable = elastic_hoop
+  []
+  [elastic_rz]
+    type = ElementAverageValue
+    variable = elastic_rz
+  []
+  [plastic_rr]
+    type = ElementAverageValue
+    variable = plastic_rr
+  []
+  [plastic_zz]
+    type = ElementAverageValue
+    variable = plastic_zz
+  []
+  [plastic_hoop]
+    type = ElementAverageValue
+    variable = plastic_hoop
+  []
+  [plastic_rz]
+    type = ElementAverageValue
+    variable = plastic_rz
+  []
+  [creep_rr]
+    type = ElementAverageValue
+    variable = creep_rr
+  []
+  [creep_zz]
+    type = ElementAverageValue
+    variable = creep_zz
+  []
+  [creep_hoop]
+    type = ElementAverageValue
+    variable = creep_hoop
+  []
+  [creep_rz]
+    type = ElementAverageValue
+    variable = creep_rz
+  []
+  [effective_plastic]
+    type = ElementAverageValue
+    variable = effective_plastic
+  []
+  [effective_creep]
+    type = ElementAverageValue
+    variable = effective_creep
+  []
+  [combined_rr]
+    type = ElementAverageValue
+    variable = combined_rr
+  []
+  [combined_zz]
+    type = ElementAverageValue
+    variable = combined_zz
+  []
+  [combined_hoop]
+    type = ElementAverageValue
+    variable = combined_hoop
+  []
+  [combined_rz]
+    type = ElementAverageValue
+    variable = combined_rz
+  []
+[]
+
+[VectorPostprocessors]
+  [all_nodes]
+    type = NodalValueSampler
+    variable = 'T disp_x disp_y'
+    sort_by = id
+    use_displaced_mesh = false
+  []
+[]
+
+[Outputs]
+  csv = true
+[]

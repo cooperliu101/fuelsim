@@ -25,7 +25,8 @@ committed/trial/commit/rollback。M2.2 增加通用 J2 Norton 蠕变、J2
 经验模型。每个区域可独立选择 `small` 或 `finite` 应变；有限应变采用与
 MOOSE 默认一致的轴对称增量 Taylor 应变、Rashid 转动、历史张量客观旋转和
 当前构形力学弱式，已在非匹配网格 PCMI 中与 MOOSE 对比。有限应变
-follower pressure 另有独立 MOOSE 对比。
+follower pressure 另有独立 MOOSE 对比；非共轴耦合塑性—蠕变路径另以
+50 个时间步和超过 20 度的转动逐步对比 MOOSE。
 
 ## 依赖与 C++ 约束
 
@@ -63,6 +64,11 @@ follower pressure 另有独立 MOOSE 对比。
   所有分量 traction 使用参考构形。
 - 有限应变材料必须在中间构形更新，并在步末以增量转动客观旋转应力以及
   弹性、塑性和蠕变张量历史；等效塑性和等效蠕变标量不得旋转。
+- MOOSE 默认 `ADComputeMultipleInelasticStress` 只客观旋转应力、弹性应变和
+  `combined_inelastic_strain`；其具体模型暴露的 `plastic_strain` 与
+  `creep_strain` 不旋转，不能作为 fuelsim 分机制客观张量的逐分量参考。
+  非共轴对标必须比较 MOOSE 的总非弹性张量、应力、弹性张量和两个等效标量；
+  fuelsim 分机制张量另由局部客观性测试约束。
 - 历史变量使用 `double` 保存；只有 trial state 使用 ADlite。
 - M2 热容使用参考构形一致质量矩阵：
   `N_i*rho*cp*(T_new-T_old)/dt`，不包含位移惯性。
@@ -212,10 +218,14 @@ M2 还必须检查：
    应变的相对 L2、相对绝对峰值和最大逐点相对误差均小于 `0.5%`。
 6. 弹性、塑性和蠕变张量的独立客观旋转测试，以及 follower pressure 的
    局部 AD Jacobian、当前构形合力和 `fuelsim_m42_follower_pressure_moose_tests`。
+7. `fuelsim_m43_noncoaxial_finite_strain_moose_tests` 必须覆盖先拉伸、再剪切、
+   轴向反向、剪切反向的 50 步路径；转动超过 20 度，应力、弹性应变、总
+   非弹性应变、等效塑性应变和等效蠕变应变的三项误差均小于 `0.5%`。
+   MOOSE 默认 Rashid 近似造成的累计非弹性迹漂移必须输出并小于 `1e-5`。
 
-当前 M4.1 使用 MOOSE 默认 Taylor 分解和开启的有限应变历史旋转；局部测试
-独立覆盖非共轴张量旋转，但 PCMI 路径接近共轴。没有一般非共轴多步大转动
-的端到端 MOOSE 工况前，不得宣称该范围已经工程鉴定。
+当前 M4.1 使用 MOOSE 默认 Taylor 分解和开启的有限应变历史旋转；M4.3 已
+鉴定其规定的非共轴多步路径，但不得把单元素、最大约 21 度的证据外推为任意
+转角、任意路径或任意网格的一般大转动鉴定。
 
 性能修改还必须检查：
 
