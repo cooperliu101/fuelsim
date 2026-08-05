@@ -973,22 +973,45 @@ bool test_coupled_transient_element_jacobian(
             simple_thermoelastic(),
             coupled_properties(0.02, 10.0, 2.0, 20.0, 40.0)),
         0.0, strain_formulation);
-    const fuelsim::LocalValues old_temperature = {
+    fuelsim::LocalValues committed_state = {
         600.0,
         600.0,
         600.0,
         600.0,
     };
-    const fuelsim::Quad4MaterialHistory history{};
-    const fuelsim::LocalValues state = {
+    fuelsim::Quad4MaterialHistory history{};
+    fuelsim::LocalValues state = {
         600.0, 600.0, 600.0, 600.0, -0.1, -0.2, -0.2, -0.1, 0.0, 0.0, 0.2, 0.2,
     };
+    if (strain_formulation == fuelsim::StrainFormulation::finite) {
+        const std::array<fuelsim::RzPoint, 4> coordinates = {{
+            {1.0, 0.0},
+            {2.0, 0.0},
+            {2.0, 1.0},
+            {1.0, 1.0},
+        }};
+        for (std::size_t node = 0; node < coordinates.size(); ++node) {
+            const double r = coordinates[node].r;
+            const double z = coordinates[node].z;
+            committed_state[4 + node] = 0.02 * r + 0.03 * z;
+            committed_state[8 + node] = -0.01 * r + 0.01 * z;
+            state[4 + node] = 0.05 * r + 0.12 * z;
+            state[8 + node] = -0.06 * r + 0.03 * z;
+        }
+        for (fuelsim::MaterialPointState& point : history) {
+            point.elastic_strain = {0.020, -0.012, -0.008, 0.006};
+            point.plastic_strain = {0.012, -0.007, -0.005, 0.004};
+            point.creep_strain = {-0.008, 0.005, 0.003, -0.002};
+            point.equivalent_plastic_strain = 0.02;
+            point.equivalent_creep_strain = 0.01;
+        }
+    }
     const fuelsim::LocalValues direction = {
         0.0, 0.0, 0.0, 0.0, 0.2, -0.4, 0.5, -0.1, -0.3, 0.6, -0.2, 0.4,
     };
     constexpr double time_step = 0.1;
     const fuelsim::LocalSystem system =
-        kernel.linearize(geometry, state, old_temperature, history, time_step);
+        kernel.linearize(geometry, state, committed_state, history, time_step);
     constexpr double perturbation = 1.0e-6;
     fuelsim::LocalValues plus = state;
     fuelsim::LocalValues minus = state;
@@ -997,9 +1020,9 @@ bool test_coupled_transient_element_jacobian(
         minus[dof] -= perturbation * direction[dof];
     }
     const fuelsim::LocalResidual plus_residual =
-        kernel.residual(geometry, plus, old_temperature, history, time_step);
+        kernel.residual(geometry, plus, committed_state, history, time_step);
     const fuelsim::LocalResidual minus_residual =
-        kernel.residual(geometry, minus, old_temperature, history, time_step);
+        kernel.residual(geometry, minus, committed_state, history, time_step);
 
     double maximum_error = 0.0;
     for (std::size_t row = 0; row < system.residual.size(); ++row) {
@@ -1016,7 +1039,7 @@ bool test_coupled_transient_element_jacobian(
     }
 
     const fuelsim::Quad4MaterialHistory trial =
-        kernel.trial_state_values(geometry, state, old_temperature, history,
+        kernel.trial_state_values(geometry, state, committed_state, history,
                                   time_step);
     bool both_histories_active = true;
     for (const fuelsim::MaterialPointState& point : trial) {

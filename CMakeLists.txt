@@ -216,6 +216,7 @@ if(BUILD_TESTING)
         COMMAND fuelsim_checkpoint_results_tests
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_fuel_cladding.fsi"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_fuel_cladding_pcmi.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_noncoaxial_finite_strain.fsi"
             "${CMAKE_CURRENT_BINARY_DIR}/m3_checkpoint.bin"
             "${CMAKE_CURRENT_BINARY_DIR}/m3_results.e"
     )
@@ -572,6 +573,8 @@ if(BUILD_TESTING)
         COMMAND fuelsim_m42_follower_pressure_moose_tests
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_finite_follower_pressure.fsi"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m42_follower_pressure_rz_all_nodes_final.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_finite_left_top_pressure.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m42_left_top_pressure_rz_all_nodes_final.csv"
     )
     set_tests_properties(fuelsim_m42_follower_pressure_moose_tests
         PROPERTIES LABELS "acceptance"

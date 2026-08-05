@@ -42,17 +42,18 @@ edge_parent(const RegionMesh& mesh, const Line2BoundaryElement& edge) {
          ++element_index) {
         const Quad4Element& element = mesh.elements()[element_index];
         std::array<std::size_t, 2> candidate{};
-        bool contains = true;
-        for (std::size_t edge_node = 0; edge_node < 2; ++edge_node) {
-            const auto found =
-                std::find(element.nodes.begin(), element.nodes.end(),
-                          edge.nodes[edge_node]);
-            if (found == element.nodes.end()) {
-                contains = false;
+        bool contains = false;
+        for (std::size_t side = 0; side < element.nodes.size(); ++side) {
+            const std::size_t next = (side + 1U) % element.nodes.size();
+            const bool forward = element.nodes[side] == edge.nodes[0] &&
+                                 element.nodes[next] == edge.nodes[1];
+            const bool reverse = element.nodes[side] == edge.nodes[1] &&
+                                 element.nodes[next] == edge.nodes[0];
+            if (forward || reverse) {
+                candidate = {{side, next}};
+                contains = true;
                 break;
             }
-            candidate[edge_node] =
-                static_cast<std::size_t>(found - element.nodes.begin());
         }
         if (!contains)
             continue;
@@ -978,8 +979,8 @@ void SteadyProblem::build_boundary_conditions(
                 _pressure_nodes.push_back(nodes);
                 _pressure_geometries.push_back(
                     make_line2_rz_pressure_geometry(
-                        {{mesh.nodes().at(edge.nodes[0]),
-                          mesh.nodes().at(edge.nodes[1])}},
+                        {{mesh.nodes().at(element.nodes[parent.second[0]]),
+                          mesh.nodes().at(element.nodes[parent.second[1]])}},
                         parent.second));
                 _pressure_load_indices.push_back(load);
             }
@@ -1018,8 +1019,8 @@ void SteadyProblem::build_boundary_conditions(
                 _traction_nodes.push_back(nodes);
                 _traction_geometries.push_back(
                     make_line2_rz_traction_geometry(
-                        {{mesh.nodes().at(edge.nodes[0]),
-                          mesh.nodes().at(edge.nodes[1])}},
+                        {{mesh.nodes().at(element.nodes[parent.second[0]]),
+                          mesh.nodes().at(element.nodes[parent.second[1]])}},
                         parent.second));
                 _traction_load_indices.push_back(load);
             }
@@ -1051,8 +1052,8 @@ void SteadyProblem::build_boundary_conditions(
                 _convection_nodes.push_back(nodes);
                 _convection_geometries.push_back(
                     make_line2_rz_convection_geometry(
-                        {{mesh.nodes().at(edge.nodes[0]),
-                          mesh.nodes().at(edge.nodes[1])}},
+                        {{mesh.nodes().at(element.nodes[parent.second[0]]),
+                          mesh.nodes().at(element.nodes[parent.second[1]])}},
                         parent.second));
                 _convection_load_indices.push_back(load);
             }
@@ -1063,10 +1064,6 @@ void SteadyProblem::build_boundary_conditions(
 
 void SteadyProblem::add_state_independent_residual(
     std::vector<double>& residual) const {
-    (void)residual;
-}
-
-void SteadyProblem::add_external_residual(std::vector<double>& residual) const {
     (void)residual;
 }
 

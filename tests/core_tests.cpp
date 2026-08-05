@@ -319,7 +319,7 @@ bool test_finite_strain_kinematics_and_jacobian() {
 
     fuelsim::LocalValues inverted = uniform_state;
     for (std::size_t node = 0; node < 4; ++node)
-        inverted[4 + node] = -1.1 * coordinates[node].r;
+        inverted[4 + node] = -1.1 * coordinates[node].r + 2.0;
     bool inversion_rejected = false;
     try {
         (void)kernel.residual(geometry, inverted);
@@ -327,7 +327,21 @@ bool test_finite_strain_kinematics_and_jacobian() {
         inversion_rejected = true;
     }
     passed = check(inversion_rejected,
-                   "finite RZ inverted deformation is rejected") &&
+                   "finite RZ rejects a nonpositive in-plane Jacobian while "
+                   "the current radius remains positive") &&
+             passed;
+    fuelsim::LocalValues collapsed_radius = uniform_state;
+    for (std::size_t node = 0; node < 4; ++node)
+        collapsed_radius[4 + node] = -2.1;
+    bool radius_rejected = false;
+    try {
+        (void)kernel.residual(geometry, collapsed_radius);
+    } catch (const std::domain_error&) {
+        radius_rejected = true;
+    }
+    passed = check(radius_rejected,
+                   "finite RZ rejects nonpositive hoop stretch and current "
+                   "radius while the in-plane Jacobian remains positive") &&
              passed;
     std::cout << "finite_strain_uniform_taylor_increment_error="
               << maximum_strain_error << '\n';

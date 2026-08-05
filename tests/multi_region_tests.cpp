@@ -65,6 +65,23 @@ fuelsim::UnstructuredQuad4Mesh three_region_mesh() {
         });
 }
 
+fuelsim::UnstructuredQuad4Mesh annular_boundary_mesh() {
+    return fuelsim::UnstructuredQuad4Mesh(
+        {
+            {1.0, 0.0},
+            {2.0, 0.0},
+            {2.0, 1.0},
+            {1.0, 1.0},
+        },
+        {{{{0, 1, 2, 3}}}}, {1}, {{1, "solid"}}, {},
+        {
+            {1, "bottom", {{{0, 0}}}},
+            {2, "right", {{{0, 1}}}},
+            {3, "top", {{{0, 2}}}},
+            {4, "left", {{{0, 3}}}},
+        });
+}
+
 fuelsim::UnstructuredQuad4Mesh two_pellet_nonmatching_mesh() {
     return fuelsim::UnstructuredQuad4Mesh(
         {
@@ -205,18 +222,75 @@ bool test_time_controlled_pressure(const fuelsim::UnstructuredQuad4Mesh& mesh) {
     pressure.function = "pressure_history";
     definition.boundary_conditions.push_back(std::move(pressure));
     fuelsim::SteadyProblem problem(std::move(definition), mesh);
-    std::vector<double> first(problem.dof_count(), 0.0);
     problem.set_time(0.0);
-    problem.add_external_residual(first);
-    std::vector<double> second(problem.dof_count(), 0.0);
+    const std::size_t pressure_contribution =
+        problem.volume_contribution_count();
+    const fuelsim::LocalValues local = problem.contribution_state(
+        pressure_contribution, problem.initial_state());
+    const fuelsim::LocalResidual first = problem.contribution_residual(
+        pressure_contribution, local);
     problem.set_time(1.0);
-    problem.add_external_residual(second);
+    const fuelsim::LocalResidual second = problem.contribution_residual(
+        pressure_contribution, local);
     bool passed = true;
     for (std::size_t dof = 0; dof < first.size(); ++dof)
         passed = check(std::abs(second[dof] - 2.0 * first[dof]) < 1.0e-12,
                        "pressure time table scales the assembled load") &&
                  passed;
     return passed;
+}
+
+bool test_pressure_parent_edge_orientation() {
+    const fuelsim::UnstructuredQuad4Mesh mesh = annular_boundary_mesh();
+    constexpr double pressure_value = 3.0;
+    constexpr double pi = 3.141592653589793238462643383279502884;
+    const auto resultant = [&](const std::string& boundary) {
+        fuelsim::SteadyProblemDefinition definition = {
+            {region("solid", "solid", 600.0, 0.0)}, {}, {}};
+        definition.boundary_conditions.push_back(
+            {"pressure", fuelsim::BoundaryConditionType::pressure, boundary,
+             fuelsim::Field::radial_displacement, pressure_value});
+        const fuelsim::SteadyProblem problem(std::move(definition), mesh);
+        const std::size_t contribution = problem.volume_contribution_count();
+        const fuelsim::LocalValues local = problem.contribution_state(
+            contribution, problem.initial_state());
+        const fuelsim::LocalResidual residual =
+            problem.contribution_residual(contribution, local);
+        std::array<double, 2> force = {0.0, 0.0};
+        for (std::size_t node = 0; node < 4; ++node) {
+            force[0] += residual[4 + node];
+            force[1] += residual[8 + node];
+        }
+        return force;
+    };
+
+    const std::array<double, 2> left = resultant("left");
+    const std::array<double, 2> right = resultant("right");
+    const std::array<double, 2> bottom = resultant("bottom");
+    const std::array<double, 2> top = resultant("top");
+    const double left_expected = -2.0 * pi * pressure_value;
+    const double right_expected = 4.0 * pi * pressure_value;
+    const double bottom_expected = -3.0 * pi * pressure_value;
+    const double top_expected = 3.0 * pi * pressure_value;
+    const double tolerance = 1.0e-12;
+    std::cout << "pressure_resultants_left=" << left[0] << ',' << left[1]
+              << '\n';
+    std::cout << "pressure_resultants_right=" << right[0] << ',' << right[1]
+              << '\n';
+    std::cout << "pressure_resultants_bottom=" << bottom[0] << ','
+              << bottom[1] << '\n';
+    std::cout << "pressure_resultants_top=" << top[0] << ',' << top[1]
+              << '\n';
+    return check(std::abs(left[0] - left_expected) < tolerance &&
+                     std::abs(left[1]) < tolerance &&
+                     std::abs(right[0] - right_expected) < tolerance &&
+                     std::abs(right[1]) < tolerance &&
+                     std::abs(bottom[0]) < tolerance &&
+                     std::abs(bottom[1] - bottom_expected) < tolerance &&
+                     std::abs(top[0]) < tolerance &&
+                     std::abs(top[1] - top_expected) < tolerance,
+                 "pressure uses the parent Quad4 outward normal on left, "
+                 "right, bottom, and top boundaries");
 }
 
 bool test_global_field_diagnostics(const fuelsim::UnstructuredQuad4Mesh& mesh) {
@@ -409,6 +483,7 @@ int main(int argc, char** argv) {
         const fuelsim::UnstructuredQuad4Mesh mesh = three_region_mesh();
         const bool passed =
             test_single_region(mesh) && test_time_controlled_pressure(mesh) &&
+            test_pressure_parent_edge_orientation() &&
             test_global_field_diagnostics(mesh) && test_three_regions(mesh) &&
             test_nonmatching_pellet_faces() && test_transient_regions(mesh);
         if (!passed)

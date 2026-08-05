@@ -20,6 +20,7 @@ files.
 | M2.3 nonmatching PCMI | `m23_pcmi_coupled_cladding_rz_mesh.e` | 53 / 34 | `199101c25ed34d28c6356edec384cb9abe03ca5e5678352be8fbad42dde888c7` |
 | M4.1 finite-strain PCMI | `m41_finite_strain_pcmi_rz_mesh.e` | 53 / 34 | `d5c42199ed41a749467d3d77e2c0a7c7a09e59d17cdb0bdc52117ce6c707402d` |
 | M4.2 follower pressure | `m22_coupled_plastic_creep_traction_rz_mesh.e` | 4 / 1 | `664e7f6f8bfddd765db623592bdda769897f71bf3712d7d7b69f09070dd5f984` |
+| M4.2 left/top pressure | `m42_left_top_pressure_rz_mesh.e` | 9 / 4 | `b001c08a40eb2cbf7c9de2fe885a28318ddb2eca96f565710568b72af46bc927` |
 | M4.3 noncoaxial finite strain | `m43_noncoaxial_finite_strain_rz_mesh.e` | 9 / 4 | `ebeebcd574612226084d8b5a45672c7e96843d74d1d5e4b6399b63c5217ded5c` |
 | M3.1 time-table convection | `m31_transient_table_convection_rz_mesh.e` | 15 / 8 | `9be197728d3a52ff05e1063593eb47969dc05950e317f71a59082915ba3e7e57` |
 | M3.3 two-pellet contact | `m33_two_pellet_contact_rz_mesh.e` | 36 / 20 | `90c90396384397cbd0c993f35ac90c6e402996c77454820c009a653e8748f474` |
@@ -693,10 +694,13 @@ is `0.000663%`, and all five projected fuel nodes are active. `SHA256SUMS`
 records the tracked input, mesh, nodal, surface, quadrature-point, and scalar
 snapshots.
 
-The reference used July commit
-`a96d73792bee7c5f54eb65e33b04487b24276a27` and executable SHA256
-`1cb3a0fbf5650addd087ceeb8521f82d2ddb11650c0932b7ec274226430e0ee4`;
-the July worktree was dirty, so both identifiers are retained as provenance.
+The M4.1, M4.2, and M4.3 references all used MOOSE commit
+`93b11698be3fcd33049ae73e32f411fb2985261d`, July commit
+`a96d73792bee7c5f54eb65e33b04487b24276a27`, and executable SHA256
+`1cb3a0fbf5650addd087ceeb8521f82d2ddb11650c0932b7ec274226430e0ee4`.
+The July worktree was dirty for these runs, so both identifiers and the tracked
+input/output hashes are retained together as provenance rather than treating
+the commit alone as a reproducible clean-tree identifier.
 
 ## M4.2 follower pressure
 
@@ -709,6 +713,30 @@ absolute-peak, and maximum-pointwise errors are at most `2.71e-10%`; the axial
 counterparts are at most `8.46e-10%`. This reference independently exercises
 current radius, current normal, current surface measure, and geometric pressure
 stiffness.
+
+`m42_left_top_pressure_rz.i` adds the orientation-sensitive complement: a
+MOOSE-generated `2 x 2` annular mesh receives `100 MPa` simultaneously on the
+inner `left` boundary and the `top` boundary. The fuelsim case reads that exact
+Exodus mesh. All 9 nodes are compared; the largest radial-displacement metric
+is `0.015784%`, and the largest axial-displacement metric is `0.006600%`.
+Together with the exact four-edge resultant test, this prevents side-set
+sorting from reversing the parent Quad4 outward normal. Both M4.2 temperature
+fields remain at `600 K` and are null controls rather than thermal-kinematics
+evidence.
+
+The added reference was generated with one rank using:
+
+```bash
+/home/cooper/projects/july/july-opt \
+  --mesh-only m42_left_top_pressure_rz_mesh.e \
+  -i m42_left_top_pressure_rz.i
+
+/home/cooper/projects/july/july-opt \
+  -i m42_left_top_pressure_rz.i \
+  Outputs/file_base=/tmp/fuelsim_m42_left_top/m42_left_top \
+  Outputs/exodus=false \
+  Outputs/console=false
+```
 
 ## M4.3 noncoaxial multistep finite rotation
 
@@ -740,17 +768,19 @@ The automated comparison checks every accepted volume-averaged history row for
 stress, elastic strain, objective `combined_inelastic_strain`, effective
 plastic strain, and effective creep strain, plus all final nodes. The nodal
 temperature/radial/axial maximum three-metric values are `1.9e-14%`,
-`0.16012%`, and `0.48383%`. Equivalent-plastic and equivalent-creep metrics
-remain below `0.0153%`.
+`0.00415%`, and `0.02304%`. Equivalent-plastic and equivalent-creep metrics
+remain below `0.000265%`.
+The temperature stays at `600 K` because M4.3 has no thermal load; it is a
+null control, not an independent finite-strain thermal-coupling discriminator.
 
 For the sign-changing tensor components, full-history L2 and relative
-absolute-peak errors remain below `0.0332%`. Near reversal crossings the
-reference component can be less than `0.2%` of its history peak, so the
-unmodified maximum pointwise relative errors are `8.696%` for stress,
-`6.602%` for elastic strain, and `12.224%` for combined inelastic strain.
-No denominator floor is introduced. M4.3 is therefore explicitly
-`qualified`: those three pointwise gates are `10%`, `10%`, and `15%`, while
-all other relative L2, peak, and pointwise gates remain `0.5%`.
+absolute-peak errors remain below `0.001%`. Correcting the inner-pressure
+parent-edge normal reduces the unmodified maximum pointwise relative errors to
+`0.3424%` for stress, `0.5511%` for elastic strain, and `0.3879%` for combined
+inelastic strain. No denominator floor is introduced. M4.3 remains explicitly
+`qualified` only because elastic strain is slightly above the project target:
+its pointwise gate is `0.6%`, while stress, combined inelastic strain, and all
+other relative L2, peak, and pointwise gates use `0.5%`.
 
 MOOSE rotates stress, elastic strain, and `combined_inelastic_strain`, but its
 model-specific `plastic_strain` and `creep_strain` properties remain in their

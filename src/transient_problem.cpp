@@ -535,8 +535,6 @@ TransientConservationSummary TransientProblem::summarize_active_step(
     require_active_time_step();
     TransientConservationSummary result;
     std::vector<double> raw_residual(dof_count(), 0.0);
-    std::vector<double> traction_residual(dof_count(), 0.0);
-    _spatial_model.add_external_residual(traction_residual);
 
     for (std::size_t contribution = 0; contribution < contribution_count();
          ++contribution) {
@@ -569,14 +567,6 @@ TransientConservationSummary TransientProblem::summarize_active_step(
                 result.pressure_traction_work_increment -= work;
         }
     }
-    for (std::size_t dof = 0; dof < dof_count(); ++dof) {
-        raw_residual[dof] += traction_residual[dof];
-        const double increment =
-            converged_solution[dof] - _committed_solution[dof];
-        result.pressure_traction_work_increment -=
-            traction_residual[dof] * increment;
-    }
-
     for (std::size_t region_value = 0; region_value < region_count();
          ++region_value) {
         const Quad4RzTransientKernel& kernel =
@@ -766,7 +756,7 @@ TransientProblem::linearize_contribution(std::size_t contribution_index,
 
 void TransientProblem::add_state_independent_residual(
     std::vector<double>& residual) const {
-    _spatial_model.add_external_residual(residual);
+    (void)residual;
 }
 
 LocalValues TransientProblem::committed_element_state(

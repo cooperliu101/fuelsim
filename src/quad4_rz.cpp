@@ -176,14 +176,17 @@ AxisymmetricKinematics evaluate_axisymmetric_incremental_kinematics(
         deformation_rz * deformation_zr;
     const adlite::Scalar current_radius = point.radius + radial_displacement;
     if (!std::isfinite(determinant_rz.value()) ||
-        !(determinant_rz.value() > 0.0) ||
-        !std::isfinite(deformation_hoop.value()) ||
+        !(determinant_rz.value() > 0.0))
+        throw std::domain_error(
+            "Finite-strain Quad4 RZ deformation must preserve a positive "
+            "in-plane Jacobian");
+    if (!std::isfinite(deformation_hoop.value()) ||
         !(deformation_hoop.value() > 0.0) ||
         !std::isfinite(current_radius.value()) ||
         !(current_radius.value() > 0.0))
         throw std::domain_error(
             "Finite-strain Quad4 RZ deformation must preserve positive "
-            "Jacobian and radius");
+            "hoop stretch and current radius");
 
     for (std::size_t node = 0; node < quad4_node_count; ++node) {
         result.gradient_r[node] =

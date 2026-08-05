@@ -18,9 +18,9 @@
 namespace {
 
 constexpr double comparison_tolerance = 5.0e-3;
-constexpr double stress_pointwise_tolerance = 1.0e-1;
-constexpr double strain_pointwise_tolerance = 1.0e-1;
-constexpr double inelastic_pointwise_tolerance = 1.5e-1;
+constexpr double stress_pointwise_tolerance = 5.0e-3;
+constexpr double strain_pointwise_tolerance = 6.0e-3;
+constexpr double inelastic_pointwise_tolerance = 5.0e-3;
 constexpr double time_tolerance = 1.0e-12;
 
 bool check(bool condition, const std::string& message) {
@@ -64,6 +64,7 @@ double csv_value(const std::vector<std::string>& fields, std::size_t column,
 
 struct HistorySnapshot final {
     double time = 0.0;
+    double reference_height = 0.0;
     double top_radial_displacement = 0.0;
     double top_axial_displacement = 0.0;
     fuelsim::AxisymmetricStressValues stress{};
@@ -81,6 +82,13 @@ class HistoryObserver final : public fuelsim::TransientStepObserver {
         const fuelsim::RegionMesh& mesh = problem.region_mesh(0);
         const std::vector<double>& solution = problem.committed_solution();
         const double maximum_z = std::max_element(
+                                     mesh.nodes().begin(), mesh.nodes().end(),
+                                     [](const fuelsim::RzPoint& left,
+                                        const fuelsim::RzPoint& right) {
+                                         return left.z < right.z;
+                                     })
+                                     ->z;
+        const double minimum_z = std::min_element(
                                      mesh.nodes().begin(), mesh.nodes().end(),
                                      [](const fuelsim::RzPoint& left,
                                         const fuelsim::RzPoint& right) {
@@ -145,7 +153,8 @@ class HistoryObserver final : public fuelsim::TransientStepObserver {
         material.equivalent_plastic_strain /= total_weight;
         material.equivalent_creep_strain /= total_weight;
         _snapshots.push_back(
-            {step.time, radial / static_cast<double>(count),
+            {step.time, maximum_z - minimum_z,
+             radial / static_cast<double>(count),
              axial / static_cast<double>(count), stress, material});
     }
 
@@ -278,8 +287,15 @@ bool check_load_path(const std::vector<HistorySnapshot>& snapshots) {
                   close(final_stretch.top_radial_displacement, -1.5e-3) &&
                   close(final_stretch.top_axial_displacement, 6.0e-5),
               "M4.3 hits every noncoaxial load-path event");
+    const double shear = positive_shear.top_radial_displacement /
+                         positive_shear.reference_height;
+    const double axial_stretch =
+        1.0 + positive_shear.top_axial_displacement /
+                  positive_shear.reference_height;
     const double positive_polar_rotation =
-        std::abs(std::atan2(-1.0, 2.1));
+        std::abs(std::atan2(-shear, 1.0 + axial_stretch));
+    std::cout << "m43_positive_polar_rotation=" << positive_polar_rotation
+              << '\n';
     passed = check(positive_polar_rotation > 0.44,
                    "M4.3 positive-shear stage exceeds 25 degrees rotation") &&
              passed;

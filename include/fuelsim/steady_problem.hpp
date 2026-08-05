@@ -146,8 +146,6 @@ class SteadyProblem final : public NonlinearProblem {
     InterfaceSummary
     summarize_interface(std::size_t contact_index,
                         const std::vector<double>& state) const;
-    void add_external_residual(std::vector<double>& residual) const;
-
     std::size_t dof_count() const noexcept override;
     std::size_t contribution_count() const noexcept override;
     const std::vector<DirichletCondition>&

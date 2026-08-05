@@ -338,6 +338,7 @@ solver_options(const fuelsim::FuelSimCaseDefinition& definition) {
     // comparison path independent of the production default line search,
     // whose contact-onset cutback deliberately changes the time grid.
     options.line_search = fuelsim::SolverOptions::LineSearch::basic;
+    options.backtracking_fallback = false;
     options.residual_reduction_tolerance =
         definition.solver.residual_reduction_tolerance;
     options.field_residual_scaling =

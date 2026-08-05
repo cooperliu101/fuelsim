@@ -96,11 +96,13 @@ Dirichlet 和接触边界可使用任意属于所选区域的边集。每个接�
 芯块—包壳1—包壳2。每个元素块只能声明一次，区域节点与自由度保持独立。
 
 每个区域必须显式设置 `strain = small` 或 `strain = finite`。`small` 使用
-参考构形小应变弱式；`finite` 使用 MOOSE 默认的增量 Taylor 应变与 Rashid
-转动，并用 Cauchy 应力、当前构形梯度和当前 RZ 测度装配力学内力。热传导
-与热容仍使用参考构形。有限应变区域的 pressure 是当前构形 follower load；
-traction 可选择参考或当前构形表面测度。区域发生非正 Jacobian、非正环向伸长或
-非正当前半径时会拒绝 Newton 试探态，不做隐式夹持。
+参考构形小应变弱式。瞬态 `finite` 使用 MOOSE 默认的增量 Taylor 应变与
+Rashid 转动；稳态没有 committed 材料历史，从参考构形 `F_old=I` 对当前总
+变形做一次 Taylor 更新，不能解释为随稳态载荷步累计的增量材料路径。两者
+都用 Cauchy 应力、当前构形梯度和当前 RZ 测度装配力学内力。热传导与热容
+仍使用参考构形。有限应变区域的 pressure 是当前构形 follower load；
+traction 可选择参考或当前构形表面测度。区域发生非正 Jacobian、非正环向
+伸长或非正当前半径时会拒绝 Newton 试探态，不做隐式夹持。
 
 瞬态问题的每个区域还必须给出 `density`、`specific_heat` 和
 `inelastic_model`。可选模型及条件字段为：

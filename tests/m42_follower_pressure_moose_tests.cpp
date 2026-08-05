@@ -76,16 +76,18 @@ bool run_comparison(const std::string& input_path,
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 3) {
+    if (argc != 5) {
         std::cerr << "Usage: fuelsim_m42_follower_pressure_moose_tests "
-                     "<case.fsi> <all-nodes.csv>\n";
+                     "<outer-case.fsi> <outer-all-nodes.csv> "
+                     "<left-top-case.fsi> <left-top-all-nodes.csv>\n";
         return 2;
     }
     try {
         std::cout << std::scientific << std::setprecision(12);
         fuelsim::PetscSession session(
             argc, argv, "fuelsim M4.2 follower-pressure MOOSE comparison\n");
-        if (!run_comparison(argv[1], argv[2]))
+        if (!run_comparison(argv[1], argv[2]) ||
+            !run_comparison(argv[3], argv[4]))
             return 1;
         std::cout << "[PASS] M4.2 follower-pressure MOOSE comparison\n";
         return 0;
