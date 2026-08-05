@@ -931,6 +931,77 @@ bool test_follower_pressure() {
     return passed;
 }
 
+bool test_current_configuration_traction() {
+    const fuelsim::Line2RzTractionGeometry geometry =
+        fuelsim::make_line2_rz_traction_geometry(
+            {{{0.005, 0.0}, {0.005, 0.01}}}, {{1, 2}});
+    constexpr double traction = 2.0e6;
+    const fuelsim::Line2RzTractionKernel current(
+        {fuelsim::TractionComponent::axial, traction, true});
+    const fuelsim::LocalValues state = {
+        600.0, 600.0, 600.0, 600.0,
+        0.0,   0.001, 0.002, 0.0,
+        0.0,   0.0004, -0.0002, 0.0,
+    };
+    const fuelsim::LocalValues direction = {
+        0.0, 0.0, 0.0, 0.0,
+        0.0, 0.3, -0.2, 0.0,
+        0.0, -0.4, 0.5, 0.0,
+    };
+    const fuelsim::LocalSystem system = current.linearize(geometry, state);
+    const double current_length = std::hypot(0.001, 0.0094);
+    const double expected_axial =
+        -2.0 * pi * 0.0065 * current_length * traction;
+    bool passed =
+        check(scaled_error(system.residual[9] + system.residual[10],
+                           expected_axial) < 1.0e-13,
+              "current-configuration component traction uses current RZ "
+              "surface measure");
+
+    constexpr double step = 1.0e-7;
+    fuelsim::LocalValues plus = state;
+    fuelsim::LocalValues minus = state;
+    for (std::size_t dof = 0; dof < state.size(); ++dof) {
+        plus[dof] += step * direction[dof];
+        minus[dof] -= step * direction[dof];
+    }
+    const fuelsim::LocalResidual plus_residual =
+        current.residual(geometry, plus);
+    const fuelsim::LocalResidual minus_residual =
+        current.residual(geometry, minus);
+    double maximum_error = 0.0;
+    for (std::size_t row = 0; row < state.size(); ++row) {
+        double tangent = 0.0;
+        for (std::size_t column = 0; column < state.size(); ++column)
+            tangent += system.jacobian[row * state.size() + column] *
+                       direction[column];
+        const double finite_difference =
+            (plus_residual[row] - minus_residual[row]) / (2.0 * step);
+        maximum_error =
+            std::max(maximum_error, scaled_error(tangent, finite_difference));
+    }
+    std::cout << "current_traction_directional_jacobian_error="
+              << maximum_error << '\n';
+    passed = check(maximum_error < 1.0e-8,
+                   "current-configuration traction AD Jacobian matches "
+                   "centered differences") &&
+             passed;
+
+    const fuelsim::Line2RzTractionKernel reference(
+        {fuelsim::TractionComponent::axial, traction, false});
+    const fuelsim::LocalSystem reference_system =
+        reference.linearize(geometry, state);
+    const double maximum_reference_tangent = *std::max_element(
+        reference_system.jacobian.begin(), reference_system.jacobian.end(),
+        [](double left, double right) {
+            return std::abs(left) < std::abs(right);
+        });
+    return check(maximum_reference_tangent == 0.0,
+                 "reference-configuration traction has zero geometric "
+                 "tangent") &&
+           passed;
+}
+
 bool test_temperature_active_thermoelastic_properties() {
     fuelsim::ThermoelasticProperties active_properties = properties();
     active_properties.young_modulus_temperature_coefficient = -8.0e7;
@@ -980,6 +1051,7 @@ int main() {
     passed = test_m1_dof_layout() && passed;
     passed = test_time_table_and_convection() && passed;
     passed = test_follower_pressure() && passed;
+    passed = test_current_configuration_traction() && passed;
     passed = test_temperature_active_thermoelastic_properties() && passed;
 
     if (!passed)

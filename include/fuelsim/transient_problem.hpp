@@ -33,11 +33,34 @@ struct RegionInelasticSummary final {
     double maximum_equivalent_creep_strain;
 };
 
+struct TransientConservationSummary final {
+    double generated_heat_rate = 0.0;
+    double stored_heat_rate = 0.0;
+    double convection_heat_rate = 0.0;
+    double interface_heat_imbalance = 0.0;
+    double dirichlet_heat_input_rate = 0.0;
+    double global_thermal_balance = 0.0;
+    double relative_thermal_balance = 0.0;
+    double unconstrained_thermal_residual_l2 = 0.0;
+
+    double internal_mechanical_work_increment = 0.0;
+    double pressure_traction_work_increment = 0.0;
+    double dirichlet_reaction_work_increment = 0.0;
+    double contact_work_increment = 0.0;
+    double mechanical_work_balance = 0.0;
+    double relative_mechanical_work_balance = 0.0;
+    double unconstrained_mechanical_residual_l2 = 0.0;
+    double elastic_energy_change = 0.0;
+    double plastic_dissipation_increment = 0.0;
+    double creep_dissipation_increment = 0.0;
+};
+
 struct TransientCommittedState final {
     std::vector<double> solution;
     std::vector<std::vector<Quad4MaterialHistory>> material_histories;
     std::vector<std::vector<std::array<AxisymmetricStressValues, 4>>>
         material_stresses;
+    TransientConservationSummary conservation;
     double time = 0.0;
     double load_factor = 0.0;
 };
@@ -81,6 +104,8 @@ class TransientProblem final : public NonlinearProblem {
     material_stress(std::size_t region_index, std::size_t element_index) const;
     RegionInelasticSummary
     summarize_region_history(std::size_t region_index) const;
+    const TransientConservationSummary&
+    last_conservation_summary() const noexcept;
     InterfaceSummary
     summarize_interface(std::size_t contact_index,
                         const std::vector<double>& state) const;
@@ -109,6 +134,11 @@ class TransientProblem final : public NonlinearProblem {
   private:
     LocalValues
     committed_element_state(std::size_t contribution_index) const;
+    TransientConservationSummary summarize_active_step(
+        const std::vector<double>& converged_solution,
+        const std::vector<std::vector<Quad4MaterialHistory>>& staged_histories,
+        const std::vector<std::vector<std::array<AxisymmetricStressValues, 4>>>&
+            staged_stresses) const;
     void require_active_time_step() const;
 
     TransientProblemDefinition _definition;
@@ -117,6 +147,7 @@ class TransientProblem final : public NonlinearProblem {
     std::vector<std::vector<Quad4MaterialHistory>> _material_histories;
     std::vector<std::vector<std::array<AxisymmetricStressValues, 4>>>
         _material_stresses;
+    TransientConservationSummary _last_conservation_summary;
     std::vector<double> _committed_solution;
     double _committed_time;
     double _committed_load_factor;

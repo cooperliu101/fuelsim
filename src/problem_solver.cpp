@@ -1,6 +1,7 @@
 #include "fuelsim/problem_solver.hpp"
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <limits>
@@ -105,6 +106,12 @@ void validate_time_options(const TransientProblem& problem,
         !(options.temperature_time_absolute_tolerance > 0.0) ||
         !std::isfinite(options.displacement_time_absolute_tolerance) ||
         !(options.displacement_time_absolute_tolerance > 0.0) ||
+        !std::isfinite(
+            options.strain_history_time_absolute_tolerance) ||
+        !(options.strain_history_time_absolute_tolerance > 0.0) ||
+        !std::isfinite(
+            options.stress_history_time_absolute_tolerance) ||
+        !(options.stress_history_time_absolute_tolerance > 0.0) ||
         !std::isfinite(options.time_error_safety_factor) ||
         !(options.time_error_safety_factor > 0.0 &&
           options.time_error_safety_factor < 1.0))
@@ -189,38 +196,146 @@ void combine_attempt(SolveResult& aggregate, const SolveResult& addition) {
     aggregate.basic_failure_message = basic_message;
 }
 
-double step_doubling_error(const std::vector<double>& full_step,
-                           const std::vector<double>& two_half_steps,
-                           const TransientTimeOptions& options) {
-    if (full_step.size() != two_half_steps.size() ||
-        full_step.size() % 3 != 0)
+struct ErrorAccumulator final {
+    double difference_squared = 0.0;
+    double solution_squared = 0.0;
+    std::size_t count = 0;
+};
+
+void accumulate_error(ErrorAccumulator& accumulator, double full_step,
+                      double two_half_steps) {
+    const double difference = two_half_steps - full_step;
+    accumulator.difference_squared += difference * difference;
+    accumulator.solution_squared += two_half_steps * two_half_steps;
+    ++accumulator.count;
+}
+
+double normalized_error(const ErrorAccumulator& accumulator,
+                        double absolute_tolerance,
+                        double relative_tolerance) {
+    if (accumulator.count == 0)
+        return 0.0;
+    const double denominator =
+        absolute_tolerance *
+            std::sqrt(static_cast<double>(accumulator.count)) +
+        relative_tolerance * std::sqrt(accumulator.solution_squared);
+    return std::sqrt(accumulator.difference_squared) / denominator;
+}
+
+TransientTimeErrorEstimate
+step_doubling_error(const TransientCommittedState& full_step,
+                    const TransientCommittedState& two_half_steps,
+                    const TransientTimeOptions& options) {
+    if (full_step.solution.size() != two_half_steps.solution.size() ||
+        full_step.solution.size() % 3 != 0)
         throw std::logic_error(
             "step-doubling states must share the [T, ur, uz] layout");
-    const std::size_t node_count = full_step.size() / 3;
-    const double square_root_node_count =
-        std::sqrt(static_cast<double>(node_count));
-    double maximum = 0.0;
+    if (full_step.material_histories.size() !=
+            two_half_steps.material_histories.size() ||
+        full_step.material_stresses.size() !=
+            two_half_steps.material_stresses.size())
+        throw std::logic_error(
+            "step-doubling material-state region layouts differ");
+
+    const std::size_t node_count = full_step.solution.size() / 3;
+    std::array<ErrorAccumulator, 3> nodal{};
     for (std::size_t field = 0; field < 3; ++field) {
-        double difference_squared = 0.0;
-        double solution_squared = 0.0;
         const std::size_t begin = field * node_count;
         const std::size_t end = begin + node_count;
-        for (std::size_t dof = begin; dof < end; ++dof) {
-            const double difference = two_half_steps[dof] - full_step[dof];
-            difference_squared += difference * difference;
-            solution_squared += two_half_steps[dof] * two_half_steps[dof];
-        }
-        const double absolute_tolerance =
-            field == 0 ? options.temperature_time_absolute_tolerance
-                       : options.displacement_time_absolute_tolerance;
-        const double denominator =
-            absolute_tolerance * square_root_node_count +
-            options.time_error_relative_tolerance *
-                std::sqrt(solution_squared);
-        maximum = std::max(maximum,
-                           std::sqrt(difference_squared) / denominator);
+        for (std::size_t dof = begin; dof < end; ++dof)
+            accumulate_error(nodal[field], full_step.solution[dof],
+                             two_half_steps.solution[dof]);
     }
-    return maximum;
+
+    ErrorAccumulator elastic;
+    ErrorAccumulator plastic;
+    ErrorAccumulator creep;
+    ErrorAccumulator equivalent_plastic;
+    ErrorAccumulator equivalent_creep;
+    ErrorAccumulator stress;
+    for (std::size_t region = 0;
+         region < full_step.material_histories.size(); ++region) {
+        const auto& full_history = full_step.material_histories[region];
+        const auto& half_history = two_half_steps.material_histories[region];
+        const auto& full_stress = full_step.material_stresses[region];
+        const auto& half_stress = two_half_steps.material_stresses[region];
+        if (full_history.size() != half_history.size() ||
+            full_stress.size() != half_stress.size() ||
+            full_history.size() != full_stress.size())
+            throw std::logic_error(
+                "step-doubling material-state element layouts differ");
+        for (std::size_t element = 0; element < full_history.size();
+             ++element) {
+            for (std::size_t q = 0; q < 4; ++q) {
+                const MaterialPointState& full_point =
+                    full_history[element][q];
+                const MaterialPointState& half_point =
+                    half_history[element][q];
+                for (std::size_t component = 0; component < 4; ++component) {
+                    accumulate_error(elastic,
+                                     full_point.elastic_strain[component],
+                                     half_point.elastic_strain[component]);
+                    accumulate_error(plastic,
+                                     full_point.plastic_strain[component],
+                                     half_point.plastic_strain[component]);
+                    accumulate_error(creep,
+                                     full_point.creep_strain[component],
+                                     half_point.creep_strain[component]);
+                }
+                accumulate_error(equivalent_plastic,
+                                 full_point.equivalent_plastic_strain,
+                                 half_point.equivalent_plastic_strain);
+                accumulate_error(equivalent_creep,
+                                 full_point.equivalent_creep_strain,
+                                 half_point.equivalent_creep_strain);
+
+                const AxisymmetricStressValues& full_value =
+                    full_stress[element][q];
+                const AxisymmetricStressValues& half_value =
+                    half_stress[element][q];
+                accumulate_error(stress, full_value.rr, half_value.rr);
+                accumulate_error(stress, full_value.zz, half_value.zz);
+                accumulate_error(stress, full_value.hoop, half_value.hoop);
+                accumulate_error(stress, full_value.rz, half_value.rz);
+            }
+        }
+    }
+
+    TransientTimeErrorEstimate result;
+    result.temperature = normalized_error(
+        nodal[0], options.temperature_time_absolute_tolerance,
+        options.time_error_relative_tolerance);
+    result.radial_displacement = normalized_error(
+        nodal[1], options.displacement_time_absolute_tolerance,
+        options.time_error_relative_tolerance);
+    result.axial_displacement = normalized_error(
+        nodal[2], options.displacement_time_absolute_tolerance,
+        options.time_error_relative_tolerance);
+    result.elastic_strain = normalized_error(
+        elastic, options.strain_history_time_absolute_tolerance,
+        options.time_error_relative_tolerance);
+    result.plastic_strain = normalized_error(
+        plastic, options.strain_history_time_absolute_tolerance,
+        options.time_error_relative_tolerance);
+    result.creep_strain = normalized_error(
+        creep, options.strain_history_time_absolute_tolerance,
+        options.time_error_relative_tolerance);
+    result.equivalent_plastic_strain = normalized_error(
+        equivalent_plastic, options.strain_history_time_absolute_tolerance,
+        options.time_error_relative_tolerance);
+    result.equivalent_creep_strain = normalized_error(
+        equivalent_creep, options.strain_history_time_absolute_tolerance,
+        options.time_error_relative_tolerance);
+    result.stress = normalized_error(
+        stress, options.stress_history_time_absolute_tolerance,
+        options.time_error_relative_tolerance);
+    result.maximum = std::max(
+        {result.temperature, result.radial_displacement,
+         result.axial_displacement, result.elastic_strain,
+         result.plastic_strain, result.creep_strain,
+         result.equivalent_plastic_strain,
+         result.equivalent_creep_strain, result.stress});
+    return result;
 }
 
 double time_error_step_factor(const TransientTimeOptions& options,
@@ -355,6 +470,7 @@ TransientResult solve_transient(TransientProblem& problem,
             const double end_time = problem.committed_time() + time_step;
             SolveResult attempt;
             double time_error_estimate = 0.0;
+            TransientTimeErrorEstimate time_error_components;
             int controller_nonlinear_iterations = 0;
             const bool error_control =
                 options.time_error_relative_tolerance > 0.0;
@@ -377,6 +493,7 @@ TransientResult solve_transient(TransientProblem& problem,
                         transaction.commit(attempt.state);
                 } else {
                     SolveResult full_step;
+                    TransientCommittedState full_step_state;
                     {
                         TimeStepTransaction transaction(
                             problem,
@@ -387,11 +504,16 @@ TransientResult solve_transient(TransientProblem& problem,
                             initial_guess_with_dirichlet_values(
                                 problem, problem.committed_solution()),
                             solver_options);
+                        if (full_step.converged) {
+                            transaction.commit(full_step.state);
+                            full_step_state = problem.committed_state();
+                        }
                     }
                     attempt = full_step;
                     controller_nonlinear_iterations =
                         full_step.nonlinear_iterations;
                     if (full_step.converged) {
+                        problem.restore_committed_state(base_state);
                         const double half_time =
                             base_state.time + 0.5 * time_step;
                         SolveResult first_half;
@@ -439,9 +561,11 @@ TransientResult solve_transient(TransientProblem& problem,
                                 problem.restore_committed_state(
                                     std::move(base_state));
                             } else {
-                                time_error_estimate = step_doubling_error(
-                                    full_step.state, second_half.state,
-                                    options);
+                                time_error_components = step_doubling_error(
+                                    full_step_state,
+                                    problem.committed_state(), options);
+                                time_error_estimate =
+                                    time_error_components.maximum;
                                 if (!(time_error_estimate <= 1.0)) {
                                     problem.restore_committed_state(
                                         std::move(base_state));
@@ -503,7 +627,9 @@ TransientResult solve_transient(TransientProblem& problem,
                     {problem.committed_time(), time_step, next_time_step,
                      problem.committed_load_factor(), cutbacks,
                      result.last_attempt.nonlinear_iterations,
-                     std::move(histories), time_error_estimate});
+                     std::move(histories), time_error_estimate,
+                     time_error_components,
+                     problem.last_conservation_summary()});
                 if (observer != nullptr)
                     observer->accepted_step(problem,
                                             result.accepted_steps.back());
@@ -515,7 +641,8 @@ TransientResult solve_transient(TransientProblem& problem,
                  result.last_attempt.convergence_reason,
                  result.last_attempt.residual_norm,
                  result.last_attempt.failure_category,
-                 result.last_attempt.failure_message, time_error_estimate});
+                 result.last_attempt.failure_message, time_error_estimate,
+                 time_error_components});
             if (cutbacks >= options.maximum_cutbacks_per_step) {
                 result.termination_reason =
                     TransientTerminationReason::maximum_cutbacks;

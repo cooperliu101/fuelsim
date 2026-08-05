@@ -88,6 +88,11 @@ double Quad4RzTransientKernel::volumetric_heat_source() const noexcept {
     return _volumetric_heat_source;
 }
 
+const TransientInelasticProperties&
+Quad4RzTransientKernel::properties() const noexcept {
+    return _material.properties();
+}
+
 void Quad4RzTransientKernel::set_volumetric_heat_source(
     double volumetric_heat_source) {
     if (!std::isfinite(volumetric_heat_source) ||

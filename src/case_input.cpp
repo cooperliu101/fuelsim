@@ -499,7 +499,7 @@ read_boundary_condition(const InputDocument& document,
                   {"type", "boundary", "field", "value", "scale_with_load",
                    "function", "heat_transfer_coefficient",
                    "ambient_temperature", "coefficient_function",
-                   "ambient_temperature_function"});
+                   "ambient_temperature_function", "configuration"});
     const std::string type = read_string(document, section, "type");
     const bool scale_with_load =
         read_optional_bool(document, section, "scale_with_load", false);
@@ -508,6 +508,7 @@ read_boundary_condition(const InputDocument& document,
         value_error(document, section.entry("scale_with_load"),
                     "scale_with_load cannot be combined with function");
     if (type == "dirichlet") {
+        forbid_key(document, section, "configuration", "type='dirichlet'");
         forbid_convection_keys(document, section, "type='dirichlet'");
         BoundaryConditionDefinition result{
             leaf_name(section),
@@ -520,6 +521,7 @@ read_boundary_condition(const InputDocument& document,
         return result;
     }
     if (type == "pressure") {
+        forbid_key(document, section, "configuration", "type='pressure'");
         forbid_key(document, section, "field", "type='pressure'");
         forbid_convection_keys(document, section, "type='pressure'");
         BoundaryConditionDefinition result{
@@ -547,9 +549,16 @@ read_boundary_condition(const InputDocument& document,
             read_double(document, section, "value"),
             scale_with_load};
         result.function = function;
+        const std::string configuration =
+            read_optional_string(section, "configuration", "reference");
+        if (configuration != "reference" && configuration != "current")
+            value_error(document, section.entry("configuration"),
+                        "traction configuration must be reference or current");
+        result.use_displaced_geometry = configuration == "current";
         return result;
     }
     if (type == "convection") {
+        forbid_key(document, section, "configuration", "type='convection'");
         forbid_key(document, section, "field", "type='convection'");
         forbid_key(document, section, "value", "type='convection'");
         forbid_key(document, section, "scale_with_load", "type='convection'");
@@ -737,7 +746,9 @@ FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
                        "time_error_relative_tolerance",
                        "temperature_time_absolute_tolerance",
                        "displacement_time_absolute_tolerance",
-                       "time_error_safety_factor"});
+                       "time_error_safety_factor",
+                       "strain_history_time_absolute_tolerance",
+                       "stress_history_time_absolute_tolerance"});
         if (executioner_type != "transient")
             value_error(document, executioner.entry("type"),
                         "problem='transient' requires type='transient'");
@@ -763,7 +774,13 @@ FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
                                  "displacement_time_absolute_tolerance",
                                  1.0e-10),
             read_optional_double(document, executioner,
-                                 "time_error_safety_factor", 0.9)};
+                                 "time_error_safety_factor", 0.9),
+            read_optional_double(
+                document, executioner,
+                "strain_history_time_absolute_tolerance", 1.0e-10),
+            read_optional_double(
+                document, executioner,
+                "stress_history_time_absolute_tolerance", 1.0)};
         const std::string restart =
             read_optional_string(executioner, "restart", {});
         result.transient_execution.restart_file =
@@ -785,6 +802,10 @@ FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
                       .temperature_time_absolute_tolerance > 0.0) ||
             !(result.transient_execution
                       .displacement_time_absolute_tolerance > 0.0) ||
+            !(result.transient_execution
+                      .strain_history_time_absolute_tolerance > 0.0) ||
+            !(result.transient_execution
+                      .stress_history_time_absolute_tolerance > 0.0) ||
             !(result.transient_execution.time_error_safety_factor > 0.0 &&
               result.transient_execution.time_error_safety_factor < 1.0))
             throw std::invalid_argument(
@@ -802,7 +823,9 @@ FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
                    "field_residual_scaling",
                    "residual_reduction_tolerance",
                    "temperature_residual_absolute_tolerance",
-                   "mechanical_residual_absolute_tolerance"});
+                   "mechanical_residual_absolute_tolerance",
+                   "temperature_residual_scale",
+                   "mechanical_residual_scale"});
     result.solver = {
         read_optional_double(document, solver, "absolute_tolerance", 1.0e-8),
         read_optional_double(document, solver, "relative_tolerance", 1.0e-10),
@@ -823,7 +846,11 @@ FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
                              1.0e-8),
         read_optional_double(document, solver,
                              "mechanical_residual_absolute_tolerance",
-                             1.0e-4)};
+                             1.0e-4),
+        read_optional_double(document, solver, "temperature_residual_scale",
+                             0.0),
+        read_optional_double(document, solver, "mechanical_residual_scale",
+                             0.0)};
     if (!(result.solver.absolute_tolerance > 0.0) ||
         !(result.solver.relative_tolerance > 0.0) ||
         !(result.solver.step_tolerance > 0.0) ||
@@ -832,9 +859,23 @@ FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
         !(result.solver.residual_reduction_tolerance > 0.0) ||
         !(result.solver.temperature_residual_absolute_tolerance > 0.0) ||
         !(result.solver.mechanical_residual_absolute_tolerance > 0.0) ||
+        result.solver.temperature_residual_scale < 0.0 ||
+        result.solver.mechanical_residual_scale < 0.0 ||
         result.solver.maximum_linear_iterations <= 0)
         throw std::invalid_argument(
             path + ": solver tolerances and iteration limit must be positive");
+    const bool fixed_temperature_scale =
+        result.solver.temperature_residual_scale > 0.0;
+    const bool fixed_mechanical_scale =
+        result.solver.mechanical_residual_scale > 0.0;
+    if (fixed_temperature_scale != fixed_mechanical_scale)
+        throw std::invalid_argument(
+            path + ": temperature_residual_scale and "
+                   "mechanical_residual_scale must both be zero or positive");
+    if (fixed_temperature_scale && result.solver.field_residual_scaling)
+        throw std::invalid_argument(
+            path + ": fixed residual scales cannot be combined with "
+                   "field_residual_scaling");
     if (result.solver.linear_solver != "automatic" &&
         result.solver.linear_solver != "direct" &&
         result.solver.linear_solver != "gmres")

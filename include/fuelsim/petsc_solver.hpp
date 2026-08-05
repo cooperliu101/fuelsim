@@ -64,6 +64,8 @@ struct SolverOptions final {
     double residual_reduction_tolerance = 1.0e-6;
     double temperature_residual_absolute_tolerance = 1.0e-8;
     double mechanical_residual_absolute_tolerance = 1.0e-4;
+    double temperature_residual_scale = 0.0;
+    double mechanical_residual_scale = 0.0;
 };
 
 struct SolveTiming final {

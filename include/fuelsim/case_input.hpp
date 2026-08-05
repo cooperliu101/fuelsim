@@ -44,6 +44,8 @@ struct TransientExecutionInput final {
     double temperature_time_absolute_tolerance;
     double displacement_time_absolute_tolerance;
     double time_error_safety_factor;
+    double strain_history_time_absolute_tolerance;
+    double stress_history_time_absolute_tolerance;
 };
 
 struct NonlinearSolverInput final {
@@ -60,6 +62,8 @@ struct NonlinearSolverInput final {
     double residual_reduction_tolerance;
     double temperature_residual_absolute_tolerance;
     double mechanical_residual_absolute_tolerance;
+    double temperature_residual_scale;
+    double mechanical_residual_scale;
 };
 
 struct CaseOutputInput final {

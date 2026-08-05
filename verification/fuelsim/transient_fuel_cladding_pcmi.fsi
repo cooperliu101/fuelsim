@@ -42,7 +42,7 @@
     creep_coefficient = 1e-5
     creep_reference_stress = 5e6
     creep_exponent = 3
-    yield_stress = 5e6
+    yield_stress = 4e6
     hardening_modulus = 2e9
   []
 []

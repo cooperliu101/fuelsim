@@ -257,20 +257,16 @@
   []
 []
 
-[ThermalContact]
+[MortarGapHeatTransfer]
   [gap]
-    type = GapHeatTransfer
-    variable = T
-    primary = clad_left
-    secondary = fuel_right
+    temperature = T
+    boundary = clad_left
+    primary_boundary = clad_left
+    secondary_boundary = fuel_right
     gap_conductivity = 0.4
-    quadrature = true
-    gap_geometry_type = CYLINDER
     min_gap = 1.0e-6
-    min_gap_order = 0
-    max_gap = 1.0e6
-    emissivity_primary = 0
-    emissivity_secondary = 0
+    gap_flux_options = CONDUCTION
+    use_displaced_mesh = true
   []
 []
 
@@ -387,7 +383,7 @@
   [clad_plasticity]
     type = ADIsotropicPlasticityStressUpdate
     block = clad
-    yield_stress = 5.0e6
+    yield_stress = 4.0e6
     hardening_constant = 2.0e9
   []
 []
@@ -480,6 +476,7 @@
   [all_nodes]
     type = NodalValueSampler
     variable = 'T disp_x disp_y'
+    block = 'fuel clad'
     sort_by = id
     use_displaced_mesh = false
   []

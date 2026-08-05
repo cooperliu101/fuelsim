@@ -17,10 +17,10 @@ files.
 | M2.2 Norton | `m22_norton_creep_rz_mesh.e` | 4 / 1 | `ec33e81651ce9ae3b3cefef8375a4e7256327be1a7ceede813cd3ea1ca7bcec7` |
 | M2.2 coupled displacement | `m22_coupled_plastic_creep_rz_mesh.e` | 4 / 1 | `528411ed474f58b85cc4601a66a3979325beaee93b84f04c7ababaf6ad0a54aa` |
 | M2.2 coupled traction | `m22_coupled_plastic_creep_traction_rz_mesh.e` | 4 / 1 | `664e7f6f8bfddd765db623592bdda769897f71bf3712d7d7b69f09070dd5f984` |
-| M2.3 nonmatching PCMI | `m23_pcmi_coupled_cladding_rz_mesh.e` | 53 / 34 | `bdcb8d22550ec68c647330e2a5214331e0b65b2bdbfdba82322824314a476b45` |
+| M2.3 nonmatching PCMI | `m23_pcmi_coupled_cladding_rz_mesh.e` | 53 / 34 | `199101c25ed34d28c6356edec384cb9abe03ca5e5678352be8fbad42dde888c7` |
 | M4.1 finite-strain PCMI | `m41_finite_strain_pcmi_rz_mesh.e` | 53 / 34 | `d5c42199ed41a749467d3d77e2c0a7c7a09e59d17cdb0bdc52117ce6c707402d` |
 | M4.2 follower pressure | `m22_coupled_plastic_creep_traction_rz_mesh.e` | 4 / 1 | `664e7f6f8bfddd765db623592bdda769897f71bf3712d7d7b69f09070dd5f984` |
-| M4.3 noncoaxial finite strain | `m43_noncoaxial_finite_strain_rz_mesh.e` | 4 / 1 | `171e0c6a9d35d80bb95d868a2b15afe6c277d4194b7af46334078252fc27a1e4` |
+| M4.3 noncoaxial finite strain | `m43_noncoaxial_finite_strain_rz_mesh.e` | 9 / 4 | `ebeebcd574612226084d8b5a45672c7e96843d74d1d5e4b6399b63c5217ded5c` |
 | M3.1 time-table convection | `m31_transient_table_convection_rz_mesh.e` | 15 / 8 | `9be197728d3a52ff05e1063593eb47969dc05950e317f71a59082915ba3e7e57` |
 | M3.3 two-pellet contact | `m33_two_pellet_contact_rz_mesh.e` | 36 / 20 | `90c90396384397cbd0c993f35ac90c6e402996c77454820c009a653e8748f474` |
 
@@ -36,6 +36,8 @@ stem:
 The reader preserves block, node-set, and side-set IDs and names. Single-region
 cases select block ID 0 because the default MOOSE block has no required name;
 M1, M2.3, and M4.1 select the named `fuel` and `clad` blocks.
+M2.3 uses mortar gap heat transfer in the solve, so its mesh-only command adds
+`MortarGapHeatTransfer/active=''`; this changes no generated mesh entity.
 
 `SHA256SUMS` is the machine-checked authority for every tracked MOOSE input,
 mesh, and result snapshot. `fuelsim_moose_reference_sha256` recomputes every
@@ -569,7 +571,7 @@ expansion for this isolated pellet-driven regression, and the coupled law:
 ```text
 fuelsim Norton A / q_ref / n:     1e-5 / 5e6 Pa / 3
 MOOSE Norton coefficient:         8e-26 Pa^-3 s^-1
-yield stress / hardening:         5 MPa / 2 GPa
+yield stress / hardening:         4 MPa / 2 GPa
 ```
 
 This is a generic algorithm-verification material set, not a calibrated fuel
@@ -585,6 +587,15 @@ conda activate moose
   Outputs/console=false
 ```
 
+The tracked mesh is regenerated with:
+
+```bash
+/home/cooper/projects/july/july-opt \
+  -i m23_pcmi_coupled_cladding_rz.i \
+  --mesh-only m23_pcmi_coupled_cladding_rz_mesh.e \
+  MortarGapHeatTransfer/active=''
+```
+
 All 20 steps converged. Two independent runs produced byte-for-byte identical
 scalar, final all-node, final fuel-surface, quadrature-point coordinate, and
 quadrature-point value CSVs. The tracked snapshots are
@@ -596,31 +607,30 @@ quadrature-point value CSVs. The tracked snapshots are
 fuel-surface SHA256 values are:
 
 ```text
-3fcc231563165a18ec38fc609ca08b615f7dd7a03e28edfd6317f529c50c0207
-9daa196e9f90c0f5a8f6c196c02565e9b01f4b02c7744b21ae9d8f8d28c906ae
+558d7d3f98490cbba87eeded54031a18d2befb134028310f5223e64941a43e5b
+309f28d07d048b194dce81f982c49256e9574dcd58552b3147201531d277e32d
 ```
 
 The final complete-field differences are:
 
 ```text
                                       relative L2   relative absolute peak   pointwise max
-temperature:                           0.00976%      0.00081%                0.04262%
-radial displacement:                   0.08349%      0.11553%                0.23673%
-axial displacement:                    0.02026%      0.02408%                0.06704%
-contact pressure:                      0.04486%      0.00805%                0.09203%
+temperature:                           0.003162%     0.001392%               0.010378%
+radial displacement:                   0.030131%     0.036336%               0.070356%
+axial displacement:                    0.008538%     0.002066%               0.029326%
+contact pressure:                      0.026991%     0.024168%               0.040336%
 
-average von Mises stress error:            0.00322%
-average effective plastic strain error:   0.03698%
-average effective creep strain error:     0.02812%
-total contact force relative error:        0.00065%
+average von Mises stress error:            0.000584%
+average effective plastic strain error:   0.004427%
+average effective creep strain error:     0.003664%
+total contact force relative error:        0.004283%
 projected / active fuel surface nodes:     5 / 5
 ```
 
-Temperature and axial displacement pass `<0.1%` for all three metrics. Radial
-displacement passes relative L2 `<0.095%`; its relative absolute-peak and maximum
-pointwise-relative gates are `<0.125%` and `<0.27%`. The pressure-vector metrics
-pass `<0.11%`, and total force passes `<0.1%`. Stress and both average history
-metrics pass `<0.1%`.
+Every nodal field, pressure, total force, and average material metric passes the
+uniform `<0.1%` gate. The MOOSE heat-transfer reference uses
+`MortarGapHeatTransfer`, which matches fuelsim's conservative secondary-side
+STS weak form without the former double-sided quadrature operator mismatch.
 
 The cladding pointwise comparison covers all `10 elements x 4 QPs = 40`
 integration points. `ADMaterialRealAux` with `selected_qp` extracts the three
@@ -632,17 +642,14 @@ IDs, and physical coordinates. MOOSE orders local points as
 
 ```text
                                       relative L2   relative absolute peak   pointwise max   maximum absolute
-von Mises stress:                     0.01158%      0.03239%                0.03239%        1.8434e3 Pa
-effective plastic strain:            0.13129%      0.26656%                0.28315%        9.2168e-7
-effective creep strain:              0.07111%      0.18375%                0.18375%        2.7361e-7
+von Mises stress:                     0.006587%     0.013967%               0.013967%       6.7591e2 Pa
+effective plastic strain:            0.049466%     0.080528%               0.086612%       3.3795e-7
+effective creep strain:              0.014778%     0.021603%               0.027296%       2.0205e-8
 ```
 
-The maximum relative stress and creep errors occur at local cladding element
-8, QP 3. The maximum relative plastic error occurs at local element 9, QP 2.
-Pointwise gates are stress L2/peak/pointwise
-`<0.015%`/`<0.04%`/`<0.04%`, plastic strain
-`<0.15%`/`<0.29%`/`<0.305%`, and creep strain
-`<0.09%`/`<0.195%`/`<0.195%`.
+The maximum relative stress occurs at local cladding element 8, QP 3; the
+plastic and creep maxima occur at element 9, QP 3 and element 4, QP 0.
+All nine quadrature-point metrics use and pass the same `<0.1%` gate.
 
 ## M4.1 finite-strain PCMI
 
@@ -705,12 +712,15 @@ stiffness.
 
 ## M4.3 noncoaxial multistep finite rotation
 
-`m43_noncoaxial_finite_strain_rz.i` generates one annular RZ Quad4 and leaves
-the finite-strain decomposition and rotation controls unset. Over 50 fixed
-`0.1 s` steps, the prescribed top edge is stretched, sheared to `gamma=0.8`,
-axially reversed, shear-reversed, and stretched again. The positive-shear
-stage has a polar rotation of about `20.85 degrees`; coupled J2 plasticity and
-Norton creep are active throughout the changing stress direction.
+`m43_noncoaxial_finite_strain_rz.i` generates a distorted `2 x 2` annular RZ
+mesh with 9 nodes and 4 Quad4 elements, and leaves the finite-strain
+decomposition and rotation controls unset. Over 100 fixed `0.05 s` steps, the
+prescribed top edge is stretched, sheared to `gamma=1.0`, axially reversed,
+shear-reversed, and stretched again. The positive-shear stage has a polar
+rotation of about `25.46 degrees`; coupled J2 plasticity and Norton creep are
+active throughout the changing stress direction. A `1 MPa` inner follower
+pressure and a `1 MPa` outer axial component traction are ramped over the
+same five seconds; both use the current surface measure.
 
 The tracked mesh and snapshots were generated with one rank using:
 
@@ -726,19 +736,33 @@ The tracked mesh and snapshots were generated with one rank using:
   Outputs/console=false
 ```
 
-The automated comparison checks every accepted QP0 history row for stress,
-elastic strain, objective `combined_inelastic_strain`, effective plastic
-strain, and effective creep strain, plus all final nodes. The largest of all
-three relative metrics is the effective-creep maximum pointwise error
-`0.000486%`; every metric is below `0.5%`.
+The automated comparison checks every accepted volume-averaged history row for
+stress, elastic strain, objective `combined_inelastic_strain`, effective
+plastic strain, and effective creep strain, plus all final nodes. The nodal
+temperature/radial/axial maximum three-metric values are `1.9e-14%`,
+`0.16012%`, and `0.48383%`. Equivalent-plastic and equivalent-creep metrics
+remain below `0.0153%`.
+
+For the sign-changing tensor components, full-history L2 and relative
+absolute-peak errors remain below `0.0332%`. Near reversal crossings the
+reference component can be less than `0.2%` of its history peak, so the
+unmodified maximum pointwise relative errors are `8.696%` for stress,
+`6.602%` for elastic strain, and `12.224%` for combined inelastic strain.
+No denominator floor is introduced. M4.3 is therefore explicitly
+`qualified`: those three pointwise gates are `10%`, `10%`, and `15%`, while
+all other relative L2, peak, and pointwise gates remain `0.5%`.
 
 MOOSE rotates stress, elastic strain, and `combined_inelastic_strain`, but its
 model-specific `plastic_strain` and `creep_strain` properties remain in their
 unrotated accumulation frames. Fuelsim rotates both model-specific tensors, so
 the MOOSE gate uses the objective combined tensor and the two equivalent
 scalars; local tests independently constrain the split tensor rotations. The
-default Rashid approximation produces about `4.9e-6` accumulated trace drift
-in both codes on this path, below the explicit `1e-5` gate.
+default Rashid approximation produces maximum fuelsim plastic and creep trace
+drifts of `1.56e-6` and `1.19e-8`; the explicit gates are `2e-6` and `2e-8`.
+
+This evidence qualifies the stated distorted four-element, approximately
+`25.5 degrees` path. More severe arbitrary rotations, paths, and meshes remain
+outside the claimed envelope.
 
 ## M2 reference environment and conventions
 

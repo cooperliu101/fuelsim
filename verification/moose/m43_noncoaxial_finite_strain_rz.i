@@ -1,18 +1,26 @@
-# M4.3 noncoaxial finite-strain history verification. A single annular RZ
-# Quad4 is first stretched, then sheared, axially reversed, shear-reversed,
-# and stretched again. The finite-strain decomposition and history-rotation
-# controls remain unset so MOOSE uses its Taylor/Rashid defaults.
+# M4.3 distorted multi-element noncoaxial finite-strain history verification.
+# The annulus is stretched, sheared beyond 25 degrees polar rotation, reversed,
+# and reloaded while current-configuration pressure and component traction act.
+# MOOSE Taylor/Rashid defaults remain unchanged.
 
 [Mesh]
-  type = GeneratedMesh
-  dim = 2
-  nx = 1
-  ny = 1
-  xmin = 0.010
-  xmax = 0.011
-  ymin = 0.0
-  ymax = 0.001
   coord_type = RZ
+  [base]
+    type = GeneratedMeshGenerator
+    dim = 2
+    nx = 2
+    ny = 2
+    xmin = 0.010
+    xmax = 0.012
+    ymin = 0.0
+    ymax = 0.002
+  []
+  [distort]
+    type = ParsedNodeTransformGenerator
+    input = base
+    x_function = 'x + 1.5e8*(x-0.010)*(0.012-x)*y*(0.002-y)'
+    y_function = 'y - 1.0e8*(x-0.010)*(0.012-x)*y*(0.002-y)'
+  []
 []
 
 [GlobalParams]
@@ -128,12 +136,22 @@
   [axial_path]
     type = PiecewiseLinear
     x = '0 1 2 3 4 5'
-    y = '0 1e-4 1e-4 -5e-5 -5e-5 3e-5'
+    y = '0 2e-4 2e-4 -1e-4 -1e-4 6e-5'
   []
   [shear_path]
     type = PiecewiseLinear
     x = '0 1 2 3 4 5'
-    y = '0 0 8e-4 8e-4 -6e-4 -6e-4'
+    y = '0 0 2.0e-3 2.0e-3 -1.5e-3 -1.5e-3'
+  []
+  [load_ramp]
+    type = PiecewiseLinear
+    x = '0 5'
+    y = '0 1'
+  []
+  [traction_ramp]
+    type = PiecewiseLinear
+    x = '0 5'
+    y = '0 1e6'
   []
 []
 
@@ -350,6 +368,21 @@
     boundary = top
     function = axial_path
   []
+  [inner_pressure]
+    type = ADPressure
+    variable = disp_x
+    boundary = left
+    factor = 1e6
+    function = load_ramp
+    use_displaced_mesh = true
+  []
+  [outer_axial_traction]
+    type = ADFunctionNeumannBC
+    variable = disp_y
+    boundary = right
+    function = traction_ramp
+    use_displaced_mesh = true
+  []
 []
 
 [Materials]
@@ -395,7 +428,7 @@
   type = Transient
   solve_type = NEWTON
   line_search = basic
-  dt = 0.1
+  dt = 0.05
   end_time = 5
   nl_max_its = 40
   nl_abs_tol = 1e-10

@@ -12,12 +12,12 @@
   [axial_path]
     type = piecewise_linear
     times = 0 1 2 3 4 5
-    values = 0 0.1 0.1 -0.05 -0.05 0.03
+    values = 0 0.2 0.2 -0.1 -0.1 0.06
   []
   [shear_path]
     type = piecewise_linear
     times = 0 1 2 3 4 5
-    values = 0 0 0.8 0.8 -0.6 -0.6
+    values = 0 0 2.0 2.0 -1.5 -1.5
   []
 []
 
@@ -74,18 +74,32 @@
     value = 0.001
     function = axial_path
   []
+  [inner_pressure]
+    type = pressure
+    boundary = left
+    value = 1e6
+    scale_with_load = true
+  []
+  [outer_axial_traction]
+    type = traction
+    boundary = right
+    field = axial_displacement
+    value = 1e6
+    configuration = current
+    scale_with_load = true
+  []
 []
 
 [Executioner]
   type = transient
   end_time = 5
-  initial_time_step = 0.1
-  minimum_time_step = 0.1
-  maximum_time_step = 0.1
+  initial_time_step = 0.05
+  minimum_time_step = 0.05
+  maximum_time_step = 0.05
   growth_factor = 1
   cutback_factor = 0.5
   maximum_cutbacks = 0
-  load_ramp_time = 0
+  load_ramp_time = 5
 []
 
 [Solver]

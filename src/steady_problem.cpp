@@ -10,9 +10,6 @@
 namespace fuelsim {
 namespace {
 
-constexpr double pi = 3.141592653589793238462643383279502884;
-constexpr double gauss = 0.577350269189625764509148780501957456;
-
 std::size_t checked_total_nodes(const std::vector<RegionMesh>& meshes) {
     std::size_t total = 0;
     for (const RegionMesh& mesh : meshes) {
@@ -451,6 +448,28 @@ std::size_t SteadyProblem::volume_contribution_count() const noexcept {
     return _element_offsets.back();
 }
 
+SpatialContributionType
+SteadyProblem::contribution_type(std::size_t contribution_index) const {
+    if (contribution_index >= contribution_count())
+        throw std::out_of_range(
+            "SteadyProblem contribution index is out of range");
+    if (contribution_index < _element_offsets.back())
+        return SpatialContributionType::volume;
+    contribution_index -= _element_offsets.back();
+    if (contribution_index < _thermal_geometries.size())
+        return SpatialContributionType::thermal_contact;
+    contribution_index -= _thermal_geometries.size();
+    if (contribution_index < _mechanical_geometries.size())
+        return SpatialContributionType::mechanical_contact;
+    contribution_index -= _mechanical_geometries.size();
+    if (contribution_index < _pressure_geometries.size())
+        return SpatialContributionType::pressure;
+    contribution_index -= _pressure_geometries.size();
+    if (contribution_index < _traction_geometries.size())
+        return SpatialContributionType::traction;
+    return SpatialContributionType::convection;
+}
+
 const Quad4RzGeometry&
 SteadyProblem::region_element_geometry(std::size_t region_value,
                                        std::size_t element_index) const {
@@ -560,6 +579,14 @@ void SteadyProblem::refresh_controlled_values() {
         properties.pressure = value;
         _pressure_kernels[load].set_properties(properties);
     }
+    for (std::size_t load = 0; load < _traction_loads.size(); ++load) {
+        const TractionLoad& traction = _traction_loads[load];
+        TractionProperties properties = _traction_kernels[load].properties();
+        properties.traction =
+            load_multiplier(traction.scale_with_load, traction.function) *
+            traction.traction;
+        _traction_kernels[load].set_properties(properties);
+    }
 }
 
 std::vector<double> SteadyProblem::initial_state() const {
@@ -585,7 +612,7 @@ std::size_t SteadyProblem::dof_count() const noexcept {
 std::size_t SteadyProblem::contribution_count() const noexcept {
     return _element_offsets.back() + _thermal_geometries.size() +
            _mechanical_geometries.size() + _pressure_geometries.size() +
-           _convection_geometries.size();
+           _traction_geometries.size() + _convection_geometries.size();
 }
 
 const std::vector<DirichletCondition>&
@@ -626,6 +653,9 @@ SteadyProblem::contribution_dofs(std::size_t contribution_index) const {
     if (contribution_index < _pressure_nodes.size())
         return _dof_map.local_dofs(_pressure_nodes.at(contribution_index));
     contribution_index -= _pressure_nodes.size();
+    if (contribution_index < _traction_nodes.size())
+        return _dof_map.local_dofs(_traction_nodes.at(contribution_index));
+    contribution_index -= _traction_nodes.size();
     return _dof_map.local_dofs(_convection_nodes.at(contribution_index));
 }
 
@@ -658,6 +688,12 @@ SteadyProblem::contribution_residual(std::size_t contribution_index,
             _pressure_geometries.at(contribution_index), state);
     }
     contribution_index -= _pressure_geometries.size();
+    if (contribution_index < _traction_geometries.size()) {
+        const std::size_t load = _traction_load_indices.at(contribution_index);
+        return _traction_kernels[load].residual(
+            _traction_geometries.at(contribution_index), state);
+    }
+    contribution_index -= _traction_geometries.size();
     const std::size_t load = _convection_load_indices.at(contribution_index);
     return _convection_kernels[load].residual(
         _convection_geometries.at(contribution_index), state);
@@ -692,6 +728,12 @@ SteadyProblem::linearize_contribution(std::size_t contribution_index,
             _pressure_geometries.at(contribution_index), state);
     }
     contribution_index -= _pressure_geometries.size();
+    if (contribution_index < _traction_geometries.size()) {
+        const std::size_t load = _traction_load_indices.at(contribution_index);
+        return _traction_kernels[load].linearize(
+            _traction_geometries.at(contribution_index), state);
+    }
+    contribution_index -= _traction_geometries.size();
     const std::size_t load = _convection_load_indices.at(contribution_index);
     return _convection_kernels[load].linearize(
         _convection_geometries.at(contribution_index), state);
@@ -946,10 +988,41 @@ void SteadyProblem::build_boundary_conditions(
                 throw std::invalid_argument(
                     "Traction requires a displacement field: " +
                     definition.boundary);
+            if (definition.use_displaced_geometry &&
+                _definition.regions[resolved.region].strain_formulation !=
+                    StrainFormulation::finite)
+                throw std::invalid_argument(
+                    "Current-configuration traction requires finite strain: " +
+                    definition.name);
+            const std::size_t load = _traction_loads.size();
             _traction_loads.push_back(
-                {resolved.region, std::move(resolved.boundary),
-                 definition.field, definition.value, definition.scale_with_load,
+                {definition.value, definition.scale_with_load,
                  definition.function});
+            _traction_kernels.emplace_back(TractionProperties{
+                definition.field == Field::radial_displacement
+                    ? TractionComponent::radial
+                    : TractionComponent::axial,
+                load_multiplier(definition.scale_with_load,
+                                definition.function) *
+                    definition.value,
+                definition.use_displaced_geometry});
+            const RegionMesh& mesh = _meshes[resolved.region];
+            for (const Line2BoundaryElement& edge :
+                 resolved.boundary.elements) {
+                const auto parent = edge_parent(mesh, edge);
+                const Quad4Element& element = mesh.elements().at(parent.first);
+                std::array<std::size_t, 4> nodes{};
+                for (std::size_t node = 0; node < nodes.size(); ++node)
+                    nodes[node] =
+                        global_node(resolved.region, element.nodes[node]);
+                _traction_nodes.push_back(nodes);
+                _traction_geometries.push_back(
+                    make_line2_rz_traction_geometry(
+                        {{mesh.nodes().at(edge.nodes[0]),
+                          mesh.nodes().at(edge.nodes[1])}},
+                        parent.second));
+                _traction_load_indices.push_back(load);
+            }
         } else {
             if (!(definition.heat_transfer_coefficient > 0.0) ||
                 !(definition.ambient_temperature > 0.0))
@@ -990,41 +1063,11 @@ void SteadyProblem::build_boundary_conditions(
 
 void SteadyProblem::add_state_independent_residual(
     std::vector<double>& residual) const {
-    add_traction_residual(residual);
+    (void)residual;
 }
 
 void SteadyProblem::add_external_residual(std::vector<double>& residual) const {
-    add_traction_residual(residual);
-}
-
-void SteadyProblem::add_traction_residual(std::vector<double>& residual) const {
-    const std::array<double, 2> locations = {-gauss, gauss};
-    for (const TractionLoad& load : _traction_loads) {
-        const double traction =
-            load_multiplier(load.scale_with_load, load.function) *
-            load.traction;
-        if (traction == 0.0)
-            continue;
-        const RegionMesh& mesh = _meshes[load.region];
-        for (const Line2BoundaryElement& edge : load.boundary.elements) {
-            const RzPoint& first = mesh.nodes().at(edge.nodes[0]);
-            const RzPoint& second = mesh.nodes().at(edge.nodes[1]);
-            const double dr = second.r - first.r;
-            const double dz = second.z - first.z;
-            const double line_jacobian = 0.5 * std::sqrt(dr * dr + dz * dz);
-            for (double xi : locations) {
-                const std::array<double, 2> shape = {0.5 * (1.0 - xi),
-                                                     0.5 * (1.0 + xi)};
-                const double radius = shape[0] * first.r + shape[1] * second.r;
-                const double measure = 2.0 * pi * radius * line_jacobian;
-                for (std::size_t node = 0; node < 2; ++node) {
-                    const std::size_t dof = _dof_map.dof(
-                        load.field, global_node(load.region, edge.nodes[node]));
-                    residual[dof] -= measure * traction * shape[node];
-                }
-            }
-        }
-    }
+    (void)residual;
 }
 
 std::vector<ContactNodeSummary>

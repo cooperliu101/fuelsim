@@ -56,6 +56,21 @@ struct TransientTimeOptions final {
     double temperature_time_absolute_tolerance = 1.0e-3;
     double displacement_time_absolute_tolerance = 1.0e-10;
     double time_error_safety_factor = 0.9;
+    double strain_history_time_absolute_tolerance = 1.0e-10;
+    double stress_history_time_absolute_tolerance = 1.0;
+};
+
+struct TransientTimeErrorEstimate final {
+    double temperature = 0.0;
+    double radial_displacement = 0.0;
+    double axial_displacement = 0.0;
+    double elastic_strain = 0.0;
+    double plastic_strain = 0.0;
+    double creep_strain = 0.0;
+    double equivalent_plastic_strain = 0.0;
+    double equivalent_creep_strain = 0.0;
+    double stress = 0.0;
+    double maximum = 0.0;
 };
 
 enum class TransientTerminationReason {
@@ -75,6 +90,7 @@ struct TransientRejectedStep final {
     SolveFailureCategory failure_category;
     std::string failure_message;
     double time_error_estimate = 0.0;
+    TransientTimeErrorEstimate time_error_components;
 };
 
 struct TransientAcceptedStep final {
@@ -86,6 +102,8 @@ struct TransientAcceptedStep final {
     int nonlinear_iterations;
     std::vector<RegionInelasticSummary> region_histories;
     double time_error_estimate = 0.0;
+    TransientTimeErrorEstimate time_error_components;
+    TransientConservationSummary conservation;
 };
 
 struct TransientResult final {

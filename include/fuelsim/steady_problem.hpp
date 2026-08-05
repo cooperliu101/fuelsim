@@ -60,6 +60,7 @@ struct BoundaryConditionDefinition final {
     double ambient_temperature = 0.0;
     std::string coefficient_function{};
     std::string ambient_temperature_function{};
+    bool use_displaced_geometry = false;
 };
 
 struct SteadyProblemDefinition final {
@@ -93,6 +94,15 @@ struct InterfaceSummary final {
     double active_contact_length;
 };
 
+enum class SpatialContributionType {
+    volume,
+    thermal_contact,
+    mechanical_contact,
+    pressure,
+    traction,
+    convection,
+};
+
 class SteadyProblem final : public NonlinearProblem {
   public:
     SteadyProblem(SteadyProblemDefinition definition,
@@ -111,6 +121,8 @@ class SteadyProblem final : public NonlinearProblem {
     std::size_t region_element_count(std::size_t region_index) const;
     std::size_t region_element_offset(std::size_t region_index) const;
     std::size_t volume_contribution_count() const noexcept;
+    SpatialContributionType
+    contribution_type(std::size_t contribution_index) const;
     std::pair<std::size_t, std::size_t>
     element_location(std::size_t contribution_index) const;
     const Quad4RzGeometry&
@@ -165,9 +177,6 @@ class SteadyProblem final : public NonlinearProblem {
     };
 
     struct TractionLoad final {
-        std::size_t region;
-        RegionBoundary boundary;
-        Field field;
         double traction;
         bool scale_with_load;
         std::string function;
@@ -206,7 +215,6 @@ class SteadyProblem final : public NonlinearProblem {
     void build_volume_geometries();
     void build_contacts(const UnstructuredQuad4Mesh& source_mesh);
     void build_boundary_conditions(const UnstructuredQuad4Mesh& source_mesh);
-    void add_traction_residual(std::vector<double>& residual) const;
     double function_value(const std::string& name) const;
     double load_multiplier(bool scale_with_load,
                            const std::string& function) const;
@@ -243,6 +251,11 @@ class SteadyProblem final : public NonlinearProblem {
     std::vector<std::size_t> _pressure_load_indices;
     std::vector<std::array<std::size_t, 4>> _pressure_nodes;
     std::vector<Line2RzPressureGeometry> _pressure_geometries;
+
+    std::vector<Line2RzTractionKernel> _traction_kernels;
+    std::vector<std::size_t> _traction_load_indices;
+    std::vector<std::array<std::size_t, 4>> _traction_nodes;
+    std::vector<Line2RzTractionGeometry> _traction_geometries;
 
     std::vector<DirichletCondition> _dirichlet_conditions;
     std::vector<ControlledDirichlet> _controlled_dirichlet_conditions;

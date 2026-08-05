@@ -30,6 +30,11 @@ void validate_properties(const PressureProperties& properties) {
             "Pressure magnitude must be finite and nonnegative");
 }
 
+void validate_properties(const TractionProperties& properties) {
+    if (!std::isfinite(properties.traction))
+        throw std::invalid_argument("Traction must be finite");
+}
+
 void validate_edge(const std::array<RzPoint, 2>& coordinates,
                    const std::array<std::size_t, 2>& local_nodes,
                    const char* name) {
@@ -63,6 +68,13 @@ Line2RzPressureGeometry make_line2_rz_pressure_geometry(
     const std::array<RzPoint, 2>& coordinates,
     const std::array<std::size_t, 2>& local_nodes) {
     validate_edge(coordinates, local_nodes, "Pressure edge");
+    return {coordinates, local_nodes};
+}
+
+Line2RzTractionGeometry make_line2_rz_traction_geometry(
+    const std::array<RzPoint, 2>& coordinates,
+    const std::array<std::size_t, 2>& local_nodes) {
+    validate_edge(coordinates, local_nodes, "Traction edge");
     return {coordinates, local_nodes};
 }
 
@@ -138,6 +150,86 @@ LocalResidual Line2RzPressureKernel::residual(
 
 LocalSystem Line2RzPressureKernel::linearize(
     const Line2RzPressureGeometry& geometry, const LocalValues& state) const {
+    LocalAdValues ad_state{};
+    adlite::seed_identity(state.data(), state.size(), ad_state.data());
+    LocalAdValues ad_residual{};
+    residual_ad(geometry, ad_state, ad_residual);
+    LocalSystem result{};
+    adlite::extract_jacobian(ad_residual.data(), ad_residual.size(),
+                             ad_state.size(), result.residual.data(),
+                             result.jacobian.data());
+    return result;
+}
+
+Line2RzTractionKernel::Line2RzTractionKernel(
+    TractionProperties properties)
+    : _properties(properties) {
+    validate_properties(_properties);
+}
+
+const TractionProperties&
+Line2RzTractionKernel::properties() const noexcept {
+    return _properties;
+}
+
+void Line2RzTractionKernel::set_properties(TractionProperties properties) {
+    validate_properties(properties);
+    _properties = properties;
+}
+
+void Line2RzTractionKernel::residual_ad(
+    const Line2RzTractionGeometry& geometry, const LocalAdValues& state,
+    LocalAdValues& residual) const {
+    residual.fill(adlite::Scalar(0.0));
+    const std::array<double, 2> locations = {-gauss, gauss};
+    for (const double xi : locations) {
+        const std::array<double, 2> shape = {0.5 * (1.0 - xi),
+                                             0.5 * (1.0 + xi)};
+        std::array<adlite::Scalar, 2> radius{};
+        std::array<adlite::Scalar, 2> axial{};
+        for (std::size_t edge_node = 0; edge_node < 2; ++edge_node) {
+            const std::size_t local = geometry.local_nodes[edge_node];
+            radius[edge_node] = geometry.coordinates[edge_node].r;
+            axial[edge_node] = geometry.coordinates[edge_node].z;
+            if (_properties.use_displaced_geometry) {
+                radius[edge_node] += state[4 + local];
+                axial[edge_node] += state[8 + local];
+            }
+        }
+        const adlite::Scalar current_radius =
+            shape[0] * radius[0] + shape[1] * radius[1];
+        const adlite::Scalar dr_dxi = 0.5 * (radius[1] - radius[0]);
+        const adlite::Scalar dz_dxi = 0.5 * (axial[1] - axial[0]);
+        const adlite::Scalar measure =
+            2.0 * pi * current_radius * adlite::hypot(dr_dxi, dz_dxi);
+        if (!std::isfinite(measure.value()) || !(measure.value() > 0.0))
+            throw std::domain_error(
+                "Traction edge current measure must be finite and positive");
+        const std::size_t offset =
+            _properties.component == TractionComponent::radial ? 4 : 8;
+        for (std::size_t edge_node = 0; edge_node < 2; ++edge_node) {
+            const std::size_t local = geometry.local_nodes[edge_node];
+            residual[offset + local] -= measure * _properties.traction *
+                                        shape[edge_node];
+        }
+    }
+}
+
+LocalResidual Line2RzTractionKernel::residual(
+    const Line2RzTractionGeometry& geometry, const LocalValues& state) const {
+    LocalAdValues ad_state{};
+    for (std::size_t dof = 0; dof < local_dof_count; ++dof)
+        ad_state[dof] = state[dof];
+    LocalAdValues ad_residual{};
+    residual_ad(geometry, ad_state, ad_residual);
+    LocalResidual result{};
+    for (std::size_t dof = 0; dof < local_dof_count; ++dof)
+        result[dof] = ad_residual[dof].value();
+    return result;
+}
+
+LocalSystem Line2RzTractionKernel::linearize(
+    const Line2RzTractionGeometry& geometry, const LocalValues& state) const {
     LocalAdValues ad_state{};
     adlite::seed_identity(state.data(), state.size(), ad_state.data());
     LocalAdValues ad_residual{};

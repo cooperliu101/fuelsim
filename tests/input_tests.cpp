@@ -109,6 +109,10 @@ bool verify_m3_output_input(const std::string& path,
                     .temperature_time_absolute_tolerance == 1.0e-3 &&
             definition.transient_execution
                     .displacement_time_absolute_tolerance == 1.0e-10 &&
+            definition.transient_execution
+                    .strain_history_time_absolute_tolerance == 2.0e-9 &&
+            definition.transient_execution
+                    .stress_history_time_absolute_tolerance == 5.0 &&
             definition.transient_execution.time_error_safety_factor == 0.85 &&
             definition.solver.linear_solver == "gmres" &&
             definition.solver.preconditioner == "field_split" &&
@@ -235,7 +239,8 @@ bool run_tests(const std::string& steady_path,
                       fuelsim::BoundaryConditionType::traction &&
                   traction.boundary_conditions.back().field ==
                       fuelsim::Field::axial_displacement &&
-                  traction.boundary_conditions.back().scale_with_load,
+                  traction.boundary_conditions.back().scale_with_load &&
+                  !traction.boundary_conditions.back().use_displaced_geometry,
               "scaled axial traction is parsed");
 
     passed = expect_parse_failure(malformed_path,
@@ -339,6 +344,8 @@ bool run_tests(const std::string& steady_path,
                    "\n  time_error_relative_tolerance = 2e-4"
                    "\n  temperature_time_absolute_tolerance = 1e-3"
                    "\n  displacement_time_absolute_tolerance = 1e-10"
+                   "\n  strain_history_time_absolute_tolerance = 2e-9"
+                   "\n  stress_history_time_absolute_tolerance = 5"
                    "\n  time_error_safety_factor = 0.85");
     const std::string solver_start = "[Solver]";
     const std::size_t solver_position = m3_case.find(solver_start);
@@ -385,6 +392,76 @@ bool run_tests(const std::string& steady_path,
     passed = expect_case_failure(malformed_path, invalid_preconditioner,
                                  "preconditioner must be") &&
              passed;
+
+    std::string fixed_scaling_case = read_text(transient_path);
+    const std::size_t fixed_scaling_solver =
+        fixed_scaling_case.find(solver_start);
+    if (fixed_scaling_solver == std::string::npos)
+        return check(false, "transient fixture has a solver section");
+    fixed_scaling_case.insert(
+        fixed_scaling_solver + solver_start.size(),
+        "\n  temperature_residual_scale = 1e4"
+        "\n  mechanical_residual_scale = 1e3");
+    {
+        std::ofstream output(malformed_path, std::ios::out | std::ios::trunc);
+        if (!output)
+            return check(false, "could not create fixed-scale input fixture");
+        output << fixed_scaling_case;
+    }
+    const fuelsim::FuelSimCaseDefinition fixed_scaling =
+        fuelsim::CaseInputReader::read(malformed_path);
+    passed = check(fixed_scaling.solver.temperature_residual_scale == 1.0e4 &&
+                       fixed_scaling.solver.mechanical_residual_scale == 1.0e3,
+                   "fixed physical residual scales are parsed") &&
+             passed;
+    if (std::remove(malformed_path.c_str()) != 0)
+        return check(false, "could not remove fixed-scale input fixture");
+
+    std::string incomplete_scaling_case = read_text(transient_path);
+    const std::size_t incomplete_scaling_solver =
+        incomplete_scaling_case.find(solver_start);
+    incomplete_scaling_case.insert(
+        incomplete_scaling_solver + solver_start.size(),
+        "\n  temperature_residual_scale = 1e4");
+    passed = expect_case_failure(malformed_path, incomplete_scaling_case,
+                                 "must both be zero or positive") &&
+             passed;
+
+    std::string conflicting_scaling_case = m3_case;
+    const std::size_t conflicting_scaling_solver =
+        conflicting_scaling_case.find(solver_start);
+    conflicting_scaling_case.insert(
+        conflicting_scaling_solver + solver_start.size(),
+        "\n  temperature_residual_scale = 1e4"
+        "\n  mechanical_residual_scale = 1e3");
+    passed = expect_case_failure(malformed_path, conflicting_scaling_case,
+                                 "cannot be combined") &&
+             passed;
+
+    std::string current_traction_case = read_text(traction_path);
+    const std::string traction_type = "type = traction";
+    const std::size_t traction_type_position =
+        current_traction_case.find(traction_type);
+    if (traction_type_position == std::string::npos)
+        return check(false, "traction fixture has a traction condition");
+    current_traction_case.insert(
+        traction_type_position + traction_type.size(),
+        "\n    configuration = current");
+    {
+        std::ofstream output(malformed_path, std::ios::out | std::ios::trunc);
+        if (!output)
+            return check(false,
+                         "could not create current-traction input fixture");
+        output << current_traction_case;
+    }
+    const fuelsim::FuelSimCaseDefinition current_traction =
+        fuelsim::CaseInputReader::read(malformed_path);
+    passed = check(current_traction.boundary_conditions.back()
+                           .use_displaced_geometry,
+                   "current-configuration traction is parsed") &&
+             passed;
+    if (std::remove(malformed_path.c_str()) != 0)
+        return check(false, "could not remove current-traction input fixture");
 
     std::string unknown_function = read_text(transient_path);
     const std::size_t unknown_heat_position =

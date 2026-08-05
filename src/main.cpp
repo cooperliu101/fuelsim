@@ -153,6 +153,8 @@ solver_options(const fuelsim::NonlinearSolverInput& input) {
         input.temperature_residual_absolute_tolerance;
     result.mechanical_residual_absolute_tolerance =
         input.mechanical_residual_absolute_tolerance;
+    result.temperature_residual_scale = input.temperature_residual_scale;
+    result.mechanical_residual_scale = input.mechanical_residual_scale;
     return result;
 }
 
@@ -201,6 +203,65 @@ void write_interface_summary(const std::string& name,
     output.value(prefix + "unprojected_contact_nodes",
                  summary.unprojected_contact_nodes);
     output.value(prefix + "active_contact_nodes", summary.active_contact_nodes);
+}
+
+void write_conservation_summary(
+    const std::string& prefix,
+    const fuelsim::TransientConservationSummary& summary,
+    CaseOutput& output) {
+    output.value(prefix + "generated_heat_rate",
+                 summary.generated_heat_rate);
+    output.value(prefix + "stored_heat_rate", summary.stored_heat_rate);
+    output.value(prefix + "convection_heat_rate",
+                 summary.convection_heat_rate);
+    output.value(prefix + "interface_heat_imbalance",
+                 summary.interface_heat_imbalance);
+    output.value(prefix + "dirichlet_heat_input_rate",
+                 summary.dirichlet_heat_input_rate);
+    output.value(prefix + "global_thermal_balance",
+                 summary.global_thermal_balance);
+    output.value(prefix + "relative_thermal_balance",
+                 summary.relative_thermal_balance);
+    output.value(prefix + "unconstrained_thermal_residual_l2",
+                 summary.unconstrained_thermal_residual_l2);
+    output.value(prefix + "internal_mechanical_work_increment",
+                 summary.internal_mechanical_work_increment);
+    output.value(prefix + "pressure_traction_work_increment",
+                 summary.pressure_traction_work_increment);
+    output.value(prefix + "dirichlet_reaction_work_increment",
+                 summary.dirichlet_reaction_work_increment);
+    output.value(prefix + "contact_work_increment",
+                 summary.contact_work_increment);
+    output.value(prefix + "mechanical_work_balance",
+                 summary.mechanical_work_balance);
+    output.value(prefix + "relative_mechanical_work_balance",
+                 summary.relative_mechanical_work_balance);
+    output.value(prefix + "unconstrained_mechanical_residual_l2",
+                 summary.unconstrained_mechanical_residual_l2);
+    output.value(prefix + "elastic_energy_change",
+                 summary.elastic_energy_change);
+    output.value(prefix + "plastic_dissipation_increment",
+                 summary.plastic_dissipation_increment);
+    output.value(prefix + "creep_dissipation_increment",
+                 summary.creep_dissipation_increment);
+}
+
+void write_time_error_components(
+    const std::string& prefix,
+    const fuelsim::TransientTimeErrorEstimate& estimate,
+    CaseOutput& output) {
+    output.value(prefix + "temperature", estimate.temperature);
+    output.value(prefix + "radial_displacement",
+                 estimate.radial_displacement);
+    output.value(prefix + "axial_displacement", estimate.axial_displacement);
+    output.value(prefix + "elastic_strain", estimate.elastic_strain);
+    output.value(prefix + "plastic_strain", estimate.plastic_strain);
+    output.value(prefix + "creep_strain", estimate.creep_strain);
+    output.value(prefix + "equivalent_plastic_strain",
+                 estimate.equivalent_plastic_strain);
+    output.value(prefix + "equivalent_creep_strain",
+                 estimate.equivalent_creep_strain);
+    output.value(prefix + "stress", estimate.stress);
 }
 
 std::vector<double> diagnostic_direction(const fuelsim::DofMap& dof_map) {
@@ -363,6 +424,11 @@ class TransientOutputObserver final : public fuelsim::TransientStepObserver {
                 _output.value("progress.cutbacks", step.cutbacks);
                 _output.value("progress.time_error_estimate",
                               step.time_error_estimate);
+                write_time_error_components("progress.time_error.",
+                                            step.time_error_components,
+                                            _output);
+                write_conservation_summary("progress.conservation.",
+                                           step.conservation, _output);
             }
             if (!_checkpoint_file.empty() &&
                 _accepted_steps % _checkpoint_interval == 0)
@@ -508,7 +574,11 @@ bool run_transient(const fuelsim::FuelSimCaseDefinition& definition,
         definition.transient_execution.time_error_relative_tolerance,
         definition.transient_execution.temperature_time_absolute_tolerance,
         definition.transient_execution.displacement_time_absolute_tolerance,
-        definition.transient_execution.time_error_safety_factor};
+        definition.transient_execution.time_error_safety_factor,
+        definition.transient_execution
+            .strain_history_time_absolute_tolerance,
+        definition.transient_execution
+            .stress_history_time_absolute_tolerance};
     const fuelsim::TransientResult result = fuelsim::solve_transient(
         problem, time_options, solver_options(definition.solver), &observer);
     observer.finalize(problem, result.next_time_step);
@@ -539,6 +609,8 @@ bool run_transient(const fuelsim::FuelSimCaseDefinition& definition,
         output.value("last_rejected.residual_norm", rejected.residual_norm);
         output.value("last_rejected.time_error_estimate",
                      rejected.time_error_estimate);
+        write_time_error_components("last_rejected.time_error.",
+                                    rejected.time_error_components, output);
         output.value("last_rejected.failure_category",
                      fuelsim::solve_failure_category_name(
                          rejected.failure_category));
@@ -553,6 +625,8 @@ bool run_transient(const fuelsim::FuelSimCaseDefinition& definition,
                  result.aggregate_timing.workspace_setups);
     write_solver_diagnostics(result.last_attempt, output);
     output.value("total_seconds", result.total_seconds);
+    write_conservation_summary("conservation.",
+                               problem.last_conservation_summary(), output);
     for (std::size_t region = 0; region < problem.region_count(); ++region) {
         const fuelsim::RegionInelasticSummary summary =
             problem.summarize_region_history(region);

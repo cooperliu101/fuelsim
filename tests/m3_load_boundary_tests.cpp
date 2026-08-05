@@ -240,6 +240,170 @@ bool test_failure_diagnostics(const std::string& input_path) {
     return passed;
 }
 
+bool test_history_time_error_control(const std::string& input_path) {
+    const fuelsim::FuelSimCaseDefinition input =
+        fuelsim::CaseInputReader::read(input_path);
+    const fuelsim::UnstructuredQuad4Mesh mesh =
+        fuelsim::ExodusMeshIo::read_quad4(input.mesh_file);
+    fuelsim::TransientProblem problem(input.transient_definition(), mesh);
+    fuelsim::TransientTimeOptions time_options = {
+        20.0, 4.0, 0.125, 4.0, 1.0, 0.5, 12, 20.0};
+    time_options.time_error_relative_tolerance = 5.0e-1;
+    time_options.temperature_time_absolute_tolerance = 1.0e-3;
+    time_options.displacement_time_absolute_tolerance = 1.0e-9;
+    time_options.strain_history_time_absolute_tolerance = 1.0e-10;
+    time_options.stress_history_time_absolute_tolerance = 10.0;
+    const fuelsim::SolverOptions solver_options = {
+        input.solver.absolute_tolerance, input.solver.relative_tolerance,
+        input.solver.step_tolerance, input.solver.maximum_iterations};
+    const fuelsim::TransientResult result = fuelsim::solve_transient(
+        problem, time_options, solver_options);
+    double maximum_nodal = 0.0;
+    double maximum_history = 0.0;
+    for (const fuelsim::TransientAcceptedStep& step : result.accepted_steps) {
+        const fuelsim::TransientTimeErrorEstimate& error =
+            step.time_error_components;
+        maximum_nodal = std::max(
+            maximum_nodal,
+            std::max({error.temperature, error.radial_displacement,
+                      error.axial_displacement}));
+        maximum_history = std::max(
+            maximum_history,
+            std::max({error.elastic_strain, error.plastic_strain,
+                      error.creep_strain, error.equivalent_plastic_strain,
+                      error.equivalent_creep_strain, error.stress}));
+    }
+    double maximum_rejected_history = 0.0;
+    for (const fuelsim::TransientRejectedStep& step : result.rejected_steps) {
+        const fuelsim::TransientTimeErrorEstimate& error =
+            step.time_error_components;
+        maximum_rejected_history = std::max(
+            maximum_rejected_history,
+            std::max({error.elastic_strain, error.plastic_strain,
+                      error.creep_strain, error.equivalent_plastic_strain,
+                      error.equivalent_creep_strain, error.stress}));
+    }
+    std::cout << "history_time_error_maximum_nodal=" << maximum_nodal << '\n';
+    std::cout << "history_time_error_maximum_material=" << maximum_history
+              << '\n';
+    std::cout << "history_time_error_rejections="
+              << result.time_error_rejections << '\n';
+    std::cout << "history_time_error_maximum_rejected_material="
+              << maximum_rejected_history << '\n';
+    std::cout << "history_time_error_completed=" << result.completed << '\n';
+    std::cout << "history_time_error_accepted_steps="
+              << result.accepted_steps.size() << '\n';
+    return check(result.completed && result.time_error_rejections > 0 &&
+                     maximum_history > maximum_nodal &&
+                     maximum_history <= 1.0,
+                 "step-doubling controls committed inelastic histories in "
+                 "addition to nodal fields");
+}
+
+bool test_long_transient_diagnostics(const std::string& input_path) {
+    const fuelsim::FuelSimCaseDefinition input =
+        fuelsim::CaseInputReader::read(input_path);
+    const fuelsim::UnstructuredQuad4Mesh mesh =
+        fuelsim::ExodusMeshIo::read_quad4(input.mesh_file);
+    fuelsim::TransientProblem problem(input.transient_definition(), mesh);
+    const fuelsim::TransientTimeOptions time_options = {
+        100.0, 0.5, 0.5, 0.5, 1.0, 0.5, 0, 20.0};
+    fuelsim::SolverOptions solver_options;
+    solver_options.absolute_tolerance = input.solver.absolute_tolerance;
+    solver_options.relative_tolerance = input.solver.relative_tolerance;
+    solver_options.step_tolerance = input.solver.step_tolerance;
+    solver_options.maximum_iterations = input.solver.maximum_iterations;
+    solver_options.temperature_residual_scale = 1.0e4;
+    solver_options.mechanical_residual_scale = 1.0e3;
+    const fuelsim::TransientResult result = fuelsim::solve_transient(
+        problem, time_options, solver_options);
+    double maximum_thermal_balance = 0.0;
+    double maximum_mechanical_balance = 0.0;
+    double maximum_absolute_mechanical_balance = 0.0;
+    double accumulated_absolute_mechanical_balance = 0.0;
+    double accumulated_mechanical_scale = 0.0;
+    double maximum_interface_imbalance = 0.0;
+    double minimum_plastic_dissipation =
+        std::numeric_limits<double>::infinity();
+    double minimum_creep_dissipation =
+        std::numeric_limits<double>::infinity();
+    double accumulated_plastic_dissipation = 0.0;
+    double accumulated_creep_dissipation = 0.0;
+    for (const fuelsim::TransientAcceptedStep& step : result.accepted_steps) {
+        const fuelsim::TransientConservationSummary& summary =
+            step.conservation;
+        maximum_thermal_balance =
+            std::max(maximum_thermal_balance,
+                     summary.relative_thermal_balance);
+        maximum_mechanical_balance =
+            std::max(maximum_mechanical_balance,
+                     summary.relative_mechanical_work_balance);
+        maximum_absolute_mechanical_balance =
+            std::max(maximum_absolute_mechanical_balance,
+                     std::abs(summary.mechanical_work_balance));
+        accumulated_absolute_mechanical_balance +=
+            std::abs(summary.mechanical_work_balance);
+        accumulated_mechanical_scale +=
+            std::abs(summary.internal_mechanical_work_increment) +
+            std::abs(summary.contact_work_increment) +
+            std::abs(summary.pressure_traction_work_increment) +
+            std::abs(summary.dirichlet_reaction_work_increment);
+        maximum_interface_imbalance =
+            std::max(maximum_interface_imbalance,
+                     std::abs(summary.interface_heat_imbalance));
+        minimum_plastic_dissipation =
+            std::min(minimum_plastic_dissipation,
+                     summary.plastic_dissipation_increment);
+        minimum_creep_dissipation =
+            std::min(minimum_creep_dissipation,
+                     summary.creep_dissipation_increment);
+        accumulated_plastic_dissipation +=
+            summary.plastic_dissipation_increment;
+        accumulated_creep_dissipation +=
+            summary.creep_dissipation_increment;
+    }
+    std::cout << "long_transient_steps=" << result.accepted_steps.size()
+              << '\n';
+    std::cout << "long_transient_maximum_relative_thermal_balance="
+              << maximum_thermal_balance << '\n';
+    std::cout << "long_transient_maximum_relative_mechanical_balance="
+              << maximum_mechanical_balance << '\n';
+    std::cout << "long_transient_maximum_absolute_mechanical_balance="
+              << maximum_absolute_mechanical_balance << '\n';
+    std::cout << "long_transient_accumulated_relative_mechanical_balance="
+              << accumulated_absolute_mechanical_balance /
+                     accumulated_mechanical_scale
+              << '\n';
+    std::cout << "long_transient_maximum_interface_heat_imbalance="
+              << maximum_interface_imbalance << '\n';
+    std::cout << "long_transient_minimum_plastic_dissipation="
+              << minimum_plastic_dissipation << '\n';
+    std::cout << "long_transient_minimum_creep_dissipation="
+              << minimum_creep_dissipation << '\n';
+    std::cout << "long_transient_accumulated_plastic_dissipation="
+              << accumulated_plastic_dissipation << '\n';
+    std::cout << "long_transient_accumulated_creep_dissipation="
+              << accumulated_creep_dissipation << '\n';
+    return check(
+        result.completed && result.accepted_steps.size() == 200 &&
+            result.aggregate_timing.workspace_setups == 1 &&
+            result.last_attempt.field_residual_scalings[0] == 1.0e-4 &&
+            result.last_attempt.field_residual_scalings[1] == 1.0e-3 &&
+            result.last_attempt.field_residual_scalings[2] == 1.0e-3 &&
+            maximum_thermal_balance < 1.0e-8 &&
+            accumulated_absolute_mechanical_balance /
+                    accumulated_mechanical_scale <
+                1.0e-6 &&
+            maximum_absolute_mechanical_balance < 1.0e-12 &&
+            maximum_interface_imbalance < 1.0e-8 &&
+            minimum_plastic_dissipation >= -1.0e-12 &&
+            minimum_creep_dissipation >= -1.0e-12 &&
+            accumulated_plastic_dissipation > 0.0 &&
+            accumulated_creep_dissipation > 0.0,
+        "200-step PCMI preserves the PETSc workspace, fixed physical "
+        "residual scales, global balances, and nonnegative dissipation");
+}
+
 bool test_steady_load_cutback(const std::string& input_path) {
     const fuelsim::FuelSimCaseDefinition input =
         fuelsim::CaseInputReader::read(input_path);
@@ -344,6 +508,8 @@ int main(int argc, char** argv) {
         if (!test_time_event_alignment(argv[1]) ||
             !test_moose_time_table_convection(argv[2], argv[3]) ||
             !test_time_error_control(argv[2]) ||
+            !test_history_time_error_control(argv[4]) ||
+            !test_long_transient_diagnostics(argv[4]) ||
             !test_failure_diagnostics(argv[4]) ||
             !test_steady_load_cutback(argv[4]) ||
             !test_pressure_production_path(argv[5]))

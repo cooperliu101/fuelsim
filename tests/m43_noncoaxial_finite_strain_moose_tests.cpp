@@ -18,6 +18,9 @@
 namespace {
 
 constexpr double comparison_tolerance = 5.0e-3;
+constexpr double stress_pointwise_tolerance = 1.0e-1;
+constexpr double strain_pointwise_tolerance = 1.0e-1;
+constexpr double inelastic_pointwise_tolerance = 1.5e-1;
 constexpr double time_tolerance = 1.0e-12;
 
 bool check(bool condition, const std::string& message) {
@@ -72,9 +75,9 @@ class HistoryObserver final : public fuelsim::TransientStepObserver {
     void accepted_step(const fuelsim::TransientProblem& problem,
                        const fuelsim::TransientAcceptedStep& step) override {
         if (problem.region_count() != 1 ||
-            problem.region_mesh(0).elements().size() != 1)
+            problem.region_mesh(0).elements().size() < 4)
             throw std::logic_error(
-                "M4.3 observer requires one region and one Quad4");
+                "M4.3 observer requires one multi-element region");
         const fuelsim::RegionMesh& mesh = problem.region_mesh(0);
         const std::vector<double>& solution = problem.committed_solution();
         const double maximum_z = std::max_element(
@@ -97,11 +100,53 @@ class HistoryObserver final : public fuelsim::TransientStepObserver {
         }
         if (count == 0)
             throw std::logic_error("M4.3 mesh has no top nodes");
+        fuelsim::AxisymmetricStressValues stress{};
+        fuelsim::MaterialPointState material;
+        double total_weight = 0.0;
+        for (std::size_t element = 0; element < mesh.elements().size();
+             ++element) {
+            double weight = 0.0;
+            for (const fuelsim::RzQuadraturePoint& point :
+                 problem.region_element_geometry(0, element).points)
+                weight += point.weighted_measure;
+            total_weight += weight;
+            const fuelsim::AxisymmetricStressValues& value =
+                problem.material_stress(0, element)[0];
+            stress.rr += weight * value.rr;
+            stress.zz += weight * value.zz;
+            stress.hoop += weight * value.hoop;
+            stress.rz += weight * value.rz;
+            const fuelsim::MaterialPointState& state =
+                problem.material_history(0, element)[0];
+            for (std::size_t component = 0; component < 4; ++component) {
+                material.elastic_strain[component] +=
+                    weight * state.elastic_strain[component];
+                material.plastic_strain[component] +=
+                    weight * state.plastic_strain[component];
+                material.creep_strain[component] +=
+                    weight * state.creep_strain[component];
+            }
+            material.equivalent_plastic_strain +=
+                weight * state.equivalent_plastic_strain;
+            material.equivalent_creep_strain +=
+                weight * state.equivalent_creep_strain;
+        }
+        if (!(total_weight > 0.0))
+            throw std::logic_error("M4.3 mesh has zero reference volume");
+        stress.rr /= total_weight;
+        stress.zz /= total_weight;
+        stress.hoop /= total_weight;
+        stress.rz /= total_weight;
+        for (std::size_t component = 0; component < 4; ++component) {
+            material.elastic_strain[component] /= total_weight;
+            material.plastic_strain[component] /= total_weight;
+            material.creep_strain[component] /= total_weight;
+        }
+        material.equivalent_plastic_strain /= total_weight;
+        material.equivalent_creep_strain /= total_weight;
         _snapshots.push_back(
             {step.time, radial / static_cast<double>(count),
-             axial / static_cast<double>(count),
-             problem.material_stress(0, 0)[0],
-             problem.material_history(0, 0)[0]});
+             axial / static_cast<double>(count), stress, material});
     }
 
     const std::vector<HistorySnapshot>& snapshots() const noexcept {
@@ -182,10 +227,20 @@ stress_components(const fuelsim::AxisymmetricStressValues& stress) {
 
 bool check_metrics(const std::string& name,
                    const fuelsim::test::FieldErrorMetrics& metrics,
-                   double zero_reference_tolerance) {
+                   double zero_reference_tolerance,
+                   double pointwise_tolerance = comparison_tolerance) {
     fuelsim::test::print_relative_metrics(name, metrics);
-    return check(fuelsim::test::relative_metrics_below(
-                     metrics, comparison_tolerance) &&
+    std::cout << name << "_relative_l2_tolerance="
+              << comparison_tolerance << '\n';
+    std::cout << name << "_relative_absolute_peak_tolerance="
+              << comparison_tolerance << '\n';
+    std::cout << name << "_maximum_pointwise_relative_tolerance="
+              << pointwise_tolerance << '\n';
+    return check(metrics.relative_l2() < comparison_tolerance &&
+                     metrics.relative_absolute_peak() <
+                         comparison_tolerance &&
+                     metrics.maximum_pointwise_relative_error() <
+                         pointwise_tolerance &&
                      metrics.maximum_zero_reference_difference <
                          zero_reference_tolerance,
                  name + " three MOOSE metrics and zero-reference error pass");
@@ -213,20 +268,20 @@ bool check_load_path(const std::vector<HistorySnapshot>& snapshots) {
     };
     bool passed =
         check(close(first_stretch.top_radial_displacement, 0.0) &&
-                  close(first_stretch.top_axial_displacement, 1.0e-4) &&
-                  close(positive_shear.top_radial_displacement, 8.0e-4) &&
-                  close(positive_shear.top_axial_displacement, 1.0e-4) &&
-                  close(axial_reversal.top_radial_displacement, 8.0e-4) &&
-                  close(axial_reversal.top_axial_displacement, -5.0e-5) &&
-                  close(shear_reversal.top_radial_displacement, -6.0e-4) &&
-                  close(shear_reversal.top_axial_displacement, -5.0e-5) &&
-                  close(final_stretch.top_radial_displacement, -6.0e-4) &&
-                  close(final_stretch.top_axial_displacement, 3.0e-5),
+                  close(first_stretch.top_axial_displacement, 2.0e-4) &&
+                  close(positive_shear.top_radial_displacement, 2.0e-3) &&
+                  close(positive_shear.top_axial_displacement, 2.0e-4) &&
+                  close(axial_reversal.top_radial_displacement, 2.0e-3) &&
+                  close(axial_reversal.top_axial_displacement, -1.0e-4) &&
+                  close(shear_reversal.top_radial_displacement, -1.5e-3) &&
+                  close(shear_reversal.top_axial_displacement, -1.0e-4) &&
+                  close(final_stretch.top_radial_displacement, -1.5e-3) &&
+                  close(final_stretch.top_axial_displacement, 6.0e-5),
               "M4.3 hits every noncoaxial load-path event");
     const double positive_polar_rotation =
-        std::abs(std::atan2(-0.8, 2.1));
-    passed = check(positive_polar_rotation > 0.35,
-                   "M4.3 positive-shear stage exceeds 20 degrees rotation") &&
+        std::abs(std::atan2(-1.0, 2.1));
+    passed = check(positive_polar_rotation > 0.44,
+                   "M4.3 positive-shear stage exceeds 25 degrees rotation") &&
              passed;
     passed = check(std::abs(positive_shear.state.plastic_strain[3]) > 0.1 &&
                        std::abs(positive_shear.state.creep_strain[3]) > 1.0e-5,
@@ -255,7 +310,7 @@ bool run_test(const std::string& input_path,
         definition.transient_execution.cutback_factor,
         definition.transient_execution.maximum_cutbacks,
         definition.transient_execution.load_ramp_time};
-    const fuelsim::SolverOptions solver_options = {
+    fuelsim::SolverOptions solver_options = {
         definition.solver.absolute_tolerance,
         definition.solver.relative_tolerance,
         definition.solver.step_tolerance,
@@ -265,9 +320,21 @@ bool run_test(const std::string& input_path,
         problem, time_options, solver_options, &observer);
 
     bool passed = check(result.completed &&
-                            result.accepted_steps.size() == 50 &&
+                            result.accepted_steps.size() == 100 &&
                             result.rejected_steps.empty(),
-                        "M4.3 completes 50 fixed steps without rejection");
+                        "M4.3 completes 100 fixed steps without rejection");
+    std::cout << "m43_completed=" << result.completed << '\n';
+    std::cout << "m43_accepted_steps=" << result.accepted_steps.size() << '\n';
+    std::cout << "m43_rejected_steps=" << result.rejected_steps.size() << '\n';
+    if (!result.completed) {
+        std::cout << "m43_last_failure_category="
+                  << fuelsim::solve_failure_category_name(
+                         result.last_attempt.failure_category)
+                  << '\n';
+        std::cout << "m43_last_failure_message="
+                  << result.last_attempt.failure_message << '\n';
+        return false;
+    }
     passed = check(result.aggregate_timing.workspace_setups == 1,
                    "M4.3 reuses one PETSc workspace") &&
              passed;
@@ -346,22 +413,26 @@ bool run_test(const std::string& input_path,
     std::cout << "m43_maximum_plastic_trace=" << maximum_plastic_trace
               << '\n';
     std::cout << "m43_maximum_creep_trace=" << maximum_creep_trace << '\n';
-    passed = check(maximum_plastic_trace < 1.0e-5 &&
-                       maximum_creep_trace < 1.0e-5,
+    passed = check(maximum_plastic_trace < 2.0e-6 &&
+                       maximum_creep_trace < 2.0e-8,
                    "M4.3 default-Rashid accumulated trace drift stays below "
-                   "1e-5") &&
+                   "its qualified limits") &&
              passed;
-    passed = check_metrics("m43_qp0_stress", stress, 1.0e-3) && passed;
-    passed = check_metrics("m43_qp0_elastic_strain", elastic, 1.0e-12) &&
+    passed = check_metrics("m43_volume_average_stress", stress, 1.0e-3,
+                           stress_pointwise_tolerance) &&
              passed;
-    passed = check_metrics("m43_qp0_combined_inelastic_strain",
-                           combined_inelastic, 1.0e-12) &&
+    passed = check_metrics("m43_volume_average_elastic_strain", elastic,
+                           1.0e-12, strain_pointwise_tolerance) &&
              passed;
-    passed = check_metrics("m43_qp0_equivalent_plastic",
+    passed = check_metrics("m43_volume_average_combined_inelastic_strain",
+                           combined_inelastic, 1.0e-12,
+                           inelastic_pointwise_tolerance) &&
+             passed;
+    passed = check_metrics("m43_volume_average_equivalent_plastic",
                            equivalent_plastic, 1.0e-12) &&
              passed;
-    passed = check_metrics("m43_qp0_equivalent_creep", equivalent_creep,
-                           1.0e-12) &&
+    passed = check_metrics("m43_volume_average_equivalent_creep",
+                           equivalent_creep, 1.0e-12) &&
              passed;
     return passed;
 }

@@ -812,9 +812,27 @@ PetscSolver::solve_once(const NonlinearProblem& problem,
         !(options.residual_reduction_tolerance > 0.0) ||
         !(options.temperature_residual_absolute_tolerance > 0.0) ||
         !(options.mechanical_residual_absolute_tolerance > 0.0) ||
+        !std::isfinite(options.temperature_residual_scale) ||
+        !std::isfinite(options.mechanical_residual_scale) ||
+        options.temperature_residual_scale < 0.0 ||
+        options.mechanical_residual_scale < 0.0 ||
         options.maximum_linear_iterations <= 0)
         throw std::invalid_argument(
             "PetscSolver tolerances and iterations must be positive");
+    const bool fixed_temperature_scale =
+        options.temperature_residual_scale > 0.0;
+    const bool fixed_mechanical_scale =
+        options.mechanical_residual_scale > 0.0;
+    if (fixed_temperature_scale != fixed_mechanical_scale)
+        throw std::invalid_argument(
+            "PetscSolver fixed temperature and mechanical residual scales "
+            "must both be zero or positive");
+    if (fixed_temperature_scale && options.field_residual_scaling)
+        throw std::invalid_argument(
+            "PetscSolver fixed residual scales cannot be combined with "
+            "automatic field residual scaling");
+    const bool residual_scaling =
+        options.field_residual_scaling || fixed_temperature_scale;
 
     const SteadyClock::time_point total_start = SteadyClock::now();
     const SteadyClock::time_point setup_start = SteadyClock::now();
@@ -826,16 +844,24 @@ PetscSolver::solve_once(const NonlinearProblem& problem,
     context.timing.solve_calls = 1;
     context.initial_residual_norm =
         std::numeric_limits<double>::quiet_NaN();
-    context.field_residual_scaling = options.field_residual_scaling;
+    context.field_residual_scaling = residual_scaling;
     context.residual_scaling_floor = options.absolute_tolerance;
     context.first_residual = true;
-    context.thermal_scaling_initialized = false;
-    context.mechanics_scaling_initialized = false;
+    context.thermal_scaling_initialized = fixed_temperature_scale;
+    context.mechanics_scaling_initialized = fixed_mechanical_scale;
     context.initial_field_residual_norms = {};
     context.field_residual_reference_norms = {};
     context.latest_unscaled_field_residual_norms = {};
     context.latest_field_residual_norms = {};
     context.field_residual_scalings = {1.0, 1.0, 1.0};
+    if (fixed_temperature_scale) {
+        context.field_residual_scalings[0] =
+            1.0 / options.temperature_residual_scale;
+        context.field_residual_scalings[1] =
+            1.0 / options.mechanical_residual_scale;
+        context.field_residual_scalings[2] =
+            1.0 / options.mechanical_residual_scale;
+    }
     context.saw_domain_error = false;
     context.last_function_domain_error = false;
     context.last_domain_error.clear();
@@ -854,9 +880,8 @@ PetscSolver::solve_once(const NonlinearProblem& problem,
 
     check_petsc(SNESSetTolerances(objects.snes, options.absolute_tolerance,
                                   options.relative_tolerance,
-                                  options.field_residual_scaling
-                                      ? 0.0
-                                      : options.step_tolerance,
+                                  residual_scaling ? 0.0
+                                                   : options.step_tolerance,
                                   options.maximum_iterations, PETSC_DEFAULT),
                 "SNESSetTolerances");
     SNESLineSearch line_search = nullptr;

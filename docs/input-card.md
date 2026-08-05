@@ -99,7 +99,7 @@ Dirichlet 和接触边界可使用任意属于所选区域的边集。每个接�
 参考构形小应变弱式；`finite` 使用 MOOSE 默认的增量 Taylor 应变与 Rashid
 转动，并用 Cauchy 应力、当前构形梯度和当前 RZ 测度装配力学内力。热传导
 与热容仍使用参考构形。有限应变区域的 pressure 是当前构形 follower load；
-traction 仍是参考构形 dead load。区域发生非正 Jacobian、非正环向伸长或
+traction 可选择参考或当前构形表面测度。区域发生非正 Jacobian、非正环向伸长或
 非正当前半径时会拒绝 Newton 试探态，不做隐式夹持。
 
 瞬态问题的每个区域还必须给出 `density`、`specific_heat` 和
@@ -193,7 +193,10 @@ Newton 试探状态一旦离开候选窗口会作为物理域错误交给回溯�
 `axial_displacement`。`pressure` 不接受 `field`，可施加在任意不退化的
 Line2 外边界；方向取边界相邻 Quad4 的外法向。小应变区域使用参考 RZ 表面，
 有限应变区域使用当前半径、当前法向和当前表面测度。`traction` 必须声明
-一个位移 `field`，`value` 是该分量上的有符号参考构形表面牵引。
+一个位移 `field`，`value` 是该全局 R 或 Z 分量上的有符号表面牵引；默认
+`configuration = reference`。有限应变区域可设置 `configuration = current`，
+此时方向仍固定为所选全局分量，但周长和边长使用当前构形并进入 AD Jacobian。
+小应变区域不能选择当前构形。
 `dirichlet`、`pressure` 和 `traction` 都可设置
 `scale_with_load = true`，使 `value` 乘以当前执行器载荷因子；默认不缩放。
 也可用 `function = <name>` 使 `value` 乘以时间表值；`function` 与
@@ -255,6 +258,8 @@ Quad4 的 12-DOF ADlite 局部贡献装配，因此残量和温度切线保持�
   time_error_relative_tolerance = 2e-4
   temperature_time_absolute_tolerance = 1e-3
   displacement_time_absolute_tolerance = 1e-10
+  strain_history_time_absolute_tolerance = 1e-10
+  stress_history_time_absolute_tolerance = 1
   time_error_safety_factor = 0.9
   restart = previous.checkpoint
 []
@@ -277,10 +282,11 @@ Quad4 的 12-DOF ADlite 局部贡献装配，因此残量和温度切线保持�
 
 `time_error_relative_tolerance` 省略或为零时不做时间离散误差控制。设为正值
 后，每个候选步从同一 committed 状态计算一个 Backward Euler 全步和两个
-半步；逐场归一化 L2 差的最大值大于 1 时完整回滚并缩步，成功时采用两个
-半步的结果。温度和两个位移场分别使用上述绝对容差，安全系数必须位于
-`(0,1)`。该估计器增加到约三倍的非线性求解工作量，但直接控制时间截断误差，
-并在进度和拒步诊断中输出 `time_error_estimate`。
+半步；温度、两个位移场、弹性/塑性/蠕变张量、两个等效应变及应力的归一化
+L2 差最大值大于 1 时完整回滚并缩步，成功时采用两个半步的结果。温度、位移、
+应变历史和应力分别使用上述绝对容差，安全系数必须位于 `(0,1)`。该估计器
+增加到约三倍的非线性求解工作量，但可识别节点场不敏感而材料历史不准确的
+时间步，并在进度和拒步诊断中输出总估计及每个分量。
 
 每次未收敛尝试都会记录尝试终点、步长、cutback 序号、非线性迭代数、PETSc
 收敛原因、残量范数、失败类别和物理域消息；最终停止原因区分 `completed`、
@@ -307,6 +313,8 @@ Quad4 的 12-DOF ADlite 局部贡献装配，因此残量和温度切线保持�
 - `temperature_residual_absolute_tolerance`，默认 `1e-8 W`；
 - `mechanical_residual_absolute_tolerance`，默认 `1e-4 N`，同时用于径向和轴向；
 - `field_residual_scaling`，默认 `false`，可选启用热/力分组的自动行缩放。
+- `temperature_residual_scale` 与 `mechanical_residual_scale`，默认均为 `0`；
+  成对设为正数时作为跨求解固定的物理残量特征尺度，与自动行缩放互斥。
 
 `automatic` 使用直接 LU：单 rank 采用 PETSc LU，多 rank 采用 PETSc 的 MUMPS
 分解。选择 `block_jacobi`、`field_split` 或 `hypre` 会自动选 GMRES；
@@ -349,8 +357,10 @@ PETSc `-snes_linesearch_type` 仍可覆盖具体类型；输入卡可关闭自�
 `exodus_interval`、`history_interval` 和 `progress_interval` 均按成功步计数，
 默认为 `1`；无论频率如何，结束或失败时仍写出最后 committed 状态。工程时程
 按区域名称记录最高温度及最大塑性/蠕变等效应变，按接触名称记录最小间隙、
-最大压力、总热流和总反力。检查点只在成功提交后按间隔原子替换，并在执行
-结束或失败退出前再次保存最后提交态。
+最大压力、总热流和总反力。每步还记录生成/储存/对流/界面/Dirichlet 热率、
+全局热平衡、内力/压力牵引/约束反力/接触功平衡、弹性能变化及塑性/蠕变耗散。
+检查点只在成功提交后按间隔原子替换，并在执行结束或失败退出前再次保存最后
+提交态。
 
 CSV、Exodus、工程时程和检查点彼此不得同名，也不得覆盖输入卡、输入网格或
 重启动检查点。相对路径都以输入卡目录为基准。重启动后的 Exodus 和工程
@@ -382,9 +392,11 @@ committed 初值上装配解析方向导数，并与中心差分比较。输出�
 - [`transient_coupled_traction_moose.fsi`](../verification/fuelsim/transient_coupled_traction_moose.fsi)
 - [`transient_fuel_cladding_pcmi.fsi`](../verification/fuelsim/transient_fuel_cladding_pcmi.fsi)
 - [`transient_finite_strain_pcmi.fsi`](../verification/fuelsim/transient_finite_strain_pcmi.fsi)
+- [`steady_finite_follower_pressure.fsi`](../verification/fuelsim/steady_finite_follower_pressure.fsi)
+- [`transient_noncoaxial_finite_strain.fsi`](../verification/fuelsim/transient_noncoaxial_finite_strain.fsi)
 
-上述十二张卡分别驱动 M0、两套 M1、M2.1、M3.1、四套 M2.2、M2.3、
-M3.3 和 M4.1 的
+上述十四张卡分别驱动 M0、两套 M1、M2.1、M3.1、四套 M2.2、M2.3、
+M3.3、M4.1、M4.2 和 M4.3 的
 fuelsim-to-MOOSE 对比；测试程序不再直接构造这些案例的材料、载荷路径或
 网格选择参数。每个对比读取 MOOSE 最终时刻的全部节点，统一检查温度、
 径向位移和轴向位移的三项误差；M1、M2.3、M3.3 和 M4.1 还检查全部接触
