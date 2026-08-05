@@ -66,38 +66,6 @@
     order = CONSTANT
     family = MONOMIAL
   []
-  [plastic_rr]
-    order = CONSTANT
-    family = MONOMIAL
-  []
-  [plastic_zz]
-    order = CONSTANT
-    family = MONOMIAL
-  []
-  [plastic_hoop]
-    order = CONSTANT
-    family = MONOMIAL
-  []
-  [plastic_rz]
-    order = CONSTANT
-    family = MONOMIAL
-  []
-  [creep_rr]
-    order = CONSTANT
-    family = MONOMIAL
-  []
-  [creep_zz]
-    order = CONSTANT
-    family = MONOMIAL
-  []
-  [creep_hoop]
-    order = CONSTANT
-    family = MONOMIAL
-  []
-  [creep_rz]
-    order = CONSTANT
-    family = MONOMIAL
-  []
   [effective_plastic]
     order = CONSTANT
     family = MONOMIAL
@@ -119,6 +87,10 @@
     family = MONOMIAL
   []
   [combined_rz]
+    order = CONSTANT
+    family = MONOMIAL
+  []
+  [sample_time]
     order = CONSTANT
     family = MONOMIAL
   []
@@ -153,6 +125,10 @@
     x = '0 5'
     y = '0 1e6'
   []
+  [output_time]
+    type = ParsedFunction
+    expression = 't'
+  []
 []
 
 [Kernels]
@@ -169,13 +145,16 @@
 []
 
 [AuxKernels]
+  # CONSTANT MONOMIAL AuxKernels integrate all four QPs over the reference RZ
+  # element volume.  Keep both the measure and execution point explicit.
   [stress_rr]
     type = ADRankTwoAux
     rank_two_tensor = stress
     variable = stress_rr
     index_i = 0
     index_j = 0
-    selected_qp = 0
+    use_displaced_mesh = false
+    execute_on = timestep_end
   []
   [stress_zz]
     type = ADRankTwoAux
@@ -183,7 +162,8 @@
     variable = stress_zz
     index_i = 1
     index_j = 1
-    selected_qp = 0
+    use_displaced_mesh = false
+    execute_on = timestep_end
   []
   [stress_hoop]
     type = ADRankTwoAux
@@ -191,7 +171,8 @@
     variable = stress_hoop
     index_i = 2
     index_j = 2
-    selected_qp = 0
+    use_displaced_mesh = false
+    execute_on = timestep_end
   []
   [stress_rz]
     type = ADRankTwoAux
@@ -199,7 +180,8 @@
     variable = stress_rz
     index_i = 0
     index_j = 1
-    selected_qp = 0
+    use_displaced_mesh = false
+    execute_on = timestep_end
   []
   [elastic_rr]
     type = ADRankTwoAux
@@ -207,7 +189,8 @@
     variable = elastic_rr
     index_i = 0
     index_j = 0
-    selected_qp = 0
+    use_displaced_mesh = false
+    execute_on = timestep_end
   []
   [elastic_zz]
     type = ADRankTwoAux
@@ -215,7 +198,8 @@
     variable = elastic_zz
     index_i = 1
     index_j = 1
-    selected_qp = 0
+    use_displaced_mesh = false
+    execute_on = timestep_end
   []
   [elastic_hoop]
     type = ADRankTwoAux
@@ -223,7 +207,8 @@
     variable = elastic_hoop
     index_i = 2
     index_j = 2
-    selected_qp = 0
+    use_displaced_mesh = false
+    execute_on = timestep_end
   []
   [elastic_rz]
     type = ADRankTwoAux
@@ -231,83 +216,22 @@
     variable = elastic_rz
     index_i = 0
     index_j = 1
-    selected_qp = 0
-  []
-  [plastic_rr]
-    type = ADRankTwoAux
-    rank_two_tensor = plastic_strain
-    variable = plastic_rr
-    index_i = 0
-    index_j = 0
-    selected_qp = 0
-  []
-  [plastic_zz]
-    type = ADRankTwoAux
-    rank_two_tensor = plastic_strain
-    variable = plastic_zz
-    index_i = 1
-    index_j = 1
-    selected_qp = 0
-  []
-  [plastic_hoop]
-    type = ADRankTwoAux
-    rank_two_tensor = plastic_strain
-    variable = plastic_hoop
-    index_i = 2
-    index_j = 2
-    selected_qp = 0
-  []
-  [plastic_rz]
-    type = ADRankTwoAux
-    rank_two_tensor = plastic_strain
-    variable = plastic_rz
-    index_i = 0
-    index_j = 1
-    selected_qp = 0
-  []
-  [creep_rr]
-    type = ADRankTwoAux
-    rank_two_tensor = creep_strain
-    variable = creep_rr
-    index_i = 0
-    index_j = 0
-    selected_qp = 0
-  []
-  [creep_zz]
-    type = ADRankTwoAux
-    rank_two_tensor = creep_strain
-    variable = creep_zz
-    index_i = 1
-    index_j = 1
-    selected_qp = 0
-  []
-  [creep_hoop]
-    type = ADRankTwoAux
-    rank_two_tensor = creep_strain
-    variable = creep_hoop
-    index_i = 2
-    index_j = 2
-    selected_qp = 0
-  []
-  [creep_rz]
-    type = ADRankTwoAux
-    rank_two_tensor = creep_strain
-    variable = creep_rz
-    index_i = 0
-    index_j = 1
-    selected_qp = 0
+    use_displaced_mesh = false
+    execute_on = timestep_end
   []
   [effective_plastic]
     type = ADMaterialRealAux
     property = effective_plastic_strain
     variable = effective_plastic
-    selected_qp = 0
+    use_displaced_mesh = false
+    execute_on = timestep_end
   []
   [effective_creep]
     type = ADMaterialRealAux
     property = effective_creep_strain
     variable = effective_creep
-    selected_qp = 0
+    use_displaced_mesh = false
+    execute_on = timestep_end
   []
   [combined_rr]
     type = ADRankTwoAux
@@ -315,7 +239,8 @@
     variable = combined_rr
     index_i = 0
     index_j = 0
-    selected_qp = 0
+    use_displaced_mesh = false
+    execute_on = timestep_end
   []
   [combined_zz]
     type = ADRankTwoAux
@@ -323,7 +248,8 @@
     variable = combined_zz
     index_i = 1
     index_j = 1
-    selected_qp = 0
+    use_displaced_mesh = false
+    execute_on = timestep_end
   []
   [combined_hoop]
     type = ADRankTwoAux
@@ -331,7 +257,8 @@
     variable = combined_hoop
     index_i = 2
     index_j = 2
-    selected_qp = 0
+    use_displaced_mesh = false
+    execute_on = timestep_end
   []
   [combined_rz]
     type = ADRankTwoAux
@@ -339,7 +266,15 @@
     variable = combined_rz
     index_i = 0
     index_j = 1
-    selected_qp = 0
+    use_displaced_mesh = false
+    execute_on = timestep_end
+  []
+  [sample_time]
+    type = FunctionAux
+    variable = sample_time
+    function = output_time
+    use_displaced_mesh = false
+    execute_on = timestep_end
   []
 []
 
@@ -441,98 +376,15 @@
   petsc_options_value = 'lu'
 []
 
-[Postprocessors]
-  [stress_rr]
-    type = ElementAverageValue
-    variable = stress_rr
-  []
-  [stress_zz]
-    type = ElementAverageValue
-    variable = stress_zz
-  []
-  [stress_hoop]
-    type = ElementAverageValue
-    variable = stress_hoop
-  []
-  [stress_rz]
-    type = ElementAverageValue
-    variable = stress_rz
-  []
-  [elastic_rr]
-    type = ElementAverageValue
-    variable = elastic_rr
-  []
-  [elastic_zz]
-    type = ElementAverageValue
-    variable = elastic_zz
-  []
-  [elastic_hoop]
-    type = ElementAverageValue
-    variable = elastic_hoop
-  []
-  [elastic_rz]
-    type = ElementAverageValue
-    variable = elastic_rz
-  []
-  [plastic_rr]
-    type = ElementAverageValue
-    variable = plastic_rr
-  []
-  [plastic_zz]
-    type = ElementAverageValue
-    variable = plastic_zz
-  []
-  [plastic_hoop]
-    type = ElementAverageValue
-    variable = plastic_hoop
-  []
-  [plastic_rz]
-    type = ElementAverageValue
-    variable = plastic_rz
-  []
-  [creep_rr]
-    type = ElementAverageValue
-    variable = creep_rr
-  []
-  [creep_zz]
-    type = ElementAverageValue
-    variable = creep_zz
-  []
-  [creep_hoop]
-    type = ElementAverageValue
-    variable = creep_hoop
-  []
-  [creep_rz]
-    type = ElementAverageValue
-    variable = creep_rz
-  []
-  [effective_plastic]
-    type = ElementAverageValue
-    variable = effective_plastic
-  []
-  [effective_creep]
-    type = ElementAverageValue
-    variable = effective_creep
-  []
-  [combined_rr]
-    type = ElementAverageValue
-    variable = combined_rr
-  []
-  [combined_zz]
-    type = ElementAverageValue
-    variable = combined_zz
-  []
-  [combined_hoop]
-    type = ElementAverageValue
-    variable = combined_hoop
-  []
-  [combined_rz]
-    type = ElementAverageValue
-    variable = combined_rz
-  []
-[]
-
 [VectorPostprocessors]
+  [element_history]
+    type = ElementValueSampler
+    variable = 'sample_time stress_rr stress_zz stress_hoop stress_rz elastic_rr elastic_zz elastic_hoop elastic_rz effective_plastic effective_creep combined_rr combined_zz combined_hoop combined_rz'
+    sort_by = sample_time
+    contains_complete_history = true
+    execute_on = timestep_end
+    use_displaced_mesh = false
+  []
   [all_nodes]
     type = NodalValueSampler
     variable = 'T disp_x disp_y'

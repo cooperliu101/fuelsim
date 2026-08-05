@@ -597,7 +597,7 @@ if(BUILD_TESTING)
         COMMAND fuelsim_m43_noncoaxial_finite_strain_moose_tests
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_noncoaxial_finite_strain.fsi"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_noncoaxial_finite_strain_rz_all_nodes_final.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_noncoaxial_finite_strain_rz_out.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_noncoaxial_finite_strain_rz_element_history.csv"
     )
     set_tests_properties(
         fuelsim_m43_noncoaxial_finite_strain_moose_tests
