@@ -764,9 +764,13 @@ The tracked mesh and snapshots were generated with one rank using:
   Outputs/console=false
 ```
 
-The automated comparison checks every accepted volume-averaged history row for
-stress, elastic strain, objective `combined_inelastic_strain`, effective
-plastic strain, and effective creep strain, plus all final nodes. The nodal
+The automated comparison checks every accepted history row for stress, elastic
+strain, objective `combined_inelastic_strain`, effective plastic strain, and
+effective creep strain, plus all final nodes. For this reference, every MOOSE
+constant MONOMIAL auxiliary explicitly uses `selected_qp = 0`, after which
+`ElementAverageValue` weights those per-element QP0 values by reference element
+volume. Fuelsim reproduces that exact QP0-element-average observable; this is
+not claimed to be a true four-quadrature-point material volume average. The nodal
 temperature/radial/axial maximum three-metric values are `1.9e-14%`,
 `0.00415%`, and `0.02304%`. Equivalent-plastic and equivalent-creep metrics
 remain below `0.000265%`.

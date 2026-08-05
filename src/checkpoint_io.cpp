@@ -17,7 +17,7 @@ namespace {
 constexpr std::array<unsigned char, 16> checkpoint_magic = {
     'F', 'U', 'E', 'L', 'S', 'I', 'M', '_',
     'C', 'H', 'E', 'C', 'K', 'P', 'T', '\0'};
-constexpr std::uint32_t checkpoint_version = 3U;
+constexpr std::uint32_t checkpoint_version = 4U;
 constexpr std::uint32_t endian_marker = 0x01020304U;
 constexpr std::uint64_t fnv_offset = 14695981039346656037ULL;
 constexpr std::uint64_t fnv_prime = 1099511628211ULL;
@@ -148,6 +148,75 @@ void read_material_point(BinaryCursor& payload, MaterialPointState& state,
     stress.rz = payload.read_double();
 }
 
+void append_conservation(BinaryBuffer& payload,
+                         const TransientConservationSummary& summary) {
+    payload.append_double(summary.generated_heat_rate);
+    payload.append_double(summary.stored_heat_rate);
+    payload.append_double(summary.convection_heat_rate);
+    payload.append_double(summary.interface_heat_imbalance);
+    payload.append_double(summary.dirichlet_heat_input_rate);
+    payload.append_double(summary.global_thermal_balance);
+    payload.append_double(summary.relative_thermal_balance);
+    payload.append_double(summary.unconstrained_thermal_residual_l2);
+    payload.append_double(summary.internal_mechanical_work_increment);
+    payload.append_double(summary.pressure_traction_work_increment);
+    payload.append_double(summary.dirichlet_reaction_work_increment);
+    payload.append_double(summary.contact_work_increment);
+    payload.append_double(summary.mechanical_work_balance);
+    payload.append_double(summary.relative_mechanical_work_balance);
+    payload.append_double(summary.unconstrained_mechanical_residual_l2);
+    payload.append_double(summary.elastic_energy_change);
+    payload.append_double(summary.plastic_dissipation_increment);
+    payload.append_double(summary.creep_dissipation_increment);
+}
+
+TransientConservationSummary read_conservation(BinaryCursor& payload) {
+    TransientConservationSummary result;
+    result.generated_heat_rate = payload.read_double();
+    result.stored_heat_rate = payload.read_double();
+    result.convection_heat_rate = payload.read_double();
+    result.interface_heat_imbalance = payload.read_double();
+    result.dirichlet_heat_input_rate = payload.read_double();
+    result.global_thermal_balance = payload.read_double();
+    result.relative_thermal_balance = payload.read_double();
+    result.unconstrained_thermal_residual_l2 = payload.read_double();
+    result.internal_mechanical_work_increment = payload.read_double();
+    result.pressure_traction_work_increment = payload.read_double();
+    result.dirichlet_reaction_work_increment = payload.read_double();
+    result.contact_work_increment = payload.read_double();
+    result.mechanical_work_balance = payload.read_double();
+    result.relative_mechanical_work_balance = payload.read_double();
+    result.unconstrained_mechanical_residual_l2 = payload.read_double();
+    result.elastic_energy_change = payload.read_double();
+    result.plastic_dissipation_increment = payload.read_double();
+    result.creep_dissipation_increment = payload.read_double();
+    const std::array<double, 18> values = {
+        result.generated_heat_rate,
+        result.stored_heat_rate,
+        result.convection_heat_rate,
+        result.interface_heat_imbalance,
+        result.dirichlet_heat_input_rate,
+        result.global_thermal_balance,
+        result.relative_thermal_balance,
+        result.unconstrained_thermal_residual_l2,
+        result.internal_mechanical_work_increment,
+        result.pressure_traction_work_increment,
+        result.dirichlet_reaction_work_increment,
+        result.contact_work_increment,
+        result.mechanical_work_balance,
+        result.relative_mechanical_work_balance,
+        result.unconstrained_mechanical_residual_l2,
+        result.elastic_energy_change,
+        result.plastic_dissipation_increment,
+        result.creep_dissipation_increment};
+    for (const double value : values) {
+        if (!std::isfinite(value))
+            throw std::runtime_error(
+                "Checkpoint conservation summary is invalid");
+    }
+    return result;
+}
+
 BinaryBuffer state_payload(const TransientProblem& problem,
                            double next_time_step) {
     const TransientCommittedState state = problem.committed_state();
@@ -156,6 +225,7 @@ BinaryBuffer state_payload(const TransientProblem& problem,
     payload.append_double(state.time);
     payload.append_double(state.load_factor);
     payload.append_double(next_time_step);
+    append_conservation(payload, state.conservation);
     payload.append_u64(static_cast<std::uint64_t>(state.solution.size()));
     for (const double value : state.solution)
         payload.append_double(value);
@@ -276,6 +346,7 @@ double TransientCheckpointIo::restore(const std::string& path,
     state.time = payload.read_double();
     state.load_factor = payload.read_double();
     const double next_time_step = payload.read_double();
+    state.conservation = read_conservation(payload);
     if (!std::isfinite(next_time_step) || !(next_time_step > 0.0))
         throw std::runtime_error("Checkpoint next time step is invalid");
     const std::uint64_t solution_size = payload.read_u64();

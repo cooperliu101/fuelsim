@@ -463,6 +463,72 @@ bool run_tests(const std::string& steady_path,
     if (std::remove(malformed_path.c_str()) != 0)
         return check(false, "could not remove current-traction input fixture");
 
+    std::string invalid_configuration = read_text(traction_path);
+    const std::size_t invalid_configuration_position =
+        invalid_configuration.find(traction_type);
+    invalid_configuration.insert(
+        invalid_configuration_position + traction_type.size(),
+        "\n    configuration = rotating");
+    passed = expect_case_failure(malformed_path, invalid_configuration,
+                                 "must be reference or current") &&
+             passed;
+
+    std::string dirichlet_configuration = read_text(transient_path);
+    const std::string dirichlet_type = "type = dirichlet";
+    const std::size_t dirichlet_position =
+        dirichlet_configuration.find(dirichlet_type);
+    if (dirichlet_position == std::string::npos)
+        return check(false, "transient fixture has a Dirichlet condition");
+    dirichlet_configuration.insert(
+        dirichlet_position + dirichlet_type.size(),
+        "\n    configuration = current");
+    passed = expect_case_failure(malformed_path, dirichlet_configuration,
+                                 "not valid for type='dirichlet'") &&
+             passed;
+
+    std::string pressure_configuration = current_traction_case;
+    pressure_configuration.replace(
+        pressure_configuration.find(traction_type), traction_type.size(),
+        "type = pressure");
+    passed = expect_case_failure(malformed_path, pressure_configuration,
+                                 "not valid for type='pressure'") &&
+             passed;
+
+    std::string convection_configuration = m3_case;
+    const std::string convection_type = "type = convection";
+    const std::size_t convection_position =
+        convection_configuration.find(convection_type);
+    if (convection_position == std::string::npos)
+        return check(false, "M3 fixture has a convection condition");
+    convection_configuration.insert(
+        convection_position + convection_type.size(),
+        "\n    configuration = current");
+    passed = expect_case_failure(malformed_path, convection_configuration,
+                                 "not valid for type='convection'") &&
+             passed;
+
+    std::string negative_temperature_scale = read_text(transient_path);
+    const std::size_t negative_temperature_solver =
+        negative_temperature_scale.find(solver_start);
+    negative_temperature_scale.insert(
+        negative_temperature_solver + solver_start.size(),
+        "\n  temperature_residual_scale = -1"
+        "\n  mechanical_residual_scale = 1");
+    passed = expect_case_failure(malformed_path, negative_temperature_scale,
+                                 "must be positive") &&
+             passed;
+
+    std::string negative_mechanical_scale = read_text(transient_path);
+    const std::size_t negative_mechanical_solver =
+        negative_mechanical_scale.find(solver_start);
+    negative_mechanical_scale.insert(
+        negative_mechanical_solver + solver_start.size(),
+        "\n  temperature_residual_scale = 1"
+        "\n  mechanical_residual_scale = -1");
+    passed = expect_case_failure(malformed_path, negative_mechanical_scale,
+                                 "must be positive") &&
+             passed;
+
     std::string unknown_function = read_text(transient_path);
     const std::size_t unknown_heat_position =
         unknown_function.find(heat_source);

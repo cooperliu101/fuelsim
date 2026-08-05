@@ -33,6 +33,7 @@ struct SteadyResult final {
     std::size_t total_cutbacks = 0;
     bool completed = false;
     int total_nonlinear_iterations = 0;
+    int total_linear_iterations = 0;
     double total_seconds = 0.0;
     SolveTiming aggregate_timing;
 };
@@ -85,6 +86,7 @@ struct TransientRejectedStep final {
     double time_step;
     std::size_t cutback_index;
     int nonlinear_iterations;
+    int linear_iterations;
     int convergence_reason;
     double residual_norm;
     SolveFailureCategory failure_category;
@@ -100,6 +102,7 @@ struct TransientAcceptedStep final {
     double load_factor;
     std::size_t cutbacks;
     int nonlinear_iterations;
+    int linear_iterations;
     std::vector<RegionInelasticSummary> region_histories;
     double time_error_estimate = 0.0;
     TransientTimeErrorEstimate time_error_components;
@@ -115,6 +118,7 @@ struct TransientResult final {
     std::size_t total_cutbacks = 0;
     std::size_t time_error_rejections = 0;
     int total_nonlinear_iterations = 0;
+    int total_linear_iterations = 0;
     double committed_time = 0.0;
     double next_time_step = 0.0;
     double total_seconds = 0.0;

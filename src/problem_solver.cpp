@@ -145,9 +145,13 @@ double accepted_next_time_step(const TransientTimeOptions& options,
                                int nonlinear_iterations) {
     const double base = event_truncated && cutbacks == 0 ? controller_time_step
                                                          : actual_time_step;
-    if (options.target_nonlinear_iterations == 0)
+    if (options.target_nonlinear_iterations == 0) {
+        if (cutbacks > 0)
+            return std::clamp(base, options.minimum_time_step,
+                              options.maximum_time_step);
         return std::min(options.maximum_time_step,
                         base * options.growth_factor);
+    }
     const std::size_t iterations =
         nonlinear_iterations < 0
             ? 0
@@ -160,7 +164,7 @@ double accepted_next_time_step(const TransientTimeOptions& options,
                     options.iteration_window
             ? std::numeric_limits<std::size_t>::max()
             : options.target_nonlinear_iterations + options.iteration_window;
-    if (iterations < lower)
+    if (iterations < lower && cutbacks == 0)
         return std::min(options.maximum_time_step,
                         base * options.growth_factor);
     if (iterations > upper)
@@ -173,6 +177,8 @@ double accepted_next_time_step(const TransientTimeOptions& options,
 void combine_attempt(SolveResult& aggregate, const SolveResult& addition) {
     const int nonlinear_iterations =
         aggregate.nonlinear_iterations + addition.nonlinear_iterations;
+    const int linear_iterations =
+        aggregate.linear_iterations + addition.linear_iterations;
     const std::size_t nonlinear_attempts =
         aggregate.nonlinear_attempts + addition.nonlinear_attempts;
     SolveTiming timing = aggregate.timing;
@@ -189,11 +195,86 @@ void combine_attempt(SolveResult& aggregate, const SolveResult& addition) {
             : addition.basic_failure_message;
     aggregate = addition;
     aggregate.nonlinear_iterations = nonlinear_iterations;
+    aggregate.linear_iterations = linear_iterations;
     aggregate.nonlinear_attempts = nonlinear_attempts;
     aggregate.timing = timing;
     aggregate.used_backtracking_fallback = used_backtracking;
     aggregate.basic_failure_category = basic_failure;
     aggregate.basic_failure_message = basic_message;
+}
+
+TransientConservationSummary combine_half_step_conservation(
+    const TransientConservationSummary& first,
+    const TransientConservationSummary& second) {
+    TransientConservationSummary result;
+    const auto average = [](double left, double right) {
+        return 0.5 * (left + right);
+    };
+    result.generated_heat_rate =
+        average(first.generated_heat_rate, second.generated_heat_rate);
+    result.stored_heat_rate =
+        average(first.stored_heat_rate, second.stored_heat_rate);
+    result.convection_heat_rate =
+        average(first.convection_heat_rate, second.convection_heat_rate);
+    result.interface_heat_imbalance = average(
+        first.interface_heat_imbalance, second.interface_heat_imbalance);
+    result.dirichlet_heat_input_rate = average(
+        first.dirichlet_heat_input_rate, second.dirichlet_heat_input_rate);
+    result.global_thermal_balance =
+        result.stored_heat_rate + result.convection_heat_rate +
+        result.interface_heat_imbalance - result.generated_heat_rate -
+        result.dirichlet_heat_input_rate;
+    const double thermal_scale =
+        std::abs(result.generated_heat_rate) +
+        std::abs(result.stored_heat_rate) +
+        std::abs(result.convection_heat_rate) +
+        std::abs(result.interface_heat_imbalance) +
+        std::abs(result.dirichlet_heat_input_rate);
+    result.relative_thermal_balance =
+        thermal_scale > 0.0
+            ? std::abs(result.global_thermal_balance) / thermal_scale
+            : 0.0;
+    result.unconstrained_thermal_residual_l2 = std::max(
+        first.unconstrained_thermal_residual_l2,
+        second.unconstrained_thermal_residual_l2);
+
+    result.internal_mechanical_work_increment =
+        first.internal_mechanical_work_increment +
+        second.internal_mechanical_work_increment;
+    result.pressure_traction_work_increment =
+        first.pressure_traction_work_increment +
+        second.pressure_traction_work_increment;
+    result.dirichlet_reaction_work_increment =
+        first.dirichlet_reaction_work_increment +
+        second.dirichlet_reaction_work_increment;
+    result.contact_work_increment = first.contact_work_increment +
+                                    second.contact_work_increment;
+    result.mechanical_work_balance =
+        result.internal_mechanical_work_increment +
+        result.contact_work_increment -
+        result.pressure_traction_work_increment -
+        result.dirichlet_reaction_work_increment;
+    const double mechanical_scale =
+        std::abs(result.internal_mechanical_work_increment) +
+        std::abs(result.pressure_traction_work_increment) +
+        std::abs(result.dirichlet_reaction_work_increment) +
+        std::abs(result.contact_work_increment);
+    result.relative_mechanical_work_balance =
+        mechanical_scale > 0.0
+            ? std::abs(result.mechanical_work_balance) / mechanical_scale
+            : 0.0;
+    result.unconstrained_mechanical_residual_l2 = std::max(
+        first.unconstrained_mechanical_residual_l2,
+        second.unconstrained_mechanical_residual_l2);
+    result.elastic_energy_change = first.elastic_energy_change +
+                                   second.elastic_energy_change;
+    result.plastic_dissipation_increment =
+        first.plastic_dissipation_increment +
+        second.plastic_dissipation_increment;
+    result.creep_dissipation_increment =
+        first.creep_dissipation_increment +
+        second.creep_dissipation_increment;
+    return result;
 }
 
 struct ErrorAccumulator final {
@@ -379,6 +460,7 @@ SteadyResult solve_steady(SteadyProblem& problem,
                 attempted_load_factor - accepted_load_factor;
             SolveResult attempt;
             for (;;) {
+                attempt = SolveResult{};
                 try {
                     problem.set_load_factor(attempted_load_factor);
                     attempt = solver.solve(
@@ -399,6 +481,7 @@ SteadyResult solve_steady(SteadyProblem& problem,
                 accumulate_timing(result.aggregate_timing, attempt.timing);
                 result.total_nonlinear_iterations +=
                     attempt.nonlinear_iterations;
+                result.total_linear_iterations += attempt.linear_iterations;
                 if (attempt.converged)
                     break;
 
@@ -471,6 +554,7 @@ TransientResult solve_transient(TransientProblem& problem,
             SolveResult attempt;
             double time_error_estimate = 0.0;
             TransientTimeErrorEstimate time_error_components;
+            TransientConservationSummary first_half_conservation;
             int controller_nonlinear_iterations = 0;
             const bool error_control =
                 options.time_error_relative_tolerance > 0.0;
@@ -530,6 +614,9 @@ TransientResult solve_transient(TransientProblem& problem,
                             if (first_half.converged)
                                 transaction.commit(first_half.state);
                         }
+                        if (first_half.converged)
+                            first_half_conservation =
+                                problem.last_conservation_summary();
                         controller_nonlinear_iterations = std::max(
                             controller_nonlinear_iterations,
                             first_half.nonlinear_iterations);
@@ -577,6 +664,15 @@ TransientResult solve_transient(TransientProblem& problem,
                                         "Backward-Euler step-doubling error "
                                         "exceeded one";
                                     ++result.time_error_rejections;
+                                } else {
+                                    TransientCommittedState accepted_state =
+                                        problem.committed_state();
+                                    accepted_state.conservation =
+                                        combine_half_step_conservation(
+                                            first_half_conservation,
+                                            accepted_state.conservation);
+                                    problem.restore_committed_state(
+                                        std::move(accepted_state));
                                 }
                             }
                         }
@@ -603,6 +699,7 @@ TransientResult solve_transient(TransientProblem& problem,
             }
             accumulate_timing(result.aggregate_timing, attempt.timing);
             result.total_nonlinear_iterations += attempt.nonlinear_iterations;
+            result.total_linear_iterations += attempt.linear_iterations;
             result.last_attempt = std::move(attempt);
             if (result.last_attempt.converged) {
                 std::vector<RegionInelasticSummary> histories;
@@ -627,6 +724,7 @@ TransientResult solve_transient(TransientProblem& problem,
                     {problem.committed_time(), time_step, next_time_step,
                      problem.committed_load_factor(), cutbacks,
                      result.last_attempt.nonlinear_iterations,
+                     result.last_attempt.linear_iterations,
                      std::move(histories), time_error_estimate,
                      time_error_components,
                      problem.last_conservation_summary()});
@@ -638,6 +736,7 @@ TransientResult solve_transient(TransientProblem& problem,
             result.rejected_steps.push_back(
                 {problem.committed_time() + time_step, time_step, cutbacks,
                  result.last_attempt.nonlinear_iterations,
+                 result.last_attempt.linear_iterations,
                  result.last_attempt.convergence_reason,
                  result.last_attempt.residual_norm,
                  result.last_attempt.failure_category,

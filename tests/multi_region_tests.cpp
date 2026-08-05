@@ -364,7 +364,25 @@ bool test_three_regions(const fuelsim::UnstructuredQuad4Mesh& mesh) {
         region_value.initial_temperature = 300.0;
         region_value.volumetric_heat_source = 0.0;
     }
-    solve_definition.regions.front().volumetric_heat_source = 2.0e2;
+    for (fuelsim::ContactDefinition& contact_value :
+         solve_definition.contacts)
+        contact_value.penalty = 1.0e6;
+    fuelsim::BoundaryConditionDefinition pellet_closure = dirichlet(
+        "pellet_contact_closure", "pellet_outer",
+        fuelsim::Field::radial_displacement, 0.101);
+    pellet_closure.scale_with_load = true;
+    solve_definition.boundary_conditions.push_back(pellet_closure);
+    fuelsim::BoundaryConditionDefinition inner_clad_closure = dirichlet(
+        "inner_clad_contact_closure", "clad_1_outer",
+        fuelsim::Field::radial_displacement, 0.101);
+    inner_clad_closure.scale_with_load = true;
+    solve_definition.boundary_conditions.push_back(inner_clad_closure);
+    solve_definition.boundary_conditions.push_back(dirichlet(
+        "inner_clad_contact_anchor", "clad_1_inner",
+        fuelsim::Field::radial_displacement, 0.0));
+    solve_definition.boundary_conditions.push_back(dirichlet(
+        "outer_clad_contact_anchor", "clad_2_inner",
+        fuelsim::Field::radial_displacement, 0.0));
     fuelsim::SteadyProblem solve_problem(std::move(solve_definition), mesh);
     const fuelsim::SteadyResult solve = fuelsim::solve_steady(
         solve_problem, {4, 0.5, 12, 1.0e-6}, fuelsim::SolverOptions{});
@@ -384,8 +402,10 @@ bool test_three_regions(const fuelsim::UnstructuredQuad4Mesh& mesh) {
                 solve_problem.summarize_interface(contact_value,
                                                   solve.solve.state);
             passed = check(summary.projected_contact_nodes > 0 &&
+                               summary.active_contact_nodes > 0 &&
                                summary.unprojected_contact_nodes == 0,
-                           "every converged contact pair remains projected") &&
+                           "every converged contact pair remains projected "
+                           "and mechanically active") &&
                      passed;
         }
     }

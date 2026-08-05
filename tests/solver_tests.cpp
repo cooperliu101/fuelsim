@@ -125,10 +125,110 @@ class StagnatingProblem final : public fuelsim::NonlinearProblem {
     std::vector<fuelsim::DirichletCondition> _conditions;
 };
 
+class FieldStagnatingProblem final : public fuelsim::NonlinearProblem {
+  public:
+    std::size_t dof_count() const noexcept override {
+        return fuelsim::local_dof_count;
+    }
+    std::size_t contribution_count() const noexcept override {
+        return 1;
+    }
+    fuelsim::LocalDofs contribution_dofs(std::size_t) const override {
+        fuelsim::LocalDofs dofs{};
+        for (std::size_t dof = 0; dof < dofs.size(); ++dof)
+            dofs[dof] = dof;
+        return dofs;
+    }
+    fuelsim::LocalResidual
+    contribution_residual(std::size_t,
+                          const fuelsim::LocalValues&) const override {
+        fuelsim::LocalResidual residual{};
+        for (std::size_t dof = 0; dof < 4; ++dof)
+            residual[dof] = 1.1;
+        return residual;
+    }
+    fuelsim::LocalSystem
+    linearize_contribution(std::size_t index,
+                           const fuelsim::LocalValues& state) const override {
+        fuelsim::LocalSystem system{};
+        system.residual = contribution_residual(index, state);
+        for (std::size_t dof = 0; dof < state.size(); ++dof)
+            system.jacobian[dof * state.size() + dof] = 1.0e20;
+        return system;
+    }
+    const std::vector<fuelsim::DirichletCondition>&
+    dirichlet_conditions() const noexcept override {
+        return _conditions;
+    }
+
+  protected:
+    void add_state_independent_residual(
+        std::vector<double>&) const override {}
+
+  private:
+    std::vector<fuelsim::DirichletCondition> _conditions;
+};
+
+class QuadraticProblem final : public fuelsim::NonlinearProblem {
+  public:
+    std::size_t dof_count() const noexcept override {
+        return fuelsim::local_dof_count;
+    }
+    std::size_t contribution_count() const noexcept override {
+        return 1;
+    }
+    fuelsim::LocalDofs contribution_dofs(std::size_t) const override {
+        fuelsim::LocalDofs dofs{};
+        for (std::size_t dof = 0; dof < dofs.size(); ++dof)
+            dofs[dof] = dof;
+        return dofs;
+    }
+    fuelsim::LocalResidual
+    contribution_residual(std::size_t,
+                          const fuelsim::LocalValues& state) const override {
+        fuelsim::LocalResidual residual{};
+        for (std::size_t dof = 0; dof < state.size(); ++dof)
+            residual[dof] = state[dof] * state[dof] - 2.0;
+        return residual;
+    }
+    fuelsim::LocalSystem
+    linearize_contribution(std::size_t index,
+                           const fuelsim::LocalValues& state) const override {
+        fuelsim::LocalSystem system{};
+        system.residual = contribution_residual(index, state);
+        for (std::size_t dof = 0; dof < state.size(); ++dof)
+            system.jacobian[dof * state.size() + dof] = 2.0 * state[dof];
+        return system;
+    }
+    const std::vector<fuelsim::DirichletCondition>&
+    dirichlet_conditions() const noexcept override {
+        return _conditions;
+    }
+
+  protected:
+    void add_state_independent_residual(
+        std::vector<double>&) const override {}
+
+  private:
+    std::vector<fuelsim::DirichletCondition> _conditions;
+};
+
 bool test_global_newton_safeguards() {
     LogDomainProblem domain_problem;
-    fuelsim::PetscSolver domain_solver;
+    fuelsim::PetscSolver failing_domain_solver;
     const std::vector<double> initial(fuelsim::local_dof_count, 1.0);
+    fuelsim::SolverOptions failing_domain_options;
+    failing_domain_options.backtracking_fallback = false;
+    const fuelsim::SolveResult domain_failure = failing_domain_solver.solve(
+        domain_problem, initial, failing_domain_options);
+    bool passed = check(
+        !domain_failure.converged &&
+            domain_failure.failure_category ==
+                fuelsim::SolveFailureCategory::physical_domain &&
+            !domain_failure.failure_message.empty(),
+        "domain failure category and message are available on every rank");
+
+    fuelsim::PetscSolver domain_solver;
     fuelsim::SolverOptions domain_options;
     const fuelsim::SolveResult domain = domain_solver.solve(
         domain_problem, initial, domain_options);
@@ -139,13 +239,15 @@ bool test_global_newton_safeguards() {
                   << " reason=" << domain.convergence_reason
                   << " residual=" << domain.residual_norm
                   << " message=" << domain.failure_message << '\n';
-    bool passed = check(domain.converged &&
-                            domain.used_backtracking_fallback &&
-                            domain.nonlinear_attempts == 2 &&
-                            domain.basic_failure_category ==
-                                fuelsim::SolveFailureCategory::physical_domain,
-                        "BASIC failure automatically retries with "
-                        "backtracking from the original state");
+    passed = check(domain.converged &&
+                       domain.used_backtracking_fallback &&
+                       domain.nonlinear_attempts == 2 &&
+                       domain.linear_iterations > 0 &&
+                       domain.basic_failure_category ==
+                           fuelsim::SolveFailureCategory::physical_domain,
+                   "BASIC failure automatically retries with backtracking "
+                   "from the original state and reports KSP work") &&
+             passed;
     const double target = std::exp(-10.0);
     for (double value : domain.state)
         passed = check(std::abs(value - target) < 1.0e-10 * target,
@@ -166,6 +268,47 @@ bool test_global_newton_safeguards() {
                        stagnating.failure_category ==
                            fuelsim::SolveFailureCategory::residual_verification,
                    "positive step-stagnation reason fails residual review") &&
+             passed;
+
+    FieldStagnatingProblem field_problem;
+    fuelsim::PetscSolver field_solver;
+    fuelsim::SolverOptions field_options = options;
+    field_options.temperature_residual_absolute_tolerance = 2.0;
+    field_options.mechanical_residual_absolute_tolerance = 2.0;
+    const fuelsim::SolveResult field_failure =
+        field_solver.solve(field_problem, initial, field_options);
+    passed = check(
+                 !field_failure.converged &&
+                     field_failure.residual_norm < std::sqrt(12.0) &&
+                     field_failure.final_scaled_field_residual_norms[0] >
+                         field_options.temperature_residual_absolute_tolerance &&
+                     field_failure.failure_category ==
+                         fuelsim::SolveFailureCategory::residual_verification &&
+                     field_failure.failure_message.find("field0=") !=
+                         std::string::npos,
+                 "field residual audit rejects a state that passes the "
+                 "combined physical absolute scale") &&
+             passed;
+
+    QuadraticProblem quadratic_problem;
+    fuelsim::PetscSolver quadratic_solver;
+    fuelsim::SolverOptions quadratic_options;
+    quadratic_options.maximum_iterations = 1;
+    quadratic_options.backtracking_fallback = false;
+    quadratic_options.field_residual_scaling = false;
+    quadratic_options.absolute_tolerance = 1.0e-14;
+    quadratic_options.relative_tolerance = 1.0e-14;
+    quadratic_options.residual_reduction_tolerance = 0.3;
+    const fuelsim::SolveResult rescued = quadratic_solver.solve(
+        quadratic_problem, initial, quadratic_options);
+    passed = check(rescued.convergence_reason < 0 && rescued.converged &&
+                       rescued.failure_category ==
+                           fuelsim::SolveFailureCategory::none &&
+                       rescued.failure_message.empty() &&
+                       rescued.residual_norm <
+                           0.3 * std::sqrt(12.0),
+                   "audited residual reduction rescues a PETSc maximum-"
+                   "iteration reason at an acceptable state") &&
              passed;
     return passed;
 }

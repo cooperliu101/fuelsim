@@ -8,6 +8,7 @@
 #include <exodusII.h>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <exception>
@@ -48,10 +49,51 @@ bool nearly_equal(double left, double right) {
 
 bool compare_committed_states(const fuelsim::TransientCommittedState& left,
                               const fuelsim::TransientCommittedState& right) {
+    const std::array<double, 18> left_conservation = {
+        left.conservation.generated_heat_rate,
+        left.conservation.stored_heat_rate,
+        left.conservation.convection_heat_rate,
+        left.conservation.interface_heat_imbalance,
+        left.conservation.dirichlet_heat_input_rate,
+        left.conservation.global_thermal_balance,
+        left.conservation.relative_thermal_balance,
+        left.conservation.unconstrained_thermal_residual_l2,
+        left.conservation.internal_mechanical_work_increment,
+        left.conservation.pressure_traction_work_increment,
+        left.conservation.dirichlet_reaction_work_increment,
+        left.conservation.contact_work_increment,
+        left.conservation.mechanical_work_balance,
+        left.conservation.relative_mechanical_work_balance,
+        left.conservation.unconstrained_mechanical_residual_l2,
+        left.conservation.elastic_energy_change,
+        left.conservation.plastic_dissipation_increment,
+        left.conservation.creep_dissipation_increment};
+    const std::array<double, 18> right_conservation = {
+        right.conservation.generated_heat_rate,
+        right.conservation.stored_heat_rate,
+        right.conservation.convection_heat_rate,
+        right.conservation.interface_heat_imbalance,
+        right.conservation.dirichlet_heat_input_rate,
+        right.conservation.global_thermal_balance,
+        right.conservation.relative_thermal_balance,
+        right.conservation.unconstrained_thermal_residual_l2,
+        right.conservation.internal_mechanical_work_increment,
+        right.conservation.pressure_traction_work_increment,
+        right.conservation.dirichlet_reaction_work_increment,
+        right.conservation.contact_work_increment,
+        right.conservation.mechanical_work_balance,
+        right.conservation.relative_mechanical_work_balance,
+        right.conservation.unconstrained_mechanical_residual_l2,
+        right.conservation.elastic_energy_change,
+        right.conservation.plastic_dissipation_increment,
+        right.conservation.creep_dissipation_increment};
     bool passed =
         check(nearly_equal(left.time, right.time) &&
                   nearly_equal(left.load_factor, right.load_factor),
               "restart preserves committed time and load") &&
+        check(std::equal(left_conservation.begin(), left_conservation.end(),
+                         right_conservation.begin(), nearly_equal),
+              "restart preserves the last conservation summary") &&
         check(left.solution.size() == right.solution.size(),
               "restart preserves nodal-state layout") &&
         check(left.material_histories.size() == right.material_histories.size(),

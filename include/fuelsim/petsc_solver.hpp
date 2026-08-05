@@ -91,6 +91,7 @@ enum class SolveFailureCategory {
 struct SolveResult final {
     std::vector<double> state;
     int nonlinear_iterations = 0;
+    int linear_iterations = 0;
     double residual_norm = 0.0;
     int convergence_reason = 0;
     bool converged = false;

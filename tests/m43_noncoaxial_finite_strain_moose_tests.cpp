@@ -434,20 +434,20 @@ bool run_test(const std::string& input_path,
                    "M4.3 default-Rashid accumulated trace drift stays below "
                    "its qualified limits") &&
              passed;
-    passed = check_metrics("m43_volume_average_stress", stress, 1.0e-3,
+    passed = check_metrics("m43_element_qp0_average_stress", stress, 1.0e-3,
                            stress_pointwise_tolerance) &&
              passed;
-    passed = check_metrics("m43_volume_average_elastic_strain", elastic,
+    passed = check_metrics("m43_element_qp0_average_elastic_strain", elastic,
                            1.0e-12, strain_pointwise_tolerance) &&
              passed;
-    passed = check_metrics("m43_volume_average_combined_inelastic_strain",
+    passed = check_metrics("m43_element_qp0_average_combined_inelastic_strain",
                            combined_inelastic, 1.0e-12,
                            inelastic_pointwise_tolerance) &&
              passed;
-    passed = check_metrics("m43_volume_average_equivalent_plastic",
+    passed = check_metrics("m43_element_qp0_average_equivalent_plastic",
                            equivalent_plastic, 1.0e-12) &&
              passed;
-    passed = check_metrics("m43_volume_average_equivalent_creep",
+    passed = check_metrics("m43_element_qp0_average_equivalent_creep",
                            equivalent_creep, 1.0e-12) &&
              passed;
     return passed;

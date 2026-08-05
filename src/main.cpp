@@ -23,7 +23,18 @@
 
 namespace {
 
-class CaseOutput final {
+class NamedOutput {
+  public:
+    virtual ~NamedOutput() = default;
+    virtual void value(const std::string& key, const std::string& data) = 0;
+    virtual void value(const std::string& key, const char* data) = 0;
+    virtual void value(const std::string& key, double data) = 0;
+    virtual void value(const std::string& key, std::size_t data) = 0;
+    virtual void value(const std::string& key, int data) = 0;
+    virtual void value(const std::string& key, bool data) = 0;
+};
+
+class CaseOutput final : public NamedOutput {
   public:
     explicit CaseOutput(const fuelsim::CaseOutputInput& options,
                         bool force_console = false, bool active = true)
@@ -41,39 +52,40 @@ class CaseOutput final {
                       << std::setprecision(12);
     }
 
-    void value(const std::string& key, const std::string& data) {
+    void value(const std::string& key,
+               const std::string& data) override {
         if (_console)
             std::cout << key << '=' << data << '\n';
         if (_csv)
             _csv << key << ',' << data << '\n';
     }
 
-    void value(const std::string& key, const char* data) {
+    void value(const std::string& key, const char* data) override {
         value(key, std::string(data));
     }
 
-    void value(const std::string& key, double data) {
+    void value(const std::string& key, double data) override {
         if (_console)
             std::cout << key << '=' << data << '\n';
         if (_csv)
             _csv << key << ',' << data << '\n';
     }
 
-    void value(const std::string& key, std::size_t data) {
+    void value(const std::string& key, std::size_t data) override {
         if (_console)
             std::cout << key << '=' << data << '\n';
         if (_csv)
             _csv << key << ',' << data << '\n';
     }
 
-    void value(const std::string& key, int data) {
+    void value(const std::string& key, int data) override {
         if (_console)
             std::cout << key << '=' << data << '\n';
         if (_csv)
             _csv << key << ',' << data << '\n';
     }
 
-    void value(const std::string& key, bool data) {
+    void value(const std::string& key, bool data) override {
         if (_console)
             std::cout << key << '=' << std::boolalpha << data << '\n';
         if (_csv)
@@ -83,6 +95,44 @@ class CaseOutput final {
   private:
     bool _console;
     std::ofstream _csv;
+};
+
+class ConsoleOutput final : public NamedOutput {
+  public:
+    explicit ConsoleOutput(bool active) : _active(active) {}
+
+    void value(const std::string& key,
+               const std::string& data) override {
+        if (_active)
+            std::cout << key << '=' << data << '\n';
+    }
+
+    void value(const std::string& key, const char* data) override {
+        value(key, std::string(data));
+    }
+
+    void value(const std::string& key, double data) override {
+        if (_active)
+            std::cout << key << '=' << data << '\n';
+    }
+
+    void value(const std::string& key, std::size_t data) override {
+        if (_active)
+            std::cout << key << '=' << data << '\n';
+    }
+
+    void value(const std::string& key, int data) override {
+        if (_active)
+            std::cout << key << '=' << data << '\n';
+    }
+
+    void value(const std::string& key, bool data) override {
+        if (_active)
+            std::cout << key << '=' << std::boolalpha << data << '\n';
+    }
+
+  private:
+    bool _active;
 };
 
 struct CommandLine final {
@@ -161,6 +211,7 @@ solver_options(const fuelsim::NonlinearSolverInput& input) {
 void write_solver_diagnostics(const fuelsim::SolveResult& solve,
                               CaseOutput& output) {
     output.value("nonlinear_attempts", solve.nonlinear_attempts);
+    output.value("linear_iterations", solve.linear_iterations);
     output.value("used_backtracking_fallback",
                  solve.used_backtracking_fallback);
     if (solve.used_backtracking_fallback) {
@@ -208,7 +259,7 @@ void write_interface_summary(const std::string& name,
 void write_conservation_summary(
     const std::string& prefix,
     const fuelsim::TransientConservationSummary& summary,
-    CaseOutput& output) {
+    NamedOutput& output) {
     output.value(prefix + "generated_heat_rate",
                  summary.generated_heat_rate);
     output.value(prefix + "stored_heat_rate", summary.stored_heat_rate);
@@ -249,7 +300,7 @@ void write_conservation_summary(
 void write_time_error_components(
     const std::string& prefix,
     const fuelsim::TransientTimeErrorEstimate& estimate,
-    CaseOutput& output) {
+    NamedOutput& output) {
     output.value(prefix + "temperature", estimate.temperature);
     output.value(prefix + "radial_displacement",
                  estimate.radial_displacement);
@@ -345,6 +396,7 @@ bool run_steady(const fuelsim::FuelSimCaseDefinition& definition,
     output.value("load_cutbacks", result.total_cutbacks);
     output.value("nonlinear_iterations_total",
                  result.total_nonlinear_iterations);
+    output.value("linear_iterations_total", result.total_linear_iterations);
     output.value("residual_norm", result.solve.residual_norm);
     write_solver_diagnostics(result.solve, output);
     output.value("failure_category", fuelsim::solve_failure_category_name(
@@ -382,7 +434,7 @@ class TransientOutputObserver final : public fuelsim::TransientStepObserver {
                             std::size_t progress_interval,
                             std::size_t checkpoint_interval,
                             const fuelsim::PetscSession& session,
-                            CaseOutput& output)
+                            NamedOutput& progress_output)
         : _results(results), _history(history),
           _checkpoint_file(std::move(checkpoint_file)),
           _exodus_interval(exodus_interval),
@@ -392,7 +444,8 @@ class TransientOutputObserver final : public fuelsim::TransientStepObserver {
           _exodus_at_latest(true), _history_at_latest(true),
           _last_time_step(0.0), _last_next_time_step(0.0),
           _last_nonlinear_iterations(0),
-          _session(session), _output(output) {}
+          _checkpoint_at_latest(false), _session(session),
+          _progress_output(progress_output) {}
 
     void accepted_step(const fuelsim::TransientProblem& problem,
                        const fuelsim::TransientAcceptedStep& step) override {
@@ -402,6 +455,7 @@ class TransientOutputObserver final : public fuelsim::TransientStepObserver {
         _last_nonlinear_iterations = step.nonlinear_iterations;
         _exodus_at_latest = false;
         _history_at_latest = false;
+        _checkpoint_at_latest = false;
         _session.collective_root_action([&]() {
             if (_results != nullptr &&
                 _accepted_steps % _exodus_interval == 0) {
@@ -415,25 +469,32 @@ class TransientOutputObserver final : public fuelsim::TransientStepObserver {
                 _history_at_latest = true;
             }
             if (_accepted_steps % _progress_interval == 0) {
-                _output.value("progress.accepted_steps", _accepted_steps);
-                _output.value("progress.time", step.time);
-                _output.value("progress.time_step", step.time_step);
-                _output.value("progress.next_time_step", step.next_time_step);
-                _output.value("progress.nonlinear_iterations",
-                              step.nonlinear_iterations);
-                _output.value("progress.cutbacks", step.cutbacks);
-                _output.value("progress.time_error_estimate",
-                              step.time_error_estimate);
+                _progress_output.value("progress.accepted_steps",
+                                       _accepted_steps);
+                _progress_output.value("progress.time", step.time);
+                _progress_output.value("progress.time_step", step.time_step);
+                _progress_output.value("progress.next_time_step",
+                                       step.next_time_step);
+                _progress_output.value("progress.nonlinear_iterations",
+                                       step.nonlinear_iterations);
+                _progress_output.value("progress.linear_iterations",
+                                       step.linear_iterations);
+                _progress_output.value("progress.cutbacks", step.cutbacks);
+                _progress_output.value("progress.time_error_estimate",
+                                       step.time_error_estimate);
                 write_time_error_components("progress.time_error.",
                                             step.time_error_components,
-                                            _output);
+                                            _progress_output);
                 write_conservation_summary("progress.conservation.",
-                                           step.conservation, _output);
+                                           step.conservation,
+                                           _progress_output);
             }
             if (!_checkpoint_file.empty() &&
-                _accepted_steps % _checkpoint_interval == 0)
+                _accepted_steps % _checkpoint_interval == 0) {
                 fuelsim::TransientCheckpointIo::write(
                     _checkpoint_file, problem, step.next_time_step);
+                _checkpoint_at_latest = true;
+            }
         });
     }
 
@@ -446,12 +507,13 @@ class TransientOutputObserver final : public fuelsim::TransientStepObserver {
                 _history->append(problem, _last_time_step,
                                  _last_next_time_step,
                                  _last_nonlinear_iterations);
-            if (!_checkpoint_file.empty())
+            if (!_checkpoint_file.empty() && !_checkpoint_at_latest)
                 fuelsim::TransientCheckpointIo::write(
                     _checkpoint_file, problem, next_time_step);
         });
         _exodus_at_latest = true;
         _history_at_latest = true;
+        _checkpoint_at_latest = true;
     }
 
   private:
@@ -468,8 +530,9 @@ class TransientOutputObserver final : public fuelsim::TransientStepObserver {
     double _last_time_step;
     double _last_next_time_step;
     int _last_nonlinear_iterations;
+    bool _checkpoint_at_latest;
     const fuelsim::PetscSession& _session;
-    CaseOutput& _output;
+    NamedOutput& _progress_output;
 };
 
 bool run_transient(const fuelsim::FuelSimCaseDefinition& definition,
@@ -551,13 +614,15 @@ bool run_transient(const fuelsim::FuelSimCaseDefinition& definition,
         });
     if (!history_path.empty())
         output.value("history_file", history_path);
+    ConsoleOutput progress_output(definition.outputs.console &&
+                                  session.rank() == 0);
     TransientOutputObserver observer(results.get(), history.get(),
                                      definition.outputs.checkpoint_file,
                                      definition.outputs.exodus_interval,
                                      definition.outputs.history_interval,
                                      definition.outputs.progress_interval,
                                      definition.outputs.checkpoint_interval,
-                                     session, output);
+                                     session, progress_output);
     const fuelsim::TransientTimeOptions time_options = {
         definition.transient_execution.end_time,
         restart_time_step > 0.0
@@ -603,6 +668,8 @@ bool run_transient(const fuelsim::FuelSimCaseDefinition& definition,
         output.value("last_rejected.cutback_index", rejected.cutback_index);
         output.value("last_rejected.nonlinear_iterations",
                      rejected.nonlinear_iterations);
+        output.value("last_rejected.linear_iterations",
+                     rejected.linear_iterations);
         output.value("last_rejected.convergence_reason",
                      fuelsim::petsc_convergence_reason_name(
                          rejected.convergence_reason));
@@ -621,6 +688,7 @@ bool run_transient(const fuelsim::FuelSimCaseDefinition& definition,
     output.value("total_cutbacks", result.total_cutbacks);
     output.value("nonlinear_iterations_total",
                  result.total_nonlinear_iterations);
+    output.value("linear_iterations_total", result.total_linear_iterations);
     output.value("petsc_workspace_setups",
                  result.aggregate_timing.workspace_setups);
     write_solver_diagnostics(result.last_attempt, output);

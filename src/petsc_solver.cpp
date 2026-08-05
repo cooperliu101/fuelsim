@@ -449,6 +449,10 @@ PetscErrorCode form_function(SNES snes, Vec state, Vec residual,
         bool global_domain_error = false;
         PetscCall(synchronize_domain_error(local_domain_error,
                                            global_domain_error));
+        if (global_domain_error && context.last_domain_error.empty())
+            context.last_domain_error =
+                "a residual evaluation violated its physical domain on "
+                "another MPI rank";
         PetscCall(VecAssemblyBegin(residual));
         PetscCall(VecAssemblyEnd(residual));
         if (global_domain_error) {
@@ -554,6 +558,10 @@ PetscErrorCode form_jacobian(SNES snes, Vec state, Mat jacobian,
         bool global_domain_error = false;
         PetscCall(synchronize_domain_error(local_domain_error,
                                            global_domain_error));
+        if (global_domain_error && context.last_domain_error.empty())
+            context.last_domain_error =
+                "a Jacobian evaluation violated its physical domain on "
+                "another MPI rank";
         PetscCall(MatAssemblyBegin(jacobian, MAT_FINAL_ASSEMBLY));
         PetscCall(MatAssemblyEnd(jacobian, MAT_FINAL_ASSEMBLY));
         if (global_domain_error) {
@@ -779,6 +787,7 @@ PetscSolver::solve(const NonlinearProblem& problem,
     fallback_options.backtracking_fallback = false;
     SolveResult fallback = solve_once(problem, initial_state, fallback_options);
     fallback.nonlinear_iterations += result.nonlinear_iterations;
+    fallback.linear_iterations += result.linear_iterations;
     fallback.timing.setup_seconds += result.timing.setup_seconds;
     fallback.timing.nonlinear_solve_seconds +=
         result.timing.nonlinear_solve_seconds;
@@ -904,11 +913,15 @@ PetscSolver::solve_once(const NonlinearProblem& problem,
 
     SNESConvergedReason reason = SNES_CONVERGED_ITERATING;
     PetscInt iterations = 0;
+    PetscInt linear_iterations = 0;
     PetscReal residual_norm = 0.0;
     check_petsc(SNESGetConvergedReason(objects.snes, &reason),
                 "SNESGetConvergedReason");
     check_petsc(SNESGetIterationNumber(objects.snes, &iterations),
                 "SNESGetIterationNumber");
+    check_petsc(SNESGetLinearSolveIterations(objects.snes,
+                                             &linear_iterations),
+                "SNESGetLinearSolveIterations");
     check_petsc(SNESGetFunctionNorm(objects.snes, &residual_norm),
                 "SNESGetFunctionNorm");
     const bool requires_explicit_residual_audit =
@@ -931,6 +944,7 @@ PetscSolver::solve_once(const NonlinearProblem& problem,
     SolveResult result;
     result.state = std::move(solution);
     result.nonlinear_iterations = static_cast<int>(iterations);
+    result.linear_iterations = static_cast<int>(linear_iterations);
     result.residual_norm = static_cast<double>(residual_norm);
     result.convergence_reason = static_cast<int>(reason);
     result.initial_field_residual_norms =

@@ -158,11 +158,63 @@ bool test_time_error_control(const std::string& input_path) {
     const double adaptive_error = temperature_relative_l2(
         adaptive_problem, adaptive.committed_state,
         reference.committed_state);
+    fuelsim::TransientProblem two_half_problem(input.transient_definition(),
+                                               mesh);
+    const double first_accepted_step =
+        adaptive.accepted_steps.empty()
+            ? 2.0 * adaptive_options.minimum_time_step
+            : adaptive.accepted_steps.front().time_step;
+    const fuelsim::TransientTimeOptions two_half_options = {
+        first_accepted_step,
+        0.5 * first_accepted_step,
+        0.5 * first_accepted_step,
+        0.5 * first_accepted_step,
+        1.0,
+        0.5,
+        0,
+        20.0};
+    const fuelsim::TransientResult two_half = fuelsim::solve_transient(
+        two_half_problem, two_half_options, solver_options);
+    bool full_interval_conservation = false;
+    if (!adaptive.accepted_steps.empty() &&
+        two_half.accepted_steps.size() == 2) {
+        const fuelsim::TransientConservationSummary& actual =
+            adaptive.accepted_steps.front().conservation;
+        const fuelsim::TransientConservationSummary& first =
+            two_half.accepted_steps[0].conservation;
+        const fuelsim::TransientConservationSummary& second =
+            two_half.accepted_steps[1].conservation;
+        const double expected_stored =
+            0.5 * (first.stored_heat_rate + second.stored_heat_rate);
+        const double expected_convection =
+            0.5 * (first.convection_heat_rate +
+                   second.convection_heat_rate);
+        const double scale = std::max(
+            {1.0, std::abs(expected_stored),
+             std::abs(expected_convection)});
+        full_interval_conservation =
+            std::abs(actual.stored_heat_rate - expected_stored) <=
+                1.0e-12 * scale &&
+            std::abs(actual.convection_heat_rate - expected_convection) <=
+                1.0e-12 * scale;
+    }
     double maximum_accepted_estimate = 0.0;
+    bool accepted_cutback_observed = false;
+    bool accepted_cutback_regrew_immediately = false;
     for (const fuelsim::TransientAcceptedStep& step :
-         adaptive.accepted_steps)
+         adaptive.accepted_steps) {
         maximum_accepted_estimate =
             std::max(maximum_accepted_estimate, step.time_error_estimate);
+        if (step.cutbacks > 0) {
+            accepted_cutback_observed = true;
+            accepted_cutback_regrew_immediately =
+                accepted_cutback_regrew_immediately ||
+                step.next_time_step >
+                    step.time_step *
+                        (1.0 + 16.0 *
+                                   std::numeric_limits<double>::epsilon());
+        }
+    }
     double maximum_rejected_estimate = 0.0;
     double minimum_rejected_estimate =
         std::numeric_limits<double>::infinity();
@@ -194,6 +246,9 @@ bool test_time_error_control(const std::string& input_path) {
     return check(reference.completed && coarse.completed &&
                      adaptive.completed &&
                      adaptive.time_error_rejections > 0 &&
+                     accepted_cutback_observed &&
+                     !accepted_cutback_regrew_immediately &&
+                     full_interval_conservation &&
                      maximum_accepted_estimate <= 1.0 &&
                      adaptive_error < 0.5 * coarse_error &&
                      adaptive.aggregate_timing.workspace_setups == 1,
@@ -274,14 +329,22 @@ bool test_history_time_error_control(const std::string& input_path) {
                       error.equivalent_creep_strain, error.stress}));
     }
     double maximum_rejected_history = 0.0;
+    bool history_only_rejection = false;
     for (const fuelsim::TransientRejectedStep& step : result.rejected_steps) {
         const fuelsim::TransientTimeErrorEstimate& error =
             step.time_error_components;
-        maximum_rejected_history = std::max(
-            maximum_rejected_history,
+        const double rejected_nodal =
+            std::max({error.temperature, error.radial_displacement,
+                      error.axial_displacement});
+        const double rejected_history =
             std::max({error.elastic_strain, error.plastic_strain,
                       error.creep_strain, error.equivalent_plastic_strain,
-                      error.equivalent_creep_strain, error.stress}));
+                      error.equivalent_creep_strain, error.stress});
+        maximum_rejected_history =
+            std::max(maximum_rejected_history, rejected_history);
+        history_only_rejection = history_only_rejection ||
+                                 (rejected_nodal <= 1.0 &&
+                                  rejected_history > 1.0);
     }
     std::cout << "history_time_error_maximum_nodal=" << maximum_nodal << '\n';
     std::cout << "history_time_error_maximum_material=" << maximum_history
@@ -294,6 +357,7 @@ bool test_history_time_error_control(const std::string& input_path) {
     std::cout << "history_time_error_accepted_steps="
               << result.accepted_steps.size() << '\n';
     return check(result.completed && result.time_error_rejections > 0 &&
+                     history_only_rejection &&
                      maximum_history > maximum_nodal &&
                      maximum_history <= 1.0,
                  "step-doubling controls committed inelastic histories in "
@@ -435,11 +499,28 @@ bool test_steady_load_cutback(const std::string& input_path) {
         std::cout << "steady_cutback_last_message="
                   << result.rejected_steps.back().failure_message << '\n';
     }
-    return check(result.completed && result.solve.converged &&
-                     result.total_cutbacks > 0 &&
-                     !result.rejected_steps.empty(),
-                 "steady loading bisects a failed nominal increment and "
-                 "continues from the accepted state");
+    bool passed = check(result.completed && result.solve.converged &&
+                            result.total_cutbacks > 0 &&
+                            !result.rejected_steps.empty(),
+                        "steady loading bisects a failed nominal increment "
+                        "and continues from the accepted state");
+
+    fuelsim::SteadyProblem minimum_problem(input.steady_definition(), mesh);
+    fuelsim::SolverOptions minimum_solver = solver_options;
+    minimum_solver.maximum_iterations = 1;
+    minimum_solver.line_search =
+        fuelsim::SolverOptions::LineSearch::basic;
+    minimum_solver.backtracking_fallback = false;
+    const fuelsim::SteadyResult minimum = fuelsim::solve_steady(
+        minimum_problem, {1, 0.5, 3, 0.75}, minimum_solver);
+    passed = check(!minimum.completed &&
+                       minimum.rejected_steps.size() == 2 &&
+                       minimum.total_cutbacks == 1 &&
+                       minimum.rejected_steps.back().load_increment == 0.75,
+                   "steady loading attempts the minimum load increment once "
+                   "before terminating") &&
+             passed;
+    return passed;
 }
 
 bool test_pressure_production_path(const std::string& input_path) {
