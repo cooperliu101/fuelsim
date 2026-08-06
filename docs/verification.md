@@ -4,6 +4,9 @@ fuelsim 的“已验证”只表示仓库中存在可重复执行的测试、明
 证据文件，不表示完成核安全软件鉴定。机器可读的唯一索引是
 `verification/verification_matrix.tsv`，`fuelsim_verification_matrix_tests`
 会检查矩阵模式、必需能力行、CTest 名称以及每个证据文件是否存在且非空。
+坐标、弱式、材料、接触、时间事务和求解器结构的统一说明见
+[`docs/theory.md`](theory.md)；本文件继续作为证据等级、实际门槛和适用边界
+的发布说明。
 
 ## 证据等级
 
