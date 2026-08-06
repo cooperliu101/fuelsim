@@ -884,3 +884,40 @@ history. Trial history must be recomputed from the same old state during every
 global Newton or line-search evaluation and committed only after a converged
 time step. Coupled references use the required model order
 `inelastic_models = 'creep plasticity'`.
+
+## M5.1 Coulomb friction provenance
+
+The friction comparison reuses the tracked M1 input and its exact 528-node,
+460-Quad4 Exodus mesh. The only physics overrides select MOOSE Coulomb contact
+and set `mu = 0.3`; the material data, penalty, thermal loading, mesh, and 20
+load steps remain the M1 values. The reference was generated with one MPI rank
+and one thread using:
+
+```bash
+/home/cooper/projects/july/july-opt \
+  -i m1_fuel_cladding_gap_rz.i \
+  Contact/mechanical/model=coulomb \
+  Contact/mechanical/friction_coefficient=0.3 \
+  Outputs/file_base=m51_coulomb_friction_rz
+```
+
+Every load step reported `Solve Converged!`. The environment provenance is:
+
+```text
+MOOSE commit:          93b11698be3fcd33049ae73e32f411fb2985261d
+July commit:           a96d73792bee7c5f54eb65e33b04487b24276a27
+Executable SHA256:     1cb3a0fbf5650addd087ceeb8521f82d2ddb11650c0932b7ec274226430e0ee4
+MPI ranks / threads:   1 / 1
+July worktree:         dirty; executable hash is therefore authoritative
+```
+
+The tracked step-20 snapshots are
+`m51_coulomb_friction_rz_all_nodes_0020.csv` and
+`m51_coulomb_friction_rz_fuel_surface_0020.csv`; their hashes are recorded in
+`SHA256SUMS`. Fuelsim finds 11 active contact nodes and 8 sliding nodes. Its
+signed secondary tangential resultant is `207.371182 N`, and the axial nodal
+field differs from the `mu = 0` baseline by `5.0871%` in relative L2 norm.
+Against MOOSE, the temperature, radial displacement, axial displacement, and
+normal-pressure maximum values over the three required relative metrics are
+`0.086476%`, `0.386523%`, `0.439326%`, and `0.318127%`, respectively; every
+value is below the case-wide `1%` threshold.

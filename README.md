@@ -8,7 +8,8 @@
 - 每个区域独立的稳态温度相关热传导、体积热源，以及可选小应变或有限应变
   轴对称热弹性；
 - 由 `primary`、`secondary` 边集定义的 STS 气隙导热；
-- 与 MOOSE/JAX 实现一致的 secondary 节点到 primary 线段 NTS 无摩擦罚接触；
+- 与 MOOSE/JAX 实现一致的 secondary 节点到 primary 线段 NTS 罚接触，并可选
+  具有粘着、滑移和已提交切向历史的 Coulomb 摩擦；
 - ADlite 生成体单元和界面的局部 Jacobian；
 - PETSc SNES、KSP 和分布式 AIJ 稀疏矩阵完成 Newton 求解；局部贡献按 MPI
   rank 唯一分区装配。
@@ -425,7 +426,9 @@ M4.3 的畸变四单元、100 步非共轴路径达到约 `25.5°`，并同时�
 
 一般 Line2 接触允许非匹配分段并支持圆柱侧面、水平端面和斜面，但每侧必须
 是一条不分叉的开放边链，secondary 投影必须被 primary 完整覆盖。当前仍不
-支持大滑移动态候选面、mortar、摩擦或位移惯性；候选窗口外状态会显式拒步。
+支持大滑移动态候选面、mortar 或位移惯性；Coulomb 摩擦已经覆盖规定的
+小滑移热膨胀路径，但候选窗口外状态仍会显式拒绝当前 Newton 状态并缩小
+载荷步或时间步重试。
 有限应变已支持 MOOSE 默认增量 Taylor 应变、Rashid 转动、历史张量客观
 旋转和当前构形内力；压力为当前构形 follower load，分量 traction 默认使用
 参考构形，也可在有限应变区域选择当前构形表面测度，方向固定为全局 R

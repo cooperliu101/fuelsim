@@ -93,6 +93,13 @@ struct NodeToLineRzContactGeometry final {
 struct NormalContactProperties final {
     // Pressure per unit penetration, in Pa/m.
     double penalty;
+    // Coulomb coefficient. The tangential penalty equals the normal penalty.
+    double friction_coefficient = 0.0;
+};
+
+struct ContactPointHistory final {
+    double elastic_tangential_slip = 0.0;
+    bool sliding = false;
 };
 
 struct ContactPointValue final {
@@ -102,6 +109,10 @@ struct ContactPointValue final {
     double tributary_area;
     double tributary_length;
     double contact_force;
+    double tangential_traction;
+    double tangential_force;
+    double elastic_tangential_slip;
+    bool sliding;
 };
 
 NodeToLineRzContactGeometry make_node_to_line_rz_contact_geometry(
@@ -121,15 +132,28 @@ class NodeToLineRzContactKernel final {
     // secondary node and the two primary nodes receive radial and axial
     // residuals along the current primary-segment normal.
     LocalResidual residual(const NodeToLineRzContactGeometry& geometry,
-                           const LocalValues& state) const;
+                           const LocalValues& state,
+                           const LocalValues& committed_state,
+                           const ContactPointHistory& history) const;
     LocalSystem linearize(const NodeToLineRzContactGeometry& geometry,
-                          const LocalValues& state) const;
+                          const LocalValues& state,
+                          const LocalValues& committed_state,
+                          const ContactPointHistory& history) const;
     ContactPointValue value(const NodeToLineRzContactGeometry& geometry,
-                            const LocalValues& state) const;
+                            const LocalValues& state,
+                            const LocalValues& committed_state,
+                            const ContactPointHistory& history) const;
+    ContactPointHistory trial_history(
+        const NodeToLineRzContactGeometry& geometry,
+        const LocalValues& state, const LocalValues& committed_state,
+        const ContactPointHistory& history) const;
 
   private:
     void residual_ad(const NodeToLineRzContactGeometry& geometry,
-                     const LocalAdValues& state, LocalAdValues& residual) const;
+                     const LocalAdValues& state,
+                     const LocalValues& committed_state,
+                     const ContactPointHistory& history,
+                     LocalAdValues& residual) const;
 
     NormalContactProperties _properties;
 };

@@ -60,6 +60,7 @@ struct TransientCommittedState final {
     std::vector<std::vector<Quad4MaterialHistory>> material_histories;
     std::vector<std::vector<std::array<AxisymmetricStressValues, 4>>>
         material_stresses;
+    std::vector<std::vector<ContactPointHistory>> contact_histories;
     TransientConservationSummary conservation;
     double time = 0.0;
     double load_factor = 0.0;

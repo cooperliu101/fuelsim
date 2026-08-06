@@ -39,6 +39,7 @@ struct ContactDefinition final {
     double gap_conductivity;
     double minimum_gap;
     double penalty;
+    double friction_coefficient = 0.0;
 };
 
 enum class BoundaryConditionType {
@@ -79,6 +80,10 @@ struct ContactNodeSummary final {
     double tributary_area;
     double tributary_length;
     double contact_force;
+    double tangential_traction;
+    double tangential_force;
+    double elastic_tangential_slip;
+    bool sliding;
 };
 
 struct InterfaceSummary final {
@@ -88,6 +93,7 @@ struct InterfaceSummary final {
     double maximum_contact_pressure;
     double total_heat_rate;
     double total_contact_force;
+    double total_tangential_force;
     std::size_t projected_contact_nodes;
     std::size_t unprojected_contact_nodes;
     std::size_t active_contact_nodes;
@@ -131,6 +137,12 @@ class SteadyProblem final : public NonlinearProblem {
 
     std::size_t contact_count() const noexcept;
     const ContactDefinition& contact(std::size_t contact_index) const;
+    const std::vector<std::vector<ContactPointHistory>>&
+    committed_contact_histories() const noexcept;
+    void commit_contact_state(const std::vector<double>& state);
+    void restore_contact_state(
+        const std::vector<double>& state,
+        std::vector<std::vector<ContactPointHistory>> histories);
 
     void set_load_factor(double load_factor);
     double load_factor() const noexcept;
@@ -236,6 +248,8 @@ class SteadyProblem final : public NonlinearProblem {
     std::vector<std::array<std::size_t, 4>> _mechanical_nodes;
     std::vector<NodeToLineRzContactGeometry> _mechanical_geometries;
     std::vector<std::size_t> _mechanical_secondary_indices;
+    std::vector<std::vector<ContactPointHistory>> _contact_histories;
+    std::vector<double> _committed_contact_solution;
     std::vector<ResolvedBoundary> _primary_boundaries;
     std::vector<ResolvedBoundary> _secondary_boundaries;
 

@@ -473,7 +473,8 @@ ContactDefinition read_contact(const InputDocument& document,
                              mechanical != nullptr,
                              1.0,
                              1.0,
-                             1.0};
+                             1.0,
+                             0.0};
     if (thermal != nullptr) {
         validate_keys(document, *thermal, {"gap_conductivity", "minimum_gap"});
         result.gap_conductivity =
@@ -481,13 +482,19 @@ ContactDefinition read_contact(const InputDocument& document,
         result.minimum_gap = read_double(document, *thermal, "minimum_gap");
     }
     if (mechanical != nullptr) {
-        validate_keys(document, *mechanical, {"formulation", "penalty"});
+        validate_keys(document, *mechanical,
+                      {"formulation", "penalty", "mu"});
         const std::string formulation =
             read_string(document, *mechanical, "formulation");
         if (formulation != "penalty")
             value_error(document, mechanical->entry("formulation"),
                         "only mechanical formulation 'penalty' is supported");
         result.penalty = read_double(document, *mechanical, "penalty");
+        result.friction_coefficient =
+            read_optional_double(document, *mechanical, "mu", 0.0);
+        if (result.friction_coefficient < 0.0)
+            value_error(document, mechanical->entry("mu"),
+                        "friction coefficient mu must be nonnegative");
     }
     return result;
 }

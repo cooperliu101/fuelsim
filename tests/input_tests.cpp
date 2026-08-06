@@ -200,7 +200,8 @@ bool run_tests(const std::string& steady_path,
         check(steady.contacts.size() == 1 &&
                   steady.contacts[0].primary == "clad_left" &&
                   steady.contacts[0].secondary == "fuel_right" &&
-                  steady.contacts[0].thermal && steady.contacts[0].mechanical,
+                  steady.contacts[0].thermal && steady.contacts[0].mechanical &&
+                  steady.contacts[0].friction_coefficient == 0.0,
               "contact is defined only by primary and secondary side sets") &&
         check(steady.steady_execution.load_steps == 20 &&
                   steady.steady_execution.cutback_factor == 0.5 &&
@@ -260,6 +261,36 @@ bool run_tests(const std::string& steady_path,
                              "mystery = true");
     passed = expect_case_failure(malformed_path, unknown_key_case,
                                  "unknown key 'mystery'") &&
+             passed;
+
+    std::string friction_case = read_text(steady_path);
+    const std::string contact_penalty = "penalty = 1e14";
+    const std::size_t contact_penalty_position =
+        friction_case.find(contact_penalty);
+    if (contact_penalty_position == std::string::npos)
+        return check(false, "steady fixture has the contact penalty key");
+    friction_case.insert(contact_penalty_position + contact_penalty.size(),
+                         "\n      mu = 0.25");
+    {
+        std::ofstream output(malformed_path, std::ios::out | std::ios::trunc);
+        if (!output)
+            return check(false, "could not create friction input fixture");
+        output << friction_case;
+    }
+    const fuelsim::FuelSimCaseDefinition friction =
+        fuelsim::CaseInputReader::read(malformed_path);
+    passed = check(friction.contacts.size() == 1 &&
+                       friction.contacts[0].friction_coefficient == 0.25,
+                   "optional contact mu is parsed as the Coulomb friction "
+                   "coefficient") &&
+             passed;
+
+    std::string negative_friction_case = read_text(steady_path);
+    negative_friction_case.insert(
+        negative_friction_case.find(contact_penalty) + contact_penalty.size(),
+        "\n      mu = -0.1");
+    passed = expect_case_failure(malformed_path, negative_friction_case,
+                                 "mu must be nonnegative") &&
              passed;
 
     std::string invalid_material_case = read_text(transient_path);

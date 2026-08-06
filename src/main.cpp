@@ -249,6 +249,8 @@ void write_interface_summary(const std::string& name,
                  summary.maximum_contact_pressure);
     output.value(prefix + "total_heat_rate", summary.total_heat_rate);
     output.value(prefix + "total_contact_force", summary.total_contact_force);
+    output.value(prefix + "total_tangential_force",
+                 summary.total_tangential_force);
     output.value(prefix + "projected_contact_nodes",
                  summary.projected_contact_nodes);
     output.value(prefix + "unprojected_contact_nodes",

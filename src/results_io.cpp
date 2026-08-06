@@ -84,6 +84,9 @@ nodal_variable_names(const std::vector<ContactDefinition>& contacts) {
     for (const ContactDefinition& contact : contacts) {
         result.push_back("contact_gap_" + contact.name);
         result.push_back("contact_pressure_" + contact.name);
+        result.push_back("contact_tangential_traction_" + contact.name);
+        result.push_back("contact_elastic_tangential_slip_" + contact.name);
+        result.push_back("contact_sliding_" + contact.name);
     }
     return result;
 }
@@ -94,6 +97,7 @@ global_variable_names(const std::vector<ContactDefinition>& contacts) {
     for (const ContactDefinition& contact : contacts) {
         result.push_back("contact_heat_rate_" + contact.name);
         result.push_back("contact_force_" + contact.name);
+        result.push_back("contact_tangential_force_" + contact.name);
     }
     return result;
 }
@@ -266,10 +270,22 @@ void fill_steady_nodal(const UnstructuredQuad4Mesh& mesh,
         if (nodes.size() != summary.size())
             throw std::logic_error("Contact result mapping size mismatch");
         for (std::size_t node = 0; node < nodes.size(); ++node) {
-            values[3 + 2 * contact].at(nodes[node]) =
+            const std::size_t base = 3 + 5 * contact;
+            values[base].at(nodes[node]) =
                 summary[node].projected ? summary[node].gap : missing;
-            values[4 + 2 * contact].at(nodes[node]) =
+            values[base + 1].at(nodes[node]) =
                 summary[node].projected ? summary[node].pressure : missing;
+            values[base + 2].at(nodes[node]) =
+                summary[node].projected ? summary[node].tangential_traction
+                                        : missing;
+            values[base + 3].at(nodes[node]) =
+                summary[node].projected
+                    ? summary[node].elastic_tangential_slip
+                    : missing;
+            values[base + 4].at(nodes[node]) =
+                summary[node].projected
+                    ? (summary[node].sliding ? 1.0 : 0.0)
+                    : missing;
         }
     }
 }
@@ -311,10 +327,22 @@ void fill_transient_nodal(const UnstructuredQuad4Mesh& mesh,
         if (nodes.size() != summary.size())
             throw std::logic_error("Contact result mapping size mismatch");
         for (std::size_t node = 0; node < nodes.size(); ++node) {
-            values[3 + 2 * contact].at(nodes[node]) =
+            const std::size_t base = 3 + 5 * contact;
+            values[base].at(nodes[node]) =
                 summary[node].projected ? summary[node].gap : missing;
-            values[4 + 2 * contact].at(nodes[node]) =
+            values[base + 1].at(nodes[node]) =
                 summary[node].projected ? summary[node].pressure : missing;
+            values[base + 2].at(nodes[node]) =
+                summary[node].projected ? summary[node].tangential_traction
+                                        : missing;
+            values[base + 3].at(nodes[node]) =
+                summary[node].projected
+                    ? summary[node].elastic_tangential_slip
+                    : missing;
+            values[base + 4].at(nodes[node]) =
+                summary[node].projected
+                    ? (summary[node].sliding ? 1.0 : 0.0)
+                    : missing;
         }
     }
 }
@@ -328,6 +356,7 @@ std::vector<double> steady_globals(const SteadyProblem& problem,
             problem.summarize_interface(contact, state);
         result.push_back(summary.total_heat_rate);
         result.push_back(summary.total_contact_force);
+        result.push_back(summary.total_tangential_force);
     }
     return result;
 }
@@ -341,6 +370,7 @@ std::vector<double> transient_globals(const TransientProblem& problem) {
             problem.summarize_interface(contact, state);
         result.push_back(summary.total_heat_rate);
         result.push_back(summary.total_contact_force);
+        result.push_back(summary.total_tangential_force);
     }
     return result;
 }
@@ -467,7 +497,8 @@ EngineeringHistoryWriter::EngineeringHistoryWriter(
         const std::string prefix = ",contact_" + contact.name;
         _stream << prefix << "_minimum_gap" << prefix
                 << "_maximum_pressure" << prefix << "_total_heat_rate"
-                << prefix << "_total_force";
+                << prefix << "_total_force" << prefix
+                << "_total_tangential_force";
     }
     _stream << '\n' << std::scientific << std::setprecision(12);
 }
@@ -528,7 +559,8 @@ void EngineeringHistoryWriter::append(const TransientProblem& problem,
         _stream << ',' << summary.minimum_gap << ','
                 << summary.maximum_contact_pressure << ','
                 << summary.total_heat_rate << ','
-                << summary.total_contact_force;
+                << summary.total_contact_force << ','
+                << summary.total_tangential_force;
     }
     _stream << '\n';
     _stream.flush();

@@ -71,6 +71,7 @@ struct TransientTimeErrorEstimate final {
     double equivalent_plastic_strain = 0.0;
     double equivalent_creep_strain = 0.0;
     double stress = 0.0;
+    double contact_friction = 0.0;
     double maximum = 0.0;
 };
 

@@ -85,7 +85,8 @@ int main(int argc, char** argv) {
 
         const std::set<std::string> required_ids = {
             "input.v1",        "io.exodus",      "m0.steady",
-            "m1.contact",      "m21.transient",  "m22.inelastic",
+            "m1.contact",      "m51.friction",   "m21.transient",
+            "m22.inelastic",
             "m23.pcmi",        "m30.restart",    "m31.loads",
             "m32.diagnostics", "m33.contact",    "m34.parallel",
             "m40.foundation",  "m41.finite_strain", "m42.follower_pressure",
@@ -154,7 +155,7 @@ int main(int argc, char** argv) {
         if (found_ids != required_ids)
             throw std::runtime_error(
                 "Verification matrix is missing one or more required rows");
-        if (verified != 15 || qualified != 1 || measured != 1 ||
+        if (verified != 16 || qualified != 1 || measured != 1 ||
             limitations != 1)
             throw std::runtime_error(
                 "Verification matrix status counts differ from release schema");

@@ -32,6 +32,10 @@ double scaled_error(double actual, double expected) {
            (1.0 + std::max(std::abs(actual), std::abs(expected)));
 }
 
+double relative_difference(double actual, double expected) {
+    return std::abs(actual - expected) / std::abs(expected);
+}
+
 fuelsim::ThermoelasticProperties properties() {
     return {
         3824.0, 0.61, 2.0e11, 0.316, 1.0e-5, 600.0,
@@ -427,7 +431,9 @@ bool test_contact_interface_case(
         0.7,    -0.4,    0.3,     -0.6,   0.2e-6,  -0.4e-6,
         0.5e-6, -0.1e-6, -0.3e-6, 0.6e-6, -0.2e-6, 0.4e-6,
     };
-    const fuelsim::LocalSystem system = kernel.linearize(geometry, state);
+    const fuelsim::ContactPointHistory history{};
+    const fuelsim::LocalSystem system =
+        kernel.linearize(geometry, state, state, history);
 
     constexpr double step = 1.0e-4;
     fuelsim::LocalValues plus = state;
@@ -437,9 +443,9 @@ bool test_contact_interface_case(
         minus[dof] -= step * direction[dof];
     }
     const fuelsim::LocalResidual plus_residual =
-        kernel.residual(geometry, plus);
+        kernel.residual(geometry, plus, state, history);
     const fuelsim::LocalResidual minus_residual =
-        kernel.residual(geometry, minus);
+        kernel.residual(geometry, minus, state, history);
 
     bool passed = true;
     double maximum_jacobian_error = 0.0;
@@ -461,7 +467,8 @@ bool test_contact_interface_case(
             passed;
     }
 
-    const fuelsim::LocalResidual residual = kernel.residual(geometry, state);
+    const fuelsim::LocalResidual residual =
+        kernel.residual(geometry, state, state, history);
     double radial_sum = 0.0;
     double radial_scale = 0.0;
     for (std::size_t row = 4; row < 8; ++row) {
@@ -485,6 +492,71 @@ bool test_contact_interface_case(
                        name + " contact has no thermal residual") &&
                  passed;
     std::cout << name << "_contact_jacobian_maximum_scaled_error="
+              << maximum_jacobian_error << '\n';
+    return passed;
+}
+
+bool test_friction_contact_case(
+    const std::string& name,
+    const fuelsim::NodeToLineRzContactKernel& kernel,
+    const fuelsim::NodeToLineRzContactGeometry& geometry,
+    const fuelsim::LocalValues& state,
+    const fuelsim::LocalValues& committed_state,
+    const fuelsim::ContactPointHistory& history) {
+    const fuelsim::LocalValues direction = {
+        0.0, 0.0, 0.0, 0.0, 0.2e-6,  -0.4e-6,
+        0.5e-6, -0.1e-6, 0.0, 0.6e-6, -0.2e-6, 0.4e-6,
+    };
+    const fuelsim::LocalSystem system =
+        kernel.linearize(geometry, state, committed_state, history);
+    constexpr double step = 1.0e-4;
+    fuelsim::LocalValues plus = state;
+    fuelsim::LocalValues minus = state;
+    for (std::size_t dof = 0; dof < state.size(); ++dof) {
+        plus[dof] += step * direction[dof];
+        minus[dof] -= step * direction[dof];
+    }
+    const fuelsim::LocalResidual plus_residual =
+        kernel.residual(geometry, plus, committed_state, history);
+    const fuelsim::LocalResidual minus_residual =
+        kernel.residual(geometry, minus, committed_state, history);
+
+    bool passed = true;
+    double maximum_jacobian_error = 0.0;
+    for (std::size_t row = 0; row < system.residual.size(); ++row) {
+        double ad_direction = 0.0;
+        for (std::size_t column = 0; column < direction.size(); ++column)
+            ad_direction +=
+                system.jacobian[row * fuelsim::local_dof_count + column] *
+                direction[column];
+        const double finite_difference =
+            (plus_residual[row] - minus_residual[row]) / (2.0 * step);
+        const double error = scaled_error(ad_direction, finite_difference);
+        maximum_jacobian_error = std::max(maximum_jacobian_error, error);
+        passed = check(error < 1.0e-7,
+                       name + " friction AD Jacobian row " +
+                           std::to_string(row) +
+                           " matches centered finite difference") &&
+                 passed;
+    }
+    const fuelsim::LocalResidual residual =
+        kernel.residual(geometry, state, committed_state, history);
+    double radial_sum = 0.0;
+    double axial_sum = 0.0;
+    double force_scale = 0.0;
+    for (std::size_t row = 4; row < 8; ++row) {
+        radial_sum += residual[row];
+        force_scale += std::abs(residual[row]);
+    }
+    for (std::size_t row = 8; row < 12; ++row) {
+        axial_sum += residual[row];
+        force_scale += std::abs(residual[row]);
+    }
+    passed = check(std::abs(radial_sum) < 1.0e-13 * (1.0 + force_scale) &&
+                       std::abs(axial_sum) < 1.0e-13 * (1.0 + force_scale),
+                   name + " friction reaction is discretely conservative") &&
+             passed;
+    std::cout << name << "_friction_jacobian_maximum_scaled_error="
               << maximum_jacobian_error << '\n';
     return passed;
 }
@@ -537,9 +609,9 @@ bool test_gap_heat_and_normal_contact() {
     }
 
     const fuelsim::ContactPointValue open_contact =
-        contact_kernel.value(contact_geometry, open_state);
+        contact_kernel.value(contact_geometry, open_state, open_state, {});
     const fuelsim::ContactPointValue closed_contact =
-        contact_kernel.value(contact_geometry, closed_state);
+        contact_kernel.value(contact_geometry, closed_state, closed_state, {});
     passed = check(open_contact.projected && open_contact.gap > 0.0 &&
                        open_contact.pressure == 0.0,
                    "open NTS node projects with zero pressure") &&
@@ -553,7 +625,8 @@ bool test_gap_heat_and_normal_contact() {
     fuelsim::LocalValues outside_state = closed_state;
     outside_state[9] = 5.0e-6;
     const fuelsim::ContactPointValue outside_contact =
-        contact_kernel.value(contact_geometry, outside_state);
+        contact_kernel.value(contact_geometry, outside_state, outside_state,
+                             {});
     passed = check(!outside_contact.projected &&
                        outside_contact.contact_force == 0.0,
                    "out-of-segment NTS projection is inactive") &&
@@ -566,7 +639,7 @@ bool test_gap_heat_and_normal_contact() {
     radial_endpoint_state[8] = -5.0e-16;
     const fuelsim::ContactPointValue radial_endpoint =
         contact_kernel.value(radial_endpoint_geometry,
-                             radial_endpoint_state);
+                             radial_endpoint_state, radial_endpoint_state, {});
     passed = check(radial_endpoint.projected,
                    "radial NTS reference endpoint retains projection after "
                    "roundoff-scale axial motion") &&
@@ -593,18 +666,22 @@ bool test_gap_heat_and_normal_contact() {
     fuelsim::LocalValues vertex_state{};
     vertex_state[5] = 3.0e-6;
     const fuelsim::ContactPointValue vertex_lower_reference =
-        contact_kernel.value(vertex_lower_geometry, vertex_state);
+        contact_kernel.value(vertex_lower_geometry, vertex_state,
+                             vertex_state, {});
     const fuelsim::ContactPointValue vertex_upper_reference =
-        contact_kernel.value(vertex_upper_geometry, vertex_state);
+        contact_kernel.value(vertex_upper_geometry, vertex_state,
+                             vertex_state, {});
     passed = check(!vertex_lower_reference.projected &&
                        vertex_upper_reference.projected,
                    "internal primary vertex has one reference owner") &&
              passed;
     vertex_state[9] = -1.0e-8;
     const fuelsim::ContactPointValue vertex_lower_slid =
-        contact_kernel.value(vertex_lower_geometry, vertex_state);
+        contact_kernel.value(vertex_lower_geometry, vertex_state,
+                             vertex_state, {});
     const fuelsim::ContactPointValue vertex_upper_slid =
-        contact_kernel.value(vertex_upper_geometry, vertex_state);
+        contact_kernel.value(vertex_upper_geometry, vertex_state,
+                             vertex_state, {});
     passed = check(vertex_lower_slid.projected &&
                        !vertex_upper_slid.projected &&
                        vertex_lower_slid.contact_force > 0.0,
@@ -613,7 +690,8 @@ bool test_gap_heat_and_normal_contact() {
              passed;
     vertex_state[9] = -2.0e-3;
     const fuelsim::ContactPointValue vertex_upper_far =
-        contact_kernel.value(vertex_upper_geometry, vertex_state);
+        contact_kernel.value(vertex_upper_geometry, vertex_state,
+                             vertex_state, {});
     passed = check(!vertex_upper_far.projected,
                    "reference endpoint does not mask a stale far projection") &&
              passed;
@@ -638,9 +716,11 @@ bool test_gap_heat_and_normal_contact() {
             general_secondary, general_primary_upper, 1, false, true);
     fuelsim::LocalValues general_vertex_state{};
     const fuelsim::ContactPointValue general_lower_reference =
-        contact_kernel.value(general_lower_geometry, general_vertex_state);
+        contact_kernel.value(general_lower_geometry, general_vertex_state,
+                             general_vertex_state, {});
     const fuelsim::ContactPointValue general_upper_reference =
-        contact_kernel.value(general_upper_geometry, general_vertex_state);
+        contact_kernel.value(general_upper_geometry, general_vertex_state,
+                             general_vertex_state, {});
     passed = check(!general_lower_reference.projected &&
                        general_upper_reference.projected,
                    "sloped internal primary vertex has one reference owner") &&
@@ -648,9 +728,11 @@ bool test_gap_heat_and_normal_contact() {
     general_vertex_state[5] = -1.0e-8;
     general_vertex_state[9] = -1.0e-8;
     const fuelsim::ContactPointValue general_lower_slid =
-        contact_kernel.value(general_lower_geometry, general_vertex_state);
+        contact_kernel.value(general_lower_geometry, general_vertex_state,
+                             general_vertex_state, {});
     const fuelsim::ContactPointValue general_upper_slid =
-        contact_kernel.value(general_upper_geometry, general_vertex_state);
+        contact_kernel.value(general_upper_geometry, general_vertex_state,
+                             general_vertex_state, {});
     passed = check(general_lower_slid.projected &&
                        !general_upper_slid.projected,
                    "sloped internal vertex slide keeps unique NTS ownership") &&
@@ -686,7 +768,7 @@ bool test_gap_heat_and_normal_contact() {
                  axial_closed_state) &&
              passed;
     const fuelsim::ContactPointValue axial_contact = contact_kernel.value(
-        axial_contact_geometry, axial_closed_state);
+        axial_contact_geometry, axial_closed_state, axial_closed_state, {});
     passed = check(axial_contact.projected && axial_contact.gap < 0.0 &&
                        axial_contact.pressure > 0.0,
                    "horizontal pellet faces develop axial contact") &&
@@ -718,14 +800,80 @@ bool test_gap_heat_and_normal_contact() {
                  sloped_closed_state) &&
              passed;
     const fuelsim::LocalResidual sloped_residual = contact_kernel.residual(
-        sloped_contact_geometry, sloped_closed_state);
+        sloped_contact_geometry, sloped_closed_state, sloped_closed_state, {});
     const fuelsim::ContactPointValue sloped_contact = contact_kernel.value(
-        sloped_contact_geometry, sloped_closed_state);
+        sloped_contact_geometry, sloped_closed_state, sloped_closed_state, {});
     passed = check(sloped_contact.projected && sloped_contact.gap < 0.0 &&
                        sloped_contact.pressure > 0.0 &&
                        std::abs(sloped_residual[5]) > 0.0 &&
                        std::abs(sloped_residual[9]) > 0.0,
                    "45-degree contact activates both normal components") &&
+             passed;
+
+    const fuelsim::NodeToLineRzContactKernel friction_kernel({1.0e14, 0.3});
+    fuelsim::LocalValues sticking_state = closed_state;
+    sticking_state[9] = 1.0e-7;
+    const fuelsim::ContactPointValue sticking = friction_kernel.value(
+        contact_geometry, sticking_state, closed_state, {});
+    passed = check(!sticking.sliding &&
+                       relative_difference(sticking.tangential_traction,
+                                           1.0e7) <
+                           1.0e-13,
+                   "Coulomb contact matches the closed-form sticking "
+                   "traction") &&
+             passed;
+    passed = test_friction_contact_case(
+                 "sticking", friction_kernel, contact_geometry,
+                 sticking_state, closed_state, {}) &&
+             passed;
+
+    fuelsim::LocalValues sliding_state = closed_state;
+    sliding_state[9] = 6.0e-7;
+    const fuelsim::ContactPointValue sliding = friction_kernel.value(
+        contact_geometry, sliding_state, closed_state, {});
+    const double sliding_limit = 0.3 * sliding.pressure;
+    passed = check(sliding.sliding &&
+                       relative_difference(sliding.tangential_traction,
+                                           sliding_limit) < 1.0e-13 &&
+                       relative_difference(sliding.elastic_tangential_slip,
+                                           sliding_limit / 1.0e14) < 1.0e-13,
+                   "Coulomb contact caps sliding traction and returns the "
+                   "elastic slip") &&
+             passed;
+    passed = test_friction_contact_case(
+                 "sliding", friction_kernel, contact_geometry, sliding_state,
+                 closed_state, {}) &&
+             passed;
+
+    fuelsim::LocalValues resticking_state = closed_state;
+    resticking_state[9] = -1.0e-7;
+    const fuelsim::ContactPointHistory sliding_history =
+        friction_kernel.trial_history(contact_geometry, sliding_state,
+                                      closed_state, {});
+    const fuelsim::ContactPointValue resticking = friction_kernel.value(
+        contact_geometry, resticking_state, closed_state, sliding_history);
+    passed = check(!resticking.sliding &&
+                       resticking.tangential_traction > 0.0 &&
+                       resticking.tangential_traction <
+                           0.3 * resticking.pressure,
+                   "Coulomb contact returns from sliding to sticking under "
+                   "reverse tangential motion") &&
+             passed;
+    passed = test_friction_contact_case(
+                 "sliding_to_sticking", friction_kernel, contact_geometry,
+                 resticking_state, closed_state, sliding_history) &&
+             passed;
+
+    const fuelsim::NodeToLineRzContactKernel explicit_zero_friction(
+        {1.0e14, 0.0});
+    const fuelsim::LocalResidual legacy_normal = contact_kernel.residual(
+        contact_geometry, closed_state, closed_state, {});
+    const fuelsim::LocalResidual zero_friction =
+        explicit_zero_friction.residual(contact_geometry, closed_state,
+                                        closed_state, {});
+    passed = check(legacy_normal == zero_friction,
+                   "mu equal to zero preserves every normal-contact residual "
+                   "entry exactly") &&
              passed;
     return passed;
 }

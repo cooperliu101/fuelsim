@@ -268,6 +268,27 @@ if(BUILD_TESTING)
         LABELS "acceptance"
     )
 
+    add_executable(fuelsim_m51_coulomb_friction_moose_tests
+        tests/m51_coulomb_friction_moose_tests.cpp
+    )
+    target_link_libraries(fuelsim_m51_coulomb_friction_moose_tests
+        PRIVATE
+            fuelsim_moose_test_support
+            fuelsim::input
+            fuelsim::exodus
+            fuelsim::petsc
+    )
+    fuelsim_enable_warnings(fuelsim_m51_coulomb_friction_moose_tests)
+    add_test(NAME fuelsim_m51_coulomb_friction_moose_tests
+        COMMAND fuelsim_m51_coulomb_friction_moose_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_coulomb_friction_moose.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m51_coulomb_friction_rz_all_nodes_0020.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m51_coulomb_friction_rz_fuel_surface_0020.csv"
+    )
+    set_tests_properties(fuelsim_m51_coulomb_friction_moose_tests PROPERTIES
+        LABELS "acceptance"
+    )
+
     add_executable(fuelsim_m1_exodus_moose_tests
         tests/m1_exodus_moose_tests.cpp
     )

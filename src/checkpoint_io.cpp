@@ -17,7 +17,7 @@ namespace {
 constexpr std::array<unsigned char, 16> checkpoint_magic = {
     'F', 'U', 'E', 'L', 'S', 'I', 'M', '_',
     'C', 'H', 'E', 'C', 'K', 'P', 'T', '\0'};
-constexpr std::uint32_t checkpoint_version = 4U;
+constexpr std::uint32_t checkpoint_version = 5U;
 constexpr std::uint32_t endian_marker = 0x01020304U;
 constexpr std::uint64_t fnv_offset = 14695981039346656037ULL;
 constexpr std::uint64_t fnv_prime = 1099511628211ULL;
@@ -230,6 +230,15 @@ BinaryBuffer state_payload(const TransientProblem& problem,
     for (const double value : state.solution)
         payload.append_double(value);
     payload.append_u64(
+        static_cast<std::uint64_t>(state.contact_histories.size()));
+    for (const auto& contact : state.contact_histories) {
+        payload.append_u64(static_cast<std::uint64_t>(contact.size()));
+        for (const ContactPointHistory& history : contact) {
+            payload.append_double(history.elastic_tangential_slip);
+            payload.append_u32(history.sliding ? 1U : 0U);
+        }
+    }
+    payload.append_u64(
         static_cast<std::uint64_t>(state.material_histories.size()));
     for (std::size_t region = 0; region < state.material_histories.size();
          ++region) {
@@ -356,6 +365,31 @@ double TransientCheckpointIo::restore(const std::string& path,
     state.solution.resize(problem.dof_count());
     for (double& value : state.solution)
         value = payload.read_double();
+    const std::uint64_t contact_count = payload.read_u64();
+    const TransientCommittedState expected_state = problem.committed_state();
+    const auto& expected_histories = expected_state.contact_histories;
+    if (contact_count != expected_histories.size())
+        throw std::runtime_error(
+            "Checkpoint contact count does not match the current problem");
+    state.contact_histories.resize(expected_histories.size());
+    for (std::size_t contact = 0; contact < expected_histories.size();
+         ++contact) {
+        const std::uint64_t node_count = payload.read_u64();
+        if (node_count != expected_histories[contact].size())
+            throw std::runtime_error(
+                "Checkpoint contact-node count does not match the current "
+                "problem");
+        state.contact_histories[contact].resize(
+            expected_histories[contact].size());
+        for (ContactPointHistory& history : state.contact_histories[contact]) {
+            history.elastic_tangential_slip = payload.read_double();
+            const std::uint32_t sliding = payload.read_u32();
+            if (sliding > 1U)
+                throw std::runtime_error(
+                    "Checkpoint friction state is invalid");
+            history.sliding = sliding == 1U;
+        }
+    }
     const std::uint64_t region_count = payload.read_u64();
     if (region_count != problem.region_count())
         throw std::runtime_error(

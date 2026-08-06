@@ -146,6 +146,8 @@ TransientProblem::TransientProblem(TransientProblemDefinition definition,
     }
     _spatial_model.set_load_factor(0.0);
     _committed_solution = _spatial_model.initial_state();
+    _spatial_model.restore_contact_state(
+        _committed_solution, _spatial_model.committed_contact_histories());
 }
 
 const TransientProblemDefinition&
@@ -281,6 +283,7 @@ std::uint64_t TransientProblem::committed_state_signature() const {
         hash_double(hash, contact.gap_conductivity);
         hash_double(hash, contact.minimum_gap);
         hash_double(hash, contact.penalty);
+        hash_double(hash, contact.friction_coefficient);
     }
     for (const BoundaryConditionDefinition& boundary :
          _definition.spatial.boundary_conditions) {
@@ -328,6 +331,7 @@ std::vector<double> TransientProblem::time_events() const {
 
 TransientCommittedState TransientProblem::committed_state() const {
     return {_committed_solution, _material_histories, _material_stresses,
+            _spatial_model.committed_contact_histories(),
             _last_conservation_summary, _committed_time,
             _committed_load_factor};
 }
@@ -338,7 +342,8 @@ void TransientProblem::restore_committed_state(TransientCommittedState state) {
             "TransientProblem cannot restore during an active time step");
     if (state.solution.size() != dof_count() ||
         state.material_histories.size() != region_count() ||
-        state.material_stresses.size() != region_count())
+        state.material_stresses.size() != region_count() ||
+        state.contact_histories.size() != _definition.spatial.contacts.size())
         throw std::invalid_argument(
             "Transient committed state layout does not match the problem");
     if (!std::isfinite(state.time) || state.time < 0.0 ||
@@ -378,6 +383,8 @@ void TransientProblem::restore_committed_state(TransientCommittedState state) {
         }
     }
 
+    _spatial_model.restore_contact_state(state.solution,
+                                         state.contact_histories);
     _committed_solution = std::move(state.solution);
     _material_histories = std::move(state.material_histories);
     _material_stresses = std::move(state.material_stresses);
@@ -478,6 +485,7 @@ void TransientProblem::commit_time_step(
 
     const TransientConservationSummary conservation = summarize_active_step(
         converged_solution, staged, staged_stresses);
+    _spatial_model.commit_contact_state(converged_solution);
     _material_histories.swap(staged);
     _material_stresses.swap(staged_stresses);
     _last_conservation_summary = conservation;

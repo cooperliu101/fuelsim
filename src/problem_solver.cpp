@@ -334,6 +334,8 @@ step_doubling_error(const TransientCommittedState& full_step,
     ErrorAccumulator equivalent_plastic;
     ErrorAccumulator equivalent_creep;
     ErrorAccumulator stress;
+    ErrorAccumulator contact_friction;
+    bool contact_state_mismatch = false;
     for (std::size_t region = 0;
          region < full_step.material_histories.size(); ++region) {
         const auto& full_history = full_step.material_histories[region];
@@ -381,6 +383,29 @@ step_doubling_error(const TransientCommittedState& full_step,
             }
         }
     }
+    if (full_step.contact_histories.size() !=
+        two_half_steps.contact_histories.size())
+        throw std::logic_error(
+            "step-doubling contact-history layouts differ");
+    for (std::size_t contact = 0;
+         contact < full_step.contact_histories.size(); ++contact) {
+        if (full_step.contact_histories[contact].size() !=
+            two_half_steps.contact_histories[contact].size())
+            throw std::logic_error(
+                "step-doubling contact-node history layouts differ");
+        for (std::size_t node = 0;
+             node < full_step.contact_histories[contact].size(); ++node) {
+            const ContactPointHistory& full =
+                full_step.contact_histories[contact][node];
+            const ContactPointHistory& half =
+                two_half_steps.contact_histories[contact][node];
+            accumulate_error(contact_friction,
+                             full.elastic_tangential_slip,
+                             half.elastic_tangential_slip);
+            contact_state_mismatch =
+                contact_state_mismatch || full.sliding != half.sliding;
+        }
+    }
 
     TransientTimeErrorEstimate result;
     result.temperature = normalized_error(
@@ -410,12 +435,20 @@ step_doubling_error(const TransientCommittedState& full_step,
     result.stress = normalized_error(
         stress, options.stress_history_time_absolute_tolerance,
         options.time_error_relative_tolerance);
+    result.contact_friction =
+        contact_state_mismatch
+            ? std::numeric_limits<double>::infinity()
+            : normalized_error(
+                  contact_friction,
+                  options.displacement_time_absolute_tolerance,
+                  options.time_error_relative_tolerance);
     result.maximum = std::max(
         {result.temperature, result.radial_displacement,
          result.axial_displacement, result.elastic_strain,
          result.plastic_strain, result.creep_strain,
          result.equivalent_plastic_strain,
-         result.equivalent_creep_strain, result.stress});
+         result.equivalent_creep_strain, result.stress,
+         result.contact_friction});
     return result;
 }
 
@@ -467,6 +500,8 @@ SteadyResult solve_steady(SteadyProblem& problem,
                         problem,
                         initial_guess_with_dirichlet_values(problem, state),
                         options);
+                    if (attempt.converged)
+                        problem.commit_contact_state(attempt.state);
                 } catch (const std::domain_error& error) {
                     attempt.converged = false;
                     attempt.failure_category =

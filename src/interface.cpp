@@ -19,16 +19,22 @@ struct HeatAdQuadratureValue final {
 };
 
 struct ContactAdValue final {
-    bool projected;
-    adlite::Scalar gap;
-    adlite::Scalar pressure;
-    adlite::Scalar tributary_area;
-    adlite::Scalar tributary_length;
-    adlite::Scalar contact_force;
-    adlite::Scalar primary_shape_0;
-    adlite::Scalar primary_shape_1;
-    adlite::Scalar normal_r;
-    adlite::Scalar normal_z;
+    bool projected = false;
+    adlite::Scalar gap = 0.0;
+    adlite::Scalar pressure = 0.0;
+    adlite::Scalar tributary_area = 0.0;
+    adlite::Scalar tributary_length = 0.0;
+    adlite::Scalar contact_force = 0.0;
+    adlite::Scalar primary_shape_0 = 0.0;
+    adlite::Scalar primary_shape_1 = 0.0;
+    adlite::Scalar normal_r = 0.0;
+    adlite::Scalar normal_z = 0.0;
+    adlite::Scalar tangent_r = 0.0;
+    adlite::Scalar tangent_z = 0.0;
+    adlite::Scalar tangential_traction = 0.0;
+    adlite::Scalar tangential_force = 0.0;
+    adlite::Scalar elastic_tangential_slip = 0.0;
+    bool sliding = false;
 };
 
 bool finite_point(const RzPoint& point) {
@@ -250,8 +256,56 @@ bool clamp_owned_chain_endpoint(
     return false;
 }
 
+void evaluate_friction(ContactAdValue& value,
+                       const NodeToLineRzContactGeometry& geometry,
+                       const LocalAdValues& state,
+                       const LocalValues& committed_state,
+                       const ContactPointHistory& history,
+                       const NormalContactProperties& properties) {
+    if (properties.friction_coefficient == 0.0 ||
+        !(value.pressure.value() > 0.0))
+        return;
+
+    const std::size_t secondary = geometry.secondary_local_node;
+    const adlite::Scalar secondary_increment_r =
+        state[4 + secondary] - committed_state[4 + secondary];
+    const adlite::Scalar secondary_increment_z =
+        state[8 + secondary] - committed_state[8 + secondary];
+    const adlite::Scalar primary_increment_r =
+        value.primary_shape_0 * (state[6] - committed_state[6]) +
+        value.primary_shape_1 * (state[7] - committed_state[7]);
+    const adlite::Scalar primary_increment_z =
+        value.primary_shape_0 * (state[10] - committed_state[10]) +
+        value.primary_shape_1 * (state[11] - committed_state[11]);
+    const adlite::Scalar tangential_increment =
+        (secondary_increment_r - primary_increment_r) * value.tangent_r +
+        (secondary_increment_z - primary_increment_z) * value.tangent_z;
+    const adlite::Scalar trial_slip =
+        history.elastic_tangential_slip + tangential_increment;
+    const adlite::Scalar trial_traction = properties.penalty * trial_slip;
+    const adlite::Scalar sliding_limit =
+        properties.friction_coefficient * value.pressure;
+
+    const double trial_magnitude = std::abs(trial_traction.value());
+    if (trial_magnitude < sliding_limit.value() ||
+        (trial_magnitude == sliding_limit.value() && !history.sliding)) {
+        value.tangential_traction = trial_traction;
+        value.elastic_tangential_slip = trial_slip;
+    } else {
+        const double direction = trial_traction.value() < 0.0 ? -1.0 : 1.0;
+        value.tangential_traction = direction * sliding_limit;
+        value.elastic_tangential_slip =
+            value.tangential_traction / properties.penalty;
+        value.sliding = true;
+    }
+    value.tangential_force =
+        value.tangential_traction * value.tributary_area;
+}
+
 ContactAdValue evaluate_contact(const NodeToLineRzContactGeometry& geometry,
                                 const LocalAdValues& state,
+                                const LocalValues& committed_state,
+                                const ContactPointHistory& history,
                                 const NormalContactProperties& properties) {
     const std::size_t secondary = geometry.secondary_local_node;
     const std::size_t other = secondary == 0 ? 1 : 0;
@@ -275,12 +329,7 @@ ContactAdValue evaluate_contact(const NodeToLineRzContactGeometry& geometry,
                 geometry.primary_segment_is_first,
                 geometry.primary_segment_includes_second_endpoint);
         if (!projected)
-            return {false,
-                    adlite::Scalar(0.0), adlite::Scalar(0.0),
-                    adlite::Scalar(0.0), adlite::Scalar(0.0),
-                    adlite::Scalar(0.0), adlite::Scalar(0.0),
-                    adlite::Scalar(0.0), adlite::Scalar(0.0),
-                    adlite::Scalar(0.0)};
+            return {};
         const adlite::Scalar shape_0 = 1.0 - fraction;
         const adlite::Scalar shape_1 = fraction;
         const adlite::Scalar secondary_radius =
@@ -305,9 +354,20 @@ ContactAdValue evaluate_contact(const NodeToLineRzContactGeometry& geometry,
         const adlite::Scalar tributary_area =
             2.0 * pi * secondary_radius * tributary_length;
         const adlite::Scalar force = pressure * tributary_area;
-        return {true, gap, pressure, tributary_area, tributary_length, force,
-                shape_0, shape_1, adlite::Scalar(1.0),
-                adlite::Scalar(0.0)};
+        ContactAdValue result;
+        result.projected = true;
+        result.gap = gap;
+        result.pressure = pressure;
+        result.tributary_area = tributary_area;
+        result.tributary_length = tributary_length;
+        result.contact_force = force;
+        result.primary_shape_0 = shape_0;
+        result.primary_shape_1 = shape_1;
+        result.normal_r = 1.0;
+        result.tangent_z = 1.0;
+        evaluate_friction(result, geometry, state, committed_state, history,
+                          properties);
+        return result;
     }
 
     const adlite::Scalar secondary_radius =
@@ -339,18 +399,7 @@ ContactAdValue evaluate_contact(const NodeToLineRzContactGeometry& geometry,
             geometry.primary_segment_includes_second_endpoint);
 
     if (!projected) {
-        return {
-            false,
-            adlite::Scalar(0.0),
-            adlite::Scalar(0.0),
-            adlite::Scalar(0.0),
-            adlite::Scalar(0.0),
-            adlite::Scalar(0.0),
-            adlite::Scalar(0.0),
-            adlite::Scalar(0.0),
-            adlite::Scalar(0.0),
-            adlite::Scalar(0.0),
-        };
+        return {};
     }
 
     const adlite::Scalar primary_shape_0 = 1.0 - primary_fraction;
@@ -382,18 +431,22 @@ ContactAdValue evaluate_contact(const NodeToLineRzContactGeometry& geometry,
         (2.0 * secondary_radius + other_radius) / 3.0;
     const adlite::Scalar contact_force = pressure * tributary_area;
 
-    return {
-        true,
-        gap,
-        pressure,
-        tributary_area,
-        tributary_length,
-        contact_force,
-        primary_shape_0,
-        primary_shape_1,
-        normal_r,
-        normal_z,
-    };
+    ContactAdValue result;
+    result.projected = true;
+    result.gap = gap;
+    result.pressure = pressure;
+    result.tributary_area = tributary_area;
+    result.tributary_length = tributary_length;
+    result.contact_force = contact_force;
+    result.primary_shape_0 = primary_shape_0;
+    result.primary_shape_1 = primary_shape_1;
+    result.normal_r = normal_r;
+    result.normal_z = normal_z;
+    result.tangent_r = tangent_r / tangent_length;
+    result.tangent_z = tangent_z / tangent_length;
+    evaluate_friction(result, geometry, state, committed_state, history,
+                      properties);
+    return result;
 }
 
 } // namespace
@@ -598,6 +651,15 @@ NodeToLineRzContactKernel::NodeToLineRzContactKernel(
     if (!std::isfinite(_properties.penalty) || !(_properties.penalty >= 0.0))
         throw std::invalid_argument(
             "NormalContactProperties penalty must be finite and nonnegative");
+    if (!std::isfinite(_properties.friction_coefficient) ||
+        !(_properties.friction_coefficient >= 0.0))
+        throw std::invalid_argument(
+            "NormalContactProperties friction_coefficient must be finite and "
+            "nonnegative");
+    if (_properties.friction_coefficient > 0.0 &&
+        !(_properties.penalty > 0.0))
+        throw std::invalid_argument(
+            "Frictional contact requires a positive penalty");
 }
 
 const NormalContactProperties&
@@ -607,12 +669,15 @@ NodeToLineRzContactKernel::properties() const noexcept {
 
 LocalResidual
 NodeToLineRzContactKernel::residual(const NodeToLineRzContactGeometry& geometry,
-                                    const LocalValues& state) const {
+                                    const LocalValues& state,
+                                    const LocalValues& committed_state,
+                                    const ContactPointHistory& history) const {
     LocalAdValues passive_state{};
     for (std::size_t dof = 0; dof < state.size(); ++dof)
         passive_state[dof] = state[dof];
     LocalAdValues passive_residual{};
-    residual_ad(geometry, passive_state, passive_residual);
+    residual_ad(geometry, passive_state, committed_state, history,
+                passive_residual);
 
     LocalResidual result{};
     for (std::size_t row = 0; row < result.size(); ++row)
@@ -622,11 +687,13 @@ NodeToLineRzContactKernel::residual(const NodeToLineRzContactGeometry& geometry,
 
 LocalSystem NodeToLineRzContactKernel::linearize(
     const NodeToLineRzContactGeometry& geometry,
-    const LocalValues& state) const {
+    const LocalValues& state, const LocalValues& committed_state,
+    const ContactPointHistory& history) const {
     LocalAdValues active_state{};
     adlite::seed_identity(state.data(), state.size(), active_state.data());
     LocalAdValues active_residual{};
-    residual_ad(geometry, active_state, active_residual);
+    residual_ad(geometry, active_state, committed_state, history,
+                active_residual);
 
     LocalSystem result{};
     adlite::extract_jacobian(active_residual.data(), active_residual.size(),
@@ -637,12 +704,15 @@ LocalSystem NodeToLineRzContactKernel::linearize(
 
 ContactPointValue
 NodeToLineRzContactKernel::value(const NodeToLineRzContactGeometry& geometry,
-                                 const LocalValues& state) const {
+                                 const LocalValues& state,
+                                 const LocalValues& committed_state,
+                                 const ContactPointHistory& history) const {
     LocalAdValues passive_state{};
     for (std::size_t dof = 0; dof < state.size(); ++dof)
         passive_state[dof] = state[dof];
     const ContactAdValue result =
-        evaluate_contact(geometry, passive_state, _properties);
+        evaluate_contact(geometry, passive_state, committed_state, history,
+                         _properties);
     return {
         result.projected,
         result.gap.value(),
@@ -650,14 +720,32 @@ NodeToLineRzContactKernel::value(const NodeToLineRzContactGeometry& geometry,
         result.tributary_area.value(),
         result.tributary_length.value(),
         result.contact_force.value(),
+        result.tangential_traction.value(),
+        result.tangential_force.value(),
+        result.elastic_tangential_slip.value(),
+        result.sliding,
     };
+}
+
+ContactPointHistory NodeToLineRzContactKernel::trial_history(
+    const NodeToLineRzContactGeometry& geometry, const LocalValues& state,
+    const LocalValues& committed_state,
+    const ContactPointHistory& history) const {
+    const ContactPointValue trial =
+        value(geometry, state, committed_state, history);
+    if (!trial.projected)
+        throw std::domain_error(
+            "Cannot update friction history for an unprojected contact node");
+    return {trial.elastic_tangential_slip, trial.sliding};
 }
 
 void NodeToLineRzContactKernel::residual_ad(
     const NodeToLineRzContactGeometry& geometry, const LocalAdValues& state,
+    const LocalValues& committed_state, const ContactPointHistory& history,
     LocalAdValues& residual) const {
     std::fill(residual.begin(), residual.end(), adlite::Scalar(0.0));
-    const ContactAdValue value = evaluate_contact(geometry, state, _properties);
+    const ContactAdValue value = evaluate_contact(
+        geometry, state, committed_state, history, _properties);
     if (!value.projected)
         return;
 
@@ -668,6 +756,18 @@ void NodeToLineRzContactKernel::residual_ad(
     residual[8 + secondary] += value.contact_force * value.normal_z;
     residual[10] -= value.primary_shape_0 * value.contact_force * value.normal_z;
     residual[11] -= value.primary_shape_1 * value.contact_force * value.normal_z;
+    if (_properties.friction_coefficient == 0.0)
+        return;
+    residual[4 + secondary] += value.tangential_force * value.tangent_r;
+    residual[6] -=
+        value.primary_shape_0 * value.tangential_force * value.tangent_r;
+    residual[7] -=
+        value.primary_shape_1 * value.tangential_force * value.tangent_r;
+    residual[8 + secondary] += value.tangential_force * value.tangent_z;
+    residual[10] -=
+        value.primary_shape_0 * value.tangential_force * value.tangent_z;
+    residual[11] -=
+        value.primary_shape_1 * value.tangential_force * value.tangent_z;
 }
 
 } // namespace fuelsim

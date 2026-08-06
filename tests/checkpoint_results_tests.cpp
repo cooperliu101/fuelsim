@@ -97,7 +97,9 @@ bool compare_committed_states(const fuelsim::TransientCommittedState& left,
         check(left.solution.size() == right.solution.size(),
               "restart preserves nodal-state layout") &&
         check(left.material_histories.size() == right.material_histories.size(),
-              "restart preserves material-region layout");
+              "restart preserves material-region layout") &&
+        check(left.contact_histories.size() == right.contact_histories.size(),
+              "restart preserves contact-history layout");
     if (!passed)
         return false;
     for (std::size_t dof = 0; dof < left.solution.size(); ++dof)
@@ -147,6 +149,25 @@ bool compare_committed_states(const fuelsim::TransientCommittedState& left,
             }
         }
     }
+    for (std::size_t contact = 0; contact < left.contact_histories.size();
+         ++contact) {
+        if (!check(left.contact_histories[contact].size() ==
+                       right.contact_histories[contact].size(),
+                   "restart preserves contact-node history layout"))
+            return false;
+        for (std::size_t node = 0;
+             node < left.contact_histories[contact].size(); ++node) {
+            const fuelsim::ContactPointHistory& a =
+                left.contact_histories[contact][node];
+            const fuelsim::ContactPointHistory& b =
+                right.contact_histories[contact][node];
+            passed = check(nearly_equal(a.elastic_tangential_slip,
+                                        b.elastic_tangential_slip) &&
+                               a.sliding == b.sliding,
+                           "restart reproduces committed friction history") &&
+                     passed;
+        }
+    }
     return passed;
 }
 
@@ -194,6 +215,65 @@ solver_options(const fuelsim::FuelSimCaseDefinition& input) {
     options.mechanical_residual_scale =
         input.solver.mechanical_residual_scale;
     return options;
+}
+
+bool test_friction_history_checkpoint(const std::string& input_path,
+                                      const std::string& checkpoint_path) {
+    fuelsim::FuelSimCaseDefinition input =
+        fuelsim::CaseInputReader::read(input_path);
+    input.contacts.at(0).friction_coefficient = 0.3;
+    const fuelsim::UnstructuredQuad4Mesh mesh =
+        fuelsim::ExodusMeshIo::read_quad4(input.mesh_file);
+    fuelsim::TransientProblem source(input.transient_definition(), mesh);
+    fuelsim::TransientCommittedState state = source.committed_state();
+    if (state.contact_histories.empty() ||
+        state.contact_histories.front().empty())
+        return check(false,
+                     "friction checkpoint fixture has contact-node history");
+    state.contact_histories.front().front() = {2.5e-7, true};
+    source.restore_committed_state(state);
+    const fuelsim::TransientCommittedState before_rollback =
+        source.committed_state();
+    source.begin_time_step({1.0, 0.05});
+    source.rollback_time_step();
+    bool passed = compare_committed_states(before_rollback,
+                                           source.committed_state());
+    fuelsim::TransientCheckpointIo::write(checkpoint_path, source, 0.5);
+
+    fuelsim::TransientProblem restored(input.transient_definition(), mesh);
+    const double next_time_step =
+        fuelsim::TransientCheckpointIo::restore(checkpoint_path, restored);
+    passed = check(next_time_step == 0.5,
+                   "friction checkpoint preserves the controller time step") &&
+             compare_committed_states(source.committed_state(),
+                                      restored.committed_state()) &&
+             passed;
+
+    fuelsim::TransientCheckpointIo::write(checkpoint_path, source, 0.5);
+    {
+        std::fstream file(checkpoint_path,
+                          std::ios::binary | std::ios::in | std::ios::out);
+        if (!file)
+            return check(false,
+                         "friction checkpoint opens for version test");
+        const std::array<unsigned char, 4> old_version = {4U, 0U, 0U, 0U};
+        file.seekp(16, std::ios::beg);
+        file.write(reinterpret_cast<const char*>(old_version.data()),
+                   static_cast<std::streamsize>(old_version.size()));
+    }
+    fuelsim::TransientProblem old_version_target(input.transient_definition(),
+                                                 mesh);
+    passed = expect_failure(
+                 [&]() {
+                     (void)fuelsim::TransientCheckpointIo::restore(
+                         checkpoint_path, old_version_target);
+                 },
+                 "version is not supported",
+                 "checkpoint version 5 rejects the previous format") &&
+             passed;
+    return check(std::remove(checkpoint_path.c_str()) == 0,
+                 "friction checkpoint artifact is removed") &&
+           passed;
 }
 
 bool test_finite_strain_restart(const std::string& input_path,
@@ -299,14 +379,14 @@ bool verify_exodus(const std::string& path,
                   static_cast<std::int64_t>(expected_steps),
               "Exodus stores the initial and every accepted committed step") &&
         check(ex_get_variable_param(exoid, EX_NODAL, &nodal_variables) == 0 &&
-                  nodal_variables == 5,
+                  nodal_variables == 8,
               "Exodus defines temperature, displacement, gap and pressure") &&
         check(ex_get_variable_param(exoid, EX_ELEM_BLOCK, &element_variables) ==
                       0 &&
                   element_variables == 56,
               "Exodus defines stress and inelastic integration-point fields") &&
         check(ex_get_variable_param(exoid, EX_GLOBAL, &global_variables) == 0 &&
-                  global_variables == 3,
+                  global_variables == 4,
               "Exodus defines load and conservative interface totals");
 
     const int last_step = static_cast<int>(expected_steps);
@@ -372,14 +452,14 @@ bool verify_steady_results(const fuelsim::FuelSimCaseDefinition& input,
         check(ex_inquire_int(exoid, EX_INQ_TIME) == 1,
               "steady Exodus result contains one final state") &&
         check(ex_get_variable_param(exoid, EX_NODAL, &nodal_variables) == 0 &&
-                  nodal_variables == 5,
+                  nodal_variables == 8,
               "steady Exodus result contains nodal contact fields") &&
         check(ex_get_variable_param(exoid, EX_ELEM_BLOCK, &element_variables) ==
                       0 &&
                   element_variables == 16,
               "steady Exodus result contains four-point stresses") &&
         check(ex_get_variable_param(exoid, EX_GLOBAL, &global_variables) == 0 &&
-                  global_variables == 3,
+                  global_variables == 4,
               "steady Exodus result contains interface totals") &&
         check(ex_close(exoid) == 0, "steady Exodus result closes cleanly");
     return passed;
@@ -413,6 +493,9 @@ bool run_tests(const std::string& steady_input_path,
     const fuelsim::UnstructuredQuad4Mesh steady_mesh =
         fuelsim::ExodusMeshIo::read_quad4(steady_input.mesh_file);
     passed = verify_steady_results(steady_input, steady_mesh, results_path) &&
+             passed;
+    passed = test_friction_history_checkpoint(
+                 transient_input_path, checkpoint_path + ".friction") &&
              passed;
     passed = test_finite_strain_restart(
                  finite_strain_input_path, checkpoint_path + ".finite") &&

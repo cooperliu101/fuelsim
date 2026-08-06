@@ -312,7 +312,7 @@ LocalResidual SteadyFuelCladdingProblem::contribution_residual(
 
     contribution_index -= thermal_interface_count();
     return _contact_kernel.residual(_contact_geometries.at(contribution_index),
-                                    state);
+                                    state, state, ContactPointHistory{});
 }
 
 LocalSystem SteadyFuelCladdingProblem::linearize_contribution(
@@ -333,7 +333,7 @@ LocalSystem SteadyFuelCladdingProblem::linearize_contribution(
 
     contribution_index -= thermal_interface_count();
     return _contact_kernel.linearize(_contact_geometries.at(contribution_index),
-                                     state);
+                                     state, state, ContactPointHistory{});
 }
 
 LocalDofs
@@ -412,7 +412,8 @@ SteadyFuelCladdingProblem::summarize_contact_nodes(
         const LocalValues local_state =
             contribution_state(first_contact + contact, state);
         const ContactPointValue value =
-            _contact_kernel.value(_contact_geometries[contact], local_state);
+            _contact_kernel.value(_contact_geometries[contact], local_state,
+                                  local_state, ContactPointHistory{});
         if (!value.projected)
             continue;
 
