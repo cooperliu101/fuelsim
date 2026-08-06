@@ -116,8 +116,105 @@ bool run_comparison(const std::string& input_path,
         lost_projection_rejected = true;
     }
     passed = check(lost_projection_rejected,
-                   "M3.3 rejects a secondary node outside its fixed NTS "
-                   "candidate window") &&
+                   "M3.3 rejects a secondary node outside the complete "
+                   "primary chain") &&
+             passed;
+
+    const std::size_t secondary_index = static_cast<std::size_t>(
+        std::find(secondary_sources.begin(), secondary_sources.end(),
+                  sliding_source) -
+        secondary_sources.begin());
+    const std::size_t primary_region = problem.region_index("upper");
+    const fuelsim::RegionBoundary primary_boundary =
+        problem.region_mesh(primary_region)
+            .map_side_set(source, definition.contacts[0].primary);
+    std::vector<double> primary_radii;
+    primary_radii.reserve(primary_boundary.nodes.size());
+    for (const std::size_t node : primary_boundary.nodes)
+        primary_radii.push_back(
+            problem.region_mesh(primary_region).nodes().at(node).r);
+    std::sort(primary_radii.begin(), primary_radii.end());
+    const double target_radius =
+        0.5 * (primary_radii[primary_radii.size() - 2] +
+               primary_radii.back());
+    std::vector<double> large_sliding_state = problem.initial_state();
+    large_sliding_state[problem.dof_map().radial_displacement(
+        sliding_global_node)] =
+        target_radius - source.nodes().at(sliding_source).r;
+    large_sliding_state[problem.dof_map().axial_displacement(
+        sliding_global_node)] = 3.0e-6;
+    problem.validate_state(large_sliding_state);
+    const std::vector<fuelsim::ContactNodeSummary> large_sliding_summary =
+        problem.summarize_contact_nodes(0, large_sliding_state);
+    passed = check(large_sliding_summary.at(secondary_index).projected &&
+                       large_sliding_summary.at(secondary_index)
+                               .primary_segment ==
+                           primary_radii.size() - 2 &&
+                       large_sliding_summary.at(secondary_index).pressure > 0.0,
+                   "M3.3 dynamically transfers a secondary node across more "
+                   "than the former three-segment window") &&
+             passed;
+
+    const double transfer_radius = primary_radii[primary_radii.size() - 2];
+    constexpr double transfer_offset = 1.0e-10;
+    const auto transferred_node = [&](double radius) {
+        std::vector<double> state = problem.initial_state();
+        state[problem.dof_map().radial_displacement(sliding_global_node)] =
+            radius - source.nodes().at(sliding_source).r;
+        state[problem.dof_map().axial_displacement(sliding_global_node)] =
+            3.0e-6;
+        problem.validate_state(state);
+        return problem.summarize_contact_nodes(0, state).at(secondary_index);
+    };
+    const fuelsim::ContactNodeSummary before_transfer =
+        transferred_node(transfer_radius - transfer_offset);
+    const fuelsim::ContactNodeSummary at_transfer =
+        transferred_node(transfer_radius);
+    const fuelsim::ContactNodeSummary after_transfer =
+        transferred_node(transfer_radius + transfer_offset);
+    const double transfer_force_scale = std::max(
+        {1.0, std::abs(before_transfer.contact_force),
+         std::abs(after_transfer.contact_force)});
+    passed = check(before_transfer.primary_segment + 1 ==
+                           after_transfer.primary_segment &&
+                       at_transfer.primary_segment ==
+                           after_transfer.primary_segment,
+                   "M3.3 internal primary vertex has one owner and transfers "
+                   "ownership exactly once") &&
+             check(std::abs(before_transfer.contact_force -
+                            after_transfer.contact_force) <
+                       1.0e-5 * transfer_force_scale,
+                   "M3.3 contact force is continuous across dynamic segment "
+                   "ownership transfer") &&
+             passed;
+
+    problem.validate_state(large_sliding_state);
+    double radial_contact_sum = 0.0;
+    double axial_contact_sum = 0.0;
+    double contact_force_scale = 0.0;
+    for (std::size_t contribution = problem.volume_contribution_count();
+         contribution < problem.contribution_count(); ++contribution) {
+        if (problem.contribution_type(contribution) !=
+            fuelsim::SpatialContributionType::mechanical_contact)
+            continue;
+        const fuelsim::LocalResidual local = problem.contribution_residual(
+            contribution,
+            problem.contribution_state(contribution, large_sliding_state));
+        for (std::size_t row = 4; row < 8; ++row) {
+            radial_contact_sum += local[row];
+            contact_force_scale += std::abs(local[row]);
+        }
+        for (std::size_t row = 8; row < 12; ++row) {
+            axial_contact_sum += local[row];
+            contact_force_scale += std::abs(local[row]);
+        }
+    }
+    passed = check(std::abs(radial_contact_sum) <
+                           1.0e-13 * (1.0 + contact_force_scale) &&
+                       std::abs(axial_contact_sum) <
+                           1.0e-13 * (1.0 + contact_force_scale),
+                   "M3.3 dynamically selected contact reactions remain "
+                   "discretely conservative") &&
              passed;
 
     const fuelsim::SolverOptions options = {

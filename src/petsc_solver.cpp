@@ -410,8 +410,7 @@ PetscErrorCode form_function(SNES snes, Vec state, Vec residual,
         PetscCall(VecSet(residual, 0.0));
         bool local_domain_error = false;
         try {
-            if (context.rank == 0)
-                problem.validate_state(context.state_values);
+            problem.validate_state(context.state_values);
             for (std::size_t contribution = context.contribution_begin;
                  contribution < context.contribution_end; ++contribution) {
                 const LocalDofs size_dofs =
@@ -514,8 +513,7 @@ PetscErrorCode form_jacobian(SNES snes, Vec state, Mat jacobian,
         PetscCall(MatZeroEntries(jacobian));
         bool local_domain_error = false;
         try {
-            if (context.rank == 0)
-                problem.validate_state(context.state_values);
+            problem.validate_state(context.state_values);
             for (std::size_t contribution = context.contribution_begin;
                  contribution < context.contribution_end; ++contribution) {
                 const LocalValues local_state = problem.contribution_state(

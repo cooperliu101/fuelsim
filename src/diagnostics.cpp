@@ -11,6 +11,7 @@ std::vector<double>
 analytic_directional_derivative(const NonlinearProblem& problem,
                                 const std::vector<double>& state,
                                 const std::vector<double>& direction) {
+    problem.validate_state(state);
     std::vector<double> result(problem.dof_count(), 0.0);
     for (std::size_t contribution = 0;
          contribution < problem.contribution_count(); ++contribution) {

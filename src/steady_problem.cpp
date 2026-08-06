@@ -289,39 +289,6 @@ bool projection_interval(
     return upper - lower > tolerance;
 }
 
-std::size_t closest_primary_segment(
-    const RzPoint& point, const RegionMesh& primary_mesh,
-    const std::vector<Line2BoundaryElement>& primary_edges) {
-    std::size_t selected = primary_edges.size();
-    double minimum_distance = std::numeric_limits<double>::infinity();
-    constexpr double tolerance = 1.0e-12;
-    for (std::size_t edge = 0; edge < primary_edges.size(); ++edge) {
-        const Line2InterfaceSideCoordinates coordinates =
-            edge_coordinates(primary_mesh, primary_edges[edge]);
-        const double fraction = projection_fraction(point, coordinates);
-        if (fraction < -tolerance || fraction > 1.0 + tolerance)
-            continue;
-        const double clipped = std::max(0.0, std::min(1.0, fraction));
-        const double dr = coordinates[0].r +
-                              clipped *
-                                  (coordinates[1].r - coordinates[0].r) -
-                          point.r;
-        const double dz = coordinates[0].z +
-                              clipped *
-                                  (coordinates[1].z - coordinates[0].z) -
-                          point.z;
-        const double distance = std::hypot(dr, dz);
-        if (distance < minimum_distance) {
-            selected = edge;
-            minimum_distance = distance;
-        }
-    }
-    if (selected == primary_edges.size())
-        throw std::invalid_argument(
-            "Contact node is outside the primary surface projection");
-    return selected;
-}
-
 } // namespace
 
 std::vector<std::int64_t>
@@ -400,11 +367,18 @@ SteadyProblem::SteadyProblem(SteadyProblemDefinition definition,
     build_boundary_conditions(source_mesh);
     refresh_controlled_values();
     _contact_histories.resize(contact_count());
+    _projected_mechanical_nodes.resize(contact_count());
     for (std::size_t contact_value = 0; contact_value < contact_count();
-         ++contact_value)
+         ++contact_value) {
         _contact_histories[contact_value].resize(
             _secondary_boundaries[contact_value].boundary.nodes.size());
+        _projected_mechanical_nodes[contact_value].resize(
+            _secondary_boundaries[contact_value].boundary.nodes.size(), false);
+    }
     _committed_contact_solution = initial_state();
+    _active_mechanical_contributions.resize(_mechanical_geometries.size(),
+                                             false);
+    update_mechanical_candidates(_committed_contact_solution);
 }
 
 const SteadyProblemDefinition& SteadyProblem::definition() const noexcept {
@@ -505,6 +479,7 @@ void SteadyProblem::commit_contact_state(const std::vector<double>& state) {
     if (state.size() != dof_count())
         throw std::invalid_argument(
             "SteadyProblem committed contact state size mismatch");
+    update_mechanical_candidates(state);
     std::vector<std::vector<ContactPointHistory>> staged = _contact_histories;
     std::vector<std::vector<bool>> updated(contact_count());
     for (std::size_t contact_value = 0; contact_value < contact_count();
@@ -516,6 +491,8 @@ void SteadyProblem::commit_contact_state(const std::vector<double>& state) {
         _element_offsets.back() + _thermal_geometries.size();
     for (std::size_t contribution = 0;
          contribution < _mechanical_geometries.size(); ++contribution) {
+        if (!_active_mechanical_contributions[contribution])
+            continue;
         const std::size_t contact_value =
             _mechanical_contact_indices[contribution];
         const std::size_t secondary =
@@ -781,6 +758,8 @@ SteadyProblem::contribution_residual(std::size_t contribution_index,
     }
     contribution_index -= _thermal_geometries.size();
     if (contribution_index < _mechanical_geometries.size()) {
+        if (!_active_mechanical_contributions.at(contribution_index))
+            return {};
         const std::size_t contact_value =
             _mechanical_contact_indices.at(contribution_index);
         const std::size_t secondary =
@@ -829,6 +808,8 @@ SteadyProblem::linearize_contribution(std::size_t contribution_index,
     }
     contribution_index -= _thermal_geometries.size();
     if (contribution_index < _mechanical_geometries.size()) {
+        if (!_active_mechanical_contributions.at(contribution_index))
+            return {};
         const std::size_t contact_value =
             _mechanical_contact_indices.at(contribution_index);
         const std::size_t secondary =
@@ -1007,14 +988,8 @@ void SteadyProblem::build_contacts(const UnstructuredQuad4Mesh& source_mesh) {
                 for (std::size_t secondary_node = 0;
                      secondary_node < line2_interface_side_node_count;
                      ++secondary_node) {
-                    const std::size_t containing = closest_primary_segment(
-                        secondary_coordinates[secondary_node], primary_mesh,
-                        primary.boundary.elements);
-                    const std::size_t first =
-                        containing == 0 ? 0 : containing - 1;
-                    const std::size_t last = std::min(
-                        containing + 1, primary.boundary.elements.size() - 1);
-                    for (std::size_t candidate = first; candidate <= last;
+                    for (std::size_t candidate = 0;
+                         candidate < primary.boundary.elements.size();
                          ++candidate) {
                         const Line2BoundaryElement& primary_edge =
                             primary.boundary.elements[candidate];
@@ -1037,6 +1012,7 @@ void SteadyProblem::build_contacts(const UnstructuredQuad4Mesh& source_mesh) {
                                     primary.boundary.elements.size()));
                         _mechanical_secondary_indices.push_back(edge_index +
                                                                 secondary_node);
+                        _mechanical_primary_indices.push_back(candidate);
                     }
                 }
             }
@@ -1185,6 +1161,80 @@ void SteadyProblem::build_boundary_conditions(
     validate_dirichlet_conditions(_dirichlet_conditions);
 }
 
+void SteadyProblem::update_mechanical_candidates(
+    const std::vector<double>& state) const {
+    if (state.size() != dof_count())
+        throw std::invalid_argument(
+            "SteadyProblem contact-search state size mismatch");
+    if (_active_mechanical_contributions.size() !=
+            _mechanical_geometries.size() ||
+        _mechanical_primary_indices.size() != _mechanical_geometries.size())
+        throw std::logic_error(
+            "SteadyProblem mechanical candidate layout is inconsistent");
+
+    std::fill(_active_mechanical_contributions.begin(),
+              _active_mechanical_contributions.end(), false);
+    for (std::vector<bool>& nodes : _projected_mechanical_nodes)
+        std::fill(nodes.begin(), nodes.end(), false);
+
+    std::vector<std::vector<double>> minimum_distance(contact_count());
+    std::vector<std::vector<std::size_t>> selected_primary(contact_count());
+    for (std::size_t contact_value = 0; contact_value < contact_count();
+         ++contact_value) {
+        minimum_distance[contact_value].assign(
+            _contact_histories[contact_value].size(),
+            std::numeric_limits<double>::infinity());
+        selected_primary[contact_value].assign(
+            _contact_histories[contact_value].size(),
+            std::numeric_limits<std::size_t>::max());
+    }
+
+    std::vector<bool> projected(_mechanical_geometries.size(), false);
+    const std::size_t first_mechanical =
+        _element_offsets.back() + _thermal_geometries.size();
+    for (std::size_t contribution = 0;
+         contribution < _mechanical_geometries.size(); ++contribution) {
+        const std::size_t contact_value =
+            _mechanical_contact_indices[contribution];
+        const std::size_t secondary =
+            _mechanical_secondary_indices[contribution];
+        const LocalValues local_state =
+            contribution_state(first_mechanical + contribution, state);
+        const LocalValues committed_state = contribution_state(
+            first_mechanical + contribution, _committed_contact_solution);
+        const ContactPointValue value =
+            _mechanical_kernels[contact_value].value(
+                _mechanical_geometries[contribution], local_state,
+                committed_state, _contact_histories[contact_value][secondary]);
+        if (!value.projected)
+            continue;
+        projected[contribution] = true;
+        const double distance = std::abs(value.gap);
+        const std::size_t primary = _mechanical_primary_indices[contribution];
+        if (distance < minimum_distance[contact_value][secondary] ||
+            (distance == minimum_distance[contact_value][secondary] &&
+             primary < selected_primary[contact_value][secondary])) {
+            minimum_distance[contact_value][secondary] = distance;
+            selected_primary[contact_value][secondary] = primary;
+        }
+    }
+
+    for (std::size_t contribution = 0;
+         contribution < _mechanical_geometries.size(); ++contribution) {
+        if (!projected[contribution])
+            continue;
+        const std::size_t contact_value =
+            _mechanical_contact_indices[contribution];
+        const std::size_t secondary =
+            _mechanical_secondary_indices[contribution];
+        if (_mechanical_primary_indices[contribution] !=
+            selected_primary[contact_value][secondary])
+            continue;
+        _active_mechanical_contributions[contribution] = true;
+        _projected_mechanical_nodes[contact_value][secondary] = true;
+    }
+}
+
 void SteadyProblem::add_state_independent_residual(
     std::vector<double>& residual) const {
     (void)residual;
@@ -1196,6 +1246,7 @@ SteadyProblem::summarize_contact_nodes(std::size_t contact_value,
     if (state.size() != dof_count())
         throw std::invalid_argument(
             "SteadyProblem contact summary state size mismatch");
+    update_mechanical_candidates(state);
     const ResolvedBoundary& secondary = _secondary_boundaries.at(contact_value);
     const RegionMesh& mesh = _meshes[secondary.region];
     std::vector<ContactNodeSummary> result;
@@ -1203,6 +1254,7 @@ SteadyProblem::summarize_contact_nodes(std::size_t contact_value,
     for (std::size_t node : secondary.boundary.nodes) {
         result.push_back({mesh.nodes().at(node).r, mesh.nodes().at(node).z,
                           false,
+                          std::numeric_limits<std::size_t>::max(),
                           std::numeric_limits<double>::infinity(), 0.0, 0.0,
                           0.0, 0.0, 0.0, 0.0, 0.0, false});
     }
@@ -1211,6 +1263,8 @@ SteadyProblem::summarize_contact_nodes(std::size_t contact_value,
     for (std::size_t contribution = 0;
          contribution < _mechanical_geometries.size(); ++contribution) {
         if (_mechanical_contact_indices[contribution] != contact_value)
+            continue;
+        if (!_active_mechanical_contributions[contribution])
             continue;
         const LocalValues local_state =
             contribution_state(first_mechanical + contribution, state);
@@ -1227,7 +1281,14 @@ SteadyProblem::summarize_contact_nodes(std::size_t contact_value,
             continue;
         ContactNodeSummary& node =
             result.at(secondary_index);
+        const std::size_t primary_segment =
+            _mechanical_primary_indices[contribution];
+        if (node.projected && node.primary_segment != primary_segment)
+            throw std::logic_error(
+                "Mechanical contact node has more than one active primary "
+                "segment");
         node.projected = true;
+        node.primary_segment = primary_segment;
         node.gap = std::min(node.gap, value.gap);
         node.tributary_area += value.tributary_area;
         node.tributary_length += value.tributary_length;
@@ -1248,23 +1309,20 @@ SteadyProblem::summarize_contact_nodes(std::size_t contact_value,
 
 void SteadyProblem::validate_state(const std::vector<double>& state) const {
     NonlinearProblem::validate_state(state);
+    update_mechanical_candidates(state);
     for (std::size_t contact_value = 0; contact_value < contact_count();
          ++contact_value) {
         if (!_definition.contacts[contact_value].mechanical)
             continue;
-        std::size_t unprojected = 0;
-        for (const ContactNodeSummary& node :
-             summarize_contact_nodes(contact_value, state)) {
-            if (!node.projected)
-                ++unprojected;
-        }
+        const std::size_t unprojected = static_cast<std::size_t>(std::count(
+            _projected_mechanical_nodes[contact_value].begin(),
+            _projected_mechanical_nodes[contact_value].end(), false));
         if (unprojected != 0)
             throw std::domain_error(
                 "Mechanical contact '" +
                 _definition.contacts[contact_value].name + "' lost projection " +
                 "for " + std::to_string(unprojected) +
-                " secondary nodes; the current small-sliding candidate window "
-                "is no longer valid");
+                " secondary nodes after searching the complete primary chain");
     }
 }
 

@@ -75,6 +75,7 @@ struct ContactNodeSummary final {
     double r;
     double z;
     bool projected;
+    std::size_t primary_segment;
     double gap;
     double pressure;
     double tributary_area;
@@ -225,6 +226,7 @@ class SteadyProblem final : public NonlinearProblem {
     void build_volume_geometries();
     void build_contacts(const UnstructuredQuad4Mesh& source_mesh);
     void build_boundary_conditions(const UnstructuredQuad4Mesh& source_mesh);
+    void update_mechanical_candidates(const std::vector<double>& state) const;
     double function_value(const std::string& name) const;
     double load_multiplier(bool scale_with_load,
                            const std::string& function) const;
@@ -248,6 +250,9 @@ class SteadyProblem final : public NonlinearProblem {
     std::vector<std::array<std::size_t, 4>> _mechanical_nodes;
     std::vector<NodeToLineRzContactGeometry> _mechanical_geometries;
     std::vector<std::size_t> _mechanical_secondary_indices;
+    std::vector<std::size_t> _mechanical_primary_indices;
+    mutable std::vector<bool> _active_mechanical_contributions;
+    mutable std::vector<std::vector<bool>> _projected_mechanical_nodes;
     std::vector<std::vector<ContactPointHistory>> _contact_histories;
     std::vector<double> _committed_contact_solution;
     std::vector<ResolvedBoundary> _primary_boundaries;

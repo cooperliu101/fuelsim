@@ -289,6 +289,43 @@ if(BUILD_TESTING)
         LABELS "acceptance"
     )
 
+    add_executable(fuelsim_m52_large_sliding_contact_moose_tests
+        tests/m52_large_sliding_contact_moose_tests.cpp
+    )
+    target_link_libraries(fuelsim_m52_large_sliding_contact_moose_tests
+        PRIVATE
+            fuelsim_moose_test_support
+            fuelsim::input
+            fuelsim::exodus
+            fuelsim::petsc
+    )
+    fuelsim_enable_warnings(fuelsim_m52_large_sliding_contact_moose_tests)
+    add_test(NAME fuelsim_m52_large_sliding_contact_moose_tests
+        COMMAND fuelsim_m52_large_sliding_contact_moose_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_large_sliding_contact_moose.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m52_large_sliding_contact_rz_all_nodes_0020.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m52_large_sliding_contact_rz_lower_surface_0020.csv"
+    )
+    set_tests_properties(fuelsim_m52_large_sliding_contact_moose_tests PROPERTIES
+        LABELS "acceptance"
+    )
+
+    add_executable(fuelsim_m52_large_sliding_restart_tests
+        tests/m52_large_sliding_restart_tests.cpp
+    )
+    target_link_libraries(fuelsim_m52_large_sliding_restart_tests
+        PRIVATE fuelsim::input fuelsim::exodus fuelsim::petsc
+    )
+    fuelsim_enable_warnings(fuelsim_m52_large_sliding_restart_tests)
+    add_test(NAME fuelsim_m52_large_sliding_restart_tests
+        COMMAND fuelsim_m52_large_sliding_restart_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_large_sliding_contact_restart.fsi"
+            "${CMAKE_CURRENT_BINARY_DIR}/m52_checkpoint.bin"
+    )
+    set_tests_properties(fuelsim_m52_large_sliding_restart_tests PROPERTIES
+        LABELS "integration"
+    )
+
     add_executable(fuelsim_m1_exodus_moose_tests
         tests/m1_exodus_moose_tests.cpp
     )
@@ -421,6 +458,29 @@ if(BUILD_TESTING)
         )
         set_tests_properties(fuelsim_mpi_equivalence PROPERTIES
             FIXTURES_REQUIRED m34_mpi_reference
+            LABELS "acceptance;parallel"
+            PROCESSORS 2
+        )
+
+        add_test(NAME fuelsim_m52_mpi_reference
+            COMMAND fuelsim_mpi_equivalence_tests
+                write
+                "${CMAKE_CURRENT_BINARY_DIR}/m52_one_rank_state.txt"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_large_sliding_contact_moose.fsi"
+        )
+        set_tests_properties(fuelsim_m52_mpi_reference PROPERTIES
+            FIXTURES_SETUP m52_mpi_reference
+            LABELS "integration;parallel"
+        )
+        add_test(NAME fuelsim_m52_mpi_equivalence
+            COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2
+                $<TARGET_FILE:fuelsim_mpi_equivalence_tests>
+                compare
+                "${CMAKE_CURRENT_BINARY_DIR}/m52_one_rank_state.txt"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_large_sliding_contact_moose.fsi"
+        )
+        set_tests_properties(fuelsim_m52_mpi_equivalence PROPERTIES
+            FIXTURES_REQUIRED m52_mpi_reference
             LABELS "acceptance;parallel"
             PROCESSORS 2
         )

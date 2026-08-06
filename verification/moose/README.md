@@ -25,6 +25,7 @@ files.
 | M4.3 material oracle | `m43_material_oracle_rz_mesh.e` | 4 / 1 | `3261c814c1734b253e880c7491530a8bcb5392e7939f49b4b43d97cbb5e79ced` |
 | M3.1 time-table convection | `m31_transient_table_convection_rz_mesh.e` | 15 / 8 | `9be197728d3a52ff05e1063593eb47969dc05950e317f71a59082915ba3e7e57` |
 | M3.3 two-pellet contact | `m33_two_pellet_contact_rz_mesh.e` | 36 / 20 | `90c90396384397cbd0c993f35ac90c6e402996c77454820c009a653e8748f474` |
+| M5.2 large sliding | `m52_large_sliding_contact_rz_mesh.e` | 402 / 264 | `bd6677fcc6061c37f2dffe00c10dc197c54648227ac084ada10b27e12e5fa78d` |
 
 Generate any snapshot from this directory by replacing `<case>` with the input
 stem:
@@ -921,3 +922,33 @@ Against MOOSE, the temperature, radial displacement, axial displacement, and
 normal-pressure maximum values over the three required relative metrics are
 `0.086476%`, `0.386523%`, `0.439326%`, and `0.318127%`, respectively; every
 value is below the case-wide `1%` threshold.
+
+## M5.2 large-sliding provenance
+
+`m52_large_sliding_contact_rz.i` generates two independent small-strain blocks.
+The lower secondary surface has four segments and stretches from `4 mm` to
+`4.23 mm`; the `8 mm` upper primary surface has 128 segments and remains wide
+enough to cover every current secondary node. Both contact faces use prescribed
+normal displacement, giving a closed-form `100 MPa` penalty pressure and
+isolating current-geometry search from different primary reaction smoothing.
+The mesh and reference were generated with one MPI rank and one thread:
+
+```bash
+/home/cooper/projects/july/july-opt \
+  --mesh-only m52_large_sliding_contact_rz_mesh.e \
+  -i m52_large_sliding_contact_rz.i
+/home/cooper/projects/july/july-opt \
+  -i m52_large_sliding_contact_rz.i \
+  Outputs/file_base=m52_large_sliding_contact_rz
+```
+
+All 20 steps reported `Solve Converged!`. The MOOSE and July commits and the
+executable SHA256 are the same as the M5.1 provenance above; the July worktree
+was dirty, so the executable hash remains authoritative. The tracked final
+snapshots contain all 402 nodes and all five secondary contact nodes. Fuelsim
+keeps all five nodes active, advances the largest primary segment index by 2,
+and reports a `5621.220319 N` total secondary normal force. Across temperature,
+radial displacement, axial displacement, and pressure, the largest of the
+required relative L2, relative absolute-peak, and maximum pointwise relative
+errors is approximately `7.8e-13%`; zero reference points are reported
+separately without a denominator floor.

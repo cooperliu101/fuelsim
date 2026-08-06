@@ -33,6 +33,7 @@ void NonlinearProblem::assemble_residual(const std::vector<double>& state,
     if (state.size() != dof_count())
         throw std::invalid_argument(
             "NonlinearProblem state size does not match DOF count");
+    validate_state(state);
 
     residual.assign(dof_count(), 0.0);
     for (std::size_t contribution = 0; contribution < contribution_count();
