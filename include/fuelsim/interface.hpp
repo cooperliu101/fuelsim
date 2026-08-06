@@ -95,11 +95,14 @@ struct NormalContactProperties final {
     double penalty;
     // Coulomb coefficient. The tangential penalty equals the normal penalty.
     double friction_coefficient = 0.0;
+    bool augmented_lagrangian = false;
 };
 
 struct ContactPointHistory final {
     double elastic_tangential_slip = 0.0;
     bool sliding = false;
+    // Compressive normal traction carried between augmented outer iterations.
+    double normal_multiplier = 0.0;
 };
 
 struct ContactPointValue final {

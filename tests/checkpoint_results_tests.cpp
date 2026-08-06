@@ -163,8 +163,11 @@ bool compare_committed_states(const fuelsim::TransientCommittedState& left,
                 right.contact_histories[contact][node];
             passed = check(nearly_equal(a.elastic_tangential_slip,
                                         b.elastic_tangential_slip) &&
-                               a.sliding == b.sliding,
-                           "restart reproduces committed friction history") &&
+                               a.sliding == b.sliding &&
+                               nearly_equal(a.normal_multiplier,
+                                            b.normal_multiplier),
+                           "restart reproduces committed friction and normal "
+                           "multiplier history") &&
                      passed;
         }
     }
@@ -256,7 +259,7 @@ bool test_friction_history_checkpoint(const std::string& input_path,
         if (!file)
             return check(false,
                          "friction checkpoint opens for version test");
-        const std::array<unsigned char, 4> old_version = {4U, 0U, 0U, 0U};
+        const std::array<unsigned char, 4> old_version = {5U, 0U, 0U, 0U};
         file.seekp(16, std::ios::beg);
         file.write(reinterpret_cast<const char*>(old_version.data()),
                    static_cast<std::streamsize>(old_version.size()));
@@ -269,10 +272,107 @@ bool test_friction_history_checkpoint(const std::string& input_path,
                          checkpoint_path, old_version_target);
                  },
                  "version is not supported",
-                 "checkpoint version 5 rejects the previous format") &&
+                 "checkpoint version 6 rejects the previous format") &&
              passed;
     return check(std::remove(checkpoint_path.c_str()) == 0,
                  "friction checkpoint artifact is removed") &&
+           passed;
+}
+
+std::size_t contact_secondary_global_node(
+    const fuelsim::TransientProblem& problem, std::size_t source_node) {
+    for (std::size_t region = 0; region < problem.region_count(); ++region) {
+        const std::vector<std::size_t>& source_nodes =
+            problem.region_mesh(region).source_node_ids();
+        const auto found =
+            std::find(source_nodes.begin(), source_nodes.end(), source_node);
+        if (found != source_nodes.end())
+            return problem.region_node_offset(region) +
+                   static_cast<std::size_t>(found - source_nodes.begin());
+    }
+    throw std::logic_error(
+        "Augmented-contact checkpoint secondary node mapping failed");
+}
+
+bool test_augmented_contact_transaction(const std::string& input_path,
+                                        const std::string& checkpoint_path) {
+    fuelsim::FuelSimCaseDefinition input =
+        fuelsim::CaseInputReader::read(input_path);
+    fuelsim::ContactDefinition& contact = input.contacts.at(0);
+    contact.mechanical_formulation =
+        fuelsim::MechanicalContactFormulation::augmented_lagrangian;
+    contact.automatic_penalty = false;
+    contact.penalty = 1.0e14;
+    contact.penetration_tolerance = 1.0e-9;
+    contact.maximum_augmented_iterations = 10;
+    const fuelsim::UnstructuredQuad4Mesh mesh =
+        fuelsim::ExodusMeshIo::read_quad4(input.mesh_file);
+    fuelsim::TransientProblem source(input.transient_definition(), mesh);
+    const fuelsim::TransientCommittedState initial = source.committed_state();
+
+    std::vector<double> penetrated = source.committed_solution();
+    const std::vector<fuelsim::ContactNodeSummary> initial_nodes =
+        source.summarize_contact_nodes(0, penetrated);
+    const std::vector<std::size_t> secondary_sources =
+        source.contact_secondary_source_nodes(0);
+    if (initial_nodes.size() != secondary_sources.size() ||
+        initial_nodes.empty())
+        return check(false,
+                     "augmented transaction fixture has contact-node history");
+    constexpr double prescribed_penetration = 2.0e-9;
+    for (std::size_t node = 0; node < initial_nodes.size(); ++node) {
+        const std::size_t global =
+            contact_secondary_global_node(source, secondary_sources[node]);
+        penetrated[source.dof_map().radial_displacement(global)] +=
+            initial_nodes[node].gap + prescribed_penetration;
+    }
+
+    source.begin_time_step({1.0, 0.05});
+    const fuelsim::AugmentedContactUpdate update =
+        source.update_augmented_contact_multipliers(penetrated, 0);
+    const fuelsim::TransientCommittedState trial = source.committed_state();
+    bool active_multiplier = false;
+    for (const fuelsim::ContactPointHistory& history :
+         trial.contact_histories.at(0))
+        active_multiplier =
+            active_multiplier || history.normal_multiplier > 0.0;
+    bool passed =
+        check(!update.converged && update.update_allowed &&
+                  nearly_equal(update.maximum_penetration,
+                               prescribed_penetration) &&
+                  active_multiplier,
+              "augmented outer update creates a positive trial multiplier") &&
+        check(source.committed_time() == 0.0,
+              "augmented outer update does not advance committed time");
+    source.rollback_time_step();
+    passed = compare_committed_states(initial, source.committed_state()) &&
+             passed;
+
+    source.begin_time_step({1.0, 0.05});
+    (void)source.update_augmented_contact_multipliers(penetrated, 0);
+    source.commit_time_step(penetrated);
+    const fuelsim::TransientCommittedState committed = source.committed_state();
+    bool committed_multiplier = false;
+    for (const fuelsim::ContactPointHistory& history :
+         committed.contact_histories.at(0))
+        committed_multiplier =
+            committed_multiplier || history.normal_multiplier > 0.0;
+    passed = check(committed_multiplier,
+                   "accepted augmented state commits a positive normal "
+                   "multiplier") &&
+             passed;
+
+    fuelsim::TransientCheckpointIo::write(checkpoint_path, source, 0.25);
+    fuelsim::TransientProblem restored(input.transient_definition(), mesh);
+    const double next_time_step =
+        fuelsim::TransientCheckpointIo::restore(checkpoint_path, restored);
+    passed = check(next_time_step == 0.25,
+                   "augmented checkpoint preserves the controller time step") &&
+             compare_committed_states(committed,
+                                      restored.committed_state()) &&
+             passed;
+    return check(std::remove(checkpoint_path.c_str()) == 0,
+                 "augmented checkpoint artifact is removed") &&
            passed;
 }
 
@@ -496,6 +596,9 @@ bool run_tests(const std::string& steady_input_path,
              passed;
     passed = test_friction_history_checkpoint(
                  transient_input_path, checkpoint_path + ".friction") &&
+             passed;
+    passed = test_augmented_contact_transaction(
+                 transient_input_path, checkpoint_path + ".augmented") &&
              passed;
     passed = test_finite_strain_restart(
                  finite_strain_input_path, checkpoint_path + ".finite") &&

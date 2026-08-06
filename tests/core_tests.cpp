@@ -426,12 +426,12 @@ bool test_heat_interface_case(const std::string& name,
 bool test_contact_interface_case(
     const std::string& name, const fuelsim::NodeToLineRzContactKernel& kernel,
     const fuelsim::NodeToLineRzContactGeometry& geometry,
-    const fuelsim::LocalValues& state) {
+    const fuelsim::LocalValues& state,
+    const fuelsim::ContactPointHistory& history = {}) {
     const fuelsim::LocalValues direction = {
         0.7,    -0.4,    0.3,     -0.6,   0.2e-6,  -0.4e-6,
         0.5e-6, -0.1e-6, -0.3e-6, 0.6e-6, -0.2e-6, 0.4e-6,
     };
-    const fuelsim::ContactPointHistory history{};
     const fuelsim::LocalSystem system =
         kernel.linearize(geometry, state, state, history);
 
@@ -808,6 +808,24 @@ bool test_gap_heat_and_normal_contact() {
                        std::abs(sloped_residual[5]) > 0.0 &&
                        std::abs(sloped_residual[9]) > 0.0,
                    "45-degree contact activates both normal components") &&
+             passed;
+
+    const fuelsim::NodeToLineRzContactKernel augmented_kernel(
+        {1.0e14, 0.0, true});
+    fuelsim::ContactPointHistory augmented_history;
+    augmented_history.normal_multiplier = 2.0e6;
+    const fuelsim::ContactPointValue augmented = augmented_kernel.value(
+        contact_geometry, closed_state, closed_state, augmented_history);
+    const double expected_augmented_pressure =
+        augmented_history.normal_multiplier - 1.0e14 * augmented.gap;
+    passed = check(
+                 relative_difference(augmented.pressure,
+                                     expected_augmented_pressure) < 1.0e-13,
+                 "augmented contact adds the committed normal multiplier to "
+                 "the penalty traction") &&
+             test_contact_interface_case(
+                 "augmented_normal", augmented_kernel, contact_geometry,
+                 closed_state, augmented_history) &&
              passed;
 
     const fuelsim::NodeToLineRzContactKernel friction_kernel({1.0e14, 0.3});

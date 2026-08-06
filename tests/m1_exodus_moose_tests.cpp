@@ -3,6 +3,7 @@
 #include "fuelsim/problem_solver.hpp"
 #include "support/moose_field_comparison.hpp"
 
+#include <algorithm>
 #include <exception>
 #include <cmath>
 #include <iomanip>
@@ -158,6 +159,114 @@ bool run_comparison(const std::string& input_path,
                   medium_to_high_force_change < low_to_medium_force_change,
               "penalty refinement reduces penetration and contact-force "
               "increments") &&
+        passed;
+
+    fuelsim::SteadyProblemDefinition automatic_definition =
+        definition.steady_definition();
+    automatic_definition.contacts[0].automatic_penalty = true;
+    automatic_definition.contacts[0].penalty = 0.0;
+    automatic_definition.contacts[0].penalty_factor = 1.0;
+    fuelsim::SteadyProblem automatic_problem(
+        std::move(automatic_definition), source);
+    const double fuel_normal_length = 0.00412 / 40.0;
+    const double clad_normal_length = (0.004692 - 0.004122) / 6.0;
+    const double interface_stiffness =
+        1.0 / (fuel_normal_length / 2.0e11 +
+               clad_normal_length / 7.5e10);
+    const double expected_automatic_penalty = interface_stiffness;
+    const fuelsim::SteadyResult automatic_result = fuelsim::solve_steady(
+        automatic_problem,
+        {definition.steady_execution.load_steps,
+         definition.steady_execution.cutback_factor,
+         definition.steady_execution.maximum_cutbacks,
+         definition.steady_execution.minimum_load_increment},
+        options);
+    const double automatic_penalty =
+        automatic_problem.contact(0).penalty;
+    std::cout << "automatic_penalty=" << automatic_penalty << '\n';
+    std::cout << "automatic_penalty_interface_stiffness="
+              << interface_stiffness << '\n';
+    passed = check(
+                 automatic_result.completed && automatic_result.solve.converged &&
+                     std::abs(automatic_penalty -
+                              expected_automatic_penalty) <
+                         1.0e-12 * expected_automatic_penalty,
+                 "automatic penalty uses the two-sided normal compliance and "
+                 "converges end to end") &&
+             passed;
+
+    fuelsim::SteadyProblemDefinition augmented_definition =
+        definition.steady_definition();
+    augmented_definition.contacts[0].mechanical_formulation =
+        fuelsim::MechanicalContactFormulation::augmented_lagrangian;
+    augmented_definition.contacts[0].automatic_penalty = false;
+    augmented_definition.contacts[0].penalty = 0.25 * interface_stiffness;
+    augmented_definition.contacts[0].penetration_tolerance = 1.0e-9;
+    augmented_definition.contacts[0].maximum_augmented_iterations = 50;
+    fuelsim::SteadyProblem augmented_problem(std::move(augmented_definition),
+                                             source);
+    const fuelsim::SteadyResult augmented_result = fuelsim::solve_steady(
+        augmented_problem,
+        {definition.steady_execution.load_steps,
+         definition.steady_execution.cutback_factor,
+         definition.steady_execution.maximum_cutbacks,
+         definition.steady_execution.minimum_load_increment},
+        options);
+    const fuelsim::InterfaceSummary augmented_interface =
+        augmented_problem.summarize_interface(
+            0, augmented_result.solve.state);
+    const double augmented_penetration =
+        std::max(-augmented_interface.minimum_contact_gap, 0.0);
+    const double high_penalty_condition_proxy =
+        1.0 + 2.0 * (10.0 * interface_stiffness) /
+                  interface_stiffness;
+    const double augmented_condition_proxy =
+        1.0 + 2.0 * augmented_problem.contact(0).penalty /
+                  interface_stiffness;
+    std::cout << "augmented_penetration=" << augmented_penetration << '\n';
+    std::cout << "augmented_multiplier_updates="
+              << augmented_result.solve.augmented_lagrangian_iterations
+              << '\n';
+    std::cout << "contact_condition_proxies="
+              << high_penalty_condition_proxy << ','
+              << augmented_condition_proxy << '\n';
+    passed = check(
+                 augmented_result.completed && augmented_result.solve.converged &&
+                     augmented_result.solve.augmented_lagrangian_iterations >
+                         0 &&
+                     augmented_penetration <= 1.0e-9 &&
+                     augmented_penetration < high_penetration &&
+                     augmented_result.aggregate_timing.workspace_setups == 1 &&
+                     augmented_condition_proxy <
+                         0.1 * high_penalty_condition_proxy,
+                 "augmented contact reaches the penetration tolerance with "
+                 "one PETSc workspace and a lower two-body tangent condition "
+                 "proxy than the high automatic penalty") &&
+             passed;
+
+    fuelsim::SteadyProblemDefinition failing_definition =
+        definition.steady_definition();
+    failing_definition.contacts[0].mechanical_formulation =
+        fuelsim::MechanicalContactFormulation::augmented_lagrangian;
+    failing_definition.contacts[0].automatic_penalty = false;
+    failing_definition.contacts[0].penalty = 0.25 * interface_stiffness;
+    failing_definition.contacts[0].penetration_tolerance = 1.0e-20;
+    failing_definition.contacts[0].maximum_augmented_iterations = 1;
+    fuelsim::SteadyProblem failing_problem(std::move(failing_definition), source);
+    const fuelsim::SteadyResult failing_result = fuelsim::solve_steady(
+        failing_problem, {1, 0.5, 0, 1.0e-6}, options);
+    bool multiplier_rolled_back = true;
+    for (const fuelsim::ContactPointHistory& history :
+         failing_problem.committed_contact_histories().at(0))
+        multiplier_rolled_back = multiplier_rolled_back &&
+                                 history.normal_multiplier == 0.0;
+    passed =
+        check(!failing_result.completed && !failing_result.solve.converged &&
+                  failing_result.solve.failure_category ==
+                      fuelsim::SolveFailureCategory::contact_constraint &&
+                  multiplier_rolled_back && failing_problem.load_factor() == 0.0,
+              "failed augmented load step restores the accepted load and all "
+              "normal multipliers") &&
         passed;
     return passed;
 }

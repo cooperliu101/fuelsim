@@ -35,6 +35,42 @@ edge_coordinates(const RegionMesh& mesh, const Line2BoundaryElement& edge) {
 }
 
 std::pair<std::size_t, std::array<std::size_t, 2>>
+edge_parent(const RegionMesh& mesh, const Line2BoundaryElement& edge);
+
+double planar_quad_area(const RegionMesh& mesh, const Quad4Element& element) {
+    double twice_area = 0.0;
+    for (std::size_t node = 0; node < element.nodes.size(); ++node) {
+        const RzPoint& current = mesh.nodes().at(element.nodes[node]);
+        const RzPoint& next =
+            mesh.nodes().at(element.nodes[(node + 1U) % element.nodes.size()]);
+        twice_area += current.r * next.z - next.r * current.z;
+    }
+    return 0.5 * std::abs(twice_area);
+}
+
+double minimum_boundary_normal_length(const RegionMesh& mesh,
+                                      const RegionBoundary& boundary) {
+    double result = std::numeric_limits<double>::infinity();
+    for (const Line2BoundaryElement& edge : boundary.elements) {
+        const auto parent = edge_parent(mesh, edge);
+        const Line2InterfaceSideCoordinates coordinates =
+            edge_coordinates(mesh, edge);
+        const double edge_length =
+            std::hypot(coordinates[1].r - coordinates[0].r,
+                       coordinates[1].z - coordinates[0].z);
+        const double area =
+            planar_quad_area(mesh, mesh.elements().at(parent.first));
+        const double normal_length = area / edge_length;
+        if (!std::isfinite(normal_length) || !(normal_length > 0.0))
+            throw std::invalid_argument(
+                "Contact boundary has a nonpositive characteristic element "
+                "length");
+        result = std::min(result, normal_length);
+    }
+    return result;
+}
+
+std::pair<std::size_t, std::array<std::size_t, 2>>
 edge_parent(const RegionMesh& mesh, const Line2BoundaryElement& edge) {
     std::size_t parent = mesh.elements().size();
     std::array<std::size_t, 2> local_nodes{};
@@ -130,9 +166,25 @@ void validate_definitions(const SteadyProblemDefinition& definition) {
             (!(value.gap_conductivity > 0.0) || !(value.minimum_gap > 0.0)))
             throw std::invalid_argument(
                 "Thermal contact parameters must be positive: " + value.name);
-        if (value.mechanical && !(value.penalty > 0.0))
+        if (value.mechanical && !value.automatic_penalty &&
+            (!std::isfinite(value.penalty) || !(value.penalty > 0.0)))
             throw std::invalid_argument(
                 "Mechanical contact penalty must be positive: " + value.name);
+        if (value.mechanical &&
+            (!std::isfinite(value.penalty_factor) ||
+             !(value.penalty_factor > 0.0)))
+            throw std::invalid_argument(
+                "Mechanical contact penalty factor must be finite and "
+                "positive: " + value.name);
+        if (value.mechanical &&
+            value.mechanical_formulation ==
+                MechanicalContactFormulation::augmented_lagrangian &&
+            (!std::isfinite(value.penetration_tolerance) ||
+             !(value.penetration_tolerance > 0.0) ||
+             value.maximum_augmented_iterations == 0))
+            throw std::invalid_argument(
+                "Augmented contact requires a positive penetration tolerance "
+                "and iteration limit: " + value.name);
         if (!std::isfinite(value.friction_coefficient) ||
             value.friction_coefficient < 0.0)
             throw std::invalid_argument(
@@ -475,6 +527,76 @@ SteadyProblem::committed_contact_histories() const noexcept {
     return _contact_histories;
 }
 
+bool SteadyProblem::uses_augmented_contact() const noexcept {
+    return std::any_of(
+        _definition.contacts.begin(), _definition.contacts.end(),
+        [](const ContactDefinition& contact) {
+            return contact.mechanical &&
+                   contact.mechanical_formulation ==
+                       MechanicalContactFormulation::augmented_lagrangian;
+        });
+}
+
+AugmentedContactUpdate SteadyProblem::update_augmented_contact_multipliers(
+    const std::vector<double>& state, std::size_t completed_updates) {
+    if (state.size() != dof_count())
+        throw std::invalid_argument(
+            "SteadyProblem augmented-contact state size mismatch");
+    AugmentedContactUpdate result;
+    result.penetration_tolerance =
+        std::numeric_limits<double>::infinity();
+    std::vector<std::vector<ContactPointHistory>> staged = _contact_histories;
+    for (std::size_t contact_value = 0; contact_value < contact_count();
+         ++contact_value) {
+        const ContactDefinition& definition =
+            _definition.contacts[contact_value];
+        if (!definition.mechanical ||
+            definition.mechanical_formulation !=
+                MechanicalContactFormulation::augmented_lagrangian)
+            continue;
+        result.penetration_tolerance =
+            std::min(result.penetration_tolerance,
+                     definition.penetration_tolerance);
+        const std::vector<ContactNodeSummary> nodes =
+            summarize_contact_nodes(contact_value, state);
+        double contact_penetration = 0.0;
+        double contact_constraint_violation = 0.0;
+        for (std::size_t node = 0; node < nodes.size(); ++node) {
+            contact_penetration =
+                std::max(contact_penetration,
+                         std::max(-nodes[node].gap, 0.0));
+            const bool captured =
+                staged[contact_value][node].normal_multiplier > 0.0 ||
+                nodes[node].gap <= 0.0;
+            if (captured)
+                contact_constraint_violation = std::max(
+                    contact_constraint_violation, std::abs(nodes[node].gap));
+        }
+        result.maximum_penetration =
+            std::max(result.maximum_penetration, contact_penetration);
+        result.maximum_constraint_violation = std::max(
+            result.maximum_constraint_violation, contact_constraint_violation);
+        if (contact_constraint_violation <= definition.penetration_tolerance)
+            continue;
+        result.converged = false;
+        if (completed_updates >= definition.maximum_augmented_iterations) {
+            result.update_allowed = false;
+            continue;
+        }
+        for (std::size_t node = 0; node < nodes.size(); ++node) {
+            ContactPointHistory& history = staged[contact_value][node];
+            history.normal_multiplier = std::max(
+                0.0, history.normal_multiplier -
+                         definition.penalty * nodes[node].gap);
+        }
+    }
+    if (!std::isfinite(result.penetration_tolerance))
+        result.penetration_tolerance = 0.0;
+    if (!result.converged && result.update_allowed)
+        _contact_histories.swap(staged);
+    return result;
+}
+
 void SteadyProblem::commit_contact_state(const std::vector<double>& state) {
     if (state.size() != dof_count())
         throw std::invalid_argument(
@@ -557,9 +679,11 @@ void SteadyProblem::restore_contact_state(
             throw std::invalid_argument(
                 "SteadyProblem restored contact history layout mismatch");
         for (const ContactPointHistory& history : histories[contact_value]) {
-            if (!std::isfinite(history.elastic_tangential_slip))
+            if (!std::isfinite(history.elastic_tangential_slip) ||
+                !std::isfinite(history.normal_multiplier) ||
+                history.normal_multiplier < 0.0)
                 throw std::invalid_argument(
-                    "SteadyProblem restored friction history is invalid");
+                    "SteadyProblem restored contact history is invalid");
         }
     }
     _committed_contact_solution = state;
@@ -885,7 +1009,7 @@ void SteadyProblem::build_contacts(const UnstructuredQuad4Mesh& source_mesh) {
 
     for (std::size_t contact_value = 0; contact_value < contact_count();
          ++contact_value) {
-        const ContactDefinition& contact_definition =
+        ContactDefinition& contact_definition =
             _definition.contacts[contact_value];
         ResolvedBoundary primary =
             resolve_boundary(source_mesh, contact_definition.primary);
@@ -903,6 +1027,27 @@ void SteadyProblem::build_contacts(const UnstructuredQuad4Mesh& source_mesh) {
             secondary_mesh, std::move(secondary.boundary),
             contact_definition.secondary);
 
+        if (contact_definition.mechanical &&
+            contact_definition.automatic_penalty) {
+            const double primary_length = minimum_boundary_normal_length(
+                primary_mesh, primary.boundary);
+            const double secondary_length = minimum_boundary_normal_length(
+                secondary_mesh, secondary.boundary);
+            const double primary_modulus =
+                _definition.regions[primary.region].material.young_modulus;
+            const double secondary_modulus =
+                _definition.regions[secondary.region].material.young_modulus;
+            contact_definition.penalty =
+                contact_definition.penalty_factor /
+                (primary_length / primary_modulus +
+                 secondary_length / secondary_modulus);
+            if (!std::isfinite(contact_definition.penalty) ||
+                !(contact_definition.penalty > 0.0))
+                throw std::overflow_error(
+                    "Automatic contact penalty is not finite and positive: " +
+                    contact_definition.name);
+        }
+
         _thermal_kernels.emplace_back(GapHeatProperties{
             contact_definition.thermal ? contact_definition.gap_conductivity
                                        : 1.0,
@@ -911,7 +1056,10 @@ void SteadyProblem::build_contacts(const UnstructuredQuad4Mesh& source_mesh) {
             contact_definition.mechanical ? contact_definition.penalty : 1.0,
             contact_definition.mechanical
                 ? contact_definition.friction_coefficient
-                : 0.0});
+                : 0.0,
+            contact_definition.mechanical &&
+                contact_definition.mechanical_formulation ==
+                    MechanicalContactFormulation::augmented_lagrangian});
 
         if (contact_definition.thermal) {
             for (const Line2BoundaryElement& secondary_edge :

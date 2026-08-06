@@ -86,6 +86,7 @@ enum class SolveFailureCategory {
     physical_domain,
     residual_verification,
     time_discretization,
+    contact_constraint,
 };
 
 struct SolveResult final {
@@ -103,6 +104,8 @@ struct SolveResult final {
     SolveFailureCategory failure_category = SolveFailureCategory::none;
     std::string failure_message;
     std::size_t nonlinear_attempts = 1;
+    std::size_t augmented_lagrangian_iterations = 0;
+    double maximum_contact_penetration = 0.0;
     bool used_backtracking_fallback = false;
     SolveFailureCategory basic_failure_category =
         SolveFailureCategory::none;

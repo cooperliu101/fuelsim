@@ -17,7 +17,7 @@ namespace {
 constexpr std::array<unsigned char, 16> checkpoint_magic = {
     'F', 'U', 'E', 'L', 'S', 'I', 'M', '_',
     'C', 'H', 'E', 'C', 'K', 'P', 'T', '\0'};
-constexpr std::uint32_t checkpoint_version = 5U;
+constexpr std::uint32_t checkpoint_version = 6U;
 constexpr std::uint32_t endian_marker = 0x01020304U;
 constexpr std::uint64_t fnv_offset = 14695981039346656037ULL;
 constexpr std::uint64_t fnv_prime = 1099511628211ULL;
@@ -236,6 +236,7 @@ BinaryBuffer state_payload(const TransientProblem& problem,
         for (const ContactPointHistory& history : contact) {
             payload.append_double(history.elastic_tangential_slip);
             payload.append_u32(history.sliding ? 1U : 0U);
+            payload.append_double(history.normal_multiplier);
         }
     }
     payload.append_u64(
@@ -388,6 +389,11 @@ double TransientCheckpointIo::restore(const std::string& path,
                 throw std::runtime_error(
                     "Checkpoint friction state is invalid");
             history.sliding = sliding == 1U;
+            history.normal_multiplier = payload.read_double();
+            if (!std::isfinite(history.normal_multiplier) ||
+                history.normal_multiplier < 0.0)
+                throw std::runtime_error(
+                    "Checkpoint normal contact multiplier is invalid");
         }
     }
     const std::uint64_t region_count = payload.read_u64();

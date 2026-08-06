@@ -8,8 +8,9 @@
 - 每个区域独立的稳态温度相关热传导、体积热源，以及可选小应变或有限应变
   轴对称热弹性；
 - 由 `primary`、`secondary` 边集定义的 STS 气隙导热；
-- 与 MOOSE/JAX 实现一致的 secondary 节点到 primary 线段 NTS 罚接触，并可选
-  具有粘着、滑移和已提交切向历史的 Coulomb 摩擦；
+- secondary 节点到 primary 线段的唯一 NTS 法向接触，可选显式或材料—网格
+  自动罚刚度、事务化增广拉格朗日乘子，以及具有粘着、滑移和已提交切向历史
+  的 Coulomb 摩擦；
 - 机械接触按当前构形在完整 primary 开放边链上动态选择唯一线段，并在初始
   稀疏结构中预留全部潜在耦合；
 - ADlite 生成体单元和界面的局部 Jacobian；
@@ -271,7 +272,10 @@ p = contact_penalty * max(-g, 0)
 ```
 
 `q>0` 表示热量由 secondary 流向 primary，`p>0` 表示压缩接触压力。
-`contact_penalty` 的单位为 `Pa/m`。热接触在当前 secondary 表面
+罚形式使用上式；增广拉格朗日形式使用
+`p=max(lambda-contact_penalty*g,0)`，并在收敛 Newton 解上更新非负乘子
+`lambda=max(0,lambda-contact_penalty*g)`。`contact_penalty` 的单位为
+`Pa/m`，也可由两侧杨氏模量与法向网格尺度自动计算。热接触在当前 secondary 表面
 `2*pi*r*J` 上积分，并把相反热流投影到 primary 节点。每个 secondary
 节点只有一个有效机械投影，节点反力按当前 secondary 半边面积集总后，通过
 primary 线段形函数分配相反反力。两种界面残量均离散守恒，投影、面积和

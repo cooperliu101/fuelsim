@@ -284,6 +284,13 @@ std::uint64_t TransientProblem::committed_state_signature() const {
         hash_double(hash, contact.minimum_gap);
         hash_double(hash, contact.penalty);
         hash_double(hash, contact.friction_coefficient);
+        hash_integer(hash, contact.automatic_penalty ? 1 : 0);
+        hash_double(hash, contact.penalty_factor);
+        hash_integer(hash,
+                     static_cast<std::int64_t>(
+                         contact.mechanical_formulation));
+        hash_double(hash, contact.penetration_tolerance);
+        hash_size(hash, contact.maximum_augmented_iterations);
     }
     for (const BoundaryConditionDefinition& boundary :
          _definition.spatial.boundary_conditions) {
@@ -394,6 +401,7 @@ void TransientProblem::restore_committed_state(TransientCommittedState state) {
     _active_time_step = 0.0;
     _active_end_time = _committed_time;
     _active_load_factor = _committed_load_factor;
+    _active_contact_histories.clear();
     _spatial_model.set_time(_committed_time);
     _spatial_model.set_load_factor(_committed_load_factor);
     for (std::size_t region_value = 0; region_value < region_count();
@@ -416,15 +424,22 @@ void TransientProblem::begin_time_step(const TransientStepInput& input) {
     _active_time_step = input.end_time - _committed_time;
     _active_end_time = input.end_time;
     _active_load_factor = input.load_factor;
+    if (_spatial_model.uses_augmented_contact())
+        _active_contact_histories =
+            _spatial_model.committed_contact_histories();
     try {
         _spatial_model.set_time(input.end_time);
         _spatial_model.set_load_factor(input.load_factor);
     } catch (...) {
+        if (!_active_contact_histories.empty())
+            _spatial_model.restore_contact_state(
+                _committed_solution, std::move(_active_contact_histories));
         _spatial_model.set_time(_committed_time);
         _spatial_model.set_load_factor(_committed_load_factor);
         _active_time_step = 0.0;
         _active_end_time = _committed_time;
         _active_load_factor = _committed_load_factor;
+        _active_contact_histories.clear();
         throw;
     }
     for (std::size_t region_value = 0; region_value < region_count();
@@ -494,6 +509,7 @@ void TransientProblem::commit_time_step(
     _committed_load_factor = _active_load_factor;
     _active_time_step = 0.0;
     _active_end_time = _committed_time;
+    _active_contact_histories.clear();
     _time_step_active = false;
 }
 
@@ -507,10 +523,26 @@ void TransientProblem::rollback_time_step() noexcept {
         _region_kernels[region_value].set_volumetric_heat_source(
             _spatial_model.region_kernel(region_value)
                 .volumetric_heat_source());
+    if (!_active_contact_histories.empty())
+        _spatial_model.restore_contact_state(
+            _committed_solution, std::move(_active_contact_histories));
     _active_time_step = 0.0;
     _active_end_time = _committed_time;
     _active_load_factor = _committed_load_factor;
+    _active_contact_histories.clear();
     _time_step_active = false;
+}
+
+bool TransientProblem::uses_augmented_contact() const noexcept {
+    return _spatial_model.uses_augmented_contact();
+}
+
+AugmentedContactUpdate
+TransientProblem::update_augmented_contact_multipliers(
+    const std::vector<double>& state, std::size_t completed_updates) {
+    require_active_time_step();
+    return _spatial_model.update_augmented_contact_multipliers(
+        state, completed_updates);
 }
 
 const Quad4MaterialHistory&

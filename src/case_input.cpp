@@ -483,18 +483,59 @@ ContactDefinition read_contact(const InputDocument& document,
     }
     if (mechanical != nullptr) {
         validate_keys(document, *mechanical,
-                      {"formulation", "penalty", "mu"});
+                      {"formulation", "penalty", "penalty_factor", "mu",
+                       "penetration_tolerance",
+                       "maximum_augmented_iterations"});
         const std::string formulation =
             read_string(document, *mechanical, "formulation");
-        if (formulation != "penalty")
+        if (formulation == "penalty")
+            result.mechanical_formulation =
+                MechanicalContactFormulation::penalty;
+        else if (formulation == "augmented_lagrangian")
+            result.mechanical_formulation =
+                MechanicalContactFormulation::augmented_lagrangian;
+        else
             value_error(document, mechanical->entry("formulation"),
-                        "only mechanical formulation 'penalty' is supported");
-        result.penalty = read_double(document, *mechanical, "penalty");
+                        "mechanical formulation must be 'penalty' or "
+                        "'augmented_lagrangian'");
+        const InputEntry* penalty = find_entry(*mechanical, "penalty");
+        const InputEntry* penalty_factor =
+            find_entry(*mechanical, "penalty_factor");
+        if (penalty != nullptr && penalty_factor != nullptr)
+            value_error(document, *penalty_factor,
+                        "penalty and penalty_factor are mutually exclusive");
+        result.automatic_penalty = penalty == nullptr;
+        result.penalty =
+            penalty == nullptr ? 0.0 : parse_double(document, *penalty);
+        result.penalty_factor =
+            penalty_factor == nullptr
+                ? 1.0
+                : parse_double(document, *penalty_factor);
         result.friction_coefficient =
             read_optional_double(document, *mechanical, "mu", 0.0);
         if (result.friction_coefficient < 0.0)
             value_error(document, mechanical->entry("mu"),
                         "friction coefficient mu must be nonnegative");
+        const InputEntry* penetration_tolerance =
+            find_entry(*mechanical, "penetration_tolerance");
+        const InputEntry* maximum_augmented_iterations =
+            find_entry(*mechanical, "maximum_augmented_iterations");
+        if (result.mechanical_formulation ==
+            MechanicalContactFormulation::penalty) {
+            if (penetration_tolerance != nullptr)
+                value_error(document, *penetration_tolerance,
+                            "penetration_tolerance requires "
+                            "formulation = augmented_lagrangian");
+            if (maximum_augmented_iterations != nullptr)
+                value_error(document, *maximum_augmented_iterations,
+                            "maximum_augmented_iterations requires "
+                            "formulation = augmented_lagrangian");
+        } else {
+            result.penetration_tolerance = read_optional_double(
+                document, *mechanical, "penetration_tolerance", 1.0e-8);
+            result.maximum_augmented_iterations = read_optional_size(
+                document, *mechanical, "maximum_augmented_iterations", 20);
+        }
     }
     return result;
 }

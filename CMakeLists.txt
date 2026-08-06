@@ -347,6 +347,27 @@ if(BUILD_TESTING)
         LABELS "acceptance"
     )
 
+    add_executable(fuelsim_m54_augmented_contact_moose_tests
+        tests/m54_augmented_contact_moose_tests.cpp
+    )
+    target_link_libraries(fuelsim_m54_augmented_contact_moose_tests
+        PRIVATE
+            fuelsim::input
+            fuelsim::exodus
+            fuelsim::petsc
+            fuelsim_moose_test_support
+    )
+    fuelsim_enable_warnings(fuelsim_m54_augmented_contact_moose_tests)
+    add_test(NAME fuelsim_m54_augmented_contact_moose_tests
+        COMMAND fuelsim_m54_augmented_contact_moose_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_augmented_contact_moose.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m54_augmented_contact_rz_all_nodes_final.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m54_augmented_contact_rz_fuel_surface_final.csv"
+    )
+    set_tests_properties(fuelsim_m54_augmented_contact_moose_tests PROPERTIES
+        LABELS "acceptance"
+    )
+
     add_executable(fuelsim_m1_unstructured_moose_tests
         tests/m1_unstructured_moose_tests.cpp
     )

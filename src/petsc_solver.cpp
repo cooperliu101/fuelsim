@@ -1073,6 +1073,8 @@ const char* solve_failure_category_name(SolveFailureCategory category) noexcept 
         return "residual_verification";
     case SolveFailureCategory::time_discretization:
         return "time_discretization";
+    case SolveFailureCategory::contact_constraint:
+        return "contact_constraint";
     }
     return "unknown";
 }

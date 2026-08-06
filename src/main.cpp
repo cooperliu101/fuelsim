@@ -214,6 +214,10 @@ void write_solver_diagnostics(const fuelsim::SolveResult& solve,
     output.value("linear_iterations", solve.linear_iterations);
     output.value("used_backtracking_fallback",
                  solve.used_backtracking_fallback);
+    output.value("augmented_lagrangian_iterations",
+                 solve.augmented_lagrangian_iterations);
+    output.value("maximum_contact_penetration",
+                 solve.maximum_contact_penetration);
     if (solve.used_backtracking_fallback) {
         output.value("basic_failure_category",
                      fuelsim::solve_failure_category_name(
@@ -315,6 +319,9 @@ void write_time_error_components(
     output.value(prefix + "equivalent_creep_strain",
                  estimate.equivalent_creep_strain);
     output.value(prefix + "stress", estimate.stress);
+    output.value(prefix + "contact_friction", estimate.contact_friction);
+    output.value(prefix + "contact_normal_multiplier",
+                 estimate.contact_normal_multiplier);
 }
 
 std::vector<double> diagnostic_direction(const fuelsim::DofMap& dof_map) {

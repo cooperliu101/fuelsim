@@ -30,6 +30,11 @@ struct RegionDefinition final {
     StrainFormulation strain_formulation = StrainFormulation::small;
 };
 
+enum class MechanicalContactFormulation {
+    penalty,
+    augmented_lagrangian,
+};
+
 struct ContactDefinition final {
     std::string name;
     std::string primary;
@@ -40,6 +45,20 @@ struct ContactDefinition final {
     double minimum_gap;
     double penalty;
     double friction_coefficient = 0.0;
+    bool automatic_penalty = false;
+    double penalty_factor = 1.0;
+    MechanicalContactFormulation mechanical_formulation =
+        MechanicalContactFormulation::penalty;
+    double penetration_tolerance = 1.0e-8;
+    std::size_t maximum_augmented_iterations = 20;
+};
+
+struct AugmentedContactUpdate final {
+    bool converged = true;
+    bool update_allowed = true;
+    double maximum_penetration = 0.0;
+    double maximum_constraint_violation = 0.0;
+    double penetration_tolerance = 0.0;
 };
 
 enum class BoundaryConditionType {
@@ -141,6 +160,10 @@ class SteadyProblem final : public NonlinearProblem {
     const std::vector<std::vector<ContactPointHistory>>&
     committed_contact_histories() const noexcept;
     void commit_contact_state(const std::vector<double>& state);
+    bool uses_augmented_contact() const noexcept;
+    AugmentedContactUpdate update_augmented_contact_multipliers(
+        const std::vector<double>& state,
+        std::size_t completed_updates);
     void restore_contact_state(
         const std::vector<double>& state,
         std::vector<std::vector<ContactPointHistory>> histories);

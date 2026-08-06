@@ -341,8 +341,12 @@ ContactAdValue evaluate_contact(const NodeToLineRzContactGeometry& geometry,
             shape_1 *
                 (geometry.primary_segment_coordinates[1].r + state[7]);
         const adlite::Scalar gap = primary_radius - secondary_radius;
-        const adlite::Scalar pressure =
-            properties.penalty * adlite::max(-gap, adlite::Scalar(0.0));
+        const adlite::Scalar multiplier =
+            properties.augmented_lagrangian
+                ? adlite::Scalar(history.normal_multiplier)
+                : adlite::Scalar(0.0);
+        const adlite::Scalar pressure = adlite::max(
+            multiplier - properties.penalty * gap, adlite::Scalar(0.0));
         const adlite::Scalar other_radius =
             geometry.secondary_edge_coordinates[other].r + state[4 + other];
         const adlite::Scalar other_z =
@@ -415,8 +419,12 @@ ContactAdValue evaluate_contact(const NodeToLineRzContactGeometry& geometry,
     const adlite::Scalar gap =
         (primary_radius - secondary_radius) * normal_r +
         (primary_z - secondary_z) * normal_z;
-    const adlite::Scalar penetration = adlite::max(-gap, adlite::Scalar(0.0));
-    const adlite::Scalar pressure = properties.penalty * penetration;
+    const adlite::Scalar multiplier =
+        properties.augmented_lagrangian
+            ? adlite::Scalar(history.normal_multiplier)
+            : adlite::Scalar(0.0);
+    const adlite::Scalar pressure = adlite::max(
+        multiplier - properties.penalty * gap, adlite::Scalar(0.0));
 
     const adlite::Scalar other_radius =
         geometry.secondary_edge_coordinates[other].r + state[4 + other];
@@ -736,7 +744,8 @@ ContactPointHistory NodeToLineRzContactKernel::trial_history(
     if (!trial.projected)
         throw std::domain_error(
             "Cannot update friction history for an unprojected contact node");
-    return {trial.elastic_tangential_slip, trial.sliding};
+    return {trial.elastic_tangential_slip, trial.sliding,
+            history.normal_multiplier};
 }
 
 void NodeToLineRzContactKernel::residual_ad(

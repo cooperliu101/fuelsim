@@ -288,6 +288,69 @@ bool run_tests(const std::string& steady_path,
                    "coefficient") &&
              passed;
 
+    std::string automatic_penalty_case = read_text(steady_path);
+    const std::string contact_penalty_line = "      penalty = 1e14\n";
+    const std::size_t automatic_penalty_position =
+        automatic_penalty_case.find(contact_penalty_line);
+    if (automatic_penalty_position == std::string::npos)
+        return check(false, "steady fixture has the contact penalty line");
+    automatic_penalty_case.erase(automatic_penalty_position,
+                                 contact_penalty_line.size());
+    {
+        std::ofstream output(malformed_path, std::ios::out | std::ios::trunc);
+        if (!output)
+            return check(false,
+                         "could not create automatic-penalty input fixture");
+        output << automatic_penalty_case;
+    }
+    const fuelsim::FuelSimCaseDefinition automatic_penalty =
+        fuelsim::CaseInputReader::read(malformed_path);
+    passed = check(automatic_penalty.contacts[0].automatic_penalty &&
+                       automatic_penalty.contacts[0].penalty_factor == 1.0,
+                   "omitting penalty selects the documented automatic "
+                   "contact factor") &&
+             passed;
+
+    std::string augmented_case = read_text(steady_path);
+    const std::string penalty_formulation = "formulation = penalty";
+    const std::size_t formulation_position =
+        augmented_case.find(penalty_formulation);
+    if (formulation_position == std::string::npos)
+        return check(false, "steady fixture has penalty formulation");
+    augmented_case.replace(formulation_position, penalty_formulation.size(),
+                           "formulation = augmented_lagrangian");
+    const std::size_t augmented_penalty_position =
+        augmented_case.find(contact_penalty);
+    augmented_case.insert(
+        augmented_penalty_position + contact_penalty.size(),
+        "\n      penetration_tolerance = 2e-9"
+        "\n      maximum_augmented_iterations = 15");
+    {
+        std::ofstream output(malformed_path, std::ios::out | std::ios::trunc);
+        if (!output)
+            return check(false, "could not create augmented input fixture");
+        output << augmented_case;
+    }
+    const fuelsim::FuelSimCaseDefinition augmented =
+        fuelsim::CaseInputReader::read(malformed_path);
+    passed = check(
+                 augmented.contacts[0].mechanical_formulation ==
+                         fuelsim::MechanicalContactFormulation::
+                             augmented_lagrangian &&
+                     augmented.contacts[0].penetration_tolerance == 2.0e-9 &&
+                     augmented.contacts[0].maximum_augmented_iterations == 15,
+                 "augmented contact tolerance and iteration limit are "
+                 "parsed") &&
+             passed;
+
+    std::string ambiguous_penalty_case = read_text(steady_path);
+    ambiguous_penalty_case.insert(
+        ambiguous_penalty_case.find(contact_penalty) + contact_penalty.size(),
+        "\n      penalty_factor = 10");
+    passed = expect_case_failure(malformed_path, ambiguous_penalty_case,
+                                 "mutually exclusive") &&
+             passed;
+
     std::string negative_friction_case = read_text(steady_path);
     negative_friction_case.insert(
         negative_friction_case.find(contact_penalty) + contact_penalty.size(),

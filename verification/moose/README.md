@@ -26,6 +26,7 @@ files.
 | M3.1 time-table convection | `m31_transient_table_convection_rz_mesh.e` | 15 / 8 | `9be197728d3a52ff05e1063593eb47969dc05950e317f71a59082915ba3e7e57` |
 | M3.3 two-pellet contact | `m33_two_pellet_contact_rz_mesh.e` | 36 / 20 | `90c90396384397cbd0c993f35ac90c6e402996c77454820c009a653e8748f474` |
 | M5.2 large sliding | `m52_large_sliding_contact_rz_mesh.e` | 402 / 264 | `bd6677fcc6061c37f2dffe00c10dc197c54648227ac084ada10b27e12e5fa78d` |
+| M5.4 augmented contact | `m54_augmented_contact_rz_mesh.e` | 528 / 460 | `8304c2fc649863b0a7ce80fc17ca8c8d64161467f42be2610132b3cd29177ec0` |
 
 Generate any snapshot from this directory by replacing `<case>` with the input
 stem:
@@ -952,3 +953,74 @@ radial displacement, axial displacement, and pressure, the largest of the
 required relative L2, relative absolute-peak, and maximum pointwise relative
 errors is approximately `7.8e-13%`; zero reference points are reported
 separately without a denominator floor.
+
+## M5.4 augmented-contact constrained-limit provenance
+
+`m54_augmented_contact_rz.i` includes the tracked M1 input, so the comparison
+uses the same 528 nodes, 460 Quad4 elements, 1,584 degrees of freedom,
+materials, thermal loading, and 20 load steps. The fuelsim case uses an
+augmented-Lagrangian inner penalty of `1.40318054256325e14 Pa/m`, which is
+`0.25` times the independently calculated series normal stiffness
+`5.612722170253e14 Pa/m`, together with a `1e-9 m` penetration tolerance. The
+primary MOOSE oracle is the discrete constrained limit produced with a penalty
+of `5.612722170253e15 Pa/m`, or ten times that interface stiffness. It was
+generated with one MPI rank and one thread using:
+
+```bash
+/home/cooper/projects/july/july-opt \
+  --mesh-only m54_augmented_contact_rz_mesh.e \
+  -i m54_augmented_contact_rz.i \
+  Contact/mechanical/penalty=5.612722170253e15
+/home/cooper/projects/july/july-opt \
+  -i m54_augmented_contact_rz.i \
+  Contact/mechanical/penalty=5.612722170253e15 \
+  Outputs/file_base=m54_augmented_contact_rz
+```
+
+Every load step reported `Solve Converged!`. The environment provenance is:
+
+```text
+MOOSE commit:          93b11698be3fcd33049ae73e32f411fb2985261d
+July commit:           a96d73792bee7c5f54eb65e33b04487b24276a27
+Executable SHA256:     1cb3a0fbf5650addd087ceeb8521f82d2ddb11650c0932b7ec274226430e0ee4
+PETSc / SLEPc:         3.25.2 / 3.25.0
+MPI ranks / threads:   1 / 1
+July worktree:         dirty; executable hash is therefore authoritative
+```
+
+The tracked final snapshots contain all 528 nodes and all 11 secondary contact
+nodes. Their hashes, together with the exact input, mesh, and scalar output,
+are recorded in `SHA256SUMS`. Fuelsim performs one nonzero multiplier update
+and reaches a maximum penetration of `1.277546011688e-10 m`, which is `12.8%`
+of the `1e-9 m` tolerance. The required field errors, each relative to the
+corresponding complete MOOSE field scale, are:
+
+| Field | Relative L2 | Relative absolute peak | Maximum pointwise relative |
+| --- | ---: | ---: | ---: |
+| Temperature | 0.009854% | 0.000539% | 0.086402% |
+| Radial displacement | 0.061852% | 0.128362% | 0.343463% |
+| Axial displacement | 0.017512% | 0.025177% | 0.770933% |
+| Normal pressure | 0.171695% | 0.251094% | 0.251094% |
+
+All twelve metrics are below the case-wide `1%` threshold. Radial and axial
+displacement have 11 and 48 zero-reference nodes, respectively; both have zero
+maximum absolute difference on those nodes, and no denominator floor is used.
+The isolated symmetric two-body tangent proxy has condition number `21` for
+the MOOSE high penalty and `1.5` for the fuelsim augmented inner penalty. This
+is a scoped stiffness proxy, not a spectral measurement of the assembled
+finite-element Jacobian or a scaling claim.
+
+A separate diagnostic evaluated native MOOSE node-to-segment augmented contact
+instead of silently treating it as an oracle. With an inner penalty of `0.25`
+times the interface stiffness, its nodal pressure differed from fuelsim by
+`8.711%` relative L2, `3.91%` relative absolute peak, and `12.72%` maximum
+pointwise relative error. Increasing that penalty to one interface stiffness
+changed the MOOSE pressure and worsened the relative L2 and maximum pointwise
+errors to `11.44%` and `17.59%`. Lower penalty combined with tighter nonlinear
+tolerances reached the MOOSE nonlinear-iteration limit during repeated
+augmentation. Replacing the legacy problem object with the recommended
+`AugmentedLagrangianContactFEProblem` did not change the result. Consequently,
+native MOOSE multiplier pressure is not classified as a stable nodewise oracle
+in this environment. The verified claim is limited to agreement with the
+high-penalty discrete constrained limit, local tangents, transactional state,
+and the scoped two-body condition proxy.

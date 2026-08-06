@@ -181,6 +181,12 @@ void combine_attempt(SolveResult& aggregate, const SolveResult& addition) {
         aggregate.linear_iterations + addition.linear_iterations;
     const std::size_t nonlinear_attempts =
         aggregate.nonlinear_attempts + addition.nonlinear_attempts;
+    const std::size_t augmented_iterations =
+        aggregate.augmented_lagrangian_iterations +
+        addition.augmented_lagrangian_iterations;
+    const double maximum_penetration =
+        std::max(aggregate.maximum_contact_penetration,
+                 addition.maximum_contact_penetration);
     SolveTiming timing = aggregate.timing;
     accumulate_timing(timing, addition.timing);
     const bool used_backtracking = aggregate.used_backtracking_fallback ||
@@ -201,6 +207,83 @@ void combine_attempt(SolveResult& aggregate, const SolveResult& addition) {
     aggregate.used_backtracking_fallback = used_backtracking;
     aggregate.basic_failure_category = basic_failure;
     aggregate.basic_failure_message = basic_message;
+    aggregate.augmented_lagrangian_iterations = augmented_iterations;
+    aggregate.maximum_contact_penetration = maximum_penetration;
+}
+
+void mark_augmented_failure(SolveResult& result,
+                            const AugmentedContactUpdate& status,
+                            std::size_t completed_updates) {
+    result.converged = false;
+    result.failure_category = SolveFailureCategory::contact_constraint;
+    result.failure_message =
+        "Augmented contact did not reach penetration tolerance after " +
+        std::to_string(completed_updates) + " multiplier updates; maximum "
+        "constraint violation=" +
+        std::to_string(status.maximum_constraint_violation) +
+        ", maximum penetration=" +
+        std::to_string(status.maximum_penetration) +
+        ", tolerance=" + std::to_string(status.penetration_tolerance);
+}
+
+SolveResult solve_contact_equilibrium(PetscSolver& solver,
+                                      SteadyProblem& problem,
+                                      const std::vector<double>& initial_guess,
+                                      const SolverOptions& options) {
+    SolveResult result = solver.solve(problem, initial_guess, options);
+    if (!problem.uses_augmented_contact())
+        return result;
+    std::size_t updates = 0;
+    while (result.converged) {
+        const AugmentedContactUpdate status =
+            problem.update_augmented_contact_multipliers(result.state, updates);
+        result.maximum_contact_penetration = status.maximum_penetration;
+        result.augmented_lagrangian_iterations = updates;
+        if (status.converged)
+            return result;
+        if (!status.update_allowed) {
+            mark_augmented_failure(result, status, updates);
+            return result;
+        }
+        ++updates;
+        SolveResult next = solver.solve(
+            problem,
+            initial_guess_with_dirichlet_values(problem, result.state),
+            options);
+        combine_attempt(result, next);
+    }
+    result.augmented_lagrangian_iterations = updates;
+    return result;
+}
+
+SolveResult solve_contact_equilibrium(PetscSolver& solver,
+                                      TransientProblem& problem,
+                                      const std::vector<double>& initial_guess,
+                                      const SolverOptions& options) {
+    SolveResult result = solver.solve(problem, initial_guess, options);
+    if (!problem.uses_augmented_contact())
+        return result;
+    std::size_t updates = 0;
+    while (result.converged) {
+        const AugmentedContactUpdate status =
+            problem.update_augmented_contact_multipliers(result.state, updates);
+        result.maximum_contact_penetration = status.maximum_penetration;
+        result.augmented_lagrangian_iterations = updates;
+        if (status.converged)
+            return result;
+        if (!status.update_allowed) {
+            mark_augmented_failure(result, status, updates);
+            return result;
+        }
+        ++updates;
+        SolveResult next = solver.solve(
+            problem,
+            initial_guess_with_dirichlet_values(problem, result.state),
+            options);
+        combine_attempt(result, next);
+    }
+    result.augmented_lagrangian_iterations = updates;
+    return result;
 }
 
 TransientConservationSummary combine_half_step_conservation(
@@ -335,6 +418,7 @@ step_doubling_error(const TransientCommittedState& full_step,
     ErrorAccumulator equivalent_creep;
     ErrorAccumulator stress;
     ErrorAccumulator contact_friction;
+    ErrorAccumulator contact_normal_multiplier;
     bool contact_state_mismatch = false;
     for (std::size_t region = 0;
          region < full_step.material_histories.size(); ++region) {
@@ -402,6 +486,9 @@ step_doubling_error(const TransientCommittedState& full_step,
             accumulate_error(contact_friction,
                              full.elastic_tangential_slip,
                              half.elastic_tangential_slip);
+            accumulate_error(contact_normal_multiplier,
+                             full.normal_multiplier,
+                             half.normal_multiplier);
             contact_state_mismatch =
                 contact_state_mismatch || full.sliding != half.sliding;
         }
@@ -442,13 +529,17 @@ step_doubling_error(const TransientCommittedState& full_step,
                   contact_friction,
                   options.displacement_time_absolute_tolerance,
                   options.time_error_relative_tolerance);
+    result.contact_normal_multiplier = normalized_error(
+        contact_normal_multiplier,
+        options.stress_history_time_absolute_tolerance,
+        options.time_error_relative_tolerance);
     result.maximum = std::max(
         {result.temperature, result.radial_displacement,
          result.axial_displacement, result.elastic_strain,
          result.plastic_strain, result.creep_strain,
          result.equivalent_plastic_strain,
          result.equivalent_creep_strain, result.stress,
-         result.contact_friction});
+         result.contact_friction, result.contact_normal_multiplier});
     return result;
 }
 
@@ -493,10 +584,14 @@ SteadyResult solve_steady(SteadyProblem& problem,
                 attempted_load_factor - accepted_load_factor;
             SolveResult attempt;
             for (;;) {
+                const std::vector<std::vector<ContactPointHistory>>
+                    committed_contact_histories =
+                        problem.committed_contact_histories();
                 attempt = SolveResult{};
                 try {
                     problem.set_load_factor(attempted_load_factor);
-                    attempt = solver.solve(
+                    attempt = solve_contact_equilibrium(
+                        solver,
                         problem,
                         initial_guess_with_dirichlet_values(problem, state),
                         options);
@@ -512,6 +607,11 @@ SteadyResult solve_steady(SteadyProblem& problem,
                     attempt.failure_category =
                         SolveFailureCategory::physical_domain;
                     attempt.failure_message = error.what();
+                }
+                if (!attempt.converged) {
+                    problem.restore_contact_state(
+                        state, committed_contact_histories);
+                    problem.set_load_factor(accepted_load_factor);
                 }
                 accumulate_timing(result.aggregate_timing, attempt.timing);
                 result.total_nonlinear_iterations +=
@@ -601,7 +701,8 @@ TransientResult solve_transient(TransientProblem& problem,
                     TimeStepTransaction transaction(
                         problem,
                         {end_time, load_factor_at_time(options, end_time)});
-                    attempt = solver.solve(
+                    attempt = solve_contact_equilibrium(
+                        solver,
                         problem,
                         initial_guess_with_dirichlet_values(
                             problem, problem.committed_solution()),
@@ -618,7 +719,8 @@ TransientResult solve_transient(TransientProblem& problem,
                             problem,
                             {end_time,
                              load_factor_at_time(options, end_time)});
-                        full_step = solver.solve(
+                        full_step = solve_contact_equilibrium(
+                            solver,
                             problem,
                             initial_guess_with_dirichlet_values(
                                 problem, problem.committed_solution()),
@@ -641,7 +743,8 @@ TransientResult solve_transient(TransientProblem& problem,
                                 problem,
                                 {half_time,
                                  load_factor_at_time(options, half_time)});
-                            first_half = solver.solve(
+                            first_half = solve_contact_equilibrium(
+                                solver,
                                 problem,
                                 initial_guess_with_dirichlet_values(
                                     problem, problem.committed_solution()),
@@ -666,7 +769,8 @@ TransientResult solve_transient(TransientProblem& problem,
                                     problem,
                                     {end_time,
                                      load_factor_at_time(options, end_time)});
-                                second_half = solver.solve(
+                                second_half = solve_contact_equilibrium(
+                                    solver,
                                     problem,
                                     initial_guess_with_dirichlet_values(
                                         problem,

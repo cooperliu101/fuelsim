@@ -151,8 +151,10 @@ Newton 试探值而不会夹持。它们是线性算法接口，不是已标定�
     []
 
     [mechanical]
-      formulation = penalty
-      penalty = 1e14
+      formulation = augmented_lagrangian
+      penalty_factor = 0.25
+      penetration_tolerance = 1e-9
+      maximum_augmented_iterations = 50
       mu = 0.3
     []
   []
@@ -160,9 +162,31 @@ Newton 试探值而不会夹持。它们是线性算法接口，不是已标定�
 ```
 
 一个接触对至少包含 `[thermal]` 或 `[mechanical]`，也可以同时包含两者。
+机械接触的 `formulation` 必须显式选择 `penalty` 或
+`augmented_lagrangian`。`penalty` 的单位为 `Pa/m`；如果省略，程序用两侧
+边界单元的材料刚度和法向网格尺度自动计算。每个边界相邻 Quad4 的法向尺度
+为参考平面面积除以边长，每侧取最小值，并按下式组合：
+
+```text
+k_interface = 1 / (h_primary / E_primary + h_secondary / E_secondary)
+penalty = penalty_factor * k_interface
+```
+
+`penalty_factor` 是无量纲可选值，默认 `1`，必须有限且大于零。显式 `penalty`
+和 `penalty_factor` 互斥，不能同时出现。自动选择只是网格与材料一致的起点；
+生产工况仍须用穿透、接触力和网格收敛证明其适用性。
+
+`augmented_lagrangian` 在固定乘子下完成一次 Newton 求解，再更新节点法向乘子，
+直到所有被捕获节点的绝对间隙小于 `penetration_tolerance`。该容差默认
+`1e-8 m`，必须有限且大于零；`maximum_augmented_iterations` 默认 `20`，必须
+大于零。达到上限仍未满足约束时，本次载荷步或时间步失败并完整回滚。
+这两个字段只允许用于 `augmented_lagrangian`，在 `penalty` 形式中会被拒绝。
+乘子仅在内层 Newton 收敛后更新，瞬态提交、失败重试、step-doubling 和检查点
+均把它作为事务状态处理。
+
 `mu` 是可选的 Coulomb 摩擦系数，必须为非负有限值，默认值为 `0`。默认值
-保持原无摩擦残量和解逐项不变。`mu > 0` 时，切向罚刚度与 `penalty` 使用
-同一个 `Pa/m` 数值；每个 secondary 节点先用本步相对切向位移形成弹性
+保持原无摩擦残量和解逐项不变。`mu > 0` 时，切向罚刚度与最终确定的
+`penalty` 使用同一个 `Pa/m` 数值；每个 secondary 节点先用本步相对切向位移形成弹性
 预测牵引，再将其限制在 `mu * pressure`。上限以内为粘着，达到上限并继续
 同向运动时为滑移，反向运动可重新进入粘着。弹性切向滑移和粘滑标志只在
 收敛载荷步或时间步提交，失败重试从同一 committed 状态重算；瞬态检查点
@@ -326,9 +350,9 @@ L2 差最大值大于 1 时完整回滚并缩步，成功时采用两个半步�
 载荷因子、全部积分点塑性/蠕变历史和已提交应力。文件的版本、字节序、长度、
 校验和、网格、材料、边界条件、接触及局部装配拓扑必须与当前问题一致；不
 匹配时立即停止。重启动不保存 Newton trial、活动时间步或失败尝试。
-当前格式 v5 还保存接触摩擦历史、成功提交后控制器给出的下一名义时间步和
+当前格式 v6 还保存接触摩擦历史、法向增广乘子、成功提交后控制器给出的下一名义时间步和
 最后一个完整接受步的守恒/耗散摘要，因此自适应计算从检查点继续时不会重新使用输入卡的初始步长，
-零步重启动结束也不会把上一接受步诊断伪装成全零。版本 4 及更早格式会被
+零步重启动结束也不会把上一接受步诊断伪装成全零。版本 5 及更早格式会被
 明确拒绝，不提供跨版本兼容层。
 
 `[Solver]` 可设置非线性 `absolute_tolerance`、`relative_tolerance`、
@@ -418,6 +442,7 @@ committed 初值上装配解析方向导数，并与中心差分比较。输出�
 - [`steady_single_fuel_moose.fsi`](../verification/fuelsim/steady_single_fuel_moose.fsi)
 - [`steady_fuel_cladding.fsi`](../verification/fuelsim/steady_fuel_cladding.fsi)
 - [`steady_fuel_cladding_unstructured.fsi`](../verification/fuelsim/steady_fuel_cladding_unstructured.fsi)
+- [`steady_augmented_contact_moose.fsi`](../verification/fuelsim/steady_augmented_contact_moose.fsi)
 - [`steady_two_pellet_contact_moose.fsi`](../verification/fuelsim/steady_two_pellet_contact_moose.fsi)
 - [`transient_heat_moose.fsi`](../verification/fuelsim/transient_heat_moose.fsi)
 - [`transient_table_convection_moose.fsi`](../verification/fuelsim/transient_table_convection_moose.fsi)
@@ -430,7 +455,7 @@ committed 初值上装配解析方向导数，并与中心差分比较。输出�
 - [`steady_finite_follower_pressure.fsi`](../verification/fuelsim/steady_finite_follower_pressure.fsi)
 - [`transient_noncoaxial_finite_strain.fsi`](../verification/fuelsim/transient_noncoaxial_finite_strain.fsi)
 
-上述十四张卡分别驱动 M0、两套 M1、M2.1、M3.1、四套 M2.2、M2.3、
+上述十五张卡分别驱动 M0、两套 M1、M5.4、M2.1、M3.1、四套 M2.2、M2.3、
 M3.3、M4.1、M4.2 和 M4.3 的
 fuelsim-to-MOOSE 对比；测试程序不再直接构造这些案例的材料、载荷路径或
 网格选择参数。每个对比读取 MOOSE 最终时刻的全部节点，统一检查温度、

@@ -98,6 +98,10 @@ class TransientProblem final : public NonlinearProblem {
     void begin_time_step(const TransientStepInput& input);
     void commit_time_step(const std::vector<double>& converged_solution);
     void rollback_time_step() noexcept;
+    bool uses_augmented_contact() const noexcept;
+    AugmentedContactUpdate update_augmented_contact_multipliers(
+        const std::vector<double>& state,
+        std::size_t completed_updates);
 
     const Quad4MaterialHistory&
     material_history(std::size_t region_index, std::size_t element_index) const;
@@ -155,6 +159,7 @@ class TransientProblem final : public NonlinearProblem {
     double _active_time_step;
     double _active_end_time;
     double _active_load_factor;
+    std::vector<std::vector<ContactPointHistory>> _active_contact_histories;
     bool _time_step_active;
 };
 
