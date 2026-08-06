@@ -13,6 +13,7 @@ struct SteadyFuelCladdingLoadResult final {
     std::size_t completed_steps = 0;
     bool completed = false;
     int total_nonlinear_iterations = 0;
+    int total_linear_iterations = 0;
     double problem_setup_seconds = 0.0;
     double total_seconds = 0.0;
     SolveTiming aggregate_timing;

@@ -256,7 +256,7 @@ int main(int argc, char** argv) {
                            : fuelsim::SolverOptions::Preconditioner::lu;
         const fuelsim::SteadyResult result = fuelsim::solve_steady(
             problem,
-            {definition.steady_execution.load_steps,
+            {field_split ? 2U : definition.steady_execution.load_steps,
              definition.steady_execution.cutback_factor,
              definition.steady_execution.maximum_cutbacks,
              definition.steady_execution.minimum_load_increment},

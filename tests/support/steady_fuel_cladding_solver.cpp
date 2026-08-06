@@ -75,6 +75,7 @@ SteadyFuelCladdingLoadResult SteadyFuelCladdingLoadStepper::solve(
             nonlinear_solver.solve(problem, state, options);
         accumulate_timing(result.aggregate_timing, step_result.timing);
         result.total_nonlinear_iterations += step_result.nonlinear_iterations;
+        result.total_linear_iterations += step_result.linear_iterations;
         if (!step_result.converged) {
             result.solve = std::move(step_result);
             result.completed_steps = step - 1;

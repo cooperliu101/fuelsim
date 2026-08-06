@@ -1,14 +1,25 @@
-# Single-core benchmarks
+# Solver benchmarks
 
-`fuelsim_m1_single_core_benchmark` is the manual medium M1 benchmark. It uses:
+`fuelsim_m1_single_core_benchmark` is the manual M1 linear-solver benchmark.
+The default invocation retains the original medium case and direct solver. The
+accepted arguments are:
 
 ```text
-fuel mesh:       100 radial x 64 axial
-cladding mesh:    16 radial x 64 axial
-nodes/elements:  7,670 / 7,424
-solution DOFs:   23,010
-load steps:      20
-linear solve:    PETSc LU (1 rank) or MUMPS (multiple ranks)
+fuelsim_m1_single_core_benchmark \
+  [medium|large] \
+  [direct|block_jacobi|field_split|hypre] \
+  [load_steps] \
+  [unscaled|scaled]
+```
+
+The two meshes are:
+
+```text
+medium fuel/cladding: 100/16 radial x 64 axial
+medium nodes/elements/DOFs: 7,670 / 7,424 / 23,010
+large fuel/cladding:  200/32 radial x 64 axial
+large nodes/elements/DOFs: 15,210 / 14,848 / 45,630
+default load steps: 20
 ```
 
 It is intentionally not a CTest because one run takes tens of seconds. Build
@@ -26,7 +37,7 @@ env \
   MKL_NUM_THREADS=1 \
   NUMEXPR_NUM_THREADS=1 \
   taskset -c 0 \
-  ./build/fuelsim_m1_single_core_benchmark
+  ./build/fuelsim_m1_single_core_benchmark medium direct 20 unscaled
 ```
 
 The matching MOOSE command is:
@@ -165,3 +176,88 @@ committed state, and material history; they are not process resident-set-size
 claims. A single full-state gather remains after each nonlinear solve so the
 existing committed-state transaction can continue on every rank, but it is no
 longer performed for every callback.
+
+## 2026-08-06 M5.6 engineering-scale iterative solvers
+
+The Release build used two MPI processes pinned to CPUs 0 and 1. OpenMP,
+OpenBLAS, MKL, and NumExpr thread counts were all one. The medium and large
+cases used the same physics, 20 load steps, nonlinear tolerances, and linear
+relative tolerance of `1e-8`. The direct runs used PETSc MUMPS. The iterative
+runs used GMRES with the selected preconditioner. First-run and warmed internal
+load-path times were recorded separately:
+
+| DOFs | solver | completed | nonlinear / linear iterations | first | warmed |
+| ---: | --- | --- | ---: | ---: | ---: |
+| 23,010 | direct MUMPS | 20/20 | 62 / 62 | 10.1111 s | 10.0455 s |
+| 23,010 | HYPRE | 20/20 | 84 / 7,010 | 88.0817 s | 87.6334 s |
+| 45,630 | direct MUMPS | 20/20 | 62 / 62 | 21.2375 s | 21.3292 s |
+| 45,630 | HYPRE | 20/20 | 77 / 2,960 | 85.9042 s | 84.4195 s |
+
+The final global residual norms were between `2.85e-9` and `3.57e-9`, and the
+existing global and per-field residual audit accepted every completed run. On
+the warmed measurement, HYPRE took `8.72` times the direct time at 23,010 DOFs
+and `3.96` times at 45,630 DOFs. The HYPRE iteration count decreased when the
+radial resolution doubled, so these two points do not establish a monotonic
+iteration or scaling trend.
+
+The other combinations were screened on the medium mesh with two requested
+load steps and the same limit of 500 linear iterations per nonlinear solve.
+Neither completed the first load step:
+
+| preconditioner | field scaling | accumulated linear iterations | final residual | internal time |
+| --- | --- | ---: | ---: | ---: |
+| block Jacobi | off | 1,551 | 0.7590 | 1.4133 s |
+| field split | off | 2,600 | 0.6848 | 2.7615 s |
+| block Jacobi | on | 1,270 | 0.9057 | 1.1073 s |
+| field split | on | 1,927 | 0.9058 | 2.0678 s |
+
+Automatic field residual scaling reduced a two-step HYPRE screen from 557 to
+435 linear iterations and from 8.22 to 6.70 seconds. It did not survive the
+full path: the scaled 23,010-DOF HYPRE run stopped after 13 of 20 steps with
+5,185 accumulated linear iterations and a final scaled residual of `1.41`.
+Consequently, the short-screen improvement is not a supported long-path
+setting.
+
+The required default 1,584-DOF direct-solver pairing used commit `9238355` as
+the baseline and the same single-process CPU-0 command for the candidate. The
+first internal times were `0.868126/0.878489 s`. The following two runs were
+`0.869982/0.880232 s` for the baseline and `0.867705/0.881343 s` for the
+candidate, giving warmed two-run medians of `0.875107/0.874524 s`. The
+candidate was `0.067%` faster on that warmed statistic, much smaller than the
+run-to-run spread. Both versions used 62 nonlinear and 62 linear iterations,
+ended at the same `7.683024548830e-9` residual, and reported the same contact
+force, so this is evidence of no material direct-path regression rather than a
+speedup claim.
+
+The matching one-process MOOSE run used the same 23,010-DOF mesh, physics,
+20 steps, direct solver, CPU 0, and disabled CSV, Exodus, and console output.
+Its first and warmed wall times were `47.02/46.13 s`. A warmed fuelsim run
+measured with the same `/usr/bin/time` wall-clock command was `27.04 s`, which
+is `41.4%` less time, or a MOOSE-to-fuelsim ratio of `1.71`. This comparison
+does not mix the two-process iterative table with the one-process MOOSE run.
+
+The repeated field-split regression uses two load steps on one reused PETSc
+workspace. It prevents repeated solver setup from adding the same temperature
+and mechanics index sets more than once. The full benchmark command is shown
+below; replace `medium direct` with `medium hypre`, `large direct`, or
+`large hypre` for the other measurements, and repeat each command once for the
+warmed timing:
+
+```bash
+env \
+  OMP_NUM_THREADS=1 \
+  OPENBLAS_NUM_THREADS=1 \
+  MKL_NUM_THREADS=1 \
+  NUMEXPR_NUM_THREADS=1 \
+  MPIR_CVAR_CH4_NETMOD=ofi \
+  FI_PROVIDER=tcp \
+  /home/cooper/miniforge/envs/moose/bin/mpiexec -n 2 \
+  taskset -c 0,1 \
+  ./build/fuelsim_m1_single_core_benchmark medium direct 20 unscaled
+```
+
+These are measurements for two particular structured meshes, two MPI
+processes, the current PETSc build, and the current default HYPRE subtype and
+options. They are not a general strong-scaling result, a memory comparison, or
+evidence that HYPRE will converge for another material, contact state, mesh, or
+load path.

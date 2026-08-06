@@ -221,6 +221,11 @@ void configure_linear_solver(PetscObjects& objects,
                     "PCSetType BJACOBI");
         break;
     case SolverOptions::Preconditioner::field_split: {
+        PetscBool already_configured = PETSC_FALSE;
+        check_petsc(PetscObjectTypeCompare(
+                        reinterpret_cast<PetscObject>(preconditioner),
+                        PCFIELDSPLIT, &already_configured),
+                    "PetscObjectTypeCompare field split");
         PetscInt global_count = 0;
         PetscInt ownership_begin = 0;
         PetscInt ownership_end = 0;
@@ -241,32 +246,44 @@ void configure_linear_solver(PetscObjects& objects,
             std::max<PetscInt>(ownership_begin, node_count);
         const PetscInt mechanics_end =
             std::min<PetscInt>(ownership_end, global_count);
-        IS temperature = nullptr;
-        IS mechanics = nullptr;
         const PetscInt temperature_count =
             std::max<PetscInt>(0, temperature_end - temperature_begin);
         const PetscInt mechanics_count =
             std::max<PetscInt>(0, mechanics_end - mechanics_begin);
-        check_petsc(ISCreateStride(PETSC_COMM_WORLD,
-                                   temperature_count,
-                                   temperature_begin, 1, &temperature),
-                    "ISCreateStride temperature");
-        check_petsc(ISCreateStride(PETSC_COMM_WORLD,
-                                   mechanics_count,
-                                   mechanics_begin, 1, &mechanics),
-                    "ISCreateStride mechanics");
         check_petsc(PCSetType(preconditioner, PCFIELDSPLIT),
                     "PCSetType FIELDSPLIT");
-        check_petsc(PCFieldSplitSetIS(preconditioner, "temperature",
-                                     temperature),
-                    "PCFieldSplitSetIS temperature");
-        check_petsc(PCFieldSplitSetIS(preconditioner, "mechanics", mechanics),
-                    "PCFieldSplitSetIS mechanics");
+        if (already_configured == PETSC_FALSE) {
+            IS temperature = nullptr;
+            IS mechanics = nullptr;
+            try {
+                check_petsc(ISCreateStride(PETSC_COMM_WORLD,
+                                           temperature_count,
+                                           temperature_begin, 1, &temperature),
+                            "ISCreateStride temperature");
+                check_petsc(ISCreateStride(PETSC_COMM_WORLD,
+                                           mechanics_count,
+                                           mechanics_begin, 1, &mechanics),
+                            "ISCreateStride mechanics");
+                check_petsc(PCFieldSplitSetIS(preconditioner, "temperature",
+                                             temperature),
+                            "PCFieldSplitSetIS temperature");
+                check_petsc(PCFieldSplitSetIS(preconditioner, "mechanics",
+                                             mechanics),
+                            "PCFieldSplitSetIS mechanics");
+                check_petsc(ISDestroy(&temperature),
+                            "ISDestroy temperature");
+                check_petsc(ISDestroy(&mechanics), "ISDestroy mechanics");
+            } catch (...) {
+                if (temperature != nullptr)
+                    (void)ISDestroy(&temperature);
+                if (mechanics != nullptr)
+                    (void)ISDestroy(&mechanics);
+                throw;
+            }
+        }
         check_petsc(PCFieldSplitSetType(preconditioner,
                                        PC_COMPOSITE_MULTIPLICATIVE),
                     "PCFieldSplitSetType multiplicative");
-        check_petsc(ISDestroy(&temperature), "ISDestroy temperature");
-        check_petsc(ISDestroy(&mechanics), "ISDestroy mechanics");
         break;
     }
     case SolverOptions::Preconditioner::hypre:
