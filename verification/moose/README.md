@@ -22,6 +22,7 @@ files.
 | M4.2 follower pressure | `m22_coupled_plastic_creep_traction_rz_mesh.e` | 4 / 1 | `664e7f6f8bfddd765db623592bdda769897f71bf3712d7d7b69f09070dd5f984` |
 | M4.2 left/top pressure | `m42_left_top_pressure_rz_mesh.e` | 9 / 4 | `b001c08a40eb2cbf7c9de2fe885a28318ddb2eca96f565710568b72af46bc927` |
 | M4.3 noncoaxial finite strain | `m43_noncoaxial_finite_strain_rz_mesh.e` | 9 / 4 | `ebeebcd574612226084d8b5a45672c7e96843d74d1d5e4b6399b63c5217ded5c` |
+| M4.3 material oracle | `m43_material_oracle_rz_mesh.e` | 4 / 1 | `3261c814c1734b253e880c7491530a8bcb5392e7939f49b4b43d97cbb5e79ced` |
 | M3.1 time-table convection | `m31_transient_table_convection_rz_mesh.e` | 15 / 8 | `9be197728d3a52ff05e1063593eb47969dc05950e317f71a59082915ba3e7e57` |
 | M3.3 two-pellet contact | `m33_two_pellet_contact_rz_mesh.e` | 36 / 20 | `90c90396384397cbd0c993f35ac90c6e402996c77454820c009a653e8748f474` |
 
@@ -748,7 +749,10 @@ shear-reversed, and stretched again. The positive-shear stage has a polar
 rotation of about `25.46 degrees`; coupled J2 plasticity and Norton creep are
 active throughout the changing stress direction. A `1 MPa` inner follower
 pressure and a `1 MPa` outer axial component traction are ramped over the
-same five seconds; both use the current surface measure.
+same five seconds; both use the current surface measure. MOOSE `ADPressure`
+acts on one displacement equation per object. The input therefore declares
+both radial and axial pressure objects on the inner edge, which retains the
+complete current normal after the edge inclines during shear.
 
 The tracked mesh and snapshots were generated with one rank using:
 
@@ -764,6 +768,30 @@ The tracked mesh and snapshots were generated with one rank using:
   Outputs/console=false
 ```
 
+Five four-element isolation references use the same input, mesh, time path,
+and output variables. Their exact command-line overrides are:
+
+| Reference stem | Overrides after `-i m43_noncoaxial_finite_strain_rz.i` |
+| --- | --- |
+| `m43_elastic_displacement_rz` | `Materials/creep/coefficient=0 Materials/plasticity/yield_stress=1e30 BCs/inner_pressure/factor=0 BCs/inner_pressure_axial/factor=0 Functions/traction_ramp/y='0 0'` |
+| `m43_plastic_displacement_rz` | `Materials/stress/inelastic_models=plasticity BCs/inner_pressure/factor=0 BCs/inner_pressure_axial/factor=0 Functions/traction_ramp/y='0 0'` |
+| `m43_creep_displacement_rz` | `Materials/stress/inelastic_models=creep BCs/inner_pressure/factor=0 BCs/inner_pressure_axial/factor=0 Functions/traction_ramp/y='0 0'` |
+| `m43_coupled_displacement_rz` | `BCs/inner_pressure/factor=0 BCs/inner_pressure_axial/factor=0 Functions/traction_ramp/y='0 0'` |
+| `m43_coupled_pressure_rz` | `Functions/traction_ramp/y='0 0'` |
+
+Each command also sets
+`Outputs/file_base=/tmp/fuelsim_m43_<variant>/m43 Outputs/exodus=false
+Outputs/console=false`. The single-element material oracle adds
+`Mesh/base/nx=1 Mesh/base/ny=1`, disables both pressure factors and the
+traction function as above, and generates its tracked mesh with:
+
+```bash
+/home/cooper/projects/july/july-opt \
+  --mesh-only m43_material_oracle_rz_mesh.e \
+  -i m43_noncoaxial_finite_strain_rz.i \
+  Mesh/base/nx=1 Mesh/base/ny=1
+```
+
 The automated comparison checks all four elements at every accepted step for
 stress, elastic strain, objective `combined_inelastic_strain`, effective
 plastic strain, and effective creep strain, plus all final nodes. Each MOOSE
@@ -772,20 +800,40 @@ reference RZ element measure; fuelsim forms the same per-element reference-
 volume average. Rows are paired by time and Exodus element ID, so the primary
 history gate contains `4 x 100 = 400` element-time rows and performs no spatial
 averaging across elements. The nodal temperature/radial/axial maximum
-three-metric values are `1.9e-14%`, `0.00415%`, and `0.02304%`. Equivalent-
-plastic and equivalent-creep metrics remain below `0.0055%`.
+three-metric values are `1.90e-14%`, `0.0000729%`, and `0.0003577%`.
+Equivalent-plastic and equivalent-creep maximum three-metric values are
+`0.000917%` and `0.001803%`.
 The temperature stays at `600 K` because M4.3 has no thermal load; it is a
 null control, not an independent finite-strain thermal-coupling discriminator.
 
-For the sign-changing tensor components, full element-history L2 errors remain
-below `0.005%` and relative absolute-peak errors remain below `0.001%`. The
-unmodified maximum pointwise relative errors are `2.6775%` for stress,
-`1.7253%` for elastic strain, and `3.7238%` for combined inelastic strain. The
-corresponding maximum absolute differences are only `0.528 MPa`, `1.17e-6`,
-and `2.87e-5`. No denominator floor is introduced. M4.3 therefore retains
-explicit `3%`, `2%`, and `4%` qualified pointwise gates for those three tensor
-histories; all their L2/peak metrics, both equivalent histories, and the nodal
-fields continue to use `0.5%`.
+The earlier reference applied the inclined inner-edge pressure only to the
+radial equation. Adding the missing axial normal component lowers the stress
+relative L2 error from `0.004845%` to `0.000525%` and its maximum pointwise
+relative error from `2.6775%` to `0.5324%`; adding or removing the outer
+component traction changes these values negligibly. The corrected stress,
+elastic-strain, and combined-inelastic relative L2 errors are
+`0.000525%/0.000537%/0.000483%`, and their relative absolute-peak errors are
+all below `0.000158%`. Their maximum pointwise errors are
+`0.5324%/0.5324%/0.4467%`. The first two occur at the same `t=2.2 s`, element
+2, `rz` component, where the MOOSE reference stress is only `1.327 MPa`; the
+stress difference there is about `0.0071 MPa`, while the maximum absolute
+stress difference over the full history is `0.123 MPa`. No denominator floor
+is introduced. Stress and elastic strain use narrow `0.6%` pointwise gates;
+combined inelastic strain and every L2/peak metric retain `0.5%` gates.
+
+The isolation suite explains the remaining scale before any production-code
+change is considered. With displacement only, stress relative L2 errors are
+`0.0000385%` for elastic, `0.000560%` for plastic, `0.000369%` for creep, and
+`0.000523%` for coupled plastic-creep. Adding the corrected follower pressure
+gives `0.000525%`; adding the component traction gives `0.000525%`. The
+creep-only stress crosses zero during reversal, so its maximum pointwise
+relative error is `3.6755%` despite a `0.000369%` L2 error and a `0.165 MPa`
+maximum absolute difference; that diagnostic alone uses an explicit `4%`
+pointwise qualified gate. The
+single-element, fully prescribed noncoaxial material oracle agrees at near
+roundoff: tensor maximum pointwise relative errors are below `3.4e-7%`, and
+the largest metric is the equivalent-creep pointwise error `0.000265%`.
+Consequently no fuelsim pressure or constitutive production code was changed.
 
 MOOSE rotates stress, elastic strain, and `combined_inelastic_strain`, but its
 model-specific `plastic_strain` and `creep_strain` properties remain in their

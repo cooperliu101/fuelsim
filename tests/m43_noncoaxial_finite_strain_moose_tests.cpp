@@ -21,11 +21,83 @@ namespace {
 
 constexpr double comparison_tolerance = 5.0e-3;
 // Local tensor components cross zero during reversal.  These pointwise-only
-// qualified gates are paired with the unchanged 0.5% L2 and peak gates.
-constexpr double stress_pointwise_tolerance = 3.0e-2;
-constexpr double strain_pointwise_tolerance = 2.0e-2;
-constexpr double inelastic_pointwise_tolerance = 4.0e-2;
+// gates are paired with the unchanged 0.5% L2 and peak gates.  Stress and
+// elastic strain need only a narrow 0.6% allowance at the same low-magnitude
+// shear-stress reversal point; combined inelastic strain remains below 0.5%.
+constexpr double stress_pointwise_tolerance = 6.0e-3;
+constexpr double strain_pointwise_tolerance = 6.0e-3;
+constexpr double inelastic_pointwise_tolerance = comparison_tolerance;
 constexpr double time_tolerance = 1.0e-12;
+
+enum class ExpectedBehavior {
+    elastic,
+    plastic,
+    creep,
+    coupled,
+};
+
+struct VariantConfig final {
+    std::string name;
+    ExpectedBehavior behavior = ExpectedBehavior::elastic;
+    std::size_t element_count = 0;
+    std::size_t step_count = 0;
+    double comparison_tolerance = 0.0;
+    double stress_pointwise_tolerance = 0.0;
+    double elastic_pointwise_tolerance = 0.0;
+    double inelastic_pointwise_tolerance = 0.0;
+    double plastic_trace_tolerance = 0.0;
+    double creep_trace_tolerance = 0.0;
+};
+
+VariantConfig variant_config(const std::string& name) {
+    if (name == "production")
+        return {name,
+                ExpectedBehavior::coupled,
+                4,
+                100,
+                comparison_tolerance,
+                stress_pointwise_tolerance,
+                strain_pointwise_tolerance,
+                inelastic_pointwise_tolerance,
+                7.0e-6,
+                2.0e-7};
+    if (name == "elastic_displacement")
+        return {name, ExpectedBehavior::elastic, 4, 100,
+                comparison_tolerance, 3.0e-5, 2.5e-4, 0.0,
+                1.0e-14, 1.0e-14};
+    if (name == "plastic_displacement")
+        return {name, ExpectedBehavior::plastic, 4, 100,
+                comparison_tolerance, 3.0e-3, 3.0e-3, 4.5e-3,
+                7.0e-6, 1.0e-14};
+    if (name == "creep_displacement")
+        return {name, ExpectedBehavior::creep, 4, 100,
+                comparison_tolerance, 4.0e-2, 2.5e-3, 2.0e-4,
+                1.0e-14, 1.3e-5};
+    if (name == "coupled_displacement")
+        return {name, ExpectedBehavior::coupled, 4, 100,
+                comparison_tolerance, 5.0e-3, 5.0e-3, 4.0e-3,
+                7.0e-6, 2.0e-7};
+    if (name == "coupled_pressure")
+        return {name, ExpectedBehavior::coupled, 4, 100,
+                comparison_tolerance, stress_pointwise_tolerance,
+                strain_pointwise_tolerance, inelastic_pointwise_tolerance,
+                7.0e-6, 2.0e-7};
+    if (name == "material_oracle")
+        return {name, ExpectedBehavior::coupled, 1, 100,
+                5.0e-6, 1.0e-6, 1.0e-6, 1.0e-6,
+                2.0e-6, 1.0e-7};
+    throw std::invalid_argument("Unknown M4.3 comparison variant: " + name);
+}
+
+bool plastic_active(ExpectedBehavior behavior) noexcept {
+    return behavior == ExpectedBehavior::plastic ||
+           behavior == ExpectedBehavior::coupled;
+}
+
+bool creep_active(ExpectedBehavior behavior) noexcept {
+    return behavior == ExpectedBehavior::creep ||
+           behavior == ExpectedBehavior::coupled;
+}
 
 bool check(bool condition, const std::string& message) {
     if (condition)
@@ -95,12 +167,16 @@ struct HistorySnapshot final {
 
 class HistoryObserver final : public fuelsim::TransientStepObserver {
   public:
+    explicit HistoryObserver(std::size_t expected_element_count)
+        : _expected_element_count(expected_element_count) {}
+
     void accepted_step(const fuelsim::TransientProblem& problem,
                        const fuelsim::TransientAcceptedStep& step) override {
         if (problem.region_count() != 1 ||
-            problem.region_mesh(0).elements().size() != 4)
+            problem.region_mesh(0).elements().size() !=
+                _expected_element_count)
             throw std::logic_error(
-                "M4.3 observer requires one four-element region");
+                "M4.3 observer element count differs from its variant");
         const fuelsim::RegionMesh& mesh = problem.region_mesh(0);
         const std::vector<double>& solution = problem.committed_solution();
         const double maximum_z = std::max_element(
@@ -222,6 +298,7 @@ class HistoryObserver final : public fuelsim::TransientStepObserver {
     }
 
   private:
+    std::size_t _expected_element_count;
     std::vector<HistorySnapshot> _snapshots;
     double _maximum_plastic_trace = 0.0;
     double _maximum_creep_trace = 0.0;
@@ -312,19 +389,20 @@ stress_components(const fuelsim::AxisymmetricStressValues& stress) {
 bool check_metrics(const std::string& name,
                    const fuelsim::test::FieldErrorMetrics& metrics,
                    double zero_reference_tolerance,
-                   double pointwise_tolerance = comparison_tolerance) {
+                   double aggregate_tolerance,
+                   double pointwise_tolerance) {
     fuelsim::test::print_relative_metrics(name, metrics);
     std::cout << name << "_maximum_absolute_difference="
               << metrics.maximum_absolute_difference << '\n';
     std::cout << name << "_relative_l2_tolerance="
-              << comparison_tolerance << '\n';
+              << aggregate_tolerance << '\n';
     std::cout << name << "_relative_absolute_peak_tolerance="
-              << comparison_tolerance << '\n';
+              << aggregate_tolerance << '\n';
     std::cout << name << "_maximum_pointwise_relative_tolerance="
               << pointwise_tolerance << '\n';
-    return check(metrics.relative_l2() < comparison_tolerance &&
+    return check(metrics.relative_l2() < aggregate_tolerance &&
                      metrics.relative_absolute_peak() <
-                         comparison_tolerance &&
+                         aggregate_tolerance &&
                      metrics.maximum_pointwise_relative_error() <
                          pointwise_tolerance &&
                      metrics.maximum_zero_reference_difference <
@@ -369,7 +447,8 @@ const HistorySnapshot& snapshot_at(const std::vector<HistorySnapshot>& values,
     return *found;
 }
 
-bool check_load_path(const std::vector<HistorySnapshot>& snapshots) {
+bool check_load_path(const std::vector<HistorySnapshot>& snapshots,
+                     ExpectedBehavior behavior) {
     const HistorySnapshot& first_stretch = snapshot_at(snapshots, 1.0);
     const HistorySnapshot& positive_shear = snapshot_at(snapshots, 2.0);
     const HistorySnapshot& axial_reversal = snapshot_at(snapshots, 3.0);
@@ -412,14 +491,26 @@ bool check_load_path(const std::vector<HistorySnapshot>& snapshots) {
             std::max(maximum_creep_shear,
                      std::abs(element.state.creep_strain[3]));
     }
-    passed = check(maximum_plastic_shear > 0.1 &&
-                       maximum_creep_shear > 1.0e-5,
-                   "M4.3 activates rotated plastic and creep shear history") &&
-             passed;
+    if (plastic_active(behavior))
+        passed = check(maximum_plastic_shear > 0.1,
+                       "M4.3 activates rotated plastic shear history") &&
+                 passed;
+    else
+        passed = check(maximum_plastic_shear == 0.0,
+                       "M4.3 inactive plastic history remains zero") &&
+                 passed;
+    if (creep_active(behavior))
+        passed = check(maximum_creep_shear > 1.0e-5,
+                       "M4.3 activates rotated creep shear history") &&
+                 passed;
+    else
+        passed = check(maximum_creep_shear == 0.0,
+                       "M4.3 inactive creep history remains zero") &&
+                 passed;
     return passed;
 }
 
-bool run_test(const std::string& input_path,
+bool run_test(const VariantConfig& variant, const std::string& input_path,
               const std::string& nodal_reference_path,
               const std::string& history_reference_path) {
     const fuelsim::FuelSimCaseDefinition definition =
@@ -444,14 +535,16 @@ bool run_test(const std::string& input_path,
         definition.solver.relative_tolerance,
         definition.solver.step_tolerance,
         definition.solver.maximum_iterations};
-    HistoryObserver observer;
+    HistoryObserver observer(variant.element_count);
     const fuelsim::TransientResult result = fuelsim::solve_transient(
         problem, time_options, solver_options, &observer);
 
     bool passed = check(result.completed &&
-                            result.accepted_steps.size() == 100 &&
+                            result.accepted_steps.size() ==
+                                variant.step_count &&
                             result.rejected_steps.empty(),
-                        "M4.3 completes 100 fixed steps without rejection");
+                        "M4.3 completes every fixed step without rejection");
+    std::cout << "m43_variant=" << variant.name << '\n';
     std::cout << "m43_completed=" << result.completed << '\n';
     std::cout << "m43_accepted_steps=" << result.accepted_steps.size() << '\n';
     std::cout << "m43_rejected_steps=" << result.rejected_steps.size() << '\n';
@@ -467,7 +560,7 @@ bool run_test(const std::string& input_path,
     passed = check(result.aggregate_timing.workspace_setups == 1,
                    "M4.3 reuses one PETSc workspace") &&
              passed;
-    passed = check_load_path(observer.snapshots()) && passed;
+    passed = check_load_path(observer.snapshots(), variant.behavior) && passed;
 
     const std::vector<fuelsim::test::NodalFieldReference> nodal_reference =
         fuelsim::test::read_moose_nodal_reference(nodal_reference_path);
@@ -478,23 +571,29 @@ bool run_test(const std::string& input_path,
                        nodal.maximum_coordinate_difference < 1.0e-12,
                    "M4.3 compares every MOOSE node at matching coordinates") &&
              passed;
-    passed = check_metrics("m43_temperature", nodal.temperature, 1.0e-12) &&
+    passed = check_metrics("m43_temperature", nodal.temperature, 1.0e-12,
+                           variant.comparison_tolerance,
+                           variant.comparison_tolerance) &&
              passed;
     passed = check_metrics("m43_radial_displacement",
-                           nodal.radial_displacement, 1.0e-14) &&
+                           nodal.radial_displacement, 1.0e-14,
+                           variant.comparison_tolerance,
+                           variant.comparison_tolerance) &&
              passed;
     passed = check_metrics("m43_axial_displacement",
-                           nodal.axial_displacement, 1.0e-14) &&
+                           nodal.axial_displacement, 1.0e-14,
+                           variant.comparison_tolerance,
+                           variant.comparison_tolerance) &&
              passed;
 
     const std::vector<ReferenceSnapshot> reference =
         read_reference_history(history_reference_path);
     const std::vector<HistorySnapshot>& actual = observer.snapshots();
-    constexpr std::size_t element_count = 4;
-    passed = check(reference.size() == actual.size() * element_count,
-                   "M4.3 compares four elements at every accepted step") &&
+    passed = check(reference.size() ==
+                           actual.size() * variant.element_count,
+                   "M4.3 compares every element at every accepted step") &&
              passed;
-    if (reference.size() != actual.size() * element_count)
+    if (reference.size() != actual.size() * variant.element_count)
         return false;
 
     fuelsim::test::FieldErrorMetrics stress;
@@ -506,10 +605,10 @@ bool run_test(const std::string& input_path,
     double maximum_coordinate_difference = 0.0;
     std::size_t reference_row = 0;
     for (std::size_t step = 0; step < actual.size(); ++step) {
-        passed = check(actual[step].elements.size() == element_count,
-                       "M4.3 observer records four elements per step") &&
+        passed = check(actual[step].elements.size() == variant.element_count,
+                       "M4.3 observer records every element per step") &&
                  passed;
-        if (actual[step].elements.size() != element_count)
+        if (actual[step].elements.size() != variant.element_count)
             return false;
         for (const ElementSnapshot& element : actual[step].elements) {
             const ReferenceSnapshot& expected = reference[reference_row];
@@ -558,44 +657,82 @@ bool run_test(const std::string& input_path,
               << '\n';
     std::cout << "m43_maximum_creep_trace="
               << observer.maximum_creep_trace() << '\n';
-    passed = check(observer.maximum_plastic_trace() < 7.0e-6 &&
-                       observer.maximum_creep_trace() < 2.0e-7,
+    passed = check(observer.maximum_plastic_trace() <
+                           variant.plastic_trace_tolerance &&
+                       observer.maximum_creep_trace() <
+                           variant.creep_trace_tolerance,
                    "M4.3 default-Rashid accumulated trace drift stays below "
                    "its qualified limits") &&
              passed;
-    print_tensor_metric_locations("m43_element_qp_average_stress", stress,
+    const std::string prefix = "m43_" + variant.name + "_element_qp_average_";
+    print_tensor_metric_locations(prefix + "stress", stress, reference);
+    print_tensor_metric_locations(prefix + "elastic_strain", elastic,
                                   reference);
-    print_tensor_metric_locations("m43_element_qp_average_elastic_strain",
-                                  elastic, reference);
     print_tensor_metric_locations(
-        "m43_element_qp_average_combined_inelastic_strain",
-        combined_inelastic, reference);
-    passed = check_metrics("m43_element_qp_average_stress", stress, 1.0e-3,
-                           stress_pointwise_tolerance) &&
+        prefix + "combined_inelastic_strain", combined_inelastic, reference);
+    passed = check_metrics(prefix + "stress", stress, 1.0e-3,
+                           variant.comparison_tolerance,
+                           variant.stress_pointwise_tolerance) &&
              passed;
-    passed = check_metrics("m43_element_qp_average_elastic_strain", elastic,
-                           1.0e-12, strain_pointwise_tolerance) &&
+    passed = check_metrics(prefix + "elastic_strain", elastic, 1.0e-12,
+                           variant.comparison_tolerance,
+                           variant.elastic_pointwise_tolerance) &&
              passed;
-    passed = check_metrics(
-                 "m43_element_qp_average_combined_inelastic_strain",
-                 combined_inelastic, 1.0e-12,
-                 inelastic_pointwise_tolerance) &&
-             passed;
-    passed = check_metrics("m43_element_qp_average_equivalent_plastic",
-                           equivalent_plastic, 1.0e-12) &&
-             passed;
-    passed = check_metrics("m43_element_qp_average_equivalent_creep",
-                           equivalent_creep, 1.0e-12) &&
-             passed;
+    if (variant.behavior == ExpectedBehavior::elastic) {
+        fuelsim::test::print_absolute_metrics(prefix + "combined_inelastic_strain",
+                                              combined_inelastic);
+        passed = check(combined_inelastic.maximum_absolute_difference <
+                               1.0e-14 &&
+                           combined_inelastic.maximum_actual < 1.0e-14 &&
+                           combined_inelastic.maximum_reference < 1.0e-14,
+                       "M4.3 elastic combined inelastic history stays zero") &&
+                 passed;
+    } else
+        passed = check_metrics(prefix + "combined_inelastic_strain",
+                               combined_inelastic, 1.0e-12,
+                               variant.comparison_tolerance,
+                               variant.inelastic_pointwise_tolerance) &&
+                 passed;
+    if (plastic_active(variant.behavior))
+        passed = check_metrics(prefix + "equivalent_plastic",
+                               equivalent_plastic, 1.0e-12,
+                               variant.comparison_tolerance,
+                               variant.comparison_tolerance) &&
+                 passed;
+    else {
+        fuelsim::test::print_absolute_metrics(prefix + "equivalent_plastic",
+                                              equivalent_plastic);
+        passed = check(equivalent_plastic.maximum_absolute_difference <
+                               1.0e-14 &&
+                           equivalent_plastic.maximum_actual < 1.0e-14 &&
+                           equivalent_plastic.maximum_reference < 1.0e-14,
+                       "M4.3 inactive equivalent plastic history stays zero") &&
+                 passed;
+    }
+    if (creep_active(variant.behavior))
+        passed = check_metrics(prefix + "equivalent_creep", equivalent_creep,
+                               1.0e-12, variant.comparison_tolerance,
+                               variant.comparison_tolerance) &&
+                 passed;
+    else {
+        fuelsim::test::print_absolute_metrics(prefix + "equivalent_creep",
+                                              equivalent_creep);
+        passed = check(equivalent_creep.maximum_absolute_difference <
+                               1.0e-14 &&
+                           equivalent_creep.maximum_actual < 1.0e-14 &&
+                           equivalent_creep.maximum_reference < 1.0e-14,
+                       "M4.3 inactive equivalent creep history stays zero") &&
+                 passed;
+    }
     return passed;
 }
 
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 4) {
+    if (argc != 5) {
         std::cerr << "Usage: fuelsim_m43_noncoaxial_finite_strain_moose_tests "
-                     "<case.fsi> <all_nodes.csv> <history.csv>\n";
+                     "<variant> <case.fsi> <all_nodes.csv> <history.csv>\n";
         return 2;
     }
     try {
@@ -603,7 +740,9 @@ int main(int argc, char** argv) {
         fuelsim::PetscSession session(
             argc, argv,
             "fuelsim M4.3 noncoaxial finite-strain MOOSE comparison\n");
-        return run_test(argv[1], argv[2], argv[3]) ? 0 : 1;
+        return run_test(variant_config(argv[1]), argv[2], argv[3], argv[4])
+                   ? 0
+                   : 1;
     } catch (const std::exception& error) {
         std::cerr << "M4.3 noncoaxial finite-strain test failed: "
                   << error.what() << '\n';

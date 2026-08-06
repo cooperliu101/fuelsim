@@ -311,6 +311,17 @@
     function = load_ramp
     use_displaced_mesh = true
   []
+  # A pressure boundary condition acts on one displacement equation.  The
+  # deformed inner edge is inclined during shear, so retain both components
+  # of the current outward normal.
+  [inner_pressure_axial]
+    type = ADPressure
+    variable = disp_y
+    boundary = left
+    factor = 1e6
+    function = load_ramp
+    use_displaced_mesh = true
+  []
   [outer_axial_traction]
     type = ADFunctionNeumannBC
     variable = disp_y

@@ -595,12 +595,64 @@ if(BUILD_TESTING)
     )
     add_test(NAME fuelsim_m43_noncoaxial_finite_strain_moose_tests
         COMMAND fuelsim_m43_noncoaxial_finite_strain_moose_tests
+            production
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_noncoaxial_finite_strain.fsi"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_noncoaxial_finite_strain_rz_all_nodes_final.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_noncoaxial_finite_strain_rz_element_history.csv"
     )
     set_tests_properties(
         fuelsim_m43_noncoaxial_finite_strain_moose_tests
+        PROPERTIES LABELS "acceptance"
+    )
+    add_test(NAME fuelsim_m43_elastic_displacement_moose_tests
+        COMMAND fuelsim_m43_noncoaxial_finite_strain_moose_tests
+            elastic_displacement
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_noncoaxial_finite_strain_elastic_displacement.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_elastic_displacement_rz_all_nodes_final.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_elastic_displacement_rz_element_history.csv"
+    )
+    add_test(NAME fuelsim_m43_plastic_displacement_moose_tests
+        COMMAND fuelsim_m43_noncoaxial_finite_strain_moose_tests
+            plastic_displacement
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_noncoaxial_finite_strain_plastic_displacement.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_plastic_displacement_rz_all_nodes_final.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_plastic_displacement_rz_element_history.csv"
+    )
+    add_test(NAME fuelsim_m43_creep_displacement_moose_tests
+        COMMAND fuelsim_m43_noncoaxial_finite_strain_moose_tests
+            creep_displacement
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_noncoaxial_finite_strain_creep_displacement.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_creep_displacement_rz_all_nodes_final.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_creep_displacement_rz_element_history.csv"
+    )
+    add_test(NAME fuelsim_m43_coupled_displacement_moose_tests
+        COMMAND fuelsim_m43_noncoaxial_finite_strain_moose_tests
+            coupled_displacement
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_noncoaxial_finite_strain_coupled_displacement.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_coupled_displacement_rz_all_nodes_final.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_coupled_displacement_rz_element_history.csv"
+    )
+    add_test(NAME fuelsim_m43_coupled_pressure_moose_tests
+        COMMAND fuelsim_m43_noncoaxial_finite_strain_moose_tests
+            coupled_pressure
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_noncoaxial_finite_strain_coupled_pressure.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_coupled_pressure_rz_all_nodes_final.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_coupled_pressure_rz_element_history.csv"
+    )
+    add_test(NAME fuelsim_m43_material_oracle_moose_tests
+        COMMAND fuelsim_m43_noncoaxial_finite_strain_moose_tests
+            material_oracle
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_noncoaxial_finite_strain_material_oracle.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_material_oracle_rz_all_nodes_final.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_material_oracle_rz_element_history.csv"
+    )
+    set_tests_properties(
+        fuelsim_m43_elastic_displacement_moose_tests
+        fuelsim_m43_plastic_displacement_moose_tests
+        fuelsim_m43_creep_displacement_moose_tests
+        fuelsim_m43_coupled_displacement_moose_tests
+        fuelsim_m43_coupled_pressure_moose_tests
+        fuelsim_m43_material_oracle_moose_tests
         PROPERTIES LABELS "acceptance"
     )
 
