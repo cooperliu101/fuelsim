@@ -4,6 +4,7 @@
 #include "support/moose_field_comparison.hpp"
 
 #include <algorithm>
+#include <array>
 #include <exception>
 #include <cmath>
 #include <iomanip>
@@ -117,6 +118,260 @@ double temperature_relative_l2(const fuelsim::TransientProblem& problem,
         reference_squared += reference[dof] * reference[dof];
     }
     return std::sqrt(difference_squared / reference_squared);
+}
+
+struct ConvergenceAccumulator final {
+    double difference_squared = 0.0;
+    double reference_squared = 0.0;
+    double maximum_absolute_difference = 0.0;
+};
+
+struct ConvergenceMetric final {
+    double absolute_l2 = 0.0;
+    double relative_l2 = 0.0;
+    double maximum_absolute_difference = 0.0;
+    bool zero_reference = false;
+};
+
+void accumulate_convergence(ConvergenceAccumulator& accumulator,
+                            double actual, double reference) {
+    const double difference = actual - reference;
+    accumulator.difference_squared += difference * difference;
+    accumulator.reference_squared += reference * reference;
+    accumulator.maximum_absolute_difference =
+        std::max(accumulator.maximum_absolute_difference,
+                 std::abs(difference));
+}
+
+ConvergenceMetric finish_convergence(
+    const ConvergenceAccumulator& accumulator) {
+    ConvergenceMetric result;
+    result.absolute_l2 = std::sqrt(accumulator.difference_squared);
+    result.maximum_absolute_difference =
+        accumulator.maximum_absolute_difference;
+    result.zero_reference = accumulator.reference_squared == 0.0;
+    if (!result.zero_reference)
+        result.relative_l2 = std::sqrt(accumulator.difference_squared /
+                                       accumulator.reference_squared);
+    return result;
+}
+
+std::array<ConvergenceMetric, 9> compare_committed_states(
+    const fuelsim::TransientCommittedState& actual,
+    const fuelsim::TransientCommittedState& reference) {
+    if (actual.solution.size() != reference.solution.size() ||
+        actual.solution.size() % 3 != 0 ||
+        actual.material_histories.size() !=
+            reference.material_histories.size() ||
+        actual.material_stresses.size() !=
+            reference.material_stresses.size())
+        throw std::logic_error(
+            "time-convergence committed-state layouts differ");
+
+    std::array<ConvergenceAccumulator, 9> accumulators{};
+    const std::size_t node_count = actual.solution.size() / 3;
+    for (std::size_t field = 0; field < 3; ++field) {
+        for (std::size_t node = 0; node < node_count; ++node) {
+            const std::size_t dof = field * node_count + node;
+            accumulate_convergence(accumulators[field], actual.solution[dof],
+                                   reference.solution[dof]);
+        }
+    }
+
+    for (std::size_t region = 0;
+         region < actual.material_histories.size(); ++region) {
+        if (actual.material_histories[region].size() !=
+                reference.material_histories[region].size() ||
+            actual.material_stresses[region].size() !=
+                reference.material_stresses[region].size())
+            throw std::logic_error(
+                "time-convergence material-state region layouts differ");
+        for (std::size_t element = 0;
+             element < actual.material_histories[region].size(); ++element) {
+            for (std::size_t q = 0; q < 4; ++q) {
+                const fuelsim::MaterialPointState& actual_history =
+                    actual.material_histories[region][element][q];
+                const fuelsim::MaterialPointState& reference_history =
+                    reference.material_histories[region][element][q];
+                const fuelsim::AxisymmetricStressValues& actual_stress =
+                    actual.material_stresses[region][element][q];
+                const fuelsim::AxisymmetricStressValues& reference_stress =
+                    reference.material_stresses[region][element][q];
+                const std::array<double, 4> actual_stress_values = {
+                    actual_stress.rr, actual_stress.zz, actual_stress.hoop,
+                    actual_stress.rz};
+                const std::array<double, 4> reference_stress_values = {
+                    reference_stress.rr, reference_stress.zz,
+                    reference_stress.hoop, reference_stress.rz};
+                for (std::size_t component = 0; component < 4; ++component) {
+                    accumulate_convergence(
+                        accumulators[3], actual_stress_values[component],
+                        reference_stress_values[component]);
+                    accumulate_convergence(
+                        accumulators[4],
+                        actual_history.elastic_strain[component],
+                        reference_history.elastic_strain[component]);
+                    accumulate_convergence(
+                        accumulators[5],
+                        actual_history.plastic_strain[component],
+                        reference_history.plastic_strain[component]);
+                    accumulate_convergence(
+                        accumulators[6],
+                        actual_history.creep_strain[component],
+                        reference_history.creep_strain[component]);
+                }
+                accumulate_convergence(
+                    accumulators[7],
+                    actual_history.equivalent_plastic_strain,
+                    reference_history.equivalent_plastic_strain);
+                accumulate_convergence(
+                    accumulators[8],
+                    actual_history.equivalent_creep_strain,
+                    reference_history.equivalent_creep_strain);
+            }
+        }
+    }
+
+    std::array<ConvergenceMetric, 9> result{};
+    for (std::size_t field = 0; field < result.size(); ++field)
+        result[field] = finish_convergence(accumulators[field]);
+    return result;
+}
+
+fuelsim::TransientCommittedState solve_fixed_pcmi(
+    const fuelsim::FuelSimCaseDefinition& input,
+    const fuelsim::UnstructuredQuad4Mesh& mesh, double time_step) {
+    fuelsim::TransientProblem problem(input.transient_definition(), mesh);
+    fuelsim::SolverOptions solver_options = {
+        input.solver.absolute_tolerance, input.solver.relative_tolerance,
+        input.solver.step_tolerance, input.solver.maximum_iterations};
+    solver_options.temperature_residual_scale = 1.0e4;
+    solver_options.mechanical_residual_scale = 1.0e3;
+    const fuelsim::TransientTimeOptions time_options = {
+        100.0, time_step, time_step, time_step, 1.0, 0.5, 0, 20.0};
+    const fuelsim::TransientResult result = fuelsim::solve_transient(
+        problem, time_options, solver_options);
+    if (!result.completed || result.aggregate_timing.workspace_setups != 1)
+        throw std::runtime_error(
+            "fixed-step PCMI time-convergence solve did not complete with "
+            "one PETSc workspace");
+    return problem.committed_state();
+}
+
+bool test_long_transient_time_convergence(const std::string& input_path) {
+    const fuelsim::FuelSimCaseDefinition input =
+        fuelsim::CaseInputReader::read(input_path);
+    const fuelsim::UnstructuredQuad4Mesh mesh =
+        fuelsim::ExodusMeshIo::read_quad4(input.mesh_file);
+    const fuelsim::TransientCommittedState coarse =
+        solve_fixed_pcmi(input, mesh, 1.0);
+    const fuelsim::TransientCommittedState medium =
+        solve_fixed_pcmi(input, mesh, 0.5);
+    const fuelsim::TransientCommittedState fine =
+        solve_fixed_pcmi(input, mesh, 0.25);
+    const fuelsim::TransientCommittedState reference =
+        solve_fixed_pcmi(input, mesh, 0.125);
+    const std::array<ConvergenceMetric, 9> coarse_error =
+        compare_committed_states(coarse, reference);
+    const std::array<ConvergenceMetric, 9> medium_error =
+        compare_committed_states(medium, reference);
+    const std::array<ConvergenceMetric, 9> fine_error =
+        compare_committed_states(fine, reference);
+    const std::array<ConvergenceMetric, 9> coarse_to_medium_difference =
+        compare_committed_states(coarse, medium);
+    const std::array<ConvergenceMetric, 9> medium_to_fine_difference =
+        compare_committed_states(medium, fine);
+    const std::array<ConvergenceMetric, 9> fine_to_reference_difference =
+        compare_committed_states(fine, reference);
+    const std::array<const char*, 9> names = {
+        "temperature", "radial_displacement", "axial_displacement",
+        "stress", "elastic_strain", "plastic_strain", "creep_strain",
+        "equivalent_plastic_strain", "equivalent_creep_strain"};
+
+    bool passed = true;
+    double minimum_coarse_to_medium_order =
+        std::numeric_limits<double>::infinity();
+    double minimum_medium_to_fine_order =
+        std::numeric_limits<double>::infinity();
+    std::size_t rate_evidence_fields = 0;
+    std::size_t first_order_trend_fields = 0;
+    for (std::size_t field = 0; field < names.size(); ++field) {
+        std::cout << "long_time_convergence_" << names[field]
+                  << "_relative_l2=" << coarse_error[field].relative_l2 << ','
+                  << medium_error[field].relative_l2 << ','
+                  << fine_error[field].relative_l2 << '\n';
+        std::cout << "long_time_convergence_" << names[field]
+                  << "_maximum_absolute_difference="
+                  << coarse_error[field].maximum_absolute_difference << ','
+                  << medium_error[field].maximum_absolute_difference << ','
+                  << fine_error[field].maximum_absolute_difference << '\n';
+        std::cout << "long_time_convergence_" << names[field]
+                  << "_zero_reference="
+                  << coarse_error[field].zero_reference << '\n';
+        if (coarse_error[field].zero_reference) {
+            passed = check(
+                         coarse_error[field].maximum_absolute_difference ==
+                                 0.0 &&
+                             medium_error[field]
+                                     .maximum_absolute_difference == 0.0 &&
+                             fine_error[field].maximum_absolute_difference ==
+                                 0.0,
+                         std::string("zero-reference ") + names[field] +
+                             " field remains exactly zero under time "
+                             "refinement") &&
+                     passed;
+            continue;
+        }
+        const bool roundoff_limited_temperature =
+            field == 0 &&
+            coarse_error[field].maximum_absolute_difference < 1.0e-8;
+        std::cout << "long_time_convergence_" << names[field]
+                  << "_roundoff_limited=" << roundoff_limited_temperature
+                  << '\n';
+        if (roundoff_limited_temperature)
+            continue;
+        ++rate_evidence_fields;
+        const double coarse_to_medium_order = std::log2(
+            coarse_to_medium_difference[field].absolute_l2 /
+            medium_to_fine_difference[field].absolute_l2);
+        const double medium_to_fine_order = std::log2(
+            medium_to_fine_difference[field].absolute_l2 /
+            fine_to_reference_difference[field].absolute_l2);
+        minimum_coarse_to_medium_order =
+            std::min(minimum_coarse_to_medium_order,
+                     coarse_to_medium_order);
+        minimum_medium_to_fine_order =
+            std::min(minimum_medium_to_fine_order, medium_to_fine_order);
+        if (coarse_to_medium_order > 0.75 &&
+            medium_to_fine_order > 0.75)
+            ++first_order_trend_fields;
+        std::cout << "long_time_convergence_" << names[field]
+                  << "_observed_orders=" << coarse_to_medium_order << ','
+                  << medium_to_fine_order << '\n';
+        passed = check(coarse_error[field].relative_l2 >
+                               medium_error[field].relative_l2 &&
+                           medium_error[field].relative_l2 >
+                               fine_error[field].relative_l2,
+                       std::string("100-second PCMI ") + names[field] +
+                           " error decreases under time-step refinement") &&
+                 passed;
+    }
+    std::cout << "long_time_convergence_rate_evidence_fields="
+              << rate_evidence_fields << '\n';
+    std::cout << "long_time_convergence_first_order_trend_fields="
+              << first_order_trend_fields << '\n';
+    std::cout << "long_time_convergence_minimum_observed_orders="
+              << minimum_coarse_to_medium_order << ','
+              << minimum_medium_to_fine_order << '\n';
+    return check(rate_evidence_fields == 8 &&
+                     first_order_trend_fields >= 7 &&
+                     minimum_coarse_to_medium_order > 0.4 &&
+                     minimum_medium_to_fine_order > 0.4,
+                 "100-second PCMI nodal, stress, and complete inelastic "
+                 "history fields monotonically approach the fine-step "
+                 "reference, with the nonsmooth radial contact response "
+                 "reported separately") &&
+           passed;
 }
 
 bool test_time_error_control(const std::string& input_path) {
@@ -590,6 +845,7 @@ int main(int argc, char** argv) {
             !test_moose_time_table_convection(argv[2], argv[3]) ||
             !test_time_error_control(argv[2]) ||
             !test_history_time_error_control(argv[4]) ||
+            !test_long_transient_time_convergence(argv[4]) ||
             !test_long_transient_diagnostics(argv[4]) ||
             !test_failure_diagnostics(argv[4]) ||
             !test_steady_load_cutback(argv[4]) ||

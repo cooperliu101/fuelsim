@@ -228,8 +228,11 @@ bool run_tests(const std::string& steady_path,
               "transient material behaviors are parsed") &&
         check(transient.transient_execution.end_time == 20.0 &&
                   transient.transient_execution.load_ramp_time == 20.0 &&
+                  transient.transient_execution
+                          .time_error_relative_tolerance == 0.0 &&
                   transient.solver.maximum_iterations == 80,
-              "transient execution, ramp, and solver fields are parsed") &&
+              "transient execution keeps time-error control opt-in and "
+              "parses ramp and solver fields") &&
         check(
             scaled_displacement.regions.size() == 1 &&
                 scaled_displacement.regions[0].spatial.block.empty() &&
