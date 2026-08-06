@@ -187,6 +187,12 @@ class SteadyProblem final : public NonlinearProblem {
     const std::vector<DirichletCondition>&
     dirichlet_conditions() const noexcept override;
     void validate_state(const std::vector<double>& state) const override;
+    std::vector<std::size_t> required_state_dofs(
+        std::size_t contribution_begin,
+        std::size_t contribution_end) const override;
+    void validate_local_state(
+        std::size_t contribution_begin, std::size_t contribution_end,
+        const GlobalStateView& state) const override;
     LocalDofs contribution_dofs(std::size_t contribution_index) const override;
     LocalResidual
     contribution_residual(std::size_t contribution_index,
@@ -250,6 +256,9 @@ class SteadyProblem final : public NonlinearProblem {
     void build_contacts(const UnstructuredQuad4Mesh& source_mesh);
     void build_boundary_conditions(const UnstructuredQuad4Mesh& source_mesh);
     void update_mechanical_candidates(const std::vector<double>& state) const;
+    void update_local_mechanical_candidates(
+        std::size_t contribution_begin, std::size_t contribution_end,
+        const GlobalStateView& state) const;
     double function_value(const std::string& name) const;
     double load_multiplier(bool scale_with_load,
                            const std::string& function) const;

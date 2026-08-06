@@ -192,6 +192,26 @@ int main(int argc, char** argv) {
                     << ", message=" << result.last_attempt.failure_message;
                 throw std::runtime_error(message.str());
             }
+            const fuelsim::SolveResult& shadow = result.last_attempt;
+            if (shadow.global_state_dofs != problem.dof_count())
+                throw std::runtime_error(
+                    "Transient shadow-state global size is incorrect");
+            if (session.size() == 1 &&
+                shadow.maximum_shadow_state_dofs != problem.dof_count())
+                throw std::runtime_error(
+                    "One-rank transient solve does not cover the full state");
+            if (session.size() == 2 &&
+                (shadow.maximum_shadow_state_dofs > problem.dof_count() ||
+                 shadow.total_shadow_state_dofs > 2 * problem.dof_count() ||
+                 shadow.total_remote_shadow_state_dofs == 0))
+                throw std::runtime_error(
+                    "Two-rank transient shadow-state bounds failed: global=" +
+                    std::to_string(problem.dof_count()) + ", maximum=" +
+                    std::to_string(shadow.maximum_shadow_state_dofs) +
+                    ", total=" +
+                    std::to_string(shadow.total_shadow_state_dofs) +
+                    ", remote=" +
+                    std::to_string(shadow.total_remote_shadow_state_dofs));
             const std::vector<double> state =
                 flatten_transient_state(problem);
             if (mode == "write_transient") {
@@ -211,6 +231,10 @@ int main(int argc, char** argv) {
                 // allowing sub-micro-Pascal roundoff in nominally zero stress
                 // components.
                 compare_reference(reference_path, state, 1.0e-7);
+                std::cout << "transient_maximum_shadow_state_dofs="
+                          << shadow.maximum_shadow_state_dofs << '\n'
+                          << "transient_total_remote_shadow_state_dofs="
+                          << shadow.total_remote_shadow_state_dofs << '\n';
                 std::cout << "[PASS] transient nodal and integration-point "
                              "history MPI equivalence\n";
             }
@@ -242,6 +266,13 @@ int main(int argc, char** argv) {
         if (result.aggregate_timing.workspace_setups != 1)
             throw std::runtime_error(
                 "MPI equivalence solve did not reuse one workspace");
+        if (result.solve.global_state_dofs != problem.dof_count())
+            throw std::runtime_error(
+                "Steady shadow-state global size is incorrect");
+        if (session.size() == 1 &&
+            result.solve.maximum_shadow_state_dofs != problem.dof_count())
+            throw std::runtime_error(
+                "One-rank steady solve does not cover the full state");
 
         if (mode == "write") {
             if (session.size() != 1)
@@ -266,10 +297,26 @@ int main(int argc, char** argv) {
             result.solve.local_contribution_end != expected_end)
             throw std::runtime_error(
                 "MPI contribution partition differs from ownership contract");
+        if (!(result.solve.total_shadow_state_dofs <
+              2 * problem.dof_count()) ||
+            result.solve.total_remote_shadow_state_dofs == 0)
+            throw std::runtime_error(
+                "Two-rank steady shadow-state bounds failed: global=" +
+                std::to_string(problem.dof_count()) + ", maximum=" +
+                std::to_string(result.solve.maximum_shadow_state_dofs) +
+                ", total=" +
+                std::to_string(result.solve.total_shadow_state_dofs) +
+                ", remote=" +
+                std::to_string(
+                    result.solve.total_remote_shadow_state_dofs));
         if (session.rank() == 0) {
             compare_reference(reference_path, result.solve.state,
                               field_split || block_jacobi || hypre ? 1.0e-7
                                                                    : 1.0e-10);
+            std::cout << "steady_maximum_shadow_state_dofs="
+                      << result.solve.maximum_shadow_state_dofs << '\n'
+                      << "steady_total_remote_shadow_state_dofs="
+                      << result.solve.total_remote_shadow_state_dofs << '\n';
             std::cout << "[PASS] one/two-rank state equivalence"
                       << (field_split     ? " with field split\n"
                           : block_jacobi ? " with block Jacobi\n"

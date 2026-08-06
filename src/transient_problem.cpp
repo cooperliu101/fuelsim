@@ -757,6 +757,20 @@ void TransientProblem::validate_state(const std::vector<double>& state) const {
     _spatial_model.validate_state(state);
 }
 
+std::vector<std::size_t> TransientProblem::required_state_dofs(
+    std::size_t contribution_begin, std::size_t contribution_end) const {
+    return _spatial_model.required_state_dofs(contribution_begin,
+                                              contribution_end);
+}
+
+void TransientProblem::validate_local_state(
+    std::size_t contribution_begin, std::size_t contribution_end,
+    const GlobalStateView& state) const {
+    require_active_time_step();
+    _spatial_model.validate_local_state(contribution_begin, contribution_end,
+                                        state);
+}
+
 LocalDofs
 TransientProblem::contribution_dofs(std::size_t contribution_index) const {
     return _spatial_model.contribution_dofs(contribution_index);

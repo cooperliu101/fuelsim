@@ -389,6 +389,14 @@ PETSc 若以 `MAX_IT`、`LINE_SEARCH` 或 `LOCAL_MIN` 等负原因停止，fuels
 重新计算的总残量和三个分场残量都通过同一套复核时才接受该状态；原始负原因
 仍保留在诊断中。输出同时报告本次和全程 KSP 迭代数。
 
+多进程残量和 Jacobian 回调只收集本进程贡献以及完整主面链接触搜索依赖所需
+的影子自由度，不再每次复制完整试探态。诊断中的 `global_state_dofs`、
+`maximum_shadow_state_dofs`、`total_shadow_state_dofs` 和
+`total_remote_shadow_state_dofs` 分别给出全局规模、单进程最大影子规模、所有
+进程影子槽总数和每次回调所需的远程值总数。求解结束仍有一次完整状态收集，
+以保持 replicated committed 状态、材料历史和输出事务；因此这些指标只描述
+回调通信和明确的影子缓冲区，不代表总进程内存。
+
 `[Outputs]` 的 `console` 默认为 `true`；可选 `csv` 将最终命名指标写为
 `metric,value` 汇总文件。周期性的 `progress.*` 只写控制台，不混入最终 CSV。
 `exodus` 写出可后处理的场结果；稳态写一个最终步，

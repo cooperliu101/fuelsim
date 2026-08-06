@@ -123,3 +123,45 @@ temperature coefficients use the AD-active path. The current 23,010-DOF,
 82 residual callbacks, 62 Jacobian callbacks and one PETSc workspace. This is
 a regression check for the current benchmark only, not a broader scaling
 claim.
+
+## 2026-08-06 M5.5 shadow-state collection
+
+The Release build used the same 23,010-DOF, 20-step case. All
+OpenMP/OpenBLAS/MKL/NumExpr thread counts were one. The one-rank run was pinned
+to CPU 0 and the two-rank run to CPUs 0 and 1. First-run and warmed internal
+load-path times were kept separate:
+
+```text
+                         first run     warmed repeat/median
+  1 rank:                27.9611 s          27.9525 s
+  2 ranks:               10.5659 s          10.4864 s
+```
+
+Every run completed 62 nonlinear iterations, 82 residual callbacks, 62
+Jacobian callbacks, and one PETSc workspace. These timings are current-run
+observations, not a paired claim against the previous implementation and not a
+general scaling result.
+
+The old callback path stored and scattered all 23,010 state values on each
+rank. With two ranks, the new contribution-derived shadow sets report:
+
+```text
+global state DOFs:                         23,010
+maximum shadow DOFs on one rank:           12,290
+sum of shadow DOFs across two ranks:       23,600
+sum for two replicated full states:        46,020
+remote shadow DOFs per callback:            8,088
+remote DOFs for the old all-gather:        23,010
+```
+
+Thus the stored state-value slots summed over both ranks decrease by `48.72%`,
+and the remote value payload per residual or Jacobian callback decreases from
+`184,080 bytes` to `64,704 bytes`, a `64.85%` reduction. The largest rank's
+persistent callback workspace contains two double buffers plus 32-bit global
+indices: `245,800 bytes` instead of two replicated full double buffers totaling
+`368,160 bytes`, a `33.24%` reduction. These exact counts exclude allocator,
+PETSc scatter metadata, matrices, factorizations, replicated mesh geometry,
+committed state, and material history; they are not process resident-set-size
+claims. A single full-state gather remains after each nonlinear solve so the
+existing committed-state transaction can continue on every rank, but it is no
+longer performed for every callback.

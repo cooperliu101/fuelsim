@@ -101,6 +101,10 @@ struct SolveResult final {
     int mpi_size = 1;
     std::size_t local_contribution_begin = 0;
     std::size_t local_contribution_end = 0;
+    std::size_t global_state_dofs = 0;
+    std::size_t maximum_shadow_state_dofs = 0;
+    std::size_t total_shadow_state_dofs = 0;
+    std::size_t total_remote_shadow_state_dofs = 0;
     SolveFailureCategory failure_category = SolveFailureCategory::none;
     std::string failure_message;
     std::size_t nonlinear_attempts = 1;

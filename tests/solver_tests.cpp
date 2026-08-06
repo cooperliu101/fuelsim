@@ -25,6 +25,22 @@ double metric_relative_error(double actual, double expected) {
     return std::abs(actual - expected) / std::max(std::abs(expected), 1.0e-30);
 }
 
+bool test_shadow_state_view() {
+    const std::vector<std::uint32_t> dofs = {1U, 4U, 7U};
+    const std::vector<double> values = {2.0, 5.0, 8.0};
+    const fuelsim::GlobalStateView state(9, dofs, values);
+    bool missing_rejected = false;
+    try {
+        (void)state.value(3);
+    } catch (const std::out_of_range&) {
+        missing_rejected = true;
+    }
+    return check(state.global_size() == 9 && state.local_size() == 3 &&
+                     state.contains(1) && !state.contains(3) &&
+                     state.value(4) == 5.0 && missing_rejected,
+                 "shadow state exposes only declared global DOFs");
+}
+
 fuelsim::ThermoelasticProperties constant_material(double conductivity,
                                                    double thermal_expansion) {
     return {
@@ -717,6 +733,7 @@ int main(int argc, char** argv) {
             argc, argv, "fuelsim M0 and M1 numerical acceptance tests\n");
 
         bool passed = true;
+        passed = test_shadow_state_view() && passed;
         passed = test_global_newton_safeguards() && passed;
         passed = test_thermal_cylinder() && passed;
         passed = test_thermal_mesh_convergence() && passed;

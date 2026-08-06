@@ -40,6 +40,15 @@ void check_petsc(PetscErrorCode code, const char* operation) {
     throw std::runtime_error(message);
 }
 
+void check_mpi(PetscMPIInt code, const char* operation) {
+    if (code == MPI_SUCCESS)
+        return;
+    std::string message = operation;
+    message += " failed with MPI error code ";
+    message += std::to_string(code);
+    throw std::runtime_error(message);
+}
+
 PetscErrorCode collective_timing(const SolveTiming& local,
                                  SolveTiming& result) {
     PetscFunctionBeginUser;
@@ -93,8 +102,11 @@ struct SolverContext final {
     PetscMPIInt size = 1;
     std::size_t contribution_begin = 0;
     std::size_t contribution_end = 0;
+    PetscInt ownership_begin = 0;
+    PetscInt ownership_end = 0;
     VecScatter state_scatter = nullptr;
     Vec gathered_state = nullptr;
+    std::vector<std::uint32_t> shadow_dofs;
     std::vector<double> state_values;
     std::vector<double> residual_values;
     std::vector<PetscInt> constrained_dofs;
@@ -284,6 +296,41 @@ PetscErrorCode gather_state(Vec state, SolverContext& context) {
     PetscFunctionReturn(PETSC_SUCCESS);
 }
 
+std::vector<double> gather_complete_state(Vec state,
+                                          std::size_t global_size) {
+    VecScatter scatter = nullptr;
+    Vec gathered = nullptr;
+    check_petsc(VecScatterCreateToAll(state, &scatter, &gathered),
+                "VecScatterCreateToAll final state");
+    try {
+        check_petsc(VecScatterBegin(scatter, state, gathered, INSERT_VALUES,
+                                    SCATTER_FORWARD),
+                    "VecScatterBegin final state");
+        check_petsc(VecScatterEnd(scatter, state, gathered, INSERT_VALUES,
+                                  SCATTER_FORWARD),
+                    "VecScatterEnd final state");
+        std::vector<double> result(global_size, 0.0);
+        const PetscScalar* values = nullptr;
+        check_petsc(VecGetArrayRead(gathered, &values),
+                    "VecGetArrayRead final state");
+        for (std::size_t index = 0; index < global_size; ++index)
+            result[index] =
+                PetscRealPart(values[checked_petsc_int(index)]);
+        check_petsc(VecRestoreArrayRead(gathered, &values),
+                    "VecRestoreArrayRead final state");
+        check_petsc(VecScatterDestroy(&scatter),
+                    "VecScatterDestroy final state");
+        check_petsc(VecDestroy(&gathered), "VecDestroy final state");
+        return result;
+    } catch (...) {
+        if (scatter != nullptr)
+            (void)VecScatterDestroy(&scatter);
+        if (gathered != nullptr)
+            (void)VecDestroy(&gathered);
+        throw;
+    }
+}
+
 PetscErrorCode synchronize_domain_error(bool local_error,
                                         bool& global_error) {
     PetscFunctionBeginUser;
@@ -407,17 +454,22 @@ PetscErrorCode form_function(SNES snes, Vec state, Vec residual,
         context.last_function_domain_error = false;
         const NonlinearProblem& problem = *context.problem;
         PetscCall(gather_state(state, context));
+        const GlobalStateView state_view(problem.dof_count(),
+                                         context.shadow_dofs,
+                                         context.state_values);
         PetscCall(VecSet(residual, 0.0));
         bool local_domain_error = false;
         try {
-            problem.validate_state(context.state_values);
+            problem.validate_local_state(context.contribution_begin,
+                                         context.contribution_end,
+                                         state_view);
             for (std::size_t contribution = context.contribution_begin;
                  contribution < context.contribution_end; ++contribution) {
                 const LocalDofs size_dofs =
                     problem.contribution_dofs(contribution);
                 const LocalValues local_state =
                     problem.contribution_state(contribution,
-                                               context.state_values);
+                                               state_view);
                 const LocalResidual local_residual =
                     problem.contribution_residual(contribution, local_state);
                 std::array<PetscInt, local_dof_count> dofs{};
@@ -475,7 +527,7 @@ PetscErrorCode form_function(SNES snes, Vec state, Vec residual,
             const PetscInt dof = checked_petsc_int(condition.dof);
             if (dof >= ownership_begin && dof < ownership_end)
                 local_residual[dof - ownership_begin] =
-                    context.state_values[condition.dof] - condition.value;
+                    state_view.value(condition.dof) - condition.value;
         }
         PetscCall(VecRestoreArray(residual, &local_residual));
         PetscCall(scale_residual(residual, context));
@@ -509,15 +561,20 @@ PetscErrorCode form_jacobian(SNES snes, Vec state, Mat jacobian,
         SolverContext& context = *static_cast<SolverContext*>(raw_context);
         const NonlinearProblem& problem = *context.problem;
         PetscCall(gather_state(state, context));
+        const GlobalStateView state_view(problem.dof_count(),
+                                         context.shadow_dofs,
+                                         context.state_values);
 
         PetscCall(MatZeroEntries(jacobian));
         bool local_domain_error = false;
         try {
-            problem.validate_state(context.state_values);
+            problem.validate_local_state(context.contribution_begin,
+                                         context.contribution_end,
+                                         state_view);
             for (std::size_t contribution = context.contribution_begin;
                  contribution < context.contribution_end; ++contribution) {
                 const LocalValues local_state = problem.contribution_state(
-                    contribution, context.state_values);
+                    contribution, state_view);
                 const LocalSystem local_system =
                     problem.linearize_contribution(contribution, local_state);
                 const LocalDofs size_dofs =
@@ -615,8 +672,6 @@ class PetscSolver::Implementation final {
         _context.contribution_begin = problem.contribution_count() * rank / size;
         _context.contribution_end =
             problem.contribution_count() * (rank + 1U) / size;
-        _context.state_values.resize(problem.dof_count());
-        _context.residual_values.resize(problem.dof_count());
         _context.constrained.assign(problem.dof_count(), false);
 
         check_petsc(
@@ -625,12 +680,6 @@ class PetscSolver::Implementation final {
             "VecCreateMPI state");
         check_petsc(VecDuplicate(_objects->state, &_objects->residual),
                     "VecDuplicate residual");
-        check_petsc(VecScatterCreateToAll(
-                        _objects->state, &_objects->state_scatter,
-                        &_objects->gathered_state),
-                    "VecScatterCreateToAll state");
-        _context.state_scatter = _objects->state_scatter;
-        _context.gathered_state = _objects->gathered_state;
 
         PetscInt local_count = 0;
         check_petsc(VecGetLocalSize(_objects->state, &local_count),
@@ -669,6 +718,8 @@ class PetscSolver::Implementation final {
         check_petsc(VecGetOwnershipRange(_objects->state, &ownership_begin,
                                          &ownership_end),
                     "VecGetOwnershipRange state");
+        _context.ownership_begin = ownership_begin;
+        _context.ownership_end = ownership_end;
         for (const DirichletCondition& condition :
              problem.dirichlet_conditions()) {
             const PetscInt dof = checked_petsc_int(condition.dof);
@@ -676,6 +727,68 @@ class PetscSolver::Implementation final {
                 _context.constrained_dofs.push_back(dof);
             _context.constrained[condition.dof] = true;
         }
+        const std::vector<std::size_t> required_dofs =
+            problem.required_state_dofs(_context.contribution_begin,
+                                        _context.contribution_end);
+        _context.shadow_dofs.reserve(required_dofs.size() +
+                                     _context.constrained_dofs.size());
+        for (const std::size_t dof : required_dofs) {
+            if (dof > static_cast<std::size_t>(
+                          std::numeric_limits<std::uint32_t>::max()))
+                throw std::length_error(
+                    "fuelsim shadow DOF index exceeds uint32_t range");
+            _context.shadow_dofs.push_back(
+                static_cast<std::uint32_t>(dof));
+        }
+        for (const PetscInt dof : _context.constrained_dofs)
+            _context.shadow_dofs.push_back(static_cast<std::uint32_t>(dof));
+        std::sort(_context.shadow_dofs.begin(), _context.shadow_dofs.end());
+        _context.shadow_dofs.erase(
+            std::unique(_context.shadow_dofs.begin(),
+                        _context.shadow_dofs.end()),
+            _context.shadow_dofs.end());
+        _context.state_values.resize(_context.shadow_dofs.size());
+        if (_context.rank == 0)
+            _context.residual_values.resize(problem.dof_count());
+
+        std::vector<PetscInt> shadow_indices;
+        shadow_indices.reserve(_context.shadow_dofs.size());
+        for (const std::uint32_t dof : _context.shadow_dofs)
+            shadow_indices.push_back(
+                checked_petsc_int(static_cast<std::size_t>(dof)));
+        const PetscInt shadow_count =
+            checked_petsc_int(_context.shadow_dofs.size());
+        IS source_indices = nullptr;
+        IS destination_indices = nullptr;
+        try {
+            check_petsc(ISCreateGeneral(PETSC_COMM_SELF, shadow_count,
+                                        shadow_indices.data(), PETSC_COPY_VALUES,
+                                        &source_indices),
+                        "ISCreateGeneral shadow state");
+            check_petsc(ISCreateStride(PETSC_COMM_SELF, shadow_count, 0, 1,
+                                       &destination_indices),
+                        "ISCreateStride shadow state");
+            check_petsc(VecCreateSeq(PETSC_COMM_SELF, shadow_count,
+                                     &_objects->gathered_state),
+                        "VecCreateSeq shadow state");
+            check_petsc(VecScatterCreate(
+                            _objects->state, source_indices,
+                            _objects->gathered_state, destination_indices,
+                            &_objects->state_scatter),
+                        "VecScatterCreate shadow state");
+            check_petsc(ISDestroy(&source_indices),
+                        "ISDestroy shadow source");
+            check_petsc(ISDestroy(&destination_indices),
+                        "ISDestroy shadow destination");
+        } catch (...) {
+            if (source_indices != nullptr)
+                (void)ISDestroy(&source_indices);
+            if (destination_indices != nullptr)
+                (void)ISDestroy(&destination_indices);
+            throw;
+        }
+        _context.state_scatter = _objects->state_scatter;
+        _context.gathered_state = _objects->gathered_state;
         return true;
     }
 
@@ -934,9 +1047,8 @@ PetscSolver::solve_once(const NonlinearProblem& problem,
     }
     const bool final_domain_error = context.last_function_domain_error;
 
-    check_petsc(gather_state(objects.state, context), "gather_state solution");
-    std::vector<double> solution(problem.dof_count(), 0.0);
-    solution = context.state_values;
+    std::vector<double> solution =
+        gather_complete_state(objects.state, problem.dof_count());
 
     context.timing.total_seconds = seconds_since(total_start);
     SolveResult result;
@@ -1051,6 +1163,35 @@ PetscSolver::solve_once(const NonlinearProblem& problem,
     result.mpi_size = static_cast<int>(context.size);
     result.local_contribution_begin = context.contribution_begin;
     result.local_contribution_end = context.contribution_end;
+    result.global_state_dofs = problem.dof_count();
+    const PetscInt64 local_shadow =
+        static_cast<PetscInt64>(context.shadow_dofs.size());
+    PetscInt64 maximum_shadow = 0;
+    PetscInt64 total_shadow = 0;
+    PetscInt64 local_remote_shadow = 0;
+    for (const std::uint32_t dof : context.shadow_dofs) {
+        const PetscInt petsc_dof =
+            checked_petsc_int(static_cast<std::size_t>(dof));
+        if (petsc_dof < context.ownership_begin ||
+            petsc_dof >= context.ownership_end)
+            ++local_remote_shadow;
+    }
+    PetscInt64 total_remote_shadow = 0;
+    check_mpi(MPIU_Allreduce(&local_shadow, &maximum_shadow, 1, MPIU_INT64,
+                             MPI_MAX, PETSC_COMM_WORLD),
+              "MPIU_Allreduce maximum shadow state");
+    check_mpi(MPIU_Allreduce(&local_shadow, &total_shadow, 1, MPIU_INT64,
+                             MPI_SUM, PETSC_COMM_WORLD),
+              "MPIU_Allreduce total shadow state");
+    check_mpi(MPIU_Allreduce(&local_remote_shadow, &total_remote_shadow, 1,
+                             MPIU_INT64, MPI_SUM, PETSC_COMM_WORLD),
+              "MPIU_Allreduce remote shadow state");
+    result.maximum_shadow_state_dofs =
+        static_cast<std::size_t>(maximum_shadow);
+    result.total_shadow_state_dofs =
+        static_cast<std::size_t>(total_shadow);
+    result.total_remote_shadow_state_dofs =
+        static_cast<std::size_t>(total_remote_shadow);
     return result;
 }
 

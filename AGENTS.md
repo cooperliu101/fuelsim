@@ -107,7 +107,8 @@ follower pressure 另有独立 MOOSE 对比；非共轴耦合塑性—蠕变路�
   跨载荷步保持不变，并与基于初始残量的自动缩放互斥。
 - PETSc Vec、Mat、SNES 和局部贡献装配支持多个 MPI rank；每个贡献只由一个
   rank 计算，不得退化为每个 rank 重复装配全模型。当前 Exodus 读取、问题
-  几何和回调所需完整状态仍在各 rank 复制，输出文件只由 rank 0 写入。
+  几何和 committed 状态仍在各 rank 复制；PETSc 回调只收集本 rank 贡献及
+  接触搜索依赖所需的影子自由度，输出文件只由 rank 0 写入。
 - 不隐式夹持异常材料值或几何值；非法结构输入应明确报错。
 - 界面间隙为 `g=(Rp+urp)-(Rs+urs)`；primary 在外、secondary 在内，开放为
   正、穿透为负。

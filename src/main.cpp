@@ -218,6 +218,12 @@ void write_solver_diagnostics(const fuelsim::SolveResult& solve,
                  solve.augmented_lagrangian_iterations);
     output.value("maximum_contact_penetration",
                  solve.maximum_contact_penetration);
+    output.value("global_state_dofs", solve.global_state_dofs);
+    output.value("maximum_shadow_state_dofs",
+                 solve.maximum_shadow_state_dofs);
+    output.value("total_shadow_state_dofs", solve.total_shadow_state_dofs);
+    output.value("total_remote_shadow_state_dofs",
+                 solve.total_remote_shadow_state_dofs);
     if (solve.used_backtracking_fallback) {
         output.value("basic_failure_category",
                      fuelsim::solve_failure_category_name(

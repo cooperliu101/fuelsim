@@ -2,6 +2,7 @@
 #include "support/steady_fuel_cladding_solver.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <exception>
 #include <iomanip>
 #include <iostream>
@@ -105,6 +106,28 @@ int main(int argc, char** argv) {
                   << result.aggregate_timing.jacobian_evaluations << '\n';
         std::cout << "petsc_workspace_setups="
                   << result.aggregate_timing.workspace_setups << '\n';
+        std::cout << "global_state_dofs=" << result.solve.global_state_dofs
+                  << '\n';
+        std::cout << "maximum_shadow_state_dofs="
+                  << result.solve.maximum_shadow_state_dofs << '\n';
+        std::cout << "total_shadow_state_dofs="
+                  << result.solve.total_shadow_state_dofs << '\n';
+        std::cout << "total_remote_shadow_state_dofs="
+                  << result.solve.total_remote_shadow_state_dofs << '\n';
+        std::cout << "maximum_shadow_state_bytes="
+                  << result.solve.maximum_shadow_state_dofs * sizeof(double)
+                  << '\n';
+        std::cout << "maximum_shadow_workspace_bytes="
+                  << result.solve.maximum_shadow_state_dofs *
+                         (2 * sizeof(double) + sizeof(std::uint32_t))
+                  << '\n';
+        std::cout << "replicated_callback_state_workspace_bytes="
+                  << result.solve.global_state_dofs * 2 * sizeof(double)
+                  << '\n';
+        std::cout << "remote_shadow_bytes_per_callback="
+                  << result.solve.total_remote_shadow_state_dofs *
+                         sizeof(double)
+                  << '\n';
 
         return result.completed && result.solve.converged ? 0 : 1;
     } catch (const std::exception& error) {
