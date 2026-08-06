@@ -14,6 +14,7 @@ files.
 | M1 non-tensor | `m1_fuel_cladding_unstructured_rz_mesh.e` | 528 / 460 | `2a934add4a14eba20375a11bead535843522fbf2fcd5b31dd38c36e0a1ae6f42` |
 | M2.1 | `m21_transient_heat_rz_mesh.e` | 15 / 8 | `bb6615a4c1800cdb64cadc6aad36b8d1dbe4f1f24f4fc114878f5413f39b6fb3` |
 | M2.2 J2 | `m22_j2_plastic_rz_mesh.e` | 4 / 1 | `a5f272294d36767d3d91e74b1471263f444f7b9c9eacb10a3359493538f96a69` |
+| M2.2 J2 unload-reload | `m22_j2_unload_reload_rz_mesh.e` | 4 / 1 | `5446869f913d5e1f35a3a596eb62a6a1181899c0841b5d27bb3936435db6697a` |
 | M2.2 Norton | `m22_norton_creep_rz_mesh.e` | 4 / 1 | `ec33e81651ce9ae3b3cefef8375a4e7256327be1a7ceede813cd3ea1ca7bcec7` |
 | M2.2 coupled displacement | `m22_coupled_plastic_creep_rz_mesh.e` | 4 / 1 | `528411ed474f58b85cc4601a66a3979325beaee93b84f04c7ababaf6ad0a54aa` |
 | M2.2 coupled traction | `m22_coupled_plastic_creep_traction_rz_mesh.e` | 4 / 1 | `664e7f6f8bfddd765db623592bdda769897f71bf3712d7d7b69f09070dd5f984` |
@@ -333,9 +334,19 @@ axial displacement three absolute errors:  0 m
 relative / absolute thresholds:   < 0.1% / < 1e-12 m
 ```
 
-This case verifies the heat-capacity term and time integration. A nonuniform
-manufactured solution is still required before claiming spatial transient
-conduction verification.
+This case verifies the heat-capacity term and time integration. The independent
+`fuelsim_m21_manufactured_heat_tests` supplies the complementary nonuniform
+manufactured solution. It uses
+`T(r,t)=T0+A*r^2+B*t+C*t^2` and the exact axisymmetric source
+`rho*cp*(B+2*C*t)-4*k*A`. Element-interior 3x3 integration avoids relying on
+nodal superconvergence. Radial refinements `4, 8, 16, 32` give relative L2
+errors `1.54859e-3, 3.92355e-4, 9.83286e-5, 2.45880e-5` and observed orders
+`1.98073, 1.99648, 1.99966` against a 50 K reference variation. Time-step
+refinements `0.2, 0.1, 0.05, 0.025 s` give relative L2 errors
+`1.08118e-3, 5.48717e-4, 2.76079e-4, 1.38409e-4` and observed orders
+`0.97847, 0.99098, 0.99614` against a 10 K reference change. The acceptance
+gates require every adjacent spatial order above 1.9 and every temporal order
+above 0.85.
 
 The two displacement reference fields are exactly zero, so relative metrics
 are mathematically undefined. The test uses absolute L2, absolute peak, and
@@ -343,7 +354,7 @@ maximum absolute pointwise error without introducing a denominator floor.
 
 ## M2.2 Norton creep
 
-All four M2.2 MOOSE inputs sample `T`, `disp_x`, and `disp_y` at every node.
+All five M2.2 MOOSE inputs sample `T`, `disp_x`, and `disp_y` at every node.
 The tracked final snapshots and SHA256 values are:
 
 ```text
@@ -466,8 +477,44 @@ acceptance threshold for each:    < 0.1%
 ```
 
 The axial, radial, and hoop plastic strains also have the J2 ratio
-`1 : -0.5 : -0.5`. This monotonic case does not replace a future unload/reload
-history test.
+`1 : -0.5 : -0.5`.
+
+`m22_j2_unload_reload_rz.i` closes the separate history gap with the prescribed
+top-displacement path `0, 2e-6, 0.5e-6, 2.5e-6 m` at times `0, 1, 2, 3 s`.
+Reproduce its tracked 30-step history with:
+
+```bash
+/home/cooper/projects/july/july-opt \
+  -i m22_j2_unload_reload_rz.i \
+  Outputs/file_base=/tmp/m22_j2_unload_reload_rz \
+  Outputs/console=false
+```
+
+The run used July commit
+`a96d73792bee7c5f54eb65e33b04487b24276a27` and executable SHA256
+`1cb3a0fbf5650addd087ceeb8521f82d2ddb11650c0932b7ec274226430e0ee4`.
+The worktree was dirty, so the executable and every tracked input/output hash
+are retained together. `m22_j2_unload_reload_rz_out.csv` contains the initial
+row plus all 30 accepted steps. The automated test compares MOOSE-native axial
+stress, effective plastic strain, all three normal plastic-strain components,
+and top displacement at every accepted step.
+
+```text
+first tensile peak at 1 s:         201.9801980198 MPa
+unloaded stress at 2 s:            -98.01980198020 MPa
+effective plastic strain, 1 to 2 s: 9.900990099010e-4 unchanged
+reloaded effective plastic, 3 s:    1.485148514851e-3
+largest relative L2 error:          1.04e-12 percent
+largest relative absolute peak:     1.45e-12 percent
+largest pointwise relative error:   2.38e-12 percent
+plastic zero-reference points:      5 per compared plastic field
+maximum absolute error there:       0
+acceptance threshold for each:      < 0.1 percent
+```
+
+The negative stress and unchanged committed plastic history isolate elastic
+unloading; the later increase isolates renewed plastic flow. No denominator
+floor is used for the five exact-zero plastic reference values.
 
 ## M2.2 coupled plasticity and creep
 
@@ -861,7 +908,7 @@ outside the claimed envelope.
 
 ## M2 reference environment and conventions
 
-All six M2 reference inputs were syntax-checked and solved with one MPI rank
+All seven M2 reference inputs were syntax-checked and solved with one MPI rank
 and one thread using:
 
 ```text

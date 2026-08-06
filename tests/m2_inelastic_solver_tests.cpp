@@ -8,11 +8,13 @@
 #include <cmath>
 #include <cstddef>
 #include <exception>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <limits>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 namespace {
 
@@ -71,12 +73,12 @@ time_options(const fuelsim::FuelSimCaseDefinition& definition) {
 
 class TransientCaseRun final {
   public:
-    explicit TransientCaseRun(const std::string& input_path)
+    explicit TransientCaseRun(
+        const std::string& input_path,
+        fuelsim::TransientStepObserver* observer = nullptr)
         : _definition(fuelsim::CaseInputReader::read(input_path)),
           _source(fuelsim::ExodusMeshIo::read_quad4(_definition.mesh_file)),
-          _problem(_definition.transient_definition(), _source),
-          _result(fuelsim::solve_transient(_problem, time_options(_definition),
-                                           solver_options(_definition))) {
+          _problem(_definition.transient_definition(), _source) {
         if (_definition.problem != fuelsim::CaseProblem::transient)
             throw std::invalid_argument(
                 "M2.2 comparison requires a transient input card");
@@ -84,6 +86,9 @@ class TransientCaseRun final {
             _problem.region_mesh(0).elements().size() != 1)
             throw std::invalid_argument(
                 "M2.2 comparison input requires one region and one Quad4");
+        _result = fuelsim::solve_transient(
+            _problem, time_options(_definition), solver_options(_definition),
+            observer);
     }
 
     const fuelsim::FuelSimCaseDefinition& definition() const noexcept {
@@ -108,6 +113,156 @@ class TransientCaseRun final {
     fuelsim::TransientProblem _problem;
     fuelsim::TransientResult _result;
 };
+
+struct J2HistoryValue final {
+    double time = 0.0;
+    double axial_displacement = 0.0;
+    double axial_plastic = 0.0;
+    double axial_stress = 0.0;
+    double effective_plastic = 0.0;
+    double hoop_plastic = 0.0;
+    double radial_plastic = 0.0;
+};
+
+class J2HistoryObserver final : public fuelsim::TransientStepObserver {
+  public:
+    void accepted_step(const fuelsim::TransientProblem& problem,
+                       const fuelsim::TransientAcceptedStep& step) override {
+        if (problem.region_count() != 1 ||
+            problem.region_mesh(0).elements().size() != 1)
+            throw std::logic_error(
+                "J2 history observer requires one region and one Quad4");
+        const fuelsim::RegionMesh& mesh = problem.region_mesh(0);
+        const double maximum_z =
+            std::max_element(
+                mesh.nodes().begin(), mesh.nodes().end(),
+                [](const fuelsim::RzPoint& left,
+                   const fuelsim::RzPoint& right) { return left.z < right.z; })
+                ->z;
+        const std::vector<double>& solution = problem.committed_solution();
+        double axial_displacement = 0.0;
+        std::size_t top_node_count = 0;
+        for (std::size_t node = 0; node < mesh.nodes().size(); ++node) {
+            if (mesh.nodes()[node].z != maximum_z)
+                continue;
+            axial_displacement +=
+                solution.at(problem.dof_map().axial_displacement(node));
+            ++top_node_count;
+        }
+        if (top_node_count == 0)
+            throw std::logic_error("J2 history mesh has no top nodes");
+
+        J2HistoryValue value;
+        value.time = step.time;
+        value.axial_displacement =
+            axial_displacement / static_cast<double>(top_node_count);
+        const std::array<fuelsim::AxisymmetricStressValues, 4>& stresses =
+            problem.material_stress(0, 0);
+        const fuelsim::Quad4MaterialHistory& history =
+            problem.material_history(0, 0);
+        for (std::size_t point = 0; point < history.size(); ++point) {
+            value.axial_stress += stresses[point].zz / 4.0;
+            value.effective_plastic +=
+                history[point].equivalent_plastic_strain / 4.0;
+            value.radial_plastic += history[point].plastic_strain[0] / 4.0;
+            value.axial_plastic += history[point].plastic_strain[1] / 4.0;
+            value.hoop_plastic += history[point].plastic_strain[2] / 4.0;
+        }
+        _values.push_back(value);
+    }
+
+    const std::vector<J2HistoryValue>& values() const noexcept {
+        return _values;
+    }
+
+  private:
+    std::vector<J2HistoryValue> _values;
+};
+
+std::vector<std::string> split_csv_line(const std::string& line) {
+    std::vector<std::string> fields;
+    std::size_t begin = 0;
+    for (;;) {
+        const std::size_t separator = line.find(',', begin);
+        fields.push_back(line.substr(begin, separator - begin));
+        if (separator == std::string::npos)
+            return fields;
+        begin = separator + 1;
+    }
+}
+
+std::size_t csv_column(const std::vector<std::string>& header,
+                       const std::string& name) {
+    const auto found = std::find(header.begin(), header.end(), name);
+    if (found == header.end())
+        throw std::invalid_argument("MOOSE history CSV is missing column '" +
+                                    name + "'");
+    return static_cast<std::size_t>(found - header.begin());
+}
+
+double csv_value(const std::vector<std::string>& fields, std::size_t column,
+                 const std::string& path) {
+    if (column >= fields.size())
+        throw std::invalid_argument("MOOSE history CSV row is too short: " +
+                                    path);
+    std::size_t parsed = 0;
+    const double value = std::stod(fields[column], &parsed);
+    if (parsed != fields[column].size() || !std::isfinite(value))
+        throw std::invalid_argument(
+            "MOOSE history CSV contains an invalid number: " + path);
+    return value;
+}
+
+std::vector<J2HistoryValue> read_j2_history(const std::string& path) {
+    std::ifstream input(path);
+    if (!input)
+        throw std::runtime_error("Could not read MOOSE J2 history: " + path);
+    std::string line;
+    if (!std::getline(input, line))
+        throw std::invalid_argument("MOOSE J2 history is empty: " + path);
+    const std::vector<std::string> header = split_csv_line(line);
+    const std::size_t time = csv_column(header, "time");
+    const std::size_t axial_displacement =
+        csv_column(header, "axial_displacement");
+    const std::size_t axial_plastic = csv_column(header, "axial_plastic");
+    const std::size_t axial_stress = csv_column(header, "axial_stress");
+    const std::size_t effective_plastic =
+        csv_column(header, "effective_plastic");
+    const std::size_t hoop_plastic = csv_column(header, "hoop_plastic");
+    const std::size_t radial_plastic = csv_column(header, "radial_plastic");
+    std::vector<J2HistoryValue> values;
+    while (std::getline(input, line)) {
+        if (line.empty())
+            continue;
+        const std::vector<std::string> fields = split_csv_line(line);
+        const J2HistoryValue value{
+            csv_value(fields, time, path),
+            csv_value(fields, axial_displacement, path),
+            csv_value(fields, axial_plastic, path),
+            csv_value(fields, axial_stress, path),
+            csv_value(fields, effective_plastic, path),
+            csv_value(fields, hoop_plastic, path),
+            csv_value(fields, radial_plastic, path)};
+        if (value.time > 0.0)
+            values.push_back(value);
+    }
+    if (values.empty())
+        throw std::invalid_argument(
+            "MOOSE J2 history contains no accepted time steps: " + path);
+    return values;
+}
+
+bool check_history_metrics(
+    const std::string& name,
+    const fuelsim::test::FieldErrorMetrics& metrics, double tolerance,
+    double zero_reference_absolute_tolerance) {
+    fuelsim::test::print_relative_metrics(name, metrics);
+    return check(fuelsim::test::relative_metrics_below(metrics, tolerance) &&
+                     metrics.maximum_zero_reference_difference <=
+                         zero_reference_absolute_tolerance,
+                 name +
+                     " history three MOOSE error metrics and zero references pass");
+}
 
 double average_axial_stress(const TransientCaseRun& run) {
     double value = 0.0;
@@ -249,6 +404,108 @@ bool test_j2_moose_comparison(const std::string& input_path,
     return passed;
 }
 
+bool test_j2_unload_reload_moose_comparison(
+    const std::string& input_path, const std::string& nodal_reference_path,
+    const std::string& history_reference_path) {
+    J2HistoryObserver observer;
+    const TransientCaseRun run(input_path, &observer);
+    const std::vector<J2HistoryValue> reference =
+        read_j2_history(history_reference_path);
+    const std::vector<J2HistoryValue>& actual = observer.values();
+
+    bool passed = common_run_checks("j2_unload_reload", run, 30,
+                                    nodal_reference_path);
+    passed = check(actual.size() == reference.size() && actual.size() == 30,
+                   "J2 unload-reload compares all 30 accepted MOOSE steps") &&
+             passed;
+    if (actual.size() != reference.size())
+        return false;
+
+    fuelsim::test::FieldErrorMetrics axial_displacement;
+    fuelsim::test::FieldErrorMetrics axial_plastic;
+    fuelsim::test::FieldErrorMetrics axial_stress;
+    fuelsim::test::FieldErrorMetrics effective_plastic;
+    fuelsim::test::FieldErrorMetrics hoop_plastic;
+    fuelsim::test::FieldErrorMetrics radial_plastic;
+    double maximum_time_difference = 0.0;
+    for (std::size_t step = 0; step < actual.size(); ++step) {
+        maximum_time_difference =
+            std::max(maximum_time_difference,
+                     std::abs(actual[step].time - reference[step].time));
+        axial_displacement.add(actual[step].axial_displacement,
+                               reference[step].axial_displacement);
+        axial_plastic.add(actual[step].axial_plastic,
+                          reference[step].axial_plastic);
+        axial_stress.add(actual[step].axial_stress,
+                         reference[step].axial_stress);
+        effective_plastic.add(actual[step].effective_plastic,
+                              reference[step].effective_plastic);
+        hoop_plastic.add(actual[step].hoop_plastic,
+                         reference[step].hoop_plastic);
+        radial_plastic.add(actual[step].radial_plastic,
+                           reference[step].radial_plastic);
+    }
+    std::cout << "m22_j2_unload_reload_maximum_time_difference="
+              << maximum_time_difference << '\n';
+    passed = check(maximum_time_difference < 1.0e-12,
+                   "J2 unload-reload time coordinates match MOOSE") &&
+             passed;
+    passed = check_history_metrics("m22_j2_unload_reload_axial_displacement",
+                                   axial_displacement,
+                                   moose_relative_tolerance, 0.0) &&
+             passed;
+    passed = check_history_metrics("m22_j2_unload_reload_axial_plastic",
+                                   axial_plastic, moose_relative_tolerance,
+                                   1.0e-14) &&
+             passed;
+    passed = check_history_metrics("m22_j2_unload_reload_axial_stress",
+                                   axial_stress, moose_relative_tolerance,
+                                   1.0e-6) &&
+             passed;
+    passed = check_history_metrics("m22_j2_unload_reload_effective_plastic",
+                                   effective_plastic,
+                                   moose_relative_tolerance, 1.0e-14) &&
+             passed;
+    passed = check_history_metrics("m22_j2_unload_reload_hoop_plastic",
+                                   hoop_plastic, moose_relative_tolerance,
+                                   1.0e-14) &&
+             passed;
+    passed = check_history_metrics("m22_j2_unload_reload_radial_plastic",
+                                   radial_plastic, moose_relative_tolerance,
+                                   1.0e-14) &&
+             passed;
+
+    const J2HistoryValue& first_peak = actual.at(9);
+    const J2HistoryValue& unloaded = actual.at(19);
+    const J2HistoryValue& reloaded = actual.at(29);
+    std::cout << "m22_j2_unload_reload_first_peak_stress="
+              << first_peak.axial_stress << '\n';
+    std::cout << "m22_j2_unload_reload_unloaded_stress="
+              << unloaded.axial_stress << '\n';
+    std::cout << "m22_j2_unload_reload_first_peak_effective_plastic="
+              << first_peak.effective_plastic << '\n';
+    std::cout << "m22_j2_unload_reload_unloaded_effective_plastic="
+              << unloaded.effective_plastic << '\n';
+    std::cout << "m22_j2_unload_reload_reloaded_effective_plastic="
+              << reloaded.effective_plastic << '\n';
+    passed = check(first_peak.axial_stress > 2.0e8 &&
+                       unloaded.axial_stress < 0.0,
+                   "J2 path reaches tensile plasticity then reverses stress during unload") &&
+             passed;
+    passed = check(std::abs(unloaded.effective_plastic -
+                            first_peak.effective_plastic) < 1.0e-14,
+                   "J2 elastic unload preserves committed equivalent plastic strain") &&
+             passed;
+    passed = check(reloaded.effective_plastic >
+                       first_peak.effective_plastic,
+                   "J2 reload activates additional plastic strain") &&
+             passed;
+    passed = check(maximum_inelastic_trace(run, true) < 1.0e-12,
+                   "J2 unload-reload plastic strain remains trace-free") &&
+             passed;
+    return passed;
+}
+
 bool test_norton_moose_comparison(const std::string& input_path,
                                   const std::string& nodal_reference_path) {
     constexpr double moose_axial_stress = 99998007.620195;
@@ -360,12 +617,14 @@ bool test_coupled_moose_comparison(const std::string& displacement_input,
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 9) {
+    if (argc != 12) {
         std::cerr << "Usage: fuelsim_m2_inelastic_solver_tests "
                      "<j2.fsi> <norton.fsi> <coupled_displacement.fsi> "
                      "<coupled_traction.fsi> <j2-nodes.csv> "
                      "<norton-nodes.csv> <coupled-displacement-nodes.csv> "
-                     "<coupled-traction-nodes.csv>\n";
+                     "<coupled-traction-nodes.csv> <j2-unload-reload.fsi> "
+                     "<j2-unload-reload-nodes.csv> "
+                     "<j2-unload-reload-history.csv>\n";
         return 2;
     }
     try {
@@ -377,6 +636,9 @@ int main(int argc, char** argv) {
         passed =
             test_coupled_moose_comparison(argv[3], argv[4], argv[7], argv[8]) &&
             passed;
+        passed = test_j2_unload_reload_moose_comparison(
+                     argv[9], argv[10], argv[11]) &&
+                 passed;
         if (!passed)
             return 1;
         std::cout << "[PASS] input-card M2.2 MOOSE comparison tests\n";

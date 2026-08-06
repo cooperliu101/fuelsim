@@ -474,6 +474,7 @@ committed 初值上装配解析方向导数，并与中心差分比较。输出�
 - [`transient_heat_moose.fsi`](../verification/fuelsim/transient_heat_moose.fsi)
 - [`transient_table_convection_moose.fsi`](../verification/fuelsim/transient_table_convection_moose.fsi)
 - [`transient_j2_plastic_moose.fsi`](../verification/fuelsim/transient_j2_plastic_moose.fsi)
+- [`transient_j2_unload_reload_moose.fsi`](../verification/fuelsim/transient_j2_unload_reload_moose.fsi)
 - [`transient_norton_creep_moose.fsi`](../verification/fuelsim/transient_norton_creep_moose.fsi)
 - [`transient_coupled_displacement_moose.fsi`](../verification/fuelsim/transient_coupled_displacement_moose.fsi)
 - [`transient_coupled_traction_moose.fsi`](../verification/fuelsim/transient_coupled_traction_moose.fsi)
@@ -482,7 +483,7 @@ committed 初值上装配解析方向导数，并与中心差分比较。输出�
 - [`steady_finite_follower_pressure.fsi`](../verification/fuelsim/steady_finite_follower_pressure.fsi)
 - [`transient_noncoaxial_finite_strain.fsi`](../verification/fuelsim/transient_noncoaxial_finite_strain.fsi)
 
-上述十五张卡分别驱动 M0、两套 M1、M5.4、M2.1、M3.1、四套 M2.2、M2.3、
+上述十六张卡分别驱动 M0、两套 M1、M5.4、M2.1、M3.1、五套 M2.2、M2.3、
 M3.3、M4.1、M4.2 和 M4.3 的
 fuelsim-to-MOOSE 对比；测试程序不再直接构造这些案例的材料、载荷路径或
 网格选择参数。每个对比读取 MOOSE 最终时刻的全部节点，统一检查温度、

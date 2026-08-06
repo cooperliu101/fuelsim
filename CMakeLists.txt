@@ -597,6 +597,20 @@ if(BUILD_TESTING)
     )
     set_tests_properties(fuelsim_m2_solver_tests PROPERTIES LABELS "acceptance")
 
+    add_executable(fuelsim_m21_manufactured_heat_tests
+        tests/m21_manufactured_heat_tests.cpp
+    )
+    target_link_libraries(fuelsim_m21_manufactured_heat_tests
+        PRIVATE fuelsim::petsc
+    )
+    fuelsim_enable_warnings(fuelsim_m21_manufactured_heat_tests)
+    add_test(NAME fuelsim_m21_manufactured_heat_tests
+        COMMAND fuelsim_m21_manufactured_heat_tests
+    )
+    set_tests_properties(fuelsim_m21_manufactured_heat_tests
+        PROPERTIES LABELS "acceptance"
+    )
+
     add_executable(fuelsim_m2_inelastic_solver_tests
         tests/m2_inelastic_solver_tests.cpp
     )
@@ -618,6 +632,9 @@ if(BUILD_TESTING)
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m22_norton_creep_rz_all_nodes_final.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m22_coupled_plastic_creep_rz_all_nodes_final.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m22_coupled_plastic_creep_traction_rz_all_nodes_final.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_j2_unload_reload_moose.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m22_j2_unload_reload_rz_all_nodes_final.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m22_j2_unload_reload_rz_out.csv"
     )
     set_tests_properties(fuelsim_m2_inelastic_solver_tests
         PROPERTIES LABELS "acceptance"
