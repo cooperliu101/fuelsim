@@ -94,6 +94,10 @@
     order = CONSTANT
     family = MONOMIAL
   []
+  [sample_time_nodal]
+    order = FIRST
+    family = LAGRANGE
+  []
 []
 
 [Physics/SolidMechanics/QuasiStatic]
@@ -276,6 +280,13 @@
     use_displaced_mesh = false
     execute_on = timestep_end
   []
+  [sample_time_nodal]
+    type = FunctionAux
+    variable = sample_time_nodal
+    function = output_time
+    use_displaced_mesh = false
+    execute_on = timestep_end
+  []
 []
 
 [BCs]
@@ -400,6 +411,14 @@
     type = NodalValueSampler
     variable = 'T disp_x disp_y'
     sort_by = id
+    use_displaced_mesh = false
+  []
+  [all_nodes_history]
+    type = NodalValueSampler
+    variable = 'sample_time_nodal T disp_x disp_y'
+    sort_by = sample_time_nodal
+    contains_complete_history = true
+    execute_on = timestep_end
     use_displaced_mesh = false
   []
 []

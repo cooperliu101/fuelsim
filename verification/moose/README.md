@@ -829,7 +829,16 @@ gives `0.000525%`; adding the component traction gives `0.000525%`. The
 creep-only stress crosses zero during reversal, so its maximum pointwise
 relative error is `3.6755%` despite a `0.000369%` L2 error and a `0.165 MPa`
 maximum absolute difference; that diagnostic alone uses an explicit `4%`
-pointwise qualified gate. The
+pointwise qualified gate. For that variant the tracked
+`m43_creep_displacement_rz_nodal_history.csv` contains all nine nodes at all
+100 time steps. Replaying those 900 nodal states through fuelsim's production
+transient material transaction reduces the stress relative L2 and maximum
+pointwise relative errors to `5.15e-8%` and `0.000602%`; all other replayed
+history pointwise errors are below `0.000210%`. The MOOSE states also satisfy
+the fuelsim free mechanical weak form to `0.001419%` of the local-force scale.
+This isolates the original `3.6755%` value to low-stress zero-crossing
+amplification between independently equilibrated paths, not a reproduced
+Norton update defect. The
 single-element, fully prescribed noncoaxial material oracle agrees at near
 roundoff: tensor maximum pointwise relative errors are below `3.4e-7%`, and
 the largest metric is the equivalent-creep pointwise error `0.000265%`.
