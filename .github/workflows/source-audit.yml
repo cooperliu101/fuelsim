@@ -1,4 +1,4 @@
-name: source-audit
+name: fuelsim-ci
 
 on:
   push:
@@ -18,7 +18,56 @@ jobs:
           -DMANIFEST=${{ github.workspace }}/verification/moose/SHA256SUMS
           -P ${{ github.workspace }}/cmake/VerifySha256.cmake
 
-# The full numerical suite requires the separately installed ADlite, PETSc/MUMPS,
-# and Exodus stack documented in AGENTS.md. Release qualification still runs that
-# suite in the controlled fuelsim environment; this portable job guards source and
-# tracked-reference integrity on every push and pull request.
+  numerical-regression:
+    name: numerical-${{ matrix.configuration }}
+    runs-on: [self-hosted, linux, x64, fuelsim]
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - configuration: release
+            build_type: Release
+            sanitizers: "OFF"
+          - configuration: sanitizer
+            build_type: Debug
+            sanitizers: "ON"
+    env:
+      FUELSIM_TOOLCHAIN_PREFIX: ${{ vars.FUELSIM_TOOLCHAIN_PREFIX }}
+      FUELSIM_DEPENDENCY_ROOT: ${{ vars.FUELSIM_DEPENDENCY_ROOT }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate pinned dependency installation
+        shell: bash
+        run: |
+          test -n "${FUELSIM_TOOLCHAIN_PREFIX}"
+          test -n "${FUELSIM_DEPENDENCY_ROOT}"
+          test -x "${FUELSIM_TOOLCHAIN_PREFIX}/bin/c++"
+          test -f "${FUELSIM_DEPENDENCY_ROOT}/adlite-a3778d2/lib/cmake/adlite/adliteConfig.cmake"
+          test -f "${FUELSIM_DEPENDENCY_ROOT}/exodus-2024-06-27/lib/cmake/SEACASExodus/SEACASExodusConfig.cmake"
+      - name: Configure ${{ matrix.configuration }}
+        shell: bash
+        run: |
+          env \
+            PATH="${FUELSIM_TOOLCHAIN_PREFIX}/bin:/usr/local/bin:/usr/bin:/bin" \
+            PKG_CONFIG_PATH="${FUELSIM_TOOLCHAIN_PREFIX}/lib/pkgconfig" \
+            cmake -S . -B "build-ci-${{ matrix.configuration }}" \
+              -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+              -DCMAKE_CXX_COMPILER="${FUELSIM_TOOLCHAIN_PREFIX}/bin/c++" \
+              -DCMAKE_PREFIX_PATH="${FUELSIM_DEPENDENCY_ROOT}/adlite-a3778d2" \
+              -DSEACASExodus_DIR="${FUELSIM_DEPENDENCY_ROOT}/exodus-2024-06-27/lib/cmake/SEACASExodus" \
+              -DFUELSIM_ENABLE_SANITIZERS=${{ matrix.sanitizers }} \
+              -DFUELSIM_WARNINGS_AS_ERRORS=ON
+      - name: Build ${{ matrix.configuration }}
+        run: cmake --build "build-ci-${{ matrix.configuration }}" --parallel 4
+      - name: Run Release CTest
+        if: matrix.configuration == 'release'
+        run: ctest --test-dir build-ci-release --output-on-failure
+      - name: Run sanitizer CTest
+        if: matrix.configuration == 'sanitizer'
+        shell: bash
+        run: |
+          ASAN_OPTIONS=detect_leaks=0 \
+          MPIR_CVAR_CH4_NETMOD=ofi \
+          FI_PROVIDER=tcp \
+            ctest --test-dir build-ci-sanitizer --output-on-failure

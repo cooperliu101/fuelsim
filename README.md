@@ -67,51 +67,35 @@ C++ 模板，不引入 Eigen、Boost、JSON/YAML、日志库或第三方测试�
 
 ## 构建
 
-先安装 ADlite 到临时前缀：
+完整的换机复现步骤、固定版本、依赖校验和持续集成执行器设置见
+[可复现构建与持续集成](docs/reproducible-build.md)。固定的 Linux 构建环境由
+`dependencies/moose-2026.06.16-linux-64.yml` 创建；ADlite 和 Exodus 分别由
+`scripts/install_adlite.sh` 与 `scripts/build_exodus.sh` 安装到持久前缀。
+
+在已经完成依赖安装并激活固定 MOOSE 环境后，设置三个任务专用路径：
 
 ```bash
-source /home/cooper/miniforge/etc/profile.d/conda.sh
-conda activate moose
-
-cmake -S /home/cooper/ai_project/ADlite \
-  -B /tmp/adlite-fuelsim-build \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DBUILD_TESTING=OFF \
-  -DADLITE_BUILD_EXAMPLES=OFF
-cmake --build /tmp/adlite-fuelsim-build --parallel
-cmake --install /tmp/adlite-fuelsim-build \
-  --prefix /tmp/adlite-fuelsim-install
+fuelsim_toolchain_prefix="${CONDA_PREFIX}"
+fuelsim_dependency_root="$(cd .. && pwd)/fuelsim-dependencies"
 ```
 
 ### 主开发入口：旧 PETSc + 直接 Exodus API
 
 PETSc 只负责求解，不需要启用 Exodus。Exodus 单独构建为串行 I/O 库并复用
-`moose` Conda 环境中的 NetCDF；fuelsim 不使用 DMPlex，也不使用
-`PetscViewerExodusII`。先安装独立 Exodus：
-
-```bash
-git clone --branch v2024-06-27 --depth 1 \
-  https://github.com/gsjaardema/seacas.git /tmp/seacas-exodus-src
-
-./scripts/build_exodus.sh \
-  /tmp/seacas-exodus-src \
-  /home/cooper/.local/exodus-2024-06-27 \
-  /home/cooper/miniforge/envs/moose
-```
-
-然后使用原 Conda PETSc 构建 fuelsim：
+固定 MOOSE Conda 环境中的 NetCDF；fuelsim 不使用 DMPlex，也不使用
+`PetscViewerExodusII`。使用该环境中的 PETSc 构建 fuelsim：
 
 ```bash
 env \
-  PATH=/home/cooper/miniforge/envs/moose/bin:/usr/local/bin:/usr/bin:/bin \
-  PKG_CONFIG_PATH=/home/cooper/miniforge/envs/moose/lib/pkgconfig \
+  PATH="${fuelsim_toolchain_prefix}/bin:/usr/local/bin:/usr/bin:/bin" \
+  PKG_CONFIG_PATH="${fuelsim_toolchain_prefix}/lib/pkgconfig" \
   cmake -S . -B build \
     -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_CXX_COMPILER=/home/cooper/miniforge/envs/moose/bin/c++ \
-    -DCMAKE_PREFIX_PATH=/tmp/adlite-fuelsim-install \
-    -DSEACASExodus_DIR=/home/cooper/.local/exodus-2024-06-27/lib/cmake/SEACASExodus
+    -DCMAKE_CXX_COMPILER="${fuelsim_toolchain_prefix}/bin/c++" \
+    -DCMAKE_PREFIX_PATH="${fuelsim_dependency_root}/adlite-a3778d2" \
+    -DSEACASExodus_DIR="${fuelsim_dependency_root}/exodus-2024-06-27/lib/cmake/SEACASExodus"
 
-env PATH=/home/cooper/miniforge/envs/moose/bin:/usr/local/bin:/usr/bin:/bin \
+env PATH="${fuelsim_toolchain_prefix}/bin:/usr/local/bin:/usr/bin:/bin" \
   cmake --build build --parallel
 
 ctest --test-dir build --output-on-failure

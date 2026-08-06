@@ -801,6 +801,16 @@ if(BUILD_TESTING)
         PROPERTIES LABELS "integration"
     )
 
+    find_program(FUELSIM_BASH_EXECUTABLE bash REQUIRED)
+    add_test(NAME fuelsim_reproducible_build_tests
+        COMMAND "${FUELSIM_BASH_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/reproducible_build_tests.sh"
+            "${CMAKE_CURRENT_SOURCE_DIR}"
+    )
+    set_tests_properties(fuelsim_reproducible_build_tests PROPERTIES
+        LABELS "audit;release"
+    )
+
     get_property(FUELSIM_REGISTERED_TESTS DIRECTORY PROPERTY TESTS)
     list(JOIN FUELSIM_REGISTERED_TESTS "\n" FUELSIM_REGISTERED_TEST_TEXT)
     file(GENERATE

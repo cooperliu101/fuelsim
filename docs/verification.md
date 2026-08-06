@@ -100,17 +100,23 @@ M5.6 在两个 MPI 进程、固定 CPU 0 和 1、所有数值库单线程条件�
 规定环境中的候选提交至少执行：
 
 ```bash
+fuelsim_toolchain_prefix="${CONDA_PREFIX}"
+fuelsim_dependency_root="$(cd .. && pwd)/fuelsim-dependencies"
+
 env \
-  PATH=/home/cooper/miniforge/envs/moose/bin:/usr/local/bin:/usr/bin:/bin \
-  PKG_CONFIG_PATH=/home/cooper/miniforge/envs/moose/lib/pkgconfig \
+  PATH="${fuelsim_toolchain_prefix}/bin:/usr/local/bin:/usr/bin:/bin" \
+  PKG_CONFIG_PATH="${fuelsim_toolchain_prefix}/lib/pkgconfig" \
   cmake -S . -B build \
   -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_CXX_COMPILER=/home/cooper/miniforge/envs/moose/bin/c++ \
-  -DCMAKE_PREFIX_PATH=/tmp/adlite-fuelsim-install \
-  -DSEACASExodus_DIR=/home/cooper/.local/exodus-2024-06-27/lib/cmake/SEACASExodus
+  -DCMAKE_CXX_COMPILER="${fuelsim_toolchain_prefix}/bin/c++" \
+  -DCMAKE_PREFIX_PATH="${fuelsim_dependency_root}/adlite-a3778d2" \
+  -DSEACASExodus_DIR="${fuelsim_dependency_root}/exodus-2024-06-27/lib/cmake/SEACASExodus"
 cmake --build build --parallel
 ctest --test-dir build --output-on-failure
 ```
+
+固定依赖的首次安装、检测器配置和持续集成执行器变量见
+`docs/reproducible-build.md`。
 
 涉及性能的候选还必须按 `benchmarks/README.md` 固定 CPU 和全部线程环境变量，
 完成 1,584 DOF 配对计时以及 23,010 DOF、20 步工况。MPI 沙盒初始化失败需在

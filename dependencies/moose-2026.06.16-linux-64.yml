@@ -1,0 +1,11 @@
+name: fuelsim-moose-2026.06.16
+channels:
+  - https://conda.software.inl.gov/public
+  - conda-forge
+dependencies:
+  - moose-dev=2026.06.16=mpich
+  - cmake=4.3.4
+  - gcc=14.3.0
+  - gxx=14.3.0
+  - ninja=1.13.2
+  - pkg-config=0.29.2
