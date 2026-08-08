@@ -571,11 +571,11 @@ bool test_gap_heat_and_normal_contact() {
         {0.004122, 0.001002},
     }};
     const fuelsim::Line2RzHeatGeometry heat_geometry =
-        fuelsim::make_line2_rz_heat_geometry(fuel, cladding);
+        fuelsim::make_line2_rz_heat_geometry(fuel, cladding, 0.0);
     const fuelsim::Line2RzGapHeatKernel heat_kernel({0.4, 1.0e-6});
     const fuelsim::NodeToLineRzContactGeometry contact_geometry =
         fuelsim::make_node_to_line_rz_contact_geometry(fuel, cladding, 1,
-                                                       true, false);
+                                                       true, false, 0.0);
     const fuelsim::NodeToLineRzContactKernel contact_kernel({1.0e14});
 
     const fuelsim::LocalValues open_state = {
@@ -634,7 +634,7 @@ bool test_gap_heat_and_normal_contact() {
 
     const fuelsim::NodeToLineRzContactGeometry radial_endpoint_geometry =
         fuelsim::make_node_to_line_rz_contact_geometry(fuel, cladding, 0,
-                                                       true, true);
+                                                       true, true, 0.0);
     fuelsim::LocalValues radial_endpoint_state = closed_state;
     radial_endpoint_state[8] = -5.0e-16;
     const fuelsim::ContactPointValue radial_endpoint =
@@ -643,6 +643,99 @@ bool test_gap_heat_and_normal_contact() {
     passed = check(radial_endpoint.projected,
                    "radial NTS reference endpoint retains projection after "
                    "roundoff-scale axial motion") &&
+             passed;
+
+    // A side that is vertical in the reference mesh need not remain vertical.
+    // Unequal radial displacement of its primary endpoints must therefore use
+    // the current inclined normal instead of a reference-geometry shortcut.
+    fuelsim::LocalValues current_sloped_state = closed_state;
+    current_sloped_state[4] = 20.0e-6;
+    current_sloped_state[5] = 20.0e-6;
+    current_sloped_state[6] = 0.0;
+    current_sloped_state[7] = 10.0e-6;
+    passed = test_heat_interface_case("current_sloped_reference_vertical",
+                                      heat_kernel, heat_geometry,
+                                      current_sloped_state) &&
+             test_contact_interface_case(
+                 "current_sloped_reference_vertical", contact_kernel,
+                 contact_geometry, current_sloped_state) &&
+             passed;
+    const fuelsim::HeatQuadratureValues current_sloped_heat_values =
+        heat_kernel.quadrature_values(heat_geometry, current_sloped_state);
+    const fuelsim::LocalResidual current_sloped_heat_residual =
+        heat_kernel.residual(heat_geometry, current_sloped_state);
+    double expected_current_primary_node_1 = 0.0;
+    double fixed_reference_primary_node_1 = 0.0;
+    for (std::size_t q = 0; q < heat_geometry.points.size(); ++q) {
+        const fuelsim::Line2RzHeatQuadraturePoint& point =
+            heat_geometry.points[q];
+        const double secondary_r =
+            point.secondary_shape[0] *
+                (heat_geometry.secondary_coordinates[0].r +
+                 current_sloped_state[4]) +
+            point.secondary_shape[1] *
+                (heat_geometry.secondary_coordinates[1].r +
+                 current_sloped_state[5]);
+        const double secondary_z =
+            point.secondary_shape[0] *
+                (heat_geometry.secondary_coordinates[0].z +
+                 current_sloped_state[8]) +
+            point.secondary_shape[1] *
+                (heat_geometry.secondary_coordinates[1].z +
+                 current_sloped_state[9]);
+        const double primary_r_0 =
+            heat_geometry.primary_coordinates[0].r + current_sloped_state[6];
+        const double primary_r_1 =
+            heat_geometry.primary_coordinates[1].r + current_sloped_state[7];
+        const double primary_z_0 =
+            heat_geometry.primary_coordinates[0].z + current_sloped_state[10];
+        const double primary_z_1 =
+            heat_geometry.primary_coordinates[1].z + current_sloped_state[11];
+        const double tangent_r = primary_r_1 - primary_r_0;
+        const double tangent_z = primary_z_1 - primary_z_0;
+        const double fraction =
+            ((secondary_r - primary_r_0) * tangent_r +
+             (secondary_z - primary_z_0) * tangent_z) /
+            (tangent_r * tangent_r + tangent_z * tangent_z);
+        const double heat_rate = current_sloped_heat_values[q].heat_flux *
+                                 current_sloped_heat_values[q].weighted_measure;
+        expected_current_primary_node_1 -= fraction * heat_rate;
+        fixed_reference_primary_node_1 -= point.primary_shape[1] * heat_rate;
+    }
+    passed =
+        check(scaled_error(current_sloped_heat_residual[3],
+                           expected_current_primary_node_1) < 1.0e-13 &&
+                  scaled_error(current_sloped_heat_residual[3],
+                               fixed_reference_primary_node_1) > 1.0e-6,
+              "thermal contact uses current primary projection rather than "
+              "the reference interpolation fraction") &&
+        passed;
+
+    fuelsim::LocalValues thermal_projection_lost_state = open_state;
+    thermal_projection_lost_state[10] = 0.45e-3;
+    thermal_projection_lost_state[11] = -0.45e-3;
+    passed = test_heat_interface_case("current_projection_endpoint_clamp",
+                                      heat_kernel, heat_geometry,
+                                      thermal_projection_lost_state) &&
+             passed;
+    const fuelsim::LocalResidual clamped_heat_residual = heat_kernel.residual(
+        heat_geometry, thermal_projection_lost_state);
+    passed = check(clamped_heat_residual[2] < 0.0 &&
+                       clamped_heat_residual[3] < 0.0,
+                   "thermal quadrature points that cross opposite ends remain "
+                   "uniquely assigned to the owned primary endpoints") &&
+             passed;
+    const fuelsim::ContactPointValue current_sloped_contact =
+        contact_kernel.value(contact_geometry, current_sloped_state,
+                             current_sloped_state, {});
+    const fuelsim::LocalResidual current_sloped_residual =
+        contact_kernel.residual(contact_geometry, current_sloped_state,
+                                current_sloped_state, {});
+    passed = check(current_sloped_contact.projected &&
+                       current_sloped_contact.pressure > 0.0 &&
+                       std::abs(current_sloped_residual[9]) > 0.0,
+                   "reference-vertical contact follows the inclined current "
+                   "primary normal in both RZ equations") &&
              passed;
 
     const fuelsim::Line2InterfaceSideCoordinates vertex_secondary = {{
@@ -659,10 +752,10 @@ bool test_gap_heat_and_normal_contact() {
     }};
     const fuelsim::NodeToLineRzContactGeometry vertex_lower_geometry =
         fuelsim::make_node_to_line_rz_contact_geometry(
-            vertex_secondary, vertex_primary_lower, 1, true, false);
+            vertex_secondary, vertex_primary_lower, 1, true, false, 0.0);
     const fuelsim::NodeToLineRzContactGeometry vertex_upper_geometry =
         fuelsim::make_node_to_line_rz_contact_geometry(
-            vertex_secondary, vertex_primary_upper, 1, false, false);
+            vertex_secondary, vertex_primary_upper, 1, false, false, 0.0);
     fuelsim::LocalValues vertex_state{};
     vertex_state[5] = 3.0e-6;
     const fuelsim::ContactPointValue vertex_lower_reference =
@@ -710,10 +803,10 @@ bool test_gap_heat_and_normal_contact() {
     }};
     const fuelsim::NodeToLineRzContactGeometry general_lower_geometry =
         fuelsim::make_node_to_line_rz_contact_geometry(
-            general_secondary, general_primary_lower, 1, true, false);
+            general_secondary, general_primary_lower, 1, true, false, 0.0);
     const fuelsim::NodeToLineRzContactGeometry general_upper_geometry =
         fuelsim::make_node_to_line_rz_contact_geometry(
-            general_secondary, general_primary_upper, 1, false, true);
+            general_secondary, general_primary_upper, 1, false, true, 0.0);
     fuelsim::LocalValues general_vertex_state{};
     const fuelsim::ContactPointValue general_lower_reference =
         contact_kernel.value(general_lower_geometry, general_vertex_state,
@@ -747,10 +840,10 @@ bool test_gap_heat_and_normal_contact() {
         {0.0041, 0.001002},
     }};
     const fuelsim::Line2RzHeatGeometry axial_heat_geometry =
-        fuelsim::make_line2_rz_heat_geometry(lower_pellet, upper_pellet);
+        fuelsim::make_line2_rz_heat_geometry(lower_pellet, upper_pellet, 0.0);
     const fuelsim::NodeToLineRzContactGeometry axial_contact_geometry =
         fuelsim::make_node_to_line_rz_contact_geometry(
-            lower_pellet, upper_pellet, 1, true, true);
+            lower_pellet, upper_pellet, 1, true, true, 0.0);
     const fuelsim::LocalValues axial_open_state = {
         750.0, 740.0, 610.0, 620.0, 0.0, 0.0,
         0.0,   0.0,   0.2e-6, 0.3e-6, 0.0, 0.0,
@@ -784,10 +877,10 @@ bool test_gap_heat_and_normal_contact() {
     }};
     const fuelsim::Line2RzHeatGeometry sloped_heat_geometry =
         fuelsim::make_line2_rz_heat_geometry(sloped_secondary,
-                                             sloped_primary);
+                                             sloped_primary, 0.0);
     const fuelsim::NodeToLineRzContactGeometry sloped_contact_geometry =
         fuelsim::make_node_to_line_rz_contact_geometry(
-            sloped_secondary, sloped_primary, 1, true, true);
+            sloped_secondary, sloped_primary, 1, true, true, 0.0);
     const fuelsim::LocalValues sloped_closed_state = {
         750.0, 740.0, 610.0, 620.0, 3.0e-6, 3.0e-6,
         0.0,   0.0,   -3.0e-6, -3.0e-6, 0.0, 0.0,
@@ -882,6 +975,76 @@ bool test_gap_heat_and_normal_contact() {
                  resticking_state, closed_state, sliding_history) &&
              passed;
 
+    const fuelsim::NodeToLineRzContactKernel sloped_friction_kernel(
+        {1.0e14, 0.3});
+    const double sloped_tangent_component = 1.0 / std::sqrt(2.0);
+    fuelsim::LocalValues sloped_sticking_state = sloped_closed_state;
+    sloped_sticking_state[5] += 1.0e-7 * sloped_tangent_component;
+    sloped_sticking_state[9] += 1.0e-7 * sloped_tangent_component;
+    const fuelsim::ContactPointValue sloped_sticking =
+        sloped_friction_kernel.value(sloped_contact_geometry,
+                                     sloped_sticking_state,
+                                     sloped_closed_state, {});
+    passed = check(!sloped_sticking.sliding &&
+                       relative_difference(sloped_sticking.tangential_traction,
+                                           1.0e7) < 1.0e-13,
+                   "sloped Coulomb contact matches the closed-form sticking "
+                   "traction") &&
+             passed;
+    passed = test_friction_contact_case(
+                 "sloped_sticking", sloped_friction_kernel,
+                 sloped_contact_geometry, sloped_sticking_state,
+                 sloped_closed_state, {}) &&
+             passed;
+
+    fuelsim::LocalValues sloped_sliding_state = sloped_closed_state;
+    sloped_sliding_state[5] += 6.0e-7 * sloped_tangent_component;
+    sloped_sliding_state[9] += 6.0e-7 * sloped_tangent_component;
+    const fuelsim::ContactPointValue sloped_sliding =
+        sloped_friction_kernel.value(sloped_contact_geometry,
+                                     sloped_sliding_state,
+                                     sloped_closed_state, {});
+    const double sloped_sliding_limit = 0.3 * sloped_sliding.pressure;
+    passed = check(sloped_sliding.sliding &&
+                       relative_difference(sloped_sliding.tangential_traction,
+                                           sloped_sliding_limit) < 1.0e-13 &&
+                       relative_difference(
+                           sloped_sliding.elastic_tangential_slip,
+                           sloped_sliding_limit / 1.0e14) < 1.0e-13,
+                   "sloped Coulomb contact caps sliding traction and returns "
+                   "the elastic slip") &&
+             passed;
+    passed = test_friction_contact_case(
+                 "sloped_sliding", sloped_friction_kernel,
+                 sloped_contact_geometry, sloped_sliding_state,
+                 sloped_closed_state, {}) &&
+             passed;
+
+    fuelsim::LocalValues sloped_resticking_state = sloped_closed_state;
+    sloped_resticking_state[5] -= 1.0e-7 * sloped_tangent_component;
+    sloped_resticking_state[9] -= 1.0e-7 * sloped_tangent_component;
+    const fuelsim::ContactPointHistory sloped_sliding_history =
+        sloped_friction_kernel.trial_history(sloped_contact_geometry,
+                                             sloped_sliding_state,
+                                             sloped_closed_state, {});
+    const fuelsim::ContactPointValue sloped_resticking =
+        sloped_friction_kernel.value(sloped_contact_geometry,
+                                     sloped_resticking_state,
+                                     sloped_closed_state,
+                                     sloped_sliding_history);
+    passed = check(!sloped_resticking.sliding &&
+                       sloped_resticking.tangential_traction > 0.0 &&
+                       sloped_resticking.tangential_traction <
+                           0.3 * sloped_resticking.pressure,
+                   "sloped Coulomb contact returns from sliding to sticking "
+                   "under reverse tangential motion") &&
+             passed;
+    passed = test_friction_contact_case(
+                 "sloped_sliding_to_sticking", sloped_friction_kernel,
+                 sloped_contact_geometry, sloped_resticking_state,
+                 sloped_closed_state, sloped_sliding_history) &&
+             passed;
+
     const fuelsim::NodeToLineRzContactKernel explicit_zero_friction(
         {1.0e14, 0.0});
     const fuelsim::LocalResidual legacy_normal = contact_kernel.residual(
@@ -893,6 +1056,219 @@ bool test_gap_heat_and_normal_contact() {
                    "mu equal to zero preserves every normal-contact residual "
                    "entry exactly") &&
              passed;
+    return passed;
+}
+
+bool test_zero_gap_contact_orientation() {
+    // Coincident fuel and cladding surfaces: the secondary node rides exactly
+    // on the primary segment, so the raw reference normal gap is exactly
+    // zero and the orientation must come from the material-side hint. The
+    // fuel parent element sits at smaller radii, so its centroid is on the
+    // negative side of the primary base normal (tangent_z, -tangent_r)/length
+    // and the hint is negative.
+    const fuelsim::Line2InterfaceSideCoordinates fuel = {{
+        {0.004120, 0.0},
+        {0.004120, 0.001},
+    }};
+    const fuelsim::Line2InterfaceSideCoordinates cladding_coincident = {{
+        {0.004120, 0.0},
+        {0.004120, 0.001002},
+    }};
+    constexpr double epsilon_gap = 1.0e-9;
+    const fuelsim::Line2InterfaceSideCoordinates cladding_open = {{
+        {0.004120 + epsilon_gap, 0.0},
+        {0.004120 + epsilon_gap, 0.001002},
+    }};
+    const fuelsim::Line2InterfaceSideCoordinates cladding_inward = {{
+        {0.004120 - epsilon_gap, 0.0},
+        {0.004120 - epsilon_gap, 0.001002},
+    }};
+
+    bool passed = true;
+    const fuelsim::NodeToLineRzContactGeometry zero_gap_geometry =
+        fuelsim::make_node_to_line_rz_contact_geometry(
+            fuel, cladding_coincident, 1, true, false, -1.0e-4);
+    const fuelsim::NodeToLineRzContactGeometry opened_geometry =
+        fuelsim::make_node_to_line_rz_contact_geometry(
+            fuel, cladding_open, 1, true, false, 0.0);
+    passed = check(zero_gap_geometry.normal_orientation == 1.0 &&
+                       zero_gap_geometry.normal_orientation ==
+                           opened_geometry.normal_orientation,
+                   "zero-gap hint orientation matches the same geometry with "
+                   "the gap opened by 1e-9 m") &&
+             passed;
+
+    const fuelsim::NodeToLineRzContactGeometry flipped_hint_geometry =
+        fuelsim::make_node_to_line_rz_contact_geometry(
+            fuel, cladding_coincident, 1, true, false, 1.0e-4);
+    const fuelsim::NodeToLineRzContactGeometry inward_geometry =
+        fuelsim::make_node_to_line_rz_contact_geometry(
+            fuel, cladding_inward, 1, true, false, 0.0);
+    passed = check(flipped_hint_geometry.normal_orientation == -1.0 &&
+                       flipped_hint_geometry.normal_orientation ==
+                           inward_geometry.normal_orientation,
+                   "flipped material side flips the orientation, matching a "
+                   "1e-9 m inward offset of the primary surface") &&
+             passed;
+
+    bool missing_hint_rejected = false;
+    try {
+        (void)fuelsim::make_node_to_line_rz_contact_geometry(
+            fuel, cladding_coincident, 1, true, false, 0.0);
+    } catch (const std::invalid_argument&) {
+        missing_hint_rejected = true;
+    }
+    passed = check(missing_hint_rejected,
+                   "on-segment zero gap without a hint remains an explicit "
+                   "error") &&
+             passed;
+
+    const fuelsim::Line2RzHeatGeometry zero_gap_heat =
+        fuelsim::make_line2_rz_heat_geometry(fuel, cladding_coincident,
+                                             -1.0e-4);
+    const fuelsim::Line2RzHeatGeometry opened_heat =
+        fuelsim::make_line2_rz_heat_geometry(fuel, cladding_open, 0.0);
+    for (std::size_t point = 0; point < zero_gap_heat.points.size(); ++point) {
+        passed = check(zero_gap_heat.points[point].normal_orientation == 1.0 &&
+                           zero_gap_heat.points[point].normal_orientation ==
+                               opened_heat.points[point].normal_orientation,
+                       "zero-gap heat quadrature orientation matches the "
+                       "1e-9 m opened geometry") &&
+                 passed;
+    }
+    bool heat_missing_hint_rejected = false;
+    try {
+        (void)fuelsim::make_line2_rz_heat_geometry(fuel, cladding_coincident,
+                                                   0.0);
+    } catch (const std::invalid_argument&) {
+        heat_missing_hint_rejected = true;
+    }
+    passed = check(heat_missing_hint_rejected,
+                   "zero-gap heat geometry without a hint remains an "
+                   "explicit error") &&
+             passed;
+
+    // Branch checks avoid the nondifferentiable kink at gap exactly zero:
+    // the open state leaves a +1e-6 m gap and the closed state penetrates
+    // 3e-6 m, while the 1e-4 scaled finite-difference direction moves the
+    // gap by at most 6e-11 m and cannot cross the kink.
+    const fuelsim::NodeToLineRzContactKernel contact_kernel({1.0e14});
+    const fuelsim::LocalValues zero_gap_open_state = {
+        750.0, 740.0, 610.0, 620.0, 0.2e-6, -1.0e-6,
+        0.0,   0.0,   0.0,   0.0,   0.0,    0.0,
+    };
+    const fuelsim::LocalValues zero_gap_closed_state = {
+        750.0, 740.0, 610.0, 620.0, 3.0e-6, 3.2e-6,
+        0.0,   0.0,   0.0,   0.0,   0.0,    0.0,
+    };
+    passed = test_contact_interface_case("zero_gap_open", contact_kernel,
+                                         zero_gap_geometry,
+                                         zero_gap_open_state) &&
+             passed;
+    passed = test_contact_interface_case("zero_gap_closed", contact_kernel,
+                                         zero_gap_geometry,
+                                         zero_gap_closed_state) &&
+             passed;
+
+    const fuelsim::ContactPointValue zero_gap_open =
+        contact_kernel.value(zero_gap_geometry, zero_gap_open_state,
+                             zero_gap_open_state, {});
+    const fuelsim::ContactPointValue zero_gap_closed =
+        contact_kernel.value(zero_gap_geometry, zero_gap_closed_state,
+                             zero_gap_closed_state, {});
+    passed =
+        check(zero_gap_open.projected && zero_gap_open.gap > 0.0 &&
+                  zero_gap_open.pressure == 0.0,
+              "zero-gap geometry opens with zero pressure at +1e-6 m gap") &&
+        check(zero_gap_closed.projected && zero_gap_closed.gap < 0.0 &&
+                  scaled_error(zero_gap_closed.pressure, 3.2e8) < 1.0e-13,
+              "zero-gap geometry develops penalty pressure over a 3.2e-6 m "
+              "penetration") &&
+        passed;
+
+    // Gap continuity oracle for the general current-normal formula. Opening
+    // the reference surfaces by 1e-9 m must increase the measured gap by
+    // exactly 1e-9 m at the same state, which pins both the orientation and
+    // the gap sign convention.
+    const fuelsim::Line2InterfaceSideCoordinates sloped_fuel = {{
+        {0.004120, 0.0},
+        {0.0041205, 0.001},
+    }};
+    const fuelsim::NodeToLineRzContactGeometry sloped_zero_gap_geometry =
+        fuelsim::make_node_to_line_rz_contact_geometry(
+            sloped_fuel, cladding_coincident, 0, true, false, -1.0e-4);
+    const fuelsim::NodeToLineRzContactGeometry sloped_opened_geometry =
+        fuelsim::make_node_to_line_rz_contact_geometry(
+            sloped_fuel, cladding_open, 0, true, false, 0.0);
+    passed = check(sloped_zero_gap_geometry.normal_orientation == 1.0 &&
+                       sloped_zero_gap_geometry.normal_orientation ==
+                           sloped_opened_geometry.normal_orientation,
+                   "sloped zero-gap hint orientation matches the 1e-9 m "
+                   "opened geometry") &&
+             passed;
+
+    const fuelsim::LocalValues oracle_closed_state = {
+        750.0, 740.0, 610.0, 620.0, 3.0e-6, 3.0e-6,
+        0.0,   0.0,   1.0e-6, 0.0,   0.0,    0.0,
+    };
+    passed = test_contact_interface_case("zero_gap_sloped_closed",
+                                         contact_kernel,
+                                         sloped_zero_gap_geometry,
+                                         oracle_closed_state) &&
+             passed;
+    const fuelsim::ContactPointValue sloped_zero_value =
+        contact_kernel.value(sloped_zero_gap_geometry, oracle_closed_state,
+                             oracle_closed_state, {});
+    const fuelsim::ContactPointValue sloped_opened_value =
+        contact_kernel.value(sloped_opened_geometry, oracle_closed_state,
+                             oracle_closed_state, {});
+    const double gap_oracle_error =
+        std::abs((sloped_opened_value.gap - sloped_zero_value.gap) -
+                 epsilon_gap);
+    std::cout << "zero_gap_oracle_coincident_gap=" << sloped_zero_value.gap
+              << '\n'
+              << "zero_gap_oracle_opened_gap=" << sloped_opened_value.gap
+              << '\n'
+              << "zero_gap_oracle_gap_continuity_error=" << gap_oracle_error
+              << '\n';
+    passed =
+        check(sloped_zero_value.projected && sloped_opened_value.projected &&
+                  gap_oracle_error < 1.0e-15,
+              "opening the reference surfaces by 1e-9 m increases the "
+              "measured gap by exactly 1e-9 m at the same state") &&
+        check(scaled_error(sloped_zero_value.pressure,
+                           -1.0e14 * sloped_zero_value.gap) < 1.0e-13 &&
+                  scaled_error(sloped_opened_value.pressure,
+                               -1.0e14 * sloped_opened_value.gap) < 1.0e-13 &&
+                  sloped_zero_value.pressure > 2.9e8 &&
+                  sloped_opened_value.pressure > 2.9e8,
+              "both geometries follow the penalty law on their own closed "
+              "branch gaps near 3e8 Pa") &&
+        passed;
+
+    // The gap heat kernel has no kink at zero gap; run its two smooth
+    // branches on the coincident geometry: +2e-6 m gap above the 1e-6 m
+    // minimum gap and a -3e-6 m penetration on the minimum-gap branch.
+    const fuelsim::Line2RzGapHeatKernel heat_kernel({0.4, 1.0e-6});
+    const fuelsim::LocalValues zero_gap_heat_open_state = {
+        750.0, 740.0, 610.0, 620.0, -2.0e-6, -2.0e-6,
+        0.0,   0.0,   0.0,    0.0,   0.0,     0.0,
+    };
+    passed = test_heat_interface_case("zero_gap_heat_open", heat_kernel,
+                                      zero_gap_heat,
+                                      zero_gap_heat_open_state) &&
+             passed;
+    passed = test_heat_interface_case("zero_gap_heat_minimum", heat_kernel,
+                                      zero_gap_heat, zero_gap_closed_state) &&
+             passed;
+    const fuelsim::HeatQuadratureValues zero_gap_heat_values =
+        heat_kernel.quadrature_values(zero_gap_heat,
+                                      zero_gap_heat_open_state);
+    for (const fuelsim::HeatQuadratureValue& value : zero_gap_heat_values) {
+        passed = check(value.gap > 1.0e-6 && value.weighted_measure > 0.0,
+                       "zero-gap heat point reports the +2e-6 m open gap") &&
+                 passed;
+    }
     return passed;
 }
 
@@ -1228,6 +1604,7 @@ int main() {
     passed = test_element_jacobian() && passed;
     passed = test_finite_strain_kinematics_and_jacobian() && passed;
     passed = test_gap_heat_and_normal_contact() && passed;
+    passed = test_zero_gap_contact_orientation() && passed;
     passed = test_m1_dof_layout() && passed;
     passed = test_time_table_and_convection() && passed;
     passed = test_follower_pressure() && passed;

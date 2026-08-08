@@ -368,6 +368,24 @@ if(BUILD_TESTING)
         LABELS "acceptance"
     )
 
+    add_executable(fuelsim_m54_transient_augmented_contact_tests
+        tests/m54_transient_augmented_contact_tests.cpp
+    )
+    target_link_libraries(fuelsim_m54_transient_augmented_contact_tests
+        PRIVATE
+            fuelsim::input
+            fuelsim::exodus
+            fuelsim::petsc
+    )
+    fuelsim_enable_warnings(fuelsim_m54_transient_augmented_contact_tests)
+    add_test(NAME fuelsim_m54_transient_augmented_contact_tests
+        COMMAND fuelsim_m54_transient_augmented_contact_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_fuel_cladding_pcmi.fsi"
+    )
+    set_tests_properties(fuelsim_m54_transient_augmented_contact_tests
+        PROPERTIES LABELS "integration"
+    )
+
     add_executable(fuelsim_m1_unstructured_moose_tests
         tests/m1_unstructured_moose_tests.cpp
     )

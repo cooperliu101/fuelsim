@@ -105,6 +105,57 @@ edge_parent(const RegionMesh& mesh, const Line2BoundaryElement& edge) {
     return {parent, local_nodes};
 }
 
+RzPoint element_centroid(const RegionMesh& mesh, const Quad4Element& element) {
+    RzPoint centroid{0.0, 0.0};
+    for (const std::size_t node : element.nodes) {
+        centroid.r += mesh.nodes().at(node).r;
+        centroid.z += mesh.nodes().at(node).z;
+    }
+    centroid.r /= static_cast<double>(element.nodes.size());
+    centroid.z /= static_cast<double>(element.nodes.size());
+    return centroid;
+}
+
+// Signed distance of `point` from the primary line along the base normal
+// (tangent_z, -tangent_r)/length. This is the same normal convention as the
+// raw gap in reference_normal_orientation in interface.cpp, so the sign of
+// this value for a point that rides on the line is exactly the raw-gap sign
+// the point would have if it were moved to that side of the line.
+double primary_line_side(
+    const RzPoint& point,
+    const Line2InterfaceSideCoordinates& primary_coordinates) {
+    const double tangent_r =
+        primary_coordinates[1].r - primary_coordinates[0].r;
+    const double tangent_z =
+        primary_coordinates[1].z - primary_coordinates[0].z;
+    const double length = std::hypot(tangent_r, tangent_z);
+    return ((point.r - primary_coordinates[0].r) * tangent_z -
+            (point.z - primary_coordinates[0].z) * tangent_r) /
+           length;
+}
+
+// Zero-gap orientation hint from the material-side topology: the signed side
+// of the secondary parent-element centroid relative to the primary line. If
+// both parent centroids fall on the same strict side of the line, the two
+// material bodies overlap next to the interface and no meaningful hint
+// exists; returning zero keeps the explicit construction error for any
+// secondary point that actually rides on the segment. If either centroid
+// lies on the line, the corresponding element is degenerate and the same
+// explicit error remains in force.
+double zero_gap_orientation_hint(
+    const RzPoint& secondary_centroid, const RzPoint& primary_centroid,
+    const Line2InterfaceSideCoordinates& primary_coordinates) {
+    const double secondary_side =
+        primary_line_side(secondary_centroid, primary_coordinates);
+    const double primary_side =
+        primary_line_side(primary_centroid, primary_coordinates);
+    if (secondary_side == 0.0 || primary_side == 0.0)
+        return 0.0;
+    const bool same_side = (secondary_side > 0.0 && primary_side > 0.0) ||
+                           (secondary_side < 0.0 && primary_side < 0.0);
+    return same_side ? 0.0 : secondary_side;
+}
+
 void validate_definitions(const SteadyProblemDefinition& definition) {
     if (definition.regions.empty())
         throw std::invalid_argument(
@@ -1069,6 +1120,24 @@ void SteadyProblem::build_contacts(const UnstructuredQuad4Mesh& source_mesh) {
             secondary_mesh, std::move(secondary.boundary),
             contact_definition.secondary);
 
+        // Parent-element centroids give the material side of each boundary
+        // edge; they form the zero-gap orientation hint passed to every
+        // thermal and mechanical contact geometry below.
+        std::vector<RzPoint> primary_parent_centroids;
+        primary_parent_centroids.reserve(primary.boundary.elements.size());
+        for (const Line2BoundaryElement& edge : primary.boundary.elements)
+            primary_parent_centroids.push_back(element_centroid(
+                primary_mesh,
+                primary_mesh.elements().at(
+                    edge_parent(primary_mesh, edge).first)));
+        std::vector<RzPoint> secondary_parent_centroids;
+        secondary_parent_centroids.reserve(secondary.boundary.elements.size());
+        for (const Line2BoundaryElement& edge : secondary.boundary.elements)
+            secondary_parent_centroids.push_back(element_centroid(
+                secondary_mesh,
+                secondary_mesh.elements().at(
+                    edge_parent(secondary_mesh, edge).first)));
+
         if (contact_definition.mechanical &&
             contact_definition.automatic_penalty) {
             const double primary_length = minimum_boundary_normal_length(
@@ -1104,8 +1173,11 @@ void SteadyProblem::build_contacts(const UnstructuredQuad4Mesh& source_mesh) {
                     MechanicalContactFormulation::augmented_lagrangian});
 
         if (contact_definition.thermal) {
-            for (const Line2BoundaryElement& secondary_edge :
-                 secondary.boundary.elements) {
+            for (std::size_t edge_index = 0;
+                 edge_index < secondary.boundary.elements.size();
+                 ++edge_index) {
+                const Line2BoundaryElement& secondary_edge =
+                    secondary.boundary.elements[edge_index];
                 const Line2InterfaceSideCoordinates secondary_coordinates =
                     edge_coordinates(secondary_mesh, secondary_edge);
                 struct ThermalProjection final {
@@ -1152,6 +1224,8 @@ void SteadyProblem::build_contacts(const UnstructuredQuad4Mesh& source_mesh) {
                 for (const ThermalProjection& projection : projections) {
                     const Line2BoundaryElement& primary_edge =
                         primary.boundary.elements[projection.primary_edge];
+                    const Line2InterfaceSideCoordinates primary_coordinates =
+                        edge_coordinates(primary_mesh, primary_edge);
                     _thermal_contact_indices.push_back(contact_value);
                     _thermal_nodes.push_back({
                         global_node(secondary.region, secondary_edge.nodes[0]),
@@ -1160,9 +1234,12 @@ void SteadyProblem::build_contacts(const UnstructuredQuad4Mesh& source_mesh) {
                         global_node(primary.region, primary_edge.nodes[1]),
                     });
                     _thermal_geometries.push_back(make_line2_rz_heat_geometry(
-                        secondary_coordinates,
-                        edge_coordinates(primary_mesh, primary_edge),
-                        projection.lower, projection.upper));
+                        secondary_coordinates, primary_coordinates,
+                        projection.lower, projection.upper,
+                        zero_gap_orientation_hint(
+                            secondary_parent_centroids[edge_index],
+                            primary_parent_centroids[projection.primary_edge],
+                            primary_coordinates)));
                 }
             }
         }
@@ -1183,6 +1260,9 @@ void SteadyProblem::build_contacts(const UnstructuredQuad4Mesh& source_mesh) {
                          ++candidate) {
                         const Line2BoundaryElement& primary_edge =
                             primary.boundary.elements[candidate];
+                        const Line2InterfaceSideCoordinates
+                            primary_coordinates =
+                                edge_coordinates(primary_mesh, primary_edge);
                         _mechanical_contact_indices.push_back(contact_value);
                         _mechanical_nodes.push_back({
                             global_node(secondary.region,
@@ -1194,12 +1274,14 @@ void SteadyProblem::build_contacts(const UnstructuredQuad4Mesh& source_mesh) {
                         });
                         _mechanical_geometries.push_back(
                             make_node_to_line_rz_contact_geometry(
-                                secondary_coordinates,
-                                edge_coordinates(primary_mesh, primary_edge),
-                                secondary_node,
-                                candidate == 0,
+                                secondary_coordinates, primary_coordinates,
+                                secondary_node, candidate == 0,
                                 candidate + 1 ==
-                                    primary.boundary.elements.size()));
+                                    primary.boundary.elements.size(),
+                                zero_gap_orientation_hint(
+                                    secondary_parent_centroids[edge_index],
+                                    primary_parent_centroids[candidate],
+                                    primary_coordinates)));
                         _mechanical_secondary_indices.push_back(edge_index +
                                                                 secondary_node);
                         _mechanical_primary_indices.push_back(candidate);

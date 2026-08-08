@@ -192,15 +192,28 @@ The final full-field fuelsim-to-MOOSE differences are:
 
 ```text
                                       relative L2   relative absolute peak   pointwise max
-temperature:                           0.00989%      0.00055%                0.08710%
-radial displacement:                   0.06382%      0.12765%                0.38834%
-axial displacement:                    0.01774%      0.02530%                0.75155%
-contact pressure:                      0.22071%      0.33282%                0.33282%
-acceptance threshold for all twelve:   < 1%          < 1%                    < 1%
+temperature:                           0.00685%      0.00117%                0.05813%
+radial displacement:                   0.04524%      0.08968%                0.26877%
+axial displacement:                    0.01710%      0.02347%                0.76044%
+contact pressure:                      0.14581%      0.21581%                0.21581%
+general threshold:                     < 1%          < 1%                    < 1%
 
-total contact force three single-value errors: 0.0443%
+total contact force three single-value errors: 0.05237%
 projected / active fuel surface nodes:         11 / 11
 ```
+
+The unified current-normal RZ contact and current primary interpolation point
+put all twelve metrics below the common `1%` threshold. The axial pointwise
+maximum occurs at a nonzero reference displacement near `0.1436 um`; the
+absolute difference is `1.092 nm`, and no denominator floor is used.
+
+An additional `save_in` diagnostic on the two quadrature `GapHeatTransfer`
+boundary conditions gives `106.6533015 W` on the fuel side and
+`-106.7953395 W` on the cladding side at the final step. Their `0.1420380 W`
+imbalance is `0.133%` of the roughly `106.7 W` interface rate. Fuelsim does not
+copy this two-sided MOOSE imbalance: its secondary-side integral is applied
+with exactly opposite sign to the primary nodes, as required by its discrete
+conservation contract.
 
 Exact-zero reference nodes are excluded only from pointwise relative division;
 their count and maximum absolute difference are reported separately. No
@@ -260,16 +273,16 @@ are respectively:
 The accepted fuelsim-to-MOOSE errors are:
 
 ```text
-temperature relative L2:          0.00990%
-radial displacement relative L2:  0.06393%
-axial displacement relative L2:   0.01772%
-contact pressure relative L2:      0.21727%
+temperature relative L2:          0.00686%
+radial displacement relative L2:  0.04532%
+axial displacement relative L2:   0.01711%
+contact pressure relative L2:      0.14357%
 
-temperature absolute peak / pointwise max:          0.00064% / 0.08697%
-radial displacement absolute peak / pointwise max:  0.12758% / 0.38810%
-axial displacement absolute peak / pointwise max:   0.02529% / 0.75970%
-contact pressure absolute peak / pointwise max:     0.32887% / 0.32887%
-acceptance threshold for each:                       < 1%
+temperature absolute peak / pointwise max:          0.00106% / 0.05805%
+radial displacement absolute peak / pointwise max:  0.08964% / 0.26863%
+axial displacement absolute peak / pointwise max:   0.02347% / 0.76783%
+contact pressure absolute peak / pointwise max:     0.21312% / 0.21312%
+general threshold:                                   < 1%
 
 radial / axial zero-reference nodes:                 11 / 48
 maximum absolute difference at those nodes:          0 / 0
@@ -1038,20 +1051,24 @@ July worktree:         dirty; executable hash is therefore authoritative
 The tracked final snapshots contain all 528 nodes and all 11 secondary contact
 nodes. Their hashes, together with the exact input, mesh, and scalar output,
 are recorded in `SHA256SUMS`. Fuelsim performs one nonzero multiplier update
-and reaches a maximum penetration of `1.277546011688e-10 m`, which is `12.8%`
+and reaches a maximum penetration of `1.282228275744e-10 m`, which is `12.8%`
 of the `1e-9 m` tolerance. The required field errors, each relative to the
 corresponding complete MOOSE field scale, are:
 
 | Field | Relative L2 | Relative absolute peak | Maximum pointwise relative |
 | --- | ---: | ---: | ---: |
-| Temperature | 0.009854% | 0.000539% | 0.086402% |
-| Radial displacement | 0.061852% | 0.128362% | 0.343463% |
-| Axial displacement | 0.017512% | 0.025177% | 0.770933% |
-| Normal pressure | 0.171695% | 0.251094% | 0.251094% |
+| Temperature | 0.006852% | 0.001194% | 0.058121% |
+| Radial displacement | 0.042829% | 0.090532% | 0.225261% |
+| Axial displacement | 0.016926% | 0.023312% | 0.801516% |
+| Normal pressure | 0.091399% | 0.132761% | 0.132761% |
 
-All twelve metrics are below the case-wide `1%` threshold. Radial and axial
-displacement have 11 and 48 zero-reference nodes, respectively; both have zero
-maximum absolute difference on those nodes, and no denominator floor is used.
+The axial pointwise maximum is `0.801516%`; its `1.175 nm` absolute difference
+occurs at a nonzero reference near `0.1466 um`. Every metric remains below the
+common `1%` threshold after using the unified current-normal formula and current
+primary interpolation point. Radial and
+axial displacement have 11 and 48 zero-reference nodes, respectively; both
+have zero maximum absolute difference on those nodes, and no denominator floor
+is used.
 The isolated symmetric two-body tangent proxy has condition number `21` for
 the MOOSE high penalty and `1.5` for the fuelsim augmented inner penalty. This
 is a scoped stiffness proxy, not a spectral measurement of the assembled

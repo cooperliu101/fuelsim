@@ -110,16 +110,37 @@ follower pressure 另有独立 MOOSE 对比；非共轴耦合塑性—蠕变路�
   几何和 committed 状态仍在各 rank 复制；PETSc 回调只收集本 rank 贡献及
   接触搜索依赖所需的影子自由度，输出文件只由 rank 0 写入。
 - 不隐式夹持异常材料值或几何值；非法结构输入应明确报错。
-- 界面间隙为 `g=(Rp+urp)-(Rs+urs)`；primary 在外、secondary 在内，开放为
-  正、穿透为负。
+- 接触间隙统一使用当前轴对称 RZ 几何：`g=(x_primary-x_secondary)·n_current`，
+  其中 `n_current` 是由当前 primary 线段切向构造且从 secondary 指向 primary
+  的单位法向；开放为正、穿透为负。圆柱侧面、水平端面和斜面不得分设不同的
+  间隙、法向、切向或轴对称面积代码路径；竖直圆柱面的
+  `g=(Rp+urp)-(Rs+urs)` 只能作为通用公式的退化结果。
+- 接触允许零参考间隙（初始贴合）。secondary 节点恰好骑在 primary 线段
+  上时，法向朝向由单元材料侧拓扑确定：以 secondary 边父单元质心相对
+  primary 线段沿基准法向 `(tangent_z, -tangent_r)/length` 的有符号距离
+  为提示，取法向背离 secondary 材料、指向 primary 一侧，使节点向
+  secondary 材料内部移动时间隙增大。该约定与把同一几何的间隙打开无穷
+  小量后按间隙符号得到的朝向完全一致。两侧父单元质心位于线段同侧
+  （材料重叠）或质心恰好落在线上（退化单元）的畸形几何仍必须明确
+  报错，不得隐式夹持。
 - 气隙导热为 `h=k_gap/max(g,g_min)`。
 - 法向压力为 `p=penalty*max(-g,0)`，罚参数单位为 `Pa/m`。
-- 热接触在 secondary 当前表面测度上积分，并将相反热流投影到 primary
-  节点。
+- 当启用 Coulomb 摩擦时，粘着切向牵引使用与法向相同的接触罚刚度；滑移
+  牵引上限为 `mu*p`，切向方向由当前构形投影确定。摩擦粘滑状态必须进入
+  committed/trial/commit/rollback 事务和检查点；`mu=0` 必须保持无摩擦路径
+  的逐位结果。
+- 法向增广拉格朗日接触使用非负法向乘子和互补更新；自动罚刚度按两侧法向
+  柔度串联及界面网格尺度计算，显式输入优先于自动值。
+- 热接触保留构造期 secondary-to-primary STS 重叠分片和唯一 primary 段所有权，
+  但积分点在该段上的插值位置必须按当前构形正交投影；Newton 中间态越过段端点
+  时夹持到已拥有的端点，不得使用负形函数外插或在相邻分片重复计热。在当前
+  primary 法向上计算通用 RZ 有符号间隙，在 secondary 当前轴对称表面测度上
+  积分，并将相反热流投影到 primary 节点。
 - 机械接触采用唯一 NTS 投影；secondary 节点反力按当前半边面积集总，并按
   primary 线段形函数分配相反反力。
-- 机械 NTS 必须在当前构形上计算轴向或一般法向投影，并在构建期固定的小滑移
-  候选窗口内保持每个 secondary 节点至多一个有效 primary 线段；不得退回
+- 机械 NTS 必须在当前构形上计算轴向或一般法向投影；每次状态验证都必须按
+  当前几何重建完整 primary 链的候选段，并保持每个 secondary 节点至多一个
+  有效 primary 线段。首次装配必须为所有潜在候选无条件预留稀疏零块，不得退回
   jax_fuel 当前用于特定 MOOSE 对标的参考构形固定机械投影。
 - 连续 primary 线段采用半开区间确定内部顶点的唯一归属，只有整条 primary
   链的首端和末端可以保留所属端点；端点夹持不得使内部相邻线段同时计力，也
@@ -177,14 +198,17 @@ follower pressure 另有独立 MOOSE 对比；非共轴耦合塑性—蠕变路�
 先安装 ADlite 和 Exodus，然后配置 fuelsim：
 
 ```bash
+fuelsim_dependency_root="$(cd .. && pwd)/fuelsim-dependencies"
+
 env \
   PATH=/home/cooper/miniforge/envs/moose/bin:/usr/local/bin:/usr/bin:/bin \
   PKG_CONFIG_PATH=/home/cooper/miniforge/envs/moose/lib/pkgconfig \
   cmake -S . -B build \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_CXX_COMPILER=/home/cooper/miniforge/envs/moose/bin/c++ \
-  -DCMAKE_PREFIX_PATH=/tmp/adlite-fuelsim-install \
-  -DSEACASExodus_DIR=/home/cooper/.local/exodus-2024-06-27/lib/cmake/SEACASExodus
+  -DCMAKE_PREFIX_PATH="${fuelsim_dependency_root}/adlite-a3778d2" \
+  -DSEACASExodus_DIR="${fuelsim_dependency_root}/exodus-2024-06-27/lib/cmake/SEACASExodus" \
+  -DFUELSIM_WARNINGS_AS_ERRORS=ON
 cmake --build build --parallel
 ctest --test-dir build --output-on-failure
 ```
@@ -203,7 +227,8 @@ PETSc/MPICH 测试在受限沙盒内可能出现 `OFI EP enable failed`。遇到
 
 接触搜索或投影修改还必须检查：内部 primary 顶点参考态只有一个所有者，
 secondary 节点滑过该顶点后所有权唯一转移且不双计，以及滑出整个候选窗口时
-失投影守卫能够拒绝该状态；径向直面与一般斜面分支都必须覆盖。
+失投影守卫能够拒绝该状态；参考态竖直但当前态倾斜的侧面、水平端面和一般
+斜面都必须覆盖，并证明它们走同一通用 RZ 公式。
 
 所有 fuelsim-to-MOOSE 对比必须读取 `verification/moose/` 下由对应 MOOSE
 输入生成并追踪的 `*_mesh.e`，不得在对比测试内使用 `make_annulus` 或硬编码
@@ -219,8 +244,13 @@ secondary 节点滑过该顶点后所有权唯一转移且不双计，以及滑�
 一般非结构 Quad4 文件读取元数据，生产求解网格必须保留每个选中块的原始
 节点坐标和 Quad4 连接关系，不得重建张量积网格。M1 必须同时运行
 `fuelsim_m1_exodus_moose_tests` 和 `fuelsim_m1_unstructured_moose_tests`；
-后者逐节点比较温度、径向位移和轴向位移，并逐接触节点比较压力；三项误差
-指标都必须小于 `1%`。
+后者逐节点比较温度、径向位移和轴向位移，并逐接触节点比较压力；全部三项误差
+指标必须小于 `1%`。通用当前法向和当前热投影下，结构化和非张量 M1 的轴向
+位移最大逐点相对误差实测为 `0.76044%` 和 `0.76783%`，绝对差 `1.092 nm` 和
+`1.095 nm`，均发生在约 `0.143 um` 的非零参考值处。MOOSE 的双侧 quadrature
+`GapHeatTransfer` 在该结构网格最终步两侧热率相差 `0.142038 W`，约占
+`106.7 W` 界面热率的 `0.133%`；fuelsim 仍必须保持严格离散守恒，不得通过复制
+这一参考不平衡来降低场误差，也不得增加逐点相对误差的分母下限。
 
 M2 还必须检查：
 

@@ -68,10 +68,12 @@ M5.2 在 402 节点、264 单元和 1,206 自由度的水平接触面上验证�
 M5.4 在 M1 的 528 节点、460 单元和 1,584 自由度网格上验证自动罚刚度与
 增广拉格朗日法向接触。两侧材料和法向网格尺度给出的串联界面刚度为
 `5.612722170253e14 Pa/m`。fuelsim 内层使用其 `0.25` 倍，MOOSE 参考使用其
-`10` 倍作为离散约束极限；最大穿透为 `0.1278 nm`，占 `1 nm` 容差的
-`12.8%`。温度、径向位移、轴向位移和法向压力三项误差中的最差值分别为
-`0.086402%`、`0.343463%`、`0.770933%` 和 `0.251094%`，均低于对应 MOOSE
-全场尺度的 `1%`。高罚刚度与中等罚刚度增广内层的两体切线条件数代理分别为
+`10` 倍作为离散约束极限；最大穿透为 `0.1282 nm`，占 `1 nm` 容差的
+`12.8%`。当前热投影修正后，温度、径向位移、轴向位移和法向压力三项误差中的
+最差值分别为 `0.058121%`、`0.225261%`、`0.801516%` 和 `0.132761%`，全部低于
+对应 MOOSE 全场尺度的统一 `1%` 门槛。轴向最大逐点指标位于约 `0.1466 um` 的
+非零参考值处，绝对差为 `1.175 nm`，且没有分母下限。高罚刚度与中等罚刚度
+增广内层的两体切线条件数代理分别为
 `21` 和 `1.5`；它只说明隔离的法向两体刚度，不代表完整有限元 Jacobian 的
 谱条件数。MOOSE 原生节点到面增广压力会随罚刚度明显变化，在本环境中未形成
 稳定的逐节点乘子参考，因此没有把它列为已验证对标；具体诊断误差和边界记录
@@ -113,7 +115,8 @@ env \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_CXX_COMPILER="${fuelsim_toolchain_prefix}/bin/c++" \
   -DCMAKE_PREFIX_PATH="${fuelsim_dependency_root}/adlite-a3778d2" \
-  -DSEACASExodus_DIR="${fuelsim_dependency_root}/exodus-2024-06-27/lib/cmake/SEACASExodus"
+  -DSEACASExodus_DIR="${fuelsim_dependency_root}/exodus-2024-06-27/lib/cmake/SEACASExodus" \
+  -DFUELSIM_WARNINGS_AS_ERRORS=ON
 cmake --build build --parallel
 ctest --test-dir build --output-on-failure
 ```

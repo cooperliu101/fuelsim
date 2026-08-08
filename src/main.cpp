@@ -209,15 +209,16 @@ solver_options(const fuelsim::NonlinearSolverInput& input) {
 }
 
 void write_solver_diagnostics(const fuelsim::SolveResult& solve,
-                              CaseOutput& output) {
+                              bool augmented_contact, CaseOutput& output) {
     output.value("nonlinear_attempts", solve.nonlinear_attempts);
     output.value("linear_iterations", solve.linear_iterations);
     output.value("used_backtracking_fallback",
                  solve.used_backtracking_fallback);
     output.value("augmented_lagrangian_iterations",
                  solve.augmented_lagrangian_iterations);
-    output.value("maximum_contact_penetration",
-                 solve.maximum_contact_penetration);
+    if (augmented_contact)
+        output.value("maximum_contact_penetration",
+                     solve.maximum_contact_penetration);
     output.value("global_state_dofs", solve.global_state_dofs);
     output.value("maximum_shadow_state_dofs",
                  solve.maximum_shadow_state_dofs);
@@ -413,7 +414,8 @@ bool run_steady(const fuelsim::FuelSimCaseDefinition& definition,
                  result.total_nonlinear_iterations);
     output.value("linear_iterations_total", result.total_linear_iterations);
     output.value("residual_norm", result.solve.residual_norm);
-    write_solver_diagnostics(result.solve, output);
+    write_solver_diagnostics(result.solve, problem.uses_augmented_contact(),
+                             output);
     output.value("failure_category", fuelsim::solve_failure_category_name(
                                          result.solve.failure_category));
     if (!result.solve.failure_message.empty())
@@ -706,7 +708,8 @@ bool run_transient(const fuelsim::FuelSimCaseDefinition& definition,
     output.value("linear_iterations_total", result.total_linear_iterations);
     output.value("petsc_workspace_setups",
                  result.aggregate_timing.workspace_setups);
-    write_solver_diagnostics(result.last_attempt, output);
+    write_solver_diagnostics(result.last_attempt,
+                             problem.uses_augmented_contact(), output);
     output.value("total_seconds", result.total_seconds);
     write_conservation_summary("conservation.",
                                problem.last_conservation_summary(), output);

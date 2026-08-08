@@ -340,6 +340,14 @@ bool relative_metrics_below(const FieldErrorMetrics& metrics,
            metrics.maximum_pointwise_relative_error() < tolerance;
 }
 
+bool relative_metrics_below_with_pointwise_tolerance(
+    const FieldErrorMetrics& metrics, double aggregate_tolerance,
+    double pointwise_tolerance) {
+    return metrics.relative_l2() < aggregate_tolerance &&
+           metrics.relative_absolute_peak() < aggregate_tolerance &&
+           metrics.maximum_pointwise_relative_error() < pointwise_tolerance;
+}
+
 bool absolute_metrics_below(const FieldErrorMetrics& metrics,
                             double tolerance) {
     return metrics.absolute_l2() < tolerance &&

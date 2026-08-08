@@ -74,7 +74,7 @@ C++ 模板，不引入 Eigen、Boost、JSON/YAML、日志库或第三方测试�
 `dependencies/moose-2026.06.16-linux-64.yml` 创建；ADlite 和 Exodus 分别由
 `scripts/install_adlite.sh` 与 `scripts/build_exodus.sh` 安装到持久前缀。
 
-在已经完成依赖安装并激活固定 MOOSE 环境后，设置三个任务专用路径：
+在已经完成依赖安装并激活固定 MOOSE 环境后，设置两个任务专用路径：
 
 ```bash
 fuelsim_toolchain_prefix="${CONDA_PREFIX}"
@@ -218,6 +218,40 @@ mpiexec -n 2 ./build/fuelsim \
 
 只有 rank 0 写 console、CSV、Exodus 和 checkpoint，避免并行文件竞争。
 
+也可以直接用统一脚本跑 1/2/4/8 核的并行一致性测试，并输出统一对比报告：
+
+```bash
+./scripts/compare_pcmi_parallel.py \
+  --fuelsim-case verification/fuelsim/transient_finite_strain_pcmi.fsi \
+  --moose-input verification/moose/m41_finite_strain_pcmi_rz.i \
+  --fuelsim-bin ./build/fuelsim \
+  --moose-bin /home/cooper/projects/july/july-opt \
+  --output-dir /tmp/pcmi_parallel_suite \
+  --ranks 1 2 4 8 \
+  --thread-count 1 \
+  --timing-repeats 2 \
+  --mpiexec /home/cooper/miniforge/envs/moose/bin/mpiexec \
+  --extra-env MPIR_CVAR_CH4_NETMOD=ofi \
+  --extra-env FI_PROVIDER=tcp
+```
+
+这里的 rank 表示消息传递接口进程数。这个示例使用现有的 M4.1 无摩擦有限
+应变 PCMI 对标；摩擦算例必须把两个输入参数替换为物理、网格和加载路径一致
+的 fuelsim 与 MOOSE 输入，不能只在一侧临时覆盖摩擦系数。脚本读取 Exodus
+结果所需的 NumPy 和 netCDF4 已固定在同一 Conda 环境文件中。
+
+脚本会在每个进程数目录输出结果对比运行的 `fuelsim.log`、`moose.log`、
+`fuelsim_rN.e` 和 `mooseF_N.e`，并另做关闭文件输出的配对计时。第一次计时与
+后续计时分开记录，加速比取后续计时的中位数；只有一次计时时会明确标记为
+单次测量。统一 JSON 报告 `pcmi_parallel_report.json` 包含时钟、加速比、
+温度、两个位移分量和接触压强四个节点场对比，以及最小进程数到其他进程数
+的逐场一致性检验。接触压强只比较两侧都有定义的有限值节点，并单独报告被
+排除的未定义节点数。
+
+若结果对比文件已经由同一输入生成，只需重新测量关闭文件输出的计时，可增加
+`--reuse-validation-results`。此模式仍会重新运行每个进程数的 fuelsim 与
+MOOSE 计时，只复用 `rN/fuelsim_rN.e` 和 `rN/mooseF_N.e` 做字段一致性比较。
+
 程序会同时输出问题构造、PETSc 设置、非线性求解、残量回调和 Jacobian
 回调的内部计时。20 个载荷步复用同一问题几何、SNES、Vec、Mat、矩阵非零
 结构和回调缓冲区；热源只更新各区域的具体核参数。
@@ -250,21 +284,26 @@ M2 同样复用几何和 PETSc 工作区，但每个成功时间步会提交 nod
  uzs0, uzs1, uzp0, uzp1]
 ```
 
-当前间隙和界面定律为：
+当前间隙统一由当前轴对称 RZ 几何计算，界面定律为：
 
 ```text
-g = (Rp + urp) - (Rs + urs)
+g = (x_primary - x_secondary) . n_primary_current
 h = gap_conductivity / max(g, minimum_gap)
 q = h * (Ts - Tp)
 p = contact_penalty * max(-g, 0)
 ```
 
-`q>0` 表示热量由 secondary 流向 primary，`p>0` 表示压缩接触压力。
+其中 `n_primary_current` 从 secondary 指向 primary。圆柱侧面、水平端面和
+斜面使用同一套投影、当前法向和轴对称面积公式；竖直圆柱面才自然退化为
+`g=(Rp+urp)-(Rs+urs)`。`q>0` 表示热量由 secondary 流向 primary，`p>0`
+表示压缩接触压力。
 罚形式使用上式；增广拉格朗日形式使用
 `p=max(lambda-contact_penalty*g,0)`，并在收敛 Newton 解上更新非负乘子
 `lambda=max(0,lambda-contact_penalty*g)`。`contact_penalty` 的单位为
-`Pa/m`，也可由两侧杨氏模量与法向网格尺度自动计算。热接触在当前 secondary 表面
-`2*pi*r*J` 上积分，并把相反热流投影到 primary 节点。每个 secondary
+`Pa/m`，也可由两侧杨氏模量与法向网格尺度自动计算。热接触的重叠分片在构造期
+确定，但积分点在已拥有 primary 段上的形函数按当前构形正交投影，并在 Newton
+中间态越过段端点时夹持到该端点。热流在当前 secondary 表面 `2*pi*r*J` 上积分，
+并把相反热流投影到 primary 节点。每个 secondary
 节点只有一个有效机械投影，节点反力按当前 secondary 半边面积集总后，通过
 primary 线段形函数分配相反反力。两种界面残量均离散守恒，投影、面积和
 界面定律都由 ADlite 线性化。
@@ -341,21 +380,29 @@ CTest 覆盖：
 `verification/moose/`。
 
 默认 M1 最终步对全部 528 个节点以及 11 个燃料接触节点进行比较。温度、
-径向位移、轴向位移和接触压力的相对 L2 误差分别为 `0.00989%`、
-`0.06382%`、`0.01774%` 和 `0.22071%`；相对绝对峰值误差分别为
-`0.00055%`、`0.12765%`、`0.02530%` 和 `0.33282%`；最大逐点相对误差
-分别为 `0.08710%`、`0.38834%`、`0.75155%` 和 `0.33282%`，十二项均
-低于 `1%`。总接触反力的三项单值误差为 `0.0443%`，11 个燃料表面节点
-均成功投影且处于接触状态。
+径向位移、轴向位移和接触压力的相对 L2 误差分别为 `0.00685%`、
+`0.04524%`、`0.01710%` 和 `0.14581%`；相对绝对峰值误差分别为
+`0.00117%`、`0.08968%`、`0.02347%` 和 `0.21581%`；最大逐点相对误差
+分别为 `0.05813%`、`0.26877%`、`0.76044%` 和 `0.21581%`，全部低于统一
+`1%` 门槛。轴向最大逐点指标位于非零参考值约 `0.1436 um` 处，绝对差为
+`1.092 nm`，没有使用分母下限。总接触反力的三项单值误差为 `0.05237%`，
+11 个燃料表面节点均成功投影且处于接触状态。
 
 内部节点畸变的非张量 M1 网格保留全部原始 Exodus 连接关系。与 MOOSE
 逐节点全场比较时，温度、径向位移、轴向位移和接触压力的相对 L2 误差分别
-为 `0.00990%`、`0.06393%`、`0.01772%`、`0.21727%`；同一顺序下，相对
-绝对峰值误差分别为 `0.00064%`、`0.12758%`、
-`0.02529%`、`0.32887%`，最大逐点相对误差分别为 `0.08697%`、
-`0.38810%`、`0.75970%`、`0.32887%`，十二项均低于 `1%`。逐点相对误差
-不对精确零参考值做除法；径向和轴向位移分别有 11 和 48 个零参考点，其
-最大绝对差均为 `0`。
+为 `0.00686%`、`0.04532%`、`0.01711%`、`0.14357%`；同一顺序下，相对
+绝对峰值误差分别为 `0.00106%`、`0.08964%`、
+`0.02347%`、`0.21312%`，最大逐点相对误差分别为 `0.05805%`、
+`0.26863%`、`0.76783%`、`0.21312%`，全部低于统一 `1%` 门槛。轴向最大
+逐点绝对差为 `1.095 nm`。逐点相对误差不对精确零参考值做除法；径向和轴向位移分别有 11 和
+48 个零参考点，其最大绝对差均为 `0`。
+
+参考输入的 `quadrature = true` 会在 MOOSE 中为 fuel 和 cladding 两侧分别建立
+独立的 `GapHeatTransfer` 边界条件。用 `save_in` 重放最终步得到 fuel 侧
+`106.6533015 W`、cladding 侧 `106.7953395 W`，相差 `0.1420380 W`，约占界面
+热率的 `0.133%`。fuelsim 使用同一份 secondary 积分热流施加等量反向反力，
+继续保持严格离散守恒；这一参考不平衡只作为剩余场差的边界说明，不复制进
+生产公式。
 
 M2 的 MOOSE 最小参考同样比较全部网格节点的三个场。均匀瞬态升温的温度
 三项相对误差均为 `0`；径向和轴向位移参考场全为零，三项绝对误差也均为

@@ -93,7 +93,7 @@ bool run_comparison(const std::string& input_path,
                   fuelsim::test::relative_metrics_below(
                       fields.axial_displacement, tolerance) &&
                   fuelsim::test::relative_metrics_below(pressure, tolerance),
-              "all twelve full-field MOOSE metrics are below 1%") &&
+              "all MOOSE full-field three-metric errors pass 1%") &&
         passed;
 
     fuelsim::test::print_relative_metrics("unstructured_temperature",

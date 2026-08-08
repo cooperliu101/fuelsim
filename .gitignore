@@ -1,5 +1,6 @@
 /build/
 /build-*/
 .jitcache/
+__pycache__/
 *.csv
 !verification/moose/*.csv

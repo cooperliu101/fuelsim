@@ -26,7 +26,6 @@ struct Line2RzHeatQuadraturePoint final {
 struct Line2RzHeatGeometry final {
     Line2InterfaceSideCoordinates secondary_coordinates;
     Line2InterfaceSideCoordinates primary_coordinates;
-    bool radial_reference_geometry;
     std::array<Line2RzHeatQuadraturePoint,
                line2_interface_quadrature_point_count>
         points;
@@ -47,14 +46,23 @@ struct HeatQuadratureValue final {
 using HeatQuadratureValues =
     std::array<HeatQuadratureValue, line2_interface_quadrature_point_count>;
 
+// zero_gap_orientation_hint is consulted only when a secondary point rides
+// exactly on its primary segment (zero reference normal gap). It carries the
+// signed distance of the secondary material (the parent-element centroid)
+// from the primary line along the base normal (tangent_z, -tangent_r)/length,
+// and the normal orientation is chosen so that moving into the secondary
+// material opens the gap. A zero hint means no material-side information is
+// available; a zero gap on the segment then remains an error.
 Line2RzHeatGeometry make_line2_rz_heat_geometry(
     const Line2InterfaceSideCoordinates& secondary_coordinates,
-    const Line2InterfaceSideCoordinates& primary_coordinates);
+    const Line2InterfaceSideCoordinates& primary_coordinates,
+    double zero_gap_orientation_hint);
 
 Line2RzHeatGeometry make_line2_rz_heat_geometry(
     const Line2InterfaceSideCoordinates& secondary_coordinates,
     const Line2InterfaceSideCoordinates& primary_coordinates,
-    double secondary_coordinate_lower, double secondary_coordinate_upper);
+    double secondary_coordinate_lower, double secondary_coordinate_upper,
+    double zero_gap_orientation_hint);
 
 class Line2RzGapHeatKernel final {
   public:
@@ -87,7 +95,6 @@ struct NodeToLineRzContactGeometry final {
     bool primary_segment_includes_second_endpoint;
     double normal_orientation;
     double reference_primary_fraction;
-    bool radial_reference_geometry;
 };
 
 struct NormalContactProperties final {
@@ -118,12 +125,16 @@ struct ContactPointValue final {
     bool sliding;
 };
 
+// zero_gap_orientation_hint follows the same contract as the heat-geometry
+// constructors above: it is consulted only when the secondary node rides
+// exactly on the primary segment, and a zero hint keeps that case an error.
 NodeToLineRzContactGeometry make_node_to_line_rz_contact_geometry(
     const Line2InterfaceSideCoordinates& secondary_edge_coordinates,
     const Line2InterfaceSideCoordinates& primary_segment_coordinates,
     std::size_t secondary_local_node,
     bool primary_segment_is_first,
-    bool primary_segment_includes_upper_endpoint);
+    bool primary_segment_includes_upper_endpoint,
+    double zero_gap_orientation_hint);
 
 class NodeToLineRzContactKernel final {
   public:

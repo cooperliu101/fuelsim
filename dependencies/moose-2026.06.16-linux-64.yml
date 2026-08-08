@@ -9,3 +9,5 @@ dependencies:
   - gxx=14.3.0
   - ninja=1.13.2
   - pkg-config=0.29.2
+  - numpy=2.5.1
+  - netcdf4=1.7.3

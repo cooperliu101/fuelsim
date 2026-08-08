@@ -645,6 +645,9 @@ PetscErrorCode form_jacobian(SNES snes, Vec state, Mat jacobian,
             PetscFunctionReturn(PETSC_SUCCESS);
         }
 
+        // The first Jacobian assembly inserts zero-valued blocks for every
+        // potential contact candidate. Keep that complete pattern locked so
+        // dynamic search cannot introduce a new nonzero location later.
         if (!context.pattern_locked) {
             PetscCall(
                 MatSetOption(jacobian, MAT_KEEP_NONZERO_PATTERN, PETSC_TRUE));

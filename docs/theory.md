@@ -360,14 +360,19 @@ q_convection = h_c * (T - T_ambient)
 解析。热接触采用 secondary-side segment-to-segment 离散，简称 STS；即在
 secondary 线段的积分点计算热流，并投影到 primary 线段。
 
-对径向间隙，符号约定为：
+热接触在构造期确定 secondary 积分分片及其唯一 primary 段所有权；每次残量和
+Jacobian 计算时，积分点在已拥有段上的正交投影分数、两侧坐标、primary 法向和
+secondary 表面测度都在当前轴对称 RZ 几何中求值。所有边方向统一使用：
 
 ```text
-g = (R_primary + ur_primary) - (R_secondary + ur_secondary)
+g = (x_primary_mapped - x_secondary).n_primary_current
 ```
 
-一般斜面使用相同含义的当前法向有符号距离。`g>0` 表示开放，`g<0` 表示
-穿透。气隙导热定律是：
+其中当前单位法向由当前 primary 线段切向构造并从 secondary 指向 primary。
+竖直圆柱面只是该式的退化情况，此时
+`g=(R_primary+ur_primary)-(R_secondary+ur_secondary)`；实现没有独立圆柱分支。
+`g>0` 表示开放，`g<0` 表示穿透。构造时参考间隙恰好为零的贴合界面与机械
+接触共用第 8.1 节的材料侧拓扑法向。气隙导热定律是：
 
 ```text
 h_gap = k_gap / max(g, g_min)
@@ -382,9 +387,11 @@ R_T_secondary += integral_A_secondary N_secondary*q_gap dA
 R_T_primary   -= integral_A_secondary N_primary*q_gap dA
 ```
 
-因此同一积分点的界面热量严格等量反向。非匹配 Line2 网格在构造时按投影
-重叠区间切分 secondary 积分区间，并拒绝覆盖空洞或重叠。热接触投影目前在
-构造时固定，不能把机械接触的大滑移证据外推到热接触动态重投影。
+因此同一积分点的界面热量严格等量反向。非匹配 Line2 网格在构造时按参考投影
+重叠区间切分 secondary 积分区间，并拒绝覆盖空洞或重叠。Newton 中间态的当前
+正交投影若越过已拥有段的端点，就夹持到该端点；积分点不会以负形函数外插，
+也不会同时进入相邻分片。段所有权不会随大滑移转移，因此不能把机械接触的
+完整链动态搜索证据外推到热接触动态跨段搜索。
 
 ## 8. 机械接触离散
 
@@ -397,7 +404,16 @@ secondary 节点在当前构形选择一条有效 primary 线段。一般斜面�
 g = (x_primary_projection - x_secondary).n
 ```
 
-其中 `n` 从 secondary 指向 primary，仍以 `g>0` 为开放。压缩法向力使用
+其中 `n` 是当前 primary 线段法向，从 secondary 指向 primary，仍以 `g>0`
+为开放。法向的符号在构造时按参考构形确定：参考间隙非零时取间隙符号；
+参考间隙恰好为零（初始贴合）
+且节点投影落在 primary 线段上时，`n` 由单元材料侧拓扑确定——取
+secondary 边父单元质心相对 primary 线段沿基准法向
+`(tangent_z, -tangent_r)/length` 的有符号位置，`n` 背离 secondary 材料
+一侧，与把间隙打开无穷小量后的符号约定一致。求值时该符号乘以当前线段
+法向，因此参考时竖直的圆柱面变形后倾斜时也会同时进入径向和轴向方程，
+不存在圆柱专用分支。两侧父单元质心位于线段
+同侧的材料重叠几何在构造时明确报错。压缩法向力使用
 secondary 节点的当前半边轴对称面积集总：
 
 ```text
@@ -488,8 +504,9 @@ s_new = tau/k
 
 当前状态滑出某个局部邻域时可转移到完整链上的其他线段；滑出整条 primary
 链时则报告物理域错误。候选选择由 committed 几何和当前状态确定性重建，
-检查点不保存临时搜索窗口。热接触仍使用构造期分片，且现有证据没有鉴定
-Coulomb 摩擦与大滑移同时激活的任意路径。
+检查点不保存临时搜索窗口。热接触仍使用构造期唯一分片，但分片内投影位置按
+当前构形更新并在端点夹持；现有证据没有鉴定 Coulomb 摩擦与大滑移同时激活的
+任意路径。
 
 ## 9. 时间积分和状态事务
 
@@ -686,7 +703,7 @@ max_pointwise_relative = max_i |x_i-x_ref_i|/|x_ref_i|
 - 二氧化铀或包壳的燃耗、辐照、裂变气体、肿胀、开裂、重定位、氧化或
   冷却剂通道工程关联；
 - 任意转角、任意加载路径和任意网格上的一般有限转动鉴定；
-- 大滑移与 Coulomb 摩擦同时激活的任意路径，以及热接触动态重投影；
+- 大滑移与 Coulomb 摩擦同时激活的任意路径，以及热接触跨 primary 段动态转移；
 - 当前构形 traction 方向随法向旋转的一般矢量 follower law；
 - 代表性 100 秒 PCMI 之外的长期时间精度，或未做独立网格、时间步和接触
   参数研究的新工况；

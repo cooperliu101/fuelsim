@@ -112,6 +112,89 @@ fuelsim::UnstructuredQuad4Mesh two_pellet_nonmatching_mesh() {
         });
 }
 
+fuelsim::UnstructuredQuad4Mesh l_shaped_primary_mesh() {
+    return fuelsim::UnstructuredQuad4Mesh(
+        {
+            {2.0, 0.0},
+            {3.0, 0.0},
+            {3.0, 1.0},
+            {2.0, 1.0},
+            {1.0, 0.5},
+            {1.5, 0.5},
+            {1.5, 1.0},
+            {1.0, 1.0},
+        },
+        {
+            {{{0, 1, 2, 3}}},
+            {{{4, 5, 6, 7}}},
+        },
+        {10, 20},
+        {{10, "tool"}, {20, "slug"}},
+        {},
+        {
+            {11, "tool_corner", {{{0, 1}, {0, 2}}}},
+            {22, "slug_face", {{{1, 1}}}},
+        });
+}
+
+fuelsim::UnstructuredQuad4Mesh
+coincident_fuel_clad_mesh(double clad_inner_radius) {
+    return fuelsim::UnstructuredQuad4Mesh(
+        {
+            {0.0, 0.0},
+            {1.0, 0.0},
+            {1.0, 1.0},
+            {0.0, 1.0},
+            {clad_inner_radius, 0.0},
+            {1.2, 0.0},
+            {1.2, 1.0},
+            {clad_inner_radius, 1.0},
+        },
+        {
+            {{{0, 1, 2, 3}}},
+            {{{4, 5, 6, 7}}},
+        },
+        {1, 2},
+        {{1, "fuel"}, {2, "clad"}},
+        {},
+        {
+            {11, "fuel_axis", {{{0, 3}}}},
+            {12, "fuel_outer", {{{0, 1}}}},
+            {13, "fuel_bottom", {{{0, 0}}}},
+            {21, "clad_inner", {{{1, 3}}}},
+            {22, "clad_outer", {{{1, 1}}}},
+            {23, "clad_bottom", {{{1, 0}}}},
+        });
+}
+
+fuelsim::UnstructuredQuad4Mesh overlapping_material_mesh() {
+    // Both blocks occupy the lower half of the tall block, so the two
+    // materials sit on the same side of their shared faces.
+    return fuelsim::UnstructuredQuad4Mesh(
+        {
+            {0.0, 0.0},
+            {1.0, 0.0},
+            {1.0, 1.0},
+            {0.0, 1.0},
+            {0.0, 0.0},
+            {1.0, 0.0},
+            {1.0, 0.5},
+            {0.0, 0.5},
+        },
+        {
+            {{{0, 1, 2, 3}}},
+            {{{4, 5, 6, 7}}},
+        },
+        {10, 20},
+        {{10, "tall"}, {20, "short"}},
+        {},
+        {
+            {11, "tall_bottom", {{{0, 0}}}},
+            {12, "tall_top", {{{0, 2}}}},
+            {21, "short_bottom", {{{1, 0}}}},
+        });
+}
+
 fuelsim::ThermoelasticProperties thermoelastic(double conductivity) {
     return {0.0, conductivity, 2.0e11, 0.3, 1.0e-5, 300.0};
 }
@@ -456,6 +539,271 @@ bool test_nonmatching_pellet_faces() {
     return passed;
 }
 
+bool test_l_shaped_primary_collinear_candidate() {
+    // The ordered primary chain bends at (3,1): segment (2,1)->(3,1) then
+    // (3,1)->(3,0). The secondary node (1.5,1.0) lies exactly on the
+    // extension of the first segment but its reference projection fraction
+    // is -0.5, far outside the segment. Construction must assign that
+    // candidate a deterministic normal orientation instead of rejecting
+    // the whole problem with a zero reference-gap error.
+    const fuelsim::UnstructuredQuad4Mesh mesh = l_shaped_primary_mesh();
+    const fuelsim::SteadyProblemDefinition definition = {
+        {region("tool", "tool", 400.0, 0.0),
+         region("slug", "slug", 500.0, 0.0)},
+        {{"corner_contact", "tool_corner", "slug_face", false, true, 0.2,
+          1.0e-5, 1.0e14}},
+        {}};
+    try {
+        const fuelsim::SteadyProblem problem(definition, mesh);
+        const std::vector<double> state = problem.initial_state();
+        bool passed =
+            check(problem.region_count() == 2 && problem.contact_count() == 1,
+                  "L-shaped primary chain with a far collinear candidate "
+                  "constructs successfully") &&
+            check(problem.contribution_count() ==
+                      problem.volume_contribution_count() + 4,
+                  "two secondary nodes times two primary segments form four "
+                  "mechanical candidates");
+        for (std::size_t contribution = problem.volume_contribution_count();
+             contribution < problem.contribution_count(); ++contribution) {
+            const fuelsim::LocalResidual residual =
+                problem.contribution_residual(
+                    contribution,
+                    problem.contribution_state(contribution, state));
+            passed =
+                check(std::all_of(residual.begin(), residual.end(),
+                                  [](double value) {
+                                      return std::isfinite(value);
+                                  }),
+                      "L-shaped primary candidate residual is finite") &&
+                passed;
+        }
+        const fuelsim::InterfaceSummary summary =
+            problem.summarize_interface(0, state);
+        passed = check(summary.active_contact_nodes == 0,
+                       "far collinear candidate keeps the open gap inactive") &&
+                 passed;
+        return passed;
+    } catch (const std::exception& error) {
+        std::cerr << "[FAIL] L-shaped primary chain construction raised: "
+                  << error.what() << '\n';
+        return false;
+    }
+}
+
+bool test_zero_initial_gap_construction() {
+    // Coincident fuel and cladding surfaces (zero reference normal gap) are
+    // a legal initial condition: the normal orientation comes from the
+    // material side of each boundary edge's parent element.
+    const fuelsim::UnstructuredQuad4Mesh mesh = coincident_fuel_clad_mesh(1.0);
+    const fuelsim::SteadyProblemDefinition definition = {
+        {region("fuel", "fuel", 500.0, 0.0), region("clad", "clad", 300.0, 0.0)},
+        {contact("fuel_clad", "clad_inner", "fuel_outer")},
+        {}};
+    try {
+        const fuelsim::SteadyProblem problem(definition, mesh);
+        const std::vector<double> state = problem.initial_state();
+        bool passed =
+            check(problem.region_count() == 2 && problem.contact_count() == 1,
+                  "coincident fuel-cladding surfaces construct one contact") &&
+            check(problem.contribution_count() ==
+                      problem.volume_contribution_count() + 3,
+                  "zero-gap contact assembles one STS edge and two NTS "
+                  "candidates");
+        for (std::size_t contribution = problem.volume_contribution_count();
+             contribution < problem.contribution_count(); ++contribution) {
+            const fuelsim::LocalSystem system =
+                problem.linearize_contribution(
+                    contribution,
+                    problem.contribution_state(contribution, state));
+            passed =
+                check(std::all_of(system.residual.begin(),
+                                  system.residual.end(),
+                                  [](double value) {
+                                      return std::isfinite(value);
+                                  }),
+                      "zero-gap contact contribution is finite at the "
+                      "initial state") &&
+                passed;
+        }
+        const fuelsim::InterfaceSummary summary =
+            problem.summarize_interface(0, state);
+        passed = check(summary.projected_contact_nodes == 2 &&
+                           summary.unprojected_contact_nodes == 0 &&
+                           summary.active_contact_nodes == 0,
+                       "zero-gap secondary nodes project at exactly zero gap "
+                       "with no pressure") &&
+                 passed;
+        return passed;
+    } catch (const std::exception& error) {
+        std::cerr << "[FAIL] zero initial gap construction raised: "
+                  << error.what() << '\n';
+        return false;
+    }
+}
+
+bool test_overlapping_material_rejected() {
+    // The two blocks occupy the same space next to the interface, so both
+    // parent-element centroids lie on the same side of the primary line and
+    // no meaningful zero-gap orientation exists.
+    const fuelsim::UnstructuredQuad4Mesh mesh = overlapping_material_mesh();
+    const fuelsim::SteadyProblemDefinition degenerate = {
+        {region("tall", "tall", 400.0, 0.0),
+         region("short", "short", 400.0, 0.0)},
+        {{"overlap", "tall_bottom", "short_bottom", false, true, 0.2, 1.0e-5,
+          1.0e14}},
+        {}};
+    bool rejected = false;
+    try {
+        const fuelsim::SteadyProblem problem(degenerate, mesh);
+        (void)problem;
+    } catch (const std::invalid_argument&) {
+        rejected = true;
+    }
+    bool passed = check(rejected,
+                        "coincident surfaces with both materials on the same "
+                        "side remain an explicit error");
+
+    // Control: the same overlapping blocks with a positive 1 m gap between
+    // the faces constructs normally, because the material-side check only
+    // applies when a secondary node rides exactly on the segment.
+    const fuelsim::SteadyProblemDefinition open = {
+        {region("tall", "tall", 400.0, 0.0),
+         region("short", "short", 400.0, 0.0)},
+        {{"overlap_open", "tall_top", "short_bottom", false, true, 0.2,
+          1.0e-5, 1.0e14}},
+        {}};
+    try {
+        const fuelsim::SteadyProblem problem(open, mesh);
+        const std::vector<double> state = problem.initial_state();
+        const fuelsim::InterfaceSummary summary =
+            problem.summarize_interface(0, state);
+        passed =
+            check(summary.projected_contact_nodes == 2 &&
+                      summary.active_contact_nodes == 0,
+                  "positive-gap overlapping blocks construct with the "
+                  "material-side check dormant") &&
+            passed;
+    } catch (const std::exception& error) {
+        std::cerr << "[FAIL] positive-gap overlapping construction raised: "
+                  << error.what() << '\n';
+        return false;
+    }
+    return passed;
+}
+
+fuelsim::SteadyProblemDefinition
+zero_gap_solve_definition(double closure_displacement) {
+    fuelsim::SteadyProblemDefinition definition = {
+        {region("fuel", "fuel", 500.0, 2.0e2),
+         region("clad", "clad", 300.0, 0.0)},
+        {contact("fuel_clad", "clad_inner", "fuel_outer")},
+        {
+            dirichlet("axis", "fuel_axis",
+                      fuelsim::Field::radial_displacement, 0.0),
+            dirichlet("fuel_bottom", "fuel_bottom",
+                      fuelsim::Field::axial_displacement, 0.0),
+            dirichlet("clad_bottom", "clad_bottom",
+                      fuelsim::Field::axial_displacement, 0.0),
+            dirichlet("outer_temperature", "clad_outer",
+                      fuelsim::Field::temperature, 300.0),
+            dirichlet("clad_inner_anchor", "clad_inner",
+                      fuelsim::Field::radial_displacement, 0.0),
+        }};
+    definition.contacts[0].penalty = 1.0e6;
+    fuelsim::BoundaryConditionDefinition closure =
+        dirichlet("closure", "fuel_outer",
+                  fuelsim::Field::radial_displacement, closure_displacement);
+    closure.scale_with_load = true;
+    definition.boundary_conditions.push_back(std::move(closure));
+    return definition;
+}
+
+bool test_zero_initial_gap_solve() {
+    // End-to-end oracle: a coincident-interface problem pressed 0.01 m into
+    // contact must behave like the same problem with a 1e-9 m initial gap
+    // pressed 0.01+1e-9 m, because both reach the same current interface
+    // state from consistent normal orientations.
+    constexpr double penetration = 0.01;
+    constexpr double epsilon_gap = 1.0e-9;
+    constexpr double expected_pressure = 1.0e6 * penetration;
+    double pressures[2] = {0.0, 0.0};
+    bool passed = true;
+    for (std::size_t variant = 0; variant < 2; ++variant) {
+        const double clad_inner = 1.0 + (variant == 0 ? 0.0 : epsilon_gap);
+        const double closure_value =
+            penetration + (variant == 0 ? 0.0 : epsilon_gap);
+        const fuelsim::UnstructuredQuad4Mesh mesh =
+            coincident_fuel_clad_mesh(clad_inner);
+        fuelsim::SteadyProblem problem(
+            zero_gap_solve_definition(closure_value), mesh);
+        const fuelsim::SteadyResult solve = fuelsim::solve_steady(
+            problem, {4, 0.5, 12, 1.0e-6}, fuelsim::SolverOptions{});
+        if (!solve.completed)
+            std::cerr << "zero initial gap solve failure (variant " << variant
+                      << "): "
+                      << fuelsim::solve_failure_category_name(
+                             solve.solve.failure_category)
+                      << ": " << solve.solve.failure_message << '\n';
+        passed = check(solve.completed && solve.solve.converged,
+                       variant == 0
+                           ? "coincident-interface PETSc solve converges"
+                           : "1e-9 m opened twin solve converges") &&
+                 passed;
+        if (!solve.completed || !solve.solve.converged)
+            return false;
+        const fuelsim::InterfaceSummary summary =
+            problem.summarize_interface(0, solve.solve.state);
+        pressures[variant] = summary.maximum_contact_pressure;
+        std::cout << (variant == 0 ? "zero_initial_gap"
+                                   : "zero_initial_gap_opened_twin")
+                  << "_maximum_contact_pressure="
+                  << summary.maximum_contact_pressure << '\n'
+                  << (variant == 0 ? "zero_initial_gap"
+                                   : "zero_initial_gap_opened_twin")
+                  << "_total_contact_force=" << summary.total_contact_force
+                  << '\n'
+                  << (variant == 0 ? "zero_initial_gap"
+                                   : "zero_initial_gap_opened_twin")
+                  << "_total_heat_rate=" << summary.total_heat_rate << '\n';
+        passed =
+            check(summary.projected_contact_nodes == 2 &&
+                      summary.unprojected_contact_nodes == 0 &&
+                      summary.active_contact_nodes == 2,
+                  "every zero-gap secondary node stays projected and "
+                  "mechanically active under the 0.01 m closure") &&
+            check(std::abs(summary.maximum_contact_pressure -
+                           expected_pressure) <
+                      1.0e-4 * expected_pressure,
+                  "contact pressure matches the penalty times the 0.01 m "
+                  "closure within the solver tolerance") &&
+            check(summary.total_contact_force > 0.0,
+                  "active zero-gap contact carries a positive total force") &&
+            passed;
+        if (variant == 0) {
+            // All fuel heat leaves through the interface: the source is
+            // 2e2 W/m3 over the unit-length half-cross-section of radius 1 m.
+            constexpr double expected_heat_rate =
+                2.0e2 * 3.141592653589793238462643383279502884;
+            passed = check(std::abs(summary.total_heat_rate -
+                                    expected_heat_rate) <
+                               1.0e-3 * expected_heat_rate,
+                           "zero-gap thermal contact conducts the full fuel "
+                           "heat generation to the cladding") &&
+                     passed;
+        }
+    }
+    const double oracle_error =
+        std::abs(pressures[0] - pressures[1]) / expected_pressure;
+    std::cout << "zero_initial_gap_twin_pressure_relative_difference="
+              << oracle_error << '\n';
+    passed = check(oracle_error < 1.0e-6,
+                   "coincident and 1e-9 m opened solves agree on the contact "
+                   "pressure") &&
+             passed;
+    return passed;
+}
+
 bool test_transient_regions(const fuelsim::UnstructuredQuad4Mesh& mesh) {
     fuelsim::TransientProblemDefinition definition;
     definition.spatial = three_region_definition();
@@ -505,7 +853,11 @@ int main(int argc, char** argv) {
             test_single_region(mesh) && test_time_controlled_pressure(mesh) &&
             test_pressure_parent_edge_orientation() &&
             test_global_field_diagnostics(mesh) && test_three_regions(mesh) &&
-            test_nonmatching_pellet_faces() && test_transient_regions(mesh);
+            test_nonmatching_pellet_faces() &&
+            test_l_shaped_primary_collinear_candidate() &&
+            test_zero_initial_gap_construction() &&
+            test_overlapping_material_rejected() &&
+            test_zero_initial_gap_solve() && test_transient_regions(mesh);
         if (!passed)
             return 1;
         std::cout << "[PASS] single- and multi-region problem tests\n";

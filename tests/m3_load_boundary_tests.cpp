@@ -363,7 +363,12 @@ bool test_long_transient_time_convergence(const std::string& input_path) {
     std::cout << "long_time_convergence_minimum_observed_orders="
               << minimum_coarse_to_medium_order << ','
               << minimum_medium_to_fine_order << '\n';
-    return check(rate_evidence_fields == 8 &&
+    // Temperature may either be roundoff-limited or provide a ninth usable
+    // convergence sequence when current-configuration thermal projection is
+    // active.  Keep the gate on the eight mechanical/material sequences and
+    // accept the additional temperature evidence without changing any order
+    // or monotonicity threshold.
+    return check(rate_evidence_fields >= 8 &&
                      first_order_trend_fields >= 7 &&
                      minimum_coarse_to_medium_order > 0.4 &&
                      minimum_medium_to_fine_order > 0.4,

@@ -541,7 +541,7 @@ void SteadyFuelCladdingProblem::build_geometries() {
             cladding_global_node(cladding_edge.nodes[1]),
         });
         _thermal_interface_geometries.push_back(make_line2_rz_heat_geometry(
-            secondary_coordinates, primary_coordinates));
+            secondary_coordinates, primary_coordinates, 0.0));
     }
 
     for (std::size_t fuel_edge_index = 0; fuel_edge_index < fuel_edges.size();
@@ -576,7 +576,7 @@ void SteadyFuelCladdingProblem::build_geometries() {
                     make_node_to_line_rz_contact_geometry(
                         secondary_coordinates, primary_coordinates, secondary,
                         candidate == 0,
-                        candidate + 1 == cladding_edges.size()));
+                        candidate + 1 == cladding_edges.size(), 0.0));
                 _contact_secondary_axial_indices.push_back(fuel_edge_index +
                                                            secondary);
             }
