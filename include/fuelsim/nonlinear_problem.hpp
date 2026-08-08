@@ -68,12 +68,6 @@ class NonlinearProblem {
 
     void assemble_residual(const std::vector<double>& state,
                            std::vector<double>& residual) const;
-    void assemble_state_independent_residual(
-        std::vector<double>& residual) const;
-
-  protected:
-    virtual void
-    add_state_independent_residual(std::vector<double>& residual) const = 0;
 };
 
 } // namespace fuelsim

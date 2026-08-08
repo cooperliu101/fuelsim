@@ -1,6 +1,6 @@
 #include "fuelsim/petsc_solver.hpp"
-#include "support/steady_fuel_cladding_problem.hpp"
-#include "support/steady_single_region_problem.hpp"
+#include "fuelsim/steady_problem.hpp"
+#include "support/mesh_fixture.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -10,6 +10,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -46,6 +47,57 @@ fuelsim::ThermoelasticProperties constant_material(double conductivity,
     return {
         0.0, conductivity, 75.0e9, 0.3, thermal_expansion, 600.0,
     };
+}
+
+fuelsim::BoundaryConditionDefinition dirichlet(const std::string& name,
+                                               const std::string& boundary,
+                                               fuelsim::Field field,
+                                               double value) {
+    fuelsim::BoundaryConditionDefinition condition{};
+    condition.name = name;
+    condition.type = fuelsim::BoundaryConditionType::dirichlet;
+    condition.boundary = boundary;
+    condition.field = field;
+    condition.value = value;
+    return condition;
+}
+
+fuelsim::BoundaryConditionDefinition
+pressure(const std::string& name, const std::string& boundary, double value) {
+    fuelsim::BoundaryConditionDefinition condition{};
+    condition.name = name;
+    condition.type = fuelsim::BoundaryConditionType::pressure;
+    condition.boundary = boundary;
+    condition.field = fuelsim::Field::radial_displacement;
+    condition.value = value;
+    return condition;
+}
+
+fuelsim::SteadyProblemDefinition
+single_region_definition(const fuelsim::ThermoelasticProperties& material,
+                         double heat_source, double initial_temperature,
+                         double outer_temperature, double inner_radius,
+                         double inner_pressure, double outer_pressure) {
+    fuelsim::SteadyProblemDefinition definition;
+    definition.regions.push_back(
+        {"solid", "solid", material, heat_source, initial_temperature});
+    if (inner_radius == 0.0)
+        definition.boundary_conditions.push_back(
+            dirichlet("inner_radial", "solid_inner",
+                      fuelsim::Field::radial_displacement, 0.0));
+    definition.boundary_conditions.push_back(
+        dirichlet("bottom_axial", "solid_bottom",
+                  fuelsim::Field::axial_displacement, 0.0));
+    definition.boundary_conditions.push_back(
+        dirichlet("outer_temperature", "solid_outer",
+                  fuelsim::Field::temperature, outer_temperature));
+    if (inner_pressure > 0.0)
+        definition.boundary_conditions.push_back(
+            pressure("inner_pressure", "solid_inner", inner_pressure));
+    if (outer_pressure > 0.0)
+        definition.boundary_conditions.push_back(
+            pressure("outer_pressure", "solid_outer", outer_pressure));
+    return definition;
 }
 
 class LogDomainProblem final : public fuelsim::NonlinearProblem {
@@ -90,10 +142,6 @@ class LogDomainProblem final : public fuelsim::NonlinearProblem {
         return _conditions;
     }
 
-  protected:
-    void add_state_independent_residual(
-        std::vector<double>&) const override {}
-
   private:
     std::vector<fuelsim::DirichletCondition> _conditions;
 };
@@ -132,10 +180,6 @@ class StagnatingProblem final : public fuelsim::NonlinearProblem {
     dirichlet_conditions() const noexcept override {
         return _conditions;
     }
-
-  protected:
-    void add_state_independent_residual(
-        std::vector<double>&) const override {}
 
   private:
     std::vector<fuelsim::DirichletCondition> _conditions;
@@ -177,10 +221,6 @@ class FieldStagnatingProblem final : public fuelsim::NonlinearProblem {
         return _conditions;
     }
 
-  protected:
-    void add_state_independent_residual(
-        std::vector<double>&) const override {}
-
   private:
     std::vector<fuelsim::DirichletCondition> _conditions;
 };
@@ -221,10 +261,6 @@ class QuadraticProblem final : public fuelsim::NonlinearProblem {
         return _conditions;
     }
 
-  protected:
-    void add_state_independent_residual(
-        std::vector<double>&) const override {}
-
   private:
     std::vector<fuelsim::DirichletCondition> _conditions;
 };
@@ -246,8 +282,8 @@ bool test_global_newton_safeguards() {
 
     fuelsim::PetscSolver domain_solver;
     fuelsim::SolverOptions domain_options;
-    const fuelsim::SolveResult domain = domain_solver.solve(
-        domain_problem, initial, domain_options);
+    const fuelsim::SolveResult domain =
+        domain_solver.solve(domain_problem, initial, domain_options);
     if (!domain.converged)
         std::cerr << "log-domain failure: category="
                   << fuelsim::solve_failure_category_name(
@@ -255,8 +291,7 @@ bool test_global_newton_safeguards() {
                   << " reason=" << domain.convergence_reason
                   << " residual=" << domain.residual_norm
                   << " message=" << domain.failure_message << '\n';
-    passed = check(domain.converged &&
-                       domain.used_backtracking_fallback &&
+    passed = check(domain.converged && domain.used_backtracking_fallback &&
                        domain.nonlinear_attempts == 2 &&
                        domain.linear_iterations > 0 &&
                        domain.basic_failure_category ==
@@ -279,8 +314,7 @@ bool test_global_newton_safeguards() {
     options.step_tolerance = 1.0e-8;
     const fuelsim::SolveResult stagnating =
         stagnating_solver.solve(stagnating_problem, initial, options);
-    passed = check(stagnating.convergence_reason > 0 &&
-                       !stagnating.converged &&
+    passed = check(stagnating.convergence_reason > 0 && !stagnating.converged &&
                        stagnating.failure_category ==
                            fuelsim::SolveFailureCategory::residual_verification,
                    "positive step-stagnation reason fails residual review") &&
@@ -293,18 +327,18 @@ bool test_global_newton_safeguards() {
     field_options.mechanical_residual_absolute_tolerance = 2.0;
     const fuelsim::SolveResult field_failure =
         field_solver.solve(field_problem, initial, field_options);
-    passed = check(
-                 !field_failure.converged &&
-                     field_failure.residual_norm < std::sqrt(12.0) &&
-                     field_failure.final_scaled_field_residual_norms[0] >
-                         field_options.temperature_residual_absolute_tolerance &&
-                     field_failure.failure_category ==
-                         fuelsim::SolveFailureCategory::residual_verification &&
-                     field_failure.failure_message.find("field0=") !=
-                         std::string::npos,
-                 "field residual audit rejects a state that passes the "
-                 "combined physical absolute scale") &&
-             passed;
+    passed =
+        check(!field_failure.converged &&
+                  field_failure.residual_norm < std::sqrt(12.0) &&
+                  field_failure.final_scaled_field_residual_norms[0] >
+                      field_options.temperature_residual_absolute_tolerance &&
+                  field_failure.failure_category ==
+                      fuelsim::SolveFailureCategory::residual_verification &&
+                  field_failure.failure_message.find("field0=") !=
+                      std::string::npos,
+              "field residual audit rejects a state that passes the "
+              "combined physical absolute scale") &&
+        passed;
 
     QuadraticProblem quadratic_problem;
     fuelsim::PetscSolver quadratic_solver;
@@ -315,14 +349,13 @@ bool test_global_newton_safeguards() {
     quadratic_options.absolute_tolerance = 1.0e-14;
     quadratic_options.relative_tolerance = 1.0e-14;
     quadratic_options.residual_reduction_tolerance = 0.3;
-    const fuelsim::SolveResult rescued = quadratic_solver.solve(
-        quadratic_problem, initial, quadratic_options);
+    const fuelsim::SolveResult rescued =
+        quadratic_solver.solve(quadratic_problem, initial, quadratic_options);
     passed = check(rescued.convergence_reason < 0 && rescued.converged &&
                        rescued.failure_category ==
                            fuelsim::SolveFailureCategory::none &&
                        rescued.failure_message.empty() &&
-                       rescued.residual_norm <
-                           0.3 * std::sqrt(12.0),
+                       rescued.residual_norm < 0.3 * std::sqrt(12.0),
                    "audited residual reduction rescues a PETSc maximum-"
                    "iteration reason at an acceptable state") &&
              passed;
@@ -336,21 +369,14 @@ bool test_thermal_cylinder() {
     constexpr double heat_source = 2.0e8;
     constexpr double outer_temperature = 600.0;
 
-    const fuelsim::SteadySingleRegionParameters parameters = {
-        0.0,
-        radius,
-        length,
-        32,
-        2,
-        constant_material(conductivity, 0.0),
-        heat_source,
-        outer_temperature,
-        outer_temperature,
-        0.0,
-        0.0,
-    };
-
-    fuelsim::SteadySingleRegionProblem problem(parameters);
+    const fuelsim::UnstructuredQuad4Mesh mesh =
+        fuelsim::test::make_disconnected_annular_mesh(
+            {{1, "solid", 0.0, radius, length, 32, 2}});
+    fuelsim::SteadyProblem problem(
+        single_region_definition(constant_material(conductivity, 0.0),
+                                 heat_source, outer_temperature,
+                                 outer_temperature, 0.0, 0.0, 0.0),
+        mesh);
     fuelsim::PetscSolver solver;
     fuelsim::SolverOptions scaled_options;
     scaled_options.field_residual_scaling = true;
@@ -381,8 +407,9 @@ bool test_thermal_cylinder() {
     double maximum_scaled_error = 0.0;
     const double center_rise =
         heat_source * radius * radius / (4.0 * conductivity);
-    for (std::size_t node = 0; node < problem.mesh().nodes().size(); ++node) {
-        const double r = problem.mesh().nodes()[node].r;
+    for (std::size_t node = 0; node < problem.region_mesh(0).nodes().size();
+         ++node) {
+        const double r = problem.region_mesh(0).nodes()[node].r;
         const double expected =
             outer_temperature +
             heat_source * (radius * radius - r * r) / (4.0 * conductivity);
@@ -405,20 +432,14 @@ double thermal_cylinder_error(std::size_t radial_elements) {
     constexpr double conductivity = 4.0;
     constexpr double heat_source = 2.0e8;
     constexpr double outer_temperature = 600.0;
-    const fuelsim::SteadySingleRegionParameters parameters = {
-        0.0,
-        radius,
-        length,
-        radial_elements,
-        2,
-        constant_material(conductivity, 0.0),
-        heat_source,
-        outer_temperature,
-        outer_temperature,
-        0.0,
-        0.0,
-    };
-    fuelsim::SteadySingleRegionProblem problem(parameters);
+    const fuelsim::UnstructuredQuad4Mesh mesh =
+        fuelsim::test::make_disconnected_annular_mesh(
+            {{1, "solid", 0.0, radius, length, radial_elements, 2}});
+    fuelsim::SteadyProblem problem(
+        single_region_definition(constant_material(conductivity, 0.0),
+                                 heat_source, outer_temperature,
+                                 outer_temperature, 0.0, 0.0, 0.0),
+        mesh);
     fuelsim::PetscSolver solver;
     const fuelsim::SolveResult result =
         solver.solve(problem, problem.initial_state());
@@ -428,24 +449,23 @@ double thermal_cylinder_error(std::size_t radial_elements) {
     const double center_rise =
         heat_source * radius * radius / (4.0 * conductivity);
     double maximum_error = 0.0;
-    for (std::size_t node = 0; node < problem.mesh().nodes().size(); ++node) {
-        const double r = problem.mesh().nodes()[node].r;
+    for (std::size_t node = 0; node < problem.region_mesh(0).nodes().size();
+         ++node) {
+        const double r = problem.region_mesh(0).nodes()[node].r;
         const double expected =
             outer_temperature +
-            heat_source * (radius * radius - r * r) /
-                (4.0 * conductivity);
-        const double actual =
-            result.state[problem.dof_map().temperature(node)];
-        maximum_error = std::max(maximum_error,
-                                 std::abs(actual - expected) / center_rise);
+            heat_source * (radius * radius - r * r) / (4.0 * conductivity);
+        const double actual = result.state[problem.dof_map().temperature(node)];
+        maximum_error =
+            std::max(maximum_error, std::abs(actual - expected) / center_rise);
     }
     return maximum_error;
 }
 
 bool test_thermal_mesh_convergence() {
-    const std::array<double, 3> errors = {
-        thermal_cylinder_error(8), thermal_cylinder_error(16),
-        thermal_cylinder_error(32)};
+    const std::array<double, 3> errors = {thermal_cylinder_error(8),
+                                          thermal_cylinder_error(16),
+                                          thermal_cylinder_error(32)};
     const double first_ratio = errors[0] / errors[1];
     const double second_ratio = errors[1] / errors[2];
     const double first_order = std::log2(first_ratio);
@@ -469,12 +489,13 @@ bool test_free_thermal_expansion() {
     constexpr double temperature = 700.0;
     constexpr double temperature_change = 100.0;
 
-    const fuelsim::SteadySingleRegionParameters parameters = {
-        0.0, radius,      length, 8,   4,   constant_material(4.0, alpha),
-        0.0, temperature, 600.0,  0.0, 0.0,
-    };
-
-    const fuelsim::SteadySingleRegionProblem problem(parameters);
+    const fuelsim::UnstructuredQuad4Mesh mesh =
+        fuelsim::test::make_disconnected_annular_mesh(
+            {{1, "solid", 0.0, radius, length, 8, 4}});
+    const fuelsim::SteadyProblem problem(
+        single_region_definition(constant_material(4.0, alpha), 0.0,
+                                 temperature, temperature, 0.0, 0.0, 0.0),
+        mesh);
     fuelsim::PetscSolver solver;
     const fuelsim::SolveResult result =
         solver.solve(problem, problem.initial_state());
@@ -483,8 +504,9 @@ bool test_free_thermal_expansion() {
     double maximum_temperature_error = 0.0;
     double maximum_displacement_error = 0.0;
     const double displacement_scale = alpha * temperature_change * length;
-    for (std::size_t node = 0; node < problem.mesh().nodes().size(); ++node) {
-        const fuelsim::RzPoint& point = problem.mesh().nodes()[node];
+    for (std::size_t node = 0; node < problem.region_mesh(0).nodes().size();
+         ++node) {
+        const fuelsim::RzPoint& point = problem.region_mesh(0).nodes()[node];
         const double actual_temperature =
             result.state[problem.dof_map().temperature(node)];
         const double actual_radial =
@@ -503,12 +525,12 @@ bool test_free_thermal_expansion() {
     }
 
     double maximum_stress = 0.0;
-    for (std::size_t element = 0; element < problem.element_count();
+    for (std::size_t element = 0; element < problem.region_element_count(0);
          ++element) {
         const fuelsim::LocalValues state =
-            problem.element_state(element, result.state);
-        const auto stresses = problem.kernel().stress_values(
-            problem.element_geometry(element), state);
+            problem.contribution_state(element, result.state);
+        const auto stresses = problem.region_kernel(0).stress_values(
+            problem.region_element_geometry(0, element), state);
         for (const fuelsim::AxisymmetricStressValues& stress : stresses) {
             maximum_stress = std::max(maximum_stress, std::abs(stress.rr));
             maximum_stress = std::max(maximum_stress, std::abs(stress.zz));
@@ -546,12 +568,13 @@ bool test_lame_open_ended_cylinder() {
     material.young_modulus = young_modulus;
     material.poisson_ratio = poisson_ratio;
 
-    const fuelsim::SteadySingleRegionParameters parameters = {
-        inner_radius, outer_radius, length, 48,       2,   material,
-        0.0,          600.0,        600.0,  pressure, 0.0,
-    };
-
-    const fuelsim::SteadySingleRegionProblem problem(parameters);
+    const fuelsim::UnstructuredQuad4Mesh mesh =
+        fuelsim::test::make_disconnected_annular_mesh(
+            {{1, "solid", inner_radius, outer_radius, length, 48, 2}});
+    const fuelsim::SteadyProblem problem(
+        single_region_definition(material, 0.0, 600.0, 600.0, inner_radius,
+                                 pressure, 0.0),
+        mesh);
     fuelsim::PetscSolver solver;
     const fuelsim::SolveResult result =
         solver.solve(problem, problem.initial_state());
@@ -580,8 +603,9 @@ bool test_lame_open_ended_cylinder() {
                                 young_modulus;
     const double axial_scale = std::abs(axial_strain * length);
 
-    for (std::size_t node = 0; node < problem.mesh().nodes().size(); ++node) {
-        const fuelsim::RzPoint& point = problem.mesh().nodes()[node];
+    for (std::size_t node = 0; node < problem.region_mesh(0).nodes().size();
+         ++node) {
+        const fuelsim::RzPoint& point = problem.region_mesh(0).nodes()[node];
         const double expected_radial = ((1.0 - poisson_ratio) * A * point.r +
                                         (1.0 + poisson_ratio) * B / point.r) /
                                        young_modulus;
@@ -624,25 +648,35 @@ bool test_m1_open_gap_analytic_thermal() {
     constexpr double heat_source = 1.0e8;
     constexpr double outer_temperature = 600.0;
 
-    const fuelsim::SteadyFuelCladdingParameters parameters = {
-        fuel_radius,
-        cladding_inner_radius,
-        cladding_outer_radius,
-        length,
-        length,
-        32,
-        8,
-        2,
-        constant_material(fuel_conductivity, 0.0),
-        constant_material(cladding_conductivity, 0.0),
-        heat_source,
-        outer_temperature,
-        outer_temperature,
-        gap_conductivity,
-        1.0e-6,
-        1.0e14,
-    };
-    const fuelsim::SteadyFuelCladdingProblem problem(parameters);
+    constexpr std::size_t fuel_radial_elements = 32;
+    constexpr std::size_t cladding_radial_elements = 8;
+    constexpr std::size_t axial_elements = 2;
+    const fuelsim::UnstructuredQuad4Mesh mesh =
+        fuelsim::test::make_disconnected_annular_mesh(
+            {{1, "fuel", 0.0, fuel_radius, length, fuel_radial_elements,
+              axial_elements},
+             {2, "clad", cladding_inner_radius, cladding_outer_radius, length,
+              cladding_radial_elements, axial_elements}});
+    fuelsim::SteadyProblemDefinition definition;
+    definition.regions.push_back({"fuel", "fuel",
+                                  constant_material(fuel_conductivity, 0.0),
+                                  heat_source, outer_temperature});
+    definition.regions.push_back({"clad", "clad",
+                                  constant_material(cladding_conductivity, 0.0),
+                                  0.0, outer_temperature});
+    definition.contacts.push_back({"fuel_clad", "clad_inner", "fuel_outer",
+                                   true, true, gap_conductivity, 1.0e-6,
+                                   1.0e14});
+    definition.boundary_conditions.push_back(dirichlet(
+        "fuel_axis", "fuel_inner", fuelsim::Field::radial_displacement, 0.0));
+    definition.boundary_conditions.push_back(dirichlet(
+        "fuel_bottom", "fuel_bottom", fuelsim::Field::axial_displacement, 0.0));
+    definition.boundary_conditions.push_back(dirichlet(
+        "clad_bottom", "clad_bottom", fuelsim::Field::axial_displacement, 0.0));
+    definition.boundary_conditions.push_back(
+        dirichlet("clad_temperature", "clad_outer", fuelsim::Field::temperature,
+                  outer_temperature));
+    const fuelsim::SteadyProblem problem(std::move(definition), mesh);
     fuelsim::PetscSolver solver;
     const fuelsim::SolveResult result =
         solver.solve(problem, problem.initial_state());
@@ -660,21 +694,21 @@ bool test_m1_open_gap_analytic_thermal() {
     const double expected_fuel_surface = expected_cladding_inner + gap_rise;
     const double expected_center = expected_fuel_surface + fuel_rise;
 
-    const std::size_t axial_mid = problem.fuel_mesh().axial_elements() / 2;
+    const std::size_t axial_mid = axial_elements / 2;
     const std::size_t fuel_center_local =
-        problem.fuel_mesh().node_id(0, axial_mid);
-    const std::size_t fuel_surface_local = problem.fuel_mesh().node_id(
-        problem.fuel_mesh().radial_elements(), axial_mid);
+        fuelsim::test::annular_node_id(fuel_radial_elements, 0, axial_mid);
+    const std::size_t fuel_surface_local = fuelsim::test::annular_node_id(
+        fuel_radial_elements, fuel_radial_elements, axial_mid);
     const std::size_t cladding_inner_local =
-        problem.cladding_mesh().node_id(0, axial_mid);
+        fuelsim::test::annular_node_id(cladding_radial_elements, 0, axial_mid);
     const fuelsim::DofMap& dofs = problem.dof_map();
 
     const double actual_center = result.state[dofs.temperature(
-        problem.fuel_global_node(fuel_center_local))];
+        problem.region_node_offset(0) + fuel_center_local)];
     const double actual_fuel_surface = result.state[dofs.temperature(
-        problem.fuel_global_node(fuel_surface_local))];
+        problem.region_node_offset(0) + fuel_surface_local)];
     const double actual_cladding_inner = result.state[dofs.temperature(
-        problem.cladding_global_node(cladding_inner_local))];
+        problem.region_node_offset(1) + cladding_inner_local)];
     const double temperature_scale = expected_center - outer_temperature;
     const double center_error =
         std::abs(actual_center - expected_center) / temperature_scale;
@@ -686,7 +720,7 @@ bool test_m1_open_gap_analytic_thermal() {
         temperature_scale;
 
     const fuelsim::InterfaceSummary interface =
-        problem.summarize_interface(result.state);
+        problem.summarize_interface(0, result.state);
     constexpr double pi = 3.141592653589793238462643383279502884;
     const double expected_heat_rate =
         heat_source * pi * fuel_radius * fuel_radius * length;

@@ -138,20 +138,14 @@ fuelsim_enable_warnings(fuelsim)
 include(CTest)
 
 if(BUILD_TESTING)
-    add_library(fuelsim_test_support
-        tests/support/steady_single_region_problem.cpp
-        tests/support/steady_fuel_cladding_problem.cpp
-        tests/support/steady_fuel_cladding_solver.cpp
-        tests/support/transient_fuel_cladding_problem.cpp
-        tests/support/transient_fuel_cladding_solver.cpp
+    add_library(fuelsim_test_mesh_fixture
+        tests/support/mesh_fixture.cpp
     )
-    target_include_directories(fuelsim_test_support
+    target_include_directories(fuelsim_test_mesh_fixture
         PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/tests"
     )
-    target_link_libraries(fuelsim_test_support
-        PUBLIC fuelsim::core fuelsim::petsc
-    )
-    fuelsim_enable_warnings(fuelsim_test_support)
+    target_link_libraries(fuelsim_test_mesh_fixture PUBLIC fuelsim::core)
+    fuelsim_enable_warnings(fuelsim_test_mesh_fixture)
 
     add_library(fuelsim_moose_test_support
         tests/support/moose_field_comparison.cpp
@@ -168,7 +162,7 @@ if(BUILD_TESTING)
         benchmarks/m1_single_core.cpp
     )
     target_link_libraries(fuelsim_m1_single_core_benchmark
-        PRIVATE fuelsim_test_support
+        PRIVATE fuelsim_test_mesh_fixture fuelsim::petsc
     )
     fuelsim_enable_warnings(fuelsim_m1_single_core_benchmark)
 
@@ -426,7 +420,9 @@ if(BUILD_TESTING)
     )
 
     add_executable(fuelsim_core_tests tests/core_tests.cpp)
-    target_link_libraries(fuelsim_core_tests PRIVATE fuelsim_test_support)
+    target_link_libraries(fuelsim_core_tests
+        PRIVATE fuelsim_test_mesh_fixture fuelsim::core
+    )
     fuelsim_enable_warnings(fuelsim_core_tests)
     add_test(NAME fuelsim_core_tests COMMAND fuelsim_core_tests)
     set_tests_properties(fuelsim_core_tests PROPERTIES LABELS "unit")
@@ -440,14 +436,16 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_multi_region_tests PROPERTIES LABELS "acceptance")
 
     add_executable(fuelsim_m2_core_tests tests/m2_core_tests.cpp)
-    target_link_libraries(fuelsim_m2_core_tests PRIVATE fuelsim_test_support)
+    target_link_libraries(fuelsim_m2_core_tests
+        PRIVATE fuelsim_test_mesh_fixture fuelsim::core
+    )
     fuelsim_enable_warnings(fuelsim_m2_core_tests)
     add_test(NAME fuelsim_m2_core_tests COMMAND fuelsim_m2_core_tests)
     set_tests_properties(fuelsim_m2_core_tests PROPERTIES LABELS "unit")
 
     add_executable(fuelsim_solver_tests tests/solver_tests.cpp)
     target_link_libraries(fuelsim_solver_tests
-        PRIVATE fuelsim_test_support
+        PRIVATE fuelsim_test_mesh_fixture fuelsim::petsc
     )
     fuelsim_enable_warnings(fuelsim_solver_tests)
     add_test(NAME fuelsim_solver_tests COMMAND fuelsim_solver_tests)
@@ -619,7 +617,7 @@ if(BUILD_TESTING)
         tests/m21_manufactured_heat_tests.cpp
     )
     target_link_libraries(fuelsim_m21_manufactured_heat_tests
-        PRIVATE fuelsim::petsc
+        PRIVATE fuelsim_test_mesh_fixture fuelsim::petsc
     )
     fuelsim_enable_warnings(fuelsim_m21_manufactured_heat_tests)
     add_test(NAME fuelsim_m21_manufactured_heat_tests

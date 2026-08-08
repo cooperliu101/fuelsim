@@ -1,6 +1,7 @@
 #include "fuelsim/inelastic_material.hpp"
 #include "fuelsim/quad4_rz_transient.hpp"
-#include "support/transient_fuel_cladding_problem.hpp"
+#include "fuelsim/transient_problem.hpp"
+#include "support/mesh_fixture.hpp"
 
 #include <algorithm>
 #include <array>
@@ -108,8 +109,8 @@ bool same_inelastic_state(const fuelsim::MaterialPointState& lhs,
 }
 
 bool test_objective_incremental_history_rotation() {
-    const fuelsim::IsotropicInelasticMaterial material(
-        simple_thermoelastic(), elastic_properties());
+    const fuelsim::IsotropicInelasticMaterial material(simple_thermoelastic(),
+                                                       elastic_properties());
     fuelsim::MaterialPointState committed;
     committed.elastic_strain = {0.020, -0.012, -0.008, 0.006};
     committed.plastic_strain = {0.030, -0.018, -0.012, 0.004};
@@ -120,8 +121,8 @@ bool test_objective_incremental_history_rotation() {
     constexpr double angle = 0.37;
     const double cosine = std::cos(angle);
     const double sine = std::sin(angle);
-    const fuelsim::AxisymmetricRotation rotation = {
-        cosine, -sine, sine, cosine, 1.0};
+    const fuelsim::AxisymmetricRotation rotation = {cosine, -sine, sine, cosine,
+                                                    1.0};
     const std::array<double, 4> total = {
         committed.elastic_strain[0] + committed.plastic_strain[0] +
             committed.creep_strain[0],
@@ -141,8 +142,8 @@ bool test_objective_incremental_history_rotation() {
         fuelsim::rotate_axisymmetric_tensor(unrotated.stress, rotation);
 
     const auto rotate_values = [&](const std::array<double, 4>& values) {
-        const fuelsim::AxisymmetricStress tensor = {
-            values[0], values[1], values[2], values[3]};
+        const fuelsim::AxisymmetricStress tensor = {values[0], values[1],
+                                                    values[2], values[3]};
         const fuelsim::AxisymmetricStress value =
             fuelsim::rotate_axisymmetric_tensor(tensor, rotation);
         return std::array<double, 4>{value.rr.value(), value.zz.value(),
@@ -158,39 +159,35 @@ bool test_objective_incremental_history_rotation() {
         rotate_values(committed.creep_strain);
     double maximum_error = 0.0;
     for (std::size_t component = 0; component < 4; ++component) {
-        maximum_error = std::max(
-            {maximum_error,
-             std::abs(state.elastic_strain[component] -
-                      expected_elastic[component]),
-             std::abs(state.plastic_strain[component] -
-                      expected_plastic[component]),
-             std::abs(state.creep_strain[component] -
-                      expected_creep[component])});
+        maximum_error = std::max({maximum_error,
+                                  std::abs(state.elastic_strain[component] -
+                                           expected_elastic[component]),
+                                  std::abs(state.plastic_strain[component] -
+                                           expected_plastic[component]),
+                                  std::abs(state.creep_strain[component] -
+                                           expected_creep[component])});
     }
-    maximum_error =
-        std::max({maximum_error,
-                  scaled_error(rotated.stress.rr.value(),
-                               expected_stress.rr.value()),
-                  scaled_error(rotated.stress.zz.value(),
-                               expected_stress.zz.value()),
-                  scaled_error(rotated.stress.hoop.value(),
-                               expected_stress.hoop.value()),
-                  scaled_error(rotated.stress.rz.value(),
-                               expected_stress.rz.value())});
+    maximum_error = std::max(
+        {maximum_error,
+         scaled_error(rotated.stress.rr.value(), expected_stress.rr.value()),
+         scaled_error(rotated.stress.zz.value(), expected_stress.zz.value()),
+         scaled_error(rotated.stress.hoop.value(),
+                      expected_stress.hoop.value()),
+         scaled_error(rotated.stress.rz.value(), expected_stress.rz.value())});
     bool passed =
         check(maximum_error < 1.0e-14,
               "incremental finite strain objectively rotates stress and all "
               "tensor histories");
-    passed = check(
-                 std::abs(inelastic_trace(state.plastic_strain)) < 1.0e-14 &&
-                     std::abs(inelastic_trace(state.creep_strain)) < 1.0e-14 &&
-                     state.equivalent_plastic_strain ==
-                         committed.equivalent_plastic_strain &&
-                     state.equivalent_creep_strain ==
-                         committed.equivalent_creep_strain,
-                 "objective rotation preserves trace-free histories and "
-                 "equivalent scalars") &&
-             passed;
+    passed =
+        check(std::abs(inelastic_trace(state.plastic_strain)) < 1.0e-14 &&
+                  std::abs(inelastic_trace(state.creep_strain)) < 1.0e-14 &&
+                  state.equivalent_plastic_strain ==
+                      committed.equivalent_plastic_strain &&
+                  state.equivalent_creep_strain ==
+                      committed.equivalent_creep_strain,
+              "objective rotation preserves trace-free histories and "
+              "equivalent scalars") &&
+        passed;
     std::cout << "m41_objective_history_rotation_maximum_error="
               << maximum_error << '\n';
     return passed;
@@ -210,8 +207,7 @@ double temperature_tangent_error(
         active_inelastic.creep.coefficient_temperature_coefficient = 1.0e-4;
         active_inelastic.creep.reference_stress_temperature_coefficient =
             2.0e-3;
-        active_inelastic.creep.stress_exponent_temperature_coefficient =
-            1.0e-4;
+        active_inelastic.creep.stress_exponent_temperature_coefficient = 1.0e-4;
     }
     if (active_inelastic.behavior ==
             fuelsim::InelasticBehavior::j2_plasticity ||
@@ -219,11 +215,10 @@ double temperature_tangent_error(
             fuelsim::InelasticBehavior::norton_creep_j2_plasticity) {
         active_inelastic.plasticity.yield_stress_temperature_coefficient =
             -1.0e-2;
-        active_inelastic.plasticity.hardening_temperature_coefficient =
-            -2.0e-2;
+        active_inelastic.plasticity.hardening_temperature_coefficient = -2.0e-2;
     }
     const fuelsim::IsotropicInelasticMaterial material(thermoelastic,
-                                                        active_inelastic);
+                                                       active_inelastic);
     const fuelsim::MaterialPointState committed{};
     constexpr double temperature = 610.0;
     constexpr double time_step = 0.01;
@@ -234,20 +229,21 @@ double temperature_tangent_error(
     constexpr double perturbation = 1.0e-4;
     const double plus =
         material
-            .response(0.2, -0.1, -0.1, 0.02,
-                      temperature + perturbation, time_step, committed)
+            .response(0.2, -0.1, -0.1, 0.02, temperature + perturbation,
+                      time_step, committed)
             .stress.rr.value();
     const double minus =
         material
-            .response(0.2, -0.1, -0.1, 0.02,
-                      temperature - perturbation, time_step, committed)
+            .response(0.2, -0.1, -0.1, 0.02, temperature - perturbation,
+                      time_step, committed)
             .stress.rr.value();
     return scaled_error(active.stress.rr.derivative(0),
                         (plus - minus) / (2.0 * perturbation));
 }
 
 bool test_temperature_active_inelastic_properties() {
-    const double elastic_error = temperature_tangent_error(elastic_properties());
+    const double elastic_error =
+        temperature_tangent_error(elastic_properties());
     const double plastic_error =
         temperature_tangent_error(plastic_properties(20.0, 40.0));
     const double creep_error =
@@ -948,9 +944,8 @@ bool test_transient_element() {
                    "matrix divided by dt") &&
              passed;
 
-    const fuelsim::Quad4MaterialHistory trial =
-        kernel.trial_state_values(geometry, state, old_temperature, history,
-                                  2.0);
+    const fuelsim::Quad4MaterialHistory trial = kernel.trial_state_values(
+        geometry, state, old_temperature, history, 2.0);
     for (std::size_t q = 0; q < trial.size(); ++q)
         passed = check(same_inelastic_state(trial[q], history[q]),
                        "elastic transient element leaves inelastic history "
@@ -1038,9 +1033,8 @@ bool test_coupled_transient_element_jacobian(
                                  scaled_error(ad_direction, finite_difference));
     }
 
-    const fuelsim::Quad4MaterialHistory trial =
-        kernel.trial_state_values(geometry, state, committed_state, history,
-                                  time_step);
+    const fuelsim::Quad4MaterialHistory trial = kernel.trial_state_values(
+        geometry, state, committed_state, history, time_step);
     bool both_histories_active = true;
     for (const fuelsim::MaterialPointState& point : trial) {
         both_histories_active = point.equivalent_plastic_strain > 0.0 &&
@@ -1072,46 +1066,42 @@ bool test_coupled_transient_element_jacobians() {
     return passed;
 }
 
-fuelsim::TransientFuelCladdingParameters transaction_parameters() {
-    const fuelsim::SteadyFuelCladdingParameters base = {
-        1.0,
-        1.1,
-        1.2,
-        1.0,
-        1.02,
-        1,
-        1,
-        1,
-        simple_thermoelastic(),
-        simple_thermoelastic(),
-        100.0,
-        600.0,
-        600.0,
-        1.0,
-        0.01,
-        1.0e4,
-    };
-    return {
-        base,
-        coupled_properties(1.0e-4, 1.0, 1.0, 1.0, 10.0),
-        plastic_properties(1.0, 10.0),
-    };
+fuelsim::TransientProblemDefinition transaction_definition() {
+    fuelsim::TransientProblemDefinition definition;
+    definition.spatial.regions.push_back(
+        {"solid", "solid", simple_thermoelastic(), 100.0, 600.0});
+    definition.spatial.boundary_conditions.push_back(
+        {"axis_radial", fuelsim::BoundaryConditionType::dirichlet,
+         "solid_inner", fuelsim::Field::radial_displacement, 0.0});
+    definition.spatial.boundary_conditions.push_back(
+        {"bottom_axial", fuelsim::BoundaryConditionType::dirichlet,
+         "solid_bottom", fuelsim::Field::axial_displacement, 0.0});
+    definition.spatial.boundary_conditions.push_back(
+        {"outer_temperature", fuelsim::BoundaryConditionType::dirichlet,
+         "solid_outer", fuelsim::Field::temperature, 600.0});
+    definition.regions.push_back(
+        {"solid", coupled_properties(1.0e-4, 1.0, 1.0, 1.0, 10.0)});
+    return definition;
 }
 
 bool test_problem_history_transaction() {
-    fuelsim::TransientFuelCladdingProblem problem(transaction_parameters());
+    const fuelsim::UnstructuredQuad4Mesh mesh =
+        fuelsim::test::make_disconnected_annular_mesh(
+            {{1, "solid", 0.0, 1.0, 1.0, 1, 1}});
+    fuelsim::TransientProblem problem(transaction_definition(), mesh);
     const std::vector<double> initial_solution = problem.committed_solution();
     const fuelsim::MaterialPointState initial_history =
-        problem.fuel_material_history(0)[0];
+        problem.material_history(0, 0)[0];
 
-    problem.begin_time_step({1.0, 50.0});
+    problem.begin_time_step({1.0, 0.5});
     std::vector<double> trial_solution = initial_solution;
-    const fuelsim::SteadyFuelCladdingProblem& base = problem.steady_problem();
-    const fuelsim::DofMap& dofs = base.dof_map();
+    const fuelsim::DofMap& dofs = problem.dof_map();
     for (std::size_t local_node = 0;
-         local_node < base.fuel_mesh().nodes().size(); ++local_node) {
-        const fuelsim::RzPoint& point = base.fuel_mesh().nodes()[local_node];
-        const std::size_t global_node = base.fuel_global_node(local_node);
+         local_node < problem.region_mesh(0).nodes().size(); ++local_node) {
+        const fuelsim::RzPoint& point =
+            problem.region_mesh(0).nodes()[local_node];
+        const std::size_t global_node =
+            problem.region_node_offset(0) + local_node;
         trial_solution[dofs.radial_displacement(global_node)] = -0.05 * point.r;
         trial_solution[dofs.axial_displacement(global_node)] = 0.10 * point.z;
     }
@@ -1121,18 +1111,18 @@ bool test_problem_history_transaction() {
     (void)problem.linearize_contribution(0, local_trial);
 
     bool passed =
-        check(same_state(problem.fuel_material_history(0)[0], initial_history),
+        check(same_state(problem.material_history(0, 0)[0], initial_history),
               "Newton residual and Jacobian callbacks do not mutate "
               "committed history");
     problem.commit_time_step(trial_solution);
     const fuelsim::RegionInelasticSummary committed_history =
-        problem.summarize_fuel_history();
+        problem.summarize_region_history(0);
     const double committed_plastic =
         committed_history.maximum_equivalent_plastic_strain;
     const double committed_creep =
         committed_history.maximum_equivalent_creep_strain;
     passed = check(problem.committed_time() == 1.0 &&
-                       problem.committed_heat_source() == 50.0 &&
+                       problem.committed_load_factor() == 0.5 &&
                        !problem.time_step_active(),
                    "accepted M2 time step commits time, load, and phase") &&
              passed;
@@ -1144,28 +1134,28 @@ bool test_problem_history_transaction() {
                    "accepted M2 time step commits the converged nodal state") &&
              passed;
 
-    problem.begin_time_step({2.0, 75.0});
+    problem.begin_time_step({2.0, 0.75});
     problem.rollback_time_step();
-    passed = check(problem.committed_time() == 1.0 &&
-                       problem.committed_heat_source() == 50.0 &&
-                       problem.fuel_kernel().volumetric_heat_source() == 50.0,
-                   "rollback restores the committed time and heat load") &&
-             passed;
     passed =
-        check(
-            problem.summarize_fuel_history().maximum_equivalent_creep_strain ==
-                    committed_creep &&
-                problem.summarize_fuel_history()
-                        .maximum_equivalent_plastic_strain ==
-                    committed_plastic &&
-                problem.committed_solution() == trial_solution,
-            "rollback preserves committed nodal and material history") &&
+        check(problem.committed_time() == 1.0 &&
+                  problem.committed_load_factor() == 0.5 &&
+                  problem.region_kernel(0).volumetric_heat_source() == 50.0,
+              "rollback restores the committed time and heat load") &&
+        passed;
+    passed =
+        check(problem.summarize_region_history(0)
+                          .maximum_equivalent_creep_strain == committed_creep &&
+                  problem.summarize_region_history(0)
+                          .maximum_equivalent_plastic_strain ==
+                      committed_plastic &&
+                  problem.committed_solution() == trial_solution,
+              "rollback preserves committed nodal and material history") &&
         passed;
 
-    problem.begin_time_step({2.0, 75.0});
+    problem.begin_time_step({2.0, 0.75});
     std::vector<double> invalid_solution = trial_solution;
-    invalid_solution[base.dof_map().temperature(base.fuel_global_node(0))] =
-        -100.0;
+    invalid_solution[problem.dof_map().temperature(
+        problem.region_node_offset(0))] = -100.0;
     bool invalid_commit_threw = false;
     try {
         problem.commit_time_step(invalid_solution);
@@ -1180,9 +1170,9 @@ bool test_problem_history_transaction() {
     passed =
         check(problem.committed_time() == 1.0 &&
                   problem.committed_solution() == trial_solution &&
-                  problem.summarize_fuel_history()
+                  problem.summarize_region_history(0)
                           .maximum_equivalent_creep_strain == committed_creep &&
-                  problem.summarize_fuel_history()
+                  problem.summarize_region_history(0)
                           .maximum_equivalent_plastic_strain ==
                       committed_plastic,
               "failed commit retains the previous complete transaction") &&

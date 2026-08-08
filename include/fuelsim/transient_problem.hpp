@@ -138,10 +138,6 @@ class TransientProblem final : public NonlinearProblem {
     LocalSystem linearize_contribution(std::size_t contribution_index,
                                        const LocalValues& state) const override;
 
-  protected:
-    void add_state_independent_residual(
-        std::vector<double>& residual) const override;
-
   private:
     LocalValues
     committed_element_state(std::size_t contribution_index) const;

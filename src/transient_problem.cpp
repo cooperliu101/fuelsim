@@ -808,11 +808,6 @@ TransientProblem::linearize_contribution(std::size_t contribution_index,
     return _spatial_model.linearize_contribution(contribution_index, state);
 }
 
-void TransientProblem::add_state_independent_residual(
-    std::vector<double>& residual) const {
-    (void)residual;
-}
-
 LocalValues TransientProblem::committed_element_state(
     std::size_t contribution_index) const {
     return contribution_state(contribution_index, _committed_solution);

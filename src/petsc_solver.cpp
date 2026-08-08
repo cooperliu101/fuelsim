@@ -108,7 +108,6 @@ struct SolverContext final {
     Vec gathered_state = nullptr;
     std::vector<std::uint32_t> shadow_dofs;
     std::vector<double> state_values;
-    std::vector<double> residual_values;
     std::vector<PetscInt> constrained_dofs;
     std::vector<bool> constrained;
     bool field_residual_scaling = true;
@@ -496,17 +495,6 @@ PetscErrorCode form_function(SNES snes, Vec state, Vec residual,
                     residual, static_cast<PetscInt>(dofs.size()), dofs.data(),
                     local_residual.data(), ADD_VALUES));
             }
-            if (context.rank == 0) {
-                problem.assemble_state_independent_residual(
-                    context.residual_values);
-                for (std::size_t index = 0;
-                     index < context.residual_values.size(); ++index) {
-                    if (context.residual_values[index] != 0.0)
-                        PetscCall(VecSetValue(
-                            residual, checked_petsc_int(index),
-                            context.residual_values[index], ADD_VALUES));
-                }
-            }
         } catch (const std::domain_error& error) {
             local_domain_error = true;
             context.last_domain_error = error.what();
@@ -768,9 +756,6 @@ class PetscSolver::Implementation final {
                         _context.shadow_dofs.end()),
             _context.shadow_dofs.end());
         _context.state_values.resize(_context.shadow_dofs.size());
-        if (_context.rank == 0)
-            _context.residual_values.resize(problem.dof_count());
-
         std::vector<PetscInt> shadow_indices;
         shadow_indices.reserve(_context.shadow_dofs.size());
         for (const std::uint32_t dof : _context.shadow_dofs)

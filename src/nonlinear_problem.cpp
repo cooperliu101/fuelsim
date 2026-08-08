@@ -166,19 +166,6 @@ void NonlinearProblem::assemble_residual(const std::vector<double>& state,
         }
     }
 
-    add_state_independent_residual(residual);
-    if (residual.size() != dof_count())
-        throw std::logic_error(
-            "NonlinearProblem residual hook changed the residual size");
-}
-
-void NonlinearProblem::assemble_state_independent_residual(
-    std::vector<double>& residual) const {
-    residual.assign(dof_count(), 0.0);
-    add_state_independent_residual(residual);
-    if (residual.size() != dof_count())
-        throw std::logic_error(
-            "NonlinearProblem residual hook changed the residual size");
 }
 
 } // namespace fuelsim

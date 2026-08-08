@@ -161,9 +161,9 @@ class SteadyProblem final : public NonlinearProblem {
     committed_contact_histories() const noexcept;
     void commit_contact_state(const std::vector<double>& state);
     bool uses_augmented_contact() const noexcept;
-    AugmentedContactUpdate update_augmented_contact_multipliers(
-        const std::vector<double>& state,
-        std::size_t completed_updates);
+    AugmentedContactUpdate
+    update_augmented_contact_multipliers(const std::vector<double>& state,
+                                         std::size_t completed_updates);
     void restore_contact_state(
         const std::vector<double>& state,
         std::vector<std::vector<ContactPointHistory>> histories);
@@ -187,22 +187,18 @@ class SteadyProblem final : public NonlinearProblem {
     const std::vector<DirichletCondition>&
     dirichlet_conditions() const noexcept override;
     void validate_state(const std::vector<double>& state) const override;
-    std::vector<std::size_t> required_state_dofs(
-        std::size_t contribution_begin,
-        std::size_t contribution_end) const override;
-    void validate_local_state(
-        std::size_t contribution_begin, std::size_t contribution_end,
-        const GlobalStateView& state) const override;
+    std::vector<std::size_t>
+    required_state_dofs(std::size_t contribution_begin,
+                        std::size_t contribution_end) const override;
+    void validate_local_state(std::size_t contribution_begin,
+                              std::size_t contribution_end,
+                              const GlobalStateView& state) const override;
     LocalDofs contribution_dofs(std::size_t contribution_index) const override;
     LocalResidual
     contribution_residual(std::size_t contribution_index,
                           const LocalValues& state) const override;
     LocalSystem linearize_contribution(std::size_t contribution_index,
                                        const LocalValues& state) const override;
-
-  protected:
-    void add_state_independent_residual(
-        std::vector<double>& residual) const override;
 
   private:
     struct ResolvedBoundary final {
@@ -236,6 +232,39 @@ class SteadyProblem final : public NonlinearProblem {
         std::string ambient_temperature_function;
     };
 
+    struct ThermalContribution final {
+        std::size_t contact;
+        std::array<std::size_t, 4> nodes;
+        Line2RzHeatGeometry geometry;
+    };
+
+    struct MechanicalContribution final {
+        std::size_t contact;
+        std::array<std::size_t, 4> nodes;
+        NodeToLineRzContactGeometry geometry;
+        std::size_t secondary;
+        std::size_t primary;
+        mutable bool active = false;
+    };
+
+    struct PressureContribution final {
+        std::size_t load;
+        std::array<std::size_t, 4> nodes;
+        Line2RzPressureGeometry geometry;
+    };
+
+    struct TractionContribution final {
+        std::size_t load;
+        std::array<std::size_t, 4> nodes;
+        Line2RzTractionGeometry geometry;
+    };
+
+    struct ConvectionContribution final {
+        std::size_t load;
+        std::array<std::size_t, 4> nodes;
+        Line2RzConvectionGeometry geometry;
+    };
+
     SteadyProblem(SteadyProblemDefinition definition,
                   const UnstructuredQuad4Mesh& source_mesh,
                   std::vector<std::int64_t> block_ids,
@@ -256,9 +285,9 @@ class SteadyProblem final : public NonlinearProblem {
     void build_contacts(const UnstructuredQuad4Mesh& source_mesh);
     void build_boundary_conditions(const UnstructuredQuad4Mesh& source_mesh);
     void update_mechanical_candidates(const std::vector<double>& state) const;
-    void update_local_mechanical_candidates(
-        std::size_t contribution_begin, std::size_t contribution_end,
-        const GlobalStateView& state) const;
+    void update_mechanical_candidates(std::size_t contribution_begin,
+                                      std::size_t contribution_end,
+                                      const GlobalStateView& state) const;
     double function_value(const std::string& name) const;
     double load_multiplier(bool scale_with_load,
                            const std::string& function) const;
@@ -275,15 +304,8 @@ class SteadyProblem final : public NonlinearProblem {
 
     std::vector<Line2RzGapHeatKernel> _thermal_kernels;
     std::vector<NodeToLineRzContactKernel> _mechanical_kernels;
-    std::vector<std::size_t> _thermal_contact_indices;
-    std::vector<std::array<std::size_t, 4>> _thermal_nodes;
-    std::vector<Line2RzHeatGeometry> _thermal_geometries;
-    std::vector<std::size_t> _mechanical_contact_indices;
-    std::vector<std::array<std::size_t, 4>> _mechanical_nodes;
-    std::vector<NodeToLineRzContactGeometry> _mechanical_geometries;
-    std::vector<std::size_t> _mechanical_secondary_indices;
-    std::vector<std::size_t> _mechanical_primary_indices;
-    mutable std::vector<bool> _active_mechanical_contributions;
+    std::vector<ThermalContribution> _thermal_contributions;
+    std::vector<MechanicalContribution> _mechanical_contributions;
     mutable std::vector<std::vector<bool>> _projected_mechanical_nodes;
     std::vector<std::vector<ContactPointHistory>> _contact_histories;
     std::vector<double> _committed_contact_solution;
@@ -292,19 +314,13 @@ class SteadyProblem final : public NonlinearProblem {
 
     std::vector<Line2RzConvectionKernel> _convection_kernels;
     std::vector<ConvectionLoad> _convection_loads;
-    std::vector<std::size_t> _convection_load_indices;
-    std::vector<std::array<std::size_t, 4>> _convection_nodes;
-    std::vector<Line2RzConvectionGeometry> _convection_geometries;
+    std::vector<ConvectionContribution> _convection_contributions;
 
     std::vector<Line2RzPressureKernel> _pressure_kernels;
-    std::vector<std::size_t> _pressure_load_indices;
-    std::vector<std::array<std::size_t, 4>> _pressure_nodes;
-    std::vector<Line2RzPressureGeometry> _pressure_geometries;
+    std::vector<PressureContribution> _pressure_contributions;
 
     std::vector<Line2RzTractionKernel> _traction_kernels;
-    std::vector<std::size_t> _traction_load_indices;
-    std::vector<std::array<std::size_t, 4>> _traction_nodes;
-    std::vector<Line2RzTractionGeometry> _traction_geometries;
+    std::vector<TractionContribution> _traction_contributions;
 
     std::vector<DirichletCondition> _dirichlet_conditions;
     std::vector<ControlledDirichlet> _controlled_dirichlet_conditions;
