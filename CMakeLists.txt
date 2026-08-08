@@ -65,6 +65,7 @@ add_library(fuelsim_core
     src/diagnostics.cpp
     src/inelastic_material.cpp
     src/interface.cpp
+    src/spatial_assembly.cpp
     src/steady_problem.cpp
     src/time_table.cpp
     src/transient_problem.cpp

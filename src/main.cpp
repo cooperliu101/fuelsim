@@ -388,7 +388,7 @@ bool run_steady(const fuelsim::FuelSimCaseDefinition& definition,
                 const fuelsim::UnstructuredQuad4Mesh& source,
                 CaseOutput& output, bool check_jacobian,
                 const fuelsim::PetscSession& session) {
-    fuelsim::SteadyProblem problem(definition.steady_definition(), source);
+    fuelsim::SteadyProblem problem(definition.spatial_definition(), source);
     if (check_jacobian) {
         problem.set_load_factor(1.0);
         return write_jacobian_check(problem, problem.dof_map(),

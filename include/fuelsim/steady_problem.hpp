@@ -1,140 +1,29 @@
 #ifndef FUELSIM_STEADY_PROBLEM_HPP
 #define FUELSIM_STEADY_PROBLEM_HPP
 
-#include "fuelsim/boundary.hpp"
 #include "fuelsim/dof_map.hpp"
-#include "fuelsim/interface.hpp"
-#include "fuelsim/material.hpp"
 #include "fuelsim/mesh.hpp"
 #include "fuelsim/nonlinear_problem.hpp"
 #include "fuelsim/quad4_rz.hpp"
-#include "fuelsim/time_table.hpp"
+#include "fuelsim/spatial_definition.hpp"
 
-#include <array>
 #include <cstddef>
-#include <cstdint>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
 
 namespace fuelsim {
 
-struct RegionDefinition final {
-    std::string name;
-    std::string block;
-    ThermoelasticProperties material;
-    double volumetric_heat_source;
-    double initial_temperature;
-    std::int64_t block_id = -1;
-    std::string heat_source_function{};
-    StrainFormulation strain_formulation = StrainFormulation::small;
-};
-
-enum class MechanicalContactFormulation {
-    penalty,
-    augmented_lagrangian,
-};
-
-struct ContactDefinition final {
-    std::string name;
-    std::string primary;
-    std::string secondary;
-    bool thermal;
-    bool mechanical;
-    double gap_conductivity;
-    double minimum_gap;
-    double penalty;
-    double friction_coefficient = 0.0;
-    bool automatic_penalty = false;
-    double penalty_factor = 1.0;
-    MechanicalContactFormulation mechanical_formulation =
-        MechanicalContactFormulation::penalty;
-    double penetration_tolerance = 1.0e-8;
-    std::size_t maximum_augmented_iterations = 20;
-};
-
-struct AugmentedContactUpdate final {
-    bool converged = true;
-    bool update_allowed = true;
-    double maximum_penetration = 0.0;
-    double maximum_constraint_violation = 0.0;
-    double penetration_tolerance = 0.0;
-};
-
-enum class BoundaryConditionType {
-    dirichlet,
-    pressure,
-    traction,
-    convection,
-};
-
-struct BoundaryConditionDefinition final {
-    std::string name;
-    BoundaryConditionType type;
-    std::string boundary;
-    Field field;
-    double value;
-    bool scale_with_load = false;
-    std::string function{};
-    double heat_transfer_coefficient = 0.0;
-    double ambient_temperature = 0.0;
-    std::string coefficient_function{};
-    std::string ambient_temperature_function{};
-    bool use_displaced_geometry = false;
-};
-
-struct SteadyProblemDefinition final {
-    std::vector<RegionDefinition> regions;
-    std::vector<ContactDefinition> contacts;
-    std::vector<BoundaryConditionDefinition> boundary_conditions;
-    std::vector<PiecewiseLinearTimeTable> time_tables{};
-};
-
-struct ContactNodeSummary final {
-    double r;
-    double z;
-    bool projected;
-    std::size_t primary_segment;
-    double gap;
-    double pressure;
-    double tributary_area;
-    double tributary_length;
-    double contact_force;
-    double tangential_traction;
-    double tangential_force;
-    double elastic_tangential_slip;
-    bool sliding;
-};
-
-struct InterfaceSummary final {
-    double minimum_gap;
-    double maximum_gap;
-    double minimum_contact_gap;
-    double maximum_contact_pressure;
-    double total_heat_rate;
-    double total_contact_force;
-    double total_tangential_force;
-    std::size_t projected_contact_nodes;
-    std::size_t unprojected_contact_nodes;
-    std::size_t active_contact_nodes;
-    double active_contact_length;
-};
-
-enum class SpatialContributionType {
-    volume,
-    thermal_contact,
-    mechanical_contact,
-    pressure,
-    traction,
-    convection,
-};
+class SpatialAssembly;
 
 class SteadyProblem final : public NonlinearProblem {
   public:
-    SteadyProblem(SteadyProblemDefinition definition,
+    SteadyProblem(SpatialDefinition definition,
                   const UnstructuredQuad4Mesh& source_mesh);
+    ~SteadyProblem() override;
 
-    const SteadyProblemDefinition& definition() const noexcept;
+    const SpatialDefinition& definition() const noexcept;
     const DofMap& dof_map() const noexcept;
 
     std::size_t region_count() const noexcept;
@@ -201,133 +90,8 @@ class SteadyProblem final : public NonlinearProblem {
                                        const LocalValues& state) const override;
 
   private:
-    struct ResolvedBoundary final {
-        std::size_t region;
-        RegionBoundary boundary;
-    };
-
-    struct PressureLoad final {
-        double pressure;
-        bool scale_with_load;
-        std::string function;
-    };
-
-    struct TractionLoad final {
-        double traction;
-        bool scale_with_load;
-        std::string function;
-    };
-
-    struct ControlledDirichlet final {
-        std::size_t dof;
-        double value;
-        bool scale_with_load;
-        std::string function;
-    };
-
-    struct ConvectionLoad final {
-        double heat_transfer_coefficient;
-        double ambient_temperature;
-        std::string coefficient_function;
-        std::string ambient_temperature_function;
-    };
-
-    struct ThermalContribution final {
-        std::size_t contact;
-        std::array<std::size_t, 4> nodes;
-        Line2RzHeatGeometry geometry;
-    };
-
-    struct MechanicalContribution final {
-        std::size_t contact;
-        std::array<std::size_t, 4> nodes;
-        NodeToLineRzContactGeometry geometry;
-        std::size_t secondary;
-        std::size_t primary;
-        mutable bool active = false;
-    };
-
-    struct PressureContribution final {
-        std::size_t load;
-        std::array<std::size_t, 4> nodes;
-        Line2RzPressureGeometry geometry;
-    };
-
-    struct TractionContribution final {
-        std::size_t load;
-        std::array<std::size_t, 4> nodes;
-        Line2RzTractionGeometry geometry;
-    };
-
-    struct ConvectionContribution final {
-        std::size_t load;
-        std::array<std::size_t, 4> nodes;
-        Line2RzConvectionGeometry geometry;
-    };
-
-    SteadyProblem(SteadyProblemDefinition definition,
-                  const UnstructuredQuad4Mesh& source_mesh,
-                  std::vector<std::int64_t> block_ids,
-                  std::vector<RegionMesh> meshes);
-
-    static std::vector<std::int64_t>
-    resolve_block_ids(const SteadyProblemDefinition& definition,
-                      const UnstructuredQuad4Mesh& source_mesh);
-    static std::vector<RegionMesh>
-    build_meshes(const SteadyProblemDefinition& definition,
-                 const UnstructuredQuad4Mesh& source_mesh);
-
-    ResolvedBoundary resolve_boundary(const UnstructuredQuad4Mesh& source_mesh,
-                                      const std::string& name) const;
-    std::size_t global_node(std::size_t region_index,
-                            std::size_t local_node) const;
-    void build_volume_geometries();
-    void build_contacts(const UnstructuredQuad4Mesh& source_mesh);
-    void build_boundary_conditions(const UnstructuredQuad4Mesh& source_mesh);
-    void update_mechanical_candidates(const std::vector<double>& state) const;
-    void update_mechanical_candidates(std::size_t contribution_begin,
-                                      std::size_t contribution_end,
-                                      const GlobalStateView& state) const;
-    double function_value(const std::string& name) const;
-    double load_multiplier(bool scale_with_load,
-                           const std::string& function) const;
-    void refresh_controlled_values();
-
-    SteadyProblemDefinition _definition;
-    std::vector<std::int64_t> _block_ids;
-    std::vector<RegionMesh> _meshes;
-    std::vector<std::size_t> _node_offsets;
-    std::vector<std::size_t> _element_offsets;
-    DofMap _dof_map;
+    std::unique_ptr<SpatialAssembly> _spatial;
     std::vector<Quad4RzThermoelasticKernel> _region_kernels;
-    std::vector<std::vector<Quad4RzGeometry>> _region_geometries;
-
-    std::vector<Line2RzGapHeatKernel> _thermal_kernels;
-    std::vector<NodeToLineRzContactKernel> _mechanical_kernels;
-    std::vector<ThermalContribution> _thermal_contributions;
-    std::vector<MechanicalContribution> _mechanical_contributions;
-    mutable std::vector<std::vector<bool>> _projected_mechanical_nodes;
-    std::vector<std::vector<ContactPointHistory>> _contact_histories;
-    std::vector<double> _committed_contact_solution;
-    std::vector<ResolvedBoundary> _primary_boundaries;
-    std::vector<ResolvedBoundary> _secondary_boundaries;
-
-    std::vector<Line2RzConvectionKernel> _convection_kernels;
-    std::vector<ConvectionLoad> _convection_loads;
-    std::vector<ConvectionContribution> _convection_contributions;
-
-    std::vector<Line2RzPressureKernel> _pressure_kernels;
-    std::vector<PressureContribution> _pressure_contributions;
-
-    std::vector<Line2RzTractionKernel> _traction_kernels;
-    std::vector<TractionContribution> _traction_contributions;
-
-    std::vector<DirichletCondition> _dirichlet_conditions;
-    std::vector<ControlledDirichlet> _controlled_dirichlet_conditions;
-    std::vector<PressureLoad> _pressure_loads;
-    std::vector<TractionLoad> _traction_loads;
-    double _load_factor;
-    double _time;
 };
 
 } // namespace fuelsim

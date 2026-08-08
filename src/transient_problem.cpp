@@ -1,9 +1,12 @@
 #include "fuelsim/transient_problem.hpp"
 
+#include "spatial_assembly.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <limits>
+#include <memory>
 #include <stdexcept>
 #include <utility>
 
@@ -122,8 +125,9 @@ void validate_definition(const TransientProblemDefinition& definition) {
 TransientProblem::TransientProblem(TransientProblemDefinition definition,
                                    const UnstructuredQuad4Mesh& source_mesh)
     : _definition(std::move(definition)),
-      _spatial_model(_definition.spatial, source_mesh),
-      _committed_solution(_spatial_model.initial_state()), _committed_time(0.0),
+      _spatial(std::make_unique<SpatialAssembly>(_definition.spatial,
+                                                 source_mesh)),
+      _committed_solution(_spatial->initial_state()), _committed_time(0.0),
       _committed_load_factor(0.0), _active_time_step(0.0),
       _active_end_time(0.0), _active_load_factor(0.0),
       _time_step_active(false) {
@@ -140,15 +144,17 @@ TransientProblem::TransientProblem(TransientProblemDefinition definition,
             0.0,
             _definition.spatial.regions[region_value].strain_formulation);
         _material_histories[region_value].resize(
-            _spatial_model.region_element_count(region_value));
+            _spatial->region_element_count(region_value));
         _material_stresses[region_value].resize(
-            _spatial_model.region_element_count(region_value));
+            _spatial->region_element_count(region_value));
     }
-    _spatial_model.set_load_factor(0.0);
-    _committed_solution = _spatial_model.initial_state();
-    _spatial_model.restore_contact_state(
-        _committed_solution, _spatial_model.committed_contact_histories());
+    _spatial->set_load_factor(0.0);
+    _committed_solution = _spatial->initial_state();
+    _spatial->restore_contact_state(
+        _committed_solution, _spatial->committed_contact_histories());
 }
+
+TransientProblem::~TransientProblem() = default;
 
 const TransientProblemDefinition&
 TransientProblem::definition() const noexcept {
@@ -156,7 +162,7 @@ TransientProblem::definition() const noexcept {
 }
 
 const DofMap& TransientProblem::dof_map() const noexcept {
-    return _spatial_model.dof_map();
+    return _spatial->dof_map();
 }
 
 std::size_t TransientProblem::region_count() const noexcept {
@@ -164,20 +170,20 @@ std::size_t TransientProblem::region_count() const noexcept {
 }
 
 std::size_t TransientProblem::region_index(const std::string& name) const {
-    return _spatial_model.region_index(name);
+    return _spatial->region_index(name);
 }
 
 std::size_t
 TransientProblem::region_node_offset(std::size_t region_value) const {
-    return _spatial_model.region_node_offset(region_value);
+    return _spatial->region_node_offset(region_value);
 }
 
 const RegionDefinition& TransientProblem::region(std::size_t index) const {
-    return _spatial_model.region(index);
+    return _spatial->region(index);
 }
 
 const RegionMesh& TransientProblem::region_mesh(std::size_t index) const {
-    return _spatial_model.region_mesh(index);
+    return _spatial->region_mesh(index);
 }
 
 const Quad4RzTransientKernel&
@@ -188,7 +194,7 @@ TransientProblem::region_kernel(std::size_t index) const {
 const Quad4RzGeometry&
 TransientProblem::region_element_geometry(std::size_t region_value,
                                           std::size_t element_index) const {
-    return _spatial_model.region_element_geometry(region_value, element_index);
+    return _spatial->region_element_geometry(region_value, element_index);
 }
 
 const std::vector<double>&
@@ -338,7 +344,7 @@ std::vector<double> TransientProblem::time_events() const {
 
 TransientCommittedState TransientProblem::committed_state() const {
     return {_committed_solution, _material_histories, _material_stresses,
-            _spatial_model.committed_contact_histories(),
+            _spatial->committed_contact_histories(),
             _last_conservation_summary, _committed_time,
             _committed_load_factor};
 }
@@ -390,7 +396,7 @@ void TransientProblem::restore_committed_state(TransientCommittedState state) {
         }
     }
 
-    _spatial_model.restore_contact_state(state.solution,
+    _spatial->restore_contact_state(state.solution,
                                          state.contact_histories);
     _committed_solution = std::move(state.solution);
     _material_histories = std::move(state.material_histories);
@@ -402,13 +408,12 @@ void TransientProblem::restore_committed_state(TransientCommittedState state) {
     _active_end_time = _committed_time;
     _active_load_factor = _committed_load_factor;
     _active_contact_histories.clear();
-    _spatial_model.set_time(_committed_time);
-    _spatial_model.set_load_factor(_committed_load_factor);
+    _spatial->set_time(_committed_time);
+    _spatial->set_load_factor(_committed_load_factor);
     for (std::size_t region_value = 0; region_value < region_count();
          ++region_value)
         _region_kernels[region_value].set_volumetric_heat_source(
-            _spatial_model.region_kernel(region_value)
-                .volumetric_heat_source());
+            _spatial->region_heat_source(region_value));
 }
 
 void TransientProblem::begin_time_step(const TransientStepInput& input) {
@@ -424,18 +429,18 @@ void TransientProblem::begin_time_step(const TransientStepInput& input) {
     _active_time_step = input.end_time - _committed_time;
     _active_end_time = input.end_time;
     _active_load_factor = input.load_factor;
-    if (_spatial_model.uses_augmented_contact())
+    if (_spatial->uses_augmented_contact())
         _active_contact_histories =
-            _spatial_model.committed_contact_histories();
+            _spatial->committed_contact_histories();
     try {
-        _spatial_model.set_time(input.end_time);
-        _spatial_model.set_load_factor(input.load_factor);
+        _spatial->set_time(input.end_time);
+        _spatial->set_load_factor(input.load_factor);
     } catch (...) {
         if (!_active_contact_histories.empty())
-            _spatial_model.restore_contact_state(
+            _spatial->restore_contact_state(
                 _committed_solution, std::move(_active_contact_histories));
-        _spatial_model.set_time(_committed_time);
-        _spatial_model.set_load_factor(_committed_load_factor);
+        _spatial->set_time(_committed_time);
+        _spatial->set_load_factor(_committed_load_factor);
         _active_time_step = 0.0;
         _active_end_time = _committed_time;
         _active_load_factor = _committed_load_factor;
@@ -445,8 +450,7 @@ void TransientProblem::begin_time_step(const TransientStepInput& input) {
     for (std::size_t region_value = 0; region_value < region_count();
          ++region_value)
         _region_kernels[region_value].set_volumetric_heat_source(
-            _spatial_model.region_kernel(region_value)
-                .volumetric_heat_source());
+            _spatial->region_heat_source(region_value));
     _time_step_active = true;
 }
 
@@ -472,11 +476,11 @@ void TransientProblem::commit_time_step(
     for (std::size_t region_value = 0; region_value < region_count();
          ++region_value) {
         staged[region_value].resize(
-            _spatial_model.region_element_count(region_value));
+            _spatial->region_element_count(region_value));
         staged_stresses[region_value].resize(
-            _spatial_model.region_element_count(region_value));
+            _spatial->region_element_count(region_value));
         const std::size_t offset =
-            _spatial_model.region_element_offset(region_value);
+            _spatial->region_element_offset(region_value);
         for (std::size_t element = 0; element < staged[region_value].size();
              ++element) {
             const LocalValues state =
@@ -500,7 +504,7 @@ void TransientProblem::commit_time_step(
 
     const TransientConservationSummary conservation = summarize_active_step(
         converged_solution, staged, staged_stresses);
-    _spatial_model.commit_contact_state(converged_solution);
+    _spatial->commit_contact_state(converged_solution);
     _material_histories.swap(staged);
     _material_stresses.swap(staged_stresses);
     _last_conservation_summary = conservation;
@@ -516,15 +520,14 @@ void TransientProblem::commit_time_step(
 void TransientProblem::rollback_time_step() noexcept {
     if (!_time_step_active)
         return;
-    _spatial_model.set_time(_committed_time);
-    _spatial_model.set_load_factor(_committed_load_factor);
+    _spatial->set_time(_committed_time);
+    _spatial->set_load_factor(_committed_load_factor);
     for (std::size_t region_value = 0; region_value < region_count();
          ++region_value)
         _region_kernels[region_value].set_volumetric_heat_source(
-            _spatial_model.region_kernel(region_value)
-                .volumetric_heat_source());
+            _spatial->region_heat_source(region_value));
     if (!_active_contact_histories.empty())
-        _spatial_model.restore_contact_state(
+        _spatial->restore_contact_state(
             _committed_solution, std::move(_active_contact_histories));
     _active_time_step = 0.0;
     _active_end_time = _committed_time;
@@ -534,14 +537,14 @@ void TransientProblem::rollback_time_step() noexcept {
 }
 
 bool TransientProblem::uses_augmented_contact() const noexcept {
-    return _spatial_model.uses_augmented_contact();
+    return _spatial->uses_augmented_contact();
 }
 
 AugmentedContactUpdate
 TransientProblem::update_augmented_contact_multipliers(
     const std::vector<double>& state, std::size_t completed_updates) {
     require_active_time_step();
-    return _spatial_model.update_augmented_contact_multipliers(
+    return _spatial->update_augmented_contact_multipliers(
         state, completed_updates);
 }
 
@@ -584,7 +587,7 @@ TransientConservationSummary TransientProblem::summarize_active_step(
         const LocalResidual residual =
             contribution_residual(contribution, state);
         const SpatialContributionType type =
-            _spatial_model.contribution_type(contribution);
+            _spatial->contribution_type(contribution);
         for (std::size_t local = 0; local < local_dof_count; ++local) {
             raw_residual[dofs[local]] += residual[local];
             const double increment =
@@ -614,7 +617,7 @@ TransientConservationSummary TransientProblem::summarize_active_step(
         const TransientInelasticProperties& properties = kernel.properties();
         const double heat_capacity = properties.density * properties.specific_heat;
         const std::size_t offset =
-            _spatial_model.region_element_offset(region_value);
+            _spatial->region_element_offset(region_value);
         for (std::size_t element = 0;
              element < staged_histories[region_value].size(); ++element) {
             const LocalValues current =
@@ -726,40 +729,40 @@ TransientConservationSummary TransientProblem::summarize_active_step(
 InterfaceSummary
 TransientProblem::summarize_interface(std::size_t contact_index,
                                       const std::vector<double>& state) const {
-    return _spatial_model.summarize_interface(contact_index, state);
+    return _spatial->summarize_interface(contact_index, state);
 }
 
 std::vector<ContactNodeSummary> TransientProblem::summarize_contact_nodes(
     std::size_t contact_index, const std::vector<double>& state) const {
-    return _spatial_model.summarize_contact_nodes(contact_index, state);
+    return _spatial->summarize_contact_nodes(contact_index, state);
 }
 
 std::vector<std::size_t> TransientProblem::contact_secondary_source_nodes(
     std::size_t contact_index) const {
-    return _spatial_model.contact_secondary_source_nodes(contact_index);
+    return _spatial->contact_secondary_source_nodes(contact_index);
 }
 
 std::size_t TransientProblem::dof_count() const noexcept {
-    return _spatial_model.dof_count();
+    return _spatial->dof_count();
 }
 
 std::size_t TransientProblem::contribution_count() const noexcept {
-    return _spatial_model.contribution_count();
+    return _spatial->contribution_count();
 }
 
 const std::vector<DirichletCondition>&
 TransientProblem::dirichlet_conditions() const noexcept {
-    return _spatial_model.dirichlet_conditions();
+    return _spatial->dirichlet_conditions();
 }
 
 void TransientProblem::validate_state(const std::vector<double>& state) const {
     require_active_time_step();
-    _spatial_model.validate_state(state);
+    _spatial->validate_state(state);
 }
 
 std::vector<std::size_t> TransientProblem::required_state_dofs(
     std::size_t contribution_begin, std::size_t contribution_end) const {
-    return _spatial_model.required_state_dofs(contribution_begin,
+    return _spatial->required_state_dofs(contribution_begin,
                                               contribution_end);
 }
 
@@ -767,45 +770,45 @@ void TransientProblem::validate_local_state(
     std::size_t contribution_begin, std::size_t contribution_end,
     const GlobalStateView& state) const {
     require_active_time_step();
-    _spatial_model.validate_local_state(contribution_begin, contribution_end,
+    _spatial->validate_local_state(contribution_begin, contribution_end,
                                         state);
 }
 
 LocalDofs
 TransientProblem::contribution_dofs(std::size_t contribution_index) const {
-    return _spatial_model.contribution_dofs(contribution_index);
+    return _spatial->contribution_dofs(contribution_index);
 }
 
 LocalResidual
 TransientProblem::contribution_residual(std::size_t contribution_index,
                                         const LocalValues& state) const {
     require_active_time_step();
-    if (contribution_index < _spatial_model.volume_contribution_count()) {
+    if (contribution_index < _spatial->volume_contribution_count()) {
         const auto location =
-            _spatial_model.element_location(contribution_index);
+            _spatial->element_location(contribution_index);
         return _region_kernels[location.first].residual(
             region_element_geometry(location.first, location.second), state,
             committed_element_state(contribution_index),
             _material_histories[location.first][location.second],
             _active_time_step);
     }
-    return _spatial_model.contribution_residual(contribution_index, state);
+    return _spatial->contribution_residual(contribution_index, state);
 }
 
 LocalSystem
 TransientProblem::linearize_contribution(std::size_t contribution_index,
                                          const LocalValues& state) const {
     require_active_time_step();
-    if (contribution_index < _spatial_model.volume_contribution_count()) {
+    if (contribution_index < _spatial->volume_contribution_count()) {
         const auto location =
-            _spatial_model.element_location(contribution_index);
+            _spatial->element_location(contribution_index);
         return _region_kernels[location.first].linearize(
             region_element_geometry(location.first, location.second), state,
             committed_element_state(contribution_index),
             _material_histories[location.first][location.second],
             _active_time_step);
     }
-    return _spatial_model.linearize_contribution(contribution_index, state);
+    return _spatial->linearize_contribution(contribution_index, state);
 }
 
 LocalValues TransientProblem::committed_element_state(

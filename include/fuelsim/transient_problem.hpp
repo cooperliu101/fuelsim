@@ -4,14 +4,17 @@
 #include "fuelsim/inelastic_material.hpp"
 #include "fuelsim/nonlinear_problem.hpp"
 #include "fuelsim/quad4_rz_transient.hpp"
-#include "fuelsim/steady_problem.hpp"
+#include "fuelsim/spatial_definition.hpp"
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
 namespace fuelsim {
+
+class SpatialAssembly;
 
 struct TransientRegionDefinition final {
     std::string region;
@@ -19,7 +22,7 @@ struct TransientRegionDefinition final {
 };
 
 struct TransientProblemDefinition final {
-    SteadyProblemDefinition spatial;
+    SpatialDefinition spatial;
     std::vector<TransientRegionDefinition> regions;
 };
 
@@ -70,6 +73,7 @@ class TransientProblem final : public NonlinearProblem {
   public:
     TransientProblem(TransientProblemDefinition definition,
                      const UnstructuredQuad4Mesh& source_mesh);
+    ~TransientProblem() override;
 
     const TransientProblemDefinition& definition() const noexcept;
     const DofMap& dof_map() const noexcept;
@@ -149,7 +153,7 @@ class TransientProblem final : public NonlinearProblem {
     void require_active_time_step() const;
 
     TransientProblemDefinition _definition;
-    SteadyProblem _spatial_model;
+    std::unique_ptr<SpatialAssembly> _spatial;
     std::vector<Quad4RzTransientKernel> _region_kernels;
     std::vector<std::vector<Quad4MaterialHistory>> _material_histories;
     std::vector<std::vector<std::array<AxisymmetricStressValues, 4>>>

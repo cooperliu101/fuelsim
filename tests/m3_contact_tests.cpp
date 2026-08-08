@@ -80,7 +80,7 @@ bool run_comparison(const std::string& input_path,
                   source.side_set("upper_bottom").sides.size() == 6,
               "M3.3 keeps nonmatching four-to-six contact segmentation");
 
-    fuelsim::SteadyProblem problem(definition.steady_definition(), source);
+    fuelsim::SteadyProblem problem(definition.spatial_definition(), source);
     const std::vector<std::size_t> secondary_sources =
         problem.contact_secondary_source_nodes(0);
     std::vector<std::size_t> ordered_secondary_sources = secondary_sources;

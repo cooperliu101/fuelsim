@@ -20,7 +20,7 @@ constexpr std::size_t load_steps = 20;
 
 struct BenchmarkCase final {
     fuelsim::UnstructuredQuad4Mesh mesh;
-    fuelsim::SteadyProblemDefinition definition;
+    fuelsim::SpatialDefinition definition;
 };
 
 fuelsim::BoundaryConditionDefinition dirichlet(const std::string& name,

@@ -241,7 +241,7 @@ int main(int argc, char** argv) {
             return 0;
         }
 
-        fuelsim::SteadyProblem problem(definition.steady_definition(), source);
+        fuelsim::SteadyProblem problem(definition.spatial_definition(), source);
         const bool field_split = mode == "compare_field_split";
         const bool block_jacobi = mode == "compare_block_jacobi";
         const bool hypre = mode == "compare_hypre";

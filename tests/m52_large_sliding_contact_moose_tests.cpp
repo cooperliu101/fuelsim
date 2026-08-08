@@ -28,7 +28,7 @@ bool run_comparison(const std::string& input_path,
         fuelsim::CaseInputReader::read(input_path);
     const fuelsim::UnstructuredQuad4Mesh source =
         fuelsim::ExodusMeshIo::read_quad4(definition.mesh_file);
-    fuelsim::SteadyProblem problem(definition.steady_definition(), source);
+    fuelsim::SteadyProblem problem(definition.spatial_definition(), source);
     const std::vector<fuelsim::ContactNodeSummary> initial_contact_nodes =
         problem.summarize_contact_nodes(0, problem.initial_state());
     const fuelsim::SolverOptions options = {

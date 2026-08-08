@@ -42,7 +42,7 @@ bool run_comparison(const std::string& input_path,
                    "M1 MOOSE block and side-set metadata are preserved") &&
              passed;
 
-    fuelsim::SteadyProblem problem(definition.steady_definition(), source);
+    fuelsim::SteadyProblem problem(definition.spatial_definition(), source);
     const fuelsim::SolverOptions options = {
         definition.solver.absolute_tolerance,
         definition.solver.relative_tolerance, definition.solver.step_tolerance,
@@ -121,8 +121,8 @@ bool run_comparison(const std::string& input_path,
              passed;
 
     const auto solve_penalty = [&](double penalty) {
-        fuelsim::SteadyProblemDefinition modified =
-            definition.steady_definition();
+        fuelsim::SpatialDefinition modified =
+            definition.spatial_definition();
         modified.contacts.at(0).penalty = penalty;
         fuelsim::SteadyProblem penalty_problem(std::move(modified), source);
         const fuelsim::SteadyResult penalty_result = fuelsim::solve_steady(
@@ -161,8 +161,8 @@ bool run_comparison(const std::string& input_path,
               "increments") &&
         passed;
 
-    fuelsim::SteadyProblemDefinition automatic_definition =
-        definition.steady_definition();
+    fuelsim::SpatialDefinition automatic_definition =
+        definition.spatial_definition();
     automatic_definition.contacts[0].automatic_penalty = true;
     automatic_definition.contacts[0].penalty = 0.0;
     automatic_definition.contacts[0].penalty_factor = 1.0;
@@ -195,8 +195,8 @@ bool run_comparison(const std::string& input_path,
                  "converges end to end") &&
              passed;
 
-    fuelsim::SteadyProblemDefinition augmented_definition =
-        definition.steady_definition();
+    fuelsim::SpatialDefinition augmented_definition =
+        definition.spatial_definition();
     augmented_definition.contacts[0].mechanical_formulation =
         fuelsim::MechanicalContactFormulation::augmented_lagrangian;
     augmented_definition.contacts[0].automatic_penalty = false;
@@ -244,8 +244,8 @@ bool run_comparison(const std::string& input_path,
                  "proxy than the high automatic penalty") &&
              passed;
 
-    fuelsim::SteadyProblemDefinition failing_definition =
-        definition.steady_definition();
+    fuelsim::SpatialDefinition failing_definition =
+        definition.spatial_definition();
     failing_definition.contacts[0].mechanical_formulation =
         fuelsim::MechanicalContactFormulation::augmented_lagrangian;
     failing_definition.contacts[0].automatic_penalty = false;

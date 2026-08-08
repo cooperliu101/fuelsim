@@ -634,8 +634,8 @@ read_boundary_condition(const InputDocument& document,
 
 } // namespace
 
-SteadyProblemDefinition FuelSimCaseDefinition::steady_definition() const {
-    SteadyProblemDefinition result;
+SpatialDefinition FuelSimCaseDefinition::spatial_definition() const {
+    SpatialDefinition result;
     result.contacts = contacts;
     result.boundary_conditions = boundary_conditions;
     result.time_tables = time_tables;
@@ -647,7 +647,7 @@ SteadyProblemDefinition FuelSimCaseDefinition::steady_definition() const {
 
 TransientProblemDefinition FuelSimCaseDefinition::transient_definition() const {
     TransientProblemDefinition result;
-    result.spatial = steady_definition();
+    result.spatial = spatial_definition();
     result.regions.reserve(regions.size());
     for (const CaseRegionDefinition& region : regions)
         result.regions.push_back(

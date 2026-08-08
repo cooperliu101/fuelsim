@@ -1263,7 +1263,7 @@ bool test_m1_dof_layout() {
               axial_elements},
              {2, "clad", 0.0041, 0.0046, 0.01002, cladding_radial_elements,
               axial_elements}});
-    fuelsim::SteadyProblemDefinition definition;
+    fuelsim::SpatialDefinition definition;
     definition.regions.push_back(
         {"fuel", "fuel", properties(), heat_source, 600.0});
     definition.regions.push_back(

@@ -2,7 +2,7 @@
 #define FUELSIM_CASE_INPUT_HPP
 
 #include "fuelsim/input_file.hpp"
-#include "fuelsim/steady_problem.hpp"
+#include "fuelsim/spatial_definition.hpp"
 #include "fuelsim/transient_problem.hpp"
 
 #include <cstddef>
@@ -91,7 +91,7 @@ struct FuelSimCaseDefinition final {
     NonlinearSolverInput solver;
     CaseOutputInput outputs;
 
-    SteadyProblemDefinition steady_definition() const;
+    SpatialDefinition spatial_definition() const;
     TransientProblemDefinition transient_definition() const;
 };
 

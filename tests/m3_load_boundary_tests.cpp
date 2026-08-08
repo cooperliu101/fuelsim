@@ -733,7 +733,7 @@ bool test_steady_load_cutback(const std::string& input_path) {
         fuelsim::CaseInputReader::read(input_path);
     const fuelsim::UnstructuredQuad4Mesh mesh =
         fuelsim::ExodusMeshIo::read_quad4(input.mesh_file);
-    fuelsim::SteadyProblem problem(input.steady_definition(), mesh);
+    fuelsim::SteadyProblem problem(input.spatial_definition(), mesh);
     fuelsim::SolverOptions solver_options{
         input.solver.absolute_tolerance, input.solver.relative_tolerance,
         input.solver.step_tolerance, 30};
@@ -765,7 +765,7 @@ bool test_steady_load_cutback(const std::string& input_path) {
                         "steady loading bisects a failed nominal increment "
                         "and continues from the accepted state");
 
-    fuelsim::SteadyProblem minimum_problem(input.steady_definition(), mesh);
+    fuelsim::SteadyProblem minimum_problem(input.spatial_definition(), mesh);
     fuelsim::SolverOptions minimum_solver = solver_options;
     minimum_solver.maximum_iterations = 1;
     minimum_solver.line_search =
@@ -788,7 +788,7 @@ bool test_pressure_production_path(const std::string& input_path) {
         fuelsim::CaseInputReader::read(input_path);
     const fuelsim::UnstructuredQuad4Mesh mesh =
         fuelsim::ExodusMeshIo::read_quad4(input.mesh_file);
-    fuelsim::SteadyProblem problem(input.steady_definition(), mesh);
+    fuelsim::SteadyProblem problem(input.spatial_definition(), mesh);
     const fuelsim::SteadyResult result = fuelsim::solve_steady(
         problem,
         {input.steady_execution.load_steps,

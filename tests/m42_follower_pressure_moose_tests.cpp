@@ -28,7 +28,7 @@ bool run_comparison(const std::string& input_path,
             "M4.2 follower-pressure comparison requires a steady input card");
     const fuelsim::UnstructuredQuad4Mesh source =
         fuelsim::ExodusMeshIo::read_quad4(definition.mesh_file);
-    fuelsim::SteadyProblem problem(definition.steady_definition(), source);
+    fuelsim::SteadyProblem problem(definition.spatial_definition(), source);
     const fuelsim::SteadyResult result = fuelsim::solve_steady(
         problem,
         {definition.steady_execution.load_steps,

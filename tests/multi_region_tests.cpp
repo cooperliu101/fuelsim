@@ -220,7 +220,7 @@ fuelsim::BoundaryConditionDefinition dirichlet(const std::string& name,
             value};
 }
 
-fuelsim::SteadyProblemDefinition single_region_definition() {
+fuelsim::SpatialDefinition single_region_definition() {
     return {{region("pellet", "pellet", 500.0, 2.0e5)},
             {},
             {
@@ -233,7 +233,7 @@ fuelsim::SteadyProblemDefinition single_region_definition() {
             }};
 }
 
-fuelsim::SteadyProblemDefinition three_region_definition() {
+fuelsim::SpatialDefinition three_region_definition() {
     return {{region("pellet", "pellet", 500.0, 2.0e5),
              region("inner_clad", "clad_1", 400.0, 0.0),
              region("outer_clad", "clad_2", 300.0, 0.0)},
@@ -291,7 +291,7 @@ bool test_single_region(const fuelsim::UnstructuredQuad4Mesh& mesh) {
 }
 
 bool test_time_controlled_pressure(const fuelsim::UnstructuredQuad4Mesh& mesh) {
-    fuelsim::SteadyProblemDefinition definition = single_region_definition();
+    fuelsim::SpatialDefinition definition = single_region_definition();
     definition.time_tables.emplace_back("pressure_history",
                                         std::vector<double>{0.0, 1.0},
                                         std::vector<double>{1.0, 2.0});
@@ -328,7 +328,7 @@ bool test_pressure_parent_edge_orientation() {
     constexpr double pressure_value = 3.0;
     constexpr double pi = 3.141592653589793238462643383279502884;
     const auto resultant = [&](const std::string& boundary) {
-        fuelsim::SteadyProblemDefinition definition = {
+        fuelsim::SpatialDefinition definition = {
             {region("solid", "solid", 600.0, 0.0)}, {}, {}};
         definition.boundary_conditions.push_back(
             {"pressure", fuelsim::BoundaryConditionType::pressure, boundary,
@@ -441,7 +441,7 @@ bool test_three_regions(const fuelsim::UnstructuredQuad4Mesh& mesh) {
                        "multi-contact AD residual is finite") &&
                  passed;
     }
-    fuelsim::SteadyProblemDefinition solve_definition =
+    fuelsim::SpatialDefinition solve_definition =
         three_region_definition();
     for (fuelsim::RegionDefinition& region_value : solve_definition.regions) {
         region_value.initial_temperature = 300.0;
@@ -498,7 +498,7 @@ bool test_three_regions(const fuelsim::UnstructuredQuad4Mesh& mesh) {
 bool test_nonmatching_pellet_faces() {
     const fuelsim::UnstructuredQuad4Mesh mesh =
         two_pellet_nonmatching_mesh();
-    fuelsim::SteadyProblemDefinition definition = {
+    fuelsim::SpatialDefinition definition = {
         {region("lower", "lower_pellet", 700.0, 0.0),
          region("upper", "upper_pellet", 500.0, 0.0)},
         {contact("pellet_stack", "upper_bottom", "lower_top")},
@@ -547,7 +547,7 @@ bool test_l_shaped_primary_collinear_candidate() {
     // candidate a deterministic normal orientation instead of rejecting
     // the whole problem with a zero reference-gap error.
     const fuelsim::UnstructuredQuad4Mesh mesh = l_shaped_primary_mesh();
-    const fuelsim::SteadyProblemDefinition definition = {
+    const fuelsim::SpatialDefinition definition = {
         {region("tool", "tool", 400.0, 0.0),
          region("slug", "slug", 500.0, 0.0)},
         {{"corner_contact", "tool_corner", "slug_face", false, true, 0.2,
@@ -596,7 +596,7 @@ bool test_zero_initial_gap_construction() {
     // a legal initial condition: the normal orientation comes from the
     // material side of each boundary edge's parent element.
     const fuelsim::UnstructuredQuad4Mesh mesh = coincident_fuel_clad_mesh(1.0);
-    const fuelsim::SteadyProblemDefinition definition = {
+    const fuelsim::SpatialDefinition definition = {
         {region("fuel", "fuel", 500.0, 0.0), region("clad", "clad", 300.0, 0.0)},
         {contact("fuel_clad", "clad_inner", "fuel_outer")},
         {}};
@@ -647,7 +647,7 @@ bool test_overlapping_material_rejected() {
     // parent-element centroids lie on the same side of the primary line and
     // no meaningful zero-gap orientation exists.
     const fuelsim::UnstructuredQuad4Mesh mesh = overlapping_material_mesh();
-    const fuelsim::SteadyProblemDefinition degenerate = {
+    const fuelsim::SpatialDefinition degenerate = {
         {region("tall", "tall", 400.0, 0.0),
          region("short", "short", 400.0, 0.0)},
         {{"overlap", "tall_bottom", "short_bottom", false, true, 0.2, 1.0e-5,
@@ -667,7 +667,7 @@ bool test_overlapping_material_rejected() {
     // Control: the same overlapping blocks with a positive 1 m gap between
     // the faces constructs normally, because the material-side check only
     // applies when a secondary node rides exactly on the segment.
-    const fuelsim::SteadyProblemDefinition open = {
+    const fuelsim::SpatialDefinition open = {
         {region("tall", "tall", 400.0, 0.0),
          region("short", "short", 400.0, 0.0)},
         {{"overlap_open", "tall_top", "short_bottom", false, true, 0.2,
@@ -692,9 +692,9 @@ bool test_overlapping_material_rejected() {
     return passed;
 }
 
-fuelsim::SteadyProblemDefinition
+fuelsim::SpatialDefinition
 zero_gap_solve_definition(double closure_displacement) {
-    fuelsim::SteadyProblemDefinition definition = {
+    fuelsim::SpatialDefinition definition = {
         {region("fuel", "fuel", 500.0, 2.0e2),
          region("clad", "clad", 300.0, 0.0)},
         {contact("fuel_clad", "clad_inner", "fuel_outer")},

@@ -28,7 +28,7 @@ bool run_comparison(const std::string& input_path,
         fuelsim::ExodusMeshIo::read_quad4(definition.mesh_file);
     bool passed = true;
 
-    fuelsim::SteadyProblem problem(definition.steady_definition(), source);
+    fuelsim::SteadyProblem problem(definition.spatial_definition(), source);
     fuelsim::SolverOptions options;
     options.absolute_tolerance = definition.solver.absolute_tolerance;
     options.relative_tolerance = definition.solver.relative_tolerance;

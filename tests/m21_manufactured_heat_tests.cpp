@@ -101,7 +101,7 @@ make_definition(const ManufacturedParameters& parameters,
         heat_sources.push_back(exact_heat_source(parameters, time));
     }
 
-    fuelsim::SteadyProblemDefinition spatial;
+    fuelsim::SpatialDefinition spatial;
     spatial.regions.push_back({"solid",
                                "solid",
                                {0.0, conductivity, 1.0e6, 0.3, 0.0, 300.0},

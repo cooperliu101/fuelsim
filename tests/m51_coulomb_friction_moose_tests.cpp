@@ -33,7 +33,7 @@ bool run_comparison(const std::string& input_path,
             "M5.1 comparison requires the Coulomb friction input card");
     const fuelsim::UnstructuredQuad4Mesh source =
         fuelsim::ExodusMeshIo::read_quad4(definition.mesh_file);
-    fuelsim::SteadyProblem problem(definition.steady_definition(), source);
+    fuelsim::SteadyProblem problem(definition.spatial_definition(), source);
     const fuelsim::SolverOptions options = {
         definition.solver.absolute_tolerance,
         definition.solver.relative_tolerance, definition.solver.step_tolerance,
@@ -107,8 +107,8 @@ bool run_comparison(const std::string& input_path,
                    "Coulomb cap, and produces a nonzero shear resultant") &&
              passed;
 
-    fuelsim::SteadyProblemDefinition frictionless_definition =
-        definition.steady_definition();
+    fuelsim::SpatialDefinition frictionless_definition =
+        definition.spatial_definition();
     frictionless_definition.contacts[0].friction_coefficient = 0.0;
     fuelsim::SteadyProblem frictionless(std::move(frictionless_definition),
                                         source);

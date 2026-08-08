@@ -73,12 +73,12 @@ pressure(const std::string& name, const std::string& boundary, double value) {
     return condition;
 }
 
-fuelsim::SteadyProblemDefinition
+fuelsim::SpatialDefinition
 single_region_definition(const fuelsim::ThermoelasticProperties& material,
                          double heat_source, double initial_temperature,
                          double outer_temperature, double inner_radius,
                          double inner_pressure, double outer_pressure) {
-    fuelsim::SteadyProblemDefinition definition;
+    fuelsim::SpatialDefinition definition;
     definition.regions.push_back(
         {"solid", "solid", material, heat_source, initial_temperature});
     if (inner_radius == 0.0)
@@ -657,7 +657,7 @@ bool test_m1_open_gap_analytic_thermal() {
               axial_elements},
              {2, "clad", cladding_inner_radius, cladding_outer_radius, length,
               cladding_radial_elements, axial_elements}});
-    fuelsim::SteadyProblemDefinition definition;
+    fuelsim::SpatialDefinition definition;
     definition.regions.push_back({"fuel", "fuel",
                                   constant_material(fuel_conductivity, 0.0),
                                   heat_source, outer_temperature});

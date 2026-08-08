@@ -521,7 +521,7 @@ bool verify_exodus(const std::string& path,
 bool verify_steady_results(const fuelsim::FuelSimCaseDefinition& input,
                            const fuelsim::UnstructuredQuad4Mesh& mesh,
                            const std::string& results_path) {
-    fuelsim::SteadyProblem problem(input.steady_definition(), mesh);
+    fuelsim::SteadyProblem problem(input.spatial_definition(), mesh);
     const fuelsim::SolverOptions solver{
         input.solver.absolute_tolerance, input.solver.relative_tolerance,
         input.solver.step_tolerance, input.solver.maximum_iterations};
