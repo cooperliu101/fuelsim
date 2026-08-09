@@ -103,15 +103,15 @@ void SpatialLayout::build_volume_geometries() {
 }
 
 const SpatialDefinition& SpatialAssembly::definition() const noexcept {
-    return _layout._definition;
+    return _layout.definition();
 }
 
 const DofMap& SpatialAssembly::dof_map() const noexcept {
-    return _layout._dof_map;
+    return _layout.dof_map();
 }
 
 std::size_t SpatialAssembly::region_count() const noexcept {
-    return _layout._definition.regions.size();
+    return _layout.region_count();
 }
 
 std::size_t SpatialAssembly::region_index(const std::string& name) const {
@@ -123,31 +123,27 @@ std::size_t SpatialAssembly::region_index(const std::string& name) const {
 }
 
 const RegionDefinition& SpatialAssembly::region(std::size_t index) const {
-    return _layout._definition.regions.at(index);
+    return _layout.region(index);
 }
 
 const RegionMesh& SpatialAssembly::region_mesh(std::size_t index) const {
-    return _layout._meshes.at(index);
+    return _layout.region_mesh(index);
 }
 
 std::size_t SpatialAssembly::region_node_offset(std::size_t index) const {
-    if (index >= region_count())
-        throw std::out_of_range("SpatialAssembly region index is out of range");
-    return _layout._node_offsets[index];
+    return _layout.region_node_offset(index);
 }
 
 std::size_t SpatialAssembly::region_element_count(std::size_t index) const {
-    return _layout._meshes.at(index).elements().size();
+    return _layout.region_mesh(index).elements().size();
 }
 
 std::size_t SpatialAssembly::region_element_offset(std::size_t index) const {
-    if (index >= region_count())
-        throw std::out_of_range("SpatialAssembly region index is out of range");
-    return _layout._element_offsets[index];
+    return _layout.region_element_offset(index);
 }
 
 std::size_t SpatialAssembly::volume_contribution_count() const noexcept {
-    return _layout._element_offsets.back();
+    return _layout.volume_contribution_count();
 }
 
 SpatialAssembly::ContributionRanges
@@ -201,7 +197,7 @@ SpatialAssembly::contribution_type(std::size_t contribution_index) const {
 const Quad4RzGeometry&
 SpatialAssembly::region_element_geometry(std::size_t region_value,
                                          std::size_t element_index) const {
-    return _layout._region_geometries.at(region_value).at(element_index);
+    return _layout.element_geometry(region_value, element_index);
 }
 
 double SpatialAssembly::region_heat_source(std::size_t region_value) const {

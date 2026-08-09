@@ -579,11 +579,8 @@ LocalValues SpatialAssembly::contribution_state(
     if (global_state.size() != dof_count())
         throw std::invalid_argument(
             "SpatialAssembly global state has the wrong size");
-    const LocalDofs dofs = contribution_dofs(contribution_index);
-    LocalValues result{};
-    for (std::size_t local = 0; local < dofs.size(); ++local)
-        result[local] = global_state.at(dofs[local]);
-    return result;
+    return contribution_state(contribution_index,
+                              GlobalStateView(global_state));
 }
 
 LocalValues SpatialAssembly::contribution_state(

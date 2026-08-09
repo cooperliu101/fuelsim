@@ -235,13 +235,20 @@ void forbid_key(const InputDocument& document, const InputSection& section,
                     "key '" + key + "' is not valid for " + context);
 }
 
+void forbid_keys(const InputDocument& document, const InputSection& section,
+                 const std::vector<std::string>& keys,
+                 const std::string& context) {
+    for (const std::string& key : keys)
+        forbid_key(document, section, key, context);
+}
+
 void forbid_convection_keys(const InputDocument& document,
                             const InputSection& section,
                             const std::string& context) {
-    forbid_key(document, section, "heat_transfer_coefficient", context);
-    forbid_key(document, section, "ambient_temperature", context);
-    forbid_key(document, section, "coefficient_function", context);
-    forbid_key(document, section, "ambient_temperature_function", context);
+    forbid_keys(document, section,
+                {"heat_transfer_coefficient", "ambient_temperature",
+                 "coefficient_function", "ambient_temperature_function"},
+                context);
 }
 
 ThermoelasticProperties read_thermoelastic(const InputDocument& document,
@@ -263,103 +270,77 @@ ThermoelasticProperties read_thermoelastic(const InputDocument& document,
     };
 }
 
+NortonCreepProperties read_creep(const InputDocument& document,
+                                 const InputSection& section) {
+    return {read_double(document, section, "creep_coefficient"),
+            read_double(document, section, "creep_reference_stress"),
+            read_double(document, section, "creep_exponent"),
+            read_optional_double(
+                document, section,
+                "creep_coefficient_temperature_coefficient", 0.0),
+            read_optional_double(
+                document, section,
+                "creep_reference_stress_temperature_coefficient", 0.0),
+            read_optional_double(
+                document, section,
+                "creep_exponent_temperature_coefficient", 0.0)};
+}
+
+J2PlasticityProperties read_plasticity(const InputDocument& document,
+                                       const InputSection& section) {
+    return {read_double(document, section, "yield_stress"),
+            read_double(document, section, "hardening_modulus"),
+            read_optional_double(document, section,
+                                 "yield_stress_temperature_coefficient", 0.0),
+            read_optional_double(document, section,
+                                 "hardening_temperature_coefficient", 0.0)};
+}
+
 TransientInelasticProperties read_transient(const InputDocument& document,
                                             const InputSection& section) {
     const std::string model = read_string(document, section, "inelastic_model");
-    InelasticBehavior behavior = InelasticBehavior::elastic;
-    NortonCreepProperties creep{0.0, 1.0, 1.0};
-    J2PlasticityProperties plasticity{1.0, 0.0};
-    if (model == "elastic") {
-        forbid_key(document, section, "creep_coefficient",
-                   "inelastic_model='elastic'");
-        forbid_key(document, section, "creep_reference_stress",
-                   "inelastic_model='elastic'");
-        forbid_key(document, section, "creep_exponent",
-                   "inelastic_model='elastic'");
-        forbid_key(document, section,
-                   "creep_coefficient_temperature_coefficient",
-                   "inelastic_model='elastic'");
-        forbid_key(document, section,
-                   "creep_reference_stress_temperature_coefficient",
-                   "inelastic_model='elastic'");
-        forbid_key(document, section,
-                   "creep_exponent_temperature_coefficient",
-                   "inelastic_model='elastic'");
-        forbid_key(document, section, "yield_stress",
-                   "inelastic_model='elastic'");
-        forbid_key(document, section, "hardening_modulus",
-                   "inelastic_model='elastic'");
-        forbid_key(document, section,
-                   "yield_stress_temperature_coefficient",
-                   "inelastic_model='elastic'");
-        forbid_key(document, section, "hardening_temperature_coefficient",
-                   "inelastic_model='elastic'");
-    } else if (model == "norton_creep") {
+    InelasticBehavior behavior;
+    if (model == "elastic")
+        behavior = InelasticBehavior::elastic;
+    else if (model == "norton_creep")
         behavior = InelasticBehavior::norton_creep;
-        creep = {read_double(document, section, "creep_coefficient"),
-                 read_double(document, section, "creep_reference_stress"),
-                 read_double(document, section, "creep_exponent"),
-                 read_optional_double(
-                     document, section,
-                     "creep_coefficient_temperature_coefficient", 0.0),
-                 read_optional_double(
-                     document, section,
-                     "creep_reference_stress_temperature_coefficient", 0.0),
-                 read_optional_double(
-                     document, section,
-                     "creep_exponent_temperature_coefficient", 0.0)};
-        forbid_key(document, section, "yield_stress", model);
-        forbid_key(document, section, "hardening_modulus", model);
-        forbid_key(document, section,
-                   "yield_stress_temperature_coefficient", model);
-        forbid_key(document, section, "hardening_temperature_coefficient",
-                   model);
-    } else if (model == "j2_plasticity") {
+    else if (model == "j2_plasticity")
         behavior = InelasticBehavior::j2_plasticity;
-        plasticity = {read_double(document, section, "yield_stress"),
-                      read_double(document, section, "hardening_modulus"),
-                      read_optional_double(
-                          document, section,
-                          "yield_stress_temperature_coefficient", 0.0),
-                      read_optional_double(
-                          document, section,
-                          "hardening_temperature_coefficient", 0.0)};
-        forbid_key(document, section, "creep_coefficient", model);
-        forbid_key(document, section, "creep_reference_stress", model);
-        forbid_key(document, section, "creep_exponent", model);
-        forbid_key(document, section,
-                   "creep_coefficient_temperature_coefficient", model);
-        forbid_key(document, section,
-                   "creep_reference_stress_temperature_coefficient", model);
-        forbid_key(document, section,
-                   "creep_exponent_temperature_coefficient", model);
-    } else if (model == "norton_creep_j2_plasticity") {
+    else if (model == "norton_creep_j2_plasticity")
         behavior = InelasticBehavior::norton_creep_j2_plasticity;
-        creep = {read_double(document, section, "creep_coefficient"),
-                 read_double(document, section, "creep_reference_stress"),
-                 read_double(document, section, "creep_exponent"),
-                 read_optional_double(
-                     document, section,
-                     "creep_coefficient_temperature_coefficient", 0.0),
-                 read_optional_double(
-                     document, section,
-                     "creep_reference_stress_temperature_coefficient", 0.0),
-                 read_optional_double(
-                     document, section,
-                     "creep_exponent_temperature_coefficient", 0.0)};
-        plasticity = {read_double(document, section, "yield_stress"),
-                      read_double(document, section, "hardening_modulus"),
-                      read_optional_double(
-                          document, section,
-                          "yield_stress_temperature_coefficient", 0.0),
-                      read_optional_double(
-                          document, section,
-                          "hardening_temperature_coefficient", 0.0)};
-    } else {
+    else
         value_error(document,
                     required_entry(document, section, "inelastic_model"),
                     "unknown inelastic_model '" + model + "'");
-    }
+
+    const bool uses_creep =
+        behavior == InelasticBehavior::norton_creep ||
+        behavior == InelasticBehavior::norton_creep_j2_plasticity;
+    const bool uses_plasticity =
+        behavior == InelasticBehavior::j2_plasticity ||
+        behavior == InelasticBehavior::norton_creep_j2_plasticity;
+    const std::string context =
+        model == "elastic" ? "inelastic_model='elastic'" : model;
+    NortonCreepProperties creep{0.0, 1.0, 1.0};
+    J2PlasticityProperties plasticity{1.0, 0.0};
+    if (uses_creep)
+        creep = read_creep(document, section);
+    else
+        forbid_keys(document, section,
+                    {"creep_coefficient", "creep_reference_stress",
+                     "creep_exponent",
+                     "creep_coefficient_temperature_coefficient",
+                     "creep_reference_stress_temperature_coefficient",
+                     "creep_exponent_temperature_coefficient"},
+                    context);
+    if (uses_plasticity)
+        plasticity = read_plasticity(document, section);
+    else
+        forbid_keys(document, section,
+                    {"yield_stress", "hardening_modulus",
+                     "yield_stress_temperature_coefficient",
+                     "hardening_temperature_coefficient"},
+                    context);
     return {read_double(document, section, "density"),
             read_double(document, section, "specific_heat"), behavior, creep,
             plasticity};
@@ -383,6 +364,13 @@ std::string resolved_path(const std::string& input_path,
     return (std::filesystem::absolute(input_path).parent_path() / configured)
         .lexically_normal()
         .string();
+}
+
+std::string read_optional_path(const std::string& input_path,
+                               const InputSection& section,
+                               const std::string& key) {
+    const std::string value = read_optional_string(section, key, {});
+    return value.empty() ? std::string{} : resolved_path(input_path, value);
 }
 
 CaseRegionDefinition read_region(const InputDocument& document,
@@ -540,6 +528,18 @@ ContactDefinition read_contact(const InputDocument& document,
     return result;
 }
 
+BoundaryConditionDefinition make_boundary_condition(
+    const InputDocument& document, const InputSection& section,
+    BoundaryConditionType type, Field field, double value,
+    bool scale_with_load, const std::string& function) {
+    BoundaryConditionDefinition result{
+        leaf_name(section), type,
+        read_string(document, section, "boundary"), field, value,
+        scale_with_load};
+    result.function = function;
+    return result;
+}
+
 BoundaryConditionDefinition
 read_boundary_condition(const InputDocument& document,
                         const InputSection& section) {
@@ -558,29 +558,21 @@ read_boundary_condition(const InputDocument& document,
     if (type == "dirichlet") {
         forbid_key(document, section, "configuration", "type='dirichlet'");
         forbid_convection_keys(document, section, "type='dirichlet'");
-        BoundaryConditionDefinition result{
-            leaf_name(section),
-            BoundaryConditionType::dirichlet,
-            read_string(document, section, "boundary"),
+        return make_boundary_condition(
+            document, section, BoundaryConditionType::dirichlet,
             parse_field(document, required_entry(document, section, "field")),
-            read_double(document, section, "value"),
-            scale_with_load};
-        result.function = function;
-        return result;
+            read_double(document, section, "value"), scale_with_load,
+            function);
     }
     if (type == "pressure") {
         forbid_key(document, section, "configuration", "type='pressure'");
         forbid_key(document, section, "field", "type='pressure'");
         forbid_convection_keys(document, section, "type='pressure'");
-        BoundaryConditionDefinition result{
-            leaf_name(section),
-            BoundaryConditionType::pressure,
-            read_string(document, section, "boundary"),
+        return make_boundary_condition(
+            document, section, BoundaryConditionType::pressure,
             Field::radial_displacement,
-            read_double(document, section, "value"),
-            scale_with_load};
-        result.function = function;
-        return result;
+            read_double(document, section, "value"), scale_with_load,
+            function);
     }
     if (type == "traction") {
         forbid_convection_keys(document, section, "type='traction'");
@@ -589,14 +581,10 @@ read_boundary_condition(const InputDocument& document,
         if (field == Field::temperature)
             value_error(document, section.entry("field"),
                         "traction requires a displacement field");
-        BoundaryConditionDefinition result{
-            leaf_name(section),
-            BoundaryConditionType::traction,
-            read_string(document, section, "boundary"),
-            field,
-            read_double(document, section, "value"),
-            scale_with_load};
-        result.function = function;
+        BoundaryConditionDefinition result = make_boundary_condition(
+            document, section, BoundaryConditionType::traction, field,
+            read_double(document, section, "value"), scale_with_load,
+            function);
         const std::string configuration =
             read_optional_string(section, "configuration", "reference");
         if (configuration != "reference" && configuration != "current")
@@ -611,13 +599,9 @@ read_boundary_condition(const InputDocument& document,
         forbid_key(document, section, "value", "type='convection'");
         forbid_key(document, section, "scale_with_load", "type='convection'");
         forbid_key(document, section, "function", "type='convection'");
-        BoundaryConditionDefinition result{
-            leaf_name(section),
-            BoundaryConditionType::convection,
-            read_string(document, section, "boundary"),
-            Field::temperature,
-            0.0,
-            false};
+        BoundaryConditionDefinition result = make_boundary_condition(
+            document, section, BoundaryConditionType::convection,
+            Field::temperature, 0.0, false, {});
         result.heat_transfer_coefficient =
             read_double(document, section, "heat_transfer_coefficient");
         result.ambient_temperature =
@@ -829,10 +813,8 @@ FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
             read_optional_double(
                 document, executioner,
                 "stress_history_time_absolute_tolerance", 1.0)};
-        const std::string restart =
-            read_optional_string(executioner, "restart", {});
         result.transient_execution.restart_file =
-            restart.empty() ? std::string{} : resolved_path(path, restart);
+            read_optional_path(path, executioner, "restart");
         if (result.transient_execution.target_nonlinear_iterations == 0 &&
             result.transient_execution.iteration_window != 0)
             value_error(document, executioner.entry("iteration_window"),
@@ -946,25 +928,17 @@ FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
          "checkpoint_interval"});
     result.outputs.console =
         read_optional_bool(document, outputs, "console", true);
-    const std::string csv = read_optional_string(outputs, "csv", {});
-    result.outputs.csv_file =
-        csv.empty() ? std::string{} : resolved_path(path, csv);
-    const std::string exodus = read_optional_string(outputs, "exodus", {});
-    result.outputs.exodus_file =
-        exodus.empty() ? std::string{} : resolved_path(path, exodus);
+    result.outputs.csv_file = read_optional_path(path, outputs, "csv");
+    result.outputs.exodus_file = read_optional_path(path, outputs, "exodus");
     result.outputs.exodus_interval =
         read_optional_size(document, outputs, "exodus_interval", 1);
-    const std::string history = read_optional_string(outputs, "history", {});
-    result.outputs.history_file =
-        history.empty() ? std::string{} : resolved_path(path, history);
+    result.outputs.history_file = read_optional_path(path, outputs, "history");
     result.outputs.history_interval =
         read_optional_size(document, outputs, "history_interval", 1);
     result.outputs.progress_interval =
         read_optional_size(document, outputs, "progress_interval", 1);
-    const std::string checkpoint =
-        read_optional_string(outputs, "checkpoint", {});
     result.outputs.checkpoint_file =
-        checkpoint.empty() ? std::string{} : resolved_path(path, checkpoint);
+        read_optional_path(path, outputs, "checkpoint");
     result.outputs.checkpoint_interval =
         read_optional_size(document, outputs, "checkpoint_interval", 1);
     const std::string input_file =

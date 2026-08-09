@@ -1,5 +1,6 @@
 #include "fuelsim/checkpoint_io.hpp"
 
+#include "transient_conservation.hpp"
 #include "transient_problem_signature.hpp"
 
 #include <array>
@@ -152,67 +153,17 @@ void read_material_point(BinaryCursor& payload, MaterialPointState& state,
 
 void append_conservation(BinaryBuffer& payload,
                          const TransientConservationSummary& summary) {
-    payload.append_double(summary.generated_heat_rate);
-    payload.append_double(summary.stored_heat_rate);
-    payload.append_double(summary.convection_heat_rate);
-    payload.append_double(summary.interface_heat_imbalance);
-    payload.append_double(summary.dirichlet_heat_input_rate);
-    payload.append_double(summary.global_thermal_balance);
-    payload.append_double(summary.relative_thermal_balance);
-    payload.append_double(summary.unconstrained_thermal_residual_l2);
-    payload.append_double(summary.internal_mechanical_work_increment);
-    payload.append_double(summary.pressure_traction_work_increment);
-    payload.append_double(summary.dirichlet_reaction_work_increment);
-    payload.append_double(summary.contact_work_increment);
-    payload.append_double(summary.mechanical_work_balance);
-    payload.append_double(summary.relative_mechanical_work_balance);
-    payload.append_double(summary.unconstrained_mechanical_residual_l2);
-    payload.append_double(summary.elastic_energy_change);
-    payload.append_double(summary.plastic_dissipation_increment);
-    payload.append_double(summary.creep_dissipation_increment);
+    for (const TransientConservationField& field :
+         transient_conservation_fields)
+        payload.append_double(summary.*field.member);
 }
 
 TransientConservationSummary read_conservation(BinaryCursor& payload) {
     TransientConservationSummary result;
-    result.generated_heat_rate = payload.read_double();
-    result.stored_heat_rate = payload.read_double();
-    result.convection_heat_rate = payload.read_double();
-    result.interface_heat_imbalance = payload.read_double();
-    result.dirichlet_heat_input_rate = payload.read_double();
-    result.global_thermal_balance = payload.read_double();
-    result.relative_thermal_balance = payload.read_double();
-    result.unconstrained_thermal_residual_l2 = payload.read_double();
-    result.internal_mechanical_work_increment = payload.read_double();
-    result.pressure_traction_work_increment = payload.read_double();
-    result.dirichlet_reaction_work_increment = payload.read_double();
-    result.contact_work_increment = payload.read_double();
-    result.mechanical_work_balance = payload.read_double();
-    result.relative_mechanical_work_balance = payload.read_double();
-    result.unconstrained_mechanical_residual_l2 = payload.read_double();
-    result.elastic_energy_change = payload.read_double();
-    result.plastic_dissipation_increment = payload.read_double();
-    result.creep_dissipation_increment = payload.read_double();
-    const std::array<double, 18> values = {
-        result.generated_heat_rate,
-        result.stored_heat_rate,
-        result.convection_heat_rate,
-        result.interface_heat_imbalance,
-        result.dirichlet_heat_input_rate,
-        result.global_thermal_balance,
-        result.relative_thermal_balance,
-        result.unconstrained_thermal_residual_l2,
-        result.internal_mechanical_work_increment,
-        result.pressure_traction_work_increment,
-        result.dirichlet_reaction_work_increment,
-        result.contact_work_increment,
-        result.mechanical_work_balance,
-        result.relative_mechanical_work_balance,
-        result.unconstrained_mechanical_residual_l2,
-        result.elastic_energy_change,
-        result.plastic_dissipation_increment,
-        result.creep_dissipation_increment};
-    for (const double value : values) {
-        if (!std::isfinite(value))
+    for (const TransientConservationField& field :
+         transient_conservation_fields) {
+        result.*field.member = payload.read_double();
+        if (!std::isfinite(result.*field.member))
             throw std::runtime_error(
                 "Checkpoint conservation summary is invalid");
     }

@@ -2,6 +2,7 @@
 
 #include "fuelsim/exodus_mesh_io.hpp"
 #include "exodus_file.hpp"
+#include "transient_conservation.hpp"
 #include "transient_problem_signature.hpp"
 
 #include <exodusII.h>
@@ -451,16 +452,10 @@ EngineeringHistoryWriter::EngineeringHistoryWriter(
             "Could not open engineering history file '" + _path + "'");
     _stream.exceptions(std::ios::badbit | std::ios::failbit);
     _stream << "time,time_step,next_time_step,load_factor,"
-               "nonlinear_iterations,generated_heat_rate,stored_heat_rate,"
-               "convection_heat_rate,interface_heat_imbalance,"
-               "dirichlet_heat_input_rate,global_thermal_balance,"
-               "relative_thermal_balance,unconstrained_thermal_residual_l2,"
-               "internal_mechanical_work_increment,"
-               "pressure_traction_work_increment,"
-               "dirichlet_reaction_work_increment,contact_work_increment,"
-               "mechanical_work_balance,relative_mechanical_work_balance,"
-               "unconstrained_mechanical_residual_l2,elastic_energy_change,"
-               "plastic_dissipation_increment,creep_dissipation_increment";
+               "nonlinear_iterations";
+    for (const TransientConservationField& field :
+         transient_conservation_fields)
+        _stream << ',' << field.name;
     for (std::size_t region = 0; region < problem.region_count(); ++region) {
         const std::string prefix = ",region_" + problem.region(region).name;
         _stream << prefix << "_maximum_temperature" << prefix
@@ -493,24 +488,9 @@ void EngineeringHistoryWriter::append(const TransientProblem& problem,
             << nonlinear_iterations;
     const TransientConservationSummary& conservation =
         problem.last_conservation_summary();
-    _stream << ',' << conservation.generated_heat_rate << ','
-            << conservation.stored_heat_rate << ','
-            << conservation.convection_heat_rate << ','
-            << conservation.interface_heat_imbalance << ','
-            << conservation.dirichlet_heat_input_rate << ','
-            << conservation.global_thermal_balance << ','
-            << conservation.relative_thermal_balance << ','
-            << conservation.unconstrained_thermal_residual_l2 << ','
-            << conservation.internal_mechanical_work_increment << ','
-            << conservation.pressure_traction_work_increment << ','
-            << conservation.dirichlet_reaction_work_increment << ','
-            << conservation.contact_work_increment << ','
-            << conservation.mechanical_work_balance << ','
-            << conservation.relative_mechanical_work_balance << ','
-            << conservation.unconstrained_mechanical_residual_l2 << ','
-            << conservation.elastic_energy_change << ','
-            << conservation.plastic_dissipation_increment << ','
-            << conservation.creep_dissipation_increment;
+    for (const TransientConservationField& field :
+         transient_conservation_fields)
+        _stream << ',' << conservation.*field.member;
     const std::vector<double>& state = problem.committed_solution();
     for (std::size_t region = 0; region < problem.region_count(); ++region) {
         double maximum_temperature =
