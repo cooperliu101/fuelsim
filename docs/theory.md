@@ -33,14 +33,13 @@ fuelsim -i <case.fsi>
 
 ## 2. 软件边界与状态流
 
-实现按依赖方向分成四层：
+实现按依赖方向分成三个库：
 
 | 层 | 当前职责 | 直接依赖 |
 | --- | --- | --- |
 | `fuelsim_core` | 网格、自由度、材料、Quad4 RZ 内核、界面和问题定义 | ADlite |
-| `fuelsim_input` | 严格解析版本化 `.fsi` 输入并构造具体问题 | `fuelsim_core` |
-| `fuelsim_exodus` | 直接读写 Exodus 网格、结果和元数据 | Exodus、`fuelsim_core` |
-| `fuelsim_petsc` | 分布式向量、稀疏装配、SNES Newton 和 KSP 线性求解 | PETSc、`fuelsim_core` |
+| `fuelsim_io` | 严格解析版本化 `.fsi` 输入，并直接读写 Exodus 网格、结果、检查点和元数据 | Exodus、`fuelsim_core` |
+| `fuelsim_solver` | 分布式向量、稀疏装配、SNES Newton、KSP 线性求解和稳态或瞬态推进 | PETSc、`fuelsim_core` |
 
 输入 v1 只接受一个 Exodus 文件、国际单位制数值和固定字段集合。程序不实现
 对象工厂、表达式求值、单位换算、旧键别名或运行时 Kernel 注册。ADlite 之外，
@@ -64,16 +63,14 @@ Exodus Quad4/Line2 几何
 
 | 内容 | 实现位置 |
 | --- | --- |
-| Quad4 几何、小应变和有限应变运动学 | `src/quad4_rz.cpp` |
-| 稳态热—弹性体残量 | `src/quad4_rz.cpp` |
-| 瞬态热容和非弹性体残量 | `src/quad4_rz_transient.cpp` |
-| 热接触、法向接触和 Coulomb 摩擦 | `src/interface.cpp` |
-| pressure、traction 和对流边界 | `src/boundary.cpp` |
-| Norton、J2 及耦合材料更新 | `src/inelastic_material.cpp` |
-| 区域、接触搜索和装配拓扑 | `src/steady_problem.cpp` |
-| committed/trial/commit/rollback | `src/transient_problem.cpp` |
-| 载荷延续、时间步和 step-doubling | `src/problem_solver.cpp` |
-| PETSc 分布式装配与求解 | `src/petsc_solver.cpp` |
+| Quad4、外边界和接触界面的局部残量及 Jacobian | `src/kernels.cpp` |
+| 热弹性、Norton、J2 及耦合材料更新 | `src/material.cpp` |
+| 区域布局、边界条件、接触搜索和贡献装配 | `src/assembly.cpp` |
+| 稳态、瞬态及 committed/trial/commit/rollback | `src/problem.cpp` |
+| 载荷延续、时间步、step-doubling 和 PETSc 求解 | `src/solver.cpp` |
+| 输入卡解析 | `src/input.cpp` |
+| Exodus 网格、结果和检查点 | `src/io.cpp` |
+| 案例运行、输出调度和程序入口 | `src/app.cpp` |
 
 ## 3. 坐标、场量和张量约定
 

@@ -75,53 +75,42 @@ target_include_directories(fuelsim_core
 target_link_libraries(fuelsim_core PUBLIC adlite::adlite)
 fuelsim_enable_warnings(fuelsim_core)
 
-add_library(fuelsim_exodus
+add_library(fuelsim_io
+    src/input.cpp
     src/io.cpp
 )
-add_library(fuelsim::exodus ALIAS fuelsim_exodus)
+add_library(fuelsim::io ALIAS fuelsim_io)
 
-target_include_directories(fuelsim_exodus
+target_include_directories(fuelsim_io
     PUBLIC
         "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
 )
-target_link_libraries(fuelsim_exodus
+target_link_libraries(fuelsim_io
     PUBLIC fuelsim::core
     PRIVATE SEACASExodus::exodus
 )
-fuelsim_enable_warnings(fuelsim_exodus)
+fuelsim_enable_warnings(fuelsim_io)
 
-add_library(fuelsim_input
-    src/input.cpp
-)
-add_library(fuelsim::input ALIAS fuelsim_input)
-
-target_include_directories(fuelsim_input
-    PUBLIC
-        "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
-)
-target_link_libraries(fuelsim_input PUBLIC fuelsim::core)
-fuelsim_enable_warnings(fuelsim_input)
-
-add_library(fuelsim_petsc
+add_library(fuelsim_solver
     src/solver.cpp
 )
-add_library(fuelsim::petsc ALIAS fuelsim_petsc)
+add_library(fuelsim::solver ALIAS fuelsim_solver)
 
-target_include_directories(fuelsim_petsc
+target_include_directories(fuelsim_solver
     PUBLIC
         "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
 )
-target_link_libraries(fuelsim_petsc
+target_link_libraries(fuelsim_solver
     PUBLIC fuelsim::core
 )
-fuelsim_link_petsc(fuelsim_petsc)
-fuelsim_enable_warnings(fuelsim_petsc)
+fuelsim_link_petsc(fuelsim_solver)
+fuelsim_enable_warnings(fuelsim_solver)
 
 add_executable(fuelsim
     src/app.cpp
 )
 target_link_libraries(fuelsim
-    PRIVATE fuelsim::input fuelsim::exodus fuelsim::petsc
+    PRIVATE fuelsim::io fuelsim::solver
 )
 fuelsim_enable_warnings(fuelsim)
 
@@ -152,12 +141,12 @@ if(BUILD_TESTING)
         benchmarks/m1_single_core.cpp
     )
     target_link_libraries(fuelsim_m1_single_core_benchmark
-        PRIVATE fuelsim_test_mesh_fixture fuelsim::petsc
+        PRIVATE fuelsim_test_mesh_fixture fuelsim::solver
     )
     fuelsim_enable_warnings(fuelsim_m1_single_core_benchmark)
 
     add_executable(fuelsim_input_tests tests/input_tests.cpp)
-    target_link_libraries(fuelsim_input_tests PRIVATE fuelsim::input)
+    target_link_libraries(fuelsim_input_tests PRIVATE fuelsim::io)
     fuelsim_enable_warnings(fuelsim_input_tests)
     add_test(NAME fuelsim_input_tests
         COMMAND fuelsim_input_tests
@@ -174,7 +163,7 @@ if(BUILD_TESTING)
         tests/exodus_mesh_io_tests.cpp
     )
     target_link_libraries(fuelsim_exodus_mesh_io_tests
-        PRIVATE fuelsim::exodus
+        PRIVATE fuelsim::io
     )
     fuelsim_enable_warnings(fuelsim_exodus_mesh_io_tests)
     add_test(NAME fuelsim_exodus_mesh_io_tests
@@ -190,9 +179,8 @@ if(BUILD_TESTING)
     )
     target_link_libraries(fuelsim_checkpoint_results_tests
         PRIVATE
-            fuelsim::input
-            fuelsim::exodus
-            fuelsim::petsc
+            fuelsim::io
+            fuelsim::solver
             SEACASExodus::exodus
     )
     fuelsim_enable_warnings(fuelsim_checkpoint_results_tests)
@@ -214,9 +202,8 @@ if(BUILD_TESTING)
     target_link_libraries(fuelsim_m3_load_boundary_tests
         PRIVATE
             fuelsim_moose_test_support
-            fuelsim::input
-            fuelsim::exodus
-            fuelsim::petsc
+            fuelsim::io
+            fuelsim::solver
     )
     fuelsim_enable_warnings(fuelsim_m3_load_boundary_tests)
     add_test(NAME fuelsim_m3_load_boundary_tests
@@ -237,9 +224,8 @@ if(BUILD_TESTING)
     target_link_libraries(fuelsim_m3_contact_tests
         PRIVATE
             fuelsim_moose_test_support
-            fuelsim::input
-            fuelsim::exodus
-            fuelsim::petsc
+            fuelsim::io
+            fuelsim::solver
     )
     fuelsim_enable_warnings(fuelsim_m3_contact_tests)
     add_test(NAME fuelsim_m3_contact_tests
@@ -258,9 +244,8 @@ if(BUILD_TESTING)
     target_link_libraries(fuelsim_m51_coulomb_friction_moose_tests
         PRIVATE
             fuelsim_moose_test_support
-            fuelsim::input
-            fuelsim::exodus
-            fuelsim::petsc
+            fuelsim::io
+            fuelsim::solver
     )
     fuelsim_enable_warnings(fuelsim_m51_coulomb_friction_moose_tests)
     add_test(NAME fuelsim_m51_coulomb_friction_moose_tests
@@ -279,9 +264,8 @@ if(BUILD_TESTING)
     target_link_libraries(fuelsim_m52_large_sliding_contact_moose_tests
         PRIVATE
             fuelsim_moose_test_support
-            fuelsim::input
-            fuelsim::exodus
-            fuelsim::petsc
+            fuelsim::io
+            fuelsim::solver
     )
     fuelsim_enable_warnings(fuelsim_m52_large_sliding_contact_moose_tests)
     add_test(NAME fuelsim_m52_large_sliding_contact_moose_tests
@@ -298,7 +282,7 @@ if(BUILD_TESTING)
         tests/m52_large_sliding_restart_tests.cpp
     )
     target_link_libraries(fuelsim_m52_large_sliding_restart_tests
-        PRIVATE fuelsim::input fuelsim::exodus fuelsim::petsc
+        PRIVATE fuelsim::io fuelsim::solver
     )
     fuelsim_enable_warnings(fuelsim_m52_large_sliding_restart_tests)
     add_test(NAME fuelsim_m52_large_sliding_restart_tests
@@ -316,9 +300,8 @@ if(BUILD_TESTING)
     target_link_libraries(fuelsim_m1_exodus_moose_tests
         PRIVATE
             fuelsim_moose_test_support
-            fuelsim::input
-            fuelsim::exodus
-            fuelsim::petsc
+            fuelsim::io
+            fuelsim::solver
     )
     fuelsim_enable_warnings(fuelsim_m1_exodus_moose_tests)
     add_test(NAME fuelsim_m1_exodus_moose_tests
@@ -336,9 +319,8 @@ if(BUILD_TESTING)
     )
     target_link_libraries(fuelsim_m54_augmented_contact_moose_tests
         PRIVATE
-            fuelsim::input
-            fuelsim::exodus
-            fuelsim::petsc
+            fuelsim::io
+            fuelsim::solver
             fuelsim_moose_test_support
     )
     fuelsim_enable_warnings(fuelsim_m54_augmented_contact_moose_tests)
@@ -357,9 +339,8 @@ if(BUILD_TESTING)
     )
     target_link_libraries(fuelsim_m54_transient_augmented_contact_tests
         PRIVATE
-            fuelsim::input
-            fuelsim::exodus
-            fuelsim::petsc
+            fuelsim::io
+            fuelsim::solver
     )
     fuelsim_enable_warnings(fuelsim_m54_transient_augmented_contact_tests)
     add_test(NAME fuelsim_m54_transient_augmented_contact_tests
@@ -376,9 +357,8 @@ if(BUILD_TESTING)
     target_link_libraries(fuelsim_m1_unstructured_moose_tests
         PRIVATE
             fuelsim_moose_test_support
-            fuelsim::input
-            fuelsim::exodus
-            fuelsim::petsc
+            fuelsim::io
+            fuelsim::solver
     )
     fuelsim_enable_warnings(fuelsim_m1_unstructured_moose_tests)
     add_test(NAME fuelsim_m1_unstructured_moose_tests
@@ -395,9 +375,8 @@ if(BUILD_TESTING)
     target_link_libraries(fuelsim_m0_moose_tests
         PRIVATE
             fuelsim_moose_test_support
-            fuelsim::input
-            fuelsim::exodus
-            fuelsim::petsc
+            fuelsim::io
+            fuelsim::solver
     )
     fuelsim_enable_warnings(fuelsim_m0_moose_tests)
     add_test(NAME fuelsim_m0_moose_tests
@@ -419,7 +398,7 @@ if(BUILD_TESTING)
 
     add_executable(fuelsim_multi_region_tests tests/multi_region_tests.cpp)
     target_link_libraries(fuelsim_multi_region_tests
-        PRIVATE fuelsim::core fuelsim::petsc
+        PRIVATE fuelsim::core fuelsim::solver
     )
     fuelsim_enable_warnings(fuelsim_multi_region_tests)
     add_test(NAME fuelsim_multi_region_tests COMMAND fuelsim_multi_region_tests)
@@ -435,7 +414,7 @@ if(BUILD_TESTING)
 
     add_executable(fuelsim_solver_tests tests/solver_tests.cpp)
     target_link_libraries(fuelsim_solver_tests
-        PRIVATE fuelsim_test_mesh_fixture fuelsim::petsc
+        PRIVATE fuelsim_test_mesh_fixture fuelsim::solver
     )
     fuelsim_enable_warnings(fuelsim_solver_tests)
     add_test(NAME fuelsim_solver_tests COMMAND fuelsim_solver_tests)
@@ -463,7 +442,7 @@ if(BUILD_TESTING)
             tests/mpi_equivalence_tests.cpp
         )
         target_link_libraries(fuelsim_mpi_equivalence_tests
-            PRIVATE fuelsim::input fuelsim::exodus fuelsim::petsc
+            PRIVATE fuelsim::io fuelsim::solver
         )
         fuelsim_enable_warnings(fuelsim_mpi_equivalence_tests)
         add_test(NAME fuelsim_mpi_reference
@@ -591,9 +570,8 @@ if(BUILD_TESTING)
     target_link_libraries(fuelsim_m2_solver_tests
         PRIVATE
             fuelsim_moose_test_support
-            fuelsim::input
-            fuelsim::exodus
-            fuelsim::petsc
+            fuelsim::io
+            fuelsim::solver
     )
     fuelsim_enable_warnings(fuelsim_m2_solver_tests)
     add_test(NAME fuelsim_m2_solver_tests
@@ -607,7 +585,7 @@ if(BUILD_TESTING)
         tests/m21_manufactured_heat_tests.cpp
     )
     target_link_libraries(fuelsim_m21_manufactured_heat_tests
-        PRIVATE fuelsim_test_mesh_fixture fuelsim::petsc
+        PRIVATE fuelsim_test_mesh_fixture fuelsim::solver
     )
     fuelsim_enable_warnings(fuelsim_m21_manufactured_heat_tests)
     add_test(NAME fuelsim_m21_manufactured_heat_tests
@@ -623,9 +601,8 @@ if(BUILD_TESTING)
     target_link_libraries(fuelsim_m2_inelastic_solver_tests
         PRIVATE
             fuelsim_moose_test_support
-            fuelsim::input
-            fuelsim::exodus
-            fuelsim::petsc
+            fuelsim::io
+            fuelsim::solver
     )
     fuelsim_enable_warnings(fuelsim_m2_inelastic_solver_tests)
     add_test(NAME fuelsim_m2_inelastic_solver_tests
@@ -652,9 +629,8 @@ if(BUILD_TESTING)
     target_link_libraries(fuelsim_m2_pcmi_solver_tests
         PRIVATE
             fuelsim_moose_test_support
-            fuelsim::input
-            fuelsim::exodus
-            fuelsim::petsc
+            fuelsim::io
+            fuelsim::solver
     )
     fuelsim_enable_warnings(fuelsim_m2_pcmi_solver_tests)
     add_test(NAME fuelsim_m2_pcmi_solver_tests
@@ -689,9 +665,8 @@ if(BUILD_TESTING)
     target_link_libraries(fuelsim_m42_follower_pressure_moose_tests
         PRIVATE
             fuelsim_moose_test_support
-            fuelsim::input
-            fuelsim::exodus
-            fuelsim::petsc
+            fuelsim::io
+            fuelsim::solver
     )
     fuelsim_enable_warnings(fuelsim_m42_follower_pressure_moose_tests)
     add_test(NAME fuelsim_m42_follower_pressure_moose_tests
@@ -711,9 +686,8 @@ if(BUILD_TESTING)
     target_link_libraries(fuelsim_m43_noncoaxial_finite_strain_moose_tests
         PRIVATE
             fuelsim_moose_test_support
-            fuelsim::input
-            fuelsim::exodus
-            fuelsim::petsc
+            fuelsim::io
+            fuelsim::solver
     )
     fuelsim_enable_warnings(
         fuelsim_m43_noncoaxial_finite_strain_moose_tests

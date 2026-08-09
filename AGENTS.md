@@ -51,7 +51,7 @@ follower pressure 另有独立 MOOSE 对比；非共轴耦合塑性—蠕变路�
   fuelsim 单独发现或链接。
 - 不引入 Eigen、Boost、fmt、JSON/YAML、CLI、日志或第三方测试框架。
 - 测试使用普通 C++ 自检程序和 CTest。
-- 公共头文件不得暴露 PETSc 类型；PETSc 保持在 `fuelsim_petsc` 实现层。
+- 公共头文件不得暴露 PETSc 类型；PETSc 保持在 `fuelsim_solver` 实现层。
 - 不使用 `FetchContent` 或构建时网络下载。
 - 类成员变量统一采用 MOOSE 风格的前缀下划线，如 `_parameters`；不得使用
   `parameters_` 后缀。
@@ -158,12 +158,12 @@ follower pressure 另有独立 MOOSE 对比；非共轴耦合塑性—蠕变路�
 
 - `fuelsim_core`：网格、自由度、材料、Quad4 RZ 核和问题定义，仅依赖
   ADlite。
-- `fuelsim_input`：严格解析带版本号的 `.fsi` 输入卡并生成具体案例定义，
-  仅依赖 `fuelsim_core`；不实现对象工厂、表达式求值或兼容别名。
-- `fuelsim_exodus`：使用 Exodus API 在 `.e` 文件和 fuelsim 自有非结构
-  Quad4 网格之间转换，保留元素块、节点集和边集的 ID 与名称；不使用
-  DMPlex，不暴露 Exodus 类型。
-- `fuelsim_petsc`：PETSc 会话、稀疏装配和 SNES 求解。
+- `fuelsim_io`：严格解析带版本号的 `.fsi` 输入卡，并使用 Exodus API 在
+  `.e` 文件和 fuelsim 自有非结构 Quad4 网格及结果之间转换；保留元素块、
+  节点集和边集的 ID 与名称，不使用 DMPlex，不暴露 Exodus 类型，也不实现
+  对象工厂、表达式求值或兼容别名。
+- `fuelsim_solver`：PETSc 会话、稀疏装配、SNES 求解、稳态加载和瞬态时间
+  推进。
 - `NonlinearProblem` 只作为求解器端口；不得扩张成 MOOSE 式对象工厂。
 - 所有区域节点必须保持独立；默认 PCMI 包壳高度比芯块高 `20 um`，界面
   通过轴向投影耦合。

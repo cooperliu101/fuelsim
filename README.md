@@ -103,7 +103,7 @@ env PATH="${fuelsim_toolchain_prefix}/bin:/usr/local/bin:/usr/bin:/bin" \
 ctest --test-dir build --output-on-failure
 ```
 
-`fuelsim_exodus` 将一个 2D 非结构 Quad4 文件的节点、连接关系、元素块、
+`fuelsim_io` 将一个 2D 非结构 Quad4 文件的节点、连接关系、元素块、
 节点集和边集转换为 fuelsim 自有网格对象；专项 CTest 通过 Exodus API
 写出并逐项回读。每个 `[Regions/<name>]` 选择一个元素块；接触不再重复声明
 块名，而是由边集相邻单元自动确定所属区域。这样同一入口既能分析单独芯块
