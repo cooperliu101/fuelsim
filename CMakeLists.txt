@@ -68,6 +68,7 @@ add_library(fuelsim_core
     src/spatial_assembly.cpp
     src/steady_problem.cpp
     src/time_table.cpp
+    src/transient_conservation.cpp
     src/transient_problem.cpp
     src/material.cpp
     src/mesh.cpp
@@ -118,8 +119,11 @@ target_link_libraries(fuelsim_input PUBLIC fuelsim::core)
 fuelsim_enable_warnings(fuelsim_input)
 
 add_library(fuelsim_petsc
-    src/problem_solver.cpp
     src/petsc_solver.cpp
+    src/solver_workflow.cpp
+    src/steady_solver.cpp
+    src/transient_solver.cpp
+    src/transient_time_control.cpp
 )
 add_library(fuelsim::petsc ALIAS fuelsim_petsc)
 
