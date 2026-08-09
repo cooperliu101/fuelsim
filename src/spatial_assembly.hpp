@@ -111,13 +111,6 @@ class SpatialAssembly final {
     using ResolvedBoundary = SpatialLayout::ResolvedBoundary;
     using ThermalContribution = ContactAssembly::ThermalContribution;
     using MechanicalContribution = ContactAssembly::MechanicalContribution;
-    using PressureContribution = BoundaryAssembly::PressureContribution;
-    using TractionContribution = BoundaryAssembly::TractionContribution;
-    using ConvectionContribution = BoundaryAssembly::ConvectionContribution;
-    using ControlledDirichlet = BoundaryAssembly::ControlledDirichlet;
-    using PressureLoad = BoundaryAssembly::PressureLoad;
-    using TractionLoad = BoundaryAssembly::TractionLoad;
-    using ConvectionLoad = BoundaryAssembly::ConvectionLoad;
 
     SpatialAssembly(SpatialDefinition definition,
                     const UnstructuredQuad4Mesh& source_mesh,
@@ -130,12 +123,7 @@ class SpatialAssembly final {
     build_meshes(const SpatialDefinition& definition,
                  const UnstructuredQuad4Mesh& source_mesh);
 
-    ResolvedBoundary resolve_boundary(const UnstructuredQuad4Mesh& source_mesh,
-                                      const std::string& name) const;
-    std::size_t global_node(std::size_t region_index,
-                            std::size_t local_node) const;
     void build_contacts(const UnstructuredQuad4Mesh& source_mesh);
-    void build_boundary_conditions(const UnstructuredQuad4Mesh& source_mesh);
     void update_mechanical_candidates(const std::vector<double>& state) const;
     void update_mechanical_candidates(std::size_t contribution_begin,
                                       std::size_t contribution_end,

@@ -88,6 +88,64 @@ const Quad4RzGeometry& SpatialLayout::element_geometry(
     return _region_geometries.at(region_value).at(element);
 }
 
+SpatialLayout::ResolvedBoundary SpatialLayout::resolve_boundary(
+    const UnstructuredQuad4Mesh& source_mesh,
+    const std::string& name) const {
+    const std::int64_t block_id = source_mesh.side_set_block_id(name);
+    const auto found =
+        std::find(_block_ids.begin(), _block_ids.end(), block_id);
+    if (found == _block_ids.end())
+        throw std::invalid_argument(
+            "Boundary belongs to an undeclared block: " + name);
+    const std::size_t region =
+        static_cast<std::size_t>(found - _block_ids.begin());
+    return {region, _meshes[region].map_side_set(source_mesh, name)};
+}
+
+std::size_t SpatialLayout::global_node(std::size_t region,
+                                       std::size_t local_node) const {
+    if (local_node >= region_mesh(region).nodes().size())
+        throw std::out_of_range("Spatial layout local node is out of range");
+    return _node_offsets.at(region) + local_node;
+}
+
+std::pair<std::size_t, std::array<std::size_t, 2>>
+SpatialLayout::edge_parent(std::size_t region,
+                           const Line2BoundaryElement& edge) const {
+    const RegionMesh& mesh = region_mesh(region);
+    std::size_t parent = mesh.elements().size();
+    std::array<std::size_t, 2> local_nodes{};
+    for (std::size_t element_index = 0;
+         element_index < mesh.elements().size(); ++element_index) {
+        const Quad4Element& element = mesh.elements()[element_index];
+        std::array<std::size_t, 2> candidate{};
+        bool contains = false;
+        for (std::size_t side = 0; side < element.nodes.size(); ++side) {
+            const std::size_t next = (side + 1U) % element.nodes.size();
+            const bool forward = element.nodes[side] == edge.nodes[0] &&
+                                 element.nodes[next] == edge.nodes[1];
+            const bool reverse = element.nodes[side] == edge.nodes[1] &&
+                                 element.nodes[next] == edge.nodes[0];
+            if (forward || reverse) {
+                candidate = {{side, next}};
+                contains = true;
+                break;
+            }
+        }
+        if (!contains)
+            continue;
+        if (parent != mesh.elements().size())
+            throw std::invalid_argument(
+                "Boundary edge has more than one adjacent region element");
+        parent = element_index;
+        local_nodes = candidate;
+    }
+    if (parent == mesh.elements().size())
+        throw std::invalid_argument(
+            "Boundary edge has no adjacent region element");
+    return {parent, local_nodes};
+}
+
 void SpatialLayout::build_volume_geometries() {
     _region_geometries.resize(region_count());
     for (std::size_t region_index = 0; region_index < region_count();
@@ -154,15 +212,15 @@ SpatialAssembly::contribution_ranges() const noexcept {
     const std::size_t pressure_begin =
         mechanical_begin + _contact._mechanical_contributions.size();
     const std::size_t traction_begin =
-        pressure_begin + _boundary._pressure_contributions.size();
+        pressure_begin + _boundary.pressure_contribution_count();
     const std::size_t convection_begin =
-        traction_begin + _boundary._traction_contributions.size();
+        traction_begin + _boundary.traction_contribution_count();
     return {thermal_begin,
             mechanical_begin,
             pressure_begin,
             traction_begin,
             convection_begin,
-            convection_begin + _boundary._convection_contributions.size()};
+            convection_begin + _boundary.convection_contribution_count()};
 }
 
 SpatialAssembly::ContributionLocation SpatialAssembly::locate_contribution(

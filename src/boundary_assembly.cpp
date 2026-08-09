@@ -5,6 +5,170 @@
 #include <stdexcept>
 
 namespace fuelsim {
+namespace {
+
+void validate_dirichlet_conditions(
+    std::vector<DirichletCondition>& conditions) {
+    std::sort(conditions.begin(), conditions.end(),
+              [](const DirichletCondition& lhs,
+                 const DirichletCondition& rhs) {
+                  return lhs.dof < rhs.dof;
+              });
+    for (std::size_t index = 1; index < conditions.size(); ++index) {
+        const DirichletCondition& previous = conditions[index - 1];
+        const DirichletCondition& current = conditions[index];
+        if (previous.dof != current.dof)
+            continue;
+        if (previous.value != current.value)
+            throw std::invalid_argument(
+                "BoundaryAssembly has conflicting Dirichlet conditions");
+        throw std::invalid_argument(
+            "BoundaryAssembly has duplicate Dirichlet conditions");
+    }
+}
+
+} // namespace
+
+void BoundaryAssembly::build(const UnstructuredQuad4Mesh& source_mesh,
+                             const SpatialLayout& layout) {
+    for (const BoundaryConditionDefinition& definition :
+         layout.definition().boundary_conditions) {
+        if (definition.name.empty() || definition.boundary.empty() ||
+            !std::isfinite(definition.value))
+            throw std::invalid_argument("Boundary-condition names, boundaries, "
+                                        "and values must be valid");
+        const SpatialLayout::ResolvedBoundary resolved =
+            layout.resolve_boundary(source_mesh, definition.boundary);
+        if (definition.scale_with_load && !definition.function.empty())
+            throw std::invalid_argument(
+                "Boundary condition cannot combine scale_with_load and a "
+                "time function: " +
+                definition.name);
+        if (definition.type == BoundaryConditionType::dirichlet) {
+            for (const std::size_t local_node : resolved.boundary.nodes) {
+                const std::size_t dof = layout.dof_map().dof(
+                    definition.field,
+                    layout.global_node(resolved.region, local_node));
+                _dirichlet_conditions.push_back(
+                    {dof, load_multiplier(definition.scale_with_load,
+                                          definition.function, layout) *
+                              definition.value});
+                if (definition.scale_with_load || !definition.function.empty())
+                    _controlled_dirichlet_conditions.push_back(
+                        {dof, definition.value, definition.scale_with_load,
+                         definition.function});
+            }
+        } else if (definition.type == BoundaryConditionType::pressure) {
+            if (definition.value < 0.0)
+                throw std::invalid_argument(
+                    "Pressure boundary conditions must be nonnegative");
+            const std::size_t load = _pressure_loads.size();
+            _pressure_loads.push_back({definition.value,
+                                       definition.scale_with_load,
+                                       definition.function});
+            const bool displaced =
+                layout.region(resolved.region).strain_formulation ==
+                StrainFormulation::finite;
+            _pressure_kernels.emplace_back(PressureProperties{
+                load_multiplier(definition.scale_with_load,
+                                definition.function, layout) *
+                    definition.value,
+                displaced});
+            const RegionMesh& mesh = layout.region_mesh(resolved.region);
+            for (const Line2BoundaryElement& edge :
+                 resolved.boundary.elements) {
+                const auto parent = layout.edge_parent(resolved.region, edge);
+                const Quad4Element& element =
+                    mesh.elements().at(parent.first);
+                std::array<std::size_t, 4> nodes{};
+                for (std::size_t node = 0; node < nodes.size(); ++node)
+                    nodes[node] = layout.global_node(
+                        resolved.region, element.nodes[node]);
+                _pressure_contributions.push_back(
+                    {load, nodes,
+                     make_line2_rz_pressure_geometry(
+                         {{mesh.nodes().at(element.nodes[parent.second[0]]),
+                           mesh.nodes().at(element.nodes[parent.second[1]])}},
+                         parent.second)});
+            }
+        } else if (definition.type == BoundaryConditionType::traction) {
+            if (definition.field == Field::temperature)
+                throw std::invalid_argument(
+                    "Traction requires a displacement field: " +
+                    definition.boundary);
+            if (definition.use_displaced_geometry &&
+                layout.region(resolved.region).strain_formulation !=
+                    StrainFormulation::finite)
+                throw std::invalid_argument(
+                    "Current-configuration traction requires finite strain: " +
+                    definition.name);
+            const std::size_t load = _traction_loads.size();
+            _traction_loads.push_back({definition.value,
+                                       definition.scale_with_load,
+                                       definition.function});
+            _traction_kernels.emplace_back(TractionProperties{
+                definition.field == Field::radial_displacement
+                    ? TractionComponent::radial
+                    : TractionComponent::axial,
+                load_multiplier(definition.scale_with_load,
+                                definition.function, layout) *
+                    definition.value,
+                definition.use_displaced_geometry});
+            const RegionMesh& mesh = layout.region_mesh(resolved.region);
+            for (const Line2BoundaryElement& edge :
+                 resolved.boundary.elements) {
+                const auto parent = layout.edge_parent(resolved.region, edge);
+                const Quad4Element& element =
+                    mesh.elements().at(parent.first);
+                std::array<std::size_t, 4> nodes{};
+                for (std::size_t node = 0; node < nodes.size(); ++node)
+                    nodes[node] = layout.global_node(
+                        resolved.region, element.nodes[node]);
+                _traction_contributions.push_back(
+                    {load, nodes,
+                     make_line2_rz_traction_geometry(
+                         {{mesh.nodes().at(element.nodes[parent.second[0]]),
+                           mesh.nodes().at(element.nodes[parent.second[1]])}},
+                         parent.second)});
+            }
+        } else {
+            if (!(definition.heat_transfer_coefficient > 0.0) ||
+                !(definition.ambient_temperature > 0.0))
+                throw std::invalid_argument(
+                    "Convection coefficient and ambient temperature must be "
+                    "positive: " +
+                    definition.name);
+            const std::size_t load = _convection_loads.size();
+            _convection_loads.push_back(
+                {definition.heat_transfer_coefficient,
+                 definition.ambient_temperature,
+                 definition.coefficient_function,
+                 definition.ambient_temperature_function});
+            _convection_kernels.emplace_back(
+                ConvectionProperties{definition.heat_transfer_coefficient,
+                                     definition.ambient_temperature});
+            const RegionMesh& mesh = layout.region_mesh(resolved.region);
+            for (const Line2BoundaryElement& edge :
+                 resolved.boundary.elements) {
+                const auto parent = layout.edge_parent(resolved.region, edge);
+                const Quad4Element& element =
+                    mesh.elements().at(parent.first);
+                std::array<std::size_t, 4> nodes{};
+                for (std::size_t node = 0; node < nodes.size(); ++node)
+                    nodes[node] = layout.global_node(
+                        resolved.region, element.nodes[node]);
+                _convection_contributions.push_back(
+                    {load, nodes,
+                     make_line2_rz_convection_geometry(
+                         {{mesh.nodes().at(element.nodes[parent.second[0]]),
+                           mesh.nodes().at(element.nodes[parent.second[1]])}},
+                         parent.second)});
+            }
+        }
+    }
+    validate_dirichlet_conditions(_dirichlet_conditions);
+    refresh_controlled_values(layout);
+}
 
 void BoundaryAssembly::set_load_factor(double value,
                                        const SpatialLayout& layout) {
@@ -114,6 +278,98 @@ double BoundaryAssembly::region_heat_source(
             ? _load_factor
             : function_value(region.heat_source_function, layout);
     return multiplier * region.volumetric_heat_source;
+}
+
+std::size_t BoundaryAssembly::pressure_contribution_count() const noexcept {
+    return _pressure_contributions.size();
+}
+
+std::size_t BoundaryAssembly::traction_contribution_count() const noexcept {
+    return _traction_contributions.size();
+}
+
+std::size_t BoundaryAssembly::convection_contribution_count() const noexcept {
+    return _convection_contributions.size();
+}
+
+LocalDofs BoundaryAssembly::contribution_dofs(
+    SpatialContributionType type, std::size_t index,
+    const SpatialLayout& layout) const {
+    switch (type) {
+    case SpatialContributionType::pressure:
+        return layout.dof_map().local_dofs(
+            _pressure_contributions.at(index).nodes);
+    case SpatialContributionType::traction:
+        return layout.dof_map().local_dofs(
+            _traction_contributions.at(index).nodes);
+    case SpatialContributionType::convection:
+        return layout.dof_map().local_dofs(
+            _convection_contributions.at(index).nodes);
+    default:
+        throw std::invalid_argument(
+            "BoundaryAssembly requires a boundary contribution type");
+    }
+}
+
+LocalResidual BoundaryAssembly::contribution_residual(
+    SpatialContributionType type, std::size_t index,
+    const LocalValues& state) const {
+    switch (type) {
+    case SpatialContributionType::pressure: {
+        const PressureContribution& contribution =
+            _pressure_contributions.at(index);
+        return _pressure_kernels[contribution.load].residual(
+            contribution.geometry, state);
+    }
+    case SpatialContributionType::traction: {
+        const TractionContribution& contribution =
+            _traction_contributions.at(index);
+        return _traction_kernels[contribution.load].residual(
+            contribution.geometry, state);
+    }
+    case SpatialContributionType::convection: {
+        const ConvectionContribution& contribution =
+            _convection_contributions.at(index);
+        return _convection_kernels[contribution.load].residual(
+            contribution.geometry, state);
+    }
+    default:
+        throw std::invalid_argument(
+            "BoundaryAssembly requires a boundary contribution type");
+    }
+}
+
+LocalSystem BoundaryAssembly::linearize_contribution(
+    SpatialContributionType type, std::size_t index,
+    const LocalValues& state) const {
+    switch (type) {
+    case SpatialContributionType::pressure: {
+        const PressureContribution& contribution =
+            _pressure_contributions.at(index);
+        return _pressure_kernels[contribution.load].linearize(
+            contribution.geometry, state);
+    }
+    case SpatialContributionType::traction: {
+        const TractionContribution& contribution =
+            _traction_contributions.at(index);
+        return _traction_kernels[contribution.load].linearize(
+            contribution.geometry, state);
+    }
+    case SpatialContributionType::convection: {
+        const ConvectionContribution& contribution =
+            _convection_contributions.at(index);
+        return _convection_kernels[contribution.load].linearize(
+            contribution.geometry, state);
+    }
+    default:
+        throw std::invalid_argument(
+            "BoundaryAssembly requires a boundary contribution type");
+    }
+}
+
+const std::vector<DirichletCondition>&
+BoundaryAssembly::dirichlet_conditions() const noexcept {
+    return _dirichlet_conditions;
 }
 
 void SpatialAssembly::set_load_factor(double value) {

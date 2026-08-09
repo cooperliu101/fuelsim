@@ -12,21 +12,33 @@
 
 namespace fuelsim {
 
-class SpatialAssembly;
-
 class BoundaryAssembly final {
   public:
     BoundaryAssembly() = default;
 
+    void build(const UnstructuredQuad4Mesh& source_mesh,
+               const SpatialLayout& layout);
     void set_load_factor(double load_factor, const SpatialLayout& layout);
     double load_factor() const noexcept;
     void set_time(double time, const SpatialLayout& layout);
     double region_heat_source(std::size_t region_index,
                               const SpatialLayout& layout) const;
+    std::size_t pressure_contribution_count() const noexcept;
+    std::size_t traction_contribution_count() const noexcept;
+    std::size_t convection_contribution_count() const noexcept;
+    LocalDofs contribution_dofs(SpatialContributionType type,
+                                std::size_t index,
+                                const SpatialLayout& layout) const;
+    LocalResidual contribution_residual(SpatialContributionType type,
+                                        std::size_t index,
+                                        const LocalValues& state) const;
+    LocalSystem linearize_contribution(SpatialContributionType type,
+                                       std::size_t index,
+                                       const LocalValues& state) const;
+    const std::vector<DirichletCondition>&
+    dirichlet_conditions() const noexcept;
 
   private:
-    friend class SpatialAssembly;
-
     double function_value(const std::string& name,
                           const SpatialLayout& layout) const;
     double load_multiplier(bool scale_with_load,

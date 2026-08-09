@@ -6,8 +6,11 @@
 #include "fuelsim/quad4_rz.hpp"
 #include "fuelsim/spatial_definition.hpp"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
+#include <string>
+#include <utility>
 #include <vector>
 
 namespace fuelsim {
@@ -35,6 +38,14 @@ class SpatialLayout final {
     std::size_t volume_contribution_count() const noexcept;
     const Quad4RzGeometry& element_geometry(std::size_t region,
                                             std::size_t element) const;
+    ResolvedBoundary resolve_boundary(
+        const UnstructuredQuad4Mesh& source_mesh,
+        const std::string& name) const;
+    std::size_t global_node(std::size_t region,
+                            std::size_t local_node) const;
+    std::pair<std::size_t, std::array<std::size_t, 2>>
+    edge_parent(std::size_t region,
+                const Line2BoundaryElement& edge) const;
 
   private:
     friend class SpatialAssembly;
