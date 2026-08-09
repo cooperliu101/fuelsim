@@ -4,6 +4,8 @@
 #include "fuelsim/material.hpp"
 #include "fuelsim/mesh.hpp"
 #include "fuelsim/quad4_rz.hpp"
+#include "fuelsim/quad4_rz_kinematics.hpp"
+#include "fuelsim/quad4_rz_thermoelastic.hpp"
 #include "fuelsim/steady_problem.hpp"
 #include "fuelsim/time_table.hpp"
 #include "support/mesh_fixture.hpp"

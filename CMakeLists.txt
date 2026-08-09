@@ -73,6 +73,8 @@ add_library(fuelsim_core
     src/mesh.cpp
     src/nonlinear_problem.cpp
     src/quad4_rz.cpp
+    src/quad4_rz_kinematics.cpp
+    src/quad4_rz_thermoelastic.cpp
     src/quad4_rz_transient.cpp
 )
 add_library(fuelsim::core ALIAS fuelsim_core)

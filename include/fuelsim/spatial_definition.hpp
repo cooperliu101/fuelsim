@@ -5,7 +5,7 @@
 #include "fuelsim/dof_map.hpp"
 #include "fuelsim/interface.hpp"
 #include "fuelsim/material.hpp"
-#include "fuelsim/quad4_rz.hpp"
+#include "fuelsim/quad4_rz_kinematics.hpp"
 #include "fuelsim/time_table.hpp"
 
 #include <cstddef>

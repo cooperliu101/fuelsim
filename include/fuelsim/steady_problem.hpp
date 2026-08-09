@@ -4,7 +4,7 @@
 #include "fuelsim/dof_map.hpp"
 #include "fuelsim/mesh.hpp"
 #include "fuelsim/nonlinear_problem.hpp"
-#include "fuelsim/quad4_rz.hpp"
+#include "fuelsim/quad4_rz_thermoelastic.hpp"
 #include "fuelsim/spatial_definition.hpp"
 
 #include <cstddef>

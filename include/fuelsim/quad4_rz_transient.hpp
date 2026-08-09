@@ -4,7 +4,7 @@
 #include <array>
 
 #include "fuelsim/inelastic_material.hpp"
-#include "fuelsim/quad4_rz.hpp"
+#include "fuelsim/quad4_rz_kinematics.hpp"
 
 namespace fuelsim {
 

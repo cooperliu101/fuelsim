@@ -1,5 +1,7 @@
 #include "fuelsim/quad4_rz_transient.hpp"
 
+#include "quad4_rz_assembly.hpp"
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -15,36 +17,38 @@ struct PointFields final {
     AxisymmetricKinematics kinematics;
 };
 
-adlite::Scalar interpolate(const std::array<double, quad4_node_count>& values,
-                           const LocalAdValues& state, std::size_t offset) {
-    adlite::Scalar result = 0.0;
-    for (std::size_t node = 0; node < quad4_node_count; ++node)
-        result += values[node] * state[offset + node];
-    return result;
-}
-
-double interpolate_committed_temperature(
-    const std::array<double, quad4_node_count>& shape,
-    const LocalValues& committed_state) {
-    double result = 0.0;
-    for (std::size_t node = 0; node < quad4_node_count; ++node)
-        result += shape[node] * committed_state[node];
-    return result;
-}
-
 PointFields point_fields(const RzQuadraturePoint& point,
                          const LocalAdValues& state,
                          const LocalValues& committed_state,
                          StrainFormulation strain_formulation) {
-    const adlite::Scalar temperature = interpolate(point.shape, state, 0);
+    const adlite::Scalar temperature =
+        quad4_rz_detail::interpolate(point.shape, state, 0);
 
     return {
         temperature,
-        interpolate(point.gradient_r, state, 0),
-        interpolate(point.gradient_z, state, 0),
+        quad4_rz_detail::interpolate(point.gradient_r, state, 0),
+        quad4_rz_detail::interpolate(point.gradient_z, state, 0),
         evaluate_axisymmetric_incremental_kinematics(
             point, state, committed_state, strain_formulation),
     };
+}
+
+InelasticStressResponse
+material_response(const IsotropicInelasticMaterial& material,
+                  const PointFields& fields, double committed_temperature,
+                  double time_step,
+                  const MaterialPointState& committed_material,
+                  StrainFormulation strain_formulation) {
+    if (strain_formulation == StrainFormulation::finite)
+        return material.incremental_response(
+            fields.kinematics.strain_rr, fields.kinematics.strain_zz,
+            fields.kinematics.strain_hoop, fields.kinematics.strain_rz,
+            fields.kinematics.rotation, fields.temperature,
+            committed_temperature, time_step, committed_material);
+    return material.response(
+        fields.kinematics.strain_rr, fields.kinematics.strain_zz,
+        fields.kinematics.strain_hoop, fields.kinematics.strain_rz,
+        fields.temperature, time_step, committed_material);
 }
 
 void validate_time_step(double time_step) {
@@ -110,13 +114,12 @@ LocalResidual Quad4RzTransientKernel::residual(
     validate_time_step(time_step);
     validate_committed_state(committed_state);
 
-    LocalAdValues passive_state{};
-    for (std::size_t dof = 0; dof < current_state.size(); ++dof)
-        passive_state[dof] = current_state[dof];
+    const LocalAdValues passive_state =
+        quad4_rz_detail::passive_state(current_state);
 
     LocalAdValues passive_residual{};
-    residual_ad(geometry, passive_state, committed_state,
-                committed_material, time_step, passive_residual);
+    residual_ad(geometry, passive_state, committed_state, committed_material,
+                time_step, passive_residual);
 
     LocalResidual result{};
     for (std::size_t row = 0; row < result.size(); ++row)
@@ -136,8 +139,8 @@ LocalSystem Quad4RzTransientKernel::linearize(
                           active_state.data());
 
     LocalAdValues active_residual{};
-    residual_ad(geometry, active_state, committed_state,
-                committed_material, time_step, active_residual);
+    residual_ad(geometry, active_state, committed_state, committed_material,
+                time_step, active_residual);
 
     LocalSystem result{};
     adlite::extract_jacobian(active_residual.data(), active_residual.size(),
@@ -152,9 +155,8 @@ Quad4MaterialHistory Quad4RzTransientKernel::trial_state_values(
     const Quad4MaterialHistory& committed_material, double time_step) const {
     validate_time_step(time_step);
 
-    LocalAdValues passive_state{};
-    for (std::size_t dof = 0; dof < converged_state.size(); ++dof)
-        passive_state[dof] = converged_state[dof];
+    const LocalAdValues passive_state =
+        quad4_rz_detail::passive_state(converged_state);
 
     Quad4MaterialHistory result{};
     for (std::size_t q = 0; q < geometry.points.size(); ++q) {
@@ -167,23 +169,11 @@ Quad4MaterialHistory Quad4RzTransientKernel::trial_state_values(
                 "Quad4RzTransientKernel trial temperature must be finite and "
                 "positive");
 
-        const double old_temperature = interpolate_committed_temperature(
-            geometry.points[q].shape, committed_state);
-        const auto response =
-            _strain_formulation == StrainFormulation::finite
-                ? _material.incremental_response(
-                      fields.kinematics.strain_rr,
-                      fields.kinematics.strain_zz,
-                      fields.kinematics.strain_hoop,
-                      fields.kinematics.strain_rz,
-                      fields.kinematics.rotation, fields.temperature,
-                      old_temperature, time_step, committed_material[q])
-                : _material.response(
-                      fields.kinematics.strain_rr,
-                      fields.kinematics.strain_zz,
-                      fields.kinematics.strain_hoop,
-                      fields.kinematics.strain_rz, fields.temperature,
-                      time_step, committed_material[q]);
+        const double old_temperature = quad4_rz_detail::interpolate(
+            geometry.points[q].shape, committed_state, 0);
+        const InelasticStressResponse response =
+            material_response(_material, fields, old_temperature, time_step,
+                              committed_material[q], _strain_formulation);
         result[q] =
             IsotropicInelasticMaterial::state_values(response.trial_state);
     }
@@ -196,32 +186,18 @@ std::array<AxisymmetricStressValues, 4> Quad4RzTransientKernel::stress_values(
     const Quad4MaterialHistory& committed_material, double time_step) const {
     validate_time_step(time_step);
 
-    LocalAdValues passive_state{};
-    for (std::size_t dof = 0; dof < state.size(); ++dof)
-        passive_state[dof] = state[dof];
+    const LocalAdValues passive_state = quad4_rz_detail::passive_state(state);
 
     std::array<AxisymmetricStressValues, 4> result{};
     for (std::size_t q = 0; q < geometry.points.size(); ++q) {
         const PointFields fields =
             point_fields(geometry.points[q], passive_state, committed_state,
                          _strain_formulation);
-        const double old_temperature = interpolate_committed_temperature(
-            geometry.points[q].shape, committed_state);
+        const double old_temperature = quad4_rz_detail::interpolate(
+            geometry.points[q].shape, committed_state, 0);
         const InelasticStressResponse response =
-            _strain_formulation == StrainFormulation::finite
-                ? _material.incremental_response(
-                      fields.kinematics.strain_rr,
-                      fields.kinematics.strain_zz,
-                      fields.kinematics.strain_hoop,
-                      fields.kinematics.strain_rz,
-                      fields.kinematics.rotation, fields.temperature,
-                      old_temperature, time_step, committed_material[q])
-                : _material.response(
-                      fields.kinematics.strain_rr,
-                      fields.kinematics.strain_zz,
-                      fields.kinematics.strain_hoop,
-                      fields.kinematics.strain_rz, fields.temperature,
-                      time_step, committed_material[q]);
+            material_response(_material, fields, old_temperature, time_step,
+                              committed_material[q], _strain_formulation);
         result[q] = {
             response.stress.rr.value(),
             response.stress.zz.value(),
@@ -242,53 +218,21 @@ void Quad4RzTransientKernel::residual_ad(
 
     for (std::size_t q = 0; q < geometry.points.size(); ++q) {
         const RzQuadraturePoint& point = geometry.points[q];
-        const PointFields fields =
-            point_fields(point, current_state, committed_state,
-                         _strain_formulation);
-        const double old_temperature = interpolate_committed_temperature(
-            point.shape, committed_state);
+        const PointFields fields = point_fields(
+            point, current_state, committed_state, _strain_formulation);
+        const double old_temperature =
+            quad4_rz_detail::interpolate(point.shape, committed_state, 0);
         const adlite::Scalar temperature_rate =
             (fields.temperature - old_temperature) / time_step;
         const adlite::Scalar conductivity =
             _material.conductivity(fields.temperature);
-        const auto response =
-            _strain_formulation == StrainFormulation::finite
-                ? _material.incremental_response(
-                      fields.kinematics.strain_rr,
-                      fields.kinematics.strain_zz,
-                      fields.kinematics.strain_hoop,
-                      fields.kinematics.strain_rz,
-                      fields.kinematics.rotation, fields.temperature,
-                      old_temperature, time_step, committed_material[q])
-                : _material.response(
-                      fields.kinematics.strain_rr,
-                      fields.kinematics.strain_zz,
-                      fields.kinematics.strain_hoop,
-                      fields.kinematics.strain_rz, fields.temperature,
-                      time_step, committed_material[q]);
-        const auto& stress = response.stress;
-
-        for (std::size_t node = 0; node < quad4_node_count; ++node) {
-            residual[node] +=
-                point.weighted_measure *
-                (heat_capacity * point.shape[node] * temperature_rate +
-                 conductivity *
-                     (point.gradient_r[node] * fields.gradient_temperature_r +
-                      point.gradient_z[node] * fields.gradient_temperature_z) -
-                 _volumetric_heat_source * point.shape[node]);
-
-            residual[4 + node] +=
-                fields.kinematics.weighted_measure *
-                (stress.rr * fields.kinematics.gradient_r[node] +
-                 stress.hoop * point.shape[node] /
-                     fields.kinematics.radius +
-                 stress.rz * fields.kinematics.gradient_z[node]);
-
-            residual[8 + node] +=
-                fields.kinematics.weighted_measure *
-                (stress.zz * fields.kinematics.gradient_z[node] +
-                 stress.rz * fields.kinematics.gradient_r[node]);
-        }
+        const InelasticStressResponse response =
+            material_response(_material, fields, old_temperature, time_step,
+                              committed_material[q], _strain_formulation);
+        quad4_rz_detail::add_transient_point_residual(
+            point, fields.gradient_temperature_r, fields.gradient_temperature_z,
+            fields.kinematics, heat_capacity, temperature_rate, conductivity,
+            _volumetric_heat_source, response.stress, residual);
     }
 }
 
