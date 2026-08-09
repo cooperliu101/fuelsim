@@ -10,25 +10,6 @@
 namespace fuelsim {
 namespace {
 
-std::size_t checked_total_nodes(const std::vector<RegionMesh>& meshes) {
-    std::size_t total = 0;
-    for (const RegionMesh& mesh : meshes) {
-        if (mesh.nodes().size() >
-            std::numeric_limits<std::size_t>::max() - total)
-            throw std::length_error("SpatialAssembly node count overflows");
-        total += mesh.nodes().size();
-    }
-    return total;
-}
-
-Quad4Coordinates element_coordinates(const RegionMesh& mesh,
-                                     const Quad4Element& element) {
-    Quad4Coordinates coordinates{};
-    for (std::size_t node = 0; node < element.nodes.size(); ++node)
-        coordinates[node] = mesh.nodes().at(element.nodes[node]);
-    return coordinates;
-}
-
 Line2InterfaceSideCoordinates
 edge_coordinates(const RegionMesh& mesh, const Line2BoundaryElement& edge) {
     return {{mesh.nodes().at(edge.nodes[0]), mesh.nodes().at(edge.nodes[1])}};
@@ -443,56 +424,44 @@ SpatialAssembly::SpatialAssembly(SpatialDefinition definition,
                              const UnstructuredQuad4Mesh& source_mesh,
                              std::vector<std::int64_t> block_ids,
                              std::vector<RegionMesh> meshes)
-    : _definition(std::move(definition)), _block_ids(std::move(block_ids)),
-      _meshes(std::move(meshes)), _dof_map(checked_total_nodes(_meshes)),
-      _load_factor(1.0), _time(0.0) {
-    validate_definitions(_definition);
+    : _layout(std::move(definition), std::move(block_ids), std::move(meshes)) {
+    validate_definitions(_layout._definition);
 
-    _node_offsets.reserve(_meshes.size() + 1);
-    _element_offsets.reserve(_meshes.size() + 1);
-    _node_offsets.push_back(0);
-    _element_offsets.push_back(0);
-    for (const RegionMesh& mesh : _meshes) {
-        _node_offsets.push_back(_node_offsets.back() + mesh.nodes().size());
-        _element_offsets.push_back(_element_offsets.back() +
-                                   mesh.elements().size());
-    }
-
-    build_volume_geometries();
+    _layout.build_volume_geometries();
     build_contacts(source_mesh);
     build_boundary_conditions(source_mesh);
-    refresh_controlled_values();
-    _contact_histories.resize(contact_count());
-    _projected_mechanical_nodes.resize(contact_count());
+    _boundary.refresh_controlled_values(_layout);
+    _contact._contact_histories.resize(contact_count());
+    _contact._projected_mechanical_nodes.resize(contact_count());
     for (std::size_t contact_value = 0; contact_value < contact_count();
          ++contact_value) {
-        _contact_histories[contact_value].resize(
-            _secondary_boundaries[contact_value].boundary.nodes.size());
-        _projected_mechanical_nodes[contact_value].resize(
-            _secondary_boundaries[contact_value].boundary.nodes.size(), false);
+        _contact._contact_histories[contact_value].resize(
+            _contact._secondary_boundaries[contact_value].boundary.nodes.size());
+        _contact._projected_mechanical_nodes[contact_value].resize(
+            _contact._secondary_boundaries[contact_value].boundary.nodes.size(), false);
     }
-    _committed_contact_solution = initial_state();
-    update_mechanical_candidates(_committed_contact_solution);
+    _contact._committed_contact_solution = initial_state();
+    update_mechanical_candidates(_contact._committed_contact_solution);
 }
 
 std::vector<double> SpatialAssembly::initial_state() const {
     std::vector<double> result(dof_count(), 0.0);
     for (std::size_t region_value = 0; region_value < region_count();
          ++region_value) {
-        const std::size_t offset = _node_offsets[region_value];
-        for (std::size_t node = 0; node < _meshes[region_value].nodes().size();
+        const std::size_t offset = _layout._node_offsets[region_value];
+        for (std::size_t node = 0; node < _layout._meshes[region_value].nodes().size();
              ++node) {
-            result[_dof_map.temperature(offset + node)] =
-                _definition.regions[region_value].initial_temperature;
+            result[_layout._dof_map.temperature(offset + node)] =
+                _layout._definition.regions[region_value].initial_temperature;
         }
     }
-    for (const DirichletCondition& condition : _dirichlet_conditions)
+    for (const DirichletCondition& condition : _boundary._dirichlet_conditions)
         result[condition.dof] = condition.value;
     return result;
 }
 
 std::size_t SpatialAssembly::dof_count() const noexcept {
-    return _dof_map.dof_count();
+    return _layout._dof_map.dof_count();
 }
 
 std::size_t SpatialAssembly::contribution_count() const noexcept {
@@ -501,7 +470,7 @@ std::size_t SpatialAssembly::contribution_count() const noexcept {
 
 const std::vector<DirichletCondition>&
 SpatialAssembly::dirichlet_conditions() const noexcept {
-    return _dirichlet_conditions;
+    return _boundary._dirichlet_conditions;
 }
 
 std::vector<std::size_t>
@@ -536,18 +505,18 @@ SpatialAssembly::required_state_dofs(std::size_t contribution_begin,
     std::vector<std::vector<bool>> touched(contact_count());
     for (std::size_t contact_value = 0; contact_value < contact_count();
          ++contact_value)
-        touched[contact_value].resize(_contact_histories[contact_value].size(),
+        touched[contact_value].resize(_contact._contact_histories[contact_value].size(),
                                       false);
     for (std::size_t full = local_begin; full < local_end; ++full) {
         const std::size_t contribution = full - ranges.mechanical_begin;
         const MechanicalContribution& candidate =
-            _mechanical_contributions[contribution];
+            _contact._mechanical_contributions[contribution];
         touched[candidate.contact][candidate.secondary] = true;
     }
     for (std::size_t contribution = 0;
-         contribution < _mechanical_contributions.size(); ++contribution) {
+         contribution < _contact._mechanical_contributions.size(); ++contribution) {
         const MechanicalContribution& candidate =
-            _mechanical_contributions[contribution];
+            _contact._mechanical_contributions[contribution];
         if (!touched[candidate.contact][candidate.secondary])
             continue;
         const LocalDofs dofs =
@@ -561,14 +530,14 @@ SpatialAssembly::required_state_dofs(std::size_t contribution_begin,
 
 std::pair<std::size_t, std::size_t>
 SpatialAssembly::element_location(std::size_t contribution_index) const {
-    if (contribution_index >= _element_offsets.back())
+    if (contribution_index >= _layout._element_offsets.back())
         throw std::out_of_range(
             "SpatialAssembly volume contribution is out of range");
     const auto upper = std::upper_bound(
-        _element_offsets.begin(), _element_offsets.end(), contribution_index);
+        _layout._element_offsets.begin(), _layout._element_offsets.end(), contribution_index);
     const std::size_t region_value =
-        static_cast<std::size_t>(upper - _element_offsets.begin() - 1);
-    return {region_value, contribution_index - _element_offsets[region_value]};
+        static_cast<std::size_t>(upper - _layout._element_offsets.begin() - 1);
+    return {region_value, contribution_index - _layout._element_offsets[region_value]};
 }
 
 LocalDofs
@@ -579,27 +548,27 @@ SpatialAssembly::contribution_dofs(std::size_t contribution_index) const {
     case SpatialContributionType::volume: {
         const auto location = element_location(contribution.local_index);
         const Quad4Element& element =
-            _meshes[location.first].elements().at(location.second);
+            _layout._meshes[location.first].elements().at(location.second);
         std::array<std::size_t, 4> nodes{};
         for (std::size_t node = 0; node < nodes.size(); ++node)
             nodes[node] = global_node(location.first, element.nodes[node]);
-        return _dof_map.local_dofs(nodes);
+        return _layout._dof_map.local_dofs(nodes);
     }
     case SpatialContributionType::thermal_contact:
-        return _dof_map.local_dofs(
-            _thermal_contributions.at(contribution.local_index).nodes);
+        return _layout._dof_map.local_dofs(
+            _contact._thermal_contributions.at(contribution.local_index).nodes);
     case SpatialContributionType::mechanical_contact:
-        return _dof_map.local_dofs(
-            _mechanical_contributions.at(contribution.local_index).nodes);
+        return _layout._dof_map.local_dofs(
+            _contact._mechanical_contributions.at(contribution.local_index).nodes);
     case SpatialContributionType::pressure:
-        return _dof_map.local_dofs(
-            _pressure_contributions.at(contribution.local_index).nodes);
+        return _layout._dof_map.local_dofs(
+            _boundary._pressure_contributions.at(contribution.local_index).nodes);
     case SpatialContributionType::traction:
-        return _dof_map.local_dofs(
-            _traction_contributions.at(contribution.local_index).nodes);
+        return _layout._dof_map.local_dofs(
+            _boundary._traction_contributions.at(contribution.local_index).nodes);
     case SpatialContributionType::convection:
-        return _dof_map.local_dofs(
-            _convection_contributions.at(contribution.local_index).nodes);
+        return _layout._dof_map.local_dofs(
+            _boundary._convection_contributions.at(contribution.local_index).nodes);
     }
     throw std::logic_error("SpatialAssembly contribution type is invalid");
 }
@@ -641,37 +610,37 @@ SpatialAssembly::contribution_residual(std::size_t contribution_index,
             "SpatialAssembly does not own volume residual physics");
     case SpatialContributionType::thermal_contact: {
         const ThermalContribution& contribution =
-            _thermal_contributions[location.local_index];
-        return _thermal_kernels[contribution.contact].residual(
+            _contact._thermal_contributions[location.local_index];
+        return _contact._thermal_kernels[contribution.contact].residual(
             contribution.geometry, state);
     }
     case SpatialContributionType::mechanical_contact: {
         const MechanicalContribution& contribution =
-            _mechanical_contributions.at(location.local_index);
+            _contact._mechanical_contributions.at(location.local_index);
         if (!contribution.active)
             return {};
-        return _mechanical_kernels[contribution.contact].residual(
+        return _contact._mechanical_kernels[contribution.contact].residual(
             contribution.geometry, state,
             contribution_state(contribution_index,
-                               _committed_contact_solution),
-            _contact_histories[contribution.contact][contribution.secondary]);
+                               _contact._committed_contact_solution),
+            _contact._contact_histories[contribution.contact][contribution.secondary]);
     }
     case SpatialContributionType::pressure: {
         const PressureContribution& contribution =
-            _pressure_contributions.at(location.local_index);
-        return _pressure_kernels[contribution.load].residual(
+            _boundary._pressure_contributions.at(location.local_index);
+        return _boundary._pressure_kernels[contribution.load].residual(
             contribution.geometry, state);
     }
     case SpatialContributionType::traction: {
         const TractionContribution& contribution =
-            _traction_contributions.at(location.local_index);
-        return _traction_kernels[contribution.load].residual(
+            _boundary._traction_contributions.at(location.local_index);
+        return _boundary._traction_kernels[contribution.load].residual(
             contribution.geometry, state);
     }
     case SpatialContributionType::convection: {
         const ConvectionContribution& contribution =
-            _convection_contributions.at(location.local_index);
-        return _convection_kernels[contribution.load].residual(
+            _boundary._convection_contributions.at(location.local_index);
+        return _boundary._convection_kernels[contribution.load].residual(
             contribution.geometry, state);
     }
     }
@@ -689,37 +658,37 @@ SpatialAssembly::linearize_contribution(std::size_t contribution_index,
             "SpatialAssembly does not own volume Jacobian physics");
     case SpatialContributionType::thermal_contact: {
         const ThermalContribution& contribution =
-            _thermal_contributions[location.local_index];
-        return _thermal_kernels[contribution.contact].linearize(
+            _contact._thermal_contributions[location.local_index];
+        return _contact._thermal_kernels[contribution.contact].linearize(
             contribution.geometry, state);
     }
     case SpatialContributionType::mechanical_contact: {
         const MechanicalContribution& contribution =
-            _mechanical_contributions.at(location.local_index);
+            _contact._mechanical_contributions.at(location.local_index);
         if (!contribution.active)
             return {};
-        return _mechanical_kernels[contribution.contact].linearize(
+        return _contact._mechanical_kernels[contribution.contact].linearize(
             contribution.geometry, state,
             contribution_state(contribution_index,
-                               _committed_contact_solution),
-            _contact_histories[contribution.contact][contribution.secondary]);
+                               _contact._committed_contact_solution),
+            _contact._contact_histories[contribution.contact][contribution.secondary]);
     }
     case SpatialContributionType::pressure: {
         const PressureContribution& contribution =
-            _pressure_contributions.at(location.local_index);
-        return _pressure_kernels[contribution.load].linearize(
+            _boundary._pressure_contributions.at(location.local_index);
+        return _boundary._pressure_kernels[contribution.load].linearize(
             contribution.geometry, state);
     }
     case SpatialContributionType::traction: {
         const TractionContribution& contribution =
-            _traction_contributions.at(location.local_index);
-        return _traction_kernels[contribution.load].linearize(
+            _boundary._traction_contributions.at(location.local_index);
+        return _boundary._traction_kernels[contribution.load].linearize(
             contribution.geometry, state);
     }
     case SpatialContributionType::convection: {
         const ConvectionContribution& contribution =
-            _convection_contributions.at(location.local_index);
-        return _convection_kernels[contribution.load].linearize(
+            _boundary._convection_contributions.at(location.local_index);
+        return _boundary._convection_kernels[contribution.load].linearize(
             contribution.geometry, state);
     }
     }
@@ -728,9 +697,9 @@ SpatialAssembly::linearize_contribution(std::size_t contribution_index,
 
 std::size_t SpatialAssembly::global_node(std::size_t region_value,
                                        std::size_t local_node) const {
-    if (local_node >= _meshes.at(region_value).nodes().size())
+    if (local_node >= _layout._meshes.at(region_value).nodes().size())
         throw std::out_of_range("SpatialAssembly local node is out of range");
-    return _node_offsets.at(region_value) + local_node;
+    return _layout._node_offsets.at(region_value) + local_node;
 }
 
 SpatialAssembly::ResolvedBoundary
@@ -738,40 +707,26 @@ SpatialAssembly::resolve_boundary(const UnstructuredQuad4Mesh& source_mesh,
                                 const std::string& name) const {
     const std::int64_t block_id = source_mesh.side_set_block_id(name);
     const auto found =
-        std::find(_block_ids.begin(), _block_ids.end(), block_id);
-    if (found == _block_ids.end())
+        std::find(_layout._block_ids.begin(), _layout._block_ids.end(), block_id);
+    if (found == _layout._block_ids.end())
         throw std::invalid_argument(
             "Boundary belongs to an undeclared block: " + name);
     const std::size_t region_value =
-        static_cast<std::size_t>(found - _block_ids.begin());
+        static_cast<std::size_t>(found - _layout._block_ids.begin());
     return {region_value,
-            _meshes[region_value].map_side_set(source_mesh, name)};
-}
-
-void SpatialAssembly::build_volume_geometries() {
-    _region_geometries.resize(region_count());
-    for (std::size_t region_value = 0; region_value < region_count();
-         ++region_value) {
-        const RegionMesh& mesh = _meshes[region_value];
-        std::vector<Quad4RzGeometry>& geometries =
-            _region_geometries[region_value];
-        geometries.reserve(mesh.elements().size());
-        for (const Quad4Element& element : mesh.elements())
-            geometries.push_back(
-                make_quad4_rz_geometry(element_coordinates(mesh, element)));
-    }
+            _layout._meshes[region_value].map_side_set(source_mesh, name)};
 }
 
 void SpatialAssembly::build_contacts(const UnstructuredQuad4Mesh& source_mesh) {
-    _primary_boundaries.reserve(contact_count());
-    _secondary_boundaries.reserve(contact_count());
-    _thermal_kernels.reserve(contact_count());
-    _mechanical_kernels.reserve(contact_count());
+    _contact._primary_boundaries.reserve(contact_count());
+    _contact._secondary_boundaries.reserve(contact_count());
+    _contact._thermal_kernels.reserve(contact_count());
+    _contact._mechanical_kernels.reserve(contact_count());
 
     for (std::size_t contact_value = 0; contact_value < contact_count();
          ++contact_value) {
         ContactDefinition& contact_definition =
-            _definition.contacts[contact_value];
+            _layout._definition.contacts[contact_value];
         ResolvedBoundary primary =
             resolve_boundary(source_mesh, contact_definition.primary);
         ResolvedBoundary secondary =
@@ -779,8 +734,8 @@ void SpatialAssembly::build_contacts(const UnstructuredQuad4Mesh& source_mesh) {
         if (primary.region == secondary.region)
             throw std::invalid_argument("Self-contact is not supported: " +
                                         contact_definition.name);
-        const RegionMesh& primary_mesh = _meshes[primary.region];
-        const RegionMesh& secondary_mesh = _meshes[secondary.region];
+        const RegionMesh& primary_mesh = _layout._meshes[primary.region];
+        const RegionMesh& secondary_mesh = _layout._meshes[secondary.region];
         primary.boundary = ordered_connected_boundary(
             primary_mesh, std::move(primary.boundary),
             contact_definition.primary);
@@ -811,9 +766,9 @@ void SpatialAssembly::build_contacts(const UnstructuredQuad4Mesh& source_mesh) {
             const double secondary_length = minimum_boundary_normal_length(
                 secondary_mesh, secondary.boundary);
             const double primary_modulus =
-                _definition.regions[primary.region].material.young_modulus;
+                _layout._definition.regions[primary.region].material.young_modulus;
             const double secondary_modulus =
-                _definition.regions[secondary.region].material.young_modulus;
+                _layout._definition.regions[secondary.region].material.young_modulus;
             contact_definition.penalty = contact_definition.penalty_factor /
                                          (primary_length / primary_modulus +
                                           secondary_length / secondary_modulus);
@@ -824,11 +779,11 @@ void SpatialAssembly::build_contacts(const UnstructuredQuad4Mesh& source_mesh) {
                     contact_definition.name);
         }
 
-        _thermal_kernels.emplace_back(GapHeatProperties{
+        _contact._thermal_kernels.emplace_back(GapHeatProperties{
             contact_definition.thermal ? contact_definition.gap_conductivity
                                        : 1.0,
             contact_definition.thermal ? contact_definition.minimum_gap : 1.0});
-        _mechanical_kernels.emplace_back(NormalContactProperties{
+        _contact._mechanical_kernels.emplace_back(NormalContactProperties{
             contact_definition.mechanical ? contact_definition.penalty : 1.0,
             contact_definition.mechanical
                 ? contact_definition.friction_coefficient
@@ -890,7 +845,7 @@ void SpatialAssembly::build_contacts(const UnstructuredQuad4Mesh& source_mesh) {
                         primary.boundary.elements[projection.primary_edge];
                     const Line2InterfaceSideCoordinates primary_coordinates =
                         edge_coordinates(primary_mesh, primary_edge);
-                    _thermal_contributions.push_back(
+                    _contact._thermal_contributions.push_back(
                         {contact_value,
                          {global_node(secondary.region,
                                       secondary_edge.nodes[0]),
@@ -929,7 +884,7 @@ void SpatialAssembly::build_contacts(const UnstructuredQuad4Mesh& source_mesh) {
                         const Line2InterfaceSideCoordinates
                             primary_coordinates =
                                 edge_coordinates(primary_mesh, primary_edge);
-                        _mechanical_contributions.push_back(
+                        _contact._mechanical_contributions.push_back(
                             {contact_value,
                              {global_node(secondary.region,
                                           secondary_edge.nodes[0]),
@@ -954,15 +909,15 @@ void SpatialAssembly::build_contacts(const UnstructuredQuad4Mesh& source_mesh) {
                 }
             }
         }
-        _primary_boundaries.push_back(std::move(primary));
-        _secondary_boundaries.push_back(std::move(secondary));
+        _contact._primary_boundaries.push_back(std::move(primary));
+        _contact._secondary_boundaries.push_back(std::move(secondary));
     }
 }
 
 void SpatialAssembly::build_boundary_conditions(
     const UnstructuredQuad4Mesh& source_mesh) {
     for (const BoundaryConditionDefinition& definition :
-         _definition.boundary_conditions) {
+         _layout._definition.boundary_conditions) {
         if (definition.name.empty() || definition.boundary.empty() ||
             !std::isfinite(definition.value))
             throw std::invalid_argument("Boundary-condition names, boundaries, "
@@ -976,14 +931,15 @@ void SpatialAssembly::build_boundary_conditions(
                 definition.name);
         if (definition.type == BoundaryConditionType::dirichlet) {
             for (std::size_t local_node : resolved.boundary.nodes) {
-                const std::size_t dof = _dof_map.dof(
+                const std::size_t dof = _layout._dof_map.dof(
                     definition.field, global_node(resolved.region, local_node));
-                _dirichlet_conditions.push_back(
-                    {dof, load_multiplier(definition.scale_with_load,
-                                          definition.function) *
+                _boundary._dirichlet_conditions.push_back(
+                    {dof, _boundary.load_multiplier(definition.scale_with_load,
+                                                    definition.function,
+                                                    _layout) *
                               definition.value});
                 if (definition.scale_with_load || !definition.function.empty())
-                    _controlled_dirichlet_conditions.push_back(
+                    _boundary._controlled_dirichlet_conditions.push_back(
                         {dof, definition.value, definition.scale_with_load,
                          definition.function});
             }
@@ -991,19 +947,20 @@ void SpatialAssembly::build_boundary_conditions(
             if (definition.value < 0.0)
                 throw std::invalid_argument(
                     "Pressure boundary conditions must be nonnegative");
-            const std::size_t load = _pressure_loads.size();
-            _pressure_loads.push_back({definition.value,
+            const std::size_t load = _boundary._pressure_loads.size();
+            _boundary._pressure_loads.push_back({definition.value,
                                        definition.scale_with_load,
                                        definition.function});
             const bool displaced =
-                _definition.regions[resolved.region].strain_formulation ==
+                _layout._definition.regions[resolved.region].strain_formulation ==
                 StrainFormulation::finite;
-            _pressure_kernels.emplace_back(
-                PressureProperties{load_multiplier(definition.scale_with_load,
-                                                   definition.function) *
+            _boundary._pressure_kernels.emplace_back(
+                PressureProperties{_boundary.load_multiplier(
+                                       definition.scale_with_load,
+                                       definition.function, _layout) *
                                        definition.value,
                                    displaced});
-            const RegionMesh& mesh = _meshes[resolved.region];
+            const RegionMesh& mesh = _layout._meshes[resolved.region];
             for (const Line2BoundaryElement& edge :
                  resolved.boundary.elements) {
                 const auto parent = edge_parent(mesh, edge);
@@ -1012,7 +969,7 @@ void SpatialAssembly::build_boundary_conditions(
                 for (std::size_t node = 0; node < nodes.size(); ++node)
                     nodes[node] =
                         global_node(resolved.region, element.nodes[node]);
-                _pressure_contributions.push_back(
+                _boundary._pressure_contributions.push_back(
                     {load, nodes,
                      make_line2_rz_pressure_geometry(
                          {{mesh.nodes().at(element.nodes[parent.second[0]]),
@@ -1025,24 +982,24 @@ void SpatialAssembly::build_boundary_conditions(
                     "Traction requires a displacement field: " +
                     definition.boundary);
             if (definition.use_displaced_geometry &&
-                _definition.regions[resolved.region].strain_formulation !=
+                _layout._definition.regions[resolved.region].strain_formulation !=
                     StrainFormulation::finite)
                 throw std::invalid_argument(
                     "Current-configuration traction requires finite strain: " +
                     definition.name);
-            const std::size_t load = _traction_loads.size();
-            _traction_loads.push_back({definition.value,
+            const std::size_t load = _boundary._traction_loads.size();
+            _boundary._traction_loads.push_back({definition.value,
                                        definition.scale_with_load,
                                        definition.function});
-            _traction_kernels.emplace_back(TractionProperties{
+            _boundary._traction_kernels.emplace_back(TractionProperties{
                 definition.field == Field::radial_displacement
                     ? TractionComponent::radial
                     : TractionComponent::axial,
-                load_multiplier(definition.scale_with_load,
-                                definition.function) *
+                _boundary.load_multiplier(definition.scale_with_load,
+                                          definition.function, _layout) *
                     definition.value,
                 definition.use_displaced_geometry});
-            const RegionMesh& mesh = _meshes[resolved.region];
+            const RegionMesh& mesh = _layout._meshes[resolved.region];
             for (const Line2BoundaryElement& edge :
                  resolved.boundary.elements) {
                 const auto parent = edge_parent(mesh, edge);
@@ -1051,7 +1008,7 @@ void SpatialAssembly::build_boundary_conditions(
                 for (std::size_t node = 0; node < nodes.size(); ++node)
                     nodes[node] =
                         global_node(resolved.region, element.nodes[node]);
-                _traction_contributions.push_back(
+                _boundary._traction_contributions.push_back(
                     {load, nodes,
                      make_line2_rz_traction_geometry(
                          {{mesh.nodes().at(element.nodes[parent.second[0]]),
@@ -1065,16 +1022,16 @@ void SpatialAssembly::build_boundary_conditions(
                     "Convection coefficient and ambient temperature must be "
                     "positive: " +
                     definition.name);
-            const std::size_t load = _convection_loads.size();
-            _convection_loads.push_back(
+            const std::size_t load = _boundary._convection_loads.size();
+            _boundary._convection_loads.push_back(
                 {definition.heat_transfer_coefficient,
                  definition.ambient_temperature,
                  definition.coefficient_function,
                  definition.ambient_temperature_function});
-            _convection_kernels.emplace_back(
+            _boundary._convection_kernels.emplace_back(
                 ConvectionProperties{definition.heat_transfer_coefficient,
                                      definition.ambient_temperature});
-            const RegionMesh& mesh = _meshes[resolved.region];
+            const RegionMesh& mesh = _layout._meshes[resolved.region];
             for (const Line2BoundaryElement& edge :
                  resolved.boundary.elements) {
                 const auto parent = edge_parent(mesh, edge);
@@ -1083,7 +1040,7 @@ void SpatialAssembly::build_boundary_conditions(
                 for (std::size_t node = 0; node < nodes.size(); ++node)
                     nodes[node] =
                         global_node(resolved.region, element.nodes[node]);
-                _convection_contributions.push_back(
+                _boundary._convection_contributions.push_back(
                     {load, nodes,
                      make_line2_rz_convection_geometry(
                          {{mesh.nodes().at(element.nodes[parent.second[0]]),
@@ -1092,7 +1049,7 @@ void SpatialAssembly::build_boundary_conditions(
             }
         }
     }
-    validate_dirichlet_conditions(_dirichlet_conditions);
+    validate_dirichlet_conditions(_boundary._dirichlet_conditions);
 }
 
 } // namespace fuelsim

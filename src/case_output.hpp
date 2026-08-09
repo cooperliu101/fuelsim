@@ -2,6 +2,7 @@
 #define FUELSIM_CASE_OUTPUT_HPP
 
 #include "fuelsim/case_input.hpp"
+#include "fuelsim/problem_solver.hpp"
 
 #include <cstddef>
 #include <fstream>
@@ -26,6 +27,15 @@ class CaseOutput final {
     bool _console;
     std::ofstream _csv;
 };
+
+void write_conservation_summary(
+    const std::string& prefix,
+    const TransientConservationSummary& summary,
+    CaseOutput& output);
+void write_time_error_components(
+    const std::string& prefix,
+    const TransientTimeErrorEstimate& estimate,
+    CaseOutput& output);
 
 } // namespace fuelsim::app
 

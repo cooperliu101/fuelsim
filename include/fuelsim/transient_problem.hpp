@@ -14,6 +14,7 @@
 namespace fuelsim {
 
 class SpatialAssembly;
+class TransientConservationCalculator;
 
 struct TransientRegionDefinition final {
     std::string region;
@@ -141,16 +142,13 @@ class TransientProblem final : public NonlinearProblem {
                                        const LocalValues& state) const override;
 
   private:
+    friend class TransientConservationCalculator;
+
     LocalValues
     committed_element_state(std::size_t contribution_index) const;
     void apply_spatial_controls(double time, double load_factor);
     void clear_active_time_step() noexcept;
     void refresh_region_heat_sources();
-    TransientConservationSummary summarize_active_step(
-        const std::vector<double>& converged_solution,
-        const std::vector<std::vector<Quad4MaterialHistory>>& staged_histories,
-        const std::vector<std::vector<std::array<AxisymmetricStressValues, 4>>>&
-            staged_stresses) const;
     void require_active_time_step() const;
 
     TransientProblemDefinition _definition;

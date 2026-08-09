@@ -1,6 +1,7 @@
 #include "fuelsim/transient_problem.hpp"
 
 #include "spatial_assembly.hpp"
+#include "transient_conservation.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -314,8 +315,9 @@ void TransientProblem::commit_time_step(
         }
     }
 
-    const TransientConservationSummary conservation = summarize_active_step(
-        converged_solution, staged, staged_stresses);
+    const TransientConservationSummary conservation =
+        TransientConservationCalculator::summarize(
+            *this, converged_solution, staged, staged_stresses);
     _spatial->commit_contact_state(converged_solution);
     _material_histories.swap(staged);
     _material_stresses.swap(staged_stresses);

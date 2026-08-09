@@ -1,4 +1,4 @@
-#include "fuelsim/transient_problem.hpp"
+#include "transient_conservation.hpp"
 
 #include "spatial_assembly.hpp"
 
@@ -26,29 +26,31 @@ std::array<double, 4> strain_difference(const std::array<double, 4>& current,
 
 } // namespace
 
-TransientConservationSummary TransientProblem::summarize_active_step(
+TransientConservationSummary TransientConservationCalculator::summarize(
+    const TransientProblem& problem,
     const std::vector<double>& converged_solution,
     const std::vector<std::vector<Quad4MaterialHistory>>& staged_histories,
     const std::vector<std::vector<std::array<AxisymmetricStressValues, 4>>>&
-        staged_stresses) const {
-    require_active_time_step();
+        staged_stresses) {
+    problem.require_active_time_step();
     TransientConservationSummary result;
-    std::vector<double> raw_residual(dof_count(), 0.0);
+    std::vector<double> raw_residual(problem.dof_count(), 0.0);
 
-    for (std::size_t contribution = 0; contribution < contribution_count();
+    for (std::size_t contribution = 0;
+         contribution < problem.contribution_count();
          ++contribution) {
-        const LocalDofs dofs = contribution_dofs(contribution);
+        const LocalDofs dofs = problem.contribution_dofs(contribution);
         const LocalValues state =
-            contribution_state(contribution, converged_solution);
+            problem.contribution_state(contribution, converged_solution);
         const LocalResidual residual =
-            contribution_residual(contribution, state);
+            problem.contribution_residual(contribution, state);
         const SpatialContributionType type =
-            _spatial->contribution_type(contribution);
+            problem._spatial->contribution_type(contribution);
         for (std::size_t local = 0; local < local_dof_count; ++local) {
             raw_residual[dofs[local]] += residual[local];
             const double increment =
                 converged_solution[dofs[local]] -
-                _committed_solution[dofs[local]];
+                problem._committed_solution[dofs[local]];
             if (local < 4) {
                 if (type == SpatialContributionType::thermal_contact)
                     result.interface_heat_imbalance += residual[local];
@@ -66,23 +68,26 @@ TransientConservationSummary TransientProblem::summarize_active_step(
                 result.pressure_traction_work_increment -= work;
         }
     }
-    for (std::size_t region_value = 0; region_value < region_count();
+    for (std::size_t region_value = 0;
+         region_value < problem.region_count();
          ++region_value) {
         const Quad4RzTransientKernel& kernel =
-            _region_kernels[region_value];
+            problem._region_kernels[region_value];
         const TransientInelasticProperties& properties = kernel.properties();
         const double heat_capacity =
             properties.density * properties.specific_heat;
         const std::size_t offset =
-            _spatial->region_element_offset(region_value);
+            problem._spatial->region_element_offset(region_value);
         for (std::size_t element = 0;
              element < staged_histories[region_value].size(); ++element) {
             const LocalValues current =
-                contribution_state(offset + element, converged_solution);
+                problem.contribution_state(offset + element,
+                                           converged_solution);
             const LocalValues old =
-                contribution_state(offset + element, _committed_solution);
+                problem.contribution_state(
+                    offset + element, problem._committed_solution);
             const Quad4RzGeometry& geometry =
-                region_element_geometry(region_value, element);
+                problem.region_element_geometry(region_value, element);
             for (std::size_t q = 0; q < geometry.points.size(); ++q) {
                 const RzQuadraturePoint& point = geometry.points[q];
                 double current_temperature = 0.0;
@@ -94,16 +99,16 @@ TransientConservationSummary TransientProblem::summarize_active_step(
                 result.stored_heat_rate +=
                     point.weighted_measure * heat_capacity *
                     (current_temperature - old_temperature) /
-                    _active_time_step;
+                    problem._active_time_step;
                 result.generated_heat_rate +=
                     point.weighted_measure * kernel.volumetric_heat_source();
 
                 const MaterialPointState& old_history =
-                    _material_histories[region_value][element][q];
+                    problem._material_histories[region_value][element][q];
                 const MaterialPointState& new_history =
                     staged_histories[region_value][element][q];
                 const AxisymmetricStressValues& old_stress =
-                    _material_stresses[region_value][element][q];
+                    problem._material_stresses[region_value][element][q];
                 const AxisymmetricStressValues& new_stress =
                     staged_stresses[region_value][element][q];
                 result.elastic_energy_change +=
@@ -126,12 +131,13 @@ TransientConservationSummary TransientProblem::summarize_active_step(
         }
     }
 
-    std::vector<bool> constrained(dof_count(), false);
-    for (const DirichletCondition& condition : dirichlet_conditions()) {
+    std::vector<bool> constrained(problem.dof_count(), false);
+    for (const DirichletCondition& condition :
+         problem.dirichlet_conditions()) {
         constrained[condition.dof] = true;
         const double increment = converged_solution[condition.dof] -
-                                 _committed_solution[condition.dof];
-        if (condition.dof < dof_map().node_count())
+                                 problem._committed_solution[condition.dof];
+        if (condition.dof < problem.dof_map().node_count())
             result.dirichlet_heat_input_rate += raw_residual[condition.dof];
         else
             result.dirichlet_reaction_work_increment +=
@@ -139,11 +145,11 @@ TransientConservationSummary TransientProblem::summarize_active_step(
     }
     double thermal_residual_squared = 0.0;
     double mechanical_residual_squared = 0.0;
-    for (std::size_t dof = 0; dof < dof_count(); ++dof) {
+    for (std::size_t dof = 0; dof < problem.dof_count(); ++dof) {
         if (constrained[dof])
             continue;
         const double value = raw_residual[dof];
-        if (dof < dof_map().node_count())
+        if (dof < problem.dof_map().node_count())
             thermal_residual_squared += value * value;
         else
             mechanical_residual_squared += value * value;

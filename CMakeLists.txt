@@ -92,6 +92,7 @@ fuelsim_enable_warnings(fuelsim_core)
 
 add_library(fuelsim_exodus
     src/checkpoint_io.cpp
+    src/exodus_file.cpp
     src/exodus_mesh_io.cpp
     src/results_io.cpp
     src/transient_problem_signature.cpp
@@ -144,6 +145,7 @@ add_executable(fuelsim
     src/case_output.cpp
     src/case_runner.cpp
     src/main.cpp
+    src/transient_output_observer.cpp
 )
 target_link_libraries(fuelsim
     PRIVATE fuelsim::input fuelsim::exodus fuelsim::petsc

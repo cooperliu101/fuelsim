@@ -1,39 +1,24 @@
 #ifndef FUELSIM_EXODUS_FILE_HPP
 #define FUELSIM_EXODUS_FILE_HPP
 
-#include <exodusII.h>
-
-#include <stdexcept>
 #include <string>
 
 namespace fuelsim::exodus_detail {
 
-inline void check_exodus(int status, const std::string& operation) {
-    if (status < 0)
-        throw std::runtime_error(operation + ": " + ex_strerror(status));
-}
+void check_exodus(int status, const std::string& operation);
 
 class ExodusFile final {
   public:
-    explicit ExodusFile(int id) : _id(id) {}
+    explicit ExodusFile(int id);
 
     ExodusFile(const ExodusFile&) = delete;
     ExodusFile& operator=(const ExodusFile&) = delete;
 
-    ~ExodusFile() {
-        if (_id >= 0)
-            ex_close(_id);
-    }
+    ~ExodusFile();
 
-    int id() const noexcept {
-        return _id;
-    }
+    int id() const noexcept;
 
-    void close(const std::string& operation = "Could not close Exodus file") {
-        const int id = _id;
-        _id = -1;
-        check_exodus(ex_close(id), operation);
-    }
+    void close(const std::string& operation = "Could not close Exodus file");
 
   private:
     int _id;

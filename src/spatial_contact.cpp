@@ -9,21 +9,57 @@
 namespace fuelsim {
 
 std::size_t SpatialAssembly::contact_count() const noexcept {
-    return _definition.contacts.size();
+    return _contact.contact_count(_layout);
 }
 
 const ContactDefinition& SpatialAssembly::contact(std::size_t index) const {
-    return _definition.contacts.at(index);
+    return _contact.contact(index, _layout);
 }
 
 const std::vector<std::vector<ContactPointHistory>>&
 SpatialAssembly::committed_contact_histories() const noexcept {
-    return _contact_histories;
+    return _contact.committed_histories();
 }
 
 bool SpatialAssembly::uses_augmented_contact() const noexcept {
+    return _contact.uses_augmented_contact(_layout);
+}
+
+AugmentedContactUpdate SpatialAssembly::update_augmented_contact_multipliers(
+    const std::vector<double>& state, std::size_t completed_updates) {
+    return _contact.update_augmented_multipliers(*this, state,
+                                                 completed_updates);
+}
+
+void SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
+    _contact.commit_state(*this, state);
+}
+
+void SpatialAssembly::restore_contact_state(
+    const std::vector<double>& state,
+    std::vector<std::vector<ContactPointHistory>> histories) {
+    _contact.restore_state(*this, state, std::move(histories));
+}
+
+std::size_t
+ContactAssembly::contact_count(const SpatialLayout& layout) const noexcept {
+    return layout.definition().contacts.size();
+}
+
+const ContactDefinition&
+ContactAssembly::contact(std::size_t index, const SpatialLayout& layout) const {
+    return layout.definition().contacts.at(index);
+}
+
+const std::vector<std::vector<ContactPointHistory>>&
+ContactAssembly::committed_histories() const noexcept {
+    return _contact_histories;
+}
+
+bool ContactAssembly::uses_augmented_contact(
+    const SpatialLayout& layout) const noexcept {
     return std::any_of(
-        _definition.contacts.begin(), _definition.contacts.end(),
+        layout.definition().contacts.begin(), layout.definition().contacts.end(),
         [](const ContactDefinition& contact) {
             return contact.mechanical &&
                    contact.mechanical_formulation ==
@@ -31,18 +67,20 @@ bool SpatialAssembly::uses_augmented_contact() const noexcept {
         });
 }
 
-AugmentedContactUpdate SpatialAssembly::update_augmented_contact_multipliers(
-    const std::vector<double>& state, std::size_t completed_updates) {
-    if (state.size() != dof_count())
+AugmentedContactUpdate ContactAssembly::update_augmented_multipliers(
+    SpatialAssembly& assembly, const std::vector<double>& state,
+    std::size_t completed_updates) {
+    if (state.size() != assembly.dof_count())
         throw std::invalid_argument(
             "SpatialAssembly augmented-contact state size mismatch");
     AugmentedContactUpdate result;
     result.penetration_tolerance = std::numeric_limits<double>::infinity();
     std::vector<std::vector<ContactPointHistory>> staged = _contact_histories;
-    for (std::size_t contact_value = 0; contact_value < contact_count();
+    for (std::size_t contact_value = 0;
+         contact_value < contact_count(assembly._layout);
          ++contact_value) {
         const ContactDefinition& definition =
-            _definition.contacts[contact_value];
+            assembly._layout.definition().contacts[contact_value];
         if (!definition.mechanical ||
             definition.mechanical_formulation !=
                 MechanicalContactFormulation::augmented_lagrangian)
@@ -50,7 +88,7 @@ AugmentedContactUpdate SpatialAssembly::update_augmented_contact_multipliers(
         result.penetration_tolerance = std::min(
             result.penetration_tolerance, definition.penetration_tolerance);
         const std::vector<ContactNodeSummary> nodes =
-            summarize_contact_nodes(contact_value, state);
+            assembly.summarize_contact_nodes(contact_value, state);
         double contact_penetration = 0.0;
         double contact_constraint_violation = 0.0;
         for (std::size_t node = 0; node < nodes.size(); ++node) {
@@ -88,20 +126,22 @@ AugmentedContactUpdate SpatialAssembly::update_augmented_contact_multipliers(
     return result;
 }
 
-void SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
-    if (state.size() != dof_count())
+void ContactAssembly::commit_state(SpatialAssembly& assembly,
+                                   const std::vector<double>& state) {
+    if (state.size() != assembly.dof_count())
         throw std::invalid_argument(
             "SpatialAssembly committed contact state size mismatch");
-    update_mechanical_candidates(state);
+    assembly.update_mechanical_candidates(state);
     std::vector<std::vector<ContactPointHistory>> staged = _contact_histories;
-    std::vector<std::vector<bool>> updated(contact_count());
-    for (std::size_t contact_value = 0; contact_value < contact_count();
+    std::vector<std::vector<bool>> updated(contact_count(assembly._layout));
+    for (std::size_t contact_value = 0;
+         contact_value < contact_count(assembly._layout);
          ++contact_value)
         updated[contact_value].resize(_contact_histories[contact_value].size(),
                                       false);
 
     const std::size_t first_mechanical =
-        contribution_ranges().mechanical_begin;
+        assembly.contribution_ranges().mechanical_begin;
     for (std::size_t contribution = 0;
          contribution < _mechanical_contributions.size(); ++contribution) {
         const MechanicalContribution& candidate =
@@ -109,8 +149,8 @@ void SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
         if (!candidate.active)
             continue;
         const LocalValues local_state =
-            contribution_state(first_mechanical + contribution, state);
-        const LocalValues committed_state = contribution_state(
+            assembly.contribution_state(first_mechanical + contribution, state);
+        const LocalValues committed_state = assembly.contribution_state(
             first_mechanical + contribution, _committed_contact_solution);
         const ContactPointValue value =
             _mechanical_kernels[candidate.contact].value(
@@ -140,9 +180,10 @@ void SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
         staged[candidate.contact][candidate.secondary] = trial;
         updated[candidate.contact][candidate.secondary] = true;
     }
-    for (std::size_t contact_value = 0; contact_value < contact_count();
+    for (std::size_t contact_value = 0;
+         contact_value < contact_count(assembly._layout);
          ++contact_value) {
-        if (!_definition.contacts[contact_value].mechanical)
+        if (!assembly._layout.definition().contacts[contact_value].mechanical)
             continue;
         if (std::find(updated[contact_value].begin(),
                       updated[contact_value].end(),
@@ -155,13 +196,16 @@ void SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
     _committed_contact_solution = state;
 }
 
-void SpatialAssembly::restore_contact_state(
+void ContactAssembly::restore_state(
+    const SpatialAssembly& assembly,
     const std::vector<double>& state,
     std::vector<std::vector<ContactPointHistory>> histories) {
-    if (state.size() != dof_count() || histories.size() != contact_count())
+    if (state.size() != assembly.dof_count() ||
+        histories.size() != contact_count(assembly._layout))
         throw std::invalid_argument(
             "SpatialAssembly restored contact state layout mismatch");
-    for (std::size_t contact_value = 0; contact_value < contact_count();
+    for (std::size_t contact_value = 0;
+         contact_value < contact_count(assembly._layout);
          ++contact_value) {
         if (histories[contact_value].size() !=
             _contact_histories[contact_value].size())
@@ -203,9 +247,9 @@ void SpatialAssembly::update_mechanical_candidates(
     const std::size_t local_end =
         std::min(contribution_end, ranges.pressure_begin);
 
-    for (const MechanicalContribution& contribution : _mechanical_contributions)
+    for (const MechanicalContribution& contribution : _contact._mechanical_contributions)
         contribution.active = false;
-    for (std::vector<bool>& nodes : _projected_mechanical_nodes)
+    for (std::vector<bool>& nodes : _contact._projected_mechanical_nodes)
         std::fill(nodes.begin(), nodes.end(), false);
     if (local_begin >= local_end)
         return;
@@ -215,7 +259,7 @@ void SpatialAssembly::update_mechanical_candidates(
     std::vector<std::vector<std::size_t>> selected_primary(contact_count());
     for (std::size_t contact_value = 0; contact_value < contact_count();
          ++contact_value) {
-        const std::size_t node_count = _contact_histories[contact_value].size();
+        const std::size_t node_count = _contact._contact_histories[contact_value].size();
         touched[contact_value].resize(node_count, false);
         minimum_distance[contact_value].assign(
             node_count, std::numeric_limits<double>::infinity());
@@ -225,26 +269,26 @@ void SpatialAssembly::update_mechanical_candidates(
     for (std::size_t full = local_begin; full < local_end; ++full) {
         const std::size_t contribution = full - ranges.mechanical_begin;
         const MechanicalContribution& candidate =
-            _mechanical_contributions[contribution];
+            _contact._mechanical_contributions[contribution];
         touched[candidate.contact][candidate.secondary] = true;
     }
 
-    std::vector<bool> projected(_mechanical_contributions.size(), false);
+    std::vector<bool> projected(_contact._mechanical_contributions.size(), false);
     for (std::size_t contribution = 0;
-         contribution < _mechanical_contributions.size(); ++contribution) {
+         contribution < _contact._mechanical_contributions.size(); ++contribution) {
         const MechanicalContribution& candidate =
-            _mechanical_contributions[contribution];
+            _contact._mechanical_contributions[contribution];
         if (!touched[candidate.contact][candidate.secondary])
             continue;
         const LocalValues local_state =
             contribution_state(ranges.mechanical_begin + contribution, state);
         const LocalValues committed_state = contribution_state(
             ranges.mechanical_begin + contribution,
-            _committed_contact_solution);
+            _contact._committed_contact_solution);
         const ContactPointValue value =
-            _mechanical_kernels[candidate.contact].value(
+            _contact._mechanical_kernels[candidate.contact].value(
                 candidate.geometry, local_state, committed_state,
-                _contact_histories[candidate.contact][candidate.secondary]);
+                _contact._contact_histories[candidate.contact][candidate.secondary]);
         if (!value.projected)
             continue;
         projected[contribution] = true;
@@ -262,16 +306,16 @@ void SpatialAssembly::update_mechanical_candidates(
     }
 
     for (std::size_t contribution = 0;
-         contribution < _mechanical_contributions.size(); ++contribution) {
+         contribution < _contact._mechanical_contributions.size(); ++contribution) {
         if (!projected[contribution])
             continue;
         const MechanicalContribution& candidate =
-            _mechanical_contributions[contribution];
+            _contact._mechanical_contributions[contribution];
         if (candidate.primary !=
             selected_primary[candidate.contact][candidate.secondary])
             continue;
         candidate.active = true;
-        _projected_mechanical_nodes[candidate.contact][candidate.secondary] =
+        _contact._projected_mechanical_nodes[candidate.contact][candidate.secondary] =
             true;
     }
 }
@@ -283,8 +327,8 @@ SpatialAssembly::summarize_contact_nodes(std::size_t contact_value,
         throw std::invalid_argument(
             "SpatialAssembly contact summary state size mismatch");
     update_mechanical_candidates(state);
-    const ResolvedBoundary& secondary = _secondary_boundaries.at(contact_value);
-    const RegionMesh& mesh = _meshes[secondary.region];
+    const ResolvedBoundary& secondary = _contact._secondary_boundaries.at(contact_value);
+    const RegionMesh& mesh = _layout._meshes[secondary.region];
     std::vector<ContactNodeSummary> result;
     result.reserve(secondary.boundary.nodes.size());
     for (std::size_t node : secondary.boundary.nodes) {
@@ -296,9 +340,9 @@ SpatialAssembly::summarize_contact_nodes(std::size_t contact_value,
     const std::size_t first_mechanical =
         contribution_ranges().mechanical_begin;
     for (std::size_t contribution = 0;
-         contribution < _mechanical_contributions.size(); ++contribution) {
+         contribution < _contact._mechanical_contributions.size(); ++contribution) {
         const MechanicalContribution& candidate =
-            _mechanical_contributions[contribution];
+            _contact._mechanical_contributions[contribution];
         if (candidate.contact != contact_value)
             continue;
         if (!candidate.active)
@@ -306,12 +350,12 @@ SpatialAssembly::summarize_contact_nodes(std::size_t contact_value,
         const LocalValues local_state =
             contribution_state(first_mechanical + contribution, state);
         const LocalValues committed_state = contribution_state(
-            first_mechanical + contribution, _committed_contact_solution);
+            first_mechanical + contribution, _contact._committed_contact_solution);
         const std::size_t secondary_index = candidate.secondary;
         const ContactPointValue value =
-            _mechanical_kernels[contact_value].value(
+            _contact._mechanical_kernels[contact_value].value(
                 candidate.geometry, local_state, committed_state,
-                _contact_histories[contact_value][secondary_index]);
+                _contact._contact_histories[contact_value][secondary_index]);
         if (!value.projected)
             continue;
         ContactNodeSummary& node = result.at(secondary_index);
@@ -347,15 +391,15 @@ void SpatialAssembly::validate_state(const std::vector<double>& state) const {
     update_mechanical_candidates(state);
     for (std::size_t contact_value = 0; contact_value < contact_count();
          ++contact_value) {
-        if (!_definition.contacts[contact_value].mechanical)
+        if (!_layout._definition.contacts[contact_value].mechanical)
             continue;
         const std::size_t unprojected = static_cast<std::size_t>(std::count(
-            _projected_mechanical_nodes[contact_value].begin(),
-            _projected_mechanical_nodes[contact_value].end(), false));
+            _contact._projected_mechanical_nodes[contact_value].begin(),
+            _contact._projected_mechanical_nodes[contact_value].end(), false));
         if (unprojected != 0)
             throw std::domain_error(
                 "Mechanical contact '" +
-                _definition.contacts[contact_value].name +
+                _layout._definition.contacts[contact_value].name +
                 "' lost projection " + "for " + std::to_string(unprojected) +
                 " secondary nodes after searching the complete primary chain");
     }
@@ -380,29 +424,29 @@ void SpatialAssembly::validate_local_state(std::size_t contribution_begin,
     std::vector<std::vector<bool>> touched(contact_count());
     for (std::size_t contact_value = 0; contact_value < contact_count();
          ++contact_value)
-        touched[contact_value].resize(_contact_histories[contact_value].size(),
+        touched[contact_value].resize(_contact._contact_histories[contact_value].size(),
                                       false);
     for (std::size_t full = local_begin; full < local_end; ++full) {
         const std::size_t contribution = full - ranges.mechanical_begin;
         const MechanicalContribution& candidate =
-            _mechanical_contributions[contribution];
+            _contact._mechanical_contributions[contribution];
         touched[candidate.contact][candidate.secondary] = true;
     }
     for (std::size_t contact_value = 0; contact_value < contact_count();
          ++contact_value) {
-        if (!_definition.contacts[contact_value].mechanical)
+        if (!_layout._definition.contacts[contact_value].mechanical)
             continue;
         std::size_t unprojected = 0;
         for (std::size_t node = 0; node < touched[contact_value].size();
              ++node) {
             if (touched[contact_value][node] &&
-                !_projected_mechanical_nodes[contact_value][node])
+                !_contact._projected_mechanical_nodes[contact_value][node])
                 ++unprojected;
         }
         if (unprojected != 0)
             throw std::domain_error(
                 "Mechanical contact '" +
-                _definition.contacts[contact_value].name +
+                _layout._definition.contacts[contact_value].name +
                 "' lost projection for " + std::to_string(unprojected) +
                 " locally owned secondary nodes after searching the complete "
                 "primary chain");
@@ -411,8 +455,8 @@ void SpatialAssembly::validate_local_state(std::size_t contribution_begin,
 
 std::vector<std::size_t>
 SpatialAssembly::contact_secondary_source_nodes(std::size_t contact_value) const {
-    const ResolvedBoundary& secondary = _secondary_boundaries.at(contact_value);
-    const RegionMesh& mesh = _meshes.at(secondary.region);
+    const ResolvedBoundary& secondary = _contact._secondary_boundaries.at(contact_value);
+    const RegionMesh& mesh = _layout._meshes.at(secondary.region);
     std::vector<std::size_t> result;
     result.reserve(secondary.boundary.nodes.size());
     for (const std::size_t node : secondary.boundary.nodes)
@@ -441,16 +485,16 @@ SpatialAssembly::summarize_interface(std::size_t contact_value,
     const std::size_t first_thermal = contribution_ranges().thermal_begin;
     bool has_thermal = false;
     for (std::size_t contribution = 0;
-         contribution < _thermal_contributions.size(); ++contribution) {
+         contribution < _contact._thermal_contributions.size(); ++contribution) {
         const ThermalContribution& candidate =
-            _thermal_contributions[contribution];
+            _contact._thermal_contributions[contribution];
         if (candidate.contact != contact_value)
             continue;
         has_thermal = true;
         const LocalValues local_state =
             contribution_state(first_thermal + contribution, state);
         const HeatQuadratureValues values =
-            _thermal_kernels[contact_value].quadrature_values(
+            _contact._thermal_kernels[contact_value].quadrature_values(
                 candidate.geometry, local_state);
         for (const HeatQuadratureValue& value : values) {
             summary.minimum_gap = std::min(summary.minimum_gap, value.gap);
@@ -465,7 +509,7 @@ SpatialAssembly::summarize_interface(std::size_t contact_value,
 
     bool has_mechanical = false;
     for (const MechanicalContribution& contribution :
-         _mechanical_contributions) {
+         _contact._mechanical_contributions) {
         if (contribution.contact == contact_value) {
             has_mechanical = true;
             break;
