@@ -60,26 +60,11 @@ function(fuelsim_link_petsc target)
 endfunction()
 
 add_library(fuelsim_core
-    src/boundary.cpp
-    src/dof_map.cpp
-    src/diagnostics.cpp
-    src/inelastic_material.cpp
-    src/interface.cpp
-    src/spatial_assembly.cpp
-    src/boundary_assembly.cpp
-    src/contact_assembly.cpp
-    src/spatial_layout.cpp
-    src/steady_problem.cpp
-    src/time_table.cpp
-    src/transient_conservation.cpp
-    src/transient_problem.cpp
-    src/material.cpp
+    src/assembly.cpp
+    src/kernels.cpp
     src/mesh.cpp
-    src/nonlinear_problem.cpp
-    src/quad4_rz.cpp
-    src/quad4_rz_kinematics.cpp
-    src/quad4_rz_thermoelastic.cpp
-    src/quad4_rz_transient.cpp
+    src/material.cpp
+    src/problem.cpp
 )
 add_library(fuelsim::core ALIAS fuelsim_core)
 
