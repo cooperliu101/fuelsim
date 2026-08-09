@@ -148,7 +148,7 @@ TransientProblem::TransientProblem(TransientProblemDefinition definition,
         _material_stresses[region_value].resize(
             _spatial->region_element_count(region_value));
     }
-    _spatial->set_load_factor(0.0);
+    apply_spatial_controls(0.0, 0.0);
     _committed_solution = _spatial->initial_state();
     _spatial->restore_contact_state(
         _committed_solution, _spatial->committed_contact_histories());
@@ -396,24 +396,15 @@ void TransientProblem::restore_committed_state(TransientCommittedState state) {
         }
     }
 
-    _spatial->restore_contact_state(state.solution,
-                                         state.contact_histories);
+    _spatial->restore_contact_state(state.solution, state.contact_histories);
     _committed_solution = std::move(state.solution);
     _material_histories = std::move(state.material_histories);
     _material_stresses = std::move(state.material_stresses);
     _last_conservation_summary = state.conservation;
     _committed_time = state.time;
     _committed_load_factor = state.load_factor;
-    _active_time_step = 0.0;
-    _active_end_time = _committed_time;
-    _active_load_factor = _committed_load_factor;
-    _active_contact_histories.clear();
-    _spatial->set_time(_committed_time);
-    _spatial->set_load_factor(_committed_load_factor);
-    for (std::size_t region_value = 0; region_value < region_count();
-         ++region_value)
-        _region_kernels[region_value].set_volumetric_heat_source(
-            _spatial->region_heat_source(region_value));
+    clear_active_time_step();
+    apply_spatial_controls(_committed_time, _committed_load_factor);
 }
 
 void TransientProblem::begin_time_step(const TransientStepInput& input) {
@@ -430,27 +421,17 @@ void TransientProblem::begin_time_step(const TransientStepInput& input) {
     _active_end_time = input.end_time;
     _active_load_factor = input.load_factor;
     if (_spatial->uses_augmented_contact())
-        _active_contact_histories =
-            _spatial->committed_contact_histories();
+        _active_contact_histories = _spatial->committed_contact_histories();
     try {
-        _spatial->set_time(input.end_time);
-        _spatial->set_load_factor(input.load_factor);
+        apply_spatial_controls(input.end_time, input.load_factor);
     } catch (...) {
         if (!_active_contact_histories.empty())
             _spatial->restore_contact_state(
                 _committed_solution, std::move(_active_contact_histories));
-        _spatial->set_time(_committed_time);
-        _spatial->set_load_factor(_committed_load_factor);
-        _active_time_step = 0.0;
-        _active_end_time = _committed_time;
-        _active_load_factor = _committed_load_factor;
-        _active_contact_histories.clear();
+        apply_spatial_controls(_committed_time, _committed_load_factor);
+        clear_active_time_step();
         throw;
     }
-    for (std::size_t region_value = 0; region_value < region_count();
-         ++region_value)
-        _region_kernels[region_value].set_volumetric_heat_source(
-            _spatial->region_heat_source(region_value));
     _time_step_active = true;
 }
 
@@ -511,29 +492,39 @@ void TransientProblem::commit_time_step(
     _committed_solution = converged_solution;
     _committed_time = _active_end_time;
     _committed_load_factor = _active_load_factor;
-    _active_time_step = 0.0;
-    _active_end_time = _committed_time;
-    _active_contact_histories.clear();
-    _time_step_active = false;
+    clear_active_time_step();
 }
 
 void TransientProblem::rollback_time_step() noexcept {
     if (!_time_step_active)
         return;
-    _spatial->set_time(_committed_time);
-    _spatial->set_load_factor(_committed_load_factor);
-    for (std::size_t region_value = 0; region_value < region_count();
-         ++region_value)
-        _region_kernels[region_value].set_volumetric_heat_source(
-            _spatial->region_heat_source(region_value));
+    apply_spatial_controls(_committed_time, _committed_load_factor);
     if (!_active_contact_histories.empty())
         _spatial->restore_contact_state(
             _committed_solution, std::move(_active_contact_histories));
+    clear_active_time_step();
+}
+
+void TransientProblem::apply_spatial_controls(double time,
+                                              double load_factor) {
+    _spatial->set_time(time);
+    _spatial->set_load_factor(load_factor);
+    refresh_region_heat_sources();
+}
+
+void TransientProblem::clear_active_time_step() noexcept {
     _active_time_step = 0.0;
     _active_end_time = _committed_time;
     _active_load_factor = _committed_load_factor;
     _active_contact_histories.clear();
     _time_step_active = false;
+}
+
+void TransientProblem::refresh_region_heat_sources() {
+    for (std::size_t region_value = 0; region_value < region_count();
+         ++region_value)
+        _region_kernels[region_value].set_volumetric_heat_source(
+            _spatial->region_heat_source(region_value));
 }
 
 bool TransientProblem::uses_augmented_contact() const noexcept {
@@ -763,7 +754,7 @@ void TransientProblem::validate_state(const std::vector<double>& state) const {
 std::vector<std::size_t> TransientProblem::required_state_dofs(
     std::size_t contribution_begin, std::size_t contribution_end) const {
     return _spatial->required_state_dofs(contribution_begin,
-                                              contribution_end);
+                                         contribution_end);
 }
 
 void TransientProblem::validate_local_state(
@@ -771,7 +762,7 @@ void TransientProblem::validate_local_state(
     const GlobalStateView& state) const {
     require_active_time_step();
     _spatial->validate_local_state(contribution_begin, contribution_end,
-                                        state);
+                                   state);
 }
 
 LocalDofs

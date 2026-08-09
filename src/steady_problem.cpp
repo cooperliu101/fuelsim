@@ -119,6 +119,10 @@ void SteadyProblem::restore_contact_state(
 
 void SteadyProblem::set_load_factor(double value) {
     _spatial->set_load_factor(value);
+    refresh_region_heat_sources();
+}
+
+void SteadyProblem::refresh_region_heat_sources() {
     for (std::size_t region_value = 0; region_value < region_count();
          ++region_value)
         _region_kernels[region_value].set_volumetric_heat_source(
@@ -131,14 +135,7 @@ double SteadyProblem::load_factor() const noexcept {
 
 void SteadyProblem::set_time(double value) {
     _spatial->set_time(value);
-    for (std::size_t region_value = 0; region_value < region_count();
-         ++region_value)
-        _region_kernels[region_value].set_volumetric_heat_source(
-            _spatial->region_heat_source(region_value));
-}
-
-double SteadyProblem::time() const noexcept {
-    return _spatial->time();
+    refresh_region_heat_sources();
 }
 
 std::vector<double> SteadyProblem::initial_state() const {

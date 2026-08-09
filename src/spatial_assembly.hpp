@@ -61,7 +61,6 @@ class SpatialAssembly final {
     void set_load_factor(double load_factor);
     double load_factor() const noexcept;
     void set_time(double time);
-    double time() const noexcept;
 
     std::vector<double> initial_state() const;
     std::vector<ContactNodeSummary>
@@ -92,6 +91,18 @@ class SpatialAssembly final {
                                        const LocalValues& state) const;
 
   private:
+    struct ContributionRanges final {
+        std::size_t thermal_begin;
+        std::size_t mechanical_begin;
+        std::size_t pressure_begin;
+        std::size_t traction_begin;
+        std::size_t convection_begin;
+        std::size_t end;
+    };
+    struct ContributionLocation final {
+        SpatialContributionType type;
+        std::size_t local_index;
+    };
     struct ResolvedBoundary final {
         std::size_t region;
         RegionBoundary boundary;
@@ -169,6 +180,9 @@ class SpatialAssembly final {
     void update_mechanical_candidates(std::size_t contribution_begin,
                                       std::size_t contribution_end,
                                       const GlobalStateView& state) const;
+    ContributionRanges contribution_ranges() const noexcept;
+    ContributionLocation
+    locate_contribution(std::size_t contribution_index) const;
     LocalValues contribution_state(
         std::size_t contribution_index,
         const std::vector<double>& global_state) const;

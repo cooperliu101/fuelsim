@@ -38,8 +38,6 @@ class SteadyProblem final : public NonlinearProblem {
     std::size_t volume_contribution_count() const noexcept;
     SpatialContributionType
     contribution_type(std::size_t contribution_index) const;
-    std::pair<std::size_t, std::size_t>
-    element_location(std::size_t contribution_index) const;
     const Quad4RzGeometry&
     region_element_geometry(std::size_t region_index,
                             std::size_t element_index) const;
@@ -60,7 +58,6 @@ class SteadyProblem final : public NonlinearProblem {
     void set_load_factor(double load_factor);
     double load_factor() const noexcept;
     void set_time(double time);
-    double time() const noexcept;
 
     std::vector<double> initial_state() const;
     std::vector<ContactNodeSummary>
@@ -90,6 +87,10 @@ class SteadyProblem final : public NonlinearProblem {
                                        const LocalValues& state) const override;
 
   private:
+    std::pair<std::size_t, std::size_t>
+    element_location(std::size_t contribution_index) const;
+    void refresh_region_heat_sources();
+
     std::unique_ptr<SpatialAssembly> _spatial;
     std::vector<Quad4RzThermoelasticKernel> _region_kernels;
 };

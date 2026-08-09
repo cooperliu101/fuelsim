@@ -1282,15 +1282,54 @@ bool test_m1_dof_layout() {
     definition.boundary_conditions.push_back(
         {"clad_temperature", fuelsim::BoundaryConditionType::dirichlet,
          "clad_outer", fuelsim::Field::temperature, 600.0});
+    definition.boundary_conditions.push_back(
+        {"clad_pressure", fuelsim::BoundaryConditionType::pressure,
+         "clad_outer", fuelsim::Field::radial_displacement, 1.0e5});
+    definition.boundary_conditions.push_back(
+        {"clad_traction", fuelsim::BoundaryConditionType::traction,
+         "clad_outer", fuelsim::Field::axial_displacement, 1.0e3});
+    fuelsim::BoundaryConditionDefinition convection{
+        "clad_convection", fuelsim::BoundaryConditionType::convection,
+        "clad_outer", fuelsim::Field::temperature, 0.0};
+    convection.heat_transfer_coefficient = 100.0;
+    convection.ambient_temperature = 600.0;
+    definition.boundary_conditions.push_back(std::move(convection));
     fuelsim::SteadyProblem problem(std::move(definition), source);
 
+    bool passed = true;
+    constexpr std::size_t contribution_type_count =
+        static_cast<std::size_t>(fuelsim::SpatialContributionType::convection) +
+        1;
+    std::array<std::size_t, contribution_type_count> contribution_counts{};
     std::size_t thermal_contributions = 0;
     std::size_t mechanical_contributions = 0;
     std::size_t first_thermal = problem.contribution_count();
+    std::size_t previous_type = 0;
+    const std::vector<double> initial_state = problem.initial_state();
     for (std::size_t contribution = 0;
          contribution < problem.contribution_count(); ++contribution) {
         const fuelsim::SpatialContributionType type =
             problem.contribution_type(contribution);
+        const std::size_t type_index = static_cast<std::size_t>(type);
+        ++contribution_counts.at(type_index);
+        passed = check(contribution == 0 || type_index >= previous_type,
+                       "spatial contribution categories are contiguous") &&
+                 passed;
+        previous_type = type_index;
+        const fuelsim::LocalValues local =
+            problem.contribution_state(contribution, initial_state);
+        const fuelsim::LocalSystem system =
+            problem.linearize_contribution(contribution, local);
+        const bool finite_residual =
+            std::all_of(system.residual.begin(), system.residual.end(),
+                        [](double value) { return std::isfinite(value); });
+        const bool finite_jacobian =
+            std::all_of(system.jacobian.begin(), system.jacobian.end(),
+                        [](double value) { return std::isfinite(value); });
+        passed = check(finite_residual && finite_jacobian,
+                       "every spatial contribution routes to finite residual "
+                       "and Jacobian values") &&
+                 passed;
         if (type == fuelsim::SpatialContributionType::thermal_contact) {
             first_thermal = std::min(first_thermal, contribution);
             ++thermal_contributions;
@@ -1300,7 +1339,22 @@ bool test_m1_dof_layout() {
         }
     }
 
-    bool passed = true;
+    passed = check(std::all_of(contribution_counts.begin(),
+                               contribution_counts.end(),
+                               [](std::size_t count) { return count > 0; }),
+                   "volume, thermal contact, mechanical contact, pressure, "
+                   "traction, and convection contributions are all routed") &&
+             passed;
+    bool rejected_out_of_range = false;
+    try {
+        static_cast<void>(
+            problem.contribution_dofs(problem.contribution_count()));
+    } catch (const std::out_of_range&) {
+        rejected_out_of_range = true;
+    }
+    passed = check(rejected_out_of_range,
+                   "spatial contribution routing rejects the end index") &&
+             passed;
     passed =
         check(thermal_contributions == axial_elements + 1,
               "M1 splits the fuel edge that crosses the taller cladding's "
@@ -1330,7 +1384,7 @@ bool test_m1_dof_layout() {
               "M1 interface DOFs preserve fuel/cladding node ownership") &&
         passed;
     const std::vector<fuelsim::ContactNodeSummary> contact_nodes =
-        problem.summarize_contact_nodes(0, problem.initial_state());
+        problem.summarize_contact_nodes(0, initial_state);
     passed = check(std::all_of(contact_nodes.begin(), contact_nodes.end(),
                                [](const fuelsim::ContactNodeSummary& node) {
                                    return node.projected;
@@ -1339,7 +1393,7 @@ bool test_m1_dof_layout() {
              passed;
 
     const fuelsim::LocalValues initial_element_state =
-        problem.contribution_state(0, problem.initial_state());
+        problem.contribution_state(0, initial_state);
     const fuelsim::LocalResidual source_residual =
         problem.contribution_residual(0, initial_element_state);
     problem.set_load_factor(2.0);
