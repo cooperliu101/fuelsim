@@ -1,6 +1,8 @@
 #include "fuelsim/results_io.hpp"
 
 #include "fuelsim/exodus_mesh_io.hpp"
+#include "exodus_file.hpp"
+#include "transient_problem_signature.hpp"
 
 #include <exodusII.h>
 
@@ -20,41 +22,14 @@
 namespace fuelsim {
 namespace {
 
-void check_exodus(int status, const std::string& operation) {
-    if (status < 0)
-        throw std::runtime_error(operation + ": " + ex_strerror(status));
-}
+using exodus_detail::check_exodus;
+using exodus_detail::ExodusFile;
 
 int checked_int(std::size_t value, const std::string& quantity) {
     if (value > static_cast<std::size_t>(std::numeric_limits<int>::max()))
         throw std::overflow_error(quantity + " exceeds the Exodus int range");
     return static_cast<int>(value);
 }
-
-class ExodusFile final {
-  public:
-    explicit ExodusFile(int id) : _id(id) {}
-    ExodusFile(const ExodusFile&) = delete;
-    ExodusFile& operator=(const ExodusFile&) = delete;
-
-    ~ExodusFile() {
-        if (_id >= 0)
-            ex_close(_id);
-    }
-
-    int id() const noexcept {
-        return _id;
-    }
-
-    void close() {
-        const int id = _id;
-        _id = -1;
-        check_exodus(ex_close(id), "Could not close Exodus results file");
-    }
-
-  private:
-    int _id;
-};
 
 ExodusFile open_results(const std::string& path) {
     int cpu_word_size = static_cast<int>(sizeof(double));
@@ -466,7 +441,7 @@ std::string next_results_segment_path(const std::string& configured_path) {
 EngineeringHistoryWriter::EngineeringHistoryWriter(
     std::string path, const TransientProblem& problem)
     : _path(std::move(path)),
-      _problem_signature(problem.committed_state_signature()) {
+      _problem_signature(transient_problem_signature(problem)) {
     if (_path.empty())
         throw std::invalid_argument(
             "Engineering history path must not be empty");
@@ -510,7 +485,7 @@ void EngineeringHistoryWriter::append(const TransientProblem& problem,
     if (problem.time_step_active())
         throw std::logic_error(
             "Engineering history cannot be written during an active time step");
-    if (problem.committed_state_signature() != _problem_signature)
+    if (transient_problem_signature(problem) != _problem_signature)
         throw std::invalid_argument(
             "Engineering history problem does not match writer model");
     _stream << problem.committed_time() << ',' << time_step << ','
@@ -589,7 +564,7 @@ ExodusTransientResultsWriter::ExodusTransientResultsWriter(
     std::string path, UnstructuredQuad4Mesh mesh,
     const TransientProblem& problem)
     : _path(std::move(path)), _mesh(std::move(mesh)),
-      _problem_signature(problem.committed_state_signature()), _step_count(0) {
+      _problem_signature(transient_problem_signature(problem)), _step_count(0) {
     if (_path.empty())
         throw std::invalid_argument("Exodus result path must not be empty");
     define_variables(
@@ -603,7 +578,7 @@ void ExodusTransientResultsWriter::append(const TransientProblem& problem) {
     if (problem.time_step_active())
         throw std::logic_error(
             "Exodus results cannot be written during an active time step");
-    if (problem.committed_state_signature() != _problem_signature)
+    if (transient_problem_signature(problem) != _problem_signature)
         throw std::invalid_argument(
             "Exodus result problem does not match writer model");
     std::vector<std::vector<double>> nodal_values;

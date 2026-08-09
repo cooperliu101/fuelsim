@@ -1,5 +1,7 @@
 #include "fuelsim/checkpoint_io.hpp"
 
+#include "transient_problem_signature.hpp"
+
 #include <array>
 #include <cerrno>
 #include <cmath>
@@ -221,7 +223,7 @@ BinaryBuffer state_payload(const TransientProblem& problem,
                            double next_time_step) {
     const TransientCommittedState state = problem.committed_state();
     BinaryBuffer payload;
-    payload.append_u64(problem.committed_state_signature());
+    payload.append_u64(transient_problem_signature(problem));
     payload.append_double(state.time);
     payload.append_double(state.load_factor);
     payload.append_double(next_time_step);
@@ -349,7 +351,7 @@ double TransientCheckpointIo::restore(const std::string& path,
         throw std::runtime_error("Checkpoint payload checksum does not match");
 
     BinaryCursor payload(payload_bytes);
-    if (payload.read_u64() != problem.committed_state_signature())
+    if (payload.read_u64() != transient_problem_signature(problem))
         throw std::runtime_error(
             "Checkpoint model signature does not match the current problem");
     TransientCommittedState state;

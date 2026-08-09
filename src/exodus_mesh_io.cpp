@@ -1,5 +1,7 @@
 #include "fuelsim/exodus_mesh_io.hpp"
 
+#include "exodus_file.hpp"
+
 #include <exodusII.h>
 
 #include <algorithm>
@@ -14,10 +16,8 @@
 namespace fuelsim {
 namespace {
 
-void check_exodus(int status, const std::string& operation) {
-    if (status < 0)
-        throw std::runtime_error(operation + ": " + ex_strerror(status));
-}
+using exodus_detail::check_exodus;
+using exodus_detail::ExodusFile;
 
 std::size_t checked_size(std::int64_t value, const char* description) {
     if (value < 0 || static_cast<std::uint64_t>(value) >
@@ -32,32 +32,6 @@ std::int64_t checked_count(std::size_t value, const char* description) {
         throw std::length_error(std::string(description) + " is out of range");
     return static_cast<std::int64_t>(value);
 }
-
-class ExodusFile final {
-  public:
-    explicit ExodusFile(int id) : _id(id) {}
-
-    ExodusFile(const ExodusFile&) = delete;
-    ExodusFile& operator=(const ExodusFile&) = delete;
-
-    ~ExodusFile() {
-        if (_id >= 0)
-            ex_close(_id);
-    }
-
-    int id() const noexcept {
-        return _id;
-    }
-
-    void close() {
-        const int id = _id;
-        _id = -1;
-        check_exodus(ex_close(id), "Could not close Exodus file");
-    }
-
-  private:
-    int _id;
-};
 
 std::string normalized_topology(const char* topology) {
     std::string result(topology);

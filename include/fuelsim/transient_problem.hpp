@@ -7,7 +7,6 @@
 #include "fuelsim/spatial_definition.hpp"
 
 #include <cstddef>
-#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
@@ -95,7 +94,6 @@ class TransientProblem final : public NonlinearProblem {
     double active_end_time() const;
     std::vector<double> time_events() const;
 
-    std::uint64_t committed_state_signature() const;
     TransientCommittedState committed_state() const;
     void restore_committed_state(TransientCommittedState state);
 
