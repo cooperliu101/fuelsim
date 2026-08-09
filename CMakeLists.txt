@@ -76,11 +76,7 @@ target_link_libraries(fuelsim_core PUBLIC adlite::adlite)
 fuelsim_enable_warnings(fuelsim_core)
 
 add_library(fuelsim_exodus
-    src/checkpoint_io.cpp
-    src/exodus_file.cpp
-    src/exodus_mesh_io.cpp
-    src/results_io.cpp
-    src/transient_problem_signature.cpp
+    src/io.cpp
 )
 add_library(fuelsim::exodus ALIAS fuelsim_exodus)
 
@@ -95,8 +91,7 @@ target_link_libraries(fuelsim_exodus
 fuelsim_enable_warnings(fuelsim_exodus)
 
 add_library(fuelsim_input
-    src/case_input.cpp
-    src/input_file.cpp
+    src/input.cpp
 )
 add_library(fuelsim::input ALIAS fuelsim_input)
 
@@ -108,11 +103,7 @@ target_link_libraries(fuelsim_input PUBLIC fuelsim::core)
 fuelsim_enable_warnings(fuelsim_input)
 
 add_library(fuelsim_petsc
-    src/petsc_solver.cpp
-    src/solver_workflow.cpp
-    src/steady_solver.cpp
-    src/transient_solver.cpp
-    src/transient_time_control.cpp
+    src/solver.cpp
 )
 add_library(fuelsim::petsc ALIAS fuelsim_petsc)
 
@@ -127,10 +118,7 @@ fuelsim_link_petsc(fuelsim_petsc)
 fuelsim_enable_warnings(fuelsim_petsc)
 
 add_executable(fuelsim
-    src/case_output.cpp
-    src/case_runner.cpp
-    src/main.cpp
-    src/transient_output_observer.cpp
+    src/app.cpp
 )
 target_link_libraries(fuelsim
     PRIVATE fuelsim::input fuelsim::exodus fuelsim::petsc

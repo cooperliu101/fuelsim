@@ -1,6 +1,299 @@
-#include "case_runner.hpp"
-#include "case_output.hpp"
-#include "transient_output_observer.hpp"
+#ifndef FUELSIM_CASE_RUNNER_HPP
+#define FUELSIM_CASE_RUNNER_HPP
+
+namespace fuelsim {
+
+int run_application(int argc, char** argv);
+
+} // namespace fuelsim
+
+#endif
+#ifndef FUELSIM_CASE_OUTPUT_HPP
+#define FUELSIM_CASE_OUTPUT_HPP
+
+#include "fuelsim/case_input.hpp"
+#include "fuelsim/problem_solver.hpp"
+
+#include <cstddef>
+#include <fstream>
+#include <string>
+
+namespace fuelsim::app {
+
+class CaseOutput final {
+  public:
+    explicit CaseOutput(bool console);
+    CaseOutput(const CaseOutputInput& options, bool force_console,
+               bool active);
+
+    void value(const std::string& key, const std::string& data);
+    void value(const std::string& key, const char* data);
+    void value(const std::string& key, double data);
+    void value(const std::string& key, std::size_t data);
+    void value(const std::string& key, int data);
+    void value(const std::string& key, bool data);
+
+  private:
+    bool _console;
+    std::ofstream _csv;
+};
+
+void write_conservation_summary(
+    const std::string& prefix,
+    const TransientConservationSummary& summary,
+    CaseOutput& output);
+void write_time_error_components(
+    const std::string& prefix,
+    const TransientTimeErrorEstimate& estimate,
+    CaseOutput& output);
+
+} // namespace fuelsim::app
+
+#endif
+#ifndef FUELSIM_TRANSIENT_OUTPUT_OBSERVER_HPP
+#define FUELSIM_TRANSIENT_OUTPUT_OBSERVER_HPP
+
+
+#include "fuelsim/problem_solver.hpp"
+#include "fuelsim/results_io.hpp"
+
+#include <cstddef>
+#include <string>
+
+namespace fuelsim {
+
+class PetscSession;
+
+namespace app {
+
+class TransientOutputObserver final : public TransientStepObserver {
+  public:
+    TransientOutputObserver(ExodusTransientResultsWriter* results,
+                            EngineeringHistoryWriter* history,
+                            std::string checkpoint_file,
+                            std::size_t exodus_interval,
+                            std::size_t history_interval,
+                            std::size_t progress_interval,
+                            std::size_t checkpoint_interval,
+                            const PetscSession& session,
+                            CaseOutput& progress_output);
+
+    void accepted_step(const TransientProblem& problem,
+                       const TransientAcceptedStep& step) override;
+    void finalize(const TransientProblem& problem, double next_time_step);
+
+  private:
+    ExodusTransientResultsWriter* _results;
+    EngineeringHistoryWriter* _history;
+    std::string _checkpoint_file;
+    std::size_t _exodus_interval;
+    std::size_t _history_interval;
+    std::size_t _progress_interval;
+    std::size_t _checkpoint_interval;
+    std::size_t _accepted_steps;
+    bool _exodus_at_latest;
+    bool _history_at_latest;
+    double _last_time_step;
+    double _last_next_time_step;
+    int _last_nonlinear_iterations;
+    bool _checkpoint_at_latest;
+    const PetscSession& _session;
+    CaseOutput& _progress_output;
+};
+
+} // namespace app
+} // namespace fuelsim
+
+#endif
+
+#include <iomanip>
+#include <iostream>
+#include <stdexcept>
+#include <utility>
+
+namespace fuelsim::app {
+
+CaseOutput::CaseOutput(bool console) : _console(console) {
+    if (_console)
+        std::cout << std::boolalpha << std::scientific
+                  << std::setprecision(12);
+}
+
+CaseOutput::CaseOutput(const CaseOutputInput& options, bool force_console,
+                       bool active)
+    : CaseOutput(active && (options.console || force_console)) {
+    if (!active || options.csv_file.empty())
+        return;
+    _csv.open(options.csv_file, std::ios::out | std::ios::trunc);
+    if (!_csv)
+        throw std::runtime_error("Could not open CSV output file '" +
+                                 options.csv_file + "'");
+    _csv << "metric,value\n" << std::scientific << std::setprecision(12);
+}
+
+void CaseOutput::value(const std::string& key, const std::string& data) {
+    if (_console)
+        std::cout << key << '=' << data << '\n';
+    if (_csv)
+        _csv << key << ',' << data << '\n';
+}
+
+void CaseOutput::value(const std::string& key, const char* data) {
+    value(key, std::string(data));
+}
+
+void CaseOutput::value(const std::string& key, double data) {
+    if (_console)
+        std::cout << key << '=' << data << '\n';
+    if (_csv)
+        _csv << key << ',' << data << '\n';
+}
+
+void CaseOutput::value(const std::string& key, std::size_t data) {
+    if (_console)
+        std::cout << key << '=' << data << '\n';
+    if (_csv)
+        _csv << key << ',' << data << '\n';
+}
+
+void CaseOutput::value(const std::string& key, int data) {
+    if (_console)
+        std::cout << key << '=' << data << '\n';
+    if (_csv)
+        _csv << key << ',' << data << '\n';
+}
+
+void CaseOutput::value(const std::string& key, bool data) {
+    if (_console)
+        std::cout << key << '=' << std::boolalpha << data << '\n';
+    if (_csv)
+        _csv << key << ',' << std::boolalpha << data << '\n';
+}
+
+void write_conservation_summary(
+    const std::string& prefix,
+    const TransientConservationSummary& summary,
+    CaseOutput& output) {
+    for (const TransientConservationField& field :
+         transient_conservation_fields)
+        output.value(prefix + field.name, summary.*field.member);
+}
+
+void write_time_error_components(
+    const std::string& prefix,
+    const TransientTimeErrorEstimate& estimate,
+    CaseOutput& output) {
+    output.value(prefix + "temperature", estimate.temperature);
+    output.value(prefix + "radial_displacement",
+                 estimate.radial_displacement);
+    output.value(prefix + "axial_displacement", estimate.axial_displacement);
+    output.value(prefix + "elastic_strain", estimate.elastic_strain);
+    output.value(prefix + "plastic_strain", estimate.plastic_strain);
+    output.value(prefix + "creep_strain", estimate.creep_strain);
+    output.value(prefix + "equivalent_plastic_strain",
+                 estimate.equivalent_plastic_strain);
+    output.value(prefix + "equivalent_creep_strain",
+                 estimate.equivalent_creep_strain);
+    output.value(prefix + "stress", estimate.stress);
+    output.value(prefix + "contact_friction", estimate.contact_friction);
+    output.value(prefix + "contact_normal_multiplier",
+                 estimate.contact_normal_multiplier);
+}
+
+} // namespace fuelsim::app
+
+#include "fuelsim/checkpoint_io.hpp"
+#include "fuelsim/petsc_solver.hpp"
+
+#include <utility>
+
+namespace fuelsim::app {
+
+TransientOutputObserver::TransientOutputObserver(
+    ExodusTransientResultsWriter* results,
+    EngineeringHistoryWriter* history,
+    std::string checkpoint_file,
+    std::size_t exodus_interval,
+    std::size_t history_interval,
+    std::size_t progress_interval,
+    std::size_t checkpoint_interval,
+    const PetscSession& session,
+    CaseOutput& progress_output)
+    : _results(results), _history(history),
+      _checkpoint_file(std::move(checkpoint_file)),
+      _exodus_interval(exodus_interval), _history_interval(history_interval),
+      _progress_interval(progress_interval),
+      _checkpoint_interval(checkpoint_interval), _accepted_steps(0),
+      _exodus_at_latest(true), _history_at_latest(true),
+      _last_time_step(0.0), _last_next_time_step(0.0),
+      _last_nonlinear_iterations(0), _checkpoint_at_latest(false),
+      _session(session), _progress_output(progress_output) {}
+
+void TransientOutputObserver::accepted_step(
+    const TransientProblem& problem, const TransientAcceptedStep& step) {
+    ++_accepted_steps;
+    _last_time_step = step.time_step;
+    _last_next_time_step = step.next_time_step;
+    _last_nonlinear_iterations = step.nonlinear_iterations;
+    _exodus_at_latest = false;
+    _history_at_latest = false;
+    _checkpoint_at_latest = false;
+    _session.collective_root_action([&]() {
+        if (_results != nullptr && _accepted_steps % _exodus_interval == 0) {
+            _results->append(problem);
+            _exodus_at_latest = true;
+        }
+        if (_history != nullptr && _accepted_steps % _history_interval == 0) {
+            _history->append(problem, step.time_step, step.next_time_step,
+                             step.nonlinear_iterations);
+            _history_at_latest = true;
+        }
+        if (_accepted_steps % _progress_interval == 0) {
+            _progress_output.value("progress.accepted_steps", _accepted_steps);
+            _progress_output.value("progress.time", step.time);
+            _progress_output.value("progress.time_step", step.time_step);
+            _progress_output.value("progress.next_time_step",
+                                   step.next_time_step);
+            _progress_output.value("progress.nonlinear_iterations",
+                                   step.nonlinear_iterations);
+            _progress_output.value("progress.linear_iterations",
+                                   step.linear_iterations);
+            _progress_output.value("progress.cutbacks", step.cutbacks);
+            _progress_output.value("progress.time_error_estimate",
+                                   step.time_error_estimate);
+            write_time_error_components("progress.time_error.",
+                                        step.time_error_components,
+                                        _progress_output);
+            write_conservation_summary("progress.conservation.",
+                                       step.conservation, _progress_output);
+        }
+        if (!_checkpoint_file.empty() &&
+            _accepted_steps % _checkpoint_interval == 0) {
+            TransientCheckpointIo::write(_checkpoint_file, problem,
+                                         step.next_time_step);
+            _checkpoint_at_latest = true;
+        }
+    });
+}
+
+void TransientOutputObserver::finalize(const TransientProblem& problem,
+                                       double next_time_step) {
+    _session.collective_root_action([&]() {
+        if (_results != nullptr && !_exodus_at_latest)
+            _results->append(problem);
+        if (_history != nullptr && !_history_at_latest)
+            _history->append(problem, _last_time_step, _last_next_time_step,
+                             _last_nonlinear_iterations);
+        if (!_checkpoint_file.empty() && !_checkpoint_at_latest)
+            TransientCheckpointIo::write(_checkpoint_file, problem,
+                                         next_time_step);
+    });
+    _exodus_at_latest = true;
+    _history_at_latest = true;
+    _checkpoint_at_latest = true;
+}
+
+} // namespace fuelsim::app
 
 #include "fuelsim/case_input.hpp"
 #include "fuelsim/checkpoint_io.hpp"
@@ -489,4 +782,8 @@ int fuelsim::run_application(int argc, char** argv) {
         std::cerr << "fuelsim failed: " << error.what() << '\n';
         return 1;
     }
+}
+
+int main(int argc, char** argv) {
+    return fuelsim::run_application(argc, argv);
 }

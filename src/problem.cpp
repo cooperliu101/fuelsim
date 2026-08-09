@@ -1,4 +1,4 @@
-#include "transient_conservation.hpp"
+#include "fuelsim/transient_problem.hpp"
 #include "fuelsim/nonlinear_problem.hpp"
 
 #include <algorithm>
@@ -6,6 +6,17 @@
 #include <stdexcept>
 
 namespace fuelsim {
+
+class TransientConservationCalculator final {
+  public:
+    static TransientConservationSummary summarize(
+        const TransientProblem& problem,
+        const std::vector<double>& converged_solution,
+        const std::vector<std::vector<Quad4MaterialHistory>>& staged_histories,
+        const std::vector<
+            std::vector<std::array<AxisymmetricStressValues, 4>>>&
+            staged_stresses);
+};
 
 GlobalStateView::GlobalStateView(const std::vector<double>& dense_values)
     : _global_size(dense_values.size()), _dense_values(&dense_values),
