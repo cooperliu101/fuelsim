@@ -79,11 +79,6 @@ class IsotropicInelasticMaterial final {
 
     adlite::Scalar conductivity(const adlite::Scalar& temperature) const;
 
-    ActiveNortonCreepProperties
-    active_creep_properties(const adlite::Scalar& temperature) const;
-    ActiveJ2PlasticityProperties
-    active_plasticity_properties(const adlite::Scalar& temperature) const;
-
     InelasticStressResponse
     response(const adlite::Scalar& strain_rr, const adlite::Scalar& strain_zz,
              const adlite::Scalar& strain_hoop, const adlite::Scalar& strain_rz,
@@ -103,6 +98,11 @@ class IsotropicInelasticMaterial final {
     state_values(const MaterialPointTrialState& trial_state);
 
   private:
+    ActiveNortonCreepProperties
+    active_creep_properties(const adlite::Scalar& temperature) const;
+    ActiveJ2PlasticityProperties
+    active_plasticity_properties(const adlite::Scalar& temperature) const;
+
     IsotropicThermoelasticMaterial _thermoelastic_material;
     TransientInelasticProperties _properties;
 };

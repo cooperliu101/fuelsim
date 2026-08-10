@@ -79,10 +79,22 @@ void hash_integer(std::uint64_t& hash, std::int64_t value) {
     hash_bytes(hash, &value, sizeof(value));
 }
 
-void hash_double(std::uint64_t& hash, double value) {
+std::uint64_t encode_double_bits(double value) {
     std::uint64_t encoded = 0;
     static_assert(sizeof(encoded) == sizeof(value));
     std::memcpy(&encoded, &value, sizeof(value));
+    return encoded;
+}
+
+double decode_double_bits(std::uint64_t encoded) {
+    double result = 0.0;
+    static_assert(sizeof(encoded) == sizeof(result));
+    std::memcpy(&result, &encoded, sizeof(result));
+    return result;
+}
+
+void hash_double(std::uint64_t& hash, double value) {
+    const std::uint64_t encoded = encode_double_bits(value);
     hash_bytes(hash, &encoded, sizeof(encoded));
 }
 
@@ -258,6 +270,19 @@ std::string read_entity_name(int exoid, ex_entity_type type, std::int64_t id,
     return std::string(name.data());
 }
 
+std::int64_t to_exodus_id(std::size_t index, const char* description) {
+    if (index >=
+        static_cast<std::size_t>(std::numeric_limits<std::int64_t>::max()))
+        throw std::length_error(std::string(description) + " is out of range");
+    return static_cast<std::int64_t>(index) + 1;
+}
+
+void write_entity_name(int exoid, ex_entity_type type, std::int64_t id,
+                       const std::string& name, const std::string& operation) {
+    if (!name.empty())
+        check_exodus(ex_put_name(exoid, type, id, name.c_str()), operation);
+}
+
 std::vector<NodeSet> read_node_sets(int exoid, std::size_t set_count,
                                     std::size_t maximum_name_length) {
     std::vector<NodeSet> result;
@@ -357,6 +382,8 @@ UnstructuredQuad4Mesh ExodusMeshIo::read_quad4(const std::string& path) {
     check_exodus(ex_set_max_name_length(file.id(),
                                         static_cast<int>(maximum_name_length)),
                  "Could not set Exodus maximum read name length");
+    const std::size_t name_length =
+        checked_size(maximum_name_length, "Exodus maximum name length");
 
     ex_init_params parameters{};
     check_exodus(ex_get_init_ext(file.id(), &parameters),
@@ -402,8 +429,7 @@ UnstructuredQuad4Mesh ExodusMeshIo::read_quad4(const std::string& path) {
         element_blocks.push_back(
             {block_id,
              read_entity_name(file.id(), EX_ELEM_BLOCK, block_id,
-                              checked_size(maximum_name_length,
-                                           "Exodus maximum name length"))});
+                              name_length)});
         ex_block block{};
         block.id = block_id;
         block.type = EX_ELEM_BLOCK;
@@ -446,12 +472,10 @@ UnstructuredQuad4Mesh ExodusMeshIo::read_quad4(const std::string& path) {
         throw std::runtime_error(
             "Exodus element count does not match its element blocks");
 
-    std::vector<NodeSet> node_sets = read_node_sets(
-        file.id(), node_set_count,
-        checked_size(maximum_name_length, "Exodus maximum name length"));
-    std::vector<SideSet> side_sets = read_side_sets(
-        file.id(), side_set_count,
-        checked_size(maximum_name_length, "Exodus maximum name length"));
+    std::vector<NodeSet> node_sets =
+        read_node_sets(file.id(), node_set_count, name_length);
+    std::vector<SideSet> side_sets =
+        read_side_sets(file.id(), side_set_count, name_length);
 
     file.close();
     return UnstructuredQuad4Mesh(
@@ -487,15 +511,8 @@ void ExodusMeshIo::write_quad4(const std::string& path,
         if (block == blocks.end())
             throw std::logic_error("Mesh element references an unknown block");
         block->_source_elements.push_back(element);
-        block->_nodes.reserve(block->_nodes.size() + 4U);
-        for (const std::size_t node : elements[element].nodes) {
-            if (node >= static_cast<std::size_t>(
-                            std::numeric_limits<std::int64_t>::max()))
-                throw std::length_error("Exodus node ID is out of range");
-            const std::int64_t exodus_node =
-                static_cast<std::int64_t>(node) + 1;
-            block->_nodes.push_back(exodus_node);
-        }
+        for (const std::size_t node : elements[element].nodes)
+            block->_nodes.push_back(to_exodus_id(node, "Exodus node ID"));
     }
 
     ex_init_params parameters{};
@@ -540,10 +557,8 @@ void ExodusMeshIo::write_quad4(const std::string& path,
         check_exodus(ex_put_conn(file.id(), EX_ELEM_BLOCK, block._id,
                                  block._nodes.data(), nullptr, nullptr),
                      "Could not write Exodus Quad4 connectivity");
-        if (!block._name.empty())
-            check_exodus(ex_put_name(file.id(), EX_ELEM_BLOCK, block._id,
-                                     block._name.c_str()),
-                         "Could not write Exodus element block name");
+        write_entity_name(file.id(), EX_ELEM_BLOCK, block._id, block._name,
+                          "Could not write Exodus element block name");
         for (const std::size_t source_element : block._source_elements)
             written_element_ids[source_element] = next_element_id++;
     }
@@ -551,12 +566,8 @@ void ExodusMeshIo::write_quad4(const std::string& path,
     for (const NodeSet& set : mesh.node_sets()) {
         std::vector<std::int64_t> entries;
         entries.reserve(set.nodes.size());
-        for (const std::size_t node : set.nodes) {
-            if (node >= static_cast<std::size_t>(
-                            std::numeric_limits<std::int64_t>::max()))
-                throw std::length_error("Exodus node set ID is out of range");
-            entries.push_back(static_cast<std::int64_t>(node) + 1);
-        }
+        for (const std::size_t node : set.nodes)
+            entries.push_back(to_exodus_id(node, "Exodus node set ID"));
         check_exodus(
             ex_put_set_param(file.id(), EX_NODE_SET, set.id,
                              checked_count(entries.size(), "Node set size"), 0),
@@ -565,10 +576,8 @@ void ExodusMeshIo::write_quad4(const std::string& path,
             check_exodus(ex_put_set(file.id(), EX_NODE_SET, set.id,
                                     entries.data(), nullptr),
                          "Could not write Exodus node set");
-        if (!set.name.empty())
-            check_exodus(
-                ex_put_name(file.id(), EX_NODE_SET, set.id, set.name.c_str()),
-                "Could not write Exodus node set name");
+        write_entity_name(file.id(), EX_NODE_SET, set.id, set.name,
+                          "Could not write Exodus node set name");
     }
 
     for (const SideSet& set : mesh.side_sets()) {
@@ -577,10 +586,7 @@ void ExodusMeshIo::write_quad4(const std::string& path,
         set_elements.reserve(set.sides.size());
         set_sides.reserve(set.sides.size());
         for (const ElementSide& side : set.sides) {
-            if (side.element >= static_cast<std::size_t>(
-                                    std::numeric_limits<std::int64_t>::max()))
-                throw std::length_error(
-                    "Exodus side set element ID is out of range");
+            (void)to_exodus_id(side.element, "Exodus side set element ID");
             set_elements.push_back(written_element_ids.at(side.element));
             set_sides.push_back(static_cast<std::int64_t>(side.local_side) + 1);
         }
@@ -592,10 +598,8 @@ void ExodusMeshIo::write_quad4(const std::string& path,
             check_exodus(ex_put_set(file.id(), EX_SIDE_SET, set.id,
                                     set_elements.data(), set_sides.data()),
                          "Could not write Exodus side set");
-        if (!set.name.empty())
-            check_exodus(
-                ex_put_name(file.id(), EX_SIDE_SET, set.id, set.name.c_str()),
-                "Could not write Exodus side set name");
+        write_entity_name(file.id(), EX_SIDE_SET, set.id, set.name,
+                          "Could not write Exodus side set name");
     }
 
     file.close();
@@ -675,14 +679,22 @@ global_variable_names(const std::vector<ContactDefinition>& contacts) {
     return result;
 }
 
+void append_component_variable_names(std::vector<std::string>& result,
+                                     const char* prefix, std::size_t q) {
+    for (const char* component : stress_components)
+        result.push_back(std::string(prefix) + std::string(component) + "_q" +
+                         std::to_string(q));
+}
+
+// Element-variable layout contract: the stress block is 16 variables
+// (4 quadrature points x 4 components); the transient block is 56 variables
+// whose per-point history slots are addressed as 16 + 10 * q in
+// transient_elements.
 std::vector<std::string> stress_variable_names() {
     std::vector<std::string> result;
     result.reserve(16);
-    for (std::size_t q = 0; q < 4; ++q) {
-        for (const char* component : stress_components)
-            result.push_back("stress_" + std::string(component) + "_q" +
-                             std::to_string(q));
-    }
+    for (std::size_t q = 0; q < 4; ++q)
+        append_component_variable_names(result, "stress_", q);
     return result;
 }
 
@@ -690,12 +702,8 @@ std::vector<std::string> transient_element_variable_names() {
     std::vector<std::string> result = stress_variable_names();
     result.reserve(56);
     for (std::size_t q = 0; q < 4; ++q) {
-        for (const char* component : stress_components)
-            result.push_back("plastic_" + std::string(component) + "_q" +
-                             std::to_string(q));
-        for (const char* component : stress_components)
-            result.push_back("creep_" + std::string(component) + "_q" +
-                             std::to_string(q));
+        append_component_variable_names(result, "plastic_", q);
+        append_component_variable_names(result, "creep_", q);
         result.push_back("equiv_plastic_q" + std::to_string(q));
         result.push_back("equiv_creep_q" + std::to_string(q));
     }
@@ -762,20 +770,26 @@ void write_step(const std::string& path, const UnstructuredQuad4Mesh& mesh,
                                 nodal_values[variable].data()),
                      "Could not write Exodus nodal results");
     }
+    std::vector<std::vector<std::size_t>> block_element_lists;
+    block_element_lists.reserve(mesh.element_blocks().size());
+    for (const ElementBlockInfo& block : mesh.element_blocks())
+        block_element_lists.push_back(block_elements(mesh, block.id));
     for (std::size_t variable = 0; variable < element_values.size();
          ++variable) {
         if (element_values[variable].size() != mesh.elements().size())
             throw std::invalid_argument(
                 "Exodus element result size does not match mesh");
-        for (const ElementBlockInfo& block : mesh.element_blocks()) {
-            const std::vector<std::size_t> elements =
-                block_elements(mesh, block.id);
+        for (std::size_t block = 0; block < mesh.element_blocks().size();
+             ++block) {
+            const std::vector<std::size_t>& elements =
+                block_element_lists[block];
             std::vector<double> values;
             values.reserve(elements.size());
             for (const std::size_t element : elements)
                 values.push_back(element_values[variable][element]);
             check_exodus(ex_put_var(file.id(), exodus_step, EX_ELEM_BLOCK,
-                                    static_cast<int>(variable + 1), block.id,
+                                    static_cast<int>(variable + 1),
+                                    mesh.element_blocks()[block].id,
                                     static_cast<std::int64_t>(values.size()),
                                     values.data()),
                          "Could not write Exodus element results");
@@ -809,6 +823,7 @@ void fill_contact_nodal_values(
     if (nodes.size() != summary.size())
         throw std::logic_error("Contact result mapping size mismatch");
     const double missing = std::numeric_limits<double>::quiet_NaN();
+    // Nodal layout is 3 + 5 * contact and must match nodal_variable_names.
     const std::size_t base = 3 + 5 * contact;
     for (std::size_t node = 0; node < nodes.size(); ++node) {
         values[base].at(nodes[node]) =
@@ -837,13 +852,11 @@ void fill_steady_nodal(const UnstructuredQuad4Mesh& mesh,
     values.assign(nodal_variable_names(problem.definition().contacts).size(),
                   std::vector<double>(mesh.nodes().size(), missing));
     std::vector<bool> present(mesh.nodes().size(), false);
-    for (std::size_t region = 0; region < problem.region_count(); ++region) {
+    for (std::size_t region = 0; region < problem.region_count(); ++region)
         fill_region_nodal_values(
             problem.region_mesh(region), problem.region_node_offset(region),
             problem.dof_map(), state, present, values);
-    }
-    for (std::size_t contact = 0; contact < problem.contact_count();
-         ++contact) {
+    for (std::size_t contact = 0; contact < problem.contact_count(); ++contact) {
         const std::vector<std::size_t> nodes =
             problem.contact_secondary_source_nodes(contact);
         const std::vector<ContactNodeSummary> summary =
@@ -863,11 +876,10 @@ void fill_transient_nodal(const UnstructuredQuad4Mesh& mesh,
                   std::vector<double>(mesh.nodes().size(), missing));
     std::vector<bool> present(mesh.nodes().size(), false);
     const std::vector<double>& state = problem.committed_solution();
-    for (std::size_t region = 0; region < problem.region_count(); ++region) {
+    for (std::size_t region = 0; region < problem.region_count(); ++region)
         fill_region_nodal_values(
             problem.region_mesh(region), problem.region_node_offset(region),
             problem.dof_map(), state, present, values);
-    }
     for (std::size_t contact = 0; contact < contacts; ++contact) {
         const std::vector<std::size_t> nodes =
             problem.contact_secondary_source_nodes(contact);
@@ -961,6 +973,8 @@ transient_elements(const UnstructuredQuad4Mesh& mesh,
             const auto& stresses = problem.material_stress(region, element);
             store_stress_values(source, stresses, result);
             for (std::size_t q = 0; q < 4; ++q) {
+                // History slots are 16 + 10 * q; this layout must match
+                // transient_element_variable_names.
                 const std::size_t history_offset = 16 + 10 * q;
                 for (std::size_t component = 0; component < 4; ++component) {
                     result[history_offset + component][source] =
@@ -1161,10 +1175,7 @@ class BinaryBuffer final {
     }
 
     void append_double(double value) {
-        std::uint64_t encoded = 0;
-        static_assert(sizeof(encoded) == sizeof(value));
-        std::memcpy(&encoded, &value, sizeof(value));
-        append_u64(encoded);
+        append_u64(encode_double_bits(value));
     }
 
     void append_bytes(const unsigned char* data, std::size_t size) {
@@ -1203,11 +1214,7 @@ class BinaryCursor final {
     }
 
     double read_double() {
-        const std::uint64_t encoded = read_u64();
-        double result = 0.0;
-        static_assert(sizeof(encoded) == sizeof(result));
-        std::memcpy(&result, &encoded, sizeof(result));
-        return result;
+        return decode_double_bits(read_u64());
     }
 
     void read_bytes(unsigned char* destination, std::size_t size) {
@@ -1230,15 +1237,26 @@ class BinaryCursor final {
     std::size_t _position;
 };
 
+void append_strains(BinaryBuffer& payload,
+                    const std::array<double, 4>& values) {
+    for (const double value : values)
+        payload.append_double(value);
+}
+
+void read_strains(BinaryCursor& payload, std::array<double, 4>& values) {
+    for (double& value : values)
+        value = payload.read_double();
+}
+
+// Checkpoint field order (elastic, plastic, creep strains, equivalent
+// strains, stress rr/zz/hoop/rz) is the checkpoint_version=6 byte contract;
+// append_material_point and read_material_point must stay symmetric.
 void append_material_point(BinaryBuffer& payload,
                            const MaterialPointState& state,
                            const AxisymmetricStressValues& stress) {
-    for (const double value : state.elastic_strain)
-        payload.append_double(value);
-    for (const double value : state.plastic_strain)
-        payload.append_double(value);
-    for (const double value : state.creep_strain)
-        payload.append_double(value);
+    append_strains(payload, state.elastic_strain);
+    append_strains(payload, state.plastic_strain);
+    append_strains(payload, state.creep_strain);
     payload.append_double(state.equivalent_plastic_strain);
     payload.append_double(state.equivalent_creep_strain);
     payload.append_double(stress.rr);
@@ -1249,12 +1267,9 @@ void append_material_point(BinaryBuffer& payload,
 
 void read_material_point(BinaryCursor& payload, MaterialPointState& state,
                          AxisymmetricStressValues& stress) {
-    for (double& value : state.elastic_strain)
-        value = payload.read_double();
-    for (double& value : state.plastic_strain)
-        value = payload.read_double();
-    for (double& value : state.creep_strain)
-        value = payload.read_double();
+    read_strains(payload, state.elastic_strain);
+    read_strains(payload, state.plastic_strain);
+    read_strains(payload, state.creep_strain);
     state.equivalent_plastic_strain = payload.read_double();
     state.equivalent_creep_strain = payload.read_double();
     stress.rr = payload.read_double();

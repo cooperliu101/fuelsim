@@ -22,10 +22,7 @@
 #include <vector>
 
 namespace fuelsim {
-class PetscSession;
-}
-
-namespace fuelsim::app {
+namespace {
 
 class CaseOutput final {
   public:
@@ -220,15 +217,6 @@ void TransientOutputObserver::finalize(const TransientProblem& problem,
     _checkpoint_at_latest = true;
 }
 
-} // namespace fuelsim::app
-
-namespace {
-
-using fuelsim::app::CaseOutput;
-using fuelsim::app::TransientOutputObserver;
-using fuelsim::app::write_conservation_summary;
-using fuelsim::app::write_time_error_components;
-
 constexpr std::array<const char*, 3> field_names = {"temperature", "radial",
                                                      "axial"};
 
@@ -364,6 +352,13 @@ void write_interface_summary(const std::string& name,
     output.value(prefix + "active_contact_nodes", summary.active_contact_nodes);
 }
 
+std::string output_segment_path(const std::string& restart_file,
+                                const std::string& output_file) {
+    return restart_file.empty()
+               ? output_file
+               : fuelsim::next_results_segment_path(output_file);
+}
+
 std::vector<double> diagnostic_direction(const fuelsim::DofMap& dof_map) {
     std::vector<double> result(dof_map.dof_count(), 0.0);
     for (std::size_t node = 0; node < dof_map.node_count(); ++node) {
@@ -482,17 +477,18 @@ bool run_transient(const fuelsim::FuelSimCaseDefinition& definition,
     if (!definition.transient_execution.restart_file.empty())
         restart_time_step = fuelsim::TransientCheckpointIo::restore(
             definition.transient_execution.restart_file, problem);
+    const double first_time_step =
+        restart_time_step > 0.0
+            ? restart_time_step
+            : definition.transient_execution.initial_time_step;
     if (check_jacobian) {
         if (!(problem.committed_time() <
               definition.transient_execution.end_time))
             throw std::invalid_argument(
                 "Jacobian check requires a remaining transient time step");
-        double end_time = std::min(
-            definition.transient_execution.end_time,
-            problem.committed_time() +
-                (restart_time_step > 0.0
-                     ? restart_time_step
-                     : definition.transient_execution.initial_time_step));
+        double end_time =
+            std::min(definition.transient_execution.end_time,
+                     problem.committed_time() + first_time_step);
         for (const double event : problem.time_events()) {
             if (event > problem.committed_time() && event < end_time) {
                 end_time = event;
@@ -520,11 +516,9 @@ bool run_transient(const fuelsim::FuelSimCaseDefinition& definition,
     std::string results_path;
     if (!definition.outputs.exodus_file.empty())
         session.collective_root_action([&]() {
-            results_path =
-                definition.transient_execution.restart_file.empty()
-                    ? definition.outputs.exodus_file
-                    : fuelsim::next_results_segment_path(
-                          definition.outputs.exodus_file);
+            results_path = output_segment_path(
+                definition.transient_execution.restart_file,
+                definition.outputs.exodus_file);
             results =
                 std::make_unique<fuelsim::ExodusTransientResultsWriter>(
                     results_path, source, problem);
@@ -535,19 +529,12 @@ bool run_transient(const fuelsim::FuelSimCaseDefinition& definition,
     std::string history_path;
     if (!definition.outputs.history_file.empty())
         session.collective_root_action([&]() {
-            history_path =
-                definition.transient_execution.restart_file.empty()
-                    ? definition.outputs.history_file
-                    : fuelsim::next_results_segment_path(
-                          definition.outputs.history_file);
+            history_path = output_segment_path(
+                definition.transient_execution.restart_file,
+                definition.outputs.history_file);
             history = std::make_unique<fuelsim::EngineeringHistoryWriter>(
                 history_path, problem);
-            history->append(problem, 0.0,
-                            restart_time_step > 0.0
-                                ? restart_time_step
-                                : definition.transient_execution
-                                      .initial_time_step,
-                            0);
+            history->append(problem, 0.0, first_time_step, 0);
         });
     if (!history_path.empty())
         output.value("history_file", history_path);
@@ -562,9 +549,7 @@ bool run_transient(const fuelsim::FuelSimCaseDefinition& definition,
                                      session, progress_output);
     const fuelsim::TransientTimeOptions time_options = {
         definition.transient_execution.end_time,
-        restart_time_step > 0.0
-            ? restart_time_step
-            : definition.transient_execution.initial_time_step,
+        first_time_step,
         definition.transient_execution.minimum_time_step,
         definition.transient_execution.maximum_time_step,
         definition.transient_execution.growth_factor,
@@ -652,19 +637,17 @@ bool run_transient(const fuelsim::FuelSimCaseDefinition& definition,
     return result.completed;
 }
 
-} // namespace
-
 int run_application(int argc, char** argv) {
     try {
         const CommandLine command = extract_command_line(argc, argv);
-        const fuelsim::FuelSimCaseDefinition definition =
-            fuelsim::CaseInputReader::read(command.input_path);
-        fuelsim::PetscSession session(
+        const FuelSimCaseDefinition definition =
+            CaseInputReader::read(command.input_path);
+        PetscSession session(
             argc, argv,
             "fuelsim input-driven axisymmetric multi-region solver\n");
         const bool root_rank = session.rank() == 0;
-        const fuelsim::UnstructuredQuad4Mesh source =
-            fuelsim::ExodusMeshIo::read_quad4(definition.mesh_file);
+        const UnstructuredQuad4Mesh source =
+            ExodusMeshIo::read_quad4(definition.mesh_file);
         std::unique_ptr<CaseOutput> output;
         if (!root_rank)
             output = std::make_unique<CaseOutput>(
@@ -677,7 +660,7 @@ int run_application(int argc, char** argv) {
         output->value("mesh_file", definition.mesh_file);
         output->value("mpi_ranks", session.size());
         const bool completed =
-            definition.problem == fuelsim::CaseProblem::steady
+            definition.problem == CaseProblem::steady
                 ? run_steady(definition, source, *output,
                              command.check_jacobian, session)
                 : run_transient(definition, source, *output,
@@ -689,6 +672,9 @@ int run_application(int argc, char** argv) {
     }
 }
 
+} // namespace
+} // namespace fuelsim
+
 int main(int argc, char** argv) {
-    return run_application(argc, argv);
+    return fuelsim::run_application(argc, argv);
 }

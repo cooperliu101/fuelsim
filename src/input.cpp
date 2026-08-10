@@ -296,6 +296,11 @@ std::string leaf_name(const InputSection& section) {
                : section.path().substr(separator + 1);
 }
 
+bool is_direct_child_path(const std::string& path, const std::string& prefix) {
+    return path.compare(0, prefix.size(), prefix) == 0 &&
+           path.find('/', prefix.size()) == std::string::npos;
+}
+
 void validate_sections(const InputDocument& document) {
     const std::vector<std::string> fixed = {
         "Case",        "Mesh",    "TimeFunctions",
@@ -306,12 +311,9 @@ void validate_sections(const InputDocument& document) {
             fixed.end())
             continue;
         const std::string& path = section.path();
-        const bool region = path.compare(0, 8, "Regions/") == 0 &&
-                            path.find('/', 8) == std::string::npos;
-        const bool boundary = path.compare(0, 19, "BoundaryConditions/") == 0 &&
-                              path.find('/', 19) == std::string::npos;
-        const bool function = path.compare(0, 14, "TimeFunctions/") == 0 &&
-                              path.find('/', 14) == std::string::npos;
+        const bool region = is_direct_child_path(path, "Regions/");
+        const bool boundary = is_direct_child_path(path, "BoundaryConditions/");
+        const bool function = is_direct_child_path(path, "TimeFunctions/");
         bool contact = false;
         if (path.compare(0, 8, "Contact/") == 0) {
             const std::string suffix = path.substr(8);
@@ -475,6 +477,22 @@ void forbid_convection_keys(const InputDocument& document,
                 context);
 }
 
+const std::vector<std::string> creep_keys = {
+    "creep_coefficient",
+    "creep_reference_stress",
+    "creep_exponent",
+    "creep_coefficient_temperature_coefficient",
+    "creep_reference_stress_temperature_coefficient",
+    "creep_exponent_temperature_coefficient",
+};
+
+const std::vector<std::string> plasticity_keys = {
+    "yield_stress",
+    "hardening_modulus",
+    "yield_stress_temperature_coefficient",
+    "hardening_temperature_coefficient",
+};
+
 ThermoelasticProperties read_thermoelastic(const InputDocument& document,
                                            const InputSection& section) {
     return {
@@ -550,21 +568,11 @@ TransientInelasticProperties read_transient(const InputDocument& document,
     if (uses_creep)
         creep = read_creep(document, section);
     else
-        forbid_keys(document, section,
-                    {"creep_coefficient", "creep_reference_stress",
-                     "creep_exponent",
-                     "creep_coefficient_temperature_coefficient",
-                     "creep_reference_stress_temperature_coefficient",
-                     "creep_exponent_temperature_coefficient"},
-                    context);
+        forbid_keys(document, section, creep_keys, context);
     if (uses_plasticity)
         plasticity = read_plasticity(document, section);
     else
-        forbid_keys(document, section,
-                    {"yield_stress", "hardening_modulus",
-                     "yield_stress_temperature_coefficient",
-                     "hardening_temperature_coefficient"},
-                    context);
+        forbid_keys(document, section, plasticity_keys, context);
     return {read_double(document, section, "density"),
             read_double(document, section, "specific_heat"), behavior, creep,
             plasticity};
@@ -619,14 +627,10 @@ CaseRegionDefinition read_region(const InputDocument& document,
     };
     if (problem == CaseProblem::transient) {
         keys.insert(keys.end(),
-                    {"density", "specific_heat", "inelastic_model",
-                     "creep_coefficient", "creep_reference_stress",
-                     "creep_exponent", "yield_stress", "hardening_modulus",
-                     "creep_coefficient_temperature_coefficient",
-                     "creep_reference_stress_temperature_coefficient",
-                     "creep_exponent_temperature_coefficient",
-                     "yield_stress_temperature_coefficient",
-                     "hardening_temperature_coefficient"});
+                    {"density", "specific_heat", "inelastic_model"});
+        keys.insert(keys.end(), creep_keys.begin(), creep_keys.end());
+        keys.insert(keys.end(), plasticity_keys.begin(),
+                    plasticity_keys.end());
     }
     validate_keys(document, section, keys);
     const InputEntry* block = find_entry(section, "block");
@@ -840,34 +844,7 @@ read_boundary_condition(const InputDocument& document,
                 "unknown boundary-condition type '" + type + "'");
 }
 
-} // namespace
-
-SpatialDefinition FuelSimCaseDefinition::spatial_definition() const {
-    SpatialDefinition result;
-    result.contacts = contacts;
-    result.boundary_conditions = boundary_conditions;
-    result.time_tables = time_tables;
-    result.regions.reserve(regions.size());
-    for (const CaseRegionDefinition& region : regions)
-        result.regions.push_back(region.spatial);
-    return result;
-}
-
-TransientProblemDefinition FuelSimCaseDefinition::transient_definition() const {
-    TransientProblemDefinition result;
-    result.spatial = spatial_definition();
-    result.regions.reserve(regions.size());
-    for (const CaseRegionDefinition& region : regions)
-        result.regions.push_back(
-            {region.spatial.name, region.transient_material});
-    return result;
-}
-
-FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
-    const InputDocument document = InputParser::parse_file(path);
-    validate_sections(document);
-    FuelSimCaseDefinition result{};
-
+void read_case(const InputDocument& document, FuelSimCaseDefinition& result) {
     const InputSection& case_section = document.section("Case");
     validate_keys(document, case_section, {"version", "problem"});
     const std::size_t version = read_size(document, case_section, "version");
@@ -884,14 +861,20 @@ FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
     else
         value_error(document, case_section.entry("problem"),
                     "unknown problem '" + problem + "'");
+}
 
+void read_mesh(const InputDocument& document, const std::string& path,
+               FuelSimCaseDefinition& result) {
     const InputSection& mesh = document.section("Mesh");
     validate_keys(document, mesh, {"type", "file"});
     if (read_string(document, mesh, "type") != "exodus")
         value_error(document, mesh.entry("type"),
                     "only mesh type 'exodus' is supported");
     result.mesh_file = resolved_path(path, read_string(document, mesh, "file"));
+}
 
+void read_time_functions(const InputDocument& document,
+                         FuelSimCaseDefinition& result) {
     const InputSection* time_functions =
         find_section(document, "TimeFunctions");
     if (time_functions != nullptr) {
@@ -909,7 +892,10 @@ FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
                 parse_double_list(document, section->entry("values")));
         }
     }
+}
 
+void read_regions(const InputDocument& document, const std::string& path,
+                  FuelSimCaseDefinition& result) {
     const InputSection& regions = document.section("Regions");
     validate_keys(document, regions, {});
     for (const InputSection* section : direct_children(document, "Regions"))
@@ -918,12 +904,18 @@ FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
     if (result.regions.empty())
         throw std::invalid_argument(path +
                                     ": [Regions] requires a child region");
+}
 
+void read_contacts(const InputDocument& document,
+                   FuelSimCaseDefinition& result) {
     const InputSection& contacts = document.section("Contact");
     validate_keys(document, contacts, {});
     for (const InputSection* section : direct_children(document, "Contact"))
         result.contacts.push_back(read_contact(document, *section));
+}
 
+void read_boundary_conditions(const InputDocument& document,
+                              FuelSimCaseDefinition& result) {
     const InputSection& boundary_conditions =
         document.section("BoundaryConditions");
     validate_keys(document, boundary_conditions, {});
@@ -931,7 +923,10 @@ FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
          direct_children(document, "BoundaryConditions"))
         result.boundary_conditions.push_back(
             read_boundary_condition(document, *section));
+}
 
+void validate_time_function_references(const std::string& path,
+                                       const FuelSimCaseDefinition& result) {
     const auto require_function = [&](const std::string& name,
                                       const std::string& owner) {
         if (name.empty())
@@ -961,7 +956,10 @@ FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
     if (result.problem == CaseProblem::steady && !result.time_tables.empty())
         throw std::invalid_argument(
             path + ": time functions are only valid for transient cases");
+}
 
+void read_executioner(const InputDocument& document, const std::string& path,
+                      FuelSimCaseDefinition& result) {
     const InputSection& executioner = document.section("Executioner");
     const std::string executioner_type =
         read_string(document, executioner, "type");
@@ -1067,7 +1065,10 @@ FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
                        "nonnegative/positive, and the safety factor must lie "
                        "in (0, 1)");
     }
+}
 
+void read_solver(const InputDocument& document, const std::string& path,
+                 FuelSimCaseDefinition& result) {
     const InputSection& solver = document.section("Solver");
     validate_keys(document, solver,
                   {"absolute_tolerance", "relative_tolerance", "step_tolerance",
@@ -1143,7 +1144,10 @@ FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
         throw std::invalid_argument(
             path + ": preconditioner must be automatic, lu, block_jacobi, "
                    "field_split, or hypre");
+}
 
+void read_outputs(const InputDocument& document, const std::string& path,
+                  FuelSimCaseDefinition& result) {
     const InputSection& outputs = document.section("Outputs");
     validate_keys(
         document, outputs,
@@ -1211,18 +1215,19 @@ FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
         throw std::invalid_argument(
             path + ": transient output controls are only valid for transient "
                    "cases");
-    if (result.outputs.exodus_file.empty() &&
-        find_entry(outputs, "exodus_interval") != nullptr)
-        value_error(document, outputs.entry("exodus_interval"),
-                    "exodus_interval requires exodus");
-    if (result.outputs.history_file.empty() &&
-        find_entry(outputs, "history_interval") != nullptr)
-        value_error(document, outputs.entry("history_interval"),
-                    "history_interval requires history");
-    if (result.outputs.checkpoint_file.empty() &&
-        find_entry(outputs, "checkpoint_interval") != nullptr)
-        value_error(document, outputs.entry("checkpoint_interval"),
-                    "checkpoint_interval requires checkpoint");
+    const auto require_output_file = [&](const std::string& file,
+                                         const std::string& interval_key,
+                                         const std::string& output_key) {
+        if (file.empty() && find_entry(outputs, interval_key) != nullptr)
+            value_error(document, outputs.entry(interval_key),
+                        interval_key + " requires " + output_key);
+    };
+    require_output_file(result.outputs.exodus_file, "exodus_interval",
+                        "exodus");
+    require_output_file(result.outputs.history_file, "history_interval",
+                        "history");
+    require_output_file(result.outputs.checkpoint_file, "checkpoint_interval",
+                        "checkpoint");
     if (!result.outputs.checkpoint_file.empty() &&
         result.outputs.checkpoint_interval == 0)
         value_error(document, outputs.entry("checkpoint_interval"),
@@ -1232,6 +1237,48 @@ FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
         result.outputs.progress_interval == 0)
         throw std::invalid_argument(
             path + ": output intervals must be positive");
+}
+
+} // namespace
+
+SpatialDefinition FuelSimCaseDefinition::spatial_definition() const {
+    SpatialDefinition result;
+    result.contacts = contacts;
+    result.boundary_conditions = boundary_conditions;
+    result.time_tables = time_tables;
+    result.regions.reserve(regions.size());
+    for (const CaseRegionDefinition& region : regions)
+        result.regions.push_back(region.spatial);
+    return result;
+}
+
+TransientProblemDefinition FuelSimCaseDefinition::transient_definition() const {
+    TransientProblemDefinition result;
+    result.spatial = spatial_definition();
+    result.regions.reserve(regions.size());
+    for (const CaseRegionDefinition& region : regions)
+        result.regions.push_back(
+            {region.spatial.name, region.transient_material});
+    return result;
+}
+
+FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
+    const InputDocument document = InputParser::parse_file(path);
+    validate_sections(document);
+    FuelSimCaseDefinition result{};
+
+    read_case(document, result);
+    read_mesh(document, path, result);
+    read_time_functions(document, result);
+    read_regions(document, path, result);
+
+    read_contacts(document, result);
+    read_boundary_conditions(document, result);
+    validate_time_function_references(path, result);
+    read_executioner(document, path, result);
+
+    read_solver(document, path, result);
+    read_outputs(document, path, result);
     return result;
 }
 

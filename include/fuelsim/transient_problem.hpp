@@ -136,8 +136,6 @@ class TransientProblem final : public NonlinearProblem {
     double committed_time() const noexcept;
     double committed_load_factor() const noexcept;
     bool time_step_active() const noexcept;
-    double active_time_step() const;
-    double active_end_time() const;
     std::vector<double> time_events() const;
 
     TransientCommittedState committed_state() const;

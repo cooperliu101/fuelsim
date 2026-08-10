@@ -30,6 +30,12 @@ std::size_t checked_layout_node_count(const std::vector<RegionMesh>& meshes) {
     return result;
 }
 
+void check_state_size(std::size_t state_size, std::size_t dof_count,
+                      const char* message) {
+    if (state_size != dof_count)
+        throw std::invalid_argument(message);
+}
+
 } // namespace
 
 SpatialLayout::SpatialLayout(SpatialDefinition definition,
@@ -428,11 +434,7 @@ void BoundaryAssembly::build(const UnstructuredQuad4Mesh& source_mesh,
 
 void BoundaryAssembly::set_load_factor(double value,
                                        const SpatialLayout& layout) {
-    if (!std::isfinite(value) || value < 0.0)
-        throw std::invalid_argument(
-            "SpatialAssembly load factor must be finite and nonnegative");
-    _load_factor = value;
-    refresh_controlled_values(layout);
+    set_controlled_value(_load_factor, value, "load factor", layout);
 }
 
 double BoundaryAssembly::load_factor() const noexcept {
@@ -440,10 +442,17 @@ double BoundaryAssembly::load_factor() const noexcept {
 }
 
 void BoundaryAssembly::set_time(double value, const SpatialLayout& layout) {
+    set_controlled_value(_time, value, "time", layout);
+}
+
+void BoundaryAssembly::set_controlled_value(double& target,
+                                            double value,
+                                            const char* label,
+                                            const SpatialLayout& layout) {
     if (!std::isfinite(value) || value < 0.0)
-        throw std::invalid_argument(
-            "SpatialAssembly time must be finite and nonnegative");
-    _time = value;
+        throw std::invalid_argument("SpatialAssembly " + std::string(label) +
+                                    " must be finite and nonnegative");
+    target = value;
     refresh_controlled_values(layout);
 }
 
@@ -704,9 +713,8 @@ bool ContactAssembly::uses_augmented_contact(
 AugmentedContactUpdate ContactAssembly::update_augmented_multipliers(
     SpatialAssembly& assembly, const std::vector<double>& state,
     std::size_t completed_updates) {
-    if (state.size() != assembly.dof_count())
-        throw std::invalid_argument(
-            "SpatialAssembly augmented-contact state size mismatch");
+    check_state_size(state.size(), assembly.dof_count(),
+                     "SpatialAssembly augmented-contact state size mismatch");
     AugmentedContactUpdate result;
     result.penetration_tolerance = std::numeric_limits<double>::infinity();
     std::vector<std::vector<ContactPointHistory>> staged = _contact_histories;
@@ -762,9 +770,8 @@ AugmentedContactUpdate ContactAssembly::update_augmented_multipliers(
 
 void ContactAssembly::commit_state(SpatialAssembly& assembly,
                                    const std::vector<double>& state) {
-    if (state.size() != assembly.dof_count())
-        throw std::invalid_argument(
-            "SpatialAssembly committed contact state size mismatch");
+    check_state_size(state.size(), assembly.dof_count(),
+                     "SpatialAssembly committed contact state size mismatch");
     assembly.update_mechanical_candidates(state);
     std::vector<std::vector<ContactPointHistory>> staged = _contact_histories;
     std::vector<std::vector<bool>> updated(contact_count(assembly._layout));
@@ -834,8 +841,9 @@ void ContactAssembly::restore_state(
     const SpatialAssembly& assembly,
     const std::vector<double>& state,
     std::vector<std::vector<ContactPointHistory>> histories) {
-    if (state.size() != assembly.dof_count() ||
-        histories.size() != contact_count(assembly._layout))
+    check_state_size(state.size(), assembly.dof_count(),
+                     "SpatialAssembly restored contact state layout mismatch");
+    if (histories.size() != contact_count(assembly._layout))
         throw std::invalid_argument(
             "SpatialAssembly restored contact state layout mismatch");
     for (std::size_t contact_value = 0;
@@ -859,9 +867,8 @@ void ContactAssembly::restore_state(
 
 void SpatialAssembly::update_mechanical_candidates(
     const std::vector<double>& state) const {
-    if (state.size() != dof_count())
-        throw std::invalid_argument(
-            "SpatialAssembly contact-search state size mismatch");
+    check_state_size(state.size(), dof_count(),
+                     "SpatialAssembly contact-search state size mismatch");
     const ContributionRanges ranges = contribution_ranges();
     const GlobalStateView state_view(state);
     update_mechanical_candidates(ranges.mechanical_begin,
@@ -871,10 +878,9 @@ void SpatialAssembly::update_mechanical_candidates(
 void SpatialAssembly::update_mechanical_candidates(
     std::size_t contribution_begin, std::size_t contribution_end,
     const GlobalStateView& state) const {
-    if (state.global_size() != dof_count())
-        throw std::invalid_argument(
-            "SpatialAssembly contact-search shadow state size mismatch");
-    const ContributionRanges ranges = contribution_ranges();
+    check_state_size(
+        state.global_size(), dof_count(),
+        "SpatialAssembly contact-search shadow state size mismatch");
     for (const MechanicalContribution& contribution :
          _contact._mechanical_contributions)
         contribution.active = false;
@@ -885,6 +891,7 @@ void SpatialAssembly::update_mechanical_candidates(
     if (touched.empty())
         return;
 
+    const ContributionRanges ranges = contribution_ranges();
     std::vector<std::vector<double>> minimum_distance(contact_count());
     std::vector<std::vector<std::size_t>> selected_primary(contact_count());
     for (std::size_t contact_value = 0; contact_value < contact_count();
@@ -912,7 +919,8 @@ void SpatialAssembly::update_mechanical_candidates(
         const ContactPointValue value =
             _contact._mechanical_kernels[candidate.contact].value(
                 candidate.geometry, local_state, committed_state,
-                _contact._contact_histories[candidate.contact][candidate.secondary]);
+                _contact._contact_histories[candidate.contact]
+                                           [candidate.secondary]);
         if (!value.projected)
             continue;
         projected[contribution] = true;
@@ -969,9 +977,8 @@ std::vector<std::vector<bool>> SpatialAssembly::touched_mechanical_nodes(
 std::vector<ContactNodeSummary>
 SpatialAssembly::summarize_contact_nodes(std::size_t contact_value,
                                        const std::vector<double>& state) const {
-    if (state.size() != dof_count())
-        throw std::invalid_argument(
-            "SpatialAssembly contact summary state size mismatch");
+    check_state_size(state.size(), dof_count(),
+                     "SpatialAssembly contact summary state size mismatch");
     update_mechanical_candidates(state);
     const ResolvedBoundary& secondary = _contact._secondary_boundaries.at(contact_value);
     const RegionMesh& mesh = _layout._meshes[secondary.region];
@@ -996,7 +1003,8 @@ SpatialAssembly::summarize_contact_nodes(std::size_t contact_value,
         const LocalValues local_state =
             contribution_state(first_mechanical + contribution, state);
         const LocalValues committed_state = contribution_state(
-            first_mechanical + contribution, _contact._committed_contact_solution);
+            first_mechanical + contribution,
+            _contact._committed_contact_solution);
         const std::size_t secondary_index = candidate.secondary;
         const ContactPointValue value =
             _contact._mechanical_kernels[contact_value].value(
@@ -1031,9 +1039,8 @@ SpatialAssembly::summarize_contact_nodes(std::size_t contact_value,
 }
 
 void SpatialAssembly::validate_state(const std::vector<double>& state) const {
-    if (state.size() != dof_count())
-        throw std::invalid_argument(
-            "SpatialAssembly global state has the wrong size");
+    check_state_size(state.size(), dof_count(),
+                     "SpatialAssembly global state has the wrong size");
     update_mechanical_candidates(state);
     for (std::size_t contact_value = 0; contact_value < contact_count();
          ++contact_value) {
@@ -1058,9 +1065,8 @@ void SpatialAssembly::validate_local_state(std::size_t contribution_begin,
         contribution_end > contribution_count())
         throw std::out_of_range(
             "SpatialAssembly contribution range is out of bounds");
-    if (state.global_size() != dof_count())
-        throw std::invalid_argument(
-            "SpatialAssembly local state has the wrong global size");
+    check_state_size(state.global_size(), dof_count(),
+                     "SpatialAssembly local state has the wrong global size");
     update_mechanical_candidates(contribution_begin, contribution_end, state);
     const std::vector<std::vector<bool>> touched =
         touched_mechanical_nodes(contribution_begin, contribution_end);
@@ -1692,9 +1698,8 @@ SpatialAssembly::contribution_dofs(std::size_t contribution_index) const {
 LocalValues SpatialAssembly::contribution_state(
     std::size_t contribution_index,
     const std::vector<double>& global_state) const {
-    if (global_state.size() != dof_count())
-        throw std::invalid_argument(
-            "SpatialAssembly global state has the wrong size");
+    check_state_size(global_state.size(), dof_count(),
+                     "SpatialAssembly global state has the wrong size");
     return contribution_state(contribution_index,
                               GlobalStateView(global_state));
 }
@@ -1702,9 +1707,8 @@ LocalValues SpatialAssembly::contribution_state(
 LocalValues SpatialAssembly::contribution_state(
     std::size_t contribution_index,
     const GlobalStateView& global_state) const {
-    if (global_state.global_size() != dof_count())
-        throw std::invalid_argument(
-            "SpatialAssembly shadow state has the wrong global size");
+    check_state_size(global_state.global_size(), dof_count(),
+                     "SpatialAssembly shadow state has the wrong global size");
     const LocalDofs dofs = contribution_dofs(contribution_index);
     LocalValues result{};
     for (std::size_t local = 0; local < dofs.size(); ++local)

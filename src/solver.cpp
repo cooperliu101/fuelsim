@@ -8,6 +8,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstddef>
+#include <functional>
 #include <limits>
 #include <memory>
 #include <sstream>
@@ -23,6 +24,18 @@ using SteadyClock = std::chrono::steady_clock;
 
 double seconds_since(const SteadyClock::time_point& start) {
     return std::chrono::duration<double>(SteadyClock::now() - start).count();
+}
+
+void accumulate_timing(SolveTiming& total, const SolveTiming& step) {
+    total.setup_seconds += step.setup_seconds;
+    total.nonlinear_solve_seconds += step.nonlinear_solve_seconds;
+    total.residual_callback_seconds += step.residual_callback_seconds;
+    total.jacobian_callback_seconds += step.jacobian_callback_seconds;
+    total.total_seconds += step.total_seconds;
+    total.residual_evaluations += step.residual_evaluations;
+    total.jacobian_evaluations += step.jacobian_evaluations;
+    total.workspace_setups += step.workspace_setups;
+    total.solve_calls += step.solve_calls;
 }
 
 void check_petsc(PetscErrorCode code, const char* operation) {
@@ -906,18 +919,7 @@ PetscSolver::solve(const NonlinearProblem& problem,
     SolveResult fallback = solve_once(problem, initial_state, fallback_options);
     fallback.nonlinear_iterations += result.nonlinear_iterations;
     fallback.linear_iterations += result.linear_iterations;
-    fallback.timing.setup_seconds += result.timing.setup_seconds;
-    fallback.timing.nonlinear_solve_seconds +=
-        result.timing.nonlinear_solve_seconds;
-    fallback.timing.residual_callback_seconds +=
-        result.timing.residual_callback_seconds;
-    fallback.timing.jacobian_callback_seconds +=
-        result.timing.jacobian_callback_seconds;
-    fallback.timing.total_seconds += result.timing.total_seconds;
-    fallback.timing.residual_evaluations += result.timing.residual_evaluations;
-    fallback.timing.jacobian_evaluations += result.timing.jacobian_evaluations;
-    fallback.timing.workspace_setups += result.timing.workspace_setups;
-    fallback.timing.solve_calls += result.timing.solve_calls;
+    accumulate_timing(fallback.timing, result.timing);
     fallback.nonlinear_attempts = result.nonlinear_attempts + 1;
     fallback.used_backtracking_fallback = true;
     fallback.basic_failure_category = result.failure_category;
@@ -1230,8 +1232,6 @@ const char* solve_failure_category_name(SolveFailureCategory category) noexcept 
 // Shared steady and transient solve helpers.
 namespace solver_workflow {
 
-void accumulate_timing(SolveTiming& total, const SolveTiming& step);
-
 namespace {
 
 void merge_attempt(SolveResult& aggregate, const SolveResult& addition) {
@@ -1287,18 +1287,6 @@ void mark_augmented_failure(SolveResult& result,
 }
 
 } // namespace
-
-void accumulate_timing(SolveTiming& total, const SolveTiming& step) {
-    total.setup_seconds += step.setup_seconds;
-    total.nonlinear_solve_seconds += step.nonlinear_solve_seconds;
-    total.residual_callback_seconds += step.residual_callback_seconds;
-    total.jacobian_callback_seconds += step.jacobian_callback_seconds;
-    total.total_seconds += step.total_seconds;
-    total.residual_evaluations += step.residual_evaluations;
-    total.jacobian_evaluations += step.jacobian_evaluations;
-    total.workspace_setups += step.workspace_setups;
-    total.solve_calls += step.solve_calls;
-}
 
 std::vector<double>
 initial_guess_with_dirichlet_values(const NonlinearProblem& problem,
@@ -1374,7 +1362,6 @@ SolveResult solve_contact_equilibrium(
 
 // Steady load stepping.
 
-using solver_workflow::accumulate_timing;
 using solver_workflow::initial_guess_with_dirichlet_values;
 using solver_workflow::solve_contact_equilibrium;
 
@@ -1901,6 +1888,20 @@ TransientResult solve_transient(TransientProblem& problem,
     PetscSolver solver;
     const std::vector<double> events = problem.time_events();
     double next_time_step = options.initial_time_step;
+    const auto run_step = [&](double target_time) {
+        TimeStepTransaction transaction(
+            problem,
+            {target_time, load_factor_at_time(options, target_time)});
+        SolveResult step_result = solve_contact_equilibrium(
+            solver,
+            problem,
+            initial_guess_with_dirichlet_values(
+                problem, problem.committed_solution()),
+            solver_options);
+        if (step_result.converged)
+            transaction.commit(step_result.state);
+        return step_result;
+    };
     while (!reaches_end(problem.committed_time(), options.end_time)) {
         const double controller_time_step = std::min(
             next_time_step, options.end_time - problem.committed_time());
@@ -1935,38 +1936,14 @@ TransientResult solve_transient(TransientProblem& problem,
                 base_state = problem.committed_state();
             try {
                 if (!error_control) {
-                    TimeStepTransaction transaction(
-                        problem,
-                        {end_time, load_factor_at_time(options, end_time)});
-                    attempt = solve_contact_equilibrium(
-                        solver,
-                        problem,
-                        initial_guess_with_dirichlet_values(
-                            problem, problem.committed_solution()),
-                        solver_options);
+                    attempt = run_step(end_time);
                     controller_nonlinear_iterations =
                         attempt.nonlinear_iterations;
-                    if (attempt.converged)
-                        transaction.commit(attempt.state);
                 } else {
-                    SolveResult full_step;
+                    const SolveResult full_step = run_step(end_time);
                     TransientCommittedState full_step_state;
-                    {
-                        TimeStepTransaction transaction(
-                            problem,
-                            {end_time,
-                             load_factor_at_time(options, end_time)});
-                        full_step = solve_contact_equilibrium(
-                            solver,
-                            problem,
-                            initial_guess_with_dirichlet_values(
-                                problem, problem.committed_solution()),
-                            solver_options);
-                        if (full_step.converged) {
-                            transaction.commit(full_step.state);
-                            full_step_state = problem.committed_state();
-                        }
-                    }
+                    if (full_step.converged)
+                        full_step_state = problem.committed_state();
                     attempt = full_step;
                     controller_nonlinear_iterations =
                         full_step.nonlinear_iterations;
@@ -1974,21 +1951,7 @@ TransientResult solve_transient(TransientProblem& problem,
                         problem.restore_committed_state(base_state);
                         const double half_time =
                             base_state.time + 0.5 * time_step;
-                        SolveResult first_half;
-                        {
-                            TimeStepTransaction transaction(
-                                problem,
-                                {half_time,
-                                 load_factor_at_time(options, half_time)});
-                            first_half = solve_contact_equilibrium(
-                                solver,
-                                problem,
-                                initial_guess_with_dirichlet_values(
-                                    problem, problem.committed_solution()),
-                                solver_options);
-                            if (first_half.converged)
-                                transaction.commit(first_half.state);
-                        }
+                        const SolveResult first_half = run_step(half_time);
                         if (first_half.converged)
                             first_half_conservation =
                                 problem.last_conservation_summary();
@@ -2000,22 +1963,8 @@ TransientResult solve_transient(TransientProblem& problem,
                             problem.restore_committed_state(
                                 std::move(base_state));
                         } else {
-                            SolveResult second_half;
-                            {
-                                TimeStepTransaction transaction(
-                                    problem,
-                                    {end_time,
-                                     load_factor_at_time(options, end_time)});
-                                second_half = solve_contact_equilibrium(
-                                    solver,
-                                    problem,
-                                    initial_guess_with_dirichlet_values(
-                                        problem,
-                                        problem.committed_solution()),
-                                    solver_options);
-                                if (second_half.converged)
-                                    transaction.commit(second_half.state);
-                            }
+                            const SolveResult second_half =
+                                run_step(end_time);
                             controller_nonlinear_iterations = std::max(
                                 controller_nonlinear_iterations,
                                 second_half.nonlinear_iterations);

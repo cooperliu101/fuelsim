@@ -619,9 +619,8 @@ TransientProblem::TransientProblem(TransientProblemDefinition definition,
     : _definition(std::move(definition)),
       _spatial(std::make_unique<SpatialAssembly>(_definition.spatial,
                                                  source_mesh)),
-      _committed_solution(_spatial->initial_state()), _committed_time(0.0),
-      _committed_load_factor(0.0), _active_time_step(0.0),
-      _active_end_time(0.0), _active_load_factor(0.0),
+      _committed_time(0.0), _committed_load_factor(0.0),
+      _active_time_step(0.0), _active_end_time(0.0), _active_load_factor(0.0),
       _time_step_active(false) {
     validate_definition(_definition);
     _region_kernels.reserve(region_count());
@@ -704,16 +703,6 @@ double TransientProblem::committed_load_factor() const noexcept {
 
 bool TransientProblem::time_step_active() const noexcept {
     return _time_step_active;
-}
-
-double TransientProblem::active_time_step() const {
-    require_active_time_step();
-    return _active_time_step;
-}
-
-double TransientProblem::active_end_time() const {
-    require_active_time_step();
-    return _active_end_time;
 }
 
 std::vector<double> TransientProblem::time_events() const {

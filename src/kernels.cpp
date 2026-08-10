@@ -18,6 +18,7 @@ namespace fuelsim {
 namespace {
 
 constexpr double pi = 3.141592653589793238462643383279502884;
+constexpr double gauss = 0.577350269189625764509148780501957456;
 
 std::array<double, quad4_node_count> shape_functions(double xi, double eta) {
     return {
@@ -49,12 +50,11 @@ std::array<double, quad4_node_count> shape_derivative_eta(double xi) {
 } // namespace
 
 Quad4RzGeometry make_quad4_rz_geometry(const Quad4Coordinates& coordinates) {
-    constexpr double gp = 0.577350269189625764509148780501957456;
     const std::array<std::array<double, 2>, 4> locations = {{
-        {{-gp, -gp}},
-        {{gp, -gp}},
-        {{gp, gp}},
-        {{-gp, gp}},
+        {{-gauss, -gauss}},
+        {{gauss, -gauss}},
+        {{gauss, gauss}},
+        {{-gauss, gauss}},
     }};
 
     Quad4RzGeometry geometry{};
@@ -490,7 +490,7 @@ Quad4RzThermoelasticKernel::stress_values(const Quad4RzGeometry& geometry,
 void Quad4RzThermoelasticKernel::residual_ad(const Quad4RzGeometry& geometry,
                                              const LocalAdValues& state,
                                              LocalAdValues& residual) const {
-    std::fill(residual.begin(), residual.end(), adlite::Scalar(0.0));
+    residual.fill(adlite::Scalar(0.0));
 
     for (const RzQuadraturePoint& point : geometry.points) {
         const ThermoelasticPointResponse response =
@@ -546,6 +546,29 @@ material_response(const IsotropicInelasticMaterial& material,
         fields.kinematics.strain_rr, fields.kinematics.strain_zz,
         fields.kinematics.strain_hoop, fields.kinematics.strain_rz,
         fields.temperature, time_step, committed_material);
+}
+
+struct TransientPointResponse final {
+    PointFields fields;
+    double old_temperature;
+    InelasticStressResponse response;
+};
+
+TransientPointResponse
+transient_point_response(const RzQuadraturePoint& point,
+                         const LocalAdValues& state,
+                         const LocalValues& committed_state,
+                         const IsotropicInelasticMaterial& material,
+                         const MaterialPointState& committed_material,
+                         double time_step,
+                         StrainFormulation strain_formulation) {
+    const PointFields fields =
+        point_fields(point, state, committed_state, strain_formulation);
+    const double old_temperature =
+        quad4_rz_detail::interpolate(point.shape, committed_state, 0);
+    return {fields, old_temperature,
+            material_response(material, fields, old_temperature, time_step,
+                              committed_material, strain_formulation)};
 }
 
 void validate_time_step(double time_step) {
@@ -645,22 +668,17 @@ Quad4MaterialHistory Quad4RzTransientKernel::trial_state_values(
 
     Quad4MaterialHistory result{};
     for (std::size_t q = 0; q < geometry.points.size(); ++q) {
-        const PointFields fields =
-            point_fields(geometry.points[q], passive_state, committed_state,
-                         _strain_formulation);
-        if (!std::isfinite(fields.temperature.value()) ||
-            !(fields.temperature.value() > 0.0))
+        const TransientPointResponse evaluation = transient_point_response(
+            geometry.points[q], passive_state, committed_state, _material,
+            committed_material[q], time_step, _strain_formulation);
+        if (!std::isfinite(evaluation.fields.temperature.value()) ||
+            !(evaluation.fields.temperature.value() > 0.0))
             throw std::domain_error(
                 "Quad4RzTransientKernel trial temperature must be finite and "
                 "positive");
 
-        const double old_temperature = quad4_rz_detail::interpolate(
-            geometry.points[q].shape, committed_state, 0);
-        const InelasticStressResponse response =
-            material_response(_material, fields, old_temperature, time_step,
-                              committed_material[q], _strain_formulation);
-        result[q] =
-            IsotropicInelasticMaterial::state_values(response.trial_state);
+        result[q] = IsotropicInelasticMaterial::state_values(
+            evaluation.response.trial_state);
     }
     return result;
 }
@@ -675,19 +693,14 @@ std::array<AxisymmetricStressValues, 4> Quad4RzTransientKernel::stress_values(
 
     std::array<AxisymmetricStressValues, 4> result{};
     for (std::size_t q = 0; q < geometry.points.size(); ++q) {
-        const PointFields fields =
-            point_fields(geometry.points[q], passive_state, committed_state,
-                         _strain_formulation);
-        const double old_temperature = quad4_rz_detail::interpolate(
-            geometry.points[q].shape, committed_state, 0);
-        const InelasticStressResponse response =
-            material_response(_material, fields, old_temperature, time_step,
-                              committed_material[q], _strain_formulation);
+        const TransientPointResponse evaluation = transient_point_response(
+            geometry.points[q], passive_state, committed_state, _material,
+            committed_material[q], time_step, _strain_formulation);
         result[q] = {
-            response.stress.rr.value(),
-            response.stress.zz.value(),
-            response.stress.hoop.value(),
-            response.stress.rz.value(),
+            evaluation.response.stress.rr.value(),
+            evaluation.response.stress.zz.value(),
+            evaluation.response.stress.hoop.value(),
+            evaluation.response.stress.rz.value(),
         };
     }
     return result;
@@ -698,33 +711,51 @@ void Quad4RzTransientKernel::residual_ad(
     const LocalValues& committed_state,
     const Quad4MaterialHistory& committed_material, double time_step,
     LocalAdValues& residual) const {
-    std::fill(residual.begin(), residual.end(), adlite::Scalar(0.0));
+    residual.fill(adlite::Scalar(0.0));
     const double heat_capacity = volumetric_heat_capacity(_material);
 
     for (std::size_t q = 0; q < geometry.points.size(); ++q) {
         const RzQuadraturePoint& point = geometry.points[q];
-        const PointFields fields = point_fields(
-            point, current_state, committed_state, _strain_formulation);
-        const double old_temperature =
-            quad4_rz_detail::interpolate(point.shape, committed_state, 0);
+        const TransientPointResponse evaluation = transient_point_response(
+            point, current_state, committed_state, _material,
+            committed_material[q], time_step, _strain_formulation);
         const adlite::Scalar temperature_rate =
-            (fields.temperature - old_temperature) / time_step;
+            (evaluation.fields.temperature - evaluation.old_temperature) /
+            time_step;
         const adlite::Scalar conductivity =
-            _material.conductivity(fields.temperature);
-        const InelasticStressResponse response =
-            material_response(_material, fields, old_temperature, time_step,
-                              committed_material[q], _strain_formulation);
+            _material.conductivity(evaluation.fields.temperature);
         quad4_rz_detail::add_transient_point_residual(
-            point, fields.gradient_temperature_r, fields.gradient_temperature_z,
-            fields.kinematics, heat_capacity, temperature_rate, conductivity,
-            _volumetric_heat_source, response.stress, residual);
+            point, evaluation.fields.gradient_temperature_r,
+            evaluation.fields.gradient_temperature_z,
+            evaluation.fields.kinematics, heat_capacity, temperature_rate,
+            conductivity, _volumetric_heat_source, evaluation.response.stress,
+            residual);
     }
 }
 
 // Pressure, traction, and convection boundary kernels.
 namespace {
 
-constexpr double gauss = 0.577350269189625764509148780501957456;
+bool finite_point(const RzPoint& point) {
+    return std::isfinite(point.r) && std::isfinite(point.z);
+}
+
+void validate_line(const Line2InterfaceSideCoordinates& coordinates,
+                   const char* name) {
+    for (const RzPoint& point : coordinates) {
+        if (!finite_point(point))
+            throw std::invalid_argument(std::string(name) +
+                                        " requires finite coordinates");
+        if (!(point.r >= 0.0))
+            throw std::invalid_argument(std::string(name) +
+                                        " requires nonnegative radii");
+    }
+    const double dr = coordinates[1].r - coordinates[0].r;
+    const double dz = coordinates[1].z - coordinates[0].z;
+    if (!(std::hypot(dr, dz) > 0.0))
+        throw std::invalid_argument(std::string(name) +
+                                    " requires a nonzero line length");
+}
 
 void validate_properties(const ConvectionProperties& properties) {
     if (!std::isfinite(properties.heat_transfer_coefficient) ||
@@ -755,17 +786,23 @@ void validate_edge(const std::array<RzPoint, 2>& coordinates,
         local_nodes[0] == local_nodes[1])
         throw std::invalid_argument(std::string(name) +
                                     " requires two distinct Quad4 local nodes");
-    for (const RzPoint& point : coordinates) {
-        if (!std::isfinite(point.r) || !std::isfinite(point.z) || point.r < 0.0)
-            throw std::invalid_argument(
-                std::string(name) +
-                " coordinates must be finite with nonnegative radius");
+    validate_line(coordinates, name);
+}
+
+void displaced_edge_coordinates(
+    const std::array<RzPoint, 2>& coordinates,
+    const std::array<std::size_t, 2>& local_nodes, const LocalAdValues& state,
+    bool use_displaced_geometry, std::array<adlite::Scalar, 2>& radius,
+    std::array<adlite::Scalar, 2>& axial) {
+    for (std::size_t edge_node = 0; edge_node < 2; ++edge_node) {
+        const std::size_t local = local_nodes[edge_node];
+        radius[edge_node] = coordinates[edge_node].r;
+        axial[edge_node] = coordinates[edge_node].z;
+        if (use_displaced_geometry) {
+            radius[edge_node] += state[4 + local];
+            axial[edge_node] += state[8 + local];
+        }
     }
-    const double dr = coordinates[1].r - coordinates[0].r;
-    const double dz = coordinates[1].z - coordinates[0].z;
-    if (!(std::hypot(dr, dz) > 0.0))
-        throw std::invalid_argument(std::string(name) +
-                                    " length must be positive");
 }
 
 } // namespace
@@ -816,15 +853,9 @@ void Line2RzPressureKernel::residual_ad(
                                              0.5 * (1.0 + xi)};
         std::array<adlite::Scalar, 2> radius{};
         std::array<adlite::Scalar, 2> axial{};
-        for (std::size_t edge_node = 0; edge_node < 2; ++edge_node) {
-            const std::size_t local = geometry.local_nodes[edge_node];
-            radius[edge_node] = geometry.coordinates[edge_node].r;
-            axial[edge_node] = geometry.coordinates[edge_node].z;
-            if (_properties.use_displaced_geometry) {
-                radius[edge_node] += state[4 + local];
-                axial[edge_node] += state[8 + local];
-            }
-        }
+        displaced_edge_coordinates(geometry.coordinates, geometry.local_nodes,
+                                   state, _properties.use_displaced_geometry,
+                                   radius, axial);
         const adlite::Scalar current_radius =
             shape[0] * radius[0] + shape[1] * radius[1];
         if (!std::isfinite(current_radius.value()) ||
@@ -890,15 +921,9 @@ void Line2RzTractionKernel::residual_ad(
                                              0.5 * (1.0 + xi)};
         std::array<adlite::Scalar, 2> radius{};
         std::array<adlite::Scalar, 2> axial{};
-        for (std::size_t edge_node = 0; edge_node < 2; ++edge_node) {
-            const std::size_t local = geometry.local_nodes[edge_node];
-            radius[edge_node] = geometry.coordinates[edge_node].r;
-            axial[edge_node] = geometry.coordinates[edge_node].z;
-            if (_properties.use_displaced_geometry) {
-                radius[edge_node] += state[4 + local];
-                axial[edge_node] += state[8 + local];
-            }
-        }
+        displaced_edge_coordinates(geometry.coordinates, geometry.local_nodes,
+                                   state, _properties.use_displaced_geometry,
+                                   radius, axial);
         const adlite::Scalar current_radius =
             shape[0] * radius[0] + shape[1] * radius[1];
         const adlite::Scalar dr_dxi = 0.5 * (radius[1] - radius[0]);
@@ -1025,27 +1050,6 @@ struct ContactAdValue final {
     bool sliding = false;
 };
 
-bool finite_point(const RzPoint& point) {
-    return std::isfinite(point.r) && std::isfinite(point.z);
-}
-
-void validate_line(const Line2InterfaceSideCoordinates& coordinates,
-                   const char* name) {
-    for (const RzPoint& point : coordinates) {
-        if (!finite_point(point))
-            throw std::invalid_argument(std::string(name) +
-                                        " requires finite coordinates");
-        if (!(point.r >= 0.0))
-            throw std::invalid_argument(std::string(name) +
-                                        " requires nonnegative radii");
-    }
-    const double dr = coordinates[1].r - coordinates[0].r;
-    const double dz = coordinates[1].z - coordinates[0].z;
-    if (!(std::hypot(dr, dz) > 0.0))
-        throw std::invalid_argument(std::string(name) +
-                                    " requires a nonzero line length");
-}
-
 double reference_projection_fraction(
     const RzPoint& secondary,
     const Line2InterfaceSideCoordinates& primary_coordinates) {
@@ -1125,16 +1129,20 @@ evaluate_heat_quadrature(const Line2RzHeatGeometry& geometry,
                          const Line2RzHeatQuadraturePoint& point,
                          const LocalAdValues& state,
                          const GapHeatProperties& properties) {
+    const adlite::Scalar secondary_radius_0 =
+        geometry.secondary_coordinates[0].r + state[4];
+    const adlite::Scalar secondary_radius_1 =
+        geometry.secondary_coordinates[1].r + state[5];
+    const adlite::Scalar secondary_axial_0 =
+        geometry.secondary_coordinates[0].z + state[8];
+    const adlite::Scalar secondary_axial_1 =
+        geometry.secondary_coordinates[1].z + state[9];
     const adlite::Scalar secondary_radius =
-        point.secondary_shape[0] *
-            (geometry.secondary_coordinates[0].r + state[4]) +
-        point.secondary_shape[1] *
-            (geometry.secondary_coordinates[1].r + state[5]);
+        point.secondary_shape[0] * secondary_radius_0 +
+        point.secondary_shape[1] * secondary_radius_1;
     const adlite::Scalar secondary_axial =
-        point.secondary_shape[0] *
-            (geometry.secondary_coordinates[0].z + state[8]) +
-        point.secondary_shape[1] *
-            (geometry.secondary_coordinates[1].z + state[9]);
+        point.secondary_shape[0] * secondary_axial_0 +
+        point.secondary_shape[1] * secondary_axial_1;
     const adlite::Scalar primary_radius_0 =
         geometry.primary_coordinates[0].r + state[6];
     const adlite::Scalar primary_radius_1 =
@@ -1189,14 +1197,6 @@ evaluate_heat_quadrature(const Line2RzHeatGeometry& geometry,
     const adlite::Scalar heat_flux =
         conductance * (secondary_temperature - primary_temperature);
 
-    const adlite::Scalar secondary_radius_0 =
-        geometry.secondary_coordinates[0].r + state[4];
-    const adlite::Scalar secondary_radius_1 =
-        geometry.secondary_coordinates[1].r + state[5];
-    const adlite::Scalar secondary_axial_0 =
-        geometry.secondary_coordinates[0].z + state[8];
-    const adlite::Scalar secondary_axial_1 =
-        geometry.secondary_coordinates[1].z + state[9];
     const adlite::Scalar dr_dxi =
         0.5 * (secondary_radius_1 - secondary_radius_0);
     const adlite::Scalar dz_dxi = 0.5 * (secondary_axial_1 - secondary_axial_0);
@@ -1400,7 +1400,6 @@ Line2RzHeatGeometry make_line2_rz_heat_geometry(
             "Line2RzHeatGeometry requires a nonempty secondary interval in "
             "[-1,1]");
 
-    constexpr double gauss = 0.577350269189625764509148780501957456;
     const std::array<double, line2_interface_quadrature_point_count> locations =
         {-gauss, gauss};
 

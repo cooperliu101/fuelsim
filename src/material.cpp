@@ -131,6 +131,23 @@ IsotropicThermoelasticMaterial::active_properties(
             shear_modulus};
 }
 
+namespace {
+
+AxisymmetricStress hooke_stress(
+    const adlite::Scalar& lame_lambda, const adlite::Scalar& shear_modulus,
+    const adlite::Scalar& strain_rr, const adlite::Scalar& strain_zz,
+    const adlite::Scalar& strain_hoop, const adlite::Scalar& strain_rz) {
+    const adlite::Scalar trace = strain_rr + strain_zz + strain_hoop;
+    return {
+        lame_lambda * trace + 2.0 * shear_modulus * strain_rr,
+        lame_lambda * trace + 2.0 * shear_modulus * strain_zz,
+        lame_lambda * trace + 2.0 * shear_modulus * strain_hoop,
+        2.0 * shear_modulus * strain_rz,
+    };
+}
+
+} // namespace
+
 AxisymmetricStress IsotropicThermoelasticMaterial::stress(
     const adlite::Scalar& strain_rr, const adlite::Scalar& strain_zz,
     const adlite::Scalar& strain_hoop, const adlite::Scalar& strain_rz,
@@ -147,15 +164,8 @@ AxisymmetricStress IsotropicThermoelasticMaterial::stress(
     const adlite::Scalar elastic_rr = strain_rr - thermal_strain;
     const adlite::Scalar elastic_zz = strain_zz - thermal_strain;
     const adlite::Scalar elastic_hoop = strain_hoop - thermal_strain;
-    const adlite::Scalar trace = elastic_rr + elastic_zz + elastic_hoop;
-
-    return {
-        active.lame_lambda * trace + 2.0 * active.shear_modulus * elastic_rr,
-        active.lame_lambda * trace + 2.0 * active.shear_modulus * elastic_zz,
-        active.lame_lambda * trace +
-            2.0 * active.shear_modulus * elastic_hoop,
-        2.0 * active.shear_modulus * strain_rz,
-    };
+    return hooke_stress(active.lame_lambda, active.shear_modulus, elastic_rr,
+                        elastic_zz, elastic_hoop, strain_rz);
 }
 
 // Inelastic constitutive updates.
@@ -163,6 +173,8 @@ namespace {
 
 constexpr std::size_t component_count = 4;
 constexpr int maximum_creep_iterations = 100;
+const double log_denorm_min =
+    std::log(std::numeric_limits<double>::denorm_min());
 
 struct NortonRoot final {
     double equivalent_stress;
@@ -177,10 +189,6 @@ struct CoupledUpdate final {
     double plastic_increment_derivative;
     double creep_increment;
     double creep_increment_derivative;
-};
-
-struct CreepIncrement final {
-    double value;
 };
 
 void validate_material_point_state(const MaterialPointState& state) {
@@ -207,11 +215,12 @@ void validate_material_point_state(const MaterialPointState& state) {
 MaterialPointTrialState
 passive_trial_state(const MaterialPointState& committed) {
     MaterialPointTrialState trial;
-    for (std::size_t component = 0; component < component_count; ++component) {
-        trial.elastic_strain[component] = committed.elastic_strain[component];
-        trial.plastic_strain[component] = committed.plastic_strain[component];
-        trial.creep_strain[component] = committed.creep_strain[component];
-    }
+    std::copy(committed.elastic_strain.begin(), committed.elastic_strain.end(),
+              trial.elastic_strain.begin());
+    std::copy(committed.plastic_strain.begin(), committed.plastic_strain.end(),
+              trial.plastic_strain.begin());
+    std::copy(committed.creep_strain.begin(), committed.creep_strain.end(),
+              trial.creep_strain.begin());
     trial.equivalent_plastic_strain = committed.equivalent_plastic_strain;
     trial.equivalent_creep_strain = committed.equivalent_creep_strain;
     return trial;
@@ -388,9 +397,7 @@ NortonRoot solve_power_law_equivalent_stress(
     const double stress_ratio = std::exp(-log_stress_ratio);
     const double relaxed_fraction = -std::expm1(-log_stress_ratio);
     const double log_equivalent_stress = log_driving_stress - log_stress_ratio;
-    const double minimum_log =
-        std::log(std::numeric_limits<double>::denorm_min());
-    const double equivalent_stress = log_equivalent_stress <= minimum_log
+    const double equivalent_stress = log_equivalent_stress <= log_denorm_min
                                          ? 0.0
                                          : std::exp(log_equivalent_stress);
     const double derivative_denominator =
@@ -422,13 +429,12 @@ NortonRoot solve_norton_equivalent_stress(double trial_stress,
         creep);
 }
 
-CreepIncrement evaluate_creep_increment(double equivalent_stress,
-                                        double time_step,
-                                        const NortonCreepProperties& creep) {
+double evaluate_creep_increment(double equivalent_stress, double time_step,
+                                const NortonCreepProperties& creep) {
     if (time_step == 0.0 || creep.coefficient == 0.0)
-        return {0.0};
+        return 0.0;
     if (!(equivalent_stress > 0.0))
-        return {0.0};
+        return 0.0;
 
     const double log_increment =
         std::log(time_step) + std::log(creep.coefficient) +
@@ -438,18 +444,16 @@ CreepIncrement evaluate_creep_increment(double equivalent_stress,
         throw std::overflow_error(
             "Norton creep increment logarithm is not a number");
 
-    const double minimum_log =
-        std::log(std::numeric_limits<double>::denorm_min());
     const double maximum_log = std::log(std::numeric_limits<double>::max());
-    if (log_increment <= minimum_log)
-        return {0.0};
+    if (log_increment <= log_denorm_min)
+        return 0.0;
     if (!std::isfinite(log_increment) || log_increment >= maximum_log)
         throw std::overflow_error("Norton creep increment overflowed");
 
     const double increment = std::exp(log_increment);
     if (!std::isfinite(increment) || !(increment >= 0.0))
         throw std::overflow_error("Norton creep increment is not finite");
-    return {increment};
+    return increment;
 }
 
 CoupledUpdate solve_coupled_update(double trial_stress, double shear_modulus,
@@ -486,19 +490,19 @@ CoupledUpdate solve_coupled_update(double trial_stress, double shear_modulus,
 
     const double hardening = plasticity.isotropic_hardening_modulus;
     if (hardening == 0.0) {
-        const CreepIncrement creep_increment =
+        const double creep_increment =
             evaluate_creep_increment(current_yield_stress, time_step, creep);
         const double plastic_increment = (trial_stress - current_yield_stress) *
                                              inverse_three_shear_modulus -
-                                         creep_increment.value;
+                                         creep_increment;
         if (!std::isfinite(plastic_increment) || !(plastic_increment > 0.0))
             throw std::domain_error(
                 "Coupled perfect-plastic update produced a nonpositive "
                 "plastic increment");
         return {
-            current_yield_stress,  0.0,
-            plastic_increment,     inverse_three_shear_modulus,
-            creep_increment.value, 0.0,
+            current_yield_stress, 0.0,
+            plastic_increment,    inverse_three_shear_modulus,
+            creep_increment,      0.0,
         };
     }
 
@@ -531,11 +535,11 @@ CoupledUpdate solve_coupled_update(double trial_stress, double shear_modulus,
 
     const NortonRoot root = solve_power_law_equivalent_stress(
         root_driving_stress, log_root_stress_coefficient, time_step, creep);
-    const CreepIncrement creep_increment =
+    const double creep_increment =
         evaluate_creep_increment(root.equivalent_stress, time_step, creep);
     const double plastic_increment =
         (trial_stress - current_yield_stress -
-         3.0 * (shear_modulus * creep_increment.value)) *
+         3.0 * (shear_modulus * creep_increment)) *
         inverse_denominator;
     const double plastic_increment_derivative =
         root.trial_stress_derivative * inverse_denominator;
@@ -547,7 +551,7 @@ CoupledUpdate solve_coupled_update(double trial_stress, double shear_modulus,
         !std::isfinite(stress_derivative) ||
         !std::isfinite(plastic_increment) || !(plastic_increment > 0.0) ||
         !std::isfinite(plastic_increment_derivative) ||
-        !std::isfinite(creep_increment.value) ||
+        !std::isfinite(creep_increment) ||
         !std::isfinite(creep_increment_derivative))
         throw std::overflow_error(
             "Coupled plastic-creep update or derivative is not finite");
@@ -555,7 +559,7 @@ CoupledUpdate solve_coupled_update(double trial_stress, double shear_modulus,
     return {
         root.equivalent_stress, stress_derivative,
         plastic_increment,      plastic_increment_derivative,
-        creep_increment.value,  creep_increment_derivative,
+        creep_increment,        creep_increment_derivative,
     };
 }
 
@@ -566,6 +570,37 @@ double zero_stress_scale_shear_derivative(
         return 0.0;
     return -3.0 * time_step * creep.coefficient /
            creep.reference_stress * scale * scale;
+}
+
+struct NortonDirectPartials final {
+    double creep_stress_derivative;
+    double direct_coefficient;
+    double direct_reference;
+    double direct_exponent;
+};
+
+NortonDirectPartials
+norton_direct_partials(double equivalent_stress, double creep_increment,
+                       const NortonCreepProperties& creep) {
+    return {
+        equivalent_stress > 0.0
+            ? creep.stress_exponent * creep_increment / equivalent_stress
+            : 0.0,
+        creep.coefficient > 0.0 ? creep_increment / creep.coefficient : 0.0,
+        -creep.stress_exponent * creep_increment / creep.reference_stress,
+        equivalent_stress > 0.0
+            ? creep_increment *
+                  std::log(equivalent_stress / creep.reference_stress)
+            : 0.0,
+    };
+}
+
+void fill_creep_partials(double* creep, std::size_t count,
+                         double creep_stress_derivative, const double* stress,
+                         const double* direct) {
+    for (std::size_t parameter = 0; parameter < count; ++parameter)
+        creep[parameter] =
+            creep_stress_derivative * stress[parameter] + direct[parameter];
 }
 
 struct NortonPartials final {
@@ -580,48 +615,30 @@ NortonPartials norton_partials(
     NortonPartials result;
     const double stress = root.equivalent_stress;
     const double stress_derivative = root.trial_stress_derivative;
-    const double creep_stress_derivative =
-        stress > 0.0
-            ? creep.stress_exponent * creep_increment / stress
-            : 0.0;
-    const double direct_coefficient =
-        creep.coefficient > 0.0 ? creep_increment / creep.coefficient : 0.0;
-    const double direct_reference =
-        -creep.stress_exponent * creep_increment /
-        creep.reference_stress;
-    const double direct_exponent =
-        stress > 0.0
-            ? creep_increment *
-                  std::log(stress / creep.reference_stress)
-            : 0.0;
+    const NortonDirectPartials direct =
+        norton_direct_partials(stress, creep_increment, creep);
     result.stress = {
         stress_derivative,
         -3.0 * creep_increment * stress_derivative,
-        -3.0 * shear_modulus * direct_coefficient * stress_derivative,
-        -3.0 * shear_modulus * direct_reference * stress_derivative,
-        -3.0 * shear_modulus * direct_exponent * stress_derivative};
-    const std::array<double, 5> direct = {
-        0.0, 0.0, direct_coefficient, direct_reference, direct_exponent};
-    for (std::size_t parameter = 0; parameter < result.creep.size();
-         ++parameter)
-        result.creep[parameter] =
-            creep_stress_derivative * result.stress[parameter] +
-            direct[parameter];
+        -3.0 * shear_modulus * direct.direct_coefficient * stress_derivative,
+        -3.0 * shear_modulus * direct.direct_reference * stress_derivative,
+        -3.0 * shear_modulus * direct.direct_exponent * stress_derivative};
+    const std::array<double, 5> creep_direct = {
+        0.0, 0.0, direct.direct_coefficient, direct.direct_reference,
+        direct.direct_exponent};
+    fill_creep_partials(result.creep.data(), result.creep.size(),
+                        direct.creep_stress_derivative, result.stress.data(),
+                        creep_direct.data());
     if (time_step == 0.0 || equivalent_trial_stress == 0.0)
         result.creep.fill(0.0);
     return result;
 }
 
-adlite::Scalar compose_five(
-    double value, const adlite::Scalar& equivalent_trial_stress,
-    const adlite::Scalar& shear_modulus,
-    const ActiveNortonCreepProperties& creep,
-    const std::array<double, 5>& derivatives) {
-    const std::array<adlite::Scalar, 5> inputs = {
-        equivalent_trial_stress, shear_modulus, creep.coefficient,
-        creep.reference_stress, creep.stress_exponent};
-    return adlite::compose(value, inputs.data(), derivatives.data(),
-                           inputs.size());
+adlite::Scalar compose_with_derivatives(double value,
+                                        const adlite::Scalar* inputs,
+                                        std::size_t input_count,
+                                        const double* derivatives) {
+    return adlite::compose(value, inputs, derivatives, input_count);
 }
 
 struct CoupledPartials final {
@@ -640,23 +657,11 @@ CoupledPartials coupled_partials(
     const double stress = update.equivalent_stress;
     const double plastic_increment = update.plastic_increment;
     const double creep_increment = update.creep_increment;
-    const double creep_stress_derivative =
-        stress > 0.0
-            ? creep.stress_exponent * creep_increment / stress
-            : 0.0;
-    const double direct_coefficient =
-        creep.coefficient > 0.0 ? creep_increment / creep.coefficient : 0.0;
-    const double direct_reference =
-        -creep.stress_exponent * creep_increment /
-        creep.reference_stress;
-    const double direct_exponent =
-        stress > 0.0
-            ? creep_increment *
-                  std::log(stress / creep.reference_stress)
-            : 0.0;
+    const NortonDirectPartials direct =
+        norton_direct_partials(stress, creep_increment, creep);
     const std::array<double, 7> direct_creep = {
-        0.0, 0.0, direct_coefficient, direct_reference, direct_exponent,
-        0.0, 0.0};
+        0.0, 0.0, direct.direct_coefficient, direct.direct_reference,
+        direct.direct_exponent, 0.0, 0.0};
     const double hardening = plasticity.isotropic_hardening_modulus;
     if (!(plastic_increment > 0.0)) {
         const NortonRoot root{stress, update.stress_derivative, 0.0};
@@ -671,11 +676,9 @@ CoupledPartials coupled_partials(
     }
     if (hardening == 0.0) {
         result.stress[5] = 1.0;
-        for (std::size_t parameter = 0; parameter < result.creep.size();
-             ++parameter)
-            result.creep[parameter] =
-                creep_stress_derivative * result.stress[parameter] +
-                direct_creep[parameter];
+        fill_creep_partials(result.creep.data(), result.creep.size(),
+                            direct.creep_stress_derivative,
+                            result.stress.data(), direct_creep.data());
         const double inverse_three_shear = 1.0 / (3.0 * shear_modulus);
         result.plastic[0] = inverse_three_shear;
         result.plastic[1] =
@@ -694,22 +697,22 @@ CoupledPartials coupled_partials(
     result.stress[1] =
         -3.0 * (plastic_increment + creep_increment) * stress_derivative;
     result.stress[2] =
-        -3.0 * shear_modulus * direct_coefficient * stress_derivative;
+        -3.0 * shear_modulus * direct.direct_coefficient * stress_derivative;
     result.stress[3] =
-        -3.0 * shear_modulus * direct_reference * stress_derivative;
+        -3.0 * shear_modulus * direct.direct_reference * stress_derivative;
     result.stress[4] =
-        -3.0 * shear_modulus * direct_exponent * stress_derivative;
+        -3.0 * shear_modulus * direct.direct_exponent * stress_derivative;
     result.stress[5] =
         3.0 * shear_modulus / hardening * stress_derivative;
     result.stress[6] =
         3.0 * shear_modulus *
         (stress - plasticity.yield_stress) /
         (hardening * hardening) * stress_derivative;
-    for (std::size_t parameter = 0; parameter < result.creep.size();
+    fill_creep_partials(result.creep.data(), result.creep.size(),
+                        direct.creep_stress_derivative, result.stress.data(),
+                        direct_creep.data());
+    for (std::size_t parameter = 0; parameter < result.plastic.size();
          ++parameter) {
-        result.creep[parameter] =
-            creep_stress_derivative * result.stress[parameter] +
-            direct_creep[parameter];
         const double yield_derivative = parameter == 5 ? 1.0 : 0.0;
         const double hardening_derivative = parameter == 6 ? 1.0 : 0.0;
         result.plastic[parameter] =
@@ -719,24 +722,6 @@ CoupledPartials coupled_partials(
             hardening;
     }
     return result;
-}
-
-adlite::Scalar compose_seven(
-    double value, const adlite::Scalar& equivalent_trial_stress,
-    const adlite::Scalar& shear_modulus,
-    const ActiveNortonCreepProperties& creep,
-    const ActiveJ2PlasticityProperties& plasticity,
-    const std::array<double, 7>& derivatives) {
-    const std::array<adlite::Scalar, 7> inputs = {
-        equivalent_trial_stress,
-        shear_modulus,
-        creep.coefficient,
-        creep.reference_stress,
-        creep.stress_exponent,
-        plasticity.yield_stress,
-        plasticity.isotropic_hardening_modulus};
-    return adlite::compose(value, inputs.data(), derivatives.data(),
-                           inputs.size());
 }
 
 AxisymmetricStress returned_stress(
@@ -907,17 +892,9 @@ InelasticStressResponse IsotropicInelasticMaterial::response(
             committed.creep_strain[2],
         strain_rz - committed.plastic_strain[3] - committed.creep_strain[3],
     };
-    const adlite::Scalar elastic_trace =
-        elastic_strain[0] + elastic_strain[1] + elastic_strain[2];
-    const AxisymmetricStress stress_trial = {
-        active.lame_lambda * elastic_trace +
-            2.0 * active.shear_modulus * elastic_strain[0],
-        active.lame_lambda * elastic_trace +
-            2.0 * active.shear_modulus * elastic_strain[1],
-        active.lame_lambda * elastic_trace +
-            2.0 * active.shear_modulus * elastic_strain[2],
-        2.0 * active.shear_modulus * elastic_strain[3],
-    };
+    const AxisymmetricStress stress_trial = hooke_stress(
+        active.lame_lambda, active.shear_modulus, elastic_strain[0],
+        elastic_strain[1], elastic_strain[2], elastic_strain[3]);
     const adlite::Scalar mean_stress =
         (stress_trial.rr + stress_trial.zz + stress_trial.hoop) / 3.0;
     const std::array<adlite::Scalar, component_count> deviatoric_trial = {
@@ -957,6 +934,21 @@ InelasticStressResponse IsotropicInelasticMaterial::response(
         }
         return InelasticStressResponse{stress, trial_state};
     };
+
+    const auto zero_stress_creep_response =
+        [&](double stress_scale_derivative,
+            const NortonCreepProperties& creep_values) {
+            const adlite::Scalar stress_scale = adlite::compose(
+                stress_scale_derivative, active.shear_modulus,
+                zero_stress_scale_shear_derivative(
+                    stress_scale_derivative, time_step, creep_values));
+            const AxisymmetricStress stress =
+                returned_stress(mean_stress, deviatoric_trial, stress_scale);
+            update_relaxed_creep_strain(trial_state, committed,
+                                        deviatoric_trial, stress_scale,
+                                        active.shear_modulus);
+            return finalize(stress);
+        };
 
     if (_properties.behavior == InelasticBehavior::elastic)
         return finalize(stress_trial);
@@ -1017,32 +1009,33 @@ InelasticStressResponse IsotropicInelasticMaterial::response(
             time_step,
             creep_values, plasticity_values,
             committed.equivalent_plastic_strain);
-        if (equivalent_trial_stress.value() == 0.0) {
-            const adlite::Scalar stress_scale = adlite::compose(
-                update.stress_derivative, active.shear_modulus,
-                zero_stress_scale_shear_derivative(
-                    update.stress_derivative, time_step, creep_values));
-            const AxisymmetricStress stress =
-                returned_stress(mean_stress, deviatoric_trial, stress_scale);
-            update_relaxed_creep_strain(
-                trial_state, committed, deviatoric_trial, stress_scale,
-                active.shear_modulus);
-            return finalize(stress);
-        }
+        if (equivalent_trial_stress.value() == 0.0)
+            return zero_stress_creep_response(update.stress_derivative,
+                                              creep_values);
 
         const CoupledPartials partials = coupled_partials(
             equivalent_trial_stress.value(), active.shear_modulus.value(),
             creep_values, plasticity_values,
             committed.equivalent_plastic_strain, update);
-        const adlite::Scalar returned_equivalent_stress = compose_seven(
-            update.equivalent_stress, equivalent_trial_stress,
-            active.shear_modulus, creep, plasticity, partials.stress);
-        const adlite::Scalar plastic_increment = compose_seven(
-            update.plastic_increment, equivalent_trial_stress,
-            active.shear_modulus, creep, plasticity, partials.plastic);
-        const adlite::Scalar creep_increment = compose_seven(
-            update.creep_increment, equivalent_trial_stress,
-            active.shear_modulus, creep, plasticity, partials.creep);
+        const std::array<adlite::Scalar, 7> coupled_inputs = {
+            equivalent_trial_stress,
+            active.shear_modulus,
+            creep.coefficient,
+            creep.reference_stress,
+            creep.stress_exponent,
+            plasticity.yield_stress,
+            plasticity.isotropic_hardening_modulus};
+        const adlite::Scalar returned_equivalent_stress =
+            compose_with_derivatives(update.equivalent_stress,
+                                     coupled_inputs.data(),
+                                     coupled_inputs.size(),
+                                     partials.stress.data());
+        const adlite::Scalar plastic_increment = compose_with_derivatives(
+            update.plastic_increment, coupled_inputs.data(),
+            coupled_inputs.size(), partials.plastic.data());
+        const adlite::Scalar creep_increment = compose_with_derivatives(
+            update.creep_increment, coupled_inputs.data(),
+            coupled_inputs.size(), partials.creep.data());
         const adlite::Scalar stress_scale =
             returned_equivalent_stress / equivalent_trial_stress;
         const AxisymmetricStress stress =
@@ -1073,31 +1066,24 @@ InelasticStressResponse IsotropicInelasticMaterial::response(
         equivalent_trial_stress.value(), active.shear_modulus.value(),
         time_step,
         creep_values);
-    if (equivalent_trial_stress.value() == 0.0) {
-        const adlite::Scalar stress_scale = adlite::compose(
-            root.trial_stress_derivative, active.shear_modulus,
-            zero_stress_scale_shear_derivative(
-                root.trial_stress_derivative, time_step,
-                creep_values));
-        const AxisymmetricStress stress =
-            returned_stress(mean_stress, deviatoric_trial, stress_scale);
-        update_relaxed_creep_strain(trial_state, committed, deviatoric_trial,
-                                    stress_scale, active.shear_modulus);
-        return finalize(stress);
-    }
+    if (equivalent_trial_stress.value() == 0.0)
+        return zero_stress_creep_response(root.trial_stress_derivative,
+                                          creep_values);
 
-    const CreepIncrement evaluated_creep = evaluate_creep_increment(
+    const double evaluated_creep = evaluate_creep_increment(
         root.equivalent_stress, time_step, creep_values);
     const NortonPartials partials = norton_partials(
         equivalent_trial_stress.value(), active.shear_modulus.value(),
-        time_step, creep_values, root, evaluated_creep.value);
-    const adlite::Scalar returned_equivalent_stress = compose_five(
-        root.equivalent_stress, equivalent_trial_stress,
-        active.shear_modulus, creep, partials.stress);
-    const double creep_increment_value = evaluated_creep.value;
-    const adlite::Scalar creep_increment = compose_five(
-        creep_increment_value, equivalent_trial_stress,
-        active.shear_modulus, creep, partials.creep);
+        time_step, creep_values, root, evaluated_creep);
+    const std::array<adlite::Scalar, 5> norton_inputs = {
+        equivalent_trial_stress, active.shear_modulus, creep.coefficient,
+        creep.reference_stress, creep.stress_exponent};
+    const adlite::Scalar returned_equivalent_stress =
+        compose_with_derivatives(root.equivalent_stress, norton_inputs.data(),
+                                 norton_inputs.size(), partials.stress.data());
+    const adlite::Scalar creep_increment = compose_with_derivatives(
+        evaluated_creep, norton_inputs.data(), norton_inputs.size(),
+        partials.creep.data());
     const adlite::Scalar stress_scale =
         returned_equivalent_stress / equivalent_trial_stress;
     const AxisymmetricStress stress =
