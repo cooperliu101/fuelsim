@@ -61,53 +61,34 @@ struct TransientConservationSummary final {
 
 struct TransientConservationField final {
     const char* name;
-    double TransientConservationSummary::*member;
+    double TransientConservationSummary::* member;
 };
 
-inline constexpr std::array<TransientConservationField, 18>
-    transient_conservation_fields = {{
-        {"generated_heat_rate",
-         &TransientConservationSummary::generated_heat_rate},
-        {"stored_heat_rate", &TransientConservationSummary::stored_heat_rate},
-        {"convection_heat_rate",
-         &TransientConservationSummary::convection_heat_rate},
-        {"interface_heat_imbalance",
-         &TransientConservationSummary::interface_heat_imbalance},
-        {"dirichlet_heat_input_rate",
-         &TransientConservationSummary::dirichlet_heat_input_rate},
-        {"global_thermal_balance",
-         &TransientConservationSummary::global_thermal_balance},
-        {"relative_thermal_balance",
-         &TransientConservationSummary::relative_thermal_balance},
-        {"unconstrained_thermal_residual_l2",
-         &TransientConservationSummary::unconstrained_thermal_residual_l2},
-        {"internal_mechanical_work_increment",
-         &TransientConservationSummary::internal_mechanical_work_increment},
-        {"pressure_traction_work_increment",
-         &TransientConservationSummary::pressure_traction_work_increment},
-        {"dirichlet_reaction_work_increment",
-         &TransientConservationSummary::dirichlet_reaction_work_increment},
-        {"contact_work_increment",
-         &TransientConservationSummary::contact_work_increment},
-        {"mechanical_work_balance",
-         &TransientConservationSummary::mechanical_work_balance},
-        {"relative_mechanical_work_balance",
-         &TransientConservationSummary::relative_mechanical_work_balance},
-        {"unconstrained_mechanical_residual_l2",
-         &TransientConservationSummary::unconstrained_mechanical_residual_l2},
-        {"elastic_energy_change",
-         &TransientConservationSummary::elastic_energy_change},
-        {"plastic_dissipation_increment",
-         &TransientConservationSummary::plastic_dissipation_increment},
-        {"creep_dissipation_increment",
-         &TransientConservationSummary::creep_dissipation_increment},
-    }};
+inline constexpr std::array<TransientConservationField, 18> transient_conservation_fields = {{
+    {"generated_heat_rate", &TransientConservationSummary::generated_heat_rate},
+    {"stored_heat_rate", &TransientConservationSummary::stored_heat_rate},
+    {"convection_heat_rate", &TransientConservationSummary::convection_heat_rate},
+    {"interface_heat_imbalance", &TransientConservationSummary::interface_heat_imbalance},
+    {"dirichlet_heat_input_rate", &TransientConservationSummary::dirichlet_heat_input_rate},
+    {"global_thermal_balance", &TransientConservationSummary::global_thermal_balance},
+    {"relative_thermal_balance", &TransientConservationSummary::relative_thermal_balance},
+    {"unconstrained_thermal_residual_l2", &TransientConservationSummary::unconstrained_thermal_residual_l2},
+    {"internal_mechanical_work_increment", &TransientConservationSummary::internal_mechanical_work_increment},
+    {"pressure_traction_work_increment", &TransientConservationSummary::pressure_traction_work_increment},
+    {"dirichlet_reaction_work_increment", &TransientConservationSummary::dirichlet_reaction_work_increment},
+    {"contact_work_increment", &TransientConservationSummary::contact_work_increment},
+    {"mechanical_work_balance", &TransientConservationSummary::mechanical_work_balance},
+    {"relative_mechanical_work_balance", &TransientConservationSummary::relative_mechanical_work_balance},
+    {"unconstrained_mechanical_residual_l2", &TransientConservationSummary::unconstrained_mechanical_residual_l2},
+    {"elastic_energy_change", &TransientConservationSummary::elastic_energy_change},
+    {"plastic_dissipation_increment", &TransientConservationSummary::plastic_dissipation_increment},
+    {"creep_dissipation_increment", &TransientConservationSummary::creep_dissipation_increment},
+}};
 
 struct TransientCommittedState final {
     std::vector<double> solution;
     std::vector<std::vector<Quad4MaterialHistory>> material_histories;
-    std::vector<std::vector<std::array<AxisymmetricStressValues, 4>>>
-        material_stresses;
+    std::vector<std::vector<std::array<AxisymmetricStressValues, 4>>> material_stresses;
     std::vector<std::vector<ContactPointHistory>> contact_histories;
     TransientConservationSummary conservation;
     double time = 0.0;
@@ -116,8 +97,7 @@ struct TransientCommittedState final {
 
 class TransientProblem final : public NonlinearProblem {
   public:
-    TransientProblem(TransientProblemDefinition definition,
-                     const UnstructuredQuad4Mesh& source_mesh);
+    TransientProblem(TransientProblemDefinition definition, const UnstructuredQuad4Mesh& source_mesh);
     ~TransientProblem() override;
 
     const TransientProblemDefinition& definition() const noexcept;
@@ -128,9 +108,7 @@ class TransientProblem final : public NonlinearProblem {
     const RegionDefinition& region(std::size_t region_index) const;
     const RegionMesh& region_mesh(std::size_t region_index) const;
     const Quad4RzTransientKernel& region_kernel(std::size_t region_index) const;
-    const Quad4RzGeometry&
-    region_element_geometry(std::size_t region_index,
-                            std::size_t element_index) const;
+    const Quad4RzGeometry& region_element_geometry(std::size_t region_index, std::size_t element_index) const;
 
     const std::vector<double>& committed_solution() const noexcept;
     double committed_time() const noexcept;
@@ -145,44 +123,30 @@ class TransientProblem final : public NonlinearProblem {
     void commit_time_step(const std::vector<double>& converged_solution);
     void rollback_time_step() noexcept;
     bool uses_augmented_contact() const noexcept;
-    AugmentedContactUpdate update_augmented_contact_multipliers(
-        const std::vector<double>& state,
-        std::size_t completed_updates);
+    AugmentedContactUpdate update_augmented_contact_multipliers(const std::vector<double>& state,
+                                                                std::size_t completed_updates);
 
-    const Quad4MaterialHistory&
-    material_history(std::size_t region_index, std::size_t element_index) const;
-    const std::array<AxisymmetricStressValues, 4>&
-    material_stress(std::size_t region_index, std::size_t element_index) const;
-    RegionInelasticSummary
-    summarize_region_history(std::size_t region_index) const;
-    const TransientConservationSummary&
-    last_conservation_summary() const noexcept;
-    InterfaceSummary
-    summarize_interface(std::size_t contact_index,
-                        const std::vector<double>& state) const;
-    std::vector<ContactNodeSummary>
-    summarize_contact_nodes(std::size_t contact_index,
-                            const std::vector<double>& state) const;
-    std::vector<std::size_t>
-    contact_secondary_source_nodes(std::size_t contact_index) const;
+    const Quad4MaterialHistory& material_history(std::size_t region_index, std::size_t element_index) const;
+    const std::array<AxisymmetricStressValues, 4>& material_stress(std::size_t region_index,
+                                                                   std::size_t element_index) const;
+    RegionInelasticSummary summarize_region_history(std::size_t region_index) const;
+    const TransientConservationSummary& last_conservation_summary() const noexcept;
+    InterfaceSummary summarize_interface(std::size_t contact_index, const std::vector<double>& state) const;
+    std::vector<ContactNodeSummary> summarize_contact_nodes(std::size_t contact_index,
+                                                            const std::vector<double>& state) const;
+    std::vector<std::size_t> contact_secondary_source_nodes(std::size_t contact_index) const;
 
     std::size_t dof_count() const noexcept override;
     std::size_t contribution_count() const noexcept override;
-    const std::vector<DirichletCondition>&
-    dirichlet_conditions() const noexcept override;
+    const std::vector<DirichletCondition>& dirichlet_conditions() const noexcept override;
     void validate_state(const std::vector<double>& state) const override;
-    std::vector<std::size_t> required_state_dofs(
-        std::size_t contribution_begin,
-        std::size_t contribution_end) const override;
-    void validate_local_state(
-        std::size_t contribution_begin, std::size_t contribution_end,
-        const GlobalStateView& state) const override;
+    std::vector<std::size_t> required_state_dofs(std::size_t contribution_begin,
+                                                 std::size_t contribution_end) const override;
+    void validate_local_state(std::size_t contribution_begin, std::size_t contribution_end,
+                              const GlobalStateView& state) const override;
     LocalDofs contribution_dofs(std::size_t contribution_index) const override;
-    LocalResidual
-    contribution_residual(std::size_t contribution_index,
-                          const LocalValues& state) const override;
-    LocalSystem linearize_contribution(std::size_t contribution_index,
-                                       const LocalValues& state) const override;
+    LocalResidual contribution_residual(std::size_t contribution_index, const LocalValues& state) const override;
+    LocalSystem linearize_contribution(std::size_t contribution_index, const LocalValues& state) const override;
 
   private:
     friend class TransientConservationCalculator;
@@ -196,8 +160,7 @@ class TransientProblem final : public NonlinearProblem {
     std::unique_ptr<SpatialAssembly> _spatial;
     std::vector<Quad4RzTransientKernel> _region_kernels;
     std::vector<std::vector<Quad4MaterialHistory>> _material_histories;
-    std::vector<std::vector<std::array<AxisymmetricStressValues, 4>>>
-        _material_stresses;
+    std::vector<std::vector<std::array<AxisymmetricStressValues, 4>>> _material_stresses;
     TransientConservationSummary _last_conservation_summary;
     std::vector<double> _committed_solution;
     double _committed_time;

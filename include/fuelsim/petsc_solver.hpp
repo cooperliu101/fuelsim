@@ -111,8 +111,7 @@ struct SolveResult final {
     std::size_t augmented_lagrangian_iterations = 0;
     double maximum_contact_penetration = 0.0;
     bool used_backtracking_fallback = false;
-    SolveFailureCategory basic_failure_category =
-        SolveFailureCategory::none;
+    SolveFailureCategory basic_failure_category = SolveFailureCategory::none;
     std::string basic_failure_message;
     std::array<double, 3> initial_field_residual_norms{};
     std::array<double, 3> field_residual_reference_norms{};
@@ -129,13 +128,11 @@ class PetscSolver final {
     PetscSolver(const PetscSolver&) = delete;
     PetscSolver& operator=(const PetscSolver&) = delete;
 
-    SolveResult solve(const NonlinearProblem& problem,
-                      const std::vector<double>& initial_state,
+    SolveResult solve(const NonlinearProblem& problem, const std::vector<double>& initial_state,
                       const SolverOptions& options = SolverOptions{});
 
   private:
-    SolveResult solve_once(const NonlinearProblem& problem,
-                           const std::vector<double>& initial_state,
+    SolveResult solve_once(const NonlinearProblem& problem, const std::vector<double>& initial_state,
                            const SolverOptions& options);
 
     class Implementation;

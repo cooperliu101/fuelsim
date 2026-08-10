@@ -13,8 +13,7 @@ constexpr std::size_t line2_interface_side_node_count = 2;
 constexpr std::size_t line2_interface_node_count = 4;
 constexpr std::size_t line2_interface_quadrature_point_count = 2;
 
-using Line2InterfaceSideCoordinates =
-    std::array<RzPoint, line2_interface_side_node_count>;
+using Line2InterfaceSideCoordinates = std::array<RzPoint, line2_interface_side_node_count>;
 
 struct Line2RzHeatQuadraturePoint final {
     std::array<double, line2_interface_side_node_count> secondary_shape;
@@ -26,9 +25,7 @@ struct Line2RzHeatQuadraturePoint final {
 struct Line2RzHeatGeometry final {
     Line2InterfaceSideCoordinates secondary_coordinates;
     Line2InterfaceSideCoordinates primary_coordinates;
-    std::array<Line2RzHeatQuadraturePoint,
-               line2_interface_quadrature_point_count>
-        points;
+    std::array<Line2RzHeatQuadraturePoint, line2_interface_quadrature_point_count> points;
 };
 
 struct GapHeatProperties final {
@@ -43,8 +40,7 @@ struct HeatQuadratureValue final {
     double weighted_measure;
 };
 
-using HeatQuadratureValues =
-    std::array<HeatQuadratureValue, line2_interface_quadrature_point_count>;
+using HeatQuadratureValues = std::array<HeatQuadratureValue, line2_interface_quadrature_point_count>;
 
 // zero_gap_orientation_hint is consulted only when a secondary point rides
 // exactly on its primary segment (zero reference normal gap). It carries the
@@ -53,16 +49,14 @@ using HeatQuadratureValues =
 // and the normal orientation is chosen so that moving into the secondary
 // material opens the gap. A zero hint means no material-side information is
 // available; a zero gap on the segment then remains an error.
-Line2RzHeatGeometry make_line2_rz_heat_geometry(
-    const Line2InterfaceSideCoordinates& secondary_coordinates,
-    const Line2InterfaceSideCoordinates& primary_coordinates,
-    double zero_gap_orientation_hint);
+Line2RzHeatGeometry make_line2_rz_heat_geometry(const Line2InterfaceSideCoordinates& secondary_coordinates,
+                                                const Line2InterfaceSideCoordinates& primary_coordinates,
+                                                double zero_gap_orientation_hint);
 
-Line2RzHeatGeometry make_line2_rz_heat_geometry(
-    const Line2InterfaceSideCoordinates& secondary_coordinates,
-    const Line2InterfaceSideCoordinates& primary_coordinates,
-    double secondary_coordinate_lower, double secondary_coordinate_upper,
-    double zero_gap_orientation_hint);
+Line2RzHeatGeometry make_line2_rz_heat_geometry(const Line2InterfaceSideCoordinates& secondary_coordinates,
+                                                const Line2InterfaceSideCoordinates& primary_coordinates,
+                                                double secondary_coordinate_lower, double secondary_coordinate_upper,
+                                                double zero_gap_orientation_hint);
 
 class Line2RzGapHeatKernel final {
   public:
@@ -73,16 +67,12 @@ class Line2RzGapHeatKernel final {
     // Fixed ordering:
     // [Ts0, Ts1, Tp0, Tp1, urs0, urs1, urp0, urp1,
     //  uzs0, uzs1, uzp0, uzp1].
-    LocalResidual residual(const Line2RzHeatGeometry& geometry,
-                           const LocalValues& state) const;
-    LocalSystem linearize(const Line2RzHeatGeometry& geometry,
-                          const LocalValues& state) const;
-    HeatQuadratureValues quadrature_values(const Line2RzHeatGeometry& geometry,
-                                           const LocalValues& state) const;
+    LocalResidual residual(const Line2RzHeatGeometry& geometry, const LocalValues& state) const;
+    LocalSystem linearize(const Line2RzHeatGeometry& geometry, const LocalValues& state) const;
+    HeatQuadratureValues quadrature_values(const Line2RzHeatGeometry& geometry, const LocalValues& state) const;
 
   private:
-    void residual_ad(const Line2RzHeatGeometry& geometry,
-                     const LocalAdValues& state, LocalAdValues& residual) const;
+    void residual_ad(const Line2RzHeatGeometry& geometry, const LocalAdValues& state, LocalAdValues& residual) const;
 
     GapHeatProperties _properties;
 };
@@ -128,13 +118,11 @@ struct ContactPointValue final {
 // zero_gap_orientation_hint follows the same contract as the heat-geometry
 // constructors above: it is consulted only when the secondary node rides
 // exactly on the primary segment, and a zero hint keeps that case an error.
-NodeToLineRzContactGeometry make_node_to_line_rz_contact_geometry(
-    const Line2InterfaceSideCoordinates& secondary_edge_coordinates,
-    const Line2InterfaceSideCoordinates& primary_segment_coordinates,
-    std::size_t secondary_local_node,
-    bool primary_segment_is_first,
-    bool primary_segment_includes_upper_endpoint,
-    double zero_gap_orientation_hint);
+NodeToLineRzContactGeometry
+make_node_to_line_rz_contact_geometry(const Line2InterfaceSideCoordinates& secondary_edge_coordinates,
+                                      const Line2InterfaceSideCoordinates& primary_segment_coordinates,
+                                      std::size_t secondary_local_node, bool primary_segment_is_first,
+                                      bool primary_segment_includes_upper_endpoint, double zero_gap_orientation_hint);
 
 class NodeToLineRzContactKernel final {
   public:
@@ -145,28 +133,18 @@ class NodeToLineRzContactKernel final {
     // The local ordering is identical to Line2RzGapHeatKernel. The selected
     // secondary node and the two primary nodes receive radial and axial
     // residuals along the current primary-segment normal.
-    LocalResidual residual(const NodeToLineRzContactGeometry& geometry,
-                           const LocalValues& state,
-                           const LocalValues& committed_state,
-                           const ContactPointHistory& history) const;
-    LocalSystem linearize(const NodeToLineRzContactGeometry& geometry,
-                          const LocalValues& state,
-                          const LocalValues& committed_state,
-                          const ContactPointHistory& history) const;
-    ContactPointValue value(const NodeToLineRzContactGeometry& geometry,
-                            const LocalValues& state,
-                            const LocalValues& committed_state,
-                            const ContactPointHistory& history) const;
-    ContactPointHistory trial_history(
-        const NodeToLineRzContactGeometry& geometry,
-        const LocalValues& state, const LocalValues& committed_state,
-        const ContactPointHistory& history) const;
+    LocalResidual residual(const NodeToLineRzContactGeometry& geometry, const LocalValues& state,
+                           const LocalValues& committed_state, const ContactPointHistory& history) const;
+    LocalSystem linearize(const NodeToLineRzContactGeometry& geometry, const LocalValues& state,
+                          const LocalValues& committed_state, const ContactPointHistory& history) const;
+    ContactPointValue value(const NodeToLineRzContactGeometry& geometry, const LocalValues& state,
+                            const LocalValues& committed_state, const ContactPointHistory& history) const;
+    ContactPointHistory trial_history(const NodeToLineRzContactGeometry& geometry, const LocalValues& state,
+                                      const LocalValues& committed_state, const ContactPointHistory& history) const;
 
   private:
-    void residual_ad(const NodeToLineRzContactGeometry& geometry,
-                     const LocalAdValues& state,
-                     const LocalValues& committed_state,
-                     const ContactPointHistory& history,
+    void residual_ad(const NodeToLineRzContactGeometry& geometry, const LocalAdValues& state,
+                     const LocalValues& committed_state, const ContactPointHistory& history,
                      LocalAdValues& residual) const;
 
     NormalContactProperties _properties;

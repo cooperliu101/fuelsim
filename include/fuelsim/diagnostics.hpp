@@ -21,17 +21,13 @@ struct DirectionalJacobianCheck final {
     FieldNorms difference;
 };
 
-std::vector<double> constrained_residual(const NonlinearProblem& problem,
-                                         const std::vector<double>& state);
+std::vector<double> constrained_residual(const NonlinearProblem& problem, const std::vector<double>& state);
 
-FieldNorms field_norms(const DofMap& dof_map,
-                       const std::vector<double>& values);
+FieldNorms field_norms(const DofMap& dof_map, const std::vector<double>& values);
 
-DirectionalJacobianCheck
-check_directional_jacobian(const NonlinearProblem& problem,
-                           const DofMap& dof_map,
-                           const std::vector<double>& state,
-                           const std::vector<double>& direction, double step);
+DirectionalJacobianCheck check_directional_jacobian(const NonlinearProblem& problem, const DofMap& dof_map,
+                                                    const std::vector<double>& state,
+                                                    const std::vector<double>& direction, double step);
 
 } // namespace fuelsim
 

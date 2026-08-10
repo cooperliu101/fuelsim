@@ -45,17 +45,14 @@ struct TractionProperties final {
     bool use_displaced_geometry;
 };
 
-Line2RzConvectionGeometry make_line2_rz_convection_geometry(
-    const std::array<RzPoint, 2>& coordinates,
-    const std::array<std::size_t, 2>& local_nodes);
+Line2RzConvectionGeometry make_line2_rz_convection_geometry(const std::array<RzPoint, 2>& coordinates,
+                                                            const std::array<std::size_t, 2>& local_nodes);
 
-Line2RzPressureGeometry make_line2_rz_pressure_geometry(
-    const std::array<RzPoint, 2>& coordinates,
-    const std::array<std::size_t, 2>& local_nodes);
+Line2RzPressureGeometry make_line2_rz_pressure_geometry(const std::array<RzPoint, 2>& coordinates,
+                                                        const std::array<std::size_t, 2>& local_nodes);
 
-Line2RzTractionGeometry make_line2_rz_traction_geometry(
-    const std::array<RzPoint, 2>& coordinates,
-    const std::array<std::size_t, 2>& local_nodes);
+Line2RzTractionGeometry make_line2_rz_traction_geometry(const std::array<RzPoint, 2>& coordinates,
+                                                        const std::array<std::size_t, 2>& local_nodes);
 
 class Line2RzPressureKernel final {
   public:
@@ -63,14 +60,12 @@ class Line2RzPressureKernel final {
 
     const PressureProperties& properties() const noexcept;
     void set_properties(PressureProperties properties) noexcept;
-    LocalResidual residual(const Line2RzPressureGeometry& geometry,
-                           const LocalValues& state) const;
-    LocalSystem linearize(const Line2RzPressureGeometry& geometry,
-                          const LocalValues& state) const;
+    LocalResidual residual(const Line2RzPressureGeometry& geometry, const LocalValues& state) const;
+    LocalSystem linearize(const Line2RzPressureGeometry& geometry, const LocalValues& state) const;
 
   private:
-    void residual_ad(const Line2RzPressureGeometry& geometry,
-                     const LocalAdValues& state, LocalAdValues& residual) const;
+    void residual_ad(const Line2RzPressureGeometry& geometry, const LocalAdValues& state,
+                     LocalAdValues& residual) const;
 
     PressureProperties _properties;
 };
@@ -81,14 +76,12 @@ class Line2RzTractionKernel final {
 
     const TractionProperties& properties() const noexcept;
     void set_properties(TractionProperties properties) noexcept;
-    LocalResidual residual(const Line2RzTractionGeometry& geometry,
-                           const LocalValues& state) const;
-    LocalSystem linearize(const Line2RzTractionGeometry& geometry,
-                          const LocalValues& state) const;
+    LocalResidual residual(const Line2RzTractionGeometry& geometry, const LocalValues& state) const;
+    LocalSystem linearize(const Line2RzTractionGeometry& geometry, const LocalValues& state) const;
 
   private:
-    void residual_ad(const Line2RzTractionGeometry& geometry,
-                     const LocalAdValues& state, LocalAdValues& residual) const;
+    void residual_ad(const Line2RzTractionGeometry& geometry, const LocalAdValues& state,
+                     LocalAdValues& residual) const;
 
     TractionProperties _properties;
 };
@@ -99,14 +92,12 @@ class Line2RzConvectionKernel final {
 
     const ConvectionProperties& properties() const noexcept;
     void set_properties(ConvectionProperties properties) noexcept;
-    LocalResidual residual(const Line2RzConvectionGeometry& geometry,
-                           const LocalValues& state) const;
-    LocalSystem linearize(const Line2RzConvectionGeometry& geometry,
-                          const LocalValues& state) const;
+    LocalResidual residual(const Line2RzConvectionGeometry& geometry, const LocalValues& state) const;
+    LocalSystem linearize(const Line2RzConvectionGeometry& geometry, const LocalValues& state) const;
 
   private:
-    void residual_ad(const Line2RzConvectionGeometry& geometry,
-                     const LocalAdValues& state, LocalAdValues& residual) const;
+    void residual_ad(const Line2RzConvectionGeometry& geometry, const LocalAdValues& state,
+                     LocalAdValues& residual) const;
 
     ConvectionProperties _properties;
 };

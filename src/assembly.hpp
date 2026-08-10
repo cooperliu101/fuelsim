@@ -24,9 +24,7 @@ class SpatialLayout final {
         RegionBoundary boundary;
     };
 
-    SpatialLayout(SpatialDefinition definition,
-                  std::vector<std::int64_t> block_ids,
-                  std::vector<RegionMesh> meshes);
+    SpatialLayout(SpatialDefinition definition, std::vector<std::int64_t> block_ids, std::vector<RegionMesh> meshes);
 
     const SpatialDefinition& definition() const noexcept;
     const DofMap& dof_map() const noexcept;
@@ -36,16 +34,11 @@ class SpatialLayout final {
     std::size_t region_node_offset(std::size_t index) const;
     std::size_t region_element_offset(std::size_t index) const;
     std::size_t volume_contribution_count() const noexcept;
-    const Quad4RzGeometry& element_geometry(std::size_t region,
-                                            std::size_t element) const;
-    ResolvedBoundary resolve_boundary(
-        const UnstructuredQuad4Mesh& source_mesh,
-        const std::string& name) const;
-    std::size_t global_node(std::size_t region,
-                            std::size_t local_node) const;
-    std::pair<std::size_t, std::array<std::size_t, 2>>
-    edge_parent(std::size_t region,
-                const Line2BoundaryElement& edge) const;
+    const Quad4RzGeometry& element_geometry(std::size_t region, std::size_t element) const;
+    ResolvedBoundary resolve_boundary(const UnstructuredQuad4Mesh& source_mesh, const std::string& name) const;
+    std::size_t global_node(std::size_t region, std::size_t local_node) const;
+    std::pair<std::size_t, std::array<std::size_t, 2>> edge_parent(std::size_t region,
+                                                                   const Line2BoundaryElement& edge) const;
 
   private:
     friend class SpatialAssembly;
@@ -65,34 +58,23 @@ class BoundaryAssembly final {
   public:
     BoundaryAssembly() = default;
 
-    void build(const UnstructuredQuad4Mesh& source_mesh,
-               const SpatialLayout& layout);
+    void build(const UnstructuredQuad4Mesh& source_mesh, const SpatialLayout& layout);
     void set_load_factor(double load_factor, const SpatialLayout& layout);
     double load_factor() const noexcept;
     void set_time(double time, const SpatialLayout& layout);
-    double region_heat_source(std::size_t region_index,
-                              const SpatialLayout& layout) const;
+    double region_heat_source(std::size_t region_index, const SpatialLayout& layout) const;
     std::size_t pressure_contribution_count() const noexcept;
     std::size_t traction_contribution_count() const noexcept;
     std::size_t convection_contribution_count() const noexcept;
-    LocalDofs contribution_dofs(SpatialContributionType type,
-                                std::size_t index,
-                                const SpatialLayout& layout) const;
-    LocalResidual contribution_residual(SpatialContributionType type,
-                                        std::size_t index,
+    LocalDofs contribution_dofs(SpatialContributionType type, std::size_t index, const SpatialLayout& layout) const;
+    LocalResidual contribution_residual(SpatialContributionType type, std::size_t index,
                                         const LocalValues& state) const;
-    LocalSystem linearize_contribution(SpatialContributionType type,
-                                       std::size_t index,
-                                       const LocalValues& state) const;
-    const std::vector<DirichletCondition>&
-    dirichlet_conditions() const noexcept;
+    LocalSystem linearize_contribution(SpatialContributionType type, std::size_t index, const LocalValues& state) const;
+    const std::vector<DirichletCondition>& dirichlet_conditions() const noexcept;
 
   private:
-    double function_value(const std::string& name,
-                          const SpatialLayout& layout) const;
-    double load_multiplier(bool scale_with_load,
-                           const std::string& function,
-                           const SpatialLayout& layout) const;
+    double function_value(const std::string& name, const SpatialLayout& layout) const;
+    double load_multiplier(bool scale_with_load, const std::string& function, const SpatialLayout& layout) const;
     void refresh_controlled_values(const SpatialLayout& layout);
 
     struct PressureLoad final {
@@ -155,19 +137,13 @@ class ContactAssembly final {
     ContactAssembly() = default;
 
     std::size_t contact_count(const SpatialLayout& layout) const noexcept;
-    const ContactDefinition& contact(std::size_t contact_index,
-                                     const SpatialLayout& layout) const;
-    const std::vector<std::vector<ContactPointHistory>>&
-    committed_histories() const noexcept;
+    const ContactDefinition& contact(std::size_t contact_index, const SpatialLayout& layout) const;
+    const std::vector<std::vector<ContactPointHistory>>& committed_histories() const noexcept;
     bool uses_augmented_contact(const SpatialLayout& layout) const noexcept;
-    AugmentedContactUpdate
-    update_augmented_multipliers(SpatialAssembly& assembly,
-                                 const std::vector<double>& state,
-                                 std::size_t completed_updates);
-    void commit_state(SpatialAssembly& assembly,
-                      const std::vector<double>& state);
-    void restore_state(const SpatialAssembly& assembly,
-                       const std::vector<double>& state,
+    AugmentedContactUpdate update_augmented_multipliers(SpatialAssembly& assembly, const std::vector<double>& state,
+                                                        std::size_t completed_updates);
+    void commit_state(SpatialAssembly& assembly, const std::vector<double>& state);
+    void restore_state(const SpatialAssembly& assembly, const std::vector<double>& state,
                        std::vector<std::vector<ContactPointHistory>> histories);
 
   private:
@@ -203,8 +179,7 @@ class ContactAssembly final {
 // of their volume physics and expose the two production problem types.
 class SpatialAssembly final {
   public:
-    SpatialAssembly(SpatialDefinition definition,
-                    const UnstructuredQuad4Mesh& source_mesh);
+    SpatialAssembly(SpatialDefinition definition, const UnstructuredQuad4Mesh& source_mesh);
 
     const SpatialDefinition& definition() const noexcept;
     const DofMap& dof_map() const noexcept;
@@ -216,59 +191,41 @@ class SpatialAssembly final {
     std::size_t region_element_count(std::size_t region_index) const;
     std::size_t region_element_offset(std::size_t region_index) const;
     std::size_t volume_contribution_count() const noexcept;
-    SpatialContributionType
-    contribution_type(std::size_t contribution_index) const;
-    std::pair<std::size_t, std::size_t>
-    element_location(std::size_t contribution_index) const;
-    const Quad4RzGeometry&
-    region_element_geometry(std::size_t region_index,
-                            std::size_t element_index) const;
+    SpatialContributionType contribution_type(std::size_t contribution_index) const;
+    std::pair<std::size_t, std::size_t> element_location(std::size_t contribution_index) const;
+    const Quad4RzGeometry& region_element_geometry(std::size_t region_index, std::size_t element_index) const;
     double region_heat_source(std::size_t region_index) const;
 
     std::size_t contact_count() const noexcept;
     const ContactDefinition& contact(std::size_t contact_index) const;
-    const std::vector<std::vector<ContactPointHistory>>&
-    committed_contact_histories() const noexcept;
+    const std::vector<std::vector<ContactPointHistory>>& committed_contact_histories() const noexcept;
     void commit_contact_state(const std::vector<double>& state);
     bool uses_augmented_contact() const noexcept;
-    AugmentedContactUpdate
-    update_augmented_contact_multipliers(const std::vector<double>& state,
-                                         std::size_t completed_updates);
-    void restore_contact_state(
-        const std::vector<double>& state,
-        std::vector<std::vector<ContactPointHistory>> histories);
+    AugmentedContactUpdate update_augmented_contact_multipliers(const std::vector<double>& state,
+                                                                std::size_t completed_updates);
+    void restore_contact_state(const std::vector<double>& state,
+                               std::vector<std::vector<ContactPointHistory>> histories);
 
     void set_load_factor(double load_factor);
     double load_factor() const noexcept;
     void set_time(double time);
 
     std::vector<double> initial_state() const;
-    std::vector<ContactNodeSummary>
-    summarize_contact_nodes(std::size_t contact_index,
-                            const std::vector<double>& state) const;
-    std::vector<std::size_t>
-    contact_secondary_source_nodes(std::size_t contact_index) const;
-    InterfaceSummary
-    summarize_interface(std::size_t contact_index,
-                        const std::vector<double>& state) const;
+    std::vector<ContactNodeSummary> summarize_contact_nodes(std::size_t contact_index,
+                                                            const std::vector<double>& state) const;
+    std::vector<std::size_t> contact_secondary_source_nodes(std::size_t contact_index) const;
+    InterfaceSummary summarize_interface(std::size_t contact_index, const std::vector<double>& state) const;
 
     std::size_t dof_count() const noexcept;
     std::size_t contribution_count() const noexcept;
-    const std::vector<DirichletCondition>&
-    dirichlet_conditions() const noexcept;
+    const std::vector<DirichletCondition>& dirichlet_conditions() const noexcept;
     void validate_state(const std::vector<double>& state) const;
-    std::vector<std::size_t>
-    required_state_dofs(std::size_t contribution_begin,
-                        std::size_t contribution_end) const;
-    void validate_local_state(std::size_t contribution_begin,
-                              std::size_t contribution_end,
+    std::vector<std::size_t> required_state_dofs(std::size_t contribution_begin, std::size_t contribution_end) const;
+    void validate_local_state(std::size_t contribution_begin, std::size_t contribution_end,
                               const GlobalStateView& state) const;
     LocalDofs contribution_dofs(std::size_t contribution_index) const;
-    LocalResidual
-    contribution_residual(std::size_t contribution_index,
-                          const LocalValues& state) const;
-    LocalSystem linearize_contribution(std::size_t contribution_index,
-                                       const LocalValues& state) const;
+    LocalResidual contribution_residual(std::size_t contribution_index, const LocalValues& state) const;
+    LocalSystem linearize_contribution(std::size_t contribution_index, const LocalValues& state) const;
 
   private:
     friend class ContactAssembly;
@@ -289,33 +246,23 @@ class SpatialAssembly final {
     using ThermalContribution = ContactAssembly::ThermalContribution;
     using MechanicalContribution = ContactAssembly::MechanicalContribution;
 
-    SpatialAssembly(SpatialDefinition definition,
-                    const UnstructuredQuad4Mesh& source_mesh,
-                    std::vector<std::int64_t> block_ids,
-                    std::vector<RegionMesh> meshes);
-    static std::vector<std::int64_t>
-    resolve_block_ids(const SpatialDefinition& definition,
-                      const UnstructuredQuad4Mesh& source_mesh);
-    static std::vector<RegionMesh>
-    build_meshes(const SpatialDefinition& definition,
-                 const UnstructuredQuad4Mesh& source_mesh);
+    SpatialAssembly(SpatialDefinition definition, const UnstructuredQuad4Mesh& source_mesh,
+                    std::vector<std::int64_t> block_ids, std::vector<RegionMesh> meshes);
+    static std::vector<std::int64_t> resolve_block_ids(const SpatialDefinition& definition,
+                                                       const UnstructuredQuad4Mesh& source_mesh);
+    static std::vector<RegionMesh> build_meshes(const SpatialDefinition& definition,
+                                                const UnstructuredQuad4Mesh& source_mesh);
 
     void build_contacts(const UnstructuredQuad4Mesh& source_mesh);
     void update_mechanical_candidates(const std::vector<double>& state) const;
-    void update_mechanical_candidates(std::size_t contribution_begin,
-                                      std::size_t contribution_end,
+    void update_mechanical_candidates(std::size_t contribution_begin, std::size_t contribution_end,
                                       const GlobalStateView& state) const;
-    std::vector<std::vector<bool>> touched_mechanical_nodes(
-        std::size_t contribution_begin,
-        std::size_t contribution_end) const;
+    std::vector<std::vector<bool>> touched_mechanical_nodes(std::size_t contribution_begin,
+                                                            std::size_t contribution_end) const;
     ContributionRanges contribution_ranges() const noexcept;
-    ContributionLocation
-    locate_contribution(std::size_t contribution_index) const;
-    LocalValues contribution_state(
-        std::size_t contribution_index,
-        const std::vector<double>& global_state) const;
-    LocalValues contribution_state(std::size_t contribution_index,
-                                   const GlobalStateView& global_state) const;
+    ContributionLocation locate_contribution(std::size_t contribution_index) const;
+    LocalValues contribution_state(std::size_t contribution_index, const std::vector<double>& global_state) const;
+    LocalValues contribution_state(std::size_t contribution_index, const GlobalStateView& global_state) const;
     SpatialLayout _layout;
     BoundaryAssembly _boundary;
     ContactAssembly _contact;

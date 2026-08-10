@@ -46,12 +46,9 @@ struct SideSet final {
 
 class UnstructuredQuad4Mesh final {
   public:
-    UnstructuredQuad4Mesh(std::vector<RzPoint> nodes,
-                          std::vector<Quad4Element> elements,
-                          std::vector<std::int64_t> element_block_ids,
-                          std::vector<ElementBlockInfo> element_blocks,
-                          std::vector<NodeSet> node_sets,
-                          std::vector<SideSet> side_sets);
+    UnstructuredQuad4Mesh(std::vector<RzPoint> nodes, std::vector<Quad4Element> elements,
+                          std::vector<std::int64_t> element_block_ids, std::vector<ElementBlockInfo> element_blocks,
+                          std::vector<NodeSet> node_sets, std::vector<SideSet> side_sets);
 
     const std::vector<RzPoint>& nodes() const noexcept;
     const std::vector<Quad4Element>& elements() const noexcept;
@@ -90,12 +87,8 @@ struct RegionBoundary final {
 
 class RegionMesh final {
   public:
-    static RegionMesh
-    from_unstructured_block(const UnstructuredQuad4Mesh& source,
-                            const std::string& block_name);
-    static RegionMesh
-    from_unstructured_block(const UnstructuredQuad4Mesh& source,
-                            std::int64_t block_id);
+    static RegionMesh from_unstructured_block(const UnstructuredQuad4Mesh& source, const std::string& block_name);
+    static RegionMesh from_unstructured_block(const UnstructuredQuad4Mesh& source, std::int64_t block_id);
 
     const std::vector<RzPoint>& nodes() const noexcept;
     const std::vector<Quad4Element>& elements() const noexcept;
@@ -103,8 +96,7 @@ class RegionMesh final {
     const std::vector<std::size_t>& source_element_ids() const noexcept;
     std::int64_t block_id() const noexcept;
 
-    RegionBoundary map_side_set(const UnstructuredQuad4Mesh& source,
-                                const std::string& side_set_name) const;
+    RegionBoundary map_side_set(const UnstructuredQuad4Mesh& source, const std::string& side_set_name) const;
 
   private:
     std::int64_t _block_id = -1;

@@ -9,8 +9,7 @@ namespace fuelsim {
 
 class TransientCheckpointIo final {
   public:
-    static void write(const std::string& path, const TransientProblem& problem,
-                      double next_time_step);
+    static void write(const std::string& path, const TransientProblem& problem, double next_time_step);
     static double restore(const std::string& path, TransientProblem& problem);
 };
 

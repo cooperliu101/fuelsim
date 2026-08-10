@@ -47,8 +47,7 @@ struct AxisymmetricRotation final {
     adlite::Scalar hoop{1.0};
 };
 
-AxisymmetricStress rotate_axisymmetric_tensor(
-    const AxisymmetricStress& tensor, const AxisymmetricRotation& rotation);
+AxisymmetricStress rotate_axisymmetric_tensor(const AxisymmetricStress& tensor, const AxisymmetricRotation& rotation);
 
 class IsotropicThermoelasticMaterial final {
   public:
@@ -58,13 +57,10 @@ class IsotropicThermoelasticMaterial final {
 
     adlite::Scalar conductivity(const adlite::Scalar& temperature) const;
 
-    ActiveThermoelasticProperties
-    active_properties(const adlite::Scalar& temperature) const;
+    ActiveThermoelasticProperties active_properties(const adlite::Scalar& temperature) const;
 
-    AxisymmetricStress stress(const adlite::Scalar& strain_rr,
-                              const adlite::Scalar& strain_zz,
-                              const adlite::Scalar& strain_hoop,
-                              const adlite::Scalar& strain_rz,
+    AxisymmetricStress stress(const adlite::Scalar& strain_rr, const adlite::Scalar& strain_zz,
+                              const adlite::Scalar& strain_hoop, const adlite::Scalar& strain_rz,
                               const adlite::Scalar& temperature) const;
 
   private:

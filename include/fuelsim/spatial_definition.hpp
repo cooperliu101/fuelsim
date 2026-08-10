@@ -43,8 +43,7 @@ struct ContactDefinition final {
     double friction_coefficient = 0.0;
     bool automatic_penalty = false;
     double penalty_factor = 1.0;
-    MechanicalContactFormulation mechanical_formulation =
-        MechanicalContactFormulation::penalty;
+    MechanicalContactFormulation mechanical_formulation = MechanicalContactFormulation::penalty;
     double penetration_tolerance = 1.0e-8;
     std::size_t maximum_augmented_iterations = 20;
 };

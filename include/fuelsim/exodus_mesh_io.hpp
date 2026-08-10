@@ -10,8 +10,7 @@ namespace fuelsim {
 class ExodusMeshIo final {
   public:
     static UnstructuredQuad4Mesh read_quad4(const std::string& path);
-    static void write_quad4(const std::string& path,
-                            const UnstructuredQuad4Mesh& mesh);
+    static void write_quad4(const std::string& path, const UnstructuredQuad4Mesh& mesh);
 };
 
 } // namespace fuelsim

@@ -8,8 +8,7 @@ namespace fuelsim {
 
 class PiecewiseLinearTimeTable final {
   public:
-    PiecewiseLinearTimeTable(std::string name, std::vector<double> times,
-                             std::vector<double> values);
+    PiecewiseLinearTimeTable(std::string name, std::vector<double> times, std::vector<double> values);
 
     const std::string& name() const noexcept;
     const std::vector<double>& times() const noexcept;
