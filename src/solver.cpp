@@ -1230,8 +1230,6 @@ const char* solve_failure_category_name(SolveFailureCategory category) noexcept 
 // Shared steady and transient solve helpers.
 namespace solver_workflow {
 
-using SteadyClock = std::chrono::steady_clock;
-
 void accumulate_timing(SolveTiming& total, const SolveTiming& step);
 
 namespace {
@@ -1289,10 +1287,6 @@ void mark_augmented_failure(SolveResult& result,
 }
 
 } // namespace
-
-double elapsed_seconds(const SteadyClock::time_point& start) {
-    return std::chrono::duration<double>(SteadyClock::now() - start).count();
-}
 
 void accumulate_timing(SolveTiming& total, const SolveTiming& step) {
     total.setup_seconds += step.setup_seconds;
@@ -1380,9 +1374,7 @@ SolveResult solve_contact_equilibrium(
 
 // Steady load stepping.
 
-using solver_workflow::SteadyClock;
 using solver_workflow::accumulate_timing;
-using solver_workflow::elapsed_seconds;
 using solver_workflow::initial_guess_with_dirichlet_values;
 using solver_workflow::solve_contact_equilibrium;
 
@@ -1459,14 +1451,14 @@ SteadyResult solve_steady(SteadyProblem& problem,
                 result.solve = attempt;
                 if (cutbacks >=
                     load_options.maximum_cutbacks_per_step) {
-                    result.total_seconds = elapsed_seconds(start);
+                    result.total_seconds = seconds_since(start);
                     return result;
                 }
                 const double tolerance =
                     16.0 * std::numeric_limits<double>::epsilon();
                 if (load_increment <=
                     load_options.minimum_load_increment + tolerance) {
-                    result.total_seconds = elapsed_seconds(start);
+                    result.total_seconds = seconds_since(start);
                     return result;
                 }
                 load_increment = std::max(
@@ -1483,7 +1475,7 @@ SteadyResult solve_steady(SteadyProblem& problem,
         result.completed_steps = step;
     }
     result.completed = true;
-    result.total_seconds = elapsed_seconds(start);
+    result.total_seconds = seconds_since(start);
     return result;
 }
 
@@ -2162,7 +2154,7 @@ TransientResult solve_transient(TransientProblem& problem,
     result.committed_state = problem.committed_solution();
     result.committed_time = problem.committed_time();
     result.next_time_step = next_time_step;
-    result.total_seconds = elapsed_seconds(start);
+    result.total_seconds = seconds_since(start);
     return result;
 }
 

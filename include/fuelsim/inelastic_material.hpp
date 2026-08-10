@@ -103,12 +103,6 @@ class IsotropicInelasticMaterial final {
     state_values(const MaterialPointTrialState& trial_state);
 
   private:
-    InelasticStressResponse raw_response(
-        const adlite::Scalar& strain_rr, const adlite::Scalar& strain_zz,
-        const adlite::Scalar& strain_hoop, const adlite::Scalar& strain_rz,
-        const adlite::Scalar& temperature, double time_step,
-        const MaterialPointState& committed) const;
-
     IsotropicThermoelasticMaterial _thermoelastic_material;
     TransientInelasticProperties _properties;
 };

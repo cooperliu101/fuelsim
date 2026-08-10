@@ -751,6 +751,32 @@ AxisymmetricStress returned_stress(
     };
 }
 
+void update_flow_strain(
+    std::array<adlite::Scalar, component_count>& trial,
+    const std::array<double, component_count>& committed,
+    const std::array<adlite::Scalar, component_count>& deviatoric_trial,
+    const adlite::Scalar& equivalent_trial_stress,
+    const adlite::Scalar& increment) {
+    for (std::size_t component = 0; component < component_count; ++component) {
+        const adlite::Scalar flow_direction =
+            1.5 * deviatoric_trial[component] / equivalent_trial_stress;
+        trial[component] =
+            committed[component] + increment * flow_direction;
+    }
+}
+
+void update_relaxed_creep_strain(
+    MaterialPointTrialState& trial, const MaterialPointState& committed,
+    const std::array<adlite::Scalar, component_count>& deviatoric_trial,
+    const adlite::Scalar& stress_scale,
+    const adlite::Scalar& shear_modulus) {
+    for (std::size_t component = 0; component < component_count; ++component)
+        trial.creep_strain[component] =
+            committed.creep_strain[component] +
+            (1.0 - stress_scale) * deviatoric_trial[component] /
+                (2.0 * shear_modulus);
+}
+
 } // namespace
 
 IsotropicInelasticMaterial::IsotropicInelasticMaterial(
@@ -846,7 +872,7 @@ IsotropicInelasticMaterial::active_plasticity_properties(
     return active;
 }
 
-InelasticStressResponse IsotropicInelasticMaterial::raw_response(
+InelasticStressResponse IsotropicInelasticMaterial::response(
     const adlite::Scalar& strain_rr, const adlite::Scalar& strain_zz,
     const adlite::Scalar& strain_hoop, const adlite::Scalar& strain_rz,
     const adlite::Scalar& temperature, double time_step,
@@ -919,14 +945,27 @@ InelasticStressResponse IsotropicInelasticMaterial::raw_response(
         throw std::overflow_error(
             "Inelastic material trial equivalent stress is not finite");
 
+    const auto finalize = [&](const AxisymmetricStress& stress) {
+        for (std::size_t component = 0; component < component_count;
+             ++component) {
+            trial_state.elastic_strain[component] =
+                elastic_strain[component] -
+                (trial_state.plastic_strain[component] -
+                 committed.plastic_strain[component]) -
+                (trial_state.creep_strain[component] -
+                 committed.creep_strain[component]);
+        }
+        return InelasticStressResponse{stress, trial_state};
+    };
+
     if (_properties.behavior == InelasticBehavior::elastic)
-        return {stress_trial, trial_state};
+        return finalize(stress_trial);
 
     if (_properties.behavior == InelasticBehavior::j2_plasticity) {
         const ActiveJ2PlasticityProperties plasticity =
             active_plasticity_properties(temperature);
         if (equivalent_trial_stress.value() == 0.0)
-            return {stress_trial, trial_state};
+            return finalize(stress_trial);
 
         const adlite::Scalar hardening =
             plasticity.isotropic_hardening_modulus;
@@ -940,7 +979,7 @@ InelasticStressResponse IsotropicInelasticMaterial::raw_response(
         const double yield_function =
             equivalent_trial_stress.value() - current_yield_stress.value();
         if (!(yield_function > 0.0))
-            return {stress_trial, trial_state};
+            return finalize(stress_trial);
 
         const adlite::Scalar denominator =
             3.0 * active.shear_modulus + hardening;
@@ -954,17 +993,12 @@ InelasticStressResponse IsotropicInelasticMaterial::raw_response(
         const AxisymmetricStress stress =
             returned_stress(mean_stress, deviatoric_trial, stress_scale);
 
-        for (std::size_t component = 0; component < component_count;
-             ++component) {
-            const adlite::Scalar flow_direction =
-                1.5 * deviatoric_trial[component] / equivalent_trial_stress;
-            trial_state.plastic_strain[component] =
-                committed.plastic_strain[component] +
-                plastic_increment * flow_direction;
-        }
+        update_flow_strain(trial_state.plastic_strain,
+                           committed.plastic_strain, deviatoric_trial,
+                           equivalent_trial_stress, plastic_increment);
         trial_state.equivalent_plastic_strain =
             committed.equivalent_plastic_strain + plastic_increment;
-        return {stress, trial_state};
+        return finalize(stress);
     }
 
     if (_properties.behavior == InelasticBehavior::norton_creep_j2_plasticity) {
@@ -990,14 +1024,10 @@ InelasticStressResponse IsotropicInelasticMaterial::raw_response(
                     update.stress_derivative, time_step, creep_values));
             const AxisymmetricStress stress =
                 returned_stress(mean_stress, deviatoric_trial, stress_scale);
-            for (std::size_t component = 0; component < component_count;
-                 ++component) {
-                trial_state.creep_strain[component] =
-                    committed.creep_strain[component] +
-                    (1.0 - stress_scale) * deviatoric_trial[component] /
-                        (2.0 * active.shear_modulus);
-            }
-            return {stress, trial_state};
+            update_relaxed_creep_strain(
+                trial_state, committed, deviatoric_trial, stress_scale,
+                active.shear_modulus);
+            return finalize(stress);
         }
 
         const CoupledPartials partials = coupled_partials(
@@ -1018,22 +1048,17 @@ InelasticStressResponse IsotropicInelasticMaterial::raw_response(
         const AxisymmetricStress stress =
             returned_stress(mean_stress, deviatoric_trial, stress_scale);
 
-        for (std::size_t component = 0; component < component_count;
-             ++component) {
-            const adlite::Scalar flow_direction =
-                1.5 * deviatoric_trial[component] / equivalent_trial_stress;
-            trial_state.plastic_strain[component] =
-                committed.plastic_strain[component] +
-                plastic_increment * flow_direction;
-            trial_state.creep_strain[component] =
-                committed.creep_strain[component] +
-                creep_increment * flow_direction;
-        }
+        update_flow_strain(trial_state.plastic_strain,
+                           committed.plastic_strain, deviatoric_trial,
+                           equivalent_trial_stress, plastic_increment);
+        update_flow_strain(trial_state.creep_strain, committed.creep_strain,
+                           deviatoric_trial, equivalent_trial_stress,
+                           creep_increment);
         trial_state.equivalent_plastic_strain =
             committed.equivalent_plastic_strain + plastic_increment;
         trial_state.equivalent_creep_strain =
             committed.equivalent_creep_strain + creep_increment;
-        return {stress, trial_state};
+        return finalize(stress);
     }
 
     const ActiveNortonCreepProperties creep =
@@ -1042,7 +1067,7 @@ InelasticStressResponse IsotropicInelasticMaterial::raw_response(
         creep.coefficient.value(), creep.reference_stress.value(),
         creep.stress_exponent.value()};
     if (time_step == 0.0 || creep.coefficient.value() == 0.0)
-        return {stress_trial, trial_state};
+        return finalize(stress_trial);
 
     const NortonRoot root = solve_norton_equivalent_stress(
         equivalent_trial_stress.value(), active.shear_modulus.value(),
@@ -1056,14 +1081,9 @@ InelasticStressResponse IsotropicInelasticMaterial::raw_response(
                 creep_values));
         const AxisymmetricStress stress =
             returned_stress(mean_stress, deviatoric_trial, stress_scale);
-        for (std::size_t component = 0; component < component_count;
-             ++component) {
-            trial_state.creep_strain[component] =
-                committed.creep_strain[component] +
-                (1.0 - stress_scale) * deviatoric_trial[component] /
-                    (2.0 * active.shear_modulus);
-        }
-        return {stress, trial_state};
+        update_relaxed_creep_strain(trial_state, committed, deviatoric_trial,
+                                    stress_scale, active.shear_modulus);
+        return finalize(stress);
     }
 
     const CreepIncrement evaluated_creep = evaluate_creep_increment(
@@ -1083,51 +1103,12 @@ InelasticStressResponse IsotropicInelasticMaterial::raw_response(
     const AxisymmetricStress stress =
         returned_stress(mean_stress, deviatoric_trial, stress_scale);
 
-    for (std::size_t component = 0; component < component_count; ++component) {
-        const adlite::Scalar flow_direction =
-            1.5 * deviatoric_trial[component] / equivalent_trial_stress;
-        trial_state.creep_strain[component] =
-            committed.creep_strain[component] +
-            creep_increment * flow_direction;
-    }
+    update_flow_strain(trial_state.creep_strain, committed.creep_strain,
+                       deviatoric_trial, equivalent_trial_stress,
+                       creep_increment);
     trial_state.equivalent_creep_strain =
         committed.equivalent_creep_strain + creep_increment;
-    return {stress, trial_state};
-}
-
-InelasticStressResponse IsotropicInelasticMaterial::response(
-    const adlite::Scalar& strain_rr, const adlite::Scalar& strain_zz,
-    const adlite::Scalar& strain_hoop, const adlite::Scalar& strain_rz,
-    const adlite::Scalar& temperature, double time_step,
-    const MaterialPointState& committed) const {
-    const ThermoelasticProperties& thermoelastic =
-        _thermoelastic_material.properties();
-    const ActiveThermoelasticProperties active =
-        _thermoelastic_material.active_properties(temperature);
-    const adlite::Scalar thermal_strain =
-        active.thermal_expansion *
-        (temperature - thermoelastic.reference_temperature);
-    const std::array<adlite::Scalar, component_count> elastic_trial = {
-        strain_rr - thermal_strain - committed.plastic_strain[0] -
-            committed.creep_strain[0],
-        strain_zz - thermal_strain - committed.plastic_strain[1] -
-            committed.creep_strain[1],
-        strain_hoop - thermal_strain - committed.plastic_strain[2] -
-            committed.creep_strain[2],
-        strain_rz - committed.plastic_strain[3] - committed.creep_strain[3],
-    };
-    InelasticStressResponse result =
-        raw_response(strain_rr, strain_zz, strain_hoop, strain_rz,
-                     temperature, time_step, committed);
-    for (std::size_t component = 0; component < component_count; ++component) {
-        result.trial_state.elastic_strain[component] =
-            elastic_trial[component] -
-            (result.trial_state.plastic_strain[component] -
-             committed.plastic_strain[component]) -
-            (result.trial_state.creep_strain[component] -
-             committed.creep_strain[component]);
-    }
-    return result;
+    return finalize(stress);
 }
 
 InelasticStressResponse IsotropicInelasticMaterial::incremental_response(

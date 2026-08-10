@@ -607,6 +607,9 @@ namespace {
 using exodus_detail::check_exodus;
 using exodus_detail::ExodusFile;
 
+constexpr std::array<const char*, 4> stress_components = {"rr", "zz",
+                                                           "hoop", "rz"};
+
 int checked_int(std::size_t value, const std::string& quantity) {
     if (value > static_cast<std::size_t>(std::numeric_limits<int>::max()))
         throw std::overflow_error(quantity + " exceeds the Exodus int range");
@@ -632,6 +635,19 @@ std::vector<char*> variable_name_pointers(std::vector<std::string>& names) {
     for (std::string& name : names)
         result.push_back(name.data());
     return result;
+}
+
+void define_variable_names(int exoid, ex_entity_type type,
+                           std::vector<std::string>& names,
+                           const std::string& category) {
+    std::vector<char*> pointers = variable_name_pointers(names);
+    check_exodus(ex_put_variable_param(exoid, type,
+                                       static_cast<int>(pointers.size())),
+                 "Could not define Exodus " + category + " variables");
+    check_exodus(ex_put_variable_names(exoid, type,
+                                       static_cast<int>(pointers.size()),
+                                       pointers.data()),
+                 "Could not name Exodus " + category + " variables");
 }
 
 std::vector<std::string>
@@ -660,11 +676,10 @@ global_variable_names(const std::vector<ContactDefinition>& contacts) {
 }
 
 std::vector<std::string> stress_variable_names() {
-    const std::array<const char*, 4> components = {"rr", "zz", "hoop", "rz"};
     std::vector<std::string> result;
     result.reserve(16);
     for (std::size_t q = 0; q < 4; ++q) {
-        for (const char* component : components)
+        for (const char* component : stress_components)
             result.push_back("stress_" + std::string(component) + "_q" +
                              std::to_string(q));
     }
@@ -672,14 +687,13 @@ std::vector<std::string> stress_variable_names() {
 }
 
 std::vector<std::string> transient_element_variable_names() {
-    const std::array<const char*, 4> components = {"rr", "zz", "hoop", "rz"};
     std::vector<std::string> result = stress_variable_names();
     result.reserve(56);
     for (std::size_t q = 0; q < 4; ++q) {
-        for (const char* component : components)
+        for (const char* component : stress_components)
             result.push_back("plastic_" + std::string(component) + "_q" +
                              std::to_string(q));
-        for (const char* component : components)
+        for (const char* component : stress_components)
             result.push_back("creep_" + std::string(component) + "_q" +
                              std::to_string(q));
         result.push_back("equiv_plastic_q" + std::to_string(q));
@@ -698,37 +712,16 @@ void define_variables(const std::string& path,
     check_exodus(ex_set_max_name_length(file.id(), 64),
                  "Could not set Exodus result-name length");
 
-    std::vector<char*> nodal = variable_name_pointers(nodal_names);
-    check_exodus(ex_put_variable_param(file.id(), EX_NODAL,
-                                       static_cast<int>(nodal.size())),
-                 "Could not define Exodus nodal variables");
-    check_exodus(ex_put_variable_names(file.id(), EX_NODAL,
-                                       static_cast<int>(nodal.size()),
-                                       nodal.data()),
-                 "Could not name Exodus nodal variables");
-
-    std::vector<char*> global = variable_name_pointers(global_names);
-    check_exodus(ex_put_variable_param(file.id(), EX_GLOBAL,
-                                       static_cast<int>(global.size())),
-                 "Could not define Exodus global variables");
-    check_exodus(ex_put_variable_names(file.id(), EX_GLOBAL,
-                                       static_cast<int>(global.size()),
-                                       global.data()),
-                 "Could not name Exodus global variables");
-
-    std::vector<char*> element = variable_name_pointers(element_names);
-    check_exodus(ex_put_variable_param(file.id(), EX_ELEM_BLOCK,
-                                       static_cast<int>(element.size())),
-                 "Could not define Exodus element variables");
-    check_exodus(ex_put_variable_names(file.id(), EX_ELEM_BLOCK,
-                                       static_cast<int>(element.size()),
-                                       element.data()),
-                 "Could not name Exodus element variables");
-    std::vector<int> truth(mesh.element_blocks().size() * element.size(), 1);
+    define_variable_names(file.id(), EX_NODAL, nodal_names, "nodal");
+    define_variable_names(file.id(), EX_GLOBAL, global_names, "global");
+    define_variable_names(file.id(), EX_ELEM_BLOCK, element_names, "element");
+    std::vector<int> truth(
+        mesh.element_blocks().size() * element_names.size(), 1);
     check_exodus(
         ex_put_truth_table(file.id(), EX_ELEM_BLOCK,
                            static_cast<int>(mesh.element_blocks().size()),
-                           static_cast<int>(element.size()), truth.data()),
+                           static_cast<int>(element_names.size()),
+                           truth.data()),
         "Could not define Exodus element-variable truth table");
     file.close();
 }
@@ -792,6 +785,50 @@ void write_step(const std::string& path, const UnstructuredQuad4Mesh& mesh,
     file.close();
 }
 
+void fill_region_nodal_values(
+    const RegionMesh& region_mesh, std::size_t region_offset,
+    const DofMap& dof_map, const std::vector<double>& state,
+    std::vector<bool>& present, std::vector<std::vector<double>>& values) {
+    for (std::size_t local = 0; local < region_mesh.nodes().size(); ++local) {
+        const std::size_t source = region_mesh.source_node_ids()[local];
+        if (present.at(source))
+            throw std::invalid_argument(
+                "Exodus result mapping contains a shared source node");
+        present[source] = true;
+        const std::size_t global = region_offset + local;
+        values[0][source] = state.at(dof_map.temperature(global));
+        values[1][source] = state.at(dof_map.radial_displacement(global));
+        values[2][source] = state.at(dof_map.axial_displacement(global));
+    }
+}
+
+void fill_contact_nodal_values(
+    std::size_t contact, const std::vector<std::size_t>& nodes,
+    const std::vector<ContactNodeSummary>& summary,
+    std::vector<std::vector<double>>& values) {
+    if (nodes.size() != summary.size())
+        throw std::logic_error("Contact result mapping size mismatch");
+    const double missing = std::numeric_limits<double>::quiet_NaN();
+    const std::size_t base = 3 + 5 * contact;
+    for (std::size_t node = 0; node < nodes.size(); ++node) {
+        values[base].at(nodes[node]) =
+            summary[node].projected ? summary[node].gap : missing;
+        values[base + 1].at(nodes[node]) =
+            summary[node].projected ? summary[node].pressure : missing;
+        values[base + 2].at(nodes[node]) =
+            summary[node].projected ? summary[node].tangential_traction
+                                    : missing;
+        values[base + 3].at(nodes[node]) =
+            summary[node].projected
+                ? summary[node].elastic_tangential_slip
+                : missing;
+        values[base + 4].at(nodes[node]) =
+            summary[node].projected
+                ? (summary[node].sliding ? 1.0 : 0.0)
+                : missing;
+    }
+}
+
 void fill_steady_nodal(const UnstructuredQuad4Mesh& mesh,
                        const SteadyProblem& problem,
                        const std::vector<double>& state,
@@ -801,22 +838,9 @@ void fill_steady_nodal(const UnstructuredQuad4Mesh& mesh,
                   std::vector<double>(mesh.nodes().size(), missing));
     std::vector<bool> present(mesh.nodes().size(), false);
     for (std::size_t region = 0; region < problem.region_count(); ++region) {
-        const RegionMesh& region_mesh = problem.region_mesh(region);
-        const std::size_t offset = problem.region_node_offset(region);
-        for (std::size_t local = 0; local < region_mesh.nodes().size();
-             ++local) {
-            const std::size_t source = region_mesh.source_node_ids()[local];
-            if (present.at(source))
-                throw std::invalid_argument(
-                    "Exodus result mapping contains a shared source node");
-            present[source] = true;
-            const std::size_t global = offset + local;
-            values[0][source] = state.at(problem.dof_map().temperature(global));
-            values[1][source] =
-                state.at(problem.dof_map().radial_displacement(global));
-            values[2][source] =
-                state.at(problem.dof_map().axial_displacement(global));
-        }
+        fill_region_nodal_values(
+            problem.region_mesh(region), problem.region_node_offset(region),
+            problem.dof_map(), state, present, values);
     }
     for (std::size_t contact = 0; contact < problem.contact_count();
          ++contact) {
@@ -824,26 +848,7 @@ void fill_steady_nodal(const UnstructuredQuad4Mesh& mesh,
             problem.contact_secondary_source_nodes(contact);
         const std::vector<ContactNodeSummary> summary =
             problem.summarize_contact_nodes(contact, state);
-        if (nodes.size() != summary.size())
-            throw std::logic_error("Contact result mapping size mismatch");
-        for (std::size_t node = 0; node < nodes.size(); ++node) {
-            const std::size_t base = 3 + 5 * contact;
-            values[base].at(nodes[node]) =
-                summary[node].projected ? summary[node].gap : missing;
-            values[base + 1].at(nodes[node]) =
-                summary[node].projected ? summary[node].pressure : missing;
-            values[base + 2].at(nodes[node]) =
-                summary[node].projected ? summary[node].tangential_traction
-                                        : missing;
-            values[base + 3].at(nodes[node]) =
-                summary[node].projected
-                    ? summary[node].elastic_tangential_slip
-                    : missing;
-            values[base + 4].at(nodes[node]) =
-                summary[node].projected
-                    ? (summary[node].sliding ? 1.0 : 0.0)
-                    : missing;
-        }
+        fill_contact_nodal_values(contact, nodes, summary, values);
     }
 }
 
@@ -859,48 +864,16 @@ void fill_transient_nodal(const UnstructuredQuad4Mesh& mesh,
     std::vector<bool> present(mesh.nodes().size(), false);
     const std::vector<double>& state = problem.committed_solution();
     for (std::size_t region = 0; region < problem.region_count(); ++region) {
-        const RegionMesh& region_mesh = problem.region_mesh(region);
-        const std::size_t offset = problem.region_node_offset(region);
-        for (std::size_t local = 0; local < region_mesh.nodes().size();
-             ++local) {
-            const std::size_t source = region_mesh.source_node_ids()[local];
-            if (present.at(source))
-                throw std::invalid_argument(
-                    "Exodus result mapping contains a shared source node");
-            present[source] = true;
-            const std::size_t global = offset + local;
-            values[0][source] = state.at(problem.dof_map().temperature(global));
-            values[1][source] =
-                state.at(problem.dof_map().radial_displacement(global));
-            values[2][source] =
-                state.at(problem.dof_map().axial_displacement(global));
-        }
+        fill_region_nodal_values(
+            problem.region_mesh(region), problem.region_node_offset(region),
+            problem.dof_map(), state, present, values);
     }
     for (std::size_t contact = 0; contact < contacts; ++contact) {
         const std::vector<std::size_t> nodes =
             problem.contact_secondary_source_nodes(contact);
         const std::vector<ContactNodeSummary> summary =
             problem.summarize_contact_nodes(contact, state);
-        if (nodes.size() != summary.size())
-            throw std::logic_error("Contact result mapping size mismatch");
-        for (std::size_t node = 0; node < nodes.size(); ++node) {
-            const std::size_t base = 3 + 5 * contact;
-            values[base].at(nodes[node]) =
-                summary[node].projected ? summary[node].gap : missing;
-            values[base + 1].at(nodes[node]) =
-                summary[node].projected ? summary[node].pressure : missing;
-            values[base + 2].at(nodes[node]) =
-                summary[node].projected ? summary[node].tangential_traction
-                                        : missing;
-            values[base + 3].at(nodes[node]) =
-                summary[node].projected
-                    ? summary[node].elastic_tangential_slip
-                    : missing;
-            values[base + 4].at(nodes[node]) =
-                summary[node].projected
-                    ? (summary[node].sliding ? 1.0 : 0.0)
-                    : missing;
-        }
+        fill_contact_nodal_values(contact, nodes, summary, values);
     }
 }
 
@@ -932,6 +905,19 @@ std::vector<double> transient_globals(const TransientProblem& problem) {
     return result;
 }
 
+void store_stress_values(
+    std::size_t source,
+    const std::array<AxisymmetricStressValues, 4>& stresses,
+    std::vector<std::vector<double>>& values) {
+    for (std::size_t q = 0; q < stresses.size(); ++q) {
+        const std::size_t offset = 4 * q;
+        values[offset][source] = stresses[q].rr;
+        values[offset + 1][source] = stresses[q].zz;
+        values[offset + 2][source] = stresses[q].hoop;
+        values[offset + 3][source] = stresses[q].rz;
+    }
+}
+
 std::vector<std::vector<double>>
 steady_elements(const UnstructuredQuad4Mesh& mesh, const SteadyProblem& problem,
                 const std::vector<double>& state) {
@@ -951,12 +937,7 @@ steady_elements(const UnstructuredQuad4Mesh& mesh, const SteadyProblem& problem,
                 problem.region_element_geometry(region, element), local);
             const std::size_t source =
                 region_mesh.source_element_ids().at(element);
-            for (std::size_t q = 0; q < 4; ++q) {
-                result[4 * q][source] = stresses[q].rr;
-                result[4 * q + 1][source] = stresses[q].zz;
-                result[4 * q + 2][source] = stresses[q].hoop;
-                result[4 * q + 3][source] = stresses[q].rz;
-            }
+            store_stress_values(source, stresses, result);
         }
     }
     return result;
@@ -978,12 +959,8 @@ transient_elements(const UnstructuredQuad4Mesh& mesh,
             const Quad4MaterialHistory& history =
                 problem.material_history(region, element);
             const auto& stresses = problem.material_stress(region, element);
+            store_stress_values(source, stresses, result);
             for (std::size_t q = 0; q < 4; ++q) {
-                const std::size_t stress = 4 * q;
-                result[stress][source] = stresses[q].rr;
-                result[stress + 1][source] = stresses[q].zz;
-                result[stress + 2][source] = stresses[q].hoop;
-                result[stress + 3][source] = stresses[q].rz;
                 const std::size_t history_offset = 16 + 10 * q;
                 for (std::size_t component = 0; component < 4; ++component) {
                     result[history_offset + component][source] =

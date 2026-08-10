@@ -875,38 +875,29 @@ void SpatialAssembly::update_mechanical_candidates(
         throw std::invalid_argument(
             "SpatialAssembly contact-search shadow state size mismatch");
     const ContributionRanges ranges = contribution_ranges();
-    const std::size_t local_begin =
-        std::max(contribution_begin, ranges.mechanical_begin);
-    const std::size_t local_end =
-        std::min(contribution_end, ranges.pressure_begin);
-
-    for (const MechanicalContribution& contribution : _contact._mechanical_contributions)
+    for (const MechanicalContribution& contribution :
+         _contact._mechanical_contributions)
         contribution.active = false;
     for (std::vector<bool>& nodes : _contact._projected_mechanical_nodes)
         std::fill(nodes.begin(), nodes.end(), false);
-    if (local_begin >= local_end)
+    const std::vector<std::vector<bool>> touched =
+        touched_mechanical_nodes(contribution_begin, contribution_end);
+    if (touched.empty())
         return;
 
-    std::vector<std::vector<bool>> touched(contact_count());
     std::vector<std::vector<double>> minimum_distance(contact_count());
     std::vector<std::vector<std::size_t>> selected_primary(contact_count());
     for (std::size_t contact_value = 0; contact_value < contact_count();
          ++contact_value) {
-        const std::size_t node_count = _contact._contact_histories[contact_value].size();
-        touched[contact_value].resize(node_count, false);
+        const std::size_t node_count =
+            _contact._contact_histories[contact_value].size();
         minimum_distance[contact_value].assign(
             node_count, std::numeric_limits<double>::infinity());
         selected_primary[contact_value].assign(
             node_count, std::numeric_limits<std::size_t>::max());
     }
-    for (std::size_t full = local_begin; full < local_end; ++full) {
-        const std::size_t contribution = full - ranges.mechanical_begin;
-        const MechanicalContribution& candidate =
-            _contact._mechanical_contributions[contribution];
-        touched[candidate.contact][candidate.secondary] = true;
-    }
-
-    std::vector<bool> projected(_contact._mechanical_contributions.size(), false);
+    std::vector<bool> projected(_contact._mechanical_contributions.size(),
+                                false);
     for (std::size_t contribution = 0;
          contribution < _contact._mechanical_contributions.size(); ++contribution) {
         const MechanicalContribution& candidate =
@@ -951,6 +942,28 @@ void SpatialAssembly::update_mechanical_candidates(
         _contact._projected_mechanical_nodes[candidate.contact][candidate.secondary] =
             true;
     }
+}
+
+std::vector<std::vector<bool>> SpatialAssembly::touched_mechanical_nodes(
+    std::size_t contribution_begin, std::size_t contribution_end) const {
+    const ContributionRanges ranges = contribution_ranges();
+    const std::size_t begin =
+        std::max(contribution_begin, ranges.mechanical_begin);
+    const std::size_t end = std::min(contribution_end, ranges.pressure_begin);
+    if (begin >= end)
+        return {};
+
+    std::vector<std::vector<bool>> result(contact_count());
+    for (std::size_t contact_value = 0; contact_value < contact_count();
+         ++contact_value)
+        result[contact_value].resize(
+            _contact._contact_histories[contact_value].size(), false);
+    for (std::size_t full = begin; full < end; ++full) {
+        const MechanicalContribution& candidate =
+            _contact._mechanical_contributions[full - ranges.mechanical_begin];
+        result[candidate.contact][candidate.secondary] = true;
+    }
+    return result;
 }
 
 std::vector<ContactNodeSummary>
@@ -1008,11 +1021,11 @@ SpatialAssembly::summarize_contact_nodes(std::size_t contact_value,
         node.sliding = value.sliding;
     }
     for (ContactNodeSummary& node : result) {
-        if (node.tributary_area > 0.0)
+        if (node.tributary_area > 0.0) {
             node.pressure = node.contact_force / node.tributary_area;
-        if (node.tributary_area > 0.0)
             node.tangential_traction =
                 node.tangential_force / node.tributary_area;
+        }
     }
     return result;
 }
@@ -1033,7 +1046,7 @@ void SpatialAssembly::validate_state(const std::vector<double>& state) const {
             throw std::domain_error(
                 "Mechanical contact '" +
                 _layout._definition.contacts[contact_value].name +
-                "' lost projection " + "for " + std::to_string(unprojected) +
+                "' lost projection for " + std::to_string(unprojected) +
                 " secondary nodes after searching the complete primary chain");
     }
 }
@@ -1049,22 +1062,10 @@ void SpatialAssembly::validate_local_state(std::size_t contribution_begin,
         throw std::invalid_argument(
             "SpatialAssembly local state has the wrong global size");
     update_mechanical_candidates(contribution_begin, contribution_end, state);
-    const ContributionRanges ranges = contribution_ranges();
-    const std::size_t local_begin =
-        std::max(contribution_begin, ranges.mechanical_begin);
-    const std::size_t local_end =
-        std::min(contribution_end, ranges.pressure_begin);
-    std::vector<std::vector<bool>> touched(contact_count());
-    for (std::size_t contact_value = 0; contact_value < contact_count();
-         ++contact_value)
-        touched[contact_value].resize(_contact._contact_histories[contact_value].size(),
-                                      false);
-    for (std::size_t full = local_begin; full < local_end; ++full) {
-        const std::size_t contribution = full - ranges.mechanical_begin;
-        const MechanicalContribution& candidate =
-            _contact._mechanical_contributions[contribution];
-        touched[candidate.contact][candidate.secondary] = true;
-    }
+    const std::vector<std::vector<bool>> touched =
+        touched_mechanical_nodes(contribution_begin, contribution_end);
+    if (touched.empty())
+        return;
     for (std::size_t contact_value = 0; contact_value < contact_count();
          ++contact_value) {
         if (!_layout._definition.contacts[contact_value].mechanical)
@@ -1225,6 +1226,28 @@ RzPoint element_centroid(const RegionMesh& mesh, const Quad4Element& element) {
     centroid.r /= static_cast<double>(element.nodes.size());
     centroid.z /= static_cast<double>(element.nodes.size());
     return centroid;
+}
+
+std::vector<RzPoint> boundary_parent_centroids(
+    const SpatialLayout& layout, std::size_t region,
+    const RegionBoundary& boundary) {
+    const RegionMesh& mesh = layout.region_mesh(region);
+    std::vector<RzPoint> result;
+    result.reserve(boundary.elements.size());
+    for (const Line2BoundaryElement& edge : boundary.elements)
+        result.push_back(element_centroid(
+            mesh, mesh.elements().at(layout.edge_parent(region, edge).first)));
+    return result;
+}
+
+std::array<std::size_t, 4> interface_nodes(
+    const SpatialLayout& layout, std::size_t secondary_region,
+    const Line2BoundaryElement& secondary_edge, std::size_t primary_region,
+    const Line2BoundaryElement& primary_edge) {
+    return {layout.global_node(secondary_region, secondary_edge.nodes[0]),
+            layout.global_node(secondary_region, secondary_edge.nodes[1]),
+            layout.global_node(primary_region, primary_edge.nodes[0]),
+            layout.global_node(primary_region, primary_edge.nodes[1])};
 }
 
 // Signed distance of `point` from the primary line along the base normal
@@ -1603,36 +1626,21 @@ SpatialAssembly::required_state_dofs(std::size_t contribution_begin,
             result.push_back(dof);
         }
     }
-    std::sort(result.begin(), result.end());
-    result.erase(std::unique(result.begin(), result.end()), result.end());
-    const ContributionRanges ranges = contribution_ranges();
-    const std::size_t local_begin =
-        std::max(contribution_begin, ranges.mechanical_begin);
-    const std::size_t local_end =
-        std::min(contribution_end, ranges.pressure_begin);
-    if (local_begin >= local_end)
-        return result;
-
-    std::vector<std::vector<bool>> touched(contact_count());
-    for (std::size_t contact_value = 0; contact_value < contact_count();
-         ++contact_value)
-        touched[contact_value].resize(_contact._contact_histories[contact_value].size(),
-                                      false);
-    for (std::size_t full = local_begin; full < local_end; ++full) {
-        const std::size_t contribution = full - ranges.mechanical_begin;
-        const MechanicalContribution& candidate =
-            _contact._mechanical_contributions[contribution];
-        touched[candidate.contact][candidate.secondary] = true;
-    }
-    for (std::size_t contribution = 0;
-         contribution < _contact._mechanical_contributions.size(); ++contribution) {
-        const MechanicalContribution& candidate =
-            _contact._mechanical_contributions[contribution];
-        if (!touched[candidate.contact][candidate.secondary])
-            continue;
-        const LocalDofs dofs =
-            contribution_dofs(ranges.mechanical_begin + contribution);
-        result.insert(result.end(), dofs.begin(), dofs.end());
+    const std::vector<std::vector<bool>> touched =
+        touched_mechanical_nodes(contribution_begin, contribution_end);
+    if (!touched.empty()) {
+        const ContributionRanges ranges = contribution_ranges();
+        for (std::size_t contribution = 0;
+             contribution < _contact._mechanical_contributions.size();
+             ++contribution) {
+            const MechanicalContribution& candidate =
+                _contact._mechanical_contributions[contribution];
+            if (!touched[candidate.contact][candidate.secondary])
+                continue;
+            const LocalDofs dofs =
+                contribution_dofs(ranges.mechanical_begin + contribution);
+            result.insert(result.end(), dofs.begin(), dofs.end());
+        }
     }
     std::sort(result.begin(), result.end());
     result.erase(std::unique(result.begin(), result.end()), result.end());
@@ -1804,20 +1812,12 @@ void SpatialAssembly::build_contacts(const UnstructuredQuad4Mesh& source_mesh) {
         // Parent-element centroids give the material side of each boundary
         // edge; they form the zero-gap orientation hint passed to every
         // thermal and mechanical contact geometry below.
-        std::vector<RzPoint> primary_parent_centroids;
-        primary_parent_centroids.reserve(primary.boundary.elements.size());
-        for (const Line2BoundaryElement& edge : primary.boundary.elements)
-            primary_parent_centroids.push_back(element_centroid(
-                primary_mesh, primary_mesh.elements().at(
-                                  _layout.edge_parent(primary.region, edge)
-                                      .first)));
-        std::vector<RzPoint> secondary_parent_centroids;
-        secondary_parent_centroids.reserve(secondary.boundary.elements.size());
-        for (const Line2BoundaryElement& edge : secondary.boundary.elements)
-            secondary_parent_centroids.push_back(element_centroid(
-                secondary_mesh, secondary_mesh.elements().at(
-                                    _layout.edge_parent(secondary.region, edge)
-                                        .first)));
+        const std::vector<RzPoint> primary_parent_centroids =
+            boundary_parent_centroids(_layout, primary.region,
+                                      primary.boundary);
+        const std::vector<RzPoint> secondary_parent_centroids =
+            boundary_parent_centroids(_layout, secondary.region,
+                                      secondary.boundary);
 
         if (contact_definition.mechanical &&
             contact_definition.automatic_penalty) {
@@ -1908,14 +1908,9 @@ void SpatialAssembly::build_contacts(const UnstructuredQuad4Mesh& source_mesh) {
                         edge_coordinates(primary_mesh, primary_edge);
                     _contact._thermal_contributions.push_back(
                         {contact_value,
-                         {_layout.global_node(secondary.region,
-                                              secondary_edge.nodes[0]),
-                          _layout.global_node(secondary.region,
-                                              secondary_edge.nodes[1]),
-                          _layout.global_node(primary.region,
-                                              primary_edge.nodes[0]),
-                          _layout.global_node(primary.region,
-                                              primary_edge.nodes[1])},
+                         interface_nodes(_layout, secondary.region,
+                                         secondary_edge, primary.region,
+                                         primary_edge),
                          make_line2_rz_heat_geometry(
                              secondary_coordinates, primary_coordinates,
                              projection.lower, projection.upper,
@@ -1949,14 +1944,9 @@ void SpatialAssembly::build_contacts(const UnstructuredQuad4Mesh& source_mesh) {
                                 edge_coordinates(primary_mesh, primary_edge);
                         _contact._mechanical_contributions.push_back(
                             {contact_value,
-                             {_layout.global_node(secondary.region,
-                                                  secondary_edge.nodes[0]),
-                              _layout.global_node(secondary.region,
-                                                  secondary_edge.nodes[1]),
-                              _layout.global_node(primary.region,
-                                                  primary_edge.nodes[0]),
-                              _layout.global_node(primary.region,
-                                                  primary_edge.nodes[1])},
+                             interface_nodes(_layout, secondary.region,
+                                             secondary_edge, primary.region,
+                                             primary_edge),
                              make_node_to_line_rz_contact_geometry(
                                  secondary_coordinates, primary_coordinates,
                                  secondary_node, candidate == 0,

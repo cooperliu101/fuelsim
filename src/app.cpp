@@ -29,112 +29,57 @@ namespace fuelsim::app {
 
 class CaseOutput final {
   public:
-    explicit CaseOutput(bool console);
-    CaseOutput(const CaseOutputInput& options, bool force_console,
-               bool active);
+    explicit CaseOutput(bool console) : _console(console) {
+        if (_console)
+            std::cout << std::scientific << std::setprecision(12);
+    }
 
-    void value(const std::string& key, const std::string& data);
-    void value(const std::string& key, const char* data);
-    void value(const std::string& key, double data);
-    void value(const std::string& key, std::size_t data);
-    void value(const std::string& key, int data);
-    void value(const std::string& key, bool data);
+    CaseOutput(const CaseOutputInput& options, bool force_console,
+               bool active)
+        : CaseOutput(active && (options.console || force_console)) {
+        if (!active || options.csv_file.empty())
+            return;
+        _csv.open(options.csv_file, std::ios::out | std::ios::trunc);
+        if (!_csv)
+            throw std::runtime_error("Could not open CSV output file '" +
+                                     options.csv_file + "'");
+        _csv << "metric,value\n" << std::scientific << std::setprecision(12);
+    }
+
+    void value(const std::string& key, const std::string& data) {
+        if (_console)
+            std::cout << key << '=' << data << '\n';
+        if (_csv)
+            _csv << key << ',' << data << '\n';
+    }
+
+    void value(const std::string& key, const char* data) {
+        value(key, std::string(data));
+    }
+
+    void value(const std::string& key, double data) {
+        if (_console)
+            std::cout << key << '=' << data << '\n';
+        if (_csv)
+            _csv << key << ',' << data << '\n';
+    }
+
+    void value(const std::string& key, std::size_t data) {
+        value(key, std::to_string(data));
+    }
+
+    void value(const std::string& key, int data) {
+        value(key, std::to_string(data));
+    }
+
+    void value(const std::string& key, bool data) {
+        value(key, data ? "true" : "false");
+    }
 
   private:
     bool _console;
     std::ofstream _csv;
 };
-
-void write_conservation_summary(
-    const std::string& prefix,
-    const TransientConservationSummary& summary,
-    CaseOutput& output);
-void write_time_error_components(
-    const std::string& prefix,
-    const TransientTimeErrorEstimate& estimate,
-    CaseOutput& output);
-
-class TransientOutputObserver final : public TransientStepObserver {
-  public:
-    TransientOutputObserver(ExodusTransientResultsWriter* results,
-                            EngineeringHistoryWriter* history,
-                            std::string checkpoint_file,
-                            std::size_t exodus_interval,
-                            std::size_t history_interval,
-                            std::size_t progress_interval,
-                            std::size_t checkpoint_interval,
-                            const PetscSession& session,
-                            CaseOutput& progress_output);
-
-    void accepted_step(const TransientProblem& problem,
-                       const TransientAcceptedStep& step) override;
-    void finalize(const TransientProblem& problem, double next_time_step);
-
-  private:
-    ExodusTransientResultsWriter* _results;
-    EngineeringHistoryWriter* _history;
-    std::string _checkpoint_file;
-    std::size_t _exodus_interval;
-    std::size_t _history_interval;
-    std::size_t _progress_interval;
-    std::size_t _checkpoint_interval;
-    std::size_t _accepted_steps;
-    bool _exodus_at_latest;
-    bool _history_at_latest;
-    double _last_time_step;
-    double _last_next_time_step;
-    int _last_nonlinear_iterations;
-    bool _checkpoint_at_latest;
-    const PetscSession& _session;
-    CaseOutput& _progress_output;
-};
-
-CaseOutput::CaseOutput(bool console) : _console(console) {
-    if (_console)
-        std::cout << std::scientific << std::setprecision(12);
-}
-
-CaseOutput::CaseOutput(const CaseOutputInput& options, bool force_console,
-                       bool active)
-    : CaseOutput(active && (options.console || force_console)) {
-    if (!active || options.csv_file.empty())
-        return;
-    _csv.open(options.csv_file, std::ios::out | std::ios::trunc);
-    if (!_csv)
-        throw std::runtime_error("Could not open CSV output file '" +
-                                 options.csv_file + "'");
-    _csv << "metric,value\n" << std::scientific << std::setprecision(12);
-}
-
-void CaseOutput::value(const std::string& key, const std::string& data) {
-    if (_console)
-        std::cout << key << '=' << data << '\n';
-    if (_csv)
-        _csv << key << ',' << data << '\n';
-}
-
-void CaseOutput::value(const std::string& key, const char* data) {
-    value(key, std::string(data));
-}
-
-void CaseOutput::value(const std::string& key, double data) {
-    if (_console)
-        std::cout << key << '=' << data << '\n';
-    if (_csv)
-        _csv << key << ',' << data << '\n';
-}
-
-void CaseOutput::value(const std::string& key, std::size_t data) {
-    value(key, std::to_string(data));
-}
-
-void CaseOutput::value(const std::string& key, int data) {
-    value(key, std::to_string(data));
-}
-
-void CaseOutput::value(const std::string& key, bool data) {
-    value(key, data ? "true" : "false");
-}
 
 void write_conservation_summary(
     const std::string& prefix,
@@ -166,25 +111,50 @@ void write_time_error_components(
                  estimate.contact_normal_multiplier);
 }
 
-TransientOutputObserver::TransientOutputObserver(
-    ExodusTransientResultsWriter* results,
-    EngineeringHistoryWriter* history,
-    std::string checkpoint_file,
-    std::size_t exodus_interval,
-    std::size_t history_interval,
-    std::size_t progress_interval,
-    std::size_t checkpoint_interval,
-    const PetscSession& session,
-    CaseOutput& progress_output)
-    : _results(results), _history(history),
-      _checkpoint_file(std::move(checkpoint_file)),
-      _exodus_interval(exodus_interval), _history_interval(history_interval),
-      _progress_interval(progress_interval),
-      _checkpoint_interval(checkpoint_interval), _accepted_steps(0),
-      _exodus_at_latest(true), _history_at_latest(true),
-      _last_time_step(0.0), _last_next_time_step(0.0),
-      _last_nonlinear_iterations(0), _checkpoint_at_latest(false),
-      _session(session), _progress_output(progress_output) {}
+class TransientOutputObserver final : public TransientStepObserver {
+  public:
+    TransientOutputObserver(ExodusTransientResultsWriter* results,
+                            EngineeringHistoryWriter* history,
+                            std::string checkpoint_file,
+                            std::size_t exodus_interval,
+                            std::size_t history_interval,
+                            std::size_t progress_interval,
+                            std::size_t checkpoint_interval,
+                            const PetscSession& session,
+                            CaseOutput& progress_output)
+        : _results(results), _history(history),
+          _checkpoint_file(std::move(checkpoint_file)),
+          _exodus_interval(exodus_interval),
+          _history_interval(history_interval),
+          _progress_interval(progress_interval),
+          _checkpoint_interval(checkpoint_interval), _accepted_steps(0),
+          _exodus_at_latest(true), _history_at_latest(true),
+          _last_time_step(0.0), _last_next_time_step(0.0),
+          _last_nonlinear_iterations(0), _checkpoint_at_latest(false),
+          _session(session), _progress_output(progress_output) {}
+
+    void accepted_step(const TransientProblem& problem,
+                       const TransientAcceptedStep& step) override;
+    void finalize(const TransientProblem& problem, double next_time_step);
+
+  private:
+    ExodusTransientResultsWriter* _results;
+    EngineeringHistoryWriter* _history;
+    std::string _checkpoint_file;
+    std::size_t _exodus_interval;
+    std::size_t _history_interval;
+    std::size_t _progress_interval;
+    std::size_t _checkpoint_interval;
+    std::size_t _accepted_steps;
+    bool _exodus_at_latest;
+    bool _history_at_latest;
+    double _last_time_step;
+    double _last_next_time_step;
+    int _last_nonlinear_iterations;
+    bool _checkpoint_at_latest;
+    const PetscSession& _session;
+    CaseOutput& _progress_output;
+};
 
 void TransientOutputObserver::accepted_step(
     const TransientProblem& problem, const TransientAcceptedStep& step) {
@@ -258,6 +228,9 @@ using fuelsim::app::CaseOutput;
 using fuelsim::app::TransientOutputObserver;
 using fuelsim::app::write_conservation_summary;
 using fuelsim::app::write_time_error_components;
+
+constexpr std::array<const char*, 3> field_names = {"temperature", "radial",
+                                                     "axial"};
 
 struct CommandLine final {
     std::string input_path;
@@ -357,11 +330,9 @@ void write_solver_diagnostics(const fuelsim::SolveResult& solve,
             output.value("basic_failure_message",
                          solve.basic_failure_message);
     }
-    const std::array<const char*, 3> fields = {"temperature", "radial",
-                                               "axial"};
-    for (std::size_t field = 0; field < fields.size(); ++field) {
+    for (std::size_t field = 0; field < field_names.size(); ++field) {
         const std::string prefix =
-            "residual." + std::string(fields[field]) + ".";
+            "residual." + std::string(field_names[field]) + ".";
         output.value(prefix + "initial_l2",
                      solve.initial_field_residual_norms[field]);
         output.value(prefix + "reference_l2",
@@ -413,12 +384,10 @@ bool write_jacobian_check(const fuelsim::NonlinearProblem& problem,
     const fuelsim::DirectionalJacobianCheck check =
         fuelsim::check_directional_jacobian(
             problem, dof_map, state, diagnostic_direction(dof_map), 1.0e-4);
-    const std::array<const char*, 3> fields = {"temperature", "radial",
-                                               "axial"};
     bool passed = true;
-    for (std::size_t field = 0; field < fields.size(); ++field) {
+    for (std::size_t field = 0; field < field_names.size(); ++field) {
         const std::string prefix =
-            "jacobian." + std::string(fields[field]) + ".";
+            "jacobian." + std::string(field_names[field]) + ".";
         const double reference =
             check.finite_difference_directional_derivative.l2[field];
         const double difference = check.difference.l2[field];

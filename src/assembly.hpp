@@ -305,6 +305,9 @@ class SpatialAssembly final {
     void update_mechanical_candidates(std::size_t contribution_begin,
                                       std::size_t contribution_end,
                                       const GlobalStateView& state) const;
+    std::vector<std::vector<bool>> touched_mechanical_nodes(
+        std::size_t contribution_begin,
+        std::size_t contribution_end) const;
     ContributionRanges contribution_ranges() const noexcept;
     ContributionLocation
     locate_contribution(std::size_t contribution_index) const;
