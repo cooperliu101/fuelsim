@@ -1,0 +1,269 @@
+#include "fuelsim/case_input.hpp"
+#include "fuelsim/exodus_mesh_io.hpp"
+#include "fuelsim/problem_solver.hpp"
+#include "support/moose_field_comparison.hpp"
+
+#include <algorithm>
+#include <cmath>
+#include <exception>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <limits>
+#include <sstream>
+#include <stdexcept>
+#include <string>
+#include <vector>
+
+namespace {
+
+bool check(bool condition, const std::string& message) {
+    if (condition)
+        return true;
+    std::cerr << "[FAIL] " << message << '\n';
+    return false;
+}
+
+std::vector<std::string> split_csv(const std::string& line) {
+    std::vector<std::string> result;
+    std::size_t begin = 0;
+    for (;;) {
+        const std::size_t separator = line.find(',', begin);
+        result.push_back(line.substr(begin, separator - begin));
+        if (separator == std::string::npos)
+            return result;
+        begin = separator + 1;
+    }
+}
+
+double final_csv_value(const std::string& path, const std::string& name) {
+    std::ifstream input(path);
+    if (!input)
+        throw std::runtime_error("Could not read MOOSE scalar reference: " + path);
+    std::string line;
+    if (!std::getline(input, line))
+        throw std::invalid_argument("MOOSE scalar reference is empty: " + path);
+    const std::vector<std::string> header = split_csv(line);
+    const auto found = std::find(header.begin(), header.end(), name);
+    if (found == header.end())
+        throw std::invalid_argument("MOOSE scalar reference is missing column: " + name);
+    const std::size_t column = static_cast<std::size_t>(found - header.begin());
+    std::vector<std::string> final_row;
+    while (std::getline(input, line)) {
+        if (!line.empty())
+            final_row = split_csv(line);
+    }
+    if (column >= final_row.size())
+        throw std::invalid_argument("MOOSE scalar reference has no final value for: " + name);
+    return std::stod(final_row[column]);
+}
+
+double equivalent_stress(const fuelsim::AxisymmetricStressValues& stress) {
+    const double mean = (stress.rr + stress.zz + stress.hoop) / 3.0;
+    return std::sqrt(1.5 * ((stress.rr - mean) * (stress.rr - mean) + (stress.zz - mean) * (stress.zz - mean) +
+                            (stress.hoop - mean) * (stress.hoop - mean) + 2.0 * stress.rz * stress.rz));
+}
+
+struct RegionAverages final {
+    double plastic = 0.0;
+    double creep = 0.0;
+    double stress = 0.0;
+    double maximum_plastic = 0.0;
+    double maximum_creep = 0.0;
+};
+
+RegionAverages region_averages(const fuelsim::TransientProblem& problem, std::size_t region) {
+    RegionAverages result;
+    double measure = 0.0;
+    for (std::size_t element = 0; element < problem.region_mesh(region).elements().size(); ++element) {
+        const fuelsim::Quad4RzGeometry& geometry = problem.region_element_geometry(region, element);
+        const fuelsim::Quad4MaterialHistory& history = problem.material_history(region, element);
+        const auto& stresses = problem.material_stress(region, element);
+        for (std::size_t q = 0; q < history.size(); ++q) {
+            const double weight = geometry.points[q].weighted_measure;
+            measure += weight;
+            result.plastic += weight * history[q].equivalent_plastic_strain;
+            result.creep += weight * history[q].equivalent_creep_strain;
+            result.stress += weight * equivalent_stress(stresses[q]);
+            result.maximum_plastic = std::max(result.maximum_plastic, history[q].equivalent_plastic_strain);
+            result.maximum_creep = std::max(result.maximum_creep, history[q].equivalent_creep_strain);
+        }
+    }
+    result.plastic /= measure;
+    result.creep /= measure;
+    result.stress /= measure;
+    return result;
+}
+
+double relative_error(double actual, double reference) {
+    return std::abs(actual - reference) / std::abs(reference);
+}
+
+fuelsim::TransientTimeOptions time_options(const fuelsim::FuelSimCaseDefinition& definition) {
+    const auto& input = definition.transient_execution;
+    return {input.end_time,
+            input.initial_time_step,
+            input.minimum_time_step,
+            input.maximum_time_step,
+            input.growth_factor,
+            input.cutback_factor,
+            input.maximum_cutbacks,
+            input.load_ramp_time,
+            input.target_nonlinear_iterations,
+            input.iteration_window,
+            input.time_error_relative_tolerance,
+            input.temperature_time_absolute_tolerance,
+            input.displacement_time_absolute_tolerance,
+            input.time_error_safety_factor,
+            input.strain_history_time_absolute_tolerance,
+            input.stress_history_time_absolute_tolerance};
+}
+
+fuelsim::SolverOptions solver_options(const fuelsim::FuelSimCaseDefinition& definition) {
+    fuelsim::SolverOptions result;
+    result.absolute_tolerance = definition.solver.absolute_tolerance;
+    result.relative_tolerance = definition.solver.relative_tolerance;
+    result.step_tolerance = definition.solver.step_tolerance;
+    result.maximum_iterations = definition.solver.maximum_iterations;
+    result.backtracking_fallback = definition.solver.backtracking_fallback;
+    result.field_residual_scaling = definition.solver.field_residual_scaling;
+    result.residual_reduction_tolerance = definition.solver.residual_reduction_tolerance;
+    result.temperature_residual_absolute_tolerance = definition.solver.temperature_residual_absolute_tolerance;
+    result.mechanical_residual_absolute_tolerance = definition.solver.mechanical_residual_absolute_tolerance;
+    result.temperature_residual_scale = definition.solver.temperature_residual_scale;
+    result.mechanical_residual_scale = definition.solver.mechanical_residual_scale;
+    return result;
+}
+
+bool run_case(const std::string& input_path, const std::string& nodal_reference_path,
+              const std::string& pressure_reference_path, const std::string& scalar_reference_path) {
+    const fuelsim::FuelSimCaseDefinition definition = fuelsim::CaseInputReader::read(input_path);
+    if (definition.problem != fuelsim::CaseProblem::transient || definition.contacts.size() != 1)
+        throw std::invalid_argument("M5.7 integrated validation requires one transient contact pair");
+    const fuelsim::UnstructuredQuad4Mesh source = fuelsim::ExodusMeshIo::read_quad4(definition.mesh_file);
+    fuelsim::TransientProblem problem(definition.transient_definition(), source);
+    const std::vector<fuelsim::ContactNodeSummary> initial_contact =
+        problem.summarize_contact_nodes(0, problem.committed_solution());
+    const fuelsim::TransientResult solve =
+        fuelsim::solve_transient(problem, time_options(definition), solver_options(definition));
+    if (!solve.completed)
+        return check(false, "M5.7 integrated adaptive transient completes");
+
+    const std::vector<fuelsim::ContactNodeSummary> contact = problem.summarize_contact_nodes(0, solve.committed_state);
+    const fuelsim::InterfaceSummary interface = problem.summarize_interface(0, solve.committed_state);
+    const RegionAverages cladding = region_averages(problem, problem.region_index("cladding"));
+
+    std::size_t sliding = 0;
+    std::size_t crossed_segments = 0;
+    double maximum_coulomb_excess = 0.0;
+    for (std::size_t node = 0; node < contact.size(); ++node) {
+        if (contact[node].sliding)
+            ++sliding;
+        if (contact[node].primary_segment >= initial_contact[node].primary_segment + 2)
+            ++crossed_segments;
+        maximum_coulomb_excess =
+            std::max(maximum_coulomb_excess, std::abs(contact[node].tangential_traction) -
+                                                 definition.contacts[0].friction_coefficient * contact[node].pressure);
+    }
+
+    double minimum_accepted_step = std::numeric_limits<double>::infinity();
+    double maximum_accepted_step = 0.0;
+    double maximum_time_error_estimate = 0.0;
+    for (const fuelsim::TransientAcceptedStep& step : solve.accepted_steps) {
+        minimum_accepted_step = std::min(minimum_accepted_step, step.time_step);
+        maximum_accepted_step = std::max(maximum_accepted_step, step.time_step);
+        maximum_time_error_estimate = std::max(maximum_time_error_estimate, step.time_error_estimate);
+    }
+
+    const std::vector<fuelsim::test::NodalFieldReference> nodal_reference =
+        fuelsim::test::read_moose_nodal_reference(nodal_reference_path);
+    const fuelsim::test::NodalFieldComparison fields =
+        fuelsim::test::compare_moose_nodal_fields(problem, solve.committed_state, nodal_reference);
+    std::vector<double> pressure_coordinates;
+    const std::vector<double> pressure_reference =
+        fuelsim::test::read_moose_contact_pressure_reference(pressure_reference_path, pressure_coordinates);
+    const fuelsim::test::FieldErrorMetrics pressure =
+        fuelsim::test::compare_moose_contact_pressure(contact, pressure_reference, pressure_coordinates, 1.0e-12);
+
+    constexpr double tolerance = 5.0e-3;
+    bool passed =
+        check(solve.aggregate_timing.workspace_setups == 1,
+              "M5.7 reuses one PETSc workspace across all adaptive steps") &&
+        check(maximum_time_error_estimate > 0.0 && minimum_accepted_step < maximum_accepted_step,
+              "M5.7 step doubling estimates error and changes the accepted step size") &&
+        check(interface.active_contact_nodes == contact.size() && sliding > 0 && crossed_segments > 0,
+              "M5.7 keeps every interface node active, reaches frictional sliding, and crosses two segments") &&
+        check(std::abs(interface.total_heat_rate) > 0.0 &&
+                  std::abs(problem.last_conservation_summary().interface_heat_imbalance) < 1.0e-10,
+              "M5.7 exercises nonzero conservative thermal contact") &&
+        check(maximum_coulomb_excess <= 1.0e-10 * interface.maximum_contact_pressure &&
+                  std::abs(interface.total_tangential_force) > 0.0,
+              "M5.7 respects the Coulomb cap and produces nonzero friction force") &&
+        check(cladding.maximum_plastic > 0.0 && cladding.maximum_creep > 0.0,
+              "M5.7 activates cladding plasticity and creep") &&
+        check(fields.node_count == source.nodes().size() && fields.maximum_coordinate_difference < 1.0e-12,
+              "M5.7 compares every MOOSE source node at matching coordinates") &&
+        check(fuelsim::test::relative_metrics_below_with_pointwise_tolerance(fields.temperature, tolerance, 2.0e-2),
+              "M5.7 qualified temperature field remains within its recorded pointwise boundary") &&
+        check(fields.axial_displacement.relative_l2() < tolerance &&
+                  fields.axial_displacement.relative_absolute_peak() < tolerance &&
+                  fields.axial_displacement.maximum_absolute_difference < 5.0e-6,
+              "M5.7 qualified axial field passes aggregate and absolute-error boundaries") &&
+        check(fields.radial_displacement.relative_l2() < 0.7 &&
+                  fields.radial_displacement.relative_absolute_peak() < 3.0e-2 &&
+                  fields.radial_displacement.maximum_pointwise_relative_error() < 1.3,
+              "M5.7 records the qualified mortar-to-node radial-field boundary") &&
+        check(pressure.relative_l2() < 0.8 && pressure.relative_absolute_peak() < 0.81 &&
+                  pressure.maximum_pointwise_relative_error() < 0.81,
+              "M5.7 records the qualified mortar-to-node pressure boundary");
+
+    const double plastic_error =
+        relative_error(cladding.plastic, final_csv_value(scalar_reference_path, "average_effective_plastic"));
+    const double creep_error =
+        relative_error(cladding.creep, final_csv_value(scalar_reference_path, "average_effective_creep"));
+    const double stress_error =
+        relative_error(cladding.stress, final_csv_value(scalar_reference_path, "average_vonmises_stress"));
+    passed = check(plastic_error < 0.65 && creep_error < 0.97 && stress_error < 0.65,
+                   "M5.7 records the qualified mortar-to-node cladding-history boundaries") &&
+             passed;
+
+    fuelsim::test::print_relative_metrics("m57_temperature", fields.temperature);
+    fuelsim::test::print_relative_metrics("m57_radial_displacement", fields.radial_displacement);
+    fuelsim::test::print_relative_metrics("m57_axial_displacement", fields.axial_displacement);
+    fuelsim::test::print_relative_metrics("m57_contact_pressure", pressure);
+    std::cout << "m57_accepted_steps=" << solve.accepted_steps.size() << '\n'
+              << "m57_time_error_rejections=" << solve.time_error_rejections << '\n'
+              << "m57_maximum_time_error_estimate=" << maximum_time_error_estimate << '\n'
+              << "m57_minimum_accepted_step=" << minimum_accepted_step << '\n'
+              << "m57_maximum_accepted_step=" << maximum_accepted_step << '\n'
+              << "m57_active_contact_nodes=" << interface.active_contact_nodes << '\n'
+              << "m57_sliding_contact_nodes=" << sliding << '\n'
+              << "m57_nodes_crossing_two_segments=" << crossed_segments << '\n'
+              << "m57_total_heat_rate=" << interface.total_heat_rate << '\n'
+              << "m57_total_tangential_force=" << interface.total_tangential_force << '\n'
+              << "m57_average_plastic_relative_error=" << plastic_error << '\n'
+              << "m57_average_creep_relative_error=" << creep_error << '\n'
+              << "m57_average_stress_relative_error=" << stress_error << '\n';
+    return passed;
+}
+
+} // namespace
+
+int main(int argc, char** argv) {
+    if (argc != 5) {
+        std::cerr << "Usage: fuelsim_m57_integrated_validation_tests <case.fsi> <all-nodes.csv> "
+                     "<contact.csv> <scalars.csv>\n";
+        return 2;
+    }
+    try {
+        std::cout << std::scientific << std::setprecision(12);
+        fuelsim::PetscSession session(argc, argv, "fuelsim M5.7 integrated validation\n");
+        if (!run_case(argv[1], argv[2], argv[3], argv[4]))
+            return 1;
+        std::cout << "[PASS] M5.7 integrated functional and qualified MOOSE checks\n";
+        return 0;
+    } catch (const std::exception& error) {
+        std::cerr << "[FAIL] M5.7 validation raised: " << error.what() << '\n';
+        return 1;
+    }
+}

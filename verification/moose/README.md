@@ -1088,3 +1088,58 @@ native MOOSE multiplier pressure is not classified as a stable nodewise oracle
 in this environment. The verified claim is limited to agreement with the
 high-penalty discrete constrained limit, local tangents, transactional state,
 and the scoped two-body condition proxy.
+
+## M5.7 integrated transient finite-strain provenance
+
+`m57_integrated_fuel_cladding_rz.i` defines a compact 138-node, 96-element
+fuel-cladding problem. Both blocks use finite strain. The case combines gap heat
+transfer, Coulomb friction with prescribed 0.6 mm fuel translation, coupled
+cladding plasticity and creep, independent time-dependent heat generation and
+internal and external pressures, a fixed cladding bottom, and adaptive transient
+execution. The same tracked Quad4 mesh is read by fuelsim.
+
+The production MOOSE run uses `mortar_penalty` contact. Its normal penalty is
+`1e12 Pa/m`; its separate `1e8 Pa/m` tangential penalty avoids the much stiffer
+fuelsim node penalty at mortar segment switches. MOOSE is forced to land on all
+load-function knots, adapts after nonlinear failure, and limits the maximum time
+step to 0.0625 s. Segment switches leave a nonsmooth automatically scaled
+residual below `5e-4` after more than 3,000-fold reduction, so the input records
+that absolute tolerance and independently gates the final fields. All 97 steps
+completed through 6 s.
+
+The mesh-only command overrides contact formulation solely to prevent MOOSE
+from writing runtime-created mortar EDGE2 blocks into the Exodus file. Fuelsim's
+reader intentionally accepts only Quad4 volume blocks. The override does not
+change the generated Quad4 geometry, block identifiers, or side sets:
+
+```bash
+/home/cooper/projects/july/july-opt \
+  -i m57_integrated_fuel_cladding_rz.i \
+  Contact/mechanical/formulation=kinematic \
+  --mesh-only m57_integrated_fuel_cladding_rz_mesh.e
+/home/cooper/projects/july/july-opt \
+  -i m57_integrated_fuel_cladding_rz.i \
+  Outputs/file_base=m57_integrated_fuel_cladding_rz
+```
+
+The reference environment is:
+
+```text
+MOOSE commit:          93b11698be3fcd33049ae73e32f411fb2985261d
+July commit:           a96d73792bee7c5f54eb65e33b04487b24276a27
+Executable SHA256:     1cb3a0fbf5650addd087ceeb8521f82d2ddb11650c0932b7ec274226430e0ee4
+PETSc / SLEPc:         3.25.2 / 3.25.0
+MPI ranks / threads:   1 / 1
+July worktree:         dirty; executable hash is therefore authoritative
+```
+
+The tracked files contain every final node, every secondary mortar pressure,
+and the scalar time history. Temperature relative L2, relative absolute-peak,
+and maximum pointwise relative errors are `0.2248%`, `0.06631%`, and `1.311%`.
+Radial displacement gives `64.94%`, `2.5407%`, and `122.87%`; normal pressure
+gives `77.18%`, `80.27%`, and `80.55%`. The MOOSE mortar endpoint reaches
+`28.0 MPa`, compared with a `5.45 MPa` fuelsim node-to-segment peak. Average
+plastic strain, creep strain, and equivalent stress differ by `64.64%`,
+`95.73%`, and `62.71%`. These broad discrepancies are recorded rather than
+hidden by denominator floors or described as verified agreement. This case is
+therefore a qualified integration check, not a mechanical MOOSE oracle.
