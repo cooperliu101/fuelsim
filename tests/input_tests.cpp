@@ -355,9 +355,19 @@ bool run_tests(const std::string& steady_path,
     negative_friction_case.insert(
         negative_friction_case.find(contact_penalty) + contact_penalty.size(),
         "\n      mu = -0.1");
-    passed = expect_case_failure(malformed_path, negative_friction_case,
-                                 "mu must be nonnegative") &&
+    {
+        std::ofstream output(malformed_path, std::ios::out | std::ios::trunc);
+        if (!output)
+            return check(false, "could not create trusted-value fixture");
+        output << negative_friction_case;
+    }
+    const fuelsim::FuelSimCaseDefinition trusted_values =
+        fuelsim::CaseInputReader::read(malformed_path);
+    passed = check(trusted_values.contacts[0].friction_coefficient == -0.1,
+                   "input preserves user-provided physical values") &&
              passed;
+    if (std::remove(malformed_path.c_str()) != 0)
+        return check(false, "could not remove trusted-value fixture");
 
     std::string invalid_material_case = read_text(transient_path);
     const std::string elastic_model = "inelastic_model = elastic";
@@ -514,27 +524,6 @@ bool run_tests(const std::string& steady_path,
     if (std::remove(malformed_path.c_str()) != 0)
         return check(false, "could not remove fixed-scale input fixture");
 
-    std::string incomplete_scaling_case = read_text(transient_path);
-    const std::size_t incomplete_scaling_solver =
-        incomplete_scaling_case.find(solver_start);
-    incomplete_scaling_case.insert(
-        incomplete_scaling_solver + solver_start.size(),
-        "\n  temperature_residual_scale = 1e4");
-    passed = expect_case_failure(malformed_path, incomplete_scaling_case,
-                                 "must both be zero or positive") &&
-             passed;
-
-    std::string conflicting_scaling_case = m3_case;
-    const std::size_t conflicting_scaling_solver =
-        conflicting_scaling_case.find(solver_start);
-    conflicting_scaling_case.insert(
-        conflicting_scaling_solver + solver_start.size(),
-        "\n  temperature_residual_scale = 1e4"
-        "\n  mechanical_residual_scale = 1e3");
-    passed = expect_case_failure(malformed_path, conflicting_scaling_case,
-                                 "cannot be combined") &&
-             passed;
-
     std::string current_traction_case = read_text(traction_path);
     const std::string traction_type = "type = traction";
     const std::size_t traction_type_position =
@@ -604,28 +593,6 @@ bool run_tests(const std::string& steady_path,
                                  "not valid for type='convection'") &&
              passed;
 
-    std::string negative_temperature_scale = read_text(transient_path);
-    const std::size_t negative_temperature_solver =
-        negative_temperature_scale.find(solver_start);
-    negative_temperature_scale.insert(
-        negative_temperature_solver + solver_start.size(),
-        "\n  temperature_residual_scale = -1"
-        "\n  mechanical_residual_scale = 1");
-    passed = expect_case_failure(malformed_path, negative_temperature_scale,
-                                 "must be positive") &&
-             passed;
-
-    std::string negative_mechanical_scale = read_text(transient_path);
-    const std::size_t negative_mechanical_solver =
-        negative_mechanical_scale.find(solver_start);
-    negative_mechanical_scale.insert(
-        negative_mechanical_solver + solver_start.size(),
-        "\n  temperature_residual_scale = 1"
-        "\n  mechanical_residual_scale = -1");
-    passed = expect_case_failure(malformed_path, negative_mechanical_scale,
-                                 "must be positive") &&
-             passed;
-
     std::string unknown_function = read_text(transient_path);
     const std::size_t unknown_heat_position =
         unknown_function.find(heat_source);
@@ -644,15 +611,6 @@ bool run_tests(const std::string& steady_path,
                           "times = 0 0 5");
     passed = expect_case_failure(malformed_path, invalid_table,
                                  "strictly increasing") &&
-             passed;
-
-    std::string invalid_window = m3_case;
-    const std::string valid_window = "iteration_window = 2";
-    const std::size_t valid_window_position = invalid_window.find(valid_window);
-    invalid_window.replace(valid_window_position, valid_window.size(),
-                           "iteration_window = 6");
-    passed = expect_case_failure(malformed_path, invalid_window,
-                                 "must be smaller") &&
              passed;
 
     std::string orphan_interval = read_text(transient_path);

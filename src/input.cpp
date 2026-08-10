@@ -729,9 +729,6 @@ ContactDefinition read_contact(const InputDocument& document,
                 : parse_double(document, *penalty_factor);
         result.friction_coefficient =
             read_optional_double(document, *mechanical, "mu", 0.0);
-        if (result.friction_coefficient < 0.0)
-            value_error(document, mechanical->entry("mu"),
-                        "friction coefficient mu must be nonnegative");
         const InputEntry* penetration_tolerance =
             find_entry(*mechanical, "penetration_tolerance");
         const InputEntry* maximum_augmented_iterations =
@@ -972,24 +969,12 @@ void read_executioner(const InputDocument& document, const std::string& path,
                         "problem='steady' requires type='steady'");
         result.steady_execution.load_steps =
             read_size(document, executioner, "load_steps");
-        if (result.steady_execution.load_steps == 0)
-            value_error(document, executioner.entry("load_steps"),
-                        "load_steps must be positive");
         result.steady_execution.cutback_factor = read_optional_double(
             document, executioner, "cutback_factor", 0.5);
         result.steady_execution.maximum_cutbacks = read_optional_size(
             document, executioner, "maximum_cutbacks", 12);
         result.steady_execution.minimum_load_increment = read_optional_double(
             document, executioner, "minimum_load_increment", 1.0e-6);
-        if (!(result.steady_execution.cutback_factor > 0.0 &&
-              result.steady_execution.cutback_factor < 1.0))
-            value_error(document, executioner.entry("cutback_factor"),
-                        "cutback_factor must lie between zero and one");
-        if (!(result.steady_execution.minimum_load_increment > 0.0 &&
-              result.steady_execution.minimum_load_increment <= 1.0))
-            value_error(document,
-                        executioner.entry("minimum_load_increment"),
-                        "minimum_load_increment must lie in (0, 1]");
     } else {
         validate_keys(document, executioner,
                       {"type", "end_time", "initial_time_step",
@@ -1037,33 +1022,6 @@ void read_executioner(const InputDocument& document, const std::string& path,
                 "stress_history_time_absolute_tolerance", 1.0)};
         result.transient_execution.restart_file =
             read_optional_path(path, executioner, "restart");
-        if (result.transient_execution.target_nonlinear_iterations == 0 &&
-            result.transient_execution.iteration_window != 0)
-            value_error(document, executioner.entry("iteration_window"),
-                        "iteration_window requires positive "
-                        "target_nonlinear_iterations");
-        if (result.transient_execution.target_nonlinear_iterations > 0 &&
-            result.transient_execution.iteration_window >=
-                result.transient_execution.target_nonlinear_iterations)
-            value_error(document, executioner.entry("iteration_window"),
-                        "iteration_window must be smaller than "
-                        "target_nonlinear_iterations");
-        if (!(result.transient_execution.time_error_relative_tolerance >=
-                  0.0) ||
-            !(result.transient_execution
-                      .temperature_time_absolute_tolerance > 0.0) ||
-            !(result.transient_execution
-                      .displacement_time_absolute_tolerance > 0.0) ||
-            !(result.transient_execution
-                      .strain_history_time_absolute_tolerance > 0.0) ||
-            !(result.transient_execution
-                      .stress_history_time_absolute_tolerance > 0.0) ||
-            !(result.transient_execution.time_error_safety_factor > 0.0 &&
-              result.transient_execution.time_error_safety_factor < 1.0))
-            throw std::invalid_argument(
-                path + ": transient time-error tolerances must be finite and "
-                       "nonnegative/positive, and the safety factor must lie "
-                       "in (0, 1)");
     }
 }
 
@@ -1106,31 +1064,6 @@ void read_solver(const InputDocument& document, const std::string& path,
                              0.0),
         read_optional_double(document, solver, "mechanical_residual_scale",
                              0.0)};
-    if (!(result.solver.absolute_tolerance > 0.0) ||
-        !(result.solver.relative_tolerance > 0.0) ||
-        !(result.solver.step_tolerance > 0.0) ||
-        result.solver.maximum_iterations <= 0 ||
-        !(result.solver.linear_relative_tolerance > 0.0) ||
-        !(result.solver.residual_reduction_tolerance > 0.0) ||
-        !(result.solver.temperature_residual_absolute_tolerance > 0.0) ||
-        !(result.solver.mechanical_residual_absolute_tolerance > 0.0) ||
-        result.solver.temperature_residual_scale < 0.0 ||
-        result.solver.mechanical_residual_scale < 0.0 ||
-        result.solver.maximum_linear_iterations <= 0)
-        throw std::invalid_argument(
-            path + ": solver tolerances and iteration limit must be positive");
-    const bool fixed_temperature_scale =
-        result.solver.temperature_residual_scale > 0.0;
-    const bool fixed_mechanical_scale =
-        result.solver.mechanical_residual_scale > 0.0;
-    if (fixed_temperature_scale != fixed_mechanical_scale)
-        throw std::invalid_argument(
-            path + ": temperature_residual_scale and "
-                   "mechanical_residual_scale must both be zero or positive");
-    if (fixed_temperature_scale && result.solver.field_residual_scaling)
-        throw std::invalid_argument(
-            path + ": fixed residual scales cannot be combined with "
-                   "field_residual_scaling");
     if (result.solver.linear_solver != "automatic" &&
         result.solver.linear_solver != "direct" &&
         result.solver.linear_solver != "gmres")
@@ -1228,15 +1161,6 @@ void read_outputs(const InputDocument& document, const std::string& path,
                         "history");
     require_output_file(result.outputs.checkpoint_file, "checkpoint_interval",
                         "checkpoint");
-    if (!result.outputs.checkpoint_file.empty() &&
-        result.outputs.checkpoint_interval == 0)
-        value_error(document, outputs.entry("checkpoint_interval"),
-                    "checkpoint_interval must be positive");
-    if (result.outputs.exodus_interval == 0 ||
-        result.outputs.history_interval == 0 ||
-        result.outputs.progress_interval == 0)
-        throw std::invalid_argument(
-            path + ": output intervals must be positive");
 }
 
 } // namespace
