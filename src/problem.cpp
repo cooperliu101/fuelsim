@@ -1,9 +1,18 @@
-#include "fuelsim/transient_problem.hpp"
+#include "assembly.hpp"
+#include "fuelsim/diagnostics.hpp"
 #include "fuelsim/nonlinear_problem.hpp"
+#include "fuelsim/steady_problem.hpp"
+#include "fuelsim/time_table.hpp"
+#include "fuelsim/transient_problem.hpp"
 
 #include <algorithm>
+#include <array>
+#include <cmath>
 #include <limits>
+#include <memory>
 #include <stdexcept>
+#include <utility>
+#include <vector>
 
 namespace fuelsim {
 
@@ -126,19 +135,8 @@ void NonlinearProblem::validate_local_state(
 LocalValues NonlinearProblem::contribution_state(
     std::size_t contribution_index,
     const std::vector<double>& global_state) const {
-    if (global_state.size() != dof_count())
-        throw std::invalid_argument(
-            "NonlinearProblem global state size does not match DOF count");
-
-    const LocalDofs dofs = contribution_dofs(contribution_index);
-    LocalValues local_state{};
-    for (std::size_t local = 0; local < dofs.size(); ++local) {
-        if (dofs[local] >= global_state.size())
-            throw std::out_of_range(
-                "NonlinearProblem contribution DOF is out of range");
-        local_state[local] = global_state[dofs[local]];
-    }
-    return local_state;
+    return contribution_state(contribution_index,
+                              GlobalStateView(global_state));
 }
 
 LocalValues NonlinearProblem::contribution_state(
@@ -180,15 +178,7 @@ void NonlinearProblem::assemble_residual(const std::vector<double>& state,
 
 }
 
-} // namespace fuelsim
-#include "fuelsim/steady_problem.hpp"
-
-#include "assembly.hpp"
-
-#include <memory>
-#include <utility>
-
-namespace fuelsim {
+// Steady nonlinear problem.
 
 SteadyProblem::SteadyProblem(SpatialDefinition definition,
                              const UnstructuredQuad4Mesh& source_mesh)
@@ -255,11 +245,6 @@ std::size_t SteadyProblem::volume_contribution_count() const noexcept {
 SpatialContributionType
 SteadyProblem::contribution_type(std::size_t contribution_index) const {
     return _spatial->contribution_type(contribution_index);
-}
-
-std::pair<std::size_t, std::size_t>
-SteadyProblem::element_location(std::size_t contribution_index) const {
-    return _spatial->element_location(contribution_index);
 }
 
 const Quad4RzGeometry& SteadyProblem::region_element_geometry(
@@ -377,7 +362,7 @@ SteadyProblem::contribution_dofs(std::size_t contribution_index) const {
 LocalResidual SteadyProblem::contribution_residual(
     std::size_t contribution_index, const LocalValues& state) const {
     if (contribution_index < volume_contribution_count()) {
-        const auto location = element_location(contribution_index);
+        const auto location = _spatial->element_location(contribution_index);
         return _region_kernels[location.first].residual(
             region_element_geometry(location.first, location.second), state);
     }
@@ -387,21 +372,14 @@ LocalResidual SteadyProblem::contribution_residual(
 LocalSystem SteadyProblem::linearize_contribution(
     std::size_t contribution_index, const LocalValues& state) const {
     if (contribution_index < volume_contribution_count()) {
-        const auto location = element_location(contribution_index);
+        const auto location = _spatial->element_location(contribution_index);
         return _region_kernels[location.first].linearize(
             region_element_geometry(location.first, location.second), state);
     }
     return _spatial->linearize_contribution(contribution_index, state);
 }
 
-} // namespace fuelsim
-#include "assembly.hpp"
-
-#include <array>
-#include <cmath>
-#include <vector>
-
-namespace fuelsim {
+// Transient conservation diagnostics.
 namespace {
 
 double stress_strain_inner_product(
@@ -584,19 +562,7 @@ TransientConservationSummary TransientConservationCalculator::summarize(
     return result;
 }
 
-} // namespace fuelsim
-#include "fuelsim/transient_problem.hpp"
-
-#include "assembly.hpp"
-
-#include <algorithm>
-#include <cmath>
-#include <limits>
-#include <memory>
-#include <stdexcept>
-#include <utility>
-
-namespace fuelsim {
+// Transient state transactions and nonlinear problem.
 namespace {
 
 bool finite_stress(const AxisymmetricStressValues& stress) {
@@ -1042,7 +1008,7 @@ TransientProblem::contribution_residual(std::size_t contribution_index,
             _spatial->element_location(contribution_index);
         return _region_kernels[location.first].residual(
             region_element_geometry(location.first, location.second), state,
-            committed_element_state(contribution_index),
+            contribution_state(contribution_index, _committed_solution),
             _material_histories[location.first][location.second],
             _active_time_step);
     }
@@ -1058,16 +1024,11 @@ TransientProblem::linearize_contribution(std::size_t contribution_index,
             _spatial->element_location(contribution_index);
         return _region_kernels[location.first].linearize(
             region_element_geometry(location.first, location.second), state,
-            committed_element_state(contribution_index),
+            contribution_state(contribution_index, _committed_solution),
             _material_histories[location.first][location.second],
             _active_time_step);
     }
     return _spatial->linearize_contribution(contribution_index, state);
-}
-
-LocalValues TransientProblem::committed_element_state(
-    std::size_t contribution_index) const {
-    return contribution_state(contribution_index, _committed_solution);
 }
 
 void TransientProblem::require_active_time_step() const {
@@ -1076,14 +1037,7 @@ void TransientProblem::require_active_time_step() const {
                                "an active time step");
 }
 
-} // namespace fuelsim
-#include "fuelsim/diagnostics.hpp"
-
-#include <algorithm>
-#include <cmath>
-#include <stdexcept>
-
-namespace fuelsim {
+// Directional Jacobian diagnostics.
 namespace {
 
 std::vector<double>
@@ -1180,15 +1134,7 @@ check_directional_jacobian(const NonlinearProblem& problem,
             field_norms(dof_map, difference)};
 }
 
-} // namespace fuelsim
-#include "fuelsim/time_table.hpp"
-
-#include <algorithm>
-#include <cmath>
-#include <stdexcept>
-#include <utility>
-
-namespace fuelsim {
+// Piecewise-linear time functions.
 
 PiecewiseLinearTimeTable::PiecewiseLinearTimeTable(std::string name,
                                                    std::vector<double> times,

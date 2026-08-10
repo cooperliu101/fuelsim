@@ -1,22 +1,29 @@
-#ifndef FUELSIM_CASE_RUNNER_HPP
-#define FUELSIM_CASE_RUNNER_HPP
+#include "fuelsim/case_input.hpp"
+#include "fuelsim/checkpoint_io.hpp"
+#include "fuelsim/diagnostics.hpp"
+#include "fuelsim/exodus_mesh_io.hpp"
+#include "fuelsim/petsc_solver.hpp"
+#include "fuelsim/problem_solver.hpp"
+#include "fuelsim/results_io.hpp"
+
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstddef>
+#include <exception>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <limits>
+#include <memory>
+#include <stdexcept>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace fuelsim {
-
-int run_application(int argc, char** argv);
-
-} // namespace fuelsim
-
-#endif
-#ifndef FUELSIM_CASE_OUTPUT_HPP
-#define FUELSIM_CASE_OUTPUT_HPP
-
-#include "fuelsim/case_input.hpp"
-#include "fuelsim/problem_solver.hpp"
-
-#include <cstddef>
-#include <fstream>
-#include <string>
+class PetscSession;
+}
 
 namespace fuelsim::app {
 
@@ -46,25 +53,6 @@ void write_time_error_components(
     const std::string& prefix,
     const TransientTimeErrorEstimate& estimate,
     CaseOutput& output);
-
-} // namespace fuelsim::app
-
-#endif
-#ifndef FUELSIM_TRANSIENT_OUTPUT_OBSERVER_HPP
-#define FUELSIM_TRANSIENT_OUTPUT_OBSERVER_HPP
-
-
-#include "fuelsim/problem_solver.hpp"
-#include "fuelsim/results_io.hpp"
-
-#include <cstddef>
-#include <string>
-
-namespace fuelsim {
-
-class PetscSession;
-
-namespace app {
 
 class TransientOutputObserver final : public TransientStepObserver {
   public:
@@ -101,22 +89,9 @@ class TransientOutputObserver final : public TransientStepObserver {
     CaseOutput& _progress_output;
 };
 
-} // namespace app
-} // namespace fuelsim
-
-#endif
-
-#include <iomanip>
-#include <iostream>
-#include <stdexcept>
-#include <utility>
-
-namespace fuelsim::app {
-
 CaseOutput::CaseOutput(bool console) : _console(console) {
     if (_console)
-        std::cout << std::boolalpha << std::scientific
-                  << std::setprecision(12);
+        std::cout << std::scientific << std::setprecision(12);
 }
 
 CaseOutput::CaseOutput(const CaseOutputInput& options, bool force_console,
@@ -150,24 +125,15 @@ void CaseOutput::value(const std::string& key, double data) {
 }
 
 void CaseOutput::value(const std::string& key, std::size_t data) {
-    if (_console)
-        std::cout << key << '=' << data << '\n';
-    if (_csv)
-        _csv << key << ',' << data << '\n';
+    value(key, std::to_string(data));
 }
 
 void CaseOutput::value(const std::string& key, int data) {
-    if (_console)
-        std::cout << key << '=' << data << '\n';
-    if (_csv)
-        _csv << key << ',' << data << '\n';
+    value(key, std::to_string(data));
 }
 
 void CaseOutput::value(const std::string& key, bool data) {
-    if (_console)
-        std::cout << key << '=' << std::boolalpha << data << '\n';
-    if (_csv)
-        _csv << key << ',' << std::boolalpha << data << '\n';
+    value(key, data ? "true" : "false");
 }
 
 void write_conservation_summary(
@@ -199,15 +165,6 @@ void write_time_error_components(
     output.value(prefix + "contact_normal_multiplier",
                  estimate.contact_normal_multiplier);
 }
-
-} // namespace fuelsim::app
-
-#include "fuelsim/checkpoint_io.hpp"
-#include "fuelsim/petsc_solver.hpp"
-
-#include <utility>
-
-namespace fuelsim::app {
 
 TransientOutputObserver::TransientOutputObserver(
     ExodusTransientResultsWriter* results,
@@ -294,27 +251,6 @@ void TransientOutputObserver::finalize(const TransientProblem& problem,
 }
 
 } // namespace fuelsim::app
-
-#include "fuelsim/case_input.hpp"
-#include "fuelsim/checkpoint_io.hpp"
-#include "fuelsim/diagnostics.hpp"
-#include "fuelsim/exodus_mesh_io.hpp"
-#include "fuelsim/petsc_solver.hpp"
-#include "fuelsim/problem_solver.hpp"
-#include "fuelsim/results_io.hpp"
-
-#include <algorithm>
-#include <array>
-#include <cmath>
-#include <cstddef>
-#include <exception>
-#include <iostream>
-#include <limits>
-#include <memory>
-#include <stdexcept>
-#include <string>
-#include <utility>
-#include <vector>
 
 namespace {
 
@@ -749,7 +685,7 @@ bool run_transient(const fuelsim::FuelSimCaseDefinition& definition,
 
 } // namespace
 
-int fuelsim::run_application(int argc, char** argv) {
+int run_application(int argc, char** argv) {
     try {
         const CommandLine command = extract_command_line(argc, argv);
         const fuelsim::FuelSimCaseDefinition definition =
@@ -785,5 +721,5 @@ int fuelsim::run_application(int argc, char** argv) {
 }
 
 int main(int argc, char** argv) {
-    return fuelsim::run_application(argc, argv);
+    return run_application(argc, argv);
 }

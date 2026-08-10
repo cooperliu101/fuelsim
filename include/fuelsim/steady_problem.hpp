@@ -87,8 +87,6 @@ class SteadyProblem final : public NonlinearProblem {
                                        const LocalValues& state) const override;
 
   private:
-    std::pair<std::size_t, std::size_t>
-    element_location(std::size_t contribution_index) const;
     void refresh_region_heat_sources();
 
     std::unique_ptr<SpatialAssembly> _spatial;

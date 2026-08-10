@@ -1,6 +1,8 @@
 #include "assembly.hpp"
 
 #include <algorithm>
+#include <array>
+#include <cmath>
 #include <limits>
 #include <stdexcept>
 #include <utility>
@@ -262,15 +264,7 @@ double SpatialAssembly::region_heat_source(std::size_t region_value) const {
     return _boundary.region_heat_source(region_value, _layout);
 }
 
-
-} // namespace fuelsim
-#include "assembly.hpp"
-
-#include <algorithm>
-#include <cmath>
-#include <stdexcept>
-
-namespace fuelsim {
+// Boundary-condition assembly.
 namespace {
 
 void validate_dirichlet_conditions(
@@ -291,6 +285,29 @@ void validate_dirichlet_conditions(
         throw std::invalid_argument(
             "BoundaryAssembly has duplicate Dirichlet conditions");
     }
+}
+
+struct BoundaryEdgeData final {
+    std::array<std::size_t, 4> nodes;
+    std::array<RzPoint, 2> coordinates;
+    std::array<std::size_t, 2> local_nodes;
+};
+
+BoundaryEdgeData boundary_edge_data(
+    const SpatialLayout& layout,
+    const SpatialLayout::ResolvedBoundary& boundary,
+    const Line2BoundaryElement& edge) {
+    const RegionMesh& mesh = layout.region_mesh(boundary.region);
+    const auto parent = layout.edge_parent(boundary.region, edge);
+    const Quad4Element& element = mesh.elements().at(parent.first);
+    BoundaryEdgeData result{{}, {}, parent.second};
+    for (std::size_t node = 0; node < result.nodes.size(); ++node)
+        result.nodes[node] =
+            layout.global_node(boundary.region, element.nodes[node]);
+    for (std::size_t node = 0; node < result.coordinates.size(); ++node)
+        result.coordinates[node] =
+            mesh.nodes().at(element.nodes[parent.second[node]]);
+    return result;
 }
 
 } // namespace
@@ -340,22 +357,13 @@ void BoundaryAssembly::build(const UnstructuredQuad4Mesh& source_mesh,
                                 definition.function, layout) *
                     definition.value,
                 displaced});
-            const RegionMesh& mesh = layout.region_mesh(resolved.region);
             for (const Line2BoundaryElement& edge :
                  resolved.boundary.elements) {
-                const auto parent = layout.edge_parent(resolved.region, edge);
-                const Quad4Element& element =
-                    mesh.elements().at(parent.first);
-                std::array<std::size_t, 4> nodes{};
-                for (std::size_t node = 0; node < nodes.size(); ++node)
-                    nodes[node] = layout.global_node(
-                        resolved.region, element.nodes[node]);
+                const BoundaryEdgeData data =
+                    boundary_edge_data(layout, resolved, edge);
                 _pressure_contributions.push_back(
-                    {load, nodes,
-                     make_line2_rz_pressure_geometry(
-                         {{mesh.nodes().at(element.nodes[parent.second[0]]),
-                           mesh.nodes().at(element.nodes[parent.second[1]])}},
-                         parent.second)});
+                    {load, data.nodes, make_line2_rz_pressure_geometry(
+                                           data.coordinates, data.local_nodes)});
             }
         } else if (definition.type == BoundaryConditionType::traction) {
             if (definition.field == Field::temperature)
@@ -380,22 +388,13 @@ void BoundaryAssembly::build(const UnstructuredQuad4Mesh& source_mesh,
                                 definition.function, layout) *
                     definition.value,
                 definition.use_displaced_geometry});
-            const RegionMesh& mesh = layout.region_mesh(resolved.region);
             for (const Line2BoundaryElement& edge :
                  resolved.boundary.elements) {
-                const auto parent = layout.edge_parent(resolved.region, edge);
-                const Quad4Element& element =
-                    mesh.elements().at(parent.first);
-                std::array<std::size_t, 4> nodes{};
-                for (std::size_t node = 0; node < nodes.size(); ++node)
-                    nodes[node] = layout.global_node(
-                        resolved.region, element.nodes[node]);
+                const BoundaryEdgeData data =
+                    boundary_edge_data(layout, resolved, edge);
                 _traction_contributions.push_back(
-                    {load, nodes,
-                     make_line2_rz_traction_geometry(
-                         {{mesh.nodes().at(element.nodes[parent.second[0]]),
-                           mesh.nodes().at(element.nodes[parent.second[1]])}},
-                         parent.second)});
+                    {load, data.nodes, make_line2_rz_traction_geometry(
+                                           data.coordinates, data.local_nodes)});
             }
         } else {
             if (!(definition.heat_transfer_coefficient > 0.0) ||
@@ -413,22 +412,13 @@ void BoundaryAssembly::build(const UnstructuredQuad4Mesh& source_mesh,
             _convection_kernels.emplace_back(
                 ConvectionProperties{definition.heat_transfer_coefficient,
                                      definition.ambient_temperature});
-            const RegionMesh& mesh = layout.region_mesh(resolved.region);
             for (const Line2BoundaryElement& edge :
                  resolved.boundary.elements) {
-                const auto parent = layout.edge_parent(resolved.region, edge);
-                const Quad4Element& element =
-                    mesh.elements().at(parent.first);
-                std::array<std::size_t, 4> nodes{};
-                for (std::size_t node = 0; node < nodes.size(); ++node)
-                    nodes[node] = layout.global_node(
-                        resolved.region, element.nodes[node]);
+                const BoundaryEdgeData data =
+                    boundary_edge_data(layout, resolved, edge);
                 _convection_contributions.push_back(
-                    {load, nodes,
-                     make_line2_rz_convection_geometry(
-                         {{mesh.nodes().at(element.nodes[parent.second[0]]),
-                           mesh.nodes().at(element.nodes[parent.second[1]])}},
-                         parent.second)});
+                    {load, data.nodes, make_line2_rz_convection_geometry(
+                                           data.coordinates, data.local_nodes)});
             }
         }
     }
@@ -650,17 +640,7 @@ void SpatialAssembly::set_time(double value) {
     _boundary.set_time(value, _layout);
 }
 
-
-} // namespace fuelsim
-#include "assembly.hpp"
-
-#include <algorithm>
-#include <cmath>
-#include <limits>
-#include <stdexcept>
-#include <utility>
-
-namespace fuelsim {
+// Contact assembly and state transactions.
 
 std::size_t SpatialAssembly::contact_count() const noexcept {
     return _contact.contact_count(_layout);
@@ -876,7 +856,6 @@ void ContactAssembly::restore_state(
     _committed_contact_solution = state;
     _contact_histories = std::move(histories);
 }
-
 
 void SpatialAssembly::update_mechanical_candidates(
     const std::vector<double>& state) const {
@@ -1194,18 +1173,7 @@ SpatialAssembly::summarize_interface(std::size_t contact_value,
     return summary;
 }
 
-
-} // namespace fuelsim
-#include "assembly.hpp"
-
-#include <algorithm>
-#include <array>
-#include <cmath>
-#include <limits>
-#include <stdexcept>
-#include <utility>
-
-namespace fuelsim {
+// Spatial assembly construction and contribution dispatch.
 namespace {
 
 Line2InterfaceSideCoordinates

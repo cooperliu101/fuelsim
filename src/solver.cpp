@@ -1,4 +1,5 @@
 #include "fuelsim/petsc_solver.hpp"
+#include "fuelsim/problem_solver.hpp"
 
 #include <petsc.h>
 
@@ -12,6 +13,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace fuelsim {
@@ -1225,47 +1227,16 @@ const char* solve_failure_category_name(SolveFailureCategory category) noexcept 
     return "unknown";
 }
 
-} // namespace fuelsim
-#ifndef FUELSIM_SOLVER_WORKFLOW_HPP
-#define FUELSIM_SOLVER_WORKFLOW_HPP
-
-#include "fuelsim/problem_solver.hpp"
-
-#include <chrono>
-#include <vector>
-
-namespace fuelsim::solver_workflow {
+// Shared steady and transient solve helpers.
+namespace solver_workflow {
 
 using SteadyClock = std::chrono::steady_clock;
 
-double elapsed_seconds(const SteadyClock::time_point& start);
 void accumulate_timing(SolveTiming& total, const SolveTiming& step);
-void merge_attempt(SolveResult& aggregate, const SolveResult& addition);
 
-std::vector<double>
-initial_guess_with_dirichlet_values(const NonlinearProblem& problem,
-                                    const std::vector<double>& state);
-
-SolveResult solve_contact_equilibrium(
-    PetscSolver& solver, SteadyProblem& problem,
-    const std::vector<double>& initial_guess, const SolverOptions& options);
-
-SolveResult solve_contact_equilibrium(
-    PetscSolver& solver, TransientProblem& problem,
-    const std::vector<double>& initial_guess, const SolverOptions& options);
-
-} // namespace fuelsim::solver_workflow
-
-#endif
-
-#include <algorithm>
-#include <stdexcept>
-#include <string>
-
-namespace fuelsim::solver_workflow {
 namespace {
 
-void combine_attempt(SolveResult& aggregate, const SolveResult& addition) {
+void merge_attempt(SolveResult& aggregate, const SolveResult& addition) {
     const int nonlinear_iterations =
         aggregate.nonlinear_iterations + addition.nonlinear_iterations;
     const int linear_iterations =
@@ -1335,10 +1306,6 @@ void accumulate_timing(SolveTiming& total, const SolveTiming& step) {
     total.solve_calls += step.solve_calls;
 }
 
-void merge_attempt(SolveResult& aggregate, const SolveResult& addition) {
-    combine_attempt(aggregate, addition);
-}
-
 std::vector<double>
 initial_guess_with_dirichlet_values(const NonlinearProblem& problem,
                                     const std::vector<double>& state) {
@@ -1374,7 +1341,7 @@ SolveResult solve_contact_equilibrium(
             problem,
             initial_guess_with_dirichlet_values(problem, result.state),
             options);
-        combine_attempt(result, next);
+        merge_attempt(result, next);
     }
     result.augmented_lagrangian_iterations = updates;
     return result;
@@ -1403,22 +1370,15 @@ SolveResult solve_contact_equilibrium(
             problem,
             initial_guess_with_dirichlet_values(problem, result.state),
             options);
-        combine_attempt(result, next);
+        merge_attempt(result, next);
     }
     result.augmented_lagrangian_iterations = updates;
     return result;
 }
 
-} // namespace fuelsim::solver_workflow
-#include "fuelsim/problem_solver.hpp"
+} // namespace solver_workflow
 
-
-#include <cmath>
-#include <limits>
-#include <stdexcept>
-#include <utility>
-
-namespace fuelsim {
+// Steady load stepping.
 
 using solver_workflow::SteadyClock;
 using solver_workflow::accumulate_timing;
@@ -1527,37 +1487,8 @@ SteadyResult solve_steady(SteadyProblem& problem,
     return result;
 }
 
-
-} // namespace fuelsim
-#ifndef FUELSIM_TRANSIENT_TIME_CONTROL_HPP
-#define FUELSIM_TRANSIENT_TIME_CONTROL_HPP
-
-#include "fuelsim/problem_solver.hpp"
-
-namespace fuelsim::time_control {
-
-TransientConservationSummary combine_half_step_conservation(
-    const TransientConservationSummary& first,
-    const TransientConservationSummary& second);
-
-TransientTimeErrorEstimate step_doubling_error(
-    const TransientCommittedState& full_step,
-    const TransientCommittedState& two_half_steps,
-    const TransientTimeOptions& options);
-
-double step_factor(const TransientTimeOptions& options, double error);
-
-} // namespace fuelsim::time_control
-
-#endif
-
-#include <algorithm>
-#include <array>
-#include <cmath>
-#include <limits>
-#include <stdexcept>
-
-namespace fuelsim::time_control {
+// Backward-Euler step-doubling error control.
+namespace time_control {
 namespace {
 
 struct ErrorAccumulator final {
@@ -1826,27 +1757,12 @@ double step_factor(const TransientTimeOptions& options, double error) {
                       0.1, options.growth_factor);
 }
 
-} // namespace fuelsim::time_control
-#include "fuelsim/problem_solver.hpp"
+} // namespace time_control
 
-
-#include <algorithm>
-#include <array>
-#include <chrono>
-#include <cmath>
-#include <limits>
-#include <stdexcept>
-#include <utility>
-
-namespace fuelsim {
+// Transient time stepping and state transactions.
 namespace {
 
-using solver_workflow::SteadyClock;
-using solver_workflow::accumulate_timing;
-using solver_workflow::elapsed_seconds;
-using solver_workflow::initial_guess_with_dirichlet_values;
 using solver_workflow::merge_attempt;
-using solver_workflow::solve_contact_equilibrium;
 
 class TimeStepTransaction final {
   public:

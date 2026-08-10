@@ -189,8 +189,6 @@ class TransientProblem final : public NonlinearProblem {
   private:
     friend class TransientConservationCalculator;
 
-    LocalValues
-    committed_element_state(std::size_t contribution_index) const;
     void apply_spatial_controls(double time, double load_factor);
     void clear_active_time_step() noexcept;
     void refresh_region_heat_sources();

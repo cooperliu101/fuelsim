@@ -1,7 +1,18 @@
+#include "fuelsim/boundary.hpp"
+#include "fuelsim/interface.hpp"
+#include "fuelsim/quad4_rz_kinematics.hpp"
 #include "fuelsim/quad4_rz.hpp"
+#include "fuelsim/quad4_rz_thermoelastic.hpp"
+#include "fuelsim/quad4_rz_transient.hpp"
 
+#include <adlite/adlite.hpp>
+
+#include <algorithm>
 #include <array>
+#include <cmath>
+#include <cstddef>
 #include <stdexcept>
+#include <string>
 
 namespace fuelsim {
 namespace {
@@ -96,16 +107,8 @@ Quad4RzGeometry make_quad4_rz_geometry(const Quad4Coordinates& coordinates) {
     return geometry;
 }
 
-} // namespace fuelsim
-#ifndef FUELSIM_QUAD4_RZ_ASSEMBLY_HPP
-#define FUELSIM_QUAD4_RZ_ASSEMBLY_HPP
-
-#include "fuelsim/quad4_rz_kinematics.hpp"
-
-#include <array>
-#include <cstddef>
-
-namespace fuelsim::quad4_rz_detail {
+// Shared concrete helpers for all twelve-degree-of-freedom kernels.
+namespace quad4_rz_detail {
 
 inline adlite::Scalar
 interpolate(const std::array<double, quad4_node_count>& coefficients,
@@ -129,6 +132,27 @@ inline LocalAdValues passive_state(const LocalValues& state) {
     LocalAdValues result{};
     for (std::size_t dof = 0; dof < state.size(); ++dof)
         result[dof] = state[dof];
+    return result;
+}
+
+inline LocalAdValues active_state(const LocalValues& state) {
+    LocalAdValues result{};
+    adlite::seed_identity(state.data(), state.size(), result.data());
+    return result;
+}
+
+inline LocalResidual residual_values(const LocalAdValues& residual) {
+    LocalResidual result{};
+    for (std::size_t row = 0; row < result.size(); ++row)
+        result[row] = residual[row].value();
+    return result;
+}
+
+inline LocalSystem linearized_values(const LocalAdValues& state,
+                                     const LocalAdValues& residual) {
+    LocalSystem result{};
+    adlite::extract_jacobian(residual.data(), residual.size(), state.size(),
+                             result.residual.data(), result.jacobian.data());
     return result;
 }
 
@@ -184,16 +208,9 @@ inline void add_transient_point_residual(
     add_mechanical_point_residual(point, kinematics, stress, residual);
 }
 
-} // namespace fuelsim::quad4_rz_detail
+} // namespace quad4_rz_detail
 
-#endif
-#include "fuelsim/quad4_rz_kinematics.hpp"
-
-
-#include <cmath>
-#include <stdexcept>
-
-namespace fuelsim {
+// Axisymmetric small- and finite-strain kinematics.
 
 AxisymmetricKinematics
 evaluate_axisymmetric_kinematics(const RzQuadraturePoint& point,
@@ -378,15 +395,7 @@ AxisymmetricKinematics evaluate_axisymmetric_incremental_kinematics(
     return result;
 }
 
-} // namespace fuelsim
-#include "fuelsim/quad4_rz_thermoelastic.hpp"
-
-
-#include <algorithm>
-#include <cmath>
-#include <stdexcept>
-
-namespace fuelsim {
+// Steady thermoelastic volume kernel.
 namespace {
 
 struct ThermoelasticPointResponse final {
@@ -446,31 +455,19 @@ void Quad4RzThermoelasticKernel::set_volumetric_heat_source(
 LocalResidual
 Quad4RzThermoelasticKernel::residual(const Quad4RzGeometry& geometry,
                                      const LocalValues& state) const {
-    const LocalAdValues passive_state = quad4_rz_detail::passive_state(state);
-
-    LocalAdValues passive_residual{};
-    residual_ad(geometry, passive_state, passive_residual);
-
-    LocalResidual result{};
-    for (std::size_t row = 0; row < result.size(); ++row)
-        result[row] = passive_residual[row].value();
-    return result;
+    const LocalAdValues ad_state = quad4_rz_detail::passive_state(state);
+    LocalAdValues ad_residual{};
+    residual_ad(geometry, ad_state, ad_residual);
+    return quad4_rz_detail::residual_values(ad_residual);
 }
 
 LocalSystem
 Quad4RzThermoelasticKernel::linearize(const Quad4RzGeometry& geometry,
                                       const LocalValues& state) const {
-    LocalAdValues active_state{};
-    adlite::seed_identity(state.data(), state.size(), active_state.data());
-
-    LocalAdValues active_residual{};
-    residual_ad(geometry, active_state, active_residual);
-
-    LocalSystem result{};
-    adlite::extract_jacobian(active_residual.data(), active_residual.size(),
-                             active_state.size(), result.residual.data(),
-                             result.jacobian.data());
-    return result;
+    const LocalAdValues ad_state = quad4_rz_detail::active_state(state);
+    LocalAdValues ad_residual{};
+    residual_ad(geometry, ad_state, ad_residual);
+    return quad4_rz_detail::linearized_values(ad_state, ad_residual);
 }
 
 std::array<AxisymmetricStressValues, 4>
@@ -507,16 +504,7 @@ void Quad4RzThermoelasticKernel::residual_ad(const Quad4RzGeometry& geometry,
     }
 }
 
-} // namespace fuelsim
-#include "fuelsim/quad4_rz_transient.hpp"
-
-
-#include <algorithm>
-#include <array>
-#include <cmath>
-#include <stdexcept>
-
-namespace fuelsim {
+// Transient inelastic volume kernel.
 namespace {
 
 struct PointFields final {
@@ -623,17 +611,12 @@ LocalResidual Quad4RzTransientKernel::residual(
     validate_time_step(time_step);
     validate_committed_state(committed_state);
 
-    const LocalAdValues passive_state =
+    const LocalAdValues ad_state =
         quad4_rz_detail::passive_state(current_state);
-
-    LocalAdValues passive_residual{};
-    residual_ad(geometry, passive_state, committed_state, committed_material,
-                time_step, passive_residual);
-
-    LocalResidual result{};
-    for (std::size_t row = 0; row < result.size(); ++row)
-        result[row] = passive_residual[row].value();
-    return result;
+    LocalAdValues ad_residual{};
+    residual_ad(geometry, ad_state, committed_state, committed_material,
+                time_step, ad_residual);
+    return quad4_rz_detail::residual_values(ad_residual);
 }
 
 LocalSystem Quad4RzTransientKernel::linearize(
@@ -643,19 +626,12 @@ LocalSystem Quad4RzTransientKernel::linearize(
     validate_time_step(time_step);
     validate_committed_state(committed_state);
 
-    LocalAdValues active_state{};
-    adlite::seed_identity(current_state.data(), current_state.size(),
-                          active_state.data());
-
-    LocalAdValues active_residual{};
-    residual_ad(geometry, active_state, committed_state, committed_material,
-                time_step, active_residual);
-
-    LocalSystem result{};
-    adlite::extract_jacobian(active_residual.data(), active_residual.size(),
-                             active_state.size(), result.residual.data(),
-                             result.jacobian.data());
-    return result;
+    const LocalAdValues ad_state =
+        quad4_rz_detail::active_state(current_state);
+    LocalAdValues ad_residual{};
+    residual_ad(geometry, ad_state, committed_state, committed_material,
+                time_step, ad_residual);
+    return quad4_rz_detail::linearized_values(ad_state, ad_residual);
 }
 
 Quad4MaterialHistory Quad4RzTransientKernel::trial_state_values(
@@ -745,17 +721,7 @@ void Quad4RzTransientKernel::residual_ad(
     }
 }
 
-} // namespace fuelsim
-#include "fuelsim/boundary.hpp"
-
-#include <adlite/adlite.hpp>
-
-#include <array>
-#include <cmath>
-#include <stdexcept>
-#include <string>
-
-namespace fuelsim {
+// Pressure, traction, and convection boundary kernels.
 namespace {
 
 constexpr double gauss = 0.577350269189625764509148780501957456;
@@ -884,28 +850,18 @@ void Line2RzPressureKernel::residual_ad(
 
 LocalResidual Line2RzPressureKernel::residual(
     const Line2RzPressureGeometry& geometry, const LocalValues& state) const {
-    LocalAdValues ad_state{};
-    for (std::size_t dof = 0; dof < local_dof_count; ++dof)
-        ad_state[dof] = state[dof];
+    const LocalAdValues ad_state = quad4_rz_detail::passive_state(state);
     LocalAdValues ad_residual{};
     residual_ad(geometry, ad_state, ad_residual);
-    LocalResidual result{};
-    for (std::size_t dof = 0; dof < local_dof_count; ++dof)
-        result[dof] = ad_residual[dof].value();
-    return result;
+    return quad4_rz_detail::residual_values(ad_residual);
 }
 
 LocalSystem Line2RzPressureKernel::linearize(
     const Line2RzPressureGeometry& geometry, const LocalValues& state) const {
-    LocalAdValues ad_state{};
-    adlite::seed_identity(state.data(), state.size(), ad_state.data());
+    const LocalAdValues ad_state = quad4_rz_detail::active_state(state);
     LocalAdValues ad_residual{};
     residual_ad(geometry, ad_state, ad_residual);
-    LocalSystem result{};
-    adlite::extract_jacobian(ad_residual.data(), ad_residual.size(),
-                             ad_state.size(), result.residual.data(),
-                             result.jacobian.data());
-    return result;
+    return quad4_rz_detail::linearized_values(ad_state, ad_residual);
 }
 
 Line2RzTractionKernel::Line2RzTractionKernel(
@@ -964,28 +920,18 @@ void Line2RzTractionKernel::residual_ad(
 
 LocalResidual Line2RzTractionKernel::residual(
     const Line2RzTractionGeometry& geometry, const LocalValues& state) const {
-    LocalAdValues ad_state{};
-    for (std::size_t dof = 0; dof < local_dof_count; ++dof)
-        ad_state[dof] = state[dof];
+    const LocalAdValues ad_state = quad4_rz_detail::passive_state(state);
     LocalAdValues ad_residual{};
     residual_ad(geometry, ad_state, ad_residual);
-    LocalResidual result{};
-    for (std::size_t dof = 0; dof < local_dof_count; ++dof)
-        result[dof] = ad_residual[dof].value();
-    return result;
+    return quad4_rz_detail::residual_values(ad_residual);
 }
 
 LocalSystem Line2RzTractionKernel::linearize(
     const Line2RzTractionGeometry& geometry, const LocalValues& state) const {
-    LocalAdValues ad_state{};
-    adlite::seed_identity(state.data(), state.size(), ad_state.data());
+    const LocalAdValues ad_state = quad4_rz_detail::active_state(state);
     LocalAdValues ad_residual{};
     residual_ad(geometry, ad_state, ad_residual);
-    LocalSystem result{};
-    adlite::extract_jacobian(ad_residual.data(), ad_residual.size(),
-                             ad_state.size(), result.residual.data(),
-                             result.jacobian.data());
-    return result;
+    return quad4_rz_detail::linearized_values(ad_state, ad_residual);
 }
 
 Line2RzConvectionKernel::Line2RzConvectionKernel(
@@ -1034,40 +980,22 @@ void Line2RzConvectionKernel::residual_ad(
 LocalResidual
 Line2RzConvectionKernel::residual(const Line2RzConvectionGeometry& geometry,
                                   const LocalValues& state) const {
-    LocalAdValues ad_state{};
-    for (std::size_t dof = 0; dof < local_dof_count; ++dof)
-        ad_state[dof] = state[dof];
+    const LocalAdValues ad_state = quad4_rz_detail::passive_state(state);
     LocalAdValues ad_residual{};
     residual_ad(geometry, ad_state, ad_residual);
-    LocalResidual result{};
-    for (std::size_t dof = 0; dof < local_dof_count; ++dof)
-        result[dof] = ad_residual[dof].value();
-    return result;
+    return quad4_rz_detail::residual_values(ad_residual);
 }
 
 LocalSystem
 Line2RzConvectionKernel::linearize(const Line2RzConvectionGeometry& geometry,
                                    const LocalValues& state) const {
-    LocalAdValues ad_state{};
-    adlite::seed_identity(state.data(), state.size(), ad_state.data());
+    const LocalAdValues ad_state = quad4_rz_detail::active_state(state);
     LocalAdValues ad_residual{};
     residual_ad(geometry, ad_state, ad_residual);
-    LocalSystem result{};
-    adlite::extract_jacobian(ad_residual.data(), ad_residual.size(),
-                             ad_state.size(), result.residual.data(),
-                             result.jacobian.data());
-    return result;
+    return quad4_rz_detail::linearized_values(ad_state, ad_residual);
 }
 
-} // namespace fuelsim
-#include "fuelsim/interface.hpp"
-
-#include <algorithm>
-#include <array>
-#include <cmath>
-#include <stdexcept>
-
-namespace fuelsim {
+// Thermal and mechanical contact kernels.
 namespace {
 
 struct HeatAdQuadratureValue final {
@@ -1536,43 +1464,29 @@ const GapHeatProperties& Line2RzGapHeatKernel::properties() const noexcept {
 LocalResidual
 Line2RzGapHeatKernel::residual(const Line2RzHeatGeometry& geometry,
                                const LocalValues& state) const {
-    LocalAdValues passive_state{};
-    for (std::size_t dof = 0; dof < state.size(); ++dof)
-        passive_state[dof] = state[dof];
-    LocalAdValues passive_residual{};
-    residual_ad(geometry, passive_state, passive_residual);
-
-    LocalResidual result{};
-    for (std::size_t row = 0; row < result.size(); ++row)
-        result[row] = passive_residual[row].value();
-    return result;
+    const LocalAdValues ad_state = quad4_rz_detail::passive_state(state);
+    LocalAdValues ad_residual{};
+    residual_ad(geometry, ad_state, ad_residual);
+    return quad4_rz_detail::residual_values(ad_residual);
 }
 
 LocalSystem Line2RzGapHeatKernel::linearize(const Line2RzHeatGeometry& geometry,
                                             const LocalValues& state) const {
-    LocalAdValues active_state{};
-    adlite::seed_identity(state.data(), state.size(), active_state.data());
-    LocalAdValues active_residual{};
-    residual_ad(geometry, active_state, active_residual);
-
-    LocalSystem result{};
-    adlite::extract_jacobian(active_residual.data(), active_residual.size(),
-                             active_state.size(), result.residual.data(),
-                             result.jacobian.data());
-    return result;
+    const LocalAdValues ad_state = quad4_rz_detail::active_state(state);
+    LocalAdValues ad_residual{};
+    residual_ad(geometry, ad_state, ad_residual);
+    return quad4_rz_detail::linearized_values(ad_state, ad_residual);
 }
 
 HeatQuadratureValues
 Line2RzGapHeatKernel::quadrature_values(const Line2RzHeatGeometry& geometry,
                                         const LocalValues& state) const {
-    LocalAdValues passive_state{};
-    for (std::size_t dof = 0; dof < state.size(); ++dof)
-        passive_state[dof] = state[dof];
+    const LocalAdValues ad_state = quad4_rz_detail::passive_state(state);
 
     HeatQuadratureValues result{};
     for (std::size_t q = 0; q < geometry.points.size(); ++q) {
         const HeatAdQuadratureValue value = evaluate_heat_quadrature(
-            geometry, geometry.points[q], passive_state, _properties);
+            geometry, geometry.points[q], ad_state, _properties);
         result[q] = {
             value.gap.value(),
             value.heat_flux.value(),
@@ -1664,34 +1578,20 @@ NodeToLineRzContactKernel::residual(const NodeToLineRzContactGeometry& geometry,
                                     const LocalValues& state,
                                     const LocalValues& committed_state,
                                     const ContactPointHistory& history) const {
-    LocalAdValues passive_state{};
-    for (std::size_t dof = 0; dof < state.size(); ++dof)
-        passive_state[dof] = state[dof];
-    LocalAdValues passive_residual{};
-    residual_ad(geometry, passive_state, committed_state, history,
-                passive_residual);
-
-    LocalResidual result{};
-    for (std::size_t row = 0; row < result.size(); ++row)
-        result[row] = passive_residual[row].value();
-    return result;
+    const LocalAdValues ad_state = quad4_rz_detail::passive_state(state);
+    LocalAdValues ad_residual{};
+    residual_ad(geometry, ad_state, committed_state, history, ad_residual);
+    return quad4_rz_detail::residual_values(ad_residual);
 }
 
 LocalSystem NodeToLineRzContactKernel::linearize(
     const NodeToLineRzContactGeometry& geometry,
     const LocalValues& state, const LocalValues& committed_state,
     const ContactPointHistory& history) const {
-    LocalAdValues active_state{};
-    adlite::seed_identity(state.data(), state.size(), active_state.data());
-    LocalAdValues active_residual{};
-    residual_ad(geometry, active_state, committed_state, history,
-                active_residual);
-
-    LocalSystem result{};
-    adlite::extract_jacobian(active_residual.data(), active_residual.size(),
-                             active_state.size(), result.residual.data(),
-                             result.jacobian.data());
-    return result;
+    const LocalAdValues ad_state = quad4_rz_detail::active_state(state);
+    LocalAdValues ad_residual{};
+    residual_ad(geometry, ad_state, committed_state, history, ad_residual);
+    return quad4_rz_detail::linearized_values(ad_state, ad_residual);
 }
 
 ContactPointValue
@@ -1699,11 +1599,9 @@ NodeToLineRzContactKernel::value(const NodeToLineRzContactGeometry& geometry,
                                  const LocalValues& state,
                                  const LocalValues& committed_state,
                                  const ContactPointHistory& history) const {
-    LocalAdValues passive_state{};
-    for (std::size_t dof = 0; dof < state.size(); ++dof)
-        passive_state[dof] = state[dof];
+    const LocalAdValues ad_state = quad4_rz_detail::passive_state(state);
     const ContactAdValue result =
-        evaluate_contact(geometry, passive_state, committed_state, history,
+        evaluate_contact(geometry, ad_state, committed_state, history,
                          _properties);
     return {
         result.projected,

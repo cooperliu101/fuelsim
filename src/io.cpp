@@ -1,50 +1,27 @@
-#ifndef FUELSIM_EXODUS_FILE_HPP
-#define FUELSIM_EXODUS_FILE_HPP
-
-#include <string>
-
-namespace fuelsim::exodus_detail {
-
-void check_exodus(int status, const std::string& operation);
-
-class ExodusFile final {
-  public:
-    explicit ExodusFile(int id);
-
-    ExodusFile(const ExodusFile&) = delete;
-    ExodusFile& operator=(const ExodusFile&) = delete;
-
-    ~ExodusFile();
-
-    int id() const noexcept;
-
-    void close(const std::string& operation = "Could not close Exodus file");
-
-  private:
-    int _id;
-};
-
-} // namespace fuelsim::exodus_detail
-
-#endif
-#ifndef FUELSIM_TRANSIENT_PROBLEM_SIGNATURE_HPP
-#define FUELSIM_TRANSIENT_PROBLEM_SIGNATURE_HPP
-
-#include <cstdint>
-
-namespace fuelsim {
-
-class TransientProblem;
-
-std::uint64_t transient_problem_signature(const TransientProblem& problem);
-
-} // namespace fuelsim
-
-#endif
+#include "fuelsim/checkpoint_io.hpp"
+#include "fuelsim/exodus_mesh_io.hpp"
+#include "fuelsim/results_io.hpp"
+#include "fuelsim/transient_problem.hpp"
 
 #include <exodusII.h>
 
+#include <algorithm>
+#include <array>
+#include <cerrno>
+#include <cctype>
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <filesystem>
+#include <fstream>
+#include <iomanip>
+#include <limits>
 #include <stdexcept>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace fuelsim::exodus_detail {
 
@@ -53,30 +30,31 @@ void check_exodus(int status, const std::string& operation) {
         throw std::runtime_error(operation + ": " + ex_strerror(status));
 }
 
-ExodusFile::ExodusFile(int id) : _id(id) {}
+class ExodusFile final {
+  public:
+    explicit ExodusFile(int id) : _id(id) {}
 
-ExodusFile::~ExodusFile() {
-    if (_id >= 0)
-        ex_close(_id);
-}
+    ExodusFile(const ExodusFile&) = delete;
+    ExodusFile& operator=(const ExodusFile&) = delete;
 
-int ExodusFile::id() const noexcept {
-    return _id;
-}
+    ~ExodusFile() {
+        if (_id >= 0)
+            ex_close(_id);
+    }
 
-void ExodusFile::close(const std::string& operation) {
-    const int id = _id;
-    _id = -1;
-    check_exodus(ex_close(id), operation);
-}
+    int id() const noexcept { return _id; }
+
+    void close(const std::string& operation = "Could not close Exodus file") {
+        const int id = _id;
+        _id = -1;
+        check_exodus(ex_close(id), operation);
+    }
+
+  private:
+    int _id;
+};
 
 } // namespace fuelsim::exodus_detail
-
-#include "fuelsim/transient_problem.hpp"
-
-#include <cstddef>
-#include <cstring>
-#include <string>
 
 namespace fuelsim {
 namespace {
@@ -236,22 +214,7 @@ std::uint64_t transient_problem_signature(const TransientProblem& problem) {
     return hash;
 }
 
-} // namespace fuelsim
-#include "fuelsim/exodus_mesh_io.hpp"
-
-
-#include <exodusII.h>
-
-#include <algorithm>
-#include <cctype>
-#include <cstdint>
-#include <limits>
-#include <stdexcept>
-#include <string>
-#include <utility>
-#include <vector>
-
-namespace fuelsim {
+// Exodus mesh input and output.
 namespace {
 
 using exodus_detail::check_exodus;
@@ -638,27 +601,7 @@ void ExodusMeshIo::write_quad4(const std::string& path,
     file.close();
 }
 
-} // namespace fuelsim
-#include "fuelsim/results_io.hpp"
-
-#include "fuelsim/exodus_mesh_io.hpp"
-
-#include <exodusII.h>
-
-#include <algorithm>
-#include <array>
-#include <cmath>
-#include <cstdint>
-#include <filesystem>
-#include <fstream>
-#include <iomanip>
-#include <limits>
-#include <stdexcept>
-#include <string>
-#include <utility>
-#include <vector>
-
-namespace fuelsim {
+// Exodus result output.
 namespace {
 
 using exodus_detail::check_exodus;
@@ -1211,22 +1154,7 @@ std::size_t ExodusTransientResultsWriter::step_count() const noexcept {
     return _step_count;
 }
 
-} // namespace fuelsim
-#include "fuelsim/checkpoint_io.hpp"
-
-
-#include <array>
-#include <cerrno>
-#include <cmath>
-#include <cstdio>
-#include <cstring>
-#include <fstream>
-#include <limits>
-#include <stdexcept>
-#include <string>
-#include <vector>
-
-namespace fuelsim {
+// Transient checkpoint serialization.
 namespace {
 
 constexpr std::array<unsigned char, 16> checkpoint_magic = {
@@ -1234,17 +1162,12 @@ constexpr std::array<unsigned char, 16> checkpoint_magic = {
     'C', 'H', 'E', 'C', 'K', 'P', 'T', '\0'};
 constexpr std::uint32_t checkpoint_version = 6U;
 constexpr std::uint32_t endian_marker = 0x01020304U;
-constexpr std::uint64_t checkpoint_fnv_offset = 14695981039346656037ULL;
-constexpr std::uint64_t checkpoint_fnv_prime = 1099511628211ULL;
 constexpr std::uint64_t maximum_checkpoint_bytes =
     16ULL * 1024ULL * 1024ULL * 1024ULL;
 
 std::uint64_t checksum(const std::vector<unsigned char>& bytes) {
-    std::uint64_t value = checkpoint_fnv_offset;
-    for (const unsigned char byte : bytes) {
-        value ^= static_cast<std::uint64_t>(byte);
-        value *= checkpoint_fnv_prime;
-    }
+    std::uint64_t value = fnv_offset;
+    hash_bytes(value, bytes.data(), bytes.size());
     return value;
 }
 

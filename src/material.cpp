@@ -1,6 +1,11 @@
+#include "fuelsim/inelastic_material.hpp"
 #include "fuelsim/material.hpp"
 
+#include <algorithm>
+#include <array>
 #include <cmath>
+#include <cstddef>
+#include <limits>
 #include <stdexcept>
 
 namespace fuelsim {
@@ -130,22 +135,11 @@ AxisymmetricStress IsotropicThermoelasticMaterial::stress(
     const adlite::Scalar& strain_rr, const adlite::Scalar& strain_zz,
     const adlite::Scalar& strain_hoop, const adlite::Scalar& strain_rz,
     const adlite::Scalar& temperature) const {
-    if (!_temperature_dependent) {
-        const adlite::Scalar thermal_strain =
-            _properties.thermal_expansion *
-            (temperature - _properties.reference_temperature);
-        const adlite::Scalar elastic_rr = strain_rr - thermal_strain;
-        const adlite::Scalar elastic_zz = strain_zz - thermal_strain;
-        const adlite::Scalar elastic_hoop = strain_hoop - thermal_strain;
-        const adlite::Scalar trace = elastic_rr + elastic_zz + elastic_hoop;
-        return {
-            _lame_lambda * trace + 2.0 * _shear_modulus * elastic_rr,
-            _lame_lambda * trace + 2.0 * _shear_modulus * elastic_zz,
-            _lame_lambda * trace + 2.0 * _shear_modulus * elastic_hoop,
-            2.0 * _shear_modulus * strain_rz,
-        };
-    }
-    const ActiveThermoelasticProperties active = active_properties(temperature);
+    ActiveThermoelasticProperties active{
+        _properties.young_modulus, _properties.poisson_ratio,
+        _properties.thermal_expansion, _lame_lambda, _shear_modulus};
+    if (_temperature_dependent)
+        active = active_properties(temperature);
     const adlite::Scalar thermal_strain =
         active.thermal_expansion *
         (temperature - _properties.reference_temperature);
@@ -164,17 +158,7 @@ AxisymmetricStress IsotropicThermoelasticMaterial::stress(
     };
 }
 
-} // namespace fuelsim
-#include "fuelsim/inelastic_material.hpp"
-
-#include <algorithm>
-#include <array>
-#include <cmath>
-#include <cstddef>
-#include <limits>
-#include <stdexcept>
-
-namespace fuelsim {
+// Inelastic constitutive updates.
 namespace {
 
 constexpr std::size_t component_count = 4;
@@ -231,6 +215,16 @@ passive_trial_state(const MaterialPointState& committed) {
     trial.equivalent_plastic_strain = committed.equivalent_plastic_strain;
     trial.equivalent_creep_strain = committed.equivalent_creep_strain;
     return trial;
+}
+
+AxisymmetricStress tensor(
+    const std::array<adlite::Scalar, component_count>& components) {
+    return {components[0], components[1], components[2], components[3]};
+}
+
+std::array<adlite::Scalar, component_count>
+components(const AxisymmetricStress& tensor) {
+    return {tensor.rr, tensor.zz, tensor.hoop, tensor.rz};
 }
 
 void validate_norton_properties(const NortonCreepProperties& creep) {
@@ -1175,40 +1169,13 @@ InelasticStressResponse IsotropicInelasticMaterial::incremental_response(
     InelasticStressResponse result = response(
         synthetic_total[0], synthetic_total[1], synthetic_total[2],
         synthetic_total[3], temperature, time_step, committed);
-    const AxisymmetricStress elastic = {
-        result.trial_state.elastic_strain[0],
-        result.trial_state.elastic_strain[1],
-        result.trial_state.elastic_strain[2],
-        result.trial_state.elastic_strain[3],
-    };
-    const AxisymmetricStress plastic = {
-        result.trial_state.plastic_strain[0],
-        result.trial_state.plastic_strain[1],
-        result.trial_state.plastic_strain[2],
-        result.trial_state.plastic_strain[3],
-    };
-    const AxisymmetricStress creep = {
-        result.trial_state.creep_strain[0],
-        result.trial_state.creep_strain[1],
-        result.trial_state.creep_strain[2],
-        result.trial_state.creep_strain[3],
-    };
-    const AxisymmetricStress rotated_elastic =
-        rotate_axisymmetric_tensor(elastic, rotation);
-    const AxisymmetricStress rotated_plastic =
-        rotate_axisymmetric_tensor(plastic, rotation);
-    const AxisymmetricStress rotated_creep =
-        rotate_axisymmetric_tensor(creep, rotation);
     result.stress = rotate_axisymmetric_tensor(result.stress, rotation);
-    result.trial_state.elastic_strain = {
-        rotated_elastic.rr, rotated_elastic.zz, rotated_elastic.hoop,
-        rotated_elastic.rz};
-    result.trial_state.plastic_strain = {
-        rotated_plastic.rr, rotated_plastic.zz, rotated_plastic.hoop,
-        rotated_plastic.rz};
-    result.trial_state.creep_strain = {
-        rotated_creep.rr, rotated_creep.zz, rotated_creep.hoop,
-        rotated_creep.rz};
+    result.trial_state.elastic_strain = components(rotate_axisymmetric_tensor(
+        tensor(result.trial_state.elastic_strain), rotation));
+    result.trial_state.plastic_strain = components(rotate_axisymmetric_tensor(
+        tensor(result.trial_state.plastic_strain), rotation));
+    result.trial_state.creep_strain = components(rotate_axisymmetric_tensor(
+        tensor(result.trial_state.creep_strain), rotation));
     return result;
 }
 

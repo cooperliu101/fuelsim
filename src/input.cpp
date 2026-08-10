@@ -1,10 +1,19 @@
+#include "fuelsim/case_input.hpp"
 #include "fuelsim/input_file.hpp"
 
 #include <algorithm>
+#include <cerrno>
 #include <cctype>
+#include <cmath>
+#include <cstdlib>
+#include <filesystem>
 #include <fstream>
+#include <limits>
+#include <sstream>
 #include <stdexcept>
+#include <string>
 #include <utility>
+#include <vector>
 
 namespace fuelsim {
 namespace {
@@ -226,21 +235,7 @@ InputDocument InputParser::parse_file(const std::string& path) {
     return document;
 }
 
-} // namespace fuelsim
-#include "fuelsim/case_input.hpp"
-
-#include <algorithm>
-#include <cerrno>
-#include <cmath>
-#include <cstdlib>
-#include <filesystem>
-#include <limits>
-#include <sstream>
-#include <stdexcept>
-#include <string>
-#include <vector>
-
-namespace fuelsim {
+// Case-definition validation and translation.
 namespace {
 
 [[noreturn]] void value_error(const InputDocument& document,

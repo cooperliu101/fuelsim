@@ -1,3 +1,4 @@
+#include "fuelsim/dof_map.hpp"
 #include "fuelsim/mesh.hpp"
 
 #include <algorithm>
@@ -391,13 +392,7 @@ RegionMesh::map_side_set(const UnstructuredQuad4Mesh& source,
     return {kind, std::move(nodes), std::move(elements)};
 }
 
-} // namespace fuelsim
-#include "fuelsim/dof_map.hpp"
-
-#include <limits>
-#include <stdexcept>
-
-namespace fuelsim {
+// Field-major degree-of-freedom mapping.
 
 DofMap::DofMap(std::size_t node_count) : _node_count(node_count) {
     if (node_count == 0)
