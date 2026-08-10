@@ -93,10 +93,6 @@ class BoundaryAssembly final {
     double load_multiplier(bool scale_with_load,
                            const std::string& function,
                            const SpatialLayout& layout) const;
-    void set_controlled_value(double& target,
-                              double value,
-                              const char* label,
-                              const SpatialLayout& layout);
     void refresh_controlled_values(const SpatialLayout& layout);
 
     struct PressureLoad final {

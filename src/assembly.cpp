@@ -322,10 +322,9 @@ void BoundaryAssembly::build(const UnstructuredQuad4Mesh& source_mesh,
                              const SpatialLayout& layout) {
     for (const BoundaryConditionDefinition& definition :
          layout.definition().boundary_conditions) {
-        if (definition.name.empty() || definition.boundary.empty() ||
-            !std::isfinite(definition.value))
-            throw std::invalid_argument("Boundary-condition names, boundaries, "
-                                        "and values must be valid");
+        if (definition.name.empty() || definition.boundary.empty())
+            throw std::invalid_argument(
+                "Boundary-condition names and boundaries must be valid");
         const SpatialLayout::ResolvedBoundary resolved =
             layout.resolve_boundary(source_mesh, definition.boundary);
         if (definition.scale_with_load && !definition.function.empty())
@@ -348,9 +347,6 @@ void BoundaryAssembly::build(const UnstructuredQuad4Mesh& source_mesh,
                          definition.function});
             }
         } else if (definition.type == BoundaryConditionType::pressure) {
-            if (definition.value < 0.0)
-                throw std::invalid_argument(
-                    "Pressure boundary conditions must be nonnegative");
             const std::size_t load = _pressure_loads.size();
             _pressure_loads.push_back({definition.value,
                                        definition.scale_with_load,
@@ -403,12 +399,6 @@ void BoundaryAssembly::build(const UnstructuredQuad4Mesh& source_mesh,
                                            data.coordinates, data.local_nodes)});
             }
         } else {
-            if (!(definition.heat_transfer_coefficient > 0.0) ||
-                !(definition.ambient_temperature > 0.0))
-                throw std::invalid_argument(
-                    "Convection coefficient and ambient temperature must be "
-                    "positive: " +
-                    definition.name);
             const std::size_t load = _convection_loads.size();
             _convection_loads.push_back(
                 {definition.heat_transfer_coefficient,
@@ -434,7 +424,8 @@ void BoundaryAssembly::build(const UnstructuredQuad4Mesh& source_mesh,
 
 void BoundaryAssembly::set_load_factor(double value,
                                        const SpatialLayout& layout) {
-    set_controlled_value(_load_factor, value, "load factor", layout);
+    _load_factor = value;
+    refresh_controlled_values(layout);
 }
 
 double BoundaryAssembly::load_factor() const noexcept {
@@ -442,17 +433,7 @@ double BoundaryAssembly::load_factor() const noexcept {
 }
 
 void BoundaryAssembly::set_time(double value, const SpatialLayout& layout) {
-    set_controlled_value(_time, value, "time", layout);
-}
-
-void BoundaryAssembly::set_controlled_value(double& target,
-                                            double value,
-                                            const char* label,
-                                            const SpatialLayout& layout) {
-    if (!std::isfinite(value) || value < 0.0)
-        throw std::invalid_argument("SpatialAssembly " + std::string(label) +
-                                    " must be finite and nonnegative");
-    target = value;
+    _time = value;
     refresh_controlled_values(layout);
 }
 
@@ -516,9 +497,6 @@ void BoundaryAssembly::refresh_controlled_values(const SpatialLayout& layout) {
             load_multiplier(pressure.scale_with_load, pressure.function,
                             layout) *
             pressure.pressure;
-        if (value < 0.0)
-            throw std::domain_error(
-                "Pressure time function produced a negative load");
         PressureProperties properties = _pressure_kernels[load].properties();
         properties.pressure = value;
         _pressure_kernels[load].set_properties(properties);
@@ -1300,14 +1278,6 @@ void validate_definitions(const SpatialDefinition& definition) {
             throw std::invalid_argument(
                 "SpatialAssembly regions require a name and exactly one block "
                 "selector");
-        if (!std::isfinite(value.volumetric_heat_source) ||
-            value.volumetric_heat_source < 0.0)
-            throw std::invalid_argument("SpatialAssembly region heat sources "
-                                        "must be finite and nonnegative");
-        if (!std::isfinite(value.initial_temperature) ||
-            !(value.initial_temperature > 0.0))
-            throw std::invalid_argument("SpatialAssembly region temperatures "
-                                        "must be finite and positive");
         for (std::size_t previous = 0; previous < region; ++previous) {
             if (definition.regions[previous].name == value.name)
                 throw std::invalid_argument("Duplicate region name: " +
@@ -1346,36 +1316,6 @@ void validate_definitions(const SpatialDefinition& definition) {
         if (value.primary == value.secondary)
             throw std::invalid_argument(
                 "Contact primary and secondary must differ: " + value.name);
-        if (value.thermal &&
-            (!(value.gap_conductivity > 0.0) || !(value.minimum_gap > 0.0)))
-            throw std::invalid_argument(
-                "Thermal contact parameters must be positive: " + value.name);
-        if (value.mechanical && !value.automatic_penalty &&
-            (!std::isfinite(value.penalty) || !(value.penalty > 0.0)))
-            throw std::invalid_argument(
-                "Mechanical contact penalty must be positive: " + value.name);
-        if (value.mechanical && (!std::isfinite(value.penalty_factor) ||
-                                 !(value.penalty_factor > 0.0)))
-            throw std::invalid_argument(
-                "Mechanical contact penalty factor must be finite and "
-                "positive: " +
-                value.name);
-        if (value.mechanical &&
-            value.mechanical_formulation ==
-                MechanicalContactFormulation::augmented_lagrangian &&
-            (!std::isfinite(value.penetration_tolerance) ||
-             !(value.penetration_tolerance > 0.0) ||
-             value.maximum_augmented_iterations == 0))
-            throw std::invalid_argument(
-                "Augmented contact requires a positive penetration tolerance "
-                "and iteration limit: " +
-                value.name);
-        if (!std::isfinite(value.friction_coefficient) ||
-            value.friction_coefficient < 0.0)
-            throw std::invalid_argument(
-                "Mechanical contact friction coefficient must be finite and "
-                "nonnegative: " +
-                value.name);
         for (std::size_t previous = 0; previous < contact; ++previous) {
             if (definition.contacts[previous].name == value.name)
                 throw std::invalid_argument("Duplicate contact name: " +

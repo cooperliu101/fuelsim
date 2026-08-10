@@ -31,32 +31,6 @@ IsotropicThermoelasticMaterial::IsotropicThermoelasticMaterial(
     ThermoelasticProperties properties)
     : _properties(properties), _lame_lambda(0.0), _shear_modulus(0.0),
       _temperature_dependent(false) {
-    if (!std::isfinite(_properties.conductivity_inverse_temperature) ||
-        !(_properties.conductivity_inverse_temperature >= 0.0) ||
-        !std::isfinite(_properties.conductivity_offset) ||
-        !(_properties.conductivity_offset >= 0.0) ||
-        !(_properties.conductivity_inverse_temperature > 0.0 ||
-          _properties.conductivity_offset > 0.0))
-        throw std::invalid_argument(
-            "Thermoelastic material conductivity coefficients must be "
-            "finite, nonnegative, and not both zero");
-    if (!std::isfinite(_properties.young_modulus) ||
-        !(_properties.young_modulus > 0.0))
-        throw std::invalid_argument(
-            "Thermoelastic material young_modulus must be positive");
-    if (!std::isfinite(_properties.poisson_ratio) ||
-        !(_properties.poisson_ratio > -1.0 && _properties.poisson_ratio < 0.5))
-        throw std::invalid_argument(
-            "Thermoelastic material poisson_ratio must lie between -1 and "
-            "0.5");
-    if (!std::isfinite(_properties.thermal_expansion) ||
-        !std::isfinite(_properties.young_modulus_temperature_coefficient) ||
-        !std::isfinite(_properties.poisson_ratio_temperature_coefficient) ||
-        !std::isfinite(
-            _properties.thermal_expansion_temperature_coefficient) ||
-        !std::isfinite(_properties.reference_temperature))
-        throw std::invalid_argument(
-            "Thermoelastic material thermal properties must be finite");
     _lame_lambda =
         _properties.young_modulus * _properties.poisson_ratio /
         ((1.0 + _properties.poisson_ratio) *
@@ -234,41 +208,6 @@ AxisymmetricStress tensor(
 std::array<adlite::Scalar, component_count>
 components(const AxisymmetricStress& tensor) {
     return {tensor.rr, tensor.zz, tensor.hoop, tensor.rz};
-}
-
-void validate_norton_properties(const NortonCreepProperties& creep) {
-    if (!std::isfinite(creep.coefficient) || !(creep.coefficient >= 0.0))
-        throw std::invalid_argument(
-            "Norton creep coefficient must be finite and nonnegative");
-    if (!std::isfinite(creep.reference_stress) ||
-        !(creep.reference_stress > 0.0))
-        throw std::invalid_argument(
-            "Norton creep reference_stress must be finite and positive");
-    if (!std::isfinite(creep.stress_exponent) ||
-        !(creep.stress_exponent >= 1.0))
-        throw std::invalid_argument(
-            "Norton creep stress_exponent must be finite and at least one");
-    if (!std::isfinite(creep.coefficient_temperature_coefficient) ||
-        !std::isfinite(creep.reference_stress_temperature_coefficient) ||
-        !std::isfinite(creep.stress_exponent_temperature_coefficient))
-        throw std::invalid_argument(
-            "Norton creep temperature coefficients must be finite");
-}
-
-void validate_plasticity_properties(const J2PlasticityProperties& plasticity) {
-    if (!std::isfinite(plasticity.yield_stress) ||
-        !(plasticity.yield_stress > 0.0))
-        throw std::invalid_argument(
-            "J2 plasticity yield_stress must be finite and positive");
-    if (!std::isfinite(plasticity.isotropic_hardening_modulus) ||
-        !(plasticity.isotropic_hardening_modulus >= 0.0))
-        throw std::invalid_argument(
-            "J2 plasticity isotropic_hardening_modulus must be finite and "
-            "nonnegative");
-    if (!std::isfinite(plasticity.yield_stress_temperature_coefficient) ||
-        !std::isfinite(plasticity.hardening_temperature_coefficient))
-        throw std::invalid_argument(
-            "J2 plasticity temperature coefficients must be finite");
 }
 
 double log_add_exp(double first, double second) {
@@ -768,33 +707,7 @@ IsotropicInelasticMaterial::IsotropicInelasticMaterial(
     ThermoelasticProperties thermoelastic_properties,
     TransientInelasticProperties properties)
     : _thermoelastic_material(thermoelastic_properties),
-      _properties(properties) {
-    if (!std::isfinite(_properties.density) || !(_properties.density > 0.0))
-        throw std::invalid_argument(
-            "Inelastic material density must be finite and positive");
-    if (!std::isfinite(_properties.specific_heat) ||
-        !(_properties.specific_heat > 0.0))
-        throw std::invalid_argument(
-            "Inelastic material specific_heat must be finite and positive");
-
-    switch (_properties.behavior) {
-    case InelasticBehavior::elastic:
-        break;
-    case InelasticBehavior::norton_creep:
-        validate_norton_properties(_properties.creep);
-        break;
-    case InelasticBehavior::j2_plasticity:
-        validate_plasticity_properties(_properties.plasticity);
-        break;
-    case InelasticBehavior::norton_creep_j2_plasticity:
-        validate_norton_properties(_properties.creep);
-        validate_plasticity_properties(_properties.plasticity);
-        break;
-    default:
-        throw std::invalid_argument(
-            "Inelastic material behavior is not supported");
-    }
-}
+      _properties(properties) {}
 
 const TransientInelasticProperties&
 IsotropicInelasticMaterial::properties() const noexcept {

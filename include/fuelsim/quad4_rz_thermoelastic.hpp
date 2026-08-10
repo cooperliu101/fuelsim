@@ -15,7 +15,7 @@ class Quad4RzThermoelasticKernel final {
                                StrainFormulation strain_formulation);
 
     double volumetric_heat_source() const noexcept;
-    void set_volumetric_heat_source(double volumetric_heat_source);
+    void set_volumetric_heat_source(double volumetric_heat_source) noexcept;
 
     LocalResidual residual(const Quad4RzGeometry& geometry,
                            const LocalValues& state) const;

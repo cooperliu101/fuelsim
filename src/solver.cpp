@@ -934,32 +934,10 @@ PetscSolver::solve_once(const NonlinearProblem& problem,
     if (initial_state.size() != problem.dof_count())
         throw std::invalid_argument(
             "PetscSolver initial state size mismatch");
-    if (!(options.absolute_tolerance > 0.0) ||
-        !(options.relative_tolerance > 0.0) ||
-        !(options.step_tolerance > 0.0) || options.maximum_iterations <= 0 ||
-        !(options.linear_relative_tolerance > 0.0) ||
-        !(options.residual_reduction_tolerance > 0.0) ||
-        !(options.temperature_residual_absolute_tolerance > 0.0) ||
-        !(options.mechanical_residual_absolute_tolerance > 0.0) ||
-        !std::isfinite(options.temperature_residual_scale) ||
-        !std::isfinite(options.mechanical_residual_scale) ||
-        options.temperature_residual_scale < 0.0 ||
-        options.mechanical_residual_scale < 0.0 ||
-        options.maximum_linear_iterations <= 0)
-        throw std::invalid_argument(
-            "PetscSolver tolerances and iterations must be positive");
     const bool fixed_temperature_scale =
         options.temperature_residual_scale > 0.0;
     const bool fixed_mechanical_scale =
         options.mechanical_residual_scale > 0.0;
-    if (fixed_temperature_scale != fixed_mechanical_scale)
-        throw std::invalid_argument(
-            "PetscSolver fixed temperature and mechanical residual scales "
-            "must both be zero or positive");
-    if (fixed_temperature_scale && options.field_residual_scaling)
-        throw std::invalid_argument(
-            "PetscSolver fixed residual scales cannot be combined with "
-            "automatic field residual scaling");
     const bool residual_scaling =
         options.field_residual_scaling || fixed_temperature_scale;
 
@@ -1368,18 +1346,6 @@ using solver_workflow::solve_contact_equilibrium;
 SteadyResult solve_steady(SteadyProblem& problem,
                           const SteadyLoadOptions& load_options,
                           const SolverOptions& options) {
-    if (load_options.load_steps == 0)
-        throw std::invalid_argument("solve_steady load_steps must be positive");
-    if (!std::isfinite(load_options.cutback_factor) ||
-        !(load_options.cutback_factor > 0.0 &&
-          load_options.cutback_factor < 1.0))
-        throw std::invalid_argument(
-            "solve_steady cutback factor must lie between zero and one");
-    if (!std::isfinite(load_options.minimum_load_increment) ||
-        !(load_options.minimum_load_increment > 0.0) ||
-        load_options.minimum_load_increment > 1.0)
-        throw std::invalid_argument(
-            "solve_steady minimum load increment must lie in (0, 1]");
     const SteadyClock::time_point start = SteadyClock::now();
     SteadyResult result;
     PetscSolver solver;
@@ -1788,50 +1754,6 @@ void validate_time_options(const TransientProblem& problem,
         options.end_time < problem.committed_time() - time_tolerance)
         throw std::invalid_argument(
             "solve_transient end time must not precede committed time");
-    if (!std::isfinite(options.initial_time_step) ||
-        !std::isfinite(options.minimum_time_step) ||
-        !std::isfinite(options.maximum_time_step) ||
-        !(options.minimum_time_step > 0.0) ||
-        options.initial_time_step < options.minimum_time_step ||
-        options.maximum_time_step < options.initial_time_step)
-        throw std::invalid_argument("solve_transient requires 0 < minimum <= "
-                                    "initial <= maximum time step");
-    if (!std::isfinite(options.growth_factor) || options.growth_factor < 1.0)
-        throw std::invalid_argument(
-            "solve_transient growth factor must be at least one");
-    if (!std::isfinite(options.cutback_factor) ||
-        !(options.cutback_factor > 0.0 && options.cutback_factor < 1.0))
-        throw std::invalid_argument(
-            "solve_transient cutback factor must lie between zero and one");
-    if (!std::isfinite(options.load_ramp_time) || options.load_ramp_time < 0.0)
-        throw std::invalid_argument(
-            "solve_transient ramp time must be finite and nonnegative");
-    if (options.target_nonlinear_iterations == 0 &&
-        options.iteration_window != 0)
-        throw std::invalid_argument(
-            "solve_transient iteration window requires a target");
-    if (options.target_nonlinear_iterations > 0 &&
-        options.iteration_window >= options.target_nonlinear_iterations)
-        throw std::invalid_argument(
-            "solve_transient iteration window must be smaller than target");
-    if (!std::isfinite(options.time_error_relative_tolerance) ||
-        options.time_error_relative_tolerance < 0.0 ||
-        !std::isfinite(options.temperature_time_absolute_tolerance) ||
-        !(options.temperature_time_absolute_tolerance > 0.0) ||
-        !std::isfinite(options.displacement_time_absolute_tolerance) ||
-        !(options.displacement_time_absolute_tolerance > 0.0) ||
-        !std::isfinite(
-            options.strain_history_time_absolute_tolerance) ||
-        !(options.strain_history_time_absolute_tolerance > 0.0) ||
-        !std::isfinite(
-            options.stress_history_time_absolute_tolerance) ||
-        !(options.stress_history_time_absolute_tolerance > 0.0) ||
-        !std::isfinite(options.time_error_safety_factor) ||
-        !(options.time_error_safety_factor > 0.0 &&
-          options.time_error_safety_factor < 1.0))
-        throw std::invalid_argument(
-            "solve_transient time-error tolerances must be finite and "
-            "nonnegative/positive, and safety factor must lie in (0, 1)");
 }
 
 double load_factor_at_time(const TransientTimeOptions& options, double time) {

@@ -62,7 +62,7 @@ class Line2RzPressureKernel final {
     explicit Line2RzPressureKernel(PressureProperties properties);
 
     const PressureProperties& properties() const noexcept;
-    void set_properties(PressureProperties properties);
+    void set_properties(PressureProperties properties) noexcept;
     LocalResidual residual(const Line2RzPressureGeometry& geometry,
                            const LocalValues& state) const;
     LocalSystem linearize(const Line2RzPressureGeometry& geometry,
@@ -80,7 +80,7 @@ class Line2RzTractionKernel final {
     explicit Line2RzTractionKernel(TractionProperties properties);
 
     const TractionProperties& properties() const noexcept;
-    void set_properties(TractionProperties properties);
+    void set_properties(TractionProperties properties) noexcept;
     LocalResidual residual(const Line2RzTractionGeometry& geometry,
                            const LocalValues& state) const;
     LocalSystem linearize(const Line2RzTractionGeometry& geometry,
@@ -98,7 +98,7 @@ class Line2RzConvectionKernel final {
     explicit Line2RzConvectionKernel(ConvectionProperties properties);
 
     const ConvectionProperties& properties() const noexcept;
-    void set_properties(ConvectionProperties properties);
+    void set_properties(ConvectionProperties properties) noexcept;
     LocalResidual residual(const Line2RzConvectionGeometry& geometry,
                            const LocalValues& state) const;
     LocalSystem linearize(const Line2RzConvectionGeometry& geometry,

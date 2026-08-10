@@ -433,22 +433,15 @@ point_response(const RzQuadraturePoint& point, const LocalAdValues& state,
 Quad4RzThermoelasticKernel::Quad4RzThermoelasticKernel(
     IsotropicThermoelasticMaterial material, double volumetric_heat_source,
     StrainFormulation strain_formulation)
-    : _material(material), _volumetric_heat_source(0.0),
-      _strain_formulation(strain_formulation) {
-    set_volumetric_heat_source(volumetric_heat_source);
-}
+    : _material(material), _volumetric_heat_source(volumetric_heat_source),
+      _strain_formulation(strain_formulation) {}
 
 double Quad4RzThermoelasticKernel::volumetric_heat_source() const noexcept {
     return _volumetric_heat_source;
 }
 
 void Quad4RzThermoelasticKernel::set_volumetric_heat_source(
-    double volumetric_heat_source) {
-    if (!std::isfinite(volumetric_heat_source) ||
-        !(volumetric_heat_source >= 0.0))
-        throw std::invalid_argument(
-            "Quad4RzThermoelasticKernel volumetric heat source must be finite "
-            "and nonnegative");
+    double volumetric_heat_source) noexcept {
     _volumetric_heat_source = volumetric_heat_source;
 }
 
@@ -587,26 +580,13 @@ void validate_committed_state(const LocalValues& committed_state) {
     }
 }
 
-double volumetric_heat_capacity(const IsotropicInelasticMaterial& material) {
-    const TransientInelasticProperties& properties = material.properties();
-    const double value = properties.density * properties.specific_heat;
-    if (!std::isfinite(value) || !(value > 0.0))
-        throw std::domain_error(
-            "Quad4RzTransientKernel volumetric heat capacity must be finite "
-            "and positive");
-    return value;
-}
-
 } // namespace
 
 Quad4RzTransientKernel::Quad4RzTransientKernel(
     IsotropicInelasticMaterial material, double volumetric_heat_source,
     StrainFormulation strain_formulation)
-    : _material(material), _volumetric_heat_source(0.0),
-      _strain_formulation(strain_formulation) {
-    (void)volumetric_heat_capacity(_material);
-    set_volumetric_heat_source(volumetric_heat_source);
-}
+    : _material(material), _volumetric_heat_source(volumetric_heat_source),
+      _strain_formulation(strain_formulation) {}
 
 double Quad4RzTransientKernel::volumetric_heat_source() const noexcept {
     return _volumetric_heat_source;
@@ -618,12 +598,7 @@ Quad4RzTransientKernel::properties() const noexcept {
 }
 
 void Quad4RzTransientKernel::set_volumetric_heat_source(
-    double volumetric_heat_source) {
-    if (!std::isfinite(volumetric_heat_source) ||
-        !(volumetric_heat_source >= 0.0))
-        throw std::invalid_argument(
-            "Quad4RzTransientKernel volumetric heat source must be finite and "
-            "nonnegative");
+    double volumetric_heat_source) noexcept {
     _volumetric_heat_source = volumetric_heat_source;
 }
 
@@ -712,7 +687,8 @@ void Quad4RzTransientKernel::residual_ad(
     const Quad4MaterialHistory& committed_material, double time_step,
     LocalAdValues& residual) const {
     residual.fill(adlite::Scalar(0.0));
-    const double heat_capacity = volumetric_heat_capacity(_material);
+    const TransientInelasticProperties& properties = _material.properties();
+    const double heat_capacity = properties.density * properties.specific_heat;
 
     for (std::size_t q = 0; q < geometry.points.size(); ++q) {
         const RzQuadraturePoint& point = geometry.points[q];
@@ -755,28 +731,6 @@ void validate_line(const Line2InterfaceSideCoordinates& coordinates,
     if (!(std::hypot(dr, dz) > 0.0))
         throw std::invalid_argument(std::string(name) +
                                     " requires a nonzero line length");
-}
-
-void validate_properties(const ConvectionProperties& properties) {
-    if (!std::isfinite(properties.heat_transfer_coefficient) ||
-        properties.heat_transfer_coefficient < 0.0)
-        throw std::invalid_argument(
-            "Convection heat-transfer coefficient must be nonnegative");
-    if (!std::isfinite(properties.ambient_temperature) ||
-        !(properties.ambient_temperature > 0.0))
-        throw std::invalid_argument(
-            "Convection ambient temperature must be positive");
-}
-
-void validate_properties(const PressureProperties& properties) {
-    if (!std::isfinite(properties.pressure) || properties.pressure < 0.0)
-        throw std::invalid_argument(
-            "Pressure magnitude must be finite and nonnegative");
-}
-
-void validate_properties(const TractionProperties& properties) {
-    if (!std::isfinite(properties.traction))
-        throw std::invalid_argument("Traction must be finite");
 }
 
 void validate_edge(const std::array<RzPoint, 2>& coordinates,
@@ -830,16 +784,14 @@ Line2RzTractionGeometry make_line2_rz_traction_geometry(
 
 Line2RzPressureKernel::Line2RzPressureKernel(
     PressureProperties properties)
-    : _properties(properties) {
-    validate_properties(_properties);
-}
+    : _properties(properties) {}
 
 const PressureProperties& Line2RzPressureKernel::properties() const noexcept {
     return _properties;
 }
 
-void Line2RzPressureKernel::set_properties(PressureProperties properties) {
-    validate_properties(properties);
+void Line2RzPressureKernel::set_properties(
+    PressureProperties properties) noexcept {
     _properties = properties;
 }
 
@@ -897,17 +849,15 @@ LocalSystem Line2RzPressureKernel::linearize(
 
 Line2RzTractionKernel::Line2RzTractionKernel(
     TractionProperties properties)
-    : _properties(properties) {
-    validate_properties(_properties);
-}
+    : _properties(properties) {}
 
 const TractionProperties&
 Line2RzTractionKernel::properties() const noexcept {
     return _properties;
 }
 
-void Line2RzTractionKernel::set_properties(TractionProperties properties) {
-    validate_properties(properties);
+void Line2RzTractionKernel::set_properties(
+    TractionProperties properties) noexcept {
     _properties = properties;
 }
 
@@ -961,17 +911,15 @@ LocalSystem Line2RzTractionKernel::linearize(
 
 Line2RzConvectionKernel::Line2RzConvectionKernel(
     ConvectionProperties properties)
-    : _properties(properties) {
-    validate_properties(_properties);
-}
+    : _properties(properties) {}
 
 const ConvectionProperties&
 Line2RzConvectionKernel::properties() const noexcept {
     return _properties;
 }
 
-void Line2RzConvectionKernel::set_properties(ConvectionProperties properties) {
-    validate_properties(properties);
+void Line2RzConvectionKernel::set_properties(
+    ConvectionProperties properties) noexcept {
     _properties = properties;
 }
 
@@ -1444,17 +1392,7 @@ Line2RzHeatGeometry make_line2_rz_heat_geometry(
 }
 
 Line2RzGapHeatKernel::Line2RzGapHeatKernel(GapHeatProperties properties)
-    : _properties(properties) {
-    if (!std::isfinite(_properties.gap_conductivity) ||
-        !(_properties.gap_conductivity >= 0.0))
-        throw std::invalid_argument(
-            "GapHeatProperties gap_conductivity must be finite and "
-            "nonnegative");
-    if (!std::isfinite(_properties.minimum_gap) ||
-        !(_properties.minimum_gap > 0.0))
-        throw std::invalid_argument(
-            "GapHeatProperties minimum_gap must be finite and positive");
-}
+    : _properties(properties) {}
 
 const GapHeatProperties& Line2RzGapHeatKernel::properties() const noexcept {
     return _properties;
@@ -1552,20 +1490,7 @@ NodeToLineRzContactGeometry make_node_to_line_rz_contact_geometry(
 
 NodeToLineRzContactKernel::NodeToLineRzContactKernel(
     NormalContactProperties properties)
-    : _properties(properties) {
-    if (!std::isfinite(_properties.penalty) || !(_properties.penalty >= 0.0))
-        throw std::invalid_argument(
-            "NormalContactProperties penalty must be finite and nonnegative");
-    if (!std::isfinite(_properties.friction_coefficient) ||
-        !(_properties.friction_coefficient >= 0.0))
-        throw std::invalid_argument(
-            "NormalContactProperties friction_coefficient must be finite and "
-            "nonnegative");
-    if (_properties.friction_coefficient > 0.0 &&
-        !(_properties.penalty > 0.0))
-        throw std::invalid_argument(
-            "Frictional contact requires a positive penalty");
-}
+    : _properties(properties) {}
 
 const NormalContactProperties&
 NodeToLineRzContactKernel::properties() const noexcept {

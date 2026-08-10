@@ -18,7 +18,7 @@ class Quad4RzTransientKernel final {
 
     double volumetric_heat_source() const noexcept;
     const TransientInelasticProperties& properties() const noexcept;
-    void set_volumetric_heat_source(double volumetric_heat_source);
+    void set_volumetric_heat_source(double volumetric_heat_source) noexcept;
 
     LocalResidual residual(const Quad4RzGeometry& geometry,
                            const LocalValues& current_state,
