@@ -2028,12 +2028,6 @@ TransientResult solve_transient(TransientProblem& problem,
             result.total_linear_iterations += attempt.linear_iterations;
             result.last_attempt = std::move(attempt);
             if (result.last_attempt.converged) {
-                std::vector<RegionInelasticSummary> histories;
-                histories.reserve(problem.region_count());
-                for (std::size_t region = 0; region < problem.region_count();
-                     ++region)
-                    histories.push_back(
-                        problem.summarize_region_history(region));
                 next_time_step = accepted_next_time_step(
                     options, time_step, controller_time_step, event_truncated,
                     cutbacks, controller_nonlinear_iterations);
@@ -2051,8 +2045,7 @@ TransientResult solve_transient(TransientProblem& problem,
                      problem.committed_load_factor(), cutbacks,
                      result.last_attempt.nonlinear_iterations,
                      result.last_attempt.linear_iterations,
-                     std::move(histories), time_error_estimate,
-                     time_error_components,
+                     time_error_estimate, time_error_components,
                      problem.last_conservation_summary()});
                 if (observer != nullptr)
                     observer->accepted_step(problem,

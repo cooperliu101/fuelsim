@@ -104,7 +104,6 @@ struct ContactNodeSummary final {
 
 struct InterfaceSummary final {
     double minimum_gap;
-    double maximum_gap;
     double minimum_contact_gap;
     double maximum_contact_pressure;
     double total_heat_rate;
@@ -113,7 +112,6 @@ struct InterfaceSummary final {
     std::size_t projected_contact_nodes;
     std::size_t unprojected_contact_nodes;
     std::size_t active_contact_nodes;
-    double active_contact_length;
 };
 
 enum class SpatialContributionType {

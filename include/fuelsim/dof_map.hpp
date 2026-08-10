@@ -28,7 +28,6 @@ class DofMap final {
     std::size_t axial_displacement(std::size_t node) const;
 
     LocalDofs local_dofs(const std::array<std::size_t, 4>& global_nodes) const;
-    LocalDofs element_dofs(const Quad4Element& element) const;
 
   private:
     std::size_t _node_count;

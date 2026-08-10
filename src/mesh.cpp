@@ -449,8 +449,4 @@ DofMap::local_dofs(const std::array<std::size_t, 4>& global_nodes) const {
     return result;
 }
 
-LocalDofs DofMap::element_dofs(const Quad4Element& element) const {
-    return local_dofs(element.nodes);
-}
-
 } // namespace fuelsim

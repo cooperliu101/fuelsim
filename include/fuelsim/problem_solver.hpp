@@ -105,7 +105,6 @@ struct TransientAcceptedStep final {
     std::size_t cutbacks;
     int nonlinear_iterations;
     int linear_iterations;
-    std::vector<RegionInelasticSummary> region_histories;
     double time_error_estimate = 0.0;
     TransientTimeErrorEstimate time_error_components;
     TransientConservationSummary conservation;

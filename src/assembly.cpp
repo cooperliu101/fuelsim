@@ -1111,7 +1111,6 @@ SpatialAssembly::summarize_interface(std::size_t contact_value,
         throw std::out_of_range("SpatialAssembly contact index is out of range");
     InterfaceSummary summary = {
         std::numeric_limits<double>::infinity(),
-        -std::numeric_limits<double>::infinity(),
         std::numeric_limits<double>::infinity(),
         0.0,
         0.0,
@@ -1120,7 +1119,6 @@ SpatialAssembly::summarize_interface(std::size_t contact_value,
         0,
         0,
         0,
-        0.0,
     };
     const std::size_t first_thermal = contribution_ranges().thermal_begin;
     bool has_thermal = false;
@@ -1138,14 +1136,11 @@ SpatialAssembly::summarize_interface(std::size_t contact_value,
                 candidate.geometry, local_state);
         for (const HeatQuadratureValue& value : values) {
             summary.minimum_gap = std::min(summary.minimum_gap, value.gap);
-            summary.maximum_gap = std::max(summary.maximum_gap, value.gap);
             summary.total_heat_rate += value.weighted_measure * value.heat_flux;
         }
     }
-    if (!has_thermal) {
+    if (!has_thermal)
         summary.minimum_gap = 0.0;
-        summary.maximum_gap = 0.0;
-    }
 
     bool has_mechanical = false;
     for (const MechanicalContribution& contribution :
@@ -1169,10 +1164,8 @@ SpatialAssembly::summarize_interface(std::size_t contact_value,
                 std::max(summary.maximum_contact_pressure, node.pressure);
             summary.total_contact_force += node.contact_force;
             summary.total_tangential_force += node.tangential_force;
-            if (node.pressure > 0.0) {
+            if (node.pressure > 0.0)
                 ++summary.active_contact_nodes;
-                summary.active_contact_length += node.tributary_length;
-            }
         }
     } else {
         summary.minimum_contact_gap = 0.0;
