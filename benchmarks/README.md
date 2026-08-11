@@ -261,3 +261,94 @@ processes, the current PETSc build, and the current default HYPRE subtype and
 options. They are not a general strong-scaling result, a memory comparison, or
 evidence that HYPRE will converge for another material, contact state, mesh, or
 load path.
+
+## 2026-08-11 M5.7 integrated transient parallel measurement
+
+The M5.7 150-node, 104-element integrated transient case was measured at commit
+`99d6e11` on a 13th-generation Intel Core i9-13980HX. PETSc 3.25.2 used direct
+MUMPS factorization at every rank count. MPI ranks were restricted to CPUs
+`0`, `0-1`, or `0-3`, respectively, and bound to cores. OpenMP, OpenBLAS, MKL,
+and NumExpr were fixed to one thread. The benchmark executable writes no Exodus
+or CSV result history; process wall time includes MPI launch, the solve, and the
+small final flattened-state write or comparison.
+
+The first run was kept separate. The warmed result is the median of three
+successful runs with 97 accepted adaptive steps. Four ranks also produced one
+valid 98-step run; it is reported separately instead of being mixed into the
+equal-work statistic.
+
+| MPI ranks | first wall time | warmed 97-step samples | warmed median | speedup over 1 rank | parallel efficiency |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 17.54 s | 17.16, 17.24, 17.23 s | 17.23 s | 1.000 | 100.0% |
+| 2 | 19.99 s | 20.04, 20.05, 19.81 s | 20.04 s | 0.860 | 43.0% |
+| 4 | 18.28 s | 18.26, 18.66, 18.32 s | 18.32 s | 0.941 | 23.5% |
+
+Thus two ranks were `16.31%` slower and four ranks were `6.33%` slower than one
+rank on the equal-step warmed statistic. The observed four-rank adaptive samples
+`20.21`, `18.26`, and `18.66 s` have a median of `18.66 s`; the first sample used
+98 accepted steps and the other two used 97. This small case therefore provides
+no parallel speedup. Distributed assembly and MUMPS communication dominate the
+work saved by partitioning 104 elements.
+
+The same runs compared physical time, load factor, all three nodal fields, all
+four components of elastic, plastic, and creep strain at every integration
+point, both equivalent inelastic strains, all four stress components, contact
+elastic slip, contact normal multiplier, and the stick/slip state. The largest
+observed differences from the one-rank state were:
+
+| path | temperature | displacement | strain history | stress | stick/slip state |
+| --- | ---: | ---: | ---: | ---: | --- |
+| 2 ranks, 97 steps | 5.3433e-11 K | 8.6225e-14 m | 6.1038e-11 | 1.4412 Pa | exact |
+| 4 ranks, 97 steps | 5.3661e-11 K | 8.6052e-14 m | 6.1041e-11 | 1.4376 Pa | exact |
+| 4 ranks, 98 steps | 3.2452e-4 K | 1.4628e-11 m | 2.9409e-9 | 242.26 Pa | exact |
+
+All continuous contact histories also passed their absolute-plus-relative gates.
+The 98-step differences are time-path differences caused by the iteration-based
+adaptive threshold, not a failed distributed solve. They remain below the M5.7
+limits of `1e-3 K`, `1e-10 m`, `1e-8` strain, and `1e3 Pa`. The one-rank state is
+independently compared with the tracked MOOSE node, contact-pressure, material-
+average, and 224-point integration data, so these complete-state comparisons
+connect every measured rank count to the same MOOSE reference.
+
+The one-rank reference command was:
+
+```bash
+env \
+  OMP_NUM_THREADS=1 \
+  OPENBLAS_NUM_THREADS=1 \
+  MKL_NUM_THREADS=1 \
+  NUMEXPR_NUM_THREADS=1 \
+  MPIR_CVAR_CH4_NETMOD=ofi \
+  FI_PROVIDER=tcp \
+  /usr/bin/time -f 'process_wall_seconds=%e' \
+  taskset -c 0 \
+  /home/cooper/miniforge/envs/moose/bin/mpiexec -bind-to core -n 1 \
+  ./build/fuelsim_mpi_equivalence_tests \
+  write_transient_integrated /tmp/m57_parallel_reference.txt \
+  verification/fuelsim/transient_integrated_fuel_cladding.fsi \
+  -pc_type lu -pc_factor_mat_solver_type mumps
+```
+
+For two ranks, the comparison command replaced the rank, CPU list, and mode:
+
+```bash
+env \
+  OMP_NUM_THREADS=1 \
+  OPENBLAS_NUM_THREADS=1 \
+  MKL_NUM_THREADS=1 \
+  NUMEXPR_NUM_THREADS=1 \
+  MPIR_CVAR_CH4_NETMOD=ofi \
+  FI_PROVIDER=tcp \
+  /usr/bin/time -f 'process_wall_seconds=%e' \
+  taskset -c 0,1 \
+  /home/cooper/miniforge/envs/moose/bin/mpiexec -bind-to core -n 2 \
+  ./build/fuelsim_mpi_equivalence_tests \
+  compare_transient_integrated /tmp/m57_parallel_reference.txt \
+  verification/fuelsim/transient_integrated_fuel_cladding.fsi \
+  -pc_type lu -pc_factor_mat_solver_type mumps
+```
+
+The four-rank command uses CPUs `0,1,2,3` and `-n 4`. These measurements apply
+only to this compact validation mesh, current adaptive path, hardware, PETSc,
+and MUMPS build. They do not contradict the two-rank speedup measured on the
+23,010-DOF benchmark and must not be generalized as a scaling limit.
