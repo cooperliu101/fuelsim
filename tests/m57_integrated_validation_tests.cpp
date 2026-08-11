@@ -4,6 +4,7 @@
 #include "support/moose_field_comparison.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <exception>
 #include <fstream>
@@ -58,6 +59,37 @@ double final_csv_value(const std::string& path, const std::string& name) {
     return std::stod(final_row[column]);
 }
 
+struct CsvTable final {
+    std::vector<std::string> header;
+    std::vector<std::vector<std::string>> rows;
+};
+
+CsvTable read_csv(const std::string& path) {
+    std::ifstream input(path);
+    if (!input)
+        throw std::runtime_error("Could not read MOOSE integration-point reference: " + path);
+    std::string line;
+    if (!std::getline(input, line))
+        throw std::invalid_argument("MOOSE integration-point reference is empty: " + path);
+    CsvTable result;
+    result.header = split_csv(line);
+    while (std::getline(input, line)) {
+        if (!line.empty())
+            result.rows.push_back(split_csv(line));
+    }
+    return result;
+}
+
+double csv_value(const CsvTable& table, const std::vector<std::string>& row, const std::string& name) {
+    const auto found = std::find(table.header.begin(), table.header.end(), name);
+    if (found == table.header.end())
+        throw std::invalid_argument("MOOSE integration-point reference is missing column: " + name);
+    const std::size_t column = static_cast<std::size_t>(found - table.header.begin());
+    if (column >= row.size())
+        throw std::invalid_argument("MOOSE integration-point reference row is incomplete");
+    return std::stod(row[column]);
+}
+
 double equivalent_stress(const fuelsim::AxisymmetricStressValues& stress) {
     const double mean = (stress.rr + stress.zz + stress.hoop) / 3.0;
     return std::sqrt(1.5 * ((stress.rr - mean) * (stress.rr - mean) + (stress.zz - mean) * (stress.zz - mean) +
@@ -70,28 +102,74 @@ struct RegionAverages final {
     double stress = 0.0;
     double maximum_plastic = 0.0;
     double maximum_creep = 0.0;
+    struct Point final {
+        double radius;
+        double axial_coordinate;
+        double stress;
+        double plastic;
+        double creep;
+    };
+    std::vector<Point> points;
 };
 
 RegionAverages region_averages(const fuelsim::TransientProblem& problem, std::size_t region) {
     RegionAverages result;
     double measure = 0.0;
+    const fuelsim::RegionMesh& mesh = problem.region_mesh(region);
+    result.points.reserve(mesh.elements().size() * 4);
     for (std::size_t element = 0; element < problem.region_mesh(region).elements().size(); ++element) {
         const fuelsim::Quad4RzGeometry& geometry = problem.region_element_geometry(region, element);
+        const fuelsim::Quad4Element& mesh_element = mesh.elements()[element];
         const fuelsim::Quad4MaterialHistory& history = problem.material_history(region, element);
         const auto& stresses = problem.material_stress(region, element);
         for (std::size_t q = 0; q < history.size(); ++q) {
             const double weight = geometry.points[q].weighted_measure;
+            double axial_coordinate = 0.0;
+            for (std::size_t node = 0; node < mesh_element.nodes.size(); ++node)
+                axial_coordinate += geometry.points[q].shape[node] * mesh.nodes()[mesh_element.nodes[node]].z;
+            const double stress = equivalent_stress(stresses[q]);
             measure += weight;
             result.plastic += weight * history[q].equivalent_plastic_strain;
             result.creep += weight * history[q].equivalent_creep_strain;
-            result.stress += weight * equivalent_stress(stresses[q]);
+            result.stress += weight * stress;
             result.maximum_plastic = std::max(result.maximum_plastic, history[q].equivalent_plastic_strain);
             result.maximum_creep = std::max(result.maximum_creep, history[q].equivalent_creep_strain);
+            result.points.push_back({geometry.points[q].radius, axial_coordinate, stress,
+                                     history[q].equivalent_plastic_strain, history[q].equivalent_creep_strain});
         }
     }
     result.plastic /= measure;
     result.creep /= measure;
     result.stress /= measure;
+    return result;
+}
+
+std::vector<RegionAverages::Point> read_cladding_points(const std::string& coordinate_path,
+                                                        const std::string& value_path) {
+    const CsvTable coordinates = read_csv(coordinate_path);
+    const CsvTable values = read_csv(value_path);
+    if (values.rows.empty() || coordinates.rows.size() != values.rows.size() * 4)
+        throw std::invalid_argument("MOOSE integration-point coordinate and value counts differ");
+    std::vector<RegionAverages::Point> result;
+    result.reserve(coordinates.rows.size());
+    constexpr std::array<std::size_t, 4> moose_qp_from_fuelsim = {0, 1, 3, 2};
+    for (const std::vector<std::string>& value_row : values.rows) {
+        const std::size_t element = static_cast<std::size_t>(csv_value(values, value_row, "id"));
+        for (const std::size_t qp : moose_qp_from_fuelsim) {
+            const auto coordinate = std::find_if(
+                coordinates.rows.begin(), coordinates.rows.end(), [&coordinates, element, qp](const auto& row) {
+                    return static_cast<std::size_t>(csv_value(coordinates, row, "elem_id")) == element &&
+                           static_cast<std::size_t>(csv_value(coordinates, row, "qp_id")) == qp;
+                });
+            if (coordinate == coordinates.rows.end())
+                throw std::invalid_argument("MOOSE integration-point coordinate is missing");
+            const std::string suffix = std::to_string(qp);
+            result.push_back({csv_value(coordinates, *coordinate, "x"), csv_value(coordinates, *coordinate, "y"),
+                              csv_value(values, value_row, "stress_q" + suffix),
+                              csv_value(values, value_row, "plastic_q" + suffix),
+                              csv_value(values, value_row, "creep_q" + suffix)});
+        }
+    }
     return result;
 }
 
@@ -136,7 +214,8 @@ fuelsim::SolverOptions solver_options(const fuelsim::FuelSimCaseDefinition& defi
 }
 
 bool run_case(const std::string& input_path, const std::string& nodal_reference_path,
-              const std::string& pressure_reference_path, const std::string& scalar_reference_path) {
+              const std::string& pressure_reference_path, const std::string& qp_coordinate_path,
+              const std::string& qp_value_path, const std::string& scalar_reference_path) {
     const fuelsim::FuelSimCaseDefinition definition = fuelsim::CaseInputReader::read(input_path);
     if (definition.problem != fuelsim::CaseProblem::transient || definition.contacts.size() != 1)
         throw std::invalid_argument("M5.7 integrated validation requires one transient contact pair");
@@ -184,13 +263,34 @@ bool run_case(const std::string& input_path, const std::string& nodal_reference_
         fuelsim::test::read_moose_contact_pressure_reference(pressure_reference_path, pressure_coordinates);
     const fuelsim::test::FieldErrorMetrics pressure =
         fuelsim::test::compare_moose_contact_pressure(contact, pressure_reference, pressure_coordinates, 1.0e-12);
+    const std::vector<RegionAverages::Point> cladding_reference =
+        read_cladding_points(qp_coordinate_path, qp_value_path);
+    fuelsim::test::FieldErrorMetrics point_stress;
+    fuelsim::test::FieldErrorMetrics point_plastic;
+    fuelsim::test::FieldErrorMetrics point_creep;
+    double maximum_point_coordinate_error = 0.0;
+    if (cladding.points.size() == cladding_reference.size()) {
+        for (std::size_t point = 0; point < cladding.points.size(); ++point) {
+            maximum_point_coordinate_error = std::max(
+                {maximum_point_coordinate_error,
+                 std::abs(cladding.points[point].radius - cladding_reference[point].radius),
+                 std::abs(cladding.points[point].axial_coordinate - cladding_reference[point].axial_coordinate)});
+            point_stress.add(cladding.points[point].stress, cladding_reference[point].stress);
+            point_plastic.add(cladding.points[point].plastic, cladding_reference[point].plastic);
+            point_creep.add(cladding.points[point].creep, cladding_reference[point].creep);
+        }
+    } else {
+        maximum_point_coordinate_error = std::numeric_limits<double>::infinity();
+    }
 
     constexpr double tolerance = 5.0e-3;
     bool passed =
         check(solve.aggregate_timing.workspace_setups == 1,
               "M5.7 reuses one PETSc workspace across all adaptive steps") &&
-        check(maximum_time_error_estimate > 0.0 && minimum_accepted_step < maximum_accepted_step,
-              "M5.7 step doubling estimates error and changes the accepted step size") &&
+        check(solve.accepted_steps.size() == 97 && solve.time_error_rejections == 0 &&
+                  maximum_time_error_estimate > 0.0 && maximum_time_error_estimate < 1.0 &&
+                  minimum_accepted_step < maximum_accepted_step,
+              "M5.7 step doubling controls 97 accepted variable-size steps without rejection") &&
         check(interface.active_contact_nodes == contact.size() && sliding > 0 && crossed_segments > 0,
               "M5.7 keeps every interface node active, reaches frictional sliding, and crosses two segments") &&
         check(std::abs(interface.total_heat_rate) > 0.0 &&
@@ -203,19 +303,24 @@ bool run_case(const std::string& input_path, const std::string& nodal_reference_
               "M5.7 activates cladding plasticity and creep") &&
         check(fields.node_count == source.nodes().size() && fields.maximum_coordinate_difference < 1.0e-12,
               "M5.7 compares every MOOSE source node at matching coordinates") &&
-        check(fuelsim::test::relative_metrics_below_with_pointwise_tolerance(fields.temperature, tolerance, 2.0e-2),
-              "M5.7 qualified temperature field remains within its recorded pointwise boundary") &&
-        check(fields.axial_displacement.relative_l2() < tolerance &&
-                  fields.axial_displacement.relative_absolute_peak() < tolerance &&
-                  fields.axial_displacement.maximum_absolute_difference < 5.0e-6,
-              "M5.7 qualified axial field passes aggregate and absolute-error boundaries") &&
-        check(fields.radial_displacement.relative_l2() < 0.7 &&
-                  fields.radial_displacement.relative_absolute_peak() < 3.0e-2 &&
-                  fields.radial_displacement.maximum_pointwise_relative_error() < 1.3,
-              "M5.7 records the qualified mortar-to-node radial-field boundary") &&
-        check(pressure.relative_l2() < 0.8 && pressure.relative_absolute_peak() < 0.81 &&
-                  pressure.maximum_pointwise_relative_error() < 0.81,
-              "M5.7 records the qualified mortar-to-node pressure boundary");
+        check(fuelsim::test::relative_metrics_below(fields.temperature, tolerance),
+              "M5.7 temperature field passes all three MOOSE metrics") &&
+        check(fuelsim::test::relative_metrics_below(fields.radial_displacement, tolerance),
+              "M5.7 radial field passes all three MOOSE metrics") &&
+        check(fuelsim::test::relative_metrics_below(fields.axial_displacement, tolerance),
+              "M5.7 axial field passes all three MOOSE metrics") &&
+        check(fuelsim::test::relative_metrics_below(pressure, tolerance),
+              "M5.7 node-to-segment pressure passes all three MOOSE metrics") &&
+        check(cladding.points.size() == cladding_reference.size() && maximum_point_coordinate_error < 1.0e-12,
+              "M5.7 compares every cladding integration point at matching coordinates") &&
+        check(point_stress.relative_l2() < 6.0e-3 && point_stress.relative_absolute_peak() < tolerance &&
+                  point_stress.maximum_pointwise_relative_error() < 4.0e-2,
+              "M5.7 integration-point stress passes its recorded qualified metrics") &&
+        check(fuelsim::test::relative_metrics_below(point_plastic, tolerance),
+              "M5.7 integration-point plastic strain passes all three MOOSE metrics") &&
+        check(point_creep.relative_l2() < 6.0e-3 && point_creep.relative_absolute_peak() < 1.0e-2 &&
+                  point_creep.maximum_pointwise_relative_error() < 1.0e-2,
+              "M5.7 integration-point creep strain passes its recorded qualified metrics");
 
     const double plastic_error =
         relative_error(cladding.plastic, final_csv_value(scalar_reference_path, "average_effective_plastic"));
@@ -223,14 +328,17 @@ bool run_case(const std::string& input_path, const std::string& nodal_reference_
         relative_error(cladding.creep, final_csv_value(scalar_reference_path, "average_effective_creep"));
     const double stress_error =
         relative_error(cladding.stress, final_csv_value(scalar_reference_path, "average_vonmises_stress"));
-    passed = check(plastic_error < 0.65 && creep_error < 0.97 && stress_error < 0.65,
-                   "M5.7 records the qualified mortar-to-node cladding-history boundaries") &&
+    passed = check(plastic_error < tolerance && creep_error < tolerance && stress_error < tolerance,
+                   "M5.7 cladding averages pass the MOOSE tolerance") &&
              passed;
 
     fuelsim::test::print_relative_metrics("m57_temperature", fields.temperature);
     fuelsim::test::print_relative_metrics("m57_radial_displacement", fields.radial_displacement);
     fuelsim::test::print_relative_metrics("m57_axial_displacement", fields.axial_displacement);
     fuelsim::test::print_relative_metrics("m57_contact_pressure", pressure);
+    fuelsim::test::print_relative_metrics("m57_qp_equivalent_stress", point_stress);
+    fuelsim::test::print_relative_metrics("m57_qp_equivalent_plastic_strain", point_plastic);
+    fuelsim::test::print_relative_metrics("m57_qp_equivalent_creep_strain", point_creep);
     std::cout << "m57_accepted_steps=" << solve.accepted_steps.size() << '\n'
               << "m57_time_error_rejections=" << solve.time_error_rejections << '\n'
               << "m57_maximum_time_error_estimate=" << maximum_time_error_estimate << '\n'
@@ -250,17 +358,17 @@ bool run_case(const std::string& input_path, const std::string& nodal_reference_
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 5) {
+    if (argc != 7) {
         std::cerr << "Usage: fuelsim_m57_integrated_validation_tests <case.fsi> <all-nodes.csv> "
-                     "<contact.csv> <scalars.csv>\n";
+                     "<contact.csv> <qp-coordinates.csv> <qp-values.csv> <scalars.csv>\n";
         return 2;
     }
     try {
         std::cout << std::scientific << std::setprecision(12);
         fuelsim::PetscSession session(argc, argv, "fuelsim M5.7 integrated validation\n");
-        if (!run_case(argv[1], argv[2], argv[3], argv[4]))
+        if (!run_case(argv[1], argv[2], argv[3], argv[4], argv[5], argv[6]))
             return 1;
-        std::cout << "[PASS] M5.7 integrated functional and qualified MOOSE checks\n";
+        std::cout << "[PASS] M5.7 integrated single-rank qualified MOOSE checks\n";
         return 0;
     } catch (const std::exception& error) {
         std::cerr << "[FAIL] M5.7 validation raised: " << error.what() << '\n';

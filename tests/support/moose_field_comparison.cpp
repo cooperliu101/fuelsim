@@ -247,10 +247,7 @@ std::vector<double> read_moose_contact_pressure_reference(const std::string& pat
     if (!std::getline(input, line))
         throw std::invalid_argument("MOOSE pressure reference is empty: " + path);
     const std::vector<std::string> header = split_csv_line(line);
-    const auto standard_pressure = std::find(header.begin(), header.end(), "contact_pressure");
-    const std::size_t pressure = standard_pressure != header.end()
-                                     ? static_cast<std::size_t>(standard_pressure - header.begin())
-                                     : column_index(header, "mortar_normal_pressure");
+    const std::size_t pressure = column_index(header, "contact_pressure");
     const std::size_t coordinate = column_index(header, "y");
     std::vector<std::pair<double, double>> values;
     while (std::getline(input, line)) {

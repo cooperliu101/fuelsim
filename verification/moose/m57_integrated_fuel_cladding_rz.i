@@ -18,10 +18,10 @@
     type = GeneratedMeshGenerator
     dim = 2
     nx = 2
-    ny = 24
+    ny = 28
     xmin = 0.004121
     xmax = 0.004692
-    ymin = 0
+    ymin = -0.001
     ymax = 0.006
     boundary_name_prefix = clad
     boundary_id_offset = 10
@@ -57,13 +57,65 @@
 []
 
 [AuxVariables]
-  [mortar_normal_pressure]
-    family = LAGRANGE
-    order = FIRST
+  [stress_q0]
+    order = CONSTANT
+    family = MONOMIAL
+    block = clad
   []
-  [mortar_tangential_pressure]
-    family = LAGRANGE
-    order = FIRST
+  [stress_q1]
+    order = CONSTANT
+    family = MONOMIAL
+    block = clad
+  []
+  [stress_q2]
+    order = CONSTANT
+    family = MONOMIAL
+    block = clad
+  []
+  [stress_q3]
+    order = CONSTANT
+    family = MONOMIAL
+    block = clad
+  []
+  [plastic_q0]
+    order = CONSTANT
+    family = MONOMIAL
+    block = clad
+  []
+  [plastic_q1]
+    order = CONSTANT
+    family = MONOMIAL
+    block = clad
+  []
+  [plastic_q2]
+    order = CONSTANT
+    family = MONOMIAL
+    block = clad
+  []
+  [plastic_q3]
+    order = CONSTANT
+    family = MONOMIAL
+    block = clad
+  []
+  [creep_q0]
+    order = CONSTANT
+    family = MONOMIAL
+    block = clad
+  []
+  [creep_q1]
+    order = CONSTANT
+    family = MONOMIAL
+    block = clad
+  []
+  [creep_q2]
+    order = CONSTANT
+    family = MONOMIAL
+    block = clad
+  []
+  [creep_q3]
+    order = CONSTANT
+    family = MONOMIAL
+    block = clad
   []
 []
 
@@ -127,9 +179,96 @@
     type = BodyForce
     variable = T
     block = fuel
-    value = 2e8
+    value = 2e7
     function = power
     use_displaced_mesh = false
+  []
+[]
+
+[AuxKernels]
+  [stress_q0]
+    type = ADMaterialRealAux
+    variable = stress_q0
+    property = vonmises_stress
+    selected_qp = 0
+    block = clad
+  []
+  [stress_q1]
+    type = ADMaterialRealAux
+    variable = stress_q1
+    property = vonmises_stress
+    selected_qp = 1
+    block = clad
+  []
+  [stress_q2]
+    type = ADMaterialRealAux
+    variable = stress_q2
+    property = vonmises_stress
+    selected_qp = 2
+    block = clad
+  []
+  [stress_q3]
+    type = ADMaterialRealAux
+    variable = stress_q3
+    property = vonmises_stress
+    selected_qp = 3
+    block = clad
+  []
+  [plastic_q0]
+    type = ADMaterialRealAux
+    variable = plastic_q0
+    property = effective_plastic_strain
+    selected_qp = 0
+    block = clad
+  []
+  [plastic_q1]
+    type = ADMaterialRealAux
+    variable = plastic_q1
+    property = effective_plastic_strain
+    selected_qp = 1
+    block = clad
+  []
+  [plastic_q2]
+    type = ADMaterialRealAux
+    variable = plastic_q2
+    property = effective_plastic_strain
+    selected_qp = 2
+    block = clad
+  []
+  [plastic_q3]
+    type = ADMaterialRealAux
+    variable = plastic_q3
+    property = effective_plastic_strain
+    selected_qp = 3
+    block = clad
+  []
+  [creep_q0]
+    type = ADMaterialRealAux
+    variable = creep_q0
+    property = effective_creep_strain
+    selected_qp = 0
+    block = clad
+  []
+  [creep_q1]
+    type = ADMaterialRealAux
+    variable = creep_q1
+    property = effective_creep_strain
+    selected_qp = 1
+    block = clad
+  []
+  [creep_q2]
+    type = ADMaterialRealAux
+    variable = creep_q2
+    property = effective_creep_strain
+    selected_qp = 2
+    block = clad
+  []
+  [creep_q3]
+    type = ADMaterialRealAux
+    variable = creep_q3
+    property = effective_creep_strain
+    selected_qp = 3
+    block = clad
   []
 []
 
@@ -154,26 +293,11 @@
   [mechanical]
     primary = clad_left
     secondary = fuel_right
-    formulation = mortar_penalty
+    formulation = penalty
     model = coulomb
     friction_coefficient = 0.002
     penalty = 1e12
-    penalty_friction = 1e8
-  []
-[]
-
-[AuxKernels]
-  [mortar_normal_pressure]
-    type = MortarUserObjectAux
-    variable = mortar_normal_pressure
-    user_object = penalty_friction_object_mechanical
-    contact_quantity = normal_pressure
-  []
-  [mortar_tangential_pressure]
-    type = MortarUserObjectAux
-    variable = mortar_tangential_pressure
-    user_object = penalty_friction_object_mechanical
-    contact_quantity = tangential_pressure_one
+    normalize_penalty = true
   []
 []
 
@@ -304,6 +428,16 @@
   []
 []
 
+[Dampers]
+  [contact_slip]
+    type = ContactSlipDamper
+    primary = clad_left
+    secondary = fuel_right
+    max_iterative_slip = 2e-6
+    min_damping = 1e-6
+  []
+[]
+
 [Executioner]
   type = Transient
   solve_type = NEWTON
@@ -313,10 +447,7 @@
   dtmax = 0.0625
   end_time = 6
   nl_max_its = 100
-  # Segment changes in mortar contact are nonsmooth. The observed scaled
-  # residual is below 5e-4 after more than a 3,000-fold reduction; final fields
-  # are independently gated below 0.5 percent.
-  nl_abs_tol = 5e-4
+  nl_abs_tol = 1e-8
   nl_rel_tol = 1e-8
   abort_on_solve_fail = false
   automatic_scaling = true
@@ -354,6 +485,19 @@
 []
 
 [VectorPostprocessors]
+  [clad_qp_coordinates]
+    type = ElementMaterialSampler
+    property = thermal_conductivity
+    block = clad
+    execute_on = timestep_end
+  []
+  [clad_qp_values]
+    type = ElementValueSampler
+    variable = 'stress_q0 stress_q1 stress_q2 stress_q3 plastic_q0 plastic_q1 plastic_q2 plastic_q3 creep_q0 creep_q1 creep_q2 creep_q3'
+    block = clad
+    sort_by = id
+    execute_on = timestep_end
+  []
   [all_nodes]
     type = NodalValueSampler
     block = 'fuel clad'
@@ -368,10 +512,10 @@
     sort_by = y
     use_displaced_mesh = false
   []
-  [mortar_pressure]
+  [contact_pressure]
     type = NodalValueSampler
     boundary = fuel_right
-    variable = 'mortar_normal_pressure mortar_tangential_pressure'
+    variable = 'contact_pressure nodal_area penetration'
     sort_by = y
     use_displaced_mesh = false
   []

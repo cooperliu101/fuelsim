@@ -1091,31 +1091,31 @@ and the scoped two-body condition proxy.
 
 ## M5.7 integrated transient finite-strain provenance
 
-`m57_integrated_fuel_cladding_rz.i` defines a compact 138-node, 96-element
-fuel-cladding problem. Both blocks use finite strain. The case combines gap heat
-transfer, Coulomb friction with prescribed 0.6 mm fuel translation, coupled
-cladding plasticity and creep, independent time-dependent heat generation and
-internal and external pressures, a fixed cladding bottom, and adaptive transient
-execution. The same tracked Quad4 mesh is read by fuelsim.
+`m57_integrated_fuel_cladding_rz.i` defines a compact 150-node, 104-element
+fuel-cladding problem. The 6-by-8 fuel spans 0 to 5 mm axially. The 2-by-28
+cladding spans -1 to 6 mm, placing its fixed bottom 1 mm below the contact region
+instead of coinciding with the contact endpoint. Both blocks use finite strain.
+The case combines gap heat transfer, Coulomb friction with prescribed 0.6 mm
+fuel translation, coupled cladding plasticity and creep, independent
+time-dependent heat generation and internal and external pressures, and
+history-aware adaptive transient execution. The same tracked Quad4 mesh is read
+by fuelsim.
 
-The production MOOSE run uses `mortar_penalty` contact. Its normal penalty is
-`1e12 Pa/m`; its separate `1e8 Pa/m` tangential penalty avoids the much stiffer
-fuelsim node penalty at mortar segment switches. MOOSE is forced to land on all
-load-function knots, adapts after nonlinear failure, and limits the maximum time
-step to 0.0625 s. Segment switches leave a nonsmooth automatically scaled
-residual below `5e-4` after more than 3,000-fold reduction, so the input records
-that absolute tolerance and independently gates the final fields. All 97 steps
-completed through 6 s.
+The production MOOSE run uses traditional node-to-segment penalty contact, not
+mortar contact. Its normal and sticking tangential penalty are both `1e12 Pa/m`,
+and its friction coefficient is `0.002`. `ContactSlipDamper` limits tangential
+slip during one nonlinear iteration to 2 um. This resolves the nonsmooth sliding
+and segment-switch residual plateau without loosening the absolute nonlinear
+tolerance from `1e-8`. MOOSE lands on all load-function knots and limits the
+maximum time step to 0.0625 s. All 97 steps completed through 6 s on one MPI rank
+and one thread.
 
-The mesh-only command overrides contact formulation solely to prevent MOOSE
-from writing runtime-created mortar EDGE2 blocks into the Exodus file. Fuelsim's
-reader intentionally accepts only Quad4 volume blocks. The override does not
-change the generated Quad4 geometry, block identifiers, or side sets:
+The mesh-only command needs no contact override because this input creates no
+mortar blocks:
 
 ```bash
 /home/cooper/projects/july/july-opt \
   -i m57_integrated_fuel_cladding_rz.i \
-  Contact/mechanical/formulation=kinematic \
   --mesh-only m57_integrated_fuel_cladding_rz_mesh.e
 /home/cooper/projects/july/july-opt \
   -i m57_integrated_fuel_cladding_rz.i \
@@ -1133,13 +1133,22 @@ MPI ranks / threads:   1 / 1
 July worktree:         dirty; executable hash is therefore authoritative
 ```
 
-The tracked files contain every final node, every secondary mortar pressure,
-and the scalar time history. Temperature relative L2, relative absolute-peak,
-and maximum pointwise relative errors are `0.2248%`, `0.06631%`, and `1.311%`.
-Radial displacement gives `64.94%`, `2.5407%`, and `122.87%`; normal pressure
-gives `77.18%`, `80.27%`, and `80.55%`. The MOOSE mortar endpoint reaches
-`28.0 MPa`, compared with a `5.45 MPa` fuelsim node-to-segment peak. Average
-plastic strain, creep strain, and equivalent stress differ by `64.64%`,
-`95.73%`, and `62.71%`. These broad discrepancies are recorded rather than
-hidden by denominator floors or described as verified agreement. This case is
-therefore a qualified integration check, not a mechanical MOOSE oracle.
+The tracked files contain every final node, every secondary node contact
+pressure, all 224 cladding quadrature-point coordinates and values, and the
+scalar time history. Temperature relative L2, relative absolute-peak, and
+maximum pointwise relative errors are `0.022629%`, `0.004642%`, and `0.117533%`.
+Radial displacement gives `0.118304%`, `0.205367%`, and `0.213163%`; axial
+displacement gives `0.000446%`, `0%`, and `0.407768%`; normal pressure gives
+`0.106474%`, `0.050369%`, and `0.210565%`. Average plastic strain, creep strain,
+and equivalent stress differ by `0.02591%`, `0.23730%`, and `0.02410%`.
+
+Quadrature-point effective plastic strain gives `0.084456%`, `0.115586%`, and
+`0.211991%`, passing the uniform 0.5% gate. Quadrature-point equivalent stress
+gives `0.551762%`, `0.473417%`, and `3.489522%`; the maximum pointwise error is a
+3.7196 MPa versus 3.8541 MPa low-stress point. Quadrature-point effective creep
+strain gives `0.583086%`, `0.829354%`, and `0.909187%`. No denominator floor is
+used. The test records qualified stress gates of 0.6%, 0.5%, and 4%, and creep
+gates of 0.6%, 1%, and 1%. The case therefore remains a qualified single-rank
+integration check until all three metrics for every integration-point field are
+below 0.5%. Two-rank and four-rank execution is intentionally outside this
+stage's acceptance scope.

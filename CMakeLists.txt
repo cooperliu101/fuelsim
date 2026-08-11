@@ -292,7 +292,9 @@ if(BUILD_TESTING)
         COMMAND fuelsim_m57_integrated_validation_tests
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_integrated_fuel_cladding.fsi"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m57_integrated_fuel_cladding_rz_all_nodes_final.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m57_integrated_fuel_cladding_rz_mortar_pressure_final.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m57_integrated_fuel_cladding_rz_contact_pressure_final.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m57_integrated_fuel_cladding_rz_clad_qp_coordinates_final.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m57_integrated_fuel_cladding_rz_clad_qp_values_final.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m57_integrated_fuel_cladding_rz_out.csv"
     )
     set_tests_properties(fuelsim_m57_integrated_validation_tests PROPERTIES
@@ -573,45 +575,6 @@ if(BUILD_TESTING)
             LABELS "acceptance;parallel"
             PROCESSORS 2
             TIMEOUT 60
-        )
-        add_test(NAME fuelsim_m57_mpi_reference
-            COMMAND fuelsim_mpi_equivalence_tests
-                write_transient
-                "${CMAKE_CURRENT_BINARY_DIR}/m57_transient_one_rank_state.txt"
-                "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_integrated_fuel_cladding.fsi"
-        )
-        set_tests_properties(fuelsim_m57_mpi_reference PROPERTIES
-            FIXTURES_SETUP m57_transient_mpi_reference
-            LABELS "integration;parallel"
-            TIMEOUT 180
-        )
-        add_test(NAME fuelsim_m57_mpi_equivalence_2_ranks
-            COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2
-                $<TARGET_FILE:fuelsim_mpi_equivalence_tests>
-                compare_transient
-                "${CMAKE_CURRENT_BINARY_DIR}/m57_transient_one_rank_state.txt"
-                "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_integrated_fuel_cladding.fsi"
-        )
-        set_tests_properties(fuelsim_m57_mpi_equivalence_2_ranks PROPERTIES
-            FIXTURES_REQUIRED m57_transient_mpi_reference
-            LABELS "diagnostic;parallel"
-            PROCESSORS 2
-            TIMEOUT 300
-            DISABLED TRUE
-        )
-        add_test(NAME fuelsim_m57_mpi_equivalence_4_ranks
-            COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 4
-                $<TARGET_FILE:fuelsim_mpi_equivalence_tests>
-                compare_transient
-                "${CMAKE_CURRENT_BINARY_DIR}/m57_transient_one_rank_state.txt"
-                "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_integrated_fuel_cladding.fsi"
-        )
-        set_tests_properties(fuelsim_m57_mpi_equivalence_4_ranks PROPERTIES
-            FIXTURES_REQUIRED m57_transient_mpi_reference
-            LABELS "diagnostic;parallel"
-            PROCESSORS 4
-            TIMEOUT 600
-            DISABLED TRUE
         )
         add_test(NAME fuelsim_mpi_root_io_failure
             COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2

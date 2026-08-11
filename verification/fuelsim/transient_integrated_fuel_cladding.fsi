@@ -42,7 +42,7 @@
     thermal_expansion = 1e-5
     reference_temperature = 600
     initial_temperature = 600
-    volumetric_heat_source = 2e8
+    volumetric_heat_source = 2e7
     heat_source_function = power
     density = 10970
     specific_heat = 300
@@ -132,9 +132,9 @@
 [Executioner]
   type = transient
   end_time = 6
-  initial_time_step = 1.5
-  minimum_time_step = 0.03125
-  maximum_time_step = 1.5
+  initial_time_step = 0.03125
+  minimum_time_step = 0.015625
+  maximum_time_step = 0.0625
   growth_factor = 2
   cutback_factor = 0.5
   maximum_cutbacks = 8
