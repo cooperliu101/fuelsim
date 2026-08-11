@@ -74,6 +74,17 @@ C++ 模板，不引入 Eigen、Boost、JSON/YAML、日志库或第三方测试�
 `dependencies/moose-2026.06.16-linux-64.yml` 创建；ADlite 和 Exodus 分别由
 `scripts/install_adlite.sh` 与 `scripts/build_exodus.sh` 安装到持久前缀。
 
+提交代码前可安装仓库追踪的格式化钩子：
+
+```bash
+scripts/install_git_hooks.sh /home/cooper/miniforge/envs/moose/bin/clang-format
+```
+
+此命令把当前仓库的 `core.hooksPath` 指向 `.githooks`。此后执行 `git commit`
+时，提交前钩子会对已暂存的 C/C++ 文件运行仓库的 `clang-format` 配置并重新
+暂存格式化结果。如果同一文件还包含未暂存改动，钩子会停止提交，避免把这些
+改动意外加入提交。其他克隆需要各自运行一次安装命令。
+
 在已经完成依赖安装并激活固定 MOOSE 环境后，设置两个任务专用路径：
 
 ```bash
