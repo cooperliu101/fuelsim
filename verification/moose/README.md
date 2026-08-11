@@ -1098,16 +1098,19 @@ instead of coinciding with the contact endpoint. Both blocks use finite strain.
 The case combines gap heat transfer, Coulomb friction with prescribed 0.6 mm
 fuel translation, coupled cladding plasticity and creep, independent
 time-dependent heat generation and internal and external pressures, and
-history-aware adaptive transient execution. The same tracked Quad4 mesh is read
-by fuelsim.
+history-aware adaptive transient execution in fuelsim. Both MOOSE pressure
+boundaries use radial and axial `ADPressure` objects so an inclined surface
+applies its complete current normal. The same tracked Quad4 mesh is read by
+fuelsim.
 
 The production MOOSE run uses traditional node-to-segment penalty contact, not
 mortar contact. Its normal and sticking tangential penalty are both `1e12 Pa/m`,
 and its friction coefficient is `0.002`. `ContactSlipDamper` limits tangential
 slip during one nonlinear iteration to 2 um. This resolves the nonsmooth sliding
 and segment-switch residual plateau without loosening the absolute nonlinear
-tolerance from `1e-8`. MOOSE lands on all load-function knots and limits the
-maximum time step to 0.0625 s. All 97 steps completed through 6 s on one MPI rank
+tolerance from `1e-8`. The MOOSE `TimeSequenceStepper` explicitly reproduces the
+material-update grid retained by fuelsim step doubling: four 0.015625 s steps,
+then 190 0.03125 s steps. All 194 steps completed through 6 s on one MPI rank
 and one thread.
 
 The mesh-only command needs no contact override because this input creates no
@@ -1136,19 +1139,28 @@ July worktree:         dirty; executable hash is therefore authoritative
 The tracked files contain every final node, every secondary node contact
 pressure, all 224 cladding quadrature-point coordinates and values, and the
 scalar time history. Temperature relative L2, relative absolute-peak, and
-maximum pointwise relative errors are `0.022629%`, `0.004642%`, and `0.117533%`.
-Radial displacement gives `0.118304%`, `0.205367%`, and `0.213163%`; axial
-displacement gives `0.000446%`, `0%`, and `0.407768%`; normal pressure gives
-`0.106474%`, `0.050369%`, and `0.210565%`. Average plastic strain, creep strain,
-and equivalent stress differ by `0.02591%`, `0.23730%`, and `0.02410%`.
+maximum pointwise relative errors are `0.001462%`, `0.000069%`, and `0.009188%`.
+Radial displacement gives `0.006679%`, `0.007126%`, and `0.025135%`; axial
+displacement gives `0.000011%`, `0%`, and `0.016834%`; normal pressure gives
+`0.003264%`, `0.004703%`, and `0.004703%`. Average plastic strain, creep strain,
+and equivalent stress differ by `0.000493%`, `0.021022%`, and `0.000224%`.
 
-Quadrature-point effective plastic strain gives `0.084456%`, `0.115586%`, and
-`0.211991%`, passing the uniform 0.5% gate. Quadrature-point equivalent stress
-gives `0.551762%`, `0.473417%`, and `3.489522%`; the maximum pointwise error is a
-3.7196 MPa versus 3.8541 MPa low-stress point. Quadrature-point effective creep
-strain gives `0.583086%`, `0.829354%`, and `0.909187%`. No denominator floor is
-used. The test records qualified stress gates of 0.6%, 0.5%, and 4%, and creep
-gates of 0.6%, 1%, and 1%. The case therefore remains a qualified single-rank
-integration check until all three metrics for every integration-point field are
-below 0.5%. Two-rank and four-rank execution is intentionally outside this
-stage's acceptance scope.
+Quadrature-point effective plastic strain gives `0.002758%`, `0.004818%`, and
+`0.009338%`. Quadrature-point equivalent stress gives `0.034188%`, `0.021104%`,
+and `0.216337%`; quadrature-point effective creep strain gives `0.026551%`,
+`0.012354%`, and `0.077277%`. No denominator floor is used. Every three-metric
+MOOSE comparison passes the uniform 0.5% gate. The tracked MOOSE reference
+remains a one-rank, one-thread result. Separately, `fuelsim_m57_mpi_reference`,
+`fuelsim_m57_mpi_equivalence_two_ranks`, and
+`fuelsim_m57_mpi_equivalence_four_ranks` verify the complete fuelsim committed
+state across one, two, and four ranks. These small-case tests use PETSc's
+`redundant` preconditioner with sequential LU and pin every numerical library to
+one thread. Two ranks retain 97 accepted steps; their maximum stress and plastic
+strain absolute differences are `0.1809917 Pa` and `3.72567e-12`. Four ranks may
+take 97 or 98 accepted steps when a rank-dependent nonlinear iteration count
+crosses the iteration-based step-control threshold. The conservative 98-step
+path has no time-error rejection; its maximum temperature, displacement, strain
+history, and stress differences are `3.2460e-4 K`, `1.4632e-11 m`, `2.9492e-9`,
+and `242.35 Pa`. They pass the corresponding `1e-3 K`, `1e-10 m`, `1e-8`, and
+`1e3 Pa` gates, and the stick/slip Boolean state agrees exactly. This is final
+state numerical-equivalence evidence, not a speedup or general scaling claim.

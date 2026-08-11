@@ -795,11 +795,12 @@ LocalSystem Line2RzConvectionKernel::linearize(const Line2RzConvectionGeometry& 
 namespace {
 
 struct HeatAdQuadratureValue final {
-    adlite::Scalar gap;
-    adlite::Scalar heat_flux;
-    adlite::Scalar weighted_measure;
-    adlite::Scalar primary_shape_0;
-    adlite::Scalar primary_shape_1;
+    bool projected = false;
+    adlite::Scalar gap = 0.0;
+    adlite::Scalar heat_flux = 0.0;
+    adlite::Scalar weighted_measure = 0.0;
+    adlite::Scalar primary_shape_0 = 0.0;
+    adlite::Scalar primary_shape_1 = 0.0;
 };
 
 struct ContactAdValue final {
@@ -877,39 +878,38 @@ adlite::Scalar interpolate(const std::array<double, line2_interface_side_node_co
     return value;
 }
 
-HeatAdQuadratureValue evaluate_heat_quadrature(const Line2RzHeatGeometry& geometry,
+bool projection_is_inside(double fraction, bool includes_second_endpoint) {
+    if (fraction < 0.0)
+        return false;
+    if (includes_second_endpoint)
+        return fraction <= 1.0;
+    return fraction < 1.0;
+}
+
+HeatAdQuadratureValue evaluate_heat_quadrature(const Line2InterfaceSideCoordinates& secondary_coordinates,
+                                               const Line2InterfaceSideCoordinates& primary_coordinates,
                                                const Line2RzHeatQuadraturePoint& point, const LocalAdValues& state,
-                                               const GapHeatProperties& properties) {
-    const adlite::Scalar secondary_radius_0 = geometry.secondary_coordinates[0].r + state[4];
-    const adlite::Scalar secondary_radius_1 = geometry.secondary_coordinates[1].r + state[5];
-    const adlite::Scalar secondary_axial_0 = geometry.secondary_coordinates[0].z + state[8];
-    const adlite::Scalar secondary_axial_1 = geometry.secondary_coordinates[1].z + state[9];
+                                               const GapHeatProperties& properties, bool includes_second_endpoint) {
+    const adlite::Scalar secondary_radius_0 = secondary_coordinates[0].r + state[4];
+    const adlite::Scalar secondary_radius_1 = secondary_coordinates[1].r + state[5];
+    const adlite::Scalar secondary_axial_0 = secondary_coordinates[0].z + state[8];
+    const adlite::Scalar secondary_axial_1 = secondary_coordinates[1].z + state[9];
     const adlite::Scalar secondary_radius =
         point.secondary_shape[0] * secondary_radius_0 + point.secondary_shape[1] * secondary_radius_1;
     const adlite::Scalar secondary_axial =
         point.secondary_shape[0] * secondary_axial_0 + point.secondary_shape[1] * secondary_axial_1;
-    const adlite::Scalar primary_radius_0 = geometry.primary_coordinates[0].r + state[6];
-    const adlite::Scalar primary_radius_1 = geometry.primary_coordinates[1].r + state[7];
-    const adlite::Scalar primary_axial_0 = geometry.primary_coordinates[0].z + state[10];
-    const adlite::Scalar primary_axial_1 = geometry.primary_coordinates[1].z + state[11];
+    const adlite::Scalar primary_radius_0 = primary_coordinates[0].r + state[6];
+    const adlite::Scalar primary_radius_1 = primary_coordinates[1].r + state[7];
+    const adlite::Scalar primary_axial_0 = primary_coordinates[0].z + state[10];
+    const adlite::Scalar primary_axial_1 = primary_coordinates[1].z + state[11];
     const adlite::Scalar tangent_r = primary_radius_1 - primary_radius_0;
     const adlite::Scalar tangent_z = primary_axial_1 - primary_axial_0;
     const adlite::Scalar tangent_length = adlite::hypot(tangent_r, tangent_z);
-    // The reference overlap selects a unique primary segment, but the
-    // interpolation point on that segment follows the current geometry. This
-    // matches the current-normal gap and prevents a reference projection from
-    // becoming a hidden cylindrical or small-sliding approximation.
     adlite::Scalar primary_fraction =
         ((secondary_radius - primary_radius_0) * tangent_r + (secondary_axial - primary_axial_0) * tangent_z) /
         (tangent_length * tangent_length);
-    // Each quadrature point keeps the unique primary segment selected by the
-    // reference overlap partition. During a Newton iteration its orthogonal
-    // projection may temporarily cross an endpoint; clamp to that owned
-    // endpoint so the heat contribution remains unique and conservative.
-    if (primary_fraction.value() < 0.0)
-        primary_fraction = 0.0;
-    else if (primary_fraction.value() > 1.0)
-        primary_fraction = 1.0;
+    if (!projection_is_inside(primary_fraction.value(), includes_second_endpoint))
+        return {};
     const adlite::Scalar primary_shape_0 = 1.0 - primary_fraction;
     const adlite::Scalar primary_shape_1 = primary_fraction;
     const adlite::Scalar primary_radius = primary_shape_0 * primary_radius_0 + primary_shape_1 * primary_radius_1;
@@ -930,15 +930,7 @@ HeatAdQuadratureValue evaluate_heat_quadrature(const Line2RzHeatGeometry& geomet
     const adlite::Scalar surface_jacobian = adlite::sqrt(dr_dxi * dr_dxi + dz_dxi * dz_dxi);
     const adlite::Scalar weighted_measure = 2.0 * pi * secondary_radius * surface_jacobian * point.integration_weight;
 
-    return {gap, heat_flux, weighted_measure, primary_shape_0, primary_shape_1};
-}
-
-bool projection_is_inside(double fraction, bool includes_second_endpoint) {
-    if (fraction < 0.0)
-        return false;
-    if (includes_second_endpoint)
-        return fraction <= 1.0;
-    return fraction < 1.0;
+    return {true, gap, heat_flux, weighted_measure, primary_shape_0, primary_shape_1};
 }
 
 bool clamp_owned_chain_endpoint(adlite::Scalar& fraction, double reference_fraction, bool primary_segment_is_first,
@@ -1108,54 +1100,73 @@ Line2RzHeatGeometry make_line2_rz_heat_geometry(const Line2InterfaceSideCoordina
     return geometry;
 }
 
+Line2RzHeatPointGeometry
+make_line2_rz_heat_point_geometry(const Line2InterfaceSideCoordinates& secondary_coordinates,
+                                  const Line2InterfaceSideCoordinates& primary_coordinates,
+                                  const std::array<double, line2_interface_side_node_count>& secondary_shape,
+                                  double integration_weight, bool primary_segment_includes_second_endpoint,
+                                  double zero_gap_orientation_hint) {
+    validate_line(secondary_coordinates, "Line2RzHeatPointGeometry secondary");
+    validate_line(primary_coordinates, "Line2RzHeatPointGeometry primary");
+    const RzPoint secondary_point = {
+        secondary_shape[0] * secondary_coordinates[0].r + secondary_shape[1] * secondary_coordinates[1].r,
+        secondary_shape[0] * secondary_coordinates[0].z + secondary_shape[1] * secondary_coordinates[1].z,
+    };
+    const double primary_fraction = reference_projection_fraction(secondary_point, primary_coordinates);
+    const double closest_fraction = std::max(0.0, std::min(1.0, primary_fraction));
+    return {
+        secondary_coordinates,
+        primary_coordinates,
+        {secondary_shape,
+         {1.0 - primary_fraction, primary_fraction},
+         integration_weight,
+         reference_normal_orientation(secondary_point, primary_coordinates, closest_fraction,
+                                      zero_gap_orientation_hint)},
+        primary_segment_includes_second_endpoint,
+    };
+}
+
 Line2RzGapHeatKernel::Line2RzGapHeatKernel(GapHeatProperties properties) : _properties(properties) {}
 
 const GapHeatProperties& Line2RzGapHeatKernel::properties() const noexcept {
     return _properties;
 }
 
-LocalResidual Line2RzGapHeatKernel::residual(const Line2RzHeatGeometry& geometry, const LocalValues& state) const {
+LocalResidual Line2RzGapHeatKernel::residual(const Line2RzHeatPointGeometry& geometry, const LocalValues& state) const {
     const LocalAdValues ad_state = quad4_rz_detail::passive_state(state);
     LocalAdValues ad_residual{};
     residual_ad(geometry, ad_state, ad_residual);
     return quad4_rz_detail::residual_values(ad_residual);
 }
 
-LocalSystem Line2RzGapHeatKernel::linearize(const Line2RzHeatGeometry& geometry, const LocalValues& state) const {
+LocalSystem Line2RzGapHeatKernel::linearize(const Line2RzHeatPointGeometry& geometry, const LocalValues& state) const {
     const LocalAdValues ad_state = quad4_rz_detail::active_state(state);
     LocalAdValues ad_residual{};
     residual_ad(geometry, ad_state, ad_residual);
     return quad4_rz_detail::linearized_values(ad_state, ad_residual);
 }
 
-HeatQuadratureValues Line2RzGapHeatKernel::quadrature_values(const Line2RzHeatGeometry& geometry,
-                                                             const LocalValues& state) const {
+HeatQuadratureValue Line2RzGapHeatKernel::quadrature_value(const Line2RzHeatPointGeometry& geometry,
+                                                           const LocalValues& state) const {
     const LocalAdValues ad_state = quad4_rz_detail::passive_state(state);
-
-    HeatQuadratureValues result{};
-    for (std::size_t q = 0; q < geometry.points.size(); ++q) {
-        const HeatAdQuadratureValue value =
-            evaluate_heat_quadrature(geometry, geometry.points[q], ad_state, _properties);
-        result[q] = {
-            value.gap.value(),
-            value.heat_flux.value(),
-            value.weighted_measure.value(),
-        };
-    }
-    return result;
+    const HeatAdQuadratureValue value =
+        evaluate_heat_quadrature(geometry.secondary_coordinates, geometry.primary_coordinates, geometry.point, ad_state,
+                                 _properties, geometry.primary_segment_includes_second_endpoint);
+    return {value.projected, value.gap.value(), value.heat_flux.value(), value.weighted_measure.value()};
 }
 
-void Line2RzGapHeatKernel::residual_ad(const Line2RzHeatGeometry& geometry, const LocalAdValues& state,
+void Line2RzGapHeatKernel::residual_ad(const Line2RzHeatPointGeometry& geometry, const LocalAdValues& state,
                                        LocalAdValues& residual) const {
     std::fill(residual.begin(), residual.end(), adlite::Scalar(0.0));
-
-    for (const Line2RzHeatQuadraturePoint& point : geometry.points) {
-        const HeatAdQuadratureValue value = evaluate_heat_quadrature(geometry, point, state, _properties);
-        for (std::size_t node = 0; node < line2_interface_side_node_count; ++node) {
-            residual[node] += value.weighted_measure * point.secondary_shape[node] * value.heat_flux;
-            const adlite::Scalar primary_shape = node == 0 ? value.primary_shape_0 : value.primary_shape_1;
-            residual[2 + node] -= value.weighted_measure * primary_shape * value.heat_flux;
-        }
+    const HeatAdQuadratureValue value =
+        evaluate_heat_quadrature(geometry.secondary_coordinates, geometry.primary_coordinates, geometry.point, state,
+                                 _properties, geometry.primary_segment_includes_second_endpoint);
+    if (!value.projected)
+        return;
+    for (std::size_t node = 0; node < line2_interface_side_node_count; ++node) {
+        residual[node] += value.weighted_measure * geometry.point.secondary_shape[node] * value.heat_flux;
+        const adlite::Scalar primary_shape = node == 0 ? value.primary_shape_0 : value.primary_shape_1;
+        residual[2 + node] -= value.weighted_measure * primary_shape * value.heat_flux;
     }
 }
 

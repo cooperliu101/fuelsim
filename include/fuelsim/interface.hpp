@@ -28,19 +28,28 @@ struct Line2RzHeatGeometry final {
     std::array<Line2RzHeatQuadraturePoint, line2_interface_quadrature_point_count> points;
 };
 
+// One secondary-side integration point paired with one candidate primary
+// segment. The primary interval is half open except for the final segment in
+// the complete chain, so a point on an internal primary vertex has one owner.
+struct Line2RzHeatPointGeometry final {
+    Line2InterfaceSideCoordinates secondary_coordinates;
+    Line2InterfaceSideCoordinates primary_coordinates;
+    Line2RzHeatQuadraturePoint point;
+    bool primary_segment_includes_second_endpoint;
+};
+
 struct GapHeatProperties final {
     double gap_conductivity;
     double minimum_gap;
 };
 
 struct HeatQuadratureValue final {
+    bool projected;
     double gap;
     // Positive heat flux transfers energy from secondary to primary.
     double heat_flux;
     double weighted_measure;
 };
-
-using HeatQuadratureValues = std::array<HeatQuadratureValue, line2_interface_quadrature_point_count>;
 
 // zero_gap_orientation_hint is consulted only when a secondary point rides
 // exactly on its primary segment (zero reference normal gap). It carries the
@@ -58,6 +67,13 @@ Line2RzHeatGeometry make_line2_rz_heat_geometry(const Line2InterfaceSideCoordina
                                                 double secondary_coordinate_lower, double secondary_coordinate_upper,
                                                 double zero_gap_orientation_hint);
 
+Line2RzHeatPointGeometry
+make_line2_rz_heat_point_geometry(const Line2InterfaceSideCoordinates& secondary_coordinates,
+                                  const Line2InterfaceSideCoordinates& primary_coordinates,
+                                  const std::array<double, line2_interface_side_node_count>& secondary_shape,
+                                  double integration_weight, bool primary_segment_includes_second_endpoint,
+                                  double zero_gap_orientation_hint);
+
 class Line2RzGapHeatKernel final {
   public:
     explicit Line2RzGapHeatKernel(GapHeatProperties properties);
@@ -67,12 +83,13 @@ class Line2RzGapHeatKernel final {
     // Fixed ordering:
     // [Ts0, Ts1, Tp0, Tp1, urs0, urs1, urp0, urp1,
     //  uzs0, uzs1, uzp0, uzp1].
-    LocalResidual residual(const Line2RzHeatGeometry& geometry, const LocalValues& state) const;
-    LocalSystem linearize(const Line2RzHeatGeometry& geometry, const LocalValues& state) const;
-    HeatQuadratureValues quadrature_values(const Line2RzHeatGeometry& geometry, const LocalValues& state) const;
+    LocalResidual residual(const Line2RzHeatPointGeometry& geometry, const LocalValues& state) const;
+    LocalSystem linearize(const Line2RzHeatPointGeometry& geometry, const LocalValues& state) const;
+    HeatQuadratureValue quadrature_value(const Line2RzHeatPointGeometry& geometry, const LocalValues& state) const;
 
   private:
-    void residual_ad(const Line2RzHeatGeometry& geometry, const LocalAdValues& state, LocalAdValues& residual) const;
+    void residual_ad(const Line2RzHeatPointGeometry& geometry, const LocalAdValues& state,
+                     LocalAdValues& residual) const;
 
     GapHeatProperties _properties;
 };

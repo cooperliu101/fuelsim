@@ -152,7 +152,10 @@ class ContactAssembly final {
     struct ThermalContribution final {
         std::size_t contact;
         std::array<std::size_t, 4> nodes;
-        Line2RzHeatGeometry geometry;
+        Line2RzHeatPointGeometry geometry;
+        std::size_t integration_point;
+        std::size_t primary;
+        mutable bool active = false;
     };
     struct MechanicalContribution final {
         std::size_t contact;
@@ -167,7 +170,9 @@ class ContactAssembly final {
     std::vector<NodeToLineRzContactKernel> _mechanical_kernels;
     std::vector<ThermalContribution> _thermal_contributions;
     std::vector<MechanicalContribution> _mechanical_contributions;
+    mutable std::vector<std::vector<bool>> _projected_thermal_points;
     mutable std::vector<std::vector<bool>> _projected_mechanical_nodes;
+    std::vector<std::size_t> _thermal_point_counts;
     std::vector<std::vector<ContactPointHistory>> _contact_histories;
     std::vector<double> _committed_contact_solution;
     std::vector<SpatialLayout::ResolvedBoundary> _primary_boundaries;
@@ -254,9 +259,14 @@ class SpatialAssembly final {
                                                 const UnstructuredQuad4Mesh& source_mesh);
 
     void build_contacts(const UnstructuredQuad4Mesh& source_mesh);
+    void update_thermal_candidates(const std::vector<double>& state) const;
+    void update_thermal_candidates(std::size_t contribution_begin, std::size_t contribution_end,
+                                   const GlobalStateView& state) const;
     void update_mechanical_candidates(const std::vector<double>& state) const;
     void update_mechanical_candidates(std::size_t contribution_begin, std::size_t contribution_end,
                                       const GlobalStateView& state) const;
+    std::vector<std::vector<bool>> touched_thermal_points(std::size_t contribution_begin,
+                                                          std::size_t contribution_end) const;
     std::vector<std::vector<bool>> touched_mechanical_nodes(std::size_t contribution_begin,
                                                             std::size_t contribution_end) const;
     ContributionRanges contribution_ranges() const noexcept;

@@ -291,8 +291,9 @@ bool run_case(const std::string& input_path, const std::string& nodal_reference_
                   maximum_time_error_estimate > 0.0 && maximum_time_error_estimate < 1.0 &&
                   minimum_accepted_step < maximum_accepted_step,
               "M5.7 step doubling controls 97 accepted variable-size steps without rejection") &&
-        check(interface.active_contact_nodes == contact.size() && sliding > 0 && crossed_segments > 0,
-              "M5.7 keeps every interface node active, reaches frictional sliding, and crosses two segments") &&
+        check(interface.active_contact_nodes == contact.size() && sliding + 1 == contact.size() &&
+                  crossed_segments == contact.size(),
+              "M5.7 keeps every interface node active, eight nodes sliding, and every node crossing two segments") &&
         check(std::abs(interface.total_heat_rate) > 0.0 &&
                   std::abs(problem.last_conservation_summary().interface_heat_imbalance) < 1.0e-10,
               "M5.7 exercises nonzero conservative thermal contact") &&
@@ -313,14 +314,12 @@ bool run_case(const std::string& input_path, const std::string& nodal_reference_
               "M5.7 node-to-segment pressure passes all three MOOSE metrics") &&
         check(cladding.points.size() == cladding_reference.size() && maximum_point_coordinate_error < 1.0e-12,
               "M5.7 compares every cladding integration point at matching coordinates") &&
-        check(point_stress.relative_l2() < 6.0e-3 && point_stress.relative_absolute_peak() < tolerance &&
-                  point_stress.maximum_pointwise_relative_error() < 4.0e-2,
-              "M5.7 integration-point stress passes its recorded qualified metrics") &&
+        check(fuelsim::test::relative_metrics_below(point_stress, tolerance),
+              "M5.7 integration-point stress passes all three MOOSE metrics") &&
         check(fuelsim::test::relative_metrics_below(point_plastic, tolerance),
               "M5.7 integration-point plastic strain passes all three MOOSE metrics") &&
-        check(point_creep.relative_l2() < 6.0e-3 && point_creep.relative_absolute_peak() < 1.0e-2 &&
-                  point_creep.maximum_pointwise_relative_error() < 1.0e-2,
-              "M5.7 integration-point creep strain passes its recorded qualified metrics");
+        check(fuelsim::test::relative_metrics_below(point_creep, tolerance),
+              "M5.7 integration-point creep strain passes all three MOOSE metrics");
 
     const double plastic_error =
         relative_error(cladding.plastic, final_csv_value(scalar_reference_path, "average_effective_plastic"));
@@ -368,7 +367,7 @@ int main(int argc, char** argv) {
         fuelsim::PetscSession session(argc, argv, "fuelsim M5.7 integrated validation\n");
         if (!run_case(argv[1], argv[2], argv[3], argv[4], argv[5], argv[6]))
             return 1;
-        std::cout << "[PASS] M5.7 integrated single-rank qualified MOOSE checks\n";
+        std::cout << "[PASS] M5.7 integrated single-rank verified MOOSE checks\n";
         return 0;
     } catch (const std::exception& error) {
         std::cerr << "[FAIL] M5.7 validation raised: " << error.what() << '\n';

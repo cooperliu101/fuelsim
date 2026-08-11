@@ -298,7 +298,7 @@ if(BUILD_TESTING)
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m57_integrated_fuel_cladding_rz_out.csv"
     )
     set_tests_properties(fuelsim_m57_integrated_validation_tests PROPERTIES
-        LABELS "integration;qualified"
+        LABELS "acceptance"
         TIMEOUT 180
     )
 
@@ -575,6 +575,50 @@ if(BUILD_TESTING)
             LABELS "acceptance;parallel"
             PROCESSORS 2
             TIMEOUT 60
+        )
+        add_test(NAME fuelsim_m57_mpi_reference
+            COMMAND fuelsim_mpi_equivalence_tests
+                write_transient_integrated
+                "${CMAKE_CURRENT_BINARY_DIR}/m57_transient_one_rank_state.txt"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_integrated_fuel_cladding.fsi"
+        )
+        set_tests_properties(fuelsim_m57_mpi_reference PROPERTIES
+            FIXTURES_SETUP m57_mpi_reference
+            LABELS "integration;parallel"
+            ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1;MKL_NUM_THREADS=1;NUMEXPR_NUM_THREADS=1"
+            TIMEOUT 180
+        )
+        add_test(NAME fuelsim_m57_mpi_equivalence_two_ranks
+            COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2
+                $<TARGET_FILE:fuelsim_mpi_equivalence_tests>
+                compare_transient_integrated
+                "${CMAKE_CURRENT_BINARY_DIR}/m57_transient_one_rank_state.txt"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_integrated_fuel_cladding.fsi"
+                -pc_type redundant
+                -redundant_pc_type lu
+        )
+        set_tests_properties(fuelsim_m57_mpi_equivalence_two_ranks PROPERTIES
+            FIXTURES_REQUIRED m57_mpi_reference
+            LABELS "acceptance;parallel"
+            ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1;MKL_NUM_THREADS=1;NUMEXPR_NUM_THREADS=1"
+            PROCESSORS 2
+            TIMEOUT 180
+        )
+        add_test(NAME fuelsim_m57_mpi_equivalence_four_ranks
+            COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 4
+                $<TARGET_FILE:fuelsim_mpi_equivalence_tests>
+                compare_transient_integrated
+                "${CMAKE_CURRENT_BINARY_DIR}/m57_transient_one_rank_state.txt"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_integrated_fuel_cladding.fsi"
+                -pc_type redundant
+                -redundant_pc_type lu
+        )
+        set_tests_properties(fuelsim_m57_mpi_equivalence_four_ranks PROPERTIES
+            FIXTURES_REQUIRED m57_mpi_reference
+            LABELS "acceptance;parallel"
+            ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1;MKL_NUM_THREADS=1;NUMEXPR_NUM_THREADS=1"
+            PROCESSORS 4
+            TIMEOUT 180
         )
         add_test(NAME fuelsim_mpi_root_io_failure
             COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2

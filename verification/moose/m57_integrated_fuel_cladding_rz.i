@@ -334,9 +334,25 @@
     function = internal_pressure
     use_displaced_mesh = true
   []
+  [internal_pressure_axial]
+    type = ADPressure
+    variable = disp_y
+    boundary = clad_left
+    factor = 5e5
+    function = internal_pressure
+    use_displaced_mesh = true
+  []
   [external_pressure]
     type = ADPressure
     variable = disp_x
+    boundary = clad_right
+    factor = 2e6
+    function = external_pressure
+    use_displaced_mesh = true
+  []
+  [external_pressure_axial]
+    type = ADPressure
+    variable = disp_y
     boundary = clad_right
     factor = 2e6
     function = external_pressure
@@ -442,9 +458,6 @@
   type = Transient
   solve_type = NEWTON
   line_search = basic
-  dt = 0.03125
-  dtmin = 0.001953125
-  dtmax = 0.0625
   end_time = 6
   nl_max_its = 100
   nl_abs_tol = 1e-8
@@ -457,12 +470,30 @@
   petsc_options_value = lu
 
   [TimeStepper]
-    type = IterationAdaptiveDT
-    dt = 0.03125
-    growth_factor = 2
-    cutback_factor_at_failure = 0.5
-    timestep_limiting_function = 'power internal_pressure external_pressure axial_slide'
-    force_step_every_function_point = true
+    type = TimeSequenceStepper
+    # Match the two accepted 0.03125 s fuelsim controller steps through four
+    # 0.015625 s material updates, then match its remaining 95 accepted 0.0625 s
+    # controller steps through 190 material updates of 0.03125 s.
+    time_sequence = '0 0.015625 0.031250 0.046875 0.062500 0.093750 0.125000 0.156250 0.187500 0.218750
+      0.250000 0.281250 0.312500 0.343750 0.375000 0.406250 0.437500 0.468750 0.500000 0.531250
+      0.562500 0.593750 0.625000 0.656250 0.687500 0.718750 0.750000 0.781250 0.812500 0.843750
+      0.875000 0.906250 0.937500 0.968750 1.000000 1.031250 1.062500 1.093750 1.125000 1.156250
+      1.187500 1.218750 1.250000 1.281250 1.312500 1.343750 1.375000 1.406250 1.437500 1.468750
+      1.500000 1.531250 1.562500 1.593750 1.625000 1.656250 1.687500 1.718750 1.750000 1.781250
+      1.812500 1.843750 1.875000 1.906250 1.937500 1.968750 2.000000 2.031250 2.062500 2.093750
+      2.125000 2.156250 2.187500 2.218750 2.250000 2.281250 2.312500 2.343750 2.375000 2.406250
+      2.437500 2.468750 2.500000 2.531250 2.562500 2.593750 2.625000 2.656250 2.687500 2.718750
+      2.750000 2.781250 2.812500 2.843750 2.875000 2.906250 2.937500 2.968750 3.000000 3.031250
+      3.062500 3.093750 3.125000 3.156250 3.187500 3.218750 3.250000 3.281250 3.312500 3.343750
+      3.375000 3.406250 3.437500 3.468750 3.500000 3.531250 3.562500 3.593750 3.625000 3.656250
+      3.687500 3.718750 3.750000 3.781250 3.812500 3.843750 3.875000 3.906250 3.937500 3.968750
+      4.000000 4.031250 4.062500 4.093750 4.125000 4.156250 4.187500 4.218750 4.250000 4.281250
+      4.312500 4.343750 4.375000 4.406250 4.437500 4.468750 4.500000 4.531250 4.562500 4.593750
+      4.625000 4.656250 4.687500 4.718750 4.750000 4.781250 4.812500 4.843750 4.875000 4.906250
+      4.937500 4.968750 5.000000 5.031250 5.062500 5.093750 5.125000 5.156250 5.187500 5.218750
+      5.250000 5.281250 5.312500 5.343750 5.375000 5.406250 5.437500 5.468750 5.500000 5.531250
+      5.562500 5.593750 5.625000 5.656250 5.687500 5.718750 5.750000 5.781250 5.812500 5.843750
+      5.875000 5.906250 5.937500 5.968750 6.000000'
   []
 []
 

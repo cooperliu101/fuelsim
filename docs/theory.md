@@ -357,9 +357,18 @@ q_convection = h_c * (T - T_ambient)
 解析。热接触采用 secondary-side segment-to-segment 离散，简称 STS；即在
 secondary 线段的积分点计算热流，并投影到 primary 线段。
 
-热接触在构造期确定 secondary 积分分片及其唯一 primary 段所有权；每次残量和
-Jacobian 计算时，积分点在已拥有段上的正交投影分数、两侧坐标、primary 法向和
-secondary 表面测度都在当前轴对称 RZ 几何中求值。所有边方向统一使用：
+热接触在构造期按参考投影重叠区间切分 secondary 积分分片并生成积分点。每个
+积分点独立编号，并与完整 primary 开放链的每条线段建立固定 12 自由度稀疏候选；
+参考分片只定义 secondary 侧积分区域，不冻结 primary 段所有权。每次状态验证
+都在当前构形搜索完整 primary 链，为每个积分点选择唯一有效线段。内部顶点采用
+半开参数区间 `[0,1)`，只有整条链的最后一段采用 `[0,1]`，因此内部顶点唯一
+归下一段。弯折链存在多个有效正交投影时选择绝对间隙最小的线段，平局按
+primary 线段序号确定。积分点投影越出整条链时明确拒绝当前状态，不做有限距离
+端点夹持。
+
+残量和 Jacobian 计算只装配唯一活动候选，其余预留候选为零。积分点的正交投影
+分数、两侧坐标、primary 法向和 secondary 表面测度都在当前轴对称 RZ 几何中
+求值。所有边方向统一使用：
 
 ```text
 g = (x_primary_mapped - x_secondary).n_primary_current
@@ -384,11 +393,10 @@ R_T_secondary += integral_A_secondary N_secondary*q_gap dA
 R_T_primary   -= integral_A_secondary N_primary*q_gap dA
 ```
 
-因此同一积分点的界面热量严格等量反向。非匹配 Line2 网格在构造时按参考投影
-重叠区间切分 secondary 积分区间，并拒绝覆盖空洞或重叠。Newton 中间态的当前
-正交投影若越过已拥有段的端点，就夹持到该端点；积分点不会以负形函数外插，
-也不会同时进入相邻分片。段所有权不会随大滑移转移，因此不能把机械接触的
-完整链动态搜索证据外推到热接触动态跨段搜索。
+因此同一积分点的界面热量严格等量反向。非匹配 Line2 网格在构造时仍检查参考
+投影覆盖空洞和重叠，但一个 secondary 分片中的不同积分点可以在当前构形选择
+不同 primary 段。半开区间保证内部相邻段不会重复计热，完整链候选预留保证大
+滑移转移不改变 PETSc 稀疏结构，失投影守卫则阻止陈旧候选或链端夹持继续计热。
 
 ## 8. 机械接触离散
 
@@ -501,9 +509,10 @@ s_new = tau/k
 
 当前状态滑出某个局部邻域时可转移到完整链上的其他线段；滑出整条 primary
 链时则报告物理域错误。候选选择由 committed 几何和当前状态确定性重建，
-检查点不保存临时搜索窗口。热接触仍使用构造期唯一分片，但分片内投影位置按
-当前构形更新并在端点夹持；现有证据没有鉴定 Coulomb 摩擦与大滑移同时激活的
-任意路径。
+检查点不保存临时搜索窗口。热接触对每个积分点采用同样的完整链动态候选原则，
+但不使用机械参考端点节点的物理端点支承；热积分点滑出完整链时直接报告物理域
+错误。M5.7 已对规定网格、载荷和接触参数下同时激活 Coulomb 摩擦、机械大滑移
+与热接触动态所有权的路径完成鉴定；该结果不能外推为任意组合路径。
 
 ## 9. 时间积分和状态事务
 
@@ -669,7 +678,8 @@ max_pointwise_relative = max_i |x_i-x_ref_i|/|x_ref_i|
 | 当前构形有限应变 | `m41.finite_strain` | Taylor/Rashid 局部解析与非匹配 PCMI MOOSE 对比 |
 | follower pressure | `m42.follower_pressure` | 四边法向、当前合力、几何刚度和三类边界 MOOSE 对比 |
 | 非共轴有限转动 | `m43.noncoaxial_finite_strain` | 四单元 100 步路径、材料分支和共享状态重放 |
-| 分布式装配和影子态 | `m34.parallel`、`m55.shadow_state` | 1-rank/2-rank 场及完整材料历史等价 |
+| 综合瞬态大滑移热—摩擦接触 | `m57.integrated` | 完整当前法向 MOOSE 对标、热接触跨段所有权以及 1-rank/2-rank/4-rank 完整状态等价 |
+| 分布式装配和影子态 | `m34.parallel`、`m55.shadow_state` | 隔离路径的 1-rank/2-rank 及 M5.7 的 1-rank/2-rank/4-rank 完整状态等价 |
 | 迭代求解测量 | `m56.iterative_solver`、`performance.m34` | 固定 CPU、固定线程的中型和较大网格观测 |
 | 明确适用边界 | `scope.boundary` | 未实现物理和未鉴定组合的发布级清单 |
 
@@ -700,7 +710,7 @@ max_pointwise_relative = max_i |x_i-x_ref_i|/|x_ref_i|
 - 二氧化铀或包壳的燃耗、辐照、裂变气体、肿胀、开裂、重定位、氧化或
   冷却剂通道工程关联；
 - 任意转角、任意加载路径和任意网格上的一般有限转动鉴定；
-- 大滑移与 Coulomb 摩擦同时激活的任意路径，以及热接触跨 primary 段动态转移；
+- 超出 M5.7 规定网格、载荷路径和接触参数的大滑移与 Coulomb 摩擦组合；
 - 当前构形 traction 方向随法向旋转的一般矢量 follower law；
 - 代表性 100 秒 PCMI 之外的长期时间精度，或未做独立网格、时间步和接触
   参数研究的新工况；
