@@ -72,7 +72,7 @@ int main(int argc, char** argv) {
             throw std::runtime_error("Verification matrix header does not match schema");
 
         const std::set<std::string> required_ids = {
-            "input.v1",
+            "input.v2",
             "build.reproducibility",
             "io.exodus",
             "m0.steady",

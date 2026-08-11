@@ -41,7 +41,7 @@ fuelsim -i <case.fsi>
 | `fuelsim_io` | 严格解析版本化 `.fsi` 输入，并直接读写 Exodus 网格、结果、检查点和元数据 | Exodus、`fuelsim_core` |
 | `fuelsim_solver` | 分布式向量、稀疏装配、SNES Newton、KSP 线性求解和稳态或瞬态推进 | PETSc、`fuelsim_core` |
 
-输入 v1 只接受一个 Exodus 文件、国际单位制数值和固定字段集合。程序不实现
+输入 v2 只接受一个 Exodus 文件、国际单位制数值和固定字段集合。程序不实现
 对象工厂、表达式求值、单位换算、旧键别名或运行时 Kernel 注册。ADlite 之外，
 PETSc 是唯一直接数值依赖，Exodus 是唯一直接网格 I/O 依赖。
 
@@ -248,9 +248,21 @@ r_current > 0
 
 ## 5. 材料模型与局部更新
 
+材料不是一个固定参数结构，而是由已注册的热物性、弹性、本征应变、蠕变和
+塑性函数组合。每个函数拥有严格的具名参数表，活跃输入和输出使用
+`adlite::Scalar`。热物性函数返回导热率、密度和比热；弹性函数返回弹性模量
+与泊松比；多个本征应变函数的轴对称张量结果相加；蠕变函数返回等效蠕变
+速率；塑性函数返回当前流动应力。
+
+局部积分器仍由 fuelsim 统一管理。它从同一个 committed 状态调用纯函数，
+执行 J2 关联流动、Backward Euler 更新、塑性—蠕变全隐式耦合、trial 状态
+提取和有限应变客观旋转。注册函数不能自行提交历史，也不能访问全局解或
+PETSc 对象。
+
 ### 5.1 热弹性
 
-各区域独立选择材料。热弹性采用各向同性参数，热应变为：
+各区域独立引用组合材料。内置热弹性函数采用各向同性参数，内置热膨胀
+本征应变为：
 
 ```text
 epsilon_thermal = alpha(T) * (T - reference_temperature)
@@ -665,7 +677,7 @@ max_pointwise_relative = max_i |x_i-x_ref_i|/|x_ref_i|
 
 | 理论或工程组成 | 验证矩阵标识 | 主要证据 |
 | --- | --- | --- |
-| 严格输入和问题构造 | `input.v1`、`io.exodus` | 输入拒绝测试、Exodus 元数据回读、严格重启动 |
+| 严格输入和问题构造 | `input.v2`、`io.exodus` | 输入拒绝测试、具名材料参数、Exodus 元数据回读、严格重启动 |
 | 稳态 RZ 体弱式 | `m0.steady` | 实心圆柱温度、自由热膨胀、厚壁圆筒和 MOOSE 全场 |
 | 无摩擦热—力接触 | `m1.contact`、`m33.contact` | 非匹配 STS/NTS、斜面、端面、多区域和 MOOSE 全场 |
 | Coulomb 摩擦 | `m51.friction` | 粘着、滑移、反向再粘着、局部切线、守恒和 MOOSE |

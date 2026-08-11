@@ -252,9 +252,9 @@ bool is_direct_child_path(const std::string& path, const std::string& prefix) {
 }
 
 void validate_sections(const InputDocument& document) {
-    const std::vector<std::string> fixed = {"Case",        "Mesh",    "TimeFunctions",
-                                            "Regions",     "Contact", "BoundaryConditions",
-                                            "Executioner", "Solver",  "Outputs"};
+    const std::vector<std::string> fixed = {"Case",    "Mesh",    "TimeFunctions",      "Materials",
+                                            "Regions", "Contact", "BoundaryConditions", "Executioner",
+                                            "Solver",  "Outputs"};
     for (const InputSection& section : document.sections()) {
         if (std::find(fixed.begin(), fixed.end(), section.path()) != fixed.end())
             continue;
@@ -262,6 +262,25 @@ void validate_sections(const InputDocument& document) {
         const bool region = is_direct_child_path(path, "Regions/");
         const bool boundary = is_direct_child_path(path, "BoundaryConditions/");
         const bool function = is_direct_child_path(path, "TimeFunctions/");
+        bool material = false;
+        if (path.compare(0, 10, "Materials/") == 0) {
+            const std::string suffix = path.substr(10);
+            const std::size_t first_separator = suffix.find('/');
+            material = first_separator == std::string::npos;
+            if (first_separator != std::string::npos) {
+                const std::string child = suffix.substr(first_separator + 1);
+                const std::size_t second_separator = child.find('/');
+                material = second_separator == std::string::npos &&
+                           (child == "thermal" || child == "elasticity" || child == "eigenstrains" ||
+                            child == "creep" || child == "plasticity");
+                if (second_separator != std::string::npos) {
+                    const std::string category = child.substr(0, second_separator);
+                    const std::string instance = child.substr(second_separator + 1);
+                    material =
+                        category == "eigenstrains" && !instance.empty() && instance.find('/') == std::string::npos;
+                }
+            }
+        }
         bool contact = false;
         if (path.compare(0, 8, "Contact/") == 0) {
             const std::string suffix = path.substr(8);
@@ -273,7 +292,7 @@ void validate_sections(const InputDocument& document) {
                           (child == "thermal" || child == "mechanical");
             }
         }
-        if (!region && !boundary && !function && !contact)
+        if (!region && !boundary && !function && !contact && !material)
             throw std::invalid_argument(document.source_path() + ":" + std::to_string(section.line()) +
                                         ": unknown section [" + path + "]");
     }
@@ -394,83 +413,84 @@ void forbid_convection_keys(const InputDocument& document, const InputSection& s
         context);
 }
 
-const std::vector<std::string> creep_keys = {
-    "creep_coefficient",
-    "creep_reference_stress",
-    "creep_exponent",
-    "creep_coefficient_temperature_coefficient",
-    "creep_reference_stress_temperature_coefficient",
-    "creep_exponent_temperature_coefficient",
+struct ParsedMaterial final {
+    std::string name;
+    std::shared_ptr<const MaterialFunctionSet> functions;
 };
 
-const std::vector<std::string> plasticity_keys = {
-    "yield_stress",
-    "hardening_modulus",
-    "yield_stress_temperature_coefficient",
-    "hardening_temperature_coefficient",
-};
+std::vector<MaterialParameterValue>
+read_material_parameters(const InputDocument& document, const InputSection& section,
+                         const std::vector<MaterialParameterDefinition>& definitions) {
+    std::vector<std::string> allowed = {"function"};
+    for (const MaterialParameterDefinition& definition : definitions)
+        allowed.push_back(definition.name);
+    validate_keys(document, section, allowed);
 
-ThermoelasticProperties read_thermoelastic(const InputDocument& document, const InputSection& section) {
-    return {
-        read_double(document, section, "conductivity_inverse_temperature"),
-        read_double(document, section, "conductivity_constant"),
-        read_double(document, section, "young_modulus"),
-        read_double(document, section, "poisson_ratio"),
-        read_double(document, section, "thermal_expansion"),
-        read_double(document, section, "reference_temperature"),
-        read_optional_double(document, section, "young_modulus_temperature_coefficient", 0.0),
-        read_optional_double(document, section, "poisson_ratio_temperature_coefficient", 0.0),
-        read_optional_double(document, section, "thermal_expansion_temperature_coefficient", 0.0),
-    };
+    std::vector<MaterialParameterValue> values;
+    values.reserve(definitions.size());
+    for (const MaterialParameterDefinition& definition : definitions)
+        values.push_back({definition.name, read_double(document, section, definition.name)});
+    return values;
 }
 
-NortonCreepProperties read_creep(const InputDocument& document, const InputSection& section) {
-    return {read_double(document, section, "creep_coefficient"),
-            read_double(document, section, "creep_reference_stress"),
-            read_double(document, section, "creep_exponent"),
-            read_optional_double(document, section, "creep_coefficient_temperature_coefficient", 0.0),
-            read_optional_double(document, section, "creep_reference_stress_temperature_coefficient", 0.0),
-            read_optional_double(document, section, "creep_exponent_temperature_coefficient", 0.0)};
-}
+std::vector<ParsedMaterial> read_materials(const InputDocument& document, const MaterialFunctionRegistry& registry) {
+    const InputSection& materials = document.section("Materials");
+    validate_keys(document, materials, {});
+    std::vector<ParsedMaterial> result;
+    for (const InputSection* material_section : direct_children(document, "Materials")) {
+        validate_keys(document, *material_section, {});
+        const std::string material_name = leaf_name(*material_section);
+        const std::string base = material_section->path();
+        const InputSection* thermal = find_section(document, base + "/thermal");
+        const InputSection* elasticity = find_section(document, base + "/elasticity");
+        if (thermal == nullptr || elasticity == nullptr)
+            throw std::invalid_argument(document.source_path() + ":" + std::to_string(material_section->line()) +
+                                        ": material [" + base + "] requires [thermal] and [elasticity]");
 
-J2PlasticityProperties read_plasticity(const InputDocument& document, const InputSection& section) {
-    return {read_double(document, section, "yield_stress"), read_double(document, section, "hardening_modulus"),
-            read_optional_double(document, section, "yield_stress_temperature_coefficient", 0.0),
-            read_optional_double(document, section, "hardening_temperature_coefficient", 0.0)};
-}
+        auto functions = std::make_shared<MaterialFunctionSet>();
+        functions->name = material_name;
+        try {
+            const std::string thermal_name = read_string(document, *thermal, "function");
+            functions->thermal = registry.bind_thermal(
+                thermal_name, read_material_parameters(document, *thermal, registry.thermal_parameters(thermal_name)));
+            const std::string elasticity_name = read_string(document, *elasticity, "function");
+            functions->elasticity = registry.bind_elasticity(
+                elasticity_name,
+                read_material_parameters(document, *elasticity, registry.elasticity_parameters(elasticity_name)));
 
-TransientInelasticProperties read_transient(const InputDocument& document, const InputSection& section) {
-    const std::string model = read_string(document, section, "inelastic_model");
-    InelasticBehavior behavior;
-    if (model == "elastic")
-        behavior = InelasticBehavior::elastic;
-    else if (model == "norton_creep")
-        behavior = InelasticBehavior::norton_creep;
-    else if (model == "j2_plasticity")
-        behavior = InelasticBehavior::j2_plasticity;
-    else if (model == "norton_creep_j2_plasticity")
-        behavior = InelasticBehavior::norton_creep_j2_plasticity;
-    else
-        value_error(document, required_entry(document, section, "inelastic_model"),
-                    "unknown inelastic_model '" + model + "'");
+            const InputSection* eigenstrains = find_section(document, base + "/eigenstrains");
+            if (eigenstrains != nullptr) {
+                validate_keys(document, *eigenstrains, {});
+                for (const InputSection* section : direct_children(document, eigenstrains->path())) {
+                    const std::string function_name = read_string(document, *section, "function");
+                    functions->eigenstrains.push_back(registry.bind_eigenstrain(
+                        leaf_name(*section), function_name,
+                        read_material_parameters(document, *section, registry.eigenstrain_parameters(function_name))));
+                }
+            }
 
-    const bool uses_creep =
-        behavior == InelasticBehavior::norton_creep || behavior == InelasticBehavior::norton_creep_j2_plasticity;
-    const bool uses_plasticity =
-        behavior == InelasticBehavior::j2_plasticity || behavior == InelasticBehavior::norton_creep_j2_plasticity;
-    const std::string context = model == "elastic" ? "inelastic_model='elastic'" : model;
-    NortonCreepProperties creep{0.0, 1.0, 1.0};
-    J2PlasticityProperties plasticity{1.0, 0.0};
-    if (uses_creep)
-        creep = read_creep(document, section);
-    else
-        forbid_keys(document, section, creep_keys, context);
-    if (uses_plasticity)
-        plasticity = read_plasticity(document, section);
-    else
-        forbid_keys(document, section, plasticity_keys, context);
-    return {read_double(document, section, "density"), read_double(document, section, "specific_heat"), behavior, creep,
-            plasticity};
+            const InputSection* creep = find_section(document, base + "/creep");
+            if (creep != nullptr) {
+                const std::string function_name = read_string(document, *creep, "function");
+                functions->creep = registry.bind_creep(
+                    function_name,
+                    read_material_parameters(document, *creep, registry.creep_parameters(function_name)));
+            }
+            const InputSection* plasticity = find_section(document, base + "/plasticity");
+            if (plasticity != nullptr) {
+                const std::string function_name = read_string(document, *plasticity, "function");
+                functions->plasticity = registry.bind_plasticity(
+                    function_name,
+                    read_material_parameters(document, *plasticity, registry.plasticity_parameters(function_name)));
+            }
+        } catch (const std::invalid_argument& error) {
+            throw std::invalid_argument(document.source_path() + ": material '" + material_name + "': " + error.what());
+        }
+        result.push_back({material_name, std::move(functions)});
+    }
+    if (result.empty())
+        throw std::invalid_argument(document.source_path() + ": [Materials] requires a child material");
+    return result;
 }
 
 Field parse_field(const InputDocument& document, const InputEntry& entry) {
@@ -495,30 +515,11 @@ std::string read_optional_path(const std::string& input_path, const InputSection
     return value.empty() ? std::string{} : resolved_path(input_path, value);
 }
 
-CaseRegionDefinition read_region(const InputDocument& document, const InputSection& section, CaseProblem problem) {
-    std::vector<std::string> keys = {
-        "block",
-        "block_id",
-        "strain",
-        "conductivity_inverse_temperature",
-        "conductivity_constant",
-        "young_modulus",
-        "poisson_ratio",
-        "thermal_expansion",
-        "reference_temperature",
-        "young_modulus_temperature_coefficient",
-        "poisson_ratio_temperature_coefficient",
-        "thermal_expansion_temperature_coefficient",
-        "initial_temperature",
-        "volumetric_heat_source",
-        "heat_source_function",
-    };
-    if (problem == CaseProblem::transient) {
-        keys.insert(keys.end(), {"density", "specific_heat", "inelastic_model"});
-        keys.insert(keys.end(), creep_keys.begin(), creep_keys.end());
-        keys.insert(keys.end(), plasticity_keys.begin(), plasticity_keys.end());
-    }
-    validate_keys(document, section, keys);
+CaseRegionDefinition read_region(const InputDocument& document, const InputSection& section,
+                                 const std::vector<ParsedMaterial>& materials) {
+    validate_keys(document, section,
+                  {"block", "block_id", "material", "strain", "initial_temperature", "volumetric_heat_source",
+                   "heat_source_function"});
     const InputEntry* block = find_entry(section, "block");
     const InputEntry* block_id = find_entry(section, "block_id");
     if ((block == nullptr) == (block_id == nullptr))
@@ -531,13 +532,28 @@ CaseRegionDefinition read_region(const InputDocument& document, const InputSecti
             value_error(document, *block_id, "key 'block_id' is outside the supported range");
         resolved_block_id = static_cast<std::int64_t>(value);
     }
+    const std::string material_name = read_string(document, section, "material");
+    const auto material = std::find_if(materials.begin(), materials.end(), [&](const ParsedMaterial& candidate) {
+        return candidate.name == material_name;
+    });
+    if (material == materials.end())
+        value_error(document, section.entry("material"), "unknown material '" + material_name + "'");
+
+    const double initial_temperature = read_double(document, section, "initial_temperature");
+    ElasticPropertyOutput initial_elasticity{};
+    const ElasticFunctionInstance& elasticity = material->functions->elasticity;
+    elasticity.function({initial_temperature, 0.0, 0.0, 0.0, &elasticity.parameters}, initial_elasticity);
+    if (!std::isfinite(initial_elasticity.young_modulus.value()) || !(initial_elasticity.young_modulus.value() > 0.0))
+        value_error(document, section.entry("material"),
+                    "material elasticity must produce positive young_modulus at initial_temperature");
+    ThermoelasticProperties thermoelastic{};
+    thermoelastic.young_modulus = initial_elasticity.young_modulus.value();
+    thermoelastic.poisson_ratio = initial_elasticity.poisson_ratio.value();
+    thermoelastic.functions = material->functions;
     CaseRegionDefinition result{};
-    result.spatial = {leaf_name(section),
-                      block == nullptr ? std::string{} : block->value,
-                      read_thermoelastic(document, section),
-                      read_double(document, section, "volumetric_heat_source"),
-                      read_double(document, section, "initial_temperature"),
-                      resolved_block_id};
+    result.spatial = {leaf_name(section),       block == nullptr ? std::string{} : block->value,
+                      std::move(thermoelastic), read_double(document, section, "volumetric_heat_source"),
+                      initial_temperature,      resolved_block_id};
     result.spatial.heat_source_function = read_optional_string(section, "heat_source_function", {});
     const InputEntry strain = required_entry(document, section, "strain");
     if (strain.value == "small")
@@ -546,8 +562,48 @@ CaseRegionDefinition read_region(const InputDocument& document, const InputSecti
         result.spatial.strain_formulation = StrainFormulation::finite;
     else
         value_error(document, strain, "unknown strain formulation '" + strain.value + "'");
-    if (problem == CaseProblem::transient)
-        result.transient_material = read_transient(document, section);
+    InelasticBehavior behavior = InelasticBehavior::elastic;
+    if (material->functions->has_creep() && material->functions->has_plasticity())
+        behavior = InelasticBehavior::norton_creep_j2_plasticity;
+    else if (material->functions->has_creep())
+        behavior = InelasticBehavior::norton_creep;
+    else if (material->functions->has_plasticity())
+        behavior = InelasticBehavior::j2_plasticity;
+    NortonCreepProperties creep_properties{0.0, 1.0, 1.0};
+    if (material->functions->has_creep() && (material->functions->creep.name == "norton" ||
+                                             material->functions->creep.name == "linear_temperature_norton")) {
+        const MaterialParameters& parameters = material->functions->creep.parameters;
+        creep_properties.coefficient = parameters.value("coefficient");
+        creep_properties.reference_stress = parameters.value("reference_stress");
+        creep_properties.stress_exponent = parameters.value("stress_exponent");
+        if (material->functions->creep.name == "linear_temperature_norton") {
+            creep_properties.coefficient_temperature_coefficient =
+                parameters.value("coefficient_temperature_coefficient");
+            creep_properties.reference_stress_temperature_coefficient =
+                parameters.value("reference_stress_temperature_coefficient");
+            creep_properties.stress_exponent_temperature_coefficient =
+                parameters.value("stress_exponent_temperature_coefficient");
+            result.spatial.material.reference_temperature = parameters.value("reference_temperature");
+        }
+    }
+    J2PlasticityProperties plasticity_properties{1.0, 0.0};
+    if (material->functions->has_plasticity() &&
+        (material->functions->plasticity.name == "linear_isotropic_hardening" ||
+         material->functions->plasticity.name == "linear_temperature_isotropic_hardening")) {
+        const MaterialParameters& parameters = material->functions->plasticity.parameters;
+        plasticity_properties.yield_stress = parameters.value("yield_stress");
+        plasticity_properties.isotropic_hardening_modulus = parameters.value("hardening_modulus");
+        if (material->functions->plasticity.name == "linear_temperature_isotropic_hardening") {
+            plasticity_properties.yield_stress_temperature_coefficient =
+                parameters.value("yield_stress_temperature_coefficient");
+            plasticity_properties.hardening_temperature_coefficient =
+                parameters.value("hardening_temperature_coefficient");
+            const double reference_temperature = parameters.value("reference_temperature");
+            if (result.spatial.material.reference_temperature == 0.0)
+                result.spatial.material.reference_temperature = reference_temperature;
+        }
+    }
+    result.transient_material = {1.0, 1.0, behavior, creep_properties, plasticity_properties};
     return result;
 }
 
@@ -682,10 +738,10 @@ void read_case(const InputDocument& document, FuelSimCaseDefinition& result) {
     const InputSection& case_section = document.section("Case");
     validate_keys(document, case_section, {"version", "problem"});
     const std::size_t version = read_size(document, case_section, "version");
-    if (version != 1)
+    if (version != 2)
         value_error(document, case_section.entry("version"),
                     "unsupported fuelsim input version '" + std::to_string(version) + "'");
-    result.version = 1;
+    result.version = 2;
     const std::string problem = read_string(document, case_section, "problem");
     if (problem == "steady")
         result.problem = CaseProblem::steady;
@@ -719,11 +775,12 @@ void read_time_functions(const InputDocument& document, FuelSimCaseDefinition& r
     }
 }
 
-void read_regions(const InputDocument& document, const std::string& path, FuelSimCaseDefinition& result) {
+void read_regions(const InputDocument& document, const std::string& path, const std::vector<ParsedMaterial>& materials,
+                  FuelSimCaseDefinition& result) {
     const InputSection& regions = document.section("Regions");
     validate_keys(document, regions, {});
     for (const InputSection* section : direct_children(document, "Regions"))
-        result.regions.push_back(read_region(document, *section, result.problem));
+        result.regions.push_back(read_region(document, *section, materials));
     if (result.regions.empty())
         throw std::invalid_argument(path + ": [Regions] requires a child region");
 }
@@ -924,6 +981,11 @@ TransientProblemDefinition FuelSimCaseDefinition::transient_definition() const {
 }
 
 FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
+    const MaterialFunctionRegistry registry = make_builtin_material_function_registry();
+    return read(path, registry);
+}
+
+FuelSimCaseDefinition CaseInputReader::read(const std::string& path, const MaterialFunctionRegistry& registry) {
     const InputDocument document = InputParser::parse_file(path);
     validate_sections(document);
     FuelSimCaseDefinition result{};
@@ -931,7 +993,8 @@ FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
     read_case(document, result);
     read_mesh(document, path, result);
     read_time_functions(document, result);
-    read_regions(document, path, result);
+    const std::vector<ParsedMaterial> materials = read_materials(document, registry);
+    read_regions(document, path, materials, result);
 
     read_contacts(document, result);
     read_boundary_conditions(document, result);

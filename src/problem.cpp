@@ -252,6 +252,8 @@ double SteadyProblem::load_factor() const noexcept {
 
 void SteadyProblem::set_time(double value) {
     _spatial->set_time(value);
+    for (Quad4RzThermoelasticKernel& kernel : _region_kernels)
+        kernel.set_time(value);
     refresh_region_heat_sources();
 }
 
@@ -371,8 +373,6 @@ TransientConservationSummary TransientConservationCalculator::summarize(
     }
     for (std::size_t region_value = 0; region_value < problem.region_count(); ++region_value) {
         const Quad4RzTransientKernel& kernel = problem._region_kernels[region_value];
-        const TransientInelasticProperties& properties = kernel.properties();
-        const double heat_capacity = properties.density * properties.specific_heat;
         const std::size_t offset = problem._spatial->region_element_offset(region_value);
         for (std::size_t element = 0; element < staged_histories[region_value].size(); ++element) {
             const LocalValues current = problem.contribution_state(offset + element, converged_solution);
@@ -386,6 +386,8 @@ TransientConservationSummary TransientConservationCalculator::summarize(
                     current_temperature += point.shape[node] * current[node];
                     old_temperature += point.shape[node] * old[node];
                 }
+                const double heat_capacity =
+                    kernel.heat_capacity(current_temperature, point.radius, point.axial_coordinate);
                 result.stored_heat_rate += point.weighted_measure * heat_capacity *
                                            (current_temperature - old_temperature) / problem._active_time_step;
                 result.generated_heat_rate += point.weighted_measure * kernel.volumetric_heat_source();
@@ -703,6 +705,8 @@ void TransientProblem::rollback_time_step() noexcept {
 void TransientProblem::apply_spatial_controls(double time, double load_factor) {
     _spatial->set_time(time);
     _spatial->set_load_factor(load_factor);
+    for (Quad4RzTransientKernel& kernel : _region_kernels)
+        kernel.set_time(time);
     refresh_region_heat_sources();
 }
 

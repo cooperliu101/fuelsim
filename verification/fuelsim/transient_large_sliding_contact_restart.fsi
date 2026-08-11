@@ -1,5 +1,5 @@
 [Case]
-  version = 1
+  version = 2
   problem = transient
 []
 
@@ -8,36 +8,53 @@
   file = ../moose/m52_large_sliding_contact_rz_mesh.e
 []
 
+[Materials]
+  [lower]
+    [thermal]
+      function = constant_thermophysical
+      conductivity = 10
+      density = 10000
+      specific_heat = 300
+    []
+
+    [elasticity]
+      function = constant_isotropic
+      young_modulus = 2e11
+      poisson_ratio = 0.3
+    []
+  []
+
+  [upper]
+    [thermal]
+      function = constant_thermophysical
+      conductivity = 10
+      density = 10000
+      specific_heat = 300
+    []
+
+    [elasticity]
+      function = constant_isotropic
+      young_modulus = 2e11
+      poisson_ratio = 0.3
+    []
+  []
+
+[]
+
 [Regions]
   [lower]
     block = lower_pellet
+    material = lower
     strain = small
-    conductivity_inverse_temperature = 0
-    conductivity_constant = 10
-    young_modulus = 2e11
-    poisson_ratio = 0.3
-    thermal_expansion = 0
-    reference_temperature = 800
     initial_temperature = 800
     volumetric_heat_source = 0
-    density = 10000
-    specific_heat = 300
-    inelastic_model = elastic
   []
   [upper]
     block = upper_pellet
+    material = upper
     strain = small
-    conductivity_inverse_temperature = 0
-    conductivity_constant = 10
-    young_modulus = 2e11
-    poisson_ratio = 0.3
-    thermal_expansion = 0
-    reference_temperature = 800
     initial_temperature = 800
     volumetric_heat_source = 0
-    density = 10000
-    specific_heat = 300
-    inelastic_model = elastic
   []
 []
 

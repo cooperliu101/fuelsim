@@ -148,6 +148,10 @@ std::uint64_t transient_problem_signature(const TransientProblem& problem) {
         hash_double(hash, transient.plasticity.isotropic_hardening_modulus);
         hash_double(hash, transient.plasticity.yield_stress_temperature_coefficient);
         hash_double(hash, transient.plasticity.hardening_temperature_coefficient);
+        if (!spatial.material.functions)
+            throw std::logic_error("Transient problem material function set is missing");
+        const std::uint64_t material_signature = spatial.material.functions->signature();
+        hash_bytes(hash, &material_signature, sizeof(material_signature));
 
         const RegionMesh& mesh = problem.region_mesh(region_value);
         hash_size(hash, mesh.nodes().size());

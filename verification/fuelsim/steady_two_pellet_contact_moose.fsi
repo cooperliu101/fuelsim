@@ -1,5 +1,5 @@
 [Case]
-  version = 1
+  version = 2
   problem = steady
 []
 
@@ -8,28 +8,67 @@
   file = ../moose/m33_two_pellet_contact_rz_mesh.e
 []
 
+[Materials]
+  [lower]
+    [thermal]
+      function = constant_thermophysical
+      conductivity = 10
+      density = 1
+      specific_heat = 1
+    []
+
+    [elasticity]
+      function = constant_isotropic
+      young_modulus = 2e11
+      poisson_ratio = 0.3
+    []
+
+    [eigenstrains]
+      [thermal_expansion]
+        function = isotropic_thermal_expansion
+        thermal_expansion = 1e-5
+        reference_temperature = 600
+      []
+    []
+  []
+
+  [upper]
+    [thermal]
+      function = constant_thermophysical
+      conductivity = 10
+      density = 1
+      specific_heat = 1
+    []
+
+    [elasticity]
+      function = constant_isotropic
+      young_modulus = 2e11
+      poisson_ratio = 0.3
+    []
+
+    [eigenstrains]
+      [thermal_expansion]
+        function = isotropic_thermal_expansion
+        thermal_expansion = 1e-5
+        reference_temperature = 600
+      []
+    []
+  []
+
+[]
+
 [Regions]
   [lower]
     block = lower_pellet
+    material = lower
     strain = small
-    conductivity_inverse_temperature = 0
-    conductivity_constant = 10
-    young_modulus = 2e11
-    poisson_ratio = 0.3
-    thermal_expansion = 1e-5
-    reference_temperature = 600
     initial_temperature = 800
     volumetric_heat_source = 0
   []
   [upper]
     block = upper_pellet
+    material = upper
     strain = small
-    conductivity_inverse_temperature = 0
-    conductivity_constant = 10
-    young_modulus = 2e11
-    poisson_ratio = 0.3
-    thermal_expansion = 1e-5
-    reference_temperature = 600
     initial_temperature = 800
     volumetric_heat_source = 0
   []

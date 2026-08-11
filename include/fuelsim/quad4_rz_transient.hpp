@@ -17,7 +17,9 @@ class Quad4RzTransientKernel final {
 
     double volumetric_heat_source() const noexcept;
     const TransientInelasticProperties& properties() const noexcept;
+    double heat_capacity(double temperature, double radius, double axial_coordinate) const;
     void set_volumetric_heat_source(double volumetric_heat_source) noexcept;
+    void set_time(double time) noexcept;
 
     LocalResidual residual(const Quad4RzGeometry& geometry, const LocalValues& current_state,
                            const LocalValues& committed_state, const Quad4MaterialHistory& committed_material,
@@ -43,6 +45,7 @@ class Quad4RzTransientKernel final {
 
     IsotropicInelasticMaterial _material;
     double _volumetric_heat_source;
+    double _time;
     StrainFormulation _strain_formulation;
 };
 

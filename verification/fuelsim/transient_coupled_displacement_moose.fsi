@@ -1,5 +1,5 @@
 [Case]
-  version = 1
+  version = 2
   problem = transient
 []
 
@@ -8,26 +8,44 @@
   file = ../moose/m22_coupled_plastic_creep_rz_mesh.e
 []
 
+[Materials]
+  [material]
+    [thermal]
+      function = constant_thermophysical
+      conductivity = 1
+      density = 1
+      specific_heat = 1
+    []
+
+    [elasticity]
+      function = constant_isotropic
+      young_modulus = 2e11
+      poisson_ratio = 0.3
+    []
+
+    [creep]
+      function = norton
+      coefficient = 1e-4
+      reference_stress = 1e8
+      stress_exponent = 3
+    []
+
+    [plasticity]
+      function = linear_isotropic_hardening
+      yield_stress = 2e8
+      hardening_modulus = 2e9
+    []
+  []
+
+[]
+
 [Regions]
   [material]
     block_id = 0
+    material = material
     strain = small
-    conductivity_inverse_temperature = 0
-    conductivity_constant = 1
-    young_modulus = 2e11
-    poisson_ratio = 0.3
-    thermal_expansion = 0
-    reference_temperature = 600
     initial_temperature = 600
     volumetric_heat_source = 0
-    density = 1
-    specific_heat = 1
-    inelastic_model = norton_creep_j2_plasticity
-    creep_coefficient = 1e-4
-    creep_reference_stress = 1e8
-    creep_exponent = 3
-    yield_stress = 2e8
-    hardening_modulus = 2e9
   []
 []
 

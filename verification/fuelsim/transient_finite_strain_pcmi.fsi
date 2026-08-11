@@ -1,5 +1,5 @@
 [Case]
-  version = 1
+  version = 2
   problem = transient
 []
 
@@ -8,42 +8,76 @@
   file = ../moose/m41_finite_strain_pcmi_rz_mesh.e
 []
 
+[Materials]
+  [fuel]
+    [thermal]
+      function = inverse_temperature_thermophysical
+      conductivity_inverse_temperature = 3824
+      conductivity_constant = 0.61
+      density = 10970
+      specific_heat = 300
+    []
+
+    [elasticity]
+      function = constant_isotropic
+      young_modulus = 2e11
+      poisson_ratio = 0.316
+    []
+
+    [eigenstrains]
+      [thermal_expansion]
+        function = isotropic_thermal_expansion
+        thermal_expansion = 1e-5
+        reference_temperature = 600
+      []
+    []
+  []
+
+  [cladding]
+    [thermal]
+      function = constant_thermophysical
+      conductivity = 16
+      density = 6500
+      specific_heat = 330
+    []
+
+    [elasticity]
+      function = constant_isotropic
+      young_modulus = 7.5e10
+      poisson_ratio = 0.3
+    []
+
+    [creep]
+      function = norton
+      coefficient = 1e-5
+      reference_stress = 5e6
+      stress_exponent = 3
+    []
+
+    [plasticity]
+      function = linear_isotropic_hardening
+      yield_stress = 5e6
+      hardening_modulus = 2e9
+    []
+  []
+
+[]
+
 [Regions]
   [fuel]
     block = fuel
+    material = fuel
     strain = finite
-    conductivity_inverse_temperature = 3824
-    conductivity_constant = 0.61
-    young_modulus = 2e11
-    poisson_ratio = 0.316
-    thermal_expansion = 1e-5
-    reference_temperature = 600
     initial_temperature = 600
     volumetric_heat_source = 2e8
-    density = 10970
-    specific_heat = 300
-    inelastic_model = elastic
   []
 
   [cladding]
     block = clad
+    material = cladding
     strain = finite
-    conductivity_inverse_temperature = 0
-    conductivity_constant = 16
-    young_modulus = 7.5e10
-    poisson_ratio = 0.3
-    thermal_expansion = 0
-    reference_temperature = 600
     initial_temperature = 600
     volumetric_heat_source = 0
-    density = 6500
-    specific_heat = 330
-    inelastic_model = norton_creep_j2_plasticity
-    creep_coefficient = 1e-5
-    creep_reference_stress = 5e6
-    creep_exponent = 3
-    yield_stress = 5e6
-    hardening_modulus = 2e9
   []
 []
 

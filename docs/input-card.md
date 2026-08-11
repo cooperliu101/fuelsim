@@ -1,4 +1,4 @@
-# fuelsim 输入卡 v1
+# fuelsim 输入卡 v2
 
 `fuelsim` 只使用一个显式输入文件：
 
@@ -7,7 +7,7 @@
 ```
 
 输入卡采用 MOOSE 风格的嵌套段和 `key = value`。`#` 开始行内注释；相对
-路径以输入卡所在目录为基准。v1 的数值全部使用 SI 单位，不支持 include、
+路径以输入卡所在目录为基准。v2 的数值全部使用 SI 单位，不支持 include、
 宏、表达式、单位换算、旧键别名或兼容层。未知段、未知键、重复项、非法值
 和缺少必填键都会立即报错。
 
@@ -15,7 +15,7 @@
 
 ```text
 [Case]
-  version = 1
+  version = 2
   problem = transient
 []
 ```
@@ -67,6 +67,83 @@ Dirichlet 和接触边界可使用任意属于所选区域的边集。每个接�
 时刻都是执行器必须准确命中的事件。名称必须唯一，引用未知名称会在解析时
 报错。稳态卡不接受 `[TimeFunctions]`。
 
+## 组合式材料函数
+
+`[Materials]` 下的每个子段定义一个可被多个区域引用的材料。材料由热物性、
+弹性、本征应变、蠕变和塑性函数组合。热物性和弹性函数必须存在；本征应变
+可以有任意多个具名实例，蠕变和塑性函数可以省略：
+
+```text
+[Materials]
+  [fuel]
+    [thermal]
+      function = inverse_temperature_thermophysical
+      conductivity_inverse_temperature = 3824
+      conductivity_constant = 0.61
+      density = 10970
+      specific_heat = 300
+    []
+
+    [elasticity]
+      function = constant_isotropic
+      young_modulus = 2e11
+      poisson_ratio = 0.316
+    []
+
+    [eigenstrains]
+      [thermal_expansion]
+        function = isotropic_thermal_expansion
+        thermal_expansion = 1e-5
+        reference_temperature = 600
+      []
+    []
+
+    [creep]
+      function = norton
+      coefficient = 1e-20
+      reference_stress = 1e8
+      stress_exponent = 4.5
+    []
+
+    [plasticity]
+      function = linear_isotropic_hardening
+      yield_stress = 2e8
+      hardening_modulus = 1e9
+    []
+  []
+[]
+```
+
+每个注册函数同时声明严格的参数名称和 SI 单位。解析器先读取 `function`，再按
+该函数的参数表验证本段其余键。所有参数必须显式给出；未知参数、缺少参数、
+重复参数和非有限值都会报告输入路径及行号。单位字符串用于接口说明和错误
+信息，不执行单位换算。
+
+内置函数包括：
+
+- 热物性：`constant_thermophysical`、`inverse_temperature_thermophysical`；
+- 弹性：`constant_isotropic`、`linear_temperature_isotropic`；
+- 本征应变：`isotropic_thermal_expansion`、
+  `linear_temperature_isotropic_thermal_expansion`；
+- 蠕变：`norton`、`linear_temperature_norton`；
+- 塑性：`linear_isotropic_hardening`、
+  `linear_temperature_isotropic_hardening`。
+
+本征应变表示材料在无外力时产生的应变，例如热膨胀、肿胀和致密化。同一材料
+的多个本征应变实例逐分量相加。蠕变函数返回等效蠕变速率，塑性函数返回给定
+等效塑性应变下的流动应力。fuelsim 统一执行 J2 关联流动、Backward Euler
+局部积分、塑性—蠕变全隐式耦合和有限应变客观旋转。
+
+用户可创建 `MaterialFunctionRegistry`，注册普通 C++17 函数，再调用
+`CaseInputReader::read(path, registry)` 读取引用这些函数的输入卡。函数的活跃
+输入和输出使用具体类型 `adlite::Scalar`，因此温度和力学链式导数进入局部
+Jacobian。函数必须是无副作用的纯函数，不能保存积分点 trial 状态或访问
+PETSc 和全局解向量。
+
+当前组合接口限定为各向同性弹性、轴对称本征应变、J2 关联塑性及沿最终 J2
+方向的等效蠕变。它不声明各向异性、运动硬化、损伤、非 J2 屈服面或非关联
+流动已经受支持。
+
 ## 自由区域组合
 
 `[Regions]` 下每个子段定义一个物理区域，子段名是区域名。每个区域必须
@@ -78,13 +155,8 @@ Dirichlet 和接触边界可使用任意属于所选区域的边集。每个接�
 [Regions]
   [pellet]
     block = fuel
+    material = fuel
     strain = small
-    conductivity_inverse_temperature = 3824
-    conductivity_constant = 0.61
-    young_modulus = 2e11
-    poisson_ratio = 0.316
-    thermal_expansion = 1e-5
-    reference_temperature = 600
     initial_temperature = 600
     volumetric_heat_source = 2e8
     heat_source_function = power
@@ -104,30 +176,8 @@ Rashid 转动；稳态没有 committed 材料历史，从参考构形 `F_old=I` 
 traction 可选择参考或当前构形表面测度。区域发生非正 Jacobian、非正环向
 伸长或非正当前半径时会拒绝 Newton 试探态，不做隐式夹持。
 
-瞬态问题的每个区域还必须给出 `density`、`specific_heat` 和
-`inelastic_model`。可选模型及条件字段为：
-
-| `inelastic_model` | 额外字段 |
-| --- | --- |
-| `elastic` | 无 |
-| `norton_creep` | `creep_coefficient`, `creep_reference_stress`, `creep_exponent` |
-| `j2_plasticity` | `yield_stress`, `hardening_modulus` |
-| `norton_creep_j2_plasticity` | 上述蠕变与塑性字段全部需要 |
-
-不适用于所选模型的字段会被拒绝。
-
-热弹性参数还可设置
-`young_modulus_temperature_coefficient`、
-`poisson_ratio_temperature_coefficient` 和
-`thermal_expansion_temperature_coefficient`；所选非弹性模型可对应设置
-`creep_coefficient_temperature_coefficient`、
-`creep_reference_stress_temperature_coefficient`、
-`creep_exponent_temperature_coefficient`、
-`yield_stress_temperature_coefficient` 和
-`hardening_temperature_coefficient`。所有斜率默认为零，定义为
-`property(T)=property_ref+slope*(T-reference_temperature)`，单位为对应属性
-每 K。参数以 `adlite::Scalar` 活跃求值，运行中越过物理定义域会拒绝当前
-Newton 试探值而不会夹持。它们是线性算法接口，不是已标定的真实材料模型。
+每个区域必须用 `material` 引用 `[Materials]` 中已经定义的材料。旧版把导热率、
+弹性和非弹性参数直接写在区域内的格式不再接受。
 
 `heat_source_function` 可选；存在时，当前体积热源为
 `volumetric_heat_source * function(time)`。未设置时沿用执行器

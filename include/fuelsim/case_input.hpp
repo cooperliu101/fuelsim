@@ -2,6 +2,7 @@
 #define FUELSIM_CASE_INPUT_HPP
 
 #include "fuelsim/input_file.hpp"
+#include "fuelsim/material_functions.hpp"
 #include "fuelsim/spatial_definition.hpp"
 #include "fuelsim/transient_problem.hpp"
 
@@ -98,6 +99,7 @@ struct FuelSimCaseDefinition final {
 class CaseInputReader final {
   public:
     static FuelSimCaseDefinition read(const std::string& path);
+    static FuelSimCaseDefinition read(const std::string& path, const MaterialFunctionRegistry& registry);
 };
 
 } // namespace fuelsim

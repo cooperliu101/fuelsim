@@ -70,12 +70,14 @@ Quad4RzGeometry make_quad4_rz_geometry(const Quad4Coordinates& coordinates) {
         double dz_dxi = 0.0;
         double dz_deta = 0.0;
         double radius = 0.0;
+        double axial_coordinate = 0.0;
         for (std::size_t node = 0; node < quad4_node_count; ++node) {
             dr_dxi += derivative_xi[node] * coordinates[node].r;
             dr_deta += derivative_eta[node] * coordinates[node].r;
             dz_dxi += derivative_xi[node] * coordinates[node].z;
             dz_deta += derivative_eta[node] * coordinates[node].z;
             radius += shape[node] * coordinates[node].r;
+            axial_coordinate += shape[node] * coordinates[node].z;
         }
 
         const double determinant = dr_dxi * dz_deta - dr_deta * dz_dxi;
@@ -87,6 +89,7 @@ Quad4RzGeometry make_quad4_rz_geometry(const Quad4Coordinates& coordinates) {
         RzQuadraturePoint& point = geometry.points[q];
         point.shape = shape;
         point.radius = radius;
+        point.axial_coordinate = axial_coordinate;
         point.weighted_measure = 2.0 * pi * radius * determinant;
 
         for (std::size_t node = 0; node < quad4_node_count; ++node) {
@@ -171,7 +174,7 @@ inline void add_steady_point_residual(const RzQuadraturePoint& point, const adli
 
 inline void add_transient_point_residual(const RzQuadraturePoint& point, const adlite::Scalar& gradient_temperature_r,
                                          const adlite::Scalar& gradient_temperature_z,
-                                         const AxisymmetricKinematics& kinematics, double heat_capacity,
+                                         const AxisymmetricKinematics& kinematics, const adlite::Scalar& heat_capacity,
                                          const adlite::Scalar& temperature_rate, const adlite::Scalar& conductivity,
                                          double volumetric_heat_source, const AxisymmetricStress& stress,
                                          LocalAdValues& residual) {
@@ -335,11 +338,12 @@ struct ThermoelasticPointResponse final {
 
 ThermoelasticPointResponse point_response(const RzQuadraturePoint& point, const LocalAdValues& state,
                                           const IsotropicThermoelasticMaterial& material,
-                                          StrainFormulation strain_formulation) {
+                                          StrainFormulation strain_formulation, double time) {
     const adlite::Scalar temperature = quad4_rz_detail::interpolate(point.shape, state, 0);
     const AxisymmetricKinematics kinematics = evaluate_axisymmetric_kinematics(point, state, strain_formulation);
-    AxisymmetricStress stress = material.stress(kinematics.strain_rr, kinematics.strain_zz, kinematics.strain_hoop,
-                                                kinematics.strain_rz, temperature);
+    AxisymmetricStress stress =
+        material.stress(kinematics.strain_rr, kinematics.strain_zz, kinematics.strain_hoop, kinematics.strain_rz,
+                        temperature, time, point.radius, point.axial_coordinate);
     if (strain_formulation == StrainFormulation::finite)
         stress = rotate_axisymmetric_tensor(stress, kinematics.rotation);
     return {
@@ -356,7 +360,8 @@ ThermoelasticPointResponse point_response(const RzQuadraturePoint& point, const 
 Quad4RzThermoelasticKernel::Quad4RzThermoelasticKernel(IsotropicThermoelasticMaterial material,
                                                        double volumetric_heat_source,
                                                        StrainFormulation strain_formulation)
-    : _material(material), _volumetric_heat_source(volumetric_heat_source), _strain_formulation(strain_formulation) {}
+    : _material(material), _volumetric_heat_source(volumetric_heat_source), _time(0.0),
+      _strain_formulation(strain_formulation) {}
 
 double Quad4RzThermoelasticKernel::volumetric_heat_source() const noexcept {
     return _volumetric_heat_source;
@@ -364,6 +369,10 @@ double Quad4RzThermoelasticKernel::volumetric_heat_source() const noexcept {
 
 void Quad4RzThermoelasticKernel::set_volumetric_heat_source(double volumetric_heat_source) noexcept {
     _volumetric_heat_source = volumetric_heat_source;
+}
+
+void Quad4RzThermoelasticKernel::set_time(double time) noexcept {
+    _time = time;
 }
 
 LocalResidual Quad4RzThermoelasticKernel::residual(const Quad4RzGeometry& geometry, const LocalValues& state) const {
@@ -387,7 +396,7 @@ std::array<AxisymmetricStressValues, 4> Quad4RzThermoelasticKernel::stress_value
     std::array<AxisymmetricStressValues, 4> result{};
     for (std::size_t q = 0; q < geometry.points.size(); ++q) {
         const AxisymmetricStress& stress =
-            point_response(geometry.points[q], passive_state, _material, _strain_formulation).stress;
+            point_response(geometry.points[q], passive_state, _material, _strain_formulation, _time).stress;
         result[q] = {stress.rr.value(), stress.zz.value(), stress.hoop.value(), stress.rz.value()};
     }
     return result;
@@ -398,8 +407,9 @@ void Quad4RzThermoelasticKernel::residual_ad(const Quad4RzGeometry& geometry, co
     residual.fill(adlite::Scalar(0.0));
 
     for (const RzQuadraturePoint& point : geometry.points) {
-        const ThermoelasticPointResponse response = point_response(point, state, _material, _strain_formulation);
-        const adlite::Scalar conductivity = _material.conductivity(response.temperature);
+        const ThermoelasticPointResponse response = point_response(point, state, _material, _strain_formulation, _time);
+        const adlite::Scalar conductivity =
+            _material.conductivity(response.temperature, _time, point.radius, point.axial_coordinate);
         quad4_rz_detail::add_steady_point_residual(point, response.gradient_temperature_r,
                                                    response.gradient_temperature_z, response.kinematics, conductivity,
                                                    _volumetric_heat_source, response.stress, residual);
@@ -431,14 +441,16 @@ PointFields point_fields(const RzQuadraturePoint& point, const LocalAdValues& st
 InelasticStressResponse material_response(const IsotropicInelasticMaterial& material, const PointFields& fields,
                                           double committed_temperature, double time_step,
                                           const MaterialPointState& committed_material,
-                                          StrainFormulation strain_formulation) {
+                                          StrainFormulation strain_formulation, double time, double radius,
+                                          double axial_coordinate) {
     if (strain_formulation == StrainFormulation::finite)
         return material.incremental_response(fields.kinematics.strain_rr, fields.kinematics.strain_zz,
                                              fields.kinematics.strain_hoop, fields.kinematics.strain_rz,
                                              fields.kinematics.rotation, fields.temperature, committed_temperature,
-                                             time_step, committed_material);
+                                             time_step, committed_material, time, radius, axial_coordinate);
     return material.response(fields.kinematics.strain_rr, fields.kinematics.strain_zz, fields.kinematics.strain_hoop,
-                             fields.kinematics.strain_rz, fields.temperature, time_step, committed_material);
+                             fields.kinematics.strain_rz, fields.temperature, time_step, committed_material, time,
+                             radius, axial_coordinate);
 }
 
 struct TransientPointResponse final {
@@ -451,11 +463,12 @@ TransientPointResponse transient_point_response(const RzQuadraturePoint& point, 
                                                 const LocalValues& committed_state,
                                                 const IsotropicInelasticMaterial& material,
                                                 const MaterialPointState& committed_material, double time_step,
-                                                StrainFormulation strain_formulation) {
+                                                StrainFormulation strain_formulation, double time) {
     const PointFields fields = point_fields(point, state, committed_state, strain_formulation);
     const double old_temperature = quad4_rz_detail::interpolate(point.shape, committed_state, 0);
     return {fields, old_temperature,
-            material_response(material, fields, old_temperature, time_step, committed_material, strain_formulation)};
+            material_response(material, fields, old_temperature, time_step, committed_material, strain_formulation,
+                              time, point.radius, point.axial_coordinate)};
 }
 
 void validate_time_step(double time_step) {
@@ -476,7 +489,8 @@ void validate_committed_state(const LocalValues& committed_state) {
 
 Quad4RzTransientKernel::Quad4RzTransientKernel(IsotropicInelasticMaterial material, double volumetric_heat_source,
                                                StrainFormulation strain_formulation)
-    : _material(material), _volumetric_heat_source(volumetric_heat_source), _strain_formulation(strain_formulation) {}
+    : _material(material), _volumetric_heat_source(volumetric_heat_source), _time(0.0),
+      _strain_formulation(strain_formulation) {}
 
 double Quad4RzTransientKernel::volumetric_heat_source() const noexcept {
     return _volumetric_heat_source;
@@ -486,8 +500,16 @@ const TransientInelasticProperties& Quad4RzTransientKernel::properties() const n
     return _material.properties();
 }
 
+double Quad4RzTransientKernel::heat_capacity(double temperature, double radius, double axial_coordinate) const {
+    return _material.heat_capacity(temperature, _time, radius, axial_coordinate).value();
+}
+
 void Quad4RzTransientKernel::set_volumetric_heat_source(double volumetric_heat_source) noexcept {
     _volumetric_heat_source = volumetric_heat_source;
+}
+
+void Quad4RzTransientKernel::set_time(double time) noexcept {
+    _time = time;
 }
 
 LocalResidual Quad4RzTransientKernel::residual(const Quad4RzGeometry& geometry, const LocalValues& current_state,
@@ -527,7 +549,7 @@ Quad4MaterialHistory Quad4RzTransientKernel::trial_state_values(const Quad4RzGeo
     for (std::size_t q = 0; q < geometry.points.size(); ++q) {
         const TransientPointResponse evaluation =
             transient_point_response(geometry.points[q], passive_state, committed_state, _material,
-                                     committed_material[q], time_step, _strain_formulation);
+                                     committed_material[q], time_step, _strain_formulation, _time);
         if (!std::isfinite(evaluation.fields.temperature.value()) || !(evaluation.fields.temperature.value() > 0.0))
             throw std::domain_error("Quad4RzTransientKernel trial temperature must be finite and "
                                     "positive");
@@ -549,7 +571,7 @@ Quad4RzTransientKernel::stress_values(const Quad4RzGeometry& geometry, const Loc
     for (std::size_t q = 0; q < geometry.points.size(); ++q) {
         const TransientPointResponse evaluation =
             transient_point_response(geometry.points[q], passive_state, committed_state, _material,
-                                     committed_material[q], time_step, _strain_formulation);
+                                     committed_material[q], time_step, _strain_formulation, _time);
         result[q] = {
             evaluation.response.stress.rr.value(),
             evaluation.response.stress.zz.value(),
@@ -565,16 +587,17 @@ void Quad4RzTransientKernel::residual_ad(const Quad4RzGeometry& geometry, const 
                                          const Quad4MaterialHistory& committed_material, double time_step,
                                          LocalAdValues& residual) const {
     residual.fill(adlite::Scalar(0.0));
-    const TransientInelasticProperties& properties = _material.properties();
-    const double heat_capacity = properties.density * properties.specific_heat;
-
     for (std::size_t q = 0; q < geometry.points.size(); ++q) {
         const RzQuadraturePoint& point = geometry.points[q];
-        const TransientPointResponse evaluation = transient_point_response(
-            point, current_state, committed_state, _material, committed_material[q], time_step, _strain_formulation);
+        const TransientPointResponse evaluation =
+            transient_point_response(point, current_state, committed_state, _material, committed_material[q], time_step,
+                                     _strain_formulation, _time);
         const adlite::Scalar temperature_rate =
             (evaluation.fields.temperature - evaluation.old_temperature) / time_step;
-        const adlite::Scalar conductivity = _material.conductivity(evaluation.fields.temperature);
+        const adlite::Scalar conductivity =
+            _material.conductivity(evaluation.fields.temperature, _time, point.radius, point.axial_coordinate);
+        const adlite::Scalar heat_capacity =
+            _material.heat_capacity(evaluation.fields.temperature, _time, point.radius, point.axial_coordinate);
         quad4_rz_detail::add_transient_point_residual(
             point, evaluation.fields.gradient_temperature_r, evaluation.fields.gradient_temperature_z,
             evaluation.fields.kinematics, heat_capacity, temperature_rate, conductivity, _volumetric_heat_source,

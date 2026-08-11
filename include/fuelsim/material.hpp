@@ -1,7 +1,11 @@
 #ifndef FUELSIM_MATERIAL_HPP
 #define FUELSIM_MATERIAL_HPP
 
+#include "fuelsim/material_functions.hpp"
+
 #include <adlite/adlite.hpp>
+
+#include <memory>
 
 namespace fuelsim {
 
@@ -15,6 +19,7 @@ struct ThermoelasticProperties final {
     double young_modulus_temperature_coefficient = 0.0;
     double poisson_ratio_temperature_coefficient = 0.0;
     double thermal_expansion_temperature_coefficient = 0.0;
+    std::shared_ptr<const MaterialFunctionSet> functions{};
 };
 
 struct ActiveThermoelasticProperties final {
@@ -55,13 +60,22 @@ class IsotropicThermoelasticMaterial final {
 
     const ThermoelasticProperties& properties() const noexcept;
 
-    adlite::Scalar conductivity(const adlite::Scalar& temperature) const;
+    adlite::Scalar conductivity(const adlite::Scalar& temperature, double time = 0.0, double radius = 0.0,
+                                double axial_coordinate = 0.0) const;
 
-    ActiveThermoelasticProperties active_properties(const adlite::Scalar& temperature) const;
+    adlite::Scalar heat_capacity(const adlite::Scalar& temperature, double time = 0.0, double radius = 0.0,
+                                 double axial_coordinate = 0.0) const;
+
+    ActiveThermoelasticProperties active_properties(const adlite::Scalar& temperature, double time = 0.0,
+                                                    double radius = 0.0, double axial_coordinate = 0.0) const;
+
+    AxisymmetricStrain eigenstrain(const adlite::Scalar& temperature, double time = 0.0, double radius = 0.0,
+                                   double axial_coordinate = 0.0) const;
 
     AxisymmetricStress stress(const adlite::Scalar& strain_rr, const adlite::Scalar& strain_zz,
                               const adlite::Scalar& strain_hoop, const adlite::Scalar& strain_rz,
-                              const adlite::Scalar& temperature) const;
+                              const adlite::Scalar& temperature, double time = 0.0, double radius = 0.0,
+                              double axial_coordinate = 0.0) const;
 
   private:
     ThermoelasticProperties _properties;

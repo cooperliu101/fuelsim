@@ -77,18 +77,24 @@ class IsotropicInelasticMaterial final {
 
     const TransientInelasticProperties& properties() const noexcept;
 
-    adlite::Scalar conductivity(const adlite::Scalar& temperature) const;
+    adlite::Scalar conductivity(const adlite::Scalar& temperature, double time = 0.0, double radius = 0.0,
+                                double axial_coordinate = 0.0) const;
+
+    adlite::Scalar heat_capacity(const adlite::Scalar& temperature, double time = 0.0, double radius = 0.0,
+                                 double axial_coordinate = 0.0) const;
 
     InelasticStressResponse response(const adlite::Scalar& strain_rr, const adlite::Scalar& strain_zz,
                                      const adlite::Scalar& strain_hoop, const adlite::Scalar& strain_rz,
                                      const adlite::Scalar& temperature, double time_step,
-                                     const MaterialPointState& committed) const;
+                                     const MaterialPointState& committed, double time = 0.0, double radius = 0.0,
+                                     double axial_coordinate = 0.0) const;
 
     InelasticStressResponse
     incremental_response(const adlite::Scalar& strain_increment_rr, const adlite::Scalar& strain_increment_zz,
                          const adlite::Scalar& strain_increment_hoop, const adlite::Scalar& strain_increment_rz,
                          const AxisymmetricRotation& rotation, const adlite::Scalar& temperature,
-                         double committed_temperature, double time_step, const MaterialPointState& committed) const;
+                         double committed_temperature, double time_step, const MaterialPointState& committed,
+                         double time = 0.0, double radius = 0.0, double axial_coordinate = 0.0) const;
 
     static MaterialPointState state_values(const MaterialPointTrialState& trial_state);
 

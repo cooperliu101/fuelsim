@@ -1,5 +1,5 @@
 [Case]
-  version = 1
+  version = 2
   problem = steady
 []
 
@@ -8,16 +8,29 @@
   file = ../moose/m22_coupled_plastic_creep_traction_rz_mesh.e
 []
 
+[Materials]
+  [solid]
+    [thermal]
+      function = constant_thermophysical
+      conductivity = 1
+      density = 1
+      specific_heat = 1
+    []
+
+    [elasticity]
+      function = constant_isotropic
+      young_modulus = 2e11
+      poisson_ratio = 0.3
+    []
+  []
+
+[]
+
 [Regions]
   [solid]
     block_id = 0
+    material = solid
     strain = finite
-    conductivity_inverse_temperature = 0
-    conductivity_constant = 1
-    young_modulus = 2e11
-    poisson_ratio = 0.3
-    thermal_expansion = 0
-    reference_temperature = 600
     initial_temperature = 600
     volumetric_heat_source = 0
   []

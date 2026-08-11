@@ -1,5 +1,5 @@
 [Case]
-  version = 1
+  version = 2
   problem = transient
 []
 
@@ -8,21 +8,31 @@
   file = ../moose/m21_transient_heat_rz_mesh.e
 []
 
+[Materials]
+  [fuel]
+    [thermal]
+      function = constant_thermophysical
+      conductivity = 2
+      density = 10000
+      specific_heat = 300
+    []
+
+    [elasticity]
+      function = constant_isotropic
+      young_modulus = 2e11
+      poisson_ratio = 0.3
+    []
+  []
+
+[]
+
 [Regions]
   [fuel]
     block_id = 0
+    material = fuel
     strain = small
-    conductivity_inverse_temperature = 0
-    conductivity_constant = 2
-    young_modulus = 2e11
-    poisson_ratio = 0.3
-    thermal_expansion = 0
-    reference_temperature = 600
     initial_temperature = 600
     volumetric_heat_source = 3e6
-    density = 10000
-    specific_heat = 300
-    inelastic_model = elastic
   []
 []
 

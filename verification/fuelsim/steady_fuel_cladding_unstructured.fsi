@@ -1,5 +1,5 @@
 [Case]
-  version = 1
+  version = 2
   problem = steady
 []
 
@@ -8,29 +8,69 @@
   file = ../moose/m1_fuel_cladding_unstructured_rz_mesh.e
 []
 
+[Materials]
+  [fuel]
+    [thermal]
+      function = inverse_temperature_thermophysical
+      conductivity_inverse_temperature = 3824
+      conductivity_constant = 0.61
+      density = 1
+      specific_heat = 1
+    []
+
+    [elasticity]
+      function = constant_isotropic
+      young_modulus = 2e11
+      poisson_ratio = 0.316
+    []
+
+    [eigenstrains]
+      [thermal_expansion]
+        function = isotropic_thermal_expansion
+        thermal_expansion = 1e-5
+        reference_temperature = 600
+      []
+    []
+  []
+
+  [cladding]
+    [thermal]
+      function = constant_thermophysical
+      conductivity = 16
+      density = 1
+      specific_heat = 1
+    []
+
+    [elasticity]
+      function = constant_isotropic
+      young_modulus = 7.5e10
+      poisson_ratio = 0.3
+    []
+
+    [eigenstrains]
+      [thermal_expansion]
+        function = isotropic_thermal_expansion
+        thermal_expansion = 5e-6
+        reference_temperature = 600
+      []
+    []
+  []
+
+[]
+
 [Regions]
   [fuel]
     block = fuel
+    material = fuel
     strain = small
-    conductivity_inverse_temperature = 3824
-    conductivity_constant = 0.61
-    young_modulus = 2e11
-    poisson_ratio = 0.316
-    thermal_expansion = 1e-5
-    reference_temperature = 600
     initial_temperature = 600
     volumetric_heat_source = 2e8
   []
 
   [cladding]
     block = clad
+    material = cladding
     strain = small
-    conductivity_inverse_temperature = 0
-    conductivity_constant = 16
-    young_modulus = 7.5e10
-    poisson_ratio = 0.3
-    thermal_expansion = 5e-6
-    reference_temperature = 600
     initial_temperature = 600
     volumetric_heat_source = 0
   []

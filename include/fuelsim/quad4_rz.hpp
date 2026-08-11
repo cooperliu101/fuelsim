@@ -20,6 +20,7 @@ struct RzQuadraturePoint final {
     std::array<double, quad4_node_count> gradient_r;
     std::array<double, quad4_node_count> gradient_z;
     double radius;
+    double axial_coordinate;
     double weighted_measure;
 };
 
