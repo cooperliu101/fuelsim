@@ -323,7 +323,7 @@ env \
   /usr/bin/time -f 'process_wall_seconds=%e' \
   taskset -c 0 \
   /home/cooper/miniforge/envs/moose/bin/mpiexec -bind-to core -n 1 \
-  ./build/fuelsim_mpi_equivalence_tests \
+  ./build/fuelsim_mpi_equivalence_benchmark \
   write_transient_integrated /tmp/m57_parallel_reference.txt \
   verification/fuelsim/transient_integrated_fuel_cladding.fsi \
   -pc_type lu -pc_factor_mat_solver_type mumps
@@ -342,13 +342,15 @@ env \
   /usr/bin/time -f 'process_wall_seconds=%e' \
   taskset -c 0,1 \
   /home/cooper/miniforge/envs/moose/bin/mpiexec -bind-to core -n 2 \
-  ./build/fuelsim_mpi_equivalence_tests \
+  ./build/fuelsim_mpi_equivalence_benchmark \
   compare_transient_integrated /tmp/m57_parallel_reference.txt \
   verification/fuelsim/transient_integrated_fuel_cladding.fsi \
   -pc_type lu -pc_factor_mat_solver_type mumps
 ```
 
-The four-rank command uses CPUs `0,1,2,3` and `-n 4`. These measurements apply
+The four-rank command uses CPUs `0,1,2,3` and `-n 4`. These commands are manual
+benchmarks and are intentionally not registered in the default CTest suite.
+These measurements apply
 only to this compact validation mesh, current adaptive path, hardware, PETSc,
 and MUMPS build. They do not contradict the two-rank speedup measured on the
 23,010-DOF benchmark and must not be generalized as a scaling limit.

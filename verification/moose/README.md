@@ -1150,12 +1150,12 @@ Quadrature-point effective plastic strain gives `0.002758%`, `0.004818%`, and
 and `0.216337%`; quadrature-point effective creep strain gives `0.026551%`,
 `0.012354%`, and `0.077277%`. No denominator floor is used. Every three-metric
 MOOSE comparison passes the uniform 0.5% gate. The tracked MOOSE reference
-remains a one-rank, one-thread result. Separately, `fuelsim_m57_mpi_reference`,
-`fuelsim_m57_mpi_equivalence_two_ranks`, and
-`fuelsim_m57_mpi_equivalence_four_ranks` verify the complete fuelsim committed
-state across one, two, and four ranks. These small-case tests use PETSc's
-`redundant` preconditioner with sequential LU and pin every numerical library to
-one thread. Two ranks retain 97 accepted steps; their maximum stress and plastic
+remains a one-rank, one-thread result. Separately, the manual
+`fuelsim_mpi_equivalence_benchmark` write and compare modes verify the complete
+fuelsim committed state across one, two, and four ranks. This long comparison is
+not registered in the default CTest suite. These small-case benchmark runs use
+distributed MUMPS direct solves and pin every numerical library to one thread.
+Two ranks retain 97 accepted steps; their maximum stress and plastic
 strain absolute differences are `0.1809917 Pa` and `3.72567e-12`. Four ranks may
 take 97 or 98 accepted steps when a rank-dependent nonlinear iteration count
 crosses the iteration-based step-control threshold. The conservative 98-step

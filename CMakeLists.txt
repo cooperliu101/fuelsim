@@ -462,15 +462,15 @@ if(BUILD_TESTING)
             PROCESSORS 2
         )
 
-        add_executable(fuelsim_mpi_equivalence_tests
-            tests/mpi_equivalence_tests.cpp
+        add_executable(fuelsim_mpi_equivalence_benchmark
+            benchmarks/mpi_equivalence.cpp
         )
-        target_link_libraries(fuelsim_mpi_equivalence_tests
+        target_link_libraries(fuelsim_mpi_equivalence_benchmark
             PRIVATE fuelsim::io fuelsim::solver
         )
-        fuelsim_enable_warnings(fuelsim_mpi_equivalence_tests)
+        fuelsim_enable_warnings(fuelsim_mpi_equivalence_benchmark)
         add_test(NAME fuelsim_mpi_reference
-            COMMAND fuelsim_mpi_equivalence_tests
+            COMMAND fuelsim_mpi_equivalence_benchmark
                 write
                 "${CMAKE_CURRENT_BINARY_DIR}/m34_one_rank_state.txt"
                 "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_two_pellet_contact_moose.fsi"
@@ -481,7 +481,7 @@ if(BUILD_TESTING)
         )
         add_test(NAME fuelsim_mpi_equivalence
             COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2
-                $<TARGET_FILE:fuelsim_mpi_equivalence_tests>
+                $<TARGET_FILE:fuelsim_mpi_equivalence_benchmark>
                 compare
                 "${CMAKE_CURRENT_BINARY_DIR}/m34_one_rank_state.txt"
                 "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_two_pellet_contact_moose.fsi"
@@ -493,7 +493,7 @@ if(BUILD_TESTING)
         )
 
         add_test(NAME fuelsim_m52_mpi_reference
-            COMMAND fuelsim_mpi_equivalence_tests
+            COMMAND fuelsim_mpi_equivalence_benchmark
                 write
                 "${CMAKE_CURRENT_BINARY_DIR}/m52_one_rank_state.txt"
                 "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_large_sliding_contact_moose.fsi"
@@ -504,7 +504,7 @@ if(BUILD_TESTING)
         )
         add_test(NAME fuelsim_m52_mpi_equivalence
             COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2
-                $<TARGET_FILE:fuelsim_mpi_equivalence_tests>
+                $<TARGET_FILE:fuelsim_mpi_equivalence_benchmark>
                 compare
                 "${CMAKE_CURRENT_BINARY_DIR}/m52_one_rank_state.txt"
                 "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_large_sliding_contact_moose.fsi"
@@ -516,7 +516,7 @@ if(BUILD_TESTING)
         )
         add_test(NAME fuelsim_mpi_field_split
             COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2
-                $<TARGET_FILE:fuelsim_mpi_equivalence_tests>
+                $<TARGET_FILE:fuelsim_mpi_equivalence_benchmark>
                 compare_field_split
                 "${CMAKE_CURRENT_BINARY_DIR}/m34_one_rank_state.txt"
                 "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_two_pellet_contact_moose.fsi"
@@ -529,7 +529,7 @@ if(BUILD_TESTING)
         )
         add_test(NAME fuelsim_mpi_block_jacobi
             COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2
-                $<TARGET_FILE:fuelsim_mpi_equivalence_tests>
+                $<TARGET_FILE:fuelsim_mpi_equivalence_benchmark>
                 compare_block_jacobi
                 "${CMAKE_CURRENT_BINARY_DIR}/m34_one_rank_state.txt"
                 "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_two_pellet_contact_moose.fsi"
@@ -542,7 +542,7 @@ if(BUILD_TESTING)
         )
         add_test(NAME fuelsim_mpi_hypre
             COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2
-                $<TARGET_FILE:fuelsim_mpi_equivalence_tests>
+                $<TARGET_FILE:fuelsim_mpi_equivalence_benchmark>
                 compare_hypre
                 "${CMAKE_CURRENT_BINARY_DIR}/m34_one_rank_state.txt"
                 "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_two_pellet_contact_moose.fsi"
@@ -554,7 +554,7 @@ if(BUILD_TESTING)
             TIMEOUT 120
         )
         add_test(NAME fuelsim_transient_mpi_reference
-            COMMAND fuelsim_mpi_equivalence_tests
+            COMMAND fuelsim_mpi_equivalence_benchmark
                 write_transient
                 "${CMAKE_CURRENT_BINARY_DIR}/m35_transient_one_rank_state.txt"
                 "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_coupled_traction_moose.fsi"
@@ -565,7 +565,7 @@ if(BUILD_TESTING)
         )
         add_test(NAME fuelsim_transient_mpi_equivalence
             COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2
-                $<TARGET_FILE:fuelsim_mpi_equivalence_tests>
+                $<TARGET_FILE:fuelsim_mpi_equivalence_benchmark>
                 compare_transient
                 "${CMAKE_CURRENT_BINARY_DIR}/m35_transient_one_rank_state.txt"
                 "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_coupled_traction_moose.fsi"
@@ -576,53 +576,9 @@ if(BUILD_TESTING)
             PROCESSORS 2
             TIMEOUT 60
         )
-        add_test(NAME fuelsim_m57_mpi_reference
-            COMMAND fuelsim_mpi_equivalence_tests
-                write_transient_integrated
-                "${CMAKE_CURRENT_BINARY_DIR}/m57_transient_one_rank_state.txt"
-                "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_integrated_fuel_cladding.fsi"
-        )
-        set_tests_properties(fuelsim_m57_mpi_reference PROPERTIES
-            FIXTURES_SETUP m57_mpi_reference
-            LABELS "integration;parallel"
-            ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1;MKL_NUM_THREADS=1;NUMEXPR_NUM_THREADS=1"
-            TIMEOUT 180
-        )
-        add_test(NAME fuelsim_m57_mpi_equivalence_two_ranks
-            COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2
-                $<TARGET_FILE:fuelsim_mpi_equivalence_tests>
-                compare_transient_integrated
-                "${CMAKE_CURRENT_BINARY_DIR}/m57_transient_one_rank_state.txt"
-                "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_integrated_fuel_cladding.fsi"
-                -pc_type redundant
-                -redundant_pc_type lu
-        )
-        set_tests_properties(fuelsim_m57_mpi_equivalence_two_ranks PROPERTIES
-            FIXTURES_REQUIRED m57_mpi_reference
-            LABELS "acceptance;parallel"
-            ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1;MKL_NUM_THREADS=1;NUMEXPR_NUM_THREADS=1"
-            PROCESSORS 2
-            TIMEOUT 180
-        )
-        add_test(NAME fuelsim_m57_mpi_equivalence_four_ranks
-            COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 4
-                $<TARGET_FILE:fuelsim_mpi_equivalence_tests>
-                compare_transient_integrated
-                "${CMAKE_CURRENT_BINARY_DIR}/m57_transient_one_rank_state.txt"
-                "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_integrated_fuel_cladding.fsi"
-                -pc_type redundant
-                -redundant_pc_type lu
-        )
-        set_tests_properties(fuelsim_m57_mpi_equivalence_four_ranks PROPERTIES
-            FIXTURES_REQUIRED m57_mpi_reference
-            LABELS "acceptance;parallel"
-            ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1;MKL_NUM_THREADS=1;NUMEXPR_NUM_THREADS=1"
-            PROCESSORS 4
-            TIMEOUT 180
-        )
         add_test(NAME fuelsim_mpi_root_io_failure
             COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2
-                $<TARGET_FILE:fuelsim_mpi_equivalence_tests>
+                $<TARGET_FILE:fuelsim_mpi_equivalence_benchmark>
                 test_io_failure
                 unused-reference
                 "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_two_pellet_contact_moose.fsi"

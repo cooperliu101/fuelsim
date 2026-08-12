@@ -690,8 +690,8 @@ max_pointwise_relative = max_i |x_i-x_ref_i|/|x_ref_i|
 | 当前构形有限应变 | `m41.finite_strain` | Taylor/Rashid 局部解析与非匹配 PCMI MOOSE 对比 |
 | follower pressure | `m42.follower_pressure` | 四边法向、当前合力、几何刚度和三类边界 MOOSE 对比 |
 | 非共轴有限转动 | `m43.noncoaxial_finite_strain` | 四单元 100 步路径、材料分支和共享状态重放 |
-| 综合瞬态大滑移热—摩擦接触 | `m57.integrated` | 完整当前法向 MOOSE 对标、热接触跨段所有权以及 1-rank/2-rank/4-rank 完整状态等价 |
-| 分布式装配和影子态 | `m34.parallel`、`m55.shadow_state` | 隔离路径的 1-rank/2-rank 及 M5.7 的 1-rank/2-rank/4-rank 完整状态等价 |
+| 综合瞬态大滑移热—摩擦接触 | `m57.integrated` | 完整当前法向 MOOSE 对标和热接触跨段所有权；1-rank/2-rank/4-rank 完整状态等价保留为手动 benchmark |
+| 分布式装配和影子态 | `m34.parallel`、`m55.shadow_state` | 默认 CTest 中隔离路径的 1-rank/2-rank 状态与贡献区间等价 |
 | 迭代求解测量 | `m56.iterative_solver`、`performance.m34` | 固定 CPU、固定线程的中型和较大网格观测 |
 | 明确适用边界 | `scope.boundary` | 未实现物理和未鉴定组合的发布级清单 |
 

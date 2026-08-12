@@ -334,7 +334,7 @@ void compare_transient_reference(const std::string& path, const std::vector<doub
 
 int main(int argc, char** argv) {
     if (argc < 4) {
-        std::cerr << "Usage: fuelsim_mpi_equivalence_tests "
+        std::cerr << "Usage: fuelsim_mpi_equivalence_benchmark "
                      "<write|compare|compare_field_split|compare_block_jacobi|"
                      "compare_hypre|write_transient|compare_transient|"
                      "write_transient_integrated|compare_transient_integrated|"
@@ -352,7 +352,7 @@ int main(int argc, char** argv) {
         argc -= 3;
         argv[argc] = nullptr;
 
-        fuelsim::PetscSession session(argc, argv, "fuelsim one/multi-rank equivalence test\n");
+        fuelsim::PetscSession session(argc, argv, "fuelsim one/multi-rank equivalence benchmark\n");
         if (mode == "test_io_failure") {
             if (session.size() != 2)
                 throw std::invalid_argument("Collective I/O failure test requires two ranks");
@@ -546,7 +546,7 @@ int main(int argc, char** argv) {
         }
         return 0;
     } catch (const std::exception& error) {
-        std::cerr << "[FAIL] MPI equivalence test raised: " << error.what() << '\n';
+        std::cerr << "[FAIL] MPI equivalence benchmark raised: " << error.what() << '\n';
         return 1;
     }
 }
