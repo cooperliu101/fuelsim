@@ -6,6 +6,7 @@
 #include "fuelsim/quad4_rz.hpp"
 #include "fuelsim/quad4_rz_kinematics.hpp"
 #include "fuelsim/quad4_rz_thermoelastic.hpp"
+#include "fuelsim/rz_problem_access.hpp"
 #include "fuelsim/steady_problem.hpp"
 #include "fuelsim/time_table.hpp"
 #include "support/mesh_fixture.hpp"
@@ -988,23 +989,24 @@ bool test_thermal_owner_transfer_assembly() {
     const auto active_primary_centers = [&](const std::vector<double>& current) {
         problem.validate_state(current);
         std::vector<double> centers;
-        for (std::size_t contribution = problem.volume_contribution_count();
+        for (std::size_t contribution = fuelsim::rz::ProblemAccess::volume_contribution_count(problem);
              contribution < problem.contribution_count(); ++contribution) {
-            if (problem.contribution_type(contribution) != fuelsim::SpatialContributionType::thermal_contact)
+            if (fuelsim::rz::ProblemAccess::contribution_type(problem, contribution) !=
+                fuelsim::SpatialContributionType::thermal_contact)
                 continue;
-            const fuelsim::LocalResidual residual =
-                problem.contribution_residual(contribution, problem.contribution_state(contribution, current));
+            const fuelsim::LocalResidual residual = fuelsim::rz::ProblemAccess::contribution_residual(
+                problem, contribution, fuelsim::rz::ProblemAccess::contribution_state(problem, contribution, current));
             double magnitude = 0.0;
             for (std::size_t row = 0; row < 4; ++row)
                 magnitude += std::abs(residual[row]);
             if (magnitude == 0.0)
                 continue;
-            const fuelsim::LocalDofs dofs = problem.contribution_dofs(contribution);
-            const std::size_t primary_offset = problem.region_node_offset(1);
+            const fuelsim::LocalDofs dofs = fuelsim::rz::ProblemAccess::contribution_dofs(problem, contribution);
+            const std::size_t primary_offset = fuelsim::rz::ProblemAccess::region_node_offset(problem, 1);
             const std::size_t first = dofs[2] - primary_offset;
             const std::size_t second = dofs[3] - primary_offset;
-            centers.push_back(0.5 *
-                              (problem.region_mesh(1).nodes()[first].z + problem.region_mesh(1).nodes()[second].z));
+            centers.push_back(0.5 * (fuelsim::rz::ProblemAccess::region_mesh(problem, 1).nodes()[first].z +
+                                     fuelsim::rz::ProblemAccess::region_mesh(problem, 1).nodes()[second].z));
         }
         return centers;
     };
@@ -1015,9 +1017,9 @@ bool test_thermal_owner_transfer_assembly() {
                   std::count(initial_centers.begin(), initial_centers.end(), 1.5) == 2,
               "each initial thermal integration point has exactly one primary-segment owner");
 
-    const std::size_t secondary_offset = problem.region_node_offset(0);
-    for (std::size_t node = 0; node < problem.region_mesh(0).nodes().size(); ++node)
-        state[problem.dof_map().axial_displacement(secondary_offset + node)] = 0.25;
+    const std::size_t secondary_offset = fuelsim::rz::ProblemAccess::region_node_offset(problem, 0);
+    for (std::size_t node = 0; node < fuelsim::rz::ProblemAccess::region_mesh(problem, 0).nodes().size(); ++node)
+        state[fuelsim::rz::ProblemAccess::dof_map(problem).axial_displacement(secondary_offset + node)] = 0.25;
     const std::vector<double> split_centers = active_primary_centers(state);
     passed =
         check(split_centers.size() == 4 && std::count(split_centers.begin(), split_centers.end(), 0.5) == 1 &&
@@ -1026,12 +1028,13 @@ bool test_thermal_owner_transfer_assembly() {
         passed;
     double assembled_heat_sum = 0.0;
     double assembled_heat_scale = 0.0;
-    for (std::size_t contribution = problem.volume_contribution_count(); contribution < problem.contribution_count();
-         ++contribution) {
-        if (problem.contribution_type(contribution) != fuelsim::SpatialContributionType::thermal_contact)
+    for (std::size_t contribution = fuelsim::rz::ProblemAccess::volume_contribution_count(problem);
+         contribution < problem.contribution_count(); ++contribution) {
+        if (fuelsim::rz::ProblemAccess::contribution_type(problem, contribution) !=
+            fuelsim::SpatialContributionType::thermal_contact)
             continue;
-        const fuelsim::LocalResidual residual =
-            problem.contribution_residual(contribution, problem.contribution_state(contribution, state));
+        const fuelsim::LocalResidual residual = fuelsim::rz::ProblemAccess::contribution_residual(
+            problem, contribution, fuelsim::rz::ProblemAccess::contribution_state(problem, contribution, state));
         for (std::size_t row = 0; row < 4; ++row) {
             assembled_heat_sum += residual[row];
             assembled_heat_scale += std::abs(residual[row]);
@@ -1041,21 +1044,21 @@ bool test_thermal_owner_transfer_assembly() {
                    "split-owner thermal candidates conserve the assembled interface heat rate") &&
              passed;
 
-    for (std::size_t node = 0; node < problem.region_mesh(0).nodes().size(); ++node)
-        state[problem.dof_map().axial_displacement(secondary_offset + node)] = 0.6;
+    for (std::size_t node = 0; node < fuelsim::rz::ProblemAccess::region_mesh(problem, 0).nodes().size(); ++node)
+        state[fuelsim::rz::ProblemAccess::dof_map(problem).axial_displacement(secondary_offset + node)] = 0.6;
     const std::vector<double> slid_centers = active_primary_centers(state);
     passed =
         check(slid_centers.size() == 4 &&
                   std::all_of(slid_centers.begin(), slid_centers.end(), [](double center) { return center == 1.5; }),
               "all thermal integration points transfer to the current upper primary segment after large sliding") &&
         passed;
-    const fuelsim::InterfaceSummary summary = problem.summarize_interface(0, state);
+    const fuelsim::InterfaceSummary summary = fuelsim::rz::ProblemAccess::summarize_interface(problem, 0, state);
     passed = check(std::isfinite(summary.total_heat_rate) && summary.total_heat_rate > 0.0,
                    "large-sliding thermal owner transfer retains a finite positive conservative heat rate") &&
              passed;
 
-    for (std::size_t node = 0; node < problem.region_mesh(0).nodes().size(); ++node)
-        state[problem.dof_map().axial_displacement(secondary_offset + node)] = 2.0;
+    for (std::size_t node = 0; node < fuelsim::rz::ProblemAccess::region_mesh(problem, 0).nodes().size(); ++node)
+        state[fuelsim::rz::ProblemAccess::dof_map(problem).axial_displacement(secondary_offset + node)] = 2.0;
     bool rejected = false;
     try {
         problem.validate_state(state);
@@ -1064,7 +1067,7 @@ bool test_thermal_owner_transfer_assembly() {
     }
     bool summary_rejected = false;
     try {
-        (void)problem.summarize_interface(0, state);
+        (void)fuelsim::rz::ProblemAccess::summarize_interface(problem, 0, state);
     } catch (const std::domain_error&) {
         summary_rejected = true;
     }
@@ -1281,15 +1284,18 @@ bool test_m1_dof_layout() {
     std::size_t previous_type = 0;
     const std::vector<double> initial_state = problem.initial_state();
     for (std::size_t contribution = 0; contribution < problem.contribution_count(); ++contribution) {
-        const fuelsim::SpatialContributionType type = problem.contribution_type(contribution);
+        const fuelsim::SpatialContributionType type =
+            fuelsim::rz::ProblemAccess::contribution_type(problem, contribution);
         const std::size_t type_index = static_cast<std::size_t>(type);
         ++contribution_counts.at(type_index);
         passed =
             check(contribution == 0 || type_index >= previous_type, "spatial contribution categories are contiguous") &&
             passed;
         previous_type = type_index;
-        const fuelsim::LocalValues local = problem.contribution_state(contribution, initial_state);
-        const fuelsim::LocalSystem system = problem.linearize_contribution(contribution, local);
+        const fuelsim::LocalValues local =
+            fuelsim::rz::ProblemAccess::contribution_state(problem, contribution, initial_state);
+        const fuelsim::LocalSystem system =
+            fuelsim::rz::ProblemAccess::linearize_contribution(problem, contribution, local);
         const bool finite_residual = std::all_of(system.residual.begin(), system.residual.end(),
                                                  [](double value) { return std::isfinite(value); });
         const bool finite_jacobian = std::all_of(system.jacobian.begin(), system.jacobian.end(),
@@ -1312,7 +1318,7 @@ bool test_m1_dof_layout() {
              passed;
     bool rejected_out_of_range = false;
     try {
-        static_cast<void>(problem.contribution_dofs(problem.contribution_count()));
+        static_cast<void>(fuelsim::rz::ProblemAccess::contribution_dofs(problem, problem.contribution_count()));
     } catch (const std::out_of_range&) {
         rejected_out_of_range = true;
     }
@@ -1323,38 +1329,45 @@ bool test_m1_dof_layout() {
     passed = check(mechanical_contributions == 2 * axial_elements * axial_elements,
                    "M1 has the expected local NTS candidate contributions") &&
              passed;
-    passed = check(problem.dof_count() ==
-                       3 * (problem.region_mesh(0).nodes().size() + problem.region_mesh(1).nodes().size()),
+    passed = check(problem.dof_count() == 3 * (fuelsim::rz::ProblemAccess::region_mesh(problem, 0).nodes().size() +
+                                               fuelsim::rz::ProblemAccess::region_mesh(problem, 1).nodes().size()),
                    "M1 uses one field-major map for both independent meshes") &&
              passed;
 
-    const fuelsim::LocalDofs interface = problem.contribution_dofs(first_thermal);
+    const fuelsim::LocalDofs interface = fuelsim::rz::ProblemAccess::contribution_dofs(problem, first_thermal);
     const std::size_t fuel_outer = fuelsim::test::annular_node_id(fuel_radial_elements, fuel_radial_elements, 0);
     const std::size_t cladding_inner = fuelsim::test::annular_node_id(cladding_radial_elements, 0, 0);
-    passed = check(interface[0] == problem.dof_map().temperature(problem.region_node_offset(0) + fuel_outer) &&
-                       interface[2] == problem.dof_map().temperature(problem.region_node_offset(1) + cladding_inner),
+    passed = check(interface[0] == fuelsim::rz::ProblemAccess::dof_map(problem).temperature(
+                                       fuelsim::rz::ProblemAccess::region_node_offset(problem, 0) + fuel_outer) &&
+                       interface[2] == fuelsim::rz::ProblemAccess::dof_map(problem).temperature(
+                                           fuelsim::rz::ProblemAccess::region_node_offset(problem, 1) + cladding_inner),
                    "M1 interface DOFs preserve fuel/cladding node ownership") &&
              passed;
-    const std::vector<fuelsim::ContactNodeSummary> contact_nodes = problem.summarize_contact_nodes(0, initial_state);
+    const std::vector<fuelsim::ContactNodeSummary> contact_nodes =
+        fuelsim::rz::ProblemAccess::summarize_contact_nodes(problem, 0, initial_state);
     passed = check(std::all_of(contact_nodes.begin(), contact_nodes.end(),
                                [](const fuelsim::ContactNodeSummary& node) { return node.projected; }),
                    "taller cladding contains every initial NTS projection") &&
              passed;
 
-    const fuelsim::LocalValues initial_element_state = problem.contribution_state(0, initial_state);
-    const fuelsim::LocalResidual source_residual = problem.contribution_residual(0, initial_element_state);
+    const fuelsim::LocalValues initial_element_state =
+        fuelsim::rz::ProblemAccess::contribution_state(problem, 0, initial_state);
+    const fuelsim::LocalResidual source_residual =
+        fuelsim::rz::ProblemAccess::contribution_residual(problem, 0, initial_element_state);
     problem.set_load_factor(2.0);
-    const fuelsim::LocalResidual doubled_source_residual = problem.contribution_residual(0, initial_element_state);
+    const fuelsim::LocalResidual doubled_source_residual =
+        fuelsim::rz::ProblemAccess::contribution_residual(problem, 0, initial_element_state);
     for (std::size_t node = 0; node < fuelsim::quad4_node_count; ++node) {
         passed = check(std::abs(doubled_source_residual[node] - 2.0 * source_residual[node]) <
                            1.0e-12 * (1.0 + std::abs(source_residual[node])),
                        "M1 updates heat loading without rebuilding geometry") &&
                  passed;
     }
-    passed = check(problem.definition().regions[0].volumetric_heat_source == heat_source &&
-                       problem.region_kernel(0).volumetric_heat_source() == 2.0 * heat_source,
-                   "M1 load factor updates the production heat-source kernel") &&
-             passed;
+    passed =
+        check(fuelsim::rz::ProblemAccess::definition(problem).regions[0].volumetric_heat_source == heat_source &&
+                  fuelsim::rz::ProblemAccess::region_kernel(problem, 0).volumetric_heat_source() == 2.0 * heat_source,
+              "M1 load factor updates the production heat-source kernel") &&
+        passed;
     return passed;
 }
 

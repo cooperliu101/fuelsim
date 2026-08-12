@@ -1,6 +1,7 @@
 #include "fuelsim/case_input.hpp"
 #include "fuelsim/exodus_mesh_io.hpp"
 #include "fuelsim/problem_solver.hpp"
+#include "fuelsim/rz_problem_access.hpp"
 #include "support/moose_field_comparison.hpp"
 
 #include <algorithm>
@@ -115,13 +116,16 @@ struct RegionAverages final {
 RegionAverages region_averages(const fuelsim::TransientProblem& problem, std::size_t region) {
     RegionAverages result;
     double measure = 0.0;
-    const fuelsim::RegionMesh& mesh = problem.region_mesh(region);
+    const fuelsim::RegionMesh& mesh = fuelsim::rz::ProblemAccess::region_mesh(problem, region);
     result.points.reserve(mesh.elements().size() * 4);
-    for (std::size_t element = 0; element < problem.region_mesh(region).elements().size(); ++element) {
-        const fuelsim::Quad4RzGeometry& geometry = problem.region_element_geometry(region, element);
+    for (std::size_t element = 0; element < fuelsim::rz::ProblemAccess::region_mesh(problem, region).elements().size();
+         ++element) {
+        const fuelsim::Quad4RzGeometry& geometry =
+            fuelsim::rz::ProblemAccess::region_element_geometry(problem, region, element);
         const fuelsim::Quad4Element& mesh_element = mesh.elements()[element];
-        const fuelsim::Quad4MaterialHistory& history = problem.material_history(region, element);
-        const auto& stresses = problem.material_stress(region, element);
+        const fuelsim::Quad4MaterialHistory& history =
+            fuelsim::rz::ProblemAccess::material_history(problem, region, element);
+        const auto& stresses = fuelsim::rz::ProblemAccess::material_stress(problem, region, element);
         for (std::size_t q = 0; q < history.size(); ++q) {
             const double weight = geometry.points[q].weighted_measure;
             double axial_coordinate = 0.0;
@@ -222,15 +226,18 @@ bool run_case(const std::string& input_path, const std::string& nodal_reference_
     const fuelsim::UnstructuredQuad4Mesh source = fuelsim::ExodusMeshIo::read_quad4(definition.mesh_file);
     fuelsim::TransientProblem problem(definition.transient_definition(), source);
     const std::vector<fuelsim::ContactNodeSummary> initial_contact =
-        problem.summarize_contact_nodes(0, problem.committed_solution());
+        fuelsim::rz::ProblemAccess::summarize_contact_nodes(problem, 0, problem.committed_solution());
     const fuelsim::TransientResult solve =
         fuelsim::solve_transient(problem, time_options(definition), solver_options(definition));
     if (!solve.completed)
         return check(false, "M5.7 integrated adaptive transient completes");
 
-    const std::vector<fuelsim::ContactNodeSummary> contact = problem.summarize_contact_nodes(0, solve.committed_state);
-    const fuelsim::InterfaceSummary interface = problem.summarize_interface(0, solve.committed_state);
-    const RegionAverages cladding = region_averages(problem, problem.region_index("cladding"));
+    const std::vector<fuelsim::ContactNodeSummary> contact =
+        fuelsim::rz::ProblemAccess::summarize_contact_nodes(problem, 0, solve.committed_state);
+    const fuelsim::InterfaceSummary interface =
+        fuelsim::rz::ProblemAccess::summarize_interface(problem, 0, solve.committed_state);
+    const RegionAverages cladding =
+        region_averages(problem, fuelsim::rz::ProblemAccess::region_index(problem, "cladding"));
 
     std::size_t sliding = 0;
     std::size_t crossed_segments = 0;

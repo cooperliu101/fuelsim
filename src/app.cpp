@@ -5,6 +5,7 @@
 #include "fuelsim/petsc_solver.hpp"
 #include "fuelsim/problem_solver.hpp"
 #include "fuelsim/results_io.hpp"
+#include "fuelsim/rz_problem_access.hpp"
 
 #include <algorithm>
 #include <array>
@@ -327,7 +328,8 @@ bool run_steady(const fuelsim::FuelSimCaseDefinition& definition, const fuelsim:
     fuelsim::SteadyProblem problem(definition.spatial_definition(), source);
     if (check_jacobian) {
         problem.set_load_factor(1.0);
-        return write_jacobian_check(problem, problem.dof_map(), problem.initial_state(), output);
+        return write_jacobian_check(problem, fuelsim::rz::ProblemAccess::dof_map(problem), problem.initial_state(),
+                                    output);
     }
     const fuelsim::SteadyResult result = fuelsim::solve_steady(
         problem,
@@ -337,8 +339,8 @@ bool run_steady(const fuelsim::FuelSimCaseDefinition& definition, const fuelsim:
     output.value("problem", "steady");
     output.value("completed", result.completed && result.solve.converged);
     output.value("convergence_reason", fuelsim::petsc_convergence_reason_name(result.solve.convergence_reason));
-    output.value("regions", problem.region_count());
-    output.value("contacts", problem.contact_count());
+    output.value("regions", fuelsim::rz::ProblemAccess::region_count(problem));
+    output.value("contacts", fuelsim::rz::ProblemAccess::contact_count(problem));
     output.value("load_steps_completed", result.completed_steps);
     output.value("rejected_load_steps", result.rejected_steps.size());
     output.value("load_cutbacks", result.total_cutbacks);
@@ -352,9 +354,10 @@ bool run_steady(const fuelsim::FuelSimCaseDefinition& definition, const fuelsim:
     output.value("petsc_workspace_setups", result.aggregate_timing.workspace_setups);
     output.value("total_seconds", result.total_seconds);
     if (result.completed && result.solve.converged) {
-        for (std::size_t contact = 0; contact < problem.contact_count(); ++contact)
-            write_interface_summary(problem.contact(contact).name,
-                                    problem.summarize_interface(contact, result.solve.state), output);
+        for (std::size_t contact = 0; contact < fuelsim::rz::ProblemAccess::contact_count(problem); ++contact)
+            write_interface_summary(
+                fuelsim::rz::ProblemAccess::contact(problem, contact).name,
+                fuelsim::rz::ProblemAccess::summarize_interface(problem, contact, result.solve.state), output);
     }
     if (result.completed && result.solve.converged && !definition.outputs.exodus_file.empty())
         session.collective_root_action([&]() {
@@ -389,7 +392,7 @@ bool run_transient(const fuelsim::FuelSimCaseDefinition& definition, const fuels
         std::vector<double> state = problem.committed_solution();
         for (const fuelsim::DirichletCondition& condition : problem.dirichlet_conditions())
             state.at(condition.dof) = condition.value;
-        const bool passed = write_jacobian_check(problem, problem.dof_map(), state, output);
+        const bool passed = write_jacobian_check(problem, fuelsim::rz::ProblemAccess::dof_map(problem), state, output);
         problem.rollback_time_step();
         return passed;
     }
@@ -443,7 +446,7 @@ bool run_transient(const fuelsim::FuelSimCaseDefinition& definition, const fuels
     output.value("problem", "transient");
     output.value("completed", result.completed);
     output.value("termination_reason", fuelsim::transient_termination_reason_name(result.termination_reason));
-    output.value("regions", problem.region_count());
+    output.value("regions", fuelsim::rz::ProblemAccess::region_count(problem));
     output.value("contacts", definition.contacts.size());
     output.value("committed_time", result.committed_time);
     output.value("next_time_step", result.next_time_step);
@@ -473,15 +476,17 @@ bool run_transient(const fuelsim::FuelSimCaseDefinition& definition, const fuels
     write_solver_diagnostics(result.last_attempt, problem.uses_augmented_contact(), output);
     output.value("total_seconds", result.total_seconds);
     write_conservation_summary("conservation.", problem.last_conservation_summary(), output);
-    for (std::size_t region = 0; region < problem.region_count(); ++region) {
-        const fuelsim::RegionInelasticSummary summary = problem.summarize_region_history(region);
-        const std::string prefix = "region." + problem.region(region).name + ".";
+    for (std::size_t region = 0; region < fuelsim::rz::ProblemAccess::region_count(problem); ++region) {
+        const fuelsim::RegionInelasticSummary summary =
+            fuelsim::rz::ProblemAccess::summarize_region_history(problem, region);
+        const std::string prefix = "region." + fuelsim::rz::ProblemAccess::region(problem, region).name + ".";
         output.value(prefix + "maximum_equivalent_plastic_strain", summary.maximum_equivalent_plastic_strain);
         output.value(prefix + "maximum_equivalent_creep_strain", summary.maximum_equivalent_creep_strain);
     }
     for (std::size_t contact = 0; contact < definition.contacts.size(); ++contact)
-        write_interface_summary(definition.contacts[contact].name,
-                                problem.summarize_interface(contact, result.committed_state), output);
+        write_interface_summary(
+            definition.contacts[contact].name,
+            fuelsim::rz::ProblemAccess::summarize_interface(problem, contact, result.committed_state), output);
     return result.completed;
 }
 

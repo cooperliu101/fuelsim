@@ -1,6 +1,7 @@
 #include "fuelsim/checkpoint_io.hpp"
 #include "fuelsim/exodus_mesh_io.hpp"
 #include "fuelsim/results_io.hpp"
+#include "fuelsim/rz_problem_access.hpp"
 #include "fuelsim/transient_problem.hpp"
 
 #include <exodusII.h>
@@ -122,9 +123,10 @@ void hash_thermoelastic(std::uint64_t& hash, const ThermoelasticProperties& mate
 std::uint64_t transient_problem_signature(const TransientProblem& problem) {
     std::uint64_t hash = fnv_offset;
     hash_size(hash, problem.dof_count());
-    hash_size(hash, problem.region_count());
-    const TransientProblemDefinition& definition = problem.definition();
-    for (std::size_t region_value = 0; region_value < problem.region_count(); ++region_value) {
+    hash_size(hash, fuelsim::rz::ProblemAccess::region_count(problem));
+    const TransientProblemDefinition& definition = fuelsim::rz::ProblemAccess::definition(problem);
+    for (std::size_t region_value = 0; region_value < fuelsim::rz::ProblemAccess::region_count(problem);
+         ++region_value) {
         const RegionDefinition& spatial = definition.spatial.regions[region_value];
         const TransientInelasticProperties& transient = definition.regions[region_value].material;
         hash_string(hash, spatial.name);
@@ -153,7 +155,7 @@ std::uint64_t transient_problem_signature(const TransientProblem& problem) {
         const std::uint64_t material_signature = spatial.material.functions->signature();
         hash_bytes(hash, &material_signature, sizeof(material_signature));
 
-        const RegionMesh& mesh = problem.region_mesh(region_value);
+        const RegionMesh& mesh = fuelsim::rz::ProblemAccess::region_mesh(problem, region_value);
         hash_size(hash, mesh.nodes().size());
         for (const RzPoint& point : mesh.nodes()) {
             hash_double(hash, point.r);
@@ -209,7 +211,7 @@ std::uint64_t transient_problem_signature(const TransientProblem& problem) {
     }
     hash_size(hash, problem.contribution_count());
     for (std::size_t contribution = 0; contribution < problem.contribution_count(); ++contribution) {
-        const LocalDofs dofs = problem.contribution_dofs(contribution);
+        const LocalDofs dofs = fuelsim::rz::ProblemAccess::contribution_dofs(problem, contribution);
         for (const std::size_t dof : dofs)
             hash_size(hash, dof);
     }
@@ -714,41 +716,48 @@ void fill_contact_nodal_values(std::size_t contact, const std::vector<std::size_
 void fill_steady_nodal(const UnstructuredQuad4Mesh& mesh, const SteadyProblem& problem,
                        const std::vector<double>& state, std::vector<std::vector<double>>& values) {
     const double missing = std::numeric_limits<double>::quiet_NaN();
-    values.assign(nodal_variable_names(problem.definition().contacts).size(),
+    values.assign(nodal_variable_names(fuelsim::rz::ProblemAccess::definition(problem).contacts).size(),
                   std::vector<double>(mesh.nodes().size(), missing));
     std::vector<bool> present(mesh.nodes().size(), false);
-    for (std::size_t region = 0; region < problem.region_count(); ++region)
-        fill_region_nodal_values(problem.region_mesh(region), problem.region_node_offset(region), problem.dof_map(),
-                                 state, present, values);
-    for (std::size_t contact = 0; contact < problem.contact_count(); ++contact) {
-        const std::vector<std::size_t> nodes = problem.contact_secondary_source_nodes(contact);
-        const std::vector<ContactNodeSummary> summary = problem.summarize_contact_nodes(contact, state);
+    for (std::size_t region = 0; region < fuelsim::rz::ProblemAccess::region_count(problem); ++region)
+        fill_region_nodal_values(fuelsim::rz::ProblemAccess::region_mesh(problem, region),
+                                 fuelsim::rz::ProblemAccess::region_node_offset(problem, region),
+                                 fuelsim::rz::ProblemAccess::dof_map(problem), state, present, values);
+    for (std::size_t contact = 0; contact < fuelsim::rz::ProblemAccess::contact_count(problem); ++contact) {
+        const std::vector<std::size_t> nodes =
+            fuelsim::rz::ProblemAccess::contact_secondary_source_nodes(problem, contact);
+        const std::vector<ContactNodeSummary> summary =
+            fuelsim::rz::ProblemAccess::summarize_contact_nodes(problem, contact, state);
         fill_contact_nodal_values(contact, nodes, summary, values);
     }
 }
 
 void fill_transient_nodal(const UnstructuredQuad4Mesh& mesh, const TransientProblem& problem,
                           std::vector<std::vector<double>>& values) {
-    const std::vector<ContactDefinition>& contact_definitions = problem.definition().spatial.contacts;
+    const std::vector<ContactDefinition>& contact_definitions =
+        fuelsim::rz::ProblemAccess::definition(problem).spatial.contacts;
     const std::size_t contacts = contact_definitions.size();
     const double missing = std::numeric_limits<double>::quiet_NaN();
     values.assign(nodal_variable_names(contact_definitions).size(), std::vector<double>(mesh.nodes().size(), missing));
     std::vector<bool> present(mesh.nodes().size(), false);
     const std::vector<double>& state = problem.committed_solution();
-    for (std::size_t region = 0; region < problem.region_count(); ++region)
-        fill_region_nodal_values(problem.region_mesh(region), problem.region_node_offset(region), problem.dof_map(),
-                                 state, present, values);
+    for (std::size_t region = 0; region < fuelsim::rz::ProblemAccess::region_count(problem); ++region)
+        fill_region_nodal_values(fuelsim::rz::ProblemAccess::region_mesh(problem, region),
+                                 fuelsim::rz::ProblemAccess::region_node_offset(problem, region),
+                                 fuelsim::rz::ProblemAccess::dof_map(problem), state, present, values);
     for (std::size_t contact = 0; contact < contacts; ++contact) {
-        const std::vector<std::size_t> nodes = problem.contact_secondary_source_nodes(contact);
-        const std::vector<ContactNodeSummary> summary = problem.summarize_contact_nodes(contact, state);
+        const std::vector<std::size_t> nodes =
+            fuelsim::rz::ProblemAccess::contact_secondary_source_nodes(problem, contact);
+        const std::vector<ContactNodeSummary> summary =
+            fuelsim::rz::ProblemAccess::summarize_contact_nodes(problem, contact, state);
         fill_contact_nodal_values(contact, nodes, summary, values);
     }
 }
 
 std::vector<double> steady_globals(const SteadyProblem& problem, const std::vector<double>& state) {
     std::vector<double> result = {problem.load_factor()};
-    for (std::size_t contact = 0; contact < problem.contact_count(); ++contact) {
-        const InterfaceSummary summary = problem.summarize_interface(contact, state);
+    for (std::size_t contact = 0; contact < fuelsim::rz::ProblemAccess::contact_count(problem); ++contact) {
+        const InterfaceSummary summary = fuelsim::rz::ProblemAccess::summarize_interface(problem, contact, state);
         result.push_back(summary.total_heat_rate);
         result.push_back(summary.total_contact_force);
         result.push_back(summary.total_tangential_force);
@@ -759,9 +768,9 @@ std::vector<double> steady_globals(const SteadyProblem& problem, const std::vect
 std::vector<double> transient_globals(const TransientProblem& problem) {
     std::vector<double> result = {problem.committed_load_factor()};
     const std::vector<double>& state = problem.committed_solution();
-    const std::size_t contacts = problem.definition().spatial.contacts.size();
+    const std::size_t contacts = fuelsim::rz::ProblemAccess::definition(problem).spatial.contacts.size();
     for (std::size_t contact = 0; contact < contacts; ++contact) {
-        const InterfaceSummary summary = problem.summarize_interface(contact, state);
+        const InterfaceSummary summary = fuelsim::rz::ProblemAccess::summarize_interface(problem, contact, state);
         result.push_back(summary.total_heat_rate);
         result.push_back(summary.total_contact_force);
         result.push_back(summary.total_tangential_force);
@@ -785,13 +794,16 @@ std::vector<std::vector<double>> steady_elements(const UnstructuredQuad4Mesh& me
     const double missing = std::numeric_limits<double>::quiet_NaN();
     std::vector<std::vector<double>> result(stress_variable_names().size(),
                                             std::vector<double>(mesh.elements().size(), missing));
-    for (std::size_t region = 0; region < problem.region_count(); ++region) {
-        const RegionMesh& region_mesh = problem.region_mesh(region);
-        const std::size_t contribution_offset = problem.region_element_offset(region);
+    for (std::size_t region = 0; region < fuelsim::rz::ProblemAccess::region_count(problem); ++region) {
+        const RegionMesh& region_mesh = fuelsim::rz::ProblemAccess::region_mesh(problem, region);
+        const std::size_t contribution_offset = fuelsim::rz::ProblemAccess::region_element_offset(problem, region);
         for (std::size_t element = 0; element < region_mesh.elements().size(); ++element) {
-            const LocalValues local = problem.contribution_state(contribution_offset + element, state);
+            const LocalValues local =
+                fuelsim::rz::ProblemAccess::contribution_state(problem, contribution_offset + element, state);
             const auto stresses =
-                problem.region_kernel(region).stress_values(problem.region_element_geometry(region, element), local);
+                fuelsim::rz::ProblemAccess::region_kernel(problem, region)
+                    .stress_values(fuelsim::rz::ProblemAccess::region_element_geometry(problem, region, element),
+                                   local);
             const std::size_t source = region_mesh.source_element_ids().at(element);
             store_stress_values(source, stresses, result);
         }
@@ -804,12 +816,13 @@ std::vector<std::vector<double>> transient_elements(const UnstructuredQuad4Mesh&
     const double missing = std::numeric_limits<double>::quiet_NaN();
     std::vector<std::vector<double>> result(transient_element_variable_names().size(),
                                             std::vector<double>(mesh.elements().size(), missing));
-    for (std::size_t region = 0; region < problem.region_count(); ++region) {
-        const RegionMesh& region_mesh = problem.region_mesh(region);
+    for (std::size_t region = 0; region < fuelsim::rz::ProblemAccess::region_count(problem); ++region) {
+        const RegionMesh& region_mesh = fuelsim::rz::ProblemAccess::region_mesh(problem, region);
         for (std::size_t element = 0; element < region_mesh.elements().size(); ++element) {
             const std::size_t source = region_mesh.source_element_ids().at(element);
-            const Quad4MaterialHistory& history = problem.material_history(region, element);
-            const auto& stresses = problem.material_stress(region, element);
+            const Quad4MaterialHistory& history =
+                fuelsim::rz::ProblemAccess::material_history(problem, region, element);
+            const auto& stresses = fuelsim::rz::ProblemAccess::material_stress(problem, region, element);
             store_stress_values(source, stresses, result);
             for (std::size_t q = 0; q < 4; ++q) {
                 // History slots are 16 + 10 * q; this layout must match
@@ -855,12 +868,12 @@ EngineeringHistoryWriter::EngineeringHistoryWriter(std::string path, const Trans
                "nonlinear_iterations";
     for (const TransientConservationField& field : transient_conservation_fields)
         _stream << ',' << field.name;
-    for (std::size_t region = 0; region < problem.region_count(); ++region) {
-        const std::string prefix = ",region_" + problem.region(region).name;
+    for (std::size_t region = 0; region < fuelsim::rz::ProblemAccess::region_count(problem); ++region) {
+        const std::string prefix = ",region_" + fuelsim::rz::ProblemAccess::region(problem, region).name;
         _stream << prefix << "_maximum_temperature" << prefix << "_maximum_equivalent_plastic_strain" << prefix
                 << "_maximum_equivalent_creep_strain";
     }
-    for (const ContactDefinition& contact : problem.definition().spatial.contacts) {
+    for (const ContactDefinition& contact : fuelsim::rz::ProblemAccess::definition(problem).spatial.contacts) {
         const std::string prefix = ",contact_" + contact.name;
         _stream << prefix << "_minimum_gap" << prefix << "_maximum_pressure" << prefix << "_total_heat_rate" << prefix
                 << "_total_force" << prefix << "_total_tangential_force";
@@ -880,18 +893,21 @@ void EngineeringHistoryWriter::append(const TransientProblem& problem, double ti
     for (const TransientConservationField& field : transient_conservation_fields)
         _stream << ',' << conservation.*field.member;
     const std::vector<double>& state = problem.committed_solution();
-    for (std::size_t region = 0; region < problem.region_count(); ++region) {
+    for (std::size_t region = 0; region < fuelsim::rz::ProblemAccess::region_count(problem); ++region) {
         double maximum_temperature = -std::numeric_limits<double>::infinity();
-        const std::size_t offset = problem.region_node_offset(region);
-        for (std::size_t local = 0; local < problem.region_mesh(region).nodes().size(); ++local)
+        const std::size_t offset = fuelsim::rz::ProblemAccess::region_node_offset(problem, region);
+        for (std::size_t local = 0; local < fuelsim::rz::ProblemAccess::region_mesh(problem, region).nodes().size();
+             ++local)
             maximum_temperature =
-                std::max(maximum_temperature, state.at(problem.dof_map().temperature(offset + local)));
-        const RegionInelasticSummary history = problem.summarize_region_history(region);
+                std::max(maximum_temperature,
+                         state.at(fuelsim::rz::ProblemAccess::dof_map(problem).temperature(offset + local)));
+        const RegionInelasticSummary history = fuelsim::rz::ProblemAccess::summarize_region_history(problem, region);
         _stream << ',' << maximum_temperature << ',' << history.maximum_equivalent_plastic_strain << ','
                 << history.maximum_equivalent_creep_strain;
     }
-    for (std::size_t contact = 0; contact < problem.definition().spatial.contacts.size(); ++contact) {
-        const InterfaceSummary summary = problem.summarize_interface(contact, state);
+    for (std::size_t contact = 0; contact < fuelsim::rz::ProblemAccess::definition(problem).spatial.contacts.size();
+         ++contact) {
+        const InterfaceSummary summary = fuelsim::rz::ProblemAccess::summarize_interface(problem, contact, state);
         _stream << ',' << summary.minimum_gap << ',' << summary.maximum_contact_pressure << ','
                 << summary.total_heat_rate << ',' << summary.total_contact_force << ','
                 << summary.total_tangential_force;
@@ -904,9 +920,11 @@ void ExodusResultsIo::write_steady(const std::string& path, const UnstructuredQu
                                    const SteadyProblem& problem, const std::vector<double>& state) {
     if (path.empty())
         throw std::invalid_argument("Exodus result path must not be empty");
-    const std::vector<std::string> nodal = nodal_variable_names(problem.definition().contacts);
+    const std::vector<std::string> nodal =
+        nodal_variable_names(fuelsim::rz::ProblemAccess::definition(problem).contacts);
     const std::vector<std::string> element = stress_variable_names();
-    const std::vector<std::string> global = global_variable_names(problem.definition().contacts);
+    const std::vector<std::string> global =
+        global_variable_names(fuelsim::rz::ProblemAccess::definition(problem).contacts);
     define_variables(path, mesh, nodal, element, global);
     std::vector<std::vector<double>> nodal_values;
     fill_steady_nodal(mesh, problem, state, nodal_values);
@@ -919,8 +937,10 @@ ExodusTransientResultsWriter::ExodusTransientResultsWriter(std::string path, Uns
       _step_count(0) {
     if (_path.empty())
         throw std::invalid_argument("Exodus result path must not be empty");
-    define_variables(_path, _mesh, nodal_variable_names(problem.definition().spatial.contacts),
-                     transient_element_variable_names(), global_variable_names(problem.definition().spatial.contacts));
+    define_variables(_path, _mesh,
+                     nodal_variable_names(fuelsim::rz::ProblemAccess::definition(problem).spatial.contacts),
+                     transient_element_variable_names(),
+                     global_variable_names(fuelsim::rz::ProblemAccess::definition(problem).spatial.contacts));
 }
 
 void ExodusTransientResultsWriter::append(const TransientProblem& problem) {
@@ -1080,7 +1100,7 @@ TransientConservationSummary read_conservation(BinaryCursor& payload) {
 }
 
 BinaryBuffer state_payload(const TransientProblem& problem, double next_time_step) {
-    const TransientCommittedState state = problem.committed_state();
+    const rz::TransientCommittedState state = fuelsim::rz::ProblemAccess::committed_state(problem);
     BinaryBuffer payload;
     payload.append_u64(transient_problem_signature(problem));
     payload.append_double(state.time);
@@ -1192,7 +1212,7 @@ double TransientCheckpointIo::restore(const std::string& path, TransientProblem&
     BinaryCursor payload(payload_bytes);
     if (payload.read_u64() != transient_problem_signature(problem))
         throw std::runtime_error("Checkpoint model signature does not match the current problem");
-    TransientCommittedState state;
+    rz::TransientCommittedState state;
     state.time = payload.read_double();
     state.load_factor = payload.read_double();
     const double next_time_step = payload.read_double();
@@ -1206,7 +1226,7 @@ double TransientCheckpointIo::restore(const std::string& path, TransientProblem&
     for (double& value : state.solution)
         value = payload.read_double();
     const std::uint64_t contact_count = payload.read_u64();
-    const TransientCommittedState expected_state = problem.committed_state();
+    const rz::TransientCommittedState expected_state = fuelsim::rz::ProblemAccess::committed_state(problem);
     const auto& expected_histories = expected_state.contact_histories;
     if (contact_count != expected_histories.size())
         throw std::runtime_error("Checkpoint contact count does not match the current problem");
@@ -1229,12 +1249,12 @@ double TransientCheckpointIo::restore(const std::string& path, TransientProblem&
         }
     }
     const std::uint64_t region_count = payload.read_u64();
-    if (region_count != problem.region_count())
+    if (region_count != fuelsim::rz::ProblemAccess::region_count(problem))
         throw std::runtime_error("Checkpoint region count does not match the current problem");
-    state.material_histories.resize(problem.region_count());
-    state.material_stresses.resize(problem.region_count());
-    for (std::size_t region = 0; region < problem.region_count(); ++region) {
-        const std::size_t elements = problem.region_mesh(region).elements().size();
+    state.material_histories.resize(fuelsim::rz::ProblemAccess::region_count(problem));
+    state.material_stresses.resize(fuelsim::rz::ProblemAccess::region_count(problem));
+    for (std::size_t region = 0; region < fuelsim::rz::ProblemAccess::region_count(problem); ++region) {
+        const std::size_t elements = fuelsim::rz::ProblemAccess::region_mesh(problem, region).elements().size();
         if (payload.read_u64() != elements)
             throw std::runtime_error("Checkpoint element count does not match the current problem");
         state.material_histories[region].resize(elements);
@@ -1247,7 +1267,7 @@ double TransientCheckpointIo::restore(const std::string& path, TransientProblem&
     }
     if (!payload.at_end())
         throw std::runtime_error("Checkpoint payload contains trailing data");
-    problem.restore_committed_state(std::move(state));
+    fuelsim::rz::ProblemAccess::restore_committed_state(problem, std::move(state));
     return next_time_step;
 }
 

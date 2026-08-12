@@ -1,6 +1,7 @@
 #include "fuelsim/case_input.hpp"
 #include "fuelsim/exodus_mesh_io.hpp"
 #include "fuelsim/problem_solver.hpp"
+#include "fuelsim/rz_problem_access.hpp"
 
 #include <algorithm>
 #include <array>
@@ -46,10 +47,12 @@ std::vector<double> read_reference(const std::string& path) {
 std::vector<double> flatten_transient_state(const fuelsim::TransientProblem& problem) {
     std::vector<double> result = {problem.committed_time(), problem.committed_load_factor()};
     result.insert(result.end(), problem.committed_solution().begin(), problem.committed_solution().end());
-    for (std::size_t region = 0; region < problem.region_count(); ++region) {
-        for (std::size_t element = 0; element < problem.region_mesh(region).elements().size(); ++element) {
-            const fuelsim::Quad4MaterialHistory& history = problem.material_history(region, element);
-            const auto& stresses = problem.material_stress(region, element);
+    for (std::size_t region = 0; region < fuelsim::rz::ProblemAccess::region_count(problem); ++region) {
+        for (std::size_t element = 0;
+             element < fuelsim::rz::ProblemAccess::region_mesh(problem, region).elements().size(); ++element) {
+            const fuelsim::Quad4MaterialHistory& history =
+                fuelsim::rz::ProblemAccess::material_history(problem, region, element);
+            const auto& stresses = fuelsim::rz::ProblemAccess::material_stress(problem, region, element);
             for (std::size_t q = 0; q < history.size(); ++q) {
                 result.insert(result.end(), history[q].elastic_strain.begin(), history[q].elastic_strain.end());
                 result.insert(result.end(), history[q].plastic_strain.begin(), history[q].plastic_strain.end());
@@ -63,7 +66,7 @@ std::vector<double> flatten_transient_state(const fuelsim::TransientProblem& pro
             }
         }
     }
-    for (const auto& contact : problem.committed_state().contact_histories) {
+    for (const auto& contact : fuelsim::rz::ProblemAccess::committed_state(problem).contact_histories) {
         for (const fuelsim::ContactPointHistory& history : contact) {
             result.push_back(history.elastic_tangential_slip);
             result.push_back(history.normal_multiplier);
@@ -113,20 +116,20 @@ TransientStateLayout transient_state_layout(const fuelsim::TransientProblem& pro
     if (problem.dof_count() % 3 != 0)
         throw std::runtime_error("Transient MPI state does not contain three complete nodal fields");
 
-    const fuelsim::TransientCommittedState committed = problem.committed_state();
+    const fuelsim::rz::TransientCommittedState committed = fuelsim::rz::ProblemAccess::committed_state(problem);
     if (committed.solution.size() != problem.dof_count())
         throw std::runtime_error("Transient MPI committed solution size differs from the problem degree-of-freedom "
                                  "count");
-    if (committed.material_histories.size() != problem.region_count() ||
-        committed.material_stresses.size() != problem.region_count())
+    if (committed.material_histories.size() != fuelsim::rz::ProblemAccess::region_count(problem) ||
+        committed.material_stresses.size() != fuelsim::rz::ProblemAccess::region_count(problem))
         throw std::runtime_error("Transient MPI material-state region layout differs from the problem");
-    if (committed.contact_histories.size() != problem.definition().spatial.contacts.size())
+    if (committed.contact_histories.size() != fuelsim::rz::ProblemAccess::definition(problem).spatial.contacts.size())
         throw std::runtime_error("Transient MPI contact-history pair count differs from the problem");
 
     TransientStateLayout layout;
     layout._node_count = problem.dof_count() / 3;
-    for (std::size_t region = 0; region < problem.region_count(); ++region) {
-        const std::size_t element_count = problem.region_mesh(region).elements().size();
+    for (std::size_t region = 0; region < fuelsim::rz::ProblemAccess::region_count(problem); ++region) {
+        const std::size_t element_count = fuelsim::rz::ProblemAccess::region_mesh(problem, region).elements().size();
         if (committed.material_histories[region].size() != element_count ||
             committed.material_stresses[region].size() != element_count)
             throw std::runtime_error("Transient MPI material-state element layout differs from the problem");
@@ -140,7 +143,8 @@ TransientStateLayout transient_state_layout(const fuelsim::TransientProblem& pro
         }
     }
     for (std::size_t contact = 0; contact < committed.contact_histories.size(); ++contact) {
-        if (committed.contact_histories[contact].size() != problem.contact_secondary_source_nodes(contact).size())
+        if (committed.contact_histories[contact].size() !=
+            fuelsim::rz::ProblemAccess::contact_secondary_source_nodes(problem, contact).size())
             throw std::runtime_error("Transient MPI contact-history point count differs from the secondary boundary");
         layout._contact_point_count += committed.contact_histories[contact].size();
     }

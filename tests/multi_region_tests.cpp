@@ -1,6 +1,7 @@
 #include "fuelsim/diagnostics.hpp"
 #include "fuelsim/petsc_solver.hpp"
 #include "fuelsim/problem_solver.hpp"
+#include "fuelsim/rz_problem_access.hpp"
 #include "fuelsim/steady_problem.hpp"
 #include "fuelsim/transient_problem.hpp"
 
@@ -246,39 +247,44 @@ bool test_single_region(const fuelsim::UnstructuredQuad4Mesh& mesh) {
     const fuelsim::SteadyProblem problem(single_region_definition(), mesh);
     const std::vector<double> state = problem.initial_state();
     bool passed =
-        check(problem.region_count() == 1 && problem.contact_count() == 0,
+        check(fuelsim::rz::ProblemAccess::region_count(problem) == 1 &&
+                  fuelsim::rz::ProblemAccess::contact_count(problem) == 0,
               "one Exodus block forms a standalone steady problem") &&
-        check(problem.region_index("pellet") == 0 && problem.region_node_offset(0) == 0 &&
-                  problem.region_element_offset(0) == 0,
+        check(fuelsim::rz::ProblemAccess::region_index(problem, "pellet") == 0 &&
+                  fuelsim::rz::ProblemAccess::region_node_offset(problem, 0) == 0 &&
+                  fuelsim::rz::ProblemAccess::region_element_offset(problem, 0) == 0,
               "single-region indices start at zero") &&
-        check(problem.dof_count() == 12 && problem.volume_contribution_count() == 1 &&
+        check(problem.dof_count() == 12 && fuelsim::rz::ProblemAccess::volume_contribution_count(problem) == 1 &&
                   problem.contribution_count() == 1,
               "single Quad4 region has one 12-DOF contribution") &&
-        check(state[problem.dof_map().temperature(0)] == 500.0 && state[problem.dof_map().temperature(1)] == 300.0,
+        check(state[fuelsim::rz::ProblemAccess::dof_map(problem).temperature(0)] == 500.0 &&
+                  state[fuelsim::rz::ProblemAccess::dof_map(problem).temperature(1)] == 300.0,
               "region initial temperature and boundary value are applied");
 
     const std::vector<fuelsim::FieldDescriptor>& fields = problem.field_layout();
-    const fuelsim::LocalDofs rz_dofs = problem.contribution_dofs(0);
+    const fuelsim::LocalDofs rz_dofs = fuelsim::rz::ProblemAccess::contribution_dofs(problem, 0);
     bool rz_layout = fields.size() == 3 && fields[0].name == "temperature" && fields[0].begin == 0 &&
-                     fields[0].end == problem.dof_map().node_count() &&
+                     fields[0].end == fuelsim::rz::ProblemAccess::dof_map(problem).node_count() &&
                      fields[0].category == fuelsim::FieldCategory::thermal && fields[1].name == "radial" &&
-                     fields[1].begin == problem.dof_map().node_count() &&
-                     fields[1].end == 2 * problem.dof_map().node_count() &&
+                     fields[1].begin == fuelsim::rz::ProblemAccess::dof_map(problem).node_count() &&
+                     fields[1].end == 2 * fuelsim::rz::ProblemAccess::dof_map(problem).node_count() &&
                      fields[1].category == fuelsim::FieldCategory::mechanical && fields[2].name == "axial" &&
-                     fields[2].begin == 2 * problem.dof_map().node_count() && fields[2].end == problem.dof_count() &&
-                     fields[2].category == fuelsim::FieldCategory::mechanical &&
+                     fields[2].begin == 2 * fuelsim::rz::ProblemAccess::dof_map(problem).node_count() &&
+                     fields[2].end == problem.dof_count() && fields[2].category == fuelsim::FieldCategory::mechanical &&
                      problem.contribution_dof_count(0) == fuelsim::local_dof_count;
-    const fuelsim::Quad4Element& element = problem.region_mesh(0).elements().front();
+    const fuelsim::Quad4Element& element = fuelsim::rz::ProblemAccess::region_mesh(problem, 0).elements().front();
     for (std::size_t local_node = 0; local_node < 4; ++local_node) {
-        const std::size_t global_node = problem.region_node_offset(0) + element.nodes[local_node];
-        rz_layout = rz_layout && rz_dofs[local_node] == problem.dof_map().temperature(global_node) &&
-                    rz_dofs[4 + local_node] == problem.dof_map().radial_displacement(global_node) &&
-                    rz_dofs[8 + local_node] == problem.dof_map().axial_displacement(global_node);
+        const std::size_t global_node =
+            fuelsim::rz::ProblemAccess::region_node_offset(problem, 0) + element.nodes[local_node];
+        rz_layout =
+            rz_layout && rz_dofs[local_node] == fuelsim::rz::ProblemAccess::dof_map(problem).temperature(global_node) &&
+            rz_dofs[4 + local_node] == fuelsim::rz::ProblemAccess::dof_map(problem).radial_displacement(global_node) &&
+            rz_dofs[8 + local_node] == fuelsim::rz::ProblemAccess::dof_map(problem).axial_displacement(global_node);
     }
     passed = check(rz_layout, "RZ adapter preserves [T0..T3, ur0..ur3, uz0..uz3] and field metadata") && passed;
 
-    const fuelsim::LocalValues local = problem.contribution_state(0, state);
-    const fuelsim::LocalSystem system = problem.linearize_contribution(0, local);
+    const fuelsim::LocalValues local = fuelsim::rz::ProblemAccess::contribution_state(problem, 0, state);
+    const fuelsim::LocalSystem system = fuelsim::rz::ProblemAccess::linearize_contribution(problem, 0, local);
     passed = check(std::all_of(system.residual.begin(), system.residual.end(),
                                [](double value) { return std::isfinite(value); }),
                    "single-region AD residual is finite") &&
@@ -300,11 +306,14 @@ bool test_time_controlled_pressure(const fuelsim::UnstructuredQuad4Mesh& mesh) {
     definition.boundary_conditions.push_back(std::move(pressure));
     fuelsim::SteadyProblem problem(std::move(definition), mesh);
     problem.set_time(0.0);
-    const std::size_t pressure_contribution = problem.volume_contribution_count();
-    const fuelsim::LocalValues local = problem.contribution_state(pressure_contribution, problem.initial_state());
-    const fuelsim::LocalResidual first = problem.contribution_residual(pressure_contribution, local);
+    const std::size_t pressure_contribution = fuelsim::rz::ProblemAccess::volume_contribution_count(problem);
+    const fuelsim::LocalValues local =
+        fuelsim::rz::ProblemAccess::contribution_state(problem, pressure_contribution, problem.initial_state());
+    const fuelsim::LocalResidual first =
+        fuelsim::rz::ProblemAccess::contribution_residual(problem, pressure_contribution, local);
     problem.set_time(1.0);
-    const fuelsim::LocalResidual second = problem.contribution_residual(pressure_contribution, local);
+    const fuelsim::LocalResidual second =
+        fuelsim::rz::ProblemAccess::contribution_residual(problem, pressure_contribution, local);
     bool passed = true;
     for (std::size_t dof = 0; dof < first.size(); ++dof)
         passed = check(std::abs(second[dof] - 2.0 * first[dof]) < 1.0e-12,
@@ -322,9 +331,11 @@ bool test_pressure_parent_edge_orientation() {
         definition.boundary_conditions.push_back({"pressure", fuelsim::BoundaryConditionType::pressure, boundary,
                                                   fuelsim::Field::radial_displacement, pressure_value});
         const fuelsim::SteadyProblem problem(std::move(definition), mesh);
-        const std::size_t contribution = problem.volume_contribution_count();
-        const fuelsim::LocalValues local = problem.contribution_state(contribution, problem.initial_state());
-        const fuelsim::LocalResidual residual = problem.contribution_residual(contribution, local);
+        const std::size_t contribution = fuelsim::rz::ProblemAccess::volume_contribution_count(problem);
+        const fuelsim::LocalValues local =
+            fuelsim::rz::ProblemAccess::contribution_state(problem, contribution, problem.initial_state());
+        const fuelsim::LocalResidual residual =
+            fuelsim::rz::ProblemAccess::contribution_residual(problem, contribution, local);
         std::array<double, 2> force = {0.0, 0.0};
         for (std::size_t node = 0; node < 4; ++node) {
             force[0] += residual[4 + node];
@@ -358,10 +369,10 @@ bool test_global_field_diagnostics(const fuelsim::UnstructuredQuad4Mesh& mesh) {
     fuelsim::SteadyProblem problem(single_region_definition(), mesh);
     const std::vector<double> state = problem.initial_state();
     std::vector<double> direction(problem.dof_count(), 0.0);
-    for (std::size_t node = 0; node < problem.dof_map().node_count(); ++node) {
-        direction[problem.dof_map().temperature(node)] = 0.2;
-        direction[problem.dof_map().radial_displacement(node)] = 1.0e-6;
-        direction[problem.dof_map().axial_displacement(node)] = -0.7e-6;
+    for (std::size_t node = 0; node < fuelsim::rz::ProblemAccess::dof_map(problem).node_count(); ++node) {
+        direction[fuelsim::rz::ProblemAccess::dof_map(problem).temperature(node)] = 0.2;
+        direction[fuelsim::rz::ProblemAccess::dof_map(problem).radial_displacement(node)] = 1.0e-6;
+        direction[fuelsim::rz::ProblemAccess::dof_map(problem).axial_displacement(node)] = -0.7e-6;
     }
     const fuelsim::DirectionalJacobianCheck diagnostic =
         fuelsim::check_directional_jacobian(problem, state, direction, 1.0e-4);
@@ -382,25 +393,31 @@ bool test_three_regions(const fuelsim::UnstructuredQuad4Mesh& mesh) {
         check(mesh.side_set_block_id("pellet_outer") == 1 && mesh.side_set_block_id("clad_1_inner") == 2 &&
                   mesh.side_set_block_id("clad_2_inner") == 3,
               "side-set ownership is inferred from adjacent Exodus elements") &&
-        check(problem.region_count() == 3 && problem.contact_count() == 2,
+        check(fuelsim::rz::ProblemAccess::region_count(problem) == 3 &&
+                  fuelsim::rz::ProblemAccess::contact_count(problem) == 2,
               "three regions and two named contact pairs are composed") &&
-        check(problem.region_node_offset(0) == 0 && problem.region_node_offset(1) == 4 &&
-                  problem.region_node_offset(2) == 8,
+        check(fuelsim::rz::ProblemAccess::region_node_offset(problem, 0) == 0 &&
+                  fuelsim::rz::ProblemAccess::region_node_offset(problem, 1) == 4 &&
+                  fuelsim::rz::ProblemAccess::region_node_offset(problem, 2) == 8,
               "arbitrary regions receive independent node ranges") &&
-        check(problem.region_element_offset(0) == 0 && problem.region_element_offset(1) == 1 &&
-                  problem.region_element_offset(2) == 2,
+        check(fuelsim::rz::ProblemAccess::region_element_offset(problem, 0) == 0 &&
+                  fuelsim::rz::ProblemAccess::region_element_offset(problem, 1) == 1 &&
+                  fuelsim::rz::ProblemAccess::region_element_offset(problem, 2) == 2,
               "arbitrary regions receive independent element ranges") &&
-        check(problem.dof_count() == 36 && problem.volume_contribution_count() == 3 &&
+        check(problem.dof_count() == 36 && fuelsim::rz::ProblemAccess::volume_contribution_count(problem) == 3 &&
                   problem.contribution_count() == 11,
               "three volumes, four STS integration points, and four NTS nodes are assembled") &&
-        check(problem.contact(0).primary == "clad_1_inner" && problem.contact(0).secondary == "pellet_outer" &&
-                  problem.contact(1).primary == "clad_2_inner" && problem.contact(1).secondary == "clad_1_outer",
+        check(fuelsim::rz::ProblemAccess::contact(problem, 0).primary == "clad_1_inner" &&
+                  fuelsim::rz::ProblemAccess::contact(problem, 0).secondary == "pellet_outer" &&
+                  fuelsim::rz::ProblemAccess::contact(problem, 1).primary == "clad_2_inner" &&
+                  fuelsim::rz::ProblemAccess::contact(problem, 1).secondary == "clad_1_outer",
               "contacts contain only primary and secondary side-set names");
 
-    for (std::size_t contribution = problem.volume_contribution_count(); contribution < problem.contribution_count();
-         ++contribution) {
-        const fuelsim::LocalValues local = problem.contribution_state(contribution, state);
-        const fuelsim::LocalSystem system = problem.linearize_contribution(contribution, local);
+    for (std::size_t contribution = fuelsim::rz::ProblemAccess::volume_contribution_count(problem);
+         contribution < problem.contribution_count(); ++contribution) {
+        const fuelsim::LocalValues local = fuelsim::rz::ProblemAccess::contribution_state(problem, contribution, state);
+        const fuelsim::LocalSystem system =
+            fuelsim::rz::ProblemAccess::linearize_contribution(problem, contribution, local);
         passed = check(std::all_of(system.residual.begin(), system.residual.end(),
                                    [](double value) { return std::isfinite(value); }),
                        "multi-contact AD residual is finite") &&
@@ -445,9 +462,10 @@ bool test_three_regions(const fuelsim::UnstructuredQuad4Mesh& mesh) {
     passed =
         check(solve.completed && solve.solve.converged, "three-region two-contact PETSc solve converges") && passed;
     if (solve.completed && solve.solve.converged) {
-        for (std::size_t contact_value = 0; contact_value < solve_problem.contact_count(); ++contact_value) {
+        for (std::size_t contact_value = 0; contact_value < fuelsim::rz::ProblemAccess::contact_count(solve_problem);
+             ++contact_value) {
             const fuelsim::InterfaceSummary summary =
-                solve_problem.summarize_interface(contact_value, solve.solve.state);
+                fuelsim::rz::ProblemAccess::summarize_interface(solve_problem, contact_value, solve.solve.state);
             passed = check(summary.projected_contact_nodes > 0 && summary.active_contact_nodes > 0 &&
                                summary.unprojected_contact_nodes == 0,
                            "every converged contact pair remains projected "
@@ -466,18 +484,19 @@ bool test_nonmatching_pellet_faces() {
         {}};
     const fuelsim::SteadyProblem problem(std::move(definition), mesh);
     const std::vector<double> state = problem.initial_state();
-    bool passed = check(problem.region_count() == 2 && problem.contact_count() == 1,
+    bool passed = check(fuelsim::rz::ProblemAccess::region_count(problem) == 2 &&
+                            fuelsim::rz::ProblemAccess::contact_count(problem) == 1,
                         "two pellet blocks form one axial contact pair");
-    for (std::size_t contribution = problem.volume_contribution_count(); contribution < problem.contribution_count();
-         ++contribution) {
-        const fuelsim::LocalResidual residual =
-            problem.contribution_residual(contribution, problem.contribution_state(contribution, state));
+    for (std::size_t contribution = fuelsim::rz::ProblemAccess::volume_contribution_count(problem);
+         contribution < problem.contribution_count(); ++contribution) {
+        const fuelsim::LocalResidual residual = fuelsim::rz::ProblemAccess::contribution_residual(
+            problem, contribution, fuelsim::rz::ProblemAccess::contribution_state(problem, contribution, state));
         passed = check(std::all_of(residual.begin(), residual.end(), [](double value) { return std::isfinite(value); }),
                        "nonmatching pellet-face contribution is finite") &&
                  passed;
     }
 
-    const fuelsim::InterfaceSummary summary = problem.summarize_interface(0, state);
+    const fuelsim::InterfaceSummary summary = fuelsim::rz::ProblemAccess::summarize_interface(problem, 0, state);
     const double expected_area = 3.141592653589793238462643383279502884 * 0.004 * 0.004;
     const double expected_heat_rate = expected_area * (0.2 / 1.0e-5) * (700.0 - 500.0);
     std::cout << "nonmatching_heat_rate=" << summary.total_heat_rate << " expected=" << expected_heat_rate << '\n';
@@ -504,22 +523,24 @@ bool test_l_shaped_primary_collinear_candidate() {
     try {
         const fuelsim::SteadyProblem problem(definition, mesh);
         const std::vector<double> state = problem.initial_state();
-        bool passed = check(problem.region_count() == 2 && problem.contact_count() == 1,
-                            "L-shaped primary chain with a far collinear candidate "
-                            "constructs successfully") &&
-                      check(problem.contribution_count() == problem.volume_contribution_count() + 4,
-                            "two secondary nodes times two primary segments form four "
-                            "mechanical candidates");
-        for (std::size_t contribution = problem.volume_contribution_count();
+        bool passed =
+            check(fuelsim::rz::ProblemAccess::region_count(problem) == 2 &&
+                      fuelsim::rz::ProblemAccess::contact_count(problem) == 1,
+                  "L-shaped primary chain with a far collinear candidate "
+                  "constructs successfully") &&
+            check(problem.contribution_count() == fuelsim::rz::ProblemAccess::volume_contribution_count(problem) + 4,
+                  "two secondary nodes times two primary segments form four "
+                  "mechanical candidates");
+        for (std::size_t contribution = fuelsim::rz::ProblemAccess::volume_contribution_count(problem);
              contribution < problem.contribution_count(); ++contribution) {
-            const fuelsim::LocalResidual residual =
-                problem.contribution_residual(contribution, problem.contribution_state(contribution, state));
+            const fuelsim::LocalResidual residual = fuelsim::rz::ProblemAccess::contribution_residual(
+                problem, contribution, fuelsim::rz::ProblemAccess::contribution_state(problem, contribution, state));
             passed =
                 check(std::all_of(residual.begin(), residual.end(), [](double value) { return std::isfinite(value); }),
                       "L-shaped primary candidate residual is finite") &&
                 passed;
         }
-        const fuelsim::InterfaceSummary summary = problem.summarize_interface(0, state);
+        const fuelsim::InterfaceSummary summary = fuelsim::rz::ProblemAccess::summarize_interface(problem, 0, state);
         passed =
             check(summary.active_contact_nodes == 0, "far collinear candidate keeps the open gap inactive") && passed;
         return passed;
@@ -541,21 +562,23 @@ bool test_zero_initial_gap_construction() {
     try {
         const fuelsim::SteadyProblem problem(definition, mesh);
         const std::vector<double> state = problem.initial_state();
-        bool passed = check(problem.region_count() == 2 && problem.contact_count() == 1,
-                            "coincident fuel-cladding surfaces construct one contact") &&
-                      check(problem.contribution_count() == problem.volume_contribution_count() + 4,
-                            "zero-gap contact assembles two STS integration points and two NTS candidates");
-        for (std::size_t contribution = problem.volume_contribution_count();
+        bool passed =
+            check(fuelsim::rz::ProblemAccess::region_count(problem) == 2 &&
+                      fuelsim::rz::ProblemAccess::contact_count(problem) == 1,
+                  "coincident fuel-cladding surfaces construct one contact") &&
+            check(problem.contribution_count() == fuelsim::rz::ProblemAccess::volume_contribution_count(problem) + 4,
+                  "zero-gap contact assembles two STS integration points and two NTS candidates");
+        for (std::size_t contribution = fuelsim::rz::ProblemAccess::volume_contribution_count(problem);
              contribution < problem.contribution_count(); ++contribution) {
-            const fuelsim::LocalSystem system =
-                problem.linearize_contribution(contribution, problem.contribution_state(contribution, state));
+            const fuelsim::LocalSystem system = fuelsim::rz::ProblemAccess::linearize_contribution(
+                problem, contribution, fuelsim::rz::ProblemAccess::contribution_state(problem, contribution, state));
             passed = check(std::all_of(system.residual.begin(), system.residual.end(),
                                        [](double value) { return std::isfinite(value); }),
                            "zero-gap contact contribution is finite at the "
                            "initial state") &&
                      passed;
         }
-        const fuelsim::InterfaceSummary summary = problem.summarize_interface(0, state);
+        const fuelsim::InterfaceSummary summary = fuelsim::rz::ProblemAccess::summarize_interface(problem, 0, state);
         passed = check(summary.projected_contact_nodes == 2 && summary.unprojected_contact_nodes == 0 &&
                            summary.active_contact_nodes == 0,
                        "zero-gap secondary nodes project at exactly zero gap "
@@ -597,7 +620,7 @@ bool test_overlapping_material_rejected() {
     try {
         const fuelsim::SteadyProblem problem(open, mesh);
         const std::vector<double> state = problem.initial_state();
-        const fuelsim::InterfaceSummary summary = problem.summarize_interface(0, state);
+        const fuelsim::InterfaceSummary summary = fuelsim::rz::ProblemAccess::summarize_interface(problem, 0, state);
         passed = check(summary.projected_contact_nodes == 2 && summary.active_contact_nodes == 0,
                        "positive-gap overlapping blocks construct with the "
                        "material-side check dormant") &&
@@ -655,7 +678,8 @@ bool test_zero_initial_gap_solve() {
             passed;
         if (!solve.completed || !solve.solve.converged)
             return false;
-        const fuelsim::InterfaceSummary summary = problem.summarize_interface(0, solve.solve.state);
+        const fuelsim::InterfaceSummary summary =
+            fuelsim::rz::ProblemAccess::summarize_interface(problem, 0, solve.solve.state);
         pressures[variant] = summary.maximum_contact_pressure;
         std::cout << (variant == 0 ? "zero_initial_gap" : "zero_initial_gap_opened_twin")
                   << "_maximum_contact_pressure=" << summary.maximum_contact_pressure << '\n'
@@ -699,11 +723,11 @@ bool test_transient_regions(const fuelsim::UnstructuredQuad4Mesh& mesh) {
     fuelsim::TransientProblem problem(std::move(definition), mesh);
     const std::vector<double> initial = problem.committed_solution();
     problem.begin_time_step({1.0, 0.5});
-    const fuelsim::LocalValues local = problem.contribution_state(2, initial);
-    (void)problem.linearize_contribution(2, local);
+    const fuelsim::LocalValues local = fuelsim::rz::ProblemAccess::contribution_state(problem, 2, initial);
+    (void)fuelsim::rz::ProblemAccess::linearize_contribution(problem, 2, local);
     problem.rollback_time_step();
 
-    bool passed = check(problem.region_count() == 3 && problem.committed_time() == 0.0 &&
+    bool passed = check(fuelsim::rz::ProblemAccess::region_count(problem) == 3 && problem.committed_time() == 0.0 &&
                             problem.committed_solution() == initial && !problem.time_step_active(),
                         "three-region transient rollback preserves committed state");
 
@@ -713,8 +737,9 @@ bool test_transient_regions(const fuelsim::UnstructuredQuad4Mesh& mesh) {
         check(problem.committed_time() == 1.0 && problem.committed_load_factor() == 1.0 && !problem.time_step_active(),
               "three-region transient state commits once") &&
         passed;
-    for (std::size_t region = 0; region < problem.region_count(); ++region) {
-        const fuelsim::RegionInelasticSummary summary = problem.summarize_region_history(region);
+    for (std::size_t region = 0; region < fuelsim::rz::ProblemAccess::region_count(problem); ++region) {
+        const fuelsim::RegionInelasticSummary summary =
+            fuelsim::rz::ProblemAccess::summarize_region_history(problem, region);
         passed =
             check(summary.maximum_equivalent_plastic_strain == 0.0 && summary.maximum_equivalent_creep_strain == 0.0,
                   "elastic region keeps zero inelastic history") &&

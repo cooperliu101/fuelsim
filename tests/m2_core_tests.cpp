@@ -1,5 +1,6 @@
 #include "fuelsim/inelastic_material.hpp"
 #include "fuelsim/quad4_rz_transient.hpp"
+#include "fuelsim/rz_problem_access.hpp"
 #include "fuelsim/transient_problem.hpp"
 #include "support/mesh_fixture.hpp"
 
@@ -933,26 +934,28 @@ bool test_problem_history_transaction() {
         fuelsim::test::make_disconnected_annular_mesh({{1, "solid", 0.0, 1.0, 1.0, 1, 1}});
     fuelsim::TransientProblem problem(transaction_definition(), mesh);
     const std::vector<double> initial_solution = problem.committed_solution();
-    const fuelsim::MaterialPointState initial_history = problem.material_history(0, 0)[0];
+    const fuelsim::MaterialPointState initial_history = fuelsim::rz::ProblemAccess::material_history(problem, 0, 0)[0];
 
     problem.begin_time_step({1.0, 0.5});
     std::vector<double> trial_solution = initial_solution;
-    const fuelsim::DofMap& dofs = problem.dof_map();
-    for (std::size_t local_node = 0; local_node < problem.region_mesh(0).nodes().size(); ++local_node) {
-        const fuelsim::RzPoint& point = problem.region_mesh(0).nodes()[local_node];
-        const std::size_t global_node = problem.region_node_offset(0) + local_node;
+    const fuelsim::DofMap& dofs = fuelsim::rz::ProblemAccess::dof_map(problem);
+    for (std::size_t local_node = 0; local_node < fuelsim::rz::ProblemAccess::region_mesh(problem, 0).nodes().size();
+         ++local_node) {
+        const fuelsim::RzPoint& point = fuelsim::rz::ProblemAccess::region_mesh(problem, 0).nodes()[local_node];
+        const std::size_t global_node = fuelsim::rz::ProblemAccess::region_node_offset(problem, 0) + local_node;
         trial_solution[dofs.radial_displacement(global_node)] = -0.05 * point.r;
         trial_solution[dofs.axial_displacement(global_node)] = 0.10 * point.z;
     }
-    const fuelsim::LocalValues local_trial = problem.contribution_state(0, trial_solution);
-    (void)problem.contribution_residual(0, local_trial);
-    (void)problem.linearize_contribution(0, local_trial);
+    const fuelsim::LocalValues local_trial = fuelsim::rz::ProblemAccess::contribution_state(problem, 0, trial_solution);
+    (void)fuelsim::rz::ProblemAccess::contribution_residual(problem, 0, local_trial);
+    (void)fuelsim::rz::ProblemAccess::linearize_contribution(problem, 0, local_trial);
 
-    bool passed = check(same_state(problem.material_history(0, 0)[0], initial_history),
+    bool passed = check(same_state(fuelsim::rz::ProblemAccess::material_history(problem, 0, 0)[0], initial_history),
                         "Newton residual and Jacobian callbacks do not mutate "
                         "committed history");
     problem.commit_time_step(trial_solution);
-    const fuelsim::RegionInelasticSummary committed_history = problem.summarize_region_history(0);
+    const fuelsim::RegionInelasticSummary committed_history =
+        fuelsim::rz::ProblemAccess::summarize_region_history(problem, 0);
     const double committed_plastic = committed_history.maximum_equivalent_plastic_strain;
     const double committed_creep = committed_history.maximum_equivalent_creep_strain;
     passed =
@@ -970,18 +973,22 @@ bool test_problem_history_transaction() {
     problem.begin_time_step({2.0, 0.75});
     problem.rollback_time_step();
     passed = check(problem.committed_time() == 1.0 && problem.committed_load_factor() == 0.5 &&
-                       problem.region_kernel(0).volumetric_heat_source() == 50.0,
+                       fuelsim::rz::ProblemAccess::region_kernel(problem, 0).volumetric_heat_source() == 50.0,
                    "rollback restores the committed time and heat load") &&
              passed;
-    passed = check(problem.summarize_region_history(0).maximum_equivalent_creep_strain == committed_creep &&
-                       problem.summarize_region_history(0).maximum_equivalent_plastic_strain == committed_plastic &&
-                       problem.committed_solution() == trial_solution,
-                   "rollback preserves committed nodal and material history") &&
-             passed;
+    passed =
+        check(fuelsim::rz::ProblemAccess::summarize_region_history(problem, 0).maximum_equivalent_creep_strain ==
+                      committed_creep &&
+                  fuelsim::rz::ProblemAccess::summarize_region_history(problem, 0).maximum_equivalent_plastic_strain ==
+                      committed_plastic &&
+                  problem.committed_solution() == trial_solution,
+              "rollback preserves committed nodal and material history") &&
+        passed;
 
     problem.begin_time_step({2.0, 0.75});
     std::vector<double> invalid_solution = trial_solution;
-    invalid_solution[problem.dof_map().temperature(problem.region_node_offset(0))] = -100.0;
+    invalid_solution[fuelsim::rz::ProblemAccess::dof_map(problem).temperature(
+        fuelsim::rz::ProblemAccess::region_node_offset(problem, 0))] = -100.0;
     bool invalid_commit_threw = false;
     try {
         problem.commit_time_step(invalid_solution);
@@ -993,15 +1000,18 @@ bool test_problem_history_transaction() {
                                                                   "changing committed state") &&
         passed;
     problem.rollback_time_step();
-    passed = check(problem.committed_time() == 1.0 && problem.committed_solution() == trial_solution &&
-                       problem.summarize_region_history(0).maximum_equivalent_creep_strain == committed_creep &&
-                       problem.summarize_region_history(0).maximum_equivalent_plastic_strain == committed_plastic,
-                   "failed commit retains the previous complete transaction") &&
-             passed;
+    passed =
+        check(problem.committed_time() == 1.0 && problem.committed_solution() == trial_solution &&
+                  fuelsim::rz::ProblemAccess::summarize_region_history(problem, 0).maximum_equivalent_creep_strain ==
+                      committed_creep &&
+                  fuelsim::rz::ProblemAccess::summarize_region_history(problem, 0).maximum_equivalent_plastic_strain ==
+                      committed_plastic,
+              "failed commit retains the previous complete transaction") &&
+        passed;
 
     bool inactive_threw = false;
     try {
-        (void)problem.contribution_residual(0, local_trial);
+        (void)fuelsim::rz::ProblemAccess::contribution_residual(problem, 0, local_trial);
     } catch (const std::logic_error&) {
         inactive_threw = true;
     }

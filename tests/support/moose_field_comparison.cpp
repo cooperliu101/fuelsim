@@ -1,4 +1,5 @@
 #include "support/moose_field_comparison.hpp"
+#include "fuelsim/rz_problem_access.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -91,9 +92,9 @@ std::vector<ActualNodalField> steady_values(const SteadyProblem& problem, const 
     if (state.size() != problem.dof_count())
         throw std::invalid_argument("Steady full-field state size mismatch");
     std::vector<ActualNodalField> result(source_node_count);
-    for (std::size_t region = 0; region < problem.region_count(); ++region) {
-        const RegionMesh& mesh = problem.region_mesh(region);
-        const std::size_t offset = problem.region_node_offset(region);
+    for (std::size_t region = 0; region < fuelsim::rz::ProblemAccess::region_count(problem); ++region) {
+        const RegionMesh& mesh = fuelsim::rz::ProblemAccess::region_mesh(problem, region);
+        const std::size_t offset = fuelsim::rz::ProblemAccess::region_node_offset(problem, region);
         for (std::size_t local = 0; local < mesh.nodes().size(); ++local) {
             const std::size_t source = mesh.source_node_ids().at(local);
             if (source >= result.size() || result[source].present)
@@ -101,9 +102,9 @@ std::vector<ActualNodalField> steady_values(const SteadyProblem& problem, const 
             const std::size_t global = offset + local;
             result[source] = {mesh.nodes()[local].r,
                               mesh.nodes()[local].z,
-                              state[problem.dof_map().temperature(global)],
-                              state[problem.dof_map().radial_displacement(global)],
-                              state[problem.dof_map().axial_displacement(global)],
+                              state[fuelsim::rz::ProblemAccess::dof_map(problem).temperature(global)],
+                              state[fuelsim::rz::ProblemAccess::dof_map(problem).radial_displacement(global)],
+                              state[fuelsim::rz::ProblemAccess::dof_map(problem).axial_displacement(global)],
                               true};
         }
     }
@@ -115,9 +116,9 @@ std::vector<ActualNodalField> transient_values(const TransientProblem& problem, 
     if (state.size() != problem.dof_count())
         throw std::invalid_argument("Transient full-field state size mismatch");
     std::vector<ActualNodalField> result(source_node_count);
-    for (std::size_t region = 0; region < problem.region_count(); ++region) {
-        const RegionMesh& mesh = problem.region_mesh(region);
-        const std::size_t offset = problem.region_node_offset(region);
+    for (std::size_t region = 0; region < fuelsim::rz::ProblemAccess::region_count(problem); ++region) {
+        const RegionMesh& mesh = fuelsim::rz::ProblemAccess::region_mesh(problem, region);
+        const std::size_t offset = fuelsim::rz::ProblemAccess::region_node_offset(problem, region);
         for (std::size_t local = 0; local < mesh.nodes().size(); ++local) {
             const std::size_t source = mesh.source_node_ids().at(local);
             if (source >= result.size() || result[source].present)
@@ -125,9 +126,9 @@ std::vector<ActualNodalField> transient_values(const TransientProblem& problem, 
             const std::size_t global = offset + local;
             result[source] = {mesh.nodes()[local].r,
                               mesh.nodes()[local].z,
-                              state[problem.dof_map().temperature(global)],
-                              state[problem.dof_map().radial_displacement(global)],
-                              state[problem.dof_map().axial_displacement(global)],
+                              state[fuelsim::rz::ProblemAccess::dof_map(problem).temperature(global)],
+                              state[fuelsim::rz::ProblemAccess::dof_map(problem).radial_displacement(global)],
+                              state[fuelsim::rz::ProblemAccess::dof_map(problem).axial_displacement(global)],
                               true};
         }
     }

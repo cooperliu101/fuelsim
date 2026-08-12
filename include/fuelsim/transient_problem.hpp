@@ -3,7 +3,6 @@
 
 #include "fuelsim/inelastic_material.hpp"
 #include "fuelsim/nonlinear_problem.hpp"
-#include "fuelsim/quad4_rz_transient.hpp"
 #include "fuelsim/spatial_definition.hpp"
 
 #include <array>
@@ -15,7 +14,7 @@
 namespace fuelsim {
 
 namespace rz {
-class SpatialAssembly;
+class ProblemAccess;
 class TransientConservationCalculator;
 } // namespace rz
 struct TransientTimeErrorEstimate;
@@ -89,16 +88,6 @@ inline constexpr std::array<TransientConservationField, 18> transient_conservati
     {"creep_dissipation_increment", &TransientConservationSummary::creep_dissipation_increment},
 }};
 
-struct TransientCommittedState final {
-    std::vector<double> solution;
-    std::vector<std::vector<Quad4MaterialHistory>> material_histories;
-    std::vector<std::vector<std::array<AxisymmetricStressValues, 4>>> material_stresses;
-    std::vector<std::vector<ContactPointHistory>> contact_histories;
-    TransientConservationSummary conservation;
-    double time = 0.0;
-    double load_factor = 0.0;
-};
-
 // Opaque, immutable transaction snapshot used by the common time integrator.
 // Its concrete material and contact layout remains owned by TransientProblem.
 class TransientStateSnapshot final {
@@ -127,24 +116,12 @@ class TransientProblem final : public NonlinearProblem {
     TransientProblem(TransientProblemDefinition definition, const UnstructuredQuad4Mesh& source_mesh);
     ~TransientProblem() override;
 
-    const TransientProblemDefinition& definition() const noexcept;
-    const DofMap& dof_map() const noexcept;
-    std::size_t region_count() const noexcept;
-    std::size_t region_index(const std::string& name) const;
-    std::size_t region_node_offset(std::size_t region_index) const;
-    const RegionDefinition& region(std::size_t region_index) const;
-    const RegionMesh& region_mesh(std::size_t region_index) const;
-    const Quad4RzTransientKernel& region_kernel(std::size_t region_index) const;
-    const Quad4RzGeometry& region_element_geometry(std::size_t region_index, std::size_t element_index) const;
-
     const std::vector<double>& committed_solution() const noexcept;
     double committed_time() const noexcept;
     double committed_load_factor() const noexcept;
     bool time_step_active() const noexcept;
     std::vector<double> time_events() const;
 
-    TransientCommittedState committed_state() const;
-    void restore_committed_state(TransientCommittedState state);
     TransientStateSnapshot capture_state() const;
     void restore_state(const TransientStateSnapshot& snapshot);
     TransientTimeErrorEstimate step_doubling_error(const TransientStateSnapshot& full_step,
@@ -159,15 +136,7 @@ class TransientProblem final : public NonlinearProblem {
     AugmentedContactUpdate update_augmented_contact_multipliers(const std::vector<double>& state,
                                                                 std::size_t completed_updates);
 
-    const Quad4MaterialHistory& material_history(std::size_t region_index, std::size_t element_index) const;
-    const std::array<AxisymmetricStressValues, 4>& material_stress(std::size_t region_index,
-                                                                   std::size_t element_index) const;
-    RegionInelasticSummary summarize_region_history(std::size_t region_index) const;
     const TransientConservationSummary& last_conservation_summary() const noexcept;
-    InterfaceSummary summarize_interface(std::size_t contact_index, const std::vector<double>& state) const;
-    std::vector<ContactNodeSummary> summarize_contact_nodes(std::size_t contact_index,
-                                                            const std::vector<double>& state) const;
-    std::vector<std::size_t> contact_secondary_source_nodes(std::size_t contact_index) const;
 
     std::size_t dof_count() const noexcept override;
     std::size_t contribution_count() const noexcept override;
@@ -185,34 +154,17 @@ class TransientProblem final : public NonlinearProblem {
     void compute_contribution_system(std::size_t contribution_index, const std::vector<double>& state,
                                      std::vector<double>& residual, std::vector<double>& jacobian) const override;
 
-    LocalDofs contribution_dofs(std::size_t contribution_index) const;
-    LocalValues contribution_state(std::size_t contribution_index, const std::vector<double>& global_state) const;
-    LocalValues contribution_state(std::size_t contribution_index, const GlobalStateView& global_state) const;
-    LocalResidual contribution_residual(std::size_t contribution_index, const LocalValues& state) const;
-    LocalSystem linearize_contribution(std::size_t contribution_index, const LocalValues& state) const;
-
   private:
+    friend class rz::ProblemAccess;
     friend class rz::TransientConservationCalculator;
 
+    class Implementation;
     void apply_spatial_controls(double time, double load_factor);
     void clear_active_time_step() noexcept;
     void refresh_region_heat_sources();
     void require_active_time_step() const;
 
-    TransientProblemDefinition _definition;
-    std::unique_ptr<rz::SpatialAssembly> _spatial;
-    std::vector<Quad4RzTransientKernel> _region_kernels;
-    std::vector<std::vector<Quad4MaterialHistory>> _material_histories;
-    std::vector<std::vector<std::array<AxisymmetricStressValues, 4>>> _material_stresses;
-    TransientConservationSummary _last_conservation_summary;
-    std::vector<double> _committed_solution;
-    double _committed_time;
-    double _committed_load_factor;
-    double _active_time_step;
-    double _active_end_time;
-    double _active_load_factor;
-    std::vector<std::vector<ContactPointHistory>> _active_contact_histories;
-    bool _time_step_active;
+    std::unique_ptr<Implementation> _implementation;
 };
 
 } // namespace fuelsim

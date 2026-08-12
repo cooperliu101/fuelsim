@@ -2,6 +2,7 @@
 #include "fuelsim/diagnostics.hpp"
 #include "fuelsim/nonlinear_problem.hpp"
 #include "fuelsim/problem_solver.hpp"
+#include "fuelsim/rz_problem_access.hpp"
 #include "fuelsim/steady_problem.hpp"
 #include "fuelsim/time_table.hpp"
 #include "fuelsim/transient_problem.hpp"
@@ -245,137 +246,152 @@ void copy_rz_system(const LocalSystem& source, std::vector<double>& residual, st
 
 // Steady nonlinear problem.
 
-SteadyProblem::SteadyProblem(SpatialDefinition definition, const UnstructuredQuad4Mesh& source_mesh)
-    : _spatial(std::make_unique<rz::SpatialAssembly>(std::move(definition), source_mesh)) {
-    _region_kernels.reserve(_spatial->region_count());
-    for (std::size_t region_value = 0; region_value < _spatial->region_count(); ++region_value) {
-        const RegionDefinition& value = _spatial->region(region_value);
-        _region_kernels.emplace_back(IsotropicThermoelasticMaterial(value.material),
-                                     _spatial->region_heat_source(region_value), value.strain_formulation);
+class SteadyProblem::Implementation final {
+  public:
+    Implementation(SpatialDefinition definition, const UnstructuredQuad4Mesh& source_mesh)
+        : spatial(std::make_unique<rz::SpatialAssembly>(std::move(definition), source_mesh)) {
+        region_kernels.reserve(spatial->region_count());
+        for (std::size_t region_value = 0; region_value < spatial->region_count(); ++region_value) {
+            const RegionDefinition& value = spatial->region(region_value);
+            region_kernels.emplace_back(IsotropicThermoelasticMaterial(value.material),
+                                        spatial->region_heat_source(region_value), value.strain_formulation);
+        }
     }
-}
+
+    std::unique_ptr<rz::SpatialAssembly> spatial;
+    std::vector<Quad4RzThermoelasticKernel> region_kernels;
+};
+
+SteadyProblem::SteadyProblem(SpatialDefinition definition, const UnstructuredQuad4Mesh& source_mesh)
+    : _implementation(std::make_unique<Implementation>(std::move(definition), source_mesh)) {}
 
 SteadyProblem::~SteadyProblem() = default;
 
-const SpatialDefinition& SteadyProblem::definition() const noexcept {
-    return _spatial->definition();
+const SpatialDefinition& rz::ProblemAccess::definition(const SteadyProblem& problem) noexcept {
+    return problem._implementation->spatial->definition();
 }
 
-const DofMap& SteadyProblem::dof_map() const noexcept {
-    return _spatial->dof_map();
+const DofMap& rz::ProblemAccess::dof_map(const SteadyProblem& problem) noexcept {
+    return problem._implementation->spatial->dof_map();
 }
 
-std::size_t SteadyProblem::region_count() const noexcept {
-    return _spatial->region_count();
+std::size_t rz::ProblemAccess::region_count(const SteadyProblem& problem) noexcept {
+    return problem._implementation->spatial->region_count();
 }
 
-std::size_t SteadyProblem::region_index(const std::string& name) const {
-    return _spatial->region_index(name);
+std::size_t rz::ProblemAccess::region_index(const SteadyProblem& problem, const std::string& name) {
+    return problem._implementation->spatial->region_index(name);
 }
 
-const RegionDefinition& SteadyProblem::region(std::size_t index) const {
-    return _spatial->region(index);
+const RegionDefinition& rz::ProblemAccess::region(const SteadyProblem& problem, std::size_t index) {
+    return problem._implementation->spatial->region(index);
 }
 
-const RegionMesh& SteadyProblem::region_mesh(std::size_t index) const {
-    return _spatial->region_mesh(index);
+const RegionMesh& rz::ProblemAccess::region_mesh(const SteadyProblem& problem, std::size_t index) {
+    return problem._implementation->spatial->region_mesh(index);
 }
 
-const Quad4RzThermoelasticKernel& SteadyProblem::region_kernel(std::size_t index) const {
-    return _region_kernels.at(index);
+const Quad4RzThermoelasticKernel& rz::ProblemAccess::region_kernel(const SteadyProblem& problem, std::size_t index) {
+    return problem._implementation->region_kernels.at(index);
 }
 
-std::size_t SteadyProblem::region_node_offset(std::size_t index) const {
-    return _spatial->region_node_offset(index);
+std::size_t rz::ProblemAccess::region_node_offset(const SteadyProblem& problem, std::size_t index) {
+    return problem._implementation->spatial->region_node_offset(index);
 }
 
-std::size_t SteadyProblem::region_element_count(std::size_t index) const {
-    return _spatial->region_element_count(index);
+std::size_t rz::ProblemAccess::region_element_count(const SteadyProblem& problem, std::size_t index) {
+    return problem._implementation->spatial->region_element_count(index);
 }
 
-std::size_t SteadyProblem::region_element_offset(std::size_t index) const {
-    return _spatial->region_element_offset(index);
+std::size_t rz::ProblemAccess::region_element_offset(const SteadyProblem& problem, std::size_t index) {
+    return problem._implementation->spatial->region_element_offset(index);
 }
 
-std::size_t SteadyProblem::volume_contribution_count() const noexcept {
-    return _spatial->volume_contribution_count();
+std::size_t rz::ProblemAccess::volume_contribution_count(const SteadyProblem& problem) noexcept {
+    return problem._implementation->spatial->volume_contribution_count();
 }
 
-SpatialContributionType SteadyProblem::contribution_type(std::size_t contribution_index) const {
-    return _spatial->contribution_type(contribution_index);
+SpatialContributionType rz::ProblemAccess::contribution_type(const SteadyProblem& problem,
+                                                             std::size_t contribution_index) {
+    return problem._implementation->spatial->contribution_type(contribution_index);
 }
 
-const Quad4RzGeometry& SteadyProblem::region_element_geometry(std::size_t region_value,
-                                                              std::size_t element_index) const {
-    return _spatial->region_element_geometry(region_value, element_index);
+const Quad4RzGeometry& rz::ProblemAccess::region_element_geometry(const SteadyProblem& problem,
+                                                                  std::size_t region_value, std::size_t element_index) {
+    return problem._implementation->spatial->region_element_geometry(region_value, element_index);
 }
 
-std::size_t SteadyProblem::contact_count() const noexcept {
-    return _spatial->contact_count();
+std::size_t rz::ProblemAccess::contact_count(const SteadyProblem& problem) noexcept {
+    return problem._implementation->spatial->contact_count();
 }
 
-const ContactDefinition& SteadyProblem::contact(std::size_t index) const {
-    return _spatial->contact(index);
+const ContactDefinition& rz::ProblemAccess::contact(const SteadyProblem& problem, std::size_t index) {
+    return problem._implementation->spatial->contact(index);
 }
 
-const std::vector<std::vector<ContactPointHistory>>& SteadyProblem::committed_contact_histories() const noexcept {
-    return _spatial->committed_contact_histories();
+const std::vector<std::vector<ContactPointHistory>>&
+rz::ProblemAccess::committed_contact_histories(const SteadyProblem& problem) noexcept {
+    return problem._implementation->spatial->committed_contact_histories();
 }
 
-void SteadyProblem::commit_contact_state(const std::vector<double>& state) {
-    _spatial->commit_contact_state(state);
+void rz::ProblemAccess::commit_contact_state(SteadyProblem& problem, const std::vector<double>& state) {
+    problem._implementation->spatial->commit_contact_state(state);
 }
 
 bool SteadyProblem::uses_augmented_contact() const noexcept {
-    return _spatial->uses_augmented_contact();
+    return _implementation->spatial->uses_augmented_contact();
 }
 
 AugmentedContactUpdate SteadyProblem::update_augmented_contact_multipliers(const std::vector<double>& state,
                                                                            std::size_t completed_updates) {
-    return _spatial->update_augmented_contact_multipliers(state, completed_updates);
+    return _implementation->spatial->update_augmented_contact_multipliers(state, completed_updates);
 }
 
-void SteadyProblem::restore_contact_state(const std::vector<double>& state,
-                                          std::vector<std::vector<ContactPointHistory>> histories) {
-    _spatial->restore_contact_state(state, std::move(histories));
+void rz::ProblemAccess::restore_contact_state(SteadyProblem& problem, const std::vector<double>& state,
+                                              std::vector<std::vector<ContactPointHistory>> histories) {
+    problem._implementation->spatial->restore_contact_state(state, std::move(histories));
 }
 
 void SteadyProblem::set_load_factor(double value) {
-    _spatial->set_load_factor(value);
+    _implementation->spatial->set_load_factor(value);
     refresh_region_heat_sources();
 }
 
 void SteadyProblem::refresh_region_heat_sources() {
-    for (std::size_t region_value = 0; region_value < region_count(); ++region_value)
-        _region_kernels[region_value].set_volumetric_heat_source(_spatial->region_heat_source(region_value));
+    for (std::size_t region_value = 0; region_value < _implementation->spatial->region_count(); ++region_value)
+        _implementation->region_kernels[region_value].set_volumetric_heat_source(
+            _implementation->spatial->region_heat_source(region_value));
 }
 
 double SteadyProblem::load_factor() const noexcept {
-    return _spatial->load_factor();
+    return _implementation->spatial->load_factor();
 }
 
 void SteadyProblem::set_time(double value) {
-    _spatial->set_time(value);
-    for (Quad4RzThermoelasticKernel& kernel : _region_kernels)
+    _implementation->spatial->set_time(value);
+    for (Quad4RzThermoelasticKernel& kernel : _implementation->region_kernels)
         kernel.set_time(value);
     refresh_region_heat_sources();
 }
 
 std::vector<double> SteadyProblem::initial_state() const {
-    return _spatial->initial_state();
+    return _implementation->spatial->initial_state();
 }
 
-std::vector<ContactNodeSummary> SteadyProblem::summarize_contact_nodes(std::size_t contact_index,
-                                                                       const std::vector<double>& state) const {
-    return _spatial->summarize_contact_nodes(contact_index, state);
+std::vector<ContactNodeSummary> rz::ProblemAccess::summarize_contact_nodes(const SteadyProblem& problem,
+                                                                           std::size_t contact_index,
+                                                                           const std::vector<double>& state) {
+    return problem._implementation->spatial->summarize_contact_nodes(contact_index, state);
 }
 
-std::vector<std::size_t> SteadyProblem::contact_secondary_source_nodes(std::size_t contact_index) const {
-    return _spatial->contact_secondary_source_nodes(contact_index);
+std::vector<std::size_t> rz::ProblemAccess::contact_secondary_source_nodes(const SteadyProblem& problem,
+                                                                           std::size_t contact_index) {
+    return problem._implementation->spatial->contact_secondary_source_nodes(contact_index);
 }
 
-InterfaceSummary SteadyProblem::summarize_interface(std::size_t contact_index, const std::vector<double>& state) const {
-    return _spatial->summarize_interface(contact_index, state);
+InterfaceSummary rz::ProblemAccess::summarize_interface(const SteadyProblem& problem, std::size_t contact_index,
+                                                        const std::vector<double>& state) {
+    return problem._implementation->spatial->summarize_interface(contact_index, state);
 }
 
 namespace rz {
@@ -415,7 +431,8 @@ std::shared_ptr<const void> SteadyStateSnapshot::snapshot_owner() const noexcept
 }
 
 SteadyStateSnapshot SteadyProblem::capture_internal_state() const {
-    const auto state = std::make_shared<rz::SteadyStateStorage>(_spatial->committed_contact_histories());
+    const auto state =
+        std::make_shared<rz::SteadyStateStorage>(_implementation->spatial->committed_contact_histories());
     return SteadyStateSnapshot(
         std::make_shared<SteadyStateSnapshot::Storage>(discretization_identity(), std::move(state)));
 }
@@ -425,41 +442,41 @@ void SteadyProblem::restore_internal_state(const SteadyStateSnapshot& snapshot, 
         throw std::invalid_argument("SteadyProblem cannot restore an empty internal-state snapshot");
     if (snapshot.snapshot_owner() != discretization_identity())
         throw std::invalid_argument("SteadyProblem cannot restore a snapshot from another problem");
-    _spatial->restore_contact_state(state, snapshot._storage->rz_state->contact_histories);
+    _implementation->spatial->restore_contact_state(state, snapshot._storage->rz_state->contact_histories);
 }
 
 void SteadyProblem::commit_internal_state(const std::vector<double>& state) {
-    _spatial->commit_contact_state(state);
+    _implementation->spatial->commit_contact_state(state);
 }
 
 std::size_t SteadyProblem::dof_count() const noexcept {
-    return _spatial->dof_count();
+    return _implementation->spatial->dof_count();
 }
 
 std::size_t SteadyProblem::contribution_count() const noexcept {
-    return _spatial->contribution_count();
+    return _implementation->spatial->contribution_count();
 }
 
 const std::vector<FieldDescriptor>& SteadyProblem::field_layout() const noexcept {
-    return _spatial->dof_map().field_layout();
+    return _implementation->spatial->dof_map().field_layout();
 }
 
 const std::vector<DirichletCondition>& SteadyProblem::dirichlet_conditions() const noexcept {
-    return _spatial->dirichlet_conditions();
+    return _implementation->spatial->dirichlet_conditions();
 }
 
 void SteadyProblem::validate_state(const std::vector<double>& state) const {
-    _spatial->validate_state(state);
+    _implementation->spatial->validate_state(state);
 }
 
 std::vector<std::size_t> SteadyProblem::required_state_dofs(std::size_t contribution_begin,
                                                             std::size_t contribution_end) const {
-    return _spatial->required_state_dofs(contribution_begin, contribution_end);
+    return _implementation->spatial->required_state_dofs(contribution_begin, contribution_end);
 }
 
 void SteadyProblem::validate_local_state(std::size_t contribution_begin, std::size_t contribution_end,
                                          const GlobalStateView& state) const {
-    _spatial->validate_local_state(contribution_begin, contribution_end, state);
+    _implementation->spatial->validate_local_state(contribution_begin, contribution_end, state);
 }
 
 std::size_t SteadyProblem::contribution_dof_count(std::size_t contribution_index) const {
@@ -469,57 +486,85 @@ std::size_t SteadyProblem::contribution_dof_count(std::size_t contribution_index
 }
 
 void SteadyProblem::fill_contribution_dofs(std::size_t contribution_index, std::vector<std::size_t>& dofs) const {
-    const LocalDofs fixed = contribution_dofs(contribution_index);
+    const LocalDofs fixed = rz::ProblemAccess::contribution_dofs(*this, contribution_index);
     dofs.assign(fixed.begin(), fixed.end());
 }
 
 void SteadyProblem::compute_contribution_residual(std::size_t contribution_index, const std::vector<double>& state,
                                                   std::vector<double>& residual) const {
-    copy_rz_residual(contribution_residual(contribution_index, rz_local_values(state)), residual);
+    copy_rz_residual(rz::ProblemAccess::contribution_residual(*this, contribution_index, rz_local_values(state)),
+                     residual);
 }
 
 void SteadyProblem::compute_contribution_system(std::size_t contribution_index, const std::vector<double>& state,
                                                 std::vector<double>& residual, std::vector<double>& jacobian) const {
-    copy_rz_system(linearize_contribution(contribution_index, rz_local_values(state)), residual, jacobian);
+    copy_rz_system(rz::ProblemAccess::linearize_contribution(*this, contribution_index, rz_local_values(state)),
+                   residual, jacobian);
 }
 
-LocalDofs SteadyProblem::contribution_dofs(std::size_t contribution_index) const {
-    return _spatial->contribution_dofs(contribution_index);
+LocalDofs rz::ProblemAccess::contribution_dofs(const SteadyProblem& problem, std::size_t contribution_index) {
+    return problem._implementation->spatial->contribution_dofs(contribution_index);
 }
 
-LocalValues SteadyProblem::contribution_state(std::size_t contribution_index,
-                                              const std::vector<double>& global_state) const {
-    return contribution_state(contribution_index, GlobalStateView(global_state));
+LocalValues rz::ProblemAccess::contribution_state(const SteadyProblem& problem, std::size_t contribution_index,
+                                                  const std::vector<double>& global_state) {
+    return contribution_state(problem, contribution_index, GlobalStateView(global_state));
 }
 
-LocalValues SteadyProblem::contribution_state(std::size_t contribution_index,
-                                              const GlobalStateView& global_state) const {
-    if (global_state.global_size() != dof_count())
+LocalValues rz::ProblemAccess::contribution_state(const SteadyProblem& problem, std::size_t contribution_index,
+                                                  const GlobalStateView& global_state) {
+    if (global_state.global_size() != problem.dof_count())
         throw std::invalid_argument("SteadyProblem contribution state has the wrong global size");
-    const LocalDofs dofs = contribution_dofs(contribution_index);
+    const LocalDofs dofs = contribution_dofs(problem, contribution_index);
     LocalValues result{};
     for (std::size_t local = 0; local < dofs.size(); ++local)
         result[local] = global_state.value(dofs[local]);
     return result;
 }
 
-LocalResidual SteadyProblem::contribution_residual(std::size_t contribution_index, const LocalValues& state) const {
-    if (contribution_index < volume_contribution_count()) {
-        const auto location = _spatial->element_location(contribution_index);
-        return _region_kernels[location.first].residual(region_element_geometry(location.first, location.second),
-                                                        state);
+LocalResidual rz::ProblemAccess::contribution_residual(const SteadyProblem& problem, std::size_t contribution_index,
+                                                       const LocalValues& state) {
+    if (contribution_index < volume_contribution_count(problem)) {
+        const auto location = problem._implementation->spatial->element_location(contribution_index);
+        return problem._implementation->region_kernels[location.first].residual(
+            region_element_geometry(problem, location.first, location.second), state);
     }
-    return _spatial->contribution_residual(contribution_index, state);
+    return problem._implementation->spatial->contribution_residual(contribution_index, state);
 }
 
-LocalSystem SteadyProblem::linearize_contribution(std::size_t contribution_index, const LocalValues& state) const {
-    if (contribution_index < volume_contribution_count()) {
-        const auto location = _spatial->element_location(contribution_index);
-        return _region_kernels[location.first].linearize(region_element_geometry(location.first, location.second),
-                                                         state);
+LocalSystem rz::ProblemAccess::linearize_contribution(const SteadyProblem& problem, std::size_t contribution_index,
+                                                      const LocalValues& state) {
+    if (contribution_index < volume_contribution_count(problem)) {
+        const auto location = problem._implementation->spatial->element_location(contribution_index);
+        return problem._implementation->region_kernels[location.first].linearize(
+            region_element_geometry(problem, location.first, location.second), state);
     }
-    return _spatial->linearize_contribution(contribution_index, state);
+    return problem._implementation->spatial->linearize_contribution(contribution_index, state);
 }
+
+class TransientProblem::Implementation final {
+  public:
+    Implementation(TransientProblemDefinition definition_value, const UnstructuredQuad4Mesh& source_mesh)
+        : definition(std::move(definition_value)),
+          spatial(std::make_unique<rz::SpatialAssembly>(definition.spatial, source_mesh)), committed_time(0.0),
+          committed_load_factor(0.0), active_time_step(0.0), active_end_time(0.0), active_load_factor(0.0),
+          time_step_active(false) {}
+
+    TransientProblemDefinition definition;
+    std::unique_ptr<rz::SpatialAssembly> spatial;
+    std::vector<Quad4RzTransientKernel> region_kernels;
+    std::vector<std::vector<Quad4MaterialHistory>> material_histories;
+    std::vector<std::vector<std::array<AxisymmetricStressValues, 4>>> material_stresses;
+    TransientConservationSummary last_conservation_summary;
+    std::vector<double> committed_solution;
+    double committed_time;
+    double committed_load_factor;
+    double active_time_step;
+    double active_end_time;
+    double active_load_factor;
+    std::vector<std::vector<ContactPointHistory>> active_contact_histories;
+    bool time_step_active;
+};
 
 // Transient conservation diagnostics.
 namespace rz {
@@ -548,13 +593,14 @@ TransientConservationSummary TransientConservationCalculator::summarize(
     std::vector<double> raw_residual(problem.dof_count(), 0.0);
 
     for (std::size_t contribution = 0; contribution < problem.contribution_count(); ++contribution) {
-        const LocalDofs dofs = problem.contribution_dofs(contribution);
-        const LocalValues state = problem.contribution_state(contribution, converged_solution);
-        const LocalResidual residual = problem.contribution_residual(contribution, state);
-        const SpatialContributionType type = problem._spatial->contribution_type(contribution);
+        const LocalDofs dofs = ProblemAccess::contribution_dofs(problem, contribution);
+        const LocalValues state = ProblemAccess::contribution_state(problem, contribution, converged_solution);
+        const LocalResidual residual = ProblemAccess::contribution_residual(problem, contribution, state);
+        const SpatialContributionType type = problem._implementation->spatial->contribution_type(contribution);
         for (std::size_t local = 0; local < local_dof_count; ++local) {
             raw_residual[dofs[local]] += residual[local];
-            const double increment = converged_solution[dofs[local]] - problem._committed_solution[dofs[local]];
+            const double increment =
+                converged_solution[dofs[local]] - problem._implementation->committed_solution[dofs[local]];
             if (local < 4) {
                 if (type == SpatialContributionType::thermal_contact)
                     result.interface_heat_imbalance += residual[local];
@@ -571,13 +617,15 @@ TransientConservationSummary TransientConservationCalculator::summarize(
                 result.pressure_traction_work_increment -= work;
         }
     }
-    for (std::size_t region_value = 0; region_value < problem.region_count(); ++region_value) {
-        const Quad4RzTransientKernel& kernel = problem._region_kernels[region_value];
-        const std::size_t offset = problem._spatial->region_element_offset(region_value);
+    for (std::size_t region_value = 0; region_value < ProblemAccess::region_count(problem); ++region_value) {
+        const Quad4RzTransientKernel& kernel = problem._implementation->region_kernels[region_value];
+        const std::size_t offset = problem._implementation->spatial->region_element_offset(region_value);
         for (std::size_t element = 0; element < staged_histories[region_value].size(); ++element) {
-            const LocalValues current = problem.contribution_state(offset + element, converged_solution);
-            const LocalValues old = problem.contribution_state(offset + element, problem._committed_solution);
-            const Quad4RzGeometry& geometry = problem.region_element_geometry(region_value, element);
+            const LocalValues current =
+                ProblemAccess::contribution_state(problem, offset + element, converged_solution);
+            const LocalValues old = ProblemAccess::contribution_state(problem, offset + element,
+                                                                      problem._implementation->committed_solution);
+            const Quad4RzGeometry& geometry = ProblemAccess::region_element_geometry(problem, region_value, element);
             for (std::size_t q = 0; q < geometry.points.size(); ++q) {
                 const RzQuadraturePoint& point = geometry.points[q];
                 double current_temperature = 0.0;
@@ -589,12 +637,15 @@ TransientConservationSummary TransientConservationCalculator::summarize(
                 const double heat_capacity =
                     kernel.heat_capacity(current_temperature, point.radius, point.axial_coordinate);
                 result.stored_heat_rate += point.weighted_measure * heat_capacity *
-                                           (current_temperature - old_temperature) / problem._active_time_step;
+                                           (current_temperature - old_temperature) /
+                                           problem._implementation->active_time_step;
                 result.generated_heat_rate += point.weighted_measure * kernel.volumetric_heat_source();
 
-                const MaterialPointState& old_history = problem._material_histories[region_value][element][q];
+                const MaterialPointState& old_history =
+                    problem._implementation->material_histories[region_value][element][q];
                 const MaterialPointState& new_history = staged_histories[region_value][element][q];
-                const AxisymmetricStressValues& old_stress = problem._material_stresses[region_value][element][q];
+                const AxisymmetricStressValues& old_stress =
+                    problem._implementation->material_stresses[region_value][element][q];
                 const AxisymmetricStressValues& new_stress = staged_stresses[region_value][element][q];
                 result.elastic_energy_change += 0.5 * point.weighted_measure *
                                                 (stress_strain_inner_product(new_stress, new_history.elastic_strain) -
@@ -614,8 +665,9 @@ TransientConservationSummary TransientConservationCalculator::summarize(
     std::vector<bool> constrained(problem.dof_count(), false);
     for (const DirichletCondition& condition : problem.dirichlet_conditions()) {
         constrained[condition.dof] = true;
-        const double increment = converged_solution[condition.dof] - problem._committed_solution[condition.dof];
-        if (condition.dof < problem.dof_map().node_count())
+        const double increment =
+            converged_solution[condition.dof] - problem._implementation->committed_solution[condition.dof];
+        if (condition.dof < ProblemAccess::dof_map(problem).node_count())
             result.dirichlet_heat_input_rate += raw_residual[condition.dof];
         else
             result.dirichlet_reaction_work_increment += raw_residual[condition.dof] * increment;
@@ -626,7 +678,7 @@ TransientConservationSummary TransientConservationCalculator::summarize(
         if (constrained[dof])
             continue;
         const double value = raw_residual[dof];
-        if (dof < problem.dof_map().node_count())
+        if (dof < ProblemAccess::dof_map(problem).node_count())
             thermal_residual_squared += value * value;
         else
             mechanical_residual_squared += value * value;
@@ -697,84 +749,86 @@ void validate_definition(const TransientProblemDefinition& definition) {
 } // namespace
 
 TransientProblem::TransientProblem(TransientProblemDefinition definition, const UnstructuredQuad4Mesh& source_mesh)
-    : _definition(std::move(definition)),
-      _spatial(std::make_unique<rz::SpatialAssembly>(_definition.spatial, source_mesh)), _committed_time(0.0),
-      _committed_load_factor(0.0), _active_time_step(0.0), _active_end_time(0.0), _active_load_factor(0.0),
-      _time_step_active(false) {
-    validate_definition(_definition);
-    _region_kernels.reserve(region_count());
-    _material_histories.resize(region_count());
-    _material_stresses.resize(region_count());
-    for (std::size_t region_value = 0; region_value < region_count(); ++region_value) {
-        _region_kernels.emplace_back(IsotropicInelasticMaterial(_definition.spatial.regions[region_value].material,
-                                                                _definition.regions[region_value].material),
-                                     0.0, _definition.spatial.regions[region_value].strain_formulation);
-        _material_histories[region_value].resize(_spatial->region_element_count(region_value));
-        _material_stresses[region_value].resize(_spatial->region_element_count(region_value));
+    : _implementation(std::make_unique<Implementation>(std::move(definition), source_mesh)) {
+    validate_definition(_implementation->definition);
+    const std::size_t regions = _implementation->definition.spatial.regions.size();
+    _implementation->region_kernels.reserve(regions);
+    _implementation->material_histories.resize(regions);
+    _implementation->material_stresses.resize(regions);
+    for (std::size_t region_value = 0; region_value < regions; ++region_value) {
+        _implementation->region_kernels.emplace_back(
+            IsotropicInelasticMaterial(_implementation->definition.spatial.regions[region_value].material,
+                                       _implementation->definition.regions[region_value].material),
+            0.0, _implementation->definition.spatial.regions[region_value].strain_formulation);
+        _implementation->material_histories[region_value].resize(
+            _implementation->spatial->region_element_count(region_value));
+        _implementation->material_stresses[region_value].resize(
+            _implementation->spatial->region_element_count(region_value));
     }
     apply_spatial_controls(0.0, 0.0);
-    _committed_solution = _spatial->initial_state();
-    _spatial->restore_contact_state(_committed_solution, _spatial->committed_contact_histories());
+    _implementation->committed_solution = _implementation->spatial->initial_state();
+    _implementation->spatial->restore_contact_state(_implementation->committed_solution,
+                                                    _implementation->spatial->committed_contact_histories());
 }
 
 TransientProblem::~TransientProblem() = default;
 
-const TransientProblemDefinition& TransientProblem::definition() const noexcept {
-    return _definition;
+const TransientProblemDefinition& rz::ProblemAccess::definition(const TransientProblem& problem) noexcept {
+    return problem._implementation->definition;
 }
 
-const DofMap& TransientProblem::dof_map() const noexcept {
-    return _spatial->dof_map();
+const DofMap& rz::ProblemAccess::dof_map(const TransientProblem& problem) noexcept {
+    return problem._implementation->spatial->dof_map();
 }
 
-std::size_t TransientProblem::region_count() const noexcept {
-    return _definition.spatial.regions.size();
+std::size_t rz::ProblemAccess::region_count(const TransientProblem& problem) noexcept {
+    return problem._implementation->definition.spatial.regions.size();
 }
 
-std::size_t TransientProblem::region_index(const std::string& name) const {
-    return _spatial->region_index(name);
+std::size_t rz::ProblemAccess::region_index(const TransientProblem& problem, const std::string& name) {
+    return problem._implementation->spatial->region_index(name);
 }
 
-std::size_t TransientProblem::region_node_offset(std::size_t region_value) const {
-    return _spatial->region_node_offset(region_value);
+std::size_t rz::ProblemAccess::region_node_offset(const TransientProblem& problem, std::size_t region_value) {
+    return problem._implementation->spatial->region_node_offset(region_value);
 }
 
-const RegionDefinition& TransientProblem::region(std::size_t index) const {
-    return _spatial->region(index);
+const RegionDefinition& rz::ProblemAccess::region(const TransientProblem& problem, std::size_t index) {
+    return problem._implementation->spatial->region(index);
 }
 
-const RegionMesh& TransientProblem::region_mesh(std::size_t index) const {
-    return _spatial->region_mesh(index);
+const RegionMesh& rz::ProblemAccess::region_mesh(const TransientProblem& problem, std::size_t index) {
+    return problem._implementation->spatial->region_mesh(index);
 }
 
-const Quad4RzTransientKernel& TransientProblem::region_kernel(std::size_t index) const {
-    return _region_kernels.at(index);
+const Quad4RzTransientKernel& rz::ProblemAccess::region_kernel(const TransientProblem& problem, std::size_t index) {
+    return problem._implementation->region_kernels.at(index);
 }
 
-const Quad4RzGeometry& TransientProblem::region_element_geometry(std::size_t region_value,
-                                                                 std::size_t element_index) const {
-    return _spatial->region_element_geometry(region_value, element_index);
+const Quad4RzGeometry& rz::ProblemAccess::region_element_geometry(const TransientProblem& problem,
+                                                                  std::size_t region_value, std::size_t element_index) {
+    return problem._implementation->spatial->region_element_geometry(region_value, element_index);
 }
 
 const std::vector<double>& TransientProblem::committed_solution() const noexcept {
-    return _committed_solution;
+    return _implementation->committed_solution;
 }
 
 double TransientProblem::committed_time() const noexcept {
-    return _committed_time;
+    return _implementation->committed_time;
 }
 
 double TransientProblem::committed_load_factor() const noexcept {
-    return _committed_load_factor;
+    return _implementation->committed_load_factor;
 }
 
 bool TransientProblem::time_step_active() const noexcept {
-    return _time_step_active;
+    return _implementation->time_step_active;
 }
 
 std::vector<double> TransientProblem::time_events() const {
     std::vector<double> result;
-    for (const PiecewiseLinearTimeTable& table : _definition.spatial.time_tables)
+    for (const PiecewiseLinearTimeTable& table : _implementation->definition.spatial.time_tables)
         result.insert(result.end(), table.times().begin(), table.times().end());
     std::sort(result.begin(), result.end());
     result.erase(std::unique(result.begin(), result.end()), result.end());
@@ -816,16 +870,20 @@ std::shared_ptr<const void> TransientStateSnapshot::snapshot_owner() const noexc
     return _storage != nullptr ? _storage->owner : nullptr;
 }
 
-TransientCommittedState TransientProblem::committed_state() const {
-    return {
-        _committed_solution,        _material_histories, _material_stresses,    _spatial->committed_contact_histories(),
-        _last_conservation_summary, _committed_time,     _committed_load_factor};
+rz::TransientCommittedState rz::ProblemAccess::committed_state(const TransientProblem& problem) {
+    return {problem._implementation->committed_solution,
+            problem._implementation->material_histories,
+            problem._implementation->material_stresses,
+            problem._implementation->spatial->committed_contact_histories(),
+            problem._implementation->last_conservation_summary,
+            problem._implementation->committed_time,
+            problem._implementation->committed_load_factor};
 }
 
 TransientStateSnapshot TransientProblem::capture_state() const {
-    if (_time_step_active)
+    if (_implementation->time_step_active)
         throw std::logic_error("TransientProblem cannot capture an active time step");
-    const auto state = std::make_shared<rz::TransientStateStorage>(committed_state());
+    const auto state = std::make_shared<rz::TransientStateStorage>(rz::ProblemAccess::committed_state(*this));
     return TransientStateSnapshot(
         std::make_shared<TransientStateSnapshot::Storage>(discretization_identity(), std::move(state)));
 }
@@ -835,28 +893,29 @@ void TransientProblem::restore_state(const TransientStateSnapshot& snapshot) {
         throw std::invalid_argument("TransientProblem cannot restore an empty state snapshot");
     if (snapshot.snapshot_owner() != discretization_identity())
         throw std::invalid_argument("TransientProblem cannot restore a snapshot from another problem");
-    restore_committed_state(snapshot._storage->rz_state->state);
+    rz::ProblemAccess::restore_committed_state(*this, snapshot._storage->rz_state->state);
 }
 
-void TransientProblem::restore_committed_state(TransientCommittedState state) {
-    if (_time_step_active)
+void rz::ProblemAccess::restore_committed_state(TransientProblem& problem, TransientCommittedState state) {
+    if (problem._implementation->time_step_active)
         throw std::logic_error("TransientProblem cannot restore during an active time step");
-    if (state.solution.size() != dof_count() || state.material_histories.size() != region_count() ||
-        state.material_stresses.size() != region_count() ||
-        state.contact_histories.size() != _definition.spatial.contacts.size())
+    if (state.solution.size() != problem.dof_count() || state.material_histories.size() != region_count(problem) ||
+        state.material_stresses.size() != region_count(problem) ||
+        state.contact_histories.size() != problem._implementation->definition.spatial.contacts.size())
         throw std::invalid_argument("Transient committed state layout does not match the problem");
     if (!std::isfinite(state.time) || state.time < 0.0 || !std::isfinite(state.load_factor) || state.load_factor < 0.0)
         throw std::invalid_argument("Transient committed time and load factor must be valid");
-    for (std::size_t node = 0; node < dof_map().node_count(); ++node) {
-        const double temperature = state.solution.at(dof_map().temperature(node));
+    const DofMap& dofs = dof_map(problem);
+    for (std::size_t node = 0; node < dofs.node_count(); ++node) {
+        const double temperature = state.solution.at(dofs.temperature(node));
         if (!std::isfinite(temperature) || !(temperature > 0.0) ||
-            !std::isfinite(state.solution.at(dof_map().radial_displacement(node))) ||
-            !std::isfinite(state.solution.at(dof_map().axial_displacement(node))))
+            !std::isfinite(state.solution.at(dofs.radial_displacement(node))) ||
+            !std::isfinite(state.solution.at(dofs.axial_displacement(node))))
             throw std::invalid_argument("Transient committed nodal state must be finite with "
                                         "positive temperatures");
     }
-    for (std::size_t region_value = 0; region_value < region_count(); ++region_value) {
-        const std::size_t elements = region_mesh(region_value).elements().size();
+    for (std::size_t region_value = 0; region_value < region_count(problem); ++region_value) {
+        const std::size_t elements = region_mesh(problem, region_value).elements().size();
         if (state.material_histories[region_value].size() != elements ||
             state.material_stresses[region_value].size() != elements)
             throw std::invalid_argument("Transient committed element state layout does not match");
@@ -870,15 +929,16 @@ void TransientProblem::restore_committed_state(TransientCommittedState state) {
         }
     }
 
-    _spatial->restore_contact_state(state.solution, state.contact_histories);
-    _committed_solution = std::move(state.solution);
-    _material_histories = std::move(state.material_histories);
-    _material_stresses = std::move(state.material_stresses);
-    _last_conservation_summary = state.conservation;
-    _committed_time = state.time;
-    _committed_load_factor = state.load_factor;
-    clear_active_time_step();
-    apply_spatial_controls(_committed_time, _committed_load_factor);
+    problem._implementation->spatial->restore_contact_state(state.solution, state.contact_histories);
+    problem._implementation->committed_solution = std::move(state.solution);
+    problem._implementation->material_histories = std::move(state.material_histories);
+    problem._implementation->material_stresses = std::move(state.material_stresses);
+    problem._implementation->last_conservation_summary = state.conservation;
+    problem._implementation->committed_time = state.time;
+    problem._implementation->committed_load_factor = state.load_factor;
+    problem.clear_active_time_step();
+    problem.apply_spatial_controls(problem._implementation->committed_time,
+                                   problem._implementation->committed_load_factor);
 }
 
 namespace rz {
@@ -1079,33 +1139,35 @@ TransientTimeErrorEstimate TransientProblem::step_doubling_error(const Transient
 }
 
 void TransientProblem::combine_last_half_step_conservation(const TransientConservationSummary& first_half) {
-    if (_time_step_active)
+    if (_implementation->time_step_active)
         throw std::logic_error("TransientProblem cannot combine conservation during an active time step");
-    _last_conservation_summary = rz::combine_rz_half_step_conservation(first_half, _last_conservation_summary);
+    _implementation->last_conservation_summary =
+        rz::combine_rz_half_step_conservation(first_half, _implementation->last_conservation_summary);
 }
 
 void TransientProblem::begin_time_step(const TransientStepInput& input) {
-    if (_time_step_active)
+    if (_implementation->time_step_active)
         throw std::logic_error("TransientProblem already has an active time step");
-    if (!std::isfinite(input.end_time) || input.end_time <= _committed_time)
+    if (!std::isfinite(input.end_time) || input.end_time <= _implementation->committed_time)
         throw std::invalid_argument("TransientProblem end time must exceed committed time");
     if (!std::isfinite(input.load_factor) || input.load_factor < 0.0)
         throw std::invalid_argument("TransientProblem load factor must be finite and nonnegative");
-    _active_time_step = input.end_time - _committed_time;
-    _active_end_time = input.end_time;
-    _active_load_factor = input.load_factor;
-    if (_spatial->uses_augmented_contact())
-        _active_contact_histories = _spatial->committed_contact_histories();
+    _implementation->active_time_step = input.end_time - _implementation->committed_time;
+    _implementation->active_end_time = input.end_time;
+    _implementation->active_load_factor = input.load_factor;
+    if (_implementation->spatial->uses_augmented_contact())
+        _implementation->active_contact_histories = _implementation->spatial->committed_contact_histories();
     try {
         apply_spatial_controls(input.end_time, input.load_factor);
     } catch (...) {
-        if (!_active_contact_histories.empty())
-            _spatial->restore_contact_state(_committed_solution, std::move(_active_contact_histories));
-        apply_spatial_controls(_committed_time, _committed_load_factor);
+        if (!_implementation->active_contact_histories.empty())
+            _implementation->spatial->restore_contact_state(_implementation->committed_solution,
+                                                            std::move(_implementation->active_contact_histories));
+        apply_spatial_controls(_implementation->committed_time, _implementation->committed_load_factor);
         clear_active_time_step();
         throw;
     }
-    _time_step_active = true;
+    _implementation->time_step_active = true;
 }
 
 void TransientProblem::commit_time_step(const std::vector<double>& converged_solution) {
@@ -1115,143 +1177,153 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
     if (!std::all_of(converged_solution.begin(), converged_solution.end(),
                      [](double value) { return std::isfinite(value); }))
         throw std::domain_error("TransientProblem committed solution must be finite");
-    for (std::size_t node = 0; node < dof_map().node_count(); ++node) {
-        if (!(converged_solution[dof_map().temperature(node)] > 0.0))
+    const DofMap& dofs = _implementation->spatial->dof_map();
+    for (std::size_t node = 0; node < dofs.node_count(); ++node) {
+        if (!(converged_solution[dofs.temperature(node)] > 0.0))
             throw std::domain_error("TransientProblem committed temperatures must be positive");
     }
 
-    std::vector<std::vector<Quad4MaterialHistory>> staged(region_count());
-    std::vector<std::vector<std::array<AxisymmetricStressValues, 4>>> staged_stresses(region_count());
-    for (std::size_t region_value = 0; region_value < region_count(); ++region_value) {
-        staged[region_value].resize(_spatial->region_element_count(region_value));
-        staged_stresses[region_value].resize(_spatial->region_element_count(region_value));
-        const std::size_t offset = _spatial->region_element_offset(region_value);
+    const std::size_t regions = _implementation->spatial->region_count();
+    std::vector<std::vector<Quad4MaterialHistory>> staged(regions);
+    std::vector<std::vector<std::array<AxisymmetricStressValues, 4>>> staged_stresses(regions);
+    for (std::size_t region_value = 0; region_value < regions; ++region_value) {
+        staged[region_value].resize(_implementation->spatial->region_element_count(region_value));
+        staged_stresses[region_value].resize(_implementation->spatial->region_element_count(region_value));
+        const std::size_t offset = _implementation->spatial->region_element_offset(region_value);
         for (std::size_t element = 0; element < staged[region_value].size(); ++element) {
-            const LocalValues state = contribution_state(offset + element, converged_solution);
-            const LocalValues committed_state = contribution_state(offset + element, _committed_solution);
-            staged[region_value][element] = _region_kernels[region_value].trial_state_values(
-                region_element_geometry(region_value, element), state, committed_state,
-                _material_histories[region_value][element], _active_time_step);
-            staged_stresses[region_value][element] = _region_kernels[region_value].stress_values(
-                region_element_geometry(region_value, element), state, committed_state,
-                _material_histories[region_value][element], _active_time_step);
+            const LocalValues state =
+                rz::ProblemAccess::contribution_state(*this, offset + element, converged_solution);
+            const LocalValues committed_state =
+                rz::ProblemAccess::contribution_state(*this, offset + element, _implementation->committed_solution);
+            staged[region_value][element] = _implementation->region_kernels[region_value].trial_state_values(
+                rz::ProblemAccess::region_element_geometry(*this, region_value, element), state, committed_state,
+                _implementation->material_histories[region_value][element], _implementation->active_time_step);
+            staged_stresses[region_value][element] = _implementation->region_kernels[region_value].stress_values(
+                rz::ProblemAccess::region_element_geometry(*this, region_value, element), state, committed_state,
+                _implementation->material_histories[region_value][element], _implementation->active_time_step);
         }
     }
 
     const TransientConservationSummary conservation =
         rz::TransientConservationCalculator::summarize(*this, converged_solution, staged, staged_stresses);
-    _spatial->commit_contact_state(converged_solution);
-    _material_histories.swap(staged);
-    _material_stresses.swap(staged_stresses);
-    _last_conservation_summary = conservation;
-    _committed_solution = converged_solution;
-    _committed_time = _active_end_time;
-    _committed_load_factor = _active_load_factor;
+    _implementation->spatial->commit_contact_state(converged_solution);
+    _implementation->material_histories.swap(staged);
+    _implementation->material_stresses.swap(staged_stresses);
+    _implementation->last_conservation_summary = conservation;
+    _implementation->committed_solution = converged_solution;
+    _implementation->committed_time = _implementation->active_end_time;
+    _implementation->committed_load_factor = _implementation->active_load_factor;
     clear_active_time_step();
 }
 
 void TransientProblem::rollback_time_step() noexcept {
-    if (!_time_step_active)
+    if (!_implementation->time_step_active)
         return;
-    apply_spatial_controls(_committed_time, _committed_load_factor);
-    if (!_active_contact_histories.empty())
-        _spatial->restore_contact_state(_committed_solution, std::move(_active_contact_histories));
+    apply_spatial_controls(_implementation->committed_time, _implementation->committed_load_factor);
+    if (!_implementation->active_contact_histories.empty())
+        _implementation->spatial->restore_contact_state(_implementation->committed_solution,
+                                                        std::move(_implementation->active_contact_histories));
     clear_active_time_step();
 }
 
 void TransientProblem::apply_spatial_controls(double time, double load_factor) {
-    _spatial->set_time(time);
-    _spatial->set_load_factor(load_factor);
-    for (Quad4RzTransientKernel& kernel : _region_kernels)
+    _implementation->spatial->set_time(time);
+    _implementation->spatial->set_load_factor(load_factor);
+    for (Quad4RzTransientKernel& kernel : _implementation->region_kernels)
         kernel.set_time(time);
     refresh_region_heat_sources();
 }
 
 void TransientProblem::clear_active_time_step() noexcept {
-    _active_time_step = 0.0;
-    _active_end_time = _committed_time;
-    _active_load_factor = _committed_load_factor;
-    _active_contact_histories.clear();
-    _time_step_active = false;
+    _implementation->active_time_step = 0.0;
+    _implementation->active_end_time = _implementation->committed_time;
+    _implementation->active_load_factor = _implementation->committed_load_factor;
+    _implementation->active_contact_histories.clear();
+    _implementation->time_step_active = false;
 }
 
 void TransientProblem::refresh_region_heat_sources() {
-    for (std::size_t region_value = 0; region_value < region_count(); ++region_value)
-        _region_kernels[region_value].set_volumetric_heat_source(_spatial->region_heat_source(region_value));
+    for (std::size_t region_value = 0; region_value < _implementation->spatial->region_count(); ++region_value)
+        _implementation->region_kernels[region_value].set_volumetric_heat_source(
+            _implementation->spatial->region_heat_source(region_value));
 }
 
 bool TransientProblem::uses_augmented_contact() const noexcept {
-    return _spatial->uses_augmented_contact();
+    return _implementation->spatial->uses_augmented_contact();
 }
 
 AugmentedContactUpdate TransientProblem::update_augmented_contact_multipliers(const std::vector<double>& state,
                                                                               std::size_t completed_updates) {
     require_active_time_step();
-    return _spatial->update_augmented_contact_multipliers(state, completed_updates);
+    return _implementation->spatial->update_augmented_contact_multipliers(state, completed_updates);
 }
 
-const Quad4MaterialHistory& TransientProblem::material_history(std::size_t region_value,
-                                                               std::size_t element_index) const {
-    return _material_histories.at(region_value).at(element_index);
+const Quad4MaterialHistory& rz::ProblemAccess::material_history(const TransientProblem& problem,
+                                                                std::size_t region_value, std::size_t element_index) {
+    return problem._implementation->material_histories.at(region_value).at(element_index);
 }
 
-const std::array<AxisymmetricStressValues, 4>& TransientProblem::material_stress(std::size_t region_value,
-                                                                                 std::size_t element_index) const {
-    return _material_stresses.at(region_value).at(element_index);
+const std::array<AxisymmetricStressValues, 4>& rz::ProblemAccess::material_stress(const TransientProblem& problem,
+                                                                                  std::size_t region_value,
+                                                                                  std::size_t element_index) {
+    return problem._implementation->material_stresses.at(region_value).at(element_index);
 }
 
-RegionInelasticSummary TransientProblem::summarize_region_history(std::size_t region_value) const {
-    return summarize_history(_material_histories.at(region_value));
+RegionInelasticSummary rz::ProblemAccess::summarize_region_history(const TransientProblem& problem,
+                                                                   std::size_t region_value) {
+    return summarize_history(problem._implementation->material_histories.at(region_value));
 }
 
 const TransientConservationSummary& TransientProblem::last_conservation_summary() const noexcept {
-    return _last_conservation_summary;
+    return _implementation->last_conservation_summary;
 }
 
-InterfaceSummary TransientProblem::summarize_interface(std::size_t contact_index,
-                                                       const std::vector<double>& state) const {
-    return _spatial->summarize_interface(contact_index, state);
+InterfaceSummary rz::ProblemAccess::summarize_interface(const TransientProblem& problem, std::size_t contact_index,
+                                                        const std::vector<double>& state) {
+    return problem._implementation->spatial->summarize_interface(contact_index, state);
 }
 
-std::vector<ContactNodeSummary> TransientProblem::summarize_contact_nodes(std::size_t contact_index,
-                                                                          const std::vector<double>& state) const {
-    return _spatial->summarize_contact_nodes(contact_index, state);
+std::vector<ContactNodeSummary> rz::ProblemAccess::summarize_contact_nodes(const TransientProblem& problem,
+                                                                           std::size_t contact_index,
+                                                                           const std::vector<double>& state) {
+    return problem._implementation->spatial->summarize_contact_nodes(contact_index, state);
 }
 
-std::vector<std::size_t> TransientProblem::contact_secondary_source_nodes(std::size_t contact_index) const {
-    return _spatial->contact_secondary_source_nodes(contact_index);
+std::vector<std::size_t> rz::ProblemAccess::contact_secondary_source_nodes(const TransientProblem& problem,
+                                                                           std::size_t contact_index) {
+    return problem._implementation->spatial->contact_secondary_source_nodes(contact_index);
 }
 
 std::size_t TransientProblem::dof_count() const noexcept {
-    return _spatial->dof_count();
+    return _implementation->spatial->dof_count();
 }
 
 std::size_t TransientProblem::contribution_count() const noexcept {
-    return _spatial->contribution_count();
+    return _implementation->spatial->contribution_count();
 }
 
 const std::vector<FieldDescriptor>& TransientProblem::field_layout() const noexcept {
-    return _spatial->dof_map().field_layout();
+    return _implementation->spatial->dof_map().field_layout();
 }
 
 const std::vector<DirichletCondition>& TransientProblem::dirichlet_conditions() const noexcept {
-    return _spatial->dirichlet_conditions();
+    return _implementation->spatial->dirichlet_conditions();
 }
 
 void TransientProblem::validate_state(const std::vector<double>& state) const {
     require_active_time_step();
-    _spatial->validate_state(state);
+    _implementation->spatial->validate_state(state);
 }
 
 std::vector<std::size_t> TransientProblem::required_state_dofs(std::size_t contribution_begin,
                                                                std::size_t contribution_end) const {
-    return _spatial->required_state_dofs(contribution_begin, contribution_end);
+    return _implementation->spatial->required_state_dofs(contribution_begin, contribution_end);
 }
 
 void TransientProblem::validate_local_state(std::size_t contribution_begin, std::size_t contribution_end,
                                             const GlobalStateView& state) const {
     require_active_time_step();
-    _spatial->validate_local_state(contribution_begin, contribution_end, state);
+    _implementation->spatial->validate_local_state(contribution_begin, contribution_end, state);
 }
 
 std::size_t TransientProblem::contribution_dof_count(std::size_t contribution_index) const {
@@ -1261,66 +1333,72 @@ std::size_t TransientProblem::contribution_dof_count(std::size_t contribution_in
 }
 
 void TransientProblem::fill_contribution_dofs(std::size_t contribution_index, std::vector<std::size_t>& dofs) const {
-    const LocalDofs fixed = contribution_dofs(contribution_index);
+    const LocalDofs fixed = rz::ProblemAccess::contribution_dofs(*this, contribution_index);
     dofs.assign(fixed.begin(), fixed.end());
 }
 
 void TransientProblem::compute_contribution_residual(std::size_t contribution_index, const std::vector<double>& state,
                                                      std::vector<double>& residual) const {
-    copy_rz_residual(contribution_residual(contribution_index, rz_local_values(state)), residual);
+    copy_rz_residual(rz::ProblemAccess::contribution_residual(*this, contribution_index, rz_local_values(state)),
+                     residual);
 }
 
 void TransientProblem::compute_contribution_system(std::size_t contribution_index, const std::vector<double>& state,
                                                    std::vector<double>& residual, std::vector<double>& jacobian) const {
-    copy_rz_system(linearize_contribution(contribution_index, rz_local_values(state)), residual, jacobian);
+    copy_rz_system(rz::ProblemAccess::linearize_contribution(*this, contribution_index, rz_local_values(state)),
+                   residual, jacobian);
 }
 
-LocalDofs TransientProblem::contribution_dofs(std::size_t contribution_index) const {
-    return _spatial->contribution_dofs(contribution_index);
+LocalDofs rz::ProblemAccess::contribution_dofs(const TransientProblem& problem, std::size_t contribution_index) {
+    return problem._implementation->spatial->contribution_dofs(contribution_index);
 }
 
-LocalValues TransientProblem::contribution_state(std::size_t contribution_index,
-                                                 const std::vector<double>& global_state) const {
-    return contribution_state(contribution_index, GlobalStateView(global_state));
+LocalValues rz::ProblemAccess::contribution_state(const TransientProblem& problem, std::size_t contribution_index,
+                                                  const std::vector<double>& global_state) {
+    return contribution_state(problem, contribution_index, GlobalStateView(global_state));
 }
 
-LocalValues TransientProblem::contribution_state(std::size_t contribution_index,
-                                                 const GlobalStateView& global_state) const {
-    if (global_state.global_size() != dof_count())
+LocalValues rz::ProblemAccess::contribution_state(const TransientProblem& problem, std::size_t contribution_index,
+                                                  const GlobalStateView& global_state) {
+    if (global_state.global_size() != problem.dof_count())
         throw std::invalid_argument("TransientProblem contribution state has the wrong global size");
-    const LocalDofs dofs = contribution_dofs(contribution_index);
+    const LocalDofs dofs = contribution_dofs(problem, contribution_index);
     LocalValues result{};
     for (std::size_t local = 0; local < dofs.size(); ++local)
         result[local] = global_state.value(dofs[local]);
     return result;
 }
 
-LocalResidual TransientProblem::contribution_residual(std::size_t contribution_index, const LocalValues& state) const {
-    require_active_time_step();
-    if (contribution_index < _spatial->volume_contribution_count()) {
-        const auto location = _spatial->element_location(contribution_index);
-        return _region_kernels[location.first].residual(region_element_geometry(location.first, location.second), state,
-                                                        contribution_state(contribution_index, _committed_solution),
-                                                        _material_histories[location.first][location.second],
-                                                        _active_time_step);
+LocalResidual rz::ProblemAccess::contribution_residual(const TransientProblem& problem, std::size_t contribution_index,
+                                                       const LocalValues& state) {
+    problem.require_active_time_step();
+    if (contribution_index < problem._implementation->spatial->volume_contribution_count()) {
+        const auto location = problem._implementation->spatial->element_location(contribution_index);
+        return problem._implementation->region_kernels[location.first].residual(
+            region_element_geometry(problem, location.first, location.second), state,
+            contribution_state(problem, contribution_index, problem._implementation->committed_solution),
+            problem._implementation->material_histories[location.first][location.second],
+            problem._implementation->active_time_step);
     }
-    return _spatial->contribution_residual(contribution_index, state);
+    return problem._implementation->spatial->contribution_residual(contribution_index, state);
 }
 
-LocalSystem TransientProblem::linearize_contribution(std::size_t contribution_index, const LocalValues& state) const {
-    require_active_time_step();
-    if (contribution_index < _spatial->volume_contribution_count()) {
-        const auto location = _spatial->element_location(contribution_index);
-        return _region_kernels[location.first].linearize(
-            region_element_geometry(location.first, location.second), state,
-            contribution_state(contribution_index, _committed_solution),
-            _material_histories[location.first][location.second], _active_time_step);
+LocalSystem rz::ProblemAccess::linearize_contribution(const TransientProblem& problem, std::size_t contribution_index,
+                                                      const LocalValues& state) {
+    problem.require_active_time_step();
+    if (contribution_index < problem._implementation->spatial->volume_contribution_count()) {
+        const auto location = problem._implementation->spatial->element_location(contribution_index);
+        return problem._implementation->region_kernels[location.first].linearize(
+            region_element_geometry(problem, location.first, location.second), state,
+            contribution_state(problem, contribution_index, problem._implementation->committed_solution),
+            problem._implementation->material_histories[location.first][location.second],
+            problem._implementation->active_time_step);
     }
-    return _spatial->linearize_contribution(contribution_index, state);
+    return problem._implementation->spatial->linearize_contribution(contribution_index, state);
 }
 
 void TransientProblem::require_active_time_step() const {
-    if (!_time_step_active)
+    if (!_implementation->time_step_active)
         throw std::logic_error("TransientProblem residual evaluation requires "
                                "an active time step");
 }

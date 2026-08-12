@@ -23,10 +23,39 @@ foreach(path IN LISTS common_files)
             "dof_count() / 3U"
             "global_count / 3"
             "global_count / 3U"
-            "[T, ur, uz]")
+            "[T, ur, uz]"
+            "rz_problem_access.hpp"
+            "rz::ProblemAccess")
         string(FIND "${contents}" "${forbidden}" location)
         if(NOT location EQUAL -1)
             message(FATAL_ERROR "${path} reintroduced geometry-specific solver text: ${forbidden}")
+        endif()
+    endforeach()
+endforeach()
+
+set(common_problem_headers
+    "${ROOT}/include/fuelsim/steady_problem.hpp"
+    "${ROOT}/include/fuelsim/transient_problem.hpp"
+)
+
+foreach(path IN LISTS common_problem_headers)
+    file(READ "${path}" contents)
+    foreach(forbidden
+            "DofMap"
+            "RegionMesh"
+            "Quad4Rz"
+            "LocalDofs"
+            "LocalValues"
+            "LocalResidual"
+            "LocalSystem"
+            "SpatialAssembly"
+            "ContactPointHistory"
+            "AxisymmetricStressValues"
+            "Quad4MaterialHistory"
+            "TransientCommittedState")
+        string(FIND "${contents}" "${forbidden}" location)
+        if(NOT location EQUAL -1)
+            message(FATAL_ERROR "${path} reintroduced an RZ query or state layout: ${forbidden}")
         endif()
     endforeach()
 endforeach()
@@ -70,4 +99,13 @@ if(rz_namespace EQUAL -1)
     message(FATAL_ERROR "The RZ spatial assembly is no longer isolated in namespace fuelsim::rz")
 endif()
 
-message(STATUS "Geometry-independent solver-port source audit passed")
+file(READ "${ROOT}/include/fuelsim/rz_problem_access.hpp" rz_access)
+foreach(required "class ProblemAccess" "struct TransientCommittedState" "Quad4RzGeometry"
+                 "ContactPointHistory" "contribution_state")
+    string(FIND "${rz_access}" "${required}" location)
+    if(location EQUAL -1)
+        message(FATAL_ERROR "The explicit RZ problem access layer is missing: ${required}")
+    endif()
+endforeach()
+
+message(STATUS "Geometry-independent solver and problem-port source audit passed")

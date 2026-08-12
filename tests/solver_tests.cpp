@@ -1,5 +1,6 @@
 #include "fuelsim/diagnostics.hpp"
 #include "fuelsim/petsc_solver.hpp"
+#include "fuelsim/rz_problem_access.hpp"
 #include "fuelsim/steady_problem.hpp"
 #include "support/mesh_fixture.hpp"
 
@@ -681,10 +682,10 @@ bool test_thermal_cylinder() {
                  passed;
     double maximum_scaled_error = 0.0;
     const double center_rise = heat_source * radius * radius / (4.0 * conductivity);
-    for (std::size_t node = 0; node < problem.region_mesh(0).nodes().size(); ++node) {
-        const double r = problem.region_mesh(0).nodes()[node].r;
+    for (std::size_t node = 0; node < fuelsim::rz::ProblemAccess::region_mesh(problem, 0).nodes().size(); ++node) {
+        const double r = fuelsim::rz::ProblemAccess::region_mesh(problem, 0).nodes()[node].r;
         const double expected = outer_temperature + heat_source * (radius * radius - r * r) / (4.0 * conductivity);
-        const double actual = result.state[problem.dof_map().temperature(node)];
+        const double actual = result.state[fuelsim::rz::ProblemAccess::dof_map(problem).temperature(node)];
         maximum_scaled_error = std::max(maximum_scaled_error, std::abs(actual - expected) / center_rise);
     }
     passed = check(maximum_scaled_error < 1.0e-3, "thermal cylinder temperature error is below 0.1%; actual=" +
@@ -711,10 +712,10 @@ double thermal_cylinder_error(std::size_t radial_elements) {
         throw std::runtime_error("thermal mesh-convergence solve did not converge");
     const double center_rise = heat_source * radius * radius / (4.0 * conductivity);
     double maximum_error = 0.0;
-    for (std::size_t node = 0; node < problem.region_mesh(0).nodes().size(); ++node) {
-        const double r = problem.region_mesh(0).nodes()[node].r;
+    for (std::size_t node = 0; node < fuelsim::rz::ProblemAccess::region_mesh(problem, 0).nodes().size(); ++node) {
+        const double r = fuelsim::rz::ProblemAccess::region_mesh(problem, 0).nodes()[node].r;
         const double expected = outer_temperature + heat_source * (radius * radius - r * r) / (4.0 * conductivity);
-        const double actual = result.state[problem.dof_map().temperature(node)];
+        const double actual = result.state[fuelsim::rz::ProblemAccess::dof_map(problem).temperature(node)];
         maximum_error = std::max(maximum_error, std::abs(actual - expected) / center_rise);
     }
     return maximum_error;
@@ -753,11 +754,12 @@ bool test_free_thermal_expansion() {
     double maximum_temperature_error = 0.0;
     double maximum_displacement_error = 0.0;
     const double displacement_scale = alpha * temperature_change * length;
-    for (std::size_t node = 0; node < problem.region_mesh(0).nodes().size(); ++node) {
-        const fuelsim::RzPoint& point = problem.region_mesh(0).nodes()[node];
-        const double actual_temperature = result.state[problem.dof_map().temperature(node)];
-        const double actual_radial = result.state[problem.dof_map().radial_displacement(node)];
-        const double actual_axial = result.state[problem.dof_map().axial_displacement(node)];
+    for (std::size_t node = 0; node < fuelsim::rz::ProblemAccess::region_mesh(problem, 0).nodes().size(); ++node) {
+        const fuelsim::RzPoint& point = fuelsim::rz::ProblemAccess::region_mesh(problem, 0).nodes()[node];
+        const double actual_temperature = result.state[fuelsim::rz::ProblemAccess::dof_map(problem).temperature(node)];
+        const double actual_radial =
+            result.state[fuelsim::rz::ProblemAccess::dof_map(problem).radial_displacement(node)];
+        const double actual_axial = result.state[fuelsim::rz::ProblemAccess::dof_map(problem).axial_displacement(node)];
         maximum_temperature_error = std::max(maximum_temperature_error, std::abs(actual_temperature - temperature));
         maximum_displacement_error =
             std::max(maximum_displacement_error, std::abs(actual_radial - alpha * temperature_change * point.r));
@@ -766,10 +768,12 @@ bool test_free_thermal_expansion() {
     }
 
     double maximum_stress = 0.0;
-    for (std::size_t element = 0; element < problem.region_element_count(0); ++element) {
-        const fuelsim::LocalValues state = problem.contribution_state(element, result.state);
+    for (std::size_t element = 0; element < fuelsim::rz::ProblemAccess::region_element_count(problem, 0); ++element) {
+        const fuelsim::LocalValues state =
+            fuelsim::rz::ProblemAccess::contribution_state(problem, element, result.state);
         const auto stresses =
-            problem.region_kernel(0).stress_values(problem.region_element_geometry(0, element), state);
+            fuelsim::rz::ProblemAccess::region_kernel(problem, 0)
+                .stress_values(fuelsim::rz::ProblemAccess::region_element_geometry(problem, 0, element), state);
         for (const fuelsim::AxisymmetricStressValues& stress : stresses) {
             maximum_stress = std::max(maximum_stress, std::abs(stress.rr));
             maximum_stress = std::max(maximum_stress, std::abs(stress.zz));
@@ -827,13 +831,14 @@ bool test_lame_open_ended_cylinder() {
         ((1.0 - poisson_ratio) * A * inner_radius + (1.0 + poisson_ratio) * B / inner_radius) / young_modulus;
     const double axial_scale = std::abs(axial_strain * length);
 
-    for (std::size_t node = 0; node < problem.region_mesh(0).nodes().size(); ++node) {
-        const fuelsim::RzPoint& point = problem.region_mesh(0).nodes()[node];
+    for (std::size_t node = 0; node < fuelsim::rz::ProblemAccess::region_mesh(problem, 0).nodes().size(); ++node) {
+        const fuelsim::RzPoint& point = fuelsim::rz::ProblemAccess::region_mesh(problem, 0).nodes()[node];
         const double expected_radial =
             ((1.0 - poisson_ratio) * A * point.r + (1.0 + poisson_ratio) * B / point.r) / young_modulus;
         const double expected_axial = axial_strain * point.z;
-        const double actual_radial = result.state[problem.dof_map().radial_displacement(node)];
-        const double actual_axial = result.state[problem.dof_map().axial_displacement(node)];
+        const double actual_radial =
+            result.state[fuelsim::rz::ProblemAccess::dof_map(problem).radial_displacement(node)];
+        const double actual_axial = result.state[fuelsim::rz::ProblemAccess::dof_map(problem).axial_displacement(node)];
         maximum_radial_relative_error =
             std::max(maximum_radial_relative_error, std::abs(actual_radial - expected_radial) / radial_scale);
         if (axial_scale > 0.0) {
@@ -899,19 +904,22 @@ bool test_m1_open_gap_analytic_thermal() {
     const std::size_t fuel_surface_local =
         fuelsim::test::annular_node_id(fuel_radial_elements, fuel_radial_elements, axial_mid);
     const std::size_t cladding_inner_local = fuelsim::test::annular_node_id(cladding_radial_elements, 0, axial_mid);
-    const fuelsim::DofMap& dofs = problem.dof_map();
+    const fuelsim::DofMap& dofs = fuelsim::rz::ProblemAccess::dof_map(problem);
 
-    const double actual_center = result.state[dofs.temperature(problem.region_node_offset(0) + fuel_center_local)];
+    const double actual_center =
+        result.state[dofs.temperature(fuelsim::rz::ProblemAccess::region_node_offset(problem, 0) + fuel_center_local)];
     const double actual_fuel_surface =
-        result.state[dofs.temperature(problem.region_node_offset(0) + fuel_surface_local)];
+        result.state[dofs.temperature(fuelsim::rz::ProblemAccess::region_node_offset(problem, 0) + fuel_surface_local)];
     const double actual_cladding_inner =
-        result.state[dofs.temperature(problem.region_node_offset(1) + cladding_inner_local)];
+        result
+            .state[dofs.temperature(fuelsim::rz::ProblemAccess::region_node_offset(problem, 1) + cladding_inner_local)];
     const double temperature_scale = expected_center - outer_temperature;
     const double center_error = std::abs(actual_center - expected_center) / temperature_scale;
     const double fuel_surface_error = std::abs(actual_fuel_surface - expected_fuel_surface) / temperature_scale;
     const double cladding_inner_error = std::abs(actual_cladding_inner - expected_cladding_inner) / temperature_scale;
 
-    const fuelsim::InterfaceSummary interface = problem.summarize_interface(0, result.state);
+    const fuelsim::InterfaceSummary interface =
+        fuelsim::rz::ProblemAccess::summarize_interface(problem, 0, result.state);
     constexpr double pi = 3.141592653589793238462643383279502884;
     const double expected_heat_rate = heat_source * pi * fuel_radius * fuel_radius * length;
     const double heat_balance_error = metric_relative_error(interface.total_heat_rate, expected_heat_rate);

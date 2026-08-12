@@ -4,6 +4,7 @@
 #include "fuelsim/petsc_solver.hpp"
 #include "fuelsim/problem_solver.hpp"
 #include "fuelsim/results_io.hpp"
+#include "fuelsim/rz_problem_access.hpp"
 
 #include <exodusII.h>
 
@@ -44,8 +45,8 @@ bool nearly_equal(double left, double right) {
     return std::abs(left - right) <= 2.0e-13 * scale;
 }
 
-bool compare_committed_states(const fuelsim::TransientCommittedState& left,
-                              const fuelsim::TransientCommittedState& right) {
+bool compare_committed_states(const fuelsim::rz::TransientCommittedState& left,
+                              const fuelsim::rz::TransientCommittedState& right) {
     const std::array<double, 18> left_conservation = {left.conservation.generated_heat_rate,
                                                       left.conservation.stored_heat_rate,
                                                       left.conservation.convection_heat_rate,
@@ -185,21 +186,23 @@ bool test_friction_history_checkpoint(const std::string& input_path, const std::
     input.contacts.at(0).friction_coefficient = 0.3;
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::ExodusMeshIo::read_quad4(input.mesh_file);
     fuelsim::TransientProblem source(input.transient_definition(), mesh);
-    fuelsim::TransientCommittedState state = source.committed_state();
+    fuelsim::rz::TransientCommittedState state = fuelsim::rz::ProblemAccess::committed_state(source);
     if (state.contact_histories.empty() || state.contact_histories.front().empty())
         return check(false, "friction checkpoint fixture has contact-node history");
     state.contact_histories.front().front() = {2.5e-7, true};
-    source.restore_committed_state(state);
-    const fuelsim::TransientCommittedState before_rollback = source.committed_state();
+    fuelsim::rz::ProblemAccess::restore_committed_state(source, state);
+    const fuelsim::rz::TransientCommittedState before_rollback = fuelsim::rz::ProblemAccess::committed_state(source);
     source.begin_time_step({1.0, 0.05});
     source.rollback_time_step();
-    bool passed = compare_committed_states(before_rollback, source.committed_state());
+    bool passed = compare_committed_states(before_rollback, fuelsim::rz::ProblemAccess::committed_state(source));
     fuelsim::TransientCheckpointIo::write(checkpoint_path, source, 0.5);
 
     fuelsim::TransientProblem restored(input.transient_definition(), mesh);
     const double next_time_step = fuelsim::TransientCheckpointIo::restore(checkpoint_path, restored);
     passed = check(next_time_step == 0.5, "friction checkpoint preserves the controller time step") &&
-             compare_committed_states(source.committed_state(), restored.committed_state()) && passed;
+             compare_committed_states(fuelsim::rz::ProblemAccess::committed_state(source),
+                                      fuelsim::rz::ProblemAccess::committed_state(restored)) &&
+             passed;
 
     fuelsim::TransientCheckpointIo::write(checkpoint_path, source, 0.5);
     {
@@ -219,11 +222,13 @@ bool test_friction_history_checkpoint(const std::string& input_path, const std::
 }
 
 std::size_t contact_secondary_global_node(const fuelsim::TransientProblem& problem, std::size_t source_node) {
-    for (std::size_t region = 0; region < problem.region_count(); ++region) {
-        const std::vector<std::size_t>& source_nodes = problem.region_mesh(region).source_node_ids();
+    for (std::size_t region = 0; region < fuelsim::rz::ProblemAccess::region_count(problem); ++region) {
+        const std::vector<std::size_t>& source_nodes =
+            fuelsim::rz::ProblemAccess::region_mesh(problem, region).source_node_ids();
         const auto found = std::find(source_nodes.begin(), source_nodes.end(), source_node);
         if (found != source_nodes.end())
-            return problem.region_node_offset(region) + static_cast<std::size_t>(found - source_nodes.begin());
+            return fuelsim::rz::ProblemAccess::region_node_offset(problem, region) +
+                   static_cast<std::size_t>(found - source_nodes.begin());
     }
     throw std::logic_error("Augmented-contact checkpoint secondary node mapping failed");
 }
@@ -238,22 +243,25 @@ bool test_augmented_contact_transaction(const std::string& input_path, const std
     contact.maximum_augmented_iterations = 10;
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::ExodusMeshIo::read_quad4(input.mesh_file);
     fuelsim::TransientProblem source(input.transient_definition(), mesh);
-    const fuelsim::TransientCommittedState initial = source.committed_state();
+    const fuelsim::rz::TransientCommittedState initial = fuelsim::rz::ProblemAccess::committed_state(source);
 
     std::vector<double> penetrated = source.committed_solution();
-    const std::vector<fuelsim::ContactNodeSummary> initial_nodes = source.summarize_contact_nodes(0, penetrated);
-    const std::vector<std::size_t> secondary_sources = source.contact_secondary_source_nodes(0);
+    const std::vector<fuelsim::ContactNodeSummary> initial_nodes =
+        fuelsim::rz::ProblemAccess::summarize_contact_nodes(source, 0, penetrated);
+    const std::vector<std::size_t> secondary_sources =
+        fuelsim::rz::ProblemAccess::contact_secondary_source_nodes(source, 0);
     if (initial_nodes.size() != secondary_sources.size() || initial_nodes.empty())
         return check(false, "augmented transaction fixture has contact-node history");
     constexpr double prescribed_penetration = 2.0e-9;
     for (std::size_t node = 0; node < initial_nodes.size(); ++node) {
         const std::size_t global = contact_secondary_global_node(source, secondary_sources[node]);
-        penetrated[source.dof_map().radial_displacement(global)] += initial_nodes[node].gap + prescribed_penetration;
+        penetrated[fuelsim::rz::ProblemAccess::dof_map(source).radial_displacement(global)] +=
+            initial_nodes[node].gap + prescribed_penetration;
     }
 
     source.begin_time_step({1.0, 0.05});
     const fuelsim::AugmentedContactUpdate update = source.update_augmented_contact_multipliers(penetrated, 0);
-    const fuelsim::TransientCommittedState trial = source.committed_state();
+    const fuelsim::rz::TransientCommittedState trial = fuelsim::rz::ProblemAccess::committed_state(source);
     bool active_multiplier = false;
     for (const fuelsim::ContactPointHistory& history : trial.contact_histories.at(0))
         active_multiplier = active_multiplier || history.normal_multiplier > 0.0;
@@ -262,12 +270,12 @@ bool test_augmented_contact_transaction(const std::string& input_path, const std
                         "augmented outer update creates a positive trial multiplier") &&
                   check(source.committed_time() == 0.0, "augmented outer update does not advance committed time");
     source.rollback_time_step();
-    passed = compare_committed_states(initial, source.committed_state()) && passed;
+    passed = compare_committed_states(initial, fuelsim::rz::ProblemAccess::committed_state(source)) && passed;
 
     source.begin_time_step({1.0, 0.05});
     (void)source.update_augmented_contact_multipliers(penetrated, 0);
     source.commit_time_step(penetrated);
-    const fuelsim::TransientCommittedState committed = source.committed_state();
+    const fuelsim::rz::TransientCommittedState committed = fuelsim::rz::ProblemAccess::committed_state(source);
     bool committed_multiplier = false;
     for (const fuelsim::ContactPointHistory& history : committed.contact_histories.at(0))
         committed_multiplier = committed_multiplier || history.normal_multiplier > 0.0;
@@ -279,7 +287,7 @@ bool test_augmented_contact_transaction(const std::string& input_path, const std
     fuelsim::TransientProblem restored(input.transient_definition(), mesh);
     const double next_time_step = fuelsim::TransientCheckpointIo::restore(checkpoint_path, restored);
     passed = check(next_time_step == 0.25, "augmented checkpoint preserves the controller time step") &&
-             compare_committed_states(committed, restored.committed_state()) && passed;
+             compare_committed_states(committed, fuelsim::rz::ProblemAccess::committed_state(restored)) && passed;
     return check(std::remove(checkpoint_path.c_str()) == 0, "augmented checkpoint artifact is removed") && passed;
 }
 
@@ -299,8 +307,10 @@ bool test_finite_strain_restart(const std::string& input_path, const std::string
                    "finite-strain restart split reaches the deformed state") &&
              passed;
     bool active_rotated_history = false;
-    for (std::size_t element = 0; element < split.region_mesh(0).elements().size(); ++element) {
-        for (const fuelsim::MaterialPointState& point : split.material_history(0, element)) {
+    for (std::size_t element = 0; element < fuelsim::rz::ProblemAccess::region_mesh(split, 0).elements().size();
+         ++element) {
+        for (const fuelsim::MaterialPointState& point :
+             fuelsim::rz::ProblemAccess::material_history(split, 0, element)) {
             active_rotated_history =
                 active_rotated_history ||
                 (std::abs(point.plastic_strain[3]) > 1.0e-3 && std::abs(point.creep_strain[3]) > 1.0e-8 &&
@@ -312,15 +322,17 @@ bool test_finite_strain_restart(const std::string& input_path, const std::string
              passed;
 
     fuelsim::TransientCheckpointIo::write(checkpoint_path, split, first.next_time_step);
-    const fuelsim::TransientCommittedState split_state = split.committed_state();
+    const fuelsim::rz::TransientCommittedState split_state = fuelsim::rz::ProblemAccess::committed_state(split);
     fuelsim::TransientProblem restarted(input.transient_definition(), mesh);
     const double restored_time_step = fuelsim::TransientCheckpointIo::restore(checkpoint_path, restarted);
-    passed = compare_committed_states(split_state, restarted.committed_state()) && passed;
+    passed = compare_committed_states(split_state, fuelsim::rz::ProblemAccess::committed_state(restarted)) && passed;
     fuelsim::TransientTimeOptions restart_options = time_options(input, input.transient_execution.end_time);
     restart_options.initial_time_step = restored_time_step;
     const fuelsim::TransientResult second = fuelsim::solve_transient(restarted, restart_options, solver);
     passed = check(second.completed, "restarted finite-strain solve reaches end time") &&
-             compare_committed_states(uninterrupted.committed_state(), restarted.committed_state()) && passed;
+             compare_committed_states(fuelsim::rz::ProblemAccess::committed_state(uninterrupted),
+                                      fuelsim::rz::ProblemAccess::committed_state(restarted)) &&
+             passed;
     return check(std::remove(checkpoint_path.c_str()) == 0, "finite-strain restart artifact is removed") && passed;
 }
 
@@ -372,12 +384,13 @@ bool verify_exodus(const std::string& path, const fuelsim::UnstructuredQuad4Mesh
                               temperatures.data()) == 0,
                    "Exodus temperature field is readable") &&
              passed;
-    for (std::size_t region = 0; region < problem.region_count(); ++region) {
-        const fuelsim::RegionMesh& region_mesh = problem.region_mesh(region);
-        const std::size_t offset = problem.region_node_offset(region);
+    for (std::size_t region = 0; region < fuelsim::rz::ProblemAccess::region_count(problem); ++region) {
+        const fuelsim::RegionMesh& region_mesh = fuelsim::rz::ProblemAccess::region_mesh(problem, region);
+        const std::size_t offset = fuelsim::rz::ProblemAccess::region_node_offset(problem, region);
         for (std::size_t node = 0; node < region_mesh.nodes().size(); ++node) {
             const std::size_t source = region_mesh.source_node_ids()[node];
-            const double expected = problem.committed_solution().at(problem.dof_map().temperature(offset + node));
+            const double expected = problem.committed_solution().at(
+                fuelsim::rz::ProblemAccess::dof_map(problem).temperature(offset + node));
             passed = check(nearly_equal(temperatures.at(source), expected),
                            "Exodus nodal temperature uses source-mesh mapping") &&
                      passed;
@@ -481,18 +494,20 @@ bool run_tests(const std::string& steady_input_path, const std::string& transien
     }
     std::filesystem::remove(history_path);
     fuelsim::TransientCheckpointIo::write(checkpoint_path, split, first.next_time_step);
-    const fuelsim::TransientCommittedState split_state = split.committed_state();
+    const fuelsim::rz::TransientCommittedState split_state = fuelsim::rz::ProblemAccess::committed_state(split);
 
     fuelsim::TransientProblem restarted(input.transient_definition(), mesh);
     const double restored_time_step = fuelsim::TransientCheckpointIo::restore(checkpoint_path, restarted);
     passed =
         check(restored_time_step == first.next_time_step, "restart preserves the committed controller step") && passed;
-    passed = compare_committed_states(split_state, restarted.committed_state()) && passed;
+    passed = compare_committed_states(split_state, fuelsim::rz::ProblemAccess::committed_state(restarted)) && passed;
     fuelsim::TransientTimeOptions restart_options = time_options(20.0);
     restart_options.initial_time_step = restored_time_step;
     const fuelsim::TransientResult second = fuelsim::solve_transient(restarted, restart_options, solver);
     passed = check(second.completed, "restarted PCMI solve reaches end time") &&
-             compare_committed_states(uninterrupted.committed_state(), restarted.committed_state()) && passed;
+             compare_committed_states(fuelsim::rz::ProblemAccess::committed_state(uninterrupted),
+                                      fuelsim::rz::ProblemAccess::committed_state(restarted)) &&
+             passed;
     passed = verify_exodus(results_path, mesh, split, writer.step_count()) && passed;
 
     fuelsim::TransientProblem mismatch(input.transient_definition(), mesh);

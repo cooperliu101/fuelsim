@@ -1,6 +1,7 @@
 #include "fuelsim/case_input.hpp"
 #include "fuelsim/exodus_mesh_io.hpp"
 #include "fuelsim/problem_solver.hpp"
+#include "fuelsim/rz_problem_access.hpp"
 #include "support/moose_field_comparison.hpp"
 
 #include <algorithm>
@@ -83,9 +84,9 @@ double temperature_relative_l2(const fuelsim::TransientProblem& problem, const s
                                const std::vector<double>& reference) {
     double difference_squared = 0.0;
     double reference_squared = 0.0;
-    const std::size_t node_count = problem.dof_map().node_count();
+    const std::size_t node_count = fuelsim::rz::ProblemAccess::dof_map(problem).node_count();
     for (std::size_t node = 0; node < node_count; ++node) {
-        const std::size_t dof = problem.dof_map().temperature(node);
+        const std::size_t dof = fuelsim::rz::ProblemAccess::dof_map(problem).temperature(node);
         const double difference = actual[dof] - reference[dof];
         difference_squared += difference * difference;
         reference_squared += reference[dof] * reference[dof];
@@ -123,8 +124,8 @@ ConvergenceMetric finish_convergence(const ConvergenceAccumulator& accumulator) 
     return result;
 }
 
-std::array<ConvergenceMetric, 9> compare_committed_states(const fuelsim::TransientCommittedState& actual,
-                                                          const fuelsim::TransientCommittedState& reference) {
+std::array<ConvergenceMetric, 9> compare_committed_states(const fuelsim::rz::TransientCommittedState& actual,
+                                                          const fuelsim::rz::TransientCommittedState& reference) {
     if (actual.solution.size() != reference.solution.size() || actual.solution.size() % 3 != 0 ||
         actual.material_histories.size() != reference.material_histories.size() ||
         actual.material_stresses.size() != reference.material_stresses.size())
@@ -182,7 +183,7 @@ bool test_opaque_state_snapshot(const std::string& input_path) {
     const fuelsim::FuelSimCaseDefinition input = fuelsim::CaseInputReader::read(input_path);
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::ExodusMeshIo::read_quad4(input.mesh_file);
     fuelsim::TransientProblem problem(input.transient_definition(), mesh);
-    const fuelsim::TransientCommittedState reference = problem.committed_state();
+    const fuelsim::rz::TransientCommittedState reference = fuelsim::rz::ProblemAccess::committed_state(problem);
     const fuelsim::TransientStateSnapshot snapshot = problem.capture_state();
 
     bool empty_rejected = false;
@@ -208,12 +209,12 @@ bool test_opaque_state_snapshot(const std::string& input_path) {
     }
     problem.rollback_time_step();
 
-    fuelsim::TransientCommittedState changed = reference;
+    fuelsim::rz::TransientCommittedState changed = reference;
     changed.time += 0.5;
     changed.load_factor = 0.5;
-    problem.restore_committed_state(std::move(changed));
+    fuelsim::rz::ProblemAccess::restore_committed_state(problem, std::move(changed));
     problem.restore_state(snapshot);
-    const fuelsim::TransientCommittedState restored = problem.committed_state();
+    const fuelsim::rz::TransientCommittedState restored = fuelsim::rz::ProblemAccess::committed_state(problem);
     const std::array<ConvergenceMetric, 9> state_difference = compare_committed_states(restored, reference);
     bool identical = restored.time == reference.time && restored.load_factor == reference.load_factor &&
                      restored.contact_histories.size() == reference.contact_histories.size();
@@ -241,8 +242,8 @@ bool test_opaque_state_snapshot(const std::string& input_path) {
                  "opaque snapshots reject invalid use and restore the complete RZ committed state exactly");
 }
 
-fuelsim::TransientCommittedState solve_fixed_pcmi(const fuelsim::FuelSimCaseDefinition& input,
-                                                  const fuelsim::UnstructuredQuad4Mesh& mesh, double time_step) {
+fuelsim::rz::TransientCommittedState solve_fixed_pcmi(const fuelsim::FuelSimCaseDefinition& input,
+                                                      const fuelsim::UnstructuredQuad4Mesh& mesh, double time_step) {
     fuelsim::TransientProblem problem(input.transient_definition(), mesh);
     fuelsim::SolverOptions solver_options = {input.solver.absolute_tolerance, input.solver.relative_tolerance,
                                              input.solver.step_tolerance, input.solver.maximum_iterations};
@@ -253,16 +254,16 @@ fuelsim::TransientCommittedState solve_fixed_pcmi(const fuelsim::FuelSimCaseDefi
     if (!result.completed || result.aggregate_timing.workspace_setups != 1)
         throw std::runtime_error("fixed-step PCMI time-convergence solve did not complete with "
                                  "one PETSc workspace");
-    return problem.committed_state();
+    return fuelsim::rz::ProblemAccess::committed_state(problem);
 }
 
 bool test_long_transient_time_convergence(const std::string& input_path) {
     const fuelsim::FuelSimCaseDefinition input = fuelsim::CaseInputReader::read(input_path);
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::ExodusMeshIo::read_quad4(input.mesh_file);
-    const fuelsim::TransientCommittedState coarse = solve_fixed_pcmi(input, mesh, 1.0);
-    const fuelsim::TransientCommittedState medium = solve_fixed_pcmi(input, mesh, 0.5);
-    const fuelsim::TransientCommittedState fine = solve_fixed_pcmi(input, mesh, 0.25);
-    const fuelsim::TransientCommittedState reference = solve_fixed_pcmi(input, mesh, 0.125);
+    const fuelsim::rz::TransientCommittedState coarse = solve_fixed_pcmi(input, mesh, 1.0);
+    const fuelsim::rz::TransientCommittedState medium = solve_fixed_pcmi(input, mesh, 0.5);
+    const fuelsim::rz::TransientCommittedState fine = solve_fixed_pcmi(input, mesh, 0.25);
+    const fuelsim::rz::TransientCommittedState reference = solve_fixed_pcmi(input, mesh, 0.125);
     const std::array<ConvergenceMetric, 9> coarse_error = compare_committed_states(coarse, reference);
     const std::array<ConvergenceMetric, 9> medium_error = compare_committed_states(medium, reference);
     const std::array<ConvergenceMetric, 9> fine_error = compare_committed_states(fine, reference);
@@ -639,11 +640,12 @@ bool test_pressure_production_path(const std::string& input_path) {
     double radial_stress_sum = 0.0;
     double hoop_stress_sum = 0.0;
     std::size_t stress_points = 0;
-    for (std::size_t element = 0; element < problem.region_element_count(0); ++element) {
-        const fuelsim::LocalValues local =
-            problem.contribution_state(problem.region_element_offset(0) + element, result.solve.state);
+    for (std::size_t element = 0; element < fuelsim::rz::ProblemAccess::region_element_count(problem, 0); ++element) {
+        const fuelsim::LocalValues local = fuelsim::rz::ProblemAccess::contribution_state(
+            problem, fuelsim::rz::ProblemAccess::region_element_offset(problem, 0) + element, result.solve.state);
         for (const fuelsim::AxisymmetricStressValues& stress :
-             problem.region_kernel(0).stress_values(problem.region_element_geometry(0, element), local)) {
+             fuelsim::rz::ProblemAccess::region_kernel(problem, 0)
+                 .stress_values(fuelsim::rz::ProblemAccess::region_element_geometry(problem, 0, element), local)) {
             radial_stress_sum += stress.rr;
             hoop_stress_sum += stress.hoop;
             ++stress_points;
