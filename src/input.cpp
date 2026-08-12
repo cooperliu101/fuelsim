@@ -500,6 +500,12 @@ Field parse_field(const InputDocument& document, const InputEntry& entry) {
         return Field::radial_displacement;
     if (entry.value == "axial_displacement")
         return Field::axial_displacement;
+    if (entry.value == "displacement_x")
+        return Field::displacement_x;
+    if (entry.value == "displacement_y")
+        return Field::displacement_y;
+    if (entry.value == "displacement_z")
+        return Field::displacement_z;
     value_error(document, entry, "unknown field '" + entry.value + "'");
 }
 
@@ -542,7 +548,7 @@ CaseRegionDefinition read_region(const InputDocument& document, const InputSecti
     const double initial_temperature = read_double(document, section, "initial_temperature");
     ElasticPropertyOutput initial_elasticity{};
     const ElasticFunctionInstance& elasticity = material->functions->elasticity;
-    elasticity.function({initial_temperature, 0.0, 0.0, 0.0, &elasticity.parameters}, initial_elasticity);
+    elasticity.function({initial_temperature, 0.0, 0.0, 0.0, 0.0, &elasticity.parameters}, initial_elasticity);
     if (!std::isfinite(initial_elasticity.young_modulus.value()) || !(initial_elasticity.young_modulus.value() > 0.0))
         value_error(document, section.entry("material"),
                     "material elasticity must produce positive young_modulus at initial_temperature");
@@ -736,12 +742,12 @@ BoundaryConditionDefinition read_boundary_condition(const InputDocument& documen
 
 void read_case(const InputDocument& document, FuelSimCaseDefinition& result) {
     const InputSection& case_section = document.section("Case");
-    validate_keys(document, case_section, {"version", "problem"});
+    validate_keys(document, case_section, {"version", "problem", "geometry"});
     const std::size_t version = read_size(document, case_section, "version");
-    if (version != 2)
+    if (version != 3)
         value_error(document, case_section.entry("version"),
                     "unsupported fuelsim input version '" + std::to_string(version) + "'");
-    result.version = 2;
+    result.version = 3;
     const std::string problem = read_string(document, case_section, "problem");
     if (problem == "steady")
         result.problem = CaseProblem::steady;
@@ -749,6 +755,13 @@ void read_case(const InputDocument& document, FuelSimCaseDefinition& result) {
         result.problem = CaseProblem::transient;
     else
         value_error(document, case_section.entry("problem"), "unknown problem '" + problem + "'");
+    const std::string geometry = read_string(document, case_section, "geometry");
+    if (geometry == "axisymmetric_rz")
+        result.geometry = CaseGeometry::axisymmetric_rz;
+    else if (geometry == "cartesian_3d")
+        result.geometry = CaseGeometry::cartesian_3d;
+    else
+        value_error(document, case_section.entry("geometry"), "unknown geometry '" + geometry + "'");
 }
 
 void read_mesh(const InputDocument& document, const std::string& path, FuelSimCaseDefinition& result) {

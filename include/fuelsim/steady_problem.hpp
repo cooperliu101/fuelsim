@@ -12,8 +12,12 @@ namespace fuelsim {
 struct AugmentedContactUpdate;
 struct SpatialDefinition;
 class UnstructuredQuad4Mesh;
+class UnstructuredHex8Mesh;
 
 namespace rz {
+class ProblemAccess;
+}
+namespace cartesian3d {
 class ProblemAccess;
 }
 
@@ -41,6 +45,7 @@ class SteadyStateSnapshot final {
 class SteadyProblem final : public NonlinearProblem {
   public:
     SteadyProblem(SpatialDefinition definition, const UnstructuredQuad4Mesh& source_mesh);
+    SteadyProblem(SpatialDefinition definition, const UnstructuredHex8Mesh& source_mesh);
     ~SteadyProblem() override;
 
     bool uses_augmented_contact() const noexcept;
@@ -73,6 +78,7 @@ class SteadyProblem final : public NonlinearProblem {
 
   private:
     friend class rz::ProblemAccess;
+    friend class cartesian3d::ProblemAccess;
 
     class Implementation;
     void refresh_region_heat_sources();

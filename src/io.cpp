@@ -1,3 +1,4 @@
+#include "fuelsim/cartesian3d_problem_access.hpp"
 #include "fuelsim/checkpoint_io.hpp"
 #include "fuelsim/exodus_mesh_io.hpp"
 #include "fuelsim/results_io.hpp"
@@ -122,7 +123,78 @@ void hash_thermoelastic(std::uint64_t& hash, const ThermoelasticProperties& mate
 
 std::uint64_t transient_problem_signature(const TransientProblem& problem) {
     std::uint64_t hash = fnv_offset;
+    const bool cartesian = problem.field_layout().size() == 4 && problem.field_layout()[1].name == "displacement_x";
+    hash_string(hash, cartesian ? "cartesian_3d_hex8" : "axisymmetric_rz_quad4");
+    hash_string(hash, cartesian ? "xx,yy,zz,xy,yz,xz" : "rr,zz,hoop,rz");
+    hash_size(hash, cartesian ? 8 : 4);
     hash_size(hash, problem.dof_count());
+    if (cartesian) {
+        hash_size(hash, cartesian3d::ProblemAccess::region_count(problem));
+        const TransientProblemDefinition& definition = cartesian3d::ProblemAccess::definition(problem);
+        for (std::size_t region_value = 0; region_value < cartesian3d::ProblemAccess::region_count(problem);
+             ++region_value) {
+            const RegionDefinition& spatial = definition.spatial.regions[region_value];
+            const TransientInelasticProperties& transient = definition.regions[region_value].material;
+            hash_string(hash, spatial.name);
+            hash_string(hash, spatial.block);
+            hash_integer(hash, spatial.block_id);
+            hash_thermoelastic(hash, spatial.material);
+            hash_double(hash, spatial.volumetric_heat_source);
+            hash_double(hash, spatial.initial_temperature);
+            hash_string(hash, spatial.heat_source_function);
+            hash_double(hash, transient.density);
+            hash_double(hash, transient.specific_heat);
+            const std::uint64_t material_signature =
+                spatial.material.functions ? spatial.material.functions->signature() : 0U;
+            hash_bytes(hash, &material_signature, sizeof(material_signature));
+            const Hex8RegionMesh& mesh = cartesian3d::ProblemAccess::region_mesh(problem, region_value);
+            hash_size(hash, mesh.nodes().size());
+            for (const CartesianPoint3& point : mesh.nodes()) {
+                hash_double(hash, point.x);
+                hash_double(hash, point.y);
+                hash_double(hash, point.z);
+            }
+            hash_size(hash, mesh.elements().size());
+            for (const Hex8Element& element : mesh.elements()) {
+                for (const std::size_t node : element.nodes)
+                    hash_size(hash, node);
+            }
+            for (const std::size_t source : mesh.source_node_ids())
+                hash_size(hash, source);
+            for (const std::size_t source : mesh.source_element_ids())
+                hash_size(hash, source);
+        }
+        for (const BoundaryConditionDefinition& boundary : definition.spatial.boundary_conditions) {
+            hash_string(hash, boundary.name);
+            hash_integer(hash, static_cast<std::int64_t>(boundary.type));
+            hash_string(hash, boundary.boundary);
+            hash_integer(hash, static_cast<std::int64_t>(boundary.field));
+            hash_double(hash, boundary.value);
+            hash_integer(hash, boundary.scale_with_load ? 1 : 0);
+            hash_string(hash, boundary.function);
+            hash_double(hash, boundary.heat_transfer_coefficient);
+            hash_double(hash, boundary.ambient_temperature);
+            hash_string(hash, boundary.coefficient_function);
+            hash_string(hash, boundary.ambient_temperature_function);
+        }
+        for (const PiecewiseLinearTimeTable& table : definition.spatial.time_tables) {
+            hash_string(hash, table.name());
+            hash_size(hash, table.times().size());
+            for (std::size_t entry = 0; entry < table.times().size(); ++entry) {
+                hash_double(hash, table.times()[entry]);
+                hash_double(hash, table.values()[entry]);
+            }
+        }
+        hash_size(hash, problem.contribution_count());
+        std::vector<std::size_t> dofs;
+        for (std::size_t contribution = 0; contribution < problem.contribution_count(); ++contribution) {
+            problem.fill_contribution_dofs(contribution, dofs);
+            hash_size(hash, dofs.size());
+            for (const std::size_t dof : dofs)
+                hash_size(hash, dof);
+        }
+        return hash;
+    }
     hash_size(hash, fuelsim::rz::ProblemAccess::region_count(problem));
     const TransientProblemDefinition& definition = fuelsim::rz::ProblemAccess::definition(problem);
     for (std::size_t region_value = 0; region_value < fuelsim::rz::ProblemAccess::region_count(problem);
@@ -150,9 +222,8 @@ std::uint64_t transient_problem_signature(const TransientProblem& problem) {
         hash_double(hash, transient.plasticity.isotropic_hardening_modulus);
         hash_double(hash, transient.plasticity.yield_stress_temperature_coefficient);
         hash_double(hash, transient.plasticity.hardening_temperature_coefficient);
-        if (!spatial.material.functions)
-            throw std::logic_error("Transient problem material function set is missing");
-        const std::uint64_t material_signature = spatial.material.functions->signature();
+        const std::uint64_t material_signature =
+            spatial.material.functions ? spatial.material.functions->signature() : 0U;
         hash_bytes(hash, &material_signature, sizeof(material_signature));
 
         const RegionMesh& mesh = fuelsim::rz::ProblemAccess::region_mesh(problem, region_value);
@@ -297,7 +368,8 @@ std::vector<NodeSet> read_node_sets(int exoid, std::size_t set_count, std::size_
     return result;
 }
 
-std::vector<SideSet> read_side_sets(int exoid, std::size_t set_count, std::size_t maximum_name_length) {
+std::vector<SideSet> read_side_sets(int exoid, std::size_t set_count, std::size_t maximum_name_length,
+                                    std::int64_t maximum_side, const char* topology_name) {
     std::vector<SideSet> result;
     if (set_count == 0)
         return result;
@@ -319,8 +391,8 @@ std::vector<SideSet> read_side_sets(int exoid, std::size_t set_count, std::size_
         SideSet set{set_id, read_entity_name(exoid, EX_SIDE_SET, set_id, maximum_name_length), {}};
         set.sides.reserve(count);
         for (std::size_t entry = 0; entry < count; ++entry) {
-            if (elements[entry] <= 0 || sides[entry] <= 0 || sides[entry] > 4)
-                throw std::runtime_error("Exodus side set contains an invalid Quad4 side");
+            if (elements[entry] <= 0 || sides[entry] <= 0 || sides[entry] > maximum_side)
+                throw std::runtime_error(std::string("Exodus side set contains an invalid ") + topology_name + " side");
             set.sides.push_back(
                 {static_cast<std::size_t>(elements[entry] - 1), static_cast<std::size_t>(sides[entry] - 1)});
         }
@@ -413,7 +485,7 @@ UnstructuredQuad4Mesh ExodusMeshIo::read_quad4(const std::string& path) {
         throw std::runtime_error("Exodus element count does not match its element blocks");
 
     std::vector<NodeSet> node_sets = read_node_sets(file.id(), node_set_count, name_length);
-    std::vector<SideSet> side_sets = read_side_sets(file.id(), side_set_count, name_length);
+    std::vector<SideSet> side_sets = read_side_sets(file.id(), side_set_count, name_length, 4, "Quad4");
 
     file.close();
     return UnstructuredQuad4Mesh(std::move(nodes), std::move(elements), std::move(element_block_ids),
@@ -522,6 +594,182 @@ void ExodusMeshIo::write_quad4(const std::string& path, const UnstructuredQuad4M
     file.close();
 }
 
+UnstructuredHex8Mesh ExodusMeshIo::read_hex8(const std::string& path) {
+    int cpu_word_size = static_cast<int>(sizeof(double));
+    int io_word_size = 0;
+    float version = 0.0F;
+    const int exoid = ex_open(path.c_str(), EX_READ, &cpu_word_size, &io_word_size, &version);
+    if (exoid < 0)
+        throw std::runtime_error("Could not open Exodus file '" + path + "': " + ex_strerror(exoid));
+    ExodusFile file(exoid);
+    ex_set_int64_status(file.id(), EX_ALL_INT64_API);
+    const std::int64_t maximum_name_length = ex_inquire_int(file.id(), EX_INQ_DB_MAX_ALLOWED_NAME_LENGTH);
+    if (maximum_name_length < 0)
+        throw std::runtime_error("Could not read Exodus maximum name length");
+    check_exodus(ex_set_max_name_length(file.id(), static_cast<int>(maximum_name_length)),
+                 "Could not set Exodus maximum read name length");
+    const std::size_t name_length = checked_size(maximum_name_length, "Exodus maximum name length");
+
+    ex_init_params parameters{};
+    check_exodus(ex_get_init_ext(file.id(), &parameters), "Could not read Exodus model parameters");
+    if (parameters.num_dim != 3)
+        throw std::runtime_error("Exodus HEX8 mesh must be three-dimensional");
+    const std::size_t node_count = checked_size(parameters.num_nodes, "Exodus node count");
+    const std::size_t block_count = checked_size(parameters.num_elem_blk, "Exodus element block count");
+    const std::size_t node_set_count = checked_size(parameters.num_node_sets, "Exodus node set count");
+    const std::size_t side_set_count = checked_size(parameters.num_side_sets, "Exodus side set count");
+    if (node_count == 0 || block_count == 0)
+        throw std::runtime_error("Exodus HEX8 mesh must contain nodes and element blocks");
+
+    std::vector<double> x_coordinates(node_count);
+    std::vector<double> y_coordinates(node_count);
+    std::vector<double> z_coordinates(node_count);
+    check_exodus(ex_get_coord(file.id(), x_coordinates.data(), y_coordinates.data(), z_coordinates.data()),
+                 "Could not read Exodus coordinates");
+    std::vector<CartesianPoint3> nodes;
+    nodes.reserve(node_count);
+    for (std::size_t node = 0; node < node_count; ++node)
+        nodes.push_back({x_coordinates[node], y_coordinates[node], z_coordinates[node]});
+
+    std::vector<std::int64_t> block_ids(block_count);
+    check_exodus(ex_get_ids(file.id(), EX_ELEM_BLOCK, block_ids.data()), "Could not read Exodus element block IDs");
+    std::vector<Hex8Element> elements;
+    std::vector<std::int64_t> element_block_ids;
+    std::vector<ElementBlockInfo> element_blocks;
+    element_blocks.reserve(block_count);
+    elements.reserve(checked_size(parameters.num_elem, "Exodus element count"));
+    element_block_ids.reserve(elements.capacity());
+    for (const std::int64_t block_id : block_ids) {
+        element_blocks.push_back({block_id, read_entity_name(file.id(), EX_ELEM_BLOCK, block_id, name_length)});
+        ex_block block{};
+        block.id = block_id;
+        block.type = EX_ELEM_BLOCK;
+        check_exodus(ex_get_block_param(file.id(), &block), "Could not read Exodus element block");
+        const std::string topology = normalized_topology(block.topology);
+        if (block.num_nodes_per_entry != 8 || (topology != "HEX8" && topology != "HEX"))
+            throw std::runtime_error("Exodus element blocks must contain only HEX8 elements");
+        const std::size_t block_elements = checked_size(block.num_entry, "Exodus block element count");
+        if (block_elements > std::numeric_limits<std::size_t>::max() / 8U)
+            throw std::length_error("Exodus HEX8 connectivity is too large");
+        std::vector<std::int64_t> connectivity(block_elements * 8U);
+        check_exodus(ex_get_conn(file.id(), EX_ELEM_BLOCK, block_id, connectivity.data(), nullptr, nullptr),
+                     "Could not read Exodus HEX8 connectivity");
+        for (std::size_t element = 0; element < block_elements; ++element) {
+            Hex8Element hex{};
+            for (std::size_t local_node = 0; local_node < 8U; ++local_node) {
+                const std::int64_t exodus_node = connectivity[element * 8U + local_node];
+                if (exodus_node <= 0 || static_cast<std::uint64_t>(exodus_node) > node_count)
+                    throw std::runtime_error("Exodus connectivity contains an invalid node ID");
+                hex.nodes[local_node] = static_cast<std::size_t>(exodus_node - 1);
+            }
+            elements.push_back(hex);
+            element_block_ids.push_back(block_id);
+        }
+    }
+    if (elements.size() != checked_size(parameters.num_elem, "Exodus element count"))
+        throw std::runtime_error("Exodus element count does not match its element blocks");
+    std::vector<NodeSet> node_sets = read_node_sets(file.id(), node_set_count, name_length);
+    std::vector<SideSet> side_sets = read_side_sets(file.id(), side_set_count, name_length, 6, "HEX8");
+    file.close();
+    return UnstructuredHex8Mesh(std::move(nodes), std::move(elements), std::move(element_block_ids),
+                                std::move(element_blocks), std::move(node_sets), std::move(side_sets));
+}
+
+void ExodusMeshIo::write_hex8(const std::string& path, const UnstructuredHex8Mesh& mesh) {
+    int cpu_word_size = static_cast<int>(sizeof(double));
+    int io_word_size = static_cast<int>(sizeof(double));
+    const int mode = EX_CLOBBER | EX_ALL_INT64_DB | EX_ALL_INT64_API;
+    const int exoid = ex_create(path.c_str(), mode, &cpu_word_size, &io_word_size);
+    if (exoid < 0)
+        throw std::runtime_error("Could not create Exodus file '" + path + "': " + ex_strerror(exoid));
+    ExodusFile file(exoid);
+    ex_set_int64_status(file.id(), EX_ALL_INT64_API);
+
+    std::vector<BlockConnectivity> blocks;
+    blocks.reserve(mesh.element_blocks().size());
+    for (const ElementBlockInfo& block : mesh.element_blocks())
+        blocks.push_back({block.id, block.name, {}, {}});
+    for (std::size_t element = 0; element < mesh.elements().size(); ++element) {
+        auto block = std::find_if(blocks.begin(), blocks.end(),
+                                  [block_id = mesh.element_block_ids()[element]](const BlockConnectivity& candidate) {
+                                      return candidate._id == block_id;
+                                  });
+        if (block == blocks.end())
+            throw std::logic_error("HEX8 mesh element references an unknown block");
+        block->_source_elements.push_back(element);
+        for (const std::size_t node : mesh.elements()[element].nodes)
+            block->_nodes.push_back(to_exodus_id(node, "Exodus node ID"));
+    }
+
+    ex_init_params parameters{};
+    ex_copy_string(parameters.title, "fuelsim HEX8 mesh", sizeof(parameters.title));
+    parameters.num_dim = 3;
+    parameters.num_nodes = checked_count(mesh.nodes().size(), "Node count");
+    parameters.num_elem = checked_count(mesh.elements().size(), "Element count");
+    parameters.num_elem_blk = checked_count(blocks.size(), "Block count");
+    parameters.num_node_sets = checked_count(mesh.node_sets().size(), "Node set count");
+    parameters.num_side_sets = checked_count(mesh.side_sets().size(), "Side set count");
+    check_exodus(ex_put_init_ext(file.id(), &parameters), "Could not write Exodus model parameters");
+    std::vector<double> x_coordinates;
+    std::vector<double> y_coordinates;
+    std::vector<double> z_coordinates;
+    for (const CartesianPoint3& node : mesh.nodes()) {
+        x_coordinates.push_back(node.x);
+        y_coordinates.push_back(node.y);
+        z_coordinates.push_back(node.z);
+    }
+    check_exodus(ex_put_coord(file.id(), x_coordinates.data(), y_coordinates.data(), z_coordinates.data()),
+                 "Could not write Exodus coordinates");
+    char x_name[] = "x";
+    char y_name[] = "y";
+    char z_name[] = "z";
+    char* coordinate_names[] = {x_name, y_name, z_name};
+    check_exodus(ex_put_coord_names(file.id(), coordinate_names), "Could not write Exodus coordinate names");
+
+    std::vector<std::int64_t> written_element_ids(mesh.elements().size(), 0);
+    std::int64_t next_element_id = 1;
+    for (const BlockConnectivity& block : blocks) {
+        const std::int64_t count = checked_count(block._nodes.size() / 8U, "Block element count");
+        check_exodus(ex_put_block(file.id(), EX_ELEM_BLOCK, block._id, "HEX8", count, 8, 0, 0, 0),
+                     "Could not write Exodus HEX8 element block");
+        check_exodus(ex_put_conn(file.id(), EX_ELEM_BLOCK, block._id, block._nodes.data(), nullptr, nullptr),
+                     "Could not write Exodus HEX8 connectivity");
+        write_entity_name(file.id(), EX_ELEM_BLOCK, block._id, block._name,
+                          "Could not write Exodus element block name");
+        for (const std::size_t source_element : block._source_elements)
+            written_element_ids[source_element] = next_element_id++;
+    }
+    for (const NodeSet& set : mesh.node_sets()) {
+        std::vector<std::int64_t> entries;
+        for (const std::size_t node : set.nodes)
+            entries.push_back(to_exodus_id(node, "Exodus node set ID"));
+        check_exodus(
+            ex_put_set_param(file.id(), EX_NODE_SET, set.id, checked_count(entries.size(), "Node set size"), 0),
+            "Could not write Exodus node set parameters");
+        if (!entries.empty())
+            check_exodus(ex_put_set(file.id(), EX_NODE_SET, set.id, entries.data(), nullptr),
+                         "Could not write Exodus node set");
+        write_entity_name(file.id(), EX_NODE_SET, set.id, set.name, "Could not write Exodus node set name");
+    }
+    for (const SideSet& set : mesh.side_sets()) {
+        std::vector<std::int64_t> set_elements;
+        std::vector<std::int64_t> set_sides;
+        for (const ElementSide& side : set.sides) {
+            (void)to_exodus_id(side.element, "Exodus side set element ID");
+            set_elements.push_back(written_element_ids.at(side.element));
+            set_sides.push_back(static_cast<std::int64_t>(side.local_side) + 1);
+        }
+        check_exodus(
+            ex_put_set_param(file.id(), EX_SIDE_SET, set.id, checked_count(set.sides.size(), "Side set size"), 0),
+            "Could not write Exodus side set parameters");
+        if (!set_elements.empty())
+            check_exodus(ex_put_set(file.id(), EX_SIDE_SET, set.id, set_elements.data(), set_sides.data()),
+                         "Could not write Exodus side set");
+        write_entity_name(file.id(), EX_SIDE_SET, set.id, set.name, "Could not write Exodus side set name");
+    }
+    file.close();
+}
+
 // Exodus result output.
 namespace {
 
@@ -529,6 +777,7 @@ using exodus_detail::check_exodus;
 using exodus_detail::ExodusFile;
 
 constexpr std::array<const char*, 4> stress_components = {"rr", "zz", "hoop", "rz"};
+constexpr std::array<const char*, 6> cartesian_stress_components = {"xx", "yy", "zz", "xy", "yz", "xz"};
 
 int checked_int(std::size_t value, const std::string& quantity) {
     if (value > static_cast<std::size_t>(std::numeric_limits<int>::max()))
@@ -576,6 +825,10 @@ std::vector<std::string> nodal_variable_names(const std::vector<ContactDefinitio
     return result;
 }
 
+std::vector<std::string> cartesian_nodal_variable_names() {
+    return {"temperature", "displacement_x", "displacement_y", "displacement_z"};
+}
+
 std::vector<std::string> global_variable_names(const std::vector<ContactDefinition>& contacts) {
     std::vector<std::string> result = {"load_factor"};
     for (const ContactDefinition& contact : contacts) {
@@ -615,6 +868,16 @@ std::vector<std::string> transient_element_variable_names() {
     return result;
 }
 
+std::vector<std::string> cartesian_stress_variable_names() {
+    std::vector<std::string> result;
+    result.reserve(48);
+    for (std::size_t q = 0; q < 8; ++q) {
+        for (const char* component : cartesian_stress_components)
+            result.push_back("stress_" + std::string(component) + "_q" + std::to_string(q));
+    }
+    return result;
+}
+
 void define_variables(const std::string& path, const UnstructuredQuad4Mesh& mesh, std::vector<std::string> nodal_names,
                       std::vector<std::string> element_names, std::vector<std::string> global_names) {
     ExodusMeshIo::write_quad4(path, mesh);
@@ -631,7 +894,31 @@ void define_variables(const std::string& path, const UnstructuredQuad4Mesh& mesh
     file.close();
 }
 
+void define_variables(const std::string& path, const UnstructuredHex8Mesh& mesh, std::vector<std::string> nodal_names,
+                      std::vector<std::string> element_names, std::vector<std::string> global_names) {
+    ExodusMeshIo::write_hex8(path, mesh);
+    ExodusFile file = open_results(path);
+    check_exodus(ex_set_max_name_length(file.id(), 64), "Could not set Exodus result-name length");
+    define_variable_names(file.id(), EX_NODAL, nodal_names, "nodal");
+    define_variable_names(file.id(), EX_GLOBAL, global_names, "global");
+    define_variable_names(file.id(), EX_ELEM_BLOCK, element_names, "element");
+    std::vector<int> truth(mesh.element_blocks().size() * element_names.size(), 1);
+    check_exodus(ex_put_truth_table(file.id(), EX_ELEM_BLOCK, static_cast<int>(mesh.element_blocks().size()),
+                                    static_cast<int>(element_names.size()), truth.data()),
+                 "Could not define Exodus element-variable truth table");
+    file.close();
+}
+
 std::vector<std::size_t> block_elements(const UnstructuredQuad4Mesh& mesh, std::int64_t block_id) {
+    std::vector<std::size_t> result;
+    for (std::size_t element = 0; element < mesh.elements().size(); ++element) {
+        if (mesh.element_block_ids()[element] == block_id)
+            result.push_back(element);
+    }
+    return result;
+}
+
+std::vector<std::size_t> block_elements(const UnstructuredHex8Mesh& mesh, std::int64_t block_id) {
     std::vector<std::size_t> result;
     for (std::size_t element = 0; element < mesh.elements().size(); ++element) {
         if (mesh.element_block_ids()[element] == block_id)
@@ -674,6 +961,42 @@ void write_step(const std::string& path, const UnstructuredQuad4Mesh& mesh, std:
             check_exodus(ex_put_var(file.id(), exodus_step, EX_ELEM_BLOCK, static_cast<int>(variable + 1),
                                     mesh.element_blocks()[block].id, static_cast<std::int64_t>(values.size()),
                                     values.data()),
+                         "Could not write Exodus element results");
+        }
+    }
+    check_exodus(ex_update(file.id()), "Could not flush Exodus results");
+    file.close();
+}
+
+void write_step(const std::string& path, const UnstructuredHex8Mesh& mesh, std::size_t step, double time,
+                const std::vector<std::vector<double>>& nodal_values,
+                const std::vector<std::vector<double>>& element_values, const std::vector<double>& global_values) {
+    if (step == 0 || nodal_values.empty() || element_values.empty() || global_values.empty())
+        throw std::invalid_argument("Exodus result step is incomplete");
+    ExodusFile file = open_results(path);
+    const int exodus_step = checked_int(step, "Exodus result step");
+    check_exodus(ex_put_time(file.id(), exodus_step, &time), "Could not write Exodus result time");
+    check_exodus(ex_put_var(file.id(), exodus_step, EX_GLOBAL, 1, 0, static_cast<std::int64_t>(global_values.size()),
+                            global_values.data()),
+                 "Could not write Exodus global results");
+    for (std::size_t variable = 0; variable < nodal_values.size(); ++variable) {
+        if (nodal_values[variable].size() != mesh.nodes().size())
+            throw std::invalid_argument("Exodus nodal result size does not match HEX8 mesh");
+        check_exodus(ex_put_var(file.id(), exodus_step, EX_NODAL, static_cast<int>(variable + 1), 1,
+                                static_cast<std::int64_t>(mesh.nodes().size()), nodal_values[variable].data()),
+                     "Could not write Exodus nodal results");
+    }
+    for (std::size_t variable = 0; variable < element_values.size(); ++variable) {
+        if (element_values[variable].size() != mesh.elements().size())
+            throw std::invalid_argument("Exodus element result size does not match HEX8 mesh");
+        for (const ElementBlockInfo& block : mesh.element_blocks()) {
+            const std::vector<std::size_t> elements = block_elements(mesh, block.id);
+            std::vector<double> values;
+            values.reserve(elements.size());
+            for (const std::size_t element : elements)
+                values.push_back(element_values[variable][element]);
+            check_exodus(ex_put_var(file.id(), exodus_step, EX_ELEM_BLOCK, static_cast<int>(variable + 1), block.id,
+                                    static_cast<std::int64_t>(values.size()), values.data()),
                          "Could not write Exodus element results");
         }
     }
@@ -840,6 +1163,99 @@ std::vector<std::vector<double>> transient_elements(const UnstructuredQuad4Mesh&
     return result;
 }
 
+void fill_cartesian_region_nodal(const Hex8RegionMesh& region_mesh, std::size_t region_offset,
+                                 const Hex8DofMap& dof_map, const std::vector<double>& state,
+                                 std::vector<bool>& present, std::vector<std::vector<double>>& values) {
+    for (std::size_t local = 0; local < region_mesh.nodes().size(); ++local) {
+        const std::size_t source = region_mesh.source_node_ids()[local];
+        if (present.at(source))
+            throw std::invalid_argument("Exodus HEX8 result mapping contains a shared source node");
+        present[source] = true;
+        const std::size_t global = region_offset + local;
+        values[0][source] = state.at(dof_map.temperature(global));
+        values[1][source] = state.at(dof_map.displacement_x(global));
+        values[2][source] = state.at(dof_map.displacement_y(global));
+        values[3][source] = state.at(dof_map.displacement_z(global));
+    }
+}
+
+void fill_cartesian_steady_nodal(const UnstructuredHex8Mesh& mesh, const SteadyProblem& problem,
+                                 const std::vector<double>& state, std::vector<std::vector<double>>& values) {
+    const double missing = std::numeric_limits<double>::quiet_NaN();
+    values.assign(4, std::vector<double>(mesh.nodes().size(), missing));
+    std::vector<bool> present(mesh.nodes().size(), false);
+    for (std::size_t region_value = 0; region_value < cartesian3d::ProblemAccess::region_count(problem); ++region_value)
+        fill_cartesian_region_nodal(cartesian3d::ProblemAccess::region_mesh(problem, region_value),
+                                    cartesian3d::ProblemAccess::region_node_offset(problem, region_value),
+                                    cartesian3d::ProblemAccess::dof_map(problem), state, present, values);
+}
+
+void fill_cartesian_transient_nodal(const UnstructuredHex8Mesh& mesh, const TransientProblem& problem,
+                                    std::vector<std::vector<double>>& values) {
+    const double missing = std::numeric_limits<double>::quiet_NaN();
+    values.assign(4, std::vector<double>(mesh.nodes().size(), missing));
+    std::vector<bool> present(mesh.nodes().size(), false);
+    for (std::size_t region_value = 0; region_value < cartesian3d::ProblemAccess::region_count(problem); ++region_value)
+        fill_cartesian_region_nodal(cartesian3d::ProblemAccess::region_mesh(problem, region_value),
+                                    cartesian3d::ProblemAccess::region_node_offset(problem, region_value),
+                                    cartesian3d::ProblemAccess::dof_map(problem), problem.committed_solution(), present,
+                                    values);
+}
+
+void store_cartesian_stress_values(std::size_t source, const std::array<SymmetricTensor3Values, 8>& stresses,
+                                   std::vector<std::vector<double>>& values) {
+    for (std::size_t q = 0; q < 8; ++q) {
+        const std::size_t offset = 6 * q;
+        values[offset][source] = stresses[q].xx;
+        values[offset + 1][source] = stresses[q].yy;
+        values[offset + 2][source] = stresses[q].zz;
+        values[offset + 3][source] = stresses[q].xy;
+        values[offset + 4][source] = stresses[q].yz;
+        values[offset + 5][source] = stresses[q].xz;
+    }
+}
+
+std::vector<std::vector<double>> cartesian_steady_elements(const UnstructuredHex8Mesh& mesh,
+                                                           const SteadyProblem& problem,
+                                                           const std::vector<double>& state) {
+    const double missing = std::numeric_limits<double>::quiet_NaN();
+    std::vector<std::vector<double>> result(48, std::vector<double>(mesh.elements().size(), missing));
+    for (std::size_t region_value = 0; region_value < cartesian3d::ProblemAccess::region_count(problem);
+         ++region_value) {
+        const Hex8RegionMesh& region_mesh = cartesian3d::ProblemAccess::region_mesh(problem, region_value);
+        const std::size_t global_offset = cartesian3d::ProblemAccess::region_node_offset(problem, region_value);
+        for (std::size_t element = 0; element < region_mesh.elements().size(); ++element) {
+            std::array<std::size_t, 8> nodes{};
+            for (std::size_t node = 0; node < 8; ++node)
+                nodes[node] = global_offset + region_mesh.elements()[element].nodes[node];
+            const Hex8LocalDofs local_dofs = cartesian3d::ProblemAccess::dof_map(problem).local_dofs(nodes);
+            Hex8LocalValues local_state{};
+            for (std::size_t local = 0; local < 32; ++local)
+                local_state[local] = state.at(local_dofs[local]);
+            const auto stresses =
+                cartesian3d::ProblemAccess::region_kernel(problem, region_value)
+                    .stress_values(cartesian3d::ProblemAccess::region_element_geometry(problem, region_value, element),
+                                   local_state);
+            store_cartesian_stress_values(region_mesh.source_element_ids()[element], stresses, result);
+        }
+    }
+    return result;
+}
+
+std::vector<std::vector<double>> cartesian_transient_elements(const UnstructuredHex8Mesh& mesh,
+                                                              const TransientProblem& problem) {
+    const double missing = std::numeric_limits<double>::quiet_NaN();
+    std::vector<std::vector<double>> result(48, std::vector<double>(mesh.elements().size(), missing));
+    for (std::size_t region_value = 0; region_value < cartesian3d::ProblemAccess::region_count(problem);
+         ++region_value) {
+        const Hex8RegionMesh& region_mesh = cartesian3d::ProblemAccess::region_mesh(problem, region_value);
+        for (std::size_t element = 0; element < region_mesh.elements().size(); ++element)
+            store_cartesian_stress_values(region_mesh.source_element_ids()[element],
+                                          cartesian3d::ProblemAccess::stress(problem, region_value, element), result);
+    }
+    return result;
+}
+
 } // namespace
 
 std::string next_results_segment_path(const std::string& configured_path) {
@@ -868,12 +1284,20 @@ EngineeringHistoryWriter::EngineeringHistoryWriter(std::string path, const Trans
                "nonlinear_iterations";
     for (const TransientConservationField& field : transient_conservation_fields)
         _stream << ',' << field.name;
-    for (std::size_t region = 0; region < fuelsim::rz::ProblemAccess::region_count(problem); ++region) {
-        const std::string prefix = ",region_" + fuelsim::rz::ProblemAccess::region(problem, region).name;
+    const bool cartesian = problem.field_layout().size() == 4;
+    const std::size_t regions = cartesian ? cartesian3d::ProblemAccess::region_count(problem)
+                                          : fuelsim::rz::ProblemAccess::region_count(problem);
+    for (std::size_t region = 0; region < regions; ++region) {
+        const std::string name = cartesian ? cartesian3d::ProblemAccess::region(problem, region).name
+                                           : fuelsim::rz::ProblemAccess::region(problem, region).name;
+        const std::string prefix = ",region_" + name;
         _stream << prefix << "_maximum_temperature" << prefix << "_maximum_equivalent_plastic_strain" << prefix
                 << "_maximum_equivalent_creep_strain";
     }
-    for (const ContactDefinition& contact : fuelsim::rz::ProblemAccess::definition(problem).spatial.contacts) {
+    const std::vector<ContactDefinition>& contacts =
+        cartesian ? cartesian3d::ProblemAccess::definition(problem).spatial.contacts
+                  : fuelsim::rz::ProblemAccess::definition(problem).spatial.contacts;
+    for (const ContactDefinition& contact : contacts) {
         const std::string prefix = ",contact_" + contact.name;
         _stream << prefix << "_minimum_gap" << prefix << "_maximum_pressure" << prefix << "_total_heat_rate" << prefix
                 << "_total_force" << prefix << "_total_tangential_force";
@@ -893,20 +1317,30 @@ void EngineeringHistoryWriter::append(const TransientProblem& problem, double ti
     for (const TransientConservationField& field : transient_conservation_fields)
         _stream << ',' << conservation.*field.member;
     const std::vector<double>& state = problem.committed_solution();
-    for (std::size_t region = 0; region < fuelsim::rz::ProblemAccess::region_count(problem); ++region) {
+    const bool cartesian = problem.field_layout().size() == 4;
+    const std::size_t regions = cartesian ? cartesian3d::ProblemAccess::region_count(problem)
+                                          : fuelsim::rz::ProblemAccess::region_count(problem);
+    for (std::size_t region = 0; region < regions; ++region) {
         double maximum_temperature = -std::numeric_limits<double>::infinity();
-        const std::size_t offset = fuelsim::rz::ProblemAccess::region_node_offset(problem, region);
-        for (std::size_t local = 0; local < fuelsim::rz::ProblemAccess::region_mesh(problem, region).nodes().size();
-             ++local)
-            maximum_temperature =
-                std::max(maximum_temperature,
-                         state.at(fuelsim::rz::ProblemAccess::dof_map(problem).temperature(offset + local)));
-        const RegionInelasticSummary history = fuelsim::rz::ProblemAccess::summarize_region_history(problem, region);
+        const std::size_t offset = cartesian ? cartesian3d::ProblemAccess::region_node_offset(problem, region)
+                                             : fuelsim::rz::ProblemAccess::region_node_offset(problem, region);
+        const std::size_t nodes = cartesian ? cartesian3d::ProblemAccess::region_mesh(problem, region).nodes().size()
+                                            : fuelsim::rz::ProblemAccess::region_mesh(problem, region).nodes().size();
+        for (std::size_t local = 0; local < nodes; ++local) {
+            const std::size_t dof = cartesian
+                                        ? cartesian3d::ProblemAccess::dof_map(problem).temperature(offset + local)
+                                        : fuelsim::rz::ProblemAccess::dof_map(problem).temperature(offset + local);
+            maximum_temperature = std::max(maximum_temperature, state.at(dof));
+        }
+        const RegionInelasticSummary history =
+            cartesian ? RegionInelasticSummary{0.0, 0.0}
+                      : fuelsim::rz::ProblemAccess::summarize_region_history(problem, region);
         _stream << ',' << maximum_temperature << ',' << history.maximum_equivalent_plastic_strain << ','
                 << history.maximum_equivalent_creep_strain;
     }
-    for (std::size_t contact = 0; contact < fuelsim::rz::ProblemAccess::definition(problem).spatial.contacts.size();
-         ++contact) {
+    const std::size_t contacts =
+        cartesian ? 0 : fuelsim::rz::ProblemAccess::definition(problem).spatial.contacts.size();
+    for (std::size_t contact = 0; contact < contacts; ++contact) {
         const InterfaceSummary summary = fuelsim::rz::ProblemAccess::summarize_interface(problem, contact, state);
         _stream << ',' << summary.minimum_gap << ',' << summary.maximum_contact_pressure << ','
                 << summary.total_heat_rate << ',' << summary.total_contact_force << ','
@@ -931,16 +1365,37 @@ void ExodusResultsIo::write_steady(const std::string& path, const UnstructuredQu
     write_step(path, mesh, 1, 1.0, nodal_values, steady_elements(mesh, problem, state), steady_globals(problem, state));
 }
 
+void ExodusResultsIo::write_steady(const std::string& path, const UnstructuredHex8Mesh& mesh,
+                                   const SteadyProblem& problem, const std::vector<double>& state) {
+    if (path.empty())
+        throw std::invalid_argument("Exodus result path must not be empty");
+    define_variables(path, mesh, cartesian_nodal_variable_names(), cartesian_stress_variable_names(), {"load_factor"});
+    std::vector<std::vector<double>> nodal_values;
+    fill_cartesian_steady_nodal(mesh, problem, state, nodal_values);
+    write_step(path, mesh, 1, 1.0, nodal_values, cartesian_steady_elements(mesh, problem, state),
+               {problem.load_factor()});
+}
+
 ExodusTransientResultsWriter::ExodusTransientResultsWriter(std::string path, UnstructuredQuad4Mesh mesh,
                                                            const TransientProblem& problem)
-    : _path(std::move(path)), _mesh(std::move(mesh)), _problem_signature(transient_problem_signature(problem)),
-      _step_count(0) {
+    : _path(std::move(path)), _rz_mesh(std::make_unique<UnstructuredQuad4Mesh>(std::move(mesh))),
+      _problem_signature(transient_problem_signature(problem)), _step_count(0) {
     if (_path.empty())
         throw std::invalid_argument("Exodus result path must not be empty");
-    define_variables(_path, _mesh,
+    define_variables(_path, *_rz_mesh,
                      nodal_variable_names(fuelsim::rz::ProblemAccess::definition(problem).spatial.contacts),
                      transient_element_variable_names(),
                      global_variable_names(fuelsim::rz::ProblemAccess::definition(problem).spatial.contacts));
+}
+
+ExodusTransientResultsWriter::ExodusTransientResultsWriter(std::string path, UnstructuredHex8Mesh mesh,
+                                                           const TransientProblem& problem)
+    : _path(std::move(path)), _hex_mesh(std::make_unique<UnstructuredHex8Mesh>(std::move(mesh))),
+      _problem_signature(transient_problem_signature(problem)), _step_count(0) {
+    if (_path.empty())
+        throw std::invalid_argument("Exodus result path must not be empty");
+    define_variables(_path, *_hex_mesh, cartesian_nodal_variable_names(), cartesian_stress_variable_names(),
+                     {"load_factor"});
 }
 
 void ExodusTransientResultsWriter::append(const TransientProblem& problem) {
@@ -948,11 +1403,17 @@ void ExodusTransientResultsWriter::append(const TransientProblem& problem) {
         throw std::logic_error("Exodus results cannot be written during an active time step");
     if (transient_problem_signature(problem) != _problem_signature)
         throw std::invalid_argument("Exodus result problem does not match writer model");
-    std::vector<std::vector<double>> nodal_values;
-    fill_transient_nodal(_mesh, problem, nodal_values);
     ++_step_count;
-    write_step(_path, _mesh, _step_count, problem.committed_time(), nodal_values, transient_elements(_mesh, problem),
-               transient_globals(problem));
+    std::vector<std::vector<double>> nodal_values;
+    if (_hex_mesh) {
+        fill_cartesian_transient_nodal(*_hex_mesh, problem, nodal_values);
+        write_step(_path, *_hex_mesh, _step_count, problem.committed_time(), nodal_values,
+                   cartesian_transient_elements(*_hex_mesh, problem), {problem.committed_load_factor()});
+    } else {
+        fill_transient_nodal(*_rz_mesh, problem, nodal_values);
+        write_step(_path, *_rz_mesh, _step_count, problem.committed_time(), nodal_values,
+                   transient_elements(*_rz_mesh, problem), transient_globals(problem));
+    }
 }
 
 std::size_t ExodusTransientResultsWriter::step_count() const noexcept {
@@ -964,7 +1425,9 @@ namespace {
 
 constexpr std::array<unsigned char, 16> checkpoint_magic = {'F', 'U', 'E', 'L', 'S', 'I', 'M', '_',
                                                             'C', 'H', 'E', 'C', 'K', 'P', 'T', '\0'};
-constexpr std::uint32_t checkpoint_version = 6U;
+constexpr std::uint32_t checkpoint_version = 7U;
+constexpr std::uint32_t rz_geometry_tag = 1U;
+constexpr std::uint32_t cartesian_geometry_tag = 2U;
 constexpr std::uint32_t endian_marker = 0x01020304U;
 constexpr std::uint64_t maximum_checkpoint_bytes = 16ULL * 1024ULL * 1024ULL * 1024ULL;
 
@@ -1057,7 +1520,7 @@ void read_strains(BinaryCursor& payload, std::array<double, 4>& values) {
 }
 
 // Checkpoint field order (elastic, plastic, creep strains, equivalent
-// strains, stress rr/zz/hoop/rz) is the checkpoint_version=6 byte contract;
+// strains, stress rr/zz/hoop/rz) is the RZ part of the checkpoint version 7 byte contract;
 // append_material_point and read_material_point must stay symmetric.
 void append_material_point(BinaryBuffer& payload, const MaterialPointState& state,
                            const AxisymmetricStressValues& stress) {
@@ -1100,9 +1563,36 @@ TransientConservationSummary read_conservation(BinaryCursor& payload) {
 }
 
 BinaryBuffer state_payload(const TransientProblem& problem, double next_time_step) {
-    const rz::TransientCommittedState state = fuelsim::rz::ProblemAccess::committed_state(problem);
     BinaryBuffer payload;
     payload.append_u64(transient_problem_signature(problem));
+    const bool cartesian = problem.field_layout().size() == 4;
+    payload.append_u32(cartesian ? cartesian_geometry_tag : rz_geometry_tag);
+    if (cartesian) {
+        const cartesian3d::TransientCommittedState state = cartesian3d::ProblemAccess::committed_state(problem);
+        payload.append_double(state.time);
+        payload.append_double(state.load_factor);
+        payload.append_double(next_time_step);
+        append_conservation(payload, state.conservation);
+        payload.append_u64(static_cast<std::uint64_t>(state.solution.size()));
+        for (const double value : state.solution)
+            payload.append_double(value);
+        payload.append_u64(static_cast<std::uint64_t>(state.stresses.size()));
+        for (const auto& region : state.stresses) {
+            payload.append_u64(static_cast<std::uint64_t>(region.size()));
+            for (const auto& element : region) {
+                for (const SymmetricTensor3Values& stress : element) {
+                    payload.append_double(stress.xx);
+                    payload.append_double(stress.yy);
+                    payload.append_double(stress.zz);
+                    payload.append_double(stress.xy);
+                    payload.append_double(stress.yz);
+                    payload.append_double(stress.xz);
+                }
+            }
+        }
+        return payload;
+    }
+    const rz::TransientCommittedState state = fuelsim::rz::ProblemAccess::committed_state(problem);
     payload.append_double(state.time);
     payload.append_double(state.load_factor);
     payload.append_double(next_time_step);
@@ -1212,6 +1702,50 @@ double TransientCheckpointIo::restore(const std::string& path, TransientProblem&
     BinaryCursor payload(payload_bytes);
     if (payload.read_u64() != transient_problem_signature(problem))
         throw std::runtime_error("Checkpoint model signature does not match the current problem");
+    const std::uint32_t geometry_tag = payload.read_u32();
+    const bool cartesian = problem.field_layout().size() == 4;
+    if (cartesian) {
+        if (geometry_tag != cartesian_geometry_tag)
+            throw std::runtime_error("Checkpoint geometry does not match the current problem");
+        cartesian3d::TransientCommittedState state;
+        state.time = payload.read_double();
+        state.load_factor = payload.read_double();
+        const double next_time_step = payload.read_double();
+        state.conservation = read_conservation(payload);
+        if (!std::isfinite(next_time_step) || !(next_time_step > 0.0))
+            throw std::runtime_error("Checkpoint next time step is invalid");
+        if (payload.read_u64() != problem.dof_count())
+            throw std::runtime_error("Checkpoint solution size does not match the current problem");
+        state.solution.resize(problem.dof_count());
+        for (double& value : state.solution)
+            value = payload.read_double();
+        const std::size_t regions = cartesian3d::ProblemAccess::region_count(problem);
+        if (payload.read_u64() != regions)
+            throw std::runtime_error("Checkpoint region count does not match the current problem");
+        state.stresses.resize(regions);
+        for (std::size_t region = 0; region < regions; ++region) {
+            const std::size_t elements = cartesian3d::ProblemAccess::region_mesh(problem, region).elements().size();
+            if (payload.read_u64() != elements)
+                throw std::runtime_error("Checkpoint element count does not match the current problem");
+            state.stresses[region].resize(elements);
+            for (auto& element : state.stresses[region]) {
+                for (SymmetricTensor3Values& stress : element) {
+                    stress.xx = payload.read_double();
+                    stress.yy = payload.read_double();
+                    stress.zz = payload.read_double();
+                    stress.xy = payload.read_double();
+                    stress.yz = payload.read_double();
+                    stress.xz = payload.read_double();
+                }
+            }
+        }
+        if (!payload.at_end())
+            throw std::runtime_error("Checkpoint payload contains trailing data");
+        cartesian3d::ProblemAccess::restore_committed_state(problem, std::move(state));
+        return next_time_step;
+    }
+    if (geometry_tag != rz_geometry_tag)
+        throw std::runtime_error("Checkpoint geometry does not match the current problem");
     rz::TransientCommittedState state;
     state.time = payload.read_double();
     state.load_factor = payload.read_double();

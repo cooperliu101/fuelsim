@@ -28,6 +28,7 @@ files.
 | M3.3 two-pellet contact | `m33_two_pellet_contact_rz_mesh.e` | 36 / 20 | `90c90396384397cbd0c993f35ac90c6e402996c77454820c009a653e8748f474` |
 | M5.2 large sliding | `m52_large_sliding_contact_rz_mesh.e` | 402 / 264 | `bd6677fcc6061c37f2dffe00c10dc197c54648227ac084ada10b27e12e5fa78d` |
 | M5.4 augmented contact | `m54_augmented_contact_rz_mesh.e` | 528 / 460 | `8304c2fc649863b0a7ce80fc17ca8c8d64161467f42be2610132b3cd29177ec0` |
+| B3 HEX8 thermoelasticity | `b3_hex8_mesh.e` | 12 / 2 HEX8 | `910088a0aad60aa2ab02f00c3b8cf384bc2a2a2377f41c3db7e554d5ca9481f2` |
 
 Generate any snapshot from this directory by replacing `<case>` with the input
 stem:
@@ -43,6 +44,23 @@ cases select block ID 0 because the default MOOSE block has no required name;
 M1, M2.3, and M4.1 select the named `fuel` and `clad` blocks.
 M2.3 uses mortar gap heat transfer in the solve, so its mesh-only command adds
 `MortarGapHeatTransfer/active=''`; this changes no generated mesh entity.
+
+## Stage B three-dimensional HEX8 thermoelasticity
+
+`b3_hex8_thermoelastic.i` reads the tracked two-element HEX8 mesh, fixes one
+symmetry plane for each displacement, holds the left face at 300 K, and applies
+a 1 MPa global x traction on the right face. The solution is the constant-stress
+patch `ux = 0.001 x`, `uy = -0.00025 y`, `uz = -0.00025 z`.
+
+The checked run used one MPI rank and one thread with
+`/home/cooper/projects/july/july-opt`, MOOSE commit `93b11698be`, and PETSc
+3.25.2. `fuelsim_b3_hex8_moose_tests` reads the same tracked Exodus file and
+compares all 12 nodes. It also compares the MOOSE element stress to all eight
+fuelsim integration points per element; this is valid for this constant-stress
+patch, while nonuniform integration-point validation remains future work.
+Temperature, three displacements, and nonzero stress all pass the three relative
+metrics below 0.1 percent. Zero reference values are reported with a separate
+absolute difference and no denominator floor.
 
 `SHA256SUMS` is the machine-checked authority for every tracked MOOSE input,
 mesh, and result snapshot. `fuelsim_moose_reference_sha256` recomputes every

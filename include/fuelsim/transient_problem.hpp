@@ -17,6 +17,9 @@ namespace rz {
 class ProblemAccess;
 class TransientConservationCalculator;
 } // namespace rz
+namespace cartesian3d {
+class ProblemAccess;
+}
 struct TransientTimeErrorEstimate;
 struct TransientTimeOptions;
 
@@ -114,6 +117,7 @@ class TransientStateSnapshot final {
 class TransientProblem final : public NonlinearProblem {
   public:
     TransientProblem(TransientProblemDefinition definition, const UnstructuredQuad4Mesh& source_mesh);
+    TransientProblem(TransientProblemDefinition definition, const UnstructuredHex8Mesh& source_mesh);
     ~TransientProblem() override;
 
     const std::vector<double>& committed_solution() const noexcept;
@@ -156,6 +160,7 @@ class TransientProblem final : public NonlinearProblem {
 
   private:
     friend class rz::ProblemAccess;
+    friend class cartesian3d::ProblemAccess;
     friend class rz::TransientConservationCalculator;
 
     class Implementation;

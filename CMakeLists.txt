@@ -61,6 +61,8 @@ endfunction()
 
 add_library(fuelsim_core
     src/assembly.cpp
+    src/cartesian3d_assembly.cpp
+    src/hex8.cpp
     src/kernels.cpp
     src/mesh.cpp
     src/material.cpp
@@ -420,6 +422,33 @@ if(BUILD_TESTING)
     add_test(NAME fuelsim_core_tests COMMAND fuelsim_core_tests)
     set_tests_properties(fuelsim_core_tests PROPERTIES LABELS "unit")
 
+    add_executable(fuelsim_hex8_tests tests/hex8_tests.cpp)
+    target_link_libraries(fuelsim_hex8_tests PRIVATE fuelsim::core)
+    fuelsim_enable_warnings(fuelsim_hex8_tests)
+    add_test(NAME fuelsim_hex8_tests COMMAND fuelsim_hex8_tests)
+    set_tests_properties(fuelsim_hex8_tests PROPERTIES LABELS "unit;three-dimensional")
+
+    add_executable(fuelsim_hex8_solver_tests tests/hex8_solver_tests.cpp)
+    target_link_libraries(fuelsim_hex8_solver_tests PRIVATE fuelsim::io fuelsim::solver)
+    fuelsim_enable_warnings(fuelsim_hex8_solver_tests)
+    add_test(NAME fuelsim_hex8_solver_tests
+        COMMAND fuelsim_hex8_solver_tests
+            "${CMAKE_CURRENT_BINARY_DIR}/hex8_steady_results.e"
+            "${CMAKE_CURRENT_BINARY_DIR}/hex8_transient_results.e"
+            "${CMAKE_CURRENT_BINARY_DIR}/hex8_checkpoint.bin")
+    set_tests_properties(fuelsim_hex8_solver_tests PROPERTIES LABELS "integration;three-dimensional")
+
+    add_executable(fuelsim_b3_hex8_moose_tests tests/b3_hex8_moose_tests.cpp)
+    target_link_libraries(fuelsim_b3_hex8_moose_tests
+        PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
+    fuelsim_enable_warnings(fuelsim_b3_hex8_moose_tests)
+    add_test(NAME fuelsim_b3_hex8_moose_tests
+        COMMAND fuelsim_b3_hex8_moose_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex8_thermoelastic.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b3_hex8_thermoelastic_all_nodes_final.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b3_hex8_thermoelastic_element_stress_final.csv")
+    set_tests_properties(fuelsim_b3_hex8_moose_tests PROPERTIES LABELS "acceptance;three-dimensional")
+
     add_executable(fuelsim_multi_region_tests tests/multi_region_tests.cpp)
     target_link_libraries(fuelsim_multi_region_tests
         PRIVATE fuelsim::core fuelsim::solver
@@ -450,6 +479,18 @@ if(BUILD_TESTING)
         NO_DEFAULT_PATH
     )
     if(FUELSIM_MPIEXEC_EXECUTABLE)
+        add_test(NAME fuelsim_mpi_hex8_solver_tests
+            COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2
+                    "$<TARGET_FILE:fuelsim_hex8_solver_tests>"
+                    "${CMAKE_CURRENT_BINARY_DIR}/mpi_hex8_steady_results.e"
+                    "${CMAKE_CURRENT_BINARY_DIR}/mpi_hex8_transient_results.e"
+                    "${CMAKE_CURRENT_BINARY_DIR}/mpi_hex8_checkpoint.bin"
+                    -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps)
+        set_tests_properties(fuelsim_mpi_hex8_solver_tests PROPERTIES
+            PROCESSORS 2
+            RUN_SERIAL TRUE
+            LABELS "integration;mpi;three-dimensional")
+
         add_test(NAME fuelsim_mpi_solver_tests
             COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2
                 $<TARGET_FILE:fuelsim_solver_tests>

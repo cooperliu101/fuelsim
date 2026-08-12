@@ -44,6 +44,15 @@ struct AxisymmetricStressValues final {
     double rz;
 };
 
+struct SymmetricTensor3Values final {
+    double xx;
+    double yy;
+    double zz;
+    double xy;
+    double yz;
+    double xz;
+};
+
 struct AxisymmetricRotation final {
     adlite::Scalar rr{1.0};
     adlite::Scalar rz{0.0};
@@ -76,6 +85,17 @@ class IsotropicThermoelasticMaterial final {
                               const adlite::Scalar& strain_hoop, const adlite::Scalar& strain_rz,
                               const adlite::Scalar& temperature, double time = 0.0, double radius = 0.0,
                               double axial_coordinate = 0.0) const;
+
+    adlite::Scalar conductivity_cartesian(const adlite::Scalar& temperature, double time, double x, double y,
+                                          double z) const;
+    adlite::Scalar heat_capacity_cartesian(const adlite::Scalar& temperature, double time, double x, double y,
+                                           double z) const;
+    ActiveThermoelasticProperties active_properties_cartesian(const adlite::Scalar& temperature, double time, double x,
+                                                              double y, double z) const;
+    SymmetricTensor3 eigenstrain_cartesian(const adlite::Scalar& temperature, double time, double x, double y,
+                                           double z) const;
+    SymmetricTensor3 stress_cartesian(const SymmetricTensor3& strain, const adlite::Scalar& temperature, double time,
+                                      double x, double y, double z) const;
 
   private:
     ThermoelasticProperties _properties;

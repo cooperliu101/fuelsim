@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <fstream>
+#include <memory>
 #include <string>
 
 namespace fuelsim {
@@ -30,18 +31,22 @@ class ExodusResultsIo final {
   public:
     static void write_steady(const std::string& path, const UnstructuredQuad4Mesh& mesh, const SteadyProblem& problem,
                              const std::vector<double>& state);
+    static void write_steady(const std::string& path, const UnstructuredHex8Mesh& mesh, const SteadyProblem& problem,
+                             const std::vector<double>& state);
 };
 
 class ExodusTransientResultsWriter final {
   public:
     ExodusTransientResultsWriter(std::string path, UnstructuredQuad4Mesh mesh, const TransientProblem& problem);
+    ExodusTransientResultsWriter(std::string path, UnstructuredHex8Mesh mesh, const TransientProblem& problem);
 
     void append(const TransientProblem& problem);
     std::size_t step_count() const noexcept;
 
   private:
     std::string _path;
-    UnstructuredQuad4Mesh _mesh;
+    std::unique_ptr<UnstructuredQuad4Mesh> _rz_mesh;
+    std::unique_ptr<UnstructuredHex8Mesh> _hex_mesh;
     std::uint64_t _problem_signature;
     std::size_t _step_count;
 };

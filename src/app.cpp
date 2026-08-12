@@ -286,21 +286,22 @@ std::string output_segment_path(const std::string& restart_file, const std::stri
     return restart_file.empty() ? output_file : fuelsim::next_results_segment_path(output_file);
 }
 
-std::vector<double> diagnostic_direction(const fuelsim::DofMap& dof_map) {
-    std::vector<double> result(dof_map.dof_count(), 0.0);
-    for (std::size_t node = 0; node < dof_map.node_count(); ++node) {
-        const double index = static_cast<double>(node % 7);
-        result[dof_map.temperature(node)] = 0.25 + 0.05 * index;
-        result[dof_map.radial_displacement(node)] = 1.0e-6 * (0.4 + 0.1 * index);
-        result[dof_map.axial_displacement(node)] = -1.0e-6 * (0.3 + 0.07 * index);
+std::vector<double> diagnostic_direction(const fuelsim::NonlinearProblem& problem) {
+    std::vector<double> result(problem.dof_count(), 0.0);
+    for (const fuelsim::FieldDescriptor& field : problem.field_layout()) {
+        for (std::size_t dof = field.begin; dof < field.end; ++dof) {
+            const double index = static_cast<double>((dof - field.begin) % 7);
+            result[dof] =
+                field.category == fuelsim::FieldCategory::thermal ? 0.25 + 0.05 * index : 1.0e-6 * (0.4 + 0.1 * index);
+        }
     }
     return result;
 }
 
-bool write_jacobian_check(const fuelsim::NonlinearProblem& problem, const fuelsim::DofMap& dof_map,
-                          const std::vector<double>& state, CaseOutput& output) {
+bool write_jacobian_check(const fuelsim::NonlinearProblem& problem, const std::vector<double>& state,
+                          CaseOutput& output) {
     const fuelsim::DirectionalJacobianCheck check =
-        fuelsim::check_directional_jacobian(problem, state, diagnostic_direction(dof_map), 1.0e-4);
+        fuelsim::check_directional_jacobian(problem, state, diagnostic_direction(problem), 1.0e-4);
     bool passed = true;
     for (std::size_t field = 0; field < problem.field_layout().size(); ++field) {
         const std::string prefix = "jacobian." + problem.field_layout()[field].name + ".";
@@ -323,13 +324,18 @@ bool write_jacobian_check(const fuelsim::NonlinearProblem& problem, const fuelsi
     return passed;
 }
 
-bool run_steady(const fuelsim::FuelSimCaseDefinition& definition, const fuelsim::UnstructuredQuad4Mesh& source,
-                CaseOutput& output, bool check_jacobian, const fuelsim::PetscSession& session) {
-    fuelsim::SteadyProblem problem(definition.spatial_definition(), source);
+bool run_steady(const fuelsim::FuelSimCaseDefinition& definition, const fuelsim::UnstructuredQuad4Mesh* rz_source,
+                const fuelsim::UnstructuredHex8Mesh* hex_source, CaseOutput& output, bool check_jacobian,
+                const fuelsim::PetscSession& session) {
+    std::unique_ptr<fuelsim::SteadyProblem> problem_storage;
+    if (hex_source != nullptr)
+        problem_storage = std::make_unique<fuelsim::SteadyProblem>(definition.spatial_definition(), *hex_source);
+    else
+        problem_storage = std::make_unique<fuelsim::SteadyProblem>(definition.spatial_definition(), *rz_source);
+    fuelsim::SteadyProblem& problem = *problem_storage;
     if (check_jacobian) {
         problem.set_load_factor(1.0);
-        return write_jacobian_check(problem, fuelsim::rz::ProblemAccess::dof_map(problem), problem.initial_state(),
-                                    output);
+        return write_jacobian_check(problem, problem.initial_state(), output);
     }
     const fuelsim::SteadyResult result = fuelsim::solve_steady(
         problem,
@@ -339,8 +345,8 @@ bool run_steady(const fuelsim::FuelSimCaseDefinition& definition, const fuelsim:
     output.value("problem", "steady");
     output.value("completed", result.completed && result.solve.converged);
     output.value("convergence_reason", fuelsim::petsc_convergence_reason_name(result.solve.convergence_reason));
-    output.value("regions", fuelsim::rz::ProblemAccess::region_count(problem));
-    output.value("contacts", fuelsim::rz::ProblemAccess::contact_count(problem));
+    output.value("regions", definition.regions.size());
+    output.value("contacts", definition.contacts.size());
     output.value("load_steps_completed", result.completed_steps);
     output.value("rejected_load_steps", result.rejected_steps.size());
     output.value("load_cutbacks", result.total_cutbacks);
@@ -354,21 +360,32 @@ bool run_steady(const fuelsim::FuelSimCaseDefinition& definition, const fuelsim:
     output.value("petsc_workspace_setups", result.aggregate_timing.workspace_setups);
     output.value("total_seconds", result.total_seconds);
     if (result.completed && result.solve.converged) {
-        for (std::size_t contact = 0; contact < fuelsim::rz::ProblemAccess::contact_count(problem); ++contact)
+        for (std::size_t contact = 0; contact < definition.contacts.size(); ++contact)
             write_interface_summary(
                 fuelsim::rz::ProblemAccess::contact(problem, contact).name,
                 fuelsim::rz::ProblemAccess::summarize_interface(problem, contact, result.solve.state), output);
     }
     if (result.completed && result.solve.converged && !definition.outputs.exodus_file.empty())
         session.collective_root_action([&]() {
-            fuelsim::ExodusResultsIo::write_steady(definition.outputs.exodus_file, source, problem, result.solve.state);
+            if (hex_source != nullptr)
+                fuelsim::ExodusResultsIo::write_steady(definition.outputs.exodus_file, *hex_source, problem,
+                                                       result.solve.state);
+            else
+                fuelsim::ExodusResultsIo::write_steady(definition.outputs.exodus_file, *rz_source, problem,
+                                                       result.solve.state);
         });
     return result.completed && result.solve.converged;
 }
 
-bool run_transient(const fuelsim::FuelSimCaseDefinition& definition, const fuelsim::UnstructuredQuad4Mesh& source,
-                   CaseOutput& output, bool check_jacobian, const fuelsim::PetscSession& session) {
-    fuelsim::TransientProblem problem(definition.transient_definition(), source);
+bool run_transient(const fuelsim::FuelSimCaseDefinition& definition, const fuelsim::UnstructuredQuad4Mesh* rz_source,
+                   const fuelsim::UnstructuredHex8Mesh* hex_source, CaseOutput& output, bool check_jacobian,
+                   const fuelsim::PetscSession& session) {
+    std::unique_ptr<fuelsim::TransientProblem> problem_storage;
+    if (hex_source != nullptr)
+        problem_storage = std::make_unique<fuelsim::TransientProblem>(definition.transient_definition(), *hex_source);
+    else
+        problem_storage = std::make_unique<fuelsim::TransientProblem>(definition.transient_definition(), *rz_source);
+    fuelsim::TransientProblem& problem = *problem_storage;
     double restart_time_step = 0.0;
     if (!definition.transient_execution.restart_file.empty())
         restart_time_step =
@@ -392,7 +409,7 @@ bool run_transient(const fuelsim::FuelSimCaseDefinition& definition, const fuels
         std::vector<double> state = problem.committed_solution();
         for (const fuelsim::DirichletCondition& condition : problem.dirichlet_conditions())
             state.at(condition.dof) = condition.value;
-        const bool passed = write_jacobian_check(problem, fuelsim::rz::ProblemAccess::dof_map(problem), state, output);
+        const bool passed = write_jacobian_check(problem, state, output);
         problem.rollback_time_step();
         return passed;
     }
@@ -403,7 +420,10 @@ bool run_transient(const fuelsim::FuelSimCaseDefinition& definition, const fuels
         session.collective_root_action([&]() {
             results_path =
                 output_segment_path(definition.transient_execution.restart_file, definition.outputs.exodus_file);
-            results = std::make_unique<fuelsim::ExodusTransientResultsWriter>(results_path, source, problem);
+            if (hex_source != nullptr)
+                results = std::make_unique<fuelsim::ExodusTransientResultsWriter>(results_path, *hex_source, problem);
+            else
+                results = std::make_unique<fuelsim::ExodusTransientResultsWriter>(results_path, *rz_source, problem);
             results->append(problem);
         });
     if (!results_path.empty())
@@ -446,7 +466,7 @@ bool run_transient(const fuelsim::FuelSimCaseDefinition& definition, const fuels
     output.value("problem", "transient");
     output.value("completed", result.completed);
     output.value("termination_reason", fuelsim::transient_termination_reason_name(result.termination_reason));
-    output.value("regions", fuelsim::rz::ProblemAccess::region_count(problem));
+    output.value("regions", definition.regions.size());
     output.value("contacts", definition.contacts.size());
     output.value("committed_time", result.committed_time);
     output.value("next_time_step", result.next_time_step);
@@ -476,10 +496,11 @@ bool run_transient(const fuelsim::FuelSimCaseDefinition& definition, const fuels
     write_solver_diagnostics(result.last_attempt, problem.uses_augmented_contact(), output);
     output.value("total_seconds", result.total_seconds);
     write_conservation_summary("conservation.", problem.last_conservation_summary(), output);
-    for (std::size_t region = 0; region < fuelsim::rz::ProblemAccess::region_count(problem); ++region) {
+    for (std::size_t region = 0; region < definition.regions.size(); ++region) {
         const fuelsim::RegionInelasticSummary summary =
-            fuelsim::rz::ProblemAccess::summarize_region_history(problem, region);
-        const std::string prefix = "region." + fuelsim::rz::ProblemAccess::region(problem, region).name + ".";
+            hex_source != nullptr ? fuelsim::RegionInelasticSummary{0.0, 0.0}
+                                  : fuelsim::rz::ProblemAccess::summarize_region_history(problem, region);
+        const std::string prefix = "region." + definition.regions[region].spatial.name + ".";
         output.value(prefix + "maximum_equivalent_plastic_strain", summary.maximum_equivalent_plastic_strain);
         output.value(prefix + "maximum_equivalent_creep_strain", summary.maximum_equivalent_creep_strain);
     }
@@ -494,9 +515,14 @@ int run_application(int argc, char** argv) {
     try {
         const CommandLine command = extract_command_line(argc, argv);
         const FuelSimCaseDefinition definition = CaseInputReader::read(command.input_path);
-        PetscSession session(argc, argv, "fuelsim input-driven axisymmetric multi-region solver\n");
+        PetscSession session(argc, argv, "fuelsim input-driven multi-region thermo-mechanics solver\n");
         const bool root_rank = session.rank() == 0;
-        const UnstructuredQuad4Mesh source = ExodusMeshIo::read_quad4(definition.mesh_file);
+        std::unique_ptr<UnstructuredQuad4Mesh> rz_source;
+        std::unique_ptr<UnstructuredHex8Mesh> hex_source;
+        if (definition.geometry == CaseGeometry::cartesian_3d)
+            hex_source = std::make_unique<UnstructuredHex8Mesh>(ExodusMeshIo::read_hex8(definition.mesh_file));
+        else
+            rz_source = std::make_unique<UnstructuredQuad4Mesh>(ExodusMeshIo::read_quad4(definition.mesh_file));
         std::unique_ptr<CaseOutput> output;
         if (!root_rank)
             output = std::make_unique<CaseOutput>(definition.outputs, command.check_jacobian, false);
@@ -505,9 +531,11 @@ int run_application(int argc, char** argv) {
         output->value("input_file", command.input_path);
         output->value("mesh_file", definition.mesh_file);
         output->value("mpi_ranks", session.size());
-        const bool completed = definition.problem == CaseProblem::steady
-                                   ? run_steady(definition, source, *output, command.check_jacobian, session)
-                                   : run_transient(definition, source, *output, command.check_jacobian, session);
+        const bool completed =
+            definition.problem == CaseProblem::steady
+                ? run_steady(definition, rz_source.get(), hex_source.get(), *output, command.check_jacobian, session)
+                : run_transient(definition, rz_source.get(), hex_source.get(), *output, command.check_jacobian,
+                                session);
         return completed ? 0 : 1;
     } catch (const std::exception& error) {
         std::cerr << "fuelsim failed: " << error.what() << '\n';

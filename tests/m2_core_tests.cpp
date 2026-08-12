@@ -103,10 +103,10 @@ void custom_elastic_properties(const fuelsim::ElasticPropertyInput& input, fuels
     output.poisson_ratio = input.parameters->value("poisson_ratio");
 }
 
-void custom_eigenstrain(const fuelsim::EigenstrainInput& input, fuelsim::AxisymmetricStrain& output) {
+void custom_eigenstrain(const fuelsim::EigenstrainInput& input, fuelsim::SymmetricTensor3& output) {
     const adlite::Scalar value =
         input.parameters->value("coefficient") * (input.temperature - input.parameters->value("reference_temperature"));
-    output = {value, value, value, 0.0};
+    output = {value, value, value, 0.0, 0.0, 0.0};
 }
 
 adlite::Scalar custom_creep_rate(const fuelsim::CreepRateInput& input) {

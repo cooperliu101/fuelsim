@@ -1,4 +1,4 @@
-# fuelsim 输入卡 v2
+# fuelsim 输入卡 v3
 
 `fuelsim` 只使用一个显式输入文件：
 
@@ -7,7 +7,7 @@
 ```
 
 输入卡采用 MOOSE 风格的嵌套段和 `key = value`。`#` 开始行内注释；相对
-路径以输入卡所在目录为基准。v2 的数值全部使用 SI 单位，不支持 include、
+路径以输入卡所在目录为基准。v3 的数值全部使用 SI 单位，不支持 include、
 宏、表达式、单位换算、旧键别名或兼容层。未知段、未知键、重复项、非法值
 和缺少必填键都会立即报错。
 
@@ -15,8 +15,9 @@
 
 ```text
 [Case]
-  version = 2
+  version = 3
   problem = transient
+  geometry = axisymmetric_rz
 []
 ```
 
@@ -30,6 +31,10 @@
 对应的两个生产 C++ 类型是 `SteadyProblem` 和 `TransientProblem`。M0、M1、
 M2 只作为路线和回归名称。
 
+`geometry` 必须显式选择 `axisymmetric_rz` 或 `cartesian_3d`。前者要求二维
+Quad4 网格，使用 `[T(:), ur(:), uz(:)]`；后者要求三维 HEX8 网格，使用
+`[T(:), ux(:), uy(:), uz(:)]`。版本 2 和省略几何的输入都会被拒绝。
+
 `[Mesh]` 只接受一个 Exodus 文件：
 
 ```text
@@ -39,7 +44,8 @@ M2 只作为路线和回归名称。
 []
 ```
 
-文件可以包含多个 Quad4 元素块、节点集和边集。I/O 层保留这些元数据，
+文件可以包含多个 Quad4 或 HEX8 元素块、节点集和边集；一个输入卡不能混合
+两种拓扑。输入输出层保留这些元数据，
 求解区域保留选中元素块的原始节点坐标和连接关系；区域不需要是张量积网格。
 每个 Quad4 在积分点必须具有正 Jacobian。输入卡不重复定义半径、高度和
 离散规模。
@@ -140,9 +146,9 @@ Dirichlet 和接触边界可使用任意属于所选区域的边集。每个接�
 Jacobian。函数必须是无副作用的纯函数，不能保存积分点 trial 状态或访问
 PETSc 和全局解向量。
 
-当前组合接口限定为各向同性弹性、轴对称本征应变、J2 关联塑性及沿最终 J2
-方向的等效蠕变。它不声明各向异性、运动硬化、损伤、非 J2 屈服面或非关联
-流动已经受支持。
+当前组合接口限定为各向同性弹性和各向同性本征应变。轴对称后端还支持 J2
+关联塑性及沿最终 J2 方向的等效蠕变；三维阶段 B 只接受弹性材料。它不声明
+各向异性、运动硬化、损伤、非 J2 屈服面或非关联流动已经受支持。
 
 ## 自由区域组合
 
@@ -292,9 +298,10 @@ Exodus 节点结果除间隙和法向压力外，还输出接触切向牵引、�
 []
 ```
 
-`dirichlet` 的 `field` 只能为 `temperature`、`radial_displacement` 或
-`axial_displacement`。`pressure` 不接受 `field`，可施加在任意不退化的
-Line2 外边界；方向取边界相邻 Quad4 的外法向。小应变区域使用参考 RZ 表面，
+轴对称 `dirichlet` 的 `field` 可为 `temperature`、`radial_displacement` 或
+`axial_displacement`；三维可为 `temperature`、`displacement_x`、
+`displacement_y` 或 `displacement_z`。`pressure` 不接受 `field`，方向取父单元
+外法向。小应变区域使用参考表面，
 有限应变区域使用当前半径、当前法向和当前表面测度。`traction` 必须声明
 一个位移 `field`，`value` 是该全局 R 或 Z 分量上的有符号表面牵引；默认
 `configuration = reference`。有限应变区域可设置 `configuration = current`，
@@ -321,8 +328,9 @@ Line2 外边界；方向取边界相邻 Quad4 的外法向。小应变区域使�
 ```
 
 两个函数均可省略；存在时分别乘以对应基值。换热系数允许时间表计算为零但
-不能为负，环境温度必须始终为正。对流项使用参考 RZ 表面测度并作为邻接
-Quad4 的 12-DOF ADlite 局部贡献装配，因此残量和温度切线保持一致。
+不能为负，环境温度必须始终为正。对流项使用参考表面测度。轴对称边界作为
+12 自由度贡献装配，三维四节点面作为 16 自由度贡献装配；两者的残量和温度
+切线都由 ADlite 保持一致。
 `[BoundaryConditions]` 段本身必需，但可以为空。
 
 ## 时间推进、求解与输出
@@ -412,9 +420,9 @@ L2 差最大值大于 1 时完整回滚并缩步，成功时采用两个半步�
 载荷因子、全部积分点塑性/蠕变历史和已提交应力。文件的版本、字节序、长度、
 校验和、网格、材料、边界条件、接触及局部装配拓扑必须与当前问题一致；不
 匹配时立即停止。重启动不保存 Newton trial、活动时间步或失败尝试。
-当前格式 v6 还保存接触摩擦历史、法向增广乘子、成功提交后控制器给出的下一名义时间步和
+当前格式 v7 还保存几何类型、接触摩擦历史、法向增广乘子、成功提交后控制器给出的下一名义时间步和
 最后一个完整接受步的守恒/耗散摘要，因此自适应计算从检查点继续时不会重新使用输入卡的初始步长，
-零步重启动结束也不会把上一接受步诊断伪装成全零。版本 5 及更早格式会被
+零步重启动结束也不会把上一接受步诊断伪装成全零。版本 6 及更早格式会被
 明确拒绝，不提供跨版本兼容层。
 
 `[Solver]` 可设置非线性 `absolute_tolerance`、`relative_tolerance`、
@@ -435,7 +443,7 @@ L2 差最大值大于 1 时完整回滚并缩步，成功时采用两个半步�
 
 `automatic` 使用直接 LU：单 rank 采用 PETSc LU，多 rank 采用 PETSc 的 MUMPS
 分解。选择 `block_jacobi`、`field_split` 或 `hypre` 会自动选 GMRES；
-`field_split` 按固定 `[T(:)]` 和 `[ur(:), uz(:)]` 建立乘法场分裂。具体 PETSc
+`field_split` 按问题提供的热学字段和全部力学字段建立乘法场分裂。具体 PETSc
 命令行选项仍在上述设置之后生效，可用于选择 HYPRE 子类型和场分裂子 KSP。
 非线性默认使用 PETSc BASIC 全步。BASIC 失败时，默认从本次求解的原始初值
 自动用 BT 回溯重试；BT 仍失败才由稳态载荷二分或瞬态 cutback 恢复。
@@ -481,9 +489,10 @@ MUMPS 和未缩放 HYPRE 都完成求解；预热内部载荷路径时间分别�
 `[Outputs]` 的 `console` 默认为 `true`；可选 `csv` 将最终命名指标写为
 `metric,value` 汇总文件。周期性的 `progress.*` 只写控制台，不混入最终 CSV。
 `exodus` 写出可后处理的场结果；稳态写一个最终步，
-瞬态按 `exodus_interval` 写初始/重启动状态、成功提交步及最终状态。节点变量包括温度、径向与
-轴向位移，以及各接触对 secondary 节点上的间隙和压力；单元变量保留四个
-积分点的应力、塑性应变、蠕变应变及两种等效应变；全局变量记录载荷因子、
+瞬态按 `exodus_interval` 写初始或重启动状态、成功提交步及最终状态。轴对称
+节点变量包括温度、径向与轴向位移，以及各接触对 secondary 节点上的间隙和
+压力；单元变量保留四个积分点的应力与非弹性历史。三维节点变量为温度和三个
+笛卡尔位移，单元变量为八个积分点的六分量应力。全局变量记录载荷因子、
 界面总热流和总接触力。未属于所选求解区域或未投影的值写为 `NaN`。
 
 瞬态还可设置输出频率、工程标量时程、进度和检查点：
@@ -529,6 +538,7 @@ committed 初值上装配解析方向导数，并与中心差分比较。输出�
 仓库中的可运行示例为：
 
 - [`steady_single_fuel_moose.fsi`](../verification/fuelsim/steady_single_fuel_moose.fsi)
+- [`steady_hex8_thermoelastic.fsi`](../verification/fuelsim/steady_hex8_thermoelastic.fsi)
 - [`steady_fuel_cladding.fsi`](../verification/fuelsim/steady_fuel_cladding.fsi)
 - [`steady_fuel_cladding_unstructured.fsi`](../verification/fuelsim/steady_fuel_cladding_unstructured.fsi)
 - [`steady_augmented_contact_moose.fsi`](../verification/fuelsim/steady_augmented_contact_moose.fsi)

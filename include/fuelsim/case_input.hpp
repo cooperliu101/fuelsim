@@ -17,6 +17,11 @@ enum class CaseProblem {
     transient,
 };
 
+enum class CaseGeometry {
+    axisymmetric_rz,
+    cartesian_3d,
+};
+
 struct CaseRegionDefinition final {
     RegionDefinition spatial;
     TransientInelasticProperties transient_material;
@@ -82,6 +87,7 @@ struct CaseOutputInput final {
 struct FuelSimCaseDefinition final {
     int version;
     CaseProblem problem;
+    CaseGeometry geometry;
     std::string mesh_file;
     std::vector<CaseRegionDefinition> regions;
     std::vector<ContactDefinition> contacts;

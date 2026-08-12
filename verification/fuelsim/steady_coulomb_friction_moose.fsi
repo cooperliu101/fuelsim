@@ -1,6 +1,7 @@
 [Case]
-  version = 2
+  version = 3
   problem = steady
+  geometry = axisymmetric_rz
 []
 
 [Mesh]

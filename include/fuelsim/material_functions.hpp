@@ -38,8 +38,9 @@ class MaterialParameters final {
 struct ThermalPropertyInput final {
     adlite::Scalar temperature;
     double time;
-    double radius;
-    double axial_coordinate;
+    double x;
+    double y;
+    double z;
     const MaterialParameters* parameters;
 };
 
@@ -52,8 +53,9 @@ struct ThermalPropertyOutput final {
 struct ElasticPropertyInput final {
     adlite::Scalar temperature;
     double time;
-    double radius;
-    double axial_coordinate;
+    double x;
+    double y;
+    double z;
     const MaterialParameters* parameters;
 };
 
@@ -65,8 +67,9 @@ struct ElasticPropertyOutput final {
 struct EigenstrainInput final {
     adlite::Scalar temperature;
     double time;
-    double radius;
-    double axial_coordinate;
+    double x;
+    double y;
+    double z;
     const MaterialParameters* parameters;
 };
 
@@ -77,13 +80,23 @@ struct AxisymmetricStrain final {
     adlite::Scalar rz;
 };
 
+struct SymmetricTensor3 final {
+    adlite::Scalar xx;
+    adlite::Scalar yy;
+    adlite::Scalar zz;
+    adlite::Scalar xy;
+    adlite::Scalar yz;
+    adlite::Scalar xz;
+};
+
 struct CreepRateInput final {
     adlite::Scalar equivalent_stress;
     adlite::Scalar temperature;
     adlite::Scalar equivalent_creep_strain;
     double time;
-    double radius;
-    double axial_coordinate;
+    double x;
+    double y;
+    double z;
     const MaterialParameters* parameters;
 };
 
@@ -91,14 +104,15 @@ struct PlasticFlowStressInput final {
     adlite::Scalar equivalent_plastic_strain;
     adlite::Scalar temperature;
     double time;
-    double radius;
-    double axial_coordinate;
+    double x;
+    double y;
+    double z;
     const MaterialParameters* parameters;
 };
 
 using ThermalPropertyFunction = void (*)(const ThermalPropertyInput&, ThermalPropertyOutput&);
 using ElasticPropertyFunction = void (*)(const ElasticPropertyInput&, ElasticPropertyOutput&);
-using EigenstrainFunction = void (*)(const EigenstrainInput&, AxisymmetricStrain&);
+using EigenstrainFunction = void (*)(const EigenstrainInput&, SymmetricTensor3&);
 using CreepRateFunction = adlite::Scalar (*)(const CreepRateInput&);
 using PlasticFlowStressFunction = adlite::Scalar (*)(const PlasticFlowStressInput&);
 

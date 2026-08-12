@@ -15,6 +15,9 @@ enum class Field {
     temperature,
     radial_displacement,
     axial_displacement,
+    displacement_x,
+    displacement_y,
+    displacement_z,
 };
 
 class DofMap final {

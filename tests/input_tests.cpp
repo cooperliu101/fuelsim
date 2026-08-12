@@ -176,7 +176,8 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
     const fuelsim::FuelSimCaseDefinition traction = fuelsim::CaseInputReader::read(traction_path);
 
     bool passed =
-        check(steady.version == 2 && steady.problem == fuelsim::CaseProblem::steady,
+        check(steady.version == 3 && steady.problem == fuelsim::CaseProblem::steady &&
+                  steady.geometry == fuelsim::CaseGeometry::axisymmetric_rz,
               "steady input selects the physical steady problem") &&
         check(steady.regions.size() == 2 && steady.regions[0].spatial.block == "fuel" &&
                   steady.regions[1].spatial.block == "clad",

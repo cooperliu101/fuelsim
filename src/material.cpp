@@ -173,19 +173,19 @@ void linear_temperature_isotropic_elasticity(const ElasticPropertyInput& input, 
                            input.parameters->value("poisson_ratio_temperature_coefficient") * temperature_change;
 }
 
-void isotropic_thermal_expansion(const EigenstrainInput& input, AxisymmetricStrain& output) {
+void isotropic_thermal_expansion(const EigenstrainInput& input, SymmetricTensor3& output) {
     const adlite::Scalar value = input.parameters->value("thermal_expansion") *
                                  (input.temperature - input.parameters->value("reference_temperature"));
-    output = {value, value, value, 0.0};
+    output = {value, value, value, 0.0, 0.0, 0.0};
 }
 
-void linear_temperature_isotropic_thermal_expansion(const EigenstrainInput& input, AxisymmetricStrain& output) {
+void linear_temperature_isotropic_thermal_expansion(const EigenstrainInput& input, SymmetricTensor3& output) {
     const adlite::Scalar temperature_change = input.temperature - input.parameters->value("reference_temperature");
     const adlite::Scalar coefficient =
         input.parameters->value("thermal_expansion") +
         input.parameters->value("thermal_expansion_temperature_coefficient") * temperature_change;
     const adlite::Scalar value = coefficient * temperature_change;
-    output = {value, value, value, 0.0};
+    output = {value, value, value, 0.0, 0.0, 0.0};
 }
 
 adlite::Scalar norton_creep_rate(const CreepRateInput& input) {
@@ -483,13 +483,18 @@ const ThermoelasticProperties& IsotropicThermoelasticMaterial::properties() cons
 
 adlite::Scalar IsotropicThermoelasticMaterial::conductivity(const adlite::Scalar& temperature, double time,
                                                             double radius, double axial_coordinate) const {
+    return conductivity_cartesian(temperature, time, radius, 0.0, axial_coordinate);
+}
+
+adlite::Scalar IsotropicThermoelasticMaterial::conductivity_cartesian(const adlite::Scalar& temperature, double time,
+                                                                      double x, double y, double z) const {
     if (!std::isfinite(temperature.value()) || !(temperature.value() > 0.0))
         throw std::domain_error("Thermoelastic material temperature must be finite and "
                                 "positive");
     if (_properties.functions) {
         ThermalPropertyOutput output{};
         const ThermalFunctionInstance& instance = _properties.functions->thermal;
-        instance.function({temperature, time, radius, axial_coordinate, &instance.parameters}, output);
+        instance.function({temperature, time, x, y, z, &instance.parameters}, output);
         if (!std::isfinite(output.conductivity.value()) || !(output.conductivity.value() > 0.0))
             throw std::domain_error("Thermal material function conductivity must be finite and positive");
         return output.conductivity;
@@ -499,10 +504,15 @@ adlite::Scalar IsotropicThermoelasticMaterial::conductivity(const adlite::Scalar
 
 adlite::Scalar IsotropicThermoelasticMaterial::heat_capacity(const adlite::Scalar& temperature, double time,
                                                              double radius, double axial_coordinate) const {
+    return heat_capacity_cartesian(temperature, time, radius, 0.0, axial_coordinate);
+}
+
+adlite::Scalar IsotropicThermoelasticMaterial::heat_capacity_cartesian(const adlite::Scalar& temperature, double time,
+                                                                       double x, double y, double z) const {
     if (_properties.functions) {
         ThermalPropertyOutput output{};
         const ThermalFunctionInstance& instance = _properties.functions->thermal;
-        instance.function({temperature, time, radius, axial_coordinate, &instance.parameters}, output);
+        instance.function({temperature, time, x, y, z, &instance.parameters}, output);
         if (!std::isfinite(output.density.value()) || !(output.density.value() > 0.0) ||
             !std::isfinite(output.specific_heat.value()) || !(output.specific_heat.value() > 0.0))
             throw std::domain_error("Thermal material function density and specific_heat must be finite and positive");
@@ -514,12 +524,18 @@ adlite::Scalar IsotropicThermoelasticMaterial::heat_capacity(const adlite::Scala
 ActiveThermoelasticProperties IsotropicThermoelasticMaterial::active_properties(const adlite::Scalar& temperature,
                                                                                 double time, double radius,
                                                                                 double axial_coordinate) const {
+    return active_properties_cartesian(temperature, time, radius, 0.0, axial_coordinate);
+}
+
+ActiveThermoelasticProperties
+IsotropicThermoelasticMaterial::active_properties_cartesian(const adlite::Scalar& temperature, double time, double x,
+                                                            double y, double z) const {
     if (!std::isfinite(temperature.value()))
         throw std::domain_error("Thermoelastic material temperature must be finite");
     if (_properties.functions) {
         ElasticPropertyOutput output{};
         const ElasticFunctionInstance& instance = _properties.functions->elasticity;
-        instance.function({temperature, time, radius, axial_coordinate, &instance.parameters}, output);
+        instance.function({temperature, time, x, y, z, &instance.parameters}, output);
         if (!std::isfinite(output.young_modulus.value()) || !(output.young_modulus.value() > 0.0))
             throw std::domain_error("Elasticity material function young_modulus must be finite and positive");
         if (!std::isfinite(output.poisson_ratio.value()) ||
@@ -556,23 +572,33 @@ ActiveThermoelasticProperties IsotropicThermoelasticMaterial::active_properties(
 
 AxisymmetricStrain IsotropicThermoelasticMaterial::eigenstrain(const adlite::Scalar& temperature, double time,
                                                                double radius, double axial_coordinate) const {
+    const SymmetricTensor3 value = eigenstrain_cartesian(temperature, time, radius, 0.0, axial_coordinate);
+    if (value.xy.value() != 0.0 || value.yz.value() != 0.0)
+        throw std::domain_error("RZ material cannot represent xy or yz eigenstrain components");
+    return {value.xx, value.zz, value.yy, value.xz};
+}
+
+SymmetricTensor3 IsotropicThermoelasticMaterial::eigenstrain_cartesian(const adlite::Scalar& temperature, double time,
+                                                                       double x, double y, double z) const {
     if (!_properties.functions) {
-        const ActiveThermoelasticProperties active = active_properties(temperature);
+        const ActiveThermoelasticProperties active = active_properties_cartesian(temperature, time, x, y, z);
         const adlite::Scalar thermal_strain =
             active.thermal_expansion * (temperature - _properties.reference_temperature);
-        return {thermal_strain, thermal_strain, thermal_strain, 0.0};
+        return {thermal_strain, thermal_strain, thermal_strain, 0.0, 0.0, 0.0};
     }
-    AxisymmetricStrain result{};
+    SymmetricTensor3 result{};
     for (const EigenstrainFunctionInstance& instance : _properties.functions->eigenstrains) {
-        AxisymmetricStrain value{};
-        instance.function({temperature, time, radius, axial_coordinate, &instance.parameters}, value);
-        if (!std::isfinite(value.rr.value()) || !std::isfinite(value.zz.value()) ||
-            !std::isfinite(value.hoop.value()) || !std::isfinite(value.rz.value()))
+        SymmetricTensor3 value{};
+        instance.function({temperature, time, x, y, z, &instance.parameters}, value);
+        if (!std::isfinite(value.xx.value()) || !std::isfinite(value.yy.value()) || !std::isfinite(value.zz.value()) ||
+            !std::isfinite(value.xy.value()) || !std::isfinite(value.yz.value()) || !std::isfinite(value.xz.value()))
             throw std::domain_error("Eigenstrain material function output must be finite");
-        result.rr += value.rr;
+        result.xx += value.xx;
+        result.yy += value.yy;
         result.zz += value.zz;
-        result.hoop += value.hoop;
-        result.rz += value.rz;
+        result.xy += value.xy;
+        result.yz += value.yz;
+        result.xz += value.xz;
     }
     return result;
 }
@@ -607,6 +633,26 @@ AxisymmetricStress IsotropicThermoelasticMaterial::stress(const adlite::Scalar& 
 
     return hooke_stress(active.lame_lambda, active.shear_modulus, strain_rr - imposed.rr, strain_zz - imposed.zz,
                         strain_hoop - imposed.hoop, strain_rz - imposed.rz);
+}
+
+SymmetricTensor3 IsotropicThermoelasticMaterial::stress_cartesian(const SymmetricTensor3& strain,
+                                                                  const adlite::Scalar& temperature, double time,
+                                                                  double x, double y, double z) const {
+    ActiveThermoelasticProperties active{_properties.young_modulus, _properties.poisson_ratio,
+                                         _properties.thermal_expansion, _lame_lambda, _shear_modulus};
+    if (_temperature_dependent || _properties.functions)
+        active = active_properties_cartesian(temperature, time, x, y, z);
+    const SymmetricTensor3 imposed = eigenstrain_cartesian(temperature, time, x, y, z);
+    const adlite::Scalar strain_xx = strain.xx - imposed.xx;
+    const adlite::Scalar strain_yy = strain.yy - imposed.yy;
+    const adlite::Scalar strain_zz = strain.zz - imposed.zz;
+    const adlite::Scalar trace = strain_xx + strain_yy + strain_zz;
+    return {active.lame_lambda * trace + 2.0 * active.shear_modulus * strain_xx,
+            active.lame_lambda * trace + 2.0 * active.shear_modulus * strain_yy,
+            active.lame_lambda * trace + 2.0 * active.shear_modulus * strain_zz,
+            2.0 * active.shear_modulus * (strain.xy - imposed.xy),
+            2.0 * active.shear_modulus * (strain.yz - imposed.yz),
+            2.0 * active.shear_modulus * (strain.xz - imposed.xz)};
 }
 
 // Inelastic constitutive updates.
@@ -1043,7 +1089,7 @@ adlite::Scalar function_creep_rate(const CreepFunctionInstance& function, const 
                                    const adlite::Scalar& temperature, const adlite::Scalar& equivalent_creep_strain,
                                    double time, double radius, double axial_coordinate) {
     const adlite::Scalar rate = function.function({equivalent_stress, temperature, equivalent_creep_strain, time,
-                                                   radius, axial_coordinate, &function.parameters});
+                                                   radius, 0.0, axial_coordinate, &function.parameters});
     if (std::isnan(rate.value()) || rate.value() < 0.0)
         throw std::domain_error("Creep material function rate must be nonnegative and must not be NaN");
     return rate;
@@ -1053,7 +1099,7 @@ adlite::Scalar function_flow_stress(const PlasticFunctionInstance& function,
                                     const adlite::Scalar& equivalent_plastic_strain, const adlite::Scalar& temperature,
                                     double time, double radius, double axial_coordinate) {
     const adlite::Scalar stress = function.function(
-        {equivalent_plastic_strain, temperature, time, radius, axial_coordinate, &function.parameters});
+        {equivalent_plastic_strain, temperature, time, radius, 0.0, axial_coordinate, &function.parameters});
     if (!std::isfinite(stress.value()) || !(stress.value() > 0.0))
         throw std::domain_error("Plasticity material function flow stress must be finite and positive");
     return stress;
