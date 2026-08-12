@@ -38,8 +38,7 @@ struct SteadyResult final {
     SolveTiming aggregate_timing;
 };
 
-SteadyResult solve_steady(SteadyProblem& problem, const SteadyLoadOptions& load_options,
-                          const SolverOptions& options = SolverOptions{});
+SteadyResult solve_steady(SteadyProblem& problem, const SteadyLoadOptions& load_options, const SolverOptions& options = SolverOptions{});
 
 struct TransientTimeOptions final {
     double end_time;
@@ -137,9 +136,7 @@ class TransientStepObserver {
     virtual void accepted_step(const TransientProblem& problem, const TransientAcceptedStep& step) = 0;
 };
 
-TransientResult solve_transient(TransientProblem& problem, const TransientTimeOptions& time_options,
-                                const SolverOptions& solver_options = SolverOptions{},
-                                TransientStepObserver* observer = nullptr);
+TransientResult solve_transient(TransientProblem& problem, const TransientTimeOptions& time_options, const SolverOptions& solver_options = SolverOptions{}, TransientStepObserver* observer = nullptr);
 
 } // namespace fuelsim
 

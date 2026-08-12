@@ -69,33 +69,22 @@ class IsotropicThermoelasticMaterial final {
 
     const ThermoelasticProperties& properties() const noexcept;
 
-    adlite::Scalar conductivity(const adlite::Scalar& temperature, double time = 0.0, double radius = 0.0,
-                                double axial_coordinate = 0.0) const;
+    adlite::Scalar conductivity(const adlite::Scalar& temperature, double time = 0.0, double radius = 0.0, double axial_coordinate = 0.0) const;
 
-    adlite::Scalar heat_capacity(const adlite::Scalar& temperature, double time = 0.0, double radius = 0.0,
-                                 double axial_coordinate = 0.0) const;
+    adlite::Scalar heat_capacity(const adlite::Scalar& temperature, double time = 0.0, double radius = 0.0, double axial_coordinate = 0.0) const;
 
-    ActiveThermoelasticProperties active_properties(const adlite::Scalar& temperature, double time = 0.0,
-                                                    double radius = 0.0, double axial_coordinate = 0.0) const;
+    ActiveThermoelasticProperties active_properties(const adlite::Scalar& temperature, double time = 0.0, double radius = 0.0, double axial_coordinate = 0.0) const;
 
-    AxisymmetricStrain eigenstrain(const adlite::Scalar& temperature, double time = 0.0, double radius = 0.0,
-                                   double axial_coordinate = 0.0) const;
+    AxisymmetricStrain eigenstrain(const adlite::Scalar& temperature, double time = 0.0, double radius = 0.0, double axial_coordinate = 0.0) const;
 
-    AxisymmetricStress stress(const adlite::Scalar& strain_rr, const adlite::Scalar& strain_zz,
-                              const adlite::Scalar& strain_hoop, const adlite::Scalar& strain_rz,
-                              const adlite::Scalar& temperature, double time = 0.0, double radius = 0.0,
+    AxisymmetricStress stress(const adlite::Scalar& strain_rr, const adlite::Scalar& strain_zz, const adlite::Scalar& strain_hoop, const adlite::Scalar& strain_rz, const adlite::Scalar& temperature, double time = 0.0, double radius = 0.0,
                               double axial_coordinate = 0.0) const;
 
-    adlite::Scalar conductivity_cartesian(const adlite::Scalar& temperature, double time, double x, double y,
-                                          double z) const;
-    adlite::Scalar heat_capacity_cartesian(const adlite::Scalar& temperature, double time, double x, double y,
-                                           double z) const;
-    ActiveThermoelasticProperties active_properties_cartesian(const adlite::Scalar& temperature, double time, double x,
-                                                              double y, double z) const;
-    SymmetricTensor3 eigenstrain_cartesian(const adlite::Scalar& temperature, double time, double x, double y,
-                                           double z) const;
-    SymmetricTensor3 stress_cartesian(const SymmetricTensor3& strain, const adlite::Scalar& temperature, double time,
-                                      double x, double y, double z) const;
+    adlite::Scalar conductivity_cartesian(const adlite::Scalar& temperature, double time, double x, double y, double z) const;
+    adlite::Scalar heat_capacity_cartesian(const adlite::Scalar& temperature, double time, double x, double y, double z) const;
+    ActiveThermoelasticProperties active_properties_cartesian(const adlite::Scalar& temperature, double time, double x, double y, double z) const;
+    SymmetricTensor3 eigenstrain_cartesian(const adlite::Scalar& temperature, double time, double x, double y, double z) const;
+    SymmetricTensor3 stress_cartesian(const SymmetricTensor3& strain, const adlite::Scalar& temperature, double time, double x, double y, double z) const;
 
   private:
     ThermoelasticProperties _properties;

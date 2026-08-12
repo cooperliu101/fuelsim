@@ -167,16 +167,11 @@ struct MaterialFunctionSet final {
 
 class MaterialFunctionRegistry final {
   public:
-    void add_thermal(std::string name, std::vector<MaterialParameterDefinition> parameters,
-                     ThermalPropertyFunction function, std::uint32_t version = 1);
-    void add_elasticity(std::string name, std::vector<MaterialParameterDefinition> parameters,
-                        ElasticPropertyFunction function, std::uint32_t version = 1);
-    void add_eigenstrain(std::string name, std::vector<MaterialParameterDefinition> parameters,
-                         EigenstrainFunction function, std::uint32_t version = 1);
-    void add_creep(std::string name, std::vector<MaterialParameterDefinition> parameters, CreepRateFunction function,
-                   std::uint32_t version = 1);
-    void add_plasticity(std::string name, std::vector<MaterialParameterDefinition> parameters,
-                        PlasticFlowStressFunction function, std::uint32_t version = 1);
+    void add_thermal(std::string name, std::vector<MaterialParameterDefinition> parameters, ThermalPropertyFunction function, std::uint32_t version = 1);
+    void add_elasticity(std::string name, std::vector<MaterialParameterDefinition> parameters, ElasticPropertyFunction function, std::uint32_t version = 1);
+    void add_eigenstrain(std::string name, std::vector<MaterialParameterDefinition> parameters, EigenstrainFunction function, std::uint32_t version = 1);
+    void add_creep(std::string name, std::vector<MaterialParameterDefinition> parameters, CreepRateFunction function, std::uint32_t version = 1);
+    void add_plasticity(std::string name, std::vector<MaterialParameterDefinition> parameters, PlasticFlowStressFunction function, std::uint32_t version = 1);
 
     const std::vector<MaterialParameterDefinition>& thermal_parameters(const std::string& name) const;
     const std::vector<MaterialParameterDefinition>& elasticity_parameters(const std::string& name) const;
@@ -186,8 +181,7 @@ class MaterialFunctionRegistry final {
 
     ThermalFunctionInstance bind_thermal(const std::string& name, std::vector<MaterialParameterValue> values) const;
     ElasticFunctionInstance bind_elasticity(const std::string& name, std::vector<MaterialParameterValue> values) const;
-    EigenstrainFunctionInstance bind_eigenstrain(const std::string& instance_name, const std::string& name,
-                                                 std::vector<MaterialParameterValue> values) const;
+    EigenstrainFunctionInstance bind_eigenstrain(const std::string& instance_name, const std::string& name, std::vector<MaterialParameterValue> values) const;
     CreepFunctionInstance bind_creep(const std::string& name, std::vector<MaterialParameterValue> values) const;
     PlasticFunctionInstance bind_plasticity(const std::string& name, std::vector<MaterialParameterValue> values) const;
 

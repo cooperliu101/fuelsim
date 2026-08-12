@@ -29,10 +29,8 @@ class EngineeringHistoryWriter final {
 
 class ExodusResultsIo final {
   public:
-    static void write_steady(const std::string& path, const UnstructuredQuad4Mesh& mesh, const SteadyProblem& problem,
-                             const std::vector<double>& state);
-    static void write_steady(const std::string& path, const UnstructuredHex8Mesh& mesh, const SteadyProblem& problem,
-                             const std::vector<double>& state);
+    static void write_steady(const std::string& path, const UnstructuredQuad4Mesh& mesh, const SteadyProblem& problem, const std::vector<double>& state);
+    static void write_steady(const std::string& path, const UnstructuredHex8Mesh& mesh, const SteadyProblem& problem, const std::vector<double>& state);
 };
 
 class ExodusTransientResultsWriter final {

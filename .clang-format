@@ -1,10 +1,12 @@
 BasedOnStyle: LLVM
 IndentWidth: 4
 ContinuationIndentWidth: 4
-ColumnLimit: 120
+ColumnLimit: 260
 DerivePointerAlignment: false
 PointerAlignment: Left
 SortIncludes: CaseSensitive
-AllowShortIfStatementsOnASingleLine: Never
-AllowShortLoopsOnASingleLine: false
-AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: WithoutElse
+AllowShortLoopsOnASingleLine: true
+AllowShortFunctionsOnASingleLine: All
+AllowShortBlocksOnASingleLine: Always
+AllowShortCaseLabelsOnASingleLine: true

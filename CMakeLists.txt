@@ -875,6 +875,15 @@ if(BUILD_TESTING)
         LABELS "audit;architecture"
     )
 
+    add_test(NAME fuelsim_source_size_audit
+        COMMAND "${CMAKE_COMMAND}"
+            "-DROOT=${CMAKE_CURRENT_SOURCE_DIR}"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/source_size_audit.cmake"
+    )
+    set_tests_properties(fuelsim_source_size_audit PROPERTIES
+        LABELS "audit;architecture"
+    )
+
     get_property(FUELSIM_REGISTERED_TESTS DIRECTORY PROPERTY TESTS)
     list(JOIN FUELSIM_REGISTERED_TESTS "\n" FUELSIM_REGISTERED_TEST_TEXT)
     file(GENERATE

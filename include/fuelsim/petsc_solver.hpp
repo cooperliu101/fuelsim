@@ -133,12 +133,10 @@ class PetscSolver final {
     PetscSolver(const PetscSolver&) = delete;
     PetscSolver& operator=(const PetscSolver&) = delete;
 
-    SolveResult solve(const NonlinearProblem& problem, const std::vector<double>& initial_state,
-                      const SolverOptions& options = SolverOptions{});
+    SolveResult solve(const NonlinearProblem& problem, const std::vector<double>& initial_state, const SolverOptions& options = SolverOptions{});
 
   private:
-    SolveResult solve_once(const NonlinearProblem& problem, const std::vector<double>& initial_state,
-                           const SolverOptions& options);
+    SolveResult solve_once(const NonlinearProblem& problem, const std::vector<double>& initial_state, const SolverOptions& options);
 
     class Implementation;
     std::unique_ptr<Implementation> _implementation;

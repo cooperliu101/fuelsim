@@ -108,4 +108,17 @@ foreach(required "class ProblemAccess" "struct TransientCommittedState" "Quad4Rz
     endif()
 endforeach()
 
+file(READ "${ROOT}/include/fuelsim/cartesian3d_problem_access.hpp" cartesian_access)
+foreach(required "class ProblemAccess" "struct TransientCommittedState" "Hex8Geometry"
+                 "SymmetricTensor3Values" "Hex8ThermoelasticKernel")
+    string(FIND "${cartesian_access}" "${required}" location)
+    if(location EQUAL -1)
+        message(FATAL_ERROR "The explicit Cartesian-3D problem access layer is missing: ${required}")
+    endif()
+endforeach()
+string(FIND "${cartesian_access}" "Hex8TransientKernel" obsolete_kernel)
+if(NOT obsolete_kernel EQUAL -1)
+    message(FATAL_ERROR "The obsolete separate HEX8 transient kernel was reintroduced")
+endif()
+
 message(STATUS "Geometry-independent solver and problem-port source audit passed")

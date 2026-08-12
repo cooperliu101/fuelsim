@@ -27,32 +27,23 @@ struct TransientCommittedState final {
 
 class ProblemAccess final {
   public:
-    static const SpatialDefinition& definition(const SteadyProblem& problem) noexcept;
     static const Hex8DofMap& dof_map(const SteadyProblem& problem) noexcept;
     static std::size_t region_count(const SteadyProblem& problem) noexcept;
-    static std::size_t region_index(const SteadyProblem& problem, const std::string& name);
     static const RegionDefinition& region(const SteadyProblem& problem, std::size_t region_index);
     static const Hex8RegionMesh& region_mesh(const SteadyProblem& problem, std::size_t region_index);
     static const Hex8ThermoelasticKernel& region_kernel(const SteadyProblem& problem, std::size_t region_index);
     static std::size_t region_node_offset(const SteadyProblem& problem, std::size_t region_index);
-    static std::size_t region_element_count(const SteadyProblem& problem, std::size_t region_index);
-    static std::size_t region_element_offset(const SteadyProblem& problem, std::size_t region_index);
-    static const Hex8Geometry& region_element_geometry(const SteadyProblem& problem, std::size_t region_index,
-                                                       std::size_t element_index);
+    static const Hex8Geometry& region_element_geometry(const SteadyProblem& problem, std::size_t region_index, std::size_t element_index);
 
     static const TransientProblemDefinition& definition(const TransientProblem& problem) noexcept;
     static const Hex8DofMap& dof_map(const TransientProblem& problem) noexcept;
     static std::size_t region_count(const TransientProblem& problem) noexcept;
-    static std::size_t region_index(const TransientProblem& problem, const std::string& name);
     static const RegionDefinition& region(const TransientProblem& problem, std::size_t region_index);
     static const Hex8RegionMesh& region_mesh(const TransientProblem& problem, std::size_t region_index);
-    static const Hex8TransientKernel& region_kernel(const TransientProblem& problem, std::size_t region_index);
+    static const Hex8ThermoelasticKernel& region_kernel(const TransientProblem& problem, std::size_t region_index);
     static std::size_t region_node_offset(const TransientProblem& problem, std::size_t region_index);
-    static std::size_t region_element_offset(const TransientProblem& problem, std::size_t region_index);
-    static const Hex8Geometry& region_element_geometry(const TransientProblem& problem, std::size_t region_index,
-                                                       std::size_t element_index);
-    static const std::array<SymmetricTensor3Values, 8>& stress(const TransientProblem& problem,
-                                                               std::size_t region_index, std::size_t element_index);
+    static const Hex8Geometry& region_element_geometry(const TransientProblem& problem, std::size_t region_index, std::size_t element_index);
+    static const std::array<SymmetricTensor3Values, 8>& stress(const TransientProblem& problem, std::size_t region_index, std::size_t element_index);
     static TransientCommittedState committed_state(const TransientProblem& problem);
     static void restore_committed_state(TransientProblem& problem, TransientCommittedState state);
 };

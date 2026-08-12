@@ -120,6 +120,7 @@ class TransientProblem final : public NonlinearProblem {
     TransientProblem(TransientProblemDefinition definition, const UnstructuredHex8Mesh& source_mesh);
     ~TransientProblem() override;
 
+    bool is_cartesian_3d() const noexcept;
     const std::vector<double>& committed_solution() const noexcept;
     double committed_time() const noexcept;
     double committed_load_factor() const noexcept;
@@ -128,17 +129,14 @@ class TransientProblem final : public NonlinearProblem {
 
     TransientStateSnapshot capture_state() const;
     void restore_state(const TransientStateSnapshot& snapshot);
-    TransientTimeErrorEstimate step_doubling_error(const TransientStateSnapshot& full_step,
-                                                   const TransientStateSnapshot& two_half_steps,
-                                                   const TransientTimeOptions& options) const;
+    TransientTimeErrorEstimate step_doubling_error(const TransientStateSnapshot& full_step, const TransientStateSnapshot& two_half_steps, const TransientTimeOptions& options) const;
     void combine_last_half_step_conservation(const TransientConservationSummary& first_half);
 
     void begin_time_step(const TransientStepInput& input);
     void commit_time_step(const std::vector<double>& converged_solution);
     void rollback_time_step() noexcept;
     bool uses_augmented_contact() const noexcept;
-    AugmentedContactUpdate update_augmented_contact_multipliers(const std::vector<double>& state,
-                                                                std::size_t completed_updates);
+    AugmentedContactUpdate update_augmented_contact_multipliers(const std::vector<double>& state, std::size_t completed_updates);
 
     const TransientConservationSummary& last_conservation_summary() const noexcept;
 
@@ -147,16 +145,12 @@ class TransientProblem final : public NonlinearProblem {
     const std::vector<FieldDescriptor>& field_layout() const noexcept override;
     const std::vector<DirichletCondition>& dirichlet_conditions() const noexcept override;
     void validate_state(const std::vector<double>& state) const override;
-    std::vector<std::size_t> required_state_dofs(std::size_t contribution_begin,
-                                                 std::size_t contribution_end) const override;
-    void validate_local_state(std::size_t contribution_begin, std::size_t contribution_end,
-                              const GlobalStateView& state) const override;
+    std::vector<std::size_t> required_state_dofs(std::size_t contribution_begin, std::size_t contribution_end) const override;
+    void validate_local_state(std::size_t contribution_begin, std::size_t contribution_end, const GlobalStateView& state) const override;
     std::size_t contribution_dof_count(std::size_t contribution_index) const override;
     void fill_contribution_dofs(std::size_t contribution_index, std::vector<std::size_t>& dofs) const override;
-    void compute_contribution_residual(std::size_t contribution_index, const std::vector<double>& state,
-                                       std::vector<double>& residual) const override;
-    void compute_contribution_system(std::size_t contribution_index, const std::vector<double>& state,
-                                     std::vector<double>& residual, std::vector<double>& jacobian) const override;
+    void compute_contribution_residual(std::size_t contribution_index, const std::vector<double>& state, std::vector<double>& residual) const override;
+    void compute_contribution_system(std::size_t contribution_index, const std::vector<double>& state, std::vector<double>& residual, std::vector<double>& jacobian) const override;
 
   private:
     friend class rz::ProblemAccess;
