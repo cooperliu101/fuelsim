@@ -257,6 +257,26 @@ bool test_single_region(const fuelsim::UnstructuredQuad4Mesh& mesh) {
         check(state[problem.dof_map().temperature(0)] == 500.0 && state[problem.dof_map().temperature(1)] == 300.0,
               "region initial temperature and boundary value are applied");
 
+    const std::vector<fuelsim::FieldDescriptor>& fields = problem.field_layout();
+    const fuelsim::LocalDofs rz_dofs = problem.contribution_dofs(0);
+    bool rz_layout = fields.size() == 3 && fields[0].name == "temperature" && fields[0].begin == 0 &&
+                     fields[0].end == problem.dof_map().node_count() &&
+                     fields[0].category == fuelsim::FieldCategory::thermal && fields[1].name == "radial" &&
+                     fields[1].begin == problem.dof_map().node_count() &&
+                     fields[1].end == 2 * problem.dof_map().node_count() &&
+                     fields[1].category == fuelsim::FieldCategory::mechanical && fields[2].name == "axial" &&
+                     fields[2].begin == 2 * problem.dof_map().node_count() && fields[2].end == problem.dof_count() &&
+                     fields[2].category == fuelsim::FieldCategory::mechanical &&
+                     problem.contribution_dof_count(0) == fuelsim::local_dof_count;
+    const fuelsim::Quad4Element& element = problem.region_mesh(0).elements().front();
+    for (std::size_t local_node = 0; local_node < 4; ++local_node) {
+        const std::size_t global_node = problem.region_node_offset(0) + element.nodes[local_node];
+        rz_layout = rz_layout && rz_dofs[local_node] == problem.dof_map().temperature(global_node) &&
+                    rz_dofs[4 + local_node] == problem.dof_map().radial_displacement(global_node) &&
+                    rz_dofs[8 + local_node] == problem.dof_map().axial_displacement(global_node);
+    }
+    passed = check(rz_layout, "RZ adapter preserves [T0..T3, ur0..ur3, uz0..uz3] and field metadata") && passed;
+
     const fuelsim::LocalValues local = problem.contribution_state(0, state);
     const fuelsim::LocalSystem system = problem.linearize_contribution(0, local);
     passed = check(std::all_of(system.residual.begin(), system.residual.end(),
@@ -344,7 +364,7 @@ bool test_global_field_diagnostics(const fuelsim::UnstructuredQuad4Mesh& mesh) {
         direction[problem.dof_map().axial_displacement(node)] = -0.7e-6;
     }
     const fuelsim::DirectionalJacobianCheck diagnostic =
-        fuelsim::check_directional_jacobian(problem, problem.dof_map(), state, direction, 1.0e-4);
+        fuelsim::check_directional_jacobian(problem, state, direction, 1.0e-4);
     bool passed = true;
     for (std::size_t field = 0; field < 3; ++field) {
         const double reference = diagnostic.finite_difference_directional_derivative.l2[field];

@@ -1,6 +1,7 @@
 #include "assembly.hpp"
 #include "fuelsim/diagnostics.hpp"
 #include "fuelsim/nonlinear_problem.hpp"
+#include "fuelsim/problem_solver.hpp"
 #include "fuelsim/steady_problem.hpp"
 #include "fuelsim/time_table.hpp"
 #include "fuelsim/transient_problem.hpp"
@@ -16,6 +17,8 @@
 
 namespace fuelsim {
 
+namespace rz {
+
 class TransientConservationCalculator final {
   public:
     static TransientConservationSummary
@@ -23,6 +26,8 @@ class TransientConservationCalculator final {
               const std::vector<std::vector<Quad4MaterialHistory>>& staged_histories,
               const std::vector<std::vector<std::array<AxisymmetricStressValues, 4>>>& staged_stresses);
 };
+
+} // namespace rz
 
 GlobalStateView::GlobalStateView(const std::vector<double>& dense_values)
     : _global_size(dense_values.size()), _dense_values(&dense_values), _global_dofs(nullptr), _sparse_values(nullptr) {}
@@ -71,9 +76,68 @@ double GlobalStateView::value(std::size_t global_dof) const {
     return _sparse_values->at(static_cast<std::size_t>(found - _global_dofs->begin()));
 }
 
+void ContributionWorkspace::reserve(std::size_t maximum_dof_count) {
+    if (maximum_dof_count > 0 && maximum_dof_count > std::numeric_limits<std::size_t>::max() / maximum_dof_count)
+        throw std::length_error("Local contribution Jacobian size overflows");
+    dofs.reserve(maximum_dof_count);
+    state.reserve(maximum_dof_count);
+    residual.reserve(maximum_dof_count);
+    jacobian.reserve(maximum_dof_count * maximum_dof_count);
+}
+
+void ContributionWorkspace::resize(std::size_t dof_count_value, bool include_jacobian) {
+    if (dof_count_value == 0)
+        throw std::invalid_argument("Local contribution must contain at least one DOF");
+    if (dof_count_value > std::numeric_limits<std::size_t>::max() / dof_count_value)
+        throw std::length_error("Local contribution Jacobian size overflows");
+    dofs.assign(dof_count_value, std::numeric_limits<std::size_t>::max());
+    state.resize(dof_count_value);
+    residual.assign(dof_count_value, 0.0);
+    if (include_jacobian)
+        jacobian.assign(dof_count_value * dof_count_value, 0.0);
+    else
+        jacobian.clear();
+}
+
 void NonlinearProblem::validate_state(const std::vector<double>& state) const {
     if (state.size() != dof_count())
         throw std::invalid_argument("NonlinearProblem validation state size does not match problem");
+}
+
+void NonlinearProblem::validate_discretization() const {
+    const std::vector<FieldDescriptor>& fields = field_layout();
+    if (dof_count() == 0 || fields.empty())
+        throw std::invalid_argument("NonlinearProblem requires DOFs and field metadata");
+    std::size_t expected_begin = 0;
+    for (std::size_t field = 0; field < fields.size(); ++field) {
+        const FieldDescriptor& descriptor = fields[field];
+        if (descriptor.name.empty() || descriptor.begin != expected_begin || descriptor.end <= descriptor.begin ||
+            descriptor.end > dof_count())
+            throw std::invalid_argument("NonlinearProblem fields must be named, nonempty, contiguous ranges");
+        for (std::size_t previous = 0; previous < field; ++previous) {
+            if (fields[previous].name == descriptor.name)
+                throw std::invalid_argument("NonlinearProblem field names must be unique");
+        }
+        expected_begin = descriptor.end;
+    }
+    if (expected_begin != dof_count())
+        throw std::invalid_argument("NonlinearProblem field ranges must cover every DOF");
+    for (std::size_t contribution = 0; contribution < contribution_count(); ++contribution) {
+        const std::size_t local_count = contribution_dof_count(contribution);
+        if (local_count == 0 || local_count > std::numeric_limits<std::size_t>::max() / local_count)
+            throw std::invalid_argument("NonlinearProblem contribution size is invalid");
+    }
+}
+
+std::size_t NonlinearProblem::field_index(std::size_t dof) const {
+    if (dof >= dof_count())
+        throw std::out_of_range("NonlinearProblem field lookup DOF is out of range");
+    const std::vector<FieldDescriptor>& fields = field_layout();
+    const auto found =
+        std::find_if(fields.begin(), fields.end(), [dof](const FieldDescriptor& field) { return dof < field.end; });
+    if (found == fields.end() || dof < found->begin)
+        throw std::logic_error("NonlinearProblem field metadata does not cover a DOF");
+    return static_cast<std::size_t>(found - fields.begin());
 }
 
 std::vector<std::size_t> NonlinearProblem::required_state_dofs(std::size_t contribution_begin,
@@ -81,10 +145,13 @@ std::vector<std::size_t> NonlinearProblem::required_state_dofs(std::size_t contr
     if (contribution_begin > contribution_end || contribution_end > contribution_count())
         throw std::out_of_range("NonlinearProblem contribution range is invalid");
     std::vector<std::size_t> result;
-    result.reserve((contribution_end - contribution_begin) * local_dof_count);
+    ContributionWorkspace workspace;
     for (std::size_t contribution = contribution_begin; contribution < contribution_end; ++contribution) {
-        const LocalDofs dofs = contribution_dofs(contribution);
-        for (const std::size_t dof : dofs) {
+        workspace.resize(contribution_dof_count(contribution), false);
+        fill_contribution_dofs(contribution, workspace.dofs);
+        if (workspace.dofs.size() != contribution_dof_count(contribution))
+            throw std::logic_error("NonlinearProblem contribution DOF buffer has the wrong size");
+        for (const std::size_t dof : workspace.dofs) {
             if (dof >= dof_count())
                 throw std::out_of_range("NonlinearProblem contribution DOF is out of range");
             result.push_back(dof);
@@ -103,46 +170,83 @@ void NonlinearProblem::validate_local_state(std::size_t contribution_begin, std:
         throw std::invalid_argument("NonlinearProblem shadow state size does not match problem");
 }
 
-LocalValues NonlinearProblem::contribution_state(std::size_t contribution_index,
-                                                 const std::vector<double>& global_state) const {
-    return contribution_state(contribution_index, GlobalStateView(global_state));
-}
-
-LocalValues NonlinearProblem::contribution_state(std::size_t contribution_index,
-                                                 const GlobalStateView& global_state) const {
+void NonlinearProblem::gather_contribution_state(std::size_t contribution_index, const GlobalStateView& global_state,
+                                                 ContributionWorkspace& workspace, bool include_jacobian) const {
     if (global_state.global_size() != dof_count())
         throw std::invalid_argument("NonlinearProblem shadow state size does not match DOF count");
+    if (contribution_index >= contribution_count())
+        throw std::out_of_range("NonlinearProblem contribution index is out of range");
+    const std::size_t local_count = contribution_dof_count(contribution_index);
+    workspace.resize(local_count, include_jacobian);
+    fill_contribution_dofs(contribution_index, workspace.dofs);
+    if (workspace.dofs.size() != local_count)
+        throw std::logic_error("NonlinearProblem contribution DOF buffer has the wrong size");
+    for (std::size_t local = 0; local < local_count; ++local) {
+        if (workspace.dofs[local] >= dof_count())
+            throw std::out_of_range("NonlinearProblem contribution DOF is out of range");
+        workspace.state[local] = global_state.value(workspace.dofs[local]);
+    }
+}
 
-    const LocalDofs dofs = contribution_dofs(contribution_index);
-    LocalValues local_state{};
-    for (std::size_t local = 0; local < dofs.size(); ++local)
-        local_state[local] = global_state.value(dofs[local]);
-    return local_state;
+void NonlinearProblem::evaluate_contribution_residual(std::size_t contribution_index,
+                                                      const GlobalStateView& global_state,
+                                                      ContributionWorkspace& workspace) const {
+    gather_contribution_state(contribution_index, global_state, workspace, false);
+    compute_contribution_residual(contribution_index, workspace.state, workspace.residual);
+    if (workspace.residual.size() != workspace.dofs.size())
+        throw std::logic_error("NonlinearProblem contribution residual has the wrong size");
+}
+
+void NonlinearProblem::evaluate_contribution_system(std::size_t contribution_index, const GlobalStateView& global_state,
+                                                    ContributionWorkspace& workspace) const {
+    gather_contribution_state(contribution_index, global_state, workspace, true);
+    compute_contribution_system(contribution_index, workspace.state, workspace.residual, workspace.jacobian);
+    if (workspace.residual.size() != workspace.dofs.size() ||
+        workspace.jacobian.size() != workspace.dofs.size() * workspace.dofs.size())
+        throw std::logic_error("NonlinearProblem contribution system has the wrong size");
 }
 
 void NonlinearProblem::assemble_residual(const std::vector<double>& state, std::vector<double>& residual) const {
     if (state.size() != dof_count())
         throw std::invalid_argument("NonlinearProblem state size does not match DOF count");
+    validate_discretization();
     validate_state(state);
 
     residual.assign(dof_count(), 0.0);
+    const GlobalStateView global_state(state);
+    ContributionWorkspace workspace;
     for (std::size_t contribution = 0; contribution < contribution_count(); ++contribution) {
-        const LocalDofs dofs = contribution_dofs(contribution);
-        const LocalValues local_state = contribution_state(contribution, state);
-        const LocalResidual local_residual = contribution_residual(contribution, local_state);
-
-        for (std::size_t local = 0; local < dofs.size(); ++local) {
-            if (dofs[local] >= residual.size())
-                throw std::out_of_range("NonlinearProblem contribution DOF is out of range");
-            residual[dofs[local]] += local_residual[local];
-        }
+        evaluate_contribution_residual(contribution, global_state, workspace);
+        for (std::size_t local = 0; local < workspace.dofs.size(); ++local)
+            residual[workspace.dofs[local]] += workspace.residual[local];
     }
 }
+
+namespace {
+
+LocalValues rz_local_values(const std::vector<double>& values) {
+    if (values.size() != local_dof_count)
+        throw std::invalid_argument("RZ contribution state must contain 12 DOFs");
+    LocalValues result{};
+    std::copy(values.begin(), values.end(), result.begin());
+    return result;
+}
+
+void copy_rz_residual(const LocalResidual& source, std::vector<double>& destination) {
+    destination.assign(source.begin(), source.end());
+}
+
+void copy_rz_system(const LocalSystem& source, std::vector<double>& residual, std::vector<double>& jacobian) {
+    residual.assign(source.residual.begin(), source.residual.end());
+    jacobian.assign(source.jacobian.begin(), source.jacobian.end());
+}
+
+} // namespace
 
 // Steady nonlinear problem.
 
 SteadyProblem::SteadyProblem(SpatialDefinition definition, const UnstructuredQuad4Mesh& source_mesh)
-    : _spatial(std::make_unique<SpatialAssembly>(std::move(definition), source_mesh)) {
+    : _spatial(std::make_unique<rz::SpatialAssembly>(std::move(definition), source_mesh)) {
     _region_kernels.reserve(_spatial->region_count());
     for (std::size_t region_value = 0; region_value < _spatial->region_count(); ++region_value) {
         const RegionDefinition& value = _spatial->region(region_value);
@@ -274,12 +378,70 @@ InterfaceSummary SteadyProblem::summarize_interface(std::size_t contact_index, c
     return _spatial->summarize_interface(contact_index, state);
 }
 
+namespace rz {
+
+struct SteadyStateStorage final {
+    explicit SteadyStateStorage(std::vector<std::vector<ContactPointHistory>> value)
+        : contact_histories(std::move(value)) {}
+
+    std::vector<std::vector<ContactPointHistory>> contact_histories;
+};
+
+} // namespace rz
+
+struct SteadyStateSnapshot::Storage final {
+    Storage(std::shared_ptr<const void> owner_value, std::shared_ptr<const rz::SteadyStateStorage> value)
+        : owner(std::move(owner_value)), rz_state(std::move(value)) {}
+
+    std::shared_ptr<const void> owner;
+    std::shared_ptr<const rz::SteadyStateStorage> rz_state;
+};
+
+SteadyStateSnapshot::SteadyStateSnapshot() = default;
+SteadyStateSnapshot::~SteadyStateSnapshot() = default;
+SteadyStateSnapshot::SteadyStateSnapshot(const SteadyStateSnapshot& other) = default;
+SteadyStateSnapshot& SteadyStateSnapshot::operator=(const SteadyStateSnapshot& other) = default;
+SteadyStateSnapshot::SteadyStateSnapshot(SteadyStateSnapshot&& other) noexcept = default;
+SteadyStateSnapshot& SteadyStateSnapshot::operator=(SteadyStateSnapshot&& other) noexcept = default;
+
+SteadyStateSnapshot::SteadyStateSnapshot(std::shared_ptr<const Storage> storage) : _storage(std::move(storage)) {}
+
+bool SteadyStateSnapshot::empty() const noexcept {
+    return _storage == nullptr;
+}
+
+std::shared_ptr<const void> SteadyStateSnapshot::snapshot_owner() const noexcept {
+    return _storage != nullptr ? _storage->owner : nullptr;
+}
+
+SteadyStateSnapshot SteadyProblem::capture_internal_state() const {
+    const auto state = std::make_shared<rz::SteadyStateStorage>(_spatial->committed_contact_histories());
+    return SteadyStateSnapshot(
+        std::make_shared<SteadyStateSnapshot::Storage>(discretization_identity(), std::move(state)));
+}
+
+void SteadyProblem::restore_internal_state(const SteadyStateSnapshot& snapshot, const std::vector<double>& state) {
+    if (snapshot.empty())
+        throw std::invalid_argument("SteadyProblem cannot restore an empty internal-state snapshot");
+    if (snapshot.snapshot_owner() != discretization_identity())
+        throw std::invalid_argument("SteadyProblem cannot restore a snapshot from another problem");
+    _spatial->restore_contact_state(state, snapshot._storage->rz_state->contact_histories);
+}
+
+void SteadyProblem::commit_internal_state(const std::vector<double>& state) {
+    _spatial->commit_contact_state(state);
+}
+
 std::size_t SteadyProblem::dof_count() const noexcept {
     return _spatial->dof_count();
 }
 
 std::size_t SteadyProblem::contribution_count() const noexcept {
     return _spatial->contribution_count();
+}
+
+const std::vector<FieldDescriptor>& SteadyProblem::field_layout() const noexcept {
+    return _spatial->dof_map().field_layout();
 }
 
 const std::vector<DirichletCondition>& SteadyProblem::dirichlet_conditions() const noexcept {
@@ -300,8 +462,45 @@ void SteadyProblem::validate_local_state(std::size_t contribution_begin, std::si
     _spatial->validate_local_state(contribution_begin, contribution_end, state);
 }
 
+std::size_t SteadyProblem::contribution_dof_count(std::size_t contribution_index) const {
+    if (contribution_index >= contribution_count())
+        throw std::out_of_range("SteadyProblem contribution index is out of range");
+    return local_dof_count;
+}
+
+void SteadyProblem::fill_contribution_dofs(std::size_t contribution_index, std::vector<std::size_t>& dofs) const {
+    const LocalDofs fixed = contribution_dofs(contribution_index);
+    dofs.assign(fixed.begin(), fixed.end());
+}
+
+void SteadyProblem::compute_contribution_residual(std::size_t contribution_index, const std::vector<double>& state,
+                                                  std::vector<double>& residual) const {
+    copy_rz_residual(contribution_residual(contribution_index, rz_local_values(state)), residual);
+}
+
+void SteadyProblem::compute_contribution_system(std::size_t contribution_index, const std::vector<double>& state,
+                                                std::vector<double>& residual, std::vector<double>& jacobian) const {
+    copy_rz_system(linearize_contribution(contribution_index, rz_local_values(state)), residual, jacobian);
+}
+
 LocalDofs SteadyProblem::contribution_dofs(std::size_t contribution_index) const {
     return _spatial->contribution_dofs(contribution_index);
+}
+
+LocalValues SteadyProblem::contribution_state(std::size_t contribution_index,
+                                              const std::vector<double>& global_state) const {
+    return contribution_state(contribution_index, GlobalStateView(global_state));
+}
+
+LocalValues SteadyProblem::contribution_state(std::size_t contribution_index,
+                                              const GlobalStateView& global_state) const {
+    if (global_state.global_size() != dof_count())
+        throw std::invalid_argument("SteadyProblem contribution state has the wrong global size");
+    const LocalDofs dofs = contribution_dofs(contribution_index);
+    LocalValues result{};
+    for (std::size_t local = 0; local < dofs.size(); ++local)
+        result[local] = global_state.value(dofs[local]);
+    return result;
 }
 
 LocalResidual SteadyProblem::contribution_residual(std::size_t contribution_index, const LocalValues& state) const {
@@ -323,6 +522,7 @@ LocalSystem SteadyProblem::linearize_contribution(std::size_t contribution_index
 }
 
 // Transient conservation diagnostics.
+namespace rz {
 namespace {
 
 double stress_strain_inner_product(const AxisymmetricStressValues& stress,
@@ -451,6 +651,8 @@ TransientConservationSummary TransientConservationCalculator::summarize(
     return result;
 }
 
+} // namespace rz
+
 // Transient state transactions and nonlinear problem.
 namespace {
 
@@ -495,9 +697,10 @@ void validate_definition(const TransientProblemDefinition& definition) {
 } // namespace
 
 TransientProblem::TransientProblem(TransientProblemDefinition definition, const UnstructuredQuad4Mesh& source_mesh)
-    : _definition(std::move(definition)), _spatial(std::make_unique<SpatialAssembly>(_definition.spatial, source_mesh)),
-      _committed_time(0.0), _committed_load_factor(0.0), _active_time_step(0.0), _active_end_time(0.0),
-      _active_load_factor(0.0), _time_step_active(false) {
+    : _definition(std::move(definition)),
+      _spatial(std::make_unique<rz::SpatialAssembly>(_definition.spatial, source_mesh)), _committed_time(0.0),
+      _committed_load_factor(0.0), _active_time_step(0.0), _active_end_time(0.0), _active_load_factor(0.0),
+      _time_step_active(false) {
     validate_definition(_definition);
     _region_kernels.reserve(region_count());
     _material_histories.resize(region_count());
@@ -578,10 +781,61 @@ std::vector<double> TransientProblem::time_events() const {
     return result;
 }
 
+namespace rz {
+
+struct TransientStateStorage final {
+    explicit TransientStateStorage(TransientCommittedState value) : state(std::move(value)) {}
+
+    TransientCommittedState state;
+};
+
+} // namespace rz
+
+struct TransientStateSnapshot::Storage final {
+    Storage(std::shared_ptr<const void> owner_value, std::shared_ptr<const rz::TransientStateStorage> value)
+        : owner(std::move(owner_value)), rz_state(std::move(value)) {}
+
+    std::shared_ptr<const void> owner;
+    std::shared_ptr<const rz::TransientStateStorage> rz_state;
+};
+
+TransientStateSnapshot::TransientStateSnapshot() = default;
+TransientStateSnapshot::~TransientStateSnapshot() = default;
+TransientStateSnapshot::TransientStateSnapshot(const TransientStateSnapshot& other) = default;
+TransientStateSnapshot& TransientStateSnapshot::operator=(const TransientStateSnapshot& other) = default;
+TransientStateSnapshot::TransientStateSnapshot(TransientStateSnapshot&& other) noexcept = default;
+TransientStateSnapshot& TransientStateSnapshot::operator=(TransientStateSnapshot&& other) noexcept = default;
+
+TransientStateSnapshot::TransientStateSnapshot(std::shared_ptr<const Storage> storage) : _storage(std::move(storage)) {}
+
+bool TransientStateSnapshot::empty() const noexcept {
+    return _storage == nullptr;
+}
+
+std::shared_ptr<const void> TransientStateSnapshot::snapshot_owner() const noexcept {
+    return _storage != nullptr ? _storage->owner : nullptr;
+}
+
 TransientCommittedState TransientProblem::committed_state() const {
     return {
         _committed_solution,        _material_histories, _material_stresses,    _spatial->committed_contact_histories(),
         _last_conservation_summary, _committed_time,     _committed_load_factor};
+}
+
+TransientStateSnapshot TransientProblem::capture_state() const {
+    if (_time_step_active)
+        throw std::logic_error("TransientProblem cannot capture an active time step");
+    const auto state = std::make_shared<rz::TransientStateStorage>(committed_state());
+    return TransientStateSnapshot(
+        std::make_shared<TransientStateSnapshot::Storage>(discretization_identity(), std::move(state)));
+}
+
+void TransientProblem::restore_state(const TransientStateSnapshot& snapshot) {
+    if (snapshot.empty())
+        throw std::invalid_argument("TransientProblem cannot restore an empty state snapshot");
+    if (snapshot.snapshot_owner() != discretization_identity())
+        throw std::invalid_argument("TransientProblem cannot restore a snapshot from another problem");
+    restore_committed_state(snapshot._storage->rz_state->state);
 }
 
 void TransientProblem::restore_committed_state(TransientCommittedState state) {
@@ -625,6 +879,209 @@ void TransientProblem::restore_committed_state(TransientCommittedState state) {
     _committed_load_factor = state.load_factor;
     clear_active_time_step();
     apply_spatial_controls(_committed_time, _committed_load_factor);
+}
+
+namespace rz {
+namespace {
+
+struct TimeErrorAccumulator final {
+    double difference_squared = 0.0;
+    double solution_squared = 0.0;
+    std::size_t count = 0;
+};
+
+void accumulate_time_error(TimeErrorAccumulator& accumulator, double full_step, double two_half_steps) {
+    const double difference = two_half_steps - full_step;
+    accumulator.difference_squared += difference * difference;
+    accumulator.solution_squared += two_half_steps * two_half_steps;
+    ++accumulator.count;
+}
+
+double normalized_time_error(const TimeErrorAccumulator& accumulator, double absolute_tolerance,
+                             double relative_tolerance) {
+    if (accumulator.count == 0)
+        return 0.0;
+    const double denominator = absolute_tolerance * std::sqrt(static_cast<double>(accumulator.count)) +
+                               relative_tolerance * std::sqrt(accumulator.solution_squared);
+    return std::sqrt(accumulator.difference_squared) / denominator;
+}
+
+TransientConservationSummary combine_rz_half_step_conservation(const TransientConservationSummary& first,
+                                                               const TransientConservationSummary& second) {
+    TransientConservationSummary result;
+    const auto average = [](double left, double right) { return 0.5 * (left + right); };
+    result.generated_heat_rate = average(first.generated_heat_rate, second.generated_heat_rate);
+    result.stored_heat_rate = average(first.stored_heat_rate, second.stored_heat_rate);
+    result.convection_heat_rate = average(first.convection_heat_rate, second.convection_heat_rate);
+    result.interface_heat_imbalance = average(first.interface_heat_imbalance, second.interface_heat_imbalance);
+    result.dirichlet_heat_input_rate = average(first.dirichlet_heat_input_rate, second.dirichlet_heat_input_rate);
+    result.global_thermal_balance = result.stored_heat_rate + result.convection_heat_rate +
+                                    result.interface_heat_imbalance - result.generated_heat_rate -
+                                    result.dirichlet_heat_input_rate;
+    const double thermal_scale = std::abs(result.generated_heat_rate) + std::abs(result.stored_heat_rate) +
+                                 std::abs(result.convection_heat_rate) + std::abs(result.interface_heat_imbalance) +
+                                 std::abs(result.dirichlet_heat_input_rate);
+    result.relative_thermal_balance =
+        thermal_scale > 0.0 ? std::abs(result.global_thermal_balance) / thermal_scale : 0.0;
+    result.unconstrained_thermal_residual_l2 =
+        std::max(first.unconstrained_thermal_residual_l2, second.unconstrained_thermal_residual_l2);
+
+    result.internal_mechanical_work_increment =
+        first.internal_mechanical_work_increment + second.internal_mechanical_work_increment;
+    result.pressure_traction_work_increment =
+        first.pressure_traction_work_increment + second.pressure_traction_work_increment;
+    result.dirichlet_reaction_work_increment =
+        first.dirichlet_reaction_work_increment + second.dirichlet_reaction_work_increment;
+    result.contact_work_increment = first.contact_work_increment + second.contact_work_increment;
+    result.mechanical_work_balance = result.internal_mechanical_work_increment + result.contact_work_increment -
+                                     result.pressure_traction_work_increment - result.dirichlet_reaction_work_increment;
+    const double mechanical_scale =
+        std::abs(result.internal_mechanical_work_increment) + std::abs(result.pressure_traction_work_increment) +
+        std::abs(result.dirichlet_reaction_work_increment) + std::abs(result.contact_work_increment);
+    result.relative_mechanical_work_balance =
+        mechanical_scale > 0.0 ? std::abs(result.mechanical_work_balance) / mechanical_scale : 0.0;
+    result.unconstrained_mechanical_residual_l2 =
+        std::max(first.unconstrained_mechanical_residual_l2, second.unconstrained_mechanical_residual_l2);
+    result.elastic_energy_change = first.elastic_energy_change + second.elastic_energy_change;
+    result.plastic_dissipation_increment = first.plastic_dissipation_increment + second.plastic_dissipation_increment;
+    result.creep_dissipation_increment = first.creep_dissipation_increment + second.creep_dissipation_increment;
+    return result;
+}
+
+TransientTimeErrorEstimate compare_step_doubling_states(const TransientCommittedState& full_step,
+                                                        const TransientCommittedState& two_half_steps,
+                                                        const std::vector<FieldDescriptor>& fields,
+                                                        std::size_t expected_dof_count,
+                                                        const TransientTimeOptions& options) {
+    if (full_step.solution.size() != two_half_steps.solution.size() || full_step.solution.size() != expected_dof_count)
+        throw std::logic_error("step-doubling nodal-state layouts differ");
+    if (full_step.material_histories.size() != two_half_steps.material_histories.size() ||
+        full_step.material_stresses.size() != two_half_steps.material_stresses.size())
+        throw std::logic_error("step-doubling material-state region layouts differ");
+    if (fields.size() != 3 || fields[0].name != "temperature" || fields[1].name != "radial" ||
+        fields[2].name != "axial")
+        throw std::logic_error("RZ step-doubling field layout is invalid");
+
+    std::vector<TimeErrorAccumulator> nodal(fields.size());
+    for (std::size_t field = 0; field < fields.size(); ++field) {
+        const FieldDescriptor& descriptor = fields[field];
+        for (std::size_t dof = descriptor.begin; dof < descriptor.end; ++dof)
+            accumulate_time_error(nodal[field], full_step.solution[dof], two_half_steps.solution[dof]);
+    }
+
+    TimeErrorAccumulator elastic;
+    TimeErrorAccumulator plastic;
+    TimeErrorAccumulator creep;
+    TimeErrorAccumulator equivalent_plastic;
+    TimeErrorAccumulator equivalent_creep;
+    TimeErrorAccumulator stress;
+    TimeErrorAccumulator contact_friction;
+    TimeErrorAccumulator contact_normal_multiplier;
+    bool contact_state_mismatch = false;
+    for (std::size_t region = 0; region < full_step.material_histories.size(); ++region) {
+        const auto& full_history = full_step.material_histories[region];
+        const auto& half_history = two_half_steps.material_histories[region];
+        const auto& full_stress = full_step.material_stresses[region];
+        const auto& half_stress = two_half_steps.material_stresses[region];
+        if (full_history.size() != half_history.size() || full_stress.size() != half_stress.size() ||
+            full_history.size() != full_stress.size())
+            throw std::logic_error("step-doubling material-state element layouts differ");
+        for (std::size_t element = 0; element < full_history.size(); ++element) {
+            for (std::size_t q = 0; q < 4; ++q) {
+                const MaterialPointState& full_point = full_history[element][q];
+                const MaterialPointState& half_point = half_history[element][q];
+                for (std::size_t component = 0; component < 4; ++component) {
+                    accumulate_time_error(elastic, full_point.elastic_strain[component],
+                                          half_point.elastic_strain[component]);
+                    accumulate_time_error(plastic, full_point.plastic_strain[component],
+                                          half_point.plastic_strain[component]);
+                    accumulate_time_error(creep, full_point.creep_strain[component],
+                                          half_point.creep_strain[component]);
+                }
+                accumulate_time_error(equivalent_plastic, full_point.equivalent_plastic_strain,
+                                      half_point.equivalent_plastic_strain);
+                accumulate_time_error(equivalent_creep, full_point.equivalent_creep_strain,
+                                      half_point.equivalent_creep_strain);
+
+                const AxisymmetricStressValues& full_value = full_stress[element][q];
+                const AxisymmetricStressValues& half_value = half_stress[element][q];
+                accumulate_time_error(stress, full_value.rr, half_value.rr);
+                accumulate_time_error(stress, full_value.zz, half_value.zz);
+                accumulate_time_error(stress, full_value.hoop, half_value.hoop);
+                accumulate_time_error(stress, full_value.rz, half_value.rz);
+            }
+        }
+    }
+    if (full_step.contact_histories.size() != two_half_steps.contact_histories.size())
+        throw std::logic_error("step-doubling contact-history layouts differ");
+    for (std::size_t contact = 0; contact < full_step.contact_histories.size(); ++contact) {
+        if (full_step.contact_histories[contact].size() != two_half_steps.contact_histories[contact].size())
+            throw std::logic_error("step-doubling contact-node history layouts differ");
+        for (std::size_t node = 0; node < full_step.contact_histories[contact].size(); ++node) {
+            const ContactPointHistory& full = full_step.contact_histories[contact][node];
+            const ContactPointHistory& half = two_half_steps.contact_histories[contact][node];
+            accumulate_time_error(contact_friction, full.elastic_tangential_slip, half.elastic_tangential_slip);
+            accumulate_time_error(contact_normal_multiplier, full.normal_multiplier, half.normal_multiplier);
+            contact_state_mismatch = contact_state_mismatch || full.sliding != half.sliding;
+        }
+    }
+
+    TransientTimeErrorEstimate result;
+    result.nodal_fields = {
+        {"temperature", normalized_time_error(nodal[0], options.temperature_time_absolute_tolerance,
+                                              options.time_error_relative_tolerance)},
+        {"radial_displacement", normalized_time_error(nodal[1], options.displacement_time_absolute_tolerance,
+                                                      options.time_error_relative_tolerance)},
+        {"axial_displacement", normalized_time_error(nodal[2], options.displacement_time_absolute_tolerance,
+                                                     options.time_error_relative_tolerance)},
+    };
+    result.elastic_strain = normalized_time_error(elastic, options.strain_history_time_absolute_tolerance,
+                                                  options.time_error_relative_tolerance);
+    result.plastic_strain = normalized_time_error(plastic, options.strain_history_time_absolute_tolerance,
+                                                  options.time_error_relative_tolerance);
+    result.creep_strain = normalized_time_error(creep, options.strain_history_time_absolute_tolerance,
+                                                options.time_error_relative_tolerance);
+    result.equivalent_plastic_strain = normalized_time_error(
+        equivalent_plastic, options.strain_history_time_absolute_tolerance, options.time_error_relative_tolerance);
+    result.equivalent_creep_strain = normalized_time_error(
+        equivalent_creep, options.strain_history_time_absolute_tolerance, options.time_error_relative_tolerance);
+    result.stress = normalized_time_error(stress, options.stress_history_time_absolute_tolerance,
+                                          options.time_error_relative_tolerance);
+    result.contact_friction =
+        contact_state_mismatch ? std::numeric_limits<double>::infinity()
+                               : normalized_time_error(contact_friction, options.displacement_time_absolute_tolerance,
+                                                       options.time_error_relative_tolerance);
+    result.contact_normal_multiplier =
+        normalized_time_error(contact_normal_multiplier, options.stress_history_time_absolute_tolerance,
+                              options.time_error_relative_tolerance);
+    result.maximum = std::max({result.elastic_strain, result.plastic_strain, result.creep_strain,
+                               result.equivalent_plastic_strain, result.equivalent_creep_strain, result.stress,
+                               result.contact_friction, result.contact_normal_multiplier});
+    for (const TransientFieldTimeError& field : result.nodal_fields)
+        result.maximum = std::max(result.maximum, field.value);
+    return result;
+}
+
+} // namespace
+} // namespace rz
+
+TransientTimeErrorEstimate TransientProblem::step_doubling_error(const TransientStateSnapshot& full_snapshot,
+                                                                 const TransientStateSnapshot& half_snapshot,
+                                                                 const TransientTimeOptions& options) const {
+    if (full_snapshot.empty() || half_snapshot.empty())
+        throw std::invalid_argument("step-doubling requires two complete state snapshots");
+    if (full_snapshot.snapshot_owner() != discretization_identity() ||
+        half_snapshot.snapshot_owner() != discretization_identity())
+        throw std::invalid_argument("step-doubling snapshots belong to another problem");
+    return rz::compare_step_doubling_states(full_snapshot._storage->rz_state->state,
+                                            half_snapshot._storage->rz_state->state, field_layout(), dof_count(),
+                                            options);
+}
+
+void TransientProblem::combine_last_half_step_conservation(const TransientConservationSummary& first_half) {
+    if (_time_step_active)
+        throw std::logic_error("TransientProblem cannot combine conservation during an active time step");
+    _last_conservation_summary = rz::combine_rz_half_step_conservation(first_half, _last_conservation_summary);
 }
 
 void TransientProblem::begin_time_step(const TransientStepInput& input) {
@@ -682,7 +1139,7 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
     }
 
     const TransientConservationSummary conservation =
-        TransientConservationCalculator::summarize(*this, converged_solution, staged, staged_stresses);
+        rz::TransientConservationCalculator::summarize(*this, converged_solution, staged, staged_stresses);
     _spatial->commit_contact_state(converged_solution);
     _material_histories.swap(staged);
     _material_stresses.swap(staged_stresses);
@@ -773,6 +1230,10 @@ std::size_t TransientProblem::contribution_count() const noexcept {
     return _spatial->contribution_count();
 }
 
+const std::vector<FieldDescriptor>& TransientProblem::field_layout() const noexcept {
+    return _spatial->dof_map().field_layout();
+}
+
 const std::vector<DirichletCondition>& TransientProblem::dirichlet_conditions() const noexcept {
     return _spatial->dirichlet_conditions();
 }
@@ -793,8 +1254,45 @@ void TransientProblem::validate_local_state(std::size_t contribution_begin, std:
     _spatial->validate_local_state(contribution_begin, contribution_end, state);
 }
 
+std::size_t TransientProblem::contribution_dof_count(std::size_t contribution_index) const {
+    if (contribution_index >= contribution_count())
+        throw std::out_of_range("TransientProblem contribution index is out of range");
+    return local_dof_count;
+}
+
+void TransientProblem::fill_contribution_dofs(std::size_t contribution_index, std::vector<std::size_t>& dofs) const {
+    const LocalDofs fixed = contribution_dofs(contribution_index);
+    dofs.assign(fixed.begin(), fixed.end());
+}
+
+void TransientProblem::compute_contribution_residual(std::size_t contribution_index, const std::vector<double>& state,
+                                                     std::vector<double>& residual) const {
+    copy_rz_residual(contribution_residual(contribution_index, rz_local_values(state)), residual);
+}
+
+void TransientProblem::compute_contribution_system(std::size_t contribution_index, const std::vector<double>& state,
+                                                   std::vector<double>& residual, std::vector<double>& jacobian) const {
+    copy_rz_system(linearize_contribution(contribution_index, rz_local_values(state)), residual, jacobian);
+}
+
 LocalDofs TransientProblem::contribution_dofs(std::size_t contribution_index) const {
     return _spatial->contribution_dofs(contribution_index);
+}
+
+LocalValues TransientProblem::contribution_state(std::size_t contribution_index,
+                                                 const std::vector<double>& global_state) const {
+    return contribution_state(contribution_index, GlobalStateView(global_state));
+}
+
+LocalValues TransientProblem::contribution_state(std::size_t contribution_index,
+                                                 const GlobalStateView& global_state) const {
+    if (global_state.global_size() != dof_count())
+        throw std::invalid_argument("TransientProblem contribution state has the wrong global size");
+    const LocalDofs dofs = contribution_dofs(contribution_index);
+    LocalValues result{};
+    for (std::size_t local = 0; local < dofs.size(); ++local)
+        result[local] = global_state.value(dofs[local]);
+    return result;
 }
 
 LocalResidual TransientProblem::contribution_residual(std::size_t contribution_index, const LocalValues& state) const {
@@ -832,17 +1330,19 @@ namespace {
 
 std::vector<double> analytic_directional_derivative(const NonlinearProblem& problem, const std::vector<double>& state,
                                                     const std::vector<double>& direction) {
+    problem.validate_discretization();
     problem.validate_state(state);
     std::vector<double> result(problem.dof_count(), 0.0);
+    const GlobalStateView global_state(state);
+    ContributionWorkspace workspace;
     for (std::size_t contribution = 0; contribution < problem.contribution_count(); ++contribution) {
-        const LocalDofs dofs = problem.contribution_dofs(contribution);
-        const LocalValues local_state = problem.contribution_state(contribution, state);
-        const LocalSystem local = problem.linearize_contribution(contribution, local_state);
-        for (std::size_t row = 0; row < local_dof_count; ++row) {
+        problem.evaluate_contribution_system(contribution, global_state, workspace);
+        const std::size_t local_count = workspace.dofs.size();
+        for (std::size_t row = 0; row < local_count; ++row) {
             double value = 0.0;
-            for (std::size_t column = 0; column < local_dof_count; ++column)
-                value += local.jacobian[row * local_dof_count + column] * direction.at(dofs[column]);
-            result.at(dofs[row]) += value;
+            for (std::size_t column = 0; column < local_count; ++column)
+                value += workspace.jacobian[row * local_count + column] * direction.at(workspace.dofs[column]);
+            result.at(workspace.dofs[row]) += value;
         }
     }
     for (const DirichletCondition& condition : problem.dirichlet_conditions())
@@ -860,15 +1360,17 @@ std::vector<double> constrained_residual(const NonlinearProblem& problem, const 
     return result;
 }
 
-FieldNorms field_norms(const DofMap& dof_map, const std::vector<double>& values) {
-    if (values.size() != dof_map.dof_count())
-        throw std::invalid_argument("Field norm vector size does not match the DOF map");
+FieldNorms field_norms(const NonlinearProblem& problem, const std::vector<double>& values) {
+    if (values.size() != problem.dof_count())
+        throw std::invalid_argument("Field norm vector size does not match the problem");
+    problem.validate_discretization();
     FieldNorms result;
-    for (std::size_t node = 0; node < dof_map.node_count(); ++node) {
-        const std::array<std::size_t, 3> dofs = {dof_map.temperature(node), dof_map.radial_displacement(node),
-                                                 dof_map.axial_displacement(node)};
-        for (std::size_t field = 0; field < dofs.size(); ++field) {
-            const double value = values[dofs[field]];
+    result.l2.resize(problem.field_layout().size());
+    result.maximum_absolute.resize(problem.field_layout().size());
+    for (std::size_t field = 0; field < problem.field_layout().size(); ++field) {
+        const FieldDescriptor& descriptor = problem.field_layout()[field];
+        for (std::size_t dof = descriptor.begin; dof < descriptor.end; ++dof) {
+            const double value = values[dof];
             result.l2[field] = std::hypot(result.l2[field], value);
             result.maximum_absolute[field] = std::max(result.maximum_absolute[field], std::abs(value));
         }
@@ -876,8 +1378,7 @@ FieldNorms field_norms(const DofMap& dof_map, const std::vector<double>& values)
     return result;
 }
 
-DirectionalJacobianCheck check_directional_jacobian(const NonlinearProblem& problem, const DofMap& dof_map,
-                                                    const std::vector<double>& state,
+DirectionalJacobianCheck check_directional_jacobian(const NonlinearProblem& problem, const std::vector<double>& state,
                                                     const std::vector<double>& direction, double step) {
     if (state.size() != problem.dof_count() || direction.size() != problem.dof_count())
         throw std::invalid_argument("Directional Jacobian vectors do not match the problem");
@@ -899,8 +1400,8 @@ DirectionalJacobianCheck check_directional_jacobian(const NonlinearProblem& prob
         finite_difference[dof] = (plus_residual[dof] - minus_residual[dof]) / (2.0 * step);
         difference[dof] = analytic[dof] - finite_difference[dof];
     }
-    return {field_norms(dof_map, residual), field_norms(dof_map, analytic), field_norms(dof_map, finite_difference),
-            field_norms(dof_map, difference)};
+    return {field_norms(problem, residual), field_norms(problem, analytic), field_norms(problem, finite_difference),
+            field_norms(problem, difference)};
 }
 
 // Piecewise-linear time functions.

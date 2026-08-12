@@ -327,6 +327,9 @@ DofMap::DofMap(std::size_t node_count) : _node_count(node_count) {
         throw std::invalid_argument("DofMap node_count must be positive");
     if (node_count > std::numeric_limits<std::size_t>::max() / 3)
         throw std::length_error("DofMap DOF count overflows");
+    _field_layout = {{"temperature", 0, node_count, FieldCategory::thermal},
+                     {"radial", node_count, 2 * node_count, FieldCategory::mechanical},
+                     {"axial", 2 * node_count, 3 * node_count, FieldCategory::mechanical}};
 }
 
 std::size_t DofMap::node_count() const noexcept {
@@ -335,6 +338,10 @@ std::size_t DofMap::node_count() const noexcept {
 
 std::size_t DofMap::dof_count() const noexcept {
     return 3 * _node_count;
+}
+
+const std::vector<FieldDescriptor>& DofMap::field_layout() const noexcept {
+    return _field_layout;
 }
 
 std::size_t DofMap::dof(Field field, std::size_t node) const {

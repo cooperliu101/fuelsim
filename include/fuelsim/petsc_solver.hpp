@@ -1,7 +1,6 @@
 #ifndef FUELSIM_PETSC_SOLVER_HPP
 #define FUELSIM_PETSC_SOLVER_HPP
 
-#include <array>
 #include <cstddef>
 #include <functional>
 #include <memory>
@@ -66,6 +65,7 @@ struct SolverOptions final {
     double mechanical_residual_absolute_tolerance = 1.0e-4;
     double temperature_residual_scale = 0.0;
     double mechanical_residual_scale = 0.0;
+    bool collect_linear_solver_diagnostics = false;
 };
 
 struct SolveTiming final {
@@ -113,11 +113,16 @@ struct SolveResult final {
     bool used_backtracking_fallback = false;
     SolveFailureCategory basic_failure_category = SolveFailureCategory::none;
     std::string basic_failure_message;
-    std::array<double, 3> initial_field_residual_norms{};
-    std::array<double, 3> field_residual_reference_norms{};
-    std::array<double, 3> final_field_residual_norms{};
-    std::array<double, 3> final_scaled_field_residual_norms{};
-    std::array<double, 3> field_residual_scalings{{1.0, 1.0, 1.0}};
+    std::vector<std::string> field_names;
+    std::vector<double> initial_field_residual_norms;
+    std::vector<double> field_residual_reference_norms;
+    std::vector<double> final_field_residual_norms;
+    std::vector<double> final_scaled_field_residual_norms;
+    std::vector<double> field_residual_scalings;
+    std::string linear_solver_type;
+    std::string preconditioner_type;
+    std::vector<std::size_t> thermal_field_split_dofs;
+    std::vector<std::size_t> mechanical_field_split_dofs;
 };
 
 class PetscSolver final {

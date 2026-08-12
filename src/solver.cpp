@@ -123,11 +123,17 @@ struct SolverContext final {
     bool first_residual = true;
     bool thermal_scaling_initialized = false;
     bool mechanics_scaling_initialized = false;
-    std::array<double, 3> initial_field_residual_norms{};
-    std::array<double, 3> field_residual_reference_norms{};
-    std::array<double, 3> latest_unscaled_field_residual_norms{};
-    std::array<double, 3> latest_field_residual_norms{};
-    std::array<double, 3> field_residual_scalings{{1.0, 1.0, 1.0}};
+    std::vector<double> initial_field_residual_norms;
+    std::vector<double> field_residual_reference_norms;
+    std::vector<double> latest_unscaled_field_residual_norms;
+    std::vector<double> latest_field_residual_norms;
+    std::vector<double> field_residual_scalings;
+    std::vector<double> local_field_squared_norms;
+    std::vector<double> global_field_squared_norms;
+    std::vector<std::size_t> dof_fields;
+    ContributionWorkspace contribution_workspace;
+    std::vector<PetscInt> petsc_contribution_dofs;
+    std::vector<double> scaled_contribution_jacobian;
     double initial_residual_norm = std::numeric_limits<double>::quiet_NaN();
     bool saw_domain_error = false;
     bool last_function_domain_error = false;
@@ -171,7 +177,65 @@ struct PetscObjects final {
     }
 };
 
-void configure_linear_solver(PetscObjects& objects, const SolverOptions& options, PetscMPIInt world_size) {
+std::vector<std::size_t> gathered_index_set(IS distributed) {
+    if (distributed == nullptr)
+        throw std::logic_error("PETSc field split did not provide its index set");
+    IS gathered = nullptr;
+    check_petsc(ISAllGather(distributed, &gathered), "ISAllGather field split");
+    try {
+        PetscInt count = 0;
+        check_petsc(ISGetLocalSize(gathered, &count), "ISGetLocalSize field split");
+        const PetscInt* indices = nullptr;
+        check_petsc(ISGetIndices(gathered, &indices), "ISGetIndices field split");
+        try {
+            std::vector<std::size_t> result;
+            result.reserve(static_cast<std::size_t>(count));
+            for (PetscInt index = 0; index < count; ++index) {
+                if (indices[index] < 0)
+                    throw std::logic_error("PETSc field split contains a negative DOF");
+                result.push_back(static_cast<std::size_t>(indices[index]));
+            }
+            check_petsc(ISRestoreIndices(gathered, &indices), "ISRestoreIndices field split");
+            check_petsc(ISDestroy(&gathered), "ISDestroy gathered field split");
+            return result;
+        } catch (...) {
+            (void)ISRestoreIndices(gathered, &indices);
+            throw;
+        }
+    } catch (...) {
+        if (gathered != nullptr)
+            (void)ISDestroy(&gathered);
+        throw;
+    }
+}
+
+void record_linear_solver_configuration(PetscObjects& objects, SolveResult& result) {
+    KSP ksp = nullptr;
+    PC preconditioner = nullptr;
+    check_petsc(SNESGetKSP(objects.snes, &ksp), "SNESGetKSP diagnostics");
+    check_petsc(KSPGetPC(ksp, &preconditioner), "KSPGetPC diagnostics");
+    const char* linear_type = nullptr;
+    const char* preconditioner_type = nullptr;
+    check_petsc(KSPGetType(ksp, &linear_type), "KSPGetType diagnostics");
+    check_petsc(PCGetType(preconditioner, &preconditioner_type), "PCGetType diagnostics");
+    result.linear_solver_type = linear_type != nullptr ? linear_type : "";
+    result.preconditioner_type = preconditioner_type != nullptr ? preconditioner_type : "";
+
+    PetscBool is_field_split = PETSC_FALSE;
+    check_petsc(PetscObjectTypeCompare(reinterpret_cast<PetscObject>(preconditioner), PCFIELDSPLIT, &is_field_split),
+                "PetscObjectTypeCompare field split diagnostics");
+    if (is_field_split == PETSC_FALSE)
+        return;
+    IS thermal = nullptr;
+    IS mechanical = nullptr;
+    check_petsc(PCFieldSplitGetIS(preconditioner, "temperature", &thermal), "PCFieldSplitGetIS temperature");
+    check_petsc(PCFieldSplitGetIS(preconditioner, "mechanics", &mechanical), "PCFieldSplitGetIS mechanics");
+    result.thermal_field_split_dofs = gathered_index_set(thermal);
+    result.mechanical_field_split_dofs = gathered_index_set(mechanical);
+}
+
+void configure_linear_solver(PetscObjects& objects, const NonlinearProblem& problem, const SolverOptions& options,
+                             PetscMPIInt world_size) {
     SolverOptions::LinearSolver linear = options.linear_solver;
     if (linear == SolverOptions::LinearSolver::automatic) {
         if (options.preconditioner == SolverOptions::Preconditioner::block_jacobi ||
@@ -217,30 +281,38 @@ void configure_linear_solver(PetscObjects& objects, const SolverOptions& options
         check_petsc(
             PetscObjectTypeCompare(reinterpret_cast<PetscObject>(preconditioner), PCFIELDSPLIT, &already_configured),
             "PetscObjectTypeCompare field split");
-        PetscInt global_count = 0;
         PetscInt ownership_begin = 0;
         PetscInt ownership_end = 0;
-        check_petsc(VecGetSize(objects.state, &global_count), "VecGetSize field split");
-        if (global_count % 3 != 0)
-            throw std::invalid_argument("field_split requires the [T, ur, uz] three-field layout");
         check_petsc(VecGetOwnershipRange(objects.state, &ownership_begin, &ownership_end),
                     "VecGetOwnershipRange field split");
-        const PetscInt node_count = global_count / 3;
-        const PetscInt temperature_begin = std::max<PetscInt>(ownership_begin, 0);
-        const PetscInt temperature_end = std::min<PetscInt>(ownership_end, node_count);
-        const PetscInt mechanics_begin = std::max<PetscInt>(ownership_begin, node_count);
-        const PetscInt mechanics_end = std::min<PetscInt>(ownership_end, global_count);
-        const PetscInt temperature_count = std::max<PetscInt>(0, temperature_end - temperature_begin);
-        const PetscInt mechanics_count = std::max<PetscInt>(0, mechanics_end - mechanics_begin);
+        std::vector<PetscInt> thermal_indices;
+        std::vector<PetscInt> mechanical_indices;
+        bool has_thermal_field = false;
+        bool has_mechanical_field = false;
+        for (const FieldDescriptor& field : problem.field_layout()) {
+            has_thermal_field = has_thermal_field || field.category == FieldCategory::thermal;
+            has_mechanical_field = has_mechanical_field || field.category == FieldCategory::mechanical;
+            const PetscInt begin = std::max(ownership_begin, checked_petsc_int(field.begin));
+            const PetscInt end = std::min(ownership_end, checked_petsc_int(field.end));
+            std::vector<PetscInt>& indices =
+                field.category == FieldCategory::thermal ? thermal_indices : mechanical_indices;
+            indices.reserve(indices.size() + static_cast<std::size_t>(std::max<PetscInt>(0, end - begin)));
+            for (PetscInt dof = begin; dof < end; ++dof)
+                indices.push_back(dof);
+        }
+        if (!has_thermal_field || !has_mechanical_field)
+            throw std::invalid_argument("field_split requires thermal and mechanical field metadata");
         check_petsc(PCSetType(preconditioner, PCFIELDSPLIT), "PCSetType FIELDSPLIT");
         if (already_configured == PETSC_FALSE) {
             IS temperature = nullptr;
             IS mechanics = nullptr;
             try {
-                check_petsc(ISCreateStride(PETSC_COMM_WORLD, temperature_count, temperature_begin, 1, &temperature),
-                            "ISCreateStride temperature");
-                check_petsc(ISCreateStride(PETSC_COMM_WORLD, mechanics_count, mechanics_begin, 1, &mechanics),
-                            "ISCreateStride mechanics");
+                check_petsc(ISCreateGeneral(PETSC_COMM_WORLD, checked_petsc_int(thermal_indices.size()),
+                                            thermal_indices.data(), PETSC_COPY_VALUES, &temperature),
+                            "ISCreateGeneral temperature");
+                check_petsc(ISCreateGeneral(PETSC_COMM_WORLD, checked_petsc_int(mechanical_indices.size()),
+                                            mechanical_indices.data(), PETSC_COPY_VALUES, &mechanics),
+                            "ISCreateGeneral mechanics");
                 check_petsc(PCFieldSplitSetIS(preconditioner, "temperature", temperature),
                             "PCFieldSplitSetIS temperature");
                 check_petsc(PCFieldSplitSetIS(preconditioner, "mechanics", mechanics), "PCFieldSplitSetIS mechanics");
@@ -315,40 +387,41 @@ PetscErrorCode synchronize_domain_error(bool local_error, bool& global_error) {
     PetscFunctionReturn(PETSC_SUCCESS);
 }
 
-PetscErrorCode field_norms(Vec vector, std::array<double, 3>& norms) {
+PetscErrorCode field_norms(Vec vector, SolverContext& context, std::vector<double>& norms) {
     PetscFunctionBeginUser;
-    PetscInt global_count = 0;
     PetscInt ownership_begin = 0;
     PetscInt ownership_end = 0;
-    PetscCall(VecGetSize(vector, &global_count));
-    if (global_count % 3 != 0)
-        SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_ARG_SIZ, "fuelsim field residual scaling requires [T, ur, uz]");
     PetscCall(VecGetOwnershipRange(vector, &ownership_begin, &ownership_end));
     const PetscScalar* values = nullptr;
     PetscCall(VecGetArrayRead(vector, &values));
-    std::array<double, 3> local_squared{};
-    const PetscInt node_count = global_count / 3;
-    for (PetscInt global = ownership_begin; global < ownership_end; ++global) {
-        const std::size_t field = static_cast<std::size_t>(global / node_count);
-        const double value = PetscRealPart(values[global - ownership_begin]);
-        local_squared[field] += value * value;
+    context.local_field_squared_norms.assign(context.problem->field_layout().size(), 0.0);
+    for (std::size_t field = 0; field < context.problem->field_layout().size(); ++field) {
+        const FieldDescriptor& descriptor = context.problem->field_layout()[field];
+        const PetscInt begin = std::max(ownership_begin, checked_petsc_int(descriptor.begin));
+        const PetscInt end = std::min(ownership_end, checked_petsc_int(descriptor.end));
+        for (PetscInt global = begin; global < end; ++global) {
+            const double value = PetscRealPart(values[global - ownership_begin]);
+            context.local_field_squared_norms[field] += value * value;
+        }
     }
     PetscCall(VecRestoreArrayRead(vector, &values));
-    std::array<double, 3> global_squared{};
+    context.global_field_squared_norms.assign(context.problem->field_layout().size(), 0.0);
     if (PetscGlobalSize == 1) {
-        global_squared = local_squared;
+        context.global_field_squared_norms = context.local_field_squared_norms;
     } else {
-        PetscCallMPI(
-            MPIU_Allreduce(local_squared.data(), global_squared.data(), 3, MPI_DOUBLE, MPI_SUM, PETSC_COMM_WORLD));
+        PetscCallMPI(MPIU_Allreduce(context.local_field_squared_norms.data(), context.global_field_squared_norms.data(),
+                                    static_cast<MPIU_Count>(context.local_field_squared_norms.size()), MPI_DOUBLE,
+                                    MPI_SUM, PETSC_COMM_WORLD));
     }
+    norms.resize(context.problem->field_layout().size());
     for (std::size_t field = 0; field < norms.size(); ++field)
-        norms[field] = std::sqrt(global_squared[field]);
+        norms[field] = std::sqrt(context.global_field_squared_norms[field]);
     PetscFunctionReturn(PETSC_SUCCESS);
 }
 
 PetscErrorCode scale_residual(Vec residual, SolverContext& context) {
     PetscFunctionBeginUser;
-    PetscCall(field_norms(residual, context.latest_unscaled_field_residual_norms));
+    PetscCall(field_norms(residual, context, context.latest_unscaled_field_residual_norms));
     if (context.first_residual) {
         context.initial_field_residual_norms = context.latest_unscaled_field_residual_norms;
         context.first_residual = false;
@@ -360,40 +433,48 @@ PetscErrorCode scale_residual(Vec residual, SolverContext& context) {
                 std::max(context.field_residual_reference_norms[field], context.latest_field_residual_norms[field]);
         PetscFunctionReturn(PETSC_SUCCESS);
     }
-    const double thermal_norm = context.latest_unscaled_field_residual_norms[0];
+    double thermal_norm = 0.0;
+    double mechanics_norm = 0.0;
+    for (std::size_t field = 0; field < context.problem->field_layout().size(); ++field) {
+        if (context.problem->field_layout()[field].category == FieldCategory::thermal)
+            thermal_norm = std::hypot(thermal_norm, context.latest_unscaled_field_residual_norms[field]);
+        else
+            mechanics_norm = std::hypot(mechanics_norm, context.latest_unscaled_field_residual_norms[field]);
+    }
     if (!context.thermal_scaling_initialized && thermal_norm > context.residual_scaling_floor) {
-        context.field_residual_scalings[0] = 1.0 / thermal_norm;
-        context.initial_field_residual_norms[0] = thermal_norm;
+        for (std::size_t field = 0; field < context.problem->field_layout().size(); ++field) {
+            if (context.problem->field_layout()[field].category == FieldCategory::thermal) {
+                context.field_residual_scalings[field] = 1.0 / thermal_norm;
+                context.initial_field_residual_norms[field] = context.latest_unscaled_field_residual_norms[field];
+            }
+        }
         context.thermal_scaling_initialized = true;
     }
-    const double mechanics_norm =
-        std::hypot(context.latest_unscaled_field_residual_norms[1], context.latest_unscaled_field_residual_norms[2]);
     if (!context.mechanics_scaling_initialized && mechanics_norm > context.residual_scaling_floor) {
         const double mechanics_scaling = 1.0 / mechanics_norm;
-        context.field_residual_scalings[1] = mechanics_scaling;
-        context.field_residual_scalings[2] = mechanics_scaling;
-        context.initial_field_residual_norms[1] = context.latest_unscaled_field_residual_norms[1];
-        context.initial_field_residual_norms[2] = context.latest_unscaled_field_residual_norms[2];
+        for (std::size_t field = 0; field < context.problem->field_layout().size(); ++field) {
+            if (context.problem->field_layout()[field].category == FieldCategory::mechanical) {
+                context.field_residual_scalings[field] = mechanics_scaling;
+                context.initial_field_residual_norms[field] = context.latest_unscaled_field_residual_norms[field];
+            }
+        }
         context.mechanics_scaling_initialized = true;
     }
 
-    PetscInt global_count = 0;
     PetscInt ownership_begin = 0;
     PetscInt ownership_end = 0;
-    PetscCall(VecGetSize(residual, &global_count));
     PetscCall(VecGetOwnershipRange(residual, &ownership_begin, &ownership_end));
-    const PetscInt node_count = global_count / 3;
     PetscScalar* values = nullptr;
     PetscCall(VecGetArray(residual, &values));
     for (PetscInt global = ownership_begin; global < ownership_end; ++global) {
         const std::size_t index = static_cast<std::size_t>(global);
         if (!context.constrained[index]) {
-            const std::size_t field = static_cast<std::size_t>(global / node_count);
+            const std::size_t field = context.dof_fields[index];
             values[global - ownership_begin] *= context.field_residual_scalings[field];
         }
     }
     PetscCall(VecRestoreArray(residual, &values));
-    PetscCall(field_norms(residual, context.latest_field_residual_norms));
+    PetscCall(field_norms(residual, context, context.latest_field_residual_norms));
     for (std::size_t field = 0; field < context.field_residual_reference_norms.size(); ++field)
         context.field_residual_reference_norms[field] =
             std::max(context.field_residual_reference_norms[field], context.latest_field_residual_norms[field]);
@@ -415,14 +496,14 @@ PetscErrorCode form_function(SNES snes, Vec state, Vec residual, void* raw_conte
             problem.validate_local_state(context.contribution_begin, context.contribution_end, state_view);
             for (std::size_t contribution = context.contribution_begin; contribution < context.contribution_end;
                  ++contribution) {
-                const LocalDofs size_dofs = problem.contribution_dofs(contribution);
-                const LocalValues local_state = problem.contribution_state(contribution, state_view);
-                const LocalResidual local_residual = problem.contribution_residual(contribution, local_state);
-                std::array<PetscInt, local_dof_count> dofs{};
-                for (std::size_t local = 0; local < dofs.size(); ++local)
-                    dofs[local] = checked_petsc_int(size_dofs[local]);
-                PetscCall(VecSetValues(residual, static_cast<PetscInt>(dofs.size()), dofs.data(), local_residual.data(),
-                                       ADD_VALUES));
+                problem.evaluate_contribution_residual(contribution, state_view, context.contribution_workspace);
+                context.petsc_contribution_dofs.resize(context.contribution_workspace.dofs.size());
+                for (std::size_t local = 0; local < context.petsc_contribution_dofs.size(); ++local)
+                    context.petsc_contribution_dofs[local] =
+                        checked_petsc_int(context.contribution_workspace.dofs[local]);
+                PetscCall(VecSetValues(residual, checked_petsc_int(context.petsc_contribution_dofs.size()),
+                                       context.petsc_contribution_dofs.data(),
+                                       context.contribution_workspace.residual.data(), ADD_VALUES));
             }
         } catch (const std::domain_error& error) {
             local_domain_error = true;
@@ -493,28 +574,28 @@ PetscErrorCode form_jacobian(SNES snes, Vec state, Mat jacobian, Mat preconditio
             problem.validate_local_state(context.contribution_begin, context.contribution_end, state_view);
             for (std::size_t contribution = context.contribution_begin; contribution < context.contribution_end;
                  ++contribution) {
-                const LocalValues local_state = problem.contribution_state(contribution, state_view);
-                const LocalSystem local_system = problem.linearize_contribution(contribution, local_state);
-                const LocalDofs size_dofs = problem.contribution_dofs(contribution);
-                std::array<PetscInt, local_dof_count> dofs{};
-                for (std::size_t local = 0; local < dofs.size(); ++local)
-                    dofs[local] = checked_petsc_int(size_dofs[local]);
-
-                std::array<double, local_dof_count * local_dof_count> scaled_jacobian = local_system.jacobian;
+                problem.evaluate_contribution_system(contribution, state_view, context.contribution_workspace);
+                const std::size_t local_count = context.contribution_workspace.dofs.size();
+                context.petsc_contribution_dofs.resize(local_count);
+                for (std::size_t local = 0; local < local_count; ++local)
+                    context.petsc_contribution_dofs[local] =
+                        checked_petsc_int(context.contribution_workspace.dofs[local]);
+                context.scaled_contribution_jacobian = context.contribution_workspace.jacobian;
                 if (context.field_residual_scaling) {
-                    const std::size_t node_count = problem.dof_count() / 3;
-                    for (std::size_t row = 0; row < dofs.size(); ++row) {
-                        const std::size_t global_row = size_dofs[row];
+                    for (std::size_t row = 0; row < local_count; ++row) {
+                        const std::size_t global_row = context.contribution_workspace.dofs[row];
                         if (context.constrained[global_row])
                             continue;
-                        const std::size_t field = global_row / node_count;
-                        for (std::size_t column = 0; column < dofs.size(); ++column)
-                            scaled_jacobian[row * dofs.size() + column] *= context.field_residual_scalings[field];
+                        const std::size_t field = context.dof_fields[global_row];
+                        for (std::size_t column = 0; column < local_count; ++column)
+                            context.scaled_contribution_jacobian[row * local_count + column] *=
+                                context.field_residual_scalings[field];
                     }
                 }
-                PetscCall(MatSetValues(jacobian, static_cast<PetscInt>(dofs.size()), dofs.data(),
-                                       static_cast<PetscInt>(dofs.size()), dofs.data(), scaled_jacobian.data(),
-                                       ADD_VALUES));
+                const PetscInt petsc_local_count = checked_petsc_int(local_count);
+                PetscCall(MatSetValues(jacobian, petsc_local_count, context.petsc_contribution_dofs.data(),
+                                       petsc_local_count, context.petsc_contribution_dofs.data(),
+                                       context.scaled_contribution_jacobian.data(), ADD_VALUES));
             }
         } catch (const std::domain_error& error) {
             local_domain_error = true;
@@ -565,13 +646,24 @@ PetscErrorCode form_jacobian(SNES snes, Vec state, Mat jacobian, Mat preconditio
 class PetscSolver::Implementation final {
   public:
     bool prepare(const NonlinearProblem& problem) {
+        problem.validate_discretization();
         const PetscInt requested_count = checked_petsc_int(problem.dof_count());
-        if (_problem == &problem && _count == requested_count)
+        const std::shared_ptr<const void> requested_identity = problem.discretization_identity();
+        if (_problem_identity == requested_identity) {
+            require_cached_structure(problem, requested_count);
+            _context.problem = &problem;
             return false;
+        }
 
+        _problem_identity.reset();
         _objects = std::make_unique<PetscObjects>();
-        _problem = &problem;
         _count = requested_count;
+        _contribution_count = problem.contribution_count();
+        _field_layout = problem.field_layout();
+        _constrained_structure.clear();
+        _constrained_structure.reserve(problem.dirichlet_conditions().size());
+        for (const DirichletCondition& condition : problem.dirichlet_conditions())
+            _constrained_structure.push_back(condition.dof);
         _context = SolverContext{};
         _context.problem = &problem;
         _context.rank = PetscGlobalRank;
@@ -580,7 +672,36 @@ class PetscSolver::Implementation final {
         const std::size_t size = static_cast<std::size_t>(_context.size);
         _context.contribution_begin = problem.contribution_count() * rank / size;
         _context.contribution_end = problem.contribution_count() * (rank + 1U) / size;
+        const std::size_t local_contribution_count = _context.contribution_end - _context.contribution_begin;
+        _contribution_dof_counts.resize(local_contribution_count);
+        _contribution_dof_mappings.resize(local_contribution_count);
+        for (std::size_t local = 0; local < local_contribution_count; ++local) {
+            const std::size_t contribution = _context.contribution_begin + local;
+            _contribution_dof_counts[local] = problem.contribution_dof_count(contribution);
+            problem.fill_contribution_dofs(contribution, _contribution_dof_mappings[local]);
+        }
         _context.constrained.assign(problem.dof_count(), false);
+        const std::size_t field_count = problem.field_layout().size();
+        _context.initial_field_residual_norms.resize(field_count);
+        _context.field_residual_reference_norms.resize(field_count);
+        _context.latest_unscaled_field_residual_norms.resize(field_count);
+        _context.latest_field_residual_norms.resize(field_count);
+        _context.field_residual_scalings.resize(field_count, 1.0);
+        _context.local_field_squared_norms.resize(field_count);
+        _context.global_field_squared_norms.resize(field_count);
+        _context.dof_fields.resize(problem.dof_count());
+        for (std::size_t field = 0; field < field_count; ++field) {
+            const FieldDescriptor& descriptor = problem.field_layout()[field];
+            std::fill(_context.dof_fields.begin() + static_cast<std::ptrdiff_t>(descriptor.begin),
+                      _context.dof_fields.begin() + static_cast<std::ptrdiff_t>(descriptor.end), field);
+        }
+        std::size_t maximum_local_dofs = 0;
+        for (std::size_t contribution = _context.contribution_begin; contribution < _context.contribution_end;
+             ++contribution)
+            maximum_local_dofs = std::max(maximum_local_dofs, problem.contribution_dof_count(contribution));
+        _context.contribution_workspace.reserve(maximum_local_dofs);
+        _context.petsc_contribution_dofs.reserve(maximum_local_dofs);
+        _context.scaled_contribution_jacobian.reserve(maximum_local_dofs * maximum_local_dofs);
 
         check_petsc(VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE, _count, &_objects->state), "VecCreateMPI state");
         check_petsc(VecDuplicate(_objects->state, &_objects->residual), "VecDuplicate residual");
@@ -611,6 +732,8 @@ class PetscSolver::Implementation final {
         _context.ownership_begin = ownership_begin;
         _context.ownership_end = ownership_end;
         for (const DirichletCondition& condition : problem.dirichlet_conditions()) {
+            if (condition.dof >= problem.dof_count())
+                throw std::out_of_range("Dirichlet condition DOF is out of range");
             const PetscInt dof = checked_petsc_int(condition.dof);
             if (dof >= ownership_begin && dof < ownership_end)
                 _context.constrained_dofs.push_back(dof);
@@ -618,6 +741,7 @@ class PetscSolver::Implementation final {
         }
         const std::vector<std::size_t> required_dofs =
             problem.required_state_dofs(_context.contribution_begin, _context.contribution_end);
+        _required_state_dofs = required_dofs;
         _context.shadow_dofs.reserve(required_dofs.size() + _context.constrained_dofs.size());
         for (const std::size_t dof : required_dofs) {
             if (dof > static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max()))
@@ -659,6 +783,7 @@ class PetscSolver::Implementation final {
         }
         _context.state_scatter = _objects->state_scatter;
         _context.gathered_state = _objects->gathered_state;
+        _problem_identity = requested_identity;
         return true;
     }
 
@@ -671,8 +796,63 @@ class PetscSolver::Implementation final {
     }
 
   private:
-    const NonlinearProblem* _problem = nullptr;
+    void require_cached_structure(const NonlinearProblem& problem, PetscInt requested_count) const {
+        bool local_match = true;
+        try {
+            bool fields_match = _field_layout.size() == problem.field_layout().size();
+            if (fields_match) {
+                for (std::size_t field = 0; field < _field_layout.size(); ++field) {
+                    const FieldDescriptor& cached = _field_layout[field];
+                    const FieldDescriptor& current = problem.field_layout()[field];
+                    fields_match = fields_match && cached.name == current.name && cached.begin == current.begin &&
+                                   cached.end == current.end && cached.category == current.category;
+                }
+            }
+            bool contributions_match = _contribution_count == problem.contribution_count();
+            if (contributions_match) {
+                std::vector<std::size_t> current_dofs;
+                for (std::size_t local = 0; local < _contribution_dof_counts.size(); ++local) {
+                    const std::size_t contribution = _context.contribution_begin + local;
+                    problem.fill_contribution_dofs(contribution, current_dofs);
+                    contributions_match =
+                        contributions_match &&
+                        _contribution_dof_counts[local] == problem.contribution_dof_count(contribution) &&
+                        _contribution_dof_mappings[local] == current_dofs;
+                }
+            }
+            const bool required_dofs_match =
+                _required_state_dofs ==
+                problem.required_state_dofs(_context.contribution_begin, _context.contribution_end);
+            bool constraints_match = _constrained_structure.size() == problem.dirichlet_conditions().size();
+            if (constraints_match) {
+                for (std::size_t condition = 0; condition < _constrained_structure.size(); ++condition) {
+                    constraints_match = constraints_match && _constrained_structure[condition] ==
+                                                                 problem.dirichlet_conditions()[condition].dof;
+                }
+            }
+            local_match = _count == requested_count && fields_match && contributions_match && required_dofs_match &&
+                          constraints_match;
+        } catch (const std::exception&) {
+            local_match = false;
+        } catch (...) {
+            local_match = false;
+        }
+        const PetscMPIInt local_mismatch = local_match ? 0 : 1;
+        PetscMPIInt global_mismatch = 0;
+        check_mpi(MPIU_Allreduce(&local_mismatch, &global_mismatch, 1, MPI_INT, MPI_MAX, PETSC_COMM_WORLD),
+                  "MPIU_Allreduce PETSc workspace structure mismatch");
+        if (global_mismatch != 0)
+            throw std::logic_error("NonlinearProblem structural metadata changed while reusing a PETSc workspace");
+    }
+
+    std::shared_ptr<const void> _problem_identity;
     PetscInt _count = 0;
+    std::size_t _contribution_count = 0;
+    std::vector<FieldDescriptor> _field_layout;
+    std::vector<std::size_t> _contribution_dof_counts;
+    std::vector<std::vector<std::size_t>> _contribution_dof_mappings;
+    std::vector<std::size_t> _required_state_dofs;
+    std::vector<std::size_t> _constrained_structure;
     SolverContext _context;
     std::unique_ptr<PetscObjects> _objects;
 };
@@ -769,6 +949,10 @@ SolveResult PetscSolver::solve_once(const NonlinearProblem& problem, const std::
         throw std::invalid_argument("PetscSolver initial state size mismatch");
     const bool fixed_temperature_scale = options.temperature_residual_scale > 0.0;
     const bool fixed_mechanical_scale = options.mechanical_residual_scale > 0.0;
+    if (fixed_temperature_scale != fixed_mechanical_scale)
+        throw std::invalid_argument("fixed residual scaling requires paired temperature and mechanical scales");
+    if (options.field_residual_scaling && fixed_temperature_scale)
+        throw std::invalid_argument("automatic and fixed residual scaling are mutually exclusive");
     const bool residual_scaling = options.field_residual_scaling || fixed_temperature_scale;
 
     const SteadyClock::time_point total_start = SteadyClock::now();
@@ -785,15 +969,18 @@ SolveResult PetscSolver::solve_once(const NonlinearProblem& problem, const std::
     context.first_residual = true;
     context.thermal_scaling_initialized = fixed_temperature_scale;
     context.mechanics_scaling_initialized = fixed_mechanical_scale;
-    context.initial_field_residual_norms = {};
-    context.field_residual_reference_norms = {};
-    context.latest_unscaled_field_residual_norms = {};
-    context.latest_field_residual_norms = {};
-    context.field_residual_scalings = {1.0, 1.0, 1.0};
+    const std::size_t field_count = problem.field_layout().size();
+    context.initial_field_residual_norms.assign(field_count, 0.0);
+    context.field_residual_reference_norms.assign(field_count, 0.0);
+    context.latest_unscaled_field_residual_norms.assign(field_count, 0.0);
+    context.latest_field_residual_norms.assign(field_count, 0.0);
+    context.field_residual_scalings.assign(field_count, 1.0);
     if (fixed_temperature_scale) {
-        context.field_residual_scalings[0] = 1.0 / options.temperature_residual_scale;
-        context.field_residual_scalings[1] = 1.0 / options.mechanical_residual_scale;
-        context.field_residual_scalings[2] = 1.0 / options.mechanical_residual_scale;
+        for (std::size_t field = 0; field < field_count; ++field) {
+            context.field_residual_scalings[field] = problem.field_layout()[field].category == FieldCategory::thermal
+                                                         ? 1.0 / options.temperature_residual_scale
+                                                         : 1.0 / options.mechanical_residual_scale;
+        }
     }
     context.saw_domain_error = false;
     context.last_function_domain_error = false;
@@ -817,7 +1004,7 @@ SolveResult PetscSolver::solve_once(const NonlinearProblem& problem, const std::
                                                        ? SNESLINESEARCHBT
                                                        : SNESLINESEARCHBASIC),
                 "SNESLineSearchSetType");
-    configure_linear_solver(objects, options, PetscGlobalSize);
+    configure_linear_solver(objects, problem, options, PetscGlobalSize);
     check_petsc(SNESSetFromOptions(objects.snes), "SNESSetFromOptions");
     context.timing.setup_seconds = seconds_since(setup_start);
 
@@ -844,41 +1031,51 @@ SolveResult PetscSolver::solve_once(const NonlinearProblem& problem, const std::
 
     std::vector<double> solution = gather_complete_state(objects.state, problem.dof_count());
 
-    context.timing.total_seconds = seconds_since(total_start);
     SolveResult result;
     result.state = std::move(solution);
     result.nonlinear_iterations = static_cast<int>(iterations);
     result.linear_iterations = static_cast<int>(linear_iterations);
     result.residual_norm = static_cast<double>(residual_norm);
     result.convergence_reason = static_cast<int>(reason);
+    result.field_names.reserve(problem.field_layout().size());
+    for (const FieldDescriptor& field : problem.field_layout())
+        result.field_names.push_back(field.name);
     result.initial_field_residual_norms = context.initial_field_residual_norms;
     result.field_residual_reference_norms = context.field_residual_reference_norms;
     result.final_field_residual_norms = context.latest_unscaled_field_residual_norms;
     result.final_scaled_field_residual_norms = context.latest_field_residual_norms;
     result.field_residual_scalings = context.field_residual_scalings;
+    if (options.collect_linear_solver_diagnostics)
+        record_linear_solver_configuration(objects, result);
+    context.timing.total_seconds = seconds_since(total_start);
     const double configured_residual_threshold =
         std::max(options.absolute_tolerance, options.relative_tolerance * context.initial_residual_norm);
     const double fallback_reduction = options.residual_reduction_tolerance;
     const double numerical_residual_floor = 10.0 * std::sqrt(std::numeric_limits<double>::epsilon());
     const double independently_verified_threshold =
         std::max(numerical_residual_floor, fallback_reduction * context.initial_residual_norm);
-    const double physical_absolute_threshold =
-        std::hypot(options.temperature_residual_absolute_tolerance * result.field_residual_scalings[0],
-                   std::hypot(options.mechanical_residual_absolute_tolerance * result.field_residual_scalings[1],
-                              options.mechanical_residual_absolute_tolerance * result.field_residual_scalings[2]));
+    double physical_absolute_threshold = 0.0;
+    for (std::size_t field = 0; field < problem.field_layout().size(); ++field) {
+        const double tolerance = problem.field_layout()[field].category == FieldCategory::thermal
+                                     ? options.temperature_residual_absolute_tolerance
+                                     : options.mechanical_residual_absolute_tolerance;
+        physical_absolute_threshold =
+            std::hypot(physical_absolute_threshold, tolerance * result.field_residual_scalings[field]);
+    }
     const double residual_threshold =
         std::max({configured_residual_threshold, independently_verified_threshold, physical_absolute_threshold});
     const double residual_slack = residual_threshold * (1.0 + 64.0 * std::numeric_limits<double>::epsilon());
     bool fields_verified = true;
-    std::array<double, 3> field_thresholds{};
+    std::vector<double> field_thresholds(result.final_scaled_field_residual_norms.size());
     for (std::size_t field = 0; field < result.final_scaled_field_residual_norms.size(); ++field) {
         const double initial_scaled =
             result.initial_field_residual_norms[field] * result.field_residual_scalings[field];
         const double reference = std::max(initial_scaled, result.field_residual_reference_norms[field]);
-        const double configured_field_threshold = std::max(
-            field == 0 ? options.temperature_residual_absolute_tolerance * result.field_residual_scalings[field]
-                       : options.mechanical_residual_absolute_tolerance * result.field_residual_scalings[field],
-            options.relative_tolerance * reference);
+        const double configured_field_threshold =
+            std::max(problem.field_layout()[field].category == FieldCategory::thermal
+                         ? options.temperature_residual_absolute_tolerance * result.field_residual_scalings[field]
+                         : options.mechanical_residual_absolute_tolerance * result.field_residual_scalings[field],
+                     options.relative_tolerance * reference);
         const double independent_field_threshold = std::max(numerical_residual_floor, fallback_reduction * reference);
         const double field_threshold = std::max(configured_field_threshold, independent_field_threshold) *
                                        (1.0 + 64.0 * std::numeric_limits<double>::epsilon());
@@ -1091,15 +1288,14 @@ SteadyResult solve_steady(SteadyProblem& problem, const SteadyLoadOptions& load_
             double load_increment = attempted_load_factor - accepted_load_factor;
             SolveResult attempt;
             for (;;) {
-                const std::vector<std::vector<ContactPointHistory>> committed_contact_histories =
-                    problem.committed_contact_histories();
+                const SteadyStateSnapshot internal_state = problem.capture_internal_state();
                 attempt = SolveResult{};
                 try {
                     problem.set_load_factor(attempted_load_factor);
                     attempt = solve_contact_equilibrium(solver, problem,
                                                         initial_guess_with_dirichlet_values(problem, state), options);
                     if (attempt.converged)
-                        problem.commit_contact_state(attempt.state);
+                        problem.commit_internal_state(attempt.state);
                 } catch (const std::domain_error& error) {
                     attempt.converged = false;
                     attempt.failure_category = SolveFailureCategory::physical_domain;
@@ -1110,7 +1306,7 @@ SteadyResult solve_steady(SteadyProblem& problem, const SteadyLoadOptions& load_
                     attempt.failure_message = error.what();
                 }
                 if (!attempt.converged) {
-                    problem.restore_contact_state(state, committed_contact_histories);
+                    problem.restore_internal_state(internal_state, state);
                     problem.set_load_factor(accepted_load_factor);
                 }
                 accumulate_timing(result.aggregate_timing, attempt.timing);
@@ -1150,180 +1346,6 @@ SteadyResult solve_steady(SteadyProblem& problem, const SteadyLoadOptions& load_
 
 // Backward-Euler step-doubling error control.
 namespace time_control {
-namespace {
-
-struct ErrorAccumulator final {
-    double difference_squared = 0.0;
-    double solution_squared = 0.0;
-    std::size_t count = 0;
-};
-
-void accumulate_error(ErrorAccumulator& accumulator, double full_step, double two_half_steps) {
-    const double difference = two_half_steps - full_step;
-    accumulator.difference_squared += difference * difference;
-    accumulator.solution_squared += two_half_steps * two_half_steps;
-    ++accumulator.count;
-}
-
-double normalized_error(const ErrorAccumulator& accumulator, double absolute_tolerance, double relative_tolerance) {
-    if (accumulator.count == 0)
-        return 0.0;
-    const double denominator = absolute_tolerance * std::sqrt(static_cast<double>(accumulator.count)) +
-                               relative_tolerance * std::sqrt(accumulator.solution_squared);
-    return std::sqrt(accumulator.difference_squared) / denominator;
-}
-
-} // namespace
-
-TransientConservationSummary combine_half_step_conservation(const TransientConservationSummary& first,
-                                                            const TransientConservationSummary& second) {
-    TransientConservationSummary result;
-    const auto average = [](double left, double right) { return 0.5 * (left + right); };
-    result.generated_heat_rate = average(first.generated_heat_rate, second.generated_heat_rate);
-    result.stored_heat_rate = average(first.stored_heat_rate, second.stored_heat_rate);
-    result.convection_heat_rate = average(first.convection_heat_rate, second.convection_heat_rate);
-    result.interface_heat_imbalance = average(first.interface_heat_imbalance, second.interface_heat_imbalance);
-    result.dirichlet_heat_input_rate = average(first.dirichlet_heat_input_rate, second.dirichlet_heat_input_rate);
-    result.global_thermal_balance = result.stored_heat_rate + result.convection_heat_rate +
-                                    result.interface_heat_imbalance - result.generated_heat_rate -
-                                    result.dirichlet_heat_input_rate;
-    const double thermal_scale = std::abs(result.generated_heat_rate) + std::abs(result.stored_heat_rate) +
-                                 std::abs(result.convection_heat_rate) + std::abs(result.interface_heat_imbalance) +
-                                 std::abs(result.dirichlet_heat_input_rate);
-    result.relative_thermal_balance =
-        thermal_scale > 0.0 ? std::abs(result.global_thermal_balance) / thermal_scale : 0.0;
-    result.unconstrained_thermal_residual_l2 =
-        std::max(first.unconstrained_thermal_residual_l2, second.unconstrained_thermal_residual_l2);
-
-    result.internal_mechanical_work_increment =
-        first.internal_mechanical_work_increment + second.internal_mechanical_work_increment;
-    result.pressure_traction_work_increment =
-        first.pressure_traction_work_increment + second.pressure_traction_work_increment;
-    result.dirichlet_reaction_work_increment =
-        first.dirichlet_reaction_work_increment + second.dirichlet_reaction_work_increment;
-    result.contact_work_increment = first.contact_work_increment + second.contact_work_increment;
-    result.mechanical_work_balance = result.internal_mechanical_work_increment + result.contact_work_increment -
-                                     result.pressure_traction_work_increment - result.dirichlet_reaction_work_increment;
-    const double mechanical_scale =
-        std::abs(result.internal_mechanical_work_increment) + std::abs(result.pressure_traction_work_increment) +
-        std::abs(result.dirichlet_reaction_work_increment) + std::abs(result.contact_work_increment);
-    result.relative_mechanical_work_balance =
-        mechanical_scale > 0.0 ? std::abs(result.mechanical_work_balance) / mechanical_scale : 0.0;
-    result.unconstrained_mechanical_residual_l2 =
-        std::max(first.unconstrained_mechanical_residual_l2, second.unconstrained_mechanical_residual_l2);
-    result.elastic_energy_change = first.elastic_energy_change + second.elastic_energy_change;
-    result.plastic_dissipation_increment = first.plastic_dissipation_increment + second.plastic_dissipation_increment;
-    result.creep_dissipation_increment = first.creep_dissipation_increment + second.creep_dissipation_increment;
-    return result;
-}
-
-TransientTimeErrorEstimate step_doubling_error(const TransientCommittedState& full_step,
-                                               const TransientCommittedState& two_half_steps,
-                                               const TransientTimeOptions& options) {
-    if (full_step.solution.size() != two_half_steps.solution.size() || full_step.solution.size() % 3 != 0)
-        throw std::logic_error("step-doubling states must share the [T, ur, uz] layout");
-    if (full_step.material_histories.size() != two_half_steps.material_histories.size() ||
-        full_step.material_stresses.size() != two_half_steps.material_stresses.size())
-        throw std::logic_error("step-doubling material-state region layouts differ");
-
-    const std::size_t node_count = full_step.solution.size() / 3;
-    std::array<ErrorAccumulator, 3> nodal{};
-    for (std::size_t field = 0; field < 3; ++field) {
-        const std::size_t begin = field * node_count;
-        const std::size_t end = begin + node_count;
-        for (std::size_t dof = begin; dof < end; ++dof)
-            accumulate_error(nodal[field], full_step.solution[dof], two_half_steps.solution[dof]);
-    }
-
-    ErrorAccumulator elastic;
-    ErrorAccumulator plastic;
-    ErrorAccumulator creep;
-    ErrorAccumulator equivalent_plastic;
-    ErrorAccumulator equivalent_creep;
-    ErrorAccumulator stress;
-    ErrorAccumulator contact_friction;
-    ErrorAccumulator contact_normal_multiplier;
-    bool contact_state_mismatch = false;
-    for (std::size_t region = 0; region < full_step.material_histories.size(); ++region) {
-        const auto& full_history = full_step.material_histories[region];
-        const auto& half_history = two_half_steps.material_histories[region];
-        const auto& full_stress = full_step.material_stresses[region];
-        const auto& half_stress = two_half_steps.material_stresses[region];
-        if (full_history.size() != half_history.size() || full_stress.size() != half_stress.size() ||
-            full_history.size() != full_stress.size())
-            throw std::logic_error("step-doubling material-state element layouts differ");
-        for (std::size_t element = 0; element < full_history.size(); ++element) {
-            for (std::size_t q = 0; q < 4; ++q) {
-                const MaterialPointState& full_point = full_history[element][q];
-                const MaterialPointState& half_point = half_history[element][q];
-                for (std::size_t component = 0; component < 4; ++component) {
-                    accumulate_error(elastic, full_point.elastic_strain[component],
-                                     half_point.elastic_strain[component]);
-                    accumulate_error(plastic, full_point.plastic_strain[component],
-                                     half_point.plastic_strain[component]);
-                    accumulate_error(creep, full_point.creep_strain[component], half_point.creep_strain[component]);
-                }
-                accumulate_error(equivalent_plastic, full_point.equivalent_plastic_strain,
-                                 half_point.equivalent_plastic_strain);
-                accumulate_error(equivalent_creep, full_point.equivalent_creep_strain,
-                                 half_point.equivalent_creep_strain);
-
-                const AxisymmetricStressValues& full_value = full_stress[element][q];
-                const AxisymmetricStressValues& half_value = half_stress[element][q];
-                accumulate_error(stress, full_value.rr, half_value.rr);
-                accumulate_error(stress, full_value.zz, half_value.zz);
-                accumulate_error(stress, full_value.hoop, half_value.hoop);
-                accumulate_error(stress, full_value.rz, half_value.rz);
-            }
-        }
-    }
-    if (full_step.contact_histories.size() != two_half_steps.contact_histories.size())
-        throw std::logic_error("step-doubling contact-history layouts differ");
-    for (std::size_t contact = 0; contact < full_step.contact_histories.size(); ++contact) {
-        if (full_step.contact_histories[contact].size() != two_half_steps.contact_histories[contact].size())
-            throw std::logic_error("step-doubling contact-node history layouts differ");
-        for (std::size_t node = 0; node < full_step.contact_histories[contact].size(); ++node) {
-            const ContactPointHistory& full = full_step.contact_histories[contact][node];
-            const ContactPointHistory& half = two_half_steps.contact_histories[contact][node];
-            accumulate_error(contact_friction, full.elastic_tangential_slip, half.elastic_tangential_slip);
-            accumulate_error(contact_normal_multiplier, full.normal_multiplier, half.normal_multiplier);
-            contact_state_mismatch = contact_state_mismatch || full.sliding != half.sliding;
-        }
-    }
-
-    TransientTimeErrorEstimate result;
-    result.temperature =
-        normalized_error(nodal[0], options.temperature_time_absolute_tolerance, options.time_error_relative_tolerance);
-    result.radial_displacement =
-        normalized_error(nodal[1], options.displacement_time_absolute_tolerance, options.time_error_relative_tolerance);
-    result.axial_displacement =
-        normalized_error(nodal[2], options.displacement_time_absolute_tolerance, options.time_error_relative_tolerance);
-    result.elastic_strain = normalized_error(elastic, options.strain_history_time_absolute_tolerance,
-                                             options.time_error_relative_tolerance);
-    result.plastic_strain = normalized_error(plastic, options.strain_history_time_absolute_tolerance,
-                                             options.time_error_relative_tolerance);
-    result.creep_strain =
-        normalized_error(creep, options.strain_history_time_absolute_tolerance, options.time_error_relative_tolerance);
-    result.equivalent_plastic_strain = normalized_error(
-        equivalent_plastic, options.strain_history_time_absolute_tolerance, options.time_error_relative_tolerance);
-    result.equivalent_creep_strain = normalized_error(equivalent_creep, options.strain_history_time_absolute_tolerance,
-                                                      options.time_error_relative_tolerance);
-    result.stress =
-        normalized_error(stress, options.stress_history_time_absolute_tolerance, options.time_error_relative_tolerance);
-    result.contact_friction = contact_state_mismatch
-                                  ? std::numeric_limits<double>::infinity()
-                                  : normalized_error(contact_friction, options.displacement_time_absolute_tolerance,
-                                                     options.time_error_relative_tolerance);
-    result.contact_normal_multiplier =
-        normalized_error(contact_normal_multiplier, options.stress_history_time_absolute_tolerance,
-                         options.time_error_relative_tolerance);
-    result.maximum = std::max({result.temperature, result.radial_displacement, result.axial_displacement,
-                               result.elastic_strain, result.plastic_strain, result.creep_strain,
-                               result.equivalent_plastic_strain, result.equivalent_creep_strain, result.stress,
-                               result.contact_friction, result.contact_normal_multiplier});
-    return result;
-}
-
 double step_factor(const TransientTimeOptions& options, double error) {
     if (!(error > 0.0))
         return options.growth_factor;
@@ -1448,23 +1470,27 @@ TransientResult solve_transient(TransientProblem& problem, const TransientTimeOp
             TransientConservationSummary first_half_conservation;
             int controller_nonlinear_iterations = 0;
             const bool error_control = options.time_error_relative_tolerance > 0.0;
-            TransientCommittedState base_state;
-            if (error_control)
-                base_state = problem.committed_state();
+            TransientStateSnapshot base_state;
+            bool base_state_available = false;
+            const double base_time = problem.committed_time();
+            if (error_control) {
+                base_state = problem.capture_state();
+                base_state_available = true;
+            }
             try {
                 if (!error_control) {
                     attempt = run_step(end_time);
                     controller_nonlinear_iterations = attempt.nonlinear_iterations;
                 } else {
                     const SolveResult full_step = run_step(end_time);
-                    TransientCommittedState full_step_state;
+                    TransientStateSnapshot full_step_state;
                     if (full_step.converged)
-                        full_step_state = problem.committed_state();
+                        full_step_state = problem.capture_state();
                     attempt = full_step;
                     controller_nonlinear_iterations = full_step.nonlinear_iterations;
                     if (full_step.converged) {
-                        problem.restore_committed_state(base_state);
-                        const double half_time = base_state.time + 0.5 * time_step;
+                        problem.restore_state(base_state);
+                        const double half_time = base_time + 0.5 * time_step;
                         const SolveResult first_half = run_step(half_time);
                         if (first_half.converged)
                             first_half_conservation = problem.last_conservation_summary();
@@ -1472,50 +1498,50 @@ TransientResult solve_transient(TransientProblem& problem, const TransientTimeOp
                             std::max(controller_nonlinear_iterations, first_half.nonlinear_iterations);
                         merge_attempt(attempt, first_half);
                         if (!first_half.converged) {
-                            problem.restore_committed_state(std::move(base_state));
+                            problem.restore_state(base_state);
+                            base_state_available = false;
                         } else {
                             const SolveResult second_half = run_step(end_time);
                             controller_nonlinear_iterations =
                                 std::max(controller_nonlinear_iterations, second_half.nonlinear_iterations);
                             merge_attempt(attempt, second_half);
                             if (!second_half.converged) {
-                                problem.restore_committed_state(std::move(base_state));
+                                problem.restore_state(base_state);
+                                base_state_available = false;
                             } else {
-                                time_error_components = time_control::step_doubling_error(
-                                    full_step_state, problem.committed_state(), options);
+                                time_error_components =
+                                    problem.step_doubling_error(full_step_state, problem.capture_state(), options);
                                 time_error_estimate = time_error_components.maximum;
                                 if (!(time_error_estimate <= 1.0)) {
-                                    problem.restore_committed_state(std::move(base_state));
+                                    problem.restore_state(base_state);
+                                    base_state_available = false;
                                     attempt.converged = false;
                                     attempt.failure_category = SolveFailureCategory::time_discretization;
                                     attempt.failure_message = "Backward-Euler step-doubling error "
                                                               "exceeded one";
                                     ++result.time_error_rejections;
                                 } else {
-                                    TransientCommittedState accepted_state = problem.committed_state();
-                                    accepted_state.conservation = time_control::combine_half_step_conservation(
-                                        first_half_conservation, accepted_state.conservation);
-                                    problem.restore_committed_state(std::move(accepted_state));
+                                    problem.combine_last_half_step_conservation(first_half_conservation);
                                 }
                             }
                         }
                     }
                 }
             } catch (const std::domain_error& error) {
-                if (error_control && !base_state.solution.empty())
-                    problem.restore_committed_state(std::move(base_state));
+                if (base_state_available)
+                    problem.restore_state(base_state);
                 attempt.converged = false;
                 attempt.failure_category = SolveFailureCategory::physical_domain;
                 attempt.failure_message = error.what();
             } catch (const std::overflow_error& error) {
-                if (error_control && !base_state.solution.empty())
-                    problem.restore_committed_state(std::move(base_state));
+                if (base_state_available)
+                    problem.restore_state(base_state);
                 attempt.converged = false;
                 attempt.failure_category = SolveFailureCategory::physical_domain;
                 attempt.failure_message = error.what();
             } catch (...) {
-                if (error_control && !base_state.solution.empty())
-                    problem.restore_committed_state(std::move(base_state));
+                if (base_state_available)
+                    problem.restore_state(base_state);
                 throw;
             }
             accumulate_timing(result.aggregate_timing, attempt.timing);

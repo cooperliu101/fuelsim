@@ -16,6 +16,7 @@
 #include <vector>
 
 namespace fuelsim {
+namespace rz {
 
 class SpatialLayout final {
   public:
@@ -278,6 +279,7 @@ class SpatialAssembly final {
     ContactAssembly _contact;
 };
 
+} // namespace rz
 } // namespace fuelsim
 
 #endif

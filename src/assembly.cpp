@@ -8,6 +8,7 @@
 #include <utility>
 
 namespace fuelsim {
+namespace rz {
 
 namespace {
 
@@ -1617,4 +1618,5 @@ void SpatialAssembly::build_contacts(const UnstructuredQuad4Mesh& source_mesh) {
     }
 }
 
+} // namespace rz
 } // namespace fuelsim

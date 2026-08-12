@@ -3,9 +3,11 @@
 
 #include <array>
 #include <cstddef>
+#include <vector>
 
 #include "fuelsim/local_system.hpp"
 #include "fuelsim/mesh.hpp"
+#include "fuelsim/nonlinear_problem.hpp"
 
 namespace fuelsim {
 
@@ -21,6 +23,7 @@ class DofMap final {
 
     std::size_t node_count() const noexcept;
     std::size_t dof_count() const noexcept;
+    const std::vector<FieldDescriptor>& field_layout() const noexcept;
 
     std::size_t dof(Field field, std::size_t node) const;
     std::size_t temperature(std::size_t node) const;
@@ -31,6 +34,7 @@ class DofMap final {
 
   private:
     std::size_t _node_count;
+    std::vector<FieldDescriptor> _field_layout;
 };
 
 } // namespace fuelsim

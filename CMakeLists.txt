@@ -462,6 +462,16 @@ if(BUILD_TESTING)
             PROCESSORS 2
         )
 
+        add_test(NAME fuelsim_mpi_runtime_layout_field_split
+            COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2
+                $<TARGET_FILE:fuelsim_solver_tests>
+        )
+        set_tests_properties(fuelsim_mpi_runtime_layout_field_split PROPERTIES
+            LABELS "acceptance;parallel;architecture"
+            PROCESSORS 2
+            TIMEOUT 60
+        )
+
         add_executable(fuelsim_mpi_equivalence_benchmark
             benchmarks/mpi_equivalence.cpp
         )
@@ -813,6 +823,15 @@ if(BUILD_TESTING)
     )
     set_tests_properties(fuelsim_reproducible_build_tests PROPERTIES
         LABELS "audit;release"
+    )
+
+    add_test(NAME fuelsim_geometry_independence_audit
+        COMMAND "${CMAKE_COMMAND}"
+            "-DROOT=${CMAKE_CURRENT_SOURCE_DIR}"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/geometry_independence_audit.cmake"
+    )
+    set_tests_properties(fuelsim_geometry_independence_audit PROPERTIES
+        LABELS "audit;architecture"
     )
 
     get_property(FUELSIM_REGISTERED_TESTS DIRECTORY PROPERTY TESTS)

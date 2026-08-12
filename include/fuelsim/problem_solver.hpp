@@ -60,10 +60,13 @@ struct TransientTimeOptions final {
     double stress_history_time_absolute_tolerance = 1.0;
 };
 
+struct TransientFieldTimeError final {
+    std::string name;
+    double value = 0.0;
+};
+
 struct TransientTimeErrorEstimate final {
-    double temperature = 0.0;
-    double radial_displacement = 0.0;
-    double axial_displacement = 0.0;
+    std::vector<TransientFieldTimeError> nodal_fields;
     double elastic_strain = 0.0;
     double plastic_strain = 0.0;
     double creep_strain = 0.0;

@@ -14,8 +14,12 @@
 
 namespace fuelsim {
 
+namespace rz {
 class SpatialAssembly;
 class TransientConservationCalculator;
+} // namespace rz
+struct TransientTimeErrorEstimate;
+struct TransientTimeOptions;
 
 struct TransientRegionDefinition final {
     std::string region;
@@ -95,6 +99,29 @@ struct TransientCommittedState final {
     double load_factor = 0.0;
 };
 
+// Opaque, immutable transaction snapshot used by the common time integrator.
+// Its concrete material and contact layout remains owned by TransientProblem.
+class TransientStateSnapshot final {
+  public:
+    TransientStateSnapshot();
+    ~TransientStateSnapshot();
+    TransientStateSnapshot(const TransientStateSnapshot& other);
+    TransientStateSnapshot& operator=(const TransientStateSnapshot& other);
+    TransientStateSnapshot(TransientStateSnapshot&& other) noexcept;
+    TransientStateSnapshot& operator=(TransientStateSnapshot&& other) noexcept;
+
+    bool empty() const noexcept;
+
+  private:
+    std::shared_ptr<const void> snapshot_owner() const noexcept;
+
+    struct Storage;
+    explicit TransientStateSnapshot(std::shared_ptr<const Storage> storage);
+
+    std::shared_ptr<const Storage> _storage;
+    friend class TransientProblem;
+};
+
 class TransientProblem final : public NonlinearProblem {
   public:
     TransientProblem(TransientProblemDefinition definition, const UnstructuredQuad4Mesh& source_mesh);
@@ -118,6 +145,12 @@ class TransientProblem final : public NonlinearProblem {
 
     TransientCommittedState committed_state() const;
     void restore_committed_state(TransientCommittedState state);
+    TransientStateSnapshot capture_state() const;
+    void restore_state(const TransientStateSnapshot& snapshot);
+    TransientTimeErrorEstimate step_doubling_error(const TransientStateSnapshot& full_step,
+                                                   const TransientStateSnapshot& two_half_steps,
+                                                   const TransientTimeOptions& options) const;
+    void combine_last_half_step_conservation(const TransientConservationSummary& first_half);
 
     void begin_time_step(const TransientStepInput& input);
     void commit_time_step(const std::vector<double>& converged_solution);
@@ -138,18 +171,28 @@ class TransientProblem final : public NonlinearProblem {
 
     std::size_t dof_count() const noexcept override;
     std::size_t contribution_count() const noexcept override;
+    const std::vector<FieldDescriptor>& field_layout() const noexcept override;
     const std::vector<DirichletCondition>& dirichlet_conditions() const noexcept override;
     void validate_state(const std::vector<double>& state) const override;
     std::vector<std::size_t> required_state_dofs(std::size_t contribution_begin,
                                                  std::size_t contribution_end) const override;
     void validate_local_state(std::size_t contribution_begin, std::size_t contribution_end,
                               const GlobalStateView& state) const override;
-    LocalDofs contribution_dofs(std::size_t contribution_index) const override;
-    LocalResidual contribution_residual(std::size_t contribution_index, const LocalValues& state) const override;
-    LocalSystem linearize_contribution(std::size_t contribution_index, const LocalValues& state) const override;
+    std::size_t contribution_dof_count(std::size_t contribution_index) const override;
+    void fill_contribution_dofs(std::size_t contribution_index, std::vector<std::size_t>& dofs) const override;
+    void compute_contribution_residual(std::size_t contribution_index, const std::vector<double>& state,
+                                       std::vector<double>& residual) const override;
+    void compute_contribution_system(std::size_t contribution_index, const std::vector<double>& state,
+                                     std::vector<double>& residual, std::vector<double>& jacobian) const override;
+
+    LocalDofs contribution_dofs(std::size_t contribution_index) const;
+    LocalValues contribution_state(std::size_t contribution_index, const std::vector<double>& global_state) const;
+    LocalValues contribution_state(std::size_t contribution_index, const GlobalStateView& global_state) const;
+    LocalResidual contribution_residual(std::size_t contribution_index, const LocalValues& state) const;
+    LocalSystem linearize_contribution(std::size_t contribution_index, const LocalValues& state) const;
 
   private:
-    friend class TransientConservationCalculator;
+    friend class rz::TransientConservationCalculator;
 
     void apply_spatial_controls(double time, double load_factor);
     void clear_active_time_step() noexcept;
@@ -157,7 +200,7 @@ class TransientProblem final : public NonlinearProblem {
     void require_active_time_step() const;
 
     TransientProblemDefinition _definition;
-    std::unique_ptr<SpatialAssembly> _spatial;
+    std::unique_ptr<rz::SpatialAssembly> _spatial;
     std::vector<Quad4RzTransientKernel> _region_kernels;
     std::vector<std::vector<Quad4MaterialHistory>> _material_histories;
     std::vector<std::vector<std::array<AxisymmetricStressValues, 4>>> _material_stresses;

@@ -84,9 +84,8 @@ void write_conservation_summary(const std::string& prefix, const TransientConser
 
 void write_time_error_components(const std::string& prefix, const TransientTimeErrorEstimate& estimate,
                                  CaseOutput& output) {
-    output.value(prefix + "temperature", estimate.temperature);
-    output.value(prefix + "radial_displacement", estimate.radial_displacement);
-    output.value(prefix + "axial_displacement", estimate.axial_displacement);
+    for (const TransientFieldTimeError& field : estimate.nodal_fields)
+        output.value(prefix + field.name, field.value);
     output.value(prefix + "elastic_strain", estimate.elastic_strain);
     output.value(prefix + "plastic_strain", estimate.plastic_strain);
     output.value(prefix + "creep_strain", estimate.creep_strain);
@@ -181,8 +180,6 @@ void TransientOutputObserver::finalize(const TransientProblem& problem, double n
     _checkpoint_at_latest = true;
 }
 
-constexpr std::array<const char*, 3> field_names = {"temperature", "radial", "axial"};
-
 struct CommandLine final {
     std::string input_path;
     bool check_jacobian = false;
@@ -262,8 +259,8 @@ void write_solver_diagnostics(const fuelsim::SolveResult& solve, bool augmented_
         if (!solve.basic_failure_message.empty())
             output.value("basic_failure_message", solve.basic_failure_message);
     }
-    for (std::size_t field = 0; field < field_names.size(); ++field) {
-        const std::string prefix = "residual." + std::string(field_names[field]) + ".";
+    for (std::size_t field = 0; field < solve.field_names.size(); ++field) {
+        const std::string prefix = "residual." + solve.field_names[field] + ".";
         output.value(prefix + "initial_l2", solve.initial_field_residual_norms[field]);
         output.value(prefix + "reference_l2", solve.field_residual_reference_norms[field]);
         output.value(prefix + "final_l2", solve.final_field_residual_norms[field]);
@@ -302,10 +299,10 @@ std::vector<double> diagnostic_direction(const fuelsim::DofMap& dof_map) {
 bool write_jacobian_check(const fuelsim::NonlinearProblem& problem, const fuelsim::DofMap& dof_map,
                           const std::vector<double>& state, CaseOutput& output) {
     const fuelsim::DirectionalJacobianCheck check =
-        fuelsim::check_directional_jacobian(problem, dof_map, state, diagnostic_direction(dof_map), 1.0e-4);
+        fuelsim::check_directional_jacobian(problem, state, diagnostic_direction(dof_map), 1.0e-4);
     bool passed = true;
-    for (std::size_t field = 0; field < field_names.size(); ++field) {
-        const std::string prefix = "jacobian." + std::string(field_names[field]) + ".";
+    for (std::size_t field = 0; field < problem.field_layout().size(); ++field) {
+        const std::string prefix = "jacobian." + problem.field_layout()[field].name + ".";
         const double reference = check.finite_difference_directional_derivative.l2[field];
         const double difference = check.difference.l2[field];
         const double relative = reference > 0.0 ? difference / reference
