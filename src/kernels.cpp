@@ -478,46 +478,49 @@ Line2RzBoundaryGeometry make_line2_rz_boundary_geometry(
     validate_edge(coordinates, local_nodes, "Boundary edge");
     return {coordinates, local_nodes};
 }
-Line2RzBoundaryKernel::Line2RzBoundaryKernel(double pressure, bool use_displaced_geometry)
-    : _kind(Kind::pressure), _component(TractionComponent::radial), _load(pressure), _ambient(0.0),
-      _use_displaced_geometry(use_displaced_geometry) {}
-Line2RzBoundaryKernel::Line2RzBoundaryKernel(TractionComponent component, double traction, bool use_displaced_geometry)
-    : _kind(Kind::traction), _component(component), _load(traction), _ambient(0.0),
-      _use_displaced_geometry(use_displaced_geometry) {}
-Line2RzBoundaryKernel::Line2RzBoundaryKernel(double heat_transfer_coefficient, double ambient_temperature)
-    : _kind(Kind::convection), _component(TractionComponent::radial), _load(heat_transfer_coefficient),
-      _ambient(ambient_temperature), _use_displaced_geometry(false) {}
-void Line2RzBoundaryKernel::mechanical_residual(
-    const Line2RzBoundaryGeometry& geometry, const LocalAdValues& state, LocalAdValues& residual) const {
+Line2RzBoundaryData make_line2_rz_pressure_data(double pressure, bool use_displaced_geometry) {
+    return {Line2RzBoundaryKind::pressure, TractionComponent::radial, pressure, 0.0, use_displaced_geometry};
+}
+Line2RzBoundaryData make_line2_rz_traction_data(
+    TractionComponent component, double traction, bool use_displaced_geometry) {
+    return {Line2RzBoundaryKind::traction, component, traction, 0.0, use_displaced_geometry};
+}
+Line2RzBoundaryData make_line2_rz_convection_data(double heat_transfer_coefficient, double ambient_temperature) {
+    return {Line2RzBoundaryKind::convection, TractionComponent::radial, heat_transfer_coefficient, ambient_temperature,
+        false};
+}
+namespace {
+void compute_line2_rz_mechanical_residual_ad(const Line2RzBoundaryData& data, const Line2RzBoundaryGeometry& geometry,
+    const LocalAdValues& state, LocalAdValues& residual) {
     residual.fill(adlite::Scalar(0.0));
     std::array<adlite::Scalar, 2> radius{};
     std::array<adlite::Scalar, 2> axial{};
     displaced_edge_coordinates(
-        geometry.coordinates, geometry.local_nodes, state, _use_displaced_geometry, radius, axial);
+        geometry.coordinates, geometry.local_nodes, state, data.use_displaced_geometry, radius, axial);
     const std::array<double, 2> locations = {-gauss, gauss};
     for (const double xi : locations) {
         const std::array<double, 2> shape = {0.5 * (1.0 - xi), 0.5 * (1.0 + xi)};
         const adlite::Scalar current_radius = shape[0] * radius[0] + shape[1] * radius[1];
         const adlite::Scalar dr_dxi = 0.5 * (radius[1] - radius[0]), dz_dxi = 0.5 * (axial[1] - axial[0]);
-        const adlite::Scalar measure = _kind == Kind::pressure
+        const adlite::Scalar measure = data.kind == Line2RzBoundaryKind::pressure
                                            ? 2.0 * pi * current_radius
                                            : 2.0 * pi * current_radius * adlite::hypot(dr_dxi, dz_dxi);
         if (!std::isfinite(measure.value()) || !(measure.value() > 0.0))
             throw std::domain_error("Mechanical boundary current measure must be finite and positive");
         for (std::size_t edge_node = 0; edge_node < 2; ++edge_node) {
             const std::size_t local = geometry.local_nodes[edge_node];
-            if (_kind == Kind::pressure) {
-                residual[4 + local] += measure * _load * shape[edge_node] * dz_dxi;
-                residual[8 + local] -= measure * _load * shape[edge_node] * dr_dxi;
+            if (data.kind == Line2RzBoundaryKind::pressure) {
+                residual[4 + local] += measure * data.load * shape[edge_node] * dz_dxi;
+                residual[8 + local] -= measure * data.load * shape[edge_node] * dr_dxi;
             } else {
-                const std::size_t offset = _component == TractionComponent::radial ? 4 : 8;
-                residual[offset + local] -= measure * _load * shape[edge_node];
+                const std::size_t offset = data.component == TractionComponent::radial ? 4 : 8;
+                residual[offset + local] -= measure * data.load * shape[edge_node];
             }
         }
     }
 }
-void Line2RzBoundaryKernel::convection_residual(
-    const Line2RzBoundaryGeometry& geometry, const LocalAdValues& state, LocalAdValues& residual) const {
+void compute_line2_rz_convection_residual_ad(const Line2RzBoundaryData& data, const Line2RzBoundaryGeometry& geometry,
+    const LocalAdValues& state, LocalAdValues& residual) {
     residual.fill(adlite::Scalar(0.0));
     const double dr = geometry.coordinates[1].r - geometry.coordinates[0].r,
                  dz = geometry.coordinates[1].z - geometry.coordinates[0].z, line_jacobian = 0.5 * std::hypot(dr, dz);
@@ -528,29 +531,32 @@ void Line2RzBoundaryKernel::convection_residual(
         adlite::Scalar temperature = 0.0;
         for (std::size_t edge_node = 0; edge_node < 2; ++edge_node)
             temperature += shape[edge_node] * state[geometry.local_nodes[edge_node]];
-        const adlite::Scalar heat_flux = _load * (temperature - _ambient);
+        const adlite::Scalar heat_flux = data.load * (temperature - data.ambient);
         const double measure = 2.0 * pi * radius * line_jacobian;
         for (std::size_t edge_node = 0; edge_node < 2; ++edge_node)
             residual[geometry.local_nodes[edge_node]] += measure * shape[edge_node] * heat_flux;
     }
 }
-void Line2RzBoundaryKernel::residual_ad(
-    const Line2RzBoundaryGeometry& geometry, const LocalAdValues& state, LocalAdValues& residual) const {
-    if (_kind == Kind::convection)
-        convection_residual(geometry, state, residual);
+void compute_line2_rz_boundary_residual_ad(const Line2RzBoundaryData& data, const Line2RzBoundaryGeometry& geometry,
+    const LocalAdValues& state, LocalAdValues& residual) {
+    if (data.kind == Line2RzBoundaryKind::convection)
+        compute_line2_rz_convection_residual_ad(data, geometry, state, residual);
     else
-        mechanical_residual(geometry, state, residual);
+        compute_line2_rz_mechanical_residual_ad(data, geometry, state, residual);
 }
-LocalResidual Line2RzBoundaryKernel::residual(const Line2RzBoundaryGeometry& geometry, const LocalValues& state) const {
+} // namespace
+LocalResidual compute_line2_rz_boundary_residual(
+    const Line2RzBoundaryData& data, const Line2RzBoundaryGeometry& geometry, const LocalValues& state) {
     const LocalAdValues ad_state = quad4_rz_detail::passive_state(state);
     LocalAdValues ad_residual{};
-    residual_ad(geometry, ad_state, ad_residual);
+    compute_line2_rz_boundary_residual_ad(data, geometry, ad_state, ad_residual);
     return quad4_rz_detail::residual_values(ad_residual);
 }
-LocalSystem Line2RzBoundaryKernel::linearize(const Line2RzBoundaryGeometry& geometry, const LocalValues& state) const {
+LocalSystem compute_line2_rz_boundary_system(
+    const Line2RzBoundaryData& data, const Line2RzBoundaryGeometry& geometry, const LocalValues& state) {
     const LocalAdValues ad_state = quad4_rz_detail::active_state(state);
     LocalAdValues ad_residual{};
-    residual_ad(geometry, ad_state, ad_residual);
+    compute_line2_rz_boundary_residual_ad(data, geometry, ad_state, ad_residual);
     return quad4_rz_detail::linearized_values(ad_state, ad_residual);
 }
 namespace {

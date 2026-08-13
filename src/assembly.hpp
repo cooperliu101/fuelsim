@@ -100,7 +100,7 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     LocalValues contribution_state(std::size_t index, const GlobalStateView& global_state) const;
     std::vector<RegionMesh> _meshes;
     std::vector<std::vector<Quad4RzGeometry>> _region_geometries;
-    std::vector<Line2RzBoundaryKernel> _boundary_kernels;
+    std::vector<Line2RzBoundaryData> _boundary_data;
     std::vector<std::size_t> _boundary_definition_indices;
     std::vector<BoundaryContribution> _boundary_contributions;
     std::vector<Line2RzGapHeatKernel> _thermal_kernels;

@@ -294,14 +294,15 @@ void SpatialAssembly::build_boundaries(const UnstructuredQuad4Mesh& source_mesh)
             }
             continue;
         }
-        const std::size_t kernel = _boundary_kernels.size();
+        const std::size_t kernel = _boundary_data.size();
         SpatialContributionType type;
         if (definition.type == BoundaryConditionType::pressure) {
             type = SpatialContributionType::pressure;
             const bool displaced = region(resolved.region).strain_formulation == StrainFormulation::finite;
-            _boundary_kernels.emplace_back(spatial_detail::controlled_value(_definition, _time, _load_factor,
-                                               definition.value, definition.scale_with_load, definition.function),
-                displaced);
+            _boundary_data.push_back(
+                make_line2_rz_pressure_data(spatial_detail::controlled_value(_definition, _time, _load_factor,
+                                                definition.value, definition.scale_with_load, definition.function),
+                    displaced));
         } else if (definition.type == BoundaryConditionType::traction) {
             type = SpatialContributionType::traction;
             if (definition.field == Field::temperature)
@@ -310,14 +311,15 @@ void SpatialAssembly::build_boundaries(const UnstructuredQuad4Mesh& source_mesh)
                 region(resolved.region).strain_formulation != StrainFormulation::finite)
                 throw std::invalid_argument(
                     "Current-configuration traction requires finite strain: " + definition.name);
-            _boundary_kernels.emplace_back(
+            _boundary_data.push_back(make_line2_rz_traction_data(
                 definition.field == Field::radial_displacement ? TractionComponent::radial : TractionComponent::axial,
                 spatial_detail::controlled_value(_definition, _time, _load_factor, definition.value,
                     definition.scale_with_load, definition.function),
-                definition.use_displaced_geometry);
+                definition.use_displaced_geometry));
         } else {
             type = SpatialContributionType::convection;
-            _boundary_kernels.emplace_back(definition.heat_transfer_coefficient, definition.ambient_temperature);
+            _boundary_data.push_back(
+                make_line2_rz_convection_data(definition.heat_transfer_coefficient, definition.ambient_temperature));
         }
         _boundary_definition_indices.push_back(boundary_index);
         for (const Line2BoundaryElement& edge : resolved.boundary.elements) {
@@ -345,10 +347,11 @@ void SpatialAssembly::refresh_controlled_values() {
             _definition.boundary_conditions[_boundary_definition_indices[load]];
         if (boundary.type == BoundaryConditionType::convection) {
             const spatial_detail::ConvectionValues values = convection_values(boundary);
-            _boundary_kernels[load].set_convection(values.coefficient, values.ambient);
+            _boundary_data[load].load = values.coefficient;
+            _boundary_data[load].ambient = values.ambient;
         } else {
-            _boundary_kernels[load].set_load(spatial_detail::controlled_value(
-                _definition, _time, _load_factor, boundary.value, boundary.scale_with_load, boundary.function));
+            _boundary_data[load].load = spatial_detail::controlled_value(
+                _definition, _time, _load_factor, boundary.value, boundary.scale_with_load, boundary.function);
         }
     }
 }
@@ -1040,7 +1043,7 @@ LocalResidual SpatialAssembly::contribution_residual(std::size_t index, const Lo
     case SpatialContributionType::traction:
     case SpatialContributionType::convection: {
         const BoundaryContribution& entry = _boundary_contributions.at(location.local_index);
-        return _boundary_kernels[entry.kernel].residual(entry.geometry, state);
+        return compute_line2_rz_boundary_residual(_boundary_data[entry.kernel], entry.geometry, state);
     }
     }
     throw std::logic_error("SpatialAssembly contribution type is invalid");
@@ -1065,7 +1068,7 @@ LocalSystem SpatialAssembly::linearize_contribution(std::size_t index, const Loc
     case SpatialContributionType::traction:
     case SpatialContributionType::convection: {
         const BoundaryContribution& entry = _boundary_contributions.at(location.local_index);
-        return _boundary_kernels[entry.kernel].linearize(entry.geometry, state);
+        return compute_line2_rz_boundary_system(_boundary_data[entry.kernel], entry.geometry, state);
     }
     }
     throw std::logic_error("SpatialAssembly contribution type is invalid");

@@ -76,30 +76,19 @@ struct Line2RzBoundaryGeometry final {
 enum class TractionComponent { radial, axial };
 Line2RzBoundaryGeometry make_line2_rz_boundary_geometry(
     const std::array<RzPoint, 2>& coordinates, const std::array<std::size_t, 2>& local_nodes);
-class Line2RzBoundaryKernel final {
-  public:
-    Line2RzBoundaryKernel(double pressure, bool use_displaced_geometry);
-    Line2RzBoundaryKernel(TractionComponent component, double traction, bool use_displaced_geometry);
-    Line2RzBoundaryKernel(double heat_transfer_coefficient, double ambient_temperature);
-    void set_load(double value) noexcept { _load = value; }
-    void set_convection(double coefficient, double ambient) noexcept {
-        _load = coefficient;
-        _ambient = ambient;
-    }
-    LocalResidual residual(const Line2RzBoundaryGeometry& geometry, const LocalValues& state) const;
-    LocalSystem linearize(const Line2RzBoundaryGeometry& geometry, const LocalValues& state) const;
-
-  private:
-    void residual_ad(
-        const Line2RzBoundaryGeometry& geometry, const LocalAdValues& state, LocalAdValues& residual) const;
-    void mechanical_residual(
-        const Line2RzBoundaryGeometry& geometry, const LocalAdValues& state, LocalAdValues& residual) const;
-    void convection_residual(
-        const Line2RzBoundaryGeometry& geometry, const LocalAdValues& state, LocalAdValues& residual) const;
-    enum class Kind { pressure, traction, convection };
-    Kind _kind;
-    TractionComponent _component;
-    double _load, _ambient;
-    bool _use_displaced_geometry;
+enum class Line2RzBoundaryKind { pressure, traction, convection };
+struct Line2RzBoundaryData final {
+    Line2RzBoundaryKind kind;
+    TractionComponent component;
+    double load, ambient;
+    bool use_displaced_geometry;
 };
+Line2RzBoundaryData make_line2_rz_pressure_data(double pressure, bool use_displaced_geometry);
+Line2RzBoundaryData make_line2_rz_traction_data(
+    TractionComponent component, double traction, bool use_displaced_geometry);
+Line2RzBoundaryData make_line2_rz_convection_data(double heat_transfer_coefficient, double ambient_temperature);
+LocalResidual compute_line2_rz_boundary_residual(
+    const Line2RzBoundaryData& data, const Line2RzBoundaryGeometry& geometry, const LocalValues& state);
+LocalSystem compute_line2_rz_boundary_system(
+    const Line2RzBoundaryData& data, const Line2RzBoundaryGeometry& geometry, const LocalValues& state);
 } // namespace fuelsim
