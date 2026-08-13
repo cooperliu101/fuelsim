@@ -315,19 +315,6 @@ std::array<AxisymmetricStressValues, 4> compute_quad4_rz_thermoelastic_stress(
     }
     return result;
 }
-Quad4RzThermoelasticKernel::Quad4RzThermoelasticKernel(
-    IsotropicThermoelasticMaterial material, double volumetric_heat_source, StrainFormulation strain_formulation)
-    : _data{material, volumetric_heat_source, 0.0, strain_formulation} {}
-LocalResidual Quad4RzThermoelasticKernel::residual(const Quad4RzGeometry& geometry, const LocalValues& state) const {
-    return compute_quad4_rz_thermoelastic_residual(_data, geometry, state);
-}
-LocalSystem Quad4RzThermoelasticKernel::linearize(const Quad4RzGeometry& geometry, const LocalValues& state) const {
-    return compute_quad4_rz_thermoelastic_system(_data, geometry, state);
-}
-std::array<AxisymmetricStressValues, 4> Quad4RzThermoelasticKernel::stress_values(
-    const Quad4RzGeometry& geometry, const LocalValues& state) const {
-    return compute_quad4_rz_thermoelastic_stress(_data, geometry, state);
-}
 namespace {
 struct PointFields final {
     adlite::Scalar temperature, gradient_temperature_r, gradient_temperature_z;

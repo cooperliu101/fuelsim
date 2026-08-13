@@ -81,10 +81,8 @@ bool test_element_jacobian() {
         {0.001, 0.004},
     }};
     const fuelsim::Quad4RzGeometry geometry = fuelsim::make_quad4_rz_geometry(coordinates);
-    const fuelsim::IsotropicThermoelasticMaterial material(properties());
-    fuelsim::Quad4RzThermoelasticData data{material, 2.0e8, 1.25, fuelsim::StrainFormulation::small};
-    fuelsim::Quad4RzThermoelasticKernel kernel(material, 2.0e8, fuelsim::StrainFormulation::small);
-    kernel.set_time(data.time);
+    const fuelsim::Quad4RzThermoelasticData data{
+        fuelsim::IsotropicThermoelasticMaterial(properties()), 2.0e8, 1.25, fuelsim::StrainFormulation::small};
     const fuelsim::LocalValues state = {
         710.0,
         680.0,
@@ -113,7 +111,7 @@ bool test_element_jacobian() {
         -0.2e-6,
         0.4e-6,
     };
-    const fuelsim::LocalSystem system = kernel.linearize(geometry, state);
+    const fuelsim::LocalSystem system = fuelsim::compute_quad4_rz_thermoelastic_system(data, geometry, state);
     constexpr double step = 1.0e-4;
     fuelsim::LocalValues plus = state;
     fuelsim::LocalValues minus = state;
@@ -121,27 +119,18 @@ bool test_element_jacobian() {
         plus[dof] += step * direction[dof];
         minus[dof] -= step * direction[dof];
     }
-    const fuelsim::LocalResidual plus_residual = kernel.residual(geometry, plus);
-    const fuelsim::LocalResidual minus_residual = kernel.residual(geometry, minus);
+    const fuelsim::LocalResidual plus_residual = fuelsim::compute_quad4_rz_thermoelastic_residual(data, geometry, plus);
+    const fuelsim::LocalResidual minus_residual =
+        fuelsim::compute_quad4_rz_thermoelastic_residual(data, geometry, minus);
     bool passed = true;
-    const fuelsim::LocalResidual procedural_residual =
-        fuelsim::compute_quad4_rz_thermoelastic_residual(data, geometry, state);
-    const fuelsim::LocalSystem procedural_system =
-        fuelsim::compute_quad4_rz_thermoelastic_system(data, geometry, state);
-    const std::array<fuelsim::AxisymmetricStressValues, 4> wrapped_stress = kernel.stress_values(geometry, state);
-    const std::array<fuelsim::AxisymmetricStressValues, 4> procedural_stress =
+    const std::array<fuelsim::AxisymmetricStressValues, 4> stresses =
         fuelsim::compute_quad4_rz_thermoelastic_stress(data, geometry, state);
-    bool stress_equal = true;
-    for (std::size_t q = 0; q < wrapped_stress.size(); ++q) {
-        stress_equal = stress_equal && wrapped_stress[q].rr == procedural_stress[q].rr &&
-                       wrapped_stress[q].zz == procedural_stress[q].zz &&
-                       wrapped_stress[q].hoop == procedural_stress[q].hoop &&
-                       wrapped_stress[q].rz == procedural_stress[q].rz;
-    }
-    passed = check(kernel.residual(geometry, state) == procedural_residual &&
-                       system.residual == procedural_system.residual && system.jacobian == procedural_system.jacobian &&
-                       stress_equal,
-                 "procedural Quad4 RZ kernel matches the retained class interface exactly") &&
+    passed = check(std::all_of(stresses.begin(), stresses.end(),
+                       [](const fuelsim::AxisymmetricStressValues& stress) {
+                           return std::isfinite(stress.rr) && std::isfinite(stress.zz) && std::isfinite(stress.hoop) &&
+                                  std::isfinite(stress.rz);
+                       }),
+                 "procedural Quad4 RZ kernel returns finite stress at every quadrature point") &&
              passed;
     double maximum_jacobian_error = 0.0;
     for (std::size_t row = 0; row < system.residual.size(); ++row) {
@@ -179,8 +168,8 @@ bool test_finite_strain_kinematics_and_jacobian() {
         {1.0, 1.0},
     }};
     const fuelsim::Quad4RzGeometry geometry = fuelsim::make_quad4_rz_geometry(coordinates);
-    const fuelsim::Quad4RzThermoelasticKernel kernel(
-        fuelsim::IsotropicThermoelasticMaterial(properties()), 0.0, fuelsim::StrainFormulation::finite);
+    const fuelsim::Quad4RzThermoelasticData data{
+        fuelsim::IsotropicThermoelasticMaterial(properties()), 0.0, 0.0, fuelsim::StrainFormulation::finite};
     constexpr double radial_stretch = 1.08;
     constexpr double axial_stretch = 0.96;
     fuelsim::LocalValues uniform_state{};
@@ -260,7 +249,7 @@ bool test_finite_strain_kinematics_and_jacobian() {
         -0.45,
         0.25,
     };
-    const fuelsim::LocalSystem system = kernel.linearize(geometry, state);
+    const fuelsim::LocalSystem system = fuelsim::compute_quad4_rz_thermoelastic_system(data, geometry, state);
     constexpr double step = 1.0e-5;
     fuelsim::LocalValues plus = state;
     fuelsim::LocalValues minus = state;
@@ -268,8 +257,9 @@ bool test_finite_strain_kinematics_and_jacobian() {
         plus[dof] += step * direction[dof];
         minus[dof] -= step * direction[dof];
     }
-    const fuelsim::LocalResidual plus_residual = kernel.residual(geometry, plus);
-    const fuelsim::LocalResidual minus_residual = kernel.residual(geometry, minus);
+    const fuelsim::LocalResidual plus_residual = fuelsim::compute_quad4_rz_thermoelastic_residual(data, geometry, plus);
+    const fuelsim::LocalResidual minus_residual =
+        fuelsim::compute_quad4_rz_thermoelastic_residual(data, geometry, minus);
     double maximum_jacobian_error = 0.0;
     for (std::size_t row = 0; row < system.residual.size(); ++row) {
         double ad_direction = 0.0;
@@ -285,7 +275,7 @@ bool test_finite_strain_kinematics_and_jacobian() {
     for (std::size_t node = 0; node < 4; ++node) inverted[4 + node] = -1.1 * coordinates[node].r + 2.0;
     bool inversion_rejected = false;
     try {
-        (void)kernel.residual(geometry, inverted);
+        (void)fuelsim::compute_quad4_rz_thermoelastic_residual(data, geometry, inverted);
     } catch (const std::domain_error&) { inversion_rejected = true; }
     passed = check(inversion_rejected, "finite RZ rejects a nonpositive in-plane Jacobian while "
                                        "the current radius remains positive") &&
@@ -294,7 +284,7 @@ bool test_finite_strain_kinematics_and_jacobian() {
     for (std::size_t node = 0; node < 4; ++node) collapsed_radius[4 + node] = -2.1;
     bool radius_rejected = false;
     try {
-        (void)kernel.residual(geometry, collapsed_radius);
+        (void)fuelsim::compute_quad4_rz_thermoelastic_residual(data, geometry, collapsed_radius);
     } catch (const std::domain_error&) { radius_rejected = true; }
     passed = check(radius_rejected, "finite RZ rejects nonpositive hoop stretch and current "
                                     "radius while the in-plane Jacobian remains positive") &&
