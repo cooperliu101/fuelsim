@@ -5,40 +5,32 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
-
 namespace {
-
 std::vector<std::string> split(const std::string& text, char delimiter) {
     std::vector<std::string> fields;
     std::size_t begin = 0;
     for (;;) {
         const std::size_t end = text.find(delimiter, begin);
         fields.push_back(text.substr(begin, end - begin));
-        if (end == std::string::npos)
-            return fields;
+        if (end == std::string::npos) return fields;
         begin = end + 1;
     }
 }
-
 std::set<std::string> read_registered_tests(const std::string& path) {
     std::ifstream input(path);
-    if (!input)
-        throw std::runtime_error("Could not read registered CTest list: " + path);
+    if (!input) throw std::runtime_error("Could not read registered CTest list: " + path);
     std::set<std::string> tests;
     std::string line;
     while (std::getline(input, line)) {
-        if (!line.empty() && line.back() == '\r')
-            line.pop_back();
+        if (!line.empty() && line.back() == '\r') line.pop_back();
         if (!line.empty() && !tests.insert(line).second)
             throw std::runtime_error("Duplicate registered CTest: " + line);
     }
     return tests;
 }
-
-void check_evidence(const std::filesystem::path& repository, const std::string& row_id,
-                    const std::string& evidence_text) {
-    if (evidence_text == "-")
-        throw std::runtime_error(row_id + " has no evidence");
+void check_evidence(
+    const std::filesystem::path& repository, const std::string& row_id, const std::string& evidence_text) {
+    if (evidence_text == "-") throw std::runtime_error(row_id + " has no evidence");
     for (const std::string& relative : split(evidence_text, ';')) {
         const std::filesystem::path path(relative);
         if (relative.empty() || path.is_absolute() || relative.find("..") != std::string::npos)
@@ -50,9 +42,7 @@ void check_evidence(const std::filesystem::path& repository, const std::string& 
             throw std::runtime_error(row_id + " evidence is empty: " + relative);
     }
 }
-
 } // namespace
-
 int main(int argc, char** argv) {
     if (argc != 4) {
         std::cerr << "Usage: fuelsim_verification_matrix_tests "
@@ -64,13 +54,10 @@ int main(int argc, char** argv) {
         const std::filesystem::path repository = argv[2];
         const std::set<std::string> registered_tests = read_registered_tests(argv[3]);
         std::ifstream matrix(matrix_path);
-        if (!matrix)
-            throw std::runtime_error("Could not read verification matrix: " + matrix_path);
-
+        if (!matrix) throw std::runtime_error("Could not read verification matrix: " + matrix_path);
         std::string line;
         if (!std::getline(matrix, line) || line != "id\tstatus\tcapability\tctest\tevidence\tacceptance")
             throw std::runtime_error("Verification matrix header does not match schema");
-
         const std::set<std::string> required_ids = {
             "input.v3",
             "build.reproducibility",
@@ -109,45 +96,35 @@ int main(int argc, char** argv) {
         std::size_t line_number = 1;
         while (std::getline(matrix, line)) {
             ++line_number;
-            if (!line.empty() && line.back() == '\r')
-                line.pop_back();
-            if (line.empty())
-                throw std::runtime_error("Blank matrix row at line " + std::to_string(line_number));
+            if (!line.empty() && line.back() == '\r') line.pop_back();
+            if (line.empty()) throw std::runtime_error("Blank matrix row at line " + std::to_string(line_number));
             const std::vector<std::string> fields = split(line, '\t');
             if (fields.size() != 6)
                 throw std::runtime_error("Matrix row must have six fields at "
                                          "line " +
                                          std::to_string(line_number));
-            for (const std::string& field : fields) {
+            for (const std::string& field : fields)
                 if (field.empty())
                     throw std::runtime_error("Empty matrix field at line " + std::to_string(line_number));
-            }
             const std::string& id = fields[0];
             const std::string& status = fields[1];
-            if (!found_ids.insert(id).second)
-                throw std::runtime_error("Duplicate matrix id: " + id);
-            if (required_ids.count(id) == 0)
-                throw std::runtime_error("Unexpected matrix id: " + id);
-
+            if (!found_ids.insert(id).second) throw std::runtime_error("Duplicate matrix id: " + id);
+            if (required_ids.count(id) == 0) throw std::runtime_error("Unexpected matrix id: " + id);
             if (status == "verified" || status == "qualified") {
                 if (status == "verified")
                     ++verified;
                 else
                     ++qualified;
-                if (fields[3] == "-")
-                    throw std::runtime_error(id + " has no qualifying CTest");
-                for (const std::string& test : split(fields[3], ';')) {
+                if (fields[3] == "-") throw std::runtime_error(id + " has no qualifying CTest");
+                for (const std::string& test : split(fields[3], ';'))
                     if (registered_tests.count(test) == 0)
                         throw std::runtime_error(id + " names unknown CTest: " + test);
-                }
             } else if (status == "measured") {
                 ++measured;
-                if (fields[3] != "-")
-                    throw std::runtime_error(id + " measured evidence must not masquerade as CTest");
+                if (fields[3] != "-") throw std::runtime_error(id + " measured evidence must not masquerade as CTest");
             } else if (status == "limitation") {
                 ++limitations;
-                if (fields[3] != "-")
-                    throw std::runtime_error(id + " limitation must not masquerade as CTest");
+                if (fields[3] != "-") throw std::runtime_error(id + " limitation must not masquerade as CTest");
             } else {
                 throw std::runtime_error(id + " has invalid status: " + status);
             }
@@ -157,7 +134,6 @@ int main(int argc, char** argv) {
             throw std::runtime_error("Verification matrix is missing one or more required rows");
         if (verified != 24 || qualified != 1 || measured != 2 || limitations != 1)
             throw std::runtime_error("Verification matrix status counts differ from release schema");
-
         std::cout << "verification_matrix_rows=" << found_ids.size() << '\n'
                   << "verification_matrix_verified=" << verified << '\n'
                   << "verification_matrix_qualified=" << qualified << '\n'

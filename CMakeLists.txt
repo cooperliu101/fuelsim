@@ -119,6 +119,8 @@ fuelsim_enable_warnings(fuelsim)
 include(CTest)
 
 if(BUILD_TESTING)
+    include_directories("${CMAKE_CURRENT_SOURCE_DIR}/src")
+
     add_library(fuelsim_test_mesh_fixture
         tests/support/mesh_fixture.cpp
     )
@@ -519,6 +521,7 @@ if(BUILD_TESTING)
         target_link_libraries(fuelsim_mpi_equivalence_benchmark
             PRIVATE fuelsim::io fuelsim::solver
         )
+        target_include_directories(fuelsim_mpi_equivalence_benchmark PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/tests")
         fuelsim_enable_warnings(fuelsim_mpi_equivalence_benchmark)
         add_test(NAME fuelsim_mpi_reference
             COMMAND fuelsim_mpi_equivalence_benchmark

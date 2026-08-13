@@ -1,18 +1,14 @@
 #ifndef FUELSIM_INPUT_FILE_HPP
 #define FUELSIM_INPUT_FILE_HPP
-
 #include <cstddef>
 #include <string>
 #include <vector>
-
 namespace fuelsim {
-
 struct InputEntry final {
     std::string key;
     std::string value;
     std::size_t line;
 };
-
 class InputSection final {
   public:
     const std::string& path() const noexcept;
@@ -22,12 +18,10 @@ class InputSection final {
 
   private:
     friend class InputParser;
-
     std::string _path;
     std::size_t _line = 0;
     std::vector<InputEntry> _entries;
 };
-
 class InputDocument final {
   public:
     const std::string& source_path() const noexcept;
@@ -36,16 +30,12 @@ class InputDocument final {
 
   private:
     friend class InputParser;
-
     std::string _source_path;
     std::vector<InputSection> _sections;
 };
-
 class InputParser final {
   public:
     static InputDocument parse_file(const std::string& path);
 };
-
 } // namespace fuelsim
-
 #endif

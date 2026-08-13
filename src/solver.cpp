@@ -1,8 +1,5 @@
 #include "fuelsim/petsc_solver.hpp"
 #include "fuelsim/problem_solver.hpp"
-
-#include <petsc.h>
-
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -11,21 +8,18 @@
 #include <functional>
 #include <limits>
 #include <memory>
+#include <petsc.h>
 #include <sstream>
 #include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
-
 namespace fuelsim {
 namespace {
-
 using SteadyClock = std::chrono::steady_clock;
-
 double seconds_since(const SteadyClock::time_point& start) {
     return std::chrono::duration<double>(SteadyClock::now() - start).count();
 }
-
 void accumulate_timing(SolveTiming& total, const SolveTiming& step) {
     total.setup_seconds += step.setup_seconds;
     total.nonlinear_solve_seconds += step.nonlinear_solve_seconds;
@@ -37,10 +31,8 @@ void accumulate_timing(SolveTiming& total, const SolveTiming& step) {
     total.workspace_setups += step.workspace_setups;
     total.solve_calls += step.solve_calls;
 }
-
 void check_petsc(PetscErrorCode code, const char* operation) {
     if (code == PETSC_SUCCESS) return;
-
     const char* text = nullptr;
     const PetscErrorCode message_code = PetscErrorMessage(code, &text, nullptr);
     if (message_code != PETSC_SUCCESS) text = nullptr;
@@ -52,7 +44,6 @@ void check_petsc(PetscErrorCode code, const char* operation) {
     }
     throw std::runtime_error(message);
 }
-
 void check_mpi(PetscMPIInt code, const char* operation) {
     if (code == MPI_SUCCESS) return;
     std::string message = operation;
@@ -60,7 +51,6 @@ void check_mpi(PetscMPIInt code, const char* operation) {
     message += std::to_string(code);
     throw std::runtime_error(message);
 }
-
 PetscErrorCode collective_timing(const SolveTiming& local, SolveTiming& result) {
     PetscFunctionBeginUser;
     std::array<double, 5> local_seconds = {
@@ -72,7 +62,7 @@ PetscErrorCode collective_timing(const SolveTiming& local, SolveTiming& result) 
     };
     std::array<double, 5> maximum_seconds{};
     PetscCallMPI(MPIU_Allreduce(local_seconds.data(), maximum_seconds.data(),
-                                static_cast<MPIU_Count>(local_seconds.size()), MPI_DOUBLE, MPI_MAX, PETSC_COMM_WORLD));
+        static_cast<MPIU_Count>(local_seconds.size()), MPI_DOUBLE, MPI_MAX, PETSC_COMM_WORLD));
     std::array<PetscInt64, 4> local_counts = {
         static_cast<PetscInt64>(local.residual_evaluations),
         static_cast<PetscInt64>(local.jacobian_evaluations),
@@ -81,7 +71,7 @@ PetscErrorCode collective_timing(const SolveTiming& local, SolveTiming& result) 
     };
     std::array<PetscInt64, 4> maximum_counts{};
     PetscCallMPI(MPIU_Allreduce(local_counts.data(), maximum_counts.data(),
-                                static_cast<MPIU_Count>(local_counts.size()), MPIU_INT64, MPI_MAX, PETSC_COMM_WORLD));
+        static_cast<MPIU_Count>(local_counts.size()), MPIU_INT64, MPI_MAX, PETSC_COMM_WORLD));
     result.setup_seconds = maximum_seconds[0];
     result.nonlinear_solve_seconds = maximum_seconds[1];
     result.residual_callback_seconds = maximum_seconds[2];
@@ -93,13 +83,11 @@ PetscErrorCode collective_timing(const SolveTiming& local, SolveTiming& result) 
     result.solve_calls = static_cast<std::size_t>(maximum_counts[3]);
     PetscFunctionReturn(PETSC_SUCCESS);
 }
-
 PetscInt checked_petsc_int(std::size_t value) {
     if (value > static_cast<std::size_t>(std::numeric_limits<PetscInt>::max()))
         throw std::length_error("fuelsim DOF index exceeds PetscInt range");
     return static_cast<PetscInt>(value);
 }
-
 struct SolverContext final {
     const NonlinearProblem* problem = nullptr;
     bool pattern_locked = false;
@@ -137,7 +125,6 @@ struct SolverContext final {
     std::string last_domain_error;
     SolveTiming timing;
 };
-
 struct PetscObjects final {
     SNES snes = nullptr;
     Vec state = nullptr;
@@ -145,7 +132,6 @@ struct PetscObjects final {
     Mat jacobian = nullptr;
     Vec gathered_state = nullptr;
     VecScatter state_scatter = nullptr;
-
     ~PetscObjects() {
         if (state_scatter != nullptr) {
             const PetscErrorCode code = VecScatterDestroy(&state_scatter);
@@ -173,62 +159,8 @@ struct PetscObjects final {
         }
     }
 };
-
-std::vector<std::size_t> gathered_index_set(IS distributed) {
-    if (distributed == nullptr) throw std::logic_error("PETSc field split did not provide its index set");
-    IS gathered = nullptr;
-    check_petsc(ISAllGather(distributed, &gathered), "ISAllGather field split");
-    try {
-        PetscInt count = 0;
-        check_petsc(ISGetLocalSize(gathered, &count), "ISGetLocalSize field split");
-        const PetscInt* indices = nullptr;
-        check_petsc(ISGetIndices(gathered, &indices), "ISGetIndices field split");
-        try {
-            std::vector<std::size_t> result;
-            result.reserve(static_cast<std::size_t>(count));
-            for (PetscInt index = 0; index < count; ++index) {
-                if (indices[index] < 0) throw std::logic_error("PETSc field split contains a negative DOF");
-                result.push_back(static_cast<std::size_t>(indices[index]));
-            }
-            check_petsc(ISRestoreIndices(gathered, &indices), "ISRestoreIndices field split");
-            check_petsc(ISDestroy(&gathered), "ISDestroy gathered field split");
-            return result;
-        } catch (...) {
-            (void)ISRestoreIndices(gathered, &indices);
-            throw;
-        }
-    } catch (...) {
-        if (gathered != nullptr) (void)ISDestroy(&gathered);
-        throw;
-    }
-}
-
-void record_linear_solver_configuration(PetscObjects& objects, SolveResult& result) {
-    KSP ksp = nullptr;
-    PC preconditioner = nullptr;
-    check_petsc(SNESGetKSP(objects.snes, &ksp), "SNESGetKSP diagnostics");
-    check_petsc(KSPGetPC(ksp, &preconditioner), "KSPGetPC diagnostics");
-    const char* linear_type = nullptr;
-    const char* preconditioner_type = nullptr;
-    check_petsc(KSPGetType(ksp, &linear_type), "KSPGetType diagnostics");
-    check_petsc(PCGetType(preconditioner, &preconditioner_type), "PCGetType diagnostics");
-    result.linear_solver_type = linear_type != nullptr ? linear_type : "";
-    result.preconditioner_type = preconditioner_type != nullptr ? preconditioner_type : "";
-
-    PetscBool is_field_split = PETSC_FALSE;
-    check_petsc(PetscObjectTypeCompare(reinterpret_cast<PetscObject>(preconditioner), PCFIELDSPLIT, &is_field_split),
-                "PetscObjectTypeCompare field split diagnostics");
-    if (is_field_split == PETSC_FALSE) return;
-    IS thermal = nullptr;
-    IS mechanical = nullptr;
-    check_petsc(PCFieldSplitGetIS(preconditioner, "temperature", &thermal), "PCFieldSplitGetIS temperature");
-    check_petsc(PCFieldSplitGetIS(preconditioner, "mechanics", &mechanical), "PCFieldSplitGetIS mechanics");
-    result.thermal_field_split_dofs = gathered_index_set(thermal);
-    result.mechanical_field_split_dofs = gathered_index_set(mechanical);
-}
-
-void configure_linear_solver(PetscObjects& objects, const NonlinearProblem& problem, const SolverOptions& options,
-                             PetscMPIInt world_size) {
+void configure_linear_solver(
+    PetscObjects& objects, const NonlinearProblem& problem, const SolverOptions& options, PetscMPIInt world_size) {
     SolverOptions::LinearSolver linear = options.linear_solver;
     if (linear == SolverOptions::LinearSolver::automatic) {
         if (options.preconditioner == SolverOptions::Preconditioner::block_jacobi ||
@@ -246,7 +178,6 @@ void configure_linear_solver(PetscObjects& objects, const NonlinearProblem& prob
                                                      : SolverOptions::Preconditioner::field_split);
     if (linear == SolverOptions::LinearSolver::direct && preconditioner_type != SolverOptions::Preconditioner::lu)
         throw std::invalid_argument("direct linear solver requires the LU preconditioner");
-
     KSP ksp = nullptr;
     PC preconditioner = nullptr;
     check_petsc(SNESGetKSP(objects.snes, &ksp), "SNESGetKSP");
@@ -255,7 +186,6 @@ void configure_linear_solver(PetscObjects& objects, const NonlinearProblem& prob
         check_petsc(KSPSetType(ksp, KSPPREONLY), "KSPSetType PREONLY");
     else
         check_petsc(KSPSetType(ksp, KSPGMRES), "KSPSetType GMRES");
-
     switch (preconditioner_type) {
     case SolverOptions::Preconditioner::automatic: throw std::logic_error("automatic preconditioner was not resolved");
     case SolverOptions::Preconditioner::lu:
@@ -275,8 +205,8 @@ void configure_linear_solver(PetscObjects& objects, const NonlinearProblem& prob
             "PetscObjectTypeCompare field split");
         PetscInt ownership_begin = 0;
         PetscInt ownership_end = 0;
-        check_petsc(VecGetOwnershipRange(objects.state, &ownership_begin, &ownership_end),
-                    "VecGetOwnershipRange field split");
+        check_petsc(
+            VecGetOwnershipRange(objects.state, &ownership_begin, &ownership_end), "VecGetOwnershipRange field split");
         std::vector<PetscInt> thermal_indices;
         std::vector<PetscInt> mechanical_indices;
         bool has_thermal_field = false;
@@ -299,13 +229,13 @@ void configure_linear_solver(PetscObjects& objects, const NonlinearProblem& prob
             IS mechanics = nullptr;
             try {
                 check_petsc(ISCreateGeneral(PETSC_COMM_WORLD, checked_petsc_int(thermal_indices.size()),
-                                            thermal_indices.data(), PETSC_COPY_VALUES, &temperature),
-                            "ISCreateGeneral temperature");
+                                thermal_indices.data(), PETSC_COPY_VALUES, &temperature),
+                    "ISCreateGeneral temperature");
                 check_petsc(ISCreateGeneral(PETSC_COMM_WORLD, checked_petsc_int(mechanical_indices.size()),
-                                            mechanical_indices.data(), PETSC_COPY_VALUES, &mechanics),
-                            "ISCreateGeneral mechanics");
-                check_petsc(PCFieldSplitSetIS(preconditioner, "temperature", temperature),
-                            "PCFieldSplitSetIS temperature");
+                                mechanical_indices.data(), PETSC_COPY_VALUES, &mechanics),
+                    "ISCreateGeneral mechanics");
+                check_petsc(
+                    PCFieldSplitSetIS(preconditioner, "temperature", temperature), "PCFieldSplitSetIS temperature");
                 check_petsc(PCFieldSplitSetIS(preconditioner, "mechanics", mechanics), "PCFieldSplitSetIS mechanics");
                 check_petsc(ISDestroy(&temperature), "ISDestroy temperature");
                 check_petsc(ISDestroy(&mechanics), "ISDestroy mechanics");
@@ -315,8 +245,8 @@ void configure_linear_solver(PetscObjects& objects, const NonlinearProblem& prob
                 throw;
             }
         }
-        check_petsc(PCFieldSplitSetType(preconditioner, PC_COMPOSITE_MULTIPLICATIVE),
-                    "PCFieldSplitSetType multiplicative");
+        check_petsc(
+            PCFieldSplitSetType(preconditioner, PC_COMPOSITE_MULTIPLICATIVE), "PCFieldSplitSetType multiplicative");
         break;
     }
     case SolverOptions::Preconditioner::hypre:
@@ -324,10 +254,9 @@ void configure_linear_solver(PetscObjects& objects, const NonlinearProblem& prob
         break;
     }
     check_petsc(KSPSetTolerances(ksp, options.linear_relative_tolerance, PETSC_DEFAULT, PETSC_DEFAULT,
-                                 options.maximum_linear_iterations),
-                "KSPSetTolerances");
+                    options.maximum_linear_iterations),
+        "KSPSetTolerances");
 }
-
 PetscErrorCode gather_state(Vec state, SolverContext& context) {
     PetscFunctionBeginUser;
     PetscCall(VecScatterBegin(context.state_scatter, state, context.gathered_state, INSERT_VALUES, SCATTER_FORWARD));
@@ -339,16 +268,15 @@ PetscErrorCode gather_state(Vec state, SolverContext& context) {
     PetscCall(VecRestoreArrayRead(context.gathered_state, &values));
     PetscFunctionReturn(PETSC_SUCCESS);
 }
-
 std::vector<double> gather_complete_state(Vec state, std::size_t global_size) {
     VecScatter scatter = nullptr;
     Vec gathered = nullptr;
     check_petsc(VecScatterCreateToAll(state, &scatter, &gathered), "VecScatterCreateToAll final state");
     try {
-        check_petsc(VecScatterBegin(scatter, state, gathered, INSERT_VALUES, SCATTER_FORWARD),
-                    "VecScatterBegin final state");
-        check_petsc(VecScatterEnd(scatter, state, gathered, INSERT_VALUES, SCATTER_FORWARD),
-                    "VecScatterEnd final state");
+        check_petsc(
+            VecScatterBegin(scatter, state, gathered, INSERT_VALUES, SCATTER_FORWARD), "VecScatterBegin final state");
+        check_petsc(
+            VecScatterEnd(scatter, state, gathered, INSERT_VALUES, SCATTER_FORWARD), "VecScatterEnd final state");
         std::vector<double> result(global_size, 0.0);
         const PetscScalar* values = nullptr;
         check_petsc(VecGetArrayRead(gathered, &values), "VecGetArrayRead final state");
@@ -364,7 +292,6 @@ std::vector<double> gather_complete_state(Vec state, std::size_t global_size) {
         throw;
     }
 }
-
 PetscErrorCode synchronize_domain_error(bool local_error, bool& global_error) {
     PetscFunctionBeginUser;
     const PetscMPIInt local = local_error ? 1 : 0;
@@ -373,7 +300,6 @@ PetscErrorCode synchronize_domain_error(bool local_error, bool& global_error) {
     global_error = global != 0;
     PetscFunctionReturn(PETSC_SUCCESS);
 }
-
 PetscErrorCode field_norms(Vec vector, SolverContext& context, std::vector<double>& norms) {
     PetscFunctionBeginUser;
     PetscInt ownership_begin = 0;
@@ -397,15 +323,13 @@ PetscErrorCode field_norms(Vec vector, SolverContext& context, std::vector<doubl
         context.global_field_squared_norms = context.local_field_squared_norms;
     } else {
         PetscCallMPI(MPIU_Allreduce(context.local_field_squared_norms.data(), context.global_field_squared_norms.data(),
-                                    static_cast<MPIU_Count>(context.local_field_squared_norms.size()), MPI_DOUBLE,
-                                    MPI_SUM, PETSC_COMM_WORLD));
+            static_cast<MPIU_Count>(context.local_field_squared_norms.size()), MPI_DOUBLE, MPI_SUM, PETSC_COMM_WORLD));
     }
     norms.resize(context.problem->field_layout().size());
     for (std::size_t field = 0; field < norms.size(); ++field)
         norms[field] = std::sqrt(context.global_field_squared_norms[field]);
     PetscFunctionReturn(PETSC_SUCCESS);
 }
-
 PetscErrorCode scale_residual(Vec residual, SolverContext& context) {
     PetscFunctionBeginUser;
     PetscCall(field_norms(residual, context, context.latest_unscaled_field_residual_norms));
@@ -422,12 +346,11 @@ PetscErrorCode scale_residual(Vec residual, SolverContext& context) {
     }
     double thermal_norm = 0.0;
     double mechanics_norm = 0.0;
-    for (std::size_t field = 0; field < context.problem->field_layout().size(); ++field) {
+    for (std::size_t field = 0; field < context.problem->field_layout().size(); ++field)
         if (context.problem->field_layout()[field].category == FieldCategory::thermal)
             thermal_norm = std::hypot(thermal_norm, context.latest_unscaled_field_residual_norms[field]);
         else
             mechanics_norm = std::hypot(mechanics_norm, context.latest_unscaled_field_residual_norms[field]);
-    }
     if (!context.thermal_scaling_initialized && thermal_norm > context.residual_scaling_floor) {
         for (std::size_t field = 0; field < context.problem->field_layout().size(); ++field) {
             if (context.problem->field_layout()[field].category == FieldCategory::thermal) {
@@ -447,7 +370,6 @@ PetscErrorCode scale_residual(Vec residual, SolverContext& context) {
         }
         context.mechanics_scaling_initialized = true;
     }
-
     PetscInt ownership_begin = 0;
     PetscInt ownership_end = 0;
     PetscCall(VecGetOwnershipRange(residual, &ownership_begin, &ownership_end));
@@ -467,7 +389,6 @@ PetscErrorCode scale_residual(Vec residual, SolverContext& context) {
             std::max(context.field_residual_reference_norms[field], context.latest_field_residual_norms[field]);
     PetscFunctionReturn(PETSC_SUCCESS);
 }
-
 PetscErrorCode form_function(SNES snes, Vec state, Vec residual, void* raw_context) {
     PetscFunctionBeginUser;
     const SteadyClock::time_point start = SteadyClock::now();
@@ -482,15 +403,15 @@ PetscErrorCode form_function(SNES snes, Vec state, Vec residual, void* raw_conte
         try {
             problem.validate_local_state(context.contribution_begin, context.contribution_end, state_view);
             for (std::size_t contribution = context.contribution_begin; contribution < context.contribution_end;
-                 ++contribution) {
+                ++contribution) {
                 problem.evaluate_contribution_residual(contribution, state_view, context.contribution_workspace);
                 context.petsc_contribution_dofs.resize(context.contribution_workspace.dofs.size());
                 for (std::size_t local = 0; local < context.petsc_contribution_dofs.size(); ++local)
                     context.petsc_contribution_dofs[local] =
                         checked_petsc_int(context.contribution_workspace.dofs[local]);
                 PetscCall(VecSetValues(residual, checked_petsc_int(context.petsc_contribution_dofs.size()),
-                                       context.petsc_contribution_dofs.data(),
-                                       context.contribution_workspace.residual.data(), ADD_VALUES));
+                    context.petsc_contribution_dofs.data(), context.contribution_workspace.residual.data(),
+                    ADD_VALUES));
             }
         } catch (const std::domain_error& error) {
             local_domain_error = true;
@@ -515,7 +436,6 @@ PetscErrorCode form_function(SNES snes, Vec state, Vec residual, void* raw_conte
             ++context.timing.residual_evaluations;
             PetscFunctionReturn(PETSC_SUCCESS);
         }
-
         PetscInt ownership_begin = 0;
         PetscInt ownership_end = 0;
         PetscCall(VecGetOwnershipRange(residual, &ownership_begin, &ownership_end));
@@ -540,25 +460,22 @@ PetscErrorCode form_function(SNES snes, Vec state, Vec residual, void* raw_conte
     } catch (...) { SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_LIB, "fuelsim residual assembly failed with unknown error"); }
     PetscFunctionReturn(PETSC_SUCCESS);
 }
-
 PetscErrorCode form_jacobian(SNES snes, Vec state, Mat jacobian, Mat preconditioner, void* raw_context) {
     PetscFunctionBeginUser;
     const SteadyClock::time_point start = SteadyClock::now();
     try {
         if (jacobian != preconditioner)
             SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_SUP, "fuelsim requires one matrix for J and P");
-
         SolverContext& context = *static_cast<SolverContext*>(raw_context);
         const NonlinearProblem& problem = *context.problem;
         PetscCall(gather_state(state, context));
         const GlobalStateView state_view(problem.dof_count(), context.shadow_dofs, context.state_values);
-
         PetscCall(MatZeroEntries(jacobian));
         bool local_domain_error = false;
         try {
             problem.validate_local_state(context.contribution_begin, context.contribution_end, state_view);
             for (std::size_t contribution = context.contribution_begin; contribution < context.contribution_end;
-                 ++contribution) {
+                ++contribution) {
                 problem.evaluate_contribution_system(contribution, state_view, context.contribution_workspace);
                 const std::size_t local_count = context.contribution_workspace.dofs.size();
                 context.petsc_contribution_dofs.resize(local_count);
@@ -578,8 +495,8 @@ PetscErrorCode form_jacobian(SNES snes, Vec state, Mat jacobian, Mat preconditio
                 }
                 const PetscInt petsc_local_count = checked_petsc_int(local_count);
                 PetscCall(MatSetValues(jacobian, petsc_local_count, context.petsc_contribution_dofs.data(),
-                                       petsc_local_count, context.petsc_contribution_dofs.data(),
-                                       context.scaled_contribution_jacobian.data(), ADD_VALUES));
+                    petsc_local_count, context.petsc_contribution_dofs.data(),
+                    context.scaled_contribution_jacobian.data(), ADD_VALUES));
             }
         } catch (const std::domain_error& error) {
             local_domain_error = true;
@@ -603,7 +520,6 @@ PetscErrorCode form_jacobian(SNES snes, Vec state, Mat jacobian, Mat preconditio
             ++context.timing.jacobian_evaluations;
             PetscFunctionReturn(PETSC_SUCCESS);
         }
-
         // The first Jacobian assembly inserts zero-valued blocks for every
         // potential contact candidate. Keep that complete pattern locked so
         // dynamic search cannot introduce a new nonzero location later.
@@ -612,9 +528,8 @@ PetscErrorCode form_jacobian(SNES snes, Vec state, Mat jacobian, Mat preconditio
             PetscCall(MatSetOption(jacobian, MAT_NEW_NONZERO_LOCATION_ERR, PETSC_TRUE));
             context.pattern_locked = true;
         }
-
         PetscCall(MatZeroRows(jacobian, static_cast<PetscInt>(context.constrained_dofs.size()),
-                              context.constrained_dofs.data(), 1.0, nullptr, nullptr));
+            context.constrained_dofs.data(), 1.0, nullptr, nullptr));
         context.timing.jacobian_callback_seconds += seconds_since(start);
         ++context.timing.jacobian_evaluations;
     } catch (const std::exception& error) {
@@ -622,9 +537,7 @@ PetscErrorCode form_jacobian(SNES snes, Vec state, Mat jacobian, Mat preconditio
     } catch (...) { SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_LIB, "fuelsim Jacobian assembly failed with unknown error"); }
     PetscFunctionReturn(PETSC_SUCCESS);
 }
-
 } // namespace
-
 class PetscSolver::Implementation final {
   public:
     bool prepare(const NonlinearProblem& problem) {
@@ -632,20 +545,12 @@ class PetscSolver::Implementation final {
         const PetscInt requested_count = checked_petsc_int(problem.dof_count());
         const std::shared_ptr<const void> requested_identity = problem.discretization_identity();
         if (_problem_identity == requested_identity) {
-            require_cached_structure(problem, requested_count);
             _context.problem = &problem;
             return false;
         }
-
         _problem_identity.reset();
         _objects = std::make_unique<PetscObjects>();
         _count = requested_count;
-        _contribution_count = problem.contribution_count();
-        _field_layout = problem.field_layout();
-        _constrained_structure.clear();
-        _constrained_structure.reserve(problem.dirichlet_conditions().size());
-        for (const DirichletCondition& condition : problem.dirichlet_conditions())
-            _constrained_structure.push_back(condition.dof);
         _context = SolverContext{};
         _context.problem = &problem;
         _context.rank = PetscGlobalRank;
@@ -654,14 +559,6 @@ class PetscSolver::Implementation final {
         const std::size_t size = static_cast<std::size_t>(_context.size);
         _context.contribution_begin = problem.contribution_count() * rank / size;
         _context.contribution_end = problem.contribution_count() * (rank + 1U) / size;
-        const std::size_t local_contribution_count = _context.contribution_end - _context.contribution_begin;
-        _contribution_dof_counts.resize(local_contribution_count);
-        _contribution_dof_mappings.resize(local_contribution_count);
-        for (std::size_t local = 0; local < local_contribution_count; ++local) {
-            const std::size_t contribution = _context.contribution_begin + local;
-            _contribution_dof_counts[local] = problem.contribution_dof_count(contribution);
-            problem.fill_contribution_dofs(contribution, _contribution_dof_mappings[local]);
-        }
         _context.constrained.assign(problem.dof_count(), false);
         const std::size_t field_count = problem.field_layout().size();
         _context.initial_field_residual_norms.resize(field_count);
@@ -675,42 +572,38 @@ class PetscSolver::Implementation final {
         for (std::size_t field = 0; field < field_count; ++field) {
             const FieldDescriptor& descriptor = problem.field_layout()[field];
             std::fill(_context.dof_fields.begin() + static_cast<std::ptrdiff_t>(descriptor.begin),
-                      _context.dof_fields.begin() + static_cast<std::ptrdiff_t>(descriptor.end), field);
+                _context.dof_fields.begin() + static_cast<std::ptrdiff_t>(descriptor.end), field);
         }
         std::size_t maximum_local_dofs = 0;
         for (std::size_t contribution = _context.contribution_begin; contribution < _context.contribution_end;
-             ++contribution)
+            ++contribution)
             maximum_local_dofs = std::max(maximum_local_dofs, problem.contribution_dof_count(contribution));
         _context.contribution_workspace.reserve(maximum_local_dofs);
         _context.petsc_contribution_dofs.reserve(maximum_local_dofs);
         _context.scaled_contribution_jacobian.reserve(maximum_local_dofs * maximum_local_dofs);
-
         check_petsc(VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE, _count, &_objects->state), "VecCreateMPI state");
         check_petsc(VecDuplicate(_objects->state, &_objects->residual), "VecDuplicate residual");
-
         PetscInt local_count = 0;
         check_petsc(VecGetLocalSize(_objects->state, &local_count), "VecGetLocalSize state");
         const PetscInt diagonal_nonzeros = std::min<PetscInt>(60, local_count);
         const PetscInt off_diagonal_nonzeros = std::min<PetscInt>(60, _count - local_count);
         check_petsc(MatCreateAIJ(PETSC_COMM_WORLD, local_count, local_count, _count, _count, diagonal_nonzeros, nullptr,
-                                 off_diagonal_nonzeros, nullptr, &_objects->jacobian),
-                    "MatCreateAIJ");
+                        off_diagonal_nonzeros, nullptr, &_objects->jacobian),
+            "MatCreateAIJ");
         check_petsc(MatSetOption(_objects->jacobian, MAT_NEW_NONZERO_ALLOCATION_ERR, PETSC_FALSE),
-                    "MatSetOption MAT_NEW_NONZERO_ALLOCATION_ERR");
+            "MatSetOption MAT_NEW_NONZERO_ALLOCATION_ERR");
         check_petsc(SNESCreate(PETSC_COMM_WORLD, &_objects->snes), "SNESCreate");
         check_petsc(SNESSetFunction(_objects->snes, _objects->residual, form_function, &_context), "SNESSetFunction");
         check_petsc(SNESSetJacobian(_objects->snes, _objects->jacobian, _objects->jacobian, form_jacobian, &_context),
-                    "SNESSetJacobian");
+            "SNESSetJacobian");
         check_petsc(SNESSetType(_objects->snes, SNESNEWTONLS), "SNESSetType");
-
         SNESLineSearch line_search = nullptr;
         check_petsc(SNESGetLineSearch(_objects->snes, &line_search), "SNESGetLineSearch");
         check_petsc(SNESLineSearchSetType(line_search, SNESLINESEARCHBASIC), "SNESLineSearchSetType");
-
         PetscInt ownership_begin = 0;
         PetscInt ownership_end = 0;
-        check_petsc(VecGetOwnershipRange(_objects->state, &ownership_begin, &ownership_end),
-                    "VecGetOwnershipRange state");
+        check_petsc(
+            VecGetOwnershipRange(_objects->state, &ownership_begin, &ownership_end), "VecGetOwnershipRange state");
         _context.ownership_begin = ownership_begin;
         _context.ownership_end = ownership_end;
         for (const DirichletCondition& condition : problem.dirichlet_conditions()) {
@@ -722,7 +615,6 @@ class PetscSolver::Implementation final {
         }
         const std::vector<std::size_t> required_dofs =
             problem.required_state_dofs(_context.contribution_begin, _context.contribution_end);
-        _required_state_dofs = required_dofs;
         _context.shadow_dofs.reserve(required_dofs.size() + _context.constrained_dofs.size());
         for (const std::size_t dof : required_dofs) {
             if (dof > static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max()))
@@ -732,8 +624,8 @@ class PetscSolver::Implementation final {
         for (const PetscInt dof : _context.constrained_dofs)
             _context.shadow_dofs.push_back(static_cast<std::uint32_t>(dof));
         std::sort(_context.shadow_dofs.begin(), _context.shadow_dofs.end());
-        _context.shadow_dofs.erase(std::unique(_context.shadow_dofs.begin(), _context.shadow_dofs.end()),
-                                   _context.shadow_dofs.end());
+        _context.shadow_dofs.erase(
+            std::unique(_context.shadow_dofs.begin(), _context.shadow_dofs.end()), _context.shadow_dofs.end());
         _context.state_values.resize(_context.shadow_dofs.size());
         std::vector<PetscInt> shadow_indices;
         shadow_indices.reserve(_context.shadow_dofs.size());
@@ -743,16 +635,16 @@ class PetscSolver::Implementation final {
         IS source_indices = nullptr;
         IS destination_indices = nullptr;
         try {
-            check_petsc(ISCreateGeneral(PETSC_COMM_SELF, shadow_count, shadow_indices.data(), PETSC_COPY_VALUES,
-                                        &source_indices),
-                        "ISCreateGeneral shadow state");
+            check_petsc(ISCreateGeneral(
+                            PETSC_COMM_SELF, shadow_count, shadow_indices.data(), PETSC_COPY_VALUES, &source_indices),
+                "ISCreateGeneral shadow state");
             check_petsc(ISCreateStride(PETSC_COMM_SELF, shadow_count, 0, 1, &destination_indices),
-                        "ISCreateStride shadow state");
-            check_petsc(VecCreateSeq(PETSC_COMM_SELF, shadow_count, &_objects->gathered_state),
-                        "VecCreateSeq shadow state");
+                "ISCreateStride shadow state");
+            check_petsc(
+                VecCreateSeq(PETSC_COMM_SELF, shadow_count, &_objects->gathered_state), "VecCreateSeq shadow state");
             check_petsc(VecScatterCreate(_objects->state, source_indices, _objects->gathered_state, destination_indices,
-                                         &_objects->state_scatter),
-                        "VecScatterCreate shadow state");
+                            &_objects->state_scatter),
+                "VecScatterCreate shadow state");
             check_petsc(ISDestroy(&source_indices), "ISDestroy shadow source");
             check_petsc(ISDestroy(&destination_indices), "ISDestroy shadow destination");
         } catch (...) {
@@ -765,71 +657,15 @@ class PetscSolver::Implementation final {
         _problem_identity = requested_identity;
         return true;
     }
-
     PetscObjects& objects() { return *_objects; }
-
     SolverContext& context() noexcept { return _context; }
 
   private:
-    void require_cached_structure(const NonlinearProblem& problem, PetscInt requested_count) const {
-        bool local_match = true;
-        try {
-            bool fields_match = _field_layout.size() == problem.field_layout().size();
-            if (fields_match) {
-                for (std::size_t field = 0; field < _field_layout.size(); ++field) {
-                    const FieldDescriptor& cached = _field_layout[field];
-                    const FieldDescriptor& current = problem.field_layout()[field];
-                    fields_match = fields_match && cached.name == current.name && cached.begin == current.begin &&
-                                   cached.end == current.end && cached.category == current.category;
-                }
-            }
-            bool contributions_match = _contribution_count == problem.contribution_count();
-            if (contributions_match) {
-                std::vector<std::size_t> current_dofs;
-                for (std::size_t local = 0; local < _contribution_dof_counts.size(); ++local) {
-                    const std::size_t contribution = _context.contribution_begin + local;
-                    problem.fill_contribution_dofs(contribution, current_dofs);
-                    contributions_match =
-                        contributions_match &&
-                        _contribution_dof_counts[local] == problem.contribution_dof_count(contribution) &&
-                        _contribution_dof_mappings[local] == current_dofs;
-                }
-            }
-            const bool required_dofs_match =
-                _required_state_dofs ==
-                problem.required_state_dofs(_context.contribution_begin, _context.contribution_end);
-            bool constraints_match = _constrained_structure.size() == problem.dirichlet_conditions().size();
-            if (constraints_match) {
-                for (std::size_t condition = 0; condition < _constrained_structure.size(); ++condition) {
-                    constraints_match = constraints_match && _constrained_structure[condition] ==
-                                                                 problem.dirichlet_conditions()[condition].dof;
-                }
-            }
-            local_match = _count == requested_count && fields_match && contributions_match && required_dofs_match &&
-                          constraints_match;
-        } catch (const std::exception&) { local_match = false; } catch (...) {
-            local_match = false;
-        }
-        const PetscMPIInt local_mismatch = local_match ? 0 : 1;
-        PetscMPIInt global_mismatch = 0;
-        check_mpi(MPIU_Allreduce(&local_mismatch, &global_mismatch, 1, MPI_INT, MPI_MAX, PETSC_COMM_WORLD),
-                  "MPIU_Allreduce PETSc workspace structure mismatch");
-        if (global_mismatch != 0)
-            throw std::logic_error("NonlinearProblem structural metadata changed while reusing a PETSc workspace");
-    }
-
     std::shared_ptr<const void> _problem_identity;
     PetscInt _count = 0;
-    std::size_t _contribution_count = 0;
-    std::vector<FieldDescriptor> _field_layout;
-    std::vector<std::size_t> _contribution_dof_counts;
-    std::vector<std::vector<std::size_t>> _contribution_dof_mappings;
-    std::vector<std::size_t> _required_state_dofs;
-    std::vector<std::size_t> _constrained_structure;
     SolverContext _context;
     std::unique_ptr<PetscObjects> _objects;
 };
-
 PetscSession::PetscSession(int& argc, char**& argv, const char* help)
     : _owns_initialization(false), _rank(0), _size(1) {
     PetscBool initialized = PETSC_FALSE;
@@ -841,21 +677,16 @@ PetscSession::PetscSession(int& argc, char**& argv, const char* help)
     _rank = static_cast<int>(PetscGlobalRank);
     _size = static_cast<int>(PetscGlobalSize);
 }
-
 PetscSession::~PetscSession() {
     if (!_owns_initialization) return;
-
     PetscBool finalized = PETSC_FALSE;
     if (PetscFinalized(&finalized) == PETSC_SUCCESS && finalized == PETSC_FALSE) {
         const PetscErrorCode code = PetscFinalize();
         (void)code;
     }
 }
-
 int PetscSession::rank() const noexcept { return _rank; }
-
 int PetscSession::size() const noexcept { return _size; }
-
 void PetscSession::collective_root_action(const std::function<void()>& action) const {
     if (!action) throw std::invalid_argument("PetscSession collective root action must not be empty");
     bool failed = false;
@@ -883,17 +714,13 @@ void PetscSession::collective_root_action(const std::function<void()>& action) c
     throw std::runtime_error(_rank == 0 ? "collective root-rank I/O failed: " + message
                                         : "collective root-rank I/O failed; see rank 0 for details");
 }
-
 PetscSolver::PetscSolver() : _implementation(std::make_unique<Implementation>()) {}
-
 PetscSolver::~PetscSolver() = default;
-
-SolveResult PetscSolver::solve(const NonlinearProblem& problem, const std::vector<double>& initial_state,
-                               const SolverOptions& options) {
+SolveResult PetscSolver::solve(
+    const NonlinearProblem& problem, const std::vector<double>& initial_state, const SolverOptions& options) {
     SolveResult result = solve_once(problem, initial_state, options);
     if (result.converged || !options.backtracking_fallback || options.line_search != SolverOptions::LineSearch::basic)
         return result;
-
     SolverOptions fallback_options = options;
     fallback_options.line_search = SolverOptions::LineSearch::backtracking;
     fallback_options.backtracking_fallback = false;
@@ -907,9 +734,8 @@ SolveResult PetscSolver::solve(const NonlinearProblem& problem, const std::vecto
     fallback.basic_failure_message = result.failure_message;
     return fallback;
 }
-
-SolveResult PetscSolver::solve_once(const NonlinearProblem& problem, const std::vector<double>& initial_state,
-                                    const SolverOptions& options) {
+SolveResult PetscSolver::solve_once(
+    const NonlinearProblem& problem, const std::vector<double>& initial_state, const SolverOptions& options) {
     if (initial_state.size() != problem.dof_count())
         throw std::invalid_argument("PetscSolver initial state size mismatch");
     const bool fixed_temperature_scale = options.temperature_residual_scale > 0.0;
@@ -919,7 +745,6 @@ SolveResult PetscSolver::solve_once(const NonlinearProblem& problem, const std::
     if (options.field_residual_scaling && fixed_temperature_scale)
         throw std::invalid_argument("automatic and fixed residual scaling are mutually exclusive");
     const bool residual_scaling = options.field_residual_scaling || fixed_temperature_scale;
-
     const SteadyClock::time_point total_start = SteadyClock::now();
     const SteadyClock::time_point setup_start = SteadyClock::now();
     const bool workspace_created = _implementation->prepare(problem);
@@ -958,25 +783,21 @@ SolveResult PetscSolver::solve_once(const NonlinearProblem& problem, const std::
     for (PetscInt index = ownership_begin; index < ownership_end; ++index)
         state_array[index - ownership_begin] = initial_state[static_cast<std::size_t>(index)];
     check_petsc(VecRestoreArray(objects.state, &state_array), "VecRestoreArray state");
-
     check_petsc(SNESSetTolerances(objects.snes, options.absolute_tolerance, options.relative_tolerance,
-                                  residual_scaling ? 0.0 : options.step_tolerance, options.maximum_iterations,
-                                  PETSC_DEFAULT),
-                "SNESSetTolerances");
+                    residual_scaling ? 0.0 : options.step_tolerance, options.maximum_iterations, PETSC_DEFAULT),
+        "SNESSetTolerances");
     SNESLineSearch line_search = nullptr;
     check_petsc(SNESGetLineSearch(objects.snes, &line_search), "SNESGetLineSearch");
-    check_petsc(SNESLineSearchSetType(line_search, options.line_search == SolverOptions::LineSearch::backtracking
-                                                       ? SNESLINESEARCHBT
-                                                       : SNESLINESEARCHBASIC),
-                "SNESLineSearchSetType");
+    check_petsc(
+        SNESLineSearchSetType(line_search,
+            options.line_search == SolverOptions::LineSearch::backtracking ? SNESLINESEARCHBT : SNESLINESEARCHBASIC),
+        "SNESLineSearchSetType");
     configure_linear_solver(objects, problem, options, PetscGlobalSize);
     check_petsc(SNESSetFromOptions(objects.snes), "SNESSetFromOptions");
     context.timing.setup_seconds = seconds_since(setup_start);
-
     const SteadyClock::time_point solve_start = SteadyClock::now();
     check_petsc(SNESSolve(objects.snes, nullptr, objects.state), "SNESSolve");
     context.timing.nonlinear_solve_seconds = seconds_since(solve_start);
-
     SNESConvergedReason reason = SNES_CONVERGED_ITERATING;
     PetscInt iterations = 0;
     PetscInt linear_iterations = 0;
@@ -988,14 +809,12 @@ SolveResult PetscSolver::solve_once(const NonlinearProblem& problem, const std::
     const bool requires_explicit_residual_audit = reason == SNES_CONVERGED_SNORM_RELATIVE || reason < 0;
     if (requires_explicit_residual_audit) {
         context.last_function_domain_error = false;
-        check_petsc(SNESComputeFunction(objects.snes, objects.state, objects.residual),
-                    "SNESComputeFunction final residual");
+        check_petsc(
+            SNESComputeFunction(objects.snes, objects.state, objects.residual), "SNESComputeFunction final residual");
         check_petsc(VecNorm(objects.residual, NORM_2, &residual_norm), "VecNorm final residual");
     }
     const bool final_domain_error = context.last_function_domain_error;
-
     std::vector<double> solution = gather_complete_state(objects.state, problem.dof_count());
-
     SolveResult result;
     result.state = std::move(solution);
     result.nonlinear_iterations = static_cast<int>(iterations);
@@ -1009,7 +828,6 @@ SolveResult PetscSolver::solve_once(const NonlinearProblem& problem, const std::
     result.final_field_residual_norms = context.latest_unscaled_field_residual_norms;
     result.final_scaled_field_residual_norms = context.latest_field_residual_norms;
     result.field_residual_scalings = context.field_residual_scalings;
-    if (options.collect_linear_solver_diagnostics) record_linear_solver_configuration(objects, result);
     context.timing.total_seconds = seconds_since(total_start);
     const double configured_residual_threshold =
         std::max(options.absolute_tolerance, options.relative_tolerance * context.initial_residual_norm);
@@ -1038,7 +856,7 @@ SolveResult PetscSolver::solve_once(const NonlinearProblem& problem, const std::
             std::max(problem.field_layout()[field].category == FieldCategory::thermal
                          ? options.temperature_residual_absolute_tolerance * result.field_residual_scalings[field]
                          : options.mechanical_residual_absolute_tolerance * result.field_residual_scalings[field],
-                     options.relative_tolerance * reference);
+                options.relative_tolerance * reference);
         const double independent_field_threshold = std::max(numerical_residual_floor, fallback_reduction * reference);
         const double field_threshold = std::max(configured_field_threshold, independent_field_threshold) *
                                        (1.0 + 64.0 * std::numeric_limits<double>::epsilon());
@@ -1055,13 +873,12 @@ SolveResult PetscSolver::solve_once(const NonlinearProblem& problem, const std::
     if (!result.converged && reason < 0) {
         result.failure_category = context.saw_domain_error ? SolveFailureCategory::physical_domain
                                                            : SolveFailureCategory::nonlinear_divergence;
-        if (!context.last_domain_error.empty()) {
+        if (!context.last_domain_error.empty())
             result.failure_message = context.last_domain_error;
-        } else if (context.saw_domain_error) {
+        else if (context.saw_domain_error)
             result.failure_message = "a residual or Jacobian evaluation violated its physical domain";
-        } else {
+        else
             result.failure_message = petsc_convergence_reason_name(result.convergence_reason);
-        }
     } else if (!result.converged && !residual_verified) {
         result.failure_category = SolveFailureCategory::residual_verification;
         std::ostringstream message;
@@ -1090,23 +907,21 @@ SolveResult PetscSolver::solve_once(const NonlinearProblem& problem, const std::
     }
     PetscInt64 total_remote_shadow = 0;
     check_mpi(MPIU_Allreduce(&local_shadow, &maximum_shadow, 1, MPIU_INT64, MPI_MAX, PETSC_COMM_WORLD),
-              "MPIU_Allreduce maximum shadow state");
+        "MPIU_Allreduce maximum shadow state");
     check_mpi(MPIU_Allreduce(&local_shadow, &total_shadow, 1, MPIU_INT64, MPI_SUM, PETSC_COMM_WORLD),
-              "MPIU_Allreduce total shadow state");
+        "MPIU_Allreduce total shadow state");
     check_mpi(MPIU_Allreduce(&local_remote_shadow, &total_remote_shadow, 1, MPIU_INT64, MPI_SUM, PETSC_COMM_WORLD),
-              "MPIU_Allreduce remote shadow state");
+        "MPIU_Allreduce remote shadow state");
     result.maximum_shadow_state_dofs = static_cast<std::size_t>(maximum_shadow);
     result.total_shadow_state_dofs = static_cast<std::size_t>(total_shadow);
     result.total_remote_shadow_state_dofs = static_cast<std::size_t>(total_remote_shadow);
     return result;
 }
-
 std::string petsc_convergence_reason_name(int reason) {
     const char* name = SNESConvergedReasons[reason];
     if (name == nullptr) return "UNKNOWN";
     return name;
 }
-
 const char* solve_failure_category_name(SolveFailureCategory category) noexcept {
     switch (category) {
     case SolveFailureCategory::none: return "none";
@@ -1118,12 +933,9 @@ const char* solve_failure_category_name(SolveFailureCategory category) noexcept 
     }
     return "unknown";
 }
-
 // Shared steady and transient solve helpers.
 namespace solver_workflow {
-
 namespace {
-
 void merge_attempt(SolveResult& aggregate, const SolveResult& addition) {
     const int nonlinear_iterations = aggregate.nonlinear_iterations + addition.nonlinear_iterations;
     const int linear_iterations = aggregate.linear_iterations + addition.linear_iterations;
@@ -1151,7 +963,6 @@ void merge_attempt(SolveResult& aggregate, const SolveResult& addition) {
     aggregate.augmented_lagrangian_iterations = augmented_iterations;
     aggregate.maximum_contact_penetration = maximum_penetration;
 }
-
 void mark_augmented_failure(SolveResult& result, const AugmentedContactUpdate& status, std::size_t completed_updates) {
     result.converged = false;
     result.failure_category = SolveFailureCategory::contact_constraint;
@@ -1161,11 +972,9 @@ void mark_augmented_failure(SolveResult& result, const AugmentedContactUpdate& s
         ", maximum penetration=" + std::to_string(status.maximum_penetration) +
         ", tolerance=" + std::to_string(status.penetration_tolerance);
 }
-
 } // namespace
-
-std::vector<double> initial_guess_with_dirichlet_values(const NonlinearProblem& problem,
-                                                        const std::vector<double>& state) {
+std::vector<double> initial_guess_with_dirichlet_values(
+    const NonlinearProblem& problem, const std::vector<double>& state) {
     if (state.size() != problem.dof_count())
         throw std::invalid_argument("Dirichlet initial-guess state size does not match problem");
     std::vector<double> result = state;
@@ -1173,9 +982,8 @@ std::vector<double> initial_guess_with_dirichlet_values(const NonlinearProblem& 
         result.at(condition.dof) = condition.value;
     return result;
 }
-
-SolveResult solve_contact_equilibrium(PetscSolver& solver, SteadyProblem& problem,
-                                      const std::vector<double>& initial_guess, const SolverOptions& options) {
+SolveResult solve_contact_equilibrium(PetscSolver& solver, NonlinearProblem& problem,
+    const std::vector<double>& initial_guess, const SolverOptions& options) {
     SolveResult result = solver.solve(problem, initial_guess, options);
     if (!problem.uses_augmented_contact()) return result;
     std::size_t updates = 0;
@@ -1195,36 +1003,10 @@ SolveResult solve_contact_equilibrium(PetscSolver& solver, SteadyProblem& proble
     result.augmented_lagrangian_iterations = updates;
     return result;
 }
-
-SolveResult solve_contact_equilibrium(PetscSolver& solver, TransientProblem& problem,
-                                      const std::vector<double>& initial_guess, const SolverOptions& options) {
-    SolveResult result = solver.solve(problem, initial_guess, options);
-    if (!problem.uses_augmented_contact()) return result;
-    std::size_t updates = 0;
-    while (result.converged) {
-        const AugmentedContactUpdate status = problem.update_augmented_contact_multipliers(result.state, updates);
-        result.maximum_contact_penetration = status.maximum_penetration;
-        result.augmented_lagrangian_iterations = updates;
-        if (status.converged) return result;
-        if (!status.update_allowed) {
-            mark_augmented_failure(result, status, updates);
-            return result;
-        }
-        ++updates;
-        SolveResult next = solver.solve(problem, initial_guess_with_dirichlet_values(problem, result.state), options);
-        merge_attempt(result, next);
-    }
-    result.augmented_lagrangian_iterations = updates;
-    return result;
-}
-
 } // namespace solver_workflow
-
 // Steady load stepping.
-
 using solver_workflow::initial_guess_with_dirichlet_values;
 using solver_workflow::solve_contact_equilibrium;
-
 SteadyResult solve_steady(SteadyProblem& problem, const SteadyLoadOptions& load_options, const SolverOptions& options) {
     const SteadyClock::time_point start = SteadyClock::now();
     SteadyResult result;
@@ -1243,8 +1025,8 @@ SteadyResult solve_steady(SteadyProblem& problem, const SteadyLoadOptions& load_
                 attempt = SolveResult{};
                 try {
                     problem.set_load_factor(attempted_load_factor);
-                    attempt = solve_contact_equilibrium(solver, problem,
-                                                        initial_guess_with_dirichlet_values(problem, state), options);
+                    attempt = solve_contact_equilibrium(
+                        solver, problem, initial_guess_with_dirichlet_values(problem, state), options);
                     if (attempt.converged) problem.commit_internal_state(attempt.state);
                 } catch (const std::domain_error& error) {
                     attempt.converged = false;
@@ -1263,9 +1045,8 @@ SteadyResult solve_steady(SteadyProblem& problem, const SteadyLoadOptions& load_
                 result.total_nonlinear_iterations += attempt.nonlinear_iterations;
                 result.total_linear_iterations += attempt.linear_iterations;
                 if (attempt.converged) break;
-
                 result.rejected_steps.push_back({attempted_load_factor, load_increment, cutbacks,
-                                                 attempt.failure_category, attempt.failure_message});
+                    attempt.failure_category, attempt.failure_message});
                 result.solve = attempt;
                 if (cutbacks >= load_options.maximum_cutbacks_per_step) {
                     result.total_seconds = seconds_since(start);
@@ -1292,35 +1073,27 @@ SteadyResult solve_steady(SteadyProblem& problem, const SteadyLoadOptions& load_
     result.total_seconds = seconds_since(start);
     return result;
 }
-
 // Backward-Euler step-doubling error control.
 namespace time_control {
 double step_factor(const TransientTimeOptions& options, double error) {
     if (!(error > 0.0)) return options.growth_factor;
     return std::clamp(options.time_error_safety_factor / std::sqrt(error), 0.1, options.growth_factor);
 }
-
 } // namespace time_control
-
 // Transient time stepping and state transactions.
 namespace {
-
 using solver_workflow::merge_attempt;
-
 class TimeStepTransaction final {
   public:
     TimeStepTransaction(TransientProblem& problem, const TransientStepInput& input)
         : _problem(problem), _committed(false) {
         _problem.begin_time_step(input);
     }
-
     ~TimeStepTransaction() {
         if (!_committed) _problem.rollback_time_step();
     }
-
     TimeStepTransaction(const TimeStepTransaction&) = delete;
     TimeStepTransaction& operator=(const TimeStepTransaction&) = delete;
-
     void commit(const std::vector<double>& solution) {
         _problem.commit_time_step(solution);
         _committed = true;
@@ -1330,12 +1103,10 @@ class TimeStepTransaction final {
     TransientProblem& _problem;
     bool _committed;
 };
-
 bool reaches_end(double time, double end_time) {
     const double scale = std::max({1.0, std::abs(time), std::abs(end_time)});
     return end_time - time <= 16.0 * std::numeric_limits<double>::epsilon() * scale;
 }
-
 void validate_time_options(const TransientProblem& problem, const TransientTimeOptions& options) {
     if (problem.time_step_active()) throw std::logic_error("solve_transient cannot start with an active time step");
     const double time_scale = std::max({1.0, std::abs(problem.committed_time()), std::abs(options.end_time)});
@@ -1343,15 +1114,12 @@ void validate_time_options(const TransientProblem& problem, const TransientTimeO
     if (!std::isfinite(options.end_time) || options.end_time < problem.committed_time() - time_tolerance)
         throw std::invalid_argument("solve_transient end time must not precede committed time");
 }
-
 double load_factor_at_time(const TransientTimeOptions& options, double time) {
     if (options.load_ramp_time == 0.0) return 1.0;
     return std::min(time / options.load_ramp_time, 1.0);
 }
-
 double accepted_next_time_step(const TransientTimeOptions& options, double actual_time_step,
-                               double controller_time_step, bool event_truncated, std::size_t cutbacks,
-                               int nonlinear_iterations) {
+    double controller_time_step, bool event_truncated, std::size_t cutbacks, int nonlinear_iterations) {
     const double base = event_truncated && cutbacks == 0 ? controller_time_step : actual_time_step;
     if (options.target_nonlinear_iterations == 0) {
         if (cutbacks > 0) return std::clamp(base, options.minimum_time_step, options.maximum_time_step);
@@ -1367,11 +1135,9 @@ double accepted_next_time_step(const TransientTimeOptions& options, double actua
     if (iterations > upper) return std::max(options.minimum_time_step, base * options.cutback_factor);
     return std::clamp(base, options.minimum_time_step, options.maximum_time_step);
 }
-
 } // namespace
-
 TransientResult solve_transient(TransientProblem& problem, const TransientTimeOptions& options,
-                                const SolverOptions& solver_options, TransientStepObserver* observer) {
+    const SolverOptions& solver_options, TransientStepObserver* observer) {
     validate_time_options(problem, options);
     const SteadyClock::time_point start = SteadyClock::now();
     TransientResult result;
@@ -1380,9 +1146,8 @@ TransientResult solve_transient(TransientProblem& problem, const TransientTimeOp
     double next_time_step = options.initial_time_step;
     const auto run_step = [&](double target_time) {
         TimeStepTransaction transaction(problem, {target_time, load_factor_at_time(options, target_time)});
-        SolveResult step_result = solve_contact_equilibrium(
-            solver, problem, initial_guess_with_dirichlet_values(problem, problem.committed_solution()),
-            solver_options);
+        SolveResult step_result = solve_contact_equilibrium(solver, problem,
+            initial_guess_with_dirichlet_values(problem, problem.committed_solution()), solver_options);
         if (step_result.converged) transaction.commit(step_result.state);
         return step_result;
     };
@@ -1484,25 +1249,25 @@ TransientResult solve_transient(TransientProblem& problem, const TransientTimeOp
             result.last_attempt = std::move(attempt);
             if (result.last_attempt.converged) {
                 next_time_step = accepted_next_time_step(options, time_step, controller_time_step, event_truncated,
-                                                         cutbacks, controller_nonlinear_iterations);
+                    cutbacks, controller_nonlinear_iterations);
                 if (error_control) {
                     const double error_limited_step =
                         time_step * time_control::step_factor(options, time_error_estimate);
                     next_time_step = std::clamp(std::min(next_time_step, error_limited_step), options.minimum_time_step,
-                                                options.maximum_time_step);
+                        options.maximum_time_step);
                 }
                 result.accepted_steps.push_back(
                     {problem.committed_time(), time_step, next_time_step, problem.committed_load_factor(), cutbacks,
-                     result.last_attempt.nonlinear_iterations, result.last_attempt.linear_iterations,
-                     time_error_estimate, time_error_components, problem.last_conservation_summary()});
+                        result.last_attempt.nonlinear_iterations, result.last_attempt.linear_iterations,
+                        time_error_estimate, time_error_components, problem.last_conservation_summary()});
                 if (observer != nullptr) observer->accepted_step(problem, result.accepted_steps.back());
                 break;
             }
             result.rejected_steps.push_back(
                 {problem.committed_time() + time_step, time_step, cutbacks, result.last_attempt.nonlinear_iterations,
-                 result.last_attempt.linear_iterations, result.last_attempt.convergence_reason,
-                 result.last_attempt.residual_norm, result.last_attempt.failure_category,
-                 result.last_attempt.failure_message, time_error_estimate, time_error_components});
+                    result.last_attempt.linear_iterations, result.last_attempt.convergence_reason,
+                    result.last_attempt.residual_norm, result.last_attempt.failure_category,
+                    result.last_attempt.failure_message, time_error_estimate, time_error_components});
             if (cutbacks >= options.maximum_cutbacks_per_step) {
                 result.termination_reason = TransientTerminationReason::maximum_cutbacks;
                 break;
@@ -1532,7 +1297,6 @@ TransientResult solve_transient(TransientProblem& problem, const TransientTimeOp
     result.total_seconds = seconds_since(start);
     return result;
 }
-
 const char* transient_termination_reason_name(TransientTerminationReason reason) noexcept {
     switch (reason) {
     case TransientTerminationReason::not_started: return "not_started";
@@ -1542,5 +1306,4 @@ const char* transient_termination_reason_name(TransientTerminationReason reason)
     }
     return "unknown";
 }
-
 } // namespace fuelsim

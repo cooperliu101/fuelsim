@@ -1,20 +1,16 @@
 #ifndef FUELSIM_SPATIAL_DEFINITION_HPP
 #define FUELSIM_SPATIAL_DEFINITION_HPP
-
 #include "fuelsim/boundary.hpp"
 #include "fuelsim/dof_map.hpp"
 #include "fuelsim/interface.hpp"
 #include "fuelsim/material.hpp"
 #include "fuelsim/quad4_rz_kinematics.hpp"
 #include "fuelsim/time_table.hpp"
-
 #include <cstddef>
 #include <cstdint>
 #include <string>
 #include <vector>
-
 namespace fuelsim {
-
 struct RegionDefinition final {
     std::string name;
     std::string block;
@@ -25,12 +21,10 @@ struct RegionDefinition final {
     std::string heat_source_function{};
     StrainFormulation strain_formulation = StrainFormulation::small;
 };
-
 enum class MechanicalContactFormulation {
     penalty,
     augmented_lagrangian,
 };
-
 struct ContactDefinition final {
     std::string name;
     std::string primary;
@@ -47,7 +41,6 @@ struct ContactDefinition final {
     double penetration_tolerance = 1.0e-8;
     std::size_t maximum_augmented_iterations = 20;
 };
-
 struct AugmentedContactUpdate final {
     bool converged = true;
     bool update_allowed = true;
@@ -55,14 +48,12 @@ struct AugmentedContactUpdate final {
     double maximum_constraint_violation = 0.0;
     double penetration_tolerance = 0.0;
 };
-
 enum class BoundaryConditionType {
     dirichlet,
     pressure,
     traction,
     convection,
 };
-
 struct BoundaryConditionDefinition final {
     std::string name;
     BoundaryConditionType type;
@@ -77,14 +68,12 @@ struct BoundaryConditionDefinition final {
     std::string ambient_temperature_function{};
     bool use_displaced_geometry = false;
 };
-
 struct SpatialDefinition final {
     std::vector<RegionDefinition> regions;
     std::vector<ContactDefinition> contacts;
     std::vector<BoundaryConditionDefinition> boundary_conditions;
     std::vector<PiecewiseLinearTimeTable> time_tables{};
 };
-
 struct ContactNodeSummary final {
     double r;
     double z;
@@ -100,7 +89,6 @@ struct ContactNodeSummary final {
     double elastic_tangential_slip;
     bool sliding;
 };
-
 struct InterfaceSummary final {
     double minimum_gap;
     double minimum_contact_gap;
@@ -112,7 +100,6 @@ struct InterfaceSummary final {
     std::size_t unprojected_contact_nodes;
     std::size_t active_contact_nodes;
 };
-
 enum class SpatialContributionType {
     volume,
     thermal_contact,
@@ -121,7 +108,5 @@ enum class SpatialContributionType {
     traction,
     convection,
 };
-
 } // namespace fuelsim
-
 #endif

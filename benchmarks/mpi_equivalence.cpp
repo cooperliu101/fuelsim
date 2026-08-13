@@ -1,8 +1,7 @@
 #include "fuelsim/case_input.hpp"
 #include "fuelsim/exodus_mesh_io.hpp"
 #include "fuelsim/problem_solver.hpp"
-#include "fuelsim/rz_problem_access.hpp"
-
+#include "support/rz_problem_access.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -16,40 +15,30 @@
 #include <string>
 #include <utility>
 #include <vector>
-
 namespace {
-
 void write_reference(const std::string& path, const std::vector<double>& state) {
     std::ofstream output(path, std::ios::out | std::ios::trunc);
-    if (!output)
-        throw std::runtime_error("Could not write MPI reference: " + path);
+    if (!output) throw std::runtime_error("Could not write MPI reference: " + path);
     output << state.size() << '\n' << std::setprecision(17);
-    for (double value : state)
-        output << value << '\n';
-    if (!output)
-        throw std::runtime_error("Could not complete MPI reference: " + path);
+    for (double value : state) output << value << '\n';
+    if (!output) throw std::runtime_error("Could not complete MPI reference: " + path);
 }
-
 std::vector<double> read_reference(const std::string& path) {
     std::ifstream input(path);
-    if (!input)
-        throw std::runtime_error("Could not read MPI reference: " + path);
+    if (!input) throw std::runtime_error("Could not read MPI reference: " + path);
     std::size_t count = 0;
     input >> count;
     std::vector<double> result(count, 0.0);
-    for (double& value : result)
-        input >> value;
-    if (!input)
-        throw std::runtime_error("MPI reference is incomplete: " + path);
+    for (double& value : result) input >> value;
+    if (!input) throw std::runtime_error("MPI reference is incomplete: " + path);
     return result;
 }
-
 std::vector<double> flatten_transient_state(const fuelsim::TransientProblem& problem) {
     std::vector<double> result = {problem.committed_time(), problem.committed_load_factor()};
     result.insert(result.end(), problem.committed_solution().begin(), problem.committed_solution().end());
     for (std::size_t region = 0; region < fuelsim::rz::ProblemAccess::region_count(problem); ++region) {
         for (std::size_t element = 0;
-             element < fuelsim::rz::ProblemAccess::region_mesh(problem, region).elements().size(); ++element) {
+            element < fuelsim::rz::ProblemAccess::region_mesh(problem, region).elements().size(); ++element) {
             const fuelsim::Quad4MaterialHistory& history =
                 fuelsim::rz::ProblemAccess::material_history(problem, region, element);
             const auto& stresses = fuelsim::rz::ProblemAccess::material_stress(problem, region, element);
@@ -75,11 +64,9 @@ std::vector<double> flatten_transient_state(const fuelsim::TransientProblem& pro
     }
     return result;
 }
-
 void compare_reference(const std::string& path, const std::vector<double>& state, double tolerance) {
     const std::vector<double> reference = read_reference(path);
-    if (reference.size() != state.size())
-        throw std::runtime_error("MPI reference state size differs");
+    if (reference.size() != state.size()) throw std::runtime_error("MPI reference state size differs");
     double maximum_absolute = 0.0;
     double maximum_scaled = 0.0;
     std::size_t maximum_scaled_index = 0;
@@ -104,18 +91,15 @@ void compare_reference(const std::string& path, const std::vector<double>& state
               << '\n'
               << "mpi_equivalence_maximum_scaled=" << maximum_scaled << '\n';
 }
-
 struct TransientStateLayout final {
     std::size_t _node_count = 0;
     std::size_t _quadrature_point_count = 0;
     std::size_t _contact_point_count = 0;
     std::size_t _flattened_size = 0;
 };
-
 TransientStateLayout transient_state_layout(const fuelsim::TransientProblem& problem) {
     if (problem.dof_count() % 3 != 0)
         throw std::runtime_error("Transient MPI state does not contain three complete nodal fields");
-
     const fuelsim::rz::TransientCommittedState committed = fuelsim::rz::ProblemAccess::committed_state(problem);
     if (committed.solution.size() != problem.dof_count())
         throw std::runtime_error("Transient MPI committed solution size differs from the problem degree-of-freedom "
@@ -125,7 +109,6 @@ TransientStateLayout transient_state_layout(const fuelsim::TransientProblem& pro
         throw std::runtime_error("Transient MPI material-state region layout differs from the problem");
     if (committed.contact_histories.size() != fuelsim::rz::ProblemAccess::definition(problem).spatial.contacts.size())
         throw std::runtime_error("Transient MPI contact-history pair count differs from the problem");
-
     TransientStateLayout layout;
     layout._node_count = problem.dof_count() / 3;
     for (std::size_t region = 0; region < fuelsim::rz::ProblemAccess::region_count(problem); ++region) {
@@ -148,21 +131,18 @@ TransientStateLayout transient_state_layout(const fuelsim::TransientProblem& pro
             throw std::runtime_error("Transient MPI contact-history point count differs from the secondary boundary");
         layout._contact_point_count += committed.contact_histories[contact].size();
     }
-
     constexpr std::size_t values_per_quadrature_point = 18;
     constexpr std::size_t values_per_contact_point = 3;
     layout._flattened_size = 2 + problem.dof_count() + values_per_quadrature_point * layout._quadrature_point_count +
                              values_per_contact_point * layout._contact_point_count;
     return layout;
 }
-
 class DifferenceSummary final {
   public:
-    DifferenceSummary(std::string name, std::string unit, double absolute_tolerance, double relative_tolerance,
-                      bool exact)
+    DifferenceSummary(
+        std::string name, std::string unit, double absolute_tolerance, double relative_tolerance, bool exact)
         : _name(std::move(name)), _unit(std::move(unit)), _absolute_tolerance(absolute_tolerance),
           _relative_tolerance(relative_tolerance), _exact(exact) {}
-
     void add(double reference, double actual, std::size_t flattened_index) {
         ++_count;
         double difference = 0.0;
@@ -188,22 +168,14 @@ class DifferenceSummary final {
             _maximum_tolerance_actual = actual;
         }
     }
-
-    bool passed() const noexcept {
-        return _maximum_tolerance_ratio <= 1.0;
-    }
-
-    double maximum_tolerance_ratio() const noexcept {
-        return _maximum_tolerance_ratio;
-    }
-
+    bool passed() const noexcept { return _maximum_tolerance_ratio <= 1.0; }
+    double maximum_tolerance_ratio() const noexcept { return _maximum_tolerance_ratio; }
     void print() const {
         std::cout << std::scientific << std::setprecision(12) << "transient_mpi_" << _name
                   << "_maximum_absolute=" << _maximum_absolute_difference << ", unit=" << _unit
                   << ", maximum_absolute_index=" << _maximum_absolute_index
                   << ", maximum_tolerance_ratio=" << _maximum_tolerance_ratio << ", count=" << _count << '\n';
     }
-
     std::string failure_message() const {
         std::ostringstream message;
         message << std::scientific << std::setprecision(12) << "transient one/multi-rank " << _name
@@ -231,14 +203,12 @@ class DifferenceSummary final {
     double _maximum_tolerance_reference = 0.0;
     double _maximum_tolerance_actual = 0.0;
 };
-
 void add_difference(DifferenceSummary& summary, const std::vector<double>& reference, const std::vector<double>& state,
-                    std::size_t flattened_index) {
+    std::size_t flattened_index) {
     summary.add(reference[flattened_index], state[flattened_index], flattened_index);
 }
-
 void compare_transient_reference(const std::string& path, const std::vector<double>& state,
-                                 const fuelsim::TransientProblem& problem, bool rank_sensitive_adaptive_path) {
+    const fuelsim::TransientProblem& problem, bool rank_sensitive_adaptive_path) {
     const std::vector<double> reference = read_reference(path);
     const TransientStateLayout layout = transient_state_layout(problem);
     if (state.size() != layout._flattened_size || reference.size() != layout._flattened_size) {
@@ -249,7 +219,6 @@ void compare_transient_reference(const std::string& path, const std::vector<doub
                 << ", contact points=" << layout._contact_point_count;
         throw std::runtime_error(message.str());
     }
-
     DifferenceSummary time("time", "s", 1.0e-12, 1.0e-12, false);
     DifferenceSummary load_factor("load_factor", "dimensionless", 1.0e-12, 1.0e-12, false);
     // The integrated adaptive path can differ by one accepted step when a
@@ -271,24 +240,23 @@ void compare_transient_reference(const std::string& path, const std::vector<doub
     const double displacement_relative = rank_sensitive_adaptive_path ? 1.0e-8 : 1.0e-10;
     const double contact_relative = rank_sensitive_adaptive_path ? 1.0e-8 : 1.0e-10;
     DifferenceSummary temperature("temperature", "K", temperature_absolute, temperature_relative, false);
-    DifferenceSummary radial_displacement("radial_displacement", "m", displacement_absolute, displacement_relative,
-                                          false);
-    DifferenceSummary axial_displacement("axial_displacement", "m", displacement_absolute, displacement_relative,
-                                         false);
+    DifferenceSummary radial_displacement(
+        "radial_displacement", "m", displacement_absolute, displacement_relative, false);
+    DifferenceSummary axial_displacement(
+        "axial_displacement", "m", displacement_absolute, displacement_relative, false);
     DifferenceSummary elastic_strain("elastic_strain", "dimensionless", strain_absolute, field_relative, false);
     DifferenceSummary plastic_strain("plastic_strain", "dimensionless", strain_absolute, field_relative, false);
     DifferenceSummary creep_strain("creep_strain", "dimensionless", strain_absolute, field_relative, false);
-    DifferenceSummary equivalent_plastic_strain("equivalent_plastic_strain", "dimensionless", strain_absolute,
-                                                field_relative, false);
-    DifferenceSummary equivalent_creep_strain("equivalent_creep_strain", "dimensionless", strain_absolute,
-                                              field_relative, false);
+    DifferenceSummary equivalent_plastic_strain(
+        "equivalent_plastic_strain", "dimensionless", strain_absolute, field_relative, false);
+    DifferenceSummary equivalent_creep_strain(
+        "equivalent_creep_strain", "dimensionless", strain_absolute, field_relative, false);
     DifferenceSummary stress("stress", "Pa", stress_absolute, field_relative, false);
-    DifferenceSummary contact_slip("contact_elastic_tangential_slip", "m", contact_slip_absolute, contact_relative,
-                                   false);
-    DifferenceSummary contact_multiplier("contact_normal_multiplier", "Pa", contact_multiplier_absolute,
-                                         contact_relative, false);
+    DifferenceSummary contact_slip(
+        "contact_elastic_tangential_slip", "m", contact_slip_absolute, contact_relative, false);
+    DifferenceSummary contact_multiplier(
+        "contact_normal_multiplier", "Pa", contact_multiplier_absolute, contact_relative, false);
     DifferenceSummary contact_sliding("contact_sliding", "boolean", 0.0, 0.0, true);
-
     std::size_t index = 0;
     add_difference(time, reference, state, index++);
     add_difference(load_factor, reference, state, index++);
@@ -307,8 +275,7 @@ void compare_transient_reference(const std::string& path, const std::vector<doub
             add_difference(creep_strain, reference, state, index++);
         add_difference(equivalent_plastic_strain, reference, state, index++);
         add_difference(equivalent_creep_strain, reference, state, index++);
-        for (std::size_t component = 0; component < 4; ++component)
-            add_difference(stress, reference, state, index++);
+        for (std::size_t component = 0; component < 4; ++component) add_difference(stress, reference, state, index++);
     }
     for (std::size_t point = 0; point < layout._contact_point_count; ++point) {
         add_difference(contact_slip, reference, state, index++);
@@ -317,11 +284,21 @@ void compare_transient_reference(const std::string& path, const std::vector<doub
     }
     if (index != layout._flattened_size)
         throw std::runtime_error("Transient MPI field comparison did not consume the complete flattened state");
-
     const std::array<DifferenceSummary*, 14> summaries = {
-        &time,           &load_factor,    &temperature,        &radial_displacement,       &axial_displacement,
-        &elastic_strain, &plastic_strain, &creep_strain,       &equivalent_plastic_strain, &equivalent_creep_strain,
-        &stress,         &contact_slip,   &contact_multiplier, &contact_sliding,
+        &time,
+        &load_factor,
+        &temperature,
+        &radial_displacement,
+        &axial_displacement,
+        &elastic_strain,
+        &plastic_strain,
+        &creep_strain,
+        &equivalent_plastic_strain,
+        &equivalent_creep_strain,
+        &stress,
+        &contact_slip,
+        &contact_multiplier,
+        &contact_sliding,
     };
     const DifferenceSummary* worst_failure = nullptr;
     for (const DifferenceSummary* summary : summaries) {
@@ -330,12 +307,9 @@ void compare_transient_reference(const std::string& path, const std::vector<doub
             (worst_failure == nullptr || summary->maximum_tolerance_ratio() > worst_failure->maximum_tolerance_ratio()))
             worst_failure = summary;
     }
-    if (worst_failure != nullptr)
-        throw std::runtime_error(worst_failure->failure_message());
+    if (worst_failure != nullptr) throw std::runtime_error(worst_failure->failure_message());
 }
-
 } // namespace
-
 int main(int argc, char** argv) {
     if (argc < 4) {
         std::cerr << "Usage: fuelsim_mpi_equivalence_benchmark "
@@ -351,26 +325,21 @@ int main(int argc, char** argv) {
         const std::string mode = argv[1];
         const std::string reference_path = argv[2];
         const std::string input_path = argv[3];
-        for (int index = 4; index < argc; ++index)
-            argv[index - 3] = argv[index];
+        for (int index = 4; index < argc; ++index) argv[index - 3] = argv[index];
         argc -= 3;
         argv[argc] = nullptr;
-
         fuelsim::PetscSession session(argc, argv, "fuelsim one/multi-rank equivalence benchmark\n");
         if (mode == "test_io_failure") {
-            if (session.size() != 2)
-                throw std::invalid_argument("Collective I/O failure test requires two ranks");
+            if (session.size() != 2) throw std::invalid_argument("Collective I/O failure test requires two ranks");
             bool caught = false;
             try {
                 session.collective_root_action([]() { throw std::runtime_error("intentional root I/O failure"); });
             } catch (const std::runtime_error& error) {
                 caught = std::string(error.what()).find("collective root-rank I/O failed") != std::string::npos;
             }
-            if (!caught)
-                throw std::runtime_error("Collective root I/O failure did not reach every rank");
+            if (!caught) throw std::runtime_error("Collective root I/O failure did not reach every rank");
             session.collective_root_action([]() {});
-            if (session.rank() == 0)
-                std::cout << "[PASS] root I/O failure reached every rank\n";
+            if (session.rank() == 0) std::cout << "[PASS] root I/O failure reached every rank\n";
             return 0;
         }
         const fuelsim::FuelSimCaseDefinition definition = fuelsim::CaseInputReader::read(input_path);
@@ -398,15 +367,14 @@ int main(int argc, char** argv) {
                                             "compare_transient mode");
             fuelsim::TransientProblem problem(definition.transient_definition(), source);
             const fuelsim::TransientExecutionInput& execution = definition.transient_execution;
-            const fuelsim::TransientResult result = fuelsim::solve_transient(
-                problem,
+            const fuelsim::TransientResult result = fuelsim::solve_transient(problem,
                 {execution.end_time, execution.initial_time_step, execution.minimum_time_step,
-                 execution.maximum_time_step, execution.growth_factor, execution.cutback_factor,
-                 execution.maximum_cutbacks, execution.load_ramp_time, execution.target_nonlinear_iterations,
-                 execution.iteration_window, execution.time_error_relative_tolerance,
-                 execution.temperature_time_absolute_tolerance, execution.displacement_time_absolute_tolerance,
-                 execution.time_error_safety_factor, execution.strain_history_time_absolute_tolerance,
-                 execution.stress_history_time_absolute_tolerance},
+                    execution.maximum_time_step, execution.growth_factor, execution.cutback_factor,
+                    execution.maximum_cutbacks, execution.load_ramp_time, execution.target_nonlinear_iterations,
+                    execution.iteration_window, execution.time_error_relative_tolerance,
+                    execution.temperature_time_absolute_tolerance, execution.displacement_time_absolute_tolerance,
+                    execution.time_error_safety_factor, execution.strain_history_time_absolute_tolerance,
+                    execution.stress_history_time_absolute_tolerance},
                 options);
             if (!result.completed || result.aggregate_timing.workspace_setups != 1) {
                 std::ostringstream message;
@@ -469,14 +437,12 @@ int main(int argc, char** argv) {
             }
             const std::vector<double> state = flatten_transient_state(problem);
             if (write_transient) {
-                if (session.size() != 1)
-                    throw std::invalid_argument("Transient MPI reference requires one rank");
+                if (session.size() != 1) throw std::invalid_argument("Transient MPI reference requires one rank");
                 write_reference(reference_path, state);
                 std::cout << "[PASS] wrote transient one-rank MPI reference\n";
                 return 0;
             }
-            if (session.size() < 2)
-                throw std::invalid_argument("Transient MPI comparison requires at least two ranks");
+            if (session.size() < 2) throw std::invalid_argument("Transient MPI comparison requires at least two ranks");
             if (session.rank() == 0) {
                 compare_transient_reference(reference_path, state, problem, integrated_path);
                 std::cout << "transient_maximum_shadow_state_dofs=" << shadow.maximum_shadow_state_dofs << '\n'
@@ -486,7 +452,6 @@ int main(int argc, char** argv) {
             }
             return 0;
         }
-
         fuelsim::SteadyProblem problem(definition.spatial_definition(), source);
         const bool field_split = mode == "compare_field_split";
         const bool block_jacobi = mode == "compare_block_jacobi";
@@ -497,10 +462,9 @@ int main(int argc, char** argv) {
                                  : block_jacobi ? fuelsim::SolverOptions::Preconditioner::block_jacobi
                                  : hypre        ? fuelsim::SolverOptions::Preconditioner::hypre
                                                 : fuelsim::SolverOptions::Preconditioner::lu;
-        const fuelsim::SteadyResult result = fuelsim::solve_steady(
-            problem,
+        const fuelsim::SteadyResult result = fuelsim::solve_steady(problem,
             {field_split ? 2U : definition.steady_execution.load_steps, definition.steady_execution.cutback_factor,
-             definition.steady_execution.maximum_cutbacks, definition.steady_execution.minimum_load_increment},
+                definition.steady_execution.maximum_cutbacks, definition.steady_execution.minimum_load_increment},
             options);
         if (!result.completed || !result.solve.converged)
             throw std::runtime_error("MPI equivalence solve did not converge");
@@ -510,18 +474,15 @@ int main(int argc, char** argv) {
             throw std::runtime_error("Steady shadow-state global size is incorrect");
         if (session.size() == 1 && result.solve.maximum_shadow_state_dofs != problem.dof_count())
             throw std::runtime_error("One-rank steady solve does not cover the full state");
-
         if (mode == "write") {
-            if (session.size() != 1)
-                throw std::invalid_argument("MPI reference must be written with one rank");
+            if (session.size() != 1) throw std::invalid_argument("MPI reference must be written with one rank");
             write_reference(reference_path, result.solve.state);
             std::cout << "[PASS] wrote one-rank MPI reference\n";
             return 0;
         }
         if (mode != "compare" && !field_split && !block_jacobi && !hypre)
             throw std::invalid_argument("Unknown MPI equivalence mode: " + mode);
-        if (session.size() != 2)
-            throw std::invalid_argument("MPI comparison must run with exactly two ranks");
+        if (session.size() != 2) throw std::invalid_argument("MPI comparison must run with exactly two ranks");
         const std::size_t expected_begin =
             problem.contribution_count() * static_cast<std::size_t>(result.solve.mpi_rank) / 2U;
         const std::size_t expected_end =
@@ -537,16 +498,16 @@ int main(int argc, char** argv) {
                 ", total=" + std::to_string(result.solve.total_shadow_state_dofs) +
                 ", remote=" + std::to_string(result.solve.total_remote_shadow_state_dofs));
         if (session.rank() == 0) {
-            compare_reference(reference_path, result.solve.state,
-                              field_split || block_jacobi || hypre ? 1.0e-7 : 1.0e-10);
+            compare_reference(
+                reference_path, result.solve.state, field_split || block_jacobi || hypre ? 1.0e-7 : 1.0e-10);
             std::cout << "steady_maximum_shadow_state_dofs=" << result.solve.maximum_shadow_state_dofs << '\n'
                       << "steady_total_remote_shadow_state_dofs=" << result.solve.total_remote_shadow_state_dofs
                       << '\n';
             std::cout << "[PASS] one/two-rank state equivalence"
-                      << (field_split    ? " with field split\n"
-                          : block_jacobi ? " with block Jacobi\n"
-                          : hypre        ? " with hypre\n"
-                                         : "\n");
+                      << (field_split       ? " with field split\n"
+                             : block_jacobi ? " with block Jacobi\n"
+                             : hypre        ? " with hypre\n"
+                                            : "\n");
         }
         return 0;
     } catch (const std::exception& error) {

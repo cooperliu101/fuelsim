@@ -3,13 +3,19 @@ if(NOT DEFINED ROOT)
 endif()
 
 set(stage_b_baseline 16216)
-set(maximum_source_lines 15300)
+set(maximum_source_lines 12972)
 
 file(READ "${ROOT}/.clang-format" format_configuration)
 string(FIND "${format_configuration}" "ColumnLimit: 120" column_limit)
 if(column_limit EQUAL -1)
     message(FATAL_ERROR "The repository clang-format column limit must remain 120")
 endif()
+foreach(required_style "AlignAfterOpenBracket: DontAlign" "RemoveBracesLLVM: true" "MaxEmptyLinesToKeep: 0")
+    string(FIND "${format_configuration}" "${required_style}" style_location)
+    if(style_location EQUAL -1)
+        message(FATAL_ERROR "The compact 120-column source style is missing: ${required_style}")
+    endif()
+endforeach()
 file(GLOB_RECURSE source_files
     "${ROOT}/src/*.cpp"
     "${ROOT}/src/*.hpp"
@@ -28,7 +34,7 @@ math(EXPR removed_lines "${stage_b_baseline} - ${source_lines}")
 math(EXPR reduction_per_mille "1000 * ${removed_lines} / ${stage_b_baseline}")
 if(source_lines GREATER maximum_source_lines)
     message(FATAL_ERROR
-        "src/include physical lines grew to ${source_lines}; the 120-column post-stage-B limit is ${maximum_source_lines} "
+        "src/include physical lines grew to ${source_lines}; the 20 percent post-stage-B limit is ${maximum_source_lines} "
         "from the ${stage_b_baseline}-line baseline"
     )
 endif()

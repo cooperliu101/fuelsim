@@ -1,24 +1,18 @@
 #ifndef FUELSIM_PETSC_SOLVER_HPP
 #define FUELSIM_PETSC_SOLVER_HPP
-
+#include "fuelsim/nonlinear_problem.hpp"
 #include <cstddef>
 #include <functional>
 #include <memory>
 #include <string>
 #include <vector>
-
-#include "fuelsim/nonlinear_problem.hpp"
-
 namespace fuelsim {
-
 class PetscSession final {
   public:
     PetscSession(int& argc, char**& argv, const char* help);
     ~PetscSession();
-
     PetscSession(const PetscSession&) = delete;
     PetscSession& operator=(const PetscSession&) = delete;
-
     int rank() const noexcept;
     int size() const noexcept;
     void collective_root_action(const std::function<void()>& action) const;
@@ -28,19 +22,16 @@ class PetscSession final {
     int _rank;
     int _size;
 };
-
 struct SolverOptions final {
     enum class LineSearch {
         backtracking,
         basic,
     };
-
     enum class LinearSolver {
         automatic,
         direct,
         gmres,
     };
-
     enum class Preconditioner {
         automatic,
         lu,
@@ -48,7 +39,6 @@ struct SolverOptions final {
         field_split,
         hypre,
     };
-
     double absolute_tolerance = 1.0e-8;
     double relative_tolerance = 1.0e-10;
     double step_tolerance = 1.0e-12;
@@ -65,9 +55,7 @@ struct SolverOptions final {
     double mechanical_residual_absolute_tolerance = 1.0e-4;
     double temperature_residual_scale = 0.0;
     double mechanical_residual_scale = 0.0;
-    bool collect_linear_solver_diagnostics = false;
 };
-
 struct SolveTiming final {
     double setup_seconds = 0.0;
     double nonlinear_solve_seconds = 0.0;
@@ -79,7 +67,6 @@ struct SolveTiming final {
     std::size_t workspace_setups = 0;
     std::size_t solve_calls = 0;
 };
-
 enum class SolveFailureCategory {
     none,
     nonlinear_divergence,
@@ -88,7 +75,6 @@ enum class SolveFailureCategory {
     time_discretization,
     contact_constraint,
 };
-
 struct SolveResult final {
     std::vector<double> state;
     int nonlinear_iterations = 0;
@@ -119,34 +105,23 @@ struct SolveResult final {
     std::vector<double> final_field_residual_norms;
     std::vector<double> final_scaled_field_residual_norms;
     std::vector<double> field_residual_scalings;
-    std::string linear_solver_type;
-    std::string preconditioner_type;
-    std::vector<std::size_t> thermal_field_split_dofs;
-    std::vector<std::size_t> mechanical_field_split_dofs;
 };
-
 class PetscSolver final {
   public:
     PetscSolver();
     ~PetscSolver();
-
     PetscSolver(const PetscSolver&) = delete;
     PetscSolver& operator=(const PetscSolver&) = delete;
-
     SolveResult solve(const NonlinearProblem& problem, const std::vector<double>& initial_state,
-                      const SolverOptions& options = SolverOptions{});
+        const SolverOptions& options = SolverOptions{});
 
   private:
-    SolveResult solve_once(const NonlinearProblem& problem, const std::vector<double>& initial_state,
-                           const SolverOptions& options);
-
+    SolveResult solve_once(
+        const NonlinearProblem& problem, const std::vector<double>& initial_state, const SolverOptions& options);
     class Implementation;
     std::unique_ptr<Implementation> _implementation;
 };
-
 std::string petsc_convergence_reason_name(int reason);
 const char* solve_failure_category_name(SolveFailureCategory category) noexcept;
-
 } // namespace fuelsim
-
 #endif

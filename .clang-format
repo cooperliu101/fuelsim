@@ -2,6 +2,9 @@ BasedOnStyle: LLVM
 IndentWidth: 4
 ContinuationIndentWidth: 4
 ColumnLimit: 120
+AlignAfterOpenBracket: DontAlign
+RemoveBracesLLVM: true
+MaxEmptyLinesToKeep: 0
 DerivePointerAlignment: false
 PointerAlignment: Left
 SortIncludes: CaseSensitive

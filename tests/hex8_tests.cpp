@@ -1,38 +1,25 @@
 #include "fuelsim/hex8_thermoelastic.hpp"
-
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <iostream>
 #include <string>
-
 namespace {
-
 bool check(bool condition, const std::string& message) {
     if (condition) return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
-
 bool near(double actual, double expected, double tolerance) {
     return std::abs(actual - expected) <= tolerance * std::max({1.0, std::abs(actual), std::abs(expected)});
 }
-
 fuelsim::Hex8Coordinates unit_cube() {
-    return {{{0.0, 0.0, 0.0},
-             {1.0, 0.0, 0.0},
-             {1.0, 1.0, 0.0},
-             {0.0, 1.0, 0.0},
-             {0.0, 0.0, 1.0},
-             {1.0, 0.0, 1.0},
-             {1.0, 1.0, 1.0},
-             {0.0, 1.0, 1.0}}};
+    return {{{0.0, 0.0, 0.0}, {1.0, 0.0, 0.0}, {1.0, 1.0, 0.0}, {0.0, 1.0, 0.0}, {0.0, 0.0, 1.0}, {1.0, 0.0, 1.0},
+        {1.0, 1.0, 1.0}, {0.0, 1.0, 1.0}}};
 }
-
 fuelsim::ThermoelasticProperties properties() {
     return {3000.0, 4.0, 2.0e11, 0.25, 1.2e-5, 300.0, -1.0e8, 0.0, 1.0e-8};
 }
-
 bool test_geometry_and_constant_strain() {
     const fuelsim::Hex8Coordinates coordinates = unit_cube();
     const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(coordinates);
@@ -49,11 +36,10 @@ bool test_geometry_and_constant_strain() {
         if (!check(near(shape_sum, 1.0, 1.0e-14), "HEX8 shape functions form a partition of unity") ||
             !check(near(gradient_sum[0], 0.0, 1.0e-14) && near(gradient_sum[1], 0.0, 1.0e-14) &&
                        near(gradient_sum[2], 0.0, 1.0e-14),
-                   "HEX8 shape gradients sum to zero"))
+                "HEX8 shape gradients sum to zero"))
             return false;
     }
     if (!check(near(volume, 1.0, 1.0e-14), "HEX8 eight-point integration recovers unit volume")) return false;
-
     fuelsim::Hex8LocalValues state{};
     const double exx = 0.01;
     const double eyy = -0.02;
@@ -73,18 +59,16 @@ bool test_geometry_and_constant_strain() {
     const double lambda = 2.0e11 * 0.25 / (1.25 * 0.5);
     const double shear = 2.0e11 / 2.5;
     const double trace = exx + eyy + ezz;
-    for (const fuelsim::SymmetricTensor3Values& stress : stresses) {
+    for (const fuelsim::SymmetricTensor3Values& stress : stresses)
         if (!check(near(stress.xx, lambda * trace + 2.0 * shear * exx, 2.0e-13) &&
                        near(stress.yy, lambda * trace + 2.0 * shear * eyy, 2.0e-13) &&
                        near(stress.zz, lambda * trace + 2.0 * shear * ezz, 2.0e-13) &&
                        near(stress.xy, 2.0 * shear * exy, 2.0e-13) && near(stress.yz, 2.0 * shear * eyz, 2.0e-13) &&
                        near(stress.xz, 2.0 * shear * exz, 2.0e-13),
-                   "HEX8 reproduces all six constant-strain stress components"))
+                "HEX8 reproduces all six constant-strain stress components"))
             return false;
-    }
     return true;
 }
-
 bool test_free_thermal_expansion_and_jacobian() {
     const fuelsim::Hex8Coordinates coordinates = unit_cube();
     const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(coordinates);
@@ -101,13 +85,11 @@ bool test_free_thermal_expansion_and_jacobian() {
         state[16 + node] = strain * coordinates[node].y;
         state[24 + node] = strain * coordinates[node].z;
     }
-    for (const fuelsim::SymmetricTensor3Values& stress : kernel.stress_values(geometry, state)) {
+    for (const fuelsim::SymmetricTensor3Values& stress : kernel.stress_values(geometry, state))
         if (!check(std::max({std::abs(stress.xx), std::abs(stress.yy), std::abs(stress.zz), std::abs(stress.xy),
-                             std::abs(stress.yz), std::abs(stress.xz)}) < 1.0e-4,
-                   "uniform three-dimensional thermal expansion is stress free"))
+                       std::abs(stress.yz), std::abs(stress.xz)}) < 1.0e-4,
+                "uniform three-dimensional thermal expansion is stress free"))
             return false;
-    }
-
     for (std::size_t dof = 0; dof < state.size(); ++dof)
         state[dof] += dof < 8 ? 2.0 * static_cast<double>(dof) : 1.0e-5 * static_cast<double>(dof + 1);
     std::array<double, 32> direction{};
@@ -134,9 +116,8 @@ bool test_free_thermal_expansion_and_jacobian() {
         scale = std::max({scale, std::abs(analytic), std::abs(numerical)});
     }
     return check(maximum_error / scale < 3.0e-7,
-                 "full 32-DOF HEX8 automatic-differentiation Jacobian matches a centered directional difference");
+        "full 32-DOF HEX8 automatic-differentiation Jacobian matches a centered directional difference");
 }
-
 bool test_transient_capacity_and_faces() {
     const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(unit_cube());
     fuelsim::Hex8ThermoelasticKernel kernel(fuelsim::IsotropicThermoelasticMaterial(properties()), 6.0e6, 1.2e7);
@@ -147,13 +128,11 @@ bool test_transient_capacity_and_faces() {
         state[node] = 302.0;
     }
     const fuelsim::Hex8LocalResidual residual = kernel.residual(geometry, state, old_state, 1.0);
-    for (std::size_t node = 0; node < 8; ++node) {
+    for (std::size_t node = 0; node < 8; ++node)
         if (!check(std::abs(residual[node]) < 1.0e-7,
-                   "Backward Euler consistent heat capacity balances uniform volumetric heating; residual=" +
-                       std::to_string(residual[node])))
+                "Backward Euler consistent heat capacity balances uniform volumetric heating; residual=" +
+                    std::to_string(residual[node])))
             return false;
-    }
-
     const fuelsim::Hex8Coordinates coordinates = unit_cube();
     const fuelsim::Quad4FaceCoordinates face_coordinates = {
         {coordinates[1], coordinates[2], coordinates[6], coordinates[5]}};
@@ -170,9 +149,8 @@ bool test_transient_capacity_and_faces() {
         force_z += pressure_residual[12 + node];
     }
     if (!check(near(force_x, 5.0, 1.0e-14) && near(force_y, 0.0, 1.0e-14) && near(force_z, 0.0, 1.0e-14),
-               "reference pressure uses the outward three-dimensional face area vector and exact total force"))
+            "reference pressure uses the outward three-dimensional face area vector and exact total force"))
         return false;
-
     for (std::size_t node = 0; node < 4; ++node) face_state[node] = 350.0;
     fuelsim::Quad4FaceConvectionKernel convection(20.0, 300.0);
     const fuelsim::Quad4FaceLocalSystem convection_system = convection.linearize(face, face_state);
@@ -183,11 +161,9 @@ bool test_transient_capacity_and_faces() {
         for (std::size_t column = 0; column < 4; ++column) tangent_sum += convection_system.jacobian[row * 16 + column];
     }
     return check(near(heat, 1000.0, 1.0e-14) && near(tangent_sum, 20.0, 1.0e-14),
-                 "three-dimensional convection has the exact face heat rate and consistent temperature tangent");
+        "three-dimensional convection has the exact face heat rate and consistent temperature tangent");
 }
-
 } // namespace
-
 int main() {
     bool passed = true;
     passed = test_geometry_and_constant_strain() && passed;

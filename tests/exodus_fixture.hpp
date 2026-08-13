@@ -1,7 +1,5 @@
 #pragma once
-
 namespace fuelsim::test_data {
-
 // NetCDF 64-bit-offset Exodus file generated independently from fuelsim. It
 // contains one element block (ID 7), two Quad4 cells, and six vertices.
 inline constexpr char two_quad_exodus_hex[] =
@@ -46,5 +44,4 @@ inline constexpr char two_quad_exodus_hex[] =
     "00000000000000000000000000000000000000000000000000000000000000010000000200"
     "0000050000000400000002"
     "000000030000000600000005";
-
 } // namespace fuelsim::test_data
