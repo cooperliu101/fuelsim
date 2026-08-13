@@ -236,8 +236,8 @@ bool test_single_region(const fuelsim::UnstructuredQuad4Mesh& mesh) {
         check(problem.dof_count() == 12 && fuelsim::rz::ProblemAccess::volume_contribution_count(problem) == 1 &&
                   problem.contribution_count() == 1,
             "single Quad4 region has one 12-DOF contribution") &&
-        check(state[fuelsim::rz::ProblemAccess::dof_map(problem).temperature(0)] == 500.0 &&
-                  state[fuelsim::rz::ProblemAccess::dof_map(problem).temperature(1)] == 300.0,
+        check(state[fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::temperature, 0)] == 500.0 &&
+                  state[fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::temperature, 1)] == 300.0,
             "region initial temperature and boundary value are applied");
     const std::vector<fuelsim::FieldDescriptor>& fields = problem.field_layout();
     const fuelsim::LocalDofs rz_dofs = fuelsim::rz::ProblemAccess::contribution_dofs(problem, 0);
@@ -254,14 +254,18 @@ bool test_single_region(const fuelsim::UnstructuredQuad4Mesh& mesh) {
     for (std::size_t local_node = 0; local_node < 4; ++local_node) {
         const std::size_t global_node =
             fuelsim::rz::ProblemAccess::region_node_offset(problem, 0) + element.nodes[local_node];
-        rz_layout =
-            rz_layout && rz_dofs[local_node] == fuelsim::rz::ProblemAccess::dof_map(problem).temperature(global_node) &&
-            rz_dofs[4 + local_node] == fuelsim::rz::ProblemAccess::dof_map(problem).radial_displacement(global_node) &&
-            rz_dofs[8 + local_node] == fuelsim::rz::ProblemAccess::dof_map(problem).axial_displacement(global_node);
+        rz_layout = rz_layout &&
+                    rz_dofs[local_node] ==
+                        fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::temperature, global_node) &&
+                    rz_dofs[4 + local_node] == fuelsim::rz::ProblemAccess::dof_map(problem).dof(
+                                                   fuelsim::Field::radial_displacement, global_node) &&
+                    rz_dofs[8 + local_node] == fuelsim::rz::ProblemAccess::dof_map(problem).dof(
+                                                   fuelsim::Field::axial_displacement, global_node);
     }
     passed = check(rz_layout, "RZ adapter preserves [T0..T3, ur0..ur3, uz0..uz3] and field metadata") && passed;
     const fuelsim::LocalValues local = fuelsim::rz::ProblemAccess::contribution_state(problem, 0, state);
-    const fuelsim::LocalSystem system = fuelsim::rz::ProblemAccess::linearize_contribution(problem, 0, local);
+    const fuelsim::rz::LocalLinearization system =
+        fuelsim::rz::ProblemAccess::linearize_contribution(problem, 0, local);
     passed = check(std::all_of(system.residual.begin(), system.residual.end(),
                        [](double value) { return std::isfinite(value); }),
                  "single-region AD residual is finite") &&
@@ -339,9 +343,9 @@ bool test_global_field_diagnostics(const fuelsim::UnstructuredQuad4Mesh& mesh) {
     const std::vector<double> state = problem.initial_state();
     std::vector<double> direction(problem.dof_count(), 0.0);
     for (std::size_t node = 0; node < fuelsim::rz::ProblemAccess::dof_map(problem).node_count(); ++node) {
-        direction[fuelsim::rz::ProblemAccess::dof_map(problem).temperature(node)] = 0.2;
-        direction[fuelsim::rz::ProblemAccess::dof_map(problem).radial_displacement(node)] = 1.0e-6;
-        direction[fuelsim::rz::ProblemAccess::dof_map(problem).axial_displacement(node)] = -0.7e-6;
+        direction[fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::temperature, node)] = 0.2;
+        direction[fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::radial_displacement, node)] = 1.0e-6;
+        direction[fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::axial_displacement, node)] = -0.7e-6;
     }
     const fuelsim::DirectionalJacobianCheck diagnostic =
         fuelsim::check_directional_jacobian(problem, state, direction, 1.0e-4);
@@ -383,7 +387,7 @@ bool test_three_regions(const fuelsim::UnstructuredQuad4Mesh& mesh) {
     for (std::size_t contribution = fuelsim::rz::ProblemAccess::volume_contribution_count(problem);
         contribution < problem.contribution_count(); ++contribution) {
         const fuelsim::LocalValues local = fuelsim::rz::ProblemAccess::contribution_state(problem, contribution, state);
-        const fuelsim::LocalSystem system =
+        const fuelsim::rz::LocalLinearization system =
             fuelsim::rz::ProblemAccess::linearize_contribution(problem, contribution, local);
         passed = check(std::all_of(system.residual.begin(), system.residual.end(),
                            [](double value) { return std::isfinite(value); }),
@@ -530,7 +534,7 @@ bool test_zero_initial_gap_construction() {
                 "zero-gap contact assembles two STS integration points and two NTS candidates");
         for (std::size_t contribution = fuelsim::rz::ProblemAccess::volume_contribution_count(problem);
             contribution < problem.contribution_count(); ++contribution) {
-            const fuelsim::LocalSystem system = fuelsim::rz::ProblemAccess::linearize_contribution(
+            const fuelsim::rz::LocalLinearization system = fuelsim::rz::ProblemAccess::linearize_contribution(
                 problem, contribution, fuelsim::rz::ProblemAccess::contribution_state(problem, contribution, state));
             passed = check(std::all_of(system.residual.begin(), system.residual.end(),
                                [](double value) { return std::isfinite(value); }),

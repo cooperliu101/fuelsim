@@ -4,9 +4,13 @@
 namespace fuelsim::cartesian {
 class ProblemAccess final {
   public:
-    static const SpatialAssembly& view(const SteadyProblem& problem) { return BackendAccess::spatial(problem); }
-    static const SpatialAssembly& view(const TransientProblem& problem) { return BackendAccess::spatial(problem); }
-    static const DofMap& dof_map(const SteadyProblem& problem) noexcept { return view(problem).dof_map(); }
+    static const SpatialAssembly& view(const SteadyProblem& problem) {
+        return fuelsim::BackendAccess::cartesian_spatial(problem);
+    }
+    static const SpatialAssembly& view(const TransientProblem& problem) {
+        return fuelsim::BackendAccess::cartesian_spatial(problem);
+    }
+    static const spatial_detail::SpatialLayout& dof_map(const SteadyProblem& problem) noexcept { return view(problem); }
     static std::size_t region_count(const SteadyProblem& problem) noexcept { return view(problem).region_count(); }
     static const RegionDefinition& region(const SteadyProblem& problem, std::size_t index) {
         return view(problem).region(index);
@@ -24,7 +28,9 @@ class ProblemAccess final {
     static const SpatialDefinition& definition(const TransientProblem& problem) noexcept {
         return problem.definition();
     }
-    static const DofMap& dof_map(const TransientProblem& problem) noexcept { return view(problem).dof_map(); }
+    static const spatial_detail::SpatialLayout& dof_map(const TransientProblem& problem) noexcept {
+        return view(problem);
+    }
     static std::size_t region_count(const TransientProblem& problem) noexcept { return view(problem).region_count(); }
     static const RegionDefinition& region(const TransientProblem& problem, std::size_t index) {
         return view(problem).region(index);
@@ -45,13 +51,13 @@ class ProblemAccess final {
     }
     static std::array<SymmetricTensor3Values, 8> stress(
         const TransientProblem& problem, std::size_t region, std::size_t element) {
-        return BackendAccess::spatial(problem).stress(region, element, problem.committed_solution());
+        return view(problem).stress(region, element, problem.committed_solution());
     }
     static TransientCommittedState committed_state(const TransientProblem& problem) {
-        return BackendAccess::committed_state(problem);
+        return fuelsim::BackendAccess::committed_state(problem);
     }
     static void restore_committed_state(TransientProblem& problem, TransientCommittedState state) {
-        BackendAccess::restore_committed_state(problem, std::move(state));
+        fuelsim::BackendAccess::restore_committed_state(problem, std::move(state));
     }
 };
 } // namespace fuelsim::cartesian

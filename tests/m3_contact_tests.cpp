@@ -79,8 +79,8 @@ bool run_comparison(const std::string& input_path, const std::string& nodal_refe
     if (sliding_global_node == problem.dof_count())
         throw std::logic_error("M3.3 could not locate a secondary contact node");
     std::vector<double> lost_projection_state = problem.initial_state();
-    lost_projection_state[fuelsim::rz::ProblemAccess::dof_map(problem).radial_displacement(sliding_global_node)] +=
-        1.0e-2;
+    lost_projection_state[fuelsim::rz::ProblemAccess::dof_map(problem).dof(
+        fuelsim::Field::radial_displacement, sliding_global_node)] += 1.0e-2;
     bool lost_projection_rejected = false;
     try {
         problem.validate_state(lost_projection_state);
@@ -100,9 +100,10 @@ bool run_comparison(const std::string& input_path, const std::string& nodal_refe
     std::sort(primary_radii.begin(), primary_radii.end());
     const double target_radius = 0.5 * (primary_radii[primary_radii.size() - 2] + primary_radii.back());
     std::vector<double> large_sliding_state = problem.initial_state();
-    large_sliding_state[fuelsim::rz::ProblemAccess::dof_map(problem).radial_displacement(sliding_global_node)] =
-        target_radius - source.nodes().at(sliding_source).r;
-    large_sliding_state[fuelsim::rz::ProblemAccess::dof_map(problem).axial_displacement(sliding_global_node)] = 3.0e-6;
+    large_sliding_state[fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::radial_displacement,
+        sliding_global_node)] = target_radius - source.nodes().at(sliding_source).r;
+    large_sliding_state[fuelsim::rz::ProblemAccess::dof_map(problem).dof(
+        fuelsim::Field::axial_displacement, sliding_global_node)] = 3.0e-6;
     problem.validate_state(large_sliding_state);
     const std::vector<fuelsim::ContactNodeSummary> large_sliding_summary =
         fuelsim::rz::ProblemAccess::summarize_contact_nodes(problem, 0, large_sliding_state);
@@ -116,9 +117,10 @@ bool run_comparison(const std::string& input_path, const std::string& nodal_refe
     constexpr double transfer_offset = 1.0e-10;
     const auto transferred_node = [&](double radius) {
         std::vector<double> state = problem.initial_state();
-        state[fuelsim::rz::ProblemAccess::dof_map(problem).radial_displacement(sliding_global_node)] =
-            radius - source.nodes().at(sliding_source).r;
-        state[fuelsim::rz::ProblemAccess::dof_map(problem).axial_displacement(sliding_global_node)] = 3.0e-6;
+        state[fuelsim::rz::ProblemAccess::dof_map(problem).dof(
+            fuelsim::Field::radial_displacement, sliding_global_node)] = radius - source.nodes().at(sliding_source).r;
+        state[fuelsim::rz::ProblemAccess::dof_map(problem).dof(
+            fuelsim::Field::axial_displacement, sliding_global_node)] = 3.0e-6;
         problem.validate_state(state);
         return fuelsim::rz::ProblemAccess::summarize_contact_nodes(problem, 0, state).at(secondary_index);
     };

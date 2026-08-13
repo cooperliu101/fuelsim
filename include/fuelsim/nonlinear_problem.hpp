@@ -1,11 +1,24 @@
 #pragma once
 #include <cstddef>
-#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
 namespace fuelsim {
 struct AugmentedContactUpdate;
+class SteadyProblem;
+class TransientProblem;
+class ProblemStateSnapshot final {
+  public:
+    ProblemStateSnapshot() = default;
+    bool empty() const noexcept { return _state == nullptr; }
+
+  private:
+    ProblemStateSnapshot(const std::shared_ptr<const void>& owner, const std::shared_ptr<const void>& state)
+        : _owner(owner), _state(state) {}
+    std::shared_ptr<const void> _owner, _state;
+    friend class SteadyProblem;
+    friend class TransientProblem;
+};
 enum class FieldCategory {
     thermal,
     mechanical,
@@ -26,30 +39,6 @@ struct DirichletCondition final {
     std::size_t dof;
     double value;
 };
-class ShadowStateLayout final {
-  public:
-    ShadowStateLayout(std::size_t global_size, const std::vector<std::uint32_t>& global_dofs);
-    std::size_t global_size() const noexcept;
-    std::size_t value_count() const noexcept;
-    std::size_t value_index(std::size_t global_dof) const;
-
-  private:
-    std::size_t _value_count;
-    std::vector<std::uint32_t> _value_indices_by_global_dof;
-};
-class GlobalStateView final {
-  public:
-    explicit GlobalStateView(const std::vector<double>& dense_values);
-    GlobalStateView(const ShadowStateLayout& layout, const std::vector<double>& values);
-    std::size_t global_size() const noexcept;
-    double value(std::size_t global_dof) const;
-
-  private:
-    std::size_t _global_size;
-    const std::vector<double>* _dense_values;
-    const ShadowStateLayout* _shadow_layout;
-    const std::vector<double>* _sparse_values;
-};
 class NonlinearProblem {
   public:
     NonlinearProblem() = default;
@@ -65,28 +54,22 @@ class NonlinearProblem {
     virtual std::size_t contribution_count() const noexcept = 0;
     virtual const std::vector<FieldDescriptor>& field_layout() const noexcept = 0;
     virtual void contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const = 0;
-    virtual void compute_contribution_residual(
-        std::size_t index, const std::vector<double>& state, std::vector<double>& residual) const = 0;
-    virtual void compute_contribution_system(std::size_t index, const std::vector<double>& state,
-        std::vector<double>& residual, std::vector<double>& jacobian) const = 0;
+    virtual void compute_contribution(std::size_t index, const std::vector<double>& state,
+        std::vector<double>& residual, std::vector<double>* jacobian) const = 0;
     virtual const std::vector<DirichletCondition>& dirichlet_conditions() const noexcept = 0;
     virtual bool uses_augmented_contact() const noexcept;
     virtual AugmentedContactUpdate update_augmented_contact_multipliers(
         const std::vector<double>& state, std::size_t completed_updates);
     virtual void validate_state(const std::vector<double>& state) const;
     virtual std::vector<std::size_t> required_state_dofs(std::size_t first, std::size_t last) const;
-    virtual void validate_local_state(std::size_t first, std::size_t last, const GlobalStateView& state) const;
+    virtual void validate_local_state(std::size_t first, std::size_t last, const std::vector<double>& state) const;
     void validate_discretization() const;
     std::size_t field_index(std::size_t dof) const;
-    void evaluate_contribution_residual(
-        std::size_t index, const GlobalStateView& global_state, ContributionWorkspace& workspace) const;
-    void evaluate_contribution_system(
-        std::size_t index, const GlobalStateView& global_state, ContributionWorkspace& workspace) const;
+    void evaluate_contribution(std::size_t index, const std::vector<double>& global_state,
+        ContributionWorkspace& workspace, bool linearize) const;
     void assemble_residual(const std::vector<double>& state, std::vector<double>& residual) const;
 
   private:
-    void gather_contribution_state(std::size_t index, const GlobalStateView& global_state,
-        ContributionWorkspace& workspace, bool include_jacobian) const;
     std::shared_ptr<const void> _discretization_identity = std::make_shared<unsigned char>(0);
 };
 struct FieldNorms final {
@@ -96,8 +79,6 @@ struct DirectionalJacobianCheck final {
     FieldNorms residual, analytic_directional_derivative;
     FieldNorms finite_difference_directional_derivative, difference;
 };
-std::vector<double> constrained_residual(const NonlinearProblem& problem, const std::vector<double>& state);
-FieldNorms field_norms(const NonlinearProblem& problem, const std::vector<double>& values);
 DirectionalJacobianCheck check_directional_jacobian(const NonlinearProblem& problem, const std::vector<double>& state,
     const std::vector<double>& direction, double step);
 } // namespace fuelsim

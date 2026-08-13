@@ -1,22 +1,15 @@
 #pragma once
-#include "fuelsim/inelastic_material.hpp"
 #include "fuelsim/nonlinear_problem.hpp"
-#include "fuelsim/spatial_definition.hpp"
 #include <array>
 #include <cstddef>
 #include <memory>
-#include <string>
 #include <vector>
 namespace fuelsim {
-namespace rz {
-class BackendAccess;
-class TransientConservationCalculator;
-} // namespace rz
-namespace cartesian {
-class BackendAccess;
-}
 struct TransientTimeErrorEstimate;
 struct TransientTimeOptions;
+struct SpatialDefinition;
+class SpatialProblemStorage;
+class BackendAccess;
 struct TransientStepInput final {
     double end_time, load_factor;
 };
@@ -56,17 +49,6 @@ inline constexpr std::array<TransientConservationField, 18> transient_conservati
     {"plastic_dissipation_increment", &TransientConservationSummary::plastic_dissipation_increment},
     {"creep_dissipation_increment", &TransientConservationSummary::creep_dissipation_increment},
 }};
-class TransientStateSnapshot final {
-  public:
-    TransientStateSnapshot() = default;
-    bool empty() const noexcept { return _storage == nullptr; }
-
-  private:
-    struct Storage;
-    explicit TransientStateSnapshot(std::shared_ptr<const Storage> storage);
-    std::shared_ptr<const Storage> _storage;
-    friend class TransientProblem;
-};
 class TransientProblem final : public NonlinearProblem {
   public:
     TransientProblem(SpatialDefinition definition, const UnstructuredQuad4Mesh& source_mesh);
@@ -80,10 +62,10 @@ class TransientProblem final : public NonlinearProblem {
     bool time_step_active() const noexcept;
     std::vector<double> time_events() const;
     RegionStateSummary summarize_region(std::size_t region) const;
-    TransientStateSnapshot capture_state() const;
-    void restore_state(const TransientStateSnapshot& snapshot);
-    TransientTimeErrorEstimate step_doubling_error(const TransientStateSnapshot& full_step,
-        const TransientStateSnapshot& two_half_steps, const TransientTimeOptions& options) const;
+    ProblemStateSnapshot capture_state() const;
+    void restore_state(const ProblemStateSnapshot& snapshot);
+    TransientTimeErrorEstimate step_doubling_error(const ProblemStateSnapshot& full_step,
+        const ProblemStateSnapshot& two_half_steps, const TransientTimeOptions& options) const;
     void combine_last_half_step_conservation(const TransientConservationSummary& first_half);
     void begin_time_step(const TransientStepInput& input);
     void commit_time_step(const std::vector<double>& converged_solution);
@@ -98,24 +80,18 @@ class TransientProblem final : public NonlinearProblem {
     const std::vector<DirichletCondition>& dirichlet_conditions() const noexcept override;
     void validate_state(const std::vector<double>& state) const override;
     std::vector<std::size_t> required_state_dofs(std::size_t first, std::size_t last) const override;
-    void validate_local_state(std::size_t first, std::size_t last, const GlobalStateView& state) const override;
+    void validate_local_state(std::size_t first, std::size_t last, const std::vector<double>& state) const override;
     void contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const override;
-    void compute_contribution_residual(
-        std::size_t index, const std::vector<double>& state, std::vector<double>& residual) const override;
-    void compute_contribution_system(std::size_t index, const std::vector<double>& state, std::vector<double>& residual,
-        std::vector<double>& jacobian) const override;
+    void compute_contribution(std::size_t index, const std::vector<double>& state, std::vector<double>& residual,
+        std::vector<double>* jacobian) const override;
 
   private:
-    friend class rz::BackendAccess;
-    friend class cartesian::BackendAccess;
-    friend class rz::TransientConservationCalculator;
-    class Implementation;
+    friend class BackendAccess;
     void apply_spatial_controls(double time, double load_factor);
     std::vector<double> accumulate_contribution_conservation(
         const std::vector<double>& solution, TransientConservationSummary& summary) const;
     void clear_active_time_step() noexcept;
-    void refresh_region_heat_sources();
     void require_active_time_step() const;
-    std::unique_ptr<Implementation> _impl;
+    std::unique_ptr<SpatialProblemStorage> _impl;
 };
 } // namespace fuelsim

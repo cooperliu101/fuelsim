@@ -97,7 +97,8 @@ void set_exact_initial_state(fuelsim::TransientProblem& problem, const Manufactu
     const fuelsim::RegionMesh& mesh = fuelsim::rz::ProblemAccess::region_mesh(problem, 0);
     const std::size_t offset = fuelsim::rz::ProblemAccess::region_node_offset(problem, 0);
     for (std::size_t node = 0; node < mesh.nodes().size(); ++node) {
-        const std::size_t dof = fuelsim::rz::ProblemAccess::dof_map(problem).temperature(offset + node);
+        const std::size_t dof =
+            fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::temperature, offset + node);
         state.solution[dof] = exact_temperature(parameters, mesh.nodes()[node].r, 0.0);
     }
     fuelsim::rz::ProblemAccess::restore_committed_state(problem, std::move(state));
@@ -131,9 +132,8 @@ ErrorMetrics temperature_error(const fuelsim::TransientProblem& problem, const M
                 for (std::size_t node = 0; node < shape.size(); ++node) {
                     const fuelsim::RzPoint& point = mesh.nodes().at(element.nodes[node]);
                     r += shape[node] * point.r;
-                    actual +=
-                        shape[node] *
-                        state[fuelsim::rz::ProblemAccess::dof_map(problem).temperature(offset + element.nodes[node])];
+                    actual += shape[node] * state[fuelsim::rz::ProblemAccess::dof_map(problem).dof(
+                                                fuelsim::Field::temperature, offset + element.nodes[node])];
                     dr_dxi += dshape_dxi[node] * point.r;
                     dr_deta += dshape_deta[node] * point.r;
                     dz_dxi += dshape_dxi[node] * point.z;
@@ -180,11 +180,11 @@ ManufacturedResult solve_manufactured(std::size_t radial_elements, std::size_t a
     const std::size_t node_count = fuelsim::rz::ProblemAccess::dof_map(problem).node_count();
     for (std::size_t node = 0; node < node_count; ++node) {
         result.maximum_displacement = std::max(result.maximum_displacement,
-            std::abs(
-                problem.committed_solution()[fuelsim::rz::ProblemAccess::dof_map(problem).radial_displacement(node)]));
+            std::abs(problem.committed_solution()[fuelsim::rz::ProblemAccess::dof_map(problem).dof(
+                fuelsim::Field::radial_displacement, node)]));
         result.maximum_displacement = std::max(result.maximum_displacement,
-            std::abs(
-                problem.committed_solution()[fuelsim::rz::ProblemAccess::dof_map(problem).axial_displacement(node)]));
+            std::abs(problem.committed_solution()[fuelsim::rz::ProblemAccess::dof_map(problem).dof(
+                fuelsim::Field::axial_displacement, node)]));
     }
     return result;
 }

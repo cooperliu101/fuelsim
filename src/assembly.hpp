@@ -1,5 +1,4 @@
 #pragma once
-#include "fuelsim/dof_map.hpp"
 #include "fuelsim/interface.hpp"
 #include "fuelsim/mesh.hpp"
 #include "fuelsim/nonlinear_problem.hpp"
@@ -8,7 +7,6 @@
 #include "spatial_common.hpp"
 #include <array>
 #include <cstddef>
-#include <cstdint>
 #include <string>
 #include <utility>
 #include <vector>
@@ -23,8 +21,6 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     const RegionMesh& region_mesh(std::size_t index) const { return _meshes.at(index); }
     SpatialContributionType contribution_type(std::size_t index) const;
     const Quad4RzGeometry& region_element_geometry(std::size_t region_index, std::size_t element_index) const;
-    std::size_t contact_count() const noexcept { return _definition.contacts.size(); }
-    const ContactDefinition& contact(std::size_t index) const { return _definition.contacts.at(index); }
     const std::vector<std::vector<ContactPointHistory>>& committed_contact_histories() const noexcept {
         return _contact_histories;
     }
@@ -43,10 +39,10 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     std::size_t contribution_count() const noexcept { return contribution_ranges().end; }
     void validate_state(const std::vector<double>& state) const;
     std::vector<std::size_t> required_state_dofs(std::size_t first, std::size_t last) const;
-    void validate_local_state(std::size_t first, std::size_t last, const GlobalStateView& state) const;
+    void validate_local_state(std::size_t first, std::size_t last, const std::vector<double>& state) const;
     LocalDofs contribution_dofs(std::size_t index) const;
-    LocalResidual contribution_residual(std::size_t index, const LocalValues& state) const;
-    LocalSystem linearize_contribution(std::size_t index, const LocalValues& state) const;
+    LocalResidual compute_contribution(
+        std::size_t index, const LocalValues& state, LocalJacobian* jacobian = nullptr) const;
     std::pair<std::size_t, std::array<std::size_t, 2>> edge_parent(
         std::size_t region, const Line2BoundaryElement& edge) const;
 
@@ -69,19 +65,13 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
         std::array<std::size_t, 4> nodes;
         Line2RzHeatPointGeometry geometry;
         std::size_t integration_point, primary;
-        mutable bool active = false;
     };
     struct MechanicalContribution final {
         std::size_t contact;
         std::array<std::size_t, 4> nodes;
         NodeToLineRzContactGeometry geometry;
         std::size_t secondary, primary;
-        mutable bool active = false;
     };
-    SpatialAssembly(SpatialDefinition definition, const UnstructuredQuad4Mesh& source_mesh,
-        std::vector<std::int64_t> block_ids, std::vector<RegionMesh> meshes);
-    static std::vector<RegionMesh> build_meshes(
-        const SpatialDefinition& definition, const UnstructuredQuad4Mesh& source_mesh);
     void build_volume_geometries();
     ResolvedBoundary resolve_boundary(const UnstructuredQuad4Mesh& source_mesh, const std::string& name) const;
     void build_boundaries(const UnstructuredQuad4Mesh& source_mesh);
@@ -89,10 +79,8 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     LocalDofs local_dofs(const std::array<std::size_t, 4>& nodes) const;
     void build_contacts(const UnstructuredQuad4Mesh& source_mesh);
     void initialize_contact_search_workspace();
-    void update_thermal_candidates(const std::vector<double>& state) const;
-    void update_thermal_candidates(std::size_t first, std::size_t last, const GlobalStateView& state) const;
-    void update_mechanical_candidates(const std::vector<double>& state) const;
-    void update_mechanical_candidates(std::size_t first, std::size_t last, const GlobalStateView& state) const;
+    void update_thermal_candidates(std::size_t first, std::size_t last, const std::vector<double>& state) const;
+    void update_mechanical_candidates(std::size_t first, std::size_t last, const std::vector<double>& state) const;
     bool mark_touched_thermal_points(std::size_t first, std::size_t last) const;
     bool mark_touched_mechanical_nodes(std::size_t first, std::size_t last) const;
     std::size_t thermal_point_index(std::size_t contact, std::size_t point) const noexcept;
@@ -100,7 +88,6 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     ContributionRanges contribution_ranges() const noexcept;
     ContributionLocation locate_contribution(std::size_t index) const;
     LocalValues contribution_state(std::size_t index, const std::vector<double>& global_state) const;
-    LocalValues contribution_state(std::size_t index, const GlobalStateView& global_state) const;
     std::vector<RegionMesh> _meshes;
     std::vector<std::vector<Quad4RzGeometry>> _region_geometries;
     std::vector<Line2RzBoundaryData> _boundary_data;
@@ -114,15 +101,13 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     std::vector<std::size_t> _thermal_contact_offsets;
     std::vector<std::size_t> _mechanical_contact_offsets;
     mutable std::vector<unsigned char> _touched_thermal_points;
-    mutable std::vector<unsigned char> _projected_thermal_points;
+    mutable std::vector<unsigned char> _projected_thermal_candidates;
     mutable std::vector<double> _thermal_minimum_distance;
     mutable std::vector<std::size_t> _thermal_selected_primary;
-    mutable std::vector<unsigned char> _projected_thermal_candidates;
     mutable std::vector<unsigned char> _touched_mechanical_nodes;
-    mutable std::vector<unsigned char> _projected_mechanical_nodes;
+    mutable std::vector<unsigned char> _projected_mechanical_candidates;
     mutable std::vector<double> _mechanical_minimum_distance;
     mutable std::vector<std::size_t> _mechanical_selected_primary;
-    mutable std::vector<unsigned char> _projected_mechanical_candidates;
     std::vector<std::vector<ContactPointHistory>> _contact_histories;
     std::vector<double> _committed_contact_solution;
     std::vector<ResolvedBoundary> _primary_boundaries, _secondary_boundaries;

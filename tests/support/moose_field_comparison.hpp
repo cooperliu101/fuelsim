@@ -1,5 +1,6 @@
 #ifndef FUELSIM_TEST_MOOSE_FIELD_COMPARISON_HPP
 #define FUELSIM_TEST_MOOSE_FIELD_COMPARISON_HPP
+#include "fuelsim/spatial_definition.hpp"
 #include "fuelsim/steady_problem.hpp"
 #include "fuelsim/transient_problem.hpp"
 #include <cstddef>

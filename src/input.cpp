@@ -1,5 +1,6 @@
 #include "fuelsim/case_input.hpp"
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <cerrno>
 #include <cmath>
@@ -14,6 +15,19 @@
 #include <vector>
 namespace fuelsim {
 namespace {
+struct InputEntry final {
+    std::string key, value;
+    std::size_t line;
+};
+struct InputSection final {
+    std::string name, path, parent;
+    std::size_t line = 0;
+    std::vector<InputEntry> entries;
+};
+struct InputDocument final {
+    std::string source_path;
+    std::vector<InputSection> sections;
+};
 std::string trim(const std::string& value) {
     const auto first = std::find_if_not(
         value.begin(), value.end(), [](unsigned char character) { return std::isspace(character) != 0; });
@@ -48,14 +62,6 @@ bool valid_name(const std::string& name) {
     return std::all_of(
         name.begin() + 1, name.end(), [](unsigned char value) { return std::isalnum(value) != 0 || value == '_'; });
 }
-std::string section_path(const std::vector<std::string>& stack) {
-    std::string result;
-    for (const std::string& name : stack) {
-        if (!result.empty()) result += '/';
-        result += name;
-    }
-    return result;
-}
 std::string normalized_value(const std::string& raw, const std::string& path, std::size_t line_number) {
     std::string value = trim(raw);
     if (value.empty()) input_error(path, line_number, "input value must not be empty");
@@ -68,26 +74,12 @@ std::string normalized_value(const std::string& raw, const std::string& path, st
     }
     return value;
 }
-} // namespace
-const InputEntry& InputSection::entry(const std::string& key) const {
-    const auto found = std::find_if(
-        entries.begin(), entries.end(), [&key](const InputEntry& candidate) { return candidate.key == key; });
-    if (found == entries.end())
-        throw std::invalid_argument("Input section [" + path + "] is missing required key '" + key + "'");
-    return *found;
-}
-const InputSection& InputDocument::section(const std::string& path) const {
-    const auto found = std::find_if(
-        sections.begin(), sections.end(), [&path](const InputSection& candidate) { return candidate.path == path; });
-    if (found == sections.end()) throw std::invalid_argument(source_path + ": missing required section [" + path + "]");
-    return *found;
-}
 InputDocument parse_input_file(const std::string& path) {
     std::ifstream input(path);
     if (!input) throw std::runtime_error("Could not open fuelsim input file '" + path + "'");
     InputDocument document;
     document.source_path = path;
-    std::vector<std::string> stack;
+    std::vector<std::size_t> stack;
     InputSection* current = nullptr;
     std::string raw_line;
     std::size_t line_number = 0;
@@ -101,30 +93,20 @@ InputDocument parse_input_file(const std::string& path) {
             if (name.empty()) {
                 if (stack.empty()) input_error(path, line_number, "unexpected section terminator []");
                 stack.pop_back();
-                if (stack.empty()) {
-                    current = nullptr;
-                } else {
-                    const std::string parent_path = section_path(stack);
-                    current = nullptr;
-                    for (InputSection& section : document.sections) {
-                        if (section.path == parent_path) {
-                            current = &section;
-                            break;
-                        }
-                    }
-                    if (current == nullptr) throw std::logic_error("InputParser lost its parent section");
-                }
+                current = stack.empty() ? nullptr : &document.sections[stack.back()];
                 continue;
             }
             if (!valid_name(name)) input_error(path, line_number, "invalid section name '" + name + "'");
-            stack.push_back(name);
-            const std::string full_path = section_path(stack);
+            const std::string full_path = current == nullptr ? name : current->path + '/' + name;
             const bool duplicate = std::any_of(document.sections.begin(), document.sections.end(),
                 [&full_path](const InputSection& section) { return section.path == full_path; });
             if (duplicate) input_error(path, line_number, "duplicate section [" + full_path + "]");
             document.sections.push_back({});
+            stack.push_back(document.sections.size() - 1);
             current = &document.sections.back();
+            current->name = name;
             current->path = full_path;
+            if (stack.size() > 1) current->parent = document.sections[stack[stack.size() - 2]].path;
             current->line = line_number;
             continue;
         }
@@ -140,11 +122,11 @@ InputDocument parse_input_file(const std::string& path) {
     }
     if (!input.eof()) throw std::runtime_error("Could not read fuelsim input file '" + path + "'");
     if (!stack.empty())
-        input_error(path, line_number, "section [" + section_path(stack) + "] is missing its closing []");
+        input_error(
+            path, line_number, "section [" + document.sections[stack.back()].path + "] is missing its closing []");
     if (document.sections.empty()) throw std::invalid_argument(path + ": input file contains no sections");
     return document;
 }
-namespace {
 [[noreturn]] void value_error(const InputDocument& document, const InputEntry& entry, const std::string& message) {
     throw std::invalid_argument(document.source_path + ":" + std::to_string(entry.line) + ": " + message);
 }
@@ -165,65 +147,40 @@ const InputSection* find_section(const InputDocument& document, const std::strin
         [&path](const InputSection& section) { return section.path == path; });
     return found == document.sections.end() ? nullptr : &*found;
 }
+const InputSection& required_section(const InputDocument& document, const char* path) {
+    const InputSection* section = find_section(document, path);
+    if (section == nullptr)
+        throw std::invalid_argument(document.source_path + ": missing required section [" + path + "]");
+    return *section;
+}
 std::vector<const InputSection*> direct_children(const InputDocument& document, const std::string& parent) {
     std::vector<const InputSection*> result;
-    const std::string prefix = parent + "/";
-    for (const InputSection& section : document.sections) {
-        if (section.path.compare(0, prefix.size(), prefix) != 0) continue;
-        const std::string suffix = section.path.substr(prefix.size());
-        if (suffix.find('/') == std::string::npos) result.push_back(&section);
-    }
+    for (const InputSection& section : document.sections)
+        if (section.parent == parent) result.push_back(&section);
     return result;
-}
-std::string leaf_name(const InputSection& section) {
-    const std::size_t separator = section.path.find_last_of('/');
-    return separator == std::string::npos ? section.path : section.path.substr(separator + 1);
-}
-bool is_direct_child_path(const std::string& path, const std::string& prefix) {
-    return path.compare(0, prefix.size(), prefix) == 0 && path.find('/', prefix.size()) == std::string::npos;
 }
 void validate_sections(const InputDocument& document) {
     const std::vector<std::string> fixed = {"Case", "Mesh", "TimeFunctions", "Materials", "Regions", "Contact",
         "BoundaryConditions", "Executioner", "Solver", "Outputs"};
     for (const InputSection& section : document.sections) {
-        if (std::find(fixed.begin(), fixed.end(), section.path) != fixed.end()) continue;
-        const std::string& path = section.path;
-        const bool region = is_direct_child_path(path, "Regions/"),
-                   boundary = is_direct_child_path(path, "BoundaryConditions/"),
-                   function = is_direct_child_path(path, "TimeFunctions/");
-        bool material = false;
-        if (path.compare(0, 10, "Materials/") == 0) {
-            const std::string suffix = path.substr(10);
-            const std::size_t first_separator = suffix.find('/');
-            material = first_separator == std::string::npos;
-            if (first_separator != std::string::npos) {
-                const std::string child = suffix.substr(first_separator + 1);
-                const std::size_t second_separator = child.find('/');
-                material = second_separator == std::string::npos &&
-                           (child == "thermal" || child == "elasticity" || child == "eigenstrains" ||
-                               child == "creep" || child == "plasticity");
-                if (second_separator != std::string::npos) {
-                    const std::string category = child.substr(0, second_separator);
-                    const std::string instance = child.substr(second_separator + 1);
-                    material =
-                        category == "eigenstrains" && !instance.empty() && instance.find('/') == std::string::npos;
-                }
-            }
+        bool known = section.parent.empty() && std::find(fixed.begin(), fixed.end(), section.name) != fixed.end();
+        known = known || section.parent == "Regions" || section.parent == "BoundaryConditions" ||
+                section.parent == "TimeFunctions" || section.parent == "Materials" || section.parent == "Contact";
+        if (section.parent.compare(0, 10, "Materials/") == 0) {
+            const std::string material_path = section.parent.substr(10);
+            if (material_path.find('/') == std::string::npos)
+                known = section.name == "thermal" || section.name == "elasticity" || section.name == "eigenstrains" ||
+                        section.name == "creep" || section.name == "plasticity";
+            else
+                known = section.parent.compare(section.parent.size() - 13, 13, "/eigenstrains") == 0 &&
+                        material_path.find('/') == material_path.rfind('/');
+        } else if (section.parent.compare(0, 8, "Contact/") == 0) {
+            known = section.parent.find('/', 8) == std::string::npos &&
+                    (section.name == "thermal" || section.name == "mechanical");
         }
-        bool contact = false;
-        if (path.compare(0, 8, "Contact/") == 0) {
-            const std::string suffix = path.substr(8);
-            const std::size_t separator = suffix.find('/');
-            contact = separator == std::string::npos;
-            if (separator != std::string::npos) {
-                const std::string child = suffix.substr(separator + 1);
-                contact = suffix.find('/', separator + 1) == std::string::npos &&
-                          (child == "thermal" || child == "mechanical");
-            }
-        }
-        if (!region && !boundary && !function && !contact && !material)
+        if (!known)
             throw std::invalid_argument(
-                document.source_path + ":" + std::to_string(section.line) + ": unknown section [" + path + "]");
+                document.source_path + ":" + std::to_string(section.line) + ": unknown section [" + section.path + "]");
     }
 }
 void validate_keys(
@@ -321,24 +278,21 @@ struct ParsedMaterial final {
     std::string name;
     std::shared_ptr<const MaterialFunctionSet> functions;
 };
-std::vector<MaterialParameterValue> read_material_parameters(const InputDocument& document, const InputSection& section,
-    const std::vector<MaterialParameterDefinition>& definitions) {
-    std::vector<std::string> allowed = {"function"};
-    for (const MaterialParameterDefinition& definition : definitions) allowed.push_back(definition.name);
-    validate_keys(document, section, allowed);
+std::vector<MaterialParameterValue> read_material_parameters(
+    const InputDocument& document, const InputSection& section) {
     std::vector<MaterialParameterValue> values;
-    values.reserve(definitions.size());
-    for (const MaterialParameterDefinition& definition : definitions)
-        values.push_back({definition.name, read_double(document, section, definition.name)});
+    values.reserve(section.entries.size() - 1);
+    for (const InputEntry& entry : section.entries)
+        if (entry.key != "function") values.push_back({entry.key, parse_double(document, entry)});
     return values;
 }
 std::vector<ParsedMaterial> read_materials(const InputDocument& document, const MaterialFunctionRegistry& registry) {
-    const InputSection& materials = document.section("Materials");
+    const InputSection& materials = required_section(document, "Materials");
     validate_keys(document, materials, {});
     std::vector<ParsedMaterial> result;
     for (const InputSection* material_section : direct_children(document, "Materials")) {
         validate_keys(document, *material_section, {});
-        const std::string material_name = leaf_name(*material_section);
+        const std::string material_name = material_section->name;
         const std::string base = material_section->path;
         const InputSection* thermal = find_section(document, base + "/thermal");
         const InputSection* elasticity = find_section(document, base + "/elasticity");
@@ -349,36 +303,29 @@ std::vector<ParsedMaterial> read_materials(const InputDocument& document, const 
         functions->name = material_name;
         try {
             const std::string thermal_name = read_string(document, *thermal, "function");
-            functions->thermal = registry.bind_thermal(
-                thermal_name, read_material_parameters(document, *thermal,
-                                  registry.parameters(MaterialFunctionCategory::thermal, thermal_name)));
+            functions->thermal = registry.bind_thermal(thermal_name, read_material_parameters(document, *thermal));
             const std::string elasticity_name = read_string(document, *elasticity, "function");
-            functions->elasticity = registry.bind_elasticity(
-                elasticity_name, read_material_parameters(document, *elasticity,
-                                     registry.parameters(MaterialFunctionCategory::elasticity, elasticity_name)));
+            functions->elasticity =
+                registry.bind_elasticity(elasticity_name, read_material_parameters(document, *elasticity));
             const InputSection* eigenstrains = find_section(document, base + "/eigenstrains");
             if (eigenstrains != nullptr) {
                 validate_keys(document, *eigenstrains, {});
                 for (const InputSection* section : direct_children(document, eigenstrains->path)) {
                     const std::string function_name = read_string(document, *section, "function");
-                    functions->eigenstrains.push_back(registry.bind_eigenstrain(leaf_name(*section), function_name,
-                        read_material_parameters(document, *section,
-                            registry.parameters(MaterialFunctionCategory::eigenstrain, function_name))));
+                    functions->eigenstrains.push_back(registry.bind_eigenstrain(
+                        section->name, function_name, read_material_parameters(document, *section)));
                 }
             }
             const InputSection* creep = find_section(document, base + "/creep");
             if (creep != nullptr) {
                 const std::string function_name = read_string(document, *creep, "function");
-                functions->creep = registry.bind_creep(
-                    function_name, read_material_parameters(document, *creep,
-                                       registry.parameters(MaterialFunctionCategory::creep, function_name)));
+                functions->creep = registry.bind_creep(function_name, read_material_parameters(document, *creep));
             }
             const InputSection* plasticity = find_section(document, base + "/plasticity");
             if (plasticity != nullptr) {
                 const std::string function_name = read_string(document, *plasticity, "function");
-                functions->plasticity = registry.bind_plasticity(
-                    function_name, read_material_parameters(document, *plasticity,
-                                       registry.parameters(MaterialFunctionCategory::plasticity, function_name)));
+                functions->plasticity =
+                    registry.bind_plasticity(function_name, read_material_parameters(document, *plasticity));
             }
         } catch (const std::invalid_argument& error) {
             throw std::invalid_argument(document.source_path + ": material '" + material_name + "': " + error.what());
@@ -427,18 +374,18 @@ RegionDefinition read_region(
     const auto material = std::find_if(materials.begin(), materials.end(),
         [&](const ParsedMaterial& candidate) { return candidate.name == material_name; });
     if (material == materials.end())
-        value_error(document, section.entry("material"), "unknown material '" + material_name + "'");
+        value_error(
+            document, required_entry(document, section, "material"), "unknown material '" + material_name + "'");
     const double initial_temperature = read_double(document, section, "initial_temperature");
     ElasticPropertyOutput initial_elasticity{};
     const ElasticFunctionInstance& elasticity = material->functions->elasticity;
-    evaluate_elastic_function(elasticity, {initial_temperature, {}, &elasticity.parameters}, initial_elasticity);
+    elasticity.function({initial_temperature, {}, &elasticity.parameters}, initial_elasticity);
     if (!std::isfinite(initial_elasticity.young_modulus.value()) || !(initial_elasticity.young_modulus.value() > 0.0))
-        value_error(document, section.entry("material"),
+        value_error(document, required_entry(document, section, "material"),
             "material elasticity must produce positive young_modulus at initial_temperature");
     ThermoelasticProperties thermoelastic{material->functions, initial_elasticity.young_modulus.value()};
-    RegionDefinition result = {leaf_name(section), block == nullptr ? std::string{} : block->value,
-        std::move(thermoelastic), read_double(document, section, "volumetric_heat_source"), initial_temperature,
-        resolved_block_id};
+    RegionDefinition result = {section.name, block == nullptr ? std::string{} : block->value, std::move(thermoelastic),
+        read_double(document, section, "volumetric_heat_source"), initial_temperature, resolved_block_id};
     result.heat_source_function = read_optional_string(section, "heat_source_function", {});
     const InputEntry strain = required_entry(document, section, "strain");
     if (strain.value == "small")
@@ -457,7 +404,7 @@ ContactDefinition read_contact(const InputDocument& document, const InputSection
     if (thermal == nullptr && mechanical == nullptr)
         throw std::invalid_argument(document.source_path + ":" + std::to_string(section.line) + ": contact [" + base +
                                     "] requires [thermal] or [mechanical]");
-    ContactDefinition result{leaf_name(section), read_string(document, section, "primary"),
+    ContactDefinition result{section.name, read_string(document, section, "primary"),
         read_string(document, section, "secondary"), thermal != nullptr, mechanical != nullptr, 1.0, 1.0, 1.0, 0.0};
     if (thermal != nullptr) {
         validate_keys(document, *thermal, {"gap_conductivity", "minimum_gap"});
@@ -474,7 +421,7 @@ ContactDefinition read_contact(const InputDocument& document, const InputSection
         else if (formulation == "augmented_lagrangian")
             result.mechanical_formulation = MechanicalContactFormulation::augmented_lagrangian;
         else
-            value_error(document, mechanical->entry("formulation"),
+            value_error(document, required_entry(document, *mechanical, "formulation"),
                 "mechanical formulation must be 'penalty' or 'augmented_lagrangian'");
         const InputEntry* penalty = find_entry(*mechanical, "penalty");
         const InputEntry* penalty_factor = find_entry(*mechanical, "penalty_factor");
@@ -504,7 +451,7 @@ ContactDefinition read_contact(const InputDocument& document, const InputSection
 BoundaryConditionDefinition make_boundary_condition(const InputDocument& document, const InputSection& section,
     BoundaryConditionType type, Field field, double value, bool scale_with_load, const std::string& function) {
     BoundaryConditionDefinition result{
-        leaf_name(section), type, read_string(document, section, "boundary"), field, value, scale_with_load};
+        section.name, type, read_string(document, section, "boundary"), field, value, scale_with_load};
     result.function = function;
     return result;
 }
@@ -516,7 +463,8 @@ BoundaryConditionDefinition read_boundary_condition(const InputDocument& documen
     const bool scale_with_load = read_optional_bool(document, section, "scale_with_load", false);
     const std::string function = read_optional_string(section, "function", {});
     if (scale_with_load && !function.empty())
-        value_error(document, section.entry("scale_with_load"), "scale_with_load cannot be combined with function");
+        value_error(document, required_entry(document, section, "scale_with_load"),
+            "scale_with_load cannot be combined with function");
     if (type == "dirichlet") {
         forbid_key(document, section, "configuration", "type='dirichlet'");
         forbid_convection_keys(document, section, "type='dirichlet'");
@@ -535,13 +483,13 @@ BoundaryConditionDefinition read_boundary_condition(const InputDocument& documen
         forbid_convection_keys(document, section, "type='traction'");
         const Field field = parse_field(document, required_entry(document, section, "field"));
         if (field == Field::temperature)
-            value_error(document, section.entry("field"), "traction requires a displacement field");
+            value_error(document, required_entry(document, section, "field"), "traction requires a displacement field");
         BoundaryConditionDefinition result = make_boundary_condition(document, section, BoundaryConditionType::traction,
             field, read_double(document, section, "value"), scale_with_load, function);
         const std::string configuration = read_optional_string(section, "configuration", "reference");
         if (configuration != "reference" && configuration != "current")
-            value_error(
-                document, section.entry("configuration"), "traction configuration must be reference or current");
+            value_error(document, required_entry(document, section, "configuration"),
+                "traction configuration must be reference or current");
         result.use_displaced_geometry = configuration == "current";
         return result;
     }
@@ -559,14 +507,14 @@ BoundaryConditionDefinition read_boundary_condition(const InputDocument& documen
         result.ambient_temperature_function = read_optional_string(section, "ambient_temperature_function", {});
         return result;
     }
-    value_error(document, section.entry("type"), "unknown boundary-condition type '" + type + "'");
+    value_error(document, required_entry(document, section, "type"), "unknown boundary-condition type '" + type + "'");
 }
 void read_case(const InputDocument& document, FuelSimCaseDefinition& result) {
-    const InputSection& case_section = document.section("Case");
+    const InputSection& case_section = required_section(document, "Case");
     validate_keys(document, case_section, {"version", "problem", "geometry"});
     const std::size_t version = read_size(document, case_section, "version");
     if (version != 3)
-        value_error(document, case_section.entry("version"),
+        value_error(document, required_entry(document, case_section, "version"),
             "unsupported fuelsim input version '" + std::to_string(version) + "'");
     result.version = 3;
     const std::string problem = read_string(document, case_section, "problem");
@@ -575,20 +523,21 @@ void read_case(const InputDocument& document, FuelSimCaseDefinition& result) {
     else if (problem == "transient")
         result.problem = CaseProblem::transient;
     else
-        value_error(document, case_section.entry("problem"), "unknown problem '" + problem + "'");
+        value_error(document, required_entry(document, case_section, "problem"), "unknown problem '" + problem + "'");
     const std::string geometry = read_string(document, case_section, "geometry");
     if (geometry == "axisymmetric_rz")
         result.geometry = CaseGeometry::axisymmetric_rz;
     else if (geometry == "cartesian_3d")
         result.geometry = CaseGeometry::cartesian_3d;
     else
-        value_error(document, case_section.entry("geometry"), "unknown geometry '" + geometry + "'");
+        value_error(
+            document, required_entry(document, case_section, "geometry"), "unknown geometry '" + geometry + "'");
 }
 void read_mesh(const InputDocument& document, const std::string& path, FuelSimCaseDefinition& result) {
-    const InputSection& mesh = document.section("Mesh");
+    const InputSection& mesh = required_section(document, "Mesh");
     validate_keys(document, mesh, {"type", "file"});
     if (read_string(document, mesh, "type") != "exodus")
-        value_error(document, mesh.entry("type"), "only mesh type 'exodus' is supported");
+        value_error(document, required_entry(document, mesh, "type"), "only mesh type 'exodus' is supported");
     result.mesh_file = resolved_path(path, read_string(document, mesh, "file"));
 }
 void read_time_functions(const InputDocument& document, FuelSimCaseDefinition& result) {
@@ -598,30 +547,30 @@ void read_time_functions(const InputDocument& document, FuelSimCaseDefinition& r
         for (const InputSection* section : direct_children(document, "TimeFunctions")) {
             validate_keys(document, *section, {"type", "times", "values"});
             if (read_string(document, *section, "type") != "piecewise_linear")
-                value_error(
-                    document, section->entry("type"), "only time-function type 'piecewise_linear' is supported");
-            result.spatial.time_tables.emplace_back(leaf_name(*section),
-                parse_double_list(document, section->entry("times")),
-                parse_double_list(document, section->entry("values")));
+                value_error(document, required_entry(document, *section, "type"),
+                    "only time-function type 'piecewise_linear' is supported");
+            result.spatial.time_tables.emplace_back(section->name,
+                parse_double_list(document, required_entry(document, *section, "times")),
+                parse_double_list(document, required_entry(document, *section, "values")));
         }
     }
 }
 void read_regions(const InputDocument& document, const std::string& path, const std::vector<ParsedMaterial>& materials,
     FuelSimCaseDefinition& result) {
-    const InputSection& regions = document.section("Regions");
+    const InputSection& regions = required_section(document, "Regions");
     validate_keys(document, regions, {});
     for (const InputSection* section : direct_children(document, "Regions"))
         result.spatial.regions.push_back(read_region(document, *section, materials));
     if (result.spatial.regions.empty()) throw std::invalid_argument(path + ": [Regions] requires a child region");
 }
 void read_contacts(const InputDocument& document, FuelSimCaseDefinition& result) {
-    const InputSection& contacts = document.section("Contact");
+    const InputSection& contacts = required_section(document, "Contact");
     validate_keys(document, contacts, {});
     for (const InputSection* section : direct_children(document, "Contact"))
         result.spatial.contacts.push_back(read_contact(document, *section));
 }
 void read_boundary_conditions(const InputDocument& document, FuelSimCaseDefinition& result) {
-    const InputSection& boundary_conditions = document.section("BoundaryConditions");
+    const InputSection& boundary_conditions = required_section(document, "BoundaryConditions");
     validate_keys(document, boundary_conditions, {});
     for (const InputSection* section : direct_children(document, "BoundaryConditions"))
         result.spatial.boundary_conditions.push_back(read_boundary_condition(document, *section));
@@ -645,13 +594,14 @@ void validate_time_function_references(const std::string& path, const FuelSimCas
         throw std::invalid_argument(path + ": time functions are only valid for transient cases");
 }
 void read_executioner(const InputDocument& document, const std::string& path, FuelSimCaseDefinition& result) {
-    const InputSection& executioner = document.section("Executioner");
+    const InputSection& executioner = required_section(document, "Executioner");
     const std::string executioner_type = read_string(document, executioner, "type");
     if (result.problem == CaseProblem::steady) {
         validate_keys(document, executioner,
             {"type", "load_steps", "cutback_factor", "maximum_cutbacks", "minimum_load_increment"});
         if (executioner_type != "steady")
-            value_error(document, executioner.entry("type"), "problem='steady' requires type='steady'");
+            value_error(
+                document, required_entry(document, executioner, "type"), "problem='steady' requires type='steady'");
         result.steady_execution.load_steps = read_size(document, executioner, "load_steps");
         result.steady_execution.cutback_factor = read_optional_double(document, executioner, "cutback_factor", 0.5);
         result.steady_execution.maximum_cutbacks_per_step =
@@ -666,7 +616,8 @@ void read_executioner(const InputDocument& document, const std::string& path, Fu
                 "displacement_time_absolute_tolerance", "time_error_safety_factor",
                 "strain_history_time_absolute_tolerance", "stress_history_time_absolute_tolerance"});
         if (executioner_type != "transient")
-            value_error(document, executioner.entry("type"), "problem='transient' requires type='transient'");
+            value_error(document, required_entry(document, executioner, "type"),
+                "problem='transient' requires type='transient'");
         result.transient_execution = {read_double(document, executioner, "end_time"),
             read_double(document, executioner, "initial_time_step"),
             read_double(document, executioner, "minimum_time_step"),
@@ -685,7 +636,7 @@ void read_executioner(const InputDocument& document, const std::string& path, Fu
     }
 }
 void read_solver(const InputDocument& document, const std::string& path, FuelSimCaseDefinition& result) {
-    const InputSection& solver = document.section("Solver");
+    const InputSection& solver = required_section(document, "Solver");
     validate_keys(document, solver,
         {"absolute_tolerance", "relative_tolerance", "step_tolerance", "maximum_iterations", "linear_solver",
             "preconditioner", "linear_relative_tolerance", "maximum_linear_iterations", "backtracking_fallback",
@@ -730,7 +681,7 @@ void read_solver(const InputDocument& document, const std::string& path, FuelSim
     result.solver.mechanical_residual_scale = read_optional_double(document, solver, "mechanical_residual_scale", 0.0);
 }
 void read_outputs(const InputDocument& document, const std::string& path, FuelSimCaseDefinition& result) {
-    const InputSection& outputs = document.section("Outputs");
+    const InputSection& outputs = required_section(document, "Outputs");
     validate_keys(document, outputs,
         {"console", "csv", "exodus", "exodus_interval", "history", "history_interval", "progress_interval",
             "checkpoint", "checkpoint_interval"});
@@ -744,30 +695,22 @@ void read_outputs(const InputDocument& document, const std::string& path, FuelSi
     result.outputs.checkpoint_file = read_optional_path(path, outputs, "checkpoint");
     result.outputs.checkpoint_interval = read_optional_size(document, outputs, "checkpoint_interval", 1);
     const std::string input_file = std::filesystem::absolute(path).lexically_normal().string();
-    const std::vector<std::pair<std::string, std::string>> protected_inputs = {
-        {"input card", input_file},
-        {"input mesh", result.mesh_file},
-        {"restart checkpoint", result.restart_file},
-    };
-    const std::vector<std::pair<std::string, std::string>> output_paths = {
-        {"CSV output", result.outputs.csv_file},
-        {"Exodus results", result.outputs.exodus_file},
-        {"engineering history", result.outputs.history_file},
-        {"checkpoint output", result.outputs.checkpoint_file},
-    };
-    for (const auto& output_path : output_paths) {
-        if (output_path.second.empty()) continue;
-        for (const auto& protected_input : protected_inputs)
-            if (!protected_input.second.empty() && output_path.second == protected_input.second)
-                throw std::invalid_argument(
-                    path + ": " + output_path.first + " must not overwrite the " + protected_input.first);
+    const std::array<std::string, 4> output_paths = {result.outputs.csv_file, result.outputs.exodus_file,
+        result.outputs.history_file, result.outputs.checkpoint_file};
+    for (const std::string& output_path : output_paths) {
+        if (output_path.empty()) continue;
+        if (output_path == input_file)
+            throw std::invalid_argument(path + ": an output file must not overwrite the input card");
+        if (!result.mesh_file.empty() && output_path == result.mesh_file)
+            throw std::invalid_argument(path + ": an output file must not overwrite the input mesh");
+        if (!result.restart_file.empty() && output_path == result.restart_file)
+            throw std::invalid_argument(path + ": an output file must not overwrite the restart checkpoint");
     }
     for (std::size_t first = 0; first < output_paths.size(); ++first) {
-        if (output_paths[first].second.empty()) continue;
+        if (output_paths[first].empty()) continue;
         for (std::size_t second = first + 1; second < output_paths.size(); ++second)
-            if (!output_paths[second].second.empty() && output_paths[first].second == output_paths[second].second)
-                throw std::invalid_argument(path + ": " + output_paths[first].first + " and " +
-                                            output_paths[second].first + " paths must differ");
+            if (!output_paths[second].empty() && output_paths[first] == output_paths[second])
+                throw std::invalid_argument(path + ": output file paths must differ");
     }
     if (result.problem == CaseProblem::steady &&
         (!result.outputs.history_file.empty() || find_entry(outputs, "history_interval") != nullptr ||
@@ -777,7 +720,8 @@ void read_outputs(const InputDocument& document, const std::string& path, FuelSi
     const auto require_output_file = [&](const std::string& file, const std::string& interval_key,
                                          const std::string& output_key) {
         if (file.empty() && find_entry(outputs, interval_key) != nullptr)
-            value_error(document, outputs.entry(interval_key), interval_key + " requires " + output_key);
+            value_error(
+                document, required_entry(document, outputs, interval_key), interval_key + " requires " + output_key);
     };
     require_output_file(result.outputs.exodus_file, "exodus_interval", "exodus");
     require_output_file(result.outputs.history_file, "history_interval", "history");

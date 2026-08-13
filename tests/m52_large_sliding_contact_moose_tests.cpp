@@ -80,9 +80,9 @@ bool run_comparison(const std::string& input_path, const std::string& nodal_refe
         }
         if (global_node == fuelsim::rz::ProblemAccess::dof_map(problem).node_count())
             throw std::logic_error("M5.2 secondary node mapping failed");
-        maximum_current_radius = std::max(maximum_current_radius,
-            contact.r +
-                result.solve.state[fuelsim::rz::ProblemAccess::dof_map(problem).radial_displacement(global_node)]);
+        maximum_current_radius = std::max(
+            maximum_current_radius, contact.r + result.solve.state[fuelsim::rz::ProblemAccess::dof_map(problem).dof(
+                                                    fuelsim::Field::radial_displacement, global_node)]);
     }
     const fuelsim::InterfaceSummary interface =
         fuelsim::rz::ProblemAccess::summarize_interface(problem, 0, result.solve.state);

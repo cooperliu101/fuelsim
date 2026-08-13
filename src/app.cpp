@@ -5,8 +5,6 @@
 #include "fuelsim/results_io.hpp"
 #include "problem_backend_access.hpp"
 #include <algorithm>
-#include <array>
-#include <cmath>
 #include <cstddef>
 #include <exception>
 #include <fstream>
@@ -268,10 +266,10 @@ bool run_steady(const FuelSimCaseDefinition& definition, const UnstructuredQuad4
     output.value("petsc_workspace_setups", result.aggregate_timing.workspace_setups);
     output.value("total_seconds", result.total_seconds);
     if (result.completed && result.solve.converged && hex_source == nullptr) {
-        const rz::SpatialAssembly& spatial = rz::BackendAccess::steady(problem).spatial;
+        const rz::SpatialAssembly& spatial = BackendAccess::steady(problem).spatial;
         for (std::size_t contact = 0; contact < definition.spatial.contacts.size(); ++contact)
-            write_interface_summary(
-                spatial.contact(contact).name, spatial.summarize_interface(contact, result.solve.state), output);
+            write_interface_summary(spatial.definition().contacts.at(contact).name,
+                spatial.summarize_interface(contact, result.solve.state), output);
     }
     if (result.completed && result.solve.converged && !definition.outputs.exodus_file.empty())
         session.collective_root_action([&]() {
@@ -383,7 +381,7 @@ bool run_transient(const FuelSimCaseDefinition& definition, const UnstructuredQu
         output.value(prefix + "maximum_equivalent_creep_strain", summary.maximum_equivalent_creep_strain);
     }
     if (hex_source == nullptr) {
-        const rz::TransientBackendView backend = rz::BackendAccess::transient(problem);
+        const rz::TransientBackendView backend = BackendAccess::transient(problem);
         for (std::size_t contact = 0; contact < definition.spatial.contacts.size(); ++contact)
             write_interface_summary(definition.spatial.contacts[contact].name,
                 backend.spatial.summarize_interface(contact, result.committed_state), output);

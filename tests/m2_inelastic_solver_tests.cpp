@@ -96,7 +96,8 @@ class J2HistoryObserver final : public fuelsim::TransientStepObserver {
         std::size_t top_node_count = 0;
         for (std::size_t node = 0; node < mesh.nodes().size(); ++node) {
             if (mesh.nodes()[node].z != maximum_z) continue;
-            axial_displacement += solution.at(fuelsim::rz::ProblemAccess::dof_map(problem).axial_displacement(node));
+            axial_displacement +=
+                solution.at(fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::axial_displacement, node));
             ++top_node_count;
         }
         if (top_node_count == 0) throw std::logic_error("J2 history mesh has no top nodes");
@@ -209,15 +210,15 @@ double average_top_displacement(const TransientCaseRun& run) {
     double value = 0.0;
     for (std::size_t node : top.nodes) {
         value += run.result().committed_state.at(
-            fuelsim::rz::ProblemAccess::dof_map(run.problem()).axial_displacement(node));
+            fuelsim::rz::ProblemAccess::dof_map(run.problem()).dof(fuelsim::Field::axial_displacement, node));
     }
     return value / static_cast<double>(top.nodes.size());
 }
 bool temperatures_are_600(const TransientCaseRun& run) {
     for (std::size_t node = 0; node < fuelsim::rz::ProblemAccess::dof_map(run.problem()).node_count(); ++node)
-        if (std::abs(
-                run.result().committed_state.at(fuelsim::rz::ProblemAccess::dof_map(run.problem()).temperature(node)) -
-                600.0) > 1.0e-12)
+        if (std::abs(run.result().committed_state.at(
+                         fuelsim::rz::ProblemAccess::dof_map(run.problem()).dof(fuelsim::Field::temperature, node)) -
+                     600.0) > 1.0e-12)
             return false;
     return true;
 }

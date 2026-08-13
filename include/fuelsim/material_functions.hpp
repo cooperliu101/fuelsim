@@ -1,7 +1,5 @@
 #pragma once
 #include <adlite/adlite.hpp>
-#include <array>
-#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <variant>
@@ -59,41 +57,23 @@ using ElasticPropertyFunction = void (*)(const ThermoelasticFunctionInput&, Elas
 using EigenstrainFunction = void (*)(const ThermoelasticFunctionInput&, SymmetricTensor3&);
 using CreepRateFunction = adlite::Scalar (*)(const CreepRateInput&);
 using PlasticFlowStressFunction = adlite::Scalar (*)(const PlasticFlowStressInput&);
-enum class ThermalFunctionDispatch {
-    custom,
-    constant_thermophysical,
-    inverse_temperature_thermophysical,
-};
-enum class ElasticFunctionDispatch {
-    custom,
-    constant_isotropic,
-    linear_temperature_isotropic,
-};
-enum class EigenstrainFunctionDispatch {
-    custom,
-    isotropic_thermal_expansion,
-    linear_temperature_isotropic_thermal_expansion,
-};
 struct ThermalFunctionInstance final {
     std::string name;
     std::uint32_t version = 0;
     MaterialParameters parameters;
     ThermalPropertyFunction function = nullptr;
-    ThermalFunctionDispatch dispatch = ThermalFunctionDispatch::custom;
 };
 struct ElasticFunctionInstance final {
     std::string name;
     std::uint32_t version = 0;
     MaterialParameters parameters;
     ElasticPropertyFunction function = nullptr;
-    ElasticFunctionDispatch dispatch = ElasticFunctionDispatch::custom;
 };
 struct EigenstrainFunctionInstance final {
     std::string instance_name, name;
     std::uint32_t version = 0;
     MaterialParameters parameters;
     EigenstrainFunction function = nullptr;
-    EigenstrainFunctionDispatch dispatch = EigenstrainFunctionDispatch::custom;
 };
 struct CreepFunctionInstance final {
     std::string name;
@@ -118,7 +98,6 @@ struct MaterialFunctionSet final {
     bool has_plasticity() const noexcept { return plasticity.function != nullptr; }
     std::uint64_t signature() const noexcept;
 };
-enum class MaterialFunctionCategory { thermal, elasticity, eigenstrain, creep, plasticity };
 class MaterialFunctionRegistry final {
   public:
     void add_thermal(std::string name, std::vector<MaterialParameterDefinition> parameters,
@@ -131,8 +110,6 @@ class MaterialFunctionRegistry final {
         std::uint32_t version = 1);
     void add_plasticity(std::string name, std::vector<MaterialParameterDefinition> parameters,
         PlasticFlowStressFunction function, std::uint32_t version = 1);
-    const std::vector<MaterialParameterDefinition>& parameters(
-        MaterialFunctionCategory category, const std::string& name) const;
     ThermalFunctionInstance bind_thermal(const std::string& name, std::vector<MaterialParameterValue> values) const;
     ElasticFunctionInstance bind_elasticity(const std::string& name, std::vector<MaterialParameterValue> values) const;
     EigenstrainFunctionInstance bind_eigenstrain(
@@ -141,26 +118,20 @@ class MaterialFunctionRegistry final {
     PlasticFunctionInstance bind_plasticity(const std::string& name, std::vector<MaterialParameterValue> values) const;
 
   private:
+    enum class Category { thermal, elasticity, eigenstrain, creep, plasticity };
     using Function = std::variant<ThermalPropertyFunction, ElasticPropertyFunction, EigenstrainFunction,
         CreepRateFunction, PlasticFlowStressFunction>;
     struct Registration final {
         std::string name;
         std::uint32_t version;
         std::vector<MaterialParameterDefinition> parameters;
-        MaterialFunctionCategory category;
+        Category category;
         Function function;
     };
     void add_registration(std::string name, std::vector<MaterialParameterDefinition> parameters, std::uint32_t version,
-        MaterialFunctionCategory category, Function function, bool has_function, const char* category_name);
-    const Registration& find_registration(
-        MaterialFunctionCategory category, const std::string& name, const char* category_name) const;
+        Category category, Function function, bool has_function, const char* category_name);
+    const Registration& find_registration(Category category, const std::string& name, const char* category_name) const;
     std::vector<Registration> _registrations;
 };
-void evaluate_thermal_function(
-    const ThermalFunctionInstance& instance, const ThermoelasticFunctionInput& input, ThermalPropertyOutput& output);
-void evaluate_elastic_function(
-    const ElasticFunctionInstance& instance, const ThermoelasticFunctionInput& input, ElasticPropertyOutput& output);
-void evaluate_eigenstrain_function(
-    const EigenstrainFunctionInstance& instance, const ThermoelasticFunctionInput& input, SymmetricTensor3& output);
 MaterialFunctionRegistry make_builtin_material_function_registry();
 } // namespace fuelsim

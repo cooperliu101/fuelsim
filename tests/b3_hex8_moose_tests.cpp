@@ -92,10 +92,10 @@ std::array<fuelsim::test::FieldErrorMetrics, 4> compare_nodes(const fuelsim::Uns
             maximum_coordinate_difference = std::max(maximum_coordinate_difference,
                 std::max({std::abs(actual_point.x - expected.point.x), std::abs(actual_point.y - expected.point.y),
                     std::abs(actual_point.z - expected.point.z)}));
-            result[0].add(state[dofs.temperature(offset + local)], expected.fields[0]);
-            result[1].add(state[dofs.displacement_x(offset + local)], expected.fields[1]);
-            result[2].add(state[dofs.displacement_y(offset + local)], expected.fields[2]);
-            result[3].add(state[dofs.displacement_z(offset + local)], expected.fields[3]);
+            result[0].add(state[dofs.dof(fuelsim::Field::temperature, offset + local)], expected.fields[0]);
+            result[1].add(state[dofs.dof(fuelsim::Field::displacement_x, offset + local)], expected.fields[1]);
+            result[2].add(state[dofs.dof(fuelsim::Field::displacement_y, offset + local)], expected.fields[2]);
+            result[3].add(state[dofs.dof(fuelsim::Field::displacement_z, offset + local)], expected.fields[3]);
         }
     }
     if (std::find(present.begin(), present.end(), false) != present.end())

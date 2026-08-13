@@ -1,5 +1,4 @@
 #include "fuelsim/material.hpp"
-#include "fuelsim/inelastic_material.hpp"
 #include "fuelsim/material_functions.hpp"
 #include <algorithm>
 #include <array>
@@ -73,24 +72,19 @@ void validate_registration(
 }
 void validate_bound_values(const std::string& function_name,
     const std::vector<MaterialParameterDefinition>& definitions, const std::vector<MaterialParameterValue>& values) {
-    for (std::size_t index = 0; index < values.size(); ++index) {
-        const MaterialParameterValue& value = values[index];
+    for (const MaterialParameterValue& value : values) {
         const bool known = std::any_of(definitions.begin(), definitions.end(),
             [&](const MaterialParameterDefinition& definition) { return definition.name == value.name; });
         if (!known)
             throw std::invalid_argument(
-                "Material function '" + function_name + "' does not accept parameter '" + value.name + "'");
-        for (std::size_t previous = 0; previous < index; ++previous)
-            if (values[previous].name == value.name)
-                throw std::invalid_argument(
-                    "Material function '" + function_name + "' repeats parameter '" + value.name + "'");
+                "Material function '" + function_name + "' has unknown key '" + value.name + "'");
     }
     for (const MaterialParameterDefinition& definition : definitions) {
         const auto found = std::find_if(values.begin(), values.end(),
             [&](const MaterialParameterValue& value) { return value.name == definition.name; });
         if (found == values.end())
             throw std::invalid_argument(
-                "Material function '" + function_name + "' is missing parameter '" + definition.name + "'");
+                "Material function '" + function_name + "' is missing required key '" + definition.name + "'");
     }
     if (values.size() != definitions.size())
         throw std::invalid_argument("Material function '" + function_name + "' parameter count does not match");
@@ -107,183 +101,74 @@ std::vector<MaterialParameterValue> ordered_values(const std::string& function_n
     }
     return result;
 }
-double ordered_parameter(const MaterialParameters& parameters, std::size_t index) {
-    return parameters.values().at(index).value;
-}
-namespace builtin_parameter {
-namespace constant_thermal {
-constexpr std::size_t conductivity = 0, density = 1, specific_heat = 2;
-}
-namespace inverse_temperature_thermal {
-constexpr std::size_t conductivity_inverse_temperature = 0, conductivity_constant = 1, density = 2, specific_heat = 3;
-}
-namespace constant_elasticity {
-constexpr std::size_t young_modulus = 0, poisson_ratio = 1;
-}
-namespace temperature_elasticity {
-constexpr std::size_t young_modulus = 0, poisson_ratio = 1, reference_temperature = 2,
-                      young_modulus_temperature_coefficient = 3, poisson_ratio_temperature_coefficient = 4;
-}
-namespace thermal_expansion {
-constexpr std::size_t coefficient = 0, reference_temperature = 1, temperature_coefficient = 2;
-}
-namespace norton {
-constexpr std::size_t coefficient = 0, reference_stress = 1, stress_exponent = 2, reference_temperature = 3,
-                      coefficient_temperature_coefficient = 4, reference_stress_temperature_coefficient = 5,
-                      stress_exponent_temperature_coefficient = 6;
-}
-namespace plasticity {
-constexpr std::size_t yield_stress = 0, hardening_modulus = 1, reference_temperature = 2,
-                      yield_stress_temperature_coefficient = 3, hardening_temperature_coefficient = 4;
-}
-} // namespace builtin_parameter
+// Binding preserves each strict named registration's declaration order for these built-in evaluations.
 void constant_thermophysical(const ThermoelasticFunctionInput& input, ThermalPropertyOutput& output) {
-    output.conductivity = ordered_parameter(*input.parameters, builtin_parameter::constant_thermal::conductivity);
-    output.density = ordered_parameter(*input.parameters, builtin_parameter::constant_thermal::density);
-    output.specific_heat = ordered_parameter(*input.parameters, builtin_parameter::constant_thermal::specific_heat);
+    output.conductivity = input.parameters->values()[0].value;
+    output.density = input.parameters->values()[1].value;
+    output.specific_heat = input.parameters->values()[2].value;
 }
 void inverse_temperature_thermophysical(const ThermoelasticFunctionInput& input, ThermalPropertyOutput& output) {
-    output.conductivity =
-        ordered_parameter(
-            *input.parameters, builtin_parameter::inverse_temperature_thermal::conductivity_inverse_temperature) /
-            input.temperature +
-        ordered_parameter(*input.parameters, builtin_parameter::inverse_temperature_thermal::conductivity_constant);
-    output.density = ordered_parameter(*input.parameters, builtin_parameter::inverse_temperature_thermal::density);
-    output.specific_heat =
-        ordered_parameter(*input.parameters, builtin_parameter::inverse_temperature_thermal::specific_heat);
+    output.conductivity = input.parameters->values()[0].value / input.temperature + input.parameters->values()[1].value;
+    output.density = input.parameters->values()[2].value;
+    output.specific_heat = input.parameters->values()[3].value;
 }
 void constant_isotropic_elasticity(const ThermoelasticFunctionInput& input, ElasticPropertyOutput& output) {
-    output.young_modulus = ordered_parameter(*input.parameters, builtin_parameter::constant_elasticity::young_modulus);
-    output.poisson_ratio = ordered_parameter(*input.parameters, builtin_parameter::constant_elasticity::poisson_ratio);
+    output.young_modulus = input.parameters->values()[0].value;
+    output.poisson_ratio = input.parameters->values()[1].value;
 }
 void linear_temperature_isotropic_elasticity(const ThermoelasticFunctionInput& input, ElasticPropertyOutput& output) {
-    const adlite::Scalar temperature_change =
-        input.temperature -
-        ordered_parameter(*input.parameters, builtin_parameter::temperature_elasticity::reference_temperature);
+    const adlite::Scalar temperature_change = input.temperature - input.parameters->values()[2].value;
     output.young_modulus =
-        ordered_parameter(*input.parameters, builtin_parameter::temperature_elasticity::young_modulus) +
-        ordered_parameter(
-            *input.parameters, builtin_parameter::temperature_elasticity::young_modulus_temperature_coefficient) *
-            temperature_change;
+        input.parameters->values()[0].value + input.parameters->values()[3].value * temperature_change;
     output.poisson_ratio =
-        ordered_parameter(*input.parameters, builtin_parameter::temperature_elasticity::poisson_ratio) +
-        ordered_parameter(
-            *input.parameters, builtin_parameter::temperature_elasticity::poisson_ratio_temperature_coefficient) *
-            temperature_change;
+        input.parameters->values()[1].value + input.parameters->values()[4].value * temperature_change;
 }
 void isotropic_thermal_expansion(const ThermoelasticFunctionInput& input, SymmetricTensor3& output) {
     const adlite::Scalar value =
-        ordered_parameter(*input.parameters, builtin_parameter::thermal_expansion::coefficient) *
-        (input.temperature -
-            ordered_parameter(*input.parameters, builtin_parameter::thermal_expansion::reference_temperature));
+        input.parameters->values()[0].value * (input.temperature - input.parameters->values()[1].value);
     output = {value, value, value, 0.0, 0.0, 0.0};
 }
 void linear_temperature_isotropic_thermal_expansion(const ThermoelasticFunctionInput& input, SymmetricTensor3& output) {
-    const adlite::Scalar temperature_change =
-        input.temperature -
-        ordered_parameter(*input.parameters, builtin_parameter::thermal_expansion::reference_temperature);
+    const adlite::Scalar temperature_change = input.temperature - input.parameters->values()[1].value;
     const adlite::Scalar coefficient =
-        ordered_parameter(*input.parameters, builtin_parameter::thermal_expansion::coefficient) +
-        ordered_parameter(*input.parameters, builtin_parameter::thermal_expansion::temperature_coefficient) *
-            temperature_change;
+        input.parameters->values()[0].value + input.parameters->values()[2].value * temperature_change;
     const adlite::Scalar value = coefficient * temperature_change;
     output = {value, value, value, 0.0, 0.0, 0.0};
 }
 adlite::Scalar norton_creep_rate(const CreepRateInput& input) {
     if (!(input.equivalent_stress.value() > 0.0)) return 0.0;
-    return ordered_parameter(*input.parameters, builtin_parameter::norton::coefficient) *
-           adlite::pow(input.equivalent_stress /
-                           ordered_parameter(*input.parameters, builtin_parameter::norton::reference_stress),
-               ordered_parameter(*input.parameters, builtin_parameter::norton::stress_exponent));
+    return input.parameters->value("coefficient") *
+           adlite::pow(input.equivalent_stress / input.parameters->value("reference_stress"),
+               input.parameters->value("stress_exponent"));
 }
 adlite::Scalar linear_temperature_norton_creep_rate(const CreepRateInput& input) {
-    const adlite::Scalar temperature_change =
-        input.temperature - ordered_parameter(*input.parameters, builtin_parameter::norton::reference_temperature);
+    const adlite::Scalar temperature_change = input.temperature - input.parameters->value("reference_temperature");
     const adlite::Scalar coefficient =
-        ordered_parameter(*input.parameters, builtin_parameter::norton::coefficient) +
-        ordered_parameter(*input.parameters, builtin_parameter::norton::coefficient_temperature_coefficient) *
-            temperature_change;
+        input.parameters->value("coefficient") +
+        input.parameters->value("coefficient_temperature_coefficient") * temperature_change;
     const adlite::Scalar reference_stress =
-        ordered_parameter(*input.parameters, builtin_parameter::norton::reference_stress) +
-        ordered_parameter(*input.parameters, builtin_parameter::norton::reference_stress_temperature_coefficient) *
-            temperature_change;
+        input.parameters->value("reference_stress") +
+        input.parameters->value("reference_stress_temperature_coefficient") * temperature_change;
     const adlite::Scalar exponent =
-        ordered_parameter(*input.parameters, builtin_parameter::norton::stress_exponent) +
-        ordered_parameter(*input.parameters, builtin_parameter::norton::stress_exponent_temperature_coefficient) *
-            temperature_change;
+        input.parameters->value("stress_exponent") +
+        input.parameters->value("stress_exponent_temperature_coefficient") * temperature_change;
     if (!(input.equivalent_stress.value() > 0.0)) return 0.0;
     return coefficient * adlite::pow(input.equivalent_stress / reference_stress, exponent);
 }
 adlite::Scalar linear_isotropic_flow_stress(const PlasticFlowStressInput& input) {
-    return ordered_parameter(*input.parameters, builtin_parameter::plasticity::yield_stress) +
-           ordered_parameter(*input.parameters, builtin_parameter::plasticity::hardening_modulus) *
-               input.equivalent_plastic_strain;
+    return input.parameters->value("yield_stress") +
+           input.parameters->value("hardening_modulus") * input.equivalent_plastic_strain;
 }
 adlite::Scalar linear_temperature_isotropic_flow_stress(const PlasticFlowStressInput& input) {
-    const adlite::Scalar temperature_change =
-        input.temperature - ordered_parameter(*input.parameters, builtin_parameter::plasticity::reference_temperature);
+    const adlite::Scalar temperature_change = input.temperature - input.parameters->value("reference_temperature");
     const adlite::Scalar yield_stress =
-        ordered_parameter(*input.parameters, builtin_parameter::plasticity::yield_stress) +
-        ordered_parameter(*input.parameters, builtin_parameter::plasticity::yield_stress_temperature_coefficient) *
-            temperature_change;
-    const adlite::Scalar hardening =
-        ordered_parameter(*input.parameters, builtin_parameter::plasticity::hardening_modulus) +
-        ordered_parameter(*input.parameters, builtin_parameter::plasticity::hardening_temperature_coefficient) *
-            temperature_change;
+        input.parameters->value("yield_stress") +
+        input.parameters->value("yield_stress_temperature_coefficient") * temperature_change;
+    const adlite::Scalar hardening = input.parameters->value("hardening_modulus") +
+                                     input.parameters->value("hardening_temperature_coefficient") * temperature_change;
     return yield_stress + hardening * input.equivalent_plastic_strain;
 }
-ThermalFunctionDispatch thermal_dispatch(ThermalPropertyFunction function) noexcept {
-    if (function == &constant_thermophysical) return ThermalFunctionDispatch::constant_thermophysical;
-    if (function == &inverse_temperature_thermophysical)
-        return ThermalFunctionDispatch::inverse_temperature_thermophysical;
-    return ThermalFunctionDispatch::custom;
-}
-ElasticFunctionDispatch elastic_dispatch(ElasticPropertyFunction function) noexcept {
-    if (function == &constant_isotropic_elasticity) return ElasticFunctionDispatch::constant_isotropic;
-    if (function == &linear_temperature_isotropic_elasticity)
-        return ElasticFunctionDispatch::linear_temperature_isotropic;
-    return ElasticFunctionDispatch::custom;
-}
-EigenstrainFunctionDispatch eigenstrain_dispatch(EigenstrainFunction function) noexcept {
-    if (function == &isotropic_thermal_expansion) return EigenstrainFunctionDispatch::isotropic_thermal_expansion;
-    if (function == &linear_temperature_isotropic_thermal_expansion)
-        return EigenstrainFunctionDispatch::linear_temperature_isotropic_thermal_expansion;
-    return EigenstrainFunctionDispatch::custom;
-}
 } // namespace
-void evaluate_thermal_function(
-    const ThermalFunctionInstance& instance, const ThermoelasticFunctionInput& input, ThermalPropertyOutput& output) {
-    switch (instance.dispatch) {
-    case ThermalFunctionDispatch::constant_thermophysical: constant_thermophysical(input, output); return;
-    case ThermalFunctionDispatch::inverse_temperature_thermophysical:
-        inverse_temperature_thermophysical(input, output);
-        return;
-    case ThermalFunctionDispatch::custom: instance.function(input, output); return;
-    }
-    throw std::logic_error("Thermal material function dispatch is invalid");
-}
-void evaluate_elastic_function(
-    const ElasticFunctionInstance& instance, const ThermoelasticFunctionInput& input, ElasticPropertyOutput& output) {
-    switch (instance.dispatch) {
-    case ElasticFunctionDispatch::constant_isotropic: constant_isotropic_elasticity(input, output); return;
-    case ElasticFunctionDispatch::linear_temperature_isotropic:
-        linear_temperature_isotropic_elasticity(input, output);
-        return;
-    case ElasticFunctionDispatch::custom: instance.function(input, output); return;
-    }
-    throw std::logic_error("Elastic material function dispatch is invalid");
-}
-void evaluate_eigenstrain_function(
-    const EigenstrainFunctionInstance& instance, const ThermoelasticFunctionInput& input, SymmetricTensor3& output) {
-    switch (instance.dispatch) {
-    case EigenstrainFunctionDispatch::isotropic_thermal_expansion: isotropic_thermal_expansion(input, output); return;
-    case EigenstrainFunctionDispatch::linear_temperature_isotropic_thermal_expansion:
-        linear_temperature_isotropic_thermal_expansion(input, output);
-        return;
-    case EigenstrainFunctionDispatch::custom: instance.function(input, output); return;
-    }
-    throw std::logic_error("Eigenstrain material function dispatch is invalid");
-}
 std::uint64_t MaterialFunctionSet::signature() const noexcept {
     std::uint64_t hash = material_signature_offset;
     material_hash_string(hash, name);
@@ -298,8 +183,7 @@ std::uint64_t MaterialFunctionSet::signature() const noexcept {
     return hash;
 }
 void MaterialFunctionRegistry::add_registration(std::string name, std::vector<MaterialParameterDefinition> parameters,
-    std::uint32_t version, MaterialFunctionCategory category, Function function, bool has_function,
-    const char* category_name) {
+    std::uint32_t version, Category category, Function function, bool has_function, const char* category_name) {
     validate_registration(name, parameters, has_function);
     if (version == 0)
         throw std::invalid_argument(std::string(category_name) + " material function version must be positive");
@@ -309,7 +193,7 @@ void MaterialFunctionRegistry::add_registration(std::string name, std::vector<Ma
     _registrations.push_back({std::move(name), version, std::move(parameters), category, function});
 }
 const MaterialFunctionRegistry::Registration& MaterialFunctionRegistry::find_registration(
-    MaterialFunctionCategory category, const std::string& name, const char* category_name) const {
+    Category category, const std::string& name, const char* category_name) const {
     const auto found = std::find_if(_registrations.begin(), _registrations.end(),
         [&name, category](const Registration& entry) { return entry.category == category && entry.name == name; });
     if (found == _registrations.end())
@@ -318,64 +202,56 @@ const MaterialFunctionRegistry::Registration& MaterialFunctionRegistry::find_reg
 }
 void MaterialFunctionRegistry::add_thermal(std::string name, std::vector<MaterialParameterDefinition> parameters,
     ThermalPropertyFunction function, std::uint32_t version) {
-    add_registration(std::move(name), std::move(parameters), version, MaterialFunctionCategory::thermal, function,
-        function != nullptr, "thermal");
+    add_registration(
+        std::move(name), std::move(parameters), version, Category::thermal, function, function != nullptr, "thermal");
 }
 void MaterialFunctionRegistry::add_elasticity(std::string name, std::vector<MaterialParameterDefinition> parameters,
     ElasticPropertyFunction function, std::uint32_t version) {
-    add_registration(std::move(name), std::move(parameters), version, MaterialFunctionCategory::elasticity, function,
+    add_registration(std::move(name), std::move(parameters), version, Category::elasticity, function,
         function != nullptr, "elasticity");
 }
 void MaterialFunctionRegistry::add_eigenstrain(std::string name, std::vector<MaterialParameterDefinition> parameters,
     EigenstrainFunction function, std::uint32_t version) {
-    add_registration(std::move(name), std::move(parameters), version, MaterialFunctionCategory::eigenstrain, function,
+    add_registration(std::move(name), std::move(parameters), version, Category::eigenstrain, function,
         function != nullptr, "eigenstrain");
 }
 void MaterialFunctionRegistry::add_creep(std::string name, std::vector<MaterialParameterDefinition> parameters,
     CreepRateFunction function, std::uint32_t version) {
-    add_registration(std::move(name), std::move(parameters), version, MaterialFunctionCategory::creep, function,
-        function != nullptr, "creep");
+    add_registration(
+        std::move(name), std::move(parameters), version, Category::creep, function, function != nullptr, "creep");
 }
 void MaterialFunctionRegistry::add_plasticity(std::string name, std::vector<MaterialParameterDefinition> parameters,
     PlasticFlowStressFunction function, std::uint32_t version) {
-    add_registration(std::move(name), std::move(parameters), version, MaterialFunctionCategory::plasticity, function,
+    add_registration(std::move(name), std::move(parameters), version, Category::plasticity, function,
         function != nullptr, "plasticity");
-}
-const std::vector<MaterialParameterDefinition>& MaterialFunctionRegistry::parameters(
-    MaterialFunctionCategory category, const std::string& name) const {
-    constexpr std::array<const char*, 5> names = {"thermal", "elasticity", "eigenstrain", "creep", "plasticity"};
-    return find_registration(category, name, names.at(static_cast<std::size_t>(category))).parameters;
 }
 ThermalFunctionInstance MaterialFunctionRegistry::bind_thermal(
     const std::string& name, std::vector<MaterialParameterValue> values) const {
-    const Registration& entry = find_registration(MaterialFunctionCategory::thermal, name, "thermal");
+    const Registration& entry = find_registration(Category::thermal, name, "thermal");
     return {name, entry.version, MaterialParameters(ordered_values(name, entry.parameters, values)),
-        std::get<ThermalPropertyFunction>(entry.function),
-        thermal_dispatch(std::get<ThermalPropertyFunction>(entry.function))};
+        std::get<ThermalPropertyFunction>(entry.function)};
 }
 ElasticFunctionInstance MaterialFunctionRegistry::bind_elasticity(
     const std::string& name, std::vector<MaterialParameterValue> values) const {
-    const Registration& entry = find_registration(MaterialFunctionCategory::elasticity, name, "elasticity");
+    const Registration& entry = find_registration(Category::elasticity, name, "elasticity");
     return {name, entry.version, MaterialParameters(ordered_values(name, entry.parameters, values)),
-        std::get<ElasticPropertyFunction>(entry.function),
-        elastic_dispatch(std::get<ElasticPropertyFunction>(entry.function))};
+        std::get<ElasticPropertyFunction>(entry.function)};
 }
 EigenstrainFunctionInstance MaterialFunctionRegistry::bind_eigenstrain(
     const std::string& instance_name, const std::string& name, std::vector<MaterialParameterValue> values) const {
-    const Registration& entry = find_registration(MaterialFunctionCategory::eigenstrain, name, "eigenstrain");
+    const Registration& entry = find_registration(Category::eigenstrain, name, "eigenstrain");
     return {instance_name, name, entry.version, MaterialParameters(ordered_values(name, entry.parameters, values)),
-        std::get<EigenstrainFunction>(entry.function),
-        eigenstrain_dispatch(std::get<EigenstrainFunction>(entry.function))};
+        std::get<EigenstrainFunction>(entry.function)};
 }
 CreepFunctionInstance MaterialFunctionRegistry::bind_creep(
     const std::string& name, std::vector<MaterialParameterValue> values) const {
-    const Registration& entry = find_registration(MaterialFunctionCategory::creep, name, "creep");
+    const Registration& entry = find_registration(Category::creep, name, "creep");
     return {name, entry.version, MaterialParameters(ordered_values(name, entry.parameters, values)),
         std::get<CreepRateFunction>(entry.function)};
 }
 PlasticFunctionInstance MaterialFunctionRegistry::bind_plasticity(
     const std::string& name, std::vector<MaterialParameterValue> values) const {
-    const Registration& entry = find_registration(MaterialFunctionCategory::plasticity, name, "plasticity");
+    const Registration& entry = find_registration(Category::plasticity, name, "plasticity");
     return {name, entry.version, MaterialParameters(ordered_values(name, entry.parameters, values)),
         std::get<PlasticFlowStressFunction>(entry.function)};
 }
@@ -440,7 +316,7 @@ adlite::Scalar IsotropicThermoelasticMaterial::conductivity(
         throw std::domain_error("Thermoelastic material temperature must be finite and positive");
     ThermalPropertyOutput output{};
     const ThermalFunctionInstance& instance = _properties.functions->thermal;
-    evaluate_thermal_function(instance, {temperature, context, &instance.parameters}, output);
+    instance.function({temperature, context, &instance.parameters}, output);
     if (!std::isfinite(output.conductivity.value()) || !(output.conductivity.value() > 0.0))
         throw std::domain_error("Thermal material function conductivity must be finite and positive");
     return output.conductivity;
@@ -449,7 +325,7 @@ adlite::Scalar IsotropicThermoelasticMaterial::heat_capacity(
     const adlite::Scalar& temperature, MaterialFunctionContext context) const {
     ThermalPropertyOutput output{};
     const ThermalFunctionInstance& instance = _properties.functions->thermal;
-    evaluate_thermal_function(instance, {temperature, context, &instance.parameters}, output);
+    instance.function({temperature, context, &instance.parameters}, output);
     if (!std::isfinite(output.density.value()) || !(output.density.value() > 0.0) ||
         !std::isfinite(output.specific_heat.value()) || !(output.specific_heat.value() > 0.0))
         throw std::domain_error("Thermal material function density and specific_heat must be finite and positive");
@@ -461,7 +337,7 @@ ActiveThermoelasticProperties IsotropicThermoelasticMaterial::active_properties(
         throw std::domain_error("Thermoelastic material temperature must be finite");
     ElasticPropertyOutput output{};
     const ElasticFunctionInstance& instance = _properties.functions->elasticity;
-    evaluate_elastic_function(instance, {temperature, context, &instance.parameters}, output);
+    instance.function({temperature, context, &instance.parameters}, output);
     if (!std::isfinite(output.young_modulus.value()) || !(output.young_modulus.value() > 0.0))
         throw std::domain_error("Elasticity material function young_modulus must be finite and positive");
     if (!std::isfinite(output.poisson_ratio.value()) ||
@@ -484,7 +360,7 @@ SymmetricTensor3 IsotropicThermoelasticMaterial::eigenstrain(
     SymmetricTensor3 result{};
     for (const EigenstrainFunctionInstance& instance : _properties.functions->eigenstrains) {
         SymmetricTensor3 value{};
-        evaluate_eigenstrain_function(instance, {temperature, context, &instance.parameters}, value);
+        instance.function({temperature, context, &instance.parameters}, value);
         if (!std::isfinite(value.xx.value()) || !std::isfinite(value.yy.value()) || !std::isfinite(value.zz.value()) ||
             !std::isfinite(value.xy.value()) || !std::isfinite(value.yz.value()) || !std::isfinite(value.xz.value()))
             throw std::domain_error("Eigenstrain material function output must be finite");
@@ -1049,32 +925,18 @@ FunctionCoupledUpdate solve_function_coupled(const MaterialFunctionSet& function
     return {returned_stress, plastic_increment, creep_increment};
 }
 } // namespace
-IsotropicInelasticMaterial::IsotropicInelasticMaterial(ThermoelasticProperties thermoelastic_properties)
-    : _thermoelastic_material(std::move(thermoelastic_properties)) {}
-adlite::Scalar IsotropicInelasticMaterial::conductivity(
-    const adlite::Scalar& temperature, MaterialFunctionContext context) const {
-    return _thermoelastic_material.conductivity(temperature, context);
-}
-adlite::Scalar IsotropicInelasticMaterial::heat_capacity(
-    const adlite::Scalar& temperature, MaterialFunctionContext context) const {
-    return _thermoelastic_material.heat_capacity(temperature, context);
-}
 namespace {
 ActiveNortonCreepProperties active_creep_properties(
     const CreepFunctionInstance& function, const adlite::Scalar& temperature) {
     const MaterialParameters& parameters = function.parameters;
-    adlite::Scalar coefficient = ordered_parameter(parameters, builtin_parameter::norton::coefficient);
-    adlite::Scalar reference_stress = ordered_parameter(parameters, builtin_parameter::norton::reference_stress);
-    adlite::Scalar exponent = ordered_parameter(parameters, builtin_parameter::norton::stress_exponent);
-    if (function.function == &linear_temperature_norton_creep_rate) {
-        const adlite::Scalar change =
-            temperature - ordered_parameter(parameters, builtin_parameter::norton::reference_temperature);
-        coefficient +=
-            ordered_parameter(parameters, builtin_parameter::norton::coefficient_temperature_coefficient) * change;
-        reference_stress +=
-            ordered_parameter(parameters, builtin_parameter::norton::reference_stress_temperature_coefficient) * change;
-        exponent +=
-            ordered_parameter(parameters, builtin_parameter::norton::stress_exponent_temperature_coefficient) * change;
+    adlite::Scalar coefficient = parameters.value("coefficient");
+    adlite::Scalar reference_stress = parameters.value("reference_stress");
+    adlite::Scalar exponent = parameters.value("stress_exponent");
+    if (function.name == "linear_temperature_norton") {
+        const adlite::Scalar change = temperature - parameters.value("reference_temperature");
+        coefficient += parameters.value("coefficient_temperature_coefficient") * change;
+        reference_stress += parameters.value("reference_stress_temperature_coefficient") * change;
+        exponent += parameters.value("stress_exponent_temperature_coefficient") * change;
     }
     ActiveNortonCreepProperties active{coefficient, reference_stress, exponent};
     if (!std::isfinite(active.coefficient.value()) || !(active.coefficient.value() >= 0.0) ||
@@ -1086,15 +948,12 @@ ActiveNortonCreepProperties active_creep_properties(
 ActiveJ2PlasticityProperties active_plasticity_properties(
     const PlasticFunctionInstance& function, const adlite::Scalar& temperature) {
     const MaterialParameters& parameters = function.parameters;
-    adlite::Scalar yield_stress = ordered_parameter(parameters, builtin_parameter::plasticity::yield_stress);
-    adlite::Scalar hardening = ordered_parameter(parameters, builtin_parameter::plasticity::hardening_modulus);
-    if (function.function == &linear_temperature_isotropic_flow_stress) {
-        const adlite::Scalar change =
-            temperature - ordered_parameter(parameters, builtin_parameter::plasticity::reference_temperature);
-        yield_stress +=
-            ordered_parameter(parameters, builtin_parameter::plasticity::yield_stress_temperature_coefficient) * change;
-        hardening +=
-            ordered_parameter(parameters, builtin_parameter::plasticity::hardening_temperature_coefficient) * change;
+    adlite::Scalar yield_stress = parameters.value("yield_stress");
+    adlite::Scalar hardening = parameters.value("hardening_modulus");
+    if (function.name == "linear_temperature_isotropic_hardening") {
+        const adlite::Scalar change = temperature - parameters.value("reference_temperature");
+        yield_stress += parameters.value("yield_stress_temperature_coefficient") * change;
+        hardening += parameters.value("hardening_temperature_coefficient") * change;
     }
     ActiveJ2PlasticityProperties active{yield_stress, hardening};
     if (!std::isfinite(active.yield_stress.value()) || !(active.yield_stress.value() > 0.0) ||
@@ -1104,7 +963,7 @@ ActiveJ2PlasticityProperties active_plasticity_properties(
     return active;
 }
 } // namespace
-InelasticStressResponse IsotropicInelasticMaterial::response(const adlite::Scalar& strain_rr,
+InelasticStressResponse IsotropicThermoelasticMaterial::response(const adlite::Scalar& strain_rr,
     const adlite::Scalar& strain_zz, const adlite::Scalar& strain_hoop, const adlite::Scalar& strain_rz,
     const adlite::Scalar& temperature, double time_step, const MaterialPointState& committed,
     MaterialFunctionContext context) const {
@@ -1115,8 +974,8 @@ InelasticStressResponse IsotropicInelasticMaterial::response(const adlite::Scala
         throw std::domain_error("Inelastic material time_step must be finite and nonnegative");
     validate_material_point_state(committed);
     MaterialPointTrialState trial_state = passive_trial_state(committed);
-    const ActiveThermoelasticProperties active = _thermoelastic_material.active_properties(temperature, context);
-    const AxisymmetricStrain imposed = _thermoelastic_material.eigenstrain_rz(temperature, context);
+    const ActiveThermoelasticProperties active = active_properties(temperature, context);
+    const AxisymmetricStrain imposed = eigenstrain_rz(temperature, context);
     const std::array<adlite::Scalar, component_count> elastic_strain = {
         strain_rr - imposed.rr - committed.plastic_strain[0] - committed.creep_strain[0],
         strain_zz - imposed.zz - committed.plastic_strain[1] - committed.creep_strain[1],
@@ -1172,19 +1031,17 @@ InelasticStressResponse IsotropicInelasticMaterial::response(const adlite::Scala
         trial_state.equivalent_creep_strain = committed.equivalent_creep_strain + creep_increment;
         return finalize(returned_stress(mean_stress, deviatoric_trial, stress_scale));
     };
-    const MaterialFunctionSet& functions = _thermoelastic_material.functions();
-    const bool creep_uses_builtin_integrator = !functions.has_creep() ||
-                                               functions.creep.function == &norton_creep_rate ||
-                                               functions.creep.function == &linear_temperature_norton_creep_rate;
+    const MaterialFunctionSet& functions = this->functions();
+    const bool creep_uses_builtin_integrator = !functions.has_creep() || functions.creep.name == "norton" ||
+                                               functions.creep.name == "linear_temperature_norton";
     const bool plasticity_uses_builtin_integrator =
-        !functions.has_plasticity() || functions.plasticity.function == &linear_isotropic_flow_stress ||
-        functions.plasticity.function == &linear_temperature_isotropic_flow_stress;
+        !functions.has_plasticity() || functions.plasticity.name == "linear_isotropic_hardening" ||
+        functions.plasticity.name == "linear_temperature_isotropic_hardening";
     bool builtin_reference_temperatures_match = true;
-    if (functions.creep.function == &linear_temperature_norton_creep_rate &&
-        functions.plasticity.function == &linear_temperature_isotropic_flow_stress) {
-        builtin_reference_temperatures_match =
-            ordered_parameter(functions.creep.parameters, builtin_parameter::norton::reference_temperature) ==
-            ordered_parameter(functions.plasticity.parameters, builtin_parameter::plasticity::reference_temperature);
+    if (functions.creep.name == "linear_temperature_norton" &&
+        functions.plasticity.name == "linear_temperature_isotropic_hardening") {
+        builtin_reference_temperatures_match = functions.creep.parameters.value("reference_temperature") ==
+                                               functions.plasticity.parameters.value("reference_temperature");
     }
     if (!(creep_uses_builtin_integrator && plasticity_uses_builtin_integrator &&
             builtin_reference_temperatures_match)) {
@@ -1267,7 +1124,7 @@ InelasticStressResponse IsotropicInelasticMaterial::response(const adlite::Scala
         adlite::compose(root.equivalent_stress, inputs.data(), partials.stress.data(), inputs.size()), 0.0,
         adlite::compose(creep_increment, inputs.data(), partials.creep.data(), inputs.size()));
 }
-InelasticStressResponse IsotropicInelasticMaterial::incremental_response(const adlite::Scalar& strain_increment_rr,
+InelasticStressResponse IsotropicThermoelasticMaterial::incremental_response(const adlite::Scalar& strain_increment_rr,
     const adlite::Scalar& strain_increment_zz, const adlite::Scalar& strain_increment_hoop,
     const adlite::Scalar& strain_increment_rz, const AxisymmetricRotation& rotation, const adlite::Scalar& temperature,
     double committed_temperature, double time_step, const MaterialPointState& committed,
@@ -1277,7 +1134,7 @@ InelasticStressResponse IsotropicInelasticMaterial::incremental_response(const a
     const adlite::Scalar old_temperature(committed_temperature);
     MaterialFunctionContext old_context = context;
     old_context.time -= time_step;
-    const AxisymmetricStrain old_imposed = _thermoelastic_material.eigenstrain_rz(old_temperature, old_context);
+    const AxisymmetricStrain old_imposed = eigenstrain_rz(old_temperature, old_context);
     const std::array<adlite::Scalar, component_count> synthetic_total = {
         committed.elastic_strain[0] + strain_increment_rr + old_imposed.rr + committed.plastic_strain[0] +
             committed.creep_strain[0],
@@ -1299,7 +1156,7 @@ InelasticStressResponse IsotropicInelasticMaterial::incremental_response(const a
         components(rotate_axisymmetric_tensor(tensor(result.trial_state.creep_strain), rotation));
     return result;
 }
-MaterialPointState IsotropicInelasticMaterial::state_values(const MaterialPointTrialState& trial_state) {
+MaterialPointState IsotropicThermoelasticMaterial::state_values(const MaterialPointTrialState& trial_state) {
     MaterialPointState state;
     for (std::size_t component = 0; component < component_count; ++component) {
         state.elastic_strain[component] = trial_state.elastic_strain[component].value();

@@ -1,13 +1,21 @@
 #pragma once
-#include "fuelsim/dof_map.hpp"
 #include "fuelsim/interface.hpp"
 #include "fuelsim/material.hpp"
 #include "fuelsim/quad4_rz.hpp"
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <string>
 #include <vector>
 namespace fuelsim {
+enum class Field {
+    temperature,
+    radial_displacement,
+    axial_displacement,
+    displacement_x,
+    displacement_y,
+    displacement_z,
+};
 class PiecewiseLinearTimeTable final {
   public:
     PiecewiseLinearTimeTable(std::string name, std::vector<double> times, std::vector<double> values);
@@ -81,9 +89,11 @@ struct ContactNodeSummary final {
     bool sliding;
 };
 struct InterfaceSummary final {
-    double minimum_gap, minimum_contact_gap, maximum_contact_pressure, total_heat_rate, total_contact_force,
-        total_tangential_force;
-    std::size_t projected_contact_nodes, unprojected_contact_nodes, active_contact_nodes;
+    double minimum_gap = std::numeric_limits<double>::infinity();
+    double minimum_contact_gap = std::numeric_limits<double>::infinity();
+    double maximum_contact_pressure = 0.0, total_heat_rate = 0.0, total_contact_force = 0.0,
+           total_tangential_force = 0.0;
+    std::size_t projected_contact_nodes = 0, unprojected_contact_nodes = 0, active_contact_nodes = 0;
 };
 enum class SpatialContributionType {
     volume,

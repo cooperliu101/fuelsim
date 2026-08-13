@@ -186,77 +186,40 @@ Quad4FaceGeometry make_quad4_face_geometry(const Quad4FaceCoordinates& coordinat
     }
     return geometry;
 }
-double compute_hex8_heat_capacity(const Hex8ThermoelasticData& data, double temperature, double x, double y, double z) {
-    return data.material.heat_capacity(temperature, {data.time, x, y, z}).value();
-}
-namespace {
-void compute_hex8_residual_ad(const Hex8ThermoelasticData& data, const Hex8Geometry& geometry,
-    const Hex8LocalAdValues& state, const Hex8LocalValues* committed_state, double time_step,
-    Hex8LocalAdValues& residual) {
+Hex8LocalResidual compute_hex8_thermoelastic(const Hex8ThermoelasticData& data, const Hex8Geometry& geometry,
+    const Hex8LocalValues& state, const Hex8LocalValues* committed_state, double time_step,
+    Hex8LocalJacobian* jacobian) {
     if (committed_state != nullptr && (!std::isfinite(time_step) || !(time_step > 0.0)))
         throw std::invalid_argument("HEX8 time step must be finite and positive");
+    Hex8LocalAdValues ad_state{};
+    if (jacobian == nullptr)
+        ad_local_system::make_passive(state.data(), state.size(), ad_state.data());
+    else
+        ad_local_system::make_active(state.data(), state.size(), ad_state.data());
+    Hex8LocalAdValues residual{};
     residual.fill(adlite::Scalar(0.0));
     for (const Hex8QuadraturePoint& point : geometry.points)
-        add_hex8_point_residual(
-            point, state, data.material, data.time, data.volumetric_heat_source, committed_state, time_step, residual);
-}
-} // namespace
-Hex8LocalResidual compute_hex8_residual(
-    const Hex8ThermoelasticData& data, const Hex8Geometry& geometry, const Hex8LocalValues& state) {
-    Hex8LocalAdValues ad_state{};
-    ad_local_system::make_passive(state.data(), state.size(), ad_state.data());
-    Hex8LocalAdValues residual{};
-    compute_hex8_residual_ad(data, geometry, ad_state, nullptr, 0.0, residual);
+        add_hex8_point_residual(point, ad_state, data.material, data.time, data.volumetric_heat_source, committed_state,
+            time_step, residual);
     Hex8LocalResidual result{};
-    ad_local_system::extract_residual(residual.data(), residual.size(), result.data());
-    return result;
-}
-Hex8LocalSystem compute_hex8_system(
-    const Hex8ThermoelasticData& data, const Hex8Geometry& geometry, const Hex8LocalValues& state) {
-    Hex8LocalAdValues ad_state{};
-    ad_local_system::make_active(state.data(), state.size(), ad_state.data());
-    Hex8LocalAdValues residual{};
-    compute_hex8_residual_ad(data, geometry, ad_state, nullptr, 0.0, residual);
-    Hex8LocalSystem result{};
-    ad_local_system::extract_system(residual.data(), ad_state.size(), result.residual.data(), result.jacobian.data());
+    if (jacobian == nullptr)
+        ad_local_system::extract_residual(residual.data(), residual.size(), result.data());
+    else
+        ad_local_system::extract_system(residual.data(), ad_state.size(), result.data(), jacobian->data());
     return result;
 }
 std::array<SymmetricTensor3Values, 8> compute_hex8_stress(
     const Hex8ThermoelasticData& data, const Hex8Geometry& geometry, const Hex8LocalValues& state) {
     return evaluate_hex8_stress(geometry, state, data.material, data.time);
 }
-Hex8LocalResidual compute_hex8_transient_residual(const Hex8ThermoelasticData& data, const Hex8Geometry& geometry,
-    const Hex8LocalValues& current_state, const Hex8LocalValues& committed_state, double time_step) {
-    Hex8LocalAdValues ad_state{};
-    ad_local_system::make_passive(current_state.data(), current_state.size(), ad_state.data());
-    Hex8LocalAdValues residual{};
-    compute_hex8_residual_ad(data, geometry, ad_state, &committed_state, time_step, residual);
-    Hex8LocalResidual result{};
-    ad_local_system::extract_residual(residual.data(), residual.size(), result.data());
-    return result;
-}
-Hex8LocalSystem compute_hex8_transient_system(const Hex8ThermoelasticData& data, const Hex8Geometry& geometry,
-    const Hex8LocalValues& current_state, const Hex8LocalValues& committed_state, double time_step) {
-    Hex8LocalAdValues ad_state{};
-    ad_local_system::make_active(current_state.data(), current_state.size(), ad_state.data());
-    Hex8LocalAdValues residual{};
-    compute_hex8_residual_ad(data, geometry, ad_state, &committed_state, time_step, residual);
-    Hex8LocalSystem result{};
-    ad_local_system::extract_system(residual.data(), ad_state.size(), result.residual.data(), result.jacobian.data());
-    return result;
-}
-Quad4FaceBoundaryData make_quad4_face_pressure_data(double pressure) {
-    return {Quad4FaceBoundaryKind::pressure, CartesianTractionComponent::x, pressure, 0.0};
-}
-Quad4FaceBoundaryData make_quad4_face_traction_data(CartesianTractionComponent component, double traction) {
-    return {Quad4FaceBoundaryKind::traction, component, traction, 0.0};
-}
-Quad4FaceBoundaryData make_quad4_face_convection_data(double coefficient, double ambient) {
-    return {Quad4FaceBoundaryKind::convection, CartesianTractionComponent::x, coefficient, ambient};
-}
-namespace {
-void compute_quad4_face_boundary_residual_ad(const Quad4FaceBoundaryData& data, const Quad4FaceGeometry& geometry,
-    const Quad4FaceLocalAdValues& state, Quad4FaceLocalAdValues& residual) {
+Quad4FaceLocalResidual compute_quad4_face_boundary(const Quad4FaceBoundaryData& data, const Quad4FaceGeometry& geometry,
+    const Quad4FaceLocalValues& state, Quad4FaceLocalJacobian* jacobian) {
+    Quad4FaceLocalAdValues ad_state{};
+    if (jacobian == nullptr)
+        ad_local_system::make_passive(state.data(), state.size(), ad_state.data());
+    else
+        ad_local_system::make_active(state.data(), state.size(), ad_state.data());
+    Quad4FaceLocalAdValues residual{};
     residual.fill(adlite::Scalar(0.0));
     for (const Quad4FaceQuadraturePoint& point : geometry.points) {
         if (data.kind == Quad4FaceBoundaryKind::pressure) {
@@ -273,32 +236,17 @@ void compute_quad4_face_boundary_residual_ad(const Quad4FaceBoundaryData& data, 
                 residual[offset + node] -= data.load * point.weighted_measure * point.shape[node];
         } else {
             adlite::Scalar temperature = 0.0;
-            for (std::size_t node = 0; node < 4; ++node) temperature += point.shape[node] * state[node];
+            for (std::size_t node = 0; node < 4; ++node) temperature += point.shape[node] * ad_state[node];
             const adlite::Scalar heat_flux = data.load * (temperature - data.ambient_temperature);
             for (std::size_t node = 0; node < 4; ++node)
                 residual[node] += point.weighted_measure * point.shape[node] * heat_flux;
         }
     }
-}
-} // namespace
-Quad4FaceLocalResidual compute_quad4_face_boundary_residual(
-    const Quad4FaceBoundaryData& data, const Quad4FaceGeometry& geometry, const Quad4FaceLocalValues& state) {
-    Quad4FaceLocalAdValues ad_state{};
-    ad_local_system::make_passive(state.data(), state.size(), ad_state.data());
-    Quad4FaceLocalAdValues result{};
-    compute_quad4_face_boundary_residual_ad(data, geometry, ad_state, result);
     Quad4FaceLocalResidual values{};
-    ad_local_system::extract_residual(result.data(), result.size(), values.data());
-    return values;
-}
-Quad4FaceLocalSystem compute_quad4_face_boundary_system(
-    const Quad4FaceBoundaryData& data, const Quad4FaceGeometry& geometry, const Quad4FaceLocalValues& state) {
-    Quad4FaceLocalAdValues ad_state{};
-    ad_local_system::make_active(state.data(), state.size(), ad_state.data());
-    Quad4FaceLocalAdValues result{};
-    compute_quad4_face_boundary_residual_ad(data, geometry, ad_state, result);
-    Quad4FaceLocalSystem values{};
-    ad_local_system::extract_system(result.data(), ad_state.size(), values.residual.data(), values.jacobian.data());
+    if (jacobian == nullptr)
+        ad_local_system::extract_residual(residual.data(), residual.size(), values.data());
+    else
+        ad_local_system::extract_system(residual.data(), ad_state.size(), values.data(), jacobian->data());
     return values;
 }
 } // namespace fuelsim

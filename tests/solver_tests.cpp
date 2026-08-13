@@ -8,7 +8,6 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
-#include <cstdint>
 #include <exception>
 #include <iomanip>
 #include <iostream>
@@ -24,23 +23,6 @@ bool check(bool condition, const std::string& message) {
 }
 double metric_relative_error(double actual, double expected) {
     return std::abs(actual - expected) / std::max(std::abs(expected), 1.0e-30);
-}
-bool test_shadow_state_view() {
-    const std::vector<std::uint32_t> dofs = {1U, 4U, 7U};
-    const std::vector<double> values = {2.0, 5.0, 8.0};
-    const fuelsim::ShadowStateLayout layout(9, dofs);
-    const fuelsim::GlobalStateView state(layout, values);
-    bool missing_rejected = false;
-    try {
-        (void)state.value(3);
-    } catch (const std::out_of_range&) { missing_rejected = true; }
-    bool unordered_rejected = false;
-    try {
-        (void)fuelsim::ShadowStateLayout(9, {4U, 1U, 7U});
-    } catch (const std::invalid_argument&) { unordered_rejected = true; }
-    return check(layout.global_size() == 9 && layout.value_count() == 3 && layout.value_index(4) == 1 &&
-                     state.global_size() == 9 && state.value(4) == 5.0 && missing_rejected && unordered_rejected,
-        "shadow state reuses a validated constant-time global-to-local lookup");
 }
 fuelsim::ThermoelasticProperties constant_material(double conductivity, double thermal_expansion) {
     return fuelsim::test::thermoelastic(0.0, conductivity, 75.0e9, 0.3, thermal_expansion, 600.0);
@@ -111,64 +93,52 @@ class TwelveDofProblem : public fuelsim::NonlinearProblem {
 };
 class LogDomainProblem final : public TwelveDofProblem {
   public:
-    void compute_contribution_residual(
-        std::size_t index, const std::vector<double>& state, std::vector<double>& residual) const override {
+    void compute_contribution(std::size_t index, const std::vector<double>& state, std::vector<double>& residual,
+        std::vector<double>* jacobian) const override {
         validate_contribution(index);
         residual.resize(state.size());
         for (std::size_t dof = 0; dof < state.size(); ++dof) {
             if (!(state[dof] > 0.0)) throw std::domain_error("log-domain Newton iterate must remain positive");
             residual[dof] = std::log(state[dof]) + 10.0;
         }
-    }
-    void compute_contribution_system(std::size_t index, const std::vector<double>& state, std::vector<double>& residual,
-        std::vector<double>& jacobian) const override {
-        compute_contribution_residual(index, state, residual);
-        jacobian.assign(state.size() * state.size(), 0.0);
-        for (std::size_t dof = 0; dof < state.size(); ++dof) jacobian[dof * state.size() + dof] = 1.0 / state[dof];
+        if (jacobian == nullptr) return;
+        jacobian->assign(state.size() * state.size(), 0.0);
+        for (std::size_t dof = 0; dof < state.size(); ++dof) (*jacobian)[dof * state.size() + dof] = 1.0 / state[dof];
     }
 };
 class StagnatingProblem final : public TwelveDofProblem {
   public:
-    void compute_contribution_residual(
-        std::size_t index, const std::vector<double>& state, std::vector<double>& residual) const override {
+    void compute_contribution(std::size_t index, const std::vector<double>& state, std::vector<double>& residual,
+        std::vector<double>* jacobian) const override {
         validate_contribution(index);
         residual.assign(state.size(), 1.0);
-    }
-    void compute_contribution_system(std::size_t index, const std::vector<double>& state, std::vector<double>& residual,
-        std::vector<double>& jacobian) const override {
-        compute_contribution_residual(index, state, residual);
-        jacobian.assign(state.size() * state.size(), 0.0);
-        for (std::size_t dof = 0; dof < state.size(); ++dof) jacobian[dof * state.size() + dof] = 1.0e20;
+        if (jacobian == nullptr) return;
+        jacobian->assign(state.size() * state.size(), 0.0);
+        for (std::size_t dof = 0; dof < state.size(); ++dof) (*jacobian)[dof * state.size() + dof] = 1.0e20;
     }
 };
 class FieldStagnatingProblem final : public TwelveDofProblem {
   public:
-    void compute_contribution_residual(
-        std::size_t index, const std::vector<double>& state, std::vector<double>& residual) const override {
+    void compute_contribution(std::size_t index, const std::vector<double>& state, std::vector<double>& residual,
+        std::vector<double>* jacobian) const override {
         validate_contribution(index);
         residual.assign(state.size(), 0.0);
         for (std::size_t dof = 0; dof < 4; ++dof) residual[dof] = 1.1;
-    }
-    void compute_contribution_system(std::size_t index, const std::vector<double>& state, std::vector<double>& residual,
-        std::vector<double>& jacobian) const override {
-        compute_contribution_residual(index, state, residual);
-        jacobian.assign(state.size() * state.size(), 0.0);
-        for (std::size_t dof = 0; dof < state.size(); ++dof) jacobian[dof * state.size() + dof] = 1.0e20;
+        if (jacobian == nullptr) return;
+        jacobian->assign(state.size() * state.size(), 0.0);
+        for (std::size_t dof = 0; dof < state.size(); ++dof) (*jacobian)[dof * state.size() + dof] = 1.0e20;
     }
 };
 class QuadraticProblem final : public TwelveDofProblem {
   public:
-    void compute_contribution_residual(
-        std::size_t index, const std::vector<double>& state, std::vector<double>& residual) const override {
+    void compute_contribution(std::size_t index, const std::vector<double>& state, std::vector<double>& residual,
+        std::vector<double>* jacobian) const override {
         validate_contribution(index);
         residual.resize(state.size());
         for (std::size_t dof = 0; dof < state.size(); ++dof) residual[dof] = state[dof] * state[dof] - 2.0;
-    }
-    void compute_contribution_system(std::size_t index, const std::vector<double>& state, std::vector<double>& residual,
-        std::vector<double>& jacobian) const override {
-        compute_contribution_residual(index, state, residual);
-        jacobian.assign(state.size() * state.size(), 0.0);
-        for (std::size_t dof = 0; dof < state.size(); ++dof) jacobian[dof * state.size() + dof] = 2.0 * state[dof];
+        if (jacobian == nullptr) return;
+        jacobian->assign(state.size() * state.size(), 0.0);
+        for (std::size_t dof = 0; dof < state.size(); ++dof) (*jacobian)[dof * state.size() + dof] = 2.0 * state[dof];
     }
 };
 class RuntimeLayoutProblem final : public fuelsim::NonlinearProblem {
@@ -194,22 +164,20 @@ class RuntimeLayoutProblem final : public fuelsim::NonlinearProblem {
         }
         throw std::out_of_range("RuntimeLayoutProblem contribution index");
     }
-    void compute_contribution_residual(
-        std::size_t index, const std::vector<double>& state, std::vector<double>& residual) const override {
+    void compute_contribution(std::size_t index, const std::vector<double>& state, std::vector<double>& residual,
+        std::vector<double>* jacobian) const override {
         const std::size_t local_count = local_dof_count(index);
         if (state.size() != local_count) throw std::invalid_argument("RuntimeLayoutProblem contribution state size");
-        ++_residual_calls.at(index);
+        if (jacobian == nullptr)
+            ++_residual_calls.at(index);
+        else
+            ++_system_calls.at(index);
         compute_residual_values(index, state, residual);
-    }
-    void compute_contribution_system(std::size_t index, const std::vector<double>& state, std::vector<double>& residual,
-        std::vector<double>& jacobian) const override {
-        ++_system_calls.at(index);
-        compute_residual_values(index, state, residual);
-        const std::size_t local_count = state.size();
-        jacobian.resize(local_count * local_count);
+        if (jacobian == nullptr) return;
+        jacobian->resize(local_count * local_count);
         for (std::size_t row = 0; row < local_count; ++row)
             for (std::size_t column = 0; column < local_count; ++column)
-                jacobian[row * local_count + column] = contribution_coefficient(index, row, column);
+                (*jacobian)[row * local_count + column] = contribution_coefficient(index, row, column);
     }
     const std::vector<fuelsim::DirichletCondition>& dirichlet_conditions() const noexcept override {
         return _conditions;
@@ -283,14 +251,13 @@ bool test_runtime_contribution_layout() {
         direction[dof] = 0.2 + 0.015 * static_cast<double>(dof % 9);
     }
     fuelsim::ContributionWorkspace workspace;
-    const fuelsim::GlobalStateView state_view(state);
-    problem.evaluate_contribution_system(0, state_view, workspace);
+    problem.evaluate_contribution(0, state, workspace, true);
     passed =
         check(workspace.dofs.size() == 32 && workspace.residual.size() == 32 && workspace.jacobian.size() == 32 * 32 &&
                   workspace.jacobian[3 * 32 + 4] == 0.2 && workspace.jacobian[5 * 32 + 16] == -0.04,
             "wide contribution exposes a 32 by 32 row-major Jacobian") &&
         passed;
-    problem.evaluate_contribution_system(1, state_view, workspace);
+    problem.evaluate_contribution(1, state, workspace, true);
     passed = check(workspace.dofs.size() == 7 && workspace.residual.size() == 7 && workspace.jacobian.size() == 7 * 7 &&
                        std::abs(workspace.jacobian[2 * 7 + 5] - 0.09) < 1.0e-15,
                  "reused contribution workspace shrinks to a 7 by 7 row-major Jacobian") &&
@@ -567,7 +534,8 @@ bool test_thermal_cylinder() {
     for (std::size_t node = 0; node < fuelsim::rz::ProblemAccess::region_mesh(problem, 0).nodes().size(); ++node) {
         const double r = fuelsim::rz::ProblemAccess::region_mesh(problem, 0).nodes()[node].r;
         const double expected = outer_temperature + heat_source * (radius * radius - r * r) / (4.0 * conductivity);
-        const double actual = result.state[fuelsim::rz::ProblemAccess::dof_map(problem).temperature(node)];
+        const double actual =
+            result.state[fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::temperature, node)];
         maximum_scaled_error = std::max(maximum_scaled_error, std::abs(actual - expected) / center_rise);
     }
     passed = check(maximum_scaled_error < 1.0e-3,
@@ -595,7 +563,8 @@ double thermal_cylinder_error(std::size_t radial_elements) {
     for (std::size_t node = 0; node < fuelsim::rz::ProblemAccess::region_mesh(problem, 0).nodes().size(); ++node) {
         const double r = fuelsim::rz::ProblemAccess::region_mesh(problem, 0).nodes()[node].r;
         const double expected = outer_temperature + heat_source * (radius * radius - r * r) / (4.0 * conductivity);
-        const double actual = result.state[fuelsim::rz::ProblemAccess::dof_map(problem).temperature(node)];
+        const double actual =
+            result.state[fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::temperature, node)];
         maximum_error = std::max(maximum_error, std::abs(actual - expected) / center_rise);
     }
     return maximum_error;
@@ -632,10 +601,12 @@ bool test_free_thermal_expansion() {
     const double displacement_scale = alpha * temperature_change * length;
     for (std::size_t node = 0; node < fuelsim::rz::ProblemAccess::region_mesh(problem, 0).nodes().size(); ++node) {
         const fuelsim::RzPoint& point = fuelsim::rz::ProblemAccess::region_mesh(problem, 0).nodes()[node];
-        const double actual_temperature = result.state[fuelsim::rz::ProblemAccess::dof_map(problem).temperature(node)];
+        const double actual_temperature =
+            result.state[fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::temperature, node)];
         const double actual_radial =
-            result.state[fuelsim::rz::ProblemAccess::dof_map(problem).radial_displacement(node)];
-        const double actual_axial = result.state[fuelsim::rz::ProblemAccess::dof_map(problem).axial_displacement(node)];
+            result.state[fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::radial_displacement, node)];
+        const double actual_axial =
+            result.state[fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::axial_displacement, node)];
         maximum_temperature_error = std::max(maximum_temperature_error, std::abs(actual_temperature - temperature));
         maximum_displacement_error =
             std::max(maximum_displacement_error, std::abs(actual_radial - alpha * temperature_change * point.r));
@@ -704,8 +675,9 @@ bool test_lame_open_ended_cylinder() {
             ((1.0 - poisson_ratio) * A * point.r + (1.0 + poisson_ratio) * B / point.r) / young_modulus;
         const double expected_axial = axial_strain * point.z;
         const double actual_radial =
-            result.state[fuelsim::rz::ProblemAccess::dof_map(problem).radial_displacement(node)];
-        const double actual_axial = result.state[fuelsim::rz::ProblemAccess::dof_map(problem).axial_displacement(node)];
+            result.state[fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::radial_displacement, node)];
+        const double actual_axial =
+            result.state[fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::axial_displacement, node)];
         maximum_radial_relative_error =
             std::max(maximum_radial_relative_error, std::abs(actual_radial - expected_radial) / radial_scale);
         if (axial_scale > 0.0) {
@@ -767,14 +739,13 @@ bool test_m1_open_gap_analytic_thermal() {
     const std::size_t fuel_surface_local =
         fuelsim::test::annular_node_id(fuel_radial_elements, fuel_radial_elements, axial_mid);
     const std::size_t cladding_inner_local = fuelsim::test::annular_node_id(cladding_radial_elements, 0, axial_mid);
-    const fuelsim::DofMap& dofs = fuelsim::rz::ProblemAccess::dof_map(problem);
-    const double actual_center =
-        result.state[dofs.temperature(fuelsim::rz::ProblemAccess::region_node_offset(problem, 0) + fuel_center_local)];
-    const double actual_fuel_surface =
-        result.state[dofs.temperature(fuelsim::rz::ProblemAccess::region_node_offset(problem, 0) + fuel_surface_local)];
-    const double actual_cladding_inner =
-        result
-            .state[dofs.temperature(fuelsim::rz::ProblemAccess::region_node_offset(problem, 1) + cladding_inner_local)];
+    const auto& dofs = fuelsim::rz::ProblemAccess::dof_map(problem);
+    const double actual_center = result.state[dofs.dof(
+        fuelsim::Field::temperature, fuelsim::rz::ProblemAccess::region_node_offset(problem, 0) + fuel_center_local)];
+    const double actual_fuel_surface = result.state[dofs.dof(
+        fuelsim::Field::temperature, fuelsim::rz::ProblemAccess::region_node_offset(problem, 0) + fuel_surface_local)];
+    const double actual_cladding_inner = result.state[dofs.dof(fuelsim::Field::temperature,
+        fuelsim::rz::ProblemAccess::region_node_offset(problem, 1) + cladding_inner_local)];
     const double temperature_scale = expected_center - outer_temperature;
     const double center_error = std::abs(actual_center - expected_center) / temperature_scale;
     const double fuel_surface_error = std::abs(actual_fuel_surface - expected_fuel_surface) / temperature_scale;
@@ -808,7 +779,6 @@ int main(int argc, char** argv) {
         std::cout << std::scientific << std::setprecision(12);
         fuelsim::PetscSession session(argc, argv, "fuelsim M0 and M1 numerical acceptance tests\n");
         bool passed = true;
-        passed = test_shadow_state_view() && passed;
         passed = test_runtime_contribution_layout() && passed;
         passed = test_global_newton_safeguards() && passed;
         passed = test_thermal_cylinder() && passed;

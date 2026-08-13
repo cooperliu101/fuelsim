@@ -48,7 +48,6 @@ class UnstructuredMeshMetadata {
     const std::vector<NodeSet>& node_sets() const noexcept { return _node_sets; }
     const std::vector<SideSet>& side_sets() const noexcept { return _side_sets; }
     const ElementBlockInfo& element_block(const std::string& name) const;
-    const NodeSet& node_set(const std::string& name) const;
     const SideSet& side_set(const std::string& name) const;
     std::int64_t side_set_block_id(const std::string& name) const;
 
@@ -103,7 +102,6 @@ class RegionMeshMapping {
   public:
     const std::vector<std::size_t>& source_node_ids() const noexcept { return _source_node_ids; }
     const std::vector<std::size_t>& source_element_ids() const noexcept { return _source_element_ids; }
-    std::int64_t block_id() const noexcept { return _block_id; }
 
   protected:
     RegionMeshMapping(const UnstructuredMeshMetadata& source, std::size_t node_count, std::int64_t block_id);
@@ -115,7 +113,6 @@ class RegionMeshMapping {
 };
 class RegionMesh final : public RegionMeshMapping {
   public:
-    static RegionMesh from_unstructured_block(const UnstructuredQuad4Mesh& source, const std::string& block_name);
     static RegionMesh from_unstructured_block(const UnstructuredQuad4Mesh& source, std::int64_t block_id);
     const std::vector<RzPoint>& nodes() const noexcept { return _nodes; }
     const std::vector<Quad4Element>& elements() const noexcept { return _elements; }
@@ -132,7 +129,6 @@ struct Hex8RegionBoundary final {
 };
 class Hex8RegionMesh final : public RegionMeshMapping {
   public:
-    static Hex8RegionMesh from_unstructured_block(const UnstructuredHex8Mesh& source, const std::string& block_name);
     static Hex8RegionMesh from_unstructured_block(const UnstructuredHex8Mesh& source, std::int64_t block_id);
     const std::vector<CartesianPoint3>& nodes() const noexcept { return _nodes; }
     const std::vector<Hex8Element>& elements() const noexcept { return _elements; }

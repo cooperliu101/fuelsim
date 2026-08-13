@@ -34,7 +34,6 @@ class ExodusTransientResultsWriter final {
     ExodusTransientResultsWriter(std::string path, UnstructuredQuad4Mesh mesh, const TransientProblem& problem);
     ExodusTransientResultsWriter(std::string path, UnstructuredHex8Mesh mesh, const TransientProblem& problem);
     void append(const TransientProblem& problem);
-    std::size_t step_count() const noexcept;
 
   private:
     std::string _path;

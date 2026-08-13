@@ -85,7 +85,8 @@ bool run_comparison(const std::string& input_path, const std::string& nodal_refe
     double axial_difference_squared = 0.0;
     double axial_scale_squared = 0.0;
     for (std::size_t node = 0; node < fuelsim::rz::ProblemAccess::dof_map(problem).node_count(); ++node) {
-        const std::size_t dof = fuelsim::rz::ProblemAccess::dof_map(problem).axial_displacement(node);
+        const std::size_t dof =
+            fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::axial_displacement, node);
         const double difference = state[dof] - frictionless_result.solve.state[dof];
         axial_difference_squared += difference * difference;
         axial_scale_squared += state[dof] * state[dof];

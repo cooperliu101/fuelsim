@@ -140,8 +140,10 @@ class HistoryObserver final : public fuelsim::TransientStepObserver {
         std::size_t count = 0;
         for (std::size_t node = 0; node < mesh.nodes().size(); ++node) {
             if (std::abs(mesh.nodes()[node].z - maximum_z) > time_tolerance) continue;
-            radial += solution.at(fuelsim::rz::ProblemAccess::dof_map(problem).radial_displacement(node));
-            axial += solution.at(fuelsim::rz::ProblemAccess::dof_map(problem).axial_displacement(node));
+            radial += solution.at(
+                fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::radial_displacement, node));
+            axial +=
+                solution.at(fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::axial_displacement, node));
             ++count;
         }
         if (count == 0) throw std::logic_error("M4.3 mesh has no top nodes");
@@ -448,10 +450,11 @@ bool audit_creep_shared_state(const fuelsim::FuelSimCaseDefinition& definition,
                 std::max({maximum_coordinate_difference, std::abs(mesh.nodes()[local].r - field.radius),
                     std::abs(mesh.nodes()[local].z - field.axial_coordinate)});
             const std::size_t global_node = offset + local;
-            state[fuelsim::rz::ProblemAccess::dof_map(problem).temperature(global_node)] = field.temperature;
-            state[fuelsim::rz::ProblemAccess::dof_map(problem).radial_displacement(global_node)] =
+            state[fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::temperature, global_node)] =
+                field.temperature;
+            state[fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::radial_displacement, global_node)] =
                 field.radial_displacement;
-            state[fuelsim::rz::ProblemAccess::dof_map(problem).axial_displacement(global_node)] =
+            state[fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::axial_displacement, global_node)] =
                 field.axial_displacement;
         }
         const double ramp_time = definition.transient_execution.load_ramp_time;
@@ -479,8 +482,8 @@ bool audit_creep_shared_state(const fuelsim::FuelSimCaseDefinition& definition,
         double free_residual_infinity = 0.0;
         for (std::size_t node = 0; node < fuelsim::rz::ProblemAccess::dof_map(problem).node_count(); ++node) {
             const std::array<std::size_t, 2> mechanical_dofs = {
-                fuelsim::rz::ProblemAccess::dof_map(problem).radial_displacement(node),
-                fuelsim::rz::ProblemAccess::dof_map(problem).axial_displacement(node)};
+                fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::radial_displacement, node),
+                fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::axial_displacement, node)};
             for (const std::size_t dof : mechanical_dofs) {
                 if (constrained[dof]) continue;
                 free_residual_squared += residual[dof] * residual[dof];

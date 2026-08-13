@@ -18,32 +18,25 @@ struct TransientCommittedState final {
 namespace rz {
 struct SteadyBackendView final {
     const SpatialAssembly& spatial;
-    const std::vector<Quad4RzThermoelasticData>& kernel_data;
+    const std::vector<Quad4RzData>& kernel_data;
 };
 struct TransientBackendView final {
     const SpatialAssembly& spatial;
-    const std::vector<Quad4RzTransientData>& kernel_data;
+    const std::vector<Quad4RzData>& kernel_data;
     const std::vector<std::vector<Quad4MaterialHistory>>& histories;
     const std::vector<std::vector<std::array<AxisymmetricStressValues, 4>>>& stresses;
     const std::vector<double>& committed_solution;
     double active_time_step;
     bool time_step_active;
 };
-class BackendAccess final {
-  public:
-    static SteadyBackendView steady(const SteadyProblem& problem) noexcept;
-    static TransientBackendView transient(const TransientProblem& problem) noexcept;
-    static TransientCommittedState committed_state(const TransientProblem& problem);
-    static void restore_committed_state(TransientProblem& problem, TransientCommittedState state);
-};
 } // namespace rz
-namespace cartesian {
 class BackendAccess final {
   public:
-    static const SpatialAssembly& spatial(const SteadyProblem& problem) noexcept;
-    static const SpatialAssembly& spatial(const TransientProblem& problem) noexcept;
+    static rz::SteadyBackendView steady(const SteadyProblem& problem) noexcept;
+    static rz::TransientBackendView transient(const TransientProblem& problem) noexcept;
+    static const cartesian::SpatialAssembly& cartesian_spatial(const SteadyProblem& problem) noexcept;
+    static const cartesian::SpatialAssembly& cartesian_spatial(const TransientProblem& problem) noexcept;
     static TransientCommittedState committed_state(const TransientProblem& problem);
     static void restore_committed_state(TransientProblem& problem, TransientCommittedState state);
 };
-} // namespace cartesian
 } // namespace fuelsim

@@ -98,7 +98,7 @@ bool run_tests(const char* path) {
     if (hex_round_trip.nodes().size() != 8 || hex_round_trip.elements().size() != 1 ||
         hex_round_trip.elements()[0].nodes != hex_mesh.elements()[0].nodes ||
         hex_round_trip.element_blocks()[0].name != "solid" ||
-        hex_round_trip.node_set("fixed").nodes != hex_mesh.node_set("fixed").nodes ||
+        hex_round_trip.node_sets()[0].nodes != hex_mesh.node_sets()[0].nodes ||
         hex_round_trip.side_set("loaded").sides.size() != 2 ||
         hex_round_trip.side_set("loaded").sides[1].local_side != 5) {
         std::cerr << "Exodus HEX8 write/read round trip changed the mesh\n";

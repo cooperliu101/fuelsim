@@ -78,7 +78,7 @@ double temperature_relative_l2(
     double reference_squared = 0.0;
     const std::size_t node_count = fuelsim::rz::ProblemAccess::dof_map(problem).node_count();
     for (std::size_t node = 0; node < node_count; ++node) {
-        const std::size_t dof = fuelsim::rz::ProblemAccess::dof_map(problem).temperature(node);
+        const std::size_t dof = fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::temperature, node);
         const double difference = actual[dof] - reference[dof];
         difference_squared += difference * difference;
         reference_squared += reference[dof] * reference[dof];
@@ -166,22 +166,16 @@ bool test_opaque_state_snapshot(const std::string& input_path) {
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
     fuelsim::TransientProblem problem(input.spatial, mesh);
     const fuelsim::TransientCommittedState reference = fuelsim::rz::ProblemAccess::committed_state(problem);
-    const fuelsim::TransientStateSnapshot snapshot = problem.capture_state();
+    const fuelsim::ProblemStateSnapshot snapshot = problem.capture_state();
     bool empty_rejected = false;
     try {
-        problem.restore_state(fuelsim::TransientStateSnapshot{});
+        problem.restore_state(fuelsim::ProblemStateSnapshot{});
     } catch (const std::invalid_argument&) { empty_rejected = true; }
     fuelsim::TransientProblem other_problem(input.spatial, mesh);
     bool foreign_snapshot_rejected = false;
     try {
         other_problem.restore_state(snapshot);
     } catch (const std::invalid_argument&) { foreign_snapshot_rejected = true; }
-    problem.begin_time_step({reference.time + 0.25, reference.load_factor});
-    bool active_capture_rejected = false;
-    try {
-        (void)problem.capture_state();
-    } catch (const std::logic_error&) { active_capture_rejected = true; }
-    problem.rollback_time_step();
     fuelsim::TransientCommittedState changed = reference;
     changed.time += 0.5;
     changed.load_factor = 0.5;
@@ -209,8 +203,7 @@ bool test_opaque_state_snapshot(const std::string& input_path) {
             }
         }
     }
-    return check(
-        !snapshot.empty() && empty_rejected && foreign_snapshot_rejected && active_capture_rejected && identical,
+    return check(!snapshot.empty() && empty_rejected && foreign_snapshot_rejected && identical,
         "opaque snapshots reject invalid use and restore the complete RZ committed state exactly");
 }
 fuelsim::TransientCommittedState solve_fixed_pcmi(
@@ -516,10 +509,10 @@ bool test_steady_load_cutback(const std::string& input_path) {
     const fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
     fuelsim::SteadyProblem problem(input.spatial, mesh);
-    const fuelsim::SteadyStateSnapshot snapshot = problem.capture_internal_state();
+    const fuelsim::ProblemStateSnapshot snapshot = problem.capture_internal_state();
     bool empty_snapshot_rejected = false;
     try {
-        problem.restore_internal_state(fuelsim::SteadyStateSnapshot{}, problem.initial_state());
+        problem.restore_internal_state(fuelsim::ProblemStateSnapshot{}, problem.initial_state());
     } catch (const std::invalid_argument&) { empty_snapshot_rejected = true; }
     fuelsim::SteadyProblem other_problem(input.spatial, mesh);
     bool foreign_snapshot_rejected = false;

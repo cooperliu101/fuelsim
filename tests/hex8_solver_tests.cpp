@@ -78,15 +78,18 @@ fuelsim::SolverOptions solver_options() {
     options.maximum_linear_iterations = 200;
     return options;
 }
-bool check_uniform_solution(const fuelsim::DofMap& dofs, const fuelsim::UnstructuredHex8Mesh& mesh,
-    const std::vector<double>& state, double temperature) {
+bool check_uniform_solution(const fuelsim::spatial_detail::SpatialLayout& dofs,
+    const fuelsim::UnstructuredHex8Mesh& mesh, const std::vector<double>& state, double temperature) {
     const double thermal_strain = 1.0e-5 * (temperature - 300.0);
     for (std::size_t node = 0; node < mesh.nodes().size(); ++node)
-        if (!check(std::abs(state[dofs.temperature(node)] - temperature) < 2.0e-9,
+        if (!check(std::abs(state[dofs.dof(fuelsim::Field::temperature, node)] - temperature) < 2.0e-9,
                 "three-dimensional temperature matches the uniform analytic solution") ||
-            !check(std::abs(state[dofs.displacement_x(node)] - thermal_strain * mesh.nodes()[node].x) < 2.0e-11 &&
-                       std::abs(state[dofs.displacement_y(node)] - thermal_strain * mesh.nodes()[node].y) < 2.0e-11 &&
-                       std::abs(state[dofs.displacement_z(node)] - thermal_strain * mesh.nodes()[node].z) < 2.0e-11,
+            !check(std::abs(state[dofs.dof(fuelsim::Field::displacement_x, node)] -
+                            thermal_strain * mesh.nodes()[node].x) < 2.0e-11 &&
+                       std::abs(state[dofs.dof(fuelsim::Field::displacement_y, node)] -
+                                thermal_strain * mesh.nodes()[node].y) < 2.0e-11 &&
+                       std::abs(state[dofs.dof(fuelsim::Field::displacement_z, node)] -
+                                thermal_strain * mesh.nodes()[node].z) < 2.0e-11,
                 "three-dimensional free thermal expansion matches the analytic solution"))
             return false;
     return true;
@@ -188,10 +191,13 @@ bool test_multiple_regions() {
         const double origin = node < 8 ? 0.0 : 2.0;
         const auto& point = mesh.nodes()[node];
         passed =
-            check(std::abs(result.solve.state[dofs.temperature(node)] - 325.0) < 2.0e-9 &&
-                      std::abs(result.solve.state[dofs.displacement_x(node)] - strain * (point.x - origin)) < 2.0e-11 &&
-                      std::abs(result.solve.state[dofs.displacement_y(node)] - strain * point.y) < 2.0e-11 &&
-                      std::abs(result.solve.state[dofs.displacement_z(node)] - strain * point.z) < 2.0e-11,
+            check(std::abs(result.solve.state[dofs.dof(fuelsim::Field::temperature, node)] - 325.0) < 2.0e-9 &&
+                      std::abs(result.solve.state[dofs.dof(fuelsim::Field::displacement_x, node)] -
+                               strain * (point.x - origin)) < 2.0e-11 &&
+                      std::abs(result.solve.state[dofs.dof(fuelsim::Field::displacement_y, node)] - strain * point.y) <
+                          2.0e-11 &&
+                      std::abs(result.solve.state[dofs.dof(fuelsim::Field::displacement_z, node)] - strain * point.z) <
+                          2.0e-11,
                 "each independent three-dimensional region matches free thermal expansion") &&
             passed;
     }

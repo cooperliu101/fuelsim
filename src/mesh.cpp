@@ -1,8 +1,6 @@
 #include "fuelsim/mesh.hpp"
-#include "fuelsim/dof_map.hpp"
 #include <algorithm>
 #include <cmath>
-#include <limits>
 #include <stdexcept>
 #include <utility>
 namespace fuelsim {
@@ -62,12 +60,6 @@ const ElementBlockInfo& UnstructuredMeshMetadata::element_block(const std::strin
         [&name](const ElementBlockInfo& candidate) { return candidate.name == name; });
     if (block == _element_blocks.end()) throw std::invalid_argument("Unknown element block: " + name);
     return *block;
-}
-const NodeSet& UnstructuredMeshMetadata::node_set(const std::string& name) const {
-    const auto set = std::find_if(
-        _node_sets.begin(), _node_sets.end(), [&name](const NodeSet& candidate) { return candidate.name == name; });
-    if (set == _node_sets.end()) throw std::invalid_argument("Unknown node set: " + name);
-    return *set;
 }
 const SideSet& UnstructuredMeshMetadata::side_set(const std::string& name) const {
     const auto set = std::find_if(
@@ -137,10 +129,6 @@ void RegionMeshMapping::select_nodes(const std::vector<bool>& used_nodes) {
 }
 Hex8RegionMesh::Hex8RegionMesh(const UnstructuredHex8Mesh& source, std::int64_t block_id)
     : RegionMeshMapping(source, source.nodes().size(), block_id) {}
-Hex8RegionMesh Hex8RegionMesh::from_unstructured_block(
-    const UnstructuredHex8Mesh& source, const std::string& block_name) {
-    return from_unstructured_block(source, source.element_block(block_name).id);
-}
 Hex8RegionMesh Hex8RegionMesh::from_unstructured_block(const UnstructuredHex8Mesh& source, std::int64_t block_id) {
     Hex8RegionMesh mesh(source, block_id);
     std::vector<bool> used_nodes(source.nodes().size(), false);
@@ -194,9 +182,6 @@ Hex8RegionBoundary Hex8RegionMesh::map_side_set(
 }
 RegionMesh::RegionMesh(const UnstructuredQuad4Mesh& source, std::int64_t block_id)
     : RegionMeshMapping(source, source.nodes().size(), block_id) {}
-RegionMesh RegionMesh::from_unstructured_block(const UnstructuredQuad4Mesh& source, const std::string& block_name) {
-    return from_unstructured_block(source, source.element_block(block_name).id);
-}
 RegionMesh RegionMesh::from_unstructured_block(const UnstructuredQuad4Mesh& source, std::int64_t block_id) {
     RegionMesh mesh(source, block_id);
     std::vector<bool> used_nodes(source.nodes().size(), false);
@@ -301,33 +286,5 @@ RegionBoundary RegionMesh::map_side_set(const UnstructuredQuad4Mesh& source, con
     });
     nodes.erase(std::unique(nodes.begin(), nodes.end()), nodes.end());
     return {kind, std::move(nodes), std::move(elements)};
-}
-DofMap::DofMap(std::size_t node_count, DofLayout layout) : _node_count(node_count), _layout(layout) {
-    if (node_count == 0) throw std::invalid_argument("DofMap node_count must be positive");
-    const std::size_t field_count = layout == DofLayout::axisymmetric_rz ? 3U : 4U;
-    if (node_count > std::numeric_limits<std::size_t>::max() / field_count)
-        throw std::length_error("DofMap DOF count overflows");
-    _field_layout = {{"temperature", 0, node_count, FieldCategory::thermal}};
-    if (layout == DofLayout::axisymmetric_rz) {
-        _field_layout.push_back({"radial", node_count, 2 * node_count, FieldCategory::mechanical});
-        _field_layout.push_back({"axial", 2 * node_count, 3 * node_count, FieldCategory::mechanical});
-    } else {
-        _field_layout.push_back({"displacement_x", node_count, 2 * node_count, FieldCategory::mechanical});
-        _field_layout.push_back({"displacement_y", 2 * node_count, 3 * node_count, FieldCategory::mechanical});
-        _field_layout.push_back({"displacement_z", 3 * node_count, 4 * node_count, FieldCategory::mechanical});
-    }
-}
-std::size_t DofMap::dof(Field field, std::size_t node) const {
-    if (node >= _node_count) throw std::out_of_range("DofMap node index is out of range");
-    if (field == Field::temperature) return node;
-    if (_layout == DofLayout::axisymmetric_rz) {
-        if (field == Field::radial_displacement) return _node_count + node;
-        if (field == Field::axial_displacement) return 2 * _node_count + node;
-    } else {
-        if (field == Field::displacement_x) return _node_count + node;
-        if (field == Field::displacement_y) return 2 * _node_count + node;
-        if (field == Field::displacement_z) return 3 * _node_count + node;
-    }
-    throw std::invalid_argument("Field is not available in this DOF layout");
 }
 } // namespace fuelsim

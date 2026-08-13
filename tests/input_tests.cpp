@@ -26,7 +26,7 @@ bool expect_parse_failure(const std::string& path, const std::string& contents, 
     }
     bool failed_as_expected = false;
     try {
-        (void)fuelsim::parse_input_file(path);
+        (void)fuelsim::read_case_input(path);
     } catch (const std::invalid_argument& error) {
         failed_as_expected = std::string(error.what()).find(expected_message) != std::string::npos;
     }
@@ -135,7 +135,7 @@ bool fuzz_input_parser(const std::string& seed, const std::string& path) {
             output << mutation;
         }
         try {
-            (void)fuelsim::parse_input_file(path);
+            (void)fuelsim::read_case_input(path);
         } catch (const std::exception&) {
         } catch (...) {
             std::remove(path.c_str());

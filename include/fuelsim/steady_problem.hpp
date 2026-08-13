@@ -8,23 +8,8 @@ struct AugmentedContactUpdate;
 struct SpatialDefinition;
 class UnstructuredQuad4Mesh;
 class UnstructuredHex8Mesh;
-namespace rz {
+class SpatialProblemStorage;
 class BackendAccess;
-}
-namespace cartesian {
-class BackendAccess;
-}
-class SteadyStateSnapshot final {
-  public:
-    SteadyStateSnapshot() = default;
-    bool empty() const noexcept { return _storage == nullptr; }
-
-  private:
-    struct Storage;
-    explicit SteadyStateSnapshot(std::shared_ptr<const Storage> storage);
-    std::shared_ptr<const Storage> _storage;
-    friend class SteadyProblem;
-};
 class SteadyProblem final : public NonlinearProblem {
   public:
     SteadyProblem(SpatialDefinition definition, const UnstructuredQuad4Mesh& source_mesh);
@@ -37,8 +22,8 @@ class SteadyProblem final : public NonlinearProblem {
     double load_factor() const noexcept;
     void set_time(double time);
     std::vector<double> initial_state() const;
-    SteadyStateSnapshot capture_internal_state() const;
-    void restore_internal_state(const SteadyStateSnapshot& snapshot, const std::vector<double>& state);
+    ProblemStateSnapshot capture_internal_state() const;
+    void restore_internal_state(const ProblemStateSnapshot& snapshot, const std::vector<double>& state);
     void commit_internal_state(const std::vector<double>& state);
     std::size_t dof_count() const noexcept override;
     std::size_t contribution_count() const noexcept override;
@@ -46,18 +31,13 @@ class SteadyProblem final : public NonlinearProblem {
     const std::vector<DirichletCondition>& dirichlet_conditions() const noexcept override;
     void validate_state(const std::vector<double>& state) const override;
     std::vector<std::size_t> required_state_dofs(std::size_t first, std::size_t last) const override;
-    void validate_local_state(std::size_t first, std::size_t last, const GlobalStateView& state) const override;
+    void validate_local_state(std::size_t first, std::size_t last, const std::vector<double>& state) const override;
     void contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const override;
-    void compute_contribution_residual(
-        std::size_t index, const std::vector<double>& state, std::vector<double>& residual) const override;
-    void compute_contribution_system(std::size_t index, const std::vector<double>& state, std::vector<double>& residual,
-        std::vector<double>& jacobian) const override;
+    void compute_contribution(std::size_t index, const std::vector<double>& state, std::vector<double>& residual,
+        std::vector<double>* jacobian) const override;
 
   private:
-    friend class rz::BackendAccess;
-    friend class cartesian::BackendAccess;
-    class Implementation;
-    void refresh_region_heat_sources();
-    std::unique_ptr<Implementation> _impl;
+    friend class BackendAccess;
+    std::unique_ptr<SpatialProblemStorage> _impl;
 };
 } // namespace fuelsim

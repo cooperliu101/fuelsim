@@ -14,19 +14,11 @@ using Hex8LocalValues = std::array<double, hex8_local_dof_count>;
 using Hex8LocalResidual = std::array<double, hex8_local_dof_count>;
 using Hex8LocalJacobian = std::array<double, hex8_local_dof_count * hex8_local_dof_count>;
 using Hex8LocalAdValues = std::array<adlite::Scalar, hex8_local_dof_count>;
-struct Hex8LocalSystem final {
-    Hex8LocalResidual residual;
-    Hex8LocalJacobian jacobian;
-};
 using Quad4FaceLocalDofs = std::array<std::size_t, quad4_face_local_dof_count>;
 using Quad4FaceLocalValues = std::array<double, quad4_face_local_dof_count>;
 using Quad4FaceLocalResidual = std::array<double, quad4_face_local_dof_count>;
 using Quad4FaceLocalJacobian = std::array<double, quad4_face_local_dof_count * quad4_face_local_dof_count>;
 using Quad4FaceLocalAdValues = std::array<adlite::Scalar, quad4_face_local_dof_count>;
-struct Quad4FaceLocalSystem final {
-    Quad4FaceLocalResidual residual;
-    Quad4FaceLocalJacobian jacobian;
-};
 using Hex8Coordinates = std::array<CartesianPoint3, hex8_node_count>;
 using Quad4FaceCoordinates = std::array<CartesianPoint3, quad4_face_node_count>;
 struct Hex8QuadraturePoint final {
@@ -52,15 +44,9 @@ struct Hex8ThermoelasticData final {
     IsotropicThermoelasticMaterial material;
     double volumetric_heat_source, time;
 };
-double compute_hex8_heat_capacity(const Hex8ThermoelasticData& data, double temperature, double x, double y, double z);
-Hex8LocalResidual compute_hex8_residual(
-    const Hex8ThermoelasticData& data, const Hex8Geometry& geometry, const Hex8LocalValues& state);
-Hex8LocalSystem compute_hex8_system(
-    const Hex8ThermoelasticData& data, const Hex8Geometry& geometry, const Hex8LocalValues& state);
-Hex8LocalResidual compute_hex8_transient_residual(const Hex8ThermoelasticData& data, const Hex8Geometry& geometry,
-    const Hex8LocalValues& current_state, const Hex8LocalValues& committed_state, double time_step);
-Hex8LocalSystem compute_hex8_transient_system(const Hex8ThermoelasticData& data, const Hex8Geometry& geometry,
-    const Hex8LocalValues& current_state, const Hex8LocalValues& committed_state, double time_step);
+Hex8LocalResidual compute_hex8_thermoelastic(const Hex8ThermoelasticData& data, const Hex8Geometry& geometry,
+    const Hex8LocalValues& state, const Hex8LocalValues* committed_state = nullptr, double time_step = 0.0,
+    Hex8LocalJacobian* jacobian = nullptr);
 std::array<SymmetricTensor3Values, 8> compute_hex8_stress(
     const Hex8ThermoelasticData& data, const Hex8Geometry& geometry, const Hex8LocalValues& state);
 enum class CartesianTractionComponent { x, y, z };
@@ -70,11 +56,6 @@ struct Quad4FaceBoundaryData final {
     CartesianTractionComponent component;
     double load, ambient_temperature;
 };
-Quad4FaceBoundaryData make_quad4_face_pressure_data(double pressure);
-Quad4FaceBoundaryData make_quad4_face_traction_data(CartesianTractionComponent component, double traction);
-Quad4FaceBoundaryData make_quad4_face_convection_data(double heat_transfer_coefficient, double ambient_temperature);
-Quad4FaceLocalResidual compute_quad4_face_boundary_residual(
-    const Quad4FaceBoundaryData& data, const Quad4FaceGeometry& geometry, const Quad4FaceLocalValues& state);
-Quad4FaceLocalSystem compute_quad4_face_boundary_system(
-    const Quad4FaceBoundaryData& data, const Quad4FaceGeometry& geometry, const Quad4FaceLocalValues& state);
+Quad4FaceLocalResidual compute_quad4_face_boundary(const Quad4FaceBoundaryData& data, const Quad4FaceGeometry& geometry,
+    const Quad4FaceLocalValues& state, Quad4FaceLocalJacobian* jacobian = nullptr);
 } // namespace fuelsim

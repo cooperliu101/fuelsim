@@ -1,13 +1,15 @@
 #pragma once
-#include "fuelsim/dof_map.hpp"
 #include "fuelsim/mesh.hpp"
 #include "fuelsim/nonlinear_problem.hpp"
 #include "fuelsim/spatial_definition.hpp"
 #include <cstdint>
-#include <optional>
 #include <utility>
 #include <vector>
 namespace fuelsim::spatial_detail {
+enum class DofLayout {
+    axisymmetric_rz,
+    cartesian_3d,
+};
 struct ConvectionValues final {
     double coefficient, ambient;
 };
@@ -21,7 +23,6 @@ double controlled_value(const SpatialDefinition& definition, double time, double
 class SpatialLayout {
   public:
     const SpatialDefinition& definition() const noexcept { return _definition; }
-    const DofMap& dof_map() const noexcept { return *_dof_map; }
     std::size_t region_count() const noexcept { return _definition.regions.size(); }
     const RegionDefinition& region(std::size_t index) const { return _definition.regions.at(index); }
     std::size_t region_node_offset(std::size_t index) const;
@@ -32,7 +33,10 @@ class SpatialLayout {
     double region_heat_source(std::size_t index) const;
     double load_factor() const noexcept { return _load_factor; }
     std::vector<double> initial_state() const;
-    std::size_t dof_count() const noexcept { return dof_map().dof_count(); }
+    std::size_t node_count() const noexcept { return _node_offsets.back(); }
+    std::size_t dof_count() const noexcept { return _field_layout.size() * node_count(); }
+    const std::vector<FieldDescriptor>& field_layout() const noexcept { return _field_layout; }
+    std::size_t dof(Field field, std::size_t node) const;
     const std::vector<DirichletCondition>& dirichlet_conditions() const noexcept { return _dirichlet_conditions; }
     std::size_t global_node(std::size_t region, std::size_t local_node) const;
 
@@ -46,8 +50,8 @@ class SpatialLayout {
     ConvectionValues convection_values(const BoundaryConditionDefinition& boundary) const;
     SpatialDefinition _definition;
     std::vector<std::int64_t> _block_ids;
-    std::optional<DofMap> _dof_map;
     std::vector<std::size_t> _node_offsets, _element_offsets;
+    std::vector<FieldDescriptor> _field_layout;
     std::vector<DirichletCondition> _dirichlet_conditions;
     double _load_factor = 0.0, _time = 0.0;
 

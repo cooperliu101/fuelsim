@@ -100,7 +100,7 @@ endif()
 
 file(READ "${ROOT}/src/problem_backend_access.hpp" backend_access)
 foreach(required "namespace rz" "struct TransientCommittedState" "Quad4MaterialHistory"
-                 "namespace cartesian" "static const SpatialAssembly& spatial")
+                 "class BackendAccess" "static const cartesian::SpatialAssembly& cartesian_spatial")
     string(FIND "${backend_access}" "${required}" location)
     if(location EQUAL -1)
         message(FATAL_ERROR "The private concrete backend access layer is missing: ${required}")

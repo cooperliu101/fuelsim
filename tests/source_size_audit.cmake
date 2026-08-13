@@ -2,8 +2,8 @@ if(NOT DEFINED ROOT)
     message(FATAL_ERROR "ROOT is required")
 endif()
 
-set(coexistence_baseline 12774)
-set(maximum_source_lines 11496)
+set(nonempty_line_baseline 11007)
+set(maximum_nonempty_lines 9906)
 
 file(READ "${ROOT}/.clang-format" format_configuration)
 string(FIND "${format_configuration}" "ColumnLimit: 120" column_limit)
@@ -22,24 +22,27 @@ file(GLOB_RECURSE source_files
     "${ROOT}/include/*.hpp"
 )
 
-set(source_lines 0)
-foreach(source_file IN LISTS source_files)
-    file(READ "${source_file}" contents)
-    string(REGEX REPLACE "[^\n]" "" newlines "${contents}")
-    string(LENGTH "${newlines}" file_lines)
-    math(EXPR source_lines "${source_lines} + ${file_lines}")
-endforeach()
+execute_process(
+    COMMAND awk "NF { count++ } END { print count }" ${source_files}
+    RESULT_VARIABLE count_status
+    OUTPUT_VARIABLE nonempty_lines
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+if(NOT count_status EQUAL 0 OR NOT nonempty_lines MATCHES "^[0-9]+$")
+    message(FATAL_ERROR "Could not count src/include nonempty lines")
+endif()
 
-math(EXPR removed_lines "${coexistence_baseline} - ${source_lines}")
-math(EXPR reduction_per_mille "1000 * ${removed_lines} / ${coexistence_baseline}")
-if(source_lines GREATER maximum_source_lines)
+math(EXPR removed_lines "${nonempty_line_baseline} - ${nonempty_lines}")
+math(EXPR reduction_per_mille "1000 * ${removed_lines} / ${nonempty_line_baseline}")
+if(nonempty_lines GREATER maximum_nonempty_lines)
     message(FATAL_ERROR
-        "src/include physical lines grew to ${source_lines}; the 10 percent coexistence-refactor limit is "
-        "${maximum_source_lines} from the ${coexistence_baseline}-line baseline"
+        "src/include nonempty lines grew to ${nonempty_lines}; the 10 percent refactor limit is "
+        "${maximum_nonempty_lines} from the ${nonempty_line_baseline}-line baseline"
     )
 endif()
 
 message(STATUS
-    "120-column src/include physical lines: ${source_lines}; removed ${removed_lines} from ${coexistence_baseline}; "
+    "120-column src/include nonempty lines: ${nonempty_lines}; removed ${removed_lines} from "
+    "${nonempty_line_baseline}; "
     "reduction ${reduction_per_mille} per mille"
 )

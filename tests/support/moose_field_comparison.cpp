@@ -87,9 +87,10 @@ std::vector<ActualNodalField> steady_values(
                 throw std::invalid_argument("Invalid or duplicate fuelsim source-node mapping");
             const std::size_t global = offset + local;
             result[source] = {mesh.nodes()[local].r, mesh.nodes()[local].z,
-                state[fuelsim::rz::ProblemAccess::dof_map(problem).temperature(global)],
-                state[fuelsim::rz::ProblemAccess::dof_map(problem).radial_displacement(global)],
-                state[fuelsim::rz::ProblemAccess::dof_map(problem).axial_displacement(global)], true};
+                state[fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::temperature, global)],
+                state[fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::radial_displacement, global)],
+                state[fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::axial_displacement, global)],
+                true};
         }
     }
     return result;
@@ -107,9 +108,10 @@ std::vector<ActualNodalField> transient_values(
                 throw std::invalid_argument("Invalid or duplicate fuelsim source-node mapping");
             const std::size_t global = offset + local;
             result[source] = {mesh.nodes()[local].r, mesh.nodes()[local].z,
-                state[fuelsim::rz::ProblemAccess::dof_map(problem).temperature(global)],
-                state[fuelsim::rz::ProblemAccess::dof_map(problem).radial_displacement(global)],
-                state[fuelsim::rz::ProblemAccess::dof_map(problem).axial_displacement(global)], true};
+                state[fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::temperature, global)],
+                state[fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::radial_displacement, global)],
+                state[fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::axial_displacement, global)],
+                true};
         }
     }
     return result;

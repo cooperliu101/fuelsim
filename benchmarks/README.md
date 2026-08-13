@@ -321,6 +321,24 @@ options. They are not a general strong-scaling result, a memory comparison, or
 evidence that HYPRE will converge for another material, contact state, mesh, or
 load path.
 
+## 2026-08-14 source consolidation measurement
+
+The source-consolidation candidate was paired with pre-refactor commit
+`03b751e` in Release mode on CPU 0. OpenMP, OpenBLAS, MKL, and NumExpr were
+fixed to one thread. The default 1,584-DOF direct case kept the first run
+separate. Its following two internal load-path times had medians of
+`1.116141079/1.163009159 s` for the baseline/candidate, so the candidate was
+`4.20%` slower. Both versions completed 20 steps with 64 nonlinear and 64
+linear iterations and the same `7.602509876370e-9` last residual.
+
+The required 23,010-DOF, 20-step direct case was also completed once by each
+version. The paired internal times were `60.769952996/61.888409483 s`, or a
+`1.84%` candidate slowdown. Both used 62 nonlinear and 62 linear iterations,
+82 residual callbacks, 62 Jacobian callbacks, one PETSc workspace, and the
+same `3.017657067419e-9` last residual. These measurements establish numerical
+work equivalence and a modest performance regression for these two cases; they
+are not a speedup or a broader scaling claim.
+
 ## 2026-08-11 M5.7 integrated transient parallel measurement
 
 The M5.7 150-node, 104-element integrated transient case was measured at commit

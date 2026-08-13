@@ -205,7 +205,7 @@ bool test_augmented_contact_transaction(const std::string& input_path, const std
     constexpr double prescribed_penetration = 2.0e-9;
     for (std::size_t node = 0; node < initial_nodes.size(); ++node) {
         const std::size_t global = contact_secondary_global_node(source, secondary_sources[node]);
-        penetrated[fuelsim::rz::ProblemAccess::dof_map(source).radial_displacement(global)] +=
+        penetrated[fuelsim::rz::ProblemAccess::dof_map(source).dof(fuelsim::Field::radial_displacement, global)] +=
             initial_nodes[node].gap + prescribed_penetration;
     }
     source.begin_time_step({1.0, 0.05});
@@ -325,7 +325,7 @@ bool verify_exodus(const std::string& path, const fuelsim::UnstructuredQuad4Mesh
         for (std::size_t node = 0; node < region_mesh.nodes().size(); ++node) {
             const std::size_t source = region_mesh.source_node_ids()[node];
             const double expected = problem.committed_solution().at(
-                fuelsim::rz::ProblemAccess::dof_map(problem).temperature(offset + node));
+                fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::temperature, offset + node));
             passed = check(nearly_equal(temperatures.at(source), expected),
                          "Exodus nodal temperature uses source-mesh mapping") &&
                      passed;
@@ -432,7 +432,7 @@ bool run_tests(const std::string& steady_input_path, const std::string& transien
              compare_committed_states(fuelsim::rz::ProblemAccess::committed_state(uninterrupted),
                  fuelsim::rz::ProblemAccess::committed_state(restarted)) &&
              passed;
-    passed = verify_exodus(results_path, mesh, split, writer.step_count()) && passed;
+    passed = verify_exodus(results_path, mesh, split, observer.steps() + 1) && passed;
     fuelsim::TransientProblem mismatch(input.spatial, mesh);
     fuelsim::SpatialDefinition changed = input.spatial;
     auto changed_functions = std::make_shared<fuelsim::MaterialFunctionSet>(*changed.regions[1].material.functions);

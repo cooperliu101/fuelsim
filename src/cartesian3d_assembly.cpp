@@ -1,52 +1,14 @@
 #include "cartesian3d_assembly.hpp"
 #include <algorithm>
 #include <cmath>
-#include <limits>
 #include <stdexcept>
-#include <utility>
 namespace fuelsim::cartesian {
-namespace {
-std::vector<Hex8RegionMesh> build_meshes(const SpatialDefinition& definition, const UnstructuredHex8Mesh& source_mesh) {
-    std::vector<Hex8RegionMesh> result;
-    result.reserve(definition.regions.size());
-    for (const RegionDefinition& region : definition.regions)
-        if (region.block_id >= 0)
-            result.push_back(Hex8RegionMesh::from_unstructured_block(source_mesh, region.block_id));
-        else
-            result.push_back(Hex8RegionMesh::from_unstructured_block(source_mesh, region.block));
-    return result;
-}
-Hex8Coordinates element_coordinates(const Hex8RegionMesh& mesh, const Hex8Element& element) {
-    Hex8Coordinates result{};
-    for (std::size_t node = 0; node < 8; ++node) result[node] = mesh.nodes().at(element.nodes[node]);
-    return result;
-}
-Quad4FaceCoordinates face_coordinates(const Hex8RegionMesh& mesh, const Quad4FaceElement& face) {
-    Quad4FaceCoordinates result{};
-    for (std::size_t node = 0; node < 4; ++node) result[node] = mesh.nodes().at(face.nodes[node]);
-    return result;
-}
-Hex8LocalValues hex8_values(const std::vector<double>& values) {
-    if (values.size() != hex8_local_dof_count)
-        throw std::invalid_argument("HEX8 contribution state must contain 32 DOFs");
-    Hex8LocalValues result{};
-    std::copy(values.begin(), values.end(), result.begin());
-    return result;
-}
-Quad4FaceLocalValues face_values(const std::vector<double>& values) {
-    if (values.size() != quad4_face_local_dof_count)
-        throw std::invalid_argument("Three-dimensional face state must contain 16 DOFs");
-    Quad4FaceLocalValues result{};
-    std::copy(values.begin(), values.end(), result.begin());
-    return result;
-}
-} // namespace
 SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const UnstructuredHex8Mesh& source_mesh)
-    : SpatialAssembly(definition, source_mesh, spatial_detail::resolve_block_ids(definition, source_mesh, false, false),
-          build_meshes(definition, source_mesh)) {}
-SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const UnstructuredHex8Mesh& source_mesh,
-    std::vector<std::int64_t> block_ids, std::vector<Hex8RegionMesh> meshes)
-    : SpatialLayout(std::move(definition), std::move(block_ids), DofLayout::cartesian_3d), _meshes(std::move(meshes)) {
+    : SpatialLayout(definition, spatial_detail::resolve_block_ids(definition, source_mesh, false, false),
+          spatial_detail::DofLayout::cartesian_3d) {
+    _meshes.reserve(_block_ids.size());
+    for (const std::int64_t block_id : _block_ids)
+        _meshes.push_back(Hex8RegionMesh::from_unstructured_block(source_mesh, block_id));
     std::vector<std::size_t> node_counts, element_counts;
     node_counts.reserve(_meshes.size());
     element_counts.reserve(_meshes.size());
@@ -56,9 +18,14 @@ SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const Unstructure
     }
     initialize_counts(node_counts, element_counts);
     _geometries.resize(_meshes.size());
-    for (std::size_t region = 0; region < _meshes.size(); ++region)
-        for (const Hex8Element& element : _meshes[region].elements())
-            _geometries[region].push_back(make_hex8_geometry(element_coordinates(_meshes[region], element)));
+    for (std::size_t region = 0; region < _meshes.size(); ++region) {
+        for (const Hex8Element& element : _meshes[region].elements()) {
+            Hex8Coordinates coordinates{};
+            for (std::size_t node = 0; node < coordinates.size(); ++node)
+                coordinates[node] = _meshes[region].nodes().at(element.nodes[node]);
+            _geometries[region].push_back(make_hex8_geometry(coordinates));
+        }
+    }
     for (std::size_t boundary_index = 0; boundary_index < _definition.boundary_conditions.size(); ++boundary_index) {
         const BoundaryConditionDefinition& boundary = _definition.boundary_conditions[boundary_index];
         if (boundary.name.empty() || boundary.boundary.empty())
@@ -75,7 +42,7 @@ SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const Unstructure
         const Hex8RegionBoundary mapped = _meshes[region].map_side_set(source_mesh, boundary.boundary);
         if (boundary.type == BoundaryConditionType::dirichlet) {
             for (std::size_t local_node : mapped.nodes) {
-                const std::size_t dof = dof_map().dof(boundary.field, global_node(region, local_node));
+                const std::size_t dof = this->dof(boundary.field, global_node(region, local_node));
                 add_dirichlet(dof, boundary_index);
             }
             continue;
@@ -84,7 +51,8 @@ SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const Unstructure
             throw std::invalid_argument("Cartesian three-dimensional stage B loads use the reference configuration");
         const std::size_t kernel = _boundary_data.size();
         if (boundary.type == BoundaryConditionType::pressure) {
-            _boundary_data.push_back(make_quad4_face_pressure_data(boundary.value));
+            _boundary_data.push_back(
+                {Quad4FaceBoundaryKind::pressure, CartesianTractionComponent::x, boundary.value, 0.0});
         } else if (boundary.type == BoundaryConditionType::traction) {
             CartesianTractionComponent component = CartesianTractionComponent::x;
             if (boundary.field == Field::displacement_y)
@@ -93,21 +61,24 @@ SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const Unstructure
                 component = CartesianTractionComponent::z;
             else if (boundary.field != Field::displacement_x)
                 throw std::invalid_argument("Three-dimensional traction requires a displacement field");
-            _boundary_data.push_back(make_quad4_face_traction_data(component, boundary.value));
+            _boundary_data.push_back({Quad4FaceBoundaryKind::traction, component, boundary.value, 0.0});
         } else {
-            _boundary_data.push_back(
-                make_quad4_face_convection_data(boundary.heat_transfer_coefficient, boundary.ambient_temperature));
+            _boundary_data.push_back({Quad4FaceBoundaryKind::convection, CartesianTractionComponent::x,
+                boundary.heat_transfer_coefficient, boundary.ambient_temperature});
         }
         _boundary_definition_indices.push_back(boundary_index);
         for (const Quad4FaceElement& face : mapped.faces) {
             std::array<std::size_t, 4> nodes{};
+            Quad4FaceCoordinates coordinates{};
             for (std::size_t node = 0; node < 4; ++node) nodes[node] = global_node(region, face.nodes[node]);
+            for (std::size_t node = 0; node < 4; ++node)
+                coordinates[node] = _meshes[region].nodes().at(face.nodes[node]);
             _boundary_contributions.push_back(
                 {boundary.type == BoundaryConditionType::pressure
                         ? SpatialContributionType::pressure
                         : (boundary.type == BoundaryConditionType::traction ? SpatialContributionType::traction
                                                                             : SpatialContributionType::convection),
-                    kernel, nodes, make_quad4_face_geometry(face_coordinates(_meshes[region], face))});
+                    kernel, nodes, make_quad4_face_geometry(coordinates)});
         }
     }
     spatial_detail::validate_dirichlet_conditions(_dirichlet_conditions,
@@ -152,10 +123,10 @@ void SpatialAssembly::contribution_dofs(std::size_t index, std::vector<std::size
         for (std::size_t node = 0; node < 8; ++node) nodes[node] = global_node(location.first, element.nodes[node]);
         Hex8LocalDofs fixed{};
         for (std::size_t node = 0; node < nodes.size(); ++node) {
-            fixed[node] = dof_map().temperature(nodes[node]);
-            fixed[8 + node] = dof_map().displacement_x(nodes[node]);
-            fixed[16 + node] = dof_map().displacement_y(nodes[node]);
-            fixed[24 + node] = dof_map().displacement_z(nodes[node]);
+            fixed[node] = dof(Field::temperature, nodes[node]);
+            fixed[8 + node] = dof(Field::displacement_x, nodes[node]);
+            fixed[16 + node] = dof(Field::displacement_y, nodes[node]);
+            fixed[24 + node] = dof(Field::displacement_z, nodes[node]);
         }
         dofs.assign(fixed.begin(), fixed.end());
         return;
@@ -163,10 +134,10 @@ void SpatialAssembly::contribution_dofs(std::size_t index, std::vector<std::size
     const BoundaryContribution& entry = _boundary_contributions.at(index - volume_contribution_count());
     Quad4FaceLocalDofs fixed{};
     for (std::size_t node = 0; node < entry.nodes.size(); ++node) {
-        fixed[node] = dof_map().temperature(entry.nodes[node]);
-        fixed[4 + node] = dof_map().displacement_x(entry.nodes[node]);
-        fixed[8 + node] = dof_map().displacement_y(entry.nodes[node]);
-        fixed[12 + node] = dof_map().displacement_z(entry.nodes[node]);
+        fixed[node] = dof(Field::temperature, entry.nodes[node]);
+        fixed[4 + node] = dof(Field::displacement_x, entry.nodes[node]);
+        fixed[8 + node] = dof(Field::displacement_y, entry.nodes[node]);
+        fixed[12 + node] = dof(Field::displacement_z, entry.nodes[node]);
     }
     dofs.assign(fixed.begin(), fixed.end());
 }
@@ -179,48 +150,36 @@ Hex8LocalValues SpatialAssembly::volume_state(std::size_t index, const std::vect
     for (std::size_t local = 0; local < result.size(); ++local) result[local] = global_state.at(dofs[local]);
     return result;
 }
-void SpatialAssembly::contribution_residual(std::size_t index, const std::vector<double>& state,
-    const std::vector<double>* committed_solution, double time_step, std::vector<double>& residual) const {
-    if (index < volume_contribution_count()) {
-        const auto location = element_location(index);
-        const Hex8LocalValues current = hex8_values(state);
-        const Hex8LocalResidual result = committed_solution == nullptr
-                                             ? compute_hex8_residual(_kernel_data[location.first],
-                                                   region_element_geometry(location.first, location.second), current)
-                                             : compute_hex8_transient_residual(_kernel_data[location.first],
-                                                   region_element_geometry(location.first, location.second), current,
-                                                   volume_state(index, *committed_solution), time_step);
-        residual.assign(result.begin(), result.end());
-        return;
-    }
-    const BoundaryContribution& entry = _boundary_contributions.at(index - volume_contribution_count());
-    const Quad4FaceLocalValues current = face_values(state);
-    const Quad4FaceLocalResidual result =
-        compute_quad4_face_boundary_residual(_boundary_data[entry.kernel], entry.geometry, current);
-    residual.assign(result.begin(), result.end());
-}
-void SpatialAssembly::contribution_system(std::size_t index, const std::vector<double>& state,
+void SpatialAssembly::compute_contribution(std::size_t index, const std::vector<double>& state,
     const std::vector<double>* committed_solution, double time_step, std::vector<double>& residual,
-    std::vector<double>& jacobian) const {
+    std::vector<double>* jacobian) const {
     if (index < volume_contribution_count()) {
+        if (state.size() != hex8_local_dof_count)
+            throw std::invalid_argument("HEX8 contribution state must contain 32 DOFs");
         const auto location = element_location(index);
-        const Hex8LocalValues current = hex8_values(state);
-        const Hex8LocalSystem result = committed_solution == nullptr
-                                           ? compute_hex8_system(_kernel_data[location.first],
-                                                 region_element_geometry(location.first, location.second), current)
-                                           : compute_hex8_transient_system(_kernel_data[location.first],
-                                                 region_element_geometry(location.first, location.second), current,
-                                                 volume_state(index, *committed_solution), time_step);
-        residual.assign(result.residual.begin(), result.residual.end());
-        jacobian.assign(result.jacobian.begin(), result.jacobian.end());
+        Hex8LocalValues current{};
+        std::copy(state.begin(), state.end(), current.begin());
+        const Hex8LocalValues committed =
+            committed_solution == nullptr ? Hex8LocalValues{} : volume_state(index, *committed_solution);
+        Hex8LocalJacobian local_jacobian{};
+        const Hex8LocalResidual result = compute_hex8_thermoelastic(_kernel_data[location.first],
+            region_element_geometry(location.first, location.second), current,
+            committed_solution == nullptr ? nullptr : &committed, time_step,
+            jacobian == nullptr ? nullptr : &local_jacobian);
+        residual.assign(result.begin(), result.end());
+        if (jacobian != nullptr) jacobian->assign(local_jacobian.begin(), local_jacobian.end());
         return;
     }
+    if (state.size() != quad4_face_local_dof_count)
+        throw std::invalid_argument("Three-dimensional face state must contain 16 DOFs");
     const BoundaryContribution& entry = _boundary_contributions.at(index - volume_contribution_count());
-    const Quad4FaceLocalValues current = face_values(state);
-    const Quad4FaceLocalSystem result =
-        compute_quad4_face_boundary_system(_boundary_data[entry.kernel], entry.geometry, current);
-    residual.assign(result.residual.begin(), result.residual.end());
-    jacobian.assign(result.jacobian.begin(), result.jacobian.end());
+    Quad4FaceLocalValues current{};
+    std::copy(state.begin(), state.end(), current.begin());
+    Quad4FaceLocalJacobian local_jacobian{};
+    const Quad4FaceLocalResidual result = compute_quad4_face_boundary(
+        _boundary_data[entry.kernel], entry.geometry, current, jacobian == nullptr ? nullptr : &local_jacobian);
+    residual.assign(result.begin(), result.end());
+    if (jacobian != nullptr) jacobian->assign(local_jacobian.begin(), local_jacobian.end());
 }
 std::array<SymmetricTensor3Values, 8> SpatialAssembly::stress(
     std::size_t region, std::size_t element, const std::vector<double>& state) const {
@@ -228,7 +187,8 @@ std::array<SymmetricTensor3Values, 8> SpatialAssembly::stress(
         volume_state(region_element_offset(region) + element, state));
 }
 double SpatialAssembly::heat_capacity(std::size_t region, double temperature, const CartesianPoint3& position) const {
-    return compute_hex8_heat_capacity(_kernel_data.at(region), temperature, position.x, position.y, position.z);
+    const Hex8ThermoelasticData& data = _kernel_data.at(region);
+    return data.material.heat_capacity(temperature, {data.time, position.x, position.y, position.z}).value();
 }
 void SpatialAssembly::refresh_controls() {
     for (std::size_t region = 0; region < region_count(); ++region)

@@ -94,7 +94,8 @@ bool test_free_thermal_expansion_and_jacobian() {
     std::array<double, 32> direction{};
     for (std::size_t dof = 0; dof < direction.size(); ++dof)
         direction[dof] = std::sin(0.37 * static_cast<double>(dof + 1));
-    const fuelsim::Hex8LocalSystem system = fuelsim::compute_hex8_system(data, geometry, state);
+    fuelsim::Hex8LocalJacobian jacobian{};
+    (void)fuelsim::compute_hex8_thermoelastic(data, geometry, state, nullptr, 0.0, &jacobian);
     const double epsilon = 1.0e-7;
     fuelsim::Hex8LocalValues plus = state;
     fuelsim::Hex8LocalValues minus = state;
@@ -102,14 +103,13 @@ bool test_free_thermal_expansion_and_jacobian() {
         plus[dof] += epsilon * direction[dof];
         minus[dof] -= epsilon * direction[dof];
     }
-    const fuelsim::Hex8LocalResidual plus_residual = fuelsim::compute_hex8_residual(data, geometry, plus);
-    const fuelsim::Hex8LocalResidual minus_residual = fuelsim::compute_hex8_residual(data, geometry, minus);
+    const fuelsim::Hex8LocalResidual plus_residual = fuelsim::compute_hex8_thermoelastic(data, geometry, plus);
+    const fuelsim::Hex8LocalResidual minus_residual = fuelsim::compute_hex8_thermoelastic(data, geometry, minus);
     double maximum_error = 0.0;
     double scale = 0.0;
     for (std::size_t row = 0; row < 32; ++row) {
         double analytic = 0.0;
-        for (std::size_t column = 0; column < 32; ++column)
-            analytic += system.jacobian[row * 32 + column] * direction[column];
+        for (std::size_t column = 0; column < 32; ++column) analytic += jacobian[row * 32 + column] * direction[column];
         const double numerical = (plus_residual[row] - minus_residual[row]) / (2.0 * epsilon);
         maximum_error = std::max(maximum_error, std::abs(analytic - numerical));
         scale = std::max({scale, std::abs(analytic), std::abs(numerical)});
@@ -127,7 +127,7 @@ bool test_transient_capacity_and_faces() {
         state[node] = 302.0;
     }
     const fuelsim::Hex8LocalResidual residual =
-        fuelsim::compute_hex8_transient_residual(data, geometry, state, old_state, 1.0);
+        fuelsim::compute_hex8_thermoelastic(data, geometry, state, &old_state, 1.0);
     for (std::size_t node = 0; node < 8; ++node)
         if (!check(std::abs(residual[node]) < 1.0e-7,
                 "Backward Euler consistent heat capacity balances uniform volumetric heating; residual=" +
@@ -138,9 +138,10 @@ bool test_transient_capacity_and_faces() {
         {coordinates[1], coordinates[2], coordinates[6], coordinates[5]}};
     const fuelsim::Quad4FaceGeometry face = fuelsim::make_quad4_face_geometry(face_coordinates);
     fuelsim::Quad4FaceLocalValues face_state{};
-    const fuelsim::Quad4FaceBoundaryData pressure = fuelsim::make_quad4_face_pressure_data(5.0);
+    const fuelsim::Quad4FaceBoundaryData pressure = {
+        fuelsim::Quad4FaceBoundaryKind::pressure, fuelsim::CartesianTractionComponent::x, 5.0, 0.0};
     const fuelsim::Quad4FaceLocalResidual pressure_residual =
-        fuelsim::compute_quad4_face_boundary_residual(pressure, face, face_state);
+        fuelsim::compute_quad4_face_boundary(pressure, face, face_state);
     double force_x = 0.0;
     double force_y = 0.0;
     double force_z = 0.0;
@@ -153,14 +154,16 @@ bool test_transient_capacity_and_faces() {
             "reference pressure uses the outward three-dimensional face area vector and exact total force"))
         return false;
     for (std::size_t node = 0; node < 4; ++node) face_state[node] = 350.0;
-    const fuelsim::Quad4FaceBoundaryData convection = fuelsim::make_quad4_face_convection_data(20.0, 300.0);
-    const fuelsim::Quad4FaceLocalSystem convection_system =
-        fuelsim::compute_quad4_face_boundary_system(convection, face, face_state);
+    const fuelsim::Quad4FaceBoundaryData convection = {
+        fuelsim::Quad4FaceBoundaryKind::convection, fuelsim::CartesianTractionComponent::x, 20.0, 300.0};
+    fuelsim::Quad4FaceLocalJacobian convection_jacobian{};
+    const fuelsim::Quad4FaceLocalResidual convection_residual =
+        fuelsim::compute_quad4_face_boundary(convection, face, face_state, &convection_jacobian);
     double heat = 0.0;
     double tangent_sum = 0.0;
     for (std::size_t row = 0; row < 4; ++row) {
-        heat += convection_system.residual[row];
-        for (std::size_t column = 0; column < 4; ++column) tangent_sum += convection_system.jacobian[row * 16 + column];
+        heat += convection_residual[row];
+        for (std::size_t column = 0; column < 4; ++column) tangent_sum += convection_jacobian[row * 16 + column];
     }
     return check(near(heat, 1000.0, 1.0e-14) && near(tangent_sum, 20.0, 1.0e-14),
         "three-dimensional convection has the exact face heat rate and consistent temperature tangent");

@@ -213,6 +213,12 @@ bool run_case(const std::string& input_path, const std::string& nodal_reference_
         maximum_accepted_step = std::max(maximum_accepted_step, step.time_step);
         maximum_time_error_estimate = std::max(maximum_time_error_estimate, step.time_error_estimate);
     }
+    if (solve.accepted_steps.size() != 97)
+        for (std::size_t index = 0; index < solve.accepted_steps.size(); ++index) {
+            const fuelsim::TransientAcceptedStep& step = solve.accepted_steps[index];
+            std::cerr << "m57_step[" << index << "]=" << std::setprecision(17) << step.time << ',' << step.time_step
+                      << ',' << step.next_time_step << ',' << step.time_error_estimate << '\n';
+        }
     const std::vector<fuelsim::test::NodalFieldReference> nodal_reference =
         fuelsim::test::read_moose_nodal_reference(nodal_reference_path);
     const fuelsim::test::NodalFieldComparison fields =

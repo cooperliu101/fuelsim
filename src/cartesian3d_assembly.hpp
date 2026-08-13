@@ -1,13 +1,10 @@
 #pragma once
-#include "fuelsim/dof_map.hpp"
 #include "fuelsim/hex8.hpp"
 #include "fuelsim/mesh.hpp"
 #include "fuelsim/nonlinear_problem.hpp"
 #include "fuelsim/spatial_definition.hpp"
 #include "spatial_common.hpp"
 #include <cstddef>
-#include <string>
-#include <utility>
 #include <vector>
 namespace fuelsim::cartesian {
 class SpatialAssembly final : public spatial_detail::SpatialLayout {
@@ -23,11 +20,9 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     }
     void validate_state(const std::vector<double>& state) const;
     void contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const;
-    void contribution_residual(std::size_t index, const std::vector<double>& state,
-        const std::vector<double>* committed_solution, double time_step, std::vector<double>& residual) const;
-    void contribution_system(std::size_t index, const std::vector<double>& state,
+    void compute_contribution(std::size_t index, const std::vector<double>& state,
         const std::vector<double>* committed_solution, double time_step, std::vector<double>& residual,
-        std::vector<double>& jacobian) const;
+        std::vector<double>* jacobian) const;
     Hex8LocalValues volume_state(std::size_t index, const std::vector<double>& global_state) const;
     std::array<SymmetricTensor3Values, 8> stress(
         std::size_t region, std::size_t element, const std::vector<double>& state) const;
@@ -40,8 +35,6 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
         std::array<std::size_t, 4> nodes;
         Quad4FaceGeometry geometry;
     };
-    SpatialAssembly(SpatialDefinition definition, const UnstructuredHex8Mesh& source_mesh,
-        std::vector<std::int64_t> block_ids, std::vector<Hex8RegionMesh> meshes);
     void refresh_controls();
     std::vector<Hex8RegionMesh> _meshes;
     std::vector<std::vector<Hex8Geometry>> _geometries;
