@@ -141,7 +141,7 @@ bool test_registered_material_functions() {
     const adlite::Scalar conductivity = material.conductivity(active_temperature, {4.0, 0.004, 0.0, 0.01});
     const adlite::Scalar heat_capacity = material.heat_capacity(active_temperature, {4.0, 0.004, 0.0, 0.01});
     bool passed = check(functions->thermal.parameters.value("density") == 10.0 &&
-                            functions->thermal.parameters.value("conductivity") == 1.0,
+                            functions->thermal.parameters.value("conductivity_offset") == 1.0,
         "registered material parameters are bound by name and stored in schema order");
     passed = check(scaled_error(active.stress.rr.derivative(0), centered) < 1.0e-7,
                  "registered creep-plastic material AD tangent matches a centered difference") &&
@@ -343,6 +343,11 @@ bool test_norton_creep_material_point() {
     const adlite::Scalar active_rr = adlite::Scalar::independent(0.2, 0, 1);
     const fuelsim::InelasticStressResponse active =
         material.response(active_rr, -0.1, -0.1, 0.0, 600.0, time_step, committed);
+    const fuelsim::MaterialPointState active_state =
+        fuelsim::IsotropicInelasticMaterial::state_values(active.trial_state);
+    passed = check(active.stress.rr.value() == response.stress.rr.value() && same_state(active_state, state),
+                 "active Norton evaluation preserves the passive primal response exactly") &&
+             passed;
     constexpr double perturbation = 1.0e-6;
     const double plus =
         material.response(0.2 + perturbation, -0.1, -0.1, 0.0, 600.0, time_step, committed).stress.rr.value();
@@ -505,6 +510,11 @@ bool test_coupled_plastic_creep_material_point() {
     const adlite::Scalar active_rr = adlite::Scalar::independent(0.2, 0, 1);
     const fuelsim::InelasticStressResponse active =
         material.response(active_rr, -0.1, -0.1, 0.0, 600.0, time_step, committed);
+    const fuelsim::MaterialPointState active_state =
+        fuelsim::IsotropicInelasticMaterial::state_values(active.trial_state);
+    passed = check(active.stress.rr.value() == response.stress.rr.value() && same_state(active_state, state),
+                 "active coupled evaluation preserves the passive primal response exactly") &&
+             passed;
     constexpr double perturbation = 1.0e-6;
     const double plus =
         material.response(0.2 + perturbation, -0.1, -0.1, 0.0, 600.0, time_step, committed).stress.rr.value();
