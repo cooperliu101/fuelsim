@@ -45,9 +45,9 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     void refresh_controls();
     std::vector<Hex8RegionMesh> _meshes;
     std::vector<std::vector<Hex8Geometry>> _geometries;
-    std::vector<Hex8ThermoelasticKernel> _kernels;
+    std::vector<Hex8ThermoelasticData> _kernel_data;
     std::vector<std::size_t> _boundary_definition_indices;
-    std::vector<Quad4FaceBoundaryKernel> _boundary_kernels;
+    std::vector<Quad4FaceBoundaryData> _boundary_data;
     std::vector<BoundaryContribution> _boundary_contributions;
 };
 } // namespace fuelsim::cartesian

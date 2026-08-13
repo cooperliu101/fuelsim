@@ -48,47 +48,33 @@ struct Quad4FaceGeometry final {
 };
 Hex8Geometry make_hex8_geometry(const Hex8Coordinates& coordinates);
 Quad4FaceGeometry make_quad4_face_geometry(const Quad4FaceCoordinates& coordinates);
-class Hex8ThermoelasticKernel final {
-  public:
-    Hex8ThermoelasticKernel(IsotropicThermoelasticMaterial material, double volumetric_heat_source);
-    double heat_capacity(double temperature, double x, double y, double z) const;
-    void set_volumetric_heat_source(double value) noexcept { _volumetric_heat_source = value; }
-    void set_time(double value) noexcept { _time = value; }
-    Hex8LocalResidual residual(const Hex8Geometry& geometry, const Hex8LocalValues& state) const;
-    Hex8LocalSystem linearize(const Hex8Geometry& geometry, const Hex8LocalValues& state) const;
-    Hex8LocalResidual residual(const Hex8Geometry& geometry, const Hex8LocalValues& current_state,
-        const Hex8LocalValues& committed_state, double time_step) const;
-    Hex8LocalSystem linearize(const Hex8Geometry& geometry, const Hex8LocalValues& current_state,
-        const Hex8LocalValues& committed_state, double time_step) const;
-    std::array<SymmetricTensor3Values, 8> stress_values(
-        const Hex8Geometry& geometry, const Hex8LocalValues& state) const;
-
-  private:
-    void residual_ad(const Hex8Geometry& geometry, const Hex8LocalAdValues& state,
-        const Hex8LocalValues* committed_state, double time_step, Hex8LocalAdValues& residual) const;
-    IsotropicThermoelasticMaterial _material;
-    double _volumetric_heat_source, _time;
+struct Hex8ThermoelasticData final {
+    IsotropicThermoelasticMaterial material;
+    double volumetric_heat_source, time;
 };
+double compute_hex8_heat_capacity(const Hex8ThermoelasticData& data, double temperature, double x, double y, double z);
+Hex8LocalResidual compute_hex8_residual(
+    const Hex8ThermoelasticData& data, const Hex8Geometry& geometry, const Hex8LocalValues& state);
+Hex8LocalSystem compute_hex8_system(
+    const Hex8ThermoelasticData& data, const Hex8Geometry& geometry, const Hex8LocalValues& state);
+Hex8LocalResidual compute_hex8_transient_residual(const Hex8ThermoelasticData& data, const Hex8Geometry& geometry,
+    const Hex8LocalValues& current_state, const Hex8LocalValues& committed_state, double time_step);
+Hex8LocalSystem compute_hex8_transient_system(const Hex8ThermoelasticData& data, const Hex8Geometry& geometry,
+    const Hex8LocalValues& current_state, const Hex8LocalValues& committed_state, double time_step);
+std::array<SymmetricTensor3Values, 8> compute_hex8_stress(
+    const Hex8ThermoelasticData& data, const Hex8Geometry& geometry, const Hex8LocalValues& state);
 enum class CartesianTractionComponent { x, y, z };
-class Quad4FaceBoundaryKernel final {
-  public:
-    explicit Quad4FaceBoundaryKernel(double pressure);
-    Quad4FaceBoundaryKernel(CartesianTractionComponent component, double traction);
-    Quad4FaceBoundaryKernel(double heat_transfer_coefficient, double ambient_temperature);
-    void set_load(double value) noexcept { _load = value; }
-    void set_convection(double coefficient, double ambient) noexcept {
-        _load = coefficient;
-        _ambient_temperature = ambient;
-    }
-    Quad4FaceLocalResidual residual(const Quad4FaceGeometry& geometry, const Quad4FaceLocalValues& state) const;
-    Quad4FaceLocalSystem linearize(const Quad4FaceGeometry& geometry, const Quad4FaceLocalValues& state) const;
-
-  private:
-    enum class Kind { pressure, traction, convection };
-    void residual_ad(
-        const Quad4FaceGeometry& geometry, const Quad4FaceLocalAdValues& state, Quad4FaceLocalAdValues& residual) const;
-    Kind _kind;
-    CartesianTractionComponent _component;
-    double _load, _ambient_temperature;
+enum class Quad4FaceBoundaryKind { pressure, traction, convection };
+struct Quad4FaceBoundaryData final {
+    Quad4FaceBoundaryKind kind;
+    CartesianTractionComponent component;
+    double load, ambient_temperature;
 };
+Quad4FaceBoundaryData make_quad4_face_pressure_data(double pressure);
+Quad4FaceBoundaryData make_quad4_face_traction_data(CartesianTractionComponent component, double traction);
+Quad4FaceBoundaryData make_quad4_face_convection_data(double heat_transfer_coefficient, double ambient_temperature);
+Quad4FaceLocalResidual compute_quad4_face_boundary_residual(
+    const Quad4FaceBoundaryData& data, const Quad4FaceGeometry& geometry, const Quad4FaceLocalValues& state);
+Quad4FaceLocalSystem compute_quad4_face_boundary_system(
+    const Quad4FaceBoundaryData& data, const Quad4FaceGeometry& geometry, const Quad4FaceLocalValues& state);
 } // namespace fuelsim

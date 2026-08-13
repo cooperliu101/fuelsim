@@ -82,9 +82,9 @@ SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const Unstructure
         }
         if (boundary.use_displaced_geometry)
             throw std::invalid_argument("Cartesian three-dimensional stage B loads use the reference configuration");
-        const std::size_t kernel = _boundary_kernels.size();
+        const std::size_t kernel = _boundary_data.size();
         if (boundary.type == BoundaryConditionType::pressure) {
-            _boundary_kernels.emplace_back(boundary.value);
+            _boundary_data.push_back(make_quad4_face_pressure_data(boundary.value));
         } else if (boundary.type == BoundaryConditionType::traction) {
             CartesianTractionComponent component = CartesianTractionComponent::x;
             if (boundary.field == Field::displacement_y)
@@ -93,9 +93,10 @@ SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const Unstructure
                 component = CartesianTractionComponent::z;
             else if (boundary.field != Field::displacement_x)
                 throw std::invalid_argument("Three-dimensional traction requires a displacement field");
-            _boundary_kernels.emplace_back(component, boundary.value);
+            _boundary_data.push_back(make_quad4_face_traction_data(component, boundary.value));
         } else {
-            _boundary_kernels.emplace_back(boundary.heat_transfer_coefficient, boundary.ambient_temperature);
+            _boundary_data.push_back(
+                make_quad4_face_convection_data(boundary.heat_transfer_coefficient, boundary.ambient_temperature));
         }
         _boundary_definition_indices.push_back(boundary_index);
         for (const Quad4FaceElement& face : mapped.faces) {
@@ -116,8 +117,8 @@ SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const Unstructure
         const MaterialFunctionSet& functions = *region(region_index).material.functions;
         if (functions.has_creep() || functions.has_plasticity())
             throw std::invalid_argument("Cartesian three-dimensional stage B supports only elastic materials");
-        _kernels.emplace_back(
-            IsotropicThermoelasticMaterial(region(region_index).material), region_heat_source(region_index));
+        _kernel_data.push_back(
+            {IsotropicThermoelasticMaterial(region(region_index).material), region_heat_source(region_index), 0.0});
     }
     refresh_controls();
 }
@@ -134,7 +135,7 @@ void SpatialAssembly::set_load_factor(double value) {
 }
 void SpatialAssembly::set_time(double value) {
     set_time_value(value);
-    for (Hex8ThermoelasticKernel& kernel : _kernels) kernel.set_time(value);
+    for (Hex8ThermoelasticData& kernel_data : _kernel_data) kernel_data.time = value;
     refresh_controls();
 }
 void SpatialAssembly::validate_state(const std::vector<double>& state) const {
@@ -183,17 +184,19 @@ void SpatialAssembly::contribution_residual(std::size_t index, const std::vector
     if (index < volume_contribution_count()) {
         const auto location = element_location(index);
         const Hex8LocalValues current = hex8_values(state);
-        const Hex8LocalResidual result =
-            committed_solution == nullptr
-                ? _kernels[location.first].residual(region_element_geometry(location.first, location.second), current)
-                : _kernels[location.first].residual(region_element_geometry(location.first, location.second), current,
-                      volume_state(index, *committed_solution), time_step);
+        const Hex8LocalResidual result = committed_solution == nullptr
+                                             ? compute_hex8_residual(_kernel_data[location.first],
+                                                   region_element_geometry(location.first, location.second), current)
+                                             : compute_hex8_transient_residual(_kernel_data[location.first],
+                                                   region_element_geometry(location.first, location.second), current,
+                                                   volume_state(index, *committed_solution), time_step);
         residual.assign(result.begin(), result.end());
         return;
     }
     const BoundaryContribution& entry = _boundary_contributions.at(index - volume_contribution_count());
     const Quad4FaceLocalValues current = face_values(state);
-    const Quad4FaceLocalResidual result = _boundary_kernels[entry.kernel].residual(entry.geometry, current);
+    const Quad4FaceLocalResidual result =
+        compute_quad4_face_boundary_residual(_boundary_data[entry.kernel], entry.geometry, current);
     residual.assign(result.begin(), result.end());
 }
 void SpatialAssembly::contribution_system(std::size_t index, const std::vector<double>& state,
@@ -202,43 +205,46 @@ void SpatialAssembly::contribution_system(std::size_t index, const std::vector<d
     if (index < volume_contribution_count()) {
         const auto location = element_location(index);
         const Hex8LocalValues current = hex8_values(state);
-        const Hex8LocalSystem result =
-            committed_solution == nullptr
-                ? _kernels[location.first].linearize(region_element_geometry(location.first, location.second), current)
-                : _kernels[location.first].linearize(region_element_geometry(location.first, location.second), current,
-                      volume_state(index, *committed_solution), time_step);
+        const Hex8LocalSystem result = committed_solution == nullptr
+                                           ? compute_hex8_system(_kernel_data[location.first],
+                                                 region_element_geometry(location.first, location.second), current)
+                                           : compute_hex8_transient_system(_kernel_data[location.first],
+                                                 region_element_geometry(location.first, location.second), current,
+                                                 volume_state(index, *committed_solution), time_step);
         residual.assign(result.residual.begin(), result.residual.end());
         jacobian.assign(result.jacobian.begin(), result.jacobian.end());
         return;
     }
     const BoundaryContribution& entry = _boundary_contributions.at(index - volume_contribution_count());
     const Quad4FaceLocalValues current = face_values(state);
-    const Quad4FaceLocalSystem result = _boundary_kernels[entry.kernel].linearize(entry.geometry, current);
+    const Quad4FaceLocalSystem result =
+        compute_quad4_face_boundary_system(_boundary_data[entry.kernel], entry.geometry, current);
     residual.assign(result.residual.begin(), result.residual.end());
     jacobian.assign(result.jacobian.begin(), result.jacobian.end());
 }
 std::array<SymmetricTensor3Values, 8> SpatialAssembly::stress(
     std::size_t region, std::size_t element, const std::vector<double>& state) const {
-    return _kernels.at(region).stress_values(
-        region_element_geometry(region, element), volume_state(region_element_offset(region) + element, state));
+    return compute_hex8_stress(_kernel_data.at(region), region_element_geometry(region, element),
+        volume_state(region_element_offset(region) + element, state));
 }
 double SpatialAssembly::heat_capacity(std::size_t region, double temperature, const CartesianPoint3& position) const {
-    return _kernels.at(region).heat_capacity(temperature, position.x, position.y, position.z);
+    return compute_hex8_heat_capacity(_kernel_data.at(region), temperature, position.x, position.y, position.z);
 }
 void SpatialAssembly::refresh_controls() {
     for (std::size_t region = 0; region < region_count(); ++region)
-        _kernels[region].set_volumetric_heat_source(region_heat_source(region));
+        _kernel_data[region].volumetric_heat_source = region_heat_source(region);
     refresh_dirichlet_values();
-    for (std::size_t kernel = 0; kernel < _boundary_kernels.size(); ++kernel) {
+    for (std::size_t kernel = 0; kernel < _boundary_data.size(); ++kernel) {
         const BoundaryConditionDefinition& boundary =
             _definition.boundary_conditions[_boundary_definition_indices[kernel]];
         if (boundary.type != BoundaryConditionType::convection) {
-            _boundary_kernels[kernel].set_load(spatial_detail::controlled_value(
-                _definition, _time, _load_factor, boundary.value, boundary.scale_with_load, boundary.function));
+            _boundary_data[kernel].load = spatial_detail::controlled_value(
+                _definition, _time, _load_factor, boundary.value, boundary.scale_with_load, boundary.function);
             continue;
         }
         const spatial_detail::ConvectionValues values = convection_values(boundary);
-        _boundary_kernels[kernel].set_convection(values.coefficient, values.ambient);
+        _boundary_data[kernel].load = values.coefficient;
+        _boundary_data[kernel].ambient_temperature = values.ambient;
     }
 }
 } // namespace fuelsim::cartesian

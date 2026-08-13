@@ -55,8 +55,8 @@ bool test_geometry_and_constant_strain() {
         state[16 + node] = exy * point.x + eyy * point.y + eyz * point.z;
         state[24 + node] = exz * point.x + eyz * point.y + ezz * point.z;
     }
-    fuelsim::Hex8ThermoelasticKernel kernel(fuelsim::IsotropicThermoelasticMaterial(properties()), 0.0);
-    const auto stresses = kernel.stress_values(geometry, state);
+    const fuelsim::Hex8ThermoelasticData data{fuelsim::IsotropicThermoelasticMaterial(properties()), 0.0, 0.0};
+    const auto stresses = fuelsim::compute_hex8_stress(data, geometry, state);
     const double lambda = 2.0e11 * 0.25 / (1.25 * 0.5);
     const double shear = 2.0e11 / 2.5;
     const double trace = exx + eyy + ezz;
@@ -73,7 +73,7 @@ bool test_geometry_and_constant_strain() {
 bool test_free_thermal_expansion_and_jacobian() {
     const fuelsim::Hex8Coordinates coordinates = unit_cube();
     const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(coordinates);
-    fuelsim::Hex8ThermoelasticKernel kernel(fuelsim::IsotropicThermoelasticMaterial(properties()), 7.0e5);
+    const fuelsim::Hex8ThermoelasticData data{fuelsim::IsotropicThermoelasticMaterial(properties()), 7.0e5, 0.0};
     fuelsim::Hex8LocalValues state{};
     const double temperature = 650.0;
     const double active_alpha = 1.2e-5 + 1.0e-8 * (temperature - 300.0);
@@ -84,7 +84,7 @@ bool test_free_thermal_expansion_and_jacobian() {
         state[16 + node] = strain * coordinates[node].y;
         state[24 + node] = strain * coordinates[node].z;
     }
-    for (const fuelsim::SymmetricTensor3Values& stress : kernel.stress_values(geometry, state))
+    for (const fuelsim::SymmetricTensor3Values& stress : fuelsim::compute_hex8_stress(data, geometry, state))
         if (!check(std::max({std::abs(stress.xx), std::abs(stress.yy), std::abs(stress.zz), std::abs(stress.xy),
                        std::abs(stress.yz), std::abs(stress.xz)}) < 1.0e-4,
                 "uniform three-dimensional thermal expansion is stress free"))
@@ -94,7 +94,7 @@ bool test_free_thermal_expansion_and_jacobian() {
     std::array<double, 32> direction{};
     for (std::size_t dof = 0; dof < direction.size(); ++dof)
         direction[dof] = std::sin(0.37 * static_cast<double>(dof + 1));
-    const fuelsim::Hex8LocalSystem system = kernel.linearize(geometry, state);
+    const fuelsim::Hex8LocalSystem system = fuelsim::compute_hex8_system(data, geometry, state);
     const double epsilon = 1.0e-7;
     fuelsim::Hex8LocalValues plus = state;
     fuelsim::Hex8LocalValues minus = state;
@@ -102,8 +102,8 @@ bool test_free_thermal_expansion_and_jacobian() {
         plus[dof] += epsilon * direction[dof];
         minus[dof] -= epsilon * direction[dof];
     }
-    const fuelsim::Hex8LocalResidual plus_residual = kernel.residual(geometry, plus);
-    const fuelsim::Hex8LocalResidual minus_residual = kernel.residual(geometry, minus);
+    const fuelsim::Hex8LocalResidual plus_residual = fuelsim::compute_hex8_residual(data, geometry, plus);
+    const fuelsim::Hex8LocalResidual minus_residual = fuelsim::compute_hex8_residual(data, geometry, minus);
     double maximum_error = 0.0;
     double scale = 0.0;
     for (std::size_t row = 0; row < 32; ++row) {
@@ -119,14 +119,15 @@ bool test_free_thermal_expansion_and_jacobian() {
 }
 bool test_transient_capacity_and_faces() {
     const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(unit_cube());
-    fuelsim::Hex8ThermoelasticKernel kernel(fuelsim::IsotropicThermoelasticMaterial(properties()), 1.2e7);
+    const fuelsim::Hex8ThermoelasticData data{fuelsim::IsotropicThermoelasticMaterial(properties()), 1.2e7, 0.0};
     fuelsim::Hex8LocalValues old_state{};
     fuelsim::Hex8LocalValues state{};
     for (std::size_t node = 0; node < 8; ++node) {
         old_state[node] = 300.0;
         state[node] = 302.0;
     }
-    const fuelsim::Hex8LocalResidual residual = kernel.residual(geometry, state, old_state, 1.0);
+    const fuelsim::Hex8LocalResidual residual =
+        fuelsim::compute_hex8_transient_residual(data, geometry, state, old_state, 1.0);
     for (std::size_t node = 0; node < 8; ++node)
         if (!check(std::abs(residual[node]) < 1.0e-7,
                 "Backward Euler consistent heat capacity balances uniform volumetric heating; residual=" +
@@ -137,8 +138,9 @@ bool test_transient_capacity_and_faces() {
         {coordinates[1], coordinates[2], coordinates[6], coordinates[5]}};
     const fuelsim::Quad4FaceGeometry face = fuelsim::make_quad4_face_geometry(face_coordinates);
     fuelsim::Quad4FaceLocalValues face_state{};
-    fuelsim::Quad4FaceBoundaryKernel pressure(5.0);
-    const fuelsim::Quad4FaceLocalResidual pressure_residual = pressure.residual(face, face_state);
+    const fuelsim::Quad4FaceBoundaryData pressure = fuelsim::make_quad4_face_pressure_data(5.0);
+    const fuelsim::Quad4FaceLocalResidual pressure_residual =
+        fuelsim::compute_quad4_face_boundary_residual(pressure, face, face_state);
     double force_x = 0.0;
     double force_y = 0.0;
     double force_z = 0.0;
@@ -151,8 +153,9 @@ bool test_transient_capacity_and_faces() {
             "reference pressure uses the outward three-dimensional face area vector and exact total force"))
         return false;
     for (std::size_t node = 0; node < 4; ++node) face_state[node] = 350.0;
-    fuelsim::Quad4FaceBoundaryKernel convection(20.0, 300.0);
-    const fuelsim::Quad4FaceLocalSystem convection_system = convection.linearize(face, face_state);
+    const fuelsim::Quad4FaceBoundaryData convection = fuelsim::make_quad4_face_convection_data(20.0, 300.0);
+    const fuelsim::Quad4FaceLocalSystem convection_system =
+        fuelsim::compute_quad4_face_boundary_system(convection, face, face_state);
     double heat = 0.0;
     double tangent_sum = 0.0;
     for (std::size_t row = 0; row < 4; ++row) {
