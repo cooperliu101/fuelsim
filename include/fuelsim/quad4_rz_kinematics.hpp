@@ -25,9 +25,13 @@ struct AxisymmetricKinematics final {
     AxisymmetricRotation rotation;
 };
 
-AxisymmetricKinematics evaluate_axisymmetric_kinematics(const RzQuadraturePoint& point, const LocalAdValues& state, StrainFormulation strain_formulation);
+AxisymmetricKinematics evaluate_axisymmetric_kinematics(const RzQuadraturePoint& point, const LocalAdValues& state,
+                                                        StrainFormulation strain_formulation);
 
-AxisymmetricKinematics evaluate_axisymmetric_incremental_kinematics(const RzQuadraturePoint& point, const LocalAdValues& current_state, const LocalValues& committed_state, StrainFormulation strain_formulation);
+AxisymmetricKinematics evaluate_axisymmetric_incremental_kinematics(const RzQuadraturePoint& point,
+                                                                    const LocalAdValues& current_state,
+                                                                    const LocalValues& committed_state,
+                                                                    StrainFormulation strain_formulation);
 
 } // namespace fuelsim
 

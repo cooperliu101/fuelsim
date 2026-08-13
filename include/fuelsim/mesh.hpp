@@ -62,7 +62,9 @@ struct SideSet final {
 
 class UnstructuredQuad4Mesh final {
   public:
-    UnstructuredQuad4Mesh(std::vector<RzPoint> nodes, std::vector<Quad4Element> elements, std::vector<std::int64_t> element_block_ids, std::vector<ElementBlockInfo> element_blocks, std::vector<NodeSet> node_sets, std::vector<SideSet> side_sets);
+    UnstructuredQuad4Mesh(std::vector<RzPoint> nodes, std::vector<Quad4Element> elements,
+                          std::vector<std::int64_t> element_block_ids, std::vector<ElementBlockInfo> element_blocks,
+                          std::vector<NodeSet> node_sets, std::vector<SideSet> side_sets);
 
     const std::vector<RzPoint>& nodes() const noexcept;
     const std::vector<Quad4Element>& elements() const noexcept;
@@ -87,7 +89,9 @@ class UnstructuredQuad4Mesh final {
 
 class UnstructuredHex8Mesh final {
   public:
-    UnstructuredHex8Mesh(std::vector<CartesianPoint3> nodes, std::vector<Hex8Element> elements, std::vector<std::int64_t> element_block_ids, std::vector<ElementBlockInfo> element_blocks, std::vector<NodeSet> node_sets, std::vector<SideSet> side_sets);
+    UnstructuredHex8Mesh(std::vector<CartesianPoint3> nodes, std::vector<Hex8Element> elements,
+                         std::vector<std::int64_t> element_block_ids, std::vector<ElementBlockInfo> element_blocks,
+                         std::vector<NodeSet> node_sets, std::vector<SideSet> side_sets);
 
     const std::vector<CartesianPoint3>& nodes() const noexcept;
     const std::vector<Hex8Element>& elements() const noexcept;

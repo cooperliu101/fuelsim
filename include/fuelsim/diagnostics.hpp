@@ -23,7 +23,8 @@ std::vector<double> constrained_residual(const NonlinearProblem& problem, const 
 
 FieldNorms field_norms(const NonlinearProblem& problem, const std::vector<double>& values);
 
-DirectionalJacobianCheck check_directional_jacobian(const NonlinearProblem& problem, const std::vector<double>& state, const std::vector<double>& direction, double step);
+DirectionalJacobianCheck check_directional_jacobian(const NonlinearProblem& problem, const std::vector<double>& state,
+                                                    const std::vector<double>& direction, double step);
 
 } // namespace fuelsim
 

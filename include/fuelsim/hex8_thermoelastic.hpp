@@ -11,7 +11,8 @@ namespace fuelsim {
 class Hex8ThermoelasticKernel final {
   public:
     Hex8ThermoelasticKernel(IsotropicThermoelasticMaterial material, double volumetric_heat_source);
-    Hex8ThermoelasticKernel(IsotropicThermoelasticMaterial material, double constant_heat_capacity, double volumetric_heat_source);
+    Hex8ThermoelasticKernel(IsotropicThermoelasticMaterial material, double constant_heat_capacity,
+                            double volumetric_heat_source);
 
     double volumetric_heat_source() const noexcept;
     double heat_capacity(double temperature, double x, double y, double z) const;
@@ -20,12 +21,16 @@ class Hex8ThermoelasticKernel final {
 
     Hex8LocalResidual residual(const Hex8Geometry& geometry, const Hex8LocalValues& state) const;
     Hex8LocalSystem linearize(const Hex8Geometry& geometry, const Hex8LocalValues& state) const;
-    Hex8LocalResidual residual(const Hex8Geometry& geometry, const Hex8LocalValues& current_state, const Hex8LocalValues& committed_state, double time_step) const;
-    Hex8LocalSystem linearize(const Hex8Geometry& geometry, const Hex8LocalValues& current_state, const Hex8LocalValues& committed_state, double time_step) const;
-    std::array<SymmetricTensor3Values, 8> stress_values(const Hex8Geometry& geometry, const Hex8LocalValues& state) const;
+    Hex8LocalResidual residual(const Hex8Geometry& geometry, const Hex8LocalValues& current_state,
+                               const Hex8LocalValues& committed_state, double time_step) const;
+    Hex8LocalSystem linearize(const Hex8Geometry& geometry, const Hex8LocalValues& current_state,
+                              const Hex8LocalValues& committed_state, double time_step) const;
+    std::array<SymmetricTensor3Values, 8> stress_values(const Hex8Geometry& geometry,
+                                                        const Hex8LocalValues& state) const;
 
   private:
-    void residual_ad(const Hex8Geometry& geometry, const Hex8LocalAdValues& state, const Hex8LocalValues* committed_state, double time_step, Hex8LocalAdValues& residual) const;
+    void residual_ad(const Hex8Geometry& geometry, const Hex8LocalAdValues& state,
+                     const Hex8LocalValues* committed_state, double time_step, Hex8LocalAdValues& residual) const;
 
     IsotropicThermoelasticMaterial _material;
     double _constant_heat_capacity;

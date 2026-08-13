@@ -1,7 +1,7 @@
 BasedOnStyle: LLVM
 IndentWidth: 4
 ContinuationIndentWidth: 4
-ColumnLimit: 260
+ColumnLimit: 120
 DerivePointerAlignment: false
 PointerAlignment: Left
 SortIncludes: CaseSensitive
