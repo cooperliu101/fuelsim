@@ -276,45 +276,57 @@ ThermoelasticPointResponse point_response(const RzQuadraturePoint& point, const 
         stress,
     };
 }
+void compute_quad4_rz_thermoelastic_residual_ad(const Quad4RzThermoelasticData& data, const Quad4RzGeometry& geometry,
+    const LocalAdValues& state, LocalAdValues& residual) {
+    residual.fill(adlite::Scalar(0.0));
+    for (const RzQuadraturePoint& point : geometry.points) {
+        const ThermoelasticPointResponse response =
+            point_response(point, state, data.material, data.strain_formulation, data.time);
+        const adlite::Scalar conductivity =
+            data.material.conductivity(response.temperature, rz_material_context(data.time, point));
+        quad4_rz_detail::add_steady_point_residual(point, response.gradient_temperature_r,
+            response.gradient_temperature_z, response.kinematics, conductivity, data.volumetric_heat_source,
+            response.stress, residual);
+    }
+}
 } // namespace
-Quad4RzThermoelasticKernel::Quad4RzThermoelasticKernel(
-    IsotropicThermoelasticMaterial material, double volumetric_heat_source, StrainFormulation strain_formulation)
-    : _material(material), _volumetric_heat_source(volumetric_heat_source), _time(0.0),
-      _strain_formulation(strain_formulation) {}
-LocalResidual Quad4RzThermoelasticKernel::residual(const Quad4RzGeometry& geometry, const LocalValues& state) const {
+LocalResidual compute_quad4_rz_thermoelastic_residual(
+    const Quad4RzThermoelasticData& data, const Quad4RzGeometry& geometry, const LocalValues& state) {
     const LocalAdValues ad_state = quad4_rz_detail::passive_state(state);
     LocalAdValues ad_residual{};
-    residual_ad(geometry, ad_state, ad_residual);
+    compute_quad4_rz_thermoelastic_residual_ad(data, geometry, ad_state, ad_residual);
     return quad4_rz_detail::residual_values(ad_residual);
 }
-LocalSystem Quad4RzThermoelasticKernel::linearize(const Quad4RzGeometry& geometry, const LocalValues& state) const {
+LocalSystem compute_quad4_rz_thermoelastic_system(
+    const Quad4RzThermoelasticData& data, const Quad4RzGeometry& geometry, const LocalValues& state) {
     const LocalAdValues ad_state = quad4_rz_detail::active_state(state);
     LocalAdValues ad_residual{};
-    residual_ad(geometry, ad_state, ad_residual);
+    compute_quad4_rz_thermoelastic_residual_ad(data, geometry, ad_state, ad_residual);
     return quad4_rz_detail::linearized_values(ad_state, ad_residual);
 }
-std::array<AxisymmetricStressValues, 4> Quad4RzThermoelasticKernel::stress_values(
-    const Quad4RzGeometry& geometry, const LocalValues& state) const {
+std::array<AxisymmetricStressValues, 4> compute_quad4_rz_thermoelastic_stress(
+    const Quad4RzThermoelasticData& data, const Quad4RzGeometry& geometry, const LocalValues& state) {
     const LocalAdValues passive_state = quad4_rz_detail::passive_state(state);
     std::array<AxisymmetricStressValues, 4> result{};
     for (std::size_t q = 0; q < geometry.points.size(); ++q) {
         const AxisymmetricStress& stress =
-            point_response(geometry.points[q], passive_state, _material, _strain_formulation, _time).stress;
+            point_response(geometry.points[q], passive_state, data.material, data.strain_formulation, data.time).stress;
         result[q] = {stress.rr.value(), stress.zz.value(), stress.hoop.value(), stress.rz.value()};
     }
     return result;
 }
-void Quad4RzThermoelasticKernel::residual_ad(
-    const Quad4RzGeometry& geometry, const LocalAdValues& state, LocalAdValues& residual) const {
-    residual.fill(adlite::Scalar(0.0));
-    for (const RzQuadraturePoint& point : geometry.points) {
-        const ThermoelasticPointResponse response = point_response(point, state, _material, _strain_formulation, _time);
-        const adlite::Scalar conductivity =
-            _material.conductivity(response.temperature, rz_material_context(_time, point));
-        quad4_rz_detail::add_steady_point_residual(point, response.gradient_temperature_r,
-            response.gradient_temperature_z, response.kinematics, conductivity, _volumetric_heat_source,
-            response.stress, residual);
-    }
+Quad4RzThermoelasticKernel::Quad4RzThermoelasticKernel(
+    IsotropicThermoelasticMaterial material, double volumetric_heat_source, StrainFormulation strain_formulation)
+    : _data{material, volumetric_heat_source, 0.0, strain_formulation} {}
+LocalResidual Quad4RzThermoelasticKernel::residual(const Quad4RzGeometry& geometry, const LocalValues& state) const {
+    return compute_quad4_rz_thermoelastic_residual(_data, geometry, state);
+}
+LocalSystem Quad4RzThermoelasticKernel::linearize(const Quad4RzGeometry& geometry, const LocalValues& state) const {
+    return compute_quad4_rz_thermoelastic_system(_data, geometry, state);
+}
+std::array<AxisymmetricStressValues, 4> Quad4RzThermoelasticKernel::stress_values(
+    const Quad4RzGeometry& geometry, const LocalValues& state) const {
+    return compute_quad4_rz_thermoelastic_stress(_data, geometry, state);
 }
 namespace {
 struct PointFields final {

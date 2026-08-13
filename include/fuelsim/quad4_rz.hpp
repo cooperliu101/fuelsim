@@ -38,23 +38,31 @@ AxisymmetricKinematics evaluate_axisymmetric_kinematics(
     const RzQuadraturePoint& point, const LocalAdValues& state, StrainFormulation strain_formulation);
 AxisymmetricKinematics evaluate_axisymmetric_incremental_kinematics(const RzQuadraturePoint& point,
     const LocalAdValues& current_state, const LocalValues& committed_state, StrainFormulation strain_formulation);
+struct Quad4RzThermoelasticData final {
+    IsotropicThermoelasticMaterial material;
+    double volumetric_heat_source, time;
+    StrainFormulation strain_formulation;
+};
+LocalResidual compute_quad4_rz_thermoelastic_residual(
+    const Quad4RzThermoelasticData& data, const Quad4RzGeometry& geometry, const LocalValues& state);
+LocalSystem compute_quad4_rz_thermoelastic_system(
+    const Quad4RzThermoelasticData& data, const Quad4RzGeometry& geometry, const LocalValues& state);
+std::array<AxisymmetricStressValues, 4> compute_quad4_rz_thermoelastic_stress(
+    const Quad4RzThermoelasticData& data, const Quad4RzGeometry& geometry, const LocalValues& state);
 class Quad4RzThermoelasticKernel final {
   public:
     Quad4RzThermoelasticKernel(
         IsotropicThermoelasticMaterial material, double volumetric_heat_source, StrainFormulation strain_formulation);
-    double volumetric_heat_source() const noexcept { return _volumetric_heat_source; }
-    void set_volumetric_heat_source(double value) noexcept { _volumetric_heat_source = value; }
-    void set_time(double value) noexcept { _time = value; }
+    double volumetric_heat_source() const noexcept { return _data.volumetric_heat_source; }
+    void set_volumetric_heat_source(double value) noexcept { _data.volumetric_heat_source = value; }
+    void set_time(double value) noexcept { _data.time = value; }
     LocalResidual residual(const Quad4RzGeometry& geometry, const LocalValues& state) const;
     LocalSystem linearize(const Quad4RzGeometry& geometry, const LocalValues& state) const;
     std::array<AxisymmetricStressValues, 4> stress_values(
         const Quad4RzGeometry& geometry, const LocalValues& state) const;
 
   private:
-    void residual_ad(const Quad4RzGeometry& geometry, const LocalAdValues& state, LocalAdValues& residual) const;
-    IsotropicThermoelasticMaterial _material;
-    double _volumetric_heat_source, _time;
-    StrainFormulation _strain_formulation;
+    Quad4RzThermoelasticData _data;
 };
 using Quad4MaterialHistory = std::array<MaterialPointState, 4>;
 class Quad4RzTransientKernel final {

@@ -81,8 +81,10 @@ bool test_element_jacobian() {
         {0.001, 0.004},
     }};
     const fuelsim::Quad4RzGeometry geometry = fuelsim::make_quad4_rz_geometry(coordinates);
-    const fuelsim::Quad4RzThermoelasticKernel kernel(
-        fuelsim::IsotropicThermoelasticMaterial(properties()), 2.0e8, fuelsim::StrainFormulation::small);
+    const fuelsim::IsotropicThermoelasticMaterial material(properties());
+    fuelsim::Quad4RzThermoelasticData data{material, 2.0e8, 1.25, fuelsim::StrainFormulation::small};
+    fuelsim::Quad4RzThermoelasticKernel kernel(material, 2.0e8, fuelsim::StrainFormulation::small);
+    kernel.set_time(data.time);
     const fuelsim::LocalValues state = {
         710.0,
         680.0,
@@ -122,6 +124,25 @@ bool test_element_jacobian() {
     const fuelsim::LocalResidual plus_residual = kernel.residual(geometry, plus);
     const fuelsim::LocalResidual minus_residual = kernel.residual(geometry, minus);
     bool passed = true;
+    const fuelsim::LocalResidual procedural_residual =
+        fuelsim::compute_quad4_rz_thermoelastic_residual(data, geometry, state);
+    const fuelsim::LocalSystem procedural_system =
+        fuelsim::compute_quad4_rz_thermoelastic_system(data, geometry, state);
+    const std::array<fuelsim::AxisymmetricStressValues, 4> wrapped_stress = kernel.stress_values(geometry, state);
+    const std::array<fuelsim::AxisymmetricStressValues, 4> procedural_stress =
+        fuelsim::compute_quad4_rz_thermoelastic_stress(data, geometry, state);
+    bool stress_equal = true;
+    for (std::size_t q = 0; q < wrapped_stress.size(); ++q) {
+        stress_equal = stress_equal && wrapped_stress[q].rr == procedural_stress[q].rr &&
+                       wrapped_stress[q].zz == procedural_stress[q].zz &&
+                       wrapped_stress[q].hoop == procedural_stress[q].hoop &&
+                       wrapped_stress[q].rz == procedural_stress[q].rz;
+    }
+    passed = check(kernel.residual(geometry, state) == procedural_residual &&
+                       system.residual == procedural_system.residual && system.jacobian == procedural_system.jacobian &&
+                       stress_equal,
+                 "procedural Quad4 RZ kernel matches the retained class interface exactly") &&
+             passed;
     double maximum_jacobian_error = 0.0;
     for (std::size_t row = 0; row < system.residual.size(); ++row) {
         double ad_direction = 0.0;
