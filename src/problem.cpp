@@ -64,30 +64,41 @@ class TransientConservationCalculator final {
         const std::vector<std::vector<std::array<AxisymmetricStressValues, 4>>>& staged_stresses);
 };
 } // namespace rz
-GlobalStateView::GlobalStateView(const std::vector<double>& dense_values)
-    : _global_size(dense_values.size()), _dense_values(&dense_values), _global_dofs(nullptr), _sparse_values(nullptr) {}
-GlobalStateView::GlobalStateView(
-    std::size_t global_size, const std::vector<std::uint32_t>& global_dofs, const std::vector<double>& values)
-    : _global_size(global_size), _dense_values(nullptr), _global_dofs(&global_dofs), _sparse_values(&values) {
-    if (global_dofs.size() != values.size())
-        throw std::invalid_argument("GlobalStateView sparse index and value sizes differ");
+ShadowStateLayout::ShadowStateLayout(std::size_t global_size, const std::vector<std::uint32_t>& global_dofs)
+    : _value_count(global_dofs.size()),
+      _value_indices_by_global_dof(global_size, std::numeric_limits<std::uint32_t>::max()) {
     if (!std::is_sorted(global_dofs.begin(), global_dofs.end()) ||
         std::adjacent_find(global_dofs.begin(), global_dofs.end()) != global_dofs.end())
-        throw std::invalid_argument("GlobalStateView sparse DOFs must be sorted and unique");
+        throw std::invalid_argument("ShadowStateLayout DOFs must be sorted and unique");
     if (!global_dofs.empty() && global_dofs.back() >= global_size)
-        throw std::out_of_range("GlobalStateView sparse DOF exceeds the global size");
+        throw std::out_of_range("ShadowStateLayout DOF exceeds the global size");
+    if (global_dofs.size() >= static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max()))
+        throw std::length_error("ShadowStateLayout value count exceeds the 32-bit index range");
+    for (std::size_t value = 0; value < global_dofs.size(); ++value)
+        _value_indices_by_global_dof[global_dofs[value]] = static_cast<std::uint32_t>(value);
+}
+std::size_t ShadowStateLayout::global_size() const noexcept { return _value_indices_by_global_dof.size(); }
+std::size_t ShadowStateLayout::value_count() const noexcept { return _value_count; }
+std::size_t ShadowStateLayout::value_index(std::size_t global_dof) const {
+    if (global_dof >= global_size()) throw std::out_of_range("ShadowStateLayout requested DOF exceeds global size");
+    const std::uint32_t value = _value_indices_by_global_dof[global_dof];
+    if (value == std::numeric_limits<std::uint32_t>::max())
+        throw std::out_of_range("ShadowStateLayout requested DOF is absent from the shadow state");
+    return static_cast<std::size_t>(value);
+}
+GlobalStateView::GlobalStateView(const std::vector<double>& dense_values)
+    : _global_size(dense_values.size()), _dense_values(&dense_values), _shadow_layout(nullptr),
+      _sparse_values(nullptr) {}
+GlobalStateView::GlobalStateView(const ShadowStateLayout& layout, const std::vector<double>& values)
+    : _global_size(layout.global_size()), _dense_values(nullptr), _shadow_layout(&layout), _sparse_values(&values) {
+    if (layout.value_count() != values.size())
+        throw std::invalid_argument("GlobalStateView shadow layout and value sizes differ");
 }
 std::size_t GlobalStateView::global_size() const noexcept { return _global_size; }
 double GlobalStateView::value(std::size_t global_dof) const {
     if (global_dof >= _global_size) throw std::out_of_range("GlobalStateView requested DOF exceeds the global size");
     if (_dense_values != nullptr) return _dense_values->at(global_dof);
-    if (global_dof > static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max()))
-        throw std::out_of_range("GlobalStateView requested DOF exceeds sparse index range");
-    const auto found =
-        std::lower_bound(_global_dofs->begin(), _global_dofs->end(), static_cast<std::uint32_t>(global_dof));
-    if (found == _global_dofs->end() || static_cast<std::size_t>(*found) != global_dof)
-        throw std::out_of_range("GlobalStateView requested DOF is absent from the shadow state");
-    return _sparse_values->at(static_cast<std::size_t>(found - _global_dofs->begin()));
+    return _sparse_values->at(_shadow_layout->value_index(global_dof));
 }
 void ContributionWorkspace::reserve(std::size_t maximum_dof_count) {
     if (maximum_dof_count > 0 && maximum_dof_count > std::numeric_limits<std::size_t>::max() / maximum_dof_count)

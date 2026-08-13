@@ -99,6 +99,7 @@ struct SolverContext final {
     VecScatter state_scatter = nullptr;
     Vec gathered_state = nullptr;
     std::vector<std::uint32_t> shadow_dofs;
+    std::unique_ptr<ShadowStateLayout> shadow_layout;
     std::vector<double> state_values;
     std::vector<PetscInt> constrained_dofs;
     std::vector<bool> constrained;
@@ -381,7 +382,7 @@ PetscErrorCode form_function(SNES snes, Vec state, Vec residual, void* raw_conte
         context.last_function_domain_error = false;
         const NonlinearProblem& problem = *context.problem;
         PetscCall(gather_state(state, context));
-        const GlobalStateView state_view(problem.dof_count(), context.shadow_dofs, context.state_values);
+        const GlobalStateView state_view(*context.shadow_layout, context.state_values);
         PetscCall(VecSet(residual, 0.0));
         bool local_domain_error = false;
         try {
@@ -454,7 +455,7 @@ PetscErrorCode form_jacobian(SNES snes, Vec state, Mat jacobian, Mat preconditio
         SolverContext& context = *static_cast<SolverContext*>(raw_context);
         const NonlinearProblem& problem = *context.problem;
         PetscCall(gather_state(state, context));
-        const GlobalStateView state_view(problem.dof_count(), context.shadow_dofs, context.state_values);
+        const GlobalStateView state_view(*context.shadow_layout, context.state_values);
         PetscCall(MatZeroEntries(jacobian));
         bool local_domain_error = false;
         try {
@@ -620,16 +621,11 @@ class PetscSolver::Implementation final {
         std::sort(_context.shadow_dofs.begin(), _context.shadow_dofs.end());
         _context.shadow_dofs.erase(
             std::unique(_context.shadow_dofs.begin(), _context.shadow_dofs.end()), _context.shadow_dofs.end());
+        _context.shadow_layout = std::make_unique<ShadowStateLayout>(problem.dof_count(), _context.shadow_dofs);
         _context.state_values.resize(_context.shadow_dofs.size());
         _context.contribution_shadow_indices.reserve(_context.contribution_dofs.size());
-        for (const std::size_t dof : _context.contribution_dofs) {
-            const auto found = std::lower_bound(
-                _context.shadow_dofs.begin(), _context.shadow_dofs.end(), static_cast<std::uint32_t>(dof));
-            if (found == _context.shadow_dofs.end() || static_cast<std::size_t>(*found) != dof)
-                throw std::logic_error("NonlinearProblem required state excludes a contribution DOF");
-            _context.contribution_shadow_indices.push_back(
-                static_cast<std::size_t>(found - _context.shadow_dofs.begin()));
-        }
+        for (const std::size_t dof : _context.contribution_dofs)
+            _context.contribution_shadow_indices.push_back(_context.shadow_layout->value_index(dof));
         std::vector<PetscInt> shadow_indices;
         shadow_indices.reserve(_context.shadow_dofs.size());
         for (const std::uint32_t dof : _context.shadow_dofs)

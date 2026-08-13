@@ -177,6 +177,38 @@ claims. A single full-state gather remains after each nonlinear solve so the
 existing committed-state transaction can continue on every rank, but it is no
 longer performed for every callback.
 
+## 2026-08-13 constant-time shadow-state lookup
+
+Residual and Jacobian callbacks previously revalidated the sorted shadow
+degree-of-freedom list when constructing every state view, and every contact
+candidate state lookup performed a binary search. The current layout validates
+the list once during solver setup and builds one contiguous 32-bit
+global-to-shadow index per global degree of freedom. Callback lookups are then
+direct array accesses. Missing shadow values still raise an explicit error.
+
+The Release measurements used one process pinned to CPU 0 with OpenMP,
+OpenBLAS, MKL, and NumExpr fixed to one thread. Commit `24ea1ea` is the paired
+baseline. The default 1,584-degree-of-freedom case used three runs; the medium
+case used one run on each revision:
+
+```text
+                                      24ea1ea       candidate      observed change
+default three-run median:            1.139552 s     1.114839 s       2.17% lower
+medium 23,010 DOF, 20 steps:        62.093170 s    60.722259 s       2.21% lower
+```
+
+Both revisions completed 64 iterations in the default case and 62 iterations
+in the medium case, retained the same final residuals, and created one PETSc
+workspace. These are paired regression measurements for the named meshes and
+machine, not a general performance or scaling claim.
+
+The lookup table costs `4 * global_state_dofs` bytes per process. The benchmark
+now reports this separately as `global_to_shadow_lookup_bytes` and includes it
+in `maximum_shadow_workspace_bytes`. For the 23,010-degree-of-freedom case the
+additional table is 92,040 bytes. This explicit replicated index cost buys
+constant-time access while the collected floating-point state values and their
+per-callback communication remain limited to each process's shadow set.
+
 ## 2026-08-06 M5.6 engineering-scale iterative solvers
 
 The Release build used two MPI processes pinned to CPUs 0 and 1. OpenMP,

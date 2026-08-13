@@ -140,7 +140,10 @@ int main(int argc, char** argv) {
         std::cout << "total_remote_shadow_state_dofs=" << result.solve.total_remote_shadow_state_dofs << '\n';
         std::cout << "maximum_shadow_state_bytes=" << result.solve.maximum_shadow_state_dofs * sizeof(double) << '\n';
         std::cout << "maximum_shadow_workspace_bytes="
-                  << result.solve.maximum_shadow_state_dofs * (2 * sizeof(double) + sizeof(std::uint32_t)) << '\n';
+                  << result.solve.maximum_shadow_state_dofs * (2 * sizeof(double) + sizeof(std::uint32_t)) +
+                         result.solve.global_state_dofs * sizeof(std::uint32_t)
+                  << '\n';
+        std::cout << "global_to_shadow_lookup_bytes=" << result.solve.global_state_dofs * sizeof(std::uint32_t) << '\n';
         std::cout << "replicated_callback_state_workspace_bytes=" << result.solve.global_state_dofs * 2 * sizeof(double)
                   << '\n';
         std::cout << "remote_shadow_bytes_per_callback=" << result.solve.total_remote_shadow_state_dofs * sizeof(double)

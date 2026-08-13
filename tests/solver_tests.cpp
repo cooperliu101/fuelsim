@@ -28,13 +28,19 @@ double metric_relative_error(double actual, double expected) {
 bool test_shadow_state_view() {
     const std::vector<std::uint32_t> dofs = {1U, 4U, 7U};
     const std::vector<double> values = {2.0, 5.0, 8.0};
-    const fuelsim::GlobalStateView state(9, dofs, values);
+    const fuelsim::ShadowStateLayout layout(9, dofs);
+    const fuelsim::GlobalStateView state(layout, values);
     bool missing_rejected = false;
     try {
         (void)state.value(3);
     } catch (const std::out_of_range&) { missing_rejected = true; }
-    return check(state.global_size() == 9 && state.value(4) == 5.0 && missing_rejected,
-        "shadow state exposes only declared global DOFs");
+    bool unordered_rejected = false;
+    try {
+        (void)fuelsim::ShadowStateLayout(9, {4U, 1U, 7U});
+    } catch (const std::invalid_argument&) { unordered_rejected = true; }
+    return check(layout.global_size() == 9 && layout.value_count() == 3 && layout.value_index(4) == 1 &&
+                     state.global_size() == 9 && state.value(4) == 5.0 && missing_rejected && unordered_rejected,
+        "shadow state reuses a validated constant-time global-to-local lookup");
 }
 fuelsim::ThermoelasticProperties constant_material(double conductivity, double thermal_expansion) {
     return fuelsim::test::thermoelastic(0.0, conductivity, 75.0e9, 0.3, thermal_expansion, 600.0);

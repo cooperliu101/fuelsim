@@ -26,18 +26,28 @@ struct DirichletCondition final {
     std::size_t dof;
     double value;
 };
+class ShadowStateLayout final {
+  public:
+    ShadowStateLayout(std::size_t global_size, const std::vector<std::uint32_t>& global_dofs);
+    std::size_t global_size() const noexcept;
+    std::size_t value_count() const noexcept;
+    std::size_t value_index(std::size_t global_dof) const;
+
+  private:
+    std::size_t _value_count;
+    std::vector<std::uint32_t> _value_indices_by_global_dof;
+};
 class GlobalStateView final {
   public:
     explicit GlobalStateView(const std::vector<double>& dense_values);
-    GlobalStateView(
-        std::size_t global_size, const std::vector<std::uint32_t>& global_dofs, const std::vector<double>& values);
+    GlobalStateView(const ShadowStateLayout& layout, const std::vector<double>& values);
     std::size_t global_size() const noexcept;
     double value(std::size_t global_dof) const;
 
   private:
     std::size_t _global_size;
     const std::vector<double>* _dense_values;
-    const std::vector<std::uint32_t>* _global_dofs;
+    const ShadowStateLayout* _shadow_layout;
     const std::vector<double>* _sparse_values;
 };
 class NonlinearProblem {
