@@ -69,26 +69,6 @@ Quad4MaterialHistory compute_quad4_rz_transient_trial_state(const Quad4RzTransie
 std::array<AxisymmetricStressValues, 4> compute_quad4_rz_transient_stress(const Quad4RzTransientData& data,
     const Quad4RzGeometry& geometry, const LocalValues& state, const LocalValues& committed_state,
     const Quad4MaterialHistory& committed_material, double time_step);
-class Quad4RzTransientKernel final {
-  public:
-    Quad4RzTransientKernel(
-        IsotropicInelasticMaterial material, double volumetric_heat_source, StrainFormulation strain_formulation);
-    double volumetric_heat_source() const noexcept { return _data.volumetric_heat_source; }
-    double heat_capacity(double temperature, double radius, double axial_coordinate) const;
-    void set_volumetric_heat_source(double value) noexcept { _data.volumetric_heat_source = value; }
-    void set_time(double value) noexcept { _data.time = value; }
-    LocalResidual residual(const Quad4RzGeometry& geometry, const LocalValues& current_state,
-        const LocalValues& committed_state, const Quad4MaterialHistory& committed_material, double time_step) const;
-    LocalSystem linearize(const Quad4RzGeometry& geometry, const LocalValues& current_state,
-        const LocalValues& committed_state, const Quad4MaterialHistory& committed_material, double time_step) const;
-    Quad4MaterialHistory trial_state_values(const Quad4RzGeometry& geometry, const LocalValues& converged_state,
-        const LocalValues& committed_state, const Quad4MaterialHistory& committed_material, double time_step) const;
-    std::array<AxisymmetricStressValues, 4> stress_values(const Quad4RzGeometry& geometry, const LocalValues& state,
-        const LocalValues& committed_state, const Quad4MaterialHistory& committed_material, double time_step) const;
-
-  private:
-    Quad4RzTransientData _data;
-};
 struct Line2RzBoundaryGeometry final {
     std::array<RzPoint, 2> coordinates;
     std::array<std::size_t, 2> local_nodes;

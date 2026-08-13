@@ -356,13 +356,13 @@ TransientPointResponse transient_point_response(const RzQuadraturePoint& point, 
 }
 void validate_time_step(double time_step) {
     if (!std::isfinite(time_step) || !(time_step > 0.0))
-        throw std::invalid_argument("Quad4RzTransientKernel time_step must be finite and positive");
+        throw std::invalid_argument("Transient Quad4 time_step must be finite and positive");
 }
 void validate_committed_state(const LocalValues& committed_state) {
     for (std::size_t node = 0; node < quad4_node_count; ++node) {
         const double temperature = committed_state[node];
         if (!std::isfinite(temperature) || !(temperature > 0.0))
-            throw std::invalid_argument("Quad4RzTransientKernel committed temperatures must be finite and positive");
+            throw std::invalid_argument("Transient Quad4 committed temperatures must be finite and positive");
     }
 }
 void compute_quad4_rz_transient_residual_ad(const Quad4RzTransientData& data, const Quad4RzGeometry& geometry,
@@ -384,33 +384,6 @@ void compute_quad4_rz_transient_residual_ad(const Quad4RzTransientData& data, co
     }
 }
 } // namespace
-Quad4RzTransientKernel::Quad4RzTransientKernel(
-    IsotropicInelasticMaterial material, double volumetric_heat_source, StrainFormulation strain_formulation)
-    : _data{material, volumetric_heat_source, 0.0, strain_formulation} {}
-double Quad4RzTransientKernel::heat_capacity(double temperature, double radius, double axial_coordinate) const {
-    return compute_quad4_rz_transient_heat_capacity(_data, temperature, radius, axial_coordinate);
-}
-LocalResidual Quad4RzTransientKernel::residual(const Quad4RzGeometry& geometry, const LocalValues& current_state,
-    const LocalValues& committed_state, const Quad4MaterialHistory& committed_material, double time_step) const {
-    return compute_quad4_rz_transient_residual(
-        _data, geometry, current_state, committed_state, committed_material, time_step);
-}
-LocalSystem Quad4RzTransientKernel::linearize(const Quad4RzGeometry& geometry, const LocalValues& current_state,
-    const LocalValues& committed_state, const Quad4MaterialHistory& committed_material, double time_step) const {
-    return compute_quad4_rz_transient_system(
-        _data, geometry, current_state, committed_state, committed_material, time_step);
-}
-Quad4MaterialHistory Quad4RzTransientKernel::trial_state_values(const Quad4RzGeometry& geometry,
-    const LocalValues& converged_state, const LocalValues& committed_state,
-    const Quad4MaterialHistory& committed_material, double time_step) const {
-    return compute_quad4_rz_transient_trial_state(
-        _data, geometry, converged_state, committed_state, committed_material, time_step);
-}
-std::array<AxisymmetricStressValues, 4> Quad4RzTransientKernel::stress_values(const Quad4RzGeometry& geometry,
-    const LocalValues& state, const LocalValues& committed_state, const Quad4MaterialHistory& committed_material,
-    double time_step) const {
-    return compute_quad4_rz_transient_stress(_data, geometry, state, committed_state, committed_material, time_step);
-}
 double compute_quad4_rz_transient_heat_capacity(
     const Quad4RzTransientData& data, double temperature, double radius, double axial_coordinate) {
     return data.material.heat_capacity(temperature, {data.time, radius, 0.0, axial_coordinate}).value();
@@ -447,7 +420,7 @@ Quad4MaterialHistory compute_quad4_rz_transient_trial_state(const Quad4RzTransie
         const TransientPointResponse evaluation = transient_point_response(geometry.points[q], passive_state,
             committed_state, data.material, committed_material[q], time_step, data.strain_formulation, data.time);
         if (!std::isfinite(evaluation.fields.temperature.value()) || !(evaluation.fields.temperature.value() > 0.0))
-            throw std::domain_error("Quad4RzTransientKernel trial temperature must be finite and positive");
+            throw std::domain_error("Transient Quad4 trial temperature must be finite and positive");
         result[q] = IsotropicInelasticMaterial::state_values(evaluation.response.trial_state);
     }
     return result;
