@@ -1450,11 +1450,11 @@ bool test_m1_dof_layout() {
                      "M1 updates heat loading without rebuilding geometry") &&
                  passed;
     }
-    passed =
-        check(fuelsim::rz::ProblemAccess::definition(problem).regions[0].volumetric_heat_source == heat_source &&
-                  fuelsim::rz::ProblemAccess::region_kernel(problem, 0).volumetric_heat_source() == 2.0 * heat_source,
-            "M1 load factor updates the production heat-source kernel") &&
-        passed;
+    passed = check(fuelsim::rz::ProblemAccess::definition(problem).regions[0].volumetric_heat_source == heat_source &&
+                       fuelsim::rz::ProblemAccess::region_kernel_data(problem, 0).volumetric_heat_source ==
+                           2.0 * heat_source,
+                 "M1 load factor updates the production heat-source kernel") &&
+             passed;
     return passed;
 }
 bool test_time_table_and_convection() {

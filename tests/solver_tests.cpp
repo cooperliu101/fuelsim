@@ -641,8 +641,8 @@ bool test_free_thermal_expansion() {
         const fuelsim::LocalValues state =
             fuelsim::rz::ProblemAccess::contribution_state(problem, element, result.state);
         const auto stresses =
-            fuelsim::rz::ProblemAccess::region_kernel(problem, 0)
-                .stress_values(fuelsim::rz::ProblemAccess::region_element_geometry(problem, 0, element), state);
+            fuelsim::compute_quad4_rz_thermoelastic_stress(fuelsim::rz::ProblemAccess::region_kernel_data(problem, 0),
+                fuelsim::rz::ProblemAccess::region_element_geometry(problem, 0, element), state);
         for (const fuelsim::AxisymmetricStressValues& stress : stresses) {
             maximum_stress = std::max(maximum_stress, std::abs(stress.rr));
             maximum_stress = std::max(maximum_stress, std::abs(stress.zz));

@@ -577,8 +577,9 @@ bool test_pressure_production_path(const std::string& input_path) {
     for (std::size_t element = 0; element < fuelsim::rz::ProblemAccess::region_element_count(problem, 0); ++element) {
         const fuelsim::LocalValues local = fuelsim::rz::ProblemAccess::contribution_state(
             problem, fuelsim::rz::ProblemAccess::region_element_offset(problem, 0) + element, result.solve.state);
-        for (const fuelsim::AxisymmetricStressValues& stress : fuelsim::rz::ProblemAccess::region_kernel(problem, 0)
-                 .stress_values(fuelsim::rz::ProblemAccess::region_element_geometry(problem, 0, element), local)) {
+        for (const fuelsim::AxisymmetricStressValues& stress :
+            fuelsim::compute_quad4_rz_thermoelastic_stress(fuelsim::rz::ProblemAccess::region_kernel_data(problem, 0),
+                fuelsim::rz::ProblemAccess::region_element_geometry(problem, 0, element), local)) {
             radial_stress_sum += stress.rr;
             hoop_stress_sum += stress.hoop;
             ++stress_points;

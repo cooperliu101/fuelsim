@@ -30,8 +30,8 @@ class ProblemAccess final {
     static const RegionMesh& region_mesh(const SteadyProblem& problem, std::size_t index) {
         return view(problem).spatial.region_mesh(index);
     }
-    static const Quad4RzThermoelasticKernel& region_kernel(const SteadyProblem& problem, std::size_t index) {
-        return view(problem).kernels.at(index);
+    static const Quad4RzThermoelasticData& region_kernel_data(const SteadyProblem& problem, std::size_t index) {
+        return view(problem).kernel_data.at(index);
     }
     static std::size_t region_node_offset(const SteadyProblem& problem, std::size_t index) {
         return view(problem).spatial.region_node_offset(index);
@@ -95,7 +95,7 @@ class ProblemAccess final {
         if (contribution >= backend.spatial.volume_contribution_count())
             return backend.spatial.contribution_residual(contribution, state);
         const auto location = backend.spatial.element_location(contribution);
-        return backend.kernels[location.first].residual(
+        return compute_quad4_rz_thermoelastic_residual(backend.kernel_data[location.first],
             backend.spatial.region_element_geometry(location.first, location.second), state);
     }
     static LocalSystem linearize_contribution(
@@ -104,7 +104,7 @@ class ProblemAccess final {
         if (contribution >= backend.spatial.volume_contribution_count())
             return backend.spatial.linearize_contribution(contribution, state);
         const auto location = backend.spatial.element_location(contribution);
-        return backend.kernels[location.first].linearize(
+        return compute_quad4_rz_thermoelastic_system(backend.kernel_data[location.first],
             backend.spatial.region_element_geometry(location.first, location.second), state);
     }
     static const SpatialDefinition& definition(const TransientProblem& problem) noexcept {

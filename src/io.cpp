@@ -728,8 +728,8 @@ std::vector<std::vector<double>> steady_elements(
             const LocalDofs dofs = backend.spatial.contribution_dofs(contribution_offset + element);
             LocalValues local{};
             for (std::size_t index = 0; index < dofs.size(); ++index) local[index] = state.at(dofs[index]);
-            const auto stresses =
-                backend.kernels[region].stress_values(backend.spatial.region_element_geometry(region, element), local);
+            const auto stresses = compute_quad4_rz_thermoelastic_stress(
+                backend.kernel_data[region], backend.spatial.region_element_geometry(region, element), local);
             const std::size_t source = region_mesh.source_element_ids().at(element);
             store_stress_values(source, stresses, result);
         }

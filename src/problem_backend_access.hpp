@@ -18,7 +18,7 @@ struct TransientCommittedState final {
 namespace rz {
 struct SteadyBackendView final {
     const SpatialAssembly& spatial;
-    const std::vector<Quad4RzThermoelasticKernel>& kernels;
+    const std::vector<Quad4RzThermoelasticData>& kernel_data;
 };
 struct TransientBackendView final {
     const SpatialAssembly& spatial;

@@ -235,16 +235,18 @@ LocalValues gather_rz_state(
     return gather_rz_state(spatial, index, GlobalStateView(global_state));
 }
 LocalResidual steady_rz_residual(const rz::SpatialAssembly& spatial,
-    const std::vector<Quad4RzThermoelasticKernel>& kernels, std::size_t index, const LocalValues& state) {
+    const std::vector<Quad4RzThermoelasticData>& kernel_data, std::size_t index, const LocalValues& state) {
     if (index >= spatial.volume_contribution_count()) return spatial.contribution_residual(index, state);
     const auto location = spatial.element_location(index);
-    return kernels[location.first].residual(spatial.region_element_geometry(location.first, location.second), state);
+    return compute_quad4_rz_thermoelastic_residual(
+        kernel_data[location.first], spatial.region_element_geometry(location.first, location.second), state);
 }
-LocalSystem steady_rz_system(const rz::SpatialAssembly& spatial, const std::vector<Quad4RzThermoelasticKernel>& kernels,
-    std::size_t index, const LocalValues& state) {
+LocalSystem steady_rz_system(const rz::SpatialAssembly& spatial,
+    const std::vector<Quad4RzThermoelasticData>& kernel_data, std::size_t index, const LocalValues& state) {
     if (index >= spatial.volume_contribution_count()) return spatial.linearize_contribution(index, state);
     const auto location = spatial.element_location(index);
-    return kernels[location.first].linearize(spatial.region_element_geometry(location.first, location.second), state);
+    return compute_quad4_rz_thermoelastic_system(
+        kernel_data[location.first], spatial.region_element_geometry(location.first, location.second), state);
 }
 LocalResidual transient_rz_residual(
     const rz::TransientBackendView& backend, std::size_t index, const LocalValues& state) {
@@ -335,16 +337,16 @@ class SteadyProblem::Implementation final : public SpatialProblemBackend {
   public:
     Implementation(SpatialDefinition definition, const UnstructuredQuad4Mesh& source_mesh)
         : SpatialProblemBackend(std::move(definition), source_mesh) {
-        rz_kernels.reserve(rz->region_count());
+        rz_kernel_data.reserve(rz->region_count());
         for (std::size_t region = 0; region < rz->region_count(); ++region) {
             const RegionDefinition& value = rz->region(region);
-            rz_kernels.emplace_back(IsotropicThermoelasticMaterial(value.material), rz->region_heat_source(region),
-                value.strain_formulation);
+            rz_kernel_data.push_back({IsotropicThermoelasticMaterial(value.material), rz->region_heat_source(region),
+                0.0, value.strain_formulation});
         }
     }
     Implementation(SpatialDefinition definition, const UnstructuredHex8Mesh& source_mesh)
         : SpatialProblemBackend(std::move(definition), source_mesh) {}
-    std::vector<Quad4RzThermoelasticKernel> rz_kernels;
+    std::vector<Quad4RzThermoelasticData> rz_kernel_data;
 };
 SteadyProblem::SteadyProblem(SpatialDefinition definition, const UnstructuredQuad4Mesh& source_mesh)
     : _impl(std::make_unique<Implementation>(std::move(definition), source_mesh)) {}
@@ -355,7 +357,7 @@ const cartesian::SpatialAssembly& cartesian::BackendAccess::spatial(const Steady
     return *problem._impl->cartesian;
 }
 rz::SteadyBackendView rz::BackendAccess::steady(const SteadyProblem& problem) noexcept {
-    return {*problem._impl->rz, problem._impl->rz_kernels};
+    return {*problem._impl->rz, problem._impl->rz_kernel_data};
 }
 bool SteadyProblem::uses_augmented_contact() const noexcept {
     return !_impl->is_cartesian() && _impl->rz->uses_augmented_contact();
@@ -373,7 +375,7 @@ void SteadyProblem::set_load_factor(double value) {
 void SteadyProblem::refresh_region_heat_sources() {
     if (_impl->is_cartesian()) return;
     for (std::size_t region = 0; region < _impl->rz->region_count(); ++region)
-        _impl->rz_kernels[region].set_volumetric_heat_source(_impl->rz->region_heat_source(region));
+        _impl->rz_kernel_data[region].volumetric_heat_source = _impl->rz->region_heat_source(region);
 }
 double SteadyProblem::load_factor() const noexcept {
     return _impl->is_cartesian() ? _impl->cartesian->load_factor() : _impl->rz->load_factor();
@@ -384,7 +386,7 @@ void SteadyProblem::set_time(double value) {
         return;
     }
     _impl->set_time(value);
-    for (Quad4RzThermoelasticKernel& kernel : _impl->rz_kernels) kernel.set_time(value);
+    for (Quad4RzThermoelasticData& data : _impl->rz_kernel_data) data.time = value;
     refresh_region_heat_sources();
 }
 std::vector<double> SteadyProblem::initial_state() const { return _impl->layout().initial_state(); }
@@ -441,7 +443,7 @@ void SteadyProblem::compute_contribution_residual(
         _impl->cartesian->contribution_residual(index, state, nullptr, 0.0, residual);
         return;
     }
-    copy_rz_residual(steady_rz_residual(*_impl->rz, _impl->rz_kernels, index, rz_local_values(state)), residual);
+    copy_rz_residual(steady_rz_residual(*_impl->rz, _impl->rz_kernel_data, index, rz_local_values(state)), residual);
 }
 void SteadyProblem::compute_contribution_system(std::size_t index, const std::vector<double>& state,
     std::vector<double>& residual, std::vector<double>& jacobian) const {
@@ -449,7 +451,8 @@ void SteadyProblem::compute_contribution_system(std::size_t index, const std::ve
         _impl->cartesian->contribution_system(index, state, nullptr, 0.0, residual, jacobian);
         return;
     }
-    copy_rz_system(steady_rz_system(*_impl->rz, _impl->rz_kernels, index, rz_local_values(state)), residual, jacobian);
+    copy_rz_system(
+        steady_rz_system(*_impl->rz, _impl->rz_kernel_data, index, rz_local_values(state)), residual, jacobian);
 }
 class TransientProblem::Implementation final : public SpatialProblemBackend {
   public:
