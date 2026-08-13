@@ -209,6 +209,22 @@ additional table is 92,040 bytes. This explicit replicated index cost buys
 constant-time access while the collected floating-point state values and their
 per-callback communication remain limited to each process's shadow set.
 
+A follow-up lifted production problem dispatch out of the per-contribution
+virtual call. Solver setup identifies the final steady or transient problem
+once; callback loops use an explicit enum branch and direct calls, while custom
+`NonlinearProblem` test fixtures retain the generic virtual path. With commit
+`02309c7` as the immediate baseline, the same measurements were:
+
+```text
+                                      02309c7       candidate      observed change
+default three-run median:            1.114839 s     1.108533 s       0.57% lower
+medium 23,010 DOF, 20 steps:        60.722259 s    60.443432 s       0.46% lower
+```
+
+The small differences are consistent with eliminating one indirect call per
+contribution, but the sample is only evidence of no regression rather than a
+general speedup claim. Iteration counts and final residuals remained identical.
+
 ## 2026-08-06 M5.6 engineering-scale iterative solvers
 
 The Release build used two MPI processes pinned to CPUs 0 and 1. OpenMP,

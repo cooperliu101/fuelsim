@@ -89,7 +89,15 @@ PetscInt checked_petsc_int(std::size_t value) {
     return static_cast<PetscInt>(value);
 }
 struct SolverContext final {
+    enum class ContributionDispatch {
+        generic,
+        steady,
+        transient,
+    };
     const NonlinearProblem* problem = nullptr;
+    const SteadyProblem* steady_problem = nullptr;
+    const TransientProblem* transient_problem = nullptr;
+    ContributionDispatch contribution_dispatch = ContributionDispatch::generic;
     bool pattern_locked = false;
     PetscMPIInt rank = 0;
     PetscMPIInt size = 1;
@@ -122,6 +130,40 @@ struct SolverContext final {
     std::string last_domain_error;
     SolveTiming timing;
 };
+void compute_contribution_residual(SolverContext& context, std::size_t contribution) {
+    switch (context.contribution_dispatch) {
+    case SolverContext::ContributionDispatch::steady:
+        context.steady_problem->compute_contribution_residual(
+            contribution, context.contribution_workspace.state, context.contribution_workspace.residual);
+        return;
+    case SolverContext::ContributionDispatch::transient:
+        context.transient_problem->compute_contribution_residual(
+            contribution, context.contribution_workspace.state, context.contribution_workspace.residual);
+        return;
+    case SolverContext::ContributionDispatch::generic:
+        context.problem->compute_contribution_residual(
+            contribution, context.contribution_workspace.state, context.contribution_workspace.residual);
+        return;
+    }
+    throw std::logic_error("SolverContext contribution dispatch is invalid");
+}
+void compute_contribution_system(SolverContext& context, std::size_t contribution) {
+    switch (context.contribution_dispatch) {
+    case SolverContext::ContributionDispatch::steady:
+        context.steady_problem->compute_contribution_system(contribution, context.contribution_workspace.state,
+            context.contribution_workspace.residual, context.contribution_workspace.jacobian);
+        return;
+    case SolverContext::ContributionDispatch::transient:
+        context.transient_problem->compute_contribution_system(contribution, context.contribution_workspace.state,
+            context.contribution_workspace.residual, context.contribution_workspace.jacobian);
+        return;
+    case SolverContext::ContributionDispatch::generic:
+        context.problem->compute_contribution_system(contribution, context.contribution_workspace.state,
+            context.contribution_workspace.residual, context.contribution_workspace.jacobian);
+        return;
+    }
+    throw std::logic_error("SolverContext contribution dispatch is invalid");
+}
 void gather_contribution_state(SolverContext& context, std::size_t local_contribution, bool include_jacobian) {
     const std::size_t dof_begin = context.contribution_offsets[local_contribution];
     const std::size_t dof_end = context.contribution_offsets[local_contribution + 1];
@@ -392,8 +434,7 @@ PetscErrorCode form_function(SNES snes, Vec state, Vec residual, void* raw_conte
                 const std::size_t dof_begin = context.contribution_offsets[local_contribution];
                 const std::size_t local_count = context.contribution_offsets[local_contribution + 1] - dof_begin;
                 gather_contribution_state(context, local_contribution, false);
-                problem.compute_contribution_residual(
-                    entry, context.contribution_workspace.state, context.contribution_workspace.residual);
+                compute_contribution_residual(context, entry);
                 if (context.contribution_workspace.residual.size() != local_count)
                     throw std::logic_error("NonlinearProblem contribution residual has the wrong size");
                 PetscCall(VecSetValues(residual, checked_petsc_int(local_count),
@@ -465,8 +506,7 @@ PetscErrorCode form_jacobian(SNES snes, Vec state, Mat jacobian, Mat preconditio
                 const std::size_t dof_begin = context.contribution_offsets[local_contribution];
                 const std::size_t local_count = context.contribution_offsets[local_contribution + 1] - dof_begin;
                 gather_contribution_state(context, local_contribution, true);
-                problem.compute_contribution_system(entry, context.contribution_workspace.state,
-                    context.contribution_workspace.residual, context.contribution_workspace.jacobian);
+                compute_contribution_system(context, entry);
                 if (context.contribution_workspace.residual.size() != local_count ||
                     context.contribution_workspace.jacobian.size() != local_count * local_count)
                     throw std::logic_error("NonlinearProblem contribution system has the wrong size");
@@ -538,6 +578,12 @@ class PetscSolver::Implementation final {
         _count = requested_count;
         _context = SolverContext{};
         _context.problem = &problem;
+        _context.steady_problem = dynamic_cast<const SteadyProblem*>(&problem);
+        _context.transient_problem = dynamic_cast<const TransientProblem*>(&problem);
+        if (_context.steady_problem != nullptr)
+            _context.contribution_dispatch = SolverContext::ContributionDispatch::steady;
+        else if (_context.transient_problem != nullptr)
+            _context.contribution_dispatch = SolverContext::ContributionDispatch::transient;
         _context.rank = PetscGlobalRank;
         _context.size = PetscGlobalSize;
         const std::size_t rank = static_cast<std::size_t>(_context.rank),
