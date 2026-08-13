@@ -365,56 +365,102 @@ void validate_committed_state(const LocalValues& committed_state) {
             throw std::invalid_argument("Quad4RzTransientKernel committed temperatures must be finite and positive");
     }
 }
+void compute_quad4_rz_transient_residual_ad(const Quad4RzTransientData& data, const Quad4RzGeometry& geometry,
+    const LocalAdValues& current_state, const LocalValues& committed_state,
+    const Quad4MaterialHistory& committed_material, double time_step, LocalAdValues& residual) {
+    residual.fill(adlite::Scalar(0.0));
+    for (std::size_t q = 0; q < geometry.points.size(); ++q) {
+        const RzQuadraturePoint& point = geometry.points[q];
+        const TransientPointResponse evaluation = transient_point_response(point, current_state, committed_state,
+            data.material, committed_material[q], time_step, data.strain_formulation, data.time);
+        const adlite::Scalar temperature_rate =
+            (evaluation.fields.temperature - evaluation.old_temperature) / time_step;
+        const MaterialFunctionContext context = rz_material_context(data.time, point);
+        const adlite::Scalar conductivity = data.material.conductivity(evaluation.fields.temperature, context);
+        const adlite::Scalar heat_capacity = data.material.heat_capacity(evaluation.fields.temperature, context);
+        quad4_rz_detail::add_transient_point_residual(point, evaluation.fields.gradient_temperature_r,
+            evaluation.fields.gradient_temperature_z, evaluation.fields.kinematics, heat_capacity, temperature_rate,
+            conductivity, data.volumetric_heat_source, evaluation.response.stress, residual);
+    }
+}
 } // namespace
 Quad4RzTransientKernel::Quad4RzTransientKernel(
     IsotropicInelasticMaterial material, double volumetric_heat_source, StrainFormulation strain_formulation)
-    : _material(material), _volumetric_heat_source(volumetric_heat_source), _time(0.0),
-      _strain_formulation(strain_formulation) {}
+    : _data{material, volumetric_heat_source, 0.0, strain_formulation} {}
 double Quad4RzTransientKernel::heat_capacity(double temperature, double radius, double axial_coordinate) const {
-    return _material.heat_capacity(temperature, {_time, radius, 0.0, axial_coordinate}).value();
+    return compute_quad4_rz_transient_heat_capacity(_data, temperature, radius, axial_coordinate);
 }
 LocalResidual Quad4RzTransientKernel::residual(const Quad4RzGeometry& geometry, const LocalValues& current_state,
     const LocalValues& committed_state, const Quad4MaterialHistory& committed_material, double time_step) const {
-    validate_time_step(time_step);
-    validate_committed_state(committed_state);
-    const LocalAdValues ad_state = quad4_rz_detail::passive_state(current_state);
-    LocalAdValues ad_residual{};
-    residual_ad(geometry, ad_state, committed_state, committed_material, time_step, ad_residual);
-    return quad4_rz_detail::residual_values(ad_residual);
+    return compute_quad4_rz_transient_residual(
+        _data, geometry, current_state, committed_state, committed_material, time_step);
 }
 LocalSystem Quad4RzTransientKernel::linearize(const Quad4RzGeometry& geometry, const LocalValues& current_state,
     const LocalValues& committed_state, const Quad4MaterialHistory& committed_material, double time_step) const {
-    validate_time_step(time_step);
-    validate_committed_state(committed_state);
-    const LocalAdValues ad_state = quad4_rz_detail::active_state(current_state);
-    LocalAdValues ad_residual{};
-    residual_ad(geometry, ad_state, committed_state, committed_material, time_step, ad_residual);
-    return quad4_rz_detail::linearized_values(ad_state, ad_residual);
+    return compute_quad4_rz_transient_system(
+        _data, geometry, current_state, committed_state, committed_material, time_step);
 }
 Quad4MaterialHistory Quad4RzTransientKernel::trial_state_values(const Quad4RzGeometry& geometry,
     const LocalValues& converged_state, const LocalValues& committed_state,
     const Quad4MaterialHistory& committed_material, double time_step) const {
+    return compute_quad4_rz_transient_trial_state(
+        _data, geometry, converged_state, committed_state, committed_material, time_step);
+}
+std::array<AxisymmetricStressValues, 4> Quad4RzTransientKernel::stress_values(const Quad4RzGeometry& geometry,
+    const LocalValues& state, const LocalValues& committed_state, const Quad4MaterialHistory& committed_material,
+    double time_step) const {
+    return compute_quad4_rz_transient_stress(_data, geometry, state, committed_state, committed_material, time_step);
+}
+double compute_quad4_rz_transient_heat_capacity(
+    const Quad4RzTransientData& data, double temperature, double radius, double axial_coordinate) {
+    return data.material.heat_capacity(temperature, {data.time, radius, 0.0, axial_coordinate}).value();
+}
+LocalResidual compute_quad4_rz_transient_residual(const Quad4RzTransientData& data, const Quad4RzGeometry& geometry,
+    const LocalValues& current_state, const LocalValues& committed_state,
+    const Quad4MaterialHistory& committed_material, double time_step) {
+    validate_time_step(time_step);
+    validate_committed_state(committed_state);
+    const LocalAdValues ad_state = quad4_rz_detail::passive_state(current_state);
+    LocalAdValues ad_residual{};
+    compute_quad4_rz_transient_residual_ad(
+        data, geometry, ad_state, committed_state, committed_material, time_step, ad_residual);
+    return quad4_rz_detail::residual_values(ad_residual);
+}
+LocalSystem compute_quad4_rz_transient_system(const Quad4RzTransientData& data, const Quad4RzGeometry& geometry,
+    const LocalValues& current_state, const LocalValues& committed_state,
+    const Quad4MaterialHistory& committed_material, double time_step) {
+    validate_time_step(time_step);
+    validate_committed_state(committed_state);
+    const LocalAdValues ad_state = quad4_rz_detail::active_state(current_state);
+    LocalAdValues ad_residual{};
+    compute_quad4_rz_transient_residual_ad(
+        data, geometry, ad_state, committed_state, committed_material, time_step, ad_residual);
+    return quad4_rz_detail::linearized_values(ad_state, ad_residual);
+}
+Quad4MaterialHistory compute_quad4_rz_transient_trial_state(const Quad4RzTransientData& data,
+    const Quad4RzGeometry& geometry, const LocalValues& converged_state, const LocalValues& committed_state,
+    const Quad4MaterialHistory& committed_material, double time_step) {
     validate_time_step(time_step);
     const LocalAdValues passive_state = quad4_rz_detail::passive_state(converged_state);
     Quad4MaterialHistory result{};
     for (std::size_t q = 0; q < geometry.points.size(); ++q) {
         const TransientPointResponse evaluation = transient_point_response(geometry.points[q], passive_state,
-            committed_state, _material, committed_material[q], time_step, _strain_formulation, _time);
+            committed_state, data.material, committed_material[q], time_step, data.strain_formulation, data.time);
         if (!std::isfinite(evaluation.fields.temperature.value()) || !(evaluation.fields.temperature.value() > 0.0))
             throw std::domain_error("Quad4RzTransientKernel trial temperature must be finite and positive");
         result[q] = IsotropicInelasticMaterial::state_values(evaluation.response.trial_state);
     }
     return result;
 }
-std::array<AxisymmetricStressValues, 4> Quad4RzTransientKernel::stress_values(const Quad4RzGeometry& geometry,
-    const LocalValues& state, const LocalValues& committed_state, const Quad4MaterialHistory& committed_material,
-    double time_step) const {
+std::array<AxisymmetricStressValues, 4> compute_quad4_rz_transient_stress(const Quad4RzTransientData& data,
+    const Quad4RzGeometry& geometry, const LocalValues& state, const LocalValues& committed_state,
+    const Quad4MaterialHistory& committed_material, double time_step) {
     validate_time_step(time_step);
     const LocalAdValues passive_state = quad4_rz_detail::passive_state(state);
     std::array<AxisymmetricStressValues, 4> result{};
     for (std::size_t q = 0; q < geometry.points.size(); ++q) {
         const TransientPointResponse evaluation = transient_point_response(geometry.points[q], passive_state,
-            committed_state, _material, committed_material[q], time_step, _strain_formulation, _time);
+            committed_state, data.material, committed_material[q], time_step, data.strain_formulation, data.time);
         result[q] = {
             evaluation.response.stress.rr.value(),
             evaluation.response.stress.zz.value(),
@@ -423,24 +469,6 @@ std::array<AxisymmetricStressValues, 4> Quad4RzTransientKernel::stress_values(co
         };
     }
     return result;
-}
-void Quad4RzTransientKernel::residual_ad(const Quad4RzGeometry& geometry, const LocalAdValues& current_state,
-    const LocalValues& committed_state, const Quad4MaterialHistory& committed_material, double time_step,
-    LocalAdValues& residual) const {
-    residual.fill(adlite::Scalar(0.0));
-    for (std::size_t q = 0; q < geometry.points.size(); ++q) {
-        const RzQuadraturePoint& point = geometry.points[q];
-        const TransientPointResponse evaluation = transient_point_response(point, current_state, committed_state,
-            _material, committed_material[q], time_step, _strain_formulation, _time);
-        const adlite::Scalar temperature_rate =
-            (evaluation.fields.temperature - evaluation.old_temperature) / time_step;
-        const MaterialFunctionContext context = rz_material_context(_time, point);
-        const adlite::Scalar conductivity = _material.conductivity(evaluation.fields.temperature, context);
-        const adlite::Scalar heat_capacity = _material.heat_capacity(evaluation.fields.temperature, context);
-        quad4_rz_detail::add_transient_point_residual(point, evaluation.fields.gradient_temperature_r,
-            evaluation.fields.gradient_temperature_z, evaluation.fields.kinematics, heat_capacity, temperature_rate,
-            conductivity, _volumetric_heat_source, evaluation.response.stress, residual);
-    }
 }
 namespace {
 bool finite_point(const RzPoint& point) { return std::isfinite(point.r) && std::isfinite(point.z); }

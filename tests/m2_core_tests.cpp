@@ -814,8 +814,11 @@ bool test_transient_element() {
 bool test_coupled_transient_element_jacobian(
     fuelsim::StrainFormulation strain_formulation, const std::string& formulation_name) {
     const fuelsim::Quad4RzGeometry geometry = test_geometry();
-    const fuelsim::Quad4RzTransientKernel kernel(
-        fuelsim::IsotropicInelasticMaterial(coupled_properties(0.02, 10.0, 2.0, 20.0, 40.0)), 0.0, strain_formulation);
+    const fuelsim::ThermoelasticProperties properties = coupled_properties(0.02, 10.0, 2.0, 20.0, 40.0);
+    fuelsim::Quad4RzTransientKernel kernel(fuelsim::IsotropicInelasticMaterial(properties), 0.0, strain_formulation);
+    kernel.set_time(1.25);
+    const fuelsim::Quad4RzTransientData data{
+        fuelsim::IsotropicInelasticMaterial(properties), 0.0, 1.25, strain_formulation};
     fuelsim::LocalValues committed_state = {
         600.0,
         600.0,
@@ -895,6 +898,27 @@ bool test_coupled_transient_element_jacobian(
     }
     const fuelsim::Quad4MaterialHistory trial =
         kernel.trial_state_values(geometry, state, committed_state, history, time_step);
+    const fuelsim::LocalSystem procedural_system =
+        fuelsim::compute_quad4_rz_transient_system(data, geometry, state, committed_state, history, time_step);
+    const fuelsim::LocalResidual procedural_residual =
+        fuelsim::compute_quad4_rz_transient_residual(data, geometry, state, committed_state, history, time_step);
+    const fuelsim::Quad4MaterialHistory procedural_trial =
+        fuelsim::compute_quad4_rz_transient_trial_state(data, geometry, state, committed_state, history, time_step);
+    const std::array<fuelsim::AxisymmetricStressValues, 4> wrapper_stress =
+        kernel.stress_values(geometry, state, committed_state, history, time_step);
+    const std::array<fuelsim::AxisymmetricStressValues, 4> procedural_stress =
+        fuelsim::compute_quad4_rz_transient_stress(data, geometry, state, committed_state, history, time_step);
+    bool procedural_entry_points_match =
+        procedural_residual == kernel.residual(geometry, state, committed_state, history, time_step) &&
+        procedural_system.residual == system.residual && procedural_system.jacobian == system.jacobian &&
+        fuelsim::compute_quad4_rz_transient_heat_capacity(data, 600.0, 1.5, 0.5) ==
+            kernel.heat_capacity(600.0, 1.5, 0.5);
+    for (std::size_t q = 0; q < trial.size(); ++q) {
+        procedural_entry_points_match =
+            same_state(procedural_trial[q], trial[q]) && procedural_stress[q].rr == wrapper_stress[q].rr &&
+            procedural_stress[q].zz == wrapper_stress[q].zz && procedural_stress[q].hoop == wrapper_stress[q].hoop &&
+            procedural_stress[q].rz == wrapper_stress[q].rz && procedural_entry_points_match;
+    }
     bool both_histories_active = true;
     for (const fuelsim::MaterialPointState& point : trial) {
         both_histories_active =
@@ -905,6 +929,10 @@ bool test_coupled_transient_element_jacobian(
                                                          "finite difference");
     passed = check(both_histories_active, formulation_name + " coupled transient Quad4 activates both histories at "
                                                              "every quadrature point") &&
+             passed;
+    passed = check(procedural_entry_points_match,
+                 formulation_name + " transient procedural entry points preserve residual, Jacobian, active "
+                                    "histories, stresses, and heat capacity exactly") &&
              passed;
     std::cout << formulation_name << "_coupled_element_jacobian_maximum_scaled_error=" << maximum_error << '\n';
     return passed;
