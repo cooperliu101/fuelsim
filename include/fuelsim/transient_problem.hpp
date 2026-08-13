@@ -17,19 +17,11 @@ class BackendAccess;
 }
 struct TransientTimeErrorEstimate;
 struct TransientTimeOptions;
-struct TransientRegionDefinition final {
-    std::string region;
-    TransientInelasticProperties material;
-};
-struct TransientProblemDefinition final {
-    SpatialDefinition spatial;
-    std::vector<TransientRegionDefinition> regions;
-};
 struct TransientStepInput final {
     double end_time, load_factor;
 };
-struct RegionInelasticSummary final {
-    double maximum_equivalent_plastic_strain, maximum_equivalent_creep_strain;
+struct RegionStateSummary final {
+    double maximum_temperature, maximum_equivalent_plastic_strain, maximum_equivalent_creep_strain;
 };
 struct TransientConservationSummary final {
     double generated_heat_rate = 0.0, stored_heat_rate = 0.0, convection_heat_rate = 0.0,
@@ -77,15 +69,17 @@ class TransientStateSnapshot final {
 };
 class TransientProblem final : public NonlinearProblem {
   public:
-    TransientProblem(TransientProblemDefinition definition, const UnstructuredQuad4Mesh& source_mesh);
-    TransientProblem(TransientProblemDefinition definition, const UnstructuredHex8Mesh& source_mesh);
+    TransientProblem(SpatialDefinition definition, const UnstructuredQuad4Mesh& source_mesh);
+    TransientProblem(SpatialDefinition definition, const UnstructuredHex8Mesh& source_mesh);
     ~TransientProblem() override;
     bool is_cartesian_3d() const noexcept;
+    const SpatialDefinition& definition() const noexcept;
     const std::vector<double>& committed_solution() const noexcept;
     double committed_time() const noexcept;
     double committed_load_factor() const noexcept;
     bool time_step_active() const noexcept;
     std::vector<double> time_events() const;
+    RegionStateSummary summarize_region(std::size_t region) const;
     TransientStateSnapshot capture_state() const;
     void restore_state(const TransientStateSnapshot& snapshot);
     TransientTimeErrorEstimate step_doubling_error(const TransientStateSnapshot& full_step,
@@ -117,6 +111,8 @@ class TransientProblem final : public NonlinearProblem {
     friend class rz::TransientConservationCalculator;
     class Implementation;
     void apply_spatial_controls(double time, double load_factor);
+    std::vector<double> accumulate_contribution_conservation(
+        const std::vector<double>& solution, TransientConservationSummary& summary) const;
     void clear_active_time_step() noexcept;
     void refresh_region_heat_sources();
     void require_active_time_step() const;

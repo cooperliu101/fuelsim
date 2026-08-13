@@ -409,16 +409,15 @@ bool check_load_path(const std::vector<HistorySnapshot>& snapshots, ExpectedBeha
 bool audit_creep_shared_state(const fuelsim::FuelSimCaseDefinition& definition,
     const fuelsim::UnstructuredQuad4Mesh& source, const std::vector<ReferenceSnapshot>& reference,
     const std::string& nodal_history_path) {
-    if (definition.regions.size() != 1 ||
-        definition.regions[0].transient_material.behavior != fuelsim::InelasticBehavior::norton_creep ||
-        !definition.contacts.empty() ||
-        std::any_of(definition.boundary_conditions.begin(), definition.boundary_conditions.end(),
+    if (definition.spatial.regions.size() != 1 || !definition.spatial.regions[0].material.functions->has_creep() ||
+        definition.spatial.regions[0].material.functions->has_plasticity() || !definition.spatial.contacts.empty() ||
+        std::any_of(definition.spatial.boundary_conditions.begin(), definition.spatial.boundary_conditions.end(),
             [](const fuelsim::BoundaryConditionDefinition& boundary) {
                 return boundary.type != fuelsim::BoundaryConditionType::dirichlet;
             }))
         throw std::invalid_argument("M4.3 creep shared-state audit requires one Norton-only region "
                                     "with displacement boundary conditions only");
-    fuelsim::TransientProblem problem(definition.transient_definition(), source);
+    fuelsim::TransientProblem problem(definition.spatial, source);
     if (fuelsim::rz::ProblemAccess::region_count(problem) != 1)
         throw std::invalid_argument("M4.3 creep shared-state audit requires one region");
     const fuelsim::RegionMesh& mesh = fuelsim::rz::ProblemAccess::region_mesh(problem, 0);
@@ -579,11 +578,11 @@ bool run_test(const VariantConfig& variant, const std::string& input_path, const
     if (definition.problem != fuelsim::CaseProblem::transient)
         throw std::invalid_argument("M4.3 requires a transient input card");
     const fuelsim::UnstructuredQuad4Mesh source = fuelsim::read_exodus_quad4(definition.mesh_file);
-    fuelsim::TransientProblem problem(definition.transient_definition(), source);
+    fuelsim::TransientProblem problem(definition.spatial, source);
     const fuelsim::TransientTimeOptions time_options = {definition.transient_execution.end_time,
         definition.transient_execution.initial_time_step, definition.transient_execution.minimum_time_step,
         definition.transient_execution.maximum_time_step, definition.transient_execution.growth_factor,
-        definition.transient_execution.cutback_factor, definition.transient_execution.maximum_cutbacks,
+        definition.transient_execution.cutback_factor, definition.transient_execution.maximum_cutbacks_per_step,
         definition.transient_execution.load_ramp_time};
     fuelsim::SolverOptions solver_options = {definition.solver.absolute_tolerance, definition.solver.relative_tolerance,
         definition.solver.step_tolerance, definition.solver.maximum_iterations};

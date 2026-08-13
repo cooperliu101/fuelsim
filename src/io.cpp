@@ -79,18 +79,11 @@ void hash_string(std::uint64_t& hash, const std::string& value) {
     hash_bytes(hash, value.data(), value.size());
 }
 void hash_thermoelastic(std::uint64_t& hash, const ThermoelasticProperties& material) {
-    hash_double(hash, material.conductivity_inverse_temperature);
-    hash_double(hash, material.conductivity_offset);
-    hash_double(hash, material.young_modulus);
-    hash_double(hash, material.poisson_ratio);
-    hash_double(hash, material.thermal_expansion);
-    hash_double(hash, material.reference_temperature);
-    hash_double(hash, material.young_modulus_temperature_coefficient);
-    hash_double(hash, material.poisson_ratio_temperature_coefficient);
-    hash_double(hash, material.thermal_expansion_temperature_coefficient);
+    hash_double(hash, material.reference_young_modulus);
+    const std::uint64_t signature = material.functions->signature();
+    hash_bytes(hash, &signature, sizeof(signature));
 }
-void hash_region_definition(
-    std::uint64_t& hash, const RegionDefinition& spatial, const TransientInelasticProperties& transient) {
+void hash_region_definition(std::uint64_t& hash, const RegionDefinition& spatial) {
     hash_string(hash, spatial.name);
     hash_string(hash, spatial.block);
     hash_integer(hash, spatial.block_id);
@@ -98,10 +91,6 @@ void hash_region_definition(
     hash_double(hash, spatial.volumetric_heat_source);
     hash_double(hash, spatial.initial_temperature);
     hash_string(hash, spatial.heat_source_function);
-    hash_double(hash, transient.density);
-    hash_double(hash, transient.specific_heat);
-    const std::uint64_t material_signature = spatial.material.functions ? spatial.material.functions->signature() : 0U;
-    hash_bytes(hash, &material_signature, sizeof(material_signature));
 }
 void hash_boundaries(std::uint64_t& hash, const SpatialDefinition& definition, bool include_displaced_geometry) {
     for (const BoundaryConditionDefinition& boundary : definition.boundary_conditions) {
@@ -147,14 +136,13 @@ std::uint64_t transient_problem_signature(const TransientProblem& problem) {
     hash_size(hash, cartesian ? 8 : 4);
     hash_size(hash, problem.dof_count());
     if (cartesian) {
-        const cartesian::TransientBackendView backend = cartesian::BackendAccess::transient(problem);
-        hash_size(hash, backend.spatial.region_count());
-        const TransientProblemDefinition& definition = backend.definition;
-        for (std::size_t region = 0; region < backend.spatial.region_count(); ++region) {
-            const RegionDefinition& spatial = definition.spatial.regions[region];
-            const TransientInelasticProperties& transient = definition.regions[region].material;
-            hash_region_definition(hash, spatial, transient);
-            const Hex8RegionMesh& mesh = backend.spatial.region_mesh(region);
+        const cartesian::SpatialAssembly& assembly = cartesian::BackendAccess::spatial(problem);
+        hash_size(hash, assembly.region_count());
+        const SpatialDefinition& definition = problem.definition();
+        for (std::size_t region = 0; region < assembly.region_count(); ++region) {
+            const RegionDefinition& spatial = definition.regions[region];
+            hash_region_definition(hash, spatial);
+            const Hex8RegionMesh& mesh = assembly.region_mesh(region);
             hash_size(hash, mesh.nodes().size());
             for (const CartesianPoint3& point : mesh.nodes()) {
                 hash_double(hash, point.x);
@@ -167,30 +155,18 @@ std::uint64_t transient_problem_signature(const TransientProblem& problem) {
             for (const std::size_t source : mesh.source_node_ids()) hash_size(hash, source);
             for (const std::size_t source : mesh.source_element_ids()) hash_size(hash, source);
         }
-        hash_boundaries(hash, definition.spatial, false);
-        hash_time_tables(hash, definition.spatial);
+        hash_boundaries(hash, definition, false);
+        hash_time_tables(hash, definition);
         hash_contribution_layout(hash, problem);
         return hash;
     }
     const rz::TransientBackendView backend = rz::BackendAccess::transient(problem);
     hash_size(hash, backend.spatial.region_count());
-    const TransientProblemDefinition& definition = backend.definition;
+    const SpatialDefinition& definition = problem.definition();
     for (std::size_t region = 0; region < backend.spatial.region_count(); ++region) {
-        const RegionDefinition& spatial = definition.spatial.regions[region];
-        const TransientInelasticProperties& transient = definition.regions[region].material;
-        hash_region_definition(hash, spatial, transient);
+        const RegionDefinition& spatial = definition.regions[region];
+        hash_region_definition(hash, spatial);
         hash_integer(hash, static_cast<std::int64_t>(spatial.strain_formulation));
-        hash_integer(hash, static_cast<std::int64_t>(transient.behavior));
-        hash_double(hash, transient.creep.coefficient);
-        hash_double(hash, transient.creep.reference_stress);
-        hash_double(hash, transient.creep.stress_exponent);
-        hash_double(hash, transient.creep.coefficient_temperature_coefficient);
-        hash_double(hash, transient.creep.reference_stress_temperature_coefficient);
-        hash_double(hash, transient.creep.stress_exponent_temperature_coefficient);
-        hash_double(hash, transient.plasticity.yield_stress);
-        hash_double(hash, transient.plasticity.isotropic_hardening_modulus);
-        hash_double(hash, transient.plasticity.yield_stress_temperature_coefficient);
-        hash_double(hash, transient.plasticity.hardening_temperature_coefficient);
         const RegionMesh& mesh = backend.spatial.region_mesh(region);
         hash_size(hash, mesh.nodes().size());
         for (const RzPoint& point : mesh.nodes()) {
@@ -203,7 +179,7 @@ std::uint64_t transient_problem_signature(const TransientProblem& problem) {
         for (const std::size_t source : mesh.source_node_ids()) hash_size(hash, source);
         for (const std::size_t source : mesh.source_element_ids()) hash_size(hash, source);
     }
-    for (const ContactDefinition& contact : definition.spatial.contacts) {
+    for (const ContactDefinition& contact : definition.contacts) {
         hash_string(hash, contact.name);
         hash_string(hash, contact.primary);
         hash_string(hash, contact.secondary);
@@ -219,8 +195,8 @@ std::uint64_t transient_problem_signature(const TransientProblem& problem) {
         hash_double(hash, contact.penetration_tolerance);
         hash_size(hash, contact.maximum_augmented_iterations);
     }
-    hash_boundaries(hash, definition.spatial, true);
-    hash_time_tables(hash, definition.spatial);
+    hash_boundaries(hash, definition, true);
+    hash_time_tables(hash, definition);
     hash_contribution_layout(hash, problem);
     return hash;
 }
@@ -677,16 +653,6 @@ void write_result_step(const std::string& path, const ResultsMeshView& mesh, std
     check_exodus(ex_update(file.id()), "Could not flush Exodus results");
     file.close();
 }
-void write_step(const std::string& path, const UnstructuredQuad4Mesh& mesh, std::size_t step, double time,
-    const std::vector<std::vector<double>>& nodal_values, const std::vector<std::vector<double>>& element_values,
-    const std::vector<double>& global_values) {
-    write_result_step(path, results_mesh_view(mesh), step, time, nodal_values, element_values, global_values);
-}
-void write_step(const std::string& path, const UnstructuredHex8Mesh& mesh, std::size_t step, double time,
-    const std::vector<std::vector<double>>& nodal_values, const std::vector<std::vector<double>>& element_values,
-    const std::vector<double>& global_values) {
-    write_result_step(path, results_mesh_view(mesh), step, time, nodal_values, element_values, global_values);
-}
 void fill_region_nodal_values(const std::vector<std::size_t>& source_nodes, std::size_t region_offset,
     const DofMap& dof_map, const std::vector<double>& state, std::vector<bool>& present,
     std::vector<std::vector<double>>& values) {
@@ -728,24 +694,11 @@ void fill_rz_nodal(const UnstructuredQuad4Mesh& mesh, const rz::SpatialAssembly&
         fill_contact_nodal_values(contact, nodes, summary, values);
     }
 }
-std::vector<double> steady_globals(const SteadyProblem& problem, const std::vector<double>& state) {
-    const rz::SpatialAssembly& spatial = rz::BackendAccess::steady(problem).spatial;
-    std::vector<double> result = {problem.load_factor()};
+std::vector<double> rz_globals(
+    const rz::SpatialAssembly& spatial, const std::vector<double>& state, double load_factor) {
+    std::vector<double> result = {load_factor};
     for (std::size_t contact = 0; contact < spatial.contact_count(); ++contact) {
         const InterfaceSummary summary = spatial.summarize_interface(contact, state);
-        result.push_back(summary.total_heat_rate);
-        result.push_back(summary.total_contact_force);
-        result.push_back(summary.total_tangential_force);
-    }
-    return result;
-}
-std::vector<double> transient_globals(const TransientProblem& problem) {
-    const rz::TransientBackendView backend = rz::BackendAccess::transient(problem);
-    std::vector<double> result = {problem.committed_load_factor()};
-    const std::vector<double>& state = problem.committed_solution();
-    const std::size_t contacts = backend.definition.spatial.contacts.size();
-    for (std::size_t contact = 0; contact < contacts; ++contact) {
-        const InterfaceSummary summary = backend.spatial.summarize_interface(contact, state);
         result.push_back(summary.total_heat_rate);
         result.push_back(summary.total_contact_force);
         result.push_back(summary.total_tangential_force);
@@ -830,30 +783,16 @@ void store_cartesian_stress_values(std::size_t source, const std::array<Symmetri
         values[offset + 5][source] = stresses[q].xz;
     }
 }
-std::vector<std::vector<double>> cartesian_steady_elements(
-    const UnstructuredHex8Mesh& mesh, const SteadyProblem& problem, const std::vector<double>& state) {
-    const cartesian::SteadyBackendView backend = cartesian::BackendAccess::steady(problem);
+std::vector<std::vector<double>> cartesian_elements(
+    const UnstructuredHex8Mesh& mesh, const cartesian::SpatialAssembly& spatial, const std::vector<double>& state) {
     const double missing = std::numeric_limits<double>::quiet_NaN();
     std::vector<std::vector<double>> result(48, std::vector<double>(mesh.elements().size(), missing));
-    for (std::size_t region = 0; region < backend.spatial.region_count(); ++region) {
-        const Hex8RegionMesh& region_mesh = backend.spatial.region_mesh(region);
+    for (std::size_t region = 0; region < spatial.region_count(); ++region) {
+        const Hex8RegionMesh& region_mesh = spatial.region_mesh(region);
         for (std::size_t element = 0; element < region_mesh.elements().size(); ++element) {
-            const auto stresses = backend.spatial.stress(region, element, state);
+            const auto stresses = spatial.stress(region, element, state);
             store_cartesian_stress_values(region_mesh.source_element_ids()[element], stresses, result);
         }
-    }
-    return result;
-}
-std::vector<std::vector<double>> cartesian_transient_elements(
-    const UnstructuredHex8Mesh& mesh, const TransientProblem& problem) {
-    const cartesian::TransientBackendView backend = cartesian::BackendAccess::transient(problem);
-    const double missing = std::numeric_limits<double>::quiet_NaN();
-    std::vector<std::vector<double>> result(48, std::vector<double>(mesh.elements().size(), missing));
-    for (std::size_t region = 0; region < backend.spatial.region_count(); ++region) {
-        const Hex8RegionMesh& region_mesh = backend.spatial.region_mesh(region);
-        for (std::size_t element = 0; element < region_mesh.elements().size(); ++element)
-            store_cartesian_stress_values(region_mesh.source_element_ids()[element],
-                cartesian::BackendAccess::stress(problem, problem.committed_solution(), region, element), result);
     }
     return result;
 }
@@ -877,25 +816,12 @@ EngineeringHistoryWriter::EngineeringHistoryWriter(std::string path, const Trans
     _stream.exceptions(std::ios::badbit | std::ios::failbit);
     _stream << "time,time_step,next_time_step,load_factor,nonlinear_iterations";
     for (const TransientConservationField& field : transient_conservation_fields) _stream << ',' << field.name;
-    std::vector<std::string> region_names;
-    std::vector<ContactDefinition> contacts;
-    if (problem.is_cartesian_3d()) {
-        const cartesian::TransientBackendView backend = cartesian::BackendAccess::transient(problem);
-        for (std::size_t region = 0; region < backend.spatial.region_count(); ++region)
-            region_names.push_back(backend.spatial.region(region).name);
-        contacts = backend.definition.spatial.contacts;
-    } else {
-        const rz::TransientBackendView backend = rz::BackendAccess::transient(problem);
-        for (std::size_t region = 0; region < backend.spatial.region_count(); ++region)
-            region_names.push_back(backend.spatial.region(region).name);
-        contacts = backend.definition.spatial.contacts;
-    }
-    for (const std::string& name : region_names) {
-        const std::string prefix = ",region_" + name;
+    for (const RegionDefinition& region : problem.definition().regions) {
+        const std::string prefix = ",region_" + region.name;
         _stream << prefix << "_maximum_temperature" << prefix << "_maximum_equivalent_plastic_strain" << prefix
                 << "_maximum_equivalent_creep_strain";
     }
-    for (const ContactDefinition& contact : contacts) {
+    for (const ContactDefinition& contact : problem.definition().contacts) {
         const std::string prefix = ",contact_" + contact.name;
         _stream << prefix << "_minimum_gap" << prefix << "_maximum_pressure" << prefix << "_total_heat_rate" << prefix
                 << "_total_force" << prefix << "_total_tangential_force";
@@ -914,39 +840,14 @@ void EngineeringHistoryWriter::append(
     for (const TransientConservationField& field : transient_conservation_fields)
         _stream << ',' << conservation.*field.member;
     const std::vector<double>& state = problem.committed_solution();
-    if (problem.is_cartesian_3d()) {
-        const cartesian::TransientBackendView backend = cartesian::BackendAccess::transient(problem);
-        for (std::size_t region = 0; region < backend.spatial.region_count(); ++region) {
-            double maximum_temperature = -std::numeric_limits<double>::infinity();
-            const std::size_t offset = backend.spatial.region_node_offset(region);
-            for (std::size_t local = 0; local < backend.spatial.region_mesh(region).nodes().size(); ++local) {
-                const std::size_t dof = backend.spatial.dof_map().temperature(offset + local);
-                maximum_temperature = std::max(maximum_temperature, state.at(dof));
-            }
-            _stream << ',' << maximum_temperature << ",0,0";
-        }
-    } else {
+    for (std::size_t region = 0; region < problem.definition().regions.size(); ++region) {
+        const RegionStateSummary summary = problem.summarize_region(region);
+        _stream << ',' << summary.maximum_temperature << ',' << summary.maximum_equivalent_plastic_strain << ','
+                << summary.maximum_equivalent_creep_strain;
+    }
+    if (!problem.is_cartesian_3d()) {
         const rz::TransientBackendView backend = rz::BackendAccess::transient(problem);
-        for (std::size_t region = 0; region < backend.spatial.region_count(); ++region) {
-            double maximum_temperature = -std::numeric_limits<double>::infinity();
-            const std::size_t offset = backend.spatial.region_node_offset(region);
-            for (std::size_t local = 0; local < backend.spatial.region_mesh(region).nodes().size(); ++local) {
-                const std::size_t dof = backend.spatial.dof_map().temperature(offset + local);
-                maximum_temperature = std::max(maximum_temperature, state.at(dof));
-            }
-            RegionInelasticSummary history{0.0, 0.0};
-            for (const Quad4MaterialHistory& element : backend.histories.at(region)) {
-                for (const MaterialPointState& point : element) {
-                    history.maximum_equivalent_plastic_strain =
-                        std::max(history.maximum_equivalent_plastic_strain, point.equivalent_plastic_strain);
-                    history.maximum_equivalent_creep_strain =
-                        std::max(history.maximum_equivalent_creep_strain, point.equivalent_creep_strain);
-                }
-            }
-            _stream << ',' << maximum_temperature << ',' << history.maximum_equivalent_plastic_strain << ','
-                    << history.maximum_equivalent_creep_strain;
-        }
-        for (std::size_t contact = 0; contact < backend.definition.spatial.contacts.size(); ++contact) {
+        for (std::size_t contact = 0; contact < problem.definition().contacts.size(); ++contact) {
             const InterfaceSummary summary = backend.spatial.summarize_interface(contact, state);
             _stream << ',' << summary.minimum_gap << ',' << summary.maximum_contact_pressure << ','
                     << summary.total_heat_rate << ',' << summary.total_contact_force << ','
@@ -966,23 +867,25 @@ void write_steady_results(const std::string& path, const UnstructuredQuad4Mesh& 
     define_variables(path, mesh, nodal, element, global);
     std::vector<std::vector<double>> nodal_values;
     fill_rz_nodal(mesh, rz::BackendAccess::steady(problem).spatial, state, nodal_values);
-    write_step(path, mesh, 1, 1.0, nodal_values, steady_elements(mesh, problem, state), steady_globals(problem, state));
+    write_result_step(path, results_mesh_view(mesh), 1, 1.0, nodal_values, steady_elements(mesh, problem, state),
+        rz_globals(rz::BackendAccess::steady(problem).spatial, state, problem.load_factor()));
 }
 void write_steady_results(const std::string& path, const UnstructuredHex8Mesh& mesh, const SteadyProblem& problem,
     const std::vector<double>& state) {
     if (path.empty()) throw std::invalid_argument("Exodus result path must not be empty");
     define_variables(path, mesh, cartesian_nodal_variable_names(), cartesian_stress_variable_names(), {"load_factor"});
     std::vector<std::vector<double>> nodal_values;
-    fill_cartesian_nodal(mesh, cartesian::BackendAccess::steady(problem).spatial, state, nodal_values);
-    write_step(
-        path, mesh, 1, 1.0, nodal_values, cartesian_steady_elements(mesh, problem, state), {problem.load_factor()});
+    const cartesian::SpatialAssembly& spatial = cartesian::BackendAccess::spatial(problem);
+    fill_cartesian_nodal(mesh, spatial, state, nodal_values);
+    write_result_step(path, results_mesh_view(mesh), 1, 1.0, nodal_values, cartesian_elements(mesh, spatial, state),
+        {problem.load_factor()});
 }
 ExodusTransientResultsWriter::ExodusTransientResultsWriter(
     std::string path, UnstructuredQuad4Mesh mesh, const TransientProblem& problem)
     : _path(std::move(path)), _rz_mesh(std::make_unique<UnstructuredQuad4Mesh>(std::move(mesh))),
       _problem_signature(transient_problem_signature(problem)), _step_count(0) {
     if (_path.empty()) throw std::invalid_argument("Exodus result path must not be empty");
-    const std::vector<ContactDefinition>& contacts = rz::BackendAccess::transient(problem).definition.spatial.contacts;
+    const std::vector<ContactDefinition>& contacts = problem.definition().contacts;
     define_variables(_path, *_rz_mesh, nodal_variable_names(contacts), transient_element_variable_names(),
         global_variable_names(contacts));
 }
@@ -1002,15 +905,16 @@ void ExodusTransientResultsWriter::append(const TransientProblem& problem) {
     ++_step_count;
     std::vector<std::vector<double>> nodal_values;
     if (_hex_mesh) {
-        fill_cartesian_nodal(*_hex_mesh, cartesian::BackendAccess::transient(problem).spatial,
-            problem.committed_solution(), nodal_values);
-        write_step(_path, *_hex_mesh, _step_count, problem.committed_time(), nodal_values,
-            cartesian_transient_elements(*_hex_mesh, problem), {problem.committed_load_factor()});
+        const cartesian::SpatialAssembly& spatial = cartesian::BackendAccess::spatial(problem);
+        fill_cartesian_nodal(*_hex_mesh, spatial, problem.committed_solution(), nodal_values);
+        write_result_step(_path, results_mesh_view(*_hex_mesh), _step_count, problem.committed_time(), nodal_values,
+            cartesian_elements(*_hex_mesh, spatial, problem.committed_solution()), {problem.committed_load_factor()});
     } else {
-        fill_rz_nodal(
-            *_rz_mesh, rz::BackendAccess::transient(problem).spatial, problem.committed_solution(), nodal_values);
-        write_step(_path, *_rz_mesh, _step_count, problem.committed_time(), nodal_values,
-            transient_elements(*_rz_mesh, problem), transient_globals(problem));
+        const rz::SpatialAssembly& spatial = rz::BackendAccess::transient(problem).spatial;
+        fill_rz_nodal(*_rz_mesh, spatial, problem.committed_solution(), nodal_values);
+        write_result_step(_path, results_mesh_view(*_rz_mesh), _step_count, problem.committed_time(), nodal_values,
+            transient_elements(*_rz_mesh, problem),
+            rz_globals(spatial, problem.committed_solution(), problem.committed_load_factor()));
     }
 }
 std::size_t ExodusTransientResultsWriter::step_count() const noexcept { return _step_count; }

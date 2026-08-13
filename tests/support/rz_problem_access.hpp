@@ -4,6 +4,12 @@
 #include <algorithm>
 #include <stdexcept>
 namespace fuelsim::rz {
+inline std::size_t named_region(const SpatialDefinition& definition, const std::string& name) {
+    const auto found = std::find_if(definition.regions.begin(), definition.regions.end(),
+        [&name](const RegionDefinition& region) { return region.name == name; });
+    if (found == definition.regions.end()) throw std::invalid_argument("Unknown region: " + name);
+    return static_cast<std::size_t>(found - definition.regions.begin());
+}
 class ProblemAccess final {
   public:
     static SteadyBackendView view(const SteadyProblem& problem) { return BackendAccess::steady(problem); }
@@ -16,7 +22,7 @@ class ProblemAccess final {
         return view(problem).spatial.region_count();
     }
     static std::size_t region_index(const SteadyProblem& problem, const std::string& name) {
-        return view(problem).spatial.region_index(name);
+        return named_region(view(problem).spatial.definition(), name);
     }
     static const RegionDefinition& region(const SteadyProblem& problem, std::size_t index) {
         return view(problem).spatial.region(index);
@@ -101,15 +107,15 @@ class ProblemAccess final {
         return backend.kernels[location.first].linearize(
             backend.spatial.region_element_geometry(location.first, location.second), state);
     }
-    static const TransientProblemDefinition& definition(const TransientProblem& problem) noexcept {
-        return view(problem).definition;
+    static const SpatialDefinition& definition(const TransientProblem& problem) noexcept {
+        return problem.definition();
     }
     static const DofMap& dof_map(const TransientProblem& problem) noexcept { return view(problem).spatial.dof_map(); }
     static std::size_t region_count(const TransientProblem& problem) noexcept {
         return view(problem).spatial.region_count();
     }
     static std::size_t region_index(const TransientProblem& problem, const std::string& name) {
-        return view(problem).spatial.region_index(name);
+        return named_region(view(problem).spatial.definition(), name);
     }
     static std::size_t region_node_offset(const TransientProblem& problem, std::size_t index) {
         return view(problem).spatial.region_node_offset(index);
@@ -141,17 +147,8 @@ class ProblemAccess final {
         const TransientProblem& problem, std::size_t region, std::size_t element) {
         return view(problem).stresses.at(region).at(element);
     }
-    static RegionInelasticSummary summarize_region_history(const TransientProblem& problem, std::size_t region) {
-        RegionInelasticSummary result{0.0, 0.0};
-        for (const Quad4MaterialHistory& element : view(problem).histories.at(region)) {
-            for (const MaterialPointState& point : element) {
-                result.maximum_equivalent_plastic_strain =
-                    std::max(result.maximum_equivalent_plastic_strain, point.equivalent_plastic_strain);
-                result.maximum_equivalent_creep_strain =
-                    std::max(result.maximum_equivalent_creep_strain, point.equivalent_creep_strain);
-            }
-        }
-        return result;
+    static RegionStateSummary summarize_region_history(const TransientProblem& problem, std::size_t region) {
+        return problem.summarize_region(region);
     }
     static InterfaceSummary summarize_interface(
         const TransientProblem& problem, std::size_t contact, const std::vector<double>& state) {

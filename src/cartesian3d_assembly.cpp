@@ -6,40 +6,14 @@
 #include <utility>
 namespace fuelsim::cartesian {
 namespace {
-std::vector<std::int64_t> resolve_block_ids(
-    const SpatialDefinition& definition, const UnstructuredHex8Mesh& source_mesh) {
-    if (definition.regions.empty())
-        throw std::invalid_argument("Cartesian three-dimensional assembly requires at least one region");
-    if (!definition.contacts.empty())
-        throw std::invalid_argument("Cartesian three-dimensional stage B does not support contact");
-    std::vector<std::int64_t> result;
-    result.reserve(definition.regions.size());
-    for (const RegionDefinition& region : definition.regions) {
-        if (region.name.empty() || region.block.empty())
-            throw std::invalid_argument("Cartesian three-dimensional region names and blocks must be nonempty");
-        if (region.strain_formulation != StrainFormulation::small)
-            throw std::invalid_argument("Cartesian three-dimensional stage B supports only small strain");
-        const std::int64_t block_id = source_mesh.element_block(region.block).id;
-        if (std::find(result.begin(), result.end(), block_id) != result.end())
-            throw std::invalid_argument("Cartesian three-dimensional regions must use distinct element blocks");
-        result.push_back(block_id);
-    }
-    return result;
-}
 std::vector<Hex8RegionMesh> build_meshes(const SpatialDefinition& definition, const UnstructuredHex8Mesh& source_mesh) {
     std::vector<Hex8RegionMesh> result;
     result.reserve(definition.regions.size());
     for (const RegionDefinition& region : definition.regions)
-        result.push_back(Hex8RegionMesh::from_unstructured_block(source_mesh, region.block));
-    return result;
-}
-std::size_t total_nodes(const std::vector<Hex8RegionMesh>& meshes) {
-    std::size_t result = 0;
-    for (const Hex8RegionMesh& mesh : meshes) {
-        if (mesh.nodes().size() > std::numeric_limits<std::size_t>::max() - result)
-            throw std::length_error("Cartesian three-dimensional node count overflows");
-        result += mesh.nodes().size();
-    }
+        if (region.block_id >= 0)
+            result.push_back(Hex8RegionMesh::from_unstructured_block(source_mesh, region.block_id));
+        else
+            result.push_back(Hex8RegionMesh::from_unstructured_block(source_mesh, region.block));
     return result;
 }
 Hex8Coordinates element_coordinates(const Hex8RegionMesh& mesh, const Hex8Element& element) {
@@ -51,16 +25,6 @@ Quad4FaceCoordinates face_coordinates(const Hex8RegionMesh& mesh, const Quad4Fac
     Quad4FaceCoordinates result{};
     for (std::size_t node = 0; node < 4; ++node) result[node] = mesh.nodes().at(face.nodes[node]);
     return result;
-}
-void validate_dirichlet(std::vector<DirichletCondition>& conditions) {
-    std::sort(conditions.begin(), conditions.end(),
-        [](const DirichletCondition& lhs, const DirichletCondition& rhs) { return lhs.dof < rhs.dof; });
-    for (std::size_t index = 1; index < conditions.size(); ++index) {
-        if (conditions[index - 1].dof != conditions[index].dof) continue;
-        if (conditions[index - 1].value != conditions[index].value)
-            throw std::invalid_argument("Cartesian three-dimensional boundary has conflicting Dirichlet values");
-        throw std::invalid_argument("Cartesian three-dimensional boundary has duplicate Dirichlet values");
-    }
 }
 Hex8LocalValues hex8_values(const std::vector<double>& values) {
     if (values.size() != hex8_local_dof_count)
@@ -77,22 +41,26 @@ Quad4FaceLocalValues face_values(const std::vector<double>& values) {
     return result;
 }
 } // namespace
-SpatialAssembly::SpatialAssembly(
-    SpatialDefinition definition, const UnstructuredHex8Mesh& source_mesh, std::vector<double> heat_capacities)
-    : _definition(std::move(definition)), _block_ids(resolve_block_ids(_definition, source_mesh)),
-      _meshes(build_meshes(_definition, source_mesh)), _dof_map(total_nodes(_meshes), DofLayout::cartesian_3d),
-      _load_factor(0.0), _time(0.0) {
-    _node_offsets.push_back(0);
-    _element_offsets.push_back(0);
+SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const UnstructuredHex8Mesh& source_mesh)
+    : SpatialAssembly(definition, source_mesh, spatial_detail::resolve_block_ids(definition, source_mesh, false, false),
+          build_meshes(definition, source_mesh)) {}
+SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const UnstructuredHex8Mesh& source_mesh,
+    std::vector<std::int64_t> block_ids, std::vector<Hex8RegionMesh> meshes)
+    : SpatialLayout(std::move(definition), std::move(block_ids), DofLayout::cartesian_3d), _meshes(std::move(meshes)) {
+    std::vector<std::size_t> node_counts, element_counts;
+    node_counts.reserve(_meshes.size());
+    element_counts.reserve(_meshes.size());
     for (const Hex8RegionMesh& mesh : _meshes) {
-        _node_offsets.push_back(_node_offsets.back() + mesh.nodes().size());
-        _element_offsets.push_back(_element_offsets.back() + mesh.elements().size());
+        node_counts.push_back(mesh.nodes().size());
+        element_counts.push_back(mesh.elements().size());
     }
+    initialize_counts(node_counts, element_counts);
     _geometries.resize(_meshes.size());
     for (std::size_t region = 0; region < _meshes.size(); ++region)
         for (const Hex8Element& element : _meshes[region].elements())
             _geometries[region].push_back(make_hex8_geometry(element_coordinates(_meshes[region], element)));
-    for (const BoundaryConditionDefinition& boundary : _definition.boundary_conditions) {
+    for (std::size_t boundary_index = 0; boundary_index < _definition.boundary_conditions.size(); ++boundary_index) {
+        const BoundaryConditionDefinition& boundary = _definition.boundary_conditions[boundary_index];
         if (boundary.name.empty() || boundary.boundary.empty())
             throw std::invalid_argument("Cartesian three-dimensional boundary names must be nonempty");
         if (boundary.scale_with_load && !boundary.function.empty())
@@ -107,11 +75,8 @@ SpatialAssembly::SpatialAssembly(
         const Hex8RegionBoundary mapped = _meshes[region].map_side_set(source_mesh, boundary.boundary);
         if (boundary.type == BoundaryConditionType::dirichlet) {
             for (std::size_t local_node : mapped.nodes) {
-                const std::size_t dof = _dof_map.dof(boundary.field, global_node(region, local_node));
-                _dirichlet_conditions.push_back({dof, boundary.value});
-                if (boundary.scale_with_load || !boundary.function.empty())
-                    _controlled_dirichlet.push_back(
-                        {dof, {boundary.value, boundary.scale_with_load, boundary.function}});
+                const std::size_t dof = dof_map().dof(boundary.field, global_node(region, local_node));
+                add_dirichlet(dof, boundary_index);
             }
             continue;
         }
@@ -119,8 +84,6 @@ SpatialAssembly::SpatialAssembly(
             throw std::invalid_argument("Cartesian three-dimensional stage B loads use the reference configuration");
         const std::size_t kernel = _boundary_kernels.size();
         if (boundary.type == BoundaryConditionType::pressure) {
-            _boundary_controls.emplace_back(
-                ControlledScalar{boundary.value, boundary.scale_with_load, boundary.function});
             _boundary_kernels.emplace_back(boundary.value);
         } else if (boundary.type == BoundaryConditionType::traction) {
             CartesianTractionComponent component = CartesianTractionComponent::x;
@@ -130,14 +93,11 @@ SpatialAssembly::SpatialAssembly(
                 component = CartesianTractionComponent::z;
             else if (boundary.field != Field::displacement_x)
                 throw std::invalid_argument("Three-dimensional traction requires a displacement field");
-            _boundary_controls.emplace_back(
-                ControlledScalar{boundary.value, boundary.scale_with_load, boundary.function});
             _boundary_kernels.emplace_back(component, boundary.value);
         } else {
-            _boundary_controls.emplace_back(ConvectionControl{boundary.heat_transfer_coefficient,
-                boundary.ambient_temperature, boundary.coefficient_function, boundary.ambient_temperature_function});
             _boundary_kernels.emplace_back(boundary.heat_transfer_coefficient, boundary.ambient_temperature);
         }
+        _boundary_definition_indices.push_back(boundary_index);
         for (const Quad4FaceElement& face : mapped.faces) {
             std::array<std::size_t, 4> nodes{};
             for (std::size_t node = 0; node < 4; ++node) nodes[node] = global_node(region, face.nodes[node]);
@@ -149,73 +109,33 @@ SpatialAssembly::SpatialAssembly(
                     kernel, nodes, make_quad4_face_geometry(face_coordinates(_meshes[region], face))});
         }
     }
-    validate_dirichlet(_dirichlet_conditions);
-    if (!heat_capacities.empty() && heat_capacities.size() != region_count())
-        throw std::invalid_argument("Three-dimensional heat-capacity count must match the regions");
+    spatial_detail::validate_dirichlet_conditions(_dirichlet_conditions,
+        "Cartesian three-dimensional boundary has conflicting Dirichlet values",
+        "Cartesian three-dimensional boundary has duplicate Dirichlet values");
     for (std::size_t region_index = 0; region_index < region_count(); ++region_index) {
-        IsotropicThermoelasticMaterial material(region(region_index).material);
-        if (heat_capacities.empty())
-            _kernels.emplace_back(std::move(material), region_heat_source(region_index));
-        else
-            _kernels.emplace_back(std::move(material), heat_capacities[region_index], region_heat_source(region_index));
+        const MaterialFunctionSet& functions = *region(region_index).material.functions;
+        if (functions.has_creep() || functions.has_plasticity())
+            throw std::invalid_argument("Cartesian three-dimensional stage B supports only elastic materials");
+        _kernels.emplace_back(
+            IsotropicThermoelasticMaterial(region(region_index).material), region_heat_source(region_index));
     }
     refresh_controls();
-}
-std::size_t SpatialAssembly::region_index(const std::string& name) const {
-    for (std::size_t region = 0; region < _definition.regions.size(); ++region)
-        if (_definition.regions[region].name == name) return region;
-    throw std::invalid_argument("Unknown three-dimensional region: " + name);
-}
-std::size_t SpatialAssembly::region_node_offset(std::size_t index) const {
-    if (index >= region_count()) throw std::out_of_range("Three-dimensional region index is out of range");
-    return _node_offsets[index];
-}
-std::size_t SpatialAssembly::region_element_count(std::size_t index) const {
-    return _meshes.at(index).elements().size();
-}
-std::size_t SpatialAssembly::region_element_offset(std::size_t index) const {
-    if (index >= region_count()) throw std::out_of_range("Three-dimensional region index is out of range");
-    return _element_offsets[index];
 }
 SpatialContributionType SpatialAssembly::contribution_type(std::size_t index) const {
     if (index < volume_contribution_count()) return SpatialContributionType::volume;
     return _boundary_contributions.at(index - volume_contribution_count()).type;
 }
-std::pair<std::size_t, std::size_t> SpatialAssembly::element_location(std::size_t index) const {
-    if (index >= volume_contribution_count())
-        throw std::out_of_range("Three-dimensional contribution is not a volume element");
-    const auto upper = std::upper_bound(_element_offsets.begin(), _element_offsets.end(), index);
-    const std::size_t region = static_cast<std::size_t>(upper - _element_offsets.begin() - 1);
-    return {region, index - _element_offsets[region]};
-}
 const Hex8Geometry& SpatialAssembly::region_element_geometry(std::size_t region, std::size_t element_index) const {
     return _geometries.at(region).at(element_index);
 }
-double SpatialAssembly::region_heat_source(std::size_t region_index) const {
-    const RegionDefinition& region_definition = region(region_index);
-    const double multiplier = region_definition.heat_source_function.empty()
-                                  ? _load_factor
-                                  : function_value(region_definition.heat_source_function);
-    return multiplier * region_definition.volumetric_heat_source;
-}
 void SpatialAssembly::set_load_factor(double value) {
-    if (!std::isfinite(value)) throw std::invalid_argument("Three-dimensional load factor must be finite");
-    _load_factor = value;
+    set_load_factor_value(value);
     refresh_controls();
 }
 void SpatialAssembly::set_time(double value) {
-    if (!std::isfinite(value)) throw std::invalid_argument("Three-dimensional time must be finite");
-    _time = value;
+    set_time_value(value);
     for (Hex8ThermoelasticKernel& kernel : _kernels) kernel.set_time(value);
     refresh_controls();
-}
-std::vector<double> SpatialAssembly::initial_state() const {
-    std::vector<double> result(dof_count(), 0.0);
-    for (std::size_t region_index = 0; region_index < region_count(); ++region_index)
-        for (std::size_t local_node = 0; local_node < _meshes[region_index].nodes().size(); ++local_node)
-            result[_dof_map.temperature(global_node(region_index, local_node))] =
-                region(region_index).initial_temperature;
-    return result;
 }
 void SpatialAssembly::validate_state(const std::vector<double>& state) const {
     if (state.size() != dof_count())
@@ -231,10 +151,10 @@ void SpatialAssembly::contribution_dofs(std::size_t index, std::vector<std::size
         for (std::size_t node = 0; node < 8; ++node) nodes[node] = global_node(location.first, element.nodes[node]);
         Hex8LocalDofs fixed{};
         for (std::size_t node = 0; node < nodes.size(); ++node) {
-            fixed[node] = _dof_map.temperature(nodes[node]);
-            fixed[8 + node] = _dof_map.displacement_x(nodes[node]);
-            fixed[16 + node] = _dof_map.displacement_y(nodes[node]);
-            fixed[24 + node] = _dof_map.displacement_z(nodes[node]);
+            fixed[node] = dof_map().temperature(nodes[node]);
+            fixed[8 + node] = dof_map().displacement_x(nodes[node]);
+            fixed[16 + node] = dof_map().displacement_y(nodes[node]);
+            fixed[24 + node] = dof_map().displacement_z(nodes[node]);
         }
         dofs.assign(fixed.begin(), fixed.end());
         return;
@@ -242,10 +162,10 @@ void SpatialAssembly::contribution_dofs(std::size_t index, std::vector<std::size
     const BoundaryContribution& entry = _boundary_contributions.at(index - volume_contribution_count());
     Quad4FaceLocalDofs fixed{};
     for (std::size_t node = 0; node < entry.nodes.size(); ++node) {
-        fixed[node] = _dof_map.temperature(entry.nodes[node]);
-        fixed[4 + node] = _dof_map.displacement_x(entry.nodes[node]);
-        fixed[8 + node] = _dof_map.displacement_y(entry.nodes[node]);
-        fixed[12 + node] = _dof_map.displacement_z(entry.nodes[node]);
+        fixed[node] = dof_map().temperature(entry.nodes[node]);
+        fixed[4 + node] = dof_map().displacement_x(entry.nodes[node]);
+        fixed[8 + node] = dof_map().displacement_y(entry.nodes[node]);
+        fixed[12 + node] = dof_map().displacement_z(entry.nodes[node]);
     }
     dofs.assign(fixed.begin(), fixed.end());
 }
@@ -305,44 +225,20 @@ std::array<SymmetricTensor3Values, 8> SpatialAssembly::stress(
 double SpatialAssembly::heat_capacity(std::size_t region, double temperature, const CartesianPoint3& position) const {
     return _kernels.at(region).heat_capacity(temperature, position.x, position.y, position.z);
 }
-double SpatialAssembly::function_value(const std::string& name) const {
-    const auto found = std::find_if(_definition.time_tables.begin(), _definition.time_tables.end(),
-        [&name](const PiecewiseLinearTimeTable& table) { return table.name() == name; });
-    if (found == _definition.time_tables.end()) throw std::invalid_argument("Unknown time-table function: " + name);
-    return found->value(_time);
-}
-double SpatialAssembly::controlled_value(const ControlledScalar& control) const {
-    if (!control.function.empty()) return control.base_value * function_value(control.function);
-    return control.base_value * (control.scale_with_load ? _load_factor : 1.0);
-}
 void SpatialAssembly::refresh_controls() {
     for (std::size_t region = 0; region < region_count(); ++region)
         _kernels[region].set_volumetric_heat_source(region_heat_source(region));
-    for (const ControlledDirichlet& controlled : _controlled_dirichlet) {
-        const auto condition = std::lower_bound(_dirichlet_conditions.begin(), _dirichlet_conditions.end(),
-            controlled.dof, [](const DirichletCondition& candidate, std::size_t dof) { return candidate.dof < dof; });
-        if (condition == _dirichlet_conditions.end() || condition->dof != controlled.dof)
-            throw std::logic_error("Three-dimensional controlled Dirichlet mapping is invalid");
-        condition->value = controlled_value(controlled.control);
-    }
+    refresh_dirichlet_values();
     for (std::size_t kernel = 0; kernel < _boundary_kernels.size(); ++kernel) {
-        if (std::holds_alternative<ControlledScalar>(_boundary_controls[kernel])) {
-            _boundary_kernels[kernel].set_load(
-                controlled_value(std::get<ControlledScalar>(_boundary_controls[kernel])));
+        const BoundaryConditionDefinition& boundary =
+            _definition.boundary_conditions[_boundary_definition_indices[kernel]];
+        if (boundary.type != BoundaryConditionType::convection) {
+            _boundary_kernels[kernel].set_load(spatial_detail::controlled_value(
+                _definition, _time, _load_factor, boundary.value, boundary.scale_with_load, boundary.function));
             continue;
         }
-        const ConvectionControl& control = std::get<ConvectionControl>(_boundary_controls[kernel]);
-        const double coefficient =
-            control.coefficient *
-            (control.coefficient_function.empty() ? 1.0 : function_value(control.coefficient_function));
-        const double ambient =
-            control.ambient * (control.ambient_function.empty() ? 1.0 : function_value(control.ambient_function));
-        _boundary_kernels[kernel].set_convection(coefficient, ambient);
+        const spatial_detail::ConvectionValues values = convection_values(boundary);
+        _boundary_kernels[kernel].set_convection(values.coefficient, values.ambient);
     }
-}
-std::size_t SpatialAssembly::global_node(std::size_t region, std::size_t local_node) const {
-    if (local_node >= _meshes.at(region).nodes().size())
-        throw std::out_of_range("Three-dimensional local node is out of range");
-    return _node_offsets.at(region) + local_node;
 }
 } // namespace fuelsim::cartesian

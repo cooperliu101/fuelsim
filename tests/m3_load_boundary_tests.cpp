@@ -23,8 +23,8 @@ bool check(bool condition, const std::string& message) {
 bool test_time_event_alignment(const std::string& input_path) {
     const fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
-    fuelsim::TransientProblemDefinition definition = input.transient_definition();
-    definition.spatial.time_tables.emplace_back(
+    fuelsim::SpatialDefinition definition = input.spatial;
+    definition.time_tables.emplace_back(
         "events", std::vector<double>{0.0, 0.75, 2.0}, std::vector<double>{1.0, 1.0, 1.0});
     fuelsim::TransientProblem problem(std::move(definition), mesh);
     const fuelsim::TransientTimeOptions time_options = {2.0, 0.5, 0.125, 2.0, 2.0, 0.5, 2, 20.0, 4, 1};
@@ -40,11 +40,11 @@ bool test_time_event_alignment(const std::string& input_path) {
 bool test_moose_time_table_convection(const std::string& input_path, const std::string& nodal_reference_path) {
     const fuelsim::FuelSimCaseDefinition definition = fuelsim::read_case_input(input_path);
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(definition.mesh_file);
-    fuelsim::TransientProblem problem(definition.transient_definition(), mesh);
+    fuelsim::TransientProblem problem(definition.spatial, mesh);
     const fuelsim::TransientTimeOptions time_options = {definition.transient_execution.end_time,
         definition.transient_execution.initial_time_step, definition.transient_execution.minimum_time_step,
         definition.transient_execution.maximum_time_step, definition.transient_execution.growth_factor,
-        definition.transient_execution.cutback_factor, definition.transient_execution.maximum_cutbacks,
+        definition.transient_execution.cutback_factor, definition.transient_execution.maximum_cutbacks_per_step,
         definition.transient_execution.load_ramp_time};
     const fuelsim::SolverOptions solver_options = {definition.solver.absolute_tolerance,
         definition.solver.relative_tolerance, definition.solver.step_tolerance, definition.solver.maximum_iterations};
@@ -164,14 +164,14 @@ std::array<ConvergenceMetric, 9> compare_committed_states(
 bool test_opaque_state_snapshot(const std::string& input_path) {
     const fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
-    fuelsim::TransientProblem problem(input.transient_definition(), mesh);
+    fuelsim::TransientProblem problem(input.spatial, mesh);
     const fuelsim::TransientCommittedState reference = fuelsim::rz::ProblemAccess::committed_state(problem);
     const fuelsim::TransientStateSnapshot snapshot = problem.capture_state();
     bool empty_rejected = false;
     try {
         problem.restore_state(fuelsim::TransientStateSnapshot{});
     } catch (const std::invalid_argument&) { empty_rejected = true; }
-    fuelsim::TransientProblem other_problem(input.transient_definition(), mesh);
+    fuelsim::TransientProblem other_problem(input.spatial, mesh);
     bool foreign_snapshot_rejected = false;
     try {
         other_problem.restore_state(snapshot);
@@ -215,7 +215,7 @@ bool test_opaque_state_snapshot(const std::string& input_path) {
 }
 fuelsim::TransientCommittedState solve_fixed_pcmi(
     const fuelsim::FuelSimCaseDefinition& input, const fuelsim::UnstructuredQuad4Mesh& mesh, double time_step) {
-    fuelsim::TransientProblem problem(input.transient_definition(), mesh);
+    fuelsim::TransientProblem problem(input.spatial, mesh);
     fuelsim::SolverOptions solver_options = {input.solver.absolute_tolerance, input.solver.relative_tolerance,
         input.solver.step_tolerance, input.solver.maximum_iterations};
     solver_options.temperature_residual_scale = 1.0e4;
@@ -308,15 +308,15 @@ bool test_time_error_control(const std::string& input_path) {
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
     const fuelsim::SolverOptions solver_options = {input.solver.absolute_tolerance, input.solver.relative_tolerance,
         input.solver.step_tolerance, input.solver.maximum_iterations};
-    fuelsim::TransientProblem reference_problem(input.transient_definition(), mesh);
+    fuelsim::TransientProblem reference_problem(input.spatial, mesh);
     const fuelsim::TransientTimeOptions reference_options = {
         10.0, 0.009765625, 0.009765625, 0.009765625, 1.0, 0.5, 0, 20.0};
     const fuelsim::TransientResult reference =
         fuelsim::solve_transient(reference_problem, reference_options, solver_options);
-    fuelsim::TransientProblem coarse_problem(input.transient_definition(), mesh);
+    fuelsim::TransientProblem coarse_problem(input.spatial, mesh);
     const fuelsim::TransientTimeOptions coarse_options = {10.0, 2.5, 2.5, 2.5, 1.0, 0.5, 0, 20.0};
     const fuelsim::TransientResult coarse = fuelsim::solve_transient(coarse_problem, coarse_options, solver_options);
-    fuelsim::TransientProblem adaptive_problem(input.transient_definition(), mesh);
+    fuelsim::TransientProblem adaptive_problem(input.spatial, mesh);
     fuelsim::TransientTimeOptions adaptive_options = {10.0, 2.5, 0.01953125, 2.5, 2.0, 0.5, 20, 20.0};
     adaptive_options.time_error_relative_tolerance = 2.0e-4;
     adaptive_options.temperature_time_absolute_tolerance = 1.0e-3;
@@ -327,7 +327,7 @@ bool test_time_error_control(const std::string& input_path) {
         temperature_relative_l2(adaptive_problem, coarse.committed_state, reference.committed_state);
     const double adaptive_error =
         temperature_relative_l2(adaptive_problem, adaptive.committed_state, reference.committed_state);
-    fuelsim::TransientProblem two_half_problem(input.transient_definition(), mesh);
+    fuelsim::TransientProblem two_half_problem(input.spatial, mesh);
     const double first_accepted_step = adaptive.accepted_steps.empty() ? 2.0 * adaptive_options.minimum_time_step
                                                                        : adaptive.accepted_steps.front().time_step;
     const fuelsim::TransientTimeOptions two_half_options = {first_accepted_step, 0.5 * first_accepted_step,
@@ -382,7 +382,7 @@ bool test_time_error_control(const std::string& input_path) {
 bool test_failure_diagnostics(const std::string& input_path) {
     const fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
-    fuelsim::TransientProblem problem(input.transient_definition(), mesh);
+    fuelsim::TransientProblem problem(input.spatial, mesh);
     const fuelsim::TransientTimeOptions time_options = {1.0, 1.0, 0.125, 1.0, 1.0, 0.5, 0, 20.0};
     const fuelsim::SolverOptions solver_options = {
         input.solver.absolute_tolerance, input.solver.relative_tolerance, input.solver.step_tolerance, 1};
@@ -392,7 +392,7 @@ bool test_failure_diagnostics(const std::string& input_path) {
                             result.rejected_steps[0].time_step == 1.0 && result.committed_time == 0.0,
         "failed nonlinear step is categorized and leaves committed time "
         "unchanged");
-    fuelsim::TransientProblem minimum_problem(input.transient_definition(), mesh);
+    fuelsim::TransientProblem minimum_problem(input.spatial, mesh);
     const fuelsim::TransientTimeOptions minimum_options = {1.0, 1.0, 0.75, 1.0, 1.0, 0.5, 3, 20.0};
     const fuelsim::TransientResult minimum_result =
         fuelsim::solve_transient(minimum_problem, minimum_options, solver_options);
@@ -407,7 +407,7 @@ bool test_failure_diagnostics(const std::string& input_path) {
 bool test_history_time_error_control(const std::string& input_path) {
     const fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
-    fuelsim::TransientProblem problem(input.transient_definition(), mesh);
+    fuelsim::TransientProblem problem(input.spatial, mesh);
     fuelsim::TransientTimeOptions time_options = {20.0, 4.0, 0.125, 4.0, 1.0, 0.5, 12, 20.0};
     time_options.time_error_relative_tolerance = 5.0e-1;
     time_options.temperature_time_absolute_tolerance = 1.0e-3;
@@ -453,7 +453,7 @@ bool test_history_time_error_control(const std::string& input_path) {
 bool test_long_transient_diagnostics(const std::string& input_path) {
     const fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
-    fuelsim::TransientProblem problem(input.transient_definition(), mesh);
+    fuelsim::TransientProblem problem(input.spatial, mesh);
     const fuelsim::TransientTimeOptions time_options = {100.0, 0.5, 0.5, 0.5, 1.0, 0.5, 0, 20.0};
     fuelsim::SolverOptions solver_options;
     solver_options.absolute_tolerance = input.solver.absolute_tolerance;
@@ -515,13 +515,13 @@ bool test_long_transient_diagnostics(const std::string& input_path) {
 bool test_steady_load_cutback(const std::string& input_path) {
     const fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
-    fuelsim::SteadyProblem problem(input.spatial_definition(), mesh);
+    fuelsim::SteadyProblem problem(input.spatial, mesh);
     const fuelsim::SteadyStateSnapshot snapshot = problem.capture_internal_state();
     bool empty_snapshot_rejected = false;
     try {
         problem.restore_internal_state(fuelsim::SteadyStateSnapshot{}, problem.initial_state());
     } catch (const std::invalid_argument&) { empty_snapshot_rejected = true; }
-    fuelsim::SteadyProblem other_problem(input.spatial_definition(), mesh);
+    fuelsim::SteadyProblem other_problem(input.spatial, mesh);
     bool foreign_snapshot_rejected = false;
     try {
         other_problem.restore_internal_state(snapshot, other_problem.initial_state());
@@ -547,7 +547,7 @@ bool test_steady_load_cutback(const std::string& input_path) {
         check(result.completed && result.solve.converged && result.total_cutbacks > 0 && !result.rejected_steps.empty(),
             "steady loading bisects a failed nominal increment "
             "and continues from the accepted state");
-    fuelsim::SteadyProblem minimum_problem(input.spatial_definition(), mesh);
+    fuelsim::SteadyProblem minimum_problem(input.spatial, mesh);
     fuelsim::SolverOptions minimum_solver = solver_options;
     minimum_solver.maximum_iterations = 1;
     minimum_solver.line_search = fuelsim::SolverOptions::LineSearch::basic;
@@ -563,10 +563,10 @@ bool test_steady_load_cutback(const std::string& input_path) {
 bool test_pressure_production_path(const std::string& input_path) {
     const fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
-    fuelsim::SteadyProblem problem(input.spatial_definition(), mesh);
+    fuelsim::SteadyProblem problem(input.spatial, mesh);
     const fuelsim::SteadyResult result = fuelsim::solve_steady(problem,
         {input.steady_execution.load_steps, input.steady_execution.cutback_factor,
-            input.steady_execution.maximum_cutbacks, input.steady_execution.minimum_load_increment},
+            input.steady_execution.maximum_cutbacks_per_step, input.steady_execution.minimum_load_increment},
         {input.solver.absolute_tolerance, input.solver.relative_tolerance, input.solver.step_tolerance,
             input.solver.maximum_iterations});
     if (!check(result.completed && result.solve.converged, "pressure input-card production solve converges"))

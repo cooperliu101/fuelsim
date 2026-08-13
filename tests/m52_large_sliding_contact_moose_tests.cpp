@@ -21,14 +21,14 @@ bool run_comparison(const std::string& input_path, const std::string& nodal_refe
     const std::string& pressure_reference_path) {
     const fuelsim::FuelSimCaseDefinition definition = fuelsim::read_case_input(input_path);
     const fuelsim::UnstructuredQuad4Mesh source = fuelsim::read_exodus_quad4(definition.mesh_file);
-    fuelsim::SteadyProblem problem(definition.spatial_definition(), source);
+    fuelsim::SteadyProblem problem(definition.spatial, source);
     const std::vector<fuelsim::ContactNodeSummary> initial_contact_nodes =
         fuelsim::rz::ProblemAccess::summarize_contact_nodes(problem, 0, problem.initial_state());
     const fuelsim::SolverOptions options = {definition.solver.absolute_tolerance, definition.solver.relative_tolerance,
         definition.solver.step_tolerance, definition.solver.maximum_iterations};
     const fuelsim::SteadyResult result = fuelsim::solve_steady(problem,
         {definition.steady_execution.load_steps, definition.steady_execution.cutback_factor,
-            definition.steady_execution.maximum_cutbacks, definition.steady_execution.minimum_load_increment},
+            definition.steady_execution.maximum_cutbacks_per_step, definition.steady_execution.minimum_load_increment},
         options);
     bool passed =
         check(result.completed && result.solve.converged, "M5.2 twenty-step large-sliding path converges") &&

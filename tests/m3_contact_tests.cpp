@@ -59,7 +59,7 @@ bool run_comparison(const std::string& input_path, const std::string& nodal_refe
             "M3.3 reads the complete tracked two-pellet MOOSE mesh") &&
         check(source.side_set("lower_top").sides.size() == 4 && source.side_set("upper_bottom").sides.size() == 6,
             "M3.3 keeps nonmatching four-to-six contact segmentation");
-    fuelsim::SteadyProblem problem(definition.spatial_definition(), source);
+    fuelsim::SteadyProblem problem(definition.spatial, source);
     const std::vector<std::size_t> secondary_sources =
         fuelsim::rz::ProblemAccess::contact_secondary_source_nodes(problem, 0);
     std::vector<std::size_t> ordered_secondary_sources = secondary_sources;
@@ -92,7 +92,7 @@ bool run_comparison(const std::string& input_path, const std::string& nodal_refe
         std::find(secondary_sources.begin(), secondary_sources.end(), sliding_source) - secondary_sources.begin());
     const std::size_t primary_region = fuelsim::rz::ProblemAccess::region_index(problem, "upper");
     const fuelsim::RegionBoundary primary_boundary = fuelsim::rz::ProblemAccess::region_mesh(problem, primary_region)
-                                                         .map_side_set(source, definition.contacts[0].primary);
+                                                         .map_side_set(source, definition.spatial.contacts[0].primary);
     std::vector<double> primary_radii;
     primary_radii.reserve(primary_boundary.nodes.size());
     for (const std::size_t node : primary_boundary.nodes)
@@ -165,7 +165,7 @@ bool run_comparison(const std::string& input_path, const std::string& nodal_refe
         definition.solver.step_tolerance, definition.solver.maximum_iterations};
     const fuelsim::SteadyResult result = fuelsim::solve_steady(problem,
         {definition.steady_execution.load_steps, definition.steady_execution.cutback_factor,
-            definition.steady_execution.maximum_cutbacks, definition.steady_execution.minimum_load_increment},
+            definition.steady_execution.maximum_cutbacks_per_step, definition.steady_execution.minimum_load_increment},
         options);
     passed = check(result.completed && result.solve.converged, "M3.3 two-pellet contact solve converges") && passed;
     const std::vector<fuelsim::test::NodalFieldReference> reference =

@@ -31,12 +31,12 @@ bool run_comparison(const std::string& input_path, const std::string& nodal_refe
                   source.side_set("fuel_right").sides.size() == 10 && source.side_set("clad_left").sides.size() == 10,
             "M1 MOOSE block and side-set metadata are preserved") &&
         passed;
-    fuelsim::SteadyProblem problem(definition.spatial_definition(), source);
+    fuelsim::SteadyProblem problem(definition.spatial, source);
     const fuelsim::SolverOptions options = {definition.solver.absolute_tolerance, definition.solver.relative_tolerance,
         definition.solver.step_tolerance, definition.solver.maximum_iterations};
     const fuelsim::SteadyResult result = fuelsim::solve_steady(problem,
         {definition.steady_execution.load_steps, definition.steady_execution.cutback_factor,
-            definition.steady_execution.maximum_cutbacks, definition.steady_execution.minimum_load_increment},
+            definition.steady_execution.maximum_cutbacks_per_step, definition.steady_execution.minimum_load_increment},
         options);
     passed = check(result.completed && result.solve.converged, "M1 input-card load path converged") && passed;
     passed =
@@ -84,12 +84,13 @@ bool run_comparison(const std::string& input_path, const std::string& nodal_refe
                  "M1 projects and activates all fuel-surface nodes") &&
              passed;
     const auto solve_penalty = [&](double penalty) {
-        fuelsim::SpatialDefinition modified = definition.spatial_definition();
+        fuelsim::SpatialDefinition modified = definition.spatial;
         modified.contacts.at(0).penalty = penalty;
         fuelsim::SteadyProblem penalty_problem(std::move(modified), source);
         const fuelsim::SteadyResult penalty_result = fuelsim::solve_steady(penalty_problem,
             {definition.steady_execution.load_steps, definition.steady_execution.cutback_factor,
-                definition.steady_execution.maximum_cutbacks, definition.steady_execution.minimum_load_increment},
+                definition.steady_execution.maximum_cutbacks_per_step,
+                definition.steady_execution.minimum_load_increment},
             options);
         if (!penalty_result.completed || !penalty_result.solve.converged)
             throw std::runtime_error("M4 penalty-convergence solve did not converge");
@@ -113,7 +114,7 @@ bool run_comparison(const std::string& input_path, const std::string& nodal_refe
                  "penalty refinement reduces penetration and contact-force "
                  "increments") &&
              passed;
-    fuelsim::SpatialDefinition automatic_definition = definition.spatial_definition();
+    fuelsim::SpatialDefinition automatic_definition = definition.spatial;
     automatic_definition.contacts[0].automatic_penalty = true;
     automatic_definition.contacts[0].penalty = 0.0;
     automatic_definition.contacts[0].penalty_factor = 1.0;
@@ -124,7 +125,7 @@ bool run_comparison(const std::string& input_path, const std::string& nodal_refe
     const double expected_automatic_penalty = interface_stiffness;
     const fuelsim::SteadyResult automatic_result = fuelsim::solve_steady(automatic_problem,
         {definition.steady_execution.load_steps, definition.steady_execution.cutback_factor,
-            definition.steady_execution.maximum_cutbacks, definition.steady_execution.minimum_load_increment},
+            definition.steady_execution.maximum_cutbacks_per_step, definition.steady_execution.minimum_load_increment},
         options);
     const double automatic_penalty = fuelsim::rz::ProblemAccess::contact(automatic_problem, 0).penalty;
     std::cout << "automatic_penalty=" << automatic_penalty << '\n';
@@ -134,7 +135,7 @@ bool run_comparison(const std::string& input_path, const std::string& nodal_refe
                  "automatic penalty uses the two-sided normal compliance and "
                  "converges end to end") &&
              passed;
-    fuelsim::SpatialDefinition augmented_definition = definition.spatial_definition();
+    fuelsim::SpatialDefinition augmented_definition = definition.spatial;
     augmented_definition.contacts[0].mechanical_formulation =
         fuelsim::MechanicalContactFormulation::augmented_lagrangian;
     augmented_definition.contacts[0].automatic_penalty = false;
@@ -144,7 +145,7 @@ bool run_comparison(const std::string& input_path, const std::string& nodal_refe
     fuelsim::SteadyProblem augmented_problem(std::move(augmented_definition), source);
     const fuelsim::SteadyResult augmented_result = fuelsim::solve_steady(augmented_problem,
         {definition.steady_execution.load_steps, definition.steady_execution.cutback_factor,
-            definition.steady_execution.maximum_cutbacks, definition.steady_execution.minimum_load_increment},
+            definition.steady_execution.maximum_cutbacks_per_step, definition.steady_execution.minimum_load_increment},
         options);
     const fuelsim::InterfaceSummary augmented_interface =
         fuelsim::rz::ProblemAccess::summarize_interface(augmented_problem, 0, augmented_result.solve.state);
@@ -165,7 +166,7 @@ bool run_comparison(const std::string& input_path, const std::string& nodal_refe
             "one PETSc workspace and a lower two-body tangent condition "
             "proxy than the high automatic penalty") &&
         passed;
-    fuelsim::SpatialDefinition failing_definition = definition.spatial_definition();
+    fuelsim::SpatialDefinition failing_definition = definition.spatial;
     failing_definition.contacts[0].mechanical_formulation = fuelsim::MechanicalContactFormulation::augmented_lagrangian;
     failing_definition.contacts[0].automatic_penalty = false;
     failing_definition.contacts[0].penalty = 0.25 * interface_stiffness;

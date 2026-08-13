@@ -20,11 +20,11 @@ bool test_moose_mesh_backward_euler_heat_source(
     if (definition.problem != fuelsim::CaseProblem::transient)
         throw std::invalid_argument("M2.1 comparison requires a transient input card");
     const fuelsim::UnstructuredQuad4Mesh imported = fuelsim::read_exodus_quad4(definition.mesh_file);
-    fuelsim::TransientProblem problem(definition.transient_definition(), imported);
+    fuelsim::TransientProblem problem(definition.spatial, imported);
     const fuelsim::TransientTimeOptions time_options = {definition.transient_execution.end_time,
         definition.transient_execution.initial_time_step, definition.transient_execution.minimum_time_step,
         definition.transient_execution.maximum_time_step, definition.transient_execution.growth_factor,
-        definition.transient_execution.cutback_factor, definition.transient_execution.maximum_cutbacks,
+        definition.transient_execution.cutback_factor, definition.transient_execution.maximum_cutbacks_per_step,
         definition.transient_execution.load_ramp_time};
     const fuelsim::SolverOptions solver_options = {definition.solver.absolute_tolerance,
         definition.solver.relative_tolerance, definition.solver.step_tolerance, definition.solver.maximum_iterations};

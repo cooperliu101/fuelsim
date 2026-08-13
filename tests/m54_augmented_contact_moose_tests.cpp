@@ -22,12 +22,12 @@ bool run_comparison(const std::string& input_path, const std::string& nodal_refe
     if (definition.problem != fuelsim::CaseProblem::steady)
         throw std::invalid_argument("M5.4 comparison requires a steady input card");
     const fuelsim::UnstructuredQuad4Mesh source = fuelsim::read_exodus_quad4(definition.mesh_file);
-    fuelsim::SteadyProblem problem(definition.spatial_definition(), source);
+    fuelsim::SteadyProblem problem(definition.spatial, source);
     const fuelsim::SolverOptions solver = {definition.solver.absolute_tolerance, definition.solver.relative_tolerance,
         definition.solver.step_tolerance, definition.solver.maximum_iterations};
     const fuelsim::SteadyResult result = fuelsim::solve_steady(problem,
         {definition.steady_execution.load_steps, definition.steady_execution.cutback_factor,
-            definition.steady_execution.maximum_cutbacks, definition.steady_execution.minimum_load_increment},
+            definition.steady_execution.maximum_cutbacks_per_step, definition.steady_execution.minimum_load_increment},
         solver);
     bool passed =
         check(result.completed && result.solve.converged, "M5.4 augmented-contact load path converges") &&
@@ -62,7 +62,7 @@ bool run_comparison(const std::string& input_path, const std::string& nodal_refe
     const double maximum_penetration = std::max(-interface.minimum_contact_gap, 0.0);
     passed = check(interface.projected_contact_nodes == contact_nodes.size() &&
                        interface.active_contact_nodes == contact_nodes.size() &&
-                       maximum_penetration <= definition.contacts.at(0).penetration_tolerance,
+                       maximum_penetration <= definition.spatial.contacts.at(0).penetration_tolerance,
                  "M5.4 activates every contact node and satisfies the 1 nm "
                  "penetration tolerance") &&
              passed;
@@ -71,7 +71,7 @@ bool run_comparison(const std::string& input_path, const std::string& nodal_refe
     fuelsim::test::print_relative_metrics("m54_axial_displacement", fields.axial_displacement);
     fuelsim::test::print_relative_metrics("m54_contact_pressure", pressure);
     std::cout << "m54_maximum_penetration=" << maximum_penetration << '\n'
-              << "m54_penetration_tolerance=" << definition.contacts.at(0).penetration_tolerance << '\n'
+              << "m54_penetration_tolerance=" << definition.spatial.contacts.at(0).penetration_tolerance << '\n'
               << "m54_multiplier_updates=" << result.solve.augmented_lagrangian_iterations << '\n';
     return passed;
 }

@@ -21,7 +21,6 @@ struct SteadyBackendView final {
     const std::vector<Quad4RzThermoelasticKernel>& kernels;
 };
 struct TransientBackendView final {
-    const TransientProblemDefinition& definition;
     const SpatialAssembly& spatial;
     const std::vector<Quad4RzTransientKernel>& kernels;
     const std::vector<std::vector<Quad4MaterialHistory>>& histories;
@@ -39,22 +38,10 @@ class BackendAccess final {
 };
 } // namespace rz
 namespace cartesian {
-struct SteadyBackendView final {
-    const SpatialAssembly& spatial;
-};
-struct TransientBackendView final {
-    const TransientProblemDefinition& definition;
-    const SpatialAssembly& spatial;
-    const std::vector<double>& committed_solution;
-    double active_time_step;
-    bool time_step_active;
-};
 class BackendAccess final {
   public:
-    static SteadyBackendView steady(const SteadyProblem& problem) noexcept;
-    static TransientBackendView transient(const TransientProblem& problem) noexcept;
-    static std::array<SymmetricTensor3Values, 8> stress(
-        const TransientProblem& problem, const std::vector<double>& state, std::size_t region, std::size_t element);
+    static const SpatialAssembly& spatial(const SteadyProblem& problem) noexcept;
+    static const SpatialAssembly& spatial(const TransientProblem& problem) noexcept;
     static TransientCommittedState committed_state(const TransientProblem& problem);
     static void restore_committed_state(TransientProblem& problem, TransientCommittedState state);
 };

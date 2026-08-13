@@ -4,52 +4,48 @@
 namespace fuelsim::cartesian {
 class ProblemAccess final {
   public:
-    static SteadyBackendView view(const SteadyProblem& problem) { return BackendAccess::steady(problem); }
-    static TransientBackendView view(const TransientProblem& problem) { return BackendAccess::transient(problem); }
-    static const DofMap& dof_map(const SteadyProblem& problem) noexcept { return view(problem).spatial.dof_map(); }
-    static std::size_t region_count(const SteadyProblem& problem) noexcept {
-        return view(problem).spatial.region_count();
-    }
+    static const SpatialAssembly& view(const SteadyProblem& problem) { return BackendAccess::spatial(problem); }
+    static const SpatialAssembly& view(const TransientProblem& problem) { return BackendAccess::spatial(problem); }
+    static const DofMap& dof_map(const SteadyProblem& problem) noexcept { return view(problem).dof_map(); }
+    static std::size_t region_count(const SteadyProblem& problem) noexcept { return view(problem).region_count(); }
     static const RegionDefinition& region(const SteadyProblem& problem, std::size_t index) {
-        return view(problem).spatial.region(index);
+        return view(problem).region(index);
     }
     static const Hex8RegionMesh& region_mesh(const SteadyProblem& problem, std::size_t index) {
-        return view(problem).spatial.region_mesh(index);
+        return view(problem).region_mesh(index);
     }
     static std::size_t region_node_offset(const SteadyProblem& problem, std::size_t index) {
-        return view(problem).spatial.region_node_offset(index);
+        return view(problem).region_node_offset(index);
     }
     static const Hex8Geometry& region_element_geometry(
         const SteadyProblem& problem, std::size_t region, std::size_t element) {
-        return view(problem).spatial.region_element_geometry(region, element);
+        return view(problem).region_element_geometry(region, element);
     }
-    static const TransientProblemDefinition& definition(const TransientProblem& problem) noexcept {
-        return view(problem).definition;
+    static const SpatialDefinition& definition(const TransientProblem& problem) noexcept {
+        return problem.definition();
     }
-    static const DofMap& dof_map(const TransientProblem& problem) noexcept { return view(problem).spatial.dof_map(); }
-    static std::size_t region_count(const TransientProblem& problem) noexcept {
-        return view(problem).spatial.region_count();
-    }
+    static const DofMap& dof_map(const TransientProblem& problem) noexcept { return view(problem).dof_map(); }
+    static std::size_t region_count(const TransientProblem& problem) noexcept { return view(problem).region_count(); }
     static const RegionDefinition& region(const TransientProblem& problem, std::size_t index) {
-        return view(problem).spatial.region(index);
+        return view(problem).region(index);
     }
     static const Hex8RegionMesh& region_mesh(const TransientProblem& problem, std::size_t index) {
-        return view(problem).spatial.region_mesh(index);
+        return view(problem).region_mesh(index);
     }
     static std::size_t region_node_offset(const TransientProblem& problem, std::size_t index) {
-        return view(problem).spatial.region_node_offset(index);
+        return view(problem).region_node_offset(index);
     }
     static const Hex8Geometry& region_element_geometry(
         const TransientProblem& problem, std::size_t region, std::size_t element) {
-        return view(problem).spatial.region_element_geometry(region, element);
+        return view(problem).region_element_geometry(region, element);
     }
     static std::array<SymmetricTensor3Values, 8> stress(
         const SteadyProblem& problem, const std::vector<double>& state, std::size_t region, std::size_t element) {
-        return view(problem).spatial.stress(region, element, state);
+        return view(problem).stress(region, element, state);
     }
     static std::array<SymmetricTensor3Values, 8> stress(
         const TransientProblem& problem, std::size_t region, std::size_t element) {
-        return BackendAccess::stress(problem, problem.committed_solution(), region, element);
+        return BackendAccess::spatial(problem).stress(region, element, problem.committed_solution());
     }
     static TransientCommittedState committed_state(const TransientProblem& problem) {
         return BackendAccess::committed_state(problem);

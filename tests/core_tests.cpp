@@ -5,6 +5,7 @@
 #include "fuelsim/quad4_rz.hpp"
 #include "fuelsim/spatial_definition.hpp"
 #include "fuelsim/steady_problem.hpp"
+#include "support/material_factory.hpp"
 #include "support/mesh_fixture.hpp"
 #include "support/rz_problem_access.hpp"
 #include <algorithm>
@@ -29,14 +30,7 @@ double scaled_error(double actual, double expected) {
 }
 double relative_difference(double actual, double expected) { return std::abs(actual - expected) / std::abs(expected); }
 fuelsim::ThermoelasticProperties properties() {
-    return {
-        3824.0,
-        0.61,
-        2.0e11,
-        0.316,
-        1.0e-5,
-        600.0,
-    };
+    return fuelsim::test::thermoelastic(3824.0, 0.61, 2.0e11, 0.316, 1.0e-5, 600.0);
 }
 bool test_mesh_and_geometry() {
     const double inner = 0.0;
@@ -1330,7 +1324,8 @@ bool test_m1_dof_layout() {
             {2, "clad", 0.0041, 0.0046, 0.01002, cladding_radial_elements, axial_elements}});
     fuelsim::SpatialDefinition definition;
     definition.regions.push_back({"fuel", "fuel", properties(), heat_source, 600.0});
-    definition.regions.push_back({"clad", "clad", {0.0, 16.0, 75.0e9, 0.3, 5.0e-6, 600.0}, 0.0, 600.0});
+    definition.regions.push_back(
+        {"clad", "clad", fuelsim::test::thermoelastic(0.0, 16.0, 75.0e9, 0.3, 5.0e-6, 600.0), 0.0, 600.0});
     definition.contacts.push_back({"fuel_clad", "clad_inner", "fuel_outer", true, true, 0.4, 1.0e-6, 1.0e14});
     definition.boundary_conditions.push_back({"fuel_axis", fuelsim::BoundaryConditionType::dirichlet, "fuel_inner",
         fuelsim::Field::radial_displacement, 0.0});
@@ -1448,7 +1443,7 @@ bool test_time_table_and_convection() {
             "piecewise-linear table interpolates and holds endpoints");
     const fuelsim::Line2RzBoundaryGeometry geometry =
         fuelsim::make_line2_rz_boundary_geometry({{{0.005, 0.0}, {0.005, 0.01}}}, {{1, 2}});
-    const fuelsim::Line2RzBoundaryKernel kernel(fuelsim::ConvectionProperties{1000.0, 500.0});
+    const fuelsim::Line2RzBoundaryKernel kernel(1000.0, 500.0);
     const fuelsim::LocalValues state = {
         590.0,
         600.0,
@@ -1507,7 +1502,7 @@ bool test_follower_pressure() {
     const fuelsim::Line2RzBoundaryGeometry geometry =
         fuelsim::make_line2_rz_boundary_geometry({{{0.005, 0.0}, {0.005, 0.01}}}, {{1, 2}});
     constexpr double pressure = 3.0e6;
-    const fuelsim::Line2RzBoundaryKernel follower(fuelsim::PressureProperties{pressure, true});
+    const fuelsim::Line2RzBoundaryKernel follower(pressure, true);
     const fuelsim::LocalValues state = {
         600.0,
         600.0,
@@ -1567,7 +1562,7 @@ bool test_follower_pressure() {
     passed = check(maximum_error < 1.0e-8, "follower-pressure AD Jacobian matches centered "
                                            "differences") &&
              passed;
-    const fuelsim::Line2RzBoundaryKernel dead(fuelsim::PressureProperties{pressure, false});
+    const fuelsim::Line2RzBoundaryKernel dead(pressure, false);
     const fuelsim::LocalSystem dead_system = dead.linearize(geometry, state);
     const double maximum_dead_tangent = *std::max_element(dead_system.jacobian.begin(), dead_system.jacobian.end(),
         [](double left, double right) { return std::abs(left) < std::abs(right); });
@@ -1580,8 +1575,7 @@ bool test_current_configuration_traction() {
     const fuelsim::Line2RzBoundaryGeometry geometry =
         fuelsim::make_line2_rz_boundary_geometry({{{0.005, 0.0}, {0.005, 0.01}}}, {{1, 2}});
     constexpr double traction = 2.0e6;
-    const fuelsim::Line2RzBoundaryKernel current(
-        fuelsim::TractionProperties{fuelsim::TractionComponent::axial, traction, true});
+    const fuelsim::Line2RzBoundaryKernel current(fuelsim::TractionComponent::axial, traction, true);
     const fuelsim::LocalValues state = {
         600.0,
         600.0,
@@ -1637,8 +1631,7 @@ bool test_current_configuration_traction() {
     passed = check(maximum_error < 1.0e-8, "current-configuration traction AD Jacobian matches "
                                            "centered differences") &&
              passed;
-    const fuelsim::Line2RzBoundaryKernel reference(
-        fuelsim::TractionProperties{fuelsim::TractionComponent::axial, traction, false});
+    const fuelsim::Line2RzBoundaryKernel reference(fuelsim::TractionComponent::axial, traction, false);
     const fuelsim::LocalSystem reference_system = reference.linearize(geometry, state);
     const double maximum_reference_tangent = *std::max_element(reference_system.jacobian.begin(),
         reference_system.jacobian.end(), [](double left, double right) { return std::abs(left) < std::abs(right); });
@@ -1647,10 +1640,8 @@ bool test_current_configuration_traction() {
            passed;
 }
 bool test_temperature_active_thermoelastic_properties() {
-    fuelsim::ThermoelasticProperties active_properties = properties();
-    active_properties.young_modulus_temperature_coefficient = -8.0e7;
-    active_properties.poisson_ratio_temperature_coefficient = 2.0e-5;
-    active_properties.thermal_expansion_temperature_coefficient = 3.0e-9;
+    const fuelsim::ThermoelasticProperties active_properties =
+        fuelsim::test::thermoelastic(3824.0, 0.61, 2.0e11, 0.316, 1.0e-5, 600.0, -8.0e7, 2.0e-5, 3.0e-9);
     const fuelsim::IsotropicThermoelasticMaterial material(active_properties);
     constexpr double temperature = 725.0;
     const adlite::Scalar active_temperature = adlite::Scalar::independent(temperature, 0, 1);

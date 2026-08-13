@@ -155,7 +155,7 @@ double relative_error(double actual, double reference) { return std::abs(actual 
 fuelsim::TransientTimeOptions time_options(const fuelsim::FuelSimCaseDefinition& definition) {
     const auto& input = definition.transient_execution;
     return {input.end_time, input.initial_time_step, input.minimum_time_step, input.maximum_time_step,
-        input.growth_factor, input.cutback_factor, input.maximum_cutbacks, input.load_ramp_time,
+        input.growth_factor, input.cutback_factor, input.maximum_cutbacks_per_step, input.load_ramp_time,
         input.target_nonlinear_iterations, input.iteration_window, input.time_error_relative_tolerance,
         input.temperature_time_absolute_tolerance, input.displacement_time_absolute_tolerance,
         input.time_error_safety_factor, input.strain_history_time_absolute_tolerance,
@@ -180,10 +180,10 @@ bool run_case(const std::string& input_path, const std::string& nodal_reference_
     const std::string& pressure_reference_path, const std::string& qp_coordinate_path, const std::string& qp_value_path,
     const std::string& scalar_reference_path) {
     const fuelsim::FuelSimCaseDefinition definition = fuelsim::read_case_input(input_path);
-    if (definition.problem != fuelsim::CaseProblem::transient || definition.contacts.size() != 1)
+    if (definition.problem != fuelsim::CaseProblem::transient || definition.spatial.contacts.size() != 1)
         throw std::invalid_argument("M5.7 integrated validation requires one transient contact pair");
     const fuelsim::UnstructuredQuad4Mesh source = fuelsim::read_exodus_quad4(definition.mesh_file);
-    fuelsim::TransientProblem problem(definition.transient_definition(), source);
+    fuelsim::TransientProblem problem(definition.spatial, source);
     const std::vector<fuelsim::ContactNodeSummary> initial_contact =
         fuelsim::rz::ProblemAccess::summarize_contact_nodes(problem, 0, problem.committed_solution());
     const fuelsim::TransientResult solve =
@@ -201,9 +201,9 @@ bool run_case(const std::string& input_path, const std::string& nodal_reference_
     for (std::size_t node = 0; node < contact.size(); ++node) {
         if (contact[node].sliding) ++sliding;
         if (contact[node].primary_segment >= initial_contact[node].primary_segment + 2) ++crossed_segments;
-        maximum_coulomb_excess =
-            std::max(maximum_coulomb_excess, std::abs(contact[node].tangential_traction) -
-                                                 definition.contacts[0].friction_coefficient * contact[node].pressure);
+        maximum_coulomb_excess = std::max(
+            maximum_coulomb_excess, std::abs(contact[node].tangential_traction) -
+                                        definition.spatial.contacts[0].friction_coefficient * contact[node].pressure);
     }
     double minimum_accepted_step = std::numeric_limits<double>::infinity();
     double maximum_accepted_step = 0.0;

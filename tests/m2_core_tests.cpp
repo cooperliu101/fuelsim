@@ -1,6 +1,7 @@
 #include "fuelsim/inelastic_material.hpp"
 #include "fuelsim/quad4_rz.hpp"
 #include "fuelsim/transient_problem.hpp"
+#include "support/material_factory.hpp"
 #include "support/mesh_fixture.hpp"
 #include "support/rz_problem_access.hpp"
 #include <algorithm>
@@ -12,6 +13,7 @@
 #include <iostream>
 #include <limits>
 #include <string>
+#include <utility>
 #include <vector>
 namespace {
 bool check(bool condition, const std::string& message) {
@@ -22,52 +24,30 @@ bool check(bool condition, const std::string& message) {
 double scaled_error(double actual, double expected) {
     return std::abs(actual - expected) / (1.0 + std::max(std::abs(actual), std::abs(expected)));
 }
-fuelsim::ThermoelasticProperties simple_thermoelastic(double young_modulus = 200.0) {
-    return {
-        0.0,
-        1.0,
-        young_modulus,
-        0.25,
-        0.0,
-        600.0,
-    };
+fuelsim::ThermoelasticProperties simple_thermoelastic(
+    double young_modulus = 200.0, double density = 10.0, double specific_heat = 20.0) {
+    return fuelsim::test::thermoelastic(
+        0.0, 1.0, young_modulus, 0.25, 0.0, 600.0, 0.0, 0.0, 0.0, density, specific_heat);
 }
-fuelsim::TransientInelasticProperties elastic_properties(double density = 10.0, double specific_heat = 20.0) {
-    return {
-        density,
-        specific_heat,
-        fuelsim::InelasticBehavior::elastic,
-        {0.0, 1.0, 1.0},
-        {1.0, 0.0},
-    };
+fuelsim::ThermoelasticProperties elastic_properties(double density = 10.0, double specific_heat = 20.0) {
+    return simple_thermoelastic(200.0, density, specific_heat);
 }
-fuelsim::TransientInelasticProperties creep_properties(double coefficient, double reference_stress, double exponent) {
-    return {
-        10.0,
-        20.0,
-        fuelsim::InelasticBehavior::norton_creep,
-        {coefficient, reference_stress, exponent},
-        {1.0, 0.0},
-    };
+fuelsim::ThermoelasticProperties creep_properties(double coefficient, double reference_stress, double exponent) {
+    return fuelsim::test::with_norton(simple_thermoelastic(), coefficient, reference_stress, exponent);
 }
-fuelsim::TransientInelasticProperties plastic_properties(double yield_stress, double hardening_modulus) {
-    return {
-        10.0,
-        20.0,
-        fuelsim::InelasticBehavior::j2_plasticity,
-        {0.0, 1.0, 1.0},
-        {yield_stress, hardening_modulus},
-    };
+fuelsim::ThermoelasticProperties plastic_properties(double yield_stress, double hardening_modulus) {
+    return fuelsim::test::with_plasticity(simple_thermoelastic(), yield_stress, hardening_modulus);
 }
-fuelsim::TransientInelasticProperties coupled_properties(
+fuelsim::ThermoelasticProperties coupled_properties(fuelsim::ThermoelasticProperties material, double coefficient,
+    double reference_stress, double exponent, double yield_stress, double hardening_modulus) {
+    return fuelsim::test::with_plasticity(
+        fuelsim::test::with_norton(std::move(material), coefficient, reference_stress, exponent), yield_stress,
+        hardening_modulus);
+}
+fuelsim::ThermoelasticProperties coupled_properties(
     double coefficient, double reference_stress, double exponent, double yield_stress, double hardening_modulus) {
-    return {
-        10.0,
-        20.0,
-        fuelsim::InelasticBehavior::norton_creep_j2_plasticity,
-        {coefficient, reference_stress, exponent},
-        {yield_stress, hardening_modulus},
-    };
+    return coupled_properties(
+        simple_thermoelastic(), coefficient, reference_stress, exponent, yield_stress, hardening_modulus);
 }
 double equivalent_stress(const fuelsim::AxisymmetricStress& stress) {
     const double mean = (stress.rr.value() + stress.zz.value() + stress.hoop.value()) / 3.0;
@@ -144,31 +124,25 @@ bool test_registered_material_functions() {
     functions->creep = registry.bind_creep("custom_creep", {{"reference_stress", 10.0}, {"coefficient", 1.0e-3}});
     functions->plasticity =
         registry.bind_plasticity("custom_plasticity", {{"hardening_modulus", 50.0}, {"yield_stress", 10.0}});
-    fuelsim::ThermoelasticProperties thermoelastic{};
-    thermoelastic.young_modulus = 1000.0;
-    thermoelastic.poisson_ratio = 0.25;
-    thermoelastic.functions = functions;
-    const fuelsim::TransientInelasticProperties transient = {
-        1.0, 1.0, fuelsim::InelasticBehavior::norton_creep_j2_plasticity, {0.0, 1.0, 1.0}, {1.0, 0.0}};
-    const fuelsim::IsotropicInelasticMaterial material(thermoelastic, transient);
+    const fuelsim::IsotropicInelasticMaterial material({functions, 1000.0});
     const fuelsim::MaterialPointState committed{};
     const adlite::Scalar active_strain = adlite::Scalar::independent(0.05, 0, 1);
     const fuelsim::InelasticStressResponse active =
-        material.response(active_strain, -0.01, -0.01, 0.005, 650.0, 2.0, committed, 4.0, 0.004, 0.01);
+        material.response(active_strain, -0.01, -0.01, 0.005, 650.0, 2.0, committed, {4.0, 0.004, 0.0, 0.01});
     constexpr double perturbation = 1.0e-7;
     const double plus =
-        material.response(0.05 + perturbation, -0.01, -0.01, 0.005, 650.0, 2.0, committed, 4.0, 0.004, 0.01)
+        material.response(0.05 + perturbation, -0.01, -0.01, 0.005, 650.0, 2.0, committed, {4.0, 0.004, 0.0, 0.01})
             .stress.rr.value();
     const double minus =
-        material.response(0.05 - perturbation, -0.01, -0.01, 0.005, 650.0, 2.0, committed, 4.0, 0.004, 0.01)
+        material.response(0.05 - perturbation, -0.01, -0.01, 0.005, 650.0, 2.0, committed, {4.0, 0.004, 0.0, 0.01})
             .stress.rr.value();
     const double centered = (plus - minus) / (2.0 * perturbation);
     const adlite::Scalar active_temperature = adlite::Scalar::independent(650.0, 0, 1);
-    const adlite::Scalar conductivity = material.conductivity(active_temperature, 4.0, 0.004, 0.01);
-    const adlite::Scalar heat_capacity = material.heat_capacity(active_temperature, 4.0, 0.004, 0.01);
-    bool passed =
-        check(functions->thermal.parameters.value("density") == 10.0 && functions->thermal.parameters.value(0) == 1.0,
-            "registered material parameters are bound by name and stored in schema order");
+    const adlite::Scalar conductivity = material.conductivity(active_temperature, {4.0, 0.004, 0.0, 0.01});
+    const adlite::Scalar heat_capacity = material.heat_capacity(active_temperature, {4.0, 0.004, 0.0, 0.01});
+    bool passed = check(functions->thermal.parameters.value("density") == 10.0 &&
+                            functions->thermal.parameters.value("conductivity") == 1.0,
+        "registered material parameters are bound by name and stored in schema order");
     passed = check(scaled_error(active.stress.rr.derivative(0), centered) < 1.0e-7,
                  "registered creep-plastic material AD tangent matches a centered difference") &&
              passed;
@@ -204,7 +178,7 @@ bool test_registered_material_functions() {
     return passed;
 }
 bool test_objective_incremental_history_rotation() {
-    const fuelsim::IsotropicInelasticMaterial material(simple_thermoelastic(), elastic_properties());
+    const fuelsim::IsotropicInelasticMaterial material(elastic_properties());
     fuelsim::MaterialPointState committed;
     committed.elastic_strain = {0.020, -0.012, -0.008, 0.006};
     committed.plastic_strain = {0.030, -0.018, -0.012, 0.004};
@@ -258,25 +232,15 @@ bool test_objective_incremental_history_rotation() {
     std::cout << "m41_objective_history_rotation_maximum_error=" << maximum_error << '\n';
     return passed;
 }
-double temperature_tangent_error(const fuelsim::TransientInelasticProperties& inelastic) {
-    fuelsim::ThermoelasticProperties thermoelastic = simple_thermoelastic();
-    thermoelastic.young_modulus_temperature_coefficient = -0.08;
-    thermoelastic.poisson_ratio_temperature_coefficient = 1.0e-5;
-    thermoelastic.thermal_expansion = 1.0e-5;
-    thermoelastic.thermal_expansion_temperature_coefficient = 2.0e-8;
-    fuelsim::TransientInelasticProperties active_inelastic = inelastic;
-    if (active_inelastic.behavior == fuelsim::InelasticBehavior::norton_creep ||
-        active_inelastic.behavior == fuelsim::InelasticBehavior::norton_creep_j2_plasticity) {
-        active_inelastic.creep.coefficient_temperature_coefficient = 1.0e-4;
-        active_inelastic.creep.reference_stress_temperature_coefficient = 2.0e-3;
-        active_inelastic.creep.stress_exponent_temperature_coefficient = 1.0e-4;
-    }
-    if (active_inelastic.behavior == fuelsim::InelasticBehavior::j2_plasticity ||
-        active_inelastic.behavior == fuelsim::InelasticBehavior::norton_creep_j2_plasticity) {
-        active_inelastic.plasticity.yield_stress_temperature_coefficient = -1.0e-2;
-        active_inelastic.plasticity.hardening_temperature_coefficient = -2.0e-2;
-    }
-    const fuelsim::IsotropicInelasticMaterial material(thermoelastic, active_inelastic);
+enum class TestInelasticBehavior { elastic, creep, plastic, coupled };
+double temperature_tangent_error(TestInelasticBehavior behavior) {
+    fuelsim::ThermoelasticProperties properties =
+        fuelsim::test::thermoelastic(0.0, 1.0, 200.0, 0.25, 1.0e-5, 600.0, -0.08, 1.0e-5, 2.0e-8, 10.0, 20.0);
+    if (behavior == TestInelasticBehavior::creep || behavior == TestInelasticBehavior::coupled)
+        properties = fuelsim::test::with_norton(std::move(properties), 0.5, 1.0, 1.0, 600.0, 1.0e-4, 2.0e-3, 1.0e-4);
+    if (behavior == TestInelasticBehavior::plastic || behavior == TestInelasticBehavior::coupled)
+        properties = fuelsim::test::with_plasticity(std::move(properties), 20.0, 40.0, 600.0, -1.0e-2, -2.0e-2);
+    const fuelsim::IsotropicInelasticMaterial material(std::move(properties));
     const fuelsim::MaterialPointState committed{};
     constexpr double temperature = 610.0;
     constexpr double time_step = 0.01;
@@ -291,10 +255,10 @@ double temperature_tangent_error(const fuelsim::TransientInelasticProperties& in
     return scaled_error(active.stress.rr.derivative(0), (plus - minus) / (2.0 * perturbation));
 }
 bool test_temperature_active_inelastic_properties() {
-    const double elastic_error = temperature_tangent_error(elastic_properties());
-    const double plastic_error = temperature_tangent_error(plastic_properties(20.0, 40.0));
-    const double creep_error = temperature_tangent_error(creep_properties(0.5, 1.0, 1.0));
-    const double coupled_error = temperature_tangent_error(coupled_properties(0.5, 1.0, 1.0, 20.0, 40.0));
+    const double elastic_error = temperature_tangent_error(TestInelasticBehavior::elastic);
+    const double plastic_error = temperature_tangent_error(TestInelasticBehavior::plastic);
+    const double creep_error = temperature_tangent_error(TestInelasticBehavior::creep);
+    const double coupled_error = temperature_tangent_error(TestInelasticBehavior::coupled);
     const double maximum_error = std::max({elastic_error, plastic_error, creep_error, coupled_error});
     std::cout << "m40_active_elastic_temperature_tangent_error=" << elastic_error << '\n';
     std::cout << "m40_active_plastic_temperature_tangent_error=" << plastic_error << '\n';
@@ -305,7 +269,7 @@ bool test_temperature_active_inelastic_properties() {
                                          "tangents match centered differences");
 }
 bool test_j2_plasticity_material_point() {
-    const fuelsim::IsotropicInelasticMaterial material(simple_thermoelastic(), plastic_properties(20.0, 40.0));
+    const fuelsim::IsotropicInelasticMaterial material(plastic_properties(20.0, 40.0));
     const fuelsim::MaterialPointState committed{};
     const fuelsim::InelasticStressResponse response = material.response(0.2, -0.1, -0.1, 0.0, 600.0, 1.0, committed);
     const fuelsim::MaterialPointState state = fuelsim::IsotropicInelasticMaterial::state_values(response.trial_state);
@@ -356,8 +320,7 @@ bool test_norton_creep_material_point() {
     constexpr double time_step = 0.01;
     constexpr double shear_modulus = 80.0;
     constexpr double trial_stress = 48.0;
-    const fuelsim::IsotropicInelasticMaterial material(
-        simple_thermoelastic(), creep_properties(coefficient, reference_stress, 1.0));
+    const fuelsim::IsotropicInelasticMaterial material(creep_properties(coefficient, reference_stress, 1.0));
     const fuelsim::MaterialPointState committed{};
     const fuelsim::InelasticStressResponse response =
         material.response(0.2, -0.1, -0.1, 0.0, 600.0, time_step, committed);
@@ -401,8 +364,7 @@ bool test_norton_creep_material_point() {
     passed = check(zero_derivative_error < 1.0e-9, "linear Norton zero-stress AD tangent matches centered "
                                                    "finite difference") &&
              passed;
-    const fuelsim::IsotropicInelasticMaterial cubic_material(
-        simple_thermoelastic(), creep_properties(1.0e-4, 1.0, 3.0));
+    const fuelsim::IsotropicInelasticMaterial cubic_material(creep_properties(1.0e-4, 1.0, 3.0));
     const fuelsim::InelasticStressResponse cubic =
         cubic_material.response(0.2, -0.1, -0.1, 0.0, 600.0, 0.01, committed);
     const double cubic_stress = equivalent_stress(cubic.stress);
@@ -412,16 +374,10 @@ bool test_norton_creep_material_point() {
                  "nonlinear Norton safeguarded Newton satisfies its local "
                  "equation") &&
              passed;
-    const fuelsim::ThermoelasticProperties small_scale_elastic = {
-        0.0,
-        1.0,
-        1.0,
-        0.0,
-        0.0,
-        600.0,
-    };
+    const fuelsim::ThermoelasticProperties small_scale_elastic =
+        fuelsim::test::thermoelastic(0.0, 1.0, 1.0, 0.0, 0.0, 600.0);
     const fuelsim::IsotropicInelasticMaterial extreme_scale_material(
-        small_scale_elastic, creep_properties(1.0, std::numeric_limits<double>::max(), 2.0));
+        fuelsim::test::with_norton(small_scale_elastic, 1.0, std::numeric_limits<double>::max(), 2.0));
     const fuelsim::InelasticStressResponse extreme_scale =
         extreme_scale_material.response(1.0e-16, -0.5e-16, -0.5e-16, 0.0, 600.0, 1.0, committed);
     const double extreme_scale_stress = equivalent_stress(extreme_scale.stress);
@@ -431,7 +387,7 @@ bool test_norton_creep_material_point() {
              passed;
     constexpr double large_coefficient = 5.0e307;
     const fuelsim::IsotropicInelasticMaterial large_beta_material(
-        small_scale_elastic, creep_properties(large_coefficient, 1.0, 2.0));
+        fuelsim::test::with_norton(small_scale_elastic, large_coefficient, 1.0, 2.0));
     const double one_direction = 1.0;
     const double negative_half_direction = -0.5;
     const adlite::Scalar large_beta_rr = adlite::Scalar::seeded(2.0 / 3.0, &one_direction, 1);
@@ -451,7 +407,7 @@ bool test_norton_creep_material_point() {
                  "consistent tangent") &&
              passed;
     const fuelsim::IsotropicInelasticMaterial subnormal_material(
-        small_scale_elastic, creep_properties(1.0e-300, 1.0e-300, 2.0));
+        fuelsim::test::with_norton(small_scale_elastic, 1.0e-300, 1.0e-300, 2.0));
     const fuelsim::InelasticStressResponse subnormal = subnormal_material.response(
         (2.0 / 3.0) * 1.0e-300, (-1.0 / 3.0) * 1.0e-300, (-1.0 / 3.0) * 1.0e-300, 0.0, 600.0, 1.0, committed);
     const double subnormal_stress = 1.5 * subnormal.stress.rr.value();
@@ -465,7 +421,7 @@ bool test_norton_creep_material_point() {
     constexpr double huge_reference_stress = 1.0e100;
     constexpr double huge_creep_coefficient = 1.0e250;
     const fuelsim::IsotropicInelasticMaterial logarithmic_root_material(
-        small_scale_elastic, creep_properties(huge_creep_coefficient, huge_reference_stress, 2.0));
+        fuelsim::test::with_norton(small_scale_elastic, huge_creep_coefficient, huge_reference_stress, 2.0));
     const fuelsim::InelasticStressResponse logarithmic_root =
         logarithmic_root_material.response((2.0 / 3.0) * huge_trial_stress, (-1.0 / 3.0) * huge_trial_stress,
             (-1.0 / 3.0) * huge_trial_stress, 0.0, 600.0, 1.0, committed);
@@ -477,18 +433,12 @@ bool test_norton_creep_material_point() {
                  "Norton logarithmic root remains finite when its "
                  "dimensionless coefficient exceeds double range") &&
              passed;
-    const fuelsim::ThermoelasticProperties overflow_three_g_elastic = {
-        0.0,
-        1.0,
-        1.6e308,
-        0.0,
-        0.0,
-        600.0,
-    };
+    const fuelsim::ThermoelasticProperties overflow_three_g_elastic =
+        fuelsim::test::thermoelastic(0.0, 1.0, 1.6e308, 0.0, 0.0, 600.0);
     constexpr double overflow_three_g_young_modulus = 1.6e308;
     const double overflow_three_g_coefficient = (2.0 / 3.0) / overflow_three_g_young_modulus;
     const fuelsim::IsotropicInelasticMaterial overflow_three_g_material(
-        overflow_three_g_elastic, creep_properties(overflow_three_g_coefficient, 1.0, 1.0));
+        fuelsim::test::with_norton(overflow_three_g_elastic, overflow_three_g_coefficient, 1.0, 1.0));
     constexpr double overflow_three_g_trial_stress = 48.0;
     const double overflow_three_g_strain_scale = overflow_three_g_trial_stress / overflow_three_g_young_modulus;
     const fuelsim::InelasticStressResponse overflow_three_g = overflow_three_g_material.response(
@@ -525,7 +475,7 @@ bool test_coupled_plastic_creep_material_point() {
     constexpr double shear_modulus = 80.0;
     constexpr double trial_stress = 48.0;
     const fuelsim::IsotropicInelasticMaterial material(
-        simple_thermoelastic(), coupled_properties(coefficient, reference_stress, exponent, yield_stress, hardening));
+        coupled_properties(coefficient, reference_stress, exponent, yield_stress, hardening));
     const fuelsim::MaterialPointState committed{};
     const fuelsim::InelasticStressResponse response =
         material.response(0.2, -0.1, -0.1, 0.0, 600.0, time_step, committed);
@@ -566,7 +516,7 @@ bool test_coupled_plastic_creep_material_point() {
                                               "difference") &&
              passed;
     const fuelsim::IsotropicInelasticMaterial creep_limit(
-        simple_thermoelastic(), coupled_properties(coefficient, reference_stress, exponent, 100.0, hardening));
+        coupled_properties(coefficient, reference_stress, exponent, 100.0, hardening));
     const fuelsim::MaterialPointState creep_limit_state = fuelsim::IsotropicInelasticMaterial::state_values(
         creep_limit.response(0.2, -0.1, -0.1, 0.0, 600.0, time_step, committed).trial_state);
     passed =
@@ -575,7 +525,7 @@ bool test_coupled_plastic_creep_material_point() {
             "inactive") &&
         passed;
     const fuelsim::IsotropicInelasticMaterial plastic_limit(
-        simple_thermoelastic(), coupled_properties(0.0, reference_stress, exponent, yield_stress, hardening));
+        coupled_properties(0.0, reference_stress, exponent, yield_stress, hardening));
     const fuelsim::MaterialPointState plastic_limit_state = fuelsim::IsotropicInelasticMaterial::state_values(
         plastic_limit.response(0.2, -0.1, -0.1, 0.0, 600.0, time_step, committed).trial_state);
     const double expected_plastic = (trial_stress - yield_stress) / (3.0 * shear_modulus + hardening);
@@ -585,7 +535,7 @@ bool test_coupled_plastic_creep_material_point() {
                  "plasticity") &&
              passed;
     const fuelsim::IsotropicInelasticMaterial perfect_plastic(
-        simple_thermoelastic(), coupled_properties(coefficient, reference_stress, exponent, yield_stress, 0.0));
+        coupled_properties(coefficient, reference_stress, exponent, yield_stress, 0.0));
     const fuelsim::InelasticStressResponse perfect_response =
         perfect_plastic.response(0.2, -0.1, -0.1, 0.0, 600.0, time_step, committed);
     const fuelsim::MaterialPointState perfect_state =
@@ -595,9 +545,8 @@ bool test_coupled_plastic_creep_material_point() {
                  "coupled perfect plasticity keeps stress on the fixed yield "
                  "surface") &&
              passed;
-    const fuelsim::IsotropicInelasticMaterial tiny_hardening(
-        simple_thermoelastic(), coupled_properties(coefficient, reference_stress, exponent, yield_stress,
-                                    std::numeric_limits<double>::denorm_min()));
+    const fuelsim::IsotropicInelasticMaterial tiny_hardening(coupled_properties(
+        coefficient, reference_stress, exponent, yield_stress, std::numeric_limits<double>::denorm_min()));
     const fuelsim::InelasticStressResponse tiny_hardening_response =
         tiny_hardening.response(0.2, -0.1, -0.1, 0.0, 600.0, time_step, committed);
     const fuelsim::MaterialPointState tiny_hardening_state =
@@ -612,16 +561,10 @@ bool test_coupled_plastic_creep_material_point() {
             "vanishing hardening approaches the coupled perfect-plastic "
             "solution without cancellation") &&
         passed;
-    const fuelsim::ThermoelasticProperties large_modulus_elastic = {
-        0.0,
-        1.0,
-        6.0e307,
-        0.0,
-        0.0,
-        600.0,
-    };
+    const fuelsim::ThermoelasticProperties large_modulus_elastic =
+        fuelsim::test::thermoelastic(0.0, 1.0, 6.0e307, 0.0, 0.0, 600.0);
     const fuelsim::IsotropicInelasticMaterial large_modulus_material(
-        large_modulus_elastic, coupled_properties(0.0, reference_stress, exponent, yield_stress, 1.0e308));
+        coupled_properties(large_modulus_elastic, 0.0, reference_stress, exponent, yield_stress, 1.0e308));
     constexpr double large_modulus_trial_stress = 48.0;
     constexpr double large_young_modulus = 6.0e307;
     const double strain_scale = large_modulus_trial_stress / large_young_modulus;
@@ -641,16 +584,10 @@ bool test_coupled_plastic_creep_material_point() {
             "scaled coupled weights preserve a finite solution when "
             "3G plus hardening exceeds double range") &&
         passed;
-    const fuelsim::ThermoelasticProperties overflow_three_g_elastic = {
-        0.0,
-        1.0,
-        1.6e308,
-        0.0,
-        0.0,
-        600.0,
-    };
+    const fuelsim::ThermoelasticProperties overflow_three_g_elastic =
+        fuelsim::test::thermoelastic(0.0, 1.0, 1.6e308, 0.0, 0.0, 600.0);
     const fuelsim::IsotropicInelasticMaterial overflow_three_g_material(
-        overflow_three_g_elastic, coupled_properties(0.0, reference_stress, exponent, yield_stress, 1.0e308));
+        coupled_properties(overflow_three_g_elastic, 0.0, reference_stress, exponent, yield_stress, 1.0e308));
     constexpr double overflow_three_g_trial_stress = 48.0;
     constexpr double overflow_three_g_young_modulus = 1.6e308;
     const double overflow_three_g_strain_scale = overflow_three_g_trial_stress / overflow_three_g_young_modulus;
@@ -673,16 +610,10 @@ bool test_coupled_plastic_creep_material_point() {
             "logarithmic coupled coefficient preserves a finite solution "
             "when 3G exceeds double range") &&
         passed;
-    const fuelsim::ThermoelasticProperties small_modulus_elastic = {
-        0.0,
-        1.0,
-        6.0e-309,
-        0.0,
-        0.0,
-        600.0,
-    };
-    const fuelsim::IsotropicInelasticMaterial small_modulus_material(small_modulus_elastic,
-        coupled_properties(0.0, reference_stress, exponent, std::numeric_limits<double>::denorm_min(), 0.0));
+    const fuelsim::ThermoelasticProperties small_modulus_elastic =
+        fuelsim::test::thermoelastic(0.0, 1.0, 6.0e-309, 0.0, 0.0, 600.0);
+    const fuelsim::IsotropicInelasticMaterial small_modulus_material(coupled_properties(
+        small_modulus_elastic, 0.0, reference_stress, exponent, std::numeric_limits<double>::denorm_min(), 0.0));
     constexpr double small_modulus_trial_stress = 1.0e-308;
     constexpr double small_young_modulus = 6.0e-309;
     const double small_modulus_strain_scale = small_modulus_trial_stress / small_young_modulus;
@@ -720,8 +651,7 @@ fuelsim::Quad4RzGeometry test_geometry() {
 bool test_transient_element() {
     const fuelsim::Quad4RzGeometry geometry = test_geometry();
     const fuelsim::Quad4RzTransientKernel kernel(
-        fuelsim::IsotropicInelasticMaterial(simple_thermoelastic(), elastic_properties()), 100.0,
-        fuelsim::StrainFormulation::small);
+        fuelsim::IsotropicInelasticMaterial(elastic_properties()), 100.0, fuelsim::StrainFormulation::small);
     const fuelsim::LocalValues old_temperature = {
         600.0,
         600.0,
@@ -828,8 +758,7 @@ bool test_coupled_transient_element_jacobian(
     fuelsim::StrainFormulation strain_formulation, const std::string& formulation_name) {
     const fuelsim::Quad4RzGeometry geometry = test_geometry();
     const fuelsim::Quad4RzTransientKernel kernel(
-        fuelsim::IsotropicInelasticMaterial(simple_thermoelastic(), coupled_properties(0.02, 10.0, 2.0, 20.0, 40.0)),
-        0.0, strain_formulation);
+        fuelsim::IsotropicInelasticMaterial(coupled_properties(0.02, 10.0, 2.0, 20.0, 40.0)), 0.0, strain_formulation);
     fuelsim::LocalValues committed_state = {
         600.0,
         600.0,
@@ -928,16 +857,15 @@ bool test_coupled_transient_element_jacobians() {
     passed = test_coupled_transient_element_jacobian(fuelsim::StrainFormulation::finite, "m41_finite_strain") && passed;
     return passed;
 }
-fuelsim::TransientProblemDefinition transaction_definition() {
-    fuelsim::TransientProblemDefinition definition;
-    definition.spatial.regions.push_back({"solid", "solid", simple_thermoelastic(), 100.0, 600.0});
-    definition.spatial.boundary_conditions.push_back({"axis_radial", fuelsim::BoundaryConditionType::dirichlet,
-        "solid_inner", fuelsim::Field::radial_displacement, 0.0});
-    definition.spatial.boundary_conditions.push_back({"bottom_axial", fuelsim::BoundaryConditionType::dirichlet,
-        "solid_bottom", fuelsim::Field::axial_displacement, 0.0});
-    definition.spatial.boundary_conditions.push_back({"outer_temperature", fuelsim::BoundaryConditionType::dirichlet,
+fuelsim::SpatialDefinition transaction_definition() {
+    fuelsim::SpatialDefinition definition;
+    definition.regions.push_back({"solid", "solid", coupled_properties(1.0e-4, 1.0, 1.0, 1.0, 10.0), 100.0, 600.0});
+    definition.boundary_conditions.push_back({"axis_radial", fuelsim::BoundaryConditionType::dirichlet, "solid_inner",
+        fuelsim::Field::radial_displacement, 0.0});
+    definition.boundary_conditions.push_back({"bottom_axial", fuelsim::BoundaryConditionType::dirichlet, "solid_bottom",
+        fuelsim::Field::axial_displacement, 0.0});
+    definition.boundary_conditions.push_back({"outer_temperature", fuelsim::BoundaryConditionType::dirichlet,
         "solid_outer", fuelsim::Field::temperature, 600.0});
-    definition.regions.push_back({"solid", coupled_properties(1.0e-4, 1.0, 1.0, 1.0, 10.0)});
     return definition;
 }
 bool test_problem_history_transaction() {
@@ -963,7 +891,7 @@ bool test_problem_history_transaction() {
         "Newton residual and Jacobian callbacks do not mutate "
         "committed history");
     problem.commit_time_step(trial_solution);
-    const fuelsim::RegionInelasticSummary committed_history =
+    const fuelsim::RegionStateSummary committed_history =
         fuelsim::rz::ProblemAccess::summarize_region_history(problem, 0);
     const double committed_plastic = committed_history.maximum_equivalent_plastic_strain;
     const double committed_creep = committed_history.maximum_equivalent_creep_strain;

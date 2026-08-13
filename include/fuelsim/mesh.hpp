@@ -99,44 +99,48 @@ struct RegionBoundary final {
     std::vector<std::size_t> nodes;
     std::vector<Line2BoundaryElement> elements;
 };
-class RegionMesh final {
+class RegionMeshMapping {
+  public:
+    const std::vector<std::size_t>& source_node_ids() const noexcept { return _source_node_ids; }
+    const std::vector<std::size_t>& source_element_ids() const noexcept { return _source_element_ids; }
+    std::int64_t block_id() const noexcept { return _block_id; }
+
+  protected:
+    RegionMeshMapping(const UnstructuredMeshMetadata& source, std::size_t node_count, std::int64_t block_id);
+    void select_nodes(const std::vector<bool>& used_nodes);
+    static constexpr std::size_t invalid_index = static_cast<std::size_t>(-1);
+    std::int64_t _block_id;
+    std::vector<std::size_t> _source_node_ids, _source_element_ids;
+    std::vector<std::size_t> _source_node_to_local, _source_element_to_local;
+};
+class RegionMesh final : public RegionMeshMapping {
   public:
     static RegionMesh from_unstructured_block(const UnstructuredQuad4Mesh& source, const std::string& block_name);
     static RegionMesh from_unstructured_block(const UnstructuredQuad4Mesh& source, std::int64_t block_id);
     const std::vector<RzPoint>& nodes() const noexcept { return _nodes; }
     const std::vector<Quad4Element>& elements() const noexcept { return _elements; }
-    const std::vector<std::size_t>& source_node_ids() const noexcept { return _source_node_ids; }
-    const std::vector<std::size_t>& source_element_ids() const noexcept { return _source_element_ids; }
-    std::int64_t block_id() const noexcept { return _block_id; }
     RegionBoundary map_side_set(const UnstructuredQuad4Mesh& source, const std::string& side_set_name) const;
 
   private:
-    std::int64_t _block_id = -1;
+    RegionMesh(const UnstructuredQuad4Mesh& source, std::int64_t block_id);
     std::vector<RzPoint> _nodes;
     std::vector<Quad4Element> _elements;
-    std::vector<std::size_t> _source_node_ids, _source_element_ids;
-    std::vector<std::size_t> _source_node_to_local, _source_element_to_local;
 };
 struct Hex8RegionBoundary final {
     std::vector<std::size_t> nodes;
     std::vector<Quad4FaceElement> faces;
 };
-class Hex8RegionMesh final {
+class Hex8RegionMesh final : public RegionMeshMapping {
   public:
     static Hex8RegionMesh from_unstructured_block(const UnstructuredHex8Mesh& source, const std::string& block_name);
     static Hex8RegionMesh from_unstructured_block(const UnstructuredHex8Mesh& source, std::int64_t block_id);
     const std::vector<CartesianPoint3>& nodes() const noexcept { return _nodes; }
     const std::vector<Hex8Element>& elements() const noexcept { return _elements; }
-    const std::vector<std::size_t>& source_node_ids() const noexcept { return _source_node_ids; }
-    const std::vector<std::size_t>& source_element_ids() const noexcept { return _source_element_ids; }
-    std::int64_t block_id() const noexcept { return _block_id; }
     Hex8RegionBoundary map_side_set(const UnstructuredHex8Mesh& source, const std::string& side_set_name) const;
 
   private:
-    std::int64_t _block_id = -1;
+    Hex8RegionMesh(const UnstructuredHex8Mesh& source, std::int64_t block_id);
     std::vector<CartesianPoint3> _nodes;
     std::vector<Hex8Element> _elements;
-    std::vector<std::size_t> _source_node_ids, _source_element_ids;
-    std::vector<std::size_t> _source_node_to_local, _source_element_to_local;
 };
 } // namespace fuelsim

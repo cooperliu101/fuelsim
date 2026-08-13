@@ -5,6 +5,179 @@
 #include <limits>
 #include <stdexcept>
 #include <utility>
+namespace fuelsim::spatial_detail {
+namespace {
+void validate_definition(const SpatialDefinition& definition, bool allow_contacts, bool allow_finite_strain) {
+    if (definition.regions.empty()) throw std::invalid_argument("SpatialAssembly requires at least one region");
+    if (!allow_contacts && !definition.contacts.empty())
+        throw std::invalid_argument("Cartesian three-dimensional stage B does not support contact");
+    for (std::size_t region = 0; region < definition.regions.size(); ++region) {
+        const RegionDefinition& value = definition.regions[region];
+        if (value.name.empty() || (value.block.empty() && value.block_id < 0) ||
+            (!value.block.empty() && value.block_id >= 0))
+            throw std::invalid_argument("SpatialAssembly regions require a name and exactly one block selector");
+        if (!allow_finite_strain && value.strain_formulation != StrainFormulation::small)
+            throw std::invalid_argument("Cartesian three-dimensional stage B supports only small strain");
+        for (std::size_t previous = 0; previous < region; ++previous) {
+            if (definition.regions[previous].name == value.name)
+                throw std::invalid_argument("Duplicate region name: " + value.name);
+            if ((!value.block.empty() && definition.regions[previous].block == value.block) ||
+                (value.block_id >= 0 && definition.regions[previous].block_id == value.block_id))
+                throw std::invalid_argument(
+                    "Duplicate region block: " + (value.block.empty() ? std::to_string(value.block_id) : value.block));
+        }
+    }
+    for (std::size_t table = 0; table < definition.time_tables.size(); ++table)
+        for (std::size_t previous = 0; previous < table; ++previous)
+            if (definition.time_tables[previous].name() == definition.time_tables[table].name())
+                throw std::invalid_argument("Duplicate time-table name: " + definition.time_tables[table].name());
+    for (std::size_t contact = 0; contact < definition.contacts.size(); ++contact) {
+        const ContactDefinition& value = definition.contacts[contact];
+        if (value.name.empty() || value.primary.empty() || value.secondary.empty())
+            throw std::invalid_argument("SpatialAssembly contact names and boundaries must not be empty");
+        if (!value.thermal && !value.mechanical)
+            throw std::invalid_argument("Contact must enable thermal or mechanical coupling: " + value.name);
+        if (value.primary == value.secondary)
+            throw std::invalid_argument("Contact primary and secondary must differ: " + value.name);
+        for (std::size_t previous = 0; previous < contact; ++previous) {
+            if (definition.contacts[previous].name == value.name)
+                throw std::invalid_argument("Duplicate contact name: " + value.name);
+            if (value.mechanical && definition.contacts[previous].mechanical &&
+                definition.contacts[previous].secondary == value.secondary)
+                throw std::invalid_argument("Mechanical secondary boundary is reused: " + value.secondary);
+        }
+    }
+}
+} // namespace
+std::vector<std::int64_t> resolve_block_ids(const SpatialDefinition& definition,
+    const UnstructuredMeshMetadata& source_mesh, bool allow_contacts, bool allow_finite_strain) {
+    validate_definition(definition, allow_contacts, allow_finite_strain);
+    std::vector<std::int64_t> result;
+    result.reserve(definition.regions.size());
+    for (const RegionDefinition& region : definition.regions) {
+        const std::int64_t id = region.block_id >= 0 ? region.block_id : source_mesh.element_block(region.block).id;
+        const bool known = std::any_of(source_mesh.element_blocks().begin(), source_mesh.element_blocks().end(),
+            [id](const ElementBlockInfo& block) { return block.id == id; });
+        if (!known) throw std::invalid_argument("Unknown element block ID: " + std::to_string(id));
+        if (std::find(result.begin(), result.end(), id) != result.end())
+            throw std::invalid_argument("Duplicate resolved region block ID: " + std::to_string(id));
+        result.push_back(id);
+    }
+    return result;
+}
+void validate_dirichlet_conditions(
+    std::vector<DirichletCondition>& conditions, const char* conflict_message, const char* duplicate_message) {
+    std::sort(conditions.begin(), conditions.end(),
+        [](const DirichletCondition& lhs, const DirichletCondition& rhs) { return lhs.dof < rhs.dof; });
+    for (std::size_t index = 1; index < conditions.size(); ++index) {
+        if (conditions[index - 1].dof != conditions[index].dof) continue;
+        if (conditions[index - 1].value != conditions[index].value) throw std::invalid_argument(conflict_message);
+        throw std::invalid_argument(duplicate_message);
+    }
+}
+double function_value(const SpatialDefinition& definition, double time, const std::string& name) {
+    const auto found = std::find_if(definition.time_tables.begin(), definition.time_tables.end(),
+        [&name](const PiecewiseLinearTimeTable& table) { return table.name() == name; });
+    if (found == definition.time_tables.end()) throw std::invalid_argument("Unknown time-table function: " + name);
+    return found->value(time);
+}
+double controlled_value(const SpatialDefinition& definition, double time, double load_factor, double value,
+    bool scale_with_load, const std::string& function) {
+    if (!function.empty()) return value * function_value(definition, time, function);
+    return value * (scale_with_load ? load_factor : 1.0);
+}
+SpatialLayout::SpatialLayout(SpatialDefinition definition, std::vector<std::int64_t> block_ids, DofLayout layout)
+    : _definition(std::move(definition)), _block_ids(std::move(block_ids)), _layout(layout) {}
+void SpatialLayout::initialize_counts(
+    const std::vector<std::size_t>& node_counts, const std::vector<std::size_t>& element_counts) {
+    if (node_counts.size() != region_count() || element_counts.size() != region_count())
+        throw std::invalid_argument("Spatial layout counts must match the declared regions");
+    _node_offsets = {0};
+    _element_offsets = {0};
+    for (std::size_t region = 0; region < region_count(); ++region) {
+        if (node_counts[region] > std::numeric_limits<std::size_t>::max() - _node_offsets.back() ||
+            element_counts[region] > std::numeric_limits<std::size_t>::max() - _element_offsets.back())
+            throw std::length_error("Spatial layout count overflows");
+        _node_offsets.push_back(_node_offsets.back() + node_counts[region]);
+        _element_offsets.push_back(_element_offsets.back() + element_counts[region]);
+    }
+    _dof_map.emplace(_node_offsets.back(), _layout);
+}
+std::size_t SpatialLayout::region_node_offset(std::size_t index) const {
+    if (index >= region_count()) throw std::out_of_range("Spatial layout region index is out of range");
+    return _node_offsets[index];
+}
+std::size_t SpatialLayout::region_element_count(std::size_t index) const {
+    if (index >= region_count()) throw std::out_of_range("Spatial layout region index is out of range");
+    return _element_offsets[index + 1] - _element_offsets[index];
+}
+std::size_t SpatialLayout::region_element_offset(std::size_t index) const {
+    if (index >= region_count()) throw std::out_of_range("Spatial layout region index is out of range");
+    return _element_offsets[index];
+}
+std::pair<std::size_t, std::size_t> SpatialLayout::element_location(std::size_t index) const {
+    if (index >= volume_contribution_count()) throw std::out_of_range("Volume contribution is out of range");
+    const auto upper = std::upper_bound(_element_offsets.begin(), _element_offsets.end(), index);
+    const std::size_t region = static_cast<std::size_t>(upper - _element_offsets.begin() - 1);
+    return {region, index - _element_offsets[region]};
+}
+double SpatialLayout::region_heat_source(std::size_t index) const {
+    const RegionDefinition& value = region(index);
+    return controlled_value(
+        _definition, _time, _load_factor, value.volumetric_heat_source, true, value.heat_source_function);
+}
+std::vector<double> SpatialLayout::initial_state() const {
+    std::vector<double> result(dof_count(), 0.0);
+    for (std::size_t region_index = 0; region_index < region_count(); ++region_index)
+        for (std::size_t node = _node_offsets[region_index]; node < _node_offsets[region_index + 1]; ++node)
+            result[dof_map().temperature(node)] = region(region_index).initial_temperature;
+    for (const DirichletCondition& condition : _dirichlet_conditions) result[condition.dof] = condition.value;
+    return result;
+}
+std::size_t SpatialLayout::global_node(std::size_t region_index, std::size_t local_node) const {
+    if (region_index >= region_count()) throw std::out_of_range("Spatial layout region index is out of range");
+    if (local_node >= _node_offsets[region_index + 1] - _node_offsets[region_index])
+        throw std::out_of_range("Spatial layout local node is out of range");
+    return _node_offsets[region_index] + local_node;
+}
+void SpatialLayout::add_dirichlet(std::size_t dof, std::size_t boundary_index) {
+    const BoundaryConditionDefinition& boundary = _definition.boundary_conditions.at(boundary_index);
+    _dirichlet_conditions.push_back({dof, controlled_value(_definition, _time, _load_factor, boundary.value,
+                                              boundary.scale_with_load, boundary.function)});
+    if (boundary.scale_with_load || !boundary.function.empty())
+        _controlled_dirichlet_conditions.push_back({dof, boundary_index});
+}
+void SpatialLayout::set_load_factor_value(double value) {
+    if (!std::isfinite(value)) throw std::invalid_argument("Spatial layout load factor must be finite");
+    _load_factor = value;
+}
+void SpatialLayout::set_time_value(double value) {
+    if (!std::isfinite(value)) throw std::invalid_argument("Spatial layout time must be finite");
+    _time = value;
+}
+void SpatialLayout::refresh_dirichlet_values() {
+    for (const ControlledDirichlet& controlled : _controlled_dirichlet_conditions) {
+        const auto condition = std::lower_bound(_dirichlet_conditions.begin(), _dirichlet_conditions.end(),
+            controlled.dof, [](const DirichletCondition& candidate, std::size_t dof) { return candidate.dof < dof; });
+        if (condition == _dirichlet_conditions.end() || condition->dof != controlled.dof)
+            throw std::logic_error("Spatial layout controlled Dirichlet mapping is invalid");
+        const BoundaryConditionDefinition& boundary = _definition.boundary_conditions.at(controlled.boundary_index);
+        condition->value = controlled_value(
+            _definition, _time, _load_factor, boundary.value, boundary.scale_with_load, boundary.function);
+    }
+}
+ConvectionValues SpatialLayout::convection_values(const BoundaryConditionDefinition& boundary) const {
+    const double coefficient =
+        boundary.heat_transfer_coefficient *
+        (boundary.coefficient_function.empty() ? 1.0
+                                               : function_value(_definition, _time, boundary.coefficient_function));
+    const double ambient = boundary.ambient_temperature *
+                           (boundary.ambient_temperature_function.empty()
+                                   ? 1.0
+                                   : function_value(_definition, _time, boundary.ambient_temperature_function));
+    return {coefficient, ambient};
+}
+} // namespace fuelsim::spatial_detail
 namespace fuelsim::rz {
 namespace {
 Quad4Coordinates element_coordinates(const RegionMesh& mesh, const Quad4Element& element) {
@@ -13,27 +186,10 @@ Quad4Coordinates element_coordinates(const RegionMesh& mesh, const Quad4Element&
         coordinates[node] = mesh.nodes().at(element.nodes[node]);
     return coordinates;
 }
-std::size_t checked_layout_node_count(const std::vector<RegionMesh>& meshes) {
-    std::size_t result = 0;
-    for (const RegionMesh& mesh : meshes) {
-        if (mesh.nodes().size() > std::numeric_limits<std::size_t>::max() - result)
-            throw std::length_error("Spatial layout node count overflows");
-        result += mesh.nodes().size();
-    }
-    return result;
-}
 void check_state_size(std::size_t state_size, std::size_t dof_count, const char* message) {
     if (state_size != dof_count) throw std::invalid_argument(message);
 }
 } // namespace
-std::size_t SpatialAssembly::region_node_offset(std::size_t index) const {
-    if (index >= region_count()) throw std::out_of_range("Spatial layout region index is out of range");
-    return _node_offsets[index];
-}
-std::size_t SpatialAssembly::region_element_offset(std::size_t index) const {
-    if (index >= region_count()) throw std::out_of_range("Spatial layout region index is out of range");
-    return _element_offsets[index];
-}
 const Quad4RzGeometry& SpatialAssembly::region_element_geometry(std::size_t region, std::size_t element) const {
     return _region_geometries.at(region).at(element);
 }
@@ -44,11 +200,6 @@ ResolvedBoundary SpatialAssembly::resolve_boundary(
     if (found == _block_ids.end()) throw std::invalid_argument("Boundary belongs to an undeclared block: " + name);
     const std::size_t region = static_cast<std::size_t>(found - _block_ids.begin());
     return {region, _meshes[region].map_side_set(source_mesh, name)};
-}
-std::size_t SpatialAssembly::global_node(std::size_t region, std::size_t local_node) const {
-    if (local_node >= region_mesh(region).nodes().size())
-        throw std::out_of_range("Spatial layout local node is out of range");
-    return _node_offsets.at(region) + local_node;
 }
 std::pair<std::size_t, std::array<std::size_t, 2>> SpatialAssembly::edge_parent(
     std::size_t region, const Line2BoundaryElement& edge) const {
@@ -88,22 +239,11 @@ void SpatialAssembly::build_volume_geometries() {
             geometries.push_back(make_quad4_rz_geometry(element_coordinates(mesh, element)));
     }
 }
-std::size_t SpatialAssembly::region_index(const std::string& name) const {
-    for (std::size_t region = 0; region < region_count(); ++region)
-        if (_definition.regions[region].name == name) return region;
-    throw std::invalid_argument("Unknown region: " + name);
-}
-std::size_t SpatialAssembly::region_element_count(std::size_t index) const {
-    return _meshes.at(index).elements().size();
-}
 SpatialAssembly::ContributionRanges SpatialAssembly::contribution_ranges() const noexcept {
     const std::size_t thermal_begin = volume_contribution_count(),
                       mechanical_begin = thermal_begin + _thermal_contributions.size(),
-                      pressure_begin = mechanical_begin + _mechanical_contributions.size(),
-                      traction_begin = pressure_begin + _pressure_contributions.size(),
-                      convection_begin = traction_begin + _traction_contributions.size();
-    return {thermal_begin, mechanical_begin, pressure_begin, traction_begin, convection_begin,
-        convection_begin + _convection_contributions.size()};
+                      boundary_begin = mechanical_begin + _mechanical_contributions.size();
+    return {thermal_begin, mechanical_begin, boundary_begin, boundary_begin + _boundary_contributions.size()};
 }
 SpatialAssembly::ContributionLocation SpatialAssembly::locate_contribution(std::size_t index) const {
     const ContributionRanges ranges = contribution_ranges();
@@ -111,31 +251,15 @@ SpatialAssembly::ContributionLocation SpatialAssembly::locate_contribution(std::
     if (index < ranges.thermal_begin) return {SpatialContributionType::volume, index};
     if (index < ranges.mechanical_begin)
         return {SpatialContributionType::thermal_contact, index - ranges.thermal_begin};
-    if (index < ranges.pressure_begin)
+    if (index < ranges.boundary_begin)
         return {SpatialContributionType::mechanical_contact, index - ranges.mechanical_begin};
-    if (index < ranges.traction_begin) return {SpatialContributionType::pressure, index - ranges.pressure_begin};
-    if (index < ranges.convection_begin) return {SpatialContributionType::traction, index - ranges.traction_begin};
-    return {SpatialContributionType::convection, index - ranges.convection_begin};
+    const std::size_t local = index - ranges.boundary_begin;
+    return {_boundary_contributions[local].type, local};
 }
 SpatialContributionType SpatialAssembly::contribution_type(std::size_t index) const {
     return locate_contribution(index).type;
 }
-double SpatialAssembly::region_heat_source(std::size_t region_index) const {
-    const RegionDefinition& value = region(region_index);
-    return value.volumetric_heat_source * controlled_value({1.0, true, value.heat_source_function});
-}
 namespace {
-void validate_dirichlet_conditions(std::vector<DirichletCondition>& conditions) {
-    std::sort(conditions.begin(), conditions.end(),
-        [](const DirichletCondition& lhs, const DirichletCondition& rhs) { return lhs.dof < rhs.dof; });
-    for (std::size_t index = 1; index < conditions.size(); ++index) {
-        const DirichletCondition &previous = conditions[index - 1], &current = conditions[index];
-        if (previous.dof != current.dof) continue;
-        if (previous.value != current.value)
-            throw std::invalid_argument("BoundaryAssembly has conflicting Dirichlet conditions");
-        throw std::invalid_argument("BoundaryAssembly has duplicate Dirichlet conditions");
-    }
-}
 struct BoundaryEdgeData final {
     std::array<std::size_t, 4> nodes;
     std::array<RzPoint, 2> coordinates;
@@ -155,7 +279,8 @@ BoundaryEdgeData boundary_edge_data(
 }
 } // namespace
 void SpatialAssembly::build_boundaries(const UnstructuredQuad4Mesh& source_mesh) {
-    for (const BoundaryConditionDefinition& definition : _definition.boundary_conditions) {
+    for (std::size_t boundary_index = 0; boundary_index < _definition.boundary_conditions.size(); ++boundary_index) {
+        const BoundaryConditionDefinition& definition = _definition.boundary_conditions[boundary_index];
         if (definition.name.empty() || definition.boundary.empty())
             throw std::invalid_argument("Boundary-condition names and boundaries must be valid");
         const ResolvedBoundary resolved = resolve_boundary(source_mesh, definition.boundary);
@@ -164,155 +289,77 @@ void SpatialAssembly::build_boundaries(const UnstructuredQuad4Mesh& source_mesh)
                 "Boundary condition cannot combine scale_with_load and a time function: " + definition.name);
         if (definition.type == BoundaryConditionType::dirichlet) {
             for (const std::size_t local_node : resolved.boundary.nodes) {
-                const std::size_t dof = _dof_map.dof(definition.field, global_node(resolved.region, local_node));
-                const ControlledScalar control{definition.value, definition.scale_with_load, definition.function};
-                _dirichlet_conditions.push_back({dof, controlled_value(control)});
-                if (definition.scale_with_load || !definition.function.empty())
-                    _controlled_dirichlet_conditions.push_back({dof, control});
+                const std::size_t dof = dof_map().dof(definition.field, global_node(resolved.region, local_node));
+                add_dirichlet(dof, boundary_index);
             }
-        } else if (definition.type == BoundaryConditionType::pressure) {
-            const std::size_t load = _pressure_loads.size();
-            _pressure_loads.push_back({definition.value, definition.scale_with_load, definition.function});
+            continue;
+        }
+        const std::size_t kernel = _boundary_kernels.size();
+        SpatialContributionType type;
+        if (definition.type == BoundaryConditionType::pressure) {
+            type = SpatialContributionType::pressure;
             const bool displaced = region(resolved.region).strain_formulation == StrainFormulation::finite;
-            _pressure_kernels.emplace_back(PressureProperties{controlled_value(_pressure_loads.back()), displaced});
-            for (const Line2BoundaryElement& edge : resolved.boundary.elements) {
-                const BoundaryEdgeData data = boundary_edge_data(*this, resolved, edge);
-                _pressure_contributions.push_back(
-                    {load, data.nodes, make_line2_rz_boundary_geometry(data.coordinates, data.local_nodes)});
-            }
+            _boundary_kernels.emplace_back(spatial_detail::controlled_value(_definition, _time, _load_factor,
+                                               definition.value, definition.scale_with_load, definition.function),
+                displaced);
         } else if (definition.type == BoundaryConditionType::traction) {
+            type = SpatialContributionType::traction;
             if (definition.field == Field::temperature)
                 throw std::invalid_argument("Traction requires a displacement field: " + definition.boundary);
             if (definition.use_displaced_geometry &&
                 region(resolved.region).strain_formulation != StrainFormulation::finite)
                 throw std::invalid_argument(
                     "Current-configuration traction requires finite strain: " + definition.name);
-            const std::size_t load = _traction_loads.size();
-            _traction_loads.push_back({definition.value, definition.scale_with_load, definition.function});
-            _traction_kernels.emplace_back(TractionProperties{
+            _boundary_kernels.emplace_back(
                 definition.field == Field::radial_displacement ? TractionComponent::radial : TractionComponent::axial,
-                controlled_value(_traction_loads.back()), definition.use_displaced_geometry});
-            for (const Line2BoundaryElement& edge : resolved.boundary.elements) {
-                const BoundaryEdgeData data = boundary_edge_data(*this, resolved, edge);
-                _traction_contributions.push_back(
-                    {load, data.nodes, make_line2_rz_boundary_geometry(data.coordinates, data.local_nodes)});
-            }
+                spatial_detail::controlled_value(_definition, _time, _load_factor, definition.value,
+                    definition.scale_with_load, definition.function),
+                definition.use_displaced_geometry);
         } else {
-            const std::size_t load = _convection_loads.size();
-            _convection_loads.push_back({definition.heat_transfer_coefficient, definition.ambient_temperature,
-                definition.coefficient_function, definition.ambient_temperature_function});
-            _convection_kernels.emplace_back(
-                ConvectionProperties{definition.heat_transfer_coefficient, definition.ambient_temperature});
-            for (const Line2BoundaryElement& edge : resolved.boundary.elements) {
-                const BoundaryEdgeData data = boundary_edge_data(*this, resolved, edge);
-                _convection_contributions.push_back(
-                    {load, data.nodes, make_line2_rz_boundary_geometry(data.coordinates, data.local_nodes)});
-            }
+            type = SpatialContributionType::convection;
+            _boundary_kernels.emplace_back(definition.heat_transfer_coefficient, definition.ambient_temperature);
+        }
+        _boundary_definition_indices.push_back(boundary_index);
+        for (const Line2BoundaryElement& edge : resolved.boundary.elements) {
+            const BoundaryEdgeData data = boundary_edge_data(*this, resolved, edge);
+            _boundary_contributions.push_back(
+                {type, kernel, data.nodes, make_line2_rz_boundary_geometry(data.coordinates, data.local_nodes)});
         }
     }
-    validate_dirichlet_conditions(_dirichlet_conditions);
+    spatial_detail::validate_dirichlet_conditions(_dirichlet_conditions,
+        "BoundaryAssembly has conflicting Dirichlet conditions", "BoundaryAssembly has duplicate Dirichlet conditions");
     refresh_controlled_values();
 }
 void SpatialAssembly::set_load_factor(double value) {
-    _load_factor = value;
+    set_load_factor_value(value);
     refresh_controlled_values();
 }
 void SpatialAssembly::set_time(double value) {
-    _time = value;
+    set_time_value(value);
     refresh_controlled_values();
 }
-double SpatialAssembly::function_value(const std::string& name) const {
-    const auto found = std::find_if(_definition.time_tables.begin(), _definition.time_tables.end(),
-        [&name](const PiecewiseLinearTimeTable& table) { return table.name() == name; });
-    if (found == _definition.time_tables.end()) throw std::invalid_argument("Unknown time-table function: " + name);
-    return found->value(_time);
-}
-double SpatialAssembly::controlled_value(const ControlledScalar& control) const {
-    if (!control.function.empty()) return control.value * function_value(control.function);
-    return control.value * (control.scale_with_load ? _load_factor : 1.0);
-}
 void SpatialAssembly::refresh_controlled_values() {
-    for (const ControlledDirichlet& controlled : _controlled_dirichlet_conditions) {
-        const auto condition = std::lower_bound(_dirichlet_conditions.begin(), _dirichlet_conditions.end(),
-            controlled.dof, [](const DirichletCondition& candidate, std::size_t dof) { return candidate.dof < dof; });
-        if (condition == _dirichlet_conditions.end() || condition->dof != controlled.dof)
-            throw std::logic_error("SpatialAssembly controlled Dirichlet mapping is invalid");
-        condition->value = controlled_value(controlled.control);
-    }
-    for (std::size_t load = 0; load < _convection_loads.size(); ++load) {
-        const ConvectionLoad& convection = _convection_loads[load];
-        const double coefficient_multiplier =
-            convection.coefficient_function.empty() ? 1.0 : function_value(convection.coefficient_function);
-        const double ambient_multiplier = convection.ambient_temperature_function.empty()
-                                              ? 1.0
-                                              : function_value(convection.ambient_temperature_function);
-        _convection_kernels[load].set_properties(
-            ConvectionProperties{coefficient_multiplier * convection.heat_transfer_coefficient,
-                ambient_multiplier * convection.ambient_temperature});
-    }
-    for (std::size_t load = 0; load < _pressure_loads.size(); ++load) {
-        PressureProperties properties = _pressure_kernels[load].pressure_properties();
-        properties.pressure = controlled_value(_pressure_loads[load]);
-        _pressure_kernels[load].set_properties(properties);
-    }
-    for (std::size_t load = 0; load < _traction_loads.size(); ++load) {
-        TractionProperties properties = _traction_kernels[load].traction_properties();
-        properties.traction = controlled_value(_traction_loads[load]);
-        _traction_kernels[load].set_properties(properties);
-    }
-}
-LocalDofs SpatialAssembly::boundary_contribution_dofs(SpatialContributionType type, std::size_t index) const {
-    switch (type) {
-    case SpatialContributionType::pressure: return local_dofs(_pressure_contributions.at(index).nodes);
-    case SpatialContributionType::traction: return local_dofs(_traction_contributions.at(index).nodes);
-    case SpatialContributionType::convection: return local_dofs(_convection_contributions.at(index).nodes);
-    default: throw std::invalid_argument("BoundaryAssembly requires a boundary contribution type");
+    refresh_dirichlet_values();
+    for (std::size_t load = 0; load < _boundary_definition_indices.size(); ++load) {
+        const BoundaryConditionDefinition& boundary =
+            _definition.boundary_conditions[_boundary_definition_indices[load]];
+        if (boundary.type == BoundaryConditionType::convection) {
+            const spatial_detail::ConvectionValues values = convection_values(boundary);
+            _boundary_kernels[load].set_convection(values.coefficient, values.ambient);
+        } else {
+            _boundary_kernels[load].set_load(spatial_detail::controlled_value(
+                _definition, _time, _load_factor, boundary.value, boundary.scale_with_load, boundary.function));
+        }
     }
 }
 LocalDofs SpatialAssembly::local_dofs(const std::array<std::size_t, 4>& nodes) const {
     LocalDofs result{};
     for (std::size_t node = 0; node < nodes.size(); ++node) {
-        result[node] = _dof_map.temperature(nodes[node]);
-        result[4 + node] = _dof_map.radial_displacement(nodes[node]);
-        result[8 + node] = _dof_map.axial_displacement(nodes[node]);
+        result[node] = dof_map().temperature(nodes[node]);
+        result[4 + node] = dof_map().radial_displacement(nodes[node]);
+        result[8 + node] = dof_map().axial_displacement(nodes[node]);
     }
     return result;
-}
-LocalResidual SpatialAssembly::boundary_contribution_residual(
-    SpatialContributionType type, std::size_t index, const LocalValues& state) const {
-    switch (type) {
-    case SpatialContributionType::pressure: {
-        const PressureContribution& entry = _pressure_contributions.at(index);
-        return _pressure_kernels[entry.load].residual(entry.geometry, state);
-    }
-    case SpatialContributionType::traction: {
-        const TractionContribution& entry = _traction_contributions.at(index);
-        return _traction_kernels[entry.load].residual(entry.geometry, state);
-    }
-    case SpatialContributionType::convection: {
-        const ConvectionContribution& entry = _convection_contributions.at(index);
-        return _convection_kernels[entry.load].residual(entry.geometry, state);
-    }
-    default: throw std::invalid_argument("BoundaryAssembly requires a boundary contribution type");
-    }
-}
-LocalSystem SpatialAssembly::linearize_boundary_contribution(
-    SpatialContributionType type, std::size_t index, const LocalValues& state) const {
-    switch (type) {
-    case SpatialContributionType::pressure: {
-        const PressureContribution& entry = _pressure_contributions.at(index);
-        return _pressure_kernels[entry.load].linearize(entry.geometry, state);
-    }
-    case SpatialContributionType::traction: {
-        const TractionContribution& entry = _traction_contributions.at(index);
-        return _traction_kernels[entry.load].linearize(entry.geometry, state);
-    }
-    case SpatialContributionType::convection: {
-        const ConvectionContribution& entry = _convection_contributions.at(index);
-        return _convection_kernels[entry.load].linearize(entry.geometry, state);
-    }
-    default: throw std::invalid_argument("BoundaryAssembly requires a boundary contribution type");
-    }
 }
 bool SpatialAssembly::uses_augmented_contact() const noexcept {
     return std::any_of(_definition.contacts.begin(), _definition.contacts.end(), [](const ContactDefinition& value) {
@@ -464,7 +511,7 @@ void SpatialAssembly::update_mechanical_candidates(const std::vector<double>& st
     check_state_size(state.size(), dof_count(), "SpatialAssembly contact-search state size mismatch");
     const ContributionRanges ranges = contribution_ranges();
     const GlobalStateView state_view(state);
-    update_mechanical_candidates(ranges.mechanical_begin, ranges.pressure_begin, state_view);
+    update_mechanical_candidates(ranges.mechanical_begin, ranges.boundary_begin, state_view);
 }
 void SpatialAssembly::update_mechanical_candidates(
     std::size_t first, std::size_t last, const GlobalStateView& state) const {
@@ -523,7 +570,7 @@ std::vector<std::vector<bool>> SpatialAssembly::touched_thermal_points(std::size
 }
 std::vector<std::vector<bool>> SpatialAssembly::touched_mechanical_nodes(std::size_t first, std::size_t last) const {
     const ContributionRanges ranges = contribution_ranges();
-    const std::size_t begin = std::max(first, ranges.mechanical_begin), end = std::min(last, ranges.pressure_begin);
+    const std::size_t begin = std::max(first, ranges.mechanical_begin), end = std::min(last, ranges.boundary_begin);
     if (begin >= end) return {};
     std::vector<std::vector<bool>> result(contact_count());
     for (std::size_t contact_value = 0; contact_value < contact_count(); ++contact_value)
@@ -780,44 +827,6 @@ double zero_gap_orientation_hint(const RzPoint& secondary_centroid, const RzPoin
     const bool same_side = (secondary_side > 0.0 && primary_side > 0.0) || (secondary_side < 0.0 && primary_side < 0.0);
     return same_side ? 0.0 : secondary_side;
 }
-void validate_definitions(const SpatialDefinition& definition) {
-    if (definition.regions.empty()) throw std::invalid_argument("SpatialAssembly requires at least one region");
-    for (std::size_t region = 0; region < definition.regions.size(); ++region) {
-        const RegionDefinition& value = definition.regions[region];
-        if (value.name.empty() || (value.block.empty() && value.block_id < 0) ||
-            (!value.block.empty() && value.block_id >= 0))
-            throw std::invalid_argument("SpatialAssembly regions require a name and exactly one block selector");
-        for (std::size_t previous = 0; previous < region; ++previous) {
-            if (definition.regions[previous].name == value.name)
-                throw std::invalid_argument("Duplicate region name: " + value.name);
-            if ((!value.block.empty() && definition.regions[previous].block == value.block) ||
-                (value.block_id >= 0 && definition.regions[previous].block_id == value.block_id))
-                throw std::invalid_argument(
-                    "Duplicate region block: " + (value.block.empty() ? std::to_string(value.block_id) : value.block));
-        }
-    }
-    for (std::size_t table = 0; table < definition.time_tables.size(); ++table) {
-        for (std::size_t previous = 0; previous < table; ++previous)
-            if (definition.time_tables[previous].name() == definition.time_tables[table].name())
-                throw std::invalid_argument("Duplicate time-table name: " + definition.time_tables[table].name());
-    }
-    for (std::size_t contact = 0; contact < definition.contacts.size(); ++contact) {
-        const ContactDefinition& value = definition.contacts[contact];
-        if (value.name.empty() || value.primary.empty() || value.secondary.empty())
-            throw std::invalid_argument("SpatialAssembly contact names and boundaries must not be empty");
-        if (!value.thermal && !value.mechanical)
-            throw std::invalid_argument("Contact must enable thermal or mechanical coupling: " + value.name);
-        if (value.primary == value.secondary)
-            throw std::invalid_argument("Contact primary and secondary must differ: " + value.name);
-        for (std::size_t previous = 0; previous < contact; ++previous) {
-            if (definition.contacts[previous].name == value.name)
-                throw std::invalid_argument("Duplicate contact name: " + value.name);
-            if (value.mechanical && definition.contacts[previous].mechanical &&
-                definition.contacts[previous].secondary == value.secondary)
-                throw std::invalid_argument("Mechanical secondary boundary is reused: " + value.secondary);
-        }
-    }
-}
 RegionBoundary ordered_connected_boundary(const RegionMesh& mesh, RegionBoundary boundary, const std::string& name) {
     if (boundary.elements.empty()) throw std::invalid_argument("Contact side set is empty: " + name);
     std::vector<std::size_t> degree(mesh.nodes().size(), 0);
@@ -900,21 +909,6 @@ bool projection_interval(const Line2InterfaceSideCoordinates& secondary, const L
     return upper - lower > tolerance;
 }
 } // namespace
-std::vector<std::int64_t> SpatialAssembly::resolve_block_ids(
-    const SpatialDefinition& definition, const UnstructuredQuad4Mesh& source_mesh) {
-    std::vector<std::int64_t> result;
-    result.reserve(definition.regions.size());
-    for (const RegionDefinition& region : definition.regions) {
-        const std::int64_t id = region.block_id >= 0 ? region.block_id : source_mesh.element_block(region.block).id;
-        const bool known = std::any_of(source_mesh.element_blocks().begin(), source_mesh.element_blocks().end(),
-            [id](const ElementBlockInfo& block) { return block.id == id; });
-        if (!known) throw std::invalid_argument("Unknown element block ID: " + std::to_string(id));
-        if (std::find(result.begin(), result.end(), id) != result.end())
-            throw std::invalid_argument("Duplicate resolved region block ID: " + std::to_string(id));
-        result.push_back(id);
-    }
-    return result;
-}
 std::vector<RegionMesh> SpatialAssembly::build_meshes(
     const SpatialDefinition& definition, const UnstructuredQuad4Mesh& source_mesh) {
     std::vector<RegionMesh> result;
@@ -927,19 +921,21 @@ std::vector<RegionMesh> SpatialAssembly::build_meshes(
     return result;
 }
 SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const UnstructuredQuad4Mesh& source_mesh)
-    : SpatialAssembly(
-          definition, source_mesh, resolve_block_ids(definition, source_mesh), build_meshes(definition, source_mesh)) {}
+    : SpatialAssembly(definition, source_mesh, spatial_detail::resolve_block_ids(definition, source_mesh, true, true),
+          build_meshes(definition, source_mesh)) {}
 SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const UnstructuredQuad4Mesh& source_mesh,
     std::vector<std::int64_t> block_ids, std::vector<RegionMesh> meshes)
-    : _definition(std::move(definition)), _block_ids(std::move(block_ids)), _meshes(std::move(meshes)),
-      _dof_map(checked_layout_node_count(_meshes), DofLayout::axisymmetric_rz) {
-    validate_definitions(_definition);
-    _node_offsets = {0};
-    _element_offsets = {0};
+    : SpatialLayout(std::move(definition), std::move(block_ids), DofLayout::axisymmetric_rz),
+      _meshes(std::move(meshes)) {
+    std::vector<std::size_t> node_counts, element_counts;
+    node_counts.reserve(_meshes.size());
+    element_counts.reserve(_meshes.size());
     for (const RegionMesh& mesh : _meshes) {
-        _node_offsets.push_back(_node_offsets.back() + mesh.nodes().size());
-        _element_offsets.push_back(_element_offsets.back() + mesh.elements().size());
+        node_counts.push_back(mesh.nodes().size());
+        element_counts.push_back(mesh.elements().size());
     }
+    initialize_counts(node_counts, element_counts);
+    _load_factor = 1.0;
     build_volume_geometries();
     build_contacts(source_mesh);
     build_boundaries(source_mesh);
@@ -955,16 +951,6 @@ SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const Unstructure
     _committed_contact_solution = initial_state();
     update_thermal_candidates(_committed_contact_solution);
     update_mechanical_candidates(_committed_contact_solution);
-}
-std::vector<double> SpatialAssembly::initial_state() const {
-    std::vector<double> result(dof_count(), 0.0);
-    for (std::size_t region = 0; region < region_count(); ++region) {
-        const std::size_t offset = _node_offsets[region];
-        for (std::size_t node = 0; node < _meshes[region].nodes().size(); ++node)
-            result[_dof_map.temperature(offset + node)] = _definition.regions[region].initial_temperature;
-    }
-    for (const DirichletCondition& condition : _dirichlet_conditions) result[condition.dof] = condition.value;
-    return result;
 }
 std::vector<std::size_t> SpatialAssembly::required_state_dofs(std::size_t first, std::size_t last) const {
     if (first > last || last > contribution_count())
@@ -1002,13 +988,6 @@ std::vector<std::size_t> SpatialAssembly::required_state_dofs(std::size_t first,
     result.erase(std::unique(result.begin(), result.end()), result.end());
     return result;
 }
-std::pair<std::size_t, std::size_t> SpatialAssembly::element_location(std::size_t index) const {
-    if (index >= _element_offsets.back())
-        throw std::out_of_range("SpatialAssembly volume contribution is out of range");
-    const auto upper = std::upper_bound(_element_offsets.begin(), _element_offsets.end(), index);
-    const std::size_t region = static_cast<std::size_t>(upper - _element_offsets.begin() - 1);
-    return {region, index - _element_offsets[region]};
-}
 LocalDofs SpatialAssembly::contribution_dofs(std::size_t index) const {
     const ContributionLocation entry = locate_contribution(index);
     switch (entry.type) {
@@ -1026,7 +1005,7 @@ LocalDofs SpatialAssembly::contribution_dofs(std::size_t index) const {
         return local_dofs(_mechanical_contributions.at(entry.local_index).nodes);
     case SpatialContributionType::pressure:
     case SpatialContributionType::traction:
-    case SpatialContributionType::convection: return boundary_contribution_dofs(entry.type, entry.local_index);
+    case SpatialContributionType::convection: return local_dofs(_boundary_contributions.at(entry.local_index).nodes);
     }
     throw std::logic_error("SpatialAssembly contribution type is invalid");
 }
@@ -1059,8 +1038,10 @@ LocalResidual SpatialAssembly::contribution_residual(std::size_t index, const Lo
     }
     case SpatialContributionType::pressure:
     case SpatialContributionType::traction:
-    case SpatialContributionType::convection:
-        return boundary_contribution_residual(location.type, location.local_index, state);
+    case SpatialContributionType::convection: {
+        const BoundaryContribution& entry = _boundary_contributions.at(location.local_index);
+        return _boundary_kernels[entry.kernel].residual(entry.geometry, state);
+    }
     }
     throw std::logic_error("SpatialAssembly contribution type is invalid");
 }
@@ -1082,8 +1063,10 @@ LocalSystem SpatialAssembly::linearize_contribution(std::size_t index, const Loc
     }
     case SpatialContributionType::pressure:
     case SpatialContributionType::traction:
-    case SpatialContributionType::convection:
-        return linearize_boundary_contribution(location.type, location.local_index, state);
+    case SpatialContributionType::convection: {
+        const BoundaryContribution& entry = _boundary_contributions.at(location.local_index);
+        return _boundary_kernels[entry.kernel].linearize(entry.geometry, state);
+    }
     }
     throw std::logic_error("SpatialAssembly contribution type is invalid");
 }
@@ -1112,8 +1095,8 @@ void SpatialAssembly::build_contacts(const UnstructuredQuad4Mesh& source_mesh) {
         if (contact_definition.mechanical && contact_definition.automatic_penalty) {
             const double primary_length = minimum_boundary_normal_length(*this, primary.region, primary.boundary),
                          secondary_length = minimum_boundary_normal_length(*this, secondary.region, secondary.boundary),
-                         primary_modulus = _definition.regions[primary.region].material.young_modulus,
-                         secondary_modulus = _definition.regions[secondary.region].material.young_modulus;
+                         primary_modulus = _definition.regions[primary.region].material.reference_young_modulus,
+                         secondary_modulus = _definition.regions[secondary.region].material.reference_young_modulus;
             contact_definition.penalty = contact_definition.penalty_factor /
                                          (primary_length / primary_modulus + secondary_length / secondary_modulus);
             if (!std::isfinite(contact_definition.penalty) || !(contact_definition.penalty > 0.0))

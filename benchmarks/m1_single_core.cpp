@@ -1,4 +1,5 @@
 #include "fuelsim/problem_solver.hpp"
+#include "support/material_factory.hpp"
 #include "support/mesh_fixture.hpp"
 #include <chrono>
 #include <cstddef>
@@ -35,8 +36,10 @@ BenchmarkCase make_case(std::size_t requested_fuel_radial_elements, std::size_t 
             {{1, "fuel", 0.0, 0.004120, 0.010, requested_fuel_radial_elements, axial_elements},
                 {2, "clad", 0.004122, 0.004692, 0.010020, requested_cladding_radial_elements, axial_elements}}),
         {}};
-    result.definition.regions.push_back({"fuel", "fuel", {3824.0, 0.61, 2.0e11, 0.316, 10.0e-6, 600.0}, 2.0e8, 600.0});
-    result.definition.regions.push_back({"clad", "clad", {0.0, 16.0, 75.0e9, 0.3, 5.0e-6, 600.0}, 0.0, 600.0});
+    result.definition.regions.push_back(
+        {"fuel", "fuel", fuelsim::test::thermoelastic(3824.0, 0.61, 2.0e11, 0.316, 10.0e-6, 600.0), 2.0e8, 600.0});
+    result.definition.regions.push_back(
+        {"clad", "clad", fuelsim::test::thermoelastic(0.0, 16.0, 75.0e9, 0.3, 5.0e-6, 600.0), 0.0, 600.0});
     result.definition.contacts.push_back({"fuel_clad", "clad_inner", "fuel_outer", true, true, 0.4, 1.0e-6, 1.0e14});
     result.definition.boundary_conditions.push_back(
         dirichlet("fuel_axis", "fuel_inner", fuelsim::Field::radial_displacement, 0.0));

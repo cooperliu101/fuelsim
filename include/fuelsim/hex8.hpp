@@ -51,9 +51,6 @@ Quad4FaceGeometry make_quad4_face_geometry(const Quad4FaceCoordinates& coordinat
 class Hex8ThermoelasticKernel final {
   public:
     Hex8ThermoelasticKernel(IsotropicThermoelasticMaterial material, double volumetric_heat_source);
-    Hex8ThermoelasticKernel(
-        IsotropicThermoelasticMaterial material, double constant_heat_capacity, double volumetric_heat_source);
-    double volumetric_heat_source() const noexcept { return _volumetric_heat_source; }
     double heat_capacity(double temperature, double x, double y, double z) const;
     void set_volumetric_heat_source(double value) noexcept { _volumetric_heat_source = value; }
     void set_time(double value) noexcept { _time = value; }
@@ -70,7 +67,7 @@ class Hex8ThermoelasticKernel final {
     void residual_ad(const Hex8Geometry& geometry, const Hex8LocalAdValues& state,
         const Hex8LocalValues* committed_state, double time_step, Hex8LocalAdValues& residual) const;
     IsotropicThermoelasticMaterial _material;
-    double _constant_heat_capacity, _volumetric_heat_source, _time;
+    double _volumetric_heat_source, _time;
 };
 enum class CartesianTractionComponent { x, y, z };
 class Quad4FaceBoundaryKernel final {

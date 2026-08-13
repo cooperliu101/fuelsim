@@ -20,12 +20,12 @@ bool run_comparison(const std::string& input_path, const std::string& nodal_refe
     if (definition.problem != fuelsim::CaseProblem::steady)
         throw std::invalid_argument("M0 comparison requires a steady input card");
     const fuelsim::UnstructuredQuad4Mesh source = fuelsim::read_exodus_quad4(definition.mesh_file);
-    fuelsim::SteadyProblem problem(definition.spatial_definition(), source);
+    fuelsim::SteadyProblem problem(definition.spatial, source);
     const fuelsim::SolverOptions options = {definition.solver.absolute_tolerance, definition.solver.relative_tolerance,
         definition.solver.step_tolerance, definition.solver.maximum_iterations};
     const fuelsim::SteadyResult result = fuelsim::solve_steady(problem,
         {definition.steady_execution.load_steps, definition.steady_execution.cutback_factor,
-            definition.steady_execution.maximum_cutbacks, definition.steady_execution.minimum_load_increment},
+            definition.steady_execution.maximum_cutbacks_per_step, definition.steady_execution.minimum_load_increment},
         options);
     bool passed = check(result.completed && result.solve.converged, "M0 input-card solve converged");
     passed = check(fuelsim::rz::ProblemAccess::region_count(problem) == 1 &&

@@ -107,7 +107,7 @@ TransientStateLayout transient_state_layout(const fuelsim::TransientProblem& pro
     if (committed.material_histories.size() != fuelsim::rz::ProblemAccess::region_count(problem) ||
         committed.material_stresses.size() != fuelsim::rz::ProblemAccess::region_count(problem))
         throw std::runtime_error("Transient MPI material-state region layout differs from the problem");
-    if (committed.contact_histories.size() != fuelsim::rz::ProblemAccess::definition(problem).spatial.contacts.size())
+    if (committed.contact_histories.size() != fuelsim::rz::ProblemAccess::definition(problem).contacts.size())
         throw std::runtime_error("Transient MPI contact-history pair count differs from the problem");
     TransientStateLayout layout;
     layout._node_count = problem.dof_count() / 3;
@@ -365,16 +365,16 @@ int main(int argc, char** argv) {
             if (!write_transient && !compare_transient)
                 throw std::invalid_argument("Transient MPI case requires write_transient or "
                                             "compare_transient mode");
-            fuelsim::TransientProblem problem(definition.transient_definition(), source);
-            const fuelsim::TransientExecutionInput& execution = definition.transient_execution;
+            fuelsim::TransientProblem problem(definition.spatial, source);
+            const fuelsim::TransientTimeOptions& execution = definition.transient_execution;
             const fuelsim::TransientResult result = fuelsim::solve_transient(problem,
                 {execution.end_time, execution.initial_time_step, execution.minimum_time_step,
                     execution.maximum_time_step, execution.growth_factor, execution.cutback_factor,
-                    execution.maximum_cutbacks, execution.load_ramp_time, execution.target_nonlinear_iterations,
-                    execution.iteration_window, execution.time_error_relative_tolerance,
-                    execution.temperature_time_absolute_tolerance, execution.displacement_time_absolute_tolerance,
-                    execution.time_error_safety_factor, execution.strain_history_time_absolute_tolerance,
-                    execution.stress_history_time_absolute_tolerance},
+                    execution.maximum_cutbacks_per_step, execution.load_ramp_time,
+                    execution.target_nonlinear_iterations, execution.iteration_window,
+                    execution.time_error_relative_tolerance, execution.temperature_time_absolute_tolerance,
+                    execution.displacement_time_absolute_tolerance, execution.time_error_safety_factor,
+                    execution.strain_history_time_absolute_tolerance, execution.stress_history_time_absolute_tolerance},
                 options);
             if (!result.completed || result.aggregate_timing.workspace_setups != 1) {
                 std::ostringstream message;
@@ -452,7 +452,7 @@ int main(int argc, char** argv) {
             }
             return 0;
         }
-        fuelsim::SteadyProblem problem(definition.spatial_definition(), source);
+        fuelsim::SteadyProblem problem(definition.spatial, source);
         const bool field_split = mode == "compare_field_split";
         const bool block_jacobi = mode == "compare_block_jacobi";
         const bool hypre = mode == "compare_hypre";
@@ -464,7 +464,8 @@ int main(int argc, char** argv) {
                                                 : fuelsim::SolverOptions::Preconditioner::lu;
         const fuelsim::SteadyResult result = fuelsim::solve_steady(problem,
             {field_split ? 2U : definition.steady_execution.load_steps, definition.steady_execution.cutback_factor,
-                definition.steady_execution.maximum_cutbacks, definition.steady_execution.minimum_load_increment},
+                definition.steady_execution.maximum_cutbacks_per_step,
+                definition.steady_execution.minimum_load_increment},
             options);
         if (!result.completed || !result.solve.converged)
             throw std::runtime_error("MPI equivalence solve did not converge");

@@ -264,7 +264,7 @@ fuelsim::TransientTimeOptions time_options(const fuelsim::FuelSimCaseDefinition&
     return {definition.transient_execution.end_time, definition.transient_execution.initial_time_step,
         definition.transient_execution.minimum_time_step, definition.transient_execution.maximum_time_step,
         definition.transient_execution.growth_factor, definition.transient_execution.cutback_factor,
-        definition.transient_execution.maximum_cutbacks, definition.transient_execution.load_ramp_time};
+        definition.transient_execution.maximum_cutbacks_per_step, definition.transient_execution.load_ramp_time};
 }
 bool test_pcmi_coupled_cladding(const std::string& input_path, const std::string& nodal_reference_path,
     const std::string& pressure_reference_path, const std::string& qp_coordinate_path, const std::string& qp_value_path,
@@ -273,11 +273,11 @@ bool test_pcmi_coupled_cladding(const std::string& input_path, const std::string
     if (definition.problem != fuelsim::CaseProblem::transient)
         throw std::invalid_argument("PCMI comparison requires a transient input card");
     bool finite_strain = false;
-    for (const fuelsim::CaseRegionDefinition& region : definition.regions)
-        finite_strain = finite_strain || region.spatial.strain_formulation == fuelsim::StrainFormulation::finite;
+    for (const fuelsim::RegionDefinition& region : definition.spatial.regions)
+        finite_strain = finite_strain || region.strain_formulation == fuelsim::StrainFormulation::finite;
     const double moose_tolerance = finite_strain ? m41_moose_tolerance : m23_moose_tolerance;
     const fuelsim::UnstructuredQuad4Mesh imported = fuelsim::read_exodus_quad4(definition.mesh_file);
-    fuelsim::TransientProblem problem(definition.transient_definition(), imported);
+    fuelsim::TransientProblem problem(definition.spatial, imported);
     const fuelsim::TransientResult result =
         fuelsim::solve_transient(problem, time_options(definition), solver_options(definition));
     if (!result.completed) return check(false, "PCMI transient completes all twenty time steps");

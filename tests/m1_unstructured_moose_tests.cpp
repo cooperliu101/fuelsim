@@ -20,7 +20,7 @@ bool run_comparison(const std::string& input_path, const std::string& nodal_refe
     const fuelsim::FuelSimCaseDefinition definition = fuelsim::read_case_input(input_path);
     const fuelsim::UnstructuredQuad4Mesh source = fuelsim::read_exodus_quad4(definition.mesh_file);
     bool passed = true;
-    fuelsim::SteadyProblem problem(definition.spatial_definition(), source);
+    fuelsim::SteadyProblem problem(definition.spatial, source);
     fuelsim::SolverOptions options;
     options.absolute_tolerance = definition.solver.absolute_tolerance;
     options.relative_tolerance = definition.solver.relative_tolerance;
@@ -28,7 +28,7 @@ bool run_comparison(const std::string& input_path, const std::string& nodal_refe
     options.maximum_iterations = definition.solver.maximum_iterations;
     const fuelsim::SteadyResult result = fuelsim::solve_steady(problem,
         {definition.steady_execution.load_steps, definition.steady_execution.cutback_factor,
-            definition.steady_execution.maximum_cutbacks, definition.steady_execution.minimum_load_increment},
+            definition.steady_execution.maximum_cutbacks_per_step, definition.steady_execution.minimum_load_increment},
         options);
     passed = check(result.completed && result.solve.converged, "non-tensor MOOSE mesh solve converged") && passed;
     passed = check(result.aggregate_timing.workspace_setups == 1, "non-tensor load path reuses one PETSc workspace") &&

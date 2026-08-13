@@ -14,13 +14,14 @@ struct MaterialParameterValue final {
     std::string name;
     double value;
 };
+struct MaterialFunctionContext final {
+    double time = 0.0, x = 0.0, y = 0.0, z = 0.0;
+};
 class MaterialParameters final {
   public:
     MaterialParameters() = default;
     explicit MaterialParameters(std::vector<MaterialParameterValue> values);
-    std::size_t size() const noexcept { return _values.size(); }
     double value(const std::string& name) const;
-    double value(std::size_t index) const { return _values.at(index).value; }
     const std::vector<MaterialParameterValue>& values() const noexcept { return _values; }
 
   private:
@@ -28,7 +29,7 @@ class MaterialParameters final {
 };
 struct ThermoelasticFunctionInput final {
     adlite::Scalar temperature;
-    double time, x, y, z;
+    MaterialFunctionContext context;
     const MaterialParameters* parameters;
 };
 struct ThermalPropertyOutput final {
@@ -45,12 +46,12 @@ struct SymmetricTensor3 final {
 };
 struct CreepRateInput final {
     adlite::Scalar equivalent_stress, temperature, equivalent_creep_strain;
-    double time, x, y, z;
+    MaterialFunctionContext context;
     const MaterialParameters* parameters;
 };
 struct PlasticFlowStressInput final {
     adlite::Scalar equivalent_plastic_strain, temperature;
-    double time, x, y, z;
+    MaterialFunctionContext context;
     const MaterialParameters* parameters;
 };
 using ThermalPropertyFunction = void (*)(const ThermoelasticFunctionInput&, ThermalPropertyOutput&);
@@ -99,6 +100,7 @@ struct MaterialFunctionSet final {
     bool has_plasticity() const noexcept { return plasticity.function != nullptr; }
     std::uint64_t signature() const noexcept;
 };
+enum class MaterialFunctionCategory { thermal, elasticity, eigenstrain, creep, plasticity };
 class MaterialFunctionRegistry final {
   public:
     void add_thermal(std::string name, std::vector<MaterialParameterDefinition> parameters,
@@ -111,11 +113,8 @@ class MaterialFunctionRegistry final {
         std::uint32_t version = 1);
     void add_plasticity(std::string name, std::vector<MaterialParameterDefinition> parameters,
         PlasticFlowStressFunction function, std::uint32_t version = 1);
-    const std::vector<MaterialParameterDefinition>& thermal_parameters(const std::string& name) const;
-    const std::vector<MaterialParameterDefinition>& elasticity_parameters(const std::string& name) const;
-    const std::vector<MaterialParameterDefinition>& eigenstrain_parameters(const std::string& name) const;
-    const std::vector<MaterialParameterDefinition>& creep_parameters(const std::string& name) const;
-    const std::vector<MaterialParameterDefinition>& plasticity_parameters(const std::string& name) const;
+    const std::vector<MaterialParameterDefinition>& parameters(
+        MaterialFunctionCategory category, const std::string& name) const;
     ThermalFunctionInstance bind_thermal(const std::string& name, std::vector<MaterialParameterValue> values) const;
     ElasticFunctionInstance bind_elasticity(const std::string& name, std::vector<MaterialParameterValue> values) const;
     EigenstrainFunctionInstance bind_eigenstrain(
@@ -124,19 +123,19 @@ class MaterialFunctionRegistry final {
     PlasticFunctionInstance bind_plasticity(const std::string& name, std::vector<MaterialParameterValue> values) const;
 
   private:
-    enum class Category { thermal, elasticity, eigenstrain, creep, plasticity };
     using Function = std::variant<ThermalPropertyFunction, ElasticPropertyFunction, EigenstrainFunction,
         CreepRateFunction, PlasticFlowStressFunction>;
     struct Registration final {
         std::string name;
         std::uint32_t version;
         std::vector<MaterialParameterDefinition> parameters;
-        Category category;
+        MaterialFunctionCategory category;
         Function function;
     };
     void add_registration(std::string name, std::vector<MaterialParameterDefinition> parameters, std::uint32_t version,
-        Category category, Function function, bool has_function, const char* category_name);
-    const Registration& find_registration(Category category, const std::string& name, const char* category_name) const;
+        MaterialFunctionCategory category, Function function, bool has_function, const char* category_name);
+    const Registration& find_registration(
+        MaterialFunctionCategory category, const std::string& name, const char* category_name) const;
     std::vector<Registration> _registrations;
 };
 MaterialFunctionRegistry make_builtin_material_function_registry();

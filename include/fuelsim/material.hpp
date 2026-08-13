@@ -4,14 +4,11 @@
 #include <memory>
 namespace fuelsim {
 struct ThermoelasticProperties final {
-    double conductivity_inverse_temperature, conductivity_offset, young_modulus, poisson_ratio, thermal_expansion,
-        reference_temperature;
-    double young_modulus_temperature_coefficient = 0.0, poisson_ratio_temperature_coefficient = 0.0,
-           thermal_expansion_temperature_coefficient = 0.0;
-    std::shared_ptr<const MaterialFunctionSet> functions{};
+    std::shared_ptr<const MaterialFunctionSet> functions;
+    double reference_young_modulus;
 };
 struct ActiveThermoelasticProperties final {
-    adlite::Scalar young_modulus, poisson_ratio, thermal_expansion, lame_lambda, shear_modulus;
+    adlite::Scalar lame_lambda, shear_modulus;
 };
 struct AxisymmetricStress final {
     adlite::Scalar rr, zz, hoop, rz;
@@ -29,32 +26,20 @@ AxisymmetricStress rotate_axisymmetric_tensor(const AxisymmetricStress& tensor, 
 class IsotropicThermoelasticMaterial final {
   public:
     explicit IsotropicThermoelasticMaterial(ThermoelasticProperties properties);
-    const ThermoelasticProperties& properties() const noexcept { return _properties; }
-    adlite::Scalar conductivity(
-        const adlite::Scalar& temperature, double time = 0.0, double radius = 0.0, double axial_coordinate = 0.0) const;
-    adlite::Scalar heat_capacity(
-        const adlite::Scalar& temperature, double time = 0.0, double radius = 0.0, double axial_coordinate = 0.0) const;
+    const MaterialFunctionSet& functions() const noexcept { return *_properties.functions; }
+    adlite::Scalar conductivity(const adlite::Scalar& temperature, MaterialFunctionContext context = {}) const;
+    adlite::Scalar heat_capacity(const adlite::Scalar& temperature, MaterialFunctionContext context = {}) const;
     ActiveThermoelasticProperties active_properties(
-        const adlite::Scalar& temperature, double time = 0.0, double radius = 0.0, double axial_coordinate = 0.0) const;
-    AxisymmetricStrain eigenstrain(
-        const adlite::Scalar& temperature, double time = 0.0, double radius = 0.0, double axial_coordinate = 0.0) const;
+        const adlite::Scalar& temperature, MaterialFunctionContext context = {}) const;
+    AxisymmetricStrain eigenstrain_rz(const adlite::Scalar& temperature, MaterialFunctionContext context = {}) const;
+    SymmetricTensor3 eigenstrain(const adlite::Scalar& temperature, MaterialFunctionContext context = {}) const;
     AxisymmetricStress stress(const adlite::Scalar& strain_rr, const adlite::Scalar& strain_zz,
         const adlite::Scalar& strain_hoop, const adlite::Scalar& strain_rz, const adlite::Scalar& temperature,
-        double time = 0.0, double radius = 0.0, double axial_coordinate = 0.0) const;
-    adlite::Scalar conductivity_cartesian(
-        const adlite::Scalar& temperature, double time, double x, double y, double z) const;
-    adlite::Scalar heat_capacity_cartesian(
-        const adlite::Scalar& temperature, double time, double x, double y, double z) const;
-    ActiveThermoelasticProperties active_properties_cartesian(
-        const adlite::Scalar& temperature, double time, double x, double y, double z) const;
-    SymmetricTensor3 eigenstrain_cartesian(
-        const adlite::Scalar& temperature, double time, double x, double y, double z) const;
-    SymmetricTensor3 stress_cartesian(const SymmetricTensor3& strain, const adlite::Scalar& temperature, double time,
-        double x, double y, double z) const;
+        MaterialFunctionContext context = {}) const;
+    SymmetricTensor3 stress(
+        const SymmetricTensor3& strain, const adlite::Scalar& temperature, MaterialFunctionContext context = {}) const;
 
   private:
     ThermoelasticProperties _properties;
-    double _lame_lambda, _shear_modulus;
-    bool _temperature_dependent;
 };
 } // namespace fuelsim

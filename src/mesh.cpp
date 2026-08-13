@@ -112,40 +112,48 @@ UnstructuredHex8Mesh::UnstructuredHex8Mesh(std::vector<CartesianPoint3> nodes, s
             if (node >= _nodes.size()) throw std::out_of_range("UnstructuredHex8Mesh connectivity is out of range");
     }
 }
+RegionMeshMapping::RegionMeshMapping(
+    const UnstructuredMeshMetadata& source, std::size_t node_count, std::int64_t block_id)
+    : _block_id(block_id), _source_node_to_local(node_count, invalid_index),
+      _source_element_to_local(source.element_block_ids().size(), invalid_index) {
+    const bool known_block = std::any_of(source.element_blocks().begin(), source.element_blocks().end(),
+        [block_id](const ElementBlockInfo& block) { return block.id == block_id; });
+    if (!known_block) throw std::invalid_argument("Unknown element block ID: " + std::to_string(block_id));
+    for (std::size_t source_element = 0; source_element < source.element_block_ids().size(); ++source_element) {
+        if (source.element_block_ids()[source_element] != block_id) continue;
+        _source_element_to_local[source_element] = _source_element_ids.size();
+        _source_element_ids.push_back(source_element);
+    }
+    if (_source_element_ids.empty()) throw std::invalid_argument("Element block is empty: " + std::to_string(block_id));
+}
+void RegionMeshMapping::select_nodes(const std::vector<bool>& used_nodes) {
+    if (used_nodes.size() != _source_node_to_local.size())
+        throw std::logic_error("Region node selection has the wrong size");
+    for (std::size_t source_node = 0; source_node < used_nodes.size(); ++source_node) {
+        if (!used_nodes[source_node]) continue;
+        _source_node_to_local[source_node] = _source_node_ids.size();
+        _source_node_ids.push_back(source_node);
+    }
+}
+Hex8RegionMesh::Hex8RegionMesh(const UnstructuredHex8Mesh& source, std::int64_t block_id)
+    : RegionMeshMapping(source, source.nodes().size(), block_id) {}
 Hex8RegionMesh Hex8RegionMesh::from_unstructured_block(
     const UnstructuredHex8Mesh& source, const std::string& block_name) {
     return from_unstructured_block(source, source.element_block(block_name).id);
 }
 Hex8RegionMesh Hex8RegionMesh::from_unstructured_block(const UnstructuredHex8Mesh& source, std::int64_t block_id) {
-    const bool known_block = std::any_of(source.element_blocks().begin(), source.element_blocks().end(),
-        [block_id](const ElementBlockInfo& block) { return block.id == block_id; });
-    if (!known_block) throw std::invalid_argument("Unknown element block ID: " + std::to_string(block_id));
-    const std::size_t invalid = std::numeric_limits<std::size_t>::max();
-    Hex8RegionMesh mesh;
-    mesh._block_id = block_id;
-    mesh._source_node_to_local.assign(source.nodes().size(), invalid);
-    mesh._source_element_to_local.assign(source.elements().size(), invalid);
+    Hex8RegionMesh mesh(source, block_id);
     std::vector<bool> used_nodes(source.nodes().size(), false);
-    for (std::size_t source_element = 0; source_element < source.elements().size(); ++source_element) {
-        if (source.element_block_ids()[source_element] != block_id) continue;
-        mesh._source_element_to_local[source_element] = mesh._source_element_ids.size();
-        mesh._source_element_ids.push_back(source_element);
+    for (const std::size_t source_element : mesh._source_element_ids)
         for (std::size_t node : source.elements()[source_element].nodes) used_nodes[node] = true;
-    }
-    if (mesh._source_element_ids.empty())
-        throw std::invalid_argument("Element block is empty: " + std::to_string(block_id));
-    for (std::size_t source_node = 0; source_node < source.nodes().size(); ++source_node) {
-        if (!used_nodes[source_node]) continue;
-        mesh._source_node_to_local[source_node] = mesh._nodes.size();
-        mesh._source_node_ids.push_back(source_node);
-        mesh._nodes.push_back(source.nodes()[source_node]);
-    }
+    mesh.select_nodes(used_nodes);
+    for (const std::size_t source_node : mesh._source_node_ids) mesh._nodes.push_back(source.nodes()[source_node]);
     mesh._elements.reserve(mesh._source_element_ids.size());
     for (std::size_t source_element : mesh._source_element_ids) {
         Hex8Element element{};
         for (std::size_t node = 0; node < element.nodes.size(); ++node) {
             const std::size_t local = mesh._source_node_to_local.at(source.elements()[source_element].nodes[node]);
-            if (local == invalid) throw std::logic_error("Hex8RegionMesh connectivity crosses element blocks");
+            if (local == invalid_index) throw std::logic_error("Hex8RegionMesh connectivity crosses element blocks");
             element.nodes[node] = local;
         }
         mesh._elements.push_back(element);
@@ -164,16 +172,16 @@ Hex8RegionBoundary Hex8RegionMesh::map_side_set(
         {{0, 3, 2, 1}},
         {{4, 5, 6, 7}},
     }};
-    const std::size_t invalid = std::numeric_limits<std::size_t>::max();
     Hex8RegionBoundary result;
     for (const ElementSide& side : source.side_set(side_set_name).sides) {
         const std::size_t local_element = _source_element_to_local.at(side.element);
-        if (local_element == invalid) throw std::invalid_argument("Side set is outside its region: " + side_set_name);
+        if (local_element == invalid_index)
+            throw std::invalid_argument("Side set is outside its region: " + side_set_name);
         Quad4FaceElement face{{}, local_element, side.local_side};
         for (std::size_t node = 0; node < face.nodes.size(); ++node) {
             const std::size_t source_node = source.elements()[side.element].nodes[face_nodes[side.local_side][node]],
                               local_node = _source_node_to_local.at(source_node);
-            if (local_node == invalid) throw std::logic_error("Hex8RegionMesh side-set node mapping failed");
+            if (local_node == invalid_index) throw std::logic_error("Hex8RegionMesh side-set node mapping failed");
             face.nodes[node] = local_node;
             result.nodes.push_back(local_node);
         }
@@ -184,39 +192,24 @@ Hex8RegionBoundary Hex8RegionMesh::map_side_set(
     result.nodes.erase(std::unique(result.nodes.begin(), result.nodes.end()), result.nodes.end());
     return result;
 }
+RegionMesh::RegionMesh(const UnstructuredQuad4Mesh& source, std::int64_t block_id)
+    : RegionMeshMapping(source, source.nodes().size(), block_id) {}
 RegionMesh RegionMesh::from_unstructured_block(const UnstructuredQuad4Mesh& source, const std::string& block_name) {
     return from_unstructured_block(source, source.element_block(block_name).id);
 }
 RegionMesh RegionMesh::from_unstructured_block(const UnstructuredQuad4Mesh& source, std::int64_t block_id) {
-    const bool known_block = std::any_of(source.element_blocks().begin(), source.element_blocks().end(),
-        [block_id](const ElementBlockInfo& block) { return block.id == block_id; });
-    if (!known_block) throw std::invalid_argument("Unknown element block ID: " + std::to_string(block_id));
-    const std::size_t invalid = std::numeric_limits<std::size_t>::max();
-    RegionMesh mesh;
-    mesh._block_id = block_id;
-    mesh._source_node_to_local.assign(source.nodes().size(), invalid);
-    mesh._source_element_to_local.assign(source.elements().size(), invalid);
+    RegionMesh mesh(source, block_id);
     std::vector<bool> used_nodes(source.nodes().size(), false);
-    for (std::size_t source_element = 0; source_element < source.elements().size(); ++source_element) {
-        if (source.element_block_ids()[source_element] != block_id) continue;
-        mesh._source_element_to_local[source_element] = mesh._source_element_ids.size();
-        mesh._source_element_ids.push_back(source_element);
+    for (const std::size_t source_element : mesh._source_element_ids)
         for (std::size_t node : source.elements()[source_element].nodes) used_nodes[node] = true;
-    }
-    if (mesh._source_element_ids.empty())
-        throw std::invalid_argument("Element block is empty: " + std::to_string(block_id));
-    for (std::size_t source_node = 0; source_node < source.nodes().size(); ++source_node) {
-        if (!used_nodes[source_node]) continue;
-        mesh._source_node_to_local[source_node] = mesh._nodes.size();
-        mesh._source_node_ids.push_back(source_node);
-        mesh._nodes.push_back(source.nodes()[source_node]);
-    }
+    mesh.select_nodes(used_nodes);
+    for (const std::size_t source_node : mesh._source_node_ids) mesh._nodes.push_back(source.nodes()[source_node]);
     mesh._elements.reserve(mesh._source_element_ids.size());
     for (std::size_t source_element : mesh._source_element_ids) {
         Quad4Element element{};
         for (std::size_t node = 0; node < element.nodes.size(); ++node) {
             const std::size_t local = mesh._source_node_to_local.at(source.elements()[source_element].nodes[node]);
-            if (local == invalid) throw std::logic_error("RegionMesh connectivity crosses element blocks");
+            if (local == invalid_index) throw std::logic_error("RegionMesh connectivity crosses element blocks");
             element.nodes[node] = local;
         }
         mesh._elements.push_back(element);
@@ -226,21 +219,21 @@ RegionMesh RegionMesh::from_unstructured_block(const UnstructuredQuad4Mesh& sour
 RegionBoundary RegionMesh::map_side_set(const UnstructuredQuad4Mesh& source, const std::string& side_set_name) const {
     if (source.side_set_block_id(side_set_name) != _block_id)
         throw std::invalid_argument("Side set belongs to an unexpected block: " + side_set_name);
-    const std::size_t invalid = std::numeric_limits<std::size_t>::max();
     std::vector<Line2BoundaryElement> elements;
     std::vector<RzPoint> adjacent_centroids;
     const SideSet& side_set = source.side_set(side_set_name);
     elements.reserve(side_set.sides.size());
     adjacent_centroids.reserve(side_set.sides.size());
     for (const ElementSide& side : side_set.sides) {
-        if (_source_element_to_local.at(side.element) == invalid)
+        if (_source_element_to_local.at(side.element) == invalid_index)
             throw std::invalid_argument("Side set is outside its region: " + side_set_name);
         const Quad4Element& source_element = source.elements().at(side.element);
         const std::size_t first_source = source_element.nodes.at(side.local_side),
                           second_source = source_element.nodes.at((side.local_side + 1U) % 4U),
                           first = _source_node_to_local.at(first_source),
                           second = _source_node_to_local.at(second_source);
-        if (first == invalid || second == invalid) throw std::logic_error("RegionMesh side-set node mapping failed");
+        if (first == invalid_index || second == invalid_index)
+            throw std::logic_error("RegionMesh side-set node mapping failed");
         elements.push_back({{{first, second}}});
         RzPoint centroid{0.0, 0.0};
         for (std::size_t node : source_element.nodes) {

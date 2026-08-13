@@ -71,23 +71,22 @@ std::string normalized_value(const std::string& raw, const std::string& path, st
 } // namespace
 const InputEntry& InputSection::entry(const std::string& key) const {
     const auto found = std::find_if(
-        _entries.begin(), _entries.end(), [&key](const InputEntry& candidate) { return candidate.key == key; });
-    if (found == _entries.end())
-        throw std::invalid_argument("Input section [" + _path + "] is missing required key '" + key + "'");
+        entries.begin(), entries.end(), [&key](const InputEntry& candidate) { return candidate.key == key; });
+    if (found == entries.end())
+        throw std::invalid_argument("Input section [" + path + "] is missing required key '" + key + "'");
     return *found;
 }
 const InputSection& InputDocument::section(const std::string& path) const {
-    const auto found = std::find_if(_sections.begin(), _sections.end(),
-        [&path](const InputSection& candidate) { return candidate.path() == path; });
-    if (found == _sections.end())
-        throw std::invalid_argument(_source_path + ": missing required section [" + path + "]");
+    const auto found = std::find_if(
+        sections.begin(), sections.end(), [&path](const InputSection& candidate) { return candidate.path == path; });
+    if (found == sections.end()) throw std::invalid_argument(source_path + ": missing required section [" + path + "]");
     return *found;
 }
 InputDocument parse_input_file(const std::string& path) {
     std::ifstream input(path);
     if (!input) throw std::runtime_error("Could not open fuelsim input file '" + path + "'");
     InputDocument document;
-    document._source_path = path;
+    document.source_path = path;
     std::vector<std::string> stack;
     InputSection* current = nullptr;
     std::string raw_line;
@@ -107,8 +106,8 @@ InputDocument parse_input_file(const std::string& path) {
                 } else {
                     const std::string parent_path = section_path(stack);
                     current = nullptr;
-                    for (InputSection& section : document._sections) {
-                        if (section.path() == parent_path) {
+                    for (InputSection& section : document.sections) {
+                        if (section.path == parent_path) {
                             current = &section;
                             break;
                         }
@@ -120,13 +119,13 @@ InputDocument parse_input_file(const std::string& path) {
             if (!valid_name(name)) input_error(path, line_number, "invalid section name '" + name + "'");
             stack.push_back(name);
             const std::string full_path = section_path(stack);
-            const bool duplicate = std::any_of(document._sections.begin(), document._sections.end(),
-                [&full_path](const InputSection& section) { return section.path() == full_path; });
+            const bool duplicate = std::any_of(document.sections.begin(), document.sections.end(),
+                [&full_path](const InputSection& section) { return section.path == full_path; });
             if (duplicate) input_error(path, line_number, "duplicate section [" + full_path + "]");
-            document._sections.push_back({});
-            current = &document._sections.back();
-            current->_path = full_path;
-            current->_line = line_number;
+            document.sections.push_back({});
+            current = &document.sections.back();
+            current->path = full_path;
+            current->line = line_number;
             continue;
         }
         if (current == nullptr) input_error(path, line_number, "key-value entry must be inside a section");
@@ -134,51 +133,51 @@ InputDocument parse_input_file(const std::string& path) {
         if (equals == std::string::npos) input_error(path, line_number, "expected a key-value entry containing '='");
         const std::string key = trim(line.substr(0, equals));
         if (!valid_name(key)) input_error(path, line_number, "invalid key '" + key + "'");
-        const bool duplicate = std::any_of(current->_entries.begin(), current->_entries.end(),
+        const bool duplicate = std::any_of(current->entries.begin(), current->entries.end(),
             [&key](const InputEntry& entry) { return entry.key == key; });
-        if (duplicate) input_error(path, line_number, "duplicate key '" + key + "' in [" + current->_path + "]");
-        current->_entries.push_back({key, normalized_value(line.substr(equals + 1), path, line_number), line_number});
+        if (duplicate) input_error(path, line_number, "duplicate key '" + key + "' in [" + current->path + "]");
+        current->entries.push_back({key, normalized_value(line.substr(equals + 1), path, line_number), line_number});
     }
     if (!input.eof()) throw std::runtime_error("Could not read fuelsim input file '" + path + "'");
     if (!stack.empty())
         input_error(path, line_number, "section [" + section_path(stack) + "] is missing its closing []");
-    if (document._sections.empty()) throw std::invalid_argument(path + ": input file contains no sections");
+    if (document.sections.empty()) throw std::invalid_argument(path + ": input file contains no sections");
     return document;
 }
 namespace {
 [[noreturn]] void value_error(const InputDocument& document, const InputEntry& entry, const std::string& message) {
-    throw std::invalid_argument(document.source_path() + ":" + std::to_string(entry.line) + ": " + message);
+    throw std::invalid_argument(document.source_path + ":" + std::to_string(entry.line) + ": " + message);
 }
 const InputEntry* find_entry(const InputSection& section, const std::string& key) {
-    const auto found = std::find_if(section.entries().begin(), section.entries().end(),
-        [&key](const InputEntry& entry) { return entry.key == key; });
-    return found == section.entries().end() ? nullptr : &*found;
+    const auto found = std::find_if(
+        section.entries.begin(), section.entries.end(), [&key](const InputEntry& entry) { return entry.key == key; });
+    return found == section.entries.end() ? nullptr : &*found;
 }
 const InputEntry& required_entry(const InputDocument& document, const InputSection& section, const std::string& key) {
     const InputEntry* entry = find_entry(section, key);
     if (entry == nullptr)
-        throw std::invalid_argument(document.source_path() + ":" + std::to_string(section.line()) + ": section [" +
-                                    section.path() + "] is missing required key '" + key + "'");
+        throw std::invalid_argument(document.source_path + ":" + std::to_string(section.line) + ": section [" +
+                                    section.path + "] is missing required key '" + key + "'");
     return *entry;
 }
 const InputSection* find_section(const InputDocument& document, const std::string& path) {
-    const auto found = std::find_if(document.sections().begin(), document.sections().end(),
-        [&path](const InputSection& section) { return section.path() == path; });
-    return found == document.sections().end() ? nullptr : &*found;
+    const auto found = std::find_if(document.sections.begin(), document.sections.end(),
+        [&path](const InputSection& section) { return section.path == path; });
+    return found == document.sections.end() ? nullptr : &*found;
 }
 std::vector<const InputSection*> direct_children(const InputDocument& document, const std::string& parent) {
     std::vector<const InputSection*> result;
     const std::string prefix = parent + "/";
-    for (const InputSection& section : document.sections()) {
-        if (section.path().compare(0, prefix.size(), prefix) != 0) continue;
-        const std::string suffix = section.path().substr(prefix.size());
+    for (const InputSection& section : document.sections) {
+        if (section.path.compare(0, prefix.size(), prefix) != 0) continue;
+        const std::string suffix = section.path.substr(prefix.size());
         if (suffix.find('/') == std::string::npos) result.push_back(&section);
     }
     return result;
 }
 std::string leaf_name(const InputSection& section) {
-    const std::size_t separator = section.path().find_last_of('/');
-    return separator == std::string::npos ? section.path() : section.path().substr(separator + 1);
+    const std::size_t separator = section.path.find_last_of('/');
+    return separator == std::string::npos ? section.path : section.path.substr(separator + 1);
 }
 bool is_direct_child_path(const std::string& path, const std::string& prefix) {
     return path.compare(0, prefix.size(), prefix) == 0 && path.find('/', prefix.size()) == std::string::npos;
@@ -186,9 +185,9 @@ bool is_direct_child_path(const std::string& path, const std::string& prefix) {
 void validate_sections(const InputDocument& document) {
     const std::vector<std::string> fixed = {"Case", "Mesh", "TimeFunctions", "Materials", "Regions", "Contact",
         "BoundaryConditions", "Executioner", "Solver", "Outputs"};
-    for (const InputSection& section : document.sections()) {
-        if (std::find(fixed.begin(), fixed.end(), section.path()) != fixed.end()) continue;
-        const std::string& path = section.path();
+    for (const InputSection& section : document.sections) {
+        if (std::find(fixed.begin(), fixed.end(), section.path) != fixed.end()) continue;
+        const std::string& path = section.path;
         const bool region = is_direct_child_path(path, "Regions/"),
                    boundary = is_direct_child_path(path, "BoundaryConditions/"),
                    function = is_direct_child_path(path, "TimeFunctions/");
@@ -224,14 +223,14 @@ void validate_sections(const InputDocument& document) {
         }
         if (!region && !boundary && !function && !contact && !material)
             throw std::invalid_argument(
-                document.source_path() + ":" + std::to_string(section.line()) + ": unknown section [" + path + "]");
+                document.source_path + ":" + std::to_string(section.line) + ": unknown section [" + path + "]");
     }
 }
 void validate_keys(
     const InputDocument& document, const InputSection& section, const std::vector<std::string>& allowed) {
-    for (const InputEntry& entry : section.entries())
+    for (const InputEntry& entry : section.entries)
         if (std::find(allowed.begin(), allowed.end(), entry.key) == allowed.end())
-            value_error(document, entry, "unknown key '" + entry.key + "' in [" + section.path() + "]");
+            value_error(document, entry, "unknown key '" + entry.key + "' in [" + section.path + "]");
 }
 std::string read_string(const InputDocument& document, const InputSection& section, const std::string& key) {
     return required_entry(document, section, key).value;
@@ -340,48 +339,53 @@ std::vector<ParsedMaterial> read_materials(const InputDocument& document, const 
     for (const InputSection* material_section : direct_children(document, "Materials")) {
         validate_keys(document, *material_section, {});
         const std::string material_name = leaf_name(*material_section);
-        const std::string base = material_section->path();
+        const std::string base = material_section->path;
         const InputSection* thermal = find_section(document, base + "/thermal");
         const InputSection* elasticity = find_section(document, base + "/elasticity");
         if (thermal == nullptr || elasticity == nullptr)
-            throw std::invalid_argument(document.source_path() + ":" + std::to_string(material_section->line()) +
+            throw std::invalid_argument(document.source_path + ":" + std::to_string(material_section->line) +
                                         ": material [" + base + "] requires [thermal] and [elasticity]");
         auto functions = std::make_shared<MaterialFunctionSet>();
         functions->name = material_name;
         try {
             const std::string thermal_name = read_string(document, *thermal, "function");
             functions->thermal = registry.bind_thermal(
-                thermal_name, read_material_parameters(document, *thermal, registry.thermal_parameters(thermal_name)));
+                thermal_name, read_material_parameters(document, *thermal,
+                                  registry.parameters(MaterialFunctionCategory::thermal, thermal_name)));
             const std::string elasticity_name = read_string(document, *elasticity, "function");
-            functions->elasticity = registry.bind_elasticity(elasticity_name,
-                read_material_parameters(document, *elasticity, registry.elasticity_parameters(elasticity_name)));
+            functions->elasticity = registry.bind_elasticity(
+                elasticity_name, read_material_parameters(document, *elasticity,
+                                     registry.parameters(MaterialFunctionCategory::elasticity, elasticity_name)));
             const InputSection* eigenstrains = find_section(document, base + "/eigenstrains");
             if (eigenstrains != nullptr) {
                 validate_keys(document, *eigenstrains, {});
-                for (const InputSection* section : direct_children(document, eigenstrains->path())) {
+                for (const InputSection* section : direct_children(document, eigenstrains->path)) {
                     const std::string function_name = read_string(document, *section, "function");
                     functions->eigenstrains.push_back(registry.bind_eigenstrain(leaf_name(*section), function_name,
-                        read_material_parameters(document, *section, registry.eigenstrain_parameters(function_name))));
+                        read_material_parameters(document, *section,
+                            registry.parameters(MaterialFunctionCategory::eigenstrain, function_name))));
                 }
             }
             const InputSection* creep = find_section(document, base + "/creep");
             if (creep != nullptr) {
                 const std::string function_name = read_string(document, *creep, "function");
-                functions->creep = registry.bind_creep(function_name,
-                    read_material_parameters(document, *creep, registry.creep_parameters(function_name)));
+                functions->creep = registry.bind_creep(
+                    function_name, read_material_parameters(document, *creep,
+                                       registry.parameters(MaterialFunctionCategory::creep, function_name)));
             }
             const InputSection* plasticity = find_section(document, base + "/plasticity");
             if (plasticity != nullptr) {
                 const std::string function_name = read_string(document, *plasticity, "function");
-                functions->plasticity = registry.bind_plasticity(function_name,
-                    read_material_parameters(document, *plasticity, registry.plasticity_parameters(function_name)));
+                functions->plasticity = registry.bind_plasticity(
+                    function_name, read_material_parameters(document, *plasticity,
+                                       registry.parameters(MaterialFunctionCategory::plasticity, function_name)));
             }
         } catch (const std::invalid_argument& error) {
-            throw std::invalid_argument(document.source_path() + ": material '" + material_name + "': " + error.what());
+            throw std::invalid_argument(document.source_path + ": material '" + material_name + "': " + error.what());
         }
         result.push_back({material_name, std::move(functions)});
     }
-    if (result.empty()) throw std::invalid_argument(document.source_path() + ": [Materials] requires a child material");
+    if (result.empty()) throw std::invalid_argument(document.source_path + ": [Materials] requires a child material");
     return result;
 }
 Field parse_field(const InputDocument& document, const InputEntry& entry) {
@@ -402,7 +406,7 @@ std::string read_optional_path(const std::string& input_path, const InputSection
     const std::string value = read_optional_string(section, key, {});
     return value.empty() ? std::string{} : resolved_path(input_path, value);
 }
-CaseRegionDefinition read_region(
+RegionDefinition read_region(
     const InputDocument& document, const InputSection& section, const std::vector<ParsedMaterial>& materials) {
     validate_keys(document, section,
         {"block", "block_id", "material", "strain", "initial_temperature", "volumetric_heat_source",
@@ -410,8 +414,8 @@ CaseRegionDefinition read_region(
     const InputEntry* block = find_entry(section, "block");
     const InputEntry* block_id = find_entry(section, "block_id");
     if ((block == nullptr) == (block_id == nullptr))
-        throw std::invalid_argument(document.source_path() + ":" + std::to_string(section.line()) + ": region [" +
-                                    section.path() + "] requires exactly one of 'block' or 'block_id'");
+        throw std::invalid_argument(document.source_path + ":" + std::to_string(section.line) + ": region [" +
+                                    section.path + "] requires exactly one of 'block' or 'block_id'");
     std::int64_t resolved_block_id = -1;
     if (block_id != nullptr) {
         const std::size_t value = parse_size(document, *block_id);
@@ -427,77 +431,32 @@ CaseRegionDefinition read_region(
     const double initial_temperature = read_double(document, section, "initial_temperature");
     ElasticPropertyOutput initial_elasticity{};
     const ElasticFunctionInstance& elasticity = material->functions->elasticity;
-    elasticity.function({initial_temperature, 0.0, 0.0, 0.0, 0.0, &elasticity.parameters}, initial_elasticity);
+    elasticity.function({initial_temperature, {}, &elasticity.parameters}, initial_elasticity);
     if (!std::isfinite(initial_elasticity.young_modulus.value()) || !(initial_elasticity.young_modulus.value() > 0.0))
         value_error(document, section.entry("material"),
             "material elasticity must produce positive young_modulus at initial_temperature");
-    ThermoelasticProperties thermoelastic{};
-    thermoelastic.young_modulus = initial_elasticity.young_modulus.value();
-    thermoelastic.poisson_ratio = initial_elasticity.poisson_ratio.value();
-    thermoelastic.functions = material->functions;
-    CaseRegionDefinition result{};
-    result.spatial = {leaf_name(section), block == nullptr ? std::string{} : block->value, std::move(thermoelastic),
-        read_double(document, section, "volumetric_heat_source"), initial_temperature, resolved_block_id};
-    result.spatial.heat_source_function = read_optional_string(section, "heat_source_function", {});
+    ThermoelasticProperties thermoelastic{material->functions, initial_elasticity.young_modulus.value()};
+    RegionDefinition result = {leaf_name(section), block == nullptr ? std::string{} : block->value,
+        std::move(thermoelastic), read_double(document, section, "volumetric_heat_source"), initial_temperature,
+        resolved_block_id};
+    result.heat_source_function = read_optional_string(section, "heat_source_function", {});
     const InputEntry strain = required_entry(document, section, "strain");
     if (strain.value == "small")
-        result.spatial.strain_formulation = StrainFormulation::small;
+        result.strain_formulation = StrainFormulation::small;
     else if (strain.value == "finite")
-        result.spatial.strain_formulation = StrainFormulation::finite;
+        result.strain_formulation = StrainFormulation::finite;
     else
         value_error(document, strain, "unknown strain formulation '" + strain.value + "'");
-    InelasticBehavior behavior = InelasticBehavior::elastic;
-    if (material->functions->has_creep() && material->functions->has_plasticity())
-        behavior = InelasticBehavior::norton_creep_j2_plasticity;
-    else if (material->functions->has_creep())
-        behavior = InelasticBehavior::norton_creep;
-    else if (material->functions->has_plasticity())
-        behavior = InelasticBehavior::j2_plasticity;
-    NortonCreepProperties creep_properties{0.0, 1.0, 1.0};
-    if (material->functions->has_creep() && (material->functions->creep.name == "norton" ||
-                                                material->functions->creep.name == "linear_temperature_norton")) {
-        const MaterialParameters& parameters = material->functions->creep.parameters;
-        creep_properties.coefficient = parameters.value("coefficient");
-        creep_properties.reference_stress = parameters.value("reference_stress");
-        creep_properties.stress_exponent = parameters.value("stress_exponent");
-        if (material->functions->creep.name == "linear_temperature_norton") {
-            creep_properties.coefficient_temperature_coefficient =
-                parameters.value("coefficient_temperature_coefficient");
-            creep_properties.reference_stress_temperature_coefficient =
-                parameters.value("reference_stress_temperature_coefficient");
-            creep_properties.stress_exponent_temperature_coefficient =
-                parameters.value("stress_exponent_temperature_coefficient");
-            result.spatial.material.reference_temperature = parameters.value("reference_temperature");
-        }
-    }
-    J2PlasticityProperties plasticity_properties{1.0, 0.0};
-    if (material->functions->has_plasticity() &&
-        (material->functions->plasticity.name == "linear_isotropic_hardening" ||
-            material->functions->plasticity.name == "linear_temperature_isotropic_hardening")) {
-        const MaterialParameters& parameters = material->functions->plasticity.parameters;
-        plasticity_properties.yield_stress = parameters.value("yield_stress");
-        plasticity_properties.isotropic_hardening_modulus = parameters.value("hardening_modulus");
-        if (material->functions->plasticity.name == "linear_temperature_isotropic_hardening") {
-            plasticity_properties.yield_stress_temperature_coefficient =
-                parameters.value("yield_stress_temperature_coefficient");
-            plasticity_properties.hardening_temperature_coefficient =
-                parameters.value("hardening_temperature_coefficient");
-            const double reference_temperature = parameters.value("reference_temperature");
-            if (result.spatial.material.reference_temperature == 0.0)
-                result.spatial.material.reference_temperature = reference_temperature;
-        }
-    }
-    result.transient_material = {1.0, 1.0, behavior, creep_properties, plasticity_properties};
     return result;
 }
 ContactDefinition read_contact(const InputDocument& document, const InputSection& section) {
     validate_keys(document, section, {"primary", "secondary"});
-    const std::string base = section.path();
+    const std::string base = section.path;
     const InputSection* thermal = find_section(document, base + "/thermal");
     const InputSection* mechanical = find_section(document, base + "/mechanical");
     if (thermal == nullptr && mechanical == nullptr)
-        throw std::invalid_argument(document.source_path() + ":" + std::to_string(section.line()) + ": contact [" +
-                                    base + "] requires [thermal] or [mechanical]");
+        throw std::invalid_argument(document.source_path + ":" + std::to_string(section.line) + ": contact [" + base +
+                                    "] requires [thermal] or [mechanical]");
     ContactDefinition result{leaf_name(section), read_string(document, section, "primary"),
         read_string(document, section, "secondary"), thermal != nullptr, mechanical != nullptr, 1.0, 1.0, 1.0, 0.0};
     if (thermal != nullptr) {
@@ -641,7 +600,8 @@ void read_time_functions(const InputDocument& document, FuelSimCaseDefinition& r
             if (read_string(document, *section, "type") != "piecewise_linear")
                 value_error(
                     document, section->entry("type"), "only time-function type 'piecewise_linear' is supported");
-            result.time_tables.emplace_back(leaf_name(*section), parse_double_list(document, section->entry("times")),
+            result.spatial.time_tables.emplace_back(leaf_name(*section),
+                parse_double_list(document, section->entry("times")),
                 parse_double_list(document, section->entry("values")));
         }
     }
@@ -651,37 +611,37 @@ void read_regions(const InputDocument& document, const std::string& path, const 
     const InputSection& regions = document.section("Regions");
     validate_keys(document, regions, {});
     for (const InputSection* section : direct_children(document, "Regions"))
-        result.regions.push_back(read_region(document, *section, materials));
-    if (result.regions.empty()) throw std::invalid_argument(path + ": [Regions] requires a child region");
+        result.spatial.regions.push_back(read_region(document, *section, materials));
+    if (result.spatial.regions.empty()) throw std::invalid_argument(path + ": [Regions] requires a child region");
 }
 void read_contacts(const InputDocument& document, FuelSimCaseDefinition& result) {
     const InputSection& contacts = document.section("Contact");
     validate_keys(document, contacts, {});
     for (const InputSection* section : direct_children(document, "Contact"))
-        result.contacts.push_back(read_contact(document, *section));
+        result.spatial.contacts.push_back(read_contact(document, *section));
 }
 void read_boundary_conditions(const InputDocument& document, FuelSimCaseDefinition& result) {
     const InputSection& boundary_conditions = document.section("BoundaryConditions");
     validate_keys(document, boundary_conditions, {});
     for (const InputSection* section : direct_children(document, "BoundaryConditions"))
-        result.boundary_conditions.push_back(read_boundary_condition(document, *section));
+        result.spatial.boundary_conditions.push_back(read_boundary_condition(document, *section));
 }
 void validate_time_function_references(const std::string& path, const FuelSimCaseDefinition& result) {
     const auto require_function = [&](const std::string& name, const std::string& owner) {
         if (name.empty()) return;
-        const auto found = std::find_if(result.time_tables.begin(), result.time_tables.end(),
+        const auto found = std::find_if(result.spatial.time_tables.begin(), result.spatial.time_tables.end(),
             [&name](const PiecewiseLinearTimeTable& table) { return table.name() == name; });
-        if (found == result.time_tables.end())
+        if (found == result.spatial.time_tables.end())
             throw std::invalid_argument(path + ": " + owner + " references unknown time function '" + name + "'");
     };
-    for (const CaseRegionDefinition& region : result.regions)
-        require_function(region.spatial.heat_source_function, "region '" + region.spatial.name + "'");
-    for (const BoundaryConditionDefinition& boundary : result.boundary_conditions) {
+    for (const RegionDefinition& region : result.spatial.regions)
+        require_function(region.heat_source_function, "region '" + region.name + "'");
+    for (const BoundaryConditionDefinition& boundary : result.spatial.boundary_conditions) {
         require_function(boundary.function, "boundary condition '" + boundary.name + "'");
         require_function(boundary.coefficient_function, "boundary condition '" + boundary.name + "'");
         require_function(boundary.ambient_temperature_function, "boundary condition '" + boundary.name + "'");
     }
-    if (result.problem == CaseProblem::steady && !result.time_tables.empty())
+    if (result.problem == CaseProblem::steady && !result.spatial.time_tables.empty())
         throw std::invalid_argument(path + ": time functions are only valid for transient cases");
 }
 void read_executioner(const InputDocument& document, const std::string& path, FuelSimCaseDefinition& result) {
@@ -694,7 +654,8 @@ void read_executioner(const InputDocument& document, const std::string& path, Fu
             value_error(document, executioner.entry("type"), "problem='steady' requires type='steady'");
         result.steady_execution.load_steps = read_size(document, executioner, "load_steps");
         result.steady_execution.cutback_factor = read_optional_double(document, executioner, "cutback_factor", 0.5);
-        result.steady_execution.maximum_cutbacks = read_optional_size(document, executioner, "maximum_cutbacks", 12);
+        result.steady_execution.maximum_cutbacks_per_step =
+            read_optional_size(document, executioner, "maximum_cutbacks", 12);
         result.steady_execution.minimum_load_increment =
             read_optional_double(document, executioner, "minimum_load_increment", 1.0e-6);
     } else {
@@ -712,7 +673,7 @@ void read_executioner(const InputDocument& document, const std::string& path, Fu
             read_double(document, executioner, "maximum_time_step"),
             read_double(document, executioner, "growth_factor"), read_double(document, executioner, "cutback_factor"),
             read_size(document, executioner, "maximum_cutbacks"), read_double(document, executioner, "load_ramp_time"),
-            {}, read_optional_size(document, executioner, "target_nonlinear_iterations", 0),
+            read_optional_size(document, executioner, "target_nonlinear_iterations", 0),
             read_optional_size(document, executioner, "iteration_window", 0),
             read_optional_double(document, executioner, "time_error_relative_tolerance", 0.0),
             read_optional_double(document, executioner, "temperature_time_absolute_tolerance", 1.0e-3),
@@ -720,7 +681,7 @@ void read_executioner(const InputDocument& document, const std::string& path, Fu
             read_optional_double(document, executioner, "time_error_safety_factor", 0.9),
             read_optional_double(document, executioner, "strain_history_time_absolute_tolerance", 1.0e-10),
             read_optional_double(document, executioner, "stress_history_time_absolute_tolerance", 1.0)};
-        result.transient_execution.restart_file = read_optional_path(path, executioner, "restart");
+        result.restart_file = read_optional_path(path, executioner, "restart");
     }
 }
 void read_solver(const InputDocument& document, const std::string& path, FuelSimCaseDefinition& result) {
@@ -730,29 +691,43 @@ void read_solver(const InputDocument& document, const std::string& path, FuelSim
             "preconditioner", "linear_relative_tolerance", "maximum_linear_iterations", "backtracking_fallback",
             "field_residual_scaling", "residual_reduction_tolerance", "temperature_residual_absolute_tolerance",
             "mechanical_residual_absolute_tolerance", "temperature_residual_scale", "mechanical_residual_scale"});
-    result.solver = {read_optional_double(document, solver, "absolute_tolerance", 1.0e-8),
-        read_optional_double(document, solver, "relative_tolerance", 1.0e-10),
-        read_optional_double(document, solver, "step_tolerance", 1.0e-12),
-        read_optional_int(document, solver, "maximum_iterations", 40),
-        read_optional_string(solver, "linear_solver", "automatic"),
-        read_optional_string(solver, "preconditioner", "automatic"),
-        read_optional_double(document, solver, "linear_relative_tolerance", 1.0e-8),
-        read_optional_int(document, solver, "maximum_linear_iterations", 500),
-        read_optional_bool(document, solver, "backtracking_fallback", true),
-        read_optional_bool(document, solver, "field_residual_scaling", false),
-        read_optional_double(document, solver, "residual_reduction_tolerance", 1.0e-6),
-        read_optional_double(document, solver, "temperature_residual_absolute_tolerance", 1.0e-8),
-        read_optional_double(document, solver, "mechanical_residual_absolute_tolerance", 1.0e-4),
-        read_optional_double(document, solver, "temperature_residual_scale", 0.0),
-        read_optional_double(document, solver, "mechanical_residual_scale", 0.0)};
-    if (result.solver.linear_solver != "automatic" && result.solver.linear_solver != "direct" &&
-        result.solver.linear_solver != "gmres")
+    result.solver.absolute_tolerance = read_optional_double(document, solver, "absolute_tolerance", 1.0e-8);
+    result.solver.relative_tolerance = read_optional_double(document, solver, "relative_tolerance", 1.0e-10);
+    result.solver.step_tolerance = read_optional_double(document, solver, "step_tolerance", 1.0e-12);
+    result.solver.maximum_iterations = read_optional_int(document, solver, "maximum_iterations", 40);
+    const std::string linear_solver = read_optional_string(solver, "linear_solver", "automatic");
+    if (linear_solver == "direct")
+        result.solver.linear_solver = SolverOptions::LinearSolver::direct;
+    else if (linear_solver == "gmres")
+        result.solver.linear_solver = SolverOptions::LinearSolver::gmres;
+    else if (linear_solver != "automatic")
         throw std::invalid_argument(path + ": linear_solver must be automatic, direct, or gmres");
-    if (result.solver.preconditioner != "automatic" && result.solver.preconditioner != "lu" &&
-        result.solver.preconditioner != "block_jacobi" && result.solver.preconditioner != "field_split" &&
-        result.solver.preconditioner != "hypre")
+    const std::string preconditioner = read_optional_string(solver, "preconditioner", "automatic");
+    if (preconditioner == "lu")
+        result.solver.preconditioner = SolverOptions::Preconditioner::lu;
+    else if (preconditioner == "block_jacobi")
+        result.solver.preconditioner = SolverOptions::Preconditioner::block_jacobi;
+    else if (preconditioner == "field_split")
+        result.solver.preconditioner = SolverOptions::Preconditioner::field_split;
+    else if (preconditioner == "hypre")
+        result.solver.preconditioner = SolverOptions::Preconditioner::hypre;
+    else if (preconditioner != "automatic")
         throw std::invalid_argument(path + ": preconditioner must be automatic, lu, block_jacobi, "
                                            "field_split, or hypre");
+    result.solver.linear_relative_tolerance =
+        read_optional_double(document, solver, "linear_relative_tolerance", 1.0e-8);
+    result.solver.maximum_linear_iterations = read_optional_int(document, solver, "maximum_linear_iterations", 500);
+    result.solver.backtracking_fallback = read_optional_bool(document, solver, "backtracking_fallback", true);
+    result.solver.field_residual_scaling = read_optional_bool(document, solver, "field_residual_scaling", false);
+    result.solver.residual_reduction_tolerance =
+        read_optional_double(document, solver, "residual_reduction_tolerance", 1.0e-6);
+    result.solver.temperature_residual_absolute_tolerance =
+        read_optional_double(document, solver, "temperature_residual_absolute_tolerance", 1.0e-8);
+    result.solver.mechanical_residual_absolute_tolerance =
+        read_optional_double(document, solver, "mechanical_residual_absolute_tolerance", 1.0e-4);
+    result.solver.temperature_residual_scale =
+        read_optional_double(document, solver, "temperature_residual_scale", 0.0);
+    result.solver.mechanical_residual_scale = read_optional_double(document, solver, "mechanical_residual_scale", 0.0);
 }
 void read_outputs(const InputDocument& document, const std::string& path, FuelSimCaseDefinition& result) {
     const InputSection& outputs = document.section("Outputs");
@@ -772,7 +747,7 @@ void read_outputs(const InputDocument& document, const std::string& path, FuelSi
     const std::vector<std::pair<std::string, std::string>> protected_inputs = {
         {"input card", input_file},
         {"input mesh", result.mesh_file},
-        {"restart checkpoint", result.transient_execution.restart_file},
+        {"restart checkpoint", result.restart_file},
     };
     const std::vector<std::pair<std::string, std::string>> output_paths = {
         {"CSV output", result.outputs.csv_file},
@@ -809,23 +784,6 @@ void read_outputs(const InputDocument& document, const std::string& path, FuelSi
     require_output_file(result.outputs.checkpoint_file, "checkpoint_interval", "checkpoint");
 }
 } // namespace
-SpatialDefinition FuelSimCaseDefinition::spatial_definition() const {
-    SpatialDefinition result;
-    result.contacts = contacts;
-    result.boundary_conditions = boundary_conditions;
-    result.time_tables = time_tables;
-    result.regions.reserve(regions.size());
-    for (const CaseRegionDefinition& region : regions) result.regions.push_back(region.spatial);
-    return result;
-}
-TransientProblemDefinition FuelSimCaseDefinition::transient_definition() const {
-    TransientProblemDefinition result;
-    result.spatial = spatial_definition();
-    result.regions.reserve(regions.size());
-    for (const CaseRegionDefinition& region : regions)
-        result.regions.push_back({region.spatial.name, region.transient_material});
-    return result;
-}
 FuelSimCaseDefinition read_case_input(const std::string& path) {
     const MaterialFunctionRegistry registry = make_builtin_material_function_registry();
     return read_case_input(path, registry);

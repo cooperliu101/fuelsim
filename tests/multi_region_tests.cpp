@@ -3,6 +3,7 @@
 #include "fuelsim/problem_solver.hpp"
 #include "fuelsim/steady_problem.hpp"
 #include "fuelsim/transient_problem.hpp"
+#include "support/material_factory.hpp"
 #include "support/rz_problem_access.hpp"
 #include <algorithm>
 #include <cmath>
@@ -187,7 +188,7 @@ fuelsim::UnstructuredQuad4Mesh overlapping_material_mesh() {
         });
 }
 fuelsim::ThermoelasticProperties thermoelastic(double conductivity) {
-    return {0.0, conductivity, 2.0e11, 0.3, 1.0e-5, 300.0};
+    return fuelsim::test::thermoelastic(0.0, conductivity, 2.0e11, 0.3, 1.0e-5, 300.0, 0.0, 0.0, 0.0, 10.0, 20.0);
 }
 fuelsim::RegionDefinition region(
     const std::string& name, const std::string& block, double initial_temperature, double heat_source) {
@@ -220,9 +221,6 @@ fuelsim::SpatialDefinition three_region_definition() {
             dirichlet("outer_bottom", "clad_2_bottom", fuelsim::Field::axial_displacement, 0.0),
             dirichlet("outer_temperature", "clad_2_outer", fuelsim::Field::temperature, 300.0),
         }};
-}
-fuelsim::TransientInelasticProperties elastic_transient_material() {
-    return {10.0, 20.0, fuelsim::InelasticBehavior::elastic, {0.0, 1.0, 1.0}, {1.0, 0.0}};
 }
 bool test_single_region(const fuelsim::UnstructuredQuad4Mesh& mesh) {
     const fuelsim::SteadyProblem problem(single_region_definition(), mesh);
@@ -665,10 +663,8 @@ bool test_zero_initial_gap_solve() {
     return passed;
 }
 bool test_transient_regions(const fuelsim::UnstructuredQuad4Mesh& mesh) {
-    fuelsim::TransientProblemDefinition definition;
-    definition.spatial = three_region_definition();
-    for (const fuelsim::RegionDefinition& region : definition.spatial.regions)
-        definition.regions.push_back({region.name, elastic_transient_material()});
+    fuelsim::SpatialDefinition definition;
+    definition = three_region_definition();
     fuelsim::TransientProblem problem(std::move(definition), mesh);
     const std::vector<double> initial = problem.committed_solution();
     problem.begin_time_step({1.0, 0.5});
@@ -685,7 +681,7 @@ bool test_transient_regions(const fuelsim::UnstructuredQuad4Mesh& mesh) {
             "three-region transient state commits once") &&
         passed;
     for (std::size_t region = 0; region < fuelsim::rz::ProblemAccess::region_count(problem); ++region) {
-        const fuelsim::RegionInelasticSummary summary =
+        const fuelsim::RegionStateSummary summary =
             fuelsim::rz::ProblemAccess::summarize_region_history(problem, region);
         passed =
             check(summary.maximum_equivalent_plastic_strain == 0.0 && summary.maximum_equivalent_creep_strain == 0.0,

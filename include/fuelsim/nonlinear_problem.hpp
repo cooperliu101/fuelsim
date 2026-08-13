@@ -32,8 +32,6 @@ class GlobalStateView final {
     GlobalStateView(
         std::size_t global_size, const std::vector<std::uint32_t>& global_dofs, const std::vector<double>& values);
     std::size_t global_size() const noexcept;
-    std::size_t local_size() const noexcept;
-    bool contains(std::size_t global_dof) const;
     double value(std::size_t global_dof) const;
 
   private:

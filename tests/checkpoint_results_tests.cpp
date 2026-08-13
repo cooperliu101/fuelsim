@@ -118,13 +118,13 @@ bool compare_committed_states(
 }
 fuelsim::TransientTimeOptions time_options(double end_time) { return {end_time, 1.0, 0.125, 1.0, 1.0, 0.5, 3, 20.0}; }
 fuelsim::TransientTimeOptions time_options(const fuelsim::FuelSimCaseDefinition& input, double end_time) {
-    const fuelsim::TransientExecutionInput& execution = input.transient_execution;
+    const fuelsim::TransientTimeOptions& execution = input.transient_execution;
     return {end_time, execution.initial_time_step, execution.minimum_time_step, execution.maximum_time_step,
-        execution.growth_factor, execution.cutback_factor, execution.maximum_cutbacks, execution.load_ramp_time,
-        execution.target_nonlinear_iterations, execution.iteration_window, execution.time_error_relative_tolerance,
-        execution.temperature_time_absolute_tolerance, execution.displacement_time_absolute_tolerance,
-        execution.time_error_safety_factor, execution.strain_history_time_absolute_tolerance,
-        execution.stress_history_time_absolute_tolerance};
+        execution.growth_factor, execution.cutback_factor, execution.maximum_cutbacks_per_step,
+        execution.load_ramp_time, execution.target_nonlinear_iterations, execution.iteration_window,
+        execution.time_error_relative_tolerance, execution.temperature_time_absolute_tolerance,
+        execution.displacement_time_absolute_tolerance, execution.time_error_safety_factor,
+        execution.strain_history_time_absolute_tolerance, execution.stress_history_time_absolute_tolerance};
 }
 fuelsim::SolverOptions solver_options(const fuelsim::FuelSimCaseDefinition& input) {
     fuelsim::SolverOptions options{input.solver.absolute_tolerance, input.solver.relative_tolerance,
@@ -140,9 +140,9 @@ fuelsim::SolverOptions solver_options(const fuelsim::FuelSimCaseDefinition& inpu
 }
 bool test_friction_history_checkpoint(const std::string& input_path, const std::string& checkpoint_path) {
     fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
-    input.contacts.at(0).friction_coefficient = 0.3;
+    input.spatial.contacts.at(0).friction_coefficient = 0.3;
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
-    fuelsim::TransientProblem source(input.transient_definition(), mesh);
+    fuelsim::TransientProblem source(input.spatial, mesh);
     fuelsim::TransientCommittedState state = fuelsim::rz::ProblemAccess::committed_state(source);
     if (state.contact_histories.empty() || state.contact_histories.front().empty())
         return check(false, "friction checkpoint fixture has contact-node history");
@@ -153,7 +153,7 @@ bool test_friction_history_checkpoint(const std::string& input_path, const std::
     source.rollback_time_step();
     bool passed = compare_committed_states(before_rollback, fuelsim::rz::ProblemAccess::committed_state(source));
     fuelsim::write_transient_checkpoint(checkpoint_path, source, 0.5);
-    fuelsim::TransientProblem restored(input.transient_definition(), mesh);
+    fuelsim::TransientProblem restored(input.spatial, mesh);
     const double next_time_step = fuelsim::restore_transient_checkpoint(checkpoint_path, restored);
     passed = check(next_time_step == 0.5, "friction checkpoint preserves the controller time step") &&
              compare_committed_states(fuelsim::rz::ProblemAccess::committed_state(source),
@@ -167,7 +167,7 @@ bool test_friction_history_checkpoint(const std::string& input_path, const std::
         file.seekp(16, std::ios::beg);
         file.write(reinterpret_cast<const char*>(old_version.data()), static_cast<std::streamsize>(old_version.size()));
     }
-    fuelsim::TransientProblem old_version_target(input.transient_definition(), mesh);
+    fuelsim::TransientProblem old_version_target(input.spatial, mesh);
     passed = expect_failure([&]() { (void)fuelsim::restore_transient_checkpoint(checkpoint_path, old_version_target); },
                  "version is not supported", "checkpoint version 6 rejects the previous format") &&
              passed;
@@ -186,14 +186,14 @@ std::size_t contact_secondary_global_node(const fuelsim::TransientProblem& probl
 }
 bool test_augmented_contact_transaction(const std::string& input_path, const std::string& checkpoint_path) {
     fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
-    fuelsim::ContactDefinition& contact = input.contacts.at(0);
+    fuelsim::ContactDefinition& contact = input.spatial.contacts.at(0);
     contact.mechanical_formulation = fuelsim::MechanicalContactFormulation::augmented_lagrangian;
     contact.automatic_penalty = false;
     contact.penalty = 1.0e14;
     contact.penetration_tolerance = 1.0e-9;
     contact.maximum_augmented_iterations = 10;
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
-    fuelsim::TransientProblem source(input.transient_definition(), mesh);
+    fuelsim::TransientProblem source(input.spatial, mesh);
     const fuelsim::TransientCommittedState initial = fuelsim::rz::ProblemAccess::committed_state(source);
     std::vector<double> penetrated = source.committed_solution();
     const std::vector<fuelsim::ContactNodeSummary> initial_nodes =
@@ -231,7 +231,7 @@ bool test_augmented_contact_transaction(const std::string& input_path, const std
                                          "multiplier") &&
              passed;
     fuelsim::write_transient_checkpoint(checkpoint_path, source, 0.25);
-    fuelsim::TransientProblem restored(input.transient_definition(), mesh);
+    fuelsim::TransientProblem restored(input.spatial, mesh);
     const double next_time_step = fuelsim::restore_transient_checkpoint(checkpoint_path, restored);
     passed = check(next_time_step == 0.25, "augmented checkpoint preserves the controller time step") &&
              compare_committed_states(committed, fuelsim::rz::ProblemAccess::committed_state(restored)) && passed;
@@ -241,11 +241,11 @@ bool test_finite_strain_restart(const std::string& input_path, const std::string
     const fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
     const fuelsim::SolverOptions solver = solver_options(input);
-    fuelsim::TransientProblem uninterrupted(input.transient_definition(), mesh);
+    fuelsim::TransientProblem uninterrupted(input.spatial, mesh);
     const fuelsim::TransientResult full =
         fuelsim::solve_transient(uninterrupted, time_options(input, input.transient_execution.end_time), solver);
     bool passed = check(full.completed, "uninterrupted finite-strain solve completes");
-    fuelsim::TransientProblem split(input.transient_definition(), mesh);
+    fuelsim::TransientProblem split(input.spatial, mesh);
     const fuelsim::TransientResult first = fuelsim::solve_transient(split, time_options(input, 2.5), solver);
     passed = check(first.completed && nearly_equal(split.committed_time(), 2.5),
                  "finite-strain restart split reaches the deformed state") &&
@@ -266,7 +266,7 @@ bool test_finite_strain_restart(const std::string& input_path, const std::string
              passed;
     fuelsim::write_transient_checkpoint(checkpoint_path, split, first.next_time_step);
     const fuelsim::TransientCommittedState split_state = fuelsim::rz::ProblemAccess::committed_state(split);
-    fuelsim::TransientProblem restarted(input.transient_definition(), mesh);
+    fuelsim::TransientProblem restarted(input.spatial, mesh);
     const double restored_time_step = fuelsim::restore_transient_checkpoint(checkpoint_path, restarted);
     passed = compare_committed_states(split_state, fuelsim::rz::ProblemAccess::committed_state(restarted)) && passed;
     fuelsim::TransientTimeOptions restart_options = time_options(input, input.transient_execution.end_time);
@@ -336,12 +336,12 @@ bool verify_exodus(const std::string& path, const fuelsim::UnstructuredQuad4Mesh
 }
 bool verify_steady_results(const fuelsim::FuelSimCaseDefinition& input, const fuelsim::UnstructuredQuad4Mesh& mesh,
     const std::string& results_path) {
-    fuelsim::SteadyProblem problem(input.spatial_definition(), mesh);
+    fuelsim::SteadyProblem problem(input.spatial, mesh);
     const fuelsim::SolverOptions solver{input.solver.absolute_tolerance, input.solver.relative_tolerance,
         input.solver.step_tolerance, input.solver.maximum_iterations};
     const fuelsim::SteadyResult result = fuelsim::solve_steady(problem,
         {input.steady_execution.load_steps, input.steady_execution.cutback_factor,
-            input.steady_execution.maximum_cutbacks, input.steady_execution.minimum_load_increment},
+            input.steady_execution.maximum_cutbacks_per_step, input.steady_execution.minimum_load_increment},
         solver);
     if (!check(result.completed && result.solve.converged, "steady result fixture converges")) return false;
     fuelsim::write_steady_results(results_path, mesh, problem, result.solve.state);
@@ -390,10 +390,10 @@ bool run_tests(const std::string& steady_input_path, const std::string& transien
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
     const fuelsim::SolverOptions solver{input.solver.absolute_tolerance, input.solver.relative_tolerance,
         input.solver.step_tolerance, input.solver.maximum_iterations};
-    fuelsim::TransientProblem uninterrupted(input.transient_definition(), mesh);
+    fuelsim::TransientProblem uninterrupted(input.spatial, mesh);
     const fuelsim::TransientResult full = fuelsim::solve_transient(uninterrupted, time_options(20.0), solver);
     passed = check(full.completed, "uninterrupted PCMI solve completes") && passed;
-    fuelsim::TransientProblem split(input.transient_definition(), mesh);
+    fuelsim::TransientProblem split(input.spatial, mesh);
     fuelsim::ExodusTransientResultsWriter writer(results_path, mesh, split);
     writer.append(split);
     ResultsObserver observer(writer);
@@ -420,7 +420,7 @@ bool run_tests(const std::string& steady_input_path, const std::string& transien
     std::filesystem::remove(history_path);
     fuelsim::write_transient_checkpoint(checkpoint_path, split, first.next_time_step);
     const fuelsim::TransientCommittedState split_state = fuelsim::rz::ProblemAccess::committed_state(split);
-    fuelsim::TransientProblem restarted(input.transient_definition(), mesh);
+    fuelsim::TransientProblem restarted(input.spatial, mesh);
     const double restored_time_step = fuelsim::restore_transient_checkpoint(checkpoint_path, restarted);
     passed =
         check(restored_time_step == first.next_time_step, "restart preserves the committed controller step") && passed;
@@ -433,12 +433,11 @@ bool run_tests(const std::string& steady_input_path, const std::string& transien
                  fuelsim::rz::ProblemAccess::committed_state(restarted)) &&
              passed;
     passed = verify_exodus(results_path, mesh, split, writer.step_count()) && passed;
-    fuelsim::TransientProblem mismatch(input.transient_definition(), mesh);
-    fuelsim::TransientProblemDefinition changed = input.transient_definition();
-    auto changed_functions =
-        std::make_shared<fuelsim::MaterialFunctionSet>(*changed.spatial.regions[1].material.functions);
+    fuelsim::TransientProblem mismatch(input.spatial, mesh);
+    fuelsim::SpatialDefinition changed = input.spatial;
+    auto changed_functions = std::make_shared<fuelsim::MaterialFunctionSet>(*changed.regions[1].material.functions);
     ++changed_functions->plasticity.version;
-    changed.spatial.regions[1].material.functions = std::move(changed_functions);
+    changed.regions[1].material.functions = std::move(changed_functions);
     fuelsim::TransientProblem changed_problem(std::move(changed), mesh);
     passed = expect_failure([&]() { (void)fuelsim::restore_transient_checkpoint(checkpoint_path, changed_problem); },
                  "signature", "checkpoint rejects a changed registered material function version") &&

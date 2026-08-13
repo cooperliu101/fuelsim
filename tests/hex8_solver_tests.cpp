@@ -1,6 +1,7 @@
 #include "fuelsim/problem_solver.hpp"
 #include "fuelsim/results_io.hpp"
 #include "support/cartesian3d_problem_access.hpp"
+#include "support/material_factory.hpp"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -51,7 +52,9 @@ fuelsim::UnstructuredHex8Mesh two_region_mesh() {
             {20, "second_all", {{1, 0}, {1, 1}, {1, 2}, {1, 3}, {1, 4}, {1, 5}}}, {21, "second_x0", {{1, 3}}},
             {22, "second_y0", {{1, 0}}}, {23, "second_z0", {{1, 4}}}});
 }
-fuelsim::ThermoelasticProperties material() { return {0.0, 10.0, 1.0e9, 0.25, 1.0e-5, 300.0}; }
+fuelsim::ThermoelasticProperties material() {
+    return fuelsim::test::thermoelastic(0.0, 10.0, 1.0e9, 0.25, 1.0e-5, 300.0, 0.0, 0.0, 0.0, 6000.0, 1000.0);
+}
 fuelsim::SpatialDefinition steady_definition() {
     fuelsim::SpatialDefinition definition;
     definition.regions.push_back({"solid", "solid", material(), 0.0, 300.0});
@@ -77,7 +80,7 @@ fuelsim::SolverOptions solver_options() {
 }
 bool check_uniform_solution(const fuelsim::DofMap& dofs, const fuelsim::UnstructuredHex8Mesh& mesh,
     const std::vector<double>& state, double temperature) {
-    const double thermal_strain = material().thermal_expansion * (temperature - material().reference_temperature);
+    const double thermal_strain = 1.0e-5 * (temperature - 300.0);
     for (std::size_t node = 0; node < mesh.nodes().size(); ++node)
         if (!check(std::abs(state[dofs.temperature(node)] - temperature) < 2.0e-9,
                 "three-dimensional temperature matches the uniform analytic solution") ||
@@ -116,9 +119,7 @@ bool test_transient(const fuelsim::PetscSession& session, const fuelsim::Unstruc
     fuelsim::SpatialDefinition spatial = steady_definition();
     spatial.boundary_conditions.erase(spatial.boundary_conditions.begin());
     spatial.regions[0].volumetric_heat_source = 6.0e6;
-    fuelsim::TransientProblemDefinition definition;
-    definition.spatial = spatial;
-    definition.regions.push_back({"solid", {6000.0, 1000.0, fuelsim::InelasticBehavior::elastic, {}, {}}});
+    const fuelsim::SpatialDefinition definition = spatial;
     fuelsim::TransientProblem problem(definition, mesh);
     const fuelsim::TransientResult result =
         fuelsim::solve_transient(problem, {1.0, 1.0, 1.0, 1.0, 1.0, 0.5, 2, 0.0}, solver_options());
@@ -138,7 +139,7 @@ bool test_transient(const fuelsim::PetscSession& session, const fuelsim::Unstruc
                  "three-dimensional checkpoint restores the exact committed nodal state and controller step") &&
              passed;
     bool stresses_match = true;
-    for (std::size_t region = 0; stresses_match && region < definition.spatial.regions.size(); ++region) {
+    for (std::size_t region = 0; stresses_match && region < definition.regions.size(); ++region) {
         for (std::size_t element = 0;
             stresses_match &&
             element < fuelsim::cartesian::ProblemAccess::region_mesh(problem, region).elements().size();
@@ -182,7 +183,7 @@ bool test_multiple_regions() {
                   fuelsim::cartesian::ProblemAccess::region_node_offset(problem, 1) == 8 && problem.dof_count() == 64,
             "three-dimensional regions keep independent nodes and exact four-field offsets");
     const auto& dofs = fuelsim::cartesian::ProblemAccess::dof_map(problem);
-    const double strain = material().thermal_expansion * 25.0;
+    const double strain = 1.0e-5 * 25.0;
     for (std::size_t node = 0; node < mesh.nodes().size(); ++node) {
         const double origin = node < 8 ? 0.0 : 2.0;
         const auto& point = mesh.nodes()[node];

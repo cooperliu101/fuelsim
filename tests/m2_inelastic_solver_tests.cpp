@@ -46,13 +46,13 @@ fuelsim::TransientTimeOptions time_options(const fuelsim::FuelSimCaseDefinition&
     return {definition.transient_execution.end_time, definition.transient_execution.initial_time_step,
         definition.transient_execution.minimum_time_step, definition.transient_execution.maximum_time_step,
         definition.transient_execution.growth_factor, definition.transient_execution.cutback_factor,
-        definition.transient_execution.maximum_cutbacks, definition.transient_execution.load_ramp_time};
+        definition.transient_execution.maximum_cutbacks_per_step, definition.transient_execution.load_ramp_time};
 }
 class TransientCaseRun final {
   public:
     explicit TransientCaseRun(const std::string& input_path, fuelsim::TransientStepObserver* observer = nullptr)
         : _definition(fuelsim::read_case_input(input_path)), _source(fuelsim::read_exodus_quad4(_definition.mesh_file)),
-          _problem(_definition.transient_definition(), _source) {
+          _problem(_definition.spatial, _source) {
         if (_definition.problem != fuelsim::CaseProblem::transient)
             throw std::invalid_argument("M2.2 comparison requires a transient input card");
         if (fuelsim::rz::ProblemAccess::region_count(_problem) != 1 ||

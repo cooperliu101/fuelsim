@@ -1,3 +1,4 @@
+#include "ad_local_system.hpp"
 #include "fuelsim/interface.hpp"
 #include "fuelsim/quad4_rz.hpp"
 #include <adlite/adlite.hpp>
@@ -88,23 +89,22 @@ inline double interpolate(
 }
 inline LocalAdValues passive_state(const LocalValues& state) {
     LocalAdValues result{};
-    for (std::size_t dof = 0; dof < state.size(); ++dof) result[dof] = state[dof];
+    ad_local_system::make_passive(state.data(), state.size(), result.data());
     return result;
 }
 inline LocalAdValues active_state(const LocalValues& state) {
     LocalAdValues result{};
-    adlite::seed_identity(state.data(), state.size(), result.data());
+    ad_local_system::make_active(state.data(), state.size(), result.data());
     return result;
 }
 inline LocalResidual residual_values(const LocalAdValues& residual) {
     LocalResidual result{};
-    for (std::size_t row = 0; row < result.size(); ++row) result[row] = residual[row].value();
+    ad_local_system::extract_residual(residual.data(), residual.size(), result.data());
     return result;
 }
 inline LocalSystem linearized_values(const LocalAdValues& state, const LocalAdValues& residual) {
     LocalSystem result{};
-    adlite::extract_jacobian(
-        residual.data(), residual.size(), state.size(), result.residual.data(), result.jacobian.data());
+    ad_local_system::extract_system(residual.data(), state.size(), result.residual.data(), result.jacobian.data());
     return result;
 }
 inline void add_mechanical_point_residual(const RzQuadraturePoint& point, const AxisymmetricKinematics& kinematics,
@@ -252,6 +252,9 @@ AxisymmetricKinematics evaluate_axisymmetric_incremental_kinematics(const RzQuad
     return result;
 }
 namespace {
+MaterialFunctionContext rz_material_context(double time, const RzQuadraturePoint& point) {
+    return {time, point.radius, 0.0, point.axial_coordinate};
+}
 struct ThermoelasticPointResponse final {
     adlite::Scalar temperature, gradient_temperature_r, gradient_temperature_z;
     AxisymmetricKinematics kinematics;
@@ -262,7 +265,7 @@ ThermoelasticPointResponse point_response(const RzQuadraturePoint& point, const 
     const adlite::Scalar temperature = quad4_rz_detail::interpolate(point.shape, state, 0);
     const AxisymmetricKinematics kinematics = evaluate_axisymmetric_kinematics(point, state, strain_formulation);
     AxisymmetricStress stress = material.stress(kinematics.strain_rr, kinematics.strain_zz, kinematics.strain_hoop,
-        kinematics.strain_rz, temperature, time, point.radius, point.axial_coordinate);
+        kinematics.strain_rz, temperature, rz_material_context(time, point));
     if (strain_formulation == StrainFormulation::finite)
         stress = rotate_axisymmetric_tensor(stress, kinematics.rotation);
     return {
@@ -307,7 +310,7 @@ void Quad4RzThermoelasticKernel::residual_ad(
     for (const RzQuadraturePoint& point : geometry.points) {
         const ThermoelasticPointResponse response = point_response(point, state, _material, _strain_formulation, _time);
         const adlite::Scalar conductivity =
-            _material.conductivity(response.temperature, _time, point.radius, point.axial_coordinate);
+            _material.conductivity(response.temperature, rz_material_context(_time, point));
         quad4_rz_detail::add_steady_point_residual(point, response.gradient_temperature_r,
             response.gradient_temperature_z, response.kinematics, conductivity, _volumetric_heat_source,
             response.stress, residual);
@@ -330,13 +333,13 @@ PointFields point_fields(const RzQuadraturePoint& point, const LocalAdValues& st
 }
 InelasticStressResponse material_response(const IsotropicInelasticMaterial& material, const PointFields& fields,
     double committed_temperature, double time_step, const MaterialPointState& committed_material,
-    StrainFormulation strain_formulation, double time, double radius, double axial_coordinate) {
+    StrainFormulation strain_formulation, MaterialFunctionContext context) {
     if (strain_formulation == StrainFormulation::finite)
         return material.incremental_response(fields.kinematics.strain_rr, fields.kinematics.strain_zz,
             fields.kinematics.strain_hoop, fields.kinematics.strain_rz, fields.kinematics.rotation, fields.temperature,
-            committed_temperature, time_step, committed_material, time, radius, axial_coordinate);
+            committed_temperature, time_step, committed_material, context);
     return material.response(fields.kinematics.strain_rr, fields.kinematics.strain_zz, fields.kinematics.strain_hoop,
-        fields.kinematics.strain_rz, fields.temperature, time_step, committed_material, time, radius, axial_coordinate);
+        fields.kinematics.strain_rz, fields.temperature, time_step, committed_material, context);
 }
 struct TransientPointResponse final {
     PointFields fields;
@@ -349,8 +352,8 @@ TransientPointResponse transient_point_response(const RzQuadraturePoint& point, 
     const PointFields fields = point_fields(point, state, committed_state, strain_formulation);
     const double old_temperature = quad4_rz_detail::interpolate(point.shape, committed_state, 0);
     return {fields, old_temperature,
-        material_response(material, fields, old_temperature, time_step, committed_material, strain_formulation, time,
-            point.radius, point.axial_coordinate)};
+        material_response(material, fields, old_temperature, time_step, committed_material, strain_formulation,
+            rz_material_context(time, point))};
 }
 void validate_time_step(double time_step) {
     if (!std::isfinite(time_step) || !(time_step > 0.0))
@@ -369,7 +372,7 @@ Quad4RzTransientKernel::Quad4RzTransientKernel(
     : _material(material), _volumetric_heat_source(volumetric_heat_source), _time(0.0),
       _strain_formulation(strain_formulation) {}
 double Quad4RzTransientKernel::heat_capacity(double temperature, double radius, double axial_coordinate) const {
-    return _material.heat_capacity(temperature, _time, radius, axial_coordinate).value();
+    return _material.heat_capacity(temperature, {_time, radius, 0.0, axial_coordinate}).value();
 }
 LocalResidual Quad4RzTransientKernel::residual(const Quad4RzGeometry& geometry, const LocalValues& current_state,
     const LocalValues& committed_state, const Quad4MaterialHistory& committed_material, double time_step) const {
@@ -432,10 +435,9 @@ void Quad4RzTransientKernel::residual_ad(const Quad4RzGeometry& geometry, const 
             _material, committed_material[q], time_step, _strain_formulation, _time);
         const adlite::Scalar temperature_rate =
             (evaluation.fields.temperature - evaluation.old_temperature) / time_step;
-        const adlite::Scalar conductivity =
-            _material.conductivity(evaluation.fields.temperature, _time, point.radius, point.axial_coordinate);
-        const adlite::Scalar heat_capacity =
-            _material.heat_capacity(evaluation.fields.temperature, _time, point.radius, point.axial_coordinate);
+        const MaterialFunctionContext context = rz_material_context(_time, point);
+        const adlite::Scalar conductivity = _material.conductivity(evaluation.fields.temperature, context);
+        const adlite::Scalar heat_capacity = _material.heat_capacity(evaluation.fields.temperature, context);
         quad4_rz_detail::add_transient_point_residual(point, evaluation.fields.gradient_temperature_r,
             evaluation.fields.gradient_temperature_z, evaluation.fields.kinematics, heat_capacity, temperature_rate,
             conductivity, _volumetric_heat_source, evaluation.response.stress, residual);
@@ -476,55 +478,46 @@ Line2RzBoundaryGeometry make_line2_rz_boundary_geometry(
     validate_edge(coordinates, local_nodes, "Boundary edge");
     return {coordinates, local_nodes};
 }
-void Line2RzBoundaryKernel::pressure_residual(
+Line2RzBoundaryKernel::Line2RzBoundaryKernel(double pressure, bool use_displaced_geometry)
+    : _kind(Kind::pressure), _component(TractionComponent::radial), _load(pressure), _ambient(0.0),
+      _use_displaced_geometry(use_displaced_geometry) {}
+Line2RzBoundaryKernel::Line2RzBoundaryKernel(TractionComponent component, double traction, bool use_displaced_geometry)
+    : _kind(Kind::traction), _component(component), _load(traction), _ambient(0.0),
+      _use_displaced_geometry(use_displaced_geometry) {}
+Line2RzBoundaryKernel::Line2RzBoundaryKernel(double heat_transfer_coefficient, double ambient_temperature)
+    : _kind(Kind::convection), _component(TractionComponent::radial), _load(heat_transfer_coefficient),
+      _ambient(ambient_temperature), _use_displaced_geometry(false) {}
+void Line2RzBoundaryKernel::mechanical_residual(
     const Line2RzBoundaryGeometry& geometry, const LocalAdValues& state, LocalAdValues& residual) const {
-    const PressureProperties& properties = pressure_properties();
     residual.fill(adlite::Scalar(0.0));
+    std::array<adlite::Scalar, 2> radius{};
+    std::array<adlite::Scalar, 2> axial{};
+    displaced_edge_coordinates(
+        geometry.coordinates, geometry.local_nodes, state, _use_displaced_geometry, radius, axial);
     const std::array<double, 2> locations = {-gauss, gauss};
     for (const double xi : locations) {
         const std::array<double, 2> shape = {0.5 * (1.0 - xi), 0.5 * (1.0 + xi)};
-        std::array<adlite::Scalar, 2> radius{};
-        std::array<adlite::Scalar, 2> axial{};
-        displaced_edge_coordinates(
-            geometry.coordinates, geometry.local_nodes, state, properties.use_displaced_geometry, radius, axial);
         const adlite::Scalar current_radius = shape[0] * radius[0] + shape[1] * radius[1];
-        if (!std::isfinite(current_radius.value()) || !(current_radius.value() > 0.0))
-            throw std::domain_error("Pressure edge current radius must be finite and positive");
-        const adlite::Scalar outward_r = 0.5 * (axial[1] - axial[0]), outward_z = -0.5 * (radius[1] - radius[0]),
-                             measure = 2.0 * pi * current_radius;
-        for (std::size_t edge_node = 0; edge_node < 2; ++edge_node) {
-            const std::size_t local = geometry.local_nodes[edge_node];
-            residual[4 + local] += measure * properties.pressure * shape[edge_node] * outward_r;
-            residual[8 + local] += measure * properties.pressure * shape[edge_node] * outward_z;
-        }
-    }
-}
-void Line2RzBoundaryKernel::traction_residual(
-    const Line2RzBoundaryGeometry& geometry, const LocalAdValues& state, LocalAdValues& residual) const {
-    const TractionProperties& properties = traction_properties();
-    residual.fill(adlite::Scalar(0.0));
-    const std::array<double, 2> locations = {-gauss, gauss};
-    for (const double xi : locations) {
-        const std::array<double, 2> shape = {0.5 * (1.0 - xi), 0.5 * (1.0 + xi)};
-        std::array<adlite::Scalar, 2> radius{};
-        std::array<adlite::Scalar, 2> axial{};
-        displaced_edge_coordinates(
-            geometry.coordinates, geometry.local_nodes, state, properties.use_displaced_geometry, radius, axial);
-        const adlite::Scalar current_radius = shape[0] * radius[0] + shape[1] * radius[1],
-                             dr_dxi = 0.5 * (radius[1] - radius[0]), dz_dxi = 0.5 * (axial[1] - axial[0]),
-                             measure = 2.0 * pi * current_radius * adlite::hypot(dr_dxi, dz_dxi);
+        const adlite::Scalar dr_dxi = 0.5 * (radius[1] - radius[0]), dz_dxi = 0.5 * (axial[1] - axial[0]);
+        const adlite::Scalar measure = _kind == Kind::pressure
+                                           ? 2.0 * pi * current_radius
+                                           : 2.0 * pi * current_radius * adlite::hypot(dr_dxi, dz_dxi);
         if (!std::isfinite(measure.value()) || !(measure.value() > 0.0))
-            throw std::domain_error("Traction edge current measure must be finite and positive");
-        const std::size_t offset = properties.component == TractionComponent::radial ? 4 : 8;
+            throw std::domain_error("Mechanical boundary current measure must be finite and positive");
         for (std::size_t edge_node = 0; edge_node < 2; ++edge_node) {
             const std::size_t local = geometry.local_nodes[edge_node];
-            residual[offset + local] -= measure * properties.traction * shape[edge_node];
+            if (_kind == Kind::pressure) {
+                residual[4 + local] += measure * _load * shape[edge_node] * dz_dxi;
+                residual[8 + local] -= measure * _load * shape[edge_node] * dr_dxi;
+            } else {
+                const std::size_t offset = _component == TractionComponent::radial ? 4 : 8;
+                residual[offset + local] -= measure * _load * shape[edge_node];
+            }
         }
     }
 }
 void Line2RzBoundaryKernel::convection_residual(
     const Line2RzBoundaryGeometry& geometry, const LocalAdValues& state, LocalAdValues& residual) const {
-    const ConvectionProperties& properties = std::get<ConvectionProperties>(_properties);
     residual.fill(adlite::Scalar(0.0));
     const double dr = geometry.coordinates[1].r - geometry.coordinates[0].r,
                  dz = geometry.coordinates[1].z - geometry.coordinates[0].z, line_jacobian = 0.5 * std::hypot(dr, dz);
@@ -535,8 +528,7 @@ void Line2RzBoundaryKernel::convection_residual(
         adlite::Scalar temperature = 0.0;
         for (std::size_t edge_node = 0; edge_node < 2; ++edge_node)
             temperature += shape[edge_node] * state[geometry.local_nodes[edge_node]];
-        const adlite::Scalar heat_flux =
-            properties.heat_transfer_coefficient * (temperature - properties.ambient_temperature);
+        const adlite::Scalar heat_flux = _load * (temperature - _ambient);
         const double measure = 2.0 * pi * radius * line_jacobian;
         for (std::size_t edge_node = 0; edge_node < 2; ++edge_node)
             residual[geometry.local_nodes[edge_node]] += measure * shape[edge_node] * heat_flux;
@@ -544,12 +536,10 @@ void Line2RzBoundaryKernel::convection_residual(
 }
 void Line2RzBoundaryKernel::residual_ad(
     const Line2RzBoundaryGeometry& geometry, const LocalAdValues& state, LocalAdValues& residual) const {
-    if (std::holds_alternative<PressureProperties>(_properties))
-        pressure_residual(geometry, state, residual);
-    else if (std::holds_alternative<TractionProperties>(_properties))
-        traction_residual(geometry, state, residual);
-    else
+    if (_kind == Kind::convection)
         convection_residual(geometry, state, residual);
+    else
+        mechanical_residual(geometry, state, residual);
 }
 LocalResidual Line2RzBoundaryKernel::residual(const Line2RzBoundaryGeometry& geometry, const LocalValues& state) const {
     const LocalAdValues ad_state = quad4_rz_detail::passive_state(state);

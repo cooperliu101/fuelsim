@@ -126,30 +126,12 @@ struct PetscObjects final {
     Vec gathered_state = nullptr;
     VecScatter state_scatter = nullptr;
     ~PetscObjects() {
-        if (state_scatter != nullptr) {
-            const PetscErrorCode code = VecScatterDestroy(&state_scatter);
-            (void)code;
-        }
-        if (gathered_state != nullptr) {
-            const PetscErrorCode code = VecDestroy(&gathered_state);
-            (void)code;
-        }
-        if (snes != nullptr) {
-            const PetscErrorCode code = SNESDestroy(&snes);
-            (void)code;
-        }
-        if (state != nullptr) {
-            const PetscErrorCode code = VecDestroy(&state);
-            (void)code;
-        }
-        if (residual != nullptr) {
-            const PetscErrorCode code = VecDestroy(&residual);
-            (void)code;
-        }
-        if (jacobian != nullptr) {
-            const PetscErrorCode code = MatDestroy(&jacobian);
-            (void)code;
-        }
+        (void)VecScatterDestroy(&state_scatter);
+        (void)VecDestroy(&gathered_state);
+        (void)SNESDestroy(&snes);
+        (void)VecDestroy(&state);
+        (void)VecDestroy(&residual);
+        (void)MatDestroy(&jacobian);
     }
 };
 void configure_linear_solver(

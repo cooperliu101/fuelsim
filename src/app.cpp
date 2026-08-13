@@ -167,35 +167,6 @@ CommandLine extract_command_line(int& argc, char** argv) {
     argv[argc] = nullptr;
     return result;
 }
-SolverOptions solver_options(const NonlinearSolverInput& input) {
-    SolverOptions result;
-    result.absolute_tolerance = input.absolute_tolerance;
-    result.relative_tolerance = input.relative_tolerance;
-    result.step_tolerance = input.step_tolerance;
-    result.maximum_iterations = input.maximum_iterations;
-    if (input.linear_solver == "direct")
-        result.linear_solver = SolverOptions::LinearSolver::direct;
-    else if (input.linear_solver == "gmres")
-        result.linear_solver = SolverOptions::LinearSolver::gmres;
-    if (input.preconditioner == "lu")
-        result.preconditioner = SolverOptions::Preconditioner::lu;
-    else if (input.preconditioner == "block_jacobi")
-        result.preconditioner = SolverOptions::Preconditioner::block_jacobi;
-    else if (input.preconditioner == "field_split")
-        result.preconditioner = SolverOptions::Preconditioner::field_split;
-    else if (input.preconditioner == "hypre")
-        result.preconditioner = SolverOptions::Preconditioner::hypre;
-    result.linear_relative_tolerance = input.linear_relative_tolerance;
-    result.maximum_linear_iterations = input.maximum_linear_iterations;
-    result.backtracking_fallback = input.backtracking_fallback;
-    result.field_residual_scaling = input.field_residual_scaling;
-    result.residual_reduction_tolerance = input.residual_reduction_tolerance;
-    result.temperature_residual_absolute_tolerance = input.temperature_residual_absolute_tolerance;
-    result.mechanical_residual_absolute_tolerance = input.mechanical_residual_absolute_tolerance;
-    result.temperature_residual_scale = input.temperature_residual_scale;
-    result.mechanical_residual_scale = input.mechanical_residual_scale;
-    return result;
-}
 void write_solver_diagnostics(const SolveResult& solve, bool augmented_contact, CaseOutput& output) {
     output.value("nonlinear_attempts", solve.nonlinear_attempts);
     output.value("linear_iterations", solve.linear_iterations);
@@ -271,23 +242,20 @@ bool run_steady(const FuelSimCaseDefinition& definition, const UnstructuredQuad4
     const UnstructuredHex8Mesh* hex_source, CaseOutput& output, bool check_jacobian, const PetscSession& session) {
     std::unique_ptr<SteadyProblem> problem_storage;
     if (hex_source != nullptr)
-        problem_storage = std::make_unique<SteadyProblem>(definition.spatial_definition(), *hex_source);
+        problem_storage = std::make_unique<SteadyProblem>(definition.spatial, *hex_source);
     else
-        problem_storage = std::make_unique<SteadyProblem>(definition.spatial_definition(), *rz_source);
+        problem_storage = std::make_unique<SteadyProblem>(definition.spatial, *rz_source);
     SteadyProblem& problem = *problem_storage;
     if (check_jacobian) {
         problem.set_load_factor(1.0);
         return write_jacobian_check(problem, problem.initial_state(), output);
     }
-    const SteadyResult result = solve_steady(problem,
-        {definition.steady_execution.load_steps, definition.steady_execution.cutback_factor,
-            definition.steady_execution.maximum_cutbacks, definition.steady_execution.minimum_load_increment},
-        solver_options(definition.solver));
+    const SteadyResult result = solve_steady(problem, definition.steady_execution, definition.solver);
     output.value("problem", "steady");
     output.value("completed", result.completed && result.solve.converged);
     output.value("convergence_reason", petsc_convergence_reason_name(result.solve.convergence_reason));
-    output.value("regions", definition.regions.size());
-    output.value("contacts", definition.contacts.size());
+    output.value("regions", definition.spatial.regions.size());
+    output.value("contacts", definition.spatial.contacts.size());
     output.value("load_steps_completed", result.completed_steps);
     output.value("rejected_load_steps", result.rejected_steps.size());
     output.value("load_cutbacks", result.total_cutbacks);
@@ -299,9 +267,9 @@ bool run_steady(const FuelSimCaseDefinition& definition, const UnstructuredQuad4
     if (!result.solve.failure_message.empty()) output.value("failure_message", result.solve.failure_message);
     output.value("petsc_workspace_setups", result.aggregate_timing.workspace_setups);
     output.value("total_seconds", result.total_seconds);
-    if (result.completed && result.solve.converged) {
+    if (result.completed && result.solve.converged && hex_source == nullptr) {
         const rz::SpatialAssembly& spatial = rz::BackendAccess::steady(problem).spatial;
-        for (std::size_t contact = 0; contact < definition.contacts.size(); ++contact)
+        for (std::size_t contact = 0; contact < definition.spatial.contacts.size(); ++contact)
             write_interface_summary(
                 spatial.contact(contact).name, spatial.summarize_interface(contact, result.solve.state), output);
     }
@@ -318,13 +286,13 @@ bool run_transient(const FuelSimCaseDefinition& definition, const UnstructuredQu
     const UnstructuredHex8Mesh* hex_source, CaseOutput& output, bool check_jacobian, const PetscSession& session) {
     std::unique_ptr<TransientProblem> problem_storage;
     if (hex_source != nullptr)
-        problem_storage = std::make_unique<TransientProblem>(definition.transient_definition(), *hex_source);
+        problem_storage = std::make_unique<TransientProblem>(definition.spatial, *hex_source);
     else
-        problem_storage = std::make_unique<TransientProblem>(definition.transient_definition(), *rz_source);
+        problem_storage = std::make_unique<TransientProblem>(definition.spatial, *rz_source);
     TransientProblem& problem = *problem_storage;
     double restart_time_step = 0.0;
-    if (!definition.transient_execution.restart_file.empty())
-        restart_time_step = restore_transient_checkpoint(definition.transient_execution.restart_file, problem);
+    if (!definition.restart_file.empty())
+        restart_time_step = restore_transient_checkpoint(definition.restart_file, problem);
     const double first_time_step =
         restart_time_step > 0.0 ? restart_time_step : definition.transient_execution.initial_time_step;
     if (check_jacobian) {
@@ -353,8 +321,7 @@ bool run_transient(const FuelSimCaseDefinition& definition, const UnstructuredQu
     std::string results_path;
     if (!definition.outputs.exodus_file.empty())
         session.collective_root_action([&]() {
-            results_path =
-                output_segment_path(definition.transient_execution.restart_file, definition.outputs.exodus_file);
+            results_path = output_segment_path(definition.restart_file, definition.outputs.exodus_file);
             if (hex_source != nullptr)
                 results = std::make_unique<ExodusTransientResultsWriter>(results_path, *hex_source, problem);
             else
@@ -365,8 +332,7 @@ bool run_transient(const FuelSimCaseDefinition& definition, const UnstructuredQu
     std::string history_path;
     if (!definition.outputs.history_file.empty())
         session.collective_root_action([&]() {
-            history_path =
-                output_segment_path(definition.transient_execution.restart_file, definition.outputs.history_file);
+            history_path = output_segment_path(definition.restart_file, definition.outputs.history_file);
             history = std::make_unique<EngineeringHistoryWriter>(history_path, problem);
             history->append(problem, 0.0, first_time_step, 0);
         });
@@ -375,24 +341,15 @@ bool run_transient(const FuelSimCaseDefinition& definition, const UnstructuredQu
     TransientOutputObserver observer(results.get(), history.get(), definition.outputs.checkpoint_file,
         definition.outputs.exodus_interval, definition.outputs.history_interval, definition.outputs.progress_interval,
         definition.outputs.checkpoint_interval, session, progress_output);
-    const TransientTimeOptions time_options = {definition.transient_execution.end_time, first_time_step,
-        definition.transient_execution.minimum_time_step, definition.transient_execution.maximum_time_step,
-        definition.transient_execution.growth_factor, definition.transient_execution.cutback_factor,
-        definition.transient_execution.maximum_cutbacks, definition.transient_execution.load_ramp_time,
-        definition.transient_execution.target_nonlinear_iterations, definition.transient_execution.iteration_window,
-        definition.transient_execution.time_error_relative_tolerance,
-        definition.transient_execution.temperature_time_absolute_tolerance,
-        definition.transient_execution.displacement_time_absolute_tolerance,
-        definition.transient_execution.time_error_safety_factor,
-        definition.transient_execution.strain_history_time_absolute_tolerance,
-        definition.transient_execution.stress_history_time_absolute_tolerance};
-    const TransientResult result = solve_transient(problem, time_options, solver_options(definition.solver), &observer);
+    TransientTimeOptions time_options = definition.transient_execution;
+    time_options.initial_time_step = first_time_step;
+    const TransientResult result = solve_transient(problem, time_options, definition.solver, &observer);
     observer.finalize(problem, result.next_time_step);
     output.value("problem", "transient");
     output.value("completed", result.completed);
     output.value("termination_reason", transient_termination_reason_name(result.termination_reason));
-    output.value("regions", definition.regions.size());
-    output.value("contacts", definition.contacts.size());
+    output.value("regions", definition.spatial.regions.size());
+    output.value("contacts", definition.spatial.contacts.size());
     output.value("committed_time", result.committed_time);
     output.value("next_time_step", result.next_time_step);
     output.value("accepted_steps", result.accepted_steps.size());
@@ -419,31 +376,17 @@ bool run_transient(const FuelSimCaseDefinition& definition, const UnstructuredQu
     write_solver_diagnostics(result.last_attempt, problem.uses_augmented_contact(), output);
     output.value("total_seconds", result.total_seconds);
     write_conservation_summary("conservation.", problem.last_conservation_summary(), output);
+    for (std::size_t region = 0; region < definition.spatial.regions.size(); ++region) {
+        const RegionStateSummary summary = problem.summarize_region(region);
+        const std::string prefix = "region." + definition.spatial.regions[region].name + ".";
+        output.value(prefix + "maximum_equivalent_plastic_strain", summary.maximum_equivalent_plastic_strain);
+        output.value(prefix + "maximum_equivalent_creep_strain", summary.maximum_equivalent_creep_strain);
+    }
     if (hex_source == nullptr) {
         const rz::TransientBackendView backend = rz::BackendAccess::transient(problem);
-        for (std::size_t region = 0; region < definition.regions.size(); ++region) {
-            RegionInelasticSummary summary{0.0, 0.0};
-            for (const Quad4MaterialHistory& element : backend.histories.at(region)) {
-                for (const MaterialPointState& point : element) {
-                    summary.maximum_equivalent_plastic_strain =
-                        std::max(summary.maximum_equivalent_plastic_strain, point.equivalent_plastic_strain);
-                    summary.maximum_equivalent_creep_strain =
-                        std::max(summary.maximum_equivalent_creep_strain, point.equivalent_creep_strain);
-                }
-            }
-            const std::string prefix = "region." + definition.regions[region].spatial.name + ".";
-            output.value(prefix + "maximum_equivalent_plastic_strain", summary.maximum_equivalent_plastic_strain);
-            output.value(prefix + "maximum_equivalent_creep_strain", summary.maximum_equivalent_creep_strain);
-        }
-        for (std::size_t contact = 0; contact < definition.contacts.size(); ++contact)
-            write_interface_summary(definition.contacts[contact].name,
+        for (std::size_t contact = 0; contact < definition.spatial.contacts.size(); ++contact)
+            write_interface_summary(definition.spatial.contacts[contact].name,
                 backend.spatial.summarize_interface(contact, result.committed_state), output);
-    } else {
-        for (const CaseRegionDefinition& region : definition.regions) {
-            const std::string prefix = "region." + region.spatial.name + ".";
-            output.value(prefix + "maximum_equivalent_plastic_strain", 0.0);
-            output.value(prefix + "maximum_equivalent_creep_strain", 0.0);
-        }
     }
     return result.completed;
 }

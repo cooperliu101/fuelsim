@@ -30,7 +30,6 @@ class SteadyProblem final : public NonlinearProblem {
     SteadyProblem(SpatialDefinition definition, const UnstructuredQuad4Mesh& source_mesh);
     SteadyProblem(SpatialDefinition definition, const UnstructuredHex8Mesh& source_mesh);
     ~SteadyProblem() override;
-    bool is_cartesian_3d() const noexcept;
     bool uses_augmented_contact() const noexcept override;
     AugmentedContactUpdate update_augmented_contact_multipliers(
         const std::vector<double>& state, std::size_t completed_updates) override;

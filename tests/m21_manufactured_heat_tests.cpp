@@ -1,4 +1,5 @@
 #include "fuelsim/problem_solver.hpp"
+#include "support/material_factory.hpp"
 #include "support/mesh_fixture.hpp"
 #include "support/rz_problem_access.hpp"
 #include <algorithm>
@@ -64,7 +65,7 @@ fuelsim::BoundaryConditionDefinition dirichlet(const std::string& name, const st
     result.function = function;
     return result;
 }
-fuelsim::TransientProblemDefinition make_definition(const ManufacturedParameters& parameters, std::size_t time_steps) {
+fuelsim::SpatialDefinition make_definition(const ManufacturedParameters& parameters, std::size_t time_steps) {
     std::vector<double> times;
     std::vector<double> outer_temperatures;
     std::vector<double> heat_sources;
@@ -78,8 +79,9 @@ fuelsim::TransientProblemDefinition make_definition(const ManufacturedParameters
         heat_sources.push_back(exact_heat_source(parameters, time));
     }
     fuelsim::SpatialDefinition spatial;
-    spatial.regions.push_back({"solid", "solid", {0.0, conductivity, 1.0e6, 0.3, 0.0, 300.0}, 1.0,
-        parameters.base_temperature, -1, "source"});
+    spatial.regions.push_back({"solid", "solid",
+        fuelsim::test::thermoelastic(0.0, conductivity, 1.0e6, 0.3, 0.0, 300.0, 0.0, 0.0, 0.0, density, specific_heat),
+        1.0, parameters.base_temperature, -1, "source"});
     spatial.boundary_conditions.push_back(
         dirichlet("axis_radial", "solid_inner", fuelsim::Field::radial_displacement, 0.0));
     spatial.boundary_conditions.push_back(
@@ -88,11 +90,7 @@ fuelsim::TransientProblemDefinition make_definition(const ManufacturedParameters
         dirichlet("outer_temperature", "solid_outer", fuelsim::Field::temperature, 1.0, "outer_temperature"));
     spatial.time_tables.emplace_back("outer_temperature", times, outer_temperatures);
     spatial.time_tables.emplace_back("source", times, heat_sources);
-    fuelsim::TransientProblemDefinition result;
-    result.spatial = std::move(spatial);
-    result.regions.push_back(
-        {"solid", {density, specific_heat, fuelsim::InelasticBehavior::elastic, {0.0, 1.0, 1.0}, {1.0e12, 0.0}}});
-    return result;
+    return spatial;
 }
 void set_exact_initial_state(fuelsim::TransientProblem& problem, const ManufacturedParameters& parameters) {
     fuelsim::TransientCommittedState state = fuelsim::rz::ProblemAccess::committed_state(problem);

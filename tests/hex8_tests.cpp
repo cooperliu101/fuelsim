@@ -1,4 +1,5 @@
 #include "fuelsim/hex8.hpp"
+#include "support/material_factory.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -18,7 +19,7 @@ fuelsim::Hex8Coordinates unit_cube() {
         {1.0, 1.0, 1.0}, {0.0, 1.0, 1.0}}};
 }
 fuelsim::ThermoelasticProperties properties() {
-    return {3000.0, 4.0, 2.0e11, 0.25, 1.2e-5, 300.0, -1.0e8, 0.0, 1.0e-8};
+    return fuelsim::test::thermoelastic(3000.0, 4.0, 2.0e11, 0.25, 1.2e-5, 300.0, -1.0e8, 0.0, 1.0e-8, 2000.0, 3000.0);
 }
 bool test_geometry_and_constant_strain() {
     const fuelsim::Hex8Coordinates coordinates = unit_cube();
@@ -75,10 +76,8 @@ bool test_free_thermal_expansion_and_jacobian() {
     fuelsim::Hex8ThermoelasticKernel kernel(fuelsim::IsotropicThermoelasticMaterial(properties()), 7.0e5);
     fuelsim::Hex8LocalValues state{};
     const double temperature = 650.0;
-    const double active_alpha =
-        properties().thermal_expansion +
-        properties().thermal_expansion_temperature_coefficient * (temperature - properties().reference_temperature);
-    const double strain = active_alpha * (temperature - properties().reference_temperature);
+    const double active_alpha = 1.2e-5 + 1.0e-8 * (temperature - 300.0);
+    const double strain = active_alpha * (temperature - 300.0);
     for (std::size_t node = 0; node < 8; ++node) {
         state[node] = temperature;
         state[8 + node] = strain * coordinates[node].x;
@@ -120,7 +119,7 @@ bool test_free_thermal_expansion_and_jacobian() {
 }
 bool test_transient_capacity_and_faces() {
     const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(unit_cube());
-    fuelsim::Hex8ThermoelasticKernel kernel(fuelsim::IsotropicThermoelasticMaterial(properties()), 6.0e6, 1.2e7);
+    fuelsim::Hex8ThermoelasticKernel kernel(fuelsim::IsotropicThermoelasticMaterial(properties()), 1.2e7);
     fuelsim::Hex8LocalValues old_state{};
     fuelsim::Hex8LocalValues state{};
     for (std::size_t node = 0; node < 8; ++node) {

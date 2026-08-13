@@ -18,7 +18,7 @@ bool check(bool condition, const std::string& message) {
 fuelsim::FuelSimCaseDefinition augmented_pcmi_input(
     const std::string& input_path, double penetration_tolerance, std::size_t maximum_augmented_iterations) {
     fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
-    fuelsim::ContactDefinition& contact = input.contacts.at(0);
+    fuelsim::ContactDefinition& contact = input.spatial.contacts.at(0);
     contact.mechanical_formulation = fuelsim::MechanicalContactFormulation::augmented_lagrangian;
     contact.automatic_penalty = false;
     contact.penalty = 1.0e14;
@@ -27,13 +27,13 @@ fuelsim::FuelSimCaseDefinition augmented_pcmi_input(
     return input;
 }
 fuelsim::TransientTimeOptions time_options(const fuelsim::FuelSimCaseDefinition& input) {
-    const fuelsim::TransientExecutionInput& execution = input.transient_execution;
+    const fuelsim::TransientTimeOptions& execution = input.transient_execution;
     return {execution.end_time, execution.initial_time_step, execution.minimum_time_step, execution.maximum_time_step,
-        execution.growth_factor, execution.cutback_factor, execution.maximum_cutbacks, execution.load_ramp_time,
-        execution.target_nonlinear_iterations, execution.iteration_window, execution.time_error_relative_tolerance,
-        execution.temperature_time_absolute_tolerance, execution.displacement_time_absolute_tolerance,
-        execution.time_error_safety_factor, execution.strain_history_time_absolute_tolerance,
-        execution.stress_history_time_absolute_tolerance};
+        execution.growth_factor, execution.cutback_factor, execution.maximum_cutbacks_per_step,
+        execution.load_ramp_time, execution.target_nonlinear_iterations, execution.iteration_window,
+        execution.time_error_relative_tolerance, execution.temperature_time_absolute_tolerance,
+        execution.displacement_time_absolute_tolerance, execution.time_error_safety_factor,
+        execution.strain_history_time_absolute_tolerance, execution.stress_history_time_absolute_tolerance};
 }
 fuelsim::SolverOptions solver_options(const fuelsim::FuelSimCaseDefinition& input) {
     fuelsim::SolverOptions options{input.solver.absolute_tolerance, input.solver.relative_tolerance,
@@ -79,7 +79,7 @@ class AugmentedContactObserver final : public fuelsim::TransientStepObserver {
 bool test_transient_augmented_contact(const std::string& input_path) {
     const fuelsim::FuelSimCaseDefinition input = augmented_pcmi_input(input_path, 1.0e-9, 50);
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
-    fuelsim::TransientProblem problem(input.transient_definition(), mesh);
+    fuelsim::TransientProblem problem(input.spatial, mesh);
     AugmentedContactObserver observer;
     const fuelsim::TransientResult result =
         fuelsim::solve_transient(problem, time_options(input), solver_options(input), &observer);
@@ -91,7 +91,8 @@ bool test_transient_augmented_contact(const std::string& input_path) {
               << result.last_attempt.augmented_lagrangian_iterations << '\n'
               << "transient_augmented_maximum_committed_multiplier=" << observer.maximum_multiplier() << '\n'
               << "transient_augmented_maximum_penetration=" << observer.maximum_penetration() << '\n'
-              << "transient_augmented_penetration_tolerance=" << input.contacts.at(0).penetration_tolerance << '\n'
+              << "transient_augmented_penetration_tolerance=" << input.spatial.contacts.at(0).penetration_tolerance
+              << '\n'
               << "transient_augmented_final_active_contact_nodes=" << observer.final_active_contact_nodes() << '\n'
               << "transient_augmented_final_total_contact_force=" << observer.final_total_contact_force() << '\n';
     return check(problem.uses_augmented_contact(), "transient fixture enables the augmented contact "
@@ -102,7 +103,7 @@ bool test_transient_augmented_contact(const std::string& input_path) {
                "rejected step") &&
            check(observer.maximum_multiplier() > 0.0, "at least one outer multiplier update is committed during "
                                                       "the transient solve") &&
-           check(observer.maximum_penetration() <= input.contacts.at(0).penetration_tolerance,
+           check(observer.maximum_penetration() <= input.spatial.contacts.at(0).penetration_tolerance,
                "every accepted transient step satisfies the 1 nm "
                "penetration tolerance") &&
            check(observer.final_active_contact_nodes() > 0 && observer.final_total_contact_force() > 0.0,
@@ -113,7 +114,7 @@ bool test_transient_augmented_contact(const std::string& input_path) {
 bool test_transient_augmented_failure_rollback(const std::string& input_path) {
     const fuelsim::FuelSimCaseDefinition input = augmented_pcmi_input(input_path, 1.0e-20, 1);
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
-    fuelsim::TransientProblem problem(input.transient_definition(), mesh);
+    fuelsim::TransientProblem problem(input.spatial, mesh);
     const fuelsim::TransientResult result =
         fuelsim::solve_transient(problem, time_options(input), solver_options(input));
     std::cout << "transient_augmented_failure_committed_time=" << result.committed_time << '\n'
@@ -138,7 +139,7 @@ bool test_transient_augmented_failure_rollback(const std::string& input_path) {
 bool test_transient_augmented_time_error(const std::string& input_path) {
     const fuelsim::FuelSimCaseDefinition input = augmented_pcmi_input(input_path, 1.0e-9, 50);
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
-    fuelsim::TransientProblem problem(input.transient_definition(), mesh);
+    fuelsim::TransientProblem problem(input.spatial, mesh);
     fuelsim::TransientTimeOptions options = {
         input.transient_execution.end_time, 4.0, 0.125, 4.0, 1.0, 0.5, 12, input.transient_execution.load_ramp_time};
     options.time_error_relative_tolerance = 5.0e-1;
@@ -182,7 +183,7 @@ bool test_transient_augmented_time_error(const std::string& input_path) {
                                                           "rejected step estimate") &&
            check(maximum_accepted_multiplier_error <= 1.0, "accepted steps keep the multiplier error component inside "
                                                            "the normalized bound") &&
-           check(observer.maximum_penetration() <= input.contacts.at(0).penetration_tolerance,
+           check(observer.maximum_penetration() <= input.spatial.contacts.at(0).penetration_tolerance,
                "error-controlled accepted steps satisfy the penetration "
                "tolerance") &&
            check(observer.maximum_multiplier() > 0.0 && observer.final_active_contact_nodes() > 0,

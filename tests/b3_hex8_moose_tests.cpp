@@ -135,7 +135,7 @@ bool run(const std::string& input_path, const std::string& nodal_path, const std
         definition.geometry != fuelsim::CaseGeometry::cartesian_3d)
         throw std::invalid_argument("Stage B comparison requires a steady Cartesian three-dimensional input card");
     const auto mesh = fuelsim::read_exodus_hex8(definition.mesh_file);
-    fuelsim::SteadyProblem problem(definition.spatial_definition(), mesh);
+    fuelsim::SteadyProblem problem(definition.spatial, mesh);
     fuelsim::SolverOptions options;
     options.absolute_tolerance = definition.solver.absolute_tolerance;
     options.relative_tolerance = definition.solver.relative_tolerance;
@@ -143,7 +143,7 @@ bool run(const std::string& input_path, const std::string& nodal_path, const std
     options.maximum_iterations = definition.solver.maximum_iterations;
     const auto solve = fuelsim::solve_steady(problem,
         {definition.steady_execution.load_steps, definition.steady_execution.cutback_factor,
-            definition.steady_execution.maximum_cutbacks, definition.steady_execution.minimum_load_increment},
+            definition.steady_execution.maximum_cutbacks_per_step, definition.steady_execution.minimum_load_increment},
         options);
     bool passed = check(solve.completed && solve.solve.converged, "stage B input-card solve converges");
     double coordinate_error = 0.0;

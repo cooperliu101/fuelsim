@@ -1,6 +1,7 @@
 #include "fuelsim/nonlinear_problem.hpp"
 #include "fuelsim/petsc_solver.hpp"
 #include "fuelsim/steady_problem.hpp"
+#include "support/material_factory.hpp"
 #include "support/mesh_fixture.hpp"
 #include "support/rz_problem_access.hpp"
 #include <algorithm>
@@ -32,19 +33,11 @@ bool test_shadow_state_view() {
     try {
         (void)state.value(3);
     } catch (const std::out_of_range&) { missing_rejected = true; }
-    return check(state.global_size() == 9 && state.local_size() == 3 && state.contains(1) && !state.contains(3) &&
-                     state.value(4) == 5.0 && missing_rejected,
+    return check(state.global_size() == 9 && state.value(4) == 5.0 && missing_rejected,
         "shadow state exposes only declared global DOFs");
 }
 fuelsim::ThermoelasticProperties constant_material(double conductivity, double thermal_expansion) {
-    return {
-        0.0,
-        conductivity,
-        75.0e9,
-        0.3,
-        thermal_expansion,
-        600.0,
-    };
+    return fuelsim::test::thermoelastic(0.0, conductivity, 75.0e9, 0.3, thermal_expansion, 600.0);
 }
 fuelsim::BoundaryConditionDefinition dirichlet(
     const std::string& name, const std::string& boundary, fuelsim::Field field, double value) {
@@ -667,9 +660,8 @@ bool test_lame_open_ended_cylinder() {
     constexpr double pressure = 1.0e6;
     constexpr double young_modulus = 75.0e9;
     constexpr double poisson_ratio = 0.3;
-    fuelsim::ThermoelasticProperties material = constant_material(4.0, 0.0);
-    material.young_modulus = young_modulus;
-    material.poisson_ratio = poisson_ratio;
+    const fuelsim::ThermoelasticProperties material =
+        fuelsim::test::thermoelastic(0.0, 4.0, young_modulus, poisson_ratio, 0.0, 600.0);
     const fuelsim::UnstructuredQuad4Mesh mesh =
         fuelsim::test::make_disconnected_annular_mesh({{1, "solid", inner_radius, outer_radius, length, 48, 2}});
     const fuelsim::SteadyProblem problem(

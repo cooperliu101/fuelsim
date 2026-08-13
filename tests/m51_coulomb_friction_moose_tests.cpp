@@ -20,16 +20,16 @@ bool check(bool condition, const std::string& message) {
 bool run_comparison(const std::string& input_path, const std::string& nodal_reference_path,
     const std::string& pressure_reference_path) {
     const fuelsim::FuelSimCaseDefinition definition = fuelsim::read_case_input(input_path);
-    if (definition.problem != fuelsim::CaseProblem::steady || definition.contacts.size() != 1 ||
-        definition.contacts[0].friction_coefficient != 0.3)
+    if (definition.problem != fuelsim::CaseProblem::steady || definition.spatial.contacts.size() != 1 ||
+        definition.spatial.contacts[0].friction_coefficient != 0.3)
         throw std::invalid_argument("M5.1 comparison requires the Coulomb friction input card");
     const fuelsim::UnstructuredQuad4Mesh source = fuelsim::read_exodus_quad4(definition.mesh_file);
-    fuelsim::SteadyProblem problem(definition.spatial_definition(), source);
+    fuelsim::SteadyProblem problem(definition.spatial, source);
     const fuelsim::SolverOptions options = {definition.solver.absolute_tolerance, definition.solver.relative_tolerance,
         definition.solver.step_tolerance, definition.solver.maximum_iterations};
     const fuelsim::SteadyResult result = fuelsim::solve_steady(problem,
         {definition.steady_execution.load_steps, definition.steady_execution.cutback_factor,
-            definition.steady_execution.maximum_cutbacks, definition.steady_execution.minimum_load_increment},
+            definition.steady_execution.maximum_cutbacks_per_step, definition.steady_execution.minimum_load_increment},
         options);
     bool passed =
         check(result.completed && result.solve.converged, "M5.1 twenty-step frictional load path converges") &&
@@ -66,7 +66,7 @@ bool run_comparison(const std::string& input_path, const std::string& nodal_refe
         ++active;
         if (node.sliding) ++sliding;
         maximum_capacity_excess = std::max(maximum_capacity_excess,
-            std::abs(node.tangential_traction) - definition.contacts[0].friction_coefficient * node.pressure);
+            std::abs(node.tangential_traction) - definition.spatial.contacts[0].friction_coefficient * node.pressure);
     }
     const fuelsim::InterfaceSummary interface = fuelsim::rz::ProblemAccess::summarize_interface(problem, 0, state);
     passed = check(active == contact_nodes.size() && sliding > 0 &&
@@ -75,12 +75,12 @@ bool run_comparison(const std::string& input_path, const std::string& nodal_refe
                  "M5.1 activates friction, reaches sliding, respects every "
                  "Coulomb cap, and produces a nonzero shear resultant") &&
              passed;
-    fuelsim::SpatialDefinition frictionless_definition = definition.spatial_definition();
+    fuelsim::SpatialDefinition frictionless_definition = definition.spatial;
     frictionless_definition.contacts[0].friction_coefficient = 0.0;
     fuelsim::SteadyProblem frictionless(std::move(frictionless_definition), source);
     const fuelsim::SteadyResult frictionless_result = fuelsim::solve_steady(frictionless,
         {definition.steady_execution.load_steps, definition.steady_execution.cutback_factor,
-            definition.steady_execution.maximum_cutbacks, definition.steady_execution.minimum_load_increment},
+            definition.steady_execution.maximum_cutbacks_per_step, definition.steady_execution.minimum_load_increment},
         options);
     double axial_difference_squared = 0.0;
     double axial_scale_squared = 0.0;

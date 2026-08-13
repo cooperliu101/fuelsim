@@ -80,36 +80,37 @@ bool verify_m3_output_input(const std::string& path, const std::string& contents
     }
     const fuelsim::FuelSimCaseDefinition definition = fuelsim::read_case_input(path);
     const int remove_status = std::remove(path.c_str());
-    return check(
-        remove_status == 0 && definition.transient_execution.restart_file.find("restart.bin") != std::string::npos &&
-            definition.outputs.exodus_file.find("results.e") != std::string::npos &&
-            definition.outputs.exodus_interval == 3 &&
-            definition.outputs.history_file.find("history.csv") != std::string::npos &&
-            definition.outputs.history_interval == 2 && definition.outputs.progress_interval == 4 &&
-            definition.outputs.checkpoint_file.find("checkpoint.bin") != std::string::npos &&
-            definition.outputs.checkpoint_interval == 5 && definition.time_tables.size() == 1 &&
-            definition.time_tables[0].value(1.0) == 0.5 &&
-            definition.regions[0].spatial.heat_source_function == "power" &&
-            definition.boundary_conditions.back().type == fuelsim::BoundaryConditionType::convection &&
-            definition.boundary_conditions.back().coefficient_function == "power" &&
-            definition.transient_execution.target_nonlinear_iterations == 6 &&
-            definition.transient_execution.iteration_window == 2 &&
-            definition.transient_execution.time_error_relative_tolerance == 2.0e-4 &&
-            definition.transient_execution.temperature_time_absolute_tolerance == 1.0e-3 &&
-            definition.transient_execution.displacement_time_absolute_tolerance == 1.0e-10 &&
-            definition.transient_execution.strain_history_time_absolute_tolerance == 2.0e-9 &&
-            definition.transient_execution.stress_history_time_absolute_tolerance == 5.0 &&
-            definition.transient_execution.time_error_safety_factor == 0.85 &&
-            definition.solver.linear_solver == "gmres" && definition.solver.preconditioner == "field_split" &&
-            definition.solver.linear_relative_tolerance == 1.0e-7 &&
-            definition.solver.maximum_linear_iterations == 700 && definition.solver.backtracking_fallback &&
-            definition.solver.field_residual_scaling && definition.solver.residual_reduction_tolerance == 2.0e-6 &&
-            definition.solver.temperature_residual_absolute_tolerance == 3.0e-8 &&
-            definition.solver.mechanical_residual_absolute_tolerance == 4.0e-6 &&
-            definition.regions[1].spatial.material.functions->creep.parameters.value(
-                "coefficient_temperature_coefficient") == 1.0e-8 &&
-            definition.regions[1].spatial.material.functions->plasticity.parameters.value(
-                "yield_stress_temperature_coefficient") == -100.0,
+    return check(remove_status == 0 && definition.restart_file.find("restart.bin") != std::string::npos &&
+                     definition.outputs.exodus_file.find("results.e") != std::string::npos &&
+                     definition.outputs.exodus_interval == 3 &&
+                     definition.outputs.history_file.find("history.csv") != std::string::npos &&
+                     definition.outputs.history_interval == 2 && definition.outputs.progress_interval == 4 &&
+                     definition.outputs.checkpoint_file.find("checkpoint.bin") != std::string::npos &&
+                     definition.outputs.checkpoint_interval == 5 && definition.spatial.time_tables.size() == 1 &&
+                     definition.spatial.time_tables[0].value(1.0) == 0.5 &&
+                     definition.spatial.regions[0].heat_source_function == "power" &&
+                     definition.spatial.boundary_conditions.back().type == fuelsim::BoundaryConditionType::convection &&
+                     definition.spatial.boundary_conditions.back().coefficient_function == "power" &&
+                     definition.transient_execution.target_nonlinear_iterations == 6 &&
+                     definition.transient_execution.iteration_window == 2 &&
+                     definition.transient_execution.time_error_relative_tolerance == 2.0e-4 &&
+                     definition.transient_execution.temperature_time_absolute_tolerance == 1.0e-3 &&
+                     definition.transient_execution.displacement_time_absolute_tolerance == 1.0e-10 &&
+                     definition.transient_execution.strain_history_time_absolute_tolerance == 2.0e-9 &&
+                     definition.transient_execution.stress_history_time_absolute_tolerance == 5.0 &&
+                     definition.transient_execution.time_error_safety_factor == 0.85 &&
+                     definition.solver.linear_solver == fuelsim::SolverOptions::LinearSolver::gmres &&
+                     definition.solver.preconditioner == fuelsim::SolverOptions::Preconditioner::field_split &&
+                     definition.solver.linear_relative_tolerance == 1.0e-7 &&
+                     definition.solver.maximum_linear_iterations == 700 && definition.solver.backtracking_fallback &&
+                     definition.solver.field_residual_scaling &&
+                     definition.solver.residual_reduction_tolerance == 2.0e-6 &&
+                     definition.solver.temperature_residual_absolute_tolerance == 3.0e-8 &&
+                     definition.solver.mechanical_residual_absolute_tolerance == 4.0e-6 &&
+                     definition.spatial.regions[1].material.functions->creep.parameters.value(
+                         "coefficient_temperature_coefficient") == 1.0e-8 &&
+                     definition.spatial.regions[1].material.functions->plasticity.parameters.value(
+                         "yield_stress_temperature_coefficient") == -100.0,
         "restart, time functions, convection, solver and outputs are parsed");
 }
 bool fuzz_input_parser(const std::string& seed, const std::string& path) {
@@ -155,42 +156,44 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
         check(steady.version == 3 && steady.problem == fuelsim::CaseProblem::steady &&
                   steady.geometry == fuelsim::CaseGeometry::axisymmetric_rz,
             "steady input selects the physical steady problem") &&
-        check(steady.regions.size() == 2 && steady.regions[0].spatial.block == "fuel" &&
-                  steady.regions[1].spatial.block == "clad",
+        check(steady.spatial.regions.size() == 2 && steady.spatial.regions[0].block == "fuel" &&
+                  steady.spatial.regions[1].block == "clad",
             "steady input preserves arbitrary Exodus regions") &&
-        check(steady.contacts.size() == 1 && steady.contacts[0].primary == "clad_left" &&
-                  steady.contacts[0].secondary == "fuel_right" && steady.contacts[0].thermal &&
-                  steady.contacts[0].mechanical && steady.contacts[0].friction_coefficient == 0.0,
+        check(steady.spatial.contacts.size() == 1 && steady.spatial.contacts[0].primary == "clad_left" &&
+                  steady.spatial.contacts[0].secondary == "fuel_right" && steady.spatial.contacts[0].thermal &&
+                  steady.spatial.contacts[0].mechanical && steady.spatial.contacts[0].friction_coefficient == 0.0,
             "contact is defined only by primary and secondary side sets") &&
         check(steady.steady_execution.load_steps == 20 && steady.steady_execution.cutback_factor == 0.5 &&
-                  steady.steady_execution.maximum_cutbacks == 12 &&
+                  steady.steady_execution.maximum_cutbacks_per_step == 12 &&
                   steady.steady_execution.minimum_load_increment == 1.0e-6 && steady.solver.maximum_iterations == 50 &&
-                  steady.solver.linear_solver == "automatic" && steady.solver.preconditioner == "automatic" &&
+                  steady.solver.linear_solver == fuelsim::SolverOptions::LinearSolver::automatic &&
+                  steady.solver.preconditioner == fuelsim::SolverOptions::Preconditioner::automatic &&
                   steady.solver.linear_relative_tolerance == 1.0e-8 && steady.solver.maximum_linear_iterations == 500,
             "steady execution and solver fields are parsed") &&
         check(transient.problem == fuelsim::CaseProblem::transient,
             "transient input selects the physical transient problem") &&
-        check(finite_strain.regions.size() == 2 &&
-                  finite_strain.regions[0].spatial.strain_formulation == fuelsim::StrainFormulation::finite &&
-                  finite_strain.regions[1].spatial.strain_formulation == fuelsim::StrainFormulation::finite,
+        check(finite_strain.spatial.regions.size() == 2 &&
+                  finite_strain.spatial.regions[0].strain_formulation == fuelsim::StrainFormulation::finite &&
+                  finite_strain.spatial.regions[1].strain_formulation == fuelsim::StrainFormulation::finite,
             "finite strain is parsed independently for every region") &&
-        check(transient.regions[0].transient_material.behavior == fuelsim::InelasticBehavior::elastic &&
-                  transient.regions[1].transient_material.behavior ==
-                      fuelsim::InelasticBehavior::norton_creep_j2_plasticity,
+        check(!transient.spatial.regions[0].material.functions->has_creep() &&
+                  !transient.spatial.regions[0].material.functions->has_plasticity() &&
+                  transient.spatial.regions[1].material.functions->has_creep() &&
+                  transient.spatial.regions[1].material.functions->has_plasticity(),
             "transient material behaviors are parsed") &&
         check(transient.transient_execution.end_time == 20.0 && transient.transient_execution.load_ramp_time == 20.0 &&
                   transient.transient_execution.time_error_relative_tolerance == 0.0 &&
                   transient.solver.maximum_iterations == 80,
             "transient execution keeps time-error control opt-in and "
             "parses ramp and solver fields") &&
-        check(scaled_displacement.regions.size() == 1 && scaled_displacement.regions[0].spatial.block.empty() &&
-                  scaled_displacement.regions[0].spatial.block_id == 0 &&
-                  scaled_displacement.boundary_conditions.back().scale_with_load,
+        check(scaled_displacement.spatial.regions.size() == 1 && scaled_displacement.spatial.regions[0].block.empty() &&
+                  scaled_displacement.spatial.regions[0].block_id == 0 &&
+                  scaled_displacement.spatial.boundary_conditions.back().scale_with_load,
             "block ID and scaled displacement are parsed") &&
-        check(traction.boundary_conditions.back().type == fuelsim::BoundaryConditionType::traction &&
-                  traction.boundary_conditions.back().field == fuelsim::Field::axial_displacement &&
-                  traction.boundary_conditions.back().scale_with_load &&
-                  !traction.boundary_conditions.back().use_displaced_geometry,
+        check(traction.spatial.boundary_conditions.back().type == fuelsim::BoundaryConditionType::traction &&
+                  traction.spatial.boundary_conditions.back().field == fuelsim::Field::axial_displacement &&
+                  traction.spatial.boundary_conditions.back().scale_with_load &&
+                  !traction.spatial.boundary_conditions.back().use_displaced_geometry,
             "scaled axial traction is parsed");
     passed =
         expect_parse_failure(malformed_path, "[Case]\n  version = 1\n  version = 1\n[]\n", "duplicate key 'version'") &&
@@ -217,8 +220,8 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
         output << registered_case;
     }
     const fuelsim::FuelSimCaseDefinition registered = fuelsim::read_case_input(malformed_path, custom_registry);
-    passed = check(registered.regions[0].spatial.material.functions->thermal.name == "registered_test_thermal" &&
-                       registered.regions[0].spatial.material.functions->thermal.parameters.value(
+    passed = check(registered.spatial.regions[0].material.functions->thermal.name == "registered_test_thermal" &&
+                       registered.spatial.regions[0].material.functions->thermal.parameters.value(
                            "inverse_coefficient") == 3824.0,
                  "a custom registered function receives strictly named input parameters") &&
              passed;
@@ -251,7 +254,7 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
         output << friction_case;
     }
     const fuelsim::FuelSimCaseDefinition friction = fuelsim::read_case_input(malformed_path);
-    passed = check(friction.contacts.size() == 1 && friction.contacts[0].friction_coefficient == 0.25,
+    passed = check(friction.spatial.contacts.size() == 1 && friction.spatial.contacts[0].friction_coefficient == 0.25,
                  "optional contact mu is parsed as the Coulomb friction "
                  "coefficient") &&
              passed;
@@ -267,11 +270,11 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
         output << automatic_penalty_case;
     }
     const fuelsim::FuelSimCaseDefinition automatic_penalty = fuelsim::read_case_input(malformed_path);
-    passed =
-        check(automatic_penalty.contacts[0].automatic_penalty && automatic_penalty.contacts[0].penalty_factor == 1.0,
-            "omitting penalty selects the documented automatic "
-            "contact factor") &&
-        passed;
+    passed = check(automatic_penalty.spatial.contacts[0].automatic_penalty &&
+                       automatic_penalty.spatial.contacts[0].penalty_factor == 1.0,
+                 "omitting penalty selects the documented automatic "
+                 "contact factor") &&
+             passed;
     std::string augmented_case = read_text(steady_path);
     const std::string penalty_formulation = "formulation = penalty";
     const std::size_t formulation_position = augmented_case.find(penalty_formulation);
@@ -287,10 +290,10 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
         output << augmented_case;
     }
     const fuelsim::FuelSimCaseDefinition augmented = fuelsim::read_case_input(malformed_path);
-    passed = check(augmented.contacts[0].mechanical_formulation ==
+    passed = check(augmented.spatial.contacts[0].mechanical_formulation ==
                            fuelsim::MechanicalContactFormulation::augmented_lagrangian &&
-                       augmented.contacts[0].penetration_tolerance == 2.0e-9 &&
-                       augmented.contacts[0].maximum_augmented_iterations == 15,
+                       augmented.spatial.contacts[0].penetration_tolerance == 2.0e-9 &&
+                       augmented.spatial.contacts[0].maximum_augmented_iterations == 15,
                  "augmented contact tolerance and iteration limit are "
                  "parsed") &&
              passed;
@@ -307,7 +310,7 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
         output << negative_friction_case;
     }
     const fuelsim::FuelSimCaseDefinition trusted_values = fuelsim::read_case_input(malformed_path);
-    passed = check(trusted_values.contacts[0].friction_coefficient == -0.1,
+    passed = check(trusted_values.spatial.contacts[0].friction_coefficient == -0.1,
                  "input preserves user-provided physical values") &&
              passed;
     if (std::remove(malformed_path.c_str()) != 0) return check(false, "could not remove trusted-value fixture");
@@ -442,7 +445,7 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
         output << current_traction_case;
     }
     const fuelsim::FuelSimCaseDefinition current_traction = fuelsim::read_case_input(malformed_path);
-    passed = check(current_traction.boundary_conditions.back().use_displaced_geometry,
+    passed = check(current_traction.spatial.boundary_conditions.back().use_displaced_geometry,
                  "current-configuration traction is parsed") &&
              passed;
     if (std::remove(malformed_path.c_str()) != 0)
