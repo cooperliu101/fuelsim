@@ -232,7 +232,58 @@ adlite::Scalar linear_temperature_isotropic_flow_stress(const PlasticFlowStressI
             temperature_change;
     return yield_stress + hardening * input.equivalent_plastic_strain;
 }
+ThermalFunctionDispatch thermal_dispatch(ThermalPropertyFunction function) noexcept {
+    if (function == &constant_thermophysical) return ThermalFunctionDispatch::constant_thermophysical;
+    if (function == &inverse_temperature_thermophysical)
+        return ThermalFunctionDispatch::inverse_temperature_thermophysical;
+    return ThermalFunctionDispatch::custom;
+}
+ElasticFunctionDispatch elastic_dispatch(ElasticPropertyFunction function) noexcept {
+    if (function == &constant_isotropic_elasticity) return ElasticFunctionDispatch::constant_isotropic;
+    if (function == &linear_temperature_isotropic_elasticity)
+        return ElasticFunctionDispatch::linear_temperature_isotropic;
+    return ElasticFunctionDispatch::custom;
+}
+EigenstrainFunctionDispatch eigenstrain_dispatch(EigenstrainFunction function) noexcept {
+    if (function == &isotropic_thermal_expansion) return EigenstrainFunctionDispatch::isotropic_thermal_expansion;
+    if (function == &linear_temperature_isotropic_thermal_expansion)
+        return EigenstrainFunctionDispatch::linear_temperature_isotropic_thermal_expansion;
+    return EigenstrainFunctionDispatch::custom;
+}
 } // namespace
+void evaluate_thermal_function(
+    const ThermalFunctionInstance& instance, const ThermoelasticFunctionInput& input, ThermalPropertyOutput& output) {
+    switch (instance.dispatch) {
+    case ThermalFunctionDispatch::constant_thermophysical: constant_thermophysical(input, output); return;
+    case ThermalFunctionDispatch::inverse_temperature_thermophysical:
+        inverse_temperature_thermophysical(input, output);
+        return;
+    case ThermalFunctionDispatch::custom: instance.function(input, output); return;
+    }
+    throw std::logic_error("Thermal material function dispatch is invalid");
+}
+void evaluate_elastic_function(
+    const ElasticFunctionInstance& instance, const ThermoelasticFunctionInput& input, ElasticPropertyOutput& output) {
+    switch (instance.dispatch) {
+    case ElasticFunctionDispatch::constant_isotropic: constant_isotropic_elasticity(input, output); return;
+    case ElasticFunctionDispatch::linear_temperature_isotropic:
+        linear_temperature_isotropic_elasticity(input, output);
+        return;
+    case ElasticFunctionDispatch::custom: instance.function(input, output); return;
+    }
+    throw std::logic_error("Elastic material function dispatch is invalid");
+}
+void evaluate_eigenstrain_function(
+    const EigenstrainFunctionInstance& instance, const ThermoelasticFunctionInput& input, SymmetricTensor3& output) {
+    switch (instance.dispatch) {
+    case EigenstrainFunctionDispatch::isotropic_thermal_expansion: isotropic_thermal_expansion(input, output); return;
+    case EigenstrainFunctionDispatch::linear_temperature_isotropic_thermal_expansion:
+        linear_temperature_isotropic_thermal_expansion(input, output);
+        return;
+    case EigenstrainFunctionDispatch::custom: instance.function(input, output); return;
+    }
+    throw std::logic_error("Eigenstrain material function dispatch is invalid");
+}
 std::uint64_t MaterialFunctionSet::signature() const noexcept {
     std::uint64_t hash = material_signature_offset;
     material_hash_string(hash, name);
@@ -299,19 +350,22 @@ ThermalFunctionInstance MaterialFunctionRegistry::bind_thermal(
     const std::string& name, std::vector<MaterialParameterValue> values) const {
     const Registration& entry = find_registration(MaterialFunctionCategory::thermal, name, "thermal");
     return {name, entry.version, MaterialParameters(ordered_values(name, entry.parameters, values)),
-        std::get<ThermalPropertyFunction>(entry.function)};
+        std::get<ThermalPropertyFunction>(entry.function),
+        thermal_dispatch(std::get<ThermalPropertyFunction>(entry.function))};
 }
 ElasticFunctionInstance MaterialFunctionRegistry::bind_elasticity(
     const std::string& name, std::vector<MaterialParameterValue> values) const {
     const Registration& entry = find_registration(MaterialFunctionCategory::elasticity, name, "elasticity");
     return {name, entry.version, MaterialParameters(ordered_values(name, entry.parameters, values)),
-        std::get<ElasticPropertyFunction>(entry.function)};
+        std::get<ElasticPropertyFunction>(entry.function),
+        elastic_dispatch(std::get<ElasticPropertyFunction>(entry.function))};
 }
 EigenstrainFunctionInstance MaterialFunctionRegistry::bind_eigenstrain(
     const std::string& instance_name, const std::string& name, std::vector<MaterialParameterValue> values) const {
     const Registration& entry = find_registration(MaterialFunctionCategory::eigenstrain, name, "eigenstrain");
     return {instance_name, name, entry.version, MaterialParameters(ordered_values(name, entry.parameters, values)),
-        std::get<EigenstrainFunction>(entry.function)};
+        std::get<EigenstrainFunction>(entry.function),
+        eigenstrain_dispatch(std::get<EigenstrainFunction>(entry.function))};
 }
 CreepFunctionInstance MaterialFunctionRegistry::bind_creep(
     const std::string& name, std::vector<MaterialParameterValue> values) const {
@@ -386,7 +440,7 @@ adlite::Scalar IsotropicThermoelasticMaterial::conductivity(
         throw std::domain_error("Thermoelastic material temperature must be finite and positive");
     ThermalPropertyOutput output{};
     const ThermalFunctionInstance& instance = _properties.functions->thermal;
-    instance.function({temperature, context, &instance.parameters}, output);
+    evaluate_thermal_function(instance, {temperature, context, &instance.parameters}, output);
     if (!std::isfinite(output.conductivity.value()) || !(output.conductivity.value() > 0.0))
         throw std::domain_error("Thermal material function conductivity must be finite and positive");
     return output.conductivity;
@@ -395,7 +449,7 @@ adlite::Scalar IsotropicThermoelasticMaterial::heat_capacity(
     const adlite::Scalar& temperature, MaterialFunctionContext context) const {
     ThermalPropertyOutput output{};
     const ThermalFunctionInstance& instance = _properties.functions->thermal;
-    instance.function({temperature, context, &instance.parameters}, output);
+    evaluate_thermal_function(instance, {temperature, context, &instance.parameters}, output);
     if (!std::isfinite(output.density.value()) || !(output.density.value() > 0.0) ||
         !std::isfinite(output.specific_heat.value()) || !(output.specific_heat.value() > 0.0))
         throw std::domain_error("Thermal material function density and specific_heat must be finite and positive");
@@ -407,7 +461,7 @@ ActiveThermoelasticProperties IsotropicThermoelasticMaterial::active_properties(
         throw std::domain_error("Thermoelastic material temperature must be finite");
     ElasticPropertyOutput output{};
     const ElasticFunctionInstance& instance = _properties.functions->elasticity;
-    instance.function({temperature, context, &instance.parameters}, output);
+    evaluate_elastic_function(instance, {temperature, context, &instance.parameters}, output);
     if (!std::isfinite(output.young_modulus.value()) || !(output.young_modulus.value() > 0.0))
         throw std::domain_error("Elasticity material function young_modulus must be finite and positive");
     if (!std::isfinite(output.poisson_ratio.value()) ||
@@ -430,7 +484,7 @@ SymmetricTensor3 IsotropicThermoelasticMaterial::eigenstrain(
     SymmetricTensor3 result{};
     for (const EigenstrainFunctionInstance& instance : _properties.functions->eigenstrains) {
         SymmetricTensor3 value{};
-        instance.function({temperature, context, &instance.parameters}, value);
+        evaluate_eigenstrain_function(instance, {temperature, context, &instance.parameters}, value);
         if (!std::isfinite(value.xx.value()) || !std::isfinite(value.yy.value()) || !std::isfinite(value.zz.value()) ||
             !std::isfinite(value.xy.value()) || !std::isfinite(value.yz.value()) || !std::isfinite(value.xz.value()))
             throw std::domain_error("Eigenstrain material function output must be finite");

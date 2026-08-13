@@ -225,6 +225,17 @@ The small differences are consistent with eliminating one indirect call per
 contribution, but the sample is only evidence of no regression rather than a
 general speedup claim. Iteration counts and final residuals remained identical.
 
+The next material-dispatch step encoded built-in thermal, elasticity, and
+eigenstrain functions as enums when input functions were bound. Integration
+points now use explicit switches and direct built-in calls; only user-registered
+custom functions use the function-pointer fallback. With commit `562b00f` as
+the immediate baseline, the default three-run median changed from `1.108533 s`
+to `1.113615 s`, or 0.46% higher, while the single medium run changed from
+`60.443432 s` to `60.408998 s`, or 0.06% lower. Iteration counts and residuals
+were identical. These opposite sub-percent movements are treated as run-to-run
+variation and no-regression evidence, not a speedup claim; the change is kept
+for its explicit call graph, simpler debugging, and device-portability benefit.
+
 ## 2026-08-06 M5.6 engineering-scale iterative solvers
 
 The Release build used two MPI processes pinned to CPUs 0 and 1. OpenMP,
