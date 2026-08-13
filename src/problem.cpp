@@ -474,6 +474,8 @@ class TransientProblem::Implementation final : public SpatialProblemBackend {
     std::vector<Quad4RzTransientData> rz_kernel_data;
     std::vector<std::vector<Quad4MaterialHistory>> material_histories;
     std::vector<std::vector<std::array<AxisymmetricStressValues, 4>>> material_stresses;
+    std::vector<std::vector<Quad4MaterialHistory>> _staged_material_histories;
+    std::vector<std::vector<std::array<AxisymmetricStressValues, 4>>> _staged_material_stresses;
     TransientConservationSummary last_conservation_summary;
     std::vector<double> committed_solution;
     double committed_time = 0.0, committed_load_factor = 0.0, active_time_step = 0.0, active_end_time = 0.0,
@@ -593,11 +595,15 @@ TransientProblem::TransientProblem(SpatialDefinition definition, const Unstructu
     _impl->rz_kernel_data.reserve(regions);
     _impl->material_histories.resize(regions);
     _impl->material_stresses.resize(regions);
+    _impl->_staged_material_histories.resize(regions);
+    _impl->_staged_material_stresses.resize(regions);
     for (std::size_t region = 0; region < regions; ++region) {
         _impl->rz_kernel_data.push_back({IsotropicInelasticMaterial(_impl->definition().regions[region].material), 0.0,
             0.0, _impl->definition().regions[region].strain_formulation});
         _impl->material_histories[region].resize(_impl->rz->region_element_count(region));
         _impl->material_stresses[region].resize(_impl->rz->region_element_count(region));
+        _impl->_staged_material_histories[region].resize(_impl->rz->region_element_count(region));
+        _impl->_staged_material_stresses[region].resize(_impl->rz->region_element_count(region));
     }
     apply_spatial_controls(0.0, 0.0);
     _impl->committed_solution = _impl->rz->initial_state();
@@ -1011,11 +1017,9 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
         _impl->last_conservation_summary = conservation;
     } else {
         const std::size_t regions = _impl->rz->region_count();
-        std::vector<std::vector<Quad4MaterialHistory>> staged(regions);
-        std::vector<std::vector<std::array<AxisymmetricStressValues, 4>>> staged_stresses(regions);
+        auto& staged = _impl->_staged_material_histories;
+        auto& staged_stresses = _impl->_staged_material_stresses;
         for (std::size_t region = 0; region < regions; ++region) {
-            staged[region].resize(_impl->rz->region_element_count(region));
-            staged_stresses[region].resize(_impl->rz->region_element_count(region));
             const std::size_t offset = _impl->rz->region_element_offset(region);
             for (std::size_t element = 0; element < staged[region].size(); ++element) {
                 const LocalValues state = gather_rz_state(*_impl->rz, offset + element, converged_solution);
