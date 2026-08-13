@@ -1,5 +1,4 @@
-#ifndef FUELSIM_TRANSIENT_PROBLEM_HPP
-#define FUELSIM_TRANSIENT_PROBLEM_HPP
+#pragma once
 #include "fuelsim/inelastic_material.hpp"
 #include "fuelsim/nonlinear_problem.hpp"
 #include "fuelsim/spatial_definition.hpp"
@@ -13,7 +12,7 @@ namespace rz {
 class BackendAccess;
 class TransientConservationCalculator;
 } // namespace rz
-namespace cartesian3d {
+namespace cartesian {
 class BackendAccess;
 }
 struct TransientTimeErrorEstimate;
@@ -27,32 +26,19 @@ struct TransientProblemDefinition final {
     std::vector<TransientRegionDefinition> regions;
 };
 struct TransientStepInput final {
-    double end_time;
-    double load_factor;
+    double end_time, load_factor;
 };
 struct RegionInelasticSummary final {
-    double maximum_equivalent_plastic_strain;
-    double maximum_equivalent_creep_strain;
+    double maximum_equivalent_plastic_strain, maximum_equivalent_creep_strain;
 };
 struct TransientConservationSummary final {
-    double generated_heat_rate = 0.0;
-    double stored_heat_rate = 0.0;
-    double convection_heat_rate = 0.0;
-    double interface_heat_imbalance = 0.0;
-    double dirichlet_heat_input_rate = 0.0;
-    double global_thermal_balance = 0.0;
-    double relative_thermal_balance = 0.0;
-    double unconstrained_thermal_residual_l2 = 0.0;
-    double internal_mechanical_work_increment = 0.0;
-    double pressure_traction_work_increment = 0.0;
-    double dirichlet_reaction_work_increment = 0.0;
-    double contact_work_increment = 0.0;
-    double mechanical_work_balance = 0.0;
-    double relative_mechanical_work_balance = 0.0;
-    double unconstrained_mechanical_residual_l2 = 0.0;
-    double elastic_energy_change = 0.0;
-    double plastic_dissipation_increment = 0.0;
-    double creep_dissipation_increment = 0.0;
+    double generated_heat_rate = 0.0, stored_heat_rate = 0.0, convection_heat_rate = 0.0,
+           interface_heat_imbalance = 0.0, dirichlet_heat_input_rate = 0.0, global_thermal_balance = 0.0,
+           relative_thermal_balance = 0.0, unconstrained_thermal_residual_l2 = 0.0,
+           internal_mechanical_work_increment = 0.0, pressure_traction_work_increment = 0.0,
+           dirichlet_reaction_work_increment = 0.0, contact_work_increment = 0.0, mechanical_work_balance = 0.0,
+           relative_mechanical_work_balance = 0.0, unconstrained_mechanical_residual_l2 = 0.0,
+           elastic_energy_change = 0.0, plastic_dissipation_increment = 0.0, creep_dissipation_increment = 0.0;
 };
 struct TransientConservationField final {
     const char* name;
@@ -78,20 +64,12 @@ inline constexpr std::array<TransientConservationField, 18> transient_conservati
     {"plastic_dissipation_increment", &TransientConservationSummary::plastic_dissipation_increment},
     {"creep_dissipation_increment", &TransientConservationSummary::creep_dissipation_increment},
 }};
-// Opaque, immutable transaction snapshot used by the common time integrator.
-// Its concrete material and contact layout remains owned by TransientProblem.
 class TransientStateSnapshot final {
   public:
-    TransientStateSnapshot();
-    ~TransientStateSnapshot();
-    TransientStateSnapshot(const TransientStateSnapshot& other);
-    TransientStateSnapshot& operator=(const TransientStateSnapshot& other);
-    TransientStateSnapshot(TransientStateSnapshot&& other) noexcept;
-    TransientStateSnapshot& operator=(TransientStateSnapshot&& other) noexcept;
-    bool empty() const noexcept;
+    TransientStateSnapshot() = default;
+    bool empty() const noexcept { return _storage == nullptr; }
 
   private:
-    std::shared_ptr<const void> snapshot_owner() const noexcept;
     struct Storage;
     explicit TransientStateSnapshot(std::shared_ptr<const Storage> storage);
     std::shared_ptr<const Storage> _storage;
@@ -125,27 +103,23 @@ class TransientProblem final : public NonlinearProblem {
     const std::vector<FieldDescriptor>& field_layout() const noexcept override;
     const std::vector<DirichletCondition>& dirichlet_conditions() const noexcept override;
     void validate_state(const std::vector<double>& state) const override;
-    std::vector<std::size_t> required_state_dofs(
-        std::size_t contribution_begin, std::size_t contribution_end) const override;
-    void validate_local_state(
-        std::size_t contribution_begin, std::size_t contribution_end, const GlobalStateView& state) const override;
-    std::size_t contribution_dof_count(std::size_t contribution_index) const override;
-    void fill_contribution_dofs(std::size_t contribution_index, std::vector<std::size_t>& dofs) const override;
+    std::vector<std::size_t> required_state_dofs(std::size_t first, std::size_t last) const override;
+    void validate_local_state(std::size_t first, std::size_t last, const GlobalStateView& state) const override;
+    void contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const override;
     void compute_contribution_residual(
-        std::size_t contribution_index, const std::vector<double>& state, std::vector<double>& residual) const override;
-    void compute_contribution_system(std::size_t contribution_index, const std::vector<double>& state,
-        std::vector<double>& residual, std::vector<double>& jacobian) const override;
+        std::size_t index, const std::vector<double>& state, std::vector<double>& residual) const override;
+    void compute_contribution_system(std::size_t index, const std::vector<double>& state, std::vector<double>& residual,
+        std::vector<double>& jacobian) const override;
 
   private:
     friend class rz::BackendAccess;
-    friend class cartesian3d::BackendAccess;
+    friend class cartesian::BackendAccess;
     friend class rz::TransientConservationCalculator;
     class Implementation;
     void apply_spatial_controls(double time, double load_factor);
     void clear_active_time_step() noexcept;
     void refresh_region_heat_sources();
     void require_active_time_step() const;
-    std::unique_ptr<Implementation> _implementation;
+    std::unique_ptr<Implementation> _impl;
 };
 } // namespace fuelsim
-#endif

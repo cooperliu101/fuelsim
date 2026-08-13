@@ -1,4 +1,4 @@
-#include "fuelsim/hex8_thermoelastic.hpp"
+#include "fuelsim/hex8.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -138,7 +138,7 @@ bool test_transient_capacity_and_faces() {
         {coordinates[1], coordinates[2], coordinates[6], coordinates[5]}};
     const fuelsim::Quad4FaceGeometry face = fuelsim::make_quad4_face_geometry(face_coordinates);
     fuelsim::Quad4FaceLocalValues face_state{};
-    fuelsim::Quad4FacePressureKernel pressure(5.0);
+    fuelsim::Quad4FaceBoundaryKernel pressure(5.0);
     const fuelsim::Quad4FaceLocalResidual pressure_residual = pressure.residual(face, face_state);
     double force_x = 0.0;
     double force_y = 0.0;
@@ -152,7 +152,7 @@ bool test_transient_capacity_and_faces() {
             "reference pressure uses the outward three-dimensional face area vector and exact total force"))
         return false;
     for (std::size_t node = 0; node < 4; ++node) face_state[node] = 350.0;
-    fuelsim::Quad4FaceConvectionKernel convection(20.0, 300.0);
+    fuelsim::Quad4FaceBoundaryKernel convection(20.0, 300.0);
     const fuelsim::Quad4FaceLocalSystem convection_system = convection.linearize(face, face_state);
     double heat = 0.0;
     double tangent_sum = 0.0;

@@ -1,6 +1,5 @@
 #include "fuelsim/mesh.hpp"
 #include "fuelsim/dof_map.hpp"
-#include "fuelsim/hex8_dof_map.hpp"
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -58,14 +57,6 @@ UnstructuredMeshMetadata::UnstructuredMeshMetadata(std::size_t node_count, std::
                 throw std::out_of_range(geometry_name + " side set is out of range");
     }
 }
-const std::vector<std::int64_t>& UnstructuredMeshMetadata::element_block_ids() const noexcept {
-    return _element_block_ids;
-}
-const std::vector<ElementBlockInfo>& UnstructuredMeshMetadata::element_blocks() const noexcept {
-    return _element_blocks;
-}
-const std::vector<NodeSet>& UnstructuredMeshMetadata::node_sets() const noexcept { return _node_sets; }
-const std::vector<SideSet>& UnstructuredMeshMetadata::side_sets() const noexcept { return _side_sets; }
 const ElementBlockInfo& UnstructuredMeshMetadata::element_block(const std::string& name) const {
     const auto block = std::find_if(_element_blocks.begin(), _element_blocks.end(),
         [&name](const ElementBlockInfo& candidate) { return candidate.name == name; });
@@ -107,8 +98,6 @@ UnstructuredQuad4Mesh::UnstructuredQuad4Mesh(std::vector<RzPoint> nodes, std::ve
             if (node >= _nodes.size()) throw std::out_of_range("UnstructuredQuad4Mesh connectivity is out of range");
     }
 }
-const std::vector<RzPoint>& UnstructuredQuad4Mesh::nodes() const noexcept { return _nodes; }
-const std::vector<Quad4Element>& UnstructuredQuad4Mesh::elements() const noexcept { return _elements; }
 UnstructuredHex8Mesh::UnstructuredHex8Mesh(std::vector<CartesianPoint3> nodes, std::vector<Hex8Element> elements,
     std::vector<std::int64_t> element_block_ids, std::vector<ElementBlockInfo> element_blocks,
     std::vector<NodeSet> node_sets, std::vector<SideSet> side_sets)
@@ -123,8 +112,6 @@ UnstructuredHex8Mesh::UnstructuredHex8Mesh(std::vector<CartesianPoint3> nodes, s
             if (node >= _nodes.size()) throw std::out_of_range("UnstructuredHex8Mesh connectivity is out of range");
     }
 }
-const std::vector<CartesianPoint3>& UnstructuredHex8Mesh::nodes() const noexcept { return _nodes; }
-const std::vector<Hex8Element>& UnstructuredHex8Mesh::elements() const noexcept { return _elements; }
 Hex8RegionMesh Hex8RegionMesh::from_unstructured_block(
     const UnstructuredHex8Mesh& source, const std::string& block_name) {
     return from_unstructured_block(source, source.element_block(block_name).id);
@@ -165,11 +152,6 @@ Hex8RegionMesh Hex8RegionMesh::from_unstructured_block(const UnstructuredHex8Mes
     }
     return mesh;
 }
-const std::vector<CartesianPoint3>& Hex8RegionMesh::nodes() const noexcept { return _nodes; }
-const std::vector<Hex8Element>& Hex8RegionMesh::elements() const noexcept { return _elements; }
-const std::vector<std::size_t>& Hex8RegionMesh::source_node_ids() const noexcept { return _source_node_ids; }
-const std::vector<std::size_t>& Hex8RegionMesh::source_element_ids() const noexcept { return _source_element_ids; }
-std::int64_t Hex8RegionMesh::block_id() const noexcept { return _block_id; }
 Hex8RegionBoundary Hex8RegionMesh::map_side_set(
     const UnstructuredHex8Mesh& source, const std::string& side_set_name) const {
     if (source.side_set_block_id(side_set_name) != _block_id)
@@ -189,8 +171,8 @@ Hex8RegionBoundary Hex8RegionMesh::map_side_set(
         if (local_element == invalid) throw std::invalid_argument("Side set is outside its region: " + side_set_name);
         Quad4FaceElement face{{}, local_element, side.local_side};
         for (std::size_t node = 0; node < face.nodes.size(); ++node) {
-            const std::size_t source_node = source.elements()[side.element].nodes[face_nodes[side.local_side][node]];
-            const std::size_t local_node = _source_node_to_local.at(source_node);
+            const std::size_t source_node = source.elements()[side.element].nodes[face_nodes[side.local_side][node]],
+                              local_node = _source_node_to_local.at(source_node);
             if (local_node == invalid) throw std::logic_error("Hex8RegionMesh side-set node mapping failed");
             face.nodes[node] = local_node;
             result.nodes.push_back(local_node);
@@ -241,11 +223,6 @@ RegionMesh RegionMesh::from_unstructured_block(const UnstructuredQuad4Mesh& sour
     }
     return mesh;
 }
-const std::vector<RzPoint>& RegionMesh::nodes() const noexcept { return _nodes; }
-const std::vector<Quad4Element>& RegionMesh::elements() const noexcept { return _elements; }
-const std::vector<std::size_t>& RegionMesh::source_node_ids() const noexcept { return _source_node_ids; }
-const std::vector<std::size_t>& RegionMesh::source_element_ids() const noexcept { return _source_element_ids; }
-std::int64_t RegionMesh::block_id() const noexcept { return _block_id; }
 RegionBoundary RegionMesh::map_side_set(const UnstructuredQuad4Mesh& source, const std::string& side_set_name) const {
     if (source.side_set_block_id(side_set_name) != _block_id)
         throw std::invalid_argument("Side set belongs to an unexpected block: " + side_set_name);
@@ -259,10 +236,10 @@ RegionBoundary RegionMesh::map_side_set(const UnstructuredQuad4Mesh& source, con
         if (_source_element_to_local.at(side.element) == invalid)
             throw std::invalid_argument("Side set is outside its region: " + side_set_name);
         const Quad4Element& source_element = source.elements().at(side.element);
-        const std::size_t first_source = source_element.nodes.at(side.local_side);
-        const std::size_t second_source = source_element.nodes.at((side.local_side + 1U) % 4U);
-        const std::size_t first = _source_node_to_local.at(first_source);
-        const std::size_t second = _source_node_to_local.at(second_source);
+        const std::size_t first_source = source_element.nodes.at(side.local_side),
+                          second_source = source_element.nodes.at((side.local_side + 1U) % 4U),
+                          first = _source_node_to_local.at(first_source),
+                          second = _source_node_to_local.at(second_source);
         if (first == invalid || second == invalid) throw std::logic_error("RegionMesh side-set node mapping failed");
         elements.push_back({{{first, second}}});
         RzPoint centroid{0.0, 0.0};
@@ -296,8 +273,8 @@ RegionBoundary RegionMesh::map_side_set(const UnstructuredQuad4Mesh& source, con
     };
     RegionBoundaryKind kind = RegionBoundaryKind::general;
     bool sort_by_axial = false;
-    const int radial_material_side = all_on(true) ? material_side(true) : 0;
-    const int axial_material_side = all_on(false) ? material_side(false) : 0;
+    const int radial_material_side = all_on(true) ? material_side(true) : 0,
+              axial_material_side = all_on(false) ? material_side(false) : 0;
     if (radial_material_side > 0) {
         kind = RegionBoundaryKind::radial_inner;
         sort_by_axial = true;
@@ -311,15 +288,13 @@ RegionBoundary RegionMesh::map_side_set(const UnstructuredQuad4Mesh& source, con
     }
     if (kind != RegionBoundaryKind::general) {
         for (Line2BoundaryElement& edge : elements) {
-            const RzPoint& first = _nodes.at(edge.nodes[0]);
-            const RzPoint& second = _nodes.at(edge.nodes[1]);
+            const RzPoint &first = _nodes.at(edge.nodes[0]), &second = _nodes.at(edge.nodes[1]);
             if ((sort_by_axial && first.z > second.z) || (!sort_by_axial && first.r > second.r))
                 std::swap(edge.nodes[0], edge.nodes[1]);
         }
         std::sort(
             elements.begin(), elements.end(), [&](const Line2BoundaryElement& lhs, const Line2BoundaryElement& rhs) {
-                const RzPoint& lhs_point = _nodes.at(lhs.nodes[0]);
-                const RzPoint& rhs_point = _nodes.at(rhs.nodes[0]);
+                const RzPoint &lhs_point = _nodes.at(lhs.nodes[0]), &rhs_point = _nodes.at(rhs.nodes[0]);
                 return sort_by_axial ? lhs_point.z < rhs_point.z : lhs_point.r < rhs_point.r;
             });
     }
@@ -334,87 +309,32 @@ RegionBoundary RegionMesh::map_side_set(const UnstructuredQuad4Mesh& source, con
     nodes.erase(std::unique(nodes.begin(), nodes.end()), nodes.end());
     return {kind, std::move(nodes), std::move(elements)};
 }
-// Field-major degree-of-freedom mapping.
-DofMap::DofMap(std::size_t node_count) : _node_count(node_count) {
+DofMap::DofMap(std::size_t node_count, DofLayout layout) : _node_count(node_count), _layout(layout) {
     if (node_count == 0) throw std::invalid_argument("DofMap node_count must be positive");
-    if (node_count > std::numeric_limits<std::size_t>::max() / 3) throw std::length_error("DofMap DOF count overflows");
-    _field_layout = {{"temperature", 0, node_count, FieldCategory::thermal},
-        {"radial", node_count, 2 * node_count, FieldCategory::mechanical},
-        {"axial", 2 * node_count, 3 * node_count, FieldCategory::mechanical}};
+    const std::size_t field_count = layout == DofLayout::axisymmetric_rz ? 3U : 4U;
+    if (node_count > std::numeric_limits<std::size_t>::max() / field_count)
+        throw std::length_error("DofMap DOF count overflows");
+    _field_layout = {{"temperature", 0, node_count, FieldCategory::thermal}};
+    if (layout == DofLayout::axisymmetric_rz) {
+        _field_layout.push_back({"radial", node_count, 2 * node_count, FieldCategory::mechanical});
+        _field_layout.push_back({"axial", 2 * node_count, 3 * node_count, FieldCategory::mechanical});
+    } else {
+        _field_layout.push_back({"displacement_x", node_count, 2 * node_count, FieldCategory::mechanical});
+        _field_layout.push_back({"displacement_y", 2 * node_count, 3 * node_count, FieldCategory::mechanical});
+        _field_layout.push_back({"displacement_z", 3 * node_count, 4 * node_count, FieldCategory::mechanical});
+    }
 }
-std::size_t DofMap::node_count() const noexcept { return _node_count; }
-std::size_t DofMap::dof_count() const noexcept { return 3 * _node_count; }
-const std::vector<FieldDescriptor>& DofMap::field_layout() const noexcept { return _field_layout; }
 std::size_t DofMap::dof(Field field, std::size_t node) const {
     if (node >= _node_count) throw std::out_of_range("DofMap node index is out of range");
-    switch (field) {
-    case Field::temperature: return node;
-    case Field::radial_displacement: return _node_count + node;
-    case Field::axial_displacement: return 2 * _node_count + node;
-    case Field::displacement_x:
-    case Field::displacement_y:
-    case Field::displacement_z: break;
+    if (field == Field::temperature) return node;
+    if (_layout == DofLayout::axisymmetric_rz) {
+        if (field == Field::radial_displacement) return _node_count + node;
+        if (field == Field::axial_displacement) return 2 * _node_count + node;
+    } else {
+        if (field == Field::displacement_x) return _node_count + node;
+        if (field == Field::displacement_y) return 2 * _node_count + node;
+        if (field == Field::displacement_z) return 3 * _node_count + node;
     }
-    throw std::invalid_argument("Unknown DofMap field");
-}
-std::size_t DofMap::temperature(std::size_t node) const { return dof(Field::temperature, node); }
-std::size_t DofMap::radial_displacement(std::size_t node) const { return dof(Field::radial_displacement, node); }
-std::size_t DofMap::axial_displacement(std::size_t node) const { return dof(Field::axial_displacement, node); }
-LocalDofs DofMap::local_dofs(const std::array<std::size_t, 4>& global_nodes) const {
-    LocalDofs result{};
-    for (std::size_t node = 0; node < global_nodes.size(); ++node) {
-        result[node] = temperature(global_nodes[node]);
-        result[global_nodes.size() + node] = radial_displacement(global_nodes[node]);
-        result[2 * global_nodes.size() + node] = axial_displacement(global_nodes[node]);
-    }
-    return result;
-}
-Hex8DofMap::Hex8DofMap(std::size_t node_count) : _node_count(node_count) {
-    if (node_count == 0) throw std::invalid_argument("Hex8DofMap node_count must be positive");
-    if (node_count > std::numeric_limits<std::size_t>::max() / 4)
-        throw std::length_error("Hex8DofMap DOF count overflows");
-    _field_layout = {{"temperature", 0, node_count, FieldCategory::thermal},
-        {"displacement_x", node_count, 2 * node_count, FieldCategory::mechanical},
-        {"displacement_y", 2 * node_count, 3 * node_count, FieldCategory::mechanical},
-        {"displacement_z", 3 * node_count, 4 * node_count, FieldCategory::mechanical}};
-}
-std::size_t Hex8DofMap::node_count() const noexcept { return _node_count; }
-std::size_t Hex8DofMap::dof_count() const noexcept { return 4 * _node_count; }
-const std::vector<FieldDescriptor>& Hex8DofMap::field_layout() const noexcept { return _field_layout; }
-std::size_t Hex8DofMap::dof(Field field, std::size_t node) const {
-    if (node >= _node_count) throw std::out_of_range("Hex8DofMap node index is out of range");
-    switch (field) {
-    case Field::temperature: return node;
-    case Field::displacement_x: return _node_count + node;
-    case Field::displacement_y: return 2 * _node_count + node;
-    case Field::displacement_z: return 3 * _node_count + node;
-    case Field::radial_displacement:
-    case Field::axial_displacement: break;
-    }
-    throw std::invalid_argument("Field is not available in a Cartesian three-dimensional DOF map");
-}
-std::size_t Hex8DofMap::temperature(std::size_t node) const { return dof(Field::temperature, node); }
-std::size_t Hex8DofMap::displacement_x(std::size_t node) const { return dof(Field::displacement_x, node); }
-std::size_t Hex8DofMap::displacement_y(std::size_t node) const { return dof(Field::displacement_y, node); }
-std::size_t Hex8DofMap::displacement_z(std::size_t node) const { return dof(Field::displacement_z, node); }
-Hex8LocalDofs Hex8DofMap::local_dofs(const std::array<std::size_t, 8>& global_nodes) const {
-    Hex8LocalDofs result{};
-    for (std::size_t node = 0; node < global_nodes.size(); ++node) {
-        result[node] = temperature(global_nodes[node]);
-        result[8 + node] = displacement_x(global_nodes[node]);
-        result[16 + node] = displacement_y(global_nodes[node]);
-        result[24 + node] = displacement_z(global_nodes[node]);
-    }
-    return result;
-}
-Quad4FaceLocalDofs Hex8DofMap::face_local_dofs(const std::array<std::size_t, 4>& global_nodes) const {
-    Quad4FaceLocalDofs result{};
-    for (std::size_t node = 0; node < global_nodes.size(); ++node) {
-        result[node] = temperature(global_nodes[node]);
-        result[4 + node] = displacement_x(global_nodes[node]);
-        result[8 + node] = displacement_y(global_nodes[node]);
-        result[12 + node] = displacement_z(global_nodes[node]);
-    }
-    return result;
+    throw std::invalid_argument("Field is not available in this DOF layout");
 }
 } // namespace fuelsim

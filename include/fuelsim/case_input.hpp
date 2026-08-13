@@ -1,6 +1,4 @@
-#ifndef FUELSIM_CASE_INPUT_HPP
-#define FUELSIM_CASE_INPUT_HPP
-#include "fuelsim/input_file.hpp"
+#pragma once
 #include "fuelsim/material_functions.hpp"
 #include "fuelsim/spatial_definition.hpp"
 #include "fuelsim/transient_problem.hpp"
@@ -8,6 +6,36 @@
 #include <string>
 #include <vector>
 namespace fuelsim {
+class InputDocument;
+InputDocument parse_input_file(const std::string& path);
+struct InputEntry final {
+    std::string key, value;
+    std::size_t line;
+};
+class InputSection final {
+  public:
+    const std::string& path() const noexcept { return _path; }
+    std::size_t line() const noexcept { return _line; }
+    const std::vector<InputEntry>& entries() const noexcept { return _entries; }
+    const InputEntry& entry(const std::string& key) const;
+
+  private:
+    friend InputDocument parse_input_file(const std::string& path);
+    std::string _path;
+    std::size_t _line = 0;
+    std::vector<InputEntry> _entries;
+};
+class InputDocument final {
+  public:
+    const std::string& source_path() const noexcept { return _source_path; }
+    const std::vector<InputSection>& sections() const noexcept { return _sections; }
+    const InputSection& section(const std::string& path) const;
+
+  private:
+    friend InputDocument parse_input_file(const std::string& path);
+    std::string _source_path;
+    std::vector<InputSection> _sections;
+};
 enum class CaseProblem {
     steady,
     transient,
@@ -27,49 +55,30 @@ struct SteadyExecutionInput final {
     double minimum_load_increment;
 };
 struct TransientExecutionInput final {
-    double end_time;
-    double initial_time_step;
-    double minimum_time_step;
-    double maximum_time_step;
-    double growth_factor;
-    double cutback_factor;
+    double end_time, initial_time_step, minimum_time_step, maximum_time_step, growth_factor, cutback_factor;
     std::size_t maximum_cutbacks;
     double load_ramp_time;
     std::string restart_file;
-    std::size_t target_nonlinear_iterations;
-    std::size_t iteration_window;
-    double time_error_relative_tolerance;
-    double temperature_time_absolute_tolerance;
-    double displacement_time_absolute_tolerance;
-    double time_error_safety_factor;
-    double strain_history_time_absolute_tolerance;
-    double stress_history_time_absolute_tolerance;
+    std::size_t target_nonlinear_iterations, iteration_window;
+    double time_error_relative_tolerance, temperature_time_absolute_tolerance, displacement_time_absolute_tolerance,
+        time_error_safety_factor, strain_history_time_absolute_tolerance, stress_history_time_absolute_tolerance;
 };
 struct NonlinearSolverInput final {
-    double absolute_tolerance;
-    double relative_tolerance;
-    double step_tolerance;
+    double absolute_tolerance, relative_tolerance, step_tolerance;
     int maximum_iterations;
-    std::string linear_solver;
-    std::string preconditioner;
+    std::string linear_solver, preconditioner;
     double linear_relative_tolerance;
     int maximum_linear_iterations;
-    bool backtracking_fallback;
-    bool field_residual_scaling;
-    double residual_reduction_tolerance;
-    double temperature_residual_absolute_tolerance;
-    double mechanical_residual_absolute_tolerance;
-    double temperature_residual_scale;
-    double mechanical_residual_scale;
+    bool backtracking_fallback, field_residual_scaling;
+    double residual_reduction_tolerance, temperature_residual_absolute_tolerance,
+        mechanical_residual_absolute_tolerance, temperature_residual_scale, mechanical_residual_scale;
 };
 struct CaseOutputInput final {
     bool console;
-    std::string csv_file;
-    std::string exodus_file;
+    std::string csv_file, exodus_file;
     std::size_t exodus_interval;
     std::string history_file;
-    std::size_t history_interval;
-    std::size_t progress_interval;
+    std::size_t history_interval, progress_interval;
     std::string checkpoint_file;
     std::size_t checkpoint_interval;
 };
@@ -89,10 +98,6 @@ struct FuelSimCaseDefinition final {
     SpatialDefinition spatial_definition() const;
     TransientProblemDefinition transient_definition() const;
 };
-class CaseInputReader final {
-  public:
-    static FuelSimCaseDefinition read(const std::string& path);
-    static FuelSimCaseDefinition read(const std::string& path, const MaterialFunctionRegistry& registry);
-};
+FuelSimCaseDefinition read_case_input(const std::string& path);
+FuelSimCaseDefinition read_case_input(const std::string& path, const MaterialFunctionRegistry& registry);
 } // namespace fuelsim
-#endif

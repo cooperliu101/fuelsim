@@ -93,8 +93,7 @@ struct SolverContext final {
     bool pattern_locked = false;
     PetscMPIInt rank = 0;
     PetscMPIInt size = 1;
-    std::size_t contribution_begin = 0;
-    std::size_t contribution_end = 0;
+    std::size_t contribution_begin = 0, contribution_end = 0;
     PetscInt ownership_begin = 0;
     PetscInt ownership_end = 0;
     VecScatter state_scatter = nullptr;
@@ -105,23 +104,17 @@ struct SolverContext final {
     std::vector<bool> constrained;
     bool field_residual_scaling = true;
     double residual_scaling_floor = 1.0e-8;
-    bool first_residual = true;
-    bool thermal_scaling_initialized = false;
-    bool mechanics_scaling_initialized = false;
-    std::vector<double> initial_field_residual_norms;
-    std::vector<double> field_residual_reference_norms;
-    std::vector<double> latest_unscaled_field_residual_norms;
-    std::vector<double> latest_field_residual_norms;
-    std::vector<double> field_residual_scalings;
-    std::vector<double> local_field_squared_norms;
+    bool first_residual = true, thermal_scaling_initialized = false, mechanics_scaling_initialized = false;
+    std::vector<double> initial_field_residual_norms, field_residual_reference_norms;
+    std::vector<double> latest_unscaled_field_residual_norms, latest_field_residual_norms;
+    std::vector<double> field_residual_scalings, local_field_squared_norms;
     std::vector<double> global_field_squared_norms;
     std::vector<std::size_t> dof_fields;
     ContributionWorkspace contribution_workspace;
     std::vector<PetscInt> petsc_contribution_dofs;
     std::vector<double> scaled_contribution_jacobian;
     double initial_residual_norm = std::numeric_limits<double>::quiet_NaN();
-    bool saw_domain_error = false;
-    bool last_function_domain_error = false;
+    bool saw_domain_error = false, last_function_domain_error = false;
     std::string last_domain_error;
     SolveTiming timing;
 };
@@ -207,10 +200,8 @@ void configure_linear_solver(
         PetscInt ownership_end = 0;
         check_petsc(
             VecGetOwnershipRange(objects.state, &ownership_begin, &ownership_end), "VecGetOwnershipRange field split");
-        std::vector<PetscInt> thermal_indices;
-        std::vector<PetscInt> mechanical_indices;
-        bool has_thermal_field = false;
-        bool has_mechanical_field = false;
+        std::vector<PetscInt> thermal_indices, mechanical_indices;
+        bool has_thermal_field = false, has_mechanical_field = false;
         for (const FieldDescriptor& field : problem.field_layout()) {
             has_thermal_field = has_thermal_field || field.category == FieldCategory::thermal;
             has_mechanical_field = has_mechanical_field || field.category == FieldCategory::mechanical;
@@ -344,8 +335,7 @@ PetscErrorCode scale_residual(Vec residual, SolverContext& context) {
                 std::max(context.field_residual_reference_norms[field], context.latest_field_residual_norms[field]);
         PetscFunctionReturn(PETSC_SUCCESS);
     }
-    double thermal_norm = 0.0;
-    double mechanics_norm = 0.0;
+    double thermal_norm = 0.0, mechanics_norm = 0.0;
     for (std::size_t field = 0; field < context.problem->field_layout().size(); ++field)
         if (context.problem->field_layout()[field].category == FieldCategory::thermal)
             thermal_norm = std::hypot(thermal_norm, context.latest_unscaled_field_residual_norms[field]);
@@ -402,9 +392,8 @@ PetscErrorCode form_function(SNES snes, Vec state, Vec residual, void* raw_conte
         bool local_domain_error = false;
         try {
             problem.validate_local_state(context.contribution_begin, context.contribution_end, state_view);
-            for (std::size_t contribution = context.contribution_begin; contribution < context.contribution_end;
-                ++contribution) {
-                problem.evaluate_contribution_residual(contribution, state_view, context.contribution_workspace);
+            for (std::size_t entry = context.contribution_begin; entry < context.contribution_end; ++entry) {
+                problem.evaluate_contribution_residual(entry, state_view, context.contribution_workspace);
                 context.petsc_contribution_dofs.resize(context.contribution_workspace.dofs.size());
                 for (std::size_t local = 0; local < context.petsc_contribution_dofs.size(); ++local)
                     context.petsc_contribution_dofs[local] =
@@ -423,8 +412,7 @@ PetscErrorCode form_function(SNES snes, Vec state, Vec residual, void* raw_conte
         bool global_domain_error = false;
         PetscCall(synchronize_domain_error(local_domain_error, global_domain_error));
         if (global_domain_error && context.last_domain_error.empty())
-            context.last_domain_error = "a residual evaluation violated its physical domain on "
-                                        "another MPI rank";
+            context.last_domain_error = "a residual evaluation violated its physical domain on another MPI rank";
         PetscCall(VecAssemblyBegin(residual));
         PetscCall(VecAssemblyEnd(residual));
         if (global_domain_error) {
@@ -474,9 +462,8 @@ PetscErrorCode form_jacobian(SNES snes, Vec state, Mat jacobian, Mat preconditio
         bool local_domain_error = false;
         try {
             problem.validate_local_state(context.contribution_begin, context.contribution_end, state_view);
-            for (std::size_t contribution = context.contribution_begin; contribution < context.contribution_end;
-                ++contribution) {
-                problem.evaluate_contribution_system(contribution, state_view, context.contribution_workspace);
+            for (std::size_t entry = context.contribution_begin; entry < context.contribution_end; ++entry) {
+                problem.evaluate_contribution_system(entry, state_view, context.contribution_workspace);
                 const std::size_t local_count = context.contribution_workspace.dofs.size();
                 context.petsc_contribution_dofs.resize(local_count);
                 for (std::size_t local = 0; local < local_count; ++local)
@@ -508,8 +495,7 @@ PetscErrorCode form_jacobian(SNES snes, Vec state, Mat jacobian, Mat preconditio
         bool global_domain_error = false;
         PetscCall(synchronize_domain_error(local_domain_error, global_domain_error));
         if (global_domain_error && context.last_domain_error.empty())
-            context.last_domain_error = "a Jacobian evaluation violated its physical domain on "
-                                        "another MPI rank";
+            context.last_domain_error = "a Jacobian evaluation violated its physical domain on another MPI rank";
         PetscCall(MatAssemblyBegin(jacobian, MAT_FINAL_ASSEMBLY));
         PetscCall(MatAssemblyEnd(jacobian, MAT_FINAL_ASSEMBLY));
         if (global_domain_error) {
@@ -520,9 +506,6 @@ PetscErrorCode form_jacobian(SNES snes, Vec state, Mat jacobian, Mat preconditio
             ++context.timing.jacobian_evaluations;
             PetscFunctionReturn(PETSC_SUCCESS);
         }
-        // The first Jacobian assembly inserts zero-valued blocks for every
-        // potential contact candidate. Keep that complete pattern locked so
-        // dynamic search cannot introduce a new nonzero location later.
         if (!context.pattern_locked) {
             PetscCall(MatSetOption(jacobian, MAT_KEEP_NONZERO_PATTERN, PETSC_TRUE));
             PetscCall(MatSetOption(jacobian, MAT_NEW_NONZERO_LOCATION_ERR, PETSC_TRUE));
@@ -555,8 +538,8 @@ class PetscSolver::Implementation final {
         _context.problem = &problem;
         _context.rank = PetscGlobalRank;
         _context.size = PetscGlobalSize;
-        const std::size_t rank = static_cast<std::size_t>(_context.rank);
-        const std::size_t size = static_cast<std::size_t>(_context.size);
+        const std::size_t rank = static_cast<std::size_t>(_context.rank),
+                          size = static_cast<std::size_t>(_context.size);
         _context.contribution_begin = problem.contribution_count() * rank / size;
         _context.contribution_end = problem.contribution_count() * (rank + 1U) / size;
         _context.constrained.assign(problem.dof_count(), false);
@@ -575,9 +558,11 @@ class PetscSolver::Implementation final {
                 _context.dof_fields.begin() + static_cast<std::ptrdiff_t>(descriptor.end), field);
         }
         std::size_t maximum_local_dofs = 0;
-        for (std::size_t contribution = _context.contribution_begin; contribution < _context.contribution_end;
-            ++contribution)
-            maximum_local_dofs = std::max(maximum_local_dofs, problem.contribution_dof_count(contribution));
+        std::vector<std::size_t> contribution_dofs;
+        for (std::size_t entry = _context.contribution_begin; entry < _context.contribution_end; ++entry) {
+            problem.contribution_dofs(entry, contribution_dofs);
+            maximum_local_dofs = std::max(maximum_local_dofs, contribution_dofs.size());
+        }
         _context.contribution_workspace.reserve(maximum_local_dofs);
         _context.petsc_contribution_dofs.reserve(maximum_local_dofs);
         _context.scaled_contribution_jacobian.reserve(maximum_local_dofs * maximum_local_dofs);
@@ -714,7 +699,7 @@ void PetscSession::collective_root_action(const std::function<void()>& action) c
     throw std::runtime_error(_rank == 0 ? "collective root-rank I/O failed: " + message
                                         : "collective root-rank I/O failed; see rank 0 for details");
 }
-PetscSolver::PetscSolver() : _implementation(std::make_unique<Implementation>()) {}
+PetscSolver::PetscSolver() : _impl(std::make_unique<Implementation>()) {}
 PetscSolver::~PetscSolver() = default;
 SolveResult PetscSolver::solve(
     const NonlinearProblem& problem, const std::vector<double>& initial_state, const SolverOptions& options) {
@@ -738,8 +723,8 @@ SolveResult PetscSolver::solve_once(
     const NonlinearProblem& problem, const std::vector<double>& initial_state, const SolverOptions& options) {
     if (initial_state.size() != problem.dof_count())
         throw std::invalid_argument("PetscSolver initial state size mismatch");
-    const bool fixed_temperature_scale = options.temperature_residual_scale > 0.0;
-    const bool fixed_mechanical_scale = options.mechanical_residual_scale > 0.0;
+    const bool fixed_temperature_scale = options.temperature_residual_scale > 0.0,
+               fixed_mechanical_scale = options.mechanical_residual_scale > 0.0;
     if (fixed_temperature_scale != fixed_mechanical_scale)
         throw std::invalid_argument("fixed residual scaling requires paired temperature and mechanical scales");
     if (options.field_residual_scaling && fixed_temperature_scale)
@@ -747,9 +732,9 @@ SolveResult PetscSolver::solve_once(
     const bool residual_scaling = options.field_residual_scaling || fixed_temperature_scale;
     const SteadyClock::time_point total_start = SteadyClock::now();
     const SteadyClock::time_point setup_start = SteadyClock::now();
-    const bool workspace_created = _implementation->prepare(problem);
-    PetscObjects& objects = _implementation->objects();
-    SolverContext& context = _implementation->context();
+    const bool workspace_created = _impl->prepare(problem);
+    PetscObjects& objects = _impl->objects();
+    SolverContext& context = _impl->context();
     context.timing = SolveTiming{};
     context.timing.workspace_setups = workspace_created ? 1U : 0U;
     context.timing.solve_calls = 1;
@@ -831,8 +816,8 @@ SolveResult PetscSolver::solve_once(
     context.timing.total_seconds = seconds_since(total_start);
     const double configured_residual_threshold =
         std::max(options.absolute_tolerance, options.relative_tolerance * context.initial_residual_norm);
-    const double fallback_reduction = options.residual_reduction_tolerance;
-    const double numerical_residual_floor = 10.0 * std::sqrt(std::numeric_limits<double>::epsilon());
+    const double fallback_reduction = options.residual_reduction_tolerance,
+                 numerical_residual_floor = 10.0 * std::sqrt(std::numeric_limits<double>::epsilon());
     const double independently_verified_threshold =
         std::max(numerical_residual_floor, fallback_reduction * context.initial_residual_norm);
     double physical_absolute_threshold = 0.0;
@@ -882,9 +867,8 @@ SolveResult PetscSolver::solve_once(
     } else if (!result.converged && !residual_verified) {
         result.failure_category = SolveFailureCategory::residual_verification;
         std::ostringstream message;
-        message << "PETSc reported convergence without satisfying residual "
-                   "tolerances: global="
-                << result.residual_norm << '/' << residual_slack;
+        message << "PETSc reported convergence without satisfying residual tolerances: global=" << result.residual_norm
+                << '/' << residual_slack;
         for (std::size_t field = 0; field < field_thresholds.size(); ++field)
             message << ", field" << field << '=' << result.final_scaled_field_residual_norms[field] << '/'
                     << field_thresholds[field] << " (initial=" << result.initial_field_residual_norms[field]
@@ -933,12 +917,11 @@ const char* solve_failure_category_name(SolveFailureCategory category) noexcept 
     }
     return "unknown";
 }
-// Shared steady and transient solve helpers.
 namespace solver_workflow {
 namespace {
 void merge_attempt(SolveResult& aggregate, const SolveResult& addition) {
-    const int nonlinear_iterations = aggregate.nonlinear_iterations + addition.nonlinear_iterations;
-    const int linear_iterations = aggregate.linear_iterations + addition.linear_iterations;
+    const int nonlinear_iterations = aggregate.nonlinear_iterations + addition.nonlinear_iterations,
+              linear_iterations = aggregate.linear_iterations + addition.linear_iterations;
     const std::size_t nonlinear_attempts = aggregate.nonlinear_attempts + addition.nonlinear_attempts;
     const std::size_t augmented_iterations =
         aggregate.augmented_lagrangian_iterations + addition.augmented_lagrangian_iterations;
@@ -1004,7 +987,6 @@ SolveResult solve_contact_equilibrium(PetscSolver& solver, NonlinearProblem& pro
     return result;
 }
 } // namespace solver_workflow
-// Steady load stepping.
 using solver_workflow::initial_guess_with_dirichlet_values;
 using solver_workflow::solve_contact_equilibrium;
 SteadyResult solve_steady(SteadyProblem& problem, const SteadyLoadOptions& load_options, const SolverOptions& options) {
@@ -1017,8 +999,8 @@ SteadyResult solve_steady(SteadyProblem& problem, const SteadyLoadOptions& load_
         const double target_load_factor = static_cast<double>(step) / static_cast<double>(load_options.load_steps);
         while (accepted_load_factor < target_load_factor) {
             std::size_t cutbacks = 0;
-            double attempted_load_factor = target_load_factor;
-            double load_increment = attempted_load_factor - accepted_load_factor;
+            double attempted_load_factor = target_load_factor,
+                   load_increment = attempted_load_factor - accepted_load_factor;
             SolveResult attempt;
             for (;;) {
                 const SteadyStateSnapshot internal_state = problem.capture_internal_state();
@@ -1073,14 +1055,12 @@ SteadyResult solve_steady(SteadyProblem& problem, const SteadyLoadOptions& load_
     result.total_seconds = seconds_since(start);
     return result;
 }
-// Backward-Euler step-doubling error control.
 namespace time_control {
 double step_factor(const TransientTimeOptions& options, double error) {
     if (!(error > 0.0)) return options.growth_factor;
     return std::clamp(options.time_error_safety_factor / std::sqrt(error), 0.1, options.growth_factor);
 }
 } // namespace time_control
-// Transient time stepping and state transactions.
 namespace {
 using solver_workflow::merge_attempt;
 class TimeStepTransaction final {
@@ -1109,8 +1089,8 @@ bool reaches_end(double time, double end_time) {
 }
 void validate_time_options(const TransientProblem& problem, const TransientTimeOptions& options) {
     if (problem.time_step_active()) throw std::logic_error("solve_transient cannot start with an active time step");
-    const double time_scale = std::max({1.0, std::abs(problem.committed_time()), std::abs(options.end_time)});
-    const double time_tolerance = 16.0 * std::numeric_limits<double>::epsilon() * time_scale;
+    const double time_scale = std::max({1.0, std::abs(problem.committed_time()), std::abs(options.end_time)}),
+                 time_tolerance = 16.0 * std::numeric_limits<double>::epsilon() * time_scale;
     if (!std::isfinite(options.end_time) || options.end_time < problem.committed_time() - time_tolerance)
         throw std::invalid_argument("solve_transient end time must not precede committed time");
 }
@@ -1125,8 +1105,8 @@ double accepted_next_time_step(const TransientTimeOptions& options, double actua
         if (cutbacks > 0) return std::clamp(base, options.minimum_time_step, options.maximum_time_step);
         return std::min(options.maximum_time_step, base * options.growth_factor);
     }
-    const std::size_t iterations = nonlinear_iterations < 0 ? 0 : static_cast<std::size_t>(nonlinear_iterations);
-    const std::size_t lower = options.target_nonlinear_iterations - options.iteration_window;
+    const std::size_t iterations = nonlinear_iterations < 0 ? 0 : static_cast<std::size_t>(nonlinear_iterations),
+                      lower = options.target_nonlinear_iterations - options.iteration_window;
     const std::size_t upper =
         options.target_nonlinear_iterations > std::numeric_limits<std::size_t>::max() - options.iteration_window
             ? std::numeric_limits<std::size_t>::max()
@@ -1219,8 +1199,7 @@ TransientResult solve_transient(TransientProblem& problem, const TransientTimeOp
                                     base_state_available = false;
                                     attempt.converged = false;
                                     attempt.failure_category = SolveFailureCategory::time_discretization;
-                                    attempt.failure_message = "Backward-Euler step-doubling error "
-                                                              "exceeded one";
+                                    attempt.failure_message = "Backward-Euler step-doubling error exceeded one";
                                     ++result.time_error_rejections;
                                 } else {
                                     problem.combine_last_half_step_conservation(first_half_conservation);

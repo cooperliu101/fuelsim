@@ -1,6 +1,6 @@
 #include "fuelsim/case_input.hpp"
-#include "fuelsim/exodus_mesh_io.hpp"
 #include "fuelsim/problem_solver.hpp"
+#include "fuelsim/results_io.hpp"
 #include "support/rz_problem_access.hpp"
 #include <algorithm>
 #include <cstddef>
@@ -17,7 +17,7 @@ bool check(bool condition, const std::string& message) {
 }
 fuelsim::FuelSimCaseDefinition augmented_pcmi_input(
     const std::string& input_path, double penetration_tolerance, std::size_t maximum_augmented_iterations) {
-    fuelsim::FuelSimCaseDefinition input = fuelsim::CaseInputReader::read(input_path);
+    fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
     fuelsim::ContactDefinition& contact = input.contacts.at(0);
     contact.mechanical_formulation = fuelsim::MechanicalContactFormulation::augmented_lagrangian;
     contact.automatic_penalty = false;
@@ -78,7 +78,7 @@ class AugmentedContactObserver final : public fuelsim::TransientStepObserver {
 };
 bool test_transient_augmented_contact(const std::string& input_path) {
     const fuelsim::FuelSimCaseDefinition input = augmented_pcmi_input(input_path, 1.0e-9, 50);
-    const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::ExodusMeshIo::read_quad4(input.mesh_file);
+    const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
     fuelsim::TransientProblem problem(input.transient_definition(), mesh);
     AugmentedContactObserver observer;
     const fuelsim::TransientResult result =
@@ -112,7 +112,7 @@ bool test_transient_augmented_contact(const std::string& input_path) {
 }
 bool test_transient_augmented_failure_rollback(const std::string& input_path) {
     const fuelsim::FuelSimCaseDefinition input = augmented_pcmi_input(input_path, 1.0e-20, 1);
-    const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::ExodusMeshIo::read_quad4(input.mesh_file);
+    const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
     fuelsim::TransientProblem problem(input.transient_definition(), mesh);
     const fuelsim::TransientResult result =
         fuelsim::solve_transient(problem, time_options(input), solver_options(input));
@@ -137,7 +137,7 @@ bool test_transient_augmented_failure_rollback(const std::string& input_path) {
 }
 bool test_transient_augmented_time_error(const std::string& input_path) {
     const fuelsim::FuelSimCaseDefinition input = augmented_pcmi_input(input_path, 1.0e-9, 50);
-    const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::ExodusMeshIo::read_quad4(input.mesh_file);
+    const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
     fuelsim::TransientProblem problem(input.transient_definition(), mesh);
     fuelsim::TransientTimeOptions options = {
         input.transient_execution.end_time, 4.0, 0.125, 4.0, 1.0, 0.5, 12, input.transient_execution.load_ramp_time};

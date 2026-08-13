@@ -1,6 +1,6 @@
 #include "fuelsim/case_input.hpp"
-#include "fuelsim/exodus_mesh_io.hpp"
 #include "fuelsim/problem_solver.hpp"
+#include "fuelsim/results_io.hpp"
 #include "support/cartesian3d_problem_access.hpp"
 #include "support/moose_field_comparison.hpp"
 #include <algorithm>
@@ -78,10 +78,10 @@ std::array<fuelsim::test::FieldErrorMetrics, 4> compare_nodes(const fuelsim::Uns
         throw std::invalid_argument("Three-dimensional MOOSE and fuelsim node counts differ");
     std::array<fuelsim::test::FieldErrorMetrics, 4> result;
     std::vector<bool> present(mesh.nodes().size(), false);
-    const auto& dofs = fuelsim::cartesian3d::ProblemAccess::dof_map(problem);
-    for (std::size_t region = 0; region < fuelsim::cartesian3d::ProblemAccess::region_count(problem); ++region) {
-        const auto& region_mesh = fuelsim::cartesian3d::ProblemAccess::region_mesh(problem, region);
-        const std::size_t offset = fuelsim::cartesian3d::ProblemAccess::region_node_offset(problem, region);
+    const auto& dofs = fuelsim::cartesian::ProblemAccess::dof_map(problem);
+    for (std::size_t region = 0; region < fuelsim::cartesian::ProblemAccess::region_count(problem); ++region) {
+        const auto& region_mesh = fuelsim::cartesian::ProblemAccess::region_mesh(problem, region);
+        const std::size_t offset = fuelsim::cartesian::ProblemAccess::region_node_offset(problem, region);
         for (std::size_t local = 0; local < region_mesh.nodes().size(); ++local) {
             const std::size_t source = region_mesh.source_node_ids()[local];
             if (source >= reference.size() || reference[source].id != source || present[source])
@@ -105,26 +105,15 @@ std::array<fuelsim::test::FieldErrorMetrics, 4> compare_nodes(const fuelsim::Uns
 std::array<fuelsim::test::FieldErrorMetrics, 6> compare_stresses(const fuelsim::SteadyProblem& problem,
     const std::vector<double>& state, const std::vector<StressReference>& reference) {
     std::array<fuelsim::test::FieldErrorMetrics, 6> result;
-    const auto& dofs = fuelsim::cartesian3d::ProblemAccess::dof_map(problem);
     std::vector<bool> present(reference.size(), false);
-    for (std::size_t region = 0; region < fuelsim::cartesian3d::ProblemAccess::region_count(problem); ++region) {
-        const auto& mesh = fuelsim::cartesian3d::ProblemAccess::region_mesh(problem, region);
-        const std::size_t offset = fuelsim::cartesian3d::ProblemAccess::region_node_offset(problem, region);
+    for (std::size_t region = 0; region < fuelsim::cartesian::ProblemAccess::region_count(problem); ++region) {
+        const auto& mesh = fuelsim::cartesian::ProblemAccess::region_mesh(problem, region);
         for (std::size_t element = 0; element < mesh.elements().size(); ++element) {
             const std::size_t source = mesh.source_element_ids()[element];
             if (source >= reference.size() || reference[source].id != source || present[source])
                 throw std::invalid_argument("Three-dimensional source-element mapping is not unique");
             present[source] = true;
-            std::array<std::size_t, 8> nodes{};
-            for (std::size_t node = 0; node < 8; ++node) nodes[node] = offset + mesh.elements()[element].nodes[node];
-            const auto local_dofs = dofs.local_dofs(nodes);
-            fuelsim::Hex8LocalValues local_state{};
-            for (std::size_t local = 0; local < local_state.size(); ++local)
-                local_state[local] = state[local_dofs[local]];
-            const auto stresses = fuelsim::cartesian3d::ProblemAccess::region_kernel(problem, region)
-                                      .stress_values(fuelsim::cartesian3d::ProblemAccess::region_element_geometry(
-                                                         problem, region, element),
-                                          local_state);
+            const auto stresses = fuelsim::cartesian::ProblemAccess::stress(problem, state, region, element);
             const auto expected = reference[source].stress;
             for (const auto& actual : stresses) {
                 result[0].add(actual.xx, expected.xx);
@@ -141,11 +130,11 @@ std::array<fuelsim::test::FieldErrorMetrics, 6> compare_stresses(const fuelsim::
     return result;
 }
 bool run(const std::string& input_path, const std::string& nodal_path, const std::string& stress_path) {
-    const fuelsim::FuelSimCaseDefinition definition = fuelsim::CaseInputReader::read(input_path);
+    const fuelsim::FuelSimCaseDefinition definition = fuelsim::read_case_input(input_path);
     if (definition.problem != fuelsim::CaseProblem::steady ||
         definition.geometry != fuelsim::CaseGeometry::cartesian_3d)
         throw std::invalid_argument("Stage B comparison requires a steady Cartesian three-dimensional input card");
-    const auto mesh = fuelsim::ExodusMeshIo::read_hex8(definition.mesh_file);
+    const auto mesh = fuelsim::read_exodus_hex8(definition.mesh_file);
     fuelsim::SteadyProblem problem(definition.spatial_definition(), mesh);
     fuelsim::SolverOptions options;
     options.absolute_tolerance = definition.solver.absolute_tolerance;

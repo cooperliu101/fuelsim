@@ -1,60 +1,35 @@
-#ifndef FUELSIM_MATERIAL_HPP
-#define FUELSIM_MATERIAL_HPP
+#pragma once
 #include "fuelsim/material_functions.hpp"
 #include <adlite/adlite.hpp>
 #include <memory>
 namespace fuelsim {
 struct ThermoelasticProperties final {
-    double conductivity_inverse_temperature;
-    double conductivity_offset;
-    double young_modulus;
-    double poisson_ratio;
-    double thermal_expansion;
-    double reference_temperature;
-    double young_modulus_temperature_coefficient = 0.0;
-    double poisson_ratio_temperature_coefficient = 0.0;
-    double thermal_expansion_temperature_coefficient = 0.0;
+    double conductivity_inverse_temperature, conductivity_offset, young_modulus, poisson_ratio, thermal_expansion,
+        reference_temperature;
+    double young_modulus_temperature_coefficient = 0.0, poisson_ratio_temperature_coefficient = 0.0,
+           thermal_expansion_temperature_coefficient = 0.0;
     std::shared_ptr<const MaterialFunctionSet> functions{};
 };
 struct ActiveThermoelasticProperties final {
-    adlite::Scalar young_modulus;
-    adlite::Scalar poisson_ratio;
-    adlite::Scalar thermal_expansion;
-    adlite::Scalar lame_lambda;
-    adlite::Scalar shear_modulus;
+    adlite::Scalar young_modulus, poisson_ratio, thermal_expansion, lame_lambda, shear_modulus;
 };
 struct AxisymmetricStress final {
-    adlite::Scalar rr;
-    adlite::Scalar zz;
-    adlite::Scalar hoop;
-    adlite::Scalar rz;
+    adlite::Scalar rr, zz, hoop, rz;
 };
 struct AxisymmetricStressValues final {
-    double rr;
-    double zz;
-    double hoop;
-    double rz;
+    double rr, zz, hoop, rz;
 };
 struct SymmetricTensor3Values final {
-    double xx;
-    double yy;
-    double zz;
-    double xy;
-    double yz;
-    double xz;
+    double xx, yy, zz, xy, yz, xz;
 };
 struct AxisymmetricRotation final {
-    adlite::Scalar rr{1.0};
-    adlite::Scalar rz{0.0};
-    adlite::Scalar zr{0.0};
-    adlite::Scalar zz{1.0};
-    adlite::Scalar hoop{1.0};
+    adlite::Scalar rr{1.0}, rz{0.0}, zr{0.0}, zz{1.0}, hoop{1.0};
 };
 AxisymmetricStress rotate_axisymmetric_tensor(const AxisymmetricStress& tensor, const AxisymmetricRotation& rotation);
 class IsotropicThermoelasticMaterial final {
   public:
     explicit IsotropicThermoelasticMaterial(ThermoelasticProperties properties);
-    const ThermoelasticProperties& properties() const noexcept;
+    const ThermoelasticProperties& properties() const noexcept { return _properties; }
     adlite::Scalar conductivity(
         const adlite::Scalar& temperature, double time = 0.0, double radius = 0.0, double axial_coordinate = 0.0) const;
     adlite::Scalar heat_capacity(
@@ -79,9 +54,7 @@ class IsotropicThermoelasticMaterial final {
 
   private:
     ThermoelasticProperties _properties;
-    double _lame_lambda;
-    double _shear_modulus;
+    double _lame_lambda, _shear_modulus;
     bool _temperature_dependent;
 };
 } // namespace fuelsim
-#endif

@@ -1,5 +1,4 @@
-#ifndef FUELSIM_INELASTIC_MATERIAL_HPP
-#define FUELSIM_INELASTIC_MATERIAL_HPP
+#pragma once
 #include "fuelsim/material.hpp"
 #include <array>
 namespace fuelsim {
@@ -10,31 +9,22 @@ enum class InelasticBehavior {
     norton_creep_j2_plasticity,
 };
 struct NortonCreepProperties final {
-    double coefficient;
-    double reference_stress;
-    double stress_exponent;
-    double coefficient_temperature_coefficient = 0.0;
-    double reference_stress_temperature_coefficient = 0.0;
-    double stress_exponent_temperature_coefficient = 0.0;
+    double coefficient, reference_stress, stress_exponent;
+    double coefficient_temperature_coefficient = 0.0, reference_stress_temperature_coefficient = 0.0,
+           stress_exponent_temperature_coefficient = 0.0;
 };
 struct J2PlasticityProperties final {
-    double yield_stress;
-    double isotropic_hardening_modulus;
-    double yield_stress_temperature_coefficient = 0.0;
-    double hardening_temperature_coefficient = 0.0;
+    double yield_stress, isotropic_hardening_modulus;
+    double yield_stress_temperature_coefficient = 0.0, hardening_temperature_coefficient = 0.0;
 };
 struct ActiveNortonCreepProperties final {
-    adlite::Scalar coefficient;
-    adlite::Scalar reference_stress;
-    adlite::Scalar stress_exponent;
+    adlite::Scalar coefficient, reference_stress, stress_exponent;
 };
 struct ActiveJ2PlasticityProperties final {
-    adlite::Scalar yield_stress;
-    adlite::Scalar isotropic_hardening_modulus;
+    adlite::Scalar yield_stress, isotropic_hardening_modulus;
 };
 struct TransientInelasticProperties final {
-    double density;
-    double specific_heat;
+    double density, specific_heat;
     InelasticBehavior behavior;
     NortonCreepProperties creep;
     J2PlasticityProperties plasticity;
@@ -43,15 +33,13 @@ struct MaterialPointState final {
     std::array<double, 4> elastic_strain{};
     std::array<double, 4> plastic_strain{};
     std::array<double, 4> creep_strain{};
-    double equivalent_plastic_strain = 0.0;
-    double equivalent_creep_strain = 0.0;
+    double equivalent_plastic_strain = 0.0, equivalent_creep_strain = 0.0;
 };
 struct MaterialPointTrialState final {
     std::array<adlite::Scalar, 4> elastic_strain{};
     std::array<adlite::Scalar, 4> plastic_strain{};
     std::array<adlite::Scalar, 4> creep_strain{};
-    adlite::Scalar equivalent_plastic_strain{0.0};
-    adlite::Scalar equivalent_creep_strain{0.0};
+    adlite::Scalar equivalent_plastic_strain{0.0}, equivalent_creep_strain{0.0};
 };
 struct InelasticStressResponse final {
     AxisymmetricStress stress;
@@ -61,7 +49,7 @@ class IsotropicInelasticMaterial final {
   public:
     IsotropicInelasticMaterial(
         ThermoelasticProperties thermoelastic_properties, TransientInelasticProperties properties);
-    const TransientInelasticProperties& properties() const noexcept;
+    const TransientInelasticProperties& properties() const noexcept { return _properties; }
     adlite::Scalar conductivity(
         const adlite::Scalar& temperature, double time = 0.0, double radius = 0.0, double axial_coordinate = 0.0) const;
     adlite::Scalar heat_capacity(
@@ -85,4 +73,3 @@ class IsotropicInelasticMaterial final {
     TransientInelasticProperties _properties;
 };
 } // namespace fuelsim
-#endif

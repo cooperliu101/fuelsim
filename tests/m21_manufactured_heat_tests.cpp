@@ -95,7 +95,7 @@ fuelsim::TransientProblemDefinition make_definition(const ManufacturedParameters
     return result;
 }
 void set_exact_initial_state(fuelsim::TransientProblem& problem, const ManufacturedParameters& parameters) {
-    fuelsim::rz::TransientCommittedState state = fuelsim::rz::ProblemAccess::committed_state(problem);
+    fuelsim::TransientCommittedState state = fuelsim::rz::ProblemAccess::committed_state(problem);
     const fuelsim::RegionMesh& mesh = fuelsim::rz::ProblemAccess::region_mesh(problem, 0);
     const std::size_t offset = fuelsim::rz::ProblemAccess::region_node_offset(problem, 0);
     for (std::size_t node = 0; node < mesh.nodes().size(); ++node) {

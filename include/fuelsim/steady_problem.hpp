@@ -1,5 +1,4 @@
-#ifndef FUELSIM_STEADY_PROBLEM_HPP
-#define FUELSIM_STEADY_PROBLEM_HPP
+#pragma once
 #include "fuelsim/nonlinear_problem.hpp"
 #include <cstddef>
 #include <memory>
@@ -12,21 +11,15 @@ class UnstructuredHex8Mesh;
 namespace rz {
 class BackendAccess;
 }
-namespace cartesian3d {
+namespace cartesian {
 class BackendAccess;
 }
 class SteadyStateSnapshot final {
   public:
-    SteadyStateSnapshot();
-    ~SteadyStateSnapshot();
-    SteadyStateSnapshot(const SteadyStateSnapshot& other);
-    SteadyStateSnapshot& operator=(const SteadyStateSnapshot& other);
-    SteadyStateSnapshot(SteadyStateSnapshot&& other) noexcept;
-    SteadyStateSnapshot& operator=(SteadyStateSnapshot&& other) noexcept;
-    bool empty() const noexcept;
+    SteadyStateSnapshot() = default;
+    bool empty() const noexcept { return _storage == nullptr; }
 
   private:
-    std::shared_ptr<const void> snapshot_owner() const noexcept;
     struct Storage;
     explicit SteadyStateSnapshot(std::shared_ptr<const Storage> storage);
     std::shared_ptr<const Storage> _storage;
@@ -53,23 +46,19 @@ class SteadyProblem final : public NonlinearProblem {
     const std::vector<FieldDescriptor>& field_layout() const noexcept override;
     const std::vector<DirichletCondition>& dirichlet_conditions() const noexcept override;
     void validate_state(const std::vector<double>& state) const override;
-    std::vector<std::size_t> required_state_dofs(
-        std::size_t contribution_begin, std::size_t contribution_end) const override;
-    void validate_local_state(
-        std::size_t contribution_begin, std::size_t contribution_end, const GlobalStateView& state) const override;
-    std::size_t contribution_dof_count(std::size_t contribution_index) const override;
-    void fill_contribution_dofs(std::size_t contribution_index, std::vector<std::size_t>& dofs) const override;
+    std::vector<std::size_t> required_state_dofs(std::size_t first, std::size_t last) const override;
+    void validate_local_state(std::size_t first, std::size_t last, const GlobalStateView& state) const override;
+    void contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const override;
     void compute_contribution_residual(
-        std::size_t contribution_index, const std::vector<double>& state, std::vector<double>& residual) const override;
-    void compute_contribution_system(std::size_t contribution_index, const std::vector<double>& state,
-        std::vector<double>& residual, std::vector<double>& jacobian) const override;
+        std::size_t index, const std::vector<double>& state, std::vector<double>& residual) const override;
+    void compute_contribution_system(std::size_t index, const std::vector<double>& state, std::vector<double>& residual,
+        std::vector<double>& jacobian) const override;
 
   private:
     friend class rz::BackendAccess;
-    friend class cartesian3d::BackendAccess;
+    friend class cartesian::BackendAccess;
     class Implementation;
     void refresh_region_heat_sources();
-    std::unique_ptr<Implementation> _implementation;
+    std::unique_ptr<Implementation> _impl;
 };
 } // namespace fuelsim
-#endif

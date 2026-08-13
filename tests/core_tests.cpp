@@ -1,13 +1,10 @@
-#include "fuelsim/boundary.hpp"
 #include "fuelsim/dof_map.hpp"
 #include "fuelsim/interface.hpp"
 #include "fuelsim/material.hpp"
 #include "fuelsim/mesh.hpp"
 #include "fuelsim/quad4_rz.hpp"
-#include "fuelsim/quad4_rz_kinematics.hpp"
-#include "fuelsim/quad4_rz_thermoelastic.hpp"
+#include "fuelsim/spatial_definition.hpp"
 #include "fuelsim/steady_problem.hpp"
-#include "fuelsim/time_table.hpp"
 #include "support/mesh_fixture.hpp"
 #include "support/rz_problem_access.hpp"
 #include <algorithm>
@@ -1449,9 +1446,9 @@ bool test_time_table_and_convection() {
     bool passed =
         check(table.value(0.0) == 0.0 && table.value(1.0) == 0.5 && table.value(3.0) == 0.8 && table.value(8.0) == 0.4,
             "piecewise-linear table interpolates and holds endpoints");
-    const fuelsim::Line2RzConvectionGeometry geometry =
-        fuelsim::make_line2_rz_convection_geometry({{{0.005, 0.0}, {0.005, 0.01}}}, {{1, 2}});
-    const fuelsim::Line2RzConvectionKernel kernel({1000.0, 500.0});
+    const fuelsim::Line2RzBoundaryGeometry geometry =
+        fuelsim::make_line2_rz_boundary_geometry({{{0.005, 0.0}, {0.005, 0.01}}}, {{1, 2}});
+    const fuelsim::Line2RzBoundaryKernel kernel(fuelsim::ConvectionProperties{1000.0, 500.0});
     const fuelsim::LocalValues state = {
         590.0,
         600.0,
@@ -1507,10 +1504,10 @@ bool test_time_table_and_convection() {
     return passed;
 }
 bool test_follower_pressure() {
-    const fuelsim::Line2RzPressureGeometry geometry =
-        fuelsim::make_line2_rz_pressure_geometry({{{0.005, 0.0}, {0.005, 0.01}}}, {{1, 2}});
+    const fuelsim::Line2RzBoundaryGeometry geometry =
+        fuelsim::make_line2_rz_boundary_geometry({{{0.005, 0.0}, {0.005, 0.01}}}, {{1, 2}});
     constexpr double pressure = 3.0e6;
-    const fuelsim::Line2RzPressureKernel follower({pressure, true});
+    const fuelsim::Line2RzBoundaryKernel follower(fuelsim::PressureProperties{pressure, true});
     const fuelsim::LocalValues state = {
         600.0,
         600.0,
@@ -1570,7 +1567,7 @@ bool test_follower_pressure() {
     passed = check(maximum_error < 1.0e-8, "follower-pressure AD Jacobian matches centered "
                                            "differences") &&
              passed;
-    const fuelsim::Line2RzPressureKernel dead({pressure, false});
+    const fuelsim::Line2RzBoundaryKernel dead(fuelsim::PressureProperties{pressure, false});
     const fuelsim::LocalSystem dead_system = dead.linearize(geometry, state);
     const double maximum_dead_tangent = *std::max_element(dead_system.jacobian.begin(), dead_system.jacobian.end(),
         [](double left, double right) { return std::abs(left) < std::abs(right); });
@@ -1580,10 +1577,11 @@ bool test_follower_pressure() {
     return passed;
 }
 bool test_current_configuration_traction() {
-    const fuelsim::Line2RzTractionGeometry geometry =
-        fuelsim::make_line2_rz_traction_geometry({{{0.005, 0.0}, {0.005, 0.01}}}, {{1, 2}});
+    const fuelsim::Line2RzBoundaryGeometry geometry =
+        fuelsim::make_line2_rz_boundary_geometry({{{0.005, 0.0}, {0.005, 0.01}}}, {{1, 2}});
     constexpr double traction = 2.0e6;
-    const fuelsim::Line2RzTractionKernel current({fuelsim::TractionComponent::axial, traction, true});
+    const fuelsim::Line2RzBoundaryKernel current(
+        fuelsim::TractionProperties{fuelsim::TractionComponent::axial, traction, true});
     const fuelsim::LocalValues state = {
         600.0,
         600.0,
@@ -1639,7 +1637,8 @@ bool test_current_configuration_traction() {
     passed = check(maximum_error < 1.0e-8, "current-configuration traction AD Jacobian matches "
                                            "centered differences") &&
              passed;
-    const fuelsim::Line2RzTractionKernel reference({fuelsim::TractionComponent::axial, traction, false});
+    const fuelsim::Line2RzBoundaryKernel reference(
+        fuelsim::TractionProperties{fuelsim::TractionComponent::axial, traction, false});
     const fuelsim::LocalSystem reference_system = reference.linearize(geometry, state);
     const double maximum_reference_tangent = *std::max_element(reference_system.jacobian.begin(),
         reference_system.jacobian.end(), [](double left, double right) { return std::abs(left) < std::abs(right); });
@@ -1691,4 +1690,4 @@ int main() {
     std::cout << "[PASS] fuelsim core geometry, DOF, and AD Jacobian tests\n";
     return 0;
 }
-#include "fuelsim/boundary.hpp"
+#include "fuelsim/quad4_rz.hpp"

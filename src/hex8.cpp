@@ -1,4 +1,4 @@
-#include "fuelsim/hex8_thermoelastic.hpp"
+#include "fuelsim/hex8.hpp"
 #include <adlite/adlite.hpp>
 #include <array>
 #include <cmath>
@@ -76,15 +76,8 @@ adlite::Scalar interpolate_hex8(
     return result;
 }
 SymmetricTensor3 strain_at(const Hex8QuadraturePoint& point, const Hex8LocalAdValues& state) {
-    adlite::Scalar ux_x = 0.0;
-    adlite::Scalar ux_y = 0.0;
-    adlite::Scalar ux_z = 0.0;
-    adlite::Scalar uy_x = 0.0;
-    adlite::Scalar uy_y = 0.0;
-    adlite::Scalar uy_z = 0.0;
-    adlite::Scalar uz_x = 0.0;
-    adlite::Scalar uz_y = 0.0;
-    adlite::Scalar uz_z = 0.0;
+    adlite::Scalar ux_x = 0.0, ux_y = 0.0, ux_z = 0.0, uy_x = 0.0, uy_y = 0.0, uy_z = 0.0, uz_x = 0.0, uz_y = 0.0,
+                   uz_z = 0.0;
     for (std::size_t node = 0; node < 8; ++node) {
         ux_x += point.gradient[node][0] * state[8 + node];
         ux_y += point.gradient[node][1] * state[8 + node];
@@ -103,9 +96,7 @@ void add_hex8_point_residual(const Hex8QuadraturePoint& point, const Hex8LocalAd
     double constant_heat_capacity, const Hex8LocalValues* committed_state, double time_step,
     Hex8LocalAdValues& residual) {
     const adlite::Scalar temperature = interpolate_hex8(point.shape, state, 0);
-    adlite::Scalar gradient_temperature_x = 0.0;
-    adlite::Scalar gradient_temperature_y = 0.0;
-    adlite::Scalar gradient_temperature_z = 0.0;
+    adlite::Scalar gradient_temperature_x = 0.0, gradient_temperature_y = 0.0, gradient_temperature_z = 0.0;
     for (std::size_t node = 0; node < 8; ++node) {
         gradient_temperature_x += point.gradient[node][0] * state[node];
         gradient_temperature_y += point.gradient[node][1] * state[node];
@@ -115,8 +106,7 @@ void add_hex8_point_residual(const Hex8QuadraturePoint& point, const Hex8LocalAd
         material.conductivity_cartesian(temperature, time, point.position.x, point.position.y, point.position.z);
     const SymmetricTensor3 stress = material.stress_cartesian(
         strain_at(point, state), temperature, time, point.position.x, point.position.y, point.position.z);
-    adlite::Scalar temperature_rate = 0.0;
-    adlite::Scalar heat_capacity = 0.0;
+    adlite::Scalar temperature_rate = 0.0, heat_capacity = 0.0;
     if (committed_state != nullptr) {
         double old_temperature = 0.0;
         for (std::size_t node = 0; node < 8; ++node) old_temperature += point.shape[node] * (*committed_state)[node];
@@ -126,9 +116,8 @@ void add_hex8_point_residual(const Hex8QuadraturePoint& point, const Hex8LocalAd
                                                         : adlite::Scalar(constant_heat_capacity);
     }
     for (std::size_t node = 0; node < 8; ++node) {
-        const double gradient_x = point.gradient[node][0];
-        const double gradient_y = point.gradient[node][1];
-        const double gradient_z = point.gradient[node][2];
+        const double gradient_x = point.gradient[node][0], gradient_y = point.gradient[node][1],
+                     gradient_z = point.gradient[node][2];
         residual[node] +=
             point.weighted_measure *
             (conductivity * (gradient_x * gradient_temperature_x + gradient_y * gradient_temperature_y +
@@ -166,9 +155,7 @@ Hex8Geometry make_hex8_geometry(const Hex8Coordinates& coordinates) {
                 std::array<double, 8> shape{};
                 std::array<std::array<double, 3>, 8> derivative{};
                 for (std::size_t node = 0; node < 8; ++node) {
-                    const double sx = hex8_signs[node][0];
-                    const double sy = hex8_signs[node][1];
-                    const double sz = hex8_signs[node][2];
+                    const double sx = hex8_signs[node][0], sy = hex8_signs[node][1], sz = hex8_signs[node][2];
                     shape[node] = 0.125 * (1.0 + sx * xi) * (1.0 + sy * eta) * (1.0 + sz * zeta);
                     derivative[node] = {{0.125 * sx * (1.0 + sy * eta) * (1.0 + sz * zeta),
                         0.125 * sy * (1.0 + sx * xi) * (1.0 + sz * zeta),
@@ -213,8 +200,7 @@ Quad4FaceGeometry make_quad4_face_geometry(const Quad4FaceCoordinates& coordinat
     const std::array<std::array<double, 2>, 4> locations = {
         {{{-gauss, -gauss}}, {{gauss, -gauss}}, {{gauss, gauss}}, {{-gauss, gauss}}}};
     for (std::size_t q = 0; q < locations.size(); ++q) {
-        const double xi = locations[q][0];
-        const double eta = locations[q][1];
+        const double xi = locations[q][0], eta = locations[q][1];
         const std::array<double, 4> shape = {{0.25 * (1.0 - xi) * (1.0 - eta), 0.25 * (1.0 + xi) * (1.0 - eta),
             0.25 * (1.0 + xi) * (1.0 + eta), 0.25 * (1.0 - xi) * (1.0 + eta)}};
         const std::array<double, 4> derivative_xi = {
@@ -252,13 +238,10 @@ Hex8ThermoelasticKernel::Hex8ThermoelasticKernel(
     if (!std::isfinite(_constant_heat_capacity) || !(_constant_heat_capacity > 0.0))
         throw std::invalid_argument("Hex8ThermoelasticKernel heat capacity must be finite and positive");
 }
-double Hex8ThermoelasticKernel::volumetric_heat_source() const noexcept { return _volumetric_heat_source; }
 double Hex8ThermoelasticKernel::heat_capacity(double temperature, double x, double y, double z) const {
     return _material.properties().functions ? _material.heat_capacity_cartesian(temperature, _time, x, y, z).value()
                                             : _constant_heat_capacity;
 }
-void Hex8ThermoelasticKernel::set_volumetric_heat_source(double value) noexcept { _volumetric_heat_source = value; }
-void Hex8ThermoelasticKernel::set_time(double value) noexcept { _time = value; }
 void Hex8ThermoelasticKernel::residual_ad(const Hex8Geometry& geometry, const Hex8LocalAdValues& state,
     const Hex8LocalValues* committed_state, double time_step, Hex8LocalAdValues& residual) const {
     if (committed_state != nullptr && (!std::isfinite(time_step) || !(time_step > 0.0)))
@@ -298,73 +281,50 @@ Hex8LocalSystem Hex8ThermoelasticKernel::linearize(const Hex8Geometry& geometry,
     residual_ad(geometry, ad_state, &committed_state, time_step, residual);
     return hex8_linearized_values(ad_state, residual);
 }
-Quad4FacePressureKernel::Quad4FacePressureKernel(double pressure) : _pressure(pressure) {}
-void Quad4FacePressureKernel::set_pressure(double value) noexcept { _pressure = value; }
-Quad4FaceLocalResidual Quad4FacePressureKernel::residual(
-    const Quad4FaceGeometry& geometry, const Quad4FaceLocalValues& state) const {
-    Quad4FaceLocalAdValues residual{};
+Quad4FaceBoundaryKernel::Quad4FaceBoundaryKernel(double pressure)
+    : _kind(Kind::pressure), _component(CartesianTractionComponent::x), _load(pressure), _ambient_temperature(0.0) {}
+Quad4FaceBoundaryKernel::Quad4FaceBoundaryKernel(CartesianTractionComponent component, double traction)
+    : _kind(Kind::traction), _component(component), _load(traction), _ambient_temperature(0.0) {}
+Quad4FaceBoundaryKernel::Quad4FaceBoundaryKernel(double coefficient, double ambient)
+    : _kind(Kind::convection), _component(CartesianTractionComponent::x), _load(coefficient),
+      _ambient_temperature(ambient) {}
+void Quad4FaceBoundaryKernel::residual_ad(
+    const Quad4FaceGeometry& geometry, const Quad4FaceLocalAdValues& state, Quad4FaceLocalAdValues& residual) const {
+    residual.fill(adlite::Scalar(0.0));
     for (const Quad4FaceQuadraturePoint& point : geometry.points) {
-        for (std::size_t node = 0; node < 4; ++node) {
-            residual[4 + node] += _pressure * point.shape[node] * point.outward_area_vector.x;
-            residual[8 + node] += _pressure * point.shape[node] * point.outward_area_vector.y;
-            residual[12 + node] += _pressure * point.shape[node] * point.outward_area_vector.z;
+        if (_kind == Kind::pressure) {
+            for (std::size_t node = 0; node < 4; ++node) {
+                residual[4 + node] += _load * point.shape[node] * point.outward_area_vector.x;
+                residual[8 + node] += _load * point.shape[node] * point.outward_area_vector.y;
+                residual[12 + node] += _load * point.shape[node] * point.outward_area_vector.z;
+            }
+        } else if (_kind == Kind::traction) {
+            const std::size_t offset = _component == CartesianTractionComponent::x
+                                           ? 4
+                                           : (_component == CartesianTractionComponent::y ? 8 : 12);
+            for (std::size_t node = 0; node < 4; ++node)
+                residual[offset + node] -= _load * point.weighted_measure * point.shape[node];
+        } else {
+            adlite::Scalar temperature = 0.0;
+            for (std::size_t node = 0; node < 4; ++node) temperature += point.shape[node] * state[node];
+            const adlite::Scalar heat_flux = _load * (temperature - _ambient_temperature);
+            for (std::size_t node = 0; node < 4; ++node)
+                residual[node] += point.weighted_measure * point.shape[node] * heat_flux;
         }
     }
-    static_cast<void>(state);
-    return face_residual_values(residual);
 }
-Quad4FaceLocalSystem Quad4FacePressureKernel::linearize(
-    const Quad4FaceGeometry& geometry, const Quad4FaceLocalValues& state) const {
-    return {residual(geometry, state), {}};
-}
-Quad4FaceTractionKernel::Quad4FaceTractionKernel(CartesianTractionComponent component, double traction)
-    : _component(component), _traction(traction) {}
-void Quad4FaceTractionKernel::set_traction(double value) noexcept { _traction = value; }
-Quad4FaceLocalResidual Quad4FaceTractionKernel::residual(
-    const Quad4FaceGeometry& geometry, const Quad4FaceLocalValues& state) const {
-    Quad4FaceLocalAdValues residual{};
-    const std::size_t offset =
-        _component == CartesianTractionComponent::x ? 4 : (_component == CartesianTractionComponent::y ? 8 : 12);
-    for (const Quad4FaceQuadraturePoint& point : geometry.points)
-        for (std::size_t node = 0; node < 4; ++node)
-            residual[offset + node] -= _traction * point.weighted_measure * point.shape[node];
-    static_cast<void>(state);
-    return face_residual_values(residual);
-}
-Quad4FaceLocalSystem Quad4FaceTractionKernel::linearize(
-    const Quad4FaceGeometry& geometry, const Quad4FaceLocalValues& state) const {
-    return {residual(geometry, state), {}};
-}
-Quad4FaceConvectionKernel::Quad4FaceConvectionKernel(double heat_transfer_coefficient, double ambient_temperature)
-    : _heat_transfer_coefficient(heat_transfer_coefficient), _ambient_temperature(ambient_temperature) {}
-void Quad4FaceConvectionKernel::set_properties(double coefficient, double ambient) noexcept {
-    _heat_transfer_coefficient = coefficient;
-    _ambient_temperature = ambient;
-}
-Quad4FaceLocalResidual Quad4FaceConvectionKernel::residual(
+Quad4FaceLocalResidual Quad4FaceBoundaryKernel::residual(
     const Quad4FaceGeometry& geometry, const Quad4FaceLocalValues& state) const {
     const Quad4FaceLocalAdValues ad_state = passive_face_state(state);
-    Quad4FaceLocalAdValues residual{};
-    for (const Quad4FaceQuadraturePoint& point : geometry.points) {
-        adlite::Scalar temperature = 0.0;
-        for (std::size_t node = 0; node < 4; ++node) temperature += point.shape[node] * ad_state[node];
-        const adlite::Scalar heat_flux = _heat_transfer_coefficient * (temperature - _ambient_temperature);
-        for (std::size_t node = 0; node < 4; ++node)
-            residual[node] += point.weighted_measure * point.shape[node] * heat_flux;
-    }
-    return face_residual_values(residual);
+    Quad4FaceLocalAdValues result{};
+    residual_ad(geometry, ad_state, result);
+    return face_residual_values(result);
 }
-Quad4FaceLocalSystem Quad4FaceConvectionKernel::linearize(
+Quad4FaceLocalSystem Quad4FaceBoundaryKernel::linearize(
     const Quad4FaceGeometry& geometry, const Quad4FaceLocalValues& state) const {
     const Quad4FaceLocalAdValues ad_state = active_face_state(state);
-    Quad4FaceLocalAdValues residual{};
-    for (const Quad4FaceQuadraturePoint& point : geometry.points) {
-        adlite::Scalar temperature = 0.0;
-        for (std::size_t node = 0; node < 4; ++node) temperature += point.shape[node] * ad_state[node];
-        const adlite::Scalar heat_flux = _heat_transfer_coefficient * (temperature - _ambient_temperature);
-        for (std::size_t node = 0; node < 4; ++node)
-            residual[node] += point.weighted_measure * point.shape[node] * heat_flux;
-    }
-    return face_linearized_values(ad_state, residual);
+    Quad4FaceLocalAdValues result{};
+    residual_ad(geometry, ad_state, result);
+    return face_linearized_values(ad_state, result);
 }
 } // namespace fuelsim

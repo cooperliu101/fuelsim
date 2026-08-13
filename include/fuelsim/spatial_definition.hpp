@@ -1,22 +1,29 @@
-#ifndef FUELSIM_SPATIAL_DEFINITION_HPP
-#define FUELSIM_SPATIAL_DEFINITION_HPP
-#include "fuelsim/boundary.hpp"
+#pragma once
 #include "fuelsim/dof_map.hpp"
 #include "fuelsim/interface.hpp"
 #include "fuelsim/material.hpp"
-#include "fuelsim/quad4_rz_kinematics.hpp"
-#include "fuelsim/time_table.hpp"
+#include "fuelsim/quad4_rz.hpp"
 #include <cstddef>
 #include <cstdint>
 #include <string>
 #include <vector>
 namespace fuelsim {
+class PiecewiseLinearTimeTable final {
+  public:
+    PiecewiseLinearTimeTable(std::string name, std::vector<double> times, std::vector<double> values);
+    const std::string& name() const noexcept { return _name; }
+    const std::vector<double>& times() const noexcept { return _times; }
+    const std::vector<double>& values() const noexcept { return _values; }
+    double value(double time) const;
+
+  private:
+    std::string _name;
+    std::vector<double> _times, _values;
+};
 struct RegionDefinition final {
-    std::string name;
-    std::string block;
+    std::string name, block;
     ThermoelasticProperties material;
-    double volumetric_heat_source;
-    double initial_temperature;
+    double volumetric_heat_source, initial_temperature;
     std::int64_t block_id = -1;
     std::string heat_source_function{};
     StrainFormulation strain_formulation = StrainFormulation::small;
@@ -26,14 +33,9 @@ enum class MechanicalContactFormulation {
     augmented_lagrangian,
 };
 struct ContactDefinition final {
-    std::string name;
-    std::string primary;
-    std::string secondary;
-    bool thermal;
-    bool mechanical;
-    double gap_conductivity;
-    double minimum_gap;
-    double penalty;
+    std::string name, primary, secondary;
+    bool thermal, mechanical;
+    double gap_conductivity, minimum_gap, penalty;
     double friction_coefficient = 0.0;
     bool automatic_penalty = false;
     double penalty_factor = 1.0;
@@ -42,11 +44,8 @@ struct ContactDefinition final {
     std::size_t maximum_augmented_iterations = 20;
 };
 struct AugmentedContactUpdate final {
-    bool converged = true;
-    bool update_allowed = true;
-    double maximum_penetration = 0.0;
-    double maximum_constraint_violation = 0.0;
-    double penetration_tolerance = 0.0;
+    bool converged = true, update_allowed = true;
+    double maximum_penetration = 0.0, maximum_constraint_violation = 0.0, penetration_tolerance = 0.0;
 };
 enum class BoundaryConditionType {
     dirichlet,
@@ -62,8 +61,7 @@ struct BoundaryConditionDefinition final {
     double value;
     bool scale_with_load = false;
     std::string function{};
-    double heat_transfer_coefficient = 0.0;
-    double ambient_temperature = 0.0;
+    double heat_transfer_coefficient = 0.0, ambient_temperature = 0.0;
     std::string coefficient_function{};
     std::string ambient_temperature_function{};
     bool use_displaced_geometry = false;
@@ -75,30 +73,17 @@ struct SpatialDefinition final {
     std::vector<PiecewiseLinearTimeTable> time_tables{};
 };
 struct ContactNodeSummary final {
-    double r;
-    double z;
+    double r, z;
     bool projected;
     std::size_t primary_segment;
-    double gap;
-    double pressure;
-    double tributary_area;
-    double tributary_length;
-    double contact_force;
-    double tangential_traction;
-    double tangential_force;
-    double elastic_tangential_slip;
+    double gap, pressure, tributary_area, tributary_length, contact_force, tangential_traction, tangential_force,
+        elastic_tangential_slip;
     bool sliding;
 };
 struct InterfaceSummary final {
-    double minimum_gap;
-    double minimum_contact_gap;
-    double maximum_contact_pressure;
-    double total_heat_rate;
-    double total_contact_force;
-    double total_tangential_force;
-    std::size_t projected_contact_nodes;
-    std::size_t unprojected_contact_nodes;
-    std::size_t active_contact_nodes;
+    double minimum_gap, minimum_contact_gap, maximum_contact_pressure, total_heat_rate, total_contact_force,
+        total_tangential_force;
+    std::size_t projected_contact_nodes, unprojected_contact_nodes, active_contact_nodes;
 };
 enum class SpatialContributionType {
     volume,
@@ -109,4 +94,3 @@ enum class SpatialContributionType {
     convection,
 };
 } // namespace fuelsim
-#endif

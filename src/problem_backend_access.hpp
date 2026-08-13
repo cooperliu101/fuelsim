@@ -1,14 +1,20 @@
-#ifndef FUELSIM_PROBLEM_BACKEND_ACCESS_HPP
-#define FUELSIM_PROBLEM_BACKEND_ACCESS_HPP
+#pragma once
 #include "assembly.hpp"
 #include "cartesian3d_assembly.hpp"
-#include "fuelsim/quad4_rz_thermoelastic.hpp"
-#include "fuelsim/quad4_rz_transient.hpp"
+#include "fuelsim/quad4_rz.hpp"
 #include "fuelsim/steady_problem.hpp"
 #include "fuelsim/transient_problem.hpp"
 #include <array>
 #include <vector>
 namespace fuelsim {
+struct TransientCommittedState final {
+    std::vector<double> solution;
+    std::vector<std::vector<Quad4MaterialHistory>> material_histories;
+    std::vector<std::vector<std::array<AxisymmetricStressValues, 4>>> material_stresses;
+    std::vector<std::vector<ContactPointHistory>> contact_histories;
+    TransientConservationSummary conservation;
+    double time = 0.0, load_factor = 0.0;
+};
 namespace rz {
 struct SteadyBackendView final {
     const SpatialAssembly& spatial;
@@ -24,15 +30,6 @@ struct TransientBackendView final {
     double active_time_step;
     bool time_step_active;
 };
-struct TransientCommittedState final {
-    std::vector<double> solution;
-    std::vector<std::vector<Quad4MaterialHistory>> material_histories;
-    std::vector<std::vector<std::array<AxisymmetricStressValues, 4>>> material_stresses;
-    std::vector<std::vector<ContactPointHistory>> contact_histories;
-    TransientConservationSummary conservation;
-    double time = 0.0;
-    double load_factor = 0.0;
-};
 class BackendAccess final {
   public:
     static SteadyBackendView steady(const SteadyProblem& problem) noexcept;
@@ -41,24 +38,16 @@ class BackendAccess final {
     static void restore_committed_state(TransientProblem& problem, TransientCommittedState state);
 };
 } // namespace rz
-namespace cartesian3d {
+namespace cartesian {
 struct SteadyBackendView final {
     const SpatialAssembly& spatial;
-    const std::vector<Hex8ThermoelasticKernel>& kernels;
 };
 struct TransientBackendView final {
     const TransientProblemDefinition& definition;
     const SpatialAssembly& spatial;
-    const std::vector<Hex8ThermoelasticKernel>& kernels;
     const std::vector<double>& committed_solution;
     double active_time_step;
     bool time_step_active;
-};
-struct TransientCommittedState final {
-    std::vector<double> solution;
-    TransientConservationSummary conservation;
-    double time = 0.0;
-    double load_factor = 0.0;
 };
 class BackendAccess final {
   public:
@@ -69,6 +58,5 @@ class BackendAccess final {
     static TransientCommittedState committed_state(const TransientProblem& problem);
     static void restore_committed_state(TransientProblem& problem, TransientCommittedState state);
 };
-} // namespace cartesian3d
+} // namespace cartesian
 } // namespace fuelsim
-#endif

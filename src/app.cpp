@@ -1,7 +1,5 @@
 #include "fuelsim/case_input.hpp"
-#include "fuelsim/checkpoint_io.hpp"
-#include "fuelsim/diagnostics.hpp"
-#include "fuelsim/exodus_mesh_io.hpp"
+#include "fuelsim/nonlinear_problem.hpp"
 #include "fuelsim/petsc_solver.hpp"
 #include "fuelsim/problem_solver.hpp"
 #include "fuelsim/results_io.hpp"
@@ -86,15 +84,9 @@ class TransientOutputObserver final : public TransientStepObserver {
     ExodusTransientResultsWriter* _results;
     EngineeringHistoryWriter* _history;
     std::string _checkpoint_file;
-    std::size_t _exodus_interval;
-    std::size_t _history_interval;
-    std::size_t _progress_interval;
-    std::size_t _checkpoint_interval;
-    std::size_t _accepted_steps;
-    bool _exodus_at_latest;
-    bool _history_at_latest;
-    double _last_time_step;
-    double _last_next_time_step;
+    std::size_t _exodus_interval, _history_interval, _progress_interval, _checkpoint_interval, _accepted_steps;
+    bool _exodus_at_latest, _history_at_latest;
+    double _last_time_step, _last_next_time_step;
     int _last_nonlinear_iterations;
     bool _checkpoint_at_latest;
     const PetscSession& _session;
@@ -130,7 +122,7 @@ void TransientOutputObserver::accepted_step(const TransientProblem& problem, con
             write_conservation_summary("progress.conservation.", step.conservation, _progress_output);
         }
         if (!_checkpoint_file.empty() && _accepted_steps % _checkpoint_interval == 0) {
-            TransientCheckpointIo::write(_checkpoint_file, problem, step.next_time_step);
+            write_transient_checkpoint(_checkpoint_file, problem, step.next_time_step);
             _checkpoint_at_latest = true;
         }
     });
@@ -141,7 +133,7 @@ void TransientOutputObserver::finalize(const TransientProblem& problem, double n
         if (_history != nullptr && !_history_at_latest)
             _history->append(problem, _last_time_step, _last_next_time_step, _last_nonlinear_iterations);
         if (!_checkpoint_file.empty() && !_checkpoint_at_latest)
-            TransientCheckpointIo::write(_checkpoint_file, problem, next_time_step);
+            write_transient_checkpoint(_checkpoint_file, problem, next_time_step);
     });
     _exodus_at_latest = true;
     _history_at_latest = true;
@@ -257,8 +249,8 @@ bool write_jacobian_check(const NonlinearProblem& problem, const std::vector<dou
     bool passed = true;
     for (std::size_t field = 0; field < problem.field_layout().size(); ++field) {
         const std::string prefix = "jacobian." + problem.field_layout()[field].name + ".";
-        const double reference = check.finite_difference_directional_derivative.l2[field];
-        const double difference = check.difference.l2[field];
+        const double reference = check.finite_difference_directional_derivative.l2[field],
+                     difference = check.difference.l2[field];
         const double relative = reference > 0.0 ? difference / reference
                                                 : (difference == 0.0 ? 0.0 : std::numeric_limits<double>::infinity());
         output.value(prefix + "residual_l2", check.residual.l2[field]);
@@ -316,9 +308,9 @@ bool run_steady(const FuelSimCaseDefinition& definition, const UnstructuredQuad4
     if (result.completed && result.solve.converged && !definition.outputs.exodus_file.empty())
         session.collective_root_action([&]() {
             if (hex_source != nullptr)
-                ExodusResultsIo::write_steady(definition.outputs.exodus_file, *hex_source, problem, result.solve.state);
+                write_steady_results(definition.outputs.exodus_file, *hex_source, problem, result.solve.state);
             else
-                ExodusResultsIo::write_steady(definition.outputs.exodus_file, *rz_source, problem, result.solve.state);
+                write_steady_results(definition.outputs.exodus_file, *rz_source, problem, result.solve.state);
         });
     return result.completed && result.solve.converged;
 }
@@ -332,7 +324,7 @@ bool run_transient(const FuelSimCaseDefinition& definition, const UnstructuredQu
     TransientProblem& problem = *problem_storage;
     double restart_time_step = 0.0;
     if (!definition.transient_execution.restart_file.empty())
-        restart_time_step = TransientCheckpointIo::restore(definition.transient_execution.restart_file, problem);
+        restart_time_step = restore_transient_checkpoint(definition.transient_execution.restart_file, problem);
     const double first_time_step =
         restart_time_step > 0.0 ? restart_time_step : definition.transient_execution.initial_time_step;
     if (check_jacobian) {
@@ -458,15 +450,15 @@ bool run_transient(const FuelSimCaseDefinition& definition, const UnstructuredQu
 int run_application(int argc, char** argv) {
     try {
         const CommandLine command = extract_command_line(argc, argv);
-        const FuelSimCaseDefinition definition = CaseInputReader::read(command.input_path);
+        const FuelSimCaseDefinition definition = read_case_input(command.input_path);
         PetscSession session(argc, argv, "fuelsim input-driven multi-region thermo-mechanics solver\n");
         const bool root_rank = session.rank() == 0;
         std::unique_ptr<UnstructuredQuad4Mesh> rz_source;
         std::unique_ptr<UnstructuredHex8Mesh> hex_source;
         if (definition.geometry == CaseGeometry::cartesian_3d)
-            hex_source = std::make_unique<UnstructuredHex8Mesh>(ExodusMeshIo::read_hex8(definition.mesh_file));
+            hex_source = std::make_unique<UnstructuredHex8Mesh>(read_exodus_hex8(definition.mesh_file));
         else
-            rz_source = std::make_unique<UnstructuredQuad4Mesh>(ExodusMeshIo::read_quad4(definition.mesh_file));
+            rz_source = std::make_unique<UnstructuredQuad4Mesh>(read_exodus_quad4(definition.mesh_file));
         std::unique_ptr<CaseOutput> output;
         if (!root_rank) output = std::make_unique<CaseOutput>(definition.outputs, command.check_jacobian, false);
         session.collective_root_action(

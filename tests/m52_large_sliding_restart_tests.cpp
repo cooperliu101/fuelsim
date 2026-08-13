@@ -1,7 +1,6 @@
 #include "fuelsim/case_input.hpp"
-#include "fuelsim/checkpoint_io.hpp"
-#include "fuelsim/exodus_mesh_io.hpp"
 #include "fuelsim/problem_solver.hpp"
+#include "fuelsim/results_io.hpp"
 #include "support/rz_problem_access.hpp"
 #include <algorithm>
 #include <cmath>
@@ -19,8 +18,8 @@ bool check(bool condition, const std::string& message) {
 }
 fuelsim::TransientTimeOptions time_options(double end_time) { return {end_time, 0.05, 0.05, 0.05, 1.0, 0.5, 2, 1.0}; }
 bool run_test(const std::string& input_path, const std::string& checkpoint_path) {
-    const fuelsim::FuelSimCaseDefinition input = fuelsim::CaseInputReader::read(input_path);
-    const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::ExodusMeshIo::read_quad4(input.mesh_file);
+    const fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
+    const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
     const fuelsim::SolverOptions solver{input.solver.absolute_tolerance, input.solver.relative_tolerance,
         input.solver.step_tolerance, input.solver.maximum_iterations};
     fuelsim::TransientProblem uninterrupted(input.transient_definition(), mesh);
@@ -29,9 +28,9 @@ bool run_test(const std::string& input_path, const std::string& checkpoint_path)
     fuelsim::TransientProblem split(input.transient_definition(), mesh);
     const fuelsim::TransientResult first = fuelsim::solve_transient(split, time_options(0.5), solver);
     passed = check(first.completed, "M5.2 pre-checkpoint dynamic-search path completes") && passed;
-    fuelsim::TransientCheckpointIo::write(checkpoint_path, split, 0.05);
+    fuelsim::write_transient_checkpoint(checkpoint_path, split, 0.05);
     fuelsim::TransientProblem restarted(input.transient_definition(), mesh);
-    const double restored_step = fuelsim::TransientCheckpointIo::restore(checkpoint_path, restarted);
+    const double restored_step = fuelsim::restore_transient_checkpoint(checkpoint_path, restarted);
     const fuelsim::TransientResult second = fuelsim::solve_transient(restarted, time_options(1.0), solver);
     passed = check(restored_step == 0.05 && second.completed, "M5.2 checkpoint restores its controller step and "
                                                               "continues") &&

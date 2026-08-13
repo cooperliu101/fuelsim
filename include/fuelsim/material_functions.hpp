@@ -1,15 +1,14 @@
-#ifndef FUELSIM_MATERIAL_FUNCTIONS_HPP
-#define FUELSIM_MATERIAL_FUNCTIONS_HPP
+#pragma once
 #include <adlite/adlite.hpp>
 #include <array>
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <variant>
 #include <vector>
 namespace fuelsim {
 struct MaterialParameterDefinition final {
-    std::string name;
-    std::string unit;
+    std::string name, unit;
 };
 struct MaterialParameterValue final {
     std::string name;
@@ -19,83 +18,44 @@ class MaterialParameters final {
   public:
     MaterialParameters() = default;
     explicit MaterialParameters(std::vector<MaterialParameterValue> values);
-    std::size_t size() const noexcept;
+    std::size_t size() const noexcept { return _values.size(); }
     double value(const std::string& name) const;
-    double value(std::size_t index) const;
-    const std::vector<MaterialParameterValue>& values() const noexcept;
+    double value(std::size_t index) const { return _values.at(index).value; }
+    const std::vector<MaterialParameterValue>& values() const noexcept { return _values; }
 
   private:
     std::vector<MaterialParameterValue> _values;
 };
-struct ThermalPropertyInput final {
+struct ThermoelasticFunctionInput final {
     adlite::Scalar temperature;
-    double time;
-    double x;
-    double y;
-    double z;
+    double time, x, y, z;
     const MaterialParameters* parameters;
 };
 struct ThermalPropertyOutput final {
-    adlite::Scalar conductivity;
-    adlite::Scalar density;
-    adlite::Scalar specific_heat;
-};
-struct ElasticPropertyInput final {
-    adlite::Scalar temperature;
-    double time;
-    double x;
-    double y;
-    double z;
-    const MaterialParameters* parameters;
+    adlite::Scalar conductivity, density, specific_heat;
 };
 struct ElasticPropertyOutput final {
-    adlite::Scalar young_modulus;
-    adlite::Scalar poisson_ratio;
-};
-struct EigenstrainInput final {
-    adlite::Scalar temperature;
-    double time;
-    double x;
-    double y;
-    double z;
-    const MaterialParameters* parameters;
+    adlite::Scalar young_modulus, poisson_ratio;
 };
 struct AxisymmetricStrain final {
-    adlite::Scalar rr;
-    adlite::Scalar zz;
-    adlite::Scalar hoop;
-    adlite::Scalar rz;
+    adlite::Scalar rr, zz, hoop, rz;
 };
 struct SymmetricTensor3 final {
-    adlite::Scalar xx;
-    adlite::Scalar yy;
-    adlite::Scalar zz;
-    adlite::Scalar xy;
-    adlite::Scalar yz;
-    adlite::Scalar xz;
+    adlite::Scalar xx, yy, zz, xy, yz, xz;
 };
 struct CreepRateInput final {
-    adlite::Scalar equivalent_stress;
-    adlite::Scalar temperature;
-    adlite::Scalar equivalent_creep_strain;
-    double time;
-    double x;
-    double y;
-    double z;
+    adlite::Scalar equivalent_stress, temperature, equivalent_creep_strain;
+    double time, x, y, z;
     const MaterialParameters* parameters;
 };
 struct PlasticFlowStressInput final {
-    adlite::Scalar equivalent_plastic_strain;
-    adlite::Scalar temperature;
-    double time;
-    double x;
-    double y;
-    double z;
+    adlite::Scalar equivalent_plastic_strain, temperature;
+    double time, x, y, z;
     const MaterialParameters* parameters;
 };
-using ThermalPropertyFunction = void (*)(const ThermalPropertyInput&, ThermalPropertyOutput&);
-using ElasticPropertyFunction = void (*)(const ElasticPropertyInput&, ElasticPropertyOutput&);
-using EigenstrainFunction = void (*)(const EigenstrainInput&, SymmetricTensor3&);
+using ThermalPropertyFunction = void (*)(const ThermoelasticFunctionInput&, ThermalPropertyOutput&);
+using ElasticPropertyFunction = void (*)(const ThermoelasticFunctionInput&, ElasticPropertyOutput&);
+using EigenstrainFunction = void (*)(const ThermoelasticFunctionInput&, SymmetricTensor3&);
 using CreepRateFunction = adlite::Scalar (*)(const CreepRateInput&);
 using PlasticFlowStressFunction = adlite::Scalar (*)(const PlasticFlowStressInput&);
 struct ThermalFunctionInstance final {
@@ -111,8 +71,7 @@ struct ElasticFunctionInstance final {
     ElasticPropertyFunction function = nullptr;
 };
 struct EigenstrainFunctionInstance final {
-    std::string instance_name;
-    std::string name;
+    std::string instance_name, name;
     std::uint32_t version = 0;
     MaterialParameters parameters;
     EigenstrainFunction function = nullptr;
@@ -136,8 +95,8 @@ struct MaterialFunctionSet final {
     std::vector<EigenstrainFunctionInstance> eigenstrains;
     CreepFunctionInstance creep;
     PlasticFunctionInstance plasticity;
-    bool has_creep() const noexcept;
-    bool has_plasticity() const noexcept;
+    bool has_creep() const noexcept { return creep.function != nullptr; }
+    bool has_plasticity() const noexcept { return plasticity.function != nullptr; }
     std::uint64_t signature() const noexcept;
 };
 class MaterialFunctionRegistry final {
@@ -165,23 +124,20 @@ class MaterialFunctionRegistry final {
     PlasticFunctionInstance bind_plasticity(const std::string& name, std::vector<MaterialParameterValue> values) const;
 
   private:
+    enum class Category { thermal, elasticity, eigenstrain, creep, plasticity };
+    using Function = std::variant<ThermalPropertyFunction, ElasticPropertyFunction, EigenstrainFunction,
+        CreepRateFunction, PlasticFlowStressFunction>;
     struct Registration final {
         std::string name;
         std::uint32_t version;
         std::vector<MaterialParameterDefinition> parameters;
+        Category category;
+        Function function;
     };
-    static std::size_t add_registration(std::vector<Registration>& registrations, std::string name,
-        std::vector<MaterialParameterDefinition> parameters, std::uint32_t version, bool has_function,
-        const char* category);
-    static std::size_t find_registration(
-        const std::vector<Registration>& registrations, const std::string& name, const char* category);
-    std::vector<Registration> _thermal, _elasticity, _eigenstrain, _creep, _plasticity;
-    std::vector<ThermalPropertyFunction> _thermal_functions;
-    std::vector<ElasticPropertyFunction> _elasticity_functions;
-    std::vector<EigenstrainFunction> _eigenstrain_functions;
-    std::vector<CreepRateFunction> _creep_functions;
-    std::vector<PlasticFlowStressFunction> _plasticity_functions;
+    void add_registration(std::string name, std::vector<MaterialParameterDefinition> parameters, std::uint32_t version,
+        Category category, Function function, bool has_function, const char* category_name);
+    const Registration& find_registration(Category category, const std::string& name, const char* category_name) const;
+    std::vector<Registration> _registrations;
 };
 MaterialFunctionRegistry make_builtin_material_function_registry();
 } // namespace fuelsim
-#endif

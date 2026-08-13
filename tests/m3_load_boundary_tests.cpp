@@ -1,6 +1,6 @@
 #include "fuelsim/case_input.hpp"
-#include "fuelsim/exodus_mesh_io.hpp"
 #include "fuelsim/problem_solver.hpp"
+#include "fuelsim/results_io.hpp"
 #include "support/moose_field_comparison.hpp"
 #include "support/rz_problem_access.hpp"
 #include <algorithm>
@@ -21,8 +21,8 @@ bool check(bool condition, const std::string& message) {
     return false;
 }
 bool test_time_event_alignment(const std::string& input_path) {
-    const fuelsim::FuelSimCaseDefinition input = fuelsim::CaseInputReader::read(input_path);
-    const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::ExodusMeshIo::read_quad4(input.mesh_file);
+    const fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
+    const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
     fuelsim::TransientProblemDefinition definition = input.transient_definition();
     definition.spatial.time_tables.emplace_back(
         "events", std::vector<double>{0.0, 0.75, 2.0}, std::vector<double>{1.0, 1.0, 1.0});
@@ -38,8 +38,8 @@ bool test_time_event_alignment(const std::string& input_path) {
         "preserves the controller step");
 }
 bool test_moose_time_table_convection(const std::string& input_path, const std::string& nodal_reference_path) {
-    const fuelsim::FuelSimCaseDefinition definition = fuelsim::CaseInputReader::read(input_path);
-    const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::ExodusMeshIo::read_quad4(definition.mesh_file);
+    const fuelsim::FuelSimCaseDefinition definition = fuelsim::read_case_input(input_path);
+    const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(definition.mesh_file);
     fuelsim::TransientProblem problem(definition.transient_definition(), mesh);
     const fuelsim::TransientTimeOptions time_options = {definition.transient_execution.end_time,
         definition.transient_execution.initial_time_step, definition.transient_execution.minimum_time_step,
@@ -112,7 +112,7 @@ ConvergenceMetric finish_convergence(const ConvergenceAccumulator& accumulator) 
     return result;
 }
 std::array<ConvergenceMetric, 9> compare_committed_states(
-    const fuelsim::rz::TransientCommittedState& actual, const fuelsim::rz::TransientCommittedState& reference) {
+    const fuelsim::TransientCommittedState& actual, const fuelsim::TransientCommittedState& reference) {
     if (actual.solution.size() != reference.solution.size() || actual.solution.size() % 3 != 0 ||
         actual.material_histories.size() != reference.material_histories.size() ||
         actual.material_stresses.size() != reference.material_stresses.size())
@@ -162,10 +162,10 @@ std::array<ConvergenceMetric, 9> compare_committed_states(
     return result;
 }
 bool test_opaque_state_snapshot(const std::string& input_path) {
-    const fuelsim::FuelSimCaseDefinition input = fuelsim::CaseInputReader::read(input_path);
-    const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::ExodusMeshIo::read_quad4(input.mesh_file);
+    const fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
+    const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
     fuelsim::TransientProblem problem(input.transient_definition(), mesh);
-    const fuelsim::rz::TransientCommittedState reference = fuelsim::rz::ProblemAccess::committed_state(problem);
+    const fuelsim::TransientCommittedState reference = fuelsim::rz::ProblemAccess::committed_state(problem);
     const fuelsim::TransientStateSnapshot snapshot = problem.capture_state();
     bool empty_rejected = false;
     try {
@@ -182,12 +182,12 @@ bool test_opaque_state_snapshot(const std::string& input_path) {
         (void)problem.capture_state();
     } catch (const std::logic_error&) { active_capture_rejected = true; }
     problem.rollback_time_step();
-    fuelsim::rz::TransientCommittedState changed = reference;
+    fuelsim::TransientCommittedState changed = reference;
     changed.time += 0.5;
     changed.load_factor = 0.5;
     fuelsim::rz::ProblemAccess::restore_committed_state(problem, std::move(changed));
     problem.restore_state(snapshot);
-    const fuelsim::rz::TransientCommittedState restored = fuelsim::rz::ProblemAccess::committed_state(problem);
+    const fuelsim::TransientCommittedState restored = fuelsim::rz::ProblemAccess::committed_state(problem);
     const std::array<ConvergenceMetric, 9> state_difference = compare_committed_states(restored, reference);
     bool identical = restored.time == reference.time && restored.load_factor == reference.load_factor &&
                      restored.contact_histories.size() == reference.contact_histories.size();
@@ -213,7 +213,7 @@ bool test_opaque_state_snapshot(const std::string& input_path) {
         !snapshot.empty() && empty_rejected && foreign_snapshot_rejected && active_capture_rejected && identical,
         "opaque snapshots reject invalid use and restore the complete RZ committed state exactly");
 }
-fuelsim::rz::TransientCommittedState solve_fixed_pcmi(
+fuelsim::TransientCommittedState solve_fixed_pcmi(
     const fuelsim::FuelSimCaseDefinition& input, const fuelsim::UnstructuredQuad4Mesh& mesh, double time_step) {
     fuelsim::TransientProblem problem(input.transient_definition(), mesh);
     fuelsim::SolverOptions solver_options = {input.solver.absolute_tolerance, input.solver.relative_tolerance,
@@ -228,12 +228,12 @@ fuelsim::rz::TransientCommittedState solve_fixed_pcmi(
     return fuelsim::rz::ProblemAccess::committed_state(problem);
 }
 bool test_long_transient_time_convergence(const std::string& input_path) {
-    const fuelsim::FuelSimCaseDefinition input = fuelsim::CaseInputReader::read(input_path);
-    const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::ExodusMeshIo::read_quad4(input.mesh_file);
-    const fuelsim::rz::TransientCommittedState coarse = solve_fixed_pcmi(input, mesh, 1.0);
-    const fuelsim::rz::TransientCommittedState medium = solve_fixed_pcmi(input, mesh, 0.5);
-    const fuelsim::rz::TransientCommittedState fine = solve_fixed_pcmi(input, mesh, 0.25);
-    const fuelsim::rz::TransientCommittedState reference = solve_fixed_pcmi(input, mesh, 0.125);
+    const fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
+    const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
+    const fuelsim::TransientCommittedState coarse = solve_fixed_pcmi(input, mesh, 1.0);
+    const fuelsim::TransientCommittedState medium = solve_fixed_pcmi(input, mesh, 0.5);
+    const fuelsim::TransientCommittedState fine = solve_fixed_pcmi(input, mesh, 0.25);
+    const fuelsim::TransientCommittedState reference = solve_fixed_pcmi(input, mesh, 0.125);
     const std::array<ConvergenceMetric, 9> coarse_error = compare_committed_states(coarse, reference);
     const std::array<ConvergenceMetric, 9> medium_error = compare_committed_states(medium, reference);
     const std::array<ConvergenceMetric, 9> fine_error = compare_committed_states(fine, reference);
@@ -304,8 +304,8 @@ bool test_long_transient_time_convergence(const std::string& input_path) {
            passed;
 }
 bool test_time_error_control(const std::string& input_path) {
-    const fuelsim::FuelSimCaseDefinition input = fuelsim::CaseInputReader::read(input_path);
-    const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::ExodusMeshIo::read_quad4(input.mesh_file);
+    const fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
+    const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
     const fuelsim::SolverOptions solver_options = {input.solver.absolute_tolerance, input.solver.relative_tolerance,
         input.solver.step_tolerance, input.solver.maximum_iterations};
     fuelsim::TransientProblem reference_problem(input.transient_definition(), mesh);
@@ -380,8 +380,8 @@ bool test_time_error_control(const std::string& input_path) {
         "PETSc workspace, and reduces temporal error");
 }
 bool test_failure_diagnostics(const std::string& input_path) {
-    const fuelsim::FuelSimCaseDefinition input = fuelsim::CaseInputReader::read(input_path);
-    const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::ExodusMeshIo::read_quad4(input.mesh_file);
+    const fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
+    const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
     fuelsim::TransientProblem problem(input.transient_definition(), mesh);
     const fuelsim::TransientTimeOptions time_options = {1.0, 1.0, 0.125, 1.0, 1.0, 0.5, 0, 20.0};
     const fuelsim::SolverOptions solver_options = {
@@ -405,8 +405,8 @@ bool test_failure_diagnostics(const std::string& input_path) {
     return passed;
 }
 bool test_history_time_error_control(const std::string& input_path) {
-    const fuelsim::FuelSimCaseDefinition input = fuelsim::CaseInputReader::read(input_path);
-    const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::ExodusMeshIo::read_quad4(input.mesh_file);
+    const fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
+    const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
     fuelsim::TransientProblem problem(input.transient_definition(), mesh);
     fuelsim::TransientTimeOptions time_options = {20.0, 4.0, 0.125, 4.0, 1.0, 0.5, 12, 20.0};
     time_options.time_error_relative_tolerance = 5.0e-1;
@@ -451,8 +451,8 @@ bool test_history_time_error_control(const std::string& input_path) {
         "addition to nodal fields");
 }
 bool test_long_transient_diagnostics(const std::string& input_path) {
-    const fuelsim::FuelSimCaseDefinition input = fuelsim::CaseInputReader::read(input_path);
-    const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::ExodusMeshIo::read_quad4(input.mesh_file);
+    const fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
+    const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
     fuelsim::TransientProblem problem(input.transient_definition(), mesh);
     const fuelsim::TransientTimeOptions time_options = {100.0, 0.5, 0.5, 0.5, 1.0, 0.5, 0, 20.0};
     fuelsim::SolverOptions solver_options;
@@ -513,8 +513,8 @@ bool test_long_transient_diagnostics(const std::string& input_path) {
         "residual scales, global balances, and nonnegative dissipation");
 }
 bool test_steady_load_cutback(const std::string& input_path) {
-    const fuelsim::FuelSimCaseDefinition input = fuelsim::CaseInputReader::read(input_path);
-    const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::ExodusMeshIo::read_quad4(input.mesh_file);
+    const fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
+    const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
     fuelsim::SteadyProblem problem(input.spatial_definition(), mesh);
     const fuelsim::SteadyStateSnapshot snapshot = problem.capture_internal_state();
     bool empty_snapshot_rejected = false;
@@ -561,8 +561,8 @@ bool test_steady_load_cutback(const std::string& input_path) {
     return passed;
 }
 bool test_pressure_production_path(const std::string& input_path) {
-    const fuelsim::FuelSimCaseDefinition input = fuelsim::CaseInputReader::read(input_path);
-    const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::ExodusMeshIo::read_quad4(input.mesh_file);
+    const fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
+    const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
     fuelsim::SteadyProblem problem(input.spatial_definition(), mesh);
     const fuelsim::SteadyResult result = fuelsim::solve_steady(problem,
         {input.steady_execution.load_steps, input.steady_execution.cutback_factor,

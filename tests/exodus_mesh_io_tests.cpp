@@ -1,5 +1,5 @@
 #include "exodus_fixture.hpp"
-#include "fuelsim/exodus_mesh_io.hpp"
+#include "fuelsim/results_io.hpp"
 #include <cstdint>
 #include <cstdio>
 #include <exception>
@@ -61,7 +61,7 @@ bool run_tests(const char* path) {
         std::cerr << "Could not write the independent Exodus fixture\n";
         return false;
     }
-    const fuelsim::UnstructuredQuad4Mesh fixture = fuelsim::ExodusMeshIo::read_quad4(path);
+    const fuelsim::UnstructuredQuad4Mesh fixture = fuelsim::read_exodus_quad4(path);
     if (fixture.nodes().size() != 6 || fixture.elements().size() != 2 || fixture.element_block_ids().size() != 2 ||
         fixture.element_block_ids()[0] != 7 || fixture.element_block_ids()[1] != 7) {
         std::cerr << "Independent Exodus Quad4 fixture was read incorrectly\n";
@@ -71,8 +71,8 @@ bool run_tests(const char* path) {
         std::vector<std::int64_t>{7, 9}, std::vector<fuelsim::ElementBlockInfo>{{7, "fuel"}, {9, "clad"}},
         std::vector<fuelsim::NodeSet>{{10, "sample_nodes", {0, 3}}},
         std::vector<fuelsim::SideSet>{{20, "sample_sides", {{{0, 0}, {1, 0}}}}});
-    fuelsim::ExodusMeshIo::write_quad4(path, two_block_mesh);
-    const fuelsim::UnstructuredQuad4Mesh round_trip = fuelsim::ExodusMeshIo::read_quad4(path);
+    fuelsim::write_exodus_quad4(path, two_block_mesh);
+    const fuelsim::UnstructuredQuad4Mesh round_trip = fuelsim::read_exodus_quad4(path);
     if (!meshes_equal(two_block_mesh, round_trip)) {
         std::cerr << "Exodus Quad4 write/read round trip changed the mesh\n";
         return false;
@@ -80,8 +80,8 @@ bool run_tests(const char* path) {
     const fuelsim::UnstructuredQuad4Mesh interleaved_blocks(fixture.nodes(), fixture.elements(),
         std::vector<std::int64_t>{9, 7}, std::vector<fuelsim::ElementBlockInfo>{{7, "fuel"}, {9, "clad"}},
         std::vector<fuelsim::NodeSet>{}, std::vector<fuelsim::SideSet>{{20, "clad_side", {{{0, 0}}}}});
-    fuelsim::ExodusMeshIo::write_quad4(path, interleaved_blocks);
-    const fuelsim::UnstructuredQuad4Mesh reordered = fuelsim::ExodusMeshIo::read_quad4(path);
+    fuelsim::write_exodus_quad4(path, interleaved_blocks);
+    const fuelsim::UnstructuredQuad4Mesh reordered = fuelsim::read_exodus_quad4(path);
     if (reordered.elements()[1].nodes != fixture.elements()[0].nodes ||
         reordered.side_set("clad_side").sides[0].element != 1) {
         std::cerr << "Exodus side set did not follow block-grouped element "
@@ -93,8 +93,8 @@ bool run_tests(const char* path) {
             {1.0, 1.0, 1.0}, {0.0, 1.0, 1.0}}},
         {{{{0, 1, 2, 3, 4, 5, 6, 7}}}}, {12}, {{12, "solid"}}, {{31, "fixed", {0, 3, 4, 7}}},
         {{41, "loaded", {{{0, 1}, {0, 5}}}}});
-    fuelsim::ExodusMeshIo::write_hex8(path, hex_mesh);
-    const fuelsim::UnstructuredHex8Mesh hex_round_trip = fuelsim::ExodusMeshIo::read_hex8(path);
+    fuelsim::write_exodus_hex8(path, hex_mesh);
+    const fuelsim::UnstructuredHex8Mesh hex_round_trip = fuelsim::read_exodus_hex8(path);
     if (hex_round_trip.nodes().size() != 8 || hex_round_trip.elements().size() != 1 ||
         hex_round_trip.elements()[0].nodes != hex_mesh.elements()[0].nodes ||
         hex_round_trip.element_blocks()[0].name != "solid" ||

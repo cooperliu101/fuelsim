@@ -1,5 +1,4 @@
-#ifndef FUELSIM_NONLINEAR_PROBLEM_HPP
-#define FUELSIM_NONLINEAR_PROBLEM_HPP
+#pragma once
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -13,19 +12,14 @@ enum class FieldCategory {
 };
 struct FieldDescriptor final {
     std::string name;
-    std::size_t begin;
-    std::size_t end;
+    std::size_t begin, end;
     FieldCategory category;
 };
-// Caller-owned storage for one runtime-sized local contribution. PETSc keeps
-// one instance per solver workspace, while concrete discretizations may adapt
-// these vectors to their fixed-size element arrays on the stack.
 struct ContributionWorkspace final {
     void reserve(std::size_t maximum_dof_count);
     void resize(std::size_t dof_count, bool include_jacobian);
     std::vector<std::size_t> dofs;
-    std::vector<double> state;
-    std::vector<double> residual;
+    std::vector<double> state, residual;
     std::vector<double> jacobian;
 };
 struct DirichletCondition final {
@@ -56,43 +50,46 @@ class NonlinearProblem {
     NonlinearProblem& operator=(const NonlinearProblem&) = delete;
     NonlinearProblem(NonlinearProblem&&) = delete;
     NonlinearProblem& operator=(NonlinearProblem&&) = delete;
-    // PETSc workspaces hold this unique identity, so the problem object may
-    // be destroyed before the solver is reused safely. All
-    // structural declarations below -- field ranges and categories,
-    // contribution counts, widths and DOF mappings, constrained DOFs, and
-    // required shadow DOFs -- must remain immutable for this identity.
-    // Load values, time, trial state, and residual values may still change.
+    // The identity keeps field ranges, contribution mappings, constraints, and shadow DOFs immutable while load,
+    // time, trial state, and residual values may change.
     std::shared_ptr<const void> discretization_identity() const noexcept { return _discretization_identity; }
     virtual std::size_t dof_count() const noexcept = 0;
     virtual std::size_t contribution_count() const noexcept = 0;
     virtual const std::vector<FieldDescriptor>& field_layout() const noexcept = 0;
-    virtual std::size_t contribution_dof_count(std::size_t contribution_index) const = 0;
-    virtual void fill_contribution_dofs(std::size_t contribution_index, std::vector<std::size_t>& dofs) const = 0;
+    virtual void contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const = 0;
     virtual void compute_contribution_residual(
-        std::size_t contribution_index, const std::vector<double>& state, std::vector<double>& residual) const = 0;
-    virtual void compute_contribution_system(std::size_t contribution_index, const std::vector<double>& state,
+        std::size_t index, const std::vector<double>& state, std::vector<double>& residual) const = 0;
+    virtual void compute_contribution_system(std::size_t index, const std::vector<double>& state,
         std::vector<double>& residual, std::vector<double>& jacobian) const = 0;
     virtual const std::vector<DirichletCondition>& dirichlet_conditions() const noexcept = 0;
     virtual bool uses_augmented_contact() const noexcept;
     virtual AugmentedContactUpdate update_augmented_contact_multipliers(
         const std::vector<double>& state, std::size_t completed_updates);
     virtual void validate_state(const std::vector<double>& state) const;
-    virtual std::vector<std::size_t> required_state_dofs(
-        std::size_t contribution_begin, std::size_t contribution_end) const;
-    virtual void validate_local_state(
-        std::size_t contribution_begin, std::size_t contribution_end, const GlobalStateView& state) const;
+    virtual std::vector<std::size_t> required_state_dofs(std::size_t first, std::size_t last) const;
+    virtual void validate_local_state(std::size_t first, std::size_t last, const GlobalStateView& state) const;
     void validate_discretization() const;
     std::size_t field_index(std::size_t dof) const;
     void evaluate_contribution_residual(
-        std::size_t contribution_index, const GlobalStateView& global_state, ContributionWorkspace& workspace) const;
+        std::size_t index, const GlobalStateView& global_state, ContributionWorkspace& workspace) const;
     void evaluate_contribution_system(
-        std::size_t contribution_index, const GlobalStateView& global_state, ContributionWorkspace& workspace) const;
+        std::size_t index, const GlobalStateView& global_state, ContributionWorkspace& workspace) const;
     void assemble_residual(const std::vector<double>& state, std::vector<double>& residual) const;
 
   private:
-    void gather_contribution_state(std::size_t contribution_index, const GlobalStateView& global_state,
+    void gather_contribution_state(std::size_t index, const GlobalStateView& global_state,
         ContributionWorkspace& workspace, bool include_jacobian) const;
     std::shared_ptr<const void> _discretization_identity = std::make_shared<unsigned char>(0);
 };
+struct FieldNorms final {
+    std::vector<double> l2, maximum_absolute;
+};
+struct DirectionalJacobianCheck final {
+    FieldNorms residual, analytic_directional_derivative;
+    FieldNorms finite_difference_directional_derivative, difference;
+};
+std::vector<double> constrained_residual(const NonlinearProblem& problem, const std::vector<double>& state);
+FieldNorms field_norms(const NonlinearProblem& problem, const std::vector<double>& values);
+DirectionalJacobianCheck check_directional_jacobian(const NonlinearProblem& problem, const std::vector<double>& state,
+    const std::vector<double>& direction, double step);
 } // namespace fuelsim
-#endif

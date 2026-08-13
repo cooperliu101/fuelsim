@@ -1,6 +1,6 @@
 #include "fuelsim/case_input.hpp"
-#include "fuelsim/exodus_mesh_io.hpp"
 #include "fuelsim/problem_solver.hpp"
+#include "fuelsim/results_io.hpp"
 #include "support/moose_field_comparison.hpp"
 #include "support/rz_problem_access.hpp"
 #include <algorithm>
@@ -269,14 +269,14 @@ fuelsim::TransientTimeOptions time_options(const fuelsim::FuelSimCaseDefinition&
 bool test_pcmi_coupled_cladding(const std::string& input_path, const std::string& nodal_reference_path,
     const std::string& pressure_reference_path, const std::string& qp_coordinate_path, const std::string& qp_value_path,
     const std::string& scalar_reference_path) {
-    const fuelsim::FuelSimCaseDefinition definition = fuelsim::CaseInputReader::read(input_path);
+    const fuelsim::FuelSimCaseDefinition definition = fuelsim::read_case_input(input_path);
     if (definition.problem != fuelsim::CaseProblem::transient)
         throw std::invalid_argument("PCMI comparison requires a transient input card");
     bool finite_strain = false;
     for (const fuelsim::CaseRegionDefinition& region : definition.regions)
         finite_strain = finite_strain || region.spatial.strain_formulation == fuelsim::StrainFormulation::finite;
     const double moose_tolerance = finite_strain ? m41_moose_tolerance : m23_moose_tolerance;
-    const fuelsim::UnstructuredQuad4Mesh imported = fuelsim::ExodusMeshIo::read_quad4(definition.mesh_file);
+    const fuelsim::UnstructuredQuad4Mesh imported = fuelsim::read_exodus_quad4(definition.mesh_file);
     fuelsim::TransientProblem problem(definition.transient_definition(), imported);
     const fuelsim::TransientResult result =
         fuelsim::solve_transient(problem, time_options(definition), solver_options(definition));

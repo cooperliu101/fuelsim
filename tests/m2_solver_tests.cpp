@@ -1,6 +1,6 @@
 #include "fuelsim/case_input.hpp"
-#include "fuelsim/exodus_mesh_io.hpp"
 #include "fuelsim/problem_solver.hpp"
+#include "fuelsim/results_io.hpp"
 #include "support/moose_field_comparison.hpp"
 #include "support/rz_problem_access.hpp"
 #include <exception>
@@ -16,10 +16,10 @@ bool check(bool condition, const std::string& message) {
 }
 bool test_moose_mesh_backward_euler_heat_source(
     const std::string& input_path, const std::string& nodal_reference_path) {
-    const fuelsim::FuelSimCaseDefinition definition = fuelsim::CaseInputReader::read(input_path);
+    const fuelsim::FuelSimCaseDefinition definition = fuelsim::read_case_input(input_path);
     if (definition.problem != fuelsim::CaseProblem::transient)
         throw std::invalid_argument("M2.1 comparison requires a transient input card");
-    const fuelsim::UnstructuredQuad4Mesh imported = fuelsim::ExodusMeshIo::read_quad4(definition.mesh_file);
+    const fuelsim::UnstructuredQuad4Mesh imported = fuelsim::read_exodus_quad4(definition.mesh_file);
     fuelsim::TransientProblem problem(definition.transient_definition(), imported);
     const fuelsim::TransientTimeOptions time_options = {definition.transient_execution.end_time,
         definition.transient_execution.initial_time_step, definition.transient_execution.minimum_time_step,

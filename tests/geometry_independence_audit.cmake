@@ -4,7 +4,6 @@ endif()
 
 set(common_files
     "${ROOT}/include/fuelsim/nonlinear_problem.hpp"
-    "${ROOT}/include/fuelsim/diagnostics.hpp"
     "${ROOT}/include/fuelsim/petsc_solver.hpp"
     "${ROOT}/include/fuelsim/problem_solver.hpp"
     "${ROOT}/src/solver.cpp"
@@ -76,7 +75,7 @@ foreach(forbidden_state_layout
 endforeach()
 
 file(READ "${ROOT}/include/fuelsim/nonlinear_problem.hpp" problem_port)
-foreach(required "ContributionWorkspace" "FieldDescriptor" "field_layout" "contribution_dof_count"
+foreach(required "ContributionWorkspace" "FieldDescriptor" "field_layout" "contribution_dofs"
                  "discretization_identity")
     string(FIND "${problem_port}" "${required}" location)
     if(location EQUAL -1)
@@ -94,14 +93,14 @@ foreach(required "RuntimeLayoutProblem" "return 32" "_narrow_dofs" "displacement
 endforeach()
 
 file(READ "${ROOT}/src/assembly.hpp" rz_assembly)
-string(FIND "${rz_assembly}" "namespace rz" rz_namespace)
+string(FIND "${rz_assembly}" "namespace fuelsim::rz" rz_namespace)
 if(rz_namespace EQUAL -1)
     message(FATAL_ERROR "The RZ spatial assembly is no longer isolated in namespace fuelsim::rz")
 endif()
 
 file(READ "${ROOT}/src/problem_backend_access.hpp" backend_access)
 foreach(required "namespace rz" "struct TransientCommittedState" "Quad4MaterialHistory"
-                 "namespace cartesian3d" "SymmetricTensor3Values" "Hex8ThermoelasticKernel")
+                 "namespace cartesian" "SymmetricTensor3Values")
     string(FIND "${backend_access}" "${required}" location)
     if(location EQUAL -1)
         message(FATAL_ERROR "The private concrete backend access layer is missing: ${required}")

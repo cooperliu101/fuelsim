@@ -1,4 +1,4 @@
-#include "fuelsim/diagnostics.hpp"
+#include "fuelsim/nonlinear_problem.hpp"
 #include "fuelsim/petsc_solver.hpp"
 #include "fuelsim/steady_problem.hpp"
 #include "support/mesh_fixture.hpp"
@@ -88,11 +88,7 @@ class TwelveDofProblem : public fuelsim::NonlinearProblem {
     std::size_t dof_count() const noexcept override { return fuelsim::local_dof_count; }
     std::size_t contribution_count() const noexcept override { return 1; }
     const std::vector<fuelsim::FieldDescriptor>& field_layout() const noexcept override { return _fields; }
-    std::size_t contribution_dof_count(std::size_t index) const override {
-        validate_contribution(index);
-        return fuelsim::local_dof_count;
-    }
-    void fill_contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const override {
+    void contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const override {
         validate_contribution(index);
         dofs.resize(fuelsim::local_dof_count);
         for (std::size_t dof = 0; dof < dofs.size(); ++dof) dofs[dof] = dof;
@@ -181,12 +177,12 @@ class RuntimeLayoutProblem final : public fuelsim::NonlinearProblem {
     std::size_t dof_count() const noexcept override { return 32; }
     std::size_t contribution_count() const noexcept override { return 2; }
     const std::vector<fuelsim::FieldDescriptor>& field_layout() const noexcept override { return _fields; }
-    std::size_t contribution_dof_count(std::size_t index) const override {
+    std::size_t local_dof_count(std::size_t index) const {
         if (index == 0) return 32;
         if (index == 1) return _narrow_dofs.size();
         throw std::out_of_range("RuntimeLayoutProblem contribution index");
     }
-    void fill_contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const override {
+    void contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const override {
         if (index == 0) {
             dofs.resize(dof_count());
             for (std::size_t dof = 0; dof < dofs.size(); ++dof) dofs[dof] = dof;
@@ -200,7 +196,7 @@ class RuntimeLayoutProblem final : public fuelsim::NonlinearProblem {
     }
     void compute_contribution_residual(
         std::size_t index, const std::vector<double>& state, std::vector<double>& residual) const override {
-        const std::size_t local_count = contribution_dof_count(index);
+        const std::size_t local_count = local_dof_count(index);
         if (state.size() != local_count) throw std::invalid_argument("RuntimeLayoutProblem contribution state size");
         ++_residual_calls.at(index);
         compute_residual_values(index, state, residual);
@@ -229,7 +225,7 @@ class RuntimeLayoutProblem final : public fuelsim::NonlinearProblem {
         return 0.5 + 0.025 * static_cast<double>(dof);
     }
     double contribution_coefficient(std::size_t index, std::size_t row, std::size_t column) const {
-        const std::size_t local_count = contribution_dof_count(index);
+        const std::size_t local_count = local_dof_count(index);
         if (row >= local_count || column >= local_count)
             throw std::out_of_range("RuntimeLayoutProblem coefficient index");
         if (index == 0) {
@@ -245,10 +241,10 @@ class RuntimeLayoutProblem final : public fuelsim::NonlinearProblem {
   private:
     void compute_residual_values(
         std::size_t index, const std::vector<double>& state, std::vector<double>& residual) const {
-        const std::size_t local_count = contribution_dof_count(index);
+        const std::size_t local_count = local_dof_count(index);
         if (state.size() != local_count) throw std::invalid_argument("RuntimeLayoutProblem contribution state size");
         std::vector<std::size_t> dofs;
-        fill_contribution_dofs(index, dofs);
+        contribution_dofs(index, dofs);
         residual.assign(local_count, 0.0);
         for (std::size_t row = 0; row < local_count; ++row)
             for (std::size_t column = 0; column < local_count; ++column)
@@ -276,7 +272,7 @@ bool test_runtime_contribution_layout() {
                             fields[2].category == fuelsim::FieldCategory::mechanical &&
                             fields[3].category == fuelsim::FieldCategory::mechanical,
         "runtime field metadata supports a non-leading thermal field and three mechanical fields");
-    passed = check(problem.contribution_dof_count(0) == 32 && problem.contribution_dof_count(1) == 7,
+    passed = check(problem.local_dof_count(0) == 32 && problem.local_dof_count(1) == 7,
                  "runtime contributions report a wide contribution followed by a narrow contribution") &&
              passed;
     std::vector<double> state(problem.dof_count());
@@ -302,7 +298,7 @@ bool test_runtime_contribution_layout() {
     std::vector<double> expected_residual(problem.dof_count(), 0.0);
     for (std::size_t contribution = 0; contribution < problem.contribution_count(); ++contribution) {
         std::vector<std::size_t> dofs;
-        problem.fill_contribution_dofs(contribution, dofs);
+        problem.contribution_dofs(contribution, dofs);
         for (std::size_t row = 0; row < dofs.size(); ++row) {
             double value = 0.0;
             for (std::size_t column = 0; column < dofs.size(); ++column)
@@ -407,7 +403,7 @@ bool test_runtime_contribution_layout() {
     }
     if (result.mpi_size == 2 && result.local_contribution_begin < result.local_contribution_end) {
         const std::size_t expected_local_width = result.mpi_rank == 0 ? 32 : 7;
-        passed = check(problem.contribution_dof_count(result.local_contribution_begin) == expected_local_width,
+        passed = check(problem.local_dof_count(result.local_contribution_begin) == expected_local_width,
                      "two-rank solve assigns the wide and narrow contributions to different ranks") &&
                  passed;
     }

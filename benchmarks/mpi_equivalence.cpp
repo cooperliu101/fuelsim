@@ -1,6 +1,6 @@
 #include "fuelsim/case_input.hpp"
-#include "fuelsim/exodus_mesh_io.hpp"
 #include "fuelsim/problem_solver.hpp"
+#include "fuelsim/results_io.hpp"
 #include "support/rz_problem_access.hpp"
 #include <algorithm>
 #include <array>
@@ -100,7 +100,7 @@ struct TransientStateLayout final {
 TransientStateLayout transient_state_layout(const fuelsim::TransientProblem& problem) {
     if (problem.dof_count() % 3 != 0)
         throw std::runtime_error("Transient MPI state does not contain three complete nodal fields");
-    const fuelsim::rz::TransientCommittedState committed = fuelsim::rz::ProblemAccess::committed_state(problem);
+    const fuelsim::TransientCommittedState committed = fuelsim::rz::ProblemAccess::committed_state(problem);
     if (committed.solution.size() != problem.dof_count())
         throw std::runtime_error("Transient MPI committed solution size differs from the problem degree-of-freedom "
                                  "count");
@@ -342,8 +342,8 @@ int main(int argc, char** argv) {
             if (session.rank() == 0) std::cout << "[PASS] root I/O failure reached every rank\n";
             return 0;
         }
-        const fuelsim::FuelSimCaseDefinition definition = fuelsim::CaseInputReader::read(input_path);
-        const fuelsim::UnstructuredQuad4Mesh source = fuelsim::ExodusMeshIo::read_quad4(definition.mesh_file);
+        const fuelsim::FuelSimCaseDefinition definition = fuelsim::read_case_input(input_path);
+        const fuelsim::UnstructuredQuad4Mesh source = fuelsim::read_exodus_quad4(definition.mesh_file);
         fuelsim::SolverOptions options;
         options.absolute_tolerance = definition.solver.absolute_tolerance;
         options.relative_tolerance = definition.solver.relative_tolerance;

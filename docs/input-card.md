@@ -141,7 +141,7 @@ Dirichlet 和接触边界可使用任意属于所选区域的边集。每个接�
 局部积分、塑性—蠕变全隐式耦合和有限应变客观旋转。
 
 用户可创建 `MaterialFunctionRegistry`，注册普通 C++17 函数，再调用
-`CaseInputReader::read(path, registry)` 读取引用这些函数的输入卡。函数的活跃
+`read_case_input(path, registry)` 读取引用这些函数的输入卡。函数的活跃
 输入和输出使用具体类型 `adlite::Scalar`，因此温度和力学链式导数进入局部
 Jacobian。函数必须是无副作用的纯函数，不能保存积分点 trial 状态或访问
 PETSc 和全局解向量。

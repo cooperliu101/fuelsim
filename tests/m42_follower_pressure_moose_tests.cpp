@@ -1,6 +1,6 @@
 #include "fuelsim/case_input.hpp"
-#include "fuelsim/exodus_mesh_io.hpp"
 #include "fuelsim/problem_solver.hpp"
+#include "fuelsim/results_io.hpp"
 #include "support/moose_field_comparison.hpp"
 #include <exception>
 #include <iomanip>
@@ -15,10 +15,10 @@ bool check(bool condition, const std::string& message) {
     return false;
 }
 bool run_comparison(const std::string& input_path, const std::string& nodal_reference_path) {
-    const fuelsim::FuelSimCaseDefinition definition = fuelsim::CaseInputReader::read(input_path);
+    const fuelsim::FuelSimCaseDefinition definition = fuelsim::read_case_input(input_path);
     if (definition.problem != fuelsim::CaseProblem::steady)
         throw std::invalid_argument("M4.2 follower-pressure comparison requires a steady input card");
-    const fuelsim::UnstructuredQuad4Mesh source = fuelsim::ExodusMeshIo::read_quad4(definition.mesh_file);
+    const fuelsim::UnstructuredQuad4Mesh source = fuelsim::read_exodus_quad4(definition.mesh_file);
     fuelsim::SteadyProblem problem(definition.spatial_definition(), source);
     const fuelsim::SteadyResult result = fuelsim::solve_steady(problem,
         {definition.steady_execution.load_steps, definition.steady_execution.cutback_factor,

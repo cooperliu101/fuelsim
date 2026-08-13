@@ -1,5 +1,4 @@
 #include "fuelsim/case_input.hpp"
-#include "fuelsim/input_file.hpp"
 #include <cstdint>
 #include <cstdio>
 #include <exception>
@@ -13,7 +12,7 @@ bool check(bool condition, const std::string& message) {
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
-void registered_test_thermal(const fuelsim::ThermalPropertyInput& input, fuelsim::ThermalPropertyOutput& output) {
+void registered_test_thermal(const fuelsim::ThermoelasticFunctionInput& input, fuelsim::ThermalPropertyOutput& output) {
     output.conductivity = input.parameters->value("inverse_coefficient") / input.temperature +
                           input.parameters->value("constant_coefficient");
     output.density = input.parameters->value("density");
@@ -27,7 +26,7 @@ bool expect_parse_failure(const std::string& path, const std::string& contents, 
     }
     bool failed_as_expected = false;
     try {
-        (void)fuelsim::InputParser::parse_file(path);
+        (void)fuelsim::parse_input_file(path);
     } catch (const std::invalid_argument& error) {
         failed_as_expected = std::string(error.what()).find(expected_message) != std::string::npos;
     }
@@ -49,7 +48,7 @@ bool expect_case_failure(const std::string& path, const std::string& contents, c
     }
     bool failed_as_expected = false;
     try {
-        (void)fuelsim::CaseInputReader::read(path);
+        (void)fuelsim::read_case_input(path);
     } catch (const std::invalid_argument& error) {
         failed_as_expected = std::string(error.what()).find(expected_message) != std::string::npos;
     }
@@ -65,7 +64,7 @@ bool expect_registered_case_failure(const std::string& path, const std::string& 
     }
     bool failed_as_expected = false;
     try {
-        (void)fuelsim::CaseInputReader::read(path, registry);
+        (void)fuelsim::read_case_input(path, registry);
     } catch (const std::invalid_argument& error) {
         failed_as_expected = std::string(error.what()).find(expected_message) != std::string::npos;
     }
@@ -79,7 +78,7 @@ bool verify_m3_output_input(const std::string& path, const std::string& contents
         if (!output) return check(false, "could not create M3 input fixture");
         output << contents;
     }
-    const fuelsim::FuelSimCaseDefinition definition = fuelsim::CaseInputReader::read(path);
+    const fuelsim::FuelSimCaseDefinition definition = fuelsim::read_case_input(path);
     const int remove_status = std::remove(path.c_str());
     return check(
         remove_status == 0 && definition.transient_execution.restart_file.find("restart.bin") != std::string::npos &&
@@ -135,7 +134,7 @@ bool fuzz_input_parser(const std::string& seed, const std::string& path) {
             output << mutation;
         }
         try {
-            (void)fuelsim::InputParser::parse_file(path);
+            (void)fuelsim::parse_input_file(path);
         } catch (const std::exception&) {
         } catch (...) {
             std::remove(path.c_str());
@@ -147,11 +146,11 @@ bool fuzz_input_parser(const std::string& seed, const std::string& path) {
 }
 bool run_tests(const std::string& steady_path, const std::string& transient_path, const std::string& finite_strain_path,
     const std::string& scaled_displacement_path, const std::string& traction_path, const std::string& malformed_path) {
-    const fuelsim::FuelSimCaseDefinition steady = fuelsim::CaseInputReader::read(steady_path);
-    const fuelsim::FuelSimCaseDefinition transient = fuelsim::CaseInputReader::read(transient_path);
-    const fuelsim::FuelSimCaseDefinition finite_strain = fuelsim::CaseInputReader::read(finite_strain_path);
-    const fuelsim::FuelSimCaseDefinition scaled_displacement = fuelsim::CaseInputReader::read(scaled_displacement_path);
-    const fuelsim::FuelSimCaseDefinition traction = fuelsim::CaseInputReader::read(traction_path);
+    const fuelsim::FuelSimCaseDefinition steady = fuelsim::read_case_input(steady_path);
+    const fuelsim::FuelSimCaseDefinition transient = fuelsim::read_case_input(transient_path);
+    const fuelsim::FuelSimCaseDefinition finite_strain = fuelsim::read_case_input(finite_strain_path);
+    const fuelsim::FuelSimCaseDefinition scaled_displacement = fuelsim::read_case_input(scaled_displacement_path);
+    const fuelsim::FuelSimCaseDefinition traction = fuelsim::read_case_input(traction_path);
     bool passed =
         check(steady.version == 3 && steady.problem == fuelsim::CaseProblem::steady &&
                   steady.geometry == fuelsim::CaseGeometry::axisymmetric_rz,
@@ -217,7 +216,7 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
         if (!output) return check(false, "could not create registered material input fixture");
         output << registered_case;
     }
-    const fuelsim::FuelSimCaseDefinition registered = fuelsim::CaseInputReader::read(malformed_path, custom_registry);
+    const fuelsim::FuelSimCaseDefinition registered = fuelsim::read_case_input(malformed_path, custom_registry);
     passed = check(registered.regions[0].spatial.material.functions->thermal.name == "registered_test_thermal" &&
                        registered.regions[0].spatial.material.functions->thermal.parameters.value(
                            "inverse_coefficient") == 3824.0,
@@ -251,7 +250,7 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
         if (!output) return check(false, "could not create friction input fixture");
         output << friction_case;
     }
-    const fuelsim::FuelSimCaseDefinition friction = fuelsim::CaseInputReader::read(malformed_path);
+    const fuelsim::FuelSimCaseDefinition friction = fuelsim::read_case_input(malformed_path);
     passed = check(friction.contacts.size() == 1 && friction.contacts[0].friction_coefficient == 0.25,
                  "optional contact mu is parsed as the Coulomb friction "
                  "coefficient") &&
@@ -267,7 +266,7 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
         if (!output) return check(false, "could not create automatic-penalty input fixture");
         output << automatic_penalty_case;
     }
-    const fuelsim::FuelSimCaseDefinition automatic_penalty = fuelsim::CaseInputReader::read(malformed_path);
+    const fuelsim::FuelSimCaseDefinition automatic_penalty = fuelsim::read_case_input(malformed_path);
     passed =
         check(automatic_penalty.contacts[0].automatic_penalty && automatic_penalty.contacts[0].penalty_factor == 1.0,
             "omitting penalty selects the documented automatic "
@@ -287,7 +286,7 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
         if (!output) return check(false, "could not create augmented input fixture");
         output << augmented_case;
     }
-    const fuelsim::FuelSimCaseDefinition augmented = fuelsim::CaseInputReader::read(malformed_path);
+    const fuelsim::FuelSimCaseDefinition augmented = fuelsim::read_case_input(malformed_path);
     passed = check(augmented.contacts[0].mechanical_formulation ==
                            fuelsim::MechanicalContactFormulation::augmented_lagrangian &&
                        augmented.contacts[0].penetration_tolerance == 2.0e-9 &&
@@ -307,7 +306,7 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
         if (!output) return check(false, "could not create trusted-value fixture");
         output << negative_friction_case;
     }
-    const fuelsim::FuelSimCaseDefinition trusted_values = fuelsim::CaseInputReader::read(malformed_path);
+    const fuelsim::FuelSimCaseDefinition trusted_values = fuelsim::read_case_input(malformed_path);
     passed = check(trusted_values.contacts[0].friction_coefficient == -0.1,
                  "input preserves user-provided physical values") &&
              passed;
@@ -426,7 +425,7 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
         if (!output) return check(false, "could not create fixed-scale input fixture");
         output << fixed_scaling_case;
     }
-    const fuelsim::FuelSimCaseDefinition fixed_scaling = fuelsim::CaseInputReader::read(malformed_path);
+    const fuelsim::FuelSimCaseDefinition fixed_scaling = fuelsim::read_case_input(malformed_path);
     passed = check(fixed_scaling.solver.temperature_residual_scale == 1.0e4 &&
                        fixed_scaling.solver.mechanical_residual_scale == 1.0e3,
                  "fixed physical residual scales are parsed") &&
@@ -442,7 +441,7 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
         if (!output) return check(false, "could not create current-traction input fixture");
         output << current_traction_case;
     }
-    const fuelsim::FuelSimCaseDefinition current_traction = fuelsim::CaseInputReader::read(malformed_path);
+    const fuelsim::FuelSimCaseDefinition current_traction = fuelsim::read_case_input(malformed_path);
     passed = check(current_traction.boundary_conditions.back().use_displaced_geometry,
                  "current-configuration traction is parsed") &&
              passed;

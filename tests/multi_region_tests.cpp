@@ -1,4 +1,4 @@
-#include "fuelsim/diagnostics.hpp"
+#include "fuelsim/nonlinear_problem.hpp"
 #include "fuelsim/petsc_solver.hpp"
 #include "fuelsim/problem_solver.hpp"
 #include "fuelsim/steady_problem.hpp"
@@ -251,7 +251,7 @@ bool test_single_region(const fuelsim::UnstructuredQuad4Mesh& mesh) {
                      fields[1].category == fuelsim::FieldCategory::mechanical && fields[2].name == "axial" &&
                      fields[2].begin == 2 * fuelsim::rz::ProblemAccess::dof_map(problem).node_count() &&
                      fields[2].end == problem.dof_count() && fields[2].category == fuelsim::FieldCategory::mechanical &&
-                     problem.contribution_dof_count(0) == fuelsim::local_dof_count;
+                     rz_dofs.size() == fuelsim::local_dof_count;
     const fuelsim::Quad4Element& element = fuelsim::rz::ProblemAccess::region_mesh(problem, 0).elements().front();
     for (std::size_t local_node = 0; local_node < 4; ++local_node) {
         const std::size_t global_node =

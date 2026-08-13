@@ -1,5 +1,4 @@
 #include "fuelsim/case_input.hpp"
-#include "fuelsim/input_file.hpp"
 #include <algorithm>
 #include <cctype>
 #include <cerrno>
@@ -60,8 +59,8 @@ std::string section_path(const std::vector<std::string>& stack) {
 std::string normalized_value(const std::string& raw, const std::string& path, std::size_t line_number) {
     std::string value = trim(raw);
     if (value.empty()) input_error(path, line_number, "input value must not be empty");
-    const bool starts_quoted = value.front() == '\'' || value.front() == '"';
-    const bool ends_quoted = value.back() == '\'' || value.back() == '"';
+    const bool starts_quoted = value.front() == '\'' || value.front() == '"',
+               ends_quoted = value.back() == '\'' || value.back() == '"';
     if (starts_quoted || ends_quoted) {
         if (value.size() < 2 || value.front() != value.back())
             input_error(path, line_number, "mismatched value quotes");
@@ -70,9 +69,6 @@ std::string normalized_value(const std::string& raw, const std::string& path, st
     return value;
 }
 } // namespace
-const std::string& InputSection::path() const noexcept { return _path; }
-std::size_t InputSection::line() const noexcept { return _line; }
-const std::vector<InputEntry>& InputSection::entries() const noexcept { return _entries; }
 const InputEntry& InputSection::entry(const std::string& key) const {
     const auto found = std::find_if(
         _entries.begin(), _entries.end(), [&key](const InputEntry& candidate) { return candidate.key == key; });
@@ -80,8 +76,6 @@ const InputEntry& InputSection::entry(const std::string& key) const {
         throw std::invalid_argument("Input section [" + _path + "] is missing required key '" + key + "'");
     return *found;
 }
-const std::string& InputDocument::source_path() const noexcept { return _source_path; }
-const std::vector<InputSection>& InputDocument::sections() const noexcept { return _sections; }
 const InputSection& InputDocument::section(const std::string& path) const {
     const auto found = std::find_if(_sections.begin(), _sections.end(),
         [&path](const InputSection& candidate) { return candidate.path() == path; });
@@ -89,7 +83,7 @@ const InputSection& InputDocument::section(const std::string& path) const {
         throw std::invalid_argument(_source_path + ": missing required section [" + path + "]");
     return *found;
 }
-InputDocument InputParser::parse_file(const std::string& path) {
+InputDocument parse_input_file(const std::string& path) {
     std::ifstream input(path);
     if (!input) throw std::runtime_error("Could not open fuelsim input file '" + path + "'");
     InputDocument document;
@@ -151,7 +145,6 @@ InputDocument InputParser::parse_file(const std::string& path) {
     if (document._sections.empty()) throw std::invalid_argument(path + ": input file contains no sections");
     return document;
 }
-// Case-definition validation and translation.
 namespace {
 [[noreturn]] void value_error(const InputDocument& document, const InputEntry& entry, const std::string& message) {
     throw std::invalid_argument(document.source_path() + ":" + std::to_string(entry.line) + ": " + message);
@@ -196,9 +189,9 @@ void validate_sections(const InputDocument& document) {
     for (const InputSection& section : document.sections()) {
         if (std::find(fixed.begin(), fixed.end(), section.path()) != fixed.end()) continue;
         const std::string& path = section.path();
-        const bool region = is_direct_child_path(path, "Regions/");
-        const bool boundary = is_direct_child_path(path, "BoundaryConditions/");
-        const bool function = is_direct_child_path(path, "TimeFunctions/");
+        const bool region = is_direct_child_path(path, "Regions/"),
+                   boundary = is_direct_child_path(path, "BoundaryConditions/"),
+                   function = is_direct_child_path(path, "TimeFunctions/");
         bool material = false;
         if (path.compare(0, 10, "Materials/") == 0) {
             const std::string suffix = path.substr(10);
@@ -523,8 +516,7 @@ ContactDefinition read_contact(const InputDocument& document, const InputSection
             result.mechanical_formulation = MechanicalContactFormulation::augmented_lagrangian;
         else
             value_error(document, mechanical->entry("formulation"),
-                "mechanical formulation must be 'penalty' or "
-                "'augmented_lagrangian'");
+                "mechanical formulation must be 'penalty' or 'augmented_lagrangian'");
         const InputEntry* penalty = find_entry(*mechanical, "penalty");
         const InputEntry* penalty_factor = find_entry(*mechanical, "penalty_factor");
         if (penalty != nullptr && penalty_factor != nullptr)
@@ -538,12 +530,10 @@ ContactDefinition read_contact(const InputDocument& document, const InputSection
         if (result.mechanical_formulation == MechanicalContactFormulation::penalty) {
             if (penetration_tolerance != nullptr)
                 value_error(document, *penetration_tolerance,
-                    "penetration_tolerance requires "
-                    "formulation = augmented_lagrangian");
+                    "penetration_tolerance requires formulation = augmented_lagrangian");
             if (maximum_augmented_iterations != nullptr)
                 value_error(document, *maximum_augmented_iterations,
-                    "maximum_augmented_iterations requires "
-                    "formulation = augmented_lagrangian");
+                    "maximum_augmented_iterations requires formulation = augmented_lagrangian");
         } else {
             result.penetration_tolerance = read_optional_double(document, *mechanical, "penetration_tolerance", 1.0e-8);
             result.maximum_augmented_iterations =
@@ -649,9 +639,8 @@ void read_time_functions(const InputDocument& document, FuelSimCaseDefinition& r
         for (const InputSection* section : direct_children(document, "TimeFunctions")) {
             validate_keys(document, *section, {"type", "times", "values"});
             if (read_string(document, *section, "type") != "piecewise_linear")
-                value_error(document, section->entry("type"),
-                    "only time-function type 'piecewise_linear' is "
-                    "supported");
+                value_error(
+                    document, section->entry("type"), "only time-function type 'piecewise_linear' is supported");
             result.time_tables.emplace_back(leaf_name(*section), parse_double_list(document, section->entry("times")),
                 parse_double_list(document, section->entry("values")));
         }
@@ -809,8 +798,7 @@ void read_outputs(const InputDocument& document, const std::string& path, FuelSi
         (!result.outputs.history_file.empty() || find_entry(outputs, "history_interval") != nullptr ||
             find_entry(outputs, "progress_interval") != nullptr || find_entry(outputs, "exodus_interval") != nullptr ||
             !result.outputs.checkpoint_file.empty() || find_entry(outputs, "checkpoint_interval") != nullptr))
-        throw std::invalid_argument(path + ": transient output controls are only valid for transient "
-                                           "cases");
+        throw std::invalid_argument(path + ": transient output controls are only valid for transient cases");
     const auto require_output_file = [&](const std::string& file, const std::string& interval_key,
                                          const std::string& output_key) {
         if (file.empty() && find_entry(outputs, interval_key) != nullptr)
@@ -838,12 +826,12 @@ TransientProblemDefinition FuelSimCaseDefinition::transient_definition() const {
         result.regions.push_back({region.spatial.name, region.transient_material});
     return result;
 }
-FuelSimCaseDefinition CaseInputReader::read(const std::string& path) {
+FuelSimCaseDefinition read_case_input(const std::string& path) {
     const MaterialFunctionRegistry registry = make_builtin_material_function_registry();
-    return read(path, registry);
+    return read_case_input(path, registry);
 }
-FuelSimCaseDefinition CaseInputReader::read(const std::string& path, const MaterialFunctionRegistry& registry) {
-    const InputDocument document = InputParser::parse_file(path);
+FuelSimCaseDefinition read_case_input(const std::string& path, const MaterialFunctionRegistry& registry) {
+    const InputDocument document = parse_input_file(path);
     validate_sections(document);
     FuelSimCaseDefinition result{};
     read_case(document, result);

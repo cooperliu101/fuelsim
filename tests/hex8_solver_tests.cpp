@@ -1,4 +1,3 @@
-#include "fuelsim/checkpoint_io.hpp"
 #include "fuelsim/problem_solver.hpp"
 #include "fuelsim/results_io.hpp"
 #include "support/cartesian3d_problem_access.hpp"
@@ -76,7 +75,7 @@ fuelsim::SolverOptions solver_options() {
     options.maximum_linear_iterations = 200;
     return options;
 }
-bool check_uniform_solution(const fuelsim::Hex8DofMap& dofs, const fuelsim::UnstructuredHex8Mesh& mesh,
+bool check_uniform_solution(const fuelsim::DofMap& dofs, const fuelsim::UnstructuredHex8Mesh& mesh,
     const std::vector<double>& state, double temperature) {
     const double thermal_strain = material().thermal_expansion * (temperature - material().reference_temperature);
     for (std::size_t node = 0; node < mesh.nodes().size(); ++node)
@@ -98,9 +97,8 @@ bool test_steady(
         check(result.solve.field_names ==
                   std::vector<std::string>{"temperature", "displacement_x", "displacement_y", "displacement_z"},
             "three-dimensional solve reports four field-major fields") &&
-        check(problem.contribution_count() == 2 && problem.contribution_dof_count(0) == 32,
-            "two HEX8 elements expose two independent 32-DOF contributions") &&
-        check_uniform_solution(fuelsim::cartesian3d::ProblemAccess::dof_map(problem), mesh, result.solve.state, 400.0);
+        check(problem.contribution_count() == 2, "two HEX8 elements expose two independent contributions") &&
+        check_uniform_solution(fuelsim::cartesian::ProblemAccess::dof_map(problem), mesh, result.solve.state, 400.0);
     const std::size_t expected_begin = problem.contribution_count() * static_cast<std::size_t>(session.rank()) /
                                        static_cast<std::size_t>(session.size());
     const std::size_t expected_end = problem.contribution_count() * static_cast<std::size_t>(session.rank() + 1) /
@@ -110,7 +108,7 @@ bool test_steady(
                  "each message-passing rank owns only its exact HEX8 contribution interval") &&
              passed;
     session.collective_root_action(
-        [&]() { fuelsim::ExodusResultsIo::write_steady(results_path, mesh, problem, result.solve.state); });
+        [&]() { fuelsim::write_steady_results(results_path, mesh, problem, result.solve.state); });
     return passed;
 }
 bool test_transient(const fuelsim::PetscSession& session, const fuelsim::UnstructuredHex8Mesh& mesh,
@@ -127,14 +125,14 @@ bool test_transient(const fuelsim::PetscSession& session, const fuelsim::Unstruc
     bool passed = check(result.completed && result.accepted_steps.size() == 1,
                       "three-dimensional Backward Euler transient solve accepts one physical time step") &&
                   check_uniform_solution(
-                      fuelsim::cartesian3d::ProblemAccess::dof_map(problem), mesh, problem.committed_solution(), 301.0);
+                      fuelsim::cartesian::ProblemAccess::dof_map(problem), mesh, problem.committed_solution(), 301.0);
     session.collective_root_action([&]() {
-        fuelsim::TransientCheckpointIo::write(checkpoint_path, problem, 0.25);
+        fuelsim::write_transient_checkpoint(checkpoint_path, problem, 0.25);
         fuelsim::ExodusTransientResultsWriter writer(results_path, mesh, problem);
         writer.append(problem);
     });
     fuelsim::TransientProblem restored(definition, mesh);
-    const double next_time_step = fuelsim::TransientCheckpointIo::restore(checkpoint_path, restored);
+    const double next_time_step = fuelsim::restore_transient_checkpoint(checkpoint_path, restored);
     passed = check(next_time_step == 0.25 && restored.committed_time() == 1.0 &&
                        restored.committed_solution() == problem.committed_solution(),
                  "three-dimensional checkpoint restores the exact committed nodal state and controller step") &&
@@ -143,10 +141,10 @@ bool test_transient(const fuelsim::PetscSession& session, const fuelsim::Unstruc
     for (std::size_t region = 0; stresses_match && region < definition.spatial.regions.size(); ++region) {
         for (std::size_t element = 0;
             stresses_match &&
-            element < fuelsim::cartesian3d::ProblemAccess::region_mesh(problem, region).elements().size();
+            element < fuelsim::cartesian::ProblemAccess::region_mesh(problem, region).elements().size();
             ++element) {
-            const auto before = fuelsim::cartesian3d::ProblemAccess::stress(problem, region, element);
-            const auto after = fuelsim::cartesian3d::ProblemAccess::stress(restored, region, element);
+            const auto before = fuelsim::cartesian::ProblemAccess::stress(problem, region, element);
+            const auto after = fuelsim::cartesian::ProblemAccess::stress(restored, region, element);
             for (std::size_t q = 0; stresses_match && q < 8; ++q) {
                 const fuelsim::SymmetricTensor3Values& first = before[q];
                 const fuelsim::SymmetricTensor3Values& second = after[q];
@@ -176,14 +174,14 @@ bool test_multiple_regions() {
     }
     fuelsim::SteadyProblem problem(definition, mesh);
     const fuelsim::SteadyResult result = fuelsim::solve_steady(problem, {1, 0.5, 4, 1.0e-6}, solver_options());
-    const auto& first = fuelsim::cartesian3d::ProblemAccess::region_mesh(problem, 0);
-    const auto& second = fuelsim::cartesian3d::ProblemAccess::region_mesh(problem, 1);
+    const auto& first = fuelsim::cartesian::ProblemAccess::region_mesh(problem, 0);
+    const auto& second = fuelsim::cartesian::ProblemAccess::region_mesh(problem, 1);
     bool passed =
         check(result.completed && result.solve.converged, "two-region three-dimensional solve converges") &&
         check(first.nodes().size() == 8 && second.nodes().size() == 8 &&
-                  fuelsim::cartesian3d::ProblemAccess::region_node_offset(problem, 1) == 8 && problem.dof_count() == 64,
+                  fuelsim::cartesian::ProblemAccess::region_node_offset(problem, 1) == 8 && problem.dof_count() == 64,
             "three-dimensional regions keep independent nodes and exact four-field offsets");
-    const auto& dofs = fuelsim::cartesian3d::ProblemAccess::dof_map(problem);
+    const auto& dofs = fuelsim::cartesian::ProblemAccess::dof_map(problem);
     const double strain = material().thermal_expansion * 25.0;
     for (std::size_t node = 0; node < mesh.nodes().size(); ++node) {
         const double origin = node < 8 ? 0.0 : 2.0;

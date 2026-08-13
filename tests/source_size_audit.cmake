@@ -2,8 +2,8 @@ if(NOT DEFINED ROOT)
     message(FATAL_ERROR "ROOT is required")
 endif()
 
-set(stage_b_baseline 16216)
-set(maximum_source_lines 12972)
+set(coexistence_baseline 12774)
+set(maximum_source_lines 11496)
 
 file(READ "${ROOT}/.clang-format" format_configuration)
 string(FIND "${format_configuration}" "ColumnLimit: 120" column_limit)
@@ -30,16 +30,16 @@ foreach(source_file IN LISTS source_files)
     math(EXPR source_lines "${source_lines} + ${file_lines}")
 endforeach()
 
-math(EXPR removed_lines "${stage_b_baseline} - ${source_lines}")
-math(EXPR reduction_per_mille "1000 * ${removed_lines} / ${stage_b_baseline}")
+math(EXPR removed_lines "${coexistence_baseline} - ${source_lines}")
+math(EXPR reduction_per_mille "1000 * ${removed_lines} / ${coexistence_baseline}")
 if(source_lines GREATER maximum_source_lines)
     message(FATAL_ERROR
-        "src/include physical lines grew to ${source_lines}; the 20 percent post-stage-B limit is ${maximum_source_lines} "
-        "from the ${stage_b_baseline}-line baseline"
+        "src/include physical lines grew to ${source_lines}; the 10 percent coexistence-refactor limit is "
+        "${maximum_source_lines} from the ${coexistence_baseline}-line baseline"
     )
 endif()
 
 message(STATUS
-    "120-column src/include physical lines: ${source_lines}; removed ${removed_lines} from ${stage_b_baseline}; "
+    "120-column src/include physical lines: ${source_lines}; removed ${removed_lines} from ${coexistence_baseline}; "
     "reduction ${reduction_per_mille} per mille"
 )

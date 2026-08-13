@@ -1,5 +1,5 @@
 #include "fuelsim/inelastic_material.hpp"
-#include "fuelsim/quad4_rz_transient.hpp"
+#include "fuelsim/quad4_rz.hpp"
 #include "fuelsim/transient_problem.hpp"
 #include "support/mesh_fixture.hpp"
 #include "support/rz_problem_access.hpp"
@@ -88,20 +88,22 @@ bool same_inelastic_state(const fuelsim::MaterialPointState& lhs, const fuelsim:
            lhs.equivalent_plastic_strain == rhs.equivalent_plastic_strain &&
            lhs.equivalent_creep_strain == rhs.equivalent_creep_strain;
 }
-void custom_thermal_properties(const fuelsim::ThermalPropertyInput& input, fuelsim::ThermalPropertyOutput& output) {
+void custom_thermal_properties(
+    const fuelsim::ThermoelasticFunctionInput& input, fuelsim::ThermalPropertyOutput& output) {
     output.conductivity = input.parameters->value("conductivity_offset") +
                           input.parameters->value("conductivity_slope") * input.temperature;
     output.density = input.parameters->value("density");
     output.specific_heat = input.parameters->value("specific_heat_offset") +
                            input.parameters->value("specific_heat_slope") * input.temperature;
 }
-void custom_elastic_properties(const fuelsim::ElasticPropertyInput& input, fuelsim::ElasticPropertyOutput& output) {
+void custom_elastic_properties(
+    const fuelsim::ThermoelasticFunctionInput& input, fuelsim::ElasticPropertyOutput& output) {
     output.young_modulus = input.parameters->value("young_modulus") +
                            input.parameters->value("young_modulus_temperature_coefficient") *
                                (input.temperature - input.parameters->value("reference_temperature"));
     output.poisson_ratio = input.parameters->value("poisson_ratio");
 }
-void custom_eigenstrain(const fuelsim::EigenstrainInput& input, fuelsim::SymmetricTensor3& output) {
+void custom_eigenstrain(const fuelsim::ThermoelasticFunctionInput& input, fuelsim::SymmetricTensor3& output) {
     const adlite::Scalar value =
         input.parameters->value("coefficient") * (input.temperature - input.parameters->value("reference_temperature"));
     output = {value, value, value, 0.0, 0.0, 0.0};

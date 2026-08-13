@@ -1,6 +1,6 @@
 #include "fuelsim/case_input.hpp"
-#include "fuelsim/exodus_mesh_io.hpp"
 #include "fuelsim/problem_solver.hpp"
+#include "fuelsim/results_io.hpp"
 #include "support/moose_field_comparison.hpp"
 #include "support/rz_problem_access.hpp"
 #include <algorithm>
@@ -179,10 +179,10 @@ fuelsim::SolverOptions solver_options(const fuelsim::FuelSimCaseDefinition& defi
 bool run_case(const std::string& input_path, const std::string& nodal_reference_path,
     const std::string& pressure_reference_path, const std::string& qp_coordinate_path, const std::string& qp_value_path,
     const std::string& scalar_reference_path) {
-    const fuelsim::FuelSimCaseDefinition definition = fuelsim::CaseInputReader::read(input_path);
+    const fuelsim::FuelSimCaseDefinition definition = fuelsim::read_case_input(input_path);
     if (definition.problem != fuelsim::CaseProblem::transient || definition.contacts.size() != 1)
         throw std::invalid_argument("M5.7 integrated validation requires one transient contact pair");
-    const fuelsim::UnstructuredQuad4Mesh source = fuelsim::ExodusMeshIo::read_quad4(definition.mesh_file);
+    const fuelsim::UnstructuredQuad4Mesh source = fuelsim::read_exodus_quad4(definition.mesh_file);
     fuelsim::TransientProblem problem(definition.transient_definition(), source);
     const std::vector<fuelsim::ContactNodeSummary> initial_contact =
         fuelsim::rz::ProblemAccess::summarize_contact_nodes(problem, 0, problem.committed_solution());
