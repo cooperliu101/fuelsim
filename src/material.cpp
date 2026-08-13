@@ -107,72 +107,129 @@ std::vector<MaterialParameterValue> ordered_values(const std::string& function_n
     }
     return result;
 }
+double ordered_parameter(const MaterialParameters& parameters, std::size_t index) {
+    return parameters.values().at(index).value;
+}
+namespace builtin_parameter {
+namespace constant_thermal {
+constexpr std::size_t conductivity = 0, density = 1, specific_heat = 2;
+}
+namespace inverse_temperature_thermal {
+constexpr std::size_t conductivity_inverse_temperature = 0, conductivity_constant = 1, density = 2, specific_heat = 3;
+}
+namespace constant_elasticity {
+constexpr std::size_t young_modulus = 0, poisson_ratio = 1;
+}
+namespace temperature_elasticity {
+constexpr std::size_t young_modulus = 0, poisson_ratio = 1, reference_temperature = 2,
+                      young_modulus_temperature_coefficient = 3, poisson_ratio_temperature_coefficient = 4;
+}
+namespace thermal_expansion {
+constexpr std::size_t coefficient = 0, reference_temperature = 1, temperature_coefficient = 2;
+}
+namespace norton {
+constexpr std::size_t coefficient = 0, reference_stress = 1, stress_exponent = 2, reference_temperature = 3,
+                      coefficient_temperature_coefficient = 4, reference_stress_temperature_coefficient = 5,
+                      stress_exponent_temperature_coefficient = 6;
+}
+namespace plasticity {
+constexpr std::size_t yield_stress = 0, hardening_modulus = 1, reference_temperature = 2,
+                      yield_stress_temperature_coefficient = 3, hardening_temperature_coefficient = 4;
+}
+} // namespace builtin_parameter
 void constant_thermophysical(const ThermoelasticFunctionInput& input, ThermalPropertyOutput& output) {
-    output.conductivity = input.parameters->value("conductivity");
-    output.density = input.parameters->value("density");
-    output.specific_heat = input.parameters->value("specific_heat");
+    output.conductivity = ordered_parameter(*input.parameters, builtin_parameter::constant_thermal::conductivity);
+    output.density = ordered_parameter(*input.parameters, builtin_parameter::constant_thermal::density);
+    output.specific_heat = ordered_parameter(*input.parameters, builtin_parameter::constant_thermal::specific_heat);
 }
 void inverse_temperature_thermophysical(const ThermoelasticFunctionInput& input, ThermalPropertyOutput& output) {
-    output.conductivity = input.parameters->value("conductivity_inverse_temperature") / input.temperature +
-                          input.parameters->value("conductivity_constant");
-    output.density = input.parameters->value("density");
-    output.specific_heat = input.parameters->value("specific_heat");
+    output.conductivity =
+        ordered_parameter(
+            *input.parameters, builtin_parameter::inverse_temperature_thermal::conductivity_inverse_temperature) /
+            input.temperature +
+        ordered_parameter(*input.parameters, builtin_parameter::inverse_temperature_thermal::conductivity_constant);
+    output.density = ordered_parameter(*input.parameters, builtin_parameter::inverse_temperature_thermal::density);
+    output.specific_heat =
+        ordered_parameter(*input.parameters, builtin_parameter::inverse_temperature_thermal::specific_heat);
 }
 void constant_isotropic_elasticity(const ThermoelasticFunctionInput& input, ElasticPropertyOutput& output) {
-    output.young_modulus = input.parameters->value("young_modulus");
-    output.poisson_ratio = input.parameters->value("poisson_ratio");
+    output.young_modulus = ordered_parameter(*input.parameters, builtin_parameter::constant_elasticity::young_modulus);
+    output.poisson_ratio = ordered_parameter(*input.parameters, builtin_parameter::constant_elasticity::poisson_ratio);
 }
 void linear_temperature_isotropic_elasticity(const ThermoelasticFunctionInput& input, ElasticPropertyOutput& output) {
-    const adlite::Scalar temperature_change = input.temperature - input.parameters->value("reference_temperature");
-    output.young_modulus = input.parameters->value("young_modulus") +
-                           input.parameters->value("young_modulus_temperature_coefficient") * temperature_change;
-    output.poisson_ratio = input.parameters->value("poisson_ratio") +
-                           input.parameters->value("poisson_ratio_temperature_coefficient") * temperature_change;
+    const adlite::Scalar temperature_change =
+        input.temperature -
+        ordered_parameter(*input.parameters, builtin_parameter::temperature_elasticity::reference_temperature);
+    output.young_modulus =
+        ordered_parameter(*input.parameters, builtin_parameter::temperature_elasticity::young_modulus) +
+        ordered_parameter(
+            *input.parameters, builtin_parameter::temperature_elasticity::young_modulus_temperature_coefficient) *
+            temperature_change;
+    output.poisson_ratio =
+        ordered_parameter(*input.parameters, builtin_parameter::temperature_elasticity::poisson_ratio) +
+        ordered_parameter(
+            *input.parameters, builtin_parameter::temperature_elasticity::poisson_ratio_temperature_coefficient) *
+            temperature_change;
 }
 void isotropic_thermal_expansion(const ThermoelasticFunctionInput& input, SymmetricTensor3& output) {
-    const adlite::Scalar value = input.parameters->value("thermal_expansion") *
-                                 (input.temperature - input.parameters->value("reference_temperature"));
+    const adlite::Scalar value =
+        ordered_parameter(*input.parameters, builtin_parameter::thermal_expansion::coefficient) *
+        (input.temperature -
+            ordered_parameter(*input.parameters, builtin_parameter::thermal_expansion::reference_temperature));
     output = {value, value, value, 0.0, 0.0, 0.0};
 }
 void linear_temperature_isotropic_thermal_expansion(const ThermoelasticFunctionInput& input, SymmetricTensor3& output) {
-    const adlite::Scalar temperature_change = input.temperature - input.parameters->value("reference_temperature");
+    const adlite::Scalar temperature_change =
+        input.temperature -
+        ordered_parameter(*input.parameters, builtin_parameter::thermal_expansion::reference_temperature);
     const adlite::Scalar coefficient =
-        input.parameters->value("thermal_expansion") +
-        input.parameters->value("thermal_expansion_temperature_coefficient") * temperature_change;
+        ordered_parameter(*input.parameters, builtin_parameter::thermal_expansion::coefficient) +
+        ordered_parameter(*input.parameters, builtin_parameter::thermal_expansion::temperature_coefficient) *
+            temperature_change;
     const adlite::Scalar value = coefficient * temperature_change;
     output = {value, value, value, 0.0, 0.0, 0.0};
 }
 adlite::Scalar norton_creep_rate(const CreepRateInput& input) {
     if (!(input.equivalent_stress.value() > 0.0)) return 0.0;
-    return input.parameters->value("coefficient") *
-           adlite::pow(input.equivalent_stress / input.parameters->value("reference_stress"),
-               input.parameters->value("stress_exponent"));
+    return ordered_parameter(*input.parameters, builtin_parameter::norton::coefficient) *
+           adlite::pow(input.equivalent_stress /
+                           ordered_parameter(*input.parameters, builtin_parameter::norton::reference_stress),
+               ordered_parameter(*input.parameters, builtin_parameter::norton::stress_exponent));
 }
 adlite::Scalar linear_temperature_norton_creep_rate(const CreepRateInput& input) {
-    const adlite::Scalar temperature_change = input.temperature - input.parameters->value("reference_temperature");
+    const adlite::Scalar temperature_change =
+        input.temperature - ordered_parameter(*input.parameters, builtin_parameter::norton::reference_temperature);
     const adlite::Scalar coefficient =
-        input.parameters->value("coefficient") +
-        input.parameters->value("coefficient_temperature_coefficient") * temperature_change;
+        ordered_parameter(*input.parameters, builtin_parameter::norton::coefficient) +
+        ordered_parameter(*input.parameters, builtin_parameter::norton::coefficient_temperature_coefficient) *
+            temperature_change;
     const adlite::Scalar reference_stress =
-        input.parameters->value("reference_stress") +
-        input.parameters->value("reference_stress_temperature_coefficient") * temperature_change;
+        ordered_parameter(*input.parameters, builtin_parameter::norton::reference_stress) +
+        ordered_parameter(*input.parameters, builtin_parameter::norton::reference_stress_temperature_coefficient) *
+            temperature_change;
     const adlite::Scalar exponent =
-        input.parameters->value("stress_exponent") +
-        input.parameters->value("stress_exponent_temperature_coefficient") * temperature_change;
+        ordered_parameter(*input.parameters, builtin_parameter::norton::stress_exponent) +
+        ordered_parameter(*input.parameters, builtin_parameter::norton::stress_exponent_temperature_coefficient) *
+            temperature_change;
     if (!(input.equivalent_stress.value() > 0.0)) return 0.0;
     return coefficient * adlite::pow(input.equivalent_stress / reference_stress, exponent);
 }
 adlite::Scalar linear_isotropic_flow_stress(const PlasticFlowStressInput& input) {
-    return input.parameters->value("yield_stress") +
-           input.parameters->value("hardening_modulus") * input.equivalent_plastic_strain;
+    return ordered_parameter(*input.parameters, builtin_parameter::plasticity::yield_stress) +
+           ordered_parameter(*input.parameters, builtin_parameter::plasticity::hardening_modulus) *
+               input.equivalent_plastic_strain;
 }
 adlite::Scalar linear_temperature_isotropic_flow_stress(const PlasticFlowStressInput& input) {
-    const adlite::Scalar temperature_change = input.temperature - input.parameters->value("reference_temperature");
+    const adlite::Scalar temperature_change =
+        input.temperature - ordered_parameter(*input.parameters, builtin_parameter::plasticity::reference_temperature);
     const adlite::Scalar yield_stress =
-        input.parameters->value("yield_stress") +
-        input.parameters->value("yield_stress_temperature_coefficient") * temperature_change;
-    const adlite::Scalar hardening = input.parameters->value("hardening_modulus") +
-                                     input.parameters->value("hardening_temperature_coefficient") * temperature_change;
+        ordered_parameter(*input.parameters, builtin_parameter::plasticity::yield_stress) +
+        ordered_parameter(*input.parameters, builtin_parameter::plasticity::yield_stress_temperature_coefficient) *
+            temperature_change;
+    const adlite::Scalar hardening =
+        ordered_parameter(*input.parameters, builtin_parameter::plasticity::hardening_modulus) +
+        ordered_parameter(*input.parameters, builtin_parameter::plasticity::hardening_temperature_coefficient) *
+            temperature_change;
     return yield_stress + hardening * input.equivalent_plastic_strain;
 }
 } // namespace
@@ -952,14 +1009,18 @@ namespace {
 ActiveNortonCreepProperties active_creep_properties(
     const CreepFunctionInstance& function, const adlite::Scalar& temperature) {
     const MaterialParameters& parameters = function.parameters;
-    adlite::Scalar coefficient = parameters.value("coefficient");
-    adlite::Scalar reference_stress = parameters.value("reference_stress");
-    adlite::Scalar exponent = parameters.value("stress_exponent");
-    if (function.name == "linear_temperature_norton") {
-        const adlite::Scalar change = temperature - parameters.value("reference_temperature");
-        coefficient += parameters.value("coefficient_temperature_coefficient") * change;
-        reference_stress += parameters.value("reference_stress_temperature_coefficient") * change;
-        exponent += parameters.value("stress_exponent_temperature_coefficient") * change;
+    adlite::Scalar coefficient = ordered_parameter(parameters, builtin_parameter::norton::coefficient);
+    adlite::Scalar reference_stress = ordered_parameter(parameters, builtin_parameter::norton::reference_stress);
+    adlite::Scalar exponent = ordered_parameter(parameters, builtin_parameter::norton::stress_exponent);
+    if (function.function == &linear_temperature_norton_creep_rate) {
+        const adlite::Scalar change =
+            temperature - ordered_parameter(parameters, builtin_parameter::norton::reference_temperature);
+        coefficient +=
+            ordered_parameter(parameters, builtin_parameter::norton::coefficient_temperature_coefficient) * change;
+        reference_stress +=
+            ordered_parameter(parameters, builtin_parameter::norton::reference_stress_temperature_coefficient) * change;
+        exponent +=
+            ordered_parameter(parameters, builtin_parameter::norton::stress_exponent_temperature_coefficient) * change;
     }
     ActiveNortonCreepProperties active{coefficient, reference_stress, exponent};
     if (!std::isfinite(active.coefficient.value()) || !(active.coefficient.value() >= 0.0) ||
@@ -971,12 +1032,15 @@ ActiveNortonCreepProperties active_creep_properties(
 ActiveJ2PlasticityProperties active_plasticity_properties(
     const PlasticFunctionInstance& function, const adlite::Scalar& temperature) {
     const MaterialParameters& parameters = function.parameters;
-    adlite::Scalar yield_stress = parameters.value("yield_stress");
-    adlite::Scalar hardening = parameters.value("hardening_modulus");
-    if (function.name == "linear_temperature_isotropic_hardening") {
-        const adlite::Scalar change = temperature - parameters.value("reference_temperature");
-        yield_stress += parameters.value("yield_stress_temperature_coefficient") * change;
-        hardening += parameters.value("hardening_temperature_coefficient") * change;
+    adlite::Scalar yield_stress = ordered_parameter(parameters, builtin_parameter::plasticity::yield_stress);
+    adlite::Scalar hardening = ordered_parameter(parameters, builtin_parameter::plasticity::hardening_modulus);
+    if (function.function == &linear_temperature_isotropic_flow_stress) {
+        const adlite::Scalar change =
+            temperature - ordered_parameter(parameters, builtin_parameter::plasticity::reference_temperature);
+        yield_stress +=
+            ordered_parameter(parameters, builtin_parameter::plasticity::yield_stress_temperature_coefficient) * change;
+        hardening +=
+            ordered_parameter(parameters, builtin_parameter::plasticity::hardening_temperature_coefficient) * change;
     }
     ActiveJ2PlasticityProperties active{yield_stress, hardening};
     if (!std::isfinite(active.yield_stress.value()) || !(active.yield_stress.value() > 0.0) ||
@@ -1055,16 +1119,18 @@ InelasticStressResponse IsotropicInelasticMaterial::response(const adlite::Scala
         return finalize(returned_stress(mean_stress, deviatoric_trial, stress_scale));
     };
     const MaterialFunctionSet& functions = _thermoelastic_material.functions();
-    const bool creep_uses_builtin_integrator = !functions.has_creep() || functions.creep.name == "norton" ||
-                                               functions.creep.name == "linear_temperature_norton";
+    const bool creep_uses_builtin_integrator = !functions.has_creep() ||
+                                               functions.creep.function == &norton_creep_rate ||
+                                               functions.creep.function == &linear_temperature_norton_creep_rate;
     const bool plasticity_uses_builtin_integrator =
-        !functions.has_plasticity() || functions.plasticity.name == "linear_isotropic_hardening" ||
-        functions.plasticity.name == "linear_temperature_isotropic_hardening";
+        !functions.has_plasticity() || functions.plasticity.function == &linear_isotropic_flow_stress ||
+        functions.plasticity.function == &linear_temperature_isotropic_flow_stress;
     bool builtin_reference_temperatures_match = true;
-    if (functions.creep.name == "linear_temperature_norton" &&
-        functions.plasticity.name == "linear_temperature_isotropic_hardening") {
-        builtin_reference_temperatures_match = functions.creep.parameters.value("reference_temperature") ==
-                                               functions.plasticity.parameters.value("reference_temperature");
+    if (functions.creep.function == &linear_temperature_norton_creep_rate &&
+        functions.plasticity.function == &linear_temperature_isotropic_flow_stress) {
+        builtin_reference_temperatures_match =
+            ordered_parameter(functions.creep.parameters, builtin_parameter::norton::reference_temperature) ==
+            ordered_parameter(functions.plasticity.parameters, builtin_parameter::plasticity::reference_temperature);
     }
     if (!(creep_uses_builtin_integrator && plasticity_uses_builtin_integrator &&
             builtin_reference_temperatures_match)) {

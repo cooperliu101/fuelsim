@@ -68,6 +68,53 @@ bool same_inelastic_state(const fuelsim::MaterialPointState& lhs, const fuelsim:
            lhs.equivalent_plastic_strain == rhs.equivalent_plastic_strain &&
            lhs.equivalent_creep_strain == rhs.equivalent_creep_strain;
 }
+bool test_builtin_material_parameter_order() {
+    const fuelsim::MaterialFunctionRegistry registry = fuelsim::make_builtin_material_function_registry();
+    auto functions = std::make_shared<fuelsim::MaterialFunctionSet>();
+    functions->name = "ordered_builtin_test";
+    functions->thermal = registry.bind_thermal(
+        "inverse_temperature_thermophysical", {{"specific_heat", 20.0}, {"conductivity_constant", 2.0},
+                                                  {"density", 10.0}, {"conductivity_inverse_temperature", 300.0}});
+    functions->elasticity = registry.bind_elasticity("linear_temperature_isotropic",
+        {{"poisson_ratio_temperature_coefficient", 1.0e-3}, {"reference_temperature", 100.0}, {"young_modulus", 1000.0},
+            {"young_modulus_temperature_coefficient", -1.0}, {"poisson_ratio", 0.2}});
+    functions->eigenstrains.push_back(
+        registry.bind_eigenstrain("thermal", "linear_temperature_isotropic_thermal_expansion",
+            {{"reference_temperature", 100.0}, {"thermal_expansion_temperature_coefficient", 1.0e-3},
+                {"thermal_expansion", 1.0e-2}}));
+    const fuelsim::IsotropicThermoelasticMaterial material({std::move(functions), 1000.0});
+    const adlite::Scalar temperature = adlite::Scalar::independent(110.0, 0, 1);
+    const adlite::Scalar conductivity = material.conductivity(temperature);
+    const adlite::Scalar heat_capacity = material.heat_capacity(temperature);
+    const fuelsim::ActiveThermoelasticProperties elasticity = material.active_properties(temperature);
+    const fuelsim::AxisymmetricStrain eigenstrain = material.eigenstrain_rz(temperature);
+    constexpr double young_modulus = 990.0, poisson_ratio = 0.21;
+    const double expected_shear = young_modulus / (2.0 * (1.0 + poisson_ratio));
+    const double expected_lame = young_modulus * poisson_ratio / ((1.0 + poisson_ratio) * (1.0 - 2.0 * poisson_ratio));
+    constexpr double perturbation = 1.0e-5;
+    const fuelsim::ActiveThermoelasticProperties plus = material.active_properties(110.0 + perturbation);
+    const fuelsim::ActiveThermoelasticProperties minus = material.active_properties(110.0 - perturbation);
+    bool passed = check(scaled_error(conductivity.value(), 300.0 / 110.0 + 2.0) < 1.0e-14 &&
+                            scaled_error(conductivity.derivative(0), -300.0 / (110.0 * 110.0)) < 1.0e-14 &&
+                            heat_capacity.value() == 200.0 && !heat_capacity.is_active(),
+        "built-in thermal functions use registry schema order after named binding");
+    passed =
+        check(scaled_error(elasticity.shear_modulus.value(), expected_shear) < 1.0e-14 &&
+                  scaled_error(elasticity.lame_lambda.value(), expected_lame) < 1.0e-14 &&
+                  scaled_error(elasticity.shear_modulus.derivative(0),
+                      (plus.shear_modulus.value() - minus.shear_modulus.value()) / (2.0 * perturbation)) < 1.0e-8 &&
+                  scaled_error(elasticity.lame_lambda.derivative(0),
+                      (plus.lame_lambda.value() - minus.lame_lambda.value()) / (2.0 * perturbation)) < 1.0e-8,
+            "built-in elasticity uses registry schema order after named binding") &&
+        passed;
+    passed = check(scaled_error(eigenstrain.rr.value(), 0.2) < 1.0e-14 &&
+                       scaled_error(eigenstrain.rr.derivative(0), 0.03) < 1.0e-14 &&
+                       eigenstrain.rr.value() == eigenstrain.zz.value() &&
+                       eigenstrain.rr.value() == eigenstrain.hoop.value() && eigenstrain.rz.value() == 0.0,
+                 "built-in eigenstrain uses registry schema order after named binding") &&
+             passed;
+    return passed;
+}
 void custom_thermal_properties(
     const fuelsim::ThermoelasticFunctionInput& input, fuelsim::ThermalPropertyOutput& output) {
     output.conductivity = input.parameters->value("conductivity_offset") +
@@ -966,6 +1013,7 @@ int main() {
     std::cout << std::scientific << std::setprecision(12);
     try {
         bool passed = true;
+        passed = test_builtin_material_parameter_order() && passed;
         passed = test_registered_material_functions() && passed;
         passed = test_objective_incremental_history_rotation() && passed;
         passed = test_j2_plasticity_material_point() && passed;
