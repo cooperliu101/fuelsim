@@ -22,7 +22,7 @@ struct SteadyBackendView final {
 };
 struct TransientBackendView final {
     const SpatialAssembly& spatial;
-    const std::vector<Quad4RzTransientKernel>& kernels;
+    const std::vector<Quad4RzTransientData>& kernel_data;
     const std::vector<std::vector<Quad4MaterialHistory>>& histories;
     const std::vector<std::vector<std::array<AxisymmetricStressValues, 4>>>& stresses;
     const std::vector<double>& committed_solution;

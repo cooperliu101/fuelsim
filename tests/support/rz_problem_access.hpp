@@ -126,8 +126,8 @@ class ProblemAccess final {
     static const RegionMesh& region_mesh(const TransientProblem& problem, std::size_t index) {
         return view(problem).spatial.region_mesh(index);
     }
-    static const Quad4RzTransientKernel& region_kernel(const TransientProblem& problem, std::size_t index) {
-        return view(problem).kernels.at(index);
+    static const Quad4RzTransientData& region_kernel_data(const TransientProblem& problem, std::size_t index) {
+        return view(problem).kernel_data.at(index);
     }
     static const Quad4RzGeometry& region_element_geometry(
         const TransientProblem& problem, std::size_t region, std::size_t element) {
@@ -186,7 +186,7 @@ class ProblemAccess final {
         if (contribution >= backend.spatial.volume_contribution_count())
             return backend.spatial.contribution_residual(contribution, state);
         const auto location = backend.spatial.element_location(contribution);
-        return backend.kernels[location.first].residual(
+        return compute_quad4_rz_transient_residual(backend.kernel_data[location.first],
             backend.spatial.region_element_geometry(location.first, location.second), state,
             contribution_state(problem, contribution, backend.committed_solution),
             backend.histories[location.first][location.second], backend.active_time_step);
@@ -199,7 +199,7 @@ class ProblemAccess final {
         if (contribution >= backend.spatial.volume_contribution_count())
             return backend.spatial.linearize_contribution(contribution, state);
         const auto location = backend.spatial.element_location(contribution);
-        return backend.kernels[location.first].linearize(
+        return compute_quad4_rz_transient_system(backend.kernel_data[location.first],
             backend.spatial.region_element_geometry(location.first, location.second), state,
             contribution_state(problem, contribution, backend.committed_solution),
             backend.histories[location.first][location.second], backend.active_time_step);

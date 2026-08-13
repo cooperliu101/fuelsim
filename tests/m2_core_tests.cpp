@@ -994,7 +994,7 @@ bool test_problem_history_transaction() {
     problem.begin_time_step({2.0, 0.75});
     problem.rollback_time_step();
     passed = check(problem.committed_time() == 1.0 && problem.committed_load_factor() == 0.5 &&
-                       fuelsim::rz::ProblemAccess::region_kernel(problem, 0).volumetric_heat_source() == 50.0,
+                       fuelsim::rz::ProblemAccess::region_kernel_data(problem, 0).volumetric_heat_source == 50.0,
                  "rollback restores the committed time and heat load") &&
              passed;
     passed =

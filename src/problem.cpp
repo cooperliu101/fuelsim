@@ -253,7 +253,7 @@ LocalResidual transient_rz_residual(
     if (index >= backend.spatial.volume_contribution_count())
         return backend.spatial.contribution_residual(index, state);
     const auto location = backend.spatial.element_location(index);
-    return backend.kernels[location.first].residual(
+    return compute_quad4_rz_transient_residual(backend.kernel_data[location.first],
         backend.spatial.region_element_geometry(location.first, location.second), state,
         gather_rz_state(backend.spatial, index, backend.committed_solution),
         backend.histories[location.first][location.second], backend.active_time_step);
@@ -262,7 +262,7 @@ LocalSystem transient_rz_system(const rz::TransientBackendView& backend, std::si
     if (index >= backend.spatial.volume_contribution_count())
         return backend.spatial.linearize_contribution(index, state);
     const auto location = backend.spatial.element_location(index);
-    return backend.kernels[location.first].linearize(
+    return compute_quad4_rz_transient_system(backend.kernel_data[location.first],
         backend.spatial.region_element_geometry(location.first, location.second), state,
         gather_rz_state(backend.spatial, index, backend.committed_solution),
         backend.histories[location.first][location.second], backend.active_time_step);
@@ -460,7 +460,7 @@ class TransientProblem::Implementation final : public SpatialProblemBackend {
         : SpatialProblemBackend(std::move(definition_value), source_mesh) {}
     Implementation(SpatialDefinition definition_value, const UnstructuredHex8Mesh& source_mesh)
         : SpatialProblemBackend(std::move(definition_value), source_mesh) {}
-    std::vector<Quad4RzTransientKernel> rz_kernels;
+    std::vector<Quad4RzTransientData> rz_kernel_data;
     std::vector<std::vector<Quad4MaterialHistory>> material_histories;
     std::vector<std::vector<std::array<AxisymmetricStressValues, 4>>> material_stresses;
     TransientConservationSummary last_conservation_summary;
@@ -522,7 +522,7 @@ TransientConservationSummary TransientConservationCalculator::summarize(const Tr
     TransientConservationSummary result;
     const std::vector<double> raw_residual = problem.accumulate_contribution_conservation(converged_solution, result);
     for (std::size_t region = 0; region < backend.spatial.region_count(); ++region) {
-        const Quad4RzTransientKernel& kernel = backend.kernels[region];
+        const Quad4RzTransientData& kernel_data = backend.kernel_data[region];
         const std::size_t offset = backend.spatial.region_element_offset(region);
         for (std::size_t element = 0; element < staged_histories[region].size(); ++element) {
             const LocalValues current = gather_rz_state(backend.spatial, offset + element, converged_solution);
@@ -535,11 +535,11 @@ TransientConservationSummary TransientConservationCalculator::summarize(const Tr
                     current_temperature += point.shape[node] * current[node];
                     old_temperature += point.shape[node] * old[node];
                 }
-                const double heat_capacity =
-                    kernel.heat_capacity(current_temperature, point.radius, point.axial_coordinate);
+                const double heat_capacity = compute_quad4_rz_transient_heat_capacity(
+                    kernel_data, current_temperature, point.radius, point.axial_coordinate);
                 result.stored_heat_rate += point.weighted_measure * heat_capacity *
                                            (current_temperature - old_temperature) / backend.active_time_step;
-                result.generated_heat_rate += point.weighted_measure * kernel.volumetric_heat_source();
+                result.generated_heat_rate += point.weighted_measure * kernel_data.volumetric_heat_source;
                 const MaterialPointState &old_history = backend.histories[region][element][q],
                                          &new_history = staged_histories[region][element][q];
                 const AxisymmetricStressValues &old_stress = backend.stresses[region][element][q],
@@ -579,12 +579,12 @@ bool valid_material_state(const MaterialPointState& state) {
 TransientProblem::TransientProblem(SpatialDefinition definition, const UnstructuredQuad4Mesh& source_mesh)
     : _impl(std::make_unique<Implementation>(std::move(definition), source_mesh)) {
     const std::size_t regions = _impl->definition().regions.size();
-    _impl->rz_kernels.reserve(regions);
+    _impl->rz_kernel_data.reserve(regions);
     _impl->material_histories.resize(regions);
     _impl->material_stresses.resize(regions);
     for (std::size_t region = 0; region < regions; ++region) {
-        _impl->rz_kernels.emplace_back(IsotropicInelasticMaterial(_impl->definition().regions[region].material), 0.0,
-            _impl->definition().regions[region].strain_formulation);
+        _impl->rz_kernel_data.push_back({IsotropicInelasticMaterial(_impl->definition().regions[region].material), 0.0,
+            0.0, _impl->definition().regions[region].strain_formulation});
         _impl->material_histories[region].resize(_impl->rz->region_element_count(region));
         _impl->material_stresses[region].resize(_impl->rz->region_element_count(region));
     }
@@ -621,7 +621,7 @@ void cartesian::BackendAccess::restore_committed_state(TransientProblem& problem
     problem.apply_spatial_controls(state.time, state.load_factor);
 }
 rz::TransientBackendView rz::BackendAccess::transient(const TransientProblem& problem) noexcept {
-    return {*problem._impl->rz, problem._impl->rz_kernels, problem._impl->material_histories,
+    return {*problem._impl->rz, problem._impl->rz_kernel_data, problem._impl->material_histories,
         problem._impl->material_stresses, problem._impl->committed_solution, problem._impl->active_time_step,
         problem._impl->time_step_active};
 }
@@ -1010,12 +1010,12 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                 const LocalValues state = gather_rz_state(*_impl->rz, offset + element, converged_solution);
                 const LocalValues committed_state =
                     gather_rz_state(*_impl->rz, offset + element, _impl->committed_solution);
-                staged[region][element] =
-                    _impl->rz_kernels[region].trial_state_values(_impl->rz->region_element_geometry(region, element),
-                        state, committed_state, _impl->material_histories[region][element], _impl->active_time_step);
-                staged_stresses[region][element] =
-                    _impl->rz_kernels[region].stress_values(_impl->rz->region_element_geometry(region, element), state,
-                        committed_state, _impl->material_histories[region][element], _impl->active_time_step);
+                staged[region][element] = compute_quad4_rz_transient_trial_state(_impl->rz_kernel_data[region],
+                    _impl->rz->region_element_geometry(region, element), state, committed_state,
+                    _impl->material_histories[region][element], _impl->active_time_step);
+                staged_stresses[region][element] = compute_quad4_rz_transient_stress(_impl->rz_kernel_data[region],
+                    _impl->rz->region_element_geometry(region, element), state, committed_state,
+                    _impl->material_histories[region][element], _impl->active_time_step);
             }
         }
         _impl->last_conservation_summary =
@@ -1040,7 +1040,7 @@ void TransientProblem::apply_spatial_controls(double time, double load_factor) {
     _impl->set_time(time);
     _impl->set_load_factor(load_factor);
     if (_impl->is_cartesian()) return;
-    for (Quad4RzTransientKernel& kernel : _impl->rz_kernels) kernel.set_time(time);
+    for (Quad4RzTransientData& kernel_data : _impl->rz_kernel_data) kernel_data.time = time;
     refresh_region_heat_sources();
 }
 void TransientProblem::clear_active_time_step() noexcept {
@@ -1053,7 +1053,7 @@ void TransientProblem::clear_active_time_step() noexcept {
 void TransientProblem::refresh_region_heat_sources() {
     if (_impl->is_cartesian()) return;
     for (std::size_t region = 0; region < _impl->rz->region_count(); ++region)
-        _impl->rz_kernels[region].set_volumetric_heat_source(_impl->rz->region_heat_source(region));
+        _impl->rz_kernel_data[region].volumetric_heat_source = _impl->rz->region_heat_source(region);
 }
 bool TransientProblem::uses_augmented_contact() const noexcept {
     return !_impl->is_cartesian() && _impl->rz->uses_augmented_contact();
