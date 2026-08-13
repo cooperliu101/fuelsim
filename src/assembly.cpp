@@ -420,11 +420,13 @@ void SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
         if (!candidate.active) continue;
         const LocalValues local_state = contribution_state(first_mechanical + entry, state);
         const LocalValues committed_state = contribution_state(first_mechanical + entry, _committed_contact_solution);
-        const ContactPointValue value = _mechanical_kernels[candidate.contact].value(candidate.geometry, local_state,
-            committed_state, _contact_histories[candidate.contact][candidate.secondary]);
+        const ContactPointValue value =
+            compute_node_to_line_rz_contact_value(_mechanical_properties[candidate.contact], candidate.geometry,
+                local_state, committed_state, _contact_histories[candidate.contact][candidate.secondary]);
         if (!value.projected) continue;
-        const ContactPointHistory trial = _mechanical_kernels[candidate.contact].trial_history(candidate.geometry,
-            local_state, committed_state, _contact_histories[candidate.contact][candidate.secondary]);
+        const ContactPointHistory trial =
+            compute_node_to_line_rz_contact_trial_history(_mechanical_properties[candidate.contact], candidate.geometry,
+                local_state, committed_state, _contact_histories[candidate.contact][candidate.secondary]);
         if (updated[candidate.contact][candidate.secondary]) {
             const ContactPointHistory& prior = staged[candidate.contact][candidate.secondary];
             const double scale =
@@ -491,7 +493,7 @@ void SpatialAssembly::update_thermal_candidates(
         if (!touched[candidate.contact][candidate.integration_point]) continue;
         const LocalValues local_state = contribution_state(ranges.thermal_begin + entry, state);
         const HeatQuadratureValue value =
-            _thermal_kernels[candidate.contact].quadrature_value(candidate.geometry, local_state);
+            compute_line2_rz_gap_heat_value(_thermal_properties[candidate.contact], candidate.geometry, local_state);
         if (!value.projected) continue;
         projected[entry] = true;
         const double distance = std::abs(value.gap);
@@ -538,8 +540,9 @@ void SpatialAssembly::update_mechanical_candidates(
         const LocalValues local_state = contribution_state(ranges.mechanical_begin + entry, state);
         const LocalValues committed_state =
             contribution_state(ranges.mechanical_begin + entry, _committed_contact_solution);
-        const ContactPointValue value = _mechanical_kernels[candidate.contact].value(candidate.geometry, local_state,
-            committed_state, _contact_histories[candidate.contact][candidate.secondary]);
+        const ContactPointValue value =
+            compute_node_to_line_rz_contact_value(_mechanical_properties[candidate.contact], candidate.geometry,
+                local_state, committed_state, _contact_histories[candidate.contact][candidate.secondary]);
         if (!value.projected) continue;
         projected[entry] = true;
         const double distance = std::abs(value.gap);
@@ -605,7 +608,7 @@ std::vector<ContactNodeSummary> SpatialAssembly::summarize_contact_nodes(
         const LocalValues local_state = contribution_state(first_mechanical + entry, state);
         const LocalValues committed_state = contribution_state(first_mechanical + entry, _committed_contact_solution);
         const std::size_t secondary_index = candidate.secondary;
-        const ContactPointValue value = _mechanical_kernels[contact_value].value(
+        const ContactPointValue value = compute_node_to_line_rz_contact_value(_mechanical_properties[contact_value],
             candidate.geometry, local_state, committed_state, _contact_histories[contact_value][secondary_index]);
         if (!value.projected) continue;
         ContactNodeSummary& node = result.at(secondary_index);
@@ -729,7 +732,7 @@ InterfaceSummary SpatialAssembly::summarize_interface(
         if (!candidate.active) continue;
         const LocalValues local_state = contribution_state(first_thermal + entry, state);
         const HeatQuadratureValue value =
-            _thermal_kernels[contact_value].quadrature_value(candidate.geometry, local_state);
+            compute_line2_rz_gap_heat_value(_thermal_properties[contact_value], candidate.geometry, local_state);
         if (!value.projected) throw std::logic_error("Active thermal-contact candidate is not projected");
         summary.minimum_gap = std::min(summary.minimum_gap, value.gap);
         summary.total_heat_rate += value.weighted_measure * value.heat_flux;
@@ -1031,12 +1034,12 @@ LocalResidual SpatialAssembly::contribution_residual(std::size_t index, const Lo
     case SpatialContributionType::thermal_contact: {
         const ThermalContribution& entry = _thermal_contributions[location.local_index];
         if (!entry.active) return {};
-        return _thermal_kernels[entry.contact].residual(entry.geometry, state);
+        return compute_line2_rz_gap_heat_residual(_thermal_properties[entry.contact], entry.geometry, state);
     }
     case SpatialContributionType::mechanical_contact: {
         const MechanicalContribution& entry = _mechanical_contributions.at(location.local_index);
         if (!entry.active) return {};
-        return _mechanical_kernels[entry.contact].residual(entry.geometry, state,
+        return compute_node_to_line_rz_contact_residual(_mechanical_properties[entry.contact], entry.geometry, state,
             contribution_state(index, _committed_contact_solution), _contact_histories[entry.contact][entry.secondary]);
     }
     case SpatialContributionType::pressure:
@@ -1056,12 +1059,12 @@ LocalSystem SpatialAssembly::linearize_contribution(std::size_t index, const Loc
     case SpatialContributionType::thermal_contact: {
         const ThermalContribution& entry = _thermal_contributions[location.local_index];
         if (!entry.active) return {};
-        return _thermal_kernels[entry.contact].linearize(entry.geometry, state);
+        return compute_line2_rz_gap_heat_system(_thermal_properties[entry.contact], entry.geometry, state);
     }
     case SpatialContributionType::mechanical_contact: {
         const MechanicalContribution& entry = _mechanical_contributions.at(location.local_index);
         if (!entry.active) return {};
-        return _mechanical_kernels[entry.contact].linearize(entry.geometry, state,
+        return compute_node_to_line_rz_contact_system(_mechanical_properties[entry.contact], entry.geometry, state,
             contribution_state(index, _committed_contact_solution), _contact_histories[entry.contact][entry.secondary]);
     }
     case SpatialContributionType::pressure:
@@ -1076,8 +1079,8 @@ LocalSystem SpatialAssembly::linearize_contribution(std::size_t index, const Loc
 void SpatialAssembly::build_contacts(const UnstructuredQuad4Mesh& source_mesh) {
     _primary_boundaries.reserve(contact_count());
     _secondary_boundaries.reserve(contact_count());
-    _thermal_kernels.reserve(contact_count());
-    _mechanical_kernels.reserve(contact_count());
+    _thermal_properties.reserve(contact_count());
+    _mechanical_properties.reserve(contact_count());
     _thermal_point_counts.reserve(contact_count());
     for (std::size_t contact_value = 0; contact_value < contact_count(); ++contact_value) {
         std::size_t thermal_point_count = 0;
@@ -1106,14 +1109,12 @@ void SpatialAssembly::build_contacts(const UnstructuredQuad4Mesh& source_mesh) {
                 throw std::overflow_error(
                     "Automatic contact penalty is not finite and positive: " + contact_definition.name);
         }
-        _thermal_kernels.emplace_back(
-            GapHeatProperties{contact_definition.thermal ? contact_definition.gap_conductivity : 1.0,
-                contact_definition.thermal ? contact_definition.minimum_gap : 1.0});
-        _mechanical_kernels.emplace_back(
-            NormalContactProperties{contact_definition.mechanical ? contact_definition.penalty : 1.0,
-                contact_definition.mechanical ? contact_definition.friction_coefficient : 0.0,
-                contact_definition.mechanical &&
-                    contact_definition.mechanical_formulation == MechanicalContactFormulation::augmented_lagrangian});
+        _thermal_properties.push_back({contact_definition.thermal ? contact_definition.gap_conductivity : 1.0,
+            contact_definition.thermal ? contact_definition.minimum_gap : 1.0});
+        _mechanical_properties.push_back({contact_definition.mechanical ? contact_definition.penalty : 1.0,
+            contact_definition.mechanical ? contact_definition.friction_coefficient : 0.0,
+            contact_definition.mechanical &&
+                contact_definition.mechanical_formulation == MechanicalContactFormulation::augmented_lagrangian});
         if (contact_definition.thermal) {
             for (std::size_t edge_index = 0; edge_index < secondary.boundary.elements.size(); ++edge_index) {
                 const Line2BoundaryElement& secondary_edge = secondary.boundary.elements[edge_index];

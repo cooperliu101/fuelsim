@@ -103,8 +103,8 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     std::vector<Line2RzBoundaryData> _boundary_data;
     std::vector<std::size_t> _boundary_definition_indices;
     std::vector<BoundaryContribution> _boundary_contributions;
-    std::vector<Line2RzGapHeatKernel> _thermal_kernels;
-    std::vector<NodeToLineRzContactKernel> _mechanical_kernels;
+    std::vector<GapHeatProperties> _thermal_properties;
+    std::vector<NormalContactProperties> _mechanical_properties;
     std::vector<ThermalContribution> _thermal_contributions;
     std::vector<MechanicalContribution> _mechanical_contributions;
     mutable std::vector<std::vector<bool>> _projected_thermal_points;

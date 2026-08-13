@@ -812,38 +812,42 @@ Line2RzHeatPointGeometry make_line2_rz_heat_point_geometry(const Line2InterfaceS
         primary_segment_includes_second_endpoint,
     };
 }
-LocalResidual Line2RzGapHeatKernel::residual(const Line2RzHeatPointGeometry& geometry, const LocalValues& state) const {
-    const LocalAdValues ad_state = quad4_rz_detail::passive_state(state);
-    LocalAdValues ad_residual{};
-    residual_ad(geometry, ad_state, ad_residual);
-    return quad4_rz_detail::residual_values(ad_residual);
-}
-LocalSystem Line2RzGapHeatKernel::linearize(const Line2RzHeatPointGeometry& geometry, const LocalValues& state) const {
-    const LocalAdValues ad_state = quad4_rz_detail::active_state(state);
-    LocalAdValues ad_residual{};
-    residual_ad(geometry, ad_state, ad_residual);
-    return quad4_rz_detail::linearized_values(ad_state, ad_residual);
-}
-HeatQuadratureValue Line2RzGapHeatKernel::quadrature_value(
-    const Line2RzHeatPointGeometry& geometry, const LocalValues& state) const {
-    const LocalAdValues ad_state = quad4_rz_detail::passive_state(state);
-    const HeatAdQuadratureValue value =
-        evaluate_heat_quadrature(geometry.secondary_coordinates, geometry.primary_coordinates, geometry.point, ad_state,
-            _properties, geometry.primary_segment_includes_second_endpoint);
-    return {value.projected, value.gap.value(), value.heat_flux.value(), value.weighted_measure.value()};
-}
-void Line2RzGapHeatKernel::residual_ad(
-    const Line2RzHeatPointGeometry& geometry, const LocalAdValues& state, LocalAdValues& residual) const {
+namespace {
+void compute_line2_rz_gap_heat_residual_ad(const GapHeatProperties& properties,
+    const Line2RzHeatPointGeometry& geometry, const LocalAdValues& state, LocalAdValues& residual) {
     std::fill(residual.begin(), residual.end(), adlite::Scalar(0.0));
     const HeatAdQuadratureValue value =
         evaluate_heat_quadrature(geometry.secondary_coordinates, geometry.primary_coordinates, geometry.point, state,
-            _properties, geometry.primary_segment_includes_second_endpoint);
+            properties, geometry.primary_segment_includes_second_endpoint);
     if (!value.projected) return;
     for (std::size_t node = 0; node < line2_interface_side_node_count; ++node) {
         residual[node] += value.weighted_measure * geometry.point.secondary_shape[node] * value.heat_flux;
         const adlite::Scalar primary_shape = node == 0 ? value.primary_shape_0 : value.primary_shape_1;
         residual[2 + node] -= value.weighted_measure * primary_shape * value.heat_flux;
     }
+}
+} // namespace
+LocalResidual compute_line2_rz_gap_heat_residual(
+    const GapHeatProperties& properties, const Line2RzHeatPointGeometry& geometry, const LocalValues& state) {
+    const LocalAdValues ad_state = quad4_rz_detail::passive_state(state);
+    LocalAdValues ad_residual{};
+    compute_line2_rz_gap_heat_residual_ad(properties, geometry, ad_state, ad_residual);
+    return quad4_rz_detail::residual_values(ad_residual);
+}
+LocalSystem compute_line2_rz_gap_heat_system(
+    const GapHeatProperties& properties, const Line2RzHeatPointGeometry& geometry, const LocalValues& state) {
+    const LocalAdValues ad_state = quad4_rz_detail::active_state(state);
+    LocalAdValues ad_residual{};
+    compute_line2_rz_gap_heat_residual_ad(properties, geometry, ad_state, ad_residual);
+    return quad4_rz_detail::linearized_values(ad_state, ad_residual);
+}
+HeatQuadratureValue compute_line2_rz_gap_heat_value(
+    const GapHeatProperties& properties, const Line2RzHeatPointGeometry& geometry, const LocalValues& state) {
+    const LocalAdValues ad_state = quad4_rz_detail::passive_state(state);
+    const HeatAdQuadratureValue value =
+        evaluate_heat_quadrature(geometry.secondary_coordinates, geometry.primary_coordinates, geometry.point, ad_state,
+            properties, geometry.primary_segment_includes_second_endpoint);
+    return {value.projected, value.gap.value(), value.heat_flux.value(), value.weighted_measure.value()};
 }
 NodeToLineRzContactGeometry make_node_to_line_rz_contact_geometry(
     const Line2InterfaceSideCoordinates& secondary_edge_coordinates,
@@ -868,24 +872,50 @@ NodeToLineRzContactGeometry make_node_to_line_rz_contact_geometry(
         primary_fraction,
     };
 }
-LocalResidual NodeToLineRzContactKernel::residual(const NodeToLineRzContactGeometry& geometry, const LocalValues& state,
-    const LocalValues& committed_state, const ContactPointHistory& history) const {
+namespace {
+void compute_node_to_line_rz_contact_residual_ad(const NormalContactProperties& properties,
+    const NodeToLineRzContactGeometry& geometry, const LocalAdValues& state, const LocalValues& committed_state,
+    const ContactPointHistory& history, LocalAdValues& residual) {
+    std::fill(residual.begin(), residual.end(), adlite::Scalar(0.0));
+    const ContactAdValue value = evaluate_contact(geometry, state, committed_state, history, properties);
+    if (!value.projected) return;
+    const std::size_t secondary = geometry.secondary_local_node;
+    residual[4 + secondary] += value.contact_force * value.normal_r;
+    residual[6] -= value.primary_shape_0 * value.contact_force * value.normal_r;
+    residual[7] -= value.primary_shape_1 * value.contact_force * value.normal_r;
+    residual[8 + secondary] += value.contact_force * value.normal_z;
+    residual[10] -= value.primary_shape_0 * value.contact_force * value.normal_z;
+    residual[11] -= value.primary_shape_1 * value.contact_force * value.normal_z;
+    if (properties.friction_coefficient == 0.0) return;
+    residual[4 + secondary] += value.tangential_force * value.tangent_r;
+    residual[6] -= value.primary_shape_0 * value.tangential_force * value.tangent_r;
+    residual[7] -= value.primary_shape_1 * value.tangential_force * value.tangent_r;
+    residual[8 + secondary] += value.tangential_force * value.tangent_z;
+    residual[10] -= value.primary_shape_0 * value.tangential_force * value.tangent_z;
+    residual[11] -= value.primary_shape_1 * value.tangential_force * value.tangent_z;
+}
+} // namespace
+LocalResidual compute_node_to_line_rz_contact_residual(const NormalContactProperties& properties,
+    const NodeToLineRzContactGeometry& geometry, const LocalValues& state, const LocalValues& committed_state,
+    const ContactPointHistory& history) {
     const LocalAdValues ad_state = quad4_rz_detail::passive_state(state);
     LocalAdValues ad_residual{};
-    residual_ad(geometry, ad_state, committed_state, history, ad_residual);
+    compute_node_to_line_rz_contact_residual_ad(properties, geometry, ad_state, committed_state, history, ad_residual);
     return quad4_rz_detail::residual_values(ad_residual);
 }
-LocalSystem NodeToLineRzContactKernel::linearize(const NodeToLineRzContactGeometry& geometry, const LocalValues& state,
-    const LocalValues& committed_state, const ContactPointHistory& history) const {
+LocalSystem compute_node_to_line_rz_contact_system(const NormalContactProperties& properties,
+    const NodeToLineRzContactGeometry& geometry, const LocalValues& state, const LocalValues& committed_state,
+    const ContactPointHistory& history) {
     const LocalAdValues ad_state = quad4_rz_detail::active_state(state);
     LocalAdValues ad_residual{};
-    residual_ad(geometry, ad_state, committed_state, history, ad_residual);
+    compute_node_to_line_rz_contact_residual_ad(properties, geometry, ad_state, committed_state, history, ad_residual);
     return quad4_rz_detail::linearized_values(ad_state, ad_residual);
 }
-ContactPointValue NodeToLineRzContactKernel::value(const NodeToLineRzContactGeometry& geometry,
-    const LocalValues& state, const LocalValues& committed_state, const ContactPointHistory& history) const {
+ContactPointValue compute_node_to_line_rz_contact_value(const NormalContactProperties& properties,
+    const NodeToLineRzContactGeometry& geometry, const LocalValues& state, const LocalValues& committed_state,
+    const ContactPointHistory& history) {
     const LocalAdValues ad_state = quad4_rz_detail::passive_state(state);
-    const ContactAdValue result = evaluate_contact(geometry, ad_state, committed_state, history, _properties);
+    const ContactAdValue result = evaluate_contact(geometry, ad_state, committed_state, history, properties);
     return {
         result.projected,
         result.gap.value(),
@@ -899,30 +929,12 @@ ContactPointValue NodeToLineRzContactKernel::value(const NodeToLineRzContactGeom
         result.sliding,
     };
 }
-ContactPointHistory NodeToLineRzContactKernel::trial_history(const NodeToLineRzContactGeometry& geometry,
-    const LocalValues& state, const LocalValues& committed_state, const ContactPointHistory& history) const {
-    const ContactPointValue trial = value(geometry, state, committed_state, history);
+ContactPointHistory compute_node_to_line_rz_contact_trial_history(const NormalContactProperties& properties,
+    const NodeToLineRzContactGeometry& geometry, const LocalValues& state, const LocalValues& committed_state,
+    const ContactPointHistory& history) {
+    const ContactPointValue trial =
+        compute_node_to_line_rz_contact_value(properties, geometry, state, committed_state, history);
     if (!trial.projected) throw std::domain_error("Cannot update friction history for an unprojected contact node");
     return {trial.elastic_tangential_slip, trial.sliding, history.normal_multiplier};
-}
-void NodeToLineRzContactKernel::residual_ad(const NodeToLineRzContactGeometry& geometry, const LocalAdValues& state,
-    const LocalValues& committed_state, const ContactPointHistory& history, LocalAdValues& residual) const {
-    std::fill(residual.begin(), residual.end(), adlite::Scalar(0.0));
-    const ContactAdValue value = evaluate_contact(geometry, state, committed_state, history, _properties);
-    if (!value.projected) return;
-    const std::size_t secondary = geometry.secondary_local_node;
-    residual[4 + secondary] += value.contact_force * value.normal_r;
-    residual[6] -= value.primary_shape_0 * value.contact_force * value.normal_r;
-    residual[7] -= value.primary_shape_1 * value.contact_force * value.normal_r;
-    residual[8 + secondary] += value.contact_force * value.normal_z;
-    residual[10] -= value.primary_shape_0 * value.contact_force * value.normal_z;
-    residual[11] -= value.primary_shape_1 * value.contact_force * value.normal_z;
-    if (_properties.friction_coefficient == 0.0) return;
-    residual[4 + secondary] += value.tangential_force * value.tangent_r;
-    residual[6] -= value.primary_shape_0 * value.tangential_force * value.tangent_r;
-    residual[7] -= value.primary_shape_1 * value.tangential_force * value.tangent_r;
-    residual[8 + secondary] += value.tangential_force * value.tangent_z;
-    residual[10] -= value.primary_shape_0 * value.tangential_force * value.tangent_z;
-    residual[11] -= value.primary_shape_1 * value.tangential_force * value.tangent_z;
 }
 } // namespace fuelsim

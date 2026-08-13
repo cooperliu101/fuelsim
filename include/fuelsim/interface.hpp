@@ -41,19 +41,12 @@ Line2RzHeatPointGeometry make_line2_rz_heat_point_geometry(const Line2InterfaceS
     const Line2InterfaceSideCoordinates& primary_coordinates,
     const std::array<double, line2_interface_side_node_count>& secondary_shape, double integration_weight,
     bool primary_segment_includes_second_endpoint, double zero_gap_orientation_hint);
-class Line2RzGapHeatKernel final {
-  public:
-    explicit Line2RzGapHeatKernel(GapHeatProperties properties) : _properties(properties) {}
-    const GapHeatProperties& properties() const noexcept { return _properties; }
-    LocalResidual residual(const Line2RzHeatPointGeometry& geometry, const LocalValues& state) const;
-    LocalSystem linearize(const Line2RzHeatPointGeometry& geometry, const LocalValues& state) const;
-    HeatQuadratureValue quadrature_value(const Line2RzHeatPointGeometry& geometry, const LocalValues& state) const;
-
-  private:
-    void residual_ad(
-        const Line2RzHeatPointGeometry& geometry, const LocalAdValues& state, LocalAdValues& residual) const;
-    GapHeatProperties _properties;
-};
+LocalResidual compute_line2_rz_gap_heat_residual(
+    const GapHeatProperties& properties, const Line2RzHeatPointGeometry& geometry, const LocalValues& state);
+LocalSystem compute_line2_rz_gap_heat_system(
+    const GapHeatProperties& properties, const Line2RzHeatPointGeometry& geometry, const LocalValues& state);
+HeatQuadratureValue compute_line2_rz_gap_heat_value(
+    const GapHeatProperties& properties, const Line2RzHeatPointGeometry& geometry, const LocalValues& state);
 struct NodeToLineRzContactGeometry final {
     Line2InterfaceSideCoordinates secondary_edge_coordinates, primary_segment_coordinates;
     std::size_t secondary_local_node;
@@ -80,22 +73,16 @@ NodeToLineRzContactGeometry make_node_to_line_rz_contact_geometry(
     const Line2InterfaceSideCoordinates& secondary_edge_coordinates,
     const Line2InterfaceSideCoordinates& primary_segment_coordinates, std::size_t secondary_local_node,
     bool primary_segment_is_first, bool primary_segment_includes_upper_endpoint, double zero_gap_orientation_hint);
-class NodeToLineRzContactKernel final {
-  public:
-    explicit NodeToLineRzContactKernel(NormalContactProperties properties) : _properties(properties) {}
-    const NormalContactProperties& properties() const noexcept { return _properties; }
-    LocalResidual residual(const NodeToLineRzContactGeometry& geometry, const LocalValues& state,
-        const LocalValues& committed_state, const ContactPointHistory& history) const;
-    LocalSystem linearize(const NodeToLineRzContactGeometry& geometry, const LocalValues& state,
-        const LocalValues& committed_state, const ContactPointHistory& history) const;
-    ContactPointValue value(const NodeToLineRzContactGeometry& geometry, const LocalValues& state,
-        const LocalValues& committed_state, const ContactPointHistory& history) const;
-    ContactPointHistory trial_history(const NodeToLineRzContactGeometry& geometry, const LocalValues& state,
-        const LocalValues& committed_state, const ContactPointHistory& history) const;
-
-  private:
-    void residual_ad(const NodeToLineRzContactGeometry& geometry, const LocalAdValues& state,
-        const LocalValues& committed_state, const ContactPointHistory& history, LocalAdValues& residual) const;
-    NormalContactProperties _properties;
-};
+LocalResidual compute_node_to_line_rz_contact_residual(const NormalContactProperties& properties,
+    const NodeToLineRzContactGeometry& geometry, const LocalValues& state, const LocalValues& committed_state,
+    const ContactPointHistory& history);
+LocalSystem compute_node_to_line_rz_contact_system(const NormalContactProperties& properties,
+    const NodeToLineRzContactGeometry& geometry, const LocalValues& state, const LocalValues& committed_state,
+    const ContactPointHistory& history);
+ContactPointValue compute_node_to_line_rz_contact_value(const NormalContactProperties& properties,
+    const NodeToLineRzContactGeometry& geometry, const LocalValues& state, const LocalValues& committed_state,
+    const ContactPointHistory& history);
+ContactPointHistory compute_node_to_line_rz_contact_trial_history(const NormalContactProperties& properties,
+    const NodeToLineRzContactGeometry& geometry, const LocalValues& state, const LocalValues& committed_state,
+    const ContactPointHistory& history);
 } // namespace fuelsim
