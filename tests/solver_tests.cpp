@@ -176,6 +176,7 @@ class RuntimeLayoutProblem final : public fuelsim::NonlinearProblem {
         throw std::out_of_range("RuntimeLayoutProblem contribution index");
     }
     void contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const override {
+        ++_dof_mapping_calls;
         if (index == 0) {
             dofs.resize(dof_count());
             for (std::size_t dof = 0; dof < dofs.size(); ++dof) dofs[dof] = dof;
@@ -213,6 +214,7 @@ class RuntimeLayoutProblem final : public fuelsim::NonlinearProblem {
     }
     std::size_t residual_call_count(std::size_t contribution) const { return _residual_calls.at(contribution); }
     std::size_t system_call_count(std::size_t contribution) const { return _system_calls.at(contribution); }
+    std::size_t dof_mapping_call_count() const noexcept { return _dof_mapping_calls; }
     double target_value(std::size_t dof) const {
         if (dof >= dof_count()) throw std::out_of_range("RuntimeLayoutProblem target DOF");
         return 0.5 + 0.025 * static_cast<double>(dof);
@@ -236,13 +238,11 @@ class RuntimeLayoutProblem final : public fuelsim::NonlinearProblem {
         std::size_t index, const std::vector<double>& state, std::vector<double>& residual) const {
         const std::size_t local_count = local_dof_count(index);
         if (state.size() != local_count) throw std::invalid_argument("RuntimeLayoutProblem contribution state size");
-        std::vector<std::size_t> dofs;
-        contribution_dofs(index, dofs);
         residual.assign(local_count, 0.0);
         for (std::size_t row = 0; row < local_count; ++row)
             for (std::size_t column = 0; column < local_count; ++column)
-                residual[row] +=
-                    contribution_coefficient(index, row, column) * (state[column] - target_value(dofs[column]));
+                residual[row] += contribution_coefficient(index, row, column) *
+                                 (state[column] - target_value(index == 0 ? column : _narrow_dofs[column]));
     }
     std::vector<fuelsim::FieldDescriptor> _fields = {
         {"displacement_x", 0, 8, fuelsim::FieldCategory::mechanical},
@@ -254,6 +254,7 @@ class RuntimeLayoutProblem final : public fuelsim::NonlinearProblem {
     std::vector<fuelsim::DirichletCondition> _conditions;
     mutable std::array<std::size_t, 2> _residual_calls{};
     mutable std::array<std::size_t, 2> _system_calls{};
+    mutable std::size_t _dof_mapping_calls = 0;
 };
 bool test_runtime_contribution_layout() {
     RuntimeLayoutProblem problem;
@@ -394,6 +395,13 @@ bool test_runtime_contribution_layout() {
                      "PETSc evaluates each runtime contribution only on its assigned rank") &&
                  passed;
     }
+    const std::size_t mapping_calls_after_setup = problem.dof_mapping_call_count();
+    problem.reset_callback_counts();
+    const fuelsim::SolveResult reused = solver.solve(problem, initial, options);
+    passed = check(reused.converged && reused.timing.workspace_setups == 0 &&
+                       problem.dof_mapping_call_count() == mapping_calls_after_setup,
+                 "reused PETSc workspace does not query contribution mappings in residual or Jacobian callbacks") &&
+             passed;
     if (result.mpi_size == 2 && result.local_contribution_begin < result.local_contribution_end) {
         const std::size_t expected_local_width = result.mpi_rank == 0 ? 32 : 7;
         passed = check(problem.local_dof_count(result.local_contribution_begin) == expected_local_width,

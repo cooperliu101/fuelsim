@@ -110,14 +110,26 @@ struct SolverContext final {
     std::vector<double> field_residual_scalings, local_field_squared_norms;
     std::vector<double> global_field_squared_norms;
     std::vector<std::size_t> dof_fields;
-    ContributionWorkspace contribution_workspace;
+    std::vector<std::size_t> contribution_offsets;
+    std::vector<std::size_t> contribution_dofs;
+    std::vector<std::size_t> contribution_shadow_indices;
     std::vector<PetscInt> petsc_contribution_dofs;
+    ContributionWorkspace contribution_workspace;
     std::vector<double> scaled_contribution_jacobian;
     double initial_residual_norm = std::numeric_limits<double>::quiet_NaN();
     bool saw_domain_error = false, last_function_domain_error = false;
     std::string last_domain_error;
     SolveTiming timing;
 };
+void gather_contribution_state(SolverContext& context, std::size_t local_contribution, bool include_jacobian) {
+    const std::size_t dof_begin = context.contribution_offsets[local_contribution];
+    const std::size_t dof_end = context.contribution_offsets[local_contribution + 1];
+    const std::size_t local_count = dof_end - dof_begin;
+    context.contribution_workspace.resize(local_count, include_jacobian);
+    for (std::size_t local = 0; local < local_count; ++local)
+        context.contribution_workspace.state[local] =
+            context.state_values[context.contribution_shadow_indices[dof_begin + local]];
+}
 struct PetscObjects final {
     SNES snes = nullptr;
     Vec state = nullptr;
@@ -375,14 +387,17 @@ PetscErrorCode form_function(SNES snes, Vec state, Vec residual, void* raw_conte
         try {
             problem.validate_local_state(context.contribution_begin, context.contribution_end, state_view);
             for (std::size_t entry = context.contribution_begin; entry < context.contribution_end; ++entry) {
-                problem.evaluate_contribution_residual(entry, state_view, context.contribution_workspace);
-                context.petsc_contribution_dofs.resize(context.contribution_workspace.dofs.size());
-                for (std::size_t local = 0; local < context.petsc_contribution_dofs.size(); ++local)
-                    context.petsc_contribution_dofs[local] =
-                        checked_petsc_int(context.contribution_workspace.dofs[local]);
-                PetscCall(VecSetValues(residual, checked_petsc_int(context.petsc_contribution_dofs.size()),
-                    context.petsc_contribution_dofs.data(), context.contribution_workspace.residual.data(),
-                    ADD_VALUES));
+                const std::size_t local_contribution = entry - context.contribution_begin;
+                const std::size_t dof_begin = context.contribution_offsets[local_contribution];
+                const std::size_t local_count = context.contribution_offsets[local_contribution + 1] - dof_begin;
+                gather_contribution_state(context, local_contribution, false);
+                problem.compute_contribution_residual(
+                    entry, context.contribution_workspace.state, context.contribution_workspace.residual);
+                if (context.contribution_workspace.residual.size() != local_count)
+                    throw std::logic_error("NonlinearProblem contribution residual has the wrong size");
+                PetscCall(VecSetValues(residual, checked_petsc_int(local_count),
+                    context.petsc_contribution_dofs.data() + static_cast<std::ptrdiff_t>(dof_begin),
+                    context.contribution_workspace.residual.data(), ADD_VALUES));
             }
         } catch (const std::domain_error& error) {
             local_domain_error = true;
@@ -445,16 +460,19 @@ PetscErrorCode form_jacobian(SNES snes, Vec state, Mat jacobian, Mat preconditio
         try {
             problem.validate_local_state(context.contribution_begin, context.contribution_end, state_view);
             for (std::size_t entry = context.contribution_begin; entry < context.contribution_end; ++entry) {
-                problem.evaluate_contribution_system(entry, state_view, context.contribution_workspace);
-                const std::size_t local_count = context.contribution_workspace.dofs.size();
-                context.petsc_contribution_dofs.resize(local_count);
-                for (std::size_t local = 0; local < local_count; ++local)
-                    context.petsc_contribution_dofs[local] =
-                        checked_petsc_int(context.contribution_workspace.dofs[local]);
+                const std::size_t local_contribution = entry - context.contribution_begin;
+                const std::size_t dof_begin = context.contribution_offsets[local_contribution];
+                const std::size_t local_count = context.contribution_offsets[local_contribution + 1] - dof_begin;
+                gather_contribution_state(context, local_contribution, true);
+                problem.compute_contribution_system(entry, context.contribution_workspace.state,
+                    context.contribution_workspace.residual, context.contribution_workspace.jacobian);
+                if (context.contribution_workspace.residual.size() != local_count ||
+                    context.contribution_workspace.jacobian.size() != local_count * local_count)
+                    throw std::logic_error("NonlinearProblem contribution system has the wrong size");
                 context.scaled_contribution_jacobian = context.contribution_workspace.jacobian;
                 if (context.field_residual_scaling) {
                     for (std::size_t row = 0; row < local_count; ++row) {
-                        const std::size_t global_row = context.contribution_workspace.dofs[row];
+                        const std::size_t global_row = context.contribution_dofs[dof_begin + row];
                         if (context.constrained[global_row]) continue;
                         const std::size_t field = context.dof_fields[global_row];
                         for (std::size_t column = 0; column < local_count; ++column)
@@ -463,8 +481,9 @@ PetscErrorCode form_jacobian(SNES snes, Vec state, Mat jacobian, Mat preconditio
                     }
                 }
                 const PetscInt petsc_local_count = checked_petsc_int(local_count);
-                PetscCall(MatSetValues(jacobian, petsc_local_count, context.petsc_contribution_dofs.data(),
-                    petsc_local_count, context.petsc_contribution_dofs.data(),
+                const PetscInt* petsc_dofs =
+                    context.petsc_contribution_dofs.data() + static_cast<std::ptrdiff_t>(dof_begin);
+                PetscCall(MatSetValues(jacobian, petsc_local_count, petsc_dofs, petsc_local_count, petsc_dofs,
                     context.scaled_contribution_jacobian.data(), ADD_VALUES));
             }
         } catch (const std::domain_error& error) {
@@ -506,13 +525,13 @@ PetscErrorCode form_jacobian(SNES snes, Vec state, Mat jacobian, Mat preconditio
 class PetscSolver::Implementation final {
   public:
     bool prepare(const NonlinearProblem& problem) {
-        problem.validate_discretization();
         const PetscInt requested_count = checked_petsc_int(problem.dof_count());
         const std::shared_ptr<const void> requested_identity = problem.discretization_identity();
         if (_problem_identity == requested_identity) {
             _context.problem = &problem;
             return false;
         }
+        problem.validate_discretization();
         _problem_identity.reset();
         _objects = std::make_unique<PetscObjects>();
         _count = requested_count;
@@ -541,12 +560,20 @@ class PetscSolver::Implementation final {
         }
         std::size_t maximum_local_dofs = 0;
         std::vector<std::size_t> contribution_dofs;
+        _context.contribution_offsets.reserve(_context.contribution_end - _context.contribution_begin + 1);
+        _context.contribution_offsets.push_back(0);
         for (std::size_t entry = _context.contribution_begin; entry < _context.contribution_end; ++entry) {
             problem.contribution_dofs(entry, contribution_dofs);
             maximum_local_dofs = std::max(maximum_local_dofs, contribution_dofs.size());
+            for (const std::size_t dof : contribution_dofs) {
+                if (dof >= problem.dof_count())
+                    throw std::out_of_range("NonlinearProblem contribution DOF is out of range");
+                _context.contribution_dofs.push_back(dof);
+                _context.petsc_contribution_dofs.push_back(checked_petsc_int(dof));
+            }
+            _context.contribution_offsets.push_back(_context.contribution_dofs.size());
         }
         _context.contribution_workspace.reserve(maximum_local_dofs);
-        _context.petsc_contribution_dofs.reserve(maximum_local_dofs);
         _context.scaled_contribution_jacobian.reserve(maximum_local_dofs * maximum_local_dofs);
         check_petsc(VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE, _count, &_objects->state), "VecCreateMPI state");
         check_petsc(VecDuplicate(_objects->state, &_objects->residual), "VecDuplicate residual");
@@ -594,6 +621,15 @@ class PetscSolver::Implementation final {
         _context.shadow_dofs.erase(
             std::unique(_context.shadow_dofs.begin(), _context.shadow_dofs.end()), _context.shadow_dofs.end());
         _context.state_values.resize(_context.shadow_dofs.size());
+        _context.contribution_shadow_indices.reserve(_context.contribution_dofs.size());
+        for (const std::size_t dof : _context.contribution_dofs) {
+            const auto found = std::lower_bound(
+                _context.shadow_dofs.begin(), _context.shadow_dofs.end(), static_cast<std::uint32_t>(dof));
+            if (found == _context.shadow_dofs.end() || static_cast<std::size_t>(*found) != dof)
+                throw std::logic_error("NonlinearProblem required state excludes a contribution DOF");
+            _context.contribution_shadow_indices.push_back(
+                static_cast<std::size_t>(found - _context.shadow_dofs.begin()));
+        }
         std::vector<PetscInt> shadow_indices;
         shadow_indices.reserve(_context.shadow_dofs.size());
         for (const std::uint32_t dof : _context.shadow_dofs)
