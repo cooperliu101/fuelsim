@@ -114,16 +114,19 @@ inline void add_mechanical_point_residual(const RzQuadraturePoint& point, const 
                               (stress.zz * kinematics.gradient_z[node] + stress.rz * kinematics.gradient_r[node]);
     }
 }
+// Null heat-capacity inputs keep steady evaluations free of transient AD work.
 inline void add_point_residual(const RzQuadraturePoint& point, const adlite::Scalar& gradient_temperature_r,
     const adlite::Scalar& gradient_temperature_z, const AxisymmetricKinematics& kinematics,
-    const adlite::Scalar& heat_capacity, const adlite::Scalar& temperature_rate, const adlite::Scalar& conductivity,
+    const adlite::Scalar* heat_capacity, const adlite::Scalar* temperature_rate, const adlite::Scalar& conductivity,
     double volumetric_heat_source, const AxisymmetricStress& stress, LocalAdValues& residual) {
     for (std::size_t node = 0; node < quad4_node_count; ++node) {
-        residual[node] +=
-            point.weighted_measure * (heat_capacity * point.shape[node] * temperature_rate +
-                                         conductivity * (point.gradient_r[node] * gradient_temperature_r +
-                                                            point.gradient_z[node] * gradient_temperature_z) -
-                                         volumetric_heat_source * point.shape[node]);
+        const adlite::Scalar thermal = heat_capacity == nullptr
+                                           ? conductivity * (point.gradient_r[node] * gradient_temperature_r +
+                                                                point.gradient_z[node] * gradient_temperature_z)
+                                           : *heat_capacity * point.shape[node] * *temperature_rate +
+                                                 conductivity * (point.gradient_r[node] * gradient_temperature_r +
+                                                                    point.gradient_z[node] * gradient_temperature_z);
+        residual[node] += point.weighted_measure * (thermal - volumetric_heat_source * point.shape[node]);
     }
     add_mechanical_point_residual(point, kinematics, stress, residual);
 }
@@ -273,7 +276,8 @@ LocalResidual compute_quad4_rz_thermoelastic(
         const adlite::Scalar conductivity =
             data.material.conductivity(response.temperature, rz_material_context(data.time, point));
         quad4_rz_detail::add_point_residual(point, response.gradient_temperature_r, response.gradient_temperature_z,
-            response.kinematics, 0.0, 0.0, conductivity, data.volumetric_heat_source, response.stress, ad_residual);
+            response.kinematics, nullptr, nullptr, conductivity, data.volumetric_heat_source, response.stress,
+            ad_residual);
     }
     return quad4_rz_detail::values(ad_state, ad_residual, jacobian);
 }
@@ -342,7 +346,7 @@ LocalResidual compute_quad4_rz_transient(const Quad4RzData& data, const Quad4RzG
         const adlite::Scalar conductivity = data.material.conductivity(evaluation.temperature, context);
         const adlite::Scalar heat_capacity = data.material.heat_capacity(evaluation.temperature, context);
         quad4_rz_detail::add_point_residual(point, evaluation.gradient_temperature_r, evaluation.gradient_temperature_z,
-            evaluation.kinematics, heat_capacity, temperature_rate, conductivity, data.volumetric_heat_source,
+            evaluation.kinematics, &heat_capacity, &temperature_rate, conductivity, data.volumetric_heat_source,
             evaluation.response.stress, ad_residual);
     }
     return quad4_rz_detail::values(ad_state, ad_residual, jacobian);

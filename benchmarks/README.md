@@ -336,8 +336,27 @@ version. The paired internal times were `60.769952996/61.888409483 s`, or a
 `1.84%` candidate slowdown. Both used 62 nonlinear and 62 linear iterations,
 82 residual callbacks, 62 Jacobian callbacks, one PETSc workspace, and the
 same `3.017657067419e-9` last residual. These measurements establish numerical
-work equivalence and a modest performance regression for these two cases; they
-are not a speedup or a broader scaling claim.
+work equivalence and a real performance regression in the original candidate.
+
+The follow-up diagnosis reproduced a `7.22%` warmed slowdown over six paired
+runs and localized the extra work to the consolidated steady/transient thermal
+residual. The steady path passed zero-valued ADlite heat capacity and
+temperature-rate scalars through the transient expression, so every thermal
+node performed derivative-array multiplications that were absent before the
+refactor. The shared function now uses null heat-capacity inputs to omit the
+transient term without restoring duplicate steady and transient functions.
+
+After that correction, seven alternating default-case runs kept the first pair
+separate. The following six warmed samples had medians of
+`1.091153993/1.097245903 s`; the corrected candidate was `0.56%` slower, within
+the observed run-to-run spread. Two alternating engineering-case pairs gave
+baseline/candidate means of `61.566550101/60.492010928 s`, so the corrected
+candidate was `1.75%` faster. Mean Jacobian callback time changed from
+`41.020744907` to `40.427390936 s`, or `1.45%` lower, and mean residual callback
+time changed from `3.361947782` to `3.167908604 s`, or `5.77%` lower. Every run
+retained the same iterations, callback counts, workspace count, and final
+residual. These paired cases establish that the observed consolidation
+regression was removed; they are not a broader performance or scaling claim.
 
 ## 2026-08-11 M5.7 integrated transient parallel measurement
 
