@@ -20,12 +20,22 @@ struct AxisymmetricStressValues final {
 struct SymmetricTensor3Values final {
     double xx, yy, zz, xy, yz, xz;
 };
+struct CartesianMaterialPointState final {
+    std::array<double, 6> elastic_strain{}, plastic_strain{}, creep_strain{};
+    double equivalent_plastic_strain = 0.0, equivalent_creep_strain = 0.0;
+    SymmetricTensor3Values stress{};
+};
+struct CartesianInelasticStressResponse final {
+    SymmetricTensor3 stress;
+    CartesianMaterialPointState trial_state;
+};
 struct AxisymmetricRotation final {
     adlite::Scalar rr{1.0}, rz{0.0}, zr{0.0}, zz{1.0}, hoop{1.0};
 };
 struct MaterialPointState final {
     std::array<double, 4> elastic_strain{}, plastic_strain{}, creep_strain{};
     double equivalent_plastic_strain = 0.0, equivalent_creep_strain = 0.0;
+    AxisymmetricStressValues stress{};
 };
 struct MaterialPointTrialState final {
     std::array<adlite::Scalar, 4> elastic_strain{}, plastic_strain{}, creep_strain{};
@@ -54,6 +64,8 @@ class IsotropicThermoelasticMaterial final {
     InelasticStressResponse response(const adlite::Scalar& strain_rr, const adlite::Scalar& strain_zz,
         const adlite::Scalar& strain_hoop, const adlite::Scalar& strain_rz, const adlite::Scalar& temperature,
         double time_step, const MaterialPointState& committed, MaterialFunctionContext context = {}) const;
+    CartesianInelasticStressResponse response(const SymmetricTensor3& strain, const adlite::Scalar& temperature,
+        double time_step, const CartesianMaterialPointState& committed, MaterialFunctionContext context = {}) const;
     InelasticStressResponse incremental_response(const adlite::Scalar& strain_increment_rr,
         const adlite::Scalar& strain_increment_zz, const adlite::Scalar& strain_increment_hoop,
         const adlite::Scalar& strain_increment_rz, const AxisymmetricRotation& rotation,

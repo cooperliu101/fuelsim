@@ -3,6 +3,7 @@
 #include "fuelsim/problem_solver.hpp"
 #include "fuelsim/steady_problem.hpp"
 #include "fuelsim/transient_problem.hpp"
+#include "support/jacobian_check.hpp"
 #include "support/material_factory.hpp"
 #include "support/rz_problem_access.hpp"
 #include <algorithm>
@@ -347,8 +348,8 @@ bool test_global_field_diagnostics(const fuelsim::UnstructuredQuad4Mesh& mesh) {
         direction[fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::radial_displacement, node)] = 1.0e-6;
         direction[fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::axial_displacement, node)] = -0.7e-6;
     }
-    const fuelsim::DirectionalJacobianCheck diagnostic =
-        fuelsim::check_directional_jacobian(problem, state, direction, 1.0e-4);
+    const fuelsim::test::DirectionalJacobianCheck diagnostic =
+        fuelsim::test::check_directional_jacobian(problem, state, direction, 1.0e-4);
     bool passed = true;
     for (std::size_t field = 0; field < 3; ++field) {
         const double reference = diagnostic.finite_difference_directional_derivative.l2[field];

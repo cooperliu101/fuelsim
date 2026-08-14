@@ -812,7 +812,7 @@ bool test_transient_element() {
                                                      "matrix divided by dt") &&
              passed;
     const fuelsim::Quad4MaterialHistory trial =
-        fuelsim::compute_quad4_rz_transient_update(data, geometry, state, old_temperature, history, 2.0).history;
+        fuelsim::compute_quad4_rz_transient_update(data, geometry, state, old_temperature, history, 2.0);
     for (std::size_t q = 0; q < trial.size(); ++q)
         passed = check(same_inelastic_state(trial[q], history[q]), "elastic transient element leaves inelastic history "
                                                                    "unchanged") &&
@@ -907,7 +907,7 @@ bool test_coupled_transient_element_jacobian(
         maximum_error = std::max(maximum_error, scaled_error(ad_direction, finite_difference));
     }
     const fuelsim::Quad4MaterialHistory trial =
-        fuelsim::compute_quad4_rz_transient_update(data, geometry, state, committed_state, history, time_step).history;
+        fuelsim::compute_quad4_rz_transient_update(data, geometry, state, committed_state, history, time_step);
     bool both_histories_active = true;
     for (const fuelsim::MaterialPointState& point : trial) {
         both_histories_active =

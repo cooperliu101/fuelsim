@@ -1,6 +1,7 @@
 #include "fuelsim/case_input.hpp"
 #include "fuelsim/problem_solver.hpp"
 #include "fuelsim/results_io.hpp"
+#include "support/jacobian_check.hpp"
 #include "support/moose_field_comparison.hpp"
 #include "support/rz_problem_access.hpp"
 #include <algorithm>
@@ -467,7 +468,7 @@ bool audit_creep_shared_state(const fuelsim::FuelSimCaseDefinition& definition,
                 std::max(maximum_boundary_value_difference, std::abs(state.at(condition.dof) - condition.value));
         }
         std::vector<double> residual;
-        problem.assemble_residual(state, residual);
+        residual = fuelsim::test::assembled_residual(problem, state);
         double local_force_squared = 0.0;
         double local_force_infinity = 0.0;
         for (std::size_t contribution = 0; contribution < problem.contribution_count(); ++contribution) {

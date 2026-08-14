@@ -51,7 +51,14 @@ class ProblemAccess final {
     }
     static std::array<SymmetricTensor3Values, 8> stress(
         const TransientProblem& problem, std::size_t region, std::size_t element) {
-        return view(problem).stress(region, element, problem.committed_solution());
+        std::array<SymmetricTensor3Values, 8> result{};
+        const Hex8MaterialHistory& history = material_history(problem, region, element);
+        for (std::size_t q = 0; q < result.size(); ++q) result[q] = history[q].stress;
+        return result;
+    }
+    static const Hex8MaterialHistory& material_history(
+        const TransientProblem& problem, std::size_t region, std::size_t element) {
+        return fuelsim::BackendAccess::cartesian_material_histories(problem).at(region).at(element);
     }
     static TransientCommittedState committed_state(const TransientProblem& problem) {
         return fuelsim::BackendAccess::committed_state(problem);

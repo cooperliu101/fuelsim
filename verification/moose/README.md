@@ -62,6 +62,36 @@ Temperature, three displacements, and nonzero stress all pass the three relative
 metrics below 0.1 percent. Zero reference values are reported with a separate
 absolute difference and no denominator floor.
 
+## Three-dimensional plasticity, creep, and coupled response
+
+`b3_hex8_inelastic.i` reuses the tracked B3 two-element HEX8 mesh and prescribes
+the uniform displacement path `disp_x = 0.004 t` on the right face over ten
+0.1-second Backward Euler steps. The three references use the same elasticity
+and respectively select `plasticity`, `creep`, or `creep plasticity` in
+`ADComputeMultipleInelasticStress`. The Norton coefficient `1e-28 Pa^-3 s^-1`
+is the MOOSE form of fuelsim's normalized `1e-4 (q/1e8 Pa)^3 s^-1` law.
+
+The references were generated with one MPI rank and one thread using the MOOSE
+commit and PETSc version recorded above. The exact commands were:
+
+```bash
+/home/cooper/projects/july/july-opt -i b3_hex8_inelastic.i \
+  Materials/stress/inelastic_models=plasticity Outputs/file_base=b3_hex8_plastic
+/home/cooper/projects/july/july-opt -i b3_hex8_inelastic.i \
+  Materials/stress/inelastic_models=creep Outputs/file_base=b3_hex8_creep
+/home/cooper/projects/july/july-opt -i b3_hex8_inelastic.i \
+  Outputs/file_base=b3_hex8_coupled
+```
+
+`fuelsim_b3_hex8_inelastic_moose_tests` compares all 12 final nodes and all
+eight fuelsim integration points in both elements. Temperature, three
+displacements, axial stress, equivalent plastic strain, and equivalent creep
+strain use relative L2, relative absolute-peak, and maximum pointwise-relative
+errors with a 0.5 percent limit. Inactive histories and physically zero
+transverse and shear stresses use separate absolute checks without a
+denominator floor. Repeated residual and Jacobian evaluations, rollback, exact
+active-history restart, and ten-step completion are checked in the same test.
+
 `SHA256SUMS` is the machine-checked authority for every tracked MOOSE input,
 mesh, and result snapshot. `fuelsim_moose_reference_sha256` recomputes every
 entry during release CTest; changing a snapshot without updating provenance is

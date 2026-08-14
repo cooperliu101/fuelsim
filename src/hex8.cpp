@@ -54,7 +54,8 @@ MaterialFunctionContext material_context(double time, const CartesianPoint3& poi
 }
 void add_hex8_point_residual(const Hex8QuadraturePoint& point, const Hex8LocalAdValues& state,
     const IsotropicThermoelasticMaterial& material, double time, double volumetric_heat_source,
-    const Hex8LocalValues* committed_state, double time_step, Hex8LocalAdValues& residual) {
+    const Hex8LocalValues* committed_state, const CartesianMaterialPointState* committed_material, double time_step,
+    Hex8LocalAdValues& residual) {
     const adlite::Scalar temperature = interpolate_hex8(point.shape, state, 0);
     adlite::Scalar gradient_temperature_x = 0.0, gradient_temperature_y = 0.0, gradient_temperature_z = 0.0;
     for (std::size_t node = 0; node < 8; ++node) {
@@ -64,7 +65,11 @@ void add_hex8_point_residual(const Hex8QuadraturePoint& point, const Hex8LocalAd
     }
     const MaterialFunctionContext context = material_context(time, point.position);
     const adlite::Scalar conductivity = material.conductivity(temperature, context);
-    const SymmetricTensor3 stress = material.stress(strain_at(point, state), temperature, context);
+    const SymmetricTensor3 strain = strain_at(point, state);
+    const SymmetricTensor3 stress =
+        committed_material == nullptr
+            ? material.stress(strain, temperature, context)
+            : material.response(strain, temperature, time_step, *committed_material, context).stress;
     adlite::Scalar temperature_rate = 0.0, heat_capacity = 0.0;
     if (committed_state != nullptr) {
         double old_temperature = 0.0;
@@ -101,6 +106,27 @@ std::array<SymmetricTensor3Values, 8> evaluate_hex8_stress(const Hex8Geometry& g
         result[q] = {stress.xx.value(), stress.yy.value(), stress.zz.value(), stress.xy.value(), stress.yz.value(),
             stress.xz.value()};
     }
+    return result;
+}
+Hex8LocalResidual compute_hex8_local(const Hex8ThermoelasticData& data, const Hex8Geometry& geometry,
+    const Hex8LocalValues& state, const Hex8LocalValues* committed_state, const Hex8MaterialHistory* history,
+    double time_step, Hex8LocalJacobian* jacobian) {
+    if (committed_state != nullptr && (!std::isfinite(time_step) || time_step <= 0.0))
+        throw std::invalid_argument("HEX8 time step must be finite and positive");
+    Hex8LocalAdValues active{}, residual{};
+    if (jacobian == nullptr)
+        ad_local_system::make_passive(state.data(), state.size(), active.data());
+    else
+        ad_local_system::make_active(state.data(), state.size(), active.data());
+    residual.fill(adlite::Scalar(0.0));
+    for (std::size_t q = 0; q < geometry.points.size(); ++q)
+        add_hex8_point_residual(geometry.points[q], active, data.material, data.time, data.volumetric_heat_source,
+            committed_state, history == nullptr ? nullptr : &(*history)[q], time_step, residual);
+    Hex8LocalResidual result{};
+    if (jacobian == nullptr)
+        ad_local_system::extract_residual(residual.data(), residual.size(), result.data());
+    else
+        ad_local_system::extract_system(residual.data(), active.size(), result.data(), jacobian->data());
     return result;
 }
 } // namespace
@@ -189,23 +215,28 @@ Quad4FaceGeometry make_quad4_face_geometry(const Quad4FaceCoordinates& coordinat
 Hex8LocalResidual compute_hex8_thermoelastic(const Hex8ThermoelasticData& data, const Hex8Geometry& geometry,
     const Hex8LocalValues& state, const Hex8LocalValues* committed_state, double time_step,
     Hex8LocalJacobian* jacobian) {
-    if (committed_state != nullptr && (!std::isfinite(time_step) || !(time_step > 0.0)))
-        throw std::invalid_argument("HEX8 time step must be finite and positive");
-    Hex8LocalAdValues ad_state{};
-    if (jacobian == nullptr)
-        ad_local_system::make_passive(state.data(), state.size(), ad_state.data());
-    else
-        ad_local_system::make_active(state.data(), state.size(), ad_state.data());
-    Hex8LocalAdValues residual{};
-    residual.fill(adlite::Scalar(0.0));
-    for (const Hex8QuadraturePoint& point : geometry.points)
-        add_hex8_point_residual(point, ad_state, data.material, data.time, data.volumetric_heat_source, committed_state,
-            time_step, residual);
-    Hex8LocalResidual result{};
-    if (jacobian == nullptr)
-        ad_local_system::extract_residual(residual.data(), residual.size(), result.data());
-    else
-        ad_local_system::extract_system(residual.data(), ad_state.size(), result.data(), jacobian->data());
+    return compute_hex8_local(data, geometry, state, committed_state, nullptr, time_step, jacobian);
+}
+Hex8LocalResidual compute_hex8_transient(const Hex8ThermoelasticData& data, const Hex8Geometry& geometry,
+    const Hex8LocalValues& state, const Hex8LocalValues& committed_state, const Hex8MaterialHistory& committed_material,
+    double time_step, Hex8LocalJacobian* jacobian) {
+    return compute_hex8_local(data, geometry, state, &committed_state, &committed_material, time_step, jacobian);
+}
+Hex8MaterialHistory compute_hex8_transient_update(const Hex8ThermoelasticData& data, const Hex8Geometry& geometry,
+    const Hex8LocalValues& state, const Hex8LocalValues&, const Hex8MaterialHistory& committed_material,
+    double time_step) {
+    if (!std::isfinite(time_step) || !(time_step > 0.0))
+        throw std::invalid_argument("HEX8 transient update time step must be finite and positive");
+    Hex8LocalAdValues passive{};
+    ad_local_system::make_passive(state.data(), state.size(), passive.data());
+    Hex8MaterialHistory result{};
+    for (std::size_t q = 0; q < geometry.points.size(); ++q) {
+        const Hex8QuadraturePoint& point = geometry.points[q];
+        const adlite::Scalar temperature = interpolate_hex8(point.shape, passive, 0);
+        const CartesianInelasticStressResponse response = data.material.response(strain_at(point, passive), temperature,
+            time_step, committed_material[q], material_context(data.time, point.position));
+        result[q] = response.trial_state;
+    }
     return result;
 }
 std::array<SymmetricTensor3Values, 8> compute_hex8_stress(

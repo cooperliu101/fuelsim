@@ -3,6 +3,7 @@
 #include "support/cartesian3d_problem_access.hpp"
 #include "support/material_factory.hpp"
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <filesystem>
@@ -31,7 +32,8 @@ fuelsim::UnstructuredHex8Mesh two_element_mesh() {
     const std::vector<fuelsim::ElementSide> all_faces = {
         {0, 3}, {1, 1}, {0, 0}, {1, 0}, {0, 2}, {1, 2}, {0, 4}, {1, 4}, {0, 5}, {1, 5}};
     return fuelsim::UnstructuredHex8Mesh(std::move(nodes), std::move(elements), {1, 1}, {{1, "solid"}}, {},
-        {{10, "all", all_faces}, {11, "x0", {{0, 3}}}, {12, "y0", {{0, 0}, {1, 0}}}, {13, "z0", {{0, 4}, {1, 4}}}});
+        {{10, "all", all_faces}, {11, "x0", {{0, 3}}}, {12, "y0", {{0, 0}, {1, 0}}}, {13, "z0", {{0, 4}, {1, 4}}},
+            {14, "x2", {{1, 1}}}});
 }
 fuelsim::UnstructuredHex8Mesh two_region_mesh() {
     std::vector<fuelsim::CartesianPoint3> nodes;
@@ -203,6 +205,51 @@ bool test_multiple_regions() {
     }
     return passed;
 }
+fuelsim::SpatialDefinition inelastic_definition(bool creep, bool plasticity) {
+    fuelsim::ThermoelasticProperties properties =
+        fuelsim::test::thermoelastic(0.0, 10.0, 2.0e11, 0.3, 0.0, 600.0, 0.0, 0.0, 0.0, 1.0, 1.0);
+    if (creep) properties = fuelsim::test::with_norton(std::move(properties), 1.0e-4, 1.0e8, 3.0);
+    if (plasticity) properties = fuelsim::test::with_plasticity(std::move(properties), 2.0e8, 2.0e9);
+    fuelsim::SpatialDefinition definition;
+    definition.regions.push_back({"solid", "solid", std::move(properties), 0.0, 600.0});
+    definition.boundary_conditions = {
+        {"temperature", fuelsim::BoundaryConditionType::dirichlet, "all", fuelsim::Field::temperature, 600.0},
+        {"fix_x", fuelsim::BoundaryConditionType::dirichlet, "x0", fuelsim::Field::displacement_x, 0.0},
+        {"fix_y", fuelsim::BoundaryConditionType::dirichlet, "y0", fuelsim::Field::displacement_y, 0.0},
+        {"fix_z", fuelsim::BoundaryConditionType::dirichlet, "z0", fuelsim::Field::displacement_z, 0.0},
+        {"traction", fuelsim::BoundaryConditionType::traction, "x2", fuelsim::Field::displacement_x, 2.01e8, true},
+    };
+    return definition;
+}
+bool test_inelastic_branches(const fuelsim::UnstructuredHex8Mesh& mesh) {
+    bool passed = true;
+    for (const std::array<bool, 2> branch : {std::array<bool, 2>{false, true}, {true, false}, {true, true}}) {
+        fuelsim::TransientProblem problem(inelastic_definition(branch[0], branch[1]), mesh);
+        fuelsim::SolverOptions options = solver_options();
+        options.linear_solver = fuelsim::SolverOptions::LinearSolver::direct;
+        options.preconditioner = fuelsim::SolverOptions::Preconditioner::lu;
+        options.maximum_iterations = 30;
+        const fuelsim::TransientResult result =
+            fuelsim::solve_transient(problem, {1.0, 0.1, 0.1, 0.1, 1.0, 0.5, 0, 1.0}, options);
+        double maximum_plastic = 0.0, maximum_creep = 0.0;
+        bool finite = true;
+        for (std::size_t element = 0; element < 2; ++element)
+            for (const fuelsim::CartesianMaterialPointState& point :
+                fuelsim::cartesian::ProblemAccess::material_history(problem, 0, element)) {
+                maximum_plastic = std::max(maximum_plastic, point.equivalent_plastic_strain);
+                maximum_creep = std::max(maximum_creep, point.equivalent_creep_strain);
+                finite = finite && std::isfinite(point.stress.xx) && std::isfinite(point.stress.yy) &&
+                         std::isfinite(point.stress.zz) && std::isfinite(point.stress.xy) &&
+                         std::isfinite(point.stress.yz) && std::isfinite(point.stress.xz);
+            }
+        passed = check(result.completed && result.accepted_steps.size() == 10 && finite &&
+                           (branch[1] ? maximum_plastic > 0.0 : maximum_plastic == 0.0) &&
+                           (branch[0] ? maximum_creep > 0.0 : maximum_creep == 0.0),
+                     "three-dimensional plastic, creep, and coupled transient branches solve and commit once") &&
+                 passed;
+    }
+    return passed;
+}
 } // namespace
 int main(int argc, char** argv) {
     if (argc < 4) {
@@ -214,6 +261,7 @@ int main(int argc, char** argv) {
     bool passed = test_steady(session, mesh, argv[1]);
     passed = test_transient(session, mesh, argv[3], argv[2]) && passed;
     passed = test_multiple_regions() && passed;
+    passed = test_inelastic_branches(mesh) && passed;
     session.collective_root_action([&]() {
         (void)std::remove(argv[1]);
         (void)std::remove(argv[2]);

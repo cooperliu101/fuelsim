@@ -44,9 +44,16 @@ struct Hex8ThermoelasticData final {
     IsotropicThermoelasticMaterial material;
     double volumetric_heat_source, time;
 };
+using Hex8MaterialHistory = std::array<CartesianMaterialPointState, 8>;
 Hex8LocalResidual compute_hex8_thermoelastic(const Hex8ThermoelasticData& data, const Hex8Geometry& geometry,
     const Hex8LocalValues& state, const Hex8LocalValues* committed_state = nullptr, double time_step = 0.0,
     Hex8LocalJacobian* jacobian = nullptr);
+Hex8LocalResidual compute_hex8_transient(const Hex8ThermoelasticData& data, const Hex8Geometry& geometry,
+    const Hex8LocalValues& state, const Hex8LocalValues& committed_state, const Hex8MaterialHistory& committed_material,
+    double time_step, Hex8LocalJacobian* jacobian = nullptr);
+Hex8MaterialHistory compute_hex8_transient_update(const Hex8ThermoelasticData& data, const Hex8Geometry& geometry,
+    const Hex8LocalValues& state, const Hex8LocalValues& committed_state, const Hex8MaterialHistory& committed_material,
+    double time_step);
 std::array<SymmetricTensor3Values, 8> compute_hex8_stress(
     const Hex8ThermoelasticData& data, const Hex8Geometry& geometry, const Hex8LocalValues& state);
 enum class CartesianTractionComponent { x, y, z };

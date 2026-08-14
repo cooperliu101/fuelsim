@@ -158,19 +158,6 @@ void NonlinearProblem::evaluate_contribution(std::size_t index, const std::vecto
         (linearize && workspace.jacobian.size() != local_count * local_count))
         throw std::logic_error("NonlinearProblem contribution output has the wrong size");
 }
-void NonlinearProblem::assemble_residual(const std::vector<double>& state, std::vector<double>& residual) const {
-    if (state.size() != dof_count())
-        throw std::invalid_argument("NonlinearProblem state size does not match DOF count");
-    validate_discretization();
-    validate_state(state);
-    residual.assign(dof_count(), 0.0);
-    ContributionWorkspace workspace;
-    for (std::size_t entry = 0; entry < contribution_count(); ++entry) {
-        evaluate_contribution(entry, state, workspace, false);
-        for (std::size_t local = 0; local < workspace.dofs.size(); ++local)
-            residual[workspace.dofs[local]] += workspace.residual[local];
-    }
-}
 namespace {
 LocalValues rz_local_values(const std::vector<double>& values) {
     if (values.size() != local_dof_count) throw std::invalid_argument("RZ contribution state must contain 12 DOFs");
@@ -197,8 +184,15 @@ class SpatialProblemStorage {
                 value.strain_formulation});
         }
     }
-    SpatialProblemStorage(SpatialDefinition definition, const UnstructuredHex8Mesh& source_mesh)
-        : cartesian(std::make_unique<cartesian::SpatialAssembly>(std::move(definition), source_mesh)) {}
+    SpatialProblemStorage(SpatialDefinition definition, const UnstructuredHex8Mesh& source_mesh, bool transient)
+        : cartesian(std::make_unique<cartesian::SpatialAssembly>(std::move(definition), source_mesh)) {
+        if (!transient)
+            for (std::size_t region = 0; region < cartesian->region_count(); ++region) {
+                const MaterialFunctionSet& functions = *cartesian->region(region).material.functions;
+                if (functions.has_creep() || functions.has_plasticity())
+                    throw std::invalid_argument("Steady Cartesian three-dimensional problems support only elasticity");
+            }
+    }
     bool is_cartesian() const noexcept { return cartesian != nullptr; }
     const spatial_detail::SpatialLayout& layout() const noexcept {
         return is_cartesian() ? static_cast<const spatial_detail::SpatialLayout&>(*cartesian) : *rz;
@@ -248,9 +242,9 @@ class SpatialProblemStorage {
     std::unique_ptr<cartesian::SpatialAssembly> cartesian;
     std::vector<Quad4RzData> kernel_data;
     std::vector<std::vector<Quad4MaterialHistory>> material_histories;
-    std::vector<std::vector<std::array<AxisymmetricStressValues, 4>>> material_stresses;
     std::vector<std::vector<Quad4MaterialHistory>> _staged_material_histories;
-    std::vector<std::vector<std::array<AxisymmetricStressValues, 4>>> _staged_material_stresses;
+    std::vector<std::vector<Hex8MaterialHistory>> cartesian_material_histories;
+    std::vector<std::vector<Hex8MaterialHistory>> _staged_cartesian_material_histories;
     TransientConservationSummary last_conservation_summary;
     std::vector<double> committed_solution;
     double committed_time = 0.0, committed_load_factor = 0.0, active_time_step = 0.0, active_end_time = 0.0,
@@ -261,7 +255,7 @@ class SpatialProblemStorage {
 SteadyProblem::SteadyProblem(SpatialDefinition definition, const UnstructuredQuad4Mesh& source_mesh)
     : _impl(std::make_unique<SpatialProblemStorage>(std::move(definition), source_mesh)) {}
 SteadyProblem::SteadyProblem(SpatialDefinition definition, const UnstructuredHex8Mesh& source_mesh)
-    : _impl(std::make_unique<SpatialProblemStorage>(std::move(definition), source_mesh)) {}
+    : _impl(std::make_unique<SpatialProblemStorage>(std::move(definition), source_mesh, false)) {}
 SteadyProblem::~SteadyProblem() = default;
 const cartesian::SpatialAssembly& BackendAccess::cartesian_spatial(const SteadyProblem& problem) noexcept {
     return *problem._impl->cartesian;
@@ -344,7 +338,7 @@ void SteadyProblem::contribution_dofs(std::size_t index, std::vector<std::size_t
 void SteadyProblem::compute_contribution(std::size_t index, const std::vector<double>& state,
     std::vector<double>& residual, std::vector<double>* jacobian) const {
     if (_impl->is_cartesian()) {
-        _impl->cartesian->compute_contribution(index, state, nullptr, 0.0, residual, jacobian);
+        _impl->cartesian->compute_contribution(index, state, nullptr, nullptr, 0.0, residual, jacobian);
         return;
     }
     const LocalValues local_state = rz_local_values(state);
@@ -406,6 +400,20 @@ std::array<double, 4> strain_difference(const std::array<double, 4>& current, co
 }
 } // namespace
 } // namespace rz
+namespace cartesian {
+namespace {
+double stress_strain_inner_product(const SymmetricTensor3Values& stress, const std::array<double, 6>& strain) noexcept {
+    return stress.xx * strain[0] + stress.yy * strain[1] + stress.zz * strain[2] +
+           2.0 * (stress.xy * strain[3] + stress.yz * strain[4] + stress.xz * strain[5]);
+}
+std::array<double, 6> strain_difference(const std::array<double, 6>& current, const std::array<double, 6>& old) {
+    std::array<double, 6> result{};
+    for (std::size_t component = 0; component < result.size(); ++component)
+        result[component] = current[component] - old[component];
+    return result;
+}
+} // namespace
+} // namespace cartesian
 namespace {
 bool finite_stress(const AxisymmetricStressValues& stress) {
     return std::isfinite(stress.rr) && std::isfinite(stress.zz) && std::isfinite(stress.hoop) &&
@@ -419,26 +427,38 @@ bool valid_material_state(const MaterialPointState& state) {
     return std::isfinite(state.equivalent_plastic_strain) && state.equivalent_plastic_strain >= 0.0 &&
            std::isfinite(state.equivalent_creep_strain) && state.equivalent_creep_strain >= 0.0;
 }
+bool valid_material_state(const CartesianMaterialPointState& state) {
+    for (std::size_t component = 0; component < state.elastic_strain.size(); ++component)
+        if (!std::isfinite(state.elastic_strain[component]) || !std::isfinite(state.plastic_strain[component]) ||
+            !std::isfinite(state.creep_strain[component]))
+            return false;
+    return std::isfinite(state.equivalent_plastic_strain) && state.equivalent_plastic_strain >= 0.0 &&
+           std::isfinite(state.equivalent_creep_strain) && state.equivalent_creep_strain >= 0.0 &&
+           std::isfinite(state.stress.xx) && std::isfinite(state.stress.yy) && std::isfinite(state.stress.zz) &&
+           std::isfinite(state.stress.xy) && std::isfinite(state.stress.yz) && std::isfinite(state.stress.xz);
+}
 } // namespace
 TransientProblem::TransientProblem(SpatialDefinition definition, const UnstructuredQuad4Mesh& source_mesh)
     : _impl(std::make_unique<SpatialProblemStorage>(std::move(definition), source_mesh)) {
     const std::size_t regions = _impl->layout().definition().regions.size();
     _impl->material_histories.resize(regions);
-    _impl->material_stresses.resize(regions);
     _impl->_staged_material_histories.resize(regions);
-    _impl->_staged_material_stresses.resize(regions);
     for (std::size_t region = 0; region < regions; ++region) {
         _impl->material_histories[region].resize(_impl->rz->region_element_count(region));
-        _impl->material_stresses[region].resize(_impl->rz->region_element_count(region));
         _impl->_staged_material_histories[region].resize(_impl->rz->region_element_count(region));
-        _impl->_staged_material_stresses[region].resize(_impl->rz->region_element_count(region));
     }
     apply_spatial_controls(0.0, 0.0);
     _impl->committed_solution = _impl->rz->initial_state();
     _impl->rz->restore_contact_state(_impl->committed_solution, _impl->rz->committed_contact_histories());
 }
 TransientProblem::TransientProblem(SpatialDefinition definition, const UnstructuredHex8Mesh& source_mesh)
-    : _impl(std::make_unique<SpatialProblemStorage>(std::move(definition), source_mesh)) {
+    : _impl(std::make_unique<SpatialProblemStorage>(std::move(definition), source_mesh, true)) {
+    _impl->cartesian_material_histories.resize(_impl->cartesian->region_count());
+    _impl->_staged_cartesian_material_histories.resize(_impl->cartesian->region_count());
+    for (std::size_t region = 0; region < _impl->cartesian->region_count(); ++region) {
+        _impl->cartesian_material_histories[region].resize(_impl->cartesian->region_element_count(region));
+        _impl->_staged_cartesian_material_histories[region].resize(_impl->cartesian->region_element_count(region));
+    }
     apply_spatial_controls(0.0, 0.0);
     _impl->committed_solution = _impl->cartesian->initial_state();
 }
@@ -447,10 +467,13 @@ bool TransientProblem::is_cartesian_3d() const noexcept { return _impl->is_carte
 const cartesian::SpatialAssembly& BackendAccess::cartesian_spatial(const TransientProblem& problem) noexcept {
     return *problem._impl->cartesian;
 }
+const std::vector<std::vector<Hex8MaterialHistory>>& BackendAccess::cartesian_material_histories(
+    const TransientProblem& problem) noexcept {
+    return problem._impl->cartesian_material_histories;
+}
 rz::TransientBackendView BackendAccess::transient(const TransientProblem& problem) noexcept {
     return {*problem._impl->rz, problem._impl->kernel_data, problem._impl->material_histories,
-        problem._impl->material_stresses, problem._impl->committed_solution, problem._impl->active_time_step,
-        problem._impl->time_step_active};
+        problem._impl->committed_solution, problem._impl->active_time_step, problem._impl->time_step_active};
 }
 const SpatialDefinition& TransientProblem::definition() const noexcept { return _impl->layout().definition(); }
 const std::vector<double>& TransientProblem::committed_solution() const noexcept { return _impl->committed_solution; }
@@ -477,7 +500,16 @@ RegionStateSummary TransientProblem::summarize_region(std::size_t region) const 
     for (std::size_t node = 0; node < node_count; ++node)
         result.maximum_temperature =
             std::max(result.maximum_temperature, _impl->committed_solution.at(temperature->begin + node_offset + node));
-    if (_impl->is_cartesian()) return result;
+    if (_impl->is_cartesian()) {
+        for (const Hex8MaterialHistory& element : _impl->cartesian_material_histories[region])
+            for (const CartesianMaterialPointState& point : element) {
+                result.maximum_equivalent_plastic_strain =
+                    std::max(result.maximum_equivalent_plastic_strain, point.equivalent_plastic_strain);
+                result.maximum_equivalent_creep_strain =
+                    std::max(result.maximum_equivalent_creep_strain, point.equivalent_creep_strain);
+            }
+        return result;
+    }
     for (const Quad4MaterialHistory& element : _impl->material_histories[region])
         for (const MaterialPointState& point : element) {
             result.maximum_equivalent_plastic_strain =
@@ -489,7 +521,7 @@ RegionStateSummary TransientProblem::summarize_region(std::size_t region) const 
 }
 TransientCommittedState BackendAccess::committed_state(const TransientProblem& problem) {
     const SpatialProblemStorage& storage = *problem._impl;
-    return {storage.committed_solution, storage.material_histories, storage.material_stresses,
+    return {storage.committed_solution, storage.material_histories, storage.cartesian_material_histories,
         storage.is_cartesian() ? std::vector<std::vector<ContactPointHistory>>{}
                                : storage.rz->committed_contact_histories(),
         storage.last_conservation_summary, storage.committed_time, storage.committed_load_factor};
@@ -502,7 +534,19 @@ void BackendAccess::restore_committed_state(TransientProblem& problem, Transient
         throw std::invalid_argument("Transient committed state layout does not match the problem");
     if (storage.is_cartesian()) {
         storage.cartesian->validate_state(state.solution);
+        if (!state.material_histories.empty() || !state.contact_histories.empty() ||
+            state.cartesian_material_histories.size() != storage.cartesian->region_count())
+            throw std::invalid_argument("Cartesian transient committed state layout does not match the problem");
+        for (std::size_t region = 0; region < storage.cartesian->region_count(); ++region) {
+            if (state.cartesian_material_histories[region].size() != storage.cartesian->region_element_count(region))
+                throw std::invalid_argument("Cartesian committed element state layout does not match");
+            for (const Hex8MaterialHistory& element : state.cartesian_material_histories[region])
+                for (const CartesianMaterialPointState& point : element)
+                    if (!valid_material_state(point))
+                        throw std::invalid_argument("Cartesian committed material state is invalid");
+        }
         storage.committed_solution = std::move(state.solution);
+        storage.cartesian_material_histories = std::move(state.cartesian_material_histories);
         storage.last_conservation_summary = state.conservation;
         storage.committed_time = state.time;
         storage.committed_load_factor = state.load_factor;
@@ -510,8 +554,7 @@ void BackendAccess::restore_committed_state(TransientProblem& problem, Transient
         problem.apply_spatial_controls(state.time, state.load_factor);
         return;
     }
-    if (state.material_histories.size() != storage.rz->region_count() ||
-        state.material_stresses.size() != storage.rz->region_count() ||
+    if (state.material_histories.size() != storage.rz->region_count() || !state.cartesian_material_histories.empty() ||
         state.contact_histories.size() != storage.layout().definition().contacts.size())
         throw std::invalid_argument("Transient committed state layout does not match the problem");
     const spatial_detail::SpatialLayout& dofs = *storage.rz;
@@ -524,19 +567,18 @@ void BackendAccess::restore_committed_state(TransientProblem& problem, Transient
     }
     for (std::size_t region = 0; region < storage.rz->region_count(); ++region) {
         const std::size_t elements = storage.rz->region_element_count(region);
-        if (state.material_histories[region].size() != elements || state.material_stresses[region].size() != elements)
+        if (state.material_histories[region].size() != elements)
             throw std::invalid_argument("Transient committed element state layout does not match");
         for (std::size_t element = 0; element < elements; ++element) {
             for (std::size_t q = 0; q < 4; ++q)
                 if (!valid_material_state(state.material_histories[region][element][q]) ||
-                    !finite_stress(state.material_stresses[region][element][q]))
+                    !finite_stress(state.material_histories[region][element][q].stress))
                     throw std::invalid_argument("Transient committed integration-point state is invalid");
         }
     }
     storage.rz->restore_contact_state(state.solution, state.contact_histories);
     storage.committed_solution = std::move(state.solution);
     storage.material_histories = std::move(state.material_histories);
-    storage.material_stresses = std::move(state.material_stresses);
     storage.last_conservation_summary = state.conservation;
     storage.committed_time = state.time;
     storage.committed_load_factor = state.load_factor;
@@ -561,6 +603,9 @@ struct TimeErrorAccumulator final {
     double difference_squared = 0.0, solution_squared = 0.0;
     std::size_t count = 0;
 };
+struct MaterialTimeErrors final {
+    TimeErrorAccumulator elastic, plastic, creep, equivalent_plastic, equivalent_creep, stress;
+};
 void accumulate_time_error(TimeErrorAccumulator& accumulator, double full_step, double two_half_steps) {
     const double difference = two_half_steps - full_step;
     accumulator.difference_squared += difference * difference;
@@ -573,6 +618,32 @@ double normalized_time_error(
     const double denominator = absolute_tolerance * std::sqrt(static_cast<double>(accumulator.count)) +
                                relative_tolerance * std::sqrt(accumulator.solution_squared);
     return std::sqrt(accumulator.difference_squared) / denominator;
+}
+void accumulate_material_time_error(MaterialTimeErrors& errors, const double* full_elastic, const double* half_elastic,
+    const double* full_plastic, const double* half_plastic, const double* full_creep, const double* half_creep,
+    const double* full_stress, const double* half_stress, std::size_t count, double full_plastic_equivalent,
+    double half_plastic_equivalent, double full_creep_equivalent, double half_creep_equivalent) {
+    for (std::size_t component = 0; component < count; ++component) {
+        accumulate_time_error(errors.elastic, full_elastic[component], half_elastic[component]);
+        accumulate_time_error(errors.plastic, full_plastic[component], half_plastic[component]);
+        accumulate_time_error(errors.creep, full_creep[component], half_creep[component]);
+        accumulate_time_error(errors.stress, full_stress[component], half_stress[component]);
+    }
+    accumulate_time_error(errors.equivalent_plastic, full_plastic_equivalent, half_plastic_equivalent);
+    accumulate_time_error(errors.equivalent_creep, full_creep_equivalent, half_creep_equivalent);
+}
+void assign_material_time_errors(
+    TransientTimeErrorEstimate& result, const MaterialTimeErrors& errors, const TransientTimeOptions& options) {
+    const double strain = options.strain_history_time_absolute_tolerance,
+                 relative = options.time_error_relative_tolerance;
+    result.elastic_strain = normalized_time_error(errors.elastic, strain, relative);
+    result.plastic_strain = normalized_time_error(errors.plastic, strain, relative);
+    result.creep_strain = normalized_time_error(errors.creep, strain, relative);
+    result.equivalent_plastic_strain = normalized_time_error(errors.equivalent_plastic, strain, relative);
+    result.equivalent_creep_strain = normalized_time_error(errors.equivalent_creep, strain, relative);
+    result.stress = normalized_time_error(errors.stress, options.stress_history_time_absolute_tolerance, relative);
+    result.maximum = std::max({result.maximum, result.elastic_strain, result.plastic_strain, result.creep_strain,
+        result.equivalent_plastic_strain, result.equivalent_creep_strain, result.stress});
 }
 TransientTimeErrorEstimate nodal_time_error(const TransientCommittedState& full, const TransientCommittedState& half,
     const std::vector<FieldDescriptor>& fields, const TransientTimeOptions& options) {
@@ -634,43 +705,28 @@ TransientTimeErrorEstimate compare_step_doubling_states(const TransientCommitted
     std::size_t expected_dof_count, const TransientTimeOptions& options) {
     if (full_step.solution.size() != two_half_steps.solution.size() || full_step.solution.size() != expected_dof_count)
         throw std::logic_error("step-doubling nodal-state layouts differ");
-    if (full_step.material_histories.size() != two_half_steps.material_histories.size() ||
-        full_step.material_stresses.size() != two_half_steps.material_stresses.size())
+    if (full_step.material_histories.size() != two_half_steps.material_histories.size())
         throw std::logic_error("step-doubling material-state region layouts differ");
-    TimeErrorAccumulator elastic, plastic;
-    TimeErrorAccumulator creep, equivalent_plastic;
-    TimeErrorAccumulator equivalent_creep, stress;
+    MaterialTimeErrors material;
     TimeErrorAccumulator contact_friction, contact_normal_multiplier;
     bool contact_state_mismatch = false;
     for (std::size_t region = 0; region < full_step.material_histories.size(); ++region) {
         const auto &full_history = full_step.material_histories[region],
                    &half_history = two_half_steps.material_histories[region];
-        const auto &full_stress = full_step.material_stresses[region],
-                   &half_stress = two_half_steps.material_stresses[region];
-        if (full_history.size() != half_history.size() || full_stress.size() != half_stress.size() ||
-            full_history.size() != full_stress.size())
+        if (full_history.size() != half_history.size())
             throw std::logic_error("step-doubling material-state element layouts differ");
         for (std::size_t element = 0; element < full_history.size(); ++element) {
             for (std::size_t q = 0; q < 4; ++q) {
                 const MaterialPointState &full_point = full_history[element][q], &half_point = half_history[element][q];
-                for (std::size_t component = 0; component < 4; ++component) {
-                    accumulate_time_error(
-                        elastic, full_point.elastic_strain[component], half_point.elastic_strain[component]);
-                    accumulate_time_error(
-                        plastic, full_point.plastic_strain[component], half_point.plastic_strain[component]);
-                    accumulate_time_error(
-                        creep, full_point.creep_strain[component], half_point.creep_strain[component]);
-                }
-                accumulate_time_error(
-                    equivalent_plastic, full_point.equivalent_plastic_strain, half_point.equivalent_plastic_strain);
-                accumulate_time_error(
-                    equivalent_creep, full_point.equivalent_creep_strain, half_point.equivalent_creep_strain);
-                const AxisymmetricStressValues &full_value = full_stress[element][q],
-                                               &half_value = half_stress[element][q];
-                accumulate_time_error(stress, full_value.rr, half_value.rr);
-                accumulate_time_error(stress, full_value.zz, half_value.zz);
-                accumulate_time_error(stress, full_value.hoop, half_value.hoop);
-                accumulate_time_error(stress, full_value.rz, half_value.rz);
+                const AxisymmetricStressValues &full_value = full_point.stress, &half_value = half_point.stress;
+                const double full_stress[] = {full_value.rr, full_value.zz, full_value.hoop, full_value.rz},
+                             half_stress[] = {half_value.rr, half_value.zz, half_value.hoop, half_value.rz};
+                accumulate_material_time_error(material, full_point.elastic_strain.data(),
+                    half_point.elastic_strain.data(), full_point.plastic_strain.data(),
+                    half_point.plastic_strain.data(), full_point.creep_strain.data(), half_point.creep_strain.data(),
+                    full_stress, half_stress, 4, full_point.equivalent_plastic_strain,
+                    half_point.equivalent_plastic_strain, full_point.equivalent_creep_strain,
+                    half_point.equivalent_creep_strain);
             }
         }
     }
@@ -688,27 +744,14 @@ TransientTimeErrorEstimate compare_step_doubling_states(const TransientCommitted
         }
     }
     TransientTimeErrorEstimate result = nodal_time_error(full_step, two_half_steps, fields, options);
-    result.elastic_strain = normalized_time_error(
-        elastic, options.strain_history_time_absolute_tolerance, options.time_error_relative_tolerance);
-    result.plastic_strain = normalized_time_error(
-        plastic, options.strain_history_time_absolute_tolerance, options.time_error_relative_tolerance);
-    result.creep_strain = normalized_time_error(
-        creep, options.strain_history_time_absolute_tolerance, options.time_error_relative_tolerance);
-    result.equivalent_plastic_strain = normalized_time_error(
-        equivalent_plastic, options.strain_history_time_absolute_tolerance, options.time_error_relative_tolerance);
-    result.equivalent_creep_strain = normalized_time_error(
-        equivalent_creep, options.strain_history_time_absolute_tolerance, options.time_error_relative_tolerance);
-    result.stress = normalized_time_error(
-        stress, options.stress_history_time_absolute_tolerance, options.time_error_relative_tolerance);
+    assign_material_time_errors(result, material, options);
     result.contact_friction =
         contact_state_mismatch ? std::numeric_limits<double>::infinity()
                                : normalized_time_error(contact_friction, options.displacement_time_absolute_tolerance,
                                      options.time_error_relative_tolerance);
     result.contact_normal_multiplier = normalized_time_error(contact_normal_multiplier,
         options.stress_history_time_absolute_tolerance, options.time_error_relative_tolerance);
-    result.maximum =
-        std::max({result.elastic_strain, result.plastic_strain, result.creep_strain, result.equivalent_plastic_strain,
-            result.equivalent_creep_strain, result.stress, result.contact_friction, result.contact_normal_multiplier});
+    result.maximum = std::max({result.maximum, result.contact_friction, result.contact_normal_multiplier});
     for (const TransientFieldTimeError& field : result.nodal_fields)
         result.maximum = std::max(result.maximum, field.value);
     return result;
@@ -729,30 +772,30 @@ TransientTimeErrorEstimate TransientProblem::step_doubling_error(const ProblemSt
         if (full.solution.size() != dof_count() || half.solution.size() != dof_count())
             throw std::logic_error("Cartesian step-doubling snapshot layouts differ");
         TransientTimeErrorEstimate result = rz::nodal_time_error(full, half, field_layout(), options);
-        double stress_difference_squared = 0.0, stress_solution_squared = 0.0;
-        std::size_t stress_count = 0;
-        for (std::size_t region = 0; region < _impl->cartesian->region_count(); ++region) {
-            for (std::size_t element = 0; element < _impl->cartesian->region_element_count(region); ++element) {
-                const auto full_stresses = _impl->cartesian->stress(region, element, full.solution);
-                const auto half_stresses = _impl->cartesian->stress(region, element, half.solution);
+        if (full.cartesian_material_histories.size() != half.cartesian_material_histories.size())
+            throw std::logic_error("Cartesian step-doubling material region layouts differ");
+        rz::MaterialTimeErrors material;
+        for (std::size_t region = 0; region < full.cartesian_material_histories.size(); ++region) {
+            const auto &full_region = full.cartesian_material_histories[region],
+                       &half_region = half.cartesian_material_histories[region];
+            if (full_region.size() != half_region.size())
+                throw std::logic_error("Cartesian step-doubling material element layouts differ");
+            for (std::size_t element = 0; element < full_region.size(); ++element)
                 for (std::size_t q = 0; q < 8; ++q) {
-                    const SymmetricTensor3Values &full_value = full_stresses[q], &half_value = half_stresses[q];
-                    const std::array<double, 6> full_components = {
-                        full_value.xx, full_value.yy, full_value.zz, full_value.xy, full_value.yz, full_value.xz};
-                    const std::array<double, 6> half_components = {
-                        half_value.xx, half_value.yy, half_value.zz, half_value.xy, half_value.yz, half_value.xz};
-                    for (std::size_t component = 0; component < 6; ++component) {
-                        const double difference = half_components[component] - full_components[component];
-                        stress_difference_squared += difference * difference;
-                        stress_solution_squared += half_components[component] * half_components[component];
-                        ++stress_count;
-                    }
+                    const CartesianMaterialPointState &first = full_region[element][q],
+                                                      &second = half_region[element][q];
+                    const std::array<double, 6> first_stress = {first.stress.xx, first.stress.yy, first.stress.zz,
+                        first.stress.xy, first.stress.yz, first.stress.xz};
+                    const std::array<double, 6> second_stress = {second.stress.xx, second.stress.yy, second.stress.zz,
+                        second.stress.xy, second.stress.yz, second.stress.xz};
+                    rz::accumulate_material_time_error(material, first.elastic_strain.data(),
+                        second.elastic_strain.data(), first.plastic_strain.data(), second.plastic_strain.data(),
+                        first.creep_strain.data(), second.creep_strain.data(), first_stress.data(),
+                        second_stress.data(), 6, first.equivalent_plastic_strain, second.equivalent_plastic_strain,
+                        first.equivalent_creep_strain, second.equivalent_creep_strain);
                 }
-            }
         }
-        result.stress = rz::normalized_time_error({stress_difference_squared, stress_solution_squared, stress_count},
-            options.stress_history_time_absolute_tolerance, options.time_error_relative_tolerance);
-        result.maximum = std::max(result.maximum, result.stress);
+        rz::assign_material_time_errors(result, material, options);
         return result;
     }
     return rz::compare_step_doubling_states(full, half, field_layout(), dof_count(), options);
@@ -800,13 +843,17 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
     if (_impl->is_cartesian()) {
         TransientConservationSummary conservation;
         const std::vector<double> raw_residual = accumulate_contribution_conservation(converged_solution, conservation);
+        auto& staged = _impl->_staged_cartesian_material_histories;
         for (std::size_t region = 0; region < _impl->cartesian->region_count(); ++region) {
             const std::size_t offset = _impl->cartesian->region_element_offset(region);
             for (std::size_t element = 0; element < _impl->cartesian->region_element_count(region); ++element) {
                 const Hex8LocalValues current = _impl->cartesian->volume_state(offset + element, converged_solution);
                 const Hex8LocalValues old = _impl->cartesian->volume_state(offset + element, _impl->committed_solution);
                 const Hex8Geometry& geometry = _impl->cartesian->region_element_geometry(region, element);
-                for (const Hex8QuadraturePoint& point : geometry.points) {
+                Hex8MaterialHistory update = _impl->cartesian->transient_update(region, element, current, old,
+                    _impl->cartesian_material_histories[region][element], _impl->active_time_step);
+                for (std::size_t q = 0; q < geometry.points.size(); ++q) {
+                    const Hex8QuadraturePoint& point = geometry.points[q];
                     double current_temperature = 0.0, old_temperature = 0.0;
                     for (std::size_t node = 0; node < 8; ++node) {
                         current_temperature += point.shape[node] * current[node];
@@ -818,17 +865,33 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                         (current_temperature - old_temperature) / _impl->active_time_step;
                     conservation.generated_heat_rate +=
                         point.weighted_measure * _impl->cartesian->region_heat_source(region);
+                    const CartesianMaterialPointState &old_history =
+                                                          _impl->cartesian_material_histories[region][element][q],
+                                                      &new_history = update[q];
+                    conservation.elastic_energy_change +=
+                        0.5 * point.weighted_measure *
+                        (cartesian::stress_strain_inner_product(new_history.stress, new_history.elastic_strain) -
+                            cartesian::stress_strain_inner_product(old_history.stress, old_history.elastic_strain));
+                    conservation.plastic_dissipation_increment +=
+                        point.weighted_measure *
+                        cartesian::stress_strain_inner_product(new_history.stress,
+                            cartesian::strain_difference(new_history.plastic_strain, old_history.plastic_strain));
+                    conservation.creep_dissipation_increment +=
+                        point.weighted_measure *
+                        cartesian::stress_strain_inner_product(new_history.stress,
+                            cartesian::strain_difference(new_history.creep_strain, old_history.creep_strain));
                 }
+                staged[region][element] = std::move(update);
             }
         }
         finalize_conservation(*this, converged_solution, _impl->committed_solution, raw_residual, conservation);
         _impl->last_conservation_summary = conservation;
+        _impl->cartesian_material_histories.swap(staged);
     } else {
         TransientConservationSummary conservation;
         const std::vector<double> raw_residual = accumulate_contribution_conservation(converged_solution, conservation);
         const std::size_t regions = _impl->rz->region_count();
         auto& staged = _impl->_staged_material_histories;
-        auto& staged_stresses = _impl->_staged_material_stresses;
         for (std::size_t region = 0; region < regions; ++region) {
             const std::size_t offset = _impl->rz->region_element_offset(region);
             for (std::size_t element = 0; element < staged[region].size(); ++element) {
@@ -836,7 +899,7 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                 const LocalValues committed_state =
                     gather_rz_state(*_impl->rz, offset + element, _impl->committed_solution);
                 const Quad4RzGeometry& geometry = _impl->rz->region_element_geometry(region, element);
-                Quad4MaterialUpdate update = compute_quad4_rz_transient_update(_impl->kernel_data[region], geometry,
+                Quad4MaterialHistory update = compute_quad4_rz_transient_update(_impl->kernel_data[region], geometry,
                     state, committed_state, _impl->material_histories[region][element], _impl->active_time_step);
                 for (std::size_t q = 0; q < geometry.points.size(); ++q) {
                     const RzQuadraturePoint& point = geometry.points[q];
@@ -854,9 +917,8 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                                                      (current_temperature - old_temperature) / _impl->active_time_step;
                     conservation.generated_heat_rate += point.weighted_measure * kernel_data.volumetric_heat_source;
                     const MaterialPointState &old_history = _impl->material_histories[region][element][q],
-                                             &new_history = update.history[q];
-                    const AxisymmetricStressValues &old_stress = _impl->material_stresses[region][element][q],
-                                                   &new_stress = update.stress[q];
+                                             &new_history = update[q];
+                    const AxisymmetricStressValues &old_stress = old_history.stress, &new_stress = new_history.stress;
                     conservation.elastic_energy_change +=
                         0.5 * point.weighted_measure *
                         (rz::stress_strain_inner_product(new_stress, new_history.elastic_strain) -
@@ -870,15 +932,13 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                         rz::stress_strain_inner_product(
                             new_stress, rz::strain_difference(new_history.creep_strain, old_history.creep_strain));
                 }
-                staged[region][element] = std::move(update.history);
-                staged_stresses[region][element] = std::move(update.stress);
+                staged[region][element] = std::move(update);
             }
         }
         finalize_conservation(*this, converged_solution, _impl->committed_solution, raw_residual, conservation);
         _impl->last_conservation_summary = conservation;
         _impl->rz->commit_contact_state(converged_solution);
         _impl->material_histories.swap(staged);
-        _impl->material_stresses.swap(staged_stresses);
     }
     _impl->committed_solution = converged_solution;
     _impl->committed_time = _impl->active_end_time;
@@ -947,8 +1007,13 @@ void TransientProblem::compute_contribution(std::size_t index, const std::vector
     std::vector<double>& residual, std::vector<double>* jacobian) const {
     require_active_time_step();
     if (_impl->is_cartesian()) {
+        const Hex8MaterialHistory* history = nullptr;
+        if (index < _impl->cartesian->volume_contribution_count()) {
+            const auto location = _impl->cartesian->element_location(index);
+            history = &_impl->cartesian_material_histories[location.first][location.second];
+        }
         _impl->cartesian->compute_contribution(
-            index, state, &_impl->committed_solution, _impl->active_time_step, residual, jacobian);
+            index, state, &_impl->committed_solution, history, _impl->active_time_step, residual, jacobian);
         return;
     }
     const rz::TransientBackendView backend = BackendAccess::transient(*this);
@@ -972,77 +1037,6 @@ void TransientProblem::compute_contribution(std::size_t index, const std::vector
 void TransientProblem::require_active_time_step() const {
     if (!_impl->time_step_active)
         throw std::logic_error("TransientProblem residual evaluation requires an active time step");
-}
-namespace {
-std::vector<double> analytic_directional_derivative(
-    const NonlinearProblem& problem, const std::vector<double>& state, const std::vector<double>& direction) {
-    problem.validate_discretization();
-    problem.validate_state(state);
-    std::vector<double> result(problem.dof_count(), 0.0);
-    ContributionWorkspace workspace;
-    for (std::size_t entry = 0; entry < problem.contribution_count(); ++entry) {
-        problem.evaluate_contribution(entry, state, workspace, true);
-        const std::size_t local_count = workspace.dofs.size();
-        for (std::size_t row = 0; row < local_count; ++row) {
-            double value = 0.0;
-            for (std::size_t column = 0; column < local_count; ++column)
-                value += workspace.jacobian[row * local_count + column] * direction.at(workspace.dofs[column]);
-            result.at(workspace.dofs[row]) += value;
-        }
-    }
-    for (const DirichletCondition& condition : problem.dirichlet_conditions())
-        result.at(condition.dof) = direction.at(condition.dof);
-    return result;
-}
-std::vector<double> constrained_residual(const NonlinearProblem& problem, const std::vector<double>& state) {
-    std::vector<double> result;
-    problem.assemble_residual(state, result);
-    for (const DirichletCondition& condition : problem.dirichlet_conditions())
-        result.at(condition.dof) = state.at(condition.dof) - condition.value;
-    return result;
-}
-FieldNorms field_norms(const NonlinearProblem& problem, const std::vector<double>& values) {
-    if (values.size() != problem.dof_count())
-        throw std::invalid_argument("Field norm vector size does not match the problem");
-    problem.validate_discretization();
-    FieldNorms result;
-    result.l2.resize(problem.field_layout().size());
-    result.maximum_absolute.resize(problem.field_layout().size());
-    for (std::size_t field = 0; field < problem.field_layout().size(); ++field) {
-        const FieldDescriptor& descriptor = problem.field_layout()[field];
-        for (std::size_t dof = descriptor.begin; dof < descriptor.end; ++dof) {
-            const double value = values[dof];
-            result.l2[field] = std::hypot(result.l2[field], value);
-            result.maximum_absolute[field] = std::max(result.maximum_absolute[field], std::abs(value));
-        }
-    }
-    return result;
-}
-} // namespace
-DirectionalJacobianCheck check_directional_jacobian(const NonlinearProblem& problem, const std::vector<double>& state,
-    const std::vector<double>& direction, double step) {
-    if (state.size() != problem.dof_count() || direction.size() != problem.dof_count())
-        throw std::invalid_argument("Directional Jacobian vectors do not match the problem");
-    if (!std::isfinite(step) || !(step > 0.0))
-        throw std::invalid_argument("Directional Jacobian step must be finite and positive");
-    std::vector<double> plus = state;
-    std::vector<double> minus = state;
-    for (std::size_t dof = 0; dof < state.size(); ++dof) {
-        plus[dof] += step * direction[dof];
-        minus[dof] -= step * direction[dof];
-    }
-    const std::vector<double> residual = constrained_residual(problem, state);
-    const std::vector<double> plus_residual = constrained_residual(problem, plus);
-    const std::vector<double> minus_residual = constrained_residual(problem, minus);
-    const std::vector<double> analytic = analytic_directional_derivative(problem, state, direction);
-    std::vector<double> finite_difference(problem.dof_count(), 0.0);
-    std::vector<double> difference(problem.dof_count(), 0.0);
-    for (std::size_t dof = 0; dof < problem.dof_count(); ++dof) {
-        finite_difference[dof] = (plus_residual[dof] - minus_residual[dof]) / (2.0 * step);
-        difference[dof] = analytic[dof] - finite_difference[dof];
-    }
-    return {field_norms(problem, residual), field_norms(problem, analytic), field_norms(problem, finite_difference),
-        field_norms(problem, difference)};
 }
 PiecewiseLinearTimeTable::PiecewiseLinearTimeTable(
     std::string name, std::vector<double> times, std::vector<double> values)

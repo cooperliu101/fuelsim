@@ -187,9 +187,12 @@ class ProblemAccess final {
         const TransientProblem& problem, std::size_t region, std::size_t element) {
         return view(problem).histories.at(region).at(element);
     }
-    static const std::array<AxisymmetricStressValues, 4>& material_stress(
+    static std::array<AxisymmetricStressValues, 4> material_stress(
         const TransientProblem& problem, std::size_t region, std::size_t element) {
-        return view(problem).stresses.at(region).at(element);
+        std::array<AxisymmetricStressValues, 4> result{};
+        const Quad4MaterialHistory& history = view(problem).histories.at(region).at(element);
+        for (std::size_t q = 0; q < result.size(); ++q) result[q] = history[q].stress;
+        return result;
     }
     static RegionStateSummary summarize_region_history(const TransientProblem& problem, std::size_t region) {
         return problem.summarize_region(region);

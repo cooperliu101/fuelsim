@@ -104,8 +104,7 @@ TransientStateLayout transient_state_layout(const fuelsim::TransientProblem& pro
     if (committed.solution.size() != problem.dof_count())
         throw std::runtime_error("Transient MPI committed solution size differs from the problem degree-of-freedom "
                                  "count");
-    if (committed.material_histories.size() != fuelsim::rz::ProblemAccess::region_count(problem) ||
-        committed.material_stresses.size() != fuelsim::rz::ProblemAccess::region_count(problem))
+    if (committed.material_histories.size() != fuelsim::rz::ProblemAccess::region_count(problem))
         throw std::runtime_error("Transient MPI material-state region layout differs from the problem");
     if (committed.contact_histories.size() != fuelsim::rz::ProblemAccess::definition(problem).contacts.size())
         throw std::runtime_error("Transient MPI contact-history pair count differs from the problem");
@@ -113,15 +112,10 @@ TransientStateLayout transient_state_layout(const fuelsim::TransientProblem& pro
     layout._node_count = problem.dof_count() / 3;
     for (std::size_t region = 0; region < fuelsim::rz::ProblemAccess::region_count(problem); ++region) {
         const std::size_t element_count = fuelsim::rz::ProblemAccess::region_mesh(problem, region).elements().size();
-        if (committed.material_histories[region].size() != element_count ||
-            committed.material_stresses[region].size() != element_count)
+        if (committed.material_histories[region].size() != element_count)
             throw std::runtime_error("Transient MPI material-state element layout differs from the problem");
         for (std::size_t element = 0; element < element_count; ++element) {
             const fuelsim::Quad4MaterialHistory& history = committed.material_histories[region][element];
-            const std::array<fuelsim::AxisymmetricStressValues, 4>& stresses =
-                committed.material_stresses[region][element];
-            if (history.size() != stresses.size())
-                throw std::runtime_error("Transient MPI material history and stress quadrature layouts differ");
             layout._quadrature_point_count += history.size();
         }
     }

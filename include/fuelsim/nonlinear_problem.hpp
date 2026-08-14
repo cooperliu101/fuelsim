@@ -67,18 +67,8 @@ class NonlinearProblem {
     std::size_t field_index(std::size_t dof) const;
     void evaluate_contribution(std::size_t index, const std::vector<double>& global_state,
         ContributionWorkspace& workspace, bool linearize) const;
-    void assemble_residual(const std::vector<double>& state, std::vector<double>& residual) const;
 
   private:
     std::shared_ptr<const void> _discretization_identity = std::make_shared<unsigned char>(0);
 };
-struct FieldNorms final {
-    std::vector<double> l2, maximum_absolute;
-};
-struct DirectionalJacobianCheck final {
-    FieldNorms residual, analytic_directional_derivative;
-    FieldNorms finite_difference_directional_derivative, difference;
-};
-DirectionalJacobianCheck check_directional_jacobian(const NonlinearProblem& problem, const std::vector<double>& state,
-    const std::vector<double>& direction, double step);
 } // namespace fuelsim

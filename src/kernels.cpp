@@ -351,19 +351,19 @@ LocalResidual compute_quad4_rz_transient(const Quad4RzData& data, const Quad4RzG
     }
     return quad4_rz_detail::values(ad_state, ad_residual, jacobian);
 }
-Quad4MaterialUpdate compute_quad4_rz_transient_update(const Quad4RzData& data, const Quad4RzGeometry& geometry,
+Quad4MaterialHistory compute_quad4_rz_transient_update(const Quad4RzData& data, const Quad4RzGeometry& geometry,
     const LocalValues& converged_state, const LocalValues& committed_state,
     const Quad4MaterialHistory& committed_material, double time_step) {
     validate_time_step(time_step);
     const LocalAdValues passive_state = quad4_rz_detail::ad_state(converged_state);
-    Quad4MaterialUpdate result{};
+    Quad4MaterialHistory result{};
     for (std::size_t q = 0; q < geometry.points.size(); ++q) {
         const TransientPointResponse evaluation = transient_point_response(geometry.points[q], passive_state,
             committed_state, data.material, committed_material[q], time_step, data.strain_formulation, data.time);
         if (!std::isfinite(evaluation.temperature.value()) || !(evaluation.temperature.value() > 0.0))
             throw std::domain_error("Transient Quad4 trial temperature must be finite and positive");
-        result.history[q] = IsotropicThermoelasticMaterial::state_values(evaluation.response.trial_state);
-        result.stress[q] = {
+        result[q] = IsotropicThermoelasticMaterial::state_values(evaluation.response.trial_state);
+        result[q].stress = {
             evaluation.response.stress.rr.value(),
             evaluation.response.stress.zz.value(),
             evaluation.response.stress.hoop.value(),

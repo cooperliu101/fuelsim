@@ -114,8 +114,7 @@ ConvergenceMetric finish_convergence(const ConvergenceAccumulator& accumulator) 
 std::array<ConvergenceMetric, 9> compare_committed_states(
     const fuelsim::TransientCommittedState& actual, const fuelsim::TransientCommittedState& reference) {
     if (actual.solution.size() != reference.solution.size() || actual.solution.size() % 3 != 0 ||
-        actual.material_histories.size() != reference.material_histories.size() ||
-        actual.material_stresses.size() != reference.material_stresses.size())
+        actual.material_histories.size() != reference.material_histories.size())
         throw std::logic_error("time-convergence committed-state layouts differ");
     std::array<ConvergenceAccumulator, 9> accumulators{};
     const std::size_t node_count = actual.solution.size() / 3;
@@ -126,16 +125,14 @@ std::array<ConvergenceMetric, 9> compare_committed_states(
         }
     }
     for (std::size_t region = 0; region < actual.material_histories.size(); ++region) {
-        if (actual.material_histories[region].size() != reference.material_histories[region].size() ||
-            actual.material_stresses[region].size() != reference.material_stresses[region].size())
+        if (actual.material_histories[region].size() != reference.material_histories[region].size())
             throw std::logic_error("time-convergence material-state region layouts differ");
         for (std::size_t element = 0; element < actual.material_histories[region].size(); ++element) {
             for (std::size_t q = 0; q < 4; ++q) {
                 const fuelsim::MaterialPointState& actual_history = actual.material_histories[region][element][q];
                 const fuelsim::MaterialPointState& reference_history = reference.material_histories[region][element][q];
-                const fuelsim::AxisymmetricStressValues& actual_stress = actual.material_stresses[region][element][q];
-                const fuelsim::AxisymmetricStressValues& reference_stress =
-                    reference.material_stresses[region][element][q];
+                const fuelsim::AxisymmetricStressValues& actual_stress = actual_history.stress;
+                const fuelsim::AxisymmetricStressValues& reference_stress = reference_history.stress;
                 const std::array<double, 4> actual_stress_values = {
                     actual_stress.rr, actual_stress.zz, actual_stress.hoop, actual_stress.rz};
                 const std::array<double, 4> reference_stress_values = {

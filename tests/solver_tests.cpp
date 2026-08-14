@@ -1,6 +1,7 @@
 #include "fuelsim/nonlinear_problem.hpp"
 #include "fuelsim/petsc_solver.hpp"
 #include "fuelsim/steady_problem.hpp"
+#include "support/jacobian_check.hpp"
 #include "support/material_factory.hpp"
 #include "support/mesh_fixture.hpp"
 #include "support/rz_problem_access.hpp"
@@ -275,7 +276,7 @@ bool test_runtime_contribution_layout() {
         }
     }
     std::vector<double> assembled_residual;
-    problem.assemble_residual(state, assembled_residual);
+    assembled_residual = fuelsim::test::assembled_residual(problem, state);
     double maximum_assembly_difference = 0.0;
     for (std::size_t dof = 0; dof < problem.dof_count(); ++dof)
         maximum_assembly_difference =
@@ -283,8 +284,8 @@ bool test_runtime_contribution_layout() {
     passed = check(maximum_assembly_difference < 1.0e-14,
                  "runtime residual assembly handles consecutive 32 and 7 DOF contributions") &&
              passed;
-    const fuelsim::DirectionalJacobianCheck directional =
-        fuelsim::check_directional_jacobian(problem, state, direction, 1.0e-6);
+    const fuelsim::test::DirectionalJacobianCheck directional =
+        fuelsim::test::check_directional_jacobian(problem, state, direction, 1.0e-6);
     passed = check(directional.difference.l2.size() == fields.size() &&
                        directional.difference.maximum_absolute.size() == fields.size(),
                  "directional Jacobian diagnostics return one result per runtime field") &&
@@ -307,7 +308,7 @@ bool test_runtime_contribution_layout() {
     options.temperature_residual_scale = 200.0;
     options.mechanical_residual_scale = 20.0;
     std::vector<double> expected_initial_residual;
-    problem.assemble_residual(initial, expected_initial_residual);
+    expected_initial_residual = fuelsim::test::assembled_residual(problem, initial);
     std::vector<double> expected_initial_field_norms(fields.size(), 0.0);
     for (std::size_t field = 0; field < fields.size(); ++field)
         for (std::size_t dof = fields[field].begin; dof < fields[field].end; ++dof)

@@ -21,6 +21,19 @@ fuelsim::Hex8Coordinates unit_cube() {
 fuelsim::ThermoelasticProperties properties() {
     return fuelsim::test::thermoelastic(3000.0, 4.0, 2.0e11, 0.25, 1.2e-5, 300.0, -1.0e8, 0.0, 1.0e-8, 2000.0, 3000.0);
 }
+fuelsim::ThermoelasticProperties inelastic_properties(bool creep, bool plasticity) {
+    fuelsim::ThermoelasticProperties result = fuelsim::test::thermoelastic(0.0, 1.0, 200.0, 0.25, 0.0, 300.0);
+    if (creep) result = fuelsim::test::with_norton(std::move(result), 1.0e-4, 10.0, 3.0, 300.0);
+    if (plasticity) result = fuelsim::test::with_plasticity(std::move(result), 10.0, 20.0, 300.0);
+    return result;
+}
+double equivalent_stress(const fuelsim::SymmetricTensor3& stress) {
+    const double mean = (stress.xx.value() + stress.yy.value() + stress.zz.value()) / 3.0;
+    const double xx = stress.xx.value() - mean, yy = stress.yy.value() - mean, zz = stress.zz.value() - mean;
+    return std::sqrt(1.5 * (xx * xx + yy * yy + zz * zz +
+                               2.0 * (stress.xy.value() * stress.xy.value() + stress.yz.value() * stress.yz.value() +
+                                         stress.xz.value() * stress.xz.value())));
+}
 bool test_geometry_and_constant_strain() {
     const fuelsim::Hex8Coordinates coordinates = unit_cube();
     const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(coordinates);
@@ -168,12 +181,51 @@ bool test_transient_capacity_and_faces() {
     return check(near(heat, 1000.0, 1.0e-14) && near(tangent_sum, 20.0, 1.0e-14),
         "three-dimensional convection has the exact face heat rate and consistent temperature tangent");
 }
+bool test_cartesian_inelastic_material() {
+    const fuelsim::SymmetricTensor3 strain{0.20, -0.04, -0.03, 0.02, -0.015, 0.01};
+    const fuelsim::CartesianMaterialPointState committed{};
+    bool passed = true;
+    for (const std::array<bool, 2> branch : {std::array<bool, 2>{false, true}, {true, false}, {true, true}}) {
+        const fuelsim::IsotropicThermoelasticMaterial material(inelastic_properties(branch[0], branch[1]));
+        const fuelsim::CartesianInelasticStressResponse response = material.response(strain, 300.0, 1.0, committed);
+        const fuelsim::CartesianMaterialPointState state = response.trial_state;
+        const double plastic_trace = state.plastic_strain[0] + state.plastic_strain[1] + state.plastic_strain[2];
+        const double creep_trace = state.creep_strain[0] + state.creep_strain[1] + state.creep_strain[2];
+        passed = check((branch[1] ? state.equivalent_plastic_strain > 0.0 : state.equivalent_plastic_strain == 0.0) &&
+                           (branch[0] ? state.equivalent_creep_strain > 0.0 : state.equivalent_creep_strain == 0.0) &&
+                           std::abs(plastic_trace) < 2.0e-15 && std::abs(creep_trace) < 2.0e-15 &&
+                           std::isfinite(equivalent_stress(response.stress)),
+                     "Cartesian plastic, creep, and coupled updates activate the requested traceless branches") &&
+                 passed;
+        const adlite::Scalar active_xx = adlite::Scalar::independent(strain.xx.value(), 0, 1);
+        const fuelsim::CartesianInelasticStressResponse active = material.response(
+            {active_xx, strain.yy, strain.zz, strain.xy, strain.yz, strain.xz}, 300.0, 1.0, committed);
+        constexpr double step = 1.0e-7;
+        const double plus =
+            material
+                .response({strain.xx.value() + step, strain.yy, strain.zz, strain.xy, strain.yz, strain.xz}, 300.0, 1.0,
+                    committed)
+                .stress.xx.value();
+        const double minus =
+            material
+                .response({strain.xx.value() - step, strain.yy, strain.zz, strain.xy, strain.yz, strain.xz}, 300.0, 1.0,
+                    committed)
+                .stress.xx.value();
+        const double numerical = (plus - minus) / (2.0 * step);
+        passed =
+            check(std::abs(active.stress.xx.derivative(0) - numerical) / std::max(1.0, std::abs(numerical)) < 2.0e-7,
+                "Cartesian inelastic material automatic-differentiation tangent matches centered difference") &&
+            passed;
+    }
+    return passed;
+}
 } // namespace
 int main() {
     bool passed = true;
     passed = test_geometry_and_constant_strain() && passed;
     passed = test_free_thermal_expansion_and_jacobian() && passed;
     passed = test_transient_capacity_and_faces() && passed;
+    passed = test_cartesian_inelastic_material() && passed;
     if (!passed) return 1;
     std::cout << "HEX8 thermo-mechanics tests passed\n";
     return 0;

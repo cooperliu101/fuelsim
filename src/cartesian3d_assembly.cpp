@@ -85,9 +85,6 @@ SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const Unstructure
         "Cartesian three-dimensional boundary has conflicting Dirichlet values",
         "Cartesian three-dimensional boundary has duplicate Dirichlet values");
     for (std::size_t region_index = 0; region_index < region_count(); ++region_index) {
-        const MaterialFunctionSet& functions = *region(region_index).material.functions;
-        if (functions.has_creep() || functions.has_plasticity())
-            throw std::invalid_argument("Cartesian three-dimensional stage B supports only elastic materials");
         _kernel_data.push_back(
             {IsotropicThermoelasticMaterial(region(region_index).material), region_heat_source(region_index), 0.0});
     }
@@ -151,8 +148,8 @@ Hex8LocalValues SpatialAssembly::volume_state(std::size_t index, const std::vect
     return result;
 }
 void SpatialAssembly::compute_contribution(std::size_t index, const std::vector<double>& state,
-    const std::vector<double>* committed_solution, double time_step, std::vector<double>& residual,
-    std::vector<double>* jacobian) const {
+    const std::vector<double>* committed_solution, const Hex8MaterialHistory* committed_material, double time_step,
+    std::vector<double>& residual, std::vector<double>* jacobian) const {
     if (index < volume_contribution_count()) {
         if (state.size() != hex8_local_dof_count)
             throw std::invalid_argument("HEX8 contribution state must contain 32 DOFs");
@@ -162,10 +159,15 @@ void SpatialAssembly::compute_contribution(std::size_t index, const std::vector<
         const Hex8LocalValues committed =
             committed_solution == nullptr ? Hex8LocalValues{} : volume_state(index, *committed_solution);
         Hex8LocalJacobian local_jacobian{};
-        const Hex8LocalResidual result = compute_hex8_thermoelastic(_kernel_data[location.first],
-            region_element_geometry(location.first, location.second), current,
-            committed_solution == nullptr ? nullptr : &committed, time_step,
-            jacobian == nullptr ? nullptr : &local_jacobian);
+        const Hex8LocalResidual result =
+            committed_material == nullptr
+                ? compute_hex8_thermoelastic(_kernel_data[location.first],
+                      region_element_geometry(location.first, location.second), current,
+                      committed_solution == nullptr ? nullptr : &committed, time_step,
+                      jacobian == nullptr ? nullptr : &local_jacobian)
+                : compute_hex8_transient(_kernel_data[location.first],
+                      region_element_geometry(location.first, location.second), current, committed, *committed_material,
+                      time_step, jacobian == nullptr ? nullptr : &local_jacobian);
         residual.assign(result.begin(), result.end());
         if (jacobian != nullptr) jacobian->assign(local_jacobian.begin(), local_jacobian.end());
         return;
@@ -180,6 +182,12 @@ void SpatialAssembly::compute_contribution(std::size_t index, const std::vector<
         _boundary_data[entry.kernel], entry.geometry, current, jacobian == nullptr ? nullptr : &local_jacobian);
     residual.assign(result.begin(), result.end());
     if (jacobian != nullptr) jacobian->assign(local_jacobian.begin(), local_jacobian.end());
+}
+Hex8MaterialHistory SpatialAssembly::transient_update(std::size_t region, std::size_t element,
+    const Hex8LocalValues& state, const Hex8LocalValues& committed_state, const Hex8MaterialHistory& committed_material,
+    double time_step) const {
+    return compute_hex8_transient_update(_kernel_data.at(region), region_element_geometry(region, element), state,
+        committed_state, committed_material, time_step);
 }
 std::array<SymmetricTensor3Values, 8> SpatialAssembly::stress(
     std::size_t region, std::size_t element, const std::vector<double>& state) const {

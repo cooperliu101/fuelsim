@@ -321,6 +321,25 @@ options. They are not a general strong-scaling result, a memory comparison, or
 evidence that HYPRE will converge for another material, contact state, mesh, or
 load path.
 
+## 2026-08-15 Cartesian three-dimensional inelasticity measurement
+
+The Cartesian three-dimensional plasticity, creep, and coupled implementation was paired with its
+pre-change commit `14ae880` in Release mode on CPU 0. OpenMP, OpenBLAS, MKL, and NumExpr were fixed to one
+thread. The 1,584-DOF production input retained the first run only as a cold sample. Ten subsequent alternating
+samples, including four pairs run in reverse order, had internal load-path medians of
+`1.093807713/1.116627052 s` for the baseline/candidate. The candidate was `2.086%` slower. Both versions
+completed 20 steps with 64 nonlinear and 64 linear iterations and the same `7.602509876370e-9` final residual.
+
+The required 23,010-DOF, 20-step direct case completed once per version in `60.547771959/60.888084858 s`, a
+`0.562%` candidate slowdown. Both runs used 62 nonlinear and 62 linear iterations, 82 residual callbacks, 62
+Jacobian callbacks, one PETSc workspace, and the same `3.017657067419e-9` final residual. The matching MOOSE
+run used the same mesh, physics, load steps, direct solver, CPU and thread limit, with CSV, Exodus and console
+output disabled; its wall time was `47.32 s`. On this machine and current toolchain, MOOSE therefore used
+`22.284%` less wall time than the candidate for this particular engineering-scale case. Internal fuelsim time
+and MOOSE process wall time are not a general scaling comparison, but they establish that the new capability did
+not change nonlinear work and that the remaining paired fuelsim slowdown is small rather than a large algorithmic
+regression.
+
 ## 2026-08-14 source consolidation measurement
 
 The source-consolidation candidate was paired with pre-refactor commit

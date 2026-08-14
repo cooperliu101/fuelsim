@@ -558,6 +558,15 @@ std::vector<std::string> cartesian_stress_variable_names() {
             result.push_back("stress_" + std::string(component) + "_q" + std::to_string(q));
     return result;
 }
+std::vector<std::string> cartesian_transient_variable_names() {
+    std::vector<std::string> result = cartesian_stress_variable_names();
+    result.reserve(64);
+    for (std::size_t q = 0; q < 8; ++q) {
+        result.push_back("equiv_plastic_q" + std::to_string(q));
+        result.push_back("equiv_creep_q" + std::to_string(q));
+    }
+    return result;
+}
 struct ResultsMeshView {
     std::size_t node_count, element_count;
     const std::vector<ElementBlockInfo>& blocks;
@@ -720,7 +729,8 @@ std::vector<std::vector<double>> transient_elements(
         for (std::size_t element = 0; element < region_mesh.elements().size(); ++element) {
             const std::size_t source = region_mesh.source_element_ids().at(element);
             const Quad4MaterialHistory& history = backend.histories.at(region).at(element);
-            const auto& stresses = backend.stresses.at(region).at(element);
+            std::array<AxisymmetricStressValues, 4> stresses{};
+            for (std::size_t q = 0; q < stresses.size(); ++q) stresses[q] = history[q].stress;
             store_stress_values(source, stresses, result);
             for (std::size_t q = 0; q < 4; ++q) {
                 const std::size_t history_offset = 16 + 10 * q;
@@ -756,15 +766,28 @@ void store_cartesian_stress_values(std::size_t source, const std::array<Symmetri
         values[offset + 5][source] = stresses[q].xz;
     }
 }
-std::vector<std::vector<double>> cartesian_elements(
-    const UnstructuredHex8Mesh& mesh, const cartesian::SpatialAssembly& spatial, const std::vector<double>& state) {
+std::vector<std::vector<double>> cartesian_elements(const UnstructuredHex8Mesh& mesh,
+    const cartesian::SpatialAssembly& spatial, const std::vector<double>* state,
+    const std::vector<std::vector<Hex8MaterialHistory>>* histories = nullptr) {
     const double missing = std::numeric_limits<double>::quiet_NaN();
-    std::vector<std::vector<double>> result(48, std::vector<double>(mesh.elements().size(), missing));
+    std::vector<std::vector<double>> result(
+        histories == nullptr ? 48 : 64, std::vector<double>(mesh.elements().size(), missing));
     for (std::size_t region = 0; region < spatial.region_count(); ++region) {
         const Hex8RegionMesh& region_mesh = spatial.region_mesh(region);
         for (std::size_t element = 0; element < region_mesh.elements().size(); ++element) {
-            const auto stresses = spatial.stress(region, element, state);
-            store_cartesian_stress_values(region_mesh.source_element_ids()[element], stresses, result);
+            const std::size_t source = region_mesh.source_element_ids()[element];
+            std::array<SymmetricTensor3Values, 8> stresses{};
+            if (histories == nullptr)
+                stresses = spatial.stress(region, element, *state);
+            else
+                for (std::size_t q = 0; q < 8; ++q) stresses[q] = histories->at(region).at(element)[q].stress;
+            store_cartesian_stress_values(source, stresses, result);
+            if (histories == nullptr) continue;
+            for (std::size_t q = 0; q < 8; ++q) {
+                const CartesianMaterialPointState& point = (*histories)[region][element][q];
+                result[48 + 2 * q][source] = point.equivalent_plastic_strain;
+                result[49 + 2 * q][source] = point.equivalent_creep_strain;
+            }
         }
     }
     return result;
@@ -853,7 +876,7 @@ void write_steady_results(const std::string& path, const UnstructuredHex8Mesh& m
     std::vector<std::vector<double>> nodal_values;
     const cartesian::SpatialAssembly& spatial = BackendAccess::cartesian_spatial(problem);
     fill_cartesian_nodal(mesh, spatial, state, nodal_values);
-    write_result_step(path, results_mesh_view(mesh), 1, 1.0, nodal_values, cartesian_elements(mesh, spatial, state),
+    write_result_step(path, results_mesh_view(mesh), 1, 1.0, nodal_values, cartesian_elements(mesh, spatial, &state),
         {problem.load_factor()});
 }
 ExodusTransientResultsWriter::ExodusTransientResultsWriter(
@@ -873,7 +896,7 @@ ExodusTransientResultsWriter::ExodusTransientResultsWriter(
     if (_path.empty()) throw std::invalid_argument("Exodus result path must not be empty");
     write_exodus_hex8(_path, *_hex_mesh);
     define_result_variables(_path, results_mesh_view(*_hex_mesh), cartesian_nodal_variable_names(),
-        cartesian_stress_variable_names(), {"load_factor"});
+        cartesian_transient_variable_names(), {"load_factor"});
 }
 void ExodusTransientResultsWriter::append(const TransientProblem& problem) {
     if (problem.time_step_active())
@@ -886,7 +909,8 @@ void ExodusTransientResultsWriter::append(const TransientProblem& problem) {
         const cartesian::SpatialAssembly& spatial = BackendAccess::cartesian_spatial(problem);
         fill_cartesian_nodal(*_hex_mesh, spatial, problem.committed_solution(), nodal_values);
         write_result_step(_path, results_mesh_view(*_hex_mesh), _step_count, problem.committed_time(), nodal_values,
-            cartesian_elements(*_hex_mesh, spatial, problem.committed_solution()), {problem.committed_load_factor()});
+            cartesian_elements(*_hex_mesh, spatial, nullptr, &BackendAccess::cartesian_material_histories(problem)),
+            {problem.committed_load_factor()});
     } else {
         const rz::SpatialAssembly& spatial = BackendAccess::transient(problem).spatial;
         fill_rz_nodal(*_rz_mesh, spatial, problem.committed_solution(), nodal_values);
@@ -898,7 +922,7 @@ void ExodusTransientResultsWriter::append(const TransientProblem& problem) {
 namespace {
 constexpr std::array<unsigned char, 16> checkpoint_magic = {
     'F', 'U', 'E', 'L', 'S', 'I', 'M', '_', 'C', 'H', 'E', 'C', 'K', 'P', 'T', '\0'};
-constexpr std::uint32_t checkpoint_version = 9U;
+constexpr std::uint32_t checkpoint_version = 10U;
 constexpr std::uint32_t endian_marker = 0x01020304U;
 constexpr std::uint64_t maximum_checkpoint_bytes = 16ULL * 1024ULL * 1024ULL * 1024ULL;
 std::uint64_t checksum(const std::vector<unsigned char>& bytes) {
@@ -953,34 +977,44 @@ class BinaryCursor final {
     const std::vector<unsigned char>& _bytes;
     std::size_t _position;
 };
-void append_strains(BinaryBuffer& payload, const std::array<double, 4>& values) {
-    for (const double value : values) payload.append_double(value);
+void append_material_values(BinaryBuffer& payload, const double* elastic, const double* plastic, const double* creep,
+    std::size_t count, double equivalent_plastic, double equivalent_creep, const double* stress) {
+    for (const double* values : {elastic, plastic, creep})
+        for (std::size_t component = 0; component < count; ++component) payload.append_double(values[component]);
+    payload.append_double(equivalent_plastic);
+    payload.append_double(equivalent_creep);
+    for (std::size_t component = 0; component < count; ++component) payload.append_double(stress[component]);
 }
-void read_strains(BinaryCursor& payload, std::array<double, 4>& values) {
-    for (double& value : values) value = payload.read_double();
+void read_material_values(BinaryCursor& payload, double* elastic, double* plastic, double* creep, std::size_t count,
+    double& equivalent_plastic, double& equivalent_creep, double* stress) {
+    for (double* values : {elastic, plastic, creep})
+        for (std::size_t component = 0; component < count; ++component) values[component] = payload.read_double();
+    equivalent_plastic = payload.read_double();
+    equivalent_creep = payload.read_double();
+    for (std::size_t component = 0; component < count; ++component) stress[component] = payload.read_double();
 }
-void append_material_point(
-    BinaryBuffer& payload, const MaterialPointState& state, const AxisymmetricStressValues& stress) {
-    append_strains(payload, state.elastic_strain);
-    append_strains(payload, state.plastic_strain);
-    append_strains(payload, state.creep_strain);
-    payload.append_double(state.equivalent_plastic_strain);
-    payload.append_double(state.equivalent_creep_strain);
-    payload.append_double(stress.rr);
-    payload.append_double(stress.zz);
-    payload.append_double(stress.hoop);
-    payload.append_double(stress.rz);
+void append_material_point(BinaryBuffer& payload, const MaterialPointState& state) {
+    const double stress[] = {state.stress.rr, state.stress.zz, state.stress.hoop, state.stress.rz};
+    append_material_values(payload, state.elastic_strain.data(), state.plastic_strain.data(), state.creep_strain.data(),
+        state.elastic_strain.size(), state.equivalent_plastic_strain, state.equivalent_creep_strain, stress);
 }
-void read_material_point(BinaryCursor& payload, MaterialPointState& state, AxisymmetricStressValues& stress) {
-    read_strains(payload, state.elastic_strain);
-    read_strains(payload, state.plastic_strain);
-    read_strains(payload, state.creep_strain);
-    state.equivalent_plastic_strain = payload.read_double();
-    state.equivalent_creep_strain = payload.read_double();
-    stress.rr = payload.read_double();
-    stress.zz = payload.read_double();
-    stress.hoop = payload.read_double();
-    stress.rz = payload.read_double();
+void read_material_point(BinaryCursor& payload, MaterialPointState& state) {
+    double stress[4];
+    read_material_values(payload, state.elastic_strain.data(), state.plastic_strain.data(), state.creep_strain.data(),
+        4, state.equivalent_plastic_strain, state.equivalent_creep_strain, stress);
+    state.stress = {stress[0], stress[1], stress[2], stress[3]};
+}
+void append_material_point(BinaryBuffer& payload, const CartesianMaterialPointState& state) {
+    const double stress[] = {
+        state.stress.xx, state.stress.yy, state.stress.zz, state.stress.xy, state.stress.yz, state.stress.xz};
+    append_material_values(payload, state.elastic_strain.data(), state.plastic_strain.data(), state.creep_strain.data(),
+        state.elastic_strain.size(), state.equivalent_plastic_strain, state.equivalent_creep_strain, stress);
+}
+void read_material_point(BinaryCursor& payload, CartesianMaterialPointState& state) {
+    double stress[6];
+    read_material_values(payload, state.elastic_strain.data(), state.plastic_strain.data(), state.creep_strain.data(),
+        6, state.equivalent_plastic_strain, state.equivalent_creep_strain, stress);
+    state.stress = {stress[0], stress[1], stress[2], stress[3], stress[4], stress[5]};
 }
 void append_conservation(BinaryBuffer& payload, const TransientConservationSummary& summary) {
     for (const TransientConservationField& field : transient_conservation_fields)
@@ -1005,7 +1039,12 @@ BinaryBuffer state_payload(const TransientProblem& problem, double next_time_ste
     payload.append_double(next_time_step);
     append_conservation(payload, state.conservation);
     for (const double value : state.solution) payload.append_double(value);
-    if (cartesian) return payload;
+    if (cartesian) {
+        for (const auto& region : state.cartesian_material_histories)
+            for (const Hex8MaterialHistory& element : region)
+                for (const CartesianMaterialPointState& point : element) append_material_point(payload, point);
+        return payload;
+    }
     for (const auto& contact : state.contact_histories) {
         for (const ContactPointHistory& history : contact) {
             payload.append_double(history.elastic_tangential_slip);
@@ -1016,8 +1055,7 @@ BinaryBuffer state_payload(const TransientProblem& problem, double next_time_ste
     for (std::size_t region = 0; region < state.material_histories.size(); ++region) {
         for (std::size_t element = 0; element < state.material_histories[region].size(); ++element)
             for (std::size_t q = 0; q < 4; ++q)
-                append_material_point(
-                    payload, state.material_histories[region][element][q], state.material_stresses[region][element][q]);
+                append_material_point(payload, state.material_histories[region][element][q]);
     }
     return payload;
 }
@@ -1096,6 +1134,13 @@ double restore_transient_checkpoint(const std::string& path, TransientProblem& p
     state.solution.resize(problem.dof_count());
     for (double& value : state.solution) value = payload.read_double();
     if (cartesian) {
+        const auto& expected_histories = BackendAccess::cartesian_material_histories(problem);
+        state.cartesian_material_histories.resize(expected_histories.size());
+        for (std::size_t region = 0; region < expected_histories.size(); ++region) {
+            state.cartesian_material_histories[region].resize(expected_histories[region].size());
+            for (Hex8MaterialHistory& element : state.cartesian_material_histories[region])
+                for (CartesianMaterialPointState& point : element) read_material_point(payload, point);
+        }
         if (!payload.at_end()) throw std::runtime_error("Checkpoint payload contains trailing data");
         BackendAccess::restore_committed_state(problem, std::move(state));
         return next_time_step;
@@ -1117,15 +1162,12 @@ double restore_transient_checkpoint(const std::string& path, TransientProblem& p
     }
     const rz::TransientBackendView backend = BackendAccess::transient(problem);
     state.material_histories.resize(backend.spatial.region_count());
-    state.material_stresses.resize(backend.spatial.region_count());
     for (std::size_t region = 0; region < backend.spatial.region_count(); ++region) {
         const std::size_t elements = backend.spatial.region_mesh(region).elements().size();
         state.material_histories[region].resize(elements);
-        state.material_stresses[region].resize(elements);
         for (std::size_t element = 0; element < elements; ++element)
             for (std::size_t q = 0; q < 4; ++q)
-                read_material_point(
-                    payload, state.material_histories[region][element][q], state.material_stresses[region][element][q]);
+                read_material_point(payload, state.material_histories[region][element][q]);
     }
     if (!payload.at_end()) throw std::runtime_error("Checkpoint payload contains trailing data");
     BackendAccess::restore_committed_state(problem, std::move(state));

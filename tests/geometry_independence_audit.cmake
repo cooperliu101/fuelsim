@@ -65,7 +65,6 @@ foreach(forbidden_state_layout
         "Quad4MaterialHistory"
         "AxisymmetricStressValues"
         "material_histories"
-        "material_stresses"
         "ContactPointHistory")
     string(FIND "${common_solver}" "${forbidden_state_layout}" location)
     if(NOT location EQUAL -1)

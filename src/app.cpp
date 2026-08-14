@@ -5,6 +5,7 @@
 #include "fuelsim/results_io.hpp"
 #include "problem_backend_access.hpp"
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <exception>
 #include <fstream>
@@ -202,35 +203,69 @@ void write_interface_summary(const std::string& name, const InterfaceSummary& su
 std::string output_segment_path(const std::string& restart_file, const std::string& output_file) {
     return restart_file.empty() ? output_file : next_results_segment_path(output_file);
 }
-std::vector<double> diagnostic_direction(const NonlinearProblem& problem) {
-    std::vector<double> result(problem.dof_count(), 0.0);
-    for (const FieldDescriptor& field : problem.field_layout()) {
+bool write_jacobian_check(const NonlinearProblem& problem, const std::vector<double>& state, CaseOutput& output) {
+    constexpr double step = 1.0e-4;
+    problem.validate_discretization();
+    problem.validate_state(state);
+    std::vector<double> direction(problem.dof_count()), analytic(problem.dof_count()), plus = state, minus = state;
+    for (const FieldDescriptor& field : problem.field_layout())
         for (std::size_t dof = field.begin; dof < field.end; ++dof) {
             const double index = static_cast<double>((dof - field.begin) % 7);
-            result[dof] = field.category == FieldCategory::thermal ? 0.25 + 0.05 * index : 1.0e-6 * (0.4 + 0.1 * index);
+            direction[dof] =
+                field.category == FieldCategory::thermal ? 0.25 + 0.05 * index : 1.0e-6 * (0.4 + 0.1 * index);
+            plus[dof] += step * direction[dof];
+            minus[dof] -= step * direction[dof];
         }
+    ContributionWorkspace workspace;
+    for (std::size_t entry = 0; entry < problem.contribution_count(); ++entry) {
+        problem.evaluate_contribution(entry, state, workspace, true);
+        const std::size_t local_count = workspace.dofs.size();
+        for (std::size_t row = 0; row < local_count; ++row)
+            for (std::size_t column = 0; column < local_count; ++column)
+                analytic[workspace.dofs[row]] +=
+                    workspace.jacobian[row * local_count + column] * direction[workspace.dofs[column]];
     }
-    return result;
-}
-bool write_jacobian_check(const NonlinearProblem& problem, const std::vector<double>& state, CaseOutput& output) {
-    const DirectionalJacobianCheck check =
-        check_directional_jacobian(problem, state, diagnostic_direction(problem), 1.0e-4);
+    const auto residual = [&](const std::vector<double>& values) {
+        std::vector<double> result(problem.dof_count());
+        ContributionWorkspace local_workspace;
+        problem.validate_state(values);
+        for (std::size_t entry = 0; entry < problem.contribution_count(); ++entry) {
+            problem.evaluate_contribution(entry, values, local_workspace, false);
+            for (std::size_t local = 0; local < local_workspace.dofs.size(); ++local)
+                result[local_workspace.dofs[local]] += local_workspace.residual[local];
+        }
+        for (const DirichletCondition& condition : problem.dirichlet_conditions())
+            result[condition.dof] = values[condition.dof] - condition.value;
+        return result;
+    };
+    for (const DirichletCondition& condition : problem.dirichlet_conditions())
+        analytic[condition.dof] = direction[condition.dof];
+    const std::vector<double> current_residual = residual(state), plus_residual = residual(plus),
+                              minus_residual = residual(minus);
     bool passed = true;
-    for (std::size_t field = 0; field < problem.field_layout().size(); ++field) {
-        const std::string prefix = "jacobian." + problem.field_layout()[field].name + ".";
-        const double reference = check.finite_difference_directional_derivative.l2[field],
-                     difference = check.difference.l2[field];
+    for (const FieldDescriptor& field : problem.field_layout()) {
+        double residual_l2 = 0.0, analytic_l2 = 0.0, reference = 0.0, difference = 0.0, reference_maximum = 0.0,
+               difference_maximum = 0.0;
+        for (std::size_t dof = field.begin; dof < field.end; ++dof) {
+            const double finite_difference = (plus_residual[dof] - minus_residual[dof]) / (2.0 * step),
+                         error = analytic[dof] - finite_difference;
+            residual_l2 = std::hypot(residual_l2, current_residual[dof]);
+            analytic_l2 = std::hypot(analytic_l2, analytic[dof]);
+            reference = std::hypot(reference, finite_difference);
+            difference = std::hypot(difference, error);
+            reference_maximum = std::max(reference_maximum, std::abs(finite_difference));
+            difference_maximum = std::max(difference_maximum, std::abs(error));
+        }
+        const std::string prefix = "jacobian." + field.name + ".";
         const double relative = reference > 0.0 ? difference / reference
                                                 : (difference == 0.0 ? 0.0 : std::numeric_limits<double>::infinity());
-        output.value(prefix + "residual_l2", check.residual.l2[field]);
-        output.value(prefix + "analytic_l2", check.analytic_directional_derivative.l2[field]);
+        output.value(prefix + "residual_l2", residual_l2);
+        output.value(prefix + "analytic_l2", analytic_l2);
         output.value(prefix + "finite_difference_l2", reference);
         output.value(prefix + "difference_l2", difference);
         output.value(prefix + "relative_l2", relative);
-        output.value(prefix + "maximum_absolute_difference", check.difference.maximum_absolute[field]);
-        passed = difference <= 1.0e-6 * (1.0 + reference) &&
-                 check.difference.maximum_absolute[field] <=
-                     1.0e-6 * (1.0 + check.finite_difference_directional_derivative.maximum_absolute[field]) &&
+        output.value(prefix + "maximum_absolute_difference", difference_maximum);
+        passed = difference <= 1.0e-6 * (1.0 + reference) && difference_maximum <= 1.0e-6 * (1.0 + reference_maximum) &&
                  passed;
     }
     output.value("jacobian.check_passed", passed);

@@ -91,8 +91,8 @@ bool compare_committed_states(
                                    nearly_equal(a.equivalent_creep_strain, b.equivalent_creep_strain),
                              "restart reproduces committed scalar history") &&
                          passed;
-                const fuelsim::AxisymmetricStressValues& stress_a = left.material_stresses[region][element][q];
-                const fuelsim::AxisymmetricStressValues& stress_b = right.material_stresses[region][element][q];
+                const fuelsim::AxisymmetricStressValues& stress_a = a.stress;
+                const fuelsim::AxisymmetricStressValues& stress_b = b.stress;
                 passed = check(nearly_equal(stress_a.rr, stress_b.rr) && nearly_equal(stress_a.zz, stress_b.zz) &&
                                    nearly_equal(stress_a.hoop, stress_b.hoop) && nearly_equal(stress_a.rz, stress_b.rz),
                              "restart reproduces committed stresses") &&

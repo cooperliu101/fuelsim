@@ -21,8 +21,10 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     void validate_state(const std::vector<double>& state) const;
     void contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const;
     void compute_contribution(std::size_t index, const std::vector<double>& state,
-        const std::vector<double>* committed_solution, double time_step, std::vector<double>& residual,
-        std::vector<double>* jacobian) const;
+        const std::vector<double>* committed_solution, const Hex8MaterialHistory* committed_material, double time_step,
+        std::vector<double>& residual, std::vector<double>* jacobian) const;
+    Hex8MaterialHistory transient_update(std::size_t region, std::size_t element, const Hex8LocalValues& state,
+        const Hex8LocalValues& committed_state, const Hex8MaterialHistory& committed_material, double time_step) const;
     Hex8LocalValues volume_state(std::size_t index, const std::vector<double>& global_state) const;
     std::array<SymmetricTensor3Values, 8> stress(
         std::size_t region, std::size_t element, const std::vector<double>& state) const;

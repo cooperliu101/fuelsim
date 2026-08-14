@@ -451,6 +451,24 @@ if(BUILD_TESTING)
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b3_hex8_thermoelastic_element_stress_final.csv")
     set_tests_properties(fuelsim_b3_hex8_moose_tests PROPERTIES LABELS "acceptance;three-dimensional")
 
+    add_executable(fuelsim_b3_hex8_inelastic_moose_tests tests/b3_hex8_inelastic_moose_tests.cpp)
+    target_link_libraries(fuelsim_b3_hex8_inelastic_moose_tests
+        PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
+    fuelsim_enable_warnings(fuelsim_b3_hex8_inelastic_moose_tests)
+    add_test(NAME fuelsim_b3_hex8_inelastic_moose_tests
+        COMMAND fuelsim_b3_hex8_inelastic_moose_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_hex8_plastic_moose.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b3_hex8_plastic_all_nodes_final.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b3_hex8_plastic_element_state_final.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_hex8_creep_moose.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b3_hex8_creep_all_nodes_final.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b3_hex8_creep_element_state_final.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_hex8_coupled_moose.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b3_hex8_coupled_all_nodes_final.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b3_hex8_coupled_element_state_final.csv")
+    set_tests_properties(fuelsim_b3_hex8_inelastic_moose_tests
+        PROPERTIES LABELS "acceptance;three-dimensional;inelastic")
+
     add_executable(fuelsim_multi_region_tests tests/multi_region_tests.cpp)
     target_link_libraries(fuelsim_multi_region_tests
         PRIVATE fuelsim::core fuelsim::solver
