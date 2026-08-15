@@ -97,6 +97,32 @@ mesh, and result snapshot. `fuelsim_moose_reference_sha256` recomputes every
 entry during release CTest; changing a snapshot without updating provenance is
 therefore a test failure.
 
+## Three-dimensional finite-strain inelastic response
+
+`b32_hex8_finite_inelastic.i` changes the preceding tracked two-element HEX8
+path to `strain = FINITE` and keeps MOOSE's default Taylor decomposition and
+finite-strain rotations. Plasticity, creep, and coupled references use the same
+material constants, ten 0.1-second Backward Euler steps, one MPI rank, and one
+thread. They were generated with:
+
+```bash
+/home/cooper/projects/july/july-opt -i b32_hex8_finite_inelastic.i \
+  Materials/stress/inelastic_models=plasticity Outputs/file_base=b32_hex8_finite_plastic
+/home/cooper/projects/july/july-opt -i b32_hex8_finite_inelastic.i \
+  Materials/stress/inelastic_models=creep Outputs/file_base=b32_hex8_finite_creep
+/home/cooper/projects/july/july-opt -i b32_hex8_finite_inelastic.i \
+  Outputs/file_base=b32_hex8_finite_coupled
+```
+
+`fuelsim_b32_hex8_finite_inelastic_moose_tests` compares all nodes and all
+fuelsim integration points. Temperature, three displacements, nonzero axial
+stress, and active equivalent plastic and creep histories must pass relative
+L2, relative absolute-peak, and maximum pointwise-relative errors below 0.5
+percent. Zero-reference components are reported with separate absolute errors
+and no denominator floor. The same test checks repeated callback immutability,
+rollback, exact finite-strain active-history checkpoint restart, and ten-step
+completion.
+
 ## M3.1 and M3.3 provenance
 
 Both M3 references were generated with one MPI rank from their tracked `.i`

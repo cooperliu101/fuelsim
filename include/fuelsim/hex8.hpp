@@ -1,6 +1,7 @@
 #pragma once
 #include "fuelsim/material.hpp"
 #include "fuelsim/mesh.hpp"
+#include "fuelsim/quad4_rz.hpp"
 #include <adlite/adlite.hpp>
 #include <array>
 #include <cstddef>
@@ -32,7 +33,8 @@ struct Hex8Geometry final {
 };
 struct Quad4FaceQuadraturePoint final {
     std::array<double, quad4_face_node_count> shape;
-    CartesianPoint3 outward_area_vector;
+    std::array<double, quad4_face_node_count> derivative_xi, derivative_eta;
+    CartesianPoint3 tangent_xi, tangent_eta;
     double weighted_measure;
 };
 struct Quad4FaceGeometry final {
@@ -43,7 +45,18 @@ Quad4FaceGeometry make_quad4_face_geometry(const Quad4FaceCoordinates& coordinat
 struct Hex8ThermoelasticData final {
     IsotropicThermoelasticMaterial material;
     double volumetric_heat_source, time;
+    StrainFormulation strain_formulation = StrainFormulation::small;
 };
+struct CartesianKinematics final {
+    SymmetricTensor3 strain_increment;
+    CartesianRotation rotation;
+    std::array<std::array<adlite::Scalar, 3>, hex8_node_count> current_gradient;
+    adlite::Scalar current_weighted_measure{0.0};
+};
+CartesianKinematics evaluate_cartesian_incremental_kinematics(const Hex8QuadraturePoint& point,
+    const Hex8LocalAdValues& current_state, const Hex8LocalValues& committed_state,
+    StrainFormulation strain_formulation);
+void validate_cartesian_deformation(const Hex8QuadraturePoint& point, const Hex8LocalValues& state);
 using Hex8MaterialHistory = std::array<CartesianMaterialPointState, 8>;
 Hex8LocalResidual compute_hex8_thermoelastic(const Hex8ThermoelasticData& data, const Hex8Geometry& geometry,
     const Hex8LocalValues& state, const Hex8LocalValues* committed_state = nullptr, double time_step = 0.0,
@@ -62,6 +75,7 @@ struct Quad4FaceBoundaryData final {
     Quad4FaceBoundaryKind kind;
     CartesianTractionComponent component;
     double load, ambient_temperature;
+    bool use_displaced_geometry = false;
 };
 Quad4FaceLocalResidual compute_quad4_face_boundary(const Quad4FaceBoundaryData& data, const Quad4FaceGeometry& geometry,
     const Quad4FaceLocalValues& state, Quad4FaceLocalJacobian* jacobian = nullptr);

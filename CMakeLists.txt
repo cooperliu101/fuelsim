@@ -469,6 +469,20 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_b3_hex8_inelastic_moose_tests
         PROPERTIES LABELS "acceptance;three-dimensional;inelastic")
 
+    add_test(NAME fuelsim_b32_hex8_finite_inelastic_moose_tests
+        COMMAND fuelsim_b3_hex8_inelastic_moose_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_hex8_finite_plastic_moose.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b32_hex8_finite_plastic_all_nodes_final.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b32_hex8_finite_plastic_element_state_final.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_hex8_finite_creep_moose.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b32_hex8_finite_creep_all_nodes_final.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b32_hex8_finite_creep_element_state_final.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_hex8_finite_coupled_moose.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b32_hex8_finite_coupled_all_nodes_final.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b32_hex8_finite_coupled_element_state_final.csv")
+    set_tests_properties(fuelsim_b32_hex8_finite_inelastic_moose_tests
+        PROPERTIES LABELS "acceptance;three-dimensional;finite-strain;inelastic")
+
     add_executable(fuelsim_multi_region_tests tests/multi_region_tests.cpp)
     target_link_libraries(fuelsim_multi_region_tests
         PRIVATE fuelsim::core fuelsim::solver

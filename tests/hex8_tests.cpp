@@ -166,6 +166,48 @@ bool test_transient_capacity_and_faces() {
     if (!check(near(force_x, 5.0, 1.0e-14) && near(force_y, 0.0, 1.0e-14) && near(force_z, 0.0, 1.0e-14),
             "reference pressure uses the outward three-dimensional face area vector and exact total force"))
         return false;
+    face_state.fill(0.0);
+    for (std::size_t node = 0; node < 4; ++node) {
+        face_state[4 + node] = 0.2 * face_coordinates[node].y;
+        face_state[8 + node] = 0.1 * face_coordinates[node].y;
+        face_state[12 + node] = -0.05 * face_coordinates[node].z;
+    }
+    const fuelsim::Quad4FaceBoundaryData follower = {
+        fuelsim::Quad4FaceBoundaryKind::pressure, fuelsim::CartesianTractionComponent::x, 5.0, 0.0, true};
+    fuelsim::Quad4FaceLocalJacobian follower_jacobian{};
+    const auto follower_residual = fuelsim::compute_quad4_face_boundary(follower, face, face_state, &follower_jacobian);
+    force_x = 0.0;
+    force_y = 0.0;
+    force_z = 0.0;
+    for (std::size_t node = 0; node < 4; ++node) {
+        force_x += follower_residual[4 + node];
+        force_y += follower_residual[8 + node];
+        force_z += follower_residual[12 + node];
+    }
+    if (!check(near(force_x, 5.225, 1.0e-14) && near(force_y, -0.95, 1.0e-14) && near(force_z, 0.0, 1.0e-14),
+            "three-dimensional follower pressure uses the complete current area vector and exact resultant"))
+        return false;
+    std::array<double, 16> follower_direction{};
+    for (std::size_t dof = 4; dof < 16; ++dof) follower_direction[dof] = std::cos(0.41 * static_cast<double>(dof + 1));
+    constexpr double follower_step = 1.0e-7;
+    auto follower_plus = face_state, follower_minus = face_state;
+    for (std::size_t dof = 0; dof < 16; ++dof) {
+        follower_plus[dof] += follower_step * follower_direction[dof];
+        follower_minus[dof] -= follower_step * follower_direction[dof];
+    }
+    const auto follower_plus_residual = fuelsim::compute_quad4_face_boundary(follower, face, follower_plus);
+    const auto follower_minus_residual = fuelsim::compute_quad4_face_boundary(follower, face, follower_minus);
+    double follower_error = 0.0;
+    for (std::size_t row = 4; row < 16; ++row) {
+        double analytic = 0.0;
+        for (std::size_t column = 0; column < 16; ++column)
+            analytic += follower_jacobian[row * 16 + column] * follower_direction[column];
+        const double numerical = (follower_plus_residual[row] - follower_minus_residual[row]) / (2.0 * follower_step);
+        follower_error = std::max(follower_error, std::abs(analytic - numerical));
+    }
+    if (!check(follower_error < 2.0e-9,
+            "three-dimensional follower-pressure geometric Jacobian matches centered difference"))
+        return false;
     for (std::size_t node = 0; node < 4; ++node) face_state[node] = 350.0;
     const fuelsim::Quad4FaceBoundaryData convection = {
         fuelsim::Quad4FaceBoundaryKind::convection, fuelsim::CartesianTractionComponent::x, 20.0, 300.0};
@@ -219,6 +261,104 @@ bool test_cartesian_inelastic_material() {
     }
     return passed;
 }
+bool test_finite_strain_kinematics_and_coupled_jacobian() {
+    const fuelsim::Hex8Coordinates coordinates = unit_cube();
+    const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(coordinates);
+    fuelsim::Hex8LocalValues state{};
+    const double stretch_x = 1.12, stretch_y = 0.94, stretch_z = 1.03;
+    for (std::size_t node = 0; node < 8; ++node) {
+        state[node] = 300.0;
+        state[8 + node] = (stretch_x - 1.0) * coordinates[node].x;
+        state[16 + node] = (stretch_y - 1.0) * coordinates[node].y;
+        state[24 + node] = (stretch_z - 1.0) * coordinates[node].z;
+    }
+    fuelsim::Hex8LocalAdValues passive{};
+    for (std::size_t dof = 0; dof < state.size(); ++dof) passive[dof] = state[dof];
+    const fuelsim::CartesianKinematics kinematics = fuelsim::evaluate_cartesian_incremental_kinematics(
+        geometry.points[0], passive, fuelsim::Hex8LocalValues{}, fuelsim::StrainFormulation::finite);
+    const auto taylor = [](double stretch) {
+        const double cinv_minus_one = 1.0 / (stretch * stretch) - 1.0;
+        return -0.5 * cinv_minus_one + 0.25 * cinv_minus_one * cinv_minus_one;
+    };
+    bool passed = check(near(kinematics.strain_increment.xx.value(), taylor(stretch_x), 2.0e-14) &&
+                            near(kinematics.strain_increment.yy.value(), taylor(stretch_y), 2.0e-14) &&
+                            near(kinematics.strain_increment.zz.value(), taylor(stretch_z), 2.0e-14) &&
+                            near(kinematics.current_weighted_measure.value(),
+                                geometry.points[0].weighted_measure * stretch_x * stretch_y * stretch_z, 2.0e-14),
+        "finite-strain HEX8 recovers the MOOSE Taylor diagonal increment and current volume measure");
+    for (std::size_t node = 0; node < 8; ++node) {
+        const fuelsim::CartesianPoint3& point = coordinates[node];
+        state[8 + node] = 0.20 * point.x + 0.08 * point.y - 0.03 * point.z;
+        state[16 + node] = -0.02 * point.x - 0.04 * point.y + 0.06 * point.z;
+        state[24 + node] = 0.04 * point.x - 0.05 * point.y - 0.03 * point.z;
+    }
+    const fuelsim::Hex8ThermoelasticData data{fuelsim::IsotropicThermoelasticMaterial(inelastic_properties(true, true)),
+        0.0, 1.0, fuelsim::StrainFormulation::finite};
+    const fuelsim::Hex8LocalValues committed_state = [] {
+        fuelsim::Hex8LocalValues value{};
+        for (std::size_t node = 0; node < 8; ++node) value[node] = 300.0;
+        return value;
+    }();
+    const fuelsim::Hex8MaterialHistory committed_material{};
+    fuelsim::Hex8LocalJacobian jacobian{};
+    (void)fuelsim::compute_hex8_transient(data, geometry, state, committed_state, committed_material, 1.0, &jacobian);
+    std::array<double, 32> direction{};
+    for (std::size_t dof = 0; dof < direction.size(); ++dof)
+        direction[dof] = dof < 8 ? 0.0 : std::sin(0.29 * static_cast<double>(dof + 1));
+    constexpr double step = 2.0e-7;
+    fuelsim::Hex8LocalValues plus = state, minus = state;
+    for (std::size_t dof = 0; dof < state.size(); ++dof) {
+        plus[dof] += step * direction[dof];
+        minus[dof] -= step * direction[dof];
+    }
+    const auto plus_residual =
+        fuelsim::compute_hex8_transient(data, geometry, plus, committed_state, committed_material, 1.0);
+    const auto minus_residual =
+        fuelsim::compute_hex8_transient(data, geometry, minus, committed_state, committed_material, 1.0);
+    double maximum_error = 0.0, scale = 0.0;
+    for (std::size_t row = 8; row < 32; ++row) {
+        double analytic = 0.0;
+        for (std::size_t column = 0; column < 32; ++column) analytic += jacobian[row * 32 + column] * direction[column];
+        const double numerical = (plus_residual[row] - minus_residual[row]) / (2.0 * step);
+        maximum_error = std::max(maximum_error, std::abs(analytic - numerical));
+        scale = std::max({scale, std::abs(analytic), std::abs(numerical)});
+    }
+    passed = check(maximum_error / scale < 2.0e-6,
+                 "finite-strain coupled HEX8 automatic-differentiation Jacobian matches centered difference") &&
+             passed;
+    fuelsim::Hex8LocalValues inverted = state;
+    for (std::size_t node = 0; node < 8; ++node) inverted[8 + node] = -2.0 * coordinates[node].x;
+    try {
+        (void)fuelsim::compute_hex8_transient(data, geometry, inverted, committed_state, committed_material, 1.0);
+        passed = check(false, "finite-strain HEX8 rejects a nonpositive deformation Jacobian") && passed;
+    } catch (const std::domain_error&) {}
+    fuelsim::CartesianMaterialPointState history;
+    history.elastic_strain = {0.01, -0.02, 0.03, 0.004, -0.005, 0.006};
+    history.plastic_strain = {0.02, -0.01, -0.01, 0.007, 0.008, -0.009};
+    history.creep_strain = {-0.03, 0.01, 0.02, -0.011, 0.012, 0.013};
+    history.equivalent_plastic_strain = 0.04;
+    history.equivalent_creep_strain = 0.05;
+    const fuelsim::CartesianRotation quarter_turn{0.0, -1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0};
+    const auto rotated =
+        fuelsim::IsotropicThermoelasticMaterial(inelastic_properties(false, false))
+            .incremental_response({0.0, 0.0, 0.0, 0.0, 0.0, 0.0}, quarter_turn, 300.0, 300.0, 1.0, history)
+            .trial_state;
+    const std::array<std::array<double, 6>, 3> expected = {{{-0.02, 0.01, 0.03, -0.004, 0.006, 0.005},
+        {-0.01, 0.02, -0.01, -0.007, -0.009, -0.008}, {0.01, -0.03, 0.02, 0.011, 0.013, -0.012}}};
+    const std::array<const std::array<double, 6>*, 3> actual = {
+        &rotated.elastic_strain, &rotated.plastic_strain, &rotated.creep_strain};
+    bool objective = true;
+    for (std::size_t tensor_index = 0; tensor_index < actual.size(); ++tensor_index)
+        for (std::size_t component = 0; component < 6; ++component)
+            objective =
+                objective && near((*actual[tensor_index])[component], expected[tensor_index][component], 1.0e-14);
+    passed =
+        check(objective && rotated.equivalent_plastic_strain == history.equivalent_plastic_strain &&
+                  rotated.equivalent_creep_strain == history.equivalent_creep_strain,
+            "finite-strain Cartesian elastic, plastic, and creep tensors rotate objectively while scalars do not") &&
+        passed;
+    return passed;
+}
 } // namespace
 int main() {
     bool passed = true;
@@ -226,6 +366,7 @@ int main() {
     passed = test_free_thermal_expansion_and_jacobian() && passed;
     passed = test_transient_capacity_and_faces() && passed;
     passed = test_cartesian_inelastic_material() && passed;
+    passed = test_finite_strain_kinematics_and_coupled_jacobian() && passed;
     if (!passed) return 1;
     std::cout << "HEX8 thermo-mechanics tests passed\n";
     return 0;

@@ -177,7 +177,7 @@ PETSc 和全局解向量。
 参考构形小应变弱式。瞬态 `finite` 使用 MOOSE 默认的增量 Taylor 应变与
 Rashid 转动；稳态没有 committed 材料历史，从参考构形 `F_old=I` 对当前总
 变形做一次 Taylor 更新，不能解释为随稳态载荷步累计的增量材料路径。两者
-都用 Cauchy 应力、当前构形梯度和当前 RZ 测度装配力学内力。热传导与热容
+都用 Cauchy 应力、当前构形梯度和当前体积测度装配力学内力。热传导与热容
 仍使用参考构形。有限应变区域的 pressure 是当前构形 follower load；
 traction 可选择参考或当前构形表面测度。区域发生非正 Jacobian、非正环向
 伸长或非正当前半径时会拒绝 Newton 试探态，不做隐式夹持。
@@ -302,8 +302,8 @@ Exodus 节点结果除间隙和法向压力外，还输出接触切向牵引、�
 `axial_displacement`；三维可为 `temperature`、`displacement_x`、
 `displacement_y` 或 `displacement_z`。`pressure` 不接受 `field`，方向取父单元
 外法向。小应变区域使用参考表面，
-有限应变区域使用当前半径、当前法向和当前表面测度。`traction` 必须声明
-一个位移 `field`，`value` 是该全局 R 或 Z 分量上的有符号表面牵引；默认
+有限应变区域使用当前法向和当前表面测度；轴对称区域还使用当前半径。
+`traction` 必须声明一个位移 `field`，`value` 是该全局位移分量上的有符号表面牵引；默认
 `configuration = reference`。有限应变区域可设置 `configuration = current`，
 此时方向仍固定为所选全局分量，但周长和边长使用当前构形并进入 AD Jacobian。
 小应变区域不能选择当前构形。

@@ -4,7 +4,7 @@
 #include <stdexcept>
 namespace fuelsim::cartesian {
 SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const UnstructuredHex8Mesh& source_mesh)
-    : SpatialLayout(definition, spatial_detail::resolve_block_ids(definition, source_mesh, false, false),
+    : SpatialLayout(definition, spatial_detail::resolve_block_ids(definition, source_mesh, false, true),
           spatial_detail::DofLayout::cartesian_3d) {
     _meshes.reserve(_block_ids.size());
     for (const std::int64_t block_id : _block_ids)
@@ -47,12 +47,17 @@ SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const Unstructure
             }
             continue;
         }
-        if (boundary.use_displaced_geometry)
-            throw std::invalid_argument("Cartesian three-dimensional stage B loads use the reference configuration");
+        const bool finite_strain = this->region(region).strain_formulation == StrainFormulation::finite;
+        if (boundary.use_displaced_geometry && !finite_strain)
+            throw std::invalid_argument(
+                "Cartesian current-configuration loads require a finite-strain region: " + boundary.name);
+        if (finite_strain && boundary.type == BoundaryConditionType::pressure && !boundary.use_displaced_geometry)
+            throw std::invalid_argument(
+                "Cartesian finite-strain pressure requires configuration = current: " + boundary.name);
         const std::size_t kernel = _boundary_data.size();
         if (boundary.type == BoundaryConditionType::pressure) {
-            _boundary_data.push_back(
-                {Quad4FaceBoundaryKind::pressure, CartesianTractionComponent::x, boundary.value, 0.0});
+            _boundary_data.push_back({Quad4FaceBoundaryKind::pressure, CartesianTractionComponent::x, boundary.value,
+                0.0, boundary.use_displaced_geometry});
         } else if (boundary.type == BoundaryConditionType::traction) {
             CartesianTractionComponent component = CartesianTractionComponent::x;
             if (boundary.field == Field::displacement_y)
@@ -61,7 +66,8 @@ SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const Unstructure
                 component = CartesianTractionComponent::z;
             else if (boundary.field != Field::displacement_x)
                 throw std::invalid_argument("Three-dimensional traction requires a displacement field");
-            _boundary_data.push_back({Quad4FaceBoundaryKind::traction, component, boundary.value, 0.0});
+            _boundary_data.push_back(
+                {Quad4FaceBoundaryKind::traction, component, boundary.value, 0.0, boundary.use_displaced_geometry});
         } else {
             _boundary_data.push_back({Quad4FaceBoundaryKind::convection, CartesianTractionComponent::x,
                 boundary.heat_transfer_coefficient, boundary.ambient_temperature});
@@ -85,8 +91,8 @@ SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const Unstructure
         "Cartesian three-dimensional boundary has conflicting Dirichlet values",
         "Cartesian three-dimensional boundary has duplicate Dirichlet values");
     for (std::size_t region_index = 0; region_index < region_count(); ++region_index) {
-        _kernel_data.push_back(
-            {IsotropicThermoelasticMaterial(region(region_index).material), region_heat_source(region_index), 0.0});
+        _kernel_data.push_back({IsotropicThermoelasticMaterial(region(region_index).material),
+            region_heat_source(region_index), 0.0, region(region_index).strain_formulation});
     }
     refresh_controls();
 }
@@ -111,6 +117,14 @@ void SpatialAssembly::validate_state(const std::vector<double>& state) const {
         throw std::invalid_argument("Three-dimensional state size does not match the problem");
     if (!std::all_of(state.begin(), state.end(), [](double value) { return std::isfinite(value); }))
         throw std::domain_error("Three-dimensional state must contain only finite values");
+    for (std::size_t region_index = 0; region_index < region_count(); ++region_index) {
+        if (region(region_index).strain_formulation != StrainFormulation::finite) continue;
+        for (std::size_t element = 0; element < region_element_count(region_index); ++element) {
+            const Hex8LocalValues local = volume_state(region_element_offset(region_index) + element, state);
+            for (const Hex8QuadraturePoint& point : region_element_geometry(region_index, element).points)
+                validate_cartesian_deformation(point, local);
+        }
+    }
 }
 void SpatialAssembly::contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const {
     if (index < volume_contribution_count()) {

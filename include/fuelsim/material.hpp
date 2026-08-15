@@ -29,6 +29,11 @@ struct CartesianInelasticStressResponse final {
     SymmetricTensor3 stress;
     CartesianMaterialPointState trial_state;
 };
+struct CartesianRotation final {
+    adlite::Scalar xx{1.0}, xy{0.0}, xz{0.0};
+    adlite::Scalar yx{0.0}, yy{1.0}, yz{0.0};
+    adlite::Scalar zx{0.0}, zy{0.0}, zz{1.0};
+};
 struct AxisymmetricRotation final {
     adlite::Scalar rr{1.0}, rz{0.0}, zr{0.0}, zz{1.0}, hoop{1.0};
 };
@@ -46,6 +51,7 @@ struct InelasticStressResponse final {
     MaterialPointTrialState trial_state;
 };
 AxisymmetricStress rotate_axisymmetric_tensor(const AxisymmetricStress& tensor, const AxisymmetricRotation& rotation);
+SymmetricTensor3 rotate_cartesian_tensor(const SymmetricTensor3& tensor, const CartesianRotation& rotation);
 class IsotropicThermoelasticMaterial final {
   public:
     explicit IsotropicThermoelasticMaterial(ThermoelasticProperties properties);
@@ -65,6 +71,9 @@ class IsotropicThermoelasticMaterial final {
         const adlite::Scalar& strain_hoop, const adlite::Scalar& strain_rz, const adlite::Scalar& temperature,
         double time_step, const MaterialPointState& committed, MaterialFunctionContext context = {}) const;
     CartesianInelasticStressResponse response(const SymmetricTensor3& strain, const adlite::Scalar& temperature,
+        double time_step, const CartesianMaterialPointState& committed, MaterialFunctionContext context = {}) const;
+    CartesianInelasticStressResponse incremental_response(const SymmetricTensor3& strain_increment,
+        const CartesianRotation& rotation, const adlite::Scalar& temperature, double committed_temperature,
         double time_step, const CartesianMaterialPointState& committed, MaterialFunctionContext context = {}) const;
     InelasticStressResponse incremental_response(const adlite::Scalar& strain_increment_rr,
         const adlite::Scalar& strain_increment_zz, const adlite::Scalar& strain_increment_hoop,
