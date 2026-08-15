@@ -29,6 +29,8 @@ files.
 | M5.2 large sliding | `m52_large_sliding_contact_rz_mesh.e` | 402 / 264 | `bd6677fcc6061c37f2dffe00c10dc197c54648227ac084ada10b27e12e5fa78d` |
 | M5.4 augmented contact | `m54_augmented_contact_rz_mesh.e` | 528 / 460 | `8304c2fc649863b0a7ce80fc17ca8c8d64161467f42be2610132b3cd29177ec0` |
 | B3 HEX8 thermoelasticity | `b3_hex8_mesh.e` | 12 / 2 HEX8 | `910088a0aad60aa2ab02f00c3b8cf384bc2a2a2377f41c3db7e554d5ca9481f2` |
+| B3.3 HEX8 coupled contact | `b33_hex8_contact_mesh.e` | 16 / 2 HEX8 | `e710f3add10b71478f786521af44cde8ff3fb81d4becf1fbab1266955ba43cf7` |
+| B3.4 HEX8 sliding friction | `b34_hex8_sliding_contact_mesh.e` | 16 / 2 HEX8 | `d9ec3f16dd1c836f88e4cdf21195b47cb8766e34e97415cd84fb94b1ea48e2f6` |
 
 Generate any snapshot from this directory by replacing `<case>` with the input
 stem:
@@ -122,6 +124,38 @@ percent. Zero-reference components are reported with separate absolute errors
 and no denominator floor. The same test checks repeated callback immutability,
 rollback, exact finite-strain active-history checkpoint restart, and ten-step
 completion.
+
+## Three-dimensional thermal, mechanical, and frictional contact
+
+`b33_hex8_contact_mesh.e` contains independent primary and secondary HEX8
+blocks. The primary contact face is two percent longer in each tangential
+direction, which keeps every secondary node projected during the prescribed
+motion. `b33_hex8_thermal_contact.i` isolates quadrature gap heat transfer,
+while `b33_hex8_contact.i` applies ten equal displacement increments with a
+penalty of `1e13 Pa/m` and Coulomb coefficient 0.2. The coupled fuelsim case
+uses both references on the same tracked mesh. Temperature, three displacement
+components, and nodal pressure pass relative L2, relative absolute-peak, and
+maximum pointwise-relative errors below 0.5 percent; the largest metric is the
+0.2813 percent temperature pointwise error. Fuelsim retains exact two-sided
+thermal conservation even though MOOSE integrates its two thermal-contact
+sides independently on the slightly different face areas.
+
+`b34_hex8_sliding_contact_mesh.e` narrows the tangential projection margin to
+21 micrometres on each y edge. `b34_hex8_sliding_contact.i` isolates a single
+full load step with coefficient 0.001 so that the Coulomb sliding branch is
+active without crossing the face boundary. Reaction sums on the prescribed
+secondary face provide the reference normal and tangential resultants. Fuelsim
+differs from MOOSE by `2.15e-7` percent in normal force and 0.1729 percent in
+tangential force. The same acceptance test checks exact restart of the
+three-component friction history.
+
+The reference commands were:
+
+```bash
+/home/cooper/projects/july/july-opt -i b33_hex8_thermal_contact.i
+/home/cooper/projects/july/july-opt -i b33_hex8_contact.i
+/home/cooper/projects/july/july-opt -i b34_hex8_sliding_contact.i
+```
 
 ## M3.1 and M3.3 provenance
 

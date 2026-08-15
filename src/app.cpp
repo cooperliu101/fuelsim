@@ -321,11 +321,18 @@ bool run_steady(const FuelSimCaseDefinition& definition, const UnstructuredQuad4
     if (!result.solve.failure_message.empty()) output.value("failure_message", result.solve.failure_message);
     output.value("petsc_workspace_setups", result.aggregate_timing.workspace_setups);
     output.value("total_seconds", result.total_seconds);
-    if (result.completed && result.solve.converged && hex_source == nullptr) {
-        const rz::SpatialAssembly& spatial = BackendAccess::steady(problem).spatial;
-        for (std::size_t contact = 0; contact < definition.spatial.contacts.size(); ++contact)
-            write_interface_summary(spatial.definition().contacts.at(contact).name,
-                spatial.summarize_interface(contact, result.solve.state), output);
+    if (result.completed && result.solve.converged) {
+        if (hex_source != nullptr) {
+            const cartesian::SpatialAssembly& spatial = BackendAccess::cartesian_spatial(problem);
+            for (std::size_t contact = 0; contact < definition.spatial.contacts.size(); ++contact)
+                write_interface_summary(spatial.definition().contacts.at(contact).name,
+                    spatial.summarize_interface(contact, result.solve.state), output);
+        } else {
+            const rz::SpatialAssembly& spatial = BackendAccess::steady(problem).spatial;
+            for (std::size_t contact = 0; contact < definition.spatial.contacts.size(); ++contact)
+                write_interface_summary(spatial.definition().contacts.at(contact).name,
+                    spatial.summarize_interface(contact, result.solve.state), output);
+        }
     }
     if (result.completed && result.solve.converged && !definition.outputs.exodus_file.empty())
         session.collective_root_action([&]() {
@@ -437,7 +444,12 @@ bool run_transient(const FuelSimCaseDefinition& definition, const UnstructuredQu
         output.value(prefix + "maximum_equivalent_plastic_strain", summary.maximum_equivalent_plastic_strain);
         output.value(prefix + "maximum_equivalent_creep_strain", summary.maximum_equivalent_creep_strain);
     }
-    if (hex_source == nullptr) {
+    if (hex_source != nullptr) {
+        const cartesian::SpatialAssembly& spatial = BackendAccess::cartesian_spatial(problem);
+        for (std::size_t contact = 0; contact < definition.spatial.contacts.size(); ++contact)
+            write_interface_summary(definition.spatial.contacts[contact].name,
+                spatial.summarize_interface(contact, result.committed_state), output);
+    } else {
         const rz::TransientBackendView backend = BackendAccess::transient(problem);
         for (std::size_t contact = 0; contact < definition.spatial.contacts.size(); ++contact)
             write_interface_summary(definition.spatial.contacts[contact].name,

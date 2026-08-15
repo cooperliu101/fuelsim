@@ -101,6 +101,15 @@ struct ContactNodeSummary final {
     bool sliding;
 };
 
+struct CartesianContactNodeSummary final {
+    double x, y, z;
+    bool projected;
+    std::size_t primary_face;
+    double gap, pressure, tributary_area, contact_force, tangential_traction, tangential_force;
+    std::array<double, 3> elastic_tangential_slip;
+    bool sliding;
+};
+
 struct InterfaceSummary final {
     double minimum_gap = std::numeric_limits<double>::infinity();
     double minimum_contact_gap = std::numeric_limits<double>::infinity();

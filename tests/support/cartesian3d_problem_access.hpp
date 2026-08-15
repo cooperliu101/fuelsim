@@ -29,6 +29,30 @@ class ProblemAccess final {
         return view(problem).region_node_offset(index);
     }
 
+    static std::vector<CartesianContactNodeSummary> summarize_contact_nodes(
+        const SteadyProblem& problem, std::size_t contact, const std::vector<double>& state) {
+        return view(problem).summarize_contact_nodes(contact, state);
+    }
+
+    static std::vector<std::size_t> contact_secondary_source_nodes(const SteadyProblem& problem, std::size_t contact) {
+        return view(problem).contact_secondary_source_nodes(contact);
+    }
+
+    static InterfaceSummary summarize_interface(
+        const SteadyProblem& problem, std::size_t contact, const std::vector<double>& state) {
+        return view(problem).summarize_interface(contact, state);
+    }
+
+    static const std::vector<std::vector<ContactPointHistory>>& committed_contact_histories(
+        const SteadyProblem& problem) noexcept {
+        return view(problem).committed_contact_histories();
+    }
+
+    static const std::vector<std::vector<ContactPointHistory>>& committed_contact_histories(
+        const TransientProblem& problem) noexcept {
+        return view(problem).committed_contact_histories();
+    }
+
     static const Hex8Geometry& region_element_geometry(
         const SteadyProblem& problem, std::size_t region, std::size_t element) {
         return view(problem).region_element_geometry(region, element);
@@ -54,6 +78,21 @@ class ProblemAccess final {
 
     static std::size_t region_node_offset(const TransientProblem& problem, std::size_t index) {
         return view(problem).region_node_offset(index);
+    }
+
+    static std::vector<CartesianContactNodeSummary> summarize_contact_nodes(
+        const TransientProblem& problem, std::size_t contact, const std::vector<double>& state) {
+        return view(problem).summarize_contact_nodes(contact, state);
+    }
+
+    static std::vector<std::size_t> contact_secondary_source_nodes(
+        const TransientProblem& problem, std::size_t contact) {
+        return view(problem).contact_secondary_source_nodes(contact);
+    }
+
+    static InterfaceSummary summarize_interface(
+        const TransientProblem& problem, std::size_t contact, const std::vector<double>& state) {
+        return view(problem).summarize_interface(contact, state);
     }
 
     static const Hex8Geometry& region_element_geometry(

@@ -10,6 +10,7 @@
 #include <iomanip>
 #include <iostream>
 #include <limits>
+#include <memory>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -352,7 +353,6 @@ int main(int argc, char** argv) {
             return 0;
         }
         const fuelsim::FuelSimCaseDefinition definition = fuelsim::read_case_input(input_path);
-        const fuelsim::UnstructuredQuad4Mesh source = fuelsim::read_exodus_quad4(definition.mesh_file);
         fuelsim::SolverOptions options;
         options.absolute_tolerance = definition.solver.absolute_tolerance;
         options.relative_tolerance = definition.solver.relative_tolerance;
@@ -368,6 +368,9 @@ int main(int argc, char** argv) {
         options.temperature_residual_scale = definition.solver.temperature_residual_scale;
         options.mechanical_residual_scale = definition.solver.mechanical_residual_scale;
         if (definition.problem == fuelsim::CaseProblem::transient) {
+            if (definition.geometry != fuelsim::CaseGeometry::axisymmetric_rz)
+                throw std::invalid_argument("Transient MPI benchmark currently requires axisymmetric RZ geometry");
+            const fuelsim::UnstructuredQuad4Mesh source = fuelsim::read_exodus_quad4(definition.mesh_file);
             const bool write_transient = mode == "write_transient" || mode == "write_transient_integrated";
             const bool compare_transient = mode == "compare_transient" || mode == "compare_transient_integrated";
             const bool integrated_path = mode == "write_transient_integrated" || mode == "compare_transient_integrated";
@@ -461,7 +464,15 @@ int main(int argc, char** argv) {
             }
             return 0;
         }
-        fuelsim::SteadyProblem problem(definition.spatial, source);
+        std::unique_ptr<fuelsim::SteadyProblem> problem_storage;
+        if (definition.geometry == fuelsim::CaseGeometry::cartesian_3d) {
+            const fuelsim::UnstructuredHex8Mesh source = fuelsim::read_exodus_hex8(definition.mesh_file);
+            problem_storage = std::make_unique<fuelsim::SteadyProblem>(definition.spatial, source);
+        } else {
+            const fuelsim::UnstructuredQuad4Mesh source = fuelsim::read_exodus_quad4(definition.mesh_file);
+            problem_storage = std::make_unique<fuelsim::SteadyProblem>(definition.spatial, source);
+        }
+        fuelsim::SteadyProblem& problem = *problem_storage;
         const bool field_split = mode == "compare_field_split";
         const bool block_jacobi = mode == "compare_block_jacobi";
         const bool hypre = mode == "compare_hypre";

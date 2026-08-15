@@ -1,4 +1,5 @@
 #include "fuelsim/hex8.hpp"
+#include "fuelsim/interface.hpp"
 #include "support/material_factory.hpp"
 #include <algorithm>
 #include <array>
@@ -370,6 +371,105 @@ bool test_finite_strain_kinematics_and_coupled_jacobian() {
         passed;
     return passed;
 }
+
+bool test_cartesian_surface_contact_kernels() {
+    const fuelsim::Quad4FaceCoordinates secondary = {{{0.99, 0.0, 0.0}, {0.99, 1.0, 0.0}, {0.99, 1.0, 1.0},
+                                            {0.99, 0.0, 1.0}}},
+                                        primary = {
+                                            {{1.0, -0.5, -0.5}, {1.0, 1.5, -0.5}, {1.0, 1.5, 1.5}, {1.0, -0.5, 1.5}}};
+    const fuelsim::Quad4FaceGeometry secondary_face = fuelsim::make_quad4_face_geometry(secondary);
+    const fuelsim::Quad4FaceQuadraturePoint& point = secondary_face.points[0];
+    const fuelsim::Quad4ToQuad4HeatGeometry heat_geometry{
+        secondary, primary, point.shape, point.derivative_xi, point.derivative_eta, 1.0};
+    fuelsim::Quad4SurfaceContactLocalValues state{}, committed{};
+    for (std::size_t node = 0; node < 4; ++node) {
+        state[node] = 400.0;
+        state[4 + node] = 300.0;
+        committed[node] = 400.0;
+        committed[4 + node] = 300.0;
+        state[8 + node] = 0.02;
+        state[16 + node] = 0.001;
+    }
+    fuelsim::Quad4SurfaceContactLocalJacobian heat_jacobian{};
+    const fuelsim::Quad4SurfaceContactLocalResidual heat =
+        fuelsim::compute_quad4_to_quad4_gap_heat({0.2, 0.001}, heat_geometry, state, &heat_jacobian);
+    double secondary_heat = 0.0, primary_heat = 0.0;
+    for (std::size_t node = 0; node < 4; ++node) {
+        secondary_heat += heat[node];
+        primary_heat += heat[4 + node];
+    }
+    bool passed = check(near(secondary_heat, 5000.0, 1.0e-12) && near(primary_heat, -5000.0, 1.0e-12),
+        "three-dimensional gap heat transfer is exactly conservative on the secondary quadrature point");
+    std::array<std::array<double, 4>, 4> shapes{}, derivatives_xi{}, derivatives_eta{};
+    for (std::size_t q = 0; q < 4; ++q) {
+        shapes[q] = secondary_face.points[q].shape;
+        derivatives_xi[q] = secondary_face.points[q].derivative_xi;
+        derivatives_eta[q] = secondary_face.points[q].derivative_eta;
+    }
+    const fuelsim::NodeToQuad4ContactGeometry contact_geometry{
+        secondary, primary, shapes, derivatives_xi, derivatives_eta, 0, 1.0};
+    fuelsim::Quad4SurfaceContactLocalJacobian contact_jacobian{};
+    const fuelsim::NormalContactProperties stick_properties{1000.0, 1.0, false};
+    const fuelsim::ContactPointHistory history{};
+    const fuelsim::Quad4SurfaceContactLocalResidual contact = fuelsim::compute_node_to_quad4_contact(
+        stick_properties, contact_geometry, state, committed, history, &contact_jacobian);
+    const fuelsim::CartesianContactPointValue stick =
+        fuelsim::compute_node_to_quad4_contact_value(stick_properties, contact_geometry, state, committed, history);
+    std::array<double, 3> resultant{};
+    for (std::size_t component = 0; component < 3; ++component)
+        for (std::size_t node = 0; node < 8; ++node) resultant[component] += contact[8 * (component + 1) + node];
+    passed =
+        check(stick.projected && near(stick.gap, -0.01, 1.0e-12) && near(stick.pressure, 10.0, 1.0e-12) &&
+                  near(stick.tributary_area, 0.25, 1.0e-12) && near(stick.contact_force, 2.5, 1.0e-12) &&
+                  near(stick.tangential_traction, 1.0, 1.0e-12) && !stick.sliding && near(resultant[0], 0.0, 1.0e-12) &&
+                  near(resultant[1], 0.0, 1.0e-12) && near(resultant[2], 0.0, 1.0e-12),
+            "three-dimensional node-to-face contact recovers pressure, tributary area, stick traction, and "
+            "equal-and-opposite force") &&
+        passed;
+    const fuelsim::CartesianContactPointValue sliding = fuelsim::compute_node_to_quad4_contact_value(
+        {1000.0, 0.05, false}, contact_geometry, state, committed, history);
+    passed = check(sliding.sliding && near(sliding.tangential_traction, 0.5, 1.0e-12) &&
+                       near(sliding.elastic_tangential_slip[1], 0.0005, 1.0e-12),
+                 "three-dimensional Coulomb contact caps sliding traction and stores the vector elastic slip") &&
+             passed;
+    std::array<double, 32> direction{};
+    for (std::size_t dof = 8; dof < direction.size(); ++dof)
+        direction[dof] = std::sin(0.37 * static_cast<double>(dof + 1));
+    constexpr double step = 1.0e-7;
+    fuelsim::Quad4SurfaceContactLocalValues plus = state, minus = state;
+    for (std::size_t dof = 0; dof < state.size(); ++dof) {
+        plus[dof] += step * direction[dof];
+        minus[dof] -= step * direction[dof];
+    }
+    const fuelsim::Quad4SurfaceContactLocalResidual plus_contact = fuelsim::compute_node_to_quad4_contact(
+                                                        stick_properties, contact_geometry, plus, committed, history),
+                                                    minus_contact = fuelsim::compute_node_to_quad4_contact(
+                                                        stick_properties, contact_geometry, minus, committed, history);
+    double maximum_error = 0.0, scale = 0.0;
+    std::size_t maximum_row = 0;
+    double maximum_analytic = 0.0, maximum_numerical = 0.0;
+    for (std::size_t row = 8; row < 32; ++row) {
+        double analytic = 0.0;
+        for (std::size_t column = 0; column < 32; ++column)
+            analytic += contact_jacobian[row * 32 + column] * direction[column];
+        const double numerical = (plus_contact[row] - minus_contact[row]) / (2.0 * step);
+        if (std::abs(analytic - numerical) > maximum_error) {
+            maximum_error = std::abs(analytic - numerical);
+            maximum_row = row;
+            maximum_analytic = analytic;
+            maximum_numerical = numerical;
+        }
+        scale = std::max({scale, std::abs(analytic), std::abs(numerical)});
+    }
+    std::cout << "cartesian_contact_jacobian_relative_error=" << maximum_error / scale << '\n'
+              << "cartesian_contact_jacobian_maximum_row=" << maximum_row << '\n'
+              << "cartesian_contact_jacobian_maximum_analytic=" << maximum_analytic << '\n'
+              << "cartesian_contact_jacobian_maximum_numerical=" << maximum_numerical << '\n';
+    passed = check(maximum_error / scale < 2.0e-6,
+                 "three-dimensional sticking contact automatic-differentiation Jacobian matches centered difference") &&
+             passed;
+    return passed;
+}
 } // namespace
 
 int main() {
@@ -379,6 +479,7 @@ int main() {
     passed = test_transient_capacity_and_faces() && passed;
     passed = test_cartesian_inelastic_material() && passed;
     passed = test_finite_strain_kinematics_and_coupled_jacobian() && passed;
+    passed = test_cartesian_surface_contact_kernels() && passed;
     if (!passed) return 1;
     std::cout << "HEX8 thermo-mechanics tests passed\n";
     return 0;

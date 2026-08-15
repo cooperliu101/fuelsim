@@ -469,3 +469,29 @@ These measurements apply
 only to this compact validation mesh, current adaptive path, hardware, PETSc,
 and MUMPS build. They do not contradict the two-rank speedup measured on the
 23,010-DOF benchmark and must not be generalized as a scaling limit.
+
+## 2026-08-15 B3.3 three-dimensional contact regression check
+
+The three-dimensional contact change was checked against pre-change commit
+`ca14ec5`. Both Release builds used PETSc 3.25.2, one MPI process, CPU 0, and
+one thread each for OpenMP, OpenBLAS, MKL, and NumExpr. One separate first run
+was excluded before three interleaved warmed samples of the unchanged
+1,584-degree-of-freedom RZ case:
+
+| revision | warmed samples | median |
+| --- | --- | ---: |
+| `ca14ec5` | 1.082358, 1.081505, 1.087497 s | 1.082358 s |
+| B3.3 candidate | 1.089770, 1.082828, 1.100855 s | 1.089770 s |
+
+The candidate median is 0.68 percent higher. Both revisions completed exactly
+64 nonlinear iterations, retained the same `7.602509876370e-09` final residual,
+and created one PETSc workspace. This sub-percent movement is recorded as
+no-regression evidence, not as a speedup or as a general performance claim.
+
+The required 23,010-degree-of-freedom, 20-step fuelsim case then completed once
+in `60.842814 s`, with 62 nonlinear iterations, 82 residual callbacks, 62
+Jacobian callbacks, and one PETSc workspace. A warmed MOOSE run on the same
+mesh and physics, with direct solve and file output disabled, took `46.35 s`.
+Thus this fuelsim run was 31.3 percent slower than that MOOSE observation. The
+comparison is a single engineering-case measurement and is not generalized to
+other meshes or contact paths.

@@ -62,6 +62,7 @@ endfunction()
 add_library(fuelsim_core
     src/assembly.cpp
     src/cartesian3d_assembly.cpp
+    src/cartesian3d_contact.cpp
     src/hex8.cpp
     src/kernels.cpp
     src/mesh.cpp
@@ -451,6 +452,22 @@ if(BUILD_TESTING)
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b3_hex8_thermoelastic_element_stress_final.csv")
     set_tests_properties(fuelsim_b3_hex8_moose_tests PROPERTIES LABELS "acceptance;three-dimensional")
 
+    add_executable(fuelsim_b33_hex8_contact_moose_tests tests/b33_hex8_contact_moose_tests.cpp)
+    target_link_libraries(fuelsim_b33_hex8_contact_moose_tests
+        PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
+    fuelsim_enable_warnings(fuelsim_b33_hex8_contact_moose_tests)
+    add_test(NAME fuelsim_b33_hex8_contact_moose_tests
+        COMMAND fuelsim_b33_hex8_contact_moose_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex8_contact_moose.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b33_hex8_thermal_contact_all_nodes_0001.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b33_hex8_contact_all_nodes_0010.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b33_hex8_contact_secondary_contact_0010.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex8_sliding_contact_moose.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b34_hex8_sliding_contact.csv"
+            "${CMAKE_CURRENT_BINARY_DIR}/b34_hex8_sliding_contact_checkpoint.bin")
+    set_tests_properties(fuelsim_b33_hex8_contact_moose_tests
+        PROPERTIES LABELS "acceptance;three-dimensional;contact;friction")
+
     add_executable(fuelsim_b3_hex8_inelastic_moose_tests tests/b3_hex8_inelastic_moose_tests.cpp)
     target_link_libraries(fuelsim_b3_hex8_inelastic_moose_tests
         PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
@@ -598,6 +615,28 @@ if(BUILD_TESTING)
         set_tests_properties(fuelsim_m52_mpi_equivalence PROPERTIES
             FIXTURES_REQUIRED m52_mpi_reference
             LABELS "acceptance;parallel"
+            PROCESSORS 2
+        )
+        add_test(NAME fuelsim_b33_mpi_reference
+            COMMAND fuelsim_mpi_equivalence_benchmark
+                write
+                "${CMAKE_CURRENT_BINARY_DIR}/b33_one_rank_state.txt"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex8_contact_moose.fsi"
+        )
+        set_tests_properties(fuelsim_b33_mpi_reference PROPERTIES
+            FIXTURES_SETUP b33_mpi_reference
+            LABELS "integration;parallel;three-dimensional;contact"
+        )
+        add_test(NAME fuelsim_b33_mpi_equivalence
+            COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2
+                $<TARGET_FILE:fuelsim_mpi_equivalence_benchmark>
+                compare
+                "${CMAKE_CURRENT_BINARY_DIR}/b33_one_rank_state.txt"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex8_contact_moose.fsi"
+        )
+        set_tests_properties(fuelsim_b33_mpi_equivalence PROPERTIES
+            FIXTURES_REQUIRED b33_mpi_reference
+            LABELS "acceptance;parallel;three-dimensional;contact"
             PROCESSORS 2
         )
         add_test(NAME fuelsim_mpi_field_split

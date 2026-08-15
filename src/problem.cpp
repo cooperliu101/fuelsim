@@ -242,16 +242,36 @@ class SpatialProblemStorage {
 
     std::vector<std::size_t> required_state_dofs(
         const NonlinearProblem& problem, std::size_t first, std::size_t last) const {
-        return is_cartesian() ? problem.NonlinearProblem::required_state_dofs(first, last)
-                              : rz->required_state_dofs(first, last);
+        (void)problem;
+        return is_cartesian() ? cartesian->required_state_dofs(first, last) : rz->required_state_dofs(first, last);
     }
 
     void validate_local_state(
         const NonlinearProblem& problem, std::size_t first, std::size_t last, const std::vector<double>& state) const {
+        (void)problem;
         if (is_cartesian())
-            problem.NonlinearProblem::validate_local_state(first, last, state);
+            cartesian->validate_local_state(first, last, state);
         else
             rz->validate_local_state(first, last, state);
+    }
+
+    const std::vector<std::vector<ContactPointHistory>>& committed_contact_histories() const noexcept {
+        return is_cartesian() ? cartesian->committed_contact_histories() : rz->committed_contact_histories();
+    }
+
+    void commit_contact_state(const std::vector<double>& state) {
+        if (is_cartesian())
+            cartesian->commit_contact_state(state);
+        else
+            rz->commit_contact_state(state);
+    }
+
+    void restore_contact_state(
+        const std::vector<double>& state, std::vector<std::vector<ContactPointHistory>> histories) {
+        if (is_cartesian())
+            cartesian->restore_contact_state(state, std::move(histories));
+        else
+            rz->restore_contact_state(state, std::move(histories));
     }
 
     void contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const {
@@ -330,9 +350,8 @@ void SteadyProblem::set_time(double value) {
 std::vector<double> SteadyProblem::initial_state() const { return _impl->layout().initial_state(); }
 
 ProblemStateSnapshot SteadyProblem::capture_internal_state() const {
-    auto histories = std::make_shared<const std::vector<std::vector<ContactPointHistory>>>(
-        _impl->is_cartesian() ? std::vector<std::vector<ContactPointHistory>>{}
-                              : _impl->rz->committed_contact_histories());
+    auto histories =
+        std::make_shared<const std::vector<std::vector<ContactPointHistory>>>(_impl->committed_contact_histories());
     return ProblemStateSnapshot(discretization_identity(), histories);
 }
 
@@ -340,22 +359,12 @@ void SteadyProblem::restore_internal_state(const ProblemStateSnapshot& snapshot,
     if (snapshot.empty()) throw std::invalid_argument("SteadyProblem cannot restore an empty internal-state snapshot");
     if (snapshot._owner != discretization_identity())
         throw std::invalid_argument("SteadyProblem cannot restore a snapshot from another problem");
-    if (_impl->is_cartesian()) {
-        if (state.size() != dof_count()) throw std::invalid_argument("SteadyProblem restore state size mismatch");
-        return;
-    }
     const auto histories =
         std::static_pointer_cast<const std::vector<std::vector<ContactPointHistory>>>(snapshot._state);
-    _impl->rz->restore_contact_state(state, *histories);
+    _impl->restore_contact_state(state, *histories);
 }
 
-void SteadyProblem::commit_internal_state(const std::vector<double>& state) {
-    if (_impl->is_cartesian()) {
-        if (state.size() != dof_count()) throw std::invalid_argument("SteadyProblem commit state size mismatch");
-        return;
-    }
-    _impl->rz->commit_contact_state(state);
-}
+void SteadyProblem::commit_internal_state(const std::vector<double>& state) { _impl->commit_contact_state(state); }
 
 std::size_t SteadyProblem::dof_count() const noexcept { return _impl->layout().dof_count(); }
 
@@ -519,6 +528,7 @@ TransientProblem::TransientProblem(SpatialDefinition definition, const Unstructu
     }
     apply_spatial_controls(0.0, 0.0);
     _impl->committed_solution = _impl->cartesian->initial_state();
+    _impl->cartesian->restore_contact_state(_impl->committed_solution, _impl->cartesian->committed_contact_histories());
 }
 
 TransientProblem::~TransientProblem() = default;
@@ -593,9 +603,8 @@ RegionStateSummary TransientProblem::summarize_region(std::size_t region) const 
 TransientCommittedState BackendAccess::committed_state(const TransientProblem& problem) {
     const SpatialProblemStorage& storage = *problem._impl;
     return {storage.committed_solution, storage.material_histories, storage.cartesian_material_histories,
-        storage.is_cartesian() ? std::vector<std::vector<ContactPointHistory>>{}
-                               : storage.rz->committed_contact_histories(),
-        storage.last_conservation_summary, storage.committed_time, storage.committed_load_factor};
+        storage.committed_contact_histories(), storage.last_conservation_summary, storage.committed_time,
+        storage.committed_load_factor};
 }
 
 void BackendAccess::restore_committed_state(TransientProblem& problem, TransientCommittedState state) {
@@ -606,7 +615,8 @@ void BackendAccess::restore_committed_state(TransientProblem& problem, Transient
         throw std::invalid_argument("Transient committed state layout does not match the problem");
     if (storage.is_cartesian()) {
         storage.cartesian->validate_state(state.solution);
-        if (!state.material_histories.empty() || !state.contact_histories.empty() ||
+        if (!state.material_histories.empty() ||
+            state.contact_histories.size() != storage.layout().definition().contacts.size() ||
             state.cartesian_material_histories.size() != storage.cartesian->region_count())
             throw std::invalid_argument("Cartesian transient committed state layout does not match the problem");
         for (std::size_t region = 0; region < storage.cartesian->region_count(); ++region) {
@@ -617,6 +627,7 @@ void BackendAccess::restore_committed_state(TransientProblem& problem, Transient
                     if (!valid_material_state(point))
                         throw std::invalid_argument("Cartesian committed material state is invalid");
         }
+        storage.cartesian->restore_contact_state(state.solution, std::move(state.contact_histories));
         storage.committed_solution = std::move(state.solution);
         storage.cartesian_material_histories = std::move(state.cartesian_material_histories);
         storage.last_conservation_summary = state.conservation;
@@ -822,6 +833,9 @@ TransientTimeErrorEstimate compare_step_doubling_states(const TransientCommitted
             const ContactPointHistory &full = full_step.contact_histories[contact][node],
                                       &half = two_half_steps.contact_histories[contact][node];
             accumulate_time_error(contact_friction, full.elastic_tangential_slip, half.elastic_tangential_slip);
+            for (std::size_t component = 0; component < full.cartesian_elastic_tangential_slip.size(); ++component)
+                accumulate_time_error(contact_friction, full.cartesian_elastic_tangential_slip[component],
+                    half.cartesian_elastic_tangential_slip[component]);
             accumulate_time_error(contact_normal_multiplier, full.normal_multiplier, half.normal_multiplier);
             contact_state_mismatch = contact_state_mismatch || full.sliding != half.sliding;
         }
@@ -901,13 +915,12 @@ void TransientProblem::begin_time_step(const TransientStepInput& input) {
     _impl->active_time_step = input.end_time - _impl->committed_time;
     _impl->active_end_time = input.end_time;
     _impl->active_load_factor = input.load_factor;
-    if (!_impl->is_cartesian() && _impl->rz->uses_augmented_contact())
-        _impl->active_contact_histories = _impl->rz->committed_contact_histories();
+    if (uses_augmented_contact()) _impl->active_contact_histories = _impl->committed_contact_histories();
     try {
         apply_spatial_controls(input.end_time, input.load_factor);
     } catch (...) {
-        if (!_impl->is_cartesian() && !_impl->active_contact_histories.empty())
-            _impl->rz->restore_contact_state(_impl->committed_solution, std::move(_impl->active_contact_histories));
+        if (!_impl->active_contact_histories.empty())
+            _impl->restore_contact_state(_impl->committed_solution, std::move(_impl->active_contact_histories));
         apply_spatial_controls(_impl->committed_time, _impl->committed_load_factor);
         clear_active_time_step();
         throw;
@@ -973,6 +986,7 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
         }
         finalize_conservation(*this, converged_solution, _impl->committed_solution, raw_residual, conservation);
         _impl->last_conservation_summary = conservation;
+        _impl->cartesian->commit_contact_state(converged_solution);
         _impl->cartesian_material_histories.swap(staged);
     } else {
         TransientConservationSummary conservation;
@@ -1036,8 +1050,8 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
 void TransientProblem::rollback_time_step() noexcept {
     if (!_impl->time_step_active) return;
     apply_spatial_controls(_impl->committed_time, _impl->committed_load_factor);
-    if (!_impl->is_cartesian() && !_impl->active_contact_histories.empty())
-        _impl->rz->restore_contact_state(_impl->committed_solution, std::move(_impl->active_contact_histories));
+    if (!_impl->active_contact_histories.empty())
+        _impl->restore_contact_state(_impl->committed_solution, std::move(_impl->active_contact_histories));
     clear_active_time_step();
 }
 

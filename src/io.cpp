@@ -560,8 +560,16 @@ std::vector<std::string> nodal_variable_names(const std::vector<ContactDefinitio
     return result;
 }
 
-std::vector<std::string> cartesian_nodal_variable_names() {
-    return {"temperature", "displacement_x", "displacement_y", "displacement_z"};
+std::vector<std::string> cartesian_nodal_variable_names(const std::vector<ContactDefinition>& contacts) {
+    std::vector<std::string> result = {"temperature", "displacement_x", "displacement_y", "displacement_z"};
+    for (const ContactDefinition& contact : contacts) {
+        result.push_back("contact_gap_" + contact.name);
+        result.push_back("contact_pressure_" + contact.name);
+        result.push_back("contact_tangential_traction_" + contact.name);
+        result.push_back("contact_elastic_tangential_slip_" + contact.name);
+        result.push_back("contact_sliding_" + contact.name);
+    }
+    return result;
 }
 
 std::vector<std::string> global_variable_names(const std::vector<ContactDefinition>& contacts) {
@@ -811,11 +819,40 @@ std::vector<std::vector<double>> transient_elements(
 void fill_cartesian_nodal(const UnstructuredHex8Mesh& mesh, const cartesian::SpatialAssembly& spatial,
     const std::vector<double>& state, std::vector<std::vector<double>>& values) {
     const double missing = std::numeric_limits<double>::quiet_NaN();
-    values.assign(4, std::vector<double>(mesh.nodes().size(), missing));
+    values.assign(cartesian_nodal_variable_names(spatial.definition().contacts).size(),
+        std::vector<double>(mesh.nodes().size(), missing));
     std::vector<bool> present(mesh.nodes().size(), false);
     for (std::size_t region = 0; region < spatial.region_count(); ++region)
         fill_region_nodal_values(spatial.region_mesh(region).source_node_ids(), spatial.region_node_offset(region),
             spatial, state, present, values);
+    for (std::size_t contact = 0; contact < spatial.definition().contacts.size(); ++contact) {
+        const std::vector<std::size_t> nodes = spatial.contact_secondary_source_nodes(contact);
+        const std::vector<CartesianContactNodeSummary> summary = spatial.summarize_contact_nodes(contact, state);
+        if (nodes.size() != summary.size())
+            throw std::logic_error("Three-dimensional contact result mapping size mismatch");
+        const std::size_t base = 4 + 5 * contact;
+        for (std::size_t node = 0; node < nodes.size(); ++node) {
+            if (!summary[node].projected) continue;
+            values[base][nodes[node]] = summary[node].gap;
+            values[base + 1][nodes[node]] = summary[node].pressure;
+            values[base + 2][nodes[node]] = summary[node].tangential_traction;
+            const std::array<double, 3>& slip = summary[node].elastic_tangential_slip;
+            values[base + 3][nodes[node]] = std::sqrt(slip[0] * slip[0] + slip[1] * slip[1] + slip[2] * slip[2]);
+            values[base + 4][nodes[node]] = summary[node].sliding ? 1.0 : 0.0;
+        }
+    }
+}
+
+std::vector<double> cartesian_globals(
+    const cartesian::SpatialAssembly& spatial, const std::vector<double>& state, double load_factor) {
+    std::vector<double> result = {load_factor};
+    for (std::size_t contact = 0; contact < spatial.definition().contacts.size(); ++contact) {
+        const InterfaceSummary summary = spatial.summarize_interface(contact, state);
+        result.push_back(summary.total_heat_rate);
+        result.push_back(summary.total_contact_force);
+        result.push_back(summary.total_tangential_force);
+    }
+    return result;
 }
 
 void store_cartesian_stress_values(std::size_t source, const std::array<SymmetricTensor3Values, 8>& stresses,
@@ -909,7 +946,15 @@ void EngineeringHistoryWriter::append(
         _stream << ',' << summary.maximum_temperature << ',' << summary.maximum_equivalent_plastic_strain << ','
                 << summary.maximum_equivalent_creep_strain;
     }
-    if (!problem.is_cartesian_3d()) {
+    if (problem.is_cartesian_3d()) {
+        const cartesian::SpatialAssembly& spatial = BackendAccess::cartesian_spatial(problem);
+        for (std::size_t contact = 0; contact < problem.definition().contacts.size(); ++contact) {
+            const InterfaceSummary summary = spatial.summarize_interface(contact, state);
+            _stream << ',' << summary.minimum_gap << ',' << summary.maximum_contact_pressure << ','
+                    << summary.total_heat_rate << ',' << summary.total_contact_force << ','
+                    << summary.total_tangential_force;
+        }
+    } else {
         const rz::TransientBackendView backend = BackendAccess::transient(problem);
         for (std::size_t contact = 0; contact < problem.definition().contacts.size(); ++contact) {
             const InterfaceSummary summary = backend.spatial.summarize_interface(contact, state);
@@ -941,13 +986,14 @@ void write_steady_results(const std::string& path, const UnstructuredHex8Mesh& m
     const std::vector<double>& state) {
     if (path.empty()) throw std::invalid_argument("Exodus result path must not be empty");
     write_exodus_hex8(path, mesh);
-    define_result_variables(path, results_mesh_view(mesh), cartesian_nodal_variable_names(),
-        cartesian_stress_variable_names(), {"load_factor"});
-    std::vector<std::vector<double>> nodal_values;
     const cartesian::SpatialAssembly& spatial = BackendAccess::cartesian_spatial(problem);
+    define_result_variables(path, results_mesh_view(mesh),
+        cartesian_nodal_variable_names(spatial.definition().contacts), cartesian_stress_variable_names(),
+        global_variable_names(spatial.definition().contacts));
+    std::vector<std::vector<double>> nodal_values;
     fill_cartesian_nodal(mesh, spatial, state, nodal_values);
     write_result_step(path, results_mesh_view(mesh), 1, 1.0, nodal_values, cartesian_elements(mesh, spatial, &state),
-        {problem.load_factor()});
+        cartesian_globals(spatial, state, problem.load_factor()));
 }
 
 ExodusTransientResultsWriter::ExodusTransientResultsWriter(
@@ -966,9 +1012,10 @@ ExodusTransientResultsWriter::ExodusTransientResultsWriter(
     : _path(std::move(path)), _hex_mesh(std::make_unique<UnstructuredHex8Mesh>(std::move(mesh))),
       _problem_signature(transient_problem_signature(problem)), _step_count(0) {
     if (_path.empty()) throw std::invalid_argument("Exodus result path must not be empty");
+    const std::vector<ContactDefinition>& contacts = problem.definition().contacts;
     write_exodus_hex8(_path, *_hex_mesh);
-    define_result_variables(_path, results_mesh_view(*_hex_mesh), cartesian_nodal_variable_names(),
-        cartesian_transient_variable_names(), {"load_factor"});
+    define_result_variables(_path, results_mesh_view(*_hex_mesh), cartesian_nodal_variable_names(contacts),
+        cartesian_transient_variable_names(), global_variable_names(contacts));
 }
 
 void ExodusTransientResultsWriter::append(const TransientProblem& problem) {
@@ -983,7 +1030,7 @@ void ExodusTransientResultsWriter::append(const TransientProblem& problem) {
         fill_cartesian_nodal(*_hex_mesh, spatial, problem.committed_solution(), nodal_values);
         write_result_step(_path, results_mesh_view(*_hex_mesh), _step_count, problem.committed_time(), nodal_values,
             cartesian_elements(*_hex_mesh, spatial, nullptr, &BackendAccess::cartesian_material_histories(problem)),
-            {problem.committed_load_factor()});
+            cartesian_globals(spatial, problem.committed_solution(), problem.committed_load_factor()));
     } else {
         const rz::SpatialAssembly& spatial = BackendAccess::transient(problem).spatial;
         fill_rz_nodal(*_rz_mesh, spatial, problem.committed_solution(), nodal_values);
@@ -996,7 +1043,7 @@ void ExodusTransientResultsWriter::append(const TransientProblem& problem) {
 namespace {
 constexpr std::array<unsigned char, 16> checkpoint_magic = {
     'F', 'U', 'E', 'L', 'S', 'I', 'M', '_', 'C', 'H', 'E', 'C', 'K', 'P', 'T', '\0'};
-constexpr std::uint32_t checkpoint_version = 10U;
+constexpr std::uint32_t checkpoint_version = 11U;
 constexpr std::uint32_t endian_marker = 0x01020304U;
 constexpr std::uint64_t maximum_checkpoint_bytes = 16ULL * 1024ULL * 1024ULL * 1024ULL;
 
@@ -1135,18 +1182,19 @@ BinaryBuffer state_payload(const TransientProblem& problem, double next_time_ste
     payload.append_double(next_time_step);
     append_conservation(payload, state.conservation);
     for (const double value : state.solution) payload.append_double(value);
-    if (cartesian) {
-        for (const auto& region : state.cartesian_material_histories)
-            for (const Hex8MaterialHistory& element : region)
-                for (const CartesianMaterialPointState& point : element) append_material_point(payload, point);
-        return payload;
-    }
     for (const auto& contact : state.contact_histories) {
         for (const ContactPointHistory& history : contact) {
             payload.append_double(history.elastic_tangential_slip);
             payload.append_u32(history.sliding ? 1U : 0U);
             payload.append_double(history.normal_multiplier);
+            for (double component : history.cartesian_elastic_tangential_slip) payload.append_double(component);
         }
+    }
+    if (cartesian) {
+        for (const auto& region : state.cartesian_material_histories)
+            for (const Hex8MaterialHistory& element : region)
+                for (const CartesianMaterialPointState& point : element) append_material_point(payload, point);
+        return payload;
     }
     for (std::size_t region = 0; region < state.material_histories.size(); ++region) {
         for (std::size_t element = 0; element < state.material_histories[region].size(); ++element)
@@ -1234,18 +1282,6 @@ double restore_transient_checkpoint(const std::string& path, TransientProblem& p
         throw std::runtime_error("Checkpoint next time step is invalid");
     state.solution.resize(problem.dof_count());
     for (double& value : state.solution) value = payload.read_double();
-    if (cartesian) {
-        const auto& expected_histories = BackendAccess::cartesian_material_histories(problem);
-        state.cartesian_material_histories.resize(expected_histories.size());
-        for (std::size_t region = 0; region < expected_histories.size(); ++region) {
-            state.cartesian_material_histories[region].resize(expected_histories[region].size());
-            for (Hex8MaterialHistory& element : state.cartesian_material_histories[region])
-                for (CartesianMaterialPointState& point : element) read_material_point(payload, point);
-        }
-        if (!payload.at_end()) throw std::runtime_error("Checkpoint payload contains trailing data");
-        BackendAccess::restore_committed_state(problem, std::move(state));
-        return next_time_step;
-    }
     const TransientCommittedState expected_state = BackendAccess::committed_state(problem);
     const auto& expected_histories = expected_state.contact_histories;
     state.contact_histories.resize(expected_histories.size());
@@ -1259,7 +1295,24 @@ double restore_transient_checkpoint(const std::string& path, TransientProblem& p
             history.normal_multiplier = payload.read_double();
             if (!std::isfinite(history.normal_multiplier) || history.normal_multiplier < 0.0)
                 throw std::runtime_error("Checkpoint normal contact multiplier is invalid");
+            for (double& component : history.cartesian_elastic_tangential_slip) {
+                component = payload.read_double();
+                if (!std::isfinite(component))
+                    throw std::runtime_error("Checkpoint Cartesian friction state is invalid");
+            }
         }
+    }
+    if (cartesian) {
+        const auto& expected_histories = BackendAccess::cartesian_material_histories(problem);
+        state.cartesian_material_histories.resize(expected_histories.size());
+        for (std::size_t region = 0; region < expected_histories.size(); ++region) {
+            state.cartesian_material_histories[region].resize(expected_histories[region].size());
+            for (Hex8MaterialHistory& element : state.cartesian_material_histories[region])
+                for (CartesianMaterialPointState& point : element) read_material_point(payload, point);
+        }
+        if (!payload.at_end()) throw std::runtime_error("Checkpoint payload contains trailing data");
+        BackendAccess::restore_committed_state(problem, std::move(state));
+        return next_time_step;
     }
     const rz::TransientBackendView backend = BackendAccess::transient(problem);
     state.material_histories.resize(backend.spatial.region_count());

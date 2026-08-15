@@ -6,6 +6,7 @@ set(nonempty_line_baseline 11007)
 set(maximum_nonempty_lines 9906)
 set(hex8_inelastic_capability_lines 115)
 set(hex8_finite_strain_capability_lines 276)
+set(hex8_contact_capability_lines 1070)
 
 file(READ "${ROOT}/.clang-format" format_configuration)
 string(FIND "${format_configuration}" "ColumnLimit: 120" column_limit)
@@ -43,14 +44,15 @@ endif()
 math(EXPR removed_lines "${nonempty_line_baseline} - ${nonempty_lines}")
 math(EXPR reduction_per_mille "1000 * ${removed_lines} / ${nonempty_line_baseline}")
 math(EXPR capability_adjusted_limit
-    "${maximum_nonempty_lines} + ${hex8_inelastic_capability_lines} + ${hex8_finite_strain_capability_lines}"
+    "${maximum_nonempty_lines} + ${hex8_inelastic_capability_lines} + ${hex8_finite_strain_capability_lines} + ${hex8_contact_capability_lines}"
 )
 if(nonempty_lines GREATER capability_adjusted_limit)
     message(FATAL_ERROR
         "src/include nonempty lines grew to ${nonempty_lines}; the original 10 percent refactor limit is "
         "${maximum_nonempty_lines}, with ${hex8_inelastic_capability_lines} additional lines allowed for "
         "three-dimensional inelasticity and ${hex8_finite_strain_capability_lines} additional lines allowed for "
-        "three-dimensional finite strain"
+        "three-dimensional finite strain, plus ${hex8_contact_capability_lines} additional lines allowed for "
+        "three-dimensional contact"
     )
 endif()
 
@@ -59,5 +61,6 @@ message(STATUS
     "${nonempty_line_baseline}; "
     "reduction ${reduction_per_mille} per mille; original refactor limit ${maximum_nonempty_lines} plus "
     "${hex8_inelastic_capability_lines} three-dimensional inelastic capability lines plus "
-    "${hex8_finite_strain_capability_lines} three-dimensional finite-strain capability lines"
+    "${hex8_finite_strain_capability_lines} three-dimensional finite-strain capability lines plus "
+    "${hex8_contact_capability_lines} three-dimensional contact capability lines"
 )

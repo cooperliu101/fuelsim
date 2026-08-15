@@ -63,6 +63,7 @@ struct ContactPointHistory final {
     double elastic_tangential_slip = 0.0;
     bool sliding = false;
     double normal_multiplier = 0.0;
+    std::array<double, 3> cartesian_elastic_tangential_slip{};
 };
 
 struct ContactPointValue final {
@@ -82,4 +83,51 @@ LocalResidual compute_node_to_line_rz_contact(const NormalContactProperties& pro
 ContactPointValue compute_node_to_line_rz_contact_value(const NormalContactProperties& properties,
     const NodeToLineRzContactGeometry& geometry, const LocalValues& state, const LocalValues& committed_state,
     const ContactPointHistory& history);
+
+inline constexpr std::size_t quad4_surface_contact_node_count = 8;
+inline constexpr std::size_t quad4_surface_contact_local_dof_count = 32;
+using Quad4SurfaceContactLocalDofs = std::array<std::size_t, quad4_surface_contact_local_dof_count>;
+using Quad4SurfaceContactLocalValues = std::array<double, quad4_surface_contact_local_dof_count>;
+using Quad4SurfaceContactLocalResidual = std::array<double, quad4_surface_contact_local_dof_count>;
+using Quad4SurfaceContactLocalJacobian =
+    std::array<double, quad4_surface_contact_local_dof_count * quad4_surface_contact_local_dof_count>;
+using Quad4SurfaceContactLocalAdValues = std::array<adlite::Scalar, quad4_surface_contact_local_dof_count>;
+
+struct Quad4ToQuad4HeatGeometry final {
+    std::array<CartesianPoint3, 4> secondary_coordinates, primary_coordinates;
+    std::array<double, 4> secondary_shape, secondary_derivative_xi, secondary_derivative_eta;
+    double normal_orientation;
+};
+
+struct NodeToQuad4ContactGeometry final {
+    std::array<CartesianPoint3, 4> secondary_coordinates, primary_coordinates;
+    std::array<std::array<double, 4>, 4> secondary_shapes, secondary_derivatives_xi, secondary_derivatives_eta;
+    std::size_t secondary_local_node;
+    double normal_orientation;
+};
+
+struct CartesianHeatQuadratureValue final {
+    bool projected;
+    double gap, heat_flux, weighted_measure;
+};
+
+struct CartesianContactPointValue final {
+    bool projected;
+    double gap, pressure, tributary_area, contact_force, tangential_traction, tangential_force;
+    std::array<double, 3> elastic_tangential_slip;
+    bool sliding;
+};
+
+Quad4SurfaceContactLocalResidual compute_quad4_to_quad4_gap_heat(const GapHeatProperties& properties,
+    const Quad4ToQuad4HeatGeometry& geometry, const Quad4SurfaceContactLocalValues& state,
+    Quad4SurfaceContactLocalJacobian* jacobian = nullptr);
+CartesianHeatQuadratureValue compute_quad4_to_quad4_gap_heat_value(const GapHeatProperties& properties,
+    const Quad4ToQuad4HeatGeometry& geometry, const Quad4SurfaceContactLocalValues& state);
+Quad4SurfaceContactLocalResidual compute_node_to_quad4_contact(const NormalContactProperties& properties,
+    const NodeToQuad4ContactGeometry& geometry, const Quad4SurfaceContactLocalValues& state,
+    const Quad4SurfaceContactLocalValues& committed_state, const ContactPointHistory& history,
+    Quad4SurfaceContactLocalJacobian* jacobian = nullptr);
+CartesianContactPointValue compute_node_to_quad4_contact_value(const NormalContactProperties& properties,
+    const NodeToQuad4ContactGeometry& geometry, const Quad4SurfaceContactLocalValues& state,
+    const Quad4SurfaceContactLocalValues& committed_state, const ContactPointHistory& history);
 } // namespace fuelsim

@@ -58,6 +58,29 @@ fuelsim::UnstructuredHex8Mesh two_region_mesh() {
             {22, "second_y0", {{1, 0}}}, {23, "second_z0", {{1, 4}}}});
 }
 
+fuelsim::UnstructuredHex8Mesh contact_projection_mesh() {
+    std::vector<fuelsim::CartesianPoint3> nodes;
+    for (double z : {0.0, 1.0})
+        for (double y : {-1.0, 0.0, 1.0})
+            for (double x : {0.0, 1.0}) nodes.push_back({x, y, z});
+    const auto primary_node = [](std::size_t x, std::size_t y, std::size_t z) { return z * 6 + y * 2 + x; };
+    std::vector<fuelsim::Hex8Element> elements = {
+        {{{primary_node(0, 0, 0), primary_node(1, 0, 0), primary_node(1, 1, 0), primary_node(0, 1, 0),
+            primary_node(0, 0, 1), primary_node(1, 0, 1), primary_node(1, 1, 1), primary_node(0, 1, 1)}}},
+        {{{primary_node(0, 1, 0), primary_node(1, 1, 0), primary_node(1, 2, 0), primary_node(0, 2, 0),
+            primary_node(0, 1, 1), primary_node(1, 1, 1), primary_node(1, 2, 1), primary_node(0, 2, 1)}}},
+    };
+    const std::size_t secondary_offset = nodes.size();
+    for (double z : {0.25, 0.75})
+        for (double y : {-0.25, 0.25})
+            for (double x : {1.0, 2.0}) nodes.push_back({x, y, z});
+    elements.push_back({{{secondary_offset, secondary_offset + 1, secondary_offset + 3, secondary_offset + 2,
+        secondary_offset + 4, secondary_offset + 5, secondary_offset + 7, secondary_offset + 6}}});
+    return fuelsim::UnstructuredHex8Mesh(std::move(nodes), std::move(elements), {1, 1, 2},
+        {{1, "primary"}, {2, "secondary"}}, {},
+        {{10, "primary_right", {{0, 1}, {1, 1}}}, {20, "secondary_left", {{2, 3}}}});
+}
+
 fuelsim::ThermoelasticProperties material() {
     return fuelsim::test::thermoelastic(0.0, 10.0, 1.0e9, 0.25, 1.0e-5, 300.0, 0.0, 0.0, 0.0, 6000.0, 1000.0);
 }
@@ -216,6 +239,63 @@ bool test_multiple_regions() {
     return passed;
 }
 
+bool test_contact_projection_transfer() {
+    const fuelsim::UnstructuredHex8Mesh mesh = contact_projection_mesh();
+    fuelsim::SpatialDefinition definition;
+    definition.regions = {
+        {"primary", "primary", material(), 0.0, 300.0}, {"secondary", "secondary", material(), 0.0, 400.0}};
+    definition.contacts.push_back({"interface", "primary_right", "secondary_left", true, true, 1.0, 0.01, 1.0e6, 0.1});
+    fuelsim::SteadyProblem problem(definition, mesh);
+    const std::vector<std::size_t> secondary_sources =
+        fuelsim::cartesian::ProblemAccess::contact_secondary_source_nodes(problem, 0);
+    const std::size_t source = 12;
+    const auto source_position = std::find(secondary_sources.begin(), secondary_sources.end(), source);
+    if (source_position == secondary_sources.end())
+        throw std::logic_error("Three-dimensional contact test could not locate its secondary node");
+    const std::size_t summary_index = static_cast<std::size_t>(source_position - secondary_sources.begin());
+    const auto& secondary_mesh = fuelsim::cartesian::ProblemAccess::region_mesh(problem, 1);
+    const auto local_position =
+        std::find(secondary_mesh.source_node_ids().begin(), secondary_mesh.source_node_ids().end(), source);
+    if (local_position == secondary_mesh.source_node_ids().end())
+        throw std::logic_error("Three-dimensional contact test could not map its secondary node");
+    const std::size_t global_node = fuelsim::cartesian::ProblemAccess::region_node_offset(problem, 1) +
+                                    static_cast<std::size_t>(local_position - secondary_mesh.source_node_ids().begin());
+    const auto& dofs = fuelsim::cartesian::ProblemAccess::dof_map(problem);
+    const auto transferred = [&](double current_y) {
+        std::vector<double> state = problem.initial_state();
+        state[dofs.dof(fuelsim::Field::displacement_x, global_node)] = -1.0e-4;
+        state[dofs.dof(fuelsim::Field::displacement_y, global_node)] = current_y - mesh.nodes()[source].y;
+        problem.validate_state(state);
+        return fuelsim::cartesian::ProblemAccess::summarize_contact_nodes(problem, 0, state).at(summary_index);
+    };
+    constexpr double offset = 1.0e-9;
+    const fuelsim::CartesianContactNodeSummary before = transferred(-offset);
+    const fuelsim::CartesianContactNodeSummary at = transferred(0.0);
+    const fuelsim::CartesianContactNodeSummary after = transferred(offset);
+    const double force_scale = std::max({1.0, std::abs(before.contact_force), std::abs(after.contact_force)});
+    bool passed =
+        check(before.projected && at.projected && after.projected && before.primary_face != after.primary_face &&
+                  (at.primary_face == before.primary_face || at.primary_face == after.primary_face),
+            "three-dimensional internal primary edge has one owner and transfers ownership once") &&
+        check(std::abs(before.contact_force - after.contact_force) < 1.0e-8 * force_scale,
+            "three-dimensional contact force is continuous across primary-face ownership transfer");
+    std::vector<double> lost = problem.initial_state();
+    for (std::size_t source_node : secondary_sources) {
+        const auto local =
+            std::find(secondary_mesh.source_node_ids().begin(), secondary_mesh.source_node_ids().end(), source_node);
+        const std::size_t node = fuelsim::cartesian::ProblemAccess::region_node_offset(problem, 1) +
+                                 static_cast<std::size_t>(local - secondary_mesh.source_node_ids().begin());
+        lost[dofs.dof(fuelsim::Field::displacement_y, node)] = 2.0;
+    }
+    bool rejected = false;
+    try {
+        problem.validate_state(lost);
+    } catch (const std::domain_error&) { rejected = true; }
+    return check(rejected, "three-dimensional contact rejects a thermal point or mechanical node outside the complete "
+                           "primary surface") &&
+           passed;
+}
+
 fuelsim::SpatialDefinition inelastic_definition(bool creep, bool plasticity) {
     fuelsim::ThermoelasticProperties properties =
         fuelsim::test::thermoelastic(0.0, 10.0, 2.0e11, 0.3, 0.0, 600.0, 0.0, 0.0, 0.0, 1.0, 1.0);
@@ -274,6 +354,7 @@ int main(int argc, char** argv) {
     bool passed = test_steady(session, mesh, argv[1]);
     passed = test_transient(session, mesh, argv[3], argv[2]) && passed;
     passed = test_multiple_regions() && passed;
+    passed = test_contact_projection_transfer() && passed;
     passed = test_inelastic_branches(mesh) && passed;
     session.collective_root_action([&]() {
         (void)std::remove(argv[1]);
