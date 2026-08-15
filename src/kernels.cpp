@@ -8,10 +8,12 @@
 #include <cstddef>
 #include <stdexcept>
 #include <string>
+
 namespace fuelsim {
 namespace {
 constexpr double pi = 3.141592653589793238462643383279502884;
 constexpr double gauss = 0.577350269189625764509148780501957456;
+
 std::array<double, quad4_node_count> shape_functions(double xi, double eta) {
     return {
         0.25 * (1.0 - xi) * (1.0 - eta),
@@ -20,6 +22,7 @@ std::array<double, quad4_node_count> shape_functions(double xi, double eta) {
         0.25 * (1.0 - xi) * (1.0 + eta),
     };
 }
+
 std::array<double, quad4_node_count> shape_derivative_xi(double eta) {
     return {
         -0.25 * (1.0 - eta),
@@ -28,6 +31,7 @@ std::array<double, quad4_node_count> shape_derivative_xi(double eta) {
         -0.25 * (1.0 + eta),
     };
 }
+
 std::array<double, quad4_node_count> shape_derivative_eta(double xi) {
     return {
         -0.25 * (1.0 - xi),
@@ -37,6 +41,7 @@ std::array<double, quad4_node_count> shape_derivative_eta(double xi) {
     };
 }
 } // namespace
+
 Quad4RzGeometry make_quad4_rz_geometry(const Quad4Coordinates& coordinates) {
     const std::array<std::array<double, 2>, 4> locations = {{
         {{-gauss, -gauss}},
@@ -74,6 +79,7 @@ Quad4RzGeometry make_quad4_rz_geometry(const Quad4Coordinates& coordinates) {
     }
     return geometry;
 }
+
 namespace quad4_rz_detail {
 inline adlite::Scalar interpolate(
     const std::array<double, quad4_node_count>& coefficients, const LocalAdValues& state, std::size_t offset) {
@@ -81,12 +87,14 @@ inline adlite::Scalar interpolate(
     for (std::size_t node = 0; node < quad4_node_count; ++node) result += coefficients[node] * state[offset + node];
     return result;
 }
+
 inline double interpolate(
     const std::array<double, quad4_node_count>& coefficients, const LocalValues& state, std::size_t offset) {
     double result = 0.0;
     for (std::size_t node = 0; node < quad4_node_count; ++node) result += coefficients[node] * state[offset + node];
     return result;
 }
+
 inline LocalAdValues ad_state(const LocalValues& state, bool active = false) {
     LocalAdValues result{};
     if (active)
@@ -95,6 +103,7 @@ inline LocalAdValues ad_state(const LocalValues& state, bool active = false) {
         ad_local_system::make_passive(state.data(), state.size(), result.data());
     return result;
 }
+
 inline LocalResidual values(
     const LocalAdValues& state, const LocalAdValues& residual, LocalJacobian* jacobian = nullptr) {
     LocalResidual result{};
@@ -104,6 +113,7 @@ inline LocalResidual values(
         ad_local_system::extract_system(residual.data(), state.size(), result.data(), jacobian->data());
     return result;
 }
+
 inline void add_mechanical_point_residual(const RzQuadraturePoint& point, const AxisymmetricKinematics& kinematics,
     const AxisymmetricStress& stress, LocalAdValues& residual) {
     for (std::size_t node = 0; node < quad4_node_count; ++node) {
@@ -114,6 +124,7 @@ inline void add_mechanical_point_residual(const RzQuadraturePoint& point, const 
                               (stress.zz * kinematics.gradient_z[node] + stress.rz * kinematics.gradient_r[node]);
     }
 }
+
 // Null heat-capacity inputs keep steady evaluations free of transient AD work.
 inline void add_point_residual(const RzQuadraturePoint& point, const adlite::Scalar& gradient_temperature_r,
     const adlite::Scalar& gradient_temperature_z, const AxisymmetricKinematics& kinematics,
@@ -131,11 +142,13 @@ inline void add_point_residual(const RzQuadraturePoint& point, const adlite::Sca
     add_mechanical_point_residual(point, kinematics, stress, residual);
 }
 } // namespace quad4_rz_detail
+
 AxisymmetricKinematics evaluate_axisymmetric_kinematics(
     const RzQuadraturePoint& point, const LocalAdValues& state, StrainFormulation strain_formulation) {
     const LocalValues undeformed{};
     return evaluate_axisymmetric_incremental_kinematics(point, state, undeformed, strain_formulation);
 }
+
 AxisymmetricKinematics evaluate_axisymmetric_incremental_kinematics(const RzQuadraturePoint& point,
     const LocalAdValues& current_state, const LocalValues& committed_state, StrainFormulation strain_formulation) {
     const adlite::Scalar radial_displacement = quad4_rz_detail::interpolate(point.shape, current_state, 4),
@@ -239,15 +252,18 @@ AxisymmetricKinematics evaluate_axisymmetric_incremental_kinematics(const RzQuad
     result.rotation.hoop = c1 + c2 * axial_rotation * axial_rotation;
     return result;
 }
+
 namespace {
 MaterialFunctionContext rz_material_context(double time, const RzQuadraturePoint& point) {
     return {time, point.radius, 0.0, point.axial_coordinate};
 }
+
 struct ThermoelasticPointResponse final {
     adlite::Scalar temperature, gradient_temperature_r, gradient_temperature_z;
     AxisymmetricKinematics kinematics;
     AxisymmetricStress stress;
 };
+
 ThermoelasticPointResponse point_response(const RzQuadraturePoint& point, const LocalAdValues& state,
     const IsotropicThermoelasticMaterial& material, StrainFormulation strain_formulation, double time) {
     const adlite::Scalar temperature = quad4_rz_detail::interpolate(point.shape, state, 0);
@@ -265,6 +281,7 @@ ThermoelasticPointResponse point_response(const RzQuadraturePoint& point, const 
     };
 }
 } // namespace
+
 LocalResidual compute_quad4_rz_thermoelastic(
     const Quad4RzData& data, const Quad4RzGeometry& geometry, const LocalValues& state, LocalJacobian* jacobian) {
     const LocalAdValues ad_state = quad4_rz_detail::ad_state(state, jacobian != nullptr);
@@ -281,6 +298,7 @@ LocalResidual compute_quad4_rz_thermoelastic(
     }
     return quad4_rz_detail::values(ad_state, ad_residual, jacobian);
 }
+
 std::array<AxisymmetricStressValues, 4> compute_quad4_rz_thermoelastic_stress(
     const Quad4RzData& data, const Quad4RzGeometry& geometry, const LocalValues& state) {
     const LocalAdValues passive_state = quad4_rz_detail::ad_state(state);
@@ -292,6 +310,7 @@ std::array<AxisymmetricStressValues, 4> compute_quad4_rz_thermoelastic_stress(
     }
     return result;
 }
+
 namespace {
 struct TransientPointResponse final {
     adlite::Scalar temperature, gradient_temperature_r, gradient_temperature_z;
@@ -299,6 +318,7 @@ struct TransientPointResponse final {
     double old_temperature;
     InelasticStressResponse response;
 };
+
 TransientPointResponse transient_point_response(const RzQuadraturePoint& point, const LocalAdValues& state,
     const LocalValues& committed_state, const IsotropicThermoelasticMaterial& material,
     const MaterialPointState& committed_material, double time_step, StrainFormulation strain_formulation, double time) {
@@ -317,10 +337,12 @@ TransientPointResponse transient_point_response(const RzQuadraturePoint& point, 
     return {temperature, quad4_rz_detail::interpolate(point.gradient_r, state, 0),
         quad4_rz_detail::interpolate(point.gradient_z, state, 0), kinematics, old_temperature, std::move(response)};
 }
+
 void validate_time_step(double time_step) {
     if (!std::isfinite(time_step) || !(time_step > 0.0))
         throw std::invalid_argument("Transient Quad4 time_step must be finite and positive");
 }
+
 void validate_committed_state(const LocalValues& committed_state) {
     for (std::size_t node = 0; node < quad4_node_count; ++node) {
         const double temperature = committed_state[node];
@@ -329,6 +351,7 @@ void validate_committed_state(const LocalValues& committed_state) {
     }
 }
 } // namespace
+
 LocalResidual compute_quad4_rz_transient(const Quad4RzData& data, const Quad4RzGeometry& geometry,
     const LocalValues& current_state, const LocalValues& committed_state,
     const Quad4MaterialHistory& committed_material, double time_step, LocalJacobian* jacobian) {
@@ -351,6 +374,7 @@ LocalResidual compute_quad4_rz_transient(const Quad4RzData& data, const Quad4RzG
     }
     return quad4_rz_detail::values(ad_state, ad_residual, jacobian);
 }
+
 Quad4MaterialHistory compute_quad4_rz_transient_update(const Quad4RzData& data, const Quad4RzGeometry& geometry,
     const LocalValues& converged_state, const LocalValues& committed_state,
     const Quad4MaterialHistory& committed_material, double time_step) {
@@ -372,8 +396,10 @@ Quad4MaterialHistory compute_quad4_rz_transient_update(const Quad4RzData& data, 
     }
     return result;
 }
+
 namespace {
 bool finite_point(const RzPoint& point) { return std::isfinite(point.r) && std::isfinite(point.z); }
+
 void validate_line(const Line2InterfaceSideCoordinates& coordinates, const char* name) {
     for (const RzPoint& point : coordinates) {
         if (!finite_point(point)) throw std::invalid_argument(std::string(name) + " requires finite coordinates");
@@ -382,12 +408,14 @@ void validate_line(const Line2InterfaceSideCoordinates& coordinates, const char*
     const double dr = coordinates[1].r - coordinates[0].r, dz = coordinates[1].z - coordinates[0].z;
     if (!(std::hypot(dr, dz) > 0.0)) throw std::invalid_argument(std::string(name) + " requires a nonzero line length");
 }
+
 void validate_edge(
     const std::array<RzPoint, 2>& coordinates, const std::array<std::size_t, 2>& local_nodes, const char* name) {
     if (local_nodes[0] >= 4 || local_nodes[1] >= 4 || local_nodes[0] == local_nodes[1])
         throw std::invalid_argument(std::string(name) + " requires two distinct Quad4 local nodes");
     validate_line(coordinates, name);
 }
+
 void displaced_edge_coordinates(const std::array<RzPoint, 2>& coordinates,
     const std::array<std::size_t, 2>& local_nodes, const LocalAdValues& state, bool use_displaced_geometry,
     std::array<adlite::Scalar, 2>& radius, std::array<adlite::Scalar, 2>& axial) {
@@ -402,11 +430,13 @@ void displaced_edge_coordinates(const std::array<RzPoint, 2>& coordinates,
     }
 }
 } // namespace
+
 Line2RzBoundaryGeometry make_line2_rz_boundary_geometry(
     const std::array<RzPoint, 2>& coordinates, const std::array<std::size_t, 2>& local_nodes) {
     validate_edge(coordinates, local_nodes, "Boundary edge");
     return {coordinates, local_nodes};
 }
+
 namespace {
 void compute_line2_rz_mechanical_residual_ad(const Line2RzBoundaryData& data, const Line2RzBoundaryGeometry& geometry,
     const LocalAdValues& state, LocalAdValues& residual) {
@@ -437,6 +467,7 @@ void compute_line2_rz_mechanical_residual_ad(const Line2RzBoundaryData& data, co
         }
     }
 }
+
 void compute_line2_rz_convection_residual_ad(const Line2RzBoundaryData& data, const Line2RzBoundaryGeometry& geometry,
     const LocalAdValues& state, LocalAdValues& residual) {
     residual.fill(adlite::Scalar(0.0));
@@ -456,6 +487,7 @@ void compute_line2_rz_convection_residual_ad(const Line2RzBoundaryData& data, co
     }
 }
 } // namespace
+
 LocalResidual compute_line2_rz_boundary(const Line2RzBoundaryData& data, const Line2RzBoundaryGeometry& geometry,
     const LocalValues& state, LocalJacobian* jacobian) {
     const LocalAdValues ad_state = quad4_rz_detail::ad_state(state, jacobian != nullptr);
@@ -466,11 +498,13 @@ LocalResidual compute_line2_rz_boundary(const Line2RzBoundaryData& data, const L
         compute_line2_rz_mechanical_residual_ad(data, geometry, ad_state, ad_residual);
     return quad4_rz_detail::values(ad_state, ad_residual, jacobian);
 }
+
 namespace {
 struct HeatAdQuadratureValue final {
     bool projected = false;
     adlite::Scalar gap = 0.0, heat_flux = 0.0, weighted_measure = 0.0, primary_shape_0 = 0.0, primary_shape_1 = 0.0;
 };
+
 struct ContactAdValue final {
     bool projected = false;
     adlite::Scalar gap = 0.0, pressure = 0.0, tributary_area = 0.0, tributary_length = 0.0, contact_force = 0.0,
@@ -478,6 +512,7 @@ struct ContactAdValue final {
                    tangent_z = 0.0, tangential_traction = 0.0, tangential_force = 0.0, elastic_tangential_slip = 0.0;
     bool sliding = false;
 };
+
 double reference_projection_fraction(
     const RzPoint& secondary, const Line2InterfaceSideCoordinates& primary_coordinates) {
     const double tangent_r = primary_coordinates[1].r - primary_coordinates[0].r,
@@ -487,6 +522,7 @@ double reference_projection_fraction(
                (secondary.z - primary_coordinates[0].z) * tangent_z) /
            length_squared;
 }
+
 double reference_normal_orientation(const RzPoint& secondary, const Line2InterfaceSideCoordinates& primary_coordinates,
     double primary_fraction, double zero_gap_orientation_hint) {
     const double tangent_r = primary_coordinates[1].r - primary_coordinates[0].r,
@@ -511,6 +547,7 @@ double reference_normal_orientation(const RzPoint& secondary, const Line2Interfa
     }
     return raw_gap > 0.0 ? 1.0 : -1.0;
 }
+
 adlite::Scalar interpolate(
     const std::array<double, line2_interface_side_node_count>& shape, const LocalAdValues& state, std::size_t offset) {
     adlite::Scalar value = 0.0;
@@ -518,11 +555,13 @@ adlite::Scalar interpolate(
         value += shape[node] * state[offset + node];
     return value;
 }
+
 bool projection_is_inside(double fraction, bool includes_second_endpoint) {
     if (fraction < 0.0) return false;
     if (includes_second_endpoint) return fraction <= 1.0;
     return fraction < 1.0;
 }
+
 HeatAdQuadratureValue evaluate_heat_quadrature(const Line2InterfaceSideCoordinates& secondary_coordinates,
     const Line2InterfaceSideCoordinates& primary_coordinates, const Line2RzHeatQuadraturePoint& point,
     const LocalAdValues& state, const GapHeatProperties& properties, bool includes_second_endpoint) {
@@ -562,6 +601,7 @@ HeatAdQuadratureValue evaluate_heat_quadrature(const Line2InterfaceSideCoordinat
                          weighted_measure = 2.0 * pi * secondary_radius * surface_jacobian * point.integration_weight;
     return {true, gap, heat_flux, weighted_measure, primary_shape_0, primary_shape_1};
 }
+
 bool clamp_owned_chain_endpoint(
     adlite::Scalar& fraction, double reference_fraction, bool primary_segment_is_first, bool includes_second_endpoint) {
     constexpr double endpoint_tolerance = 1.0e-12;
@@ -576,6 +616,7 @@ bool clamp_owned_chain_endpoint(
     }
     return false;
 }
+
 void evaluate_friction(ContactAdValue& value, const NodeToLineRzContactGeometry& geometry, const LocalAdValues& state,
     const LocalValues& committed_state, const ContactPointHistory& history, const NormalContactProperties& properties) {
     if (properties.friction_coefficient == 0.0 || !(value.pressure.value() > 0.0)) return;
@@ -603,6 +644,7 @@ void evaluate_friction(ContactAdValue& value, const NodeToLineRzContactGeometry&
     }
     value.tangential_force = value.tangential_traction * value.tributary_area;
 }
+
 ContactAdValue evaluate_contact(const NodeToLineRzContactGeometry& geometry, const LocalAdValues& state,
     const LocalValues& committed_state, const ContactPointHistory& history, const NormalContactProperties& properties) {
     const std::size_t secondary = geometry.secondary_local_node, other = secondary == 0 ? 1 : 0;
@@ -654,6 +696,7 @@ ContactAdValue evaluate_contact(const NodeToLineRzContactGeometry& geometry, con
     return result;
 }
 } // namespace
+
 std::array<Line2RzHeatQuadraturePoint, line2_interface_quadrature_point_count> make_line2_rz_heat_quadrature(
     const Line2InterfaceSideCoordinates& secondary_coordinates,
     const Line2InterfaceSideCoordinates& primary_coordinates, double secondary_coordinate_lower,
@@ -680,6 +723,7 @@ std::array<Line2RzHeatQuadraturePoint, line2_interface_quadrature_point_count> m
     }
     return result;
 }
+
 Line2RzHeatPointGeometry make_line2_rz_heat_point_geometry(const Line2InterfaceSideCoordinates& secondary_coordinates,
     const Line2InterfaceSideCoordinates& primary_coordinates,
     const std::array<double, line2_interface_side_node_count>& secondary_shape, double integration_weight,
@@ -701,6 +745,7 @@ Line2RzHeatPointGeometry make_line2_rz_heat_point_geometry(const Line2InterfaceS
         primary_segment_includes_second_endpoint,
     };
 }
+
 LocalResidual compute_line2_rz_gap_heat(const GapHeatProperties& properties, const Line2RzHeatPointGeometry& geometry,
     const LocalValues& state, LocalJacobian* jacobian) {
     const LocalAdValues ad_state = quad4_rz_detail::ad_state(state, jacobian != nullptr);
@@ -718,6 +763,7 @@ LocalResidual compute_line2_rz_gap_heat(const GapHeatProperties& properties, con
     }
     return quad4_rz_detail::values(ad_state, ad_residual, jacobian);
 }
+
 HeatQuadratureValue compute_line2_rz_gap_heat_value(
     const GapHeatProperties& properties, const Line2RzHeatPointGeometry& geometry, const LocalValues& state) {
     const LocalAdValues ad_state = quad4_rz_detail::ad_state(state);
@@ -726,6 +772,7 @@ HeatQuadratureValue compute_line2_rz_gap_heat_value(
             properties, geometry.primary_segment_includes_second_endpoint);
     return {value.projected, value.gap.value(), value.heat_flux.value(), value.weighted_measure.value()};
 }
+
 NodeToLineRzContactGeometry make_node_to_line_rz_contact_geometry(
     const Line2InterfaceSideCoordinates& secondary_edge_coordinates,
     const Line2InterfaceSideCoordinates& primary_segment_coordinates, std::size_t secondary_local_node,
@@ -749,6 +796,7 @@ NodeToLineRzContactGeometry make_node_to_line_rz_contact_geometry(
         primary_fraction,
     };
 }
+
 LocalResidual compute_node_to_line_rz_contact(const NormalContactProperties& properties,
     const NodeToLineRzContactGeometry& geometry, const LocalValues& state, const LocalValues& committed_state,
     const ContactPointHistory& history, LocalJacobian* jacobian) {
@@ -775,6 +823,7 @@ LocalResidual compute_node_to_line_rz_contact(const NormalContactProperties& pro
     }
     return quad4_rz_detail::values(ad_state, ad_residual, jacobian);
 }
+
 ContactPointValue compute_node_to_line_rz_contact_value(const NormalContactProperties& properties,
     const NodeToLineRzContactGeometry& geometry, const LocalValues& state, const LocalValues& committed_state,
     const ContactPointHistory& history) {

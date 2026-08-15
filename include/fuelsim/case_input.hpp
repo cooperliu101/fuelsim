@@ -4,6 +4,7 @@
 #include "fuelsim/spatial_definition.hpp"
 #include <cstddef>
 #include <string>
+
 namespace fuelsim {
 enum class CaseProblem {
     steady,
@@ -13,6 +14,7 @@ enum class CaseGeometry {
     axisymmetric_rz,
     cartesian_3d,
 };
+
 struct CaseOutputInput final {
     bool console;
     std::string csv_file, exodus_file;
@@ -22,6 +24,7 @@ struct CaseOutputInput final {
     std::string checkpoint_file;
     std::size_t checkpoint_interval;
 };
+
 struct FuelSimCaseDefinition final {
     int version;
     CaseProblem problem;
@@ -34,6 +37,7 @@ struct FuelSimCaseDefinition final {
     SolverOptions solver;
     CaseOutputInput outputs;
 };
+
 FuelSimCaseDefinition read_case_input(const std::string& path);
 FuelSimCaseDefinition read_case_input(const std::string& path, const MaterialFunctionRegistry& registry);
 } // namespace fuelsim

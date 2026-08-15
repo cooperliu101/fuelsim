@@ -10,12 +10,14 @@
 #include <iostream>
 #include <string>
 #include <vector>
+
 namespace {
 bool check(bool condition, const std::string& message) {
     if (condition) return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
+
 fuelsim::UnstructuredHex8Mesh two_element_mesh() {
     std::vector<fuelsim::CartesianPoint3> nodes;
     for (double z : {0.0, 1.0}) {
@@ -35,6 +37,7 @@ fuelsim::UnstructuredHex8Mesh two_element_mesh() {
         {{10, "all", all_faces}, {11, "x0", {{0, 3}}}, {12, "y0", {{0, 0}, {1, 0}}}, {13, "z0", {{0, 4}, {1, 4}}},
             {14, "x2", {{1, 1}}}});
 }
+
 fuelsim::UnstructuredHex8Mesh two_region_mesh() {
     std::vector<fuelsim::CartesianPoint3> nodes;
     for (double origin : {0.0, 2.0}) {
@@ -54,9 +57,11 @@ fuelsim::UnstructuredHex8Mesh two_region_mesh() {
             {20, "second_all", {{1, 0}, {1, 1}, {1, 2}, {1, 3}, {1, 4}, {1, 5}}}, {21, "second_x0", {{1, 3}}},
             {22, "second_y0", {{1, 0}}}, {23, "second_z0", {{1, 4}}}});
 }
+
 fuelsim::ThermoelasticProperties material() {
     return fuelsim::test::thermoelastic(0.0, 10.0, 1.0e9, 0.25, 1.0e-5, 300.0, 0.0, 0.0, 0.0, 6000.0, 1000.0);
 }
+
 fuelsim::SpatialDefinition steady_definition() {
     fuelsim::SpatialDefinition definition;
     definition.regions.push_back({"solid", "solid", material(), 0.0, 300.0});
@@ -68,6 +73,7 @@ fuelsim::SpatialDefinition steady_definition() {
     };
     return definition;
 }
+
 fuelsim::SolverOptions solver_options() {
     fuelsim::SolverOptions options;
     options.absolute_tolerance = 1.0e-9;
@@ -80,6 +86,7 @@ fuelsim::SolverOptions solver_options() {
     options.maximum_linear_iterations = 200;
     return options;
 }
+
 bool check_uniform_solution(const fuelsim::spatial_detail::SpatialLayout& dofs,
     const fuelsim::UnstructuredHex8Mesh& mesh, const std::vector<double>& state, double temperature) {
     const double thermal_strain = 1.0e-5 * (temperature - 300.0);
@@ -96,6 +103,7 @@ bool check_uniform_solution(const fuelsim::spatial_detail::SpatialLayout& dofs,
             return false;
     return true;
 }
+
 bool test_steady(
     const fuelsim::PetscSession& session, const fuelsim::UnstructuredHex8Mesh& mesh, const std::string& results_path) {
     fuelsim::SteadyProblem problem(steady_definition(), mesh);
@@ -119,6 +127,7 @@ bool test_steady(
         [&]() { fuelsim::write_steady_results(results_path, mesh, problem, result.solve.state); });
     return passed;
 }
+
 bool test_transient(const fuelsim::PetscSession& session, const fuelsim::UnstructuredHex8Mesh& mesh,
     const std::string& checkpoint_path, const std::string& results_path) {
     fuelsim::SpatialDefinition spatial = steady_definition();
@@ -164,6 +173,7 @@ bool test_transient(const fuelsim::PetscSession& session, const fuelsim::Unstruc
              passed;
     return passed;
 }
+
 bool test_multiple_regions() {
     const fuelsim::UnstructuredHex8Mesh mesh = two_region_mesh();
     fuelsim::SpatialDefinition definition;
@@ -205,6 +215,7 @@ bool test_multiple_regions() {
     }
     return passed;
 }
+
 fuelsim::SpatialDefinition inelastic_definition(bool creep, bool plasticity) {
     fuelsim::ThermoelasticProperties properties =
         fuelsim::test::thermoelastic(0.0, 10.0, 2.0e11, 0.3, 0.0, 600.0, 0.0, 0.0, 0.0, 1.0, 1.0);
@@ -221,6 +232,7 @@ fuelsim::SpatialDefinition inelastic_definition(bool creep, bool plasticity) {
     };
     return definition;
 }
+
 bool test_inelastic_branches(const fuelsim::UnstructuredHex8Mesh& mesh) {
     bool passed = true;
     for (const std::array<bool, 2> branch : {std::array<bool, 2>{false, true}, {true, false}, {true, true}}) {
@@ -251,6 +263,7 @@ bool test_inelastic_branches(const fuelsim::UnstructuredHex8Mesh& mesh) {
     return passed;
 }
 } // namespace
+
 int main(int argc, char** argv) {
     if (argc < 4) {
         std::cerr << "Usage: fuelsim_hex8_solver_tests <steady.e> <transient.e> <checkpoint.bin>\n";

@@ -7,6 +7,7 @@
 #include <limits>
 #include <stdexcept>
 #include <utility>
+
 namespace fuelsim {
 MaterialParameters::MaterialParameters(std::vector<MaterialParameterValue> values) : _values(std::move(values)) {
     for (std::size_t index = 0; index < _values.size(); ++index) {
@@ -18,15 +19,18 @@ MaterialParameters::MaterialParameters(std::vector<MaterialParameterValue> value
                 throw std::invalid_argument("Duplicate material parameter '" + _values[index].name + "'");
     }
 }
+
 double MaterialParameters::value(const std::string& name) const {
     const auto found = std::find_if(_values.begin(), _values.end(),
         [&name](const MaterialParameterValue& parameter) { return parameter.name == name; });
     if (found == _values.end()) throw std::out_of_range("Unknown material parameter '" + name + "'");
     return found->value;
 }
+
 namespace {
 constexpr std::uint64_t material_signature_offset = 14695981039346656037ULL;
 constexpr std::uint64_t material_signature_prime = 1099511628211ULL;
+
 void material_hash_bytes(std::uint64_t& hash, const void* data, std::size_t size) noexcept {
     const auto* bytes = static_cast<const unsigned char*>(data);
     for (std::size_t index = 0; index < size; ++index) {
@@ -34,17 +38,21 @@ void material_hash_bytes(std::uint64_t& hash, const void* data, std::size_t size
         hash *= material_signature_prime;
     }
 }
+
 void material_hash_string(std::uint64_t& hash, const std::string& value) noexcept {
     material_hash_bytes(hash, value.data(), value.size());
     const unsigned char terminator = 0;
     material_hash_bytes(hash, &terminator, 1);
 }
+
 void material_hash_u32(std::uint64_t& hash, std::uint32_t value) noexcept {
     material_hash_bytes(hash, &value, sizeof(value));
 }
+
 void material_hash_double(std::uint64_t& hash, double value) noexcept {
     material_hash_bytes(hash, &value, sizeof(value));
 }
+
 void hash_instance(std::uint64_t& hash, const std::string& name, std::uint32_t version,
     const MaterialParameters& parameters) noexcept {
     material_hash_string(hash, name);
@@ -54,6 +62,7 @@ void hash_instance(std::uint64_t& hash, const std::string& name, std::uint32_t v
         material_hash_double(hash, parameter.value);
     }
 }
+
 void validate_registration(
     const std::string& name, const std::vector<MaterialParameterDefinition>& parameters, bool has_function) {
     if (name.empty()) throw std::invalid_argument("Material function name must not be empty");
@@ -70,6 +79,7 @@ void validate_registration(
                     "Material function '" + name + "' repeats parameter '" + parameters[index].name + "'");
     }
 }
+
 void validate_bound_values(const std::string& function_name,
     const std::vector<MaterialParameterDefinition>& definitions, const std::vector<MaterialParameterValue>& values) {
     for (const MaterialParameterValue& value : values) {
@@ -89,6 +99,7 @@ void validate_bound_values(const std::string& function_name,
     if (values.size() != definitions.size())
         throw std::invalid_argument("Material function '" + function_name + "' parameter count does not match");
 }
+
 std::vector<MaterialParameterValue> ordered_values(const std::string& function_name,
     const std::vector<MaterialParameterDefinition>& definitions, const std::vector<MaterialParameterValue>& values) {
     validate_bound_values(function_name, definitions, values);
@@ -101,21 +112,25 @@ std::vector<MaterialParameterValue> ordered_values(const std::string& function_n
     }
     return result;
 }
+
 // Binding preserves each strict named registration's declaration order for these built-in evaluations.
 void constant_thermophysical(const ThermoelasticFunctionInput& input, ThermalPropertyOutput& output) {
     output.conductivity = input.parameters->values()[0].value;
     output.density = input.parameters->values()[1].value;
     output.specific_heat = input.parameters->values()[2].value;
 }
+
 void inverse_temperature_thermophysical(const ThermoelasticFunctionInput& input, ThermalPropertyOutput& output) {
     output.conductivity = input.parameters->values()[0].value / input.temperature + input.parameters->values()[1].value;
     output.density = input.parameters->values()[2].value;
     output.specific_heat = input.parameters->values()[3].value;
 }
+
 void constant_isotropic_elasticity(const ThermoelasticFunctionInput& input, ElasticPropertyOutput& output) {
     output.young_modulus = input.parameters->values()[0].value;
     output.poisson_ratio = input.parameters->values()[1].value;
 }
+
 void linear_temperature_isotropic_elasticity(const ThermoelasticFunctionInput& input, ElasticPropertyOutput& output) {
     const adlite::Scalar temperature_change = input.temperature - input.parameters->values()[2].value;
     output.young_modulus =
@@ -123,11 +138,13 @@ void linear_temperature_isotropic_elasticity(const ThermoelasticFunctionInput& i
     output.poisson_ratio =
         input.parameters->values()[1].value + input.parameters->values()[4].value * temperature_change;
 }
+
 void isotropic_thermal_expansion(const ThermoelasticFunctionInput& input, SymmetricTensor3& output) {
     const adlite::Scalar value =
         input.parameters->values()[0].value * (input.temperature - input.parameters->values()[1].value);
     output = {value, value, value, 0.0, 0.0, 0.0};
 }
+
 void linear_temperature_isotropic_thermal_expansion(const ThermoelasticFunctionInput& input, SymmetricTensor3& output) {
     const adlite::Scalar temperature_change = input.temperature - input.parameters->values()[1].value;
     const adlite::Scalar coefficient =
@@ -135,12 +152,14 @@ void linear_temperature_isotropic_thermal_expansion(const ThermoelasticFunctionI
     const adlite::Scalar value = coefficient * temperature_change;
     output = {value, value, value, 0.0, 0.0, 0.0};
 }
+
 adlite::Scalar norton_creep_rate(const CreepRateInput& input) {
     if (!(input.equivalent_stress.value() > 0.0)) return 0.0;
     return input.parameters->value("coefficient") *
            adlite::pow(input.equivalent_stress / input.parameters->value("reference_stress"),
                input.parameters->value("stress_exponent"));
 }
+
 adlite::Scalar linear_temperature_norton_creep_rate(const CreepRateInput& input) {
     const adlite::Scalar temperature_change = input.temperature - input.parameters->value("reference_temperature");
     const adlite::Scalar coefficient =
@@ -155,10 +174,12 @@ adlite::Scalar linear_temperature_norton_creep_rate(const CreepRateInput& input)
     if (!(input.equivalent_stress.value() > 0.0)) return 0.0;
     return coefficient * adlite::pow(input.equivalent_stress / reference_stress, exponent);
 }
+
 adlite::Scalar linear_isotropic_flow_stress(const PlasticFlowStressInput& input) {
     return input.parameters->value("yield_stress") +
            input.parameters->value("hardening_modulus") * input.equivalent_plastic_strain;
 }
+
 adlite::Scalar linear_temperature_isotropic_flow_stress(const PlasticFlowStressInput& input) {
     const adlite::Scalar temperature_change = input.temperature - input.parameters->value("reference_temperature");
     const adlite::Scalar yield_stress =
@@ -169,6 +190,7 @@ adlite::Scalar linear_temperature_isotropic_flow_stress(const PlasticFlowStressI
     return yield_stress + hardening * input.equivalent_plastic_strain;
 }
 } // namespace
+
 std::uint64_t MaterialFunctionSet::signature() const noexcept {
     std::uint64_t hash = material_signature_offset;
     material_hash_string(hash, name);
@@ -182,6 +204,7 @@ std::uint64_t MaterialFunctionSet::signature() const noexcept {
     hash_instance(hash, plasticity.name, plasticity.version, plasticity.parameters);
     return hash;
 }
+
 void MaterialFunctionRegistry::add_registration(std::string name, std::vector<MaterialParameterDefinition> parameters,
     std::uint32_t version, Category category, Function function, bool has_function, const char* category_name) {
     validate_registration(name, parameters, has_function);
@@ -192,6 +215,7 @@ void MaterialFunctionRegistry::add_registration(std::string name, std::vector<Ma
         throw std::invalid_argument("Duplicate " + std::string(category_name) + " material function '" + name + "'");
     _registrations.push_back({std::move(name), version, std::move(parameters), category, function});
 }
+
 const MaterialFunctionRegistry::Registration& MaterialFunctionRegistry::find_registration(
     Category category, const std::string& name, const char* category_name) const {
     const auto found = std::find_if(_registrations.begin(), _registrations.end(),
@@ -200,61 +224,72 @@ const MaterialFunctionRegistry::Registration& MaterialFunctionRegistry::find_reg
         throw std::invalid_argument("Unknown " + std::string(category_name) + " material function '" + name + "'");
     return *found;
 }
+
 void MaterialFunctionRegistry::add_thermal(std::string name, std::vector<MaterialParameterDefinition> parameters,
     ThermalPropertyFunction function, std::uint32_t version) {
     add_registration(
         std::move(name), std::move(parameters), version, Category::thermal, function, function != nullptr, "thermal");
 }
+
 void MaterialFunctionRegistry::add_elasticity(std::string name, std::vector<MaterialParameterDefinition> parameters,
     ElasticPropertyFunction function, std::uint32_t version) {
     add_registration(std::move(name), std::move(parameters), version, Category::elasticity, function,
         function != nullptr, "elasticity");
 }
+
 void MaterialFunctionRegistry::add_eigenstrain(std::string name, std::vector<MaterialParameterDefinition> parameters,
     EigenstrainFunction function, std::uint32_t version) {
     add_registration(std::move(name), std::move(parameters), version, Category::eigenstrain, function,
         function != nullptr, "eigenstrain");
 }
+
 void MaterialFunctionRegistry::add_creep(std::string name, std::vector<MaterialParameterDefinition> parameters,
     CreepRateFunction function, std::uint32_t version) {
     add_registration(
         std::move(name), std::move(parameters), version, Category::creep, function, function != nullptr, "creep");
 }
+
 void MaterialFunctionRegistry::add_plasticity(std::string name, std::vector<MaterialParameterDefinition> parameters,
     PlasticFlowStressFunction function, std::uint32_t version) {
     add_registration(std::move(name), std::move(parameters), version, Category::plasticity, function,
         function != nullptr, "plasticity");
 }
+
 ThermalFunctionInstance MaterialFunctionRegistry::bind_thermal(
     const std::string& name, std::vector<MaterialParameterValue> values) const {
     const Registration& entry = find_registration(Category::thermal, name, "thermal");
     return {name, entry.version, MaterialParameters(ordered_values(name, entry.parameters, values)),
         std::get<ThermalPropertyFunction>(entry.function)};
 }
+
 ElasticFunctionInstance MaterialFunctionRegistry::bind_elasticity(
     const std::string& name, std::vector<MaterialParameterValue> values) const {
     const Registration& entry = find_registration(Category::elasticity, name, "elasticity");
     return {name, entry.version, MaterialParameters(ordered_values(name, entry.parameters, values)),
         std::get<ElasticPropertyFunction>(entry.function)};
 }
+
 EigenstrainFunctionInstance MaterialFunctionRegistry::bind_eigenstrain(
     const std::string& instance_name, const std::string& name, std::vector<MaterialParameterValue> values) const {
     const Registration& entry = find_registration(Category::eigenstrain, name, "eigenstrain");
     return {instance_name, name, entry.version, MaterialParameters(ordered_values(name, entry.parameters, values)),
         std::get<EigenstrainFunction>(entry.function)};
 }
+
 CreepFunctionInstance MaterialFunctionRegistry::bind_creep(
     const std::string& name, std::vector<MaterialParameterValue> values) const {
     const Registration& entry = find_registration(Category::creep, name, "creep");
     return {name, entry.version, MaterialParameters(ordered_values(name, entry.parameters, values)),
         std::get<CreepRateFunction>(entry.function)};
 }
+
 PlasticFunctionInstance MaterialFunctionRegistry::bind_plasticity(
     const std::string& name, std::vector<MaterialParameterValue> values) const {
     const Registration& entry = find_registration(Category::plasticity, name, "plasticity");
     return {name, entry.version, MaterialParameters(ordered_values(name, entry.parameters, values)),
         std::get<PlasticFlowStressFunction>(entry.function)};
 }
+
 MaterialFunctionRegistry make_builtin_material_function_registry() {
     MaterialFunctionRegistry registry;
     registry.add_thermal("constant_thermophysical",
@@ -290,6 +325,7 @@ MaterialFunctionRegistry make_builtin_material_function_registry() {
         &linear_temperature_isotropic_flow_stress);
     return registry;
 }
+
 AxisymmetricStress rotate_axisymmetric_tensor(const AxisymmetricStress& tensor, const AxisymmetricRotation& rotation) {
     return {
         rotation.rr * rotation.rr * tensor.rr + rotation.rz * rotation.rz * tensor.zz +
@@ -301,6 +337,7 @@ AxisymmetricStress rotate_axisymmetric_tensor(const AxisymmetricStress& tensor, 
             (rotation.rr * rotation.zz + rotation.rz * rotation.zr) * tensor.rz,
     };
 }
+
 IsotropicThermoelasticMaterial::IsotropicThermoelasticMaterial(ThermoelasticProperties properties)
     : _properties(std::move(properties)) {
     if (!_properties.functions || _properties.functions->thermal.function == nullptr)
@@ -310,6 +347,7 @@ IsotropicThermoelasticMaterial::IsotropicThermoelasticMaterial(ThermoelasticProp
     if (!std::isfinite(_properties.reference_young_modulus) || !(_properties.reference_young_modulus > 0.0))
         throw std::invalid_argument("Material reference Young modulus must be finite and positive");
 }
+
 adlite::Scalar IsotropicThermoelasticMaterial::conductivity(
     const adlite::Scalar& temperature, MaterialFunctionContext context) const {
     if (!std::isfinite(temperature.value()) || !(temperature.value() > 0.0))
@@ -321,6 +359,7 @@ adlite::Scalar IsotropicThermoelasticMaterial::conductivity(
         throw std::domain_error("Thermal material function conductivity must be finite and positive");
     return output.conductivity;
 }
+
 adlite::Scalar IsotropicThermoelasticMaterial::heat_capacity(
     const adlite::Scalar& temperature, MaterialFunctionContext context) const {
     ThermalPropertyOutput output{};
@@ -331,6 +370,7 @@ adlite::Scalar IsotropicThermoelasticMaterial::heat_capacity(
         throw std::domain_error("Thermal material function density and specific_heat must be finite and positive");
     return output.density * output.specific_heat;
 }
+
 ActiveThermoelasticProperties IsotropicThermoelasticMaterial::active_properties(
     const adlite::Scalar& temperature, MaterialFunctionContext context) const {
     if (!std::isfinite(temperature.value()))
@@ -348,6 +388,7 @@ ActiveThermoelasticProperties IsotropicThermoelasticMaterial::active_properties(
     const adlite::Scalar shear_modulus = output.young_modulus / (2.0 * (1.0 + output.poisson_ratio));
     return {lame_lambda, shear_modulus};
 }
+
 AxisymmetricStrain IsotropicThermoelasticMaterial::eigenstrain_rz(
     const adlite::Scalar& temperature, MaterialFunctionContext context) const {
     const SymmetricTensor3 value = eigenstrain(temperature, context);
@@ -355,6 +396,7 @@ AxisymmetricStrain IsotropicThermoelasticMaterial::eigenstrain_rz(
         throw std::domain_error("RZ material cannot represent xy or yz eigenstrain components");
     return {value.xx, value.zz, value.yy, value.xz};
 }
+
 SymmetricTensor3 IsotropicThermoelasticMaterial::eigenstrain(
     const adlite::Scalar& temperature, MaterialFunctionContext context) const {
     SymmetricTensor3 result{};
@@ -373,6 +415,7 @@ SymmetricTensor3 IsotropicThermoelasticMaterial::eigenstrain(
     }
     return result;
 }
+
 namespace {
 AxisymmetricStress hooke_stress(const adlite::Scalar& lame_lambda, const adlite::Scalar& shear_modulus,
     const adlite::Scalar& strain_rr, const adlite::Scalar& strain_zz, const adlite::Scalar& strain_hoop,
@@ -386,6 +429,7 @@ AxisymmetricStress hooke_stress(const adlite::Scalar& lame_lambda, const adlite:
     };
 }
 } // namespace
+
 AxisymmetricStress IsotropicThermoelasticMaterial::stress(const adlite::Scalar& strain_rr,
     const adlite::Scalar& strain_zz, const adlite::Scalar& strain_hoop, const adlite::Scalar& strain_rz,
     const adlite::Scalar& temperature, MaterialFunctionContext context) const {
@@ -394,6 +438,7 @@ AxisymmetricStress IsotropicThermoelasticMaterial::stress(const adlite::Scalar& 
     return hooke_stress(active.lame_lambda, active.shear_modulus, strain_rr - imposed.rr, strain_zz - imposed.zz,
         strain_hoop - imposed.hoop, strain_rz - imposed.rz);
 }
+
 SymmetricTensor3 IsotropicThermoelasticMaterial::stress(
     const SymmetricTensor3& strain, const adlite::Scalar& temperature, MaterialFunctionContext context) const {
     const ActiveThermoelasticProperties active = active_properties(temperature, context);
@@ -406,29 +451,37 @@ SymmetricTensor3 IsotropicThermoelasticMaterial::stress(
         2.0 * active.shear_modulus * (strain.xy - imposed.xy), 2.0 * active.shear_modulus * (strain.yz - imposed.yz),
         2.0 * active.shear_modulus * (strain.xz - imposed.xz)};
 }
+
 namespace {
 constexpr std::size_t component_count = 4;
 constexpr int maximum_creep_iterations = 100;
 const double log_denorm_min = std::log(std::numeric_limits<double>::denorm_min());
+
 struct NortonCreepProperties final {
     double coefficient, reference_stress, stress_exponent;
 };
+
 struct J2PlasticityProperties final {
     double yield_stress, isotropic_hardening_modulus;
 };
+
 struct ActiveNortonCreepProperties final {
     adlite::Scalar coefficient, reference_stress, stress_exponent;
 };
+
 struct ActiveJ2PlasticityProperties final {
     adlite::Scalar yield_stress, isotropic_hardening_modulus;
 };
+
 struct NortonRoot final {
     double equivalent_stress, trial_stress_derivative, relaxed_fraction;
 };
+
 struct CoupledUpdate final {
     double equivalent_stress, stress_derivative, plastic_increment, plastic_increment_derivative, creep_increment,
         creep_increment_derivative;
 };
+
 void validate_material_point_state(const MaterialPointState& state) {
     for (std::size_t component = 0; component < component_count; ++component)
         if (!std::isfinite(state.elastic_strain[component]) || !std::isfinite(state.plastic_strain[component]) ||
@@ -439,6 +492,7 @@ void validate_material_point_state(const MaterialPointState& state) {
     if (!std::isfinite(state.equivalent_creep_strain) || !(state.equivalent_creep_strain >= 0.0))
         throw std::domain_error("Material point equivalent creep strain must be finite and nonnegative");
 }
+
 void validate_material_point_state(const CartesianMaterialPointState& state) {
     for (std::size_t component = 0; component < state.elastic_strain.size(); ++component)
         if (!std::isfinite(state.elastic_strain[component]) || !std::isfinite(state.plastic_strain[component]) ||
@@ -448,22 +502,27 @@ void validate_material_point_state(const CartesianMaterialPointState& state) {
         !std::isfinite(state.equivalent_creep_strain) || !(state.equivalent_creep_strain >= 0.0))
         throw std::domain_error("Cartesian equivalent inelastic strains must be finite and nonnegative");
 }
+
 AxisymmetricStress tensor(const std::array<adlite::Scalar, component_count>& components) {
     return {components[0], components[1], components[2], components[3]};
 }
+
 std::array<adlite::Scalar, component_count> components(const AxisymmetricStress& tensor) {
     return {tensor.rr, tensor.zz, tensor.hoop, tensor.rz};
 }
+
 double log_add_exp(double first, double second) {
     const double maximum = std::max(first, second);
     if (std::isinf(maximum)) return maximum;
     return maximum + std::log1p(std::exp(std::min(first, second) - maximum));
 }
+
 double second_exponential_weight(double first, double second) {
     if (second >= first) return 1.0 / (1.0 + std::exp(first - second));
     const double ratio = std::exp(second - first);
     return ratio / (1.0 + ratio);
 }
+
 NortonRoot solve_power_law_equivalent_stress(
     double driving_stress, double log_stress_coefficient, double time_step, const NortonCreepProperties& creep) {
     if (time_step == 0.0 || creep.coefficient == 0.0 ||
@@ -550,10 +609,12 @@ NortonRoot solve_power_law_equivalent_stress(
         relaxed_fraction,
     };
 }
+
 NortonRoot solve_norton_equivalent_stress(
     double trial_stress, double shear_modulus, double time_step, const NortonCreepProperties& creep) {
     return solve_power_law_equivalent_stress(trial_stress, std::log(3.0) + std::log(shear_modulus), time_step, creep);
 }
+
 double evaluate_creep_increment(double equivalent_stress, double time_step, const NortonCreepProperties& creep) {
     if (time_step == 0.0 || creep.coefficient == 0.0) return 0.0;
     if (!(equivalent_stress > 0.0)) return 0.0;
@@ -570,6 +631,7 @@ double evaluate_creep_increment(double equivalent_stress, double time_step, cons
         throw std::overflow_error("Norton creep increment is not finite");
     return increment;
 }
+
 CoupledUpdate solve_coupled_update(double trial_stress, double shear_modulus, double time_step,
     const NortonCreepProperties& creep, const J2PlasticityProperties& plasticity,
     double committed_equivalent_plastic_strain) {
@@ -627,13 +689,16 @@ CoupledUpdate solve_coupled_update(double trial_stress, double shear_modulus, do
     return {root.equivalent_stress, stress_derivative, plastic_increment, plastic_increment_derivative, creep_increment,
         creep_increment_derivative};
 }
+
 double zero_stress_scale_shear_derivative(double scale, double time_step, const NortonCreepProperties& creep) {
     if (time_step == 0.0 || creep.coefficient == 0.0 || creep.stress_exponent > 1.0) return 0.0;
     return -3.0 * time_step * creep.coefficient / creep.reference_stress * scale * scale;
 }
+
 struct NortonDirectPartials final {
     double creep_stress_derivative, direct_coefficient, direct_reference, direct_exponent;
 };
+
 NortonDirectPartials norton_direct_partials(
     double equivalent_stress, double creep_increment, const NortonCreepProperties& creep) {
     return {
@@ -643,15 +708,18 @@ NortonDirectPartials norton_direct_partials(
         equivalent_stress > 0.0 ? creep_increment * std::log(equivalent_stress / creep.reference_stress) : 0.0,
     };
 }
+
 void fill_creep_partials(
     double* creep, std::size_t count, double creep_stress_derivative, const double* stress, const double* direct) {
     for (std::size_t parameter = 0; parameter < count; ++parameter)
         creep[parameter] = creep_stress_derivative * stress[parameter] + direct[parameter];
 }
+
 struct NortonPartials final {
     std::array<double, 5> stress{};
     std::array<double, 5> creep{};
 };
+
 NortonPartials norton_partials(double equivalent_trial_stress, double shear_modulus, double time_step,
     const NortonCreepProperties& creep, const NortonRoot& root, double creep_increment) {
     NortonPartials result;
@@ -668,11 +736,13 @@ NortonPartials norton_partials(double equivalent_trial_stress, double shear_modu
     if (time_step == 0.0 || equivalent_trial_stress == 0.0) result.creep.fill(0.0);
     return result;
 }
+
 struct CoupledPartials final {
     std::array<double, 7> stress{};
     std::array<double, 7> plastic{};
     std::array<double, 7> creep{};
 };
+
 CoupledPartials coupled_partials(double equivalent_trial_stress, double shear_modulus,
     const NortonCreepProperties& creep, const J2PlasticityProperties& plasticity,
     double committed_equivalent_plastic_strain, const CoupledUpdate& update) {
@@ -727,6 +797,7 @@ CoupledPartials coupled_partials(double equivalent_trial_stress, double shear_mo
     }
     return result;
 }
+
 adlite::Scalar function_creep_rate(const CreepFunctionInstance& function, const adlite::Scalar& equivalent_stress,
     const adlite::Scalar& temperature, const adlite::Scalar& equivalent_creep_strain, MaterialFunctionContext context) {
     const adlite::Scalar rate =
@@ -735,6 +806,7 @@ adlite::Scalar function_creep_rate(const CreepFunctionInstance& function, const 
         throw std::domain_error("Creep material function rate must be nonnegative and must not be NaN");
     return rate;
 }
+
 adlite::Scalar function_flow_stress(const PlasticFunctionInstance& function,
     const adlite::Scalar& equivalent_plastic_strain, const adlite::Scalar& temperature,
     MaterialFunctionContext context) {
@@ -744,10 +816,12 @@ adlite::Scalar function_flow_stress(const PlasticFunctionInstance& function,
         throw std::domain_error("Plasticity material function flow stress must be finite and positive");
     return stress;
 }
+
 struct FunctionCreepRoot final {
     adlite::Scalar equivalent_stress, creep_increment;
     double zero_stress_scale;
 };
+
 double passive_creep_rate_and_derivative(const CreepFunctionInstance& function, double equivalent_stress,
     double temperature, double equivalent_creep_strain, MaterialFunctionContext context, double& derivative) {
     const adlite::Scalar active_stress = adlite::Scalar::independent(equivalent_stress, 0, 1);
@@ -756,10 +830,13 @@ double passive_creep_rate_and_derivative(const CreepFunctionInstance& function, 
     derivative = rate.is_active() ? rate.derivative(0) : 0.0;
     return rate.value();
 }
+
 struct BracketedRoot final {
     double value, derivative;
 };
+
 using ResidualFunction = adlite::Scalar (*)(double, void*);
+
 BracketedRoot solve_bracketed_root(double upper, double initial, double residual_tolerance, double interval_tolerance,
     ResidualFunction function, void* context, const char* failure) {
     double lower = 0.0, current = initial;
@@ -788,11 +865,13 @@ BracketedRoot solve_bracketed_root(double upper, double initial, double residual
     }
     throw std::domain_error(failure);
 }
+
 struct FunctionCreepEquation final {
     const CreepFunctionInstance& function;
     double trial, shear, temperature, equivalent_creep, time_step;
     MaterialFunctionContext context;
 };
+
 adlite::Scalar function_creep_residual(double stress, void* raw) {
     auto& equation = *static_cast<FunctionCreepEquation*>(raw);
     const adlite::Scalar active = adlite::Scalar::independent(stress, 0, 1);
@@ -802,6 +881,7 @@ adlite::Scalar function_creep_residual(double stress, void* raw) {
         throw std::domain_error("Creep material function must be nondecreasing in equivalent stress");
     return active + 3.0 * equation.shear * equation.time_step * rate - equation.trial;
 }
+
 FunctionCreepRoot solve_function_creep(const CreepFunctionInstance& function,
     const adlite::Scalar& equivalent_trial_stress, const adlite::Scalar& shear_modulus,
     const adlite::Scalar& temperature, double equivalent_creep_strain, double time_step,
@@ -831,14 +911,17 @@ FunctionCreepRoot solve_function_creep(const CreepFunctionInstance& function,
         time_step * function_creep_rate(function, returned_stress, temperature, equivalent_creep_strain, context);
     return {returned_stress, increment, zero_scale};
 }
+
 struct FunctionCoupledUpdate final {
     adlite::Scalar equivalent_stress, plastic_increment, creep_increment;
 };
+
 struct FunctionCoupledEquation final {
     const MaterialFunctionSet& functions;
     double trial, shear, temperature, equivalent_plastic, equivalent_creep, time_step;
     MaterialFunctionContext context;
 };
+
 adlite::Scalar function_coupled_residual(double increment, void* raw) {
     auto& equation = *static_cast<FunctionCoupledEquation*>(raw);
     const adlite::Scalar active = adlite::Scalar::independent(increment, 0, 1);
@@ -853,6 +936,7 @@ adlite::Scalar function_coupled_residual(double increment, void* raw) {
                                          equation.equivalent_creep, equation.context);
     return flow + 3.0 * equation.shear * (active + creep) - equation.trial;
 }
+
 FunctionCoupledUpdate solve_function_coupled(const MaterialFunctionSet& functions,
     const adlite::Scalar& equivalent_trial_stress, const adlite::Scalar& shear_modulus,
     const adlite::Scalar& temperature, double equivalent_plastic_strain, double equivalent_creep_strain,
@@ -890,6 +974,7 @@ FunctionCoupledUpdate solve_function_coupled(const MaterialFunctionSet& function
     return {returned_stress, plastic_increment, creep_increment};
 }
 } // namespace
+
 namespace {
 ActiveNortonCreepProperties active_creep_properties(
     const CreepFunctionInstance& function, const adlite::Scalar& temperature) {
@@ -910,6 +995,7 @@ ActiveNortonCreepProperties active_creep_properties(
         throw std::domain_error("Active Norton creep properties violate their physical domain");
     return active;
 }
+
 ActiveJ2PlasticityProperties active_plasticity_properties(
     const PlasticFunctionInstance& function, const adlite::Scalar& temperature) {
     const MaterialParameters& parameters = function.parameters;
@@ -927,9 +1013,11 @@ ActiveJ2PlasticityProperties active_plasticity_properties(
         throw std::domain_error("Active J2 plasticity properties violate their physical domain");
     return active;
 }
+
 struct InelasticScalarUpdate final {
     adlite::Scalar equivalent_stress, plastic_increment, creep_increment, zero_stress_scale{1.0};
 };
+
 InelasticScalarUpdate evaluate_inelastic_scalars(const MaterialFunctionSet& functions,
     const adlite::Scalar& equivalent_trial_stress, const adlite::Scalar& shear_modulus,
     const adlite::Scalar& temperature, double equivalent_plastic_strain, double equivalent_creep_strain,
@@ -1007,10 +1095,12 @@ InelasticScalarUpdate evaluate_inelastic_scalars(const MaterialFunctionSet& func
     return {adlite::compose(root.equivalent_stress, inputs.data(), partials.stress.data(), inputs.size()), 0.0,
         adlite::compose(increment, inputs.data(), partials.creep.data(), inputs.size()), 1.0};
 }
+
 struct InelasticTensorUpdate final {
     std::array<adlite::Scalar, 6> stress{}, elastic{}, plastic{}, creep{};
     adlite::Scalar equivalent_plastic{0.0}, equivalent_creep{0.0};
 };
+
 InelasticTensorUpdate evaluate_inelastic_tensor(const MaterialFunctionSet& functions,
     const ActiveThermoelasticProperties& active, const std::array<adlite::Scalar, 6>& total,
     const std::array<adlite::Scalar, 6>& imposed, const double* committed_plastic, const double* committed_creep,
@@ -1077,6 +1167,7 @@ InelasticTensorUpdate evaluate_inelastic_tensor(const MaterialFunctionSet& funct
     return result;
 }
 } // namespace
+
 InelasticStressResponse IsotropicThermoelasticMaterial::response(const adlite::Scalar& strain_rr,
     const adlite::Scalar& strain_zz, const adlite::Scalar& strain_hoop, const adlite::Scalar& strain_rz,
     const adlite::Scalar& temperature, double time_step, const MaterialPointState& committed,
@@ -1096,6 +1187,7 @@ InelasticStressResponse IsotropicThermoelasticMaterial::response(const adlite::S
     trial.equivalent_creep_strain = update.equivalent_creep;
     return {{update.stress[0], update.stress[1], update.stress[2], update.stress[3]}, trial};
 }
+
 CartesianInelasticStressResponse IsotropicThermoelasticMaterial::response(const SymmetricTensor3& strain,
     const adlite::Scalar& temperature, double time_step, const CartesianMaterialPointState& committed,
     MaterialFunctionContext context) const {
@@ -1121,6 +1213,7 @@ CartesianInelasticStressResponse IsotropicThermoelasticMaterial::response(const 
         {update.stress[0], update.stress[1], update.stress[2], update.stress[3], update.stress[4], update.stress[5]},
         trial};
 }
+
 InelasticStressResponse IsotropicThermoelasticMaterial::incremental_response(const adlite::Scalar& strain_increment_rr,
     const adlite::Scalar& strain_increment_zz, const adlite::Scalar& strain_increment_hoop,
     const adlite::Scalar& strain_increment_rz, const AxisymmetricRotation& rotation, const adlite::Scalar& temperature,
@@ -1153,6 +1246,7 @@ InelasticStressResponse IsotropicThermoelasticMaterial::incremental_response(con
         components(rotate_axisymmetric_tensor(tensor(result.trial_state.creep_strain), rotation));
     return result;
 }
+
 MaterialPointState IsotropicThermoelasticMaterial::state_values(const MaterialPointTrialState& trial_state) {
     MaterialPointState state;
     for (std::size_t component = 0; component < component_count; ++component) {

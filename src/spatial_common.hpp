@@ -5,14 +5,17 @@
 #include <cstdint>
 #include <utility>
 #include <vector>
+
 namespace fuelsim::spatial_detail {
 enum class DofLayout {
     axisymmetric_rz,
     cartesian_3d,
 };
+
 struct ConvectionValues final {
     double coefficient, ambient;
 };
+
 std::vector<std::int64_t> resolve_block_ids(const SpatialDefinition& definition,
     const UnstructuredMeshMetadata& source_mesh, bool allow_contacts, bool allow_finite_strain);
 void validate_dirichlet_conditions(
@@ -20,24 +23,38 @@ void validate_dirichlet_conditions(
 double function_value(const SpatialDefinition& definition, double time, const std::string& name);
 double controlled_value(const SpatialDefinition& definition, double time, double load_factor, double value,
     bool scale_with_load, const std::string& function);
+
 class SpatialLayout {
   public:
     const SpatialDefinition& definition() const noexcept { return _definition; }
+
     std::size_t region_count() const noexcept { return _definition.regions.size(); }
+
     const RegionDefinition& region(std::size_t index) const { return _definition.regions.at(index); }
+
     std::size_t region_node_offset(std::size_t index) const;
     std::size_t region_element_count(std::size_t index) const;
     std::size_t region_element_offset(std::size_t index) const;
+
     std::size_t volume_contribution_count() const noexcept { return _element_offsets.back(); }
+
     std::pair<std::size_t, std::size_t> element_location(std::size_t index) const;
     double region_heat_source(std::size_t index) const;
+
     double load_factor() const noexcept { return _load_factor; }
+
     std::vector<double> initial_state() const;
+
     std::size_t node_count() const noexcept { return _node_offsets.back(); }
+
     std::size_t dof_count() const noexcept { return _field_layout.size() * node_count(); }
+
     const std::vector<FieldDescriptor>& field_layout() const noexcept { return _field_layout; }
+
     std::size_t dof(Field field, std::size_t node) const;
+
     const std::vector<DirichletCondition>& dirichlet_conditions() const noexcept { return _dirichlet_conditions; }
+
     std::size_t global_node(std::size_t region, std::size_t local_node) const;
 
   protected:
@@ -59,6 +76,7 @@ class SpatialLayout {
     struct ControlledDirichlet final {
         std::size_t dof, boundary_index;
     };
+
     DofLayout _layout;
     std::vector<ControlledDirichlet> _controlled_dirichlet_conditions;
 };

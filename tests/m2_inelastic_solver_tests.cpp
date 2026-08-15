@@ -15,18 +15,22 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+
 namespace {
 constexpr double moose_relative_tolerance = 1.0e-3;
+
 bool check(bool condition, const std::string& message) {
     if (condition) return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
+
 double relative_error(double actual, double expected) {
     if (!std::isfinite(actual) || !std::isfinite(expected) || expected == 0.0)
         return std::numeric_limits<double>::infinity();
     return std::abs(actual - expected) / std::abs(expected);
 }
+
 bool check_scalar_metrics(const std::string& name, double actual, double reference, double tolerance) {
     const double relative_l2 = relative_error(actual, reference);
     const double relative_absolute_peak = std::abs(std::abs(actual) - std::abs(reference)) / std::abs(reference);
@@ -38,16 +42,19 @@ bool check_scalar_metrics(const std::string& name, double actual, double referen
         relative_l2 < tolerance && relative_absolute_peak < tolerance && maximum_pointwise_relative < tolerance,
         name + " three MOOSE error metrics pass");
 }
+
 fuelsim::SolverOptions solver_options(const fuelsim::FuelSimCaseDefinition& definition) {
     return {definition.solver.absolute_tolerance, definition.solver.relative_tolerance,
         definition.solver.step_tolerance, definition.solver.maximum_iterations};
 }
+
 fuelsim::TransientTimeOptions time_options(const fuelsim::FuelSimCaseDefinition& definition) {
     return {definition.transient_execution.end_time, definition.transient_execution.initial_time_step,
         definition.transient_execution.minimum_time_step, definition.transient_execution.maximum_time_step,
         definition.transient_execution.growth_factor, definition.transient_execution.cutback_factor,
         definition.transient_execution.maximum_cutbacks_per_step, definition.transient_execution.load_ramp_time};
 }
+
 class TransientCaseRun final {
   public:
     explicit TransientCaseRun(const std::string& input_path, fuelsim::TransientStepObserver* observer = nullptr)
@@ -60,9 +67,13 @@ class TransientCaseRun final {
             throw std::invalid_argument("M2.2 comparison input requires one region and one Quad4");
         _result = fuelsim::solve_transient(_problem, time_options(_definition), solver_options(_definition), observer);
     }
+
     const fuelsim::FuelSimCaseDefinition& definition() const noexcept { return _definition; }
+
     const fuelsim::UnstructuredQuad4Mesh& source() const noexcept { return _source; }
+
     const fuelsim::TransientProblem& problem() const noexcept { return _problem; }
+
     const fuelsim::TransientResult& result() const noexcept { return _result; }
 
   private:
@@ -71,6 +82,7 @@ class TransientCaseRun final {
     fuelsim::TransientProblem _problem;
     fuelsim::TransientResult _result;
 };
+
 struct J2HistoryValue final {
     double time = 0.0;
     double axial_displacement = 0.0;
@@ -80,6 +92,7 @@ struct J2HistoryValue final {
     double hoop_plastic = 0.0;
     double radial_plastic = 0.0;
 };
+
 class J2HistoryObserver final : public fuelsim::TransientStepObserver {
   public:
     void accepted_step(const fuelsim::TransientProblem& problem, const fuelsim::TransientAcceptedStep& step) override {
@@ -116,11 +129,13 @@ class J2HistoryObserver final : public fuelsim::TransientStepObserver {
         }
         _values.push_back(value);
     }
+
     const std::vector<J2HistoryValue>& values() const noexcept { return _values; }
 
   private:
     std::vector<J2HistoryValue> _values;
 };
+
 std::vector<std::string> split_csv_line(const std::string& line) {
     std::vector<std::string> fields;
     std::size_t begin = 0;
@@ -131,11 +146,13 @@ std::vector<std::string> split_csv_line(const std::string& line) {
         begin = separator + 1;
     }
 }
+
 std::size_t csv_column(const std::vector<std::string>& header, const std::string& name) {
     const auto found = std::find(header.begin(), header.end(), name);
     if (found == header.end()) throw std::invalid_argument("MOOSE history CSV is missing column '" + name + "'");
     return static_cast<std::size_t>(found - header.begin());
 }
+
 double csv_value(const std::vector<std::string>& fields, std::size_t column, const std::string& path) {
     if (column >= fields.size()) throw std::invalid_argument("MOOSE history CSV row is too short: " + path);
     std::size_t parsed = 0;
@@ -144,6 +161,7 @@ double csv_value(const std::vector<std::string>& fields, std::size_t column, con
         throw std::invalid_argument("MOOSE history CSV contains an invalid number: " + path);
     return value;
 }
+
 std::vector<J2HistoryValue> read_j2_history(const std::string& path) {
     std::ifstream input(path);
     if (!input) throw std::runtime_error("Could not read MOOSE J2 history: " + path);
@@ -170,6 +188,7 @@ std::vector<J2HistoryValue> read_j2_history(const std::string& path) {
     if (values.empty()) throw std::invalid_argument("MOOSE J2 history contains no accepted time steps: " + path);
     return values;
 }
+
 bool check_history_metrics(const std::string& name, const fuelsim::test::FieldErrorMetrics& metrics, double tolerance,
     double zero_reference_absolute_tolerance) {
     fuelsim::test::print_relative_metrics(name, metrics);
@@ -177,6 +196,7 @@ bool check_history_metrics(const std::string& name, const fuelsim::test::FieldEr
                      metrics.maximum_zero_reference_difference <= zero_reference_absolute_tolerance,
         name + " history three MOOSE error metrics and zero references pass");
 }
+
 double average_axial_stress(const TransientCaseRun& run) {
     double value = 0.0;
     for (const fuelsim::AxisymmetricStressValues& stress :
@@ -184,18 +204,21 @@ double average_axial_stress(const TransientCaseRun& run) {
         value += stress.zz / 4.0;
     return value;
 }
+
 double average_equivalent_plastic(const TransientCaseRun& run) {
     double value = 0.0;
     for (const fuelsim::MaterialPointState& point : fuelsim::rz::ProblemAccess::material_history(run.problem(), 0, 0))
         value += point.equivalent_plastic_strain / 4.0;
     return value;
 }
+
 double average_equivalent_creep(const TransientCaseRun& run) {
     double value = 0.0;
     for (const fuelsim::MaterialPointState& point : fuelsim::rz::ProblemAccess::material_history(run.problem(), 0, 0))
         value += point.equivalent_creep_strain / 4.0;
     return value;
 }
+
 double maximum_inelastic_trace(const TransientCaseRun& run, bool plastic_strain) {
     double maximum = 0.0;
     for (const fuelsim::MaterialPointState& point : fuelsim::rz::ProblemAccess::material_history(run.problem(), 0, 0)) {
@@ -204,6 +227,7 @@ double maximum_inelastic_trace(const TransientCaseRun& run, bool plastic_strain)
     }
     return maximum;
 }
+
 double average_top_displacement(const TransientCaseRun& run) {
     const fuelsim::RegionBoundary top =
         fuelsim::rz::ProblemAccess::region_mesh(run.problem(), 0).map_side_set(run.source(), "top");
@@ -214,6 +238,7 @@ double average_top_displacement(const TransientCaseRun& run) {
     }
     return value / static_cast<double>(top.nodes.size());
 }
+
 bool temperatures_are_600(const TransientCaseRun& run) {
     for (std::size_t node = 0; node < fuelsim::rz::ProblemAccess::dof_map(run.problem()).node_count(); ++node)
         if (std::abs(run.result().committed_state.at(
@@ -222,6 +247,7 @@ bool temperatures_are_600(const TransientCaseRun& run) {
             return false;
     return true;
 }
+
 bool common_run_checks(const std::string& name, const TransientCaseRun& run, std::size_t expected_steps,
     const std::string& nodal_reference_path) {
     if (!run.result().completed)
@@ -255,6 +281,7 @@ bool common_run_checks(const std::string& name, const TransientCaseRun& run, std
     fuelsim::test::print_relative_metrics("m22_" + name + "_axial_displacement", fields.axial_displacement);
     return passed;
 }
+
 bool test_j2_moose_comparison(const std::string& input_path, const std::string& nodal_reference_path) {
     constexpr double moose_axial_stress = 201980198.0198;
     constexpr double moose_equivalent_plastic = 0.000990099009901;
@@ -275,6 +302,7 @@ bool test_j2_moose_comparison(const std::string& input_path, const std::string& 
     passed = check(maximum_inelastic_trace(run, true) < 1.0e-12, "J2 plastic strain is trace-free") && passed;
     return passed;
 }
+
 bool test_j2_unload_reload_moose_comparison(
     const std::string& input_path, const std::string& nodal_reference_path, const std::string& history_reference_path) {
     J2HistoryObserver observer;
@@ -344,6 +372,7 @@ bool test_j2_unload_reload_moose_comparison(
         passed;
     return passed;
 }
+
 bool test_norton_moose_comparison(const std::string& input_path, const std::string& nodal_reference_path) {
     constexpr double moose_axial_stress = 99998007.620195;
     constexpr double moose_equivalent_creep = 9.9991036503199e-5;
@@ -365,6 +394,7 @@ bool test_norton_moose_comparison(const std::string& input_path, const std::stri
     passed = check(maximum_inelastic_trace(run, false) < 1.0e-12, "Norton creep strain is trace-free") && passed;
     return passed;
 }
+
 bool test_coupled_moose_comparison(const std::string& displacement_input, const std::string& traction_input,
     const std::string& displacement_reference, const std::string& traction_reference) {
     constexpr double moose_axial_stress = 200999992.08159;
@@ -422,6 +452,7 @@ bool test_coupled_moose_comparison(const std::string& displacement_input, const 
     return passed;
 }
 } // namespace
+
 int main(int argc, char** argv) {
     if (argc != 12) {
         std::cerr << "Usage: fuelsim_m2_inelastic_solver_tests "

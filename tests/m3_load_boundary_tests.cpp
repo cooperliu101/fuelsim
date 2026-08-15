@@ -14,12 +14,14 @@
 #include <string>
 #include <utility>
 #include <vector>
+
 namespace {
 bool check(bool condition, const std::string& message) {
     if (condition) return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
+
 bool test_time_event_alignment(const std::string& input_path) {
     const fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
@@ -37,6 +39,7 @@ bool test_time_event_alignment(const std::string& input_path) {
         "iteration-adaptive stepping grows, lands on an event, and "
         "preserves the controller step");
 }
+
 bool test_moose_time_table_convection(const std::string& input_path, const std::string& nodal_reference_path) {
     const fuelsim::FuelSimCaseDefinition definition = fuelsim::read_case_input(input_path);
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(definition.mesh_file);
@@ -72,6 +75,7 @@ bool test_moose_time_table_convection(const std::string& input_path, const std::
     fuelsim::test::print_relative_metrics("m31_convection_temperature", fields.temperature);
     return passed;
 }
+
 double temperature_relative_l2(
     const fuelsim::TransientProblem& problem, const std::vector<double>& actual, const std::vector<double>& reference) {
     double difference_squared = 0.0;
@@ -85,23 +89,27 @@ double temperature_relative_l2(
     }
     return std::sqrt(difference_squared / reference_squared);
 }
+
 struct ConvergenceAccumulator final {
     double difference_squared = 0.0;
     double reference_squared = 0.0;
     double maximum_absolute_difference = 0.0;
 };
+
 struct ConvergenceMetric final {
     double absolute_l2 = 0.0;
     double relative_l2 = 0.0;
     double maximum_absolute_difference = 0.0;
     bool zero_reference = false;
 };
+
 void accumulate_convergence(ConvergenceAccumulator& accumulator, double actual, double reference) {
     const double difference = actual - reference;
     accumulator.difference_squared += difference * difference;
     accumulator.reference_squared += reference * reference;
     accumulator.maximum_absolute_difference = std::max(accumulator.maximum_absolute_difference, std::abs(difference));
 }
+
 ConvergenceMetric finish_convergence(const ConvergenceAccumulator& accumulator) {
     ConvergenceMetric result;
     result.absolute_l2 = std::sqrt(accumulator.difference_squared);
@@ -111,6 +119,7 @@ ConvergenceMetric finish_convergence(const ConvergenceAccumulator& accumulator) 
         result.relative_l2 = std::sqrt(accumulator.difference_squared / accumulator.reference_squared);
     return result;
 }
+
 std::array<ConvergenceMetric, 9> compare_committed_states(
     const fuelsim::TransientCommittedState& actual, const fuelsim::TransientCommittedState& reference) {
     if (actual.solution.size() != reference.solution.size() || actual.solution.size() % 3 != 0 ||
@@ -158,6 +167,7 @@ std::array<ConvergenceMetric, 9> compare_committed_states(
     for (std::size_t field = 0; field < result.size(); ++field) result[field] = finish_convergence(accumulators[field]);
     return result;
 }
+
 bool test_opaque_state_snapshot(const std::string& input_path) {
     const fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
@@ -203,6 +213,7 @@ bool test_opaque_state_snapshot(const std::string& input_path) {
     return check(!snapshot.empty() && empty_rejected && foreign_snapshot_rejected && identical,
         "opaque snapshots reject invalid use and restore the complete RZ committed state exactly");
 }
+
 fuelsim::TransientCommittedState solve_fixed_pcmi(
     const fuelsim::FuelSimCaseDefinition& input, const fuelsim::UnstructuredQuad4Mesh& mesh, double time_step) {
     fuelsim::TransientProblem problem(input.spatial, mesh);
@@ -217,6 +228,7 @@ fuelsim::TransientCommittedState solve_fixed_pcmi(
                                  "one PETSc workspace");
     return fuelsim::rz::ProblemAccess::committed_state(problem);
 }
+
 bool test_long_transient_time_convergence(const std::string& input_path) {
     const fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
@@ -293,6 +305,7 @@ bool test_long_transient_time_convergence(const std::string& input_path) {
                "reported separately") &&
            passed;
 }
+
 bool test_time_error_control(const std::string& input_path) {
     const fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
@@ -369,6 +382,7 @@ bool test_time_error_control(const std::string& input_path) {
         "BE step-doubling rejects inaccurate steps, reuses the "
         "PETSc workspace, and reduces temporal error");
 }
+
 bool test_failure_diagnostics(const std::string& input_path) {
     const fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
@@ -394,6 +408,7 @@ bool test_failure_diagnostics(const std::string& input_path) {
              passed;
     return passed;
 }
+
 bool test_history_time_error_control(const std::string& input_path) {
     const fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
@@ -440,6 +455,7 @@ bool test_history_time_error_control(const std::string& input_path) {
         "step-doubling controls committed inelastic histories in "
         "addition to nodal fields");
 }
+
 bool test_long_transient_diagnostics(const std::string& input_path) {
     const fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
@@ -502,6 +518,7 @@ bool test_long_transient_diagnostics(const std::string& input_path) {
         "200-step PCMI preserves the PETSc workspace, fixed physical "
         "residual scales, global balances, and nonnegative dissipation");
 }
+
 bool test_steady_load_cutback(const std::string& input_path) {
     const fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
@@ -550,6 +567,7 @@ bool test_steady_load_cutback(const std::string& input_path) {
              passed;
     return passed;
 }
+
 bool test_pressure_production_path(const std::string& input_path) {
     const fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
@@ -585,6 +603,7 @@ bool test_pressure_production_path(const std::string& input_path) {
     return check(relative_error < 1.0e-10, "radial pressure input produces the solid-cylinder stress");
 }
 } // namespace
+
 int main(int argc, char** argv) {
     if (argc != 6) {
         std::cerr << "Usage: fuelsim_m3_load_boundary_tests <m21.fsi> "

@@ -11,12 +11,14 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+
 namespace {
 bool check(bool condition, const std::string& message) {
     if (condition) return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
+
 bool run_comparison(const std::string& input_path, const std::string& nodal_reference_path,
     const std::string& pressure_reference_path) {
     const fuelsim::FuelSimCaseDefinition definition = fuelsim::read_case_input(input_path);
@@ -107,6 +109,7 @@ bool run_comparison(const std::string& input_path, const std::string& nodal_refe
     return passed;
 }
 } // namespace
+
 int main(int argc, char** argv) {
     if (argc != 4) {
         std::cerr << "Usage: fuelsim_m51_coulomb_friction_moose_tests "

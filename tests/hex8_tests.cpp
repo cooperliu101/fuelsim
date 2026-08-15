@@ -5,28 +5,34 @@
 #include <cmath>
 #include <iostream>
 #include <string>
+
 namespace {
 bool check(bool condition, const std::string& message) {
     if (condition) return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
+
 bool near(double actual, double expected, double tolerance) {
     return std::abs(actual - expected) <= tolerance * std::max({1.0, std::abs(actual), std::abs(expected)});
 }
+
 fuelsim::Hex8Coordinates unit_cube() {
     return {{{0.0, 0.0, 0.0}, {1.0, 0.0, 0.0}, {1.0, 1.0, 0.0}, {0.0, 1.0, 0.0}, {0.0, 0.0, 1.0}, {1.0, 0.0, 1.0},
         {1.0, 1.0, 1.0}, {0.0, 1.0, 1.0}}};
 }
+
 fuelsim::ThermoelasticProperties properties() {
     return fuelsim::test::thermoelastic(3000.0, 4.0, 2.0e11, 0.25, 1.2e-5, 300.0, -1.0e8, 0.0, 1.0e-8, 2000.0, 3000.0);
 }
+
 fuelsim::ThermoelasticProperties inelastic_properties(bool creep, bool plasticity) {
     fuelsim::ThermoelasticProperties result = fuelsim::test::thermoelastic(0.0, 1.0, 200.0, 0.25, 0.0, 300.0);
     if (creep) result = fuelsim::test::with_norton(std::move(result), 1.0e-4, 10.0, 3.0, 300.0);
     if (plasticity) result = fuelsim::test::with_plasticity(std::move(result), 10.0, 20.0, 300.0);
     return result;
 }
+
 double equivalent_stress(const fuelsim::SymmetricTensor3& stress) {
     const double mean = (stress.xx.value() + stress.yy.value() + stress.zz.value()) / 3.0;
     const double xx = stress.xx.value() - mean, yy = stress.yy.value() - mean, zz = stress.zz.value() - mean;
@@ -34,6 +40,7 @@ double equivalent_stress(const fuelsim::SymmetricTensor3& stress) {
                                2.0 * (stress.xy.value() * stress.xy.value() + stress.yz.value() * stress.yz.value() +
                                          stress.xz.value() * stress.xz.value())));
 }
+
 bool test_geometry_and_constant_strain() {
     const fuelsim::Hex8Coordinates coordinates = unit_cube();
     const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(coordinates);
@@ -83,6 +90,7 @@ bool test_geometry_and_constant_strain() {
             return false;
     return true;
 }
+
 bool test_free_thermal_expansion_and_jacobian() {
     const fuelsim::Hex8Coordinates coordinates = unit_cube();
     const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(coordinates);
@@ -130,6 +138,7 @@ bool test_free_thermal_expansion_and_jacobian() {
     return check(maximum_error / scale < 3.0e-7,
         "full 32-DOF HEX8 automatic-differentiation Jacobian matches a centered directional difference");
 }
+
 bool test_transient_capacity_and_faces() {
     const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(unit_cube());
     const fuelsim::Hex8ThermoelasticData data{fuelsim::IsotropicThermoelasticMaterial(properties()), 1.2e7, 0.0};
@@ -223,6 +232,7 @@ bool test_transient_capacity_and_faces() {
     return check(near(heat, 1000.0, 1.0e-14) && near(tangent_sum, 20.0, 1.0e-14),
         "three-dimensional convection has the exact face heat rate and consistent temperature tangent");
 }
+
 bool test_cartesian_inelastic_material() {
     const fuelsim::SymmetricTensor3 strain{0.20, -0.04, -0.03, 0.02, -0.015, 0.01};
     const fuelsim::CartesianMaterialPointState committed{};
@@ -261,6 +271,7 @@ bool test_cartesian_inelastic_material() {
     }
     return passed;
 }
+
 bool test_finite_strain_kinematics_and_coupled_jacobian() {
     const fuelsim::Hex8Coordinates coordinates = unit_cube();
     const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(coordinates);
@@ -360,6 +371,7 @@ bool test_finite_strain_kinematics_and_coupled_jacobian() {
     return passed;
 }
 } // namespace
+
 int main() {
     bool passed = true;
     passed = test_geometry_and_constant_strain() && passed;

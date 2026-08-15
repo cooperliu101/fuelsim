@@ -5,6 +5,7 @@
 #include <limits>
 #include <stdexcept>
 #include <utility>
+
 namespace fuelsim::spatial_detail {
 namespace {
 void validate_definition(const SpatialDefinition& definition, bool allow_contacts, bool allow_finite_strain) {
@@ -49,6 +50,7 @@ void validate_definition(const SpatialDefinition& definition, bool allow_contact
     }
 }
 } // namespace
+
 std::vector<std::int64_t> resolve_block_ids(const SpatialDefinition& definition,
     const UnstructuredMeshMetadata& source_mesh, bool allow_contacts, bool allow_finite_strain) {
     validate_definition(definition, allow_contacts, allow_finite_strain);
@@ -65,6 +67,7 @@ std::vector<std::int64_t> resolve_block_ids(const SpatialDefinition& definition,
     }
     return result;
 }
+
 void validate_dirichlet_conditions(
     std::vector<DirichletCondition>& conditions, const char* conflict_message, const char* duplicate_message) {
     std::sort(conditions.begin(), conditions.end(),
@@ -75,19 +78,23 @@ void validate_dirichlet_conditions(
         throw std::invalid_argument(duplicate_message);
     }
 }
+
 double function_value(const SpatialDefinition& definition, double time, const std::string& name) {
     const auto found = std::find_if(definition.time_tables.begin(), definition.time_tables.end(),
         [&name](const PiecewiseLinearTimeTable& table) { return table.name() == name; });
     if (found == definition.time_tables.end()) throw std::invalid_argument("Unknown time-table function: " + name);
     return found->value(time);
 }
+
 double controlled_value(const SpatialDefinition& definition, double time, double load_factor, double value,
     bool scale_with_load, const std::string& function) {
     if (!function.empty()) return value * function_value(definition, time, function);
     return value * (scale_with_load ? load_factor : 1.0);
 }
+
 SpatialLayout::SpatialLayout(SpatialDefinition definition, std::vector<std::int64_t> block_ids, DofLayout layout)
     : _definition(std::move(definition)), _block_ids(std::move(block_ids)), _layout(layout) {}
+
 void SpatialLayout::initialize_counts(
     const std::vector<std::size_t>& node_counts, const std::vector<std::size_t>& element_counts) {
     if (node_counts.size() != region_count() || element_counts.size() != region_count())
@@ -116,29 +123,35 @@ void SpatialLayout::initialize_counts(
         _field_layout.push_back({"displacement_z", 3 * nodes, 4 * nodes, FieldCategory::mechanical});
     }
 }
+
 std::size_t SpatialLayout::region_node_offset(std::size_t index) const {
     if (index >= region_count()) throw std::out_of_range("Spatial layout region index is out of range");
     return _node_offsets[index];
 }
+
 std::size_t SpatialLayout::region_element_count(std::size_t index) const {
     if (index >= region_count()) throw std::out_of_range("Spatial layout region index is out of range");
     return _element_offsets[index + 1] - _element_offsets[index];
 }
+
 std::size_t SpatialLayout::region_element_offset(std::size_t index) const {
     if (index >= region_count()) throw std::out_of_range("Spatial layout region index is out of range");
     return _element_offsets[index];
 }
+
 std::pair<std::size_t, std::size_t> SpatialLayout::element_location(std::size_t index) const {
     if (index >= volume_contribution_count()) throw std::out_of_range("Volume contribution is out of range");
     const auto upper = std::upper_bound(_element_offsets.begin(), _element_offsets.end(), index);
     const std::size_t region = static_cast<std::size_t>(upper - _element_offsets.begin() - 1);
     return {region, index - _element_offsets[region]};
 }
+
 double SpatialLayout::region_heat_source(std::size_t index) const {
     const RegionDefinition& value = region(index);
     return controlled_value(
         _definition, _time, _load_factor, value.volumetric_heat_source, true, value.heat_source_function);
 }
+
 std::vector<double> SpatialLayout::initial_state() const {
     std::vector<double> result(dof_count(), 0.0);
     for (std::size_t region_index = 0; region_index < region_count(); ++region_index)
@@ -147,6 +160,7 @@ std::vector<double> SpatialLayout::initial_state() const {
     for (const DirichletCondition& condition : _dirichlet_conditions) result[condition.dof] = condition.value;
     return result;
 }
+
 std::size_t SpatialLayout::dof(Field field, std::size_t node) const {
     if (node >= node_count()) throw std::out_of_range("Spatial layout node index is out of range");
     if (_layout == DofLayout::axisymmetric_rz) {
@@ -161,12 +175,14 @@ std::size_t SpatialLayout::dof(Field field, std::size_t node) const {
     }
     throw std::invalid_argument("Field is not available in this spatial layout");
 }
+
 std::size_t SpatialLayout::global_node(std::size_t region_index, std::size_t local_node) const {
     if (region_index >= region_count()) throw std::out_of_range("Spatial layout region index is out of range");
     if (local_node >= _node_offsets[region_index + 1] - _node_offsets[region_index])
         throw std::out_of_range("Spatial layout local node is out of range");
     return _node_offsets[region_index] + local_node;
 }
+
 void SpatialLayout::add_dirichlet(std::size_t dof, std::size_t boundary_index) {
     const BoundaryConditionDefinition& boundary = _definition.boundary_conditions.at(boundary_index);
     _dirichlet_conditions.push_back({dof, controlled_value(_definition, _time, _load_factor, boundary.value,
@@ -174,14 +190,17 @@ void SpatialLayout::add_dirichlet(std::size_t dof, std::size_t boundary_index) {
     if (boundary.scale_with_load || !boundary.function.empty())
         _controlled_dirichlet_conditions.push_back({dof, boundary_index});
 }
+
 void SpatialLayout::set_load_factor_value(double value) {
     if (!std::isfinite(value)) throw std::invalid_argument("Spatial layout load factor must be finite");
     _load_factor = value;
 }
+
 void SpatialLayout::set_time_value(double value) {
     if (!std::isfinite(value)) throw std::invalid_argument("Spatial layout time must be finite");
     _time = value;
 }
+
 void SpatialLayout::refresh_dirichlet_values() {
     for (const ControlledDirichlet& controlled : _controlled_dirichlet_conditions) {
         const auto condition = std::lower_bound(_dirichlet_conditions.begin(), _dirichlet_conditions.end(),
@@ -193,6 +212,7 @@ void SpatialLayout::refresh_dirichlet_values() {
             _definition, _time, _load_factor, boundary.value, boundary.scale_with_load, boundary.function);
     }
 }
+
 ConvectionValues SpatialLayout::convection_values(const BoundaryConditionDefinition& boundary) const {
     const double coefficient =
         boundary.heat_transfer_coefficient *
@@ -205,15 +225,18 @@ ConvectionValues SpatialLayout::convection_values(const BoundaryConditionDefinit
     return {coefficient, ambient};
 }
 } // namespace fuelsim::spatial_detail
+
 namespace fuelsim::rz {
 namespace {
 void check_state_size(std::size_t state_size, std::size_t dof_count, const char* message) {
     if (state_size != dof_count) throw std::invalid_argument(message);
 }
 } // namespace
+
 const Quad4RzGeometry& SpatialAssembly::region_element_geometry(std::size_t region, std::size_t element) const {
     return _region_geometries.at(region).at(element);
 }
+
 ResolvedBoundary SpatialAssembly::resolve_boundary(
     const UnstructuredQuad4Mesh& source_mesh, const std::string& name) const {
     const std::int64_t block_id = source_mesh.side_set_block_id(name);
@@ -222,6 +245,7 @@ ResolvedBoundary SpatialAssembly::resolve_boundary(
     const std::size_t region = static_cast<std::size_t>(found - _block_ids.begin());
     return {region, _meshes[region].map_side_set(source_mesh, name)};
 }
+
 std::pair<std::size_t, std::array<std::size_t, 2>> SpatialAssembly::edge_parent(
     std::size_t region, const Line2BoundaryElement& edge) const {
     const RegionMesh& mesh = region_mesh(region);
@@ -250,6 +274,7 @@ std::pair<std::size_t, std::array<std::size_t, 2>> SpatialAssembly::edge_parent(
     if (parent == mesh.elements().size()) throw std::invalid_argument("Boundary edge has no adjacent region element");
     return {parent, local_nodes};
 }
+
 void SpatialAssembly::build_volume_geometries() {
     _region_geometries.resize(region_count());
     for (std::size_t region_index = 0; region_index < region_count(); ++region_index) {
@@ -264,12 +289,14 @@ void SpatialAssembly::build_volume_geometries() {
         }
     }
 }
+
 SpatialAssembly::ContributionRanges SpatialAssembly::contribution_ranges() const noexcept {
     const std::size_t thermal_begin = volume_contribution_count(),
                       mechanical_begin = thermal_begin + _thermal_contributions.size(),
                       boundary_begin = mechanical_begin + _mechanical_contributions.size();
     return {thermal_begin, mechanical_begin, boundary_begin, boundary_begin + _boundary_contributions.size()};
 }
+
 SpatialAssembly::ContributionLocation SpatialAssembly::locate_contribution(std::size_t index) const {
     const ContributionRanges ranges = contribution_ranges();
     if (index >= ranges.end) throw std::out_of_range("SpatialAssembly contribution index is out of range");
@@ -281,9 +308,11 @@ SpatialAssembly::ContributionLocation SpatialAssembly::locate_contribution(std::
     const std::size_t local = index - ranges.boundary_begin;
     return {_boundary_contributions[local].type, local};
 }
+
 SpatialContributionType SpatialAssembly::contribution_type(std::size_t index) const {
     return locate_contribution(index).type;
 }
+
 void SpatialAssembly::build_boundaries(const UnstructuredQuad4Mesh& source_mesh) {
     for (std::size_t boundary_index = 0; boundary_index < _definition.boundary_conditions.size(); ++boundary_index) {
         const BoundaryConditionDefinition& definition = _definition.boundary_conditions[boundary_index];
@@ -346,14 +375,17 @@ void SpatialAssembly::build_boundaries(const UnstructuredQuad4Mesh& source_mesh)
         "BoundaryAssembly has conflicting Dirichlet conditions", "BoundaryAssembly has duplicate Dirichlet conditions");
     refresh_controlled_values();
 }
+
 void SpatialAssembly::set_load_factor(double value) {
     set_load_factor_value(value);
     refresh_controlled_values();
 }
+
 void SpatialAssembly::set_time(double value) {
     set_time_value(value);
     refresh_controlled_values();
 }
+
 void SpatialAssembly::refresh_controlled_values() {
     refresh_dirichlet_values();
     for (std::size_t load = 0; load < _boundary_definition_indices.size(); ++load) {
@@ -369,6 +401,7 @@ void SpatialAssembly::refresh_controlled_values() {
         }
     }
 }
+
 LocalDofs SpatialAssembly::local_dofs(const std::array<std::size_t, 4>& nodes) const {
     LocalDofs result{};
     for (std::size_t node = 0; node < nodes.size(); ++node) {
@@ -378,11 +411,13 @@ LocalDofs SpatialAssembly::local_dofs(const std::array<std::size_t, 4>& nodes) c
     }
     return result;
 }
+
 bool SpatialAssembly::uses_augmented_contact() const noexcept {
     return std::any_of(_definition.contacts.begin(), _definition.contacts.end(), [](const ContactDefinition& value) {
         return value.mechanical && value.mechanical_formulation == MechanicalContactFormulation::augmented_lagrangian;
     });
 }
+
 AugmentedContactUpdate SpatialAssembly::update_augmented_contact_multipliers(
     const std::vector<double>& state, std::size_t completed_updates) {
     check_state_size(state.size(), dof_count(), "SpatialAssembly augmented-contact state size mismatch");
@@ -421,6 +456,7 @@ AugmentedContactUpdate SpatialAssembly::update_augmented_contact_multipliers(
     if (!result.converged && result.update_allowed) _contact_histories.swap(staged);
     return result;
 }
+
 void SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
     check_state_size(state.size(), dof_count(), "SpatialAssembly committed contact state size mismatch");
     update_mechanical_candidates(0, contribution_count(), state);
@@ -464,6 +500,7 @@ void SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
     _contact_histories.swap(staged);
     _committed_contact_solution = state;
 }
+
 void SpatialAssembly::restore_contact_state(
     const std::vector<double>& state, std::vector<std::vector<ContactPointHistory>> histories) {
     check_state_size(state.size(), dof_count(), "SpatialAssembly restored contact state layout mismatch");
@@ -480,6 +517,7 @@ void SpatialAssembly::restore_contact_state(
     _committed_contact_solution = state;
     _contact_histories = std::move(histories);
 }
+
 void SpatialAssembly::update_thermal_candidates(
     std::size_t first, std::size_t last, const std::vector<double>& state) const {
     check_state_size(state.size(), dof_count(), "SpatialAssembly thermal-contact shadow state size mismatch");
@@ -507,6 +545,7 @@ void SpatialAssembly::update_thermal_candidates(
         }
     }
 }
+
 void SpatialAssembly::update_mechanical_candidates(
     std::size_t first, std::size_t last, const std::vector<double>& state) const {
     check_state_size(state.size(), dof_count(), "SpatialAssembly contact-search shadow state size mismatch");
@@ -538,6 +577,7 @@ void SpatialAssembly::update_mechanical_candidates(
         }
     }
 }
+
 bool SpatialAssembly::mark_touched_thermal_points(std::size_t first, std::size_t last) const {
     std::fill(_touched_thermal_points.begin(), _touched_thermal_points.end(), 0U);
     const ContributionRanges ranges = contribution_ranges();
@@ -549,6 +589,7 @@ bool SpatialAssembly::mark_touched_thermal_points(std::size_t first, std::size_t
     }
     return true;
 }
+
 bool SpatialAssembly::mark_touched_mechanical_nodes(std::size_t first, std::size_t last) const {
     std::fill(_touched_mechanical_nodes.begin(), _touched_mechanical_nodes.end(), 0U);
     const ContributionRanges ranges = contribution_ranges();
@@ -560,12 +601,15 @@ bool SpatialAssembly::mark_touched_mechanical_nodes(std::size_t first, std::size
     }
     return true;
 }
+
 std::size_t SpatialAssembly::thermal_point_index(std::size_t contact, std::size_t point) const noexcept {
     return _thermal_contact_offsets[contact] + point;
 }
+
 std::size_t SpatialAssembly::mechanical_node_index(std::size_t contact, std::size_t node) const noexcept {
     return _mechanical_contact_offsets[contact] + node;
 }
+
 std::vector<ContactNodeSummary> SpatialAssembly::summarize_contact_nodes(
     std::size_t contact_value, const std::vector<double>& state) const {
     check_state_size(state.size(), dof_count(), "SpatialAssembly contact summary state size mismatch");
@@ -615,9 +659,11 @@ std::vector<ContactNodeSummary> SpatialAssembly::summarize_contact_nodes(
     }
     return result;
 }
+
 void SpatialAssembly::validate_state(const std::vector<double>& state) const {
     validate_local_state(0, contribution_count(), state);
 }
+
 void SpatialAssembly::validate_local_state(
     std::size_t first, std::size_t last, const std::vector<double>& state) const {
     if (first > last || last > contribution_count())
@@ -652,6 +698,7 @@ void SpatialAssembly::validate_local_state(
         }
     }
 }
+
 std::vector<std::size_t> SpatialAssembly::contact_secondary_source_nodes(std::size_t contact_value) const {
     const ResolvedBoundary& secondary = _secondary_boundaries.at(contact_value);
     const RegionMesh& mesh = _meshes.at(secondary.region);
@@ -660,6 +707,7 @@ std::vector<std::size_t> SpatialAssembly::contact_secondary_source_nodes(std::si
     for (const std::size_t node : secondary.boundary.nodes) result.push_back(mesh.source_node_ids().at(node));
     return result;
 }
+
 InterfaceSummary SpatialAssembly::summarize_interface(
     std::size_t contact_value, const std::vector<double>& state) const {
     if (contact_value >= _definition.contacts.size())
@@ -699,10 +747,12 @@ InterfaceSummary SpatialAssembly::summarize_interface(
     }
     return summary;
 }
+
 namespace {
 Line2InterfaceSideCoordinates edge_coordinates(const RegionMesh& mesh, const Line2BoundaryElement& edge) {
     return {{mesh.nodes().at(edge.nodes[0]), mesh.nodes().at(edge.nodes[1])}};
 }
+
 double planar_quad_area(const RegionMesh& mesh, const Quad4Element& element) {
     double twice_area = 0.0;
     for (std::size_t node = 0; node < element.nodes.size(); ++node) {
@@ -712,6 +762,7 @@ double planar_quad_area(const RegionMesh& mesh, const Quad4Element& element) {
     }
     return 0.5 * std::abs(twice_area);
 }
+
 double minimum_boundary_normal_length(
     const SpatialAssembly& layout, std::size_t region, const RegionBoundary& boundary) {
     const RegionMesh& mesh = layout.region_mesh(region);
@@ -728,6 +779,7 @@ double minimum_boundary_normal_length(
     }
     return result;
 }
+
 RzPoint element_centroid(const RegionMesh& mesh, const Quad4Element& element) {
     RzPoint centroid{0.0, 0.0};
     for (const std::size_t node : element.nodes) {
@@ -738,6 +790,7 @@ RzPoint element_centroid(const RegionMesh& mesh, const Quad4Element& element) {
     centroid.z /= static_cast<double>(element.nodes.size());
     return centroid;
 }
+
 std::vector<RzPoint> boundary_parent_centroids(
     const SpatialAssembly& layout, std::size_t region, const RegionBoundary& boundary) {
     const RegionMesh& mesh = layout.region_mesh(region);
@@ -747,6 +800,7 @@ std::vector<RzPoint> boundary_parent_centroids(
         result.push_back(element_centroid(mesh, mesh.elements().at(layout.edge_parent(region, edge).first)));
     return result;
 }
+
 std::array<std::size_t, 4> interface_nodes(const SpatialAssembly& layout, std::size_t secondary_region,
     const Line2BoundaryElement& secondary_edge, std::size_t primary_region, const Line2BoundaryElement& primary_edge) {
     return {layout.global_node(secondary_region, secondary_edge.nodes[0]),
@@ -754,6 +808,7 @@ std::array<std::size_t, 4> interface_nodes(const SpatialAssembly& layout, std::s
         layout.global_node(primary_region, primary_edge.nodes[0]),
         layout.global_node(primary_region, primary_edge.nodes[1])};
 }
+
 double primary_line_side(const RzPoint& point, const Line2InterfaceSideCoordinates& primary_coordinates) {
     const double tangent_r = primary_coordinates[1].r - primary_coordinates[0].r,
                  tangent_z = primary_coordinates[1].z - primary_coordinates[0].z,
@@ -761,6 +816,7 @@ double primary_line_side(const RzPoint& point, const Line2InterfaceSideCoordinat
     return ((point.r - primary_coordinates[0].r) * tangent_z - (point.z - primary_coordinates[0].z) * tangent_r) /
            length;
 }
+
 double zero_gap_orientation_hint(const RzPoint& secondary_centroid, const RzPoint& primary_centroid,
     const Line2InterfaceSideCoordinates& primary_coordinates) {
     const double secondary_side = primary_line_side(secondary_centroid, primary_coordinates),
@@ -769,6 +825,7 @@ double zero_gap_orientation_hint(const RzPoint& secondary_centroid, const RzPoin
     const bool same_side = (secondary_side > 0.0 && primary_side > 0.0) || (secondary_side < 0.0 && primary_side < 0.0);
     return same_side ? 0.0 : secondary_side;
 }
+
 RegionBoundary ordered_connected_boundary(const RegionMesh& mesh, RegionBoundary boundary, const std::string& name) {
     if (boundary.elements.empty()) throw std::invalid_argument("Contact side set is empty: " + name);
     std::vector<std::size_t> degree(mesh.nodes().size(), 0);
@@ -822,10 +879,12 @@ RegionBoundary ordered_connected_boundary(const RegionMesh& mesh, RegionBoundary
     boundary.elements = std::move(ordered);
     return boundary;
 }
+
 double projection_fraction(const RzPoint& point, const Line2InterfaceSideCoordinates& segment) {
     const double dr = segment[1].r - segment[0].r, dz = segment[1].z - segment[0].z;
     return ((point.r - segment[0].r) * dr + (point.z - segment[0].z) * dz) / (dr * dr + dz * dz);
 }
+
 bool projection_interval(const Line2InterfaceSideCoordinates& secondary, const Line2InterfaceSideCoordinates& primary,
     double& lower, double& upper) {
     const RzPoint midpoint = {
@@ -851,6 +910,7 @@ bool projection_interval(const Line2InterfaceSideCoordinates& secondary, const L
     return upper - lower > tolerance;
 }
 } // namespace
+
 void SpatialAssembly::initialize_contact_search_workspace() {
     _thermal_contact_offsets.assign(_definition.contacts.size() + 1, 0);
     _mechanical_contact_offsets.assign(_definition.contacts.size() + 1, 0);
@@ -871,6 +931,7 @@ void SpatialAssembly::initialize_contact_search_workspace() {
     _mechanical_minimum_distance.resize(mechanical_node_count);
     _mechanical_selected_primary.resize(mechanical_node_count);
 }
+
 SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const UnstructuredQuad4Mesh& source_mesh)
     : SpatialLayout(definition, spatial_detail::resolve_block_ids(definition, source_mesh, true, true),
           spatial_detail::DofLayout::axisymmetric_rz) {
@@ -897,6 +958,7 @@ SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const Unstructure
     update_thermal_candidates(0, contribution_count(), _committed_contact_solution);
     update_mechanical_candidates(0, contribution_count(), _committed_contact_solution);
 }
+
 std::vector<std::size_t> SpatialAssembly::required_state_dofs(std::size_t first, std::size_t last) const {
     if (first > last || last > contribution_count())
         throw std::out_of_range("SpatialAssembly contribution range is out of bounds");
@@ -933,6 +995,7 @@ std::vector<std::size_t> SpatialAssembly::required_state_dofs(std::size_t first,
     result.erase(std::unique(result.begin(), result.end()), result.end());
     return result;
 }
+
 LocalDofs SpatialAssembly::contribution_dofs(std::size_t index) const {
     const ContributionLocation entry = locate_contribution(index);
     switch (entry.type) {
@@ -954,6 +1017,7 @@ LocalDofs SpatialAssembly::contribution_dofs(std::size_t index) const {
     }
     throw std::logic_error("SpatialAssembly contribution type is invalid");
 }
+
 LocalValues SpatialAssembly::contribution_state(std::size_t index, const std::vector<double>& global_state) const {
     check_state_size(global_state.size(), dof_count(), "SpatialAssembly global state has the wrong size");
     const LocalDofs dofs = contribution_dofs(index);
@@ -961,6 +1025,7 @@ LocalValues SpatialAssembly::contribution_state(std::size_t index, const std::ve
     for (std::size_t local = 0; local < dofs.size(); ++local) result[local] = global_state.at(dofs[local]);
     return result;
 }
+
 LocalResidual SpatialAssembly::compute_contribution(
     std::size_t index, const LocalValues& state, LocalJacobian* jacobian) const {
     const ContributionLocation location = locate_contribution(index);
@@ -997,6 +1062,7 @@ LocalResidual SpatialAssembly::compute_contribution(
     }
     throw std::logic_error("SpatialAssembly contribution type is invalid");
 }
+
 void SpatialAssembly::build_contacts(const UnstructuredQuad4Mesh& source_mesh) {
     _primary_boundaries.reserve(_definition.contacts.size());
     _secondary_boundaries.reserve(_definition.contacts.size());
@@ -1041,10 +1107,12 @@ void SpatialAssembly::build_contacts(const UnstructuredQuad4Mesh& source_mesh) {
                 const Line2BoundaryElement& secondary_edge = secondary.boundary.elements[edge_index];
                 const Line2InterfaceSideCoordinates secondary_coordinates =
                     edge_coordinates(secondary_mesh, secondary_edge);
+
                 struct ThermalProjection final {
                     std::size_t primary_edge;
                     double lower, upper;
                 };
+
                 std::vector<ThermalProjection> projections;
                 for (std::size_t primary_edge = 0; primary_edge < primary.boundary.elements.size(); ++primary_edge) {
                     double lower = 0.0, upper = 0.0;

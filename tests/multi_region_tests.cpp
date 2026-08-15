@@ -13,12 +13,14 @@
 #include <string>
 #include <utility>
 #include <vector>
+
 namespace {
 bool check(bool condition, const std::string& message) {
     if (condition) return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
+
 fuelsim::UnstructuredQuad4Mesh three_region_mesh() {
     return fuelsim::UnstructuredQuad4Mesh(
         {
@@ -62,6 +64,7 @@ fuelsim::UnstructuredQuad4Mesh three_region_mesh() {
             {34, "clad_2_top", {{{2, 2}}}},
         });
 }
+
 fuelsim::UnstructuredQuad4Mesh annular_boundary_mesh() {
     return fuelsim::UnstructuredQuad4Mesh(
         {
@@ -78,6 +81,7 @@ fuelsim::UnstructuredQuad4Mesh annular_boundary_mesh() {
             {4, "left", {{{0, 3}}}},
         });
 }
+
 fuelsim::UnstructuredQuad4Mesh two_pellet_nonmatching_mesh() {
     return fuelsim::UnstructuredQuad4Mesh(
         {
@@ -115,6 +119,7 @@ fuelsim::UnstructuredQuad4Mesh two_pellet_nonmatching_mesh() {
             {204, "upper_outer", {{{4, 1}}}},
         });
 }
+
 fuelsim::UnstructuredQuad4Mesh l_shaped_primary_mesh() {
     return fuelsim::UnstructuredQuad4Mesh(
         {
@@ -137,6 +142,7 @@ fuelsim::UnstructuredQuad4Mesh l_shaped_primary_mesh() {
             {22, "slug_face", {{{1, 1}}}},
         });
 }
+
 fuelsim::UnstructuredQuad4Mesh coincident_fuel_clad_mesh(double clad_inner_radius) {
     return fuelsim::UnstructuredQuad4Mesh(
         {
@@ -163,6 +169,7 @@ fuelsim::UnstructuredQuad4Mesh coincident_fuel_clad_mesh(double clad_inner_radiu
             {23, "clad_bottom", {{{1, 0}}}},
         });
 }
+
 fuelsim::UnstructuredQuad4Mesh overlapping_material_mesh() {
     // Both blocks occupy the lower half of the tall block, so the two
     // materials sit on the same side of their shared faces.
@@ -188,20 +195,25 @@ fuelsim::UnstructuredQuad4Mesh overlapping_material_mesh() {
             {21, "short_bottom", {{{1, 0}}}},
         });
 }
+
 fuelsim::ThermoelasticProperties thermoelastic(double conductivity) {
     return fuelsim::test::thermoelastic(0.0, conductivity, 2.0e11, 0.3, 1.0e-5, 300.0, 0.0, 0.0, 0.0, 10.0, 20.0);
 }
+
 fuelsim::RegionDefinition region(
     const std::string& name, const std::string& block, double initial_temperature, double heat_source) {
     return {name, block, thermoelastic(10.0), heat_source, initial_temperature};
 }
+
 fuelsim::ContactDefinition contact(const std::string& name, const std::string& primary, const std::string& secondary) {
     return {name, primary, secondary, true, true, 0.2, 1.0e-5, 1.0e14};
 }
+
 fuelsim::BoundaryConditionDefinition dirichlet(
     const std::string& name, const std::string& boundary, fuelsim::Field field, double value) {
     return {name, fuelsim::BoundaryConditionType::dirichlet, boundary, field, value};
 }
+
 fuelsim::SpatialDefinition single_region_definition() {
     return {{region("pellet", "pellet", 500.0, 2.0e5)}, {},
         {
@@ -210,6 +222,7 @@ fuelsim::SpatialDefinition single_region_definition() {
             dirichlet("outer_temperature", "pellet_outer", fuelsim::Field::temperature, 300.0),
         }};
 }
+
 fuelsim::SpatialDefinition three_region_definition() {
     return {{region("pellet", "pellet", 500.0, 2.0e5), region("inner_clad", "clad_1", 400.0, 0.0),
                 region("outer_clad", "clad_2", 300.0, 0.0)},
@@ -223,6 +236,7 @@ fuelsim::SpatialDefinition three_region_definition() {
             dirichlet("outer_temperature", "clad_2_outer", fuelsim::Field::temperature, 300.0),
         }};
 }
+
 bool test_single_region(const fuelsim::UnstructuredQuad4Mesh& mesh) {
     const fuelsim::SteadyProblem problem(single_region_definition(), mesh);
     const std::vector<double> state = problem.initial_state();
@@ -273,6 +287,7 @@ bool test_single_region(const fuelsim::UnstructuredQuad4Mesh& mesh) {
              passed;
     return passed;
 }
+
 bool test_time_controlled_pressure(const fuelsim::UnstructuredQuad4Mesh& mesh) {
     fuelsim::SpatialDefinition definition = single_region_definition();
     definition.time_tables.emplace_back(
@@ -298,6 +313,7 @@ bool test_time_controlled_pressure(const fuelsim::UnstructuredQuad4Mesh& mesh) {
                  passed;
     return passed;
 }
+
 bool test_pressure_parent_edge_orientation() {
     const fuelsim::UnstructuredQuad4Mesh mesh = annular_boundary_mesh();
     constexpr double pressure_value = 3.0;
@@ -339,6 +355,7 @@ bool test_pressure_parent_edge_orientation() {
         "pressure uses the parent Quad4 outward normal on left, "
         "right, bottom, and top boundaries");
 }
+
 bool test_global_field_diagnostics(const fuelsim::UnstructuredQuad4Mesh& mesh) {
     fuelsim::SteadyProblem problem(single_region_definition(), mesh);
     const std::vector<double> state = problem.initial_state();
@@ -359,6 +376,7 @@ bool test_global_field_diagnostics(const fuelsim::UnstructuredQuad4Mesh& mesh) {
     }
     return passed;
 }
+
 bool test_three_regions(const fuelsim::UnstructuredQuad4Mesh& mesh) {
     fuelsim::SteadyProblem problem(three_region_definition(), mesh);
     const std::vector<double> state = problem.initial_state();
@@ -447,6 +465,7 @@ bool test_three_regions(const fuelsim::UnstructuredQuad4Mesh& mesh) {
     }
     return passed;
 }
+
 bool test_nonmatching_pellet_faces() {
     const fuelsim::UnstructuredQuad4Mesh mesh = two_pellet_nonmatching_mesh();
     fuelsim::SpatialDefinition definition = {
@@ -476,6 +495,7 @@ bool test_nonmatching_pellet_faces() {
              passed;
     return passed;
 }
+
 bool test_l_shaped_primary_collinear_candidate() {
     // The ordered primary chain bends at (3,1): segment (2,1)->(3,1) then
     // (3,1)->(3,0). The secondary node (1.5,1.0) lies exactly on the
@@ -516,6 +536,7 @@ bool test_l_shaped_primary_collinear_candidate() {
         return false;
     }
 }
+
 bool test_zero_initial_gap_construction() {
     // Coincident fuel and cladding surfaces (zero reference normal gap) are
     // a legal initial condition: the normal orientation comes from the
@@ -555,6 +576,7 @@ bool test_zero_initial_gap_construction() {
         return false;
     }
 }
+
 bool test_overlapping_material_rejected() {
     // The two blocks occupy the same space next to the interface, so both
     // parent-element centroids lie on the same side of the primary line and
@@ -589,6 +611,7 @@ bool test_overlapping_material_rejected() {
     }
     return passed;
 }
+
 fuelsim::SpatialDefinition zero_gap_solve_definition(double closure_displacement) {
     fuelsim::SpatialDefinition definition = {{region("fuel", "fuel", 500.0, 2.0e2), region("clad", "clad", 300.0, 0.0)},
         {contact("fuel_clad", "clad_inner", "fuel_outer")},
@@ -606,6 +629,7 @@ fuelsim::SpatialDefinition zero_gap_solve_definition(double closure_displacement
     definition.boundary_conditions.push_back(std::move(closure));
     return definition;
 }
+
 bool test_zero_initial_gap_solve() {
     // End-to-end oracle: a coincident-interface problem pressed 0.01 m into
     // contact must behave like the same problem with a 1e-9 m initial gap
@@ -667,6 +691,7 @@ bool test_zero_initial_gap_solve() {
              passed;
     return passed;
 }
+
 bool test_transient_regions(const fuelsim::UnstructuredQuad4Mesh& mesh) {
     fuelsim::SpatialDefinition definition;
     definition = three_region_definition();
@@ -696,6 +721,7 @@ bool test_transient_regions(const fuelsim::UnstructuredQuad4Mesh& mesh) {
     return passed;
 }
 } // namespace
+
 int main(int argc, char** argv) {
     try {
         fuelsim::PetscSession session(argc, argv, "fuelsim multi-region contact solve tests\n");

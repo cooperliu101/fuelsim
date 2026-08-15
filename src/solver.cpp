@@ -15,12 +15,15 @@
 #include <string>
 #include <utility>
 #include <vector>
+
 namespace fuelsim {
 namespace {
 using SteadyClock = std::chrono::steady_clock;
+
 double seconds_since(const SteadyClock::time_point& start) {
     return std::chrono::duration<double>(SteadyClock::now() - start).count();
 }
+
 void accumulate_timing(SolveTiming& total, const SolveTiming& step) {
     total.setup_seconds += step.setup_seconds;
     total.nonlinear_solve_seconds += step.nonlinear_solve_seconds;
@@ -32,6 +35,7 @@ void accumulate_timing(SolveTiming& total, const SolveTiming& step) {
     total.workspace_setups += step.workspace_setups;
     total.solve_calls += step.solve_calls;
 }
+
 void check_petsc(PetscErrorCode code, const char* operation) {
     if (code == PETSC_SUCCESS) return;
     const char* text = nullptr;
@@ -45,6 +49,7 @@ void check_petsc(PetscErrorCode code, const char* operation) {
     }
     throw std::runtime_error(message);
 }
+
 void check_mpi(PetscMPIInt code, const char* operation) {
     if (code == MPI_SUCCESS) return;
     std::string message = operation;
@@ -52,6 +57,7 @@ void check_mpi(PetscMPIInt code, const char* operation) {
     message += std::to_string(code);
     throw std::runtime_error(message);
 }
+
 PetscErrorCode collective_timing(const SolveTiming& local, SolveTiming& result) {
     PetscFunctionBeginUser;
     std::array<double, 5> local_seconds = {
@@ -84,11 +90,13 @@ PetscErrorCode collective_timing(const SolveTiming& local, SolveTiming& result) 
     result.solve_calls = static_cast<std::size_t>(maximum_counts[3]);
     PetscFunctionReturn(PETSC_SUCCESS);
 }
+
 PetscInt checked_petsc_int(std::size_t value) {
     if (value > static_cast<std::size_t>(std::numeric_limits<PetscInt>::max()))
         throw std::length_error("fuelsim DOF index exceeds PetscInt range");
     return static_cast<PetscInt>(value);
 }
+
 struct SolverContext final {
     const NonlinearProblem* problem = nullptr;
     bool pattern_locked = false;
@@ -121,6 +129,7 @@ struct SolverContext final {
     std::string last_domain_error;
     SolveTiming timing;
 };
+
 PetscErrorCode assemble_contributions(SolverContext& context, Vec residual, Mat jacobian) {
     PetscFunctionBeginUser;
     const bool linearize = jacobian != nullptr;
@@ -162,6 +171,7 @@ PetscErrorCode assemble_contributions(SolverContext& context, Vec residual, Mat 
     }
     PetscFunctionReturn(PETSC_SUCCESS);
 }
+
 struct PetscObjects final {
     SNES snes = nullptr;
     Vec state = nullptr;
@@ -169,6 +179,7 @@ struct PetscObjects final {
     Mat jacobian = nullptr;
     Vec gathered_state = nullptr;
     VecScatter state_scatter = nullptr;
+
     ~PetscObjects() {
         (void)VecScatterDestroy(&state_scatter);
         (void)VecDestroy(&gathered_state);
@@ -178,6 +189,7 @@ struct PetscObjects final {
         (void)MatDestroy(&jacobian);
     }
 };
+
 void configure_linear_solver(
     PetscObjects& objects, const NonlinearProblem& problem, const SolverOptions& options, PetscMPIInt world_size) {
     SolverOptions::LinearSolver linear = options.linear_solver;
@@ -274,6 +286,7 @@ void configure_linear_solver(
                     options.maximum_linear_iterations),
         "KSPSetTolerances");
 }
+
 PetscErrorCode gather_state(Vec state, SolverContext& context) {
     PetscFunctionBeginUser;
     PetscCall(VecScatterBegin(context.state_scatter, state, context.gathered_state, INSERT_VALUES, SCATTER_FORWARD));
@@ -285,6 +298,7 @@ PetscErrorCode gather_state(Vec state, SolverContext& context) {
     PetscCall(VecRestoreArrayRead(context.gathered_state, &values));
     PetscFunctionReturn(PETSC_SUCCESS);
 }
+
 std::vector<double> gather_complete_state(Vec state, std::size_t global_size) {
     VecScatter scatter = nullptr;
     Vec gathered = nullptr;
@@ -309,6 +323,7 @@ std::vector<double> gather_complete_state(Vec state, std::size_t global_size) {
         throw;
     }
 }
+
 PetscErrorCode synchronize_domain_error(bool local_error, bool& global_error) {
     PetscFunctionBeginUser;
     const PetscMPIInt local = local_error ? 1 : 0;
@@ -317,6 +332,7 @@ PetscErrorCode synchronize_domain_error(bool local_error, bool& global_error) {
     global_error = global != 0;
     PetscFunctionReturn(PETSC_SUCCESS);
 }
+
 PetscErrorCode field_norms(Vec vector, SolverContext& context, std::vector<double>& norms) {
     PetscFunctionBeginUser;
     PetscInt ownership_begin = 0;
@@ -347,6 +363,7 @@ PetscErrorCode field_norms(Vec vector, SolverContext& context, std::vector<doubl
         norms[field] = std::sqrt(context.global_field_squared_norms[field]);
     PetscFunctionReturn(PETSC_SUCCESS);
 }
+
 PetscErrorCode scale_residual(Vec residual, SolverContext& context) {
     PetscFunctionBeginUser;
     PetscCall(field_norms(residual, context, context.latest_unscaled_field_residual_norms));
@@ -405,6 +422,7 @@ PetscErrorCode scale_residual(Vec residual, SolverContext& context) {
             std::max(context.field_residual_reference_norms[field], context.latest_field_residual_norms[field]);
     PetscFunctionReturn(PETSC_SUCCESS);
 }
+
 PetscErrorCode assemble_callback(SNES snes, Vec state, Vec residual, Mat jacobian, void* raw_context) {
     PetscFunctionBeginUser;
     const SteadyClock::time_point start = SteadyClock::now();
@@ -494,9 +512,11 @@ PetscErrorCode assemble_callback(SNES snes, Vec state, Vec residual, Mat jacobia
     } catch (...) { SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_LIB, "fuelsim nonlinear assembly failed with unknown error"); }
     PetscFunctionReturn(PETSC_SUCCESS);
 }
+
 PetscErrorCode form_function(SNES snes, Vec state, Vec residual, void* raw_context) {
     return assemble_callback(snes, state, residual, nullptr, raw_context);
 }
+
 PetscErrorCode form_jacobian(SNES snes, Vec state, Mat jacobian, Mat preconditioner, void* raw_context) {
     PetscFunctionBeginUser;
     PetscCheck(jacobian == preconditioner, PETSC_COMM_WORLD, PETSC_ERR_SUP, "fuelsim requires one matrix for J and P");
@@ -504,6 +524,7 @@ PetscErrorCode form_jacobian(SNES snes, Vec state, Mat jacobian, Mat preconditio
     PetscFunctionReturn(PETSC_SUCCESS);
 }
 } // namespace
+
 class PetscSolver::Implementation final {
   public:
     bool prepare(const NonlinearProblem& problem) {
@@ -633,7 +654,9 @@ class PetscSolver::Implementation final {
         _problem_identity = requested_identity;
         return true;
     }
+
     PetscObjects& objects() { return *_objects; }
+
     SolverContext& context() noexcept { return _context; }
 
   private:
@@ -642,6 +665,7 @@ class PetscSolver::Implementation final {
     SolverContext _context;
     std::unique_ptr<PetscObjects> _objects;
 };
+
 PetscSession::PetscSession(int& argc, char**& argv, const char* help)
     : _owns_initialization(false), _rank(0), _size(1) {
     PetscBool initialized = PETSC_FALSE;
@@ -653,6 +677,7 @@ PetscSession::PetscSession(int& argc, char**& argv, const char* help)
     _rank = static_cast<int>(PetscGlobalRank);
     _size = static_cast<int>(PetscGlobalSize);
 }
+
 PetscSession::~PetscSession() {
     if (!_owns_initialization) return;
     PetscBool finalized = PETSC_FALSE;
@@ -661,8 +686,11 @@ PetscSession::~PetscSession() {
         (void)code;
     }
 }
+
 int PetscSession::rank() const noexcept { return _rank; }
+
 int PetscSession::size() const noexcept { return _size; }
+
 void PetscSession::collective_root_action(const std::function<void()>& action) const {
     if (!action) throw std::invalid_argument("PetscSession collective root action must not be empty");
     bool failed = false;
@@ -686,8 +714,11 @@ void PetscSession::collective_root_action(const std::function<void()>& action) c
     throw std::runtime_error(_rank == 0 ? "collective root-rank I/O failed: " + message
                                         : "collective root-rank I/O failed; see rank 0 for details");
 }
+
 PetscSolver::PetscSolver() : _impl(std::make_unique<Implementation>()) {}
+
 PetscSolver::~PetscSolver() = default;
+
 SolveResult PetscSolver::solve(
     const NonlinearProblem& problem, const std::vector<double>& initial_state, const SolverOptions& options) {
     SolveResult result = solve_once(problem, initial_state, options);
@@ -706,6 +737,7 @@ SolveResult PetscSolver::solve(
     fallback.basic_failure_message = result.failure_message;
     return fallback;
 }
+
 SolveResult PetscSolver::solve_once(
     const NonlinearProblem& problem, const std::vector<double>& initial_state, const SolverOptions& options) {
     if (initial_state.size() != problem.dof_count())
@@ -888,11 +920,13 @@ SolveResult PetscSolver::solve_once(
     result.total_remote_shadow_state_dofs = static_cast<std::size_t>(total_remote_shadow);
     return result;
 }
+
 std::string petsc_convergence_reason_name(int reason) {
     const char* name = SNESConvergedReasons[reason];
     if (name == nullptr) return "UNKNOWN";
     return name;
 }
+
 const char* solve_failure_category_name(SolveFailureCategory category) noexcept {
     switch (category) {
     case SolveFailureCategory::none: return "none";
@@ -904,6 +938,7 @@ const char* solve_failure_category_name(SolveFailureCategory category) noexcept 
     }
     return "unknown";
 }
+
 namespace solver_workflow {
 namespace {
 void merge_attempt(SolveResult& aggregate, const SolveResult& addition) {
@@ -933,6 +968,7 @@ void merge_attempt(SolveResult& aggregate, const SolveResult& addition) {
     aggregate.augmented_lagrangian_iterations = augmented_iterations;
     aggregate.maximum_contact_penetration = maximum_penetration;
 }
+
 void mark_augmented_failure(SolveResult& result, const AugmentedContactUpdate& status, std::size_t completed_updates) {
     result.converged = false;
     result.failure_category = SolveFailureCategory::contact_constraint;
@@ -943,6 +979,7 @@ void mark_augmented_failure(SolveResult& result, const AugmentedContactUpdate& s
         ", tolerance=" + std::to_string(status.penetration_tolerance);
 }
 } // namespace
+
 std::vector<double> initial_guess_with_dirichlet_values(
     const NonlinearProblem& problem, const std::vector<double>& state) {
     if (state.size() != problem.dof_count())
@@ -952,6 +989,7 @@ std::vector<double> initial_guess_with_dirichlet_values(
         result.at(condition.dof) = condition.value;
     return result;
 }
+
 SolveResult solve_contact_equilibrium(PetscSolver& solver, NonlinearProblem& problem,
     const std::vector<double>& initial_guess, const SolverOptions& options) {
     SolveResult result = solver.solve(problem, initial_guess, options);
@@ -974,8 +1012,10 @@ SolveResult solve_contact_equilibrium(PetscSolver& solver, NonlinearProblem& pro
     return result;
 }
 } // namespace solver_workflow
+
 using solver_workflow::initial_guess_with_dirichlet_values;
 using solver_workflow::solve_contact_equilibrium;
+
 SteadyResult solve_steady(SteadyProblem& problem, const SteadyLoadOptions& load_options, const SolverOptions& options) {
     const SteadyClock::time_point start = SteadyClock::now();
     SteadyResult result;
@@ -1042,16 +1082,20 @@ SteadyResult solve_steady(SteadyProblem& problem, const SteadyLoadOptions& load_
     result.total_seconds = seconds_since(start);
     return result;
 }
+
 double step_factor(const TransientTimeOptions& options, double error) {
     if (!(error > 0.0)) return options.growth_factor;
     return std::clamp(options.time_error_safety_factor / std::sqrt(error), 0.1, options.growth_factor);
 }
+
 namespace {
 using solver_workflow::merge_attempt;
+
 bool reaches_end(double time, double end_time) {
     const double scale = std::max({1.0, std::abs(time), std::abs(end_time)});
     return end_time - time <= 16.0 * std::numeric_limits<double>::epsilon() * scale;
 }
+
 void validate_time_options(const TransientProblem& problem, const TransientTimeOptions& options) {
     if (problem.time_step_active()) throw std::logic_error("solve_transient cannot start with an active time step");
     const double time_scale = std::max({1.0, std::abs(problem.committed_time()), std::abs(options.end_time)}),
@@ -1059,10 +1103,12 @@ void validate_time_options(const TransientProblem& problem, const TransientTimeO
     if (!std::isfinite(options.end_time) || options.end_time < problem.committed_time() - time_tolerance)
         throw std::invalid_argument("solve_transient end time must not precede committed time");
 }
+
 double load_factor_at_time(const TransientTimeOptions& options, double time) {
     if (options.load_ramp_time == 0.0) return 1.0;
     return std::min(time / options.load_ramp_time, 1.0);
 }
+
 double accepted_next_time_step(const TransientTimeOptions& options, double actual_time_step,
     double controller_time_step, bool event_truncated, std::size_t cutbacks, int nonlinear_iterations) {
     const double base = event_truncated && cutbacks == 0 ? controller_time_step : actual_time_step;
@@ -1081,6 +1127,7 @@ double accepted_next_time_step(const TransientTimeOptions& options, double actua
     return std::clamp(base, options.minimum_time_step, options.maximum_time_step);
 }
 } // namespace
+
 TransientResult solve_transient(TransientProblem& problem, const TransientTimeOptions& options,
     const SolverOptions& solver_options, TransientStepObserver* observer) {
     validate_time_options(problem, options);
@@ -1248,6 +1295,7 @@ TransientResult solve_transient(TransientProblem& problem, const TransientTimeOp
     result.total_seconds = seconds_since(start);
     return result;
 }
+
 const char* transient_termination_reason_name(TransientTerminationReason reason) noexcept {
     switch (reason) {
     case TransientTerminationReason::not_started: return "not_started";

@@ -17,20 +17,26 @@
 #include <string>
 #include <utility>
 #include <vector>
+
 namespace {
 constexpr double pi = 3.141592653589793238462643383279502884;
+
 bool check(bool condition, const std::string& message) {
     if (condition) return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
+
 double scaled_error(double actual, double expected) {
     return std::abs(actual - expected) / (1.0 + std::max(std::abs(actual), std::abs(expected)));
 }
+
 double relative_difference(double actual, double expected) { return std::abs(actual - expected) / std::abs(expected); }
+
 fuelsim::ThermoelasticProperties properties() {
     return fuelsim::test::thermoelastic(3824.0, 0.61, 2.0e11, 0.316, 1.0e-5, 600.0);
 }
+
 bool test_mesh_and_geometry() {
     const double inner = 0.0;
     const double outer = 0.004;
@@ -73,6 +79,7 @@ bool test_mesh_and_geometry() {
     passed = check(volume_error < 1.0e-13, "RZ quadrature integrates annular volume") && passed;
     return passed;
 }
+
 bool test_element_jacobian() {
     const fuelsim::Quad4Coordinates coordinates = {{
         {0.001, 0.0},
@@ -159,6 +166,7 @@ bool test_element_jacobian() {
         check(temperature_to_mechanics > 0.0, "thermal expansion produces temperature-mechanics coupling") && passed;
     return passed;
 }
+
 bool test_finite_strain_kinematics_and_jacobian() {
     const fuelsim::Quad4Coordinates coordinates = {{
         {1.0, 0.0},
@@ -293,8 +301,10 @@ bool test_finite_strain_kinematics_and_jacobian() {
     std::cout << "finite_strain_directional_jacobian_error=" << maximum_jacobian_error << '\n';
     return passed;
 }
+
 using HeatPointGeometries =
     std::array<fuelsim::Line2RzHeatPointGeometry, fuelsim::line2_interface_quadrature_point_count>;
+
 HeatPointGeometries make_heat_point_geometries(const fuelsim::Line2InterfaceSideCoordinates& secondary,
     const fuelsim::Line2InterfaceSideCoordinates& primary, double zero_gap_orientation_hint = 0.0) {
     const auto integration =
@@ -306,6 +316,7 @@ HeatPointGeometries make_heat_point_geometries(const fuelsim::Line2InterfaceSide
     }
     return result;
 }
+
 fuelsim::LocalResidual summed_heat_residual(const fuelsim::GapHeatProperties& properties,
     const HeatPointGeometries& geometries, const fuelsim::LocalValues& state) {
     fuelsim::LocalResidual result{};
@@ -315,6 +326,7 @@ fuelsim::LocalResidual summed_heat_residual(const fuelsim::GapHeatProperties& pr
     }
     return result;
 }
+
 bool test_heat_interface_case(const std::string& name, const fuelsim::GapHeatProperties& properties,
     const HeatPointGeometries& geometries, const fuelsim::LocalValues& state) {
     const fuelsim::LocalValues direction = {
@@ -380,6 +392,7 @@ bool test_heat_interface_case(const std::string& name, const fuelsim::GapHeatPro
     std::cout << name << "_heat_jacobian_maximum_scaled_error=" << maximum_jacobian_error << '\n';
     return passed;
 }
+
 bool test_heat_point_interface_case(const std::string& name, const fuelsim::GapHeatProperties& properties,
     const fuelsim::Line2RzHeatPointGeometry& geometry, const fuelsim::LocalValues& state) {
     const fuelsim::LocalValues direction = {
@@ -433,6 +446,7 @@ bool test_heat_point_interface_case(const std::string& name, const fuelsim::GapH
     std::cout << name << "_heat_point_jacobian_maximum_scaled_error=" << maximum_jacobian_error << '\n';
     return passed;
 }
+
 bool test_contact_interface_case(const std::string& name, const fuelsim::NormalContactProperties& properties,
     const fuelsim::NodeToLineRzContactGeometry& geometry, const fuelsim::LocalValues& state,
     const fuelsim::ContactPointHistory& history = {}) {
@@ -499,6 +513,7 @@ bool test_contact_interface_case(const std::string& name, const fuelsim::NormalC
     std::cout << name << "_contact_jacobian_maximum_scaled_error=" << maximum_jacobian_error << '\n';
     return passed;
 }
+
 bool test_friction_contact_case(const std::string& name, const fuelsim::NormalContactProperties& properties,
     const fuelsim::NodeToLineRzContactGeometry& geometry, const fuelsim::LocalValues& state,
     const fuelsim::LocalValues& committed_state, const fuelsim::ContactPointHistory& history) {
@@ -562,6 +577,7 @@ bool test_friction_contact_case(const std::string& name, const fuelsim::NormalCo
     std::cout << name << "_friction_jacobian_maximum_scaled_error=" << maximum_jacobian_error << '\n';
     return passed;
 }
+
 bool test_gap_heat_and_normal_contact() {
     const fuelsim::Line2InterfaceSideCoordinates fuel = {{
         {0.004120, 0.0},
@@ -988,6 +1004,7 @@ bool test_gap_heat_and_normal_contact() {
              passed;
     return passed;
 }
+
 bool test_heat_point_primary_owner() {
     const fuelsim::Line2InterfaceSideCoordinates secondary = {{{1.0, 0.5}, {1.0, 1.5}}};
     const fuelsim::Line2InterfaceSideCoordinates primary_lower = {{{1.1, 0.0}, {1.1, 1.0}}};
@@ -1045,6 +1062,7 @@ bool test_heat_point_primary_owner() {
              passed;
     return passed;
 }
+
 fuelsim::UnstructuredQuad4Mesh thermal_owner_transfer_mesh() {
     return fuelsim::UnstructuredQuad4Mesh(
         {
@@ -1062,6 +1080,7 @@ fuelsim::UnstructuredQuad4Mesh thermal_owner_transfer_mesh() {
         {{{{0, 1, 2, 3}}}, {{{4, 5, 6, 7}}}, {{{7, 6, 8, 9}}}}, {1, 2, 2}, {{1, "secondary"}, {2, "primary"}}, {},
         {{11, "secondary_face", {{{0, 1}}}}, {21, "primary_face", {{{1, 3}, {2, 3}}}}});
 }
+
 bool test_thermal_owner_transfer_assembly() {
     fuelsim::SpatialDefinition definition;
     definition.regions.push_back({"secondary", "secondary", properties(), 0.0, 500.0});
@@ -1152,6 +1171,7 @@ bool test_thermal_owner_transfer_assembly() {
              passed;
     return passed;
 }
+
 bool test_zero_gap_contact_orientation() {
     // Coincident fuel and cladding surfaces: the secondary node rides exactly
     // on the primary segment, so the raw reference normal gap is exactly
@@ -1349,6 +1369,7 @@ bool test_zero_gap_contact_orientation() {
     }
     return passed;
 }
+
 bool test_m1_dof_layout() {
     constexpr std::size_t fuel_radial_elements = 2;
     constexpr std::size_t cladding_radial_elements = 1;
@@ -1471,6 +1492,7 @@ bool test_m1_dof_layout() {
              passed;
     return passed;
 }
+
 bool test_time_table_and_convection() {
     const fuelsim::PiecewiseLinearTimeTable table("power", {0.0, 2.0, 5.0}, {0.0, 1.0, 0.4});
     bool passed =
@@ -1534,6 +1556,7 @@ bool test_time_table_and_convection() {
     passed = check(maximum_error < 1.0e-10, "convection AD Jacobian matches centered differences") && passed;
     return passed;
 }
+
 bool test_follower_pressure() {
     const fuelsim::Line2RzBoundaryGeometry geometry =
         fuelsim::make_line2_rz_boundary_geometry({{{0.005, 0.0}, {0.005, 0.01}}}, {{1, 2}});
@@ -1609,6 +1632,7 @@ bool test_follower_pressure() {
              passed;
     return passed;
 }
+
 bool test_current_configuration_traction() {
     const fuelsim::Line2RzBoundaryGeometry geometry =
         fuelsim::make_line2_rz_boundary_geometry({{{0.005, 0.0}, {0.005, 0.01}}}, {{1, 2}});
@@ -1680,6 +1704,7 @@ bool test_current_configuration_traction() {
                                                    "tangent") &&
            passed;
 }
+
 bool test_temperature_active_thermoelastic_properties() {
     const fuelsim::ThermoelasticProperties active_properties =
         fuelsim::test::thermoelastic(3824.0, 0.61, 2.0e11, 0.316, 1.0e-5, 600.0, -8.0e7, 2.0e-5, 3.0e-9);
@@ -1703,6 +1728,7 @@ bool test_temperature_active_thermoelastic_properties() {
                                          "centered differences");
 }
 } // namespace
+
 int main() {
     std::cout << std::scientific << std::setprecision(12);
     bool passed = true;
@@ -1722,4 +1748,5 @@ int main() {
     std::cout << "[PASS] fuelsim core geometry, DOF, and AD Jacobian tests\n";
     return 0;
 }
+
 #include "fuelsim/quad4_rz.hpp"

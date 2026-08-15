@@ -4,14 +4,17 @@
 #include <cmath>
 #include <stdexcept>
 #include <vector>
+
 namespace fuelsim::test {
 struct FieldNorms final {
     std::vector<double> l2, maximum_absolute;
 };
+
 struct DirectionalJacobianCheck final {
     FieldNorms residual, analytic_directional_derivative;
     FieldNorms finite_difference_directional_derivative, difference;
 };
+
 inline std::vector<double> assembled_residual(const NonlinearProblem& problem, const std::vector<double>& state) {
     std::vector<double> result(problem.dof_count());
     ContributionWorkspace workspace;
@@ -23,12 +26,14 @@ inline std::vector<double> assembled_residual(const NonlinearProblem& problem, c
     }
     return result;
 }
+
 inline std::vector<double> constrained_residual(const NonlinearProblem& problem, const std::vector<double>& state) {
     std::vector<double> result = assembled_residual(problem, state);
     for (const DirichletCondition& condition : problem.dirichlet_conditions())
         result.at(condition.dof) = state.at(condition.dof) - condition.value;
     return result;
 }
+
 inline FieldNorms field_norms(const NonlinearProblem& problem, const std::vector<double>& values) {
     FieldNorms result;
     result.l2.resize(problem.field_layout().size());
@@ -42,6 +47,7 @@ inline FieldNorms field_norms(const NonlinearProblem& problem, const std::vector
     }
     return result;
 }
+
 inline DirectionalJacobianCheck check_directional_jacobian(const NonlinearProblem& problem,
     const std::vector<double>& state, const std::vector<double>& direction, double step) {
     if (state.size() != problem.dof_count() || direction.size() != problem.dof_count() || !std::isfinite(step) ||

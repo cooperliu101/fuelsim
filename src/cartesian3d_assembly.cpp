@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
+
 namespace fuelsim::cartesian {
 SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const UnstructuredHex8Mesh& source_mesh)
     : SpatialLayout(definition, spatial_detail::resolve_block_ids(definition, source_mesh, false, true),
@@ -96,22 +97,27 @@ SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const Unstructure
     }
     refresh_controls();
 }
+
 SpatialContributionType SpatialAssembly::contribution_type(std::size_t index) const {
     if (index < volume_contribution_count()) return SpatialContributionType::volume;
     return _boundary_contributions.at(index - volume_contribution_count()).type;
 }
+
 const Hex8Geometry& SpatialAssembly::region_element_geometry(std::size_t region, std::size_t element_index) const {
     return _geometries.at(region).at(element_index);
 }
+
 void SpatialAssembly::set_load_factor(double value) {
     set_load_factor_value(value);
     refresh_controls();
 }
+
 void SpatialAssembly::set_time(double value) {
     set_time_value(value);
     for (Hex8ThermoelasticData& kernel_data : _kernel_data) kernel_data.time = value;
     refresh_controls();
 }
+
 void SpatialAssembly::validate_state(const std::vector<double>& state) const {
     if (state.size() != dof_count())
         throw std::invalid_argument("Three-dimensional state size does not match the problem");
@@ -126,6 +132,7 @@ void SpatialAssembly::validate_state(const std::vector<double>& state) const {
         }
     }
 }
+
 void SpatialAssembly::contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const {
     if (index < volume_contribution_count()) {
         const auto location = element_location(index);
@@ -152,6 +159,7 @@ void SpatialAssembly::contribution_dofs(std::size_t index, std::vector<std::size
     }
     dofs.assign(fixed.begin(), fixed.end());
 }
+
 Hex8LocalValues SpatialAssembly::volume_state(std::size_t index, const std::vector<double>& global_state) const {
     std::vector<std::size_t> dofs;
     contribution_dofs(index, dofs);
@@ -161,6 +169,7 @@ Hex8LocalValues SpatialAssembly::volume_state(std::size_t index, const std::vect
     for (std::size_t local = 0; local < result.size(); ++local) result[local] = global_state.at(dofs[local]);
     return result;
 }
+
 void SpatialAssembly::compute_contribution(std::size_t index, const std::vector<double>& state,
     const std::vector<double>* committed_solution, const Hex8MaterialHistory* committed_material, double time_step,
     std::vector<double>& residual, std::vector<double>* jacobian) const {
@@ -197,21 +206,25 @@ void SpatialAssembly::compute_contribution(std::size_t index, const std::vector<
     residual.assign(result.begin(), result.end());
     if (jacobian != nullptr) jacobian->assign(local_jacobian.begin(), local_jacobian.end());
 }
+
 Hex8MaterialHistory SpatialAssembly::transient_update(std::size_t region, std::size_t element,
     const Hex8LocalValues& state, const Hex8LocalValues& committed_state, const Hex8MaterialHistory& committed_material,
     double time_step) const {
     return compute_hex8_transient_update(_kernel_data.at(region), region_element_geometry(region, element), state,
         committed_state, committed_material, time_step);
 }
+
 std::array<SymmetricTensor3Values, 8> SpatialAssembly::stress(
     std::size_t region, std::size_t element, const std::vector<double>& state) const {
     return compute_hex8_stress(_kernel_data.at(region), region_element_geometry(region, element),
         volume_state(region_element_offset(region) + element, state));
 }
+
 double SpatialAssembly::heat_capacity(std::size_t region, double temperature, const CartesianPoint3& position) const {
     const Hex8ThermoelasticData& data = _kernel_data.at(region);
     return data.material.heat_capacity(temperature, {data.time, position.x, position.y, position.z}).value();
 }
+
 void SpatialAssembly::refresh_controls() {
     for (std::size_t region = 0; region < region_count(); ++region)
         _kernel_data[region].volumetric_heat_source = region_heat_source(region);

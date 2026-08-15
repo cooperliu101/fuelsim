@@ -16,18 +16,22 @@
 #include <string>
 #include <utility>
 #include <vector>
+
 namespace {
 bool check(bool condition, const std::string& message) {
     if (condition) return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
+
 double metric_relative_error(double actual, double expected) {
     return std::abs(actual - expected) / std::max(std::abs(expected), 1.0e-30);
 }
+
 fuelsim::ThermoelasticProperties constant_material(double conductivity, double thermal_expansion) {
     return fuelsim::test::thermoelastic(0.0, conductivity, 75.0e9, 0.3, thermal_expansion, 600.0);
 }
+
 fuelsim::BoundaryConditionDefinition dirichlet(
     const std::string& name, const std::string& boundary, fuelsim::Field field, double value) {
     fuelsim::BoundaryConditionDefinition condition{};
@@ -38,6 +42,7 @@ fuelsim::BoundaryConditionDefinition dirichlet(
     condition.value = value;
     return condition;
 }
+
 fuelsim::BoundaryConditionDefinition pressure(const std::string& name, const std::string& boundary, double value) {
     fuelsim::BoundaryConditionDefinition condition{};
     condition.name = name;
@@ -47,6 +52,7 @@ fuelsim::BoundaryConditionDefinition pressure(const std::string& name, const std
     condition.value = value;
     return condition;
 }
+
 fuelsim::SpatialDefinition single_region_definition(const fuelsim::ThermoelasticProperties& material,
     double heat_source, double initial_temperature, double outer_temperature, double inner_radius,
     double inner_pressure, double outer_pressure) {
@@ -65,16 +71,21 @@ fuelsim::SpatialDefinition single_region_definition(const fuelsim::Thermoelastic
         definition.boundary_conditions.push_back(pressure("outer_pressure", "solid_outer", outer_pressure));
     return definition;
 }
+
 class TwelveDofProblem : public fuelsim::NonlinearProblem {
   public:
     std::size_t dof_count() const noexcept override { return fuelsim::local_dof_count; }
+
     std::size_t contribution_count() const noexcept override { return 1; }
+
     const std::vector<fuelsim::FieldDescriptor>& field_layout() const noexcept override { return _fields; }
+
     void contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const override {
         validate_contribution(index);
         dofs.resize(fuelsim::local_dof_count);
         for (std::size_t dof = 0; dof < dofs.size(); ++dof) dofs[dof] = dof;
     }
+
     const std::vector<fuelsim::DirichletCondition>& dirichlet_conditions() const noexcept override {
         return _conditions;
     }
@@ -92,6 +103,7 @@ class TwelveDofProblem : public fuelsim::NonlinearProblem {
     };
     std::vector<fuelsim::DirichletCondition> _conditions;
 };
+
 class LogDomainProblem final : public TwelveDofProblem {
   public:
     void compute_contribution(std::size_t index, const std::vector<double>& state, std::vector<double>& residual,
@@ -107,6 +119,7 @@ class LogDomainProblem final : public TwelveDofProblem {
         for (std::size_t dof = 0; dof < state.size(); ++dof) (*jacobian)[dof * state.size() + dof] = 1.0 / state[dof];
     }
 };
+
 class StagnatingProblem final : public TwelveDofProblem {
   public:
     void compute_contribution(std::size_t index, const std::vector<double>& state, std::vector<double>& residual,
@@ -118,6 +131,7 @@ class StagnatingProblem final : public TwelveDofProblem {
         for (std::size_t dof = 0; dof < state.size(); ++dof) (*jacobian)[dof * state.size() + dof] = 1.0e20;
     }
 };
+
 class FieldStagnatingProblem final : public TwelveDofProblem {
   public:
     void compute_contribution(std::size_t index, const std::vector<double>& state, std::vector<double>& residual,
@@ -130,6 +144,7 @@ class FieldStagnatingProblem final : public TwelveDofProblem {
         for (std::size_t dof = 0; dof < state.size(); ++dof) (*jacobian)[dof * state.size() + dof] = 1.0e20;
     }
 };
+
 class QuadraticProblem final : public TwelveDofProblem {
   public:
     void compute_contribution(std::size_t index, const std::vector<double>& state, std::vector<double>& residual,
@@ -142,16 +157,21 @@ class QuadraticProblem final : public TwelveDofProblem {
         for (std::size_t dof = 0; dof < state.size(); ++dof) (*jacobian)[dof * state.size() + dof] = 2.0 * state[dof];
     }
 };
+
 class RuntimeLayoutProblem final : public fuelsim::NonlinearProblem {
   public:
     std::size_t dof_count() const noexcept override { return 32; }
+
     std::size_t contribution_count() const noexcept override { return 2; }
+
     const std::vector<fuelsim::FieldDescriptor>& field_layout() const noexcept override { return _fields; }
+
     std::size_t local_dof_count(std::size_t index) const {
         if (index == 0) return 32;
         if (index == 1) return _narrow_dofs.size();
         throw std::out_of_range("RuntimeLayoutProblem contribution index");
     }
+
     void contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const override {
         ++_dof_mapping_calls;
         if (index == 0) {
@@ -165,6 +185,7 @@ class RuntimeLayoutProblem final : public fuelsim::NonlinearProblem {
         }
         throw std::out_of_range("RuntimeLayoutProblem contribution index");
     }
+
     void compute_contribution(std::size_t index, const std::vector<double>& state, std::vector<double>& residual,
         std::vector<double>* jacobian) const override {
         const std::size_t local_count = local_dof_count(index);
@@ -180,20 +201,27 @@ class RuntimeLayoutProblem final : public fuelsim::NonlinearProblem {
             for (std::size_t column = 0; column < local_count; ++column)
                 (*jacobian)[row * local_count + column] = contribution_coefficient(index, row, column);
     }
+
     const std::vector<fuelsim::DirichletCondition>& dirichlet_conditions() const noexcept override {
         return _conditions;
     }
+
     void reset_callback_counts() const noexcept {
         _residual_calls = {};
         _system_calls = {};
     }
+
     std::size_t residual_call_count(std::size_t contribution) const { return _residual_calls.at(contribution); }
+
     std::size_t system_call_count(std::size_t contribution) const { return _system_calls.at(contribution); }
+
     std::size_t dof_mapping_call_count() const noexcept { return _dof_mapping_calls; }
+
     double target_value(std::size_t dof) const {
         if (dof >= dof_count()) throw std::out_of_range("RuntimeLayoutProblem target DOF");
         return 0.5 + 0.025 * static_cast<double>(dof);
     }
+
     double contribution_coefficient(std::size_t index, std::size_t row, std::size_t column) const {
         const std::size_t local_count = local_dof_count(index);
         if (row >= local_count || column >= local_count)
@@ -219,6 +247,7 @@ class RuntimeLayoutProblem final : public fuelsim::NonlinearProblem {
                 residual[row] += contribution_coefficient(index, row, column) *
                                  (state[column] - target_value(index == 0 ? column : _narrow_dofs[column]));
     }
+
     std::vector<fuelsim::FieldDescriptor> _fields = {
         {"displacement_x", 0, 8, fuelsim::FieldCategory::mechanical},
         {"temperature", 8, 16, fuelsim::FieldCategory::thermal},
@@ -231,6 +260,7 @@ class RuntimeLayoutProblem final : public fuelsim::NonlinearProblem {
     mutable std::array<std::size_t, 2> _system_calls{};
     mutable std::size_t _dof_mapping_calls = 0;
 };
+
 bool test_runtime_contribution_layout() {
     RuntimeLayoutProblem problem;
     const std::vector<fuelsim::FieldDescriptor>& fields = problem.field_layout();
@@ -429,6 +459,7 @@ bool test_runtime_contribution_layout() {
              passed;
     return passed;
 }
+
 bool test_global_newton_safeguards() {
     LogDomainProblem domain_problem;
     fuelsim::PetscSolver failing_domain_solver;
@@ -503,6 +534,7 @@ bool test_global_newton_safeguards() {
              passed;
     return passed;
 }
+
 bool test_thermal_cylinder() {
     constexpr double radius = 0.004;
     constexpr double length = 0.01;
@@ -545,6 +577,7 @@ bool test_thermal_cylinder() {
     std::cout << "thermal_cylinder_maximum_scaled_error=" << maximum_scaled_error << '\n';
     return passed;
 }
+
 double thermal_cylinder_error(std::size_t radial_elements) {
     constexpr double radius = 0.004;
     constexpr double length = 0.01;
@@ -570,6 +603,7 @@ double thermal_cylinder_error(std::size_t radial_elements) {
     }
     return maximum_error;
 }
+
 bool test_thermal_mesh_convergence() {
     const std::array<double, 3> errors = {
         thermal_cylinder_error(8), thermal_cylinder_error(16), thermal_cylinder_error(32)};
@@ -584,6 +618,7 @@ bool test_thermal_mesh_convergence() {
         "successive radial mesh refinement approaches second-order "
         "thermal convergence");
 }
+
 bool test_free_thermal_expansion() {
     constexpr double radius = 0.004;
     constexpr double length = 0.01;
@@ -639,6 +674,7 @@ bool test_free_thermal_expansion() {
     std::cout << "free_expansion_maximum_stress=" << maximum_stress << '\n';
     return passed;
 }
+
 bool test_lame_open_ended_cylinder() {
     constexpr double inner_radius = 0.004;
     constexpr double outer_radius = 0.005;
@@ -692,6 +728,7 @@ bool test_lame_open_ended_cylinder() {
     std::cout << "lame_maximum_axial_relative_error=" << maximum_axial_relative_error << '\n';
     return passed;
 }
+
 bool test_m1_open_gap_analytic_thermal() {
     constexpr double fuel_radius = 0.004;
     constexpr double cladding_inner_radius = 0.0041;
@@ -775,6 +812,7 @@ bool test_m1_open_gap_analytic_thermal() {
     return passed;
 }
 } // namespace
+
 int main(int argc, char** argv) {
     try {
         std::cout << std::scientific << std::setprecision(12);

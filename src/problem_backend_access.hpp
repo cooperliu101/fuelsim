@@ -6,6 +6,7 @@
 #include "fuelsim/transient_problem.hpp"
 #include <array>
 #include <vector>
+
 namespace fuelsim {
 struct TransientCommittedState final {
     std::vector<double> solution;
@@ -15,11 +16,13 @@ struct TransientCommittedState final {
     TransientConservationSummary conservation;
     double time = 0.0, load_factor = 0.0;
 };
+
 namespace rz {
 struct SteadyBackendView final {
     const SpatialAssembly& spatial;
     const std::vector<Quad4RzData>& kernel_data;
 };
+
 struct TransientBackendView final {
     const SpatialAssembly& spatial;
     const std::vector<Quad4RzData>& kernel_data;
@@ -29,6 +32,7 @@ struct TransientBackendView final {
     bool time_step_active;
 };
 } // namespace rz
+
 class BackendAccess final {
   public:
     static rz::SteadyBackendView steady(const SteadyProblem& problem) noexcept;

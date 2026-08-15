@@ -13,12 +13,14 @@
 #include <string>
 #include <utility>
 #include <vector>
+
 namespace {
 bool check(bool condition, const std::string& message) {
     if (condition) return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
+
 std::vector<std::string> split_csv(const std::string& line) {
     std::vector<std::string> result;
     std::istringstream input(line);
@@ -26,11 +28,13 @@ std::vector<std::string> split_csv(const std::string& line) {
     while (std::getline(input, field, ',')) result.push_back(field);
     return result;
 }
+
 std::size_t column(const std::vector<std::string>& header, const std::string& name) {
     const auto found = std::find(header.begin(), header.end(), name);
     if (found == header.end()) throw std::invalid_argument("MOOSE contact CSV is missing column: " + name);
     return static_cast<std::size_t>(found - header.begin());
 }
+
 std::vector<std::pair<double, double>> read_radial_pressure(const std::string& path) {
     std::ifstream input(path);
     if (!input) throw std::runtime_error("Could not read MOOSE contact CSV: " + path);
@@ -50,6 +54,7 @@ std::vector<std::pair<double, double>> read_radial_pressure(const std::string& p
     std::sort(result.begin(), result.end());
     return result;
 }
+
 bool run_comparison(const std::string& input_path, const std::string& nodal_reference_path,
     const std::string& pressure_reference_path) {
     const fuelsim::FuelSimCaseDefinition definition = fuelsim::read_case_input(input_path);
@@ -205,6 +210,7 @@ bool run_comparison(const std::string& input_path, const std::string& nodal_refe
     return passed;
 }
 } // namespace
+
 int main(int argc, char** argv) {
     if (argc != 4) {
         std::cerr << "Usage: fuelsim_m3_contact_tests <case.fsi> "

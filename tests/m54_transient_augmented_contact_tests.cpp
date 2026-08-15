@@ -9,12 +9,14 @@
 #include <iostream>
 #include <string>
 #include <vector>
+
 namespace {
 bool check(bool condition, const std::string& message) {
     if (condition) return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
+
 fuelsim::FuelSimCaseDefinition augmented_pcmi_input(
     const std::string& input_path, double penetration_tolerance, std::size_t maximum_augmented_iterations) {
     fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
@@ -26,6 +28,7 @@ fuelsim::FuelSimCaseDefinition augmented_pcmi_input(
     contact.maximum_augmented_iterations = maximum_augmented_iterations;
     return input;
 }
+
 fuelsim::TransientTimeOptions time_options(const fuelsim::FuelSimCaseDefinition& input) {
     const fuelsim::TransientTimeOptions& execution = input.transient_execution;
     return {execution.end_time, execution.initial_time_step, execution.minimum_time_step, execution.maximum_time_step,
@@ -35,6 +38,7 @@ fuelsim::TransientTimeOptions time_options(const fuelsim::FuelSimCaseDefinition&
         execution.displacement_time_absolute_tolerance, execution.time_error_safety_factor,
         execution.strain_history_time_absolute_tolerance, execution.stress_history_time_absolute_tolerance};
 }
+
 fuelsim::SolverOptions solver_options(const fuelsim::FuelSimCaseDefinition& input) {
     fuelsim::SolverOptions options{input.solver.absolute_tolerance, input.solver.relative_tolerance,
         input.solver.step_tolerance, input.solver.maximum_iterations};
@@ -47,6 +51,7 @@ fuelsim::SolverOptions solver_options(const fuelsim::FuelSimCaseDefinition& inpu
     options.mechanical_residual_scale = input.solver.mechanical_residual_scale;
     return options;
 }
+
 double maximum_committed_multiplier(const fuelsim::TransientProblem& problem) {
     double maximum = 0.0;
     for (const std::vector<fuelsim::ContactPointHistory>& histories :
@@ -55,6 +60,7 @@ double maximum_committed_multiplier(const fuelsim::TransientProblem& problem) {
             maximum = std::max(maximum, history.normal_multiplier);
     return maximum;
 }
+
 class AugmentedContactObserver final : public fuelsim::TransientStepObserver {
   public:
     void accepted_step(const fuelsim::TransientProblem& problem, const fuelsim::TransientAcceptedStep&) override {
@@ -65,9 +71,13 @@ class AugmentedContactObserver final : public fuelsim::TransientStepObserver {
         _final_active_contact_nodes = interface.active_contact_nodes;
         _final_total_contact_force = interface.total_contact_force;
     }
+
     double maximum_penetration() const noexcept { return _maximum_penetration; }
+
     double maximum_multiplier() const noexcept { return _maximum_multiplier; }
+
     std::size_t final_active_contact_nodes() const noexcept { return _final_active_contact_nodes; }
+
     double final_total_contact_force() const noexcept { return _final_total_contact_force; }
 
   private:
@@ -76,6 +86,7 @@ class AugmentedContactObserver final : public fuelsim::TransientStepObserver {
     std::size_t _final_active_contact_nodes = 0;
     double _final_total_contact_force = 0.0;
 };
+
 bool test_transient_augmented_contact(const std::string& input_path) {
     const fuelsim::FuelSimCaseDefinition input = augmented_pcmi_input(input_path, 1.0e-9, 50);
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
@@ -111,6 +122,7 @@ bool test_transient_augmented_contact(const std::string& input_path) {
            check(result.aggregate_timing.workspace_setups == 1, "transient augmented outer iterations reuse one PETSc "
                                                                 "workspace");
 }
+
 bool test_transient_augmented_failure_rollback(const std::string& input_path) {
     const fuelsim::FuelSimCaseDefinition input = augmented_pcmi_input(input_path, 1.0e-20, 1);
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
@@ -136,6 +148,7 @@ bool test_transient_augmented_failure_rollback(const std::string& input_path) {
                                                                "normal multiplier") &&
            check(result.aggregate_timing.workspace_setups == 1, "failed transient attempts reuse one PETSc workspace");
 }
+
 bool test_transient_augmented_time_error(const std::string& input_path) {
     const fuelsim::FuelSimCaseDefinition input = augmented_pcmi_input(input_path, 1.0e-9, 50);
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
@@ -192,6 +205,7 @@ bool test_transient_augmented_time_error(const std::string& input_path) {
            check(result.aggregate_timing.workspace_setups == 1, "step-doubling retries reuse one PETSc workspace");
 }
 } // namespace
+
 int main(int argc, char** argv) {
     if (argc != 2) {
         std::cerr << "Usage: fuelsim_m54_transient_augmented_contact_tests "

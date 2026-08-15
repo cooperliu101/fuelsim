@@ -7,6 +7,7 @@
 #include <limits>
 #include <string>
 #include <vector>
+
 namespace fuelsim {
 enum class Field {
     temperature,
@@ -16,18 +17,24 @@ enum class Field {
     displacement_y,
     displacement_z,
 };
+
 class PiecewiseLinearTimeTable final {
   public:
     PiecewiseLinearTimeTable(std::string name, std::vector<double> times, std::vector<double> values);
+
     const std::string& name() const noexcept { return _name; }
+
     const std::vector<double>& times() const noexcept { return _times; }
+
     const std::vector<double>& values() const noexcept { return _values; }
+
     double value(double time) const;
 
   private:
     std::string _name;
     std::vector<double> _times, _values;
 };
+
 struct RegionDefinition final {
     std::string name, block;
     ThermoelasticProperties material;
@@ -40,6 +47,7 @@ enum class MechanicalContactFormulation {
     penalty,
     augmented_lagrangian,
 };
+
 struct ContactDefinition final {
     std::string name, primary, secondary;
     bool thermal, mechanical;
@@ -51,6 +59,7 @@ struct ContactDefinition final {
     double penetration_tolerance = 1.0e-8;
     std::size_t maximum_augmented_iterations = 20;
 };
+
 struct AugmentedContactUpdate final {
     bool converged = true, update_allowed = true;
     double maximum_penetration = 0.0, maximum_constraint_violation = 0.0, penetration_tolerance = 0.0;
@@ -61,6 +70,7 @@ enum class BoundaryConditionType {
     traction,
     convection,
 };
+
 struct BoundaryConditionDefinition final {
     std::string name;
     BoundaryConditionType type;
@@ -74,12 +84,14 @@ struct BoundaryConditionDefinition final {
     std::string ambient_temperature_function{};
     bool use_displaced_geometry = false;
 };
+
 struct SpatialDefinition final {
     std::vector<RegionDefinition> regions;
     std::vector<ContactDefinition> contacts;
     std::vector<BoundaryConditionDefinition> boundary_conditions;
     std::vector<PiecewiseLinearTimeTable> time_tables{};
 };
+
 struct ContactNodeSummary final {
     double r, z;
     bool projected;
@@ -88,6 +100,7 @@ struct ContactNodeSummary final {
         elastic_tangential_slip;
     bool sliding;
 };
+
 struct InterfaceSummary final {
     double minimum_gap = std::numeric_limits<double>::infinity();
     double minimum_contact_gap = std::numeric_limits<double>::infinity();

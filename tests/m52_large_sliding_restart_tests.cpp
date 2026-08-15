@@ -10,13 +10,16 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+
 namespace {
 bool check(bool condition, const std::string& message) {
     if (condition) return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
+
 fuelsim::TransientTimeOptions time_options(double end_time) { return {end_time, 0.05, 0.05, 0.05, 1.0, 0.5, 2, 1.0}; }
+
 bool run_test(const std::string& input_path, const std::string& checkpoint_path) {
     const fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
@@ -63,6 +66,7 @@ bool run_test(const std::string& input_path, const std::string& checkpoint_path)
     return check(std::remove(checkpoint_path.c_str()) == 0, "M5.2 checkpoint artifact is removed") && passed;
 }
 } // namespace
+
 int main(int argc, char** argv) {
     if (argc != 3) {
         std::cerr << "Usage: fuelsim_m52_large_sliding_restart_tests "

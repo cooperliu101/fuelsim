@@ -12,14 +12,17 @@
 #include <stdexcept>
 #include <string>
 #include <utility>
+
 namespace {
 constexpr std::size_t fuel_radial_elements = 100;
 constexpr std::size_t cladding_radial_elements = 16;
 constexpr std::size_t load_steps = 20;
+
 struct BenchmarkCase final {
     fuelsim::UnstructuredQuad4Mesh mesh;
     fuelsim::SpatialDefinition definition;
 };
+
 fuelsim::BoundaryConditionDefinition dirichlet(
     const std::string& name, const std::string& boundary, fuelsim::Field field, double value) {
     fuelsim::BoundaryConditionDefinition condition{};
@@ -30,6 +33,7 @@ fuelsim::BoundaryConditionDefinition dirichlet(
     condition.value = value;
     return condition;
 }
+
 BenchmarkCase make_case(std::size_t requested_fuel_radial_elements, std::size_t requested_cladding_radial_elements,
     std::size_t axial_elements) {
     BenchmarkCase result{
@@ -52,6 +56,7 @@ BenchmarkCase make_case(std::size_t requested_fuel_radial_elements, std::size_t 
         dirichlet("clad_temperature", "clad_outer", fuelsim::Field::temperature, 600.0));
     return result;
 }
+
 std::size_t parse_positive_size(const char* text, const char* name) {
     const std::string value(text);
     std::size_t consumed = 0;
@@ -61,6 +66,7 @@ std::size_t parse_positive_size(const char* text, const char* name) {
         throw std::invalid_argument(std::string(name) + " must be a positive integer");
     return static_cast<std::size_t>(parsed);
 }
+
 void configure_solver(const std::string& name, fuelsim::SolverOptions& options) {
     if (name == "direct") {
         options.linear_solver = fuelsim::SolverOptions::LinearSolver::direct;
@@ -78,6 +84,7 @@ void configure_solver(const std::string& name, fuelsim::SolverOptions& options) 
         throw std::invalid_argument("solver must be direct, block_jacobi, field_split, or hypre");
 }
 } // namespace
+
 int main(int argc, char** argv) {
     try {
         const std::string case_name = argc > 1 ? argv[1] : "medium";

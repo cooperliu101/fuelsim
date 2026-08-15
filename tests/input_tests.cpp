@@ -6,18 +6,21 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+
 namespace {
 bool check(bool condition, const std::string& message) {
     if (condition) return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
+
 void registered_test_thermal(const fuelsim::ThermoelasticFunctionInput& input, fuelsim::ThermalPropertyOutput& output) {
     output.conductivity = input.parameters->value("inverse_coefficient") / input.temperature +
                           input.parameters->value("constant_coefficient");
     output.density = input.parameters->value("density");
     output.specific_heat = input.parameters->value("specific_heat");
 }
+
 bool expect_parse_failure(const std::string& path, const std::string& contents, const std::string& expected_message) {
     {
         std::ofstream output(path, std::ios::out | std::ios::trunc);
@@ -33,6 +36,7 @@ bool expect_parse_failure(const std::string& path, const std::string& contents, 
     const int remove_status = std::remove(path.c_str());
     return check(remove_status == 0 && failed_as_expected, "malformed input reports '" + expected_message + "'");
 }
+
 std::string read_text(const std::string& path) {
     std::ifstream input(path);
     if (!input) throw std::runtime_error("Could not read input fixture '" + path + "'");
@@ -40,6 +44,7 @@ std::string read_text(const std::string& path) {
     contents << input.rdbuf();
     return contents.str();
 }
+
 bool expect_case_failure(const std::string& path, const std::string& contents, const std::string& expected_message) {
     {
         std::ofstream output(path, std::ios::out | std::ios::trunc);
@@ -55,6 +60,7 @@ bool expect_case_failure(const std::string& path, const std::string& contents, c
     const int remove_status = std::remove(path.c_str());
     return check(remove_status == 0 && failed_as_expected, "invalid case reports '" + expected_message + "'");
 }
+
 bool expect_registered_case_failure(const std::string& path, const std::string& contents,
     const fuelsim::MaterialFunctionRegistry& registry, const std::string& expected_message) {
     {
@@ -72,6 +78,7 @@ bool expect_registered_case_failure(const std::string& path, const std::string& 
     return check(remove_status == 0 && failed_as_expected,
         "invalid registered-material case reports '" + expected_message + "'");
 }
+
 bool verify_m3_output_input(const std::string& path, const std::string& contents) {
     {
         std::ofstream output(path, std::ios::out | std::ios::trunc);
@@ -113,6 +120,7 @@ bool verify_m3_output_input(const std::string& path, const std::string& contents
                          "yield_stress_temperature_coefficient") == -100.0,
         "restart, time functions, convection, solver and outputs are parsed");
 }
+
 bool fuzz_input_parser(const std::string& seed, const std::string& path) {
     std::uint64_t generator = 0x6a09e667f3bcc909ULL;
     for (std::size_t iteration = 0; iteration < 512; ++iteration) {
@@ -145,6 +153,7 @@ bool fuzz_input_parser(const std::string& seed, const std::string& path) {
     const int remove_status = std::remove(path.c_str());
     return check(remove_status == 0, "deterministic parser fuzz mutations complete safely");
 }
+
 bool run_tests(const std::string& steady_path, const std::string& transient_path, const std::string& finite_strain_path,
     const std::string& scaled_displacement_path, const std::string& traction_path, const std::string& malformed_path) {
     const fuelsim::FuelSimCaseDefinition steady = fuelsim::read_case_input(steady_path);
@@ -505,6 +514,7 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
     return passed;
 }
 } // namespace
+
 int main(int argc, char** argv) {
     if (argc != 7) {
         std::cerr << "Usage: fuelsim_input_tests <steady.fsi> "

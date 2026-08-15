@@ -14,46 +14,55 @@
 #include <string>
 #include <utility>
 #include <vector>
+
 namespace {
 constexpr double pi = 3.141592653589793238462643383279502884;
 constexpr double density = 2.0;
 constexpr double specific_heat = 3.0;
 constexpr double conductivity = 5.0;
 constexpr double end_time = 1.0;
+
 struct ManufacturedParameters final {
     double base_temperature;
     double radial_quadratic;
     double linear_time;
     double quadratic_time;
 };
+
 struct ErrorMetrics final {
     double absolute_l2 = 0.0;
     double relative_l2 = 0.0;
     double maximum_absolute = 0.0;
 };
+
 struct ManufacturedResult final {
     ErrorMetrics temperature;
     double maximum_displacement = 0.0;
     std::size_t accepted_steps = 0;
     std::size_t workspace_setups = 0;
 };
+
 bool check(bool condition, const std::string& message) {
     if (condition) return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
+
 double exact_temperature(const ManufacturedParameters& parameters, double r, double time) {
     return parameters.base_temperature + parameters.radial_quadratic * r * r + parameters.linear_time * time +
            parameters.quadratic_time * time * time;
 }
+
 double exact_heat_source(const ManufacturedParameters& parameters, double time) {
     return density * specific_heat * (parameters.linear_time + 2.0 * parameters.quadratic_time * time) -
            4.0 * conductivity * parameters.radial_quadratic;
 }
+
 fuelsim::UnstructuredQuad4Mesh make_mesh(std::size_t radial_elements, std::size_t axial_elements) {
     return fuelsim::test::make_disconnected_annular_mesh(
         {{1, "solid", 0.0, 1.0, 1.0, radial_elements, axial_elements}});
 }
+
 fuelsim::BoundaryConditionDefinition dirichlet(const std::string& name, const std::string& boundary,
     fuelsim::Field field, double value, const std::string& function = {}) {
     fuelsim::BoundaryConditionDefinition result{};
@@ -65,6 +74,7 @@ fuelsim::BoundaryConditionDefinition dirichlet(const std::string& name, const st
     result.function = function;
     return result;
 }
+
 fuelsim::SpatialDefinition make_definition(const ManufacturedParameters& parameters, std::size_t time_steps) {
     std::vector<double> times;
     std::vector<double> outer_temperatures;
@@ -92,6 +102,7 @@ fuelsim::SpatialDefinition make_definition(const ManufacturedParameters& paramet
     spatial.time_tables.emplace_back("source", times, heat_sources);
     return spatial;
 }
+
 void set_exact_initial_state(fuelsim::TransientProblem& problem, const ManufacturedParameters& parameters) {
     fuelsim::TransientCommittedState state = fuelsim::rz::ProblemAccess::committed_state(problem);
     const fuelsim::RegionMesh& mesh = fuelsim::rz::ProblemAccess::region_mesh(problem, 0);
@@ -103,6 +114,7 @@ void set_exact_initial_state(fuelsim::TransientProblem& problem, const Manufactu
     }
     fuelsim::rz::ProblemAccess::restore_committed_state(problem, std::move(state));
 }
+
 ErrorMetrics temperature_error(const fuelsim::TransientProblem& problem, const ManufacturedParameters& parameters) {
     const std::array<double, 3> points = {-std::sqrt(3.0 / 5.0), 0.0, std::sqrt(3.0 / 5.0)};
     const std::array<double, 3> weights = {5.0 / 9.0, 8.0 / 9.0, 5.0 / 9.0};
@@ -156,6 +168,7 @@ ErrorMetrics temperature_error(const fuelsim::TransientProblem& problem, const M
     result.relative_l2 = std::sqrt(difference_squared / reference_squared);
     return result;
 }
+
 ManufacturedResult solve_manufactured(std::size_t radial_elements, std::size_t axial_elements, std::size_t time_steps,
     const ManufacturedParameters& parameters) {
     const fuelsim::UnstructuredQuad4Mesh mesh = make_mesh(radial_elements, axial_elements);
@@ -188,7 +201,9 @@ ManufacturedResult solve_manufactured(std::size_t radial_elements, std::size_t a
     }
     return result;
 }
+
 double observed_order(double coarse, double fine) { return std::log(coarse / fine) / std::log(2.0); }
+
 bool test_spatial_order() {
     const ManufacturedParameters parameters = {300.0, -50.0, 10.0, 0.0};
     const std::array<std::size_t, 4> elements = {4, 8, 16, 32};
@@ -220,6 +235,7 @@ bool test_spatial_order() {
               << "m21_manufactured_spatial_orders=" << orders[0] << ',' << orders[1] << ',' << orders[2] << '\n';
     return passed;
 }
+
 bool test_temporal_order() {
     const ManufacturedParameters parameters = {300.0, -1.0, 0.0, 10.0};
     const std::array<std::size_t, 4> steps = {5, 10, 20, 40};
@@ -252,6 +268,7 @@ bool test_temporal_order() {
     return passed;
 }
 } // namespace
+
 int main(int argc, char** argv) {
     try {
         std::cout << std::scientific << std::setprecision(12);

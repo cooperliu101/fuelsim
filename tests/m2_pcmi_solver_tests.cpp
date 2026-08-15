@@ -16,14 +16,17 @@
 #include <string>
 #include <utility>
 #include <vector>
+
 namespace {
 constexpr double m23_moose_tolerance = 1.0e-3;
 constexpr double m41_moose_tolerance = 5.0e-3;
+
 bool check(bool condition, const std::string& message) {
     if (condition) return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
+
 std::vector<std::string> split_csv(const std::string& line) {
     std::vector<std::string> result;
     std::istringstream input(line);
@@ -31,10 +34,12 @@ std::vector<std::string> split_csv(const std::string& line) {
     while (std::getline(input, value, ',')) result.push_back(value);
     return result;
 }
+
 struct CsvTable final {
     std::vector<std::string> header;
     std::vector<std::vector<std::string>> rows;
 };
+
 CsvTable read_csv(const std::string& path) {
     std::ifstream input(path);
     if (!input) throw std::runtime_error("Could not read MOOSE PCMI CSV: " + path);
@@ -48,27 +53,32 @@ CsvTable read_csv(const std::string& path) {
     }
     return table;
 }
+
 std::size_t column_index(const CsvTable& table, const std::string& name) {
     const auto found = std::find(table.header.begin(), table.header.end(), name);
     if (found == table.header.end()) throw std::invalid_argument("MOOSE PCMI CSV is missing column: " + name);
     return static_cast<std::size_t>(found - table.header.begin());
 }
+
 double csv_value(const CsvTable& table, const std::vector<std::string>& row, const std::string& name) {
     const std::size_t column = column_index(table, name);
     if (column >= row.size()) throw std::invalid_argument("MOOSE PCMI CSV row is incomplete");
     return std::stod(row[column]);
 }
+
 double relative_error(double actual, double expected) {
     if (!std::isfinite(actual) || !std::isfinite(expected) || expected == 0.0)
         return std::numeric_limits<double>::infinity();
     return std::abs(actual - expected) / std::abs(expected);
 }
+
 struct ErrorMetrics final {
     double difference_squared = 0.0;
     double reference_squared = 0.0;
     double maximum_actual = 0.0;
     double maximum_reference = 0.0;
     double maximum_pointwise_relative = 0.0;
+
     void add(double actual, double reference) {
         const double difference = actual - reference;
         difference_squared += difference * difference;
@@ -77,9 +87,12 @@ struct ErrorMetrics final {
         maximum_reference = std::max(maximum_reference, std::abs(reference));
         maximum_pointwise_relative = std::max(maximum_pointwise_relative, relative_error(actual, reference));
     }
+
     double relative_l2() const { return std::sqrt(difference_squared / reference_squared); }
+
     double relative_absolute_peak() const { return std::abs(maximum_actual - maximum_reference) / maximum_reference; }
 };
+
 bool check_metrics(const std::string& name, const ErrorMetrics& metrics, double tolerance) {
     std::cout << name << "_relative_l2=" << metrics.relative_l2() << '\n';
     std::cout << name << "_relative_absolute_peak=" << metrics.relative_absolute_peak() << '\n';
@@ -88,11 +101,13 @@ bool check_metrics(const std::string& name, const ErrorMetrics& metrics, double 
                      metrics.maximum_pointwise_relative < tolerance,
         name + " three MOOSE error metrics pass");
 }
+
 bool check_scalar_metrics(const std::string& name, double actual, double reference, double tolerance) {
     ErrorMetrics metrics;
     metrics.add(actual, reference);
     return check_metrics(name, metrics, tolerance);
 }
+
 struct CladdingPointValue final {
     double radius;
     double axial_coordinate;
@@ -100,6 +115,7 @@ struct CladdingPointValue final {
     double equivalent_plastic_strain;
     double equivalent_creep_strain;
 };
+
 std::vector<CladdingPointValue> read_cladding_point_reference(
     const std::string& coordinate_path, const std::string& value_path) {
     const CsvTable coordinates = read_csv(coordinate_path);
@@ -131,11 +147,13 @@ std::vector<CladdingPointValue> read_cladding_point_reference(
     }
     return result;
 }
+
 double read_final_scalar_reference(const std::string& path, const std::string& name) {
     const CsvTable table = read_csv(path);
     if (table.rows.empty()) throw std::invalid_argument("MOOSE PCMI scalar CSV has no rows");
     return csv_value(table, table.rows.back(), name);
 }
+
 double read_total_contact_force_reference(const std::string& path) {
     const CsvTable table = read_csv(path);
     double force = 0.0;
@@ -143,6 +161,7 @@ double read_total_contact_force_reference(const std::string& path) {
         force += csv_value(table, row, "contact_pressure") * csv_value(table, row, "nodal_area");
     return force;
 }
+
 struct CladdingMetrics final {
     double average_plastic;
     double average_creep;
@@ -151,6 +170,7 @@ struct CladdingMetrics final {
     double maximum_creep;
     std::vector<CladdingPointValue> points;
 };
+
 CladdingMetrics cladding_metrics(const fuelsim::TransientProblem& problem, std::size_t cladding_region) {
     double measure = 0.0;
     double weighted_plastic = 0.0;
@@ -201,6 +221,7 @@ CladdingMetrics cladding_metrics(const fuelsim::TransientProblem& problem, std::
         std::move(points),
     };
 }
+
 struct PointwiseError final {
     double relative_l2 = 0.0;
     double relative_absolute_peak = 0.0;
@@ -211,6 +232,7 @@ struct PointwiseError final {
     std::size_t maximum_absolute_point = 0;
     std::size_t maximum_relative_point = 0;
 };
+
 void add_pointwise_error(PointwiseError& error, double actual, double expected, std::size_t point,
     double& difference_squared, double& reference_squared) {
     const double absolute = std::abs(actual - expected);
@@ -228,6 +250,7 @@ void add_pointwise_error(PointwiseError& error, double actual, double expected, 
         error.maximum_relative_point = point;
     }
 }
+
 void finalize_pointwise_error(PointwiseError& error, double difference_squared, double reference_squared) {
     error.relative_l2 = reference_squared > 0.0 ? std::sqrt(difference_squared / reference_squared)
                                                 : std::numeric_limits<double>::infinity();
@@ -236,6 +259,7 @@ void finalize_pointwise_error(PointwiseError& error, double difference_squared, 
             ? std::abs(error.maximum_actual - error.maximum_reference) / error.maximum_reference
             : std::numeric_limits<double>::infinity();
 }
+
 bool fuel_history_is_elastic(const fuelsim::TransientProblem& problem, std::size_t fuel_region) {
     for (std::size_t element = 0;
         element < fuelsim::rz::ProblemAccess::region_mesh(problem, fuel_region).elements().size(); ++element) {
@@ -246,6 +270,7 @@ bool fuel_history_is_elastic(const fuelsim::TransientProblem& problem, std::size
     }
     return true;
 }
+
 fuelsim::SolverOptions solver_options(const fuelsim::FuelSimCaseDefinition& definition) {
     fuelsim::SolverOptions options{definition.solver.absolute_tolerance, definition.solver.relative_tolerance,
         definition.solver.step_tolerance, definition.solver.maximum_iterations};
@@ -260,12 +285,14 @@ fuelsim::SolverOptions solver_options(const fuelsim::FuelSimCaseDefinition& defi
     options.mechanical_residual_absolute_tolerance = definition.solver.mechanical_residual_absolute_tolerance;
     return options;
 }
+
 fuelsim::TransientTimeOptions time_options(const fuelsim::FuelSimCaseDefinition& definition) {
     return {definition.transient_execution.end_time, definition.transient_execution.initial_time_step,
         definition.transient_execution.minimum_time_step, definition.transient_execution.maximum_time_step,
         definition.transient_execution.growth_factor, definition.transient_execution.cutback_factor,
         definition.transient_execution.maximum_cutbacks_per_step, definition.transient_execution.load_ramp_time};
 }
+
 bool test_pcmi_coupled_cladding(const std::string& input_path, const std::string& nodal_reference_path,
     const std::string& pressure_reference_path, const std::string& qp_coordinate_path, const std::string& qp_value_path,
     const std::string& scalar_reference_path) {
@@ -482,6 +509,7 @@ bool test_pcmi_coupled_cladding(const std::string& input_path, const std::string
     return passed;
 }
 } // namespace
+
 int main(int argc, char** argv) {
     if (argc != 7) {
         std::cerr << "Usage: fuelsim_m2_pcmi_solver_tests <pcmi.fsi> "

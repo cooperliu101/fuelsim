@@ -2,6 +2,7 @@
 #include "fuelsim/material.hpp"
 #include <memory>
 #include <utility>
+
 namespace fuelsim::test {
 inline ThermoelasticProperties thermoelastic(double conductivity_inverse_temperature, double conductivity_offset,
     double young_modulus, double poisson_ratio, double thermal_expansion, double reference_temperature,
@@ -24,6 +25,7 @@ inline ThermoelasticProperties thermoelastic(double conductivity_inverse_tempera
                 {"thermal_expansion_temperature_coefficient", thermal_expansion_temperature_coefficient}}));
     return {std::move(functions), young_modulus};
 }
+
 inline ThermoelasticProperties with_norton(ThermoelasticProperties material, double coefficient,
     double reference_stress, double stress_exponent, double reference_temperature = 600.0,
     double coefficient_temperature_coefficient = 0.0, double reference_stress_temperature_coefficient = 0.0,
@@ -39,6 +41,7 @@ inline ThermoelasticProperties with_norton(ThermoelasticProperties material, dou
     material.functions = std::move(functions);
     return material;
 }
+
 inline ThermoelasticProperties with_plasticity(ThermoelasticProperties material, double yield_stress,
     double hardening_modulus, double reference_temperature = 600.0, double yield_stress_temperature_coefficient = 0.0,
     double hardening_temperature_coefficient = 0.0) {

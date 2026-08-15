@@ -13,21 +13,25 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+
 namespace {
 struct NodeReference final {
     std::size_t id;
     fuelsim::CartesianPoint3 point;
     std::array<double, 4> fields;
 };
+
 struct StressReference final {
     std::size_t id;
     fuelsim::SymmetricTensor3Values stress;
 };
+
 bool check(bool condition, const std::string& message) {
     if (condition) return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
+
 std::vector<std::string> split_csv(const std::string& line) {
     std::vector<std::string> result;
     std::istringstream stream(line);
@@ -35,10 +39,12 @@ std::vector<std::string> split_csv(const std::string& line) {
     while (std::getline(stream, value, ',')) result.push_back(value);
     return result;
 }
+
 double number(const std::vector<std::string>& values, std::size_t index, const std::string& path) {
     if (index >= values.size()) throw std::invalid_argument("Incomplete three-dimensional MOOSE row in " + path);
     return std::stod(values[index]);
 }
+
 std::vector<NodeReference> read_nodes(const std::string& path) {
     std::ifstream input(path);
     if (!input) throw std::runtime_error("Could not read three-dimensional MOOSE nodes: " + path);
@@ -55,6 +61,7 @@ std::vector<NodeReference> read_nodes(const std::string& path) {
     }
     return result;
 }
+
 std::vector<StressReference> read_stresses(const std::string& path) {
     std::ifstream input(path);
     if (!input) throw std::runtime_error("Could not read three-dimensional MOOSE stresses: " + path);
@@ -71,6 +78,7 @@ std::vector<StressReference> read_stresses(const std::string& path) {
     }
     return result;
 }
+
 std::array<fuelsim::test::FieldErrorMetrics, 4> compare_nodes(const fuelsim::UnstructuredHex8Mesh& mesh,
     const fuelsim::SteadyProblem& problem, const std::vector<double>& state,
     const std::vector<NodeReference>& reference, double& maximum_coordinate_difference) {
@@ -102,6 +110,7 @@ std::array<fuelsim::test::FieldErrorMetrics, 4> compare_nodes(const fuelsim::Uns
         throw std::invalid_argument("Three-dimensional comparison did not visit every source node");
     return result;
 }
+
 std::array<fuelsim::test::FieldErrorMetrics, 6> compare_stresses(const fuelsim::SteadyProblem& problem,
     const std::vector<double>& state, const std::vector<StressReference>& reference) {
     std::array<fuelsim::test::FieldErrorMetrics, 6> result;
@@ -129,6 +138,7 @@ std::array<fuelsim::test::FieldErrorMetrics, 6> compare_stresses(const fuelsim::
         throw std::invalid_argument("Three-dimensional comparison did not visit every source element");
     return result;
 }
+
 bool run(const std::string& input_path, const std::string& nodal_path, const std::string& stress_path) {
     const fuelsim::FuelSimCaseDefinition definition = fuelsim::read_case_input(input_path);
     if (definition.problem != fuelsim::CaseProblem::steady ||
@@ -169,6 +179,7 @@ bool run(const std::string& input_path, const std::string& nodal_path, const std
     return check(coordinate_error < 1.0e-12, "stage B compares all nodes at matching coordinates") && passed;
 }
 } // namespace
+
 int main(int argc, char** argv) {
     if (argc != 4) {
         std::cerr << "Usage: fuelsim_b3_hex8_moose_tests <case.fsi> <nodes.csv> <stresses.csv>\n";

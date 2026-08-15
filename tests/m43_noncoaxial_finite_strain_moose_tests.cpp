@@ -17,6 +17,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+
 namespace {
 constexpr double comparison_tolerance = 5.0e-3;
 // Local tensor components cross zero during reversal.  These pointwise-only
@@ -33,6 +34,7 @@ enum class ExpectedBehavior {
     creep,
     coupled,
 };
+
 struct VariantConfig final {
     std::string name;
     ExpectedBehavior behavior = ExpectedBehavior::elastic;
@@ -45,6 +47,7 @@ struct VariantConfig final {
     double plastic_trace_tolerance = 0.0;
     double creep_trace_tolerance = 0.0;
 };
+
 VariantConfig variant_config(const std::string& name) {
     if (name == "production")
         return {name, ExpectedBehavior::coupled, 4, 100, comparison_tolerance, stress_pointwise_tolerance,
@@ -64,17 +67,21 @@ VariantConfig variant_config(const std::string& name) {
         return {name, ExpectedBehavior::coupled, 1, 100, 5.0e-6, 1.0e-6, 1.0e-6, 1.0e-6, 2.0e-6, 1.0e-7};
     throw std::invalid_argument("Unknown M4.3 comparison variant: " + name);
 }
+
 bool plastic_active(ExpectedBehavior behavior) noexcept {
     return behavior == ExpectedBehavior::plastic || behavior == ExpectedBehavior::coupled;
 }
+
 bool creep_active(ExpectedBehavior behavior) noexcept {
     return behavior == ExpectedBehavior::creep || behavior == ExpectedBehavior::coupled;
 }
+
 bool check(bool condition, const std::string& message) {
     if (condition) return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
+
 std::vector<std::string> split_csv(const std::string& line) {
     std::vector<std::string> fields;
     std::size_t begin = 0;
@@ -85,11 +92,13 @@ std::vector<std::string> split_csv(const std::string& line) {
         begin = end + 1;
     }
 }
+
 std::size_t column_index(const std::vector<std::string>& header, const std::string& name) {
     const auto found = std::find(header.begin(), header.end(), name);
     if (found == header.end()) throw std::invalid_argument("M4.3 CSV is missing column '" + name + "'");
     return static_cast<std::size_t>(found - header.begin());
 }
+
 double csv_value(const std::vector<std::string>& fields, std::size_t column, const std::string& path) {
     if (column >= fields.size()) throw std::invalid_argument("M4.3 CSV row is incomplete: " + path);
     std::size_t parsed = 0;
@@ -98,6 +107,7 @@ double csv_value(const std::vector<std::string>& fields, std::size_t column, con
         throw std::invalid_argument("M4.3 CSV value is invalid: " + path);
     return value;
 }
+
 std::size_t csv_id(const std::vector<std::string>& fields, std::size_t column, const std::string& path) {
     const double value = csv_value(fields, column, path);
     if (value < 0.0 || value > static_cast<double>(std::numeric_limits<std::size_t>::max()) ||
@@ -105,6 +115,7 @@ std::size_t csv_id(const std::vector<std::string>& fields, std::size_t column, c
         throw std::invalid_argument("M4.3 CSV element ID is invalid: " + path);
     return static_cast<std::size_t>(value);
 }
+
 struct ElementSnapshot final {
     std::size_t element_id = 0;
     double radius = 0.0;
@@ -112,6 +123,7 @@ struct ElementSnapshot final {
     fuelsim::AxisymmetricStressValues stress{};
     fuelsim::MaterialPointState state{};
 };
+
 struct HistorySnapshot final {
     double time = 0.0;
     double reference_height = 0.0;
@@ -119,9 +131,11 @@ struct HistorySnapshot final {
     double top_axial_displacement = 0.0;
     std::vector<ElementSnapshot> elements;
 };
+
 class HistoryObserver final : public fuelsim::TransientStepObserver {
   public:
     explicit HistoryObserver(std::size_t expected_element_count) : _expected_element_count(expected_element_count) {}
+
     void accepted_step(const fuelsim::TransientProblem& problem, const fuelsim::TransientAcceptedStep& step) override {
         if (fuelsim::rz::ProblemAccess::region_count(problem) != 1 ||
             fuelsim::rz::ProblemAccess::region_mesh(problem, 0).elements().size() != _expected_element_count)
@@ -209,8 +223,11 @@ class HistoryObserver final : public fuelsim::TransientStepObserver {
             });
         _snapshots.push_back(std::move(snapshot));
     }
+
     const std::vector<HistorySnapshot>& snapshots() const noexcept { return _snapshots; }
+
     double maximum_plastic_trace() const noexcept { return _maximum_plastic_trace; }
+
     double maximum_creep_trace() const noexcept { return _maximum_creep_trace; }
 
   private:
@@ -219,6 +236,7 @@ class HistoryObserver final : public fuelsim::TransientStepObserver {
     double _maximum_plastic_trace = 0.0;
     double _maximum_creep_trace = 0.0;
 };
+
 struct ReferenceSnapshot final {
     double time = 0.0;
     std::size_t element_id = 0;
@@ -230,15 +248,18 @@ struct ReferenceSnapshot final {
     double equivalent_plastic = 0.0;
     double equivalent_creep = 0.0;
 };
+
 struct NodalHistoryEntry final {
     double time = 0.0;
     std::size_t node_id = 0;
     fuelsim::test::NodalFieldReference field{};
 };
+
 struct NodalHistorySnapshot final {
     double time = 0.0;
     std::vector<fuelsim::test::NodalFieldReference> nodes;
 };
+
 std::vector<ReferenceSnapshot> read_reference_history(const std::string& path) {
     std::ifstream input(path);
     if (!input) throw std::runtime_error("Could not read M4.3 MOOSE history: " + path);
@@ -283,6 +304,7 @@ std::vector<ReferenceSnapshot> read_reference_history(const std::string& path) {
     });
     return result;
 }
+
 std::vector<NodalHistorySnapshot> read_nodal_history(const std::string& path, std::size_t node_count) {
     std::ifstream input(path);
     if (!input) throw std::runtime_error("Could not read M4.3 MOOSE nodal history: " + path);
@@ -334,9 +356,11 @@ std::vector<NodalHistorySnapshot> read_nodal_history(const std::string& path, st
         throw std::invalid_argument("M4.3 MOOSE nodal history misses a node: " + path);
     return result;
 }
+
 std::array<double, 4> stress_components(const fuelsim::AxisymmetricStressValues& stress) {
     return {stress.rr, stress.zz, stress.hoop, stress.rz};
 }
+
 bool check_metrics(const std::string& name, const fuelsim::test::FieldErrorMetrics& metrics,
     double zero_reference_tolerance, double aggregate_tolerance, double pointwise_tolerance) {
     fuelsim::test::print_relative_metrics(name, metrics);
@@ -350,6 +374,7 @@ bool check_metrics(const std::string& name, const fuelsim::test::FieldErrorMetri
                      metrics.maximum_zero_reference_difference < zero_reference_tolerance,
         name + " three MOOSE metrics and zero-reference error pass");
 }
+
 void print_tensor_metric_locations(const std::string& name, const fuelsim::test::FieldErrorMetrics& metrics,
     const std::vector<ReferenceSnapshot>& reference) {
     constexpr std::array<const char*, 4> components = {"rr", "zz", "hoop", "rz"};
@@ -364,12 +389,14 @@ void print_tensor_metric_locations(const std::string& name, const fuelsim::test:
     print_location("maximum_pointwise_relative_location", metrics.maximum_pointwise_relative_index);
     print_location("maximum_absolute_difference_location", metrics.maximum_absolute_difference_index);
 }
+
 const HistorySnapshot& snapshot_at(const std::vector<HistorySnapshot>& values, double time) {
     const auto found = std::find_if(values.begin(), values.end(),
         [time](const HistorySnapshot& value) { return std::abs(value.time - time) < time_tolerance; });
     if (found == values.end()) throw std::invalid_argument("M4.3 accepted history misses event time");
     return *found;
 }
+
 bool check_load_path(const std::vector<HistorySnapshot>& snapshots, ExpectedBehavior behavior) {
     const HistorySnapshot& first_stretch = snapshot_at(snapshots, 1.0);
     const HistorySnapshot& positive_shear = snapshot_at(snapshots, 2.0);
@@ -409,6 +436,7 @@ bool check_load_path(const std::vector<HistorySnapshot>& snapshots, ExpectedBeha
         passed = check(maximum_creep_shear == 0.0, "M4.3 inactive creep history remains zero") && passed;
     return passed;
 }
+
 bool audit_creep_shared_state(const fuelsim::FuelSimCaseDefinition& definition,
     const fuelsim::UnstructuredQuad4Mesh& source, const std::vector<ReferenceSnapshot>& reference,
     const std::string& nodal_history_path) {
@@ -576,6 +604,7 @@ bool audit_creep_shared_state(const fuelsim::FuelSimCaseDefinition& definition,
              passed;
     return passed;
 }
+
 bool run_test(const VariantConfig& variant, const std::string& input_path, const std::string& nodal_reference_path,
     const std::string& history_reference_path, const std::string& nodal_history_path) {
     const fuelsim::FuelSimCaseDefinition definition = fuelsim::read_case_input(input_path);
@@ -722,6 +751,7 @@ bool run_test(const VariantConfig& variant, const std::string& input_path, const
     return passed;
 }
 } // namespace
+
 int main(int argc, char** argv) {
     if (argc != 5 && argc != 6) {
         std::cerr << "Usage: fuelsim_m43_noncoaxial_finite_strain_moose_tests "

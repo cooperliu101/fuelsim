@@ -17,12 +17,14 @@
 #include <string>
 #include <utility>
 #include <vector>
+
 namespace {
 bool check(bool condition, const std::string& message) {
     if (condition) return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
+
 bool expect_failure(const std::function<void()>& function, const std::string& expected, const std::string& message) {
     try {
         function();
@@ -31,10 +33,12 @@ bool expect_failure(const std::function<void()>& function, const std::string& ex
     }
     return check(false, message);
 }
+
 bool nearly_equal(double left, double right) {
     const double scale = std::max({1.0, std::abs(left), std::abs(right)});
     return std::abs(left - right) <= 2.0e-13 * scale;
 }
+
 bool compare_committed_states(
     const fuelsim::TransientCommittedState& left, const fuelsim::TransientCommittedState& right) {
     const std::array<double, 18> left_conservation = {left.conservation.generated_heat_rate,
@@ -116,7 +120,9 @@ bool compare_committed_states(
     }
     return passed;
 }
+
 fuelsim::TransientTimeOptions time_options(double end_time) { return {end_time, 1.0, 0.125, 1.0, 1.0, 0.5, 3, 20.0}; }
+
 fuelsim::TransientTimeOptions time_options(const fuelsim::FuelSimCaseDefinition& input, double end_time) {
     const fuelsim::TransientTimeOptions& execution = input.transient_execution;
     return {end_time, execution.initial_time_step, execution.minimum_time_step, execution.maximum_time_step,
@@ -126,6 +132,7 @@ fuelsim::TransientTimeOptions time_options(const fuelsim::FuelSimCaseDefinition&
         execution.displacement_time_absolute_tolerance, execution.time_error_safety_factor,
         execution.strain_history_time_absolute_tolerance, execution.stress_history_time_absolute_tolerance};
 }
+
 fuelsim::SolverOptions solver_options(const fuelsim::FuelSimCaseDefinition& input) {
     fuelsim::SolverOptions options{input.solver.absolute_tolerance, input.solver.relative_tolerance,
         input.solver.step_tolerance, input.solver.maximum_iterations};
@@ -138,6 +145,7 @@ fuelsim::SolverOptions solver_options(const fuelsim::FuelSimCaseDefinition& inpu
     options.mechanical_residual_scale = input.solver.mechanical_residual_scale;
     return options;
 }
+
 bool test_friction_history_checkpoint(const std::string& input_path, const std::string& checkpoint_path) {
     fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
     input.spatial.contacts.at(0).friction_coefficient = 0.3;
@@ -173,6 +181,7 @@ bool test_friction_history_checkpoint(const std::string& input_path, const std::
              passed;
     return check(std::remove(checkpoint_path.c_str()) == 0, "friction checkpoint artifact is removed") && passed;
 }
+
 std::size_t contact_secondary_global_node(const fuelsim::TransientProblem& problem, std::size_t source_node) {
     for (std::size_t region = 0; region < fuelsim::rz::ProblemAccess::region_count(problem); ++region) {
         const std::vector<std::size_t>& source_nodes =
@@ -184,6 +193,7 @@ std::size_t contact_secondary_global_node(const fuelsim::TransientProblem& probl
     }
     throw std::logic_error("Augmented-contact checkpoint secondary node mapping failed");
 }
+
 bool test_augmented_contact_transaction(const std::string& input_path, const std::string& checkpoint_path) {
     fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
     fuelsim::ContactDefinition& contact = input.spatial.contacts.at(0);
@@ -237,6 +247,7 @@ bool test_augmented_contact_transaction(const std::string& input_path, const std
              compare_committed_states(committed, fuelsim::rz::ProblemAccess::committed_state(restored)) && passed;
     return check(std::remove(checkpoint_path.c_str()) == 0, "augmented checkpoint artifact is removed") && passed;
 }
+
 bool test_finite_strain_restart(const std::string& input_path, const std::string& checkpoint_path) {
     const fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
@@ -278,19 +289,23 @@ bool test_finite_strain_restart(const std::string& input_path, const std::string
              passed;
     return check(std::remove(checkpoint_path.c_str()) == 0, "finite-strain restart artifact is removed") && passed;
 }
+
 class ResultsObserver final : public fuelsim::TransientStepObserver {
   public:
     explicit ResultsObserver(fuelsim::ExodusTransientResultsWriter& writer) : _writer(writer), _steps(0) {}
+
     void accepted_step(const fuelsim::TransientProblem& problem, const fuelsim::TransientAcceptedStep&) override {
         _writer.append(problem);
         ++_steps;
     }
+
     std::size_t steps() const noexcept { return _steps; }
 
   private:
     fuelsim::ExodusTransientResultsWriter& _writer;
     std::size_t _steps;
 };
+
 bool verify_exodus(const std::string& path, const fuelsim::UnstructuredQuad4Mesh& mesh,
     const fuelsim::TransientProblem& problem, std::size_t expected_steps) {
     int cpu_word_size = static_cast<int>(sizeof(double));
@@ -334,6 +349,7 @@ bool verify_exodus(const std::string& path, const fuelsim::UnstructuredQuad4Mesh
     passed = check(ex_close(exoid) == 0, "Exodus result closes cleanly") && passed;
     return passed;
 }
+
 bool verify_steady_results(const fuelsim::FuelSimCaseDefinition& input, const fuelsim::UnstructuredQuad4Mesh& mesh,
     const std::string& results_path) {
     fuelsim::SteadyProblem problem(input.spatial, mesh);
@@ -364,6 +380,7 @@ bool verify_steady_results(const fuelsim::FuelSimCaseDefinition& input, const fu
         check(ex_close(exoid) == 0, "steady Exodus result closes cleanly");
     return passed;
 }
+
 bool run_tests(const std::string& steady_input_path, const std::string& transient_input_path,
     const std::string& finite_strain_input_path, const std::string& checkpoint_path, const std::string& results_path) {
     const fuelsim::FuelSimCaseDefinition steady_input = fuelsim::read_case_input(steady_input_path);
@@ -469,6 +486,7 @@ bool run_tests(const std::string& steady_input_path, const std::string& transien
     return check(checkpoint_remove == 0 && results_remove == 0, "M3.0 test artifacts are removed") && passed;
 }
 } // namespace
+
 int main(int argc, char** argv) {
     if (argc != 6) {
         std::cerr << "Usage: checkpoint_results_tests <steady.fsi> "

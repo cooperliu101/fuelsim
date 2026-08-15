@@ -4,17 +4,20 @@
 #include <array>
 #include <cmath>
 #include <stdexcept>
+
 namespace fuelsim {
 namespace {
 constexpr double gauss = 0.577350269189625764509148780501957456;
 constexpr std::array<std::array<double, 3>, 8> hex8_signs = {
     {{{-1.0, -1.0, -1.0}}, {{1.0, -1.0, -1.0}}, {{1.0, 1.0, -1.0}}, {{-1.0, 1.0, -1.0}}, {{-1.0, -1.0, 1.0}},
         {{1.0, -1.0, 1.0}}, {{1.0, 1.0, 1.0}}, {{-1.0, 1.0, 1.0}}}};
+
 double determinant(const std::array<std::array<double, 3>, 3>& matrix) {
     return matrix[0][0] * (matrix[1][1] * matrix[2][2] - matrix[1][2] * matrix[2][1]) -
            matrix[0][1] * (matrix[1][0] * matrix[2][2] - matrix[1][2] * matrix[2][0]) +
            matrix[0][2] * (matrix[1][0] * matrix[2][1] - matrix[1][1] * matrix[2][0]);
 }
+
 std::array<std::array<double, 3>, 3> inverse(
     const std::array<std::array<double, 3>, 3>& matrix, double determinant_value) {
     return {{{{(matrix[1][1] * matrix[2][2] - matrix[1][2] * matrix[2][1]) / determinant_value,
@@ -27,12 +30,15 @@ std::array<std::array<double, 3>, 3> inverse(
             (matrix[0][1] * matrix[2][0] - matrix[0][0] * matrix[2][1]) / determinant_value,
             (matrix[0][0] * matrix[1][1] - matrix[0][1] * matrix[1][0]) / determinant_value}}}};
 }
+
 using ActiveMatrix3 = std::array<std::array<adlite::Scalar, 3>, 3>;
+
 adlite::Scalar determinant(const ActiveMatrix3& matrix) {
     return matrix[0][0] * (matrix[1][1] * matrix[2][2] - matrix[1][2] * matrix[2][1]) -
            matrix[0][1] * (matrix[1][0] * matrix[2][2] - matrix[1][2] * matrix[2][0]) +
            matrix[0][2] * (matrix[1][0] * matrix[2][1] - matrix[1][1] * matrix[2][0]);
 }
+
 ActiveMatrix3 inverse(const ActiveMatrix3& matrix, const adlite::Scalar& determinant_value) {
     return {{{{(matrix[1][1] * matrix[2][2] - matrix[1][2] * matrix[2][1]) / determinant_value,
                  (matrix[0][2] * matrix[2][1] - matrix[0][1] * matrix[2][2]) / determinant_value,
@@ -44,6 +50,7 @@ ActiveMatrix3 inverse(const ActiveMatrix3& matrix, const adlite::Scalar& determi
             (matrix[0][1] * matrix[2][0] - matrix[0][0] * matrix[2][1]) / determinant_value,
             (matrix[0][0] * matrix[1][1] - matrix[0][1] * matrix[1][0]) / determinant_value}}}};
 }
+
 ActiveMatrix3 multiply(const ActiveMatrix3& first, const std::array<std::array<double, 3>, 3>& second) {
     ActiveMatrix3 result{};
     for (std::size_t i = 0; i < 3; ++i)
@@ -51,6 +58,7 @@ ActiveMatrix3 multiply(const ActiveMatrix3& first, const std::array<std::array<d
             for (std::size_t k = 0; k < 3; ++k) result[i][j] += first[i][k] * second[k][j];
     return result;
 }
+
 ActiveMatrix3 displacement_gradient(const Hex8QuadraturePoint& point, const Hex8LocalAdValues& state) {
     ActiveMatrix3 result{};
     for (std::size_t component = 0; component < 3; ++component)
@@ -59,6 +67,7 @@ ActiveMatrix3 displacement_gradient(const Hex8QuadraturePoint& point, const Hex8
                 result[component][direction] += point.gradient[node][direction] * state[8 * (component + 1) + node];
     return result;
 }
+
 std::array<std::array<double, 3>, 3> deformation_gradient(
     const Hex8QuadraturePoint& point, const Hex8LocalValues& state) {
     std::array<std::array<double, 3>, 3> result{};
@@ -70,12 +79,14 @@ std::array<std::array<double, 3>, 3> deformation_gradient(
     }
     return result;
 }
+
 adlite::Scalar interpolate_hex8(
     const std::array<double, 8>& coefficients, const Hex8LocalAdValues& state, std::size_t offset) {
     adlite::Scalar result = 0.0;
     for (std::size_t node = 0; node < 8; ++node) result += coefficients[node] * state[offset + node];
     return result;
 }
+
 SymmetricTensor3 strain_at(const Hex8QuadraturePoint& point, const Hex8LocalAdValues& state) {
     adlite::Scalar ux_x = 0.0, ux_y = 0.0, ux_z = 0.0, uy_x = 0.0, uy_y = 0.0, uy_z = 0.0, uz_x = 0.0, uz_y = 0.0,
                    uz_z = 0.0;
@@ -93,6 +104,7 @@ SymmetricTensor3 strain_at(const Hex8QuadraturePoint& point, const Hex8LocalAdVa
     return {ux_x, uy_y, uz_z, 0.5 * (ux_y + uy_x), 0.5 * (uy_z + uz_y), 0.5 * (ux_z + uz_x)};
 }
 } // namespace
+
 SymmetricTensor3 rotate_cartesian_tensor(const SymmetricTensor3& tensor, const CartesianRotation& rotation) {
     const ActiveMatrix3 r = {{{rotation.xx, rotation.xy, rotation.xz}, {rotation.yx, rotation.yy, rotation.yz},
         {rotation.zx, rotation.zy, rotation.zz}}};
@@ -105,6 +117,7 @@ SymmetricTensor3 rotate_cartesian_tensor(const SymmetricTensor3& tensor, const C
                 for (std::size_t l = 0; l < 3; ++l) rotated[i][j] += r[i][k] * value[k][l] * r[j][l];
     return {rotated[0][0], rotated[1][1], rotated[2][2], rotated[0][1], rotated[1][2], rotated[0][2]};
 }
+
 CartesianInelasticStressResponse IsotropicThermoelasticMaterial::incremental_response(
     const SymmetricTensor3& strain_increment, const CartesianRotation& rotation, const adlite::Scalar& temperature,
     double committed_temperature, double time_step, const CartesianMaterialPointState& committed,
@@ -143,11 +156,13 @@ CartesianInelasticStressResponse IsotropicThermoelasticMaterial::incremental_res
         result.stress.xy.value(), result.stress.yz.value(), result.stress.xz.value()};
     return result;
 }
+
 void validate_cartesian_deformation(const Hex8QuadraturePoint& point, const Hex8LocalValues& state) {
     const double value = determinant(deformation_gradient(point, state));
     if (!std::isfinite(value) || !(value > 0.0))
         throw std::domain_error("Finite-strain HEX8 deformation must preserve a positive Jacobian");
 }
+
 CartesianKinematics evaluate_cartesian_incremental_kinematics(const Hex8QuadraturePoint& point,
     const Hex8LocalAdValues& current_state, const Hex8LocalValues& committed_state,
     StrainFormulation strain_formulation) {
@@ -237,10 +252,12 @@ CartesianKinematics evaluate_cartesian_incremental_kinematics(const Hex8Quadratu
         rashid[1][2], rashid[2][2]};
     return result;
 }
+
 namespace {
 MaterialFunctionContext material_context(double time, const CartesianPoint3& point) {
     return {time, point.x, point.y, point.z};
 }
+
 void add_hex8_point_residual(const Hex8QuadraturePoint& point, const Hex8LocalAdValues& state,
     const IsotropicThermoelasticMaterial& material, StrainFormulation strain_formulation, double time,
     double volumetric_heat_source, const Hex8LocalValues* committed_state,
@@ -303,6 +320,7 @@ void add_hex8_point_residual(const Hex8QuadraturePoint& point, const Hex8LocalAd
             (stress.xz * current_gradient_x + stress.yz * current_gradient_y + stress.zz * current_gradient_z);
     }
 }
+
 std::array<SymmetricTensor3Values, 8> evaluate_hex8_stress(const Hex8Geometry& geometry, const Hex8LocalValues& state,
     const IsotropicThermoelasticMaterial& material, StrainFormulation strain_formulation, double time) {
     Hex8LocalAdValues ad_state{};
@@ -322,6 +340,7 @@ std::array<SymmetricTensor3Values, 8> evaluate_hex8_stress(const Hex8Geometry& g
     }
     return result;
 }
+
 Hex8LocalResidual compute_hex8_local(const Hex8ThermoelasticData& data, const Hex8Geometry& geometry,
     const Hex8LocalValues& state, const Hex8LocalValues* committed_state, const Hex8MaterialHistory* history,
     double time_step, Hex8LocalJacobian* jacobian) {
@@ -345,6 +364,7 @@ Hex8LocalResidual compute_hex8_local(const Hex8ThermoelasticData& data, const He
     return result;
 }
 } // namespace
+
 Hex8Geometry make_hex8_geometry(const Hex8Coordinates& coordinates) {
     Hex8Geometry geometry{};
     std::size_t q = 0;
@@ -394,6 +414,7 @@ Hex8Geometry make_hex8_geometry(const Hex8Coordinates& coordinates) {
     }
     return geometry;
 }
+
 Quad4FaceGeometry make_quad4_face_geometry(const Quad4FaceCoordinates& coordinates) {
     Quad4FaceGeometry geometry{};
     const std::array<std::array<double, 2>, 4> locations = {
@@ -427,16 +448,19 @@ Quad4FaceGeometry make_quad4_face_geometry(const Quad4FaceCoordinates& coordinat
     }
     return geometry;
 }
+
 Hex8LocalResidual compute_hex8_thermoelastic(const Hex8ThermoelasticData& data, const Hex8Geometry& geometry,
     const Hex8LocalValues& state, const Hex8LocalValues* committed_state, double time_step,
     Hex8LocalJacobian* jacobian) {
     return compute_hex8_local(data, geometry, state, committed_state, nullptr, time_step, jacobian);
 }
+
 Hex8LocalResidual compute_hex8_transient(const Hex8ThermoelasticData& data, const Hex8Geometry& geometry,
     const Hex8LocalValues& state, const Hex8LocalValues& committed_state, const Hex8MaterialHistory& committed_material,
     double time_step, Hex8LocalJacobian* jacobian) {
     return compute_hex8_local(data, geometry, state, &committed_state, &committed_material, time_step, jacobian);
 }
+
 Hex8MaterialHistory compute_hex8_transient_update(const Hex8ThermoelasticData& data, const Hex8Geometry& geometry,
     const Hex8LocalValues& state, const Hex8LocalValues& committed_state, const Hex8MaterialHistory& committed_material,
     double time_step) {
@@ -464,10 +488,12 @@ Hex8MaterialHistory compute_hex8_transient_update(const Hex8ThermoelasticData& d
     }
     return result;
 }
+
 std::array<SymmetricTensor3Values, 8> compute_hex8_stress(
     const Hex8ThermoelasticData& data, const Hex8Geometry& geometry, const Hex8LocalValues& state) {
     return evaluate_hex8_stress(geometry, state, data.material, data.strain_formulation, data.time);
 }
+
 Quad4FaceLocalResidual compute_quad4_face_boundary(const Quad4FaceBoundaryData& data, const Quad4FaceGeometry& geometry,
     const Quad4FaceLocalValues& state, Quad4FaceLocalJacobian* jacobian) {
     Quad4FaceLocalAdValues ad_state{};

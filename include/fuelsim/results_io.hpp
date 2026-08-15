@@ -7,6 +7,7 @@
 #include <fstream>
 #include <memory>
 #include <string>
+
 namespace fuelsim {
 UnstructuredQuad4Mesh read_exodus_quad4(const std::string& path);
 void write_exodus_quad4(const std::string& path, const UnstructuredQuad4Mesh& mesh);
@@ -15,6 +16,7 @@ void write_exodus_hex8(const std::string& path, const UnstructuredHex8Mesh& mesh
 void write_transient_checkpoint(const std::string& path, const TransientProblem& problem, double next_time_step);
 double restore_transient_checkpoint(const std::string& path, TransientProblem& problem);
 std::string next_results_segment_path(const std::string& configured_path);
+
 class EngineeringHistoryWriter final {
   public:
     EngineeringHistoryWriter(std::string path, const TransientProblem& problem);
@@ -25,10 +27,12 @@ class EngineeringHistoryWriter final {
     std::uint64_t _problem_signature;
     std::ofstream _stream;
 };
+
 void write_steady_results(const std::string& path, const UnstructuredQuad4Mesh& mesh, const SteadyProblem& problem,
     const std::vector<double>& state);
 void write_steady_results(const std::string& path, const UnstructuredHex8Mesh& mesh, const SteadyProblem& problem,
     const std::vector<double>& state);
+
 class ExodusTransientResultsWriter final {
   public:
     ExodusTransientResultsWriter(std::string path, UnstructuredQuad4Mesh mesh, const TransientProblem& problem);

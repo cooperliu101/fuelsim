@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+
 namespace {
 std::vector<std::string> split(const std::string& text, char delimiter) {
     std::vector<std::string> fields;
@@ -16,6 +17,7 @@ std::vector<std::string> split(const std::string& text, char delimiter) {
         begin = end + 1;
     }
 }
+
 std::set<std::string> read_registered_tests(const std::string& path) {
     std::ifstream input(path);
     if (!input) throw std::runtime_error("Could not read registered CTest list: " + path);
@@ -28,6 +30,7 @@ std::set<std::string> read_registered_tests(const std::string& path) {
     }
     return tests;
 }
+
 void check_evidence(
     const std::filesystem::path& repository, const std::string& row_id, const std::string& evidence_text) {
     if (evidence_text == "-") throw std::runtime_error(row_id + " has no evidence");
@@ -43,6 +46,7 @@ void check_evidence(
     }
 }
 } // namespace
+
 int main(int argc, char** argv) {
     if (argc != 4) {
         std::cerr << "Usage: fuelsim_verification_matrix_tests "

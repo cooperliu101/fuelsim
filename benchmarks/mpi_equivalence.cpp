@@ -15,6 +15,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+
 namespace {
 void write_reference(const std::string& path, const std::vector<double>& state) {
     std::ofstream output(path, std::ios::out | std::ios::trunc);
@@ -23,6 +24,7 @@ void write_reference(const std::string& path, const std::vector<double>& state) 
     for (double value : state) output << value << '\n';
     if (!output) throw std::runtime_error("Could not complete MPI reference: " + path);
 }
+
 std::vector<double> read_reference(const std::string& path) {
     std::ifstream input(path);
     if (!input) throw std::runtime_error("Could not read MPI reference: " + path);
@@ -33,6 +35,7 @@ std::vector<double> read_reference(const std::string& path) {
     if (!input) throw std::runtime_error("MPI reference is incomplete: " + path);
     return result;
 }
+
 std::vector<double> flatten_transient_state(const fuelsim::TransientProblem& problem) {
     std::vector<double> result = {problem.committed_time(), problem.committed_load_factor()};
     result.insert(result.end(), problem.committed_solution().begin(), problem.committed_solution().end());
@@ -64,6 +67,7 @@ std::vector<double> flatten_transient_state(const fuelsim::TransientProblem& pro
     }
     return result;
 }
+
 void compare_reference(const std::string& path, const std::vector<double>& state, double tolerance) {
     const std::vector<double> reference = read_reference(path);
     if (reference.size() != state.size()) throw std::runtime_error("MPI reference state size differs");
@@ -91,12 +95,14 @@ void compare_reference(const std::string& path, const std::vector<double>& state
               << '\n'
               << "mpi_equivalence_maximum_scaled=" << maximum_scaled << '\n';
 }
+
 struct TransientStateLayout final {
     std::size_t _node_count = 0;
     std::size_t _quadrature_point_count = 0;
     std::size_t _contact_point_count = 0;
     std::size_t _flattened_size = 0;
 };
+
 TransientStateLayout transient_state_layout(const fuelsim::TransientProblem& problem) {
     if (problem.dof_count() % 3 != 0)
         throw std::runtime_error("Transient MPI state does not contain three complete nodal fields");
@@ -131,12 +137,14 @@ TransientStateLayout transient_state_layout(const fuelsim::TransientProblem& pro
                              values_per_contact_point * layout._contact_point_count;
     return layout;
 }
+
 class DifferenceSummary final {
   public:
     DifferenceSummary(
         std::string name, std::string unit, double absolute_tolerance, double relative_tolerance, bool exact)
         : _name(std::move(name)), _unit(std::move(unit)), _absolute_tolerance(absolute_tolerance),
           _relative_tolerance(relative_tolerance), _exact(exact) {}
+
     void add(double reference, double actual, std::size_t flattened_index) {
         ++_count;
         double difference = 0.0;
@@ -162,14 +170,18 @@ class DifferenceSummary final {
             _maximum_tolerance_actual = actual;
         }
     }
+
     bool passed() const noexcept { return _maximum_tolerance_ratio <= 1.0; }
+
     double maximum_tolerance_ratio() const noexcept { return _maximum_tolerance_ratio; }
+
     void print() const {
         std::cout << std::scientific << std::setprecision(12) << "transient_mpi_" << _name
                   << "_maximum_absolute=" << _maximum_absolute_difference << ", unit=" << _unit
                   << ", maximum_absolute_index=" << _maximum_absolute_index
                   << ", maximum_tolerance_ratio=" << _maximum_tolerance_ratio << ", count=" << _count << '\n';
     }
+
     std::string failure_message() const {
         std::ostringstream message;
         message << std::scientific << std::setprecision(12) << "transient one/multi-rank " << _name
@@ -197,10 +209,12 @@ class DifferenceSummary final {
     double _maximum_tolerance_reference = 0.0;
     double _maximum_tolerance_actual = 0.0;
 };
+
 void add_difference(DifferenceSummary& summary, const std::vector<double>& reference, const std::vector<double>& state,
     std::size_t flattened_index) {
     summary.add(reference[flattened_index], state[flattened_index], flattened_index);
 }
+
 void compare_transient_reference(const std::string& path, const std::vector<double>& state,
     const fuelsim::TransientProblem& problem, bool rank_sensitive_adaptive_path) {
     const std::vector<double> reference = read_reference(path);
@@ -304,6 +318,7 @@ void compare_transient_reference(const std::string& path, const std::vector<doub
     if (worst_failure != nullptr) throw std::runtime_error(worst_failure->failure_message());
 }
 } // namespace
+
 int main(int argc, char** argv) {
     if (argc < 4) {
         std::cerr << "Usage: fuelsim_mpi_equivalence_benchmark "

@@ -8,12 +8,14 @@
 #include <iostream>
 #include <string>
 #include <vector>
+
 namespace {
 bool check(bool condition, const std::string& message) {
     if (condition) return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
+
 bool test_moose_mesh_backward_euler_heat_source(
     const std::string& input_path, const std::string& nodal_reference_path) {
     const fuelsim::FuelSimCaseDefinition definition = fuelsim::read_case_input(input_path);
@@ -62,6 +64,7 @@ bool test_moose_mesh_backward_euler_heat_source(
     return passed;
 }
 } // namespace
+
 int main(int argc, char** argv) {
     if (argc != 3) {
         std::cerr << "Usage: fuelsim_m2_solver_tests <m21.fsi> "

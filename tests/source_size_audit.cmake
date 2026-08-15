@@ -12,10 +12,16 @@ string(FIND "${format_configuration}" "ColumnLimit: 120" column_limit)
 if(column_limit EQUAL -1)
     message(FATAL_ERROR "The repository clang-format column limit must remain 120")
 endif()
-foreach(required_style "AlignAfterOpenBracket: DontAlign" "RemoveBracesLLVM: true" "MaxEmptyLinesToKeep: 0")
+foreach(required_style
+    "AlignAfterOpenBracket: DontAlign"
+    "RemoveBracesLLVM: true"
+    "MaxEmptyLinesToKeep: 1"
+    "SeparateDefinitionBlocks: Always"
+    "EmptyLineBeforeAccessModifier: LogicalBlock"
+)
     string(FIND "${format_configuration}" "${required_style}" style_location)
     if(style_location EQUAL -1)
-        message(FATAL_ERROR "The compact 120-column source style is missing: ${required_style}")
+        message(FATAL_ERROR "The repository 120-column source style is missing: ${required_style}")
     endif()
 endforeach()
 file(GLOB_RECURSE source_files

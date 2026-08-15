@@ -3,18 +3,22 @@
 #include <memory>
 #include <string>
 #include <vector>
+
 namespace fuelsim {
 struct AugmentedContactUpdate;
 class SteadyProblem;
 class TransientProblem;
+
 class ProblemStateSnapshot final {
   public:
     ProblemStateSnapshot() = default;
+
     bool empty() const noexcept { return _state == nullptr; }
 
   private:
     ProblemStateSnapshot(const std::shared_ptr<const void>& owner, const std::shared_ptr<const void>& state)
         : _owner(owner), _state(state) {}
+
     std::shared_ptr<const void> _owner, _state;
     friend class SteadyProblem;
     friend class TransientProblem;
@@ -23,11 +27,13 @@ enum class FieldCategory {
     thermal,
     mechanical,
 };
+
 struct FieldDescriptor final {
     std::string name;
     std::size_t begin, end;
     FieldCategory category;
 };
+
 struct ContributionWorkspace final {
     void reserve(std::size_t maximum_dof_count);
     void resize(std::size_t dof_count, bool include_jacobian);
@@ -35,10 +41,12 @@ struct ContributionWorkspace final {
     std::vector<double> state, residual;
     std::vector<double> jacobian;
 };
+
 struct DirichletCondition final {
     std::size_t dof;
     double value;
 };
+
 class NonlinearProblem {
   public:
     NonlinearProblem() = default;
@@ -47,9 +55,11 @@ class NonlinearProblem {
     NonlinearProblem& operator=(const NonlinearProblem&) = delete;
     NonlinearProblem(NonlinearProblem&&) = delete;
     NonlinearProblem& operator=(NonlinearProblem&&) = delete;
+
     // The identity keeps field ranges, contribution mappings, constraints, and shadow DOFs immutable while load,
     // time, trial state, and residual values may change.
     std::shared_ptr<const void> discretization_identity() const noexcept { return _discretization_identity; }
+
     virtual std::size_t dof_count() const noexcept = 0;
     virtual std::size_t contribution_count() const noexcept = 0;
     virtual const std::vector<FieldDescriptor>& field_layout() const noexcept = 0;

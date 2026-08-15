@@ -5,6 +5,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+
 namespace fuelsim {
 class PetscSession final {
   public:
@@ -20,6 +21,7 @@ class PetscSession final {
     bool _owns_initialization;
     int _rank, _size;
 };
+
 struct SolverOptions final {
     enum class LineSearch {
         backtracking,
@@ -49,6 +51,7 @@ struct SolverOptions final {
            mechanical_residual_absolute_tolerance = 1.0e-4, temperature_residual_scale = 0.0,
            mechanical_residual_scale = 0.0;
 };
+
 struct SolveTiming final {
     double setup_seconds = 0.0, nonlinear_solve_seconds = 0.0, residual_callback_seconds = 0.0,
            jacobian_callback_seconds = 0.0, total_seconds = 0.0;
@@ -62,6 +65,7 @@ enum class SolveFailureCategory {
     time_discretization,
     contact_constraint,
 };
+
 struct SolveResult final {
     std::vector<double> state;
     int nonlinear_iterations = 0, linear_iterations = 0;
@@ -84,6 +88,7 @@ struct SolveResult final {
     std::vector<double> final_field_residual_norms, final_scaled_field_residual_norms;
     std::vector<double> field_residual_scalings;
 };
+
 class PetscSolver final {
   public:
     PetscSolver();
@@ -99,6 +104,7 @@ class PetscSolver final {
     class Implementation;
     std::unique_ptr<Implementation> _impl;
 };
+
 std::string petsc_convergence_reason_name(int reason);
 const char* solve_failure_category_name(SolveFailureCategory category) noexcept;
 } // namespace fuelsim

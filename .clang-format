@@ -4,7 +4,10 @@ ContinuationIndentWidth: 4
 ColumnLimit: 120
 AlignAfterOpenBracket: DontAlign
 RemoveBracesLLVM: true
-MaxEmptyLinesToKeep: 0
+MaxEmptyLinesToKeep: 1
+SeparateDefinitionBlocks: Always
+EmptyLineBeforeAccessModifier: LogicalBlock
+EmptyLineAfterAccessModifier: Never
 DerivePointerAlignment: false
 PointerAlignment: Left
 SortIncludes: CaseSensitive

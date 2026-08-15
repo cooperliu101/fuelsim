@@ -2,6 +2,7 @@
 #include <limits>
 #include <stdexcept>
 #include <utility>
+
 namespace fuelsim::test {
 std::size_t annular_node_id(std::size_t radial_elements, std::size_t radial_index, std::size_t axial_index) {
     if (radial_index > radial_elements) throw std::out_of_range("annular mesh radial node is out of range");
@@ -10,6 +11,7 @@ std::size_t annular_node_id(std::size_t radial_elements, std::size_t radial_inde
         throw std::length_error("annular mesh node index overflows");
     return axial_index * radial_nodes + radial_index;
 }
+
 UnstructuredQuad4Mesh make_disconnected_annular_mesh(const std::vector<AnnularBlockSpec>& blocks) {
     if (blocks.empty()) throw std::invalid_argument("annular mesh fixture requires at least one block");
     std::vector<RzPoint> nodes;

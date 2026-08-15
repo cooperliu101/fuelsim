@@ -10,20 +10,26 @@
 #include <string>
 #include <utility>
 #include <vector>
+
 namespace fuelsim::rz {
 struct ResolvedBoundary final {
     std::size_t region;
     RegionBoundary boundary;
 };
+
 class SpatialAssembly final : public spatial_detail::SpatialLayout {
   public:
     SpatialAssembly(SpatialDefinition definition, const UnstructuredQuad4Mesh& source_mesh);
+
     const RegionMesh& region_mesh(std::size_t index) const { return _meshes.at(index); }
+
     SpatialContributionType contribution_type(std::size_t index) const;
     const Quad4RzGeometry& region_element_geometry(std::size_t region_index, std::size_t element_index) const;
+
     const std::vector<std::vector<ContactPointHistory>>& committed_contact_histories() const noexcept {
         return _contact_histories;
     }
+
     void commit_contact_state(const std::vector<double>& state);
     bool uses_augmented_contact() const noexcept;
     AugmentedContactUpdate update_augmented_contact_multipliers(
@@ -36,7 +42,9 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
         std::size_t contact_index, const std::vector<double>& state) const;
     std::vector<std::size_t> contact_secondary_source_nodes(std::size_t contact_index) const;
     InterfaceSummary summarize_interface(std::size_t contact_index, const std::vector<double>& state) const;
+
     std::size_t contribution_count() const noexcept { return contribution_ranges().end; }
+
     void validate_state(const std::vector<double>& state) const;
     std::vector<std::size_t> required_state_dofs(std::size_t first, std::size_t last) const;
     void validate_local_state(std::size_t first, std::size_t last, const std::vector<double>& state) const;
@@ -50,28 +58,33 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     struct ContributionRanges final {
         std::size_t thermal_begin, mechanical_begin, boundary_begin, end;
     };
+
     struct ContributionLocation final {
         SpatialContributionType type;
         std::size_t local_index;
     };
+
     struct BoundaryContribution final {
         SpatialContributionType type;
         std::size_t kernel;
         std::array<std::size_t, 4> nodes;
         Line2RzBoundaryGeometry geometry;
     };
+
     struct ThermalContribution final {
         std::size_t contact;
         std::array<std::size_t, 4> nodes;
         Line2RzHeatPointGeometry geometry;
         std::size_t integration_point, primary;
     };
+
     struct MechanicalContribution final {
         std::size_t contact;
         std::array<std::size_t, 4> nodes;
         NodeToLineRzContactGeometry geometry;
         std::size_t secondary, primary;
     };
+
     void build_volume_geometries();
     ResolvedBoundary resolve_boundary(const UnstructuredQuad4Mesh& source_mesh, const std::string& name) const;
     void build_boundaries(const UnstructuredQuad4Mesh& source_mesh);

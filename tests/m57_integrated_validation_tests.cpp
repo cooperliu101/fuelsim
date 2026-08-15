@@ -15,12 +15,14 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+
 namespace {
 bool check(bool condition, const std::string& message) {
     if (condition) return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
+
 std::vector<std::string> split_csv(const std::string& line) {
     std::vector<std::string> result;
     std::size_t begin = 0;
@@ -31,6 +33,7 @@ std::vector<std::string> split_csv(const std::string& line) {
         begin = separator + 1;
     }
 }
+
 double final_csv_value(const std::string& path, const std::string& name) {
     std::ifstream input(path);
     if (!input) throw std::runtime_error("Could not read MOOSE scalar reference: " + path);
@@ -47,10 +50,12 @@ double final_csv_value(const std::string& path, const std::string& name) {
         throw std::invalid_argument("MOOSE scalar reference has no final value for: " + name);
     return std::stod(final_row[column]);
 }
+
 struct CsvTable final {
     std::vector<std::string> header;
     std::vector<std::vector<std::string>> rows;
 };
+
 CsvTable read_csv(const std::string& path) {
     std::ifstream input(path);
     if (!input) throw std::runtime_error("Could not read MOOSE integration-point reference: " + path);
@@ -62,6 +67,7 @@ CsvTable read_csv(const std::string& path) {
         if (!line.empty()) result.rows.push_back(split_csv(line));
     return result;
 }
+
 double csv_value(const CsvTable& table, const std::vector<std::string>& row, const std::string& name) {
     const auto found = std::find(table.header.begin(), table.header.end(), name);
     if (found == table.header.end())
@@ -70,17 +76,20 @@ double csv_value(const CsvTable& table, const std::vector<std::string>& row, con
     if (column >= row.size()) throw std::invalid_argument("MOOSE integration-point reference row is incomplete");
     return std::stod(row[column]);
 }
+
 double equivalent_stress(const fuelsim::AxisymmetricStressValues& stress) {
     const double mean = (stress.rr + stress.zz + stress.hoop) / 3.0;
     return std::sqrt(1.5 * ((stress.rr - mean) * (stress.rr - mean) + (stress.zz - mean) * (stress.zz - mean) +
                                (stress.hoop - mean) * (stress.hoop - mean) + 2.0 * stress.rz * stress.rz));
 }
+
 struct RegionAverages final {
     double plastic = 0.0;
     double creep = 0.0;
     double stress = 0.0;
     double maximum_plastic = 0.0;
     double maximum_creep = 0.0;
+
     struct Point final {
         double radius;
         double axial_coordinate;
@@ -88,8 +97,10 @@ struct RegionAverages final {
         double plastic;
         double creep;
     };
+
     std::vector<Point> points;
 };
+
 RegionAverages region_averages(const fuelsim::TransientProblem& problem, std::size_t region) {
     RegionAverages result;
     double measure = 0.0;
@@ -124,6 +135,7 @@ RegionAverages region_averages(const fuelsim::TransientProblem& problem, std::si
     result.stress /= measure;
     return result;
 }
+
 std::vector<RegionAverages::Point> read_cladding_points(
     const std::string& coordinate_path, const std::string& value_path) {
     const CsvTable coordinates = read_csv(coordinate_path);
@@ -151,7 +163,9 @@ std::vector<RegionAverages::Point> read_cladding_points(
     }
     return result;
 }
+
 double relative_error(double actual, double reference) { return std::abs(actual - reference) / std::abs(reference); }
+
 fuelsim::TransientTimeOptions time_options(const fuelsim::FuelSimCaseDefinition& definition) {
     const auto& input = definition.transient_execution;
     return {input.end_time, input.initial_time_step, input.minimum_time_step, input.maximum_time_step,
@@ -161,6 +175,7 @@ fuelsim::TransientTimeOptions time_options(const fuelsim::FuelSimCaseDefinition&
         input.time_error_safety_factor, input.strain_history_time_absolute_tolerance,
         input.stress_history_time_absolute_tolerance};
 }
+
 fuelsim::SolverOptions solver_options(const fuelsim::FuelSimCaseDefinition& definition) {
     fuelsim::SolverOptions result;
     result.absolute_tolerance = definition.solver.absolute_tolerance;
@@ -176,6 +191,7 @@ fuelsim::SolverOptions solver_options(const fuelsim::FuelSimCaseDefinition& defi
     result.mechanical_residual_scale = definition.solver.mechanical_residual_scale;
     return result;
 }
+
 bool run_case(const std::string& input_path, const std::string& nodal_reference_path,
     const std::string& pressure_reference_path, const std::string& qp_coordinate_path, const std::string& qp_value_path,
     const std::string& scalar_reference_path) {
@@ -315,6 +331,7 @@ bool run_case(const std::string& input_path, const std::string& nodal_reference_
     return passed;
 }
 } // namespace
+
 int main(int argc, char** argv) {
     if (argc != 7) {
         std::cerr << "Usage: fuelsim_m57_integrated_validation_tests <case.fsi> <all-nodes.csv> "

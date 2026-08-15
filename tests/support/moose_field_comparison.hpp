@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <string>
 #include <vector>
+
 namespace fuelsim::test {
 struct FieldErrorMetrics final {
     double difference_squared = 0.0;
@@ -30,6 +31,7 @@ struct FieldErrorMetrics final {
     double absolute_l2() const noexcept;
     double absolute_peak() const noexcept;
 };
+
 struct NodalFieldReference final {
     double radius;
     double axial_coordinate;
@@ -37,6 +39,7 @@ struct NodalFieldReference final {
     double radial_displacement;
     double axial_displacement;
 };
+
 struct NodalFieldComparison final {
     FieldErrorMetrics temperature;
     FieldErrorMetrics radial_displacement;
@@ -44,6 +47,7 @@ struct NodalFieldComparison final {
     double maximum_coordinate_difference = 0.0;
     std::size_t node_count = 0;
 };
+
 std::vector<NodalFieldReference> read_moose_nodal_reference(const std::string& path);
 NodalFieldComparison compare_moose_nodal_fields(
     const SteadyProblem& problem, const std::vector<double>& state, const std::vector<NodalFieldReference>& reference);

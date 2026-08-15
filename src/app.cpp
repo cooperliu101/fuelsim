@@ -17,6 +17,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+
 namespace fuelsim {
 namespace {
 class CaseOutput final {
@@ -24,6 +25,7 @@ class CaseOutput final {
     explicit CaseOutput(bool console) : _console(console) {
         if (_console) std::cout << std::scientific << std::setprecision(12);
     }
+
     CaseOutput(const CaseOutputInput& options, bool force_console, bool active)
         : CaseOutput(active && (options.console || force_console)) {
         if (!active || options.csv_file.empty()) return;
@@ -31,28 +33,36 @@ class CaseOutput final {
         if (!_csv) throw std::runtime_error("Could not open CSV output file '" + options.csv_file + "'");
         _csv << "metric,value\n" << std::scientific << std::setprecision(12);
     }
+
     void value(const std::string& key, const std::string& data) {
         if (_console) std::cout << key << '=' << data << '\n';
         if (_csv) _csv << key << ',' << data << '\n';
     }
+
     void value(const std::string& key, const char* data) { value(key, std::string(data)); }
+
     void value(const std::string& key, double data) {
         if (_console) std::cout << key << '=' << data << '\n';
         if (_csv) _csv << key << ',' << data << '\n';
     }
+
     void value(const std::string& key, std::size_t data) { value(key, std::to_string(data)); }
+
     void value(const std::string& key, int data) { value(key, std::to_string(data)); }
+
     void value(const std::string& key, bool data) { value(key, data ? "true" : "false"); }
 
   private:
     bool _console;
     std::ofstream _csv;
 };
+
 void write_conservation_summary(
     const std::string& prefix, const TransientConservationSummary& summary, CaseOutput& output) {
     for (const TransientConservationField& field : transient_conservation_fields)
         output.value(prefix + field.name, summary.*field.member);
 }
+
 void write_time_error_components(
     const std::string& prefix, const TransientTimeErrorEstimate& estimate, CaseOutput& output) {
     for (const TransientFieldTimeError& field : estimate.nodal_fields) output.value(prefix + field.name, field.value);
@@ -65,6 +75,7 @@ void write_time_error_components(
     output.value(prefix + "contact_friction", estimate.contact_friction);
     output.value(prefix + "contact_normal_multiplier", estimate.contact_normal_multiplier);
 }
+
 class TransientOutputObserver final : public TransientStepObserver {
   public:
     TransientOutputObserver(ExodusTransientResultsWriter* results, EngineeringHistoryWriter* history,
@@ -76,6 +87,7 @@ class TransientOutputObserver final : public TransientStepObserver {
           _checkpoint_interval(checkpoint_interval), _accepted_steps(0), _exodus_at_latest(true),
           _history_at_latest(true), _last_time_step(0.0), _last_next_time_step(0.0), _last_nonlinear_iterations(0),
           _checkpoint_at_latest(false), _session(session), _progress_output(progress_output) {}
+
     void accepted_step(const TransientProblem& problem, const TransientAcceptedStep& step) override;
     void finalize(const TransientProblem& problem, double next_time_step);
 
@@ -91,6 +103,7 @@ class TransientOutputObserver final : public TransientStepObserver {
     const PetscSession& _session;
     CaseOutput& _progress_output;
 };
+
 void TransientOutputObserver::accepted_step(const TransientProblem& problem, const TransientAcceptedStep& step) {
     ++_accepted_steps;
     _last_time_step = step.time_step;
@@ -126,6 +139,7 @@ void TransientOutputObserver::accepted_step(const TransientProblem& problem, con
         }
     });
 }
+
 void TransientOutputObserver::finalize(const TransientProblem& problem, double next_time_step) {
     _session.collective_root_action([&]() {
         if (_results != nullptr && !_exodus_at_latest) _results->append(problem);
@@ -138,10 +152,12 @@ void TransientOutputObserver::finalize(const TransientProblem& problem, double n
     _history_at_latest = true;
     _checkpoint_at_latest = true;
 }
+
 struct CommandLine final {
     std::string input_path;
     bool check_jacobian = false;
 };
+
 CommandLine extract_command_line(int& argc, char** argv) {
     CommandLine result;
     int output = 1;
@@ -166,6 +182,7 @@ CommandLine extract_command_line(int& argc, char** argv) {
     argv[argc] = nullptr;
     return result;
 }
+
 void write_solver_diagnostics(const SolveResult& solve, bool augmented_contact, CaseOutput& output) {
     output.value("nonlinear_attempts", solve.nonlinear_attempts);
     output.value("linear_iterations", solve.linear_iterations);
@@ -189,6 +206,7 @@ void write_solver_diagnostics(const SolveResult& solve, bool augmented_contact, 
         output.value(prefix + "final_scaled_l2", solve.final_scaled_field_residual_norms[field]);
     }
 }
+
 void write_interface_summary(const std::string& name, const InterfaceSummary& summary, CaseOutput& output) {
     const std::string prefix = "contact." + name + ".";
     output.value(prefix + "minimum_gap", summary.minimum_gap);
@@ -200,9 +218,11 @@ void write_interface_summary(const std::string& name, const InterfaceSummary& su
     output.value(prefix + "unprojected_contact_nodes", summary.unprojected_contact_nodes);
     output.value(prefix + "active_contact_nodes", summary.active_contact_nodes);
 }
+
 std::string output_segment_path(const std::string& restart_file, const std::string& output_file) {
     return restart_file.empty() ? output_file : next_results_segment_path(output_file);
 }
+
 bool write_jacobian_check(const NonlinearProblem& problem, const std::vector<double>& state, CaseOutput& output) {
     constexpr double step = 1.0e-4;
     problem.validate_discretization();
@@ -271,6 +291,7 @@ bool write_jacobian_check(const NonlinearProblem& problem, const std::vector<dou
     output.value("jacobian.check_passed", passed);
     return passed;
 }
+
 bool run_steady(const FuelSimCaseDefinition& definition, const UnstructuredQuad4Mesh* rz_source,
     const UnstructuredHex8Mesh* hex_source, CaseOutput& output, bool check_jacobian, const PetscSession& session) {
     std::unique_ptr<SteadyProblem> problem_storage;
@@ -315,6 +336,7 @@ bool run_steady(const FuelSimCaseDefinition& definition, const UnstructuredQuad4
         });
     return result.completed && result.solve.converged;
 }
+
 bool run_transient(const FuelSimCaseDefinition& definition, const UnstructuredQuad4Mesh* rz_source,
     const UnstructuredHex8Mesh* hex_source, CaseOutput& output, bool check_jacobian, const PetscSession& session) {
     std::unique_ptr<TransientProblem> problem_storage;
@@ -423,6 +445,7 @@ bool run_transient(const FuelSimCaseDefinition& definition, const UnstructuredQu
     }
     return result.completed;
 }
+
 int run_application(int argc, char** argv) {
     try {
         const CommandLine command = extract_command_line(argc, argv);
@@ -455,4 +478,5 @@ int run_application(int argc, char** argv) {
 }
 } // namespace
 } // namespace fuelsim
+
 int main(int argc, char** argv) { return fuelsim::run_application(argc, argv); }

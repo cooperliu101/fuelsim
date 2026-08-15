@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <memory>
 #include <vector>
+
 namespace fuelsim {
 struct AugmentedContactUpdate;
 struct SpatialDefinition;
@@ -10,6 +11,7 @@ class UnstructuredQuad4Mesh;
 class UnstructuredHex8Mesh;
 class SpatialProblemStorage;
 class BackendAccess;
+
 class SteadyProblem final : public NonlinearProblem {
   public:
     SteadyProblem(SpatialDefinition definition, const UnstructuredQuad4Mesh& source_mesh);

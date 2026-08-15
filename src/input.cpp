@@ -13,21 +13,25 @@
 #include <string>
 #include <utility>
 #include <vector>
+
 namespace fuelsim {
 namespace {
 struct InputEntry final {
     std::string key, value;
     std::size_t line;
 };
+
 struct InputSection final {
     std::string name, path, parent;
     std::size_t line = 0;
     std::vector<InputEntry> entries;
 };
+
 struct InputDocument final {
     std::string source_path;
     std::vector<InputSection> sections;
 };
+
 std::string trim(const std::string& value) {
     const auto first = std::find_if_not(
         value.begin(), value.end(), [](unsigned char character) { return std::isspace(character) != 0; });
@@ -36,9 +40,11 @@ std::string trim(const std::string& value) {
         value.rbegin(), value.rend(), [](unsigned char character) { return std::isspace(character) != 0; });
     return std::string(first, last.base());
 }
+
 [[noreturn]] void input_error(const std::string& path, std::size_t line, const std::string& message) {
     throw std::invalid_argument(path + ":" + std::to_string(line) + ": " + message);
 }
+
 std::string strip_comment(const std::string& line, const std::string& path, std::size_t line_number) {
     char quote = '\0';
     for (std::size_t index = 0; index < line.size(); ++index) {
@@ -56,12 +62,14 @@ std::string strip_comment(const std::string& line, const std::string& path, std:
     if (quote != '\0') input_error(path, line_number, "unterminated quoted value");
     return line;
 }
+
 bool valid_name(const std::string& name) {
     if (name.empty() || !(std::isalpha(static_cast<unsigned char>(name.front())) != 0 || name.front() == '_'))
         return false;
     return std::all_of(
         name.begin() + 1, name.end(), [](unsigned char value) { return std::isalnum(value) != 0 || value == '_'; });
 }
+
 std::string normalized_value(const std::string& raw, const std::string& path, std::size_t line_number) {
     std::string value = trim(raw);
     if (value.empty()) input_error(path, line_number, "input value must not be empty");
@@ -74,6 +82,7 @@ std::string normalized_value(const std::string& raw, const std::string& path, st
     }
     return value;
 }
+
 InputDocument parse_input_file(const std::string& path) {
     std::ifstream input(path);
     if (!input) throw std::runtime_error("Could not open fuelsim input file '" + path + "'");
@@ -127,14 +136,17 @@ InputDocument parse_input_file(const std::string& path) {
     if (document.sections.empty()) throw std::invalid_argument(path + ": input file contains no sections");
     return document;
 }
+
 [[noreturn]] void value_error(const InputDocument& document, const InputEntry& entry, const std::string& message) {
     throw std::invalid_argument(document.source_path + ":" + std::to_string(entry.line) + ": " + message);
 }
+
 const InputEntry* find_entry(const InputSection& section, const std::string& key) {
     const auto found = std::find_if(
         section.entries.begin(), section.entries.end(), [&key](const InputEntry& entry) { return entry.key == key; });
     return found == section.entries.end() ? nullptr : &*found;
 }
+
 const InputEntry& required_entry(const InputDocument& document, const InputSection& section, const std::string& key) {
     const InputEntry* entry = find_entry(section, key);
     if (entry == nullptr)
@@ -142,23 +154,27 @@ const InputEntry& required_entry(const InputDocument& document, const InputSecti
                                     section.path + "] is missing required key '" + key + "'");
     return *entry;
 }
+
 const InputSection* find_section(const InputDocument& document, const std::string& path) {
     const auto found = std::find_if(document.sections.begin(), document.sections.end(),
         [&path](const InputSection& section) { return section.path == path; });
     return found == document.sections.end() ? nullptr : &*found;
 }
+
 const InputSection& required_section(const InputDocument& document, const char* path) {
     const InputSection* section = find_section(document, path);
     if (section == nullptr)
         throw std::invalid_argument(document.source_path + ": missing required section [" + path + "]");
     return *section;
 }
+
 std::vector<const InputSection*> direct_children(const InputDocument& document, const std::string& parent) {
     std::vector<const InputSection*> result;
     for (const InputSection& section : document.sections)
         if (section.parent == parent) result.push_back(&section);
     return result;
 }
+
 void validate_sections(const InputDocument& document) {
     const std::vector<std::string> fixed = {"Case", "Mesh", "TimeFunctions", "Materials", "Regions", "Contact",
         "BoundaryConditions", "Executioner", "Solver", "Outputs"};
@@ -183,15 +199,18 @@ void validate_sections(const InputDocument& document) {
                 document.source_path + ":" + std::to_string(section.line) + ": unknown section [" + section.path + "]");
     }
 }
+
 void validate_keys(
     const InputDocument& document, const InputSection& section, const std::vector<std::string>& allowed) {
     for (const InputEntry& entry : section.entries)
         if (std::find(allowed.begin(), allowed.end(), entry.key) == allowed.end())
             value_error(document, entry, "unknown key '" + entry.key + "' in [" + section.path + "]");
 }
+
 std::string read_string(const InputDocument& document, const InputSection& section, const std::string& key) {
     return required_entry(document, section, key).value;
 }
+
 double parse_double(const InputDocument& document, const InputEntry& entry) {
     errno = 0;
     char* end = nullptr;
@@ -200,14 +219,17 @@ double parse_double(const InputDocument& document, const InputEntry& entry) {
         value_error(document, entry, "key '" + entry.key + "' requires a finite real value");
     return result;
 }
+
 double read_double(const InputDocument& document, const InputSection& section, const std::string& key) {
     return parse_double(document, required_entry(document, section, key));
 }
+
 double read_optional_double(
     const InputDocument& document, const InputSection& section, const std::string& key, double fallback) {
     const InputEntry* entry = find_entry(section, key);
     return entry == nullptr ? fallback : parse_double(document, *entry);
 }
+
 std::vector<double> parse_double_list(const InputDocument& document, const InputEntry& entry) {
     std::istringstream input(entry.value);
     std::vector<double> result;
@@ -220,6 +242,7 @@ std::vector<double> parse_double_list(const InputDocument& document, const Input
         value_error(document, entry, "key '" + entry.key + "' requires a whitespace-separated real list");
     return result;
 }
+
 std::size_t parse_size(const InputDocument& document, const InputEntry& entry) {
     if (!entry.value.empty() && entry.value.front() == '-')
         value_error(document, entry, "key '" + entry.key + "' requires a nonnegative integer value");
@@ -231,14 +254,17 @@ std::size_t parse_size(const InputDocument& document, const InputEntry& entry) {
         value_error(document, entry, "key '" + entry.key + "' requires a nonnegative integer value");
     return static_cast<std::size_t>(result);
 }
+
 std::size_t read_size(const InputDocument& document, const InputSection& section, const std::string& key) {
     return parse_size(document, required_entry(document, section, key));
 }
+
 std::size_t read_optional_size(
     const InputDocument& document, const InputSection& section, const std::string& key, std::size_t fallback) {
     const InputEntry* entry = find_entry(section, key);
     return entry == nullptr ? fallback : parse_size(document, *entry);
 }
+
 int read_optional_int(
     const InputDocument& document, const InputSection& section, const std::string& key, int fallback) {
     const InputEntry* entry = find_entry(section, key);
@@ -248,6 +274,7 @@ int read_optional_int(
         value_error(document, *entry, "key '" + key + "' is outside the supported range");
     return static_cast<int>(result);
 }
+
 bool read_optional_bool(
     const InputDocument& document, const InputSection& section, const std::string& key, bool fallback) {
     const InputEntry* entry = find_entry(section, key);
@@ -256,28 +283,34 @@ bool read_optional_bool(
     if (entry->value == "false") return false;
     value_error(document, *entry, "key '" + key + "' requires 'true' or 'false'");
 }
+
 std::string read_optional_string(const InputSection& section, const std::string& key, const std::string& fallback) {
     const InputEntry* entry = find_entry(section, key);
     return entry == nullptr ? fallback : entry->value;
 }
+
 void forbid_key(
     const InputDocument& document, const InputSection& section, const std::string& key, const std::string& context) {
     const InputEntry* entry = find_entry(section, key);
     if (entry != nullptr) value_error(document, *entry, "key '" + key + "' is not valid for " + context);
 }
+
 void forbid_keys(const InputDocument& document, const InputSection& section, const std::vector<std::string>& keys,
     const std::string& context) {
     for (const std::string& key : keys) forbid_key(document, section, key, context);
 }
+
 void forbid_convection_keys(const InputDocument& document, const InputSection& section, const std::string& context) {
     forbid_keys(document, section,
         {"heat_transfer_coefficient", "ambient_temperature", "coefficient_function", "ambient_temperature_function"},
         context);
 }
+
 struct ParsedMaterial final {
     std::string name;
     std::shared_ptr<const MaterialFunctionSet> functions;
 };
+
 std::vector<MaterialParameterValue> read_material_parameters(
     const InputDocument& document, const InputSection& section) {
     std::vector<MaterialParameterValue> values;
@@ -286,6 +319,7 @@ std::vector<MaterialParameterValue> read_material_parameters(
         if (entry.key != "function") values.push_back({entry.key, parse_double(document, entry)});
     return values;
 }
+
 std::vector<ParsedMaterial> read_materials(const InputDocument& document, const MaterialFunctionRegistry& registry) {
     const InputSection& materials = required_section(document, "Materials");
     validate_keys(document, materials, {});
@@ -335,6 +369,7 @@ std::vector<ParsedMaterial> read_materials(const InputDocument& document, const 
     if (result.empty()) throw std::invalid_argument(document.source_path + ": [Materials] requires a child material");
     return result;
 }
+
 Field parse_field(const InputDocument& document, const InputEntry& entry) {
     if (entry.value == "temperature") return Field::temperature;
     if (entry.value == "radial_displacement") return Field::radial_displacement;
@@ -344,15 +379,18 @@ Field parse_field(const InputDocument& document, const InputEntry& entry) {
     if (entry.value == "displacement_z") return Field::displacement_z;
     value_error(document, entry, "unknown field '" + entry.value + "'");
 }
+
 std::string resolved_path(const std::string& input_path, const std::string& configured_path) {
     const std::filesystem::path configured(configured_path);
     if (configured.is_absolute()) return configured.lexically_normal().string();
     return (std::filesystem::absolute(input_path).parent_path() / configured).lexically_normal().string();
 }
+
 std::string read_optional_path(const std::string& input_path, const InputSection& section, const std::string& key) {
     const std::string value = read_optional_string(section, key, {});
     return value.empty() ? std::string{} : resolved_path(input_path, value);
 }
+
 RegionDefinition read_region(
     const InputDocument& document, const InputSection& section, const std::vector<ParsedMaterial>& materials) {
     validate_keys(document, section,
@@ -396,6 +434,7 @@ RegionDefinition read_region(
         value_error(document, strain, "unknown strain formulation '" + strain.value + "'");
     return result;
 }
+
 ContactDefinition read_contact(const InputDocument& document, const InputSection& section) {
     validate_keys(document, section, {"primary", "secondary"});
     const std::string base = section.path;
@@ -448,6 +487,7 @@ ContactDefinition read_contact(const InputDocument& document, const InputSection
     }
     return result;
 }
+
 BoundaryConditionDefinition make_boundary_condition(const InputDocument& document, const InputSection& section,
     BoundaryConditionType type, Field field, double value, bool scale_with_load, const std::string& function) {
     BoundaryConditionDefinition result{
@@ -455,6 +495,7 @@ BoundaryConditionDefinition make_boundary_condition(const InputDocument& documen
     result.function = function;
     return result;
 }
+
 BoundaryConditionDefinition read_boundary_condition(const InputDocument& document, const InputSection& section) {
     validate_keys(document, section,
         {"type", "boundary", "field", "value", "scale_with_load", "function", "heat_transfer_coefficient",
@@ -509,6 +550,7 @@ BoundaryConditionDefinition read_boundary_condition(const InputDocument& documen
     }
     value_error(document, required_entry(document, section, "type"), "unknown boundary-condition type '" + type + "'");
 }
+
 void read_case(const InputDocument& document, FuelSimCaseDefinition& result) {
     const InputSection& case_section = required_section(document, "Case");
     validate_keys(document, case_section, {"version", "problem", "geometry"});
@@ -533,6 +575,7 @@ void read_case(const InputDocument& document, FuelSimCaseDefinition& result) {
         value_error(
             document, required_entry(document, case_section, "geometry"), "unknown geometry '" + geometry + "'");
 }
+
 void read_mesh(const InputDocument& document, const std::string& path, FuelSimCaseDefinition& result) {
     const InputSection& mesh = required_section(document, "Mesh");
     validate_keys(document, mesh, {"type", "file"});
@@ -540,6 +583,7 @@ void read_mesh(const InputDocument& document, const std::string& path, FuelSimCa
         value_error(document, required_entry(document, mesh, "type"), "only mesh type 'exodus' is supported");
     result.mesh_file = resolved_path(path, read_string(document, mesh, "file"));
 }
+
 void read_time_functions(const InputDocument& document, FuelSimCaseDefinition& result) {
     const InputSection* time_functions = find_section(document, "TimeFunctions");
     if (time_functions != nullptr) {
@@ -555,6 +599,7 @@ void read_time_functions(const InputDocument& document, FuelSimCaseDefinition& r
         }
     }
 }
+
 void read_regions(const InputDocument& document, const std::string& path, const std::vector<ParsedMaterial>& materials,
     FuelSimCaseDefinition& result) {
     const InputSection& regions = required_section(document, "Regions");
@@ -563,18 +608,21 @@ void read_regions(const InputDocument& document, const std::string& path, const 
         result.spatial.regions.push_back(read_region(document, *section, materials));
     if (result.spatial.regions.empty()) throw std::invalid_argument(path + ": [Regions] requires a child region");
 }
+
 void read_contacts(const InputDocument& document, FuelSimCaseDefinition& result) {
     const InputSection& contacts = required_section(document, "Contact");
     validate_keys(document, contacts, {});
     for (const InputSection* section : direct_children(document, "Contact"))
         result.spatial.contacts.push_back(read_contact(document, *section));
 }
+
 void read_boundary_conditions(const InputDocument& document, FuelSimCaseDefinition& result) {
     const InputSection& boundary_conditions = required_section(document, "BoundaryConditions");
     validate_keys(document, boundary_conditions, {});
     for (const InputSection* section : direct_children(document, "BoundaryConditions"))
         result.spatial.boundary_conditions.push_back(read_boundary_condition(document, *section));
 }
+
 void validate_time_function_references(const std::string& path, const FuelSimCaseDefinition& result) {
     const auto require_function = [&](const std::string& name, const std::string& owner) {
         if (name.empty()) return;
@@ -593,6 +641,7 @@ void validate_time_function_references(const std::string& path, const FuelSimCas
     if (result.problem == CaseProblem::steady && !result.spatial.time_tables.empty())
         throw std::invalid_argument(path + ": time functions are only valid for transient cases");
 }
+
 void read_executioner(const InputDocument& document, const std::string& path, FuelSimCaseDefinition& result) {
     const InputSection& executioner = required_section(document, "Executioner");
     const std::string executioner_type = read_string(document, executioner, "type");
@@ -635,6 +684,7 @@ void read_executioner(const InputDocument& document, const std::string& path, Fu
         result.restart_file = read_optional_path(path, executioner, "restart");
     }
 }
+
 void read_solver(const InputDocument& document, const std::string& path, FuelSimCaseDefinition& result) {
     const InputSection& solver = required_section(document, "Solver");
     validate_keys(document, solver,
@@ -680,6 +730,7 @@ void read_solver(const InputDocument& document, const std::string& path, FuelSim
         read_optional_double(document, solver, "temperature_residual_scale", 0.0);
     result.solver.mechanical_residual_scale = read_optional_double(document, solver, "mechanical_residual_scale", 0.0);
 }
+
 void read_outputs(const InputDocument& document, const std::string& path, FuelSimCaseDefinition& result) {
     const InputSection& outputs = required_section(document, "Outputs");
     validate_keys(document, outputs,
@@ -728,10 +779,12 @@ void read_outputs(const InputDocument& document, const std::string& path, FuelSi
     require_output_file(result.outputs.checkpoint_file, "checkpoint_interval", "checkpoint");
 }
 } // namespace
+
 FuelSimCaseDefinition read_case_input(const std::string& path) {
     const MaterialFunctionRegistry registry = make_builtin_material_function_registry();
     return read_case_input(path, registry);
 }
+
 FuelSimCaseDefinition read_case_input(const std::string& path, const MaterialFunctionRegistry& registry) {
     const InputDocument document = parse_input_file(path);
     validate_sections(document);

@@ -3,6 +3,7 @@
 #include <cmath>
 #include <stdexcept>
 #include <utility>
+
 namespace fuelsim {
 namespace {
 bool same_coordinate(double lhs, double rhs) {
@@ -10,6 +11,7 @@ bool same_coordinate(double lhs, double rhs) {
     return std::abs(lhs - rhs) <= 1.0e-12 * scale;
 }
 } // namespace
+
 UnstructuredMeshMetadata::UnstructuredMeshMetadata(std::size_t node_count, std::size_t element_count,
     std::size_t sides_per_element, std::vector<std::int64_t> element_block_ids,
     std::vector<ElementBlockInfo> element_blocks, std::vector<NodeSet> node_sets, std::vector<SideSet> side_sets,
@@ -55,18 +57,21 @@ UnstructuredMeshMetadata::UnstructuredMeshMetadata(std::size_t node_count, std::
                 throw std::out_of_range(geometry_name + " side set is out of range");
     }
 }
+
 const ElementBlockInfo& UnstructuredMeshMetadata::element_block(const std::string& name) const {
     const auto block = std::find_if(_element_blocks.begin(), _element_blocks.end(),
         [&name](const ElementBlockInfo& candidate) { return candidate.name == name; });
     if (block == _element_blocks.end()) throw std::invalid_argument("Unknown element block: " + name);
     return *block;
 }
+
 const SideSet& UnstructuredMeshMetadata::side_set(const std::string& name) const {
     const auto set = std::find_if(
         _side_sets.begin(), _side_sets.end(), [&name](const SideSet& candidate) { return candidate.name == name; });
     if (set == _side_sets.end()) throw std::invalid_argument("Unknown side set: " + name);
     return *set;
 }
+
 std::int64_t UnstructuredMeshMetadata::side_set_block_id(const std::string& name) const {
     const SideSet& set = side_set(name);
     if (set.sides.empty()) throw std::invalid_argument("Side set is empty: " + name);
@@ -76,6 +81,7 @@ std::int64_t UnstructuredMeshMetadata::side_set_block_id(const std::string& name
             throw std::invalid_argument("Side set crosses element blocks: " + name);
     return block_id;
 }
+
 UnstructuredQuad4Mesh::UnstructuredQuad4Mesh(std::vector<RzPoint> nodes, std::vector<Quad4Element> elements,
     std::vector<std::int64_t> element_block_ids, std::vector<ElementBlockInfo> element_blocks,
     std::vector<NodeSet> node_sets, std::vector<SideSet> side_sets)
@@ -90,6 +96,7 @@ UnstructuredQuad4Mesh::UnstructuredQuad4Mesh(std::vector<RzPoint> nodes, std::ve
             if (node >= _nodes.size()) throw std::out_of_range("UnstructuredQuad4Mesh connectivity is out of range");
     }
 }
+
 UnstructuredHex8Mesh::UnstructuredHex8Mesh(std::vector<CartesianPoint3> nodes, std::vector<Hex8Element> elements,
     std::vector<std::int64_t> element_block_ids, std::vector<ElementBlockInfo> element_blocks,
     std::vector<NodeSet> node_sets, std::vector<SideSet> side_sets)
@@ -104,6 +111,7 @@ UnstructuredHex8Mesh::UnstructuredHex8Mesh(std::vector<CartesianPoint3> nodes, s
             if (node >= _nodes.size()) throw std::out_of_range("UnstructuredHex8Mesh connectivity is out of range");
     }
 }
+
 RegionMeshMapping::RegionMeshMapping(
     const UnstructuredMeshMetadata& source, std::size_t node_count, std::int64_t block_id)
     : _block_id(block_id), _source_node_to_local(node_count, invalid_index),
@@ -118,6 +126,7 @@ RegionMeshMapping::RegionMeshMapping(
     }
     if (_source_element_ids.empty()) throw std::invalid_argument("Element block is empty: " + std::to_string(block_id));
 }
+
 void RegionMeshMapping::select_nodes(const std::vector<bool>& used_nodes) {
     if (used_nodes.size() != _source_node_to_local.size())
         throw std::logic_error("Region node selection has the wrong size");
@@ -127,8 +136,10 @@ void RegionMeshMapping::select_nodes(const std::vector<bool>& used_nodes) {
         _source_node_ids.push_back(source_node);
     }
 }
+
 Hex8RegionMesh::Hex8RegionMesh(const UnstructuredHex8Mesh& source, std::int64_t block_id)
     : RegionMeshMapping(source, source.nodes().size(), block_id) {}
+
 Hex8RegionMesh Hex8RegionMesh::from_unstructured_block(const UnstructuredHex8Mesh& source, std::int64_t block_id) {
     Hex8RegionMesh mesh(source, block_id);
     std::vector<bool> used_nodes(source.nodes().size(), false);
@@ -148,6 +159,7 @@ Hex8RegionMesh Hex8RegionMesh::from_unstructured_block(const UnstructuredHex8Mes
     }
     return mesh;
 }
+
 Hex8RegionBoundary Hex8RegionMesh::map_side_set(
     const UnstructuredHex8Mesh& source, const std::string& side_set_name) const {
     if (source.side_set_block_id(side_set_name) != _block_id)
@@ -180,8 +192,10 @@ Hex8RegionBoundary Hex8RegionMesh::map_side_set(
     result.nodes.erase(std::unique(result.nodes.begin(), result.nodes.end()), result.nodes.end());
     return result;
 }
+
 RegionMesh::RegionMesh(const UnstructuredQuad4Mesh& source, std::int64_t block_id)
     : RegionMeshMapping(source, source.nodes().size(), block_id) {}
+
 RegionMesh RegionMesh::from_unstructured_block(const UnstructuredQuad4Mesh& source, std::int64_t block_id) {
     RegionMesh mesh(source, block_id);
     std::vector<bool> used_nodes(source.nodes().size(), false);
@@ -201,6 +215,7 @@ RegionMesh RegionMesh::from_unstructured_block(const UnstructuredQuad4Mesh& sour
     }
     return mesh;
 }
+
 RegionBoundary RegionMesh::map_side_set(const UnstructuredQuad4Mesh& source, const std::string& side_set_name) const {
     if (source.side_set_block_id(side_set_name) != _block_id)
         throw std::invalid_argument("Side set belongs to an unexpected block: " + side_set_name);

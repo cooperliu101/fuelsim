@@ -4,18 +4,22 @@
 #include <cstddef>
 #include <memory>
 #include <vector>
+
 namespace fuelsim {
 struct TransientTimeErrorEstimate;
 struct TransientTimeOptions;
 struct SpatialDefinition;
 class SpatialProblemStorage;
 class BackendAccess;
+
 struct TransientStepInput final {
     double end_time, load_factor;
 };
+
 struct RegionStateSummary final {
     double maximum_temperature, maximum_equivalent_plastic_strain, maximum_equivalent_creep_strain;
 };
+
 struct TransientConservationSummary final {
     double generated_heat_rate = 0.0, stored_heat_rate = 0.0, convection_heat_rate = 0.0,
            interface_heat_imbalance = 0.0, dirichlet_heat_input_rate = 0.0, global_thermal_balance = 0.0,
@@ -25,10 +29,12 @@ struct TransientConservationSummary final {
            relative_mechanical_work_balance = 0.0, unconstrained_mechanical_residual_l2 = 0.0,
            elastic_energy_change = 0.0, plastic_dissipation_increment = 0.0, creep_dissipation_increment = 0.0;
 };
+
 struct TransientConservationField final {
     const char* name;
     double TransientConservationSummary::* member;
 };
+
 inline constexpr std::array<TransientConservationField, 18> transient_conservation_fields = {{
     {"generated_heat_rate", &TransientConservationSummary::generated_heat_rate},
     {"stored_heat_rate", &TransientConservationSummary::stored_heat_rate},
@@ -49,6 +55,7 @@ inline constexpr std::array<TransientConservationField, 18> transient_conservati
     {"plastic_dissipation_increment", &TransientConservationSummary::plastic_dissipation_increment},
     {"creep_dissipation_increment", &TransientConservationSummary::creep_dissipation_increment},
 }};
+
 class TransientProblem final : public NonlinearProblem {
   public:
     TransientProblem(SpatialDefinition definition, const UnstructuredQuad4Mesh& source_mesh);

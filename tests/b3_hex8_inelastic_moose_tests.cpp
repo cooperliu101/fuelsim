@@ -14,17 +14,20 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+
 namespace {
 struct NodeReference final {
     std::size_t id;
     fuelsim::CartesianPoint3 point;
     std::array<double, 4> fields;
 };
+
 struct ElementReference final {
     std::size_t id;
     fuelsim::SymmetricTensor3Values stress;
     double equivalent_plastic_strain, equivalent_creep_strain;
 };
+
 bool same_point(const fuelsim::CartesianMaterialPointState& left, const fuelsim::CartesianMaterialPointState& right) {
     return left.elastic_strain == right.elastic_strain && left.plastic_strain == right.plastic_strain &&
            left.creep_strain == right.creep_strain &&
@@ -33,6 +36,7 @@ bool same_point(const fuelsim::CartesianMaterialPointState& left, const fuelsim:
            left.stress.yy == right.stress.yy && left.stress.zz == right.stress.zz &&
            left.stress.xy == right.stress.xy && left.stress.yz == right.stress.yz && left.stress.xz == right.stress.xz;
 }
+
 bool same_committed_state(const fuelsim::TransientCommittedState& left, const fuelsim::TransientCommittedState& right) {
     if (left.time != right.time || left.load_factor != right.load_factor || left.solution != right.solution ||
         left.cartesian_material_histories.size() != right.cartesian_material_histories.size())
@@ -48,11 +52,13 @@ bool same_committed_state(const fuelsim::TransientCommittedState& left, const fu
     }
     return true;
 }
+
 bool check(bool condition, const std::string& message) {
     if (condition) return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
+
 std::vector<std::string> split_csv(const std::string& line) {
     std::vector<std::string> result;
     std::istringstream stream(line);
@@ -60,15 +66,18 @@ std::vector<std::string> split_csv(const std::string& line) {
     while (std::getline(stream, value, ',')) result.push_back(value);
     return result;
 }
+
 std::size_t column(const std::vector<std::string>& header, const std::string& name, const std::string& path) {
     const auto position = std::find(header.begin(), header.end(), name);
     if (position == header.end()) throw std::invalid_argument("Missing column '" + name + "' in " + path);
     return static_cast<std::size_t>(position - header.begin());
 }
+
 double number(const std::vector<std::string>& values, std::size_t index, const std::string& path) {
     if (index >= values.size()) throw std::invalid_argument("Incomplete MOOSE row in " + path);
     return std::stod(values[index]);
 }
+
 std::vector<NodeReference> read_nodes(const std::string& path) {
     std::ifstream input(path);
     if (!input) throw std::runtime_error("Could not read three-dimensional MOOSE nodes: " + path);
@@ -88,6 +97,7 @@ std::vector<NodeReference> read_nodes(const std::string& path) {
     }
     return result;
 }
+
 std::vector<ElementReference> read_elements(const std::string& path) {
     std::ifstream input(path);
     if (!input) throw std::runtime_error("Could not read three-dimensional MOOSE element states: " + path);
@@ -108,10 +118,12 @@ std::vector<ElementReference> read_elements(const std::string& path) {
     }
     return result;
 }
+
 bool check_relative(const std::string& name, const fuelsim::test::FieldErrorMetrics& metrics) {
     fuelsim::test::print_relative_metrics(name, metrics);
     return check(fuelsim::test::relative_metrics_below(metrics, 5.0e-3), name + " three errors are below 0.5 percent");
 }
+
 bool run(const std::string& branch, const std::string& input_path, const std::string& nodal_path,
     const std::string& element_path) {
     const fuelsim::FuelSimCaseDefinition definition = fuelsim::read_case_input(input_path);
@@ -231,6 +243,7 @@ bool run(const std::string& branch, const std::string& input_path, const std::st
     return passed;
 }
 } // namespace
+
 int main(int argc, char** argv) {
     if (argc != 10) {
         std::cerr << "Usage: fuelsim_b3_hex8_inelastic_moose_tests "

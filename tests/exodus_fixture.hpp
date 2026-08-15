@@ -1,4 +1,5 @@
 #pragma once
+
 namespace fuelsim::test_data {
 // NetCDF 64-bit-offset Exodus file generated independently from fuelsim. It
 // contains one element block (ID 7), two Quad4 cells, and six vertices.

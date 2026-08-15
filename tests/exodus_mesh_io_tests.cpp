@@ -6,12 +6,14 @@
 #include <fstream>
 #include <iostream>
 #include <vector>
+
 namespace {
 int hex_value(char digit) {
     if (digit >= '0' && digit <= '9') return digit - '0';
     if (digit >= 'a' && digit <= 'f') return digit - 'a' + 10;
     return -1;
 }
+
 bool write_fixture(const char* path) {
     const char* hex = fuelsim::test_data::two_quad_exodus_hex;
     std::ofstream output(path, std::ios::binary | std::ios::trunc);
@@ -25,6 +27,7 @@ bool write_fixture(const char* path) {
     }
     return output.good();
 }
+
 bool meshes_equal(const fuelsim::UnstructuredQuad4Mesh& lhs, const fuelsim::UnstructuredQuad4Mesh& rhs) {
     if (lhs.nodes().size() != rhs.nodes().size() || lhs.elements().size() != rhs.elements().size() ||
         lhs.element_block_ids() != rhs.element_block_ids() ||
@@ -56,6 +59,7 @@ bool meshes_equal(const fuelsim::UnstructuredQuad4Mesh& lhs, const fuelsim::Unst
     }
     return true;
 }
+
 bool run_tests(const char* path) {
     if (!write_fixture(path)) {
         std::cerr << "Could not write the independent Exodus fixture\n";
@@ -108,6 +112,7 @@ bool run_tests(const char* path) {
     return true;
 }
 } // namespace
+
 int main(int argc, char** argv) {
     if (argc != 2) {
         std::cerr << "Usage: fuelsim_exodus_mesh_io_tests <output.exo>\n";
