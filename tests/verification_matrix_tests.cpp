@@ -80,6 +80,7 @@ int main(int argc, char** argv) {
             "m55.shadow_state",
             "m56.iterative_solver",
             "m57.integrated",
+            "m58.integrated_hex8",
             "m21.transient",
             "m22.inelastic",
             "m23.pcmi",
@@ -139,7 +140,7 @@ int main(int argc, char** argv) {
         }
         if (found_ids != required_ids)
             throw std::runtime_error("Verification matrix is missing one or more required rows");
-        if (verified != 27 || qualified != 1 || measured != 2 || limitations != 1)
+        if (verified != 28 || qualified != 1 || measured != 2 || limitations != 1)
             throw std::runtime_error("Verification matrix status counts differ from release schema");
         std::cout << "verification_matrix_rows=" << found_ids.size() << '\n'
                   << "verification_matrix_verified=" << verified << '\n'

@@ -514,11 +514,16 @@ BoundaryConditionDefinition read_boundary_condition(const InputDocument& documen
             scale_with_load, function);
     }
     if (type == "pressure") {
-        forbid_key(document, section, "configuration", "type='pressure'");
         forbid_key(document, section, "field", "type='pressure'");
         forbid_convection_keys(document, section, "type='pressure'");
-        return make_boundary_condition(document, section, BoundaryConditionType::pressure, Field::radial_displacement,
-            read_double(document, section, "value"), scale_with_load, function);
+        BoundaryConditionDefinition result = make_boundary_condition(document, section, BoundaryConditionType::pressure,
+            Field::radial_displacement, read_double(document, section, "value"), scale_with_load, function);
+        const std::string configuration = read_optional_string(section, "configuration", "reference");
+        if (configuration != "reference" && configuration != "current")
+            value_error(document, required_entry(document, section, "configuration"),
+                "pressure configuration must be reference or current");
+        result.use_displaced_geometry = configuration == "current";
+        return result;
     }
     if (type == "traction") {
         forbid_convection_keys(document, section, "type='traction'");

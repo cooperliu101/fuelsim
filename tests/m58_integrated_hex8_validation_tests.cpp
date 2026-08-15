@@ -1,0 +1,287 @@
+#include "fuelsim/case_input.hpp"
+#include "fuelsim/problem_solver.hpp"
+#include "fuelsim/results_io.hpp"
+#include "support/cartesian3d_problem_access.hpp"
+#include "support/moose_field_comparison.hpp"
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <sstream>
+#include <stdexcept>
+#include <string>
+#include <vector>
+
+namespace {
+struct NodeReference final {
+    std::size_t id;
+    fuelsim::CartesianPoint3 point;
+    std::array<double, 4> fields;
+};
+
+struct ContactReference final {
+    std::size_t id;
+    double pressure;
+};
+
+struct ElementReference final {
+    std::size_t id;
+    fuelsim::CartesianPoint3 point;
+    std::array<double, 3> fields;
+};
+
+bool check(bool condition, const std::string& message) {
+    if (condition) return true;
+    std::cerr << "[FAIL] " << message << '\n';
+    return false;
+}
+
+std::vector<std::string> split_csv(const std::string& line) {
+    std::vector<std::string> result;
+    std::istringstream stream(line);
+    std::string value;
+    while (std::getline(stream, value, ',')) result.push_back(value);
+    return result;
+}
+
+std::size_t column(const std::vector<std::string>& header, const std::string& name, const std::string& path) {
+    const auto found = std::find(header.begin(), header.end(), name);
+    if (found == header.end()) throw std::invalid_argument("Missing column '" + name + "' in " + path);
+    return static_cast<std::size_t>(found - header.begin());
+}
+
+double number(const std::vector<std::string>& values, std::size_t index, const std::string& path) {
+    if (index >= values.size()) throw std::invalid_argument("Incomplete M5.8 MOOSE row in " + path);
+    return std::stod(values[index]);
+}
+
+std::vector<NodeReference> read_nodes(const std::string& path) {
+    std::ifstream input(path);
+    if (!input) throw std::runtime_error("Could not read M5.8 MOOSE nodes: " + path);
+    std::string line;
+    std::getline(input, line);
+    const auto header = split_csv(line);
+    const std::array<std::size_t, 8> columns = {column(header, "id", path), column(header, "x", path),
+        column(header, "y", path), column(header, "z", path), column(header, "T", path), column(header, "disp_x", path),
+        column(header, "disp_y", path), column(header, "disp_z", path)};
+    std::vector<NodeReference> result;
+    while (std::getline(input, line)) {
+        const auto values = split_csv(line);
+        result.push_back({static_cast<std::size_t>(number(values, columns[0], path)),
+            {number(values, columns[1], path), number(values, columns[2], path), number(values, columns[3], path)},
+            {number(values, columns[4], path), number(values, columns[5], path), number(values, columns[6], path),
+                number(values, columns[7], path)}});
+    }
+    return result;
+}
+
+std::vector<ContactReference> read_contact(const std::string& path) {
+    std::ifstream input(path);
+    if (!input) throw std::runtime_error("Could not read M5.8 MOOSE contact pressure: " + path);
+    std::string line;
+    std::getline(input, line);
+    const auto header = split_csv(line);
+    const std::size_t id = column(header, "id", path), pressure = column(header, "contact_pressure", path);
+    std::vector<ContactReference> result;
+    while (std::getline(input, line)) {
+        const auto values = split_csv(line);
+        result.push_back({static_cast<std::size_t>(number(values, id, path)), number(values, pressure, path)});
+    }
+    return result;
+}
+
+std::vector<ElementReference> read_elements(const std::string& path) {
+    std::ifstream input(path);
+    if (!input) throw std::runtime_error("Could not read M5.8 MOOSE element states: " + path);
+    std::string line;
+    std::getline(input, line);
+    const auto header = split_csv(line);
+    const std::array<std::size_t, 7> columns = {column(header, "id", path), column(header, "x", path),
+        column(header, "y", path), column(header, "z", path), column(header, "vonmises_stress", path),
+        column(header, "effective_plastic_strain", path), column(header, "effective_creep_strain", path)};
+    std::vector<ElementReference> result;
+    while (std::getline(input, line)) {
+        const auto values = split_csv(line);
+        result.push_back({static_cast<std::size_t>(number(values, columns[0], path)),
+            {number(values, columns[1], path), number(values, columns[2], path), number(values, columns[3], path)},
+            {number(values, columns[4], path), number(values, columns[5], path), number(values, columns[6], path)}});
+    }
+    return result;
+}
+
+double equivalent_stress(const fuelsim::SymmetricTensor3Values& stress) {
+    const double mean = (stress.xx + stress.yy + stress.zz) / 3.0;
+    return std::sqrt(1.5 * ((stress.xx - mean) * (stress.xx - mean) + (stress.yy - mean) * (stress.yy - mean) +
+                               (stress.zz - mean) * (stress.zz - mean) +
+                               2.0 * (stress.xy * stress.xy + stress.yz * stress.yz + stress.xz * stress.xz)));
+}
+
+fuelsim::SolverOptions solver_options(const fuelsim::FuelSimCaseDefinition& definition) {
+    fuelsim::SolverOptions result;
+    result.absolute_tolerance = definition.solver.absolute_tolerance;
+    result.relative_tolerance = definition.solver.relative_tolerance;
+    result.step_tolerance = definition.solver.step_tolerance;
+    result.maximum_iterations = definition.solver.maximum_iterations;
+    result.backtracking_fallback = definition.solver.backtracking_fallback;
+    result.field_residual_scaling = definition.solver.field_residual_scaling;
+    result.temperature_residual_absolute_tolerance = definition.solver.temperature_residual_absolute_tolerance;
+    result.mechanical_residual_absolute_tolerance = definition.solver.mechanical_residual_absolute_tolerance;
+    return result;
+}
+
+fuelsim::TransientTimeOptions time_options(const fuelsim::FuelSimCaseDefinition& definition) {
+    const auto& input = definition.transient_execution;
+    return {input.end_time, input.initial_time_step, input.minimum_time_step, input.maximum_time_step,
+        input.growth_factor, input.cutback_factor, input.maximum_cutbacks_per_step, input.load_ramp_time};
+}
+
+bool below(const std::string& name, const fuelsim::test::FieldErrorMetrics& metrics) {
+    fuelsim::test::print_relative_metrics(name, metrics);
+    return check(fuelsim::test::relative_metrics_below(metrics, 5.0e-3),
+        name + " relative L2, relative absolute-peak, and maximum pointwise errors are below 0.5 percent");
+}
+
+bool run(const std::string& input_path, const std::string& nodal_path, const std::string& contact_path,
+    const std::string& element_path) {
+    const fuelsim::FuelSimCaseDefinition definition = fuelsim::read_case_input(input_path);
+    if (definition.problem != fuelsim::CaseProblem::transient ||
+        definition.geometry != fuelsim::CaseGeometry::cartesian_3d || definition.spatial.contacts.size() != 1 ||
+        !definition.spatial.contacts[0].thermal || !definition.spatial.contacts[0].mechanical)
+        throw std::invalid_argument("M5.8 requires one coupled transient three-dimensional contact pair");
+    const fuelsim::UnstructuredHex8Mesh source = fuelsim::read_exodus_hex8(definition.mesh_file);
+    fuelsim::TransientProblem problem(definition.spatial, source);
+    const auto initial_contact =
+        fuelsim::cartesian::ProblemAccess::summarize_contact_nodes(problem, 0, problem.committed_solution());
+    const fuelsim::TransientResult solve =
+        fuelsim::solve_transient(problem, time_options(definition), solver_options(definition));
+    bool passed =
+        check(
+            solve.completed && solve.accepted_steps.size() == 20, "M5.8 completes twenty equal Backward Euler steps") &&
+        check(solve.aggregate_timing.workspace_setups == 1, "M5.8 reuses one PETSc workspace across the complete path");
+
+    const auto node_reference = read_nodes(nodal_path);
+    if (node_reference.size() != source.nodes().size()) throw std::invalid_argument("M5.8 node counts differ");
+    std::array<fuelsim::test::FieldErrorMetrics, 4> nodal;
+    double maximum_coordinate_difference = 0.0;
+    const auto& dofs = fuelsim::cartesian::ProblemAccess::dof_map(problem);
+    for (std::size_t region = 0; region < fuelsim::cartesian::ProblemAccess::region_count(problem); ++region) {
+        const auto& mesh = fuelsim::cartesian::ProblemAccess::region_mesh(problem, region);
+        const std::size_t offset = fuelsim::cartesian::ProblemAccess::region_node_offset(problem, region);
+        for (std::size_t local = 0; local < mesh.nodes().size(); ++local) {
+            const std::size_t source_node = mesh.source_node_ids()[local];
+            const NodeReference& expected = node_reference.at(source_node);
+            if (expected.id != source_node) throw std::invalid_argument("M5.8 source-node mapping differs");
+            const fuelsim::CartesianPoint3& point = source.nodes().at(source_node);
+            maximum_coordinate_difference = std::max(maximum_coordinate_difference,
+                std::max({std::abs(point.x - expected.point.x), std::abs(point.y - expected.point.y),
+                    std::abs(point.z - expected.point.z)}));
+            for (std::size_t field = 0; field < nodal.size(); ++field)
+                nodal[field].add(
+                    problem.committed_solution()[dofs.dof(
+                        std::array<fuelsim::Field, 4>{fuelsim::Field::temperature, fuelsim::Field::displacement_x,
+                            fuelsim::Field::displacement_y, fuelsim::Field::displacement_z}[field],
+                        offset + local)],
+                    expected.fields[field]);
+        }
+    }
+    const std::array<std::string, 4> nodal_names = {
+        "temperature", "displacement_x", "displacement_y", "displacement_z"};
+    for (std::size_t field = 0; field < nodal.size(); ++field)
+        passed = below("m58_" + nodal_names[field], nodal[field]) && passed;
+
+    const auto contact =
+        fuelsim::cartesian::ProblemAccess::summarize_contact_nodes(problem, 0, problem.committed_solution());
+    const auto contact_reference = read_contact(contact_path);
+    const auto source_nodes = fuelsim::cartesian::ProblemAccess::contact_secondary_source_nodes(problem, 0);
+    fuelsim::test::FieldErrorMetrics pressure;
+    std::size_t sliding = 0, crossed_faces = 0;
+    for (std::size_t node = 0; node < contact.size(); ++node) {
+        const auto found = std::find_if(contact_reference.begin(), contact_reference.end(),
+            [&](const ContactReference& value) { return value.id == source_nodes[node]; });
+        if (found == contact_reference.end()) throw std::invalid_argument("M5.8 contact node is missing");
+        pressure.add(contact[node].pressure, found->pressure);
+        if (contact[node].sliding) ++sliding;
+        if (contact[node].primary_face != initial_contact[node].primary_face) ++crossed_faces;
+    }
+    passed = below("m58_contact_pressure", pressure) && passed;
+
+    const auto element_reference = read_elements(element_path);
+    std::array<fuelsim::test::FieldErrorMetrics, 3> material;
+    double maximum_element_coordinate_difference = 0.0;
+    const std::size_t cladding = 1;
+    const auto& cladding_mesh = fuelsim::cartesian::ProblemAccess::region_mesh(problem, cladding);
+    for (std::size_t element = 0; element < cladding_mesh.elements().size(); ++element) {
+        const std::size_t source_element = cladding_mesh.source_element_ids()[element];
+        const auto found = std::find_if(element_reference.begin(), element_reference.end(),
+            [&](const ElementReference& value) { return value.id == source_element; });
+        if (found == element_reference.end()) throw std::invalid_argument("M5.8 cladding element is missing");
+        fuelsim::CartesianPoint3 centroid{};
+        for (std::size_t node : cladding_mesh.elements()[element].nodes) {
+            centroid.x += cladding_mesh.nodes()[node].x / 8.0;
+            centroid.y += cladding_mesh.nodes()[node].y / 8.0;
+            centroid.z += cladding_mesh.nodes()[node].z / 8.0;
+        }
+        maximum_element_coordinate_difference = std::max(maximum_element_coordinate_difference,
+            std::max({std::abs(centroid.x - found->point.x), std::abs(centroid.y - found->point.y),
+                std::abs(centroid.z - found->point.z)}));
+        const auto& geometry = fuelsim::cartesian::ProblemAccess::region_element_geometry(problem, cladding, element);
+        const auto& history = fuelsim::cartesian::ProblemAccess::material_history(problem, cladding, element);
+        std::array<double, 3> average{};
+        double measure = 0.0;
+        for (std::size_t q = 0; q < history.size(); ++q) {
+            const double weight = geometry.points[q].weighted_measure;
+            measure += weight;
+            average[0] += weight * equivalent_stress(history[q].stress);
+            average[1] += weight * history[q].equivalent_plastic_strain;
+            average[2] += weight * history[q].equivalent_creep_strain;
+        }
+        for (std::size_t field = 0; field < material.size(); ++field)
+            material[field].add(average[field] / measure, found->fields[field]);
+    }
+    const std::array<std::string, 3> material_names = {
+        "equivalent_stress", "equivalent_plastic_strain", "equivalent_creep_strain"};
+    for (std::size_t field = 0; field < material.size(); ++field)
+        passed = below("m58_" + material_names[field], material[field]) && passed;
+
+    const fuelsim::InterfaceSummary interface =
+        fuelsim::cartesian::ProblemAccess::summarize_interface(problem, 0, problem.committed_solution());
+    passed = check(maximum_coordinate_difference < 1.0e-12 && maximum_element_coordinate_difference < 1.0e-12,
+                 "M5.8 compares MOOSE fields at matching source coordinates") &&
+             check(interface.active_contact_nodes > 0 && sliding > 0 && crossed_faces > 0,
+                 "M5.8 keeps the contact pair active and exercises sliding across primary faces") &&
+             check(interface.total_heat_rate > 0.0 && interface.total_contact_force > 0.0 &&
+                       interface.total_tangential_force > 0.0 &&
+                       std::abs(problem.last_conservation_summary().interface_heat_imbalance) < 1.0e-12,
+                 "M5.8 exercises conservative heat, normal-force, and friction-force transfer") &&
+             check(material[1].maximum_actual > 0.0 && material[2].maximum_actual > 0.0,
+                 "M5.8 activates cladding plasticity and creep") &&
+             passed;
+    std::cout << "m58_dofs=" << problem.dof_count() << '\n'
+              << "m58_nonlinear_iterations=" << solve.total_nonlinear_iterations << '\n'
+              << "m58_total_seconds=" << solve.aggregate_timing.total_seconds << '\n'
+              << "m58_active_contact_nodes=" << interface.active_contact_nodes << '\n'
+              << "m58_sliding_contact_nodes=" << sliding << '\n'
+              << "m58_nodes_crossing_primary_faces=" << crossed_faces << '\n';
+    return passed;
+}
+} // namespace
+
+int main(int argc, char** argv) {
+    if (argc != 5) {
+        std::cerr << "Usage: fuelsim_m58_integrated_hex8_validation_tests "
+                     "<case.fsi> <all-nodes.csv> <contact.csv> <element-state.csv>\n";
+        return 2;
+    }
+    try {
+        std::cout << std::scientific << std::setprecision(12);
+        fuelsim::PetscSession session(argc, argv, "fuelsim M5.8 integrated Hex8 validation\n");
+        if (!run(argv[1], argv[2], argv[3], argv[4])) return 1;
+        std::cout << "[PASS] M5.8 integrated Hex8 MOOSE comparison\n";
+        return 0;
+    } catch (const std::exception& error) {
+        std::cerr << "[FAIL] M5.8 validation raised: " << error.what() << '\n';
+        return 1;
+    }
+}

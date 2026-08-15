@@ -1272,3 +1272,44 @@ history, and stress differences are `3.2460e-4 K`, `1.4632e-11 m`, `2.9492e-9`,
 and `242.35 Pa`. They pass the corresponding `1e-3 K`, `1e-10 m`, `1e-8`, and
 `1e3 Pa` gates, and the stick/slip Boolean state agrees exactly. This is final
 state numerical-equivalence evidence, not a speedup or general scaling claim.
+
+## M5.8 integrated Hex8 provenance
+
+`m58_integrated_hex8_mesh.i` generates the tracked 98-node, 24-element Hex8
+mesh, and `m58_integrated_hex8.i` defines the 20-step three-dimensional
+transient reference. The model combines finite strain in both blocks, coupled
+cladding plasticity and creep, transient heat conduction, thermal and
+mechanical contact, Coulomb friction, current-configuration pressure, a
+0.6 mm fuel translation, and a controlled nonzero thickness extension. The
+mesh and final CSV files are read directly by the fuelsim comparison; no
+equivalent coordinates are rebuilt in the test.
+
+The reference was generated with:
+
+```bash
+/home/cooper/projects/july/july-opt \
+  --mesh-only m58_integrated_hex8_mesh.e \
+  -i m58_integrated_hex8_mesh.i
+env OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 \
+  NUMEXPR_NUM_THREADS=1 taskset -c 0 \
+  /home/cooper/projects/july/july-opt -i m58_integrated_hex8.i
+```
+
+The reference environment is:
+
+```text
+MOOSE commit:          93b11698be3fcd33049ae73e32f411fb2985261d
+July commit:           a96d73792bee7c5f54eb65e33b04487b24276a27
+Executable SHA256:     1cb3a0fbf5650addd087ceeb8521f82d2ddb11650c0932b7ec274226430e0ee4
+PETSc / SLEPc:         3.25.2 / 3.25.0
+MPI ranks / threads:   1 / 1
+July worktree:         dirty; executable hash is therefore authoritative
+```
+
+The tracked final files contain all 98 nodes, all 10 secondary-node contact
+pressures, and element-average equivalent stress, plastic strain, and creep
+strain for all 16 cladding elements. Every relative L2, relative absolute-peak,
+and maximum pointwise relative error is below 0.5 percent. The comparison uses
+no denominator floor and reports zero-reference counts and maximum absolute
+differences separately. The exact metrics and the controlled timing protocol
+are recorded in `docs/m5.md` and `benchmarks/README.md`.

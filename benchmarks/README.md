@@ -551,3 +551,23 @@ median is 0.13 percent higher, which is recorded as no material change rather th
 Jacobian callbacks, and one PETSc workspace. These results show that the search changes preserve current benchmark
 performance; the present 64-segment benchmark does not exercise the tree and therefore does not establish large-surface
 end-to-end speedup.
+
+## 2026-08-15 M5.8 integrated Hex8 comparison
+
+The 98-node, 24-element M5.8 three-dimensional transient case has 392 coupled
+degrees of freedom and 20 fixed Backward Euler steps. Both programs read the
+same tracked Exodus mesh, use the same finite-strain material laws, heat and
+pressure histories, penalty contact, friction coefficient, direct LU solve,
+and nonlinear tolerances. Field and console output were disabled for timing.
+CPU 0 was fixed with `taskset`, while OMP, OpenBLAS, MKL, and NumExpr were each
+limited to one thread.
+
+After one unreported warm-up, fuelsim wall-clock samples were `3.27`, `3.28`,
+and `3.28 s`, giving a `3.28 s` median. The corresponding MOOSE samples were
+`19.91`, `19.77`, and `19.86 s`, giving a `19.86 s` median. The measured ratio
+is `6.05`, or an 83.48 percent lower fuelsim wall time. The fuelsim solve used
+78 nonlinear iterations and one PETSc workspace. MOOSE attempted expression
+JIT compilation on every process start, could not find `mpicxx`, and fell back
+to byte-code interpretation. This startup and interpretation cost is part of
+the measured executable path. The result is a small-case paired observation,
+not a claim about engineering-scale performance or parallel scaling.

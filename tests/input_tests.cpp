@@ -472,7 +472,28 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
     passed = expect_case_failure(malformed_path, dirichlet_configuration, "not valid for type='dirichlet'") && passed;
     std::string pressure_configuration = current_traction_case;
     pressure_configuration.replace(pressure_configuration.find(traction_type), traction_type.size(), "type = pressure");
-    passed = expect_case_failure(malformed_path, pressure_configuration, "not valid for type='pressure'") && passed;
+    const std::size_t pressure_type_position = pressure_configuration.find("type = pressure");
+    const std::size_t traction_field_position = pressure_configuration.find("    field = ", pressure_type_position);
+    if (traction_field_position == std::string::npos) return check(false, "traction fixture has a displacement field");
+    pressure_configuration.erase(traction_field_position,
+        pressure_configuration.find('\n', traction_field_position) - traction_field_position + 1);
+    {
+        std::ofstream output(malformed_path, std::ios::out | std::ios::trunc);
+        if (!output) return check(false, "could not create current-pressure input fixture");
+        output << pressure_configuration;
+    }
+    const fuelsim::FuelSimCaseDefinition current_pressure = fuelsim::read_case_input(malformed_path);
+    passed = check(current_pressure.spatial.boundary_conditions.back().use_displaced_geometry,
+                 "current-configuration pressure is parsed") &&
+             passed;
+    if (std::remove(malformed_path.c_str()) != 0)
+        return check(false, "could not remove current-pressure input fixture");
+    std::string invalid_pressure_configuration = pressure_configuration;
+    const std::string current_configuration = "configuration = current";
+    invalid_pressure_configuration.replace(invalid_pressure_configuration.find(current_configuration),
+        current_configuration.size(), "configuration = rotating");
+    passed =
+        expect_case_failure(malformed_path, invalid_pressure_configuration, "must be reference or current") && passed;
     std::string convection_configuration = m3_case;
     const std::string convection_type = "type = convection";
     const std::size_t convection_position = convection_configuration.find(convection_type);
