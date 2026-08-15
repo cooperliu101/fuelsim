@@ -275,6 +275,16 @@ CartesianHeatQuadratureValue compute_quad4_to_quad4_gap_heat_value(const GapHeat
     return {value.projected, value.gap.value(), value.heat_flux.value(), value.weighted_measure.value()};
 }
 
+ContactProjectionValue compute_quad4_to_quad4_heat_projection(
+    const Quad4ToQuad4HeatGeometry& geometry, const Quad4SurfaceContactLocalValues& state) {
+    const Quad4SurfaceContactLocalAdValues ad_state = make_ad_state(state, false);
+    const std::array<ActivePoint3, 8> nodes =
+        current_nodes(geometry.secondary_coordinates, geometry.primary_coordinates, ad_state);
+    const SurfaceProjection projection =
+        project_to_primary(interpolate_point(nodes, 0, geometry.secondary_shape), nodes, geometry.normal_orientation);
+    return {projection.projected, projection.projected ? projection.gap.value() : 0.0};
+}
+
 Quad4SurfaceContactLocalResidual compute_node_to_quad4_contact(const NormalContactProperties& properties,
     const NodeToQuad4ContactGeometry& geometry, const Quad4SurfaceContactLocalValues& state,
     const Quad4SurfaceContactLocalValues& committed_state, const ContactPointHistory& history,
@@ -305,5 +315,15 @@ CartesianContactPointValue compute_node_to_quad4_contact_value(const NormalConta
         {value.elastic_tangential_slip[0].value(), value.elastic_tangential_slip[1].value(),
             value.elastic_tangential_slip[2].value()},
         value.sliding};
+}
+
+ContactProjectionValue compute_node_to_quad4_contact_projection(
+    const NodeToQuad4ContactGeometry& geometry, const Quad4SurfaceContactLocalValues& state) {
+    const Quad4SurfaceContactLocalAdValues ad_state = make_ad_state(state, false);
+    const std::array<ActivePoint3, 8> nodes =
+        current_nodes(geometry.secondary_coordinates, geometry.primary_coordinates, ad_state);
+    const SurfaceProjection projection =
+        project_to_primary(nodes[geometry.secondary_local_node], nodes, geometry.normal_orientation);
+    return {projection.projected, projection.projected ? projection.gap.value() : 0.0};
 }
 } // namespace fuelsim

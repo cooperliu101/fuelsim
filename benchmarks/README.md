@@ -525,3 +525,29 @@ shadow values fell from 11,672 to 8,057. The previously recorded matching output
 percent above the older `a462afe` specialized-path observation of `10.260384 s`, because production contact now
 searches the complete current primary chain and supports large sliding instead of assuming a fixed near-neighbor
 projection. These measurements apply only to the named mesh, physics, direct solver, and CPU placement.
+
+## 2026-08-15 exact large-surface contact search
+
+The current-configuration contact search now caches the previous active primary segment or face and uses a refitted
+axis-aligned bounding-box tree when a contact surface has more than 64 primary candidates. The tree only prunes a node
+when its Euclidean distance lower bound is strictly greater than the best exact projected distance, so equal-distance
+candidates still reach the existing deterministic primary-index tie break. Smaller surfaces retain the compact linear
+scan because paired measurements showed that building and traversing a tree for the 64-segment engineering case cost
+more than it saved. The sparse matrix still reserves every potential candidate.
+
+A deterministic 97-segment unit check compared every tree result with exhaustive selection over 151 query points. It
+visited at most one exact candidate per query while returning the same nearest item, and a separate equal-distance case
+retained both candidates for the primary-index tie break. The 128-segment M5.2 large-sliding solve retained its
+cross-segment ownership and MOOSE field errors; direct process observations were `0.5080/0.5073 s` for the candidate and
+`dabfcb2`, which is indistinguishable at this scale rather than evidence of an end-to-end speedup.
+
+All final timings used CPU 0 and one thread for OpenMP, OpenBLAS, MKL, and NumExpr. Three final 1,584-degree-of-freedom
+candidate samples were `1.041394112`, `1.039736670`, and `1.067377675 s`, with a `1.041394112 s` median. Three
+`dabfcb2` samples were `1.039641740`, `1.067660264`, and `1.040072855 s`, with a `1.040072855 s` median. The candidate
+median is 0.13 percent higher, which is recorded as no material change rather than a speedup. The required final
+23,010-degree-of-freedom, 20-step run completed in `31.538306089 s`; the two same-session `dabfcb2` observations were
+`31.942540778` and `31.708051782 s`. The final two-rank candidate and paired baseline observations were
+`11.989104812/11.923955247 s`. Every medium run completed 62 nonlinear and linear iterations, 82 residual callbacks, 62
+Jacobian callbacks, and one PETSc workspace. These results show that the search changes preserve current benchmark
+performance; the present 64-segment benchmark does not exercise the tree and therefore does not establish large-surface
+end-to-end speedup.

@@ -4,6 +4,7 @@
 #include "fuelsim/quad4_rz.hpp"
 #include "fuelsim/spatial_definition.hpp"
 #include "fuelsim/steady_problem.hpp"
+#include "spatial_common.hpp"
 #include "support/material_factory.hpp"
 #include "support/mesh_fixture.hpp"
 #include "support/rz_problem_access.hpp"
@@ -13,6 +14,7 @@
 #include <cstddef>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -32,6 +34,69 @@ double scaled_error(double actual, double expected) {
 }
 
 double relative_difference(double actual, double expected) { return std::abs(actual - expected) / std::abs(expected); }
+
+bool test_contact_search_tree() {
+    std::vector<fuelsim::spatial_detail::ContactSearchBox> boxes;
+    for (std::size_t item = 0; item < 97; ++item) {
+        const double coordinate = 0.001 * static_cast<double>((37 * item) % 97);
+        boxes.push_back({{coordinate, -0.01, 0.0}, {coordinate, 0.01, 0.0}, item});
+    }
+    fuelsim::spatial_detail::ContactSearchTree tree;
+    tree.build(std::move(boxes));
+    fuelsim::spatial_detail::ContactSearchQuery query;
+    bool passed = true;
+    std::size_t maximum_visited_candidates = 0;
+    for (std::size_t sample = 0; sample < 151; ++sample) {
+        const std::array<double, 3> point = {
+            0.00064 * static_cast<double>(sample), 0.007 * std::sin(static_cast<double>(sample)), 0.0};
+        double exhaustive_distance = std::numeric_limits<double>::infinity();
+        std::size_t exhaustive_item = std::numeric_limits<std::size_t>::max();
+        for (std::size_t item = 0; item < 97; ++item) {
+            const double coordinate = 0.001 * static_cast<double>((37 * item) % 97);
+            const double distance = std::abs(point[0] - coordinate);
+            if (distance < exhaustive_distance || (distance == exhaustive_distance && item < exhaustive_item)) {
+                exhaustive_distance = distance;
+                exhaustive_item = item;
+            }
+        }
+        tree.begin_query(point, query);
+        double tree_distance = std::numeric_limits<double>::infinity();
+        std::size_t tree_item = std::numeric_limits<std::size_t>::max(), candidate = 0;
+        std::size_t visited_candidates = 0;
+        while (tree.next_candidate(query, tree_distance, candidate)) {
+            ++visited_candidates;
+            const double coordinate = 0.001 * static_cast<double>((37 * candidate) % 97);
+            const double distance = std::abs(point[0] - coordinate);
+            if (distance < tree_distance || (distance == tree_distance && candidate < tree_item)) {
+                tree_distance = distance;
+                tree_item = candidate;
+            }
+        }
+        passed = check(tree_item == exhaustive_item && tree_distance == exhaustive_distance,
+                     "contact search tree matches exhaustive nearest-candidate selection") &&
+                 passed;
+        maximum_visited_candidates = std::max(maximum_visited_candidates, visited_candidates);
+    }
+    std::cout << "contact_search_maximum_visited_candidates=" << maximum_visited_candidates << '\n';
+    passed = check(maximum_visited_candidates <= 2,
+                 "contact search tree prunes the 97-segment exact search to at most two candidates") &&
+             passed;
+    tree.build({{{0.03, -0.01, 0.0}, {0.03, 0.01, 0.0}, 8}, {{0.03, -0.01, 0.0}, {0.03, 0.01, 0.0}, 2}});
+    tree.begin_query({0.04, 0.0, 0.0}, query);
+    double tied_distance = std::numeric_limits<double>::infinity();
+    std::size_t tied_item = std::numeric_limits<std::size_t>::max(), candidate = 0;
+    while (tree.next_candidate(query, tied_distance, candidate)) {
+        constexpr double distance = 0.01;
+        if (distance < tied_distance || (distance == tied_distance && candidate < tied_item)) {
+            tied_distance = distance;
+            tied_item = candidate;
+        }
+    }
+    passed =
+        check(tied_item == 2, "contact search tree retains equal-distance candidates for deterministic ownership") &&
+        passed;
+    return passed;
+}
 
 fuelsim::ThermoelasticProperties properties() {
     return fuelsim::test::thermoelastic(3824.0, 0.61, 2.0e11, 0.316, 1.0e-5, 600.0);
@@ -1741,6 +1806,7 @@ bool test_temperature_active_thermoelastic_properties() {
 int main() {
     std::cout << std::scientific << std::setprecision(12);
     bool passed = true;
+    passed = test_contact_search_tree() && passed;
     passed = test_mesh_and_geometry() && passed;
     passed = test_element_jacobian() && passed;
     passed = test_finite_strain_kinematics_and_jacobian() && passed;

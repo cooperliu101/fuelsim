@@ -63,6 +63,7 @@ add_library(fuelsim_core
     src/assembly.cpp
     src/cartesian3d_assembly.cpp
     src/cartesian3d_contact.cpp
+    src/contact_search.cpp
     src/hex8.cpp
     src/kernels.cpp
     src/mesh.cpp

@@ -2,11 +2,15 @@
 #include "fuelsim/mesh.hpp"
 #include "fuelsim/nonlinear_problem.hpp"
 #include "fuelsim/spatial_definition.hpp"
+#include <array>
 #include <cstdint>
+#include <limits>
 #include <utility>
 #include <vector>
 
 namespace fuelsim::spatial_detail {
+inline constexpr std::size_t contact_search_tree_minimum_items = 64;
+
 enum class DofLayout {
     axisymmetric_rz,
     cartesian_3d,
@@ -14,6 +18,47 @@ enum class DofLayout {
 
 struct ConvectionValues final {
     double coefficient, ambient;
+};
+
+struct ContactSearchBox final {
+    std::array<double, 3> minimum{}, maximum{};
+    std::size_t item = 0;
+};
+
+struct ContactSearchQueueEntry final {
+    std::size_t node = 0;
+    double distance_squared = 0.0;
+};
+
+struct ContactSearchQuery final {
+    std::array<double, 3> point{};
+    std::vector<ContactSearchQueueEntry> queue;
+};
+
+class ContactSearchTree final {
+  public:
+    void build(std::vector<ContactSearchBox> boxes);
+
+    bool can_refit(std::size_t box_count) const noexcept { return box_count == _boxes.size() && !_nodes.empty(); }
+
+    void refit(const std::vector<ContactSearchBox>& boxes);
+    void begin_query(const std::array<double, 3>& point, ContactSearchQuery& query) const;
+    bool next_candidate(ContactSearchQuery& query, double maximum_distance, std::size_t& item) const;
+
+  private:
+    struct Node final {
+        std::array<double, 3> minimum{}, maximum{};
+        std::size_t left = std::numeric_limits<std::size_t>::max();
+        std::size_t right = std::numeric_limits<std::size_t>::max();
+        std::size_t item = std::numeric_limits<std::size_t>::max();
+    };
+
+    std::size_t build_node(std::vector<std::size_t>& indices, std::size_t begin, std::size_t end);
+    double distance_squared(std::size_t node, const std::array<double, 3>& point) const;
+    void push_node(ContactSearchQuery& query, std::size_t node) const;
+
+    std::vector<ContactSearchBox> _boxes;
+    std::vector<Node> _nodes;
 };
 
 std::vector<std::int64_t> resolve_block_ids(const SpatialDefinition& definition,

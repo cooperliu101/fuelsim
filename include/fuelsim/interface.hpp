@@ -132,6 +132,8 @@ Quad4SurfaceContactLocalResidual compute_quad4_to_quad4_gap_heat(const GapHeatPr
     Quad4SurfaceContactLocalJacobian* jacobian = nullptr);
 CartesianHeatQuadratureValue compute_quad4_to_quad4_gap_heat_value(const GapHeatProperties& properties,
     const Quad4ToQuad4HeatGeometry& geometry, const Quad4SurfaceContactLocalValues& state);
+ContactProjectionValue compute_quad4_to_quad4_heat_projection(
+    const Quad4ToQuad4HeatGeometry& geometry, const Quad4SurfaceContactLocalValues& state);
 Quad4SurfaceContactLocalResidual compute_node_to_quad4_contact(const NormalContactProperties& properties,
     const NodeToQuad4ContactGeometry& geometry, const Quad4SurfaceContactLocalValues& state,
     const Quad4SurfaceContactLocalValues& committed_state, const ContactPointHistory& history,
@@ -139,4 +141,6 @@ Quad4SurfaceContactLocalResidual compute_node_to_quad4_contact(const NormalConta
 CartesianContactPointValue compute_node_to_quad4_contact_value(const NormalContactProperties& properties,
     const NodeToQuad4ContactGeometry& geometry, const Quad4SurfaceContactLocalValues& state,
     const Quad4SurfaceContactLocalValues& committed_state, const ContactPointHistory& history);
+ContactProjectionValue compute_node_to_quad4_contact_projection(
+    const NodeToQuad4ContactGeometry& geometry, const Quad4SurfaceContactLocalValues& state);
 } // namespace fuelsim
