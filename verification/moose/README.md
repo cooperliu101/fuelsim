@@ -1275,19 +1275,24 @@ state numerical-equivalence evidence, not a speedup or general scaling claim.
 
 ## M5.8 integrated Hex8 provenance
 
-`m58_integrated_hex8_mesh.i` generates the tracked 98-node, 24-element Hex8
+`m58_integrated_hex8_mesh.i` generates the tracked 269-node, 144-element Hex8
 mesh, and `m58_integrated_hex8.i` defines the 20-step three-dimensional
-transient reference. The model combines finite strain in both blocks, coupled
-cladding plasticity and creep, transient heat conduction, thermal and
-mechanical contact, Coulomb friction, current-configuration pressure, a
-0.6 mm fuel translation, and a controlled nonzero thickness extension. The
-mesh and final CSV files are read directly by the fuelsim comparison; no
-equivalent coordinates are rebuilt in the test.
+cylindrical PCMI reference. A solid 4.12 mm-radius fuel cylinder and an
+independent annular cladding mesh have a nominal 3.5 micrometre radial gap. The
+cladding mesh is rotated 0.1 degrees about the common axis so that fuel contact
+nodes do not occupy degenerate primary-face edges. The model combines finite
+strain in both blocks, coupled cladding plasticity and creep, transient heat
+conduction, thermal and mechanical contact, Coulomb friction,
+current-configuration pressure, and a 0.6 mm fuel translation. The mesh and
+final CSV files are read directly by the fuelsim comparison; reference
+coordinates, rather than reader-specific internal IDs, establish the unique
+node and element pairing.
 
 The reference was generated with:
 
 ```bash
-/home/cooper/projects/july/july-opt \
+env PATH=/home/cooper/miniforge/envs/moose/bin:/usr/local/bin:/usr/bin:/bin \
+  /home/cooper/projects/july/july-opt \
   --mesh-only m58_integrated_hex8_mesh.e \
   -i m58_integrated_hex8_mesh.i
 env PATH=/home/cooper/miniforge/envs/moose/bin:/usr/local/bin:/usr/bin:/bin \
@@ -1307,9 +1312,9 @@ MPI ranks / threads:   1 / 1
 July worktree:         dirty; executable hash is therefore authoritative
 ```
 
-The tracked final files contain all 98 nodes, all 10 secondary-node contact
+The tracked final files contain all 269 nodes, all 40 secondary-node contact
 pressures, and element-average equivalent stress, plastic strain, and creep
-strain for all 16 cladding elements. Every relative L2, relative absolute-peak,
+strain for all 64 cladding elements. Every relative L2, relative absolute-peak,
 and maximum pointwise relative error is below 0.5 percent. The comparison uses
 no denominator floor and reports zero-reference counts and maximum absolute
 differences separately. The exact metrics and the controlled timing protocol

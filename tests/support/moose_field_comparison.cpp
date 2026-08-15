@@ -138,6 +138,8 @@ void FieldErrorMetrics::add(double actual, double reference) {
     if (std::abs(difference) > maximum_absolute_difference) {
         maximum_absolute_difference = std::abs(difference);
         maximum_absolute_difference_index = value_count;
+        maximum_absolute_difference_actual = actual;
+        maximum_absolute_difference_reference = reference;
     }
     if (reference != 0.0) {
         const double relative = std::abs(difference) / std::abs(reference);
@@ -284,6 +286,9 @@ void print_relative_metrics(const std::string& name, const FieldErrorMetrics& me
     std::cout << name << "_maximum_pointwise_relative_reference=" << metrics.maximum_pointwise_relative_reference
               << '\n';
     std::cout << name << "_maximum_absolute_difference_index=" << metrics.maximum_absolute_difference_index << '\n';
+    std::cout << name << "_maximum_absolute_difference_actual=" << metrics.maximum_absolute_difference_actual << '\n';
+    std::cout << name << "_maximum_absolute_difference_reference=" << metrics.maximum_absolute_difference_reference
+              << '\n';
     std::cout << name << "_zero_reference_count=" << metrics.zero_reference_count << '\n';
     std::cout << name << "_maximum_zero_reference_absolute_difference=" << metrics.maximum_zero_reference_difference
               << '\n';

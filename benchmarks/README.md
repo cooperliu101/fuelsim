@@ -552,9 +552,9 @@ Jacobian callbacks, and one PETSc workspace. These results show that the search 
 performance; the present 64-segment benchmark does not exercise the tree and therefore does not establish large-surface
 end-to-end speedup.
 
-## 2026-08-15 M5.8 integrated Hex8 comparison
+## 2026-08-16 M5.8 cylindrical PCMI Hex8 comparison
 
-The 98-node, 24-element M5.8 three-dimensional transient case has 392 coupled
+The 269-node, 144-element M5.8 three-dimensional transient case has 1,076 coupled
 degrees of freedom and 20 fixed Backward Euler steps. Both programs read the
 same tracked Exodus mesh, use the same finite-strain material laws, heat and
 pressure histories, penalty contact, friction coefficient, direct LU solve,
@@ -562,11 +562,11 @@ and nonlinear tolerances. Field and console output were disabled for timing.
 CPU 0 was fixed with `taskset`, while OMP, OpenBLAS, MKL, and NumExpr were each
 limited to one thread.
 
-The fuelsim and MOOSE warm-up runs were `3.27 s` and `20.80 s`. Subsequent
-fuelsim wall-clock samples were `3.27`, `3.28`, and `3.28 s`, giving a
-`3.28 s` median. The corresponding MOOSE samples were
-`19.91`, `19.83`, and `19.84 s`, giving a `19.84 s` median. The measured ratio
-is `6.05`, or an 83.47 percent lower fuelsim wall time. The fuelsim solve used
+After one unrecorded warm-up run for each program, the fuelsim wall-clock
+samples were `41.74`, `41.51`, and `41.87 s`, giving a `41.74 s` median. The
+corresponding MOOSE samples were `79.52`, `79.45`, and `79.37 s`, giving a
+`79.45 s` median. The measured ratio is `1.90`, or a 47.5 percent lower fuelsim
+wall time. The fuelsim solve used
 78 nonlinear iterations and one PETSc workspace. The timing environment put
 the Conda MOOSE `bin` directory first in `PATH`; `mpicxx` was available and
 expression JIT compilation succeeded. The result is a small-case paired

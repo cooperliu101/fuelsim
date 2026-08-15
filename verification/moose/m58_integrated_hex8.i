@@ -1,7 +1,6 @@
-# Three-dimensional counterpart of the M5.7 integrated path. A current-
-# thickness has a controlled nonzero extension while the remaining loads
-# exercise finite strain, coupled inelasticity, thermal contact, large sliding,
-# and vector friction.
+# Three-dimensional cylindrical counterpart of the M5.7 integrated path. A
+# solid Hex8 fuel pellet interacts with an independent concentric Hex8 cladding
+# tube through finite-strain thermal contact, large sliding, and vector friction.
 
 [Mesh]
   file = m58_integrated_hex8_mesh.e
@@ -79,11 +78,6 @@
     x = '0 0.2 0.5 0.8 1'
     y = '0 2e-6 1e-5 1.6e-5 2e-5'
   []
-  [thickness_stretch]
-    type = PiecewiseLinear
-    x = '0 0.2 0.5 0.8 1'
-    y = '0 6e-7 3e-6 4.8e-6 6e-6'
-  []
 []
 
 [Kernels]
@@ -128,8 +122,8 @@
   [gap]
     type = GapHeatTransfer
     variable = T
-    primary = clad_left
-    secondary = fuel_right
+    primary = clad_rmin
+    secondary = fuel_outer
     gap_conductivity = 0.004
     quadrature = true
     min_gap = 1e-6
@@ -142,81 +136,69 @@
 
 [Contact]
   [mechanical]
-    primary = clad_left
-    secondary = fuel_right
+    primary = clad_rmin
+    secondary = fuel_outer
     formulation = penalty
     model = coulomb
     friction_coefficient = 0.002
-    penalty = 1e12
+    penalty = 1e10
     normalize_penalty = true
   []
 []
 
 [BCs]
-  [fuel_left]
+  [fuel_bottom_x]
     type = ADDirichletBC
     variable = disp_x
-    boundary = fuel_left
+    boundary = fuel_bottom
     value = 0
   []
-  [fuel_back]
+  [fuel_bottom_y]
     type = ADDirichletBC
-    variable = disp_z
-    boundary = fuel_back
+    variable = disp_y
+    boundary = fuel_bottom
     value = 0
   []
   [fuel_top_slide]
     type = ADFunctionDirichletBC
-    variable = disp_y
+    variable = disp_z
     boundary = fuel_top
     function = axial_slide
   []
-  [fuel_front_stretch]
-    type = ADFunctionDirichletBC
-    variable = disp_z
-    boundary = fuel_front
-    function = thickness_stretch
+  [clad_bottom_x]
+    type = ADDirichletBC
+    variable = disp_x
+    boundary = clad_bottom
+    value = 0
   []
-  [clad_bottom]
+  [clad_bottom_y]
     type = ADDirichletBC
     variable = disp_y
     boundary = clad_bottom
     value = 0
   []
-  [clad_back]
+  [clad_bottom_z]
     type = ADDirichletBC
     variable = disp_z
-    boundary = clad_back
-    value = 0
-  []
-  [clad_top_radial_support]
-    type = ADDirichletBC
-    variable = disp_x
-    boundary = clad_top
+    boundary = clad_bottom
     value = 0
   []
   [clad_top_slide]
     type = ADFunctionDirichletBC
-    variable = disp_y
+    variable = disp_z
     boundary = clad_top
     function = cladding_axial_slide
-  []
-  [clad_front_stretch]
-    type = ADFunctionDirichletBC
-    variable = disp_z
-    boundary = clad_front
-    function = thickness_stretch
   []
   [clad_outer_temperature]
     type = DirichletBC
     variable = T
-    boundary = clad_right
+    boundary = clad_rmax
     value = 600
   []
   [internal_pressure_x]
     type = ADPressure
     variable = disp_x
-    boundary = clad_left
+    boundary = clad_rmin
     factor = 5e5
     function = internal_pressure
     use_displaced_mesh = true
@@ -224,7 +206,7 @@
   [internal_pressure_y]
     type = ADPressure
     variable = disp_y
-    boundary = clad_left
+    boundary = clad_rmin
     factor = 5e5
     function = internal_pressure
     use_displaced_mesh = true
@@ -232,7 +214,7 @@
   [internal_pressure_z]
     type = ADPressure
     variable = disp_z
-    boundary = clad_left
+    boundary = clad_rmin
     factor = 5e5
     function = internal_pressure
     use_displaced_mesh = true
@@ -240,7 +222,7 @@
   [external_pressure_x]
     type = ADPressure
     variable = disp_x
-    boundary = clad_right
+    boundary = clad_rmax
     factor = 2e6
     function = external_pressure
     use_displaced_mesh = true
@@ -248,7 +230,7 @@
   [external_pressure_y]
     type = ADPressure
     variable = disp_y
-    boundary = clad_right
+    boundary = clad_rmax
     factor = 2e6
     function = external_pressure
     use_displaced_mesh = true
@@ -256,7 +238,7 @@
   [external_pressure_z]
     type = ADPressure
     variable = disp_z
-    boundary = clad_right
+    boundary = clad_rmax
     factor = 2e6
     function = external_pressure
     use_displaced_mesh = true
@@ -350,8 +332,8 @@
 [Dampers]
   [contact_slip]
     type = ContactSlipDamper
-    primary = clad_left
-    secondary = fuel_right
+    primary = clad_rmin
+    secondary = fuel_outer
     max_iterative_slip = 2e-6
     min_damping = 1e-6
   []
@@ -404,7 +386,7 @@
   []
   [contact_pressure]
     type = NodalValueSampler
-    boundary = fuel_right
+    boundary = fuel_outer
     variable = 'contact_pressure nodal_area penetration'
     sort_by = id
     use_displaced_mesh = false

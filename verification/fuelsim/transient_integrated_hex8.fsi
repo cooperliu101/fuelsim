@@ -35,11 +35,6 @@
     times = 0 0.2 0.5 0.8 1
     values = 0 2e-6 1e-5 1.6e-5 2e-5
   []
-  [thickness_stretch]
-    type = piecewise_linear
-    times = 0 0.2 0.5 0.8 1
-    values = 0 6e-7 3e-6 4.8e-6 6e-6
-  []
 []
 
 [Materials]
@@ -117,95 +112,81 @@
 
 [Contact]
   [fuel_cladding]
-    primary = clad_left
-    secondary = fuel_right
+    primary = clad_rmin
+    secondary = fuel_outer
     [thermal]
       gap_conductivity = 0.004
       minimum_gap = 1e-6
     []
     [mechanical]
       formulation = penalty
-      penalty = 1e12
+      penalty = 1e10
       mu = 0.002
     []
   []
 []
 
 [BoundaryConditions]
-  [fuel_left]
+  [fuel_bottom_x]
     type = dirichlet
-    boundary = fuel_left
+    boundary = fuel_bottom
     field = displacement_x
     value = 0
   []
-  [fuel_back]
+  [fuel_bottom_y]
     type = dirichlet
-    boundary = fuel_back
-    field = displacement_z
+    boundary = fuel_bottom
+    field = displacement_y
     value = 0
   []
   [fuel_top_slide]
     type = dirichlet
     boundary = fuel_top
-    field = displacement_y
+    field = displacement_z
     value = 1
     function = axial_slide
   []
-  [fuel_front_stretch]
+  [cladding_bottom_x]
     type = dirichlet
-    boundary = fuel_front
-    field = displacement_z
-    value = 1
-    function = thickness_stretch
+    boundary = clad_bottom
+    field = displacement_x
+    value = 0
   []
-  [cladding_bottom]
+  [cladding_bottom_y]
     type = dirichlet
     boundary = clad_bottom
     field = displacement_y
     value = 0
   []
-  [cladding_back]
+  [cladding_bottom_z]
     type = dirichlet
-    boundary = clad_back
+    boundary = clad_bottom
     field = displacement_z
-    value = 0
-  []
-  [cladding_top_radial_support]
-    type = dirichlet
-    boundary = clad_top
-    field = displacement_x
     value = 0
   []
   [cladding_top_slide]
     type = dirichlet
     boundary = clad_top
-    field = displacement_y
+    field = displacement_z
     value = 1
     function = cladding_axial_slide
   []
-  [cladding_front_stretch]
-    type = dirichlet
-    boundary = clad_front
-    field = displacement_z
-    value = 1
-    function = thickness_stretch
-  []
   [cladding_outer_temperature]
     type = dirichlet
-    boundary = clad_right
+    boundary = clad_rmax
     field = temperature
     value = 600
   []
   [cladding_internal_pressure]
     type = pressure
-    boundary = clad_left
+    boundary = clad_rmin
     value = 5e5
     function = internal_pressure
     configuration = current
   []
   [cladding_external_pressure]
     type = pressure
-    boundary = clad_right
+    boundary = clad_rmax
     value = 2e6
     function = external_pressure
     configuration = current

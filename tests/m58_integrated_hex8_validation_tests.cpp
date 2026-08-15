@@ -9,6 +9,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -16,18 +17,16 @@
 
 namespace {
 struct NodeReference final {
-    std::size_t id;
     fuelsim::CartesianPoint3 point;
     std::array<double, 4> fields;
 };
 
 struct ContactReference final {
-    std::size_t id;
+    fuelsim::CartesianPoint3 point;
     double pressure;
 };
 
 struct ElementReference final {
-    std::size_t id;
     fuelsim::CartesianPoint3 point;
     std::array<double, 3> fields;
 };
@@ -63,16 +62,16 @@ std::vector<NodeReference> read_nodes(const std::string& path) {
     std::string line;
     std::getline(input, line);
     const auto header = split_csv(line);
-    const std::array<std::size_t, 8> columns = {column(header, "id", path), column(header, "x", path),
-        column(header, "y", path), column(header, "z", path), column(header, "T", path), column(header, "disp_x", path),
+    const std::array<std::size_t, 7> columns = {column(header, "x", path), column(header, "y", path),
+        column(header, "z", path), column(header, "T", path), column(header, "disp_x", path),
         column(header, "disp_y", path), column(header, "disp_z", path)};
     std::vector<NodeReference> result;
     while (std::getline(input, line)) {
         const auto values = split_csv(line);
-        result.push_back({static_cast<std::size_t>(number(values, columns[0], path)),
-            {number(values, columns[1], path), number(values, columns[2], path), number(values, columns[3], path)},
-            {number(values, columns[4], path), number(values, columns[5], path), number(values, columns[6], path),
-                number(values, columns[7], path)}});
+        result.push_back(
+            {{number(values, columns[0], path), number(values, columns[1], path), number(values, columns[2], path)},
+                {number(values, columns[3], path), number(values, columns[4], path), number(values, columns[5], path),
+                    number(values, columns[6], path)}});
     }
     return result;
 }
@@ -83,11 +82,14 @@ std::vector<ContactReference> read_contact(const std::string& path) {
     std::string line;
     std::getline(input, line);
     const auto header = split_csv(line);
-    const std::size_t id = column(header, "id", path), pressure = column(header, "contact_pressure", path);
+    const std::array<std::size_t, 4> columns = {column(header, "x", path), column(header, "y", path),
+        column(header, "z", path), column(header, "contact_pressure", path)};
     std::vector<ContactReference> result;
     while (std::getline(input, line)) {
         const auto values = split_csv(line);
-        result.push_back({static_cast<std::size_t>(number(values, id, path)), number(values, pressure, path)});
+        result.push_back(
+            {{number(values, columns[0], path), number(values, columns[1], path), number(values, columns[2], path)},
+                number(values, columns[3], path)});
     }
     return result;
 }
@@ -98,15 +100,15 @@ std::vector<ElementReference> read_elements(const std::string& path) {
     std::string line;
     std::getline(input, line);
     const auto header = split_csv(line);
-    const std::array<std::size_t, 7> columns = {column(header, "id", path), column(header, "x", path),
-        column(header, "y", path), column(header, "z", path), column(header, "vonmises_stress", path),
+    const std::array<std::size_t, 6> columns = {column(header, "x", path), column(header, "y", path),
+        column(header, "z", path), column(header, "vonmises_stress", path),
         column(header, "effective_plastic_strain", path), column(header, "effective_creep_strain", path)};
     std::vector<ElementReference> result;
     while (std::getline(input, line)) {
         const auto values = split_csv(line);
-        result.push_back({static_cast<std::size_t>(number(values, columns[0], path)),
-            {number(values, columns[1], path), number(values, columns[2], path), number(values, columns[3], path)},
-            {number(values, columns[4], path), number(values, columns[5], path), number(values, columns[6], path)}});
+        result.push_back({{number(values, columns[0], path), number(values, columns[1], path),
+                              number(values, columns[2], path)},
+            {number(values, columns[3], path), number(values, columns[4], path), number(values, columns[5], path)}});
     }
     return result;
 }
@@ -116,6 +118,12 @@ double equivalent_stress(const fuelsim::SymmetricTensor3Values& stress) {
     return std::sqrt(1.5 * ((stress.xx - mean) * (stress.xx - mean) + (stress.yy - mean) * (stress.yy - mean) +
                                (stress.zz - mean) * (stress.zz - mean) +
                                2.0 * (stress.xy * stress.xy + stress.yz * stress.yz + stress.xz * stress.xz)));
+}
+
+bool same_point(const fuelsim::CartesianPoint3& first, const fuelsim::CartesianPoint3& second) {
+    constexpr double tolerance = 1.0e-12;
+    return std::abs(first.x - second.x) < tolerance && std::abs(first.y - second.y) < tolerance &&
+           std::abs(first.z - second.z) < tolerance;
 }
 
 fuelsim::SolverOptions solver_options(const fuelsim::FuelSimCaseDefinition& definition) {
@@ -154,9 +162,18 @@ bool run(const std::string& input_path, const std::string& nodal_path, const std
     fuelsim::TransientProblem problem(definition.spatial, source);
     const auto initial_contact =
         fuelsim::cartesian::ProblemAccess::summarize_contact_nodes(problem, 0, problem.committed_solution());
+    double initial_minimum_gap = std::numeric_limits<double>::infinity();
+    std::size_t initial_projected_nodes = 0;
+    for (const fuelsim::CartesianContactNodeSummary& node : initial_contact)
+        if (node.projected) {
+            initial_minimum_gap = std::min(initial_minimum_gap, node.gap);
+            ++initial_projected_nodes;
+        }
     const fuelsim::TransientResult solve =
         fuelsim::solve_transient(problem, time_options(definition), solver_options(definition));
     bool passed =
+        check(initial_projected_nodes == initial_contact.size() && initial_minimum_gap > 0.0,
+            "M5.8 starts from a positive projected mechanical gap") &&
         check(
             solve.completed && solve.accepted_steps.size() == 20, "M5.8 completes twenty equal Backward Euler steps") &&
         check(solve.aggregate_timing.workspace_setups == 1, "M5.8 reuses one PETSc workspace across the complete path");
@@ -164,6 +181,7 @@ bool run(const std::string& input_path, const std::string& nodal_path, const std
     const auto node_reference = read_nodes(nodal_path);
     if (node_reference.size() != source.nodes().size()) throw std::invalid_argument("M5.8 node counts differ");
     std::array<fuelsim::test::FieldErrorMetrics, 4> nodal;
+    fuelsim::test::FieldErrorMetrics radial_displacement, tangential_displacement;
     double maximum_coordinate_difference = 0.0;
     const auto& dofs = fuelsim::cartesian::ProblemAccess::dof_map(problem);
     for (std::size_t region = 0; region < fuelsim::cartesian::ProblemAccess::region_count(problem); ++region) {
@@ -171,25 +189,45 @@ bool run(const std::string& input_path, const std::string& nodal_path, const std
         const std::size_t offset = fuelsim::cartesian::ProblemAccess::region_node_offset(problem, region);
         for (std::size_t local = 0; local < mesh.nodes().size(); ++local) {
             const std::size_t source_node = mesh.source_node_ids()[local];
-            const NodeReference& expected = node_reference.at(source_node);
-            if (expected.id != source_node) throw std::invalid_argument("M5.8 source-node mapping differs");
             const fuelsim::CartesianPoint3& point = source.nodes().at(source_node);
+            const auto reference = std::find_if(node_reference.begin(), node_reference.end(),
+                [&](const NodeReference& value) { return same_point(value.point, point); });
+            if (reference == node_reference.end())
+                throw std::invalid_argument("M5.8 source-node coordinate is missing");
+            const NodeReference& expected = *reference;
+            std::array<double, 4> reference_fields = expected.fields;
+            // The cylindrical axis has analytical zero transverse displacement. Classify MOOSE roundoff there as a
+            // zero reference rather than adding a denominator floor to the pointwise relative metric.
+            if (std::hypot(point.x, point.y) < 1.0e-15) {
+                reference_fields[1] = 0.0;
+                reference_fields[2] = 0.0;
+            }
             maximum_coordinate_difference = std::max(maximum_coordinate_difference,
                 std::max({std::abs(point.x - expected.point.x), std::abs(point.y - expected.point.y),
                     std::abs(point.z - expected.point.z)}));
-            for (std::size_t field = 0; field < nodal.size(); ++field)
-                nodal[field].add(
-                    problem.committed_solution()[dofs.dof(
-                        std::array<fuelsim::Field, 4>{fuelsim::Field::temperature, fuelsim::Field::displacement_x,
-                            fuelsim::Field::displacement_y, fuelsim::Field::displacement_z}[field],
-                        offset + local)],
-                    expected.fields[field]);
+            std::array<double, 4> actual{};
+            for (std::size_t field = 0; field < nodal.size(); ++field) {
+                actual[field] = problem.committed_solution()[dofs.dof(
+                    std::array<fuelsim::Field, 4>{fuelsim::Field::temperature, fuelsim::Field::displacement_x,
+                        fuelsim::Field::displacement_y, fuelsim::Field::displacement_z}[field],
+                    offset + local)];
+                nodal[field].add(actual[field], reference_fields[field]);
+            }
+            const double radius = std::hypot(point.x, point.y);
+            if (radius > 1.0e-15) {
+                radial_displacement.add((point.x * actual[1] + point.y * actual[2]) / radius,
+                    (point.x * reference_fields[1] + point.y * reference_fields[2]) / radius);
+                tangential_displacement.add((-point.y * actual[1] + point.x * actual[2]) / radius,
+                    (-point.y * reference_fields[1] + point.x * reference_fields[2]) / radius);
+            }
         }
     }
     const std::array<std::string, 4> nodal_names = {
         "temperature", "displacement_x", "displacement_y", "displacement_z"};
     for (std::size_t field = 0; field < nodal.size(); ++field)
         passed = below("m58_" + nodal_names[field], nodal[field]) && passed;
+    fuelsim::test::print_relative_metrics("m58_radial_displacement", radial_displacement);
+    fuelsim::test::print_relative_metrics("m58_tangential_displacement", tangential_displacement);
 
     const auto contact =
         fuelsim::cartesian::ProblemAccess::summarize_contact_nodes(problem, 0, problem.committed_solution());
@@ -198,9 +236,10 @@ bool run(const std::string& input_path, const std::string& nodal_path, const std
     fuelsim::test::FieldErrorMetrics pressure;
     std::size_t sliding = 0, crossed_faces = 0;
     for (std::size_t node = 0; node < contact.size(); ++node) {
+        const fuelsim::CartesianPoint3& point = source.nodes().at(source_nodes[node]);
         const auto found = std::find_if(contact_reference.begin(), contact_reference.end(),
-            [&](const ContactReference& value) { return value.id == source_nodes[node]; });
-        if (found == contact_reference.end()) throw std::invalid_argument("M5.8 contact node is missing");
+            [&](const ContactReference& value) { return same_point(value.point, point); });
+        if (found == contact_reference.end()) throw std::invalid_argument("M5.8 contact-node coordinate is missing");
         pressure.add(contact[node].pressure, found->pressure);
         if (contact[node].sliding) ++sliding;
         if (contact[node].primary_face != initial_contact[node].primary_face) ++crossed_faces;
@@ -213,16 +252,15 @@ bool run(const std::string& input_path, const std::string& nodal_path, const std
     const std::size_t cladding = 1;
     const auto& cladding_mesh = fuelsim::cartesian::ProblemAccess::region_mesh(problem, cladding);
     for (std::size_t element = 0; element < cladding_mesh.elements().size(); ++element) {
-        const std::size_t source_element = cladding_mesh.source_element_ids()[element];
-        const auto found = std::find_if(element_reference.begin(), element_reference.end(),
-            [&](const ElementReference& value) { return value.id == source_element; });
-        if (found == element_reference.end()) throw std::invalid_argument("M5.8 cladding element is missing");
         fuelsim::CartesianPoint3 centroid{};
         for (std::size_t node : cladding_mesh.elements()[element].nodes) {
             centroid.x += cladding_mesh.nodes()[node].x / 8.0;
             centroid.y += cladding_mesh.nodes()[node].y / 8.0;
             centroid.z += cladding_mesh.nodes()[node].z / 8.0;
         }
+        const auto found = std::find_if(element_reference.begin(), element_reference.end(),
+            [&](const ElementReference& value) { return same_point(value.point, centroid); });
+        if (found == element_reference.end()) throw std::invalid_argument("M5.8 cladding element is missing");
         maximum_element_coordinate_difference = std::max(maximum_element_coordinate_difference,
             std::max({std::abs(centroid.x - found->point.x), std::abs(centroid.y - found->point.y),
                 std::abs(centroid.z - found->point.z)}));
@@ -259,6 +297,7 @@ bool run(const std::string& input_path, const std::string& nodal_path, const std
                  "M5.8 activates cladding plasticity and creep") &&
              passed;
     std::cout << "m58_dofs=" << problem.dof_count() << '\n'
+              << "m58_initial_minimum_gap=" << initial_minimum_gap << '\n'
               << "m58_nonlinear_iterations=" << solve.total_nonlinear_iterations << '\n'
               << "m58_total_seconds=" << solve.aggregate_timing.total_seconds << '\n'
               << "m58_active_contact_nodes=" << interface.active_contact_nodes << '\n'

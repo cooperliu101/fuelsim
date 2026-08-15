@@ -23,6 +23,8 @@ struct FieldErrorMetrics final {
     std::size_t maximum_pointwise_relative_index = 0;
     double maximum_pointwise_relative_actual = 0.0;
     double maximum_pointwise_relative_reference = 0.0;
+    double maximum_absolute_difference_actual = 0.0;
+    double maximum_absolute_difference_reference = 0.0;
     void add(double actual, double reference);
     bool has_relative_norm() const noexcept;
     double relative_l2() const;
