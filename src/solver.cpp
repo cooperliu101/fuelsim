@@ -119,8 +119,6 @@ struct SolverContext final {
     std::vector<double> field_residual_scalings, local_field_squared_norms;
     std::vector<double> global_field_squared_norms;
     std::vector<std::size_t> dof_fields;
-    std::vector<std::size_t> contribution_offsets;
-    std::vector<std::size_t> contribution_dofs;
     std::vector<PetscInt> petsc_contribution_dofs;
     ContributionWorkspace contribution_workspace;
     std::vector<double> scaled_contribution_jacobian;
@@ -135,13 +133,15 @@ PetscErrorCode assemble_contributions(SolverContext& context, Vec residual, Mat 
     const bool linearize = jacobian != nullptr;
     context.problem->validate_local_state(context.contribution_begin, context.contribution_end, context.state_values);
     for (std::size_t entry = context.contribution_begin; entry < context.contribution_end; ++entry) {
-        const std::size_t local_contribution = entry - context.contribution_begin;
-        const std::size_t dof_begin = context.contribution_offsets[local_contribution];
-        const std::size_t local_count = context.contribution_offsets[local_contribution + 1] - dof_begin;
+        context.problem->contribution_dofs(entry, context.contribution_workspace.dofs);
+        const std::size_t local_count = context.contribution_workspace.dofs.size();
         context.contribution_workspace.resize(local_count, linearize);
+        context.petsc_contribution_dofs.resize(local_count);
         for (std::size_t local = 0; local < local_count; ++local)
             context.contribution_workspace.state[local] =
-                context.state_values[context.contribution_dofs[dof_begin + local]];
+                context.state_values[context.contribution_workspace.dofs[local]];
+        for (std::size_t local = 0; local < local_count; ++local)
+            context.petsc_contribution_dofs[local] = checked_petsc_int(context.contribution_workspace.dofs[local]);
         std::vector<double>* local_jacobian = linearize ? &context.contribution_workspace.jacobian : nullptr;
         context.problem->compute_contribution(
             entry, context.contribution_workspace.state, context.contribution_workspace.residual, local_jacobian);
@@ -149,7 +149,7 @@ PetscErrorCode assemble_contributions(SolverContext& context, Vec residual, Mat 
             (linearize && context.contribution_workspace.jacobian.size() != local_count * local_count))
             throw std::logic_error("NonlinearProblem contribution output has the wrong size");
         const PetscInt petsc_local_count = checked_petsc_int(local_count);
-        const PetscInt* petsc_dofs = context.petsc_contribution_dofs.data() + static_cast<std::ptrdiff_t>(dof_begin);
+        const PetscInt* petsc_dofs = context.petsc_contribution_dofs.data();
         if (!linearize) {
             PetscCall(VecSetValues(
                 residual, petsc_local_count, petsc_dofs, context.contribution_workspace.residual.data(), ADD_VALUES));
@@ -158,7 +158,7 @@ PetscErrorCode assemble_contributions(SolverContext& context, Vec residual, Mat 
         context.scaled_contribution_jacobian = context.contribution_workspace.jacobian;
         if (context.field_residual_scaling) {
             for (std::size_t row = 0; row < local_count; ++row) {
-                const std::size_t global_row = context.contribution_dofs[dof_begin + row];
+                const std::size_t global_row = context.contribution_workspace.dofs[row];
                 if (context.constrained[global_row]) continue;
                 const std::size_t field = context.dof_fields[global_row];
                 for (std::size_t column = 0; column < local_count; ++column)
@@ -563,31 +563,57 @@ class PetscSolver::Implementation final {
         }
         std::size_t maximum_local_dofs = 0;
         std::vector<std::size_t> contribution_dofs;
-        _context.contribution_offsets.reserve(_context.contribution_end - _context.contribution_begin + 1);
-        _context.contribution_offsets.push_back(0);
         for (std::size_t entry = _context.contribution_begin; entry < _context.contribution_end; ++entry) {
             problem.contribution_dofs(entry, contribution_dofs);
             maximum_local_dofs = std::max(maximum_local_dofs, contribution_dofs.size());
-            for (const std::size_t dof : contribution_dofs) {
+            for (const std::size_t dof : contribution_dofs)
                 if (dof >= problem.dof_count())
                     throw std::out_of_range("NonlinearProblem contribution DOF is out of range");
-                _context.contribution_dofs.push_back(dof);
-                _context.petsc_contribution_dofs.push_back(checked_petsc_int(dof));
-            }
-            _context.contribution_offsets.push_back(_context.contribution_dofs.size());
         }
         _context.contribution_workspace.reserve(maximum_local_dofs);
+        _context.petsc_contribution_dofs.reserve(maximum_local_dofs);
         _context.scaled_contribution_jacobian.reserve(maximum_local_dofs * maximum_local_dofs);
         check_petsc(VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE, _count, &_objects->state), "VecCreateMPI state");
         check_petsc(VecDuplicate(_objects->state, &_objects->residual), "VecDuplicate residual");
         PetscInt local_count = 0;
         check_petsc(VecGetLocalSize(_objects->state, &local_count), "VecGetLocalSize state");
-        const PetscInt diagonal_nonzeros = std::min<PetscInt>(60, local_count);
-        const PetscInt off_diagonal_nonzeros = std::min<PetscInt>(60, _count - local_count);
-        check_petsc(MatCreateAIJ(PETSC_COMM_WORLD, local_count, local_count, _count, _count, diagonal_nonzeros, nullptr,
-                        off_diagonal_nonzeros, nullptr, &_objects->jacobian),
-            "MatCreateAIJ");
-        check_petsc(MatSetOption(_objects->jacobian, MAT_NEW_NONZERO_ALLOCATION_ERR, PETSC_FALSE),
+        const std::size_t sparsity_count = problem.sparsity_contribution_count(),
+                          sparsity_begin = sparsity_count * rank / size,
+                          sparsity_end = sparsity_count * (rank + 1U) / size;
+        std::vector<PetscInt> sparsity_dofs;
+        std::vector<double> sparsity_zeros;
+        Mat preallocator = nullptr;
+        try {
+            check_petsc(MatCreate(PETSC_COMM_WORLD, &preallocator), "MatCreate sparsity preallocator");
+            check_petsc(MatSetSizes(preallocator, local_count, local_count, _count, _count),
+                "MatSetSizes sparsity preallocator");
+            check_petsc(MatSetType(preallocator, MATPREALLOCATOR), "MatSetType sparsity preallocator");
+            check_petsc(MatSetUp(preallocator), "MatSetUp sparsity preallocator");
+            for (std::size_t entry = sparsity_begin; entry < sparsity_end; ++entry) {
+                problem.sparsity_contribution_dofs(entry, contribution_dofs);
+                sparsity_dofs.resize(contribution_dofs.size());
+                for (std::size_t local = 0; local < contribution_dofs.size(); ++local)
+                    sparsity_dofs[local] = checked_petsc_int(contribution_dofs[local]);
+                sparsity_zeros.assign(contribution_dofs.size() * contribution_dofs.size(), 0.0);
+                const PetscInt count = checked_petsc_int(contribution_dofs.size());
+                check_petsc(MatSetValues(preallocator, count, sparsity_dofs.data(), count, sparsity_dofs.data(),
+                                sparsity_zeros.data(), INSERT_VALUES),
+                    "MatSetValues sparsity preallocator");
+            }
+            check_petsc(MatAssemblyBegin(preallocator, MAT_FINAL_ASSEMBLY), "MatAssemblyBegin sparsity preallocator");
+            check_petsc(MatAssemblyEnd(preallocator, MAT_FINAL_ASSEMBLY), "MatAssemblyEnd sparsity preallocator");
+            check_petsc(MatCreate(PETSC_COMM_WORLD, &_objects->jacobian), "MatCreate Jacobian");
+            check_petsc(
+                MatSetSizes(_objects->jacobian, local_count, local_count, _count, _count), "MatSetSizes Jacobian");
+            check_petsc(MatSetType(_objects->jacobian, MATAIJ), "MatSetType Jacobian");
+            check_petsc(MatPreallocatorPreallocate(preallocator, PETSC_TRUE, _objects->jacobian),
+                "MatPreallocatorPreallocate Jacobian");
+            check_petsc(MatDestroy(&preallocator), "MatDestroy sparsity preallocator");
+        } catch (...) {
+            if (preallocator != nullptr) (void)MatDestroy(&preallocator);
+            throw;
+        }
+        check_petsc(MatSetOption(_objects->jacobian, MAT_NEW_NONZERO_ALLOCATION_ERR, PETSC_TRUE),
             "MatSetOption MAT_NEW_NONZERO_ALLOCATION_ERR");
         check_petsc(SNESCreate(PETSC_COMM_WORLD, &_objects->snes), "SNESCreate");
         check_petsc(SNESSetFunction(_objects->snes, _objects->residual, form_function, &_context), "SNESSetFunction");

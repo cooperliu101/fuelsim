@@ -515,9 +515,11 @@ bool test_l_shaped_primary_collinear_candidate() {
                       fuelsim::rz::ProblemAccess::contact_count(problem) == 1,
                 "L-shaped primary chain with a far collinear candidate "
                 "constructs successfully") &&
-            check(problem.contribution_count() == fuelsim::rz::ProblemAccess::volume_contribution_count(problem) + 4,
-                "two secondary nodes times two primary segments form four "
-                "mechanical candidates");
+            check(problem.contribution_count() == fuelsim::rz::ProblemAccess::volume_contribution_count(problem) + 2,
+                "two secondary nodes form two active mechanical contributions") &&
+            check(problem.sparsity_contribution_count() ==
+                      fuelsim::rz::ProblemAccess::volume_contribution_count(problem) + 4,
+                "two secondary nodes reserve both primary-segment sparsity candidates");
         for (std::size_t contribution = fuelsim::rz::ProblemAccess::volume_contribution_count(problem);
             contribution < problem.contribution_count(); ++contribution) {
             const fuelsim::LocalResidual residual = fuelsim::rz::ProblemAccess::contribution_residual(

@@ -495,3 +495,33 @@ mesh and physics, with direct solve and file output disabled, took `46.35 s`.
 Thus this fuelsim run was 31.3 percent slower than that MOOSE observation. The
 comparison is a single engineering-case measurement and is not generalized to
 other meshes or contact paths.
+
+## 2026-08-15 dynamic contact assembly repair
+
+The B3.3 production path kept every thermal and mechanical primary candidate as a runtime contribution. On the
+23,010-degree-of-freedom RZ case this made the callback loop traverse mostly inactive zero blocks, assigned all volume
+elements to rank 0 before contact candidates reached rank 1, and expanded the largest shadow state to all 23,010
+degrees of freedom. The repair keeps the complete current-configuration primary-chain search and sparse-matrix graph,
+but assembles only the selected thermal integration-point and mechanical-node candidates. PETSc's matrix preallocator
+builds the complete graph once, and RZ candidate selection uses a double-only projection before the active ADlite
+residual and Jacobian evaluation.
+
+Release builds of pre-repair commit `a58c709` and the candidate used CPU 0, one MPI process, and one thread each for
+OpenMP, OpenBLAS, MKL, and NumExpr. Separate first runs were excluded. The following three paired 1,584-degree-of-
+freedom samples had internal load-path medians of `1.027653101/0.969833623 s`, so the candidate was 5.63 percent faster.
+Both versions completed 64 nonlinear and linear iterations with the same `7.602509876370e-09` final residual.
+
+The required 23,010-degree-of-freedom, 20-step direct case completed once per configuration:
+
+| MPI ranks | `a58c709` | candidate | change |
+| ---: | ---: | ---: | ---: |
+| 1 | 60.842814 s | 30.528152 s | 49.82 percent lower |
+| 2 | 28.682528 s | 12.084951 s | 57.87 percent lower |
+
+Every medium run completed 62 nonlinear and linear iterations with 82 residual callbacks, 62 Jacobian callbacks, and
+one PETSc workspace. On two ranks the largest shadow state fell from 23,010 to 12,197 degrees of freedom, and remote
+shadow values fell from 11,672 to 8,057. The previously recorded matching output-disabled MOOSE warmed time is
+`46.35 s`; the repaired one-rank fuelsim observation is 34.14 percent lower. The repaired two-rank path is still 17.8
+percent above the older `a462afe` specialized-path observation of `10.260384 s`, because production contact now
+searches the complete current primary chain and supports large sliding instead of assuming a fixed near-neighbor
+projection. These measurements apply only to the named mesh, physics, direct solver, and CPU placement.

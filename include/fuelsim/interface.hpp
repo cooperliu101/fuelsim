@@ -31,6 +31,11 @@ struct HeatQuadratureValue final {
     double heat_flux, weighted_measure;
 };
 
+struct ContactProjectionValue final {
+    bool projected;
+    double gap;
+};
+
 // The zero-gap hint is the secondary parent centroid's signed distance along the primary base normal; a zero hint
 // remains an error, otherwise the chosen normal makes motion into secondary material open the gap.
 std::array<Line2RzHeatQuadraturePoint, line2_interface_quadrature_point_count> make_line2_rz_heat_quadrature(
@@ -45,6 +50,8 @@ LocalResidual compute_line2_rz_gap_heat(const GapHeatProperties& properties, con
     const LocalValues& state, LocalJacobian* jacobian = nullptr);
 HeatQuadratureValue compute_line2_rz_gap_heat_value(
     const GapHeatProperties& properties, const Line2RzHeatPointGeometry& geometry, const LocalValues& state);
+ContactProjectionValue compute_line2_rz_heat_projection(
+    const Line2RzHeatPointGeometry& geometry, const LocalValues& state);
 
 struct NodeToLineRzContactGeometry final {
     Line2InterfaceSideCoordinates secondary_edge_coordinates, primary_segment_coordinates;
@@ -83,6 +90,8 @@ LocalResidual compute_node_to_line_rz_contact(const NormalContactProperties& pro
 ContactPointValue compute_node_to_line_rz_contact_value(const NormalContactProperties& properties,
     const NodeToLineRzContactGeometry& geometry, const LocalValues& state, const LocalValues& committed_state,
     const ContactPointHistory& history);
+ContactProjectionValue compute_node_to_line_rz_contact_projection(
+    const NodeToLineRzContactGeometry& geometry, const LocalValues& state);
 
 inline constexpr std::size_t quad4_surface_contact_node_count = 8;
 inline constexpr std::size_t quad4_surface_contact_local_dof_count = 32;

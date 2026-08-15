@@ -562,6 +562,32 @@ bool projection_is_inside(double fraction, bool includes_second_endpoint) {
     return fraction < 1.0;
 }
 
+ContactProjectionValue project_to_current_line(double secondary_r, double secondary_z, double primary_r_0,
+    double primary_z_0, double primary_r_1, double primary_z_1, double normal_orientation,
+    bool primary_segment_is_first, bool includes_second_endpoint, double reference_fraction, bool clamp_endpoints) {
+    constexpr double endpoint_tolerance = 1.0e-12;
+    const double tangent_r = primary_r_1 - primary_r_0, tangent_z = primary_z_1 - primary_z_0,
+                 length_squared = tangent_r * tangent_r + tangent_z * tangent_z;
+    double fraction =
+        ((secondary_r - primary_r_0) * tangent_r + (secondary_z - primary_z_0) * tangent_z) / length_squared;
+    bool projected = projection_is_inside(fraction, includes_second_endpoint);
+    if (!projected && clamp_endpoints) {
+        if (primary_segment_is_first && fraction < 0.0 && std::abs(reference_fraction) <= endpoint_tolerance) {
+            fraction = 0.0;
+            projected = true;
+        } else if (includes_second_endpoint && fraction > 1.0 &&
+                   std::abs(reference_fraction - 1.0) <= endpoint_tolerance) {
+            fraction = 1.0;
+            projected = true;
+        }
+    }
+    if (!projected) return {};
+    const double length = std::sqrt(length_squared), primary_r = primary_r_0 + fraction * tangent_r,
+                 primary_z = primary_z_0 + fraction * tangent_z, normal_r = normal_orientation * tangent_z / length,
+                 normal_z = -normal_orientation * tangent_r / length;
+    return {true, (primary_r - secondary_r) * normal_r + (primary_z - secondary_z) * normal_z};
+}
+
 HeatAdQuadratureValue evaluate_heat_quadrature(const Line2InterfaceSideCoordinates& secondary_coordinates,
     const Line2InterfaceSideCoordinates& primary_coordinates, const Line2RzHeatQuadraturePoint& point,
     const LocalAdValues& state, const GapHeatProperties& properties, bool includes_second_endpoint) {
@@ -773,6 +799,22 @@ HeatQuadratureValue compute_line2_rz_gap_heat_value(
     return {value.projected, value.gap.value(), value.heat_flux.value(), value.weighted_measure.value()};
 }
 
+ContactProjectionValue compute_line2_rz_heat_projection(
+    const Line2RzHeatPointGeometry& geometry, const LocalValues& state) {
+    const double secondary_r_0 = geometry.secondary_coordinates[0].r + state[4],
+                 secondary_r_1 = geometry.secondary_coordinates[1].r + state[5],
+                 secondary_z_0 = geometry.secondary_coordinates[0].z + state[8],
+                 secondary_z_1 = geometry.secondary_coordinates[1].z + state[9],
+                 secondary_r = geometry.point.secondary_shape[0] * secondary_r_0 +
+                               geometry.point.secondary_shape[1] * secondary_r_1,
+                 secondary_z = geometry.point.secondary_shape[0] * secondary_z_0 +
+                               geometry.point.secondary_shape[1] * secondary_z_1;
+    return project_to_current_line(secondary_r, secondary_z, geometry.primary_coordinates[0].r + state[6],
+        geometry.primary_coordinates[0].z + state[10], geometry.primary_coordinates[1].r + state[7],
+        geometry.primary_coordinates[1].z + state[11], geometry.point.normal_orientation, false,
+        geometry.primary_segment_includes_second_endpoint, 0.0, false);
+}
+
 NodeToLineRzContactGeometry make_node_to_line_rz_contact_geometry(
     const Line2InterfaceSideCoordinates& secondary_edge_coordinates,
     const Line2InterfaceSideCoordinates& primary_segment_coordinates, std::size_t secondary_local_node,
@@ -841,5 +883,16 @@ ContactPointValue compute_node_to_line_rz_contact_value(const NormalContactPrope
         result.elastic_tangential_slip.value(),
         result.sliding,
     };
+}
+
+ContactProjectionValue compute_node_to_line_rz_contact_projection(
+    const NodeToLineRzContactGeometry& geometry, const LocalValues& state) {
+    const std::size_t secondary = geometry.secondary_local_node;
+    return project_to_current_line(geometry.secondary_edge_coordinates[secondary].r + state[4 + secondary],
+        geometry.secondary_edge_coordinates[secondary].z + state[8 + secondary],
+        geometry.primary_segment_coordinates[0].r + state[6], geometry.primary_segment_coordinates[0].z + state[10],
+        geometry.primary_segment_coordinates[1].r + state[7], geometry.primary_segment_coordinates[1].z + state[11],
+        geometry.normal_orientation, geometry.primary_segment_is_first,
+        geometry.primary_segment_includes_second_endpoint, geometry.reference_primary_fraction, true);
 }
 } // namespace fuelsim

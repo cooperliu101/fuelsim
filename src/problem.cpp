@@ -86,6 +86,12 @@ void NonlinearProblem::validate_state(const std::vector<double>& state) const {
 
 bool NonlinearProblem::uses_augmented_contact() const noexcept { return false; }
 
+std::size_t NonlinearProblem::sparsity_contribution_count() const noexcept { return contribution_count(); }
+
+void NonlinearProblem::sparsity_contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const {
+    contribution_dofs(index, dofs);
+}
+
 AugmentedContactUpdate NonlinearProblem::update_augmented_contact_multipliers(const std::vector<double>&, std::size_t) {
     throw std::logic_error("NonlinearProblem does not support augmented contact");
 }
@@ -113,6 +119,13 @@ void NonlinearProblem::validate_discretization() const {
         const std::size_t local_count = dofs.size();
         if (local_count == 0 || local_count > std::numeric_limits<std::size_t>::max() / local_count)
             throw std::invalid_argument("NonlinearProblem contribution size is invalid");
+    }
+    for (std::size_t entry = 0; entry < sparsity_contribution_count(); ++entry) {
+        sparsity_contribution_dofs(entry, dofs);
+        if (dofs.empty()) throw std::invalid_argument("NonlinearProblem sparsity contribution is empty");
+        for (const std::size_t dof : dofs)
+            if (dof >= dof_count())
+                throw std::out_of_range("NonlinearProblem sparsity contribution DOF is out of range");
     }
 }
 
@@ -219,6 +232,10 @@ class SpatialProblemStorage {
         return is_cartesian() ? cartesian->contribution_count() : rz->contribution_count();
     }
 
+    std::size_t sparsity_contribution_count() const noexcept {
+        return is_cartesian() ? cartesian->sparsity_contribution_count() : rz->sparsity_contribution_count();
+    }
+
     void set_load_factor(double value) {
         if (is_cartesian())
             cartesian->set_load_factor(value);
@@ -280,6 +297,15 @@ class SpatialProblemStorage {
             return;
         }
         const LocalDofs fixed = rz->contribution_dofs(index);
+        dofs.assign(fixed.begin(), fixed.end());
+    }
+
+    void sparsity_contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const {
+        if (is_cartesian()) {
+            cartesian->sparsity_contribution_dofs(index, dofs);
+            return;
+        }
+        const LocalDofs fixed = rz->sparsity_contribution_dofs(index);
         dofs.assign(fixed.begin(), fixed.end());
     }
 
@@ -370,6 +396,8 @@ std::size_t SteadyProblem::dof_count() const noexcept { return _impl->layout().d
 
 std::size_t SteadyProblem::contribution_count() const noexcept { return _impl->contribution_count(); }
 
+std::size_t SteadyProblem::sparsity_contribution_count() const noexcept { return _impl->sparsity_contribution_count(); }
+
 const std::vector<FieldDescriptor>& SteadyProblem::field_layout() const noexcept {
     return _impl->layout().field_layout();
 }
@@ -390,6 +418,10 @@ void SteadyProblem::validate_local_state(std::size_t first, std::size_t last, co
 
 void SteadyProblem::contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const {
     _impl->contribution_dofs(index, dofs);
+}
+
+void SteadyProblem::sparsity_contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const {
+    _impl->sparsity_contribution_dofs(index, dofs);
 }
 
 void SteadyProblem::compute_contribution(std::size_t index, const std::vector<double>& state,
@@ -1092,6 +1124,10 @@ std::size_t TransientProblem::dof_count() const noexcept { return _impl->layout(
 
 std::size_t TransientProblem::contribution_count() const noexcept { return _impl->contribution_count(); }
 
+std::size_t TransientProblem::sparsity_contribution_count() const noexcept {
+    return _impl->sparsity_contribution_count();
+}
+
 const std::vector<FieldDescriptor>& TransientProblem::field_layout() const noexcept {
     return _impl->layout().field_layout();
 }
@@ -1117,6 +1153,10 @@ void TransientProblem::validate_local_state(
 
 void TransientProblem::contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const {
     _impl->contribution_dofs(index, dofs);
+}
+
+void TransientProblem::sparsity_contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const {
+    _impl->sparsity_contribution_dofs(index, dofs);
 }
 
 void TransientProblem::compute_contribution(std::size_t index, const std::vector<double>& state,

@@ -173,8 +173,6 @@ SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const Unstructure
             region_heat_source(region_index), 0.0, region(region_index).strain_formulation});
     }
     _committed_contact_solution = initial_state();
-    update_thermal_candidates(0, contribution_count(), _committed_contact_solution);
-    update_mechanical_candidates(0, contribution_count(), _committed_contact_solution);
     validate_local_state(0, contribution_count(), _committed_contact_solution);
     refresh_controls();
 }
@@ -238,17 +236,48 @@ void SpatialAssembly::contribution_dofs(std::size_t index, std::vector<std::size
     const ContributionRanges ranges = contribution_ranges();
     if (index < ranges.mechanical_begin) {
         const Quad4SurfaceContactLocalDofs fixed =
-            contact_dofs(_thermal_contributions.at(index - ranges.thermal_begin).nodes);
+            contact_dofs(_thermal_contributions.at(_thermal_active_candidates.at(index - ranges.thermal_begin)).nodes);
         dofs.assign(fixed.begin(), fixed.end());
         return;
     }
     if (index < ranges.boundary_begin) {
-        const Quad4SurfaceContactLocalDofs fixed =
-            contact_dofs(_mechanical_contributions.at(index - ranges.mechanical_begin).nodes);
+        const Quad4SurfaceContactLocalDofs fixed = contact_dofs(
+            _mechanical_contributions.at(_mechanical_active_candidates.at(index - ranges.mechanical_begin)).nodes);
         dofs.assign(fixed.begin(), fixed.end());
         return;
     }
     const BoundaryContribution& entry = _boundary_contributions.at(index - ranges.boundary_begin);
+    Quad4FaceLocalDofs fixed{};
+    for (std::size_t node = 0; node < entry.nodes.size(); ++node) {
+        fixed[node] = dof(Field::temperature, entry.nodes[node]);
+        fixed[4 + node] = dof(Field::displacement_x, entry.nodes[node]);
+        fixed[8 + node] = dof(Field::displacement_y, entry.nodes[node]);
+        fixed[12 + node] = dof(Field::displacement_z, entry.nodes[node]);
+    }
+    dofs.assign(fixed.begin(), fixed.end());
+}
+
+void SpatialAssembly::sparsity_contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const {
+    if (index < volume_contribution_count()) {
+        contribution_dofs(index, dofs);
+        return;
+    }
+    index -= volume_contribution_count();
+    if (index < _thermal_contributions.size()) {
+        const Quad4SurfaceContactLocalDofs fixed = contact_dofs(_thermal_contributions[index].nodes);
+        dofs.assign(fixed.begin(), fixed.end());
+        return;
+    }
+    index -= _thermal_contributions.size();
+    if (index < _mechanical_contributions.size()) {
+        const Quad4SurfaceContactLocalDofs fixed = contact_dofs(_mechanical_contributions[index].nodes);
+        dofs.assign(fixed.begin(), fixed.end());
+        return;
+    }
+    index -= _mechanical_contributions.size();
+    if (index >= _boundary_contributions.size())
+        throw std::out_of_range("Three-dimensional sparsity contribution index is out of range");
+    const BoundaryContribution& entry = _boundary_contributions[index];
     Quad4FaceLocalDofs fixed{};
     for (std::size_t node = 0; node < entry.nodes.size(); ++node) {
         fixed[node] = dof(Field::temperature, entry.nodes[node]);
@@ -298,15 +327,8 @@ void SpatialAssembly::compute_contribution(std::size_t index, const std::vector<
     if (index < ranges.mechanical_begin) {
         if (state.size() != quad4_surface_contact_local_dof_count)
             throw std::invalid_argument("Three-dimensional thermal-contact state must contain 32 DOFs");
-        const std::size_t local_index = index - ranges.thermal_begin;
-        const ThermalContribution& entry = _thermal_contributions.at(local_index);
-        const std::size_t point = thermal_point_index(entry.contact, entry.integration_point);
-        if (_projected_thermal_candidates[local_index] == 0U || entry.primary != _thermal_selected_primary[point]) {
-            residual.assign(quad4_surface_contact_local_dof_count, 0.0);
-            if (jacobian != nullptr)
-                jacobian->assign(quad4_surface_contact_local_dof_count * quad4_surface_contact_local_dof_count, 0.0);
-            return;
-        }
+        const ThermalContribution& entry =
+            _thermal_contributions.at(_thermal_active_candidates.at(index - ranges.thermal_begin));
         Quad4SurfaceContactLocalValues current{};
         std::copy(state.begin(), state.end(), current.begin());
         Quad4SurfaceContactLocalJacobian local_jacobian{};
@@ -320,16 +342,8 @@ void SpatialAssembly::compute_contribution(std::size_t index, const std::vector<
     if (index < ranges.boundary_begin) {
         if (state.size() != quad4_surface_contact_local_dof_count)
             throw std::invalid_argument("Three-dimensional mechanical-contact state must contain 32 DOFs");
-        const std::size_t local_index = index - ranges.mechanical_begin;
-        const MechanicalContribution& entry = _mechanical_contributions.at(local_index);
-        const std::size_t node = mechanical_node_index(entry.contact, entry.secondary);
-        if (_projected_mechanical_candidates[local_index] == 0U ||
-            entry.primary != _mechanical_selected_primary[node]) {
-            residual.assign(quad4_surface_contact_local_dof_count, 0.0);
-            if (jacobian != nullptr)
-                jacobian->assign(quad4_surface_contact_local_dof_count * quad4_surface_contact_local_dof_count, 0.0);
-            return;
-        }
+        const MechanicalContribution& entry =
+            _mechanical_contributions.at(_mechanical_active_candidates.at(index - ranges.mechanical_begin));
         Quad4SurfaceContactLocalValues current{};
         std::copy(state.begin(), state.end(), current.begin());
         const Quad4SurfaceContactLocalValues committed = contribution_state(index, _committed_contact_solution);
@@ -373,9 +387,14 @@ double SpatialAssembly::heat_capacity(std::size_t region, double temperature, co
 
 SpatialAssembly::ContributionRanges SpatialAssembly::contribution_ranges() const noexcept {
     const std::size_t thermal_begin = volume_contribution_count(),
-                      mechanical_begin = thermal_begin + _thermal_contributions.size(),
-                      boundary_begin = mechanical_begin + _mechanical_contributions.size();
+                      mechanical_begin = thermal_begin + _thermal_contact_offsets.back(),
+                      boundary_begin = mechanical_begin + _mechanical_points.size();
     return {thermal_begin, mechanical_begin, boundary_begin, boundary_begin + _boundary_contributions.size()};
+}
+
+std::size_t SpatialAssembly::sparsity_contribution_count() const noexcept {
+    return volume_contribution_count() + _thermal_contributions.size() + _mechanical_contributions.size() +
+           _boundary_contributions.size();
 }
 
 ResolvedBoundary SpatialAssembly::resolve_boundary(
@@ -409,6 +428,16 @@ Quad4SurfaceContactLocalValues SpatialAssembly::contribution_state(
     contribution_dofs(index, dofs);
     if (dofs.size() != quad4_surface_contact_local_dof_count)
         throw std::logic_error("Three-dimensional contact contribution has an invalid DOF layout");
+    Quad4SurfaceContactLocalValues result{};
+    for (std::size_t local = 0; local < result.size(); ++local) result[local] = global_state.at(dofs[local]);
+    return result;
+}
+
+Quad4SurfaceContactLocalValues SpatialAssembly::contact_state(
+    const std::array<std::size_t, 8>& nodes, const std::vector<double>& global_state) const {
+    if (global_state.size() != dof_count())
+        throw std::invalid_argument("Three-dimensional contact state has the wrong size");
+    const Quad4SurfaceContactLocalDofs dofs = contact_dofs(nodes);
     Quad4SurfaceContactLocalValues result{};
     for (std::size_t local = 0; local < result.size(); ++local) result[local] = global_state.at(dofs[local]);
     return result;
@@ -492,6 +521,8 @@ void SpatialAssembly::build_contacts(const UnstructuredHex8Mesh& source_mesh) {
                         throw std::logic_error("Three-dimensional secondary contact node mapping failed");
                     const std::size_t secondary_node_index =
                         static_cast<std::size_t>(found - secondary.boundary.nodes.begin());
+                    const std::size_t point = _mechanical_points.size();
+                    _mechanical_points.push_back({contact_value, secondary_node_index});
                     for (std::size_t primary_face_index = 0; primary_face_index < primary.boundary.faces.size();
                         ++primary_face_index) {
                         const Quad4FaceElement& primary_face = primary.boundary.faces[primary_face_index];
@@ -506,7 +537,7 @@ void SpatialAssembly::build_contacts(const UnstructuredHex8Mesh& source_mesh) {
                         _mechanical_contributions.push_back({contact_value, nodes,
                             {secondary_coordinates, primary_coordinates, secondary_shapes, secondary_derivatives_xi,
                                 secondary_derivatives_eta, secondary_local_node, orientation},
-                            secondary_node_index, primary_face_index});
+                            secondary_node_index, primary_face_index, point});
                     }
                 }
         }
@@ -522,13 +553,13 @@ void SpatialAssembly::build_contacts(const UnstructuredHex8Mesh& source_mesh) {
             _mechanical_contact_offsets[contact] + _contact_histories[contact].size();
     }
     _touched_thermal_points.resize(_thermal_contact_offsets.back());
-    _projected_thermal_candidates.resize(_thermal_contributions.size());
     _thermal_minimum_distance.resize(_thermal_contact_offsets.back());
-    _thermal_selected_primary.resize(_thermal_contact_offsets.back());
+    _thermal_active_candidates.resize(_thermal_contact_offsets.back());
     _touched_mechanical_nodes.resize(_mechanical_contact_offsets.back());
     _projected_mechanical_candidates.resize(_mechanical_contributions.size());
     _mechanical_minimum_distance.resize(_mechanical_contact_offsets.back());
     _mechanical_selected_primary.resize(_mechanical_contact_offsets.back());
+    _mechanical_active_candidates.resize(_mechanical_points.size());
 }
 
 std::size_t SpatialAssembly::thermal_point_index(std::size_t contact, std::size_t point) const noexcept {
@@ -544,10 +575,7 @@ bool SpatialAssembly::mark_touched_thermal_points(std::size_t first, std::size_t
     const ContributionRanges ranges = contribution_ranges();
     const std::size_t begin = std::max(first, ranges.thermal_begin), end = std::min(last, ranges.mechanical_begin);
     if (begin >= end) return false;
-    for (std::size_t entry = begin; entry < end; ++entry) {
-        const ThermalContribution& candidate = _thermal_contributions[entry - ranges.thermal_begin];
-        _touched_thermal_points[thermal_point_index(candidate.contact, candidate.integration_point)] = 1U;
-    }
+    for (std::size_t entry = begin; entry < end; ++entry) _touched_thermal_points[entry - ranges.thermal_begin] = 1U;
     return true;
 }
 
@@ -557,8 +585,8 @@ bool SpatialAssembly::mark_touched_mechanical_nodes(std::size_t first, std::size
     const std::size_t begin = std::max(first, ranges.mechanical_begin), end = std::min(last, ranges.boundary_begin);
     if (begin >= end) return false;
     for (std::size_t entry = begin; entry < end; ++entry) {
-        const MechanicalContribution& candidate = _mechanical_contributions[entry - ranges.mechanical_begin];
-        _touched_mechanical_nodes[mechanical_node_index(candidate.contact, candidate.secondary)] = 1U;
+        const MechanicalPoint& point = _mechanical_points[entry - ranges.mechanical_begin];
+        _touched_mechanical_nodes[mechanical_node_index(point.contact, point.secondary)] = 1U;
     }
     return true;
 }
@@ -568,26 +596,25 @@ void SpatialAssembly::update_thermal_candidates(
     if (state.size() != dof_count())
         throw std::invalid_argument("Three-dimensional thermal-contact shadow state size mismatch");
     if (!mark_touched_thermal_points(first, last)) return;
-    const ContributionRanges ranges = contribution_ranges();
     std::fill(
         _thermal_minimum_distance.begin(), _thermal_minimum_distance.end(), std::numeric_limits<double>::infinity());
     std::fill(
-        _thermal_selected_primary.begin(), _thermal_selected_primary.end(), std::numeric_limits<std::size_t>::max());
-    std::fill(_projected_thermal_candidates.begin(), _projected_thermal_candidates.end(), 0U);
+        _thermal_active_candidates.begin(), _thermal_active_candidates.end(), std::numeric_limits<std::size_t>::max());
     for (std::size_t entry = 0; entry < _thermal_contributions.size(); ++entry) {
         const ThermalContribution& candidate = _thermal_contributions[entry];
         const std::size_t point = thermal_point_index(candidate.contact, candidate.integration_point);
         if (_touched_thermal_points[point] == 0U) continue;
-        const CartesianHeatQuadratureValue value =
-            compute_quad4_to_quad4_gap_heat_value(_thermal_properties[candidate.contact], candidate.geometry,
-                contribution_state(ranges.thermal_begin + entry, state));
+        const CartesianHeatQuadratureValue value = compute_quad4_to_quad4_gap_heat_value(
+            _thermal_properties[candidate.contact], candidate.geometry, contact_state(candidate.nodes, state));
         if (!value.projected) continue;
-        _projected_thermal_candidates[entry] = 1U;
         const double distance = std::abs(value.gap);
+        const std::size_t selected = _thermal_active_candidates[point];
         if (distance < _thermal_minimum_distance[point] ||
-            (distance == _thermal_minimum_distance[point] && candidate.primary < _thermal_selected_primary[point])) {
+            (distance == _thermal_minimum_distance[point] &&
+                (selected == std::numeric_limits<std::size_t>::max() ||
+                    candidate.primary < _thermal_contributions[selected].primary))) {
             _thermal_minimum_distance[point] = distance;
-            _thermal_selected_primary[point] = candidate.primary;
+            _thermal_active_candidates[point] = entry;
         }
     }
 }
@@ -597,20 +624,20 @@ void SpatialAssembly::update_mechanical_candidates(
     if (state.size() != dof_count())
         throw std::invalid_argument("Three-dimensional mechanical-contact shadow state size mismatch");
     if (!mark_touched_mechanical_nodes(first, last)) return;
-    const ContributionRanges ranges = contribution_ranges();
     std::fill(_mechanical_minimum_distance.begin(), _mechanical_minimum_distance.end(),
         std::numeric_limits<double>::infinity());
     std::fill(_mechanical_selected_primary.begin(), _mechanical_selected_primary.end(),
         std::numeric_limits<std::size_t>::max());
     std::fill(_projected_mechanical_candidates.begin(), _projected_mechanical_candidates.end(), 0U);
+    std::fill(_mechanical_active_candidates.begin(), _mechanical_active_candidates.end(),
+        std::numeric_limits<std::size_t>::max());
     for (std::size_t entry = 0; entry < _mechanical_contributions.size(); ++entry) {
         const MechanicalContribution& candidate = _mechanical_contributions[entry];
         const std::size_t node = mechanical_node_index(candidate.contact, candidate.secondary);
         if (_touched_mechanical_nodes[node] == 0U) continue;
         const CartesianContactPointValue value =
             compute_node_to_quad4_contact_value(_mechanical_properties[candidate.contact], candidate.geometry,
-                contribution_state(ranges.mechanical_begin + entry, state),
-                contribution_state(ranges.mechanical_begin + entry, _committed_contact_solution),
+                contact_state(candidate.nodes, state), contact_state(candidate.nodes, _committed_contact_solution),
                 _contact_histories[candidate.contact][candidate.secondary]);
         if (!value.projected) continue;
         _projected_mechanical_candidates[entry] = 1U;
@@ -621,6 +648,13 @@ void SpatialAssembly::update_mechanical_candidates(
             _mechanical_minimum_distance[node] = distance;
             _mechanical_selected_primary[node] = candidate.primary;
         }
+    }
+    for (std::size_t entry = 0; entry < _mechanical_contributions.size(); ++entry) {
+        const MechanicalContribution& candidate = _mechanical_contributions[entry];
+        const std::size_t node = mechanical_node_index(candidate.contact, candidate.secondary);
+        if (_touched_mechanical_nodes[node] != 0U && _projected_mechanical_candidates[entry] != 0U &&
+            candidate.primary == _mechanical_selected_primary[node])
+            _mechanical_active_candidates[candidate.point] = entry;
     }
 }
 
@@ -633,13 +667,13 @@ std::vector<std::size_t> SpatialAssembly::required_state_dofs(std::size_t first,
         contribution_dofs(entry, dofs);
         result.insert(result.end(), dofs.begin(), dofs.end());
     }
-    const ContributionRanges ranges = contribution_ranges();
     if (mark_touched_thermal_points(first, last))
         for (std::size_t entry = 0; entry < _thermal_contributions.size(); ++entry) {
             const ThermalContribution& candidate = _thermal_contributions[entry];
             if (_touched_thermal_points[thermal_point_index(candidate.contact, candidate.integration_point)] == 0U)
                 continue;
-            contribution_dofs(ranges.thermal_begin + entry, dofs);
+            const Quad4SurfaceContactLocalDofs fixed = contact_dofs(candidate.nodes);
+            dofs.assign(fixed.begin(), fixed.end());
             result.insert(result.end(), dofs.begin(), dofs.end());
         }
     if (mark_touched_mechanical_nodes(first, last))
@@ -647,7 +681,8 @@ std::vector<std::size_t> SpatialAssembly::required_state_dofs(std::size_t first,
             const MechanicalContribution& candidate = _mechanical_contributions[entry];
             if (_touched_mechanical_nodes[mechanical_node_index(candidate.contact, candidate.secondary)] == 0U)
                 continue;
-            contribution_dofs(ranges.mechanical_begin + entry, dofs);
+            const Quad4SurfaceContactLocalDofs fixed = contact_dofs(candidate.nodes);
+            dofs.assign(fixed.begin(), fixed.end());
             result.insert(result.end(), dofs.begin(), dofs.end());
         }
     std::sort(result.begin(), result.end());
@@ -669,7 +704,7 @@ void SpatialAssembly::validate_local_state(
             for (std::size_t point = _thermal_contact_offsets[contact]; point < _thermal_contact_offsets[contact + 1];
                 ++point)
                 if (_touched_thermal_points[point] != 0U &&
-                    _thermal_selected_primary[point] == std::numeric_limits<std::size_t>::max())
+                    _thermal_active_candidates[point] == std::numeric_limits<std::size_t>::max())
                     ++unprojected;
             if (unprojected != 0)
                 throw std::domain_error("Three-dimensional thermal contact '" + _definition.contacts[contact].name +
@@ -699,7 +734,6 @@ void SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
     std::vector<std::vector<bool>> updated(_definition.contacts.size());
     for (std::size_t contact = 0; contact < _definition.contacts.size(); ++contact)
         updated[contact].resize(_contact_histories[contact].size(), false);
-    const ContributionRanges ranges = contribution_ranges();
     for (std::size_t entry = 0; entry < _mechanical_contributions.size(); ++entry) {
         const MechanicalContribution& candidate = _mechanical_contributions[entry];
         const std::size_t node = mechanical_node_index(candidate.contact, candidate.secondary);
@@ -707,8 +741,7 @@ void SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
             continue;
         const CartesianContactPointValue value =
             compute_node_to_quad4_contact_value(_mechanical_properties[candidate.contact], candidate.geometry,
-                contribution_state(ranges.mechanical_begin + entry, state),
-                contribution_state(ranges.mechanical_begin + entry, _committed_contact_solution),
+                contact_state(candidate.nodes, state), contact_state(candidate.nodes, _committed_contact_solution),
                 _contact_histories[candidate.contact][candidate.secondary]);
         if (!value.projected) continue;
         ContactPointHistory trial = _contact_histories[candidate.contact][candidate.secondary];
@@ -774,7 +807,6 @@ std::vector<CartesianContactNodeSummary> SpatialAssembly::summarize_contact_node
         result.push_back({point.x, point.y, point.z, false, std::numeric_limits<std::size_t>::max(),
             std::numeric_limits<double>::infinity(), 0.0, 0.0, 0.0, 0.0, 0.0, {}, false});
     }
-    const ContributionRanges ranges = contribution_ranges();
     for (std::size_t entry = 0; entry < _mechanical_contributions.size(); ++entry) {
         const MechanicalContribution& candidate = _mechanical_contributions[entry];
         if (candidate.contact != contact_value) continue;
@@ -783,8 +815,7 @@ std::vector<CartesianContactNodeSummary> SpatialAssembly::summarize_contact_node
             continue;
         const CartesianContactPointValue value =
             compute_node_to_quad4_contact_value(_mechanical_properties[candidate.contact], candidate.geometry,
-                contribution_state(ranges.mechanical_begin + entry, state),
-                contribution_state(ranges.mechanical_begin + entry, _committed_contact_solution),
+                contact_state(candidate.nodes, state), contact_state(candidate.nodes, _committed_contact_solution),
                 _contact_histories[candidate.contact][candidate.secondary]);
         if (!value.projected) continue;
         CartesianContactNodeSummary& summary = result.at(candidate.secondary);
@@ -822,16 +853,13 @@ InterfaceSummary SpatialAssembly::summarize_interface(
         throw std::out_of_range("Three-dimensional contact index is out of range");
     validate_state(state);
     InterfaceSummary result;
-    const ContributionRanges ranges = contribution_ranges();
     for (std::size_t entry = 0; entry < _thermal_contributions.size(); ++entry) {
         const ThermalContribution& candidate = _thermal_contributions[entry];
         if (candidate.contact != contact_value) continue;
         const std::size_t point = thermal_point_index(candidate.contact, candidate.integration_point);
-        if (_projected_thermal_candidates[entry] == 0U || candidate.primary != _thermal_selected_primary[point])
-            continue;
-        const CartesianHeatQuadratureValue value =
-            compute_quad4_to_quad4_gap_heat_value(_thermal_properties[contact_value], candidate.geometry,
-                contribution_state(ranges.thermal_begin + entry, state));
+        if (_thermal_active_candidates[point] != entry) continue;
+        const CartesianHeatQuadratureValue value = compute_quad4_to_quad4_gap_heat_value(
+            _thermal_properties[contact_value], candidate.geometry, contact_state(candidate.nodes, state));
         if (!value.projected)
             throw std::logic_error("Active three-dimensional thermal-contact candidate is not projected");
         result.minimum_gap = std::min(result.minimum_gap, value.gap);

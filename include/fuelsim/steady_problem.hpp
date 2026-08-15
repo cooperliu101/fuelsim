@@ -29,12 +29,14 @@ class SteadyProblem final : public NonlinearProblem {
     void commit_internal_state(const std::vector<double>& state);
     std::size_t dof_count() const noexcept override;
     std::size_t contribution_count() const noexcept override;
+    std::size_t sparsity_contribution_count() const noexcept override;
     const std::vector<FieldDescriptor>& field_layout() const noexcept override;
     const std::vector<DirichletCondition>& dirichlet_conditions() const noexcept override;
     void validate_state(const std::vector<double>& state) const override;
     std::vector<std::size_t> required_state_dofs(std::size_t first, std::size_t last) const override;
     void validate_local_state(std::size_t first, std::size_t last, const std::vector<double>& state) const override;
     void contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const override;
+    void sparsity_contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const override;
     void compute_contribution(std::size_t index, const std::vector<double>& state, std::vector<double>& residual,
         std::vector<double>* jacobian) const override;
 

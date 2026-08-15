@@ -640,20 +640,26 @@ bool test_gap_heat_and_normal_contact() {
     for (const fuelsim::Line2RzHeatPointGeometry& geometry : heat_geometries) {
         const fuelsim::HeatQuadratureValue value =
             fuelsim::compute_line2_rz_gap_heat_value(heat_properties, geometry, open_state);
-        passed = check(value.gap > 1.0e-6 && value.weighted_measure > 0.0,
-                     "open gap heat point has positive gap and measure") &&
+        const fuelsim::ContactProjectionValue projection =
+            fuelsim::compute_line2_rz_heat_projection(geometry, open_state);
+        passed = check(value.gap > 1.0e-6 && value.weighted_measure > 0.0 && projection.projected &&
+                           scaled_error(projection.gap, value.gap) < 1.0e-14,
+                     "double-only thermal search projection matches the full interface value") &&
                  passed;
     }
     const fuelsim::ContactPointValue open_contact = fuelsim::compute_node_to_line_rz_contact_value(
         contact_properties, contact_geometry, open_state, open_state, {});
     const fuelsim::ContactPointValue closed_contact = fuelsim::compute_node_to_line_rz_contact_value(
         contact_properties, contact_geometry, closed_state, closed_state, {});
+    const fuelsim::ContactProjectionValue closed_projection =
+        fuelsim::compute_node_to_line_rz_contact_projection(contact_geometry, closed_state);
     passed = check(open_contact.projected && open_contact.gap > 0.0 && open_contact.pressure == 0.0,
                  "open NTS node projects with zero pressure") &&
              passed;
     passed = check(closed_contact.projected && closed_contact.gap < 0.0 && closed_contact.pressure > 0.0 &&
-                       closed_contact.contact_force > 0.0,
-                 "closed NTS node develops pressure and nodal force") &&
+                       closed_contact.contact_force > 0.0 && closed_projection.projected &&
+                       scaled_error(closed_projection.gap, closed_contact.gap) < 1.0e-14,
+                 "double-only mechanical search projection matches the full contact value") &&
              passed;
     fuelsim::LocalValues outside_state = closed_state;
     outside_state[9] = 5.0e-6;
@@ -1447,11 +1453,14 @@ bool test_m1_dof_layout() {
         static_cast<void>(fuelsim::rz::ProblemAccess::contribution_dofs(problem, problem.contribution_count()));
     } catch (const std::out_of_range&) { rejected_out_of_range = true; }
     passed = check(rejected_out_of_range, "spatial contribution routing rejects the end index") && passed;
-    passed = check(thermal_contributions == 2 * (axial_elements + 1) * axial_elements,
-                 "every M1 STS integration point reserves one candidate contribution for each primary segment") &&
+    passed = check(thermal_contributions == 2 * (axial_elements + 1),
+                 "every M1 STS integration point forms one active thermal contribution") &&
              passed;
-    passed = check(mechanical_contributions == 2 * axial_elements * axial_elements,
-                 "M1 has the expected local NTS candidate contributions") &&
+    passed = check(mechanical_contributions == 2 * axial_elements,
+                 "M1 has one active NTS contribution per secondary half-node") &&
+             passed;
+    passed = check(problem.sparsity_contribution_count() > problem.contribution_count(),
+                 "M1 reserves every primary candidate block outside the active contribution loop") &&
              passed;
     passed = check(problem.dof_count() == 3 * (fuelsim::rz::ProblemAccess::region_mesh(problem, 0).nodes().size() +
                                                   fuelsim::rz::ProblemAccess::region_mesh(problem, 1).nodes().size()),

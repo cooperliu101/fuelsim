@@ -403,8 +403,8 @@ bool test_runtime_contribution_layout() {
     problem.reset_callback_counts();
     const fuelsim::SolveResult reused = solver.solve(problem, initial, options);
     passed = check(reused.converged && reused.timing.workspace_setups == 0 &&
-                       problem.dof_mapping_call_count() == mapping_calls_after_setup,
-                 "reused PETSc workspace does not query contribution mappings in residual or Jacobian callbacks") &&
+                       problem.dof_mapping_call_count() > mapping_calls_after_setup,
+                 "reused PETSc workspace refreshes dynamic contribution mappings without rebuilding") &&
              passed;
     if (result.mpi_size == 2 && result.local_contribution_begin < result.local_contribution_end) {
         const std::size_t expected_local_width = result.mpi_rank == 0 ? 32 : 7;
