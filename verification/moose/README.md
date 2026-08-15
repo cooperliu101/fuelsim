@@ -1290,7 +1290,8 @@ The reference was generated with:
 /home/cooper/projects/july/july-opt \
   --mesh-only m58_integrated_hex8_mesh.e \
   -i m58_integrated_hex8_mesh.i
-env OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 \
+env PATH=/home/cooper/miniforge/envs/moose/bin:/usr/local/bin:/usr/bin:/bin \
+  OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 \
   NUMEXPR_NUM_THREADS=1 taskset -c 0 \
   /home/cooper/projects/july/july-opt -i m58_integrated_hex8.i
 ```

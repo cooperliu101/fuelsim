@@ -562,12 +562,13 @@ and nonlinear tolerances. Field and console output were disabled for timing.
 CPU 0 was fixed with `taskset`, while OMP, OpenBLAS, MKL, and NumExpr were each
 limited to one thread.
 
-After one unreported warm-up, fuelsim wall-clock samples were `3.27`, `3.28`,
-and `3.28 s`, giving a `3.28 s` median. The corresponding MOOSE samples were
-`19.91`, `19.77`, and `19.86 s`, giving a `19.86 s` median. The measured ratio
-is `6.05`, or an 83.48 percent lower fuelsim wall time. The fuelsim solve used
-78 nonlinear iterations and one PETSc workspace. MOOSE attempted expression
-JIT compilation on every process start, could not find `mpicxx`, and fell back
-to byte-code interpretation. This startup and interpretation cost is part of
-the measured executable path. The result is a small-case paired observation,
-not a claim about engineering-scale performance or parallel scaling.
+The fuelsim and MOOSE warm-up runs were `3.27 s` and `20.80 s`. Subsequent
+fuelsim wall-clock samples were `3.27`, `3.28`, and `3.28 s`, giving a
+`3.28 s` median. The corresponding MOOSE samples were
+`19.91`, `19.83`, and `19.84 s`, giving a `19.84 s` median. The measured ratio
+is `6.05`, or an 83.47 percent lower fuelsim wall time. The fuelsim solve used
+78 nonlinear iterations and one PETSc workspace. The timing environment put
+the Conda MOOSE `bin` directory first in `PATH`; `mpicxx` was available and
+expression JIT compilation succeeded. The result is a small-case paired
+observation, not a claim about engineering-scale performance or parallel
+scaling.
