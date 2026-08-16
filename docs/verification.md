@@ -144,6 +144,11 @@ cmake --build build --parallel
 ctest --test-dir build --output-on-failure
 ```
 
+CTest 为每个用例固定 OpenMP、OpenBLAS、MKL 和 NumExpr 各为一个线程；这会传递给
+每个 MPI 进程，避免小规模回归算例因每个进程创建整机大小的 OpenMP 线程组而变慢。
+即使调用者使用 `ctest -j`，两个 MPI 进程的用例也会彼此串行；这只约束测试资源，
+不改变生产程序的线程设置。性能测量仍必须显式固定 CPU 和全部线程环境变量。
+
 固定依赖的首次安装、检测器配置和持续集成执行器变量见
 `docs/reproducible-build.md`。
 

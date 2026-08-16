@@ -998,4 +998,41 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_moose_reference_sha256 PROPERTIES
         LABELS "audit;release"
     )
+
+    # The PETSc supplied by the MOOSE environment links OpenMP-enabled HYPRE
+    # and OpenBLAS.  CTest otherwise inherits their hardware-sized thread
+    # teams for every MPI rank, which makes the small regression problems much
+    # slower and their timing dependent on the invoking shell.
+    set(FUELSIM_CTEST_THREAD_ENVIRONMENT
+        "OMP_NUM_THREADS=1"
+        "OPENBLAS_NUM_THREADS=1"
+        "MKL_NUM_THREADS=1"
+        "NUMEXPR_NUM_THREADS=1"
+    )
+    get_property(FUELSIM_CTEST_ALL_TESTS DIRECTORY PROPERTY TESTS)
+    set_tests_properties(${FUELSIM_CTEST_ALL_TESTS} PROPERTIES
+        ENVIRONMENT "${FUELSIM_CTEST_THREAD_ENVIRONMENT}"
+    )
+
+    # Do not run independent two-rank cases concurrently when callers choose
+    # ctest -j: each case already owns two MPI processes and is intended to
+    # exercise a distributed PETSc path, not process-level oversubscription.
+    if(FUELSIM_MPIEXEC_EXECUTABLE)
+        set(FUELSIM_CTEST_TWO_RANK_TESTS
+            fuelsim_mpi_hex8_solver_tests
+            fuelsim_mpi_solver_tests
+            fuelsim_mpi_runtime_layout_field_split
+            fuelsim_mpi_equivalence
+            fuelsim_m52_mpi_equivalence
+            fuelsim_b33_mpi_equivalence
+            fuelsim_mpi_field_split
+            fuelsim_mpi_block_jacobi
+            fuelsim_mpi_hypre
+            fuelsim_transient_mpi_equivalence
+            fuelsim_mpi_root_io_failure
+        )
+        set_tests_properties(${FUELSIM_CTEST_TWO_RANK_TESTS} PROPERTIES
+            RESOURCE_LOCK fuelsim_two_rank_mpi
+        )
+    endif()
 endif()
