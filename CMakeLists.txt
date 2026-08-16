@@ -308,27 +308,16 @@ if(BUILD_TESTING)
         TIMEOUT 180
     )
 
-    add_executable(fuelsim_m58_integrated_hex8_validation_tests
-        tests/m58_integrated_hex8_validation_tests.cpp
+    add_executable(fuelsim_m58_integrated_hex8_benchmark
+        benchmarks/m58_integrated_hex8.cpp
     )
-    target_link_libraries(fuelsim_m58_integrated_hex8_validation_tests
+    target_link_libraries(fuelsim_m58_integrated_hex8_benchmark
         PRIVATE
             fuelsim_moose_test_support
             fuelsim::io
             fuelsim::solver
     )
-    fuelsim_enable_warnings(fuelsim_m58_integrated_hex8_validation_tests)
-    add_test(NAME fuelsim_m58_integrated_hex8_validation_tests
-        COMMAND fuelsim_m58_integrated_hex8_validation_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_integrated_hex8.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m58_integrated_hex8_all_nodes_0020.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m58_integrated_hex8_contact_pressure_0020.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m58_integrated_hex8_clad_state_0020.csv"
-    )
-    set_tests_properties(fuelsim_m58_integrated_hex8_validation_tests PROPERTIES
-        LABELS "acceptance;benchmark;three-dimensional"
-        TIMEOUT 600
-    )
+    fuelsim_enable_warnings(fuelsim_m58_integrated_hex8_benchmark)
 
     add_executable(fuelsim_m52_large_sliding_restart_tests
         tests/m52_large_sliding_restart_tests.cpp

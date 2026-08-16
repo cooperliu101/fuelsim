@@ -309,18 +309,18 @@ bool run(const std::string& input_path, const std::string& nodal_path, const std
 
 int main(int argc, char** argv) {
     if (argc != 5) {
-        std::cerr << "Usage: fuelsim_m58_integrated_hex8_validation_tests "
+        std::cerr << "Usage: fuelsim_m58_integrated_hex8_benchmark "
                      "<case.fsi> <all-nodes.csv> <contact.csv> <element-state.csv>\n";
         return 2;
     }
     try {
         std::cout << std::scientific << std::setprecision(12);
-        fuelsim::PetscSession session(argc, argv, "fuelsim M5.8 integrated Hex8 validation\n");
+        fuelsim::PetscSession session(argc, argv, "fuelsim M5.8 integrated Hex8 benchmark\n");
         if (!run(argv[1], argv[2], argv[3], argv[4])) return 1;
         std::cout << "[PASS] M5.8 integrated Hex8 MOOSE comparison\n";
         return 0;
     } catch (const std::exception& error) {
-        std::cerr << "[FAIL] M5.8 validation raised: " << error.what() << '\n';
+        std::cerr << "[FAIL] M5.8 benchmark raised: " << error.what() << '\n';
         return 1;
     }
 }

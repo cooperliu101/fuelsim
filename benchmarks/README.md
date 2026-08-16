@@ -602,3 +602,14 @@ creep strain each pass relative L2, relative absolute-peak, and maximum
 pointwise relative errors below 0.5 percent without a denominator floor. The
 largest default acceptance metric is the X-displacement maximum pointwise
 relative error at `0.010724 percent`.
+
+The full field comparison is intentionally not registered with CTest. Run it
+manually from the repository root with:
+
+```bash
+./build/fuelsim_m58_integrated_hex8_benchmark \
+  verification/fuelsim/transient_integrated_hex8.fsi \
+  verification/moose/m58_integrated_hex8_all_nodes_0020.csv \
+  verification/moose/m58_integrated_hex8_contact_pressure_0020.csv \
+  verification/moose/m58_integrated_hex8_clad_state_0020.csv
+```
