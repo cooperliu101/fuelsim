@@ -613,3 +613,65 @@ manually from the repository root with:
   verification/moose/m58_integrated_hex8_contact_pressure_0020.csv \
   verification/moose/m58_integrated_hex8_clad_state_0020.csv
 ```
+
+## 2026-08-16 M5.8 two-process parallel efficiency
+
+The original runtime contribution partition divided the 2,688 active blocks by
+count. Its two intervals were `[0,1344)` and `[1344,2688)`. Because the first
+1,152 blocks are eight-point finite-strain Hex8 volume integrations, rank zero
+performed all volume work while rank one mostly handled the cheaper surface
+blocks. With one-process and two-process MUMPS runs using the same 76 nonlinear
+iterations, the measured internal times were `111.122 s` and `103.712 s`; the
+two-process efficiency was only `53.57 percent`.
+
+The runtime partition now balances operation-based work estimates while retaining
+one contiguous and unique interval per process. Thermal contact, mechanical
+contact, and pressure Jacobians submit only their current nonzero row and column
+subblocks to PETSc; the complete preallocated graph is unchanged. The Cartesian
+three-dimensional sparsity graph also stores one representative for each
+secondary-face/primary-face pair instead of repeating the same 32-DOF block for
+four thermal quadrature points and four mechanical face nodes. Runtime physics,
+candidate search, and every active contribution remain unchanged.
+
+The final two-process MOOSE comparison used intervals `[0,664)` and `[664,2688)`.
+They are contiguous, nonoverlapping, and cover every active contribution. The
+largest shadow state was 3,972 DOFs; both shadows contained 7,751 values in total,
+including 3,672 remote values. The complete solve used 75 nonlinear iterations,
+`1.716526 s` of setup, `6.020732 s` in residual callbacks,
+`35.818805 s` in Jacobian callbacks, and `59.434407 s` internally. All M5.8
+nodal, contact-pressure, and material-state comparisons remained below the
+`0.5 percent` three-metric limit.
+
+The final end-to-end production-entry measurements used a newly linked Release
+executable, the same MUMPS direct solver for both process counts, CPUs 0 and 1,
+and one thread for every numerical library. Three samples were collected for
+each process count; their wall times were `104.37`, `104.03`, and `103.83 s` for
+one process, and `64.43`, `64.87`, and `65.40 s` for two processes:
+
+| MPI processes | median process wall time | speedup | parallel efficiency |
+| ---: | ---: | ---: | ---: |
+| 1 | `104.03 s` | `1.0000` | `100.00 percent` |
+| 2 | `64.87 s` | `1.6037` | `80.1834 percent` |
+
+Thus the median two-process wall time is `37.64 percent` lower and its parallel
+efficiency exceeds the `80 percent` target for this exact 6,468-DOF, 20-step
+benchmark. This is a two-process strong-scaling result for the named mesh,
+physics, direct solver, hardware placement, and toolchain; it is not evidence of
+general multi-node or larger-process-count scaling.
+
+The one-process command was:
+
+```bash
+env PATH=/home/cooper/miniforge/envs/moose/bin:/usr/local/bin:/usr/bin:/bin \
+  OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 \
+  NUMEXPR_NUM_THREADS=1 MPIR_CVAR_CH4_NETMOD=ofi FI_PROVIDER=tcp \
+  PETSC_OPTIONS='-pc_factor_mat_solver_type mumps' \
+  /usr/bin/time -f 'process_wall_seconds=%e' \
+  taskset -c 0 \
+  /home/cooper/miniforge/envs/moose/bin/mpiexec -bind-to core -n 1 \
+  ./build/fuelsim -i verification/fuelsim/transient_integrated_hex8.fsi
+```
+
+The two-process command removes `PETSC_OPTIONS`, because the production direct
+solver selects MUMPS automatically when more than one process is present, and
+changes the CPU list and process count to `taskset -c 0,1` and `-n 2`.

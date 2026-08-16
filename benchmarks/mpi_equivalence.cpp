@@ -418,8 +418,9 @@ int main(int argc, char** argv) {
             if (session.size() > 1) {
                 const std::size_t rank = static_cast<std::size_t>(session.rank());
                 const std::size_t ranks = static_cast<std::size_t>(session.size());
-                const std::size_t expected_begin = problem.contribution_count() * rank / ranks;
-                const std::size_t expected_end = problem.contribution_count() * (rank + 1) / ranks;
+                const auto expected = problem.contribution_partition(rank, ranks);
+                const std::size_t expected_begin = expected.first;
+                const std::size_t expected_end = expected.second;
                 if (shadow.local_contribution_begin != expected_begin || shadow.local_contribution_end != expected_end)
                     throw std::runtime_error("Transient MPI contribution partition differs from ownership contract");
                 if (shadow.maximum_shadow_state_dofs > problem.dof_count() ||
@@ -504,10 +505,9 @@ int main(int argc, char** argv) {
         if (mode != "compare" && !field_split && !block_jacobi && !hypre)
             throw std::invalid_argument("Unknown MPI equivalence mode: " + mode);
         if (session.size() != 2) throw std::invalid_argument("MPI comparison must run with exactly two ranks");
-        const std::size_t expected_begin =
-            problem.contribution_count() * static_cast<std::size_t>(result.solve.mpi_rank) / 2U;
-        const std::size_t expected_end =
-            problem.contribution_count() * static_cast<std::size_t>(result.solve.mpi_rank + 1) / 2U;
+        const auto expected = problem.contribution_partition(static_cast<std::size_t>(result.solve.mpi_rank), 2U);
+        const std::size_t expected_begin = expected.first;
+        const std::size_t expected_end = expected.second;
         if (result.solve.local_contribution_begin != expected_begin ||
             result.solve.local_contribution_end != expected_end)
             throw std::runtime_error("MPI contribution partition differs from ownership contract");

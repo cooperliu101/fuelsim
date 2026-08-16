@@ -2,6 +2,7 @@
 #include <cstddef>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace fuelsim {
@@ -63,6 +64,8 @@ class NonlinearProblem {
     virtual std::size_t dof_count() const noexcept = 0;
     virtual std::size_t contribution_count() const noexcept = 0;
     virtual std::size_t sparsity_contribution_count() const noexcept;
+    virtual std::pair<std::size_t, std::size_t> contribution_partition(
+        std::size_t partition, std::size_t partition_count) const;
     virtual const std::vector<FieldDescriptor>& field_layout() const noexcept = 0;
     virtual void contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const = 0;
     virtual void sparsity_contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const;

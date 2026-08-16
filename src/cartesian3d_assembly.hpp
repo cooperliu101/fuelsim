@@ -40,6 +40,8 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     std::size_t contribution_count() const noexcept { return contribution_ranges().end; }
 
     std::size_t sparsity_contribution_count() const noexcept;
+    std::pair<std::size_t, std::size_t> contribution_partition(
+        std::size_t partition, std::size_t partition_count) const;
 
     void validate_state(const std::vector<double>& state) const;
     std::vector<std::size_t> required_state_dofs(std::size_t first, std::size_t last) const;
@@ -87,6 +89,7 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     };
 
     ContributionRanges contribution_ranges() const noexcept;
+    std::size_t contribution_work(std::size_t index) const;
     ResolvedBoundary resolve_boundary(const UnstructuredHex8Mesh& source_mesh, const std::string& name) const;
     void build_contacts(const UnstructuredHex8Mesh& source_mesh);
     void update_contact_search_trees(const std::vector<double>& state) const;
@@ -111,6 +114,7 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     std::vector<BoundaryContribution> _boundary_contributions;
     std::vector<GapHeatProperties> _thermal_properties;
     std::vector<NormalContactProperties> _mechanical_properties;
+    std::vector<std::array<std::size_t, 8>> _sparsity_contact_nodes;
     std::vector<ThermalContribution> _thermal_contributions;
     std::vector<MechanicalContribution> _mechanical_contributions;
     std::vector<MechanicalPoint> _mechanical_points;

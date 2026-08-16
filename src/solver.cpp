@@ -120,8 +120,10 @@ struct SolverContext final {
     std::vector<double> global_field_squared_norms;
     std::vector<std::size_t> dof_fields;
     std::vector<PetscInt> petsc_contribution_dofs;
+    std::vector<PetscInt> active_row_dofs, active_column_dofs;
+    std::vector<unsigned char> active_rows, active_columns;
     ContributionWorkspace contribution_workspace;
-    std::vector<double> scaled_contribution_jacobian;
+    std::vector<double> scaled_contribution_jacobian, active_contribution_jacobian;
     double initial_residual_norm = std::numeric_limits<double>::quiet_NaN();
     bool saw_domain_error = false, last_function_domain_error = false;
     std::string last_domain_error;
@@ -166,8 +168,45 @@ PetscErrorCode assemble_contributions(SolverContext& context, Vec residual, Mat 
                         context.field_residual_scalings[field];
             }
         }
-        PetscCall(MatSetValues(jacobian, petsc_local_count, petsc_dofs, petsc_local_count, petsc_dofs,
-            context.scaled_contribution_jacobian.data(), ADD_VALUES));
+        context.active_row_dofs.clear();
+        context.active_column_dofs.clear();
+        context.active_rows.assign(local_count, 0U);
+        context.active_columns.assign(local_count, 0U);
+        for (std::size_t row = 0; row < local_count; ++row) {
+            const double* values = context.scaled_contribution_jacobian.data() + row * local_count;
+            if (std::any_of(values, values + local_count, [](double value) { return value != 0.0; })) {
+                context.active_row_dofs.push_back(context.petsc_contribution_dofs[row]);
+                context.active_rows[row] = 1U;
+            }
+        }
+        for (std::size_t column = 0; column < local_count; ++column) {
+            bool active = false;
+            for (std::size_t row = 0; row < local_count && !active; ++row)
+                active = context.scaled_contribution_jacobian[row * local_count + column] != 0.0;
+            if (active) {
+                context.active_column_dofs.push_back(context.petsc_contribution_dofs[column]);
+                context.active_columns[column] = 1U;
+            }
+        }
+        if (context.active_row_dofs.size() == local_count && context.active_column_dofs.size() == local_count) {
+            PetscCall(MatSetValues(jacobian, petsc_local_count, petsc_dofs, petsc_local_count, petsc_dofs,
+                context.scaled_contribution_jacobian.data(), ADD_VALUES));
+            continue;
+        }
+        if (context.active_row_dofs.empty() || context.active_column_dofs.empty()) continue;
+        context.active_contribution_jacobian.clear();
+        context.active_contribution_jacobian.reserve(
+            context.active_row_dofs.size() * context.active_column_dofs.size());
+        for (std::size_t row = 0; row < local_count; ++row) {
+            if (context.active_rows[row] == 0U) continue;
+            for (std::size_t column = 0; column < local_count; ++column)
+                if (context.active_columns[column] != 0U)
+                    context.active_contribution_jacobian.push_back(
+                        context.scaled_contribution_jacobian[row * local_count + column]);
+        }
+        PetscCall(MatSetValues(jacobian, checked_petsc_int(context.active_row_dofs.size()),
+            context.active_row_dofs.data(), checked_petsc_int(context.active_column_dofs.size()),
+            context.active_column_dofs.data(), context.active_contribution_jacobian.data(), ADD_VALUES));
     }
     PetscFunctionReturn(PETSC_SUCCESS);
 }
@@ -544,8 +583,9 @@ class PetscSolver::Implementation final {
         _context.size = PetscGlobalSize;
         const std::size_t rank = static_cast<std::size_t>(_context.rank),
                           size = static_cast<std::size_t>(_context.size);
-        _context.contribution_begin = problem.contribution_count() * rank / size;
-        _context.contribution_end = problem.contribution_count() * (rank + 1U) / size;
+        const auto contribution_partition = problem.contribution_partition(rank, size);
+        _context.contribution_begin = contribution_partition.first;
+        _context.contribution_end = contribution_partition.second;
         _context.constrained.assign(problem.dof_count(), false);
         const std::size_t field_count = problem.field_layout().size();
         _context.initial_field_residual_norms.resize(field_count);
@@ -572,7 +612,10 @@ class PetscSolver::Implementation final {
         }
         _context.contribution_workspace.reserve(maximum_local_dofs);
         _context.petsc_contribution_dofs.reserve(maximum_local_dofs);
+        _context.active_row_dofs.reserve(maximum_local_dofs);
+        _context.active_column_dofs.reserve(maximum_local_dofs);
         _context.scaled_contribution_jacobian.reserve(maximum_local_dofs * maximum_local_dofs);
+        _context.active_contribution_jacobian.reserve(maximum_local_dofs * maximum_local_dofs);
         check_petsc(VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE, _count, &_objects->state), "VecCreateMPI state");
         check_petsc(VecDuplicate(_objects->state, &_objects->residual), "VecDuplicate residual");
         PetscInt local_count = 0;

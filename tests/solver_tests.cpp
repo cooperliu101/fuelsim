@@ -385,10 +385,10 @@ bool test_runtime_contribution_layout() {
     } else {
         passed = check(false, "runtime layout solve returns all 32 global DOFs") && passed;
     }
-    const std::size_t expected_begin = problem.contribution_count() * static_cast<std::size_t>(result.mpi_rank) /
-                                       static_cast<std::size_t>(result.mpi_size);
-    const std::size_t expected_end = problem.contribution_count() * static_cast<std::size_t>(result.mpi_rank + 1) /
-                                     static_cast<std::size_t>(result.mpi_size);
+    const auto expected_partition = problem.contribution_partition(
+        static_cast<std::size_t>(result.mpi_rank), static_cast<std::size_t>(result.mpi_size));
+    const std::size_t expected_begin = expected_partition.first;
+    const std::size_t expected_end = expected_partition.second;
     passed = check(result.local_contribution_begin == expected_begin && result.local_contribution_end == expected_end,
                  "runtime layout solve preserves the exact per-rank contribution interval") &&
              passed;
@@ -551,10 +551,10 @@ bool test_thermal_cylinder() {
     scaled_options.field_residual_scaling = true;
     const fuelsim::SolveResult result = solver.solve(problem, problem.initial_state(), scaled_options);
     bool passed = check(result.converged, "thermal cylinder SNES converged");
-    const std::size_t expected_begin = problem.contribution_count() * static_cast<std::size_t>(result.mpi_rank) /
-                                       static_cast<std::size_t>(result.mpi_size);
-    const std::size_t expected_end = problem.contribution_count() * static_cast<std::size_t>(result.mpi_rank + 1) /
-                                     static_cast<std::size_t>(result.mpi_size);
+    const auto expected_partition = problem.contribution_partition(
+        static_cast<std::size_t>(result.mpi_rank), static_cast<std::size_t>(result.mpi_size));
+    const std::size_t expected_begin = expected_partition.first;
+    const std::size_t expected_end = expected_partition.second;
     passed = check(result.local_contribution_begin == expected_begin && result.local_contribution_end == expected_end,
                  "PETSc rank owns its exact nonoverlapping contribution range") &&
              passed;

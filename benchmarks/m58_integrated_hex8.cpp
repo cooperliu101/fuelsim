@@ -145,14 +145,14 @@ fuelsim::TransientTimeOptions time_options(const fuelsim::FuelSimCaseDefinition&
         input.growth_factor, input.cutback_factor, input.maximum_cutbacks_per_step, input.load_ramp_time};
 }
 
-bool below(const std::string& name, const fuelsim::test::FieldErrorMetrics& metrics) {
-    fuelsim::test::print_relative_metrics(name, metrics);
+bool below(const std::string& name, const fuelsim::test::FieldErrorMetrics& metrics, bool output) {
+    if (output) fuelsim::test::print_relative_metrics(name, metrics);
     return check(fuelsim::test::relative_metrics_below(metrics, 5.0e-3),
         name + " relative L2, relative absolute-peak, and maximum pointwise errors are below 0.5 percent");
 }
 
 bool run(const std::string& input_path, const std::string& nodal_path, const std::string& contact_path,
-    const std::string& element_path) {
+    const std::string& element_path, bool output) {
     const fuelsim::FuelSimCaseDefinition definition = fuelsim::read_case_input(input_path);
     if (definition.problem != fuelsim::CaseProblem::transient ||
         definition.geometry != fuelsim::CaseGeometry::cartesian_3d || definition.spatial.contacts.size() != 1 ||
@@ -171,12 +171,28 @@ bool run(const std::string& input_path, const std::string& nodal_path, const std
         }
     const fuelsim::TransientResult solve =
         fuelsim::solve_transient(problem, time_options(definition), solver_options(definition));
-    bool passed =
-        check(initial_projected_nodes == initial_contact.size() && initial_minimum_gap > 0.0,
-            "M5.8 starts from a positive projected mechanical gap") &&
-        check(
-            solve.completed && solve.accepted_steps.size() == 20, "M5.8 completes twenty equal Backward Euler steps") &&
-        check(solve.aggregate_timing.workspace_setups == 1, "M5.8 reuses one PETSc workspace across the complete path");
+    const std::size_t rank = static_cast<std::size_t>(solve.last_attempt.mpi_rank);
+    const std::size_t ranks = static_cast<std::size_t>(solve.last_attempt.mpi_size);
+    const auto local_partition = problem.contribution_partition(rank, ranks);
+    bool passed = check(initial_projected_nodes == initial_contact.size() && initial_minimum_gap > 0.0,
+                      "M5.8 starts from a positive projected mechanical gap") &&
+                  check(solve.completed && solve.accepted_steps.size() == 20,
+                      "M5.8 completes twenty equal Backward Euler steps") &&
+                  check(solve.aggregate_timing.workspace_setups == 1,
+                      "M5.8 reuses one PETSc workspace across the complete path") &&
+                  check(local_partition.first == solve.last_attempt.local_contribution_begin &&
+                            local_partition.second == solve.last_attempt.local_contribution_end,
+                      "M5.8 assigns this message-passing rank its declared contribution interval");
+    for (std::size_t partition = 0; partition + 1U < ranks; ++partition) {
+        const auto left = problem.contribution_partition(partition, ranks);
+        const auto right = problem.contribution_partition(partition + 1U, ranks);
+        passed = check(left.second == right.first, "M5.8 contribution intervals are contiguous and do not overlap") &&
+                 passed;
+    }
+    passed = check(problem.contribution_partition(0, ranks).first == 0 &&
+                       problem.contribution_partition(ranks - 1U, ranks).second == problem.contribution_count(),
+                 "M5.8 contribution intervals cover every runtime contribution exactly once") &&
+             passed;
 
     const auto node_reference = read_nodes(nodal_path);
     if (node_reference.size() != source.nodes().size()) throw std::invalid_argument("M5.8 node counts differ");
@@ -225,9 +241,11 @@ bool run(const std::string& input_path, const std::string& nodal_path, const std
     const std::array<std::string, 4> nodal_names = {
         "temperature", "displacement_x", "displacement_y", "displacement_z"};
     for (std::size_t field = 0; field < nodal.size(); ++field)
-        passed = below("m58_" + nodal_names[field], nodal[field]) && passed;
-    fuelsim::test::print_relative_metrics("m58_radial_displacement", radial_displacement);
-    fuelsim::test::print_relative_metrics("m58_tangential_displacement", tangential_displacement);
+        passed = below("m58_" + nodal_names[field], nodal[field], output) && passed;
+    if (output) {
+        fuelsim::test::print_relative_metrics("m58_radial_displacement", radial_displacement);
+        fuelsim::test::print_relative_metrics("m58_tangential_displacement", tangential_displacement);
+    }
 
     const auto contact =
         fuelsim::cartesian::ProblemAccess::summarize_contact_nodes(problem, 0, problem.committed_solution());
@@ -244,7 +262,7 @@ bool run(const std::string& input_path, const std::string& nodal_path, const std
         if (contact[node].sliding) ++sliding;
         if (contact[node].primary_face != initial_contact[node].primary_face) ++crossed_faces;
     }
-    passed = below("m58_contact_pressure", pressure) && passed;
+    passed = below("m58_contact_pressure", pressure, output) && passed;
 
     const auto element_reference = read_elements(element_path);
     std::array<fuelsim::test::FieldErrorMetrics, 3> material;
@@ -281,7 +299,7 @@ bool run(const std::string& input_path, const std::string& nodal_path, const std
     const std::array<std::string, 3> material_names = {
         "equivalent_stress", "equivalent_plastic_strain", "equivalent_creep_strain"};
     for (std::size_t field = 0; field < material.size(); ++field)
-        passed = below("m58_" + material_names[field], material[field]) && passed;
+        passed = below("m58_" + material_names[field], material[field], output) && passed;
 
     const fuelsim::InterfaceSummary interface =
         fuelsim::cartesian::ProblemAccess::summarize_interface(problem, 0, problem.committed_solution());
@@ -296,13 +314,27 @@ bool run(const std::string& input_path, const std::string& nodal_path, const std
              check(material[1].maximum_actual > 0.0 && material[2].maximum_actual > 0.0,
                  "M5.8 activates cladding plasticity and creep") &&
              passed;
-    std::cout << "m58_dofs=" << problem.dof_count() << '\n'
-              << "m58_initial_minimum_gap=" << initial_minimum_gap << '\n'
-              << "m58_nonlinear_iterations=" << solve.total_nonlinear_iterations << '\n'
-              << "m58_total_seconds=" << solve.aggregate_timing.total_seconds << '\n'
-              << "m58_active_contact_nodes=" << interface.active_contact_nodes << '\n'
-              << "m58_sliding_contact_nodes=" << sliding << '\n'
-              << "m58_nodes_crossing_primary_faces=" << crossed_faces << '\n';
+    if (output)
+        std::cout << "m58_dofs=" << problem.dof_count() << '\n'
+                  << "m58_initial_minimum_gap=" << initial_minimum_gap << '\n'
+                  << "m58_nonlinear_iterations=" << solve.total_nonlinear_iterations << '\n'
+                  << "m58_residual_evaluations=" << solve.aggregate_timing.residual_evaluations << '\n'
+                  << "m58_jacobian_evaluations=" << solve.aggregate_timing.jacobian_evaluations << '\n'
+                  << "m58_setup_seconds=" << solve.aggregate_timing.setup_seconds << '\n'
+                  << "m58_residual_callback_seconds=" << solve.aggregate_timing.residual_callback_seconds << '\n'
+                  << "m58_jacobian_callback_seconds=" << solve.aggregate_timing.jacobian_callback_seconds << '\n'
+                  << "m58_nonlinear_solve_seconds=" << solve.aggregate_timing.nonlinear_solve_seconds << '\n'
+                  << "m58_total_seconds=" << solve.aggregate_timing.total_seconds << '\n'
+                  << "m58_mpi_rank=" << solve.last_attempt.mpi_rank << '\n'
+                  << "m58_mpi_size=" << solve.last_attempt.mpi_size << '\n'
+                  << "m58_local_contribution_begin=" << solve.last_attempt.local_contribution_begin << '\n'
+                  << "m58_local_contribution_end=" << solve.last_attempt.local_contribution_end << '\n'
+                  << "m58_maximum_shadow_state_dofs=" << solve.last_attempt.maximum_shadow_state_dofs << '\n'
+                  << "m58_total_shadow_state_dofs=" << solve.last_attempt.total_shadow_state_dofs << '\n'
+                  << "m58_total_remote_shadow_state_dofs=" << solve.last_attempt.total_remote_shadow_state_dofs << '\n'
+                  << "m58_active_contact_nodes=" << interface.active_contact_nodes << '\n'
+                  << "m58_sliding_contact_nodes=" << sliding << '\n'
+                  << "m58_nodes_crossing_primary_faces=" << crossed_faces << '\n';
     return passed;
 }
 } // namespace
@@ -316,8 +348,8 @@ int main(int argc, char** argv) {
     try {
         std::cout << std::scientific << std::setprecision(12);
         fuelsim::PetscSession session(argc, argv, "fuelsim M5.8 integrated Hex8 benchmark\n");
-        if (!run(argv[1], argv[2], argv[3], argv[4])) return 1;
-        std::cout << "[PASS] M5.8 integrated Hex8 MOOSE comparison\n";
+        if (!run(argv[1], argv[2], argv[3], argv[4], session.rank() == 0)) return 1;
+        if (session.rank() == 0) std::cout << "[PASS] M5.8 integrated Hex8 MOOSE comparison\n";
         return 0;
     } catch (const std::exception& error) {
         std::cerr << "[FAIL] M5.8 benchmark raised: " << error.what() << '\n';

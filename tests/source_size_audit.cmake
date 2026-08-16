@@ -10,6 +10,7 @@ set(hex8_contact_capability_lines 1070)
 set(dynamic_contact_assembly_performance_lines 171)
 set(large_sliding_contact_search_lines 534)
 set(cartesian_current_pressure_input_lines 6)
+set(m58_two_process_efficiency_lines 98)
 
 file(READ "${ROOT}/.clang-format" format_configuration)
 string(FIND "${format_configuration}" "ColumnLimit: 120" column_limit)
@@ -47,7 +48,7 @@ endif()
 math(EXPR removed_lines "${nonempty_line_baseline} - ${nonempty_lines}")
 math(EXPR reduction_per_mille "1000 * ${removed_lines} / ${nonempty_line_baseline}")
 math(EXPR capability_adjusted_limit
-    "${maximum_nonempty_lines} + ${hex8_inelastic_capability_lines} + ${hex8_finite_strain_capability_lines} + ${hex8_contact_capability_lines} + ${dynamic_contact_assembly_performance_lines} + ${large_sliding_contact_search_lines} + ${cartesian_current_pressure_input_lines}"
+    "${maximum_nonempty_lines} + ${hex8_inelastic_capability_lines} + ${hex8_finite_strain_capability_lines} + ${hex8_contact_capability_lines} + ${dynamic_contact_assembly_performance_lines} + ${large_sliding_contact_search_lines} + ${cartesian_current_pressure_input_lines} + ${m58_two_process_efficiency_lines}"
 )
 if(nonempty_lines GREATER capability_adjusted_limit)
     message(FATAL_ERROR
@@ -58,7 +59,8 @@ if(nonempty_lines GREATER capability_adjusted_limit)
         "three-dimensional contact and ${dynamic_contact_assembly_performance_lines} additional lines allowed for "
         "dynamic active-contact assembly performance, plus ${large_sliding_contact_search_lines} additional lines "
         "allowed for exact large-sliding contact search, plus ${cartesian_current_pressure_input_lines} additional "
-        "lines allowed for Cartesian current-configuration pressure input"
+        "lines allowed for Cartesian current-configuration pressure input, plus ${m58_two_process_efficiency_lines} "
+        "lines allowed for M5.8 two-process parallel efficiency"
     )
 endif()
 
@@ -71,5 +73,6 @@ message(STATUS
     "${hex8_contact_capability_lines} three-dimensional contact capability lines plus "
     "${dynamic_contact_assembly_performance_lines} dynamic active-contact assembly performance lines plus "
     "${large_sliding_contact_search_lines} exact large-sliding contact-search capability lines plus "
-    "${cartesian_current_pressure_input_lines} Cartesian current-pressure input lines"
+    "${cartesian_current_pressure_input_lines} Cartesian current-pressure input lines plus "
+    "${m58_two_process_efficiency_lines} M5.8 two-process parallel-efficiency lines"
 )

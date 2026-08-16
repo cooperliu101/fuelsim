@@ -138,10 +138,10 @@ bool test_steady(
             "three-dimensional solve reports four field-major fields") &&
         check(problem.contribution_count() == 2, "two HEX8 elements expose two independent contributions") &&
         check_uniform_solution(fuelsim::cartesian::ProblemAccess::dof_map(problem), mesh, result.solve.state, 400.0);
-    const std::size_t expected_begin = problem.contribution_count() * static_cast<std::size_t>(session.rank()) /
-                                       static_cast<std::size_t>(session.size());
-    const std::size_t expected_end = problem.contribution_count() * static_cast<std::size_t>(session.rank() + 1) /
-                                     static_cast<std::size_t>(session.size());
+    const auto expected_partition = problem.contribution_partition(
+        static_cast<std::size_t>(session.rank()), static_cast<std::size_t>(session.size()));
+    const std::size_t expected_begin = expected_partition.first;
+    const std::size_t expected_end = expected_partition.second;
     passed = check(result.solve.local_contribution_begin == expected_begin &&
                        result.solve.local_contribution_end == expected_end,
                  "each message-passing rank owns only its exact HEX8 contribution interval") &&

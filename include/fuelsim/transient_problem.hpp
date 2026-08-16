@@ -84,6 +84,8 @@ class TransientProblem final : public NonlinearProblem {
     std::size_t dof_count() const noexcept override;
     std::size_t contribution_count() const noexcept override;
     std::size_t sparsity_contribution_count() const noexcept override;
+    std::pair<std::size_t, std::size_t> contribution_partition(
+        std::size_t partition, std::size_t partition_count) const override;
     const std::vector<FieldDescriptor>& field_layout() const noexcept override;
     const std::vector<DirichletCondition>& dirichlet_conditions() const noexcept override;
     void validate_state(const std::vector<double>& state) const override;

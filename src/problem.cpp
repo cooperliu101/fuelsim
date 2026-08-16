@@ -88,6 +88,14 @@ bool NonlinearProblem::uses_augmented_contact() const noexcept { return false; }
 
 std::size_t NonlinearProblem::sparsity_contribution_count() const noexcept { return contribution_count(); }
 
+std::pair<std::size_t, std::size_t> NonlinearProblem::contribution_partition(
+    std::size_t partition, std::size_t partition_count) const {
+    if (partition_count == 0 || partition >= partition_count)
+        throw std::out_of_range("NonlinearProblem contribution partition is out of range");
+    return {
+        contribution_count() * partition / partition_count, contribution_count() * (partition + 1U) / partition_count};
+}
+
 void NonlinearProblem::sparsity_contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const {
     contribution_dofs(index, dofs);
 }
@@ -234,6 +242,15 @@ class SpatialProblemStorage {
 
     std::size_t sparsity_contribution_count() const noexcept {
         return is_cartesian() ? cartesian->sparsity_contribution_count() : rz->sparsity_contribution_count();
+    }
+
+    std::pair<std::size_t, std::size_t> contribution_partition(
+        std::size_t partition, std::size_t partition_count) const {
+        if (is_cartesian()) return cartesian->contribution_partition(partition, partition_count);
+        if (partition_count == 0 || partition >= partition_count)
+            throw std::out_of_range("Spatial problem contribution partition is out of range");
+        return {rz->contribution_count() * partition / partition_count,
+            rz->contribution_count() * (partition + 1U) / partition_count};
     }
 
     void set_load_factor(double value) {
@@ -397,6 +414,11 @@ std::size_t SteadyProblem::dof_count() const noexcept { return _impl->layout().d
 std::size_t SteadyProblem::contribution_count() const noexcept { return _impl->contribution_count(); }
 
 std::size_t SteadyProblem::sparsity_contribution_count() const noexcept { return _impl->sparsity_contribution_count(); }
+
+std::pair<std::size_t, std::size_t> SteadyProblem::contribution_partition(
+    std::size_t partition, std::size_t partition_count) const {
+    return _impl->contribution_partition(partition, partition_count);
+}
 
 const std::vector<FieldDescriptor>& SteadyProblem::field_layout() const noexcept {
     return _impl->layout().field_layout();
@@ -1126,6 +1148,11 @@ std::size_t TransientProblem::contribution_count() const noexcept { return _impl
 
 std::size_t TransientProblem::sparsity_contribution_count() const noexcept {
     return _impl->sparsity_contribution_count();
+}
+
+std::pair<std::size_t, std::size_t> TransientProblem::contribution_partition(
+    std::size_t partition, std::size_t partition_count) const {
+    return _impl->contribution_partition(partition, partition_count);
 }
 
 const std::vector<FieldDescriptor>& TransientProblem::field_layout() const noexcept {

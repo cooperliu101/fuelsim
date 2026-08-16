@@ -283,28 +283,9 @@ void SpatialAssembly::sparsity_contribution_dofs(std::size_t index, std::vector<
         return;
     }
     index -= volume_contribution_count();
-    if (index < _thermal_contributions.size()) {
-        const Quad4SurfaceContactLocalDofs fixed = contact_dofs(_thermal_contributions[index].nodes);
-        dofs.assign(fixed.begin(), fixed.end());
-        return;
-    }
-    index -= _thermal_contributions.size();
-    if (index < _mechanical_contributions.size()) {
-        const Quad4SurfaceContactLocalDofs fixed = contact_dofs(_mechanical_contributions[index].nodes);
-        dofs.assign(fixed.begin(), fixed.end());
-        return;
-    }
-    index -= _mechanical_contributions.size();
-    if (index >= _boundary_contributions.size())
+    if (index >= _sparsity_contact_nodes.size())
         throw std::out_of_range("Three-dimensional sparsity contribution index is out of range");
-    const BoundaryContribution& entry = _boundary_contributions[index];
-    Quad4FaceLocalDofs fixed{};
-    for (std::size_t node = 0; node < entry.nodes.size(); ++node) {
-        fixed[node] = dof(Field::temperature, entry.nodes[node]);
-        fixed[4 + node] = dof(Field::displacement_x, entry.nodes[node]);
-        fixed[8 + node] = dof(Field::displacement_y, entry.nodes[node]);
-        fixed[12 + node] = dof(Field::displacement_z, entry.nodes[node]);
-    }
+    const Quad4SurfaceContactLocalDofs fixed = contact_dofs(_sparsity_contact_nodes[index]);
     dofs.assign(fixed.begin(), fixed.end());
 }
 
@@ -413,8 +394,49 @@ SpatialAssembly::ContributionRanges SpatialAssembly::contribution_ranges() const
 }
 
 std::size_t SpatialAssembly::sparsity_contribution_count() const noexcept {
-    return volume_contribution_count() + _thermal_contributions.size() + _mechanical_contributions.size() +
-           _boundary_contributions.size();
+    // Every face boundary block is a subset of its adjacent volume block. Contact quadrature points and face nodes
+    // that share one secondary-face/primary-face pair also have the same 32-DOF graph, so one representative preserves
+    // the complete graph without repeating it for each runtime contribution.
+    return volume_contribution_count() + _sparsity_contact_nodes.size();
+}
+
+std::size_t SpatialAssembly::contribution_work(std::size_t index) const {
+    // These relative units track the measured AD-local work of eight-point finite-strain volume integration and the
+    // three surface kernels. They affect only the contiguous MPI ownership boundary, never the residual or Jacobian.
+    const ContributionRanges ranges = contribution_ranges();
+    if (index < ranges.thermal_begin) return 64;
+    if (index < ranges.mechanical_begin) return 10;
+    if (index < ranges.boundary_begin) return 11;
+    if (index < ranges.end) return 1;
+    throw std::out_of_range("Three-dimensional contribution work index is out of range");
+}
+
+std::pair<std::size_t, std::size_t> SpatialAssembly::contribution_partition(
+    std::size_t partition, std::size_t partition_count) const {
+    if (partition_count == 0 || partition >= partition_count)
+        throw std::out_of_range("Three-dimensional contribution partition is out of range");
+    const std::size_t count = contribution_count();
+    std::size_t total_work = 0;
+    for (std::size_t entry = 0; entry < count; ++entry) {
+        const std::size_t work = contribution_work(entry);
+        if (total_work > std::numeric_limits<std::size_t>::max() - work)
+            throw std::overflow_error("Three-dimensional contribution work exceeds size_t range");
+        total_work += work;
+    }
+    const auto boundary = [&](std::size_t boundary_partition) {
+        if (boundary_partition == 0) return std::size_t{0};
+        if (boundary_partition == partition_count) return count;
+        const std::size_t target = (total_work / partition_count) * boundary_partition +
+                                   ((total_work % partition_count) * boundary_partition) / partition_count;
+        std::size_t accumulated = 0;
+        for (std::size_t entry = 0; entry < count; ++entry) {
+            const std::size_t next = accumulated + contribution_work(entry);
+            if (next >= target) return target - accumulated < next - target ? entry : entry + 1U;
+            accumulated = next;
+        }
+        return count;
+    };
+    return {boundary(partition), boundary(partition + 1U)};
 }
 
 ResolvedBoundary SpatialAssembly::resolve_boundary(
@@ -526,6 +548,7 @@ void SpatialAssembly::build_contacts(const UnstructuredHex8Mesh& source_mesh) {
                             nodes[node] = secondary_nodes[node];
                             nodes[4 + node] = global_node(primary.region, primary_face.nodes[node]);
                         }
+                        if (q == 0) _sparsity_contact_nodes.push_back(nodes);
                         _thermal_contributions.push_back({contact_value, nodes,
                             {secondary_coordinates, primary_coordinates, secondary_shapes[q],
                                 secondary_derivatives_xi[q], secondary_derivatives_eta[q], orientation},
@@ -554,6 +577,7 @@ void SpatialAssembly::build_contacts(const UnstructuredHex8Mesh& source_mesh) {
                             nodes[node] = secondary_nodes[node];
                             nodes[4 + node] = global_node(primary.region, primary_face.nodes[node]);
                         }
+                        if (!definition.thermal && secondary_local_node == 0) _sparsity_contact_nodes.push_back(nodes);
                         _mechanical_contributions.push_back({contact_value, nodes,
                             {secondary_coordinates, primary_coordinates, secondary_shapes, secondary_derivatives_xi,
                                 secondary_derivatives_eta, secondary_local_node, orientation},
