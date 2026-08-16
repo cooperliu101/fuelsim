@@ -68,7 +68,9 @@ class NonlinearProblem {
         std::size_t partition, std::size_t partition_count) const;
     virtual const std::vector<FieldDescriptor>& field_layout() const noexcept = 0;
     virtual void contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const = 0;
+    virtual void contribution_jacobian_pattern(std::size_t index, std::vector<unsigned char>& pattern) const;
     virtual void sparsity_contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const;
+    virtual void sparsity_contribution_jacobian_pattern(std::size_t index, std::vector<unsigned char>& pattern) const;
     virtual void compute_contribution(std::size_t index, const std::vector<double>& state,
         std::vector<double>& residual, std::vector<double>* jacobian) const = 0;
     virtual const std::vector<DirichletCondition>& dirichlet_conditions() const noexcept = 0;

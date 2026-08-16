@@ -96,8 +96,19 @@ std::pair<std::size_t, std::size_t> NonlinearProblem::contribution_partition(
         contribution_count() * partition / partition_count, contribution_count() * (partition + 1U) / partition_count};
 }
 
+void NonlinearProblem::contribution_jacobian_pattern(std::size_t index, std::vector<unsigned char>& pattern) const {
+    std::vector<std::size_t> dofs;
+    contribution_dofs(index, dofs);
+    pattern.assign(dofs.size() * dofs.size(), 1U);
+}
+
 void NonlinearProblem::sparsity_contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const {
     contribution_dofs(index, dofs);
+}
+
+void NonlinearProblem::sparsity_contribution_jacobian_pattern(
+    std::size_t index, std::vector<unsigned char>& pattern) const {
+    contribution_jacobian_pattern(index, pattern);
 }
 
 AugmentedContactUpdate NonlinearProblem::update_augmented_contact_multipliers(const std::vector<double>&, std::size_t) {
@@ -317,6 +328,12 @@ class SpatialProblemStorage {
         dofs.assign(fixed.begin(), fixed.end());
     }
 
+    void contribution_jacobian_pattern(std::size_t index, std::vector<unsigned char>& pattern) const {
+        if (is_cartesian()) return cartesian->contribution_jacobian_pattern(index, pattern);
+        const LocalDofs dofs = rz->contribution_dofs(index);
+        pattern.assign(dofs.size() * dofs.size(), 1U);
+    }
+
     void sparsity_contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const {
         if (is_cartesian()) {
             cartesian->sparsity_contribution_dofs(index, dofs);
@@ -324,6 +341,12 @@ class SpatialProblemStorage {
         }
         const LocalDofs fixed = rz->sparsity_contribution_dofs(index);
         dofs.assign(fixed.begin(), fixed.end());
+    }
+
+    void sparsity_contribution_jacobian_pattern(std::size_t index, std::vector<unsigned char>& pattern) const {
+        if (is_cartesian()) return cartesian->sparsity_contribution_jacobian_pattern(index, pattern);
+        const LocalDofs dofs = rz->sparsity_contribution_dofs(index);
+        pattern.assign(dofs.size() * dofs.size(), 1U);
     }
 
     std::unique_ptr<rz::SpatialAssembly> rz;
@@ -442,8 +465,17 @@ void SteadyProblem::contribution_dofs(std::size_t index, std::vector<std::size_t
     _impl->contribution_dofs(index, dofs);
 }
 
+void SteadyProblem::contribution_jacobian_pattern(std::size_t index, std::vector<unsigned char>& pattern) const {
+    _impl->contribution_jacobian_pattern(index, pattern);
+}
+
 void SteadyProblem::sparsity_contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const {
     _impl->sparsity_contribution_dofs(index, dofs);
+}
+
+void SteadyProblem::sparsity_contribution_jacobian_pattern(
+    std::size_t index, std::vector<unsigned char>& pattern) const {
+    _impl->sparsity_contribution_jacobian_pattern(index, pattern);
 }
 
 void SteadyProblem::compute_contribution(std::size_t index, const std::vector<double>& state,
@@ -1182,8 +1214,17 @@ void TransientProblem::contribution_dofs(std::size_t index, std::vector<std::siz
     _impl->contribution_dofs(index, dofs);
 }
 
+void TransientProblem::contribution_jacobian_pattern(std::size_t index, std::vector<unsigned char>& pattern) const {
+    _impl->contribution_jacobian_pattern(index, pattern);
+}
+
 void TransientProblem::sparsity_contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const {
     _impl->sparsity_contribution_dofs(index, dofs);
+}
+
+void TransientProblem::sparsity_contribution_jacobian_pattern(
+    std::size_t index, std::vector<unsigned char>& pattern) const {
+    _impl->sparsity_contribution_jacobian_pattern(index, pattern);
 }
 
 void TransientProblem::compute_contribution(std::size_t index, const std::vector<double>& state,

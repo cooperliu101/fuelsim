@@ -39,13 +39,18 @@ struct SolverOptions final {
         field_split,
         hypre,
     };
+    enum class DirectFactorization {
+        automatic,
+        mumps,
+    };
     double absolute_tolerance = 1.0e-8, relative_tolerance = 1.0e-10, step_tolerance = 1.0e-12;
     int maximum_iterations = 40;
     LineSearch line_search = LineSearch::basic;
     LinearSolver linear_solver = LinearSolver::automatic;
     Preconditioner preconditioner = Preconditioner::automatic;
+    DirectFactorization direct_factorization = DirectFactorization::automatic;
     double linear_relative_tolerance = 1.0e-8;
-    int maximum_linear_iterations = 500;
+    int maximum_linear_iterations = 500, jacobian_lag = 1;
     bool backtracking_fallback = true, field_residual_scaling = false;
     double residual_reduction_tolerance = 1.0e-6, temperature_residual_absolute_tolerance = 1.0e-8,
            mechanical_residual_absolute_tolerance = 1.0e-4, temperature_residual_scale = 0.0,
@@ -54,7 +59,10 @@ struct SolverOptions final {
 
 struct SolveTiming final {
     double setup_seconds = 0.0, nonlinear_solve_seconds = 0.0, residual_callback_seconds = 0.0,
-           jacobian_callback_seconds = 0.0, total_seconds = 0.0;
+           jacobian_callback_seconds = 0.0, minimum_residual_assembly_seconds = 0.0,
+           maximum_residual_assembly_seconds = 0.0, minimum_jacobian_assembly_seconds = 0.0,
+           maximum_jacobian_assembly_seconds = 0.0, local_residual_assembly_seconds = 0.0,
+           local_jacobian_assembly_seconds = 0.0, total_seconds = 0.0;
     std::size_t residual_evaluations = 0, jacobian_evaluations = 0, workspace_setups = 0, solve_calls = 0;
 };
 enum class SolveFailureCategory {

@@ -229,7 +229,8 @@ PETSc 选项仍可在命令行覆盖，例如：
   -snes_monitor -ksp_error_if_not_converged
 ```
 
-多 rank 默认使用 PETSc 并行 MUMPS 直接分解；也可在 `[Solver]` 选择
+多 rank 默认使用 PETSc 并行 MUMPS 直接分解，单 rank 可用
+`direct_factorization = mumps` 明确选择同一分解器；也可在 `[Solver]` 选择
 `gmres` 与 `block_jacobi`、`field_split` 或 `hypre`。例如：
 
 ```bash

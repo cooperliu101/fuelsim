@@ -37,6 +37,49 @@ bool check(bool condition, const std::string& message) {
     return false;
 }
 
+void write_dof_reference(const std::string& path, const std::vector<double>& state) {
+    std::ofstream output(path, std::ios::out | std::ios::trunc);
+    if (!output) throw std::runtime_error("Could not write M5.8 degree-of-freedom reference: " + path);
+    output << state.size() << '\n' << std::setprecision(17);
+    for (double value : state) output << value << '\n';
+    if (!output) throw std::runtime_error("Could not complete M5.8 degree-of-freedom reference: " + path);
+}
+
+bool compare_dof_reference(const std::string& path, const std::vector<double>& state) {
+    std::ifstream input(path);
+    if (!input) throw std::runtime_error("Could not read M5.8 degree-of-freedom reference: " + path);
+    std::size_t count = 0;
+    input >> count;
+    std::vector<double> reference(count, 0.0);
+    for (double& value : reference) input >> value;
+    if (!input || reference.size() != state.size())
+        throw std::runtime_error("M5.8 degree-of-freedom reference size differs");
+    if (state.size() % 4U != 0U) throw std::runtime_error("M5.8 state does not contain four complete fields");
+    const std::size_t nodes = state.size() / 4U;
+    double maximum_temperature_difference = 0.0, maximum_displacement_difference = 0.0, maximum_tolerance_ratio = 0.0;
+    std::size_t maximum_index = 0;
+    for (std::size_t index = 0; index < state.size(); ++index) {
+        const double difference = std::abs(state[index] - reference[index]);
+        const bool temperature = index < nodes;
+        const double tolerance =
+            temperature ? 1.0e-6 + 1.0e-9 * std::abs(reference[index]) : 1.0e-10 + 1.0e-7 * std::abs(reference[index]);
+        if (temperature)
+            maximum_temperature_difference = std::max(maximum_temperature_difference, difference);
+        else
+            maximum_displacement_difference = std::max(maximum_displacement_difference, difference);
+        if (difference / tolerance > maximum_tolerance_ratio) {
+            maximum_tolerance_ratio = difference / tolerance;
+            maximum_index = index;
+        }
+    }
+    std::cout << "m58_mpi_temperature_maximum_absolute_difference=" << maximum_temperature_difference << '\n'
+              << "m58_mpi_displacement_maximum_absolute_difference=" << maximum_displacement_difference << '\n'
+              << "m58_mpi_maximum_tolerance_ratio=" << maximum_tolerance_ratio << '\n'
+              << "m58_mpi_maximum_tolerance_index=" << maximum_index << '\n';
+    return check(maximum_tolerance_ratio <= 1.0,
+        "M5.8 one-process and multi-process degrees of freedom satisfy absolute and relative tolerances");
+}
+
 std::vector<std::string> split_csv(const std::string& line) {
     std::vector<std::string> result;
     std::istringstream stream(line);
@@ -132,10 +175,19 @@ fuelsim::SolverOptions solver_options(const fuelsim::FuelSimCaseDefinition& defi
     result.relative_tolerance = definition.solver.relative_tolerance;
     result.step_tolerance = definition.solver.step_tolerance;
     result.maximum_iterations = definition.solver.maximum_iterations;
+    result.linear_solver = definition.solver.linear_solver;
+    result.preconditioner = definition.solver.preconditioner;
+    result.direct_factorization = definition.solver.direct_factorization;
+    result.linear_relative_tolerance = definition.solver.linear_relative_tolerance;
+    result.maximum_linear_iterations = definition.solver.maximum_linear_iterations;
+    result.jacobian_lag = definition.solver.jacobian_lag;
     result.backtracking_fallback = definition.solver.backtracking_fallback;
     result.field_residual_scaling = definition.solver.field_residual_scaling;
+    result.residual_reduction_tolerance = definition.solver.residual_reduction_tolerance;
     result.temperature_residual_absolute_tolerance = definition.solver.temperature_residual_absolute_tolerance;
     result.mechanical_residual_absolute_tolerance = definition.solver.mechanical_residual_absolute_tolerance;
+    result.temperature_residual_scale = definition.solver.temperature_residual_scale;
+    result.mechanical_residual_scale = definition.solver.mechanical_residual_scale;
     return result;
 }
 
@@ -152,7 +204,8 @@ bool below(const std::string& name, const fuelsim::test::FieldErrorMetrics& metr
 }
 
 bool run(const std::string& input_path, const std::string& nodal_path, const std::string& contact_path,
-    const std::string& element_path, bool output) {
+    const std::string& element_path, const std::string& reference_mode, const std::string& reference_path,
+    bool output) {
     const fuelsim::FuelSimCaseDefinition definition = fuelsim::read_case_input(input_path);
     if (definition.problem != fuelsim::CaseProblem::transient ||
         definition.geometry != fuelsim::CaseGeometry::cartesian_3d || definition.spatial.contacts.size() != 1 ||
@@ -171,6 +224,17 @@ bool run(const std::string& input_path, const std::string& nodal_path, const std
         }
     const fuelsim::TransientResult solve =
         fuelsim::solve_transient(problem, time_options(definition), solver_options(definition));
+    if (output && !solve.completed) {
+        std::cerr << "m58_failure_category="
+                  << fuelsim::solve_failure_category_name(solve.last_attempt.failure_category)
+                  << " m58_failure_message=" << solve.last_attempt.failure_message << '\n';
+        for (std::size_t field = 0; field < solve.last_attempt.field_names.size(); ++field)
+            std::cerr << "m58_failure_field=" << solve.last_attempt.field_names[field]
+                      << " initial=" << solve.last_attempt.initial_field_residual_norms[field]
+                      << " final=" << solve.last_attempt.final_field_residual_norms[field]
+                      << " scaled_final=" << solve.last_attempt.final_scaled_field_residual_norms[field]
+                      << " scale=" << solve.last_attempt.field_residual_scalings[field] << '\n';
+    }
     const std::size_t rank = static_cast<std::size_t>(solve.last_attempt.mpi_rank);
     const std::size_t ranks = static_cast<std::size_t>(solve.last_attempt.mpi_size);
     const auto local_partition = problem.contribution_partition(rank, ranks);
@@ -193,6 +257,13 @@ bool run(const std::string& input_path, const std::string& nodal_path, const std
                        problem.contribution_partition(ranks - 1U, ranks).second == problem.contribution_count(),
                  "M5.8 contribution intervals cover every runtime contribution exactly once") &&
              passed;
+    std::ostringstream local_timing;
+    local_timing << "m58_local_assembly_rank=" << rank
+                 << " residual_seconds=" << solve.aggregate_timing.local_residual_assembly_seconds
+                 << " jacobian_seconds=" << solve.aggregate_timing.local_jacobian_assembly_seconds
+                 << " contribution_begin=" << local_partition.first << " contribution_end=" << local_partition.second
+                 << '\n';
+    std::cout << local_timing.str() << std::flush;
 
     const auto node_reference = read_nodes(nodal_path);
     if (node_reference.size() != source.nodes().size()) throw std::invalid_argument("M5.8 node counts differ");
@@ -323,6 +394,14 @@ bool run(const std::string& input_path, const std::string& nodal_path, const std
                   << "m58_setup_seconds=" << solve.aggregate_timing.setup_seconds << '\n'
                   << "m58_residual_callback_seconds=" << solve.aggregate_timing.residual_callback_seconds << '\n'
                   << "m58_jacobian_callback_seconds=" << solve.aggregate_timing.jacobian_callback_seconds << '\n'
+                  << "m58_minimum_residual_assembly_seconds="
+                  << solve.aggregate_timing.minimum_residual_assembly_seconds << '\n'
+                  << "m58_maximum_residual_assembly_seconds="
+                  << solve.aggregate_timing.maximum_residual_assembly_seconds << '\n'
+                  << "m58_minimum_jacobian_assembly_seconds="
+                  << solve.aggregate_timing.minimum_jacobian_assembly_seconds << '\n'
+                  << "m58_maximum_jacobian_assembly_seconds="
+                  << solve.aggregate_timing.maximum_jacobian_assembly_seconds << '\n'
                   << "m58_nonlinear_solve_seconds=" << solve.aggregate_timing.nonlinear_solve_seconds << '\n'
                   << "m58_total_seconds=" << solve.aggregate_timing.total_seconds << '\n'
                   << "m58_mpi_rank=" << solve.last_attempt.mpi_rank << '\n'
@@ -335,20 +414,29 @@ bool run(const std::string& input_path, const std::string& nodal_path, const std
                   << "m58_active_contact_nodes=" << interface.active_contact_nodes << '\n'
                   << "m58_sliding_contact_nodes=" << sliding << '\n'
                   << "m58_nodes_crossing_primary_faces=" << crossed_faces << '\n';
+    if (output && passed && reference_mode == "write")
+        write_dof_reference(reference_path, problem.committed_solution());
+    else if (output && passed && reference_mode == "compare")
+        passed = compare_dof_reference(reference_path, problem.committed_solution()) && passed;
     return passed;
 }
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 5) {
+    if (argc != 5 && argc != 7) {
         std::cerr << "Usage: fuelsim_m58_integrated_hex8_benchmark "
-                     "<case.fsi> <all-nodes.csv> <contact.csv> <element-state.csv>\n";
+                     "<case.fsi> <all-nodes.csv> <contact.csv> <element-state.csv> "
+                     "[write|compare <dof-reference>]\n";
         return 2;
     }
     try {
         std::cout << std::scientific << std::setprecision(12);
         fuelsim::PetscSession session(argc, argv, "fuelsim M5.8 integrated Hex8 benchmark\n");
-        if (!run(argv[1], argv[2], argv[3], argv[4], session.rank() == 0)) return 1;
+        const std::string reference_mode = argc == 7 ? argv[5] : "";
+        const std::string reference_path = argc == 7 ? argv[6] : "";
+        if (!reference_mode.empty() && reference_mode != "write" && reference_mode != "compare")
+            throw std::invalid_argument("M5.8 degree-of-freedom reference mode must be write or compare");
+        if (!run(argv[1], argv[2], argv[3], argv[4], reference_mode, reference_path, session.rank() == 0)) return 1;
         if (session.rank() == 0) std::cout << "[PASS] M5.8 integrated Hex8 MOOSE comparison\n";
         return 0;
     } catch (const std::exception& error) {

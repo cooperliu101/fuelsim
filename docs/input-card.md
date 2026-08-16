@@ -441,8 +441,12 @@ L2 差最大值大于 1 时完整回滚并缩步，成功时采用两个半步�
 
 - `linear_solver = automatic|direct|gmres`；
 - `preconditioner = automatic|lu|block_jacobi|field_split|hypre`；
+- `direct_factorization = automatic|mumps`；默认 `automatic` 在单 rank 使用 PETSc
+  LU、多 rank 使用 MUMPS，`mumps` 则在所有进程数明确选择 MUMPS；
 - `linear_relative_tolerance`，默认 `1e-8`；
-- `maximum_linear_iterations`，默认 `500`。
+- `maximum_linear_iterations`，默认 `500`；
+- `jacobian_lag`，默认 `1`；设为大于一的整数时，在该数量的非线性迭代内复用
+  已装配的 Jacobian 矩阵；
 - `backtracking_fallback`，默认 `true`；BASIC 失败后从原始初值用 BT 重试；
 - `residual_reduction_tolerance`，默认 `1e-6`，用于总残量和分场残量复核；
 - `temperature_residual_absolute_tolerance`，默认 `1e-8 W`；
@@ -451,8 +455,8 @@ L2 差最大值大于 1 时完整回滚并缩步，成功时采用两个半步�
 - `temperature_residual_scale` 与 `mechanical_residual_scale`，默认均为 `0`；
   成对设为正数时作为跨求解固定的物理残量特征尺度，与自动行缩放互斥。
 
-`automatic` 使用直接 LU：单 rank 采用 PETSc LU，多 rank 采用 PETSc 的 MUMPS
-分解。选择 `block_jacobi`、`field_split` 或 `hypre` 会自动选 GMRES；
+`automatic` 使用直接 LU；具体分解器由 `direct_factorization` 选择。选择
+`block_jacobi`、`field_split` 或 `hypre` 会自动选 GMRES；
 `field_split` 按问题提供的热学字段和全部力学字段建立乘法场分裂。具体 PETSc
 命令行选项仍在上述设置之后生效，可用于选择 HYPRE 子类型和场分裂子 KSP。
 非线性默认使用 PETSc BASIC 全步。BASIC 失败时，默认从本次求解的原始初值

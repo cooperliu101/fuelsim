@@ -672,6 +672,39 @@ env PATH=/home/cooper/miniforge/envs/moose/bin:/usr/local/bin:/usr/bin:/bin \
   ./build/fuelsim -i verification/fuelsim/transient_integrated_hex8.fsi
 ```
 
-The two-process command removes `PETSC_OPTIONS`, because the production direct
-solver selects MUMPS automatically when more than one process is present, and
-changes the CPU list and process count to `taskset -c 0,1` and `-n 2`.
+The tracked M5.8 input now explicitly selects MUMPS at every process count, so
+`PETSC_OPTIONS` is no longer required. The two-process command changes the CPU
+list and process count to `taskset -c 0,1` and `-n 2`.
+
+## 2026-08-16 M5.8 four-process direct-MUMPS efficiency
+
+The four-process work keeps the direct MUMPS algorithm. The M5.8 input selects
+MUMPS for one process as well as multiple processes, uses the same SCOTCH
+ordering unless the user overrides it, and retains the four-process MUMPS
+memory-relaxation guard. PETSc uses an internal node-major ordering to keep the
+four fields of each Hex8 node local while the public state remains field-major.
+Exact local Jacobian patterns omit structurally zero thermal-mechanical blocks,
+and the four contiguous contribution intervals are `[0,346)`, `[346,692)`,
+`[692,1038)`, and `[1038,2688)`.
+
+Three complete one-process and four-process MOOSE-comparison runs used the same
+20 fixed time steps, 93 nonlinear iterations, 49 Jacobian evaluations, direct
+MUMPS factorization, and one thread per numerical library. The internal total
+solver times were `73.479816`, `73.504522`, and `73.741511 s` for one process,
+and `24.965830`, `25.082956`, and `24.926659 s` for four processes. Their
+medians give speedup `2.944205` and four-core solver efficiency `73.6051
+percent`, above the 70 percent target. The nonlinear-solve-only median efficiency
+is `75.6576 percent`.
+
+The corresponding process wall times were `77.85`, `77.86`, and `78.12 s`, and
+`30.29`, `30.41`, and `30.21 s`. Their medians give `64.2621 percent`
+end-to-end efficiency because replicated Exodus input and problem construction
+remain outside the solver timer. This fixed overhead is reported separately and
+is not claimed to exceed 70 percent.
+
+Every run passed the full MOOSE comparison. A one-process reference followed by
+four-process degree-of-freedom comparison found at most `4.43e-10 K`
+temperature difference and `2.52e-12 m` displacement difference; the largest
+configured tolerance ratio was `0.02491`. The four intervals are contiguous,
+nonoverlapping, and cover all 2,688 contributions. These measurements establish
+strong scaling only for this named 6,468-DOF benchmark and hardware.

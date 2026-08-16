@@ -98,6 +98,13 @@ double minimum_normal_length(const Hex8RegionMesh& mesh, const Hex8RegionBoundar
     if (!std::isfinite(result)) throw std::invalid_argument("Three-dimensional contact boundary is empty: " + name);
     return result;
 }
+
+void set_pattern_block(std::vector<unsigned char>& pattern, std::size_t size, std::size_t row_begin,
+    std::size_t row_end, std::size_t column_begin, std::size_t column_end) {
+    for (std::size_t row = row_begin; row < row_end; ++row)
+        std::fill(pattern.begin() + static_cast<std::ptrdiff_t>(row * size + column_begin),
+            pattern.begin() + static_cast<std::ptrdiff_t>(row * size + column_end), 1U);
+}
 } // namespace
 
 SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const UnstructuredHex8Mesh& source_mesh)
@@ -277,16 +284,72 @@ void SpatialAssembly::contribution_dofs(std::size_t index, std::vector<std::size
     dofs.assign(fixed.begin(), fixed.end());
 }
 
+void SpatialAssembly::contribution_jacobian_pattern(std::size_t index, std::vector<unsigned char>& pattern) const {
+    const ContributionRanges ranges = contribution_ranges();
+    if (index >= ranges.end) throw std::out_of_range("Three-dimensional contribution index is out of range");
+    if (index < ranges.thermal_begin) {
+        pattern.assign(hex8_local_dof_count * hex8_local_dof_count, 0U);
+        set_pattern_block(pattern, hex8_local_dof_count, 0, 8, 0, 8);
+        set_pattern_block(pattern, hex8_local_dof_count, 8, hex8_local_dof_count, 0, hex8_local_dof_count);
+        return;
+    }
+    if (index < ranges.mechanical_begin) {
+        pattern.assign(quad4_surface_contact_local_dof_count * quad4_surface_contact_local_dof_count, 0U);
+        set_pattern_block(
+            pattern, quad4_surface_contact_local_dof_count, 0, 8, 0, quad4_surface_contact_local_dof_count);
+        return;
+    }
+    if (index < ranges.boundary_begin) {
+        pattern.assign(quad4_surface_contact_local_dof_count * quad4_surface_contact_local_dof_count, 0U);
+        set_pattern_block(pattern, quad4_surface_contact_local_dof_count, 8, quad4_surface_contact_local_dof_count, 8,
+            quad4_surface_contact_local_dof_count);
+        return;
+    }
+    const BoundaryContribution& entry = _boundary_contributions.at(index - ranges.boundary_begin);
+    const Quad4FaceBoundaryData& data = _boundary_data.at(entry.kernel);
+    pattern.assign(quad4_face_local_dof_count * quad4_face_local_dof_count, 0U);
+    if (data.kind == Quad4FaceBoundaryKind::convection) {
+        set_pattern_block(pattern, quad4_face_local_dof_count, 0, 4, 0, 4);
+    } else if (data.use_displaced_geometry) {
+        const std::size_t row_begin = data.kind == Quad4FaceBoundaryKind::pressure
+                                          ? 4
+                                          : (data.component == CartesianTractionComponent::x
+                                                    ? 4
+                                                    : (data.component == CartesianTractionComponent::y ? 8 : 12));
+        const std::size_t row_end = data.kind == Quad4FaceBoundaryKind::pressure ? 16 : row_begin + 4;
+        set_pattern_block(pattern, quad4_face_local_dof_count, row_begin, row_end, 4, 16);
+    }
+}
+
 void SpatialAssembly::sparsity_contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const {
     if (index < volume_contribution_count()) {
         contribution_dofs(index, dofs);
         return;
     }
     index -= volume_contribution_count();
-    if (index >= _sparsity_contact_nodes.size())
+    if (index >= _sparsity_contacts.size())
         throw std::out_of_range("Three-dimensional sparsity contribution index is out of range");
-    const Quad4SurfaceContactLocalDofs fixed = contact_dofs(_sparsity_contact_nodes[index]);
+    const Quad4SurfaceContactLocalDofs fixed = contact_dofs(_sparsity_contacts[index].nodes);
     dofs.assign(fixed.begin(), fixed.end());
+}
+
+void SpatialAssembly::sparsity_contribution_jacobian_pattern(
+    std::size_t index, std::vector<unsigned char>& pattern) const {
+    if (index < volume_contribution_count()) {
+        contribution_jacobian_pattern(index, pattern);
+        return;
+    }
+    index -= volume_contribution_count();
+    if (index >= _sparsity_contacts.size())
+        throw std::out_of_range("Three-dimensional sparsity contribution index is out of range");
+    const SparsityContact& contact = _sparsity_contacts[index];
+    pattern.assign(quad4_surface_contact_local_dof_count * quad4_surface_contact_local_dof_count, 0U);
+    if (contact.thermal)
+        set_pattern_block(
+            pattern, quad4_surface_contact_local_dof_count, 0, 8, 0, quad4_surface_contact_local_dof_count);
+    if (contact.mechanical)
+        set_pattern_block(pattern, quad4_surface_contact_local_dof_count, 8, quad4_surface_contact_local_dof_count, 8,
+            quad4_surface_contact_local_dof_count);
 }
 
 Hex8LocalValues SpatialAssembly::volume_state(std::size_t index, const std::vector<double>& global_state) const {
@@ -397,17 +460,25 @@ std::size_t SpatialAssembly::sparsity_contribution_count() const noexcept {
     // Every face boundary block is a subset of its adjacent volume block. Contact quadrature points and face nodes
     // that share one secondary-face/primary-face pair also have the same 32-DOF graph, so one representative preserves
     // the complete graph without repeating it for each runtime contribution.
-    return volume_contribution_count() + _sparsity_contact_nodes.size();
+    return volume_contribution_count() + _sparsity_contacts.size();
 }
 
-std::size_t SpatialAssembly::contribution_work(std::size_t index) const {
+std::size_t SpatialAssembly::contribution_work(std::size_t index, std::size_t partition_count) const {
     // These relative units track the measured AD-local work of eight-point finite-strain volume integration and the
     // three surface kernels. They affect only the contiguous MPI ownership boundary, never the residual or Jacobian.
     const ContributionRanges ranges = contribution_ranges();
     if (index < ranges.thermal_begin) return 64;
-    if (index < ranges.mechanical_begin) return 10;
-    if (index < ranges.boundary_begin) return 11;
-    if (index < ranges.end) return 1;
+    if (partition_count < 4) {
+        if (index < ranges.mechanical_begin) return 10;
+        if (index < ranges.boundary_begin) return 11;
+        if (index < ranges.end) return 1;
+    } else {
+        // With four or more partitions the last contiguous interval owns every surface contribution. Account for
+        // residual work as well as AD Jacobian work so that this interval does not become the synchronization tail.
+        if (index < ranges.mechanical_begin) return 13;
+        if (index < ranges.boundary_begin) return 14;
+        if (index < ranges.end) return 2;
+    }
     throw std::out_of_range("Three-dimensional contribution work index is out of range");
 }
 
@@ -418,7 +489,7 @@ std::pair<std::size_t, std::size_t> SpatialAssembly::contribution_partition(
     const std::size_t count = contribution_count();
     std::size_t total_work = 0;
     for (std::size_t entry = 0; entry < count; ++entry) {
-        const std::size_t work = contribution_work(entry);
+        const std::size_t work = contribution_work(entry, partition_count);
         if (total_work > std::numeric_limits<std::size_t>::max() - work)
             throw std::overflow_error("Three-dimensional contribution work exceeds size_t range");
         total_work += work;
@@ -430,7 +501,7 @@ std::pair<std::size_t, std::size_t> SpatialAssembly::contribution_partition(
                                    ((total_work % partition_count) * boundary_partition) / partition_count;
         std::size_t accumulated = 0;
         for (std::size_t entry = 0; entry < count; ++entry) {
-            const std::size_t next = accumulated + contribution_work(entry);
+            const std::size_t next = accumulated + contribution_work(entry, partition_count);
             if (next >= target) return target - accumulated < next - target ? entry : entry + 1U;
             accumulated = next;
         }
@@ -548,7 +619,7 @@ void SpatialAssembly::build_contacts(const UnstructuredHex8Mesh& source_mesh) {
                             nodes[node] = secondary_nodes[node];
                             nodes[4 + node] = global_node(primary.region, primary_face.nodes[node]);
                         }
-                        if (q == 0) _sparsity_contact_nodes.push_back(nodes);
+                        if (q == 0) _sparsity_contacts.push_back({nodes, definition.thermal, definition.mechanical});
                         _thermal_contributions.push_back({contact_value, nodes,
                             {secondary_coordinates, primary_coordinates, secondary_shapes[q],
                                 secondary_derivatives_xi[q], secondary_derivatives_eta[q], orientation},
@@ -577,7 +648,8 @@ void SpatialAssembly::build_contacts(const UnstructuredHex8Mesh& source_mesh) {
                             nodes[node] = secondary_nodes[node];
                             nodes[4 + node] = global_node(primary.region, primary_face.nodes[node]);
                         }
-                        if (!definition.thermal && secondary_local_node == 0) _sparsity_contact_nodes.push_back(nodes);
+                        if (!definition.thermal && secondary_local_node == 0)
+                            _sparsity_contacts.push_back({nodes, false, definition.mechanical});
                         _mechanical_contributions.push_back({contact_value, nodes,
                             {secondary_coordinates, primary_coordinates, secondary_shapes, secondary_derivatives_xi,
                                 secondary_derivatives_eta, secondary_local_node, orientation},

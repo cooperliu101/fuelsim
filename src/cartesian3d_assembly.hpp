@@ -47,7 +47,9 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     std::vector<std::size_t> required_state_dofs(std::size_t first, std::size_t last) const;
     void validate_local_state(std::size_t first, std::size_t last, const std::vector<double>& state) const;
     void contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const;
+    void contribution_jacobian_pattern(std::size_t index, std::vector<unsigned char>& pattern) const;
     void sparsity_contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const;
+    void sparsity_contribution_jacobian_pattern(std::size_t index, std::vector<unsigned char>& pattern) const;
     void compute_contribution(std::size_t index, const std::vector<double>& state,
         const std::vector<double>* committed_solution, const Hex8MaterialHistory* committed_material, double time_step,
         std::vector<double>& residual, std::vector<double>* jacobian) const;
@@ -84,12 +86,17 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
         std::size_t secondary, primary, point;
     };
 
+    struct SparsityContact final {
+        std::array<std::size_t, 8> nodes;
+        bool thermal, mechanical;
+    };
+
     struct MechanicalPoint final {
         std::size_t contact, secondary;
     };
 
     ContributionRanges contribution_ranges() const noexcept;
-    std::size_t contribution_work(std::size_t index) const;
+    std::size_t contribution_work(std::size_t index, std::size_t partition_count) const;
     ResolvedBoundary resolve_boundary(const UnstructuredHex8Mesh& source_mesh, const std::string& name) const;
     void build_contacts(const UnstructuredHex8Mesh& source_mesh);
     void update_contact_search_trees(const std::vector<double>& state) const;
@@ -114,7 +121,7 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     std::vector<BoundaryContribution> _boundary_contributions;
     std::vector<GapHeatProperties> _thermal_properties;
     std::vector<NormalContactProperties> _mechanical_properties;
-    std::vector<std::array<std::size_t, 8>> _sparsity_contact_nodes;
+    std::vector<SparsityContact> _sparsity_contacts;
     std::vector<ThermalContribution> _thermal_contributions;
     std::vector<MechanicalContribution> _mechanical_contributions;
     std::vector<MechanicalPoint> _mechanical_points;

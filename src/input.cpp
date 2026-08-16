@@ -694,9 +694,10 @@ void read_solver(const InputDocument& document, const std::string& path, FuelSim
     const InputSection& solver = required_section(document, "Solver");
     validate_keys(document, solver,
         {"absolute_tolerance", "relative_tolerance", "step_tolerance", "maximum_iterations", "linear_solver",
-            "preconditioner", "linear_relative_tolerance", "maximum_linear_iterations", "backtracking_fallback",
-            "field_residual_scaling", "residual_reduction_tolerance", "temperature_residual_absolute_tolerance",
-            "mechanical_residual_absolute_tolerance", "temperature_residual_scale", "mechanical_residual_scale"});
+            "preconditioner", "direct_factorization", "linear_relative_tolerance", "maximum_linear_iterations",
+            "backtracking_fallback", "field_residual_scaling", "residual_reduction_tolerance",
+            "temperature_residual_absolute_tolerance", "mechanical_residual_absolute_tolerance",
+            "temperature_residual_scale", "mechanical_residual_scale", "jacobian_lag"});
     result.solver.absolute_tolerance = read_optional_double(document, solver, "absolute_tolerance", 1.0e-8);
     result.solver.relative_tolerance = read_optional_double(document, solver, "relative_tolerance", 1.0e-10);
     result.solver.step_tolerance = read_optional_double(document, solver, "step_tolerance", 1.0e-12);
@@ -720,9 +721,21 @@ void read_solver(const InputDocument& document, const std::string& path, FuelSim
     else if (preconditioner != "automatic")
         throw std::invalid_argument(path + ": preconditioner must be automatic, lu, block_jacobi, "
                                            "field_split, or hypre");
+    const std::string direct_factorization = read_optional_string(solver, "direct_factorization", "automatic");
+    if (direct_factorization == "mumps")
+        result.solver.direct_factorization = SolverOptions::DirectFactorization::mumps;
+    else if (direct_factorization != "automatic")
+        throw std::invalid_argument(path + ": direct_factorization must be automatic or mumps");
+    if (result.solver.direct_factorization == SolverOptions::DirectFactorization::mumps &&
+        (result.solver.linear_solver == SolverOptions::LinearSolver::gmres ||
+            (result.solver.preconditioner != SolverOptions::Preconditioner::automatic &&
+                result.solver.preconditioner != SolverOptions::Preconditioner::lu)))
+        throw std::invalid_argument(path + ": direct_factorization=mumps requires a direct LU solve");
     result.solver.linear_relative_tolerance =
         read_optional_double(document, solver, "linear_relative_tolerance", 1.0e-8);
     result.solver.maximum_linear_iterations = read_optional_int(document, solver, "maximum_linear_iterations", 500);
+    result.solver.jacobian_lag = read_optional_int(document, solver, "jacobian_lag", 1);
+    if (result.solver.jacobian_lag < 1) throw std::invalid_argument(path + ": jacobian_lag must be at least one");
     result.solver.backtracking_fallback = read_optional_bool(document, solver, "backtracking_fallback", true);
     result.solver.field_residual_scaling = read_optional_bool(document, solver, "field_residual_scaling", false);
     result.solver.residual_reduction_tolerance =

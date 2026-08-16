@@ -109,8 +109,8 @@ bool verify_m3_output_input(const std::string& path, const std::string& contents
                      definition.solver.linear_solver == fuelsim::SolverOptions::LinearSolver::gmres &&
                      definition.solver.preconditioner == fuelsim::SolverOptions::Preconditioner::field_split &&
                      definition.solver.linear_relative_tolerance == 1.0e-7 &&
-                     definition.solver.maximum_linear_iterations == 700 && definition.solver.backtracking_fallback &&
-                     definition.solver.field_residual_scaling &&
+                     definition.solver.maximum_linear_iterations == 700 && definition.solver.jacobian_lag == 2 &&
+                     definition.solver.backtracking_fallback && definition.solver.field_residual_scaling &&
                      definition.solver.residual_reduction_tolerance == 2.0e-6 &&
                      definition.solver.temperature_residual_absolute_tolerance == 3.0e-8 &&
                      definition.solver.mechanical_residual_absolute_tolerance == 4.0e-6 &&
@@ -177,7 +177,9 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
                   steady.steady_execution.minimum_load_increment == 1.0e-6 && steady.solver.maximum_iterations == 50 &&
                   steady.solver.linear_solver == fuelsim::SolverOptions::LinearSolver::automatic &&
                   steady.solver.preconditioner == fuelsim::SolverOptions::Preconditioner::automatic &&
-                  steady.solver.linear_relative_tolerance == 1.0e-8 && steady.solver.maximum_linear_iterations == 500,
+                  steady.solver.direct_factorization == fuelsim::SolverOptions::DirectFactorization::automatic &&
+                  steady.solver.linear_relative_tolerance == 1.0e-8 && steady.solver.maximum_linear_iterations == 500 &&
+                  steady.solver.jacobian_lag == 1,
             "steady execution and solver fields are parsed") &&
         check(transient.problem == fuelsim::CaseProblem::transient,
             "transient input selects the physical transient problem") &&
@@ -385,6 +387,7 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
                                                           "\n  preconditioner = field_split"
                                                           "\n  linear_relative_tolerance = 1e-7"
                                                           "\n  maximum_linear_iterations = 700"
+                                                          "\n  jacobian_lag = 2"
                                                           "\n  backtracking_fallback = true"
                                                           "\n  field_residual_scaling = true"
                                                           "\n  residual_reduction_tolerance = 2e-6"
@@ -427,6 +430,28 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
     const std::size_t preconditioner_position = invalid_preconditioner.find(valid_preconditioner);
     invalid_preconditioner.replace(preconditioner_position, valid_preconditioner.size(), "preconditioner = magic");
     passed = expect_case_failure(malformed_path, invalid_preconditioner, "preconditioner must be") && passed;
+    std::string direct_mumps_case = read_text(steady_path);
+    const std::size_t direct_mumps_solver = direct_mumps_case.find(solver_start);
+    if (direct_mumps_solver == std::string::npos) return check(false, "steady fixture has a solver section");
+    direct_mumps_case.insert(
+        direct_mumps_solver + solver_start.size(), "\n  linear_solver = direct\n  direct_factorization = mumps");
+    {
+        std::ofstream output(malformed_path, std::ios::out | std::ios::trunc);
+        if (!output) return check(false, "could not create direct-MUMPS input fixture");
+        output << direct_mumps_case;
+    }
+    const fuelsim::FuelSimCaseDefinition direct_mumps = fuelsim::read_case_input(malformed_path);
+    passed = check(direct_mumps.solver.linear_solver == fuelsim::SolverOptions::LinearSolver::direct &&
+                       direct_mumps.solver.direct_factorization == fuelsim::SolverOptions::DirectFactorization::mumps,
+                 "direct MUMPS factorization is parsed") &&
+             passed;
+    if (std::remove(malformed_path.c_str()) != 0) return check(false, "could not remove direct-MUMPS input fixture");
+    std::string incompatible_mumps_case = m3_case;
+    const std::size_t incompatible_mumps_solver = incompatible_mumps_case.find(solver_start);
+    incompatible_mumps_case.insert(incompatible_mumps_solver + solver_start.size(), "\n  direct_factorization = mumps");
+    passed = expect_case_failure(
+                 malformed_path, incompatible_mumps_case, "direct_factorization=mumps requires a direct LU solve") &&
+             passed;
     std::string fixed_scaling_case = read_text(transient_path);
     const std::size_t fixed_scaling_solver = fixed_scaling_case.find(solver_start);
     if (fixed_scaling_solver == std::string::npos) return check(false, "transient fixture has a solver section");

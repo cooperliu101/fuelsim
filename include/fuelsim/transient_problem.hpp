@@ -92,7 +92,9 @@ class TransientProblem final : public NonlinearProblem {
     std::vector<std::size_t> required_state_dofs(std::size_t first, std::size_t last) const override;
     void validate_local_state(std::size_t first, std::size_t last, const std::vector<double>& state) const override;
     void contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const override;
+    void contribution_jacobian_pattern(std::size_t index, std::vector<unsigned char>& pattern) const override;
     void sparsity_contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const override;
+    void sparsity_contribution_jacobian_pattern(std::size_t index, std::vector<unsigned char>& pattern) const override;
     void compute_contribution(std::size_t index, const std::vector<double>& state, std::vector<double>& residual,
         std::vector<double>* jacobian) const override;
 
