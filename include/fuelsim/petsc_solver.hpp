@@ -63,6 +63,9 @@ struct SolveTiming final {
            maximum_residual_assembly_seconds = 0.0, minimum_jacobian_assembly_seconds = 0.0,
            maximum_jacobian_assembly_seconds = 0.0, local_residual_assembly_seconds = 0.0,
            local_jacobian_assembly_seconds = 0.0, total_seconds = 0.0;
+    std::size_t initial_resident_bytes = 0, setup_resident_bytes = 0, solve_resident_bytes = 0,
+                final_resident_bytes = 0, minimum_peak_resident_bytes = 0, maximum_peak_resident_bytes = 0,
+                total_peak_resident_bytes = 0;
     std::size_t residual_evaluations = 0, jacobian_evaluations = 0, workspace_setups = 0, solve_calls = 0;
 };
 enum class SolveFailureCategory {

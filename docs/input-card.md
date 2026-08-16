@@ -500,6 +500,15 @@ MUMPS 和未缩放 HYPRE 都完成求解；预热内部载荷路径时间分别�
 以保持 replicated committed 状态、材料历史和输出事务；因此这些指标只描述
 回调通信和明确的影子缓冲区，不代表总进程内存。
 
+求解诊断还输出 `memory.*` 和 `aggregate_memory.*` 的驻留内存字段，单位为字节，
+由 PETSc 的当前/最大内存接口采样。`initial_resident_bytes`、
+`setup_resident_bytes`、`solve_resident_bytes` 和 `final_resident_bytes` 分别是
+进入本次求解、PETSc 工作区设置完成、`SNESSolve` 返回和最终状态收集完成时的
+最大 rank 当前驻留集；`minimum_peak_resident_bytes`、
+`maximum_peak_resident_bytes` 和 `total_peak_resident_bytes` 是本次求解期间各
+rank 峰值驻留集的最小值、最大值和总和。瞬态的 `aggregate_memory.*` 取所有
+时间步和重试中观察到的最大阶段值，适合判断直接分解的内存上界。
+
 `[Outputs]` 的 `console` 默认为 `true`；可选 `csv` 将最终命名指标写为
 `metric,value` 汇总文件。周期性的 `progress.*` 只写控制台，不混入最终 CSV。
 `exodus` 写出可后处理的场结果；稳态写一个最终步，

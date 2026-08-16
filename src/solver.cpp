@@ -36,6 +36,13 @@ void accumulate_timing(SolveTiming& total, const SolveTiming& step) {
     total.local_residual_assembly_seconds += step.local_residual_assembly_seconds;
     total.local_jacobian_assembly_seconds += step.local_jacobian_assembly_seconds;
     total.total_seconds += step.total_seconds;
+    total.initial_resident_bytes = std::max(total.initial_resident_bytes, step.initial_resident_bytes);
+    total.setup_resident_bytes = std::max(total.setup_resident_bytes, step.setup_resident_bytes);
+    total.solve_resident_bytes = std::max(total.solve_resident_bytes, step.solve_resident_bytes);
+    total.final_resident_bytes = std::max(total.final_resident_bytes, step.final_resident_bytes);
+    total.minimum_peak_resident_bytes = std::max(total.minimum_peak_resident_bytes, step.minimum_peak_resident_bytes);
+    total.maximum_peak_resident_bytes = std::max(total.maximum_peak_resident_bytes, step.maximum_peak_resident_bytes);
+    total.total_peak_resident_bytes = std::max(total.total_peak_resident_bytes, step.total_peak_resident_bytes);
     total.residual_evaluations += step.residual_evaluations;
     total.jacobian_evaluations += step.jacobian_evaluations;
     total.workspace_setups += step.workspace_setups;
@@ -62,6 +69,25 @@ void check_mpi(PetscMPIInt code, const char* operation) {
     message += " failed with MPI error code ";
     message += std::to_string(code);
     throw std::runtime_error(message);
+}
+
+struct MemorySnapshot final {
+    PetscInt64 resident_bytes = 0;
+    PetscInt64 maximum_resident_bytes = 0;
+};
+
+PetscInt64 checked_memory_bytes(PetscLogDouble value) {
+    if (!std::isfinite(value) || value <= 0.0) return 0;
+    const PetscLogDouble maximum = static_cast<PetscLogDouble>(std::numeric_limits<PetscInt64>::max());
+    if (value >= maximum) return std::numeric_limits<PetscInt64>::max();
+    return static_cast<PetscInt64>(value + 0.5);
+}
+
+MemorySnapshot memory_snapshot() {
+    PetscLogDouble resident = 0.0, maximum = 0.0;
+    check_petsc(PetscMemoryGetCurrentUsage(&resident), "PetscMemoryGetCurrentUsage");
+    check_petsc(PetscMemoryGetMaximumUsage(&maximum), "PetscMemoryGetMaximumUsage");
+    return {checked_memory_bytes(resident), checked_memory_bytes(maximum)};
 }
 
 PetscErrorCode collective_timing(const SolveTiming& local, SolveTiming& result) {
@@ -92,6 +118,17 @@ PetscErrorCode collective_timing(const SolveTiming& local, SolveTiming& result) 
     std::array<PetscInt64, 4> maximum_counts{};
     PetscCallMPI(MPIU_Allreduce(local_counts.data(), maximum_counts.data(),
         static_cast<MPIU_Count>(local_counts.size()), MPIU_INT64, MPI_MAX, PETSC_COMM_WORLD));
+    const std::array<PetscInt64, 4> local_resident = {static_cast<PetscInt64>(local.initial_resident_bytes),
+        static_cast<PetscInt64>(local.setup_resident_bytes), static_cast<PetscInt64>(local.solve_resident_bytes),
+        static_cast<PetscInt64>(local.final_resident_bytes)};
+    std::array<PetscInt64, 4> maximum_resident{};
+    PetscCallMPI(MPIU_Allreduce(local_resident.data(), maximum_resident.data(),
+        static_cast<MPIU_Count>(local_resident.size()), MPIU_INT64, MPI_MAX, PETSC_COMM_WORLD));
+    const std::array<PetscInt64, 1> local_peak = {static_cast<PetscInt64>(local.maximum_peak_resident_bytes)};
+    std::array<PetscInt64, 1> minimum_peak{}, maximum_peak{}, total_peak{};
+    PetscCallMPI(MPIU_Allreduce(local_peak.data(), minimum_peak.data(), 1, MPIU_INT64, MPI_MIN, PETSC_COMM_WORLD));
+    PetscCallMPI(MPIU_Allreduce(local_peak.data(), maximum_peak.data(), 1, MPIU_INT64, MPI_MAX, PETSC_COMM_WORLD));
+    PetscCallMPI(MPIU_Allreduce(local_peak.data(), total_peak.data(), 1, MPIU_INT64, MPI_SUM, PETSC_COMM_WORLD));
     result.setup_seconds = maximum_seconds[0];
     result.nonlinear_solve_seconds = maximum_seconds[1];
     result.residual_callback_seconds = maximum_seconds[2];
@@ -103,6 +140,13 @@ PetscErrorCode collective_timing(const SolveTiming& local, SolveTiming& result) 
     result.local_residual_assembly_seconds = local_assembly[0];
     result.local_jacobian_assembly_seconds = local_assembly[1];
     result.total_seconds = maximum_seconds[4];
+    result.initial_resident_bytes = static_cast<std::size_t>(maximum_resident[0]);
+    result.setup_resident_bytes = static_cast<std::size_t>(maximum_resident[1]);
+    result.solve_resident_bytes = static_cast<std::size_t>(maximum_resident[2]);
+    result.final_resident_bytes = static_cast<std::size_t>(maximum_resident[3]);
+    result.minimum_peak_resident_bytes = static_cast<std::size_t>(minimum_peak[0]);
+    result.maximum_peak_resident_bytes = static_cast<std::size_t>(maximum_peak[0]);
+    result.total_peak_resident_bytes = static_cast<std::size_t>(total_peak[0]);
     result.residual_evaluations = static_cast<std::size_t>(maximum_counts[0]);
     result.jacobian_evaluations = static_cast<std::size_t>(maximum_counts[1]);
     result.workspace_setups = static_cast<std::size_t>(maximum_counts[2]);
@@ -843,6 +887,7 @@ PetscSession::PetscSession(int& argc, char**& argv, const char* help)
         check_petsc(PetscInitialize(&argc, &argv, nullptr, help), "PetscInitialize");
         _owns_initialization = true;
     }
+    check_petsc(PetscMemorySetGetMaximumUsage(), "PetscMemorySetGetMaximumUsage");
     _rank = static_cast<int>(PetscGlobalRank);
     _size = static_cast<int>(PetscGlobalSize);
 }
@@ -920,12 +965,15 @@ SolveResult PetscSolver::solve_once(
     const bool residual_scaling = options.field_residual_scaling || fixed_temperature_scale;
     const SteadyClock::time_point total_start = SteadyClock::now();
     const SteadyClock::time_point setup_start = SteadyClock::now();
+    const MemorySnapshot initial_memory = memory_snapshot();
     const bool workspace_created = _impl->prepare(problem);
     PetscObjects& objects = _impl->objects();
     SolverContext& context = _impl->context();
     context.timing = SolveTiming{};
     context.timing.workspace_setups = workspace_created ? 1U : 0U;
     context.timing.solve_calls = 1;
+    context.timing.initial_resident_bytes = static_cast<std::size_t>(initial_memory.resident_bytes);
+    context.timing.maximum_peak_resident_bytes = static_cast<std::size_t>(initial_memory.maximum_resident_bytes);
     context.initial_residual_norm = std::numeric_limits<double>::quiet_NaN();
     context.field_residual_scaling = residual_scaling;
     context.residual_scaling_floor = options.absolute_tolerance;
@@ -968,9 +1016,17 @@ SolveResult PetscSolver::solve_once(
         "SNESLineSearchSetType");
     configure_linear_solver(objects, problem, options, PetscGlobalSize, context);
     check_petsc(SNESSetFromOptions(objects.snes), "SNESSetFromOptions");
+    const MemorySnapshot setup_memory = memory_snapshot();
+    context.timing.setup_resident_bytes = static_cast<std::size_t>(setup_memory.resident_bytes);
+    context.timing.maximum_peak_resident_bytes = std::max(
+        context.timing.maximum_peak_resident_bytes, static_cast<std::size_t>(setup_memory.maximum_resident_bytes));
     context.timing.setup_seconds = seconds_since(setup_start);
     const SteadyClock::time_point solve_start = SteadyClock::now();
     check_petsc(SNESSolve(objects.snes, nullptr, objects.state), "SNESSolve");
+    const MemorySnapshot solve_memory = memory_snapshot();
+    context.timing.solve_resident_bytes = static_cast<std::size_t>(solve_memory.resident_bytes);
+    context.timing.maximum_peak_resident_bytes = std::max(
+        context.timing.maximum_peak_resident_bytes, static_cast<std::size_t>(solve_memory.maximum_resident_bytes));
     context.timing.nonlinear_solve_seconds = seconds_since(solve_start);
     SNESConvergedReason reason = SNES_CONVERGED_ITERATING;
     PetscInt iterations = 0;
@@ -989,6 +1045,10 @@ SolveResult PetscSolver::solve_once(
     }
     const bool final_domain_error = context.last_function_domain_error;
     std::vector<double> solution = gather_complete_state(objects.state, problem.dof_count(), context.petsc_to_problem);
+    const MemorySnapshot final_memory = memory_snapshot();
+    context.timing.final_resident_bytes = static_cast<std::size_t>(final_memory.resident_bytes);
+    context.timing.maximum_peak_resident_bytes = std::max(
+        context.timing.maximum_peak_resident_bytes, static_cast<std::size_t>(final_memory.maximum_resident_bytes));
     SolveResult result;
     result.state = std::move(solution);
     result.nonlinear_iterations = static_cast<int>(iterations);

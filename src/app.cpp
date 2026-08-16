@@ -183,6 +183,16 @@ CommandLine extract_command_line(int& argc, char** argv) {
     return result;
 }
 
+void write_memory_diagnostics(const std::string& prefix, const SolveTiming& timing, CaseOutput& output) {
+    output.value(prefix + "initial_resident_bytes", timing.initial_resident_bytes);
+    output.value(prefix + "setup_resident_bytes", timing.setup_resident_bytes);
+    output.value(prefix + "solve_resident_bytes", timing.solve_resident_bytes);
+    output.value(prefix + "final_resident_bytes", timing.final_resident_bytes);
+    output.value(prefix + "minimum_peak_resident_bytes", timing.minimum_peak_resident_bytes);
+    output.value(prefix + "maximum_peak_resident_bytes", timing.maximum_peak_resident_bytes);
+    output.value(prefix + "total_peak_resident_bytes", timing.total_peak_resident_bytes);
+}
+
 void write_solver_diagnostics(const SolveResult& solve, bool augmented_contact, CaseOutput& output) {
     output.value("nonlinear_attempts", solve.nonlinear_attempts);
     output.value("linear_iterations", solve.linear_iterations);
@@ -193,6 +203,7 @@ void write_solver_diagnostics(const SolveResult& solve, bool augmented_contact, 
     output.value("maximum_shadow_state_dofs", solve.maximum_shadow_state_dofs);
     output.value("total_shadow_state_dofs", solve.total_shadow_state_dofs);
     output.value("total_remote_shadow_state_dofs", solve.total_remote_shadow_state_dofs);
+    write_memory_diagnostics("memory.", solve.timing, output);
     if (solve.used_backtracking_fallback) {
         output.value("basic_failure_category", solve_failure_category_name(solve.basic_failure_category));
         if (!solve.basic_failure_message.empty()) output.value("basic_failure_message", solve.basic_failure_message);
@@ -317,6 +328,7 @@ bool run_steady(const FuelSimCaseDefinition& definition, const UnstructuredQuad4
     output.value("linear_iterations_total", result.total_linear_iterations);
     output.value("residual_norm", result.solve.residual_norm);
     write_solver_diagnostics(result.solve, problem.uses_augmented_contact(), output);
+    write_memory_diagnostics("aggregate_memory.", result.aggregate_timing, output);
     output.value("failure_category", solve_failure_category_name(result.solve.failure_category));
     if (!result.solve.failure_message.empty()) output.value("failure_message", result.solve.failure_message);
     output.value("petsc_workspace_setups", result.aggregate_timing.workspace_setups);
@@ -436,6 +448,7 @@ bool run_transient(const FuelSimCaseDefinition& definition, const UnstructuredQu
     output.value("linear_iterations_total", result.total_linear_iterations);
     output.value("petsc_workspace_setups", result.aggregate_timing.workspace_setups);
     write_solver_diagnostics(result.last_attempt, problem.uses_augmented_contact(), output);
+    write_memory_diagnostics("aggregate_memory.", result.aggregate_timing, output);
     output.value("total_seconds", result.total_seconds);
     write_conservation_summary("conservation.", problem.last_conservation_summary(), output);
     for (std::size_t region = 0; region < definition.spatial.regions.size(); ++region) {

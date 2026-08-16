@@ -394,6 +394,15 @@ bool run(const std::string& input_path, const std::string& nodal_path, const std
                   << "m58_setup_seconds=" << solve.aggregate_timing.setup_seconds << '\n'
                   << "m58_residual_callback_seconds=" << solve.aggregate_timing.residual_callback_seconds << '\n'
                   << "m58_jacobian_callback_seconds=" << solve.aggregate_timing.jacobian_callback_seconds << '\n'
+                  << "m58_memory_initial_resident_bytes=" << solve.aggregate_timing.initial_resident_bytes << '\n'
+                  << "m58_memory_setup_resident_bytes=" << solve.aggregate_timing.setup_resident_bytes << '\n'
+                  << "m58_memory_solve_resident_bytes=" << solve.aggregate_timing.solve_resident_bytes << '\n'
+                  << "m58_memory_final_resident_bytes=" << solve.aggregate_timing.final_resident_bytes << '\n'
+                  << "m58_memory_minimum_peak_resident_bytes=" << solve.aggregate_timing.minimum_peak_resident_bytes
+                  << '\n'
+                  << "m58_memory_maximum_peak_resident_bytes=" << solve.aggregate_timing.maximum_peak_resident_bytes
+                  << '\n'
+                  << "m58_memory_total_peak_resident_bytes=" << solve.aggregate_timing.total_peak_resident_bytes << '\n'
                   << "m58_minimum_residual_assembly_seconds="
                   << solve.aggregate_timing.minimum_residual_assembly_seconds << '\n'
                   << "m58_maximum_residual_assembly_seconds="
