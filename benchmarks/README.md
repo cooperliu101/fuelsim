@@ -554,21 +554,51 @@ end-to-end speedup.
 
 ## 2026-08-16 M5.8 cylindrical PCMI Hex8 comparison
 
-The 269-node, 144-element M5.8 three-dimensional transient case has 1,076 coupled
-degrees of freedom and 20 fixed Backward Euler steps. Both programs read the
-same tracked Exodus mesh, use the same finite-strain material laws, heat and
-pressure histories, penalty contact, friction coefficient, direct LU solve,
-and nonlinear tolerances. Field and console output were disabled for timing.
-CPU 0 was fixed with `taskset`, while OMP, OpenBLAS, MKL, and NumExpr were each
-limited to one thread.
+M5.8 is now a uniformly refined three-dimensional benchmark. Its solid fuel
+uses 640 Hex8 elements and its independent annular cladding uses 512, for a
+total of 1,617 nodes, 1,152 elements, and 6,468 coupled degrees of freedom. The
+fuel surface has 144 mechanical contact nodes and 128 Quad4 faces; the cladding
+inner surface has 256 Quad4 faces. The case advances 20 fixed Backward Euler
+steps. Both programs read the same tracked Exodus mesh and use the same
+finite-strain material laws, heat and pressure histories, penalty contact,
+friction coefficient, direct LU solve, and nonlinear tolerances.
 
-After one unrecorded warm-up run for each program, the fuelsim wall-clock
-samples were `41.74`, `41.51`, and `41.87 s`, giving a `41.74 s` median. The
-corresponding MOOSE samples were `79.52`, `79.45`, and `79.37 s`, giving a
-`79.45 s` median. The measured ratio is `1.90`, or a 47.5 percent lower fuelsim
-wall time. The fuelsim solve used
-78 nonlinear iterations and one PETSc workspace. The timing environment put
-the Conda MOOSE `bin` directory first in `PATH`; `mpicxx` was available and
-expression JIT compilation succeeded. The result is a small-case paired
-observation, not a claim about engineering-scale performance or parallel
-scaling.
+CPU 0 was fixed with `taskset`, while OMP, OpenBLAS, MKL, and NumExpr were each
+limited to one thread. Field and console output were disabled for the recorded
+timings. One complete fuelsim run and the MOOSE reference-generation run were
+used as unrecorded warm-ups. The subsequent fuelsim wall clock was `343.47 s`;
+the subsequent MOOSE wall clock was `777.90 s`. The measured ratio is `2.2648`,
+or a 55.85 percent lower fuelsim wall time. The fuelsim comparison run used 75
+nonlinear iterations and one PETSc workspace. Because each sample costs several
+minutes, these are single warmed observations rather than three-run medians.
+They establish performance for this exact one-process direct-solver benchmark,
+not parallel scaling or engineering-size asymptotic behavior.
+
+From the repository root, the recorded fuelsim command was:
+
+```bash
+env PATH=/home/cooper/miniforge/envs/moose/bin:/usr/local/bin:/usr/bin:/bin \
+  OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 \
+  NUMEXPR_NUM_THREADS=1 taskset -c 0 \
+  /usr/bin/time -f 'wall_seconds=%e' \
+  ./build/fuelsim -i verification/fuelsim/transient_integrated_hex8.fsi
+```
+
+From `verification/moose`, the matching MOOSE command was:
+
+```bash
+env PATH=/home/cooper/miniforge/envs/moose/bin:/usr/local/bin:/usr/bin:/bin \
+  OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 \
+  NUMEXPR_NUM_THREADS=1 taskset -c 0 \
+  /usr/bin/time -f 'wall_seconds=%e' \
+  /home/cooper/projects/july/july-opt -i m58_integrated_hex8.i \
+  Outputs/csv=false Outputs/console=false
+```
+
+The final MOOSE field comparison uses all 1,617 nodes, all 144 contact nodes,
+and all 512 cladding elements. Temperature, three displacement components,
+contact pressure, equivalent stress, equivalent plastic strain, and equivalent
+creep strain each pass relative L2, relative absolute-peak, and maximum
+pointwise relative errors below 0.5 percent without a denominator floor. The
+largest default acceptance metric is the X-displacement maximum pointwise
+relative error at `0.010724 percent`.

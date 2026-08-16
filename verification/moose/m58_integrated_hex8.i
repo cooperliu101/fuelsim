@@ -1,6 +1,7 @@
-# Three-dimensional cylindrical counterpart of the M5.7 integrated path. A
-# solid Hex8 fuel pellet interacts with an independent concentric Hex8 cladding
-# tube through finite-strain thermal contact, large sliding, and vector friction.
+# Uniformly refined three-dimensional cylindrical benchmark derived from the
+# M5.7 integrated path. A solid Hex8 fuel pellet interacts with an independent
+# concentric Hex8 cladding tube through finite-strain thermal contact, large
+# sliding, and vector friction.
 
 [Mesh]
   file = m58_integrated_hex8_mesh.e

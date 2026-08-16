@@ -326,8 +326,8 @@ if(BUILD_TESTING)
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m58_integrated_hex8_clad_state_0020.csv"
     )
     set_tests_properties(fuelsim_m58_integrated_hex8_validation_tests PROPERTIES
-        LABELS "acceptance;three-dimensional"
-        TIMEOUT 180
+        LABELS "acceptance;benchmark;three-dimensional"
+        TIMEOUT 600
     )
 
     add_executable(fuelsim_m52_large_sliding_restart_tests

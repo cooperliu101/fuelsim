@@ -1,9 +1,9 @@
 [Mesh]
   [fuel_cross_section]
     type = ConcentricCircleMeshGenerator
-    num_sectors = 2
+    num_sectors = 4
     radii = '0.00412'
-    rings = '2'
+    rings = '4'
     has_outer_square = false
     preserve_volumes = false
   []
@@ -11,7 +11,7 @@
     type = AdvancedExtruderGenerator
     input = fuel_cross_section
     heights = '0.005'
-    num_layers = '4'
+    num_layers = '8'
     direction = '0 0 1'
     bottom_boundary = fuel_bottom
     top_boundary = fuel_top
@@ -30,8 +30,8 @@
   []
   [clad_cross_section]
     type = AnnularMeshGenerator
-    nr = 1
-    nt = 8
+    nr = 2
+    nt = 16
     rmin = 0.0041235
     rmax = 0.004692
     quad_subdomain_id = 10
@@ -43,7 +43,7 @@
     type = AdvancedExtruderGenerator
     input = clad_cross_section
     heights = '0.007'
-    num_layers = '8'
+    num_layers = '16'
     direction = '0 0 1'
     bottom_boundary = clad_bottom
     top_boundary = clad_top

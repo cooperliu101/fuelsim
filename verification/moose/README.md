@@ -1275,8 +1275,8 @@ state numerical-equivalence evidence, not a speedup or general scaling claim.
 
 ## M5.8 integrated Hex8 provenance
 
-`m58_integrated_hex8_mesh.i` generates the tracked 269-node, 144-element Hex8
-mesh, and `m58_integrated_hex8.i` defines the 20-step three-dimensional
+`m58_integrated_hex8_mesh.i` generates the tracked 1,617-node, 1,152-element
+Hex8 mesh, and `m58_integrated_hex8.i` defines the 20-step three-dimensional
 cylindrical PCMI reference. A solid 4.12 mm-radius fuel cylinder and an
 independent annular cladding mesh have a nominal 3.5 micrometre radial gap. The
 cladding mesh is rotated 0.1 degrees about the common axis so that fuel contact
@@ -1312,9 +1312,9 @@ MPI ranks / threads:   1 / 1
 July worktree:         dirty; executable hash is therefore authoritative
 ```
 
-The tracked final files contain all 269 nodes, all 40 secondary-node contact
+The tracked final files contain all 1,617 nodes, all 144 secondary-node contact
 pressures, and element-average equivalent stress, plastic strain, and creep
-strain for all 64 cladding elements. Every relative L2, relative absolute-peak,
+strain for all 512 cladding elements. Every relative L2, relative absolute-peak,
 and maximum pointwise relative error is below 0.5 percent. The comparison uses
 no denominator floor and reports zero-reference counts and maximum absolute
 differences separately. The exact metrics and the controlled timing protocol
