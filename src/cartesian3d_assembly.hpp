@@ -72,18 +72,31 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
         Quad4FaceGeometry geometry;
     };
 
-    struct ThermalContribution final {
+    struct ThermalCandidate final {
         std::size_t contact;
         std::array<std::size_t, 8> nodes;
         Quad4ToQuad4HeatGeometry geometry;
-        std::size_t integration_point, primary;
+        std::size_t primary;
     };
 
-    struct MechanicalContribution final {
+    struct MechanicalCandidate final {
         std::size_t contact;
         std::array<std::size_t, 8> nodes;
         NodeToQuad4ContactGeometry geometry;
-        std::size_t secondary, primary, point;
+        std::size_t secondary, primary;
+    };
+
+    struct PrimaryContactFace final {
+        std::array<std::size_t, 4> nodes;
+        Quad4FaceCoordinates coordinates;
+        CartesianPoint3 parent_centroid;
+    };
+
+    struct SecondaryContactFace final {
+        std::array<std::size_t, 4> nodes;
+        Quad4FaceCoordinates coordinates;
+        Quad4FaceGeometry geometry;
+        CartesianPoint3 parent_centroid;
     };
 
     struct SparsityContact final {
@@ -92,13 +105,16 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     };
 
     struct MechanicalPoint final {
-        std::size_t contact, secondary;
+        std::size_t contact, secondary, secondary_face, secondary_local_node;
     };
 
     ContributionRanges contribution_ranges() const noexcept;
     std::size_t contribution_work(std::size_t index, std::size_t partition_count) const;
     ResolvedBoundary resolve_boundary(const UnstructuredHex8Mesh& source_mesh, const std::string& name) const;
     void build_contacts(const UnstructuredHex8Mesh& source_mesh);
+    ThermalCandidate thermal_candidate(std::size_t point, std::size_t primary) const;
+    MechanicalCandidate mechanical_candidate(std::size_t point, std::size_t primary) const;
+    SparsityContact sparsity_contact(std::size_t index) const;
     void update_contact_search_trees(const std::vector<double>& state) const;
     Quad4SurfaceContactLocalDofs contact_dofs(const std::array<std::size_t, 8>& nodes) const;
     Quad4SurfaceContactLocalValues contribution_state(std::size_t index, const std::vector<double>& global_state) const;
@@ -106,11 +122,8 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
         const std::array<std::size_t, 8>& nodes, const std::vector<double>& global_state) const;
     void update_thermal_candidates(std::size_t first, std::size_t last, const std::vector<double>& state) const;
     void update_mechanical_candidates(std::size_t first, std::size_t last, const std::vector<double>& state) const;
-    void update_large_thermal_candidates(const std::vector<double>& state) const;
-    void update_large_mechanical_candidates(const std::vector<double>& state) const;
     bool mark_touched_thermal_points(std::size_t first, std::size_t last) const;
     bool mark_touched_mechanical_nodes(std::size_t first, std::size_t last) const;
-    std::size_t thermal_point_index(std::size_t contact, std::size_t point) const noexcept;
     std::size_t mechanical_node_index(std::size_t contact, std::size_t node) const noexcept;
     void refresh_controls();
     std::vector<Hex8RegionMesh> _meshes;
@@ -121,21 +134,18 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     std::vector<BoundaryContribution> _boundary_contributions;
     std::vector<GapHeatProperties> _thermal_properties;
     std::vector<NormalContactProperties> _mechanical_properties;
-    std::vector<SparsityContact> _sparsity_contacts;
-    std::vector<ThermalContribution> _thermal_contributions;
-    std::vector<MechanicalContribution> _mechanical_contributions;
+    std::vector<std::vector<PrimaryContactFace>> _primary_contact_faces;
+    std::vector<std::vector<SecondaryContactFace>> _secondary_contact_faces;
     std::vector<MechanicalPoint> _mechanical_points;
-    std::vector<std::size_t> _thermal_point_counts, _thermal_contact_offsets, _mechanical_contact_offsets;
-    std::vector<std::size_t> _thermal_candidate_offsets, _mechanical_candidate_offsets;
-    mutable std::vector<unsigned char> _touched_thermal_points, _touched_mechanical_nodes,
-        _projected_mechanical_candidates;
+    std::vector<std::size_t> _thermal_point_counts, _thermal_contact_offsets, _mechanical_contact_offsets,
+        _sparsity_contact_offsets;
+    mutable std::vector<unsigned char> _touched_thermal_points, _touched_mechanical_nodes;
     mutable std::vector<double> _thermal_minimum_distance, _mechanical_minimum_distance;
     mutable std::vector<std::size_t> _mechanical_selected_primary, _mechanical_cached_primary;
-    mutable std::vector<std::size_t> _thermal_active_candidates, _thermal_cached_primary, _mechanical_active_candidates;
+    mutable std::vector<std::size_t> _thermal_active_primary, _thermal_cached_primary, _mechanical_active_primary;
     mutable std::vector<spatial_detail::ContactSearchTree> _contact_search_trees;
     mutable std::vector<spatial_detail::ContactSearchBox> _contact_search_boxes;
     mutable spatial_detail::ContactSearchQuery _contact_search_query;
-    bool _uses_contact_search_tree = false;
     std::vector<std::vector<ContactPointHistory>> _contact_histories;
     std::vector<double> _committed_contact_solution;
     std::vector<ResolvedBoundary> _primary_boundaries, _secondary_boundaries;

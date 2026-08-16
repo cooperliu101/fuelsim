@@ -708,3 +708,41 @@ temperature difference and `2.52e-12 m` displacement difference; the largest
 configured tolerance ratio was `0.02491`. The four intervals are contiguous,
 nonoverlapping, and cover all 2,688 contributions. These measurements establish
 strong scaling only for this named 6,468-DOF benchmark and hardware.
+
+## 2026-08-16 compact three-dimensional contact candidates
+
+The 30,148-degree-of-freedom M5.8 extension has 640 secondary fuel faces and
+1,280 primary cladding faces. The previous Cartesian contact construction stored
+3,276,800 complete thermal candidates and 3,276,800 complete mechanical
+candidates, including repeated coordinates, shape functions, derivatives, and
+node arrays. The compact implementation stores each primary and secondary face
+once, represents the complete candidate product by offsets and indices, and
+constructs only candidates visited by the exact search or active assembly. The
+PETSc sparsity preallocation still visits every secondary-face/primary-face pair,
+so the admissible contact graph, unique projection, and large-sliding behavior do
+not change.
+
+One process on CPU 0 with every numerical library fixed to one thread completed
+the same first `0.05 s` step before and after the change. Both runs used 30,148
+DOFs, six nonlinear and linear iterations, and one PETSc workspace. After
+excluding memory and timing fields, their complete console outputs were
+identical, including residuals, conservation diagnostics, material summaries,
+and contact results.
+
+| measurement | `77b1dcc` | compact candidates | change |
+| --- | ---: | ---: | ---: |
+| initial resident memory | 3.45 GiB | 114.43 MiB | 96.76 percent lower |
+| PETSc maximum resident memory | 5.41 GiB | 1.73 GiB | 67.93 percent lower |
+| Linux process high-water mark | 5.84 GiB | 2.01 GiB | 65.66 percent lower |
+| internal total time | 92.1779 s | 82.7908 s | 10.18 percent lower |
+| monitored process wall time | 100 s | 86 s | 14.00 percent lower |
+
+The unrelated 1,584-DOF RZ path was paired against `77b1dcc` after one warm-up.
+Three interleaved internal-time samples had medians of `1.016027090 s` and
+`1.025738838 s`, a 0.96 percent compact-candidate time increase with identical 63 nonlinear
+and linear iterations and the same `8.362012981744e-09` final residual. The
+required 23,010-DOF, 20-step RZ case also completed in `28.911380536 s` with 62
+nonlinear and linear iterations, 82 residual callbacks, 62 Jacobian callbacks,
+and one PETSc workspace. The 30,148-DOF result covers one time step and is an
+exact memory and paired-speed observation for this mesh, not a general scaling
+claim.
