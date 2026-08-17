@@ -226,6 +226,12 @@
   # GMRES and 48.64%/30.13% for direct MUMPS. Wall-time efficiencies are
   # 91.12%/55.30% and 47.13%/27.86%, respectively. GMRES linear iterations
   # are 482/732/1074; direct MUMPS uses six solves per rank count.
+  # Full 1 s (20-step) eight-process rerun with streaming monitoring:
+  #   GMRES + field_split: stopped after 5 accepted steps at t=0.25 s,
+  #                        maximum_cutbacks / DIVERGED_LINEAR_SOLVE,
+  #                        181.77 s internal and 184.98 s wall time.
+  #   Direct MUMPS:        completed 20/20 steps,
+  #                        794.75 s internal and 797.93 s wall time.
   linear_solver = gmres
   preconditioner = field_split
   jacobian_lag = 2
