@@ -29,6 +29,7 @@ files.
 | M5.2 large sliding | `m52_large_sliding_contact_rz_mesh.e` | 402 / 264 | `bd6677fcc6061c37f2dffe00c10dc197c54648227ac084ada10b27e12e5fa78d` |
 | M5.4 augmented contact | `m54_augmented_contact_rz_mesh.e` | 528 / 460 | `8304c2fc649863b0a7ce80fc17ca8c8d64161467f42be2610132b3cd29177ec0` |
 | B3 HEX8 thermoelasticity | `b3_hex8_mesh.e` | 12 / 2 HEX8 | `910088a0aad60aa2ab02f00c3b8cf384bc2a2a2377f41c3db7e554d5ca9481f2` |
+| B3.5 shared meat-cladding HEX8 | `b35_hex8_shared_meat_clad_mesh.e` | 12 / 2 HEX8 | `fb654f61edd322846a19c6227c9060fb879bf57ba35c02ece57558fadf5dd236` |
 | B3.3 HEX8 coupled contact | `b33_hex8_contact_mesh.e` | 16 / 2 HEX8 | `e710f3add10b71478f786521af44cde8ff3fb81d4becf1fbab1266955ba43cf7` |
 | B3.4 HEX8 sliding friction | `b34_hex8_sliding_contact_mesh.e` | 16 / 2 HEX8 | `d9ec3f16dd1c836f88e4cdf21195b47cb8766e34e97415cd84fb94b1ea48e2f6` |
 
@@ -63,6 +64,36 @@ patch, while nonuniform integration-point validation remains future work.
 Temperature, three displacements, and nonzero stress all pass the three relative
 metrics below 0.1 percent. Zero reference values are reported with a separate
 absolute difference and no denominator floor.
+
+## B3.5 conforming meat-cladding interface with shared nodes
+
+`b35_hex8_shared_meat_clad_mesh.i` creates two adjacent HEX8 blocks with 12
+global Exodus nodes, rather than two independent eight-node bodies. The `meat`
+block occupies `0 <= x <= 1`; the `clad` block occupies `1 <= x <= 2`; the four
+nodes on `x = 1` belong to both blocks. There is deliberately no contact pair.
+
+`b35_hex8_shared_meat_clad.i` and
+`steady_hex8_shared_meat_clad_moose.fsi` use distinct conductivity, elastic,
+and thermal-expansion properties in the two blocks. They fix `x = 0` at 300 K,
+fix `x = 2` at 600 K, and fix the three displacement components on `x = 0`.
+The linear conduction solution has a 500 K material interface and a 2,000 W/m²
+heat flux.
+
+`fuelsim_b35_hex8_shared_nodes_moose_tests` reads the same tracked Exodus mesh.
+It requires each shared source node to map to one four-field global node, while
+each non-interface node belongs to exactly one material region. MOOSE's nodal
+sampler emits interface nodes once for each incident block; the test first
+requires those duplicate rows to be identical and then compares the 12 unique
+nodes. Temperature and all three displacement fields use relative L2, relative
+absolute-peak, and maximum pointwise-relative errors below 0.1 percent, with
+zero-reference values reported by a separate absolute gate. It also sums the
+two HEX8 local residuals at every shared thermal and displacement degree of
+freedom, requires their relative imbalance below `1e-8`, and verifies the
+analytic temperature and heat-flux continuity. The checked one-rank, one-thread
+run used `/home/cooper/projects/july/july-opt`, MOOSE commit `93b11698be`, and
+PETSc 3.25.2. Its largest relative field error was
+`8.763365653269e-14`, the largest shared-interface residual imbalance was
+`2.059096004814e-9`, and the heat-flux imbalance was zero to printed precision.
 
 ## Three-dimensional plasticity, creep, and coupled response
 

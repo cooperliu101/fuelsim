@@ -464,6 +464,17 @@ if(BUILD_TESTING)
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b3_hex8_thermoelastic_element_stress_final.csv")
     set_tests_properties(fuelsim_b3_hex8_moose_tests PROPERTIES LABELS "acceptance;three-dimensional")
 
+    add_executable(fuelsim_b35_hex8_shared_nodes_moose_tests tests/b35_hex8_shared_nodes_moose_tests.cpp)
+    target_link_libraries(fuelsim_b35_hex8_shared_nodes_moose_tests
+        PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
+    fuelsim_enable_warnings(fuelsim_b35_hex8_shared_nodes_moose_tests)
+    add_test(NAME fuelsim_b35_hex8_shared_nodes_moose_tests
+        COMMAND fuelsim_b35_hex8_shared_nodes_moose_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex8_shared_meat_clad_moose.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b35_hex8_shared_meat_clad_all_nodes_0001.csv")
+    set_tests_properties(fuelsim_b35_hex8_shared_nodes_moose_tests
+        PROPERTIES LABELS "acceptance;three-dimensional")
+
     add_executable(fuelsim_b33_hex8_contact_moose_tests tests/b33_hex8_contact_moose_tests.cpp)
     target_link_libraries(fuelsim_b33_hex8_contact_moose_tests
         PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
