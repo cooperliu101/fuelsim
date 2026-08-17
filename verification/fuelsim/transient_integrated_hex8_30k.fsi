@@ -206,6 +206,13 @@
 []
 
 [Solver]
+  # Two solver configurations were benchmarked for this 30,148-DOF case.
+  # Keep the GMRES field-split configuration below active for the recommended
+  # four-process run. The direct-MUMPS configuration is the reference option:
+  #   linear_solver = direct
+  #   preconditioner = lu
+  #   direct_factorization = mumps
+  # Activate exactly one configuration at a time.
   linear_solver = gmres
   preconditioner = field_split
   jacobian_lag = 2
