@@ -636,6 +636,16 @@ confused with the separate 30,148-DOF GMRES field-split result. These are
 single warmed observations on the named mesh, hardware, PETSc/MUMPS build, and
 MOOSE executable, not general scaling limits.
 
+The latest one-process full-field comparison also passed using the tracked MOOSE
+reference files. It completed 20 steps with 93 nonlinear iterations, 49
+Jacobian evaluations, and one PETSc workspace in `75.9478 s` internal time
+(`80.38 s` process wall time). The largest maximum pointwise relative error was
+`1.07366e-04` (`0.0107366 percent`) for X displacement; temperature,
+displacements, contact pressure, equivalent stress, equivalent plastic strain,
+and equivalent creep strain all remained below the `0.5 percent` three-metric
+limit. The final state had 144 active contact nodes, 109 sliding contact nodes,
+and 144 nodes crossing primary faces.
+
 ## 2026-08-16 M5.8 two-process parallel efficiency
 
 The original runtime contribution partition divided the 2,688 active blocks by
