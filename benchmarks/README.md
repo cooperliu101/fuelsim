@@ -746,3 +746,67 @@ nonlinear and linear iterations, 82 residual callbacks, 62 Jacobian callbacks,
 and one PETSc workspace. The 30,148-DOF result covers one time step and is an
 exact memory and paired-speed observation for this mesh, not a general scaling
 claim.
+
+## 2026-08-17 M5.8 30,148-DOF four-process efficiency
+
+The original sparse preallocation divided contact candidates by candidate
+index. Each process therefore inserted most of its preallocation rows into
+other processes' matrix ownership ranges. On four processes, PETSc spent
+`60.112 s` in the beginning of matrix assembly before the nonlinear solve. The
+one-process and four-process direct-MUMPS internal times were `82.901277 s` and
+`104.420422 s`, respectively, so the original four-core efficiency was only
+`19.85 percent`.
+
+The corrected preallocation visits the complete deterministic graph on every
+process but inserts only locally owned rows. It does not change runtime
+contribution ownership, residual values, Jacobian values, or the matrix graph.
+This reduced the four-process preallocation assembly begin from `60.112 s` to
+`0.641 s`; the otherwise unchanged four-process direct-MUMPS time fell to
+`42.541975 s`. SCOTCH remained the fastest tested MUMPS ordering: the same
+one-step direct case took `42.42 s` with SCOTCH, `47.27 s` with PT-SCOTCH,
+`47.43 s` with METIS, and `68.48 s` with PORD.
+
+The final 30,148-DOF input uses GMRES with multiplicative temperature and
+mechanics field splitting. Here GMRES is the Krylov linear solver, and the field
+split is a physics-based preconditioner. On four or more processes, the
+mechanics block defaults to one level of incomplete-LU fill unless the user
+explicitly provides another PETSc option. Zero fill was faster for the first
+step but was rejected: the complete 20-step path stopped after 14 accepted
+steps with a divergent linear solve. One fill level completed all 20 steps.
+
+One fixed `0.05 s` step used CPUs 0 through 3, the default shared-memory MPI
+transport, and one thread for OpenMP, OpenBLAS, MKL, and NumExpr. No TCP
+fallback transport was forced. The paired results were:
+
+| measurement | one process | four processes | speedup | four-core efficiency |
+| --- | ---: | ---: | ---: | ---: |
+| internal total time | 81.708530 s | 21.385841 s | 3.8207 | 95.52 percent |
+| process wall time | 82.51 s | 23.18 s | 3.5595 | 88.99 percent |
+| linear iterations | 482 | 732 | - | - |
+
+The four-process solution was also compared degree by degree with the
+one-process direct-MUMPS reference. The maximum temperature difference was
+`1.59844e-10 K`, the maximum displacement difference was `3.84966e-13 m`, and
+the largest configured tolerance ratio was `0.0038491`. The four contribution
+intervals were contiguous, nonoverlapping, and covered all contributions.
+
+The selected one-fill configuration completed the full 20-step four-process
+path before it was installed as the default: 20 steps were accepted with no
+cutback or rejected step, using 138 nonlinear iterations, 16,882 linear
+iterations, one PETSc workspace, `325.087564 s` internal time, and `326.91 s`
+wall time. The aggregate process high-water mark was `1,388,904,448 bytes`
+(`1.29 GiB`), and the largest individual process high-water mark was
+`356,122,624 bytes`. A subsequent one-step run without an explicit fill option
+reproduced 732 linear iterations and the timing above, confirming that the
+program default selects the tested configuration.
+
+The unrelated 1,584-DOF RZ path was paired with pre-change commit `6b7c995` on
+CPU 0. After one warm-up, the three-run internal-time medians were
+`0.991434761 s` before and `0.991832096 s` after, a `0.04 percent` increase;
+both completed 63 nonlinear iterations. The required current 23,010-DOF,
+20-step direct case completed in `28.445658 s` with 62 nonlinear and linear
+iterations and one PETSc workspace. The matching output-disabled MOOSE run
+took `46.77 s` wall time. Finally, all 60 CTest registrations passed serially.
+These results establish greater than 65 percent strong-scaling efficiency only
+for the named 30,148-DOF case, first-step workload, CPU placement, PETSc build,
+and solver configuration.

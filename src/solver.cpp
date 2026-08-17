@@ -168,7 +168,7 @@ struct MatrixInsertionWorkspace final {
 
 PetscErrorCode insert_pattern_blocks(Mat matrix, const std::vector<PetscInt>& dofs,
     const std::vector<unsigned char>& pattern, const std::vector<double>& dense_values, InsertMode mode,
-    MatrixInsertionWorkspace& workspace) {
+    PetscInt ownership_begin, PetscInt ownership_end, MatrixInsertionWorkspace& workspace) {
     PetscFunctionBeginUser;
     const std::size_t count = dofs.size();
     PetscCheck(pattern.size() == count * count, PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ,
@@ -178,6 +178,10 @@ PetscErrorCode insert_pattern_blocks(Mat matrix, const std::vector<PetscInt>& do
     workspace.grouped_rows.assign(count, 0U);
     for (std::size_t row = 0; row < count; ++row) {
         if (workspace.grouped_rows[row] != 0U) continue;
+        if (dofs[row] < ownership_begin || dofs[row] >= ownership_end) {
+            workspace.grouped_rows[row] = 1U;
+            continue;
+        }
         workspace.columns.clear();
         for (std::size_t column = 0; column < count; ++column)
             if (pattern[row * count + column] != 0U) workspace.columns.push_back(dofs[column]);
@@ -185,7 +189,9 @@ PetscErrorCode insert_pattern_blocks(Mat matrix, const std::vector<PetscInt>& do
         if (workspace.columns.empty()) continue;
         workspace.rows.assign(1, dofs[row]);
         for (std::size_t candidate = row + 1U; candidate < count; ++candidate) {
-            if (workspace.grouped_rows[candidate] != 0U) continue;
+            if (workspace.grouped_rows[candidate] != 0U || dofs[candidate] < ownership_begin ||
+                dofs[candidate] >= ownership_end)
+                continue;
             const auto first = pattern.begin() + static_cast<std::ptrdiff_t>(row * count);
             const auto candidate_first = pattern.begin() + static_cast<std::ptrdiff_t>(candidate * count);
             if (std::equal(first, first + static_cast<std::ptrdiff_t>(count), candidate_first)) {
@@ -196,7 +202,9 @@ PetscErrorCode insert_pattern_blocks(Mat matrix, const std::vector<PetscInt>& do
         workspace.values.clear();
         workspace.values.reserve(workspace.rows.size() * workspace.columns.size());
         for (std::size_t local_row = 0; local_row < count; ++local_row) {
-            if (workspace.grouped_rows[local_row] == 0U) continue;
+            if (workspace.grouped_rows[local_row] == 0U || dofs[local_row] < ownership_begin ||
+                dofs[local_row] >= ownership_end)
+                continue;
             if (!std::equal(pattern.begin() + static_cast<std::ptrdiff_t>(row * count),
                     pattern.begin() + static_cast<std::ptrdiff_t>((row + 1U) * count),
                     pattern.begin() + static_cast<std::ptrdiff_t>(local_row * count)))
@@ -286,9 +294,9 @@ PetscErrorCode assemble_contributions(SolverContext& context, Vec residual, Mat 
             }
         }
         context.problem->contribution_jacobian_pattern(entry, context.contribution_jacobian_pattern);
-        PetscCall(
-            insert_pattern_blocks(jacobian, context.petsc_contribution_dofs, context.contribution_jacobian_pattern,
-                context.scaled_contribution_jacobian, ADD_VALUES, context.matrix_insertion));
+        PetscCall(insert_pattern_blocks(jacobian, context.petsc_contribution_dofs,
+            context.contribution_jacobian_pattern, context.scaled_contribution_jacobian, ADD_VALUES, 0,
+            checked_petsc_int(context.problem->dof_count()), context.matrix_insertion));
     }
     PetscFunctionReturn(PETSC_SUCCESS);
 }
@@ -428,6 +436,15 @@ void configure_linear_solver(PetscObjects& objects, const NonlinearProblem& prob
         }
         check_petsc(
             PCFieldSplitSetType(preconditioner, PC_COMPOSITE_MULTIPLICATIVE), "PCFieldSplitSetType multiplicative");
+        if (world_size >= 4) {
+            PetscBool mechanics_fill_set = PETSC_FALSE;
+            check_petsc(PetscOptionsHasName(
+                            nullptr, nullptr, "-fieldsplit_mechanics_sub_pc_factor_levels", &mechanics_fill_set),
+                "PetscOptionsHasName mechanics field-split ILU fill level");
+            if (mechanics_fill_set == PETSC_FALSE)
+                check_petsc(PetscOptionsSetValue(nullptr, "-fieldsplit_mechanics_sub_pc_factor_levels", "1"),
+                    "PetscOptionsSetValue mechanics field-split ILU fill level");
+        }
         break;
     }
     case SolverOptions::Preconditioner::hypre:
@@ -759,9 +776,11 @@ class PetscSolver::Implementation final {
         check_petsc(VecDuplicate(_objects->state, &_objects->residual), "VecDuplicate residual");
         PetscInt local_count = 0;
         check_petsc(VecGetLocalSize(_objects->state, &local_count), "VecGetLocalSize state");
-        const std::size_t sparsity_count = problem.sparsity_contribution_count(),
-                          sparsity_begin = sparsity_count * rank / size,
-                          sparsity_end = sparsity_count * (rank + 1U) / size;
+        PetscInt ownership_begin = 0;
+        PetscInt ownership_end = 0;
+        check_petsc(
+            VecGetOwnershipRange(_objects->state, &ownership_begin, &ownership_end), "VecGetOwnershipRange state");
+        const std::size_t sparsity_count = problem.sparsity_contribution_count();
         std::vector<PetscInt> sparsity_dofs;
         std::vector<double> sparsity_zeros;
         std::vector<unsigned char> sparsity_pattern;
@@ -773,7 +792,11 @@ class PetscSolver::Implementation final {
                 "MatSetSizes sparsity preallocator");
             check_petsc(MatSetType(preallocator, MATPREALLOCATOR), "MatSetType sparsity preallocator");
             check_petsc(MatSetUp(preallocator), "MatSetUp sparsity preallocator");
-            for (std::size_t entry = sparsity_begin; entry < sparsity_end; ++entry) {
+            check_petsc(MatSetOption(preallocator, MAT_NO_OFF_PROC_ENTRIES, PETSC_TRUE),
+                "MatSetOption sparsity preallocator MAT_NO_OFF_PROC_ENTRIES");
+            // Every rank sees the same graph, but inserts only its owned rows. This keeps
+            // preallocation communication-free without changing contribution ownership.
+            for (std::size_t entry = 0; entry < sparsity_count; ++entry) {
                 problem.sparsity_contribution_dofs(entry, contribution_dofs);
                 sparsity_dofs.resize(contribution_dofs.size());
                 for (std::size_t local = 0; local < contribution_dofs.size(); ++local)
@@ -781,7 +804,7 @@ class PetscSolver::Implementation final {
                 sparsity_zeros.assign(contribution_dofs.size() * contribution_dofs.size(), 0.0);
                 problem.sparsity_contribution_jacobian_pattern(entry, sparsity_pattern);
                 check_petsc(insert_pattern_blocks(preallocator, sparsity_dofs, sparsity_pattern, sparsity_zeros,
-                                INSERT_VALUES, sparsity_insertion),
+                                INSERT_VALUES, ownership_begin, ownership_end, sparsity_insertion),
                     "insert_pattern_blocks sparsity preallocator");
             }
             check_petsc(MatAssemblyBegin(preallocator, MAT_FINAL_ASSEMBLY), "MatAssemblyBegin sparsity preallocator");
@@ -807,10 +830,6 @@ class PetscSolver::Implementation final {
         SNESLineSearch line_search = nullptr;
         check_petsc(SNESGetLineSearch(_objects->snes, &line_search), "SNESGetLineSearch");
         check_petsc(SNESLineSearchSetType(line_search, SNESLINESEARCHBASIC), "SNESLineSearchSetType");
-        PetscInt ownership_begin = 0;
-        PetscInt ownership_end = 0;
-        check_petsc(
-            VecGetOwnershipRange(_objects->state, &ownership_begin, &ownership_end), "VecGetOwnershipRange state");
         _context.ownership_begin = ownership_begin;
         _context.ownership_end = ownership_end;
         for (const DirichletCondition& condition : problem.dirichlet_conditions()) {

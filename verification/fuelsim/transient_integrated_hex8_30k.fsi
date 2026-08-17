@@ -206,9 +206,8 @@
 []
 
 [Solver]
-  linear_solver = direct
-  preconditioner = lu
-  direct_factorization = mumps
+  linear_solver = gmres
+  preconditioner = field_split
   jacobian_lag = 2
   absolute_tolerance = 1e-7
   relative_tolerance = 1e-8

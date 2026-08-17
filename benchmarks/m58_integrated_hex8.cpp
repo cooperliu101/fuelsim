@@ -238,10 +238,12 @@ bool run(const std::string& input_path, const std::string& nodal_path, const std
     const std::size_t rank = static_cast<std::size_t>(solve.last_attempt.mpi_rank);
     const std::size_t ranks = static_cast<std::size_t>(solve.last_attempt.mpi_size);
     const auto local_partition = problem.contribution_partition(rank, ranks);
+    const std::size_t expected_steps = static_cast<std::size_t>(
+        std::llround(definition.transient_execution.end_time / definition.transient_execution.initial_time_step));
     bool passed = check(initial_projected_nodes == initial_contact.size() && initial_minimum_gap > 0.0,
                       "M5.8 starts from a positive projected mechanical gap") &&
-                  check(solve.completed && solve.accepted_steps.size() == 20,
-                      "M5.8 completes twenty equal Backward Euler steps") &&
+                  check(solve.completed && solve.accepted_steps.size() == expected_steps,
+                      "M5.8 completes every configured equal Backward Euler step") &&
                   check(solve.aggregate_timing.workspace_setups == 1,
                       "M5.8 reuses one PETSc workspace across the complete path") &&
                   check(local_partition.first == solve.last_attempt.local_contribution_begin &&
@@ -264,6 +266,15 @@ bool run(const std::string& input_path, const std::string& nodal_path, const std
                  << " contribution_begin=" << local_partition.first << " contribution_end=" << local_partition.second
                  << '\n';
     std::cout << local_timing.str() << std::flush;
+
+    if (reference_mode == "write_dof") {
+        if (output && passed) write_dof_reference(reference_path, problem.committed_solution());
+        return passed;
+    }
+    if (reference_mode == "compare_dof") {
+        if (output) passed = compare_dof_reference(reference_path, problem.committed_solution()) && passed;
+        return passed;
+    }
 
     const auto node_reference = read_nodes(nodal_path);
     if (node_reference.size() != source.nodes().size()) throw std::invalid_argument("M5.8 node counts differ");
@@ -435,7 +446,7 @@ int main(int argc, char** argv) {
     if (argc != 5 && argc != 7) {
         std::cerr << "Usage: fuelsim_m58_integrated_hex8_benchmark "
                      "<case.fsi> <all-nodes.csv> <contact.csv> <element-state.csv> "
-                     "[write|compare <dof-reference>]\n";
+                     "[write|compare|write_dof|compare_dof <dof-reference>]\n";
         return 2;
     }
     try {
@@ -443,10 +454,15 @@ int main(int argc, char** argv) {
         fuelsim::PetscSession session(argc, argv, "fuelsim M5.8 integrated Hex8 benchmark\n");
         const std::string reference_mode = argc == 7 ? argv[5] : "";
         const std::string reference_path = argc == 7 ? argv[6] : "";
-        if (!reference_mode.empty() && reference_mode != "write" && reference_mode != "compare")
-            throw std::invalid_argument("M5.8 degree-of-freedom reference mode must be write or compare");
+        if (!reference_mode.empty() && reference_mode != "write" && reference_mode != "compare" &&
+            reference_mode != "write_dof" && reference_mode != "compare_dof")
+            throw std::invalid_argument(
+                "M5.8 degree-of-freedom reference mode must be write, compare, write_dof, or compare_dof");
         if (!run(argv[1], argv[2], argv[3], argv[4], reference_mode, reference_path, session.rank() == 0)) return 1;
-        if (session.rank() == 0) std::cout << "[PASS] M5.8 integrated Hex8 MOOSE comparison\n";
+        if (session.rank() == 0)
+            std::cout << (reference_mode == "write_dof" || reference_mode == "compare_dof"
+                              ? "[PASS] M5.8 integrated Hex8 degree-of-freedom reference\n"
+                              : "[PASS] M5.8 integrated Hex8 MOOSE comparison\n");
         return 0;
     } catch (const std::exception& error) {
         std::cerr << "[FAIL] M5.8 benchmark raised: " << error.what() << '\n';
