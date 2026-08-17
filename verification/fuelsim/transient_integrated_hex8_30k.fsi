@@ -213,6 +213,19 @@
   #   preconditioner = lu
   #   direct_factorization = mumps
   # Activate exactly one configuration at a time.
+  # One-step measurements use end_time=0.05 in temporary copies of this input,
+  # CPUs 0 through 7, one thread per numerical library, and the default MPI
+  # transport. Internal time / wall time / aggregate peak memory are:
+  #   GMRES + field_split: 1 rank 84.061 / 85.07 s / 1.064 GiB;
+  #                        4 ranks 21.552 / 23.34 s / 1.287 GiB;
+  #                        8 ranks 16.055 / 19.23 s / 1.879 GiB.
+  #   Direct MUMPS:        1 rank 83.041 / 83.97 s / 1.732 GiB;
+  #                        4 ranks 42.684 / 44.54 s / 3.311 GiB;
+  #                        8 ranks 34.455 / 37.68 s / 4.765 GiB.
+  # Internal four-process/eight-process efficiencies are 97.51%/65.45% for
+  # GMRES and 48.64%/30.13% for direct MUMPS. Wall-time efficiencies are
+  # 91.12%/55.30% and 47.13%/27.86%, respectively. GMRES linear iterations
+  # are 482/732/1074; direct MUMPS uses six solves per rank count.
   linear_solver = gmres
   preconditioner = field_split
   jacobian_lag = 2
