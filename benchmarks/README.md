@@ -614,6 +614,28 @@ manually from the repository root with:
   verification/moose/m58_integrated_hex8_clad_state_0020.csv
 ```
 
+## 2026-08-17 latest-code 6,468-DOF one-, two-, and four-process comparison
+
+The latest fuelsim executable at commit `623a67a` was paired with the same
+tracked M5.8 Exodus mesh and direct MUMPS input at one, two, and four MPI
+processes. Every fuelsim and MOOSE run completed all 20 fixed time steps. CSV
+and Exodus output were disabled; MOOSE console output was enabled only so that
+long runs could be monitored with line-buffered progress output.
+
+| MPI processes | fuelsim wall time | MOOSE wall time | fuelsim speedup over MOOSE | fuelsim parallel efficiency | MOOSE parallel efficiency |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | `78.23 s` | `777.19 s` | `9.9347x` | `100.00%` | `100.00%` |
+| 2 | `45.58 s` | `489.10 s` | `10.7306x` | `85.82%` | `79.45%` |
+| 4 | `30.44 s` | `270.72 s` | `8.8936x` | `64.25%` | `71.77%` |
+
+Relative to the corresponding MOOSE process count, fuelsim was 89.93 percent,
+90.68 percent, and 88.76 percent faster at one, two, and four processes. The
+fuelsim four-process result is just below the 65 percent efficiency target
+under this latest single-sample wall-clock measurement; it should not be
+confused with the separate 30,148-DOF GMRES field-split result. These are
+single warmed observations on the named mesh, hardware, PETSc/MUMPS build, and
+MOOSE executable, not general scaling limits.
+
 ## 2026-08-16 M5.8 two-process parallel efficiency
 
 The original runtime contribution partition divided the 2,688 active blocks by
