@@ -5,6 +5,7 @@
 #include <limits>
 #include <numeric>
 #include <stdexcept>
+#include <unordered_map>
 #include <utility>
 
 namespace fuelsim::spatial_detail {
@@ -109,7 +110,14 @@ void SpatialLayout::initialize_counts(
         _node_offsets.push_back(_node_offsets.back() + node_counts[region]);
         _element_offsets.push_back(_element_offsets.back() + element_counts[region]);
     }
-    const std::size_t nodes = _node_offsets.back();
+    _node_count = _node_offsets.back();
+    _region_global_nodes.resize(region_count());
+    for (std::size_t region = 0; region < region_count(); ++region) {
+        const std::size_t begin = _node_offsets[region], end = _node_offsets[region + 1];
+        _region_global_nodes[region].resize(end - begin);
+        for (std::size_t local = 0; local < end - begin; ++local) _region_global_nodes[region][local] = begin + local;
+    }
+    const std::size_t nodes = _node_count;
     const std::size_t field_count = _layout == DofLayout::axisymmetric_rz ? 3U : 4U;
     if (nodes == 0) throw std::invalid_argument("Spatial layout node count must be positive");
     if (nodes > std::numeric_limits<std::size_t>::max() / field_count)
@@ -125,9 +133,44 @@ void SpatialLayout::initialize_counts(
     }
 }
 
+void SpatialLayout::initialize_shared_nodes(const std::vector<std::vector<std::size_t>>& region_source_node_ids) {
+    if (region_source_node_ids.size() != region_count())
+        throw std::invalid_argument("Shared-node mapping region count does not match the spatial definition");
+    std::unordered_map<std::size_t, std::size_t> source_to_global;
+    _region_global_nodes.clear();
+    _region_global_nodes.resize(region_count());
+    std::size_t next_global = 0;
+    for (std::size_t region = 0; region < region_count(); ++region) {
+        const std::vector<std::size_t>& source_nodes = region_source_node_ids[region];
+        std::vector<std::size_t>& global_nodes = _region_global_nodes[region];
+        global_nodes.reserve(source_nodes.size());
+        for (const std::size_t source_node : source_nodes) {
+            const auto [found, inserted] = source_to_global.emplace(source_node, next_global);
+            if (inserted) ++next_global;
+            global_nodes.push_back(found->second);
+        }
+    }
+    if (next_global == 0) throw std::invalid_argument("Shared-node spatial layout must contain at least one node");
+    _node_count = next_global;
+    const std::size_t field_count = _layout == DofLayout::axisymmetric_rz ? 3U : 4U;
+    if (_node_count > std::numeric_limits<std::size_t>::max() / field_count)
+        throw std::length_error("Spatial layout DOF count overflows");
+    _field_layout = {{"temperature", 0, _node_count, FieldCategory::thermal}};
+    if (_layout == DofLayout::axisymmetric_rz) {
+        _field_layout.push_back({"radial", _node_count, 2 * _node_count, FieldCategory::mechanical});
+        _field_layout.push_back({"axial", 2 * _node_count, 3 * _node_count, FieldCategory::mechanical});
+    } else {
+        _field_layout.push_back({"displacement_x", _node_count, 2 * _node_count, FieldCategory::mechanical});
+        _field_layout.push_back({"displacement_y", 2 * _node_count, 3 * _node_count, FieldCategory::mechanical});
+        _field_layout.push_back({"displacement_z", 3 * _node_count, 4 * _node_count, FieldCategory::mechanical});
+    }
+}
+
 std::size_t SpatialLayout::region_node_offset(std::size_t index) const {
     if (index >= region_count()) throw std::out_of_range("Spatial layout region index is out of range");
-    return _node_offsets[index];
+    const std::vector<std::size_t>& nodes = _region_global_nodes.at(index);
+    if (nodes.empty()) throw std::logic_error("Spatial layout region has no nodes");
+    return nodes.front();
 }
 
 std::size_t SpatialLayout::region_element_count(std::size_t index) const {
@@ -155,9 +198,16 @@ double SpatialLayout::region_heat_source(std::size_t index) const {
 
 std::vector<double> SpatialLayout::initial_state() const {
     std::vector<double> result(dof_count(), 0.0);
-    for (std::size_t region_index = 0; region_index < region_count(); ++region_index)
-        for (std::size_t node = _node_offsets[region_index]; node < _node_offsets[region_index + 1]; ++node)
-            result[dof(Field::temperature, node)] = region(region_index).initial_temperature;
+    std::vector<bool> initialized(node_count(), false);
+    for (std::size_t region_index = 0; region_index < region_count(); ++region_index) {
+        for (const std::size_t node : _region_global_nodes.at(region_index)) {
+            const double temperature = region(region_index).initial_temperature;
+            if (initialized[node] && result[dof(Field::temperature, node)] != temperature)
+                throw std::invalid_argument("Shared node has inconsistent initial temperatures across regions");
+            result[dof(Field::temperature, node)] = temperature;
+            initialized[node] = true;
+        }
+    }
     for (const DirichletCondition& condition : _dirichlet_conditions) result[condition.dof] = condition.value;
     return result;
 }
@@ -179,9 +229,9 @@ std::size_t SpatialLayout::dof(Field field, std::size_t node) const {
 
 std::size_t SpatialLayout::global_node(std::size_t region_index, std::size_t local_node) const {
     if (region_index >= region_count()) throw std::out_of_range("Spatial layout region index is out of range");
-    if (local_node >= _node_offsets[region_index + 1] - _node_offsets[region_index])
+    if (local_node >= _region_global_nodes.at(region_index).size())
         throw std::out_of_range("Spatial layout local node is out of range");
-    return _node_offsets[region_index] + local_node;
+    return _region_global_nodes[region_index][local_node];
 }
 
 void SpatialLayout::add_dirichlet(std::size_t dof, std::size_t boundary_index) {

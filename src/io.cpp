@@ -699,14 +699,18 @@ void write_result_step(const std::string& path, const ResultsMeshView& mesh, std
     file.close();
 }
 
-void fill_region_nodal_values(const std::vector<std::size_t>& source_nodes, std::size_t region_offset,
-    const spatial_detail::SpatialLayout& layout, const std::vector<double>& state, std::vector<bool>& present,
-    std::vector<std::vector<double>>& values) {
+void fill_region_nodal_values(const std::vector<std::size_t>& source_nodes, std::size_t region,
+    bool allow_shared_source_nodes, const spatial_detail::SpatialLayout& layout, const std::vector<double>& state,
+    std::vector<bool>& present, std::vector<std::vector<double>>& values) {
     for (std::size_t local = 0; local < source_nodes.size(); ++local) {
         const std::size_t source = source_nodes[local];
-        if (present.at(source)) throw std::invalid_argument("Exodus result mapping contains a shared source node");
+        if (present.at(source)) {
+            if (!allow_shared_source_nodes)
+                throw std::invalid_argument("Exodus result mapping contains a shared source node");
+            continue;
+        }
         present[source] = true;
-        const std::size_t global = region_offset + local;
+        const std::size_t global = layout.global_node(region, local);
         const std::vector<FieldDescriptor>& fields = layout.field_layout();
         for (std::size_t field = 0; field < fields.size(); ++field)
             values[field][source] = state.at(fields[field].begin + global);
@@ -734,8 +738,8 @@ void fill_rz_nodal(const UnstructuredQuad4Mesh& mesh, const rz::SpatialAssembly&
         nodal_variable_names(spatial.definition().contacts).size(), std::vector<double>(mesh.nodes().size(), missing));
     std::vector<bool> present(mesh.nodes().size(), false);
     for (std::size_t region = 0; region < spatial.region_count(); ++region)
-        fill_region_nodal_values(spatial.region_mesh(region).source_node_ids(), spatial.region_node_offset(region),
-            spatial, state, present, values);
+        fill_region_nodal_values(
+            spatial.region_mesh(region).source_node_ids(), region, false, spatial, state, present, values);
     for (std::size_t contact = 0; contact < spatial.definition().contacts.size(); ++contact) {
         const std::vector<std::size_t> nodes = spatial.contact_secondary_source_nodes(contact);
         const std::vector<ContactNodeSummary> summary = spatial.summarize_contact_nodes(contact, state);
@@ -823,8 +827,8 @@ void fill_cartesian_nodal(const UnstructuredHex8Mesh& mesh, const cartesian::Spa
         std::vector<double>(mesh.nodes().size(), missing));
     std::vector<bool> present(mesh.nodes().size(), false);
     for (std::size_t region = 0; region < spatial.region_count(); ++region)
-        fill_region_nodal_values(spatial.region_mesh(region).source_node_ids(), spatial.region_node_offset(region),
-            spatial, state, present, values);
+        fill_region_nodal_values(
+            spatial.region_mesh(region).source_node_ids(), region, true, spatial, state, present, values);
     for (std::size_t contact = 0; contact < spatial.definition().contacts.size(); ++contact) {
         const std::vector<std::size_t> nodes = spatial.contact_secondary_source_nodes(contact);
         const std::vector<CartesianContactNodeSummary> summary = spatial.summarize_contact_nodes(contact, state);

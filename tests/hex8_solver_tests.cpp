@@ -58,6 +58,24 @@ fuelsim::UnstructuredHex8Mesh two_region_mesh() {
             {22, "second_y0", {{1, 0}}}, {23, "second_z0", {{1, 4}}}});
 }
 
+fuelsim::UnstructuredHex8Mesh shared_two_region_mesh() {
+    std::vector<fuelsim::CartesianPoint3> nodes;
+    for (double z : {0.0, 1.0}) {
+        for (double y : {0.0, 1.0})
+            for (double x : {0.0, 1.0, 2.0}) nodes.push_back({x, y, z});
+    }
+    const auto node = [](std::size_t x, std::size_t y, std::size_t z) { return z * 6 + y * 3 + x; };
+    const std::vector<fuelsim::Hex8Element> elements = {
+        {{{node(0, 0, 0), node(1, 0, 0), node(1, 1, 0), node(0, 1, 0), node(0, 0, 1), node(1, 0, 1), node(1, 1, 1),
+            node(0, 1, 1)}}},
+        {{{node(1, 0, 0), node(2, 0, 0), node(2, 1, 0), node(1, 1, 0), node(1, 0, 1), node(2, 0, 1), node(2, 1, 1),
+            node(1, 1, 1)}}},
+    };
+    return fuelsim::UnstructuredHex8Mesh(std::move(nodes), elements, {1, 2}, {{1, "meat"}, {2, "clad"}}, {},
+        {{10, "meat_x0", {{0, 3}}}, {11, "clad_x2", {{1, 1}}}, {12, "meat_y0", {{0, 0}}}, {13, "meat_z0", {{0, 4}}},
+            {14, "clad_y0", {{1, 0}}}, {15, "clad_z0", {{1, 4}}}});
+}
+
 fuelsim::UnstructuredHex8Mesh contact_projection_mesh() {
     std::vector<fuelsim::CartesianPoint3> nodes;
     for (double z : {0.0, 1.0})
@@ -239,6 +257,61 @@ bool test_multiple_regions() {
     return passed;
 }
 
+bool test_shared_nodes(const fuelsim::PetscSession& session) {
+    const fuelsim::UnstructuredHex8Mesh mesh = shared_two_region_mesh();
+    const std::filesystem::path input = std::filesystem::temp_directory_path() / "fuelsim_shared_hex8_input.e";
+    try {
+        session.collective_root_action([&]() { fuelsim::write_exodus_hex8(input.string(), mesh); });
+    } catch (const std::exception& error) {
+        return check(false, std::string("shared-node Exodus input write succeeds: ") + error.what());
+    }
+    const fuelsim::UnstructuredHex8Mesh exodus_mesh = fuelsim::read_exodus_hex8(input.string());
+    fuelsim::SpatialDefinition definition;
+    definition.regions = {{"meat", "meat", material(), 0.0, 300.0}, {"clad", "clad", material(), 0.0, 300.0}};
+    definition.boundary_conditions = {
+        {"temperature_left", fuelsim::BoundaryConditionType::dirichlet, "meat_x0", fuelsim::Field::temperature, 325.0},
+        {"temperature_right", fuelsim::BoundaryConditionType::dirichlet, "clad_x2", fuelsim::Field::temperature, 325.0},
+        {"fix_x", fuelsim::BoundaryConditionType::dirichlet, "meat_x0", fuelsim::Field::displacement_x, 0.0},
+        {"fix_y", fuelsim::BoundaryConditionType::dirichlet, "meat_y0", fuelsim::Field::displacement_y, 0.0},
+        {"fix_z", fuelsim::BoundaryConditionType::dirichlet, "meat_z0", fuelsim::Field::displacement_z, 0.0},
+    };
+    fuelsim::SteadyProblem problem(definition, exodus_mesh);
+    const fuelsim::SteadyResult result = fuelsim::solve_steady(problem, {1, 0.5, 4, 1.0e-6}, solver_options());
+    const auto& first = fuelsim::cartesian::ProblemAccess::region_mesh(problem, 0);
+    const auto& second = fuelsim::cartesian::ProblemAccess::region_mesh(problem, 1);
+    const auto first_shared = std::find(first.source_node_ids().begin(), first.source_node_ids().end(), 1);
+    const auto second_shared = std::find(second.source_node_ids().begin(), second.source_node_ids().end(), 1);
+    bool passed =
+        check(result.completed && result.solve.converged, "shared-node three-dimensional solve converges") &&
+        check(problem.dof_count() == 48 && first.nodes().size() == 8 && second.nodes().size() == 8,
+            "shared source nodes reduce the global four-field system to twelve unique nodes") &&
+        check(first_shared != first.source_node_ids().end() && second_shared != second.source_node_ids().end(),
+            "shared source node is present in both material regions");
+    if (passed) {
+        const std::size_t first_local = static_cast<std::size_t>(first_shared - first.source_node_ids().begin());
+        const std::size_t second_local = static_cast<std::size_t>(second_shared - second.source_node_ids().begin());
+        passed = check(fuelsim::cartesian::ProblemAccess::dof_map(problem).global_node(0, first_local) ==
+                           fuelsim::cartesian::ProblemAccess::dof_map(problem).global_node(1, second_local),
+            "shared source node maps to one global node across material regions");
+    }
+    const auto& dofs = fuelsim::cartesian::ProblemAccess::dof_map(problem);
+    for (std::size_t node = 0; passed && node < exodus_mesh.nodes().size(); ++node)
+        passed = check(std::abs(result.solve.state[dofs.dof(fuelsim::Field::temperature, node)] - 325.0) < 2.0e-9,
+            "shared-node solve preserves the continuous uniform temperature");
+    const std::filesystem::path output = std::filesystem::temp_directory_path() / "fuelsim_shared_hex8.e";
+    try {
+        session.collective_root_action(
+            [&]() { fuelsim::write_steady_results(output.string(), exodus_mesh, problem, result.solve.state); });
+    } catch (const std::exception& error) {
+        passed = check(false, std::string("shared-node Exodus output succeeds: ") + error.what());
+    }
+    session.collective_root_action([&]() {
+        (void)std::remove(input.c_str());
+        (void)std::remove(output.c_str());
+    });
+    return passed;
+}
+
 bool test_contact_projection_transfer() {
     const fuelsim::UnstructuredHex8Mesh mesh = contact_projection_mesh();
     fuelsim::SpatialDefinition definition;
@@ -354,6 +427,7 @@ int main(int argc, char** argv) {
     bool passed = test_steady(session, mesh, argv[1]);
     passed = test_transient(session, mesh, argv[3], argv[2]) && passed;
     passed = test_multiple_regions() && passed;
+    passed = test_shared_nodes(session) && passed;
     passed = test_contact_projection_transfer() && passed;
     passed = test_inelastic_branches(mesh) && passed;
     session.collective_root_action([&]() {

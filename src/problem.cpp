@@ -657,15 +657,14 @@ std::vector<double> TransientProblem::time_events() const {
 RegionStateSummary TransientProblem::summarize_region(std::size_t region) const {
     if (region >= _impl->layout().definition().regions.size())
         throw std::out_of_range("TransientProblem region summary index is out of range");
-    const std::size_t node_offset = _impl->layout().region_node_offset(region);
     const std::size_t node_count = _impl->is_cartesian() ? _impl->cartesian->region_mesh(region).nodes().size()
                                                          : _impl->rz->region_mesh(region).nodes().size();
     const auto temperature = std::find_if(field_layout().begin(), field_layout().end(),
         [](const FieldDescriptor& field) { return field.category == FieldCategory::thermal; });
     RegionStateSummary result{-std::numeric_limits<double>::infinity(), 0.0, 0.0};
     for (std::size_t node = 0; node < node_count; ++node)
-        result.maximum_temperature =
-            std::max(result.maximum_temperature, _impl->committed_solution.at(temperature->begin + node_offset + node));
+        result.maximum_temperature = std::max(result.maximum_temperature,
+            _impl->committed_solution.at(temperature->begin + _impl->layout().global_node(region, node)));
     if (_impl->is_cartesian()) {
         for (const Hex8MaterialHistory& element : _impl->cartesian_material_histories[region])
             for (const CartesianMaterialPointState& point : element) {

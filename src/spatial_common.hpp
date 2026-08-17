@@ -90,7 +90,7 @@ class SpatialLayout {
 
     std::vector<double> initial_state() const;
 
-    std::size_t node_count() const noexcept { return _node_offsets.back(); }
+    std::size_t node_count() const noexcept { return _node_count; }
 
     std::size_t dof_count() const noexcept { return _field_layout.size() * node_count(); }
 
@@ -105,6 +105,7 @@ class SpatialLayout {
   protected:
     SpatialLayout(SpatialDefinition definition, std::vector<std::int64_t> block_ids, DofLayout layout);
     void initialize_counts(const std::vector<std::size_t>& node_counts, const std::vector<std::size_t>& element_counts);
+    void initialize_shared_nodes(const std::vector<std::vector<std::size_t>>& region_source_node_ids);
     void add_dirichlet(std::size_t dof, std::size_t boundary_index);
     void set_load_factor_value(double value);
     void set_time_value(double value);
@@ -113,6 +114,8 @@ class SpatialLayout {
     SpatialDefinition _definition;
     std::vector<std::int64_t> _block_ids;
     std::vector<std::size_t> _node_offsets, _element_offsets;
+    std::vector<std::vector<std::size_t>> _region_global_nodes;
+    std::size_t _node_count = 0;
     std::vector<FieldDescriptor> _field_layout;
     std::vector<DirichletCondition> _dirichlet_conditions;
     double _load_factor = 0.0, _time = 0.0;

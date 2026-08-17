@@ -129,6 +129,10 @@ SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const Unstructure
         element_counts.push_back(mesh.elements().size());
     }
     initialize_counts(node_counts, element_counts);
+    std::vector<std::vector<std::size_t>> region_source_node_ids;
+    region_source_node_ids.reserve(_meshes.size());
+    for (const Hex8RegionMesh& mesh : _meshes) region_source_node_ids.push_back(mesh.source_node_ids());
+    initialize_shared_nodes(region_source_node_ids);
     _geometries.resize(_meshes.size());
     for (std::size_t region = 0; region < _meshes.size(); ++region) {
         for (const Hex8Element& element : _meshes[region].elements()) {
@@ -577,11 +581,20 @@ void SpatialAssembly::build_contacts(const UnstructuredHex8Mesh& source_mesh) {
                          secondary = resolve_boundary(source_mesh, definition.secondary);
         if (primary.region == secondary.region)
             throw std::invalid_argument("Three-dimensional self-contact is not supported: " + definition.name);
+        const Hex8RegionMesh& primary_mesh = _meshes[primary.region];
+        const Hex8RegionMesh& secondary_mesh = _meshes[secondary.region];
+        for (const std::size_t secondary_local : secondary.boundary.nodes) {
+            const std::size_t source_node = secondary_mesh.source_node_ids().at(secondary_local);
+            if (std::any_of(
+                    primary.boundary.nodes.begin(), primary.boundary.nodes.end(), [&](std::size_t primary_local) {
+                        return primary_mesh.source_node_ids().at(primary_local) == source_node;
+                    }))
+                throw std::invalid_argument(
+                    "Three-dimensional contact boundaries must not share source nodes: " + definition.name);
+        }
         if (definition.mechanical_formulation == MechanicalContactFormulation::augmented_lagrangian)
             throw std::invalid_argument(
                 "Three-dimensional contact currently supports the penalty formulation only: " + definition.name);
-        const Hex8RegionMesh& primary_mesh = _meshes[primary.region];
-        const Hex8RegionMesh& secondary_mesh = _meshes[secondary.region];
         if (definition.mechanical && definition.automatic_penalty) {
             const double primary_length = minimum_normal_length(primary_mesh, primary.boundary, definition.primary),
                          secondary_length =
