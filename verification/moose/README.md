@@ -1252,6 +1252,18 @@ material-update grid retained by fuelsim step doubling: four 0.015625 s steps,
 then 190 0.03125 s steps. All 194 steps completed through 6 s on one MPI rank
 and one thread.
 
+The default CTest reference is separately tracked as
+`m57_integrated_fuel_cladding_rz_ctest.i`. It compresses the same piecewise load
+values to one second, retains the 0.6 mm final translation, and uses the 52
+committed fuelsim half steps from its 26 accepted adaptive steps as its explicit
+MOOSE time sequence. Its tracked final files are named with the `_ctest` stem;
+they compare every node, secondary contact pressure, all 224 cladding
+quadrature points, and the final scalar values. The maximum three-metric errors
+for temperature, radial displacement, axial displacement, normal pressure,
+quadrature-point stress, plastic strain, and creep strain are respectively
+0.003302%, 0.207012%, 0.012405%, 0.010431%, 0.073489%, 0.013113%, and
+0.150228%, all below the 0.5% gate without a denominator floor.
+
 The mesh-only command needs no contact override because this input creates no
 mortar blocks:
 

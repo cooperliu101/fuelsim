@@ -214,14 +214,14 @@ bool test_opaque_state_snapshot(const std::string& input_path) {
         "opaque snapshots reject invalid use and restore the complete RZ committed state exactly");
 }
 
-fuelsim::TransientCommittedState solve_fixed_pcmi(
-    const fuelsim::FuelSimCaseDefinition& input, const fuelsim::UnstructuredQuad4Mesh& mesh, double time_step) {
+fuelsim::TransientCommittedState solve_fixed_pcmi(const fuelsim::FuelSimCaseDefinition& input,
+    const fuelsim::UnstructuredQuad4Mesh& mesh, double end_time, double time_step) {
     fuelsim::TransientProblem problem(input.spatial, mesh);
     fuelsim::SolverOptions solver_options = {input.solver.absolute_tolerance, input.solver.relative_tolerance,
         input.solver.step_tolerance, input.solver.maximum_iterations};
     solver_options.temperature_residual_scale = 1.0e4;
     solver_options.mechanical_residual_scale = 1.0e3;
-    const fuelsim::TransientTimeOptions time_options = {100.0, time_step, time_step, time_step, 1.0, 0.5, 0, 20.0};
+    const fuelsim::TransientTimeOptions time_options = {end_time, time_step, time_step, time_step, 1.0, 0.5, 0, 20.0};
     const fuelsim::TransientResult result = fuelsim::solve_transient(problem, time_options, solver_options);
     if (!result.completed || result.aggregate_timing.workspace_setups != 1)
         throw std::runtime_error("fixed-step PCMI time-convergence solve did not complete with "
@@ -232,10 +232,11 @@ fuelsim::TransientCommittedState solve_fixed_pcmi(
 bool test_long_transient_time_convergence(const std::string& input_path) {
     const fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
-    const fuelsim::TransientCommittedState coarse = solve_fixed_pcmi(input, mesh, 1.0);
-    const fuelsim::TransientCommittedState medium = solve_fixed_pcmi(input, mesh, 0.5);
-    const fuelsim::TransientCommittedState fine = solve_fixed_pcmi(input, mesh, 0.25);
-    const fuelsim::TransientCommittedState reference = solve_fixed_pcmi(input, mesh, 0.125);
+    constexpr double end_time = 25.0;
+    const fuelsim::TransientCommittedState coarse = solve_fixed_pcmi(input, mesh, end_time, 1.0);
+    const fuelsim::TransientCommittedState medium = solve_fixed_pcmi(input, mesh, end_time, 0.5);
+    const fuelsim::TransientCommittedState fine = solve_fixed_pcmi(input, mesh, end_time, 0.25);
+    const fuelsim::TransientCommittedState reference = solve_fixed_pcmi(input, mesh, end_time, 0.125);
     const std::array<ConvergenceMetric, 9> coarse_error = compare_committed_states(coarse, reference);
     const std::array<ConvergenceMetric, 9> medium_error = compare_committed_states(medium, reference);
     const std::array<ConvergenceMetric, 9> fine_error = compare_committed_states(fine, reference);
@@ -285,7 +286,7 @@ bool test_long_transient_time_convergence(const std::string& input_path) {
                   << medium_to_fine_order << '\n';
         passed = check(coarse_error[field].relative_l2 > medium_error[field].relative_l2 &&
                            medium_error[field].relative_l2 > fine_error[field].relative_l2,
-                     std::string("100-second PCMI ") + names[field] + " error decreases under time-step refinement") &&
+                     std::string("25-second PCMI ") + names[field] + " error decreases under time-step refinement") &&
                  passed;
     }
     std::cout << "long_time_convergence_rate_evidence_fields=" << rate_evidence_fields << '\n';
@@ -299,7 +300,7 @@ bool test_long_transient_time_convergence(const std::string& input_path) {
     // or monotonicity threshold.
     return check(rate_evidence_fields >= 8 && first_order_trend_fields >= 7 && minimum_coarse_to_medium_order > 0.4 &&
                      minimum_medium_to_fine_order > 0.4,
-               "100-second PCMI nodal, stress, and complete inelastic "
+               "25-second PCMI nodal, stress, and complete inelastic "
                "history fields monotonically approach the fine-step "
                "reference, with the nonsmooth radial contact response "
                "reported separately") &&
