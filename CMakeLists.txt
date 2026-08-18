@@ -475,6 +475,18 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_b35_hex8_shared_nodes_moose_tests
         PROPERTIES LABELS "acceptance;three-dimensional")
 
+    add_executable(fuelsim_b36_plate_meat_clad_moose_tests tests/b36_plate_meat_clad_moose_tests.cpp)
+    target_link_libraries(fuelsim_b36_plate_meat_clad_moose_tests
+        PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
+    fuelsim_enable_warnings(fuelsim_b36_plate_meat_clad_moose_tests)
+    add_test(NAME fuelsim_b36_plate_meat_clad_moose_tests
+        COMMAND fuelsim_b36_plate_meat_clad_moose_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_plate_meat_clad_moose.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b36_plate_meat_clad_all_nodes_0005.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b36_plate_meat_clad_element_state_0005.csv")
+    set_tests_properties(fuelsim_b36_plate_meat_clad_moose_tests
+        PROPERTIES LABELS "acceptance;three-dimensional;inelastic")
+
     add_executable(fuelsim_rz_shared_nodes_moose_tests tests/rz_shared_nodes_moose_tests.cpp)
     target_link_libraries(fuelsim_rz_shared_nodes_moose_tests
         PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)

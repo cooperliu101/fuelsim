@@ -31,6 +31,7 @@ files.
 | M5.4 augmented contact | `m54_augmented_contact_rz_mesh.e` | 528 / 460 | `8304c2fc649863b0a7ce80fc17ca8c8d64161467f42be2610132b3cd29177ec0` |
 | B3 HEX8 thermoelasticity | `b3_hex8_mesh.e` | 12 / 2 HEX8 | `910088a0aad60aa2ab02f00c3b8cf384bc2a2a2377f41c3db7e554d5ca9481f2` |
 | B3.5 shared meat-cladding HEX8 | `b35_hex8_shared_meat_clad_mesh.e` | 12 / 2 HEX8 | `fb654f61edd322846a19c6227c9060fb879bf57ba35c02ece57558fadf5dd236` |
+| B3.6 shared-node fuel plate | `b36_plate_meat_clad_mesh.e` | 125 / 64 HEX8 | `db687ef8324cee41c4148b98a472c2639ba1f3a68c26f489e078bff9ae9fe8a6` |
 | B3.3 HEX8 coupled contact | `b33_hex8_contact_mesh.e` | 16 / 2 HEX8 | `e710f3add10b71478f786521af44cde8ff3fb81d4becf1fbab1266955ba43cf7` |
 | B3.4 HEX8 sliding friction | `b34_hex8_sliding_contact_mesh.e` | 16 / 2 HEX8 | `d9ec3f16dd1c836f88e4cdf21195b47cb8766e34e97415cd84fb94b1ea48e2f6` |
 
@@ -111,6 +112,30 @@ run used `/home/cooper/projects/july/july-opt`, MOOSE commit `93b11698be`, and
 PETSc 3.25.2. Its largest relative field error was
 `8.763365653269e-14`, the largest shared-interface residual imbalance was
 `2.059096004814e-9`, and the heat-flux imbalance was zero to printed precision.
+
+## B3.6 transient fuel plate with a conforming cladding shell
+
+`b36_plate_meat_clad_mesh.i` creates a 4 mm cube with 64 HEX8 elements. The
+central 2 mm cube is the eight-element `meat` block; the remaining 56 elements
+form a continuous `clad` shell on all six sides. The two blocks share the 26
+nodes on the meat boundary and deliberately have no contact or binding object.
+
+`transient_plate_meat_clad_moose.fsi` and `b36_plate_meat_clad.i` apply a 3
+MW/m3 meat heat source, 600 K thermal boundaries on the two x faces, thermal
+expansion from a 600 K reference, and a five-step x-direction displacement
+path. Both blocks use coupled Norton creep and J2 linear isotropic-hardening
+plasticity; their thermal properties are distinct while the mechanical law is
+intentionally common, isolating shared-node continuity from a second
+constitutive-material discrepancy.
+
+`fuelsim_b36_plate_meat_clad_moose_tests` compares all 125 nodal temperatures
+and displacement components, and compares each element after averaging the
+eight fuelsim integration points. Temperature, three displacements, axial
+stress, equivalent plastic strain, and equivalent creep strain pass all three
+relative metrics below 0.5 percent. Transverse and shear stresses are two to
+four orders of magnitude below axial stress and retain a documented absolute
+gate of 0.04 percent of the axial reference scale; their relative errors are
+printed without a denominator floor. Both inelastic mechanisms are active.
 
 ## Three-dimensional plasticity, creep, and coupled response
 
