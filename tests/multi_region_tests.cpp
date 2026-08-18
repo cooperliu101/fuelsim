@@ -82,6 +82,27 @@ fuelsim::UnstructuredQuad4Mesh annular_boundary_mesh() {
         });
 }
 
+fuelsim::UnstructuredQuad4Mesh shared_node_material_mesh() {
+    return fuelsim::UnstructuredQuad4Mesh(
+        {
+            {1.0, 0.0},
+            {2.0, 0.0},
+            {2.0, 1.0},
+            {1.0, 1.0},
+            {3.0, 0.0},
+            {3.0, 1.0},
+        },
+        {
+            {{{0, 1, 2, 3}}},
+            {{{1, 4, 5, 2}}},
+        },
+        {1, 2}, {{1, "meat"}, {2, "clad"}}, {},
+        {
+            {1, "meat_left", {{{0, 3}}}},
+            {2, "clad_right", {{{1, 1}}}},
+        });
+}
+
 fuelsim::UnstructuredQuad4Mesh two_pellet_nonmatching_mesh() {
     return fuelsim::UnstructuredQuad4Mesh(
         {
@@ -235,6 +256,72 @@ fuelsim::SpatialDefinition three_region_definition() {
             dirichlet("outer_bottom", "clad_2_bottom", fuelsim::Field::axial_displacement, 0.0),
             dirichlet("outer_temperature", "clad_2_outer", fuelsim::Field::temperature, 300.0),
         }};
+}
+
+fuelsim::SpatialDefinition shared_node_definition(double clad_initial_temperature = 300.0) {
+    return {{region("meat", "meat", 300.0, 0.0), region("clad", "clad", clad_initial_temperature, 0.0)}, {},
+        {
+            dirichlet("temperature_left", "meat_left", fuelsim::Field::temperature, 300.0),
+            dirichlet("temperature_right", "clad_right", fuelsim::Field::temperature, 600.0),
+            dirichlet("fix_radial", "meat_left", fuelsim::Field::radial_displacement, 0.0),
+            dirichlet("fix_axial", "meat_left", fuelsim::Field::axial_displacement, 0.0),
+        }};
+}
+
+bool test_shared_block_nodes() {
+    const fuelsim::UnstructuredQuad4Mesh mesh = shared_node_material_mesh();
+    fuelsim::SteadyProblem problem(shared_node_definition(), mesh);
+    const auto& dofs = fuelsim::rz::ProblemAccess::dof_map(problem);
+    const auto global_from_source = [&](std::size_t region_index, std::size_t source) {
+        const std::vector<std::size_t>& sources =
+            fuelsim::rz::ProblemAccess::region_mesh(problem, region_index).source_node_ids();
+        const auto found = std::find(sources.begin(), sources.end(), source);
+        if (found == sources.end()) throw std::logic_error("Expected shared source node is absent from its block");
+        return dofs.global_node(region_index, static_cast<std::size_t>(found - sources.begin()));
+    };
+    const std::size_t meat_interface_bottom = global_from_source(0, 1);
+    const std::size_t clad_interface_bottom = global_from_source(1, 1);
+    const std::size_t meat_interface_top = global_from_source(0, 2);
+    const std::size_t clad_interface_top = global_from_source(1, 2);
+    bool passed = check(dofs.node_count() == mesh.nodes().size() && problem.dof_count() == 3 * mesh.nodes().size(),
+                      "conforming RZ blocks use one global three-field node per shared Exodus node") &&
+                  check(meat_interface_bottom == clad_interface_bottom && meat_interface_top == clad_interface_top,
+                      "the two material blocks share their conforming interface temperature and displacement nodes");
+    const fuelsim::LocalDofs meat_dofs = fuelsim::rz::ProblemAccess::contribution_dofs(problem, 0);
+    const fuelsim::LocalDofs clad_dofs = fuelsim::rz::ProblemAccess::contribution_dofs(problem, 1);
+    std::size_t common_dofs = 0;
+    for (const std::size_t meat_dof : meat_dofs)
+        common_dofs +=
+            static_cast<std::size_t>(std::find(clad_dofs.begin(), clad_dofs.end(), meat_dof) != clad_dofs.end());
+    passed = check(common_dofs == 6,
+                 "the two Quad4 contributions share exactly two interface nodes times three RZ fields") &&
+             passed;
+    const std::vector<double> state = problem.initial_state();
+    std::vector<double> direction(problem.dof_count(), 0.0);
+    for (std::size_t node = 0; node < dofs.node_count(); ++node) {
+        direction[dofs.dof(fuelsim::Field::temperature, node)] = 0.1 + 0.01 * static_cast<double>(node);
+        direction[dofs.dof(fuelsim::Field::radial_displacement, node)] = 1.0e-7;
+        direction[dofs.dof(fuelsim::Field::axial_displacement, node)] = -2.0e-7;
+    }
+    const fuelsim::test::DirectionalJacobianCheck jacobian =
+        fuelsim::test::check_directional_jacobian(problem, state, direction, 1.0e-5);
+    for (std::size_t field = 0; field < 3; ++field)
+        passed = check(jacobian.difference.l2[field] <=
+                           2.0e-7 * (1.0 + jacobian.finite_difference_directional_derivative.l2[field]),
+                     "shared-node RZ assembled Jacobian matches a centered directional difference") &&
+                 passed;
+    const fuelsim::SteadyResult solve = fuelsim::solve_steady(problem, {1, 0.5, 4, 1.0e-6});
+    passed = check(solve.completed && solve.solve.converged,
+                 "two conforming RZ material blocks solve without a contact or binding constraint") &&
+             passed;
+    bool inconsistent_initial_temperature_rejected = false;
+    try {
+        fuelsim::SteadyProblem inconsistent(shared_node_definition(301.0), mesh);
+        (void)inconsistent.initial_state();
+    } catch (const std::invalid_argument&) { inconsistent_initial_temperature_rejected = true; }
+    return check(inconsistent_initial_temperature_rejected,
+               "conforming shared nodes reject inconsistent block initial temperatures") &&
+           passed;
 }
 
 bool test_single_region(const fuelsim::UnstructuredQuad4Mesh& mesh) {
@@ -728,12 +815,12 @@ int main(int argc, char** argv) {
     try {
         fuelsim::PetscSession session(argc, argv, "fuelsim multi-region contact solve tests\n");
         const fuelsim::UnstructuredQuad4Mesh mesh = three_region_mesh();
-        const bool passed = test_single_region(mesh) && test_time_controlled_pressure(mesh) &&
-                            test_pressure_parent_edge_orientation() && test_global_field_diagnostics(mesh) &&
-                            test_three_regions(mesh) && test_nonmatching_pellet_faces() &&
-                            test_l_shaped_primary_collinear_candidate() && test_zero_initial_gap_construction() &&
-                            test_overlapping_material_rejected() && test_zero_initial_gap_solve() &&
-                            test_transient_regions(mesh);
+        const bool passed = test_single_region(mesh) && test_shared_block_nodes() &&
+                            test_time_controlled_pressure(mesh) && test_pressure_parent_edge_orientation() &&
+                            test_global_field_diagnostics(mesh) && test_three_regions(mesh) &&
+                            test_nonmatching_pellet_faces() && test_l_shaped_primary_collinear_candidate() &&
+                            test_zero_initial_gap_construction() && test_overlapping_material_rejected() &&
+                            test_zero_initial_gap_solve() && test_transient_regions(mesh);
         if (!passed) return 1;
         std::cout << "[PASS] single- and multi-region problem tests\n";
         return 0;

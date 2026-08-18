@@ -88,12 +88,24 @@ std::vector<ActualNodalField> steady_values(
     std::vector<ActualNodalField> result(source_node_count);
     for (std::size_t region = 0; region < fuelsim::rz::ProblemAccess::region_count(problem); ++region) {
         const RegionMesh& mesh = fuelsim::rz::ProblemAccess::region_mesh(problem, region);
-        const std::size_t offset = fuelsim::rz::ProblemAccess::region_node_offset(problem, region);
         for (std::size_t local = 0; local < mesh.nodes().size(); ++local) {
             const std::size_t source = mesh.source_node_ids().at(local);
-            if (source >= result.size() || result[source].present)
-                throw std::invalid_argument("Invalid or duplicate fuelsim source-node mapping");
-            const std::size_t global = offset + local;
+            if (source >= result.size()) throw std::invalid_argument("Invalid fuelsim source-node mapping");
+            const std::size_t global = fuelsim::rz::ProblemAccess::dof_map(problem).global_node(region, local);
+            if (result[source].present) {
+                const bool identical =
+                    result[source].radius == mesh.nodes()[local].r &&
+                    result[source].axial_coordinate == mesh.nodes()[local].z &&
+                    result[source].temperature ==
+                        state[fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::temperature, global)] &&
+                    result[source].radial_displacement == state[fuelsim::rz::ProblemAccess::dof_map(problem).dof(
+                                                              fuelsim::Field::radial_displacement, global)] &&
+                    result[source].axial_displacement == state[fuelsim::rz::ProblemAccess::dof_map(problem).dof(
+                                                             fuelsim::Field::axial_displacement, global)];
+                if (!identical)
+                    throw std::invalid_argument("Shared source node does not map to one consistent RZ state");
+                continue;
+            }
             result[source] = {mesh.nodes()[local].r, mesh.nodes()[local].z,
                 state[fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::temperature, global)],
                 state[fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::radial_displacement, global)],
@@ -110,12 +122,24 @@ std::vector<ActualNodalField> transient_values(
     std::vector<ActualNodalField> result(source_node_count);
     for (std::size_t region = 0; region < fuelsim::rz::ProblemAccess::region_count(problem); ++region) {
         const RegionMesh& mesh = fuelsim::rz::ProblemAccess::region_mesh(problem, region);
-        const std::size_t offset = fuelsim::rz::ProblemAccess::region_node_offset(problem, region);
         for (std::size_t local = 0; local < mesh.nodes().size(); ++local) {
             const std::size_t source = mesh.source_node_ids().at(local);
-            if (source >= result.size() || result[source].present)
-                throw std::invalid_argument("Invalid or duplicate fuelsim source-node mapping");
-            const std::size_t global = offset + local;
+            if (source >= result.size()) throw std::invalid_argument("Invalid fuelsim source-node mapping");
+            const std::size_t global = fuelsim::rz::ProblemAccess::dof_map(problem).global_node(region, local);
+            if (result[source].present) {
+                const bool identical =
+                    result[source].radius == mesh.nodes()[local].r &&
+                    result[source].axial_coordinate == mesh.nodes()[local].z &&
+                    result[source].temperature ==
+                        state[fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::temperature, global)] &&
+                    result[source].radial_displacement == state[fuelsim::rz::ProblemAccess::dof_map(problem).dof(
+                                                              fuelsim::Field::radial_displacement, global)] &&
+                    result[source].axial_displacement == state[fuelsim::rz::ProblemAccess::dof_map(problem).dof(
+                                                             fuelsim::Field::axial_displacement, global)];
+                if (!identical)
+                    throw std::invalid_argument("Shared source node does not map to one consistent RZ state");
+                continue;
+            }
             result[source] = {mesh.nodes()[local].r, mesh.nodes()[local].z,
                 state[fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::temperature, global)],
                 state[fuelsim::rz::ProblemAccess::dof_map(problem).dof(fuelsim::Field::radial_displacement, global)],
@@ -199,10 +223,21 @@ std::vector<NodalFieldReference> read_moose_nodal_reference(const std::string& p
             result.resize(id + 1);
             present.resize(id + 1, false);
         }
-        if (present[id]) throw std::invalid_argument("MOOSE nodal reference contains a duplicate node ID: " + path);
-        result[id] = {csv_double(fields, columns.radius, path), csv_double(fields, columns.axial_coordinate, path),
-            csv_double(fields, columns.temperature, path), csv_double(fields, columns.radial_displacement, path),
+        const NodalFieldReference candidate = {csv_double(fields, columns.radius, path),
+            csv_double(fields, columns.axial_coordinate, path), csv_double(fields, columns.temperature, path),
+            csv_double(fields, columns.radial_displacement, path),
             csv_double(fields, columns.axial_displacement, path)};
+        if (present[id]) {
+            const NodalFieldReference& existing = result[id];
+            if (std::abs(existing.radius - candidate.radius) > 1.0e-12 ||
+                std::abs(existing.axial_coordinate - candidate.axial_coordinate) > 1.0e-12 ||
+                std::abs(existing.temperature - candidate.temperature) > 1.0e-12 ||
+                std::abs(existing.radial_displacement - candidate.radial_displacement) > 1.0e-12 ||
+                std::abs(existing.axial_displacement - candidate.axial_displacement) > 1.0e-12)
+                throw std::invalid_argument("MOOSE nodal reference has inconsistent duplicate node values: " + path);
+            continue;
+        }
+        result[id] = candidate;
         present[id] = true;
     }
     if (result.empty() || std::any_of(present.begin(), present.end(), [](bool value) { return !value; }))

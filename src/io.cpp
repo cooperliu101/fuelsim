@@ -739,7 +739,7 @@ void fill_rz_nodal(const UnstructuredQuad4Mesh& mesh, const rz::SpatialAssembly&
     std::vector<bool> present(mesh.nodes().size(), false);
     for (std::size_t region = 0; region < spatial.region_count(); ++region)
         fill_region_nodal_values(
-            spatial.region_mesh(region).source_node_ids(), region, false, spatial, state, present, values);
+            spatial.region_mesh(region).source_node_ids(), region, true, spatial, state, present, values);
     for (std::size_t contact = 0; contact < spatial.definition().contacts.size(); ++contact) {
         const std::vector<std::size_t> nodes = spatial.contact_secondary_source_nodes(contact);
         const std::vector<ContactNodeSummary> summary = spatial.summarize_contact_nodes(contact, state);

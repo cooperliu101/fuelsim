@@ -10,6 +10,7 @@ files.
 | Comparison | Exodus mesh | Nodes / Quad4 | SHA256 |
 | --- | --- | ---: | --- |
 | M0 | `m0_simple_fuel_rz_mesh.e` | 451 / 400 | `317a7cf29b15e03ac19b8b67e12301150cca1480b72fae89ded9408fb81162d3` |
+| RZ shared meat-cladding interface | `rz_shared_meat_clad_mesh.e` | 6 / 2 | `0b65642d7ea455d2007447535c632565c54cebe7b9419fc126d7b9c846097906` |
 | M1 | `m1_fuel_cladding_gap_rz_mesh.e` | 528 / 460 | `ab1a3da68b8cfa0f630b0ad61865970a0fe6492c4b10a846d80badb51a7cf979` |
 | M1 non-tensor | `m1_fuel_cladding_unstructured_rz_mesh.e` | 528 / 460 | `2a934add4a14eba20375a11bead535843522fbf2fcd5b31dd38c36e0a1ae6f42` |
 | M2.1 | `m21_transient_heat_rz_mesh.e` | 15 / 8 | `bb6615a4c1800cdb64cadc6aad36b8d1dbe4f1f24f4fc114878f5413f39b6fb3` |
@@ -45,6 +46,22 @@ stem:
 The reader preserves block, node-set, and side-set IDs and names. Single-region
 cases select block ID 0 because the default MOOSE block has no required name;
 M1, M2.3, and M4.1 select the named `fuel` and `clad` blocks.
+
+## Native axisymmetric shared-node material interface
+
+`rz_shared_meat_clad_mesh.i` creates two adjacent axisymmetric Quad4 blocks
+with six global Exodus nodes. The two nodes at radius 2 belong to both `meat`
+and `clad`; no contact pair or binding constraint is present. The blocks retain
+independent thermal, elastic, and thermal-expansion material definitions.
+
+`rz_shared_meat_clad.i` and `steady_rz_shared_meat_clad_moose.fsi` prescribe
+300 K at radius 1 and 600 K at radius 3, with both displacement components fixed
+on the radius-1 boundary. `fuelsim_rz_shared_nodes_moose_tests` requires one
+global three-field tuple for each of the six Exodus nodes, validates duplicate
+MOOSE sampler rows at the two interface nodes, and compares all temperature,
+radial-displacement, and axial-displacement fields. The recorded relative L2,
+relative absolute-peak, and maximum pointwise-relative errors are below 1e-12;
+zero-reference displacement values use a separate absolute gate.
 M2.3 uses mortar gap heat transfer in the solve, so its mesh-only command adds
 `MortarGapHeatTransfer/active=''`; this changes no generated mesh entity.
 

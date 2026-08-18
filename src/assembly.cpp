@@ -1182,6 +1182,10 @@ SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const Unstructure
         element_counts.push_back(mesh.elements().size());
     }
     initialize_counts(node_counts, element_counts);
+    std::vector<std::vector<std::size_t>> region_source_node_ids;
+    region_source_node_ids.reserve(_meshes.size());
+    for (const RegionMesh& mesh : _meshes) region_source_node_ids.push_back(mesh.source_node_ids());
+    initialize_shared_nodes(region_source_node_ids);
     _load_factor = 1.0;
     build_volume_geometries();
     build_contacts(source_mesh);

@@ -475,6 +475,16 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_b35_hex8_shared_nodes_moose_tests
         PROPERTIES LABELS "acceptance;three-dimensional")
 
+    add_executable(fuelsim_rz_shared_nodes_moose_tests tests/rz_shared_nodes_moose_tests.cpp)
+    target_link_libraries(fuelsim_rz_shared_nodes_moose_tests
+        PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
+    fuelsim_enable_warnings(fuelsim_rz_shared_nodes_moose_tests)
+    add_test(NAME fuelsim_rz_shared_nodes_moose_tests
+        COMMAND fuelsim_rz_shared_nodes_moose_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_rz_shared_meat_clad_moose.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/rz_shared_meat_clad_out_all_nodes_0001.csv")
+    set_tests_properties(fuelsim_rz_shared_nodes_moose_tests PROPERTIES LABELS "acceptance;axisymmetric")
+
     add_executable(fuelsim_b33_hex8_contact_moose_tests tests/b33_hex8_contact_moose_tests.cpp)
     target_link_libraries(fuelsim_b33_hex8_contact_moose_tests
         PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
