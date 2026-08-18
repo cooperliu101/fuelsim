@@ -2,15 +2,15 @@
   [base]
     type = GeneratedMeshGenerator
     dim = 3
-    nx = 4
-    ny = 4
+    nx = 12
+    ny = 6
     nz = 4
     xmin = 0
-    xmax = 0.004
+    xmax = 0.012
     ymin = 0
-    ymax = 0.004
+    ymax = 0.006
     zmin = 0
-    zmax = 0.004
+    zmax = 0.001
     boundary_name_prefix = plate
     subdomain_name = clad
   []
@@ -19,8 +19,8 @@
     input = base
     block_id = 1
     block_name = meat
-    bottom_left = '0.001 0.001 0.001'
-    top_right = '0.003 0.003 0.003'
+    bottom_left = '0.001 0.001 0.00025'
+    top_right = '0.011 0.005 0.00075'
   []
 []
 

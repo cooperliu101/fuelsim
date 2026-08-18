@@ -482,8 +482,8 @@ if(BUILD_TESTING)
     add_test(NAME fuelsim_b36_plate_meat_clad_moose_tests
         COMMAND fuelsim_b36_plate_meat_clad_moose_tests
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_plate_meat_clad_moose.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b36_plate_meat_clad_all_nodes_0005.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b36_plate_meat_clad_element_state_0005.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b36_plate_meat_clad_all_nodes_0040.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b36_plate_meat_clad_element_state_0040.csv")
     set_tests_properties(fuelsim_b36_plate_meat_clad_moose_tests
         PROPERTIES LABELS "acceptance;three-dimensional;inelastic")
 

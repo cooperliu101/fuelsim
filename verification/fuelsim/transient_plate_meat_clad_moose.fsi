@@ -31,7 +31,7 @@
     []
     [creep]
       function = norton
-      coefficient = 1e-4
+      coefficient = 1e-7
       reference_stress = 1e8
       stress_exponent = 3
     []
@@ -62,7 +62,7 @@
     []
     [creep]
       function = norton
-      coefficient = 1e-4
+      coefficient = 1e-7
       reference_stress = 1e8
       stress_exponent = 3
     []
@@ -80,14 +80,14 @@
     material = meat_material
     strain = small
     initial_temperature = 600
-    volumetric_heat_source = 3e6
+    volumetric_heat_source = 3.291e5
   []
   [clad]
     block = clad
     material = clad_material
     strain = small
     initial_temperature = 600
-    volumetric_heat_source = 0
+    volumetric_heat_source = 2.145e5
   []
 []
 
@@ -98,23 +98,11 @@
   [pull]
     type = piecewise_linear
     times = 0 0.5
-    values = 0 8e-6
+    values = 0 2.4e-5
   []
 []
 
 [BoundaryConditions]
-  [temperature_left]
-    type = dirichlet
-    boundary = plate_left
-    field = temperature
-    value = 600
-  []
-  [temperature_right]
-    type = dirichlet
-    boundary = plate_right
-    field = temperature
-    value = 600
-  []
   [fix_x]
     type = dirichlet
     boundary = plate_left
@@ -145,9 +133,9 @@
 [Executioner]
   type = transient
   end_time = 0.5
-  initial_time_step = 0.1
-  minimum_time_step = 0.1
-  maximum_time_step = 0.1
+  initial_time_step = 0.0125
+  minimum_time_step = 0.0125
+  maximum_time_step = 0.0125
   growth_factor = 1
   cutback_factor = 0.5
   maximum_cutbacks = 0

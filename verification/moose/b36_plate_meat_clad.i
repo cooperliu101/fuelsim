@@ -61,11 +61,18 @@
     block = 'meat clad'
     use_displaced_mesh = false
   []
-  [heat_source]
+  [heat_source_meat]
     type = BodyForce
     variable = T
     block = meat
-    value = 3e6
+    value = 3.291e5
+    use_displaced_mesh = false
+  []
+  [heat_source_clad]
+    type = BodyForce
+    variable = T
+    block = clad
+    value = 2.145e5
     use_displaced_mesh = false
   []
 []
@@ -88,23 +95,11 @@
 [Functions]
   [pull]
     type = ParsedFunction
-    expression = '1.6e-5*t'
+    expression = '4.8e-5*t'
   []
 []
 
 [BCs]
-  [temperature_left]
-    type = DirichletBC
-    variable = T
-    boundary = plate_left
-    value = 600
-  []
-  [temperature_right]
-    type = DirichletBC
-    variable = T
-    boundary = plate_right
-    value = 600
-  []
   [fix_x]
     type = ADDirichletBC
     variable = disp_x
@@ -156,6 +151,7 @@
     type = ADComputeMultipleInelasticStress
     block = meat
     inelastic_models = 'meat_creep meat_plasticity'
+    perform_finite_strain_rotations = false
     max_iterations = 100
     relative_tolerance = 1e-12
     absolute_tolerance = 1e-6
@@ -163,7 +159,7 @@
   [meat_creep]
     type = ADPowerLawCreepStressUpdate
     block = meat
-    coefficient = 1e-28
+    coefficient = 1e-31
     n_exponent = 3
     m_exponent = 0
     activation_energy = 0
@@ -198,6 +194,7 @@
     type = ADComputeMultipleInelasticStress
     block = clad
     inelastic_models = 'clad_creep clad_plasticity'
+    perform_finite_strain_rotations = false
     max_iterations = 100
     relative_tolerance = 1e-12
     absolute_tolerance = 1e-6
@@ -205,7 +202,7 @@
   [clad_creep]
     type = ADPowerLawCreepStressUpdate
     block = clad
-    coefficient = 1e-28
+    coefficient = 1e-31
     n_exponent = 3
     m_exponent = 0
     activation_energy = 0
@@ -229,13 +226,12 @@
   type = Transient
   solve_type = NEWTON
   line_search = basic
-  dt = 0.1
+  dt = 0.0125
   end_time = 0.5
   nl_abs_tol = 1e-8
   nl_rel_tol = 1e-10
   nl_max_its = 30
-  automatic_scaling = true
-  compute_scaling_once = false
+  automatic_scaling = false
   petsc_options_iname = '-pc_type'
   petsc_options_value = 'lu'
 []

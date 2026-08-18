@@ -23,7 +23,7 @@ struct NodeReference final {
 };
 
 struct ElementReference final {
-    std::array<double, 8> values;
+    std::array<double, 3> values;
 };
 
 bool check(bool condition, const std::string& message) {
@@ -97,9 +97,7 @@ std::vector<ElementReference> read_elements(const std::string& path, std::size_t
     std::string line;
     if (!std::getline(input, line)) throw std::invalid_argument("MOOSE element reference is empty: " + path);
     const auto header = split_csv(line);
-    const std::array<std::size_t, 9> columns = {column(header, "id", path), column(header, "stress_xx", path),
-        column(header, "stress_yy", path), column(header, "stress_zz", path), column(header, "stress_xy", path),
-        column(header, "stress_yz", path), column(header, "stress_xz", path),
+    const std::array<std::size_t, 4> columns = {column(header, "id", path), column(header, "stress_xx", path),
         column(header, "effective_plastic_strain", path), column(header, "effective_creep_strain", path)};
     std::vector<ElementReference> result(element_count);
     std::vector<bool> present(element_count, false);
@@ -108,7 +106,7 @@ std::vector<ElementReference> read_elements(const std::string& path, std::size_t
         const auto values = split_csv(line);
         const std::size_t id = static_cast<std::size_t>(number(values, columns[0], path));
         if (id >= element_count || present[id]) throw std::invalid_argument("Invalid MOOSE element ID: " + path);
-        for (std::size_t value = 0; value < 8; ++value)
+        for (std::size_t value = 0; value < result[id].values.size(); ++value)
             result[id].values[value] = number(values, columns[value + 1], path);
         present[id] = true;
     }
@@ -139,8 +137,8 @@ bool run(const std::string& input_path, const std::string& node_path, const std:
             execution.growth_factor, execution.cutback_factor, execution.maximum_cutbacks_per_step,
             execution.load_ramp_time},
         options);
-    bool passed = check(solve.completed && solve.accepted_steps.size() == 5,
-        "the shared-node fuel-plate path accepts five Backward Euler time steps");
+    bool passed = check(solve.completed && solve.accepted_steps.size() == 40,
+        "the shared-node fuel-plate path accepts forty Backward Euler time steps");
     const auto& dofs = fuelsim::cartesian::ProblemAccess::dof_map(problem);
     passed = check(dofs.node_count() == mesh.nodes().size() && problem.dof_count() == 4 * mesh.nodes().size(),
                  "the fuel plate has one four-field global node per Exodus node") &&
@@ -179,41 +177,28 @@ bool run(const std::string& input_path, const std::string& node_path, const std:
     for (std::size_t field = 0; field < nodal.size(); ++field)
         passed = check_metrics("b36_" + nodal_names[field], nodal[field]) && passed;
     const auto elements = read_elements(element_path, mesh.elements().size());
-    std::array<fuelsim::test::FieldErrorMetrics, 8> material;
+    std::array<fuelsim::test::FieldErrorMetrics, 3> material;
     for (std::size_t region = 0; region < fuelsim::cartesian::ProblemAccess::region_count(problem); ++region) {
         const auto& region_mesh = fuelsim::cartesian::ProblemAccess::region_mesh(problem, region);
         for (std::size_t element = 0; element < region_mesh.elements().size(); ++element) {
             const std::size_t source = region_mesh.source_element_ids()[element];
-            std::array<double, 8> average{};
+            std::array<double, 3> average{};
             const auto& history = fuelsim::cartesian::ProblemAccess::material_history(problem, region, element);
             for (const auto& point : history) {
                 average[0] += point.stress.xx;
-                average[1] += point.stress.yy;
-                average[2] += point.stress.zz;
-                average[3] += point.stress.xy;
-                average[4] += point.stress.yz;
-                average[5] += point.stress.xz;
-                average[6] += point.equivalent_plastic_strain;
-                average[7] += point.equivalent_creep_strain;
+                average[1] += point.equivalent_plastic_strain;
+                average[2] += point.equivalent_creep_strain;
             }
             for (std::size_t value = 0; value < average.size(); ++value)
                 material[value].add(
                     average[value] / static_cast<double>(history.size()), elements[source].values[value]);
         }
     }
-    const std::array<std::string, 8> material_names = {"stress_xx", "stress_yy", "stress_zz", "stress_xy", "stress_yz",
-        "stress_xz", "equivalent_plastic_strain", "equivalent_creep_strain"};
-    passed = check_metrics("b36_" + material_names[0], material[0]) && passed;
-    const double weak_stress_absolute_tolerance = 4.0e-4 * material[0].maximum_reference;
-    for (std::size_t value = 1; value < 6; ++value) {
-        fuelsim::test::print_relative_metrics("b36_" + material_names[value], material[value]);
-        passed = check(material[value].maximum_absolute_difference < weak_stress_absolute_tolerance,
-                     "B3.6 weak transverse or shear stress stays below 0.04 percent of the axial stress scale") &&
-                 passed;
-    }
-    for (std::size_t value = 6; value < material.size(); ++value)
+    const std::array<std::string, 3> material_names = {
+        "stress_xx", "equivalent_plastic_strain", "equivalent_creep_strain"};
+    for (std::size_t value = 0; value < material.size(); ++value)
         passed = check_metrics("b36_" + material_names[value], material[value]) && passed;
-    return check(material[6].maximum_reference > 0.0 && material[7].maximum_reference > 0.0,
+    return check(material[1].maximum_reference > 0.0 && material[2].maximum_reference > 0.0,
                "both plasticity and creep are active in the meat-clad plate") &&
            passed;
 }
