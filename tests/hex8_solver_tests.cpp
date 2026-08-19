@@ -1,5 +1,6 @@
-#include "fuelsim/problem_solver.hpp"
-#include "fuelsim/results_io.hpp"
+#include "fuelsim/io/checkpoint.hpp"
+#include "fuelsim/io/results_io.hpp"
+#include "fuelsim/solver/solve_workflows.hpp"
 #include "support/cartesian3d_problem_access.hpp"
 #include "support/material_factory.hpp"
 #include <algorithm>

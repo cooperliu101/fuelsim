@@ -1,6 +1,6 @@
 #ifndef FUELSIM_TEST_RZ_PROBLEM_ACCESS_HPP
 #define FUELSIM_TEST_RZ_PROBLEM_ACCESS_HPP
-#include "problem_backend_access.hpp"
+#include "core/problem_backend_access.hpp"
 #include <algorithm>
 #include <stdexcept>
 

@@ -1,6 +1,6 @@
-#include "fuelsim/case_input.hpp"
-#include "fuelsim/problem_solver.hpp"
-#include "fuelsim/results_io.hpp"
+#include "fuelsim/io/case_input.hpp"
+#include "fuelsim/io/results_io.hpp"
+#include "fuelsim/solver/solve_workflows.hpp"
 #include "support/moose_field_comparison.hpp"
 #include "support/rz_problem_access.hpp"
 #include <exception>

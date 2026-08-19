@@ -224,17 +224,17 @@ SteadyProblem / TransientProblem
 
 | 职责 | 当前主要位置 | 结论 |
 | --- | --- | --- |
-| 材料参数名称、单位、数值、绑定和签名 | `include/fuelsim/material_functions.hpp`、`src/material.cpp` | 参数元数据和注册表管理可以直接复用。 |
-| Norton 蠕变的对数域标量求根 | `src/material.cpp` | 等效应力、剪切模量和时间步上的标量算法与几何无关。 |
-| 塑性—蠕变全隐式耦合的标量方程及偏导 | `src/material.cpp` | 标量更新可以成为轴对称与三维本构的公共算法。 |
+| 材料参数名称、单位、数值、绑定和签名 | `include/fuelsim/core/material_functions.hpp`、`src/core/material.cpp` | 参数元数据和注册表管理可以直接复用。 |
+| Norton 蠕变的对数域标量求根 | `src/core/material.cpp` | 等效应力、剪切模量和时间步上的标量算法与几何无关。 |
+| 塑性—蠕变全隐式耦合的标量方程及偏导 | `src/core/material.cpp` | 标量更新可以成为轴对称与三维本构的公共算法。 |
 | 稠密或影子全局状态读取 | `GlobalStateView` | 状态读取方式与单元拓扑无关。 |
-| PETSc 会话、向量、矩阵、非线性方程求解器 SNES、线性方程求解器 KSP 和计时 | `src/solver.cpp` | 求解器对象生命周期和失败传播可以保留。 |
-| 消息传递接口并行贡献分工和影子自由度收集 | `src/solver.cpp` | 按贡献唯一装配的流程可以保留。 |
-| Dirichlet（指定自由度值）约束 | `src/solver.cpp` | 继续使用 `F_i=x_i-g_i` 并只清 Jacobian（残量对自由度的导数矩阵）行。 |
-| 稳态加载、缩小载荷增量重试和失败恢复 | `src/solver.cpp` | 流程不依赖几何。 |
-| 时间函数、后向欧拉（Backward Euler）时间推进和步长控制 | `src/problem.cpp`、`src/solver.cpp` | 时间控制流程可以复用。 |
+| PETSc 会话、向量、矩阵、非线性方程求解器 SNES、线性方程求解器 KSP 和计时 | `src/solver/solver.cpp` | 求解器对象生命周期和失败传播可以保留。 |
+| 消息传递接口并行贡献分工和影子自由度收集 | `src/solver/solver.cpp` | 按贡献唯一装配的流程可以保留。 |
+| Dirichlet（指定自由度值）约束 | `src/solver/solver.cpp` | 继续使用 `F_i=x_i-g_i` 并只清 Jacobian（残量对自由度的导数矩阵）行。 |
+| 稳态加载、缩小载荷增量重试和失败恢复 | `src/solver/solver.cpp` | 流程不依赖几何。 |
+| 时间函数、后向欧拉（Backward Euler）时间推进和步长控制 | `src/core/spatial_problem.cpp`、`src/solver/solver.cpp` | 时间控制流程可以复用。 |
 | 已提交状态、试探状态、提交和回滚的事务顺序 | `TransientProblem` | 生命周期可以复用，具体历史布局必须由后端提供。 |
-| 元素块、节点集和边集的名称及标识 | `include/fuelsim/mesh.hpp` | Exodus 元数据概念与维数无关。 |
+| 元素块、节点集和边集的名称及标识 | `include/fuelsim/core/mesh.hpp` | Exodus 元数据概念与维数无关。 |
 | 场量误差计算口径 | `tests/support/moose_field_comparison.*` | 相对二范数、相对绝对峰值和最大逐点相对误差可以复用。 |
 
 ### 3.2 已抽象后复用或仍待抽象
@@ -274,7 +274,7 @@ RZ 假定：
 
 ### 4.1 局部贡献宽度
 
-`include/fuelsim/quad4_rz.hpp` 继续把 RZ 具体贡献固定为 12 个自由度，但
+`include/fuelsim/core/rz_quad4.hpp` 继续把 RZ 具体贡献固定为 12 个自由度，但
 阶段 A 已将它移出 `NonlinearProblem`、PETSc 残量回调、Jacobian 回调和公共
 方向导数端口。RZ 后端通过一次适配把定长结果写入运行时工作区。
 

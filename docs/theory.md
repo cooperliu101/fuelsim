@@ -63,14 +63,14 @@ Exodus Quad4/Line2 几何
 
 | 内容 | 实现位置 |
 | --- | --- |
-| Quad4、外边界和接触界面的局部残量及 Jacobian | `src/kernels.cpp` |
-| 热弹性、Norton、J2 及耦合材料更新 | `src/material.cpp` |
-| 区域布局、边界条件、接触搜索和贡献装配 | `src/assembly.cpp` |
-| 稳态、瞬态及 committed/trial/commit/rollback | `src/problem.cpp` |
-| 载荷延续、时间步、step-doubling 和 PETSc 求解 | `src/solver.cpp` |
-| 输入卡解析 | `src/input.cpp` |
-| Exodus 网格、结果和检查点 | `src/io.cpp` |
-| 案例运行、输出调度和程序入口 | `src/app.cpp` |
+| Quad4、外边界和接触界面的局部残量及 Jacobian | `src/core/rz_kernels.cpp` |
+| 热弹性、Norton、J2 及耦合材料更新 | `src/core/material.cpp` |
+| 区域布局、边界条件、接触搜索和贡献装配 | `src/core/rz_assembly.cpp` |
+| 稳态、瞬态及 committed/trial/commit/rollback | `src/core/spatial_problem.cpp` |
+| PETSc 非线性求解器与稳态、瞬态工作流 | `src/solver/solver.cpp`、`src/solver/solve_workflows.cpp` |
+| 输入卡解析 | `src/io/case_input.cpp` |
+| Exodus 网格和结果、检查点 | `src/io/results_io.cpp`、`src/io/checkpoint.cpp` |
+| 案例运行、输出调度和程序入口 | `src/app/main.cpp` |
 
 ## 3. 坐标、场量和张量约定
 

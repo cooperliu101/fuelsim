@@ -1,7 +1,8 @@
-#include "fuelsim/case_input.hpp"
-#include "fuelsim/petsc_solver.hpp"
-#include "fuelsim/problem_solver.hpp"
-#include "fuelsim/results_io.hpp"
+#include "fuelsim/io/case_input.hpp"
+#include "fuelsim/io/checkpoint.hpp"
+#include "fuelsim/io/results_io.hpp"
+#include "fuelsim/solver/petsc_solver.hpp"
+#include "fuelsim/solver/solve_workflows.hpp"
 #include "support/rz_problem_access.hpp"
 #include <algorithm>
 #include <array>

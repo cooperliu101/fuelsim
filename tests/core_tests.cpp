@@ -1,10 +1,10 @@
-#include "fuelsim/interface.hpp"
-#include "fuelsim/material.hpp"
-#include "fuelsim/mesh.hpp"
-#include "fuelsim/quad4_rz.hpp"
-#include "fuelsim/spatial_definition.hpp"
-#include "fuelsim/steady_problem.hpp"
-#include "spatial_common.hpp"
+#include "core/spatial_layout.hpp"
+#include "fuelsim/core/contact.hpp"
+#include "fuelsim/core/material.hpp"
+#include "fuelsim/core/mesh.hpp"
+#include "fuelsim/core/rz_quad4.hpp"
+#include "fuelsim/core/spatial_definition.hpp"
+#include "fuelsim/core/steady_problem.hpp"
 #include "support/material_factory.hpp"
 #include "support/mesh_fixture.hpp"
 #include "support/rz_problem_access.hpp"
@@ -1824,4 +1824,4 @@ int main() {
     return 0;
 }
 
-#include "fuelsim/quad4_rz.hpp"
+#include "fuelsim/core/rz_quad4.hpp"

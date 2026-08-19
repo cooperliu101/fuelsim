@@ -3,10 +3,11 @@ if(NOT DEFINED ROOT)
 endif()
 
 set(common_files
-    "${ROOT}/include/fuelsim/nonlinear_problem.hpp"
-    "${ROOT}/include/fuelsim/petsc_solver.hpp"
-    "${ROOT}/include/fuelsim/problem_solver.hpp"
-    "${ROOT}/src/solver.cpp"
+    "${ROOT}/include/fuelsim/core/nonlinear_problem.hpp"
+    "${ROOT}/include/fuelsim/solver/petsc_solver.hpp"
+    "${ROOT}/include/fuelsim/solver/solve_workflows.hpp"
+    "${ROOT}/src/solver/solver.cpp"
+    "${ROOT}/src/solver/solve_workflows.cpp"
 )
 
 foreach(path IN LISTS common_files)
@@ -33,8 +34,8 @@ foreach(path IN LISTS common_files)
 endforeach()
 
 set(common_problem_headers
-    "${ROOT}/include/fuelsim/steady_problem.hpp"
-    "${ROOT}/include/fuelsim/transient_problem.hpp"
+    "${ROOT}/include/fuelsim/core/steady_problem.hpp"
+    "${ROOT}/include/fuelsim/core/transient_problem.hpp"
 )
 
 foreach(path IN LISTS common_problem_headers)
@@ -59,7 +60,9 @@ foreach(path IN LISTS common_problem_headers)
     endforeach()
 endforeach()
 
-file(READ "${ROOT}/src/solver.cpp" common_solver)
+file(READ "${ROOT}/src/solver/solver.cpp" common_solver)
+file(READ "${ROOT}/src/solver/solve_workflows.cpp" common_workflows)
+string(APPEND common_solver "\n${common_workflows}")
 foreach(forbidden_state_layout
         "TransientCommittedState"
         "Quad4MaterialHistory"
@@ -73,7 +76,7 @@ foreach(forbidden_state_layout
     endif()
 endforeach()
 
-file(READ "${ROOT}/include/fuelsim/nonlinear_problem.hpp" problem_port)
+file(READ "${ROOT}/include/fuelsim/core/nonlinear_problem.hpp" problem_port)
 foreach(required "ContributionWorkspace" "FieldDescriptor" "field_layout" "contribution_dofs"
                  "discretization_identity")
     string(FIND "${problem_port}" "${required}" location)
@@ -91,13 +94,13 @@ foreach(required "RuntimeLayoutProblem" "return 32" "_narrow_dofs" "displacement
     endif()
 endforeach()
 
-file(READ "${ROOT}/src/assembly.hpp" rz_assembly)
+file(READ "${ROOT}/src/core/rz_assembly.hpp" rz_assembly)
 string(FIND "${rz_assembly}" "namespace fuelsim::rz" rz_namespace)
 if(rz_namespace EQUAL -1)
     message(FATAL_ERROR "The RZ spatial assembly is no longer isolated in namespace fuelsim::rz")
 endif()
 
-file(READ "${ROOT}/src/problem_backend_access.hpp" backend_access)
+file(READ "${ROOT}/src/core/problem_backend_access.hpp" backend_access)
 foreach(required "namespace rz" "struct TransientCommittedState" "Quad4MaterialHistory"
                  "class BackendAccess" "static const cartesian::SpatialAssembly& cartesian_spatial")
     string(FIND "${backend_access}" "${required}" location)

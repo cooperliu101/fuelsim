@@ -1,4 +1,4 @@
-#include "fuelsim/case_input.hpp"
+#include "fuelsim/io/case_input.hpp"
 #include <cstdint>
 #include <cstdio>
 #include <exception>

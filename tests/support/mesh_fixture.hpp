@@ -1,6 +1,6 @@
 #ifndef FUELSIM_TEST_MESH_FIXTURE_HPP
 #define FUELSIM_TEST_MESH_FIXTURE_HPP
-#include "fuelsim/mesh.hpp"
+#include "fuelsim/core/mesh.hpp"
 #include <cstddef>
 #include <cstdint>
 #include <string>

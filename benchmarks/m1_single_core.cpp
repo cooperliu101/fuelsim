@@ -1,5 +1,5 @@
-#include "fuelsim/problem_solver.hpp"
-#include "fuelsim/spatial_definition.hpp"
+#include "fuelsim/core/spatial_definition.hpp"
+#include "fuelsim/solver/solve_workflows.hpp"
 #include "support/material_factory.hpp"
 #include "support/mesh_fixture.hpp"
 #include <chrono>

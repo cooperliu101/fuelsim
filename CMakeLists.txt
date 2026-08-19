@@ -60,34 +60,42 @@ function(fuelsim_link_petsc target)
 endfunction()
 
 add_library(fuelsim_core
-    src/assembly.cpp
-    src/cartesian3d_assembly.cpp
-    src/cartesian3d_contact.cpp
-    src/contact_search.cpp
-    src/hex8.cpp
-    src/kernels.cpp
-    src/mesh.cpp
-    src/material.cpp
-    src/problem.cpp
+    src/core/rz_assembly.cpp
+    src/core/cartesian3d_assembly.cpp
+    src/core/cartesian3d_contact.cpp
+    src/core/contact_search.cpp
+    src/core/cartesian3d_kernels.cpp
+    src/core/rz_kernels.cpp
+    src/core/mesh.cpp
+    src/core/material.cpp
+    src/core/material_functions.cpp
+    src/core/nonlinear_problem.cpp
+    src/core/spatial_problem.cpp
 )
 add_library(fuelsim::core ALIAS fuelsim_core)
 
 target_include_directories(fuelsim_core
     PUBLIC
         "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+    PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
 )
 target_link_libraries(fuelsim_core PUBLIC adlite::adlite)
 fuelsim_enable_warnings(fuelsim_core)
 
 add_library(fuelsim_io
-    src/input.cpp
-    src/io.cpp
+    src/io/case_input.cpp
+    src/io/checkpoint.cpp
+    src/io/problem_signature.cpp
+    src/io/results_io.cpp
 )
 add_library(fuelsim::io ALIAS fuelsim_io)
 
 target_include_directories(fuelsim_io
     PUBLIC
         "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+    PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
 )
 target_link_libraries(fuelsim_io
     PUBLIC fuelsim::core
@@ -96,13 +104,16 @@ target_link_libraries(fuelsim_io
 fuelsim_enable_warnings(fuelsim_io)
 
 add_library(fuelsim_solver
-    src/solver.cpp
+    src/solver/solver.cpp
+    src/solver/solve_workflows.cpp
 )
 add_library(fuelsim::solver ALIAS fuelsim_solver)
 
 target_include_directories(fuelsim_solver
     PUBLIC
         "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+    PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
 )
 target_link_libraries(fuelsim_solver
     PUBLIC fuelsim::core
@@ -111,8 +122,9 @@ fuelsim_link_petsc(fuelsim_solver)
 fuelsim_enable_warnings(fuelsim_solver)
 
 add_executable(fuelsim
-    src/app.cpp
+    src/app/main.cpp
 )
+target_include_directories(fuelsim PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_link_libraries(fuelsim
     PRIVATE fuelsim::io fuelsim::solver
 )

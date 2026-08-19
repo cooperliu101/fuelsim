@@ -1,5 +1,5 @@
 #pragma once
-#include "fuelsim/nonlinear_problem.hpp"
+#include "fuelsim/core/nonlinear_problem.hpp"
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
