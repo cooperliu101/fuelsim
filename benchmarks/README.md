@@ -842,3 +842,50 @@ took `46.77 s` wall time. Finally, all 60 CTest registrations passed serially.
 These results establish greater than 65 percent strong-scaling efficiency only
 for the named 30,148-DOF case, first-step workload, CPU placement, PETSc build,
 and solver configuration.
+
+## 2026-08-19 Hex8 narrow two-level constitutive AD
+
+The three-dimensional Hex8 Jacobian path no longer seeds all 32 local DOFs with
+ADlite. The kinematics chain is seeded on the nine displacement-gradient
+components plus the quadrature-point temperature (width 10); the constitutive
+evaluation is seeded on the six strain components plus temperature (width 7) and
+reattached to the kinematics chain with `adlite::compose`; the final chain from
+the point seeds to the 32 local DOFs is linear and applied in closed form. The
+residual-only path, the RZ kernels, the Quad4Face boundary, and the
+three-dimensional contact kernels are unchanged, and the assembled Jacobian
+remains the exact consistent tangent: the local centered directional-difference
+checks and the complete CTest suite pass unchanged.
+
+All runs used Release builds, one MPI process pinned to CPU 0, and one thread
+for OpenMP, OpenBLAS, MKL, and NumExpr. The paired baseline is the pre-change
+commit `ad4cdf8`. One warm-up run preceded the recorded samples on each side.
+
+M5.8 6,468-DOF, 20-step finite-strain Hex8 case
+(`fuelsim_m58_integrated_hex8_benchmark` with the three tracked MOOSE CSV
+references), two recorded samples per side:
+
+| measurement | `ad4cdf8` baseline | narrow-AD candidate | change |
+| --- | ---: | ---: | ---: |
+| Jacobian callback seconds | 46.871 / 48.291 | 25.452 / 25.447 | about 46.5 percent lower |
+| residual callback seconds | 12.211 / 15.209 | 12.190 / 12.180 | unchanged |
+| process wall seconds | 77.76 / 82.66 | 55.98 / 55.96 | about 29.4 percent lower |
+
+Every run completed 20 steps with 93 nonlinear iterations, 113 residual
+evaluations, 49 Jacobian evaluations, and one PETSc workspace. The full-field
+MOOSE comparison kept every field at its pre-change error magnitude: the largest
+maximum pointwise relative error stayed at `1.0737e-4` for X displacement, and
+temperature, all displacement components, contact pressure, equivalent stress,
+and both equivalent inelastic strains remained below the 0.5 percent
+three-metric limit.
+
+The untouched RZ path showed no regression. The default 1,584-DOF steady case
+(`fuelsim -i verification/fuelsim/steady_fuel_cladding.fsi`) kept 20 load steps,
+63 nonlinear iterations, one workspace, and the same `8.362012981744e-9` final
+residual on both sides; warmed three-run medians were `0.950063 s` for the
+baseline and `0.944727 s` for the candidate, a 0.56 percent difference within
+the observed run-to-run spread. The 23,010-DOF, 20-step medium case completed
+once per side in `28.917 s` (baseline) and `28.241 s` (candidate) with identical
+62 nonlinear iterations, 82 residual and 62 Jacobian callbacks, one workspace,
+and the same final residual `3.374857832964e-9`. These RZ differences are
+run-to-run variation on this machine and are recorded as no-regression evidence,
+not as a speedup claim.

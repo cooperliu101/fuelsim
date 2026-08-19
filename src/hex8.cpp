@@ -87,22 +87,6 @@ adlite::Scalar interpolate_hex8(
     return result;
 }
 
-SymmetricTensor3 strain_at(const Hex8QuadraturePoint& point, const Hex8LocalAdValues& state) {
-    adlite::Scalar ux_x = 0.0, ux_y = 0.0, ux_z = 0.0, uy_x = 0.0, uy_y = 0.0, uy_z = 0.0, uz_x = 0.0, uz_y = 0.0,
-                   uz_z = 0.0;
-    for (std::size_t node = 0; node < 8; ++node) {
-        ux_x += point.gradient[node][0] * state[8 + node];
-        ux_y += point.gradient[node][1] * state[8 + node];
-        ux_z += point.gradient[node][2] * state[8 + node];
-        uy_x += point.gradient[node][0] * state[16 + node];
-        uy_y += point.gradient[node][1] * state[16 + node];
-        uy_z += point.gradient[node][2] * state[16 + node];
-        uz_x += point.gradient[node][0] * state[24 + node];
-        uz_y += point.gradient[node][1] * state[24 + node];
-        uz_z += point.gradient[node][2] * state[24 + node];
-    }
-    return {ux_x, uy_y, uz_z, 0.5 * (ux_y + uy_x), 0.5 * (uy_z + uz_y), 0.5 * (ux_z + uz_x)};
-}
 } // namespace
 
 SymmetricTensor3 rotate_cartesian_tensor(const SymmetricTensor3& tensor, const CartesianRotation& rotation) {
@@ -163,19 +147,23 @@ void validate_cartesian_deformation(const Hex8QuadraturePoint& point, const Hex8
         throw std::domain_error("Finite-strain HEX8 deformation must preserve a positive Jacobian");
 }
 
-CartesianKinematics evaluate_cartesian_incremental_kinematics(const Hex8QuadraturePoint& point,
-    const Hex8LocalAdValues& current_state, const Hex8LocalValues& committed_state,
-    StrainFormulation strain_formulation) {
+namespace {
+// Kinematics core driven by the displacement gradient H = du/dX. H may carry any ADlite
+// seeding (passive, or independent variables), which lets callers choose the derivative width.
+CartesianKinematics evaluate_cartesian_kinematics_from_gradient(const Hex8QuadraturePoint& point,
+    const ActiveMatrix3& gradient, const Hex8LocalValues& committed_state, StrainFormulation strain_formulation) {
     CartesianKinematics result{};
     if (strain_formulation == StrainFormulation::small) {
-        result.strain_increment = strain_at(point, current_state);
+        result.strain_increment = {gradient[0][0], gradient[1][1], gradient[2][2],
+            0.5 * (gradient[0][1] + gradient[1][0]), 0.5 * (gradient[1][2] + gradient[2][1]),
+            0.5 * (gradient[0][2] + gradient[2][0])};
         for (std::size_t node = 0; node < 8; ++node)
             for (std::size_t direction = 0; direction < 3; ++direction)
                 result.current_gradient[node][direction] = point.gradient[node][direction];
         result.current_weighted_measure = point.weighted_measure;
         return result;
     }
-    ActiveMatrix3 current = displacement_gradient(point, current_state);
+    ActiveMatrix3 current = gradient;
     for (std::size_t direction = 0; direction < 3; ++direction) current[direction][direction] += 1.0;
     const adlite::Scalar current_determinant = determinant(current);
     if (!std::isfinite(current_determinant.value()) || !(current_determinant.value() > 0.0))
@@ -252,6 +240,14 @@ CartesianKinematics evaluate_cartesian_incremental_kinematics(const Hex8Quadratu
         rashid[1][2], rashid[2][2]};
     return result;
 }
+} // namespace
+
+CartesianKinematics evaluate_cartesian_incremental_kinematics(const Hex8QuadraturePoint& point,
+    const Hex8LocalAdValues& current_state, const Hex8LocalValues& committed_state,
+    StrainFormulation strain_formulation) {
+    return evaluate_cartesian_kinematics_from_gradient(
+        point, displacement_gradient(point, current_state), committed_state, strain_formulation);
+}
 
 namespace {
 MaterialFunctionContext material_context(double time, const CartesianPoint3& point) {
@@ -321,6 +317,181 @@ void add_hex8_point_residual(const Hex8QuadraturePoint& point, const Hex8LocalAd
     }
 }
 
+struct CartesianStressTangent final {
+    SymmetricTensor3Values stress;
+    std::array<std::array<double, 6>, 6> tangent{};
+    std::array<double, 6> thermal{};
+};
+
+// Evaluates the constitutive relation with AD seeded only on the six strain components and
+// the temperature (width 7), returning the stress values, the consistent material tangent
+// d(stress)/d(strain), and the thermal coupling d(stress)/dT.
+CartesianStressTangent evaluate_cartesian_stress_tangent(const IsotropicThermoelasticMaterial& material,
+    const std::array<double, 6>& fed_strain, double temperature, double time_step,
+    const CartesianMaterialPointState* committed_material, MaterialFunctionContext context) {
+    std::array<double, 7> seeds{};
+    for (std::size_t component = 0; component < 6; ++component) seeds[component] = fed_strain[component];
+    seeds[6] = temperature;
+    std::array<adlite::Scalar, 7> active{};
+    adlite::seed_identity(seeds.data(), seeds.size(), active.data());
+    const SymmetricTensor3 strain{active[0], active[1], active[2], active[3], active[4], active[5]};
+    const SymmetricTensor3 stress =
+        committed_material == nullptr
+            ? material.stress(strain, active[6], context)
+            : material.response(strain, active[6], time_step, *committed_material, context).stress;
+    const std::array<const adlite::Scalar*, 6> components = {
+        &stress.xx, &stress.yy, &stress.zz, &stress.xy, &stress.yz, &stress.xz};
+    CartesianStressTangent result{};
+    result.stress = {stress.xx.value(), stress.yy.value(), stress.zz.value(), stress.xy.value(), stress.yz.value(),
+        stress.xz.value()};
+    std::array<double, 7> derivatives{};
+    for (std::size_t row = 0; row < 6; ++row) {
+        components[row]->copy_derivatives(derivatives.data(), derivatives.size());
+        for (std::size_t column = 0; column < 6; ++column) result.tangent[row][column] = derivatives[column];
+        result.thermal[row] = derivatives[6];
+    }
+    return result;
+}
+
+// Assembles one quadrature point's residual and exact 32-by-32 Jacobian with narrow AD. The
+// kinematics chain is seeded on the nine displacement-gradient components plus the point
+// temperature (width 10), while the constitutive evaluation uses width 7 and is reattached
+// with adlite::compose, so stress rotation and current-configuration geometry derivatives
+// remain exact. The final chain from (H, T_point) to the 32 local DOFs is linear and applied
+// in closed form: dH[i][j]/du[b][d] = delta(i, d) * dN_b/dX_j and dT_point/dT_b = N_b.
+void add_hex8_point_system(const Hex8QuadraturePoint& point, const Hex8LocalValues& state,
+    const IsotropicThermoelasticMaterial& material, StrainFormulation strain_formulation, double time,
+    double volumetric_heat_source, const Hex8LocalValues* committed_state,
+    const CartesianMaterialPointState* committed_material, double time_step, Hex8LocalAdValues& residual,
+    Hex8LocalJacobian& jacobian) {
+    constexpr std::size_t point_width = 10, temperature_index = 9;
+    std::array<double, 9> gradient_values{};
+    for (std::size_t component = 0; component < 3; ++component)
+        for (std::size_t direction = 0; direction < 3; ++direction)
+            for (std::size_t node = 0; node < 8; ++node)
+                gradient_values[component * 3 + direction] +=
+                    point.gradient[node][direction] * state[8 * (component + 1) + node];
+    double temperature_value = 0.0;
+    for (std::size_t node = 0; node < 8; ++node) temperature_value += point.shape[node] * state[node];
+    ActiveMatrix3 active_gradient{};
+    for (std::size_t component = 0; component < 3; ++component)
+        for (std::size_t direction = 0; direction < 3; ++direction)
+            active_gradient[component][direction] = adlite::Scalar::independent(
+                gradient_values[component * 3 + direction], component * 3 + direction, point_width);
+    const adlite::Scalar active_temperature =
+        adlite::Scalar::independent(temperature_value, temperature_index, point_width);
+    const Hex8LocalValues undeformed{};
+    const Hex8LocalValues& old_state = committed_state == nullptr ? undeformed : *committed_state;
+    const CartesianKinematics kinematics =
+        evaluate_cartesian_kinematics_from_gradient(point, active_gradient, old_state, strain_formulation);
+    const MaterialFunctionContext context = material_context(time, point.position);
+    const std::array<const adlite::Scalar*, 6> strain_components = {&kinematics.strain_increment.xx,
+        &kinematics.strain_increment.yy, &kinematics.strain_increment.zz, &kinematics.strain_increment.xy,
+        &kinematics.strain_increment.yz, &kinematics.strain_increment.xz};
+    std::array<double, 6> fed_strain{};
+    if (committed_material != nullptr && strain_formulation == StrainFormulation::finite) {
+        double old_temperature = 0.0;
+        for (std::size_t node = 0; node < 8; ++node) old_temperature += point.shape[node] * old_state[node];
+        if (!std::isfinite(old_temperature) || !(old_temperature > 0.0))
+            throw std::domain_error("Incremental Cartesian material committed temperature must be finite and positive");
+        MaterialFunctionContext old_context = context;
+        old_context.time -= time_step;
+        const SymmetricTensor3 old_imposed = material.eigenstrain(adlite::Scalar(old_temperature), old_context);
+        const std::array<double, 6> imposed = {old_imposed.xx.value(), old_imposed.yy.value(), old_imposed.zz.value(),
+            old_imposed.xy.value(), old_imposed.yz.value(), old_imposed.xz.value()};
+        for (std::size_t component = 0; component < 6; ++component)
+            fed_strain[component] = committed_material->elastic_strain[component] +
+                                    strain_components[component]->value() + imposed[component] +
+                                    committed_material->plastic_strain[component] +
+                                    committed_material->creep_strain[component];
+    } else {
+        for (std::size_t component = 0; component < 6; ++component)
+            fed_strain[component] = strain_components[component]->value();
+    }
+    const CartesianStressTangent tangent = evaluate_cartesian_stress_tangent(
+        material, fed_strain, temperature_value, time_step, committed_material, context);
+    std::array<adlite::Scalar, 7> compose_inputs{};
+    for (std::size_t component = 0; component < 6; ++component)
+        compose_inputs[component] = *strain_components[component];
+    compose_inputs[6] = active_temperature;
+    const std::array<double, 6> stress_values = {tangent.stress.xx, tangent.stress.yy, tangent.stress.zz,
+        tangent.stress.xy, tangent.stress.yz, tangent.stress.xz};
+    std::array<double, 7> partials{};
+    std::array<adlite::Scalar, 6> composed{};
+    for (std::size_t component = 0; component < 6; ++component) {
+        for (std::size_t column = 0; column < 6; ++column) partials[column] = tangent.tangent[component][column];
+        partials[6] = tangent.thermal[component];
+        composed[component] =
+            adlite::compose(stress_values[component], compose_inputs.data(), partials.data(), compose_inputs.size());
+    }
+    SymmetricTensor3 stress{composed[0], composed[1], composed[2], composed[3], composed[4], composed[5]};
+    if (strain_formulation == StrainFormulation::finite) stress = rotate_cartesian_tensor(stress, kinematics.rotation);
+    const adlite::Scalar conductivity = material.conductivity(active_temperature, context);
+    adlite::Scalar temperature_rate = 0.0, heat_capacity = 0.0;
+    if (committed_state != nullptr) {
+        double old_temperature = 0.0;
+        for (std::size_t node = 0; node < 8; ++node) old_temperature += point.shape[node] * old_state[node];
+        temperature_rate = (active_temperature - old_temperature) / time_step;
+        heat_capacity = material.heat_capacity(active_temperature, context);
+    }
+    double gradient_temperature_x = 0.0, gradient_temperature_y = 0.0, gradient_temperature_z = 0.0;
+    for (std::size_t node = 0; node < 8; ++node) {
+        gradient_temperature_x += point.gradient[node][0] * state[node];
+        gradient_temperature_y += point.gradient[node][1] * state[node];
+        gradient_temperature_z += point.gradient[node][2] * state[node];
+    }
+    Hex8LocalAdValues point_residual{};
+    point_residual.fill(adlite::Scalar(0.0));
+    for (std::size_t node = 0; node < 8; ++node) {
+        const double gradient_x = point.gradient[node][0], gradient_y = point.gradient[node][1],
+                     gradient_z = point.gradient[node][2];
+        point_residual[node] +=
+            point.weighted_measure *
+            (conductivity * (gradient_x * gradient_temperature_x + gradient_y * gradient_temperature_y +
+                                gradient_z * gradient_temperature_z) +
+                point.shape[node] * heat_capacity * temperature_rate - point.shape[node] * volumetric_heat_source);
+        const adlite::Scalar current_gradient_x = kinematics.current_gradient[node][0];
+        const adlite::Scalar current_gradient_y = kinematics.current_gradient[node][1];
+        const adlite::Scalar current_gradient_z = kinematics.current_gradient[node][2];
+        point_residual[8 + node] +=
+            kinematics.current_weighted_measure *
+            (stress.xx * current_gradient_x + stress.xy * current_gradient_y + stress.xz * current_gradient_z);
+        point_residual[16 + node] +=
+            kinematics.current_weighted_measure *
+            (stress.xy * current_gradient_x + stress.yy * current_gradient_y + stress.yz * current_gradient_z);
+        point_residual[24 + node] +=
+            kinematics.current_weighted_measure *
+            (stress.xz * current_gradient_x + stress.yz * current_gradient_y + stress.zz * current_gradient_z);
+    }
+    std::array<double, point_width> derivatives{};
+    const double conductivity_value = conductivity.value();
+    for (std::size_t node = 0; node < 8; ++node) {
+        point_residual[node].copy_derivatives(derivatives.data(), derivatives.size());
+        for (std::size_t other = 0; other < 8; ++other) {
+            double gradient_dot = 0.0;
+            for (std::size_t direction = 0; direction < 3; ++direction)
+                gradient_dot += point.gradient[node][direction] * point.gradient[other][direction];
+            jacobian[node * 32 + other] += point.weighted_measure * conductivity_value * gradient_dot +
+                                           point.shape[other] * derivatives[temperature_index];
+        }
+        for (std::size_t component = 0; component < 3; ++component) {
+            const std::size_t row = 8 * (component + 1) + node;
+            point_residual[row].copy_derivatives(derivatives.data(), derivatives.size());
+            for (std::size_t other = 0; other < 8; ++other) {
+                jacobian[row * 32 + other] += derivatives[temperature_index] * point.shape[other];
+                for (std::size_t displacement_component = 0; displacement_component < 3; ++displacement_component) {
+                    double chained = 0.0;
+                    for (std::size_t direction = 0; direction < 3; ++direction)
+                        chained +=
+                            derivatives[displacement_component * 3 + direction] * point.gradient[other][direction];
+                    jacobian[row * 32 + 8 * (displacement_component + 1) + other] += chained;
+                }
+            }
+        }
+    }
+    for (std::size_t row = 0; row < residual.size(); ++row) residual[row] += point_residual[row];
+}
+
 std::array<SymmetricTensor3Values, 8> evaluate_hex8_stress(const Hex8Geometry& geometry, const Hex8LocalValues& state,
     const IsotropicThermoelasticMaterial& material, StrainFormulation strain_formulation, double time) {
     Hex8LocalAdValues ad_state{};
@@ -346,21 +517,26 @@ Hex8LocalResidual compute_hex8_local(const Hex8ThermoelasticData& data, const He
     double time_step, Hex8LocalJacobian* jacobian) {
     if (committed_state != nullptr && (!std::isfinite(time_step) || time_step <= 0.0))
         throw std::invalid_argument("HEX8 time step must be finite and positive");
-    Hex8LocalAdValues active{}, residual{};
-    if (jacobian == nullptr)
-        ad_local_system::make_passive(state.data(), state.size(), active.data());
-    else
-        ad_local_system::make_active(state.data(), state.size(), active.data());
+    Hex8LocalAdValues residual{};
     residual.fill(adlite::Scalar(0.0));
-    for (std::size_t q = 0; q < geometry.points.size(); ++q)
-        add_hex8_point_residual(geometry.points[q], active, data.material, data.strain_formulation, data.time,
-            data.volumetric_heat_source, committed_state, history == nullptr ? nullptr : &(*history)[q], time_step,
-            residual);
-    Hex8LocalResidual result{};
-    if (jacobian == nullptr)
+    if (jacobian == nullptr) {
+        Hex8LocalAdValues active{};
+        ad_local_system::make_passive(state.data(), state.size(), active.data());
+        for (std::size_t q = 0; q < geometry.points.size(); ++q)
+            add_hex8_point_residual(geometry.points[q], active, data.material, data.strain_formulation, data.time,
+                data.volumetric_heat_source, committed_state, history == nullptr ? nullptr : &(*history)[q], time_step,
+                residual);
+        Hex8LocalResidual result{};
         ad_local_system::extract_residual(residual.data(), residual.size(), result.data());
-    else
-        ad_local_system::extract_system(residual.data(), active.size(), result.data(), jacobian->data());
+        return result;
+    }
+    jacobian->fill(0.0);
+    for (std::size_t q = 0; q < geometry.points.size(); ++q)
+        add_hex8_point_system(geometry.points[q], state, data.material, data.strain_formulation, data.time,
+            data.volumetric_heat_source, committed_state, history == nullptr ? nullptr : &(*history)[q], time_step,
+            residual, *jacobian);
+    Hex8LocalResidual result{};
+    ad_local_system::extract_residual(residual.data(), residual.size(), result.data());
     return result;
 }
 } // namespace
