@@ -356,6 +356,35 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
     }
     const fuelsim::FuelSimCaseDefinition no_contact = fuelsim::read_case_input(malformed_path);
     passed = check(no_contact.spatial.contacts.empty(), "omitting [Contact] produces no contact pairs") && passed;
+    std::string default_optional_sections = read_text(steady_path);
+    const auto erase_section = [](std::string& input, const std::string& section, const std::string& following) {
+        const std::size_t begin = input.find("[" + section + "]\n");
+        const std::size_t end = input.find("[" + following + "]", begin);
+        if (begin == std::string::npos || end == std::string::npos) return false;
+        input.erase(begin, end - begin);
+        return true;
+    };
+    if (!erase_section(default_optional_sections, "BoundaryConditions", "Executioner") ||
+        !erase_section(default_optional_sections, "Solver", "Outputs"))
+        return check(false, "steady fixture has the expected optional sections");
+    const std::size_t outputs_begin = default_optional_sections.find("[Outputs]\n");
+    if (outputs_begin == std::string::npos) return check(false, "steady fixture has an outputs section");
+    default_optional_sections.erase(outputs_begin);
+    {
+        std::ofstream output(malformed_path, std::ios::trunc);
+        if (!output) return check(false, "could not create default-optional-sections input fixture");
+        output << default_optional_sections;
+    }
+    const fuelsim::FuelSimCaseDefinition defaults = fuelsim::read_case_input(malformed_path);
+    passed = check(defaults.spatial.boundary_conditions.empty() && defaults.solver.maximum_iterations == 40 &&
+                       defaults.solver.linear_solver == fuelsim::SolverOptions::LinearSolver::automatic &&
+                       defaults.outputs.console && defaults.outputs.csv_file.empty() &&
+                       defaults.outputs.exodus_file.empty() && defaults.outputs.exodus_interval == 1 &&
+                       defaults.outputs.history_file.empty() && defaults.outputs.history_interval == 1 &&
+                       defaults.outputs.progress_interval == 1 && defaults.outputs.checkpoint_file.empty() &&
+                       defaults.outputs.checkpoint_interval == 1,
+                 "omitting boundary, solver, and output sections selects documented defaults") &&
+             passed;
     std::string block_contact_case = read_text(steady_path);
     const std::string primary = "primary = clad_left";
     const std::size_t primary_position = block_contact_case.find(primary);

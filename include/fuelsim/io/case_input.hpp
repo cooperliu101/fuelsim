@@ -16,13 +16,13 @@ enum class CaseGeometry {
 };
 
 struct CaseOutputInput final {
-    bool console;
+    bool console = true;
     std::string csv_file, exodus_file;
-    std::size_t exodus_interval;
+    std::size_t exodus_interval = 1;
     std::string history_file;
-    std::size_t history_interval, progress_interval;
+    std::size_t history_interval = 1, progress_interval = 1;
     std::string checkpoint_file;
-    std::size_t checkpoint_interval;
+    std::size_t checkpoint_interval = 1;
 };
 
 struct FuelSimCaseDefinition final {

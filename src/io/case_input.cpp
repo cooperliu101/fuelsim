@@ -622,8 +622,9 @@ void read_contacts(const InputDocument& document, FuelSimCaseDefinition& result)
 }
 
 void read_boundary_conditions(const InputDocument& document, FuelSimCaseDefinition& result) {
-    const InputSection& boundary_conditions = required_section(document, "BoundaryConditions");
-    validate_keys(document, boundary_conditions, {});
+    if (const InputSection* boundary_conditions = find_section(document, "BoundaryConditions");
+        boundary_conditions != nullptr)
+        validate_keys(document, *boundary_conditions, {});
     for (const InputSection* section : direct_children(document, "BoundaryConditions"))
         result.spatial.boundary_conditions.push_back(read_boundary_condition(document, *section));
 }
@@ -691,7 +692,9 @@ void read_executioner(const InputDocument& document, const std::string& path, Fu
 }
 
 void read_solver(const InputDocument& document, const std::string& path, FuelSimCaseDefinition& result) {
-    const InputSection& solver = required_section(document, "Solver");
+    const InputSection* solver_section = find_section(document, "Solver");
+    if (solver_section == nullptr) return;
+    const InputSection& solver = *solver_section;
     validate_keys(document, solver,
         {"absolute_tolerance", "relative_tolerance", "step_tolerance", "maximum_iterations", "linear_solver",
             "preconditioner", "direct_factorization", "linear_relative_tolerance", "maximum_linear_iterations",
@@ -750,7 +753,9 @@ void read_solver(const InputDocument& document, const std::string& path, FuelSim
 }
 
 void read_outputs(const InputDocument& document, const std::string& path, FuelSimCaseDefinition& result) {
-    const InputSection& outputs = required_section(document, "Outputs");
+    const InputSection* output_section = find_section(document, "Outputs");
+    if (output_section == nullptr) return;
+    const InputSection& outputs = *output_section;
     validate_keys(document, outputs,
         {"console", "csv", "exodus", "exodus_interval", "history", "history_interval", "progress_interval",
             "checkpoint", "checkpoint_interval"});

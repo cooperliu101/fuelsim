@@ -343,7 +343,7 @@ secondary 侧切向合力；轴对称为有符号标量，三维为合力向量�
 不能为负，环境温度必须始终为正。对流项使用参考表面测度。轴对称边界作为
 12 自由度贡献装配，三维四节点面作为 16 自由度贡献装配；两者的残量和温度
 切线都由 ADlite 保持一致。
-`[BoundaryConditions]` 段本身必需，但可以为空。
+`[BoundaryConditions]` 是可选段。没有边界条件时应省略它。
 
 ## 时间推进、求解与输出
 
@@ -437,7 +437,7 @@ L2 差最大值大于 1 时完整回滚并缩步，成功时采用两个半步�
 零步重启动结束也不会把上一接受步诊断伪装成全零。版本 6 及更早格式会被
 明确拒绝，不提供跨版本兼容层。
 
-`[Solver]` 可设置非线性 `absolute_tolerance`、`relative_tolerance`、
+`[Solver]` 是可选段；省略时使用下列全部默认值。存在时可设置非线性 `absolute_tolerance`、`relative_tolerance`、
 `step_tolerance` 和 `maximum_iterations`；省略时分别为 `1e-8`、`1e-10`、
 `1e-12` 和 `40`。线性选项为：
 
@@ -511,7 +511,7 @@ MUMPS 和未缩放 HYPRE 都完成求解；预热内部载荷路径时间分别�
 rank 峰值驻留集的最小值、最大值和总和。瞬态的 `aggregate_memory.*` 取所有
 时间步和重试中观察到的最大阶段值，适合判断直接分解的内存上界。
 
-`[Outputs]` 的 `console` 默认为 `true`；可选 `csv` 将最终命名指标写为
+`[Outputs]` 是可选段；省略时 `console` 默认为 `true`，且不写文件。可选 `csv` 将最终命名指标写为
 `metric,value` 汇总文件。周期性的 `progress.*` 只写控制台，不混入最终 CSV。
 `exodus` 写出可后处理的场结果；稳态写一个最终步，
 瞬态按 `exodus_interval` 写初始或重启动状态、成功提交步及最终状态。轴对称
