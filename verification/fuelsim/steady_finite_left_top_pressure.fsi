@@ -37,9 +37,6 @@
   []
 []
 
-[Contact]
-[]
-
 [BoundaryConditions]
   [right_radial]
     type = dirichlet

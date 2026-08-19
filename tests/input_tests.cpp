@@ -343,6 +343,19 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
     if (small_strain_position == std::string::npos) return check(false, "steady fixture has the expected strain key");
     missing_strain_case.erase(small_strain_position, small_strain_line.size());
     passed = expect_case_failure(malformed_path, missing_strain_case, "missing required key 'strain'") && passed;
+    std::string no_contact_case = read_text(steady_path);
+    const std::size_t contact_begin = no_contact_case.find("[Contact]\n");
+    const std::size_t boundary_begin = no_contact_case.find("[BoundaryConditions]", contact_begin);
+    if (contact_begin == std::string::npos || boundary_begin == std::string::npos)
+        return check(false, "steady fixture has the expected contact and boundary sections");
+    no_contact_case.erase(contact_begin, boundary_begin - contact_begin);
+    {
+        std::ofstream output(malformed_path, std::ios::trunc);
+        if (!output) return check(false, "could not create no-contact input fixture");
+        output << no_contact_case;
+    }
+    const fuelsim::FuelSimCaseDefinition no_contact = fuelsim::read_case_input(malformed_path);
+    passed = check(no_contact.spatial.contacts.empty(), "omitting [Contact] produces no contact pairs") && passed;
     std::string block_contact_case = read_text(steady_path);
     const std::string primary = "primary = clad_left";
     const std::size_t primary_position = block_contact_case.find(primary);

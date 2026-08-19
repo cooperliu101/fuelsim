@@ -615,8 +615,8 @@ void read_regions(const InputDocument& document, const std::string& path, const 
 }
 
 void read_contacts(const InputDocument& document, FuelSimCaseDefinition& result) {
-    const InputSection& contacts = required_section(document, "Contact");
-    validate_keys(document, contacts, {});
+    if (const InputSection* contacts = find_section(document, "Contact"); contacts != nullptr)
+        validate_keys(document, *contacts, {});
     for (const InputSection* section : direct_children(document, "Contact"))
         result.spatial.contacts.push_back(read_contact(document, *section));
 }

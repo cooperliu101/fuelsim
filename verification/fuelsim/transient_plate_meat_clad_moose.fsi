@@ -91,9 +91,6 @@
   []
 []
 
-[Contact]
-[]
-
 [TimeFunctions]
   [pull]
     type = piecewise_linear

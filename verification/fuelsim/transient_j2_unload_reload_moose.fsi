@@ -51,9 +51,6 @@
   []
 []
 
-[Contact]
-[]
-
 [BoundaryConditions]
   [axis]
     type = dirichlet

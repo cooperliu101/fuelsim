@@ -56,9 +56,6 @@
   []
 []
 
-[Contact]
-[]
-
 [BoundaryConditions]
   [bottom_r]
     type = dirichlet

@@ -42,8 +42,6 @@
     volumetric_heat_source = 0
   []
 []
-[Contact]
-[]
 [BoundaryConditions]
   [temperature]
     type = dirichlet

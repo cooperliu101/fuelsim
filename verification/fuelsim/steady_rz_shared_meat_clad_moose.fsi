@@ -69,9 +69,6 @@
   []
 []
 
-[Contact]
-[]
-
 [BoundaryConditions]
   [temperature_left]
     type = dirichlet
