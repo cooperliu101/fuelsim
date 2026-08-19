@@ -229,7 +229,7 @@ bool run_case(const std::string& input_path, const std::string& nodal_reference_
         maximum_accepted_step = std::max(maximum_accepted_step, step.time_step);
         maximum_time_error_estimate = std::max(maximum_time_error_estimate, step.time_error_estimate);
     }
-    if (solve.accepted_steps.size() != 26)
+    if (solve.accepted_steps.size() != 18)
         for (std::size_t index = 0; index < solve.accepted_steps.size(); ++index) {
             const fuelsim::TransientAcceptedStep& step = solve.accepted_steps[index];
             std::cerr << "m57_step[" << index << "]=" << std::setprecision(17) << step.time << ',' << step.time_step
@@ -265,10 +265,10 @@ bool run_case(const std::string& input_path, const std::string& nodal_reference_
     constexpr double tolerance = 5.0e-3;
     bool passed = check(solve.aggregate_timing.workspace_setups == 1,
                       "M5.7 reuses one PETSc workspace across all adaptive steps") &&
-                  check(solve.accepted_steps.size() == 26 && solve.time_error_rejections == 0 &&
+                  check(solve.accepted_steps.size() == 18 && solve.time_error_rejections == 0 &&
                             maximum_time_error_estimate > 0.0 && maximum_time_error_estimate < 1.0 &&
                             minimum_accepted_step < maximum_accepted_step,
-                      "M5.7 CTest path controls 26 accepted variable-size steps without rejection") &&
+                      "M5.7 CTest path controls 18 accepted variable-size steps without rejection") &&
                   check(interface.active_contact_nodes == contact.size() && sliding >= contact.size() - 1 &&
                             crossed_segments == contact.size(),
                       "M5.7 keeps every interface node active, at least eight nodes sliding, and every node crossing "

@@ -889,3 +889,64 @@ once per side in `28.917 s` (baseline) and `28.241 s` (candidate) with identical
 and the same final residual `3.374857832964e-9`. These RZ differences are
 run-to-run variation on this machine and are recorded as no-regression evidence,
 not as a speedup claim.
+
+## 2026-08-19 RZ narrow two-level constitutive AD
+
+The two-dimensional axisymmetric RZ Quad4 Jacobian path now uses the same
+narrow two-level seeding as the Hex8 path. The kinematics chain is seeded on
+the four in-plane displacement-gradient components plus the quadrature-point
+radial displacement and temperature (width 6); the constitutive evaluation is
+seeded on the four strain components `[rr, zz, hoop, rz]` plus temperature
+(width 5) and reattached to the kinematics chain with `adlite::compose`; the
+final chain from the point seeds to the 12 local DOFs is linear and applied in
+closed form. The residual-only path is unchanged, the assembled Jacobian
+remains the exact consistent tangent, and the residual values are bitwise
+identical to the pre-change build; only the floating-point summation order of
+the Jacobian entries changed. The local centered directional-difference checks
+and the complete CTest suite pass.
+
+All runs used Release builds, one MPI process pinned to CPU 0, and one thread
+for OpenMP, OpenBLAS, MKL, and NumExpr. The paired baseline is the pre-change
+commit `9067649`. One warm-up run preceded the recorded samples on each side.
+
+Default 1,584-DOF steady case (`fuelsim -i
+verification/fuelsim/steady_fuel_cladding.fsi`), three recorded samples per
+side, medians:
+
+| measurement | `9067649` baseline | narrow-AD candidate | change |
+| --- | ---: | ---: | ---: |
+| internal total seconds | 1.029771 | 0.964532 | about 6.3 percent lower |
+| nonlinear iterations | 63 | 64 | one additional iteration |
+| final residual norm | 8.362012981744e-9 | 8.316025877667e-9 | last-digit level |
+
+The small case takes one additional nonlinear iteration on the candidate. That
+is the expected consequence of the changed Jacobian summation order under the
+iteration-count-sensitive SNES path, not a physics change: with the case's
+`target_nonlinear_iterations` step-size control disabled, the pre-change and
+post-change builds produce bitwise-identical load paths.
+
+23,010-DOF, 20-step medium case (`fuelsim_m1_single_core_benchmark medium
+direct 20 unscaled`), one run per side:
+
+| measurement | `9067649` baseline | narrow-AD candidate | change |
+| --- | ---: | ---: | ---: |
+| Jacobian callback seconds | 12.614745 | 10.340405 | about 18.0 percent lower |
+| residual callback seconds | 2.748301 | 2.717152 | about 1.1 percent lower |
+| nonlinear solve seconds | 28.877892 | 26.438876 | about 8.4 percent lower |
+| load-path total seconds | 29.164330 | 26.715794 | about 8.4 percent lower |
+
+Both sides completed 20 steps with 62 nonlinear and linear iterations, 82
+residual and 62 Jacobian callbacks, and one PETSc workspace. The final
+residual differed only at the level of the summation-order rearrangement
+(`3.374857832964e-9` versus `3.249125466882e-9`).
+
+The M5.7 integrated validation case is sensitive to the same iteration-count
+effect: its step-size controller targets 8 plus-or-minus 2 nonlinear
+iterations, so the candidate's accepted-step count changed from 26 to 18 while
+the solution itself did not move (with the controller's iteration target
+disabled, both builds produce the identical 17-step path and agree to twelve
+significant digits in the maximum error estimate). The case's `time_sequence`
+and the five tracked MOOSE CSV references were regenerated for the 18-step
+path with the recorded `july-opt` binary; every M5.7 metric remains far below
+its 0.5 percent limit (largest field metric 0.206719 percent, largest
+quadrature-point metric 0.148170 percent).

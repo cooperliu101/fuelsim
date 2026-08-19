@@ -15,6 +15,7 @@ set(m58_four_process_efficiency_lines 234)
 set(memory_statistics_lines 73)
 set(shared_node_capability_lines 120)
 set(hex8_narrow_constitutive_ad_lines 177)
+set(rz_narrow_constitutive_ad_lines 179)
 
 file(READ "${ROOT}/.clang-format" format_configuration)
 string(FIND "${format_configuration}" "ColumnLimit: 120" column_limit)
@@ -52,7 +53,7 @@ endif()
 math(EXPR removed_lines "${nonempty_line_baseline} - ${nonempty_lines}")
 math(EXPR reduction_per_mille "1000 * ${removed_lines} / ${nonempty_line_baseline}")
 math(EXPR capability_adjusted_limit
-    "${maximum_nonempty_lines} + ${hex8_inelastic_capability_lines} + ${hex8_finite_strain_capability_lines} + ${hex8_contact_capability_lines} + ${dynamic_contact_assembly_performance_lines} + ${large_sliding_contact_search_lines} + ${cartesian_current_pressure_input_lines} + ${m58_two_process_efficiency_lines} + ${m58_four_process_efficiency_lines} + ${memory_statistics_lines} + ${shared_node_capability_lines} + ${hex8_narrow_constitutive_ad_lines}"
+    "${maximum_nonempty_lines} + ${hex8_inelastic_capability_lines} + ${hex8_finite_strain_capability_lines} + ${hex8_contact_capability_lines} + ${dynamic_contact_assembly_performance_lines} + ${large_sliding_contact_search_lines} + ${cartesian_current_pressure_input_lines} + ${m58_two_process_efficiency_lines} + ${m58_four_process_efficiency_lines} + ${memory_statistics_lines} + ${shared_node_capability_lines} + ${hex8_narrow_constitutive_ad_lines} + ${rz_narrow_constitutive_ad_lines}"
 )
 if(nonempty_lines GREATER capability_adjusted_limit)
     message(FATAL_ERROR
@@ -68,7 +69,9 @@ if(nonempty_lines GREATER capability_adjusted_limit)
         "additional lines allowed for M5.8 four-process parallel efficiency, plus ${memory_statistics_lines} "
         "additional lines allowed for solver memory statistics, plus ${shared_node_capability_lines} additional lines "
         "allowed for native shared-node material interfaces, plus ${hex8_narrow_constitutive_ad_lines} additional "
-        "lines allowed for narrow two-level constitutive automatic differentiation"
+        "lines allowed for narrow two-level constitutive automatic differentiation, plus "
+        "${rz_narrow_constitutive_ad_lines} additional lines allowed for narrow two-level RZ constitutive "
+        "automatic differentiation"
     )
 endif()
 
@@ -86,5 +89,6 @@ message(STATUS
     "${m58_four_process_efficiency_lines} M5.8 four-process parallel-efficiency lines plus "
     "${memory_statistics_lines} solver-memory-statistics lines plus ${shared_node_capability_lines} native "
     "shared-node material-interface lines plus ${hex8_narrow_constitutive_ad_lines} narrow two-level constitutive-"
-    "differentiation lines"
+    "differentiation lines plus ${rz_narrow_constitutive_ad_lines} narrow two-level RZ constitutive-differentiation "
+    "lines"
 )
