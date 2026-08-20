@@ -110,10 +110,11 @@ bool run_comparison(const std::string& input_path, const std::string& nodal_refe
     if (definition.problem != fuelsim::CaseProblem::steady)
         throw std::invalid_argument("M3.3 multi-contact comparison requires a steady input card");
     const fuelsim::UnstructuredQuad4Mesh source = fuelsim::read_exodus_quad4(definition.mesh_file);
-    bool passed = check(source.nodes().size() == 12 && source.elements().size() == 3,
-                      "M3.3 multi-contact reads the tracked three-block MOOSE mesh") &&
-                  check(definition.spatial.regions.size() == 3 && definition.spatial.contacts.size() == 2,
-                      "M3.3 multi-contact input contains three regions and two contact pairs");
+    bool passed =
+        check(source.element_blocks().size() == 3 && source.element_block_ids().size() == source.elements().size(),
+            "M3.3 multi-contact reads the tracked three-block MOOSE mesh") &&
+        check(definition.spatial.regions.size() == 3 && definition.spatial.contacts.size() == 2,
+            "M3.3 multi-contact input contains three regions and two contact pairs");
     fuelsim::SteadyProblem problem(definition.spatial, source);
     const fuelsim::SolverOptions solver = {definition.solver.absolute_tolerance, definition.solver.relative_tolerance,
         definition.solver.step_tolerance, definition.solver.maximum_iterations};
