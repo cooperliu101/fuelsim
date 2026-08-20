@@ -170,6 +170,35 @@ bool test_steady(
     return passed;
 }
 
+bool test_convection_boundary(const fuelsim::UnstructuredHex8Mesh& mesh) {
+    fuelsim::SpatialDefinition definition;
+    definition.regions.push_back({"solid", "solid", material(), 0.0, 300.0});
+    fuelsim::BoundaryConditionDefinition convection{
+        "right_coolant", fuelsim::BoundaryConditionType::convection, "x2", fuelsim::Field::temperature, 0.0};
+    convection.heat_transfer_coefficient = 10.0;
+    convection.ambient_temperature = 400.0;
+    definition.boundary_conditions = {
+        {"left_temperature", fuelsim::BoundaryConditionType::dirichlet, "x0", fuelsim::Field::temperature, 300.0},
+        {"fix_x", fuelsim::BoundaryConditionType::dirichlet, "x0", fuelsim::Field::displacement_x, 0.0},
+        {"fix_y", fuelsim::BoundaryConditionType::dirichlet, "y0", fuelsim::Field::displacement_y, 0.0},
+        {"fix_z", fuelsim::BoundaryConditionType::dirichlet, "z0", fuelsim::Field::displacement_z, 0.0},
+    };
+    definition.boundary_conditions.push_back(convection);
+    fuelsim::SteadyProblem problem(definition, mesh);
+    const fuelsim::SteadyResult result = fuelsim::solve_steady(problem, {1, 0.5, 4, 1.0e-6}, solver_options());
+    bool passed = check(result.completed && result.solve.converged,
+        "three-dimensional input-style convection boundary solve converges");
+    const auto& dofs = fuelsim::cartesian::ProblemAccess::dof_map(problem);
+    for (std::size_t node = 0; passed && node < mesh.nodes().size(); ++node) {
+        const double x = mesh.nodes()[node].x;
+        const double expected = 300.0 + (100.0 / 3.0) * x;
+        passed = check(std::abs(result.solve.state[dofs.dof(fuelsim::Field::temperature, node)] - expected) < 2.0e-8,
+                     "three-dimensional convection boundary matches the one-dimensional conduction solution") &&
+                 passed;
+    }
+    return passed;
+}
+
 bool test_transient(const fuelsim::PetscSession& session, const fuelsim::UnstructuredHex8Mesh& mesh,
     const std::string& checkpoint_path, const std::string& results_path) {
     fuelsim::SpatialDefinition spatial = steady_definition();
@@ -426,6 +455,7 @@ int main(int argc, char** argv) {
     fuelsim::PetscSession session(argc, argv, "fuelsim HEX8 solver tests\n");
     const fuelsim::UnstructuredHex8Mesh mesh = two_element_mesh();
     bool passed = test_steady(session, mesh, argv[1]);
+    passed = test_convection_boundary(mesh) && passed;
     passed = test_transient(session, mesh, argv[3], argv[2]) && passed;
     passed = test_multiple_regions() && passed;
     passed = test_shared_nodes(session) && passed;

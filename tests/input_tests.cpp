@@ -103,6 +103,7 @@ bool verify_m3_output_input(const std::string& path, const std::string& contents
                      definition.spatial.regions[0].heat_source_function == "power" &&
                      definition.spatial.boundary_conditions.back().type == fuelsim::BoundaryConditionType::convection &&
                      definition.spatial.boundary_conditions.back().coefficient_function == "power" &&
+                     definition.spatial.boundary_conditions.back().ambient_temperature_function == "power" &&
                      definition.transient_execution.target_nonlinear_iterations == 6 &&
                      definition.transient_execution.iteration_window == 2 &&
                      definition.transient_execution.time_error_relative_tolerance == 2.0e-4 &&
@@ -430,7 +431,8 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
     m3_case.insert(boundary_close, "  [coolant]\n    type = convection\n    boundary = clad_outer\n"
                                    "    heat_transfer_coefficient = 1000\n"
                                    "    ambient_temperature = 600\n"
-                                   "    coefficient_function = power\n  []\n");
+                                   "    coefficient_function = power\n"
+                                   "    ambient_temperature_function = power\n  []\n");
     const std::string executioner_type = "type = transient";
     const std::size_t executioner_position = m3_case.find(executioner_type);
     if (executioner_position == std::string::npos) return check(false, "transient fixture has an executioner type");

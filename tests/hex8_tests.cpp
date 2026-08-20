@@ -218,6 +218,44 @@ bool test_transient_capacity_and_faces() {
     if (!check(follower_error < 2.0e-9,
             "three-dimensional follower-pressure geometric Jacobian matches centered difference"))
         return false;
+    const fuelsim::Quad4FaceBoundaryData current_traction = {
+        fuelsim::Quad4FaceBoundaryKind::traction, fuelsim::CartesianTractionComponent::x, 5.0, 0.0, true};
+    const fuelsim::Quad4FaceBoundaryData reference_traction = {
+        fuelsim::Quad4FaceBoundaryKind::traction, fuelsim::CartesianTractionComponent::x, 5.0, 0.0, false};
+    fuelsim::Quad4FaceLocalJacobian current_traction_jacobian{};
+    const auto current_traction_residual =
+        fuelsim::compute_quad4_face_boundary(current_traction, face, face_state, &current_traction_jacobian);
+    const auto reference_traction_residual = fuelsim::compute_quad4_face_boundary(reference_traction, face, face_state);
+    double current_force = 0.0, reference_force = 0.0;
+    for (std::size_t node = 0; node < 4; ++node) {
+        current_force += current_traction_residual[4 + node];
+        reference_force += reference_traction_residual[4 + node];
+    }
+    auto current_traction_plus = face_state, current_traction_minus = face_state;
+    for (std::size_t dof = 0; dof < 16; ++dof) {
+        current_traction_plus[dof] += follower_step * follower_direction[dof];
+        current_traction_minus[dof] -= follower_step * follower_direction[dof];
+    }
+    const auto current_traction_plus_residual =
+        fuelsim::compute_quad4_face_boundary(current_traction, face, current_traction_plus);
+    const auto current_traction_minus_residual =
+        fuelsim::compute_quad4_face_boundary(current_traction, face, current_traction_minus);
+    double current_traction_error = 0.0;
+    for (std::size_t row = 4; row < 8; ++row) {
+        double analytic = 0.0;
+        for (std::size_t column = 0; column < 16; ++column)
+            analytic += current_traction_jacobian[row * 16 + column] * follower_direction[column];
+        const double numerical =
+            (current_traction_plus_residual[row] - current_traction_minus_residual[row]) / (2.0 * follower_step);
+        current_traction_error = std::max(current_traction_error, std::abs(analytic - numerical));
+    }
+    std::cout << "current_traction_force=" << current_force << '\n'
+              << "reference_traction_force=" << reference_force << '\n'
+              << "current_traction_jacobian_error=" << current_traction_error << '\n';
+    if (!check(std::abs(current_force - reference_force) > 1.0e-6 && current_traction_error < 2.0e-8,
+            "three-dimensional current-configuration component traction uses the current face measure and consistent "
+            "geometric Jacobian"))
+        return false;
     for (std::size_t node = 0; node < 4; ++node) face_state[node] = 350.0;
     const fuelsim::Quad4FaceBoundaryData convection = {
         fuelsim::Quad4FaceBoundaryKind::convection, fuelsim::CartesianTractionComponent::x, 20.0, 300.0};
