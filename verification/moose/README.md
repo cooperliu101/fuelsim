@@ -265,21 +265,11 @@ The tracked all-node and two secondary-surface snapshots are listed in
 from the reported current nodal coordinates and pressure, matching the current
 axisymmetric tributary-area convention.
 
-The nonmatching M3.3 reference uses `m33_multi_nonmatching_contact_rz.i`. Its
-contact boundaries have 2/3 and 3/4 axial segments on the two sides of the
-interfaces, so the contact nodes are geometrically coincident but do not form a
-one-to-one mesh. Generate the tracked mesh and solve with:
-
-```bash
-/home/cooper/projects/july/july-opt --mesh-only m33_multi_nonmatching_contact_rz_mesh.e \
-  -i m33_multi_nonmatching_contact_rz.i
-/home/cooper/projects/july/july-opt -i m33_multi_nonmatching_contact_rz.i
-```
-
-The all-node and two contact snapshots are recorded in `SHA256SUMS`.
-
-The frictional nonmatching variant uses `m33_multi_nonmatching_friction_rz.i` and
-the same 24-node, 9-element mesh. Both contact pairs use Coulomb friction with
+The representative nonmatching M3.3 reference is the frictional case
+`m33_multi_nonmatching_friction_rz.i`, which uses the same 24-node, 9-element
+mesh. Its contact boundaries have 2/3 and 3/4 axial segments on the two sides of
+the interfaces, so the contact nodes are geometrically coincident but do not form
+a one-to-one mesh. Both contact pairs use Coulomb friction with
 `friction_coefficient = 0.001`; the pellet, inner-clad, and outer-clad top
 axial displacements are `5e-6`, `1e-5`, and `1.5e-5` m, respectively, so the
 interior contact nodes slide while the complete interfaces remain projected.

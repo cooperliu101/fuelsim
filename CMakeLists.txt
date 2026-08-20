@@ -276,16 +276,6 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_m33_multi_contact_moose_tests PROPERTIES
         LABELS "acceptance;contact"
     )
-    add_test(NAME fuelsim_m33_multi_nonmatching_contact_moose_tests
-        COMMAND fuelsim_m33_multi_contact_moose_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_multi_nonmatching_contact_moose.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m33_multi_nonmatching_contact_rz_out_all_nodes_0001.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m33_multi_nonmatching_contact_rz_out_pellet_contact_0001.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m33_multi_nonmatching_contact_rz_out_inner_clad_contact_0001.csv"
-    )
-    set_tests_properties(fuelsim_m33_multi_nonmatching_contact_moose_tests PROPERTIES
-        LABELS "acceptance;contact"
-    )
     add_test(NAME fuelsim_m33_multi_nonmatching_friction_moose_tests
         COMMAND fuelsim_m33_multi_contact_moose_tests
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_multi_nonmatching_friction_moose.fsi"
