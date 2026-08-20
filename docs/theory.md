@@ -140,8 +140,8 @@ dA = 2*pi*r*J_line*w
 ```
 
 构形由具体边界或界面定律决定。热接触和机械接触使用当前 secondary 表面；
-pressure 和 traction 通过 `configuration` 选择参考表面或当前表面；小应变推荐
-参考构形、有限应变推荐当前构形，非推荐组合仍可执行并给出提示。
+pressure 和 traction 通过 `configuration` 选择参考表面或当前表面。省略该字段时，
+小应变自动使用参考构形、有限应变自动使用当前构形；显式指定非推荐组合仍可执行并给出提示。
 对流使用参考表面。
 
 ## 4. Quad4 体单元弱式
@@ -355,8 +355,8 @@ pressure 在 `configuration = reference` 时使用参考半径、参考法向和
 
 ### 6.3 分量 traction 与对流
 
-traction 的方向固定为用户选择的全局 R 或 Z 分量。默认使用参考表面；
-`configuration = current` 时使用当前半径和当前边长，但方向仍不随法向
+traction 的方向固定为用户选择的全局 R 或 Z 分量。未指定构型时，小应变使用参考表面、
+有限应变使用当前表面；显式 `configuration = current` 时使用当前半径和当前边长，但方向仍不随法向
 转动。
 
 对流热流是：

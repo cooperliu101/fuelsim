@@ -447,12 +447,13 @@ bool test_pressure_parent_edge_orientation() {
 bool test_mechanical_boundary_configuration_selection() {
     const fuelsim::UnstructuredQuad4Mesh mesh = annular_boundary_mesh();
     const auto assembled_boundary = [&](fuelsim::BoundaryConditionType type, fuelsim::Field field, bool finite_strain,
-                                        bool current_configuration) {
+                                        bool current_configuration, bool configuration_explicit = true) {
         fuelsim::SpatialDefinition definition = {{region("solid", "solid", 500.0, 0.0)}, {}, {}};
         definition.regions.front().strain_formulation =
             finite_strain ? fuelsim::StrainFormulation::finite : fuelsim::StrainFormulation::small;
         fuelsim::BoundaryConditionDefinition boundary{"boundary", type, "right", field, 3.0};
         boundary.use_displaced_geometry = current_configuration;
+        boundary.configuration_explicit = configuration_explicit;
         definition.boundary_conditions.push_back(boundary);
         fuelsim::SteadyProblem problem(std::move(definition), mesh);
         const auto& dofs = fuelsim::rz::ProblemAccess::dof_map(problem);
@@ -481,6 +482,15 @@ bool test_mechanical_boundary_configuration_selection() {
                            (std::abs(reference_finite[0] - current_finite[0]) > 1.0e-8 ||
                                std::abs(reference_finite[1] - current_finite[1]) > 1.0e-8),
                      std::string(name) + " configuration selects reference or current RZ geometry") &&
+                 result;
+        const std::array<double, 3> default_small = assembled_boundary(type, field, false, false, false);
+        const std::array<double, 3> default_finite = assembled_boundary(type, field, true, false, false);
+        result = check(default_small[2] == 0.0 && default_finite[2] == 0.0 &&
+                           std::abs(default_small[0] - reference_small[0]) < 1.0e-12 &&
+                           std::abs(default_small[1] - reference_small[1]) < 1.0e-12 &&
+                           std::abs(default_finite[0] - current_finite[0]) < 1.0e-12 &&
+                           std::abs(default_finite[1] - current_finite[1]) < 1.0e-12,
+                     std::string(name) + " omitted configuration follows the strain-dependent recommendation") &&
                  result;
         return result;
     };

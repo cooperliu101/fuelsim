@@ -210,7 +210,8 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
         check(traction.spatial.boundary_conditions.back().type == fuelsim::BoundaryConditionType::traction &&
                   traction.spatial.boundary_conditions.back().field == fuelsim::Field::axial_displacement &&
                   traction.spatial.boundary_conditions.back().scale_with_load &&
-                  !traction.spatial.boundary_conditions.back().use_displaced_geometry,
+                  !traction.spatial.boundary_conditions.back().use_displaced_geometry &&
+                  !traction.spatial.boundary_conditions.back().configuration_explicit,
             "scaled axial traction is parsed");
     std::string disabled_thermal_time_case = read_text(transient_path);
     const std::string load_ramp_line = "  load_ramp_time = 20\n";
@@ -544,7 +545,8 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
         output << current_traction_case;
     }
     const fuelsim::FuelSimCaseDefinition current_traction = fuelsim::read_case_input(malformed_path);
-    passed = check(current_traction.spatial.boundary_conditions.back().use_displaced_geometry,
+    passed = check(current_traction.spatial.boundary_conditions.back().use_displaced_geometry &&
+                       current_traction.spatial.boundary_conditions.back().configuration_explicit,
                  "current-configuration traction is parsed") &&
              passed;
     if (std::remove(malformed_path.c_str()) != 0)
@@ -573,7 +575,8 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
         output << pressure_configuration;
     }
     const fuelsim::FuelSimCaseDefinition current_pressure = fuelsim::read_case_input(malformed_path);
-    passed = check(current_pressure.spatial.boundary_conditions.back().use_displaced_geometry,
+    passed = check(current_pressure.spatial.boundary_conditions.back().use_displaced_geometry &&
+                       current_pressure.spatial.boundary_conditions.back().configuration_explicit,
                  "current-configuration pressure is parsed") &&
              passed;
     if (std::remove(malformed_path.c_str()) != 0)

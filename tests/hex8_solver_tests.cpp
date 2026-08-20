@@ -401,13 +401,14 @@ bool test_contact_projection_transfer() {
 
 bool test_mechanical_boundary_configuration_selection(const fuelsim::UnstructuredHex8Mesh& mesh) {
     const auto warning_count = [&](fuelsim::BoundaryConditionType type, fuelsim::Field field, bool finite_strain,
-                                   bool current_configuration) {
+                                   bool current_configuration, bool configuration_explicit = true) {
         fuelsim::SpatialDefinition definition;
         definition.regions.push_back({"solid", "solid", material(), 0.0, 300.0});
         definition.regions.front().strain_formulation =
             finite_strain ? fuelsim::StrainFormulation::finite : fuelsim::StrainFormulation::small;
         fuelsim::BoundaryConditionDefinition boundary{"boundary", type, "x2", field, 1.0e6};
         boundary.use_displaced_geometry = current_configuration;
+        boundary.configuration_explicit = configuration_explicit;
         definition.boundary_conditions.push_back(boundary);
         fuelsim::SteadyProblem problem(std::move(definition), mesh);
         return fuelsim::cartesian::ProblemAccess::dof_map(problem).configuration_warnings().size();
@@ -417,9 +418,16 @@ bool test_mechanical_boundary_configuration_selection(const fuelsim::Unstructure
         const std::size_t current_small = warning_count(type, field, false, true);
         const std::size_t reference_finite = warning_count(type, field, true, false);
         const std::size_t current_finite = warning_count(type, field, true, true);
-        return check(reference_small == 0 && current_small == 1 && reference_finite == 1 && current_finite == 0,
+        bool result = check(reference_small == 0 && current_small == 1 && reference_finite == 1 && current_finite == 0,
             std::string("three-dimensional ") + name +
                 " accepts both configurations and warns for non-recommended choices");
+        const std::size_t default_small = warning_count(type, field, false, false, false);
+        const std::size_t default_finite = warning_count(type, field, true, false, false);
+        result = check(default_small == 0 && default_finite == 0,
+                     std::string("three-dimensional ") + name +
+                         " omits configuration without warning for the strain-dependent recommendation") &&
+                 result;
+        return result;
     };
     return check_type(fuelsim::BoundaryConditionType::pressure, fuelsim::Field::displacement_x, "pressure") &&
            check_type(fuelsim::BoundaryConditionType::traction, fuelsim::Field::displacement_x, "traction");

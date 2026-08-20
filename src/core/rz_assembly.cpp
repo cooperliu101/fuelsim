@@ -264,10 +264,17 @@ void SpatialLayout::refresh_dirichlet_values() {
     }
 }
 
+bool SpatialLayout::boundary_uses_displaced_geometry(
+    const BoundaryConditionDefinition& boundary, const RegionDefinition& region) const noexcept {
+    return boundary.configuration_explicit ? boundary.use_displaced_geometry
+                                           : region.strain_formulation == StrainFormulation::finite;
+}
+
 void SpatialLayout::record_configuration_warning(
     const BoundaryConditionDefinition& boundary, const RegionDefinition& region) {
     const bool finite_strain = region.strain_formulation == StrainFormulation::finite;
     const bool recommended_current_configuration = finite_strain;
+    if (!boundary.configuration_explicit) return;
     if (boundary.use_displaced_geometry == recommended_current_configuration) return;
     const std::string selected = boundary.use_displaced_geometry ? "current" : "reference";
     const std::string recommended = recommended_current_configuration ? "current" : "reference";
@@ -420,7 +427,7 @@ void SpatialAssembly::build_boundaries(const UnstructuredQuad4Mesh& source_mesh)
             _boundary_data.push_back({Line2RzBoundaryKind::pressure, TractionComponent::radial,
                 spatial_detail::controlled_value(_definition, _time, _load_factor, definition.value,
                     definition.scale_with_load, definition.function),
-                0.0, definition.use_displaced_geometry});
+                0.0, boundary_uses_displaced_geometry(definition, region(resolved.region))});
         } else if (definition.type == BoundaryConditionType::traction) {
             type = SpatialContributionType::traction;
             if (definition.field == Field::temperature)
@@ -430,7 +437,7 @@ void SpatialAssembly::build_boundaries(const UnstructuredQuad4Mesh& source_mesh)
                 definition.field == Field::radial_displacement ? TractionComponent::radial : TractionComponent::axial,
                 spatial_detail::controlled_value(_definition, _time, _load_factor, definition.value,
                     definition.scale_with_load, definition.function),
-                0.0, definition.use_displaced_geometry});
+                0.0, boundary_uses_displaced_geometry(definition, region(resolved.region))});
         } else {
             type = SpatialContributionType::convection;
             _boundary_data.push_back({Line2RzBoundaryKind::convection, TractionComponent::radial,

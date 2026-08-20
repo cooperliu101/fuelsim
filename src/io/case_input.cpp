@@ -518,11 +518,13 @@ BoundaryConditionDefinition read_boundary_condition(const InputDocument& documen
         forbid_convection_keys(document, section, "type='pressure'");
         BoundaryConditionDefinition result = make_boundary_condition(document, section, BoundaryConditionType::pressure,
             Field::radial_displacement, read_double(document, section, "value"), scale_with_load, function);
+        const InputEntry* configuration_entry = find_entry(section, "configuration");
         const std::string configuration = read_optional_string(section, "configuration", "reference");
         if (configuration != "reference" && configuration != "current")
             value_error(document, required_entry(document, section, "configuration"),
                 "pressure configuration must be reference or current");
         result.use_displaced_geometry = configuration == "current";
+        result.configuration_explicit = configuration_entry != nullptr;
         return result;
     }
     if (type == "traction") {
@@ -532,11 +534,13 @@ BoundaryConditionDefinition read_boundary_condition(const InputDocument& documen
             value_error(document, required_entry(document, section, "field"), "traction requires a displacement field");
         BoundaryConditionDefinition result = make_boundary_condition(document, section, BoundaryConditionType::traction,
             field, read_double(document, section, "value"), scale_with_load, function);
+        const InputEntry* configuration_entry = find_entry(section, "configuration");
         const std::string configuration = read_optional_string(section, "configuration", "reference");
         if (configuration != "reference" && configuration != "current")
             value_error(document, required_entry(document, section, "configuration"),
                 "traction configuration must be reference or current");
         result.use_displaced_geometry = configuration == "current";
+        result.configuration_explicit = configuration_entry != nullptr;
         return result;
     }
     if (type == "convection") {

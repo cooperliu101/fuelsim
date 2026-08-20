@@ -114,6 +114,8 @@ class SpatialLayout {
     void set_time_value(double value);
     void refresh_dirichlet_values();
     ConvectionValues convection_values(const BoundaryConditionDefinition& boundary) const;
+    bool boundary_uses_displaced_geometry(
+        const BoundaryConditionDefinition& boundary, const RegionDefinition& region) const noexcept;
     void record_configuration_warning(const BoundaryConditionDefinition& boundary, const RegionDefinition& region);
     SpatialDefinition _definition;
     std::vector<std::int64_t> _block_ids;

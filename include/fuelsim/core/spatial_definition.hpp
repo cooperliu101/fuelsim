@@ -83,6 +83,7 @@ struct BoundaryConditionDefinition final {
     std::string coefficient_function{};
     std::string ambient_temperature_function{};
     bool use_displaced_geometry = false;
+    bool configuration_explicit = false;
 };
 
 struct SpatialDefinition final {
