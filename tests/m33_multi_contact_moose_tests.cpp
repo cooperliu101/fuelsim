@@ -147,7 +147,7 @@ bool run_comparison(const std::string& input_path, const std::string& nodal_refe
         fuelsim::test::read_moose_nodal_reference(nodal_reference_path);
     const fuelsim::test::NodalFieldComparison fields =
         fuelsim::test::compare_moose_nodal_fields(problem, result.solve.state, nodal_reference);
-    constexpr double tolerance = 1.0e-2;
+    constexpr double tolerance = 1.0e-3;
     passed = check(fields.node_count == source.nodes().size() && fields.maximum_coordinate_difference < 1.0e-12,
                  "M3.3 multi-contact compares every MOOSE node at matching coordinates") &&
              check(fuelsim::test::relative_metrics_below(fields.temperature, tolerance),
