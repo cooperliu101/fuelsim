@@ -36,6 +36,7 @@ files.
 | B3.6 shared-node fuel plate | `b36_plate_meat_clad_mesh.e` | 455 / 288 HEX8 | `fc65a9a839bfde4625d3f28411335a89fa0123c3e91eac50ad72aac27202077c` |
 | B3.3 HEX8 coupled contact | `b33_hex8_contact_mesh.e` | 16 / 2 HEX8 | `e710f3add10b71478f786521af44cde8ff3fb81d4becf1fbab1266955ba43cf7` |
 | B3.4 HEX8 sliding friction | `b34_hex8_sliding_contact_mesh.e` | 16 / 2 HEX8 | `d9ec3f16dd1c836f88e4cdf21195b47cb8766e34e97415cd84fb94b1ea48e2f6` |
+| B3.7 HEX8 two-pair friction | `b37_hex8_multi_contact_mesh.e` | 32 / 4 HEX8 | `80d0b6033590cc1efb931bffe9740ea4eb71cc7bbda16fbbab922701e0ecf562` |
 
 Generate any snapshot from this directory by replacing `<case>` with the input
 stem:
@@ -229,12 +230,29 @@ differs from MOOSE by `2.15e-7` percent in normal force and 0.1729 percent in
 tangential force. The same acceptance test checks exact restart of the
 three-component friction history.
 
+`b37_hex8_multi_contact_mesh.e` contains four independent HEX8 blocks and two
+separate primary-secondary pairs. Each primary face has a small tangential
+projection margin, both pairs are compressed and sheared in the same load step,
+and both use a Coulomb coefficient of 0.001. Temperature is fixed at 300 K so
+the comparison isolates simultaneous mechanical contact and friction. The
+tracked all-node and per-pair contact snapshots are consumed by
+`fuelsim_b37_hex8_multi_contact_moose_tests`, which requires both pairs to have
+active and sliding nodes and compares pressure, tangential traction, and both
+interface resultants. The pressure and tangential-traction three-metric errors
+are below `8e-6` for pair A and `8e-8` for pair B; normal and tangential
+resultant errors are below `2e-6` and `2e-8`, respectively. Temperature and
+the x displacement pass the ordinary 0.5 percent three-metric gate. The y
+displacement has aggregate L2 and relative-peak errors below 0.003 percent,
+with a qualified 5 percent pointwise gate for one near-zero reference value;
+the physically zero z displacement uses a separate `1e-8` absolute gate.
+
 The reference commands were:
 
 ```bash
 /home/cooper/projects/july/july-opt -i b33_hex8_thermal_contact.i
 /home/cooper/projects/july/july-opt -i b33_hex8_contact.i
 /home/cooper/projects/july/july-opt -i b34_hex8_sliding_contact.i
+/home/cooper/projects/july/july-opt -i b37_hex8_multi_contact.i
 ```
 
 ## M3.1 and M3.3 provenance

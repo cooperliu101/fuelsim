@@ -556,6 +556,19 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_b33_hex8_contact_moose_tests
         PROPERTIES LABELS "acceptance;three-dimensional;contact;friction")
 
+    add_executable(fuelsim_b37_hex8_multi_contact_moose_tests tests/b37_hex8_multi_contact_moose_tests.cpp)
+    target_link_libraries(fuelsim_b37_hex8_multi_contact_moose_tests
+        PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
+    fuelsim_enable_warnings(fuelsim_b37_hex8_multi_contact_moose_tests)
+    add_test(NAME fuelsim_b37_hex8_multi_contact_moose_tests
+        COMMAND fuelsim_b37_hex8_multi_contact_moose_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex8_multi_contact_friction_moose.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b37_hex8_multi_contact_all_nodes_0001.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b37_hex8_multi_contact_pair_a_contact_0001.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b37_hex8_multi_contact_pair_b_contact_0001.csv")
+    set_tests_properties(fuelsim_b37_hex8_multi_contact_moose_tests
+        PROPERTIES LABELS "acceptance;three-dimensional;contact;friction")
+
     add_executable(fuelsim_b3_hex8_inelastic_moose_tests tests/b3_hex8_inelastic_moose_tests.cpp)
     target_link_libraries(fuelsim_b3_hex8_inelastic_moose_tests
         PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
