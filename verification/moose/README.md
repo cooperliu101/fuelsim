@@ -27,6 +27,7 @@ files.
 | M4.3 material oracle | `m43_material_oracle_rz_mesh.e` | 4 / 1 | `3261c814c1734b253e880c7491530a8bcb5392e7939f49b4b43d97cbb5e79ced` |
 | M3.1 time-table convection | `m31_transient_table_convection_rz_mesh.e` | 15 / 8 | `9be197728d3a52ff05e1063593eb47969dc05950e317f71a59082915ba3e7e57` |
 | M3.3 two-pellet contact | `m33_two_pellet_contact_rz_mesh.e` | 36 / 20 | `90c90396384397cbd0c993f35ac90c6e402996c77454820c009a653e8748f474` |
+| M3.3 multi-contact | `m33_multi_contact_rz_mesh.e` | 12 / 3 Quad4 | `b346d6f3767dc07ccf410370738a1ebd41108e03c4911c46f6420eb0670668db` |
 | M5.2 large sliding | `m52_large_sliding_contact_rz_mesh.e` | 402 / 264 | `bd6677fcc6061c37f2dffe00c10dc197c54648227ac084ada10b27e12e5fa78d` |
 | M5.4 augmented contact | `m54_augmented_contact_rz_mesh.e` | 528 / 460 | `8304c2fc649863b0a7ce80fc17ca8c8d64161467f42be2610132b3cd29177ec0` |
 | B3 HEX8 thermoelasticity | `b3_hex8_mesh.e` | 12 / 2 HEX8 | `910088a0aad60aa2ab02f00c3b8cf384bc2a2a2377f41c3db7e554d5ca9481f2` |
@@ -248,6 +249,20 @@ all-node snapshot, and M3.3 secondary-surface snapshot hashes are recorded in
 /home/cooper/projects/july/july-opt -i m31_transient_table_convection_rz.i
 /home/cooper/projects/july/july-opt -i m33_two_pellet_contact_rz.i
 ```
+
+The M3.3 multi-contact reference uses `m33_multi_contact_rz.i` and the same
+one-rank command. It contains three independent radial blocks and two active
+mechanical contact pairs. The mesh-only command is:
+
+```bash
+/home/cooper/projects/july/july-opt --mesh-only m33_multi_contact_rz_mesh.e \
+  -i m33_multi_contact_rz.i
+```
+
+The tracked all-node and two secondary-surface snapshots are listed in
+`SHA256SUMS`; the fuelsim comparison reconstructs each MOOSE interface force
+from the reported current nodal coordinates and pressure, matching the current
+axisymmetric tributary-area convention.
 
 ## M0 single fuel cylinder
 

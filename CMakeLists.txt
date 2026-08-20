@@ -256,6 +256,27 @@ if(BUILD_TESTING)
         LABELS "acceptance"
     )
 
+    add_executable(fuelsim_m33_multi_contact_moose_tests
+        tests/m33_multi_contact_moose_tests.cpp
+    )
+    target_link_libraries(fuelsim_m33_multi_contact_moose_tests
+        PRIVATE
+            fuelsim_moose_test_support
+            fuelsim::io
+            fuelsim::solver
+    )
+    fuelsim_enable_warnings(fuelsim_m33_multi_contact_moose_tests)
+    add_test(NAME fuelsim_m33_multi_contact_moose_tests
+        COMMAND fuelsim_m33_multi_contact_moose_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_multi_contact_moose.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m33_multi_contact_rz_out_all_nodes_0001.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m33_multi_contact_rz_out_pellet_contact_0001.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m33_multi_contact_rz_out_inner_clad_contact_0001.csv"
+    )
+    set_tests_properties(fuelsim_m33_multi_contact_moose_tests PROPERTIES
+        LABELS "acceptance;contact"
+    )
+
     add_executable(fuelsim_m51_coulomb_friction_moose_tests
         tests/m51_coulomb_friction_moose_tests.cpp
     )
