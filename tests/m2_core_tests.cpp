@@ -132,37 +132,53 @@ bool test_builtin_material_parameter_order() {
     return passed;
 }
 
-void custom_thermal_properties(
-    const fuelsim::ThermoelasticFunctionInput& input, fuelsim::ThermalPropertyOutput& output) {
-    output.conductivity = input.parameters->value("conductivity_offset") +
-                          input.parameters->value("conductivity_slope") * input.temperature;
-    output.density = input.parameters->value("density");
-    output.specific_heat = input.parameters->value("specific_heat_offset") +
-                           input.parameters->value("specific_heat_slope") * input.temperature;
+fuelsim::ThermalPropertyEvaluator custom_thermal_properties(const fuelsim::MaterialParameters& named) {
+    const double conductivity_offset = named.value("conductivity_offset");
+    const double conductivity_slope = named.value("conductivity_slope");
+    const double density = named.value("density");
+    const double specific_heat_offset = named.value("specific_heat_offset");
+    const double specific_heat_slope = named.value("specific_heat_slope");
+    return [=](const fuelsim::ThermoelasticFunctionInput& input, fuelsim::ThermalPropertyOutput& output) {
+        output.conductivity = conductivity_offset + conductivity_slope * input.temperature;
+        output.density = density;
+        output.specific_heat = specific_heat_offset + specific_heat_slope * input.temperature;
+    };
 }
 
-void custom_elastic_properties(
-    const fuelsim::ThermoelasticFunctionInput& input, fuelsim::ElasticPropertyOutput& output) {
-    output.young_modulus = input.parameters->value("young_modulus") +
-                           input.parameters->value("young_modulus_temperature_coefficient") *
-                               (input.temperature - input.parameters->value("reference_temperature"));
-    output.poisson_ratio = input.parameters->value("poisson_ratio");
+fuelsim::ElasticPropertyEvaluator custom_elastic_properties(const fuelsim::MaterialParameters& named) {
+    const double young_modulus = named.value("young_modulus");
+    const double young_modulus_temperature_coefficient = named.value("young_modulus_temperature_coefficient");
+    const double reference_temperature = named.value("reference_temperature");
+    const double poisson_ratio = named.value("poisson_ratio");
+    return [=](const fuelsim::ThermoelasticFunctionInput& input, fuelsim::ElasticPropertyOutput& output) {
+        output.young_modulus =
+            young_modulus + young_modulus_temperature_coefficient * (input.temperature - reference_temperature);
+        output.poisson_ratio = poisson_ratio;
+    };
 }
 
-void custom_eigenstrain(const fuelsim::ThermoelasticFunctionInput& input, fuelsim::SymmetricTensor3& output) {
-    const adlite::Scalar value =
-        input.parameters->value("coefficient") * (input.temperature - input.parameters->value("reference_temperature"));
-    output = {value, value, value, 0.0, 0.0, 0.0};
+fuelsim::EigenstrainEvaluator custom_eigenstrain(const fuelsim::MaterialParameters& named) {
+    const double coefficient = named.value("coefficient");
+    const double reference_temperature = named.value("reference_temperature");
+    return [=](const fuelsim::ThermoelasticFunctionInput& input, fuelsim::SymmetricTensor3& output) {
+        const adlite::Scalar value = coefficient * (input.temperature - reference_temperature);
+        output = {value, value, value, 0.0, 0.0, 0.0};
+    };
 }
 
-adlite::Scalar custom_creep_rate(const fuelsim::CreepRateInput& input) {
-    return input.parameters->value("coefficient") * input.equivalent_stress /
-           input.parameters->value("reference_stress");
+fuelsim::CreepRateEvaluator custom_creep_rate(const fuelsim::MaterialParameters& named) {
+    const double coefficient = named.value("coefficient");
+    const double reference_stress = named.value("reference_stress");
+    return
+        [=](const fuelsim::CreepRateInput& input) { return coefficient * input.equivalent_stress / reference_stress; };
 }
 
-adlite::Scalar custom_flow_stress(const fuelsim::PlasticFlowStressInput& input) {
-    return input.parameters->value("yield_stress") +
-           input.parameters->value("hardening_modulus") * input.equivalent_plastic_strain;
+fuelsim::PlasticFlowStressEvaluator custom_flow_stress(const fuelsim::MaterialParameters& named) {
+    const double yield_stress = named.value("yield_stress");
+    const double hardening_modulus = named.value("hardening_modulus");
+    return [=](const fuelsim::PlasticFlowStressInput& input) {
+        return yield_stress + hardening_modulus * input.equivalent_plastic_strain;
+    };
 }
 
 bool test_registered_material_functions() {

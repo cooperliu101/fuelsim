@@ -14,11 +14,16 @@ bool check(bool condition, const std::string& message) {
     return false;
 }
 
-void registered_test_thermal(const fuelsim::ThermoelasticFunctionInput& input, fuelsim::ThermalPropertyOutput& output) {
-    output.conductivity = input.parameters->value("inverse_coefficient") / input.temperature +
-                          input.parameters->value("constant_coefficient");
-    output.density = input.parameters->value("density");
-    output.specific_heat = input.parameters->value("specific_heat");
+fuelsim::ThermalPropertyEvaluator registered_test_thermal(const fuelsim::MaterialParameters& named) {
+    const double inverse_coefficient = named.value("inverse_coefficient");
+    const double constant_coefficient = named.value("constant_coefficient");
+    const double density = named.value("density");
+    const double specific_heat = named.value("specific_heat");
+    return [=](const fuelsim::ThermoelasticFunctionInput& input, fuelsim::ThermalPropertyOutput& output) {
+        output.conductivity = inverse_coefficient / input.temperature + constant_coefficient;
+        output.density = density;
+        output.specific_heat = specific_heat;
+    };
 }
 
 bool expect_parse_failure(const std::string& path, const std::string& contents, const std::string& expected_message) {

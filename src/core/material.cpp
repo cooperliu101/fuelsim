@@ -37,7 +37,7 @@ adlite::Scalar IsotropicThermoelasticMaterial::conductivity(
         throw std::domain_error("Thermoelastic material temperature must be finite and positive");
     ThermalPropertyOutput output{};
     const ThermalFunctionInstance& instance = _properties.functions->thermal;
-    instance.function({temperature, context, &instance.parameters}, output);
+    instance.function({temperature, context}, output);
     if (!std::isfinite(output.conductivity.value()) || !(output.conductivity.value() > 0.0))
         throw std::domain_error("Thermal material function conductivity must be finite and positive");
     return output.conductivity;
@@ -47,7 +47,7 @@ adlite::Scalar IsotropicThermoelasticMaterial::heat_capacity(
     const adlite::Scalar& temperature, MaterialFunctionContext context) const {
     ThermalPropertyOutput output{};
     const ThermalFunctionInstance& instance = _properties.functions->thermal;
-    instance.function({temperature, context, &instance.parameters}, output);
+    instance.function({temperature, context}, output);
     if (!std::isfinite(output.density.value()) || !(output.density.value() > 0.0) ||
         !std::isfinite(output.specific_heat.value()) || !(output.specific_heat.value() > 0.0))
         throw std::domain_error("Thermal material function density and specific_heat must be finite and positive");
@@ -60,7 +60,7 @@ ActiveThermoelasticProperties IsotropicThermoelasticMaterial::active_properties(
         throw std::domain_error("Thermoelastic material temperature must be finite");
     ElasticPropertyOutput output{};
     const ElasticFunctionInstance& instance = _properties.functions->elasticity;
-    instance.function({temperature, context, &instance.parameters}, output);
+    instance.function({temperature, context}, output);
     if (!std::isfinite(output.young_modulus.value()) || !(output.young_modulus.value() > 0.0))
         throw std::domain_error("Elasticity material function young_modulus must be finite and positive");
     if (!std::isfinite(output.poisson_ratio.value()) ||
@@ -85,7 +85,7 @@ SymmetricTensor3 IsotropicThermoelasticMaterial::eigenstrain(
     SymmetricTensor3 result{};
     for (const EigenstrainFunctionInstance& instance : _properties.functions->eigenstrains) {
         SymmetricTensor3 value{};
-        instance.function({temperature, context, &instance.parameters}, value);
+        instance.function({temperature, context}, value);
         if (!std::isfinite(value.xx.value()) || !std::isfinite(value.yy.value()) || !std::isfinite(value.zz.value()) ||
             !std::isfinite(value.xy.value()) || !std::isfinite(value.yz.value()) || !std::isfinite(value.xz.value()))
             throw std::domain_error("Eigenstrain material function output must be finite");
@@ -483,8 +483,7 @@ CoupledPartials coupled_partials(double equivalent_trial_stress, double shear_mo
 
 adlite::Scalar function_creep_rate(const CreepFunctionInstance& function, const adlite::Scalar& equivalent_stress,
     const adlite::Scalar& temperature, const adlite::Scalar& equivalent_creep_strain, MaterialFunctionContext context) {
-    const adlite::Scalar rate =
-        function.function({equivalent_stress, temperature, equivalent_creep_strain, context, &function.parameters});
+    const adlite::Scalar rate = function.function({equivalent_stress, temperature, equivalent_creep_strain, context});
     if (std::isnan(rate.value()) || rate.value() < 0.0)
         throw std::domain_error("Creep material function rate must be nonnegative and must not be NaN");
     return rate;
@@ -493,8 +492,7 @@ adlite::Scalar function_creep_rate(const CreepFunctionInstance& function, const 
 adlite::Scalar function_flow_stress(const PlasticFunctionInstance& function,
     const adlite::Scalar& equivalent_plastic_strain, const adlite::Scalar& temperature,
     MaterialFunctionContext context) {
-    const adlite::Scalar stress =
-        function.function({equivalent_plastic_strain, temperature, context, &function.parameters});
+    const adlite::Scalar stress = function.function({equivalent_plastic_strain, temperature, context});
     if (!std::isfinite(stress.value()) || !(stress.value() > 0.0))
         throw std::domain_error("Plasticity material function flow stress must be finite and positive");
     return stress;
@@ -661,15 +659,15 @@ FunctionCoupledUpdate solve_function_coupled(const MaterialFunctionSet& function
 namespace {
 ActiveNortonCreepProperties active_creep_properties(
     const CreepFunctionInstance& function, const adlite::Scalar& temperature) {
-    const MaterialParameters& parameters = function.parameters;
-    adlite::Scalar coefficient = parameters.value("coefficient");
-    adlite::Scalar reference_stress = parameters.value("reference_stress");
-    adlite::Scalar exponent = parameters.value("stress_exponent");
-    if (function.name == "linear_temperature_norton") {
-        const adlite::Scalar change = temperature - parameters.value("reference_temperature");
-        coefficient += parameters.value("coefficient_temperature_coefficient") * change;
-        reference_stress += parameters.value("reference_stress_temperature_coefficient") * change;
-        exponent += parameters.value("stress_exponent_temperature_coefficient") * change;
+    const CreepBuiltinParameters& parameters = function.builtin;
+    adlite::Scalar coefficient = parameters.coefficient;
+    adlite::Scalar reference_stress = parameters.reference_stress;
+    adlite::Scalar exponent = parameters.stress_exponent;
+    if (parameters.kind == CreepBuiltinParameters::Kind::linear_temperature_norton) {
+        const adlite::Scalar change = temperature - parameters.reference_temperature;
+        coefficient += parameters.coefficient_temperature_coefficient * change;
+        reference_stress += parameters.reference_stress_temperature_coefficient * change;
+        exponent += parameters.stress_exponent_temperature_coefficient * change;
     }
     ActiveNortonCreepProperties active{coefficient, reference_stress, exponent};
     if (!std::isfinite(active.coefficient.value()) || !(active.coefficient.value() >= 0.0) ||
@@ -681,13 +679,13 @@ ActiveNortonCreepProperties active_creep_properties(
 
 ActiveJ2PlasticityProperties active_plasticity_properties(
     const PlasticFunctionInstance& function, const adlite::Scalar& temperature) {
-    const MaterialParameters& parameters = function.parameters;
-    adlite::Scalar yield_stress = parameters.value("yield_stress");
-    adlite::Scalar hardening = parameters.value("hardening_modulus");
-    if (function.name == "linear_temperature_isotropic_hardening") {
-        const adlite::Scalar change = temperature - parameters.value("reference_temperature");
-        yield_stress += parameters.value("yield_stress_temperature_coefficient") * change;
-        hardening += parameters.value("hardening_temperature_coefficient") * change;
+    const PlasticBuiltinParameters& parameters = function.builtin;
+    adlite::Scalar yield_stress = parameters.yield_stress;
+    adlite::Scalar hardening = parameters.hardening_modulus;
+    if (parameters.kind == PlasticBuiltinParameters::Kind::linear_temperature_isotropic_hardening) {
+        const adlite::Scalar change = temperature - parameters.reference_temperature;
+        yield_stress += parameters.yield_stress_temperature_coefficient * change;
+        hardening += parameters.hardening_temperature_coefficient * change;
     }
     ActiveJ2PlasticityProperties active{yield_stress, hardening};
     if (!std::isfinite(active.yield_stress.value()) || !(active.yield_stress.value() > 0.0) ||
@@ -705,15 +703,14 @@ InelasticScalarUpdate evaluate_inelastic_scalars(const MaterialFunctionSet& func
     const adlite::Scalar& equivalent_trial_stress, const adlite::Scalar& shear_modulus,
     const adlite::Scalar& temperature, double equivalent_plastic_strain, double equivalent_creep_strain,
     double time_step, MaterialFunctionContext context) {
-    const bool builtin_creep = !functions.has_creep() || functions.creep.name == "norton" ||
-                               functions.creep.name == "linear_temperature_norton";
-    const bool builtin_plasticity = !functions.has_plasticity() ||
-                                    functions.plasticity.name == "linear_isotropic_hardening" ||
-                                    functions.plasticity.name == "linear_temperature_isotropic_hardening";
-    const bool matching_reference = functions.creep.name != "linear_temperature_norton" ||
-                                    functions.plasticity.name != "linear_temperature_isotropic_hardening" ||
-                                    functions.creep.parameters.value("reference_temperature") ==
-                                        functions.plasticity.parameters.value("reference_temperature");
+    const bool builtin_creep =
+        !functions.has_creep() || functions.creep.builtin.kind != CreepBuiltinParameters::Kind::custom;
+    const bool builtin_plasticity =
+        !functions.has_plasticity() || functions.plasticity.builtin.kind != PlasticBuiltinParameters::Kind::custom;
+    const bool matching_reference =
+        functions.creep.builtin.kind != CreepBuiltinParameters::Kind::linear_temperature_norton ||
+        functions.plasticity.builtin.kind != PlasticBuiltinParameters::Kind::linear_temperature_isotropic_hardening ||
+        functions.creep.builtin.reference_temperature == functions.plasticity.builtin.reference_temperature;
     if (!(builtin_creep && builtin_plasticity && matching_reference)) {
         if (!functions.has_creep() && !functions.has_plasticity()) return {equivalent_trial_stress, 0.0, 0.0, 1.0};
         if (equivalent_trial_stress.value() == 0.0) {

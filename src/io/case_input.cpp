@@ -417,7 +417,7 @@ RegionDefinition read_region(
     const double initial_temperature = read_double(document, section, "initial_temperature");
     ElasticPropertyOutput initial_elasticity{};
     const ElasticFunctionInstance& elasticity = material->functions->elasticity;
-    elasticity.function({initial_temperature, {}, &elasticity.parameters}, initial_elasticity);
+    elasticity.function({initial_temperature, {}}, initial_elasticity);
     if (!std::isfinite(initial_elasticity.young_modulus.value()) || !(initial_elasticity.young_modulus.value() > 0.0))
         value_error(document, required_entry(document, section, "material"),
             "material elasticity must produce positive young_modulus at initial_temperature");

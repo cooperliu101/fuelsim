@@ -1,6 +1,7 @@
 #pragma once
 #include <adlite/adlite.hpp>
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <variant>
 #include <vector>
@@ -34,7 +35,6 @@ class MaterialParameters final {
 struct ThermoelasticFunctionInput final {
     adlite::Scalar temperature;
     MaterialFunctionContext context;
-    const MaterialParameters* parameters;
 };
 
 struct ThermalPropertyOutput final {
@@ -56,54 +56,77 @@ struct SymmetricTensor3 final {
 struct CreepRateInput final {
     adlite::Scalar equivalent_stress, temperature, equivalent_creep_strain;
     MaterialFunctionContext context;
-    const MaterialParameters* parameters;
 };
 
 struct PlasticFlowStressInput final {
     adlite::Scalar equivalent_plastic_strain, temperature;
     MaterialFunctionContext context;
-    const MaterialParameters* parameters;
 };
 
-using ThermalPropertyFunction = void (*)(const ThermoelasticFunctionInput&, ThermalPropertyOutput&);
-using ElasticPropertyFunction = void (*)(const ThermoelasticFunctionInput&, ElasticPropertyOutput&);
-using EigenstrainFunction = void (*)(const ThermoelasticFunctionInput&, SymmetricTensor3&);
-using CreepRateFunction = adlite::Scalar (*)(const CreepRateInput&);
-using PlasticFlowStressFunction = adlite::Scalar (*)(const PlasticFlowStressInput&);
+using ThermalPropertyEvaluator = std::function<void(const ThermoelasticFunctionInput&, ThermalPropertyOutput&)>;
+using ThermalPropertyBinder = ThermalPropertyEvaluator (*)(const MaterialParameters&);
+using ElasticPropertyEvaluator = std::function<void(const ThermoelasticFunctionInput&, ElasticPropertyOutput&)>;
+using ElasticPropertyBinder = ElasticPropertyEvaluator (*)(const MaterialParameters&);
+using EigenstrainEvaluator = std::function<void(const ThermoelasticFunctionInput&, SymmetricTensor3&)>;
+using EigenstrainBinder = EigenstrainEvaluator (*)(const MaterialParameters&);
+using CreepRateEvaluator = std::function<adlite::Scalar(const CreepRateInput&)>;
+using CreepRateBinder = CreepRateEvaluator (*)(const MaterialParameters&);
+using PlasticFlowStressEvaluator = std::function<adlite::Scalar(const PlasticFlowStressInput&)>;
+using PlasticFlowStressBinder = PlasticFlowStressEvaluator (*)(const MaterialParameters&);
+
+struct CreepBuiltinParameters final {
+    enum class Kind { custom, norton, linear_temperature_norton };
+    Kind kind = Kind::custom;
+    double coefficient = 0.0, reference_stress = 0.0, stress_exponent = 0.0;
+    double reference_temperature = 0.0;
+    double coefficient_temperature_coefficient = 0.0;
+    double reference_stress_temperature_coefficient = 0.0;
+    double stress_exponent_temperature_coefficient = 0.0;
+};
+
+struct PlasticBuiltinParameters final {
+    enum class Kind { custom, linear_isotropic_hardening, linear_temperature_isotropic_hardening };
+    Kind kind = Kind::custom;
+    double yield_stress = 0.0, hardening_modulus = 0.0, reference_temperature = 0.0;
+    double yield_stress_temperature_coefficient = 0.0;
+    double hardening_temperature_coefficient = 0.0;
+};
 
 struct ThermalFunctionInstance final {
     std::string name;
     std::uint32_t version = 0;
     MaterialParameters parameters;
-    ThermalPropertyFunction function = nullptr;
+    ThermalPropertyEvaluator function;
 };
 
 struct ElasticFunctionInstance final {
     std::string name;
     std::uint32_t version = 0;
     MaterialParameters parameters;
-    ElasticPropertyFunction function = nullptr;
+    ElasticPropertyEvaluator function;
 };
 
 struct EigenstrainFunctionInstance final {
     std::string instance_name, name;
     std::uint32_t version = 0;
     MaterialParameters parameters;
-    EigenstrainFunction function = nullptr;
+    EigenstrainEvaluator function;
 };
 
 struct CreepFunctionInstance final {
     std::string name;
     std::uint32_t version = 0;
     MaterialParameters parameters;
-    CreepRateFunction function = nullptr;
+    CreepRateEvaluator function;
+    CreepBuiltinParameters builtin;
 };
 
 struct PlasticFunctionInstance final {
     std::string name;
     std::uint32_t version = 0;
     MaterialParameters parameters;
-    PlasticFlowStressFunction function = nullptr;
+    PlasticFlowStressEvaluator function;
+    PlasticBuiltinParameters builtin;
 };
 
 struct MaterialFunctionSet final {
@@ -124,15 +147,15 @@ struct MaterialFunctionSet final {
 class MaterialFunctionRegistry final {
   public:
     void add_thermal(std::string name, std::vector<MaterialParameterDefinition> parameters,
-        ThermalPropertyFunction function, std::uint32_t version = 1);
+        ThermalPropertyBinder function, std::uint32_t version = 1);
     void add_elasticity(std::string name, std::vector<MaterialParameterDefinition> parameters,
-        ElasticPropertyFunction function, std::uint32_t version = 1);
+        ElasticPropertyBinder function, std::uint32_t version = 1);
     void add_eigenstrain(std::string name, std::vector<MaterialParameterDefinition> parameters,
-        EigenstrainFunction function, std::uint32_t version = 1);
-    void add_creep(std::string name, std::vector<MaterialParameterDefinition> parameters, CreepRateFunction function,
+        EigenstrainBinder function, std::uint32_t version = 1);
+    void add_creep(std::string name, std::vector<MaterialParameterDefinition> parameters, CreepRateBinder function,
         std::uint32_t version = 1);
     void add_plasticity(std::string name, std::vector<MaterialParameterDefinition> parameters,
-        PlasticFlowStressFunction function, std::uint32_t version = 1);
+        PlasticFlowStressBinder function, std::uint32_t version = 1);
     ThermalFunctionInstance bind_thermal(const std::string& name, std::vector<MaterialParameterValue> values) const;
     ElasticFunctionInstance bind_elasticity(const std::string& name, std::vector<MaterialParameterValue> values) const;
     EigenstrainFunctionInstance bind_eigenstrain(
@@ -142,8 +165,8 @@ class MaterialFunctionRegistry final {
 
   private:
     enum class Category { thermal, elasticity, eigenstrain, creep, plasticity };
-    using Function = std::variant<ThermalPropertyFunction, ElasticPropertyFunction, EigenstrainFunction,
-        CreepRateFunction, PlasticFlowStressFunction>;
+    using Function = std::variant<ThermalPropertyBinder, ElasticPropertyBinder, EigenstrainBinder, CreepRateBinder,
+        PlasticFlowStressBinder>;
 
     struct Registration final {
         std::string name;
