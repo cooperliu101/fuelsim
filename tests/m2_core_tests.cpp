@@ -786,6 +786,14 @@ bool test_transient_element() {
     for (std::size_t row = 0; row < fuelsim::quad4_node_count; ++row)
         passed =
             check(std::abs(balanced[row]) < 1.0e-10, "uniform transient heat source balances heat capacity") && passed;
+    const fuelsim::LocalResidual without_capacity = fuelsim::compute_quad4_rz_transient(
+        data, geometry, uniform_state, old_temperature, history, 10.0, nullptr, false);
+    double maximum_without_capacity = 0.0;
+    for (std::size_t row = 0; row < fuelsim::quad4_node_count; ++row)
+        maximum_without_capacity = std::max(maximum_without_capacity, std::abs(without_capacity[row]));
+    passed = check(maximum_without_capacity > 1.0e-6,
+                 "transient thermal time term can be disabled independently of heat conduction") &&
+             passed;
     const fuelsim::LocalValues state = {
         605.0,
         607.0,
@@ -862,6 +870,7 @@ bool test_transient_element() {
         passed = check(same_inelastic_state(trial[q], history[q]), "elastic transient element leaves inelastic history "
                                                                    "unchanged") &&
                  passed;
+    std::cout << "m21_disabled_capacity_residual_maximum=" << maximum_without_capacity << '\n';
     std::cout << "m21_element_jacobian_maximum_scaled_error=" << maximum_jacobian_error << '\n';
     std::cout << "m21_capacity_matrix_maximum_scaled_error=" << maximum_capacity_error << '\n';
     return passed;

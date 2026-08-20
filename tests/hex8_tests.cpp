@@ -314,6 +314,19 @@ bool test_finite_strain_kinematics_and_coupled_jacobian() {
     const fuelsim::Hex8MaterialHistory committed_material{};
     fuelsim::Hex8LocalJacobian jacobian{};
     (void)fuelsim::compute_hex8_transient(data, geometry, state, committed_state, committed_material, 1.0, &jacobian);
+    fuelsim::Hex8LocalValues heated_state = state;
+    for (std::size_t node = 0; node < 8; ++node) heated_state[node] = 305.0;
+    const fuelsim::Hex8LocalResidual with_capacity =
+        fuelsim::compute_hex8_transient(data, geometry, heated_state, committed_state, committed_material, 1.0);
+    const fuelsim::Hex8LocalResidual without_capacity = fuelsim::compute_hex8_transient(
+        data, geometry, heated_state, committed_state, committed_material, 1.0, nullptr, false);
+    double maximum_capacity_difference = 0.0;
+    for (std::size_t node = 0; node < 8; ++node)
+        maximum_capacity_difference =
+            std::max(maximum_capacity_difference, std::abs(with_capacity[node] - without_capacity[node]));
+    passed = check(maximum_capacity_difference > 1.0e-6,
+                 "transient HEX8 thermal time term can be disabled independently of heat conduction") &&
+             passed;
     std::array<double, 32> direction{};
     for (std::size_t dof = 0; dof < direction.size(); ++dof)
         direction[dof] = dof < 8 ? 0.0 : std::sin(0.29 * static_cast<double>(dof + 1));

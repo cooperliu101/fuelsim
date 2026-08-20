@@ -72,7 +72,7 @@ Hex8LocalResidual compute_hex8_thermoelastic(const Hex8ThermoelasticData& data, 
     Hex8LocalJacobian* jacobian = nullptr);
 Hex8LocalResidual compute_hex8_transient(const Hex8ThermoelasticData& data, const Hex8Geometry& geometry,
     const Hex8LocalValues& state, const Hex8LocalValues& committed_state, const Hex8MaterialHistory& committed_material,
-    double time_step, Hex8LocalJacobian* jacobian = nullptr);
+    double time_step, Hex8LocalJacobian* jacobian = nullptr, bool include_thermal_time_term = true);
 Hex8MaterialHistory compute_hex8_transient_update(const Hex8ThermoelasticData& data, const Hex8Geometry& geometry,
     const Hex8LocalValues& state, const Hex8LocalValues& committed_state, const Hex8MaterialHistory& committed_material,
     double time_step);

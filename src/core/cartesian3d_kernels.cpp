@@ -257,7 +257,8 @@ MaterialFunctionContext material_context(double time, const CartesianPoint3& poi
 void add_hex8_point_residual(const Hex8QuadraturePoint& point, const Hex8LocalAdValues& state,
     const IsotropicThermoelasticMaterial& material, StrainFormulation strain_formulation, double time,
     double volumetric_heat_source, const Hex8LocalValues* committed_state,
-    const CartesianMaterialPointState* committed_material, double time_step, Hex8LocalAdValues& residual) {
+    const CartesianMaterialPointState* committed_material, double time_step, Hex8LocalAdValues& residual,
+    bool include_thermal_time_term) {
     const adlite::Scalar temperature = interpolate_hex8(point.shape, state, 0);
     adlite::Scalar gradient_temperature_x = 0.0, gradient_temperature_y = 0.0, gradient_temperature_z = 0.0;
     for (std::size_t node = 0; node < 8; ++node) {
@@ -288,7 +289,7 @@ void add_hex8_point_residual(const Hex8QuadraturePoint& point, const Hex8LocalAd
             material.response(kinematics.strain_increment, temperature, time_step, *committed_material, context).stress;
     }
     adlite::Scalar temperature_rate = 0.0, heat_capacity = 0.0;
-    if (committed_state != nullptr) {
+    if (committed_state != nullptr && include_thermal_time_term) {
         double old_temperature = 0.0;
         for (std::size_t node = 0; node < 8; ++node) old_temperature += point.shape[node] * (*committed_state)[node];
         temperature_rate = (temperature - old_temperature) / time_step;
@@ -363,7 +364,7 @@ void add_hex8_point_system(const Hex8QuadraturePoint& point, const Hex8LocalValu
     const IsotropicThermoelasticMaterial& material, StrainFormulation strain_formulation, double time,
     double volumetric_heat_source, const Hex8LocalValues* committed_state,
     const CartesianMaterialPointState* committed_material, double time_step, Hex8LocalAdValues& residual,
-    Hex8LocalJacobian& jacobian) {
+    Hex8LocalJacobian& jacobian, bool include_thermal_time_term) {
     constexpr std::size_t point_width = 10, temperature_index = 9;
     std::array<double, 9> gradient_values{};
     for (std::size_t component = 0; component < 3; ++component)
@@ -428,7 +429,7 @@ void add_hex8_point_system(const Hex8QuadraturePoint& point, const Hex8LocalValu
     if (strain_formulation == StrainFormulation::finite) stress = rotate_cartesian_tensor(stress, kinematics.rotation);
     const adlite::Scalar conductivity = material.conductivity(active_temperature, context);
     adlite::Scalar temperature_rate = 0.0, heat_capacity = 0.0;
-    if (committed_state != nullptr) {
+    if (committed_state != nullptr && include_thermal_time_term) {
         double old_temperature = 0.0;
         for (std::size_t node = 0; node < 8; ++node) old_temperature += point.shape[node] * old_state[node];
         temperature_rate = (active_temperature - old_temperature) / time_step;
@@ -514,7 +515,7 @@ std::array<SymmetricTensor3Values, 8> evaluate_hex8_stress(const Hex8Geometry& g
 
 Hex8LocalResidual compute_hex8_local(const Hex8ThermoelasticData& data, const Hex8Geometry& geometry,
     const Hex8LocalValues& state, const Hex8LocalValues* committed_state, const Hex8MaterialHistory* history,
-    double time_step, Hex8LocalJacobian* jacobian) {
+    double time_step, Hex8LocalJacobian* jacobian, bool include_thermal_time_term) {
     if (committed_state != nullptr && (!std::isfinite(time_step) || time_step <= 0.0))
         throw std::invalid_argument("HEX8 time step must be finite and positive");
     Hex8LocalAdValues residual{};
@@ -525,7 +526,7 @@ Hex8LocalResidual compute_hex8_local(const Hex8ThermoelasticData& data, const He
         for (std::size_t q = 0; q < geometry.points.size(); ++q)
             add_hex8_point_residual(geometry.points[q], active, data.material, data.strain_formulation, data.time,
                 data.volumetric_heat_source, committed_state, history == nullptr ? nullptr : &(*history)[q], time_step,
-                residual);
+                residual, include_thermal_time_term);
         Hex8LocalResidual result{};
         ad_local_system::extract_residual(residual.data(), residual.size(), result.data());
         return result;
@@ -534,7 +535,7 @@ Hex8LocalResidual compute_hex8_local(const Hex8ThermoelasticData& data, const He
     for (std::size_t q = 0; q < geometry.points.size(); ++q)
         add_hex8_point_system(geometry.points[q], state, data.material, data.strain_formulation, data.time,
             data.volumetric_heat_source, committed_state, history == nullptr ? nullptr : &(*history)[q], time_step,
-            residual, *jacobian);
+            residual, *jacobian, include_thermal_time_term);
     Hex8LocalResidual result{};
     ad_local_system::extract_residual(residual.data(), residual.size(), result.data());
     return result;
@@ -628,13 +629,14 @@ Quad4FaceGeometry make_quad4_face_geometry(const Quad4FaceCoordinates& coordinat
 Hex8LocalResidual compute_hex8_thermoelastic(const Hex8ThermoelasticData& data, const Hex8Geometry& geometry,
     const Hex8LocalValues& state, const Hex8LocalValues* committed_state, double time_step,
     Hex8LocalJacobian* jacobian) {
-    return compute_hex8_local(data, geometry, state, committed_state, nullptr, time_step, jacobian);
+    return compute_hex8_local(data, geometry, state, committed_state, nullptr, time_step, jacobian, true);
 }
 
 Hex8LocalResidual compute_hex8_transient(const Hex8ThermoelasticData& data, const Hex8Geometry& geometry,
     const Hex8LocalValues& state, const Hex8LocalValues& committed_state, const Hex8MaterialHistory& committed_material,
-    double time_step, Hex8LocalJacobian* jacobian) {
-    return compute_hex8_local(data, geometry, state, &committed_state, &committed_material, time_step, jacobian);
+    double time_step, Hex8LocalJacobian* jacobian, bool include_thermal_time_term) {
+    return compute_hex8_local(
+        data, geometry, state, &committed_state, &committed_material, time_step, jacobian, include_thermal_time_term);
 }
 
 Hex8MaterialHistory compute_hex8_transient_update(const Hex8ThermoelasticData& data, const Hex8Geometry& geometry,

@@ -212,7 +212,8 @@ TransientResult solve_transient(TransientProblem& problem, const TransientTimeOp
     const std::vector<double> events = problem.time_events();
     double next_time_step = options.initial_time_step;
     const auto run_step = [&](double target_time) {
-        problem.begin_time_step({target_time, load_factor_at_time(options, target_time)});
+        problem.begin_time_step(
+            {target_time, load_factor_at_time(options, target_time), options.include_thermal_time_term});
         try {
             SolveResult step_result = solve_contact_equilibrium(solver, problem,
                 initial_guess_with_dirichlet_values(problem, problem.committed_solution()), solver_options);

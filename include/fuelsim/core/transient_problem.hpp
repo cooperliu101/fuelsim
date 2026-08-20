@@ -15,6 +15,7 @@ class BackendAccess;
 
 struct TransientStepInput final {
     double end_time, load_factor;
+    bool include_thermal_time_term = true;
 };
 
 struct RegionStateSummary final {

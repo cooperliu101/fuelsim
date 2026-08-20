@@ -52,7 +52,7 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     void sparsity_contribution_jacobian_pattern(std::size_t index, std::vector<unsigned char>& pattern) const;
     void compute_contribution(std::size_t index, const std::vector<double>& state,
         const std::vector<double>* committed_solution, const Hex8MaterialHistory* committed_material, double time_step,
-        std::vector<double>& residual, std::vector<double>* jacobian) const;
+        std::vector<double>& residual, std::vector<double>* jacobian, bool include_thermal_time_term = true) const;
     Hex8MaterialHistory transient_update(std::size_t region, std::size_t element, const Hex8LocalValues& state,
         const Hex8LocalValues& committed_state, const Hex8MaterialHistory& committed_material, double time_step) const;
     Hex8LocalValues volume_state(std::size_t index, const std::vector<double>& global_state) const;

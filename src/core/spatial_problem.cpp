@@ -216,7 +216,7 @@ class SpatialProblemStorage {
     double committed_time = 0.0, committed_load_factor = 0.0, active_time_step = 0.0, active_end_time = 0.0,
            active_load_factor = 0.0;
     std::vector<std::vector<ContactPointHistory>> active_contact_histories;
-    bool time_step_active = false;
+    bool time_step_active = false, include_thermal_time_term = true;
 };
 
 SteadyProblem::SteadyProblem(SpatialDefinition definition, const UnstructuredQuad4Mesh& source_mesh)
@@ -487,7 +487,8 @@ const std::vector<std::vector<Hex8MaterialHistory>>& BackendAccess::cartesian_ma
 
 rz::TransientBackendView BackendAccess::transient(const TransientProblem& problem) noexcept {
     return {*problem._impl->rz, problem._impl->kernel_data, problem._impl->material_histories,
-        problem._impl->committed_solution, problem._impl->active_time_step, problem._impl->time_step_active};
+        problem._impl->committed_solution, problem._impl->active_time_step, problem._impl->time_step_active,
+        problem._impl->include_thermal_time_term};
 }
 
 const SpatialDefinition& TransientProblem::definition() const noexcept { return _impl->layout().definition(); }
@@ -855,6 +856,7 @@ void TransientProblem::begin_time_step(const TransientStepInput& input) {
     _impl->active_time_step = input.end_time - _impl->committed_time;
     _impl->active_end_time = input.end_time;
     _impl->active_load_factor = input.load_factor;
+    _impl->include_thermal_time_term = input.include_thermal_time_term;
     if (uses_augmented_contact()) _impl->active_contact_histories = _impl->committed_contact_histories();
     try {
         apply_spatial_controls(input.end_time, input.load_factor);
@@ -899,10 +901,11 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                         current_temperature += point.shape[node] * current[node];
                         old_temperature += point.shape[node] * old[node];
                     }
-                    conservation.stored_heat_rate +=
-                        point.weighted_measure *
-                        _impl->cartesian->heat_capacity(region, current_temperature, point.position) *
-                        (current_temperature - old_temperature) / _impl->active_time_step;
+                    if (_impl->include_thermal_time_term)
+                        conservation.stored_heat_rate +=
+                            point.weighted_measure *
+                            _impl->cartesian->heat_capacity(region, current_temperature, point.position) *
+                            (current_temperature - old_temperature) / _impl->active_time_step;
                     conservation.generated_heat_rate +=
                         point.weighted_measure * _impl->cartesian->region_heat_source(region);
                     const CartesianMaterialPointState &old_history =
@@ -954,8 +957,10 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                         kernel_data.time, point.radius, 0.0, point.axial_coordinate};
                     const double heat_capacity =
                         kernel_data.material.heat_capacity(current_temperature, context).value();
-                    conservation.stored_heat_rate += point.weighted_measure * heat_capacity *
-                                                     (current_temperature - old_temperature) / _impl->active_time_step;
+                    if (_impl->include_thermal_time_term)
+                        conservation.stored_heat_rate += point.weighted_measure * heat_capacity *
+                                                         (current_temperature - old_temperature) /
+                                                         _impl->active_time_step;
                     conservation.generated_heat_rate += point.weighted_measure * kernel_data.volumetric_heat_source;
                     const MaterialPointState &old_history = _impl->material_histories[region][element][q],
                                              &new_history = update[q];
@@ -1009,6 +1014,7 @@ void TransientProblem::clear_active_time_step() noexcept {
     _impl->active_end_time = _impl->committed_time;
     _impl->active_load_factor = _impl->committed_load_factor;
     _impl->active_contact_histories.clear();
+    _impl->include_thermal_time_term = true;
     _impl->time_step_active = false;
 }
 
@@ -1090,8 +1096,8 @@ void TransientProblem::compute_contribution(std::size_t index, const std::vector
             const auto location = _impl->cartesian->element_location(index);
             history = &_impl->cartesian_material_histories[location.first][location.second];
         }
-        _impl->cartesian->compute_contribution(
-            index, state, &_impl->committed_solution, history, _impl->active_time_step, residual, jacobian);
+        _impl->cartesian->compute_contribution(index, state, &_impl->committed_solution, history,
+            _impl->active_time_step, residual, jacobian, _impl->include_thermal_time_term);
         return;
     }
     const rz::TransientBackendView backend = BackendAccess::transient(*this);
@@ -1107,7 +1113,7 @@ void TransientProblem::compute_contribution(std::size_t index, const std::vector
             backend.spatial.region_element_geometry(location.first, location.second), local_state,
             gather_rz_state(backend.spatial, index, backend.committed_solution),
             backend.histories[location.first][location.second], backend.active_time_step,
-            jacobian == nullptr ? nullptr : &local_jacobian);
+            jacobian == nullptr ? nullptr : &local_jacobian, backend.include_thermal_time_term);
     }
     residual.assign(local_residual.begin(), local_residual.end());
     if (jacobian != nullptr) jacobian->assign(local_jacobian.begin(), local_jacobian.end());

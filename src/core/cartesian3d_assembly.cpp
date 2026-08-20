@@ -374,7 +374,7 @@ Hex8LocalValues SpatialAssembly::volume_state(std::size_t index, const std::vect
 
 void SpatialAssembly::compute_contribution(std::size_t index, const std::vector<double>& state,
     const std::vector<double>* committed_solution, const Hex8MaterialHistory* committed_material, double time_step,
-    std::vector<double>& residual, std::vector<double>* jacobian) const {
+    std::vector<double>& residual, std::vector<double>* jacobian, bool include_thermal_time_term) const {
     if (index < volume_contribution_count()) {
         if (state.size() != hex8_local_dof_count)
             throw std::invalid_argument("HEX8 contribution state must contain 32 DOFs");
@@ -392,7 +392,7 @@ void SpatialAssembly::compute_contribution(std::size_t index, const std::vector<
                       jacobian == nullptr ? nullptr : &local_jacobian)
                 : compute_hex8_transient(_kernel_data[location.first],
                       region_element_geometry(location.first, location.second), current, committed, *committed_material,
-                      time_step, jacobian == nullptr ? nullptr : &local_jacobian);
+                      time_step, jacobian == nullptr ? nullptr : &local_jacobian, include_thermal_time_term);
         residual.assign(result.begin(), result.end());
         if (jacobian != nullptr) jacobian->assign(local_jacobian.begin(), local_jacobian.end());
         return;

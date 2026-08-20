@@ -383,7 +383,7 @@ bool run_transient(const FuelSimCaseDefinition& definition, const UnstructuredQu
         const double load_factor = definition.transient_execution.load_ramp_time == 0.0
                                        ? 1.0
                                        : std::min(end_time / definition.transient_execution.load_ramp_time, 1.0);
-        problem.begin_time_step({end_time, load_factor});
+        problem.begin_time_step({end_time, load_factor, definition.transient_execution.include_thermal_time_term});
         std::vector<double> state = problem.committed_solution();
         for (const DirichletCondition& condition : problem.dirichlet_conditions())
             state.at(condition.dof) = condition.value;

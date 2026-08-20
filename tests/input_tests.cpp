@@ -199,7 +199,7 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
             "transient material behaviors are parsed") &&
         check(transient.transient_execution.end_time == 20.0 && transient.transient_execution.load_ramp_time == 20.0 &&
                   transient.transient_execution.time_error_relative_tolerance == 0.0 &&
-                  transient.solver.maximum_iterations == 80,
+                  transient.transient_execution.include_thermal_time_term && transient.solver.maximum_iterations == 80,
             "transient execution keeps time-error control opt-in and "
             "parses ramp and solver fields") &&
         check(scaled_displacement.spatial.regions.size() == 1 && scaled_displacement.spatial.regions[0].block.empty() &&
@@ -211,6 +211,22 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
                   traction.spatial.boundary_conditions.back().scale_with_load &&
                   !traction.spatial.boundary_conditions.back().use_displaced_geometry,
             "scaled axial traction is parsed");
+    std::string disabled_thermal_time_case = read_text(transient_path);
+    const std::string load_ramp_line = "  load_ramp_time = 20\n";
+    const std::size_t load_ramp_position = disabled_thermal_time_case.find(load_ramp_line);
+    if (load_ramp_position == std::string::npos) return check(false, "transient fixture has the load ramp entry");
+    disabled_thermal_time_case.insert(
+        load_ramp_position + load_ramp_line.size(), "  include_thermal_time_term = false\n");
+    {
+        std::ofstream output(malformed_path, std::ios::out | std::ios::trunc);
+        if (!output) return check(false, "could not create disabled thermal time fixture");
+        output << disabled_thermal_time_case;
+    }
+    const fuelsim::FuelSimCaseDefinition disabled_thermal_time = fuelsim::read_case_input(malformed_path);
+    passed = check(!disabled_thermal_time.transient_execution.include_thermal_time_term,
+                 "transient input can disable the thermal time term") &&
+             passed;
+    if (std::remove(malformed_path.c_str()) != 0) return check(false, "could not remove disabled thermal time fixture");
     passed =
         expect_parse_failure(malformed_path, "[Case]\n  version = 1\n  version = 1\n[]\n", "duplicate key 'version'") &&
         passed;

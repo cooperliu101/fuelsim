@@ -173,7 +173,7 @@ fuelsim::TransientTimeOptions time_options(const fuelsim::FuelSimCaseDefinition&
         input.target_nonlinear_iterations, input.iteration_window, input.time_error_relative_tolerance,
         input.temperature_time_absolute_tolerance, input.displacement_time_absolute_tolerance,
         input.time_error_safety_factor, input.strain_history_time_absolute_tolerance,
-        input.stress_history_time_absolute_tolerance};
+        input.stress_history_time_absolute_tolerance, input.include_thermal_time_term};
 }
 
 fuelsim::SolverOptions solver_options(const fuelsim::FuelSimCaseDefinition& definition) {

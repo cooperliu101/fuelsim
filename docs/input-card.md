@@ -385,9 +385,13 @@ secondary 侧切向合力；轴对称为有符号标量，三维为合力向量�
   strain_history_time_absolute_tolerance = 1e-10
   stress_history_time_absolute_tolerance = 1
   time_error_safety_factor = 0.9
+  include_thermal_time_term = true
   restart = previous.checkpoint
 []
 ```
+
+`include_thermal_time_term` 默认为 `true`。设为 `false` 时，瞬态温度方程不加入
+`rho*cp*(T_new-T_old)/dt` 热容时间项，但仍保留热传导、热源和力学瞬态材料更新。
 
 瞬态载荷因子为 `min(time/load_ramp_time, 1)`；`load_ramp_time = 0` 表示从
 首步起使用完整载荷。该因子同时控制各区域 `volumetric_heat_source` 和所有

@@ -53,7 +53,8 @@ std::array<AxisymmetricStressValues, 4> compute_quad4_rz_thermoelastic_stress(
 using Quad4MaterialHistory = std::array<MaterialPointState, 4>;
 LocalResidual compute_quad4_rz_transient(const Quad4RzData& data, const Quad4RzGeometry& geometry,
     const LocalValues& current_state, const LocalValues& committed_state,
-    const Quad4MaterialHistory& committed_material, double time_step, LocalJacobian* jacobian = nullptr);
+    const Quad4MaterialHistory& committed_material, double time_step, LocalJacobian* jacobian = nullptr,
+    bool include_thermal_time_term = true);
 Quad4MaterialHistory compute_quad4_rz_transient_update(const Quad4RzData& data, const Quad4RzGeometry& geometry,
     const LocalValues& converged_state, const LocalValues& committed_state,
     const Quad4MaterialHistory& committed_material, double time_step);

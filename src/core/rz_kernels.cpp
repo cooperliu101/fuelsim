@@ -339,7 +339,7 @@ AxisymmetricStressTangent evaluate_axisymmetric_stress_tangent(const IsotropicTh
 void add_quad4_rz_point_system(const RzQuadraturePoint& point, const LocalValues& state,
     const IsotropicThermoelasticMaterial& material, StrainFormulation strain_formulation, double time,
     double volumetric_heat_source, const LocalValues* committed_state, const MaterialPointState* committed_material,
-    double time_step, LocalAdValues& residual, LocalJacobian& jacobian) {
+    double time_step, LocalAdValues& residual, LocalJacobian& jacobian, bool include_thermal_time_term) {
     constexpr std::size_t point_width = 6, radial_index = 4, temperature_index = 5;
     std::array<adlite::Scalar, point_width> active{};
     active[0] = adlite::Scalar::independent(quad4_rz_detail::interpolate(point.gradient_r, state, 4), 0, point_width);
@@ -395,7 +395,7 @@ void add_quad4_rz_point_system(const RzQuadraturePoint& point, const LocalValues
         stress = rotate_axisymmetric_tensor(stress, kinematics.rotation);
     const adlite::Scalar conductivity = material.conductivity(active[temperature_index], context);
     adlite::Scalar temperature_rate = 0.0, heat_capacity = 0.0;
-    if (committed_state != nullptr) {
+    if (committed_state != nullptr && include_thermal_time_term) {
         const double old_temperature = quad4_rz_detail::interpolate(point.shape, old_state, 0);
         temperature_rate = (active[temperature_index] - old_temperature) / time_step;
         heat_capacity = material.heat_capacity(active[temperature_index], context);
@@ -451,7 +451,7 @@ LocalResidual compute_quad4_rz_thermoelastic(
         jacobian->fill(0.0);
         for (const RzQuadraturePoint& point : geometry.points)
             add_quad4_rz_point_system(point, state, data.material, data.strain_formulation, data.time,
-                data.volumetric_heat_source, nullptr, nullptr, 0.0, ad_residual, *jacobian);
+                data.volumetric_heat_source, nullptr, nullptr, 0.0, ad_residual, *jacobian, true);
         LocalResidual result{};
         ad_local_system::extract_residual(ad_residual.data(), ad_residual.size(), result.data());
         return result;
@@ -524,7 +524,8 @@ void validate_committed_state(const LocalValues& committed_state) {
 
 LocalResidual compute_quad4_rz_transient(const Quad4RzData& data, const Quad4RzGeometry& geometry,
     const LocalValues& current_state, const LocalValues& committed_state,
-    const Quad4MaterialHistory& committed_material, double time_step, LocalJacobian* jacobian) {
+    const Quad4MaterialHistory& committed_material, double time_step, LocalJacobian* jacobian,
+    bool include_thermal_time_term) {
     validate_time_step(time_step);
     validate_committed_state(committed_state);
     LocalAdValues ad_residual{};
@@ -534,7 +535,7 @@ LocalResidual compute_quad4_rz_transient(const Quad4RzData& data, const Quad4RzG
         for (std::size_t q = 0; q < geometry.points.size(); ++q)
             add_quad4_rz_point_system(geometry.points[q], current_state, data.material, data.strain_formulation,
                 data.time, data.volumetric_heat_source, &committed_state, &committed_material[q], time_step,
-                ad_residual, *jacobian);
+                ad_residual, *jacobian, include_thermal_time_term);
         LocalResidual result{};
         ad_local_system::extract_residual(ad_residual.data(), ad_residual.size(), result.data());
         return result;
@@ -544,10 +545,13 @@ LocalResidual compute_quad4_rz_transient(const Quad4RzData& data, const Quad4RzG
         const RzQuadraturePoint& point = geometry.points[q];
         const TransientPointResponse evaluation = transient_point_response(point, ad_state, committed_state,
             data.material, committed_material[q], time_step, data.strain_formulation, data.time);
-        const adlite::Scalar temperature_rate = (evaluation.temperature - evaluation.old_temperature) / time_step;
         const MaterialFunctionContext context = rz_material_context(data.time, point);
         const adlite::Scalar conductivity = data.material.conductivity(evaluation.temperature, context);
-        const adlite::Scalar heat_capacity = data.material.heat_capacity(evaluation.temperature, context);
+        adlite::Scalar temperature_rate = 0.0, heat_capacity = 0.0;
+        if (include_thermal_time_term) {
+            temperature_rate = (evaluation.temperature - evaluation.old_temperature) / time_step;
+            heat_capacity = data.material.heat_capacity(evaluation.temperature, context);
+        }
         quad4_rz_detail::add_point_residual(point, evaluation.gradient_temperature_r, evaluation.gradient_temperature_z,
             evaluation.kinematics, &heat_capacity, &temperature_rate, conductivity, data.volumetric_heat_source,
             evaluation.response.stress, ad_residual);

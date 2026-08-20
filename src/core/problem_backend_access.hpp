@@ -29,7 +29,7 @@ struct TransientBackendView final {
     const std::vector<std::vector<Quad4MaterialHistory>>& histories;
     const std::vector<double>& committed_solution;
     double active_time_step;
-    bool time_step_active;
+    bool time_step_active, include_thermal_time_term;
 };
 } // namespace rz
 
