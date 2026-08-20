@@ -140,8 +140,8 @@ dA = 2*pi*r*J_line*w
 ```
 
 构形由具体边界或界面定律决定。热接触和机械接触使用当前 secondary 表面；
-pressure 和 traction 通过 `configuration` 选择参考表面或当前表面；pressure
-推荐小应变使用参考构形、有限应变使用当前构形，非推荐组合仍可执行并给出提示。
+pressure 和 traction 通过 `configuration` 选择参考表面或当前表面；小应变推荐
+参考构形、有限应变推荐当前构形，非推荐组合仍可执行并给出提示。
 对流使用参考表面。
 
 ## 4. Quad4 体单元弱式

@@ -114,8 +114,7 @@ class SpatialLayout {
     void set_time_value(double value);
     void refresh_dirichlet_values();
     ConvectionValues convection_values(const BoundaryConditionDefinition& boundary) const;
-    void record_pressure_configuration_warning(
-        const BoundaryConditionDefinition& boundary, const RegionDefinition& region);
+    void record_configuration_warning(const BoundaryConditionDefinition& boundary, const RegionDefinition& region);
     SpatialDefinition _definition;
     std::vector<std::int64_t> _block_ids;
     std::vector<std::size_t> _node_offsets, _element_offsets;

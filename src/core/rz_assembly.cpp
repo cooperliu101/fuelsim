@@ -264,14 +264,14 @@ void SpatialLayout::refresh_dirichlet_values() {
     }
 }
 
-void SpatialLayout::record_pressure_configuration_warning(
+void SpatialLayout::record_configuration_warning(
     const BoundaryConditionDefinition& boundary, const RegionDefinition& region) {
     const bool finite_strain = region.strain_formulation == StrainFormulation::finite;
     const bool recommended_current_configuration = finite_strain;
     if (boundary.use_displaced_geometry == recommended_current_configuration) return;
     const std::string selected = boundary.use_displaced_geometry ? "current" : "reference";
     const std::string recommended = recommended_current_configuration ? "current" : "reference";
-    _configuration_warnings.push_back("pressure boundary '" + boundary.name + "' uses configuration = " + selected +
+    _configuration_warnings.push_back("boundary condition '" + boundary.name + "' uses configuration = " + selected +
                                       " in " + (finite_strain ? "a finite-strain" : "a small-strain") +
                                       " region; the recommended setting is configuration = " + recommended);
 }
@@ -416,7 +416,7 @@ void SpatialAssembly::build_boundaries(const UnstructuredQuad4Mesh& source_mesh)
         SpatialContributionType type;
         if (definition.type == BoundaryConditionType::pressure) {
             type = SpatialContributionType::pressure;
-            record_pressure_configuration_warning(definition, region(resolved.region));
+            record_configuration_warning(definition, region(resolved.region));
             _boundary_data.push_back({Line2RzBoundaryKind::pressure, TractionComponent::radial,
                 spatial_detail::controlled_value(_definition, _time, _load_factor, definition.value,
                     definition.scale_with_load, definition.function),
@@ -425,10 +425,7 @@ void SpatialAssembly::build_boundaries(const UnstructuredQuad4Mesh& source_mesh)
             type = SpatialContributionType::traction;
             if (definition.field == Field::temperature)
                 throw std::invalid_argument("Traction requires a displacement field: " + definition.boundary);
-            if (definition.use_displaced_geometry &&
-                region(resolved.region).strain_formulation != StrainFormulation::finite)
-                throw std::invalid_argument(
-                    "Current-configuration traction requires finite strain: " + definition.name);
+            record_configuration_warning(definition, region(resolved.region));
             _boundary_data.push_back({Line2RzBoundaryKind::traction,
                 definition.field == Field::radial_displacement ? TractionComponent::radial : TractionComponent::axial,
                 spatial_detail::controlled_value(_definition, _time, _load_factor, definition.value,

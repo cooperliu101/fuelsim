@@ -444,16 +444,16 @@ bool test_pressure_parent_edge_orientation() {
         "right, bottom, and top boundaries");
 }
 
-bool test_pressure_configuration_selection() {
+bool test_mechanical_boundary_configuration_selection() {
     const fuelsim::UnstructuredQuad4Mesh mesh = annular_boundary_mesh();
-    const auto assembled_pressure = [&](bool finite_strain, bool current_configuration) {
+    const auto assembled_boundary = [&](fuelsim::BoundaryConditionType type, fuelsim::Field field, bool finite_strain,
+                                        bool current_configuration) {
         fuelsim::SpatialDefinition definition = {{region("solid", "solid", 500.0, 0.0)}, {}, {}};
         definition.regions.front().strain_formulation =
             finite_strain ? fuelsim::StrainFormulation::finite : fuelsim::StrainFormulation::small;
-        fuelsim::BoundaryConditionDefinition pressure{
-            "pressure", fuelsim::BoundaryConditionType::pressure, "right", fuelsim::Field::radial_displacement, 3.0};
-        pressure.use_displaced_geometry = current_configuration;
-        definition.boundary_conditions.push_back(pressure);
+        fuelsim::BoundaryConditionDefinition boundary{"boundary", type, "right", field, 3.0};
+        boundary.use_displaced_geometry = current_configuration;
+        definition.boundary_conditions.push_back(boundary);
         fuelsim::SteadyProblem problem(std::move(definition), mesh);
         const auto& dofs = fuelsim::rz::ProblemAccess::dof_map(problem);
         std::vector<double> state = problem.initial_state();
@@ -468,18 +468,24 @@ bool test_pressure_configuration_selection() {
         return std::array<double, 3>{radial, axial,
             static_cast<double>(fuelsim::rz::ProblemAccess::dof_map(problem).configuration_warnings().size())};
     };
-    const std::array<double, 3> reference_small = assembled_pressure(false, false);
-    const std::array<double, 3> current_small = assembled_pressure(false, true);
-    const std::array<double, 3> reference_finite = assembled_pressure(true, false);
-    const std::array<double, 3> current_finite = assembled_pressure(true, true);
-    bool passed = check(
-        reference_small[2] == 0.0 && current_small[2] == 1.0 && reference_finite[2] == 1.0 && current_finite[2] == 0.0,
-        "pressure configuration warnings identify non-recommended small- and finite-strain choices");
-    passed = check(std::abs(reference_small[0] - current_small[0]) > 1.0e-8 &&
-                       std::abs(reference_finite[0] - current_finite[0]) > 1.0e-8,
-                 "pressure configuration selects reference or current RZ geometry in both strain formulations") &&
-             passed;
-    return passed;
+    const auto check_type = [&](fuelsim::BoundaryConditionType type, fuelsim::Field field, const char* name) {
+        const std::array<double, 3> reference_small = assembled_boundary(type, field, false, false);
+        const std::array<double, 3> current_small = assembled_boundary(type, field, false, true);
+        const std::array<double, 3> reference_finite = assembled_boundary(type, field, true, false);
+        const std::array<double, 3> current_finite = assembled_boundary(type, field, true, true);
+        bool result = check(reference_small[2] == 0.0 && current_small[2] == 1.0 && reference_finite[2] == 1.0 &&
+                                current_finite[2] == 0.0,
+            std::string(name) + " configuration warnings identify non-recommended choices");
+        result = check((std::abs(reference_small[0] - current_small[0]) > 1.0e-8 ||
+                           std::abs(reference_small[1] - current_small[1]) > 1.0e-8) &&
+                           (std::abs(reference_finite[0] - current_finite[0]) > 1.0e-8 ||
+                               std::abs(reference_finite[1] - current_finite[1]) > 1.0e-8),
+                     std::string(name) + " configuration selects reference or current RZ geometry") &&
+                 result;
+        return result;
+    };
+    return check_type(fuelsim::BoundaryConditionType::pressure, fuelsim::Field::radial_displacement, "pressure") &&
+           check_type(fuelsim::BoundaryConditionType::traction, fuelsim::Field::axial_displacement, "traction");
 }
 
 bool test_global_field_diagnostics(const fuelsim::UnstructuredQuad4Mesh& mesh) {
@@ -856,7 +862,7 @@ int main(int argc, char** argv) {
         const fuelsim::UnstructuredQuad4Mesh mesh = three_region_mesh();
         const bool passed =
             test_single_region(mesh) && test_shared_block_nodes() && test_time_controlled_pressure(mesh) &&
-            test_pressure_parent_edge_orientation() && test_pressure_configuration_selection() &&
+            test_pressure_parent_edge_orientation() && test_mechanical_boundary_configuration_selection() &&
             test_global_field_diagnostics(mesh) && test_three_regions(mesh) && test_nonmatching_pellet_faces() &&
             test_l_shaped_primary_collinear_candidate() && test_zero_initial_gap_construction() &&
             test_overlapping_material_rejected() && test_zero_initial_gap_solve() && test_transient_regions(mesh);

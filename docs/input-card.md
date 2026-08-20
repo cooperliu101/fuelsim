@@ -319,10 +319,10 @@ secondary 侧切向合力；轴对称为有符号标量，三维为合力向量�
 `configuration = reference` 或 `configuration = current`；前者使用参考表面，后者使用当前法向和当前表面测度，
 轴对称区域还会使用对应的参考半径或当前半径。小应变区域推荐参考构形，有限应变区域推荐当前构形；选择
 其他组合时程序会给出提示，但仍按用户选择装配。
-`traction` 必须声明一个位移 `field`，`value` 是该全局位移分量上的有符号表面牵引；默认
-`configuration = reference`。有限应变区域可设置 `configuration = current`，
-此时方向仍固定为所选全局分量，但周长和边长使用当前构形并进入 AD Jacobian。
-小应变区域不能选择当前构形。
+`traction` 必须声明一个位移 `field`，`value` 是该全局位移分量上的有符号表面牵引；也可以在小应变和有限应变
+区域中设置 `configuration = reference` 或 `configuration = current`。当前构形仍固定为所选全局分量方向，
+但周长和边长使用当前构形并进入 AD Jacobian；小应变推荐参考构形，有限应变推荐当前构形，非推荐组合会提示
+但仍按输入执行。
 `dirichlet`、`pressure` 和 `traction` 都可设置
 `scale_with_load = true`，使 `value` 乘以当前执行器载荷因子；默认不缩放。
 也可用 `function = <name>` 使 `value` 乘以时间表值；`function` 与
