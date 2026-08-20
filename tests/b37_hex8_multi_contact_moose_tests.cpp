@@ -219,6 +219,11 @@ int main(int argc, char** argv) {
                 throw std::invalid_argument("B3.7 requires mechanical Coulomb friction on both contact pairs");
         const fuelsim::UnstructuredHex8Mesh source = fuelsim::read_exodus_hex8(definition.mesh_file);
         fuelsim::SteadyProblem problem(definition.spatial, source);
+        if (fuelsim::cartesian::ProblemAccess::region_mesh(problem, 0).elements().size() ==
+                fuelsim::cartesian::ProblemAccess::region_mesh(problem, 1).elements().size() ||
+            fuelsim::cartesian::ProblemAccess::region_mesh(problem, 2).elements().size() ==
+                fuelsim::cartesian::ProblemAccess::region_mesh(problem, 3).elements().size())
+            throw std::invalid_argument("B3.7 requires nonmatching primary and secondary face partitions");
         const fuelsim::SolverOptions options = {definition.solver.absolute_tolerance,
             definition.solver.relative_tolerance, definition.solver.step_tolerance,
             definition.solver.maximum_iterations};

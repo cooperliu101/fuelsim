@@ -3,7 +3,7 @@
     type = GeneratedMeshGenerator
     dim = 3
     nx = 1
-    ny = 1
+    ny = 2
     nz = 1
     xmin = 0
     xmax = 0.01
@@ -33,7 +33,7 @@
     dim = 3
     nx = 1
     ny = 1
-    nz = 1
+    nz = 2
     xmin = 0
     xmax = 0.01
     ymin = 0.0199
