@@ -9,6 +9,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <numeric>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -52,9 +53,11 @@ double value(const std::vector<std::string>& fields, std::size_t index, const st
 struct ContactReference final {
     std::vector<double> coordinates;
     std::vector<double> pressures;
+    std::vector<double> tangential_tractions;
     std::vector<double> radii;
     std::vector<double> axial_coordinates;
-    double total_force = 0.0;
+    double total_force = 0.0, total_tangential_force = 0.0;
+    bool has_tangential_force = false;
 };
 
 ContactReference read_contact_reference(const std::string& path) {
@@ -69,27 +72,42 @@ ContactReference read_contact_reference(const std::string& path) {
     const std::size_t radius = column(header, "x");
     const std::size_t radial_displacement = column(header, "disp_x");
     const std::size_t axial_displacement = column(header, "disp_y");
-    std::vector<std::tuple<double, double, double, double>> values;
+    const std::size_t nodal_area = column(header, "nodal_area");
+    const auto tangential_found = std::find_if(header.begin(), header.end(), [](const std::string& name) {
+        constexpr const char suffix[] = "tangential_force_y";
+        return name == suffix || (name.size() > sizeof(suffix) - 1 &&
+                                     name.compare(name.size() - (sizeof(suffix) - 1), sizeof(suffix) - 1, suffix) == 0);
+    });
+    const bool has_tangential_force = tangential_found != header.end();
+    const std::size_t tangential_force =
+        has_tangential_force ? static_cast<std::size_t>(tangential_found - header.begin()) : 0;
+    std::vector<std::tuple<double, double, double, double, double, double>> values;
     while (std::getline(input, line)) {
         if (line.empty()) continue;
         const std::vector<std::string> fields = split_csv(line);
         const double y = value(fields, coordinate, path);
         const double p = value(fields, pressure, path);
         values.push_back({y, value(fields, radius, path) + value(fields, radial_displacement, path),
-            y + value(fields, axial_displacement, path), p});
+            y + value(fields, axial_displacement, path), p,
+            has_tangential_force ? value(fields, tangential_force, path) : 0.0, value(fields, nodal_area, path)});
     }
     if (values.empty()) throw std::invalid_argument("MOOSE contact CSV has no values: " + path);
     std::sort(values.begin(), values.end());
     ContactReference result;
     result.coordinates.reserve(values.size());
     result.pressures.reserve(values.size());
+    result.tangential_tractions.reserve(values.size());
     result.radii.reserve(values.size());
     result.axial_coordinates.reserve(values.size());
+    result.has_tangential_force = has_tangential_force;
     for (const auto& entry : values) {
         result.coordinates.push_back(std::get<0>(entry));
         result.radii.push_back(std::get<1>(entry));
         result.axial_coordinates.push_back(std::get<2>(entry));
         result.pressures.push_back(std::get<3>(entry));
+        const double area = std::get<5>(entry);
+        if (!(area > 0.0)) throw std::invalid_argument("MOOSE contact CSV contains a nonpositive nodal area: " + path);
+        result.tangential_tractions.push_back(std::get<4>(entry) / area);
     }
     for (std::size_t node = 0; node + 1 < result.coordinates.size(); ++node) {
         const double dr = result.radii[node + 1] - result.radii[node];
@@ -100,6 +118,8 @@ ContactReference read_contact_reference(const std::string& path) {
         const double area_next =
             2.0 * pi * 0.5 * edge_length * (2.0 * result.radii[node + 1] + result.radii[node]) / 3.0;
         result.total_force += result.pressures[node] * area_node + result.pressures[node + 1] * area_next;
+        result.total_tangential_force +=
+            result.tangential_tractions[node] * area_node + result.tangential_tractions[node + 1] * area_next;
     }
     return result;
 }
@@ -140,6 +160,8 @@ bool run_comparison(const std::string& input_path, const std::string& nodal_refe
     const std::array<std::string, 2> contact_names = {"pellet_to_inner_clad", "inner_to_outer_clad"};
     const std::array<std::string, 2> contact_reference_paths = {
         first_contact_reference_path, second_contact_reference_path};
+    const bool frictional = definition.spatial.contacts[0].friction_coefficient > 0.0 ||
+                            definition.spatial.contacts[1].friction_coefficient > 0.0;
     for (std::size_t contact = 0; contact < contact_names.size(); ++contact) {
         const std::vector<fuelsim::ContactNodeSummary> actual =
             fuelsim::rz::ProblemAccess::summarize_contact_nodes(problem, contact, result.solve.state);
@@ -158,6 +180,39 @@ bool run_comparison(const std::string& input_path, const std::string& nodal_refe
                  check(force_difference < tolerance * force_scale,
                      "M3.3 multi-contact " + contact_names[contact] + " total force agrees") &&
                  passed;
+        if (frictional) {
+            fuelsim::test::FieldErrorMetrics tangential_traction;
+            for (std::size_t node = 0; node < actual.size(); ++node)
+                tangential_traction.add(actual[node].tangential_traction, reference.tangential_tractions.at(node));
+            double maximum_coulomb_excess = 0.0;
+            std::size_t active = 0, sliding = 0;
+            for (const fuelsim::ContactNodeSummary& node : actual) {
+                if (!(node.pressure > 0.0)) continue;
+                ++active;
+                if (node.sliding) ++sliding;
+                maximum_coulomb_excess = std::max(maximum_coulomb_excess,
+                    std::abs(node.tangential_traction) -
+                        definition.spatial.contacts[contact].friction_coefficient * node.pressure);
+            }
+            passed = check(reference.has_tangential_force,
+                         "M3.3 nonmatching friction MOOSE output contains tangential force") &&
+                     check(fuelsim::test::relative_metrics_below(tangential_traction, tolerance),
+                         "M3.3 nonmatching friction tangential-traction errors pass") &&
+                     check(active > 0 && sliding > 0 &&
+                               maximum_coulomb_excess <= 1.0e-12 * std::max(1.0, interface.maximum_contact_pressure),
+                         "M3.3 nonmatching friction activates sliding and respects the Coulomb cap") &&
+                     check(std::abs(interface.total_tangential_force - reference.total_tangential_force) <
+                               tolerance * std::max({1.0, std::abs(interface.total_tangential_force),
+                                               std::abs(reference.total_tangential_force)}),
+                         "M3.3 nonmatching friction total tangential force agrees") &&
+                     passed;
+            fuelsim::test::print_relative_metrics(
+                "m33_" + contact_names[contact] + "_tangential_traction", tangential_traction);
+            std::cout << "m33_" << contact_names[contact]
+                      << "_fuelsim_total_tangential_force=" << interface.total_tangential_force << '\n'
+                      << "m33_" << contact_names[contact]
+                      << "_moose_total_tangential_force=" << reference.total_tangential_force << '\n';
+        }
         fuelsim::test::print_relative_metrics("m33_" + contact_names[contact] + "_pressure", pressure);
         std::cout << "m33_" << contact_names[contact] << "_fuelsim_total_force=" << interface.total_contact_force
                   << '\n'

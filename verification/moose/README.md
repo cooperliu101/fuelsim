@@ -278,6 +278,16 @@ one-to-one mesh. Generate the tracked mesh and solve with:
 
 The all-node and two contact snapshots are recorded in `SHA256SUMS`.
 
+The frictional nonmatching variant uses `m33_multi_nonmatching_friction_rz.i` and
+the same 24-node, 9-element mesh. Both contact pairs use Coulomb friction with
+`friction_coefficient = 0.001`; the pellet, inner-clad, and outer-clad top
+axial displacements are `5e-6`, `1e-5`, and `1.5e-5` m, respectively, so the
+interior contact nodes slide while the complete interfaces remain projected.
+`PenetrationAux` exports `tangential_force_y` for each secondary boundary. The
+Fuelsim comparison normalizes this force by MOOSE's nodal area and reconstructs
+the current-configuration axisymmetric resultant before comparing it with the
+Fuelsim tangential traction and resultant.
+
 ## M0 single fuel cylinder
 
 `m0_simple_fuel_rz.i` is the independent reference for the M0 steady
