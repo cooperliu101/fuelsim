@@ -798,8 +798,9 @@ This reduced the four-process preallocation assembly begin from `60.112 s` to
 one-step direct case took `42.42 s` with SCOTCH, `47.27 s` with PT-SCOTCH,
 `47.43 s` with METIS, and `68.48 s` with PORD.
 
-The final 30,148-DOF input uses GMRES with multiplicative temperature and
-mechanics field splitting. Here GMRES is the Krylov linear solver, and the field
+The final 30,148-DOF input now defaults to direct MUMPS. The measurements below
+used the earlier GMRES configuration with multiplicative temperature and
+mechanics field splitting; GMRES is the Krylov linear solver, and the field
 split is a physics-based preconditioner. On four or more processes, the
 mechanics block defaults to one level of incomplete-LU fill unless the user
 explicitly provides another PETSc option. Zero fill was faster for the first

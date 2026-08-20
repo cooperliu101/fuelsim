@@ -207,11 +207,11 @@
 
 [Solver]
   # Two solver configurations were benchmarked for this 30,148-DOF case.
-  # Keep the GMRES field-split configuration below active for the recommended
-  # four-process run. The direct-MUMPS configuration is the reference option:
-  #   linear_solver = direct
-  #   preconditioner = lu
-  #   direct_factorization = mumps
+  # Keep the direct-MUMPS configuration below active as the default. The
+  # GMRES field-split configuration is an alternative for dedicated scaling
+  # experiments:
+  #   linear_solver = gmres
+  #   preconditioner = field_split
   # Activate exactly one configuration at a time.
   # One-step measurements use end_time=0.05 in temporary copies of this input,
   # CPUs 0 through 7, one thread per numerical library, and the default MPI
@@ -232,8 +232,9 @@
   #                        181.77 s internal and 184.98 s wall time.
   #   Direct MUMPS:        completed 20/20 steps,
   #                        794.75 s internal and 797.93 s wall time.
-  linear_solver = gmres
-  preconditioner = field_split
+  linear_solver = direct
+  preconditioner = lu
+  direct_factorization = mumps
   jacobian_lag = 2
   absolute_tolerance = 1e-7
   relative_tolerance = 1e-8
