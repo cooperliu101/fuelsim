@@ -60,11 +60,13 @@
     type = pressure
     boundary = left
     value = 1e8
+    configuration = current
   []
   [top_pressure]
     type = pressure
     boundary = top
     value = 1e8
+    configuration = current
   []
 []
 

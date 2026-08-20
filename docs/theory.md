@@ -140,8 +140,9 @@ dA = 2*pi*r*J_line*w
 ```
 
 构形由具体边界或界面定律决定。热接触和机械接触使用当前 secondary 表面；
-小应变 pressure、默认 traction 和对流使用参考表面；有限应变 follower
-pressure 以及 `configuration = current` 的 traction 使用当前表面。
+pressure 和 traction 通过 `configuration` 选择参考表面或当前表面；pressure
+推荐小应变使用参考构形、有限应变使用当前构形，非推荐组合仍可执行并给出提示。
+对流使用参考表面。
 
 ## 4. Quad4 体单元弱式
 
@@ -348,9 +349,9 @@ pressure 表示大小非负的压缩压力。若 `n` 是父 Quad4 逆时针边�
 外法向，则外部牵引是 `-p*n`。因为总残量采用“内部力减外力”，pressure
 对残量的贡献为 `+integral(N_i*p*n)dA`。
 
-小应变 pressure 使用参考半径、参考法向和参考表面测度。有限应变 pressure
-使用当前端点计算当前半径、当前法向和当前 Line2 测度，因而是 follower
-load；ADlite 同时生成方向、周长和边长变化产生的几何刚度。
+pressure 在 `configuration = reference` 时使用参考半径、参考法向和参考表面测度；
+在 `configuration = current` 时使用当前端点计算当前半径、当前法向和当前 Line2
+测度，因而是 follower load；ADlite 同时生成方向、周长和边长变化产生的几何刚度。
 
 ### 6.3 分量 traction 与对流
 

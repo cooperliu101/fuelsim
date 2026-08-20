@@ -163,12 +163,14 @@
     boundary = clad_left
     value = 5e5
     function = internal_pressure
+    configuration = current
   []
   [cladding_external_pressure]
     type = pressure
     boundary = clad_right
     value = 2e6
     function = external_pressure
+    configuration = current
   []
 []
 

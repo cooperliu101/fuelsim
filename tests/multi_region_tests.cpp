@@ -7,6 +7,7 @@
 #include "support/material_factory.hpp"
 #include "support/rz_problem_access.hpp"
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <exception>
 #include <iostream>
@@ -443,6 +444,44 @@ bool test_pressure_parent_edge_orientation() {
         "right, bottom, and top boundaries");
 }
 
+bool test_pressure_configuration_selection() {
+    const fuelsim::UnstructuredQuad4Mesh mesh = annular_boundary_mesh();
+    const auto assembled_pressure = [&](bool finite_strain, bool current_configuration) {
+        fuelsim::SpatialDefinition definition = {{region("solid", "solid", 500.0, 0.0)}, {}, {}};
+        definition.regions.front().strain_formulation =
+            finite_strain ? fuelsim::StrainFormulation::finite : fuelsim::StrainFormulation::small;
+        fuelsim::BoundaryConditionDefinition pressure{
+            "pressure", fuelsim::BoundaryConditionType::pressure, "right", fuelsim::Field::radial_displacement, 3.0};
+        pressure.use_displaced_geometry = current_configuration;
+        definition.boundary_conditions.push_back(pressure);
+        fuelsim::SteadyProblem problem(std::move(definition), mesh);
+        const auto& dofs = fuelsim::rz::ProblemAccess::dof_map(problem);
+        std::vector<double> state = problem.initial_state();
+        state[dofs.dof(fuelsim::Field::radial_displacement, 1)] = 0.1;
+        state[dofs.dof(fuelsim::Field::radial_displacement, 2)] = 0.2;
+        state[dofs.dof(fuelsim::Field::axial_displacement, 1)] = 0.03;
+        state[dofs.dof(fuelsim::Field::axial_displacement, 2)] = -0.02;
+        const fuelsim::LocalValues local = fuelsim::rz::ProblemAccess::contribution_state(problem, 1, state);
+        const fuelsim::LocalResidual residual = fuelsim::rz::ProblemAccess::contribution_residual(problem, 1, local);
+        const double radial = residual[4] + residual[5] + residual[6] + residual[7];
+        const double axial = residual[8] + residual[9] + residual[10] + residual[11];
+        return std::array<double, 3>{radial, axial,
+            static_cast<double>(fuelsim::rz::ProblemAccess::dof_map(problem).configuration_warnings().size())};
+    };
+    const std::array<double, 3> reference_small = assembled_pressure(false, false);
+    const std::array<double, 3> current_small = assembled_pressure(false, true);
+    const std::array<double, 3> reference_finite = assembled_pressure(true, false);
+    const std::array<double, 3> current_finite = assembled_pressure(true, true);
+    bool passed = check(
+        reference_small[2] == 0.0 && current_small[2] == 1.0 && reference_finite[2] == 1.0 && current_finite[2] == 0.0,
+        "pressure configuration warnings identify non-recommended small- and finite-strain choices");
+    passed = check(std::abs(reference_small[0] - current_small[0]) > 1.0e-8 &&
+                       std::abs(reference_finite[0] - current_finite[0]) > 1.0e-8,
+                 "pressure configuration selects reference or current RZ geometry in both strain formulations") &&
+             passed;
+    return passed;
+}
+
 bool test_global_field_diagnostics(const fuelsim::UnstructuredQuad4Mesh& mesh) {
     fuelsim::SteadyProblem problem(single_region_definition(), mesh);
     const std::vector<double> state = problem.initial_state();
@@ -815,12 +854,12 @@ int main(int argc, char** argv) {
     try {
         fuelsim::PetscSession session(argc, argv, "fuelsim multi-region contact solve tests\n");
         const fuelsim::UnstructuredQuad4Mesh mesh = three_region_mesh();
-        const bool passed = test_single_region(mesh) && test_shared_block_nodes() &&
-                            test_time_controlled_pressure(mesh) && test_pressure_parent_edge_orientation() &&
-                            test_global_field_diagnostics(mesh) && test_three_regions(mesh) &&
-                            test_nonmatching_pellet_faces() && test_l_shaped_primary_collinear_candidate() &&
-                            test_zero_initial_gap_construction() && test_overlapping_material_rejected() &&
-                            test_zero_initial_gap_solve() && test_transient_regions(mesh);
+        const bool passed =
+            test_single_region(mesh) && test_shared_block_nodes() && test_time_controlled_pressure(mesh) &&
+            test_pressure_parent_edge_orientation() && test_pressure_configuration_selection() &&
+            test_global_field_diagnostics(mesh) && test_three_regions(mesh) && test_nonmatching_pellet_faces() &&
+            test_l_shaped_primary_collinear_candidate() && test_zero_initial_gap_construction() &&
+            test_overlapping_material_rejected() && test_zero_initial_gap_solve() && test_transient_regions(mesh);
         if (!passed) return 1;
         std::cout << "[PASS] single- and multi-region problem tests\n";
         return 0;

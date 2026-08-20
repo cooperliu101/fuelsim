@@ -182,7 +182,8 @@ Rashid 转动；稳态没有 committed 材料历史，从参考构形 `F_old=I` 
 变形做一次 Taylor 更新，不能解释为随稳态载荷步累计的增量材料路径。两者
 都用 Cauchy 应力、当前构形梯度和当前体积测度装配力学内力。热传导与热容
 仍使用参考构形。有限应变区域的 pressure 是当前构形 follower load；
-traction 可选择参考或当前构形表面测度。区域发生非正 Jacobian、非正环向
+压力可选择参考或当前构形表面测度；默认推荐小应变参考构形、有限应变当前构形，非推荐组合会提示但仍按输入执行。
+traction 的构形选择规则见下文。区域发生非正 Jacobian、非正环向
 伸长或非正当前半径时会拒绝 Newton 试探态，不做隐式夹持。
 
 每个区域必须用 `material` 引用 `[Materials]` 中已经定义的材料。旧版把导热率、
@@ -314,8 +315,10 @@ secondary 侧切向合力；轴对称为有符号标量，三维为合力向量�
 轴对称 `dirichlet` 的 `field` 可为 `temperature`、`radial_displacement` 或
 `axial_displacement`；三维可为 `temperature`、`displacement_x`、
 `displacement_y` 或 `displacement_z`。`pressure` 不接受 `field`，方向取父单元
-外法向。小应变区域使用参考表面，
-有限应变区域使用当前法向和当前表面测度；轴对称区域还使用当前半径。
+外法向。压力边界可以在小应变和有限应变区域中分别设置
+`configuration = reference` 或 `configuration = current`；前者使用参考表面，后者使用当前法向和当前表面测度，
+轴对称区域还会使用对应的参考半径或当前半径。小应变区域推荐参考构形，有限应变区域推荐当前构形；选择
+其他组合时程序会给出提示，但仍按用户选择装配。
 `traction` 必须声明一个位移 `field`，`value` 是该全局位移分量上的有符号表面牵引；默认
 `configuration = reference`。有限应变区域可设置 `configuration = current`，
 此时方向仍固定为所选全局分量，但周长和边长使用当前构形并进入 AD Jacobian。

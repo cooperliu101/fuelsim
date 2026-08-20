@@ -20,6 +20,7 @@ set(source_layout_refactor_lines 24)
 set(optional_input_sections_lines 5)
 set(bound_material_function_lines 109)
 set(thermal_time_term_option_lines 16)
+set(pressure_configuration_selection_lines 31)
 
 file(READ "${ROOT}/.clang-format" format_configuration)
 string(FIND "${format_configuration}" "ColumnLimit: 120" column_limit)
@@ -57,7 +58,7 @@ endif()
 math(EXPR removed_lines "${nonempty_line_baseline} - ${nonempty_lines}")
 math(EXPR reduction_per_mille "1000 * ${removed_lines} / ${nonempty_line_baseline}")
 math(EXPR capability_adjusted_limit
-    "${maximum_nonempty_lines} + ${hex8_inelastic_capability_lines} + ${hex8_finite_strain_capability_lines} + ${hex8_contact_capability_lines} + ${dynamic_contact_assembly_performance_lines} + ${large_sliding_contact_search_lines} + ${cartesian_current_pressure_input_lines} + ${m58_two_process_efficiency_lines} + ${m58_four_process_efficiency_lines} + ${memory_statistics_lines} + ${shared_node_capability_lines} + ${hex8_narrow_constitutive_ad_lines} + ${rz_narrow_constitutive_ad_lines} + ${source_layout_refactor_lines} + ${optional_input_sections_lines} + ${bound_material_function_lines} + ${thermal_time_term_option_lines}"
+    "${maximum_nonempty_lines} + ${hex8_inelastic_capability_lines} + ${hex8_finite_strain_capability_lines} + ${hex8_contact_capability_lines} + ${dynamic_contact_assembly_performance_lines} + ${large_sliding_contact_search_lines} + ${cartesian_current_pressure_input_lines} + ${m58_two_process_efficiency_lines} + ${m58_four_process_efficiency_lines} + ${memory_statistics_lines} + ${shared_node_capability_lines} + ${hex8_narrow_constitutive_ad_lines} + ${rz_narrow_constitutive_ad_lines} + ${source_layout_refactor_lines} + ${optional_input_sections_lines} + ${bound_material_function_lines} + ${thermal_time_term_option_lines} + ${pressure_configuration_selection_lines}"
 )
 if(nonempty_lines GREATER capability_adjusted_limit)
     message(FATAL_ERROR
@@ -78,7 +79,8 @@ if(nonempty_lines GREATER capability_adjusted_limit)
         "automatic differentiation, plus ${source_layout_refactor_lines} lines for explicit module boundaries "
         "introduced by the source-layout refactor, plus ${optional_input_sections_lines} lines for optional input "
         "sections, plus ${bound_material_function_lines} lines for two-stage bound material evaluators, plus "
-        "${thermal_time_term_option_lines} lines for the transient thermal time-term option"
+        "${thermal_time_term_option_lines} lines for the transient thermal time-term option, plus "
+        "${pressure_configuration_selection_lines} lines for selectable pressure-boundary configurations"
     )
 endif()
 
@@ -100,5 +102,5 @@ message(STATUS
     "lines plus ${source_layout_refactor_lines} source-layout refactor boundary lines plus "
     "${optional_input_sections_lines} optional-input-section lines plus ${bound_material_function_lines} "
     "two-stage bound-material-evaluator lines plus ${thermal_time_term_option_lines} transient-thermal-time-term "
-    "option lines"
+    "option lines plus ${pressure_configuration_selection_lines} selectable-pressure-configuration lines"
 )

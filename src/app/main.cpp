@@ -304,6 +304,14 @@ bool write_jacobian_check(const NonlinearProblem& problem, const std::vector<dou
     return passed;
 }
 
+void write_configuration_warnings(const spatial_detail::SpatialLayout& spatial, const PetscSession& session) {
+    if (spatial.configuration_warnings().empty()) return;
+    session.collective_root_action([&]() {
+        for (const std::string& warning : spatial.configuration_warnings())
+            std::cerr << "fuelsim warning: " << warning << '\n';
+    });
+}
+
 bool run_steady(const FuelSimCaseDefinition& definition, const UnstructuredQuad4Mesh* rz_source,
     const UnstructuredHex8Mesh* hex_source, CaseOutput& output, bool check_jacobian, const PetscSession& session) {
     std::unique_ptr<SteadyProblem> problem_storage;
@@ -312,6 +320,10 @@ bool run_steady(const FuelSimCaseDefinition& definition, const UnstructuredQuad4
     else
         problem_storage = std::make_unique<SteadyProblem>(definition.spatial, *rz_source);
     SteadyProblem& problem = *problem_storage;
+    if (hex_source != nullptr)
+        write_configuration_warnings(BackendAccess::cartesian_spatial(problem), session);
+    else
+        write_configuration_warnings(BackendAccess::steady(problem).spatial, session);
     if (check_jacobian) {
         problem.set_load_factor(1.0);
         return write_jacobian_check(problem, problem.initial_state(), output);
@@ -365,6 +377,10 @@ bool run_transient(const FuelSimCaseDefinition& definition, const UnstructuredQu
     else
         problem_storage = std::make_unique<TransientProblem>(definition.spatial, *rz_source);
     TransientProblem& problem = *problem_storage;
+    if (hex_source != nullptr)
+        write_configuration_warnings(BackendAccess::cartesian_spatial(problem), session);
+    else
+        write_configuration_warnings(BackendAccess::transient(problem).spatial, session);
     double restart_time_step = 0.0;
     if (!definition.restart_file.empty())
         restart_time_step = restore_transient_checkpoint(definition.restart_file, problem);

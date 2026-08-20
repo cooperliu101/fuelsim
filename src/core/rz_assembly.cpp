@@ -264,6 +264,18 @@ void SpatialLayout::refresh_dirichlet_values() {
     }
 }
 
+void SpatialLayout::record_pressure_configuration_warning(
+    const BoundaryConditionDefinition& boundary, const RegionDefinition& region) {
+    const bool finite_strain = region.strain_formulation == StrainFormulation::finite;
+    const bool recommended_current_configuration = finite_strain;
+    if (boundary.use_displaced_geometry == recommended_current_configuration) return;
+    const std::string selected = boundary.use_displaced_geometry ? "current" : "reference";
+    const std::string recommended = recommended_current_configuration ? "current" : "reference";
+    _configuration_warnings.push_back("pressure boundary '" + boundary.name + "' uses configuration = " + selected +
+                                      " in " + (finite_strain ? "a finite-strain" : "a small-strain") +
+                                      " region; the recommended setting is configuration = " + recommended);
+}
+
 ConvectionValues SpatialLayout::convection_values(const BoundaryConditionDefinition& boundary) const {
     const double coefficient =
         boundary.heat_transfer_coefficient *
@@ -404,11 +416,11 @@ void SpatialAssembly::build_boundaries(const UnstructuredQuad4Mesh& source_mesh)
         SpatialContributionType type;
         if (definition.type == BoundaryConditionType::pressure) {
             type = SpatialContributionType::pressure;
-            const bool displaced = region(resolved.region).strain_formulation == StrainFormulation::finite;
+            record_pressure_configuration_warning(definition, region(resolved.region));
             _boundary_data.push_back({Line2RzBoundaryKind::pressure, TractionComponent::radial,
                 spatial_detail::controlled_value(_definition, _time, _load_factor, definition.value,
                     definition.scale_with_load, definition.function),
-                0.0, displaced});
+                0.0, definition.use_displaced_geometry});
         } else if (definition.type == BoundaryConditionType::traction) {
             type = SpatialContributionType::traction;
             if (definition.field == Field::temperature)

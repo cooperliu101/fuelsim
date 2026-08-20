@@ -5,6 +5,7 @@
 #include <array>
 #include <cstdint>
 #include <limits>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -100,6 +101,8 @@ class SpatialLayout {
 
     const std::vector<DirichletCondition>& dirichlet_conditions() const noexcept { return _dirichlet_conditions; }
 
+    const std::vector<std::string>& configuration_warnings() const noexcept { return _configuration_warnings; }
+
     std::size_t global_node(std::size_t region, std::size_t local_node) const;
 
   protected:
@@ -111,6 +114,8 @@ class SpatialLayout {
     void set_time_value(double value);
     void refresh_dirichlet_values();
     ConvectionValues convection_values(const BoundaryConditionDefinition& boundary) const;
+    void record_pressure_configuration_warning(
+        const BoundaryConditionDefinition& boundary, const RegionDefinition& region);
     SpatialDefinition _definition;
     std::vector<std::int64_t> _block_ids;
     std::vector<std::size_t> _node_offsets, _element_offsets;
@@ -118,6 +123,7 @@ class SpatialLayout {
     std::size_t _node_count = 0;
     std::vector<FieldDescriptor> _field_layout;
     std::vector<DirichletCondition> _dirichlet_conditions;
+    std::vector<std::string> _configuration_warnings;
     double _load_factor = 0.0, _time = 0.0;
 
   private:

@@ -95,6 +95,7 @@
     boundary = left
     value = 1e6
     scale_with_load = true
+    configuration = current
   []
 
 []

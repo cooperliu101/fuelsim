@@ -165,12 +165,11 @@ SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const Unstructure
             continue;
         }
         const bool finite_strain = this->region(region).strain_formulation == StrainFormulation::finite;
-        if (boundary.use_displaced_geometry && !finite_strain)
+        if (boundary.type == BoundaryConditionType::traction && boundary.use_displaced_geometry && !finite_strain)
             throw std::invalid_argument(
                 "Cartesian current-configuration loads require a finite-strain region: " + boundary.name);
-        if (finite_strain && boundary.type == BoundaryConditionType::pressure && !boundary.use_displaced_geometry)
-            throw std::invalid_argument(
-                "Cartesian finite-strain pressure requires configuration = current: " + boundary.name);
+        if (boundary.type == BoundaryConditionType::pressure)
+            record_pressure_configuration_warning(boundary, this->region(region));
         const std::size_t kernel = _boundary_data.size();
         if (boundary.type == BoundaryConditionType::pressure) {
             _boundary_data.push_back({Quad4FaceBoundaryKind::pressure, CartesianTractionComponent::x, boundary.value,

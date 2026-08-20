@@ -399,6 +399,27 @@ bool test_contact_projection_transfer() {
            passed;
 }
 
+bool test_pressure_configuration_selection(const fuelsim::UnstructuredHex8Mesh& mesh) {
+    const auto warning_count = [&](bool finite_strain, bool current_configuration) {
+        fuelsim::SpatialDefinition definition;
+        definition.regions.push_back({"solid", "solid", material(), 0.0, 300.0});
+        definition.regions.front().strain_formulation =
+            finite_strain ? fuelsim::StrainFormulation::finite : fuelsim::StrainFormulation::small;
+        fuelsim::BoundaryConditionDefinition pressure{
+            "pressure", fuelsim::BoundaryConditionType::pressure, "x2", fuelsim::Field::displacement_x, 1.0e6};
+        pressure.use_displaced_geometry = current_configuration;
+        definition.boundary_conditions.push_back(pressure);
+        fuelsim::SteadyProblem problem(std::move(definition), mesh);
+        return fuelsim::cartesian::ProblemAccess::dof_map(problem).configuration_warnings().size();
+    };
+    const std::size_t reference_small = warning_count(false, false);
+    const std::size_t current_small = warning_count(false, true);
+    const std::size_t reference_finite = warning_count(true, false);
+    const std::size_t current_finite = warning_count(true, true);
+    return check(reference_small == 0 && current_small == 1 && reference_finite == 1 && current_finite == 0,
+        "three-dimensional pressure accepts both configurations and warns for non-recommended choices");
+}
+
 fuelsim::SpatialDefinition inelastic_definition(bool creep, bool plasticity) {
     fuelsim::ThermoelasticProperties properties =
         fuelsim::test::thermoelastic(0.0, 10.0, 2.0e11, 0.3, 0.0, 600.0, 0.0, 0.0, 0.0, 1.0, 1.0);
@@ -460,6 +481,7 @@ int main(int argc, char** argv) {
     passed = test_multiple_regions() && passed;
     passed = test_shared_nodes(session) && passed;
     passed = test_contact_projection_transfer() && passed;
+    passed = test_pressure_configuration_selection(mesh) && passed;
     passed = test_inelastic_branches(mesh) && passed;
     session.collective_root_action([&]() {
         (void)std::remove(argv[1]);
