@@ -9,7 +9,8 @@
 ```text
 MOOSE development environment: 2026.06.16, MPICH build
 PETSc supplied by MOOSE:        3.25.2
-ADlite commit:                  a3778d2b2fd87cd70da59d1cc32ed3b856020a3e
+ADlite version:                 0.2.1
+ADlite commit:                  a0e75a887017135d5e520062bb330fcb194b4399
 SEACAS Exodus tag:              v2024-06-27
 ```
 
@@ -43,12 +44,12 @@ mkdir -p "${fuelsim_source_root}" "${fuelsim_build_root}" \
 
 ```bash
 git -C "${fuelsim_source_root}/ADlite" checkout \
-  a3778d2b2fd87cd70da59d1cc32ed3b856020a3e
+  a0e75a887017135d5e520062bb330fcb194b4399
 
 ./scripts/install_adlite.sh \
   "${fuelsim_source_root}/ADlite" \
-  "${fuelsim_dependency_root}/adlite-a3778d2" \
-  "${fuelsim_build_root}/adlite-a3778d2" \
+  "${fuelsim_dependency_root}/adlite-0.2.1" \
+  "${fuelsim_build_root}/adlite-0.2.1" \
   "${fuelsim_toolchain_prefix}"
 ```
 
@@ -84,7 +85,7 @@ env \
   cmake -S . -B build \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_CXX_COMPILER="${fuelsim_toolchain_prefix}/bin/c++" \
-    -DCMAKE_PREFIX_PATH="${fuelsim_dependency_root}/adlite-a3778d2" \
+    -DCMAKE_PREFIX_PATH="${fuelsim_dependency_root}/adlite-0.2.1" \
     -DSEACASExodus_DIR="${fuelsim_dependency_root}/exodus-2024-06-27/lib/cmake/SEACASExodus" \
     -DFUELSIM_WARNINGS_AS_ERRORS=ON
 cmake --build build --parallel
@@ -104,7 +105,7 @@ env \
   cmake -S . -B build-sanitize \
     -DCMAKE_BUILD_TYPE=Debug \
     -DCMAKE_CXX_COMPILER="${fuelsim_toolchain_prefix}/bin/c++" \
-    -DCMAKE_PREFIX_PATH="${fuelsim_dependency_root}/adlite-a3778d2" \
+    -DCMAKE_PREFIX_PATH="${fuelsim_dependency_root}/adlite-0.2.1" \
     -DSEACASExodus_DIR="${fuelsim_dependency_root}/exodus-2024-06-27/lib/cmake/SEACASExodus" \
     -DFUELSIM_ENABLE_SANITIZERS=ON \
     -DFUELSIM_WARNINGS_AS_ERRORS=ON
@@ -130,7 +131,7 @@ Release 任务仍使用环境默认网络模块，且所有双进程等价性测
 
 ```text
 FUELSIM_TOOLCHAIN_PREFIX = 固定 MOOSE Conda 环境的绝对路径
-FUELSIM_DEPENDENCY_ROOT  = 包含 adlite-a3778d2 和 exodus-2024-06-27 的绝对路径
+FUELSIM_DEPENDENCY_ROOT  = 包含 adlite-0.2.1 和 exodus-2024-06-27 的绝对路径
 ```
 
 Release 与检测器任务分别从空的配置目录重新运行 CMake、全量编译和全部 CTest；

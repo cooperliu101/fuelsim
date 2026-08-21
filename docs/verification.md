@@ -134,7 +134,7 @@ env \
   cmake -S . -B build \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_CXX_COMPILER="${fuelsim_toolchain_prefix}/bin/c++" \
-  -DCMAKE_PREFIX_PATH="${fuelsim_dependency_root}/adlite-a3778d2" \
+  -DCMAKE_PREFIX_PATH="${fuelsim_dependency_root}/adlite-0.2.1" \
   -DSEACASExodus_DIR="${fuelsim_dependency_root}/exodus-2024-06-27/lib/cmake/SEACASExodus" \
   -DFUELSIM_WARNINGS_AS_ERRORS=ON
 cmake --build build --parallel

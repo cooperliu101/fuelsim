@@ -43,7 +43,7 @@ jobs:
           test -n "${FUELSIM_TOOLCHAIN_PREFIX}"
           test -n "${FUELSIM_DEPENDENCY_ROOT}"
           test -x "${FUELSIM_TOOLCHAIN_PREFIX}/bin/c++"
-          test -f "${FUELSIM_DEPENDENCY_ROOT}/adlite-a3778d2/lib/cmake/adlite/adliteConfig.cmake"
+          test -f "${FUELSIM_DEPENDENCY_ROOT}/adlite-0.2.1/lib/cmake/adlite/adliteConfig.cmake"
           test -f "${FUELSIM_DEPENDENCY_ROOT}/exodus-2024-06-27/lib/cmake/SEACASExodus/SEACASExodusConfig.cmake"
       - name: Configure ${{ matrix.configuration }}
         shell: bash
@@ -54,7 +54,7 @@ jobs:
             cmake -S . -B "build-ci-${{ matrix.configuration }}" \
               -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
               -DCMAKE_CXX_COMPILER="${FUELSIM_TOOLCHAIN_PREFIX}/bin/c++" \
-              -DCMAKE_PREFIX_PATH="${FUELSIM_DEPENDENCY_ROOT}/adlite-a3778d2" \
+              -DCMAKE_PREFIX_PATH="${FUELSIM_DEPENDENCY_ROOT}/adlite-0.2.1" \
               -DSEACASExodus_DIR="${FUELSIM_DEPENDENCY_ROOT}/exodus-2024-06-27/lib/cmake/SEACASExodus" \
               -DFUELSIM_ENABLE_SANITIZERS=${{ matrix.sanitizers }} \
               -DFUELSIM_WARNINGS_AS_ERRORS=ON

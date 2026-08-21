@@ -28,7 +28,7 @@ if [[ ! -x "${source_root}/scripts/install_adlite.sh" ||
 fi
 
 require_text "${source_root}/scripts/install_adlite.sh" \
-    "a3778d2b2fd87cd70da59d1cc32ed3b856020a3e"
+    "a0e75a887017135d5e520062bb330fcb194b4399"
 require_text "${source_root}/scripts/build_exodus.sh" "v2024-06-27"
 require_text \
     "${source_root}/dependencies/moose-2026.06.16-linux-64.yml" \

@@ -15,7 +15,7 @@ option(FUELSIM_ENABLE_SANITIZERS
        "Build with AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 option(FUELSIM_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 
-find_package(adlite 0.1.0 CONFIG REQUIRED)
+find_package(adlite 0.2.1 CONFIG REQUIRED)
 find_package(PkgConfig REQUIRED)
 find_package(SEACASExodus CONFIG REQUIRED)
 pkg_search_module(PETSC REQUIRED IMPORTED_TARGET PETSc petsc)
