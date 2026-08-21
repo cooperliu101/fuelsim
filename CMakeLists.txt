@@ -492,6 +492,9 @@ if(BUILD_TESTING)
     fuelsim_enable_warnings(fuelsim_hex20_tests)
     add_test(NAME fuelsim_hex20_tests COMMAND fuelsim_hex20_tests)
     set_tests_properties(fuelsim_hex20_tests PROPERTIES LABELS "unit;three-dimensional;quadratic")
+    add_test(NAME fuelsim_h20_01_hex20_kernel_tests COMMAND fuelsim_hex20_tests)
+    set_tests_properties(fuelsim_h20_01_hex20_kernel_tests
+        PROPERTIES LABELS "unit;three-dimensional;quadratic")
 
     add_executable(fuelsim_hex8_solver_tests tests/hex8_solver_tests.cpp)
     target_link_libraries(fuelsim_hex8_solver_tests PRIVATE fuelsim::io fuelsim::solver)
