@@ -166,6 +166,21 @@ bool test_quadratic_face() {
     const fuelsim::Quad8FaceCoordinates coordinates = {
         cube[1], cube[2], cube[6], cube[5], cube[9], cube[14], cube[17], cube[13]};
     const fuelsim::Quad8FaceGeometry geometry = fuelsim::make_quad8_face_geometry(coordinates);
+    double thermal_area = 0.0, mechanical_area = 0.0;
+    for (const auto& point : geometry.thermal_points) thermal_area += point.weighted_measure;
+    for (const auto& point : geometry.mechanical_points) {
+        const auto& tangent_xi = point.tangent_xi;
+        const auto& tangent_eta = point.tangent_eta;
+        const double area_x = tangent_xi.y * tangent_eta.z - tangent_xi.z * tangent_eta.y;
+        const double area_y = tangent_xi.z * tangent_eta.x - tangent_xi.x * tangent_eta.z;
+        const double area_z = tangent_xi.x * tangent_eta.y - tangent_xi.y * tangent_eta.x;
+        mechanical_area += std::sqrt(area_x * area_x + area_y * area_y + area_z * area_z) * point.quadrature_weight;
+    }
+    if (!check(geometry.thermal_points.size() == 4 && geometry.mechanical_points.size() == 9,
+            "Quad8 boundary separates 2x2 thermal and 3x3 mechanical integration rules") ||
+        !check(near(thermal_area, 1.0, 2.0e-14) && near(mechanical_area, 1.0, 2.0e-14),
+            "Quad8 thermal and mechanical face rules recover the unit face area"))
+        return false;
     fuelsim::Quad8FaceLocalValues state{};
     for (std::size_t node = 0; node < 4; ++node) state[node] = 350.0;
     const fuelsim::Quad4FaceBoundaryData pressure = {

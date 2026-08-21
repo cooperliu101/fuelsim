@@ -13,6 +13,8 @@ inline constexpr std::size_t hex20_mechanical_quadrature_point_count = 27;
 inline constexpr std::size_t quad8_face_temperature_node_count = 4;
 inline constexpr std::size_t quad8_face_displacement_node_count = 8;
 inline constexpr std::size_t quad8_face_local_dof_count = 28;
+inline constexpr std::size_t quad8_face_thermal_quadrature_point_count = 4;
+inline constexpr std::size_t quad8_face_mechanical_quadrature_point_count = 9;
 using Hex20LocalDofs = std::array<std::size_t, hex20_local_dof_count>;
 using Hex20LocalValues = std::array<double, hex20_local_dof_count>;
 using Hex20LocalResidual = std::array<double, hex20_local_dof_count>;
@@ -46,16 +48,21 @@ struct Hex20Geometry final {
     std::array<Hex20MechanicalQuadraturePoint, hex20_mechanical_quadrature_point_count> mechanical_points;
 };
 
-struct Quad8FaceQuadraturePoint final {
+struct Quad8FaceThermalQuadraturePoint final {
     std::array<double, quad8_face_temperature_node_count> temperature_shape;
-    std::array<double, quad8_face_displacement_node_count> displacement_shape;
-    std::array<double, quad8_face_displacement_node_count> derivative_xi, derivative_eta;
-    CartesianPoint3 tangent_xi, tangent_eta;
     double weighted_measure, quadrature_weight;
 };
 
+struct Quad8FaceMechanicalQuadraturePoint final {
+    std::array<double, quad8_face_displacement_node_count> displacement_shape;
+    std::array<double, quad8_face_displacement_node_count> derivative_xi, derivative_eta;
+    CartesianPoint3 tangent_xi, tangent_eta;
+    double quadrature_weight;
+};
+
 struct Quad8FaceGeometry final {
-    std::array<Quad8FaceQuadraturePoint, 9> points;
+    std::array<Quad8FaceThermalQuadraturePoint, quad8_face_thermal_quadrature_point_count> thermal_points;
+    std::array<Quad8FaceMechanicalQuadraturePoint, quad8_face_mechanical_quadrature_point_count> mechanical_points;
 };
 
 Hex20Geometry make_hex20_geometry(const Hex20Coordinates& coordinates);

@@ -646,13 +646,39 @@ Hex20Geometry make_hex20_geometry(const Hex20Coordinates& coordinates) {
 Quad8FaceGeometry make_quad8_face_geometry(const Quad8FaceCoordinates& coordinates) {
     Quad8FaceGeometry geometry{};
     std::size_t q = 0;
+    for (std::size_t ky = 0; ky < 2; ++ky)
+        for (std::size_t kx = 0; kx < 2; ++kx) {
+            const double xi = gauss2_points[kx], eta = gauss2_points[ky];
+            Quad8FaceThermalQuadraturePoint& point = geometry.thermal_points[q++];
+            std::array<double, quad8_face_displacement_node_count> displacement_shape{}, derivative_xi{},
+                derivative_eta{};
+            evaluate_quad8_shapes(xi, eta, displacement_shape, derivative_xi, derivative_eta);
+            point.temperature_shape = {{0.25 * (1.0 - xi) * (1.0 - eta), 0.25 * (1.0 + xi) * (1.0 - eta),
+                0.25 * (1.0 + xi) * (1.0 + eta), 0.25 * (1.0 - xi) * (1.0 + eta)}};
+            CartesianPoint3 tangent_xi{}, tangent_eta{};
+            for (std::size_t node = 0; node < 8; ++node) {
+                tangent_xi.x += derivative_xi[node] * coordinates[node].x;
+                tangent_xi.y += derivative_xi[node] * coordinates[node].y;
+                tangent_xi.z += derivative_xi[node] * coordinates[node].z;
+                tangent_eta.x += derivative_eta[node] * coordinates[node].x;
+                tangent_eta.y += derivative_eta[node] * coordinates[node].y;
+                tangent_eta.z += derivative_eta[node] * coordinates[node].z;
+            }
+            const CartesianPoint3 area{tangent_xi.y * tangent_eta.z - tangent_xi.z * tangent_eta.y,
+                tangent_xi.z * tangent_eta.x - tangent_xi.x * tangent_eta.z,
+                tangent_xi.x * tangent_eta.y - tangent_xi.y * tangent_eta.x};
+            const double measure = std::sqrt(area.x * area.x + area.y * area.y + area.z * area.z);
+            if (!std::isfinite(measure) || !(measure > 0.0))
+                throw std::invalid_argument("Quad8FaceGeometry requires a finite positive area measure");
+            point.quadrature_weight = gauss2_weights[kx] * gauss2_weights[ky];
+            point.weighted_measure = measure * point.quadrature_weight;
+        }
+    q = 0;
     for (std::size_t ky = 0; ky < 3; ++ky)
         for (std::size_t kx = 0; kx < 3; ++kx) {
             const double xi = gauss3_points[kx], eta = gauss3_points[ky];
-            Quad8FaceQuadraturePoint& point = geometry.points[q++];
+            Quad8FaceMechanicalQuadraturePoint& point = geometry.mechanical_points[q++];
             evaluate_quad8_shapes(xi, eta, point.displacement_shape, point.derivative_xi, point.derivative_eta);
-            point.temperature_shape = {{0.25 * (1.0 - xi) * (1.0 - eta), 0.25 * (1.0 + xi) * (1.0 - eta),
-                0.25 * (1.0 + xi) * (1.0 + eta), 0.25 * (1.0 - xi) * (1.0 + eta)}};
             for (std::size_t node = 0; node < 8; ++node) {
                 point.tangent_xi.x += point.derivative_xi[node] * coordinates[node].x;
                 point.tangent_xi.y += point.derivative_xi[node] * coordinates[node].y;
@@ -669,7 +695,6 @@ Quad8FaceGeometry make_quad8_face_geometry(const Quad8FaceCoordinates& coordinat
             if (!std::isfinite(measure) || !(measure > 0.0))
                 throw std::invalid_argument("Quad8FaceGeometry requires a finite positive area measure");
             point.quadrature_weight = gauss3_weights[kx] * gauss3_weights[ky];
-            point.weighted_measure = measure * point.quadrature_weight;
         }
     return geometry;
 }
@@ -754,40 +779,47 @@ Quad8FaceLocalResidual compute_quad8_face_boundary(const Quad4FaceBoundaryData& 
         ad_local_system::make_active(state.data(), state.size(), ad_state.data());
     Quad8FaceLocalAdValues residual{};
     residual.fill(adlite::Scalar(0.0));
-    for (const Quad8FaceQuadraturePoint& point : geometry.points) {
-        std::array<adlite::Scalar, 3> tangent_xi = {point.tangent_xi.x, point.tangent_xi.y, point.tangent_xi.z};
-        std::array<adlite::Scalar, 3> tangent_eta = {point.tangent_eta.x, point.tangent_eta.y, point.tangent_eta.z};
-        if (data.use_displaced_geometry)
-            for (std::size_t node = 0; node < 8; ++node)
-                for (std::size_t component = 0; component < 3; ++component) {
-                    tangent_xi[component] += point.derivative_xi[node] * ad_state[4 + 8 * component + node];
-                    tangent_eta[component] += point.derivative_eta[node] * ad_state[4 + 8 * component + node];
-                }
-        const std::array<adlite::Scalar, 3> area = {tangent_xi[1] * tangent_eta[2] - tangent_xi[2] * tangent_eta[1],
-            tangent_xi[2] * tangent_eta[0] - tangent_xi[0] * tangent_eta[2],
-            tangent_xi[0] * tangent_eta[1] - tangent_xi[1] * tangent_eta[0]};
-        const adlite::Scalar measure = adlite::hypot(adlite::hypot(area[0], area[1]), area[2]);
-        if (!std::isfinite(measure.value()) || !(measure.value() > 0.0))
-            throw std::domain_error("Three-dimensional quadratic face requires a positive current measure");
-        if (data.kind == Quad4FaceBoundaryKind::pressure) {
-            for (std::size_t node = 0; node < 8; ++node) {
-                residual[4 + node] += data.load * point.displacement_shape[node] * area[0] * point.quadrature_weight;
-                residual[12 + node] += data.load * point.displacement_shape[node] * area[1] * point.quadrature_weight;
-                residual[20 + node] += data.load * point.displacement_shape[node] * area[2] * point.quadrature_weight;
-            }
-        } else if (data.kind == Quad4FaceBoundaryKind::traction) {
-            const std::size_t offset = data.component == CartesianTractionComponent::x
-                                           ? 4
-                                           : (data.component == CartesianTractionComponent::y ? 12 : 20);
-            for (std::size_t node = 0; node < 8; ++node)
-                residual[offset + node] -=
-                    data.load * point.displacement_shape[node] * measure * point.quadrature_weight;
-        } else {
+    if (data.kind == Quad4FaceBoundaryKind::convection) {
+        for (const Quad8FaceThermalQuadraturePoint& point : geometry.thermal_points) {
             adlite::Scalar temperature = 0.0;
             for (std::size_t node = 0; node < 4; ++node) temperature += point.temperature_shape[node] * ad_state[node];
             const adlite::Scalar heat_flux = data.load * (temperature - data.ambient_temperature);
             for (std::size_t node = 0; node < 4; ++node)
                 residual[node] += point.weighted_measure * point.temperature_shape[node] * heat_flux;
+        }
+    } else {
+        for (const Quad8FaceMechanicalQuadraturePoint& point : geometry.mechanical_points) {
+            std::array<adlite::Scalar, 3> tangent_xi = {point.tangent_xi.x, point.tangent_xi.y, point.tangent_xi.z};
+            std::array<adlite::Scalar, 3> tangent_eta = {point.tangent_eta.x, point.tangent_eta.y, point.tangent_eta.z};
+            if (data.use_displaced_geometry)
+                for (std::size_t node = 0; node < 8; ++node)
+                    for (std::size_t component = 0; component < 3; ++component) {
+                        tangent_xi[component] += point.derivative_xi[node] * ad_state[4 + 8 * component + node];
+                        tangent_eta[component] += point.derivative_eta[node] * ad_state[4 + 8 * component + node];
+                    }
+            const std::array<adlite::Scalar, 3> area = {tangent_xi[1] * tangent_eta[2] - tangent_xi[2] * tangent_eta[1],
+                tangent_xi[2] * tangent_eta[0] - tangent_xi[0] * tangent_eta[2],
+                tangent_xi[0] * tangent_eta[1] - tangent_xi[1] * tangent_eta[0]};
+            const adlite::Scalar measure = adlite::hypot(adlite::hypot(area[0], area[1]), area[2]);
+            if (!std::isfinite(measure.value()) || !(measure.value() > 0.0))
+                throw std::domain_error("Three-dimensional quadratic face requires a positive current measure");
+            if (data.kind == Quad4FaceBoundaryKind::pressure) {
+                for (std::size_t node = 0; node < 8; ++node) {
+                    residual[4 + node] +=
+                        data.load * point.displacement_shape[node] * area[0] * point.quadrature_weight;
+                    residual[12 + node] +=
+                        data.load * point.displacement_shape[node] * area[1] * point.quadrature_weight;
+                    residual[20 + node] +=
+                        data.load * point.displacement_shape[node] * area[2] * point.quadrature_weight;
+                }
+            } else if (data.kind == Quad4FaceBoundaryKind::traction) {
+                const std::size_t offset = data.component == CartesianTractionComponent::x
+                                               ? 4
+                                               : (data.component == CartesianTractionComponent::y ? 12 : 20);
+                for (std::size_t node = 0; node < 8; ++node)
+                    residual[offset + node] -=
+                        data.load * point.displacement_shape[node] * measure * point.quadrature_weight;
+            }
         }
     }
     Quad8FaceLocalResidual values{};
