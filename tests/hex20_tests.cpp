@@ -65,30 +65,42 @@ double directional_jacobian_error(const fuelsim::CartesianThermoelasticData& dat
 bool test_geometry_and_constant_strain() {
     const auto coordinates = unit_cube();
     const fuelsim::Hex20Geometry geometry = fuelsim::make_hex20_geometry(coordinates);
-    double volume = 0.0;
-    for (const fuelsim::Hex20QuadraturePoint& point : geometry.points) {
-        volume += point.weighted_measure;
-        double temperature_sum = 0.0, displacement_sum = 0.0;
-        std::array<double, 3> temperature_gradient{}, displacement_gradient{};
+    double thermal_volume = 0.0, mechanical_volume = 0.0;
+    for (const fuelsim::Hex20ThermalQuadraturePoint& point : geometry.thermal_points) {
+        thermal_volume += point.weighted_measure;
+        double temperature_sum = 0.0;
+        std::array<double, 3> temperature_gradient{};
         for (std::size_t node = 0; node < 8; ++node) {
             temperature_sum += point.temperature_shape[node];
             for (std::size_t direction = 0; direction < 3; ++direction)
                 temperature_gradient[direction] += point.temperature_gradient[node][direction];
         }
+        if (!check(near(temperature_sum, 1.0, 2.0e-14), "HEX20 thermal shape functions form a partition of unity") ||
+            !check(std::max({std::abs(temperature_gradient[0]), std::abs(temperature_gradient[1]),
+                       std::abs(temperature_gradient[2])}) < 2.0e-14,
+                "HEX20 thermal shape gradients sum to zero"))
+            return false;
+    }
+    for (const fuelsim::Hex20MechanicalQuadraturePoint& point : geometry.mechanical_points) {
+        mechanical_volume += point.weighted_measure;
+        double temperature_sum = 0.0, displacement_sum = 0.0;
+        std::array<double, 3> displacement_gradient{};
+        for (std::size_t node = 0; node < 8; ++node) temperature_sum += point.temperature_shape[node];
         for (std::size_t node = 0; node < 20; ++node) {
             displacement_sum += point.displacement_shape[node];
             for (std::size_t direction = 0; direction < 3; ++direction)
                 displacement_gradient[direction] += point.displacement_gradient[node][direction];
         }
         if (!check(near(temperature_sum, 1.0, 2.0e-14) && near(displacement_sum, 1.0, 2.0e-14),
-                "HEX20-U2/T1 shape functions form separate partitions of unity") ||
-            !check(std::max({std::abs(temperature_gradient[0]), std::abs(temperature_gradient[1]),
-                       std::abs(temperature_gradient[2]), std::abs(displacement_gradient[0]),
-                       std::abs(displacement_gradient[1]), std::abs(displacement_gradient[2])}) < 2.0e-14,
-                "HEX20-U2/T1 physical shape gradients sum to zero"))
+                "HEX20 mechanical points carry separate U2 and T1 partitions of unity") ||
+            !check(std::max({std::abs(displacement_gradient[0]), std::abs(displacement_gradient[1]),
+                       std::abs(displacement_gradient[2])}) < 2.0e-14,
+                "HEX20 mechanical displacement shape gradients sum to zero"))
             return false;
     }
-    if (!check(near(volume, 1.0, 2.0e-14), "HEX20 27-point integration recovers unit volume")) return false;
+    if (!check(near(thermal_volume, 1.0, 2.0e-14), "HEX20 thermal 8-point integration recovers unit volume") ||
+        !check(near(mechanical_volume, 1.0, 2.0e-14), "HEX20 mechanical 27-point integration recovers unit volume"))
+        return false;
     fuelsim::Hex20LocalValues state{};
     for (std::size_t node = 0; node < 8; ++node) state[node] = 300.0;
     for (std::size_t node = 0; node < 20; ++node) {
@@ -138,7 +150,7 @@ bool test_jacobian_and_transient_history() {
     for (std::size_t node = 0; node < 20; ++node) invalid[8 + node] = -2.0 * coordinates[node].x;
     bool invalid_rejected = false;
     try {
-        fuelsim::validate_hex20_deformation(geometry.points[0], invalid);
+        fuelsim::validate_hex20_deformation(geometry.mechanical_points[0], invalid);
     } catch (const std::domain_error&) { invalid_rejected = true; }
     std::cout << "hex20_directional_jacobian_relative_error=" << small_error << '\n'
               << "hex20_finite_directional_jacobian_relative_error=" << finite_error << '\n';

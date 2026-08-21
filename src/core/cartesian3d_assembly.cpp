@@ -353,7 +353,8 @@ void SpatialAssembly::validate_state(const std::vector<double>& state) const {
         for (std::size_t element = 0; element < region_element_count(region_index); ++element) {
             if (_uses_hex20) {
                 const Hex20LocalValues local = hex20_volume_state(region_element_offset(region_index) + element, state);
-                for (const Hex20QuadraturePoint& point : hex20_region_element_geometry(region_index, element).points)
+                for (const Hex20MechanicalQuadraturePoint& point :
+                    hex20_region_element_geometry(region_index, element).mechanical_points)
                     validate_hex20_deformation(point, local);
                 continue;
             }

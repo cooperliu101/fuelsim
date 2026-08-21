@@ -942,8 +942,7 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                     const Hex20Geometry& geometry = _impl->cartesian->hex20_region_element_geometry(region, element);
                     CartesianMaterialHistory update = _impl->cartesian->transient_update(region, element, current, old,
                         _impl->cartesian_material_histories[region][element], _impl->active_time_step);
-                    for (std::size_t q = 0; q < geometry.points.size(); ++q) {
-                        const Hex20QuadraturePoint& point = geometry.points[q];
+                    for (const Hex20ThermalQuadraturePoint& point : geometry.thermal_points) {
                         double current_temperature = 0.0, old_temperature = 0.0;
                         for (std::size_t node = 0; node < hex20_temperature_node_count; ++node) {
                             current_temperature += point.temperature_shape[node] * current[node];
@@ -956,6 +955,9 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                                 (current_temperature - old_temperature) / _impl->active_time_step;
                         conservation.generated_heat_rate +=
                             point.weighted_measure * _impl->cartesian->region_heat_source(region);
+                    }
+                    for (std::size_t q = 0; q < geometry.mechanical_points.size(); ++q) {
+                        const Hex20MechanicalQuadraturePoint& point = geometry.mechanical_points[q];
                         const CartesianMaterialPointState& old_history =
                             _impl->cartesian_material_histories[region][element][q];
                         const CartesianMaterialPointState& new_history = update[q];

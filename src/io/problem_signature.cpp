@@ -76,7 +76,10 @@ std::uint64_t transient_problem_signature(const TransientProblem& problem) {
     const bool hex20 = cartesian && BackendAccess::cartesian_spatial(problem).uses_hex20();
     hash_string(hash, cartesian ? (hex20 ? "cartesian_3d_hex20_u2_t1" : "cartesian_3d_hex8") : "axisymmetric_rz_quad4");
     hash_string(hash, cartesian ? "xx,yy,zz,xy,yz,xz" : "rr,zz,hoop,rz");
-    hash_size(hash, cartesian ? (hex20 ? 27 : 8) : 4);
+    if (cartesian && hex20)
+        hash_string(hash, "thermal_8_mechanical_27");
+    else
+        hash_size(hash, cartesian ? 8 : 4);
     hash_size(hash, problem.dof_count());
     if (cartesian) {
         const cartesian::SpatialAssembly& assembly = BackendAccess::cartesian_spatial(problem);

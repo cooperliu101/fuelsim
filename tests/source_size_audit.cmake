@@ -21,7 +21,7 @@ set(optional_input_sections_lines 5)
 set(bound_material_function_lines 109)
 set(thermal_time_term_option_lines 16)
 set(pressure_configuration_selection_lines 31)
-set(hex20_u2_t1_capability_lines 1438)
+set(hex20_u2_t1_capability_lines 1521)
 
 file(READ "${ROOT}/.clang-format" format_configuration)
 string(FIND "${format_configuration}" "ColumnLimit: 120" column_limit)
