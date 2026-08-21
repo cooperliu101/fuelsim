@@ -73,9 +73,10 @@ void hash_time_tables(std::uint64_t& hash, const SpatialDefinition& definition) 
 std::uint64_t transient_problem_signature(const TransientProblem& problem) {
     std::uint64_t hash = detail::fnv1a_offset;
     const bool cartesian = problem.is_cartesian_3d();
-    hash_string(hash, cartesian ? "cartesian_3d_hex8" : "axisymmetric_rz_quad4");
+    const bool hex20 = cartesian && BackendAccess::cartesian_spatial(problem).uses_hex20();
+    hash_string(hash, cartesian ? (hex20 ? "cartesian_3d_hex20_u2_t1" : "cartesian_3d_hex8") : "axisymmetric_rz_quad4");
     hash_string(hash, cartesian ? "xx,yy,zz,xy,yz,xz" : "rr,zz,hoop,rz");
-    hash_size(hash, cartesian ? 8 : 4);
+    hash_size(hash, cartesian ? (hex20 ? 27 : 8) : 4);
     hash_size(hash, problem.dof_count());
     if (cartesian) {
         const cartesian::SpatialAssembly& assembly = BackendAccess::cartesian_spatial(problem);
@@ -83,6 +84,20 @@ std::uint64_t transient_problem_signature(const TransientProblem& problem) {
         for (std::size_t region = 0; region < assembly.region_count(); ++region) {
             const RegionDefinition& spatial = definition.regions[region];
             hash_region_definition(hash, spatial);
+            hash_integer(hash, static_cast<std::int64_t>(spatial.strain_formulation));
+            if (hex20) {
+                const Hex20RegionMesh& mesh = assembly.hex20_region_mesh(region);
+                hash_size(hash, mesh.nodes().size());
+                for (const CartesianPoint3& point : mesh.nodes()) {
+                    hash_double(hash, point.x);
+                    hash_double(hash, point.y);
+                    hash_double(hash, point.z);
+                }
+                hash_size(hash, mesh.elements().size());
+                for (const Hex20Element& element : mesh.elements())
+                    for (const std::size_t node : element.nodes) hash_size(hash, node);
+                continue;
+            }
             const Hex8RegionMesh& mesh = assembly.region_mesh(region);
             hash_size(hash, mesh.nodes().size());
             for (const CartesianPoint3& point : mesh.nodes()) {

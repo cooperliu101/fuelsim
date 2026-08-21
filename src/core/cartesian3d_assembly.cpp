@@ -211,17 +211,125 @@ SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const Unstructure
     refresh_controls();
 }
 
+SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const UnstructuredHex20Mesh& source_mesh)
+    : SpatialLayout(definition, spatial_detail::resolve_block_ids(definition, source_mesh, false, true),
+          spatial_detail::DofLayout::cartesian_3d),
+      _uses_hex20(true) {
+    if (!_definition.contacts.empty()) throw std::invalid_argument("HEX20-U2/T1 does not support contact definitions");
+    _hex20_meshes.reserve(_block_ids.size());
+    for (const std::int64_t block_id : _block_ids)
+        _hex20_meshes.push_back(Hex20RegionMesh::from_unstructured_block(source_mesh, block_id));
+    std::vector<std::size_t> node_counts, element_counts;
+    std::vector<std::vector<std::size_t>> region_source_node_ids;
+    std::vector<std::vector<bool>> region_temperature_nodes;
+    for (const Hex20RegionMesh& mesh : _hex20_meshes) {
+        node_counts.push_back(mesh.nodes().size());
+        element_counts.push_back(mesh.elements().size());
+        region_source_node_ids.push_back(mesh.source_node_ids());
+        region_temperature_nodes.push_back(mesh.temperature_nodes());
+    }
+    initialize_counts(node_counts, element_counts);
+    initialize_mixed_shared_nodes(region_source_node_ids, region_temperature_nodes);
+    _hex20_geometries.resize(_hex20_meshes.size());
+    for (std::size_t region = 0; region < _hex20_meshes.size(); ++region)
+        for (const Hex20Element& element : _hex20_meshes[region].elements()) {
+            Hex20Coordinates coordinates{};
+            for (std::size_t node = 0; node < coordinates.size(); ++node)
+                coordinates[node] = _hex20_meshes[region].nodes().at(element.nodes[node]);
+            _hex20_geometries[region].push_back(make_hex20_geometry(coordinates));
+        }
+    _thermal_contact_offsets = {0};
+    _mechanical_contact_offsets = {0};
+    _sparsity_contact_offsets = {0};
+    for (std::size_t boundary_index = 0; boundary_index < _definition.boundary_conditions.size(); ++boundary_index) {
+        const BoundaryConditionDefinition& boundary = _definition.boundary_conditions[boundary_index];
+        if (boundary.name.empty() || boundary.boundary.empty())
+            throw std::invalid_argument("HEX20 boundary names must be nonempty");
+        if (boundary.scale_with_load && !boundary.function.empty())
+            throw std::invalid_argument(
+                "Boundary condition cannot combine scale_with_load and a time function: " + boundary.name);
+        const std::int64_t block_id = source_mesh.side_set_block_id(boundary.boundary);
+        const auto found = std::find(_block_ids.begin(), _block_ids.end(), block_id);
+        if (found == _block_ids.end())
+            throw std::invalid_argument("Boundary belongs to an undeclared HEX20 block: " + boundary.boundary);
+        const std::size_t region = static_cast<std::size_t>(found - _block_ids.begin());
+        const Hex20RegionBoundary mapped = _hex20_meshes[region].map_side_set(source_mesh, boundary.boundary);
+        if (boundary.type == BoundaryConditionType::dirichlet) {
+            const std::vector<std::size_t>& nodes =
+                boundary.field == Field::temperature ? mapped.temperature_nodes : mapped.displacement_nodes;
+            for (const std::size_t local_node : nodes) {
+                const std::size_t global = boundary.field == Field::temperature
+                                               ? global_temperature_node(region, local_node)
+                                               : global_node(region, local_node);
+                add_dirichlet(dof(boundary.field, global), boundary_index);
+            }
+            continue;
+        }
+        if (boundary.type == BoundaryConditionType::pressure || boundary.type == BoundaryConditionType::traction)
+            record_configuration_warning(boundary, this->region(region));
+        const std::size_t kernel = _boundary_data.size();
+        if (boundary.type == BoundaryConditionType::pressure) {
+            _boundary_data.push_back({Quad4FaceBoundaryKind::pressure, CartesianTractionComponent::x, boundary.value,
+                0.0, boundary_uses_displaced_geometry(boundary, this->region(region))});
+        } else if (boundary.type == BoundaryConditionType::traction) {
+            CartesianTractionComponent component = CartesianTractionComponent::x;
+            if (boundary.field == Field::displacement_y)
+                component = CartesianTractionComponent::y;
+            else if (boundary.field == Field::displacement_z)
+                component = CartesianTractionComponent::z;
+            else if (boundary.field != Field::displacement_x)
+                throw std::invalid_argument("Three-dimensional traction requires a displacement field");
+            _boundary_data.push_back({Quad4FaceBoundaryKind::traction, component, boundary.value, 0.0,
+                boundary_uses_displaced_geometry(boundary, this->region(region))});
+        } else {
+            _boundary_data.push_back({Quad4FaceBoundaryKind::convection, CartesianTractionComponent::x,
+                boundary.heat_transfer_coefficient, boundary.ambient_temperature});
+        }
+        _boundary_definition_indices.push_back(boundary_index);
+        for (const Quad8FaceElement& face : mapped.faces) {
+            std::array<std::size_t, 4> temperature_nodes{};
+            std::array<std::size_t, 8> displacement_nodes{};
+            Quad8FaceCoordinates coordinates{};
+            for (std::size_t node = 0; node < 8; ++node) {
+                displacement_nodes[node] = global_node(region, face.nodes[node]);
+                coordinates[node] = _hex20_meshes[region].nodes().at(face.nodes[node]);
+                if (node < 4) temperature_nodes[node] = global_temperature_node(region, face.nodes[node]);
+            }
+            _hex20_boundary_contributions.push_back(
+                {boundary.type == BoundaryConditionType::pressure
+                        ? SpatialContributionType::pressure
+                        : (boundary.type == BoundaryConditionType::traction ? SpatialContributionType::traction
+                                                                            : SpatialContributionType::convection),
+                    kernel, temperature_nodes, displacement_nodes, make_quad8_face_geometry(coordinates)});
+        }
+    }
+    spatial_detail::validate_dirichlet_conditions(_dirichlet_conditions,
+        "HEX20 boundary has conflicting Dirichlet values", "HEX20 boundary has duplicate Dirichlet values");
+    for (std::size_t region = 0; region < region_count(); ++region)
+        _kernel_data.push_back({IsotropicThermoelasticMaterial(this->region(region).material),
+            region_heat_source(region), 0.0, this->region(region).strain_formulation});
+    _committed_contact_solution = initial_state();
+    validate_local_state(0, contribution_count(), _committed_contact_solution);
+    refresh_controls();
+}
+
 SpatialContributionType SpatialAssembly::contribution_type(std::size_t index) const {
     const ContributionRanges ranges = contribution_ranges();
     if (index >= ranges.end) throw std::out_of_range("Three-dimensional contribution index is out of range");
     if (index < ranges.thermal_begin) return SpatialContributionType::volume;
     if (index < ranges.mechanical_begin) return SpatialContributionType::thermal_contact;
     if (index < ranges.boundary_begin) return SpatialContributionType::mechanical_contact;
-    return _boundary_contributions.at(index - ranges.boundary_begin).type;
+    return _uses_hex20 ? _hex20_boundary_contributions.at(index - ranges.boundary_begin).type
+                       : _boundary_contributions.at(index - ranges.boundary_begin).type;
 }
 
 const Hex8Geometry& SpatialAssembly::region_element_geometry(std::size_t region, std::size_t element_index) const {
     return _geometries.at(region).at(element_index);
+}
+
+const Hex20Geometry& SpatialAssembly::hex20_region_element_geometry(
+    std::size_t region, std::size_t element_index) const {
+    return _hex20_geometries.at(region).at(element_index);
 }
 
 void SpatialAssembly::set_load_factor(double value) {
@@ -231,7 +339,7 @@ void SpatialAssembly::set_load_factor(double value) {
 
 void SpatialAssembly::set_time(double value) {
     set_time_value(value);
-    for (Hex8ThermoelasticData& kernel_data : _kernel_data) kernel_data.time = value;
+    for (CartesianThermoelasticData& kernel_data : _kernel_data) kernel_data.time = value;
     refresh_controls();
 }
 
@@ -243,6 +351,12 @@ void SpatialAssembly::validate_state(const std::vector<double>& state) const {
     for (std::size_t region_index = 0; region_index < region_count(); ++region_index) {
         if (region(region_index).strain_formulation != StrainFormulation::finite) continue;
         for (std::size_t element = 0; element < region_element_count(region_index); ++element) {
+            if (_uses_hex20) {
+                const Hex20LocalValues local = hex20_volume_state(region_element_offset(region_index) + element, state);
+                for (const Hex20QuadraturePoint& point : hex20_region_element_geometry(region_index, element).points)
+                    validate_hex20_deformation(point, local);
+                continue;
+            }
             const Hex8LocalValues local = volume_state(region_element_offset(region_index) + element, state);
             for (const Hex8QuadraturePoint& point : region_element_geometry(region_index, element).points)
                 validate_cartesian_deformation(point, local);
@@ -254,6 +368,20 @@ void SpatialAssembly::validate_state(const std::vector<double>& state) const {
 void SpatialAssembly::contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const {
     if (index < volume_contribution_count()) {
         const auto location = element_location(index);
+        if (_uses_hex20) {
+            const Hex20Element& element = _hex20_meshes[location.first].elements()[location.second];
+            Hex20LocalDofs fixed{};
+            for (std::size_t node = 0; node < 8; ++node)
+                fixed[node] = dof(Field::temperature, global_temperature_node(location.first, element.nodes[node]));
+            for (std::size_t node = 0; node < 20; ++node) {
+                const std::size_t global = global_node(location.first, element.nodes[node]);
+                fixed[8 + node] = dof(Field::displacement_x, global);
+                fixed[28 + node] = dof(Field::displacement_y, global);
+                fixed[48 + node] = dof(Field::displacement_z, global);
+            }
+            dofs.assign(fixed.begin(), fixed.end());
+            return;
+        }
         std::array<std::size_t, 8> nodes{};
         const Hex8Element& element = _meshes[location.first].elements()[location.second];
         for (std::size_t node = 0; node < 8; ++node) nodes[node] = global_node(location.first, element.nodes[node]);
@@ -282,6 +410,19 @@ void SpatialAssembly::contribution_dofs(std::size_t index, std::vector<std::size
         dofs.assign(fixed.begin(), fixed.end());
         return;
     }
+    if (_uses_hex20) {
+        const Hex20BoundaryContribution& entry = _hex20_boundary_contributions.at(index - ranges.boundary_begin);
+        Quad8FaceLocalDofs fixed{};
+        for (std::size_t node = 0; node < 4; ++node)
+            fixed[node] = dof(Field::temperature, entry.temperature_nodes[node]);
+        for (std::size_t node = 0; node < 8; ++node) {
+            fixed[4 + node] = dof(Field::displacement_x, entry.displacement_nodes[node]);
+            fixed[12 + node] = dof(Field::displacement_y, entry.displacement_nodes[node]);
+            fixed[20 + node] = dof(Field::displacement_z, entry.displacement_nodes[node]);
+        }
+        dofs.assign(fixed.begin(), fixed.end());
+        return;
+    }
     const BoundaryContribution& entry = _boundary_contributions.at(index - ranges.boundary_begin);
     Quad4FaceLocalDofs fixed{};
     for (std::size_t node = 0; node < entry.nodes.size(); ++node) {
@@ -297,6 +438,12 @@ void SpatialAssembly::contribution_jacobian_pattern(std::size_t index, std::vect
     const ContributionRanges ranges = contribution_ranges();
     if (index >= ranges.end) throw std::out_of_range("Three-dimensional contribution index is out of range");
     if (index < ranges.thermal_begin) {
+        if (_uses_hex20) {
+            pattern.assign(hex20_local_dof_count * hex20_local_dof_count, 0U);
+            set_pattern_block(pattern, hex20_local_dof_count, 0, 8, 0, 8);
+            set_pattern_block(pattern, hex20_local_dof_count, 8, hex20_local_dof_count, 0, hex20_local_dof_count);
+            return;
+        }
         pattern.assign(hex8_local_dof_count * hex8_local_dof_count, 0U);
         set_pattern_block(pattern, hex8_local_dof_count, 0, 8, 0, 8);
         set_pattern_block(pattern, hex8_local_dof_count, 8, hex8_local_dof_count, 0, hex8_local_dof_count);
@@ -314,8 +461,24 @@ void SpatialAssembly::contribution_jacobian_pattern(std::size_t index, std::vect
             quad4_surface_contact_local_dof_count);
         return;
     }
-    const BoundaryContribution& entry = _boundary_contributions.at(index - ranges.boundary_begin);
-    const Quad4FaceBoundaryData& data = _boundary_data.at(entry.kernel);
+    const std::size_t kernel = _uses_hex20 ? _hex20_boundary_contributions.at(index - ranges.boundary_begin).kernel
+                                           : _boundary_contributions.at(index - ranges.boundary_begin).kernel;
+    const Quad4FaceBoundaryData& data = _boundary_data.at(kernel);
+    if (_uses_hex20) {
+        pattern.assign(quad8_face_local_dof_count * quad8_face_local_dof_count, 0U);
+        if (data.kind == Quad4FaceBoundaryKind::convection) {
+            set_pattern_block(pattern, quad8_face_local_dof_count, 0, 4, 0, 4);
+        } else if (data.use_displaced_geometry) {
+            const std::size_t row_begin = data.kind == Quad4FaceBoundaryKind::pressure
+                                              ? 4
+                                              : (data.component == CartesianTractionComponent::x
+                                                        ? 4
+                                                        : (data.component == CartesianTractionComponent::y ? 12 : 20));
+            const std::size_t row_end = data.kind == Quad4FaceBoundaryKind::pressure ? 28 : row_begin + 8;
+            set_pattern_block(pattern, quad8_face_local_dof_count, row_begin, row_end, 4, 28);
+        }
+        return;
+    }
     pattern.assign(quad4_face_local_dof_count * quad4_face_local_dof_count, 0U);
     if (data.kind == Quad4FaceBoundaryKind::convection) {
         set_pattern_block(pattern, quad4_face_local_dof_count, 0, 4, 0, 4);
@@ -358,6 +521,7 @@ void SpatialAssembly::sparsity_contribution_jacobian_pattern(
 }
 
 Hex8LocalValues SpatialAssembly::volume_state(std::size_t index, const std::vector<double>& global_state) const {
+    if (_uses_hex20) throw std::logic_error("HEX8 volume state requested from a HEX20 problem");
     std::vector<std::size_t> dofs;
     contribution_dofs(index, dofs);
     if (dofs.size() != hex8_local_dof_count)
@@ -367,10 +531,44 @@ Hex8LocalValues SpatialAssembly::volume_state(std::size_t index, const std::vect
     return result;
 }
 
+Hex20LocalValues SpatialAssembly::hex20_volume_state(std::size_t index, const std::vector<double>& global_state) const {
+    if (!_uses_hex20) throw std::logic_error("HEX20 volume state requested from a HEX8 problem");
+    std::vector<std::size_t> dofs;
+    contribution_dofs(index, dofs);
+    if (dofs.size() != hex20_local_dof_count)
+        throw std::logic_error("HEX20 volume contribution has an invalid DOF layout");
+    Hex20LocalValues result{};
+    for (std::size_t local = 0; local < result.size(); ++local) result[local] = global_state.at(dofs[local]);
+    return result;
+}
+
 void SpatialAssembly::compute_contribution(std::size_t index, const std::vector<double>& state,
-    const std::vector<double>* committed_solution, const Hex8MaterialHistory* committed_material, double time_step,
+    const std::vector<double>* committed_solution, const CartesianMaterialHistory* committed_material, double time_step,
     std::vector<double>& residual, std::vector<double>* jacobian, bool include_thermal_time_term) const {
     if (index < volume_contribution_count()) {
+        if (_uses_hex20) {
+            if (state.size() != hex20_local_dof_count)
+                throw std::invalid_argument("HEX20 contribution state must contain 68 DOFs");
+            const auto location = element_location(index);
+            Hex20LocalValues current{};
+            std::copy(state.begin(), state.end(), current.begin());
+            const Hex20LocalValues committed =
+                committed_solution == nullptr ? Hex20LocalValues{} : hex20_volume_state(index, *committed_solution);
+            Hex20LocalJacobian local_jacobian{};
+            const Hex20LocalResidual result =
+                committed_material == nullptr
+                    ? compute_hex20_thermoelastic(_kernel_data[location.first],
+                          hex20_region_element_geometry(location.first, location.second), current,
+                          committed_solution == nullptr ? nullptr : &committed, time_step,
+                          jacobian == nullptr ? nullptr : &local_jacobian)
+                    : compute_hex20_transient(_kernel_data[location.first],
+                          hex20_region_element_geometry(location.first, location.second), current, committed,
+                          *committed_material, time_step, jacobian == nullptr ? nullptr : &local_jacobian,
+                          include_thermal_time_term);
+            residual.assign(result.begin(), result.end());
+            if (jacobian != nullptr) jacobian->assign(local_jacobian.begin(), local_jacobian.end());
+            return;
+        }
         if (state.size() != hex8_local_dof_count)
             throw std::invalid_argument("HEX8 contribution state must contain 32 DOFs");
         const auto location = element_location(index);
@@ -424,6 +622,19 @@ void SpatialAssembly::compute_contribution(std::size_t index, const std::vector<
         if (jacobian != nullptr) jacobian->assign(local_jacobian.begin(), local_jacobian.end());
         return;
     }
+    if (_uses_hex20) {
+        if (state.size() != quad8_face_local_dof_count)
+            throw std::invalid_argument("Three-dimensional quadratic face state must contain 28 DOFs");
+        const Hex20BoundaryContribution& entry = _hex20_boundary_contributions.at(index - ranges.boundary_begin);
+        Quad8FaceLocalValues current{};
+        std::copy(state.begin(), state.end(), current.begin());
+        Quad8FaceLocalJacobian local_jacobian{};
+        const Quad8FaceLocalResidual result = compute_quad8_face_boundary(
+            _boundary_data[entry.kernel], entry.geometry, current, jacobian == nullptr ? nullptr : &local_jacobian);
+        residual.assign(result.begin(), result.end());
+        if (jacobian != nullptr) jacobian->assign(local_jacobian.begin(), local_jacobian.end());
+        return;
+    }
     if (state.size() != quad4_face_local_dof_count)
         throw std::invalid_argument("Three-dimensional face state must contain 16 DOFs");
     const BoundaryContribution& entry = _boundary_contributions.at(index - ranges.boundary_begin);
@@ -436,11 +647,18 @@ void SpatialAssembly::compute_contribution(std::size_t index, const std::vector<
     if (jacobian != nullptr) jacobian->assign(local_jacobian.begin(), local_jacobian.end());
 }
 
-Hex8MaterialHistory SpatialAssembly::transient_update(std::size_t region, std::size_t element,
-    const Hex8LocalValues& state, const Hex8LocalValues& committed_state, const Hex8MaterialHistory& committed_material,
-    double time_step) const {
+CartesianMaterialHistory SpatialAssembly::transient_update(std::size_t region, std::size_t element,
+    const Hex8LocalValues& state, const Hex8LocalValues& committed_state,
+    const CartesianMaterialHistory& committed_material, double time_step) const {
     return compute_hex8_transient_update(_kernel_data.at(region), region_element_geometry(region, element), state,
         committed_state, committed_material, time_step);
+}
+
+CartesianMaterialHistory SpatialAssembly::transient_update(std::size_t region, std::size_t element,
+    const Hex20LocalValues& state, const Hex20LocalValues& committed_state,
+    const CartesianMaterialHistory& committed_material, double time_step) const {
+    return compute_hex20_transient_update(_kernel_data.at(region), hex20_region_element_geometry(region, element),
+        state, committed_state, committed_material, time_step);
 }
 
 std::array<SymmetricTensor3Values, 8> SpatialAssembly::stress(
@@ -449,8 +667,14 @@ std::array<SymmetricTensor3Values, 8> SpatialAssembly::stress(
         volume_state(region_element_offset(region) + element, state));
 }
 
+std::array<SymmetricTensor3Values, 27> SpatialAssembly::hex20_stress(
+    std::size_t region, std::size_t element, const std::vector<double>& state) const {
+    return compute_hex20_stress(_kernel_data.at(region), hex20_region_element_geometry(region, element),
+        hex20_volume_state(region_element_offset(region) + element, state));
+}
+
 double SpatialAssembly::heat_capacity(std::size_t region, double temperature, const CartesianPoint3& position) const {
-    const Hex8ThermoelasticData& data = _kernel_data.at(region);
+    const CartesianThermoelasticData& data = _kernel_data.at(region);
     return data.material.heat_capacity(temperature, {data.time, position.x, position.y, position.z}).value();
 }
 
@@ -458,7 +682,9 @@ SpatialAssembly::ContributionRanges SpatialAssembly::contribution_ranges() const
     const std::size_t thermal_begin = volume_contribution_count(),
                       mechanical_begin = thermal_begin + _thermal_contact_offsets.back(),
                       boundary_begin = mechanical_begin + _mechanical_points.size();
-    return {thermal_begin, mechanical_begin, boundary_begin, boundary_begin + _boundary_contributions.size()};
+    const std::size_t boundary_count =
+        _uses_hex20 ? _hex20_boundary_contributions.size() : _boundary_contributions.size();
+    return {thermal_begin, mechanical_begin, boundary_begin, boundary_begin + boundary_count};
 }
 
 std::size_t SpatialAssembly::sparsity_contribution_count() const noexcept {
@@ -472,7 +698,7 @@ std::size_t SpatialAssembly::contribution_work(std::size_t index, std::size_t pa
     // These relative units track the measured AD-local work of eight-point finite-strain volume integration and the
     // three surface kernels. They affect only the contiguous MPI ownership boundary, never the residual or Jacobian.
     const ContributionRanges ranges = contribution_ranges();
-    if (index < ranges.thermal_begin) return 64;
+    if (index < ranges.thermal_begin) return _uses_hex20 ? 216 : 64;
     if (partition_count < 4) {
         if (index < ranges.mechanical_begin) return 10;
         if (index < ranges.boundary_begin) return 11;

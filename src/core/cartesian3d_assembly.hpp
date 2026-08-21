@@ -1,4 +1,5 @@
 #pragma once
+#include "fuelsim/core/cartesian3d_hex20.hpp"
 #include "fuelsim/core/cartesian3d_hex8.hpp"
 #include "fuelsim/core/contact.hpp"
 #include "fuelsim/core/mesh.hpp"
@@ -17,11 +18,17 @@ struct ResolvedBoundary final {
 class SpatialAssembly final : public spatial_detail::SpatialLayout {
   public:
     SpatialAssembly(SpatialDefinition definition, const UnstructuredHex8Mesh& source_mesh);
+    SpatialAssembly(SpatialDefinition definition, const UnstructuredHex20Mesh& source_mesh);
+
+    bool uses_hex20() const noexcept { return _uses_hex20; }
 
     const Hex8RegionMesh& region_mesh(std::size_t index) const { return _meshes.at(index); }
 
+    const Hex20RegionMesh& hex20_region_mesh(std::size_t index) const { return _hex20_meshes.at(index); }
+
     SpatialContributionType contribution_type(std::size_t index) const;
     const Hex8Geometry& region_element_geometry(std::size_t region_index, std::size_t element_index) const;
+    const Hex20Geometry& hex20_region_element_geometry(std::size_t region_index, std::size_t element_index) const;
     void set_load_factor(double load_factor);
     void set_time(double time);
 
@@ -51,12 +58,20 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     void sparsity_contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const;
     void sparsity_contribution_jacobian_pattern(std::size_t index, std::vector<unsigned char>& pattern) const;
     void compute_contribution(std::size_t index, const std::vector<double>& state,
-        const std::vector<double>* committed_solution, const Hex8MaterialHistory* committed_material, double time_step,
-        std::vector<double>& residual, std::vector<double>* jacobian, bool include_thermal_time_term = true) const;
-    Hex8MaterialHistory transient_update(std::size_t region, std::size_t element, const Hex8LocalValues& state,
-        const Hex8LocalValues& committed_state, const Hex8MaterialHistory& committed_material, double time_step) const;
+        const std::vector<double>* committed_solution, const CartesianMaterialHistory* committed_material,
+        double time_step, std::vector<double>& residual, std::vector<double>* jacobian,
+        bool include_thermal_time_term = true) const;
+    CartesianMaterialHistory transient_update(std::size_t region, std::size_t element, const Hex8LocalValues& state,
+        const Hex8LocalValues& committed_state, const CartesianMaterialHistory& committed_material,
+        double time_step) const;
+    CartesianMaterialHistory transient_update(std::size_t region, std::size_t element, const Hex20LocalValues& state,
+        const Hex20LocalValues& committed_state, const CartesianMaterialHistory& committed_material,
+        double time_step) const;
     Hex8LocalValues volume_state(std::size_t index, const std::vector<double>& global_state) const;
+    Hex20LocalValues hex20_volume_state(std::size_t index, const std::vector<double>& global_state) const;
     std::array<SymmetricTensor3Values, 8> stress(
+        std::size_t region, std::size_t element, const std::vector<double>& state) const;
+    std::array<SymmetricTensor3Values, 27> hex20_stress(
         std::size_t region, std::size_t element, const std::vector<double>& state) const;
     double heat_capacity(std::size_t region, double temperature, const CartesianPoint3& position) const;
 
@@ -70,6 +85,14 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
         std::size_t kernel;
         std::array<std::size_t, 4> nodes;
         Quad4FaceGeometry geometry;
+    };
+
+    struct Hex20BoundaryContribution final {
+        SpatialContributionType type;
+        std::size_t kernel;
+        std::array<std::size_t, 4> temperature_nodes;
+        std::array<std::size_t, 8> displacement_nodes;
+        Quad8FaceGeometry geometry;
     };
 
     struct ThermalCandidate final {
@@ -127,11 +150,14 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     std::size_t mechanical_node_index(std::size_t contact, std::size_t node) const noexcept;
     void refresh_controls();
     std::vector<Hex8RegionMesh> _meshes;
+    std::vector<Hex20RegionMesh> _hex20_meshes;
     std::vector<std::vector<Hex8Geometry>> _geometries;
-    std::vector<Hex8ThermoelasticData> _kernel_data;
+    std::vector<std::vector<Hex20Geometry>> _hex20_geometries;
+    std::vector<CartesianThermoelasticData> _kernel_data;
     std::vector<std::size_t> _boundary_definition_indices;
     std::vector<Quad4FaceBoundaryData> _boundary_data;
     std::vector<BoundaryContribution> _boundary_contributions;
+    std::vector<Hex20BoundaryContribution> _hex20_boundary_contributions;
     std::vector<GapHeatProperties> _thermal_properties;
     std::vector<NormalContactProperties> _mechanical_properties;
     std::vector<std::vector<PrimaryContactFace>> _primary_contact_faces;
@@ -149,5 +175,6 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     std::vector<std::vector<ContactPointHistory>> _contact_histories;
     std::vector<double> _committed_contact_solution;
     std::vector<ResolvedBoundary> _primary_boundaries, _secondary_boundaries;
+    bool _uses_hex20 = false;
 };
 } // namespace fuelsim::cartesian

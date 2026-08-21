@@ -11,7 +11,7 @@ namespace fuelsim {
 struct TransientCommittedState final {
     std::vector<double> solution;
     std::vector<std::vector<Quad4MaterialHistory>> material_histories;
-    std::vector<std::vector<Hex8MaterialHistory>> cartesian_material_histories;
+    std::vector<std::vector<CartesianMaterialHistory>> cartesian_material_histories;
     std::vector<std::vector<ContactPointHistory>> contact_histories;
     TransientConservationSummary conservation;
     double time = 0.0, load_factor = 0.0;
@@ -39,7 +39,7 @@ class BackendAccess final {
     static rz::TransientBackendView transient(const TransientProblem& problem) noexcept;
     static const cartesian::SpatialAssembly& cartesian_spatial(const SteadyProblem& problem) noexcept;
     static const cartesian::SpatialAssembly& cartesian_spatial(const TransientProblem& problem) noexcept;
-    static const std::vector<std::vector<Hex8MaterialHistory>>& cartesian_material_histories(
+    static const std::vector<std::vector<CartesianMaterialHistory>>& cartesian_material_histories(
         const TransientProblem& problem) noexcept;
     static TransientCommittedState committed_state(const TransientProblem& problem);
     static void restore_committed_state(TransientProblem& problem, TransientCommittedState state);

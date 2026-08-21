@@ -96,6 +96,16 @@ class SpatialProblemStorage {
             }
     }
 
+    SpatialProblemStorage(SpatialDefinition definition, const UnstructuredHex20Mesh& source_mesh, bool transient)
+        : cartesian(std::make_unique<cartesian::SpatialAssembly>(std::move(definition), source_mesh)) {
+        if (!transient)
+            for (std::size_t region = 0; region < cartesian->region_count(); ++region) {
+                const MaterialFunctionSet& functions = *cartesian->region(region).material.functions;
+                if (functions.has_creep() || functions.has_plasticity())
+                    throw std::invalid_argument("Steady Cartesian three-dimensional problems support only elasticity");
+            }
+    }
+
     bool is_cartesian() const noexcept { return cartesian != nullptr; }
 
     const spatial_detail::SpatialLayout& layout() const noexcept {
@@ -209,8 +219,8 @@ class SpatialProblemStorage {
     std::vector<Quad4RzData> kernel_data;
     std::vector<std::vector<Quad4MaterialHistory>> material_histories;
     std::vector<std::vector<Quad4MaterialHistory>> _staged_material_histories;
-    std::vector<std::vector<Hex8MaterialHistory>> cartesian_material_histories;
-    std::vector<std::vector<Hex8MaterialHistory>> _staged_cartesian_material_histories;
+    std::vector<std::vector<CartesianMaterialHistory>> cartesian_material_histories;
+    std::vector<std::vector<CartesianMaterialHistory>> _staged_cartesian_material_histories;
     TransientConservationSummary last_conservation_summary;
     std::vector<double> committed_solution;
     double committed_time = 0.0, committed_load_factor = 0.0, active_time_step = 0.0, active_end_time = 0.0,
@@ -223,6 +233,9 @@ SteadyProblem::SteadyProblem(SpatialDefinition definition, const UnstructuredQua
     : _impl(std::make_unique<SpatialProblemStorage>(std::move(definition), source_mesh)) {}
 
 SteadyProblem::SteadyProblem(SpatialDefinition definition, const UnstructuredHex8Mesh& source_mesh)
+    : _impl(std::make_unique<SpatialProblemStorage>(std::move(definition), source_mesh, false)) {}
+
+SteadyProblem::SteadyProblem(SpatialDefinition definition, const UnstructuredHex20Mesh& source_mesh)
     : _impl(std::make_unique<SpatialProblemStorage>(std::move(definition), source_mesh, false)) {}
 
 SteadyProblem::~SteadyProblem() = default;
@@ -466,6 +479,24 @@ TransientProblem::TransientProblem(SpatialDefinition definition, const Unstructu
     for (std::size_t region = 0; region < _impl->cartesian->region_count(); ++region) {
         _impl->cartesian_material_histories[region].resize(_impl->cartesian->region_element_count(region));
         _impl->_staged_cartesian_material_histories[region].resize(_impl->cartesian->region_element_count(region));
+        for (CartesianMaterialHistory& history : _impl->cartesian_material_histories[region]) history.resize(8);
+        for (CartesianMaterialHistory& history : _impl->_staged_cartesian_material_histories[region]) history.resize(8);
+    }
+    apply_spatial_controls(0.0, 0.0);
+    _impl->committed_solution = _impl->cartesian->initial_state();
+    _impl->cartesian->restore_contact_state(_impl->committed_solution, _impl->cartesian->committed_contact_histories());
+}
+
+TransientProblem::TransientProblem(SpatialDefinition definition, const UnstructuredHex20Mesh& source_mesh)
+    : _impl(std::make_unique<SpatialProblemStorage>(std::move(definition), source_mesh, true)) {
+    _impl->cartesian_material_histories.resize(_impl->cartesian->region_count());
+    _impl->_staged_cartesian_material_histories.resize(_impl->cartesian->region_count());
+    for (std::size_t region = 0; region < _impl->cartesian->region_count(); ++region) {
+        _impl->cartesian_material_histories[region].resize(_impl->cartesian->region_element_count(region));
+        _impl->_staged_cartesian_material_histories[region].resize(_impl->cartesian->region_element_count(region));
+        for (CartesianMaterialHistory& history : _impl->cartesian_material_histories[region]) history.resize(27);
+        for (CartesianMaterialHistory& history : _impl->_staged_cartesian_material_histories[region])
+            history.resize(27);
     }
     apply_spatial_controls(0.0, 0.0);
     _impl->committed_solution = _impl->cartesian->initial_state();
@@ -480,7 +511,7 @@ const cartesian::SpatialAssembly& BackendAccess::cartesian_spatial(const Transie
     return *problem._impl->cartesian;
 }
 
-const std::vector<std::vector<Hex8MaterialHistory>>& BackendAccess::cartesian_material_histories(
+const std::vector<std::vector<CartesianMaterialHistory>>& BackendAccess::cartesian_material_histories(
     const TransientProblem& problem) noexcept {
     return problem._impl->cartesian_material_histories;
 }
@@ -513,16 +544,23 @@ std::vector<double> TransientProblem::time_events() const {
 RegionStateSummary TransientProblem::summarize_region(std::size_t region) const {
     if (region >= _impl->layout().definition().regions.size())
         throw std::out_of_range("TransientProblem region summary index is out of range");
-    const std::size_t node_count = _impl->is_cartesian() ? _impl->cartesian->region_mesh(region).nodes().size()
-                                                         : _impl->rz->region_mesh(region).nodes().size();
+    const std::size_t node_count =
+        _impl->is_cartesian()
+            ? (_impl->cartesian->uses_hex20() ? _impl->cartesian->hex20_region_mesh(region).nodes().size()
+                                              : _impl->cartesian->region_mesh(region).nodes().size())
+            : _impl->rz->region_mesh(region).nodes().size();
     const auto temperature = std::find_if(field_layout().begin(), field_layout().end(),
         [](const FieldDescriptor& field) { return field.category == FieldCategory::thermal; });
     RegionStateSummary result{-std::numeric_limits<double>::infinity(), 0.0, 0.0};
-    for (std::size_t node = 0; node < node_count; ++node)
+    for (std::size_t node = 0; node < node_count; ++node) {
+        if (_impl->is_cartesian() && _impl->cartesian->uses_hex20() &&
+            !_impl->cartesian->hex20_region_mesh(region).temperature_nodes().at(node))
+            continue;
         result.maximum_temperature = std::max(result.maximum_temperature,
-            _impl->committed_solution.at(temperature->begin + _impl->layout().global_node(region, node)));
+            _impl->committed_solution.at(temperature->begin + _impl->layout().global_temperature_node(region, node)));
+    }
     if (_impl->is_cartesian()) {
-        for (const Hex8MaterialHistory& element : _impl->cartesian_material_histories[region])
+        for (const CartesianMaterialHistory& element : _impl->cartesian_material_histories[region])
             for (const CartesianMaterialPointState& point : element) {
                 result.maximum_equivalent_plastic_strain =
                     std::max(result.maximum_equivalent_plastic_strain, point.equivalent_plastic_strain);
@@ -563,10 +601,14 @@ void BackendAccess::restore_committed_state(TransientProblem& problem, Transient
         for (std::size_t region = 0; region < storage.cartesian->region_count(); ++region) {
             if (state.cartesian_material_histories[region].size() != storage.cartesian->region_element_count(region))
                 throw std::invalid_argument("Cartesian committed element state layout does not match");
-            for (const Hex8MaterialHistory& element : state.cartesian_material_histories[region])
+            const std::size_t expected_points = storage.cartesian->uses_hex20() ? 27U : 8U;
+            for (const CartesianMaterialHistory& element : state.cartesian_material_histories[region]) {
+                if (element.size() != expected_points)
+                    throw std::invalid_argument("Cartesian committed integration-point layout does not match");
                 for (const CartesianMaterialPointState& point : element)
                     if (!valid_material_state(point))
                         throw std::invalid_argument("Cartesian committed material state is invalid");
+            }
         }
         storage.cartesian->restore_contact_state(state.solution, std::move(state.contact_histories));
         storage.committed_solution = std::move(state.solution);
@@ -819,8 +861,10 @@ TransientTimeErrorEstimate TransientProblem::step_doubling_error(const ProblemSt
                        &half_region = half.cartesian_material_histories[region];
             if (full_region.size() != half_region.size())
                 throw std::logic_error("Cartesian step-doubling material element layouts differ");
-            for (std::size_t element = 0; element < full_region.size(); ++element)
-                for (std::size_t q = 0; q < 8; ++q) {
+            for (std::size_t element = 0; element < full_region.size(); ++element) {
+                if (full_region[element].size() != half_region[element].size())
+                    throw std::logic_error("Cartesian step-doubling integration-point layouts differ");
+                for (std::size_t q = 0; q < full_region[element].size(); ++q) {
                     const CartesianMaterialPointState &first = full_region[element][q],
                                                       &second = half_region[element][q];
                     const std::array<double, 6> first_stress = {first.stress.xx, first.stress.yy, first.stress.zz,
@@ -833,6 +877,7 @@ TransientTimeErrorEstimate TransientProblem::step_doubling_error(const ProblemSt
                         second_stress.data(), 6, first.equivalent_plastic_strain, second.equivalent_plastic_strain,
                         first.equivalent_creep_strain, second.equivalent_creep_strain);
                 }
+            }
         }
         rz::assign_material_time_errors(result, material, options);
         return result;
@@ -889,10 +934,51 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
         for (std::size_t region = 0; region < _impl->cartesian->region_count(); ++region) {
             const std::size_t offset = _impl->cartesian->region_element_offset(region);
             for (std::size_t element = 0; element < _impl->cartesian->region_element_count(region); ++element) {
+                if (_impl->cartesian->uses_hex20()) {
+                    const Hex20LocalValues current =
+                        _impl->cartesian->hex20_volume_state(offset + element, converged_solution);
+                    const Hex20LocalValues old =
+                        _impl->cartesian->hex20_volume_state(offset + element, _impl->committed_solution);
+                    const Hex20Geometry& geometry = _impl->cartesian->hex20_region_element_geometry(region, element);
+                    CartesianMaterialHistory update = _impl->cartesian->transient_update(region, element, current, old,
+                        _impl->cartesian_material_histories[region][element], _impl->active_time_step);
+                    for (std::size_t q = 0; q < geometry.points.size(); ++q) {
+                        const Hex20QuadraturePoint& point = geometry.points[q];
+                        double current_temperature = 0.0, old_temperature = 0.0;
+                        for (std::size_t node = 0; node < hex20_temperature_node_count; ++node) {
+                            current_temperature += point.temperature_shape[node] * current[node];
+                            old_temperature += point.temperature_shape[node] * old[node];
+                        }
+                        if (_impl->include_thermal_time_term)
+                            conservation.stored_heat_rate +=
+                                point.weighted_measure *
+                                _impl->cartesian->heat_capacity(region, current_temperature, point.position) *
+                                (current_temperature - old_temperature) / _impl->active_time_step;
+                        conservation.generated_heat_rate +=
+                            point.weighted_measure * _impl->cartesian->region_heat_source(region);
+                        const CartesianMaterialPointState& old_history =
+                            _impl->cartesian_material_histories[region][element][q];
+                        const CartesianMaterialPointState& new_history = update[q];
+                        conservation.elastic_energy_change +=
+                            0.5 * point.weighted_measure *
+                            (cartesian::stress_strain_inner_product(new_history.stress, new_history.elastic_strain) -
+                                cartesian::stress_strain_inner_product(old_history.stress, old_history.elastic_strain));
+                        conservation.plastic_dissipation_increment +=
+                            point.weighted_measure *
+                            cartesian::stress_strain_inner_product(new_history.stress,
+                                cartesian::strain_difference(new_history.plastic_strain, old_history.plastic_strain));
+                        conservation.creep_dissipation_increment +=
+                            point.weighted_measure *
+                            cartesian::stress_strain_inner_product(new_history.stress,
+                                cartesian::strain_difference(new_history.creep_strain, old_history.creep_strain));
+                    }
+                    staged[region][element] = std::move(update);
+                    continue;
+                }
                 const Hex8LocalValues current = _impl->cartesian->volume_state(offset + element, converged_solution);
                 const Hex8LocalValues old = _impl->cartesian->volume_state(offset + element, _impl->committed_solution);
                 const Hex8Geometry& geometry = _impl->cartesian->region_element_geometry(region, element);
-                Hex8MaterialHistory update = _impl->cartesian->transient_update(region, element, current, old,
+                CartesianMaterialHistory update = _impl->cartesian->transient_update(region, element, current, old,
                     _impl->cartesian_material_histories[region][element], _impl->active_time_step);
                 for (std::size_t q = 0; q < geometry.points.size(); ++q) {
                     const Hex8QuadraturePoint& point = geometry.points[q];
@@ -1091,7 +1177,7 @@ void TransientProblem::compute_contribution(std::size_t index, const std::vector
     std::vector<double>& residual, std::vector<double>* jacobian) const {
     require_active_time_step();
     if (_impl->is_cartesian()) {
-        const Hex8MaterialHistory* history = nullptr;
+        const CartesianMaterialHistory* history = nullptr;
         if (index < _impl->cartesian->volume_contribution_count()) {
             const auto location = _impl->cartesian->element_location(index);
             history = &_impl->cartesian_material_histories[location.first][location.second];

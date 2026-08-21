@@ -117,19 +117,30 @@ void SpatialLayout::initialize_counts(
         _region_global_nodes[region].resize(end - begin);
         for (std::size_t local = 0; local < end - begin; ++local) _region_global_nodes[region][local] = begin + local;
     }
-    const std::size_t nodes = _node_count;
-    const std::size_t field_count = _layout == DofLayout::axisymmetric_rz ? 3U : 4U;
-    if (nodes == 0) throw std::invalid_argument("Spatial layout node count must be positive");
-    if (nodes > std::numeric_limits<std::size_t>::max() / field_count)
+    _temperature_node_count = _node_count;
+    _region_global_temperature_nodes = _region_global_nodes;
+    initialize_field_layout();
+}
+
+void SpatialLayout::initialize_field_layout() {
+    const std::size_t mechanical_fields = _layout == DofLayout::axisymmetric_rz ? 2U : 3U;
+    if (_node_count == 0 || _temperature_node_count == 0)
+        throw std::invalid_argument("Spatial layout field node counts must be positive");
+    if (_node_count > (std::numeric_limits<std::size_t>::max() - _temperature_node_count) / mechanical_fields)
         throw std::length_error("Spatial layout DOF count overflows");
-    _field_layout = {{"temperature", 0, nodes, FieldCategory::thermal}};
+    _field_layout = {{"temperature", 0, _temperature_node_count, FieldCategory::thermal}};
     if (_layout == DofLayout::axisymmetric_rz) {
-        _field_layout.push_back({"radial", nodes, 2 * nodes, FieldCategory::mechanical});
-        _field_layout.push_back({"axial", 2 * nodes, 3 * nodes, FieldCategory::mechanical});
+        _field_layout.push_back(
+            {"radial", _temperature_node_count, _temperature_node_count + _node_count, FieldCategory::mechanical});
+        _field_layout.push_back({"axial", _temperature_node_count + _node_count,
+            _temperature_node_count + 2 * _node_count, FieldCategory::mechanical});
     } else {
-        _field_layout.push_back({"displacement_x", nodes, 2 * nodes, FieldCategory::mechanical});
-        _field_layout.push_back({"displacement_y", 2 * nodes, 3 * nodes, FieldCategory::mechanical});
-        _field_layout.push_back({"displacement_z", 3 * nodes, 4 * nodes, FieldCategory::mechanical});
+        _field_layout.push_back({"displacement_x", _temperature_node_count, _temperature_node_count + _node_count,
+            FieldCategory::mechanical});
+        _field_layout.push_back({"displacement_y", _temperature_node_count + _node_count,
+            _temperature_node_count + 2 * _node_count, FieldCategory::mechanical});
+        _field_layout.push_back({"displacement_z", _temperature_node_count + 2 * _node_count,
+            _temperature_node_count + 3 * _node_count, FieldCategory::mechanical});
     }
 }
 
@@ -152,18 +163,35 @@ void SpatialLayout::initialize_shared_nodes(const std::vector<std::vector<std::s
     }
     if (next_global == 0) throw std::invalid_argument("Shared-node spatial layout must contain at least one node");
     _node_count = next_global;
-    const std::size_t field_count = _layout == DofLayout::axisymmetric_rz ? 3U : 4U;
-    if (_node_count > std::numeric_limits<std::size_t>::max() / field_count)
-        throw std::length_error("Spatial layout DOF count overflows");
-    _field_layout = {{"temperature", 0, _node_count, FieldCategory::thermal}};
-    if (_layout == DofLayout::axisymmetric_rz) {
-        _field_layout.push_back({"radial", _node_count, 2 * _node_count, FieldCategory::mechanical});
-        _field_layout.push_back({"axial", 2 * _node_count, 3 * _node_count, FieldCategory::mechanical});
-    } else {
-        _field_layout.push_back({"displacement_x", _node_count, 2 * _node_count, FieldCategory::mechanical});
-        _field_layout.push_back({"displacement_y", 2 * _node_count, 3 * _node_count, FieldCategory::mechanical});
-        _field_layout.push_back({"displacement_z", 3 * _node_count, 4 * _node_count, FieldCategory::mechanical});
+    _temperature_node_count = _node_count;
+    _region_global_temperature_nodes = _region_global_nodes;
+    initialize_field_layout();
+}
+
+void SpatialLayout::initialize_mixed_shared_nodes(const std::vector<std::vector<std::size_t>>& region_source_node_ids,
+    const std::vector<std::vector<bool>>& region_temperature_nodes) {
+    if (region_source_node_ids.size() != region_count() || region_temperature_nodes.size() != region_count())
+        throw std::invalid_argument("Mixed shared-node mapping region count does not match the spatial definition");
+    initialize_shared_nodes(region_source_node_ids);
+    std::unordered_map<std::size_t, std::size_t> source_to_temperature;
+    _region_global_temperature_nodes.clear();
+    _region_global_temperature_nodes.resize(region_count());
+    std::size_t next_temperature = 0;
+    for (std::size_t region = 0; region < region_count(); ++region) {
+        if (region_source_node_ids[region].size() != region_temperature_nodes[region].size())
+            throw std::invalid_argument("Mixed shared-node temperature flags do not match region nodes");
+        std::vector<std::size_t>& mapping = _region_global_temperature_nodes[region];
+        mapping.resize(region_source_node_ids[region].size(), invalid_node);
+        for (std::size_t local = 0; local < mapping.size(); ++local) {
+            if (!region_temperature_nodes[region][local]) continue;
+            const auto [found, inserted] =
+                source_to_temperature.emplace(region_source_node_ids[region][local], next_temperature);
+            if (inserted) ++next_temperature;
+            mapping[local] = found->second;
+        }
     }
+    _temperature_node_count = next_temperature;
+    initialize_field_layout();
 }
 
 std::size_t SpatialLayout::region_node_offset(std::size_t index) const {
@@ -198,9 +226,10 @@ double SpatialLayout::region_heat_source(std::size_t index) const {
 
 std::vector<double> SpatialLayout::initial_state() const {
     std::vector<double> result(dof_count(), 0.0);
-    std::vector<bool> initialized(node_count(), false);
+    std::vector<bool> initialized(temperature_node_count(), false);
     for (std::size_t region_index = 0; region_index < region_count(); ++region_index) {
-        for (const std::size_t node : _region_global_nodes.at(region_index)) {
+        for (const std::size_t node : _region_global_temperature_nodes.at(region_index)) {
+            if (node == invalid_node) continue;
             const double temperature = region(region_index).initial_temperature;
             if (initialized[node] && result[dof(Field::temperature, node)] != temperature)
                 throw std::invalid_argument("Shared node has inconsistent initial temperatures across regions");
@@ -213,16 +242,19 @@ std::vector<double> SpatialLayout::initial_state() const {
 }
 
 std::size_t SpatialLayout::dof(Field field, std::size_t node) const {
-    if (node >= node_count()) throw std::out_of_range("Spatial layout node index is out of range");
+    if (field == Field::temperature) {
+        if (node >= temperature_node_count())
+            throw std::out_of_range("Spatial layout temperature node is out of range");
+        return node;
+    }
+    if (node >= node_count()) throw std::out_of_range("Spatial layout mechanical node is out of range");
     if (_layout == DofLayout::axisymmetric_rz) {
-        if (field == Field::temperature) return node;
-        if (field == Field::radial_displacement) return node_count() + node;
-        if (field == Field::axial_displacement) return 2 * node_count() + node;
+        if (field == Field::radial_displacement) return temperature_node_count() + node;
+        if (field == Field::axial_displacement) return temperature_node_count() + node_count() + node;
     } else {
-        if (field == Field::temperature) return node;
-        if (field == Field::displacement_x) return node_count() + node;
-        if (field == Field::displacement_y) return 2 * node_count() + node;
-        if (field == Field::displacement_z) return 3 * node_count() + node;
+        if (field == Field::displacement_x) return temperature_node_count() + node;
+        if (field == Field::displacement_y) return temperature_node_count() + node_count() + node;
+        if (field == Field::displacement_z) return temperature_node_count() + 2 * node_count() + node;
     }
     throw std::invalid_argument("Field is not available in this spatial layout");
 }
@@ -232,6 +264,15 @@ std::size_t SpatialLayout::global_node(std::size_t region_index, std::size_t loc
     if (local_node >= _region_global_nodes.at(region_index).size())
         throw std::out_of_range("Spatial layout local node is out of range");
     return _region_global_nodes[region_index][local_node];
+}
+
+std::size_t SpatialLayout::global_temperature_node(std::size_t region_index, std::size_t local_node) const {
+    if (region_index >= region_count()) throw std::out_of_range("Spatial layout region index is out of range");
+    if (local_node >= _region_global_temperature_nodes.at(region_index).size())
+        throw std::out_of_range("Spatial layout local temperature node is out of range");
+    const std::size_t result = _region_global_temperature_nodes[region_index][local_node];
+    if (result == invalid_node) throw std::invalid_argument("Spatial layout node does not carry temperature");
+    return result;
 }
 
 void SpatialLayout::add_dirichlet(std::size_t dof, std::size_t boundary_index) {

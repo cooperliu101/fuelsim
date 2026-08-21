@@ -161,7 +161,7 @@ struct ExodusMeshData final {
     const char* title;
     std::array<const char*, 3> coordinate_names;
     std::vector<std::array<double, 3>> nodes;
-    std::vector<std::array<std::size_t, 8>> elements;
+    std::vector<std::array<std::size_t, 20>> elements;
     std::vector<std::int64_t> element_block_ids;
     std::vector<ElementBlockInfo> element_blocks;
     std::vector<NodeSet> node_sets;
@@ -221,7 +221,7 @@ ExodusMeshData read_exodus_mesh(const std::string& path, std::size_t dimension, 
         check_exodus(ex_get_conn(file.id(), EX_ELEM_BLOCK, block_id, connectivity.data(), nullptr, nullptr),
             "Could not read Exodus connectivity");
         for (std::size_t element = 0; element < block_elements; ++element) {
-            std::array<std::size_t, 8> nodes{};
+            std::array<std::size_t, 20> nodes{};
             for (std::size_t local = 0; local < nodes_per_element; ++local) {
                 const std::int64_t exodus_node = connectivity[element * nodes_per_element + local];
                 if (exodus_node <= 0 || static_cast<std::uint64_t>(exodus_node) > node_count)
@@ -347,16 +347,67 @@ UnstructuredHex8Mesh read_exodus_hex8(const std::string& path) {
     std::vector<CartesianPoint3> nodes;
     for (const auto& node : data.nodes) nodes.push_back({node[0], node[1], node[2]});
     std::vector<Hex8Element> elements;
-    for (const auto& value : data.elements) elements.push_back({value});
+    for (const auto& value : data.elements)
+        elements.push_back({{{value[0], value[1], value[2], value[3], value[4], value[5], value[6], value[7]}}});
     return UnstructuredHex8Mesh(std::move(nodes), std::move(elements), std::move(data.element_block_ids),
         std::move(data.element_blocks), std::move(data.node_sets), std::move(data.side_sets));
+}
+
+UnstructuredHex20Mesh read_exodus_hex20(const std::string& path) {
+    ExodusMeshData data = read_exodus_mesh(path, 3, 20, 6, "HEX20", "HEX", "fuelsim HEX20 mesh");
+    std::vector<CartesianPoint3> nodes;
+    for (const auto& node : data.nodes) nodes.push_back({node[0], node[1], node[2]});
+    std::vector<Hex20Element> elements;
+    for (const auto& value : data.elements) elements.push_back({value});
+    return UnstructuredHex20Mesh(std::move(nodes), std::move(elements), std::move(data.element_block_ids),
+        std::move(data.element_blocks), std::move(data.node_sets), std::move(data.side_sets));
+}
+
+void write_exodus_hex20(const std::string& path, const UnstructuredHex20Mesh& mesh) {
+    ExodusMeshData data{3, 20, 6, "HEX20", "HEX", "fuelsim HEX20 mesh", {"x", "y", "z"}, {}, {},
+        mesh.element_block_ids(), mesh.element_blocks(), mesh.node_sets(), mesh.side_sets()};
+    for (const CartesianPoint3& node : mesh.nodes()) data.nodes.push_back({node.x, node.y, node.z});
+    for (const Hex20Element& element : mesh.elements()) data.elements.push_back(element.nodes);
+    write_exodus_mesh(path, data);
+}
+
+bool exodus_uses_hex20(const std::string& path) {
+    int cpu_word_size = static_cast<int>(sizeof(double)), io_word_size = 0;
+    float version = 0.0F;
+    const int exoid = ex_open(path.c_str(), EX_READ, &cpu_word_size, &io_word_size, &version);
+    if (exoid < 0) throw std::runtime_error("Could not open Exodus file '" + path + "': " + ex_strerror(exoid));
+    ExodusFile file(exoid);
+    ex_set_int64_status(file.id(), EX_ALL_INT64_API);
+    ex_init_params parameters{};
+    check_exodus(ex_get_init_ext(file.id(), &parameters), "Could not read Exodus model parameters");
+    if (parameters.num_dim != 3 || parameters.num_elem_blk <= 0)
+        throw std::runtime_error("Cartesian three-dimensional Exodus mesh must contain element blocks");
+    std::vector<std::int64_t> block_ids(checked_size(parameters.num_elem_blk, "Exodus element block count"));
+    check_exodus(ex_get_ids(file.id(), EX_ELEM_BLOCK, block_ids.data()), "Could not read Exodus element block IDs");
+    std::int64_t node_count = 0;
+    for (const std::int64_t block_id : block_ids) {
+        ex_block block{};
+        block.id = block_id;
+        block.type = EX_ELEM_BLOCK;
+        check_exodus(ex_get_block_param(file.id(), &block), "Could not read Exodus element block");
+        if (block.num_nodes_per_entry != 8 && block.num_nodes_per_entry != 20)
+            throw std::runtime_error("Cartesian Exodus element blocks must contain only HEX8 or HEX20 elements");
+        if (node_count != 0 && node_count != block.num_nodes_per_entry)
+            throw std::runtime_error("Cartesian Exodus mesh cannot mix HEX8 and HEX20 element blocks");
+        node_count = block.num_nodes_per_entry;
+    }
+    return node_count == 20;
 }
 
 void write_exodus_hex8(const std::string& path, const UnstructuredHex8Mesh& mesh) {
     ExodusMeshData data{3, 8, 6, "HEX8", "HEX", "fuelsim HEX8 mesh", {"x", "y", "z"}, {}, {}, mesh.element_block_ids(),
         mesh.element_blocks(), mesh.node_sets(), mesh.side_sets()};
     for (const CartesianPoint3& node : mesh.nodes()) data.nodes.push_back({node.x, node.y, node.z});
-    for (const Hex8Element& element : mesh.elements()) data.elements.push_back(element.nodes);
+    for (const Hex8Element& element : mesh.elements()) {
+        std::array<std::size_t, 20> nodes{};
+        std::copy(element.nodes.begin(), element.nodes.end(), nodes.begin());
+        data.elements.push_back(nodes);
+    }
     write_exodus_mesh(path, data);
 }
 
@@ -455,19 +506,19 @@ std::vector<std::string> transient_element_variable_names() {
     return result;
 }
 
-std::vector<std::string> cartesian_stress_variable_names() {
+std::vector<std::string> cartesian_stress_variable_names(std::size_t point_count = 8) {
     std::vector<std::string> result;
-    result.reserve(48);
-    for (std::size_t q = 0; q < 8; ++q)
+    result.reserve(6 * point_count);
+    for (std::size_t q = 0; q < point_count; ++q)
         for (const char* component : cartesian_stress_components)
             result.push_back("stress_" + std::string(component) + "_q" + std::to_string(q));
     return result;
 }
 
-std::vector<std::string> cartesian_transient_variable_names() {
-    std::vector<std::string> result = cartesian_stress_variable_names();
-    result.reserve(64);
-    for (std::size_t q = 0; q < 8; ++q) {
+std::vector<std::string> cartesian_transient_variable_names(std::size_t point_count = 8) {
+    std::vector<std::string> result = cartesian_stress_variable_names(point_count);
+    result.reserve(8 * point_count);
+    for (std::size_t q = 0; q < point_count; ++q) {
         result.push_back("equiv_plastic_q" + std::to_string(q));
         result.push_back("equiv_creep_q" + std::to_string(q));
     }
@@ -485,6 +536,10 @@ ResultsMeshView results_mesh_view(const UnstructuredQuad4Mesh& mesh) {
 }
 
 ResultsMeshView results_mesh_view(const UnstructuredHex8Mesh& mesh) {
+    return {mesh.nodes().size(), mesh.elements().size(), mesh.element_blocks(), mesh.element_block_ids()};
+}
+
+ResultsMeshView results_mesh_view(const UnstructuredHex20Mesh& mesh) {
     return {mesh.nodes().size(), mesh.elements().size(), mesh.element_blocks(), mesh.element_block_ids()};
 }
 
@@ -696,6 +751,37 @@ void fill_cartesian_nodal(const UnstructuredHex8Mesh& mesh, const cartesian::Spa
     }
 }
 
+void fill_cartesian_nodal(const UnstructuredHex20Mesh& mesh, const cartesian::SpatialAssembly& spatial,
+    const std::vector<double>& state, std::vector<std::vector<double>>& values) {
+    const double missing = std::numeric_limits<double>::quiet_NaN();
+    values.assign(4, std::vector<double>(mesh.nodes().size(), missing));
+    const std::vector<FieldDescriptor>& fields = spatial.field_layout();
+    for (std::size_t region = 0; region < spatial.region_count(); ++region) {
+        const Hex20RegionMesh& region_mesh = spatial.hex20_region_mesh(region);
+        for (std::size_t local = 0; local < region_mesh.source_node_ids().size(); ++local) {
+            const std::size_t source = region_mesh.source_node_ids()[local];
+            const std::size_t global = spatial.global_node(region, local);
+            for (std::size_t component = 1; component < 4; ++component)
+                values[component][source] = state.at(fields[component].begin + global);
+            if (region_mesh.temperature_nodes()[local])
+                values[0][source] = state.at(fields[0].begin + spatial.global_temperature_node(region, local));
+        }
+    }
+    constexpr std::array<std::array<std::size_t, 2>, 12> edge_corners = {
+        {{0, 1}, {1, 2}, {2, 3}, {3, 0}, {0, 4}, {1, 5}, {2, 6}, {3, 7}, {4, 5}, {5, 6}, {6, 7}, {7, 4}}};
+    for (const Hex20Element& element : mesh.elements())
+        for (std::size_t edge = 0; edge < edge_corners.size(); ++edge) {
+            const std::size_t midpoint = element.nodes[8 + edge];
+            const double interpolated = 0.5 * (values[0][element.nodes[edge_corners[edge][0]]] +
+                                                  values[0][element.nodes[edge_corners[edge][1]]]);
+            if (std::isfinite(values[0][midpoint]) &&
+                std::abs(values[0][midpoint] - interpolated) >
+                    1.0e-12 * std::max({1.0, std::abs(values[0][midpoint]), std::abs(interpolated)}))
+                throw std::logic_error("HEX20 result temperature interpolation is inconsistent at a shared node");
+            values[0][midpoint] = interpolated;
+        }
+}
+
 std::vector<double> cartesian_globals(
     const cartesian::SpatialAssembly& spatial, const std::vector<double>& state, double load_factor) {
     std::vector<double> result = {load_factor};
@@ -721,9 +807,22 @@ void store_cartesian_stress_values(std::size_t source, const std::array<Symmetri
     }
 }
 
+void store_cartesian_stress_values(std::size_t source, const std::array<SymmetricTensor3Values, 27>& stresses,
+    std::vector<std::vector<double>>& values) {
+    for (std::size_t q = 0; q < stresses.size(); ++q) {
+        const std::size_t offset = 6 * q;
+        values[offset][source] = stresses[q].xx;
+        values[offset + 1][source] = stresses[q].yy;
+        values[offset + 2][source] = stresses[q].zz;
+        values[offset + 3][source] = stresses[q].xy;
+        values[offset + 4][source] = stresses[q].yz;
+        values[offset + 5][source] = stresses[q].xz;
+    }
+}
+
 std::vector<std::vector<double>> cartesian_elements(const UnstructuredHex8Mesh& mesh,
     const cartesian::SpatialAssembly& spatial, const std::vector<double>* state,
-    const std::vector<std::vector<Hex8MaterialHistory>>* histories = nullptr) {
+    const std::vector<std::vector<CartesianMaterialHistory>>* histories = nullptr) {
     const double missing = std::numeric_limits<double>::quiet_NaN();
     std::vector<std::vector<double>> result(
         histories == nullptr ? 48 : 64, std::vector<double>(mesh.elements().size(), missing));
@@ -742,6 +841,34 @@ std::vector<std::vector<double>> cartesian_elements(const UnstructuredHex8Mesh& 
                 const CartesianMaterialPointState& point = (*histories)[region][element][q];
                 result[48 + 2 * q][source] = point.equivalent_plastic_strain;
                 result[49 + 2 * q][source] = point.equivalent_creep_strain;
+            }
+        }
+    }
+    return result;
+}
+
+std::vector<std::vector<double>> cartesian_elements(const UnstructuredHex20Mesh& mesh,
+    const cartesian::SpatialAssembly& spatial, const std::vector<double>* state,
+    const std::vector<std::vector<CartesianMaterialHistory>>* histories = nullptr) {
+    const double missing = std::numeric_limits<double>::quiet_NaN();
+    std::vector<std::vector<double>> result(
+        histories == nullptr ? 162 : 216, std::vector<double>(mesh.elements().size(), missing));
+    for (std::size_t region = 0; region < spatial.region_count(); ++region) {
+        const Hex20RegionMesh& region_mesh = spatial.hex20_region_mesh(region);
+        for (std::size_t element = 0; element < region_mesh.elements().size(); ++element) {
+            const std::size_t source = region_mesh.source_element_ids()[element];
+            std::array<SymmetricTensor3Values, 27> stresses{};
+            if (histories == nullptr)
+                stresses = spatial.hex20_stress(region, element, *state);
+            else
+                for (std::size_t q = 0; q < stresses.size(); ++q)
+                    stresses[q] = histories->at(region).at(element).at(q).stress;
+            store_cartesian_stress_values(source, stresses, result);
+            if (histories == nullptr) continue;
+            for (std::size_t q = 0; q < stresses.size(); ++q) {
+                const CartesianMaterialPointState& point = histories->at(region).at(element).at(q);
+                result[162 + 2 * q][source] = point.equivalent_plastic_strain;
+                result[163 + 2 * q][source] = point.equivalent_creep_strain;
             }
         }
     }
@@ -849,6 +976,19 @@ void write_steady_results(const std::string& path, const UnstructuredHex8Mesh& m
         cartesian_globals(spatial, state, problem.load_factor()));
 }
 
+void write_steady_results(const std::string& path, const UnstructuredHex20Mesh& mesh, const SteadyProblem& problem,
+    const std::vector<double>& state) {
+    if (path.empty()) throw std::invalid_argument("Exodus result path must not be empty");
+    write_exodus_hex20(path, mesh);
+    const cartesian::SpatialAssembly& spatial = BackendAccess::cartesian_spatial(problem);
+    define_result_variables(path, results_mesh_view(mesh), cartesian_nodal_variable_names({}),
+        cartesian_stress_variable_names(27), global_variable_names({}));
+    std::vector<std::vector<double>> nodal_values;
+    fill_cartesian_nodal(mesh, spatial, state, nodal_values);
+    write_result_step(path, results_mesh_view(mesh), 1, 1.0, nodal_values, cartesian_elements(mesh, spatial, &state),
+        cartesian_globals(spatial, state, problem.load_factor()));
+}
+
 ExodusTransientResultsWriter::ExodusTransientResultsWriter(
     std::string path, UnstructuredQuad4Mesh mesh, const TransientProblem& problem)
     : _path(std::move(path)), _rz_mesh(std::make_unique<UnstructuredQuad4Mesh>(std::move(mesh))),
@@ -871,6 +1011,16 @@ ExodusTransientResultsWriter::ExodusTransientResultsWriter(
         cartesian_transient_variable_names(), global_variable_names(contacts));
 }
 
+ExodusTransientResultsWriter::ExodusTransientResultsWriter(
+    std::string path, UnstructuredHex20Mesh mesh, const TransientProblem& problem)
+    : _path(std::move(path)), _hex20_mesh(std::make_unique<UnstructuredHex20Mesh>(std::move(mesh))),
+      _problem_signature(transient_problem_signature(problem)), _step_count(0) {
+    if (_path.empty()) throw std::invalid_argument("Exodus result path must not be empty");
+    write_exodus_hex20(_path, *_hex20_mesh);
+    define_result_variables(_path, results_mesh_view(*_hex20_mesh), cartesian_nodal_variable_names({}),
+        cartesian_transient_variable_names(27), global_variable_names({}));
+}
+
 void ExodusTransientResultsWriter::append(const TransientProblem& problem) {
     if (problem.time_step_active())
         throw std::logic_error("Exodus results cannot be written during an active time step");
@@ -878,7 +1028,13 @@ void ExodusTransientResultsWriter::append(const TransientProblem& problem) {
         throw std::invalid_argument("Exodus result problem does not match writer model");
     ++_step_count;
     std::vector<std::vector<double>> nodal_values;
-    if (_hex_mesh) {
+    if (_hex20_mesh) {
+        const cartesian::SpatialAssembly& spatial = BackendAccess::cartesian_spatial(problem);
+        fill_cartesian_nodal(*_hex20_mesh, spatial, problem.committed_solution(), nodal_values);
+        write_result_step(_path, results_mesh_view(*_hex20_mesh), _step_count, problem.committed_time(), nodal_values,
+            cartesian_elements(*_hex20_mesh, spatial, nullptr, &BackendAccess::cartesian_material_histories(problem)),
+            cartesian_globals(spatial, problem.committed_solution(), problem.committed_load_factor()));
+    } else if (_hex_mesh) {
         const cartesian::SpatialAssembly& spatial = BackendAccess::cartesian_spatial(problem);
         fill_cartesian_nodal(*_hex_mesh, spatial, problem.committed_solution(), nodal_values);
         write_result_step(_path, results_mesh_view(*_hex_mesh), _step_count, problem.committed_time(), nodal_values,

@@ -62,6 +62,7 @@ class TransientProblem final : public NonlinearProblem {
   public:
     TransientProblem(SpatialDefinition definition, const UnstructuredQuad4Mesh& source_mesh);
     TransientProblem(SpatialDefinition definition, const UnstructuredHex8Mesh& source_mesh);
+    TransientProblem(SpatialDefinition definition, const UnstructuredHex20Mesh& source_mesh);
     ~TransientProblem() override;
     bool is_cartesian_3d() const noexcept;
     const SpatialDefinition& definition() const noexcept;

@@ -93,7 +93,9 @@ class SpatialLayout {
 
     std::size_t node_count() const noexcept { return _node_count; }
 
-    std::size_t dof_count() const noexcept { return _field_layout.size() * node_count(); }
+    std::size_t temperature_node_count() const noexcept { return _temperature_node_count; }
+
+    std::size_t dof_count() const noexcept { return _field_layout.empty() ? 0U : _field_layout.back().end; }
 
     const std::vector<FieldDescriptor>& field_layout() const noexcept { return _field_layout; }
 
@@ -104,11 +106,14 @@ class SpatialLayout {
     const std::vector<std::string>& configuration_warnings() const noexcept { return _configuration_warnings; }
 
     std::size_t global_node(std::size_t region, std::size_t local_node) const;
+    std::size_t global_temperature_node(std::size_t region, std::size_t local_node) const;
 
   protected:
     SpatialLayout(SpatialDefinition definition, std::vector<std::int64_t> block_ids, DofLayout layout);
     void initialize_counts(const std::vector<std::size_t>& node_counts, const std::vector<std::size_t>& element_counts);
     void initialize_shared_nodes(const std::vector<std::vector<std::size_t>>& region_source_node_ids);
+    void initialize_mixed_shared_nodes(const std::vector<std::vector<std::size_t>>& region_source_node_ids,
+        const std::vector<std::vector<bool>>& region_temperature_nodes);
     void add_dirichlet(std::size_t dof, std::size_t boundary_index);
     void set_load_factor_value(double value);
     void set_time_value(double value);
@@ -121,7 +126,8 @@ class SpatialLayout {
     std::vector<std::int64_t> _block_ids;
     std::vector<std::size_t> _node_offsets, _element_offsets;
     std::vector<std::vector<std::size_t>> _region_global_nodes;
-    std::size_t _node_count = 0;
+    std::vector<std::vector<std::size_t>> _region_global_temperature_nodes;
+    std::size_t _node_count = 0, _temperature_node_count = 0;
     std::vector<FieldDescriptor> _field_layout;
     std::vector<DirichletCondition> _dirichlet_conditions;
     std::vector<std::string> _configuration_warnings;
@@ -134,5 +140,7 @@ class SpatialLayout {
 
     DofLayout _layout;
     std::vector<ControlledDirichlet> _controlled_dirichlet_conditions;
+    void initialize_field_layout();
+    static constexpr std::size_t invalid_node = std::numeric_limits<std::size_t>::max();
 };
 } // namespace fuelsim::spatial_detail

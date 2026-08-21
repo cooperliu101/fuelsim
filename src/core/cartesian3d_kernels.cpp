@@ -513,11 +513,13 @@ std::array<SymmetricTensor3Values, 8> evaluate_hex8_stress(const Hex8Geometry& g
     return result;
 }
 
-Hex8LocalResidual compute_hex8_local(const Hex8ThermoelasticData& data, const Hex8Geometry& geometry,
-    const Hex8LocalValues& state, const Hex8LocalValues* committed_state, const Hex8MaterialHistory* history,
+Hex8LocalResidual compute_hex8_local(const CartesianThermoelasticData& data, const Hex8Geometry& geometry,
+    const Hex8LocalValues& state, const Hex8LocalValues* committed_state, const CartesianMaterialHistory* history,
     double time_step, Hex8LocalJacobian* jacobian, bool include_thermal_time_term) {
     if (committed_state != nullptr && (!std::isfinite(time_step) || time_step <= 0.0))
         throw std::invalid_argument("HEX8 time step must be finite and positive");
+    if (history != nullptr && history->size() != geometry.points.size())
+        throw std::invalid_argument("HEX8 material history must contain eight integration points");
     Hex8LocalAdValues residual{};
     residual.fill(adlite::Scalar(0.0));
     if (jacobian == nullptr) {
@@ -626,27 +628,30 @@ Quad4FaceGeometry make_quad4_face_geometry(const Quad4FaceCoordinates& coordinat
     return geometry;
 }
 
-Hex8LocalResidual compute_hex8_thermoelastic(const Hex8ThermoelasticData& data, const Hex8Geometry& geometry,
+Hex8LocalResidual compute_hex8_thermoelastic(const CartesianThermoelasticData& data, const Hex8Geometry& geometry,
     const Hex8LocalValues& state, const Hex8LocalValues* committed_state, double time_step,
     Hex8LocalJacobian* jacobian) {
     return compute_hex8_local(data, geometry, state, committed_state, nullptr, time_step, jacobian, true);
 }
 
-Hex8LocalResidual compute_hex8_transient(const Hex8ThermoelasticData& data, const Hex8Geometry& geometry,
-    const Hex8LocalValues& state, const Hex8LocalValues& committed_state, const Hex8MaterialHistory& committed_material,
-    double time_step, Hex8LocalJacobian* jacobian, bool include_thermal_time_term) {
+Hex8LocalResidual compute_hex8_transient(const CartesianThermoelasticData& data, const Hex8Geometry& geometry,
+    const Hex8LocalValues& state, const Hex8LocalValues& committed_state,
+    const CartesianMaterialHistory& committed_material, double time_step, Hex8LocalJacobian* jacobian,
+    bool include_thermal_time_term) {
     return compute_hex8_local(
         data, geometry, state, &committed_state, &committed_material, time_step, jacobian, include_thermal_time_term);
 }
 
-Hex8MaterialHistory compute_hex8_transient_update(const Hex8ThermoelasticData& data, const Hex8Geometry& geometry,
-    const Hex8LocalValues& state, const Hex8LocalValues& committed_state, const Hex8MaterialHistory& committed_material,
-    double time_step) {
+CartesianMaterialHistory compute_hex8_transient_update(const CartesianThermoelasticData& data,
+    const Hex8Geometry& geometry, const Hex8LocalValues& state, const Hex8LocalValues& committed_state,
+    const CartesianMaterialHistory& committed_material, double time_step) {
     if (!std::isfinite(time_step) || !(time_step > 0.0))
         throw std::invalid_argument("HEX8 transient update time step must be finite and positive");
+    if (committed_material.size() != geometry.points.size())
+        throw std::invalid_argument("HEX8 material history must contain eight integration points");
     Hex8LocalAdValues passive{};
     ad_local_system::make_passive(state.data(), state.size(), passive.data());
-    Hex8MaterialHistory result{};
+    CartesianMaterialHistory result(geometry.points.size());
     for (std::size_t q = 0; q < geometry.points.size(); ++q) {
         const Hex8QuadraturePoint& point = geometry.points[q];
         const adlite::Scalar temperature = interpolate_hex8(point.shape, passive, 0);
@@ -668,7 +673,7 @@ Hex8MaterialHistory compute_hex8_transient_update(const Hex8ThermoelasticData& d
 }
 
 std::array<SymmetricTensor3Values, 8> compute_hex8_stress(
-    const Hex8ThermoelasticData& data, const Hex8Geometry& geometry, const Hex8LocalValues& state) {
+    const CartesianThermoelasticData& data, const Hex8Geometry& geometry, const Hex8LocalValues& state) {
     return evaluate_hex8_stress(geometry, state, data.material, data.strain_formulation, data.time);
 }
 

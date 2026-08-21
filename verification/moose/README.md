@@ -37,6 +37,7 @@ files.
 | B3.3 HEX8 coupled contact | `b33_hex8_contact_mesh.e` | 16 / 2 HEX8 | `e710f3add10b71478f786521af44cde8ff3fb81d4becf1fbab1266955ba43cf7` |
 | B3.4 HEX8 sliding friction | `b34_hex8_sliding_contact_mesh.e` | 16 / 2 HEX8 | `d9ec3f16dd1c836f88e4cdf21195b47cb8766e34e97415cd84fb94b1ea48e2f6` |
 | B3.7 HEX8 nonmatching two-pair friction | `b37_hex8_multi_contact_mesh.e` | 40 / 6 HEX8 | `c2d1610df6f29148fdc373df5e1e257c7a432ac2114fd9b27c283965685da5b3` |
+| B6 HEX20-U2/T1 thermoelasticity | `b6_hex20_u2_t1.e` | 20 / 1 HEX20 | `95fa67b7b03777f65bd3ace9911d247d16e41c904faad994a24ed811e1bf3c6f` |
 
 Generate any snapshot from this directory by replacing `<case>` with the input
 stem:
@@ -50,6 +51,22 @@ stem:
 The reader preserves block, node-set, and side-set IDs and names. Single-region
 cases select block ID 0 because the default MOOSE block has no required name;
 M1, M2.3, and M4.1 select the named `fuel` and `clad` blocks.
+
+## B6 mixed-order HEX20 thermoelasticity
+
+`b6_hex20_u2_t1.i` generates and solves the tracked one-element HEX20 mesh. The
+three displacement variables use second-order Lagrange interpolation on all 20
+nodes, while temperature uses first-order Lagrange interpolation on the eight
+corner nodes. July/MOOSE reports 68 total degrees of freedom. Its non-automatic-
+differentiation stress-divergence path is used because the configured MOOSE
+automatic-differentiation container is narrower than this element-local system.
+
+The reference is a uniform 100 K free thermal expansion. The fuelsim comparison
+reads `b6_hex20_u2_t1.e` directly, compares all eight temperature degrees of
+freedom and all 60 displacement degrees of freedom, and reports relative L2,
+relative absolute-peak, and maximum pointwise-relative errors. Temperature is
+exact and the largest displacement metric is below `4.6e-15`; zero references
+are counted and checked separately.
 
 ## Native axisymmetric shared-node material interface
 

@@ -112,6 +112,20 @@ UnstructuredHex8Mesh::UnstructuredHex8Mesh(std::vector<CartesianPoint3> nodes, s
     }
 }
 
+UnstructuredHex20Mesh::UnstructuredHex20Mesh(std::vector<CartesianPoint3> nodes, std::vector<Hex20Element> elements,
+    std::vector<std::int64_t> element_block_ids, std::vector<ElementBlockInfo> element_blocks,
+    std::vector<NodeSet> node_sets, std::vector<SideSet> side_sets)
+    : UnstructuredMeshMetadata(nodes.size(), elements.size(), 6, std::move(element_block_ids),
+          std::move(element_blocks), std::move(node_sets), std::move(side_sets), "UnstructuredHex20Mesh"),
+      _nodes(std::move(nodes)), _elements(std::move(elements)) {
+    for (const CartesianPoint3& node : _nodes)
+        if (!std::isfinite(node.x) || !std::isfinite(node.y) || !std::isfinite(node.z))
+            throw std::invalid_argument("UnstructuredHex20Mesh requires finite Cartesian coordinates");
+    for (const Hex20Element& element : _elements)
+        for (const std::size_t node : element.nodes)
+            if (node >= _nodes.size()) throw std::out_of_range("UnstructuredHex20Mesh connectivity is out of range");
+}
+
 RegionMeshMapping::RegionMeshMapping(
     const UnstructuredMeshMetadata& source, std::size_t node_count, std::int64_t block_id)
     : _block_id(block_id), _source_node_to_local(node_count, invalid_index),
@@ -190,6 +204,70 @@ Hex8RegionBoundary Hex8RegionMesh::map_side_set(
     std::sort(result.nodes.begin(), result.nodes.end(),
         [&](std::size_t lhs, std::size_t rhs) { return _source_node_ids[lhs] < _source_node_ids[rhs]; });
     result.nodes.erase(std::unique(result.nodes.begin(), result.nodes.end()), result.nodes.end());
+    return result;
+}
+
+Hex20RegionMesh::Hex20RegionMesh(const UnstructuredHex20Mesh& source, std::int64_t block_id)
+    : RegionMeshMapping(source, source.nodes().size(), block_id) {}
+
+Hex20RegionMesh Hex20RegionMesh::from_unstructured_block(const UnstructuredHex20Mesh& source, std::int64_t block_id) {
+    Hex20RegionMesh mesh(source, block_id);
+    std::vector<bool> used_nodes(source.nodes().size(), false), temperature_source_nodes(source.nodes().size(), false);
+    for (const std::size_t source_element : mesh._source_element_ids) {
+        const Hex20Element& element = source.elements()[source_element];
+        for (std::size_t node : element.nodes) used_nodes[node] = true;
+        for (std::size_t node = 0; node < 8; ++node) temperature_source_nodes[element.nodes[node]] = true;
+    }
+    mesh.select_nodes(used_nodes);
+    mesh._temperature_nodes.resize(mesh._source_node_ids.size(), false);
+    for (std::size_t local = 0; local < mesh._source_node_ids.size(); ++local) {
+        const std::size_t source_node = mesh._source_node_ids[local];
+        mesh._nodes.push_back(source.nodes()[source_node]);
+        mesh._temperature_nodes[local] = temperature_source_nodes[source_node];
+    }
+    mesh._elements.reserve(mesh._source_element_ids.size());
+    for (std::size_t source_element : mesh._source_element_ids) {
+        Hex20Element element{};
+        for (std::size_t node = 0; node < element.nodes.size(); ++node) {
+            const std::size_t local = mesh._source_node_to_local.at(source.elements()[source_element].nodes[node]);
+            if (local == invalid_index) throw std::logic_error("Hex20RegionMesh connectivity crosses element blocks");
+            element.nodes[node] = local;
+        }
+        mesh._elements.push_back(element);
+    }
+    return mesh;
+}
+
+Hex20RegionBoundary Hex20RegionMesh::map_side_set(
+    const UnstructuredHex20Mesh& source, const std::string& side_set_name) const {
+    if (source.side_set_block_id(side_set_name) != _block_id)
+        throw std::invalid_argument("Side set belongs to an unexpected block: " + side_set_name);
+    static constexpr std::array<std::array<std::size_t, 8>, 6> face_nodes = {
+        {{{0, 1, 5, 4, 8, 13, 16, 12}}, {{1, 2, 6, 5, 9, 14, 17, 13}}, {{2, 3, 7, 6, 10, 15, 18, 14}},
+            {{3, 0, 4, 7, 11, 12, 19, 15}}, {{0, 3, 2, 1, 11, 10, 9, 8}}, {{4, 5, 6, 7, 16, 17, 18, 19}}}};
+    Hex20RegionBoundary result;
+    for (const ElementSide& side : source.side_set(side_set_name).sides) {
+        const std::size_t local_element = _source_element_to_local.at(side.element);
+        if (local_element == invalid_index)
+            throw std::invalid_argument("Side set is outside its region: " + side_set_name);
+        Quad8FaceElement face{{}, local_element, side.local_side};
+        for (std::size_t node = 0; node < face.nodes.size(); ++node) {
+            const std::size_t source_node = source.elements()[side.element].nodes[face_nodes[side.local_side][node]],
+                              local_node = _source_node_to_local.at(source_node);
+            if (local_node == invalid_index) throw std::logic_error("Hex20RegionMesh side-set node mapping failed");
+            face.nodes[node] = local_node;
+            result.displacement_nodes.push_back(local_node);
+            if (node < 4) result.temperature_nodes.push_back(local_node);
+        }
+        result.faces.push_back(face);
+    }
+    const auto normalize = [&](std::vector<std::size_t>& nodes) {
+        std::sort(nodes.begin(), nodes.end(),
+            [&](std::size_t lhs, std::size_t rhs) { return _source_node_ids[lhs] < _source_node_ids[rhs]; });
+        nodes.erase(std::unique(nodes.begin(), nodes.end()), nodes.end());
+    };
+    normalize(result.temperature_nodes);
+    normalize(result.displacement_nodes);
     return result;
 }
 

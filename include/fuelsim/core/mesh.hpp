@@ -26,8 +26,17 @@ struct Hex8Element final {
     std::array<std::size_t, 8> nodes;
 };
 
+struct Hex20Element final {
+    std::array<std::size_t, 20> nodes;
+};
+
 struct Quad4FaceElement final {
     std::array<std::size_t, 4> nodes;
+    std::size_t parent_element, local_face;
+};
+
+struct Quad8FaceElement final {
+    std::array<std::size_t, 8> nodes;
     std::size_t parent_element, local_face;
 };
 
@@ -107,6 +116,21 @@ class UnstructuredHex8Mesh final : public UnstructuredMeshMetadata {
     std::vector<CartesianPoint3> _nodes;
     std::vector<Hex8Element> _elements;
 };
+
+class UnstructuredHex20Mesh final : public UnstructuredMeshMetadata {
+  public:
+    UnstructuredHex20Mesh(std::vector<CartesianPoint3> nodes, std::vector<Hex20Element> elements,
+        std::vector<std::int64_t> element_block_ids, std::vector<ElementBlockInfo> element_blocks,
+        std::vector<NodeSet> node_sets, std::vector<SideSet> side_sets);
+
+    const std::vector<CartesianPoint3>& nodes() const noexcept { return _nodes; }
+
+    const std::vector<Hex20Element>& elements() const noexcept { return _elements; }
+
+  private:
+    std::vector<CartesianPoint3> _nodes;
+    std::vector<Hex20Element> _elements;
+};
 enum class RegionBoundaryKind {
     radial_inner,
     radial_outer,
@@ -171,5 +195,29 @@ class Hex8RegionMesh final : public RegionMeshMapping {
     Hex8RegionMesh(const UnstructuredHex8Mesh& source, std::int64_t block_id);
     std::vector<CartesianPoint3> _nodes;
     std::vector<Hex8Element> _elements;
+};
+
+struct Hex20RegionBoundary final {
+    std::vector<std::size_t> temperature_nodes, displacement_nodes;
+    std::vector<Quad8FaceElement> faces;
+};
+
+class Hex20RegionMesh final : public RegionMeshMapping {
+  public:
+    static Hex20RegionMesh from_unstructured_block(const UnstructuredHex20Mesh& source, std::int64_t block_id);
+
+    const std::vector<CartesianPoint3>& nodes() const noexcept { return _nodes; }
+
+    const std::vector<Hex20Element>& elements() const noexcept { return _elements; }
+
+    const std::vector<bool>& temperature_nodes() const noexcept { return _temperature_nodes; }
+
+    Hex20RegionBoundary map_side_set(const UnstructuredHex20Mesh& source, const std::string& side_set_name) const;
+
+  private:
+    Hex20RegionMesh(const UnstructuredHex20Mesh& source, std::int64_t block_id);
+    std::vector<CartesianPoint3> _nodes;
+    std::vector<Hex20Element> _elements;
+    std::vector<bool> _temperature_nodes;
 };
 } // namespace fuelsim

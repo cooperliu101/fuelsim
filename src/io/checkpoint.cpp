@@ -20,7 +20,7 @@ namespace fuelsim {
 namespace {
 constexpr std::array<unsigned char, 16> checkpoint_magic = {
     'F', 'U', 'E', 'L', 'S', 'I', 'M', '_', 'C', 'H', 'E', 'C', 'K', 'P', 'T', '\0'};
-constexpr std::uint32_t checkpoint_version = 11U;
+constexpr std::uint32_t checkpoint_version = 12U;
 constexpr std::uint32_t endian_marker = 0x01020304U;
 constexpr std::uint64_t maximum_checkpoint_bytes = 16ULL * 1024ULL * 1024ULL * 1024ULL;
 
@@ -169,7 +169,7 @@ BinaryBuffer state_payload(const TransientProblem& problem, double next_time_ste
     }
     if (cartesian) {
         for (const auto& region : state.cartesian_material_histories)
-            for (const Hex8MaterialHistory& element : region)
+            for (const CartesianMaterialHistory& element : region)
                 for (const CartesianMaterialPointState& point : element) append_material_point(payload, point);
         return payload;
     }
@@ -284,8 +284,11 @@ double restore_transient_checkpoint(const std::string& path, TransientProblem& p
         state.cartesian_material_histories.resize(expected_histories.size());
         for (std::size_t region = 0; region < expected_histories.size(); ++region) {
             state.cartesian_material_histories[region].resize(expected_histories[region].size());
-            for (Hex8MaterialHistory& element : state.cartesian_material_histories[region])
+            for (std::size_t element_index = 0; element_index < expected_histories[region].size(); ++element_index) {
+                CartesianMaterialHistory& element = state.cartesian_material_histories[region][element_index];
+                element.resize(expected_histories[region][element_index].size());
                 for (CartesianMaterialPointState& point : element) read_material_point(payload, point);
+            }
         }
         if (!payload.at_end()) throw std::runtime_error("Checkpoint payload contains trailing data");
         BackendAccess::restore_committed_state(problem, std::move(state));

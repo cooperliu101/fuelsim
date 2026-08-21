@@ -76,7 +76,7 @@ bool test_geometry_and_constant_strain() {
         state[16 + node] = exy * point.x + eyy * point.y + eyz * point.z;
         state[24 + node] = exz * point.x + eyz * point.y + ezz * point.z;
     }
-    const fuelsim::Hex8ThermoelasticData data{fuelsim::IsotropicThermoelasticMaterial(properties()), 0.0, 0.0};
+    const fuelsim::CartesianThermoelasticData data{fuelsim::IsotropicThermoelasticMaterial(properties()), 0.0, 0.0};
     const auto stresses = fuelsim::compute_hex8_stress(data, geometry, state);
     const double lambda = 2.0e11 * 0.25 / (1.25 * 0.5);
     const double shear = 2.0e11 / 2.5;
@@ -95,7 +95,7 @@ bool test_geometry_and_constant_strain() {
 bool test_free_thermal_expansion_and_jacobian() {
     const fuelsim::Hex8Coordinates coordinates = unit_cube();
     const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(coordinates);
-    const fuelsim::Hex8ThermoelasticData data{fuelsim::IsotropicThermoelasticMaterial(properties()), 7.0e5, 0.0};
+    const fuelsim::CartesianThermoelasticData data{fuelsim::IsotropicThermoelasticMaterial(properties()), 7.0e5, 0.0};
     fuelsim::Hex8LocalValues state{};
     const double temperature = 650.0;
     const double active_alpha = 1.2e-5 + 1.0e-8 * (temperature - 300.0);
@@ -142,7 +142,7 @@ bool test_free_thermal_expansion_and_jacobian() {
 
 bool test_transient_capacity_and_faces() {
     const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(unit_cube());
-    const fuelsim::Hex8ThermoelasticData data{fuelsim::IsotropicThermoelasticMaterial(properties()), 1.2e7, 0.0};
+    const fuelsim::CartesianThermoelasticData data{fuelsim::IsotropicThermoelasticMaterial(properties()), 1.2e7, 0.0};
     fuelsim::Hex8LocalValues old_state{};
     fuelsim::Hex8LocalValues state{};
     for (std::size_t node = 0; node < 8; ++node) {
@@ -342,14 +342,15 @@ bool test_finite_strain_kinematics_and_coupled_jacobian() {
         state[16 + node] = -0.02 * point.x - 0.04 * point.y + 0.06 * point.z;
         state[24 + node] = 0.04 * point.x - 0.05 * point.y - 0.03 * point.z;
     }
-    const fuelsim::Hex8ThermoelasticData data{fuelsim::IsotropicThermoelasticMaterial(inelastic_properties(true, true)),
-        0.0, 1.0, fuelsim::StrainFormulation::finite};
+    const fuelsim::CartesianThermoelasticData data{
+        fuelsim::IsotropicThermoelasticMaterial(inelastic_properties(true, true)), 0.0, 1.0,
+        fuelsim::StrainFormulation::finite};
     const fuelsim::Hex8LocalValues committed_state = [] {
         fuelsim::Hex8LocalValues value{};
         for (std::size_t node = 0; node < 8; ++node) value[node] = 300.0;
         return value;
     }();
-    const fuelsim::Hex8MaterialHistory committed_material{};
+    const fuelsim::CartesianMaterialHistory committed_material(8);
     fuelsim::Hex8LocalJacobian jacobian{};
     (void)fuelsim::compute_hex8_transient(data, geometry, state, committed_state, committed_material, 1.0, &jacobian);
     fuelsim::Hex8LocalValues heated_state = state;

@@ -5,6 +5,7 @@
 #include <adlite/adlite.hpp>
 #include <array>
 #include <cstddef>
+#include <vector>
 
 namespace fuelsim {
 inline constexpr std::size_t hex8_node_count = 8;
@@ -49,7 +50,7 @@ struct Quad4FaceGeometry final {
 Hex8Geometry make_hex8_geometry(const Hex8Coordinates& coordinates);
 Quad4FaceGeometry make_quad4_face_geometry(const Quad4FaceCoordinates& coordinates);
 
-struct Hex8ThermoelasticData final {
+struct CartesianThermoelasticData final {
     IsotropicThermoelasticMaterial material;
     double volumetric_heat_source, time;
     StrainFormulation strain_formulation = StrainFormulation::small;
@@ -66,18 +67,19 @@ CartesianKinematics evaluate_cartesian_incremental_kinematics(const Hex8Quadratu
     const Hex8LocalAdValues& current_state, const Hex8LocalValues& committed_state,
     StrainFormulation strain_formulation);
 void validate_cartesian_deformation(const Hex8QuadraturePoint& point, const Hex8LocalValues& state);
-using Hex8MaterialHistory = std::array<CartesianMaterialPointState, 8>;
-Hex8LocalResidual compute_hex8_thermoelastic(const Hex8ThermoelasticData& data, const Hex8Geometry& geometry,
+using CartesianMaterialHistory = std::vector<CartesianMaterialPointState>;
+Hex8LocalResidual compute_hex8_thermoelastic(const CartesianThermoelasticData& data, const Hex8Geometry& geometry,
     const Hex8LocalValues& state, const Hex8LocalValues* committed_state = nullptr, double time_step = 0.0,
     Hex8LocalJacobian* jacobian = nullptr);
-Hex8LocalResidual compute_hex8_transient(const Hex8ThermoelasticData& data, const Hex8Geometry& geometry,
-    const Hex8LocalValues& state, const Hex8LocalValues& committed_state, const Hex8MaterialHistory& committed_material,
-    double time_step, Hex8LocalJacobian* jacobian = nullptr, bool include_thermal_time_term = true);
-Hex8MaterialHistory compute_hex8_transient_update(const Hex8ThermoelasticData& data, const Hex8Geometry& geometry,
-    const Hex8LocalValues& state, const Hex8LocalValues& committed_state, const Hex8MaterialHistory& committed_material,
-    double time_step);
+Hex8LocalResidual compute_hex8_transient(const CartesianThermoelasticData& data, const Hex8Geometry& geometry,
+    const Hex8LocalValues& state, const Hex8LocalValues& committed_state,
+    const CartesianMaterialHistory& committed_material, double time_step, Hex8LocalJacobian* jacobian = nullptr,
+    bool include_thermal_time_term = true);
+CartesianMaterialHistory compute_hex8_transient_update(const CartesianThermoelasticData& data,
+    const Hex8Geometry& geometry, const Hex8LocalValues& state, const Hex8LocalValues& committed_state,
+    const CartesianMaterialHistory& committed_material, double time_step);
 std::array<SymmetricTensor3Values, 8> compute_hex8_stress(
-    const Hex8ThermoelasticData& data, const Hex8Geometry& geometry, const Hex8LocalValues& state);
+    const CartesianThermoelasticData& data, const Hex8Geometry& geometry, const Hex8LocalValues& state);
 enum class CartesianTractionComponent { x, y, z };
 enum class Quad4FaceBoundaryKind { pressure, traction, convection };
 

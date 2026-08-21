@@ -25,6 +25,10 @@ class ProblemAccess final {
         return view(problem).region_mesh(index);
     }
 
+    static const Hex20RegionMesh& hex20_region_mesh(const SteadyProblem& problem, std::size_t index) {
+        return view(problem).hex20_region_mesh(index);
+    }
+
     static std::size_t region_node_offset(const SteadyProblem& problem, std::size_t index) {
         return view(problem).region_node_offset(index);
     }
@@ -76,6 +80,10 @@ class ProblemAccess final {
         return view(problem).region_mesh(index);
     }
 
+    static const Hex20RegionMesh& hex20_region_mesh(const TransientProblem& problem, std::size_t index) {
+        return view(problem).hex20_region_mesh(index);
+    }
+
     static std::size_t region_node_offset(const TransientProblem& problem, std::size_t index) {
         return view(problem).region_node_offset(index);
     }
@@ -108,14 +116,22 @@ class ProblemAccess final {
     static std::array<SymmetricTensor3Values, 8> stress(
         const TransientProblem& problem, std::size_t region, std::size_t element) {
         std::array<SymmetricTensor3Values, 8> result{};
-        const Hex8MaterialHistory& history = material_history(problem, region, element);
+        const CartesianMaterialHistory& history = material_history(problem, region, element);
         for (std::size_t q = 0; q < result.size(); ++q) result[q] = history[q].stress;
         return result;
     }
 
-    static const Hex8MaterialHistory& material_history(
+    static const CartesianMaterialHistory& material_history(
         const TransientProblem& problem, std::size_t region, std::size_t element) {
         return fuelsim::BackendAccess::cartesian_material_histories(problem).at(region).at(element);
+    }
+
+    static std::array<SymmetricTensor3Values, 27> hex20_stress(
+        const TransientProblem& problem, std::size_t region, std::size_t element) {
+        std::array<SymmetricTensor3Values, 27> result{};
+        const CartesianMaterialHistory& history = material_history(problem, region, element);
+        for (std::size_t q = 0; q < result.size(); ++q) result[q] = history.at(q).stress;
+        return result;
     }
 
     static TransientCommittedState committed_state(const TransientProblem& problem) {
