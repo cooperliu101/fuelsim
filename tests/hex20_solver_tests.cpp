@@ -129,19 +129,62 @@ bool test_transient_restart(const fuelsim::PetscSession& session, const fuelsim:
     return passed;
 }
 
-bool test_contact_rejected(const fuelsim::UnstructuredHex20Mesh& mesh) {
-    fuelsim::SpatialDefinition spatial = definition(true);
+bool test_contact_projection(const fuelsim::UnstructuredHex20Mesh& mesh) {
+    (void)mesh;
+    std::vector<fuelsim::CartesianPoint3> nodes;
+    const auto append_cube = [&nodes](double origin) {
+        const std::array<fuelsim::CartesianPoint3, 8> corners = {
+            {{origin, 0.0, 0.0}, {origin + 1.0, 0.0, 0.0}, {origin + 1.0, 1.0, 0.0}, {origin, 1.0, 0.0},
+                {origin, 0.0, 1.0}, {origin + 1.0, 0.0, 1.0}, {origin + 1.0, 1.0, 1.0}, {origin, 1.0, 1.0}}};
+        for (const auto& point : corners) nodes.push_back(point);
+        const std::array<std::pair<std::size_t, std::size_t>, 12> edges = {
+            {{0, 1}, {1, 2}, {2, 3}, {3, 0}, {0, 4}, {1, 5}, {2, 6}, {3, 7}, {4, 5}, {5, 6}, {6, 7}, {7, 4}}};
+        for (const auto& edge : edges) {
+            const auto& first = corners[edge.first];
+            const auto& second = corners[edge.second];
+            nodes.push_back({0.5 * (first.x + second.x), 0.5 * (first.y + second.y), 0.5 * (first.z + second.z)});
+        }
+    };
+    append_cube(0.0);
+    append_cube(1.0);
+    fuelsim::Hex20Element first{}, second{};
+    for (std::size_t node = 0; node < 20; ++node) {
+        first.nodes[node] = node;
+        second.nodes[node] = 20 + node;
+    }
+    fuelsim::UnstructuredHex20Mesh contact_mesh(std::move(nodes), {first, second}, {1, 2},
+        {{1, "primary"}, {2, "secondary"}}, {}, {{10, "primary_right", {{0, 1}}}, {20, "secondary_left", {{1, 3}}}});
+    fuelsim::SpatialDefinition spatial;
+    spatial.regions = {
+        {"primary", "primary", material(), 0.0, 300.0}, {"secondary", "secondary", material(), 0.0, 400.0}};
     fuelsim::ContactDefinition contact;
-    contact.name = "unsupported";
-    contact.primary = "x0";
-    contact.secondary = "x1";
+    contact.name = "interface";
+    contact.primary = "primary_right";
+    contact.secondary = "secondary_left";
+    contact.thermal = true;
     contact.mechanical = true;
+    contact.gap_conductivity = 1.0;
+    contact.minimum_gap = 1.0e-6;
+    contact.penalty = 1.0e8;
+    contact.friction_coefficient = 0.1;
     spatial.contacts.push_back(contact);
-    try {
-        fuelsim::SteadyProblem problem(spatial, mesh);
-        (void)problem;
-    } catch (const std::invalid_argument&) { return true; }
-    return check(false, "HEX20 contact input is rejected explicitly");
+    fuelsim::SteadyProblem problem(spatial, contact_mesh);
+    const auto& view = fuelsim::cartesian::ProblemAccess::view(problem);
+    const auto summary =
+        fuelsim::cartesian::ProblemAccess::summarize_contact_nodes(problem, 0, problem.initial_state());
+    bool passed = check(summary.size() == 8, "HEX20 contact exposes all eight quadratic secondary face nodes");
+    for (const auto& node : summary)
+        passed = check(node.projected && node.tributary_area > 0.0 && std::abs(node.gap) < 1.0e-10,
+                     "HEX20 Q8 mechanical contact projects every secondary node with positive area") &&
+                 passed;
+    const auto interface = fuelsim::cartesian::ProblemAccess::summarize_interface(problem, 0, problem.initial_state());
+    passed = check(interface.projected_contact_nodes == 8 && interface.unprojected_contact_nodes == 0,
+                 "HEX20 contact validation preserves unique primary projection") &&
+             passed;
+    passed = check(view.contribution_count() > view.volume_contribution_count(),
+                 "HEX20 contact contributes thermal and mechanical surface kernels") &&
+             passed;
+    return passed;
 }
 } // namespace
 
@@ -155,7 +198,7 @@ int main(int argc, char** argv) {
     const std::string transient_results = std::string(argv[2]) + ".transient.e";
     const bool passed = test_steady_and_io(session, mesh, argv[1], argv[2]) &&
                         test_transient_restart(session, mesh, argv[3], transient_results) &&
-                        test_contact_rejected(mesh);
+                        test_contact_projection(mesh);
     session.collective_root_action([&]() {
         (void)std::remove(argv[1]);
         (void)std::remove(argv[2]);

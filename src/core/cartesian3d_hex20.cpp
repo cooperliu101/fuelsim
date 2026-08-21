@@ -487,19 +487,17 @@ Quad8FaceGeometry make_quad8_face_geometry(const Quad8FaceCoordinates& coordinat
         for (std::size_t kx = 0; kx < 2; ++kx) {
             const double xi = gauss2_points[kx], eta = gauss2_points[ky];
             Quad8FaceThermalQuadraturePoint& point = geometry.thermal_points[q++];
-            std::array<double, quad8_face_displacement_node_count> displacement_shape{}, derivative_xi{},
-                derivative_eta{};
-            evaluate_quad8_shapes(xi, eta, displacement_shape, derivative_xi, derivative_eta);
+            evaluate_quad8_shapes(xi, eta, point.displacement_shape, point.derivative_xi, point.derivative_eta);
             point.temperature_shape = {{0.25 * (1.0 - xi) * (1.0 - eta), 0.25 * (1.0 + xi) * (1.0 - eta),
                 0.25 * (1.0 + xi) * (1.0 + eta), 0.25 * (1.0 - xi) * (1.0 + eta)}};
             CartesianPoint3 tangent_xi{}, tangent_eta{};
             for (std::size_t node = 0; node < 8; ++node) {
-                tangent_xi.x += derivative_xi[node] * coordinates[node].x;
-                tangent_xi.y += derivative_xi[node] * coordinates[node].y;
-                tangent_xi.z += derivative_xi[node] * coordinates[node].z;
-                tangent_eta.x += derivative_eta[node] * coordinates[node].x;
-                tangent_eta.y += derivative_eta[node] * coordinates[node].y;
-                tangent_eta.z += derivative_eta[node] * coordinates[node].z;
+                tangent_xi.x += point.derivative_xi[node] * coordinates[node].x;
+                tangent_xi.y += point.derivative_xi[node] * coordinates[node].y;
+                tangent_xi.z += point.derivative_xi[node] * coordinates[node].z;
+                tangent_eta.x += point.derivative_eta[node] * coordinates[node].x;
+                tangent_eta.y += point.derivative_eta[node] * coordinates[node].y;
+                tangent_eta.z += point.derivative_eta[node] * coordinates[node].z;
             }
             const CartesianPoint3 area{tangent_xi.y * tangent_eta.z - tangent_xi.z * tangent_eta.y,
                 tangent_xi.z * tangent_eta.x - tangent_xi.x * tangent_eta.z,
@@ -507,7 +505,8 @@ Quad8FaceGeometry make_quad8_face_geometry(const Quad8FaceCoordinates& coordinat
             const double measure = std::sqrt(area.x * area.x + area.y * area.y + area.z * area.z);
             if (!std::isfinite(measure) || !(measure > 0.0))
                 throw std::invalid_argument("Quad8FaceGeometry requires a finite positive area measure");
-            point.weighted_measure = measure * gauss2_weights[kx] * gauss2_weights[ky];
+            point.quadrature_weight = gauss2_weights[kx] * gauss2_weights[ky];
+            point.weighted_measure = measure * point.quadrature_weight;
         }
     q = 0;
     for (std::size_t ky = 0; ky < 3; ++ky)

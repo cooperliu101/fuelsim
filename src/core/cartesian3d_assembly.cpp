@@ -66,6 +66,28 @@ std::array<double, 3> mechanical_search_point(
         geometry.secondary_coordinates[node].z + state[24 + node]};
 }
 
+std::array<double, 3> hex20_thermal_search_point(
+    const Quad8ToQuad8HeatGeometry& geometry, const Quad8SurfaceContactLocalValues& state) {
+    std::array<double, 3> result{};
+    for (std::size_t node = 0; node < 8; ++node) {
+        result[0] +=
+            geometry.secondary_displacement_shape[node] * (geometry.secondary_coordinates[node].x + state[8 + node]);
+        result[1] +=
+            geometry.secondary_displacement_shape[node] * (geometry.secondary_coordinates[node].y + state[24 + node]);
+        result[2] +=
+            geometry.secondary_displacement_shape[node] * (geometry.secondary_coordinates[node].z + state[40 + node]);
+    }
+    return result;
+}
+
+std::array<double, 3> hex20_mechanical_search_point(
+    const NodeToQuad8ContactGeometry& geometry, const Quad8SurfaceContactLocalValues& state) {
+    const std::size_t node = geometry.secondary_local_node;
+    return {geometry.secondary_coordinates[node].x + state[8 + node],
+        geometry.secondary_coordinates[node].y + state[24 + node],
+        geometry.secondary_coordinates[node].z + state[40 + node]};
+}
+
 double normal_orientation(const Quad4FaceCoordinates& primary_coordinates,
     const CartesianPoint3& secondary_parent_centroid, const CartesianPoint3& primary_parent_centroid) {
     const CartesianPoint3 tangent_xi = subtract(primary_coordinates[1], primary_coordinates[0]),
@@ -97,6 +119,120 @@ double minimum_normal_length(const Hex8RegionMesh& mesh, const Hex8RegionBoundar
     }
     if (!std::isfinite(result)) throw std::invalid_argument("Three-dimensional contact boundary is empty: " + name);
     return result;
+}
+
+CartesianPoint3 hex20_element_centroid(const Hex20RegionMesh& mesh, std::size_t element_index) {
+    CartesianPoint3 result{0.0, 0.0, 0.0};
+    const Hex20Element& element = mesh.elements().at(element_index);
+    for (std::size_t node = 0; node < 8; ++node) {
+        result.x += 0.125 * mesh.nodes().at(element.nodes[node]).x;
+        result.y += 0.125 * mesh.nodes().at(element.nodes[node]).y;
+        result.z += 0.125 * mesh.nodes().at(element.nodes[node]).z;
+    }
+    return result;
+}
+
+Quad8FaceCoordinates face_coordinates(const Hex20RegionMesh& mesh, const Quad8FaceElement& face) {
+    Quad8FaceCoordinates result{};
+    for (std::size_t node = 0; node < 8; ++node) result[node] = mesh.nodes().at(face.nodes[node]);
+    return result;
+}
+
+CartesianPoint3 quad8_face_centroid(const Quad8FaceCoordinates& coordinates) {
+    CartesianPoint3 result{0.0, 0.0, 0.0};
+    for (std::size_t node = 0; node < 4; ++node) {
+        result.x -= 0.25 * coordinates[node].x;
+        result.y -= 0.25 * coordinates[node].y;
+        result.z -= 0.25 * coordinates[node].z;
+    }
+    for (std::size_t node = 4; node < 8; ++node) {
+        result.x += 0.5 * coordinates[node].x;
+        result.y += 0.5 * coordinates[node].y;
+        result.z += 0.5 * coordinates[node].z;
+    }
+    return result;
+}
+
+double normal_orientation(const Quad8FaceCoordinates& primary_coordinates,
+    const CartesianPoint3& secondary_parent_centroid, const CartesianPoint3& primary_parent_centroid) {
+    const Quad8FaceGeometry geometry = make_quad8_face_geometry(primary_coordinates);
+    const Quad8FaceMechanicalQuadraturePoint& center = geometry.mechanical_points[4];
+    const CartesianPoint3 area{center.tangent_xi.y * center.tangent_eta.z - center.tangent_xi.z * center.tangent_eta.y,
+        center.tangent_xi.z * center.tangent_eta.x - center.tangent_xi.x * center.tangent_eta.z,
+        center.tangent_xi.x * center.tangent_eta.y - center.tangent_xi.y * center.tangent_eta.x};
+    const CartesianPoint3 material_direction = subtract(primary_parent_centroid, secondary_parent_centroid);
+    const double measure = std::sqrt(dot(area, area)), orientation = dot(area, material_direction);
+    if (!std::isfinite(measure) || !(measure > 0.0) || !std::isfinite(orientation) || orientation == 0.0)
+        throw std::invalid_argument("HEX20 contact faces require nondegenerate opposing material-side centroids");
+    return orientation > 0.0 ? 1.0 : -1.0;
+}
+
+double minimum_normal_length(
+    const Hex20RegionMesh& mesh, const Hex20RegionBoundary& boundary, const std::string& name) {
+    double result = std::numeric_limits<double>::infinity();
+    for (const Quad8FaceElement& face : boundary.faces) {
+        const Quad8FaceCoordinates coordinates = face_coordinates(mesh, face);
+        const CartesianPoint3 face_center = quad8_face_centroid(coordinates),
+                              parent = hex20_element_centroid(mesh, face.parent_element);
+        const Quad8FaceGeometry geometry = make_quad8_face_geometry(coordinates);
+        const Quad8FaceMechanicalQuadraturePoint& center = geometry.mechanical_points[4];
+        const CartesianPoint3 area{
+            center.tangent_xi.y * center.tangent_eta.z - center.tangent_xi.z * center.tangent_eta.y,
+            center.tangent_xi.z * center.tangent_eta.x - center.tangent_xi.x * center.tangent_eta.z,
+            center.tangent_xi.x * center.tangent_eta.y - center.tangent_xi.y * center.tangent_eta.x};
+        const double measure = std::sqrt(dot(area, area));
+        if (!std::isfinite(measure) || !(measure > 0.0))
+            throw std::invalid_argument("HEX20 contact boundary has a degenerate face: " + name);
+        const double height = 2.0 * std::abs(dot(subtract(parent, face_center), area)) / measure;
+        if (!std::isfinite(height) || !(height > 0.0))
+            throw std::invalid_argument("HEX20 contact boundary has a nonpositive normal length: " + name);
+        result = std::min(result, height);
+    }
+    if (!std::isfinite(result)) throw std::invalid_argument("HEX20 contact boundary is empty: " + name);
+    return result;
+}
+
+spatial_detail::ContactSearchBox quad8_search_box(const Quad8FaceCoordinates& coordinates,
+    const std::vector<double>& state, const std::array<std::array<std::size_t, 3>, 8>& displacement_dofs) {
+    std::array<CartesianPoint3, 8> current = coordinates;
+    for (std::size_t node = 0; node < 8; ++node) {
+        current[node].x += state[displacement_dofs[node][0]];
+        current[node].y += state[displacement_dofs[node][1]];
+        current[node].z += state[displacement_dofs[node][2]];
+    }
+    spatial_detail::ContactSearchBox box;
+    box.minimum.fill(std::numeric_limits<double>::infinity());
+    box.maximum.fill(-std::numeric_limits<double>::infinity());
+    for (std::size_t component = 0; component < 3; ++component) {
+        const auto coordinate = [component](const CartesianPoint3& point) {
+            return component == 0 ? point.x : (component == 1 ? point.y : point.z);
+        };
+        std::array<std::array<double, 3>, 3> lagrange{};
+        lagrange[0][0] = coordinate(current[0]);
+        lagrange[2][0] = coordinate(current[1]);
+        lagrange[2][2] = coordinate(current[2]);
+        lagrange[0][2] = coordinate(current[3]);
+        lagrange[1][0] = coordinate(current[4]);
+        lagrange[2][1] = coordinate(current[5]);
+        lagrange[1][2] = coordinate(current[6]);
+        lagrange[0][1] = coordinate(current[7]);
+        lagrange[1][1] = coordinate(quad8_face_centroid(current));
+        std::array<std::array<double, 3>, 3> x_bernstein{};
+        for (std::size_t j = 0; j < 3; ++j) {
+            x_bernstein[0][j] = lagrange[0][j];
+            x_bernstein[2][j] = lagrange[2][j];
+            x_bernstein[1][j] = 2.0 * lagrange[1][j] - 0.5 * (lagrange[0][j] + lagrange[2][j]);
+        }
+        for (std::size_t i = 0; i < 3; ++i) {
+            const double values[3] = {x_bernstein[i][0],
+                2.0 * x_bernstein[i][1] - 0.5 * (x_bernstein[i][0] + x_bernstein[i][2]), x_bernstein[i][2]};
+            for (double value : values) {
+                box.minimum[component] = std::min(box.minimum[component], value);
+                box.maximum[component] = std::max(box.maximum[component], value);
+            }
+        }
+    }
+    return box;
 }
 
 void set_pattern_block(std::vector<unsigned char>& pattern, std::size_t size, std::size_t row_begin,
@@ -217,10 +353,9 @@ SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const Unstructure
 }
 
 SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const UnstructuredHex20Mesh& source_mesh)
-    : SpatialLayout(definition, spatial_detail::resolve_block_ids(definition, source_mesh, false, true),
+    : SpatialLayout(definition, spatial_detail::resolve_block_ids(definition, source_mesh, true, true),
           spatial_detail::DofLayout::cartesian_3d),
       _uses_hex20(true) {
-    if (!_definition.contacts.empty()) throw std::invalid_argument("HEX20-U2/T1 does not support contact definitions");
     _hex20_meshes.reserve(_block_ids.size());
     for (const std::int64_t block_id : _block_ids)
         _hex20_meshes.push_back(Hex20RegionMesh::from_unstructured_block(source_mesh, block_id));
@@ -243,9 +378,7 @@ SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const Unstructure
                 coordinates[node] = _hex20_meshes[region].nodes().at(element.nodes[node]);
             _hex20_geometries[region].push_back(make_hex20_geometry(coordinates));
         }
-    _thermal_contact_offsets = {0};
-    _mechanical_contact_offsets = {0};
-    _sparsity_contact_offsets = {0};
+    build_hex20_contacts(source_mesh);
     for (std::size_t boundary_index = 0; boundary_index < _definition.boundary_conditions.size(); ++boundary_index) {
         const BoundaryConditionDefinition& boundary = _definition.boundary_conditions[boundary_index];
         if (boundary.name.empty() || boundary.boundary.empty())
@@ -385,6 +518,12 @@ void SpatialAssembly::contribution_dofs(std::size_t index, std::vector<std::size
     const ContributionRanges ranges = contribution_ranges();
     if (index < ranges.mechanical_begin) {
         const std::size_t point = index - ranges.thermal_begin;
+        if (_uses_hex20) {
+            const Quad8SurfaceContactLocalDofs fixed =
+                hex20_contact_dofs(hex20_thermal_candidate(point, _thermal_active_primary.at(point)));
+            dofs.assign(fixed.begin(), fixed.end());
+            return;
+        }
         const Quad4SurfaceContactLocalDofs fixed =
             contact_dofs(thermal_candidate(point, _thermal_active_primary.at(point)).nodes);
         dofs.assign(fixed.begin(), fixed.end());
@@ -392,6 +531,12 @@ void SpatialAssembly::contribution_dofs(std::size_t index, std::vector<std::size
     }
     if (index < ranges.boundary_begin) {
         const std::size_t point = index - ranges.mechanical_begin;
+        if (_uses_hex20) {
+            const Quad8SurfaceContactLocalDofs fixed =
+                hex20_contact_dofs(hex20_mechanical_candidate(point, _mechanical_active_primary.at(point)));
+            dofs.assign(fixed.begin(), fixed.end());
+            return;
+        }
         const Quad4SurfaceContactLocalDofs fixed =
             contact_dofs(mechanical_candidate(point, _mechanical_active_primary.at(point)).nodes);
         dofs.assign(fixed.begin(), fixed.end());
@@ -437,12 +582,24 @@ void SpatialAssembly::contribution_jacobian_pattern(std::size_t index, std::vect
         return;
     }
     if (index < ranges.mechanical_begin) {
+        if (_uses_hex20) {
+            pattern.assign(quad8_surface_contact_local_dof_count * quad8_surface_contact_local_dof_count, 0U);
+            set_pattern_block(
+                pattern, quad8_surface_contact_local_dof_count, 0, 8, 0, quad8_surface_contact_local_dof_count);
+            return;
+        }
         pattern.assign(quad4_surface_contact_local_dof_count * quad4_surface_contact_local_dof_count, 0U);
         set_pattern_block(
             pattern, quad4_surface_contact_local_dof_count, 0, 8, 0, quad4_surface_contact_local_dof_count);
         return;
     }
     if (index < ranges.boundary_begin) {
+        if (_uses_hex20) {
+            pattern.assign(quad8_surface_contact_local_dof_count * quad8_surface_contact_local_dof_count, 0U);
+            set_pattern_block(pattern, quad8_surface_contact_local_dof_count, 8, quad8_surface_contact_local_dof_count,
+                8, quad8_surface_contact_local_dof_count);
+            return;
+        }
         pattern.assign(quad4_surface_contact_local_dof_count * quad4_surface_contact_local_dof_count, 0U);
         set_pattern_block(pattern, quad4_surface_contact_local_dof_count, 8, quad4_surface_contact_local_dof_count, 8,
             quad4_surface_contact_local_dof_count);
@@ -486,6 +643,25 @@ void SpatialAssembly::sparsity_contribution_dofs(std::size_t index, std::vector<
         return;
     }
     index -= volume_contribution_count();
+    if (_uses_hex20) {
+        const Hex20SparsityContact contact = hex20_sparsity_contact(index);
+        Quad8SurfaceContactLocalDofs fixed{};
+        for (std::size_t node = 0; node < 4; ++node) {
+            fixed[node] = dof(Field::temperature, contact.temperature_nodes[node]);
+            fixed[4 + node] = dof(Field::temperature, contact.primary_temperature_nodes[node]);
+        }
+        for (std::size_t component = 0; component < 3; ++component) {
+            const Field field = component == 0 ? Field::displacement_x
+                                               : (component == 1 ? Field::displacement_y : Field::displacement_z);
+            const std::size_t offset = 8 + 16 * component;
+            for (std::size_t node = 0; node < 8; ++node) {
+                fixed[offset + node] = dof(field, contact.displacement_nodes[node]);
+                fixed[offset + 8 + node] = dof(field, contact.primary_displacement_nodes[node]);
+            }
+        }
+        dofs.assign(fixed.begin(), fixed.end());
+        return;
+    }
     const Quad4SurfaceContactLocalDofs fixed = contact_dofs(sparsity_contact(index).nodes);
     dofs.assign(fixed.begin(), fixed.end());
 }
@@ -497,6 +673,17 @@ void SpatialAssembly::sparsity_contribution_jacobian_pattern(
         return;
     }
     index -= volume_contribution_count();
+    if (_uses_hex20) {
+        const Hex20SparsityContact contact = hex20_sparsity_contact(index);
+        pattern.assign(quad8_surface_contact_local_dof_count * quad8_surface_contact_local_dof_count, 0U);
+        if (contact.thermal)
+            set_pattern_block(
+                pattern, quad8_surface_contact_local_dof_count, 0, 8, 0, quad8_surface_contact_local_dof_count);
+        if (contact.mechanical)
+            set_pattern_block(pattern, quad8_surface_contact_local_dof_count, 8, quad8_surface_contact_local_dof_count,
+                8, quad8_surface_contact_local_dof_count);
+        return;
+    }
     const SparsityContact contact = sparsity_contact(index);
     pattern.assign(quad4_surface_contact_local_dof_count * quad4_surface_contact_local_dof_count, 0U);
     if (contact.thermal)
@@ -579,6 +766,21 @@ void SpatialAssembly::compute_contribution(std::size_t index, const std::vector<
     }
     const ContributionRanges ranges = contribution_ranges();
     if (index < ranges.mechanical_begin) {
+        if (_uses_hex20) {
+            if (state.size() != quad8_surface_contact_local_dof_count)
+                throw std::invalid_argument("HEX20 thermal-contact state must contain 56 DOFs");
+            const std::size_t point = index - ranges.thermal_begin;
+            const Hex20ThermalCandidate entry = hex20_thermal_candidate(point, _thermal_active_primary.at(point));
+            Quad8SurfaceContactLocalValues current{};
+            std::copy(state.begin(), state.end(), current.begin());
+            Quad8SurfaceContactLocalJacobian local_jacobian{};
+            const Quad8SurfaceContactLocalResidual result =
+                compute_quad8_to_quad8_gap_heat(_thermal_properties[entry.contact], entry.geometry, current,
+                    jacobian == nullptr ? nullptr : &local_jacobian);
+            residual.assign(result.begin(), result.end());
+            if (jacobian != nullptr) jacobian->assign(local_jacobian.begin(), local_jacobian.end());
+            return;
+        }
         if (state.size() != quad4_surface_contact_local_dof_count)
             throw std::invalid_argument("Three-dimensional thermal-contact state must contain 32 DOFs");
         const std::size_t point = index - ranges.thermal_begin;
@@ -594,6 +796,23 @@ void SpatialAssembly::compute_contribution(std::size_t index, const std::vector<
         return;
     }
     if (index < ranges.boundary_begin) {
+        if (_uses_hex20) {
+            if (state.size() != quad8_surface_contact_local_dof_count)
+                throw std::invalid_argument("HEX20 mechanical-contact state must contain 56 DOFs");
+            const std::size_t point = index - ranges.mechanical_begin;
+            const Hex20MechanicalCandidate entry =
+                hex20_mechanical_candidate(point, _mechanical_active_primary.at(point));
+            Quad8SurfaceContactLocalValues current{};
+            std::copy(state.begin(), state.end(), current.begin());
+            const Quad8SurfaceContactLocalValues committed = hex20_contact_state(entry, _committed_contact_solution);
+            Quad8SurfaceContactLocalJacobian local_jacobian{};
+            const Quad8SurfaceContactLocalResidual result = compute_node_to_quad8_contact(
+                _mechanical_properties[entry.contact], entry.geometry, current, committed,
+                _contact_histories[entry.contact][entry.secondary], jacobian == nullptr ? nullptr : &local_jacobian);
+            residual.assign(result.begin(), result.end());
+            if (jacobian != nullptr) jacobian->assign(local_jacobian.begin(), local_jacobian.end());
+            return;
+        }
         if (state.size() != quad4_surface_contact_local_dof_count)
             throw std::invalid_argument("Three-dimensional mechanical-contact state must contain 32 DOFs");
         const std::size_t point = index - ranges.mechanical_begin;
@@ -668,7 +887,8 @@ double SpatialAssembly::heat_capacity(std::size_t region, double temperature, co
 SpatialAssembly::ContributionRanges SpatialAssembly::contribution_ranges() const noexcept {
     const std::size_t thermal_begin = volume_contribution_count(),
                       mechanical_begin = thermal_begin + _thermal_contact_offsets.back(),
-                      boundary_begin = mechanical_begin + _mechanical_points.size();
+                      mechanical_count = _uses_hex20 ? _hex20_mechanical_points.size() : _mechanical_points.size(),
+                      boundary_begin = mechanical_begin + mechanical_count;
     const std::size_t boundary_count =
         _uses_hex20 ? _hex20_boundary_contributions.size() : _boundary_contributions.size();
     return {thermal_begin, mechanical_begin, boundary_begin, boundary_begin + boundary_count};
@@ -740,6 +960,18 @@ ResolvedBoundary SpatialAssembly::resolve_boundary(
     return {region, std::move(boundary)};
 }
 
+ResolvedHex20Boundary SpatialAssembly::resolve_boundary(
+    const UnstructuredHex20Mesh& source_mesh, const std::string& name) const {
+    const std::int64_t block_id = source_mesh.side_set_block_id(name);
+    const auto found = std::find(_block_ids.begin(), _block_ids.end(), block_id);
+    if (found == _block_ids.end())
+        throw std::invalid_argument("Contact boundary belongs to an undeclared HEX20 block: " + name);
+    const std::size_t region = static_cast<std::size_t>(found - _block_ids.begin());
+    Hex20RegionBoundary boundary = _hex20_meshes[region].map_side_set(source_mesh, name);
+    if (boundary.faces.empty()) throw std::invalid_argument("HEX20 contact side set is empty: " + name);
+    return {region, std::move(boundary)};
+}
+
 Quad4SurfaceContactLocalDofs SpatialAssembly::contact_dofs(const std::array<std::size_t, 8>& nodes) const {
     Quad4SurfaceContactLocalDofs result{};
     for (std::size_t node = 0; node < nodes.size(); ++node) {
@@ -770,6 +1002,49 @@ Quad4SurfaceContactLocalValues SpatialAssembly::contact_state(
         throw std::invalid_argument("Three-dimensional contact state has the wrong size");
     const Quad4SurfaceContactLocalDofs dofs = contact_dofs(nodes);
     Quad4SurfaceContactLocalValues result{};
+    for (std::size_t local = 0; local < result.size(); ++local) result[local] = global_state.at(dofs[local]);
+    return result;
+}
+
+Quad8SurfaceContactLocalDofs SpatialAssembly::hex20_contact_dofs(const Hex20ThermalCandidate& candidate) const {
+    Quad8SurfaceContactLocalDofs result{};
+    for (std::size_t node = 0; node < 4; ++node) {
+        result[node] = dof(Field::temperature, candidate.secondary_temperature_nodes[node]);
+        result[4 + node] = dof(Field::temperature, candidate.primary_temperature_nodes[node]);
+    }
+    const std::array<Field, 3> displacement_fields = {
+        Field::displacement_x, Field::displacement_y, Field::displacement_z};
+    for (std::size_t component = 0; component < 3; ++component) {
+        const std::size_t offset = 8 + 16 * component;
+        for (std::size_t node = 0; node < 8; ++node) {
+            result[offset + node] = dof(displacement_fields[component], candidate.secondary_displacement_nodes[node]);
+            result[offset + 8 + node] = dof(displacement_fields[component], candidate.primary_displacement_nodes[node]);
+        }
+    }
+    return result;
+}
+
+Quad8SurfaceContactLocalDofs SpatialAssembly::hex20_contact_dofs(const Hex20MechanicalCandidate& candidate) const {
+    Hex20ThermalCandidate thermal{candidate.contact, candidate.secondary_temperature_nodes,
+        candidate.primary_temperature_nodes, candidate.secondary_displacement_nodes,
+        candidate.primary_displacement_nodes, {}, candidate.primary};
+    return hex20_contact_dofs(thermal);
+}
+
+Quad8SurfaceContactLocalValues SpatialAssembly::hex20_contact_state(
+    const Hex20ThermalCandidate& candidate, const std::vector<double>& global_state) const {
+    if (global_state.size() != dof_count()) throw std::invalid_argument("HEX20 contact state has the wrong size");
+    const Quad8SurfaceContactLocalDofs dofs = hex20_contact_dofs(candidate);
+    Quad8SurfaceContactLocalValues result{};
+    for (std::size_t local = 0; local < result.size(); ++local) result[local] = global_state.at(dofs[local]);
+    return result;
+}
+
+Quad8SurfaceContactLocalValues SpatialAssembly::hex20_contact_state(
+    const Hex20MechanicalCandidate& candidate, const std::vector<double>& global_state) const {
+    if (global_state.size() != dof_count()) throw std::invalid_argument("HEX20 contact state has the wrong size");
+    const Quad8SurfaceContactLocalDofs dofs = hex20_contact_dofs(candidate);
+    Quad8SurfaceContactLocalValues result{};
     for (std::size_t local = 0; local < result.size(); ++local) result[local] = global_state.at(dofs[local]);
     return result;
 }
@@ -890,6 +1165,131 @@ void SpatialAssembly::build_contacts(const UnstructuredHex8Mesh& source_mesh) {
     _contact_search_trees.resize(_definition.contacts.size());
 }
 
+void SpatialAssembly::build_hex20_contacts(const UnstructuredHex20Mesh& source_mesh) {
+    _hex20_primary_boundaries.reserve(_definition.contacts.size());
+    _hex20_secondary_boundaries.reserve(_definition.contacts.size());
+    _hex20_primary_contact_faces.reserve(_definition.contacts.size());
+    _hex20_secondary_contact_faces.reserve(_definition.contacts.size());
+    _thermal_properties.reserve(_definition.contacts.size());
+    _mechanical_properties.reserve(_definition.contacts.size());
+    _thermal_point_counts.reserve(_definition.contacts.size());
+    _contact_histories.resize(_definition.contacts.size());
+    for (std::size_t contact_value = 0; contact_value < _definition.contacts.size(); ++contact_value) {
+        ContactDefinition& definition = _definition.contacts[contact_value];
+        ResolvedHex20Boundary primary = resolve_boundary(source_mesh, definition.primary),
+                              secondary = resolve_boundary(source_mesh, definition.secondary);
+        if (primary.region == secondary.region)
+            throw std::invalid_argument("HEX20 self-contact is not supported: " + definition.name);
+        const Hex20RegionMesh& primary_mesh = _hex20_meshes[primary.region];
+        const Hex20RegionMesh& secondary_mesh = _hex20_meshes[secondary.region];
+        for (const std::size_t secondary_local : secondary.boundary.displacement_nodes) {
+            const std::size_t source_node = secondary_mesh.source_node_ids().at(secondary_local);
+            if (std::any_of(primary.boundary.displacement_nodes.begin(), primary.boundary.displacement_nodes.end(),
+                    [&](std::size_t primary_local) {
+                        return primary_mesh.source_node_ids().at(primary_local) == source_node;
+                    }))
+                throw std::invalid_argument("HEX20 contact boundaries must not share source nodes: " + definition.name);
+        }
+        if (definition.mechanical_formulation == MechanicalContactFormulation::augmented_lagrangian)
+            throw std::invalid_argument(
+                "HEX20 contact currently supports the penalty formulation only: " + definition.name);
+        if (definition.mechanical && definition.automatic_penalty) {
+            const double primary_length = minimum_normal_length(primary_mesh, primary.boundary, definition.primary),
+                         secondary_length =
+                             minimum_normal_length(secondary_mesh, secondary.boundary, definition.secondary),
+                         primary_modulus = _definition.regions[primary.region].material.reference_young_modulus,
+                         secondary_modulus = _definition.regions[secondary.region].material.reference_young_modulus;
+            definition.penalty =
+                definition.penalty_factor / (primary_length / primary_modulus + secondary_length / secondary_modulus);
+            if (!std::isfinite(definition.penalty) || !(definition.penalty > 0.0))
+                throw std::overflow_error(
+                    "Automatic HEX20 contact penalty is not finite and positive: " + definition.name);
+        }
+        _thermal_properties.push_back({definition.thermal ? definition.gap_conductivity : 1.0,
+            definition.thermal ? definition.minimum_gap : 1.0});
+        _mechanical_properties.push_back({definition.mechanical ? definition.penalty : 1.0,
+            definition.mechanical ? definition.friction_coefficient : 0.0, false});
+        _contact_histories[contact_value].resize(secondary.boundary.displacement_nodes.size());
+
+        std::vector<Hex20PrimaryContactFace> primary_faces;
+        primary_faces.reserve(primary.boundary.faces.size());
+        for (const Quad8FaceElement& primary_face : primary.boundary.faces) {
+            const Quad8FaceCoordinates coordinates = face_coordinates(primary_mesh, primary_face);
+            std::array<std::size_t, 4> temperature_nodes{};
+            std::array<std::size_t, 8> displacement_nodes{};
+            for (std::size_t node = 0; node < 8; ++node) {
+                displacement_nodes[node] = global_node(primary.region, primary_face.nodes[node]);
+                if (node < 4)
+                    temperature_nodes[node] = global_temperature_node(primary.region, primary_face.nodes[node]);
+            }
+            primary_faces.push_back({temperature_nodes, displacement_nodes, coordinates,
+                hex20_element_centroid(primary_mesh, primary_face.parent_element)});
+        }
+
+        std::vector<Hex20SecondaryContactFace> secondary_faces;
+        secondary_faces.reserve(secondary.boundary.faces.size());
+        std::size_t thermal_point_count = 0;
+        for (const Quad8FaceElement& secondary_face : secondary.boundary.faces) {
+            const Quad8FaceCoordinates coordinates = face_coordinates(secondary_mesh, secondary_face);
+            const Quad8FaceGeometry geometry = make_quad8_face_geometry(coordinates);
+            std::array<std::size_t, 4> temperature_nodes{};
+            std::array<std::size_t, 8> displacement_nodes{};
+            for (std::size_t node = 0; node < 8; ++node) {
+                displacement_nodes[node] = global_node(secondary.region, secondary_face.nodes[node]);
+                if (node < 4)
+                    temperature_nodes[node] = global_temperature_node(secondary.region, secondary_face.nodes[node]);
+            }
+            const std::size_t secondary_face_index = secondary_faces.size();
+            secondary_faces.push_back({temperature_nodes, displacement_nodes, coordinates, geometry,
+                hex20_element_centroid(secondary_mesh, secondary_face.parent_element)});
+            if (definition.thermal) thermal_point_count += geometry.thermal_points.size();
+            if (definition.mechanical)
+                for (std::size_t secondary_local_node = 0; secondary_local_node < 8; ++secondary_local_node) {
+                    const auto found = std::find(secondary.boundary.displacement_nodes.begin(),
+                        secondary.boundary.displacement_nodes.end(), secondary_face.nodes[secondary_local_node]);
+                    if (found == secondary.boundary.displacement_nodes.end())
+                        throw std::logic_error("HEX20 secondary contact node mapping failed");
+                    _hex20_mechanical_points.push_back(
+                        {contact_value, static_cast<std::size_t>(found - secondary.boundary.displacement_nodes.begin()),
+                            secondary_face_index, secondary_local_node});
+                }
+        }
+        _thermal_point_counts.push_back(thermal_point_count);
+        _hex20_primary_contact_faces.push_back(std::move(primary_faces));
+        _hex20_secondary_contact_faces.push_back(std::move(secondary_faces));
+        _hex20_primary_boundaries.push_back(std::move(primary));
+        _hex20_secondary_boundaries.push_back(std::move(secondary));
+    }
+    _thermal_contact_offsets.assign(_definition.contacts.size() + 1, 0);
+    _mechanical_contact_offsets.assign(_definition.contacts.size() + 1, 0);
+    _sparsity_contact_offsets.assign(_definition.contacts.size() + 1, 0);
+    for (std::size_t contact = 0; contact < _definition.contacts.size(); ++contact) {
+        _thermal_contact_offsets[contact + 1] = _thermal_contact_offsets[contact] + _thermal_point_counts[contact];
+        _mechanical_contact_offsets[contact + 1] =
+            _mechanical_contact_offsets[contact] + _contact_histories[contact].size();
+        const std::size_t primary_count = _hex20_primary_contact_faces[contact].size(),
+                          secondary_count = _hex20_secondary_contact_faces[contact].size();
+        if (primary_count != 0 && secondary_count > std::numeric_limits<std::size_t>::max() / primary_count)
+            throw std::overflow_error("HEX20 contact sparsity candidate count exceeds size_t range");
+        const std::size_t pairs = (_definition.contacts[contact].thermal || _definition.contacts[contact].mechanical)
+                                      ? secondary_count * primary_count
+                                      : 0;
+        if (_sparsity_contact_offsets[contact] > std::numeric_limits<std::size_t>::max() - pairs)
+            throw std::overflow_error("HEX20 contact sparsity candidate offset exceeds size_t range");
+        _sparsity_contact_offsets[contact + 1] = _sparsity_contact_offsets[contact] + pairs;
+    }
+    _touched_thermal_points.resize(_thermal_contact_offsets.back());
+    _thermal_minimum_distance.resize(_thermal_contact_offsets.back());
+    _thermal_active_primary.resize(_thermal_contact_offsets.back());
+    _thermal_cached_primary.assign(_thermal_contact_offsets.back(), std::numeric_limits<std::size_t>::max());
+    _touched_mechanical_nodes.resize(_mechanical_contact_offsets.back());
+    _mechanical_minimum_distance.resize(_mechanical_contact_offsets.back());
+    _mechanical_selected_primary.resize(_mechanical_contact_offsets.back());
+    _mechanical_cached_primary.assign(_mechanical_contact_offsets.back(), std::numeric_limits<std::size_t>::max());
+    _mechanical_active_primary.resize(_hex20_mechanical_points.size());
+    _contact_search_trees.resize(_definition.contacts.size());
+}
+
 SpatialAssembly::ThermalCandidate SpatialAssembly::thermal_candidate(std::size_t point, std::size_t primary) const {
     const auto location =
         offset_location(_thermal_contact_offsets, point, "Three-dimensional thermal-contact point is out of range");
@@ -929,6 +1329,43 @@ SpatialAssembly::MechanicalCandidate SpatialAssembly::mechanical_candidate(
         metadata.secondary, primary};
 }
 
+SpatialAssembly::Hex20ThermalCandidate SpatialAssembly::hex20_thermal_candidate(
+    std::size_t point, std::size_t primary) const {
+    const auto location =
+        offset_location(_thermal_contact_offsets, point, "HEX20 thermal-contact point is out of range");
+    const std::size_t contact = location.first, local_point = location.second, secondary_face = local_point / 4,
+                      quadrature_point = local_point % 4;
+    const Hex20SecondaryContactFace& secondary = _hex20_secondary_contact_faces.at(contact).at(secondary_face);
+    const Hex20PrimaryContactFace& primary_face = _hex20_primary_contact_faces.at(contact).at(primary);
+    const Quad8FaceThermalQuadraturePoint& quadrature = secondary.geometry.thermal_points[quadrature_point];
+    return {contact, secondary.temperature_nodes, primary_face.temperature_nodes, secondary.displacement_nodes,
+        primary_face.displacement_nodes,
+        {secondary.coordinates, primary_face.coordinates, quadrature.temperature_shape, quadrature.displacement_shape,
+            quadrature.derivative_xi, quadrature.derivative_eta, quadrature.quadrature_weight,
+            normal_orientation(primary_face.coordinates, secondary.parent_centroid, primary_face.parent_centroid)},
+        primary};
+}
+
+SpatialAssembly::Hex20MechanicalCandidate SpatialAssembly::hex20_mechanical_candidate(
+    std::size_t point, std::size_t primary) const {
+    const Hex20MechanicalPoint& metadata = _hex20_mechanical_points.at(point);
+    const Hex20SecondaryContactFace& secondary =
+        _hex20_secondary_contact_faces.at(metadata.contact).at(metadata.secondary_face);
+    const Hex20PrimaryContactFace& primary_face = _hex20_primary_contact_faces.at(metadata.contact).at(primary);
+    NodeToQuad8ContactGeometry geometry{secondary.coordinates, primary_face.coordinates, {}, {}, {}, {},
+        metadata.secondary_local_node,
+        normal_orientation(primary_face.coordinates, secondary.parent_centroid, primary_face.parent_centroid)};
+    for (std::size_t q = 0; q < quad8_surface_contact_quadrature_point_count; ++q) {
+        const Quad8FaceMechanicalQuadraturePoint& quadrature = secondary.geometry.mechanical_points[q];
+        geometry.secondary_shapes[q] = quadrature.displacement_shape;
+        geometry.secondary_derivatives_xi[q] = quadrature.derivative_xi;
+        geometry.secondary_derivatives_eta[q] = quadrature.derivative_eta;
+        geometry.secondary_quadrature_weights[q] = quadrature.quadrature_weight;
+    }
+    return {metadata.contact, secondary.temperature_nodes, primary_face.temperature_nodes, secondary.displacement_nodes,
+        primary_face.displacement_nodes, geometry, metadata.secondary, primary};
+}
+
 SpatialAssembly::SparsityContact SpatialAssembly::sparsity_contact(std::size_t index) const {
     const auto location = offset_location(
         _sparsity_contact_offsets, index, "Three-dimensional sparsity contribution index is out of range");
@@ -942,10 +1379,46 @@ SpatialAssembly::SparsityContact SpatialAssembly::sparsity_contact(std::size_t i
     return {nodes, _definition.contacts[contact].thermal, _definition.contacts[contact].mechanical};
 }
 
+SpatialAssembly::Hex20SparsityContact SpatialAssembly::hex20_sparsity_contact(std::size_t index) const {
+    const auto location =
+        offset_location(_sparsity_contact_offsets, index, "HEX20 sparsity contribution index is out of range");
+    const std::size_t contact = location.first, primary_count = _hex20_primary_contact_faces.at(contact).size(),
+                      secondary_face = location.second / primary_count, primary = location.second % primary_count;
+    return {_hex20_secondary_contact_faces.at(contact).at(secondary_face).temperature_nodes,
+        _hex20_primary_contact_faces.at(contact).at(primary).temperature_nodes,
+        _hex20_secondary_contact_faces.at(contact).at(secondary_face).displacement_nodes,
+        _hex20_primary_contact_faces.at(contact).at(primary).displacement_nodes, _definition.contacts[contact].thermal,
+        _definition.contacts[contact].mechanical};
+}
+
 void SpatialAssembly::update_contact_search_trees(const std::vector<double>& state) const {
     if (state.size() != dof_count())
         throw std::invalid_argument("Three-dimensional contact-search tree state size mismatch");
     for (std::size_t contact = 0; contact < _definition.contacts.size(); ++contact) {
+        if (_uses_hex20) {
+            const ResolvedHex20Boundary& primary = _hex20_primary_boundaries[contact];
+            if (primary.boundary.faces.size() <= spatial_detail::contact_search_tree_minimum_items) continue;
+            _contact_search_boxes.clear();
+            _contact_search_boxes.reserve(primary.boundary.faces.size());
+            for (std::size_t face_index = 0; face_index < primary.boundary.faces.size(); ++face_index) {
+                const Quad8FaceElement& face = primary.boundary.faces[face_index];
+                std::array<std::array<std::size_t, 3>, 8> displacement_dofs{};
+                for (std::size_t node = 0; node < 8; ++node) {
+                    const std::size_t global = global_node(primary.region, face.nodes[node]);
+                    displacement_dofs[node] = {dof(Field::displacement_x, global), dof(Field::displacement_y, global),
+                        dof(Field::displacement_z, global)};
+                }
+                spatial_detail::ContactSearchBox box =
+                    quad8_search_box(face_coordinates(_hex20_meshes[primary.region], face), state, displacement_dofs);
+                box.item = face_index;
+                _contact_search_boxes.push_back(box);
+            }
+            if (_contact_search_trees[contact].can_refit(_contact_search_boxes.size()))
+                _contact_search_trees[contact].refit(_contact_search_boxes);
+            else
+                _contact_search_trees[contact].build(_contact_search_boxes);
+            continue;
+        }
         const ResolvedBoundary& primary = _primary_boundaries[contact];
         if (primary.boundary.faces.size() <= spatial_detail::contact_search_tree_minimum_items) continue;
         const Hex8RegionMesh& mesh = _meshes[primary.region];
@@ -994,9 +1467,16 @@ bool SpatialAssembly::mark_touched_mechanical_nodes(std::size_t first, std::size
     const ContributionRanges ranges = contribution_ranges();
     const std::size_t begin = std::max(first, ranges.mechanical_begin), end = std::min(last, ranges.boundary_begin);
     if (begin >= end) return false;
-    for (std::size_t entry = begin; entry < end; ++entry) {
-        const MechanicalPoint& point = _mechanical_points[entry - ranges.mechanical_begin];
-        _touched_mechanical_nodes[mechanical_node_index(point.contact, point.secondary)] = 1U;
+    if (_uses_hex20) {
+        for (std::size_t entry = begin; entry < end; ++entry) {
+            const Hex20MechanicalPoint& point = _hex20_mechanical_points[entry - ranges.mechanical_begin];
+            _touched_mechanical_nodes[mechanical_node_index(point.contact, point.secondary)] = 1U;
+        }
+    } else {
+        for (std::size_t entry = begin; entry < end; ++entry) {
+            const MechanicalPoint& point = _mechanical_points[entry - ranges.mechanical_begin];
+            _touched_mechanical_nodes[mechanical_node_index(point.contact, point.secondary)] = 1U;
+        }
     }
     return true;
 }
@@ -1006,6 +1486,49 @@ void SpatialAssembly::update_thermal_candidates(
     if (state.size() != dof_count())
         throw std::invalid_argument("Three-dimensional thermal-contact shadow state size mismatch");
     if (!mark_touched_thermal_points(first, last)) return;
+    if (_uses_hex20) {
+        for (std::size_t point = 0; point < _thermal_active_primary.size(); ++point) {
+            if (_touched_thermal_points[point] == 0U) continue;
+            const auto location =
+                offset_location(_thermal_contact_offsets, point, "HEX20 thermal-contact point is out of range");
+            const std::size_t contact = location.first, primary_count = _hex20_primary_contact_faces[contact].size();
+            _thermal_minimum_distance[point] = std::numeric_limits<double>::infinity();
+            _thermal_active_primary[point] = std::numeric_limits<std::size_t>::max();
+            const auto consider = [this, point, &state](std::size_t primary) {
+                const Hex20ThermalCandidate candidate = hex20_thermal_candidate(point, primary);
+                const ContactProjectionValue value =
+                    compute_quad8_to_quad8_heat_projection(candidate.geometry, hex20_contact_state(candidate, state));
+                if (!value.projected) return;
+                const double distance = std::abs(value.gap);
+                const std::size_t selected = _thermal_active_primary[point];
+                if (distance < _thermal_minimum_distance[point] ||
+                    (distance == _thermal_minimum_distance[point] &&
+                        (selected == std::numeric_limits<std::size_t>::max() || primary < selected))) {
+                    _thermal_minimum_distance[point] = distance;
+                    _thermal_active_primary[point] = primary;
+                }
+            };
+            const std::size_t cached_primary = _thermal_cached_primary[point];
+            if (cached_primary < primary_count) consider(cached_primary);
+            if (primary_count > spatial_detail::contact_search_tree_minimum_items) {
+                const Hex20ThermalCandidate representative = hex20_thermal_candidate(point, 0);
+                _contact_search_trees[contact].begin_query(
+                    hex20_thermal_search_point(representative.geometry, hex20_contact_state(representative, state)),
+                    _contact_search_query);
+                std::size_t primary = 0;
+                while (_contact_search_trees[contact].next_candidate(
+                    _contact_search_query, _thermal_minimum_distance[point], primary)) {
+                    if (primary != cached_primary) consider(primary);
+                }
+            } else {
+                for (std::size_t primary = 0; primary < primary_count; ++primary)
+                    if (primary != cached_primary) consider(primary);
+            }
+            if (_thermal_active_primary[point] != std::numeric_limits<std::size_t>::max())
+                _thermal_cached_primary[point] = _thermal_active_primary[point];
+        }
+        return;
+    }
     for (std::size_t point = 0; point < _thermal_active_primary.size(); ++point) {
         if (_touched_thermal_points[point] == 0U) continue;
         const auto location =
@@ -1057,6 +1580,58 @@ void SpatialAssembly::update_mechanical_candidates(
             _mechanical_minimum_distance[node] = std::numeric_limits<double>::infinity();
             _mechanical_selected_primary[node] = std::numeric_limits<std::size_t>::max();
         }
+    if (_uses_hex20) {
+        for (std::size_t point = 0; point < _hex20_mechanical_points.size(); ++point) {
+            const Hex20MechanicalPoint& metadata = _hex20_mechanical_points[point];
+            const std::size_t node = mechanical_node_index(metadata.contact, metadata.secondary);
+            _mechanical_active_primary[point] = std::numeric_limits<std::size_t>::max();
+            if (_touched_mechanical_nodes[node] == 0U) continue;
+            const std::size_t primary_count = _hex20_primary_contact_faces[metadata.contact].size();
+            const auto consider = [this, point, node, &state](std::size_t primary) {
+                const Hex20MechanicalCandidate candidate = hex20_mechanical_candidate(point, primary);
+                const ContactProjectionValue value =
+                    compute_node_to_quad8_contact_projection(candidate.geometry, hex20_contact_state(candidate, state));
+                if (!value.projected) return;
+                const double distance = std::abs(value.gap);
+                if (distance < _mechanical_minimum_distance[node] ||
+                    (distance == _mechanical_minimum_distance[node] && primary < _mechanical_selected_primary[node])) {
+                    _mechanical_minimum_distance[node] = distance;
+                    _mechanical_selected_primary[node] = primary;
+                }
+            };
+            const std::size_t cached_primary = _mechanical_cached_primary[node];
+            if (cached_primary < primary_count) consider(cached_primary);
+            if (primary_count > spatial_detail::contact_search_tree_minimum_items) {
+                const Hex20MechanicalCandidate representative = hex20_mechanical_candidate(point, 0);
+                _contact_search_trees[metadata.contact].begin_query(
+                    hex20_mechanical_search_point(representative.geometry, hex20_contact_state(representative, state)),
+                    _contact_search_query);
+                std::size_t primary = 0;
+                while (_contact_search_trees[metadata.contact].next_candidate(
+                    _contact_search_query, _mechanical_minimum_distance[node], primary)) {
+                    if (primary != cached_primary) consider(primary);
+                }
+            } else {
+                for (std::size_t primary = 0; primary < primary_count; ++primary)
+                    if (primary != cached_primary) consider(primary);
+            }
+        }
+        for (std::size_t point = 0; point < _hex20_mechanical_points.size(); ++point) {
+            const Hex20MechanicalPoint& metadata = _hex20_mechanical_points[point];
+            const std::size_t node = mechanical_node_index(metadata.contact, metadata.secondary);
+            const std::size_t primary = _mechanical_selected_primary[node];
+            if (_touched_mechanical_nodes[node] == 0U || primary == std::numeric_limits<std::size_t>::max()) continue;
+            const Hex20MechanicalCandidate candidate = hex20_mechanical_candidate(point, primary);
+            const ContactProjectionValue value =
+                compute_node_to_quad8_contact_projection(candidate.geometry, hex20_contact_state(candidate, state));
+            if (value.projected) _mechanical_active_primary[point] = primary;
+        }
+        for (std::size_t node = 0; node < _mechanical_selected_primary.size(); ++node)
+            if (_touched_mechanical_nodes[node] != 0U &&
+                _mechanical_selected_primary[node] != std::numeric_limits<std::size_t>::max())
+                _mechanical_cached_primary[node] = _mechanical_selected_primary[node];
+        return;
+    }
     for (std::size_t point = 0; point < _mechanical_points.size(); ++point) {
         const MechanicalPoint& metadata = _mechanical_points[point];
         const std::size_t node = mechanical_node_index(metadata.contact, metadata.secondary);
@@ -1118,6 +1693,12 @@ std::vector<std::size_t> SpatialAssembly::required_state_dofs(std::size_t first,
             {Field::temperature, Field::displacement_x, Field::displacement_y, Field::displacement_z})
             for (const std::size_t node : nodes) result.push_back(dof(field, node));
     };
+    const auto append_hex20_face = [this, &result](const std::array<std::size_t, 4>& temperature_nodes,
+                                       const std::array<std::size_t, 8>& displacement_nodes) {
+        for (const std::size_t node : temperature_nodes) result.push_back(dof(Field::temperature, node));
+        for (const Field field : {Field::displacement_x, Field::displacement_y, Field::displacement_z})
+            for (const std::size_t node : displacement_nodes) result.push_back(dof(field, node));
+    };
     for (std::size_t entry = first; entry < last; ++entry) {
         contribution_dofs(entry, dofs);
         result.insert(result.end(), dofs.begin(), dofs.end());
@@ -1129,19 +1710,39 @@ std::vector<std::size_t> SpatialAssembly::required_state_dofs(std::size_t first,
             const auto location = offset_location(
                 _thermal_contact_offsets, point, "Three-dimensional thermal-contact point is out of range");
             touched_contacts[location.first] = 1U;
-            append_face(_secondary_contact_faces[location.first][location.second / 4].nodes);
+            if (_uses_hex20) {
+                const Hex20SecondaryContactFace& face =
+                    _hex20_secondary_contact_faces[location.first][location.second / 4];
+                append_hex20_face(face.temperature_nodes, face.displacement_nodes);
+            } else
+                append_face(_secondary_contact_faces[location.first][location.second / 4].nodes);
         }
     }
     if (mark_touched_mechanical_nodes(first, last)) {
-        for (const MechanicalPoint& point : _mechanical_points) {
-            if (_touched_mechanical_nodes[mechanical_node_index(point.contact, point.secondary)] == 0U) continue;
-            touched_contacts[point.contact] = 1U;
-            append_face(_secondary_contact_faces[point.contact][point.secondary_face].nodes);
+        if (_uses_hex20) {
+            for (const Hex20MechanicalPoint& point : _hex20_mechanical_points) {
+                if (_touched_mechanical_nodes[mechanical_node_index(point.contact, point.secondary)] == 0U) continue;
+                touched_contacts[point.contact] = 1U;
+                const Hex20SecondaryContactFace& face =
+                    _hex20_secondary_contact_faces[point.contact][point.secondary_face];
+                append_hex20_face(face.temperature_nodes, face.displacement_nodes);
+            }
+        } else {
+            for (const MechanicalPoint& point : _mechanical_points) {
+                if (_touched_mechanical_nodes[mechanical_node_index(point.contact, point.secondary)] == 0U) continue;
+                touched_contacts[point.contact] = 1U;
+                append_face(_secondary_contact_faces[point.contact][point.secondary_face].nodes);
+            }
         }
     }
     for (std::size_t contact = 0; contact < touched_contacts.size(); ++contact)
-        if (touched_contacts[contact] != 0U)
-            for (const PrimaryContactFace& face : _primary_contact_faces[contact]) append_face(face.nodes);
+        if (touched_contacts[contact] != 0U) {
+            if (_uses_hex20)
+                for (const Hex20PrimaryContactFace& face : _hex20_primary_contact_faces[contact])
+                    append_hex20_face(face.temperature_nodes, face.displacement_nodes);
+            else
+                for (const PrimaryContactFace& face : _primary_contact_faces[contact]) append_face(face.nodes);
+        }
     std::sort(result.begin(), result.end());
     result.erase(std::unique(result.begin(), result.end()), result.end());
     return result;
@@ -1193,6 +1794,44 @@ void SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
     std::vector<std::vector<bool>> updated(_definition.contacts.size());
     for (std::size_t contact = 0; contact < _definition.contacts.size(); ++contact)
         updated[contact].resize(_contact_histories[contact].size(), false);
+    if (_uses_hex20) {
+        for (std::size_t point = 0; point < _mechanical_active_primary.size(); ++point) {
+            const std::size_t primary = _mechanical_active_primary[point];
+            if (primary == std::numeric_limits<std::size_t>::max()) continue;
+            const Hex20MechanicalCandidate candidate = hex20_mechanical_candidate(point, primary);
+            const CartesianContactPointValue value =
+                compute_node_to_quad8_contact_value(_mechanical_properties[candidate.contact], candidate.geometry,
+                    hex20_contact_state(candidate, state), hex20_contact_state(candidate, _committed_contact_solution),
+                    _contact_histories[candidate.contact][candidate.secondary]);
+            if (!value.projected) continue;
+            ContactPointHistory trial = _contact_histories[candidate.contact][candidate.secondary];
+            trial.sliding = value.sliding;
+            trial.cartesian_elastic_tangential_slip = value.elastic_tangential_slip;
+            if (updated[candidate.contact][candidate.secondary]) {
+                const ContactPointHistory& prior = staged[candidate.contact][candidate.secondary];
+                bool equal = prior.sliding == trial.sliding;
+                for (std::size_t component = 0; component < 3; ++component) {
+                    const double scale = std::max({1.0, std::abs(prior.cartesian_elastic_tangential_slip[component]),
+                        std::abs(trial.cartesian_elastic_tangential_slip[component])});
+                    equal = equal && std::abs(prior.cartesian_elastic_tangential_slip[component] -
+                                              trial.cartesian_elastic_tangential_slip[component]) <=
+                                         64.0 * std::numeric_limits<double>::epsilon() * scale;
+                }
+                if (!equal) throw std::logic_error("HEX20 secondary faces disagree on contact-node friction history");
+                continue;
+            }
+            staged[candidate.contact][candidate.secondary] = trial;
+            updated[candidate.contact][candidate.secondary] = true;
+        }
+        for (std::size_t contact = 0; contact < _definition.contacts.size(); ++contact) {
+            if (!_definition.contacts[contact].mechanical) continue;
+            if (std::find(updated[contact].begin(), updated[contact].end(), false) != updated[contact].end())
+                throw std::domain_error("Cannot commit HEX20 friction history for an unprojected node");
+        }
+        _contact_histories.swap(staged);
+        _committed_contact_solution = state;
+        return;
+    }
     for (std::size_t point = 0; point < _mechanical_active_primary.size(); ++point) {
         const std::size_t primary = _mechanical_active_primary[point];
         if (primary == std::numeric_limits<std::size_t>::max()) continue;
@@ -1257,6 +1896,47 @@ std::vector<CartesianContactNodeSummary> SpatialAssembly::summarize_contact_node
         throw std::out_of_range("Three-dimensional contact index is out of range");
     update_contact_search_trees(state);
     update_mechanical_candidates(0, contribution_count(), state);
+    if (_uses_hex20) {
+        const ResolvedHex20Boundary& secondary = _hex20_secondary_boundaries.at(contact_value);
+        const Hex20RegionMesh& mesh = _hex20_meshes.at(secondary.region);
+        std::vector<CartesianContactNodeSummary> result;
+        result.reserve(secondary.boundary.displacement_nodes.size());
+        for (std::size_t node : secondary.boundary.displacement_nodes) {
+            const CartesianPoint3& point = mesh.nodes().at(node);
+            result.push_back({point.x, point.y, point.z, false, std::numeric_limits<std::size_t>::max(),
+                std::numeric_limits<double>::infinity(), 0.0, 0.0, 0.0, 0.0, 0.0, {}, false});
+        }
+        for (std::size_t point = 0; point < _hex20_mechanical_points.size(); ++point) {
+            const std::size_t primary = _mechanical_active_primary[point];
+            if (primary == std::numeric_limits<std::size_t>::max()) continue;
+            const Hex20MechanicalCandidate candidate = hex20_mechanical_candidate(point, primary);
+            if (candidate.contact != contact_value) continue;
+            const std::size_t node = mechanical_node_index(candidate.contact, candidate.secondary);
+            if (candidate.primary != _mechanical_selected_primary[node]) continue;
+            const CartesianContactPointValue value =
+                compute_node_to_quad8_contact_value(_mechanical_properties[candidate.contact], candidate.geometry,
+                    hex20_contact_state(candidate, state), hex20_contact_state(candidate, _committed_contact_solution),
+                    _contact_histories[candidate.contact][candidate.secondary]);
+            if (!value.projected) continue;
+            CartesianContactNodeSummary& summary = result.at(candidate.secondary);
+            if (summary.projected && summary.primary_face != candidate.primary)
+                throw std::logic_error("HEX20 contact node has more than one active primary face");
+            summary.projected = true;
+            summary.primary_face = candidate.primary;
+            summary.gap = std::min(summary.gap, value.gap);
+            summary.tributary_area += value.tributary_area;
+            summary.contact_force += value.contact_force;
+            summary.tangential_force += value.tangential_force;
+            summary.elastic_tangential_slip = value.elastic_tangential_slip;
+            summary.sliding = value.sliding;
+        }
+        for (CartesianContactNodeSummary& summary : result)
+            if (summary.tributary_area > 0.0) {
+                summary.pressure = summary.contact_force / summary.tributary_area;
+                summary.tangential_traction = summary.tangential_force / summary.tributary_area;
+            }
+        return result;
+    }
     const ResolvedBoundary& secondary = _secondary_boundaries.at(contact_value);
     const Hex8RegionMesh& mesh = _meshes.at(secondary.region);
     std::vector<CartesianContactNodeSummary> result;
@@ -1299,6 +1979,15 @@ std::vector<CartesianContactNodeSummary> SpatialAssembly::summarize_contact_node
 }
 
 std::vector<std::size_t> SpatialAssembly::contact_secondary_source_nodes(std::size_t contact_value) const {
+    if (_uses_hex20) {
+        const ResolvedHex20Boundary& secondary = _hex20_secondary_boundaries.at(contact_value);
+        const Hex20RegionMesh& mesh = _hex20_meshes.at(secondary.region);
+        std::vector<std::size_t> result;
+        result.reserve(secondary.boundary.displacement_nodes.size());
+        for (std::size_t node : secondary.boundary.displacement_nodes)
+            result.push_back(mesh.source_node_ids().at(node));
+        return result;
+    }
     const ResolvedBoundary& secondary = _secondary_boundaries.at(contact_value);
     const Hex8RegionMesh& mesh = _meshes.at(secondary.region);
     std::vector<std::size_t> result;
@@ -1317,6 +2006,15 @@ InterfaceSummary SpatialAssembly::summarize_interface(
         point < _thermal_contact_offsets[contact_value + 1]; ++point) {
         const std::size_t primary = _thermal_active_primary[point];
         if (primary == std::numeric_limits<std::size_t>::max()) continue;
+        if (_uses_hex20) {
+            const Hex20ThermalCandidate candidate = hex20_thermal_candidate(point, primary);
+            const CartesianHeatQuadratureValue value = compute_quad8_to_quad8_gap_heat_value(
+                _thermal_properties[contact_value], candidate.geometry, hex20_contact_state(candidate, state));
+            if (!value.projected) throw std::logic_error("Active HEX20 thermal-contact candidate is not projected");
+            result.minimum_gap = std::min(result.minimum_gap, value.gap);
+            result.total_heat_rate += value.weighted_measure * value.heat_flux;
+            continue;
+        }
         const ThermalCandidate candidate = thermal_candidate(point, primary);
         const CartesianHeatQuadratureValue value = compute_quad4_to_quad4_gap_heat_value(
             _thermal_properties[contact_value], candidate.geometry, contact_state(candidate.nodes, state));

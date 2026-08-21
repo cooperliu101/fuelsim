@@ -1,4 +1,5 @@
 #include "fuelsim/core/cartesian3d_hex20.hpp"
+#include "fuelsim/core/contact.hpp"
 #include "support/material_factory.hpp"
 #include <algorithm>
 #include <array>
@@ -223,11 +224,111 @@ bool test_warped_geometry() {
            check(std::isfinite(thermal_volume) && std::isfinite(mechanical_volume),
                "warped HEX20 geometry measures remain finite");
 }
+
+bool test_hex20_contact_kernels() {
+    const auto cube = unit_cube();
+    const fuelsim::Quad8FaceCoordinates face = {
+        cube[1], cube[2], cube[6], cube[5], cube[9], cube[14], cube[17], cube[13]};
+    const fuelsim::Quad8FaceGeometry geometry = fuelsim::make_quad8_face_geometry(face);
+    fuelsim::Quad8SurfaceContactLocalValues state{}, committed{};
+    for (std::size_t node = 0; node < 4; ++node) {
+        state[node] = 400.0;
+        state[4 + node] = 300.0;
+    }
+    for (std::size_t node = 0; node < 8; ++node) state[8 + node] = -0.01;
+    fuelsim::Quad8ToQuad8HeatGeometry heat_geometry{face, face, geometry.thermal_points[0].temperature_shape,
+        geometry.thermal_points[0].displacement_shape, geometry.thermal_points[0].derivative_xi,
+        geometry.thermal_points[0].derivative_eta, geometry.thermal_points[0].quadrature_weight, -1.0};
+    fuelsim::Quad8SurfaceContactLocalJacobian heat_jacobian{};
+    const fuelsim::GapHeatProperties heat_properties{2.0, 1.0e-6};
+    const auto heat_residual =
+        fuelsim::compute_quad8_to_quad8_gap_heat(heat_properties, heat_geometry, state, &heat_jacobian);
+    double heat_balance = 0.0;
+    for (std::size_t node = 0; node < 8; ++node) heat_balance += heat_residual[node];
+    bool passed = check(std::abs(heat_balance) < 1.0e-12 * std::max(1.0, std::abs(heat_residual[0])),
+        "HEX20 Q8/Q4 thermal contact residual is exactly conservative at a 2x2 quadrature point");
+    const auto heat_value = fuelsim::compute_quad8_to_quad8_gap_heat_value(heat_properties, heat_geometry, state);
+    passed = check(heat_value.projected && heat_value.weighted_measure > 0.0 && heat_value.heat_flux > 0.0,
+                 "HEX20 thermal contact projects through the quadratic face and produces finite heat flux") &&
+             passed;
+    auto heat_plus = state, heat_minus = state;
+    constexpr double thermal_step = 1.0e-7;
+    heat_plus[0] += thermal_step;
+    heat_minus[0] -= thermal_step;
+    const auto heat_plus_residual = fuelsim::compute_quad8_to_quad8_gap_heat(heat_properties, heat_geometry, heat_plus);
+    const auto heat_minus_residual =
+        fuelsim::compute_quad8_to_quad8_gap_heat(heat_properties, heat_geometry, heat_minus);
+    double thermal_jacobian_error = 0.0, thermal_jacobian_scale = 0.0;
+    for (std::size_t row = 0; row < heat_plus_residual.size(); ++row) {
+        const double numerical = (heat_plus_residual[row] - heat_minus_residual[row]) / (2.0 * thermal_step);
+        const double analytic = heat_jacobian[row * fuelsim::quad8_surface_contact_local_dof_count];
+        thermal_jacobian_error = std::max(thermal_jacobian_error, std::abs(analytic - numerical));
+        thermal_jacobian_scale = std::max({thermal_jacobian_scale, std::abs(analytic), std::abs(numerical)});
+    }
+    passed = check(thermal_jacobian_error / thermal_jacobian_scale < 2.0e-6,
+                 "HEX20 thermal contact automatic-differentiation Jacobian matches a centered difference") &&
+             passed;
+
+    fuelsim::NodeToQuad8ContactGeometry mechanical_geometry{face, face, {}, {}, {}, {}, 0, -1.0};
+    for (std::size_t q = 0; q < 9; ++q) {
+        mechanical_geometry.secondary_shapes[q] = geometry.mechanical_points[q].displacement_shape;
+        mechanical_geometry.secondary_derivatives_xi[q] = geometry.mechanical_points[q].derivative_xi;
+        mechanical_geometry.secondary_derivatives_eta[q] = geometry.mechanical_points[q].derivative_eta;
+        mechanical_geometry.secondary_quadrature_weights[q] = geometry.mechanical_points[q].quadrature_weight;
+    }
+    const fuelsim::NormalContactProperties mechanical_properties{1.0e5, 0.0, false};
+    fuelsim::Quad8SurfaceContactLocalJacobian mechanical_jacobian{};
+    const auto mechanical_residual = fuelsim::compute_node_to_quad8_contact(
+        mechanical_properties, mechanical_geometry, state, committed, {}, &mechanical_jacobian);
+    double force_balance_x = 0.0, force_balance_y = 0.0, force_balance_z = 0.0;
+    for (std::size_t node = 0; node < 16; ++node) {
+        force_balance_x += mechanical_residual[8 + node];
+        force_balance_y += mechanical_residual[24 + node];
+        force_balance_z += mechanical_residual[40 + node];
+    }
+    const auto mechanical_value =
+        fuelsim::compute_node_to_quad8_contact_value(mechanical_properties, mechanical_geometry, state, committed, {});
+    passed =
+        check(mechanical_value.projected && mechanical_value.pressure > 0.0 && mechanical_value.tributary_area > 0.0,
+            "HEX20 Q8 mechanical contact detects penetration with positive tributary area") &&
+        check(std::abs(force_balance_x) < 1.0e-12 && std::abs(force_balance_y) < 1.0e-12 &&
+                  std::abs(force_balance_z) < 1.0e-12,
+            "HEX20 Q8 mechanical contact residual is action-reaction conservative") &&
+        passed;
+    fuelsim::NormalContactProperties friction_properties{1.0e5, 0.2, false};
+    auto sliding_state = state;
+    sliding_state[24] = 0.01;
+    const auto sliding_value = fuelsim::compute_node_to_quad8_contact_value(
+        friction_properties, mechanical_geometry, sliding_state, committed, {});
+    passed = check(sliding_value.sliding &&
+                       sliding_value.tangential_traction <=
+                           friction_properties.friction_coefficient * sliding_value.pressure * (1.0 + 1.0e-12),
+                 "HEX20 Coulomb contact enters sliding with a bounded tangential traction") &&
+             passed;
+    double jacobian_error = 0.0, jacobian_scale = 0.0;
+    constexpr double step = 1.0e-7;
+    auto plus = state, minus = state;
+    plus[8] += step;
+    minus[8] -= step;
+    const auto plus_residual =
+        fuelsim::compute_node_to_quad8_contact(mechanical_properties, mechanical_geometry, plus, committed, {});
+    const auto minus_residual =
+        fuelsim::compute_node_to_quad8_contact(mechanical_properties, mechanical_geometry, minus, committed, {});
+    for (std::size_t row = 0; row < plus_residual.size(); ++row) {
+        const double numerical = (plus_residual[row] - minus_residual[row]) / (2.0 * step);
+        const double analytic = mechanical_jacobian[row * fuelsim::quad8_surface_contact_local_dof_count + 8];
+        jacobian_error = std::max(jacobian_error, std::abs(analytic - numerical));
+        jacobian_scale = std::max({jacobian_scale, std::abs(analytic), std::abs(numerical)});
+    }
+    return check(jacobian_error / jacobian_scale < 2.0e-5,
+               "HEX20 Q8 mechanical contact automatic-differentiation Jacobian matches a centered difference") &&
+           passed;
+}
 } // namespace
 
 int main() {
     const bool passed = test_geometry_and_constant_strain() && test_jacobian_and_transient_history() &&
-                        test_quadratic_face() && test_warped_geometry();
+                        test_quadratic_face() && test_warped_geometry() && test_hex20_contact_kernels();
     if (passed) std::cout << "All HEX20-U2/T1 kernel tests passed\n";
     return passed ? 0 : 1;
 }

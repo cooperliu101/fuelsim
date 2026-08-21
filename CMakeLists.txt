@@ -63,6 +63,7 @@ add_library(fuelsim_core
     src/core/rz_assembly.cpp
     src/core/cartesian3d_assembly.cpp
     src/core/cartesian3d_contact.cpp
+    src/core/cartesian3d_hex20_contact.cpp
     src/core/contact_search.cpp
     src/core/detail/cartesian3d_mechanics.cpp
     src/core/cartesian3d_kernels.cpp
@@ -620,6 +621,16 @@ if(BUILD_TESTING)
     add_test(NAME fuelsim_h20_13_warped_hex20_geometry_tests COMMAND fuelsim_hex20_tests)
     set_tests_properties(fuelsim_h20_13_warped_hex20_geometry_tests
         PROPERTIES LABELS "unit;three-dimensional;quadratic;warped-geometry")
+    add_test(NAME fuelsim_h20_14_hex20_contact_kernel_tests COMMAND fuelsim_hex20_tests)
+    set_tests_properties(fuelsim_h20_14_hex20_contact_kernel_tests
+        PROPERTIES LABELS "unit;three-dimensional;quadratic;contact;friction")
+    add_test(NAME fuelsim_h20_15_hex20_contact_assembly_tests
+        COMMAND fuelsim_hex20_solver_tests
+            "${CMAKE_CURRENT_BINARY_DIR}/hex20_mesh.e"
+            "${CMAKE_CURRENT_BINARY_DIR}/hex20_steady_results.e"
+            "${CMAKE_CURRENT_BINARY_DIR}/hex20_checkpoint.bin")
+    set_tests_properties(fuelsim_h20_15_hex20_contact_assembly_tests
+        PROPERTIES LABELS "integration;three-dimensional;quadratic;contact")
 
     add_executable(fuelsim_b3_hex8_moose_tests tests/b3_hex8_moose_tests.cpp)
     target_link_libraries(fuelsim_b3_hex8_moose_tests

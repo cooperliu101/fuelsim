@@ -754,7 +754,8 @@ void fill_cartesian_nodal(const UnstructuredHex8Mesh& mesh, const cartesian::Spa
 void fill_cartesian_nodal(const UnstructuredHex20Mesh& mesh, const cartesian::SpatialAssembly& spatial,
     const std::vector<double>& state, std::vector<std::vector<double>>& values) {
     const double missing = std::numeric_limits<double>::quiet_NaN();
-    values.assign(4, std::vector<double>(mesh.nodes().size(), missing));
+    values.assign(cartesian_nodal_variable_names(spatial.definition().contacts).size(),
+        std::vector<double>(mesh.nodes().size(), missing));
     const std::vector<FieldDescriptor>& fields = spatial.field_layout();
     for (std::size_t region = 0; region < spatial.region_count(); ++region) {
         const Hex20RegionMesh& region_mesh = spatial.hex20_region_mesh(region);
@@ -780,6 +781,21 @@ void fill_cartesian_nodal(const UnstructuredHex20Mesh& mesh, const cartesian::Sp
                 throw std::logic_error("HEX20 result temperature interpolation is inconsistent at a shared node");
             values[0][midpoint] = interpolated;
         }
+    for (std::size_t contact = 0; contact < spatial.definition().contacts.size(); ++contact) {
+        const std::vector<std::size_t> nodes = spatial.contact_secondary_source_nodes(contact);
+        const std::vector<CartesianContactNodeSummary> summary = spatial.summarize_contact_nodes(contact, state);
+        if (nodes.size() != summary.size()) throw std::logic_error("HEX20 contact result mapping size mismatch");
+        const std::size_t base = 4 + 5 * contact;
+        for (std::size_t node = 0; node < nodes.size(); ++node) {
+            if (!summary[node].projected) continue;
+            values[base][nodes[node]] = summary[node].gap;
+            values[base + 1][nodes[node]] = summary[node].pressure;
+            values[base + 2][nodes[node]] = summary[node].tangential_traction;
+            const std::array<double, 3>& slip = summary[node].elastic_tangential_slip;
+            values[base + 3][nodes[node]] = std::sqrt(slip[0] * slip[0] + slip[1] * slip[1] + slip[2] * slip[2]);
+            values[base + 4][nodes[node]] = summary[node].sliding ? 1.0 : 0.0;
+        }
+    }
 }
 
 std::vector<double> cartesian_globals(
@@ -968,8 +984,9 @@ void write_steady_results(const std::string& path, const UnstructuredHex20Mesh& 
     if (path.empty()) throw std::invalid_argument("Exodus result path must not be empty");
     write_exodus_hex20(path, mesh);
     const cartesian::SpatialAssembly& spatial = BackendAccess::cartesian_spatial(problem);
-    define_result_variables(path, results_mesh_view(mesh), cartesian_nodal_variable_names({}),
-        cartesian_stress_variable_names(27), global_variable_names({}));
+    const std::vector<ContactDefinition>& contacts = spatial.definition().contacts;
+    define_result_variables(path, results_mesh_view(mesh), cartesian_nodal_variable_names(contacts),
+        cartesian_stress_variable_names(27), global_variable_names(contacts));
     std::vector<std::vector<double>> nodal_values;
     fill_cartesian_nodal(mesh, spatial, state, nodal_values);
     write_result_step(path, results_mesh_view(mesh), 1, 1.0, nodal_values, cartesian_elements(mesh, spatial, &state),
@@ -1003,9 +1020,10 @@ ExodusTransientResultsWriter::ExodusTransientResultsWriter(
     : _path(std::move(path)), _hex20_mesh(std::make_unique<UnstructuredHex20Mesh>(std::move(mesh))),
       _problem_signature(transient_problem_signature(problem)), _step_count(0) {
     if (_path.empty()) throw std::invalid_argument("Exodus result path must not be empty");
+    const std::vector<ContactDefinition>& contacts = problem.definition().contacts;
     write_exodus_hex20(_path, *_hex20_mesh);
-    define_result_variables(_path, results_mesh_view(*_hex20_mesh), cartesian_nodal_variable_names({}),
-        cartesian_transient_variable_names(27), global_variable_names({}));
+    define_result_variables(_path, results_mesh_view(*_hex20_mesh), cartesian_nodal_variable_names(contacts),
+        cartesian_transient_variable_names(27), global_variable_names(contacts));
 }
 
 void ExodusTransientResultsWriter::append(const TransientProblem& problem) {

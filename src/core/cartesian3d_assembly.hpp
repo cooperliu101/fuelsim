@@ -15,6 +15,11 @@ struct ResolvedBoundary final {
     Hex8RegionBoundary boundary;
 };
 
+struct ResolvedHex20Boundary final {
+    std::size_t region;
+    Hex20RegionBoundary boundary;
+};
+
 class SpatialAssembly final : public spatial_detail::SpatialLayout {
   public:
     SpatialAssembly(SpatialDefinition definition, const UnstructuredHex8Mesh& source_mesh);
@@ -109,6 +114,22 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
         std::size_t secondary, primary;
     };
 
+    struct Hex20ThermalCandidate final {
+        std::size_t contact;
+        std::array<std::size_t, 4> secondary_temperature_nodes, primary_temperature_nodes;
+        std::array<std::size_t, 8> secondary_displacement_nodes, primary_displacement_nodes;
+        Quad8ToQuad8HeatGeometry geometry;
+        std::size_t primary;
+    };
+
+    struct Hex20MechanicalCandidate final {
+        std::size_t contact;
+        std::array<std::size_t, 4> secondary_temperature_nodes, primary_temperature_nodes;
+        std::array<std::size_t, 8> secondary_displacement_nodes, primary_displacement_nodes;
+        NodeToQuad8ContactGeometry geometry;
+        std::size_t secondary, primary;
+    };
+
     struct PrimaryContactFace final {
         std::array<std::size_t, 4> nodes;
         Quad4FaceCoordinates coordinates;
@@ -131,18 +152,55 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
         std::size_t contact, secondary, secondary_face, secondary_local_node;
     };
 
+    struct Hex20PrimaryContactFace final {
+        std::array<std::size_t, 4> temperature_nodes;
+        std::array<std::size_t, 8> displacement_nodes;
+        Quad8FaceCoordinates coordinates;
+        CartesianPoint3 parent_centroid;
+    };
+
+    struct Hex20SecondaryContactFace final {
+        std::array<std::size_t, 4> temperature_nodes;
+        std::array<std::size_t, 8> displacement_nodes;
+        Quad8FaceCoordinates coordinates;
+        Quad8FaceGeometry geometry;
+        CartesianPoint3 parent_centroid;
+    };
+
+    struct Hex20MechanicalPoint final {
+        std::size_t contact, secondary, secondary_face, secondary_local_node;
+    };
+
     ContributionRanges contribution_ranges() const noexcept;
     std::size_t contribution_work(std::size_t index, std::size_t partition_count) const;
     ResolvedBoundary resolve_boundary(const UnstructuredHex8Mesh& source_mesh, const std::string& name) const;
+    ResolvedHex20Boundary resolve_boundary(const UnstructuredHex20Mesh& source_mesh, const std::string& name) const;
     void build_contacts(const UnstructuredHex8Mesh& source_mesh);
+    void build_hex20_contacts(const UnstructuredHex20Mesh& source_mesh);
     ThermalCandidate thermal_candidate(std::size_t point, std::size_t primary) const;
     MechanicalCandidate mechanical_candidate(std::size_t point, std::size_t primary) const;
+    Hex20ThermalCandidate hex20_thermal_candidate(std::size_t point, std::size_t primary) const;
+    Hex20MechanicalCandidate hex20_mechanical_candidate(std::size_t point, std::size_t primary) const;
     SparsityContact sparsity_contact(std::size_t index) const;
+
+    struct Hex20SparsityContact final {
+        std::array<std::size_t, 4> temperature_nodes, primary_temperature_nodes;
+        std::array<std::size_t, 8> displacement_nodes, primary_displacement_nodes;
+        bool thermal, mechanical;
+    };
+
+    Hex20SparsityContact hex20_sparsity_contact(std::size_t index) const;
     void update_contact_search_trees(const std::vector<double>& state) const;
     Quad4SurfaceContactLocalDofs contact_dofs(const std::array<std::size_t, 8>& nodes) const;
+    Quad8SurfaceContactLocalDofs hex20_contact_dofs(const Hex20ThermalCandidate& candidate) const;
+    Quad8SurfaceContactLocalDofs hex20_contact_dofs(const Hex20MechanicalCandidate& candidate) const;
     Quad4SurfaceContactLocalValues contribution_state(std::size_t index, const std::vector<double>& global_state) const;
     Quad4SurfaceContactLocalValues contact_state(
         const std::array<std::size_t, 8>& nodes, const std::vector<double>& global_state) const;
+    Quad8SurfaceContactLocalValues hex20_contact_state(
+        const Hex20ThermalCandidate& candidate, const std::vector<double>& global_state) const;
+    Quad8SurfaceContactLocalValues hex20_contact_state(
+        const Hex20MechanicalCandidate& candidate, const std::vector<double>& global_state) const;
     void update_thermal_candidates(std::size_t first, std::size_t last, const std::vector<double>& state) const;
     void update_mechanical_candidates(std::size_t first, std::size_t last, const std::vector<double>& state) const;
     bool mark_touched_thermal_points(std::size_t first, std::size_t last) const;
@@ -163,6 +221,9 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     std::vector<std::vector<PrimaryContactFace>> _primary_contact_faces;
     std::vector<std::vector<SecondaryContactFace>> _secondary_contact_faces;
     std::vector<MechanicalPoint> _mechanical_points;
+    std::vector<std::vector<Hex20PrimaryContactFace>> _hex20_primary_contact_faces;
+    std::vector<std::vector<Hex20SecondaryContactFace>> _hex20_secondary_contact_faces;
+    std::vector<Hex20MechanicalPoint> _hex20_mechanical_points;
     std::vector<std::size_t> _thermal_point_counts, _thermal_contact_offsets, _mechanical_contact_offsets,
         _sparsity_contact_offsets;
     mutable std::vector<unsigned char> _touched_thermal_points, _touched_mechanical_nodes;
@@ -175,6 +236,7 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     std::vector<std::vector<ContactPointHistory>> _contact_histories;
     std::vector<double> _committed_contact_solution;
     std::vector<ResolvedBoundary> _primary_boundaries, _secondary_boundaries;
+    std::vector<ResolvedHex20Boundary> _hex20_primary_boundaries, _hex20_secondary_boundaries;
     bool _uses_hex20 = false;
 };
 } // namespace fuelsim::cartesian

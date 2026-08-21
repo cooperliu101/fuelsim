@@ -23,6 +23,7 @@ set(thermal_time_term_option_lines 16)
 set(pressure_configuration_selection_lines 31)
 set(hex20_u2_t1_capability_lines 1521)
 set(hex20_face_quadrature_lines 38)
+set(hex20_contact_capability_lines 1150)
 
 file(READ "${ROOT}/.clang-format" format_configuration)
 string(FIND "${format_configuration}" "ColumnLimit: 120" column_limit)
@@ -60,7 +61,7 @@ endif()
 math(EXPR removed_lines "${nonempty_line_baseline} - ${nonempty_lines}")
 math(EXPR reduction_per_mille "1000 * ${removed_lines} / ${nonempty_line_baseline}")
 math(EXPR capability_adjusted_limit
-    "${maximum_nonempty_lines} + ${hex8_inelastic_capability_lines} + ${hex8_finite_strain_capability_lines} + ${hex8_contact_capability_lines} + ${dynamic_contact_assembly_performance_lines} + ${large_sliding_contact_search_lines} + ${cartesian_current_pressure_input_lines} + ${m58_two_process_efficiency_lines} + ${m58_four_process_efficiency_lines} + ${memory_statistics_lines} + ${shared_node_capability_lines} + ${hex8_narrow_constitutive_ad_lines} + ${rz_narrow_constitutive_ad_lines} + ${source_layout_refactor_lines} + ${optional_input_sections_lines} + ${bound_material_function_lines} + ${thermal_time_term_option_lines} + ${pressure_configuration_selection_lines} + ${hex20_u2_t1_capability_lines} + ${hex20_face_quadrature_lines}"
+    "${maximum_nonempty_lines} + ${hex8_inelastic_capability_lines} + ${hex8_finite_strain_capability_lines} + ${hex8_contact_capability_lines} + ${dynamic_contact_assembly_performance_lines} + ${large_sliding_contact_search_lines} + ${cartesian_current_pressure_input_lines} + ${m58_two_process_efficiency_lines} + ${m58_four_process_efficiency_lines} + ${memory_statistics_lines} + ${shared_node_capability_lines} + ${hex8_narrow_constitutive_ad_lines} + ${rz_narrow_constitutive_ad_lines} + ${source_layout_refactor_lines} + ${optional_input_sections_lines} + ${bound_material_function_lines} + ${thermal_time_term_option_lines} + ${pressure_configuration_selection_lines} + ${hex20_u2_t1_capability_lines} + ${hex20_face_quadrature_lines} + ${hex20_contact_capability_lines}"
 )
 if(nonempty_lines GREATER capability_adjusted_limit)
     message(FATAL_ERROR
@@ -84,7 +85,8 @@ if(nonempty_lines GREATER capability_adjusted_limit)
         "${thermal_time_term_option_lines} lines for the transient thermal time-term option, plus "
         "${pressure_configuration_selection_lines} lines for selectable pressure-boundary configurations, plus "
         "${hex20_u2_t1_capability_lines} lines for the non-contact mixed-order HEX20-U2/T1 capability, plus "
-        "${hex20_face_quadrature_lines} lines for independent HEX20 face quadrature rules"
+        "${hex20_face_quadrature_lines} lines for independent HEX20 face quadrature rules, plus "
+        "${hex20_contact_capability_lines} lines for HEX20 thermal and mechanical contact"
     )
 endif()
 
@@ -108,5 +110,6 @@ message(STATUS
     "two-stage bound-material-evaluator lines plus ${thermal_time_term_option_lines} transient-thermal-time-term "
     "option lines plus ${pressure_configuration_selection_lines} selectable-pressure-configuration lines plus "
     "${hex20_u2_t1_capability_lines} non-contact mixed-order HEX20-U2/T1 capability lines plus "
-    "${hex20_face_quadrature_lines} independent HEX20 face-quadrature lines"
+    "${hex20_face_quadrature_lines} independent HEX20 face-quadrature lines plus "
+    "${hex20_contact_capability_lines} HEX20 thermal and mechanical contact lines"
 )

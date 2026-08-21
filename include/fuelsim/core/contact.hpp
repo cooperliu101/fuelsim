@@ -143,4 +143,50 @@ CartesianContactPointValue compute_node_to_quad4_contact_value(const NormalConta
     const Quad4SurfaceContactLocalValues& committed_state, const ContactPointHistory& history);
 ContactProjectionValue compute_node_to_quad4_contact_projection(
     const NodeToQuad4ContactGeometry& geometry, const Quad4SurfaceContactLocalValues& state);
+
+inline constexpr std::size_t quad8_surface_contact_temperature_node_count = 8;
+inline constexpr std::size_t quad8_surface_contact_displacement_node_count = 16;
+inline constexpr std::size_t quad8_surface_contact_local_dof_count =
+    quad8_surface_contact_temperature_node_count + 3 * quad8_surface_contact_displacement_node_count;
+inline constexpr std::size_t quad8_surface_contact_quadrature_point_count = 9;
+using Quad8SurfaceContactLocalDofs = std::array<std::size_t, quad8_surface_contact_local_dof_count>;
+using Quad8SurfaceContactLocalValues = std::array<double, quad8_surface_contact_local_dof_count>;
+using Quad8SurfaceContactLocalResidual = std::array<double, quad8_surface_contact_local_dof_count>;
+using Quad8SurfaceContactLocalJacobian =
+    std::array<double, quad8_surface_contact_local_dof_count * quad8_surface_contact_local_dof_count>;
+using Quad8SurfaceContactLocalAdValues = std::array<adlite::Scalar, quad8_surface_contact_local_dof_count>;
+
+struct Quad8ToQuad8HeatGeometry final {
+    std::array<CartesianPoint3, 8> secondary_coordinates, primary_coordinates;
+    std::array<double, 4> secondary_temperature_shape;
+    std::array<double, 8> secondary_displacement_shape, secondary_derivative_xi, secondary_derivative_eta;
+    double quadrature_weight, normal_orientation;
+};
+
+struct NodeToQuad8ContactGeometry final {
+    std::array<CartesianPoint3, 8> secondary_coordinates, primary_coordinates;
+    std::array<std::array<double, 8>, quad8_surface_contact_quadrature_point_count> secondary_shapes;
+    std::array<std::array<double, 8>, quad8_surface_contact_quadrature_point_count> secondary_derivatives_xi;
+    std::array<std::array<double, 8>, quad8_surface_contact_quadrature_point_count> secondary_derivatives_eta;
+    std::array<double, quad8_surface_contact_quadrature_point_count> secondary_quadrature_weights;
+    std::size_t secondary_local_node;
+    double normal_orientation;
+};
+
+Quad8SurfaceContactLocalResidual compute_quad8_to_quad8_gap_heat(const GapHeatProperties& properties,
+    const Quad8ToQuad8HeatGeometry& geometry, const Quad8SurfaceContactLocalValues& state,
+    Quad8SurfaceContactLocalJacobian* jacobian = nullptr);
+CartesianHeatQuadratureValue compute_quad8_to_quad8_gap_heat_value(const GapHeatProperties& properties,
+    const Quad8ToQuad8HeatGeometry& geometry, const Quad8SurfaceContactLocalValues& state);
+ContactProjectionValue compute_quad8_to_quad8_heat_projection(
+    const Quad8ToQuad8HeatGeometry& geometry, const Quad8SurfaceContactLocalValues& state);
+Quad8SurfaceContactLocalResidual compute_node_to_quad8_contact(const NormalContactProperties& properties,
+    const NodeToQuad8ContactGeometry& geometry, const Quad8SurfaceContactLocalValues& state,
+    const Quad8SurfaceContactLocalValues& committed_state, const ContactPointHistory& history,
+    Quad8SurfaceContactLocalJacobian* jacobian = nullptr);
+CartesianContactPointValue compute_node_to_quad8_contact_value(const NormalContactProperties& properties,
+    const NodeToQuad8ContactGeometry& geometry, const Quad8SurfaceContactLocalValues& state,
+    const Quad8SurfaceContactLocalValues& committed_state, const ContactPointHistory& history);
+ContactProjectionValue compute_node_to_quad8_contact_projection(
+    const NodeToQuad8ContactGeometry& geometry, const Quad8SurfaceContactLocalValues& state);
 } // namespace fuelsim
