@@ -1931,7 +1931,7 @@ std::vector<CartesianContactNodeSummary> SpatialAssembly::summarize_contact_node
             summary.sliding = value.sliding;
         }
         for (CartesianContactNodeSummary& summary : result)
-            if (summary.tributary_area > 0.0) {
+            if (summary.tributary_area != 0.0) {
                 summary.pressure = summary.contact_force / summary.tributary_area;
                 summary.tangential_traction = summary.tangential_force / summary.tributary_area;
             }

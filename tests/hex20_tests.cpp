@@ -288,18 +288,20 @@ bool test_hex20_contact_kernels() {
     }
     const auto mechanical_value =
         fuelsim::compute_node_to_quad8_contact_value(mechanical_properties, mechanical_geometry, state, committed, {});
-    passed =
-        check(mechanical_value.projected && mechanical_value.pressure > 0.0 && mechanical_value.tributary_area > 0.0,
-            "HEX20 Q8 mechanical contact detects penetration with positive tributary area") &&
-        check(std::abs(force_balance_x) < 1.0e-12 && std::abs(force_balance_y) < 1.0e-12 &&
-                  std::abs(force_balance_z) < 1.0e-12,
-            "HEX20 Q8 mechanical contact residual is action-reaction conservative") &&
-        passed;
+    passed = check(mechanical_value.projected && mechanical_value.pressure > 0.0 &&
+                       std::abs(mechanical_value.tributary_area) > 0.0,
+                 "HEX20 Q8 mechanical contact detects penetration with a nonzero consistent nodal area") &&
+             check(std::abs(force_balance_x) < 1.0e-12 && std::abs(force_balance_y) < 1.0e-12 &&
+                       std::abs(force_balance_z) < 1.0e-12,
+                 "HEX20 Q8 mechanical contact residual is action-reaction conservative") &&
+             passed;
     fuelsim::NormalContactProperties friction_properties{1.0e5, 0.2, false};
+    auto friction_geometry = mechanical_geometry;
+    friction_geometry.secondary_local_node = 4;
     auto sliding_state = state;
-    sliding_state[24] = 0.01;
+    sliding_state[28] = 0.01;
     const auto sliding_value = fuelsim::compute_node_to_quad8_contact_value(
-        friction_properties, mechanical_geometry, sliding_state, committed, {});
+        friction_properties, friction_geometry, sliding_state, committed, {});
     passed = check(sliding_value.sliding &&
                        sliding_value.tangential_traction <=
                            friction_properties.friction_coefficient * sliding_value.pressure * (1.0 + 1.0e-12),

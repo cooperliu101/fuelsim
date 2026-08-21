@@ -38,6 +38,7 @@ files.
 | B3.4 HEX8 sliding friction | `b34_hex8_sliding_contact_mesh.e` | 16 / 2 HEX8 | `d9ec3f16dd1c836f88e4cdf21195b47cb8766e34e97415cd84fb94b1ea48e2f6` |
 | B3.7 HEX8 nonmatching two-pair friction | `b37_hex8_multi_contact_mesh.e` | 40 / 6 HEX8 | `c2d1610df6f29148fdc373df5e1e257c7a432ac2114fd9b27c283965685da5b3` |
 | B6 HEX20-U2/T1 thermoelasticity | `b6_hex20_u2_t1.e` | 20 / 1 HEX20 | `95fa67b7b03777f65bd3ace9911d247d16e41c904faad994a24ed811e1bf3c6f` |
+| H20.16--18 HEX20 contact | `h20_16_hex20_contact_mesh.e` | 40 / 2 HEX20 | `a2eeb7668f97df9d3f77504c8b97582ab97d5bade2de0aa8cfc9971ff9d58e4e` |
 
 Generate any snapshot from this directory by replacing `<case>` with the input
 stem:
@@ -67,6 +68,25 @@ freedom and all 60 displacement degrees of freedom, and reports relative L2,
 relative absolute-peak, and maximum pointwise-relative errors. Temperature is
 exact and the largest displacement metric is below `4.6e-15`; zero references
 are counted and checked separately.
+
+## H20.16--18 mixed-order HEX20 contact
+
+`h20_16_hex20_contact_mesh.i` generates the tracked two-element HEX20 mesh with
+a one-micrometre initial penetration. Temperature uses first-order interpolation
+on the corner nodes, while displacement and contact geometry use all 20 element
+nodes. H20.16 compares the 2-by-2 quadrature thermal-contact temperature field;
+H20.17 compares all 40 displacement nodes and all eight secondary-node contact
+pressures for frictionless penalty contact; H20.18 compares the normal and
+tangential reaction resultants after Coulomb sliding.
+
+MOOSE uses a consistent quadratic nodal-area rule on the eight-node contact
+face. Its corner areas are negative and its edge-midpoint areas are positive.
+Fuelsim therefore preserves those signed areas for normal contact and applies
+Coulomb capacity only at positive-area nodes. Thermal, frictionless mechanical,
+and sliding references are separate because the configured July/MOOSE build
+crashes when second-order node-to-face mechanical contact and quadrature gap
+heat transfer are active in one problem. The three references still share the
+same tracked mesh and independently exercise every implemented contact equation.
 
 ## Native axisymmetric shared-node material interface
 
