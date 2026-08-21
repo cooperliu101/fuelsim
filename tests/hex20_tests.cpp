@@ -207,11 +207,27 @@ bool test_quadratic_face() {
            check(near(heat, 1000.0, 2.0e-14) && near(tangent_sum, 20.0, 2.0e-14),
                "linear face temperature convection recovers exact heat rate and tangent");
 }
+
+bool test_warped_geometry() {
+    auto coordinates = unit_cube();
+    coordinates[8].x = 0.56;
+    coordinates[9].y = 0.46;
+    coordinates[14].z = 0.54;
+    const fuelsim::Hex20Geometry geometry = fuelsim::make_hex20_geometry(coordinates);
+    double thermal_volume = 0.0;
+    double mechanical_volume = 0.0;
+    for (const auto& point : geometry.thermal_points) thermal_volume += point.weighted_measure;
+    for (const auto& point : geometry.mechanical_points) mechanical_volume += point.weighted_measure;
+    return check(thermal_volume > 0.0 && mechanical_volume > 0.0,
+               "warped HEX20 geometry has positive thermal and mechanical measures") &&
+           check(std::isfinite(thermal_volume) && std::isfinite(mechanical_volume),
+               "warped HEX20 geometry measures remain finite");
+}
 } // namespace
 
 int main() {
-    const bool passed =
-        test_geometry_and_constant_strain() && test_jacobian_and_transient_history() && test_quadratic_face();
+    const bool passed = test_geometry_and_constant_strain() && test_jacobian_and_transient_history() &&
+                        test_quadratic_face() && test_warped_geometry();
     if (passed) std::cout << "All HEX20-U2/T1 kernel tests passed\n";
     return passed ? 0 : 1;
 }

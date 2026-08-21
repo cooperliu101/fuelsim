@@ -1,0 +1,2 @@
+effective_creep_strain,effective_plastic_strain,id,stress_xx,stress_xy,stress_xz,stress_yy,stress_yz,stress_zz,x,y,z
+0.0023100366835622,0,0,337992663.28822,-0.001248236610028,-0.0012482214124825,0.0011079690543058,-9.7363909297784e-05,0.00110795101041,0.5,0.5,0.5

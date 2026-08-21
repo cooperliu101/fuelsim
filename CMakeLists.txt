@@ -525,6 +525,98 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_b6_hex20_moose_tests
         PROPERTIES LABELS "acceptance;three-dimensional;quadratic")
 
+    add_executable(fuelsim_hex20_moose_case_tests tests/hex20_moose_case_tests.cpp)
+    target_link_libraries(fuelsim_hex20_moose_case_tests
+        PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
+    fuelsim_enable_warnings(fuelsim_hex20_moose_case_tests)
+    add_test(NAME fuelsim_h20_02_convection_moose_tests
+        COMMAND fuelsim_hex20_moose_case_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex20_convection_moose.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_02_convection_temperature_nodes_0001.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_02_convection_displacement_nodes_0001.csv"
+            "1e-3" temperature_only)
+    set_tests_properties(fuelsim_h20_02_convection_moose_tests
+        PROPERTIES LABELS "acceptance;three-dimensional;quadratic")
+    add_test(NAME fuelsim_h20_03_pressure_moose_tests
+        COMMAND fuelsim_hex20_moose_case_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex20_pressure_moose.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_03_pressure_temperature_nodes_0001.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_03_pressure_displacement_nodes_0001.csv"
+            "1e-5")
+    set_tests_properties(fuelsim_h20_03_pressure_moose_tests
+        PROPERTIES LABELS "acceptance;three-dimensional;quadratic")
+    add_test(NAME fuelsim_h20_04_traction_moose_tests
+        COMMAND fuelsim_hex20_moose_case_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex20_traction_moose.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_04_traction_temperature_nodes_0001.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_04_traction_displacement_nodes_0001.csv"
+            "1e-5")
+    set_tests_properties(fuelsim_h20_04_traction_moose_tests
+        PROPERTIES LABELS "acceptance;three-dimensional;quadratic")
+    add_test(NAME fuelsim_h20_05_thermo_mechanical_moose_tests
+        COMMAND fuelsim_hex20_moose_case_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex20_thermo_mechanical_moose.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_05_thermo_mechanical_temperature_nodes_0001.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_05_thermo_mechanical_displacement_nodes_0001.csv"
+            "1e-5")
+    set_tests_properties(fuelsim_h20_05_thermo_mechanical_moose_tests
+        PROPERTIES LABELS "acceptance;three-dimensional;quadratic")
+
+    add_executable(fuelsim_hex20_transient_moose_tests tests/hex20_transient_moose_tests.cpp)
+    target_link_libraries(fuelsim_hex20_transient_moose_tests
+        PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
+    fuelsim_enable_warnings(fuelsim_hex20_transient_moose_tests)
+    add_test(NAME fuelsim_h20_06_transient_moose_tests
+        COMMAND fuelsim_hex20_transient_moose_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_hex20_moose.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_06_transient_temperature_nodes_0001.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_06_transient_displacement_nodes_0001.csv"
+            "1e-3")
+    set_tests_properties(fuelsim_h20_06_transient_moose_tests
+        PROPERTIES LABELS "acceptance;three-dimensional;quadratic;transient")
+
+    add_executable(fuelsim_hex20_inelastic_moose_tests tests/hex20_inelastic_moose_tests.cpp)
+    target_link_libraries(fuelsim_hex20_inelastic_moose_tests
+        PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
+    fuelsim_enable_warnings(fuelsim_hex20_inelastic_moose_tests)
+    add_test(NAME fuelsim_h20_07_08_09_inelastic_moose_tests
+        COMMAND fuelsim_hex20_inelastic_moose_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_hex20_inelastic_plastic_moose.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_07_inelastic_plastic_temperature_nodes_0001.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_07_inelastic_plastic_displacement_nodes_0001.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_07_inelastic_plastic_element_state_0001.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_hex20_inelastic_creep_moose.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_07_inelastic_creep_temperature_nodes_0001.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_07_inelastic_creep_displacement_nodes_0001.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_07_inelastic_creep_element_state_0001.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_hex20_inelastic_coupled_moose.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_07_inelastic_coupled_temperature_nodes_0001.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_07_inelastic_coupled_displacement_nodes_0001.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_07_inelastic_coupled_element_state_0001.csv")
+    set_tests_properties(fuelsim_h20_07_08_09_inelastic_moose_tests
+        PROPERTIES LABELS "acceptance;three-dimensional;quadratic;transient;inelastic")
+    add_test(NAME fuelsim_h20_10_finite_strain_moose_tests
+        COMMAND fuelsim_hex20_moose_case_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex20_finite_moose.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_10_finite_temperature_nodes_0001.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_10_finite_displacement_nodes_0001.csv"
+            "1e-3")
+    set_tests_properties(fuelsim_h20_10_finite_strain_moose_tests
+        PROPERTIES LABELS "acceptance;three-dimensional;quadratic;finite-strain")
+    add_test(NAME fuelsim_h20_11_hex20_checkpoint_tests
+        COMMAND fuelsim_hex20_solver_tests
+            "${CMAKE_CURRENT_BINARY_DIR}/hex20_mesh.e"
+            "${CMAKE_CURRENT_BINARY_DIR}/hex20_steady_results.e"
+            "${CMAKE_CURRENT_BINARY_DIR}/hex20_checkpoint.bin")
+    set_tests_properties(fuelsim_h20_11_hex20_checkpoint_tests
+        PROPERTIES LABELS "integration;three-dimensional;quadratic;checkpoint")
+    add_test(NAME fuelsim_h20_12_multiblock_shared_nodes_tests COMMAND fuelsim_multi_region_tests)
+    set_tests_properties(fuelsim_h20_12_multiblock_shared_nodes_tests
+        PROPERTIES LABELS "acceptance;three-dimensional;quadratic;multiblock")
+    add_test(NAME fuelsim_h20_13_warped_hex20_geometry_tests COMMAND fuelsim_hex20_tests)
+    set_tests_properties(fuelsim_h20_13_warped_hex20_geometry_tests
+        PROPERTIES LABELS "unit;three-dimensional;quadratic;warped-geometry")
+
     add_executable(fuelsim_b3_hex8_moose_tests tests/b3_hex8_moose_tests.cpp)
     target_link_libraries(fuelsim_b3_hex8_moose_tests
         PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
