@@ -94,6 +94,7 @@ class SpatialProblemStorage {
                 if (functions.has_creep() || functions.has_plasticity())
                     throw std::invalid_argument("Steady Cartesian three-dimensional problems support only elasticity");
             }
+        if (transient) initialize_cartesian_histories();
     }
 
     SpatialProblemStorage(SpatialDefinition definition, const UnstructuredHex20Mesh& source_mesh, bool transient)
@@ -104,6 +105,20 @@ class SpatialProblemStorage {
                 if (functions.has_creep() || functions.has_plasticity())
                     throw std::invalid_argument("Steady Cartesian three-dimensional problems support only elasticity");
             }
+        if (transient) initialize_cartesian_histories();
+    }
+
+    void initialize_cartesian_histories() {
+        const std::size_t points = cartesian->uses_hex20() ? 27U : 8U;
+        cartesian_material_histories.resize(cartesian->region_count());
+        _staged_cartesian_material_histories.resize(cartesian->region_count());
+        for (std::size_t region = 0; region < cartesian->region_count(); ++region) {
+            cartesian_material_histories[region].resize(cartesian->region_element_count(region));
+            _staged_cartesian_material_histories[region].resize(cartesian->region_element_count(region));
+            for (CartesianMaterialHistory& history : cartesian_material_histories[region]) history.resize(points);
+            for (CartesianMaterialHistory& history : _staged_cartesian_material_histories[region])
+                history.resize(points);
+        }
     }
 
     bool is_cartesian() const noexcept { return cartesian != nullptr; }
@@ -474,14 +489,6 @@ TransientProblem::TransientProblem(SpatialDefinition definition, const Unstructu
 
 TransientProblem::TransientProblem(SpatialDefinition definition, const UnstructuredHex8Mesh& source_mesh)
     : _impl(std::make_unique<SpatialProblemStorage>(std::move(definition), source_mesh, true)) {
-    _impl->cartesian_material_histories.resize(_impl->cartesian->region_count());
-    _impl->_staged_cartesian_material_histories.resize(_impl->cartesian->region_count());
-    for (std::size_t region = 0; region < _impl->cartesian->region_count(); ++region) {
-        _impl->cartesian_material_histories[region].resize(_impl->cartesian->region_element_count(region));
-        _impl->_staged_cartesian_material_histories[region].resize(_impl->cartesian->region_element_count(region));
-        for (CartesianMaterialHistory& history : _impl->cartesian_material_histories[region]) history.resize(8);
-        for (CartesianMaterialHistory& history : _impl->_staged_cartesian_material_histories[region]) history.resize(8);
-    }
     apply_spatial_controls(0.0, 0.0);
     _impl->committed_solution = _impl->cartesian->initial_state();
     _impl->cartesian->restore_contact_state(_impl->committed_solution, _impl->cartesian->committed_contact_histories());
@@ -489,15 +496,6 @@ TransientProblem::TransientProblem(SpatialDefinition definition, const Unstructu
 
 TransientProblem::TransientProblem(SpatialDefinition definition, const UnstructuredHex20Mesh& source_mesh)
     : _impl(std::make_unique<SpatialProblemStorage>(std::move(definition), source_mesh, true)) {
-    _impl->cartesian_material_histories.resize(_impl->cartesian->region_count());
-    _impl->_staged_cartesian_material_histories.resize(_impl->cartesian->region_count());
-    for (std::size_t region = 0; region < _impl->cartesian->region_count(); ++region) {
-        _impl->cartesian_material_histories[region].resize(_impl->cartesian->region_element_count(region));
-        _impl->_staged_cartesian_material_histories[region].resize(_impl->cartesian->region_element_count(region));
-        for (CartesianMaterialHistory& history : _impl->cartesian_material_histories[region]) history.resize(27);
-        for (CartesianMaterialHistory& history : _impl->_staged_cartesian_material_histories[region])
-            history.resize(27);
-    }
     apply_spatial_controls(0.0, 0.0);
     _impl->committed_solution = _impl->cartesian->initial_state();
     _impl->cartesian->restore_contact_state(_impl->committed_solution, _impl->cartesian->committed_contact_histories());

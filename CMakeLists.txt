@@ -64,6 +64,7 @@ add_library(fuelsim_core
     src/core/cartesian3d_assembly.cpp
     src/core/cartesian3d_contact.cpp
     src/core/contact_search.cpp
+    src/core/detail/cartesian3d_mechanics.cpp
     src/core/cartesian3d_kernels.cpp
     src/core/cartesian3d_hex20.cpp
     src/core/rz_kernels.cpp

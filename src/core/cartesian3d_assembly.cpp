@@ -113,6 +113,30 @@ std::pair<std::size_t, std::size_t> offset_location(
     const std::size_t group = static_cast<std::size_t>(upper - offsets.begin() - 1);
     return {group, index - offsets[group]};
 }
+
+Quad4FaceBoundaryData make_boundary_data(const BoundaryConditionDefinition& boundary, bool use_displaced_geometry) {
+    if (boundary.type == BoundaryConditionType::pressure)
+        return {Quad4FaceBoundaryKind::pressure, CartesianTractionComponent::x, boundary.value, 0.0,
+            use_displaced_geometry};
+    if (boundary.type == BoundaryConditionType::traction) {
+        CartesianTractionComponent component = CartesianTractionComponent::x;
+        if (boundary.field == Field::displacement_y)
+            component = CartesianTractionComponent::y;
+        else if (boundary.field == Field::displacement_z)
+            component = CartesianTractionComponent::z;
+        else if (boundary.field != Field::displacement_x)
+            throw std::invalid_argument("Three-dimensional traction requires a displacement field");
+        return {Quad4FaceBoundaryKind::traction, component, boundary.value, 0.0, use_displaced_geometry};
+    }
+    return {Quad4FaceBoundaryKind::convection, CartesianTractionComponent::x, boundary.heat_transfer_coefficient,
+        boundary.ambient_temperature};
+}
+
+SpatialContributionType boundary_contribution_type(BoundaryConditionType type) {
+    if (type == BoundaryConditionType::pressure) return SpatialContributionType::pressure;
+    if (type == BoundaryConditionType::traction) return SpatialContributionType::traction;
+    return SpatialContributionType::convection;
+}
 } // namespace
 
 SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const UnstructuredHex8Mesh& source_mesh)
@@ -167,23 +191,8 @@ SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const Unstructure
         if (boundary.type == BoundaryConditionType::pressure || boundary.type == BoundaryConditionType::traction)
             record_configuration_warning(boundary, this->region(region));
         const std::size_t kernel = _boundary_data.size();
-        if (boundary.type == BoundaryConditionType::pressure) {
-            _boundary_data.push_back({Quad4FaceBoundaryKind::pressure, CartesianTractionComponent::x, boundary.value,
-                0.0, boundary_uses_displaced_geometry(boundary, this->region(region))});
-        } else if (boundary.type == BoundaryConditionType::traction) {
-            CartesianTractionComponent component = CartesianTractionComponent::x;
-            if (boundary.field == Field::displacement_y)
-                component = CartesianTractionComponent::y;
-            else if (boundary.field == Field::displacement_z)
-                component = CartesianTractionComponent::z;
-            else if (boundary.field != Field::displacement_x)
-                throw std::invalid_argument("Three-dimensional traction requires a displacement field");
-            _boundary_data.push_back({Quad4FaceBoundaryKind::traction, component, boundary.value, 0.0,
-                boundary_uses_displaced_geometry(boundary, this->region(region))});
-        } else {
-            _boundary_data.push_back({Quad4FaceBoundaryKind::convection, CartesianTractionComponent::x,
-                boundary.heat_transfer_coefficient, boundary.ambient_temperature});
-        }
+        const bool displaced_geometry = boundary_uses_displaced_geometry(boundary, this->region(region));
+        _boundary_data.push_back(make_boundary_data(boundary, displaced_geometry));
         _boundary_definition_indices.push_back(boundary_index);
         for (const Quad4FaceElement& face : mapped.faces) {
             std::array<std::size_t, 4> nodes{};
@@ -192,11 +201,7 @@ SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const Unstructure
             for (std::size_t node = 0; node < 4; ++node)
                 coordinates[node] = _meshes[region].nodes().at(face.nodes[node]);
             _boundary_contributions.push_back(
-                {boundary.type == BoundaryConditionType::pressure
-                        ? SpatialContributionType::pressure
-                        : (boundary.type == BoundaryConditionType::traction ? SpatialContributionType::traction
-                                                                            : SpatialContributionType::convection),
-                    kernel, nodes, make_quad4_face_geometry(coordinates)});
+                {boundary_contribution_type(boundary.type), kernel, nodes, make_quad4_face_geometry(coordinates)});
         }
     }
     spatial_detail::validate_dirichlet_conditions(_dirichlet_conditions,
@@ -268,23 +273,8 @@ SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const Unstructure
         if (boundary.type == BoundaryConditionType::pressure || boundary.type == BoundaryConditionType::traction)
             record_configuration_warning(boundary, this->region(region));
         const std::size_t kernel = _boundary_data.size();
-        if (boundary.type == BoundaryConditionType::pressure) {
-            _boundary_data.push_back({Quad4FaceBoundaryKind::pressure, CartesianTractionComponent::x, boundary.value,
-                0.0, boundary_uses_displaced_geometry(boundary, this->region(region))});
-        } else if (boundary.type == BoundaryConditionType::traction) {
-            CartesianTractionComponent component = CartesianTractionComponent::x;
-            if (boundary.field == Field::displacement_y)
-                component = CartesianTractionComponent::y;
-            else if (boundary.field == Field::displacement_z)
-                component = CartesianTractionComponent::z;
-            else if (boundary.field != Field::displacement_x)
-                throw std::invalid_argument("Three-dimensional traction requires a displacement field");
-            _boundary_data.push_back({Quad4FaceBoundaryKind::traction, component, boundary.value, 0.0,
-                boundary_uses_displaced_geometry(boundary, this->region(region))});
-        } else {
-            _boundary_data.push_back({Quad4FaceBoundaryKind::convection, CartesianTractionComponent::x,
-                boundary.heat_transfer_coefficient, boundary.ambient_temperature});
-        }
+        const bool displaced_geometry = boundary_uses_displaced_geometry(boundary, this->region(region));
+        _boundary_data.push_back(make_boundary_data(boundary, displaced_geometry));
         _boundary_definition_indices.push_back(boundary_index);
         for (const Quad8FaceElement& face : mapped.faces) {
             std::array<std::size_t, 4> temperature_nodes{};
@@ -295,12 +285,8 @@ SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const Unstructure
                 coordinates[node] = _hex20_meshes[region].nodes().at(face.nodes[node]);
                 if (node < 4) temperature_nodes[node] = global_temperature_node(region, face.nodes[node]);
             }
-            _hex20_boundary_contributions.push_back(
-                {boundary.type == BoundaryConditionType::pressure
-                        ? SpatialContributionType::pressure
-                        : (boundary.type == BoundaryConditionType::traction ? SpatialContributionType::traction
-                                                                            : SpatialContributionType::convection),
-                    kernel, temperature_nodes, displacement_nodes, make_quad8_face_geometry(coordinates)});
+            _hex20_boundary_contributions.push_back({boundary_contribution_type(boundary.type), kernel,
+                temperature_nodes, displacement_nodes, make_quad8_face_geometry(coordinates)});
         }
     }
     spatial_detail::validate_dirichlet_conditions(_dirichlet_conditions,

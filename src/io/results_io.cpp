@@ -794,22 +794,9 @@ std::vector<double> cartesian_globals(
     return result;
 }
 
-void store_cartesian_stress_values(std::size_t source, const std::array<SymmetricTensor3Values, 8>& stresses,
+void store_cartesian_stress_values(std::size_t source, const SymmetricTensor3Values* stresses, std::size_t point_count,
     std::vector<std::vector<double>>& values) {
-    for (std::size_t q = 0; q < 8; ++q) {
-        const std::size_t offset = 6 * q;
-        values[offset][source] = stresses[q].xx;
-        values[offset + 1][source] = stresses[q].yy;
-        values[offset + 2][source] = stresses[q].zz;
-        values[offset + 3][source] = stresses[q].xy;
-        values[offset + 4][source] = stresses[q].yz;
-        values[offset + 5][source] = stresses[q].xz;
-    }
-}
-
-void store_cartesian_stress_values(std::size_t source, const std::array<SymmetricTensor3Values, 27>& stresses,
-    std::vector<std::vector<double>>& values) {
-    for (std::size_t q = 0; q < stresses.size(); ++q) {
+    for (std::size_t q = 0; q < point_count; ++q) {
         const std::size_t offset = 6 * q;
         values[offset][source] = stresses[q].xx;
         values[offset + 1][source] = stresses[q].yy;
@@ -835,7 +822,7 @@ std::vector<std::vector<double>> cartesian_elements(const UnstructuredHex8Mesh& 
                 stresses = spatial.stress(region, element, *state);
             else
                 for (std::size_t q = 0; q < 8; ++q) stresses[q] = histories->at(region).at(element)[q].stress;
-            store_cartesian_stress_values(source, stresses, result);
+            store_cartesian_stress_values(source, stresses.data(), stresses.size(), result);
             if (histories == nullptr) continue;
             for (std::size_t q = 0; q < 8; ++q) {
                 const CartesianMaterialPointState& point = (*histories)[region][element][q];
@@ -863,7 +850,7 @@ std::vector<std::vector<double>> cartesian_elements(const UnstructuredHex20Mesh&
             else
                 for (std::size_t q = 0; q < stresses.size(); ++q)
                     stresses[q] = histories->at(region).at(element).at(q).stress;
-            store_cartesian_stress_values(source, stresses, result);
+            store_cartesian_stress_values(source, stresses.data(), stresses.size(), result);
             if (histories == nullptr) continue;
             for (std::size_t q = 0; q < stresses.size(); ++q) {
                 const CartesianMaterialPointState& point = histories->at(region).at(element).at(q);

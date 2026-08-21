@@ -50,7 +50,7 @@ struct Hex20Geometry final {
 
 struct Quad8FaceThermalQuadraturePoint final {
     std::array<double, quad8_face_temperature_node_count> temperature_shape;
-    double weighted_measure, quadrature_weight;
+    double weighted_measure;
 };
 
 struct Quad8FaceMechanicalQuadraturePoint final {

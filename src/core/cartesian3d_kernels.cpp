@@ -1,4 +1,5 @@
 #include "detail/ad_local_system.hpp"
+#include "detail/cartesian3d_mechanics.hpp"
 #include "fuelsim/core/cartesian3d_hex8.hpp"
 #include <adlite/adlite.hpp>
 #include <array>
@@ -12,55 +13,9 @@ constexpr std::array<std::array<double, 3>, 8> hex8_signs = {
     {{{-1.0, -1.0, -1.0}}, {{1.0, -1.0, -1.0}}, {{1.0, 1.0, -1.0}}, {{-1.0, 1.0, -1.0}}, {{-1.0, -1.0, 1.0}},
         {{1.0, -1.0, 1.0}}, {{1.0, 1.0, 1.0}}, {{-1.0, 1.0, 1.0}}}};
 
-double determinant(const std::array<std::array<double, 3>, 3>& matrix) {
-    return matrix[0][0] * (matrix[1][1] * matrix[2][2] - matrix[1][2] * matrix[2][1]) -
-           matrix[0][1] * (matrix[1][0] * matrix[2][2] - matrix[1][2] * matrix[2][0]) +
-           matrix[0][2] * (matrix[1][0] * matrix[2][1] - matrix[1][1] * matrix[2][0]);
-}
-
-std::array<std::array<double, 3>, 3> inverse(
-    const std::array<std::array<double, 3>, 3>& matrix, double determinant_value) {
-    return {{{{(matrix[1][1] * matrix[2][2] - matrix[1][2] * matrix[2][1]) / determinant_value,
-                 (matrix[0][2] * matrix[2][1] - matrix[0][1] * matrix[2][2]) / determinant_value,
-                 (matrix[0][1] * matrix[1][2] - matrix[0][2] * matrix[1][1]) / determinant_value}},
-        {{(matrix[1][2] * matrix[2][0] - matrix[1][0] * matrix[2][2]) / determinant_value,
-            (matrix[0][0] * matrix[2][2] - matrix[0][2] * matrix[2][0]) / determinant_value,
-            (matrix[0][2] * matrix[1][0] - matrix[0][0] * matrix[1][2]) / determinant_value}},
-        {{(matrix[1][0] * matrix[2][1] - matrix[1][1] * matrix[2][0]) / determinant_value,
-            (matrix[0][1] * matrix[2][0] - matrix[0][0] * matrix[2][1]) / determinant_value,
-            (matrix[0][0] * matrix[1][1] - matrix[0][1] * matrix[1][0]) / determinant_value}}}};
-}
-
-using ActiveMatrix3 = std::array<std::array<adlite::Scalar, 3>, 3>;
-
-adlite::Scalar determinant(const ActiveMatrix3& matrix) {
-    return matrix[0][0] * (matrix[1][1] * matrix[2][2] - matrix[1][2] * matrix[2][1]) -
-           matrix[0][1] * (matrix[1][0] * matrix[2][2] - matrix[1][2] * matrix[2][0]) +
-           matrix[0][2] * (matrix[1][0] * matrix[2][1] - matrix[1][1] * matrix[2][0]);
-}
-
-ActiveMatrix3 inverse(const ActiveMatrix3& matrix, const adlite::Scalar& determinant_value) {
-    return {{{{(matrix[1][1] * matrix[2][2] - matrix[1][2] * matrix[2][1]) / determinant_value,
-                 (matrix[0][2] * matrix[2][1] - matrix[0][1] * matrix[2][2]) / determinant_value,
-                 (matrix[0][1] * matrix[1][2] - matrix[0][2] * matrix[1][1]) / determinant_value}},
-        {{(matrix[1][2] * matrix[2][0] - matrix[1][0] * matrix[2][2]) / determinant_value,
-            (matrix[0][0] * matrix[2][2] - matrix[0][2] * matrix[2][0]) / determinant_value,
-            (matrix[0][2] * matrix[1][0] - matrix[0][0] * matrix[1][2]) / determinant_value}},
-        {{(matrix[1][0] * matrix[2][1] - matrix[1][1] * matrix[2][0]) / determinant_value,
-            (matrix[0][1] * matrix[2][0] - matrix[0][0] * matrix[2][1]) / determinant_value,
-            (matrix[0][0] * matrix[1][1] - matrix[0][1] * matrix[1][0]) / determinant_value}}}};
-}
-
-ActiveMatrix3 multiply(const ActiveMatrix3& first, const std::array<std::array<double, 3>, 3>& second) {
-    ActiveMatrix3 result{};
-    for (std::size_t i = 0; i < 3; ++i)
-        for (std::size_t j = 0; j < 3; ++j)
-            for (std::size_t k = 0; k < 3; ++k) result[i][j] += first[i][k] * second[k][j];
-    return result;
-}
-
-ActiveMatrix3 displacement_gradient(const Hex8QuadraturePoint& point, const Hex8LocalAdValues& state) {
-    ActiveMatrix3 result{};
+cartesian_detail::ActiveMatrix3 displacement_gradient(
+    const Hex8QuadraturePoint& point, const Hex8LocalAdValues& state) {
+    cartesian_detail::ActiveMatrix3 result{};
     for (std::size_t component = 0; component < 3; ++component)
         for (std::size_t direction = 0; direction < 3; ++direction)
             for (std::size_t node = 0; node < 8; ++node)
@@ -68,9 +23,8 @@ ActiveMatrix3 displacement_gradient(const Hex8QuadraturePoint& point, const Hex8
     return result;
 }
 
-std::array<std::array<double, 3>, 3> deformation_gradient(
-    const Hex8QuadraturePoint& point, const Hex8LocalValues& state) {
-    std::array<std::array<double, 3>, 3> result{};
+cartesian_detail::Matrix3 deformation_gradient(const Hex8QuadraturePoint& point, const Hex8LocalValues& state) {
+    cartesian_detail::Matrix3 result{};
     for (std::size_t component = 0; component < 3; ++component) {
         result[component][component] = 1.0;
         for (std::size_t direction = 0; direction < 3; ++direction)
@@ -90,11 +44,11 @@ adlite::Scalar interpolate_hex8(
 } // namespace
 
 SymmetricTensor3 rotate_cartesian_tensor(const SymmetricTensor3& tensor, const CartesianRotation& rotation) {
-    const ActiveMatrix3 r = {{{rotation.xx, rotation.xy, rotation.xz}, {rotation.yx, rotation.yy, rotation.yz},
-        {rotation.zx, rotation.zy, rotation.zz}}};
-    const ActiveMatrix3 value = {
+    const cartesian_detail::ActiveMatrix3 r = {{{rotation.xx, rotation.xy, rotation.xz},
+        {rotation.yx, rotation.yy, rotation.yz}, {rotation.zx, rotation.zy, rotation.zz}}};
+    const cartesian_detail::ActiveMatrix3 value = {
         {{tensor.xx, tensor.xy, tensor.xz}, {tensor.xy, tensor.yy, tensor.yz}, {tensor.xz, tensor.yz, tensor.zz}}};
-    ActiveMatrix3 rotated{};
+    cartesian_detail::ActiveMatrix3 rotated{};
     for (std::size_t i = 0; i < 3; ++i)
         for (std::size_t j = 0; j < 3; ++j)
             for (std::size_t k = 0; k < 3; ++k)
@@ -142,102 +96,27 @@ CartesianInelasticStressResponse IsotropicThermoelasticMaterial::incremental_res
 }
 
 void validate_cartesian_deformation(const Hex8QuadraturePoint& point, const Hex8LocalValues& state) {
-    const double value = determinant(deformation_gradient(point, state));
+    const double value = cartesian_detail::determinant(deformation_gradient(point, state));
     if (!std::isfinite(value) || !(value > 0.0))
         throw std::domain_error("Finite-strain HEX8 deformation must preserve a positive Jacobian");
 }
 
 namespace {
-// Kinematics core driven by the displacement gradient H = du/dX. H may carry any ADlite
-// seeding (passive, or independent variables), which lets callers choose the derivative width.
 CartesianKinematics evaluate_cartesian_kinematics_from_gradient(const Hex8QuadraturePoint& point,
-    const ActiveMatrix3& gradient, const Hex8LocalValues& committed_state, StrainFormulation strain_formulation) {
+    const cartesian_detail::ActiveMatrix3& gradient, const Hex8LocalValues& committed_state,
+    StrainFormulation strain_formulation) {
     CartesianKinematics result{};
-    if (strain_formulation == StrainFormulation::small) {
-        result.strain_increment = {gradient[0][0], gradient[1][1], gradient[2][2],
-            0.5 * (gradient[0][1] + gradient[1][0]), 0.5 * (gradient[1][2] + gradient[2][1]),
-            0.5 * (gradient[0][2] + gradient[2][0])};
-        for (std::size_t node = 0; node < 8; ++node)
-            for (std::size_t direction = 0; direction < 3; ++direction)
-                result.current_gradient[node][direction] = point.gradient[node][direction];
-        result.current_weighted_measure = point.weighted_measure;
-        return result;
-    }
-    ActiveMatrix3 current = gradient;
-    for (std::size_t direction = 0; direction < 3; ++direction) current[direction][direction] += 1.0;
-    const adlite::Scalar current_determinant = determinant(current);
-    if (!std::isfinite(current_determinant.value()) || !(current_determinant.value() > 0.0))
-        throw std::domain_error("Finite-strain HEX8 deformation must preserve a positive Jacobian");
-    const ActiveMatrix3 current_inverse = inverse(current, current_determinant);
+    const cartesian_detail::Matrix3 old = deformation_gradient(point, committed_state);
+    const cartesian_detail::KinematicsCore core =
+        cartesian_detail::evaluate_kinematics(gradient, old, strain_formulation);
+    result.strain_increment = core.strain_increment;
+    result.rotation = core.rotation;
+    result.current_weighted_measure = point.weighted_measure * core.current_determinant;
     for (std::size_t node = 0; node < 8; ++node)
         for (std::size_t direction = 0; direction < 3; ++direction)
             for (std::size_t reference = 0; reference < 3; ++reference)
                 result.current_gradient[node][direction] +=
-                    point.gradient[node][reference] * current_inverse[reference][direction];
-    result.current_weighted_measure = point.weighted_measure * current_determinant;
-    const std::array<std::array<double, 3>, 3> old = deformation_gradient(point, committed_state);
-    const double old_determinant = determinant(old);
-    if (!std::isfinite(old_determinant) || !(old_determinant > 0.0))
-        throw std::domain_error("Committed finite-strain HEX8 state requires a positive Jacobian");
-    const ActiveMatrix3 incremental = multiply(current, inverse(old, old_determinant));
-    const adlite::Scalar incremental_determinant = determinant(incremental);
-    if (!std::isfinite(incremental_determinant.value()) || !(incremental_determinant.value() > 0.0))
-        throw std::domain_error("Incremental finite-strain HEX8 state requires a positive Jacobian");
-    const ActiveMatrix3 incremental_inverse = inverse(incremental, incremental_determinant);
-    ActiveMatrix3 cinv_minus_identity{};
-    for (std::size_t i = 0; i < 3; ++i)
-        for (std::size_t j = 0; j < 3; ++j) {
-            for (std::size_t k = 0; k < 3; ++k)
-                cinv_minus_identity[i][j] += incremental_inverse[i][k] * incremental_inverse[j][k];
-            if (i == j) cinv_minus_identity[i][j] -= 1.0;
-        }
-    ActiveMatrix3 strain{};
-    for (std::size_t i = 0; i < 3; ++i)
-        for (std::size_t j = 0; j < 3; ++j) {
-            strain[i][j] = -0.5 * cinv_minus_identity[i][j];
-            for (std::size_t k = 0; k < 3; ++k)
-                strain[i][j] += 0.25 * cinv_minus_identity[i][k] * cinv_minus_identity[k][j];
-        }
-    result.strain_increment = {strain[0][0], strain[1][1], strain[2][2], strain[0][1], strain[1][2], strain[0][2]};
-    const std::array<adlite::Scalar, 3> axial = {incremental_inverse[1][2] - incremental_inverse[2][1],
-        incremental_inverse[2][0] - incremental_inverse[0][2], incremental_inverse[0][1] - incremental_inverse[1][0]};
-    const adlite::Scalar q = 0.25 * (axial[0] * axial[0] + axial[1] * axial[1] + axial[2] * axial[2]);
-    const adlite::Scalar trace_minus_one =
-        incremental_inverse[0][0] + incremental_inverse[1][1] + incremental_inverse[2][2] - 1.0;
-    const adlite::Scalar p = 0.25 * trace_minus_one * trace_minus_one, sum = p + q;
-    if (!std::isfinite(sum.value()) || !(sum.value() > 0.0))
-        throw std::domain_error("MOOSE Taylor finite-strain rotation has invalid three-dimensional p+q");
-    const adlite::Scalar p2 = p * p, p3 = p2 * p, p4 = p3 * p, sum2 = sum * sum, sum3 = sum2 * sum;
-    const adlite::Scalar c1_squared = p + 3.0 * p2 * (1.0 - sum) / sum2 - 2.0 * p3 * (1.0 - sum) / sum3;
-    if (!std::isfinite(c1_squared.value()) || !(c1_squared.value() > 0.0))
-        throw std::domain_error("MOOSE three-dimensional Rashid rotation has nonpositive C1 squared");
-    const adlite::Scalar c1 = adlite::sqrt(c1_squared);
-    adlite::Scalar c2;
-    if (q.value() > 0.01)
-        c2 = (1.0 - c1) / (4.0 * q);
-    else {
-        const adlite::Scalar q2 = q * q, q3 = q2 * q;
-        c2 = 0.125 + q * 0.03125 * (p2 - 12.0 * (p - 1.0)) / p2 + q2 * (p - 2.0) * (p2 - 10.0 * p + 32.0) / p3 +
-             q3 * (1104.0 - 992.0 * p + 376.0 * p2 - 72.0 * p3 + 5.0 * p4) / (512.0 * p4);
-    }
-    const adlite::Scalar c3_test = (p * q * (3.0 - q) + p3 + q * q) / sum3;
-    if (!std::isfinite(c3_test.value()) || !(c3_test.value() > 0.0))
-        throw std::domain_error("MOOSE three-dimensional Rashid rotation has nonpositive C3 test");
-    const adlite::Scalar c3 = 0.5 * adlite::sqrt(c3_test);
-    ActiveMatrix3 rashid{};
-    for (std::size_t i = 0; i < 3; ++i)
-        for (std::size_t j = 0; j < 3; ++j) {
-            rashid[i][j] = c2 * axial[i] * axial[j];
-            if (i == j) rashid[i][j] += c1;
-        }
-    rashid[0][1] += c3 * axial[2];
-    rashid[0][2] -= c3 * axial[1];
-    rashid[1][0] -= c3 * axial[2];
-    rashid[1][2] += c3 * axial[0];
-    rashid[2][0] += c3 * axial[1];
-    rashid[2][1] -= c3 * axial[0];
-    result.rotation = {rashid[0][0], rashid[1][0], rashid[2][0], rashid[0][1], rashid[1][1], rashid[2][1], rashid[0][2],
-        rashid[1][2], rashid[2][2]};
+                    point.gradient[node][reference] * core.current_inverse[reference][direction];
     return result;
 }
 } // namespace
@@ -250,9 +129,7 @@ CartesianKinematics evaluate_cartesian_incremental_kinematics(const Hex8Quadratu
 }
 
 namespace {
-MaterialFunctionContext material_context(double time, const CartesianPoint3& point) {
-    return {time, point.x, point.y, point.z};
-}
+using cartesian_detail::material_context;
 
 void add_hex8_point_residual(const Hex8QuadraturePoint& point, const Hex8LocalAdValues& state,
     const IsotropicThermoelasticMaterial& material, StrainFormulation strain_formulation, double time,
@@ -318,42 +195,6 @@ void add_hex8_point_residual(const Hex8QuadraturePoint& point, const Hex8LocalAd
     }
 }
 
-struct CartesianStressTangent final {
-    SymmetricTensor3Values stress;
-    std::array<std::array<double, 6>, 6> tangent{};
-    std::array<double, 6> thermal{};
-};
-
-// Evaluates the constitutive relation with AD seeded only on the six strain components and
-// the temperature (width 7), returning the stress values, the consistent material tangent
-// d(stress)/d(strain), and the thermal coupling d(stress)/dT.
-CartesianStressTangent evaluate_cartesian_stress_tangent(const IsotropicThermoelasticMaterial& material,
-    const std::array<double, 6>& fed_strain, double temperature, double time_step,
-    const CartesianMaterialPointState* committed_material, MaterialFunctionContext context) {
-    std::array<double, 7> seeds{};
-    for (std::size_t component = 0; component < 6; ++component) seeds[component] = fed_strain[component];
-    seeds[6] = temperature;
-    std::array<adlite::Scalar, 7> active{};
-    adlite::seed_identity(seeds.data(), seeds.size(), active.data());
-    const SymmetricTensor3 strain{active[0], active[1], active[2], active[3], active[4], active[5]};
-    const SymmetricTensor3 stress =
-        committed_material == nullptr
-            ? material.stress(strain, active[6], context)
-            : material.response(strain, active[6], time_step, *committed_material, context).stress;
-    const std::array<const adlite::Scalar*, 6> components = {
-        &stress.xx, &stress.yy, &stress.zz, &stress.xy, &stress.yz, &stress.xz};
-    CartesianStressTangent result{};
-    result.stress = {stress.xx.value(), stress.yy.value(), stress.zz.value(), stress.xy.value(), stress.yz.value(),
-        stress.xz.value()};
-    std::array<double, 7> derivatives{};
-    for (std::size_t row = 0; row < 6; ++row) {
-        components[row]->copy_derivatives(derivatives.data(), derivatives.size());
-        for (std::size_t column = 0; column < 6; ++column) result.tangent[row][column] = derivatives[column];
-        result.thermal[row] = derivatives[6];
-    }
-    return result;
-}
-
 // Assembles one quadrature point's residual and exact 32-by-32 Jacobian with narrow AD. The
 // kinematics chain is seeded on the nine displacement-gradient components plus the point
 // temperature (width 10), while the constitutive evaluation uses width 7 and is reattached
@@ -374,7 +215,7 @@ void add_hex8_point_system(const Hex8QuadraturePoint& point, const Hex8LocalValu
                     point.gradient[node][direction] * state[8 * (component + 1) + node];
     double temperature_value = 0.0;
     for (std::size_t node = 0; node < 8; ++node) temperature_value += point.shape[node] * state[node];
-    ActiveMatrix3 active_gradient{};
+    cartesian_detail::ActiveMatrix3 active_gradient{};
     for (std::size_t component = 0; component < 3; ++component)
         for (std::size_t direction = 0; direction < 3; ++direction)
             active_gradient[component][direction] = adlite::Scalar::independent(
@@ -409,7 +250,7 @@ void add_hex8_point_system(const Hex8QuadraturePoint& point, const Hex8LocalValu
         for (std::size_t component = 0; component < 6; ++component)
             fed_strain[component] = strain_components[component]->value();
     }
-    const CartesianStressTangent tangent = evaluate_cartesian_stress_tangent(
+    const cartesian_detail::CartesianStressTangent tangent = cartesian_detail::evaluate_stress_tangent(
         material, fed_strain, temperature_value, time_step, committed_material, context);
     std::array<adlite::Scalar, 7> compose_inputs{};
     for (std::size_t component = 0; component < 6; ++component)
@@ -574,10 +415,11 @@ Hex8Geometry make_hex8_geometry(const Hex8Coordinates& coordinates) {
                         for (std::size_t natural = 0; natural < 3; ++natural)
                             jacobian[physical][natural] += coordinate[physical] * derivative[node][natural];
                 }
-                const double determinant_value = determinant(jacobian);
+                const double determinant_value = cartesian_detail::determinant(jacobian);
                 if (!std::isfinite(determinant_value) || !(determinant_value > 0.0))
                     throw std::invalid_argument("Hex8Geometry requires a finite positive Jacobian determinant");
-                const std::array<std::array<double, 3>, 3> inverse_jacobian = inverse(jacobian, determinant_value);
+                const cartesian_detail::Matrix3 inverse_jacobian =
+                    cartesian_detail::inverse(jacobian, determinant_value);
                 Hex8QuadraturePoint& point = geometry.points[q++];
                 point.shape = shape;
                 point.position = position;
