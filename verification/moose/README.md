@@ -184,6 +184,52 @@ comparisons are tracked as H20.21 and H20.23 under
 `verification/abaqus/README.md`. They use a separate solver and contact
 implementation.
 
+H20.24 extends the comparison to the 88-node, six-element nonmatching mesh
+with four primary HEX20 faces opposite two secondary HEX20 faces. The tracked
+`h20_24_hex20_nonmatching_contact_mesh.e` is byte-for-byte identical to the
+Abaqus/Fuelsim mesh but is kept in this directory so the MOOSE comparison reads
+its own tracked Exodus artifact. The July/MOOSE input uses second-order
+displacements, native `mortar_penalty` contact, the dual mortar basis, a true
+`frictionless` model, and the same `1e11 Pa/m` penalty and `-10 um` final normal
+displacement. It was generated with:
+
+```bash
+cd /home/cooper/ai_project/fuelsim/verification/moose
+env OMP_NUM_THREADS=1 \
+  /home/cooper/projects/july/july-opt \
+  -i h20_24_hex20_nonmatching_mortar.i \
+  Outputs/console=false
+```
+
+The checked executable used July base revision `72c528e218771135` and MOOSE
+revision `93b11698be3fcd33`; because the July worktree was dirty, the executable SHA256
+`d8bb98a6514fa4624c7bcbd5727e9a161250688785495b4d58cd895635691f21`
+the reproducibility boundary. The one-step solve completed normally. Against
+MOOSE mortar, Fuelsim has `0.332255%` relative L2 displacement error,
+zero relative absolute-peak error, `0.996409%` maximum pointwise displacement
+error, `0.737369%`, `0.190803%`, and `1.16586%` for the corresponding three
+pressure errors, and `0.190999%` normal-resultant error. All 88 normal
+displacements and all 13 secondary contact pressures are compared; the 23
+zero-reference displacement values are reported separately with zero absolute
+difference and no denominator floor.
+
+As an independent consistency check, MOOSE mortar versus Abaqus gives
+`0.279128%`, `0.00000253%`, and `0.854956%` for the three displacement metrics;
+`3.31909%`, `0.374378%`, and `6.49340%` for the three pressure metrics; and
+`0.195317%` for the normal resultant. The pressure comparison retains a
+qualified `7%` pointwise threshold because MOOSE reports a dual-mortar nodal
+pressure while Abaqus reports its recovered nodal `CPRESS`; the displacement
+and resultant thresholds remain `1%` and `0.5%`.
+
+The earlier failed H20.24 attempt used an older July executable. The rebuilt
+binary no longer exceeds the automatic-differentiation derivative container.
+A separate isolation run also showed that the old H20.19 workaround of choosing
+Coulomb mortar with an exactly zero friction coefficient is unsuitable for this
+multi-increment mesh: it produced `2.79502%` relative L2 and `14.7435%` maximum
+pointwise displacement errors. True frictionless mortar gives the same final
+field with one or ten load increments, so the tracked H20.24 input does not use
+that workaround.
+
 ## Native axisymmetric shared-node material interface
 
 `rz_shared_meat_clad_mesh.i` creates two adjacent axisymmetric Quad4 blocks

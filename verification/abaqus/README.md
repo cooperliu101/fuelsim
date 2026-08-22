@@ -99,8 +99,9 @@ normal resultant retains a `0.5%` threshold. The 23 primary fixed-face normal
 displacements are exact zero-reference points and are reported separately;
 no denominator floor is used.
 
-The local MOOSE build was also tried for this exact mesh. Its quadratic mortar
-path exceeded the configured automatic-differentiation derivative container,
-and its traditional node-face path repeatedly reduced the time step instead
-of completing the load. No incomplete MOOSE output is tracked or used for
-acceptance.
+The rebuilt July/MOOSE executable now completes native quadratic
+`mortar_penalty` contact on this exact mesh. Fuelsim and MOOSE mortar agree
+within `0.996409%` for all three normal-displacement metrics, `1.16586%` for all
+three recovered-pressure metrics, and `0.190999%` for the normal resultant.
+The independently useful MOOSE-to-Abaqus errors and the executable hash are
+recorded with the tracked input and snapshots in `verification/moose/README.md`.
