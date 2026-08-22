@@ -123,6 +123,62 @@ does not multiply a possibly negative lumped nodal area into a node-to-face
 penalty, so this result also does not make signed node-to-face penalty scaling
 safe.
 
+H20.22 directly switches the traditional node-to-face contact setting to
+`normalize_penalty = false` while retaining the numerical value `penalty =
+1e13`. This is deliberately a switch-isolation diagnostic, not a
+matched-physics comparison: MOOSE now interprets `1e13` as the stiffness of
+each nodal spring in `N/m`, whereas the normalized case multiplies the same
+number by the nodal area and therefore interprets it as a surface penalty
+density in `Pa/m`. The reference was generated with:
+
+```bash
+/home/cooper/projects/july/july-opt \
+  -i h20_22_hex20_unnormalized_mechanical.i
+```
+
+The requested one-step solve needed automatic time-step reductions and reached
+unit load in nine accepted steps. At the final state, the four corner nodes
+have opened by about `5.05 um`; only the four edge-midpoint nodes remain active.
+Against this deliberately over-stiff equal-nodal-spring reference, Fuelsim
+positive lumping has `0.377897%` relative L2 normal-displacement error,
+`1.15839%` maximum pointwise-relative error, and `0.555270%` normal-resultant
+error. Consistent-shape integration has `11.2607%`, `41.8221%`, and `7.79436%`,
+respectively. This ranking reversal records the changed stiffness and active
+set; it is not evidence that positive lumping is a closer discretization of
+the original surface penalty problem.
+
+An additional non-tracked diagnostic used `penalty = 1.25e8 N/m`, obtained from
+`1e13 Pa/m * 1e-4 m^2 / 8`, so that a uniform gap has the same aggregate spring
+stiffness as the normalized case. It can be reproduced without changing the
+tracked input:
+
+```bash
+/home/cooper/projects/july/july-opt \
+  -i h20_22_hex20_unnormalized_mechanical.i \
+  Contact/interface/penalty=1.25e8 \
+  Outputs/file_base=/tmp/h20_23_hex20_unnormalized_equal_total
+```
+
+All eight nodes remain active in that result. The Fuelsim consistent-shape
+comparison then has `0.482600%` relative L2 displacement error, `0.973760%`
+maximum pointwise-relative error, and `1.33235%` resultant error; positive
+lumping has `10.5663%`, `27.9778%`, and `6.51674%`, respectively. Equal total
+stiffness still does not make the eight equal nodal springs algebraically
+identical to either area rule, but it removes the largest scale mismatch and
+restores the same ranking obtained from MOOSE mortar and Abaqus surface
+contact.
+
+With normalization enabled, the traditional MOOSE constraint uses the signed
+consistent Quad8 nodal area as a multiplier. The four negative corner entries
+therefore make the nodal contact contribution indefinite: a corner-only gap
+mode has negative penalty energy. The existing small patch nevertheless
+converges because its prescribed loading primarily excites a smooth face mode,
+the sum of all eight signed areas is the positive face area, the structural
+stiffness supplies additional coupling, and the configured direct LU solver
+does not require a positive-definite Jacobian. Convergence on this patch is not
+a general stability guarantee for distorted faces, nonsmooth gaps, friction,
+or iterative linear solvers.
+
 The independent Abaqus/Standard C3D20 surface-to-surface comparison is tracked
 as H20.21 under `verification/abaqus/README.md`. It gives the same ordering as
 MOOSE mortar while using a separate solver and contact implementation.

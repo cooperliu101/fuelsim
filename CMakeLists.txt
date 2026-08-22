@@ -709,7 +709,10 @@ if(BUILD_TESTING)
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_19_hex20_mortar_mechanical_displacement_nodes_0001.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_19_hex20_mortar_mechanical.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_21_hex20_surface_contact_displacement.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_21_hex20_surface_contact_reaction.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_21_hex20_surface_contact_reaction.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_22_hex20_unnormalized_mechanical_displacement_nodes_0009.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_22_hex20_unnormalized_mechanical_secondary_contact_0009.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_22_hex20_unnormalized_mechanical.csv")
     set_tests_properties(fuelsim_h20_hex20_contact_reference_tests
         PROPERTIES LABELS "acceptance;three-dimensional;hex20;contact;friction")
 

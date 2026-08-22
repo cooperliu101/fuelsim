@@ -31,6 +31,7 @@ struct ContactReference final {
     std::size_t id;
     fuelsim::CartesianPoint3 point;
     double pressure;
+    double nodal_area;
 };
 
 struct ReactionReference final {
@@ -113,7 +114,8 @@ std::vector<ContactReference> read_contact(const std::string& path) {
         if (line.empty()) continue;
         const auto values = split_csv(line);
         result.push_back({static_cast<std::size_t>(number(values, 1, path)),
-            {number(values, 4, path), number(values, 5, path), number(values, 6, path)}, number(values, 0, path)});
+            {number(values, 4, path), number(values, 5, path), number(values, 6, path)}, number(values, 0, path),
+            number(values, 2, path)});
     }
     return result;
 }
@@ -509,14 +511,57 @@ bool run_abaqus_area_comparison(
                "H20.21 distinguishes the positive-lumped response from the Abaqus reference") &&
            positive.passed && consistent.passed;
 }
+
+bool run_unnormalized_area_comparison(const std::string& case_path, const std::string& displacement_path,
+    const std::string& contact_path, const std::string& reaction_path) {
+    const fuelsim::FuelSimCaseDefinition definition = fuelsim::read_case_input(case_path);
+    if (definition.problem != fuelsim::CaseProblem::steady ||
+        definition.geometry != fuelsim::CaseGeometry::cartesian_3d || definition.spatial.contacts.size() != 1 ||
+        definition.spatial.contacts[0].thermal || !definition.spatial.contacts[0].mechanical ||
+        definition.spatial.contacts[0].friction_coefficient != 0.0 ||
+        definition.spatial.contacts[0].quad8_nodal_area_rule != fuelsim::Quad8NodalAreaRule::positive_lumped)
+        throw std::invalid_argument("H20.22 requires isolated pure-normal HEX20 mechanical contact");
+    const fuelsim::UnstructuredHex20Mesh mesh = fuelsim::read_exodus_hex20(definition.mesh_file);
+    const auto displacement = read_displacement(displacement_path);
+    const auto contact = read_contact(contact_path);
+    const ReactionReference reaction = read_reaction(reaction_path);
+    std::size_t active_nodes = 0;
+    std::size_t positive_area_nodes = 0;
+    std::size_t negative_area_nodes = 0;
+    for (const ContactReference& node : contact) {
+        if (node.pressure > 0.0) ++active_nodes;
+        if (node.nodal_area > 0.0)
+            ++positive_area_nodes;
+        else if (node.nodal_area < 0.0)
+            ++negative_area_nodes;
+    }
+    const AreaRuleResult positive = run_area_rule(definition, mesh, displacement, reaction,
+        fuelsim::Quad8NodalAreaRule::positive_lumped, 0.0, "h20_22_positive_lumped");
+    const AreaRuleResult consistent = run_area_rule(definition, mesh, displacement, reaction,
+        fuelsim::Quad8NodalAreaRule::consistent_shape, 0.0, "h20_22_consistent_shape");
+    std::cout << "h20_22_moose_active_contact_nodes=" << active_nodes << '\n'
+              << "h20_22_moose_positive_area_nodes=" << positive_area_nodes << '\n'
+              << "h20_22_moose_negative_area_nodes=" << negative_area_nodes << '\n';
+    return check(contact.size() == 8 && active_nodes == 4,
+               "H20.22 unnormalized MOOSE contact leaves only the four edge-midpoint nodes active") &&
+           check(positive_area_nodes == 4 && negative_area_nodes == 4,
+               "H20.22 MOOSE diagnostics retain the signed consistent Quad8 nodal areas") &&
+           check(positive.displacement_x.relative_l2() < consistent.displacement_x.relative_l2() &&
+                     positive.displacement_x.maximum_pointwise_relative <
+                         consistent.displacement_x.maximum_pointwise_relative &&
+                     positive.normal_force_relative_error < consistent.normal_force_relative_error,
+               "H20.22 unnormalized MOOSE response ranks positive lumping closer than consistent-shape integration") &&
+           positive.passed && consistent.passed;
+}
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 13) {
+    if (argc != 16) {
         std::cerr << "Usage: fuelsim_h20_hex20_contact_reference_tests <thermal.fsi> <temperature.csv> "
                      "<mechanical.fsi> <displacement.csv> <contact.csv> <sliding.fsi> <reaction.csv> "
                      "<mortar.fsi> <mortar_displacement.csv> <mortar_reaction.csv> "
-                     "<abaqus_displacement.csv> <abaqus_reaction.csv>\n";
+                     "<abaqus_displacement.csv> <abaqus_reaction.csv> "
+                     "<unnormalized_displacement.csv> <unnormalized_contact.csv> <unnormalized_reaction.csv>\n";
         return 2;
     }
     try {
@@ -524,7 +569,8 @@ int main(int argc, char** argv) {
         fuelsim::PetscSession session(argc, argv, "fuelsim HEX20 contact external-reference comparisons\n");
         const bool passed = run_thermal(argv[1], argv[2]) && run_mechanical(argv[3], argv[4], argv[5]) &&
                             run_sliding(argv[6], argv[7]) && run_mortar_area_comparison(argv[8], argv[9], argv[10]) &&
-                            run_abaqus_area_comparison(argv[8], argv[11], argv[12]);
+                            run_abaqus_area_comparison(argv[8], argv[11], argv[12]) &&
+                            run_unnormalized_area_comparison(argv[8], argv[13], argv[14], argv[15]);
         if (passed && session.rank() == 0) std::cout << "[PASS] HEX20 contact external-reference comparisons\n";
         return passed ? 0 : 1;
     } catch (const std::exception& error) {
