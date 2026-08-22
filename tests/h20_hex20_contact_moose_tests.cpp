@@ -136,6 +136,41 @@ fuelsim::SolverOptions solver_options(const fuelsim::FuelSimCaseDefinition& defi
     return options;
 }
 
+bool run_positive_lumped_path(const fuelsim::FuelSimCaseDefinition& comparison_definition,
+    const fuelsim::UnstructuredHex20Mesh& mesh, std::size_t expected_steps, const std::string& label) {
+    fuelsim::FuelSimCaseDefinition definition = comparison_definition;
+    definition.spatial.contacts[0].quad8_nodal_area_rule = fuelsim::Quad8NodalAreaRule::positive_lumped;
+    fuelsim::SteadyProblem problem(definition.spatial, mesh);
+    const fuelsim::SteadyResult solve =
+        fuelsim::solve_steady(problem, definition.steady_execution, solver_options(definition));
+    const auto contact = fuelsim::cartesian::ProblemAccess::summarize_contact_nodes(problem, 0, solve.solve.state);
+    const fuelsim::InterfaceSummary interface =
+        fuelsim::cartesian::ProblemAccess::summarize_interface(problem, 0, solve.solve.state);
+    std::size_t active = 0, sliding = 0, positive_areas = 0;
+    double area_sum = 0.0;
+    for (const auto& node : contact) {
+        if (node.tributary_area > 0.0) ++positive_areas;
+        area_sum += node.tributary_area;
+        if (!(node.pressure > 0.0)) continue;
+        ++active;
+        if (node.sliding) ++sliding;
+    }
+    bool passed = check(solve.completed && solve.solve.converged && solve.completed_steps == expected_steps,
+                      label + " positive-lumped path completes its load steps") &&
+                  check(contact.size() == 8 && positive_areas == 8 && area_sum > 0.0,
+                      label + " positive-lumped path keeps all eight nodal areas positive") &&
+                  check(active > 0 && interface.active_contact_nodes == active && interface.total_contact_force > 0.0,
+                      label + " positive-lumped path activates projected contact nodes");
+    if (definition.spatial.contacts[0].friction_coefficient > 0.0)
+        passed = check(sliding > 0 && interface.total_tangential_force > 0.0,
+                     label + " positive-lumped path enters Coulomb sliding") &&
+                 passed;
+    std::cout << label << "_positive_lumped_area_sum=" << area_sum << '\n'
+              << label << "_positive_lumped_active_contact_nodes=" << active << '\n'
+              << label << "_positive_lumped_sliding_contact_nodes=" << sliding << '\n';
+    return passed;
+}
+
 double coordinate_difference(const fuelsim::CartesianPoint3& actual, const fuelsim::CartesianPoint3& expected) {
     return std::max(
         {std::abs(actual.x - expected.x), std::abs(actual.y - expected.y), std::abs(actual.z - expected.z)});
@@ -197,7 +232,8 @@ bool run_mechanical(
     if (definition.problem != fuelsim::CaseProblem::steady ||
         definition.geometry != fuelsim::CaseGeometry::cartesian_3d || definition.spatial.contacts.size() != 1 ||
         definition.spatial.contacts[0].thermal || !definition.spatial.contacts[0].mechanical ||
-        definition.spatial.contacts[0].friction_coefficient != 0.0)
+        definition.spatial.contacts[0].friction_coefficient != 0.0 ||
+        definition.spatial.contacts[0].quad8_nodal_area_rule != fuelsim::Quad8NodalAreaRule::consistent_shape)
         throw std::invalid_argument("H20.17 requires isolated frictionless HEX20 mechanical contact");
     const fuelsim::UnstructuredHex20Mesh mesh = fuelsim::read_exodus_hex20(definition.mesh_file);
     fuelsim::SteadyProblem problem(definition.spatial, mesh);
@@ -278,7 +314,7 @@ bool run_mechanical(
               << "h20_17_sliding_contact_nodes=" << sliding << '\n'
               << "h20_17_total_contact_force=" << interface.total_contact_force << '\n'
               << "h20_17_total_tangential_force=" << interface.total_tangential_force << '\n';
-    return passed;
+    return run_positive_lumped_path(definition, mesh, 10, "h20_17") && passed;
 }
 
 bool run_sliding(const std::string& case_path, const std::string& reaction_path) {
@@ -286,7 +322,8 @@ bool run_sliding(const std::string& case_path, const std::string& reaction_path)
     if (definition.problem != fuelsim::CaseProblem::steady ||
         definition.geometry != fuelsim::CaseGeometry::cartesian_3d || definition.spatial.contacts.size() != 1 ||
         definition.spatial.contacts[0].thermal || !definition.spatial.contacts[0].mechanical ||
-        definition.spatial.contacts[0].friction_coefficient != 0.001)
+        definition.spatial.contacts[0].friction_coefficient != 0.001 ||
+        definition.spatial.contacts[0].quad8_nodal_area_rule != fuelsim::Quad8NodalAreaRule::consistent_shape)
         throw std::invalid_argument("H20.18 requires isolated HEX20 Coulomb sliding contact");
     const fuelsim::UnstructuredHex20Mesh mesh = fuelsim::read_exodus_hex20(definition.mesh_file);
     fuelsim::SteadyProblem problem(definition.spatial, mesh);
@@ -326,7 +363,7 @@ bool run_sliding(const std::string& case_path, const std::string& reaction_path)
               << "h20_18_reference_tangential_resultant=" << reference.tangential_force << '\n'
               << "h20_18_normal_resultant_relative_error=" << normal_error << '\n'
               << "h20_18_tangential_resultant_relative_error=" << tangential_error << '\n';
-    return passed;
+    return run_positive_lumped_path(definition, mesh, 1, "h20_18") && passed;
 }
 } // namespace
 

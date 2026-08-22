@@ -217,6 +217,7 @@ traction 的构形选择规则见下文。区域发生非正 Jacobian、非正�
       penetration_tolerance = 1e-9
       maximum_augmented_iterations = 50
       mu = 0.3
+      quad8_nodal_area_rule = positive_lumped
     []
   []
 []
@@ -232,6 +233,22 @@ traction 的构形选择规则见下文。区域发生非正 Jacobian、非正�
 k_interface = 1 / (h_primary / E_primary + h_secondary / E_secondary)
 penalty = penalty_factor * k_interface
 ```
+
+`quad8_nodal_area_rule` 只改变 HEX20 八节点二次接触面的 secondary 节点面积。
+默认值 `positive_lumped` 先计算每个节点的平方形函数积分，再按当前面面积归一化：
+
+```text
+raw_area_i = integral(N_i * N_i dA)
+nodal_area_i = face_area * raw_area_i / sum(raw_area)
+```
+
+因此每个节点面积严格为正，并且八个节点面积之和等于当前接触面面积。对于平直、
+规则的单位 QUAD8 面，四个角点面积各为 `3/76`，四个边中点面积各为 `4/19`。
+可显式选择 `consistent_shape`，保留原来的 `integral(N_i dA)` 有符号面积，仅用于
+与 MOOSE 的传统 node-face `MechanicalContactConstraint` 且
+`normalize_penalty = true` 的结果对比。该旧规则在规则 QUAD8 面的角点面积为
+`-1/12`、边中点面积为 `1/3`，所以角点不具有正的 Coulomb 摩擦容量。
+`consistent_shape` 只允许用于 HEX20；二维 RZ 和 HEX8 接触会在问题构造时拒绝它。
 
 `penalty_factor` 是无量纲可选值，默认 `1`，必须有限且大于零。显式 `penalty`
 和 `penalty_factor` 互斥，不能同时出现。自动选择只是网格与材料一致的起点；
@@ -275,9 +292,9 @@ secondary 面的 2×2 四个积分点上计算；HEX20 温度仍只使用四个�
 状态。热流、法向力和三维切向力均向两侧装配严格相反的贡献。三维 Coulomb 摩擦
 保存全局三分量切向弹性滑移向量，因此可以表示接触面的两个独立切向方向。当前
 三维机械接触只接受 `formulation = penalty`；选择 `augmented_lagrangian` 会在
-问题构造时明确报错。HEX20 的节点反力使用与 MOOSE 一致的二次面一致节点面积，
-角点面积为负、边中点面积为正；负面积角点传递法向接触力但不提供 Coulomb
-摩擦容量，摩擦合力由正面积边中点承担。
+问题构造时明确报错。HEX20 的节点反力默认使用上述正集总面积，使角点与边中点
+都具有正的法向和 Coulomb 摩擦容量；`consistent_shape` 只保留为显式的 MOOSE
+旧规则对比路径。
 
 接触两侧允许零初始间隙：参考构形中 secondary 节点可以恰好骑在 primary
 线段上（例如初始贴合的芯块—包壳），构造不再要求处处为正的参考间隙。

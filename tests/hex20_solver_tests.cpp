@@ -173,10 +173,16 @@ bool test_contact_projection(const fuelsim::UnstructuredHex20Mesh& mesh) {
     const auto summary =
         fuelsim::cartesian::ProblemAccess::summarize_contact_nodes(problem, 0, problem.initial_state());
     bool passed = check(summary.size() == 8, "HEX20 contact exposes all eight quadratic secondary face nodes");
-    for (const auto& node : summary)
-        passed = check(node.projected && std::abs(node.tributary_area) > 0.0 && std::abs(node.gap) < 1.0e-10,
-                     "HEX20 Q8 mechanical contact projects every secondary node with nonzero consistent area") &&
+    double area_sum = 0.0;
+    for (const auto& node : summary) {
+        passed = check(node.projected && node.tributary_area > 0.0 && std::abs(node.gap) < 1.0e-10,
+                     "HEX20 Q8 mechanical contact projects every secondary node with positive-lumped area") &&
                  passed;
+        area_sum += node.tributary_area;
+    }
+    passed =
+        check(std::abs(area_sum - 1.0) < 1.0e-12, "HEX20 positive-lumped nodal areas sum to the secondary face area") &&
+        passed;
     const auto interface = fuelsim::cartesian::ProblemAccess::summarize_interface(problem, 0, problem.initial_state());
     passed = check(interface.projected_contact_nodes == 8 && interface.unprojected_contact_nodes == 0,
                  "HEX20 contact validation preserves unique primary projection") &&

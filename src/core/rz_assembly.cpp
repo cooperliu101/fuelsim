@@ -1366,6 +1366,10 @@ void SpatialAssembly::build_contacts(const UnstructuredQuad4Mesh& source_mesh) {
     for (std::size_t contact_value = 0; contact_value < _definition.contacts.size(); ++contact_value) {
         std::size_t thermal_point_count = 0;
         ContactDefinition& contact_definition = _definition.contacts[contact_value];
+        if (contact_definition.quad8_nodal_area_rule != Quad8NodalAreaRule::positive_lumped)
+            throw std::invalid_argument(
+                "quad8_nodal_area_rule = consistent_shape is supported only for HEX20 contact comparisons: " +
+                contact_definition.name);
         ResolvedBoundary primary = resolve_boundary(source_mesh, contact_definition.primary);
         ResolvedBoundary secondary = resolve_boundary(source_mesh, contact_definition.secondary);
         if (primary.region == secondary.region)

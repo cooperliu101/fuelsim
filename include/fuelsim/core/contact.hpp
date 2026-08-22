@@ -1,4 +1,5 @@
 #pragma once
+#include "fuelsim/core/contact_area_rule.hpp"
 #include "fuelsim/core/mesh.hpp"
 #include "fuelsim/core/rz_quad4.hpp"
 #include <array>
@@ -171,6 +172,7 @@ struct NodeToQuad8ContactGeometry final {
     std::array<double, quad8_surface_contact_quadrature_point_count> secondary_quadrature_weights;
     std::size_t secondary_local_node;
     double normal_orientation;
+    Quad8NodalAreaRule nodal_area_rule = Quad8NodalAreaRule::positive_lumped;
 };
 
 Quad8SurfaceContactLocalResidual compute_quad8_to_quad8_gap_heat(const GapHeatProperties& properties,

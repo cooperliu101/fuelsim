@@ -452,8 +452,8 @@ ContactDefinition read_contact(const InputDocument& document, const InputSection
     }
     if (mechanical != nullptr) {
         validate_keys(document, *mechanical,
-            {"formulation", "penalty", "penalty_factor", "mu", "penetration_tolerance",
-                "maximum_augmented_iterations"});
+            {"formulation", "penalty", "penalty_factor", "mu", "penetration_tolerance", "maximum_augmented_iterations",
+                "quad8_nodal_area_rule"});
         const std::string formulation = read_string(document, *mechanical, "formulation");
         if (formulation == "penalty")
             result.mechanical_formulation = MechanicalContactFormulation::penalty;
@@ -470,6 +470,14 @@ ContactDefinition read_contact(const InputDocument& document, const InputSection
         result.penalty = penalty == nullptr ? 0.0 : parse_double(document, *penalty);
         result.penalty_factor = penalty_factor == nullptr ? 1.0 : parse_double(document, *penalty_factor);
         result.friction_coefficient = read_optional_double(document, *mechanical, "mu", 0.0);
+        const std::string area_rule = read_optional_string(*mechanical, "quad8_nodal_area_rule", "positive_lumped");
+        if (area_rule == "positive_lumped")
+            result.quad8_nodal_area_rule = Quad8NodalAreaRule::positive_lumped;
+        else if (area_rule == "consistent_shape")
+            result.quad8_nodal_area_rule = Quad8NodalAreaRule::consistent_shape;
+        else
+            value_error(document, required_entry(document, *mechanical, "quad8_nodal_area_rule"),
+                "quad8_nodal_area_rule must be 'positive_lumped' or 'consistent_shape'");
         const InputEntry* penetration_tolerance = find_entry(*mechanical, "penetration_tolerance");
         const InputEntry* maximum_augmented_iterations = find_entry(*mechanical, "maximum_augmented_iterations");
         if (result.mechanical_formulation == MechanicalContactFormulation::penalty) {

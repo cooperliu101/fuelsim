@@ -231,16 +231,22 @@ CartesianContactAdValue8 evaluate_mechanical(const NormalContactProperties& prop
         const std::array<adlite::Scalar, 8> shape = active_values(geometry.secondary_shapes[q]);
         face_measure += geometry.secondary_quadrature_weights[q] * measure;
         for (std::size_t node = 0; node < 8; ++node)
-            raw[node] += geometry.secondary_quadrature_weights[q] * measure * shape[node];
+            raw[node] += geometry.secondary_quadrature_weights[q] * measure *
+                         (geometry.nodal_area_rule == Quad8NodalAreaRule::positive_lumped ? shape[node] * shape[node]
+                                                                                          : shape[node]);
     }
     for (const adlite::Scalar& value : raw) raw_sum += value;
     if (!std::isfinite(face_measure.value()) || !(face_measure.value() > 0.0) || !std::isfinite(raw_sum.value()) ||
         !(raw_sum.value() > 0.0))
         throw std::domain_error("HEX20 contact Q8 face measure is nonpositive");
+    if (geometry.nodal_area_rule == Quad8NodalAreaRule::positive_lumped &&
+        (!std::isfinite(raw[geometry.secondary_local_node].value()) ||
+            !(raw[geometry.secondary_local_node].value() > 0.0)))
+        throw std::domain_error("HEX20 contact positive-lumped Q8 nodal area is nonpositive");
     result.tributary_area = face_measure * raw[geometry.secondary_local_node] / raw_sum;
     result.contact_force = result.pressure * result.tributary_area;
     if (properties.friction_coefficient == 0.0 || !(result.pressure.value() > 0.0) ||
-        !(result.tributary_area.value() > 0.0))
+        (geometry.nodal_area_rule == Quad8NodalAreaRule::consistent_shape && !(result.tributary_area.value() > 0.0)))
         return result;
     ActivePoint3 relative_increment{};
     for (std::size_t component = 0; component < 3; ++component) {

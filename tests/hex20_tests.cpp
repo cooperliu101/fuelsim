@@ -288,24 +288,44 @@ bool test_hex20_contact_kernels() {
     }
     const auto mechanical_value =
         fuelsim::compute_node_to_quad8_contact_value(mechanical_properties, mechanical_geometry, state, committed, {});
+    std::array<double, 8> positive_areas{};
+    for (std::size_t node = 0; node < positive_areas.size(); ++node) {
+        auto node_geometry = mechanical_geometry;
+        node_geometry.secondary_local_node = node;
+        positive_areas[node] =
+            fuelsim::compute_node_to_quad8_contact_value(mechanical_properties, node_geometry, state, committed, {})
+                .tributary_area;
+    }
+    double positive_area_sum = 0.0;
+    for (const double area : positive_areas) positive_area_sum += area;
+    auto consistent_geometry = mechanical_geometry;
+    consistent_geometry.nodal_area_rule = fuelsim::Quad8NodalAreaRule::consistent_shape;
+    const auto consistent_corner =
+        fuelsim::compute_node_to_quad8_contact_value(mechanical_properties, consistent_geometry, state, committed, {});
+    consistent_geometry.secondary_local_node = 4;
+    const auto consistent_midpoint =
+        fuelsim::compute_node_to_quad8_contact_value(mechanical_properties, consistent_geometry, state, committed, {});
     passed = check(mechanical_value.projected && mechanical_value.pressure > 0.0 &&
-                       std::abs(mechanical_value.tributary_area) > 0.0,
-                 "HEX20 Q8 mechanical contact detects penetration with a nonzero consistent nodal area") &&
+                       near(mechanical_value.tributary_area, 3.0 / 76.0, 1.0e-13),
+                 "HEX20 Q8 mechanical contact uses the exact positive-lumped corner area") &&
+             check(near(positive_areas[4], 4.0 / 19.0, 1.0e-13) && near(positive_area_sum, 1.0, 1.0e-13),
+                 "HEX20 positive-lumped edge areas are exact and sum to the current face area") &&
+             check(near(consistent_corner.tributary_area, -1.0 / 12.0, 1.0e-13) &&
+                       near(consistent_midpoint.tributary_area, 1.0 / 3.0, 1.0e-13),
+                 "HEX20 retains the signed consistent-shape area rule for explicit comparisons") &&
              check(std::abs(force_balance_x) < 1.0e-12 && std::abs(force_balance_y) < 1.0e-12 &&
                        std::abs(force_balance_z) < 1.0e-12,
                  "HEX20 Q8 mechanical contact residual is action-reaction conservative") &&
              passed;
     fuelsim::NormalContactProperties friction_properties{1.0e5, 0.2, false};
-    auto friction_geometry = mechanical_geometry;
-    friction_geometry.secondary_local_node = 4;
     auto sliding_state = state;
-    sliding_state[28] = 0.01;
+    sliding_state[24] = 0.01;
     const auto sliding_value = fuelsim::compute_node_to_quad8_contact_value(
-        friction_properties, friction_geometry, sliding_state, committed, {});
+        friction_properties, mechanical_geometry, sliding_state, committed, {});
     passed = check(sliding_value.sliding &&
                        sliding_value.tangential_traction <=
                            friction_properties.friction_coefficient * sliding_value.pressure * (1.0 + 1.0e-12),
-                 "HEX20 Coulomb contact enters sliding with a bounded tangential traction") &&
+                 "HEX20 positive-lumped corner contact enters sliding with a bounded tangential traction") &&
              passed;
     double jacobian_error = 0.0, jacobian_scale = 0.0;
     constexpr double step = 1.0e-7;

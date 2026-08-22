@@ -68,6 +68,26 @@ void hash_time_tables(std::uint64_t& hash, const SpatialDefinition& definition) 
         }
     }
 }
+
+void hash_contacts(std::uint64_t& hash, const SpatialDefinition& definition) {
+    for (const ContactDefinition& contact : definition.contacts) {
+        hash_string(hash, contact.name);
+        hash_string(hash, contact.primary);
+        hash_string(hash, contact.secondary);
+        hash_integer(hash, contact.thermal ? 1 : 0);
+        hash_integer(hash, contact.mechanical ? 1 : 0);
+        hash_double(hash, contact.gap_conductivity);
+        hash_double(hash, contact.minimum_gap);
+        hash_double(hash, contact.penalty);
+        hash_double(hash, contact.friction_coefficient);
+        hash_integer(hash, contact.automatic_penalty ? 1 : 0);
+        hash_double(hash, contact.penalty_factor);
+        hash_integer(hash, static_cast<std::int64_t>(contact.mechanical_formulation));
+        hash_integer(hash, static_cast<std::int64_t>(contact.quad8_nodal_area_rule));
+        hash_double(hash, contact.penetration_tolerance);
+        hash_size(hash, contact.maximum_augmented_iterations);
+    }
+}
 } // namespace
 
 std::uint64_t transient_problem_signature(const TransientProblem& problem) {
@@ -112,6 +132,7 @@ std::uint64_t transient_problem_signature(const TransientProblem& problem) {
             for (const Hex8Element& element : mesh.elements())
                 for (const std::size_t node : element.nodes) hash_size(hash, node);
         }
+        hash_contacts(hash, definition);
         hash_boundaries(hash, definition, false);
         hash_time_tables(hash, definition);
         return hash;
@@ -132,22 +153,7 @@ std::uint64_t transient_problem_signature(const TransientProblem& problem) {
         for (const Quad4Element& element : mesh.elements())
             for (const std::size_t node : element.nodes) hash_size(hash, node);
     }
-    for (const ContactDefinition& contact : definition.contacts) {
-        hash_string(hash, contact.name);
-        hash_string(hash, contact.primary);
-        hash_string(hash, contact.secondary);
-        hash_integer(hash, contact.thermal ? 1 : 0);
-        hash_integer(hash, contact.mechanical ? 1 : 0);
-        hash_double(hash, contact.gap_conductivity);
-        hash_double(hash, contact.minimum_gap);
-        hash_double(hash, contact.penalty);
-        hash_double(hash, contact.friction_coefficient);
-        hash_integer(hash, contact.automatic_penalty ? 1 : 0);
-        hash_double(hash, contact.penalty_factor);
-        hash_integer(hash, static_cast<std::int64_t>(contact.mechanical_formulation));
-        hash_double(hash, contact.penetration_tolerance);
-        hash_size(hash, contact.maximum_augmented_iterations);
-    }
+    hash_contacts(hash, definition);
     hash_boundaries(hash, definition, true);
     hash_time_tables(hash, definition);
     return hash;

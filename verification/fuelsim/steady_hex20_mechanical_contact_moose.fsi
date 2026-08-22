@@ -63,6 +63,7 @@
       formulation = penalty
       penalty = 1e13
       mu = 0
+      quad8_nodal_area_rule = consistent_shape
     []
   []
 []

@@ -81,12 +81,19 @@ tangential reaction resultants after Coulomb sliding.
 
 MOOSE uses a consistent quadratic nodal-area rule on the eight-node contact
 face. Its corner areas are negative and its edge-midpoint areas are positive.
-Fuelsim therefore preserves those signed areas for normal contact and applies
-Coulomb capacity only at positive-area nodes. Thermal, frictionless mechanical,
-and sliding references are separate because the configured July/MOOSE build
-crashes when second-order node-to-face mechanical contact and quadrature gap
-heat transfer are active in one problem. The three references still share the
-same tracked mesh and independently exercise every implemented contact equation.
+Fuelsim production contact instead defaults to positive lumping based on the
+integral of each squared shape function, normalized so that all eight areas sum
+to the current face area. The H20.17 and H20.18 Fuelsim input cards explicitly
+select `quad8_nodal_area_rule = consistent_shape`; these two cases retain the
+old signed interpolation only to reproduce MOOSE's `normalize_penalty = true`
+behavior. They are not an external validation of the production positive-lumped
+mechanical rule. The same tracked Fuelsim paths are also solved with positive
+lumping as internal end-to-end checks: all eight nodal areas remain positive,
+four nodes are active in each final state, and the sliding path has three sliding
+nodes. Thermal, frictionless mechanical, and sliding references are
+separate because the configured July/MOOSE build crashes when second-order
+node-to-face mechanical contact and quadrature gap heat transfer are active in
+one problem. The three references still share the same tracked mesh.
 
 ## Native axisymmetric shared-node material interface
 

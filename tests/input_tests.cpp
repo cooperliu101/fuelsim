@@ -289,8 +289,28 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
     }
     const fuelsim::FuelSimCaseDefinition friction = fuelsim::read_case_input(malformed_path);
     passed = check(friction.spatial.contacts.size() == 1 && friction.spatial.contacts[0].friction_coefficient == 0.25,
-                 "optional contact mu is parsed as the Coulomb friction "
-                 "coefficient") &&
+                 "optional contact mu is parsed as the Coulomb friction coefficient") &&
+             check(friction.spatial.contacts[0].quad8_nodal_area_rule == fuelsim::Quad8NodalAreaRule::positive_lumped,
+                 "HEX20 contact defaults to positive-lumped quadratic nodal areas") &&
+             passed;
+    std::string consistent_area_case = friction_case;
+    consistent_area_case.insert(consistent_area_case.find(contact_penalty) + contact_penalty.size(),
+        "\n      quad8_nodal_area_rule = consistent_shape");
+    {
+        std::ofstream output(malformed_path, std::ios::out | std::ios::trunc);
+        if (!output) return check(false, "could not create consistent-shape contact input fixture");
+        output << consistent_area_case;
+    }
+    const fuelsim::FuelSimCaseDefinition consistent_area = fuelsim::read_case_input(malformed_path);
+    passed = check(consistent_area.spatial.contacts[0].quad8_nodal_area_rule ==
+                       fuelsim::Quad8NodalAreaRule::consistent_shape,
+                 "the explicit consistent-shape QUAD8 comparison rule is parsed") &&
+             passed;
+    std::string invalid_area_case = consistent_area_case;
+    const std::string consistent_shape = "consistent_shape";
+    invalid_area_case.replace(invalid_area_case.find(consistent_shape), consistent_shape.size(), "absolute_shape");
+    passed = expect_case_failure(malformed_path, invalid_area_case,
+                 "quad8_nodal_area_rule must be 'positive_lumped' or 'consistent_shape'") &&
              passed;
     std::string automatic_penalty_case = read_text(steady_path);
     const std::string contact_penalty_line = "      penalty = 1e14\n";

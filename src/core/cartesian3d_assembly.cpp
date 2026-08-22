@@ -1060,6 +1060,10 @@ void SpatialAssembly::build_contacts(const UnstructuredHex8Mesh& source_mesh) {
     _contact_histories.resize(_definition.contacts.size());
     for (std::size_t contact_value = 0; contact_value < _definition.contacts.size(); ++contact_value) {
         ContactDefinition& definition = _definition.contacts[contact_value];
+        if (definition.quad8_nodal_area_rule != Quad8NodalAreaRule::positive_lumped)
+            throw std::invalid_argument(
+                "quad8_nodal_area_rule = consistent_shape is supported only for HEX20 contact comparisons: " +
+                definition.name);
         ResolvedBoundary primary = resolve_boundary(source_mesh, definition.primary),
                          secondary = resolve_boundary(source_mesh, definition.secondary);
         if (primary.region == secondary.region)
@@ -1354,7 +1358,8 @@ SpatialAssembly::Hex20MechanicalCandidate SpatialAssembly::hex20_mechanical_cand
     const Hex20PrimaryContactFace& primary_face = _hex20_primary_contact_faces.at(metadata.contact).at(primary);
     NodeToQuad8ContactGeometry geometry{secondary.coordinates, primary_face.coordinates, {}, {}, {}, {},
         metadata.secondary_local_node,
-        normal_orientation(primary_face.coordinates, secondary.parent_centroid, primary_face.parent_centroid)};
+        normal_orientation(primary_face.coordinates, secondary.parent_centroid, primary_face.parent_centroid),
+        _definition.contacts[metadata.contact].quad8_nodal_area_rule};
     for (std::size_t q = 0; q < quad8_surface_contact_quadrature_point_count; ++q) {
         const Quad8FaceMechanicalQuadraturePoint& quadrature = secondary.geometry.mechanical_points[q];
         geometry.secondary_shapes[q] = quadrature.displacement_shape;

@@ -1,4 +1,5 @@
 #pragma once
+#include "fuelsim/core/contact_area_rule.hpp"
 #include "fuelsim/core/kinematics.hpp"
 #include "fuelsim/core/material.hpp"
 #include <array>
@@ -56,6 +57,7 @@ struct ContactDefinition final {
     bool automatic_penalty = false;
     double penalty_factor = 1.0;
     MechanicalContactFormulation mechanical_formulation = MechanicalContactFormulation::penalty;
+    Quad8NodalAreaRule quad8_nodal_area_rule = Quad8NodalAreaRule::positive_lumped;
     double penetration_tolerance = 1.0e-8;
     std::size_t maximum_augmented_iterations = 20;
 };
