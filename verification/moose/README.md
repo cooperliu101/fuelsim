@@ -123,6 +123,10 @@ does not multiply a possibly negative lumped nodal area into a node-to-face
 penalty, so this result also does not make signed node-to-face penalty scaling
 safe.
 
+The independent Abaqus/Standard C3D20 surface-to-surface comparison is tracked
+as H20.21 under `verification/abaqus/README.md`. It gives the same ordering as
+MOOSE mortar while using a separate solver and contact implementation.
+
 ## Native axisymmetric shared-node material interface
 
 `rz_shared_meat_clad_mesh.i` creates two adjacent axisymmetric Quad4 blocks

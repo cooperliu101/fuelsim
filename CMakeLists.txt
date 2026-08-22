@@ -692,12 +692,12 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_b33_hex8_contact_moose_tests
         PROPERTIES LABELS "acceptance;three-dimensional;contact;friction")
 
-    add_executable(fuelsim_h20_hex20_contact_moose_tests tests/h20_hex20_contact_moose_tests.cpp)
-    target_link_libraries(fuelsim_h20_hex20_contact_moose_tests
+    add_executable(fuelsim_h20_hex20_contact_reference_tests tests/h20_hex20_contact_reference_tests.cpp)
+    target_link_libraries(fuelsim_h20_hex20_contact_reference_tests
         PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
-    fuelsim_enable_warnings(fuelsim_h20_hex20_contact_moose_tests)
-    add_test(NAME fuelsim_h20_hex20_contact_moose_tests
-        COMMAND fuelsim_h20_hex20_contact_moose_tests
+    fuelsim_enable_warnings(fuelsim_h20_hex20_contact_reference_tests)
+    add_test(NAME fuelsim_h20_hex20_contact_reference_tests
+        COMMAND fuelsim_h20_hex20_contact_reference_tests
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex20_thermal_contact_moose.fsi"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_16_hex20_thermal_contact_temperature_nodes_0001.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex20_mechanical_contact_moose.fsi"
@@ -707,8 +707,10 @@ if(BUILD_TESTING)
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_18_hex20_sliding_contact.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex20_mortar_area_compare.fsi"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_19_hex20_mortar_mechanical_displacement_nodes_0001.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_19_hex20_mortar_mechanical.csv")
-    set_tests_properties(fuelsim_h20_hex20_contact_moose_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_19_hex20_mortar_mechanical.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_21_hex20_surface_contact_displacement.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_21_hex20_surface_contact_reaction.csv")
+    set_tests_properties(fuelsim_h20_hex20_contact_reference_tests
         PROPERTIES LABELS "acceptance;three-dimensional;hex20;contact;friction")
 
     add_executable(fuelsim_b37_hex8_multi_contact_moose_tests tests/b37_hex8_multi_contact_moose_tests.cpp)
@@ -1252,6 +1254,15 @@ if(BUILD_TESTING)
             -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifySha256.cmake"
     )
     set_tests_properties(fuelsim_moose_reference_sha256 PROPERTIES
+        LABELS "audit;release"
+    )
+    add_test(NAME fuelsim_abaqus_reference_sha256
+        COMMAND "${CMAKE_COMMAND}"
+            "-DROOT=${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus"
+            "-DMANIFEST=${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/SHA256SUMS"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifySha256.cmake"
+    )
+    set_tests_properties(fuelsim_abaqus_reference_sha256 PROPERTIES
         LABELS "audit;release"
     )
 

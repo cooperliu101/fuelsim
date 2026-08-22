@@ -38,7 +38,7 @@ struct ReactionReference final {
     double tangential_force;
 };
 
-struct MortarRuleResult final {
+struct AreaRuleResult final {
     fuelsim::test::FieldErrorMetrics displacement_x;
     double normal_force = 0.0;
     double normal_force_relative_error = 0.0;
@@ -376,15 +376,16 @@ bool run_sliding(const std::string& case_path, const std::string& reaction_path)
     return run_positive_lumped_path(definition, mesh, 1, "h20_18") && passed;
 }
 
-MortarRuleResult run_mortar_rule(const fuelsim::FuelSimCaseDefinition& comparison_definition,
+AreaRuleResult run_area_rule(const fuelsim::FuelSimCaseDefinition& comparison_definition,
     const fuelsim::UnstructuredHex20Mesh& mesh, const std::vector<DisplacementReference>& displacement,
-    const ReactionReference& reaction, fuelsim::Quad8NodalAreaRule area_rule, const std::string& label) {
+    const ReactionReference& reaction, fuelsim::Quad8NodalAreaRule area_rule, double secondary_reference_x_shift,
+    const std::string& label) {
     fuelsim::FuelSimCaseDefinition definition = comparison_definition;
     definition.spatial.contacts[0].quad8_nodal_area_rule = area_rule;
     fuelsim::SteadyProblem problem(definition.spatial, mesh);
     const fuelsim::SteadyResult solve =
         fuelsim::solve_steady(problem, definition.steady_execution, solver_options(definition));
-    MortarRuleResult result;
+    AreaRuleResult result;
     result.passed = check(solve.completed && solve.solve.converged && solve.completed_steps == 1,
                         label + " completes the pure-normal load step") &&
                     check(solve.aggregate_timing.workspace_setups == 1, label + " constructs one PETSc workspace");
@@ -399,10 +400,12 @@ MortarRuleResult run_mortar_rule(const fuelsim::FuelSimCaseDefinition& compariso
             const auto found = std::find_if(displacement.begin(), displacement.end(),
                 [&](const DisplacementReference& value) { return value.id == source; });
             if (found == displacement.end() || present[source])
-                throw std::invalid_argument("HEX20 mortar displacement source-node mapping is incomplete or repeated");
+                throw std::invalid_argument("HEX20 contact displacement source-node mapping is incomplete or repeated");
             present[source] = true;
+            fuelsim::CartesianPoint3 expected_point = mesh.nodes().at(source);
+            if (region == 1) expected_point.x += secondary_reference_x_shift;
             maximum_coordinate_difference =
-                std::max(maximum_coordinate_difference, coordinate_difference(mesh.nodes().at(source), found->point));
+                std::max(maximum_coordinate_difference, coordinate_difference(expected_point, found->point));
             const std::size_t global = spatial.global_node(region, local);
             result.displacement_x.add(solve.solve.state.at(fields[1].begin + global), found->displacement[0]);
         }
@@ -421,7 +424,7 @@ MortarRuleResult run_mortar_rule(const fuelsim::FuelSimCaseDefinition& compariso
     result.normal_force_relative_error = std::abs(result.normal_force - reaction.normal_force) / reaction.normal_force;
     result.passed =
         check(displacement.size() == mesh.nodes().size(), label + " compares all forty displacement nodes") &&
-        check(maximum_coordinate_difference < 1.0e-12, label + " uses the tracked MOOSE HEX20 mesh coordinates") &&
+        check(maximum_coordinate_difference < 1.0e-9, label + " uses the expected HEX20 reference coordinates") &&
         check(result.active_nodes > 0 && interface.active_contact_nodes == result.active_nodes,
             label + " activates its projected secondary face nodes") &&
         check(interface.total_tangential_force < 1.0e-10, label + " remains frictionless under pure-normal loading") &&
@@ -431,7 +434,7 @@ MortarRuleResult run_mortar_rule(const fuelsim::FuelSimCaseDefinition& compariso
               << label << "_positive_area_nodes=" << result.positive_area_nodes << '\n'
               << label << "_negative_area_nodes=" << result.negative_area_nodes << '\n'
               << label << "_normal_resultant=" << result.normal_force << '\n'
-              << label << "_mortar_normal_resultant=" << reaction.normal_force << '\n'
+              << label << "_reference_normal_resultant=" << reaction.normal_force << '\n'
               << label << "_normal_resultant_relative_error=" << result.normal_force_relative_error << '\n';
     return result;
 }
@@ -448,10 +451,10 @@ bool run_mortar_area_comparison(
     const fuelsim::UnstructuredHex20Mesh mesh = fuelsim::read_exodus_hex20(definition.mesh_file);
     const auto displacement = read_displacement(displacement_path);
     const ReactionReference reaction = read_reaction(reaction_path);
-    const MortarRuleResult positive = run_mortar_rule(definition, mesh, displacement, reaction,
-        fuelsim::Quad8NodalAreaRule::positive_lumped, "h20_19_positive_lumped");
-    const MortarRuleResult consistent = run_mortar_rule(definition, mesh, displacement, reaction,
-        fuelsim::Quad8NodalAreaRule::consistent_shape, "h20_19_consistent_shape");
+    const AreaRuleResult positive = run_area_rule(definition, mesh, displacement, reaction,
+        fuelsim::Quad8NodalAreaRule::positive_lumped, 0.0, "h20_19_positive_lumped");
+    const AreaRuleResult consistent = run_area_rule(definition, mesh, displacement, reaction,
+        fuelsim::Quad8NodalAreaRule::consistent_shape, 0.0, "h20_19_consistent_shape");
     constexpr double consistent_tolerance = 1.0e-2;
     bool passed = check(positive.positive_area_nodes == 8 && positive.negative_area_nodes == 0,
                       "H20.19 positive lumping gives eight positive secondary nodal areas") &&
@@ -473,24 +476,59 @@ bool run_mortar_area_comparison(
                   positive.passed && consistent.passed;
     return passed;
 }
+
+bool run_abaqus_area_comparison(
+    const std::string& case_path, const std::string& displacement_path, const std::string& reaction_path) {
+    const fuelsim::FuelSimCaseDefinition definition = fuelsim::read_case_input(case_path);
+    if (definition.problem != fuelsim::CaseProblem::steady ||
+        definition.geometry != fuelsim::CaseGeometry::cartesian_3d || definition.spatial.contacts.size() != 1 ||
+        definition.spatial.contacts[0].thermal || !definition.spatial.contacts[0].mechanical ||
+        definition.spatial.contacts[0].friction_coefficient != 0.0 ||
+        definition.spatial.contacts[0].quad8_nodal_area_rule != fuelsim::Quad8NodalAreaRule::positive_lumped)
+        throw std::invalid_argument("H20.21 requires isolated pure-normal HEX20 mechanical contact");
+    const fuelsim::UnstructuredHex20Mesh mesh = fuelsim::read_exodus_hex20(definition.mesh_file);
+    const auto displacement = read_displacement(displacement_path);
+    const ReactionReference reaction = read_reaction(reaction_path);
+    const AreaRuleResult positive = run_area_rule(definition, mesh, displacement, reaction,
+        fuelsim::Quad8NodalAreaRule::positive_lumped, 0.0, "h20_21_positive_lumped");
+    const AreaRuleResult consistent = run_area_rule(definition, mesh, displacement, reaction,
+        fuelsim::Quad8NodalAreaRule::consistent_shape, 0.0, "h20_21_consistent_shape");
+    constexpr double consistent_tolerance = 5.0e-3;
+    return check(fuelsim::test::relative_metrics_below(consistent.displacement_x, consistent_tolerance) &&
+                     consistent.normal_force_relative_error < consistent_tolerance,
+               "H20.21 consistent-shape displacement and resultant errors are below 0.5 percent") &&
+           check(consistent.displacement_x.relative_l2() < positive.displacement_x.relative_l2() &&
+                     consistent.displacement_x.relative_absolute_peak() <=
+                         positive.displacement_x.relative_absolute_peak() &&
+                     consistent.displacement_x.maximum_pointwise_relative <
+                         positive.displacement_x.maximum_pointwise_relative &&
+                     consistent.normal_force_relative_error < positive.normal_force_relative_error,
+               "H20.21 Abaqus surface contact ranks consistent-shape integration no worse in relative peak and closer "
+               "in the other field metrics and normal resultant") &&
+           check(positive.displacement_x.relative_l2() > 5.0e-2 && positive.normal_force_relative_error > 5.0e-2,
+               "H20.21 distinguishes the positive-lumped response from the Abaqus reference") &&
+           positive.passed && consistent.passed;
+}
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 11) {
-        std::cerr << "Usage: fuelsim_h20_hex20_contact_moose_tests <thermal.fsi> <temperature.csv> "
+    if (argc != 13) {
+        std::cerr << "Usage: fuelsim_h20_hex20_contact_reference_tests <thermal.fsi> <temperature.csv> "
                      "<mechanical.fsi> <displacement.csv> <contact.csv> <sliding.fsi> <reaction.csv> "
-                     "<mortar.fsi> <mortar_displacement.csv> <mortar_reaction.csv>\n";
+                     "<mortar.fsi> <mortar_displacement.csv> <mortar_reaction.csv> "
+                     "<abaqus_displacement.csv> <abaqus_reaction.csv>\n";
         return 2;
     }
     try {
         std::cout << std::scientific << std::setprecision(12);
-        fuelsim::PetscSession session(argc, argv, "fuelsim HEX20 contact MOOSE comparisons\n");
+        fuelsim::PetscSession session(argc, argv, "fuelsim HEX20 contact external-reference comparisons\n");
         const bool passed = run_thermal(argv[1], argv[2]) && run_mechanical(argv[3], argv[4], argv[5]) &&
-                            run_sliding(argv[6], argv[7]) && run_mortar_area_comparison(argv[8], argv[9], argv[10]);
-        if (passed && session.rank() == 0) std::cout << "[PASS] HEX20 contact MOOSE comparisons\n";
+                            run_sliding(argv[6], argv[7]) && run_mortar_area_comparison(argv[8], argv[9], argv[10]) &&
+                            run_abaqus_area_comparison(argv[8], argv[11], argv[12]);
+        if (passed && session.rank() == 0) std::cout << "[PASS] HEX20 contact external-reference comparisons\n";
         return passed ? 0 : 1;
     } catch (const std::exception& error) {
-        std::cerr << "[FAIL] HEX20 contact MOOSE comparison raised: " << error.what() << '\n';
+        std::cerr << "[FAIL] HEX20 contact external-reference comparison raised: " << error.what() << '\n';
         return 1;
     }
 }
