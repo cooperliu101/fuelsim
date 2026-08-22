@@ -726,6 +726,23 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_h20_hex20_contact_reference_tests
         PROPERTIES LABELS "acceptance;three-dimensional;hex20;contact;friction")
 
+    add_executable(fuelsim_h20_25_hex20_node_to_face_three_way_tests
+        tests/h20_node_to_face_three_way_tests.cpp)
+    target_link_libraries(fuelsim_h20_25_hex20_node_to_face_three_way_tests
+        PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
+    fuelsim_enable_warnings(fuelsim_h20_25_hex20_node_to_face_three_way_tests)
+    add_test(NAME fuelsim_h20_25_hex20_node_to_face_three_way_tests
+        COMMAND fuelsim_h20_25_hex20_node_to_face_three_way_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex20_mortar_area_compare.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_25_hex20_node_to_face_displacement_nodes_0001.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_25_hex20_node_to_face_secondary_contact_0001.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_25_hex20_node_to_face_reaction.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_25_hex20_node_to_surface_contact_displacement.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_25_hex20_node_to_surface_contact_pressure.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_25_hex20_node_to_surface_contact_reaction.csv")
+    set_tests_properties(fuelsim_h20_25_hex20_node_to_face_three_way_tests
+        PROPERTIES LABELS "acceptance;three-dimensional;hex20;contact;abaqus;moose")
+
     add_executable(fuelsim_h20_24_hex20_nonmatching_abaqus_tests
         tests/h20_nonmatching_contact_abaqus_tests.cpp)
     target_link_libraries(fuelsim_h20_24_hex20_nonmatching_abaqus_tests

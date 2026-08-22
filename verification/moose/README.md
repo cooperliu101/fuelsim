@@ -230,6 +230,38 @@ pointwise displacement errors. True frictionless mortar gives the same final
 field with one or ten load increments, so the tracked H20.24 input does not use
 that workaround.
 
+## H20.25 traditional HEX20 node-to-face contact
+
+`h20_25_hex20_node_to_face.i` isolates pure-normal traditional penalty contact
+on the tracked H20.16 two-element mesh. Fuelsim and MOOSE both use the original
+eight-node quadratic secondary face, `E = 1e9 Pa`, zero Poisson ratio, a
+`1e13 Pa/m` normalized penalty, one micrometre initial penetration, and a
+20 micrometre prescribed displacement. The snapshot was generated with:
+
+```bash
+cd /home/cooper/ai_project/fuelsim/verification/moose
+env OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+  /home/cooper/projects/july/july-opt -i h20_25_hex20_node_to_face.i \
+  Outputs/console=false
+```
+
+The checked executable SHA256 is
+`d8bb98a6514fa4624c7bcbd5727e9a161250688785495b4d58cd895635691f21`.
+The normal displacement errors are `0.0000142465%`, zero, and
+`0.0000447147%`; the pressure errors are `0.00269464%`, `0.00267513%`, and
+`0.00271522%`; and the normal-resultant error is `0.0000131968%`. The resultant
+is independently recovered from the eight tracked MOOSE values as the signed
+sum of `contact_pressure * nodal_area`.
+
+The same H20.25 test also compares both eight-node results with Abaqus
+node-to-surface contact. Abaqus automatically adds a ninth midface contact node,
+so the Abaqus pressure comparison retains a qualified `6%` threshold and the
+generated center pressure is reported separately. Fuelsim-to-Abaqus and
+MOOSE-to-Abaqus normal-displacement errors remain below `0.5%`, original-node
+pressure errors remain below `6%`, and resultant errors remain below `0.5%`.
+Transverse values are printed as non-gating diagnostics without a denominator
+floor; they are not part of the pure-normal qualification.
+
 ## Native axisymmetric shared-node material interface
 
 `rz_shared_meat_clad_mesh.i` creates two adjacent axisymmetric Quad4 blocks
