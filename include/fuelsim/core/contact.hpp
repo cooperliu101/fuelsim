@@ -167,7 +167,15 @@ struct Quad8ToQuad8HeatGeometry final {
 struct Quad8ToQuad8MechanicalGeometry final {
     std::array<CartesianPoint3, 8> secondary_coordinates, primary_coordinates;
     std::array<double, 8> secondary_displacement_shape, secondary_derivative_xi, secondary_derivative_eta;
+    std::array<double, 8> primary_displacement_shape, primary_derivative_xi, primary_derivative_eta;
     double quadrature_weight, normal_orientation;
+};
+
+struct Quad8ReferenceProjectionValue final {
+    bool projected;
+    std::array<double, 8> primary_shape, primary_derivative_xi, primary_derivative_eta;
+    CartesianPoint3 normal;
+    double gap;
 };
 
 struct NodeToQuad8ContactGeometry final {
@@ -197,6 +205,10 @@ CartesianContactPointValue compute_quad8_to_quad8_contact_value(const NormalCont
     const Quad8SurfaceContactLocalValues& committed_state, const ContactPointHistory& history);
 ContactProjectionValue compute_quad8_to_quad8_contact_projection(
     const Quad8ToQuad8MechanicalGeometry& geometry, const Quad8SurfaceContactLocalValues& state);
+Quad8ReferenceProjectionValue compute_quad8_reference_projection(
+    const std::array<CartesianPoint3, 8>& secondary_coordinates,
+    const std::array<CartesianPoint3, 8>& primary_coordinates, const std::array<double, 8>& secondary_shape,
+    double normal_orientation);
 Quad8SurfaceContactLocalResidual compute_node_to_quad8_contact(const NormalContactProperties& properties,
     const NodeToQuad8ContactGeometry& geometry, const Quad8SurfaceContactLocalValues& state,
     const Quad8SurfaceContactLocalValues& committed_state, const ContactPointHistory& history,

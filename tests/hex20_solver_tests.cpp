@@ -251,7 +251,7 @@ bool test_contact_projection(const fuelsim::UnstructuredHex20Mesh& mesh) {
     return passed;
 }
 
-bool test_surface_contact_search_transfer() {
+bool test_surface_contact_fixed_anchors() {
     std::vector<fuelsim::CartesianPoint3> nodes;
     std::map<std::array<double, 3>, std::size_t> primary_nodes, secondary_nodes;
     const fuelsim::Hex20Element primary_lower = append_cuboid(nodes, primary_nodes, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0),
@@ -298,14 +298,15 @@ bool test_surface_contact_search_transfer() {
         return result;
     };
     std::vector<double> state = problem.initial_state();
-    bool passed = check(owner_counts(state) == std::array<std::size_t, 2>{6, 3},
-        "HEX20 surface integration points have one owner at an internal primary-face boundary");
+    const std::array<std::size_t, 2> reference_owners = owner_counts(state);
+    bool passed = check(reference_owners[0] > 0 && reference_owners[1] > 0,
+        "HEX20 small-sliding integration regions have fixed anchors on both primary faces");
     for (std::size_t local = 0; local < view.hex20_region_mesh(1).nodes().size(); ++local) {
         const std::size_t global = view.global_node(1, local);
-        state[view.dof(fuelsim::Field::displacement_y, global)] = 0.2;
+        state[view.dof(fuelsim::Field::displacement_y, global)] = 0.05;
     }
-    passed = check(owner_counts(state) == std::array<std::size_t, 2>{3, 6},
-                 "HEX20 surface integration-point ownership transfers uniquely across the internal primary boundary") &&
+    passed = check(owner_counts(state) == reference_owners,
+                 "HEX20 small-sliding primary anchors remain fixed after a tangential displacement") &&
              passed;
     std::vector<double> tilted = problem.initial_state();
     for (std::size_t region = 0; region < 2; ++region)
@@ -318,20 +319,9 @@ bool test_surface_contact_search_transfer() {
     const fuelsim::InterfaceSummary tilted_summary =
         fuelsim::cartesian::ProblemAccess::summarize_interface(problem, 0, tilted);
     passed = check(tilted_summary.total_contact_force > 0.0 && tilted_summary.unprojected_contact_nodes == 0,
-                 "HEX20 surface contact uses the same current projection after a reference-vertical face tilts") &&
+                 "HEX20 small-sliding contact updates the anchored primary tangent-plane normal after tilting") &&
              passed;
-    std::vector<double> lost = problem.initial_state();
-    for (std::size_t local = 0; local < view.hex20_region_mesh(1).nodes().size(); ++local) {
-        const std::size_t global = view.global_node(1, local);
-        lost[view.dof(fuelsim::Field::displacement_y, global)] = 3.0;
-    }
-    bool rejected = false;
-    try {
-        problem.validate_state(lost);
-    } catch (const std::domain_error&) { rejected = true; }
-    return check(rejected,
-               "HEX20 surface contact rejects a state after integration points leave the complete primary chain") &&
-           passed;
+    return passed;
 }
 } // namespace
 
@@ -345,7 +335,7 @@ int main(int argc, char** argv) {
     const std::string transient_results = std::string(argv[2]) + ".transient.e";
     const bool passed = test_steady_and_io(session, mesh, argv[1], argv[2]) &&
                         test_transient_restart(session, mesh, argv[3], transient_results) &&
-                        test_contact_projection(mesh) && test_surface_contact_search_transfer();
+                        test_contact_projection(mesh) && test_surface_contact_fixed_anchors();
     session.collective_root_action([&]() {
         (void)std::remove(argv[1]);
         (void)std::remove(argv[2]);

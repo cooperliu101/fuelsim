@@ -70,6 +70,8 @@ struct Quad8FaceGeometry final {
 
 Hex20Geometry make_hex20_geometry(const Hex20Coordinates& coordinates);
 Quad8FaceGeometry make_quad8_face_geometry(const Quad8FaceCoordinates& coordinates);
+Quad8FaceMechanicalQuadraturePoint make_quad8_face_mechanical_point(
+    const Quad8FaceCoordinates& coordinates, double xi, double eta, double quadrature_weight);
 void validate_hex20_deformation(const Hex20MechanicalQuadraturePoint& point, const Hex20LocalValues& state);
 Hex20LocalResidual compute_hex20_thermoelastic(const CartesianThermoelasticData& data, const Hex20Geometry& geometry,
     const Hex20LocalValues& state, const Hex20LocalValues* committed_state = nullptr, double time_step = 0.0,

@@ -510,28 +510,32 @@ Quad8FaceGeometry make_quad8_face_geometry(const Quad8FaceCoordinates& coordinat
         }
     q = 0;
     for (std::size_t ky = 0; ky < 3; ++ky)
-        for (std::size_t kx = 0; kx < 3; ++kx) {
-            const double xi = gauss3_points[kx], eta = gauss3_points[ky];
-            Quad8FaceMechanicalQuadraturePoint& point = geometry.mechanical_points[q++];
-            evaluate_quad8_shapes(xi, eta, point.displacement_shape, point.derivative_xi, point.derivative_eta);
-            for (std::size_t node = 0; node < 8; ++node) {
-                point.tangent_xi.x += point.derivative_xi[node] * coordinates[node].x;
-                point.tangent_xi.y += point.derivative_xi[node] * coordinates[node].y;
-                point.tangent_xi.z += point.derivative_xi[node] * coordinates[node].z;
-                point.tangent_eta.x += point.derivative_eta[node] * coordinates[node].x;
-                point.tangent_eta.y += point.derivative_eta[node] * coordinates[node].y;
-                point.tangent_eta.z += point.derivative_eta[node] * coordinates[node].z;
-            }
-            const CartesianPoint3 area{
-                point.tangent_xi.y * point.tangent_eta.z - point.tangent_xi.z * point.tangent_eta.y,
-                point.tangent_xi.z * point.tangent_eta.x - point.tangent_xi.x * point.tangent_eta.z,
-                point.tangent_xi.x * point.tangent_eta.y - point.tangent_xi.y * point.tangent_eta.x};
-            const double measure = std::sqrt(area.x * area.x + area.y * area.y + area.z * area.z);
-            if (!std::isfinite(measure) || !(measure > 0.0))
-                throw std::invalid_argument("Quad8FaceGeometry requires a finite positive area measure");
-            point.quadrature_weight = gauss3_weights[kx] * gauss3_weights[ky];
-        }
+        for (std::size_t kx = 0; kx < 3; ++kx)
+            geometry.mechanical_points[q++] = make_quad8_face_mechanical_point(
+                coordinates, gauss3_points[kx], gauss3_points[ky], gauss3_weights[kx] * gauss3_weights[ky]);
     return geometry;
+}
+
+Quad8FaceMechanicalQuadraturePoint make_quad8_face_mechanical_point(
+    const Quad8FaceCoordinates& coordinates, double xi, double eta, double quadrature_weight) {
+    Quad8FaceMechanicalQuadraturePoint point{};
+    evaluate_quad8_shapes(xi, eta, point.displacement_shape, point.derivative_xi, point.derivative_eta);
+    for (std::size_t node = 0; node < 8; ++node) {
+        point.tangent_xi.x += point.derivative_xi[node] * coordinates[node].x;
+        point.tangent_xi.y += point.derivative_xi[node] * coordinates[node].y;
+        point.tangent_xi.z += point.derivative_xi[node] * coordinates[node].z;
+        point.tangent_eta.x += point.derivative_eta[node] * coordinates[node].x;
+        point.tangent_eta.y += point.derivative_eta[node] * coordinates[node].y;
+        point.tangent_eta.z += point.derivative_eta[node] * coordinates[node].z;
+    }
+    const CartesianPoint3 area{point.tangent_xi.y * point.tangent_eta.z - point.tangent_xi.z * point.tangent_eta.y,
+        point.tangent_xi.z * point.tangent_eta.x - point.tangent_xi.x * point.tangent_eta.z,
+        point.tangent_xi.x * point.tangent_eta.y - point.tangent_xi.y * point.tangent_eta.x};
+    const double measure = std::sqrt(area.x * area.x + area.y * area.y + area.z * area.z);
+    if (!std::isfinite(measure) || !(measure > 0.0) || !std::isfinite(quadrature_weight) || !(quadrature_weight > 0.0))
+        throw std::invalid_argument("Quad8 face mechanical point requires a finite positive weighted measure");
+    point.quadrature_weight = quadrature_weight;
+    return point;
 }
 
 void validate_hex20_deformation(const Hex20MechanicalQuadraturePoint& point, const Hex20LocalValues& state) {

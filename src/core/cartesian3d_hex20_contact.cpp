@@ -257,15 +257,35 @@ void apply_friction(const NormalContactProperties& properties, const Quad8Surfac
     result.tangential_force = result.tangential_traction * result.tributary_area;
 }
 
+SurfaceProjection8 small_sliding_projection(
+    const std::array<ActivePoint3, 16>& nodes, const Quad8ToQuad8MechanicalGeometry& geometry) {
+    const ActivePoint3 secondary_point =
+                           interpolate_point(nodes, 0, active_values(geometry.secondary_displacement_shape)),
+                       primary_point = interpolate_point(nodes, 8, active_values(geometry.primary_displacement_shape)),
+                       primary_tangent_xi = interpolate_point(nodes, 8, active_values(geometry.primary_derivative_xi)),
+                       primary_tangent_eta =
+                           interpolate_point(nodes, 8, active_values(geometry.primary_derivative_eta)),
+                       primary_area = cross(primary_tangent_xi, primary_tangent_eta);
+    const adlite::Scalar primary_measure = norm(primary_area);
+    if (!std::isfinite(primary_measure.value()) || !(primary_measure.value() > 0.0))
+        throw std::domain_error("HEX20 small-sliding primary tangent plane has a nonpositive current measure");
+    SurfaceProjection8 result;
+    result.projected = true;
+    result.primary_shape = active_values(geometry.primary_displacement_shape);
+    result.primary_point = primary_point;
+    for (std::size_t component = 0; component < result.normal.size(); ++component)
+        result.normal[component] = geometry.normal_orientation * primary_area[component] / primary_measure;
+    result.gap = dot(subtract(primary_point, secondary_point), result.normal);
+    return result;
+}
+
 CartesianContactAdValue8 evaluate_surface_mechanical(const NormalContactProperties& properties,
     const Quad8ToQuad8MechanicalGeometry& geometry, const Quad8SurfaceContactLocalAdValues& state,
     const Quad8SurfaceContactLocalValues& committed_state, const ContactPointHistory& history) {
     const std::array<ActivePoint3, 16> nodes =
         current_nodes(geometry.secondary_coordinates, geometry.primary_coordinates, state);
     const std::array<adlite::Scalar, 8> secondary_shape = active_values(geometry.secondary_displacement_shape);
-    const ActivePoint3 secondary_point = interpolate_point(nodes, 0, secondary_shape);
-    const SurfaceProjection8 projection = project_to_primary(secondary_point, nodes, geometry.normal_orientation);
-    if (!projection.projected) return {};
+    const SurfaceProjection8 projection = small_sliding_projection(nodes, geometry);
     CartesianContactAdValue8 result;
     result.projected = true;
     result.primary_shape = projection.primary_shape;
@@ -418,10 +438,32 @@ ContactProjectionValue compute_quad8_to_quad8_contact_projection(
     const Quad8SurfaceContactLocalAdValues ad_state = make_ad_state(state, false);
     const std::array<ActivePoint3, 16> nodes =
         current_nodes(geometry.secondary_coordinates, geometry.primary_coordinates, ad_state);
+    return {true, small_sliding_projection(nodes, geometry).gap.value()};
+}
+
+Quad8ReferenceProjectionValue compute_quad8_reference_projection(
+    const std::array<CartesianPoint3, 8>& secondary_coordinates,
+    const std::array<CartesianPoint3, 8>& primary_coordinates, const std::array<double, 8>& secondary_shape,
+    double normal_orientation) {
+    const Quad8SurfaceContactLocalValues state{};
+    const std::array<ActivePoint3, 16> nodes =
+        current_nodes(secondary_coordinates, primary_coordinates, make_ad_state(state, false));
     const SurfaceProjection8 projection =
-        project_to_primary(interpolate_point(nodes, 0, active_values(geometry.secondary_displacement_shape)), nodes,
-            geometry.normal_orientation);
-    return {projection.projected, projection.projected ? projection.gap.value() : 0.0};
+        project_to_primary(interpolate_point(nodes, 0, active_values(secondary_shape)), nodes, normal_orientation);
+    Quad8ReferenceProjectionValue result{};
+    result.projected = projection.projected;
+    if (!projection.projected) return result;
+    Quad8ShapeValues primary_values;
+    quad8_shape(projection.xi, projection.eta, primary_values);
+    for (std::size_t node = 0; node < result.primary_shape.size(); ++node)
+        result.primary_shape[node] = projection.primary_shape[node].value();
+    for (std::size_t node = 0; node < result.primary_derivative_xi.size(); ++node) {
+        result.primary_derivative_xi[node] = primary_values.derivative_xi[node].value();
+        result.primary_derivative_eta[node] = primary_values.derivative_eta[node].value();
+    }
+    result.normal = {projection.normal[0].value(), projection.normal[1].value(), projection.normal[2].value()};
+    result.gap = projection.gap.value();
+    return result;
 }
 
 Quad8SurfaceContactLocalResidual compute_node_to_quad8_contact(const NormalContactProperties& properties,
@@ -466,4 +508,5 @@ ContactProjectionValue compute_node_to_quad8_contact_projection(
         project_to_primary(nodes[geometry.secondary_local_node], nodes, geometry.normal_orientation);
     return {projection.projected, projection.projected ? projection.gap.value() : 0.0};
 }
+
 } // namespace fuelsim

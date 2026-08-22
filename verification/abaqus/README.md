@@ -34,7 +34,7 @@ both secondary nodal-area rules:
 
 | Fuelsim discretization | Relative L2 | Relative absolute peak | Maximum pointwise relative | Normal reaction |
 | --- | ---: | ---: | ---: | ---: |
-| `surface_to_surface` | `0.0423059%` | `0.000000834%` | `0.103699%` | `0.000951823%` |
+| `surface_to_surface` | `0.0422346%` | `0.000000834%` | `0.105816%` | `0.000931639%` |
 | `consistent_shape` | `0.0737857%` | `0.000000834%` | `0.184464%` | `0.00160804%` |
 | `positive_lumped` | `11.0014%` | `0.000000834%` | `28.8039%` | `7.74441%` |
 
@@ -59,9 +59,9 @@ powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass `
 
 Abaqus completed with normal and tangential reactions of `106.518753052 N`
 and `0.106491569 N`. Fuelsim's normal-displacement relative L2, relative
-absolute-peak, and maximum pointwise-relative errors are `0.0580063%`,
-`0.000000834%`, and `0.188621%`; normal and tangential reaction errors are
-`0.000860263%` and `0.0263872%`. The test compares all 40 normal displacements
+absolute-peak, and maximum pointwise-relative errors are `0.0422173%`,
+`0.000000834%`, and `0.107700%`; normal and tangential reaction errors are
+`0.000860255%` and `0.0263872%`. The test compares all 40 normal displacements
 and both resultants. It does not qualify the full transverse displacement
 field because Abaqus uses a regularized elastic-slip law while Fuelsim uses a
 sharp integration-point return to the Coulomb cap.
@@ -87,11 +87,14 @@ powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass `
 ```
 
 The comparison uses all 88 normal displacements, all 13 secondary-face nodal
-contact pressures, and the normal reaction. The displacement relative L2,
-relative absolute-peak, and maximum pointwise-relative errors are `1.09695%`,
-`0.00000253%`, and `5.05976%`. The pressure errors are `3.07425%`, `0.256541%`,
-and `5.15956%`; the normal reaction error is `0.120736%`. The two field
-comparisons therefore use a recorded `6%` qualified threshold, while the
+contact pressures, and the normal reaction. Fuelsim fixes the primary face and
+natural-coordinate anchor for each reference-domain integration point, splits
+secondary faces where primary ownership changes, and uses 216 integration
+points for this mesh. The displacement relative L2, relative absolute-peak,
+and maximum pointwise-relative errors are `0.178720%`, `0.00000253%`, and
+`0.566556%`. The fixed 3x3 QUAD8 nodal pressure recovery errors are `3.15973%`,
+`0.182861%`, and `5.29164%`; the normal reaction error is `0.00394472%`. The two
+field comparisons retain the recorded `6%` qualified threshold, while the
 normal resultant retains a `0.5%` threshold. The 23 primary fixed-face normal
 displacements are exact zero-reference points and are reported separately;
 no denominator floor is used.

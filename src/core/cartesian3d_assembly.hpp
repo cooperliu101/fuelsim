@@ -167,10 +167,14 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
         Quad8FaceCoordinates coordinates;
         Quad8FaceGeometry geometry;
         CartesianPoint3 parent_centroid;
+        std::vector<Quad8FaceMechanicalQuadraturePoint> contact_points;
+        std::vector<std::array<double, 8>> contact_primary_shapes, contact_primary_derivatives_xi,
+            contact_primary_derivatives_eta;
+        std::vector<double> contact_normal_orientations;
     };
 
     struct Hex20MechanicalPoint final {
-        std::size_t contact, secondary, secondary_face, secondary_local_point;
+        std::size_t contact, secondary, secondary_face, secondary_local_point, reference_primary;
     };
 
     ContributionRanges contribution_ranges() const noexcept;

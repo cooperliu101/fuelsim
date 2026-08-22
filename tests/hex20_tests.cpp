@@ -347,11 +347,18 @@ bool test_hex20_contact_kernels() {
                  "HEX20 node-to-surface mechanical-contact Jacobian matches a centered difference") &&
              passed;
 
-    fuelsim::Quad8SurfaceContactLocalResidual surface_residual{}, surface_plus_residual{}, surface_minus_residual{};
+    fuelsim::Quad8SurfaceContactLocalResidual surface_residual{}, surface_plus_residual{}, surface_minus_residual{},
+        surface_rotate_plus_residual{}, surface_rotate_minus_residual{};
     fuelsim::Quad8SurfaceContactLocalJacobian surface_jacobian{};
+    auto rotate_plus = state, rotate_minus = state;
+    rotate_plus[17] += step;
+    rotate_minus[17] -= step;
     for (const fuelsim::Quad8FaceMechanicalQuadraturePoint& quadrature : geometry.mechanical_points) {
+        const fuelsim::Quad8ReferenceProjectionValue reference =
+            fuelsim::compute_quad8_reference_projection(face, face, quadrature.displacement_shape, -1.0);
         const fuelsim::Quad8ToQuad8MechanicalGeometry surface_geometry{face, face, quadrature.displacement_shape,
-            quadrature.derivative_xi, quadrature.derivative_eta, quadrature.quadrature_weight, -1.0};
+            quadrature.derivative_xi, quadrature.derivative_eta, reference.primary_shape,
+            reference.primary_derivative_xi, reference.primary_derivative_eta, quadrature.quadrature_weight, -1.0};
         fuelsim::Quad8SurfaceContactLocalJacobian point_jacobian{};
         const auto point_residual = fuelsim::compute_quad8_to_quad8_contact(
             mechanical_properties, surface_geometry, state, committed, {}, &point_jacobian);
@@ -359,10 +366,16 @@ bool test_hex20_contact_kernels() {
             fuelsim::compute_quad8_to_quad8_contact(mechanical_properties, surface_geometry, plus, committed, {});
         const auto point_minus =
             fuelsim::compute_quad8_to_quad8_contact(mechanical_properties, surface_geometry, minus, committed, {});
+        const auto point_rotate_plus = fuelsim::compute_quad8_to_quad8_contact(
+            mechanical_properties, surface_geometry, rotate_plus, committed, {});
+        const auto point_rotate_minus = fuelsim::compute_quad8_to_quad8_contact(
+            mechanical_properties, surface_geometry, rotate_minus, committed, {});
         for (std::size_t entry = 0; entry < surface_residual.size(); ++entry) {
             surface_residual[entry] += point_residual[entry];
             surface_plus_residual[entry] += point_plus[entry];
             surface_minus_residual[entry] += point_minus[entry];
+            surface_rotate_plus_residual[entry] += point_rotate_plus[entry];
+            surface_rotate_minus_residual[entry] += point_rotate_minus[entry];
         }
         for (std::size_t entry = 0; entry < surface_jacobian.size(); ++entry)
             surface_jacobian[entry] += point_jacobian[entry];
@@ -389,8 +402,12 @@ bool test_hex20_contact_kernels() {
     auto surface_sliding_state = state;
     for (std::size_t node = 0; node < 8; ++node) surface_sliding_state[24 + node] += 0.01;
     const fuelsim::Quad8FaceMechanicalQuadraturePoint& center = geometry.mechanical_points[4];
+    const fuelsim::Quad8ReferenceProjectionValue center_reference =
+        fuelsim::compute_quad8_reference_projection(face, face, center.displacement_shape, -1.0);
     const fuelsim::Quad8ToQuad8MechanicalGeometry center_geometry{face, face, center.displacement_shape,
-        center.derivative_xi, center.derivative_eta, center.quadrature_weight, -1.0};
+        center.derivative_xi, center.derivative_eta, center_reference.primary_shape,
+        center_reference.primary_derivative_xi, center_reference.primary_derivative_eta, center.quadrature_weight,
+        -1.0};
     const auto surface_sliding = fuelsim::compute_quad8_to_quad8_contact_value(
         friction_properties, center_geometry, surface_sliding_state, committed, {});
     passed = check(surface_sliding.sliding &&
@@ -405,9 +422,14 @@ bool test_hex20_contact_kernels() {
         const double analytic = surface_jacobian[row * fuelsim::quad8_surface_contact_local_dof_count + 8];
         jacobian_error = std::max(jacobian_error, std::abs(analytic - numerical));
         jacobian_scale = std::max({jacobian_scale, std::abs(analytic), std::abs(numerical)});
+        const double rotating_numerical =
+                         (surface_rotate_plus_residual[row] - surface_rotate_minus_residual[row]) / (2.0 * step),
+                     rotating_analytic = surface_jacobian[row * fuelsim::quad8_surface_contact_local_dof_count + 17];
+        jacobian_error = std::max(jacobian_error, std::abs(rotating_analytic - rotating_numerical));
+        jacobian_scale = std::max({jacobian_scale, std::abs(rotating_analytic), std::abs(rotating_numerical)});
     }
     return check(jacobian_error / jacobian_scale < 2.0e-5,
-               "HEX20 surface-to-surface mechanical-contact Jacobian matches a centered difference") &&
+               "HEX20 small-sliding contact gap and rotating-normal Jacobian match centered differences") &&
            passed;
 }
 } // namespace
