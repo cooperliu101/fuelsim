@@ -49,6 +49,12 @@ enum class MechanicalContactFormulation {
     augmented_lagrangian,
 };
 
+enum class MechanicalContactDiscretization {
+    automatic,
+    node_to_surface,
+    surface_to_surface,
+};
+
 struct ContactDefinition final {
     std::string name, primary, secondary;
     bool thermal, mechanical;
@@ -57,6 +63,7 @@ struct ContactDefinition final {
     bool automatic_penalty = false;
     double penalty_factor = 1.0;
     MechanicalContactFormulation mechanical_formulation = MechanicalContactFormulation::penalty;
+    MechanicalContactDiscretization mechanical_discretization = MechanicalContactDiscretization::automatic;
     Quad8NodalAreaRule quad8_nodal_area_rule = Quad8NodalAreaRule::positive_lumped;
     double penetration_tolerance = 1.0e-8;
     std::size_t maximum_augmented_iterations = 20;

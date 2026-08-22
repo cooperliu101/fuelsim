@@ -94,31 +94,31 @@ reference remains physically frictionless. The snapshot was generated with:
   -i h20_19_hex20_mortar_mechanical.i
 ```
 
-MOOSE uses a consistent quadratic nodal-area rule on the eight-node contact
-face. Its corner areas are negative and its edge-midpoint areas are positive.
-Fuelsim production contact instead defaults to positive lumping based on the
-integral of each squared shape function, normalized so that all eight areas sum
-to the current face area. The H20.17 and H20.18 Fuelsim input cards explicitly
-select `quad8_nodal_area_rule = consistent_shape`; these two cases retain the
-old signed interpolation only to reproduce MOOSE's `normalize_penalty = true`
-behavior. They are not an external validation of the production positive-lumped
-mechanical rule. The same tracked Fuelsim paths are also solved with positive
-lumping as internal end-to-end checks: all eight nodal areas remain positive,
-four nodes are active in each final state, and the sliding path has three sliding
-nodes. Thermal, frictionless mechanical, and sliding references are
+MOOSE traditional node-to-face contact uses a consistent quadratic nodal-area
+rule on the eight-node contact face. Its corner areas are negative and its
+edge-midpoint areas are positive. Fuelsim HEX20 production contact instead uses
+3-by-3 secondary surface integration and consistent two-sided residuals. The
+H20.17 and H20.18 Fuelsim input cards explicitly select `node_to_surface` and
+`quad8_nodal_area_rule = consistent_shape`; these two cases retain the old
+signed interpolation only to reproduce MOOSE's `normalize_penalty = true`
+behavior. Positive lumping remains another explicit node-to-surface research
+path. Thermal, frictionless mechanical, and sliding references are
 separate because the configured July/MOOSE build crashes when second-order
 node-to-face mechanical contact and quadrature gap heat transfer are active in
 one problem. All references still share the same tracked mesh.
 
-The H20.19 test solves the identical Fuelsim problem once with each secondary
-nodal-area rule and compares all 40 normal displacements plus the integrated
-normal reaction against mortar. Consistent-shape integration has `0.292339%`
+The H20.19 test solves the identical Fuelsim problem with the production
+surface-to-surface path and both legacy secondary nodal-area rules. It compares
+all 40 normal displacements plus the integrated normal reaction against mortar.
+The production path has `0.320073%` relative L2 displacement error,
+`0.659173%` maximum pointwise-relative error, and `0.507730%` reaction error.
+Consistent-shape node-to-surface integration has `0.292339%`
 relative L2 displacement error, `0.586332%` maximum pointwise-relative error,
 and `0.507077%` reaction error. Positive lumping has `10.7154%`, `28.2602%`,
 and `8.21369%`, respectively, and four rather than eight nodes remain active.
 The test therefore uses mortar as a ranking oracle and requires the
-consistent-shape result to remain below `1%`; it does not claim that mortar
-validates positive lumping. Mortar integrates distributed face constraints and
+production and consistent-shape results to remain below `1%`; it does not claim
+that mortar makes the two surface formulations algebraically identical. Mortar integrates distributed face constraints and
 does not multiply a possibly negative lumped nodal area into a node-to-face
 penalty, so this result also does not make signed node-to-face penalty scaling
 safe.
@@ -179,9 +179,10 @@ does not require a positive-definite Jacobian. Convergence on this patch is not
 a general stability guarantee for distorted faces, nonsmooth gaps, friction,
 or iterative linear solvers.
 
-The independent Abaqus/Standard C3D20 surface-to-surface comparison is tracked
-as H20.21 under `verification/abaqus/README.md`. It gives the same ordering as
-MOOSE mortar while using a separate solver and contact implementation.
+The independent Abaqus/Standard C3D20 surface-to-surface normal and friction
+comparisons are tracked as H20.21 and H20.23 under
+`verification/abaqus/README.md`. They use a separate solver and contact
+implementation.
 
 ## Native axisymmetric shared-node material interface
 

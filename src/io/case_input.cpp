@@ -453,7 +453,7 @@ ContactDefinition read_contact(const InputDocument& document, const InputSection
     if (mechanical != nullptr) {
         validate_keys(document, *mechanical,
             {"formulation", "penalty", "penalty_factor", "mu", "penetration_tolerance", "maximum_augmented_iterations",
-                "quad8_nodal_area_rule"});
+                "discretization", "quad8_nodal_area_rule"});
         const std::string formulation = read_string(document, *mechanical, "formulation");
         if (formulation == "penalty")
             result.mechanical_formulation = MechanicalContactFormulation::penalty;
@@ -462,6 +462,16 @@ ContactDefinition read_contact(const InputDocument& document, const InputSection
         else
             value_error(document, required_entry(document, *mechanical, "formulation"),
                 "mechanical formulation must be 'penalty' or 'augmented_lagrangian'");
+        const std::string discretization = read_optional_string(*mechanical, "discretization", "automatic");
+        if (discretization == "automatic")
+            result.mechanical_discretization = MechanicalContactDiscretization::automatic;
+        else if (discretization == "node_to_surface")
+            result.mechanical_discretization = MechanicalContactDiscretization::node_to_surface;
+        else if (discretization == "surface_to_surface")
+            result.mechanical_discretization = MechanicalContactDiscretization::surface_to_surface;
+        else
+            value_error(document, required_entry(document, *mechanical, "discretization"),
+                "mechanical discretization must be 'automatic', 'node_to_surface', or 'surface_to_surface'");
         const InputEntry* penalty = find_entry(*mechanical, "penalty");
         const InputEntry* penalty_factor = find_entry(*mechanical, "penalty_factor");
         if (penalty != nullptr && penalty_factor != nullptr)
@@ -478,6 +488,10 @@ ContactDefinition read_contact(const InputDocument& document, const InputSection
         else
             value_error(document, required_entry(document, *mechanical, "quad8_nodal_area_rule"),
                 "quad8_nodal_area_rule must be 'positive_lumped' or 'consistent_shape'");
+        if (result.mechanical_discretization == MechanicalContactDiscretization::surface_to_surface &&
+            find_entry(*mechanical, "quad8_nodal_area_rule") != nullptr)
+            value_error(document, required_entry(document, *mechanical, "quad8_nodal_area_rule"),
+                "quad8_nodal_area_rule applies only to discretization = node_to_surface");
         const InputEntry* penetration_tolerance = find_entry(*mechanical, "penetration_tolerance");
         const InputEntry* maximum_augmented_iterations = find_entry(*mechanical, "maximum_augmented_iterations");
         if (result.mechanical_formulation == MechanicalContactFormulation::penalty) {

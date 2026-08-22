@@ -217,7 +217,6 @@ traction 的构形选择规则见下文。区域发生非正 Jacobian、非正�
       penetration_tolerance = 1e-9
       maximum_augmented_iterations = 50
       mu = 0.3
-      quad8_nodal_area_rule = positive_lumped
     []
   []
 []
@@ -234,8 +233,23 @@ k_interface = 1 / (h_primary / E_primary + h_secondary / E_secondary)
 penalty = penalty_factor * k_interface
 ```
 
-`quad8_nodal_area_rule` 只改变 HEX20 八节点二次接触面的 secondary 节点面积。
-默认值 `positive_lumped` 先计算每个节点的平方形函数积分，再按当前面面积归一化：
+`discretization` 可显式选择 `node_to_surface` 或 `surface_to_surface`。省略时，
+HEX20 机械接触采用 `surface_to_surface`，HEX8 和轴对称 RZ 采用
+`node_to_surface`。当前 `surface_to_surface` 只支持 HEX20 和罚函数形式：在
+secondary 八节点面上用 3×3 积分，每个积分点在当前构形投影到唯一 primary
+八节点面，并按下式把同一牵引一致装配到两侧：
+
+```text
+R_secondary_i = integral(N_secondary_i * traction dA)
+R_primary_j   = -integral(N_primary_j * traction dA)
+```
+
+因此法向罚能和切线由积分点间隙的耦合外积形成，不会把负的 Q8 角点等效面积当成
+独立负弹簧。结果文件中的节点压力仍由 `integral(N_i*p*dA) / integral(N_i*dA)`
+恢复；该有符号等效节点量只用于输出，不参与罚刚度。
+
+`quad8_nodal_area_rule` 只适用于显式选择的 HEX20 `node_to_surface` 对比路径。
+`positive_lumped` 先计算每个节点的平方形函数积分，再按当前面面积归一化：
 
 ```text
 raw_area_i = integral(N_i * N_i dA)
@@ -248,20 +262,31 @@ nodal_area_i = face_area * raw_area_i / sum(raw_area)
 与 MOOSE 的传统 node-face `MechanicalContactConstraint` 且
 `normalize_penalty = true` 的结果对比。该旧规则在规则 QUAD8 面的角点面积为
 `-1/12`、边中点面积为 `1/3`，所以角点不具有正的 Coulomb 摩擦容量。
-`consistent_shape` 只允许用于 HEX20；二维 RZ 和 HEX8 接触会在问题构造时拒绝它。
+`consistent_shape` 只允许用于 HEX20 `node_to_surface`；二维 RZ、HEX8 和
+`surface_to_surface` 接触会在问题构造时拒绝它。
 
 H20.19 另用 MOOSE 的双基函数 mortar 面积分作为独立排序参考。在同一二单元纯法向
 压缩算例中，`consistent_shape` 的法向位移和合力比 `positive_lumped` 更接近 mortar，
 但这不等于允许把负的一致节点面积直接乘入 node-face 罚刚度。mortar 在面分段上积分
-分布式约束，并不依赖这个有符号节点罚刚度；生产默认仍为保证每个节点法向与摩擦容量
-为正的 `positive_lumped`。
+分布式约束，并不依赖这个有符号节点罚刚度。新的 HEX20 生产默认
+`surface_to_surface` 的法向位移相对 L2、相对绝对峰值、最大逐点相对误差和合力误差
+分别为 `0.320073%`、`0%`、`0.659173%` 和 `0.507730%`，四项均在该离散差异算例的
+`1%` 门槛内。
 
 H20.21 又以 Abaqus/Standard 全积分 C3D20 surface-to-surface 罚接触复核同一终态
 闭合量。`consistent_shape` 的法向位移相对 L2、相对绝对峰值、最大逐点相对误差
 和法向合力误差分别为 `0.073786%`、`0.000000834%`、`0.184464%` 和
 `0.001608%`；`positive_lumped` 对应为 `11.0014%`、`0.000000834%`、
-`28.8039%` 和 `7.74441%`。Abaqus 与 MOOSE mortar 给出相同排序，但两者都是
-面约束算法，仍不能证明负节点面积的 node-face 罚刚度安全。
+`28.8039%` 和 `7.74441%`。新的 `surface_to_surface` 路径对应为
+`0.0423059%`、`0.000000834%`、`0.103699%` 和 `0.000951823%`。Abaqus 与
+MOOSE mortar 都支持生产面约束路径，同时仍证明不了负节点面积的 node-face 罚刚度安全。
+
+H20.23 在同一 Abaqus C3D20 模型上增加 `mu = 0.001` 和切向位移，并把 Abaqus
+弹性滑移容差收紧到 `1e-6`，使九个 Fuelsim 积分点都进入明确滑动。Fuelsim 的法向
+位移三项误差最高为 `0.188621%`，法向和切向合力误差分别为 `0.000860263%` 和
+`0.0263872%`。Abaqus 的切向位移分布受其正则化摩擦离散控制，本算例只把法向位移
+全场和两个界面合力作为外部验收量；积分点粘着、滑动上限、历史提交与回滚另由局部
+和装配测试约束。
 
 `penalty_factor` 是无量纲可选值，默认 `1`，必须有限且大于零。显式 `penalty`
 和 `penalty_factor` 互斥，不能同时出现。自动选择只是网格与材料一致的起点；
@@ -277,8 +302,9 @@ H20.21 又以 Abaqus/Standard 全积分 C3D20 surface-to-surface 罚接触复核
 
 `mu` 是可选的 Coulomb 摩擦系数，必须为非负有限值，默认值为 `0`。默认值
 保持原无摩擦残量和解逐项不变。`mu > 0` 时，切向罚刚度与最终确定的
-`penalty` 使用同一个 `Pa/m` 数值；每个 secondary 节点先用本步相对切向位移形成弹性
-预测牵引，再将其限制在 `mu * pressure`。上限以内为粘着，达到上限并继续
+`penalty` 使用同一个 `Pa/m` 数值；节点到面路径在 secondary 节点、表面到面路径在
+3×3 积分点用本步相对切向位移形成弹性预测牵引，再将其限制在
+`mu * pressure`。上限以内为粘着，达到上限并继续
 同向运动时为滑移，反向运动可重新进入粘着。弹性切向滑移和粘滑标志只在
 收敛载荷步或时间步提交，失败重试从同一 committed 状态重算；瞬态检查点
 保存这两个量，并且不读取旧检查点格式。
@@ -298,16 +324,17 @@ H20.21 又以 Abaqus/Standard 全积分 C3D20 surface-to-surface 罚接触复核
 
 三维笛卡尔接触同时支持 HEX8 四节点面和 HEX20 八节点二次面。热接触都在
 secondary 面的 2×2 四个积分点上计算；HEX20 温度仍只使用四个角点的一阶形函数，
-但当前面坐标和投影使用八节点二次几何。机械接触采用 secondary 面节点到 primary
-面的正交投影；HEX8 使用四个面节点，HEX20 使用全部八个面节点。每个点都预留该接触
+但当前面坐标和投影使用八节点二次几何。HEX8 机械接触采用四个 secondary 面节点到
+primary 面的正交投影；HEX20 默认采用 secondary 面 3×3 积分点到 primary 二次面的
+正交投影，并保留八节点 `node_to_surface` 显式对比路径。每个点都预留该接触
 对全部 primary 面候选，并在当前构形中选择唯一有效面。内部公共边只允许一个面
 拥有投影，投影跨边时所有权唯一转移，滑出完整 primary 表面时拒绝当前 Newton
 状态。热流、法向力和三维切向力均向两侧装配严格相反的贡献。三维 Coulomb 摩擦
 保存全局三分量切向弹性滑移向量，因此可以表示接触面的两个独立切向方向。当前
 三维机械接触只接受 `formulation = penalty`；选择 `augmented_lagrangian` 会在
-问题构造时明确报错。HEX20 的节点反力默认使用上述正集总面积，使角点与边中点
-都具有正的法向和 Coulomb 摩擦容量；`consistent_shape` 只保留为显式的 MOOSE
-旧规则对比路径。
+问题构造时明确报错。HEX20 表面到面路径的法向和摩擦历史都位于九个积分点；输出层
+再以一致 Q8 形函数恢复等效节点力和节点压力。正集总与有符号一致面积只保留给显式
+`node_to_surface` 对比路径。
 
 接触两侧允许零初始间隙：参考构形中 secondary 节点可以恰好骑在 primary
 线段上（例如初始贴合的芯块—包壳），构造不再要求处处为正的参考间隙。

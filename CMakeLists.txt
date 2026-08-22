@@ -708,6 +708,8 @@ if(BUILD_TESTING)
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex20_mortar_area_compare.fsi"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_19_hex20_mortar_mechanical_displacement_nodes_0001.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_19_hex20_mortar_mechanical.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_23_hex20_surface_friction_displacement.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_23_hex20_surface_friction_reaction.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_21_hex20_surface_contact_displacement.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_21_hex20_surface_contact_reaction.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_22_hex20_unnormalized_mechanical_displacement_nodes_0009.csv"

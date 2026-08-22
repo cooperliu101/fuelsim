@@ -83,6 +83,7 @@ void hash_contacts(std::uint64_t& hash, const SpatialDefinition& definition) {
         hash_integer(hash, contact.automatic_penalty ? 1 : 0);
         hash_double(hash, contact.penalty_factor);
         hash_integer(hash, static_cast<std::int64_t>(contact.mechanical_formulation));
+        hash_integer(hash, static_cast<std::int64_t>(contact.mechanical_discretization));
         hash_integer(hash, static_cast<std::int64_t>(contact.quad8_nodal_area_rule));
         hash_double(hash, contact.penetration_tolerance);
         hash_size(hash, contact.maximum_augmented_iterations);

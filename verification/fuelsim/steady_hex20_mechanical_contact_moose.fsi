@@ -61,6 +61,7 @@
     secondary = secondary_left
     [mechanical]
       formulation = penalty
+      discretization = node_to_surface
       penalty = 1e13
       mu = 0
       quad8_nodal_area_rule = consistent_shape

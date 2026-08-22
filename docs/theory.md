@@ -445,7 +445,28 @@ F_n = pressure * A_secondary_tributary
 该节点得到 `+F_n*n` 残量，primary 两节点按投影形函数得到总和为
 `-F_n*n` 的残量，因此径向和轴向反力离散守恒。
 
-### 8.2 罚接触和自动缩放
+### 8.2 HEX20 表面到面机械接触
+
+HEX20 默认不把罚刚度集总到八个 secondary 节点，而是在当前 secondary 二次面上
+使用 3×3 高斯积分。每个积分点独立投影到唯一 primary 二次面，间隙、当前法向、
+压力和摩擦牵引都在该点计算。离散残量为：
+
+```text
+R_secondary_i = integral(N_secondary_i * (pressure*n + traction_t) dA)
+R_primary_j   = -integral(N_primary_j * (pressure*n + traction_t) dA)
+```
+
+两侧形函数都满足分片统一，所以作用反作用严格守恒。线性化直接对积分点投影、当前
+法向和当前面积自动微分；对于固定法向的闭合模式，罚切线具有
+`penalty * B_gap^T * B_gap * dA` 的非负耦合形式。Q8 角点的等效节点力可以为负，
+但它只是上述一致残量的投影结果，不是负的对角罚弹簧。
+
+Coulomb 弹性切向滑移和粘滑状态各保存九份。提交、回滚和检查点都以积分点为事务
+单位。输出的节点压力由一致等效节点力除以一致等效节点面积恢复，只用于结果展示。
+输入显式选择 `node_to_surface` 时才使用旧的八节点投影和
+`quad8_nodal_area_rule`，该路径用于算法研究与传统 MOOSE node-face 对比。
+
+### 8.3 罚接触和自动缩放
 
 显式罚形式是：
 
@@ -463,7 +484,7 @@ penalty     = penalty_factor * k_interface
 
 显式 `penalty` 与 `penalty_factor` 互斥。
 
-### 8.3 增广拉格朗日法向接触
+### 8.4 增广拉格朗日法向接触
 
 增广拉格朗日形式为每个 secondary 接触节点保存非负法向乘子 `lambda`。
 固定乘子的内层 Newton 残量使用：
@@ -481,7 +502,7 @@ lambda_new = max(0, lambda - penalty*gap)
 外层同时检查穿透容差和互补状态。达到最大增广迭代数仍不满足时，整个载荷步
 或时间步失败，节点场、材料历史和接触乘子恢复到同一 committed 状态。
 
-### 8.4 Coulomb 摩擦
+### 8.5 Coulomb 摩擦
 
 当前切向罚刚度与法向罚刚度使用同一个 `penalty=k`。令 `t` 为当前 primary
 线段单位切向，`delta_s` 为本步 secondary 位移增量减去投影 primary 位移
@@ -514,7 +535,7 @@ s_new = tau/k
 集总面积，再按 primary 形函数分配等量反向力。稳态延续只在收敛载荷增量后
 提交 `s_new` 和粘滑标志；瞬态把它们纳入完整状态事务和检查点。
 
-### 8.5 完整 primary 链动态搜索
+### 8.6 完整 primary 链动态搜索
 
 问题构造时，每个 secondary 节点与完整 primary 开放边链的所有线段都预留
 固定 12 自由度贡献，从第一次 Jacobian 装配起就包含所有潜在稀疏耦合。每次

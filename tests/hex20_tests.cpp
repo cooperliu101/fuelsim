@@ -5,6 +5,7 @@
 #include <array>
 #include <cmath>
 #include <iostream>
+#include <numeric>
 #include <string>
 
 namespace {
@@ -342,8 +343,71 @@ bool test_hex20_contact_kernels() {
         jacobian_error = std::max(jacobian_error, std::abs(analytic - numerical));
         jacobian_scale = std::max({jacobian_scale, std::abs(analytic), std::abs(numerical)});
     }
+    passed = check(jacobian_error / jacobian_scale < 2.0e-5,
+                 "HEX20 node-to-surface mechanical-contact Jacobian matches a centered difference") &&
+             passed;
+
+    fuelsim::Quad8SurfaceContactLocalResidual surface_residual{}, surface_plus_residual{}, surface_minus_residual{};
+    fuelsim::Quad8SurfaceContactLocalJacobian surface_jacobian{};
+    for (const fuelsim::Quad8FaceMechanicalQuadraturePoint& quadrature : geometry.mechanical_points) {
+        const fuelsim::Quad8ToQuad8MechanicalGeometry surface_geometry{face, face, quadrature.displacement_shape,
+            quadrature.derivative_xi, quadrature.derivative_eta, quadrature.quadrature_weight, -1.0};
+        fuelsim::Quad8SurfaceContactLocalJacobian point_jacobian{};
+        const auto point_residual = fuelsim::compute_quad8_to_quad8_contact(
+            mechanical_properties, surface_geometry, state, committed, {}, &point_jacobian);
+        const auto point_plus =
+            fuelsim::compute_quad8_to_quad8_contact(mechanical_properties, surface_geometry, plus, committed, {});
+        const auto point_minus =
+            fuelsim::compute_quad8_to_quad8_contact(mechanical_properties, surface_geometry, minus, committed, {});
+        for (std::size_t entry = 0; entry < surface_residual.size(); ++entry) {
+            surface_residual[entry] += point_residual[entry];
+            surface_plus_residual[entry] += point_plus[entry];
+            surface_minus_residual[entry] += point_minus[entry];
+        }
+        for (std::size_t entry = 0; entry < surface_jacobian.size(); ++entry)
+            surface_jacobian[entry] += point_jacobian[entry];
+    }
+    force_balance_x = 0.0;
+    force_balance_y = 0.0;
+    force_balance_z = 0.0;
+    for (std::size_t node = 0; node < 16; ++node) {
+        force_balance_x += surface_residual[8 + node];
+        force_balance_y += surface_residual[24 + node];
+        force_balance_z += surface_residual[40 + node];
+    }
+    const double total_secondary_force =
+        std::accumulate(surface_residual.begin() + 8, surface_residual.begin() + 16, 0.0);
+    passed = check(near(std::abs(total_secondary_force), 1.0e3, 1.0e-12),
+                 "HEX20 surface-to-surface contact integrates constant pressure over the current face") &&
+             check(near(surface_residual[8], -total_secondary_force / 12.0, 2.0e-12) &&
+                       near(surface_residual[12], total_secondary_force / 3.0, 2.0e-12),
+                 "HEX20 surface-to-surface contact retains the exact signed Q8 consistent nodal forces") &&
+             check(std::abs(force_balance_x) < 1.0e-12 && std::abs(force_balance_y) < 1.0e-12 &&
+                       std::abs(force_balance_z) < 1.0e-12,
+                 "HEX20 surface-to-surface contact is exactly action-reaction conservative") &&
+             passed;
+    auto surface_sliding_state = state;
+    for (std::size_t node = 0; node < 8; ++node) surface_sliding_state[24 + node] += 0.01;
+    const fuelsim::Quad8FaceMechanicalQuadraturePoint& center = geometry.mechanical_points[4];
+    const fuelsim::Quad8ToQuad8MechanicalGeometry center_geometry{face, face, center.displacement_shape,
+        center.derivative_xi, center.derivative_eta, center.quadrature_weight, -1.0};
+    const auto surface_sliding = fuelsim::compute_quad8_to_quad8_contact_value(
+        friction_properties, center_geometry, surface_sliding_state, committed, {});
+    passed = check(surface_sliding.sliding &&
+                       near(surface_sliding.tangential_traction,
+                           friction_properties.friction_coefficient * surface_sliding.pressure, 1.0e-12),
+                 "HEX20 surface-to-surface Coulomb friction caps the integration-point tangential traction") &&
+             passed;
+    jacobian_error = 0.0;
+    jacobian_scale = 0.0;
+    for (std::size_t row = 0; row < surface_residual.size(); ++row) {
+        const double numerical = (surface_plus_residual[row] - surface_minus_residual[row]) / (2.0 * step);
+        const double analytic = surface_jacobian[row * fuelsim::quad8_surface_contact_local_dof_count + 8];
+        jacobian_error = std::max(jacobian_error, std::abs(analytic - numerical));
+        jacobian_scale = std::max({jacobian_scale, std::abs(analytic), std::abs(numerical)});
+    }
     return check(jacobian_error / jacobian_scale < 2.0e-5,
-               "HEX20 Q8 mechanical contact automatic-differentiation Jacobian matches a centered difference") &&
+               "HEX20 surface-to-surface mechanical-contact Jacobian matches a centered difference") &&
            passed;
 }
 } // namespace

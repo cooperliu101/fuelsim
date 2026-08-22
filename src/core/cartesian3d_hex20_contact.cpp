@@ -210,6 +210,78 @@ HeatAdValue8 evaluate_heat(const GapHeatProperties& properties, const Quad8ToQua
 
 CartesianContactAdValue8 evaluate_mechanical(const NormalContactProperties& properties,
     const NodeToQuad8ContactGeometry& geometry, const Quad8SurfaceContactLocalAdValues& state,
+    const Quad8SurfaceContactLocalValues& committed_state, const ContactPointHistory& history);
+
+void apply_friction(const NormalContactProperties& properties, const Quad8SurfaceContactLocalAdValues& state,
+    const Quad8SurfaceContactLocalValues& committed_state, const ContactPointHistory& history,
+    const std::array<adlite::Scalar, 8>& secondary_shape, CartesianContactAdValue8& result) {
+    if (properties.friction_coefficient == 0.0 || !(result.pressure.value() > 0.0)) return;
+    ActivePoint3 relative_increment{};
+    for (std::size_t component = 0; component < 3; ++component) {
+        const std::size_t offset = 8 + 16 * component;
+        for (std::size_t node = 0; node < 8; ++node) {
+            relative_increment[component] +=
+                secondary_shape[node] * (state[offset + node] - committed_state[offset + node]);
+            relative_increment[component] -=
+                result.primary_shape[node] * (state[offset + 8 + node] - committed_state[offset + 8 + node]);
+        }
+    }
+    const adlite::Scalar normal_increment = dot(relative_increment, result.normal);
+    for (std::size_t component = 0; component < 3; ++component)
+        result.elastic_tangential_slip[component] = history.cartesian_elastic_tangential_slip[component] +
+                                                    relative_increment[component] -
+                                                    normal_increment * result.normal[component];
+    const adlite::Scalar history_normal = dot(result.elastic_tangential_slip, result.normal);
+    for (std::size_t component = 0; component < 3; ++component)
+        result.elastic_tangential_slip[component] -= history_normal * result.normal[component];
+    ActivePoint3 trial_traction{};
+    for (std::size_t component = 0; component < 3; ++component)
+        trial_traction[component] = properties.penalty * result.elastic_tangential_slip[component];
+    const adlite::Scalar trial_magnitude = norm(trial_traction),
+                         sliding_limit = properties.friction_coefficient * result.pressure;
+    if (trial_magnitude.value() < sliding_limit.value() ||
+        (trial_magnitude.value() == sliding_limit.value() && !history.sliding)) {
+        result.tangential_traction_vector = trial_traction;
+        result.tangential_traction = trial_magnitude;
+    } else {
+        if (!(trial_magnitude.value() > 0.0))
+            throw std::domain_error("HEX20 sliding contact has an undefined tangential direction");
+        for (std::size_t component = 0; component < 3; ++component) {
+            result.tangential_traction_vector[component] = sliding_limit * trial_traction[component] / trial_magnitude;
+            result.elastic_tangential_slip[component] =
+                result.tangential_traction_vector[component] / properties.penalty;
+        }
+        result.tangential_traction = sliding_limit;
+        result.sliding = true;
+    }
+    result.tangential_force = result.tangential_traction * result.tributary_area;
+}
+
+CartesianContactAdValue8 evaluate_surface_mechanical(const NormalContactProperties& properties,
+    const Quad8ToQuad8MechanicalGeometry& geometry, const Quad8SurfaceContactLocalAdValues& state,
+    const Quad8SurfaceContactLocalValues& committed_state, const ContactPointHistory& history) {
+    const std::array<ActivePoint3, 16> nodes =
+        current_nodes(geometry.secondary_coordinates, geometry.primary_coordinates, state);
+    const std::array<adlite::Scalar, 8> secondary_shape = active_values(geometry.secondary_displacement_shape);
+    const ActivePoint3 secondary_point = interpolate_point(nodes, 0, secondary_shape);
+    const SurfaceProjection8 projection = project_to_primary(secondary_point, nodes, geometry.normal_orientation);
+    if (!projection.projected) return {};
+    CartesianContactAdValue8 result;
+    result.projected = true;
+    result.primary_shape = projection.primary_shape;
+    result.normal = projection.normal;
+    result.gap = projection.gap;
+    result.pressure = adlite::max(-properties.penalty * result.gap, adlite::Scalar(0.0));
+    result.tributary_area =
+        geometry.quadrature_weight * current_surface_measure(nodes, active_values(geometry.secondary_derivative_xi),
+                                         active_values(geometry.secondary_derivative_eta), 0);
+    result.contact_force = result.pressure * result.tributary_area;
+    apply_friction(properties, state, committed_state, history, secondary_shape, result);
+    return result;
+}
+
+CartesianContactAdValue8 evaluate_mechanical(const NormalContactProperties& properties,
+    const NodeToQuad8ContactGeometry& geometry, const Quad8SurfaceContactLocalAdValues& state,
     const Quad8SurfaceContactLocalValues& committed_state, const ContactPointHistory& history) {
     const std::array<ActivePoint3, 16> nodes =
         current_nodes(geometry.secondary_coordinates, geometry.primary_coordinates, state);
@@ -245,47 +317,11 @@ CartesianContactAdValue8 evaluate_mechanical(const NormalContactProperties& prop
         throw std::domain_error("HEX20 contact positive-lumped Q8 nodal area is nonpositive");
     result.tributary_area = face_measure * raw[geometry.secondary_local_node] / raw_sum;
     result.contact_force = result.pressure * result.tributary_area;
-    if (properties.friction_coefficient == 0.0 || !(result.pressure.value() > 0.0) ||
-        (geometry.nodal_area_rule == Quad8NodalAreaRule::consistent_shape && !(result.tributary_area.value() > 0.0)))
+    if (geometry.nodal_area_rule == Quad8NodalAreaRule::consistent_shape && !(result.tributary_area.value() > 0.0))
         return result;
-    ActivePoint3 relative_increment{};
-    for (std::size_t component = 0; component < 3; ++component) {
-        const std::size_t offset = 8 + 16 * component;
-        relative_increment[component] =
-            state[offset + geometry.secondary_local_node] - committed_state[offset + geometry.secondary_local_node];
-        for (std::size_t node = 0; node < 8; ++node)
-            relative_increment[component] -=
-                projection.primary_shape[node] * (state[offset + 8 + node] - committed_state[offset + 8 + node]);
-    }
-    const adlite::Scalar normal_increment = dot(relative_increment, result.normal);
-    for (std::size_t component = 0; component < 3; ++component)
-        result.elastic_tangential_slip[component] = history.cartesian_elastic_tangential_slip[component] +
-                                                    relative_increment[component] -
-                                                    normal_increment * result.normal[component];
-    const adlite::Scalar history_normal = dot(result.elastic_tangential_slip, result.normal);
-    for (std::size_t component = 0; component < 3; ++component)
-        result.elastic_tangential_slip[component] -= history_normal * result.normal[component];
-    ActivePoint3 trial_traction{};
-    for (std::size_t component = 0; component < 3; ++component)
-        trial_traction[component] = properties.penalty * result.elastic_tangential_slip[component];
-    const adlite::Scalar trial_magnitude = norm(trial_traction),
-                         sliding_limit = properties.friction_coefficient * result.pressure;
-    if (trial_magnitude.value() < sliding_limit.value() ||
-        (trial_magnitude.value() == sliding_limit.value() && !history.sliding)) {
-        result.tangential_traction_vector = trial_traction;
-        result.tangential_traction = trial_magnitude;
-    } else {
-        if (!(trial_magnitude.value() > 0.0))
-            throw std::domain_error("HEX20 sliding contact has an undefined tangential direction");
-        for (std::size_t component = 0; component < 3; ++component) {
-            result.tangential_traction_vector[component] = sliding_limit * trial_traction[component] / trial_magnitude;
-            result.elastic_tangential_slip[component] =
-                result.tangential_traction_vector[component] / properties.penalty;
-        }
-        result.tangential_traction = sliding_limit;
-        result.sliding = true;
-    }
-    result.tangential_force = result.tangential_traction * result.tributary_area;
+    std::array<adlite::Scalar, 8> secondary_shape{};
+    secondary_shape[geometry.secondary_local_node] = 1.0;
+    apply_friction(properties, state, committed_state, history, secondary_shape, result);
     return result;
 }
 
@@ -339,6 +375,52 @@ ContactProjectionValue compute_quad8_to_quad8_heat_projection(
     for (std::size_t node = 0; node < 8; ++node) shape.shape[node] = geometry.secondary_displacement_shape[node];
     const SurfaceProjection8 projection =
         project_to_primary(interpolate_point(nodes, 0, shape.shape), nodes, geometry.normal_orientation);
+    return {projection.projected, projection.projected ? projection.gap.value() : 0.0};
+}
+
+Quad8SurfaceContactLocalResidual compute_quad8_to_quad8_contact(const NormalContactProperties& properties,
+    const Quad8ToQuad8MechanicalGeometry& geometry, const Quad8SurfaceContactLocalValues& state,
+    const Quad8SurfaceContactLocalValues& committed_state, const ContactPointHistory& history,
+    Quad8SurfaceContactLocalJacobian* jacobian) {
+    const Quad8SurfaceContactLocalAdValues ad_state = make_ad_state(state, jacobian != nullptr);
+    Quad8SurfaceContactLocalAdValues residual{};
+    const CartesianContactAdValue8 value =
+        evaluate_surface_mechanical(properties, geometry, ad_state, committed_state, history);
+    if (value.projected) {
+        const std::array<adlite::Scalar, 8> secondary_shape = active_values(geometry.secondary_displacement_shape);
+        for (std::size_t component = 0; component < 3; ++component) {
+            const std::size_t offset = 8 + 16 * component;
+            const adlite::Scalar force = value.contact_force * value.normal[component] +
+                                         value.tributary_area * value.tangential_traction_vector[component];
+            for (std::size_t node = 0; node < 8; ++node) {
+                residual[offset + node] += secondary_shape[node] * force;
+                residual[offset + 8 + node] -= value.primary_shape[node] * force;
+            }
+        }
+    }
+    return extract(ad_state, residual, jacobian);
+}
+
+CartesianContactPointValue compute_quad8_to_quad8_contact_value(const NormalContactProperties& properties,
+    const Quad8ToQuad8MechanicalGeometry& geometry, const Quad8SurfaceContactLocalValues& state,
+    const Quad8SurfaceContactLocalValues& committed_state, const ContactPointHistory& history) {
+    const CartesianContactAdValue8 value =
+        evaluate_surface_mechanical(properties, geometry, make_ad_state(state, false), committed_state, history);
+    return {value.projected, value.gap.value(), value.pressure.value(), value.tributary_area.value(),
+        value.contact_force.value(), value.tangential_traction.value(), value.tangential_force.value(),
+        {value.elastic_tangential_slip[0].value(), value.elastic_tangential_slip[1].value(),
+            value.elastic_tangential_slip[2].value()},
+        value.sliding};
+}
+
+ContactProjectionValue compute_quad8_to_quad8_contact_projection(
+    const Quad8ToQuad8MechanicalGeometry& geometry, const Quad8SurfaceContactLocalValues& state) {
+    const Quad8SurfaceContactLocalAdValues ad_state = make_ad_state(state, false);
+    const std::array<ActivePoint3, 16> nodes =
+        current_nodes(geometry.secondary_coordinates, geometry.primary_coordinates, ad_state);
+    const SurfaceProjection8 projection =
+        project_to_primary(interpolate_point(nodes, 0, active_values(geometry.secondary_displacement_shape)), nodes,
+            geometry.normal_orientation);
     return {projection.projected, projection.projected ? projection.gap.value() : 0.0};
 }
 

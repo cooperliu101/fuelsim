@@ -32,16 +32,36 @@ The Abaqus solve completed successfully with a normal reaction of
 Fuelsim test compares all 40 normal displacements and the normal reaction for
 both secondary nodal-area rules:
 
-| Fuelsim rule | Relative L2 | Relative absolute peak | Maximum pointwise relative | Normal reaction |
+| Fuelsim discretization | Relative L2 | Relative absolute peak | Maximum pointwise relative | Normal reaction |
 | --- | ---: | ---: | ---: | ---: |
+| `surface_to_surface` | `0.0423059%` | `0.000000834%` | `0.103699%` | `0.000951823%` |
 | `consistent_shape` | `0.0737857%` | `0.000000834%` | `0.184464%` | `0.00160804%` |
 | `positive_lumped` | `11.0014%` | `0.000000834%` | `28.8039%` | `7.74441%` |
 
-The test requires every `consistent_shape` field metric and its reaction error
-to remain below `0.5%`, and requires it to rank no worse than positive lumping
-for every reported quantity. Abaqus surface-to-surface contact and MOOSE mortar
-independently give the same ordering. Neither method multiplies a negative
-lumped nodal area directly into a node-to-face penalty, so the comparison does
-not make signed node-to-face penalty normalization safe. It shows that the
-current positive-lumped node-to-face rule changes this quadratic patch response
-materially and therefore remains qualified rather than externally verified.
+The production `surface_to_surface` path and the comparison-only
+`consistent_shape` path must keep every field metric and the reaction error
+below `0.5%`. Neither surface method multiplies a negative lumped nodal area
+directly into an independent node-to-face penalty spring.
+
+## H20.23 surface-to-surface Coulomb sliding
+
+`h20_23_hex20_surface_friction.inp` extends H20.21 with `mu = 0.001`, a
+`2.8 um` prescribed transverse displacement, and an Abaqus elastic-slip
+tolerance of `1e-6`. This puts all nine Fuelsim contact quadrature points in
+the sliding branch while retaining the same `1e13 Pa/m` normal penalty. Run it
+with:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass `
+  -File "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus\run_h20_23.ps1" `
+  -SourceDirectory "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus"
+```
+
+Abaqus completed with normal and tangential reactions of `106.518753052 N`
+and `0.106491569 N`. Fuelsim's normal-displacement relative L2, relative
+absolute-peak, and maximum pointwise-relative errors are `0.0580063%`,
+`0.000000834%`, and `0.188621%`; normal and tangential reaction errors are
+`0.000860263%` and `0.0263872%`. The test compares all 40 normal displacements
+and both resultants. It does not qualify the full transverse displacement
+field because Abaqus uses a regularized elastic-slip law while Fuelsim uses a
+sharp integration-point return to the Coulomb cap.

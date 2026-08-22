@@ -290,8 +290,30 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
     const fuelsim::FuelSimCaseDefinition friction = fuelsim::read_case_input(malformed_path);
     passed = check(friction.spatial.contacts.size() == 1 && friction.spatial.contacts[0].friction_coefficient == 0.25,
                  "optional contact mu is parsed as the Coulomb friction coefficient") &&
+             check(friction.spatial.contacts[0].mechanical_discretization ==
+                       fuelsim::MechanicalContactDiscretization::automatic,
+                 "omitting the mechanical-contact discretization selects the mesh-dependent default") &&
              check(friction.spatial.contacts[0].quad8_nodal_area_rule == fuelsim::Quad8NodalAreaRule::positive_lumped,
-                 "HEX20 contact defaults to positive-lumped quadratic nodal areas") &&
+                 "node-to-surface HEX20 comparisons default to positive-lumped quadratic nodal areas") &&
+             passed;
+    std::string surface_contact_case = friction_case;
+    surface_contact_case.insert(surface_contact_case.find(contact_penalty) + contact_penalty.size(),
+        "\n      discretization = surface_to_surface");
+    {
+        std::ofstream output(malformed_path, std::ios::out | std::ios::trunc);
+        if (!output) return check(false, "could not create surface-contact input fixture");
+        output << surface_contact_case;
+    }
+    const fuelsim::FuelSimCaseDefinition surface_contact = fuelsim::read_case_input(malformed_path);
+    passed = check(surface_contact.spatial.contacts[0].mechanical_discretization ==
+                       fuelsim::MechanicalContactDiscretization::surface_to_surface,
+                 "the explicit surface-to-surface mechanical-contact discretization is parsed") &&
+             passed;
+    std::string invalid_surface_area_case = surface_contact_case;
+    invalid_surface_area_case.insert(invalid_surface_area_case.find(contact_penalty) + contact_penalty.size(),
+        "\n      quad8_nodal_area_rule = consistent_shape");
+    passed = expect_case_failure(malformed_path, invalid_surface_area_case,
+                 "quad8_nodal_area_rule applies only to discretization = node_to_surface") &&
              passed;
     std::string consistent_area_case = friction_case;
     consistent_area_case.insert(consistent_area_case.find(contact_penalty) + contact_penalty.size(),

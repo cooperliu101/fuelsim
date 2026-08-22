@@ -164,6 +164,12 @@ struct Quad8ToQuad8HeatGeometry final {
     double quadrature_weight, normal_orientation;
 };
 
+struct Quad8ToQuad8MechanicalGeometry final {
+    std::array<CartesianPoint3, 8> secondary_coordinates, primary_coordinates;
+    std::array<double, 8> secondary_displacement_shape, secondary_derivative_xi, secondary_derivative_eta;
+    double quadrature_weight, normal_orientation;
+};
+
 struct NodeToQuad8ContactGeometry final {
     std::array<CartesianPoint3, 8> secondary_coordinates, primary_coordinates;
     std::array<std::array<double, 8>, quad8_surface_contact_quadrature_point_count> secondary_shapes;
@@ -182,6 +188,15 @@ CartesianHeatQuadratureValue compute_quad8_to_quad8_gap_heat_value(const GapHeat
     const Quad8ToQuad8HeatGeometry& geometry, const Quad8SurfaceContactLocalValues& state);
 ContactProjectionValue compute_quad8_to_quad8_heat_projection(
     const Quad8ToQuad8HeatGeometry& geometry, const Quad8SurfaceContactLocalValues& state);
+Quad8SurfaceContactLocalResidual compute_quad8_to_quad8_contact(const NormalContactProperties& properties,
+    const Quad8ToQuad8MechanicalGeometry& geometry, const Quad8SurfaceContactLocalValues& state,
+    const Quad8SurfaceContactLocalValues& committed_state, const ContactPointHistory& history,
+    Quad8SurfaceContactLocalJacobian* jacobian = nullptr);
+CartesianContactPointValue compute_quad8_to_quad8_contact_value(const NormalContactProperties& properties,
+    const Quad8ToQuad8MechanicalGeometry& geometry, const Quad8SurfaceContactLocalValues& state,
+    const Quad8SurfaceContactLocalValues& committed_state, const ContactPointHistory& history);
+ContactProjectionValue compute_quad8_to_quad8_contact_projection(
+    const Quad8ToQuad8MechanicalGeometry& geometry, const Quad8SurfaceContactLocalValues& state);
 Quad8SurfaceContactLocalResidual compute_node_to_quad8_contact(const NormalContactProperties& properties,
     const NodeToQuad8ContactGeometry& geometry, const Quad8SurfaceContactLocalValues& state,
     const Quad8SurfaceContactLocalValues& committed_state, const ContactPointHistory& history,

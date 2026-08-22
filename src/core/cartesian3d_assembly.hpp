@@ -126,8 +126,10 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
         std::size_t contact;
         std::array<std::size_t, 4> secondary_temperature_nodes, primary_temperature_nodes;
         std::array<std::size_t, 8> secondary_displacement_nodes, primary_displacement_nodes;
-        NodeToQuad8ContactGeometry geometry;
-        std::size_t secondary, primary;
+        NodeToQuad8ContactGeometry node_geometry;
+        Quad8ToQuad8MechanicalGeometry surface_geometry;
+        bool surface_to_surface;
+        std::size_t secondary, primary, secondary_face, secondary_local_point;
     };
 
     struct PrimaryContactFace final {
@@ -168,7 +170,7 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     };
 
     struct Hex20MechanicalPoint final {
-        std::size_t contact, secondary, secondary_face, secondary_local_node;
+        std::size_t contact, secondary, secondary_face, secondary_local_point;
     };
 
     ContributionRanges contribution_ranges() const noexcept;
