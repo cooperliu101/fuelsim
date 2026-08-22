@@ -250,6 +250,12 @@ nodal_area_i = face_area * raw_area_i / sum(raw_area)
 `-1/12`、边中点面积为 `1/3`，所以角点不具有正的 Coulomb 摩擦容量。
 `consistent_shape` 只允许用于 HEX20；二维 RZ 和 HEX8 接触会在问题构造时拒绝它。
 
+H20.19 另用 MOOSE 的双基函数 mortar 面积分作为独立排序参考。在同一二单元纯法向
+压缩算例中，`consistent_shape` 的法向位移和合力比 `positive_lumped` 更接近 mortar，
+但这不等于允许把负的一致节点面积直接乘入 node-face 罚刚度。mortar 在面分段上积分
+分布式约束，并不依赖这个有符号节点罚刚度；生产默认仍为保证每个节点法向与摩擦容量
+为正的 `positive_lumped`。
+
 `penalty_factor` 是无量纲可选值，默认 `1`，必须有限且大于零。显式 `penalty`
 和 `penalty_factor` 互斥，不能同时出现。自动选择只是网格与材料一致的起点；
 生产工况仍须用穿透、接触力和网格收敛证明其适用性。

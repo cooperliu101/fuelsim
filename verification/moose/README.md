@@ -38,7 +38,7 @@ files.
 | B3.4 HEX8 sliding friction | `b34_hex8_sliding_contact_mesh.e` | 16 / 2 HEX8 | `d9ec3f16dd1c836f88e4cdf21195b47cb8766e34e97415cd84fb94b1ea48e2f6` |
 | B3.7 HEX8 nonmatching two-pair friction | `b37_hex8_multi_contact_mesh.e` | 40 / 6 HEX8 | `c2d1610df6f29148fdc373df5e1e257c7a432ac2114fd9b27c283965685da5b3` |
 | B6 HEX20-U2/T1 thermoelasticity | `b6_hex20_u2_t1.e` | 20 / 1 HEX20 | `95fa67b7b03777f65bd3ace9911d247d16e41c904faad994a24ed811e1bf3c6f` |
-| H20.16--18 HEX20 contact | `h20_16_hex20_contact_mesh.e` | 40 / 2 HEX20 | `a2eeb7668f97df9d3f77504c8b97582ab97d5bade2de0aa8cfc9971ff9d58e4e` |
+| H20.16--19 HEX20 contact | `h20_16_hex20_contact_mesh.e` | 40 / 2 HEX20 | `a2eeb7668f97df9d3f77504c8b97582ab97d5bade2de0aa8cfc9971ff9d58e4e` |
 
 Generate any snapshot from this directory by replacing `<case>` with the input
 stem:
@@ -69,7 +69,7 @@ relative absolute-peak, and maximum pointwise-relative errors. Temperature is
 exact and the largest displacement metric is below `4.6e-15`; zero references
 are counted and checked separately.
 
-## H20.16--18 mixed-order HEX20 contact
+## H20.16--19 mixed-order HEX20 contact
 
 `h20_16_hex20_contact_mesh.i` generates the tracked two-element HEX20 mesh with
 a one-micrometre initial penetration. Temperature uses first-order interpolation
@@ -78,6 +78,21 @@ nodes. H20.16 compares the 2-by-2 quadrature thermal-contact temperature field;
 H20.17 compares all 40 displacement nodes and all eight secondary-node contact
 pressures for frictionless penalty contact; H20.18 compares the normal and
 tangential reaction resultants after Coulomb sliding.
+
+H20.19 adds an independent mortar reference on the same tracked mesh. It uses
+MOOSE `mortar_penalty` contact with the dual mortar basis, a pure normal
+`-20 um` prescribed displacement, zero Poisson ratio, and the same `1e13 Pa/m`
+penalty used by Fuelsim. MOOSE commit `93b11698be` stalls in its separate
+frictionless mortar user object for this initially active quadratic interface,
+so the tracked input selects its Coulomb mortar user object with an exactly zero
+friction coefficient and equal normal and friction penalty values. The
+converged tangential reactions are below `5.3e-11 N`, which confirms that the
+reference remains physically frictionless. The snapshot was generated with:
+
+```bash
+/home/cooper/projects/july/july-opt \
+  -i h20_19_hex20_mortar_mechanical.i
+```
 
 MOOSE uses a consistent quadratic nodal-area rule on the eight-node contact
 face. Its corner areas are negative and its edge-midpoint areas are positive.
@@ -93,7 +108,20 @@ four nodes are active in each final state, and the sliding path has three slidin
 nodes. Thermal, frictionless mechanical, and sliding references are
 separate because the configured July/MOOSE build crashes when second-order
 node-to-face mechanical contact and quadrature gap heat transfer are active in
-one problem. The three references still share the same tracked mesh.
+one problem. All references still share the same tracked mesh.
+
+The H20.19 test solves the identical Fuelsim problem once with each secondary
+nodal-area rule and compares all 40 normal displacements plus the integrated
+normal reaction against mortar. Consistent-shape integration has `0.292339%`
+relative L2 displacement error, `0.586332%` maximum pointwise-relative error,
+and `0.507077%` reaction error. Positive lumping has `10.7154%`, `28.2602%`,
+and `8.21369%`, respectively, and four rather than eight nodes remain active.
+The test therefore uses mortar as a ranking oracle and requires the
+consistent-shape result to remain below `1%`; it does not claim that mortar
+validates positive lumping. Mortar integrates distributed face constraints and
+does not multiply a possibly negative lumped nodal area into a node-to-face
+penalty, so this result also does not make signed node-to-face penalty scaling
+safe.
 
 ## Native axisymmetric shared-node material interface
 
