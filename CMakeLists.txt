@@ -726,6 +726,20 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_h20_hex20_contact_reference_tests
         PROPERTIES LABELS "acceptance;three-dimensional;hex20;contact;friction")
 
+    add_executable(fuelsim_h20_24_hex20_nonmatching_abaqus_tests
+        tests/h20_nonmatching_contact_abaqus_tests.cpp)
+    target_link_libraries(fuelsim_h20_24_hex20_nonmatching_abaqus_tests
+        PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
+    fuelsim_enable_warnings(fuelsim_h20_24_hex20_nonmatching_abaqus_tests)
+    add_test(NAME fuelsim_h20_24_hex20_nonmatching_abaqus_tests
+        COMMAND fuelsim_h20_24_hex20_nonmatching_abaqus_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex20_nonmatching_contact_abaqus.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_24_hex20_nonmatching_surface_contact_displacement.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_24_hex20_nonmatching_surface_contact_reaction.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_24_hex20_nonmatching_surface_contact_pressure.csv")
+    set_tests_properties(fuelsim_h20_24_hex20_nonmatching_abaqus_tests
+        PROPERTIES LABELS "acceptance;three-dimensional;hex20;contact;nonmatching;abaqus")
+
     add_executable(fuelsim_b37_hex8_multi_contact_moose_tests tests/b37_hex8_multi_contact_moose_tests.cpp)
     target_link_libraries(fuelsim_b37_hex8_multi_contact_moose_tests
         PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)

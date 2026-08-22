@@ -1,3 +1,4 @@
+#include "fuelsim/io/results_io.hpp"
 #include "fuelsim/solver/solve_workflows.hpp"
 #include "support/cartesian3d_problem_access.hpp"
 #include "support/material_factory.hpp"
@@ -5,9 +6,12 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <fstream>
 #include <initializer_list>
+#include <iomanip>
 #include <iostream>
 #include <map>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -71,6 +75,85 @@ fuelsim::UnstructuredHex20Mesh nonmatching_mesh() {
             {22, "secondary_y0", sides({{4, 0}})}, {23, "secondary_z0", sides({{4, 4}, {5, 4}})}});
 }
 
+void write_label_set(std::ofstream& output, const std::vector<std::size_t>& labels) {
+    for (std::size_t index = 0; index < labels.size(); ++index) {
+        output << labels[index];
+        if ((index + 1) % 16 == 0 || index + 1 == labels.size())
+            output << '\n';
+        else
+            output << ", ";
+    }
+}
+
+void write_abaqus_input(const std::string& path, const fuelsim::UnstructuredHex20Mesh& mesh) {
+    std::ofstream output(path);
+    if (!output) throw std::runtime_error("Could not write H20.24 Abaqus input: " + path);
+    output << std::setprecision(16) << "*Heading\n"
+           << "** H20.24: nonmatching C3D20 surface-to-surface frictionless contact.\n"
+           << "** Generated from the same Fuelsim mesh that is stored as the tracked Exodus reference.\n"
+           << "*Node\n";
+    for (std::size_t node = 0; node < mesh.nodes().size(); ++node) {
+        const auto& point = mesh.nodes()[node];
+        output << node + 1 << ", " << point.x << ", " << point.y << ", " << point.z << '\n';
+    }
+    const std::array<std::size_t, 20> abaqus_order = {
+        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 16, 17, 18, 19, 12, 13, 14, 15};
+    const auto write_block = [&](const std::string& name, std::int64_t block_id) {
+        output << "*Element, type=C3D20, elset=" << name << '\n';
+        for (std::size_t element = 0; element < mesh.elements().size(); ++element) {
+            if (mesh.element_block_ids()[element] != block_id) continue;
+            output << element + 1;
+            for (std::size_t local : abaqus_order) output << ", " << mesh.elements()[element].nodes[local] + 1;
+            output << '\n';
+        }
+    };
+    write_block("PRIMARY", mesh.element_block("primary").id);
+    write_block("SECONDARY", mesh.element_block("secondary").id);
+    output << "*Elset, elset=ALL\nPRIMARY, SECONDARY\n";
+    std::vector<bool> secondary_node(mesh.nodes().size(), false);
+    for (std::size_t element = 0; element < mesh.elements().size(); ++element)
+        if (mesh.element_block_ids()[element] == mesh.element_block("secondary").id)
+            for (std::size_t node : mesh.elements()[element].nodes) secondary_node[node] = true;
+    std::vector<std::size_t> primary_x0, secondary_x2, secondary_y0, secondary_z0;
+    for (std::size_t node = 0; node < mesh.nodes().size(); ++node) {
+        const auto& point = mesh.nodes()[node];
+        if (!secondary_node[node] && std::abs(point.x) < 1.0e-14) primary_x0.push_back(node + 1);
+        if (secondary_node[node] && std::abs(point.x - 2.0) < 1.0e-14) secondary_x2.push_back(node + 1);
+        if (secondary_node[node] && std::abs(point.y) < 1.0e-14) secondary_y0.push_back(node + 1);
+        if (secondary_node[node] && std::abs(point.z) < 1.0e-14) secondary_z0.push_back(node + 1);
+    }
+    output << "*Nset, nset=PRIMARY_X0\n";
+    write_label_set(output, primary_x0);
+    output << "*Nset, nset=SECONDARY_X2\n";
+    write_label_set(output, secondary_x2);
+    output << "*Nset, nset=SECONDARY_Y0\n";
+    write_label_set(output, secondary_y0);
+    output << "*Nset, nset=SECONDARY_Z0\n";
+    write_label_set(output, secondary_z0);
+    output << "*Surface, type=ELEMENT, name=PRIMARY_CONTACT\n"
+           << "PRIMARY, S4\n"
+           << "*Surface, type=ELEMENT, name=SECONDARY_CONTACT\n"
+           << "SECONDARY, S6\n"
+           << "*Material, name=ELASTIC\n"
+           << "*Elastic\n1.e9, 0.25\n"
+           << "*Solid Section, elset=ALL, material=ELASTIC\n,\n"
+           << "*Surface Interaction, name=PENALTY_CONTACT\n"
+           << "*Surface Behavior, pressure-overclosure=LINEAR\n1.e11,\n"
+           << "*Contact Pair, interaction=PENALTY_CONTACT, type=SURFACE TO SURFACE, small sliding, adjust=0.\n"
+           << "SECONDARY_CONTACT, PRIMARY_CONTACT\n"
+           << "*Step, name=LOAD, nlgeom=NO, inc=100\n"
+           << "*Static\n0.1, 1., 1.e-8, 0.1\n"
+           << "*Boundary\n"
+           << "PRIMARY_X0, 1, 3, 0.\n"
+           << "SECONDARY_X2, 1, 1, -1.e-5\n"
+           << "SECONDARY_Y0, 2, 2, 0.\n"
+           << "SECONDARY_Z0, 3, 3, 0.\n"
+           << "*Output, field, frequency=1\n"
+           << "*Node Output\nCOORD, RF, U\n"
+           << "*Contact Output\nCSTRESS, CDISP\n"
+           << "*End Step\n";
+}
+
 fuelsim::SpatialDefinition definition() {
     fuelsim::SpatialDefinition value;
     value.regions = {fuelsim::RegionDefinition{"primary", "primary", material(), 0.0, 300.0},
@@ -116,6 +199,8 @@ fuelsim::SolverOptions solver_options() {
 int main(int argc, char** argv) {
     fuelsim::PetscSession session(argc, argv, "fuelsim HEX20 nonmatching contact tests\n");
     const fuelsim::UnstructuredHex20Mesh mesh = nonmatching_mesh();
+    if (argc > 1) session.collective_root_action([&]() { fuelsim::write_exodus_hex20(argv[1], mesh); });
+    if (argc > 2) session.collective_root_action([&]() { write_abaqus_input(argv[2], mesh); });
     fuelsim::SteadyProblem problem(definition(), mesh);
     const auto& spatial = fuelsim::cartesian::ProblemAccess::view(problem);
     const std::array<double, 4> primary_midpoints = {0.25, 0.75, 1.25, 1.75};
