@@ -632,6 +632,14 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_h20_15_hex20_contact_assembly_tests
         PROPERTIES LABELS "integration;three-dimensional;quadratic;contact")
 
+    add_executable(fuelsim_h20_24_hex20_nonmatching_contact_tests tests/h20_nonmatching_contact_tests.cpp)
+    target_link_libraries(fuelsim_h20_24_hex20_nonmatching_contact_tests PRIVATE fuelsim::io fuelsim::solver)
+    fuelsim_enable_warnings(fuelsim_h20_24_hex20_nonmatching_contact_tests)
+    add_test(NAME fuelsim_h20_24_hex20_nonmatching_contact_tests
+        COMMAND fuelsim_h20_24_hex20_nonmatching_contact_tests)
+    set_tests_properties(fuelsim_h20_24_hex20_nonmatching_contact_tests
+        PROPERTIES LABELS "integration;three-dimensional;quadratic;contact;nonmatching")
+
     add_executable(fuelsim_b3_hex8_moose_tests tests/b3_hex8_moose_tests.cpp)
     target_link_libraries(fuelsim_b3_hex8_moose_tests
         PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)

@@ -448,7 +448,7 @@ F_n = pressure * A_secondary_tributary
 ### 8.2 HEX20 表面到面机械接触
 
 HEX20 默认不把罚刚度集总到八个 secondary 节点，而是在当前 secondary 二次面上
-使用 3×3 高斯积分。每个积分点独立投影到唯一 primary 二次面，间隙、当前法向、
+使用 3×3 高斯积分。primary 和 secondary 面的数量及分片可以不同；每个积分点独立投影到唯一 primary 二次面，间隙、当前法向、
 压力和摩擦牵引都在该点计算。离散残量为：
 
 ```text
