@@ -306,6 +306,33 @@ bool test_contact_projection(const fuelsim::UnstructuredHex20Mesh& mesh) {
                   }),
             "HEX20 surface-to-surface friction rollback restores every averaged-constraint history") &&
         passed;
+    fuelsim::SpatialDefinition finite_spatial = spatial;
+    for (fuelsim::RegionDefinition& region : finite_spatial.regions)
+        region.strain_formulation = fuelsim::StrainFormulation::finite;
+    fuelsim::SteadyProblem finite_problem(finite_spatial, contact_mesh);
+    const auto& finite_view = fuelsim::cartesian::ProblemAccess::view(finite_problem);
+    std::vector<double> finite_sliding_state = finite_problem.initial_state();
+    for (std::size_t local_node = 0; local_node < finite_view.hex20_region_mesh(1).nodes().size(); ++local_node) {
+        const std::size_t global = finite_view.global_node(1, local_node);
+        finite_sliding_state[finite_view.dof(fuelsim::Field::displacement_x, global)] = -1.0e-4;
+        finite_sliding_state[finite_view.dof(fuelsim::Field::displacement_y, global)] = 1.0e-4;
+        finite_sliding_state[finite_view.dof(fuelsim::Field::displacement_z, global)] = 2.0e-4;
+    }
+    finite_problem.validate_state(finite_sliding_state);
+    finite_problem.commit_internal_state(finite_sliding_state);
+    const auto& finite_histories = fuelsim::cartesian::ProblemAccess::committed_contact_histories(finite_problem).at(0);
+    passed = check(finite_histories.size() == 9 &&
+                       std::all_of(finite_histories.begin(), finite_histories.end(),
+                           [](const auto& history) {
+                               const double magnitude = std::hypot(history.cartesian_elastic_tangential_slip[0],
+                                   std::hypot(history.cartesian_elastic_tangential_slip[1],
+                                       history.cartesian_elastic_tangential_slip[2]));
+                               return history.sliding && std::abs(history.cartesian_elastic_tangential_slip[1]) > 0.0 &&
+                                      std::abs(history.cartesian_elastic_tangential_slip[2]) > 0.0 &&
+                                      std::abs(magnitude - 1.0e-5) < 1.0e-13;
+                           }),
+                 "HEX20 finite-strain surface contact commits nine biaxial sliding histories at elastic_slip") &&
+             passed;
     return passed;
 }
 

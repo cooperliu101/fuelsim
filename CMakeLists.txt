@@ -878,6 +878,19 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_h20_36_curved_friction_path_abaqus_tests
         PROPERTIES LABELS "acceptance;three-dimensional;hex20;contact;friction;curved;abaqus;restart")
 
+    add_executable(fuelsim_h20_38_friction_objectivity_abaqus_tests
+        tests/h20_friction_objectivity_abaqus_tests.cpp)
+    target_link_libraries(fuelsim_h20_38_friction_objectivity_abaqus_tests
+        PRIVATE fuelsim_moose_test_support fuelsim::io)
+    fuelsim_enable_warnings(fuelsim_h20_38_friction_objectivity_abaqus_tests)
+    add_test(NAME fuelsim_h20_38_friction_objectivity_abaqus_tests
+        COMMAND fuelsim_h20_38_friction_objectivity_abaqus_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_38_hex20_sts_friction_objectivity_mesh.e"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_38_hex20_sts_friction_objectivity.inp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_38_hex20_sts_friction_objectivity.csv")
+    set_tests_properties(fuelsim_h20_38_friction_objectivity_abaqus_tests
+        PROPERTIES LABELS "acceptance;three-dimensional;hex20;contact;friction;sliding;objectivity;abaqus")
+
     add_executable(fuelsim_h20_31_hex20_curved_sts_identification_tests
         tests/h20_curved_sts_identification_tests.cpp)
     target_link_libraries(fuelsim_h20_31_hex20_curved_sts_identification_tests

@@ -30,6 +30,7 @@ set(hex20_abaqus_averaged_contact_lines 407)
 set(hex20_curved_abaqus_contact_lines 27)
 set(hex20_abaqus_averaged_friction_lines 143)
 set(hex20_abaqus_contact_observables_lines 6)
+set(hex20_objective_friction_history_lines 69)
 
 file(READ "${ROOT}/.clang-format" format_configuration)
 string(FIND "${format_configuration}" "ColumnLimit: 120" column_limit)
@@ -67,7 +68,7 @@ endif()
 math(EXPR removed_lines "${nonempty_line_baseline} - ${nonempty_lines}")
 math(EXPR reduction_per_mille "1000 * ${removed_lines} / ${nonempty_line_baseline}")
 math(EXPR capability_adjusted_limit
-    "${maximum_nonempty_lines} + ${hex8_inelastic_capability_lines} + ${hex8_finite_strain_capability_lines} + ${hex8_contact_capability_lines} + ${dynamic_contact_assembly_performance_lines} + ${large_sliding_contact_search_lines} + ${cartesian_current_pressure_input_lines} + ${m58_two_process_efficiency_lines} + ${m58_four_process_efficiency_lines} + ${memory_statistics_lines} + ${shared_node_capability_lines} + ${hex8_narrow_constitutive_ad_lines} + ${rz_narrow_constitutive_ad_lines} + ${source_layout_refactor_lines} + ${optional_input_sections_lines} + ${bound_material_function_lines} + ${thermal_time_term_option_lines} + ${pressure_configuration_selection_lines} + ${hex20_u2_t1_capability_lines} + ${hex20_face_quadrature_lines} + ${hex20_contact_capability_lines} + ${hex20_surface_mechanical_contact_lines} + ${hex20_small_sliding_surface_contact_lines} + ${hex20_abaqus_averaged_contact_lines} + ${hex20_curved_abaqus_contact_lines} + ${hex20_abaqus_averaged_friction_lines} + ${hex20_abaqus_contact_observables_lines}"
+    "${maximum_nonempty_lines} + ${hex8_inelastic_capability_lines} + ${hex8_finite_strain_capability_lines} + ${hex8_contact_capability_lines} + ${dynamic_contact_assembly_performance_lines} + ${large_sliding_contact_search_lines} + ${cartesian_current_pressure_input_lines} + ${m58_two_process_efficiency_lines} + ${m58_four_process_efficiency_lines} + ${memory_statistics_lines} + ${shared_node_capability_lines} + ${hex8_narrow_constitutive_ad_lines} + ${rz_narrow_constitutive_ad_lines} + ${source_layout_refactor_lines} + ${optional_input_sections_lines} + ${bound_material_function_lines} + ${thermal_time_term_option_lines} + ${pressure_configuration_selection_lines} + ${hex20_u2_t1_capability_lines} + ${hex20_face_quadrature_lines} + ${hex20_contact_capability_lines} + ${hex20_surface_mechanical_contact_lines} + ${hex20_small_sliding_surface_contact_lines} + ${hex20_abaqus_averaged_contact_lines} + ${hex20_curved_abaqus_contact_lines} + ${hex20_abaqus_averaged_friction_lines} + ${hex20_abaqus_contact_observables_lines} + ${hex20_objective_friction_history_lines}"
 )
 if(nonempty_lines GREATER capability_adjusted_limit)
     message(FATAL_ERROR
@@ -98,7 +99,8 @@ if(nonempty_lines GREATER capability_adjusted_limit)
         "${hex20_abaqus_averaged_contact_lines} lines for Abaqus-style averaged HEX20 contact, plus "
         "${hex20_curved_abaqus_contact_lines} lines for curved Abaqus-style HEX20 contact, plus "
         "${hex20_abaqus_averaged_friction_lines} lines for Abaqus-style averaged HEX20 Coulomb friction, plus "
-        "${hex20_abaqus_contact_observables_lines} lines for signed force-vector and total-slip observables"
+        "${hex20_abaqus_contact_observables_lines} lines for signed force-vector and total-slip observables, plus "
+        "${hex20_objective_friction_history_lines} lines for objective HEX20 friction-history transport"
     )
 endif()
 
@@ -128,5 +130,7 @@ message(STATUS
     "${hex20_small_sliding_surface_contact_lines} reference-segmented HEX20 small-sliding contact lines plus "
     "${hex20_abaqus_averaged_contact_lines} Abaqus-style averaged HEX20 contact lines plus "
     "${hex20_curved_abaqus_contact_lines} curved Abaqus-style HEX20 contact lines plus "
-    "${hex20_abaqus_averaged_friction_lines} Abaqus-style averaged HEX20 Coulomb-friction lines"
+    "${hex20_abaqus_averaged_friction_lines} Abaqus-style averaged HEX20 Coulomb-friction lines plus "
+    "${hex20_abaqus_contact_observables_lines} signed force-vector and total-slip observable lines plus "
+    "${hex20_objective_friction_history_lines} objective HEX20 friction-history transport lines"
 )

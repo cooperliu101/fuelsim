@@ -1533,9 +1533,8 @@ void SpatialAssembly::build_hex20_contacts(const UnstructuredHex20Mesh& source_m
         const bool abaqus_averaged =
             surface_to_surface && _definition.regions[primary.region].strain_formulation == StrainFormulation::small &&
             _definition.regions[secondary.region].strain_formulation == StrainFormulation::small;
-        if (definition.friction_elastic_slip > 0.0 && !abaqus_averaged)
-            throw std::invalid_argument(
-                "elastic_slip requires small-strain HEX20 surface_to_surface contact: " + definition.name);
+        if (definition.friction_elastic_slip > 0.0 && !surface_to_surface)
+            throw std::invalid_argument("elastic_slip requires HEX20 surface_to_surface contact: " + definition.name);
         if (surface_to_surface && definition.quad8_nodal_area_rule != Quad8NodalAreaRule::positive_lumped)
             throw std::invalid_argument(
                 "quad8_nodal_area_rule applies only to HEX20 node-to-surface contact comparisons: " + definition.name);

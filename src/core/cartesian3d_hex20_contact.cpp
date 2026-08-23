@@ -18,7 +18,7 @@ struct Quad8ShapeValues final {
 struct SurfaceProjection8 final {
     bool projected = false;
     std::array<adlite::Scalar, 8> primary_shape{};
-    ActivePoint3 primary_point{}, normal{};
+    ActivePoint3 primary_point{}, normal{}, tangent_xi{};
     adlite::Scalar gap{0.0}, xi{0.0}, eta{0.0};
 };
 
@@ -29,6 +29,12 @@ struct CartesianContactAdValue8 final {
     adlite::Scalar gap{0.0}, pressure{0.0}, tributary_area{0.0}, contact_force{0.0}, tangential_traction{0.0},
         tangential_force{0.0};
 };
+
+struct SurfaceBasis final {
+    ActivePoint3 first{}, second{};
+};
+
+Quad8SurfaceContactLocalAdValues make_ad_state(const Quad8SurfaceContactLocalValues& state, bool derivatives);
 
 ActivePoint3 subtract(const ActivePoint3& first, const ActivePoint3& second) {
     return {first[0] - second[0], first[1] - second[1], first[2] - second[2]};
@@ -212,33 +218,24 @@ CartesianContactAdValue8 evaluate_mechanical(const NormalContactProperties& prop
     const NodeToQuad8ContactGeometry& geometry, const Quad8SurfaceContactLocalAdValues& state,
     const Quad8SurfaceContactLocalValues& committed_state, const ContactPointHistory& history);
 
-void apply_friction(const NormalContactProperties& properties, const Quad8SurfaceContactLocalAdValues& state,
-    const Quad8SurfaceContactLocalValues& committed_state, const ContactPointHistory& history,
-    const std::array<adlite::Scalar, 8>& secondary_shape, CartesianContactAdValue8& result) {
+void apply_friction(const NormalContactProperties& properties, const ContactPointHistory& history,
+    const ActivePoint3& transported_history, const ActivePoint3& relative_increment, CartesianContactAdValue8& result) {
     if (properties.friction_coefficient == 0.0 || !(result.pressure.value() > 0.0)) return;
-    ActivePoint3 relative_increment{};
-    for (std::size_t component = 0; component < 3; ++component) {
-        const std::size_t offset = 8 + 16 * component;
-        for (std::size_t node = 0; node < 8; ++node) {
-            relative_increment[component] +=
-                secondary_shape[node] * (state[offset + node] - committed_state[offset + node]);
-            relative_increment[component] -=
-                result.primary_shape[node] * (state[offset + 8 + node] - committed_state[offset + 8 + node]);
-        }
-    }
     const adlite::Scalar normal_increment = dot(relative_increment, result.normal);
     for (std::size_t component = 0; component < 3; ++component)
-        result.elastic_tangential_slip[component] = history.cartesian_elastic_tangential_slip[component] +
-                                                    relative_increment[component] -
+        result.elastic_tangential_slip[component] = transported_history[component] + relative_increment[component] -
                                                     normal_increment * result.normal[component];
     const adlite::Scalar history_normal = dot(result.elastic_tangential_slip, result.normal);
     for (std::size_t component = 0; component < 3; ++component)
         result.elastic_tangential_slip[component] -= history_normal * result.normal[component];
+    const adlite::Scalar sliding_limit = properties.friction_coefficient * result.pressure,
+                         stick_stiffness = properties.maximum_elastic_slip > 0.0
+                                               ? sliding_limit / properties.maximum_elastic_slip
+                                               : adlite::Scalar(properties.penalty);
     ActivePoint3 trial_traction{};
     for (std::size_t component = 0; component < 3; ++component)
-        trial_traction[component] = properties.penalty * result.elastic_tangential_slip[component];
-    const adlite::Scalar trial_magnitude = norm(trial_traction),
-                         sliding_limit = properties.friction_coefficient * result.pressure;
+        trial_traction[component] = stick_stiffness * result.elastic_tangential_slip[component];
+    const adlite::Scalar trial_magnitude = norm(trial_traction);
     if (trial_magnitude.value() < sliding_limit.value() ||
         (trial_magnitude.value() == sliding_limit.value() && !history.sliding)) {
         result.tangential_traction_vector = trial_traction;
@@ -248,13 +245,79 @@ void apply_friction(const NormalContactProperties& properties, const Quad8Surfac
             throw std::domain_error("HEX20 sliding contact has an undefined tangential direction");
         for (std::size_t component = 0; component < 3; ++component) {
             result.tangential_traction_vector[component] = sliding_limit * trial_traction[component] / trial_magnitude;
-            result.elastic_tangential_slip[component] =
-                result.tangential_traction_vector[component] / properties.penalty;
+            result.elastic_tangential_slip[component] = result.tangential_traction_vector[component] / stick_stiffness;
         }
         result.tangential_traction = sliding_limit;
         result.sliding = true;
     }
     result.tangential_force = result.tangential_traction * result.tributary_area;
+}
+
+ActivePoint3 stored_history(const ContactPointHistory& history) {
+    return {history.cartesian_elastic_tangential_slip[0], history.cartesian_elastic_tangential_slip[1],
+        history.cartesian_elastic_tangential_slip[2]};
+}
+
+SurfaceBasis surface_basis(const SurfaceProjection8& projection) {
+    const adlite::Scalar measure = norm(projection.tangent_xi);
+    if (!std::isfinite(measure.value()) || !(measure.value() > 0.0))
+        throw std::domain_error("HEX20 small-sliding primary surface has an undefined convected tangent");
+    SurfaceBasis result;
+    for (std::size_t component = 0; component < 3; ++component)
+        result.first[component] = projection.tangent_xi[component] / measure;
+    result.second = cross(projection.normal, result.first);
+    return result;
+}
+
+ActivePoint3 transport_surface_vector(
+    const ActivePoint3& vector, const SurfaceBasis& current, const SurfaceBasis& committed) {
+    const adlite::Scalar first_component = dot(vector, committed.first),
+                         second_component = dot(vector, committed.second);
+    ActivePoint3 result{};
+    for (std::size_t component = 0; component < 3; ++component)
+        result[component] = first_component * current.first[component] + second_component * current.second[component];
+    return result;
+}
+
+ActivePoint3 relative_displacement(const Quad8SurfaceContactLocalAdValues& state,
+    const std::array<adlite::Scalar, 8>& secondary_shape, const std::array<adlite::Scalar, 8>& primary_shape) {
+    ActivePoint3 result{};
+    for (std::size_t component = 0; component < 3; ++component) {
+        const std::size_t offset = 8 + 16 * component;
+        for (std::size_t node = 0; node < 8; ++node) {
+            result[component] += secondary_shape[node] * state[offset + node];
+            result[component] -= primary_shape[node] * state[offset + 8 + node];
+        }
+    }
+    return result;
+}
+
+ActivePoint3 incremental_relative_displacement(const Quad8SurfaceContactLocalAdValues& state,
+    const Quad8SurfaceContactLocalAdValues& committed_state, const std::array<adlite::Scalar, 8>& secondary_shape,
+    const std::array<adlite::Scalar, 8>& primary_shape) {
+    const ActivePoint3 current = relative_displacement(state, secondary_shape, primary_shape),
+                       committed = relative_displacement(committed_state, secondary_shape, primary_shape);
+    return subtract(current, committed);
+}
+
+ActivePoint3 relative_position(const std::array<ActivePoint3, 16>& nodes,
+    const std::array<adlite::Scalar, 8>& secondary_shape, const std::array<adlite::Scalar, 8>& primary_shape) {
+    return subtract(interpolate_point(nodes, 0, secondary_shape), interpolate_point(nodes, 8, primary_shape));
+}
+
+ActivePoint3 objective_surface_increment(const std::array<ActivePoint3, 16>& nodes,
+    const std::array<ActivePoint3, 16>& committed_nodes, const std::array<adlite::Scalar, 8>& secondary_shape,
+    const std::array<adlite::Scalar, 8>& primary_shape, const SurfaceBasis& current_basis,
+    const SurfaceBasis& committed_basis) {
+    const ActivePoint3 current = relative_position(nodes, secondary_shape, primary_shape),
+                       committed = relative_position(committed_nodes, secondary_shape, primary_shape);
+    const adlite::Scalar first_increment = dot(current, current_basis.first) - dot(committed, committed_basis.first),
+                         second_increment = dot(current, current_basis.second) - dot(committed, committed_basis.second);
+    ActivePoint3 result{};
+    for (std::size_t component = 0; component < 3; ++component)
+        result[component] =
+            first_increment * current_basis.first[component] + second_increment * current_basis.second[component];
+    return result;
 }
 
 SurfaceProjection8 small_sliding_projection(
@@ -273,6 +336,7 @@ SurfaceProjection8 small_sliding_projection(
     result.projected = true;
     result.primary_shape = active_values(geometry.primary_displacement_shape);
     result.primary_point = primary_point;
+    result.tangent_xi = primary_tangent_xi;
     for (std::size_t component = 0; component < result.normal.size(); ++component)
         result.normal[component] = geometry.normal_orientation * primary_area[component] / primary_measure;
     result.gap = dot(subtract(primary_point, secondary_point), result.normal);
@@ -296,7 +360,19 @@ CartesianContactAdValue8 evaluate_surface_mechanical(const NormalContactProperti
         geometry.quadrature_weight * current_surface_measure(nodes, active_values(geometry.secondary_derivative_xi),
                                          active_values(geometry.secondary_derivative_eta), 0);
     result.contact_force = result.pressure * result.tributary_area;
-    apply_friction(properties, state, committed_state, history, secondary_shape, result);
+    if (properties.friction_coefficient != 0.0 && result.pressure.value() > 0.0) {
+        const Quad8SurfaceContactLocalAdValues committed_ad_state = make_ad_state(committed_state, false);
+        const std::array<ActivePoint3, 16> committed_nodes =
+            current_nodes(geometry.secondary_coordinates, geometry.primary_coordinates, committed_ad_state);
+        const SurfaceProjection8 committed_projection = small_sliding_projection(committed_nodes, geometry);
+        const SurfaceBasis current_basis = surface_basis(projection),
+                           committed_basis = surface_basis(committed_projection);
+        apply_friction(properties, history,
+            transport_surface_vector(stored_history(history), current_basis, committed_basis),
+            objective_surface_increment(
+                nodes, committed_nodes, secondary_shape, result.primary_shape, current_basis, committed_basis),
+            result);
+    }
     return result;
 }
 
@@ -341,7 +417,9 @@ CartesianContactAdValue8 evaluate_mechanical(const NormalContactProperties& prop
         return result;
     std::array<adlite::Scalar, 8> secondary_shape{};
     secondary_shape[geometry.secondary_local_node] = 1.0;
-    apply_friction(properties, state, committed_state, history, secondary_shape, result);
+    const Quad8SurfaceContactLocalAdValues committed_ad_state = make_ad_state(committed_state, false);
+    apply_friction(properties, history, stored_history(history),
+        incremental_relative_displacement(state, committed_ad_state, secondary_shape, result.primary_shape), result);
     return result;
 }
 

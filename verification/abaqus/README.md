@@ -591,6 +591,43 @@ The sticking and sliding contact Jacobian directional errors are `2.15e-11` and
 `2.59e-10`, Cartesian action-reaction imbalance is below `1.5e-12 N`, and a
 mid-path checkpoint/restart reproduces every later nodal value and committed
 contact-history component exactly. This case qualifies one driven tangent
-direction on a true quadratic curved surface; simultaneous two-direction
-sliding and rotation of a nonzero two-component elastic-slip history remain
-outside this validation boundary.
+direction on a true quadratic curved surface.
+
+## H20.38 biaxial sliding and rotating elastic-slip history
+
+H20.38 uses a tracked two-element C3D20 Exodus mesh and a fully prescribed
+two-step contact motion. The first step combines `0.0012 m` and `0.0016 m`
+tangential relative motion with `0.01 m` normal penetration, placing all nine
+Fuelsim surface quadrature points on the Coulomb circle. The second step
+rigidly rotates the complete already-penetrated and already-sliding contact
+configuration by `0.35 rad`, without adding relative motion in the convected
+tangent basis. Abaqus uses geometrically nonlinear small-sliding
+surface-to-surface contact so its local tangent directions rotate with the
+surface.
+
+The reference is reproduced with:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass `
+  -File "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus\run_h20_38.ps1" `
+  -SourceDirectory "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus"
+```
+
+Fuelsim normal-force relative L2, relative absolute-peak, and maximum
+pointwise-relative errors against Abaqus are `0.0035795%`, `0.00506231%`, and
+`0.00506231%`. The corresponding two-direction tangential-force errors are
+`0.0262916%`, `0.0275768%`, and `0.0490877%`. Exact-zero reference components
+are counted separately; their largest absolute differences are `3.86e-14 N`
+normal and `3.00e-15 N` tangential. Abaqus's own rotated normal and tangential
+resultants pass all three metrics below `0.1%`, and its two nonzero total-slip
+components change by at most `2.32e-8 m`.
+
+Fuelsim's force-vector rigid-rotation error is below `1.85e-10 N`, its nonzero
+two-component elastic-slip history rotates within `9.9e-17 m`, and the maximum
+action-reaction imbalance is `8.6e-14 N`. The local HEX20 kernel separately
+repeats the history transport on a genuinely quadratic cylindrical face and
+checks the complete automatic-differentiation Jacobian against a centered
+difference. H20.38 therefore validates biaxial sliding and objective tangent
+history transport, but it does not claim arbitrary large sliding, arbitrary
+curvature, or entry-by-entry equivalence to Abaqus's proprietary finite-strain
+nodal averaging operator.

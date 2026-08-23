@@ -415,6 +415,103 @@ bool test_hex20_contact_kernels() {
                            friction_properties.friction_coefficient * surface_sliding.pressure, 1.0e-12),
                  "HEX20 surface-to-surface Coulomb friction caps the integration-point tangential traction") &&
              passed;
+    auto biaxial_sliding_state = state;
+    for (std::size_t node = 0; node < 8; ++node) {
+        biaxial_sliding_state[24 + node] += 0.006;
+        biaxial_sliding_state[40 + node] += 0.008;
+    }
+    const fuelsim::NormalContactProperties controlled_slip_properties{1.0e5, 0.2, false, 4.0e-4};
+    const auto biaxial_sliding = fuelsim::compute_quad8_to_quad8_contact_value(
+        controlled_slip_properties, center_geometry, biaxial_sliding_state, committed, {});
+    const double biaxial_elastic_slip = std::hypot(biaxial_sliding.elastic_tangential_slip[0],
+        std::hypot(biaxial_sliding.elastic_tangential_slip[1], biaxial_sliding.elastic_tangential_slip[2]));
+    passed = check(biaxial_sliding.sliding && std::abs(biaxial_sliding.tangential_traction_vector[1]) > 0.0 &&
+                       std::abs(biaxial_sliding.tangential_traction_vector[2]) > 0.0,
+                 "HEX20 surface-to-surface friction enters sliding with two simultaneous tangential components") &&
+             check(near(biaxial_sliding.tangential_traction,
+                       controlled_slip_properties.friction_coefficient * biaxial_sliding.pressure, 1.0e-12) &&
+                       near(biaxial_elastic_slip, controlled_slip_properties.maximum_elastic_slip, 1.0e-12),
+                 "HEX20 biaxial sliding satisfies the Coulomb circle and requested maximum elastic slip") &&
+             passed;
+
+    constexpr double curved_angle = 0.25;
+    const fuelsim::Quad8FaceCoordinates curved_face = {
+        fuelsim::CartesianPoint3{std::cos(-curved_angle), std::sin(-curved_angle), 0.0},
+        fuelsim::CartesianPoint3{std::cos(curved_angle), std::sin(curved_angle), 0.0},
+        fuelsim::CartesianPoint3{std::cos(curved_angle), std::sin(curved_angle), 1.0},
+        fuelsim::CartesianPoint3{std::cos(-curved_angle), std::sin(-curved_angle), 1.0},
+        fuelsim::CartesianPoint3{1.0, 0.0, 0.0},
+        fuelsim::CartesianPoint3{std::cos(curved_angle), std::sin(curved_angle), 0.5},
+        fuelsim::CartesianPoint3{1.0, 0.0, 1.0},
+        fuelsim::CartesianPoint3{std::cos(-curved_angle), std::sin(-curved_angle), 0.5}};
+    const fuelsim::Quad8FaceGeometry curved_geometry = fuelsim::make_quad8_face_geometry(curved_face);
+    const fuelsim::Quad8FaceMechanicalQuadraturePoint& curved_center = curved_geometry.mechanical_points[4];
+    const fuelsim::Quad8ReferenceProjectionValue curved_reference =
+        fuelsim::compute_quad8_reference_projection(curved_face, curved_face, curved_center.displacement_shape, -1.0);
+    const fuelsim::Quad8ToQuad8MechanicalGeometry curved_contact_geometry{curved_face, curved_face,
+        curved_center.displacement_shape, curved_center.derivative_xi, curved_center.derivative_eta,
+        curved_reference.primary_shape, curved_reference.primary_derivative_xi, curved_reference.primary_derivative_eta,
+        curved_center.quadrature_weight, -1.0};
+    fuelsim::Quad8SurfaceContactLocalValues curved_committed{}, curved_rotated{};
+    constexpr double penetration = 0.01, rotation = 0.35;
+    constexpr std::array<double, 3> committed_slip = {0.0, 6.0e-4, 8.0e-4};
+    const double rotation_cosine = std::cos(rotation), rotation_sine = std::sin(rotation);
+    for (std::size_t node = 0; node < 16; ++node) {
+        const fuelsim::CartesianPoint3& coordinate = curved_face[node % 8];
+        curved_rotated[8 + node] = rotation_cosine * coordinate.x - rotation_sine * coordinate.y - coordinate.x;
+        curved_rotated[24 + node] = rotation_sine * coordinate.x + rotation_cosine * coordinate.y - coordinate.y;
+        if (node < 8) {
+            curved_committed[8 + node] -= penetration;
+            curved_committed[24 + node] += committed_slip[1];
+            curved_committed[40 + node] += committed_slip[2];
+            curved_rotated[8 + node] += -rotation_cosine * penetration - rotation_sine * committed_slip[1];
+            curved_rotated[24 + node] += -rotation_sine * penetration + rotation_cosine * committed_slip[1];
+            curved_rotated[40 + node] += committed_slip[2];
+        }
+    }
+    fuelsim::ContactPointHistory curved_history{};
+    curved_history.cartesian_elastic_tangential_slip = committed_slip;
+    const fuelsim::NormalContactProperties curved_friction_properties{1.0e5, 0.5, false};
+    fuelsim::Quad8SurfaceContactLocalJacobian curved_contact_jacobian{};
+    const auto curved_history_value = fuelsim::compute_quad8_to_quad8_contact_value(
+        curved_friction_properties, curved_contact_geometry, curved_rotated, curved_committed, curved_history);
+    (void)fuelsim::compute_quad8_to_quad8_contact(curved_friction_properties, curved_contact_geometry, curved_rotated,
+        curved_committed, curved_history, &curved_contact_jacobian);
+    const std::array<double, 3> rotated_history = {-rotation_sine * 6.0e-4, rotation_cosine * 6.0e-4, 8.0e-4};
+    double history_error = 0.0;
+    for (std::size_t component = 0; component < 3; ++component)
+        history_error = std::max(history_error,
+            std::abs(curved_history_value.elastic_tangential_slip[component] - rotated_history[component]));
+    const double history_normal = curved_history_value.elastic_tangential_slip[0] * curved_history_value.normal[0] +
+                                  curved_history_value.elastic_tangential_slip[1] * curved_history_value.normal[1] +
+                                  curved_history_value.elastic_tangential_slip[2] * curved_history_value.normal[2];
+    passed =
+        check(curved_history_value.projected && !curved_history_value.sliding && history_error < 1.0e-13,
+            "HEX20 curved surface rotates a nonzero two-component elastic-slip history with its tangent plane") &&
+        check(std::abs(history_normal) < 1.0e-13 && near(std::hypot(curved_history_value.elastic_tangential_slip[0],
+                                                             std::hypot(curved_history_value.elastic_tangential_slip[1],
+                                                                 curved_history_value.elastic_tangential_slip[2])),
+                                                        1.0e-3, 1.0e-13),
+            "HEX20 curved tangent-plane transport preserves tangency and elastic-slip magnitude") &&
+        passed;
+
+    auto curved_plus = curved_rotated, curved_minus = curved_rotated;
+    curved_plus[17] += step;
+    curved_minus[17] -= step;
+    const auto curved_plus_residual = fuelsim::compute_quad8_to_quad8_contact(
+        curved_friction_properties, curved_contact_geometry, curved_plus, curved_committed, curved_history);
+    const auto curved_minus_residual = fuelsim::compute_quad8_to_quad8_contact(
+        curved_friction_properties, curved_contact_geometry, curved_minus, curved_committed, curved_history);
+    double curved_jacobian_error = 0.0, curved_jacobian_scale = 0.0;
+    for (std::size_t row = 0; row < curved_plus_residual.size(); ++row) {
+        const double numerical = (curved_plus_residual[row] - curved_minus_residual[row]) / (2.0 * step);
+        const double analytic = curved_contact_jacobian[row * fuelsim::quad8_surface_contact_local_dof_count + 17];
+        curved_jacobian_error = std::max(curved_jacobian_error, std::abs(analytic - numerical));
+        curved_jacobian_scale = std::max({curved_jacobian_scale, std::abs(analytic), std::abs(numerical)});
+    }
+    passed = check(curved_jacobian_error / curved_jacobian_scale < 2.0e-5,
+                 "HEX20 curved history-rotation Jacobian matches a centered directional difference") &&
+             passed;
     jacobian_error = 0.0;
     jacobian_scale = 0.0;
     for (std::size_t row = 0; row < surface_residual.size(); ++row) {
