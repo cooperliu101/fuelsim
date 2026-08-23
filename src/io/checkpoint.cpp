@@ -20,7 +20,7 @@ namespace fuelsim {
 namespace {
 constexpr std::array<unsigned char, 16> checkpoint_magic = {
     'F', 'U', 'E', 'L', 'S', 'I', 'M', '_', 'C', 'H', 'E', 'C', 'K', 'P', 'T', '\0'};
-constexpr std::uint32_t checkpoint_version = 13U;
+constexpr std::uint32_t checkpoint_version = 14U;
 constexpr std::uint32_t endian_marker = 0x01020304U;
 constexpr std::uint64_t maximum_checkpoint_bytes = 16ULL * 1024ULL * 1024ULL * 1024ULL;
 
@@ -165,6 +165,9 @@ BinaryBuffer state_payload(const TransientProblem& problem, double next_time_ste
             payload.append_u32(history.sliding ? 1U : 0U);
             payload.append_double(history.normal_multiplier);
             for (double component : history.cartesian_elastic_tangential_slip) payload.append_double(component);
+            payload.append_u32(history.cartesian_tangent_basis_initialized ? 1U : 0U);
+            for (double component : history.cartesian_contact_normal) payload.append_double(component);
+            for (double component : history.cartesian_contact_tangent_first) payload.append_double(component);
         }
     }
     if (cartesian) {
@@ -276,6 +279,34 @@ double restore_transient_checkpoint(const std::string& path, TransientProblem& p
                 component = payload.read_double();
                 if (!std::isfinite(component))
                     throw std::runtime_error("Checkpoint Cartesian friction state is invalid");
+            }
+            const std::uint32_t basis_initialized = payload.read_u32();
+            if (basis_initialized > 1U) throw std::runtime_error("Checkpoint Cartesian tangent basis is invalid");
+            history.cartesian_tangent_basis_initialized = basis_initialized == 1U;
+            for (double& component : history.cartesian_contact_normal) {
+                component = payload.read_double();
+                if (!std::isfinite(component))
+                    throw std::runtime_error("Checkpoint Cartesian contact normal is invalid");
+            }
+            for (double& component : history.cartesian_contact_tangent_first) {
+                component = payload.read_double();
+                if (!std::isfinite(component))
+                    throw std::runtime_error("Checkpoint Cartesian contact tangent is invalid");
+            }
+            if (history.cartesian_tangent_basis_initialized) {
+                double normal_norm = 0.0, tangent_norm = 0.0, orthogonality = 0.0;
+                for (std::size_t component = 0; component < 3; ++component) {
+                    normal_norm +=
+                        history.cartesian_contact_normal[component] * history.cartesian_contact_normal[component];
+                    tangent_norm += history.cartesian_contact_tangent_first[component] *
+                                    history.cartesian_contact_tangent_first[component];
+                    orthogonality += history.cartesian_contact_normal[component] *
+                                     history.cartesian_contact_tangent_first[component];
+                }
+                constexpr double basis_tolerance = 1.0e-8;
+                if (std::abs(normal_norm - 1.0) > basis_tolerance || std::abs(tangent_norm - 1.0) > basis_tolerance ||
+                    std::abs(orthogonality) > basis_tolerance)
+                    throw std::runtime_error("Checkpoint Cartesian contact basis is not orthonormal");
             }
         }
     }

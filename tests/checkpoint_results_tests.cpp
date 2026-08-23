@@ -112,11 +112,21 @@ bool compare_committed_states(
         for (std::size_t node = 0; node < left.contact_histories[contact].size(); ++node) {
             const fuelsim::ContactPointHistory& a = left.contact_histories[contact][node];
             const fuelsim::ContactPointHistory& b = right.contact_histories[contact][node];
-            passed = check(nearly_equal(a.elastic_tangential_slip, b.elastic_tangential_slip) &&
-                               a.sliding == b.sliding && nearly_equal(a.normal_multiplier, b.normal_multiplier),
-                         "restart reproduces committed friction and normal "
-                         "multiplier history") &&
-                     passed;
+            bool cartesian_equal = a.cartesian_tangent_basis_initialized == b.cartesian_tangent_basis_initialized;
+            for (std::size_t component = 0; component < 3; ++component)
+                cartesian_equal =
+                    cartesian_equal &&
+                    nearly_equal(a.cartesian_elastic_tangential_slip[component],
+                        b.cartesian_elastic_tangential_slip[component]) &&
+                    nearly_equal(a.cartesian_contact_normal[component], b.cartesian_contact_normal[component]) &&
+                    nearly_equal(
+                        a.cartesian_contact_tangent_first[component], b.cartesian_contact_tangent_first[component]);
+            passed =
+                check(nearly_equal(a.elastic_tangential_slip, b.elastic_tangential_slip) && a.sliding == b.sliding &&
+                          nearly_equal(a.normal_multiplier, b.normal_multiplier) && cartesian_equal,
+                    "restart reproduces committed friction and normal "
+                    "multiplier history") &&
+                passed;
         }
     }
     return passed;

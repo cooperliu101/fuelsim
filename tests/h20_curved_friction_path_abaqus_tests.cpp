@@ -448,7 +448,10 @@ bool histories_identical(const std::vector<fuelsim::ContactPointHistory>& actual
         if (actual[point].elastic_tangential_slip != expected[point].elastic_tangential_slip ||
             actual[point].sliding != expected[point].sliding ||
             actual[point].normal_multiplier != expected[point].normal_multiplier ||
-            actual[point].cartesian_elastic_tangential_slip != expected[point].cartesian_elastic_tangential_slip)
+            actual[point].cartesian_elastic_tangential_slip != expected[point].cartesian_elastic_tangential_slip ||
+            actual[point].cartesian_tangent_basis_initialized != expected[point].cartesian_tangent_basis_initialized ||
+            actual[point].cartesian_contact_normal != expected[point].cartesian_contact_normal ||
+            actual[point].cartesian_contact_tangent_first != expected[point].cartesian_contact_tangent_first)
             return false;
     return true;
 }

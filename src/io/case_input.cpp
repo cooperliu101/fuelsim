@@ -453,7 +453,7 @@ ContactDefinition read_contact(const InputDocument& document, const InputSection
     if (mechanical != nullptr) {
         validate_keys(document, *mechanical,
             {"formulation", "penalty", "penalty_factor", "mu", "penetration_tolerance", "maximum_augmented_iterations",
-                "discretization", "quad8_nodal_area_rule", "elastic_slip"});
+                "discretization", "sliding", "quad8_nodal_area_rule", "elastic_slip"});
         const std::string formulation = read_string(document, *mechanical, "formulation");
         if (formulation == "penalty")
             result.mechanical_formulation = MechanicalContactFormulation::penalty;
@@ -472,6 +472,18 @@ ContactDefinition read_contact(const InputDocument& document, const InputSection
         else
             value_error(document, required_entry(document, *mechanical, "discretization"),
                 "mechanical discretization must be 'automatic', 'node_to_surface', or 'surface_to_surface'");
+        const std::string sliding = read_optional_string(*mechanical, "sliding", "small");
+        if (sliding == "small")
+            result.mechanical_sliding = MechanicalContactSliding::small;
+        else if (sliding == "finite")
+            result.mechanical_sliding = MechanicalContactSliding::finite;
+        else
+            value_error(document, required_entry(document, *mechanical, "sliding"),
+                "mechanical sliding must be 'small' or 'finite'");
+        if (find_entry(*mechanical, "sliding") != nullptr &&
+            result.mechanical_discretization != MechanicalContactDiscretization::surface_to_surface)
+            value_error(document, required_entry(document, *mechanical, "sliding"),
+                "sliding applies only to discretization = surface_to_surface");
         const InputEntry* penalty = find_entry(*mechanical, "penalty");
         const InputEntry* penalty_factor = find_entry(*mechanical, "penalty_factor");
         if (penalty != nullptr && penalty_factor != nullptr)

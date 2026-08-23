@@ -167,6 +167,9 @@ FuelsimStep evaluate(const fuelsim::NormalContactProperties& properties, const f
             std::abs(value.tangential_traction - properties.friction_coefficient * value.pressure));
         result.histories[point].sliding = value.sliding;
         result.histories[point].cartesian_elastic_tangential_slip = value.elastic_tangential_slip;
+        result.histories[point].cartesian_tangent_basis_initialized = true;
+        result.histories[point].cartesian_contact_normal = value.normal;
+        result.histories[point].cartesian_contact_tangent_first = value.tangent_first;
     }
     return result;
 }

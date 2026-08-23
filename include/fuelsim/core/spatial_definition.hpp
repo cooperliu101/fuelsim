@@ -55,6 +55,11 @@ enum class MechanicalContactDiscretization {
     surface_to_surface,
 };
 
+enum class MechanicalContactSliding {
+    small,
+    finite,
+};
+
 struct ContactDefinition final {
     std::string name, primary, secondary;
     bool thermal, mechanical;
@@ -65,6 +70,7 @@ struct ContactDefinition final {
     double penalty_factor = 1.0;
     MechanicalContactFormulation mechanical_formulation = MechanicalContactFormulation::penalty;
     MechanicalContactDiscretization mechanical_discretization = MechanicalContactDiscretization::automatic;
+    MechanicalContactSliding mechanical_sliding = MechanicalContactSliding::small;
     Quad8NodalAreaRule quad8_nodal_area_rule = Quad8NodalAreaRule::positive_lumped;
     double penetration_tolerance = 1.0e-8;
     std::size_t maximum_augmented_iterations = 20;

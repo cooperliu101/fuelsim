@@ -631,3 +631,71 @@ difference. H20.38 therefore validates biaxial sliding and objective tangent
 history transport, but it does not claim arbitrary large sliding, arbitrary
 curvature, or entry-by-entry equivalence to Abaqus's proprietary finite-strain
 nodal averaging operator.
+
+## H20.39 planar finite sliding across a primary-face edge
+
+H20.39 uses one prescribed secondary C3D20 face and two adjacent planar primary
+faces. Four load states close the interface, move every secondary integration
+point across the common primary edge, reverse two nonzero tangential motion
+components, and return across the edge. Abaqus uses finite-sliding
+surface-to-surface linear-penalty contact with `mu = 0.5`; separate jobs use
+`NLGEOM=NO` and `NLGEOM=YES`. Fuelsim replays the same path with small-strain
+and finite-strain regions while its contact option remains `sliding = finite`.
+
+The reference is reproduced with:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass `
+  -File "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus\run_h20_39.ps1" `
+  -SourceDirectory "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus"
+```
+
+Both strain formulations give the same acceptance maxima. Normal nodal-force,
+gap, and pressure errors are at roundoff. The two physical tangent-plane nodal
+force components and the complete tangential resultant have relative L2,
+relative absolute-peak, and maximum pointwise-relative errors of
+`0.0110468%`, `0.00114676%`, and `0.0432729%`. The contact-force center maximum
+pointwise error is `0.00000186265%`. Exact-zero reference resultants are counted
+separately, with no denominator floor. The test also checks unique ownership on
+both sides of the internal edge and dynamic result recovery.
+
+## H20.40 curved finite sliding with two tangent components
+
+H20.40 places an eight-face true-quadratic cylindrical secondary surface over
+a sixteen-face true-quadratic primary cylinder. The path closes the interface,
+rotates it through `pi/4` so all integration points cross several primary
+faces, reverses the rotation and axial translation, and returns. The normal
+penetration is `0.001 m` with a `1e6 Pa/m` linear penalty, giving approximately
+`1000 Pa`; this keeps the penalty penetration small relative to the unit
+radius. Both Abaqus and Fuelsim use 40 equal increments per load state. Separate
+Abaqus jobs use `NLGEOM=NO` and `NLGEOM=YES`, while Fuelsim again exercises both
+small-strain and finite-strain regions with finite sliding.
+
+The reference is reproduced with:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass `
+  -File "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus\run_h20_40.ps1" `
+  -SourceDirectory "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus"
+```
+
+Small- and finite-strain results agree to the printed precision. The relative
+L2, relative absolute-peak, and maximum pointwise-relative errors are:
+
+| Quantity | Relative L2 | Relative absolute peak | Maximum pointwise relative |
+| --- | ---: | ---: | ---: |
+| radial normal nodal force | `0.0514670%` | `0.114588%` | `0.114931%` |
+| circumferential tangential nodal force | `0.130183%` | `0.0168935%` | `0.229745%` |
+| axial tangential nodal force | `0.181864%` | `0.00137985%` | `0.588462%` |
+| complete global contact resultant | `0.0989609%` | `0.161791%` | `0.584019%` |
+| gap | `0.118193%` | `0.103406%` | `0.269798%` |
+| pressure | `0.0329806%` | `0.0683449%` | `0.0823490%` |
+
+All three metrics are below `1%` without a denominator floor. The largest
+Exodus-to-Abaqus output-database coordinate difference is `2.97395e-8 m`,
+consistent with Abaqus node-coordinate storage precision. Internal tests add a
+centered-difference check of the complete contact Jacobian before and after
+transporting a nonzero two-component elastic-slip history, reverse edge
+crossing, slide-out rejection and rollback, an end-to-end four-load-step solve
+for both strain formulations, and a 65-primary-face case that forces the
+spatial search-tree path.

@@ -817,8 +817,16 @@ TransientTimeErrorEstimate compare_step_doubling_states(const TransientCommitted
             for (std::size_t component = 0; component < full.cartesian_elastic_tangential_slip.size(); ++component)
                 accumulate_time_error(contact_friction, full.cartesian_elastic_tangential_slip[component],
                     half.cartesian_elastic_tangential_slip[component]);
+            for (std::size_t component = 0; component < full.cartesian_contact_normal.size(); ++component) {
+                accumulate_time_error(contact_friction, full.cartesian_contact_normal[component],
+                    half.cartesian_contact_normal[component]);
+                accumulate_time_error(contact_friction, full.cartesian_contact_tangent_first[component],
+                    half.cartesian_contact_tangent_first[component]);
+            }
             accumulate_time_error(contact_normal_multiplier, full.normal_multiplier, half.normal_multiplier);
-            contact_state_mismatch = contact_state_mismatch || full.sliding != half.sliding;
+            contact_state_mismatch =
+                contact_state_mismatch || full.sliding != half.sliding ||
+                full.cartesian_tangent_basis_initialized != half.cartesian_tangent_basis_initialized;
         }
     }
     TransientTimeErrorEstimate result = nodal_time_error(full_step, two_half_steps, fields, options);

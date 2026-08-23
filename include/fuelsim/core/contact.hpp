@@ -73,6 +73,8 @@ struct ContactPointHistory final {
     bool sliding = false;
     double normal_multiplier = 0.0;
     std::array<double, 3> cartesian_elastic_tangential_slip{};
+    bool cartesian_tangent_basis_initialized = false;
+    std::array<double, 3> cartesian_contact_normal{}, cartesian_contact_tangent_first{};
 };
 
 struct ContactPointValue final {
@@ -125,7 +127,7 @@ struct CartesianHeatQuadratureValue final {
 struct CartesianContactPointValue final {
     bool projected;
     double gap, pressure, tributary_area, contact_force, tangential_traction, tangential_force;
-    std::array<double, 3> normal, tangential_traction_vector, elastic_tangential_slip;
+    std::array<double, 3> normal, tangent_first, tangential_traction_vector, elastic_tangential_slip;
     bool sliding;
 };
 
@@ -170,6 +172,7 @@ struct Quad8ToQuad8MechanicalGeometry final {
     std::array<double, 8> secondary_displacement_shape, secondary_derivative_xi, secondary_derivative_eta;
     std::array<double, 8> primary_displacement_shape, primary_derivative_xi, primary_derivative_eta;
     double quadrature_weight, normal_orientation;
+    bool finite_sliding = false;
 };
 
 struct Quad8ReferenceProjectionValue final {

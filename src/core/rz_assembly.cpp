@@ -1369,6 +1369,9 @@ void SpatialAssembly::build_contacts(const UnstructuredQuad4Mesh& source_mesh) {
         if (contact_definition.mechanical_discretization == MechanicalContactDiscretization::surface_to_surface)
             throw std::invalid_argument(
                 "surface_to_surface mechanical contact currently requires HEX20 faces: " + contact_definition.name);
+        if (contact_definition.mechanical_sliding == MechanicalContactSliding::finite)
+            throw std::invalid_argument(
+                "finite sliding currently requires HEX20 surface_to_surface contact: " + contact_definition.name);
         if (contact_definition.mechanical_discretization == MechanicalContactDiscretization::automatic)
             contact_definition.mechanical_discretization = MechanicalContactDiscretization::node_to_surface;
         if (contact_definition.quad8_nodal_area_rule != Quad8NodalAreaRule::positive_lumped)

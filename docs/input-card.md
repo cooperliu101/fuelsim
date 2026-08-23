@@ -212,10 +212,10 @@ traction 的构形选择规则见下文。区域发生非正 Jacobian、非正�
     []
 
     [mechanical]
-      formulation = augmented_lagrangian
+      formulation = penalty
+      discretization = surface_to_surface
+      sliding = finite
       penalty_factor = 0.25
-      penetration_tolerance = 1e-9
-      maximum_augmented_iterations = 50
       mu = 0.3
     []
   []
@@ -235,8 +235,10 @@ penalty = penalty_factor * k_interface
 
 `discretization` 可显式选择 `node_to_surface` 或 `surface_to_surface`。省略时，
 HEX20 机械接触采用 `surface_to_surface`，HEX8 和轴对称 RZ 采用
-`node_to_surface`。当前 `surface_to_surface` 只支持 HEX20 和罚函数形式，并采用
-小滑移面到面算法。对于两侧均为小应变的线性罚接触，程序采用
+`node_to_surface`。当前 `surface_to_surface` 只支持 HEX20 和罚函数形式。
+`sliding` 可选择 `small` 或 `finite`，省略时为 `small`；该键只允许与显式的
+`discretization = surface_to_surface` 同时使用。小滑移始终保留参考构形确定的
+primary 面归属。对于两侧均为小应变的线性罚接触，小滑移采用
 Abaqus 对标识别出的二次面节点中心约束：每个 secondary QUAD8 面形成八个正面积
 约束，使用固定的二次平均矩阵；每个约束在 QUAD8 父坐标中的有效区域中心计算独立
 法向。四个角点约束的中心为 `(±0.75,±0.75)`，四个中边节点约束的中心为
@@ -258,11 +260,22 @@ secondary 相对 primary 的增量位移，并执行三维 Coulomb 粘着或滑�
 `elastic_slip` 指定 Abaqus/Standard 罚摩擦允许的最大弹性滑移绝对距离，单位为米；
 此时粘着刚度随当前极限剪应力调整为 `mu*p/elastic_slip`。省略或设为零时，粘着刚度
 继续等于法向罚刚度。该状态按每个节点中心约束进入提交、回滚和检查点事务。
-`elastic_slip` 允许用于 HEX20 `surface_to_surface` 接触。两侧小应变时使用上述固定
-切平面的节点中心约束；任一侧采用有限应变时，继续使用分片后的 3×3 积分路径，并以
-primary 面当前构形的随动正交切向基保存历史。旧、当前相对位置先分别投影到各自的
-随动切向基，再计算分量增量，因此共同刚体转动不会被误算为新增滑移。结果文件中的
-节点压力仍是恢复量；有符号等效节点量只用于输出，不作为独立节点罚刚度。
+`elastic_slip` 允许用于 HEX20 `surface_to_surface` 接触。两侧小应变且选择小滑移时
+使用上述固定切平面的节点中心约束；任一侧采用有限应变的小滑移继续使用参考分片后的
+3×3 积分路径。
+
+有限滑移对小应变和有限应变使用同一个当前构形 3×3 表面积分算法。每次状态验证都为
+每个 secondary 积分点在完整 primary QUAD8 面集合中重新搜索唯一最近投影；超过
+64 个 primary 面时使用可重整的空间搜索树。跨内部边时只保留一个所有者，积分点滑出
+完整 primary 表面时明确拒绝当前 Newton 状态。构造期仍为每个潜在面配对预留稀疏
+耦合，因此跨面不会改变矩阵非零结构。
+
+有限滑移摩擦以 primary 面当前构形的随动正交切向基保存历史。弹性滑移先从已提交的
+接触切向基客观运输到当前切平面，再用当前投影点和已提交接触点之间的曲面滑移增量
+更新；共同刚体转动不会被误算为新增滑移。法向、两个切向分量和表面测度均进入
+ADlite 一致切线。结果文件中的节点压力仍是恢复量；有符号等效节点量只用于输出，
+不作为独立节点罚刚度。有限滑移目前不用于 HEX8、轴对称 RZ、`node_to_surface` 或
+增广拉格朗日接触。
 
 H20.30 使用同一组 Exodus 坐标分别比较平面面片拼成的四分之一圆柱和中边节点位于
 真实圆弧上的二次圆柱。真正二次曲面算例的径向位移三项误差分别为 `0.113348%`、

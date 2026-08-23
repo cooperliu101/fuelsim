@@ -302,6 +302,11 @@ double normal_orientation(const Quad8FaceCoordinates& primary_coordinates,
     return orientation > 0.0 ? 1.0 : -1.0;
 }
 
+double primary_material_orientation(
+    const Quad8FaceCoordinates& primary_coordinates, const CartesianPoint3& primary_parent_centroid) {
+    return normal_orientation(primary_coordinates, quad8_face_centroid(primary_coordinates), primary_parent_centroid);
+}
+
 double minimum_normal_length(
     const Hex20RegionMesh& mesh, const Hex20RegionBoundary& boundary, const std::string& name) {
     double result = std::numeric_limits<double>::infinity();
@@ -1381,6 +1386,9 @@ void SpatialAssembly::build_contacts(const UnstructuredHex8Mesh& source_mesh) {
         if (definition.mechanical_discretization == MechanicalContactDiscretization::surface_to_surface)
             throw std::invalid_argument(
                 "surface_to_surface mechanical contact currently requires HEX20 faces: " + definition.name);
+        if (definition.mechanical_sliding == MechanicalContactSliding::finite)
+            throw std::invalid_argument(
+                "finite sliding currently requires HEX20 surface_to_surface contact: " + definition.name);
         if (definition.friction_elastic_slip > 0.0)
             throw std::invalid_argument(
                 "elastic_slip currently requires HEX20 surface_to_surface contact: " + definition.name);
@@ -1527,11 +1535,15 @@ void SpatialAssembly::build_hex20_contacts(const UnstructuredHex20Mesh& source_m
             definition.mechanical_discretization = MechanicalContactDiscretization::surface_to_surface;
         const bool surface_to_surface =
             definition.mechanical_discretization == MechanicalContactDiscretization::surface_to_surface;
+        if (definition.mechanical_sliding == MechanicalContactSliding::finite && !surface_to_surface)
+            throw std::invalid_argument("finite sliding requires HEX20 surface_to_surface contact: " + definition.name);
         // Abaqus-style averaged constraints represent small-strain,
         // small-sliding HEX20 contact.  Their relative vector displacement is
         // also the kinematic basis for the node-centered Coulomb law.
+        const bool finite_sliding = definition.mechanical_sliding == MechanicalContactSliding::finite;
         const bool abaqus_averaged =
-            surface_to_surface && _definition.regions[primary.region].strain_formulation == StrainFormulation::small &&
+            surface_to_surface && !finite_sliding &&
+            _definition.regions[primary.region].strain_formulation == StrainFormulation::small &&
             _definition.regions[secondary.region].strain_formulation == StrainFormulation::small;
         if (definition.friction_elastic_slip > 0.0 && !surface_to_surface)
             throw std::invalid_argument("elastic_slip requires HEX20 surface_to_surface contact: " + definition.name);
@@ -1959,8 +1971,12 @@ SpatialAssembly::Hex20MechanicalCandidate SpatialAssembly::hex20_mechanical_cand
     const Hex20SecondaryContactFace& secondary =
         _hex20_secondary_contact_faces.at(metadata.contact).at(metadata.secondary_face);
     const Hex20PrimaryContactFace& primary_face = _hex20_primary_contact_faces.at(metadata.contact).at(primary);
+    const bool finite_sliding =
+        _definition.contacts[metadata.contact].mechanical_sliding == MechanicalContactSliding::finite;
     const double orientation =
-        normal_orientation(primary_face.coordinates, secondary.parent_centroid, primary_face.parent_centroid);
+        finite_sliding
+            ? primary_material_orientation(primary_face.coordinates, primary_face.parent_centroid)
+            : normal_orientation(primary_face.coordinates, secondary.parent_centroid, primary_face.parent_centroid);
     Hex20MechanicalCandidate result{};
     result.contact = metadata.contact;
     result.secondary_temperature_nodes = secondary.temperature_nodes;
@@ -1981,7 +1997,8 @@ SpatialAssembly::Hex20MechanicalCandidate SpatialAssembly::hex20_mechanical_cand
             secondary.contact_primary_shapes.at(metadata.secondary_local_point),
             secondary.contact_primary_derivatives_xi.at(metadata.secondary_local_point),
             secondary.contact_primary_derivatives_eta.at(metadata.secondary_local_point), quadrature.quadrature_weight,
-            secondary.contact_normal_orientations.at(metadata.secondary_local_point)};
+            finite_sliding ? orientation : secondary.contact_normal_orientations.at(metadata.secondary_local_point),
+            finite_sliding};
         return result;
     }
     result.node_geometry = {secondary.coordinates, primary_face.coordinates, {}, {}, {}, {},
@@ -2225,7 +2242,10 @@ void SpatialAssembly::update_mechanical_candidates(
             if (_touched_mechanical_nodes[node] == 0U) continue;
             const bool surface_to_surface = _definition.contacts[metadata.contact].mechanical_discretization ==
                                             MechanicalContactDiscretization::surface_to_surface;
-            if (surface_to_surface) {
+            const bool finite_sliding =
+                surface_to_surface &&
+                _definition.contacts[metadata.contact].mechanical_sliding == MechanicalContactSliding::finite;
+            if (surface_to_surface && !finite_sliding) {
                 const Hex20MechanicalCandidate candidate =
                     hex20_mechanical_candidate(point, metadata.reference_primary);
                 const ContactProjectionValue value = compute_quad8_to_quad8_contact_projection(
@@ -2442,12 +2462,15 @@ void SpatialAssembly::validate_local_state(
                     _mechanical_selected_primary[node] == std::numeric_limits<std::size_t>::max())
                     ++unprojected;
             if (unprojected != 0)
-                throw std::domain_error("Three-dimensional mechanical contact '" + _definition.contacts[contact].name +
-                                        "' lost projection for " + std::to_string(unprojected) +
-                                        (_uses_hex20 && _definition.contacts[contact].mechanical_discretization ==
-                                                            MechanicalContactDiscretization::surface_to_surface
-                                                ? " fixed small-sliding integration points"
-                                                : " secondary nodes after searching every primary face"));
+                throw std::domain_error(
+                    "Three-dimensional mechanical contact '" + _definition.contacts[contact].name +
+                    "' lost projection for " + std::to_string(unprojected) +
+                    (_uses_hex20 && _definition.contacts[contact].mechanical_discretization ==
+                                        MechanicalContactDiscretization::surface_to_surface
+                            ? (_definition.contacts[contact].mechanical_sliding == MechanicalContactSliding::finite
+                                      ? " finite-sliding integration points after searching every primary face"
+                                      : " fixed small-sliding integration points")
+                            : " secondary nodes after searching every primary face"));
         }
     }
 }
@@ -2481,6 +2504,12 @@ void SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
             ContactPointHistory trial = _contact_histories[candidate.contact][candidate.secondary];
             trial.sliding = value.sliding;
             trial.cartesian_elastic_tangential_slip = value.elastic_tangential_slip;
+            if (candidate.surface_to_surface && _mechanical_properties[candidate.contact].friction_coefficient > 0.0 &&
+                value.pressure > 0.0) {
+                trial.cartesian_tangent_basis_initialized = true;
+                trial.cartesian_contact_normal = value.normal;
+                trial.cartesian_contact_tangent_first = value.tangent_first;
+            }
             if (updated[candidate.contact][candidate.secondary]) {
                 const ContactPointHistory& prior = staged[candidate.contact][candidate.secondary];
                 bool equal = prior.sliding == trial.sliding;
@@ -2490,7 +2519,12 @@ void SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
                     equal = equal && std::abs(prior.cartesian_elastic_tangential_slip[component] -
                                               trial.cartesian_elastic_tangential_slip[component]) <=
                                          64.0 * std::numeric_limits<double>::epsilon() * scale;
+                    equal = equal &&
+                            prior.cartesian_contact_normal[component] == trial.cartesian_contact_normal[component] &&
+                            prior.cartesian_contact_tangent_first[component] ==
+                                trial.cartesian_contact_tangent_first[component];
                 }
+                equal = equal && prior.cartesian_tangent_basis_initialized == trial.cartesian_tangent_basis_initialized;
                 if (!equal) throw std::logic_error("HEX20 secondary faces disagree on contact-node friction history");
                 continue;
             }
@@ -2580,6 +2614,27 @@ void SpatialAssembly::restore_contact_state(
             for (double component : history.cartesian_elastic_tangential_slip)
                 if (!std::isfinite(component))
                     throw std::invalid_argument("Three-dimensional restored friction history is invalid");
+            for (double component : history.cartesian_contact_normal)
+                if (!std::isfinite(component))
+                    throw std::invalid_argument("Three-dimensional restored contact normal is invalid");
+            for (double component : history.cartesian_contact_tangent_first)
+                if (!std::isfinite(component))
+                    throw std::invalid_argument("Three-dimensional restored contact tangent is invalid");
+            if (history.cartesian_tangent_basis_initialized) {
+                double normal_norm = 0.0, tangent_norm = 0.0, orthogonality = 0.0;
+                for (std::size_t component = 0; component < 3; ++component) {
+                    normal_norm +=
+                        history.cartesian_contact_normal[component] * history.cartesian_contact_normal[component];
+                    tangent_norm += history.cartesian_contact_tangent_first[component] *
+                                    history.cartesian_contact_tangent_first[component];
+                    orthogonality += history.cartesian_contact_normal[component] *
+                                     history.cartesian_contact_tangent_first[component];
+                }
+                constexpr double basis_tolerance = 1.0e-8;
+                if (std::abs(normal_norm - 1.0) > basis_tolerance || std::abs(tangent_norm - 1.0) > basis_tolerance ||
+                    std::abs(orthogonality) > basis_tolerance)
+                    throw std::invalid_argument("Three-dimensional restored contact basis is not orthonormal");
+            }
         }
     }
     _committed_contact_solution = state;
@@ -2696,6 +2751,8 @@ std::vector<CartesianContactNodeSummary> SpatialAssembly::summarize_contact_node
             }
             NormalContactProperties recovery_properties = _mechanical_properties[contact_value];
             recovery_properties.friction_coefficient = 0.0;
+            const bool finite_sliding =
+                _definition.contacts[contact_value].mechanical_sliding == MechanicalContactSliding::finite;
             for (std::size_t secondary_face = 0; secondary_face < secondary.boundary.faces.size(); ++secondary_face) {
                 const Hex20SecondaryContactFace& secondary_geometry =
                     _hex20_secondary_contact_faces[contact_value][secondary_face];
@@ -2709,6 +2766,27 @@ std::vector<CartesianContactNodeSummary> SpatialAssembly::summarize_contact_node
                         primary_face < _hex20_primary_contact_faces[contact_value].size(); ++primary_face) {
                         const Hex20PrimaryContactFace& primary_geometry =
                             _hex20_primary_contact_faces[contact_value][primary_face];
+                        if (finite_sliding) {
+                            Hex20MechanicalCandidate trial{};
+                            trial.contact = contact_value;
+                            trial.secondary_temperature_nodes = secondary_geometry.temperature_nodes;
+                            trial.primary_temperature_nodes = primary_geometry.temperature_nodes;
+                            trial.secondary_displacement_nodes = secondary_geometry.displacement_nodes;
+                            trial.primary_displacement_nodes = primary_geometry.displacement_nodes;
+                            trial.surface_to_surface = true;
+                            trial.surface_geometry = {secondary_geometry.coordinates, primary_geometry.coordinates,
+                                quadrature.displacement_shape, quadrature.derivative_xi, quadrature.derivative_eta, {},
+                                {}, {}, quadrature.quadrature_weight,
+                                primary_material_orientation(
+                                    primary_geometry.coordinates, primary_geometry.parent_centroid),
+                                true};
+                            const ContactProjectionValue projection = compute_quad8_to_quad8_contact_projection(
+                                trial.surface_geometry, hex20_contact_state(trial, state));
+                            if (!projection.projected || std::abs(projection.gap) >= minimum_distance) continue;
+                            minimum_distance = std::abs(projection.gap);
+                            selected_primary = primary_face;
+                            continue;
+                        }
                         const Quad8ReferenceProjectionValue projection = compute_quad8_reference_projection(
                             secondary_geometry.coordinates, primary_geometry.coordinates, quadrature.displacement_shape,
                             normal_orientation(primary_geometry.coordinates, secondary_geometry.parent_centroid,
@@ -2733,8 +2811,11 @@ std::vector<CartesianContactNodeSummary> SpatialAssembly::summarize_contact_node
                         quadrature.displacement_shape, quadrature.derivative_xi, quadrature.derivative_eta,
                         selected_projection.primary_shape, selected_projection.primary_derivative_xi,
                         selected_projection.primary_derivative_eta, quadrature.quadrature_weight,
-                        normal_orientation(primary_geometry.coordinates, secondary_geometry.parent_centroid,
-                            primary_geometry.parent_centroid)};
+                        finite_sliding ? primary_material_orientation(
+                                             primary_geometry.coordinates, primary_geometry.parent_centroid)
+                                       : normal_orientation(primary_geometry.coordinates,
+                                             secondary_geometry.parent_centroid, primary_geometry.parent_centroid),
+                        finite_sliding};
                     const CartesianContactPointValue value = compute_quad8_to_quad8_contact_value(recovery_properties,
                         recovery.surface_geometry, hex20_contact_state(recovery, state),
                         hex20_contact_state(recovery, _committed_contact_solution), {});

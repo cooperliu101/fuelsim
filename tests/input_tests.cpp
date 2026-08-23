@@ -293,22 +293,36 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
              check(friction.spatial.contacts[0].mechanical_discretization ==
                        fuelsim::MechanicalContactDiscretization::automatic,
                  "omitting the mechanical-contact discretization selects the mesh-dependent default") &&
+             check(friction.spatial.contacts[0].mechanical_sliding == fuelsim::MechanicalContactSliding::small,
+                 "omitting the surface-contact sliding option selects small sliding") &&
              check(friction.spatial.contacts[0].quad8_nodal_area_rule == fuelsim::Quad8NodalAreaRule::positive_lumped,
                  "node-to-surface HEX20 comparisons default to positive-lumped quadratic nodal areas") &&
              passed;
     std::string surface_contact_case = friction_case;
     surface_contact_case.insert(surface_contact_case.find(contact_penalty) + contact_penalty.size(),
-        "\n      discretization = surface_to_surface\n      elastic_slip = 1e-8");
+        "\n      discretization = surface_to_surface\n      sliding = finite\n      elastic_slip = 1e-8");
     {
         std::ofstream output(malformed_path, std::ios::out | std::ios::trunc);
         if (!output) return check(false, "could not create surface-contact input fixture");
         output << surface_contact_case;
     }
     const fuelsim::FuelSimCaseDefinition surface_contact = fuelsim::read_case_input(malformed_path);
-    passed = check(surface_contact.spatial.contacts[0].mechanical_discretization ==
-                           fuelsim::MechanicalContactDiscretization::surface_to_surface &&
-                       surface_contact.spatial.contacts[0].friction_elastic_slip == 1.0e-8,
-                 "the explicit surface-to-surface discretization and absolute elastic slip are parsed") &&
+    passed =
+        check(surface_contact.spatial.contacts[0].mechanical_discretization ==
+                      fuelsim::MechanicalContactDiscretization::surface_to_surface &&
+                  surface_contact.spatial.contacts[0].mechanical_sliding == fuelsim::MechanicalContactSliding::finite &&
+                  surface_contact.spatial.contacts[0].friction_elastic_slip == 1.0e-8,
+            "the explicit finite-sliding surface discretization and absolute elastic slip are parsed") &&
+        passed;
+    std::string invalid_sliding_case = surface_contact_case;
+    invalid_sliding_case.replace(invalid_sliding_case.find("finite"), 6, "arbitrary");
+    passed =
+        expect_case_failure(malformed_path, invalid_sliding_case, "mechanical sliding must be 'small' or 'finite'") &&
+        passed;
+    std::string node_sliding_case = surface_contact_case;
+    node_sliding_case.replace(node_sliding_case.find("surface_to_surface"), 18, "node_to_surface");
+    passed = expect_case_failure(
+                 malformed_path, node_sliding_case, "sliding applies only to discretization = surface_to_surface") &&
              passed;
     std::string missing_friction_elastic_slip_case = read_text(steady_path);
     missing_friction_elastic_slip_case.insert(

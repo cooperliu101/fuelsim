@@ -408,6 +408,44 @@ bool test_hex20_contact_kernels() {
         center.derivative_xi, center.derivative_eta, center_reference.primary_shape,
         center_reference.primary_derivative_xi, center_reference.primary_derivative_eta, center.quadrature_weight,
         -1.0};
+    auto finite_sliding_geometry = center_geometry;
+    finite_sliding_geometry.finite_sliding = true;
+    auto finite_sliding_state = state;
+    for (std::size_t node = 0; node < 8; ++node) finite_sliding_state[24 + node] += 0.25;
+    fuelsim::Quad8SurfaceContactLocalJacobian finite_sliding_jacobian{};
+    const auto finite_sliding_residual = fuelsim::compute_quad8_to_quad8_contact(
+        mechanical_properties, finite_sliding_geometry, finite_sliding_state, committed, {}, &finite_sliding_jacobian);
+    double primary_force = 0.0, primary_force_y_moment = 0.0;
+    for (std::size_t node = 0; node < 8; ++node) {
+        primary_force += finite_sliding_residual[16 + node];
+        primary_force_y_moment += face[node].y * finite_sliding_residual[16 + node];
+    }
+    passed = check(std::abs(primary_force_y_moment / primary_force - 0.75) < 1.0e-12,
+                 "HEX20 finite sliding moves the primary test-field projection to the current closest point") &&
+             passed;
+    auto finite_plus = finite_sliding_state, finite_minus = finite_sliding_state;
+    finite_plus[25] += step;
+    finite_minus[25] -= step;
+    const auto finite_plus_residual = fuelsim::compute_quad8_to_quad8_contact(
+        mechanical_properties, finite_sliding_geometry, finite_plus, committed, {});
+    const auto finite_minus_residual = fuelsim::compute_quad8_to_quad8_contact(
+        mechanical_properties, finite_sliding_geometry, finite_minus, committed, {});
+    double finite_jacobian_error = 0.0, finite_jacobian_scale = 0.0;
+    for (std::size_t row = 0; row < finite_plus_residual.size(); ++row) {
+        const double numerical = (finite_plus_residual[row] - finite_minus_residual[row]) / (2.0 * step);
+        const double analytic = finite_sliding_jacobian[row * fuelsim::quad8_surface_contact_local_dof_count + 25];
+        finite_jacobian_error = std::max(finite_jacobian_error, std::abs(analytic - numerical));
+        finite_jacobian_scale = std::max({finite_jacobian_scale, std::abs(analytic), std::abs(numerical)});
+    }
+    passed = check(finite_jacobian_error / finite_jacobian_scale < 2.0e-5,
+                 "HEX20 finite-sliding closest-point Jacobian matches a centered directional difference") &&
+             passed;
+    auto outside_state = state;
+    for (std::size_t node = 0; node < 8; ++node) outside_state[24 + node] += 0.6;
+    passed =
+        check(!fuelsim::compute_quad8_to_quad8_contact_projection(finite_sliding_geometry, outside_state).projected,
+            "HEX20 finite sliding rejects a closest point outside the complete primary face") &&
+        passed;
     const auto surface_sliding = fuelsim::compute_quad8_to_quad8_contact_value(
         friction_properties, center_geometry, surface_sliding_state, committed, {});
     passed = check(surface_sliding.sliding &&
