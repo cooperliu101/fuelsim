@@ -204,7 +204,76 @@ The verified scope is Abaqus 3DEXPERIENCE R2018x, active frictionless linear
 penalty contact, one planar C3D20 secondary face, a matching flat operator
 probe, one planar tilted-normal probe, and one oversized-primary finite-sliding
 transfer probe. The recovered matrix must not be hard-coded as a general
-Abaqus substitute. Nonmatching faces, constraint activation and release,
-curved faces, small-sliding tangential transfer, frictional tangents, augmented
-Lagrange enforcement, and large-deformation surface evolution remain to be
-identified before replacing Fuelsim's production discretization.
+Abaqus substitute. H20.27 below extends the evidence to planar nonmatching
+faces, constraint activation and release, and small-sliding tangential
+transfer. Curved faces, frictional tangents, augmented Lagrange enforcement,
+and large-deformation surface evolution remain outside the identified scope.
+
+## H20.27 nonmatching and small-sliding identification
+
+H20.27 reuses the exact H20.24 nonmatching mesh. Four primary C3D20 faces have
+transverse partitions at `0`, `0.5`, `1.0`, `1.5`, and `2.0 m`; two secondary
+C3D20 faces have partitions at `0`, `1.2`, and `2.0 m`. The operator probe
+applies the H20.26 uniform closure and positive and negative perturbations to
+all 13 unique secondary nodes. It also opens the interface and closes it again.
+
+The 13-by-13 secondary averaged-opening matrix `A` reproduces uniform closure
+within `1.20e-13`. Its diagonal constraint areas are exactly obtained by
+assembling the H20.26 per-face values: each face contributes `area/24` at its
+four corners and `5*area/24` at its four edge midpoints, and shared-node
+contributions are added. The inferred areas are positive and sum to the
+physical `2 m2` interface area. The full nonmatching matrix is reconstructed
+from the matching H20.26 face matrix by assembling `W*A` and dividing each
+assembled row by its assembled area; the relative Frobenius error is
+`7.04e-14`. The secondary force tangent satisfies
+`Kss = penalty * transpose(A) * W * A` with `1.42e-12` relative Frobenius
+error.
+
+The 23-by-13 primary-versus-secondary force tangent permits an empirical
+13-by-23 primary transfer matrix `B` to be inferred for this mesh. It
+reconstructs that tangent within `2.19e-16` relative Frobenius error, the
+baseline primary nodal force within `5.71e-9 N`, and force-tangent conservation
+within `1.40e-14` relative error. This is identification evidence, not yet a
+general construction rule. In particular, projecting each secondary node to
+the primary Quad8 face and forming `A` times that projection differs from the
+inferred `B` by `80.0170%` in relative Frobenius norm. Displayed `CPRESS` also
+differs from `penalty*A` by `38.5171%`. Neither field is a valid substitute for
+the primary force-transfer operator.
+
+The release step has `+0.1 mm` opening, zero pressure, zero nodal contact force,
+zero contact area, and zero resultant. Reclosing reproduces the baseline nodal
+fields within `7.28e-12` in their recorded units. This directly exercises
+constraint deactivation and reactivation without changing the identified
+active operator.
+
+The separate small-sliding probe places one `1.2 m` secondary face over the
+four primary faces and translates it by `0.1 m`, so its internal midpoint
+crosses the primary boundary at `y=1 m`. The force center moves from
+`0.949999988 m` to `1.049999952 m`, but the primary nodal normal-force
+distribution changes by at most `2.19e-10 N`; the secondary distribution
+changes by at most `5.43e-10 N`. Opening releases all contact quantities, and
+reclosing at the translated location restores the same fixed transfer. Moving
+back restores the baseline primary distribution within `1.37e-12 N`.
+Therefore, this planar Abaqus small-sliding case retains its original primary
+averaging-region anchors rather than transferring to the newly crossed face.
+This agrees with the Abaqus documentation description that the small-sliding
+formulation fixes the contact-node groups and uses a local planar primary
+approximation for each secondary averaging region.
+
+The reproducible commands are:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass `
+  -File "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus\run_h20_27.ps1" `
+  -SourceDirectory "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus"
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass `
+  -File "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus\run_h20_27_transfer.ps1" `
+  -SourceDirectory "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus"
+```
+
+The verified scope is Abaqus 3DEXPERIENCE R2018x, planar frictionless linear
+penalty contact, the tracked H20.24 nonmatching discretization, and one planar
+small-sliding crossing path. The secondary facewise assembly rule is fully
+identified for these C3D20 probes. The general primary transfer construction
+is not identified, so H20.27 does not authorize a Fuelsim production-algorithm
+change.

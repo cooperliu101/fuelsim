@@ -757,6 +757,19 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_h20_26_abaqus_sts_identification_tests
         PROPERTIES LABELS "acceptance;three-dimensional;hex20;contact;abaqus;identification")
 
+    add_executable(fuelsim_h20_27_abaqus_sts_nonmatching_identification_tests
+        tests/h20_abaqus_sts_nonmatching_identification_tests.cpp)
+    fuelsim_enable_warnings(fuelsim_h20_27_abaqus_sts_nonmatching_identification_tests)
+    add_test(NAME fuelsim_h20_27_abaqus_sts_nonmatching_identification_tests
+        COMMAND fuelsim_h20_27_abaqus_sts_nonmatching_identification_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_26_hex20_sts_operator.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_27_hex20_nonmatching_sts_operator.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_27_hex20_nonmatching_sts_history.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_27_hex20_small_sliding_transfer_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_27_hex20_small_sliding_transfer_history.csv")
+    set_tests_properties(fuelsim_h20_27_abaqus_sts_nonmatching_identification_tests
+        PROPERTIES LABELS "acceptance;three-dimensional;hex20;contact;abaqus;identification")
+
     add_executable(fuelsim_h20_24_hex20_nonmatching_abaqus_tests
         tests/h20_nonmatching_contact_abaqus_tests.cpp)
     target_link_libraries(fuelsim_h20_24_hex20_nonmatching_abaqus_tests
