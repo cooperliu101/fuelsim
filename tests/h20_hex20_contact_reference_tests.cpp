@@ -519,7 +519,8 @@ bool run_abaqus_sliding_comparison(
     const auto& fields = spatial.field_layout();
     std::array<fuelsim::test::FieldErrorMetrics, 3> metrics;
     std::vector<bool> present(mesh.nodes().size(), false);
-    double maximum_coordinate_difference = 0.0;
+    double maximum_coordinate_difference = 0.0, symmetry_plane_z_maximum_absolute_difference = 0.0;
+    std::size_t symmetry_plane_z_count = 0;
     for (std::size_t region = 0; region < spatial.region_count(); ++region) {
         const auto& region_mesh = spatial.hex20_region_mesh(region);
         for (std::size_t local = 0; local < region_mesh.nodes().size(); ++local) {
@@ -535,8 +536,14 @@ bool run_abaqus_sliding_comparison(
             for (std::size_t component = 0; component < 2; ++component)
                 metrics[component].add(
                     solve.solve.state[fields[component + 1].begin + global], found->displacement[component]);
-            if (std::abs(found->point.z - 5.0e-3) > 1.0e-8)
-                metrics[2].add(solve.solve.state[fields[3].begin + global], found->displacement[2]);
+            const double actual_z = solve.solve.state[fields[3].begin + global];
+            if (std::abs(found->point.z - 5.0e-3) > 1.0e-8) {
+                metrics[2].add(actual_z, found->displacement[2]);
+            } else {
+                ++symmetry_plane_z_count;
+                symmetry_plane_z_maximum_absolute_difference =
+                    std::max(symmetry_plane_z_maximum_absolute_difference, std::abs(actual_z - found->displacement[2]));
+            }
         }
     }
     constexpr double tolerance = 1.0e-2;
@@ -596,6 +603,8 @@ bool run_abaqus_sliding_comparison(
     passed =
         check(reference.size() == mesh.nodes().size() && maximum_coordinate_difference < 1.0e-9,
             "H20.23 compares all forty normal-displacement nodes on the tracked Abaqus mesh") &&
+        check(symmetry_plane_z_count == 8 && symmetry_plane_z_maximum_absolute_difference < 2.0e-18,
+            "H20.23 checks the theoretical-zero symmetry plane by absolute difference") &&
         check(normal_error < tolerance && tangential_error < tolerance,
             "H20.23 normal and tangential resultants agree with Abaqus below 1 percent") &&
         check(interface.total_tangential_force > 0.0 && histories.size() == 8 &&
@@ -613,6 +622,9 @@ bool run_abaqus_sliding_comparison(
               << "h20_23_tangential_resultant=" << interface.total_tangential_force << '\n'
               << "h20_23_reference_tangential_resultant=" << reaction.tangential_force << '\n'
               << "h20_23_tangential_resultant_relative_error=" << tangential_error << '\n'
+              << "h20_23_symmetry_plane_z_count=" << symmetry_plane_z_count << '\n'
+              << "h20_23_symmetry_plane_z_maximum_absolute_difference=" << symmetry_plane_z_maximum_absolute_difference
+              << '\n'
               << "h20_23_contact_jacobian_directional_error=" << maximum_jacobian_directional_error << '\n';
     return passed;
 }

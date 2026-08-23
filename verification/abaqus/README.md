@@ -65,8 +65,9 @@ an absolute `elastic_slip=1e-8 m`. The normal-displacement three errors are
 `0.00000212%`, `0.000000834%`, and `0.00000464%`; the imposed sliding-direction
 displacement errors are `0.00000261%`, `0.00000188%`, and `0.00000413%`.
 The off-symmetry-plane third displacement component has errors
-`0.00000292%`, `0.00000356%`, and `0.00000472%`; exact symmetry-plane zeros are
-accounted separately and have zero maximum absolute difference. Normal and
+`0.00000292%`, `0.00000356%`, and `0.00000472%`; the eight Abaqus roundoff
+values on the theoretical-zero symmetry plane are checked separately, with a
+maximum absolute difference of `1.1352e-18 m`. Normal and
 tangential reaction errors are approximately `0.000000589%` and `0.0255274%`.
 All eight constraints slide, the residual is
 action-reaction conservative, and the sliding tangent is checked against a
