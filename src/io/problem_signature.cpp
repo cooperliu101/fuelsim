@@ -80,6 +80,7 @@ void hash_contacts(std::uint64_t& hash, const SpatialDefinition& definition) {
         hash_double(hash, contact.minimum_gap);
         hash_double(hash, contact.penalty);
         hash_double(hash, contact.friction_coefficient);
+        hash_double(hash, contact.friction_elastic_slip);
         hash_integer(hash, contact.automatic_penalty ? 1 : 0);
         hash_double(hash, contact.penalty_factor);
         hash_integer(hash, static_cast<std::int64_t>(contact.mechanical_formulation));

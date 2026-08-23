@@ -107,6 +107,41 @@ bool check_uniform(const fuelsim::cartesian::SpatialAssembly& spatial, const fue
     return passed;
 }
 
+double mechanical_contact_directional_error(
+    fuelsim::SteadyProblem& problem, const std::vector<double>& global_state, double perturbation) {
+    const auto& spatial = fuelsim::cartesian::ProblemAccess::view(problem);
+    double maximum_error = 0.0;
+    for (std::size_t contribution = 0; contribution < spatial.contribution_count(); ++contribution) {
+        if (spatial.contribution_type(contribution) != fuelsim::SpatialContributionType::mechanical_contact) continue;
+        std::vector<std::size_t> dofs;
+        problem.contribution_dofs(contribution, dofs);
+        std::vector<double> local_state(dofs.size());
+        for (std::size_t local = 0; local < dofs.size(); ++local) local_state[local] = global_state[dofs[local]];
+        std::vector<double> residual, jacobian;
+        spatial.compute_contribution(contribution, local_state, nullptr, nullptr, 0.0, residual, &jacobian);
+        std::vector<double> direction(local_state.size()), plus = local_state, minus = local_state;
+        for (std::size_t local = 0; local < local_state.size(); ++local) {
+            direction[local] = std::sin(static_cast<double>(local + 1));
+            plus[local] += perturbation * direction[local];
+            minus[local] -= perturbation * direction[local];
+        }
+        std::vector<double> plus_residual, minus_residual;
+        spatial.compute_contribution(contribution, plus, nullptr, nullptr, 0.0, plus_residual, nullptr);
+        spatial.compute_contribution(contribution, minus, nullptr, nullptr, 0.0, minus_residual, nullptr);
+        double difference_squared = 0.0, reference_squared = 0.0;
+        for (std::size_t row = 0; row < local_state.size(); ++row) {
+            double analytic = 0.0;
+            for (std::size_t column = 0; column < local_state.size(); ++column)
+                analytic += jacobian[row * local_state.size() + column] * direction[column];
+            const double finite_difference = (plus_residual[row] - minus_residual[row]) / (2.0 * perturbation);
+            difference_squared += std::pow(analytic - finite_difference, 2);
+            reference_squared += finite_difference * finite_difference;
+        }
+        maximum_error = std::max(maximum_error, std::sqrt(difference_squared / reference_squared));
+    }
+    return maximum_error;
+}
+
 bool test_steady_and_io(const fuelsim::PetscSession& session, const fuelsim::UnstructuredHex20Mesh& mesh,
     const std::string& mesh_path, const std::string& results_path) {
     session.collective_root_action([&]() { fuelsim::write_exodus_hex20(mesh_path, mesh); });
@@ -194,6 +229,7 @@ bool test_contact_projection(const fuelsim::UnstructuredHex20Mesh& mesh) {
     contact.minimum_gap = 1.0e-6;
     contact.penalty = 1.0e8;
     contact.friction_coefficient = 0.1;
+    contact.friction_elastic_slip = 1.0e-5;
     spatial.contacts.push_back(contact);
     fuelsim::SteadyProblem problem(spatial, contact_mesh);
     const auto& view = fuelsim::cartesian::ProblemAccess::view(problem);
@@ -212,8 +248,8 @@ bool test_contact_projection(const fuelsim::UnstructuredHex20Mesh& mesh) {
                  passed;
         area_sum += node.tributary_area;
     }
-    passed = check(positive_areas == 4 && negative_areas == 4 && std::abs(area_sum - 1.0) < 1.0e-12,
-                 "HEX20 surface integration recovers exact signed Q8 equivalent nodal areas") &&
+    passed = check(positive_areas == 8 && negative_areas == 0 && std::abs(area_sum - 1.0) < 1.0e-12,
+                 "HEX20 Abaqus-style averaged contact stores eight positive constraint areas") &&
              passed;
     const auto interface = fuelsim::cartesian::ProblemAccess::summarize_interface(problem, 0, problem.initial_state());
     passed = check(interface.projected_contact_nodes == 8 && interface.unprojected_contact_nodes == 0,
@@ -223,6 +259,28 @@ bool test_contact_projection(const fuelsim::UnstructuredHex20Mesh& mesh) {
                  "HEX20 contact contributes thermal and mechanical surface kernels") &&
              passed;
     const fuelsim::ProblemStateSnapshot snapshot = problem.capture_internal_state();
+    std::vector<double> sticking_state = problem.initial_state();
+    for (std::size_t local_node = 0; local_node < view.hex20_region_mesh(1).nodes().size(); ++local_node) {
+        const std::size_t global = view.global_node(1, local_node);
+        sticking_state[view.dof(fuelsim::Field::displacement_x, global)] = -1.0e-4;
+        sticking_state[view.dof(fuelsim::Field::displacement_y, global)] = 1.0e-6;
+    }
+    problem.validate_state(sticking_state);
+    const double sticking_jacobian_error = mechanical_contact_directional_error(problem, sticking_state, 1.0e-8);
+    problem.commit_internal_state(sticking_state);
+    const auto& sticking_history = fuelsim::cartesian::ProblemAccess::committed_contact_histories(problem).at(0);
+    passed = check(sticking_history.size() == 8 &&
+                       std::all_of(sticking_history.begin(), sticking_history.end(),
+                           [](const auto& history) {
+                               return !history.sliding &&
+                                      std::abs(history.cartesian_elastic_tangential_slip[1] - 1.0e-6) < 1.0e-14;
+                           }),
+                 "HEX20 averaged friction commits all eight elastic sticking histories") &&
+             passed;
+    passed = check(sticking_jacobian_error < 1.0e-7,
+                 "HEX20 averaged sticking-friction Jacobian matches a centered directional difference") &&
+             passed;
+    problem.restore_internal_state(snapshot, problem.initial_state());
     std::vector<double> sliding_state = problem.initial_state();
     for (std::size_t local_node = 0; local_node < view.hex20_region_mesh(1).nodes().size(); ++local_node) {
         const std::size_t global = view.global_node(1, local_node);
@@ -232,12 +290,12 @@ bool test_contact_projection(const fuelsim::UnstructuredHex20Mesh& mesh) {
     problem.validate_state(sliding_state);
     problem.commit_internal_state(sliding_state);
     const auto& sliding_history = fuelsim::cartesian::ProblemAccess::committed_contact_histories(problem).at(0);
-    passed = check(sliding_history.size() == 9 &&
+    passed = check(sliding_history.size() == 8 &&
                        std::all_of(sliding_history.begin(), sliding_history.end(),
                            [](const auto& history) {
                                return history.sliding && std::abs(history.cartesian_elastic_tangential_slip[1]) > 0.0;
                            }),
-                 "HEX20 surface-to-surface friction commits one sliding history at each 3x3 integration point") &&
+                 "HEX20 surface-to-surface friction commits one sliding history at each averaged constraint") &&
              passed;
     problem.restore_internal_state(snapshot, problem.initial_state());
     const auto& restored_history = fuelsim::cartesian::ProblemAccess::committed_contact_histories(problem).at(0);
@@ -246,7 +304,7 @@ bool test_contact_projection(const fuelsim::UnstructuredHex20Mesh& mesh) {
                   [](const auto& history) {
                       return !history.sliding && history.cartesian_elastic_tangential_slip == std::array<double, 3>{};
                   }),
-            "HEX20 surface-to-surface friction rollback restores every integration-point history") &&
+            "HEX20 surface-to-surface friction rollback restores every averaged-constraint history") &&
         passed;
     return passed;
 }

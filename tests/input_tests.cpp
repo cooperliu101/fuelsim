@@ -298,7 +298,7 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
              passed;
     std::string surface_contact_case = friction_case;
     surface_contact_case.insert(surface_contact_case.find(contact_penalty) + contact_penalty.size(),
-        "\n      discretization = surface_to_surface");
+        "\n      discretization = surface_to_surface\n      elastic_slip = 1e-8");
     {
         std::ofstream output(malformed_path, std::ios::out | std::ios::trunc);
         if (!output) return check(false, "could not create surface-contact input fixture");
@@ -306,9 +306,22 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
     }
     const fuelsim::FuelSimCaseDefinition surface_contact = fuelsim::read_case_input(malformed_path);
     passed = check(surface_contact.spatial.contacts[0].mechanical_discretization ==
-                       fuelsim::MechanicalContactDiscretization::surface_to_surface,
-                 "the explicit surface-to-surface mechanical-contact discretization is parsed") &&
+                           fuelsim::MechanicalContactDiscretization::surface_to_surface &&
+                       surface_contact.spatial.contacts[0].friction_elastic_slip == 1.0e-8,
+                 "the explicit surface-to-surface discretization and absolute elastic slip are parsed") &&
              passed;
+    std::string missing_friction_elastic_slip_case = read_text(steady_path);
+    missing_friction_elastic_slip_case.insert(
+        missing_friction_elastic_slip_case.find(contact_penalty) + contact_penalty.size(),
+        "\n      elastic_slip = 1e-8");
+    passed = expect_case_failure(
+                 malformed_path, missing_friction_elastic_slip_case, "elastic_slip requires a positive mu") &&
+             passed;
+    std::string negative_elastic_slip_case = friction_case;
+    negative_elastic_slip_case.insert(
+        negative_elastic_slip_case.find(contact_penalty) + contact_penalty.size(), "\n      elastic_slip = -1e-8");
+    passed =
+        expect_case_failure(malformed_path, negative_elastic_slip_case, "elastic_slip must be nonnegative") && passed;
     std::string invalid_surface_area_case = surface_contact_case;
     invalid_surface_area_case.insert(invalid_surface_area_case.find(contact_penalty) + contact_penalty.size(),
         "\n      quad8_nodal_area_rule = consistent_shape");

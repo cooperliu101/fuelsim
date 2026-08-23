@@ -1211,42 +1211,137 @@ void SpatialAssembly::hex20_averaged_constraint_dofs(
 }
 
 SpatialAssembly::Hex20AveragedConstraintValue SpatialAssembly::hex20_averaged_constraint_value(
-    const Hex20AveragedConstraint& constraint, const std::vector<double>& state) const {
+    const Hex20AveragedConstraint& constraint, const std::vector<double>& state,
+    const std::vector<double>& committed_state, const ContactPointHistory& history) const {
     const std::size_t node_count = constraint.nodes.size();
-    if (state.size() != 3 * node_count) throw std::invalid_argument("HEX20 averaged-contact state has the wrong size");
-    double gap = constraint.reference_gap;
+    if (state.size() != 3 * node_count || committed_state.size() != state.size())
+        throw std::invalid_argument("HEX20 averaged-contact state has the wrong size");
+    std::array<double, 3> relative{}, committed_relative{};
     for (std::size_t component = 0; component < 3; ++component) {
-        const double normal =
-            component == 0 ? constraint.normal.x : (component == 1 ? constraint.normal.y : constraint.normal.z);
-        for (std::size_t node = 0; node < node_count; ++node)
-            gap += normal * constraint.gap_coefficients[node] * state[component * node_count + node];
+        for (std::size_t node = 0; node < node_count; ++node) {
+            const double coefficient = constraint.gap_coefficients[node];
+            relative[component] += coefficient * state[component * node_count + node];
+            committed_relative[component] += coefficient * committed_state[component * node_count + node];
+        }
     }
-    const double pressure = std::max(-_mechanical_properties[constraint.contact].penalty * gap, 0.0);
-    return {gap, pressure, pressure * constraint.area};
+    const std::array<double, 3> normal = {constraint.normal.x, constraint.normal.y, constraint.normal.z};
+    Hex20AveragedConstraintValue result{};
+    result.gap = constraint.reference_gap;
+    for (std::size_t component = 0; component < 3; ++component) result.gap += normal[component] * relative[component];
+    const NormalContactProperties& properties = _mechanical_properties[constraint.contact];
+    result.pressure = std::max(-properties.penalty * result.gap, 0.0);
+    result.force = result.pressure * constraint.area;
+    if (properties.friction_coefficient == 0.0 || !(result.pressure > 0.0)) return result;
+
+    std::array<double, 3> relative_increment{};
+    double normal_increment = 0.0;
+    for (std::size_t component = 0; component < 3; ++component) {
+        // The normal gap is primary minus secondary, whereas the established
+        // friction history convention is secondary minus primary.
+        relative_increment[component] = committed_relative[component] - relative[component];
+        normal_increment += normal[component] * relative_increment[component];
+    }
+    for (std::size_t component = 0; component < 3; ++component)
+        result.elastic_tangential_slip[component] = history.cartesian_elastic_tangential_slip[component] +
+                                                    relative_increment[component] -
+                                                    normal_increment * normal[component];
+    double history_normal = 0.0;
+    for (std::size_t component = 0; component < 3; ++component)
+        history_normal += result.elastic_tangential_slip[component] * normal[component];
+    for (std::size_t component = 0; component < 3; ++component)
+        result.elastic_tangential_slip[component] -= history_normal * normal[component];
+    const double sliding_limit = properties.friction_coefficient * result.pressure;
+    result.stick_stiffness =
+        properties.maximum_elastic_slip > 0.0 ? sliding_limit / properties.maximum_elastic_slip : properties.penalty;
+    if (!std::isfinite(result.stick_stiffness) || !(result.stick_stiffness > 0.0))
+        throw std::domain_error("HEX20 averaged contact has a nonpositive tangential stick stiffness");
+    for (std::size_t component = 0; component < 3; ++component) {
+        result.trial_tangential_traction[component] =
+            result.stick_stiffness * result.elastic_tangential_slip[component];
+    }
+    result.trial_tangential_magnitude = std::hypot(
+        result.trial_tangential_traction[0], result.trial_tangential_traction[1], result.trial_tangential_traction[2]);
+    if (result.trial_tangential_magnitude < sliding_limit ||
+        (result.trial_tangential_magnitude == sliding_limit && !history.sliding)) {
+        result.tangential_traction = result.trial_tangential_traction;
+    } else {
+        if (!(result.trial_tangential_magnitude > 0.0))
+            throw std::domain_error("HEX20 averaged sliding contact has an undefined tangential direction");
+        for (std::size_t component = 0; component < 3; ++component) {
+            result.tangential_traction[component] =
+                sliding_limit * result.trial_tangential_traction[component] / result.trial_tangential_magnitude;
+            result.elastic_tangential_slip[component] = result.tangential_traction[component] / result.stick_stiffness;
+        }
+        result.sliding = true;
+    }
+    result.tangential_force = constraint.area * std::hypot(result.tangential_traction[0], result.tangential_traction[1],
+                                                    result.tangential_traction[2]);
+    return result;
 }
 
 void SpatialAssembly::compute_hex20_averaged_constraint(const Hex20AveragedConstraint& constraint,
     const std::vector<double>& state, std::vector<double>& residual, std::vector<double>* jacobian) const {
     const std::size_t node_count = constraint.nodes.size(), local_size = 3 * node_count;
-    const Hex20AveragedConstraintValue value = hex20_averaged_constraint_value(constraint, state);
+    std::vector<std::size_t> dofs;
+    hex20_averaged_constraint_dofs(constraint, dofs);
+    std::vector<double> committed_state(local_size);
+    for (std::size_t local = 0; local < local_size; ++local)
+        committed_state[local] = _committed_contact_solution.at(dofs[local]);
+    const ContactPointHistory& history = _contact_histories[constraint.contact][constraint.secondary];
+    const Hex20AveragedConstraintValue value =
+        hex20_averaged_constraint_value(constraint, state, committed_state, history);
     residual.assign(local_size, 0.0);
     if (jacobian != nullptr) jacobian->assign(local_size * local_size, 0.0);
     if (!(value.pressure > 0.0)) return;
-    std::vector<double> gap_derivative(local_size);
+    const std::array<double, 3> normal = {constraint.normal.x, constraint.normal.y, constraint.normal.z};
     for (std::size_t component = 0; component < 3; ++component) {
-        const double normal =
-            component == 0 ? constraint.normal.x : (component == 1 ? constraint.normal.y : constraint.normal.z);
         for (std::size_t node = 0; node < node_count; ++node) {
             const std::size_t local = component * node_count + node;
-            gap_derivative[local] = normal * constraint.gap_coefficients[node];
-            residual[local] = -value.force * gap_derivative[local];
+            residual[local] = -constraint.area * constraint.gap_coefficients[node] *
+                              (value.pressure * normal[component] + value.tangential_traction[component]);
         }
     }
     if (jacobian == nullptr) return;
-    const double stiffness = _mechanical_properties[constraint.contact].penalty * constraint.area;
-    for (std::size_t row = 0; row < local_size; ++row)
-        for (std::size_t column = 0; column < local_size; ++column)
-            (*jacobian)[row * local_size + column] = stiffness * gap_derivative[row] * gap_derivative[column];
+    const NormalContactProperties& properties = _mechanical_properties[constraint.contact];
+    std::array<double, 3> sliding_direction{};
+    if (value.sliding)
+        for (std::size_t component = 0; component < 3; ++component)
+            sliding_direction[component] =
+                value.trial_tangential_traction[component] / value.trial_tangential_magnitude;
+    for (std::size_t row_component = 0; row_component < 3; ++row_component)
+        for (std::size_t row_node = 0; row_node < node_count; ++row_node) {
+            const std::size_t row = row_component * node_count + row_node;
+            const double row_coefficient = constraint.gap_coefficients[row_node];
+            for (std::size_t column_component = 0; column_component < 3; ++column_component)
+                for (std::size_t column_node = 0; column_node < node_count; ++column_node) {
+                    const std::size_t column = column_component * node_count + column_node;
+                    const double column_coefficient = constraint.gap_coefficients[column_node],
+                                 tangential_column_coefficient = -column_coefficient,
+                                 pressure_derivative =
+                                     -properties.penalty * normal[column_component] * column_coefficient;
+                    double traction_derivative = normal[row_component] * pressure_derivative;
+                    if (properties.friction_coefficient > 0.0) {
+                        const double tangent_projector = (row_component == column_component ? 1.0 : 0.0) -
+                                                         normal[row_component] * normal[column_component];
+                        if (!value.sliding) {
+                            traction_derivative +=
+                                value.stick_stiffness * tangent_projector * tangential_column_coefficient;
+                            if (properties.maximum_elastic_slip > 0.0)
+                                traction_derivative +=
+                                    value.tangential_traction[row_component] / value.pressure * pressure_derivative;
+                        } else {
+                            traction_derivative +=
+                                properties.friction_coefficient *
+                                (sliding_direction[row_component] * pressure_derivative +
+                                    value.pressure * value.stick_stiffness / value.trial_tangential_magnitude *
+                                        (tangent_projector -
+                                            sliding_direction[row_component] * sliding_direction[column_component]) *
+                                        tangential_column_coefficient);
+                        }
+                    }
+                    (*jacobian)[row * local_size + column] = -constraint.area * row_coefficient * traction_derivative;
+                }
+        }
 }
 
 Quad8SurfaceContactLocalValues SpatialAssembly::hex20_contact_state(
@@ -1281,6 +1376,9 @@ void SpatialAssembly::build_contacts(const UnstructuredHex8Mesh& source_mesh) {
         if (definition.mechanical_discretization == MechanicalContactDiscretization::surface_to_surface)
             throw std::invalid_argument(
                 "surface_to_surface mechanical contact currently requires HEX20 faces: " + definition.name);
+        if (definition.friction_elastic_slip > 0.0)
+            throw std::invalid_argument(
+                "elastic_slip currently requires HEX20 surface_to_surface contact: " + definition.name);
         if (definition.mechanical_discretization == MechanicalContactDiscretization::automatic)
             definition.mechanical_discretization = MechanicalContactDiscretization::node_to_surface;
         if (definition.quad8_nodal_area_rule != Quad8NodalAreaRule::positive_lumped)
@@ -1424,13 +1522,15 @@ void SpatialAssembly::build_hex20_contacts(const UnstructuredHex20Mesh& source_m
             definition.mechanical_discretization = MechanicalContactDiscretization::surface_to_surface;
         const bool surface_to_surface =
             definition.mechanical_discretization == MechanicalContactDiscretization::surface_to_surface;
-        // Abaqus-style averaged constraints have only been identified for
-        // frictionless, small-strain, small-sliding HEX20 contact.  Friction
-        // and finite strain retain the existing segmented integration path.
+        // Abaqus-style averaged constraints represent small-strain,
+        // small-sliding HEX20 contact.  Their relative vector displacement is
+        // also the kinematic basis for the node-centered Coulomb law.
         const bool abaqus_averaged =
-            surface_to_surface && definition.friction_coefficient == 0.0 &&
-            _definition.regions[primary.region].strain_formulation == StrainFormulation::small &&
+            surface_to_surface && _definition.regions[primary.region].strain_formulation == StrainFormulation::small &&
             _definition.regions[secondary.region].strain_formulation == StrainFormulation::small;
+        if (definition.friction_elastic_slip > 0.0 && !abaqus_averaged)
+            throw std::invalid_argument(
+                "elastic_slip requires small-strain HEX20 surface_to_surface contact: " + definition.name);
         if (surface_to_surface && definition.quad8_nodal_area_rule != Quad8NodalAreaRule::positive_lumped)
             throw std::invalid_argument(
                 "quad8_nodal_area_rule applies only to HEX20 node-to-surface contact comparisons: " + definition.name);
@@ -1449,7 +1549,8 @@ void SpatialAssembly::build_hex20_contacts(const UnstructuredHex20Mesh& source_m
         _thermal_properties.push_back({definition.thermal ? definition.gap_conductivity : 1.0,
             definition.thermal ? definition.minimum_gap : 1.0});
         _mechanical_properties.push_back({definition.mechanical ? definition.penalty : 1.0,
-            definition.mechanical ? definition.friction_coefficient : 0.0, false});
+            definition.mechanical ? definition.friction_coefficient : 0.0, false,
+            definition.mechanical ? definition.friction_elastic_slip : 0.0});
         std::vector<Hex20PrimaryContactFace> primary_faces;
         primary_faces.reserve(primary.boundary.faces.size());
         for (const Quad8FaceElement& primary_face : primary.boundary.faces) {
@@ -2392,8 +2493,24 @@ void SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
             staged[candidate.contact][candidate.secondary] = trial;
             updated[candidate.contact][candidate.secondary] = true;
         }
-        for (const Hex20AveragedConstraint& constraint : _hex20_averaged_constraints)
+        for (const Hex20AveragedConstraint& constraint : _hex20_averaged_constraints) {
+            std::vector<std::size_t> dofs;
+            hex20_averaged_constraint_dofs(constraint, dofs);
+            std::vector<double> current(dofs.size()), committed(dofs.size());
+            for (std::size_t local = 0; local < dofs.size(); ++local) {
+                current[local] = state.at(dofs[local]);
+                committed[local] = _committed_contact_solution.at(dofs[local]);
+            }
+            const Hex20AveragedConstraintValue value = hex20_averaged_constraint_value(
+                constraint, current, committed, _contact_histories[constraint.contact][constraint.secondary]);
+            ContactPointHistory trial = _contact_histories[constraint.contact][constraint.secondary];
+            trial.sliding = value.sliding;
+            trial.cartesian_elastic_tangential_slip = value.elastic_tangential_slip;
+            if (updated[constraint.contact][constraint.secondary])
+                throw std::logic_error("HEX20 averaged constraints share one friction-history slot");
+            staged[constraint.contact][constraint.secondary] = trial;
             updated[constraint.contact][constraint.secondary] = true;
+        }
         for (std::size_t contact = 0; contact < _definition.contacts.size(); ++contact) {
             if (!_definition.contacts[contact].mechanical) continue;
             if (std::find(updated[contact].begin(), updated[contact].end(), false) != updated[contact].end())
@@ -2490,18 +2607,25 @@ std::vector<CartesianContactNodeSummary> SpatialAssembly::summarize_contact_node
                 hex20_averaged_constraint_dofs(constraint, dofs);
                 std::vector<double> local_state(dofs.size());
                 for (std::size_t local = 0; local < dofs.size(); ++local) local_state[local] = state.at(dofs[local]);
-                const Hex20AveragedConstraintValue value = hex20_averaged_constraint_value(constraint, local_state);
+                std::vector<double> committed_state(dofs.size());
+                for (std::size_t local = 0; local < dofs.size(); ++local)
+                    committed_state[local] = _committed_contact_solution.at(dofs[local]);
+                const Hex20AveragedConstraintValue value = hex20_averaged_constraint_value(constraint, local_state,
+                    committed_state, _contact_histories[constraint.contact][constraint.secondary]);
                 CartesianContactNodeSummary& predominant = result.at(constraint.secondary);
                 predominant.projected = true;
                 predominant.primary_face = 0;
                 predominant.gap = value.gap;
                 predominant.pressure = value.pressure;
                 predominant.tributary_area = constraint.area;
+                predominant.elastic_tangential_slip = value.elastic_tangential_slip;
+                predominant.sliding = value.sliding;
                 for (std::size_t entry = 0; entry < constraint.secondary_output_nodes.size(); ++entry) {
                     CartesianContactNodeSummary& output = result.at(constraint.secondary_output_nodes[entry]);
                     output.projected = true;
                     output.primary_face = 0;
                     output.contact_force += constraint.secondary_coefficients[entry] * value.force;
+                    output.tangential_force += constraint.secondary_coefficients[entry] * value.tangential_force;
                     for (std::size_t component = 0; component < 3; ++component) {
                         const double normal = component == 0   ? constraint.normal.x
                                               : component == 1 ? constraint.normal.y
@@ -2511,6 +2635,9 @@ std::vector<CartesianContactNodeSummary> SpatialAssembly::summarize_contact_node
                     }
                 }
             }
+            for (CartesianContactNodeSummary& summary : result)
+                if (summary.tributary_area > 0.0)
+                    summary.tangential_traction = summary.tangential_force / summary.tributary_area;
             return result;
         }
         if (_definition.contacts[contact_value].mechanical_discretization ==

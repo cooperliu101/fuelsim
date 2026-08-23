@@ -46,8 +46,8 @@ directly into an independent node-to-face penalty spring.
 ## H20.23 surface-to-surface Coulomb sliding
 
 `h20_23_hex20_surface_friction.inp` extends H20.21 with `mu = 0.001`, a
-`2.8 um` prescribed transverse displacement, and an Abaqus elastic-slip
-tolerance of `1e-6`. This puts all nine Fuelsim contact quadrature points in
+`2.8 um` prescribed transverse displacement, and an Abaqus relative elastic-slip
+tolerance of `1e-6`. This puts all eight Fuelsim node-centered constraints in
 the sliding branch while retaining the same `1e13 Pa/m` normal penalty. Run it
 with:
 
@@ -58,13 +58,26 @@ powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass `
 ```
 
 Abaqus completed with normal and tangential reactions of `106.518753052 N`
-and `0.106491569 N`. Fuelsim's normal-displacement relative L2, relative
-absolute-peak, and maximum pointwise-relative errors are `0.0422173%`,
-`0.000000834%`, and `0.107700%`; normal and tangential reaction errors are
-`0.000860255%` and `0.0263872%`. The test compares all 40 normal displacements
-and both resultants. It does not qualify the full transverse displacement
-field because Abaqus uses a regularized elastic-slip law while Fuelsim uses a
-sharp integration-point return to the Coulomb cap.
+and `0.106491569 N`. Fuelsim now applies friction on the same eight
+node-centered averaged constraints as the normal surface-to-surface operator.
+The Abaqus `slip tolerance=1e-6` on this `0.01 m` contact face is represented by
+an absolute `elastic_slip=1e-8 m`. The normal-displacement three errors are
+`0.00000212%`, `0.000000834%`, and `0.00000464%`; the imposed sliding-direction
+displacement errors are `0.00000261%`, `0.00000188%`, and `0.00000413%`.
+The off-symmetry-plane third displacement component has errors
+`0.00000292%`, `0.00000356%`, and `0.00000472%`; exact symmetry-plane zeros are
+accounted separately and have zero maximum absolute difference. Normal and
+tangential reaction errors are approximately `0.000000589%` and `0.0255274%`.
+All eight constraints slide, the residual is
+action-reaction conservative, and the sliding tangent is checked against a
+centered directional difference.
+
+`h20_32_hex20_surface_friction_contact.csv` is a direct R2018x diagnostic from
+the same deck. It records `CNORMF`, `CSHEARF`, `CSHEAR1/2`, and `CSLIP1/2` at
+the eight original C3D20 secondary-face nodes. It demonstrates that the
+tangential nodal forces use the same signed averaged constraint transfer as
+the normal forces; it also exposed the required secondary-minus-primary sign
+for the tangential increment.
 
 ## H20.24 nonmatching HEX20 surface contact
 

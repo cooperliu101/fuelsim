@@ -65,6 +65,7 @@ struct NormalContactProperties final {
     double penalty;
     double friction_coefficient = 0.0;
     bool augmented_lagrangian = false;
+    double maximum_elastic_slip = 0.0;
 };
 
 struct ContactPointHistory final {

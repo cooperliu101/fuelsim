@@ -187,7 +187,9 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     };
 
     struct Hex20AveragedConstraintValue final {
-        double gap, pressure, force;
+        double gap, pressure, force, stick_stiffness, trial_tangential_magnitude, tangential_force;
+        std::array<double, 3> trial_tangential_traction, tangential_traction, elastic_tangential_slip;
+        bool sliding;
     };
 
     ContributionRanges contribution_ranges() const noexcept;
@@ -215,8 +217,9 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     Quad8SurfaceContactLocalDofs hex20_contact_dofs(const Hex20MechanicalCandidate& candidate) const;
     void hex20_averaged_constraint_dofs(
         const Hex20AveragedConstraint& constraint, std::vector<std::size_t>& dofs) const;
-    Hex20AveragedConstraintValue hex20_averaged_constraint_value(
-        const Hex20AveragedConstraint& constraint, const std::vector<double>& state) const;
+    Hex20AveragedConstraintValue hex20_averaged_constraint_value(const Hex20AveragedConstraint& constraint,
+        const std::vector<double>& state, const std::vector<double>& committed_state,
+        const ContactPointHistory& history) const;
     void compute_hex20_averaged_constraint(const Hex20AveragedConstraint& constraint, const std::vector<double>& state,
         std::vector<double>& residual, std::vector<double>* jacobian) const;
     Quad4SurfaceContactLocalValues contribution_state(std::size_t index, const std::vector<double>& global_state) const;

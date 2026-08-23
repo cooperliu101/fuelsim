@@ -83,4 +83,6 @@ SECONDARY_RIGHT, 3, 3, 0.
 *Output, field, frequency=1
 *Node Output
 COORD, RF, U
+*Contact Output
+CSTRESS, CDISP, CFORCE
 *End Step

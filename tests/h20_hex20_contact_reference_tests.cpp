@@ -501,6 +501,7 @@ bool run_abaqus_sliding_comparison(
         fuelsim::MechanicalContactDiscretization::surface_to_surface;
     definition.spatial.contacts[0].quad8_nodal_area_rule = fuelsim::Quad8NodalAreaRule::positive_lumped;
     definition.spatial.contacts[0].friction_coefficient = 0.001;
+    definition.spatial.contacts[0].friction_elastic_slip = 1.0e-8;
     const auto secondary_y =
         std::find_if(definition.spatial.boundary_conditions.begin(), definition.spatial.boundary_conditions.end(),
             [](const fuelsim::BoundaryConditionDefinition& boundary) { return boundary.name == "secondary_y"; });
@@ -516,7 +517,7 @@ bool run_abaqus_sliding_comparison(
     const auto reference = read_displacement(displacement_path);
     const auto& spatial = fuelsim::cartesian::ProblemAccess::view(problem);
     const auto& fields = spatial.field_layout();
-    std::array<fuelsim::test::FieldErrorMetrics, 1> metrics;
+    std::array<fuelsim::test::FieldErrorMetrics, 3> metrics;
     std::vector<bool> present(mesh.nodes().size(), false);
     double maximum_coordinate_difference = 0.0;
     for (std::size_t region = 0; region < spatial.region_count(); ++region) {
@@ -531,13 +532,15 @@ bool run_abaqus_sliding_comparison(
             maximum_coordinate_difference =
                 std::max(maximum_coordinate_difference, coordinate_difference(mesh.nodes()[source], found->point));
             const std::size_t global = spatial.global_node(region, local);
-            for (std::size_t component = 0; component < metrics.size(); ++component)
+            for (std::size_t component = 0; component < 2; ++component)
                 metrics[component].add(
                     solve.solve.state[fields[component + 1].begin + global], found->displacement[component]);
+            if (std::abs(found->point.z - 5.0e-3) > 1.0e-8)
+                metrics[2].add(solve.solve.state[fields[3].begin + global], found->displacement[2]);
         }
     }
     constexpr double tolerance = 1.0e-2;
-    const std::array<std::string, 1> names = {"displacement_x"};
+    const std::array<std::string, 3> names = {"displacement_x", "displacement_y", "displacement_z_off_symmetry_plane"};
     for (std::size_t component = 0; component < metrics.size(); ++component) {
         fuelsim::test::print_relative_metrics("h20_23_" + names[component], metrics[component]);
         passed = check(fuelsim::test::relative_metrics_below(metrics[component], tolerance),
@@ -551,21 +554,66 @@ bool run_abaqus_sliding_comparison(
                  tangential_error =
                      std::abs(interface.total_tangential_force - reaction.tangential_force) / reaction.tangential_force;
     const auto& histories = fuelsim::cartesian::ProblemAccess::committed_contact_histories(problem).at(0);
+    fuelsim::SteadyProblem numerical_problem(definition.spatial, mesh);
+    const auto& numerical_spatial = fuelsim::cartesian::ProblemAccess::view(numerical_problem);
+    std::array<double, 3> contact_balance{};
+    double maximum_jacobian_directional_error = 0.0;
+    for (std::size_t contribution = 0; contribution < numerical_spatial.contribution_count(); ++contribution) {
+        if (numerical_spatial.contribution_type(contribution) != fuelsim::SpatialContributionType::mechanical_contact)
+            continue;
+        std::vector<std::size_t> dofs;
+        numerical_problem.contribution_dofs(contribution, dofs);
+        std::vector<double> local_state(dofs.size());
+        for (std::size_t local = 0; local < dofs.size(); ++local) local_state[local] = solve.solve.state[dofs[local]];
+        std::vector<double> residual, jacobian;
+        numerical_spatial.compute_contribution(contribution, local_state, nullptr, nullptr, 0.0, residual, &jacobian);
+        std::vector<double> direction(local_state.size()), plus = local_state, minus = local_state;
+        constexpr double perturbation = 1.0e-10;
+        for (std::size_t local = 0; local < local_state.size(); ++local) {
+            direction[local] = std::sin(static_cast<double>(local + 1));
+            plus[local] += perturbation * direction[local];
+            minus[local] -= perturbation * direction[local];
+        }
+        std::vector<double> plus_residual, minus_residual;
+        numerical_spatial.compute_contribution(contribution, plus, nullptr, nullptr, 0.0, plus_residual, nullptr);
+        numerical_spatial.compute_contribution(contribution, minus, nullptr, nullptr, 0.0, minus_residual, nullptr);
+        double difference_squared = 0.0, reference_squared = 0.0;
+        for (std::size_t row = 0; row < local_state.size(); ++row) {
+            double analytic = 0.0;
+            for (std::size_t column = 0; column < local_state.size(); ++column)
+                analytic += jacobian[row * local_state.size() + column] * direction[column];
+            const double finite_difference = (plus_residual[row] - minus_residual[row]) / (2.0 * perturbation);
+            difference_squared += std::pow(analytic - finite_difference, 2);
+            reference_squared += finite_difference * finite_difference;
+            for (std::size_t component = 0; component < contact_balance.size(); ++component) {
+                const auto& field = fields[component + 1];
+                if (dofs[row] >= field.begin && dofs[row] < field.end) contact_balance[component] += residual[row];
+            }
+        }
+        maximum_jacobian_directional_error =
+            std::max(maximum_jacobian_directional_error, std::sqrt(difference_squared / reference_squared));
+    }
     passed =
         check(reference.size() == mesh.nodes().size() && maximum_coordinate_difference < 1.0e-9,
             "H20.23 compares all forty normal-displacement nodes on the tracked Abaqus mesh") &&
         check(normal_error < tolerance && tangential_error < tolerance,
             "H20.23 normal and tangential resultants agree with Abaqus below 1 percent") &&
-        check(interface.total_tangential_force > 0.0 && histories.size() == 9 &&
+        check(interface.total_tangential_force > 0.0 && histories.size() == 8 &&
                   std::all_of(histories.begin(), histories.end(), [](const auto& history) { return history.sliding; }),
-            "H20.23 keeps all nine surface integration points in Coulomb sliding") &&
+            "H20.23 keeps all eight Abaqus-style averaged constraints in Coulomb sliding") &&
+        check(std::all_of(contact_balance.begin(), contact_balance.end(),
+                  [](double value) { return std::abs(value) < 1.0e-10; }),
+            "H20.23 averaged friction residual is action-reaction conservative") &&
+        check(maximum_jacobian_directional_error < 1.0e-7,
+            "H20.23 averaged sliding-friction Jacobian matches a centered directional difference") &&
         passed;
     std::cout << "h20_23_normal_resultant=" << interface.total_contact_force << '\n'
               << "h20_23_reference_normal_resultant=" << reaction.normal_force << '\n'
               << "h20_23_normal_resultant_relative_error=" << normal_error << '\n'
               << "h20_23_tangential_resultant=" << interface.total_tangential_force << '\n'
               << "h20_23_reference_tangential_resultant=" << reaction.tangential_force << '\n'
-              << "h20_23_tangential_resultant_relative_error=" << tangential_error << '\n';
+              << "h20_23_tangential_resultant_relative_error=" << tangential_error << '\n'
+              << "h20_23_contact_jacobian_directional_error=" << maximum_jacobian_directional_error << '\n';
     return passed;
 }
 
