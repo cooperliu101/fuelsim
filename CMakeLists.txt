@@ -836,6 +836,34 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_h20_30_hex20_curved_sts_abaqus_tests
         PROPERTIES LABELS "acceptance;three-dimensional;hex20;contact;curved;abaqus")
 
+    add_executable(fuelsim_h20_friction_path_abaqus_tests
+        tests/h20_friction_path_abaqus_tests.cpp)
+    target_link_libraries(fuelsim_h20_friction_path_abaqus_tests
+        PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
+    fuelsim_enable_warnings(fuelsim_h20_friction_path_abaqus_tests)
+    add_test(NAME fuelsim_h20_friction_path_abaqus_tests
+        COMMAND fuelsim_h20_friction_path_abaqus_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_hex20_nonmatching_friction_abaqus.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_33_hex20_nonmatching_friction_path_displacement.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_33_hex20_nonmatching_friction_path_contact.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_33_hex20_nonmatching_friction_path_reaction.csv"
+            "${CMAKE_CURRENT_BINARY_DIR}/h20_friction_path_checkpoint.bin")
+    set_tests_properties(fuelsim_h20_friction_path_abaqus_tests
+        PROPERTIES LABELS "acceptance;three-dimensional;hex20;contact;friction;nonmatching;abaqus;restart")
+
+    add_executable(fuelsim_h20_35_curved_friction_abaqus_tests
+        tests/h20_curved_friction_abaqus_tests.cpp)
+    target_link_libraries(fuelsim_h20_35_curved_friction_abaqus_tests
+        PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
+    fuelsim_enable_warnings(fuelsim_h20_35_curved_friction_abaqus_tests)
+    add_test(NAME fuelsim_h20_35_curved_friction_abaqus_tests
+        COMMAND fuelsim_h20_35_curved_friction_abaqus_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex20_sts_quadratic_cylinder_friction_abaqus.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_35_hex20_sts_quadratic_cylinder_friction_displacement.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_35_hex20_sts_quadratic_cylinder_friction_contact.csv")
+    set_tests_properties(fuelsim_h20_35_curved_friction_abaqus_tests
+        PROPERTIES LABELS "acceptance;three-dimensional;hex20;contact;friction;curved;abaqus")
+
     add_executable(fuelsim_h20_31_hex20_curved_sts_identification_tests
         tests/h20_curved_sts_identification_tests.cpp)
     target_link_libraries(fuelsim_h20_31_hex20_curved_sts_identification_tests

@@ -313,6 +313,8 @@ CartesianContactPointValue compute_node_to_quad4_contact_value(const NormalConta
     return {value.projected, value.gap.value(), value.pressure.value(), value.tributary_area.value(),
         value.contact_force.value(), value.tangential_traction.value(), value.tangential_force.value(),
         {value.normal[0].value(), value.normal[1].value(), value.normal[2].value()},
+        {value.tangential_traction_vector[0].value(), value.tangential_traction_vector[1].value(),
+            value.tangential_traction_vector[2].value()},
         {value.elastic_tangential_slip[0].value(), value.elastic_tangential_slip[1].value(),
             value.elastic_tangential_slip[2].value()},
         value.sliding};

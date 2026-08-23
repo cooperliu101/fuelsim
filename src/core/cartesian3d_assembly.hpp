@@ -188,7 +188,7 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
 
     struct Hex20AveragedConstraintValue final {
         double gap, pressure, force, stick_stiffness, trial_tangential_magnitude, tangential_force;
-        std::array<double, 3> trial_tangential_traction, tangential_traction, elastic_tangential_slip;
+        std::array<double, 3> trial_tangential_traction, tangential_traction, tangential_slip, elastic_tangential_slip;
         bool sliding;
     };
 

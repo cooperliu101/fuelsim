@@ -344,12 +344,12 @@ powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass `
   -SourceDirectory "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus"
 ```
 
-The identified and implemented production scope is planar, frictionless,
-small-strain C3D20 contact with linear penalty enforcement. The existing
-integration-point Coulomb path remains in use when friction is nonzero because
-Abaqus tangential regularization has not been identified. Curved averaging
-regions, finite-strain normal evolution, augmented Lagrange enforcement, and
-the exact proprietary primary smoothing stencil remain outside this claim.
+H20.26 through H20.28 identify the planar frictionless normal operator. The
+production scope has since been extended by H20.33 to node-centered Coulomb
+friction with committed elastic-slip history on a nonmatching plane, and by
+H20.35 to two-component sticking friction on genuinely quadratic faces.
+Finite-strain normal evolution, augmented Lagrange enforcement, and the exact
+proprietary primary smoothing stencil remain outside these claims.
 
 ## H20.29 multi-aspect small-sliding acceptance
 
@@ -465,7 +465,78 @@ powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass `
   -SourceDirectory "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus"
 ```
 
-The verified curved scope remains frictionless, small-strain, small-sliding
-linear-penalty contact. Friction, finite-strain normal evolution, augmented
+The H20.31 operator-identification scope remains frictionless, small-strain,
+small-sliding linear-penalty contact. H20.35 below separately validates the
+curved sticking-friction response; finite-strain normal evolution, augmented
 Lagrange enforcement, and exact entry-by-entry reproduction of Abaqus's
-proprietary nonmatching primary smoothing stencil remain outside this claim.
+proprietary nonmatching primary smoothing stencil remain outside these claims.
+
+## H20.33 nonmatching friction path and restart
+
+H20.33 reuses the tracked 88-node, six-element H20.24 Exodus mesh and adds
+`mu = 0.3` Coulomb friction. Seven one-second load states prescribe tangential
+motion of `5`, `10`, `30`, `60`, `10`, `-50`, and `-45 um` at constant normal
+closure. The path begins fully sticking, contains simultaneous sticking and
+sliding constraints, reaches forward sliding, unloads, reverses into sliding,
+and finally returns all 13 constraints to sticking. A checkpoint is written
+after the fourth state; the remaining nodal state and every committed contact
+history value reproduce the uninterrupted path exactly.
+
+The reference is reproduced with:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass `
+  -File "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus\run_h20_33.ps1" `
+  -SourceDirectory "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus"
+```
+
+For every state, the test compares all three displacement components at every
+mesh node; signed normal and tangential force at every secondary contact node;
+both Abaqus tangential-slip components; and signed normal and tangential
+resultants. Tangential slip is the total secondary-minus-primary relative
+motion from the fixed small-sliding anchors, not the committed elastic part
+used internally by the Coulomb return.
+
+The worst relative L2, relative absolute-peak, and maximum pointwise errors are
+`0.268748%`, `0%`, and `10.9505%` for normal displacement; `0.370317%`,
+`0.153397%`, and `1.44979%` for signed normal nodal force; and `0.370318%`,
+`0.335512%`, and `1.44978%` for signed tangential nodal force. Tangential
+displacement and applied-direction slip remain below `1%` for all three
+metrics, and the worst resultant errors are `0.00406536%` normal and
+`0.243352%` tangential. The zero-reference transverse displacement has a
+maximum absolute difference of `1.12539e-8 m`.
+
+The `12%` normal-displacement and `1.5%` nodal-force pointwise gates are explicit
+qualifications for small reference values during nonmatching friction
+transition. Aggregate gates remain `1%`, no denominator floor is added, and the
+reason is the already identified boundary that Fuelsim uses a conservative
+work-conjugate primary projection rather than reproducing Abaqus's proprietary
+primary transfer coefficients entry by entry.
+
+## H20.35 quadratic curved two-direction friction
+
+H20.35 reuses the tracked H20.30 quadratic quarter-cylinder mesh. Every QUAD8
+contact face is nonplanar, all 37 secondary constraints remain active and
+sticking, and the applied outer tractions produce simultaneous circumferential
+and axial relative motion. Abaqus local slip direction 1 is opposite the
+positive circumferential direction on these C3D20 S6 faces, while local
+direction 2 is opposite the global axial direction. The relative Abaqus slip
+tolerance maps to `elastic_slip = 4.43e-6 m` for this mesh.
+
+The reference is reproduced with:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass `
+  -File "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus\run_h20_35.ps1" `
+  -SourceDirectory "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus"
+```
+
+All displacement aggregate metrics, signed radial normal force metrics,
+circumferential and axial tangential force metrics, and both tangential-slip
+metrics are below `1%`. The one qualified normal-displacement pointwise value
+is `1.36278%` at a `-6.26679e-8 m` reference, with `8.54026e-10 m` absolute
+difference; its explicit gate is `1.5%`. Normal, circumferential, and axial
+resultant errors are `0.000190087%`, `0.00609483%`, and `0.0504071%`. The
+frictional contact Jacobian directional error is `5.55e-10`, and the largest
+Cartesian action-reaction imbalance is below `1.6e-12 N`. Exact zero references
+are counted separately without a denominator floor.
