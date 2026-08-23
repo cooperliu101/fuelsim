@@ -87,22 +87,34 @@ powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass `
 ```
 
 The comparison uses all 88 normal displacements, all 13 secondary-face nodal
-contact pressures, and the normal reaction. Fuelsim fixes the primary face and
-natural-coordinate anchor for each reference-domain integration point, splits
-secondary faces where primary ownership changes, and uses 216 integration
-points for this mesh. The displacement relative L2, relative absolute-peak,
-and maximum pointwise-relative errors are `0.178720%`, `0.00000253%`, and
-`0.566556%`. The fixed 3x3 QUAD8 nodal pressure recovery errors are `3.15973%`,
-`0.182861%`, and `5.29164%`; the normal reaction error is `0.00394472%`. The two
-field comparisons retain the recorded `6%` qualified threshold, while the
-normal resultant retains a `0.5%` threshold. The 23 primary fixed-face normal
-displacements are exact zero-reference points and are reported separately;
-no denominator floor is used.
+contact pressures, all 13 signed nodal normal forces, and the normal reaction.
+For frictionless small-strain contact, Fuelsim now constructs one node-centered
+averaged constraint per unique secondary node. It assembles the identified
+per-face `W*A` rule, projects the corresponding averaging test field through
+the fixed reference overlap onto every participating primary face, and forms a
+work-conjugate, exactly conservative two-sided residual. This is not classic
+mortar discretization. The 13 constraints span all four primary faces, and the
+largest constraint contains nodes from four primary faces.
 
-The rebuilt July/MOOSE executable now completes native quadratic
-`mortar_penalty` contact on this exact mesh. Fuelsim and MOOSE mortar agree
-within `0.996409%` for all three normal-displacement metrics, `1.16586%` for all
-three recovered-pressure metrics, and `0.190999%` for the normal resultant.
+The displacement relative L2, relative absolute-peak, and maximum
+pointwise-relative errors are `0.104500%`, `0.00000253%`, and `0.551237%`.
+The signed nodal normal-force errors are `0.055027%`, `0.0170315%`, and
+`0.149036%`; all three displacement and force metrics are below `1%`. The
+normal reaction error is `0.000142325%`. Recovered constraint-pressure errors
+are `1.99367%`, `3.12471%`, and `3.17986%`, within the separate `6%` diagnostic
+threshold. The 23 primary fixed-face normal displacements are exact
+zero-reference points and are reported separately; no denominator floor is
+used. The local contact Jacobian agrees with a centered directional difference
+within `3.28e-11` relative error, and the assembled contact residual is exactly
+action-reaction conservative within the test tolerance.
+
+The rebuilt July/MOOSE executable completes native quadratic `mortar_penalty`
+contact on this exact mesh. Because Fuelsim deliberately follows the Abaqus
+averaged-constraint path instead of dual mortar, MOOSE is retained as an
+independent diagnostic rather than the defining pressure oracle. All three
+normal-displacement errors remain below `1%`, the normal resultant error is
+`0.194794%`, and the three pressure diagnostics are below the recorded `9%`
+discretization-difference boundary, with `8.37879%` maximum pointwise error.
 The independently useful MOOSE-to-Abaqus errors and the executable hash are
 recorded with the tracked input and snapshots in `verification/moose/README.md`.
 
@@ -276,4 +288,51 @@ penalty contact, the tracked H20.24 nonmatching discretization, and one planar
 small-sliding crossing path. The secondary facewise assembly rule is fully
 identified for these C3D20 probes. The general primary transfer construction
 is not identified, so H20.27 does not authorize a Fuelsim production-algorithm
-change.
+change by itself. H20.28 supplies the missing smoothing-order evidence and the
+H20.24 end-to-end comparison supplies the production acceptance evidence.
+
+## H20.28 sliding-transition smoothing identification
+
+H20.28 places one unit C3D20 secondary face opposite an `8 by 8` C3D20 primary
+face refinement. The 225 primary face nodes expose the spatial support of each
+of the eight internal averaged constraints. Seventeen steps apply uniform
+closure and positive and negative normal perturbations to every secondary
+node. The probe is run three times: with the Abaqus default, with
+`SLIDING TRANSITION=LINEAR SMOOTHING`, and with
+`SLIDING TRANSITION=QUADRATIC SMOOTHING`.
+
+The default and explicit quadratic opening, constraint-area, and primary
+transfer matrices are bit-for-bit identical in the extracted full-precision
+data. Linear smoothing is not merely a post-processing change: its secondary
+averaging matrix differs from the default by `28.5424%`, and its primary
+transfer differs by `68.3936%` in relative Frobenius norm. Default quadratic
+constraint areas are `1/24` at corners and `5/24` at edge midpoints. Linear
+areas are `1/48` and `11/48`. All transfer rows sum to one. Default effective
+centers are `(1/8,1/8)` at a corner and `(1/2,1/4)` at the adjacent edge
+midpoint, with rotations and reflections for the other nodes.
+
+On the refined primary surface, each default corner constraint has 45 nonzero
+primary coefficients and each edge-midpoint constraint has 109. Linear
+smoothing has only 8 and 44, respectively. Together with the changed
+secondary matrix, this disproves a model in which Abaqus first makes a fixed
+linear projection and subsequently smooths only nodal reactions. Fuelsim uses
+the identified default quadratic secondary rule and a conservative
+averaging-test projection for general nonmatching primary meshes; it does not
+claim that the proprietary refined-primary coefficient stencil is reproduced
+entry by entry. H20.24 directly verifies the resulting displacement, nodal
+normal force, and resultant quantities requested for production.
+
+The reproducible command is:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass `
+  -File "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus\run_h20_28.ps1" `
+  -SourceDirectory "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus"
+```
+
+The identified and implemented production scope is planar, frictionless,
+small-strain C3D20 contact with linear penalty enforcement. The existing
+integration-point Coulomb path remains in use when friction is nonzero because
+Abaqus tangential regularization has not been identified. Curved averaging
+regions, finite-strain normal evolution, augmented Lagrange enforcement, and
+the exact proprietary primary smoothing stencil remain outside this claim.

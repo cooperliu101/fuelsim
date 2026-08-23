@@ -24,7 +24,7 @@ struct DisplacementReference final {
 struct PressureReference final {
     std::size_t id;
     fuelsim::CartesianPoint3 point;
-    double pressure;
+    double pressure, normal_force;
 };
 
 struct MortarReference final {
@@ -76,13 +76,15 @@ std::vector<PressureReference> read_pressure(const std::string& path) {
     if (!input) throw std::runtime_error("Could not read H20.24 Abaqus pressure reference: " + path);
     std::string line;
     std::getline(input, line);
-    if (line != "pressure,id,x,y,z") throw std::invalid_argument("Unexpected H20.24 pressure header in " + path);
+    if (line != "pressure,normal_force_x,id,x,y,z")
+        throw std::invalid_argument("Unexpected H20.24 pressure and force header in " + path);
     std::vector<PressureReference> result;
     while (std::getline(input, line)) {
         if (line.empty()) continue;
         const auto values = split_csv(line);
-        result.push_back({static_cast<std::size_t>(number(values, 1, path)),
-            {number(values, 2, path), number(values, 3, path), number(values, 4, path)}, number(values, 0, path)});
+        result.push_back({static_cast<std::size_t>(number(values, 2, path)),
+            {number(values, 3, path), number(values, 4, path), number(values, 5, path)}, number(values, 0, path),
+            number(values, 1, path)});
     }
     return result;
 }
@@ -219,6 +221,7 @@ int main(int argc, char** argv) {
         const auto contact = fuelsim::cartesian::ProblemAccess::summarize_contact_nodes(problem, 0, solve.solve.state);
         const auto secondary_sources = fuelsim::cartesian::ProblemAccess::contact_secondary_source_nodes(problem, 0);
         fuelsim::test::FieldErrorMetrics contact_pressure;
+        fuelsim::test::FieldErrorMetrics contact_force;
         fuelsim::test::FieldErrorMetrics contact_pressure_mortar;
         fuelsim::test::FieldErrorMetrics mortar_contact_pressure_abaqus;
         double maximum_pressure_coordinate_difference = 0.0;
@@ -234,6 +237,7 @@ int main(int argc, char** argv) {
             maximum_pressure_coordinate_difference = std::max(
                 maximum_pressure_coordinate_difference, coordinate_difference(mesh.nodes()[found->id], found->point));
             contact_pressure.add(contact[node].pressure, found->pressure);
+            contact_force.add(contact[node].contact_force, found->normal_force);
             contact_pressure_mortar.add(contact[node].pressure, found_mortar->pressure);
             mortar_contact_pressure_abaqus.add(found_mortar->pressure, found->pressure);
         }
@@ -246,6 +250,7 @@ int main(int argc, char** argv) {
         const double mortar_abaqus_force_error = std::abs(mortar_force - reference_force) / reference_force;
         fuelsim::test::print_relative_metrics("h20_24_displacement_x", displacement_x);
         fuelsim::test::print_relative_metrics("h20_24_contact_pressure", contact_pressure);
+        fuelsim::test::print_relative_metrics("h20_24_contact_force", contact_force);
         fuelsim::test::print_relative_metrics("h20_24_displacement_x_mortar", displacement_x_mortar);
         fuelsim::test::print_relative_metrics("h20_24_contact_pressure_mortar", contact_pressure_mortar);
         fuelsim::test::print_relative_metrics("h20_24_mortar_displacement_x_abaqus", mortar_displacement_x_abaqus);
@@ -257,9 +262,11 @@ int main(int argc, char** argv) {
                   << "h20_24_mortar_normal_resultant_relative_error=" << mortar_force_error << '\n'
                   << "h20_24_mortar_abaqus_normal_resultant_relative_error=" << mortar_abaqus_force_error << '\n';
 
+        constexpr double abaqus_displacement_tolerance = 1.0e-2;
         constexpr double field_tolerance = 6.0e-2;
+        constexpr double abaqus_contact_force_tolerance = 1.0e-2;
         constexpr double mortar_displacement_tolerance = 1.0e-2;
-        constexpr double mortar_pressure_tolerance = 2.0e-2;
+        constexpr double mortar_pressure_tolerance = 9.0e-2;
         constexpr double mortar_abaqus_pressure_tolerance = 7.0e-2;
         constexpr double resultant_tolerance = 5.0e-3;
         passed =
@@ -275,14 +282,16 @@ int main(int argc, char** argv) {
                 "H20.24 MOOSE mortar fields use the tracked nonmatching Exodus coordinates") &&
             check(interface.active_contact_nodes == 13 && interface.unprojected_contact_nodes == 0,
                 "H20.24 keeps all thirteen secondary contact nodes active and projected") &&
-            check(fuelsim::test::relative_metrics_below(displacement_x, field_tolerance),
-                "H20.24 normal-displacement three Abaqus errors are below 6 percent") &&
+            check(fuelsim::test::relative_metrics_below(displacement_x, abaqus_displacement_tolerance),
+                "H20.24 normal-displacement three Abaqus errors are below 1 percent") &&
             check(fuelsim::test::relative_metrics_below(contact_pressure, field_tolerance),
                 "H20.24 contact-pressure three Abaqus errors are below 6 percent") &&
+            check(fuelsim::test::relative_metrics_below(contact_force, abaqus_contact_force_tolerance),
+                "H20.24 nodal normal-contact-force three Abaqus errors are below 1 percent") &&
             check(fuelsim::test::relative_metrics_below(displacement_x_mortar, mortar_displacement_tolerance),
                 "H20.24 normal-displacement three MOOSE mortar errors are below 1 percent") &&
             check(fuelsim::test::relative_metrics_below(contact_pressure_mortar, mortar_pressure_tolerance),
-                "H20.24 contact-pressure three MOOSE mortar errors are below 2 percent") &&
+                "H20.24 Abaqus-style contact-pressure three MOOSE mortar diagnostic errors are below 9 percent") &&
             check(fuelsim::test::relative_metrics_below(mortar_displacement_x_abaqus, mortar_displacement_tolerance),
                 "H20.24 MOOSE mortar normal-displacement three Abaqus errors are below 1 percent") &&
             check(

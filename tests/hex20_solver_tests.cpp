@@ -251,7 +251,7 @@ bool test_contact_projection(const fuelsim::UnstructuredHex20Mesh& mesh) {
     return passed;
 }
 
-bool test_surface_contact_fixed_anchors() {
+bool test_surface_contact_fixed_reference_graph() {
     std::vector<fuelsim::CartesianPoint3> nodes;
     std::map<std::array<double, 3>, std::size_t> primary_nodes, secondary_nodes;
     const fuelsim::Hex20Element primary_lower = append_cuboid(nodes, primary_nodes, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0),
@@ -283,30 +283,31 @@ bool test_surface_contact_fixed_anchors() {
     const std::size_t lower_dof = distinctive_dof(0.0), upper_dof = distinctive_dof(2.0);
     const auto owner_counts = [&](const std::vector<double>& state) {
         problem.validate_state(state);
-        std::array<std::size_t, 2> result{};
+        std::array<std::size_t, 3> result{};
         for (std::size_t contribution = view.volume_contribution_count(); contribution < view.contribution_count();
             ++contribution) {
             std::vector<std::size_t> dofs;
             problem.contribution_dofs(contribution, dofs);
-            if (std::find(dofs.begin(), dofs.end(), lower_dof) != dofs.end())
-                ++result[0];
-            else if (std::find(dofs.begin(), dofs.end(), upper_dof) != dofs.end())
-                ++result[1];
-            else
+            const bool lower = std::find(dofs.begin(), dofs.end(), lower_dof) != dofs.end();
+            const bool upper = std::find(dofs.begin(), dofs.end(), upper_dof) != dofs.end();
+            if (!lower && !upper)
                 throw std::logic_error("HEX20 surface integration point has no selected primary face");
+            result[0] += lower ? 1U : 0U;
+            result[1] += upper ? 1U : 0U;
+            result[2] += lower && upper ? 1U : 0U;
         }
         return result;
     };
     std::vector<double> state = problem.initial_state();
-    const std::array<std::size_t, 2> reference_owners = owner_counts(state);
-    bool passed = check(reference_owners[0] > 0 && reference_owners[1] > 0,
-        "HEX20 small-sliding integration regions have fixed anchors on both primary faces");
+    const std::array<std::size_t, 3> reference_owners = owner_counts(state);
+    bool passed = check(reference_owners[0] > 0 && reference_owners[1] > 0 && reference_owners[2] > 0,
+        "HEX20 averaged small-sliding constraints include both primary faces and cross-face support");
     for (std::size_t local = 0; local < view.hex20_region_mesh(1).nodes().size(); ++local) {
         const std::size_t global = view.global_node(1, local);
         state[view.dof(fuelsim::Field::displacement_y, global)] = 0.05;
     }
     passed = check(owner_counts(state) == reference_owners,
-                 "HEX20 small-sliding primary anchors remain fixed after a tangential displacement") &&
+                 "HEX20 averaged small-sliding reference graph remains fixed after a tangential displacement") &&
              passed;
     std::vector<double> tilted = problem.initial_state();
     for (std::size_t region = 0; region < 2; ++region)
@@ -319,7 +320,7 @@ bool test_surface_contact_fixed_anchors() {
     const fuelsim::InterfaceSummary tilted_summary =
         fuelsim::cartesian::ProblemAccess::summarize_interface(problem, 0, tilted);
     passed = check(tilted_summary.total_contact_force > 0.0 && tilted_summary.unprojected_contact_nodes == 0,
-                 "HEX20 small-sliding contact updates the anchored primary tangent-plane normal after tilting") &&
+                 "HEX20 averaged small-sliding contact remains active under a compatible interface tilt") &&
              passed;
     return passed;
 }
@@ -335,7 +336,7 @@ int main(int argc, char** argv) {
     const std::string transient_results = std::string(argv[2]) + ".transient.e";
     const bool passed = test_steady_and_io(session, mesh, argv[1], argv[2]) &&
                         test_transient_restart(session, mesh, argv[3], transient_results) &&
-                        test_contact_projection(mesh) && test_surface_contact_fixed_anchors();
+                        test_contact_projection(mesh) && test_surface_contact_fixed_reference_graph();
     session.collective_root_action([&]() {
         (void)std::remove(argv[1]);
         (void)std::remove(argv[2]);

@@ -3,6 +3,7 @@
 #include <array>
 #include <cmath>
 #include <limits>
+#include <map>
 #include <numeric>
 #include <stdexcept>
 
@@ -45,6 +46,117 @@ CartesianPoint3 cross(const CartesianPoint3& first, const CartesianPoint3& secon
 
 double dot(const CartesianPoint3& first, const CartesianPoint3& second) {
     return first.x * second.x + first.y * second.y + first.z * second.z;
+}
+
+using Matrix8 = std::array<double, 64>;
+using Vector8 = std::array<double, 8>;
+
+const Matrix8& abaqus_quad8_averaging() {
+    // H20.26 and H20.28 identify Abaqus/Standard's default quadratic
+    // small-sliding C3D20 secondary-face averaging operator.  This is an
+    // observed compatibility operator, not a classical mortar dual basis.
+    static const Matrix8 value = {{
+        0.4051580465416001,
+        -0.08720743312758768,
+        -0.02922569057450125,
+        -0.08720743312758091,
+        0.3574287590139803,
+        0.0418124961300837,
+        0.0418124961300837,
+        0.3574287590139803,
+        -0.08720743312758768,
+        0.4051580465416001,
+        -0.08720743312758768,
+        -0.02922569057450803,
+        0.3574287590139803,
+        0.3574287590139803,
+        0.0418124961300837,
+        0.04181249613007693,
+        -0.0292256905745148,
+        -0.08720743312759446,
+        0.4051580465415933,
+        -0.08720743312759446,
+        0.04181249613007693,
+        0.3574287590139803,
+        0.3574287590139803,
+        0.04181249613007693,
+        -0.08720743312758091,
+        -0.02922569057450125,
+        -0.08720743312758091,
+        0.4051580465415933,
+        0.04181249613007693,
+        0.04181249613007693,
+        0.3574287590139803,
+        0.3574287590139803,
+        -0.08706059524915631,
+        -0.08706059524915631,
+        -0.1330911537220558,
+        -0.1330911537220558,
+        0.6107531349427593,
+        0.313368055555558,
+        0.2028142518885394,
+        0.313368055555558,
+        -0.1330911537220219,
+        -0.08706059524912242,
+        -0.08706059524912242,
+        -0.1330911537220287,
+        0.3133680555555783,
+        0.6107531349427796,
+        0.3133680555555716,
+        0.2028142518885123,
+        -0.1330911537220355,
+        -0.1330911537220355,
+        -0.08706059524913598,
+        -0.08706059524913598,
+        0.2028142518885258,
+        0.3133680555555377,
+        0.610753134942739,
+        0.3133680555555445,
+        -0.08706059524916308,
+        -0.1330911537220558,
+        -0.1330911537220558,
+        -0.08706059524916308,
+        0.3133680555555648,
+        0.2028142518885462,
+        0.313368055555558,
+        0.6107531349427593,
+    }};
+    return value;
+}
+
+Vector8 solve8(Matrix8 matrix, Vector8 right_hand_side) {
+    for (std::size_t column = 0; column < 8; ++column) {
+        std::size_t pivot = column;
+        for (std::size_t row = column + 1; row < 8; ++row)
+            if (std::abs(matrix[row * 8 + column]) > std::abs(matrix[pivot * 8 + column])) pivot = row;
+        if (!(std::abs(matrix[pivot * 8 + column]) > 1.0e-14))
+            throw std::invalid_argument("HEX20 averaged contact has a singular secondary face Gram matrix");
+        if (pivot != column) {
+            for (std::size_t entry = column; entry < 8; ++entry)
+                std::swap(matrix[column * 8 + entry], matrix[pivot * 8 + entry]);
+            std::swap(right_hand_side[column], right_hand_side[pivot]);
+        }
+        const double diagonal = matrix[column * 8 + column];
+        for (std::size_t row = column + 1; row < 8; ++row) {
+            const double factor = matrix[row * 8 + column] / diagonal;
+            for (std::size_t entry = column; entry < 8; ++entry)
+                matrix[row * 8 + entry] -= factor * matrix[column * 8 + entry];
+            right_hand_side[row] -= factor * right_hand_side[column];
+        }
+    }
+    Vector8 result{};
+    for (std::size_t reverse = 0; reverse < 8; ++reverse) {
+        const std::size_t row = 7 - reverse;
+        double value = right_hand_side[row];
+        for (std::size_t column = row + 1; column < 8; ++column) value -= matrix[row * 8 + column] * result[column];
+        result[row] = value / matrix[row * 8 + row];
+    }
+    return result;
+}
+
+double reference_measure(const Quad8FaceMechanicalQuadraturePoint& point) {
+    const CartesianPoint3 area_vector = cross(point.tangent_xi, point.tangent_eta);
+    return std::sqrt(dot(area_vector, area_vector));
 }
 
 std::array<double, 3> thermal_search_point(
@@ -546,6 +658,11 @@ void SpatialAssembly::contribution_dofs(std::size_t index, std::vector<std::size
     if (index < ranges.boundary_begin) {
         const std::size_t point = index - ranges.mechanical_begin;
         if (_uses_hex20) {
+            if (point >= _hex20_mechanical_points.size()) {
+                hex20_averaged_constraint_dofs(
+                    _hex20_averaged_constraints.at(point - _hex20_mechanical_points.size()), dofs);
+                return;
+            }
             const Quad8SurfaceContactLocalDofs fixed =
                 hex20_contact_dofs(hex20_mechanical_candidate(point, _mechanical_active_primary.at(point)));
             dofs.assign(fixed.begin(), fixed.end());
@@ -609,6 +726,13 @@ void SpatialAssembly::contribution_jacobian_pattern(std::size_t index, std::vect
     }
     if (index < ranges.boundary_begin) {
         if (_uses_hex20) {
+            const std::size_t point = index - ranges.mechanical_begin;
+            if (point >= _hex20_mechanical_points.size()) {
+                const std::size_t local_size =
+                    3 * _hex20_averaged_constraints.at(point - _hex20_mechanical_points.size()).nodes.size();
+                pattern.assign(local_size * local_size, 1U);
+                return;
+            }
             pattern.assign(quad8_surface_contact_local_dof_count * quad8_surface_contact_local_dof_count, 0U);
             set_pattern_block(pattern, quad8_surface_contact_local_dof_count, 8, quad8_surface_contact_local_dof_count,
                 8, quad8_surface_contact_local_dof_count);
@@ -658,6 +782,11 @@ void SpatialAssembly::sparsity_contribution_dofs(std::size_t index, std::vector<
     }
     index -= volume_contribution_count();
     if (_uses_hex20) {
+        if (index >= _sparsity_contact_offsets.back()) {
+            hex20_averaged_constraint_dofs(
+                _hex20_averaged_constraints.at(index - _sparsity_contact_offsets.back()), dofs);
+            return;
+        }
         const Hex20SparsityContact contact = hex20_sparsity_contact(index);
         Quad8SurfaceContactLocalDofs fixed{};
         for (std::size_t node = 0; node < 4; ++node) {
@@ -688,6 +817,12 @@ void SpatialAssembly::sparsity_contribution_jacobian_pattern(
     }
     index -= volume_contribution_count();
     if (_uses_hex20) {
+        if (index >= _sparsity_contact_offsets.back()) {
+            const std::size_t local_size =
+                3 * _hex20_averaged_constraints.at(index - _sparsity_contact_offsets.back()).nodes.size();
+            pattern.assign(local_size * local_size, 1U);
+            return;
+        }
         const Hex20SparsityContact contact = hex20_sparsity_contact(index);
         pattern.assign(quad8_surface_contact_local_dof_count * quad8_surface_contact_local_dof_count, 0U);
         if (contact.thermal)
@@ -811,9 +946,14 @@ void SpatialAssembly::compute_contribution(std::size_t index, const std::vector<
     }
     if (index < ranges.boundary_begin) {
         if (_uses_hex20) {
+            const std::size_t point = index - ranges.mechanical_begin;
+            if (point >= _hex20_mechanical_points.size()) {
+                compute_hex20_averaged_constraint(
+                    _hex20_averaged_constraints.at(point - _hex20_mechanical_points.size()), state, residual, jacobian);
+                return;
+            }
             if (state.size() != quad8_surface_contact_local_dof_count)
                 throw std::invalid_argument("HEX20 mechanical-contact state must contain 56 DOFs");
-            const std::size_t point = index - ranges.mechanical_begin;
             const Hex20MechanicalCandidate entry =
                 hex20_mechanical_candidate(point, _mechanical_active_primary.at(point));
             Quad8SurfaceContactLocalValues current{};
@@ -906,7 +1046,9 @@ double SpatialAssembly::heat_capacity(std::size_t region, double temperature, co
 SpatialAssembly::ContributionRanges SpatialAssembly::contribution_ranges() const noexcept {
     const std::size_t thermal_begin = volume_contribution_count(),
                       mechanical_begin = thermal_begin + _thermal_contact_offsets.back(),
-                      mechanical_count = _uses_hex20 ? _hex20_mechanical_points.size() : _mechanical_points.size(),
+                      mechanical_count = _uses_hex20
+                                             ? _hex20_mechanical_points.size() + _hex20_averaged_constraints.size()
+                                             : _mechanical_points.size(),
                       boundary_begin = mechanical_begin + mechanical_count;
     const std::size_t boundary_count =
         _uses_hex20 ? _hex20_boundary_contributions.size() : _boundary_contributions.size();
@@ -917,7 +1059,8 @@ std::size_t SpatialAssembly::sparsity_contribution_count() const noexcept {
     // Every face boundary block is a subset of its adjacent volume block. Contact quadrature points and face nodes
     // that share one secondary-face/primary-face pair also have the same 32-DOF graph, so one representative preserves
     // the complete graph without repeating it for each runtime contribution.
-    return volume_contribution_count() + _sparsity_contact_offsets.back();
+    return volume_contribution_count() + _sparsity_contact_offsets.back() +
+           (_uses_hex20 ? _hex20_averaged_constraints.size() : 0);
 }
 
 std::size_t SpatialAssembly::contribution_work(std::size_t index, std::size_t partition_count) const {
@@ -1048,6 +1191,53 @@ Quad8SurfaceContactLocalDofs SpatialAssembly::hex20_contact_dofs(const Hex20Mech
         candidate.primary_temperature_nodes, candidate.secondary_displacement_nodes,
         candidate.primary_displacement_nodes, {}, candidate.primary};
     return hex20_contact_dofs(thermal);
+}
+
+void SpatialAssembly::hex20_averaged_constraint_dofs(
+    const Hex20AveragedConstraint& constraint, std::vector<std::size_t>& dofs) const {
+    dofs.clear();
+    dofs.reserve(3 * constraint.nodes.size());
+    for (const Field field : {Field::displacement_x, Field::displacement_y, Field::displacement_z})
+        for (const std::size_t node : constraint.nodes) dofs.push_back(dof(field, node));
+}
+
+SpatialAssembly::Hex20AveragedConstraintValue SpatialAssembly::hex20_averaged_constraint_value(
+    const Hex20AveragedConstraint& constraint, const std::vector<double>& state) const {
+    const std::size_t node_count = constraint.nodes.size();
+    if (state.size() != 3 * node_count) throw std::invalid_argument("HEX20 averaged-contact state has the wrong size");
+    double gap = constraint.reference_gap;
+    for (std::size_t component = 0; component < 3; ++component) {
+        const double normal =
+            component == 0 ? constraint.normal.x : (component == 1 ? constraint.normal.y : constraint.normal.z);
+        for (std::size_t node = 0; node < node_count; ++node)
+            gap += normal * constraint.gap_coefficients[node] * state[component * node_count + node];
+    }
+    const double pressure = std::max(-_mechanical_properties[constraint.contact].penalty * gap, 0.0);
+    return {gap, pressure, pressure * constraint.area};
+}
+
+void SpatialAssembly::compute_hex20_averaged_constraint(const Hex20AveragedConstraint& constraint,
+    const std::vector<double>& state, std::vector<double>& residual, std::vector<double>* jacobian) const {
+    const std::size_t node_count = constraint.nodes.size(), local_size = 3 * node_count;
+    const Hex20AveragedConstraintValue value = hex20_averaged_constraint_value(constraint, state);
+    residual.assign(local_size, 0.0);
+    if (jacobian != nullptr) jacobian->assign(local_size * local_size, 0.0);
+    if (!(value.pressure > 0.0)) return;
+    std::vector<double> gap_derivative(local_size);
+    for (std::size_t component = 0; component < 3; ++component) {
+        const double normal =
+            component == 0 ? constraint.normal.x : (component == 1 ? constraint.normal.y : constraint.normal.z);
+        for (std::size_t node = 0; node < node_count; ++node) {
+            const std::size_t local = component * node_count + node;
+            gap_derivative[local] = normal * constraint.gap_coefficients[node];
+            residual[local] = -value.force * gap_derivative[local];
+        }
+    }
+    if (jacobian == nullptr) return;
+    const double stiffness = _mechanical_properties[constraint.contact].penalty * constraint.area;
+    for (std::size_t row = 0; row < local_size; ++row)
+        for (std::size_t column = 0; column < local_size; ++column)
+            (*jacobian)[row * local_size + column] = stiffness * gap_derivative[row] * gap_derivative[column];
 }
 
 Quad8SurfaceContactLocalValues SpatialAssembly::hex20_contact_state(
@@ -1225,6 +1415,13 @@ void SpatialAssembly::build_hex20_contacts(const UnstructuredHex20Mesh& source_m
             definition.mechanical_discretization = MechanicalContactDiscretization::surface_to_surface;
         const bool surface_to_surface =
             definition.mechanical_discretization == MechanicalContactDiscretization::surface_to_surface;
+        // Abaqus-style averaged constraints have only been identified for
+        // frictionless, small-strain, small-sliding HEX20 contact.  Friction
+        // and finite strain retain the existing segmented integration path.
+        const bool abaqus_averaged =
+            surface_to_surface && definition.friction_coefficient == 0.0 &&
+            _definition.regions[primary.region].strain_formulation == StrainFormulation::small &&
+            _definition.regions[secondary.region].strain_formulation == StrainFormulation::small;
         if (surface_to_surface && definition.quad8_nodal_area_rule != Quad8NodalAreaRule::positive_lumped)
             throw std::invalid_argument(
                 "quad8_nodal_area_rule applies only to HEX20 node-to-surface contact comparisons: " + definition.name);
@@ -1274,7 +1471,7 @@ void SpatialAssembly::build_hex20_contacts(const UnstructuredHex20Mesh& source_m
             }
             const std::size_t secondary_face_index = secondary_faces.size();
             secondary_faces.push_back({temperature_nodes, displacement_nodes, coordinates, geometry,
-                hex20_element_centroid(secondary_mesh, secondary_face.parent_element), {}, {}, {}, {}, {}});
+                hex20_element_centroid(secondary_mesh, secondary_face.parent_element), {}, {}, {}, {}, {}, {}});
             if (definition.thermal) thermal_point_count += geometry.thermal_points.size();
             if (definition.mechanical && !surface_to_surface)
                 for (std::size_t secondary_local_node = 0; secondary_local_node < 8; ++secondary_local_node) {
@@ -1383,6 +1580,7 @@ void SpatialAssembly::build_hex20_contacts(const UnstructuredHex20Mesh& source_m
                                                             "' has an unprojected reference integration point");
                             face.contact_points.push_back(
                                 make_quad8_face_mechanical_point(face.coordinates, xi, eta, weight));
+                            face.contact_primary_faces.push_back(primary_face);
                             const Quad8ReferenceProjectionValue reference = projection(xi, eta, primary_face);
                             if (!reference.projected)
                                 throw std::logic_error(
@@ -1393,15 +1591,160 @@ void SpatialAssembly::build_hex20_contacts(const UnstructuredHex20Mesh& source_m
                             face.contact_normal_orientations.push_back(
                                 normal_orientation(primary_faces[primary_face].coordinates, face.parent_centroid,
                                     primary_faces[primary_face].parent_centroid));
-                            _hex20_mechanical_points.push_back({contact_value, mechanical_point_count,
-                                secondary_face_index, face.contact_points.size() - 1, primary_face});
+                            if (!abaqus_averaged)
+                                _hex20_mechanical_points.push_back({contact_value, mechanical_point_count,
+                                    secondary_face_index, face.contact_points.size() - 1, primary_face});
                             ++mechanical_point_count;
                         }
                 }
             }
         }
+        if (definition.mechanical && abaqus_averaged) {
+            struct ConstraintBuilder final {
+                std::map<std::size_t, double> secondary, primary;
+                std::map<std::size_t, CartesianPoint3> coordinates;
+                std::map<std::size_t, double> secondary_output;
+                CartesianPoint3 normal{};
+                double area = 0.0;
+            };
+
+            std::vector<ConstraintBuilder> builders(secondary.boundary.displacement_nodes.size());
+            const Matrix8& averaging = abaqus_quad8_averaging();
+            for (std::size_t secondary_face_index = 0; secondary_face_index < secondary_faces.size();
+                ++secondary_face_index) {
+                const Hex20SecondaryContactFace& face = secondary_faces[secondary_face_index];
+                const Quad8FaceElement& source_face = secondary.boundary.faces[secondary_face_index];
+                Matrix8 gram{};
+                double face_area = 0.0;
+                for (const Quad8FaceMechanicalQuadraturePoint& point : face.geometry.mechanical_points) {
+                    const double weighted_measure = point.quadrature_weight * reference_measure(point);
+                    face_area += weighted_measure;
+                    for (std::size_t row = 0; row < 8; ++row)
+                        for (std::size_t column = 0; column < 8; ++column)
+                            gram[row * 8 + column] +=
+                                weighted_measure * point.displacement_shape[row] * point.displacement_shape[column];
+                }
+                if (!std::isfinite(face_area) || !(face_area > 0.0))
+                    throw std::invalid_argument("HEX20 averaged contact has a nonpositive secondary face area");
+                Matrix8 test_coefficients{};
+                for (std::size_t local_constraint = 0; local_constraint < 8; ++local_constraint) {
+                    const double fraction = local_constraint < 4 ? 1.0 / 24.0 : 5.0 / 24.0;
+                    Vector8 weighted_averaging{};
+                    for (std::size_t node = 0; node < 8; ++node)
+                        weighted_averaging[node] = face_area * fraction * averaging[local_constraint * 8 + node];
+                    const Vector8 coefficients = solve8(gram, weighted_averaging);
+                    for (std::size_t node = 0; node < 8; ++node)
+                        test_coefficients[local_constraint * 8 + node] = coefficients[node];
+
+                    const auto found = std::find(secondary.boundary.displacement_nodes.begin(),
+                        secondary.boundary.displacement_nodes.end(), source_face.nodes[local_constraint]);
+                    if (found == secondary.boundary.displacement_nodes.end())
+                        throw std::logic_error("HEX20 averaged contact secondary-node mapping failed");
+                    const std::size_t output =
+                        static_cast<std::size_t>(found - secondary.boundary.displacement_nodes.begin());
+                    ConstraintBuilder& builder = builders[output];
+                    const double local_area = face_area * fraction;
+                    builder.area += local_area;
+                    for (std::size_t node = 0; node < 8; ++node) {
+                        const double value = weighted_averaging[node];
+                        builder.secondary[face.displacement_nodes[node]] += value;
+                        const auto output_node = std::find(secondary.boundary.displacement_nodes.begin(),
+                            secondary.boundary.displacement_nodes.end(), source_face.nodes[node]);
+                        if (output_node == secondary.boundary.displacement_nodes.end())
+                            throw std::logic_error("HEX20 averaged contact output-node mapping failed");
+                        builder.secondary_output[static_cast<std::size_t>(
+                            output_node - secondary.boundary.displacement_nodes.begin())] += value;
+                        builder.coordinates[face.displacement_nodes[node]] = face.coordinates[node];
+                    }
+                    const Quad8FaceMechanicalQuadraturePoint& center = face.geometry.mechanical_points[4];
+                    CartesianPoint3 face_normal = cross(center.tangent_xi, center.tangent_eta);
+                    const std::size_t primary_index =
+                        face.contact_primary_faces.at(face.contact_primary_faces.size() / 2);
+                    const CartesianPoint3 direction =
+                        subtract(primary_faces[primary_index].parent_centroid, face.parent_centroid);
+                    if (dot(face_normal, direction) < 0.0) {
+                        face_normal.x = -face_normal.x;
+                        face_normal.y = -face_normal.y;
+                        face_normal.z = -face_normal.z;
+                    }
+                    const double normal_measure = std::sqrt(dot(face_normal, face_normal));
+                    builder.normal.x += local_area * face_normal.x / normal_measure;
+                    builder.normal.y += local_area * face_normal.y / normal_measure;
+                    builder.normal.z += local_area * face_normal.z / normal_measure;
+                }
+
+                for (std::size_t point_index = 0; point_index < face.contact_points.size(); ++point_index) {
+                    const Quad8FaceMechanicalQuadraturePoint& point = face.contact_points[point_index];
+                    const std::size_t primary_index = face.contact_primary_faces[point_index];
+                    const Hex20PrimaryContactFace& primary_face = primary_faces[primary_index];
+                    const double weighted_measure = point.quadrature_weight * reference_measure(point);
+                    for (std::size_t local_constraint = 0; local_constraint < 8; ++local_constraint) {
+                        double test = 0.0;
+                        for (std::size_t node = 0; node < 8; ++node)
+                            test += test_coefficients[local_constraint * 8 + node] * point.displacement_shape[node];
+                        const auto found = std::find(secondary.boundary.displacement_nodes.begin(),
+                            secondary.boundary.displacement_nodes.end(), source_face.nodes[local_constraint]);
+                        const std::size_t output =
+                            static_cast<std::size_t>(found - secondary.boundary.displacement_nodes.begin());
+                        ConstraintBuilder& builder = builders[output];
+                        for (std::size_t node = 0; node < 8; ++node) {
+                            builder.primary[primary_face.displacement_nodes[node]] +=
+                                weighted_measure * test * face.contact_primary_shapes[point_index][node];
+                            builder.coordinates[primary_face.displacement_nodes[node]] = primary_face.coordinates[node];
+                        }
+                    }
+                }
+            }
+            for (std::size_t output = 0; output < builders.size(); ++output) {
+                const ConstraintBuilder& builder = builders[output];
+                if (!std::isfinite(builder.area) || !(builder.area > 0.0))
+                    throw std::invalid_argument("HEX20 averaged contact has a nonpositive constraint area");
+                const double normal_measure = std::sqrt(dot(builder.normal, builder.normal));
+                if (!std::isfinite(normal_measure) || !(normal_measure > 0.0))
+                    throw std::invalid_argument("HEX20 averaged contact has an undefined constraint normal");
+                Hex20AveragedConstraint constraint{};
+                constraint.contact = contact_value;
+                constraint.secondary = output;
+                constraint.normal = {builder.normal.x / normal_measure, builder.normal.y / normal_measure,
+                    builder.normal.z / normal_measure};
+                constraint.area = builder.area;
+                double secondary_sum = 0.0, primary_sum = 0.0;
+                for (const auto& entry : builder.secondary) {
+                    const double coefficient = -entry.second / builder.area;
+                    if (std::abs(coefficient) <= 1.0e-14) continue;
+                    constraint.nodes.push_back(entry.first);
+                    constraint.gap_coefficients.push_back(coefficient);
+                    secondary_sum -= coefficient;
+                }
+                for (const auto& entry : builder.primary) {
+                    const double coefficient = entry.second / builder.area;
+                    if (std::abs(coefficient) <= 1.0e-14) continue;
+                    constraint.nodes.push_back(entry.first);
+                    constraint.gap_coefficients.push_back(coefficient);
+                    primary_sum += coefficient;
+                }
+                for (const auto& entry : builder.secondary_output) {
+                    constraint.secondary_output_nodes.push_back(entry.first);
+                    constraint.secondary_coefficients.push_back(entry.second / builder.area);
+                }
+                if (std::abs(secondary_sum - 1.0) > 1.0e-10 || std::abs(primary_sum - 1.0) > 1.0e-10)
+                    throw std::invalid_argument("HEX20 averaged contact does not preserve rigid translation");
+                CartesianPoint3 separation{};
+                for (std::size_t node = 0; node < constraint.nodes.size(); ++node) {
+                    const CartesianPoint3& coordinate = builder.coordinates.at(constraint.nodes[node]);
+                    separation.x += constraint.gap_coefficients[node] * coordinate.x;
+                    separation.y += constraint.gap_coefficients[node] * coordinate.y;
+                    separation.z += constraint.gap_coefficients[node] * coordinate.z;
+                }
+                constraint.reference_gap = dot(separation, constraint.normal);
+                _hex20_averaged_constraints.push_back(std::move(constraint));
+            }
+        }
         _contact_histories[contact_value].resize(
-            surface_to_surface ? mechanical_point_count : secondary.boundary.displacement_nodes.size());
+            !definition.mechanical
+                ? 0
+                : (surface_to_surface && !abaqus_averaged ? mechanical_point_count
+                                                          : secondary.boundary.displacement_nodes.size()));
         _thermal_point_counts.push_back(thermal_point_count);
         _hex20_primary_contact_faces.push_back(std::move(primary_faces));
         _hex20_secondary_contact_faces.push_back(std::move(secondary_faces));
@@ -1640,8 +1983,15 @@ bool SpatialAssembly::mark_touched_mechanical_nodes(std::size_t first, std::size
     if (begin >= end) return false;
     if (_uses_hex20) {
         for (std::size_t entry = begin; entry < end; ++entry) {
-            const Hex20MechanicalPoint& point = _hex20_mechanical_points[entry - ranges.mechanical_begin];
-            _touched_mechanical_nodes[mechanical_node_index(point.contact, point.secondary)] = 1U;
+            const std::size_t local = entry - ranges.mechanical_begin;
+            if (local < _hex20_mechanical_points.size()) {
+                const Hex20MechanicalPoint& point = _hex20_mechanical_points[local];
+                _touched_mechanical_nodes[mechanical_node_index(point.contact, point.secondary)] = 1U;
+            } else {
+                const Hex20AveragedConstraint& constraint =
+                    _hex20_averaged_constraints.at(local - _hex20_mechanical_points.size());
+                _touched_mechanical_nodes[mechanical_node_index(constraint.contact, constraint.secondary)] = 1U;
+            }
         }
     } else {
         for (std::size_t entry = begin; entry < end; ++entry) {
@@ -1819,6 +2169,10 @@ void SpatialAssembly::update_mechanical_candidates(
                     ? compute_quad8_to_quad8_contact_projection(candidate.surface_geometry, candidate_state)
                     : compute_node_to_quad8_contact_projection(candidate.node_geometry, candidate_state);
             if (value.projected) _mechanical_active_primary[point] = primary;
+        }
+        for (const Hex20AveragedConstraint& constraint : _hex20_averaged_constraints) {
+            const std::size_t node = mechanical_node_index(constraint.contact, constraint.secondary);
+            if (_touched_mechanical_nodes[node] != 0U) _mechanical_selected_primary[node] = 0;
         }
         for (std::size_t node = 0; node < _mechanical_selected_primary.size(); ++node)
             if (_touched_mechanical_nodes[node] != 0U &&
@@ -2027,6 +2381,8 @@ void SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
             staged[candidate.contact][candidate.secondary] = trial;
             updated[candidate.contact][candidate.secondary] = true;
         }
+        for (const Hex20AveragedConstraint& constraint : _hex20_averaged_constraints)
+            updated[constraint.contact][constraint.secondary] = true;
         for (std::size_t contact = 0; contact < _definition.contacts.size(); ++contact) {
             if (!_definition.contacts[contact].mechanical) continue;
             if (std::find(updated[contact].begin(), updated[contact].end(), false) != updated[contact].end())
@@ -2113,6 +2469,31 @@ std::vector<CartesianContactNodeSummary> SpatialAssembly::summarize_contact_node
             const CartesianPoint3& point = mesh.nodes().at(node);
             result.push_back({point.x, point.y, point.z, false, std::numeric_limits<std::size_t>::max(),
                 std::numeric_limits<double>::infinity(), 0.0, 0.0, 0.0, 0.0, 0.0, {}, false});
+        }
+        const bool averaged = std::any_of(_hex20_averaged_constraints.begin(), _hex20_averaged_constraints.end(),
+            [contact_value](const Hex20AveragedConstraint& value) { return value.contact == contact_value; });
+        if (averaged) {
+            std::vector<std::size_t> dofs;
+            for (const Hex20AveragedConstraint& constraint : _hex20_averaged_constraints) {
+                if (constraint.contact != contact_value) continue;
+                hex20_averaged_constraint_dofs(constraint, dofs);
+                std::vector<double> local_state(dofs.size());
+                for (std::size_t local = 0; local < dofs.size(); ++local) local_state[local] = state.at(dofs[local]);
+                const Hex20AveragedConstraintValue value = hex20_averaged_constraint_value(constraint, local_state);
+                CartesianContactNodeSummary& predominant = result.at(constraint.secondary);
+                predominant.projected = true;
+                predominant.primary_face = 0;
+                predominant.gap = value.gap;
+                predominant.pressure = value.pressure;
+                predominant.tributary_area = constraint.area;
+                for (std::size_t entry = 0; entry < constraint.secondary_output_nodes.size(); ++entry) {
+                    CartesianContactNodeSummary& output = result.at(constraint.secondary_output_nodes[entry]);
+                    output.projected = true;
+                    output.primary_face = 0;
+                    output.contact_force += constraint.secondary_coefficients[entry] * value.force;
+                }
+            }
+            return result;
         }
         if (_definition.contacts[contact_value].mechanical_discretization ==
             MechanicalContactDiscretization::surface_to_surface) {

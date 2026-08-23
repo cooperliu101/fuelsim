@@ -135,5 +135,5 @@ SECONDARY_Z0, 3, 3, 0.
 *Node Output
 COORD, RF, U
 *Contact Output
-CSTRESS, CDISP
+CSTRESS, CDISP, CFORCE
 *End Step

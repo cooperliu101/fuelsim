@@ -14,6 +14,7 @@
 #include <numeric>
 #include <stdexcept>
 #include <string>
+#include <tuple>
 #include <vector>
 
 namespace {
@@ -219,26 +220,39 @@ int main(int argc, char** argv) {
         primary_midpoint_dofs[segment] = spatial.dof(fuelsim::Field::displacement_x,
             spatial.global_node(0, static_cast<std::size_t>(found - region.nodes().begin())));
     }
-    const auto owner_counts = [&](const std::vector<double>& state) {
+    const auto primary_participation = [&](const std::vector<double>& state) {
         problem.validate_state(state);
         std::array<std::size_t, 4> counts{};
+        std::size_t constraint_count = 0, maximum_faces = 0;
         for (std::size_t contribution = spatial.volume_contribution_count();
             contribution < spatial.contribution_count(); ++contribution) {
+            if (spatial.contribution_type(contribution) != fuelsim::SpatialContributionType::mechanical_contact)
+                continue;
             std::vector<std::size_t> dofs;
             problem.contribution_dofs(contribution, dofs);
-            const auto owner = std::find_if(primary_midpoint_dofs.begin(), primary_midpoint_dofs.end(),
-                [&](std::size_t dof) { return std::find(dofs.begin(), dofs.end(), dof) != dofs.end(); });
-            if (owner == primary_midpoint_dofs.end()) {
-                std::cerr << "[FAIL] nonmatching contact contribution has no unique primary owner\n";
-                return std::array<std::size_t, 4>{};
+            std::size_t faces = 0;
+            for (std::size_t primary = 0; primary < primary_midpoint_dofs.size(); ++primary)
+                if (std::find(dofs.begin(), dofs.end(), primary_midpoint_dofs[primary]) != dofs.end()) {
+                    ++counts[primary];
+                    ++faces;
+                }
+            if (faces == 0) {
+                std::cerr << "[FAIL] nonmatching averaged constraint has no primary participation\n";
+                return std::make_tuple(std::array<std::size_t, 4>{}, std::size_t{0}, std::size_t{0});
             }
-            ++counts[static_cast<std::size_t>(owner - primary_midpoint_dofs.begin())];
+            ++constraint_count;
+            maximum_faces = std::max(maximum_faces, faces);
         }
-        return counts;
+        return std::make_tuple(counts, constraint_count, maximum_faces);
     };
-    const std::array<std::size_t, 4> owners = owner_counts(problem.initial_state());
-    bool passed = check(std::all_of(owners.begin(), owners.end(), [](std::size_t count) { return count > 0; }),
-        "nonmatching HEX20 small-sliding integration regions cover all four primary faces");
+    const auto participation = primary_participation(problem.initial_state());
+    const std::array<std::size_t, 4>& primary_counts = std::get<0>(participation);
+    const std::size_t constraint_count = std::get<1>(participation), maximum_faces = std::get<2>(participation);
+    bool passed = check(
+        constraint_count == 13 &&
+            std::all_of(primary_counts.begin(), primary_counts.end(), [](std::size_t count) { return count > 0; }) &&
+            maximum_faces > 1,
+        "nonmatching HEX20 contact constructs thirteen averaged constraints spanning all four primary faces");
     const fuelsim::SteadyResult result = fuelsim::solve_steady(problem, {1, 0.5, 4, 1.0e-6}, solver_options());
     passed = check(result.completed && result.solve.converged && result.completed_steps == 1,
                  "nonmatching HEX20 surface contact converges under compression") &&
@@ -246,6 +260,7 @@ int main(int argc, char** argv) {
     const fuelsim::InterfaceSummary interface =
         fuelsim::cartesian::ProblemAccess::summarize_interface(problem, 0, result.solve.state);
     std::array<double, 3> contact_balance{};
+    double maximum_jacobian_directional_error = 0.0;
     for (std::size_t contribution = 0; contribution < spatial.contribution_count(); ++contribution) {
         if (spatial.contribution_type(contribution) != fuelsim::SpatialContributionType::mechanical_contact) continue;
         std::vector<std::size_t> dofs;
@@ -253,7 +268,29 @@ int main(int argc, char** argv) {
         problem.contribution_dofs(contribution, dofs);
         std::vector<double> local_state(dofs.size());
         for (std::size_t local = 0; local < dofs.size(); ++local) local_state[local] = result.solve.state[dofs[local]];
-        spatial.compute_contribution(contribution, local_state, nullptr, nullptr, 0.0, residual, nullptr);
+        std::vector<double> jacobian;
+        spatial.compute_contribution(contribution, local_state, nullptr, nullptr, 0.0, residual, &jacobian);
+        std::vector<double> direction(local_state.size()), plus = local_state, minus = local_state;
+        constexpr double perturbation = 1.0e-10;
+        for (std::size_t local = 0; local < direction.size(); ++local) {
+            direction[local] = std::sin(static_cast<double>(local + 1));
+            plus[local] += perturbation * direction[local];
+            minus[local] -= perturbation * direction[local];
+        }
+        std::vector<double> plus_residual, minus_residual;
+        spatial.compute_contribution(contribution, plus, nullptr, nullptr, 0.0, plus_residual, nullptr);
+        spatial.compute_contribution(contribution, minus, nullptr, nullptr, 0.0, minus_residual, nullptr);
+        double difference_squared = 0.0, reference_squared = 0.0;
+        for (std::size_t row = 0; row < local_state.size(); ++row) {
+            double analytic = 0.0;
+            for (std::size_t column = 0; column < local_state.size(); ++column)
+                analytic += jacobian[row * local_state.size() + column] * direction[column];
+            const double finite_difference = (plus_residual[row] - minus_residual[row]) / (2.0 * perturbation);
+            difference_squared += std::pow(analytic - finite_difference, 2);
+            reference_squared += finite_difference * finite_difference;
+        }
+        maximum_jacobian_directional_error =
+            std::max(maximum_jacobian_directional_error, std::sqrt(difference_squared / reference_squared));
         for (std::size_t local = 0; local < dofs.size(); ++local) {
             const std::size_t global = dofs[local];
             for (std::size_t component = 0; component < contact_balance.size(); ++component) {
@@ -269,14 +306,19 @@ int main(int argc, char** argv) {
              check(std::abs(contact_balance[0]) < 1.0e-8 && std::abs(contact_balance[1]) < 1.0e-8 &&
                        std::abs(contact_balance[2]) < 1.0e-8,
                  "nonmatching HEX20 contact residual is action-reaction conservative") &&
+             check(maximum_jacobian_directional_error < 1.0e-7,
+                 "nonmatching HEX20 averaged-contact Jacobian matches a centered directional difference") &&
              passed;
     const auto& histories = fuelsim::cartesian::ProblemAccess::committed_contact_histories(problem).at(0);
-    passed = check(histories.size() == std::accumulate(owners.begin(), owners.end(), std::size_t{0}),
-                 "nonmatching HEX20 contact stores one committed history for every segmented integration point") &&
+    passed = check(histories.size() == constraint_count,
+                 "nonmatching HEX20 contact stores one transaction slot for every averaged constraint") &&
              passed;
     if (session.rank() == 0) {
-        std::cout << "h20_24_primary_face_owner_counts=" << owners[0] << ',' << owners[1] << ',' << owners[2] << ','
-                  << owners[3] << '\n'
+        std::cout << "h20_24_primary_face_participation_counts=" << primary_counts[0] << ',' << primary_counts[1] << ','
+                  << primary_counts[2] << ',' << primary_counts[3] << '\n'
+                  << "h20_24_averaged_constraint_count=" << constraint_count << '\n'
+                  << "h20_24_maximum_primary_faces_per_constraint=" << maximum_faces << '\n'
+                  << "h20_24_contact_jacobian_directional_error=" << maximum_jacobian_directional_error << '\n'
                   << "h20_24_projected_secondary_nodes=" << interface.projected_contact_nodes << '\n'
                   << "h20_24_active_contact_nodes=" << interface.active_contact_nodes << '\n'
                   << "h20_24_total_contact_force=" << interface.total_contact_force << '\n';

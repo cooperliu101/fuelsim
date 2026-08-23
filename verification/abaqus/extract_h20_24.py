@@ -80,15 +80,30 @@ for name, field in frame.fieldOutputs.items():
 if not pressure_values:
     raise RuntimeError("Abaqus ODB contains no nodal CPRESS contact output")
 pressure_values.sort(key=lambda value: value[0])
+pressure_labels = set(value[0] for value in pressure_values)
+
+normal_forces = {}
+for name, field in frame.fieldOutputs.items():
+    if not name.startswith("CNORMF"):
+        continue
+    for value in field.values:
+        if not hasattr(value, "nodeLabel") or value.nodeLabel not in pressure_labels:
+            continue
+        force = component(value.data, 0)
+        normal_forces[value.nodeLabel] = normal_forces.get(value.nodeLabel, 0.0) + force
+if sorted(normal_forces.keys()) != [value[0] for value in pressure_values]:
+    raise RuntimeError("Abaqus ODB CNORMF and CPRESS secondary-node labels differ")
+
 output = open(sys.argv[4], "wb")
-output.write("pressure,id,x,y,z\n")
+output.write("pressure,normal_force_x,id,x,y,z\n")
 for label, pressure in pressure_values:
     node = node_by_label[label]
     coordinates = node.coordinates
     output.write(
-        "%.16g,%d,%.16g,%.16g,%.16g\n"
+        "%.16g,%.16g,%d,%.16g,%.16g,%.16g\n"
         % (
             pressure,
+            normal_forces[label],
             label - 1,
             component(coordinates, 0),
             component(coordinates, 1),

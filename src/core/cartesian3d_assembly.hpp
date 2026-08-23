@@ -168,6 +168,7 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
         Quad8FaceGeometry geometry;
         CartesianPoint3 parent_centroid;
         std::vector<Quad8FaceMechanicalQuadraturePoint> contact_points;
+        std::vector<std::size_t> contact_primary_faces;
         std::vector<std::array<double, 8>> contact_primary_shapes, contact_primary_derivatives_xi,
             contact_primary_derivatives_eta;
         std::vector<double> contact_normal_orientations;
@@ -175,6 +176,18 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
 
     struct Hex20MechanicalPoint final {
         std::size_t contact, secondary, secondary_face, secondary_local_point, reference_primary;
+    };
+
+    struct Hex20AveragedConstraint final {
+        std::size_t contact, secondary;
+        std::vector<std::size_t> nodes, secondary_output_nodes;
+        std::vector<double> gap_coefficients, secondary_coefficients;
+        CartesianPoint3 normal;
+        double reference_gap, area;
+    };
+
+    struct Hex20AveragedConstraintValue final {
+        double gap, pressure, force;
     };
 
     ContributionRanges contribution_ranges() const noexcept;
@@ -200,6 +213,12 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     Quad4SurfaceContactLocalDofs contact_dofs(const std::array<std::size_t, 8>& nodes) const;
     Quad8SurfaceContactLocalDofs hex20_contact_dofs(const Hex20ThermalCandidate& candidate) const;
     Quad8SurfaceContactLocalDofs hex20_contact_dofs(const Hex20MechanicalCandidate& candidate) const;
+    void hex20_averaged_constraint_dofs(
+        const Hex20AveragedConstraint& constraint, std::vector<std::size_t>& dofs) const;
+    Hex20AveragedConstraintValue hex20_averaged_constraint_value(
+        const Hex20AveragedConstraint& constraint, const std::vector<double>& state) const;
+    void compute_hex20_averaged_constraint(const Hex20AveragedConstraint& constraint, const std::vector<double>& state,
+        std::vector<double>& residual, std::vector<double>* jacobian) const;
     Quad4SurfaceContactLocalValues contribution_state(std::size_t index, const std::vector<double>& global_state) const;
     Quad4SurfaceContactLocalValues contact_state(
         const std::array<std::size_t, 8>& nodes, const std::vector<double>& global_state) const;
@@ -230,6 +249,7 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     std::vector<std::vector<Hex20PrimaryContactFace>> _hex20_primary_contact_faces;
     std::vector<std::vector<Hex20SecondaryContactFace>> _hex20_secondary_contact_faces;
     std::vector<Hex20MechanicalPoint> _hex20_mechanical_points;
+    std::vector<Hex20AveragedConstraint> _hex20_averaged_constraints;
     std::vector<std::size_t> _thermal_point_counts, _thermal_contact_offsets, _mechanical_contact_offsets,
         _sparsity_contact_offsets;
     mutable std::vector<unsigned char> _touched_thermal_points, _touched_mechanical_nodes;
