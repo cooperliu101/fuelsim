@@ -1,0 +1,3 @@
+case,step,contact_area_m2,normal_force_x_n,normal_force_y_n,normal_force_z_n,normal_moment_x_nm,normal_moment_y_nm,normal_moment_z_nm,center_x_m,center_y_m,center_z_m
+finite_sliding,BASE,1,-10000,-5.969683653791547e-15,-2.198339505766513e-14,-6.727749596573823e-14,-5000,5000,1,0.5,0.5
+finite_sliding,SLIDE,1,-10000,-5.969683653791547e-15,-2.198339505766513e-14,-6.9475837843197e-14,-5000,6000,1,0.6000000238418579,0.5

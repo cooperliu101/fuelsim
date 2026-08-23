@@ -136,3 +136,75 @@ versus eight-node fuelsim/MOOSE contact discretization; it is not a claim of
 algebraic equivalence. Transverse displacements are diagnostics outside this
 pure-normal claim because the Abaqus element conversion changes their discrete
 field; no denominator floor is used for their near-zero values.
+
+## H20.26 surface-to-surface operator identification
+
+H20.26 identifies the Abaqus/Standard surface-to-surface contact operator
+directly rather than inferring it from a converged structural displacement
+field. The matching-face input uses two full-integration C3D20 elements, a
+flat unit-area Quad8 interface, frictionless small sliding, and a linear normal
+penalty stiffness of `1e8 Pa/m`. It first applies a uniform `0.1 mm` closure,
+then applies positive and negative `1 um` normal perturbations to each of the
+eight original secondary-face nodes. `extract_h20_26.py` records the final
+`COPEN`, `CNORMF`, and displayed `CPRESS` at full output precision.
+
+The Abaqus data-file summary reports penalty enforcement, constraint positions
+at nodes, no supplementary constraints, and eight generated internal contact
+elements. Field output contains the eight original secondary and eight
+original primary face nodes, with no structural face-center node. Therefore,
+the C3D20 element conversion and added face-center contact node observed for
+H20.25 node-to-surface contact do not occur in this surface-to-surface case.
+This is consistent with the Abaqus documentation separating
+[surface-to-surface contact formulations](https://docs.software.vt.edu/abaqusv2024/English/SIMACAEITNRefMap/simaitn-c-contactpairform.htm)
+from node-to-surface contact.
+
+Central differences reconstruct an eight-by-eight averaged opening operator
+`A` and force tangent `K`. Every row of `A` sums to one within
+`1.47e-13`, so a uniform closure is reproduced exactly, but `A` is
+nonsymmetric with maximum asymmetry `0.444489`. The uniform closure identifies
+the positive diagonal constraint-area matrix `W`: each corner has area
+`1/24 m2`, each edge midpoint has area `5/24 m2`, and the areas sum to
+`1 m2`. The measured tangent satisfies
+`K = penalty * transpose(A) * W * A` with relative Frobenius error
+`4.77e-14` and maximum pointwise-relative error `2.80e-13`.
+
+This result identifies a node-centered averaged-constraint penalty operator;
+it does not identify classic mortar discretization. Fuelsim's current direct
+continuum-consistent `penalty * integral(transpose(N) * N) dA` operator differs
+from the Abaqus tangent by `19.6617%` in relative Frobenius norm and
+`84.6955%` in maximum pointwise-relative error when Abaqus is the reference.
+Displayed `CPRESS` derivatives differ from `penalty * A` by `33.7610%` in
+relative Frobenius norm, confirming that recovered nodal pressure is not a
+suitable quantity for identifying the force operator.
+
+Two geometry probes establish additional behavior. In the finite-sliding case,
+a rigid `0.1 m` transverse translation leaves the `10000 N` normal resultant
+and secondary nodal forces unchanged, moves the reported transverse center of
+normal force from `0.5 m` to `0.600000024 m`, changes the corresponding moment
+from `5000 N m` to `6000 N m`, and redistributes the primary nodal forces. In
+the small-sliding tilted-face case, the secondary surface has slope `0.05`;
+the resulting `Fy/Fx` is `-0.0499999969`, and all eight secondary nodal force
+vectors follow the same direction within `9.32e-10 N`. This directly supports
+the Abaqus documentation statement that surface-to-surface constraints use an
+averaged secondary-surface normal, while finite sliding updates transfer on the
+primary surface.
+
+The two reproducible commands are:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass `
+  -File "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus\run_h20_26_probe.ps1" `
+  -SourceDirectory "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus"
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass `
+  -File "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus\run_h20_26_geometry.ps1" `
+  -SourceDirectory "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus"
+```
+
+The verified scope is Abaqus 3DEXPERIENCE R2018x, active frictionless linear
+penalty contact, one planar C3D20 secondary face, a matching flat operator
+probe, one planar tilted-normal probe, and one oversized-primary finite-sliding
+transfer probe. The recovered matrix must not be hard-coded as a general
+Abaqus substitute. Nonmatching faces, constraint activation and release,
+curved faces, small-sliding tangential transfer, frictional tangents, augmented
+Lagrange enforcement, and large-deformation surface evolution remain to be
+identified before replacing Fuelsim's production discretization.

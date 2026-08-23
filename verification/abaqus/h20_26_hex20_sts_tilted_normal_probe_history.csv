@@ -1,0 +1,2 @@
+case,step,contact_area_m2,normal_force_x_n,normal_force_y_n,normal_force_z_n,normal_moment_x_nm,normal_moment_y_nm,normal_moment_z_nm,center_x_m,center_y_m,center_z_m
+tilted_normal,TILTED,1.001249194145203,-4981277.5,249063.859375,4.403389042284545e-10,-124531.9296875,-2490638.75,2478925.25,0.9475136399269104,0.4502728283405304,0.5
