@@ -51,6 +51,15 @@ double dot(const CartesianPoint3& first, const CartesianPoint3& second) {
 using Matrix8 = std::array<double, 64>;
 using Vector8 = std::array<double, 8>;
 
+const std::array<std::array<double, 2>, 8>& abaqus_quad8_constraint_locations() {
+    // H20.28 identifies the effective centers of Abaqus/Standard's default
+    // quadratic secondary constraint regions.  Coordinates are in the Q8
+    // parent domain and follow the face-node order.
+    static const std::array<std::array<double, 2>, 8> value = {
+        {{-0.75, -0.75}, {0.75, -0.75}, {0.75, 0.75}, {-0.75, 0.75}, {0.0, -0.5}, {0.5, 0.0}, {0.0, 0.5}, {-0.5, 0.0}}};
+    return value;
+}
+
 const Matrix8& abaqus_quad8_averaging() {
     // H20.26 and H20.28 identify Abaqus/Standard's default quadratic
     // small-sliding C3D20 secondary-face averaging operator.  This is an
@@ -1656,8 +1665,10 @@ void SpatialAssembly::build_hex20_contacts(const UnstructuredHex20Mesh& source_m
                             output_node - secondary.boundary.displacement_nodes.begin())] += value;
                         builder.coordinates[face.displacement_nodes[node]] = face.coordinates[node];
                     }
-                    const Quad8FaceMechanicalQuadraturePoint& center = face.geometry.mechanical_points[4];
-                    CartesianPoint3 face_normal = cross(center.tangent_xi, center.tangent_eta);
+                    const std::array<double, 2>& location = abaqus_quad8_constraint_locations()[local_constraint];
+                    const Quad8FaceMechanicalQuadraturePoint constraint_point =
+                        make_quad8_face_mechanical_point(face.coordinates, location[0], location[1], 1.0);
+                    CartesianPoint3 face_normal = cross(constraint_point.tangent_xi, constraint_point.tangent_eta);
                     const std::size_t primary_index =
                         face.contact_primary_faces.at(face.contact_primary_faces.size() / 2);
                     const CartesianPoint3 direction =
@@ -2468,7 +2479,7 @@ std::vector<CartesianContactNodeSummary> SpatialAssembly::summarize_contact_node
         for (std::size_t node : secondary.boundary.displacement_nodes) {
             const CartesianPoint3& point = mesh.nodes().at(node);
             result.push_back({point.x, point.y, point.z, false, std::numeric_limits<std::size_t>::max(),
-                std::numeric_limits<double>::infinity(), 0.0, 0.0, 0.0, 0.0, 0.0, {}, false});
+                std::numeric_limits<double>::infinity(), 0.0, 0.0, 0.0, 0.0, 0.0, {}, {}, false});
         }
         const bool averaged = std::any_of(_hex20_averaged_constraints.begin(), _hex20_averaged_constraints.end(),
             [contact_value](const Hex20AveragedConstraint& value) { return value.contact == contact_value; });
@@ -2491,6 +2502,13 @@ std::vector<CartesianContactNodeSummary> SpatialAssembly::summarize_contact_node
                     output.projected = true;
                     output.primary_face = 0;
                     output.contact_force += constraint.secondary_coefficients[entry] * value.force;
+                    for (std::size_t component = 0; component < 3; ++component) {
+                        const double normal = component == 0   ? constraint.normal.x
+                                              : component == 1 ? constraint.normal.y
+                                                               : constraint.normal.z;
+                        output.normal_contact_force[component] +=
+                            constraint.secondary_coefficients[entry] * value.force * normal;
+                    }
                 }
             }
             return result;
@@ -2529,6 +2547,9 @@ std::vector<CartesianContactNodeSummary> SpatialAssembly::summarize_contact_node
                     summary.gap = std::min(summary.gap, value.gap);
                     summary.tributary_area += nodal_area;
                     summary.contact_force += shape * value.contact_force;
+                    for (std::size_t component = 0; component < 3; ++component)
+                        summary.normal_contact_force[component] +=
+                            shape * value.contact_force * value.normal[component];
                     summary.tangential_force += shape * value.tangential_force;
                     for (std::size_t component = 0; component < 3; ++component)
                         weighted_slip[output_node][component] += nodal_area * value.elastic_tangential_slip[component];
@@ -2622,6 +2643,8 @@ std::vector<CartesianContactNodeSummary> SpatialAssembly::summarize_contact_node
             summary.gap = std::min(summary.gap, value.gap);
             summary.tributary_area += value.tributary_area;
             summary.contact_force += value.contact_force;
+            for (std::size_t component = 0; component < 3; ++component)
+                summary.normal_contact_force[component] += value.contact_force * value.normal[component];
             summary.tangential_force += value.tangential_force;
             summary.elastic_tangential_slip = value.elastic_tangential_slip;
             summary.sliding = value.sliding;
@@ -2640,7 +2663,7 @@ std::vector<CartesianContactNodeSummary> SpatialAssembly::summarize_contact_node
     for (std::size_t node : secondary.boundary.nodes) {
         const CartesianPoint3& point = mesh.nodes().at(node);
         result.push_back({point.x, point.y, point.z, false, std::numeric_limits<std::size_t>::max(),
-            std::numeric_limits<double>::infinity(), 0.0, 0.0, 0.0, 0.0, 0.0, {}, false});
+            std::numeric_limits<double>::infinity(), 0.0, 0.0, 0.0, 0.0, 0.0, {}, {}, false});
     }
     for (std::size_t point = 0; point < _mechanical_active_primary.size(); ++point) {
         const std::size_t primary = _mechanical_active_primary[point];
@@ -2662,6 +2685,8 @@ std::vector<CartesianContactNodeSummary> SpatialAssembly::summarize_contact_node
         summary.gap = std::min(summary.gap, value.gap);
         summary.tributary_area += value.tributary_area;
         summary.contact_force += value.contact_force;
+        for (std::size_t component = 0; component < 3; ++component)
+            summary.normal_contact_force[component] += value.contact_force * value.normal[component];
         summary.tangential_force += value.tangential_force;
         summary.elastic_tangential_slip = value.elastic_tangential_slip;
         summary.sliding = value.sliding;

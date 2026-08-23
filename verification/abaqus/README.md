@@ -385,3 +385,73 @@ scope remains planar, frictionless, small-strain, small-sliding linear-penalty
 contact. Curved surfaces, friction, augmented Lagrange enforcement, finite
 strain, and an entry-by-entry claim for Abaqus's proprietary primary smoothing
 stencil remain outside the verified boundary.
+
+## H20.30 faceted and quadratic cylindrical contact
+
+H20.30 extends the accepted frictionless C3D20 small-sliding comparison to two
+quarter-cylinder models. Both bodies contain four circumferential panels and
+two axial panels. In `faceted_cylinder`, every midside coordinate is the
+Cartesian midpoint of its edge. Each QUAD8 contact face is therefore planar,
+while the assembled interface normal changes between panels. In
+`quadratic_cylinder`, circumferential midside nodes are evaluated at the polar
+angle midpoint and lie on the radius-one arc. Every contact QUAD8 is genuinely
+curved and its normal changes within the face.
+
+The same generator writes each Abaqus input, Fuelsim input, and tracked Exodus
+mesh. The references were generated with Abaqus 3DEXPERIENCE R2018x:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass `
+  -File "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus\run_h20_30.ps1" `
+  -SourceDirectory "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus"
+```
+
+The test compares radial displacement at every mesh node, signed radial
+contact force at every unique secondary contact node, and the radial contact
+resultant. It also proves the two geometry classes directly, checks that every
+constraint is active and projected, checks action-reaction conservation, and
+compares each local contact Jacobian with a centered directional difference.
+All three field metrics must be below `1%`; zero reference values are reported
+separately without a denominator floor.
+
+The faceted model agrees essentially to roundoff. For the quadratic model,
+radial-displacement relative L2, relative absolute-peak, and maximum pointwise
+errors are `0.113348%`, `0.063526%`, and `0.289203%`. The corresponding signed
+nodal-force errors are `0.047713%`, `0.056410%`, and `0.106361%`; the radial
+resultant error is `0.0000723%`. The maximum curved-contact Jacobian directional
+error is `1.64e-10`, and each Cartesian action-reaction imbalance is below
+`2.3e-12 N`.
+
+The production change keeps the H20.26 default quadratic averaging matrix and
+positive constraint areas. It evaluates a separate surface normal at each of
+the eight effective constraint-region centers identified by H20.28:
+`(+/-0.75,+/-0.75)`, `(0,+/-0.5)`, and `(+/-0.5,0)` in the QUAD8 parent domain.
+This is an Abaqus-compatible node-centered surface-to-surface constraint rule;
+it is not a classical mortar discretization.
+
+## H20.31 curved secondary-operator identification
+
+H20.31 fixes one quadratic primary face and prescribes a uniform radial closure
+to the coincident quadratic secondary face. Forty-eight additional steps apply
+positive and negative X, Y, and Z displacement perturbations to each of the
+eight secondary nodes. The extracted COPEN gradients align with the eight
+distinct normals evaluated at the H20.28 effective centers. The minimum dot
+product between those normals is `0.957280`, which proves that a single
+face-center normal cannot represent this curved face. The full 24 by 24
+CNORMF tangent is symmetric to a relative Frobenius error of `7.02e-14`.
+
+The input and reference are reproduced by:
+
+```powershell
+python verification/abaqus/generate_h20_31.py `
+  verification/abaqus/h20_30_hex20_sts_quadratic_cylinder.inp `
+  verification/abaqus/h20_31_hex20_curved_sts_operator.inp
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass `
+  -File "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus\run_h20_31.ps1" `
+  -SourceDirectory "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus"
+```
+
+The verified curved scope remains frictionless, small-strain, small-sliding
+linear-penalty contact. Friction, finite-strain normal evolution, augmented
+Lagrange enforcement, and exact entry-by-entry reproduction of Abaqus's
+proprietary nonmatching primary smoothing stencil remain outside this claim.

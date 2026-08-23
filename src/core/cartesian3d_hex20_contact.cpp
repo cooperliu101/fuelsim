@@ -428,6 +428,7 @@ CartesianContactPointValue compute_quad8_to_quad8_contact_value(const NormalCont
         evaluate_surface_mechanical(properties, geometry, make_ad_state(state, false), committed_state, history);
     return {value.projected, value.gap.value(), value.pressure.value(), value.tributary_area.value(),
         value.contact_force.value(), value.tangential_traction.value(), value.tangential_force.value(),
+        {value.normal[0].value(), value.normal[1].value(), value.normal[2].value()},
         {value.elastic_tangential_slip[0].value(), value.elastic_tangential_slip[1].value(),
             value.elastic_tangential_slip[2].value()},
         value.sliding};
@@ -494,6 +495,7 @@ CartesianContactPointValue compute_node_to_quad8_contact_value(const NormalConta
         evaluate_mechanical(properties, geometry, make_ad_state(state, false), committed_state, history);
     return {value.projected, value.gap.value(), value.pressure.value(), value.tributary_area.value(),
         value.contact_force.value(), value.tangential_traction.value(), value.tangential_force.value(),
+        {value.normal[0].value(), value.normal[1].value(), value.normal[2].value()},
         {value.elastic_tangential_slip[0].value(), value.elastic_tangential_slip[1].value(),
             value.elastic_tangential_slip[2].value()},
         value.sliding};

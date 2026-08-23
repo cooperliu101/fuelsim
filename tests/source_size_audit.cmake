@@ -27,6 +27,7 @@ set(hex20_contact_capability_lines 1150)
 set(hex20_surface_mechanical_contact_lines 136)
 set(hex20_small_sliding_surface_contact_lines 238)
 set(hex20_abaqus_averaged_contact_lines 407)
+set(hex20_curved_abaqus_contact_lines 27)
 
 file(READ "${ROOT}/.clang-format" format_configuration)
 string(FIND "${format_configuration}" "ColumnLimit: 120" column_limit)
@@ -64,7 +65,7 @@ endif()
 math(EXPR removed_lines "${nonempty_line_baseline} - ${nonempty_lines}")
 math(EXPR reduction_per_mille "1000 * ${removed_lines} / ${nonempty_line_baseline}")
 math(EXPR capability_adjusted_limit
-    "${maximum_nonempty_lines} + ${hex8_inelastic_capability_lines} + ${hex8_finite_strain_capability_lines} + ${hex8_contact_capability_lines} + ${dynamic_contact_assembly_performance_lines} + ${large_sliding_contact_search_lines} + ${cartesian_current_pressure_input_lines} + ${m58_two_process_efficiency_lines} + ${m58_four_process_efficiency_lines} + ${memory_statistics_lines} + ${shared_node_capability_lines} + ${hex8_narrow_constitutive_ad_lines} + ${rz_narrow_constitutive_ad_lines} + ${source_layout_refactor_lines} + ${optional_input_sections_lines} + ${bound_material_function_lines} + ${thermal_time_term_option_lines} + ${pressure_configuration_selection_lines} + ${hex20_u2_t1_capability_lines} + ${hex20_face_quadrature_lines} + ${hex20_contact_capability_lines} + ${hex20_surface_mechanical_contact_lines} + ${hex20_small_sliding_surface_contact_lines} + ${hex20_abaqus_averaged_contact_lines}"
+    "${maximum_nonempty_lines} + ${hex8_inelastic_capability_lines} + ${hex8_finite_strain_capability_lines} + ${hex8_contact_capability_lines} + ${dynamic_contact_assembly_performance_lines} + ${large_sliding_contact_search_lines} + ${cartesian_current_pressure_input_lines} + ${m58_two_process_efficiency_lines} + ${m58_four_process_efficiency_lines} + ${memory_statistics_lines} + ${shared_node_capability_lines} + ${hex8_narrow_constitutive_ad_lines} + ${rz_narrow_constitutive_ad_lines} + ${source_layout_refactor_lines} + ${optional_input_sections_lines} + ${bound_material_function_lines} + ${thermal_time_term_option_lines} + ${pressure_configuration_selection_lines} + ${hex20_u2_t1_capability_lines} + ${hex20_face_quadrature_lines} + ${hex20_contact_capability_lines} + ${hex20_surface_mechanical_contact_lines} + ${hex20_small_sliding_surface_contact_lines} + ${hex20_abaqus_averaged_contact_lines} + ${hex20_curved_abaqus_contact_lines}"
 )
 if(nonempty_lines GREATER capability_adjusted_limit)
     message(FATAL_ERROR
@@ -92,7 +93,8 @@ if(nonempty_lines GREATER capability_adjusted_limit)
         "${hex20_contact_capability_lines} lines for HEX20 thermal and mechanical contact, plus "
         "${hex20_surface_mechanical_contact_lines} lines for HEX20 surface-to-surface mechanical contact, plus "
         "${hex20_small_sliding_surface_contact_lines} lines for reference-segmented HEX20 small-sliding contact, plus "
-        "${hex20_abaqus_averaged_contact_lines} lines for Abaqus-style averaged HEX20 contact"
+        "${hex20_abaqus_averaged_contact_lines} lines for Abaqus-style averaged HEX20 contact, plus "
+        "${hex20_curved_abaqus_contact_lines} lines for curved Abaqus-style HEX20 contact"
     )
 endif()
 
@@ -120,5 +122,6 @@ message(STATUS
     "${hex20_contact_capability_lines} HEX20 thermal and mechanical contact lines plus "
     "${hex20_surface_mechanical_contact_lines} HEX20 surface-to-surface mechanical-contact lines plus "
     "${hex20_small_sliding_surface_contact_lines} reference-segmented HEX20 small-sliding contact lines plus "
-    "${hex20_abaqus_averaged_contact_lines} Abaqus-style averaged HEX20 contact lines"
+    "${hex20_abaqus_averaged_contact_lines} Abaqus-style averaged HEX20 contact lines plus "
+    "${hex20_curved_abaqus_contact_lines} curved Abaqus-style HEX20 contact lines"
 )

@@ -73,6 +73,8 @@ int main(int argc, char** argv) {
             "h20.nonmatching_contact",
             "h20.node_to_face_three_way",
             "h20.sts_multicase",
+            "h20.abaqus_curved_sts_identification",
+            "h20.sts_curved",
             "b35.hex8_shared_material_interface",
             "b31.hex8_inelastic",
             "b32.hex8_finite_strain",
@@ -148,7 +150,7 @@ int main(int argc, char** argv) {
         }
         if (found_ids != required_ids)
             throw std::runtime_error("Verification matrix is missing one or more required rows");
-        if (verified != 33 || qualified != 3 || measured != 3 || limitations != 1)
+        if (verified != 35 || qualified != 3 || measured != 3 || limitations != 1)
             throw std::runtime_error("Verification matrix status counts differ from release schema");
         std::cout << "verification_matrix_rows=" << found_ids.size() << '\n'
                   << "verification_matrix_verified=" << verified << '\n'
