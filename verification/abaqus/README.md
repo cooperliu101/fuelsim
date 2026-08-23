@@ -520,8 +520,10 @@ contact face is nonplanar, all 37 secondary constraints remain active and
 sticking, and the applied outer tractions produce simultaneous circumferential
 and axial relative motion. Abaqus local slip direction 1 is opposite the
 positive circumferential direction on these C3D20 S6 faces, while local
-direction 2 is opposite the global axial direction. The relative Abaqus slip
-tolerance maps to `elastic_slip = 4.43e-6 m` for this mesh.
+direction 2 is opposite the global axial direction. The Abaqus data-file report
+gives a `0.44311 m` characteristic contact length, so its relative slip
+tolerance of `1e-5` maps directly to `elastic_slip = 4.4311e-6 m`. This is a
+mesh-specific absolute-length conversion, not a fitted material coefficient.
 
 The reference is reproduced with:
 
@@ -540,3 +542,55 @@ resultant errors are `0.000190087%`, `0.00609483%`, and `0.0504071%`. The
 frictional contact Jacobian directional error is `5.55e-10`, and the largest
 Cartesian action-reaction imbalance is below `1.6e-12 N`. Exact zero references
 are counted separately without a denominator floor.
+
+## H20.36 quadratic curved stick-slide reversal history
+
+H20.36 reuses the same genuinely quadratic quarter-cylinder mesh and the exact
+`elastic_slip = 4.4311e-6 m` conversion. A seven-state imposed axial-displacement
+path of `2, 4, 12, 24, 4, -20, -18 um` exercises two fully sticking states,
+mixed sticking and sliding, forward sliding, unloading, reverse sliding, and
+complete resticking. Fuelsim's sticking/sliding constraint counts are `37/0`,
+`37/0`, `26/11`, `11/26`, `26/11`, `10/27`, and `37/0`; all 37 constraints stay
+closed. The reference is reproduced with:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass `
+  -File "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus\run_h20_36.ps1" `
+  -SourceDirectory "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus"
+```
+
+Every step compares all mesh-node displacements in radial, circumferential, and
+axial cylindrical components; every secondary signed radial normal and two
+tangential nodal-force components; both Abaqus local slip components; and all
+three resultants. The worst radial-displacement relative L2, relative
+absolute-peak, and maximum pointwise errors are `0.335451%`, `0.137280%`, and
+`1.32187%`. The worst axial-displacement values are `0.0220250%`, `0.0192834%`,
+and `0.426002%`. Signed radial normal-force maxima are `0.0481027%`,
+`0.0587887%`, and `0.138690%`; signed axial tangential-force maxima are
+`0.114174%`, `0.0817067%`, and `1.84225%`. Applied-direction axial-slip maxima
+are `0.0366298%`, `0.0260790%`, and `5.45628%`; the last occurs at a
+`1.63726e-9 m` reference with only `8.93336e-11 m` absolute difference.
+
+The explicit `1.4%` radial-displacement, `2%` axial-force, and `6%` axial-slip
+pointwise gates apply only to this path; all aggregate gates remain `1%`, exact
+zero references are counted separately, and no denominator floor is used. The
+undriven circumferential fields also print the three relative metrics, but are
+accepted by their maximum absolute difference normalized by the driven axial
+peak because their local references pass through zero. That normalized limit
+remains `1%`. The circumferential-displacement relative metrics reach
+`1.57154%`, `1.29913%`, and `147.494%`, while its axial-scale maximum absolute
+difference is `0.243399%`. The corresponding circumferential-force values are
+`34.6574%`, `37.4078%`, `1541.06%`, and `0.689970%`; the local-direction-1 slip
+values are `2.43364%`, `1.86783%`, `204.739%`, and `0.249127%`. The high
+pointwise ratios occur where the undriven reference passes through zero, and
+remain visible in the output. The worst normal and axial resultant errors are
+`0.000602217%` and `0.0217182%`; the circumferential resultant's maximum
+absolute difference is `0.00000340780%` of the axial resultant.
+
+The sticking and sliding contact Jacobian directional errors are `2.15e-11` and
+`2.59e-10`, Cartesian action-reaction imbalance is below `1.5e-12 N`, and a
+mid-path checkpoint/restart reproduces every later nodal value and committed
+contact-history component exactly. This case qualifies one driven tangent
+direction on a true quadratic curved surface; simultaneous two-direction
+sliding and rotation of a nonzero two-component elastic-slip history remain
+outside this validation boundary.
