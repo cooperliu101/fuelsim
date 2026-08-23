@@ -781,6 +781,41 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_h20_28_abaqus_sts_smoothing_identification_tests
         PROPERTIES LABELS "acceptance;three-dimensional;hex20;contact;abaqus;identification")
 
+    add_executable(fuelsim_h20_29_hex20_sts_multicase_abaqus_tests
+        tests/h20_sts_multicase_abaqus_tests.cpp)
+    target_link_libraries(fuelsim_h20_29_hex20_sts_multicase_abaqus_tests
+        PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
+    fuelsim_enable_warnings(fuelsim_h20_29_hex20_sts_multicase_abaqus_tests)
+    add_test(NAME fuelsim_h20_29_hex20_sts_multicase_abaqus_tests
+        COMMAND fuelsim_h20_29_hex20_sts_multicase_abaqus_tests
+            biaxial
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex20_sts_biaxial_abaqus.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_29_hex20_sts_biaxial_displacement.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_29_hex20_sts_biaxial_force.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_29_hex20_sts_biaxial_reaction.csv"
+            tilted
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex20_sts_tilted_abaqus.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_29_hex20_sts_tilted_displacement.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_29_hex20_sts_tilted_force.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_29_hex20_sts_tilted_reaction.csv"
+            graded
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex20_sts_graded_abaqus.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_29_hex20_sts_graded_displacement.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_29_hex20_sts_graded_force.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_29_hex20_sts_graded_reaction.csv"
+            soft_penalty
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex20_sts_soft_penalty_abaqus.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_29_hex20_sts_soft_penalty_displacement.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_29_hex20_sts_soft_penalty_force.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_29_hex20_sts_soft_penalty_reaction.csv"
+            initial_gap
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex20_sts_initial_gap_abaqus.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_29_hex20_sts_initial_gap_displacement.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_29_hex20_sts_initial_gap_force.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_29_hex20_sts_initial_gap_reaction.csv")
+    set_tests_properties(fuelsim_h20_29_hex20_sts_multicase_abaqus_tests
+        PROPERTIES LABELS "acceptance;three-dimensional;hex20;contact;nonmatching;abaqus")
+
     add_executable(fuelsim_h20_24_hex20_nonmatching_abaqus_tests
         tests/h20_nonmatching_contact_abaqus_tests.cpp)
     target_link_libraries(fuelsim_h20_24_hex20_nonmatching_abaqus_tests
