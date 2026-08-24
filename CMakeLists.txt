@@ -639,6 +639,19 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_b45_hex8_nonplanar_sts_abaqus_tests
         PROPERTIES LABELS "acceptance;three-dimensional;hex8;contact;finite-sliding;curved;warped-geometry;abaqus")
 
+    add_executable(fuelsim_b46_hex8_release_recontact_abaqus_tests
+        tests/b46_hex8_release_recontact_abaqus_tests.cpp)
+    target_link_libraries(fuelsim_b46_hex8_release_recontact_abaqus_tests
+        PRIVATE fuelsim_moose_test_support fuelsim::io)
+    fuelsim_enable_warnings(fuelsim_b46_hex8_release_recontact_abaqus_tests)
+    add_test(NAME fuelsim_b46_hex8_release_recontact_abaqus_tests
+        COMMAND fuelsim_b46_hex8_release_recontact_abaqus_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b46_hex8_release_recontact_mesh.e"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b46_hex8_release_recontact_nodes.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b46_hex8_release_recontact_contact.csv")
+    set_tests_properties(fuelsim_b46_hex8_release_recontact_abaqus_tests
+        PROPERTIES LABELS "acceptance;three-dimensional;hex8;contact;finite-sliding;release;recontact;abaqus")
+
     add_executable(fuelsim_hex20_solver_tests tests/hex20_solver_tests.cpp)
     target_link_libraries(fuelsim_hex20_solver_tests PRIVATE fuelsim::io fuelsim::solver)
     fuelsim_enable_warnings(fuelsim_hex20_solver_tests)

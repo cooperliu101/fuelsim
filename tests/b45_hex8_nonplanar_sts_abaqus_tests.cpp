@@ -348,8 +348,12 @@ double primary_face_warp(const GeneratedCase& generated) {
 void print_metric(const std::string& name, const fuelsim::test::FieldErrorMetrics& metric) {
     if (metric.has_relative_norm())
         fuelsim::test::print_relative_metrics(name, metric);
-    else
+    else {
         fuelsim::test::print_absolute_metrics(name, metric);
+        std::cout << name << "_zero_reference_count=" << metric.zero_reference_count << '\n'
+                  << name << "_maximum_zero_reference_absolute_difference=" << metric.maximum_zero_reference_difference
+                  << '\n';
+    }
 }
 
 bool compare(const GeneratedCase& generated, const std::string& mesh_path, const std::string& node_path,
