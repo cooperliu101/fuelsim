@@ -604,6 +604,21 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_b43_hex8_finite_strain_contact_abaqus_tests
         PROPERTIES LABELS "acceptance;three-dimensional;hex8;contact;finite-sliding;finite-strain;abaqus")
 
+    add_executable(fuelsim_b44_hex8_nonmatching_partial_contact_abaqus_tests
+        tests/b44_hex8_nonmatching_partial_contact_abaqus_tests.cpp)
+    target_link_libraries(fuelsim_b44_hex8_nonmatching_partial_contact_abaqus_tests
+        PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
+    fuelsim_enable_warnings(fuelsim_b44_hex8_nonmatching_partial_contact_abaqus_tests)
+    add_test(NAME fuelsim_b44_hex8_nonmatching_partial_contact_abaqus_tests
+        COMMAND fuelsim_b44_hex8_nonmatching_partial_contact_abaqus_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b44_hex8_nonmatching_partial_mesh.e"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b44_hex8_nonmatching_partial_nodes.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b44_hex8_nonmatching_partial_contact.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b44_hex8_nonmatching_partial_swapped_nodes.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b44_hex8_nonmatching_partial_swapped_contact.csv")
+    set_tests_properties(fuelsim_b44_hex8_nonmatching_partial_contact_abaqus_tests
+        PROPERTIES LABELS "acceptance;three-dimensional;hex8;contact;finite-sliding;finite-strain;nonmatching;abaqus")
+
     add_executable(fuelsim_hex20_solver_tests tests/hex20_solver_tests.cpp)
     target_link_libraries(fuelsim_hex20_solver_tests PRIVATE fuelsim::io fuelsim::solver)
     fuelsim_enable_warnings(fuelsim_hex20_solver_tests)
