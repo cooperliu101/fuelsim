@@ -178,7 +178,7 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
         std::size_t contact, secondary, secondary_face, secondary_local_point, reference_primary;
     };
 
-    struct Hex20AveragedConstraint final {
+    struct AbaqusAveragedConstraint final {
         std::size_t contact, secondary;
         std::vector<std::size_t> nodes, secondary_output_nodes;
         std::vector<double> gap_coefficients, secondary_coefficients;
@@ -186,7 +186,7 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
         double reference_gap, area;
     };
 
-    struct Hex20AveragedConstraintValue final {
+    struct AbaqusAveragedConstraintValue final {
         double gap, pressure, force, stick_stiffness, trial_tangential_magnitude, tangential_force;
         std::array<double, 3> trial_tangential_traction, tangential_traction, tangential_slip, elastic_tangential_slip;
         bool sliding;
@@ -215,13 +215,14 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     Quad4SurfaceContactLocalDofs contact_dofs(const std::array<std::size_t, 8>& nodes) const;
     Quad8SurfaceContactLocalDofs hex20_contact_dofs(const Hex20ThermalCandidate& candidate) const;
     Quad8SurfaceContactLocalDofs hex20_contact_dofs(const Hex20MechanicalCandidate& candidate) const;
-    void hex20_averaged_constraint_dofs(
-        const Hex20AveragedConstraint& constraint, std::vector<std::size_t>& dofs) const;
-    Hex20AveragedConstraintValue hex20_averaged_constraint_value(const Hex20AveragedConstraint& constraint,
+    void averaged_constraint_dofs(const AbaqusAveragedConstraint& constraint, std::vector<std::size_t>& dofs) const;
+    AbaqusAveragedConstraintValue averaged_constraint_value(const AbaqusAveragedConstraint& constraint,
         const std::vector<double>& state, const std::vector<double>& committed_state,
         const ContactPointHistory& history) const;
-    void compute_hex20_averaged_constraint(const Hex20AveragedConstraint& constraint, const std::vector<double>& state,
+    void compute_averaged_constraint(const AbaqusAveragedConstraint& constraint, const std::vector<double>& state,
         std::vector<double>& residual, std::vector<double>* jacobian) const;
+    bool summarize_averaged_contact(std::size_t contact, const std::vector<double>& state,
+        std::vector<CartesianContactNodeSummary>& summaries) const;
     Quad4SurfaceContactLocalValues contribution_state(std::size_t index, const std::vector<double>& global_state) const;
     Quad4SurfaceContactLocalValues contact_state(
         const std::array<std::size_t, 8>& nodes, const std::vector<double>& global_state) const;
@@ -252,7 +253,7 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     std::vector<std::vector<Hex20PrimaryContactFace>> _hex20_primary_contact_faces;
     std::vector<std::vector<Hex20SecondaryContactFace>> _hex20_secondary_contact_faces;
     std::vector<Hex20MechanicalPoint> _hex20_mechanical_points;
-    std::vector<Hex20AveragedConstraint> _hex20_averaged_constraints;
+    std::vector<AbaqusAveragedConstraint> _abaqus_averaged_constraints;
     std::vector<std::size_t> _thermal_point_counts, _thermal_contact_offsets, _mechanical_contact_offsets,
         _sparsity_contact_offsets;
     mutable std::vector<unsigned char> _touched_thermal_points, _touched_mechanical_nodes;

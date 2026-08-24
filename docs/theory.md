@@ -445,11 +445,42 @@ F_n = pressure * A_secondary_tributary
 该节点得到 `+F_n*n` 残量，primary 两节点按投影形函数得到总和为
 `-F_n*n` 的残量，因此径向和轴向反力离散守恒。
 
-### 8.2 HEX20 表面到面机械接触
+### 8.2 三维表面到面机械接触
 
-HEX20 默认不把罚刚度集总到八个 secondary 节点，而是在当前 secondary 二次面上
-使用 3×3 高斯积分。primary 和 secondary 面的数量及分片可以不同；每个积分点独立投影到唯一 primary 二次面，间隙、当前法向、
-压力和摩擦牵引都在该点计算。离散残量为：
+#### 8.2.1 HEX8 小滑移节点中心约束
+
+HEX8 必须显式选择 `discretization = surface_to_surface` 和 `sliding = small`，并且
+接触两侧都必须采用小应变。Abaqus B3.8 控制探针表明，一个 C3D8 secondary 四节点面
+产生四个节点位置约束。约束开度不是单个 secondary 节点的位移，而是四节点位移经过
+下列固定平均矩阵后的值：
+
+```text
+A4 = (1/16) * [9 3 1 3; 3 9 3 1; 1 3 9 3; 3 1 3 9]
+```
+
+这等价于在 QUAD4 父坐标 `(±0.5,±0.5)` 计算形函数。每个约束面积为面面积的四分
+之一；匹配平面上的法向罚切线精确分解为：
+
+```text
+K_contact = penalty * transpose(A4) * diag(area/4) * A4
+```
+
+对于非匹配 primary 和 secondary 网格，构造期按参考投影所有权递归分割 secondary
+面，再用 3×3 积分把上述平均约束的对偶测试函数守恒地投影到所有相交 primary 面。
+每个唯一 secondary 节点最终只形成一个节点中心约束，固定其参考 primary 支持和参考
+切平面。该过程没有引入接触乘子，也不是经典 mortar 离散。
+
+法向与两个切向分量使用同一个相对位移算子，所以作用力和反作用力严格守恒。Coulomb
+摩擦在固定参考切平面内保存三分量弹性切向滑移向量和粘滑状态，并参与提交、回滚及
+检查点事务。HEX8 面对面路径不支持有限滑移或有限应变；这两类输入在问题构造时明确
+拒绝。HEX8 省略 `discretization` 时仍采用原有节点到面路径。
+
+#### 8.2.2 HEX20 节点中心约束和积分路径
+
+两侧小应变且选择小滑移时，HEX20 使用八个 Abaqus 对标识别出的二次节点中心约束。
+有限滑移或任一侧采用有限应变时，则在当前 secondary 二次面上使用 3×3 高斯积分。
+primary 和 secondary 面的数量及分片可以不同；每个积分点独立投影到唯一 primary
+二次面，间隙、当前法向、压力和摩擦牵引都在该点计算。积分路径的离散残量为：
 
 ```text
 R_secondary_i = integral(N_secondary_i * (pressure*n + traction_t) dA)
@@ -461,13 +492,13 @@ R_primary_j   = -integral(N_primary_j * (pressure*n + traction_t) dA)
 `penalty * B_gap^T * B_gap * dA` 的非负耦合形式。Q8 角点的等效节点力可以为负，
 但它只是上述一致残量的投影结果，不是负的对角罚弹簧。
 
-Coulomb 弹性切向滑移和粘滑状态各保存九份。提交、回滚和检查点都以积分点为事务
-单位。输出的节点压力由一致等效节点力除以一致等效节点面积恢复，只用于结果展示。
+Coulomb 弹性切向滑移和粘滑状态在积分路径中各保存九份。提交、回滚和检查点都以
+积分点为事务单位。输出的节点压力由一致等效节点力除以一致等效节点面积恢复，只用于结果展示。
 输入显式选择 `node_to_surface` 时才使用旧的八节点投影和
 `quad8_nodal_area_rule`，该路径用于算法研究与传统 MOOSE node-face 对比。
 
-`sliding = small` 固定参考构形确定的 primary 面；`sliding = finite` 则在每次状态
-验证中按当前构形为每个积分点重新搜索完整 primary 面集合。候选投影以最小绝对间隙
+HEX20 的 `sliding = small` 固定参考构形确定的 primary 面；`sliding = finite` 则在每次
+状态验证中按当前构形为每个积分点重新搜索完整 primary 面集合。候选投影以最小绝对间隙
 选择，共边的相等候选按稳定面序号只保留一个；滑出完整表面会触发几何域错误并进入
 线搜索或载荷步缩减。超过 64 个 primary 面时使用当前包围盒空间树，矩阵稀疏结构仍在
 构造期为全部潜在面配对预留。
@@ -714,9 +745,10 @@ max_pointwise_relative = max_i |x_i-x_ref_i|/|x_ref_i|
 
 | 理论或工程组成 | 验证矩阵标识 | 主要证据 |
 | --- | --- | --- |
-| 严格输入和问题构造 | `input.v2`、`io.exodus` | 输入拒绝测试、具名材料参数、Exodus 元数据回读、严格重启动 |
+| 严格输入和问题构造 | `input.v3`、`io.exodus` | 输入拒绝测试、具名材料参数、Exodus 元数据回读、严格重启动 |
 | 稳态 RZ 体弱式 | `m0.steady` | 实心圆柱温度、自由热膨胀、厚壁圆筒和 MOOSE 全场 |
 | 无摩擦热—力接触 | `m1.contact`、`m33.contact` | 非匹配 STS/NTS、斜面、端面、多区域和 MOOSE 全场 |
+| HEX8 小滑移表面到面接触 | `b38.hex8_sts_identification`、`b39.hex8_sts_multicase`、`b40.hex8_sts_friction` | Abaqus 约束识别、匹配与非匹配场量、倾斜初始间隙、双切向摩擦、切线、事务、重启动和 MPI 等价 |
 | Coulomb 摩擦 | `m51.friction` | 粘着、滑移、反向再粘着、局部切线、守恒和 MOOSE |
 | 完整链大滑移搜索 | `m52.large_sliding` | 跨多段所有权、力连续、MPI 等价、重启动和 MOOSE |
 | 自动罚刚度和增广法 | `m54.augmented_contact` | 串联刚度、乘子事务、穿透门槛和约束极限 MOOSE 对比 |

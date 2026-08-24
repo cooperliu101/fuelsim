@@ -48,6 +48,8 @@ struct Quad4FaceGeometry final {
 };
 
 Hex8Geometry make_hex8_geometry(const Hex8Coordinates& coordinates);
+Quad4FaceQuadraturePoint make_quad4_face_quadrature_point(
+    const Quad4FaceCoordinates& coordinates, double xi, double eta, double quadrature_weight);
 Quad4FaceGeometry make_quad4_face_geometry(const Quad4FaceCoordinates& coordinates);
 
 struct CartesianThermoelasticData final {

@@ -285,6 +285,24 @@ ContactProjectionValue compute_quad4_to_quad4_heat_projection(
     return {projection.projected, projection.projected ? projection.gap.value() : 0.0};
 }
 
+Quad4ReferenceProjectionValue compute_quad4_reference_projection(
+    const std::array<CartesianPoint3, 4>& secondary_coordinates,
+    const std::array<CartesianPoint3, 4>& primary_coordinates, const std::array<double, 4>& secondary_shape,
+    double normal_orientation) {
+    const Quad4SurfaceContactLocalValues state{};
+    const std::array<ActivePoint3, 8> nodes =
+        current_nodes(secondary_coordinates, primary_coordinates, make_ad_state(state, false));
+    const SurfaceProjection projection =
+        project_to_primary(interpolate_point(nodes, 0, secondary_shape), nodes, normal_orientation);
+    Quad4ReferenceProjectionValue result{};
+    result.projected = projection.projected;
+    if (!projection.projected) return result;
+    for (std::size_t node = 0; node < 4; ++node) result.primary_shape[node] = projection.primary_shape[node].value();
+    result.normal = {projection.normal[0].value(), projection.normal[1].value(), projection.normal[2].value()};
+    result.gap = projection.gap.value();
+    return result;
+}
+
 Quad4SurfaceContactLocalResidual compute_node_to_quad4_contact(const NormalContactProperties& properties,
     const NodeToQuad4ContactGeometry& geometry, const Quad4SurfaceContactLocalValues& state,
     const Quad4SurfaceContactLocalValues& committed_state, const ContactPointHistory& history,

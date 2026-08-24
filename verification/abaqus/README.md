@@ -699,3 +699,125 @@ transporting a nonzero two-component elastic-slip history, reverse edge
 crossing, slide-out rejection and rollback, an end-to-end four-load-step solve
 for both strain formulations, and a 65-primary-face case that forces the
 spatial search-tree path.
+
+## B3.8 C3D8 small-sliding surface-to-surface operator identification
+
+B3.8 uses one matching pair of flat C3D8 faces with a `1e8 Pa/m` linear normal
+penalty. A uniform `1e-4 m` closure establishes the active base state, and four
+centered perturbation pairs move one secondary node at a time. The Abaqus data
+file reports four internal contact elements, node-positioned surface-to-surface
+constraints, penalty enforcement, and no supplementary constraints.
+
+The opening perturbations identify the Q4 shape matrix at parent coordinates
+`(±0.5,±0.5)`:
+
+```text
+A4 = (1/16) * [9 3 1 3; 3 9 3 1; 1 3 9 3; 3 1 3 9]
+```
+
+The force tangent factors as `penalty * transpose(A4) * diag(area/4) * A4`.
+The identified opening operator differs from this expression by at most
+`1.50713e-14`, and the relative L2 force-tangent difference is `8.52504e-14`.
+The Fuelsim production constraint reproduces the Abaqus opening and force
+tangents with relative L2 errors `4.26831e-14` and `3.20287e-14`; its local
+Jacobian directional error is `2.50383e-11`, and its three-component residual
+imbalance is below `2.3e-13 N`.
+
+The reference is reproduced with Abaqus/Standard R2018x by:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass `
+  -File "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus\run_b38_probe.ps1" `
+  -SourceDirectory "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus"
+```
+
+## B3.9 C3D8 small-sliding multi-aspect acceptance
+
+B3.9 compares three end-to-end C3D8 contact problems using tracked Exodus
+meshes: a matching face pair, a face pair independently refined in both surface
+directions, and a nonmatching interface rotated by 25 degrees with a nonzero
+initial gap. Abaqus and Fuelsim use the same small-strain material constants,
+linear penalty, prescribed final normal closure, and small-sliding
+surface-to-surface contact. Fuelsim reaches the final state in four load steps;
+the frictionless Abaqus quasi-static step may subdivide the same monotonic
+closure because no tangential history is active in this comparison.
+
+Both materials deliberately use Poisson ratio zero. Abaqus C3D8 employs its
+selective reduced-integration volumetric treatment for nonzero Poisson ratio,
+whereas the Fuelsim HEX8 body kernel uses standard full integration. A previous
+Poisson-ratio `0.25` diagnostic produced a consistent `3.35%` force difference
+from that body-element distinction. Poisson ratio zero isolates the contact
+operator being accepted here; B3.9 must not be cited as full C3D8 volumetric
+element equivalence.
+
+Every mesh-node normal displacement and every secondary nodal normal force is
+compared using relative L2, relative absolute-peak, and maximum pointwise-
+relative error without a denominator floor. Exact-zero references are counted
+and checked separately. The largest measured errors are:
+
+| Case and field | Relative L2 | Relative absolute peak | Maximum pointwise relative |
+| --- | ---: | ---: | ---: |
+| nonmatching displacement | `0.0282390%` | `0%` | `0.0861383%` |
+| nonmatching nodal force | `0.156150%` | `0.0316309%` | `0.349265%` |
+| tilted-gap displacement | `0.0504675%` | `1.42e-14%` | `0.252656%` |
+| tilted-gap nodal force | `0.0240631%` | `0.0225985%` | `0.0362775%` |
+
+The worst normal-resultant error is `0.000872460%`. All field and resultant
+metrics are below `1%`. The same test checks one averaged constraint per unique
+secondary node, centered-difference Jacobians below `3.1e-10`, exact
+three-component action-reaction balance to `1.6e-12 N`, the inclined normal,
+and one-rank/two-rank state and contribution-ownership equivalence.
+
+The three references are reproduced by:
+
+```bash
+build/fuelsim_b39_hex8_sts_multicase_abaqus_tests --generate \
+  verification/abaqus verification/fuelsim
+```
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass `
+  -File "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus\run_b39.ps1" `
+  -SourceDirectory "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus"
+```
+
+## B4.0 C3D8 biaxial Coulomb friction history
+
+B4.0 fixes both C3D8 blocks and prescribes the secondary contact face directly.
+The normal closure is `1e-4 m`, the linear penalty is `1e8 Pa/m`, and the friction
+coefficient is `0.3`. The Abaqus relative slip tolerance is `1e-5` on this unit
+characteristic-length face, so its effective absolute distance and Fuelsim
+`elastic_slip` are both `1e-5 m`. Four prescribed states use two simultaneous
+tangent components and exercise sticking, first entry onto the Coulomb circle,
+a change of sliding direction, and continued sliding.
+
+Abaqus uses exactly one increment per prescribed state. This is essential for a
+history comparison: subdividing each Abaqus step into ten increments commits a
+different sequence of return mappings than Fuelsim's one committed physical
+step and changes the direction-change response by 6 to 16 percent. Matching the
+increment sequence is part of matching the loading path, not a fitted contact
+coefficient.
+
+Signed normal force, both signed tangential nodal-force components, both total
+slip components, opening, pressure, and all resultants agree at approximately
+`1e-10%` or better. Forty-eight theoretical-zero force components have a
+maximum absolute difference of `5.20417e-14 N`. The sticking and sliding local
+Jacobian directional errors are `2.97062e-12` and `4.64806e-9`, and a checkpoint
+after biaxial sliding reproduces the uninterrupted nodal state and both elastic-
+slip history components exactly. Constraint flags at a state lying exactly on
+the Coulomb circle can differ by roundoff; the acceptance checks the physical
+traction circle and that sliding is reached, rather than requiring an arbitrary
+tie-breaking flag count.
+
+The reference is reproduced by:
+
+```bash
+build/fuelsim_b40_hex8_sts_friction_abaqus_tests --generate \
+  verification/abaqus verification/fuelsim
+```
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass `
+  -File "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus\run_b40.ps1" `
+  -SourceDirectory "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus"
+```

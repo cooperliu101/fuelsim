@@ -112,6 +112,13 @@ struct Quad4ToQuad4HeatGeometry final {
     double normal_orientation;
 };
 
+struct Quad4ReferenceProjectionValue final {
+    bool projected;
+    std::array<double, 4> primary_shape;
+    CartesianPoint3 normal;
+    double gap;
+};
+
 struct NodeToQuad4ContactGeometry final {
     std::array<CartesianPoint3, 4> secondary_coordinates, primary_coordinates;
     std::array<std::array<double, 4>, 4> secondary_shapes, secondary_derivatives_xi, secondary_derivatives_eta;
@@ -138,6 +145,10 @@ CartesianHeatQuadratureValue compute_quad4_to_quad4_gap_heat_value(const GapHeat
     const Quad4ToQuad4HeatGeometry& geometry, const Quad4SurfaceContactLocalValues& state);
 ContactProjectionValue compute_quad4_to_quad4_heat_projection(
     const Quad4ToQuad4HeatGeometry& geometry, const Quad4SurfaceContactLocalValues& state);
+Quad4ReferenceProjectionValue compute_quad4_reference_projection(
+    const std::array<CartesianPoint3, 4>& secondary_coordinates,
+    const std::array<CartesianPoint3, 4>& primary_coordinates, const std::array<double, 4>& secondary_shape,
+    double normal_orientation);
 Quad4SurfaceContactLocalResidual compute_node_to_quad4_contact(const NormalContactProperties& properties,
     const NodeToQuad4ContactGeometry& geometry, const Quad4SurfaceContactLocalValues& state,
     const Quad4SurfaceContactLocalValues& committed_state, const ContactPointHistory& history,

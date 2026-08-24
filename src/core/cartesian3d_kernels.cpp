@@ -436,37 +436,39 @@ Hex8Geometry make_hex8_geometry(const Hex8Coordinates& coordinates) {
     return geometry;
 }
 
+Quad4FaceQuadraturePoint make_quad4_face_quadrature_point(
+    const Quad4FaceCoordinates& coordinates, double xi, double eta, double quadrature_weight) {
+    Quad4FaceQuadraturePoint point{};
+    point.shape = {{0.25 * (1.0 - xi) * (1.0 - eta), 0.25 * (1.0 + xi) * (1.0 - eta), 0.25 * (1.0 + xi) * (1.0 + eta),
+        0.25 * (1.0 - xi) * (1.0 + eta)}};
+    point.derivative_xi = {{-0.25 * (1.0 - eta), 0.25 * (1.0 - eta), 0.25 * (1.0 + eta), -0.25 * (1.0 + eta)}};
+    point.derivative_eta = {{-0.25 * (1.0 - xi), -0.25 * (1.0 + xi), 0.25 * (1.0 + xi), 0.25 * (1.0 - xi)}};
+    for (std::size_t node = 0; node < 4; ++node) {
+        point.tangent_xi.x += point.derivative_xi[node] * coordinates[node].x;
+        point.tangent_xi.y += point.derivative_xi[node] * coordinates[node].y;
+        point.tangent_xi.z += point.derivative_xi[node] * coordinates[node].z;
+        point.tangent_eta.x += point.derivative_eta[node] * coordinates[node].x;
+        point.tangent_eta.y += point.derivative_eta[node] * coordinates[node].y;
+        point.tangent_eta.z += point.derivative_eta[node] * coordinates[node].z;
+    }
+    const CartesianPoint3 area_vector{
+        point.tangent_xi.y * point.tangent_eta.z - point.tangent_xi.z * point.tangent_eta.y,
+        point.tangent_xi.z * point.tangent_eta.x - point.tangent_xi.x * point.tangent_eta.z,
+        point.tangent_xi.x * point.tangent_eta.y - point.tangent_xi.y * point.tangent_eta.x};
+    const double measure =
+        std::sqrt(area_vector.x * area_vector.x + area_vector.y * area_vector.y + area_vector.z * area_vector.z);
+    if (!std::isfinite(measure) || !(measure > 0.0) || !std::isfinite(quadrature_weight) || !(quadrature_weight > 0.0))
+        throw std::invalid_argument("Quad4 face quadrature point requires finite positive measure and weight");
+    point.weighted_measure = quadrature_weight * measure;
+    return point;
+}
+
 Quad4FaceGeometry make_quad4_face_geometry(const Quad4FaceCoordinates& coordinates) {
     Quad4FaceGeometry geometry{};
     const std::array<std::array<double, 2>, 4> locations = {
         {{{-gauss, -gauss}}, {{gauss, -gauss}}, {{gauss, gauss}}, {{-gauss, gauss}}}};
-    for (std::size_t q = 0; q < locations.size(); ++q) {
-        const double xi = locations[q][0], eta = locations[q][1];
-        const std::array<double, 4> shape = {{0.25 * (1.0 - xi) * (1.0 - eta), 0.25 * (1.0 + xi) * (1.0 - eta),
-            0.25 * (1.0 + xi) * (1.0 + eta), 0.25 * (1.0 - xi) * (1.0 + eta)}};
-        const std::array<double, 4> derivative_xi = {
-            {-0.25 * (1.0 - eta), 0.25 * (1.0 - eta), 0.25 * (1.0 + eta), -0.25 * (1.0 + eta)}};
-        const std::array<double, 4> derivative_eta = {
-            {-0.25 * (1.0 - xi), -0.25 * (1.0 + xi), 0.25 * (1.0 + xi), 0.25 * (1.0 - xi)}};
-        CartesianPoint3 tangent_xi{0.0, 0.0, 0.0};
-        CartesianPoint3 tangent_eta{0.0, 0.0, 0.0};
-        for (std::size_t node = 0; node < 4; ++node) {
-            tangent_xi.x += derivative_xi[node] * coordinates[node].x;
-            tangent_xi.y += derivative_xi[node] * coordinates[node].y;
-            tangent_xi.z += derivative_xi[node] * coordinates[node].z;
-            tangent_eta.x += derivative_eta[node] * coordinates[node].x;
-            tangent_eta.y += derivative_eta[node] * coordinates[node].y;
-            tangent_eta.z += derivative_eta[node] * coordinates[node].z;
-        }
-        const CartesianPoint3 area_vector{tangent_xi.y * tangent_eta.z - tangent_xi.z * tangent_eta.y,
-            tangent_xi.z * tangent_eta.x - tangent_xi.x * tangent_eta.z,
-            tangent_xi.x * tangent_eta.y - tangent_xi.y * tangent_eta.x};
-        const double measure =
-            std::sqrt(area_vector.x * area_vector.x + area_vector.y * area_vector.y + area_vector.z * area_vector.z);
-        if (!std::isfinite(measure) || !(measure > 0.0))
-            throw std::invalid_argument("Quad4FaceGeometry requires a finite positive area measure");
-        geometry.points[q] = {shape, derivative_xi, derivative_eta, tangent_xi, tangent_eta, measure};
-    }
+    for (std::size_t q = 0; q < locations.size(); ++q)
+        geometry.points[q] = make_quad4_face_quadrature_point(coordinates, locations[q][0], locations[q][1], 1.0);
     return geometry;
 }
 

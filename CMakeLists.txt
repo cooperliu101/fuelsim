@@ -508,6 +508,57 @@ if(BUILD_TESTING)
             "${CMAKE_CURRENT_BINARY_DIR}/hex8_checkpoint.bin")
     set_tests_properties(fuelsim_hex8_solver_tests PROPERTIES LABELS "integration;three-dimensional")
 
+    add_executable(fuelsim_b38_hex8_sts_identification_tests
+        tests/b38_hex8_sts_identification_tests.cpp)
+    target_link_libraries(fuelsim_b38_hex8_sts_identification_tests
+        PRIVATE fuelsim::io fuelsim::solver)
+    fuelsim_enable_warnings(fuelsim_b38_hex8_sts_identification_tests)
+    add_test(NAME fuelsim_b38_hex8_sts_identification_tests
+        COMMAND fuelsim_b38_hex8_sts_identification_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b38_hex8_sts_operator.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b38_hex8_sts_contact_summary.txt")
+    set_tests_properties(fuelsim_b38_hex8_sts_identification_tests
+        PROPERTIES LABELS "acceptance;three-dimensional;hex8;contact;abaqus;identification")
+
+    add_executable(fuelsim_b39_hex8_sts_multicase_abaqus_tests
+        tests/b39_hex8_sts_multicase_abaqus_tests.cpp)
+    target_link_libraries(fuelsim_b39_hex8_sts_multicase_abaqus_tests
+        PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
+    fuelsim_enable_warnings(fuelsim_b39_hex8_sts_multicase_abaqus_tests)
+    add_test(NAME fuelsim_b39_hex8_sts_multicase_abaqus_tests
+        COMMAND fuelsim_b39_hex8_sts_multicase_abaqus_tests
+            matching
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex8_sts_matching_abaqus.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b39_hex8_sts_matching_displacement.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b39_hex8_sts_matching_force.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b39_hex8_sts_matching_reaction.csv"
+            nonmatching
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex8_sts_nonmatching_abaqus.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b39_hex8_sts_nonmatching_displacement.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b39_hex8_sts_nonmatching_force.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b39_hex8_sts_nonmatching_reaction.csv"
+            tilted_gap
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex8_sts_tilted_gap_abaqus.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b39_hex8_sts_tilted_gap_displacement.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b39_hex8_sts_tilted_gap_force.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b39_hex8_sts_tilted_gap_reaction.csv")
+    set_tests_properties(fuelsim_b39_hex8_sts_multicase_abaqus_tests
+        PROPERTIES LABELS "acceptance;three-dimensional;hex8;contact;nonmatching;tilted;abaqus")
+
+    add_executable(fuelsim_b40_hex8_sts_friction_abaqus_tests
+        tests/b40_hex8_sts_friction_abaqus_tests.cpp)
+    target_link_libraries(fuelsim_b40_hex8_sts_friction_abaqus_tests
+        PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
+    fuelsim_enable_warnings(fuelsim_b40_hex8_sts_friction_abaqus_tests)
+    add_test(NAME fuelsim_b40_hex8_sts_friction_abaqus_tests
+        COMMAND fuelsim_b40_hex8_sts_friction_abaqus_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_hex8_sts_friction_abaqus.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b40_hex8_sts_friction_contact.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b40_hex8_sts_friction_reaction.csv"
+            "${CMAKE_CURRENT_BINARY_DIR}/b40_hex8_sts_friction_checkpoint.bin")
+    set_tests_properties(fuelsim_b40_hex8_sts_friction_abaqus_tests
+        PROPERTIES LABELS "acceptance;three-dimensional;hex8;contact;friction;restart;abaqus")
+
     add_executable(fuelsim_hex20_solver_tests tests/hex20_solver_tests.cpp)
     target_link_libraries(fuelsim_hex20_solver_tests PRIVATE fuelsim::io fuelsim::solver)
     fuelsim_enable_warnings(fuelsim_hex20_solver_tests)
@@ -1139,6 +1190,28 @@ if(BUILD_TESTING)
         set_tests_properties(fuelsim_b33_mpi_equivalence PROPERTIES
             FIXTURES_REQUIRED b33_mpi_reference
             LABELS "acceptance;parallel;three-dimensional;contact"
+            PROCESSORS 2
+        )
+        add_test(NAME fuelsim_b39_hex8_sts_mpi_reference
+            COMMAND fuelsim_mpi_equivalence_benchmark
+                write
+                "${CMAKE_CURRENT_BINARY_DIR}/b39_hex8_sts_one_rank_state.txt"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex8_sts_nonmatching_abaqus.fsi"
+        )
+        set_tests_properties(fuelsim_b39_hex8_sts_mpi_reference PROPERTIES
+            FIXTURES_SETUP b39_hex8_sts_mpi_reference
+            LABELS "integration;parallel;three-dimensional;hex8;contact;surface-to-surface"
+        )
+        add_test(NAME fuelsim_b39_hex8_sts_mpi_equivalence
+            COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2
+                $<TARGET_FILE:fuelsim_mpi_equivalence_benchmark>
+                compare
+                "${CMAKE_CURRENT_BINARY_DIR}/b39_hex8_sts_one_rank_state.txt"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex8_sts_nonmatching_abaqus.fsi"
+        )
+        set_tests_properties(fuelsim_b39_hex8_sts_mpi_equivalence PROPERTIES
+            FIXTURES_REQUIRED b39_hex8_sts_mpi_reference
+            LABELS "acceptance;parallel;three-dimensional;hex8;contact;surface-to-surface"
             PROCESSORS 2
         )
         add_test(NAME fuelsim_mpi_field_split
