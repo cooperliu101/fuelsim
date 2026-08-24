@@ -652,6 +652,32 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_b46_hex8_release_recontact_abaqus_tests
         PROPERTIES LABELS "acceptance;three-dimensional;hex8;contact;finite-sliding;release;recontact;abaqus")
 
+    add_executable(fuelsim_b47_hex8_scale_parameter_abaqus_tests
+        tests/b47_hex8_scale_parameter_abaqus_tests.cpp)
+    target_link_libraries(fuelsim_b47_hex8_scale_parameter_abaqus_tests
+        PRIVATE fuelsim_moose_test_support fuelsim::io)
+    fuelsim_enable_warnings(fuelsim_b47_hex8_scale_parameter_abaqus_tests)
+    add_test(NAME fuelsim_b47_hex8_scale_parameter_abaqus_tests
+        COMMAND fuelsim_b47_hex8_scale_parameter_abaqus_tests
+            unit
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b47_hex8_scale_unit_mesh.e"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b47_hex8_scale_unit_nodes.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b47_hex8_scale_unit_contact.csv"
+            aspect16
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b47_hex8_scale_aspect16_mesh.e"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b47_hex8_scale_aspect16_nodes.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b47_hex8_scale_aspect16_contact.csv"
+            area4
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b47_hex8_scale_area4_mesh.e"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b47_hex8_scale_area4_nodes.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b47_hex8_scale_area4_contact.csv"
+            area_quarter
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b47_hex8_scale_area_quarter_mesh.e"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b47_hex8_scale_area_quarter_nodes.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b47_hex8_scale_area_quarter_contact.csv")
+    set_tests_properties(fuelsim_b47_hex8_scale_parameter_abaqus_tests
+        PROPERTIES LABELS "acceptance;three-dimensional;hex8;contact;friction;small-sliding;scale;abaqus")
+
     add_executable(fuelsim_hex20_solver_tests tests/hex20_solver_tests.cpp)
     target_link_libraries(fuelsim_hex20_solver_tests PRIVATE fuelsim::io fuelsim::solver)
     fuelsim_enable_warnings(fuelsim_hex20_solver_tests)
