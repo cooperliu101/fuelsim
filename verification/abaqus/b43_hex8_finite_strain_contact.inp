@@ -1,0 +1,84 @@
+*Heading
+** B4.3 deformable C3D8 finite-strain finite-sliding STS contact.
+*Preprint, echo=NO, model=NO, history=NO, contact=YES
+*Node
+1, 0, 0, -0.25
+2, 1, 0, -0.25
+3, 1, 1, -0.25
+4, 0, 1, -0.25
+5, 0, 0, 1.25
+6, 1, 0, 1.25
+7, 1, 1, 1.25
+8, 0, 1, 1.25
+9, 1, 0, 0
+10, 2, 0, 0
+11, 2, 1, 0
+12, 1, 1, 0
+13, 1, 0, 1
+14, 2, 0, 1
+15, 2, 1, 1
+16, 1, 1, 1
+*Element, type=C3D8, elset=PRIMARY
+1, 1, 2, 3, 4, 5, 6, 7, 8
+*Element, type=C3D8, elset=SECONDARY
+2, 9, 10, 11, 12, 13, 14, 15, 16
+*Nset, nset=PRIMARY_ALL_NODES
+1, 2, 3, 4, 5, 6, 7, 8
+*Nset, nset=SECONDARY_ALL_NODES
+9, 10, 11, 12, 13, 14, 15, 16
+*Nset, nset=SECONDARY_CONTACT_NODES
+9, 12, 13, 16
+*Nset, nset=PRIMARY_Y0
+1, 2, 5, 6
+*Nset, nset=PRIMARY_Y1
+3, 4, 7, 8
+*Nset, nset=PRIMARY_Z0
+1, 2, 3, 4
+*Nset, nset=PRIMARY_Z1
+5, 6, 7, 8
+*Nset, nset=SECONDARY_Y0
+9, 10, 13, 14
+*Nset, nset=SECONDARY_Y1
+11, 12, 15, 16
+*Nset, nset=SECONDARY_Z0
+9, 10, 11, 12
+*Nset, nset=SECONDARY_Z1
+13, 14, 15, 16
+*Surface, type=ELEMENT, name=PRIMARY_CONTACT
+PRIMARY, S4
+*Surface, type=ELEMENT, name=SECONDARY_CONTACT
+SECONDARY, S6
+*Material, name=ELASTIC
+*Elastic
+1.e7, 0.
+*Solid Section, elset=PRIMARY, material=ELASTIC
+,
+*Solid Section, elset=SECONDARY, material=ELASTIC
+,
+*Surface Interaction, name=CONTACT
+*Surface Behavior, pressure-overclosure=LINEAR
+1.e8,
+*Contact Pair, interaction=CONTACT, type=SURFACE TO SURFACE, adjust=0.
+SECONDARY_CONTACT, PRIMARY_CONTACT
+*Step, name=DEFORM, nlgeom=YES, inc=20
+*Static
+1., 20., 1., 1.
+*Boundary
+PRIMARY_Y0, 1, 1, -0.015
+PRIMARY_Y1, 1, 1, 0.015
+PRIMARY_Y0, 2, 2, -0.05
+PRIMARY_Y1, 2, 2, 0.05
+PRIMARY_Z0, 3, 3, -0.06
+PRIMARY_Z1, 3, 3, 0.06
+SECONDARY_Y0, 1, 1, -0.095
+SECONDARY_Y1, 1, 1, -0.065
+SECONDARY_Y0, 2, 2, -0.05
+SECONDARY_Y1, 2, 2, 0.05
+SECONDARY_Z0, 3, 3, -0.02
+SECONDARY_Z1, 3, 3, 0.06
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U
+*Contact Output
+CSTRESS, CDISP, CFORCE
+*End Step

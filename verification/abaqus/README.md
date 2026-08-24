@@ -929,3 +929,56 @@ The tracked SHA-256 values for the input, result, extractor, and runner are
 `9f771e5b5f03a46efb94d31dbbfdf40b21802bf4fdd8bd5e472107f81facc770`,
 `acdaab8c1ca373dd9585bafc813e01a6cfcfd6034570573e40fc0b3bf0072005`, and
 `29b5b46306265ca2dbbfc8d09bc29e4bd9a170b501f6f6b40fdba5bd96357c3a`.
+
+## B4.3 C3D8 true finite-strain contact geometry
+
+B4.3 prescribes the same affine finite deformation to two C3D8 blocks, then
+adds `0.08 m` normal penetration and `0.02 m` axial relative sliding to the
+secondary block. Both Fuelsim regions use `strain = finite`, and Abaqus uses
+`NLGEOM=YES`. The twenty one-unit increments are identical. The deformed
+secondary surface area changes by `18.8442%`, while the contact-normal
+transverse-to-normal force ratio reaches `2.72727%`. The primary face is wider
+than the secondary face in the sliding direction so that this case isolates
+current area, current normal, current projection, and current force transfer;
+finite-boundary partial overlap is reserved for B4.4.
+
+All sixteen current nodal coordinates agree to `1.12e-16 m`. The worst normal
+nodal-force maximum pointwise-relative error is `0.0149829%`; the complete
+global resultant, moment, and force-center errors are each below `0.0081%`.
+Pressure has a `0.000111383%` maximum pointwise error. The third global normal-
+force and resultant components are theoretical zeros and have maximum absolute
+differences of `9.99e-11 N` and `2.91e-10 N`, respectively. Both local tangent-
+plane traction components are exactly zero at all eighty node-increment samples.
+
+Abaqus `CSLIP` includes a small accumulated component caused by the rotating
+surface coordinate system even for a purely normal relative motion. Therefore
+the acceptance path contains a dominant explicit axial relative slide. The
+Fuelsim public finite-sliding local update is replayed increment by increment in
+an always-sticking diagnostic to recover the objective cumulative kinematic
+slip. Its relative L2, relative absolute-peak, and maximum pointwise-relative
+errors are `0.389820%`, `0.386772%`, and `0.400004%`. All four constraints remain
+projected and active. The existing local automatic-differentiation test checks
+the same finite-sliding residual and Jacobian against a centered directional
+difference away from open/close and stick/slip transitions.
+
+The input is regenerated and the Abaqus reference is reproduced by:
+
+```bash
+build/fuelsim_b43_hex8_finite_strain_contact_abaqus_tests --generate \
+  verification/abaqus verification/fuelsim
+```
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass `
+  -File "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus\run_b43.ps1" `
+  -SourceDirectory "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus"
+```
+
+The tracked SHA-256 values for the input, Exodus mesh, all-node result, contact
+result, extractor, and runner are respectively
+`ca89b72e625d9abd0447ad4adbea86495e68bf5316beadc7d6c68c729a8b1316`,
+`0df170feef7e5f9b49766948cae0806d7e305593c3945b31181ea47f1b346220`,
+`83e04db1232771ab691bc32e71a7239876eef142d6b019747d0b82a92551142d`,
+`de1c2bd6e90cd5cdbc4943fb2744b2deae527cc773396671931ed2e71d28c028`,
+`4229779967b3cc0f402280953ba10ea061a637ef2f41e1172932d1628539007b`, and
+`cbdf77811435ffe843d6ef1cb20a6c5f6981580b124c3bb1fa00007539c4565a`.

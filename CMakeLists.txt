@@ -591,6 +591,19 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_b42_hex8_friction_objectivity_abaqus_tests
         PROPERTIES LABELS "acceptance;three-dimensional;hex8;contact;friction;finite-sliding;objectivity;abaqus")
 
+    add_executable(fuelsim_b43_hex8_finite_strain_contact_abaqus_tests
+        tests/b43_hex8_finite_strain_contact_abaqus_tests.cpp)
+    target_link_libraries(fuelsim_b43_hex8_finite_strain_contact_abaqus_tests
+        PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
+    fuelsim_enable_warnings(fuelsim_b43_hex8_finite_strain_contact_abaqus_tests)
+    add_test(NAME fuelsim_b43_hex8_finite_strain_contact_abaqus_tests
+        COMMAND fuelsim_b43_hex8_finite_strain_contact_abaqus_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_hex8_finite_strain_contact_abaqus.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b43_hex8_finite_strain_contact_nodes.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b43_hex8_finite_strain_contact.csv")
+    set_tests_properties(fuelsim_b43_hex8_finite_strain_contact_abaqus_tests
+        PROPERTIES LABELS "acceptance;three-dimensional;hex8;contact;finite-sliding;finite-strain;abaqus")
+
     add_executable(fuelsim_hex20_solver_tests tests/hex20_solver_tests.cpp)
     target_link_libraries(fuelsim_hex20_solver_tests PRIVATE fuelsim::io fuelsim::solver)
     fuelsim_enable_warnings(fuelsim_hex20_solver_tests)
