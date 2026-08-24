@@ -880,3 +880,52 @@ and CSV are respectively `9e8381e1cf1b9a5f76f4b0ad19deee8bdd1c2f4e1fc3fd63db7b4c
 `5aaf865d34905c3a4e847554eb45d7367724e7eef0486bb156015e915cae0cd6`,
 `3d5d00021ac367ec99c8ef421e5e2a7874368950422c7aea994db8c38aa1cc72`, and
 `1520fff9b5b0776521235e34a126d822c08f79b3074495b4bab3658da741e229`.
+
+## B4.2 C3D8 finite-sliding friction objectivity
+
+B4.2 uses the tracked B4.0 unit HEX8 mesh but removes the small-sliding option.
+The primary and secondary blocks are fully prescribed so that the comparison
+isolates the contact update from C3D8 body-element differences. The path first
+forms a nonzero two-component sticking history, enters biaxial Coulomb sliding,
+rigidly rotates both already-penetrated surfaces through `0.35 rad`, reverses a
+small amount of tangential motion, and resticks. The rotation is resolved by
+twenty named steps of `0.0175 rad`; every step requests and produces exactly one
+accepted Abaqus increment, and Fuelsim commits the same sequence.
+
+The first diagnostic used one `0.35 rad` rotation increment. Abaqus retained
+`COPEN=-0.01 m` but temporarily reported `CPRESS=939.373 Pa` rather than
+`1000 Pa`, producing a rotation-increment error above the acceptance target.
+This value was not treated as a material parameter or used to change Fuelsim.
+Resolving the same path into twenty equal committed increments reduced the
+pressure maximum pointwise-relative difference to `0.0153143%`.
+
+Both small-strain and finite-strain Fuelsim contact paths give identical
+acceptance metrics. The normal-force relative L2 error is `0.0730862%`; the two
+local tangent-plane force values are both `0.0747551%`. Their worst maximum
+pointwise-relative error is `0.113926%`. The complete three-component contact
+resultant has relative L2, relative absolute-peak, and maximum pointwise errors
+of `0.0659963%`, `0.0684915%`, and `0.0684915%`. Gap and the two Abaqus total-
+slip components agree near roundoff. Fuelsim transports its already nonzero
+two-component elastic-slip history with a `3.61e-16 m` maximum absolute error.
+The physical traction ratio verifies sticking, sliding, rotation on the Coulomb
+circle, reverse unloading, and resticking without relying on a roundoff-sensitive
+status flag at the exact Coulomb limit.
+
+The input is regenerated and the Abaqus reference is reproduced by:
+
+```bash
+build/fuelsim_b42_hex8_friction_objectivity_abaqus_tests --generate \
+  verification/abaqus/b40_hex8_sts_friction_mesh.e verification/abaqus
+```
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass `
+  -File "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus\run_b42.ps1" `
+  -SourceDirectory "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus"
+```
+
+The tracked SHA-256 values for the input, result, extractor, and runner are
+`a567f03afa30b58f89d2cbd573c678c5c30c6bcb0b97e00b6223f66902535739`,
+`9f771e5b5f03a46efb94d31dbbfdf40b21802bf4fdd8bd5e472107f81facc770`,
+`acdaab8c1ca373dd9585bafc813e01a6cfcfd6034570573e40fc0b3bf0072005`, and
+`29b5b46306265ca2dbbfc8d09bc29e4bd9a170b501f6f6b40fdba5bd96357c3a`.
