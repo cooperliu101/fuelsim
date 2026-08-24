@@ -678,6 +678,22 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_b47_hex8_scale_parameter_abaqus_tests
         PROPERTIES LABELS "acceptance;three-dimensional;hex8;contact;friction;small-sliding;scale;abaqus")
 
+    add_executable(fuelsim_b48_hex8_multi_contact_path_abaqus_tests
+        tests/b48_hex8_multi_contact_path_abaqus_tests.cpp)
+    target_link_libraries(fuelsim_b48_hex8_multi_contact_path_abaqus_tests
+        PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
+    fuelsim_enable_warnings(fuelsim_b48_hex8_multi_contact_path_abaqus_tests)
+    add_test(NAME fuelsim_b48_hex8_multi_contact_path_abaqus_tests
+        COMMAND fuelsim_b48_hex8_multi_contact_path_abaqus_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_hex8_multi_contact_path_abaqus.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b48_hex8_multi_contact_pair_a.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b48_hex8_multi_contact_pair_b.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b48_hex8_multi_contact_reaction.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b48_hex8_multi_contact_energy.csv"
+            "${CMAKE_CURRENT_BINARY_DIR}/b48_hex8_multi_contact_checkpoint.bin")
+    set_tests_properties(fuelsim_b48_hex8_multi_contact_path_abaqus_tests
+        PROPERTIES LABELS "acceptance;three-dimensional;hex8;contact;friction;finite-sliding;multi-contact;restart;abaqus")
+
     add_executable(fuelsim_hex20_solver_tests tests/hex20_solver_tests.cpp)
     target_link_libraries(fuelsim_hex20_solver_tests PRIVATE fuelsim::io fuelsim::solver)
     fuelsim_enable_warnings(fuelsim_hex20_solver_tests)
@@ -1353,6 +1369,20 @@ if(BUILD_TESTING)
         set_tests_properties(fuelsim_b41_hex8_finite_sliding_mpi_equivalence PROPERTIES
             FIXTURES_REQUIRED b41_hex8_finite_sliding_mpi_reference
             LABELS "acceptance;parallel;three-dimensional;hex8;contact;surface-to-surface;finite-sliding"
+            PROCESSORS 2
+        )
+        add_test(NAME fuelsim_b48_hex8_multi_contact_path_mpi_abaqus_tests
+            COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2
+                $<TARGET_FILE:fuelsim_b48_hex8_multi_contact_path_abaqus_tests>
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_hex8_multi_contact_path_abaqus.fsi"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b48_hex8_multi_contact_pair_a.csv"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b48_hex8_multi_contact_pair_b.csv"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b48_hex8_multi_contact_reaction.csv"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b48_hex8_multi_contact_energy.csv"
+                "${CMAKE_CURRENT_BINARY_DIR}/b48_hex8_multi_contact_mpi_checkpoint.bin"
+        )
+        set_tests_properties(fuelsim_b48_hex8_multi_contact_path_mpi_abaqus_tests PROPERTIES
+            LABELS "acceptance;parallel;three-dimensional;hex8;contact;friction;surface-to-surface;finite-sliding;multi-contact;abaqus"
             PROCESSORS 2
         )
         add_test(NAME fuelsim_mpi_field_split
