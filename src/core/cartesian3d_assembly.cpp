@@ -233,6 +233,17 @@ std::array<double, 3> mechanical_search_point(
         geometry.secondary_coordinates[node].z + state[24 + node]};
 }
 
+std::array<double, 3> mechanical_search_point(
+    const Quad4ToQuad4MechanicalGeometry& geometry, const Quad4SurfaceContactLocalValues& state) {
+    std::array<double, 3> result{};
+    for (std::size_t node = 0; node < 4; ++node) {
+        result[0] += geometry.secondary_shape[node] * (geometry.secondary_coordinates[node].x + state[8 + node]);
+        result[1] += geometry.secondary_shape[node] * (geometry.secondary_coordinates[node].y + state[16 + node]);
+        result[2] += geometry.secondary_shape[node] * (geometry.secondary_coordinates[node].z + state[24 + node]);
+    }
+    return result;
+}
+
 std::array<double, 3> hex20_thermal_search_point(
     const Quad8ToQuad8HeatGeometry& geometry, const Quad8SurfaceContactLocalValues& state) {
     std::array<double, 3> result{};
@@ -280,6 +291,11 @@ double normal_orientation(const Quad4FaceCoordinates& primary_coordinates,
         throw std::invalid_argument(
             "Three-dimensional contact faces require nondegenerate opposing material-side centroids");
     return orientation > 0.0 ? 1.0 : -1.0;
+}
+
+double primary_material_orientation(
+    const Quad4FaceCoordinates& primary_coordinates, const CartesianPoint3& primary_parent_centroid) {
+    return normal_orientation(primary_coordinates, face_centroid(primary_coordinates), primary_parent_centroid);
 }
 
 double minimum_normal_length(const Hex8RegionMesh& mesh, const Hex8RegionBoundary& boundary, const std::string& name) {
@@ -1040,8 +1056,13 @@ void SpatialAssembly::compute_contribution(std::size_t index, const std::vector<
         const Quad4SurfaceContactLocalValues committed = contribution_state(index, _committed_contact_solution);
         Quad4SurfaceContactLocalJacobian local_jacobian{};
         const Quad4SurfaceContactLocalResidual result =
-            compute_node_to_quad4_contact(_mechanical_properties[entry.contact], entry.geometry, current, committed,
-                _contact_histories[entry.contact][entry.secondary], jacobian == nullptr ? nullptr : &local_jacobian);
+            entry.surface_to_surface
+                ? compute_quad4_to_quad4_contact(_mechanical_properties[entry.contact], entry.surface_geometry, current,
+                      committed, _contact_histories[entry.contact][entry.secondary],
+                      jacobian == nullptr ? nullptr : &local_jacobian)
+                : compute_node_to_quad4_contact(_mechanical_properties[entry.contact], entry.node_geometry, current,
+                      committed, _contact_histories[entry.contact][entry.secondary],
+                      jacobian == nullptr ? nullptr : &local_jacobian);
         residual.assign(result.begin(), result.end());
         if (jacobian != nullptr) jacobian->assign(local_jacobian.begin(), local_jacobian.end());
         return;
@@ -1473,13 +1494,12 @@ void SpatialAssembly::build_contacts(const UnstructuredHex8Mesh& source_mesh) {
     _contact_histories.resize(_definition.contacts.size());
     for (std::size_t contact_value = 0; contact_value < _definition.contacts.size(); ++contact_value) {
         ContactDefinition& definition = _definition.contacts[contact_value];
-        if (definition.mechanical_sliding == MechanicalContactSliding::finite)
-            throw std::invalid_argument(
-                "finite sliding currently requires HEX20 surface_to_surface contact: " + definition.name);
         if (definition.mechanical_discretization == MechanicalContactDiscretization::automatic)
             definition.mechanical_discretization = MechanicalContactDiscretization::node_to_surface;
         const bool surface_to_surface =
             definition.mechanical_discretization == MechanicalContactDiscretization::surface_to_surface;
+        const bool finite_sliding =
+            surface_to_surface && definition.mechanical_sliding == MechanicalContactSliding::finite;
         if (definition.friction_elastic_slip > 0.0 && !surface_to_surface)
             throw std::invalid_argument("elastic_slip requires surface_to_surface contact: " + definition.name);
         if (definition.quad8_nodal_area_rule != Quad8NodalAreaRule::positive_lumped)
@@ -1490,7 +1510,7 @@ void SpatialAssembly::build_contacts(const UnstructuredHex8Mesh& source_mesh) {
                          secondary = resolve_boundary(source_mesh, definition.secondary);
         if (primary.region == secondary.region)
             throw std::invalid_argument("Three-dimensional self-contact is not supported: " + definition.name);
-        if (surface_to_surface &&
+        if (surface_to_surface && !finite_sliding &&
             (_definition.regions[primary.region].strain_formulation != StrainFormulation::small ||
                 _definition.regions[secondary.region].strain_formulation != StrainFormulation::small))
             throw std::invalid_argument(
@@ -1527,7 +1547,6 @@ void SpatialAssembly::build_contacts(const UnstructuredHex8Mesh& source_mesh) {
         _mechanical_properties.push_back({definition.mechanical ? definition.penalty : 1.0,
             definition.mechanical ? definition.friction_coefficient : 0.0, false,
             definition.mechanical ? definition.friction_elastic_slip : 0.0});
-        _contact_histories[contact_value].resize(secondary.boundary.nodes.size());
         std::vector<PrimaryContactFace> primary_faces;
         primary_faces.reserve(primary.boundary.faces.size());
         for (const Quad4FaceElement& primary_face : primary.boundary.faces) {
@@ -1548,7 +1567,14 @@ void SpatialAssembly::build_contacts(const UnstructuredHex8Mesh& source_mesh) {
             for (std::size_t node = 0; node < 4; ++node)
                 secondary_nodes[node] = global_node(secondary.region, secondary_face.nodes[node]);
             const std::size_t secondary_face_index = secondary_faces.size();
-            secondary_faces.push_back({secondary_nodes, secondary_coordinates, secondary_geometry, secondary_parent});
+            std::array<Quad4FaceQuadraturePoint, 4> contact_points{};
+            for (std::size_t point = 0; point < contact_points.size(); ++point) {
+                const std::array<double, 2>& location = abaqus_quad4_constraint_locations()[point];
+                contact_points[point] =
+                    make_quad4_face_quadrature_point(secondary_coordinates, location[0], location[1], 1.0);
+            }
+            secondary_faces.push_back(
+                {secondary_nodes, secondary_coordinates, secondary_geometry, secondary_parent, contact_points});
             if (definition.thermal) thermal_point_count += secondary_geometry.points.size();
             if (definition.mechanical && !surface_to_surface)
                 for (std::size_t secondary_local_node = 0; secondary_local_node < 4; ++secondary_local_node) {
@@ -1561,8 +1587,15 @@ void SpatialAssembly::build_contacts(const UnstructuredHex8Mesh& source_mesh) {
                     _mechanical_points.push_back(
                         {contact_value, secondary_node_index, secondary_face_index, secondary_local_node});
                 }
+            if (definition.mechanical && finite_sliding)
+                for (std::size_t point = 0; point < contact_points.size(); ++point) {
+                    const std::size_t history = _contact_histories[contact_value].size();
+                    _contact_histories[contact_value].emplace_back();
+                    _mechanical_points.push_back({contact_value, history, secondary_face_index, point});
+                }
         }
-        if (definition.mechanical && surface_to_surface) {
+        if (!finite_sliding) _contact_histories[contact_value].resize(secondary.boundary.nodes.size());
+        if (definition.mechanical && surface_to_surface && !finite_sliding) {
             struct ConstraintBuilder final {
                 std::map<std::size_t, double> secondary, primary;
                 std::map<std::size_t, CartesianPoint3> coordinates;
@@ -2256,17 +2289,33 @@ SpatialAssembly::MechanicalCandidate SpatialAssembly::mechanical_candidate(
     std::array<std::size_t, 8> nodes{};
     std::copy(secondary.nodes.begin(), secondary.nodes.end(), nodes.begin());
     std::copy(primary_face.nodes.begin(), primary_face.nodes.end(), nodes.begin() + 4);
+    const bool surface_to_surface = _definition.contacts[metadata.contact].mechanical_discretization ==
+                                    MechanicalContactDiscretization::surface_to_surface;
+    MechanicalCandidate result{};
+    result.contact = metadata.contact;
+    result.nodes = nodes;
+    result.surface_to_surface = surface_to_surface;
+    result.secondary = metadata.secondary;
+    result.primary = primary;
+    result.secondary_face = metadata.secondary_face;
+    result.secondary_local_point = metadata.secondary_local_point;
+    if (surface_to_surface) {
+        const Quad4FaceQuadraturePoint& contact_point = secondary.contact_points.at(metadata.secondary_local_point);
+        result.surface_geometry = {secondary.coordinates, primary_face.coordinates, contact_point.shape,
+            contact_point.derivative_xi, contact_point.derivative_eta, 1.0,
+            primary_material_orientation(primary_face.coordinates, primary_face.parent_centroid)};
+        return result;
+    }
     std::array<std::array<double, 4>, 4> shapes{}, derivatives_xi{}, derivatives_eta{};
     for (std::size_t q = 0; q < secondary.geometry.points.size(); ++q) {
         shapes[q] = secondary.geometry.points[q].shape;
         derivatives_xi[q] = secondary.geometry.points[q].derivative_xi;
         derivatives_eta[q] = secondary.geometry.points[q].derivative_eta;
     }
-    return {metadata.contact, nodes,
-        {secondary.coordinates, primary_face.coordinates, shapes, derivatives_xi, derivatives_eta,
-            metadata.secondary_local_node,
-            normal_orientation(primary_face.coordinates, secondary.parent_centroid, primary_face.parent_centroid)},
-        metadata.secondary, primary};
+    result.node_geometry = {secondary.coordinates, primary_face.coordinates, shapes, derivatives_xi, derivatives_eta,
+        metadata.secondary_local_point,
+        normal_orientation(primary_face.coordinates, secondary.parent_centroid, primary_face.parent_centroid)};
+    return result;
 }
 
 SpatialAssembly::Hex20ThermalCandidate SpatialAssembly::hex20_thermal_candidate(
@@ -2641,8 +2690,11 @@ void SpatialAssembly::update_mechanical_candidates(
         const std::size_t primary_count = _primary_contact_faces[metadata.contact].size();
         const auto consider = [this, point, node, &state](std::size_t primary) {
             const MechanicalCandidate candidate = mechanical_candidate(point, primary);
+            const Quad4SurfaceContactLocalValues candidate_state = contact_state(candidate.nodes, state);
             const ContactProjectionValue value =
-                compute_node_to_quad4_contact_projection(candidate.geometry, contact_state(candidate.nodes, state));
+                candidate.surface_to_surface
+                    ? compute_quad4_to_quad4_contact_projection(candidate.surface_geometry, candidate_state)
+                    : compute_node_to_quad4_contact_projection(candidate.node_geometry, candidate_state);
             if (!value.projected) return;
             const double distance = std::abs(value.gap);
             if (distance < _mechanical_minimum_distance[node] ||
@@ -2657,7 +2709,10 @@ void SpatialAssembly::update_mechanical_candidates(
             const MechanicalCandidate representative = mechanical_candidate(point, 0);
             const Quad4SurfaceContactLocalValues representative_state = contact_state(representative.nodes, state);
             _contact_search_trees[metadata.contact].begin_query(
-                mechanical_search_point(representative.geometry, representative_state), _contact_search_query);
+                representative.surface_to_surface
+                    ? mechanical_search_point(representative.surface_geometry, representative_state)
+                    : mechanical_search_point(representative.node_geometry, representative_state),
+                _contact_search_query);
             std::size_t primary = 0;
             while (_contact_search_trees[metadata.contact].next_candidate(
                 _contact_search_query, _mechanical_minimum_distance[node], primary)) {
@@ -2673,8 +2728,11 @@ void SpatialAssembly::update_mechanical_candidates(
         const std::size_t primary = _mechanical_selected_primary[node];
         if (_touched_mechanical_nodes[node] == 0U || primary == std::numeric_limits<std::size_t>::max()) continue;
         const MechanicalCandidate candidate = mechanical_candidate(point, primary);
+        const Quad4SurfaceContactLocalValues candidate_state = contact_state(candidate.nodes, state);
         const ContactProjectionValue value =
-            compute_node_to_quad4_contact_projection(candidate.geometry, contact_state(candidate.nodes, state));
+            candidate.surface_to_surface
+                ? compute_quad4_to_quad4_contact_projection(candidate.surface_geometry, candidate_state)
+                : compute_node_to_quad4_contact_projection(candidate.node_geometry, candidate_state);
         if (value.projected) _mechanical_active_primary[point] = primary;
     }
     for (const AbaqusAveragedConstraint& constraint : _abaqus_averaged_constraints) {
@@ -2786,11 +2844,12 @@ void SpatialAssembly::validate_local_state(
                 throw std::domain_error(
                     "Three-dimensional mechanical contact '" + _definition.contacts[contact].name +
                     "' lost projection for " + std::to_string(unprojected) +
-                    (_uses_hex20 && _definition.contacts[contact].mechanical_discretization ==
-                                        MechanicalContactDiscretization::surface_to_surface
+                    (_definition.contacts[contact].mechanical_discretization ==
+                                MechanicalContactDiscretization::surface_to_surface
                             ? (_definition.contacts[contact].mechanical_sliding == MechanicalContactSliding::finite
                                       ? " finite-sliding integration points after searching every primary face"
-                                      : " fixed small-sliding integration points")
+                                      : (_uses_hex20 ? " fixed small-sliding integration points"
+                                                     : " fixed small-sliding averaged constraints"))
                             : " secondary nodes after searching every primary face"));
         }
     }
@@ -2887,14 +2946,26 @@ void SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
         const std::size_t primary = _mechanical_active_primary[point];
         if (primary == std::numeric_limits<std::size_t>::max()) continue;
         const MechanicalCandidate candidate = mechanical_candidate(point, primary);
+        const Quad4SurfaceContactLocalValues current = contact_state(candidate.nodes, state),
+                                             committed = contact_state(candidate.nodes, _committed_contact_solution);
         const CartesianContactPointValue value =
-            compute_node_to_quad4_contact_value(_mechanical_properties[candidate.contact], candidate.geometry,
-                contact_state(candidate.nodes, state), contact_state(candidate.nodes, _committed_contact_solution),
-                _contact_histories[candidate.contact][candidate.secondary]);
+            candidate.surface_to_surface
+                ? compute_quad4_to_quad4_contact_value(_mechanical_properties[candidate.contact],
+                      candidate.surface_geometry, current, committed,
+                      _contact_histories[candidate.contact][candidate.secondary])
+                : compute_node_to_quad4_contact_value(_mechanical_properties[candidate.contact],
+                      candidate.node_geometry, current, committed,
+                      _contact_histories[candidate.contact][candidate.secondary]);
         if (!value.projected) continue;
         ContactPointHistory trial = _contact_histories[candidate.contact][candidate.secondary];
         trial.sliding = value.sliding;
         trial.cartesian_elastic_tangential_slip = value.elastic_tangential_slip;
+        if (candidate.surface_to_surface && _mechanical_properties[candidate.contact].friction_coefficient > 0.0 &&
+            value.pressure > 0.0) {
+            trial.cartesian_tangent_basis_initialized = true;
+            trial.cartesian_contact_normal = value.normal;
+            trial.cartesian_contact_tangent_first = value.tangent_first;
+        }
         if (updated[candidate.contact][candidate.secondary]) {
             const ContactPointHistory& prior = staged[candidate.contact][candidate.secondary];
             bool equal = prior.sliding == trial.sliding;
@@ -2904,7 +2975,12 @@ void SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
                 equal = equal && std::abs(prior.cartesian_elastic_tangential_slip[component] -
                                           trial.cartesian_elastic_tangential_slip[component]) <=
                                      64.0 * std::numeric_limits<double>::epsilon() * scale;
+                equal = equal &&
+                        prior.cartesian_contact_normal[component] == trial.cartesian_contact_normal[component] &&
+                        prior.cartesian_contact_tangent_first[component] ==
+                            trial.cartesian_contact_tangent_first[component];
             }
+            equal = equal && prior.cartesian_tangent_basis_initialized == trial.cartesian_tangent_basis_initialized;
             if (!equal)
                 throw std::logic_error(
                     "Three-dimensional secondary half-faces disagree on contact-node friction history");
@@ -2934,7 +3010,11 @@ void SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
     for (std::size_t contact = 0; contact < _definition.contacts.size(); ++contact) {
         if (!_definition.contacts[contact].mechanical) continue;
         if (std::find(updated[contact].begin(), updated[contact].end(), false) != updated[contact].end())
-            throw std::domain_error("Cannot commit three-dimensional friction history for an unprojected node");
+            throw std::domain_error(
+                _definition.contacts[contact].mechanical_discretization ==
+                        MechanicalContactDiscretization::surface_to_surface
+                    ? "Cannot commit HEX8 friction history for an unprojected finite-sliding contact point"
+                    : "Cannot commit three-dimensional friction history for an unprojected node");
     }
     _contact_histories.swap(staged);
     _committed_contact_solution = state;
@@ -3182,6 +3262,7 @@ std::vector<CartesianContactNodeSummary> SpatialAssembly::summarize_contact_node
             std::numeric_limits<double>::infinity(), 0.0, 0.0, 0.0, 0.0, 0.0, {}, {}, {}, {}, false});
     }
     if (summarize_averaged_contact(contact_value, state, result)) return result;
+    std::vector<std::array<double, 3>> weighted_slip(result.size());
     for (std::size_t point = 0; point < _mechanical_active_primary.size(); ++point) {
         const std::size_t primary = _mechanical_active_primary[point];
         if (primary == std::numeric_limits<std::size_t>::max()) continue;
@@ -3189,11 +3270,44 @@ std::vector<CartesianContactNodeSummary> SpatialAssembly::summarize_contact_node
         if (candidate.contact != contact_value) continue;
         const std::size_t node = mechanical_node_index(candidate.contact, candidate.secondary);
         if (candidate.primary != _mechanical_selected_primary[node]) continue;
+        const Quad4SurfaceContactLocalValues current = contact_state(candidate.nodes, state),
+                                             committed = contact_state(candidate.nodes, _committed_contact_solution);
         const CartesianContactPointValue value =
-            compute_node_to_quad4_contact_value(_mechanical_properties[candidate.contact], candidate.geometry,
-                contact_state(candidate.nodes, state), contact_state(candidate.nodes, _committed_contact_solution),
-                _contact_histories[candidate.contact][candidate.secondary]);
+            candidate.surface_to_surface
+                ? compute_quad4_to_quad4_contact_value(_mechanical_properties[candidate.contact],
+                      candidate.surface_geometry, current, committed,
+                      _contact_histories[candidate.contact][candidate.secondary])
+                : compute_node_to_quad4_contact_value(_mechanical_properties[candidate.contact],
+                      candidate.node_geometry, current, committed,
+                      _contact_histories[candidate.contact][candidate.secondary]);
         if (!value.projected) continue;
+        if (candidate.surface_to_surface) {
+            const Quad4FaceElement& face = secondary.boundary.faces.at(candidate.secondary_face);
+            for (std::size_t local_node = 0; local_node < face.nodes.size(); ++local_node) {
+                const auto found =
+                    std::find(secondary.boundary.nodes.begin(), secondary.boundary.nodes.end(), face.nodes[local_node]);
+                if (found == secondary.boundary.nodes.end())
+                    throw std::logic_error("HEX8 finite-sliding surface-contact output node mapping failed");
+                const std::size_t output_node = static_cast<std::size_t>(found - secondary.boundary.nodes.begin());
+                CartesianContactNodeSummary& summary = result[output_node];
+                const double shape = candidate.surface_geometry.secondary_shape[local_node],
+                             nodal_area = shape * value.tributary_area;
+                summary.projected = true;
+                summary.primary_face = std::min(summary.primary_face, candidate.primary);
+                summary.gap = std::min(summary.gap, value.gap);
+                summary.tributary_area += nodal_area;
+                summary.contact_force += shape * value.contact_force;
+                for (std::size_t component = 0; component < 3; ++component) {
+                    summary.normal_contact_force[component] += shape * value.contact_force * value.normal[component];
+                    summary.tangential_contact_force[component] +=
+                        shape * value.tributary_area * value.tangential_traction_vector[component];
+                    weighted_slip[output_node][component] += nodal_area * value.elastic_tangential_slip[component];
+                }
+                summary.tangential_force += shape * value.tangential_force;
+                summary.sliding = summary.sliding || value.sliding;
+            }
+            continue;
+        }
         CartesianContactNodeSummary& summary = result.at(candidate.secondary);
         if (summary.projected && summary.primary_face != candidate.primary)
             throw std::logic_error("Three-dimensional contact node has more than one active primary face");
@@ -3215,6 +3329,11 @@ std::vector<CartesianContactNodeSummary> SpatialAssembly::summarize_contact_node
         if (summary.tributary_area > 0.0) {
             summary.pressure = summary.contact_force / summary.tributary_area;
             summary.tangential_traction = summary.tangential_force / summary.tributary_area;
+            const std::size_t node = static_cast<std::size_t>(&summary - result.data());
+            for (std::size_t component = 0; component < 3; ++component)
+                if (weighted_slip[node][component] != 0.0)
+                    summary.elastic_tangential_slip[component] =
+                        weighted_slip[node][component] / summary.tributary_area;
         }
     return result;
 }

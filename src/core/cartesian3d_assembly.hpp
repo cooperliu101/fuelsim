@@ -110,8 +110,10 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     struct MechanicalCandidate final {
         std::size_t contact;
         std::array<std::size_t, 8> nodes;
-        NodeToQuad4ContactGeometry geometry;
-        std::size_t secondary, primary;
+        NodeToQuad4ContactGeometry node_geometry;
+        Quad4ToQuad4MechanicalGeometry surface_geometry;
+        bool surface_to_surface;
+        std::size_t secondary, primary, secondary_face, secondary_local_point;
     };
 
     struct Hex20ThermalCandidate final {
@@ -143,6 +145,7 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
         Quad4FaceCoordinates coordinates;
         Quad4FaceGeometry geometry;
         CartesianPoint3 parent_centroid;
+        std::array<Quad4FaceQuadraturePoint, 4> contact_points;
     };
 
     struct SparsityContact final {
@@ -151,7 +154,7 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     };
 
     struct MechanicalPoint final {
-        std::size_t contact, secondary, secondary_face, secondary_local_node;
+        std::size_t contact, secondary, secondary_face, secondary_local_point;
     };
 
     struct Hex20PrimaryContactFace final {

@@ -821,3 +821,62 @@ powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass `
   -File "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus\run_b40.ps1" `
   -SourceDirectory "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus"
 ```
+
+## B4.1 C3D8 finite sliding across a primary-face edge
+
+B4.1 first repeats the B3.8 controlled normal-operator perturbations after
+removing the `small sliding` option. Abaqus R2018x again reports four internal
+surface-to-surface contact elements with constraint positions at nodes. Its
+normal opening and force operators reproduce the same four parent-coordinate
+locations `(plus or minus 0.5, plus or minus 0.5)` and the same A4 matrix used
+by B3.8. The finite-sliding perturbation also produces small transverse normal-
+force components because the current contact geometry participates in the
+linearization; these components are retained as probe evidence but are not used
+to claim a proprietary warped-face smoothing rule.
+
+The acceptance path uses one prescribed secondary C3D8 face and two adjacent
+planar primary faces. Four states close the interface, move all four contact
+points across the common edge, straddle the two primary faces, and return while
+both tangential displacement components change direction. Abaqus uses finite-
+sliding surface-to-surface linear-penalty contact with `mu = 0.5`; separate jobs
+use `NLGEOM=NO` and `NLGEOM=YES`. Fuelsim uses `sliding = finite` with small-
+strain and finite-strain regions on the exact tracked Exodus mesh.
+
+Both strain formulations give the same acceptance maxima. Normal nodal force,
+gap, and pressure agree to roundoff. The Y tangential nodal-force maximum
+pointwise-relative error is `0.0138082%`; the Z value is the overall worst at
+`0.0207530%`. Their relative L2 errors are `0.00664464%` and `0.00994002%`.
+Normal and two-component tangential resultants and the force center pass all
+three metrics below `1%`; exact-zero normal-force components are counted
+separately and have zero maximum absolute difference. Internal tests add a
+`31.5 degree` rigid tangent-plane rotation of an already nonzero two-component
+elastic-slip history, forward and reverse unique edge ownership, loss-of-
+projection rejection, rollback, centered-difference tangents, a 65-primary-face
+search-tree case, end-to-end PETSc solves for both strain formulations, and one-
+rank/two-rank equivalence.
+
+The references are reproduced by:
+
+```bash
+build/fuelsim_b41_hex8_finite_sliding_abaqus_tests --generate verification/abaqus
+```
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass `
+  -File "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus\run_b41_probe.ps1" `
+  -SourceDirectory "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus"
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass `
+  -File "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus\run_b41.ps1" `
+  -SourceDirectory "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus"
+```
+
+The tracked SHA-256 values for the finite-sliding operator input, operator CSV,
+contact summary, Exodus mesh, small-strain input and CSV, and finite-strain input
+and CSV are respectively `9e8381e1cf1b9a5f76f4b0ad19deee8bdd1c2f4e1fc3fd63db7b4c77fa1ec752`,
+`f1035f9fad2aff2bad43aa3c3e5731bdf152d5d770567e14d69de2aeede34964`,
+`f314a5ef4e81d27027024b7fb6fbeb372dcadfce0d2600fc8f8fd115175950ab`,
+`df3e5b0f28f50eba8231e31babde7075b6210cdc31718c7ef170687493d14829`,
+`f66135292777f02a0fad9b0584698367750a40e6e25d150a6180bda1e34ab247`,
+`5aaf865d34905c3a4e847554eb45d7367724e7eef0486bb156015e915cae0cd6`,
+`3d5d00021ac367ec99c8ef421e5e2a7874368950422c7aea994db8c38aa1cc72`, and
+`1520fff9b5b0776521235e34a126d822c08f79b3074495b4bab3658da741e229`.

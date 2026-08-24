@@ -119,6 +119,12 @@ struct Quad4ReferenceProjectionValue final {
     double gap;
 };
 
+struct Quad4ToQuad4MechanicalGeometry final {
+    std::array<CartesianPoint3, 4> secondary_coordinates, primary_coordinates;
+    std::array<double, 4> secondary_shape, secondary_derivative_xi, secondary_derivative_eta;
+    double quadrature_weight, normal_orientation;
+};
+
 struct NodeToQuad4ContactGeometry final {
     std::array<CartesianPoint3, 4> secondary_coordinates, primary_coordinates;
     std::array<std::array<double, 4>, 4> secondary_shapes, secondary_derivatives_xi, secondary_derivatives_eta;
@@ -158,6 +164,15 @@ CartesianContactPointValue compute_node_to_quad4_contact_value(const NormalConta
     const Quad4SurfaceContactLocalValues& committed_state, const ContactPointHistory& history);
 ContactProjectionValue compute_node_to_quad4_contact_projection(
     const NodeToQuad4ContactGeometry& geometry, const Quad4SurfaceContactLocalValues& state);
+Quad4SurfaceContactLocalResidual compute_quad4_to_quad4_contact(const NormalContactProperties& properties,
+    const Quad4ToQuad4MechanicalGeometry& geometry, const Quad4SurfaceContactLocalValues& state,
+    const Quad4SurfaceContactLocalValues& committed_state, const ContactPointHistory& history,
+    Quad4SurfaceContactLocalJacobian* jacobian = nullptr);
+CartesianContactPointValue compute_quad4_to_quad4_contact_value(const NormalContactProperties& properties,
+    const Quad4ToQuad4MechanicalGeometry& geometry, const Quad4SurfaceContactLocalValues& state,
+    const Quad4SurfaceContactLocalValues& committed_state, const ContactPointHistory& history);
+ContactProjectionValue compute_quad4_to_quad4_contact_projection(
+    const Quad4ToQuad4MechanicalGeometry& geometry, const Quad4SurfaceContactLocalValues& state);
 
 inline constexpr std::size_t quad8_surface_contact_temperature_node_count = 8;
 inline constexpr std::size_t quad8_surface_contact_displacement_node_count = 16;

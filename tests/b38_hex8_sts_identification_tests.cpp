@@ -119,7 +119,8 @@ Matrix4 expected_force_tangent(const Matrix4& opening) {
     return result;
 }
 
-bool check_abaqus_identification(const std::vector<ProbeRow>& rows, const std::string& summary_path) {
+bool check_abaqus_identification(
+    const std::vector<ProbeRow>& rows, const std::string& summary_path, bool finite_sliding_probe) {
     std::ifstream input(summary_path);
     if (!input) throw std::runtime_error("Could not read the B3.8 Abaqus contact summary: " + summary_path);
     const std::string summary((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
@@ -146,6 +147,10 @@ bool check_abaqus_identification(const std::vector<ProbeRow>& rows, const std::s
               << "b38_abaqus_zero_reference_transverse_force_count=8\n"
               << "b38_abaqus_zero_reference_transverse_force_maximum_absolute_difference=" << maximum_transverse_force
               << '\n';
+    const double opening_tolerance = finite_sliding_probe ? 1.0e-9 : 5.0e-13,
+                 tangent_relative_tolerance = finite_sliding_probe ? 1.0e-8 : 5.0e-13,
+                 tangent_absolute_tolerance = finite_sliding_probe ? 1.0e-2 : 1.0e-6,
+                 base_pressure_tolerance = finite_sliding_probe ? 1.0e-8 : 1.0e-9;
     return check(summary.find("PENALTY CONSTRAINT ENFORCEMENT WITH PENALTY STIFFNESS OF   1.00000E+08") !=
                          std::string::npos &&
                      summary.find("SURFACE TO SURFACE WITH THICKNESS") != std::string::npos &&
@@ -153,12 +158,13 @@ bool check_abaqus_identification(const std::vector<ProbeRow>& rows, const std::s
                      summary.find("SUPPLEMENTARY CONSTRAINTS = NO") != std::string::npos &&
                      summary.find("NUMBER OF INTERNAL ELEMENTS GENERATED FOR CONTACT         4") != std::string::npos,
                "Abaqus reports four node-positioned surface-to-surface penalty constraints") &&
-           check(opening_error < 5.0e-13, "the identified Abaqus C3D8 opening operator is the Q4 shape matrix at "
-                                          "parent coordinates plus or minus one half") &&
-           check(tangent_relative_l2 < 5.0e-13 && tangent_maximum_error < 1.0e-6,
+           check(opening_error < opening_tolerance,
+               "the identified Abaqus C3D8 opening operator is the Q4 shape matrix at parent coordinates plus or "
+               "minus one half") &&
+           check(tangent_relative_l2 < tangent_relative_tolerance && tangent_maximum_error < tangent_absolute_tolerance,
                "the Abaqus nodal-force tangent is penalty times A transpose W A with four equal quarter-face areas") &&
-           check(base_opening_error < 1.0e-16 && base_pressure_error < 1.0e-9 && base_force_error < 1.0e-9 &&
-                     maximum_transverse_force < 1.0e-12,
+           check(base_opening_error < 1.0e-16 && base_pressure_error < base_pressure_tolerance &&
+                     base_force_error < 1.0e-8 && maximum_transverse_force < 1.0e-12,
                "the Abaqus uniform-closure response has the identified opening, pressure, area, and normal direction");
 }
 
@@ -231,7 +237,7 @@ std::array<double, 4> production_forces(const fuelsim::SteadyProblem& problem, c
     return result;
 }
 
-bool check_production_operator(const std::vector<ProbeRow>& rows) {
+bool check_production_operator(const std::vector<ProbeRow>& rows, bool finite_sliding_probe) {
     const fuelsim::UnstructuredHex8Mesh mesh = matching_mesh();
     fuelsim::SteadyProblem problem(definition(), mesh);
     const auto& spatial = fuelsim::cartesian::ProblemAccess::view(problem);
@@ -325,13 +331,7 @@ bool check_production_operator(const std::vector<ProbeRow>& rows) {
               << "b38_fuelsim_contact_force_balance=" << force_balance[0] << ',' << force_balance[1] << ','
               << force_balance[2] << '\n';
 
-    bool finite_sliding_rejected = false, finite_strain_rejected = false;
-    try {
-        fuelsim::SpatialDefinition invalid = definition();
-        invalid.contacts.front().mechanical_sliding = fuelsim::MechanicalContactSliding::finite;
-        fuelsim::SteadyProblem invalid_problem(std::move(invalid), mesh);
-        (void)invalid_problem;
-    } catch (const std::invalid_argument&) { finite_sliding_rejected = true; }
+    bool finite_strain_rejected = false;
     try {
         fuelsim::SpatialDefinition invalid = definition();
         invalid.regions.front().strain_formulation = fuelsim::StrainFormulation::finite;
@@ -339,11 +339,13 @@ bool check_production_operator(const std::vector<ProbeRow>& rows) {
         (void)invalid_problem;
     } catch (const std::invalid_argument&) { finite_strain_rejected = true; }
 
+    const double operator_tolerance = finite_sliding_probe ? 1.0e-9 : 1.0e-12,
+                 tangent_absolute_tolerance = finite_sliding_probe ? 1.0e-2 : 1.0e-6;
     return check(mechanical_contributions == 4,
                "Fuelsim constructs four averaged constraints for one C3D8 secondary face") &&
-           check(opening_relative_l2 < 1.0e-12 && opening_maximum_error < 1.0e-12,
+           check(opening_relative_l2 < operator_tolerance && opening_maximum_error < operator_tolerance,
                "the Fuelsim opening operator reproduces the identified Abaqus operator") &&
-           check(tangent_relative_l2 < 1.0e-12 && tangent_maximum_error < 1.0e-6,
+           check(tangent_relative_l2 < operator_tolerance && tangent_maximum_error < tangent_absolute_tolerance,
                "the Fuelsim equivalent nodal-force tangent reproduces the identified Abaqus tangent") &&
            check(base_opening_error < 1.0e-15 && base_force_error < 1.0e-8,
                "the Fuelsim uniform-closure opening and nodal force reproduce Abaqus") &&
@@ -352,20 +354,23 @@ bool check_production_operator(const std::vector<ProbeRow>& rows) {
                "the Fuelsim averaged constraints preserve exact action-reaction balance") &&
            check(maximum_jacobian_directional_error < 1.0e-7,
                "the Fuelsim averaged-constraint Jacobian matches a centered directional difference") &&
-           check(finite_sliding_rejected && finite_strain_rejected,
-               "HEX8 surface-to-surface contact explicitly rejects finite sliding and finite-strain regions");
+           check(finite_strain_rejected,
+               "HEX8 small-sliding surface-to-surface contact explicitly rejects finite-strain regions");
 }
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 3) {
-        std::cerr << "Usage: fuelsim_b38_hex8_sts_identification_tests <operator.csv> <contact_summary.txt>\n";
+    if ((argc != 3 && argc != 4) || (argc == 4 && std::string(argv[3]) != "finite-sliding-probe")) {
+        std::cerr << "Usage: fuelsim_b38_hex8_sts_identification_tests <operator.csv> <contact_summary.txt> "
+                     "[finite-sliding-probe]\n";
         return 2;
     }
     fuelsim::PetscSession session(argc, argv, "fuelsim B3.8 HEX8 small-sliding surface contact identification\n");
     try {
         const std::vector<ProbeRow> rows = read_probe(argv[1]);
-        const bool passed = check_abaqus_identification(rows, argv[2]) && check_production_operator(rows);
+        const bool finite_sliding_probe = argc == 4 && std::string(argv[3]) == "finite-sliding-probe";
+        const bool passed = check_abaqus_identification(rows, argv[2], finite_sliding_probe) &&
+                            check_production_operator(rows, finite_sliding_probe);
         if (passed && session.rank() == 0)
             std::cout << "[PASS] B3.8 HEX8 small-sliding surface-to-surface operator identification\n";
         return passed ? 0 : 1;

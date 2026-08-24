@@ -472,10 +472,27 @@ K_contact = penalty * transpose(A4) * diag(area/4) * A4
 
 法向与两个切向分量使用同一个相对位移算子，所以作用力和反作用力严格守恒。Coulomb
 摩擦在固定参考切平面内保存三分量弹性切向滑移向量和粘滑状态，并参与提交、回滚及
-检查点事务。HEX8 面对面路径不支持有限滑移或有限应变；这两类输入在问题构造时明确
-拒绝。HEX8 省略 `discretization` 时仍采用原有节点到面路径。
+检查点事务。小滑移不允许接触任一侧采用有限应变。HEX8 省略 `discretization` 时仍采用
+原有节点到面路径。
 
-#### 8.2.2 HEX20 节点中心约束和积分路径
+#### 8.2.2 HEX8 有限滑移节点中心积分
+
+HEX8 选择 `sliding = finite` 时仍采用 Abaqus B4.1 识别出的四个父坐标
+`(±0.5,±0.5)` 节点中心点，但不再固定参考 primary 支持。每个点在当前构形的完整
+primary 四节点面集合中搜索唯一最近投影，并以当前 secondary 面测度的四分之一积分：
+
+```text
+R_secondary_i = sum_q(N_secondary_i(q) * (pressure*n + traction_t)_q * J_secondary(q))
+R_primary_j   = -sum_q(N_primary_j(q) * (pressure*n + traction_t)_q * J_secondary(q))
+```
+
+该离散不是经典 mortar，也不引入接触乘子。内部 primary 边使用唯一所有权；接触点
+越过分片时更新主面，滑出完整主表面时拒绝试探状态。法向、两个切向分量、最近点参数和
+当前面积均进入自动微分切线。摩擦历史用当前 primary 面的随动正交切向基保存；提交的
+非零双分量弹性滑移先客观运输到当前切平面，共同刚体转动不产生伪滑移。该路径允许
+接触两侧分别使用小应变或有限应变。
+
+#### 8.2.3 HEX20 节点中心约束和积分路径
 
 两侧小应变且选择小滑移时，HEX20 使用八个 Abaqus 对标识别出的二次节点中心约束。
 有限滑移或任一侧采用有限应变时，则在当前 secondary 二次面上使用 3×3 高斯积分。
@@ -748,7 +765,7 @@ max_pointwise_relative = max_i |x_i-x_ref_i|/|x_ref_i|
 | 严格输入和问题构造 | `input.v3`、`io.exodus` | 输入拒绝测试、具名材料参数、Exodus 元数据回读、严格重启动 |
 | 稳态 RZ 体弱式 | `m0.steady` | 实心圆柱温度、自由热膨胀、厚壁圆筒和 MOOSE 全场 |
 | 无摩擦热—力接触 | `m1.contact`、`m33.contact` | 非匹配 STS/NTS、斜面、端面、多区域和 MOOSE 全场 |
-| HEX8 小滑移表面到面接触 | `b38.hex8_sts_identification`、`b39.hex8_sts_multicase`、`b40.hex8_sts_friction` | Abaqus 约束识别、匹配与非匹配场量、倾斜初始间隙、双切向摩擦、切线、事务、重启动和 MPI 等价 |
+| HEX8 表面到面接触 | `b38.hex8_sts_identification`、`b39.hex8_sts_multicase`、`b40.hex8_sts_friction`、`b41.hex8_sts_finite_sliding` | Abaqus 约束识别、匹配与非匹配场量、倾斜初始间隙、双切向摩擦、有限滑移跨面、客观历史、切线、事务、重启动和 MPI 等价 |
 | Coulomb 摩擦 | `m51.friction` | 粘着、滑移、反向再粘着、局部切线、守恒和 MOOSE |
 | 完整链大滑移搜索 | `m52.large_sliding` | 跨多段所有权、力连续、MPI 等价、重启动和 MOOSE |
 | 自动罚刚度和增广法 | `m54.augmented_contact` | 串联刚度、乘子事务、穿透门槛和约束极限 MOOSE 对比 |

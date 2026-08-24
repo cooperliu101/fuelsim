@@ -167,6 +167,10 @@ bool test_friction_history_checkpoint(const std::string& input_path, const std::
     if (state.contact_histories.empty() || state.contact_histories.front().empty())
         return check(false, "friction checkpoint fixture has contact-node history");
     state.contact_histories.front().front() = {2.5e-7, true};
+    state.contact_histories.front().front().cartesian_elastic_tangential_slip = {0.0, 2.0e-5, -3.0e-5};
+    state.contact_histories.front().front().cartesian_tangent_basis_initialized = true;
+    state.contact_histories.front().front().cartesian_contact_normal = {1.0, 0.0, 0.0};
+    state.contact_histories.front().front().cartesian_contact_tangent_first = {0.0, 1.0, 0.0};
     fuelsim::rz::ProblemAccess::restore_committed_state(source, state);
     const fuelsim::TransientCommittedState before_rollback = fuelsim::rz::ProblemAccess::committed_state(source);
     source.begin_time_step({1.0, 0.05});

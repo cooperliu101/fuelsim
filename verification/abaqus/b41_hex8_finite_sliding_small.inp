@@ -1,0 +1,104 @@
+*Heading
+** B4.1 C3D8 finite-sliding surface-to-surface cross-face friction path.
+*Preprint, echo=NO, model=NO, history=NO, contact=YES
+*Node
+1, 0, 0, -1
+2, 1, 0, -1
+3, 1, 1, -1
+4, 0, 1, -1
+5, 0, 0, 2
+6, 1, 0, 2
+7, 1, 1, 2
+8, 0, 1, 2
+9, 1, 2, -1
+10, 0, 2, -1
+11, 1, 2, 2
+12, 0, 2, 2
+13, 1, 0.1, 0.1
+14, 2, 0.1, 0.1
+15, 2, 0.9, 0.1
+16, 1, 0.9, 0.1
+17, 1, 0.1, 0.9
+18, 2, 0.1, 0.9
+19, 2, 0.9, 0.9
+20, 1, 0.9, 0.9
+*Element, type=C3D8, elset=PRIMARY
+1, 1, 2, 3, 4, 5, 6, 7, 8
+2, 4, 3, 9, 10, 8, 7, 11, 12
+*Element, type=C3D8, elset=SECONDARY
+3, 13, 14, 15, 16, 17, 18, 19, 20
+*Nset, nset=primary_all
+1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12
+*Nset, nset=secondary_all
+13, 14, 15, 16, 17, 18, 19, 20
+*Surface, type=ELEMENT, name=PRIMARY_CONTACT
+PRIMARY, S4
+*Surface, type=ELEMENT, name=SECONDARY_CONTACT
+SECONDARY, S6
+*Material, name=ELASTIC
+*Elastic
+1.e9, 0.25
+*Solid Section, elset=PRIMARY, material=ELASTIC
+,
+*Solid Section, elset=SECONDARY, material=ELASTIC
+,
+*Surface Interaction, name=CONTACT
+*Surface Behavior, pressure-overclosure=LINEAR
+1.e5,
+*Friction, slip tolerance=1.e-4
+0.5,
+*Contact Pair, interaction=CONTACT, type=SURFACE TO SURFACE, adjust=0.
+SECONDARY_CONTACT, PRIMARY_CONTACT
+*Step, name=CLOSE, nlgeom=NO, inc=100
+*Static
+0.1, 1., 1.e-8, 0.1
+*Boundary
+primary_all, 1, 3, 0.
+secondary_all, 1, 1, -0.01
+secondary_all, 2, 2, 0.05
+secondary_all, 3, 3, 0.04
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U
+*Contact Output
+CSTRESS, CDISP, CFORCE
+*End Step
+*Step, name=CROSS, nlgeom=NO, inc=100
+*Static
+0.1, 1., 1.e-8, 0.1
+*Boundary, op=MOD
+secondary_all, 1, 1, -0.01
+secondary_all, 2, 2, 1
+secondary_all, 3, 3, 0.4
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U
+*Contact Output
+CSTRESS, CDISP, CFORCE
+*End Step
+*Step, name=STRADDLE, nlgeom=NO, inc=100
+*Static
+0.1, 1., 1.e-8, 0.1
+*Boundary, op=MOD
+secondary_all, 1, 1, -0.01
+secondary_all, 2, 2, 0.6
+secondary_all, 3, 3, -0.3
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U
+*Contact Output
+CSTRESS, CDISP, CFORCE
+*End Step
+*Step, name=RETURN, nlgeom=NO, inc=100
+*Static
+0.1, 1., 1.e-8, 0.1
+*Boundary, op=MOD
+secondary_all, 1, 1, -0.01
+secondary_all, 2, 2, 0
+secondary_all, 3, 3, 0.1
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U
+*Contact Output
+CSTRESS, CDISP, CFORCE
+*End Step

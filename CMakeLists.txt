@@ -559,6 +559,26 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_b40_hex8_sts_friction_abaqus_tests
         PROPERTIES LABELS "acceptance;three-dimensional;hex8;contact;friction;restart;abaqus")
 
+    add_executable(fuelsim_b41_hex8_finite_sliding_abaqus_tests
+        tests/b41_hex8_finite_sliding_abaqus_tests.cpp)
+    target_link_libraries(fuelsim_b41_hex8_finite_sliding_abaqus_tests
+        PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
+    fuelsim_enable_warnings(fuelsim_b41_hex8_finite_sliding_abaqus_tests)
+    add_test(NAME fuelsim_b41_hex8_finite_sliding_abaqus_tests
+        COMMAND fuelsim_b41_hex8_finite_sliding_abaqus_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b41_hex8_finite_sliding_mesh.e"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b41_hex8_finite_sliding_small.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b41_hex8_finite_sliding_finite.csv")
+    set_tests_properties(fuelsim_b41_hex8_finite_sliding_abaqus_tests
+        PROPERTIES LABELS "acceptance;three-dimensional;hex8;contact;friction;finite-sliding;abaqus")
+    add_test(NAME fuelsim_b41_hex8_finite_sliding_identification_tests
+        COMMAND fuelsim_b38_hex8_sts_identification_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b41_hex8_sts_finite_sliding_operator.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b41_hex8_sts_finite_sliding_contact_summary.txt"
+            finite-sliding-probe)
+    set_tests_properties(fuelsim_b41_hex8_finite_sliding_identification_tests
+        PROPERTIES LABELS "acceptance;three-dimensional;hex8;contact;finite-sliding;abaqus;identification")
+
     add_executable(fuelsim_hex20_solver_tests tests/hex20_solver_tests.cpp)
     target_link_libraries(fuelsim_hex20_solver_tests PRIVATE fuelsim::io fuelsim::solver)
     fuelsim_enable_warnings(fuelsim_hex20_solver_tests)
@@ -1212,6 +1232,28 @@ if(BUILD_TESTING)
         set_tests_properties(fuelsim_b39_hex8_sts_mpi_equivalence PROPERTIES
             FIXTURES_REQUIRED b39_hex8_sts_mpi_reference
             LABELS "acceptance;parallel;three-dimensional;hex8;contact;surface-to-surface"
+            PROCESSORS 2
+        )
+        add_test(NAME fuelsim_b41_hex8_finite_sliding_mpi_reference
+            COMMAND fuelsim_mpi_equivalence_benchmark
+                write
+                "${CMAKE_CURRENT_BINARY_DIR}/b41_hex8_finite_sliding_one_rank_state.txt"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex8_finite_sliding_abaqus.fsi"
+        )
+        set_tests_properties(fuelsim_b41_hex8_finite_sliding_mpi_reference PROPERTIES
+            FIXTURES_SETUP b41_hex8_finite_sliding_mpi_reference
+            LABELS "integration;parallel;three-dimensional;hex8;contact;surface-to-surface;finite-sliding"
+        )
+        add_test(NAME fuelsim_b41_hex8_finite_sliding_mpi_equivalence
+            COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2
+                $<TARGET_FILE:fuelsim_mpi_equivalence_benchmark>
+                compare
+                "${CMAKE_CURRENT_BINARY_DIR}/b41_hex8_finite_sliding_one_rank_state.txt"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex8_finite_sliding_abaqus.fsi"
+        )
+        set_tests_properties(fuelsim_b41_hex8_finite_sliding_mpi_equivalence PROPERTIES
+            FIXTURES_REQUIRED b41_hex8_finite_sliding_mpi_reference
+            LABELS "acceptance;parallel;three-dimensional;hex8;contact;surface-to-surface;finite-sliding"
             PROCESSORS 2
         )
         add_test(NAME fuelsim_mpi_field_split

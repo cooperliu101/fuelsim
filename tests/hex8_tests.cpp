@@ -520,6 +520,88 @@ bool test_cartesian_surface_contact_kernels() {
     passed = check(maximum_error / scale < 2.0e-6,
                  "three-dimensional sticking contact automatic-differentiation Jacobian matches centered difference") &&
              passed;
+
+    const fuelsim::Quad4FaceQuadraturePoint finite_point =
+        fuelsim::make_quad4_face_quadrature_point(secondary, -0.5, -0.5, 1.0);
+    const fuelsim::Quad4ToQuad4MechanicalGeometry finite_geometry{
+        secondary, primary, finite_point.shape, finite_point.derivative_xi, finite_point.derivative_eta, 1.0, 1.0};
+    fuelsim::Quad4SurfaceContactLocalJacobian finite_jacobian{};
+    const fuelsim::Quad4SurfaceContactLocalResidual finite_contact = fuelsim::compute_quad4_to_quad4_contact(
+        stick_properties, finite_geometry, state, committed, history, &finite_jacobian);
+    const fuelsim::CartesianContactPointValue finite_stick =
+        fuelsim::compute_quad4_to_quad4_contact_value(stick_properties, finite_geometry, state, committed, history);
+    resultant = {};
+    for (std::size_t component = 0; component < 3; ++component)
+        for (std::size_t node = 0; node < 8; ++node) resultant[component] += finite_contact[8 * (component + 1) + node];
+    passed = check(finite_stick.projected && near(finite_stick.gap, -0.01, 1.0e-12) &&
+                       near(finite_stick.pressure, 10.0, 1.0e-12) && near(finite_stick.tributary_area, 0.25, 1.0e-12) &&
+                       near(finite_stick.contact_force, 2.5, 1.0e-12) &&
+                       near(finite_stick.tangential_traction, 1.0, 1.0e-12) && !finite_stick.sliding &&
+                       near(resultant[0], 0.0, 1.0e-12) && near(resultant[1], 0.0, 1.0e-12) &&
+                       near(resultant[2], 0.0, 1.0e-12),
+                 "HEX8 finite-sliding surface contact uses the node-centered area, current projection, and "
+                 "equal-and-opposite three-component force") &&
+             passed;
+    plus = state;
+    minus = state;
+    for (std::size_t dof = 0; dof < state.size(); ++dof) {
+        plus[dof] += step * direction[dof];
+        minus[dof] -= step * direction[dof];
+    }
+    const fuelsim::Quad4SurfaceContactLocalResidual finite_plus = fuelsim::compute_quad4_to_quad4_contact(
+                                                        stick_properties, finite_geometry, plus, committed, history),
+                                                    finite_minus = fuelsim::compute_quad4_to_quad4_contact(
+                                                        stick_properties, finite_geometry, minus, committed, history);
+    maximum_error = 0.0;
+    scale = 0.0;
+    for (std::size_t row = 8; row < 32; ++row) {
+        double analytic = 0.0;
+        for (std::size_t column = 0; column < 32; ++column)
+            analytic += finite_jacobian[row * 32 + column] * direction[column];
+        const double numerical = (finite_plus[row] - finite_minus[row]) / (2.0 * step);
+        maximum_error = std::max(maximum_error, std::abs(analytic - numerical));
+        scale = std::max({scale, std::abs(analytic), std::abs(numerical)});
+    }
+    std::cout << "hex8_finite_sliding_contact_jacobian_relative_error=" << maximum_error / scale << '\n';
+    passed =
+        check(maximum_error / scale < 2.0e-6,
+            "HEX8 finite-sliding surface-contact automatic-differentiation Jacobian matches centered difference") &&
+        passed;
+
+    fuelsim::Quad4SurfaceContactLocalValues objective_committed{}, objective_current{};
+    for (std::size_t node = 0; node < 4; ++node) objective_committed[8 + node] = 0.02;
+    constexpr double angle = 0.55, slip_first = 2.0e-4, slip_second = -3.0e-4;
+    const double cosine = std::cos(angle), sine = std::sin(angle);
+    for (std::size_t node = 0; node < 8; ++node) {
+        const fuelsim::CartesianPoint3& reference = node < 4 ? secondary[node] : primary[node - 4];
+        const double committed_x = reference.x + objective_committed[8 + node],
+                     committed_y = reference.y + objective_committed[16 + node];
+        objective_current[8 + node] = cosine * committed_x - sine * committed_y - reference.x;
+        objective_current[16 + node] = sine * committed_x + cosine * committed_y - reference.y;
+        objective_current[24 + node] = objective_committed[24 + node];
+    }
+    fuelsim::ContactPointHistory objective_history;
+    objective_history.cartesian_elastic_tangential_slip = {0.0, slip_first, slip_second};
+    objective_history.cartesian_tangent_basis_initialized = true;
+    objective_history.cartesian_contact_normal = {1.0, 0.0, 0.0};
+    objective_history.cartesian_contact_tangent_first = {0.0, 1.0, 0.0};
+    const fuelsim::CartesianContactPointValue objective = fuelsim::compute_quad4_to_quad4_contact_value(
+        {1000.0, 1.0, false, 1.0e-2}, finite_geometry, objective_current, objective_committed, objective_history);
+    const std::array<double, 3> expected_normal = {cosine, sine, 0.0}, expected_tangent = {-sine, cosine, 0.0},
+                                expected_slip = {-slip_first * sine, slip_first * cosine, slip_second};
+    bool objective_rotation = objective.projected && !objective.sliding;
+    for (std::size_t component = 0; component < 3; ++component)
+        objective_rotation = objective_rotation &&
+                             near(objective.normal[component], expected_normal[component], 1.0e-12) &&
+                             near(objective.tangent_first[component], expected_tangent[component], 1.0e-12) &&
+                             near(objective.elastic_tangential_slip[component], expected_slip[component], 1.0e-12);
+    passed = check(objective_rotation &&
+                       near(std::hypot(objective.elastic_tangential_slip[0],
+                                std::hypot(objective.elastic_tangential_slip[1], objective.elastic_tangential_slip[2])),
+                           std::hypot(slip_first, slip_second), 1.0e-12),
+                 "HEX8 finite-sliding nonzero two-component elastic-slip history rotates objectively through a "
+                 "31.5-degree tangent-plane rotation") &&
+             passed;
     return passed;
 }
 } // namespace
