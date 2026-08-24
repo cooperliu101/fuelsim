@@ -92,6 +92,7 @@ int main(int argc, char** argv) {
             "b42.hex8_sts_friction_objectivity",
             "b43.hex8_sts_finite_strain",
             "b44.hex8_sts_nonmatching_partial",
+            "b45.hex8_sts_nonplanar_smoothing",
             "io.exodus",
             "m0.steady",
             "m1.contact",
@@ -162,7 +163,7 @@ int main(int argc, char** argv) {
         }
         if (found_ids != required_ids)
             throw std::runtime_error("Verification matrix is missing one or more required rows");
-        if (verified != 43 || qualified != 7 || measured != 3 || limitations != 1)
+        if (verified != 43 || qualified != 8 || measured != 3 || limitations != 1)
             throw std::runtime_error("Verification matrix status counts differ from release schema");
         std::cout << "verification_matrix_rows=" << found_ids.size() << '\n'
                   << "verification_matrix_verified=" << verified << '\n'

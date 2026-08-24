@@ -1,0 +1,106 @@
+*Heading
+** B4.5 warped_bilinear C3D8 nonplanar finite-sliding contact probe.
+*Preprint, echo=NO, model=NO, history=NO, contact=YES
+*Node
+1, 0, 0, 0
+2, 1, 0, 0
+3, 1, 1, 0
+4, 0, 1, 0
+5, 0, 0, 1
+6, 1, 0, 1
+7, 1.125, 1, 1
+8, 0, 1, 1
+9, 1.00390625, 0, 0
+10, 2.00390625, 0, 0
+11, 2.00390625, 1, 0
+12, 1.00390625, 1, 0
+13, 1.00390625, 0, 1
+14, 2.00390625, 0, 1
+15, 2.12890625, 1, 1
+16, 1.12890625, 1, 1
+*Element, type=C3D8, elset=PRIMARY
+1, 1, 2, 3, 4, 5, 6, 7, 8
+*Element, type=C3D8, elset=SECONDARY
+2, 9, 10, 11, 12, 13, 14, 15, 16
+*Nset, nset=primary_all
+1, 2, 3, 4, 5, 6, 7, 8
+*Nset, nset=secondary_all
+9, 10, 11, 12, 13, 14, 15, 16
+*Nset, nset=primary_contact_nodes
+2, 3, 6, 7
+*Nset, nset=secondary_contact_nodes
+9, 12, 13, 16
+*Surface, type=ELEMENT, name=PRIMARY_CONTACT
+PRIMARY, S4
+*Surface, type=ELEMENT, name=SECONDARY_CONTACT
+SECONDARY, S6
+*Material, name=ELASTIC
+*Elastic
+1.e9, 0.0
+*Solid Section, elset=PRIMARY, material=ELASTIC
+,
+*Solid Section, elset=SECONDARY, material=ELASTIC
+,
+*Surface Interaction, name=CONTACT
+*Surface Behavior, pressure-overclosure=LINEAR
+1.e7,
+*Contact Pair, interaction=CONTACT, type=SURFACE TO SURFACE, adjust=0., sliding transition=LINEAR smoothing
+SECONDARY_CONTACT, PRIMARY_CONTACT
+*Step, name=LOAD, nlgeom=YES, inc=1
+*Static
+1., 1., 1., 1.
+*Boundary, op=NEW
+1, 1, 1, 0
+1, 2, 2, 0
+1, 3, 3, 0
+2, 1, 1, 0
+2, 2, 2, 0
+2, 3, 3, 0
+3, 1, 1, 0
+3, 2, 2, 0
+3, 3, 3, 0
+4, 1, 1, 0
+4, 2, 2, 0
+4, 3, 3, 0
+5, 1, 1, 0
+5, 2, 2, 0
+5, 3, 3, 0
+6, 1, 1, 0
+6, 2, 2, 0
+6, 3, 3, 0
+7, 1, 1, 0
+7, 2, 2, 0
+7, 3, 3, 0
+8, 1, 1, 0
+8, 2, 2, 0
+8, 3, 3, 0
+9, 1, 1, -0.01171875
+9, 2, 2, 0
+9, 3, 3, 0
+10, 1, 1, -0.01171875
+10, 2, 2, 0
+10, 3, 3, 0
+11, 1, 1, -0.01171875
+11, 2, 2, 0
+11, 3, 3, 0
+12, 1, 1, -0.01171875
+12, 2, 2, 0
+12, 3, 3, 0
+13, 1, 1, -0.01171875
+13, 2, 2, 0
+13, 3, 3, 0
+14, 1, 1, -0.01171875
+14, 2, 2, 0
+14, 3, 3, 0
+15, 1, 1, -0.01171875
+15, 2, 2, 0
+15, 3, 3, 0
+16, 1, 1, -0.01171875
+16, 2, 2, 0
+16, 3, 3, 0
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U
+*Contact Output
+CSTRESS, CDISP, CFORCE
+*End Step
