@@ -1,0 +1,1045 @@
+*Heading
+** B4.4 C3D8 finite-sliding stepped-primary averaging-operator probe.
+*Preprint, echo=NO, model=NO, history=NO, contact=YES
+*Node
+1, 0, -0.5, -0.5
+2, 1, -0.5, -0.5
+3, 1, 0, -0.5
+4, 0, 0, -0.5
+5, 0, -0.5, 0
+6, 1, -0.5, 0
+7, 1, 0, 0
+8, 0, 0, 0
+9, 1, 0.5, -0.5
+10, 0, 0.5, -0.5
+11, 1, 0.5, 0
+12, 0, 0.5, 0
+13, 1, 1, -0.5
+14, 0, 1, -0.5
+15, 1, 1, 0
+16, 0, 1, 0
+17, 1, 1.5, -0.5
+18, 0, 1.5, -0.5
+19, 1, 1.5, 0
+20, 0, 1.5, 0
+21, 0, -0.5, 0.5
+22, 1, -0.5, 0.5
+23, 1, 0, 0.5
+24, 0, 0, 0.5
+25, 1, 0.5, 0.5
+26, 0, 0.5, 0.5
+27, 1, 1, 0.5
+28, 0, 1, 0.5
+29, 1, 1.5, 0.5
+30, 0, 1.5, 0.5
+31, 0, -0.5, 1
+32, 1, -0.5, 1
+33, 1, 0, 1
+34, 0, 0, 1
+35, 1, 0.5, 1
+36, 0, 0.5, 1
+37, 1, 1, 1
+38, 0, 1, 1
+39, 1, 1.5, 1
+40, 0, 1.5, 1
+41, 0, -0.5, 1.5
+42, 1, -0.5, 1.5
+43, 1, 0, 1.5
+44, 0, 0, 1.5
+45, 1, 0.5, 1.5
+46, 0, 0.5, 1.5
+47, 1, 1, 1.5
+48, 0, 1, 1.5
+49, 1, 1.5, 1.5
+50, 0, 1.5, 1.5
+51, 1.0009765625, 0, 0
+52, 2.0009765625, 0, 0
+53, 2.0009765625, 0.375, 0
+54, 1.0009765625, 0.375, 0
+55, 1.0009765625, 0, 0.375
+56, 2.0009765625, 0, 0.375
+57, 2.0009765625, 0.375, 0.375
+58, 1.0009765625, 0.375, 0.375
+59, 1.0068359375, 0.375, 0
+60, 2.0068359375, 0.375, 0
+61, 2.0068359375, 0.625, 0
+62, 1.0068359375, 0.625, 0
+63, 1.0068359375, 0.375, 0.375
+64, 2.0068359375, 0.375, 0.375
+65, 2.0068359375, 0.625, 0.375
+66, 1.0068359375, 0.625, 0.375
+67, 1.0029296875, 0.625, 0
+68, 2.0029296875, 0.625, 0
+69, 2.0029296875, 1, 0
+70, 1.0029296875, 1, 0
+71, 1.0029296875, 0.625, 0.375
+72, 2.0029296875, 0.625, 0.375
+73, 2.0029296875, 1, 0.375
+74, 1.0029296875, 1, 0.375
+75, 1.0087890625, 0, 0.375
+76, 2.0087890625, 0, 0.375
+77, 2.0087890625, 0.375, 0.375
+78, 1.0087890625, 0.375, 0.375
+79, 1.0087890625, 0, 1
+80, 2.0087890625, 0, 1
+81, 2.0087890625, 0.375, 1
+82, 1.0087890625, 0.375, 1
+83, 1.0048828125, 0.375, 0.375
+84, 2.0048828125, 0.375, 0.375
+85, 2.0048828125, 0.625, 0.375
+86, 1.0048828125, 0.625, 0.375
+87, 1.0048828125, 0.375, 1
+88, 2.0048828125, 0.375, 1
+89, 2.0048828125, 0.625, 1
+90, 1.0048828125, 0.625, 1
+91, 1.0107421875, 0.625, 0.375
+92, 2.0107421875, 0.625, 0.375
+93, 2.0107421875, 1, 0.375
+94, 1.0107421875, 1, 0.375
+95, 1.0107421875, 0.625, 1
+96, 2.0107421875, 0.625, 1
+97, 2.0107421875, 1, 1
+98, 1.0107421875, 1, 1
+*Element, type=C3D8, elset=PRIMARY
+1, 1, 2, 3, 4, 5, 6, 7, 8
+2, 4, 3, 9, 10, 8, 7, 11, 12
+3, 10, 9, 13, 14, 12, 11, 15, 16
+4, 14, 13, 17, 18, 16, 15, 19, 20
+5, 5, 6, 7, 8, 21, 22, 23, 24
+6, 8, 7, 11, 12, 24, 23, 25, 26
+7, 12, 11, 15, 16, 26, 25, 27, 28
+8, 16, 15, 19, 20, 28, 27, 29, 30
+9, 21, 22, 23, 24, 31, 32, 33, 34
+10, 24, 23, 25, 26, 34, 33, 35, 36
+11, 26, 25, 27, 28, 36, 35, 37, 38
+12, 28, 27, 29, 30, 38, 37, 39, 40
+13, 31, 32, 33, 34, 41, 42, 43, 44
+14, 34, 33, 35, 36, 44, 43, 45, 46
+15, 36, 35, 37, 38, 46, 45, 47, 48
+16, 38, 37, 39, 40, 48, 47, 49, 50
+*Element, type=C3D8, elset=SECONDARY
+17, 51, 52, 53, 54, 55, 56, 57, 58
+18, 59, 60, 61, 62, 63, 64, 65, 66
+19, 67, 68, 69, 70, 71, 72, 73, 74
+20, 75, 76, 77, 78, 79, 80, 81, 82
+21, 83, 84, 85, 86, 87, 88, 89, 90
+22, 91, 92, 93, 94, 95, 96, 97, 98
+*Nset, nset=primary_all
+1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16
+17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32
+33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48
+49, 50
+*Nset, nset=secondary_all
+51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66
+67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82
+83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98
+*Nset, nset=secondary_contact_nodes
+51, 54, 55, 58, 59, 62, 63, 66, 67, 70, 71, 74, 75, 78, 79, 82
+83, 86, 87, 90, 91, 94, 95, 98
+*Nset, nset=primary_patch_nodes
+7, 11, 15, 23, 25, 27, 33, 35, 37
+*Surface, type=ELEMENT, name=PRIMARY_CONTACT
+PRIMARY, S4
+*Elset, elset=PRIMARY_PATCH
+6,
+7,
+10,
+11,
+*Surface, type=ELEMENT, name=PRIMARY_CONTACT_PATCH
+PRIMARY_PATCH, S4
+*Surface, type=ELEMENT, name=SECONDARY_CONTACT
+SECONDARY, S6
+*Material, name=ELASTIC
+*Elastic
+1.e9, 0.0
+*Solid Section, elset=PRIMARY, material=ELASTIC
+,
+*Solid Section, elset=SECONDARY, material=ELASTIC
+,
+*Surface Interaction, name=CONTACT
+*Surface Behavior, pressure-overclosure=LINEAR
+1.e7,
+*Contact Pair, interaction=CONTACT, type=SURFACE TO SURFACE, adjust=0.
+PRIMARY_CONTACT_PATCH, SECONDARY_CONTACT
+*Nset, nset=TILE_1
+51, 52, 53, 54, 55, 56, 57, 58
+*Nset, nset=TILE_2
+59, 60, 61, 62, 63, 64, 65, 66
+*Nset, nset=TILE_3
+67, 68, 69, 70, 71, 72, 73, 74
+*Nset, nset=TILE_4
+75, 76, 77, 78, 79, 80, 81, 82
+*Nset, nset=TILE_5
+83, 84, 85, 86, 87, 88, 89, 90
+*Nset, nset=TILE_6
+91, 92, 93, 94, 95, 96, 97, 98
+*Nset, nset=PATCH_NONCONTACT
+1, 2, 3, 4, 5, 6, 8, 9, 10, 12, 13, 14, 16, 17, 18, 19, 20, 21, 22, 24, 26, 28, 29, 30, 31, 32, 34, 36, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50
+*Step, name=BASE, nlgeom=YES, inc=1
+*Static
+1., 1., 1., 1.
+*Boundary, op=NEW
+PRIMARY_ALL, 2, 3, 0.
+PATCH_NONCONTACT, 1, 1, 0.
+SECONDARY_ALL, 2, 3, 0.
+7, 1, 1, 0
+11, 1, 1, 0
+15, 1, 1, 0
+23, 1, 1, 0
+25, 1, 1, 0
+27, 1, 1, 0
+33, 1, 1, 0
+35, 1, 1, 0
+37, 1, 1, 0
+TILE_1, 1, 1, -0.015625
+TILE_2, 1, 1, -0.015625
+TILE_3, 1, 1, -0.015625
+TILE_4, 1, 1, -0.015625
+TILE_5, 1, 1, -0.015625
+TILE_6, 1, 1, -0.015625
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U
+*Contact Output
+CSTRESS, CDISP, CFORCE
+*End Step
+*Step, name=T1_PLUS, nlgeom=YES, inc=1
+*Static
+1., 1., 1., 1.
+*Boundary, op=NEW
+PRIMARY_ALL, 2, 3, 0.
+PATCH_NONCONTACT, 1, 1, 0.
+SECONDARY_ALL, 2, 3, 0.
+7, 1, 1, 0
+11, 1, 1, 0
+15, 1, 1, 0
+23, 1, 1, 0
+25, 1, 1, 0
+27, 1, 1, 0
+33, 1, 1, 0
+35, 1, 1, 0
+37, 1, 1, 0
+TILE_1, 1, 1, -0.015624
+TILE_2, 1, 1, -0.015625
+TILE_3, 1, 1, -0.015625
+TILE_4, 1, 1, -0.015625
+TILE_5, 1, 1, -0.015625
+TILE_6, 1, 1, -0.015625
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U
+*Contact Output
+CSTRESS, CDISP, CFORCE
+*End Step
+*Step, name=T1_MINUS, nlgeom=YES, inc=1
+*Static
+1., 1., 1., 1.
+*Boundary, op=NEW
+PRIMARY_ALL, 2, 3, 0.
+PATCH_NONCONTACT, 1, 1, 0.
+SECONDARY_ALL, 2, 3, 0.
+7, 1, 1, 0
+11, 1, 1, 0
+15, 1, 1, 0
+23, 1, 1, 0
+25, 1, 1, 0
+27, 1, 1, 0
+33, 1, 1, 0
+35, 1, 1, 0
+37, 1, 1, 0
+TILE_1, 1, 1, -0.015626
+TILE_2, 1, 1, -0.015625
+TILE_3, 1, 1, -0.015625
+TILE_4, 1, 1, -0.015625
+TILE_5, 1, 1, -0.015625
+TILE_6, 1, 1, -0.015625
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U
+*Contact Output
+CSTRESS, CDISP, CFORCE
+*End Step
+*Step, name=T2_PLUS, nlgeom=YES, inc=1
+*Static
+1., 1., 1., 1.
+*Boundary, op=NEW
+PRIMARY_ALL, 2, 3, 0.
+PATCH_NONCONTACT, 1, 1, 0.
+SECONDARY_ALL, 2, 3, 0.
+7, 1, 1, 0
+11, 1, 1, 0
+15, 1, 1, 0
+23, 1, 1, 0
+25, 1, 1, 0
+27, 1, 1, 0
+33, 1, 1, 0
+35, 1, 1, 0
+37, 1, 1, 0
+TILE_1, 1, 1, -0.015625
+TILE_2, 1, 1, -0.015624
+TILE_3, 1, 1, -0.015625
+TILE_4, 1, 1, -0.015625
+TILE_5, 1, 1, -0.015625
+TILE_6, 1, 1, -0.015625
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U
+*Contact Output
+CSTRESS, CDISP, CFORCE
+*End Step
+*Step, name=T2_MINUS, nlgeom=YES, inc=1
+*Static
+1., 1., 1., 1.
+*Boundary, op=NEW
+PRIMARY_ALL, 2, 3, 0.
+PATCH_NONCONTACT, 1, 1, 0.
+SECONDARY_ALL, 2, 3, 0.
+7, 1, 1, 0
+11, 1, 1, 0
+15, 1, 1, 0
+23, 1, 1, 0
+25, 1, 1, 0
+27, 1, 1, 0
+33, 1, 1, 0
+35, 1, 1, 0
+37, 1, 1, 0
+TILE_1, 1, 1, -0.015625
+TILE_2, 1, 1, -0.015626
+TILE_3, 1, 1, -0.015625
+TILE_4, 1, 1, -0.015625
+TILE_5, 1, 1, -0.015625
+TILE_6, 1, 1, -0.015625
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U
+*Contact Output
+CSTRESS, CDISP, CFORCE
+*End Step
+*Step, name=T3_PLUS, nlgeom=YES, inc=1
+*Static
+1., 1., 1., 1.
+*Boundary, op=NEW
+PRIMARY_ALL, 2, 3, 0.
+PATCH_NONCONTACT, 1, 1, 0.
+SECONDARY_ALL, 2, 3, 0.
+7, 1, 1, 0
+11, 1, 1, 0
+15, 1, 1, 0
+23, 1, 1, 0
+25, 1, 1, 0
+27, 1, 1, 0
+33, 1, 1, 0
+35, 1, 1, 0
+37, 1, 1, 0
+TILE_1, 1, 1, -0.015625
+TILE_2, 1, 1, -0.015625
+TILE_3, 1, 1, -0.015624
+TILE_4, 1, 1, -0.015625
+TILE_5, 1, 1, -0.015625
+TILE_6, 1, 1, -0.015625
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U
+*Contact Output
+CSTRESS, CDISP, CFORCE
+*End Step
+*Step, name=T3_MINUS, nlgeom=YES, inc=1
+*Static
+1., 1., 1., 1.
+*Boundary, op=NEW
+PRIMARY_ALL, 2, 3, 0.
+PATCH_NONCONTACT, 1, 1, 0.
+SECONDARY_ALL, 2, 3, 0.
+7, 1, 1, 0
+11, 1, 1, 0
+15, 1, 1, 0
+23, 1, 1, 0
+25, 1, 1, 0
+27, 1, 1, 0
+33, 1, 1, 0
+35, 1, 1, 0
+37, 1, 1, 0
+TILE_1, 1, 1, -0.015625
+TILE_2, 1, 1, -0.015625
+TILE_3, 1, 1, -0.015626
+TILE_4, 1, 1, -0.015625
+TILE_5, 1, 1, -0.015625
+TILE_6, 1, 1, -0.015625
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U
+*Contact Output
+CSTRESS, CDISP, CFORCE
+*End Step
+*Step, name=T4_PLUS, nlgeom=YES, inc=1
+*Static
+1., 1., 1., 1.
+*Boundary, op=NEW
+PRIMARY_ALL, 2, 3, 0.
+PATCH_NONCONTACT, 1, 1, 0.
+SECONDARY_ALL, 2, 3, 0.
+7, 1, 1, 0
+11, 1, 1, 0
+15, 1, 1, 0
+23, 1, 1, 0
+25, 1, 1, 0
+27, 1, 1, 0
+33, 1, 1, 0
+35, 1, 1, 0
+37, 1, 1, 0
+TILE_1, 1, 1, -0.015625
+TILE_2, 1, 1, -0.015625
+TILE_3, 1, 1, -0.015625
+TILE_4, 1, 1, -0.015624
+TILE_5, 1, 1, -0.015625
+TILE_6, 1, 1, -0.015625
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U
+*Contact Output
+CSTRESS, CDISP, CFORCE
+*End Step
+*Step, name=T4_MINUS, nlgeom=YES, inc=1
+*Static
+1., 1., 1., 1.
+*Boundary, op=NEW
+PRIMARY_ALL, 2, 3, 0.
+PATCH_NONCONTACT, 1, 1, 0.
+SECONDARY_ALL, 2, 3, 0.
+7, 1, 1, 0
+11, 1, 1, 0
+15, 1, 1, 0
+23, 1, 1, 0
+25, 1, 1, 0
+27, 1, 1, 0
+33, 1, 1, 0
+35, 1, 1, 0
+37, 1, 1, 0
+TILE_1, 1, 1, -0.015625
+TILE_2, 1, 1, -0.015625
+TILE_3, 1, 1, -0.015625
+TILE_4, 1, 1, -0.015626
+TILE_5, 1, 1, -0.015625
+TILE_6, 1, 1, -0.015625
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U
+*Contact Output
+CSTRESS, CDISP, CFORCE
+*End Step
+*Step, name=T5_PLUS, nlgeom=YES, inc=1
+*Static
+1., 1., 1., 1.
+*Boundary, op=NEW
+PRIMARY_ALL, 2, 3, 0.
+PATCH_NONCONTACT, 1, 1, 0.
+SECONDARY_ALL, 2, 3, 0.
+7, 1, 1, 0
+11, 1, 1, 0
+15, 1, 1, 0
+23, 1, 1, 0
+25, 1, 1, 0
+27, 1, 1, 0
+33, 1, 1, 0
+35, 1, 1, 0
+37, 1, 1, 0
+TILE_1, 1, 1, -0.015625
+TILE_2, 1, 1, -0.015625
+TILE_3, 1, 1, -0.015625
+TILE_4, 1, 1, -0.015625
+TILE_5, 1, 1, -0.015624
+TILE_6, 1, 1, -0.015625
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U
+*Contact Output
+CSTRESS, CDISP, CFORCE
+*End Step
+*Step, name=T5_MINUS, nlgeom=YES, inc=1
+*Static
+1., 1., 1., 1.
+*Boundary, op=NEW
+PRIMARY_ALL, 2, 3, 0.
+PATCH_NONCONTACT, 1, 1, 0.
+SECONDARY_ALL, 2, 3, 0.
+7, 1, 1, 0
+11, 1, 1, 0
+15, 1, 1, 0
+23, 1, 1, 0
+25, 1, 1, 0
+27, 1, 1, 0
+33, 1, 1, 0
+35, 1, 1, 0
+37, 1, 1, 0
+TILE_1, 1, 1, -0.015625
+TILE_2, 1, 1, -0.015625
+TILE_3, 1, 1, -0.015625
+TILE_4, 1, 1, -0.015625
+TILE_5, 1, 1, -0.015626
+TILE_6, 1, 1, -0.015625
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U
+*Contact Output
+CSTRESS, CDISP, CFORCE
+*End Step
+*Step, name=T6_PLUS, nlgeom=YES, inc=1
+*Static
+1., 1., 1., 1.
+*Boundary, op=NEW
+PRIMARY_ALL, 2, 3, 0.
+PATCH_NONCONTACT, 1, 1, 0.
+SECONDARY_ALL, 2, 3, 0.
+7, 1, 1, 0
+11, 1, 1, 0
+15, 1, 1, 0
+23, 1, 1, 0
+25, 1, 1, 0
+27, 1, 1, 0
+33, 1, 1, 0
+35, 1, 1, 0
+37, 1, 1, 0
+TILE_1, 1, 1, -0.015625
+TILE_2, 1, 1, -0.015625
+TILE_3, 1, 1, -0.015625
+TILE_4, 1, 1, -0.015625
+TILE_5, 1, 1, -0.015625
+TILE_6, 1, 1, -0.015624
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U
+*Contact Output
+CSTRESS, CDISP, CFORCE
+*End Step
+*Step, name=T6_MINUS, nlgeom=YES, inc=1
+*Static
+1., 1., 1., 1.
+*Boundary, op=NEW
+PRIMARY_ALL, 2, 3, 0.
+PATCH_NONCONTACT, 1, 1, 0.
+SECONDARY_ALL, 2, 3, 0.
+7, 1, 1, 0
+11, 1, 1, 0
+15, 1, 1, 0
+23, 1, 1, 0
+25, 1, 1, 0
+27, 1, 1, 0
+33, 1, 1, 0
+35, 1, 1, 0
+37, 1, 1, 0
+TILE_1, 1, 1, -0.015625
+TILE_2, 1, 1, -0.015625
+TILE_3, 1, 1, -0.015625
+TILE_4, 1, 1, -0.015625
+TILE_5, 1, 1, -0.015625
+TILE_6, 1, 1, -0.015626
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U
+*Contact Output
+CSTRESS, CDISP, CFORCE
+*End Step
+*Step, name=S1_PLUS, nlgeom=YES, inc=1
+*Static
+1., 1., 1., 1.
+*Boundary, op=NEW
+PRIMARY_ALL, 2, 3, 0.
+PATCH_NONCONTACT, 1, 1, 0.
+SECONDARY_ALL, 2, 3, 0.
+7, 1, 1, 1e-06
+11, 1, 1, 0
+15, 1, 1, 0
+23, 1, 1, 0
+25, 1, 1, 0
+27, 1, 1, 0
+33, 1, 1, 0
+35, 1, 1, 0
+37, 1, 1, 0
+TILE_1, 1, 1, -0.015625
+TILE_2, 1, 1, -0.015625
+TILE_3, 1, 1, -0.015625
+TILE_4, 1, 1, -0.015625
+TILE_5, 1, 1, -0.015625
+TILE_6, 1, 1, -0.015625
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U
+*Contact Output
+CSTRESS, CDISP, CFORCE
+*End Step
+*Step, name=S1_MINUS, nlgeom=YES, inc=1
+*Static
+1., 1., 1., 1.
+*Boundary, op=NEW
+PRIMARY_ALL, 2, 3, 0.
+PATCH_NONCONTACT, 1, 1, 0.
+SECONDARY_ALL, 2, 3, 0.
+7, 1, 1, -1e-06
+11, 1, 1, 0
+15, 1, 1, 0
+23, 1, 1, 0
+25, 1, 1, 0
+27, 1, 1, 0
+33, 1, 1, 0
+35, 1, 1, 0
+37, 1, 1, 0
+TILE_1, 1, 1, -0.015625
+TILE_2, 1, 1, -0.015625
+TILE_3, 1, 1, -0.015625
+TILE_4, 1, 1, -0.015625
+TILE_5, 1, 1, -0.015625
+TILE_6, 1, 1, -0.015625
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U
+*Contact Output
+CSTRESS, CDISP, CFORCE
+*End Step
+*Step, name=S2_PLUS, nlgeom=YES, inc=1
+*Static
+1., 1., 1., 1.
+*Boundary, op=NEW
+PRIMARY_ALL, 2, 3, 0.
+PATCH_NONCONTACT, 1, 1, 0.
+SECONDARY_ALL, 2, 3, 0.
+7, 1, 1, 0
+11, 1, 1, 1e-06
+15, 1, 1, 0
+23, 1, 1, 0
+25, 1, 1, 0
+27, 1, 1, 0
+33, 1, 1, 0
+35, 1, 1, 0
+37, 1, 1, 0
+TILE_1, 1, 1, -0.015625
+TILE_2, 1, 1, -0.015625
+TILE_3, 1, 1, -0.015625
+TILE_4, 1, 1, -0.015625
+TILE_5, 1, 1, -0.015625
+TILE_6, 1, 1, -0.015625
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U
+*Contact Output
+CSTRESS, CDISP, CFORCE
+*End Step
+*Step, name=S2_MINUS, nlgeom=YES, inc=1
+*Static
+1., 1., 1., 1.
+*Boundary, op=NEW
+PRIMARY_ALL, 2, 3, 0.
+PATCH_NONCONTACT, 1, 1, 0.
+SECONDARY_ALL, 2, 3, 0.
+7, 1, 1, 0
+11, 1, 1, -1e-06
+15, 1, 1, 0
+23, 1, 1, 0
+25, 1, 1, 0
+27, 1, 1, 0
+33, 1, 1, 0
+35, 1, 1, 0
+37, 1, 1, 0
+TILE_1, 1, 1, -0.015625
+TILE_2, 1, 1, -0.015625
+TILE_3, 1, 1, -0.015625
+TILE_4, 1, 1, -0.015625
+TILE_5, 1, 1, -0.015625
+TILE_6, 1, 1, -0.015625
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U
+*Contact Output
+CSTRESS, CDISP, CFORCE
+*End Step
+*Step, name=S3_PLUS, nlgeom=YES, inc=1
+*Static
+1., 1., 1., 1.
+*Boundary, op=NEW
+PRIMARY_ALL, 2, 3, 0.
+PATCH_NONCONTACT, 1, 1, 0.
+SECONDARY_ALL, 2, 3, 0.
+7, 1, 1, 0
+11, 1, 1, 0
+15, 1, 1, 1e-06
+23, 1, 1, 0
+25, 1, 1, 0
+27, 1, 1, 0
+33, 1, 1, 0
+35, 1, 1, 0
+37, 1, 1, 0
+TILE_1, 1, 1, -0.015625
+TILE_2, 1, 1, -0.015625
+TILE_3, 1, 1, -0.015625
+TILE_4, 1, 1, -0.015625
+TILE_5, 1, 1, -0.015625
+TILE_6, 1, 1, -0.015625
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U
+*Contact Output
+CSTRESS, CDISP, CFORCE
+*End Step
+*Step, name=S3_MINUS, nlgeom=YES, inc=1
+*Static
+1., 1., 1., 1.
+*Boundary, op=NEW
+PRIMARY_ALL, 2, 3, 0.
+PATCH_NONCONTACT, 1, 1, 0.
+SECONDARY_ALL, 2, 3, 0.
+7, 1, 1, 0
+11, 1, 1, 0
+15, 1, 1, -1e-06
+23, 1, 1, 0
+25, 1, 1, 0
+27, 1, 1, 0
+33, 1, 1, 0
+35, 1, 1, 0
+37, 1, 1, 0
+TILE_1, 1, 1, -0.015625
+TILE_2, 1, 1, -0.015625
+TILE_3, 1, 1, -0.015625
+TILE_4, 1, 1, -0.015625
+TILE_5, 1, 1, -0.015625
+TILE_6, 1, 1, -0.015625
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U
+*Contact Output
+CSTRESS, CDISP, CFORCE
+*End Step
+*Step, name=S4_PLUS, nlgeom=YES, inc=1
+*Static
+1., 1., 1., 1.
+*Boundary, op=NEW
+PRIMARY_ALL, 2, 3, 0.
+PATCH_NONCONTACT, 1, 1, 0.
+SECONDARY_ALL, 2, 3, 0.
+7, 1, 1, 0
+11, 1, 1, 0
+15, 1, 1, 0
+23, 1, 1, 1e-06
+25, 1, 1, 0
+27, 1, 1, 0
+33, 1, 1, 0
+35, 1, 1, 0
+37, 1, 1, 0
+TILE_1, 1, 1, -0.015625
+TILE_2, 1, 1, -0.015625
+TILE_3, 1, 1, -0.015625
+TILE_4, 1, 1, -0.015625
+TILE_5, 1, 1, -0.015625
+TILE_6, 1, 1, -0.015625
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U
+*Contact Output
+CSTRESS, CDISP, CFORCE
+*End Step
+*Step, name=S4_MINUS, nlgeom=YES, inc=1
+*Static
+1., 1., 1., 1.
+*Boundary, op=NEW
+PRIMARY_ALL, 2, 3, 0.
+PATCH_NONCONTACT, 1, 1, 0.
+SECONDARY_ALL, 2, 3, 0.
+7, 1, 1, 0
+11, 1, 1, 0
+15, 1, 1, 0
+23, 1, 1, -1e-06
+25, 1, 1, 0
+27, 1, 1, 0
+33, 1, 1, 0
+35, 1, 1, 0
+37, 1, 1, 0
+TILE_1, 1, 1, -0.015625
+TILE_2, 1, 1, -0.015625
+TILE_3, 1, 1, -0.015625
+TILE_4, 1, 1, -0.015625
+TILE_5, 1, 1, -0.015625
+TILE_6, 1, 1, -0.015625
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U
+*Contact Output
+CSTRESS, CDISP, CFORCE
+*End Step
+*Step, name=S5_PLUS, nlgeom=YES, inc=1
+*Static
+1., 1., 1., 1.
+*Boundary, op=NEW
+PRIMARY_ALL, 2, 3, 0.
+PATCH_NONCONTACT, 1, 1, 0.
+SECONDARY_ALL, 2, 3, 0.
+7, 1, 1, 0
+11, 1, 1, 0
+15, 1, 1, 0
+23, 1, 1, 0
+25, 1, 1, 1e-06
+27, 1, 1, 0
+33, 1, 1, 0
+35, 1, 1, 0
+37, 1, 1, 0
+TILE_1, 1, 1, -0.015625
+TILE_2, 1, 1, -0.015625
+TILE_3, 1, 1, -0.015625
+TILE_4, 1, 1, -0.015625
+TILE_5, 1, 1, -0.015625
+TILE_6, 1, 1, -0.015625
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U
+*Contact Output
+CSTRESS, CDISP, CFORCE
+*End Step
+*Step, name=S5_MINUS, nlgeom=YES, inc=1
+*Static
+1., 1., 1., 1.
+*Boundary, op=NEW
+PRIMARY_ALL, 2, 3, 0.
+PATCH_NONCONTACT, 1, 1, 0.
+SECONDARY_ALL, 2, 3, 0.
+7, 1, 1, 0
+11, 1, 1, 0
+15, 1, 1, 0
+23, 1, 1, 0
+25, 1, 1, -1e-06
+27, 1, 1, 0
+33, 1, 1, 0
+35, 1, 1, 0
+37, 1, 1, 0
+TILE_1, 1, 1, -0.015625
+TILE_2, 1, 1, -0.015625
+TILE_3, 1, 1, -0.015625
+TILE_4, 1, 1, -0.015625
+TILE_5, 1, 1, -0.015625
+TILE_6, 1, 1, -0.015625
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U
+*Contact Output
+CSTRESS, CDISP, CFORCE
+*End Step
+*Step, name=S6_PLUS, nlgeom=YES, inc=1
+*Static
+1., 1., 1., 1.
+*Boundary, op=NEW
+PRIMARY_ALL, 2, 3, 0.
+PATCH_NONCONTACT, 1, 1, 0.
+SECONDARY_ALL, 2, 3, 0.
+7, 1, 1, 0
+11, 1, 1, 0
+15, 1, 1, 0
+23, 1, 1, 0
+25, 1, 1, 0
+27, 1, 1, 1e-06
+33, 1, 1, 0
+35, 1, 1, 0
+37, 1, 1, 0
+TILE_1, 1, 1, -0.015625
+TILE_2, 1, 1, -0.015625
+TILE_3, 1, 1, -0.015625
+TILE_4, 1, 1, -0.015625
+TILE_5, 1, 1, -0.015625
+TILE_6, 1, 1, -0.015625
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U
+*Contact Output
+CSTRESS, CDISP, CFORCE
+*End Step
+*Step, name=S6_MINUS, nlgeom=YES, inc=1
+*Static
+1., 1., 1., 1.
+*Boundary, op=NEW
+PRIMARY_ALL, 2, 3, 0.
+PATCH_NONCONTACT, 1, 1, 0.
+SECONDARY_ALL, 2, 3, 0.
+7, 1, 1, 0
+11, 1, 1, 0
+15, 1, 1, 0
+23, 1, 1, 0
+25, 1, 1, 0
+27, 1, 1, -1e-06
+33, 1, 1, 0
+35, 1, 1, 0
+37, 1, 1, 0
+TILE_1, 1, 1, -0.015625
+TILE_2, 1, 1, -0.015625
+TILE_3, 1, 1, -0.015625
+TILE_4, 1, 1, -0.015625
+TILE_5, 1, 1, -0.015625
+TILE_6, 1, 1, -0.015625
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U
+*Contact Output
+CSTRESS, CDISP, CFORCE
+*End Step
+*Step, name=S7_PLUS, nlgeom=YES, inc=1
+*Static
+1., 1., 1., 1.
+*Boundary, op=NEW
+PRIMARY_ALL, 2, 3, 0.
+PATCH_NONCONTACT, 1, 1, 0.
+SECONDARY_ALL, 2, 3, 0.
+7, 1, 1, 0
+11, 1, 1, 0
+15, 1, 1, 0
+23, 1, 1, 0
+25, 1, 1, 0
+27, 1, 1, 0
+33, 1, 1, 1e-06
+35, 1, 1, 0
+37, 1, 1, 0
+TILE_1, 1, 1, -0.015625
+TILE_2, 1, 1, -0.015625
+TILE_3, 1, 1, -0.015625
+TILE_4, 1, 1, -0.015625
+TILE_5, 1, 1, -0.015625
+TILE_6, 1, 1, -0.015625
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U
+*Contact Output
+CSTRESS, CDISP, CFORCE
+*End Step
+*Step, name=S7_MINUS, nlgeom=YES, inc=1
+*Static
+1., 1., 1., 1.
+*Boundary, op=NEW
+PRIMARY_ALL, 2, 3, 0.
+PATCH_NONCONTACT, 1, 1, 0.
+SECONDARY_ALL, 2, 3, 0.
+7, 1, 1, 0
+11, 1, 1, 0
+15, 1, 1, 0
+23, 1, 1, 0
+25, 1, 1, 0
+27, 1, 1, 0
+33, 1, 1, -1e-06
+35, 1, 1, 0
+37, 1, 1, 0
+TILE_1, 1, 1, -0.015625
+TILE_2, 1, 1, -0.015625
+TILE_3, 1, 1, -0.015625
+TILE_4, 1, 1, -0.015625
+TILE_5, 1, 1, -0.015625
+TILE_6, 1, 1, -0.015625
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U
+*Contact Output
+CSTRESS, CDISP, CFORCE
+*End Step
+*Step, name=S8_PLUS, nlgeom=YES, inc=1
+*Static
+1., 1., 1., 1.
+*Boundary, op=NEW
+PRIMARY_ALL, 2, 3, 0.
+PATCH_NONCONTACT, 1, 1, 0.
+SECONDARY_ALL, 2, 3, 0.
+7, 1, 1, 0
+11, 1, 1, 0
+15, 1, 1, 0
+23, 1, 1, 0
+25, 1, 1, 0
+27, 1, 1, 0
+33, 1, 1, 0
+35, 1, 1, 1e-06
+37, 1, 1, 0
+TILE_1, 1, 1, -0.015625
+TILE_2, 1, 1, -0.015625
+TILE_3, 1, 1, -0.015625
+TILE_4, 1, 1, -0.015625
+TILE_5, 1, 1, -0.015625
+TILE_6, 1, 1, -0.015625
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U
+*Contact Output
+CSTRESS, CDISP, CFORCE
+*End Step
+*Step, name=S8_MINUS, nlgeom=YES, inc=1
+*Static
+1., 1., 1., 1.
+*Boundary, op=NEW
+PRIMARY_ALL, 2, 3, 0.
+PATCH_NONCONTACT, 1, 1, 0.
+SECONDARY_ALL, 2, 3, 0.
+7, 1, 1, 0
+11, 1, 1, 0
+15, 1, 1, 0
+23, 1, 1, 0
+25, 1, 1, 0
+27, 1, 1, 0
+33, 1, 1, 0
+35, 1, 1, -1e-06
+37, 1, 1, 0
+TILE_1, 1, 1, -0.015625
+TILE_2, 1, 1, -0.015625
+TILE_3, 1, 1, -0.015625
+TILE_4, 1, 1, -0.015625
+TILE_5, 1, 1, -0.015625
+TILE_6, 1, 1, -0.015625
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U
+*Contact Output
+CSTRESS, CDISP, CFORCE
+*End Step
+*Step, name=S9_PLUS, nlgeom=YES, inc=1
+*Static
+1., 1., 1., 1.
+*Boundary, op=NEW
+PRIMARY_ALL, 2, 3, 0.
+PATCH_NONCONTACT, 1, 1, 0.
+SECONDARY_ALL, 2, 3, 0.
+7, 1, 1, 0
+11, 1, 1, 0
+15, 1, 1, 0
+23, 1, 1, 0
+25, 1, 1, 0
+27, 1, 1, 0
+33, 1, 1, 0
+35, 1, 1, 0
+37, 1, 1, 1e-06
+TILE_1, 1, 1, -0.015625
+TILE_2, 1, 1, -0.015625
+TILE_3, 1, 1, -0.015625
+TILE_4, 1, 1, -0.015625
+TILE_5, 1, 1, -0.015625
+TILE_6, 1, 1, -0.015625
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U
+*Contact Output
+CSTRESS, CDISP, CFORCE
+*End Step
+*Step, name=S9_MINUS, nlgeom=YES, inc=1
+*Static
+1., 1., 1., 1.
+*Boundary, op=NEW
+PRIMARY_ALL, 2, 3, 0.
+PATCH_NONCONTACT, 1, 1, 0.
+SECONDARY_ALL, 2, 3, 0.
+7, 1, 1, 0
+11, 1, 1, 0
+15, 1, 1, 0
+23, 1, 1, 0
+25, 1, 1, 0
+27, 1, 1, 0
+33, 1, 1, 0
+35, 1, 1, 0
+37, 1, 1, -1e-06
+TILE_1, 1, 1, -0.015625
+TILE_2, 1, 1, -0.015625
+TILE_3, 1, 1, -0.015625
+TILE_4, 1, 1, -0.015625
+TILE_5, 1, 1, -0.015625
+TILE_6, 1, 1, -0.015625
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U
+*Contact Output
+CSTRESS, CDISP, CFORCE
+*End Step

@@ -345,10 +345,24 @@ bool compare(const fuelsim::UnstructuredHex8Mesh& mesh, const std::string& node_
                           std::abs(reference.normal_force[2]) < 1.0e-8 && std::abs(reference.pressure) < 1.0e-8;
         abaqus_no_projection_sentinel = abaqus_no_projection_sentinel && reference.gap < -1.0e30;
     }
-    bool fuelsim_rejected = false;
+    bool fuelsim_released = true;
     try {
-        problem.validate_state(state_for_step(problem, path.size() - 1));
-    } catch (const std::domain_error&) { fuelsim_rejected = true; }
+        const std::vector<double> final_state = state_for_step(problem, path.size() - 1);
+        problem.validate_state(final_state);
+        const auto actual = fuelsim::cartesian::ProblemAccess::summarize_contact_nodes(problem, 0, final_state);
+        const std::vector<double> residual = contact_residual(spatial, final_state, nullptr);
+        for (const auto& value : actual)
+            fuelsim_released = fuelsim_released && !value.projected && value.pressure == 0.0 &&
+                               value.contact_force == 0.0 && value.normal_contact_force[0] == 0.0 &&
+                               value.normal_contact_force[1] == 0.0 && value.normal_contact_force[2] == 0.0;
+        for (const NodeReference& reference : final_nodes) {
+            const std::size_t global = source_global.at(reference.id);
+            for (std::size_t component = 0; component < 3; ++component)
+                fuelsim_released =
+                    fuelsim_released && residual[spatial.dof(displacement_fields[component], global)] == 0.0;
+        }
+        problem.commit_internal_state(final_state);
+    } catch (const std::exception&) { fuelsim_released = false; }
     for (std::size_t component = 0; component < 3; ++component) {
         print_metric("b46_displacement_" + std::to_string(component), displacement[component]);
         print_metric("b46_reaction_" + std::to_string(component), reaction[component]);
@@ -362,7 +376,7 @@ bool compare(const fuelsim::UnstructuredHex8Mesh& mesh, const std::string& node_
               << "b46_jacobian_directional_error=" << jacobian_error << '\n'
               << "b46_action_reaction_maximum_absolute=" << maximum_action_reaction << '\n'
               << "b46_abaqus_final_natural_release=" << abaqus_released << '\n'
-              << "b46_fuelsim_final_lost_projection_rejected=" << fuelsim_rejected << '\n';
+              << "b46_fuelsim_final_natural_release=" << fuelsim_released << '\n';
     const auto passes = [](const fuelsim::test::FieldErrorMetrics& metric) {
         return !metric.has_relative_norm() || fuelsim::test::relative_metrics_below(metric, 1.0e-2);
     };
@@ -384,8 +398,8 @@ bool compare(const fuelsim::UnstructuredHex8Mesh& mesh, const std::string& node_
            check(maximum_action_reaction < 1.0e-8, "B4.6 contact residual preserves three-component action-reaction") &&
            check(abaqus_released && abaqus_no_projection_sentinel,
                "B4.6 Abaqus naturally releases the secondary face after it leaves the complete primary surface") &&
-           check(
-               fuelsim_rejected, "B4.6 Fuelsim deliberately rejects the same activated-contact lost-projection state");
+           check(fuelsim_released,
+               "B4.6 Fuelsim naturally releases the same lost-projection state with zero residual and can commit it");
 }
 } // namespace
 

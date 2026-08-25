@@ -523,8 +523,11 @@ bool test_cartesian_surface_contact_kernels() {
 
     const fuelsim::Quad4FaceQuadraturePoint finite_point =
         fuelsim::make_quad4_face_quadrature_point(secondary, -0.5, -0.5, 1.0);
-    const fuelsim::Quad4ToQuad4MechanicalGeometry finite_geometry{
-        secondary, primary, finite_point.shape, finite_point.derivative_xi, finite_point.derivative_eta, 1.0, 1.0};
+    const fuelsim::Quad4FaceQuadraturePoint finite_normal_point =
+        fuelsim::make_quad4_face_quadrature_point(secondary, -2.0 / 3.0, -2.0 / 3.0, 1.0);
+    const fuelsim::Quad4ToQuad4MechanicalGeometry finite_geometry{secondary, primary, finite_point.shape,
+        finite_point.derivative_xi, finite_point.derivative_eta, finite_normal_point.derivative_xi,
+        finite_normal_point.derivative_eta, 1.0, 1.0, 1.0};
     fuelsim::Quad4SurfaceContactLocalJacobian finite_jacobian{};
     const fuelsim::Quad4SurfaceContactLocalResidual finite_contact = fuelsim::compute_quad4_to_quad4_contact(
         stick_properties, finite_geometry, state, committed, history, &finite_jacobian);

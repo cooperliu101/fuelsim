@@ -122,7 +122,8 @@ struct Quad4ReferenceProjectionValue final {
 struct Quad4ToQuad4MechanicalGeometry final {
     std::array<CartesianPoint3, 4> secondary_coordinates, primary_coordinates;
     std::array<double, 4> secondary_shape, secondary_derivative_xi, secondary_derivative_eta;
-    double quadrature_weight, normal_orientation;
+    std::array<double, 4> secondary_normal_derivative_xi, secondary_normal_derivative_eta;
+    double quadrature_weight, normal_orientation, secondary_normal_orientation;
 };
 
 struct NodeToQuad4ContactGeometry final {

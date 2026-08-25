@@ -163,14 +163,31 @@ ActivePoint3 interpolate_point(
     return result;
 }
 
-SurfaceBasis surface_basis(const SurfaceProjection& projection) {
-    const adlite::Scalar measure = norm(projection.tangent_xi);
+SurfaceBasis surface_basis(const SurfaceProjection& projection, const ActivePoint3& normal) {
+    ActivePoint3 tangent = projection.tangent_xi;
+    const adlite::Scalar normal_component = dot(tangent, normal);
+    for (std::size_t component = 0; component < 3; ++component)
+        tangent[component] -= normal_component * normal[component];
+    const adlite::Scalar measure = norm(tangent);
     if (!std::isfinite(measure.value()) || !(measure.value() > 0.0))
         throw std::domain_error("Three-dimensional primary contact surface has an undefined convected tangent");
     SurfaceBasis result;
+    for (std::size_t component = 0; component < 3; ++component) result.first[component] = tangent[component] / measure;
+    result.second = cross(normal, result.first);
+    return result;
+}
+
+ActivePoint3 secondary_average_normal(
+    const std::array<ActivePoint3, 8>& nodes, const Quad4ToQuad4MechanicalGeometry& geometry) {
+    const ActivePoint3 tangent_xi = interpolate_point(nodes, 0, geometry.secondary_normal_derivative_xi),
+                       tangent_eta = interpolate_point(nodes, 0, geometry.secondary_normal_derivative_eta),
+                       area = cross(tangent_xi, tangent_eta);
+    const adlite::Scalar measure = norm(area);
+    if (!std::isfinite(measure.value()) || !(measure.value() > 0.0))
+        throw std::domain_error("Three-dimensional secondary contact surface has an undefined averaged normal");
+    ActivePoint3 result{};
     for (std::size_t component = 0; component < 3; ++component)
-        result.first[component] = projection.tangent_xi[component] / measure;
-    result.second = cross(projection.normal, result.first);
+        result[component] = geometry.secondary_normal_orientation * area[component] / measure;
     return result;
 }
 
@@ -323,11 +340,12 @@ CartesianContactAdValue evaluate_surface_mechanical(const NormalContactPropertie
     const ActivePoint3 secondary_point = interpolate_point(nodes, 0, secondary_shape);
     const SurfaceProjection projection = project_to_primary(secondary_point, nodes, geometry.normal_orientation);
     if (!projection.projected) return {};
+    const ActivePoint3 normal = secondary_average_normal(nodes, geometry);
     CartesianContactAdValue result;
     result.projected = true;
     result.primary_shape = projection.primary_shape;
-    result.normal = projection.normal;
-    result.gap = projection.gap;
+    result.normal = normal;
+    result.gap = dot(subtract(projection.primary_point, secondary_point), result.normal);
     result.pressure = adlite::max(-properties.penalty * result.gap, adlite::Scalar(0.0));
     result.tributary_area =
         geometry.quadrature_weight *
@@ -339,8 +357,9 @@ CartesianContactAdValue evaluate_surface_mechanical(const NormalContactPropertie
             current_nodes(geometry.secondary_coordinates, geometry.primary_coordinates, committed_ad_state);
         const SurfaceProjection committed_projection = finite_sliding_committed_projection(
             committed_nodes, secondary_shape, projection.xi, projection.eta, geometry.normal_orientation);
-        const SurfaceBasis current_basis = surface_basis(projection),
-                           committed_coordinate_basis = surface_basis(committed_projection),
+        const ActivePoint3 committed_normal = secondary_average_normal(committed_nodes, geometry);
+        const SurfaceBasis current_basis = surface_basis(projection, normal),
+                           committed_coordinate_basis = surface_basis(committed_projection, committed_normal),
                            committed_contact_basis = stored_surface_basis(history, committed_coordinate_basis);
         result.tangent_first = current_basis.first;
         apply_surface_friction(properties, history,

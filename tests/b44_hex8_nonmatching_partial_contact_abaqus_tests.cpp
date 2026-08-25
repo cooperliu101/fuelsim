@@ -697,9 +697,9 @@ bool run_swapped(const fuelsim::UnstructuredHex8Mesh& mesh, const std::string& n
                "B4.4 swapped comparison covers every mesh and secondary contact node") &&
            check(maximum_reference_coordinate_difference < 1.0e-14 && maximum_current_coordinate_difference < 1.0e-14,
                "B4.4 swapped Abaqus and Fuelsim coordinates agree") &&
-           check(all_projected && active == actual.size() && reference_active_count > 0 &&
-                     reference_active_count < actual.size() && visited_primary_faces.size() >= 4,
-               "B4.4 swapped designation exposes different nodal recovery of a partially active interface") &&
+           check(all_projected && active == reference_active_count && active > 0 && active < actual.size() &&
+                     visited_primary_faces.size() >= 2 && state_matches,
+               "B4.4 swapped designation reproduces the partially active recovered nodal field") &&
            check(passes(displacement_x, displacement_zero_tolerance) &&
                      passes(displacement_y, displacement_zero_tolerance) &&
                      passes(displacement_z, displacement_zero_tolerance),
@@ -708,12 +708,18 @@ bool run_swapped(const fuelsim::UnstructuredHex8Mesh& mesh, const std::string& n
                      passes(tangent_y, force_zero_tolerance) && passes(tangent_z, force_zero_tolerance) &&
                      passes(total_slip, displacement_zero_tolerance),
                "B4.4 swapped theoretical-zero transverse forces and slip remain bounded") &&
-           check(fuelsim_penalty_law_difference > 4.0e4 && abaqus_penalty_law_difference > 1.0e4 &&
-                     fuelsim_positive_gap_pressure == 0 && abaqus_positive_gap_pressure > 0 && !state_matches,
-               "B4.4 identifies non-equivalent stepped-primary nodal contact-field recovery") &&
-           check(resultant_x.relative_l2() > 0.3 && resultant_x.relative_l2() < 0.5 && fuelsim_bias > 0.2 &&
-                     abaqus_bias > 0.4 && std::abs(fuelsim_bias - abaqus_bias) > 0.1,
-               "B4.4 quantifies rather than accepts the exchanged-side discretization bias");
+           check(fuelsim_penalty_law_difference > 1.0e4 && abaqus_penalty_law_difference > 1.0e4 &&
+                     fuelsim_positive_gap_pressure == abaqus_positive_gap_pressure && abaqus_positive_gap_pressure > 0,
+               "B4.4 distinguishes recovered nodal pressure from the internal constraint penalty law") &&
+           check(passes(normal_x, force_zero_tolerance) && passes(gap, displacement_zero_tolerance) &&
+                     passes(pressure, force_zero_tolerance) && passes(resultant_x, force_zero_tolerance) &&
+                     passes(moment_y, force_zero_tolerance) && passes(moment_z, force_zero_tolerance) &&
+                     passes(center_x, displacement_zero_tolerance) && passes(center_y, displacement_zero_tolerance) &&
+                     passes(center_z, displacement_zero_tolerance),
+               "B4.4 swapped nodal force, gap, recovered pressure, resultants, moments, and force center pass 1 "
+               "percent") &&
+           check(fuelsim_bias > 0.4 && abaqus_bias > 0.4 && std::abs(fuelsim_bias - abaqus_bias) < 1.0e-12,
+               "B4.4 reproduces the exchanged-side discretization bias instead of qualifying it");
 }
 } // namespace
 

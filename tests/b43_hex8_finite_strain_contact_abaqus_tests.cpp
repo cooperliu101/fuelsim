@@ -376,8 +376,11 @@ bool compare(const fuelsim::TransientProblem& problem, const fuelsim::Unstructur
             const std::array<double, 2> parent = constraint_parent_coordinate(contact_sources[node]);
             const fuelsim::Quad4FaceQuadraturePoint point =
                 fuelsim::make_quad4_face_quadrature_point(secondary_face, parent[0], parent[1], 1.0);
-            const fuelsim::Quad4ToQuad4MechanicalGeometry geometry{
-                secondary_face, primary_face, point.shape, point.derivative_xi, point.derivative_eta, 1.0, -1.0};
+            const fuelsim::Quad4FaceQuadraturePoint normal_point = fuelsim::make_quad4_face_quadrature_point(
+                secondary_face, (4.0 / 3.0) * parent[0], (4.0 / 3.0) * parent[1], 1.0);
+            const fuelsim::Quad4ToQuad4MechanicalGeometry geometry{secondary_face, primary_face, point.shape,
+                point.derivative_xi, point.derivative_eta, normal_point.derivative_xi, normal_point.derivative_eta, 1.0,
+                -1.0, 1.0};
             const fuelsim::CartesianContactPointValue local_value = fuelsim::compute_quad4_to_quad4_contact_value(
                 {1.0e8, 1.0e6, false, 0.0}, geometry, current_local, committed_local, slip_histories[node]);
             all_projected_active_and_sticking = all_projected_active_and_sticking && actual.projected &&

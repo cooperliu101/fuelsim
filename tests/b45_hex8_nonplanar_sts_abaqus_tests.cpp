@@ -1,6 +1,9 @@
 #include "fuelsim/core/cartesian3d_hex8.hpp"
 #include "fuelsim/core/contact.hpp"
+#include "fuelsim/core/steady_problem.hpp"
 #include "fuelsim/io/results_io.hpp"
+#include "support/cartesian3d_problem_access.hpp"
+#include "support/material_factory.hpp"
 #include "support/moose_field_comparison.hpp"
 #include <algorithm>
 #include <array>
@@ -45,7 +48,7 @@ struct ReconstructedContact final {
     std::map<std::size_t, std::array<double, 3>> secondary_force, primary_force;
     std::map<std::size_t, double> gap, pressure, area;
     std::array<double, 3> balance{};
-    double jacobian_error = 0.0;
+    double jacobian_error = 0.0, production_secondary_force_difference = 0.0;
     std::size_t points = 0;
 };
 
@@ -277,15 +280,19 @@ ReconstructedContact reconstruct(const GeneratedCase& generated) {
         for (std::size_t point = 0; point < 4; ++point) {
             const double xi = point == 0 || point == 3 ? -0.5 : 0.5, eta = point < 2 ? -0.5 : 0.5;
             const auto quadrature = fuelsim::make_quad4_face_quadrature_point(secondary, xi, eta, 1.0);
-            const fuelsim::Quad4ToQuad4MechanicalGeometry geometry{
-                secondary, primary, quadrature.shape, quadrature.derivative_xi, quadrature.derivative_eta, 1.0, -1.0};
+            const auto normal_point =
+                fuelsim::make_quad4_face_quadrature_point(secondary, (4.0 / 3.0) * xi, (4.0 / 3.0) * eta, 1.0);
+            const fuelsim::Quad4ToQuad4MechanicalGeometry geometry{secondary, primary, quadrature.shape,
+                quadrature.derivative_xi, quadrature.derivative_eta, normal_point.derivative_xi,
+                normal_point.derivative_eta, 1.0, -1.0, 1.0};
             fuelsim::Quad4SurfaceContactLocalJacobian jacobian{};
             const auto residual = fuelsim::compute_quad4_to_quad4_contact(
                 {1.0e7, 0.0, false, 0.0}, geometry, state, committed, {}, &jacobian);
             const auto value =
                 fuelsim::compute_quad4_to_quad4_contact_value({1.0e7, 0.0, false, 0.0}, geometry, state, committed, {});
             if (!value.projected || !(value.pressure > 0.0))
-                throw std::logic_error("B4.5 reconstructed point is inactive");
+                throw std::logic_error("B4.5 " + generated.name + " face " + std::to_string(face) + " point " +
+                                       std::to_string(point) + " is inactive with gap " + std::to_string(value.gap));
             fuelsim::Quad4SurfaceContactLocalValues direction{}, plus = state, minus = state;
             constexpr double perturbation = 1.0e-8;
             for (std::size_t column = 0; column < direction.size(); ++column) {
@@ -328,6 +335,47 @@ ReconstructedContact reconstruct(const GeneratedCase& generated) {
             }
             ++result.points;
         }
+    }
+    fuelsim::SpatialDefinition definition;
+    const fuelsim::ThermoelasticProperties material =
+        fuelsim::test::thermoelastic(0.0, 10.0, 1.0e9, 0.0, 0.0, 300.0, 0.0, 0.0, 0.0, 1.0, 1.0);
+    definition.regions = {{"primary", "primary", material, 0.0, 300.0, -1, "", fuelsim::StrainFormulation::finite},
+        {"secondary", "secondary", material, 0.0, 300.0, -1, "", fuelsim::StrainFormulation::finite}};
+    fuelsim::ContactDefinition contact;
+    contact.name = "b45_production_contact";
+    contact.primary = "primary_contact";
+    contact.secondary = "secondary_contact";
+    contact.mechanical = true;
+    contact.penalty = 1.0e7;
+    contact.mechanical_discretization = fuelsim::MechanicalContactDiscretization::surface_to_surface;
+    contact.mechanical_sliding = fuelsim::MechanicalContactSliding::finite;
+    definition.contacts.push_back(contact);
+    fuelsim::SteadyProblem problem(std::move(definition), mesh);
+    const auto& spatial = fuelsim::cartesian::ProblemAccess::view(problem);
+    std::vector<double> production_state = problem.initial_state();
+    for (std::size_t region = 0; region < spatial.region_count(); ++region)
+        for (std::size_t local = 0; local < spatial.region_mesh(region).nodes().size(); ++local) {
+            const std::size_t source = spatial.region_mesh(region).source_node_ids()[local],
+                              global = spatial.global_node(region, local);
+            for (std::size_t component = 0; component < 3; ++component) {
+                const fuelsim::Field field = component == 0   ? fuelsim::Field::displacement_x
+                                             : component == 1 ? fuelsim::Field::displacement_y
+                                                              : fuelsim::Field::displacement_z;
+                production_state[spatial.dof(field, global)] = generated.displacement[source][component];
+            }
+        }
+    problem.validate_state(production_state);
+    const auto production = fuelsim::cartesian::ProblemAccess::summarize_contact_nodes(problem, 0, production_state);
+    const auto production_sources = fuelsim::cartesian::ProblemAccess::contact_secondary_source_nodes(problem, 0);
+    if (production.size() != production_sources.size())
+        throw std::logic_error("B4.5 production contact-node count differs");
+    for (std::size_t node = 0; node < production.size(); ++node) {
+        const auto found = result.secondary_force.find(production_sources[node]);
+        if (found == result.secondary_force.end())
+            throw std::logic_error("B4.5 production contact-node mapping differs");
+        for (std::size_t component = 0; component < 3; ++component)
+            result.production_secondary_force_difference = std::max(result.production_secondary_force_difference,
+                std::abs(-production[node].normal_contact_force[component] - found->second[component]));
     }
     return result;
 }
@@ -438,18 +486,13 @@ bool compare(const GeneratedCase& generated, const std::string& mesh_path, const
     if (require_transverse_force)
         for (std::size_t component = 1; component < 3; ++component)
             metrics = metrics && passes(secondary_force[component]) && passes(primary_force[component]);
-    const bool qualified_transverse =
-        generated.name != "warped_bilinear" || ((!passes(secondary_force[1]) || !passes(secondary_force[2])) &&
-                                                   fuelsim::test::relative_metrics_below(secondary_force[1], 0.15) &&
-                                                   fuelsim::test::relative_metrics_below(secondary_force[2], 0.15) &&
-                                                   fuelsim::test::relative_metrics_below(primary_force[1], 0.15) &&
-                                                   fuelsim::test::relative_metrics_below(primary_force[2], 0.15) &&
-                                                   maximum_normal_angle > 0.4 && maximum_normal_angle < 0.5);
     std::cout << "b45_" << tracked.name << "_tracked_coordinate_error=" << tracked_coordinate_error << '\n'
               << "b45_" << tracked.name << "_abaqus_coordinate_error=" << coordinate_error << '\n'
               << "b45_" << tracked.name << "_maximum_normal_angle_degrees=" << maximum_normal_angle << '\n'
               << "b45_" << tracked.name << "_primary_face_warp=" << face_warp << '\n'
               << "b45_" << tracked.name << "_jacobian_directional_error=" << actual.jacobian_error << '\n'
+              << "b45_" << tracked.name << "_production_secondary_force_maximum_absolute_difference="
+              << actual.production_secondary_force_difference << '\n'
               << "b45_" << tracked.name << "_point_count=" << actual.points << '\n'
               << "b45_" << tracked.name << "_balance=" << actual.balance[0] << ',' << actual.balance[1] << ','
               << actual.balance[2] << '\n';
@@ -461,8 +504,8 @@ bool compare(const GeneratedCase& generated, const std::string& mesh_path, const
                "B4.5 warped case has a genuinely noncoplanar primary face") &&
            check(actual.jacobian_error < 1.0e-6,
                "B4.5 active nonplanar contact Jacobians match centered directional differences") &&
-           check(qualified_transverse,
-               "B4.5 retains the bounded warped-face transverse-force mismatch as a qualified boundary") &&
+           check(actual.production_secondary_force_difference < 1.0e-8,
+               "B4.5 production assembly reproduces the identified finite-sliding secondary force operator") &&
            check(std::abs(actual.balance[0]) < 1.0e-8 && std::abs(actual.balance[1]) < 1.0e-8 &&
                      std::abs(actual.balance[2]) < 1.0e-8,
                "B4.5 reconstructed contact preserves action-reaction") &&
@@ -511,9 +554,9 @@ int main(int argc, char** argv) {
         std::cout << std::scientific << std::setprecision(12);
         const std::vector<GeneratedCase> generated = cases();
         bool passed = compare(generated[0], argv[1], argv[2], argv[3], "", true);
-        passed = compare(generated[1], argv[4], argv[5], argv[6], "_default", false) && passed;
-        passed = compare(generated[1], argv[4], argv[7], argv[8], "_linear", false) && passed;
-        passed = compare(generated[1], argv[4], argv[9], argv[10], "_quadratic", false) && passed;
+        passed = compare(generated[1], argv[4], argv[5], argv[6], "_default", true) && passed;
+        passed = compare(generated[1], argv[4], argv[7], argv[8], "_linear", true) && passed;
+        passed = compare(generated[1], argv[4], argv[9], argv[10], "_quadratic", true) && passed;
         const double default_linear = contact_reference_difference(argv[6], argv[8]);
         const double default_quadratic = contact_reference_difference(argv[6], argv[10]);
         std::cout << "b45_warped_default_linear_force_relative_difference=" << default_linear << '\n'

@@ -182,11 +182,20 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     };
 
     struct AbaqusAveragedConstraint final {
+        struct FiniteSlidingSample final {
+            std::size_t secondary_face, secondary_local_point;
+            double normal_orientation;
+        };
+
         std::size_t contact, secondary;
         std::vector<std::size_t> nodes, secondary_output_nodes;
         std::vector<double> gap_coefficients, secondary_coefficients;
+        std::vector<CartesianPoint3> reference_coordinates;
+        std::vector<FiniteSlidingSample> finite_sliding_samples;
         CartesianPoint3 normal;
         double reference_gap, area;
+        std::size_t primary_face = 0;
+        bool finite_sliding = false, projected = true;
     };
 
     struct AbaqusAveragedConstraintValue final {
@@ -224,6 +233,7 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
         const ContactPointHistory& history) const;
     void compute_averaged_constraint(const AbaqusAveragedConstraint& constraint, const std::vector<double>& state,
         std::vector<double>& residual, std::vector<double>* jacobian) const;
+    void refresh_finite_averaged_constraints(const std::vector<double>& state) const;
     bool summarize_averaged_contact(std::size_t contact, const std::vector<double>& state,
         std::vector<CartesianContactNodeSummary>& summaries) const;
     Quad4SurfaceContactLocalValues contribution_state(std::size_t index, const std::vector<double>& global_state) const;
@@ -256,7 +266,7 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     std::vector<std::vector<Hex20PrimaryContactFace>> _hex20_primary_contact_faces;
     std::vector<std::vector<Hex20SecondaryContactFace>> _hex20_secondary_contact_faces;
     std::vector<Hex20MechanicalPoint> _hex20_mechanical_points;
-    std::vector<AbaqusAveragedConstraint> _abaqus_averaged_constraints;
+    mutable std::vector<AbaqusAveragedConstraint> _abaqus_averaged_constraints;
     std::vector<std::size_t> _thermal_point_counts, _thermal_contact_offsets, _mechanical_contact_offsets,
         _sparsity_contact_offsets;
     mutable std::vector<unsigned char> _touched_thermal_points, _touched_mechanical_nodes;

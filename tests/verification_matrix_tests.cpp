@@ -166,7 +166,7 @@ int main(int argc, char** argv) {
         }
         if (found_ids != required_ids)
             throw std::runtime_error("Verification matrix is missing one or more required rows");
-        if (verified != 45 || qualified != 9 || measured != 3 || limitations != 1)
+        if (verified != 48 || qualified != 6 || measured != 3 || limitations != 1)
             throw std::runtime_error("Verification matrix status counts differ from release schema");
         std::cout << "verification_matrix_rows=" << found_ids.size() << '\n'
                   << "verification_matrix_verified=" << verified << '\n'
