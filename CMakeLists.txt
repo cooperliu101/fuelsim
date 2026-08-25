@@ -520,6 +520,48 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_b38_hex8_sts_identification_tests
         PROPERTIES LABELS "acceptance;three-dimensional;hex8;contact;abaqus;identification")
 
+    add_executable(fuelsim_b49_hex8_c3d8t_operator_abaqus_tests
+        tests/b49_hex8_c3d8t_operator_abaqus_tests.cpp)
+    target_link_libraries(fuelsim_b49_hex8_c3d8t_operator_abaqus_tests PRIVATE fuelsim::core)
+    fuelsim_enable_warnings(fuelsim_b49_hex8_c3d8t_operator_abaqus_tests)
+    add_test(NAME fuelsim_b49_hex8_c3d8t_operator_abaqus_tests
+        COMMAND fuelsim_b49_hex8_c3d8t_operator_abaqus_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b49_hex8_c3d8t_operator_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b49_hex8_c3d8t_operator_integration_points.csv")
+    set_tests_properties(fuelsim_b49_hex8_c3d8t_operator_abaqus_tests PROPERTIES
+        LABELS "acceptance;three-dimensional;hex8;thermo-mechanical;abaqus;identification")
+
+    add_executable(fuelsim_b50_hex8_c3d8t_capacity_abaqus_tests
+        tests/b50_hex8_c3d8t_capacity_abaqus_tests.cpp)
+    target_link_libraries(fuelsim_b50_hex8_c3d8t_capacity_abaqus_tests PRIVATE fuelsim::core)
+    fuelsim_enable_warnings(fuelsim_b50_hex8_c3d8t_capacity_abaqus_tests)
+    add_test(NAME fuelsim_b50_hex8_c3d8t_capacity_abaqus_tests
+        COMMAND fuelsim_b50_hex8_c3d8t_capacity_abaqus_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b50_hex8_c3d8t_capacity.csv")
+    set_tests_properties(fuelsim_b50_hex8_c3d8t_capacity_abaqus_tests PROPERTIES
+        LABELS "acceptance;three-dimensional;hex8;transient;thermal;abaqus;identification")
+
+    add_executable(fuelsim_b51_hex8_c3d8t_finite_heat_abaqus_tests
+        tests/b51_hex8_c3d8t_finite_heat_abaqus_tests.cpp)
+    target_link_libraries(fuelsim_b51_hex8_c3d8t_finite_heat_abaqus_tests PRIVATE fuelsim::core)
+    fuelsim_enable_warnings(fuelsim_b51_hex8_c3d8t_finite_heat_abaqus_tests)
+    add_test(NAME fuelsim_b51_hex8_c3d8t_finite_heat_abaqus_tests
+        COMMAND fuelsim_b51_hex8_c3d8t_finite_heat_abaqus_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b51_hex8_c3d8t_finite_heat_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b51_hex8_c3d8t_finite_heat_integration_points.csv")
+    set_tests_properties(fuelsim_b51_hex8_c3d8t_finite_heat_abaqus_tests PROPERTIES
+        LABELS "acceptance;three-dimensional;hex8;finite-strain;thermal;abaqus;identification")
+
+    add_executable(fuelsim_b52_hex8_c3d8t_thermal_contact_abaqus_tests
+        tests/b52_hex8_c3d8t_thermal_contact_abaqus_tests.cpp)
+    target_link_libraries(fuelsim_b52_hex8_c3d8t_thermal_contact_abaqus_tests PRIVATE fuelsim::core)
+    fuelsim_enable_warnings(fuelsim_b52_hex8_c3d8t_thermal_contact_abaqus_tests)
+    add_test(NAME fuelsim_b52_hex8_c3d8t_thermal_contact_abaqus_tests
+        COMMAND fuelsim_b52_hex8_c3d8t_thermal_contact_abaqus_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b52_hex8_c3d8t_thermal_contact_nodal.csv")
+    set_tests_properties(fuelsim_b52_hex8_c3d8t_thermal_contact_abaqus_tests PROPERTIES
+        LABELS "acceptance;three-dimensional;hex8;thermal;contact;abaqus")
+
     add_executable(fuelsim_b39_hex8_sts_multicase_abaqus_tests
         tests/b39_hex8_sts_multicase_abaqus_tests.cpp)
     target_link_libraries(fuelsim_b39_hex8_sts_multicase_abaqus_tests

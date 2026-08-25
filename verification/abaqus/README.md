@@ -1242,3 +1242,166 @@ powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass `
 
 The tracked SHA-256 values are listed in `SHA256SUMS` under the `b48_hex8_`
 prefix, together with `extract_b48.py` and `run_b48.ps1`.
+
+## B4.9 C3D8T thermo-mechanical volume-operator identification
+
+B4.9 uses one unit-cube Abaqus/Standard `C3D8T` element with all eight nodal
+temperatures and all 24 nodal displacement components prescribed. The base
+state has a nonuniform temperature field and a non-affine displacement field,
+so its eight mechanical integration points have distinct deviatoric strains,
+stresses, and heat fluxes. Sixty-four additional steps apply positive and
+negative perturbations to each of the 32 local degrees of freedom. Full-
+precision nodal reaction heat flux and reaction force therefore reconstruct
+all four blocks of the coupled 32 by 32 tangent without relying on a converged
+free-displacement solution.
+
+The probe identifies two native Abaqus first-order-element choices that differ
+from the Fuelsim production HEX8 kernel. Abaqus uses one constant element
+temperature for thermal expansion, equal to the average of the eight nodal
+temperatures, and it uses selective reduced integration: the volumetric strain
+is constant while the deviatoric strain retains eight-point integration. These
+are documented Abaqus behaviors, not fitted corrections. Abaqus `E12`, `E13`,
+and `E23` output is engineering shear strain; the comparison converts it to
+Fuelsim tensor shear strain by dividing by two.
+
+A test-only reconstruction of those two Abaqus rules matches the complete
+reaction tangent with `2.706123e-11` relative Frobenius error and the base
+mechanical reaction with `3.875143e-16` relative error. Integration-point
+coordinates and selective strains agree within `3.83e-15 m` and `5.15e-19`;
+heat flux agrees within `1.42e-12 W/m2`, and stress agrees within
+`2.39e-7 Pa`. Fuelsim's unchanged production kernel independently matches the
+thermal-conduction tangent within `4.522438e-11` and the base thermal residual
+within `5.02e-15` relative error.
+
+The same probe proves that production Fuelsim is not algebraically equivalent
+to native `C3D8T` for a non-affine thermo-mechanical field. Its mechanical
+tangent differs by `27.23018%`, its temperature-to-mechanics tangent differs by
+`48.43221%`, and its base mechanical residual differs by `8.777531%`. The
+largest integration-point stress difference is `185.3236 MPa`. Fuelsim uses
+the unmodified Gauss-point strain and the temperature interpolated at each
+Gauss point, as required by its existing MOOSE-validated formulation. B4.9 is
+therefore a qualified operator identification, not a claim that native
+`C3D8T` is the production volume-element oracle.
+
+Regenerate the tracked deck with:
+
+```bash
+python3 verification/abaqus/generate_b49.py
+```
+
+Run the Abaqus R2018x job and extractor with:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass `
+  -File "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus\run_b49.ps1" `
+  -SourceDirectory "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus"
+```
+
+The tracked SHA-256 values are listed in `SHA256SUMS` under the
+`b49_hex8_c3d8t_` prefix, together with the generator, extractor, and run
+script.
+
+## B5.0 C3D8T transient heat-capacity identification
+
+B5.0 uses eight disconnected unit-cube Abaqus/Standard `C3D8T` elements to
+identify every entry of the 8 by 8 temperature time-derivative operator. All
+displacements are fixed. Each cube starts uniformly at `300 K`; over one
+one-second backward-difference increment, one distinct local node is
+prescribed to `301 K` and the other seven remain at `300 K`. The final nodal
+reaction heat flux therefore provides one column of the combined conductivity
+and heat-capacity matrix. Fuelsim's independently evaluated steady
+conductivity column is subtracted before the capacity matrix is assessed.
+
+The extracted Abaqus matrix is diagonal to numerical roundoff. Every diagonal
+entry is `750000 J/K`, equal to one eighth of the unit cube's total
+`rho*cp*volume = 6000000 J/K`; the largest off-diagonal magnitude is
+`5.61e-14 J/K`. A test-only conductivity-plus-lumped-capacity reconstruction
+matches the complete Abaqus reaction matrix with `6.63101e-16` relative
+Frobenius error. This agrees with the documented Abaqus rule that first-order
+transient heat-transfer elements use nodal integration for heat capacity.
+
+Fuelsim deliberately retains its existing reference-configuration consistent
+capacity matrix. The automatic test matches that matrix within `1.12278e-13`
+relative Frobenius error, and its smallest off-diagonal entry is
+`27777.8 J/K`. Consequently, the production combined transient matrix differs
+from native Abaqus by `76.0837%` for this nonuniform one-node perturbation.
+Both capacity matrices have the same `750000 J/K` row sum, so a uniform-heating
+test alone cannot identify this discretization difference. B5.0 is therefore
+a qualified capacity identification; it does not change the production
+Fuelsim time term or claim node-by-node transient equivalence to native
+`C3D8T`.
+
+Regenerate the tracked deck with:
+
+```bash
+python3 verification/abaqus/generate_b50.py
+```
+
+Run the Abaqus R2018x job and extractor with:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass `
+  -File "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus\run_b50.ps1" `
+  -SourceDirectory "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus"
+```
+
+The tracked SHA-256 values are listed in `SHA256SUMS` under the
+`b50_hex8_c3d8t_` prefix, together with the generator, extractor, and run
+script.
+
+## B5.1 C3D8T finite-deformation heat-configuration identification
+
+B5.1 prescribes a homogeneous finite stretch of `1.5`, `1.25`, and `0.8` in
+the global X, Y, and Z directions on one unit-cube `C3D8T` element. A second
+geometrically nonlinear steady coupled step then prescribes `300 K` on the
+original X-minimum face and `400 K` on the original X-maximum face. All
+displacements remain fixed, so nodal reaction heat flux and integration-point
+heat flux identify the thermal configuration without mechanical-equilibrium
+or solver-tolerance ambiguity.
+
+The current element has length `1.5 m` and transverse area `1.0 m2`. Abaqus
+reports a total heat rate of `266.666656 W` and an eight-point X heat flux of
+`-266.666656 W/m2`, matching conductivity times the current area divided by
+the current length within `3.81470e-8` relative error. The current nodal
+coordinates and displacements match the prescribed deformation within
+`1.19209e-8 m` and `2.98023e-9 m`.
+
+Fuelsim's unchanged finite-strain volume kernel instead retains the reference-
+configuration thermal weak form required by its numerical contract. It gives
+the reference-geometry heat rate of exactly `400 W`, so its heat rate is
+`50%` above the Abaqus result for this deliberately anisotropic stretch. B5.1
+is a qualified formulation identification: finite-strain mechanical fields
+may still be compared, but native `C3D8T` heat flux is not a pointwise oracle
+for Fuelsim after deformation.
+
+Regenerate and execute the reference with `generate_b51.py` and
+`run_b51.ps1`. The tracked input, nodal and integration-point references,
+generator, extractor, and run script are listed in `SHA256SUMS` under the
+`b51_hex8_c3d8t_finite_heat_` prefix.
+
+## B5.2 C3D8T fixed-gap thermal contact
+
+B5.2 places two unit-cube `C3D8T` blocks across a fixed `0.1 m` gap. Both
+blocks have conductivity `4 W/(m K)`, and Abaqus gap conductance is constant
+at `40 W/(m2 K)` through the probed clearance range. The outer faces are held
+at `400 K` and `300 K`; all displacements are fixed. The exact one-dimensional
+series resistance gives `190.476190 W`, with secondary and primary interface
+temperatures of `352.380952 K` and `347.619048 K`.
+
+Abaqus gives `190.476196 W`, a `3.05176e-8` relative error, and its hot and
+cold reaction heat rates sum to exactly zero in the extracted precision.
+Fuelsim's production HEX8 volume-conduction and Quad4-to-Quad4 gap-heat kernels
+use the Abaqus nodal temperatures directly and reproduce the same total heat
+rate within `1.49214e-16` relative code-to-code error. The interface action-
+reaction imbalance is below `2.85e-14 W`, the integrated contact area is
+exactly `1 m2`, and the calculated gap differs from `0.1 m` by less than
+`8.33e-17 m`. The maximum assembled free-node residual is `3.05176e-5 W`, or
+`1.60217e-7` of the total rate, because the R2018x nodal temperatures are
+stored at single precision; it is reported explicitly rather than hidden by a
+temperature denominator floor.
+
+This verified scope is fixed-clearance, constant-conductance, steady thermal
+contact. Clearance-dependent conductance derivatives and simultaneous
+mechanical closure remain separate follow-up paths. Regenerate and execute the
+reference with `generate_b52.py` and `run_b52.ps1`; all tracked artifacts are
+listed in `SHA256SUMS` under the `b52_hex8_c3d8t_thermal_contact` prefix.
