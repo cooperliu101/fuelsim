@@ -1255,33 +1255,35 @@ precision nodal reaction heat flux and reaction force therefore reconstruct
 all four blocks of the coupled 32 by 32 tangent without relying on a converged
 free-displacement solution.
 
-The probe identifies two native Abaqus first-order-element choices that differ
-from the Fuelsim production HEX8 kernel. Abaqus uses one constant element
-temperature for thermal expansion, equal to the average of the eight nodal
-temperatures, and it uses selective reduced integration: the volumetric strain
-is constant while the deviatoric strain retains eight-point integration. These
-are documented Abaqus behaviors, not fitted corrections. Abaqus `E12`, `E13`,
-and `E23` output is engineering shear strain; the comparison converts it to
-Fuelsim tensor shear strain by dividing by two.
+The probe identifies two native Abaqus first-order-element choices. Abaqus uses
+one constant element temperature for thermal expansion, equal to the arithmetic
+average of the eight nodal temperatures, and it uses selective reduced
+integration: the volumetric strain is constant while the deviatoric strain
+retains eight-point integration. Fuelsim now uses the first rule for HEX8 thermal
+expansion but retains its existing full eight-point strain integration. These
+are documented formulation choices, not fitted corrections. Abaqus `E12`,
+`E13`, and `E23` output is engineering shear strain; the comparison converts it
+to Fuelsim tensor shear strain by dividing by two.
 
 A test-only reconstruction of those two Abaqus rules matches the complete
 reaction tangent with `2.706123e-11` relative Frobenius error and the base
 mechanical reaction with `3.875143e-16` relative error. Integration-point
 coordinates and selective strains agree within `3.83e-15 m` and `5.15e-19`;
 heat flux agrees within `1.42e-12 W/m2`, and stress agrees within
-`2.39e-7 Pa`. Fuelsim's unchanged production kernel independently matches the
-thermal-conduction tangent within `4.522438e-11` and the base thermal residual
-within `5.02e-15` relative error.
+`2.39e-7 Pa`. Fuelsim's production kernel independently matches the thermal-
+conduction tangent within `4.522438e-11` and the base thermal residual within
+`5.02e-15` relative error. Its temperature-to-mechanics tangent now matches
+Abaqus within `1.433865e-10` relative Frobenius error.
 
-The same probe proves that production Fuelsim is not algebraically equivalent
-to native `C3D8T` for a non-affine thermo-mechanical field. Its mechanical
-tangent differs by `27.23018%`, its temperature-to-mechanics tangent differs by
-`48.43221%`, and its base mechanical residual differs by `8.777531%`. The
-largest integration-point stress difference is `185.3236 MPa`. Fuelsim uses
-the unmodified Gauss-point strain and the temperature interpolated at each
-Gauss point, as required by its existing MOOSE-validated formulation. B4.9 is
-therefore a qualified operator identification, not a claim that native
-`C3D8T` is the production volume-element oracle.
+The same probe proves that production Fuelsim is still not algebraically
+equivalent to native `C3D8T` for a non-affine mechanical field because selective
+reduced integration is outside this thermal-expansion change. Its mechanical
+tangent differs by `27.23018%`, its base mechanical residual differs by
+`0.6872705%`, and its largest integration-point stress difference is
+`14.66609 MPa`. A test-only selective-integration reconstruction removes those
+remaining differences. B4.9 therefore verifies the production thermal-
+expansion temperature rule while retaining a qualified boundary for the strain
+integration rule.
 
 Regenerate the tracked deck with:
 

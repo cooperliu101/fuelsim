@@ -41,6 +41,59 @@ adlite::Scalar interpolate_hex8(
     return result;
 }
 
+adlite::Scalar average_hex8_temperature(const Hex8LocalAdValues& state) {
+    adlite::Scalar result = 0.0;
+    for (std::size_t node = 0; node < 8; ++node) result += state[node] / 8.0;
+    return result;
+}
+
+double average_hex8_temperature(const Hex8LocalValues& state) {
+    double result = 0.0;
+    for (std::size_t node = 0; node < 8; ++node) result += state[node] / 8.0;
+    return result;
+}
+
+SymmetricTensor3 expansion_adjusted_strain(const IsotropicThermoelasticMaterial& material,
+    const SymmetricTensor3& strain, const adlite::Scalar& point_temperature, const adlite::Scalar& element_temperature,
+    MaterialFunctionContext context) {
+    const SymmetricTensor3 point_imposed = material.eigenstrain(point_temperature, context);
+    const SymmetricTensor3 element_imposed = material.eigenstrain(element_temperature, context);
+    return {strain.xx + point_imposed.xx - element_imposed.xx, strain.yy + point_imposed.yy - element_imposed.yy,
+        strain.zz + point_imposed.zz - element_imposed.zz, strain.xy + point_imposed.xy - element_imposed.xy,
+        strain.yz + point_imposed.yz - element_imposed.yz, strain.xz + point_imposed.xz - element_imposed.xz};
+}
+
+SymmetricTensor3 expansion_adjusted_increment(const IsotropicThermoelasticMaterial& material,
+    const SymmetricTensor3& strain_increment, const adlite::Scalar& point_temperature,
+    const adlite::Scalar& element_temperature, double committed_point_temperature, double committed_element_temperature,
+    double time_step, MaterialFunctionContext context) {
+    MaterialFunctionContext old_context = context;
+    old_context.time -= time_step;
+    const SymmetricTensor3 current_point = material.eigenstrain(point_temperature, context);
+    const SymmetricTensor3 current_element = material.eigenstrain(element_temperature, context);
+    const SymmetricTensor3 old_point = material.eigenstrain(adlite::Scalar(committed_point_temperature), old_context);
+    const SymmetricTensor3 old_element =
+        material.eigenstrain(adlite::Scalar(committed_element_temperature), old_context);
+    return {strain_increment.xx + old_element.xx - old_point.xx + current_point.xx - current_element.xx,
+        strain_increment.yy + old_element.yy - old_point.yy + current_point.yy - current_element.yy,
+        strain_increment.zz + old_element.zz - old_point.zz + current_point.zz - current_element.zz,
+        strain_increment.xy + old_element.xy - old_point.xy + current_point.xy - current_element.xy,
+        strain_increment.yz + old_element.yz - old_point.yz + current_point.yz - current_element.yz,
+        strain_increment.xz + old_element.xz - old_point.xz + current_point.xz - current_element.xz};
+}
+
+std::array<double, 6> eigenstrain_temperature_derivative(
+    const IsotropicThermoelasticMaterial& material, double temperature, MaterialFunctionContext context) {
+    const adlite::Scalar active_temperature = adlite::Scalar::independent(temperature, 0, 1);
+    const SymmetricTensor3 imposed = material.eigenstrain(active_temperature, context);
+    const std::array<const adlite::Scalar*, 6> components = {
+        &imposed.xx, &imposed.yy, &imposed.zz, &imposed.xy, &imposed.yz, &imposed.xz};
+    std::array<double, 6> result{};
+    for (std::size_t component = 0; component < result.size(); ++component)
+        components[component]->copy_derivatives(&result[component], 1);
+    return result;
+}
+
 } // namespace
 
 SymmetricTensor3 rotate_cartesian_tensor(const SymmetricTensor3& tensor, const CartesianRotation& rotation) {
@@ -137,6 +190,7 @@ void add_hex8_point_residual(const Hex8QuadraturePoint& point, const Hex8LocalAd
     const CartesianMaterialPointState* committed_material, double time_step, Hex8LocalAdValues& residual,
     bool include_thermal_time_term) {
     const adlite::Scalar temperature = interpolate_hex8(point.shape, state, 0);
+    const adlite::Scalar expansion_temperature = average_hex8_temperature(state);
     adlite::Scalar gradient_temperature_x = 0.0, gradient_temperature_y = 0.0, gradient_temperature_z = 0.0;
     for (std::size_t node = 0; node < 8; ++node) {
         gradient_temperature_x += point.gradient[node][0] * state[node];
@@ -151,19 +205,27 @@ void add_hex8_point_residual(const Hex8QuadraturePoint& point, const Hex8LocalAd
         evaluate_cartesian_incremental_kinematics(point, state, old_state, strain_formulation);
     SymmetricTensor3 stress;
     if (committed_material == nullptr) {
-        stress = material.stress(kinematics.strain_increment, temperature, context);
+        stress = material.stress(expansion_adjusted_strain(material, kinematics.strain_increment, temperature,
+                                     expansion_temperature, context),
+            temperature, context);
         if (strain_formulation == StrainFormulation::finite)
             stress = rotate_cartesian_tensor(stress, kinematics.rotation);
     } else if (strain_formulation == StrainFormulation::finite) {
         double old_temperature = 0.0;
         for (std::size_t node = 0; node < 8; ++node) old_temperature += point.shape[node] * old_state[node];
+        const double old_expansion_temperature = average_hex8_temperature(old_state);
         stress = material
-                     .incremental_response(kinematics.strain_increment, kinematics.rotation, temperature,
-                         old_temperature, time_step, *committed_material, context)
+                     .incremental_response(
+                         expansion_adjusted_increment(material, kinematics.strain_increment, temperature,
+                             expansion_temperature, old_temperature, old_expansion_temperature, time_step, context),
+                         kinematics.rotation, temperature, old_temperature, time_step, *committed_material, context)
                      .stress;
     } else {
-        stress =
-            material.response(kinematics.strain_increment, temperature, time_step, *committed_material, context).stress;
+        stress = material
+                     .response(expansion_adjusted_strain(
+                                   material, kinematics.strain_increment, temperature, expansion_temperature, context),
+                         temperature, time_step, *committed_material, context)
+                     .stress;
     }
     adlite::Scalar temperature_rate = 0.0, heat_capacity = 0.0;
     if (committed_state != nullptr && include_thermal_time_term) {
@@ -201,6 +263,8 @@ void add_hex8_point_residual(const Hex8QuadraturePoint& point, const Hex8LocalAd
 // with adlite::compose, so stress rotation and current-configuration geometry derivatives
 // remain exact. The final chain from (H, T_point) to the 32 local DOFs is linear and applied
 // in closed form: dH[i][j]/du[b][d] = delta(i, d) * dN_b/dX_j and dT_point/dT_b = N_b.
+// Abaqus-style first-order thermal expansion uses the arithmetic mean of the eight nodal
+// temperatures. Its separate 1/8 chain is added directly without widening the kinematics AD.
 void add_hex8_point_system(const Hex8QuadraturePoint& point, const Hex8LocalValues& state,
     const IsotropicThermoelasticMaterial& material, StrainFormulation strain_formulation, double time,
     double volumetric_heat_source, const Hex8LocalValues* committed_state,
@@ -215,6 +279,7 @@ void add_hex8_point_system(const Hex8QuadraturePoint& point, const Hex8LocalValu
                     point.gradient[node][direction] * state[8 * (component + 1) + node];
     double temperature_value = 0.0;
     for (std::size_t node = 0; node < 8; ++node) temperature_value += point.shape[node] * state[node];
+    const double expansion_temperature_value = average_hex8_temperature(state);
     cartesian_detail::ActiveMatrix3 active_gradient{};
     for (std::size_t component = 0; component < 3; ++component)
         for (std::size_t direction = 0; direction < 3; ++direction)
@@ -231,6 +296,12 @@ void add_hex8_point_system(const Hex8QuadraturePoint& point, const Hex8LocalValu
         &kinematics.strain_increment.yy, &kinematics.strain_increment.zz, &kinematics.strain_increment.xy,
         &kinematics.strain_increment.yz, &kinematics.strain_increment.xz};
     std::array<double, 6> fed_strain{};
+    const SymmetricTensor3 point_imposed = material.eigenstrain(adlite::Scalar(temperature_value), context);
+    const SymmetricTensor3 element_imposed = material.eigenstrain(adlite::Scalar(expansion_temperature_value), context);
+    const std::array<double, 6> point_imposed_values = {point_imposed.xx.value(), point_imposed.yy.value(),
+        point_imposed.zz.value(), point_imposed.xy.value(), point_imposed.yz.value(), point_imposed.xz.value()};
+    const std::array<double, 6> element_imposed_values = {element_imposed.xx.value(), element_imposed.yy.value(),
+        element_imposed.zz.value(), element_imposed.xy.value(), element_imposed.yz.value(), element_imposed.xz.value()};
     if (committed_material != nullptr && strain_formulation == StrainFormulation::finite) {
         double old_temperature = 0.0;
         for (std::size_t node = 0; node < 8; ++node) old_temperature += point.shape[node] * old_state[node];
@@ -238,20 +309,36 @@ void add_hex8_point_system(const Hex8QuadraturePoint& point, const Hex8LocalValu
             throw std::domain_error("Incremental Cartesian material committed temperature must be finite and positive");
         MaterialFunctionContext old_context = context;
         old_context.time -= time_step;
-        const SymmetricTensor3 old_imposed = material.eigenstrain(adlite::Scalar(old_temperature), old_context);
-        const std::array<double, 6> imposed = {old_imposed.xx.value(), old_imposed.yy.value(), old_imposed.zz.value(),
-            old_imposed.xy.value(), old_imposed.yz.value(), old_imposed.xz.value()};
+        const SymmetricTensor3 old_element_imposed =
+            material.eigenstrain(adlite::Scalar(average_hex8_temperature(old_state)), old_context);
+        const std::array<double, 6> old_element_values = {old_element_imposed.xx.value(),
+            old_element_imposed.yy.value(), old_element_imposed.zz.value(), old_element_imposed.xy.value(),
+            old_element_imposed.yz.value(), old_element_imposed.xz.value()};
         for (std::size_t component = 0; component < 6; ++component)
             fed_strain[component] = committed_material->elastic_strain[component] +
-                                    strain_components[component]->value() + imposed[component] +
+                                    strain_components[component]->value() + old_element_values[component] +
                                     committed_material->plastic_strain[component] +
-                                    committed_material->creep_strain[component];
+                                    committed_material->creep_strain[component] + point_imposed_values[component] -
+                                    element_imposed_values[component];
     } else {
         for (std::size_t component = 0; component < 6; ++component)
-            fed_strain[component] = strain_components[component]->value();
+            fed_strain[component] = strain_components[component]->value() + point_imposed_values[component] -
+                                    element_imposed_values[component];
     }
     const cartesian_detail::CartesianStressTangent tangent = cartesian_detail::evaluate_stress_tangent(
         material, fed_strain, temperature_value, time_step, committed_material, context);
+    const std::array<double, 6> point_imposed_derivative =
+                                    eigenstrain_temperature_derivative(material, temperature_value, context),
+                                element_imposed_derivative =
+                                    eigenstrain_temperature_derivative(material, expansion_temperature_value, context);
+    std::array<double, 6> point_thermal{}, expansion_thermal{};
+    for (std::size_t row = 0; row < 6; ++row) {
+        point_thermal[row] = tangent.thermal[row];
+        for (std::size_t component = 0; component < 6; ++component) {
+            point_thermal[row] += tangent.tangent[row][component] * point_imposed_derivative[component];
+            expansion_thermal[row] -= tangent.tangent[row][component] * element_imposed_derivative[component];
+        }
+    }
     std::array<adlite::Scalar, 7> compose_inputs{};
     for (std::size_t component = 0; component < 6; ++component)
         compose_inputs[component] = *strain_components[component];
@@ -262,12 +349,21 @@ void add_hex8_point_system(const Hex8QuadraturePoint& point, const Hex8LocalValu
     std::array<adlite::Scalar, 6> composed{};
     for (std::size_t component = 0; component < 6; ++component) {
         for (std::size_t column = 0; column < 6; ++column) partials[column] = tangent.tangent[component][column];
-        partials[6] = tangent.thermal[component];
+        partials[6] = point_thermal[component];
         composed[component] =
             adlite::compose(stress_values[component], compose_inputs.data(), partials.data(), compose_inputs.size());
     }
     SymmetricTensor3 stress{composed[0], composed[1], composed[2], composed[3], composed[4], composed[5]};
-    if (strain_formulation == StrainFormulation::finite) stress = rotate_cartesian_tensor(stress, kinematics.rotation);
+    SymmetricTensor3 expansion_stress_derivative{expansion_thermal[0], expansion_thermal[1], expansion_thermal[2],
+        expansion_thermal[3], expansion_thermal[4], expansion_thermal[5]};
+    if (strain_formulation == StrainFormulation::finite) {
+        stress = rotate_cartesian_tensor(stress, kinematics.rotation);
+        const CartesianRotation passive_rotation{kinematics.rotation.xx.value(), kinematics.rotation.xy.value(),
+            kinematics.rotation.xz.value(), kinematics.rotation.yx.value(), kinematics.rotation.yy.value(),
+            kinematics.rotation.yz.value(), kinematics.rotation.zx.value(), kinematics.rotation.zy.value(),
+            kinematics.rotation.zz.value()};
+        expansion_stress_derivative = rotate_cartesian_tensor(expansion_stress_derivative, passive_rotation);
+    }
     const adlite::Scalar conductivity = material.conductivity(active_temperature, context);
     adlite::Scalar temperature_rate = 0.0, heat_capacity = 0.0;
     if (committed_state != nullptr && include_thermal_time_term) {
@@ -308,6 +404,9 @@ void add_hex8_point_system(const Hex8QuadraturePoint& point, const Hex8LocalValu
     std::array<double, point_width> derivatives{};
     const double conductivity_value = conductivity.value();
     for (std::size_t node = 0; node < 8; ++node) {
+        const adlite::Scalar current_gradient_x = kinematics.current_gradient[node][0];
+        const adlite::Scalar current_gradient_y = kinematics.current_gradient[node][1];
+        const adlite::Scalar current_gradient_z = kinematics.current_gradient[node][2];
         point_residual[node].copy_derivatives(derivatives.data(), derivatives.size());
         for (std::size_t other = 0; other < 8; ++other) {
             double gradient_dot = 0.0;
@@ -319,8 +418,22 @@ void add_hex8_point_system(const Hex8QuadraturePoint& point, const Hex8LocalValu
         for (std::size_t component = 0; component < 3; ++component) {
             const std::size_t row = 8 * (component + 1) + node;
             point_residual[row].copy_derivatives(derivatives.data(), derivatives.size());
+            const double expansion_derivative =
+                component == 0   ? kinematics.current_weighted_measure.value() *
+                                       (expansion_stress_derivative.xx.value() * current_gradient_x.value() +
+                                           expansion_stress_derivative.xy.value() * current_gradient_y.value() +
+                                           expansion_stress_derivative.xz.value() * current_gradient_z.value())
+                : component == 1 ? kinematics.current_weighted_measure.value() *
+                                       (expansion_stress_derivative.xy.value() * current_gradient_x.value() +
+                                           expansion_stress_derivative.yy.value() * current_gradient_y.value() +
+                                           expansion_stress_derivative.yz.value() * current_gradient_z.value())
+                                 : kinematics.current_weighted_measure.value() *
+                                       (expansion_stress_derivative.xz.value() * current_gradient_x.value() +
+                                           expansion_stress_derivative.yz.value() * current_gradient_y.value() +
+                                           expansion_stress_derivative.zz.value() * current_gradient_z.value());
             for (std::size_t other = 0; other < 8; ++other) {
                 jacobian[row * 32 + other] += derivatives[temperature_index] * point.shape[other];
+                jacobian[row * 32 + other] += expansion_derivative / 8.0;
                 for (std::size_t displacement_component = 0; displacement_component < 3; ++displacement_component) {
                     double chained = 0.0;
                     for (std::size_t direction = 0; direction < 3; ++direction)
@@ -338,14 +451,17 @@ std::array<SymmetricTensor3Values, 8> evaluate_hex8_stress(const Hex8Geometry& g
     const IsotropicThermoelasticMaterial& material, StrainFormulation strain_formulation, double time) {
     Hex8LocalAdValues ad_state{};
     ad_local_system::make_passive(state.data(), state.size(), ad_state.data());
+    const adlite::Scalar expansion_temperature = average_hex8_temperature(ad_state);
     std::array<SymmetricTensor3Values, 8> result{};
     for (std::size_t q = 0; q < geometry.points.size(); ++q) {
         const Hex8QuadraturePoint& point = geometry.points[q];
         const adlite::Scalar temperature = interpolate_hex8(point.shape, ad_state, 0);
         const CartesianKinematics kinematics =
             evaluate_cartesian_incremental_kinematics(point, ad_state, Hex8LocalValues{}, strain_formulation);
-        SymmetricTensor3 stress =
-            material.stress(kinematics.strain_increment, temperature, material_context(time, point.position));
+        const MaterialFunctionContext context = material_context(time, point.position);
+        SymmetricTensor3 stress = material.stress(expansion_adjusted_strain(material, kinematics.strain_increment,
+                                                      temperature, expansion_temperature, context),
+            temperature, context);
         if (strain_formulation == StrainFormulation::finite)
             stress = rotate_cartesian_tensor(stress, kinematics.rotation);
         result[q] = {stress.xx.value(), stress.yy.value(), stress.zz.value(), stress.xy.value(), stress.yz.value(),
@@ -495,6 +611,8 @@ CartesianMaterialHistory compute_hex8_transient_update(const CartesianThermoelas
         throw std::invalid_argument("HEX8 material history must contain eight integration points");
     Hex8LocalAdValues passive{};
     ad_local_system::make_passive(state.data(), state.size(), passive.data());
+    const adlite::Scalar expansion_temperature = average_hex8_temperature(passive);
+    const double old_expansion_temperature = average_hex8_temperature(committed_state);
     CartesianMaterialHistory result(geometry.points.size());
     for (std::size_t q = 0; q < geometry.points.size(); ++q) {
         const Hex8QuadraturePoint& point = geometry.points[q];
@@ -505,11 +623,16 @@ CartesianMaterialHistory compute_hex8_transient_update(const CartesianThermoelas
         if (data.strain_formulation == StrainFormulation::finite) {
             double old_temperature = 0.0;
             for (std::size_t node = 0; node < 8; ++node) old_temperature += point.shape[node] * committed_state[node];
-            response = data.material.incremental_response(kinematics.strain_increment, kinematics.rotation, temperature,
-                old_temperature, time_step, committed_material[q], material_context(data.time, point.position));
+            const MaterialFunctionContext context = material_context(data.time, point.position);
+            response = data.material.incremental_response(
+                expansion_adjusted_increment(data.material, kinematics.strain_increment, temperature,
+                    expansion_temperature, old_temperature, old_expansion_temperature, time_step, context),
+                kinematics.rotation, temperature, old_temperature, time_step, committed_material[q], context);
         } else {
-            response = data.material.response(kinematics.strain_increment, temperature, time_step,
-                committed_material[q], material_context(data.time, point.position));
+            const MaterialFunctionContext context = material_context(data.time, point.position);
+            response = data.material.response(expansion_adjusted_strain(data.material, kinematics.strain_increment,
+                                                  temperature, expansion_temperature, context),
+                temperature, time_step, committed_material[q], context);
         }
         result[q] = response.trial_state;
     }

@@ -28,10 +28,52 @@ fuelsim::ThermoelasticProperties properties() {
 }
 
 fuelsim::ThermoelasticProperties inelastic_properties(bool creep, bool plasticity) {
-    fuelsim::ThermoelasticProperties result = fuelsim::test::thermoelastic(0.0, 1.0, 200.0, 0.25, 0.0, 300.0);
+    fuelsim::ThermoelasticProperties result = fuelsim::test::thermoelastic(0.0, 1.0, 200.0, 0.25, 1.0e-4, 300.0);
     if (creep) result = fuelsim::test::with_norton(std::move(result), 1.0e-4, 10.0, 3.0, 300.0);
     if (plasticity) result = fuelsim::test::with_plasticity(std::move(result), 10.0, 20.0, 300.0);
     return result;
+}
+
+bool test_element_average_thermal_expansion_temperature() {
+    const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(unit_cube());
+    const fuelsim::IsotropicThermoelasticMaterial material(properties());
+    const fuelsim::CartesianThermoelasticData data{material, 0.0, 0.0};
+    fuelsim::Hex8LocalValues state{};
+    const std::array<double, 8> nodal_temperatures{{360.0, 410.0, 445.0, 385.0, 470.0, 430.0, 515.0, 455.0}};
+    double element_temperature = 0.0;
+    for (std::size_t node = 0; node < 8; ++node) {
+        state[node] = nodal_temperatures[node];
+        element_temperature += nodal_temperatures[node] / 8.0;
+    }
+    const fuelsim::SymmetricTensor3 imposed = material.eigenstrain(element_temperature);
+    const std::array<fuelsim::SymmetricTensor3Values, 8> stresses = fuelsim::compute_hex8_stress(data, geometry, state);
+    double recovered_expansion_maximum_difference = 0.0, stress_range = 0.0;
+    double minimum_stress = stresses[0].xx, maximum_stress = stresses[0].xx;
+    for (std::size_t q = 0; q < geometry.points.size(); ++q) {
+        double point_temperature = 0.0;
+        for (std::size_t node = 0; node < 8; ++node)
+            point_temperature += geometry.points[q].shape[node] * nodal_temperatures[node];
+        const fuelsim::ActiveThermoelasticProperties active = material.active_properties(point_temperature);
+        const double bulk_factor = 3.0 * active.lame_lambda.value() + 2.0 * active.shear_modulus.value();
+        const double recovered_expansion = -stresses[q].xx / bulk_factor;
+        recovered_expansion_maximum_difference =
+            std::max(recovered_expansion_maximum_difference, std::abs(recovered_expansion - imposed.xx.value()));
+        minimum_stress = std::min(minimum_stress, stresses[q].xx);
+        maximum_stress = std::max(maximum_stress, stresses[q].xx);
+        if (!check(near(stresses[q].xx, stresses[q].yy, 1.0e-13) && near(stresses[q].xx, stresses[q].zz, 1.0e-13) &&
+                       std::abs(stresses[q].xy) < 1.0e-10 && std::abs(stresses[q].yz) < 1.0e-10 &&
+                       std::abs(stresses[q].xz) < 1.0e-10,
+                "nonuniform-temperature HEX8 thermal stress remains isotropic at each integration point"))
+            return false;
+    }
+    stress_range = maximum_stress - minimum_stress;
+    std::cout << "hex8_element_expansion_temperature=" << element_temperature << '\n'
+              << "hex8_recovered_expansion_maximum_difference=" << recovered_expansion_maximum_difference << '\n'
+              << "hex8_point_elasticity_stress_range=" << stress_range << '\n';
+    return check(recovered_expansion_maximum_difference < 1.0e-15,
+               "HEX8 thermal expansion uses one arithmetic-average nodal temperature") &&
+           check(stress_range > 1.0e6,
+               "HEX8 elasticity retains integration-point temperature dependence while expansion is element constant");
 }
 
 double equivalent_stress(const fuelsim::SymmetricTensor3& stress) {
@@ -338,6 +380,7 @@ bool test_finite_strain_kinematics_and_coupled_jacobian() {
         "finite-strain HEX8 recovers the MOOSE Taylor diagonal increment and current volume measure");
     for (std::size_t node = 0; node < 8; ++node) {
         const fuelsim::CartesianPoint3& point = coordinates[node];
+        state[node] = 302.0 + 0.75 * static_cast<double>(node);
         state[8 + node] = 0.20 * point.x + 0.08 * point.y - 0.03 * point.z;
         state[16 + node] = -0.02 * point.x - 0.04 * point.y + 0.06 * point.z;
         state[24 + node] = 0.04 * point.x - 0.05 * point.y - 0.03 * point.z;
@@ -347,7 +390,7 @@ bool test_finite_strain_kinematics_and_coupled_jacobian() {
         fuelsim::StrainFormulation::finite};
     const fuelsim::Hex8LocalValues committed_state = [] {
         fuelsim::Hex8LocalValues value{};
-        for (std::size_t node = 0; node < 8; ++node) value[node] = 300.0;
+        for (std::size_t node = 0; node < 8; ++node) value[node] = 298.0 + 0.5 * static_cast<double>(node);
         return value;
     }();
     const fuelsim::CartesianMaterialHistory committed_material(8);
@@ -368,7 +411,7 @@ bool test_finite_strain_kinematics_and_coupled_jacobian() {
              passed;
     std::array<double, 32> direction{};
     for (std::size_t dof = 0; dof < direction.size(); ++dof)
-        direction[dof] = dof < 8 ? 0.0 : std::sin(0.29 * static_cast<double>(dof + 1));
+        direction[dof] = std::sin(0.29 * static_cast<double>(dof + 1));
     constexpr double step = 2.0e-7;
     fuelsim::Hex8LocalValues plus = state, minus = state;
     for (std::size_t dof = 0; dof < state.size(); ++dof) {
@@ -613,6 +656,7 @@ int main() {
     bool passed = true;
     passed = test_geometry_and_constant_strain() && passed;
     passed = test_free_thermal_expansion_and_jacobian() && passed;
+    passed = test_element_average_thermal_expansion_temperature() && passed;
     passed = test_transient_capacity_and_faces() && passed;
     passed = test_cartesian_inelastic_material() && passed;
     passed = test_finite_strain_kinematics_and_coupled_jacobian() && passed;

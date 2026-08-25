@@ -278,6 +278,18 @@ epsilon_thermal = alpha(T) * (T - reference_temperature)
 链式导数进入局部 Jacobian。线性关系越过物理定义域时程序报告物理域错误，
 不隐式夹持。
 
+三维 HEX8 体单元的热膨胀温度遵循 Abaqus 一阶耦合单元口径：每个单元只用
+八个节点温度的算术平均值计算本征应变。
+
+```text
+T_expansion = (T0+T1+...+T7)/8
+```
+
+导热、热容、弹性参数、塑性参数和蠕变参数仍按各积分点插值温度求值。因此该
+规则只改变热膨胀本征应变及其温度—力学 Jacobian 链，不把整个材料温度场改成
+单元常量，也不改变八点应变积分。二维轴对称 Quad4 和三维 HEX20 仍保留各自
+现有的积分点温度热膨胀离散。
+
 ### 5.2 Norton 蠕变
 
 Norton 等温幂律是：
@@ -773,7 +785,7 @@ max_pointwise_relative = max_i |x_i-x_ref_i|/|x_ref_i|
 | 稳态 RZ 体弱式 | `m0.steady` | 实心圆柱温度、自由热膨胀、厚壁圆筒和 MOOSE 全场 |
 | 无摩擦热—力接触 | `m1.contact`、`m33.contact` | 非匹配 STS/NTS、斜面、端面、多区域和 MOOSE 全场 |
 | HEX8 表面到面接触 | `b38.hex8_sts_identification`、`b39.hex8_sts_multicase`、`b40.hex8_sts_friction`、`b41.hex8_sts_finite_sliding`、`b42.hex8_sts_friction_objectivity`、`b43.hex8_sts_finite_strain` | Abaqus 约束识别、匹配与非匹配场量、倾斜初始间隙、双切向摩擦、有限滑移跨面、真实当前面积和法向演化、累计滑移、逐增量法向旋转、反向再粘着、客观历史、切线、事务、重启动和 MPI 等价 |
-| HEX8 热力体算子 | `b49.hex8_c3d8t_operator`、`b50.hex8_c3d8t_capacity`、`b51.hex8_c3d8t_finite_heat` | Abaqus C3D8T 的 32 自由度切线、八点非仿射应变及热流、逐列瞬态热容和有限变形后导热构形识别；明确记录其选择性减缩体积应变、单元常温度热膨胀、节点集总热容和当前构形导热与 fuelsim 生产离散不同 |
+| HEX8 热力体算子 | `b49.hex8_c3d8t_operator`、`b50.hex8_c3d8t_capacity`、`b51.hex8_c3d8t_finite_heat` | Abaqus C3D8T 的 32 自由度切线、八点非仿射应变及热流、逐列瞬态热容和有限变形后导热构形识别；HEX8 热膨胀采用八节点算术平均温度并与 Abaqus 耦合矩阵一致，选择性减缩体积应变、节点集总热容和当前构形导热仍是明确的离散差异 |
 | HEX8 热接触 | `b52.hex8_c3d8t_thermal_contact` | 固定间隙、恒定导热系数下两侧节点温度、反应热流、解析串联热阻、作用—反作用和 fuelsim 体单元—界面联合平衡 |
 | Coulomb 摩擦 | `m51.friction` | 粘着、滑移、反向再粘着、局部切线、守恒和 MOOSE |
 | 完整链大滑移搜索 | `m52.large_sliding` | 跨多段所有权、力连续、MPI 等价、重启动和 MOOSE |

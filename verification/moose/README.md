@@ -316,16 +316,20 @@ It requires each shared source node to map to one four-field global node, while
 each non-interface node belongs to exactly one material region. MOOSE's nodal
 sampler emits interface nodes once for each incident block; the test first
 requires those duplicate rows to be identical and then compares the 12 unique
-nodes. Temperature and all three displacement fields use relative L2, relative
-absolute-peak, and maximum pointwise-relative errors below 0.1 percent, with
-zero-reference values reported by a separate absolute gate. It also sums the
-two HEX8 local residuals at every shared thermal and displacement degree of
-freedom, requires their relative imbalance below `1e-8`, and verifies the
-analytic temperature and heat-flux continuity. The checked one-rank, one-thread
-run used `/home/cooper/projects/july/july-opt`, MOOSE commit `93b11698be`, and
-PETSc 3.25.2. Its largest relative field error was
-`8.763365653269e-14`, the largest shared-interface residual imbalance was
-`2.059096004814e-9`, and the heat-flux imbalance was zero to printed precision.
+nodes. Temperature uses relative L2, relative absolute-peak, and maximum
+pointwise-relative errors below 0.1 percent, with zero-reference values reported
+by a separate absolute gate. The three displacement metrics remain printed as
+diagnostics but are not acceptance gates: MOOSE evaluates thermal expansion at
+each integration-point temperature, whereas the Fuelsim HEX8 kernel now follows
+Abaqus first-order-element behavior and uses the arithmetic mean of the eight
+nodal temperatures for thermal expansion. B4.9 is the governing thermal-
+expansion comparison. B3.5 also sums the two HEX8 local residuals at every
+shared thermal and displacement degree of freedom, requires their relative
+imbalance below `1e-8`, and verifies the analytic temperature and heat-flux
+continuity. With the Abaqus rule, the MOOSE displacement relative L2 differences
+are `1.401516%`, `13.48318%`, and `13.48318%` for X, Y, and Z. The largest
+shared-interface residual imbalance remains below `1e-8`, and the heat-flux
+imbalance is zero to printed precision.
 
 ## B3.6 transient fuel plate with a conforming cladding shell
 

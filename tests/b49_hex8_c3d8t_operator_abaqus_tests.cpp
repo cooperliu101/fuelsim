@@ -271,22 +271,23 @@ bool compare_operator(const std::map<std::string, NodalStep>& steps) {
               << '\n';
     std::cout << "b49_c3d8t_compatible_mechanical_residual_relative_error=" << compatible_mechanical_error << '\n';
     (void)thermal_residual_error;
-    bool passed =
-        check(thermal_error < 1.0e-9, "C3D8T and fuelsim thermal-conduction tangent blocks agree") &&
-        check(compatible_error < 1.0e-8,
-            "the identified selective-integration C3D8T operator matches the Abaqus tangent") &&
-        check(maximum_thermal_displacement < 1.0e-8,
-            "C3D8T and fuelsim thermal residuals have zero displacement derivative") &&
-        check(coupling_column_difference / coupling_scale < 1.0e-9,
-            "Abaqus first-order coupled element uses one constant expansion temperature") &&
-        check(coupling_sum_difference / coupling_sum_scale < 1.0e-9,
-            "uniform temperature perturbations give the same mechanical coupling") &&
-        check(isolated_thermal_residual_error < 1.0e-12, "C3D8T and fuelsim base thermal residuals agree") &&
-        check(compatible_mechanical_error < 1.0e-12,
-            "C3D8T reactions match selective mechanical integration and constant expansion temperature") &&
-        check(mechanical_error > 1.0e-1 && coupling_error > 1.0e-1 && production_mechanical_residual_error > 1.0e-3,
-            "the production full-point mechanics remains explicitly distinct from C3D8T") &&
-        true;
+    bool passed = check(thermal_error < 1.0e-9, "C3D8T and fuelsim thermal-conduction tangent blocks agree") &&
+                  check(compatible_error < 1.0e-8,
+                      "the identified selective-integration C3D8T operator matches the Abaqus tangent") &&
+                  check(maximum_thermal_displacement < 1.0e-8,
+                      "C3D8T and fuelsim thermal residuals have zero displacement derivative") &&
+                  check(coupling_column_difference / coupling_scale < 1.0e-9,
+                      "Abaqus first-order coupled element uses one constant expansion temperature") &&
+                  check(coupling_sum_difference / coupling_sum_scale < 1.0e-9,
+                      "uniform temperature perturbations give the same mechanical coupling") &&
+                  check(isolated_thermal_residual_error < 1.0e-12, "C3D8T and fuelsim base thermal residuals agree") &&
+                  check(compatible_mechanical_error < 1.0e-12,
+                      "C3D8T reactions match selective mechanical integration and constant expansion temperature") &&
+                  check(coupling_error < 1.0e-8,
+                      "fuelsim and C3D8T temperature-to-mechanics tangent blocks use the same element temperature") &&
+                  check(mechanical_error > 1.0e-1 && production_mechanical_residual_error > 1.0e-3,
+                      "the production full-point strain integration remains explicitly distinct from C3D8T") &&
+                  true;
     return passed;
 }
 
@@ -299,6 +300,9 @@ double tensor_maximum_difference(
 bool compare_integration_points(const NodalStep& base, const std::vector<IntegrationPointReference>& references) {
     const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(unit_cube());
     const fuelsim::IsotropicThermoelasticMaterial material(properties());
+    const fuelsim::CartesianThermoelasticData data{material, 0.0, 0.0};
+    const std::array<fuelsim::SymmetricTensor3Values, 8> production_stresses =
+        fuelsim::compute_hex8_stress(data, geometry, base.state);
     fuelsim::Hex8LocalAdValues passive{};
     for (std::size_t dof = 0; dof < local_size; ++dof) passive[dof] = base.state[dof];
     double average_temperature = 0.0;
@@ -347,30 +351,22 @@ bool compare_integration_points(const NodalStep& base, const std::vector<Integra
         maximum_strain_difference =
             std::max(maximum_strain_difference, tensor_maximum_difference(strain, reference.strain));
         std::array<double, 3> gradient_temperature{};
-        double point_temperature = 0.0;
-        for (std::size_t node = 0; node < 8; ++node) {
-            point_temperature += point.shape[node] * base.state[node];
+        for (std::size_t node = 0; node < 8; ++node)
             for (std::size_t direction = 0; direction < 3; ++direction)
                 gradient_temperature[direction] += point.gradient[node][direction] * base.state[node];
-        }
         for (std::size_t direction = 0; direction < 3; ++direction)
             maximum_heat_flux_difference = std::max(maximum_heat_flux_difference,
                 std::abs(-4.0 * gradient_temperature[direction] - reference.heat_flux[direction]));
         const fuelsim::SymmetricTensor3 abaqus_temperature_stress =
             material.stress(selective_strain, average_temperature);
-        const fuelsim::SymmetricTensor3 production_stress =
-            material.stress(kinematics.strain_increment, point_temperature);
         const fuelsim::SymmetricTensor3Values abaqus_temperature_values = {abaqus_temperature_stress.xx.value(),
             abaqus_temperature_stress.yy.value(), abaqus_temperature_stress.zz.value(),
             abaqus_temperature_stress.xy.value(), abaqus_temperature_stress.yz.value(),
             abaqus_temperature_stress.xz.value()};
-        const fuelsim::SymmetricTensor3Values production_values = {production_stress.xx.value(),
-            production_stress.yy.value(), production_stress.zz.value(), production_stress.xy.value(),
-            production_stress.yz.value(), production_stress.xz.value()};
         maximum_constant_temperature_stress_difference = std::max(maximum_constant_temperature_stress_difference,
             tensor_maximum_difference(abaqus_temperature_values, reference.stress));
-        maximum_production_stress_difference = std::max(
-            maximum_production_stress_difference, tensor_maximum_difference(production_values, reference.stress));
+        maximum_production_stress_difference = std::max(maximum_production_stress_difference,
+            tensor_maximum_difference(production_stresses[closest], reference.stress));
         (void)reference.output_temperature;
     }
     std::cout << "b49_integration_point_coordinate_maximum_difference=" << maximum_coordinate_difference << '\n';
@@ -385,8 +381,8 @@ bool compare_integration_points(const NodalStep& base, const std::vector<Integra
            check(maximum_heat_flux_difference < 1.0e-10, "C3D8T and fuelsim heat fluxes agree at all eight points") &&
            check(maximum_constant_temperature_stress_difference < 1.0e-3,
                "C3D8T stresses use the element-average expansion temperature") &&
-           check(maximum_production_stress_difference > 1.0e8,
-               "fuelsim Gauss-point thermal expansion is explicitly distinct from C3D8T") &&
+           check(maximum_production_stress_difference > 1.0e6,
+               "fuelsim full-point strain integration remains explicitly distinct from C3D8T") &&
            true;
 }
 } // namespace
