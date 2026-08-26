@@ -1317,21 +1317,21 @@ conductivity column is subtracted before the capacity matrix is assessed.
 The extracted Abaqus matrix is diagonal to numerical roundoff. Every diagonal
 entry is `750000 J/K`, equal to one eighth of the unit cube's total
 `rho*cp*volume = 6000000 J/K`; the largest off-diagonal magnitude is
-`5.61e-14 J/K`. A test-only conductivity-plus-lumped-capacity reconstruction
-matches the complete Abaqus reaction matrix with `6.63101e-16` relative
-Frobenius error. This agrees with the documented Abaqus rule that first-order
-transient heat-transfer elements use nodal integration for heat capacity.
+`5.61e-14 J/K`. Fuelsim production now uses the same natural-corner nodal
+integration: its capacity matrix matches the analytic diagonal matrix exactly,
+and its complete conductivity-plus-capacity reaction matrix matches Abaqus with
+`6.63101e-16` relative Frobenius error. Both off-diagonal capacity maxima are
+zero to their respective numerical precision, and the Fuelsim row-sum error is
+zero.
 
-Fuelsim deliberately retains its existing reference-configuration consistent
-capacity matrix. The automatic test matches that matrix within `1.12278e-13`
-relative Frobenius error, and its smallest off-diagonal entry is
-`27777.8 J/K`. Consequently, the production combined transient matrix differs
-from native Abaqus by `76.0837%` for this nonuniform one-node perturbation.
-Both capacity matrices have the same `750000 J/K` row sum, so a uniform-heating
-test alone cannot identify this discretization difference. B5.0 is therefore
-a qualified capacity identification; it does not change the production
-Fuelsim time term or claim node-by-node transient equivalence to native
-`C3D8T`.
+The replaced consistent matrix differs from Abaqus by `76.0838%` for this
+nonuniform one-node perturbation, while uniform heating gives the same row sum
+under both rules. The local regression therefore also checks all eight
+nonuniform columns, distinct corner Jacobian weights on a distorted HEX8, and
+the exact diagonal derivative for temperature-dependent heat capacity. B5.0
+verifies the constant-property unit-cube Abaqus comparison; the distorted and
+temperature-dependent extensions are analytic Fuelsim checks of the documented
+corner-integration rule.
 
 Regenerate the tracked deck with:
 

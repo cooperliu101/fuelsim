@@ -125,54 +125,52 @@ int main(int argc, char** argv) {
         for (std::size_t node = 0; node < node_count; ++node)
             analytic_lumped[node * node_count + node] = nodal_capacity;
 
-        Matrix8 abaqus_capacity{}, abaqus_compatible_total{};
-        for (std::size_t entry = 0; entry < abaqus_total.size(); ++entry) {
+        Matrix8 abaqus_capacity{};
+        for (std::size_t entry = 0; entry < abaqus_total.size(); ++entry)
             abaqus_capacity[entry] = abaqus_total[entry] - conduction[entry];
-            abaqus_compatible_total[entry] = conduction[entry] + analytic_lumped[entry];
-        }
         const double abaqus_lumped_error = relative_frobenius_error(abaqus_capacity, analytic_lumped);
-        const double fuelsim_consistent_error = relative_frobenius_error(fuelsim_capacity, analytic_consistent);
-        const double compatible_total_error = relative_frobenius_error(abaqus_compatible_total, abaqus_total);
-        const double production_total_difference = relative_frobenius_error(fuelsim_total, abaqus_total);
+        const double fuelsim_lumped_error = relative_frobenius_error(fuelsim_capacity, analytic_lumped);
+        const double fuelsim_total_error = relative_frobenius_error(fuelsim_total, abaqus_total);
+        const double consistent_capacity_difference = relative_frobenius_error(analytic_consistent, abaqus_capacity);
         const double abaqus_row_sum_error = maximum_row_sum_error(abaqus_capacity, nodal_capacity);
         const double fuelsim_row_sum_error = maximum_row_sum_error(fuelsim_capacity, nodal_capacity);
-        double maximum_abaqus_off_diagonal = 0.0, minimum_fuelsim_off_diagonal = nodal_capacity;
+        double maximum_abaqus_off_diagonal = 0.0, maximum_fuelsim_off_diagonal = 0.0;
         for (std::size_t row = 0; row < node_count; ++row)
             for (std::size_t column = 0; column < node_count; ++column)
                 if (row != column) {
                     maximum_abaqus_off_diagonal =
                         std::max(maximum_abaqus_off_diagonal, std::abs(abaqus_capacity[row * node_count + column]));
-                    minimum_fuelsim_off_diagonal =
-                        std::min(minimum_fuelsim_off_diagonal, fuelsim_capacity[row * node_count + column]);
+                    maximum_fuelsim_off_diagonal =
+                        std::max(maximum_fuelsim_off_diagonal, std::abs(fuelsim_capacity[row * node_count + column]));
                 }
 
         std::cout << "b50_abaqus_lumped_capacity_relative_frobenius_error=" << abaqus_lumped_error << '\n'
-                  << "b50_fuelsim_consistent_capacity_relative_frobenius_error=" << fuelsim_consistent_error << '\n'
-                  << "b50_abaqus_compatible_total_relative_frobenius_error=" << compatible_total_error << '\n'
-                  << "b50_production_total_relative_frobenius_difference=" << production_total_difference << '\n'
+                  << "b50_fuelsim_lumped_capacity_relative_frobenius_error=" << fuelsim_lumped_error << '\n'
+                  << "b50_fuelsim_total_relative_frobenius_error=" << fuelsim_total_error << '\n'
+                  << "b50_consistent_capacity_relative_frobenius_difference=" << consistent_capacity_difference << '\n'
                   << "b50_abaqus_capacity_row_sum_maximum_absolute_error=" << abaqus_row_sum_error << '\n'
                   << "b50_fuelsim_capacity_row_sum_maximum_absolute_error=" << fuelsim_row_sum_error << '\n'
                   << "b50_abaqus_capacity_maximum_off_diagonal=" << maximum_abaqus_off_diagonal << '\n'
-                  << "b50_fuelsim_capacity_minimum_off_diagonal=" << minimum_fuelsim_off_diagonal << '\n';
+                  << "b50_fuelsim_capacity_maximum_off_diagonal=" << maximum_fuelsim_off_diagonal << '\n';
 
         bool passed = true;
         passed = check(abaqus_lumped_error < 2.0e-12,
                      "Abaqus C3D8T transient response identifies the diagonal lumped heat-capacity matrix") &&
                  passed;
-        passed = check(fuelsim_consistent_error < 2.0e-12,
-                     "fuelsim production HEX8 retains its required consistent heat-capacity matrix") &&
+        passed = check(fuelsim_lumped_error < 2.0e-12,
+                     "fuelsim production HEX8 uses the diagonal lumped heat-capacity matrix") &&
                  passed;
-        passed = check(compatible_total_error < 2.0e-12,
-                     "Abaqus total reaction heat flux equals conduction plus lumped heat capacity") &&
+        passed = check(fuelsim_total_error < 2.0e-12,
+                     "fuelsim conduction plus lumped heat capacity matches the Abaqus total reaction matrix") &&
                  passed;
-        passed = check(production_total_difference > 0.5,
-                     "the nonuniform transient probe exposes the native capacity-discretization difference") &&
+        passed = check(consistent_capacity_difference > 0.5,
+                     "the nonuniform transient probe distinguishes the replaced consistent capacity matrix") &&
                  passed;
         passed = check(abaqus_row_sum_error < 1.0e-6 && fuelsim_row_sum_error < 1.0e-6,
                      "both capacity matrices preserve the same uniform-heating nodal row sum") &&
                  passed;
-        passed = check(maximum_abaqus_off_diagonal < 1.0e-6 && minimum_fuelsim_off_diagonal > 2.0e4,
-                     "off-diagonal entries distinguish Abaqus lumping from fuelsim consistent capacity") &&
+        passed = check(maximum_abaqus_off_diagonal < 1.0e-6 && maximum_fuelsim_off_diagonal < 1.0e-6,
+                     "Abaqus and fuelsim lumped capacity matrices have zero off-diagonal entries") &&
                  passed;
         if (passed) std::cout << "[PASS] B5.0 Abaqus C3D8T heat-capacity identification\n";
         return passed ? 0 : 1;

@@ -290,6 +290,18 @@ T_expansion = (T0+T1+...+T7)/8
 单元常量，也不改变八点应变积分。二维轴对称 Quad4 和三维 HEX20 仍保留各自
 现有的积分点温度热膨胀离散。
 
+HEX8 瞬态热容同样遵循 Abaqus 一阶热单元的节点积分规则，但它与热膨胀的
+单元平均温度是两个独立口径。八个热容积分站位于自然坐标角点，与八个温度
+节点一一对应：
+
+```text
+R_capacity_i = detJ_corner_i * rho(T_i) * cp(T_i) * (T_i_new-T_i_old)/dt
+```
+
+因此常数或温度相关体积热容都只产生对角的温度—温度热容 Jacobian。畸变单元
+使用各角点自己的参考构形 `detJ`，不把总单元体积简单平均八份。导热和体热源
+仍使用八点 Gauss 积分；RZ Quad4 与混合阶 HEX20 仍使用一致热容。
+
 ### 5.2 Norton 蠕变
 
 Norton 等温幂律是：
@@ -748,7 +760,7 @@ Vec、Mat、非零结构和回调缓冲区。载荷步或时间步只更新具�
 
 每个接受步记录以下独立诊断：
 
-- 体热源生成率、一致热容储热率、边界热率和全局热平衡；
+- 体热源生成率、单元对应离散的热容储热率、边界热率和全局热平衡；
 - 每个热接触对在 secondary 与 primary 两侧的热率及不平衡；
 - 内力功、外载功、约束反力功、接触功和机械功平衡；
 - 弹性能变化、塑性耗散和蠕变耗散；
@@ -785,7 +797,7 @@ max_pointwise_relative = max_i |x_i-x_ref_i|/|x_ref_i|
 | 稳态 RZ 体弱式 | `m0.steady` | 实心圆柱温度、自由热膨胀、厚壁圆筒和 MOOSE 全场 |
 | 无摩擦热—力接触 | `m1.contact`、`m33.contact` | 非匹配 STS/NTS、斜面、端面、多区域和 MOOSE 全场 |
 | HEX8 表面到面接触 | `b38.hex8_sts_identification`、`b39.hex8_sts_multicase`、`b40.hex8_sts_friction`、`b41.hex8_sts_finite_sliding`、`b42.hex8_sts_friction_objectivity`、`b43.hex8_sts_finite_strain` | Abaqus 约束识别、匹配与非匹配场量、倾斜初始间隙、双切向摩擦、有限滑移跨面、真实当前面积和法向演化、累计滑移、逐增量法向旋转、反向再粘着、客观历史、切线、事务、重启动和 MPI 等价 |
-| HEX8 热力体算子 | `b49.hex8_c3d8t_operator`、`b50.hex8_c3d8t_capacity`、`b51.hex8_c3d8t_finite_heat` | Abaqus C3D8T 的 32 自由度切线、八点非仿射应变及热流、逐列瞬态热容和有限变形后导热构形识别；HEX8 热膨胀采用八节点算术平均温度并与 Abaqus 耦合矩阵一致，选择性减缩体积应变、节点集总热容和当前构形导热仍是明确的离散差异 |
+| HEX8 热力体算子 | `b49.hex8_c3d8t_operator`、`b50.hex8_c3d8t_capacity`、`b51.hex8_c3d8t_finite_heat` | Abaqus C3D8T 的 32 自由度切线、八点非仿射应变及热流、逐列瞬态热容和有限变形后导热构形识别；HEX8 热膨胀采用八节点算术平均温度，瞬态热容采用角点节点积分，两者均与 Abaqus 一致；选择性减缩体积应变和当前构形导热仍是明确的离散差异 |
 | HEX8 热接触 | `b52.hex8_c3d8t_thermal_contact` | 固定间隙、恒定导热系数下两侧节点温度、反应热流、解析串联热阻、作用—反作用和 fuelsim 体单元—界面联合平衡 |
 | Coulomb 摩擦 | `m51.friction` | 粘着、滑移、反向再粘着、局部切线、守恒和 MOOSE |
 | 完整链大滑移搜索 | `m52.large_sliding` | 跨多段所有权、力连续、MPI 等价、重启动和 MOOSE |

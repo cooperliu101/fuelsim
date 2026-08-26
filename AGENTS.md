@@ -87,8 +87,10 @@ follower pressure 另有独立 MOOSE 对比；非共轴耦合塑性—蠕变路�
   非共轴对标必须比较 MOOSE 的总非弹性张量、应力、弹性张量和两个等效标量；
   fuelsim 分机制张量另由局部客观性测试约束。
 - 历史变量使用 `double` 保存；只有 trial state 使用 ADlite。
-- M2 热容使用参考构形一致质量矩阵：
-  `N_i*rho*cp*(T_new-T_old)/dt`，不包含位移惯性。
+- RZ Quad4 与三维 HEX20 热容使用参考构形一致质量矩阵。三维 HEX8 按 Abaqus
+  一阶热单元规则在八个自然坐标角点做节点积分，第 `i` 个节点的热容残量为
+  `detJ_i*rho(T_i)*cp(T_i)*(T_i_new-T_i_old)/dt`，因此热容 Jacobian 为对角矩阵；
+  三种体单元都不包含位移惯性。
 - M2 的所有 Newton、线搜索和失败重试必须从同一 committed 积分点状态
   重算 trial；只能在最终收敛解上重算一次并提交。
 - Backward Euler step-doubling 必须从同一完整 committed 状态比较节点场、

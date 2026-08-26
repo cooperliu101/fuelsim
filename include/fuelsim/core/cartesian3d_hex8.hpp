@@ -32,8 +32,14 @@ struct Hex8QuadraturePoint final {
     double weighted_measure;
 };
 
+struct Hex8CapacityPoint final {
+    CartesianPoint3 position;
+    double weighted_measure;
+};
+
 struct Hex8Geometry final {
     std::array<Hex8QuadraturePoint, 8> points;
+    std::array<Hex8CapacityPoint, hex8_node_count> capacity_points;
 };
 
 struct Quad4FaceQuadraturePoint final {

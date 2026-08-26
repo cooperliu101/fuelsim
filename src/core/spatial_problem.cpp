@@ -988,18 +988,16 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                 const Hex8Geometry& geometry = _impl->cartesian->region_element_geometry(region, element);
                 CartesianMaterialHistory update = _impl->cartesian->transient_update(region, element, current, old,
                     _impl->cartesian_material_histories[region][element], _impl->active_time_step);
-                for (std::size_t q = 0; q < geometry.points.size(); ++q) {
-                    const Hex8QuadraturePoint& point = geometry.points[q];
-                    double current_temperature = 0.0, old_temperature = 0.0;
-                    for (std::size_t node = 0; node < 8; ++node) {
-                        current_temperature += point.shape[node] * current[node];
-                        old_temperature += point.shape[node] * old[node];
-                    }
-                    if (_impl->include_thermal_time_term)
+                if (_impl->include_thermal_time_term)
+                    for (std::size_t node = 0; node < hex8_node_count; ++node) {
+                        const Hex8CapacityPoint& point = geometry.capacity_points[node];
                         conservation.stored_heat_rate +=
                             point.weighted_measure *
-                            _impl->cartesian->heat_capacity(region, current_temperature, point.position) *
-                            (current_temperature - old_temperature) / _impl->active_time_step;
+                            _impl->cartesian->heat_capacity(region, current[node], point.position) *
+                            (current[node] - old[node]) / _impl->active_time_step;
+                    }
+                for (std::size_t q = 0; q < geometry.points.size(); ++q) {
+                    const Hex8QuadraturePoint& point = geometry.points[q];
                     conservation.generated_heat_rate +=
                         point.weighted_measure * _impl->cartesian->region_heat_source(region);
                     const CartesianMaterialPointState &old_history =

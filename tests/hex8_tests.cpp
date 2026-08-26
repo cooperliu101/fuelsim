@@ -5,6 +5,7 @@
 #include <array>
 #include <cmath>
 #include <iostream>
+#include <memory>
 #include <string>
 
 namespace {
@@ -32,6 +33,32 @@ fuelsim::ThermoelasticProperties inelastic_properties(bool creep, bool plasticit
     if (creep) result = fuelsim::test::with_norton(std::move(result), 1.0e-4, 10.0, 3.0, 300.0);
     if (plasticity) result = fuelsim::test::with_plasticity(std::move(result), 10.0, 20.0, 300.0);
     return result;
+}
+
+fuelsim::ThermalPropertyEvaluator temperature_dependent_capacity(const fuelsim::MaterialParameters& named) {
+    const double conductivity = named.value("conductivity"), density = named.value("density"),
+                 specific_heat = named.value("specific_heat"), slope = named.value("specific_heat_slope");
+    return [conductivity, density, specific_heat, slope](
+               const fuelsim::ThermoelasticFunctionInput& input, fuelsim::ThermalPropertyOutput& output) {
+        output.conductivity = conductivity;
+        output.density = density;
+        output.specific_heat = specific_heat + slope * input.temperature;
+    };
+}
+
+fuelsim::ThermoelasticProperties capacity_properties() {
+    fuelsim::MaterialFunctionRegistry registry = fuelsim::make_builtin_material_function_registry();
+    registry.add_thermal("temperature_dependent_capacity",
+        {{"conductivity", "W/(m*K)"}, {"density", "kg/m^3"}, {"specific_heat", "J/(kg*K)"},
+            {"specific_heat_slope", "J/(kg*K^2)"}},
+        &temperature_dependent_capacity);
+    auto functions = std::make_shared<fuelsim::MaterialFunctionSet>();
+    functions->name = "temperature_dependent_capacity_test";
+    functions->thermal = registry.bind_thermal("temperature_dependent_capacity",
+        {{"conductivity", 4.0}, {"density", 2000.0}, {"specific_heat", 1000.0}, {"specific_heat_slope", 2.0}});
+    functions->elasticity =
+        registry.bind_elasticity("constant_isotropic", {{"young_modulus", 2.0e11}, {"poisson_ratio", 0.25}});
+    return {std::move(functions), 2.0e11};
 }
 
 bool test_element_average_thermal_expansion_temperature() {
@@ -195,9 +222,71 @@ bool test_transient_capacity_and_faces() {
         fuelsim::compute_hex8_thermoelastic(data, geometry, state, &old_state, 1.0);
     for (std::size_t node = 0; node < 8; ++node)
         if (!check(std::abs(residual[node]) < 1.0e-7,
-                "Backward Euler consistent heat capacity balances uniform volumetric heating; residual=" +
+                "Backward Euler lumped heat capacity balances uniform volumetric heating; residual=" +
                     std::to_string(residual[node])))
             return false;
+    const fuelsim::CartesianMaterialHistory history(geometry.points.size());
+    fuelsim::Hex8LocalValues nonuniform_state = old_state;
+    for (std::size_t node = 0; node < 8; ++node) nonuniform_state[node] += 0.25 * static_cast<double>(node + 1);
+    fuelsim::Hex8LocalJacobian with_capacity{}, without_capacity{};
+    const fuelsim::Hex8LocalResidual with_capacity_residual =
+        fuelsim::compute_hex8_transient(data, geometry, nonuniform_state, old_state, history, 2.0, &with_capacity);
+    const fuelsim::Hex8LocalResidual without_capacity_residual = fuelsim::compute_hex8_transient(
+        data, geometry, nonuniform_state, old_state, history, 2.0, &without_capacity, false);
+    constexpr double volumetric_capacity = 2000.0 * 3000.0;
+    double capacity_residual_error = 0.0, capacity_jacobian_error = 0.0;
+    for (std::size_t row = 0; row < 8; ++row) {
+        const double expected_residual = geometry.capacity_points[row].weighted_measure * volumetric_capacity *
+                                         (nonuniform_state[row] - old_state[row]) / 2.0;
+        capacity_residual_error = std::max(capacity_residual_error,
+            std::abs((with_capacity_residual[row] - without_capacity_residual[row]) - expected_residual));
+        for (std::size_t column = 0; column < 8; ++column) {
+            const double expected =
+                row == column ? geometry.capacity_points[row].weighted_measure * volumetric_capacity / 2.0 : 0.0;
+            capacity_jacobian_error = std::max(capacity_jacobian_error,
+                std::abs((with_capacity[row * 32 + column] - without_capacity[row * 32 + column]) - expected));
+        }
+    }
+    if (!check(capacity_residual_error < 1.0e-7,
+            "HEX8 nodal heat-capacity residual uses the Abaqus corner integration weights") ||
+        !check(capacity_jacobian_error < 1.0e-7,
+            "HEX8 nodal heat-capacity Jacobian is diagonal with the Abaqus corner weights"))
+        return false;
+    const fuelsim::CartesianThermoelasticData nonlinear_capacity_data{
+        fuelsim::IsotropicThermoelasticMaterial(capacity_properties()), 0.0, 0.0};
+    fuelsim::Hex8LocalJacobian nonlinear_with{}, nonlinear_without{};
+    (void)fuelsim::compute_hex8_transient(
+        nonlinear_capacity_data, geometry, nonuniform_state, old_state, history, 2.0, &nonlinear_with);
+    (void)fuelsim::compute_hex8_transient(
+        nonlinear_capacity_data, geometry, nonuniform_state, old_state, history, 2.0, &nonlinear_without, false);
+    double nonlinear_capacity_jacobian_error = 0.0;
+    for (std::size_t row = 0; row < 8; ++row)
+        for (std::size_t column = 0; column < 8; ++column) {
+            const double temperature = nonuniform_state[row], increment = temperature - old_state[row];
+            const double expected = row == column ? geometry.capacity_points[row].weighted_measure * 2000.0 *
+                                                        (1000.0 + 2.0 * temperature + 2.0 * increment) / 2.0
+                                                  : 0.0;
+            nonlinear_capacity_jacobian_error = std::max(nonlinear_capacity_jacobian_error,
+                std::abs((nonlinear_with[row * 32 + column] - nonlinear_without[row * 32 + column]) - expected));
+        }
+    if (!check(nonlinear_capacity_jacobian_error < 1.0e-7,
+            "temperature-dependent lumped heat capacity retains an exact diagonal Jacobian"))
+        return false;
+    fuelsim::Hex8Coordinates distorted_coordinates = unit_cube();
+    distorted_coordinates[6] = {1.20, 1.10, 1.30};
+    const fuelsim::Hex8Geometry distorted = fuelsim::make_hex8_geometry(distorted_coordinates);
+    double minimum_capacity_weight = distorted.capacity_points[0].weighted_measure,
+           maximum_capacity_weight = minimum_capacity_weight;
+    for (const fuelsim::Hex8CapacityPoint& point : distorted.capacity_points) {
+        minimum_capacity_weight = std::min(minimum_capacity_weight, point.weighted_measure);
+        maximum_capacity_weight = std::max(maximum_capacity_weight, point.weighted_measure);
+    }
+    std::cout << "hex8_distorted_capacity_weight_minimum=" << minimum_capacity_weight << '\n'
+              << "hex8_distorted_capacity_weight_maximum=" << maximum_capacity_weight << '\n'
+              << "hex8_nonlinear_capacity_jacobian_maximum_error=" << nonlinear_capacity_jacobian_error << '\n';
+    if (!check(maximum_capacity_weight - minimum_capacity_weight > 1.0e-3,
+            "distorted HEX8 nodal heat capacity uses distinct corner Jacobian weights"))
+        return false;
     const fuelsim::Hex8Coordinates coordinates = unit_cube();
     const fuelsim::Quad4FaceCoordinates face_coordinates = {
         {coordinates[1], coordinates[2], coordinates[6], coordinates[5]}};

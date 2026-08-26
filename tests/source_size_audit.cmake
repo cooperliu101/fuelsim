@@ -36,6 +36,7 @@ set(hex8_abaqus_small_sliding_surface_contact_lines 317)
 set(hex8_finite_sliding_contact_lines 350)
 set(hex8_finite_averaged_sts_lines 315)
 set(hex8_abaqus_expansion_temperature_lines 123)
+set(hex8_abaqus_lumped_capacity_lines 34)
 
 file(READ "${ROOT}/.clang-format" format_configuration)
 string(FIND "${format_configuration}" "ColumnLimit: 120" column_limit)
@@ -73,7 +74,7 @@ endif()
 math(EXPR removed_lines "${nonempty_line_baseline} - ${nonempty_lines}")
 math(EXPR reduction_per_mille "1000 * ${removed_lines} / ${nonempty_line_baseline}")
 math(EXPR capability_adjusted_limit
-    "${maximum_nonempty_lines} + ${hex8_inelastic_capability_lines} + ${hex8_finite_strain_capability_lines} + ${hex8_contact_capability_lines} + ${dynamic_contact_assembly_performance_lines} + ${large_sliding_contact_search_lines} + ${cartesian_current_pressure_input_lines} + ${m58_two_process_efficiency_lines} + ${m58_four_process_efficiency_lines} + ${memory_statistics_lines} + ${shared_node_capability_lines} + ${hex8_narrow_constitutive_ad_lines} + ${rz_narrow_constitutive_ad_lines} + ${source_layout_refactor_lines} + ${optional_input_sections_lines} + ${bound_material_function_lines} + ${thermal_time_term_option_lines} + ${pressure_configuration_selection_lines} + ${hex20_u2_t1_capability_lines} + ${hex20_face_quadrature_lines} + ${hex20_contact_capability_lines} + ${hex20_surface_mechanical_contact_lines} + ${hex20_small_sliding_surface_contact_lines} + ${hex20_abaqus_averaged_contact_lines} + ${hex20_curved_abaqus_contact_lines} + ${hex20_abaqus_averaged_friction_lines} + ${hex20_abaqus_contact_observables_lines} + ${hex20_objective_friction_history_lines} + ${hex20_finite_sliding_contact_lines} + ${hex8_abaqus_small_sliding_surface_contact_lines} + ${hex8_finite_sliding_contact_lines} + ${hex8_finite_averaged_sts_lines} + ${hex8_abaqus_expansion_temperature_lines}"
+    "${maximum_nonempty_lines} + ${hex8_inelastic_capability_lines} + ${hex8_finite_strain_capability_lines} + ${hex8_contact_capability_lines} + ${dynamic_contact_assembly_performance_lines} + ${large_sliding_contact_search_lines} + ${cartesian_current_pressure_input_lines} + ${m58_two_process_efficiency_lines} + ${m58_four_process_efficiency_lines} + ${memory_statistics_lines} + ${shared_node_capability_lines} + ${hex8_narrow_constitutive_ad_lines} + ${rz_narrow_constitutive_ad_lines} + ${source_layout_refactor_lines} + ${optional_input_sections_lines} + ${bound_material_function_lines} + ${thermal_time_term_option_lines} + ${pressure_configuration_selection_lines} + ${hex20_u2_t1_capability_lines} + ${hex20_face_quadrature_lines} + ${hex20_contact_capability_lines} + ${hex20_surface_mechanical_contact_lines} + ${hex20_small_sliding_surface_contact_lines} + ${hex20_abaqus_averaged_contact_lines} + ${hex20_curved_abaqus_contact_lines} + ${hex20_abaqus_averaged_friction_lines} + ${hex20_abaqus_contact_observables_lines} + ${hex20_objective_friction_history_lines} + ${hex20_finite_sliding_contact_lines} + ${hex8_abaqus_small_sliding_surface_contact_lines} + ${hex8_finite_sliding_contact_lines} + ${hex8_finite_averaged_sts_lines} + ${hex8_abaqus_expansion_temperature_lines} + ${hex8_abaqus_lumped_capacity_lines}"
 )
 if(nonempty_lines GREATER capability_adjusted_limit)
     message(FATAL_ERROR
@@ -112,7 +113,7 @@ if(nonempty_lines GREATER capability_adjusted_limit)
         "current-configuration search and objective friction history, plus ${hex8_finite_averaged_sts_lines} lines "
         "for the identified HEX8 finite-sliding averaged surface operator, plus "
         "${hex8_abaqus_expansion_temperature_lines} lines for the Abaqus HEX8 element-average thermal-expansion "
-        "temperature"
+        "temperature, plus ${hex8_abaqus_lumped_capacity_lines} lines for Abaqus HEX8 corner-node heat capacity"
     )
 endif()
 
@@ -149,5 +150,6 @@ message(STATUS
     "${hex8_abaqus_small_sliding_surface_contact_lines} Abaqus-style HEX8 small-sliding surface-contact lines plus "
     "${hex8_finite_sliding_contact_lines} HEX8 finite-sliding current-configuration search and history lines plus "
     "${hex8_finite_averaged_sts_lines} identified HEX8 finite-sliding averaged-surface-operator lines plus "
-    "${hex8_abaqus_expansion_temperature_lines} Abaqus HEX8 element-average thermal-expansion-temperature lines"
+    "${hex8_abaqus_expansion_temperature_lines} Abaqus HEX8 element-average thermal-expansion-temperature lines plus "
+    "${hex8_abaqus_lumped_capacity_lines} Abaqus HEX8 corner-node heat-capacity lines"
 )

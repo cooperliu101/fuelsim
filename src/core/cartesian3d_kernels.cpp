@@ -187,8 +187,7 @@ using cartesian_detail::material_context;
 void add_hex8_point_residual(const Hex8QuadraturePoint& point, const Hex8LocalAdValues& state,
     const IsotropicThermoelasticMaterial& material, StrainFormulation strain_formulation, double time,
     double volumetric_heat_source, const Hex8LocalValues* committed_state,
-    const CartesianMaterialPointState* committed_material, double time_step, Hex8LocalAdValues& residual,
-    bool include_thermal_time_term) {
+    const CartesianMaterialPointState* committed_material, double time_step, Hex8LocalAdValues& residual) {
     const adlite::Scalar temperature = interpolate_hex8(point.shape, state, 0);
     const adlite::Scalar expansion_temperature = average_hex8_temperature(state);
     adlite::Scalar gradient_temperature_x = 0.0, gradient_temperature_y = 0.0, gradient_temperature_z = 0.0;
@@ -227,21 +226,13 @@ void add_hex8_point_residual(const Hex8QuadraturePoint& point, const Hex8LocalAd
                          temperature, time_step, *committed_material, context)
                      .stress;
     }
-    adlite::Scalar temperature_rate = 0.0, heat_capacity = 0.0;
-    if (committed_state != nullptr && include_thermal_time_term) {
-        double old_temperature = 0.0;
-        for (std::size_t node = 0; node < 8; ++node) old_temperature += point.shape[node] * (*committed_state)[node];
-        temperature_rate = (temperature - old_temperature) / time_step;
-        heat_capacity = material.heat_capacity(temperature, context);
-    }
     for (std::size_t node = 0; node < 8; ++node) {
         const double gradient_x = point.gradient[node][0], gradient_y = point.gradient[node][1],
                      gradient_z = point.gradient[node][2];
-        residual[node] +=
-            point.weighted_measure *
-            (conductivity * (gradient_x * gradient_temperature_x + gradient_y * gradient_temperature_y +
-                                gradient_z * gradient_temperature_z) +
-                point.shape[node] * heat_capacity * temperature_rate - point.shape[node] * volumetric_heat_source);
+        residual[node] += point.weighted_measure *
+                          (conductivity * (gradient_x * gradient_temperature_x + gradient_y * gradient_temperature_y +
+                                              gradient_z * gradient_temperature_z) -
+                              point.shape[node] * volumetric_heat_source);
         const adlite::Scalar current_gradient_x = kinematics.current_gradient[node][0];
         const adlite::Scalar current_gradient_y = kinematics.current_gradient[node][1];
         const adlite::Scalar current_gradient_z = kinematics.current_gradient[node][2];
@@ -269,7 +260,7 @@ void add_hex8_point_system(const Hex8QuadraturePoint& point, const Hex8LocalValu
     const IsotropicThermoelasticMaterial& material, StrainFormulation strain_formulation, double time,
     double volumetric_heat_source, const Hex8LocalValues* committed_state,
     const CartesianMaterialPointState* committed_material, double time_step, Hex8LocalAdValues& residual,
-    Hex8LocalJacobian& jacobian, bool include_thermal_time_term) {
+    Hex8LocalJacobian& jacobian) {
     constexpr std::size_t point_width = 10, temperature_index = 9;
     std::array<double, 9> gradient_values{};
     for (std::size_t component = 0; component < 3; ++component)
@@ -365,13 +356,6 @@ void add_hex8_point_system(const Hex8QuadraturePoint& point, const Hex8LocalValu
         expansion_stress_derivative = rotate_cartesian_tensor(expansion_stress_derivative, passive_rotation);
     }
     const adlite::Scalar conductivity = material.conductivity(active_temperature, context);
-    adlite::Scalar temperature_rate = 0.0, heat_capacity = 0.0;
-    if (committed_state != nullptr && include_thermal_time_term) {
-        double old_temperature = 0.0;
-        for (std::size_t node = 0; node < 8; ++node) old_temperature += point.shape[node] * old_state[node];
-        temperature_rate = (active_temperature - old_temperature) / time_step;
-        heat_capacity = material.heat_capacity(active_temperature, context);
-    }
     double gradient_temperature_x = 0.0, gradient_temperature_y = 0.0, gradient_temperature_z = 0.0;
     for (std::size_t node = 0; node < 8; ++node) {
         gradient_temperature_x += point.gradient[node][0] * state[node];
@@ -383,11 +367,10 @@ void add_hex8_point_system(const Hex8QuadraturePoint& point, const Hex8LocalValu
     for (std::size_t node = 0; node < 8; ++node) {
         const double gradient_x = point.gradient[node][0], gradient_y = point.gradient[node][1],
                      gradient_z = point.gradient[node][2];
-        point_residual[node] +=
-            point.weighted_measure *
-            (conductivity * (gradient_x * gradient_temperature_x + gradient_y * gradient_temperature_y +
-                                gradient_z * gradient_temperature_z) +
-                point.shape[node] * heat_capacity * temperature_rate - point.shape[node] * volumetric_heat_source);
+        point_residual[node] += point.weighted_measure * (conductivity * (gradient_x * gradient_temperature_x +
+                                                                             gradient_y * gradient_temperature_y +
+                                                                             gradient_z * gradient_temperature_z) -
+                                                             point.shape[node] * volumetric_heat_source);
         const adlite::Scalar current_gradient_x = kinematics.current_gradient[node][0];
         const adlite::Scalar current_gradient_y = kinematics.current_gradient[node][1];
         const adlite::Scalar current_gradient_z = kinematics.current_gradient[node][2];
@@ -447,6 +430,30 @@ void add_hex8_point_system(const Hex8QuadraturePoint& point, const Hex8LocalValu
     for (std::size_t row = 0; row < residual.size(); ++row) residual[row] += point_residual[row];
 }
 
+void add_hex8_lumped_capacity(const Hex8Geometry& geometry, const Hex8LocalAdValues& state,
+    const Hex8LocalValues& committed_state, const IsotropicThermoelasticMaterial& material, double time,
+    double time_step, Hex8LocalAdValues& residual) {
+    for (std::size_t node = 0; node < hex8_node_count; ++node) {
+        const Hex8CapacityPoint& point = geometry.capacity_points[node];
+        const adlite::Scalar capacity = material.heat_capacity(state[node], material_context(time, point.position));
+        residual[node] += point.weighted_measure * capacity * (state[node] - committed_state[node]) / time_step;
+    }
+}
+
+void add_hex8_lumped_capacity_system(const Hex8Geometry& geometry, const Hex8LocalValues& state,
+    const Hex8LocalValues& committed_state, const IsotropicThermoelasticMaterial& material, double time,
+    double time_step, Hex8LocalAdValues& residual, Hex8LocalJacobian& jacobian) {
+    for (std::size_t node = 0; node < hex8_node_count; ++node) {
+        const Hex8CapacityPoint& point = geometry.capacity_points[node];
+        const adlite::Scalar temperature = adlite::Scalar::independent(state[node], 0, 1);
+        const adlite::Scalar capacity = material.heat_capacity(temperature, material_context(time, point.position));
+        const adlite::Scalar term =
+            point.weighted_measure * capacity * (temperature - committed_state[node]) / time_step;
+        residual[node] += term.value();
+        jacobian[node * hex8_local_dof_count + node] += term.derivative(0);
+    }
+}
+
 std::array<SymmetricTensor3Values, 8> evaluate_hex8_stress(const Hex8Geometry& geometry, const Hex8LocalValues& state,
     const IsotropicThermoelasticMaterial& material, StrainFormulation strain_formulation, double time) {
     Hex8LocalAdValues ad_state{};
@@ -485,7 +492,9 @@ Hex8LocalResidual compute_hex8_local(const CartesianThermoelasticData& data, con
         for (std::size_t q = 0; q < geometry.points.size(); ++q)
             add_hex8_point_residual(geometry.points[q], active, data.material, data.strain_formulation, data.time,
                 data.volumetric_heat_source, committed_state, history == nullptr ? nullptr : &(*history)[q], time_step,
-                residual, include_thermal_time_term);
+                residual);
+        if (committed_state != nullptr && include_thermal_time_term)
+            add_hex8_lumped_capacity(geometry, active, *committed_state, data.material, data.time, time_step, residual);
         Hex8LocalResidual result{};
         ad_local_system::extract_residual(residual.data(), residual.size(), result.data());
         return result;
@@ -494,7 +503,10 @@ Hex8LocalResidual compute_hex8_local(const CartesianThermoelasticData& data, con
     for (std::size_t q = 0; q < geometry.points.size(); ++q)
         add_hex8_point_system(geometry.points[q], state, data.material, data.strain_formulation, data.time,
             data.volumetric_heat_source, committed_state, history == nullptr ? nullptr : &(*history)[q], time_step,
-            residual, *jacobian, include_thermal_time_term);
+            residual, *jacobian);
+    if (committed_state != nullptr && include_thermal_time_term)
+        add_hex8_lumped_capacity_system(
+            geometry, state, *committed_state, data.material, data.time, time_step, residual, *jacobian);
     Hex8LocalResidual result{};
     ad_local_system::extract_residual(residual.data(), residual.size(), result.data());
     return result;
@@ -548,6 +560,24 @@ Hex8Geometry make_hex8_geometry(const Hex8Coordinates& coordinates) {
                 }
             }
         }
+    }
+    for (std::size_t capacity_node = 0; capacity_node < hex8_node_count; ++capacity_node) {
+        const double xi = hex8_signs[capacity_node][0], eta = hex8_signs[capacity_node][1],
+                     zeta = hex8_signs[capacity_node][2];
+        cartesian_detail::Matrix3 jacobian{};
+        for (std::size_t node = 0; node < hex8_node_count; ++node) {
+            const double sx = hex8_signs[node][0], sy = hex8_signs[node][1], sz = hex8_signs[node][2];
+            const std::array<double, 3> derivative = {{0.125 * sx * (1.0 + sy * eta) * (1.0 + sz * zeta),
+                0.125 * sy * (1.0 + sx * xi) * (1.0 + sz * zeta), 0.125 * sz * (1.0 + sx * xi) * (1.0 + sy * eta)}};
+            const std::array<double, 3> coordinate = {coordinates[node].x, coordinates[node].y, coordinates[node].z};
+            for (std::size_t physical = 0; physical < 3; ++physical)
+                for (std::size_t natural = 0; natural < 3; ++natural)
+                    jacobian[physical][natural] += coordinate[physical] * derivative[natural];
+        }
+        const double determinant_value = cartesian_detail::determinant(jacobian);
+        if (!std::isfinite(determinant_value) || !(determinant_value > 0.0))
+            throw std::invalid_argument("Hex8Geometry requires a finite positive capacity-point Jacobian determinant");
+        geometry.capacity_points[capacity_node] = {coordinates[capacity_node], determinant_value};
     }
     return geometry;
 }
