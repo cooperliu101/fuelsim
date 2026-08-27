@@ -618,6 +618,8 @@ Quad8FaceLocalResidual compute_quad8_face_boundary(const Quad4FaceBoundaryData& 
         ad_local_system::make_active(state.data(), state.size(), ad_state.data());
     Quad8FaceLocalAdValues residual{};
     residual.fill(adlite::Scalar(0.0));
+    if (data.kind == Quad4FaceBoundaryKind::surface_heat_flux)
+        throw std::invalid_argument("HEX20 surface heat flux is not implemented");
     if (data.kind == Quad4FaceBoundaryKind::convection) {
         for (const Quad8FaceThermalQuadraturePoint& point : geometry.thermal_points) {
             adlite::Scalar temperature = 0.0;

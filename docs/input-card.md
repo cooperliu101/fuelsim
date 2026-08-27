@@ -207,6 +207,7 @@ traction 的构形选择规则见下文。区域发生非正 Jacobian、非正�
     secondary = pellet_outer
 
     [thermal]
+      law = gas_gap
       gap_conductivity = 0.4
       minimum_gap = 1e-6
     []
@@ -223,6 +224,44 @@ traction 的构形选择规则见下文。区域发生非正 Jacobian、非正�
 ```
 
 一个接触对至少包含 `[thermal]` 或 `[mechanical]`，也可以同时包含两者。
+热接触省略 `law` 时使用 `gas_gap`，其导热系数为：
+
+```text
+h = gap_conductivity / max(g, minimum_gap)
+```
+
+需要对齐 Abaqus 的间隙导热表局部斜率时，可以选择线性仿射定律：
+
+```text
+[thermal]
+  law = affine
+  conductance = 50
+  clearance_derivative = -1000
+  pressure_derivative = 2e-6
+  temperature_derivative = 0.1
+  reference_temperature = 350
+[]
+```
+
+对应的积分点定律为：
+
+```text
+T_average = (T_secondary + T_primary) / 2
+p = penalty * max(-g, 0)
+h = conductance
+  + clearance_derivative * g
+  + pressure_derivative * p
+  + temperature_derivative * (T_average - reference_temperature)
+q = h * (T_secondary - T_primary)
+```
+
+`conductance` 的单位为 `W/(m2 K)`，三个导数分别相对于间隙、压力和平均温度。
+压力导数非零时必须同时定义罚函数机械接触，使热学和力学使用同一个接触压力。
+参考状态的 `conductance` 必须非负；试探态计算得到负值或非有限值时，程序把它
+作为物理域错误交给线搜索或时间步缩小重试，不会夹持为零。该仿射定律准确表示
+Abaqus 间隙导热表中的一个线性单元；当前没有实现任意表格的分段插值、外推和
+截断语义。
+
 机械接触的 `formulation` 必须显式选择 `penalty` 或
 `augmented_lagrangian`。`penalty` 的单位为 `Pa/m`；如果省略，程序用两侧
 边界单元的材料刚度和法向网格尺度自动计算。每个边界相邻 Quad4 的法向尺度

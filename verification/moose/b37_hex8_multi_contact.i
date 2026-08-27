@@ -30,6 +30,7 @@
       [primary_a]
         block = primary_a
         strain = SMALL
+        volumetric_locking_correction = true
         incremental = true
         add_variables = true
         temperature = T
@@ -38,6 +39,7 @@
       [secondary_a]
         block = secondary_a
         strain = SMALL
+        volumetric_locking_correction = true
         incremental = true
         add_variables = true
         temperature = T
@@ -46,6 +48,7 @@
       [primary_b]
         block = primary_b
         strain = SMALL
+        volumetric_locking_correction = true
         incremental = true
         add_variables = true
         temperature = T
@@ -54,6 +57,7 @@
       [secondary_b]
         block = secondary_b
         strain = SMALL
+        volumetric_locking_correction = true
         incremental = true
         add_variables = true
         temperature = T

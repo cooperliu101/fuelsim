@@ -41,10 +41,10 @@ void finalize_conservation(const NonlinearProblem& problem, const std::vector<do
     result.unconstrained_mechanical_residual_l2 = std::sqrt(mechanical_residual_squared);
     result.global_thermal_balance = result.stored_heat_rate + result.convection_heat_rate +
                                     result.interface_heat_imbalance - result.generated_heat_rate -
-                                    result.dirichlet_heat_input_rate;
+                                    result.surface_heat_input_rate - result.dirichlet_heat_input_rate;
     const double thermal_scale = std::abs(result.stored_heat_rate) + std::abs(result.convection_heat_rate) +
                                  std::abs(result.interface_heat_imbalance) + std::abs(result.generated_heat_rate) +
-                                 std::abs(result.dirichlet_heat_input_rate);
+                                 std::abs(result.surface_heat_input_rate) + std::abs(result.dirichlet_heat_input_rate);
     result.relative_thermal_balance =
         thermal_scale > 0.0 ? std::abs(result.global_thermal_balance) / thermal_scale : 0.0;
     result.mechanical_work_balance = result.internal_mechanical_work_increment + result.contact_work_increment -
@@ -400,6 +400,8 @@ std::vector<double> TransientProblem::accumulate_contribution_conservation(
                     summary.interface_heat_imbalance += residual;
                 else if (type == SpatialContributionType::convection)
                     summary.convection_heat_rate += residual;
+                else if (type == SpatialContributionType::heat_flux)
+                    summary.surface_heat_input_rate -= residual;
                 continue;
             }
             const double work = residual * (solution[dof] - _impl->committed_solution[dof]);
@@ -427,6 +429,12 @@ std::array<double, 4> strain_difference(const std::array<double, 4>& current, co
         result[component] = current[component] - old[component];
     return result;
 }
+
+double trapezoidal_stress_strain_inner_product(const AxisymmetricStressValues& old_stress,
+    const AxisymmetricStressValues& new_stress, const std::array<double, 4>& strain_increment) noexcept {
+    return 0.5 * (stress_strain_inner_product(old_stress, strain_increment) +
+                     stress_strain_inner_product(new_stress, strain_increment));
+}
 } // namespace
 } // namespace rz
 
@@ -442,6 +450,28 @@ std::array<double, 6> strain_difference(const std::array<double, 6>& current, co
     for (std::size_t component = 0; component < result.size(); ++component)
         result[component] = current[component] - old[component];
     return result;
+}
+
+double trapezoidal_stress_strain_inner_product(const SymmetricTensor3Values& old_stress,
+    const SymmetricTensor3Values& new_stress, const std::array<double, 6>& strain_increment) noexcept {
+    return 0.5 * (stress_strain_inner_product(old_stress, strain_increment) +
+                     stress_strain_inner_product(new_stress, strain_increment));
+}
+
+SymmetricTensor3Values rotate_tensor_values(const std::array<double, 6>& tensor, const CartesianRotation& rotation) {
+    const SymmetricTensor3 rotated =
+        rotate_cartesian_tensor({tensor[0], tensor[1], tensor[2], tensor[3], tensor[4], tensor[5]}, rotation);
+    return {rotated.xx.value(), rotated.yy.value(), rotated.zz.value(), rotated.xy.value(), rotated.yz.value(),
+        rotated.xz.value()};
+}
+
+SymmetricTensor3Values rotate_tensor_values(const SymmetricTensor3Values& tensor, const CartesianRotation& rotation) {
+    const std::array<double, 6> values = {tensor.xx, tensor.yy, tensor.zz, tensor.xy, tensor.yz, tensor.xz};
+    return rotate_tensor_values(values, rotation);
+}
+
+std::array<double, 6> components(const SymmetricTensor3Values& tensor) {
+    return {tensor.xx, tensor.yy, tensor.zz, tensor.xy, tensor.yz, tensor.xz};
 }
 } // namespace
 } // namespace cartesian
@@ -741,21 +771,21 @@ TransientTimeErrorEstimate nodal_time_error(const TransientCommittedState& full,
 TransientConservationSummary combine_rz_half_step_conservation(
     const TransientConservationSummary& first, const TransientConservationSummary& second) {
     TransientConservationSummary result;
-    for (std::size_t index = 0; index < 5; ++index) {
+    for (std::size_t index = 0; index < 6; ++index) {
         double TransientConservationSummary::* member = transient_conservation_fields[index].member;
         result.*member = 0.5 * (first.*member + second.*member);
     }
     result.global_thermal_balance = result.stored_heat_rate + result.convection_heat_rate +
                                     result.interface_heat_imbalance - result.generated_heat_rate -
-                                    result.dirichlet_heat_input_rate;
+                                    result.surface_heat_input_rate - result.dirichlet_heat_input_rate;
     const double thermal_scale = std::abs(result.generated_heat_rate) + std::abs(result.stored_heat_rate) +
                                  std::abs(result.convection_heat_rate) + std::abs(result.interface_heat_imbalance) +
-                                 std::abs(result.dirichlet_heat_input_rate);
+                                 std::abs(result.surface_heat_input_rate) + std::abs(result.dirichlet_heat_input_rate);
     result.relative_thermal_balance =
         thermal_scale > 0.0 ? std::abs(result.global_thermal_balance) / thermal_scale : 0.0;
     result.unconstrained_thermal_residual_l2 =
         std::max(first.unconstrained_thermal_residual_l2, second.unconstrained_thermal_residual_l2);
-    for (std::size_t index = 8; index < 12; ++index) {
+    for (std::size_t index = 9; index < 13; ++index) {
         double TransientConservationSummary::* member = transient_conservation_fields[index].member;
         result.*member = first.*member + second.*member;
     }
@@ -768,7 +798,7 @@ TransientConservationSummary combine_rz_half_step_conservation(
         mechanical_scale > 0.0 ? std::abs(result.mechanical_work_balance) / mechanical_scale : 0.0;
     result.unconstrained_mechanical_residual_l2 =
         std::max(first.unconstrained_mechanical_residual_l2, second.unconstrained_mechanical_residual_l2);
-    for (std::size_t index = 15; index < transient_conservation_fields.size(); ++index) {
+    for (std::size_t index = 16; index < transient_conservation_fields.size(); ++index) {
         double TransientConservationSummary::* member = transient_conservation_fields[index].member;
         result.*member = first.*member + second.*member;
     }
@@ -973,11 +1003,11 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                                 cartesian::stress_strain_inner_product(old_history.stress, old_history.elastic_strain));
                         conservation.plastic_dissipation_increment +=
                             point.weighted_measure *
-                            cartesian::stress_strain_inner_product(new_history.stress,
+                            cartesian::trapezoidal_stress_strain_inner_product(old_history.stress, new_history.stress,
                                 cartesian::strain_difference(new_history.plastic_strain, old_history.plastic_strain));
                         conservation.creep_dissipation_increment +=
                             point.weighted_measure *
-                            cartesian::stress_strain_inner_product(new_history.stress,
+                            cartesian::trapezoidal_stress_strain_inner_product(old_history.stress, new_history.stress,
                                 cartesian::strain_difference(new_history.creep_strain, old_history.creep_strain));
                     }
                     staged[region][element] = std::move(update);
@@ -996,25 +1026,65 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                             _impl->cartesian->heat_capacity(region, current[node], point.position) *
                             (current[node] - old[node]) / _impl->active_time_step;
                     }
-                for (std::size_t q = 0; q < geometry.points.size(); ++q) {
-                    const Hex8QuadraturePoint& point = geometry.points[q];
+                for (const Hex8CapacityPoint& point : geometry.capacity_points)
                     conservation.generated_heat_rate +=
                         point.weighted_measure * _impl->cartesian->region_heat_source(region);
+                double finite_current_volume = 0.0, finite_old_volume = 0.0;
+                if (_impl->cartesian->region(region).strain_formulation == StrainFormulation::finite) {
+                    Hex8LocalAdValues active_current{}, active_old{};
+                    for (std::size_t local = 0; local < current.size(); ++local) {
+                        active_current[local] = current[local];
+                        active_old[local] = old[local];
+                    }
+                    for (const Hex8QuadraturePoint& point : geometry.points) {
+                        finite_current_volume += evaluate_cartesian_incremental_kinematics(
+                            point, active_current, old, StrainFormulation::finite)
+                                                     .current_weighted_measure.value();
+                        finite_old_volume +=
+                            evaluate_cartesian_incremental_kinematics(point, active_old, old, StrainFormulation::finite)
+                                .current_weighted_measure.value();
+                    }
+                }
+                for (std::size_t q = 0; q < geometry.points.size(); ++q) {
+                    const Hex8QuadraturePoint& point = geometry.points[q];
                     const CartesianMaterialPointState &old_history =
                                                           _impl->cartesian_material_histories[region][element][q],
                                                       &new_history = update[q];
+                    double current_measure = point.weighted_measure, old_measure = point.weighted_measure;
+                    SymmetricTensor3Values diagnostic_new_stress = new_history.stress;
+                    std::array<double, 6> diagnostic_new_plastic = new_history.plastic_strain;
+                    std::array<double, 6> diagnostic_new_creep = new_history.creep_strain;
+                    if (_impl->cartesian->region(region).strain_formulation == StrainFormulation::finite) {
+                        Hex8LocalAdValues active_current{};
+                        for (std::size_t local = 0; local < current.size(); ++local)
+                            active_current[local] = current[local];
+                        const CartesianKinematics kinematics = evaluate_cartesian_incremental_kinematics(
+                            point, active_current, old, StrainFormulation::finite);
+                        current_measure = point.weighted_measure / geometry.reference_volume * finite_current_volume;
+                        old_measure = point.weighted_measure / geometry.reference_volume * finite_old_volume;
+                        const CartesianRotation inverse_rotation = {kinematics.rotation.xx, kinematics.rotation.yx,
+                            kinematics.rotation.zx, kinematics.rotation.xy, kinematics.rotation.yy,
+                            kinematics.rotation.zy, kinematics.rotation.xz, kinematics.rotation.yz,
+                            kinematics.rotation.zz};
+                        diagnostic_new_stress = cartesian::rotate_tensor_values(new_history.stress, inverse_rotation);
+                        diagnostic_new_plastic = cartesian::components(
+                            cartesian::rotate_tensor_values(new_history.plastic_strain, inverse_rotation));
+                        diagnostic_new_creep = cartesian::components(
+                            cartesian::rotate_tensor_values(new_history.creep_strain, inverse_rotation));
+                    }
                     conservation.elastic_energy_change +=
-                        0.5 * point.weighted_measure *
-                        (cartesian::stress_strain_inner_product(new_history.stress, new_history.elastic_strain) -
-                            cartesian::stress_strain_inner_product(old_history.stress, old_history.elastic_strain));
+                        0.5 * (current_measure * cartesian::stress_strain_inner_product(
+                                                     new_history.stress, new_history.elastic_strain) -
+                                  old_measure * cartesian::stress_strain_inner_product(
+                                                    old_history.stress, old_history.elastic_strain));
                     conservation.plastic_dissipation_increment +=
-                        point.weighted_measure *
-                        cartesian::stress_strain_inner_product(new_history.stress,
-                            cartesian::strain_difference(new_history.plastic_strain, old_history.plastic_strain));
+                        current_measure *
+                        cartesian::trapezoidal_stress_strain_inner_product(old_history.stress, diagnostic_new_stress,
+                            cartesian::strain_difference(diagnostic_new_plastic, old_history.plastic_strain));
                     conservation.creep_dissipation_increment +=
-                        point.weighted_measure *
-                        cartesian::stress_strain_inner_product(new_history.stress,
-                            cartesian::strain_difference(new_history.creep_strain, old_history.creep_strain));
+                        current_measure *
+                        cartesian::trapezoidal_stress_strain_inner_product(old_history.stress, diagnostic_new_stress,
+                            cartesian::strain_difference(diagnostic_new_creep, old_history.creep_strain));
                 }
                 staged[region][element] = std::move(update);
             }
@@ -1063,12 +1133,12 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                             rz::stress_strain_inner_product(old_stress, old_history.elastic_strain));
                     conservation.plastic_dissipation_increment +=
                         point.weighted_measure *
-                        rz::stress_strain_inner_product(
-                            new_stress, rz::strain_difference(new_history.plastic_strain, old_history.plastic_strain));
+                        rz::trapezoidal_stress_strain_inner_product(old_stress, new_stress,
+                            rz::strain_difference(new_history.plastic_strain, old_history.plastic_strain));
                     conservation.creep_dissipation_increment +=
                         point.weighted_measure *
-                        rz::stress_strain_inner_product(
-                            new_stress, rz::strain_difference(new_history.creep_strain, old_history.creep_strain));
+                        rz::trapezoidal_stress_strain_inner_product(old_stress, new_stress,
+                            rz::strain_difference(new_history.creep_strain, old_history.creep_strain));
                 }
                 staged[region][element] = std::move(update);
             }

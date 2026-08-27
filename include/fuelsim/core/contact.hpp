@@ -22,8 +22,13 @@ struct Line2RzHeatPointGeometry final {
     bool primary_segment_includes_second_endpoint;
 };
 
+enum class GapHeatConductanceLaw { gas_gap, affine };
+
 struct GapHeatProperties final {
     double gap_conductivity, minimum_gap;
+    GapHeatConductanceLaw law = GapHeatConductanceLaw::gas_gap;
+    double conductance = 0.0, clearance_derivative = 0.0, pressure_derivative = 0.0, temperature_derivative = 0.0,
+           reference_temperature = 0.0, contact_penalty = 0.0;
 };
 
 struct HeatQuadratureValue final {

@@ -446,9 +446,32 @@ ContactDefinition read_contact(const InputDocument& document, const InputSection
     ContactDefinition result{section.name, read_string(document, section, "primary"),
         read_string(document, section, "secondary"), thermal != nullptr, mechanical != nullptr, 1.0, 1.0, 1.0, 0.0};
     if (thermal != nullptr) {
-        validate_keys(document, *thermal, {"gap_conductivity", "minimum_gap"});
-        result.gap_conductivity = read_double(document, *thermal, "gap_conductivity");
-        result.minimum_gap = read_double(document, *thermal, "minimum_gap");
+        const std::string law = read_optional_string(*thermal, "law", "gas_gap");
+        if (law == "gas_gap") {
+            validate_keys(document, *thermal, {"law", "gap_conductivity", "minimum_gap"});
+            result.gap_conductivity = read_double(document, *thermal, "gap_conductivity");
+            result.minimum_gap = read_double(document, *thermal, "minimum_gap");
+        } else if (law == "affine") {
+            validate_keys(document, *thermal,
+                {"law", "conductance", "clearance_derivative", "pressure_derivative", "temperature_derivative",
+                    "reference_temperature"});
+            result.gap_heat_conductance_law = GapHeatConductanceLaw::affine;
+            result.gap_conductance = read_double(document, *thermal, "conductance");
+            result.gap_conductance_clearance_derivative =
+                read_optional_double(document, *thermal, "clearance_derivative", 0.0);
+            result.gap_conductance_pressure_derivative =
+                read_optional_double(document, *thermal, "pressure_derivative", 0.0);
+            result.gap_conductance_temperature_derivative =
+                read_optional_double(document, *thermal, "temperature_derivative", 0.0);
+            result.gap_conductance_reference_temperature =
+                read_optional_double(document, *thermal, "reference_temperature", 0.0);
+            if (!(result.gap_conductance >= 0.0))
+                value_error(document, required_entry(document, *thermal, "conductance"),
+                    "affine thermal contact conductance must be nonnegative at the reference state");
+        } else {
+            value_error(document, required_entry(document, *thermal, "law"),
+                "thermal contact law must be 'gas_gap' or 'affine'");
+        }
     }
     if (mechanical != nullptr) {
         validate_keys(document, *mechanical,
@@ -526,6 +549,15 @@ ContactDefinition read_contact(const InputDocument& document, const InputSection
                 read_optional_size(document, *mechanical, "maximum_augmented_iterations", 20);
         }
     }
+    if (thermal != nullptr && result.gap_heat_conductance_law == GapHeatConductanceLaw::affine &&
+        result.gap_conductance_pressure_derivative != 0.0 && mechanical == nullptr)
+        value_error(document, required_entry(document, *thermal, "pressure_derivative"),
+            "pressure-dependent thermal contact requires a mechanical contact definition");
+    if (thermal != nullptr && result.gap_heat_conductance_law == GapHeatConductanceLaw::affine &&
+        result.gap_conductance_pressure_derivative != 0.0 &&
+        result.mechanical_formulation != MechanicalContactFormulation::penalty)
+        value_error(document, required_entry(document, *thermal, "pressure_derivative"),
+            "pressure-dependent thermal contact requires formulation = penalty");
     return result;
 }
 
@@ -580,6 +612,21 @@ BoundaryConditionDefinition read_boundary_condition(const InputDocument& documen
         if (configuration != "reference" && configuration != "current")
             value_error(document, required_entry(document, section, "configuration"),
                 "traction configuration must be reference or current");
+        result.use_displaced_geometry = configuration == "current";
+        result.configuration_explicit = configuration_entry != nullptr;
+        return result;
+    }
+    if (type == "heat_flux") {
+        forbid_key(document, section, "field", "type='heat_flux'");
+        forbid_convection_keys(document, section, "type='heat_flux'");
+        BoundaryConditionDefinition result =
+            make_boundary_condition(document, section, BoundaryConditionType::heat_flux, Field::temperature,
+                read_double(document, section, "value"), scale_with_load, function);
+        const InputEntry* configuration_entry = find_entry(section, "configuration");
+        const std::string configuration = read_optional_string(section, "configuration", "reference");
+        if (configuration != "reference" && configuration != "current")
+            value_error(document, required_entry(document, section, "configuration"),
+                "heat_flux configuration must be reference or current");
         result.use_displaced_geometry = configuration == "current";
         result.configuration_explicit = configuration_entry != nullptr;
         return result;

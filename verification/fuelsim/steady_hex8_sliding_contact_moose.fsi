@@ -61,6 +61,8 @@
     secondary = secondary_left
     [mechanical]
       formulation = penalty
+      discretization = surface_to_surface
+      sliding = small
       penalty = 1e13
       mu = 0.001
     []

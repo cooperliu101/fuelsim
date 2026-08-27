@@ -129,6 +129,20 @@ bool test_builtin_material_parameter_order() {
                        eigenstrain.rr.value() == eigenstrain.hoop.value() && eigenstrain.rz.value() == 0.0,
                  "built-in eigenstrain uses registry schema order after named binding") &&
              passed;
+    auto linear_functions = std::make_shared<fuelsim::MaterialFunctionSet>(material.functions());
+    linear_functions->name = "linear_temperature_thermophysical_test";
+    linear_functions->thermal = registry.bind_thermal("linear_temperature_thermophysical",
+        {{"specific_heat_temperature_coefficient", 0.3}, {"density", 10.0}, {"reference_temperature", 100.0},
+            {"conductivity", 4.0}, {"specific_heat", 20.0}, {"density_temperature_coefficient", 0.2},
+            {"conductivity_temperature_coefficient", 0.1}});
+    const fuelsim::IsotropicThermoelasticMaterial linear_material({std::move(linear_functions), 1000.0});
+    const adlite::Scalar linear_conductivity = linear_material.conductivity(temperature);
+    const adlite::Scalar linear_capacity = linear_material.heat_capacity(temperature);
+    passed =
+        check(linear_conductivity.value() == 5.0 && linear_conductivity.derivative(0) == 0.1 &&
+                  linear_capacity.value() == 276.0 && scaled_error(linear_capacity.derivative(0), 8.2) < 1.0e-14,
+            "linear-temperature conductivity, density, and specific heat preserve exact temperature derivatives") &&
+        passed;
     return passed;
 }
 

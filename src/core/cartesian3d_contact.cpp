@@ -306,6 +306,22 @@ adlite::Scalar temperature(
     return result;
 }
 
+adlite::Scalar gap_conductance(const GapHeatProperties& properties, const adlite::Scalar& gap,
+    const adlite::Scalar& secondary_temperature, const adlite::Scalar& primary_temperature) {
+    if (properties.law == GapHeatConductanceLaw::gas_gap) {
+        const adlite::Scalar thermal_gap = adlite::max(gap, adlite::Scalar(properties.minimum_gap));
+        return properties.gap_conductivity / thermal_gap;
+    }
+    const adlite::Scalar pressure = adlite::max(-properties.contact_penalty * gap, adlite::Scalar(0.0));
+    const adlite::Scalar average_temperature = 0.5 * (secondary_temperature + primary_temperature);
+    const adlite::Scalar result =
+        properties.conductance + properties.clearance_derivative * gap + properties.pressure_derivative * pressure +
+        properties.temperature_derivative * (average_temperature - properties.reference_temperature);
+    if (!std::isfinite(result.value()) || result.value() < 0.0)
+        throw std::domain_error("Three-dimensional affine gap conductance must be finite and nonnegative");
+    return result;
+}
+
 struct HeatAdValue final {
     bool projected = false;
     std::array<adlite::Scalar, 4> primary_shape{};
@@ -323,8 +339,8 @@ HeatAdValue evaluate_heat(const GapHeatProperties& properties, const Quad4ToQuad
     adlite::Scalar primary_temperature = 0.0;
     for (std::size_t node = 0; node < 4; ++node)
         primary_temperature += projection.primary_shape[node] * state[4 + node];
-    const adlite::Scalar thermal_gap = adlite::max(projection.gap, adlite::Scalar(properties.minimum_gap)),
-                         conductance = properties.gap_conductivity / thermal_gap,
+    const adlite::Scalar conductance =
+                             gap_conductance(properties, projection.gap, secondary_temperature, primary_temperature),
                          heat_flux = conductance * (secondary_temperature - primary_temperature),
                          measure = current_surface_measure(
                              nodes, 0, geometry.secondary_derivative_xi, geometry.secondary_derivative_eta);

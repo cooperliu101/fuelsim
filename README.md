@@ -336,6 +336,21 @@ q = h * (Ts - Tp)
 p = contact_penalty * max(-g, 0)
 ```
 
+热接触也可显式选择用于 Abaqus 对标的线性仿射定律：
+
+```text
+T_average = (Ts + Tp) / 2
+h = conductance
+  + clearance_derivative * g
+  + pressure_derivative * p
+  + temperature_derivative * (T_average - reference_temperature)
+q = h * (Ts - Tp)
+```
+
+它复现 Abaqus 间隙导热表一个线性单元内对间隙、压力和平均温度的响应与导数。
+任意表格的分段插值、外推和截断规则尚未实现，因此不能把当前验证外推到完整
+Abaqus 表格语义。试探态导热系数为负或非有限值时会明确拒绝该状态。
+
 其中 `n_primary_current` 从 secondary 指向 primary。圆柱侧面、水平端面和
 斜面使用同一套投影、当前法向和轴对称面积公式；竖直圆柱面才自然退化为
 `g=(Rp+urp)-(Rs+urs)`。`q>0` 表示热量由 secondary 流向 primary，`p>0`

@@ -1259,31 +1259,25 @@ The probe identifies two native Abaqus first-order-element choices. Abaqus uses
 one constant element temperature for thermal expansion, equal to the arithmetic
 average of the eight nodal temperatures, and it uses selective reduced
 integration: the volumetric strain is constant while the deviatoric strain
-retains eight-point integration. Fuelsim now uses the first rule for HEX8 thermal
-expansion but retains its existing full eight-point strain integration. These
-are documented formulation choices, not fitted corrections. Abaqus `E12`,
+retains eight-point integration. Fuelsim production now uses both rules. The
+volume-average strain-trace chain is assembled in closed form without widening
+the narrow kinematics or constitutive automatic differentiation. Abaqus `E12`,
 `E13`, and `E23` output is engineering shear strain; the comparison converts it
 to Fuelsim tensor shear strain by dividing by two.
 
-A test-only reconstruction of those two Abaqus rules matches the complete
+A separately coded reconstruction of those two Abaqus rules matches the complete
 reaction tangent with `2.706123e-11` relative Frobenius error and the base
-mechanical reaction with `3.875143e-16` relative error. Integration-point
-coordinates and selective strains agree within `3.83e-15 m` and `5.15e-19`;
-heat flux agrees within `1.42e-12 W/m2`, and stress agrees within
-`2.39e-7 Pa`. Fuelsim's production kernel independently matches the thermal-
-conduction tangent within `4.522438e-11` and the base thermal residual within
-`5.02e-15` relative error. Its temperature-to-mechanics tangent now matches
-Abaqus within `1.433865e-10` relative Frobenius error.
-
-The same probe proves that production Fuelsim is still not algebraically
-equivalent to native `C3D8T` for a non-affine mechanical field because selective
-reduced integration is outside this thermal-expansion change. Its mechanical
-tangent differs by `27.23018%`, its base mechanical residual differs by
-`0.6872705%`, and its largest integration-point stress difference is
-`14.66609 MPa`. A test-only selective-integration reconstruction removes those
-remaining differences. B4.9 therefore verifies the production thermal-
-expansion temperature rule while retaining a qualified boundary for the strain
-integration rule.
+mechanical reaction with `3.875143e-16` relative error. Production Fuelsim now
+matches the Abaqus mechanical tangent within `2.361772e-11` relative Frobenius
+error and the base mechanical reaction within `4.216448e-16` relative error.
+Integration-point coordinates and selective strains agree within `3.83e-15 m`
+and `5.15e-19`; heat flux agrees within `1.42e-12 W/m2`, and production stress
+agrees within `2.39e-7 Pa`. The thermal-conduction tangent and base thermal
+residual agree within `4.522438e-11` and `5.02e-15`; the temperature-to-mechanics
+tangent agrees within `1.433865e-10`. A distorted near-incompressible local case
+independently checks the common stress trace and obtains a `6.14e-10` directional
+Jacobian error. B4.9 therefore verifies the production small-strain C3D8T volume
+operator without a qualified strain-integration exception.
 
 Regenerate the tracked deck with:
 
@@ -1368,13 +1362,15 @@ the current length within `3.81470e-8` relative error. The current nodal
 coordinates and displacements match the prescribed deformation within
 `1.19209e-8 m` and `2.98023e-9 m`.
 
-Fuelsim's unchanged finite-strain volume kernel instead retains the reference-
-configuration thermal weak form required by its numerical contract. It gives
-the reference-geometry heat rate of exactly `400 W`, so its heat rate is
-`50%` above the Abaqus result for this deliberately anisotropic stretch. B5.1
-is a qualified formulation identification: finite-strain mechanical fields
-may still be compared, but native `C3D8T` heat flux is not a pointwise oracle
-for Fuelsim after deformation.
+Fuelsim production now uses the same current-configuration temperature gradient
+and volume measure. Evaluating the tracked Abaqus nodal state gives
+`266.6666657 W`; its relative error from the analytic current-geometry rate is
+`3.73e-9`, and its relative difference from the single-precision Abaqus reaction
+is `3.44e-8`. The local coupled test also proves a nonzero heat-residual-to-
+displacement block with maximum magnitude `1.1` and a `2.87e-8` centered-
+difference directional error. B5.1 therefore verifies production current-
+configuration conduction. Body-source, deformed-capacity, and convection
+configuration remain separate identification scopes.
 
 Regenerate and execute the reference with `generate_b51.py` and
 `run_b51.ps1`. The tracked input, nodal and integration-point references,
@@ -1407,3 +1403,70 @@ contact. Clearance-dependent conductance derivatives and simultaneous
 mechanical closure remain separate follow-up paths. Regenerate and execute the
 reference with `generate_b52.py` and `run_b52.ps1`; all tracked artifacts are
 listed in `SHA256SUMS` under the `b52_hex8_c3d8t_thermal_contact` prefix.
+
+## B5.19 C3D8T finite-deformation selective integration
+
+B5.19 applies a non-affine finite deformation to one distorted C3D8T element.
+It compares every nodal reaction component, the eight current integration-point
+coordinates and volumes, and all six Cauchy-stress components. This isolates the
+finite-deformation selective volumetric operator from material-history and
+nonlinear-solver tolerances.
+
+The largest nonzero-reference maximum pointwise-relative difference is
+`1.43079e-13` for stress. Nodal reactions remain below `3e-15`, integration
+volumes below `7e-16`, and the production mechanical directional Jacobian error
+is `1.28136e-9`. The nominal reaction heat flux is numerical noise near
+`1e-14 W`; it is reported as an absolute quantity and is not accepted through a
+relative metric. Regenerate and execute this reference with `generate_b519.py`
+and `run_b519.ps1`.
+
+## B5.20 C3D8T clearance-, pressure-, and temperature-dependent conductance
+
+B5.20 uses prescribed two-face states to identify one linear cell of the Abaqus
+gap-conductance table. Separate decks isolate clearance dependence and penalty-
+pressure dependence, while paired temperature perturbations identify dependence
+on the two-sided average temperature. The base residual and all displacement and
+temperature derivative columns have relative L2, relative absolute-peak, and
+maximum pointwise-relative errors below `4.81e-15`. Zero-reference entries have
+maximum absolute differences below `3.01e-14`, and the closed pressure case
+reproduces the exact `1000 N` secondary reaction.
+
+Fuelsim implements the identified cell as
+`h=h0+h_g*g+h_p*p+h_T*(T_average-T_reference)`, with
+`p=penalty*max(-g,0)`. This does not claim the complete interpolation,
+extrapolation, or cutoff semantics of an arbitrary Abaqus table. Regenerate and
+execute both decks with `generate_b520.py` and `run_b520.ps1`.
+
+## B5.21 C3D8T nonmatching thermal-contact path
+
+B5.21 moves a nonmatching secondary face through closed contact, closed
+cross-face sliding, opening, open cross-face motion, and recontact. The test
+compares all nodal heat reactions, total heat rate, and mechanical normal force,
+and also checks trial-state rollback, checkpoint restart, two-sided thermal
+conservation, and one-rank versus two-rank partitioned assembly.
+
+The nodal heat-flow relative L2, relative absolute-peak, and maximum pointwise-
+relative errors are `1.90974e-8`, `4.56304e-9`, and `4.66834e-8`. All 76
+zero-reference heat entries remain exactly zero. Total heat and normal force
+agree within `1.02e-11` relative error, interface imbalance remains below
+`7.11e-14 W`, and open states contribute exactly zero heat. Rollback and restart
+are componentwise exact. Regenerate and execute the reference with
+`generate_b521.py` and `run_b521.ps1`.
+
+## B5.22 C3D8T faceted curved thermal contact
+
+B5.22 applies pressure-dependent conductance on a three-facet quarter-cylinder
+interface. All three facets are active. The nodal heat-flow relative L2,
+relative absolute-peak, and maximum pointwise-relative errors are
+`8.62250e-15`, `1.19429e-14`, and `1.50664e-14`; 16 zero references remain
+exact, total heat differs by `8.20689e-15`, the pressure-weighted scalar contact
+force differs by `1.64628e-14`, and two-sided thermal imbalance is below
+`4.27e-13 W`.
+
+This case has one explicit qualification boundary. The mechanical vector
+resultant differs by `1.01018%`: Fuelsim gives
+`(95626.6568,95626.6568,0) N`, while Abaqus gives
+`(94670.3125,94670.3125,0) N`. B5.22 therefore qualifies the pressure-weighted
+thermal law on this faceted geometry, not the mechanical vector recovery. The
+separate B4.5 case remains the mechanical curved-contact evidence. Regenerate
+and execute this reference with `generate_b522.py` and `run_b522.ps1`.

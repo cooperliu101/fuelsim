@@ -13,6 +13,7 @@
       [primary]
         block = primary
         strain = SMALL
+        volumetric_locking_correction = true
         incremental = true
         add_variables = true
         use_automatic_differentiation = true
@@ -20,6 +21,7 @@
       [secondary]
         block = secondary
         strain = SMALL
+        volumetric_locking_correction = true
         incremental = true
         add_variables = true
         use_automatic_differentiation = true

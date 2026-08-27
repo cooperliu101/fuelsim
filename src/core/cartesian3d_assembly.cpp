@@ -466,13 +466,17 @@ Quad4FaceBoundaryData make_boundary_data(const BoundaryConditionDefinition& boun
             throw std::invalid_argument("Three-dimensional traction requires a displacement field");
         return {Quad4FaceBoundaryKind::traction, component, boundary.value, 0.0, use_displaced_geometry};
     }
+    if (boundary.type == BoundaryConditionType::heat_flux)
+        return {Quad4FaceBoundaryKind::surface_heat_flux, CartesianTractionComponent::x, boundary.value, 0.0,
+            use_displaced_geometry};
     return {Quad4FaceBoundaryKind::convection, CartesianTractionComponent::x, boundary.heat_transfer_coefficient,
-        boundary.ambient_temperature};
+        boundary.ambient_temperature, use_displaced_geometry};
 }
 
 SpatialContributionType boundary_contribution_type(BoundaryConditionType type) {
     if (type == BoundaryConditionType::pressure) return SpatialContributionType::pressure;
     if (type == BoundaryConditionType::traction) return SpatialContributionType::traction;
+    if (type == BoundaryConditionType::heat_flux) return SpatialContributionType::heat_flux;
     return SpatialContributionType::convection;
 }
 } // namespace
@@ -526,7 +530,8 @@ SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const Unstructure
             }
             continue;
         }
-        if (boundary.type == BoundaryConditionType::pressure || boundary.type == BoundaryConditionType::traction)
+        if (boundary.type == BoundaryConditionType::pressure || boundary.type == BoundaryConditionType::traction ||
+            boundary.type == BoundaryConditionType::heat_flux)
             record_configuration_warning(boundary, this->region(region));
         const std::size_t kernel = _boundary_data.size();
         const bool displaced_geometry = boundary_uses_displaced_geometry(boundary, this->region(region));
@@ -588,6 +593,8 @@ SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const Unstructure
         if (boundary.scale_with_load && !boundary.function.empty())
             throw std::invalid_argument(
                 "Boundary condition cannot combine scale_with_load and a time function: " + boundary.name);
+        if (boundary.type == BoundaryConditionType::heat_flux)
+            throw std::invalid_argument("HEX20 surface heat flux is not implemented");
         const std::int64_t block_id = source_mesh.side_set_block_id(boundary.boundary);
         const auto found = std::find(_block_ids.begin(), _block_ids.end(), block_id);
         if (found == _block_ids.end())
@@ -840,6 +847,9 @@ void SpatialAssembly::contribution_jacobian_pattern(std::size_t index, std::vect
     pattern.assign(quad4_face_local_dof_count * quad4_face_local_dof_count, 0U);
     if (data.kind == Quad4FaceBoundaryKind::convection) {
         set_pattern_block(pattern, quad4_face_local_dof_count, 0, 4, 0, 4);
+        if (data.use_displaced_geometry) set_pattern_block(pattern, quad4_face_local_dof_count, 0, 4, 4, 16);
+    } else if (data.kind == Quad4FaceBoundaryKind::surface_heat_flux && data.use_displaced_geometry) {
+        set_pattern_block(pattern, quad4_face_local_dof_count, 0, 4, 4, 16);
     } else if (data.use_displaced_geometry) {
         const std::size_t row_begin = data.kind == Quad4FaceBoundaryKind::pressure
                                           ? 4
@@ -1681,8 +1691,15 @@ void SpatialAssembly::build_contacts(const UnstructuredHex8Mesh& source_mesh) {
                 throw std::overflow_error(
                     "Automatic three-dimensional contact penalty is not finite and positive: " + definition.name);
         }
-        _thermal_properties.push_back({definition.thermal ? definition.gap_conductivity : 1.0,
-            definition.thermal ? definition.minimum_gap : 1.0});
+        _thermal_properties.push_back(
+            {definition.thermal ? definition.gap_conductivity : 1.0, definition.thermal ? definition.minimum_gap : 1.0,
+                definition.thermal ? definition.gap_heat_conductance_law : GapHeatConductanceLaw::gas_gap,
+                definition.thermal ? definition.gap_conductance : 0.0,
+                definition.thermal ? definition.gap_conductance_clearance_derivative : 0.0,
+                definition.thermal ? definition.gap_conductance_pressure_derivative : 0.0,
+                definition.thermal ? definition.gap_conductance_temperature_derivative : 0.0,
+                definition.thermal ? definition.gap_conductance_reference_temperature : 0.0,
+                definition.mechanical ? definition.penalty : 0.0});
         _mechanical_properties.push_back({definition.mechanical ? definition.penalty : 1.0,
             definition.mechanical ? definition.friction_coefficient : 0.0, false,
             definition.mechanical ? definition.friction_elastic_slip : 0.0});
@@ -2189,8 +2206,15 @@ void SpatialAssembly::build_hex20_contacts(const UnstructuredHex20Mesh& source_m
                 throw std::overflow_error(
                     "Automatic HEX20 contact penalty is not finite and positive: " + definition.name);
         }
-        _thermal_properties.push_back({definition.thermal ? definition.gap_conductivity : 1.0,
-            definition.thermal ? definition.minimum_gap : 1.0});
+        _thermal_properties.push_back(
+            {definition.thermal ? definition.gap_conductivity : 1.0, definition.thermal ? definition.minimum_gap : 1.0,
+                definition.thermal ? definition.gap_heat_conductance_law : GapHeatConductanceLaw::gas_gap,
+                definition.thermal ? definition.gap_conductance : 0.0,
+                definition.thermal ? definition.gap_conductance_clearance_derivative : 0.0,
+                definition.thermal ? definition.gap_conductance_pressure_derivative : 0.0,
+                definition.thermal ? definition.gap_conductance_temperature_derivative : 0.0,
+                definition.thermal ? definition.gap_conductance_reference_temperature : 0.0,
+                definition.mechanical ? definition.penalty : 0.0});
         _mechanical_properties.push_back({definition.mechanical ? definition.penalty : 1.0,
             definition.mechanical ? definition.friction_coefficient : 0.0, false,
             definition.mechanical ? definition.friction_elastic_slip : 0.0});

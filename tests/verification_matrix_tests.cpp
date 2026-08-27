@@ -100,6 +100,10 @@ int main(int argc, char** argv) {
             "b50.hex8_c3d8t_capacity",
             "b51.hex8_c3d8t_finite_heat",
             "b52.hex8_c3d8t_thermal_contact",
+            "b519.hex8_c3d8t_finite_selective",
+            "b520.hex8_c3d8t_gap_conductance",
+            "b521.hex8_c3d8t_thermal_contact_path",
+            "b522.hex8_c3d8t_faceted_thermal_contact",
             "io.exodus",
             "m0.steady",
             "m1.contact",
@@ -170,7 +174,7 @@ int main(int argc, char** argv) {
         }
         if (found_ids != required_ids)
             throw std::runtime_error("Verification matrix is missing one or more required rows");
-        if (verified != 50 || qualified != 8 || measured != 3 || limitations != 1)
+        if (verified != 55 || qualified != 7 || measured != 3 || limitations != 1)
             throw std::runtime_error("Verification matrix status counts differ from release schema");
         std::cout << "verification_matrix_rows=" << found_ids.size() << '\n'
                   << "verification_matrix_verified=" << verified << '\n'

@@ -45,6 +45,7 @@
       [solid]
         block = solid
         strain = SMALL
+        volumetric_locking_correction = true
         add_variables = true
         temperature = T
         eigenstrain_names = thermal_strain

@@ -23,7 +23,7 @@ struct RegionStateSummary final {
 };
 
 struct TransientConservationSummary final {
-    double generated_heat_rate = 0.0, stored_heat_rate = 0.0, convection_heat_rate = 0.0,
+    double generated_heat_rate = 0.0, stored_heat_rate = 0.0, convection_heat_rate = 0.0, surface_heat_input_rate = 0.0,
            interface_heat_imbalance = 0.0, dirichlet_heat_input_rate = 0.0, global_thermal_balance = 0.0,
            relative_thermal_balance = 0.0, unconstrained_thermal_residual_l2 = 0.0,
            internal_mechanical_work_increment = 0.0, pressure_traction_work_increment = 0.0,
@@ -37,10 +37,11 @@ struct TransientConservationField final {
     double TransientConservationSummary::* member;
 };
 
-inline constexpr std::array<TransientConservationField, 18> transient_conservation_fields = {{
+inline constexpr std::array<TransientConservationField, 19> transient_conservation_fields = {{
     {"generated_heat_rate", &TransientConservationSummary::generated_heat_rate},
     {"stored_heat_rate", &TransientConservationSummary::stored_heat_rate},
     {"convection_heat_rate", &TransientConservationSummary::convection_heat_rate},
+    {"surface_heat_input_rate", &TransientConservationSummary::surface_heat_input_rate},
     {"interface_heat_imbalance", &TransientConservationSummary::interface_heat_imbalance},
     {"dirichlet_heat_input_rate", &TransientConservationSummary::dirichlet_heat_input_rate},
     {"global_thermal_balance", &TransientConservationSummary::global_thermal_balance},

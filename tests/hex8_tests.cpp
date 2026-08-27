@@ -76,10 +76,9 @@ bool test_element_average_thermal_expansion_temperature() {
     const std::array<fuelsim::SymmetricTensor3Values, 8> stresses = fuelsim::compute_hex8_stress(data, geometry, state);
     double recovered_expansion_maximum_difference = 0.0, stress_range = 0.0;
     double minimum_stress = stresses[0].xx, maximum_stress = stresses[0].xx;
+    constexpr std::array<std::size_t, 8> gauss_to_material_node = {0, 1, 3, 2, 4, 5, 7, 6};
     for (std::size_t q = 0; q < geometry.points.size(); ++q) {
-        double point_temperature = 0.0;
-        for (std::size_t node = 0; node < 8; ++node)
-            point_temperature += geometry.points[q].shape[node] * nodal_temperatures[node];
+        const double point_temperature = nodal_temperatures[gauss_to_material_node[q]];
         const fuelsim::ActiveThermoelasticProperties active = material.active_properties(point_temperature);
         const double bulk_factor = 3.0 * active.lame_lambda.value() + 2.0 * active.shear_modulus.value();
         const double recovered_expansion = -stresses[q].xx / bulk_factor;
@@ -159,6 +158,109 @@ bool test_geometry_and_constant_strain() {
                 "HEX8 reproduces all six constant-strain stress components"))
             return false;
     return true;
+}
+
+bool test_distorted_selective_volumetric_integration() {
+    fuelsim::Hex8Coordinates coordinates = unit_cube();
+    coordinates[1] = {1.08, -0.03, 0.02};
+    coordinates[2] = {1.16, 1.05, -0.04};
+    coordinates[5] = {0.94, 0.06, 1.12};
+    coordinates[6] = {1.24, 1.13, 1.28};
+    coordinates[7] = {-0.08, 0.91, 1.06};
+    const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(coordinates);
+    constexpr double young_modulus = 2.0e11, poisson_ratio = 0.499;
+    const fuelsim::CartesianThermoelasticData data{fuelsim::IsotropicThermoelasticMaterial(fuelsim::test::thermoelastic(
+                                                       0.0, 1.0, young_modulus, poisson_ratio, 0.0, 300.0)),
+        0.0, 0.0};
+    fuelsim::Hex8LocalValues state{};
+    double average_trace = 0.0;
+    for (std::size_t node = 0; node < 8; ++node) {
+        const fuelsim::CartesianPoint3& point = coordinates[node];
+        state[node] = 300.0;
+        state[8 + node] = 1.0e-3 * (point.x + 0.35 * point.x * point.y - 0.12 * point.z);
+        state[16 + node] = 1.0e-3 * (-0.20 * point.x + 0.55 * point.y * point.z + 0.08 * point.z);
+        state[24 + node] = 1.0e-3 * (0.14 * point.x * point.z - 0.30 * point.y + 0.65 * point.z);
+        for (std::size_t component = 0; component < 3; ++component)
+            average_trace += geometry.average_shape_gradient[node][component] * state[8 * (component + 1) + node];
+    }
+    const double expected_stress_trace = young_modulus * average_trace / (1.0 - 2.0 * poisson_ratio);
+    double stress_trace_error = 0.0;
+    for (const fuelsim::SymmetricTensor3Values& stress : fuelsim::compute_hex8_stress(data, geometry, state))
+        stress_trace_error =
+            std::max(stress_trace_error, std::abs(stress.xx + stress.yy + stress.zz - expected_stress_trace));
+
+    fuelsim::Hex8LocalJacobian jacobian{};
+    (void)fuelsim::compute_hex8_thermoelastic(data, geometry, state, nullptr, 0.0, &jacobian);
+    fuelsim::Hex8LocalValues direction{};
+    for (std::size_t dof = 0; dof < direction.size(); ++dof)
+        direction[dof] = dof < 8 ? 0.0 : std::sin(0.29 * static_cast<double>(dof + 1));
+    constexpr double step = 1.0e-8;
+    fuelsim::Hex8LocalValues plus = state, minus = state;
+    for (std::size_t dof = 0; dof < state.size(); ++dof) {
+        plus[dof] += step * direction[dof];
+        minus[dof] -= step * direction[dof];
+    }
+    const fuelsim::Hex8LocalResidual plus_residual = fuelsim::compute_hex8_thermoelastic(data, geometry, plus),
+                                     minus_residual = fuelsim::compute_hex8_thermoelastic(data, geometry, minus);
+    double jacobian_error = 0.0, jacobian_scale = 0.0;
+    for (std::size_t row = 8; row < 32; ++row) {
+        double analytic = 0.0;
+        for (std::size_t column = 8; column < 32; ++column) analytic += jacobian[row * 32 + column] * direction[column];
+        const double numerical = (plus_residual[row] - minus_residual[row]) / (2.0 * step);
+        jacobian_error = std::max(jacobian_error, std::abs(analytic - numerical));
+        jacobian_scale = std::max({jacobian_scale, std::abs(analytic), std::abs(numerical)});
+    }
+    std::cout << "hex8_selective_distorted_stress_trace_maximum_error=" << stress_trace_error << '\n'
+              << "hex8_selective_near_incompressible_jacobian_relative_error=" << jacobian_error / jacobian_scale
+              << '\n';
+    return check(stress_trace_error / std::abs(expected_stress_trace) < 1.0e-12,
+               "distorted HEX8 uses one volume-average strain trace at all eight integration points") &&
+           check(jacobian_error / jacobian_scale < 5.0e-7,
+               "near-incompressible distorted HEX8 selective-integration Jacobian matches centered differences");
+}
+
+bool test_selective_integration_constrained_face_rank() {
+    const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(unit_cube());
+    const fuelsim::CartesianThermoelasticData data{
+        fuelsim::IsotropicThermoelasticMaterial(fuelsim::test::thermoelastic(0.0, 1.0, 1.0e9, 0.0, 0.0, 300.0)), 0.0,
+        0.0};
+    fuelsim::Hex8LocalValues state{};
+    for (std::size_t node = 0; node < 8; ++node) state[node] = 300.0;
+    fuelsim::Hex8LocalJacobian jacobian{};
+    (void)fuelsim::compute_hex8_thermoelastic(data, geometry, state, nullptr, 0.0, &jacobian);
+    constexpr std::array<std::size_t, 4> free_nodes = {1, 2, 5, 6};
+    std::array<std::array<double, 12>, 12> reduced{};
+    double maximum_entry = 0.0;
+    for (std::size_t row_component = 0; row_component < 3; ++row_component)
+        for (std::size_t row_node = 0; row_node < free_nodes.size(); ++row_node) {
+            const std::size_t reduced_row = 4 * row_component + row_node;
+            const std::size_t row = 8 * (row_component + 1) + free_nodes[row_node];
+            for (std::size_t column_component = 0; column_component < 3; ++column_component)
+                for (std::size_t column_node = 0; column_node < free_nodes.size(); ++column_node) {
+                    const std::size_t reduced_column = 4 * column_component + column_node;
+                    const std::size_t column = 8 * (column_component + 1) + free_nodes[column_node];
+                    reduced[reduced_row][reduced_column] = jacobian[row * 32 + column];
+                    maximum_entry = std::max(maximum_entry, std::abs(reduced[reduced_row][reduced_column]));
+                }
+        }
+    double minimum_pivot = maximum_entry;
+    for (std::size_t column = 0; column < reduced.size(); ++column) {
+        std::size_t pivot_row = column;
+        for (std::size_t row = column + 1; row < reduced.size(); ++row)
+            if (std::abs(reduced[row][column]) > std::abs(reduced[pivot_row][column])) pivot_row = row;
+        std::swap(reduced[column], reduced[pivot_row]);
+        const double pivot = std::abs(reduced[column][column]);
+        minimum_pivot = std::min(minimum_pivot, pivot);
+        if (pivot == 0.0) break;
+        for (std::size_t row = column + 1; row < reduced.size(); ++row) {
+            const double factor = reduced[row][column] / reduced[column][column];
+            for (std::size_t entry = column; entry < reduced.size(); ++entry)
+                reduced[row][entry] -= factor * reduced[column][entry];
+        }
+    }
+    std::cout << "hex8_selective_constrained_face_minimum_pivot_ratio=" << minimum_pivot / maximum_entry << '\n';
+    return check(minimum_pivot / maximum_entry > 1.0e-10,
+        "selective-integration HEX8 retains full stiffness rank after one face is fixed");
 }
 
 bool test_free_thermal_expansion_and_jacobian() {
@@ -276,16 +378,23 @@ bool test_transient_capacity_and_faces() {
     distorted_coordinates[6] = {1.20, 1.10, 1.30};
     const fuelsim::Hex8Geometry distorted = fuelsim::make_hex8_geometry(distorted_coordinates);
     double minimum_capacity_weight = distorted.capacity_points[0].weighted_measure,
-           maximum_capacity_weight = minimum_capacity_weight;
-    for (const fuelsim::Hex8CapacityPoint& point : distorted.capacity_points) {
+           maximum_capacity_weight = minimum_capacity_weight, capacity_gauss_mapping_error = 0.0;
+    constexpr std::array<std::size_t, 8> node_to_gauss = {0, 1, 3, 2, 4, 5, 7, 6};
+    for (std::size_t node = 0; node < distorted.capacity_points.size(); ++node) {
+        const fuelsim::Hex8CapacityPoint& point = distorted.capacity_points[node];
         minimum_capacity_weight = std::min(minimum_capacity_weight, point.weighted_measure);
         maximum_capacity_weight = std::max(maximum_capacity_weight, point.weighted_measure);
+        capacity_gauss_mapping_error = std::max(capacity_gauss_mapping_error,
+            std::abs(point.weighted_measure - distorted.points[node_to_gauss[node]].weighted_measure));
     }
     std::cout << "hex8_distorted_capacity_weight_minimum=" << minimum_capacity_weight << '\n'
               << "hex8_distorted_capacity_weight_maximum=" << maximum_capacity_weight << '\n'
+              << "hex8_distorted_capacity_gauss_mapping_maximum_error=" << capacity_gauss_mapping_error << '\n'
               << "hex8_nonlinear_capacity_jacobian_maximum_error=" << nonlinear_capacity_jacobian_error << '\n';
     if (!check(maximum_capacity_weight - minimum_capacity_weight > 1.0e-3,
-            "distorted HEX8 nodal heat capacity uses distinct corner Jacobian weights"))
+            "distorted HEX8 nodal heat capacity uses distinct associated standard Gauss-point volume weights") ||
+        !check(capacity_gauss_mapping_error < 1.0e-15,
+            "distorted HEX8 nodal heat capacity maps every node to the Abaqus-associated standard Gauss point"))
         return false;
     const fuelsim::Hex8Coordinates coordinates = unit_cube();
     const fuelsim::Quad4FaceCoordinates face_coordinates = {
@@ -399,8 +508,71 @@ bool test_transient_capacity_and_faces() {
         heat += convection_residual[row];
         for (std::size_t column = 0; column < 4; ++column) tangent_sum += convection_jacobian[row * 16 + column];
     }
-    return check(near(heat, 1000.0, 1.0e-14) && near(tangent_sum, 20.0, 1.0e-14),
-        "three-dimensional convection has the exact face heat rate and consistent temperature tangent");
+    if (!check(near(heat, 1000.0, 1.0e-14) && near(tangent_sum, 20.0, 1.0e-14),
+            "three-dimensional convection has the exact face heat rate and consistent temperature tangent"))
+        return false;
+
+    const fuelsim::Quad4FaceCoordinates warped_coordinates = {
+        {{0.0, 0.0, 0.0}, {1.2, 0.1, 0.0}, {1.0, 1.1, 0.35}, {-0.1, 0.9, -0.05}}};
+    const fuelsim::Quad4FaceGeometry warped_face = fuelsim::make_quad4_face_geometry(warped_coordinates);
+    fuelsim::Quad4FaceLocalValues warped_state{};
+    std::array<double, 16> warped_direction{};
+    for (std::size_t node = 0; node < 4; ++node) {
+        warped_state[node] = 335.0 + 17.0 * static_cast<double>(node);
+        warped_state[4 + node] = 0.03 * static_cast<double>(node + 1);
+        warped_state[8 + node] = -0.02 * static_cast<double>(node * node + 1);
+        warped_state[12 + node] = 0.015 * static_cast<double>((node + 1) * (node + 2));
+    }
+    for (std::size_t dof = 0; dof < warped_direction.size(); ++dof)
+        warped_direction[dof] = std::cos(0.37 * static_cast<double>(dof + 1));
+    const fuelsim::Quad4FaceBoundaryData current_flux = {
+        fuelsim::Quad4FaceBoundaryKind::surface_heat_flux, fuelsim::CartesianTractionComponent::x, 40.0, 0.0, true};
+    const fuelsim::Quad4FaceBoundaryData current_convection = {
+        fuelsim::Quad4FaceBoundaryKind::convection, fuelsim::CartesianTractionComponent::x, 20.0, 300.0, true};
+    fuelsim::Quad4FaceLocalJacobian current_flux_jacobian{}, current_convection_jacobian{};
+    (void)fuelsim::compute_quad4_face_boundary(current_flux, warped_face, warped_state, &current_flux_jacobian);
+    (void)fuelsim::compute_quad4_face_boundary(
+        current_convection, warped_face, warped_state, &current_convection_jacobian);
+    constexpr double thermal_face_step = 1.0e-7;
+    auto warped_plus = warped_state, warped_minus = warped_state;
+    for (std::size_t dof = 0; dof < warped_state.size(); ++dof) {
+        warped_plus[dof] += thermal_face_step * warped_direction[dof];
+        warped_minus[dof] -= thermal_face_step * warped_direction[dof];
+    }
+    const fuelsim::Quad4FaceLocalResidual current_flux_plus =
+        fuelsim::compute_quad4_face_boundary(current_flux, warped_face, warped_plus);
+    const fuelsim::Quad4FaceLocalResidual current_flux_minus =
+        fuelsim::compute_quad4_face_boundary(current_flux, warped_face, warped_minus);
+    const fuelsim::Quad4FaceLocalResidual current_convection_plus =
+        fuelsim::compute_quad4_face_boundary(current_convection, warped_face, warped_plus);
+    const fuelsim::Quad4FaceLocalResidual current_convection_minus =
+        fuelsim::compute_quad4_face_boundary(current_convection, warped_face, warped_minus);
+    double current_flux_jacobian_error = 0.0, current_convection_jacobian_error = 0.0,
+           current_flux_displacement_coupling = 0.0;
+    for (std::size_t row = 0; row < 4; ++row) {
+        double flux_analytic = 0.0, convection_analytic = 0.0;
+        for (std::size_t column = 0; column < 16; ++column) {
+            flux_analytic += current_flux_jacobian[row * 16 + column] * warped_direction[column];
+            convection_analytic += current_convection_jacobian[row * 16 + column] * warped_direction[column];
+            if (column >= 4)
+                current_flux_displacement_coupling =
+                    std::max(current_flux_displacement_coupling, std::abs(current_flux_jacobian[row * 16 + column]));
+        }
+        const double flux_numerical = (current_flux_plus[row] - current_flux_minus[row]) / (2.0 * thermal_face_step);
+        const double convection_numerical =
+            (current_convection_plus[row] - current_convection_minus[row]) / (2.0 * thermal_face_step);
+        current_flux_jacobian_error = std::max(current_flux_jacobian_error, std::abs(flux_analytic - flux_numerical));
+        current_convection_jacobian_error =
+            std::max(current_convection_jacobian_error, std::abs(convection_analytic - convection_numerical));
+    }
+    std::cout << "hex8_current_surface_flux_jacobian_maximum_error=" << current_flux_jacobian_error << '\n'
+              << "hex8_current_convection_jacobian_maximum_error=" << current_convection_jacobian_error << '\n'
+              << "hex8_current_surface_flux_displacement_coupling_maximum=" << current_flux_displacement_coupling
+              << '\n';
+    return check(current_flux_jacobian_error < 2.0e-7 && current_convection_jacobian_error < 2.0e-6,
+               "current-configuration surface heat flux and convection Jacobians match centered differences") &&
+           check(current_flux_displacement_coupling > 1.0e-6,
+               "current-configuration surface heat flux has a nonzero displacement coupling block");
 }
 
 bool test_cartesian_inelastic_material() {
@@ -457,16 +629,13 @@ bool test_finite_strain_kinematics_and_coupled_jacobian() {
     for (std::size_t dof = 0; dof < state.size(); ++dof) passive[dof] = state[dof];
     const fuelsim::CartesianKinematics kinematics = fuelsim::evaluate_cartesian_incremental_kinematics(
         geometry.points[0], passive, fuelsim::Hex8LocalValues{}, fuelsim::StrainFormulation::finite);
-    const auto taylor = [](double stretch) {
-        const double cinv_minus_one = 1.0 / (stretch * stretch) - 1.0;
-        return -0.5 * cinv_minus_one + 0.25 * cinv_minus_one * cinv_minus_one;
-    };
-    bool passed = check(near(kinematics.strain_increment.xx.value(), taylor(stretch_x), 2.0e-14) &&
-                            near(kinematics.strain_increment.yy.value(), taylor(stretch_y), 2.0e-14) &&
-                            near(kinematics.strain_increment.zz.value(), taylor(stretch_z), 2.0e-14) &&
+    const auto hughes_winget = [](double stretch) { return 2.0 * (stretch - 1.0) / (stretch + 1.0); };
+    bool passed = check(near(kinematics.strain_increment.xx.value(), hughes_winget(stretch_x), 2.0e-14) &&
+                            near(kinematics.strain_increment.yy.value(), hughes_winget(stretch_y), 2.0e-14) &&
+                            near(kinematics.strain_increment.zz.value(), hughes_winget(stretch_z), 2.0e-14) &&
                             near(kinematics.current_weighted_measure.value(),
                                 geometry.points[0].weighted_measure * stretch_x * stretch_y * stretch_z, 2.0e-14),
-        "finite-strain HEX8 recovers the MOOSE Taylor diagonal increment and current volume measure");
+        "finite-strain HEX8 recovers the Abaqus Hughes-Winget diagonal increment and current volume measure");
     for (std::size_t node = 0; node < 8; ++node) {
         const fuelsim::CartesianPoint3& point = coordinates[node];
         state[node] = 302.0 + 0.75 * static_cast<double>(node);
@@ -475,7 +644,7 @@ bool test_finite_strain_kinematics_and_coupled_jacobian() {
         state[24 + node] = 0.04 * point.x - 0.05 * point.y - 0.03 * point.z;
     }
     const fuelsim::CartesianThermoelasticData data{
-        fuelsim::IsotropicThermoelasticMaterial(inelastic_properties(true, true)), 0.0, 1.0,
+        fuelsim::IsotropicThermoelasticMaterial(inelastic_properties(true, true)), 8.0e4, 1.0,
         fuelsim::StrainFormulation::finite};
     const fuelsim::Hex8LocalValues committed_state = [] {
         fuelsim::Hex8LocalValues value{};
@@ -511,16 +680,70 @@ bool test_finite_strain_kinematics_and_coupled_jacobian() {
         fuelsim::compute_hex8_transient(data, geometry, plus, committed_state, committed_material, 1.0);
     const auto minus_residual =
         fuelsim::compute_hex8_transient(data, geometry, minus, committed_state, committed_material, 1.0);
-    double maximum_error = 0.0, scale = 0.0;
-    for (std::size_t row = 8; row < 32; ++row) {
+    double thermal_error = 0.0, thermal_scale = 0.0, mechanical_error = 0.0, mechanical_scale = 0.0;
+    for (std::size_t row = 0; row < 32; ++row) {
         double analytic = 0.0;
         for (std::size_t column = 0; column < 32; ++column) analytic += jacobian[row * 32 + column] * direction[column];
         const double numerical = (plus_residual[row] - minus_residual[row]) / (2.0 * step);
-        maximum_error = std::max(maximum_error, std::abs(analytic - numerical));
+        double& error = row < 8 ? thermal_error : mechanical_error;
+        double& scale = row < 8 ? thermal_scale : mechanical_scale;
+        error = std::max(error, std::abs(analytic - numerical));
         scale = std::max({scale, std::abs(analytic), std::abs(numerical)});
     }
-    passed = check(maximum_error / scale < 2.0e-6,
-                 "finite-strain coupled HEX8 automatic-differentiation Jacobian matches centered difference") &&
+    double thermal_displacement_coupling = 0.0;
+    for (std::size_t row = 0; row < 8; ++row)
+        for (std::size_t column = 8; column < 32; ++column)
+            thermal_displacement_coupling =
+                std::max(thermal_displacement_coupling, std::abs(jacobian[row * 32 + column]));
+    std::cout << "hex8_finite_heat_ktu_maximum_absolute=" << thermal_displacement_coupling << '\n'
+              << "hex8_finite_heat_jacobian_relative_error=" << thermal_error / thermal_scale << '\n';
+    passed = check(thermal_error / thermal_scale < 2.0e-6 && mechanical_error / mechanical_scale < 2.0e-6,
+                 "finite-strain coupled HEX8 thermal and mechanical Jacobian rows match centered differences") &&
+             check(thermal_displacement_coupling > 1.0e-6,
+                 "current-configuration HEX8 heat conduction has a nonzero displacement coupling block") &&
+             passed;
+    std::array<double, 4> block_relative_errors{}, block_maximum_entries{};
+    for (std::size_t block = 0; block < 4; ++block) {
+        const bool thermal_rows = block < 2;
+        const bool thermal_columns = block == 0 || block == 2;
+        const double block_step = thermal_columns ? 1.0e-4 : step;
+        fuelsim::Hex8LocalValues block_plus = state, block_minus = state;
+        for (std::size_t column = 0; column < 32; ++column) {
+            if ((column < 8) != thermal_columns) continue;
+            block_plus[column] += block_step * direction[column];
+            block_minus[column] -= block_step * direction[column];
+        }
+        const fuelsim::Hex8LocalResidual block_plus_residual =
+            fuelsim::compute_hex8_transient(data, geometry, block_plus, committed_state, committed_material, 1.0);
+        const fuelsim::Hex8LocalResidual block_minus_residual =
+            fuelsim::compute_hex8_transient(data, geometry, block_minus, committed_state, committed_material, 1.0);
+        double error_squared = 0.0, scale_squared = 0.0;
+        for (std::size_t row = 0; row < 32; ++row) {
+            if ((row < 8) != thermal_rows) continue;
+            double analytic = 0.0;
+            for (std::size_t column = 0; column < 32; ++column) {
+                if ((column < 8) != thermal_columns) continue;
+                const double entry = jacobian[row * 32 + column];
+                analytic += entry * direction[column];
+                block_maximum_entries[block] = std::max(block_maximum_entries[block], std::abs(entry));
+            }
+            const double numerical = (block_plus_residual[row] - block_minus_residual[row]) / (2.0 * block_step);
+            const double error = analytic - numerical;
+            error_squared += error * error;
+            scale_squared += numerical * numerical;
+        }
+        block_relative_errors[block] = std::sqrt(error_squared / scale_squared);
+    }
+    std::cout << "hex8_finite_ktt_directional_relative_error=" << block_relative_errors[0] << '\n'
+              << "hex8_finite_ktu_directional_relative_error=" << block_relative_errors[1] << '\n'
+              << "hex8_finite_kut_directional_relative_error=" << block_relative_errors[2] << '\n'
+              << "hex8_finite_kuu_directional_relative_error=" << block_relative_errors[3] << '\n'
+              << "hex8_finite_ktu_maximum_entry=" << block_maximum_entries[1] << '\n'
+              << "hex8_finite_kut_maximum_entry=" << block_maximum_entries[2] << '\n';
+    passed = check(*std::max_element(block_relative_errors.begin(), block_relative_errors.end()) < 2.0e-6,
+                 "all four finite-strain thermo-mechanical Jacobian blocks match centered directional differences") &&
+             check(block_maximum_entries[1] > 1.0e-6 && block_maximum_entries[2] > 1.0e-6,
+                 "both off-diagonal finite-strain thermo-mechanical Jacobian blocks are active") &&
              passed;
     fuelsim::Hex8LocalValues inverted = state;
     for (std::size_t node = 0; node < 8; ++node) inverted[8 + node] = -2.0 * coordinates[node].x;
@@ -584,6 +807,57 @@ bool test_cartesian_surface_contact_kernels() {
     }
     bool passed = check(near(secondary_heat, 5000.0, 1.0e-12) && near(primary_heat, -5000.0, 1.0e-12),
         "three-dimensional gap heat transfer is exactly conservative on the secondary quadrature point");
+    fuelsim::GapHeatProperties affine_heat_properties{};
+    affine_heat_properties.law = fuelsim::GapHeatConductanceLaw::affine;
+    affine_heat_properties.conductance = 50.0;
+    affine_heat_properties.clearance_derivative = -1000.0;
+    affine_heat_properties.pressure_derivative = 2.0e-6;
+    affine_heat_properties.temperature_derivative = 0.1;
+    affine_heat_properties.reference_temperature = 350.0;
+    affine_heat_properties.contact_penalty = 1.0e5;
+    fuelsim::Quad4SurfaceContactLocalJacobian affine_heat_jacobian{};
+    const fuelsim::Quad4SurfaceContactLocalResidual affine_heat =
+        fuelsim::compute_quad4_to_quad4_gap_heat(affine_heat_properties, heat_geometry, state, &affine_heat_jacobian);
+    secondary_heat = 0.0;
+    primary_heat = 0.0;
+    for (std::size_t node = 0; node < 4; ++node) {
+        secondary_heat += affine_heat[node];
+        primary_heat += affine_heat[4 + node];
+    }
+    passed = check(near(secondary_heat, 1500.05, 1.0e-12) && near(primary_heat, -1500.05, 1.0e-12),
+                 "clearance-, pressure-, and temperature-dependent gap conductance is exactly conservative") &&
+             passed;
+    std::array<double, 32> affine_heat_direction{};
+    for (std::size_t dof = 0; dof < affine_heat_direction.size(); ++dof)
+        affine_heat_direction[dof] = std::sin(0.29 * static_cast<double>(dof + 1));
+    constexpr double affine_heat_step = 1.0e-6;
+    fuelsim::Quad4SurfaceContactLocalValues affine_heat_plus = state, affine_heat_minus = state;
+    for (std::size_t dof = 0; dof < state.size(); ++dof) {
+        affine_heat_plus[dof] += affine_heat_step * affine_heat_direction[dof];
+        affine_heat_minus[dof] -= affine_heat_step * affine_heat_direction[dof];
+    }
+    const fuelsim::Quad4SurfaceContactLocalResidual affine_heat_plus_residual =
+                                                        fuelsim::compute_quad4_to_quad4_gap_heat(
+                                                            affine_heat_properties, heat_geometry, affine_heat_plus),
+                                                    affine_heat_minus_residual =
+                                                        fuelsim::compute_quad4_to_quad4_gap_heat(
+                                                            affine_heat_properties, heat_geometry, affine_heat_minus);
+    double affine_heat_maximum_error = 0.0, affine_heat_scale = 0.0;
+    for (std::size_t row = 0; row < 8; ++row) {
+        double analytic = 0.0;
+        for (std::size_t column = 0; column < 32; ++column)
+            analytic += affine_heat_jacobian[row * 32 + column] * affine_heat_direction[column];
+        const double numerical =
+            (affine_heat_plus_residual[row] - affine_heat_minus_residual[row]) / (2.0 * affine_heat_step);
+        affine_heat_maximum_error = std::max(affine_heat_maximum_error, std::abs(analytic - numerical));
+        affine_heat_scale = std::max({affine_heat_scale, std::abs(analytic), std::abs(numerical)});
+    }
+    std::cout << "hex8_affine_gap_heat_jacobian_relative_error=" << affine_heat_maximum_error / affine_heat_scale
+              << '\n';
+    passed = check(affine_heat_maximum_error / affine_heat_scale < 1.0e-7,
+                 "clearance-, pressure-, and temperature-dependent gap heat automatic-differentiation Jacobian "
+                 "matches centered difference") &&
+             passed;
     std::array<std::array<double, 4>, 4> shapes{}, derivatives_xi{}, derivatives_eta{};
     for (std::size_t q = 0; q < 4; ++q) {
         shapes[q] = secondary_face.points[q].shape;
@@ -744,6 +1018,8 @@ bool test_cartesian_surface_contact_kernels() {
 int main() {
     bool passed = true;
     passed = test_geometry_and_constant_strain() && passed;
+    passed = test_distorted_selective_volumetric_integration() && passed;
+    passed = test_selective_integration_constrained_face_rank() && passed;
     passed = test_free_thermal_expansion_and_jacobian() && passed;
     passed = test_element_average_thermal_expansion_temperature() && passed;
     passed = test_transient_capacity_and_faces() && passed;

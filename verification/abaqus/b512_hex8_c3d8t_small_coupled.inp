@@ -1,0 +1,223 @@
+*Heading
+** B5.12 Abaqus/Standard small-strain active coupled J2 plasticity-Norton creep C3D8T probe.
+** Inelastic dissipation heat generation is intentionally disabled.
+*Preprint, echo=NO, model=NO, history=NO, contact=NO
+*Node
+1, 0.0, 0.0, 0.0
+2, 1.0, 0.0, 0.0
+3, 1.0, 1.0, 0.0
+4, 0.0, 1.0, 0.0
+5, 0.0, 0.0, 1.0
+6, 1.0, 0.0, 1.0
+7, 1.0, 1.0, 1.0
+8, 0.0, 1.0, 1.0
+*Element, type=C3D8T, elset=VOLUME
+1, 1, 2, 3, 4, 5, 6, 7, 8
+*Nset, nset=ALL_NODES, generate
+1, 8, 1
+*Nset, nset=LEFT
+1, 4, 5, 8
+*Nset, nset=RIGHT
+2, 3, 6, 7
+*Nset, nset=Y0
+1, 2, 5, 6
+*Nset, nset=Z0, generate
+1, 4, 1
+*Material, name=COUPLED_MATERIAL
+*Elastic
+2.0000000000000000e11, 3.0000000000000000e-1
+*Plastic
+2.0000000000000000e8, 0.0
+2.2000000000000000e9, 1.0000000000000000e0
+*Creep, law=TIME
+1.0000000000000001e-28, 3.0000000000000000e0, 0.0
+*Conductivity
+1.0
+*Density
+1.0
+*Specific Heat
+1.0
+*Solid Section, elset=VOLUME, material=COUPLED_MATERIAL
+,
+*Initial Conditions, type=TEMPERATURE
+ALL_NODES, 6.0000000000000000e2
+*Step, name=STEP1, nlgeom=NO, inc=16
+*Coupled Temperature-Displacement
+1.0000000000000001e-1, 1.0000000000000001e-1, 1.0000000000000001e-1, 1.0000000000000001e-1
+*Boundary, op=NEW
+LEFT, 11, 11, 6.0000000000000000e2
+LEFT, 1, 1, 0.0
+Y0, 2, 2, 0.0
+Z0, 3, 3, 0.0
+RIGHT, 1, 1, 1.5000000000000000e-03
+*Output, field, frequency=1
+*Node Output
+NT, RFL, RF, U
+*Element Output, directions=YES
+CE, CEEQ, COORD, E, EE, IVOL, PE, PEEQ, S, TEMP
+*Output, history, frequency=1
+*Energy Output
+ALLCD, ALLIE, ALLPD, ALLWK
+*End Step
+*Step, name=STEP2, nlgeom=NO, inc=16
+*Coupled Temperature-Displacement
+1.0000000000000001e-1, 1.0000000000000001e-1, 1.0000000000000001e-1, 1.0000000000000001e-1
+*Boundary, op=NEW
+LEFT, 11, 11, 6.0000000000000000e2
+LEFT, 1, 1, 0.0
+Y0, 2, 2, 0.0
+Z0, 3, 3, 0.0
+RIGHT, 1, 1, 2.0000000000000000e-03
+*Output, field, frequency=1
+*Node Output
+NT, RFL, RF, U
+*Element Output, directions=YES
+CE, CEEQ, COORD, E, EE, IVOL, PE, PEEQ, S, TEMP
+*Output, history, frequency=1
+*Energy Output
+ALLCD, ALLIE, ALLPD, ALLWK
+*End Step
+*Step, name=STEP3, nlgeom=NO, inc=16
+*Coupled Temperature-Displacement
+1.0000000000000001e-1, 1.0000000000000001e-1, 1.0000000000000001e-1, 1.0000000000000001e-1
+*Boundary, op=NEW
+LEFT, 11, 11, 6.0000000000000000e2
+LEFT, 1, 1, 0.0
+Y0, 2, 2, 0.0
+Z0, 3, 3, 0.0
+RIGHT, 1, 1, 2.5000000000000001e-03
+*Output, field, frequency=1
+*Node Output
+NT, RFL, RF, U
+*Element Output, directions=YES
+CE, CEEQ, COORD, E, EE, IVOL, PE, PEEQ, S, TEMP
+*Output, history, frequency=1
+*Energy Output
+ALLCD, ALLIE, ALLPD, ALLWK
+*End Step
+*Step, name=STEP4, nlgeom=NO, inc=16
+*Coupled Temperature-Displacement
+1.0000000000000001e-1, 1.0000000000000001e-1, 1.0000000000000001e-1, 1.0000000000000001e-1
+*Boundary, op=NEW
+LEFT, 11, 11, 6.0000000000000000e2
+LEFT, 1, 1, 0.0
+Y0, 2, 2, 0.0
+Z0, 3, 3, 0.0
+RIGHT, 1, 1, 3.0000000000000001e-03
+*Output, field, frequency=1
+*Node Output
+NT, RFL, RF, U
+*Element Output, directions=YES
+CE, CEEQ, COORD, E, EE, IVOL, PE, PEEQ, S, TEMP
+*Output, history, frequency=1
+*Energy Output
+ALLCD, ALLIE, ALLPD, ALLWK
+*End Step
+*Step, name=STEP5, nlgeom=NO, inc=16
+*Coupled Temperature-Displacement
+1.0000000000000001e-1, 1.0000000000000001e-1, 1.0000000000000001e-1, 1.0000000000000001e-1
+*Boundary, op=NEW
+LEFT, 11, 11, 6.0000000000000000e2
+LEFT, 1, 1, 0.0
+Y0, 2, 2, 0.0
+Z0, 3, 3, 0.0
+RIGHT, 1, 1, 3.5000000000000001e-03
+*Output, field, frequency=1
+*Node Output
+NT, RFL, RF, U
+*Element Output, directions=YES
+CE, CEEQ, COORD, E, EE, IVOL, PE, PEEQ, S, TEMP
+*Output, history, frequency=1
+*Energy Output
+ALLCD, ALLIE, ALLPD, ALLWK
+*End Step
+*Step, name=STEP6, nlgeom=NO, inc=16
+*Coupled Temperature-Displacement
+1.0000000000000001e-1, 1.0000000000000001e-1, 1.0000000000000001e-1, 1.0000000000000001e-1
+*Boundary, op=NEW
+LEFT, 11, 11, 6.0000000000000000e2
+LEFT, 1, 1, 0.0
+Y0, 2, 2, 0.0
+Z0, 3, 3, 0.0
+RIGHT, 1, 1, 4.0000000000000001e-03
+*Output, field, frequency=1
+*Node Output
+NT, RFL, RF, U
+*Element Output, directions=YES
+CE, CEEQ, COORD, E, EE, IVOL, PE, PEEQ, S, TEMP
+*Output, history, frequency=1
+*Energy Output
+ALLCD, ALLIE, ALLPD, ALLWK
+*End Step
+*Step, name=STEP7, nlgeom=NO, inc=16
+*Coupled Temperature-Displacement
+1.0000000000000001e-1, 1.0000000000000001e-1, 1.0000000000000001e-1, 1.0000000000000001e-1
+*Boundary, op=NEW
+LEFT, 11, 11, 6.0000000000000000e2
+LEFT, 1, 1, 0.0
+Y0, 2, 2, 0.0
+Z0, 3, 3, 0.0
+RIGHT, 1, 1, 4.4999999999999997e-03
+*Output, field, frequency=1
+*Node Output
+NT, RFL, RF, U
+*Element Output, directions=YES
+CE, CEEQ, COORD, E, EE, IVOL, PE, PEEQ, S, TEMP
+*Output, history, frequency=1
+*Energy Output
+ALLCD, ALLIE, ALLPD, ALLWK
+*End Step
+*Step, name=STEP8, nlgeom=NO, inc=16
+*Coupled Temperature-Displacement
+1.0000000000000001e-1, 1.0000000000000001e-1, 1.0000000000000001e-1, 1.0000000000000001e-1
+*Boundary, op=NEW
+LEFT, 11, 11, 6.0000000000000000e2
+LEFT, 1, 1, 0.0
+Y0, 2, 2, 0.0
+Z0, 3, 3, 0.0
+RIGHT, 1, 1, 5.0000000000000001e-03
+*Output, field, frequency=1
+*Node Output
+NT, RFL, RF, U
+*Element Output, directions=YES
+CE, CEEQ, COORD, E, EE, IVOL, PE, PEEQ, S, TEMP
+*Output, history, frequency=1
+*Energy Output
+ALLCD, ALLIE, ALLPD, ALLWK
+*End Step
+*Step, name=STEP9, nlgeom=NO, inc=16
+*Coupled Temperature-Displacement
+1.0000000000000001e-1, 1.0000000000000001e-1, 1.0000000000000001e-1, 1.0000000000000001e-1
+*Boundary, op=NEW
+LEFT, 11, 11, 6.0000000000000000e2
+LEFT, 1, 1, 0.0
+Y0, 2, 2, 0.0
+Z0, 3, 3, 0.0
+RIGHT, 1, 1, 5.4999999999999997e-03
+*Output, field, frequency=1
+*Node Output
+NT, RFL, RF, U
+*Element Output, directions=YES
+CE, CEEQ, COORD, E, EE, IVOL, PE, PEEQ, S, TEMP
+*Output, history, frequency=1
+*Energy Output
+ALLCD, ALLIE, ALLPD, ALLWK
+*End Step
+*Step, name=STEP10, nlgeom=NO, inc=16
+*Coupled Temperature-Displacement
+1.0000000000000001e-1, 1.0000000000000001e-1, 1.0000000000000001e-1, 1.0000000000000001e-1
+*Boundary, op=NEW
+LEFT, 11, 11, 6.0000000000000000e2
+LEFT, 1, 1, 0.0
+Y0, 2, 2, 0.0
+Z0, 3, 3, 0.0
+RIGHT, 1, 1, 6.0000000000000001e-03
+*Output, field, frequency=1
+*Node Output
+NT, RFL, RF, U
+*Element Output, directions=YES
+CE, CEEQ, COORD, E, EE, IVOL, PE, PEEQ, S, TEMP
+*Output, history, frequency=1
+*Energy Output
+ALLCD, ALLIE, ALLPD, ALLWK
+*End Step

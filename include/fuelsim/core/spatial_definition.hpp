@@ -1,5 +1,5 @@
 #pragma once
-#include "fuelsim/core/contact_area_rule.hpp"
+#include "fuelsim/core/contact.hpp"
 #include "fuelsim/core/kinematics.hpp"
 #include "fuelsim/core/material.hpp"
 #include <array>
@@ -74,6 +74,12 @@ struct ContactDefinition final {
     Quad8NodalAreaRule quad8_nodal_area_rule = Quad8NodalAreaRule::positive_lumped;
     double penetration_tolerance = 1.0e-8;
     std::size_t maximum_augmented_iterations = 20;
+    GapHeatConductanceLaw gap_heat_conductance_law = GapHeatConductanceLaw::gas_gap;
+    double gap_conductance = 0.0;
+    double gap_conductance_clearance_derivative = 0.0;
+    double gap_conductance_pressure_derivative = 0.0;
+    double gap_conductance_temperature_derivative = 0.0;
+    double gap_conductance_reference_temperature = 0.0;
 };
 
 struct AugmentedContactUpdate final {
@@ -84,6 +90,7 @@ enum class BoundaryConditionType {
     dirichlet,
     pressure,
     traction,
+    heat_flux,
     convection,
 };
 
@@ -140,6 +147,7 @@ enum class SpatialContributionType {
     mechanical_contact,
     pressure,
     traction,
+    heat_flux,
     convection,
 };
 } // namespace fuelsim

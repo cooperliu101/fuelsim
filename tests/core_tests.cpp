@@ -1508,10 +1508,16 @@ bool test_m1_dof_layout() {
             ++mechanical_contributions;
         }
     }
-    passed = check(std::all_of(contribution_counts.begin(), contribution_counts.end(),
-                       [](std::size_t count) { return count > 0; }),
-                 "volume, thermal contact, mechanical contact, pressure, "
-                 "traction, and convection contributions are all routed") &&
+    constexpr std::array expected_types = {fuelsim::SpatialContributionType::volume,
+        fuelsim::SpatialContributionType::thermal_contact, fuelsim::SpatialContributionType::mechanical_contact,
+        fuelsim::SpatialContributionType::pressure, fuelsim::SpatialContributionType::traction,
+        fuelsim::SpatialContributionType::convection};
+    passed = check(std::all_of(expected_types.begin(), expected_types.end(),
+                       [&](fuelsim::SpatialContributionType type) {
+                           return contribution_counts.at(static_cast<std::size_t>(type)) > 0;
+                       }),
+                 "volume, thermal contact, mechanical contact, pressure, traction, and convection contributions are "
+                 "all routed") &&
              passed;
     bool rejected_out_of_range = false;
     try {

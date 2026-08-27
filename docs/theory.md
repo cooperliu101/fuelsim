@@ -236,7 +236,9 @@ Fhat = F_new * inverse(F_old)
 dV = dV0 * det(F_rz) * F_hoop
 ```
 
-热传导、体热源和 Backward Euler 热容继续使用参考构形。当前试探态必须满足：
+轴对称 RZ 与 HEX20 的热传导、所有体热源和 Backward Euler 热容继续使用参考
+构形。有限应变 HEX8 的热传导按照 Abaqus C3D8T 使用当前构形温度梯度和当前
+体积测度；它因此具有非零的热残量对位移导数。当前试探态必须满足：
 
 ```text
 det(F_rz) > 0
@@ -287,8 +289,20 @@ T_expansion = (T0+T1+...+T7)/8
 
 导热、热容、弹性参数、塑性参数和蠕变参数仍按各积分点插值温度求值。因此该
 规则只改变热膨胀本征应变及其温度—力学 Jacobian 链，不把整个材料温度场改成
-单元常量，也不改变八点应变积分。二维轴对称 Quad4 和三维 HEX20 仍保留各自
-现有的积分点温度热膨胀离散。
+单元常量。二维轴对称 Quad4 和三维 HEX20 仍保留各自现有的积分点温度热膨胀
+离散。
+
+HEX8 小应变力学还采用 Abaqus C3D8T 的选择性减缩体积积分。先从八个积分点形成
+参考体积加权的单元平均应变迹：
+
+```text
+trace_average = sum_q(w_q*detJ_q*trace(strain_q)) / sum_q(w_q*detJ_q)
+```
+
+每个积分点保留原偏应变，只把三个正应变同时增加
+`(trace_average-trace(strain_q))/3`。因此偏应变仍在八点求值，而体积响应使用一个
+单元平均值。平均迹对节点位移的体积平均形函数梯度链以闭式形式加入 Jacobian，
+不扩大运动学宽度 10 或本构宽度 7 的自动微分。
 
 HEX8 瞬态热容同样遵循 Abaqus 一阶热单元的节点积分规则，但它与热膨胀的
 单元平均温度是两个独立口径。八个热容积分站位于自然坐标角点，与八个温度
@@ -299,8 +313,18 @@ R_capacity_i = detJ_corner_i * rho(T_i) * cp(T_i) * (T_i_new-T_i_old)/dt
 ```
 
 因此常数或温度相关体积热容都只产生对角的温度—温度热容 Jacobian。畸变单元
-使用各角点自己的参考构形 `detJ`，不把总单元体积简单平均八份。导热和体热源
-仍使用八点 Gauss 积分；RZ Quad4 与混合阶 HEX20 仍使用一致热容。
+使用各角点自己的参考构形 `detJ`，不把总单元体积简单平均八份。体热源仍使用
+参考构形八点 Gauss 积分；RZ Quad4 与混合阶 HEX20 仍使用一致热容。
+
+HEX8 导热的构形随应变形式变化。小应变使用参考构形；有限应变使用当前构形：
+
+```text
+R_conduction_i = integral_Vcurrent k(T)*grad_current(N_i).grad_current(T) dVcurrent
+```
+
+当前形函数梯度和当前体积测度都从试探变形梯度计算，所以有限应变热残量对位移
+具有非零几何 Jacobian。角点节点热容与体热源目前仍在参考构形积分；对流边界也
+仍使用参考表面。这些尚未由 Abaqus 探针识别的项不随本次导热构形修改扩张。
 
 ### 5.2 Norton 蠕变
 
@@ -419,12 +443,27 @@ g = (x_primary_mapped - x_secondary).n_primary_current
 竖直圆柱面只是该式的退化情况，此时
 `g=(R_primary+ur_primary)-(R_secondary+ur_secondary)`；实现没有独立圆柱分支。
 `g>0` 表示开放，`g<0` 表示穿透。构造时参考间隙恰好为零的贴合界面与机械
-接触共用第 8.1 节的材料侧拓扑法向。气隙导热定律是：
+接触共用第 8.1 节的材料侧拓扑法向。默认气隙导热定律是：
 
 ```text
 h_gap = k_gap / max(g, g_min)
 q_gap = h_gap * (T_secondary - T_primary)
 ```
+
+为对齐 Abaqus 的间隙导热表局部响应，也可以使用线性仿射定律：
+
+```text
+T_average = (T_secondary + T_primary) / 2
+p = penalty * max(-g, 0)
+h_gap = h_reference + h_g*g + h_p*p + h_T*(T_average - T_reference)
+q_gap = h_gap * (T_secondary - T_primary)
+```
+
+间隙、罚函数压力、两侧平均温度和表面测度都保留在 ADlite 自动微分链中，因而
+热残量对温度和位移的耦合块由同一个局部残量得到。非负且有限的 `h_gap` 是物理
+域条件，非法试探态会进入线搜索或时间步缩小重试。B5.20 逐列识别了 Abaqus 的
+这些局部导数；当前定律只代表表格中的一个线性单元，不包括任意表格的分段插值、
+外推和截断语义。
 
 `q_gap>0` 表示热量由 secondary 流向 primary。对 secondary 节点和 primary
 节点，残量分别加入：
@@ -797,8 +836,8 @@ max_pointwise_relative = max_i |x_i-x_ref_i|/|x_ref_i|
 | 稳态 RZ 体弱式 | `m0.steady` | 实心圆柱温度、自由热膨胀、厚壁圆筒和 MOOSE 全场 |
 | 无摩擦热—力接触 | `m1.contact`、`m33.contact` | 非匹配 STS/NTS、斜面、端面、多区域和 MOOSE 全场 |
 | HEX8 表面到面接触 | `b38.hex8_sts_identification`、`b39.hex8_sts_multicase`、`b40.hex8_sts_friction`、`b41.hex8_sts_finite_sliding`、`b42.hex8_sts_friction_objectivity`、`b43.hex8_sts_finite_strain` | Abaqus 约束识别、匹配与非匹配场量、倾斜初始间隙、双切向摩擦、有限滑移跨面、真实当前面积和法向演化、累计滑移、逐增量法向旋转、反向再粘着、客观历史、切线、事务、重启动和 MPI 等价 |
-| HEX8 热力体算子 | `b49.hex8_c3d8t_operator`、`b50.hex8_c3d8t_capacity`、`b51.hex8_c3d8t_finite_heat` | Abaqus C3D8T 的 32 自由度切线、八点非仿射应变及热流、逐列瞬态热容和有限变形后导热构形识别；HEX8 热膨胀采用八节点算术平均温度，瞬态热容采用角点节点积分，两者均与 Abaqus 一致；选择性减缩体积应变和当前构形导热仍是明确的离散差异 |
-| HEX8 热接触 | `b52.hex8_c3d8t_thermal_contact` | 固定间隙、恒定导热系数下两侧节点温度、反应热流、解析串联热阻、作用—反作用和 fuelsim 体单元—界面联合平衡 |
+| HEX8 热力体算子 | `b49.hex8_c3d8t_operator`、`b50.hex8_c3d8t_capacity`、`b51.hex8_c3d8t_finite_heat`、`b519.hex8_c3d8t_finite_selective` | Abaqus C3D8T 的 32 自由度切线、八点非仿射应变及热流、逐列瞬态热容、有限变形后导热构形和畸变有限应变选择性体积积分识别；热膨胀八节点平均温度、角点节点热容和有限应变当前构形导热均由生产内核复现；体热源、变形后热容及对流构形仍保持单独识别边界 |
+| HEX8 热接触 | `b52.hex8_c3d8t_thermal_contact`、`b520.hex8_c3d8t_gap_conductance`、`b521.hex8_c3d8t_thermal_contact_path`、`b522.hex8_c3d8t_faceted_thermal_contact` | Abaqus 固定间隙串联热阻，导热系数对间隙、压力和平均温度的局部导数，非匹配面的闭合、跨面滑移、开放和再接触，事务回滚、重启动、分布式等价，以及三分片曲面上的压力相关热流；B5.22 的机械矢量合力差异作为明确的 qualified 边界保留 |
 | Coulomb 摩擦 | `m51.friction` | 粘着、滑移、反向再粘着、局部切线、守恒和 MOOSE |
 | 完整链大滑移搜索 | `m52.large_sliding` | 跨多段所有权、力连续、MPI 等价、重启动和 MOOSE |
 | 自动罚刚度和增广法 | `m54.augmented_contact` | 串联刚度、乘子事务、穿透门槛和约束极限 MOOSE 对比 |

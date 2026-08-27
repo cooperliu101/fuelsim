@@ -183,6 +183,22 @@ std::array<adlite::Scalar, 4> active_temperature_values(const std::array<double,
     return result;
 }
 
+adlite::Scalar gap_conductance(const GapHeatProperties& properties, const adlite::Scalar& gap,
+    const adlite::Scalar& secondary_temperature, const adlite::Scalar& primary_temperature) {
+    if (properties.law == GapHeatConductanceLaw::gas_gap) {
+        const adlite::Scalar thermal_gap = adlite::max(gap, adlite::Scalar(properties.minimum_gap));
+        return properties.gap_conductivity / thermal_gap;
+    }
+    const adlite::Scalar pressure = adlite::max(-properties.contact_penalty * gap, adlite::Scalar(0.0));
+    const adlite::Scalar average_temperature = 0.5 * (secondary_temperature + primary_temperature);
+    const adlite::Scalar result =
+        properties.conductance + properties.clearance_derivative * gap + properties.pressure_derivative * pressure +
+        properties.temperature_derivative * (average_temperature - properties.reference_temperature);
+    if (!std::isfinite(result.value()) || result.value() < 0.0)
+        throw std::domain_error("HEX20 affine gap conductance must be finite and nonnegative");
+    return result;
+}
+
 struct HeatAdValue8 final {
     bool projected = false;
     std::array<adlite::Scalar, 4> primary_temperature_shape{};
@@ -207,9 +223,9 @@ HeatAdValue8 evaluate_heat(const GapHeatProperties& properties, const Quad8ToQua
         primary_temperature += primary_temperature_shape[node] * state[4 + node];
     const adlite::Scalar secondary_temperature =
         temperature(state, 0, active_temperature_values(geometry.secondary_temperature_shape));
-    const adlite::Scalar thermal_gap = adlite::max(projection.gap, adlite::Scalar(properties.minimum_gap));
     const adlite::Scalar heat_flux =
-        properties.gap_conductivity / thermal_gap * (secondary_temperature - primary_temperature);
+        gap_conductance(properties, projection.gap, secondary_temperature, primary_temperature) *
+        (secondary_temperature - primary_temperature);
     const adlite::Scalar measure = current_surface_measure(
         nodes, active_values(geometry.secondary_derivative_xi), active_values(geometry.secondary_derivative_eta), 0);
     return {true, primary_temperature_shape, projection.gap, heat_flux, measure * geometry.quadrature_weight};

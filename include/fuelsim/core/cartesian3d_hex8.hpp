@@ -40,17 +40,23 @@ struct Hex8CapacityPoint final {
 struct Hex8Geometry final {
     std::array<Hex8QuadraturePoint, 8> points;
     std::array<Hex8CapacityPoint, hex8_node_count> capacity_points;
+    std::array<std::array<double, 3>, hex8_node_count> average_shape_gradient;
+    CartesianPoint3 selective_position;
+    double reference_volume;
 };
 
 struct Quad4FaceQuadraturePoint final {
     std::array<double, quad4_face_node_count> shape;
     std::array<double, quad4_face_node_count> derivative_xi, derivative_eta;
     CartesianPoint3 tangent_xi, tangent_eta;
+    std::array<double, quad4_face_node_count> normal_derivative_xi, normal_derivative_eta;
+    CartesianPoint3 normal_tangent_xi, normal_tangent_eta;
     double weighted_measure;
 };
 
 struct Quad4FaceGeometry final {
     std::array<Quad4FaceQuadraturePoint, 4> points;
+    std::array<Quad4FaceQuadraturePoint, 4> thermal_points;
 };
 
 Hex8Geometry make_hex8_geometry(const Hex8Coordinates& coordinates);
@@ -89,7 +95,7 @@ CartesianMaterialHistory compute_hex8_transient_update(const CartesianThermoelas
 std::array<SymmetricTensor3Values, 8> compute_hex8_stress(
     const CartesianThermoelasticData& data, const Hex8Geometry& geometry, const Hex8LocalValues& state);
 enum class CartesianTractionComponent { x, y, z };
-enum class Quad4FaceBoundaryKind { pressure, traction, convection };
+enum class Quad4FaceBoundaryKind { pressure, traction, surface_heat_flux, convection };
 
 struct Quad4FaceBoundaryData final {
     Quad4FaceBoundaryKind kind;

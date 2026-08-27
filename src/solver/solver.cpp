@@ -574,7 +574,6 @@ PetscErrorCode assemble_callback(SNES snes, Vec state, Vec residual, Mat jacobia
         std::size_t& callback_evaluations =
             linearize ? context.timing.jacobian_evaluations : context.timing.residual_evaluations;
         if (!linearize) context.last_function_domain_error = false;
-        context.last_domain_error.clear();
         const NonlinearProblem& problem = *context.problem;
         PetscCall(gather_state(state, context));
         if (linearize)

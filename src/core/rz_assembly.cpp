@@ -479,6 +479,8 @@ void SpatialAssembly::build_boundaries(const UnstructuredQuad4Mesh& source_mesh)
                 spatial_detail::controlled_value(_definition, _time, _load_factor, definition.value,
                     definition.scale_with_load, definition.function),
                 0.0, boundary_uses_displaced_geometry(definition, region(resolved.region))});
+        } else if (definition.type == BoundaryConditionType::heat_flux) {
+            throw std::invalid_argument("Axisymmetric surface heat flux is not implemented");
         } else {
             type = SpatialContributionType::convection;
             _boundary_data.push_back({Line2RzBoundaryKind::convection, TractionComponent::radial,
@@ -1307,6 +1309,7 @@ LocalDofs SpatialAssembly::contribution_dofs(std::size_t index) const {
         return local_dofs(_mechanical_contributions.at(_mechanical_active_candidates.at(entry.local_index)).nodes);
     case SpatialContributionType::pressure:
     case SpatialContributionType::traction:
+    case SpatialContributionType::heat_flux:
     case SpatialContributionType::convection: return local_dofs(_boundary_contributions.at(entry.local_index).nodes);
     }
     throw std::logic_error("SpatialAssembly contribution type is invalid");
@@ -1349,6 +1352,7 @@ LocalResidual SpatialAssembly::compute_contribution(
     }
     case SpatialContributionType::pressure:
     case SpatialContributionType::traction:
+    case SpatialContributionType::heat_flux:
     case SpatialContributionType::convection: {
         const BoundaryContribution& entry = _boundary_contributions.at(location.local_index);
         return compute_line2_rz_boundary(_boundary_data[entry.kernel], entry.geometry, state, jacobian);
@@ -1408,7 +1412,14 @@ void SpatialAssembly::build_contacts(const UnstructuredQuad4Mesh& source_mesh) {
                     "Automatic contact penalty is not finite and positive: " + contact_definition.name);
         }
         _thermal_properties.push_back({contact_definition.thermal ? contact_definition.gap_conductivity : 1.0,
-            contact_definition.thermal ? contact_definition.minimum_gap : 1.0});
+            contact_definition.thermal ? contact_definition.minimum_gap : 1.0,
+            contact_definition.thermal ? contact_definition.gap_heat_conductance_law : GapHeatConductanceLaw::gas_gap,
+            contact_definition.thermal ? contact_definition.gap_conductance : 0.0,
+            contact_definition.thermal ? contact_definition.gap_conductance_clearance_derivative : 0.0,
+            contact_definition.thermal ? contact_definition.gap_conductance_pressure_derivative : 0.0,
+            contact_definition.thermal ? contact_definition.gap_conductance_temperature_derivative : 0.0,
+            contact_definition.thermal ? contact_definition.gap_conductance_reference_temperature : 0.0,
+            contact_definition.mechanical ? contact_definition.penalty : 0.0});
         _mechanical_properties.push_back({contact_definition.mechanical ? contact_definition.penalty : 1.0,
             contact_definition.mechanical ? contact_definition.friction_coefficient : 0.0,
             contact_definition.mechanical &&

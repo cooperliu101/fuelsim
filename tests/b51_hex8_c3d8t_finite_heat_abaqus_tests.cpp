@@ -134,7 +134,6 @@ int main(int argc, char** argv) {
             abaqus_hot_reaction += nodal[node].reaction_heat_flux;
             fuelsim_hot_reaction += fuelsim_residual[node];
         }
-        constexpr double reference_heat_rate = 4.0 * 1.0 / 1.0 * 100.0;
         constexpr double current_heat_rate = 4.0 * (1.25 * 0.8) / 1.5 * 100.0;
         constexpr double current_heat_flux = -4.0 * 100.0 / 1.5;
         double heat_flux_maximum_difference = 0.0, transverse_heat_flux_maximum = 0.0;
@@ -145,13 +144,13 @@ int main(int argc, char** argv) {
                 std::max({transverse_heat_flux_maximum, std::abs(point.heat_flux.y), std::abs(point.heat_flux.z)});
         }
         const double abaqus_current_error = relative_error(abaqus_hot_reaction, current_heat_rate);
-        const double fuelsim_reference_error = relative_error(fuelsim_hot_reaction, reference_heat_rate);
-        const double production_difference = relative_error(fuelsim_hot_reaction, abaqus_hot_reaction);
+        const double fuelsim_current_error = relative_error(fuelsim_hot_reaction, current_heat_rate);
+        const double production_error = relative_error(fuelsim_hot_reaction, abaqus_hot_reaction);
         std::cout << "b51_current_coordinate_maximum_difference=" << coordinate_maximum_difference << '\n'
                   << "b51_displacement_maximum_difference=" << displacement_maximum_difference << '\n'
                   << "b51_abaqus_current_configuration_heat_rate_relative_error=" << abaqus_current_error << '\n'
-                  << "b51_fuelsim_reference_configuration_heat_rate_relative_error=" << fuelsim_reference_error << '\n'
-                  << "b51_production_heat_rate_relative_difference=" << production_difference << '\n'
+                  << "b51_fuelsim_current_configuration_heat_rate_relative_error=" << fuelsim_current_error << '\n'
+                  << "b51_production_heat_rate_relative_error=" << production_error << '\n'
                   << "b51_abaqus_heat_flux_maximum_difference=" << heat_flux_maximum_difference << '\n'
                   << "b51_abaqus_transverse_heat_flux_maximum=" << transverse_heat_flux_maximum << '\n';
 
@@ -163,11 +162,10 @@ int main(int argc, char** argv) {
                            transverse_heat_flux_maximum < 1.0e-10,
                      "Abaqus C3D8T evaluates conductivity on the current element dimensions") &&
                  passed;
-        passed = check(fuelsim_reference_error < 1.0e-13,
-                     "fuelsim finite-strain HEX8 retains reference-configuration heat conduction") &&
+        passed = check(fuelsim_current_error < 1.0e-7,
+                     "fuelsim finite-strain HEX8 evaluates conductivity on the current element dimensions") &&
                  passed;
-        passed = check(production_difference > 0.49 && production_difference < 0.51,
-                     "the stretched-gradient probe exposes the finite-strain heat-configuration difference") &&
+        passed = check(production_error < 1.0e-7, "fuelsim production finite-strain heat rate matches Abaqus C3D8T") &&
                  passed;
         if (passed) std::cout << "[PASS] B5.1 Abaqus C3D8T finite-deformation heat identification\n";
         return passed ? 0 : 1;

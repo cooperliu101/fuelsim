@@ -276,6 +276,54 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
     if (console_position == std::string::npos) return check(false, "steady fixture has the expected console key");
     unknown_key_case.replace(console_position, console.size(), "mystery = true");
     passed = expect_case_failure(malformed_path, unknown_key_case, "unknown key 'mystery'") && passed;
+    std::string affine_gap_heat_case = read_text(steady_path);
+    const std::string gas_gap_properties = "      gap_conductivity = 0.4\n      minimum_gap = 1e-6";
+    const std::size_t gas_gap_position = affine_gap_heat_case.find(gas_gap_properties);
+    if (gas_gap_position == std::string::npos)
+        return check(false, "steady fixture has the gas-gap thermal contact properties");
+    affine_gap_heat_case.replace(gas_gap_position, gas_gap_properties.size(),
+        "      law = affine\n"
+        "      conductance = 50\n"
+        "      clearance_derivative = -1000\n"
+        "      pressure_derivative = 2e-6\n"
+        "      temperature_derivative = 0.1\n"
+        "      reference_temperature = 350");
+    {
+        std::ofstream output(malformed_path, std::ios::out | std::ios::trunc);
+        if (!output) return check(false, "could not create affine gap-conductance input fixture");
+        output << affine_gap_heat_case;
+    }
+    const fuelsim::FuelSimCaseDefinition affine_gap_heat = fuelsim::read_case_input(malformed_path);
+    const fuelsim::ContactDefinition& affine_contact = affine_gap_heat.spatial.contacts.at(0);
+    passed = check(affine_contact.gap_heat_conductance_law == fuelsim::GapHeatConductanceLaw::affine &&
+                       affine_contact.gap_conductance == 50.0 &&
+                       affine_contact.gap_conductance_clearance_derivative == -1000.0 &&
+                       affine_contact.gap_conductance_pressure_derivative == 2.0e-6 &&
+                       affine_contact.gap_conductance_temperature_derivative == 0.1 &&
+                       affine_contact.gap_conductance_reference_temperature == 350.0,
+                 "affine clearance-, pressure-, and temperature-dependent gap conductance is parsed") &&
+             passed;
+    if (std::remove(malformed_path.c_str()) != 0)
+        return check(false, "could not remove affine gap-conductance input fixture");
+    std::string pressure_without_mechanical = affine_gap_heat_case;
+    const std::string mechanical_contact = "    [mechanical]\n"
+                                           "      formulation = penalty\n"
+                                           "      penalty = 1e14\n"
+                                           "    []\n";
+    const std::size_t mechanical_contact_position = pressure_without_mechanical.find(mechanical_contact);
+    if (mechanical_contact_position == std::string::npos)
+        return check(false, "affine gap-conductance fixture has the mechanical contact section");
+    pressure_without_mechanical.erase(mechanical_contact_position, mechanical_contact.size());
+    passed = expect_case_failure(malformed_path, pressure_without_mechanical,
+                 "pressure-dependent thermal contact requires a mechanical contact definition") &&
+             passed;
+    std::string pressure_with_augmented_contact = affine_gap_heat_case;
+    const std::string penalty_formulation_for_affine = "formulation = penalty";
+    pressure_with_augmented_contact.replace(pressure_with_augmented_contact.find(penalty_formulation_for_affine),
+        penalty_formulation_for_affine.size(), "formulation = augmented_lagrangian");
+    passed = expect_case_failure(malformed_path, pressure_with_augmented_contact,
+                 "pressure-dependent thermal contact requires formulation = penalty") &&
+             passed;
     std::string friction_case = read_text(steady_path);
     const std::string contact_penalty = "penalty = 1e14";
     const std::size_t contact_penalty_position = friction_case.find(contact_penalty);

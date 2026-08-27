@@ -29,6 +29,7 @@
   [meat]
     block = meat
     strain = SMALL
+    volumetric_locking_correction = true
     incremental = true
     add_variables = true
     temperature = T
@@ -39,6 +40,7 @@
   [clad]
     block = clad
     strain = SMALL
+    volumetric_locking_correction = true
     incremental = true
     add_variables = true
     temperature = T

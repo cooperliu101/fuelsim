@@ -18,6 +18,7 @@
       [meat]
         block = meat
         strain = SMALL
+        volumetric_locking_correction = true
         add_variables = true
         temperature = T
         eigenstrain_names = meat_thermal_strain
@@ -26,6 +27,7 @@
       [clad]
         block = clad
         strain = SMALL
+        volumetric_locking_correction = true
         add_variables = true
         temperature = T
         eigenstrain_names = clad_thermal_strain
