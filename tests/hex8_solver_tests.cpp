@@ -475,7 +475,7 @@ bool test_surface_contact_finite_sliding() {
         contact.mechanical = true;
         contact.penalty = 1.0e8;
         contact.friction_coefficient = 0.2;
-        contact.friction_elastic_slip = 1.0e-5;
+        contact.friction_slip_tolerance = 1.0e-5;
         contact.mechanical_discretization = fuelsim::MechanicalContactDiscretization::surface_to_surface;
         contact.mechanical_sliding = fuelsim::MechanicalContactSliding::finite;
         definition.contacts.push_back(contact);
@@ -662,7 +662,7 @@ bool test_finite_sliding_end_to_end() {
         contact.mechanical = true;
         contact.penalty = 1.0e8;
         contact.friction_coefficient = 0.2;
-        contact.friction_elastic_slip = 1.0e-5;
+        contact.friction_slip_tolerance = 1.0e-5;
         contact.mechanical_discretization = fuelsim::MechanicalContactDiscretization::surface_to_surface;
         contact.mechanical_sliding = fuelsim::MechanicalContactSliding::finite;
         spatial.contacts.push_back(contact);

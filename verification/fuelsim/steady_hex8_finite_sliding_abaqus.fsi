@@ -52,7 +52,7 @@
       sliding = finite
       penalty = 1e5
       mu = 0.5
-      elastic_slip = 1e-4
+      slip_tolerance = 1e-4
     []
   []
 []

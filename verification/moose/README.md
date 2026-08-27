@@ -35,7 +35,7 @@ files.
 | B3.5 shared meat-cladding HEX8 | `b35_hex8_shared_meat_clad_mesh.e` | 12 / 2 HEX8 | `fb654f61edd322846a19c6227c9060fb879bf57ba35c02ece57558fadf5dd236` |
 | B3.6 shared-node fuel plate | `b36_plate_meat_clad_mesh.e` | 455 / 288 HEX8 | `fc65a9a839bfde4625d3f28411335a89fa0123c3e91eac50ad72aac27202077c` |
 | B3.3 HEX8 coupled contact | `b33_hex8_contact_mesh.e` | 16 / 2 HEX8 | `e710f3add10b71478f786521af44cde8ff3fb81d4becf1fbab1266955ba43cf7` |
-| B3.4 HEX8 sliding friction | `b34_hex8_sliding_contact_mesh.e` | 16 / 2 HEX8 | `d9ec3f16dd1c836f88e4cdf21195b47cb8766e34e97415cd84fb94b1ea48e2f6` |
+| B3.4 shared HEX8 mesh fixture | `b34_hex8_sliding_contact_mesh.e` | 16 / 2 HEX8 | `d9ec3f16dd1c836f88e4cdf21195b47cb8766e34e97415cd84fb94b1ea48e2f6` |
 | B3.7 HEX8 nonmatching two-pair friction | `b37_hex8_multi_contact_mesh.e` | 40 / 6 HEX8 | `c2d1610df6f29148fdc373df5e1e257c7a432ac2114fd9b27c283965685da5b3` |
 | B6 HEX20-U2/T1 thermoelasticity | `b6_hex20_u2_t1.e` | 20 / 1 HEX20 | `95fa67b7b03777f65bd3ace9911d247d16e41c904faad994a24ed811e1bf3c6f` |
 | H20.16--19 HEX20 contact | `h20_16_hex20_contact_mesh.e` | 40 / 2 HEX20 | `a2eeb7668f97df9d3f77504c8b97582ab97d5bade2de0aa8cfc9971ff9d58e4e` |
@@ -437,19 +437,10 @@ thermal conservation even though MOOSE integrates its two thermal-contact
 sides independently on the slightly different face areas.
 
 `b34_hex8_sliding_contact_mesh.e` narrows the tangential projection margin to
-21 micrometres on each y edge. `b34_hex8_sliding_contact.i` isolates a single
-full load step with coefficient 0.001 so that the Coulomb sliding branch is
-active without crossing the face boundary. Fuelsim uses its Abaqus-identified
-small-sliding surface-to-surface averaged constraint for this path. The normal
-resultant differs from the MOOSE prescribed-boundary reaction by
-`4.88483e-5` percent. After MOOSE volumetric-locking correction was enabled to
-match the C3D8T selective-volume operator, the MOOSE tangential boundary
-reaction is `0.0786647 N`, while the Fuelsim contact resultant reaches the
-Coulomb cap at `0.0997100 N`; the resulting `26.7531%` discrepancy is retained
-as an explicit `28%` qualified MOOSE boundary. Abaqus friction tests B4.0 and
-B4.5 remain the primary acceptance evidence for the production averaged
-friction operator. The same B3.4 test checks exact restart of the
-three-component friction history.
+21 micrometres on each y edge. Only this mesh fixture and its generator remain
+under `verification/moose`; B3.4 no longer uses a MOOSE result as its acceptance
+reference. The deformable sliding-contact fields, resultants, and restart are
+now compared directly with Abaqus R2018x under `verification/abaqus`.
 
 `b37_hex8_multi_contact_mesh.e` contains four independent HEX8 blocks and two
 separate primary-secondary pairs. The first pair uses two primary contact-face
@@ -475,7 +466,6 @@ The reference commands were:
 ```bash
 /home/cooper/projects/july/july-opt -i b33_hex8_thermal_contact.i
 /home/cooper/projects/july/july-opt -i b33_hex8_contact.i
-/home/cooper/projects/july/july-opt -i b34_hex8_sliding_contact.i
 /home/cooper/projects/july/july-opt -i b37_hex8_multi_contact.i
 ```
 

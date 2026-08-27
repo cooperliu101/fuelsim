@@ -127,7 +127,7 @@ fuelsim::SpatialDefinition definition() {
     contact.minimum_gap = 1.0;
     contact.penalty = 1.0e5;
     contact.friction_coefficient = 0.3;
-    contact.friction_elastic_slip = 0.02;
+    contact.friction_slip_tolerance = 0.025;
     contact.mechanical_discretization = fuelsim::MechanicalContactDiscretization::surface_to_surface;
     contact.mechanical_sliding = fuelsim::MechanicalContactSliding::finite;
     contact.gap_heat_conductance_law = fuelsim::GapHeatConductanceLaw::affine;

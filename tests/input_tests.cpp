@@ -348,7 +348,7 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
              passed;
     std::string surface_contact_case = friction_case;
     surface_contact_case.insert(surface_contact_case.find(contact_penalty) + contact_penalty.size(),
-        "\n      discretization = surface_to_surface\n      sliding = finite\n      elastic_slip = 1e-8");
+        "\n      discretization = surface_to_surface\n      sliding = finite\n      slip_tolerance = 1e-8");
     {
         std::ofstream output(malformed_path, std::ios::out | std::ios::trunc);
         if (!output) return check(false, "could not create surface-contact input fixture");
@@ -359,8 +359,8 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
         check(surface_contact.spatial.contacts[0].mechanical_discretization ==
                       fuelsim::MechanicalContactDiscretization::surface_to_surface &&
                   surface_contact.spatial.contacts[0].mechanical_sliding == fuelsim::MechanicalContactSliding::finite &&
-                  surface_contact.spatial.contacts[0].friction_elastic_slip == 1.0e-8,
-            "the explicit finite-sliding surface discretization and absolute elastic slip are parsed") &&
+                  surface_contact.spatial.contacts[0].friction_slip_tolerance == 1.0e-8,
+            "the explicit finite-sliding surface discretization and relative slip tolerance are parsed") &&
         passed;
     std::string invalid_sliding_case = surface_contact_case;
     invalid_sliding_case.replace(invalid_sliding_case.find("finite"), 6, "arbitrary");
@@ -372,18 +372,18 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
     passed = expect_case_failure(
                  malformed_path, node_sliding_case, "sliding applies only to discretization = surface_to_surface") &&
              passed;
-    std::string missing_friction_elastic_slip_case = read_text(steady_path);
-    missing_friction_elastic_slip_case.insert(
-        missing_friction_elastic_slip_case.find(contact_penalty) + contact_penalty.size(),
-        "\n      elastic_slip = 1e-8");
+    std::string missing_friction_slip_tolerance_case = read_text(steady_path);
+    missing_friction_slip_tolerance_case.insert(
+        missing_friction_slip_tolerance_case.find(contact_penalty) + contact_penalty.size(),
+        "\n      slip_tolerance = 1e-8");
     passed = expect_case_failure(
-                 malformed_path, missing_friction_elastic_slip_case, "elastic_slip requires a positive mu") &&
+                 malformed_path, missing_friction_slip_tolerance_case, "slip_tolerance requires a positive mu") &&
              passed;
-    std::string negative_elastic_slip_case = friction_case;
-    negative_elastic_slip_case.insert(
-        negative_elastic_slip_case.find(contact_penalty) + contact_penalty.size(), "\n      elastic_slip = -1e-8");
-    passed =
-        expect_case_failure(malformed_path, negative_elastic_slip_case, "elastic_slip must be nonnegative") && passed;
+    std::string negative_slip_tolerance_case = friction_case;
+    negative_slip_tolerance_case.insert(
+        negative_slip_tolerance_case.find(contact_penalty) + contact_penalty.size(), "\n      slip_tolerance = -1e-8");
+    passed = expect_case_failure(malformed_path, negative_slip_tolerance_case, "slip_tolerance must be nonnegative") &&
+             passed;
     std::string invalid_surface_area_case = surface_contact_case;
     invalid_surface_area_case.insert(invalid_surface_area_case.find(contact_penalty) + contact_penalty.size(),
         "\n      quad8_nodal_area_rule = consistent_shape");

@@ -99,7 +99,7 @@
       sliding = finite
       penalty = 1e5
       mu = 0.3
-      elastic_slip = 0.02
+      slip_tolerance = 0.025
     []
   []
   [pair_b]
@@ -111,7 +111,7 @@
       sliding = finite
       penalty = 1e5
       mu = 0.5
-      elastic_slip = 0.02
+      slip_tolerance = 0.025
     []
   []
 []

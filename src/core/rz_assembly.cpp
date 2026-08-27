@@ -1388,9 +1388,10 @@ void SpatialAssembly::build_contacts(const UnstructuredQuad4Mesh& source_mesh) {
         ResolvedBoundary secondary = resolve_boundary(source_mesh, contact_definition.secondary);
         if (primary.region == secondary.region)
             throw std::invalid_argument("Self-contact is not supported: " + contact_definition.name);
-        if (contact_definition.friction_elastic_slip > 0.0)
+        if (contact_definition.friction_slip_tolerance > 0.0)
             throw std::invalid_argument(
-                "elastic_slip currently requires HEX20 surface_to_surface contact: " + contact_definition.name);
+                "slip_tolerance currently requires three-dimensional surface_to_surface contact: " +
+                contact_definition.name);
         const RegionMesh &primary_mesh = _meshes[primary.region], &secondary_mesh = _meshes[secondary.region];
         primary.boundary =
             ordered_connected_boundary(primary_mesh, std::move(primary.boundary), contact_definition.primary);

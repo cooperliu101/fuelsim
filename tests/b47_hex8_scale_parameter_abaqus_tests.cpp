@@ -14,6 +14,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -205,7 +206,7 @@ fuelsim::SpatialDefinition definition(const CaseSpec& spec) {
     contact.mechanical = true;
     contact.penalty = spec.penalty;
     contact.friction_coefficient = spec.friction;
-    contact.friction_elastic_slip = elastic_slip(spec);
+    contact.friction_slip_tolerance = spec.slip_tolerance;
     contact.mechanical_discretization = fuelsim::MechanicalContactDiscretization::surface_to_surface;
     contact.mechanical_sliding = fuelsim::MechanicalContactSliding::small;
     result.contacts.push_back(contact);
@@ -380,6 +381,25 @@ bool compare_case(
                "B4.7 " + spec.name + " sticking and sliding Jacobians match centered differences") &&
            check(balance_error < 1.0e-8, "B4.7 " + spec.name + " preserves three-component action-reaction");
 }
+
+bool check_default_slip_tolerance() {
+    CaseSpec spec = specs().front();
+    spec.slip_tolerance = 5.0e-3;
+    const fuelsim::UnstructuredHex8Mesh generated = mesh(spec);
+    fuelsim::SpatialDefinition explicit_definition = definition(spec);
+    fuelsim::SpatialDefinition default_definition = explicit_definition;
+    default_definition.contacts[0].friction_slip_tolerance = 0.0;
+    fuelsim::SteadyProblem explicit_problem(std::move(explicit_definition), generated);
+    fuelsim::SteadyProblem default_problem(std::move(default_definition), generated);
+    const std::vector<double> explicit_state = state_for_step(explicit_problem, spec, 1);
+    const std::vector<double> default_state = state_for_step(default_problem, spec, 1);
+    const std::vector<double> explicit_residual =
+        contact_residual(fuelsim::cartesian::ProblemAccess::view(explicit_problem), explicit_state, nullptr);
+    const std::vector<double> default_residual =
+        contact_residual(fuelsim::cartesian::ProblemAccess::view(default_problem), default_state, nullptr);
+    return check(explicit_state == default_state && explicit_residual == default_residual,
+        "B4.7 omitted surface-friction slip_tolerance equals the Abaqus default 0.005");
+}
 } // namespace
 
 int main(int argc, char** argv) {
@@ -407,6 +427,7 @@ int main(int argc, char** argv) {
                            cases[3].primary_modulus / cases[3].secondary_modulus == maximum_ratio,
                      "B4.7 decks span material-stiffness ratios from 0.1 to 100") &&
                  passed;
+        passed = check_default_slip_tolerance() && passed;
         if (passed) std::cout << "[PASS] B4.7 HEX8 scale and contact-parameter matrix\n";
         return passed ? 0 : 1;
     } catch (const std::exception& error) {

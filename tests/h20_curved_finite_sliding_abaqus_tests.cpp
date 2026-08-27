@@ -269,7 +269,7 @@ fuelsim::SpatialDefinition definition(fuelsim::StrainFormulation strain) {
     contact.mechanical = true;
     contact.penalty = 1.0e6;
     contact.friction_coefficient = 0.5;
-    contact.friction_elastic_slip = 1.0e-4;
+    contact.friction_slip_tolerance = 1.0e-4;
     contact.mechanical_discretization = fuelsim::MechanicalContactDiscretization::surface_to_surface;
     contact.mechanical_sliding = fuelsim::MechanicalContactSliding::finite;
     result.contacts.push_back(contact);

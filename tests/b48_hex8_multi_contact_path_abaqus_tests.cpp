@@ -218,7 +218,7 @@ void write_fsi(const std::string& output_path) {
                << "_contact\n    secondary = secondary_" << letter << "_contact\n"
                << "    [mechanical]\n      formulation = penalty\n      discretization = surface_to_surface\n"
                << "      sliding = finite\n      penalty = 1e5\n      mu = " << friction[pair]
-               << "\n      elastic_slip = " << elastic_slip << "\n    []\n  []\n";
+               << "\n      slip_tolerance = 0.025\n    []\n  []\n";
     }
     output << "[]\n\n[BoundaryConditions]\n";
     for (const std::string& region :

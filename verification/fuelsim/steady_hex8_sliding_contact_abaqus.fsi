@@ -65,6 +65,7 @@
       sliding = small
       penalty = 1e13
       mu = 0.001
+      slip_tolerance = 1e-8
     []
   []
 []

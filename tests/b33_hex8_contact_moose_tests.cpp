@@ -1,5 +1,4 @@
 #include "fuelsim/io/case_input.hpp"
-#include "fuelsim/io/checkpoint.hpp"
 #include "fuelsim/io/results_io.hpp"
 #include "fuelsim/solver/solve_workflows.hpp"
 #include "support/cartesian3d_problem_access.hpp"
@@ -26,11 +25,6 @@ struct ContactReference final {
     std::size_t id;
     fuelsim::CartesianPoint3 point;
     double pressure;
-};
-
-struct ReactionReference final {
-    double normal_force;
-    double tangential_force;
 };
 
 bool check(bool condition, const std::string& message) {
@@ -104,21 +98,6 @@ std::vector<ContactReference> read_contact(const std::string& path) {
             {number(values, 4, path), number(values, 5, path), number(values, 6, path)}, number(values, 0, path)});
     }
     return result;
-}
-
-ReactionReference read_final_reaction(const std::string& path) {
-    std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read three-dimensional sliding-contact reactions: " + path);
-    std::string line;
-    std::getline(input, line);
-    if (line != "time,reaction_x,reaction_y,reaction_z")
-        throw std::invalid_argument("Unexpected three-dimensional reaction header in " + path);
-    std::vector<std::string> final_values;
-    while (std::getline(input, line)) final_values = split_csv(line);
-    if (final_values.empty() || std::abs(number(final_values, 0, path) - 1.0) > 1.0e-12)
-        throw std::invalid_argument("Three-dimensional reaction reference does not end at unit load");
-    return {std::abs(number(final_values, 1, path)),
-        std::hypot(number(final_values, 2, path), number(final_values, 3, path))};
 }
 
 std::array<fuelsim::test::FieldErrorMetrics, 4> compare_nodes(const fuelsim::UnstructuredHex8Mesh& mesh,
@@ -260,122 +239,19 @@ bool run(const std::string& input_path, const std::string& thermal_path, const s
     return passed;
 }
 
-bool run_sliding(const std::string& input_path, const std::string& reaction_path) {
-    const fuelsim::FuelSimCaseDefinition definition = fuelsim::read_case_input(input_path);
-    if (definition.problem != fuelsim::CaseProblem::steady ||
-        definition.geometry != fuelsim::CaseGeometry::cartesian_3d || definition.spatial.contacts.size() != 1 ||
-        definition.spatial.contacts[0].thermal || !definition.spatial.contacts[0].mechanical ||
-        definition.spatial.contacts[0].friction_coefficient != 0.001 ||
-        definition.spatial.contacts[0].mechanical_discretization !=
-            fuelsim::MechanicalContactDiscretization::surface_to_surface ||
-        definition.spatial.contacts[0].mechanical_sliding != fuelsim::MechanicalContactSliding::small)
-        throw std::invalid_argument(
-            "B3.4 comparison requires isolated three-dimensional small-sliding surface contact with friction");
-    const fuelsim::UnstructuredHex8Mesh source = fuelsim::read_exodus_hex8(definition.mesh_file);
-    fuelsim::SteadyProblem problem(definition.spatial, source);
-    const fuelsim::SolverOptions options = {definition.solver.absolute_tolerance, definition.solver.relative_tolerance,
-        definition.solver.step_tolerance, definition.solver.maximum_iterations};
-    const fuelsim::SteadyResult solve = fuelsim::solve_steady(problem,
-        {definition.steady_execution.load_steps, definition.steady_execution.cutback_factor,
-            definition.steady_execution.maximum_cutbacks_per_step, definition.steady_execution.minimum_load_increment},
-        options);
-    bool passed = check(solve.completed && solve.solve.converged && solve.completed_steps == 1,
-        "B3.4 sliding-friction path completes one full load step");
-    const std::vector<fuelsim::CartesianContactNodeSummary> contact =
-        fuelsim::cartesian::ProblemAccess::summarize_contact_nodes(problem, 0, solve.solve.state);
-    const fuelsim::InterfaceSummary interface =
-        fuelsim::cartesian::ProblemAccess::summarize_interface(problem, 0, solve.solve.state);
-    std::size_t active = 0;
-    std::size_t sliding = 0;
-    for (const auto& node : contact) {
-        if (!(node.pressure > 0.0)) continue;
-        ++active;
-        if (node.sliding) ++sliding;
-    }
-    const ReactionReference reference = read_final_reaction(reaction_path);
-    const double normal_error =
-        std::abs(interface.total_contact_force - reference.normal_force) / reference.normal_force;
-    const double tangential_error =
-        std::abs(interface.total_tangential_force - reference.tangential_force) / reference.tangential_force;
-    constexpr double tolerance = 5.0e-3, qualified_tangential_tolerance = 2.8e-1;
-    passed = check(active == 4 && sliding > 0 && interface.active_contact_nodes == 4,
-                 "B3.4 keeps four active projected nodes and activates the Coulomb sliding branch") &&
-             check(normal_error < tolerance, "B3.4 normal resultant agrees with MOOSE below 0.5 percent") &&
-             check(tangential_error < qualified_tangential_tolerance,
-                 "B3.4 Abaqus-style averaged friction stays within the recorded 28 percent MOOSE qualification") &&
-             check(std::abs(interface.total_tangential_force -
-                            definition.spatial.contacts[0].friction_coefficient * interface.total_contact_force) <
-                       1.0e-12 * interface.total_contact_force,
-                 "B3.4 sliding resultant reaches the Coulomb cap") &&
-             passed;
-    std::cout << "b34_active_contact_nodes=" << active << '\n'
-              << "b34_sliding_contact_nodes=" << sliding << '\n'
-              << "b34_normal_resultant_relative_error=" << normal_error << '\n'
-              << "b34_tangential_resultant_relative_error=" << tangential_error << '\n';
-    return passed;
-}
-
-bool run_sliding_restart(const std::string& input_path, const std::string& checkpoint_path) {
-    const fuelsim::FuelSimCaseDefinition definition = fuelsim::read_case_input(input_path);
-    const fuelsim::UnstructuredHex8Mesh source = fuelsim::read_exodus_hex8(definition.mesh_file);
-    fuelsim::TransientProblem problem(definition.spatial, source);
-    const fuelsim::SolverOptions options = {definition.solver.absolute_tolerance, definition.solver.relative_tolerance,
-        definition.solver.step_tolerance, definition.solver.maximum_iterations};
-    const fuelsim::TransientResult solve =
-        fuelsim::solve_transient(problem, {1.0, 1.0, 1.0, 1.0, 1.0, 0.5, 0, 0.0}, options);
-    bool passed = check(solve.completed && solve.accepted_steps.size() == 1,
-        "B3.4 transient sliding state commits one physical time step");
-    const auto histories = fuelsim::cartesian::ProblemAccess::committed_contact_histories(problem);
-    std::size_t sliding = 0;
-    double maximum_slip = 0.0;
-    for (const fuelsim::ContactPointHistory& history : histories.at(0)) {
-        if (history.sliding) ++sliding;
-        maximum_slip = std::max(maximum_slip, std::hypot(history.cartesian_elastic_tangential_slip[0],
-                                                  std::hypot(history.cartesian_elastic_tangential_slip[1],
-                                                      history.cartesian_elastic_tangential_slip[2])));
-    }
-    passed = check(sliding > 0 && maximum_slip > 0.0,
-                 "B3.4 transient commit stores active three-component friction history") &&
-             passed;
-    fuelsim::write_transient_checkpoint(checkpoint_path, problem, 0.25);
-    fuelsim::TransientProblem restored(definition.spatial, source);
-    const double next_time_step = fuelsim::restore_transient_checkpoint(checkpoint_path, restored);
-    const auto& restored_histories = fuelsim::cartesian::ProblemAccess::committed_contact_histories(restored);
-    bool histories_match = restored_histories.size() == histories.size();
-    for (std::size_t contact = 0; histories_match && contact < histories.size(); ++contact) {
-        histories_match = restored_histories[contact].size() == histories[contact].size();
-        for (std::size_t point = 0; histories_match && point < histories[contact].size(); ++point) {
-            const fuelsim::ContactPointHistory& actual = restored_histories[contact][point];
-            const fuelsim::ContactPointHistory& expected = histories[contact][point];
-            histories_match = actual.elastic_tangential_slip == expected.elastic_tangential_slip &&
-                              actual.sliding == expected.sliding &&
-                              actual.normal_multiplier == expected.normal_multiplier &&
-                              actual.cartesian_elastic_tangential_slip == expected.cartesian_elastic_tangential_slip;
-        }
-    }
-    passed = check(next_time_step == 0.25 && restored.committed_solution() == problem.committed_solution() &&
-                       histories_match,
-                 "B3.4 checkpoint restores the exact three-dimensional friction transaction") &&
-             passed;
-    (void)std::remove(checkpoint_path.c_str());
-    return passed;
-}
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 8) {
+    if (argc != 5) {
         std::cerr << "Usage: fuelsim_b33_hex8_contact_moose_tests "
-                     "<case.fsi> <thermal-nodes.csv> <mechanical-nodes.csv> <contact.csv> "
-                     "<sliding-case.fsi> <sliding-reactions.csv> <checkpoint.bin>\n";
+                     "<case.fsi> <thermal-nodes.csv> <mechanical-nodes.csv> <contact.csv>\n";
         return 2;
     }
     try {
         std::cout << std::scientific << std::setprecision(12);
         fuelsim::PetscSession session(argc, argv, "fuelsim B3.3 three-dimensional contact MOOSE comparison\n");
-        if (!run(argv[1], argv[2], argv[3], argv[4]) || !run_sliding(argv[5], argv[6]) ||
-            !run_sliding_restart(argv[5], argv[7]))
-            return 1;
-        std::cout << "[PASS] B3.3 and B3.4 three-dimensional contact MOOSE comparisons\n";
+        if (!run(argv[1], argv[2], argv[3], argv[4])) return 1;
+        std::cout << "[PASS] B3.3 three-dimensional contact MOOSE comparison\n";
         return 0;
     } catch (const std::exception& error) {
         std::cerr << "[FAIL] B3.3 comparison raised: " << error.what() << '\n';

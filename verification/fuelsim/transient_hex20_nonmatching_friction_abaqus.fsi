@@ -77,7 +77,7 @@
       discretization = surface_to_surface
       penalty = 1e11
       mu = 0.3
-      elastic_slip = 1e-5
+      slip_tolerance = 1e-5
     []
   []
 []

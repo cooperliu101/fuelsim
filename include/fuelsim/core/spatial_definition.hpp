@@ -65,7 +65,7 @@ struct ContactDefinition final {
     bool thermal, mechanical;
     double gap_conductivity, minimum_gap, penalty;
     double friction_coefficient = 0.0;
-    double friction_elastic_slip = 0.0;
+    double friction_slip_tolerance = 0.0;
     bool automatic_penalty = false;
     double penalty_factor = 1.0;
     MechanicalContactFormulation mechanical_formulation = MechanicalContactFormulation::penalty;

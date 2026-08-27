@@ -1649,8 +1649,8 @@ void SpatialAssembly::build_contacts(const UnstructuredHex8Mesh& source_mesh) {
         const bool finite_sliding =
             surface_to_surface && definition.mechanical_sliding == MechanicalContactSliding::finite;
         bool finite_averaged = definition.mechanical && finite_sliding && definition.friction_coefficient == 0.0;
-        if (definition.friction_elastic_slip > 0.0 && !surface_to_surface)
-            throw std::invalid_argument("elastic_slip requires surface_to_surface contact: " + definition.name);
+        if (definition.friction_slip_tolerance > 0.0 && !surface_to_surface)
+            throw std::invalid_argument("slip_tolerance requires surface_to_surface contact: " + definition.name);
         if (definition.quad8_nodal_area_rule != Quad8NodalAreaRule::positive_lumped)
             throw std::invalid_argument(
                 "quad8_nodal_area_rule = consistent_shape is supported only for HEX20 contact comparisons: " +
@@ -1700,9 +1700,25 @@ void SpatialAssembly::build_contacts(const UnstructuredHex8Mesh& source_mesh) {
                 definition.thermal ? definition.gap_conductance_temperature_derivative : 0.0,
                 definition.thermal ? definition.gap_conductance_reference_temperature : 0.0,
                 definition.mechanical ? definition.penalty : 0.0});
+        const double slip_tolerance =
+            definition.mechanical && definition.friction_coefficient > 0.0 && surface_to_surface
+                ? (definition.friction_slip_tolerance > 0.0 ? definition.friction_slip_tolerance : 5.0e-3)
+                : 0.0;
+        double reference_secondary_area = 0.0;
+        if (slip_tolerance > 0.0)
+            for (const Quad4FaceElement& face : secondary.boundary.faces)
+                for (const Quad4FaceQuadraturePoint& point :
+                    make_quad4_face_geometry(face_coordinates(secondary_mesh, face)).points)
+                    reference_secondary_area += point.weighted_measure;
+        const double maximum_elastic_slip =
+            slip_tolerance > 0.0 ? slip_tolerance * std::sqrt(reference_secondary_area /
+                                                              static_cast<double>(secondary.boundary.faces.size()))
+                                 : 0.0;
+        if (!std::isfinite(maximum_elastic_slip) || maximum_elastic_slip < 0.0)
+            throw std::invalid_argument(
+                "Three-dimensional contact slip_tolerance gives an invalid elastic slip: " + definition.name);
         _mechanical_properties.push_back({definition.mechanical ? definition.penalty : 1.0,
-            definition.mechanical ? definition.friction_coefficient : 0.0, false,
-            definition.mechanical ? definition.friction_elastic_slip : 0.0});
+            definition.mechanical ? definition.friction_coefficient : 0.0, false, maximum_elastic_slip});
         std::vector<PrimaryContactFace> primary_faces;
         primary_faces.reserve(primary.boundary.faces.size());
         for (const Quad4FaceElement& primary_face : primary.boundary.faces) {
@@ -2189,8 +2205,8 @@ void SpatialAssembly::build_hex20_contacts(const UnstructuredHex20Mesh& source_m
             surface_to_surface && !finite_sliding &&
             _definition.regions[primary.region].strain_formulation == StrainFormulation::small &&
             _definition.regions[secondary.region].strain_formulation == StrainFormulation::small;
-        if (definition.friction_elastic_slip > 0.0 && !surface_to_surface)
-            throw std::invalid_argument("elastic_slip requires HEX20 surface_to_surface contact: " + definition.name);
+        if (definition.friction_slip_tolerance > 0.0 && !surface_to_surface)
+            throw std::invalid_argument("slip_tolerance requires HEX20 surface_to_surface contact: " + definition.name);
         if (surface_to_surface && definition.quad8_nodal_area_rule != Quad8NodalAreaRule::positive_lumped)
             throw std::invalid_argument(
                 "quad8_nodal_area_rule applies only to HEX20 node-to-surface contact comparisons: " + definition.name);
@@ -2215,9 +2231,25 @@ void SpatialAssembly::build_hex20_contacts(const UnstructuredHex20Mesh& source_m
                 definition.thermal ? definition.gap_conductance_temperature_derivative : 0.0,
                 definition.thermal ? definition.gap_conductance_reference_temperature : 0.0,
                 definition.mechanical ? definition.penalty : 0.0});
+        const double slip_tolerance =
+            definition.mechanical && definition.friction_coefficient > 0.0 && surface_to_surface
+                ? (definition.friction_slip_tolerance > 0.0 ? definition.friction_slip_tolerance : 5.0e-3)
+                : 0.0;
+        double reference_secondary_area = 0.0;
+        if (slip_tolerance > 0.0)
+            for (const Quad8FaceElement& face : secondary.boundary.faces)
+                for (const Quad8FaceMechanicalQuadraturePoint& point :
+                    make_quad8_face_geometry(face_coordinates(secondary_mesh, face)).mechanical_points)
+                    reference_secondary_area += point.quadrature_weight * reference_measure(point);
+        const double maximum_elastic_slip =
+            slip_tolerance > 0.0 ? slip_tolerance * std::sqrt(reference_secondary_area /
+                                                              static_cast<double>(secondary.boundary.faces.size()))
+                                 : 0.0;
+        if (!std::isfinite(maximum_elastic_slip) || maximum_elastic_slip < 0.0)
+            throw std::invalid_argument(
+                "HEX20 contact slip_tolerance gives an invalid elastic slip: " + definition.name);
         _mechanical_properties.push_back({definition.mechanical ? definition.penalty : 1.0,
-            definition.mechanical ? definition.friction_coefficient : 0.0, false,
-            definition.mechanical ? definition.friction_elastic_slip : 0.0});
+            definition.mechanical ? definition.friction_coefficient : 0.0, false, maximum_elastic_slip});
         std::vector<Hex20PrimaryContactFace> primary_faces;
         primary_faces.reserve(primary.boundary.faces.size());
         for (const Quad8FaceElement& primary_face : primary.boundary.faces) {

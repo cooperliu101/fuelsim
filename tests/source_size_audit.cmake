@@ -42,6 +42,7 @@ set(hex8_abaqus_current_heat_lines 22)
 set(hex8_abaqus_thermal_load_and_temperature_property_lines 255)
 set(hex8_abaqus_finite_mechanics_operator_lines 256)
 set(abaqus_affine_gap_conductance_lines 212)
+set(abaqus_slip_tolerance_semantics_lines 35)
 
 file(READ "${ROOT}/.clang-format" format_configuration)
 string(FIND "${format_configuration}" "ColumnLimit: 120" column_limit)
@@ -79,7 +80,7 @@ endif()
 math(EXPR removed_lines "${nonempty_line_baseline} - ${nonempty_lines}")
 math(EXPR reduction_per_mille "1000 * ${removed_lines} / ${nonempty_line_baseline}")
 math(EXPR capability_adjusted_limit
-    "${maximum_nonempty_lines} + ${hex8_inelastic_capability_lines} + ${hex8_finite_strain_capability_lines} + ${hex8_contact_capability_lines} + ${dynamic_contact_assembly_performance_lines} + ${large_sliding_contact_search_lines} + ${cartesian_current_pressure_input_lines} + ${m58_two_process_efficiency_lines} + ${m58_four_process_efficiency_lines} + ${memory_statistics_lines} + ${shared_node_capability_lines} + ${hex8_narrow_constitutive_ad_lines} + ${rz_narrow_constitutive_ad_lines} + ${source_layout_refactor_lines} + ${optional_input_sections_lines} + ${bound_material_function_lines} + ${thermal_time_term_option_lines} + ${pressure_configuration_selection_lines} + ${hex20_u2_t1_capability_lines} + ${hex20_face_quadrature_lines} + ${hex20_contact_capability_lines} + ${hex20_surface_mechanical_contact_lines} + ${hex20_small_sliding_surface_contact_lines} + ${hex20_abaqus_averaged_contact_lines} + ${hex20_curved_abaqus_contact_lines} + ${hex20_abaqus_averaged_friction_lines} + ${hex20_abaqus_contact_observables_lines} + ${hex20_objective_friction_history_lines} + ${hex20_finite_sliding_contact_lines} + ${hex8_abaqus_small_sliding_surface_contact_lines} + ${hex8_finite_sliding_contact_lines} + ${hex8_finite_averaged_sts_lines} + ${hex8_abaqus_expansion_temperature_lines} + ${hex8_abaqus_lumped_capacity_lines} + ${hex8_abaqus_selective_integration_lines} + ${hex8_abaqus_current_heat_lines} + ${hex8_abaqus_thermal_load_and_temperature_property_lines} + ${hex8_abaqus_finite_mechanics_operator_lines} + ${abaqus_affine_gap_conductance_lines}"
+    "${maximum_nonempty_lines} + ${hex8_inelastic_capability_lines} + ${hex8_finite_strain_capability_lines} + ${hex8_contact_capability_lines} + ${dynamic_contact_assembly_performance_lines} + ${large_sliding_contact_search_lines} + ${cartesian_current_pressure_input_lines} + ${m58_two_process_efficiency_lines} + ${m58_four_process_efficiency_lines} + ${memory_statistics_lines} + ${shared_node_capability_lines} + ${hex8_narrow_constitutive_ad_lines} + ${rz_narrow_constitutive_ad_lines} + ${source_layout_refactor_lines} + ${optional_input_sections_lines} + ${bound_material_function_lines} + ${thermal_time_term_option_lines} + ${pressure_configuration_selection_lines} + ${hex20_u2_t1_capability_lines} + ${hex20_face_quadrature_lines} + ${hex20_contact_capability_lines} + ${hex20_surface_mechanical_contact_lines} + ${hex20_small_sliding_surface_contact_lines} + ${hex20_abaqus_averaged_contact_lines} + ${hex20_curved_abaqus_contact_lines} + ${hex20_abaqus_averaged_friction_lines} + ${hex20_abaqus_contact_observables_lines} + ${hex20_objective_friction_history_lines} + ${hex20_finite_sliding_contact_lines} + ${hex8_abaqus_small_sliding_surface_contact_lines} + ${hex8_finite_sliding_contact_lines} + ${hex8_finite_averaged_sts_lines} + ${hex8_abaqus_expansion_temperature_lines} + ${hex8_abaqus_lumped_capacity_lines} + ${hex8_abaqus_selective_integration_lines} + ${hex8_abaqus_current_heat_lines} + ${hex8_abaqus_thermal_load_and_temperature_property_lines} + ${hex8_abaqus_finite_mechanics_operator_lines} + ${abaqus_affine_gap_conductance_lines} + ${abaqus_slip_tolerance_semantics_lines}"
 )
 if(nonempty_lines GREATER capability_adjusted_limit)
     message(FATAL_ERROR
@@ -124,7 +125,8 @@ if(nonempty_lines GREATER capability_adjusted_limit)
         "${hex8_abaqus_thermal_load_and_temperature_property_lines} lines for Abaqus HEX8 thermal loads and "
         "temperature-dependent properties, plus ${hex8_abaqus_finite_mechanics_operator_lines} lines for the Abaqus "
         "finite-deformation mechanical operator, plus ${abaqus_affine_gap_conductance_lines} lines for Abaqus-aligned "
-        "affine gap conductance and coupled thermal contact"
+        "affine gap conductance and coupled thermal contact, plus ${abaqus_slip_tolerance_semantics_lines} lines for "
+        "Abaqus slip-tolerance semantics"
     )
 endif()
 
@@ -168,5 +170,5 @@ message(STATUS
     "${hex8_abaqus_thermal_load_and_temperature_property_lines} Abaqus HEX8 thermal-load and "
     "temperature-dependent-property lines plus ${hex8_abaqus_finite_mechanics_operator_lines} Abaqus HEX8 finite-"
     "mechanics-operator lines plus ${abaqus_affine_gap_conductance_lines} Abaqus affine-gap-conductance and coupled-"
-    "thermal-contact lines"
+    "thermal-contact lines plus ${abaqus_slip_tolerance_semantics_lines} Abaqus slip-tolerance-semantics lines"
 )

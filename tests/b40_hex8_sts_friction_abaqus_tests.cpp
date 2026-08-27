@@ -140,7 +140,7 @@ void write_fsi(const std::string& path) {
            << "    values = 0 4e-6 16e-6 15e-6 30e-6\n  []\n[]\n\n"
            << "[Contact]\n  [interface]\n    primary = primary_contact\n    secondary = secondary_contact\n"
            << "    [mechanical]\n      formulation = penalty\n      discretization = surface_to_surface\n"
-           << "      sliding = small\n      penalty = 1e8\n      mu = 0.3\n      elastic_slip = 1e-5\n"
+           << "      sliding = small\n      penalty = 1e8\n      mu = 0.3\n      slip_tolerance = 1e-5\n"
            << "    []\n  []\n[]\n\n"
            << "[BoundaryConditions]\n"
            << "  [primary_temperature]\n    type = dirichlet\n    boundary = primary_all\n"

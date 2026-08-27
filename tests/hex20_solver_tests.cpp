@@ -229,7 +229,7 @@ bool test_contact_projection(const fuelsim::UnstructuredHex20Mesh& mesh) {
     contact.minimum_gap = 1.0e-6;
     contact.penalty = 1.0e8;
     contact.friction_coefficient = 0.1;
-    contact.friction_elastic_slip = 1.0e-5;
+    contact.friction_slip_tolerance = 1.0e-5;
     spatial.contacts.push_back(contact);
     fuelsim::SteadyProblem problem(spatial, contact_mesh);
     const auto& view = fuelsim::cartesian::ProblemAccess::view(problem);
@@ -331,7 +331,7 @@ bool test_contact_projection(const fuelsim::UnstructuredHex20Mesh& mesh) {
                                       std::abs(history.cartesian_elastic_tangential_slip[2]) > 0.0 &&
                                       std::abs(magnitude - 1.0e-5) < 1.0e-13;
                            }),
-                 "HEX20 finite-strain surface contact commits nine biaxial sliding histories at elastic_slip") &&
+                 "HEX20 finite-strain surface contact commits nine biaxial sliding histories at slip_tolerance") &&
              passed;
     return passed;
 }
@@ -432,7 +432,7 @@ bool test_surface_contact_finite_sliding() {
         contact.mechanical = true;
         contact.penalty = 1.0e8;
         contact.friction_coefficient = 0.2;
-        contact.friction_elastic_slip = 1.0e-5;
+        contact.friction_slip_tolerance = 1.0e-5;
         contact.mechanical_discretization = fuelsim::MechanicalContactDiscretization::surface_to_surface;
         contact.mechanical_sliding = fuelsim::MechanicalContactSliding::finite;
         spatial.contacts.push_back(contact);
@@ -623,7 +623,7 @@ bool test_finite_sliding_end_to_end() {
         contact.mechanical = true;
         contact.penalty = 1.0e8;
         contact.friction_coefficient = 0.2;
-        contact.friction_elastic_slip = 1.0e-5;
+        contact.friction_slip_tolerance = 1.0e-5;
         contact.mechanical_discretization = fuelsim::MechanicalContactDiscretization::surface_to_surface;
         contact.mechanical_sliding = fuelsim::MechanicalContactSliding::finite;
         spatial.contacts.push_back(contact);

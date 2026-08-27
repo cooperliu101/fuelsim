@@ -501,7 +501,7 @@ bool run_abaqus_sliding_comparison(
         fuelsim::MechanicalContactDiscretization::surface_to_surface;
     definition.spatial.contacts[0].quad8_nodal_area_rule = fuelsim::Quad8NodalAreaRule::positive_lumped;
     definition.spatial.contacts[0].friction_coefficient = 0.001;
-    definition.spatial.contacts[0].friction_elastic_slip = 1.0e-8;
+    definition.spatial.contacts[0].friction_slip_tolerance = 1.0e-6;
     const auto secondary_y =
         std::find_if(definition.spatial.boundary_conditions.begin(), definition.spatial.boundary_conditions.end(),
             [](const fuelsim::BoundaryConditionDefinition& boundary) { return boundary.name == "secondary_y"; });

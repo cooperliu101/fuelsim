@@ -476,7 +476,7 @@ ContactDefinition read_contact(const InputDocument& document, const InputSection
     if (mechanical != nullptr) {
         validate_keys(document, *mechanical,
             {"formulation", "penalty", "penalty_factor", "mu", "penetration_tolerance", "maximum_augmented_iterations",
-                "discretization", "sliding", "quad8_nodal_area_rule", "elastic_slip"});
+                "discretization", "sliding", "quad8_nodal_area_rule", "slip_tolerance"});
         const std::string formulation = read_string(document, *mechanical, "formulation");
         if (formulation == "penalty")
             result.mechanical_formulation = MechanicalContactFormulation::penalty;
@@ -515,13 +515,13 @@ ContactDefinition read_contact(const InputDocument& document, const InputSection
         result.penalty = penalty == nullptr ? 0.0 : parse_double(document, *penalty);
         result.penalty_factor = penalty_factor == nullptr ? 1.0 : parse_double(document, *penalty_factor);
         result.friction_coefficient = read_optional_double(document, *mechanical, "mu", 0.0);
-        result.friction_elastic_slip = read_optional_double(document, *mechanical, "elastic_slip", 0.0);
-        if (result.friction_elastic_slip < 0.0)
-            value_error(
-                document, required_entry(document, *mechanical, "elastic_slip"), "elastic_slip must be nonnegative");
-        if (result.friction_elastic_slip > 0.0 && !(result.friction_coefficient > 0.0))
-            value_error(
-                document, required_entry(document, *mechanical, "elastic_slip"), "elastic_slip requires a positive mu");
+        result.friction_slip_tolerance = read_optional_double(document, *mechanical, "slip_tolerance", 0.0);
+        if (result.friction_slip_tolerance < 0.0)
+            value_error(document, required_entry(document, *mechanical, "slip_tolerance"),
+                "slip_tolerance must be nonnegative");
+        if (result.friction_slip_tolerance > 0.0 && !(result.friction_coefficient > 0.0))
+            value_error(document, required_entry(document, *mechanical, "slip_tolerance"),
+                "slip_tolerance requires a positive mu");
         const std::string area_rule = read_optional_string(*mechanical, "quad8_nodal_area_rule", "positive_lumped");
         if (area_rule == "positive_lumped")
             result.quad8_nodal_area_rule = Quad8NodalAreaRule::positive_lumped;

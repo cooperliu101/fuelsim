@@ -1139,12 +1139,24 @@ if(BUILD_TESTING)
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex8_contact_moose.fsi"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b33_hex8_thermal_contact_all_nodes_0001.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b33_hex8_contact_all_nodes_0010.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b33_hex8_contact_secondary_contact_0010.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex8_sliding_contact_moose.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b34_hex8_sliding_contact.csv"
-            "${CMAKE_CURRENT_BINARY_DIR}/b34_hex8_sliding_contact_checkpoint.bin")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b33_hex8_contact_secondary_contact_0010.csv")
     set_tests_properties(fuelsim_b33_hex8_contact_moose_tests
         PROPERTIES LABELS "acceptance;three-dimensional;contact;friction")
+
+    add_executable(fuelsim_b34_hex8_sliding_contact_abaqus_tests
+        tests/b34_hex8_sliding_contact_abaqus_tests.cpp)
+    target_link_libraries(fuelsim_b34_hex8_sliding_contact_abaqus_tests
+        PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
+    fuelsim_enable_warnings(fuelsim_b34_hex8_sliding_contact_abaqus_tests)
+    add_test(NAME fuelsim_b34_hex8_sliding_contact_abaqus_tests
+        COMMAND fuelsim_b34_hex8_sliding_contact_abaqus_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex8_sliding_contact_abaqus.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b34_hex8_sliding_contact_nodes.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b34_hex8_sliding_contact_contact.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b34_hex8_sliding_contact_reaction.csv"
+            "${CMAKE_CURRENT_BINARY_DIR}/b34_hex8_sliding_contact_checkpoint.bin")
+    set_tests_properties(fuelsim_b34_hex8_sliding_contact_abaqus_tests
+        PROPERTIES LABELS "acceptance;three-dimensional;hex8;contact;friction;restart;abaqus")
 
     add_executable(fuelsim_h20_hex20_contact_reference_tests tests/h20_hex20_contact_reference_tests.cpp)
     target_link_libraries(fuelsim_h20_hex20_contact_reference_tests

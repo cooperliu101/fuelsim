@@ -60,8 +60,9 @@ powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass `
 Abaqus completed with normal and tangential reactions of `106.518753052 N`
 and `0.106491569 N`. Fuelsim now applies friction on the same eight
 node-centered averaged constraints as the normal surface-to-surface operator.
-The Abaqus `slip tolerance=1e-6` on this `0.01 m` contact face is represented by
-an absolute `elastic_slip=1e-8 m`. The normal-displacement three errors are
+Fuelsim receives the same dimensionless `slip_tolerance=1e-6` as Abaqus and,
+on this `0.01 m` characteristic-length contact face, derives the internal
+absolute elastic-slip distance `1e-8 m`. The normal-displacement three errors are
 `0.00000212%`, `0.000000834%`, and `0.00000464%`; the imposed sliding-direction
 displacement errors are `0.00000261%`, `0.00000188%`, and `0.00000413%`.
 The off-symmetry-plane third displacement component has errors
@@ -521,9 +522,11 @@ sticking, and the applied outer tractions produce simultaneous circumferential
 and axial relative motion. Abaqus local slip direction 1 is opposite the
 positive circumferential direction on these C3D20 S6 faces, while local
 direction 2 is opposite the global axial direction. The Abaqus data-file report
-gives a `0.44311 m` characteristic contact length, so its relative slip
-tolerance of `1e-5` maps directly to `elastic_slip = 4.4311e-6 m`. This is a
-mesh-specific absolute-length conversion, not a fitted material coefficient.
+gives a `0.44311 m` characteristic contact length, equal to the square root of
+the `0.19635 m2` mean reference area of the eight secondary faces. Both inputs now use
+`slip_tolerance=1e-5` directly, and Fuelsim derives the effective absolute
+distance `4.4311e-6 m`. This is a mesh-specific absolute-length conversion,
+not a fitted material coefficient.
 
 The reference is reproduced with:
 
@@ -545,8 +548,9 @@ are counted separately without a denominator floor.
 
 ## H20.36 quadratic curved stick-slide reversal history
 
-H20.36 reuses the same genuinely quadratic quarter-cylinder mesh and the exact
-`elastic_slip = 4.4311e-6 m` conversion. A seven-state imposed axial-displacement
+H20.36 reuses the same genuinely quadratic quarter-cylinder mesh and the same
+dimensionless `slip_tolerance=1e-5`, which derives the exact `4.4311e-6 m`
+effective elastic-slip distance. A seven-state imposed axial-displacement
 path of `2, 4, 12, 24, 4, -20, -18 um` exercises two fully sticking states,
 mixed sticking and sliding, forward sliding, unloading, reverse sliding, and
 complete resticking. Fuelsim's sticking/sliding constraint counts are `37/0`,
@@ -700,6 +704,40 @@ crossing, slide-out rejection and rollback, an end-to-end four-load-step solve
 for both strain formulations, and a 65-primary-face case that forces the
 spatial search-tree path.
 
+## B3.4 C3D8 deformable small-sliding friction
+
+B3.4 uses two deformable C3D8 blocks on the tracked narrow-margin mesh. Both
+solvers use small-sliding surface-to-surface contact, `1e13 Pa/m` linear normal
+penalty, `mu=0.001`, and the same dimensionless `slip_tolerance=1e-8`. The
+secondary reference contact area is `1e-4 m2`, so both solvers use an effective
+maximum elastic-slip distance of `1e-10 m`. The primary outer face is fixed;
+the secondary outer face receives `-20 um` normal and `2 um` tangential
+displacement.
+
+The tracked Abaqus R2018x result compares all sixteen nodes, all four contact
+constraints, and the prescribed-face reaction. The worst relative field metric
+is the y-displacement maximum pointwise error, `0.00335010%`. Signed nodal
+normal force, signed tangential force, total slip, opening, and pressure are all
+below `0.000427%`; normal and tangential resultant errors are `3.35e-12%` and
+`0.00190319%`. Eight exact-zero out-of-plane displacement references are
+reported separately, with a `2.17392e-12 m` maximum absolute difference.
+Transverse contact-force components are also checked absolutely. All four
+constraints stay active, the Coulomb sliding branch is reached, and checkpoint
+restart reproduces the nodal state and complete vector friction history exactly.
+The former `26.7531%` MOOSE tangential-reaction difference is not part of B3.4
+acceptance.
+
+Reproduce the reference with:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass `
+  -File "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus\run_b34.ps1" `
+  -SourceDirectory "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus"
+```
+
+The input, extraction script, runner, and three reference CSV hashes are listed
+under the `b34_hex8_` prefix in `SHA256SUMS`.
+
 ## B3.8 C3D8 small-sliding surface-to-surface operator identification
 
 B3.8 uses one matching pair of flat C3D8 faces with a `1e8 Pa/m` linear normal
@@ -785,9 +823,9 @@ powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass `
 
 B4.0 fixes both C3D8 blocks and prescribes the secondary contact face directly.
 The normal closure is `1e-4 m`, the linear penalty is `1e8 Pa/m`, and the friction
-coefficient is `0.3`. The Abaqus relative slip tolerance is `1e-5` on this unit
-characteristic-length face, so its effective absolute distance and Fuelsim
-`elastic_slip` are both `1e-5 m`. Four prescribed states use two simultaneous
+coefficient is `0.3`. Both inputs use the same dimensionless
+`slip_tolerance=1e-5`; on this unit characteristic-length face the derived
+effective absolute distance is `1e-5 m`. Four prescribed states use two simultaneous
 tangent components and exercise sticking, first entry onto the Coulomb circle,
 a change of sliding direction, and continued sliding.
 
@@ -1157,12 +1195,19 @@ material modulus ratios from `0.1` to `100`. Each case has two biaxial sticking
 states followed by complete Coulomb sliding.
 
 Inverting the Abaqus sticking force at each constraint gives
-`elastic_slip = slip_tolerance * sqrt(face_area)`. The identified absolute
+`delta_e = slip_tolerance * sqrt(face_area)`. Fuelsim now accepts the same
+dimensionless `slip_tolerance` directly and performs this conversion from the
+square root of the mean secondary reference-face area during contact
+construction. The identified absolute
 distances are `1e-5`, `2e-5`, `1e-5`, and `2e-5 m`; all three error metrics
-against the formula are about `1e-15` or smaller. Thus the input value is an
-absolute mesh-dependent distance, not a fitted coefficient, and the relevant
+against the formula are about `1e-15` or smaller. Thus the derived distance is
+mesh-dependent, not a fitted coefficient, and the relevant
 C3D8 characteristic length is the square root of the contact-face area rather
 than either edge length alone.
+
+The same test also constructs otherwise identical unit-face Fuelsim contacts
+with omitted `slip_tolerance` and explicit `slip_tolerance=0.005`; their states
+and complete contact residuals are exactly equal, enforcing the Abaqus default.
 
 All-node displacement and reaction, normal and both tangential nodal forces,
 both slip components, gap, pressure, and all three resultants agree with
@@ -1199,9 +1244,9 @@ B4.8 solves two independent surface-to-surface contact pairs in the same
 in the y direction with `mu=0.3`; pair B crosses a different internal edge in
 the z direction with `mu=0.5`. Both pairs close by `0.01 m`, start in biaxial
 sticking, and then follow four identical committed increments along distinct
-fixed tangent-plane directions. The Abaqus relative slip tolerance is `0.025`
-on each `0.8 by 0.8 m` secondary face, corresponding to the Fuelsim absolute
-`elastic_slip=0.02 m` identified in B4.7.
+fixed tangent-plane directions. Both inputs use the same dimensionless
+`slip_tolerance=0.025` on each `0.8 by 0.8 m` secondary face, from which Fuelsim
+derives the effective absolute distance `0.02 m` identified in B4.7.
 
 For each accepted increment and each contact pair, the comparison checks the
 signed nodal normal force, both physical tangent-plane nodal-force components,
