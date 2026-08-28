@@ -1414,8 +1414,8 @@ and volume measure. Evaluating the tracked Abaqus nodal state gives
 is `3.44e-8`. The local coupled test also proves a nonzero heat-residual-to-
 displacement block with maximum magnitude `1.1` and a `2.87e-8` centered-
 difference directional error. B5.1 therefore verifies production current-
-configuration conduction. Body-source, deformed-capacity, and convection
-configuration remain separate identification scopes.
+configuration conduction. B5.4 separately identifies the current-configuration
+body-source, corner-capacity, surface-flux, and convection rules.
 
 Regenerate and execute the reference with `generate_b51.py` and
 `run_b51.ps1`. The tracked input, nodal and integration-point references,
@@ -1448,6 +1448,73 @@ contact. Clearance-dependent conductance derivatives and simultaneous
 mechanical closure remain separate follow-up paths. Regenerate and execute the
 reference with `generate_b52.py` and `run_b52.ps1`; all tracked artifacts are
 listed in `SHA256SUMS` under the `b52_hex8_c3d8t_thermal_contact` prefix.
+
+## B5.3 through B5.18 C3D8T thermal-load, transient, and material paths
+
+B5.3 through B5.7 close the thermal-load and temperature-dependent operator
+identification scopes. B5.3 identifies reference-configuration corner body
+generation and face-node surface flux and convection. B5.4 distinguishes the
+finite-deformation current-configuration capacity, body generation, surface
+flux, and convection vectors from their reference-configuration alternatives.
+B5.5 is a solved two-element Backward Euler path: the right-face temperature
+changes from `300 K` to `400 K` at the start of the step, so the compared heat
+reaction includes the Abaqus lumped-capacity contribution. It compares all 12
+nodes for temperature, three displacements, heat reaction, and three mechanical
+reactions, and all 16 integration points for three heat-flux, six stress, and
+six tensor-strain components. B5.6 and B5.7 identify temperature-dependent
+conductivity, elasticity, expansion, capacity residuals, and their complete
+local tangents.
+
+B5.8 through B5.18 exercise solved multi-increment and material paths. Every
+accepted time point is retained; no final-state-only comparison is used. Their
+largest relative L2, relative absolute-peak, or maximum pointwise-relative
+metric is:
+
+| Case | Direct Abaqus path | Largest three-metric value |
+| --- | --- | ---: |
+| B5.3 | Reference thermal loads | `4.72675e-15` |
+| B5.4 | Current-configuration thermal loads | `3.05169e-8` |
+| B5.5 | Two-element transient thermoelastic full field | `5.67434e-8` |
+| B5.6 | Temperature-dependent coupled operator | `1.41725e-10` |
+| B5.7 | Temperature-dependent lumped capacity | `7.80852e-11` |
+| B5.8 | Four-step transient thermoelastic path | `9.02842e-7` |
+| B5.9 | Two-material coarse, refined, and distorted paths | `8.29311e-8` |
+| B5.10 | Small-strain J2 plasticity | `4.62193e-8` |
+| B5.11 | Small-strain Norton creep | `9.99999e-9` |
+| B5.12 | Small-strain coupled plasticity and creep | `4.59926e-8` |
+| B5.13 | Small-strain noncoaxial reversal | `1.05190e-7` |
+| B5.14 | Finite-strain elastic rotation and reversal | `4.84132e-8` |
+| B5.15 | Finite-strain J2 plasticity | `3.52663e-4` |
+| B5.16 | Finite-strain Norton creep | `7.12658e-4` |
+| B5.17 | Finite-strain coupled plasticity and creep | `7.49445e-4` |
+| B5.18 | Finite-strain noncoaxial reversal | `9.43289e-4` |
+
+B5.8 and B5.9 compare all nodal temperature, displacement, and reaction fields
+and all integration-point heat flux, stress, and strain fields. B5.10 through
+B5.18 additionally compare elastic, plastic, creep, and equivalent histories
+when active, integration volume, material temperature, and the applicable
+energy and dissipation quantities. Their prescribed temperature is spatially
+uniform, but the tracked Abaqus integration files do not contain `HFL`; these
+cases therefore do not claim a direct integration-point heat-flux comparison.
+That stored evidence boundary is recorded in `c3d8t_validation_contract.tsv`
+instead of treating the analytic zero gradient as a direct Abaqus result.
+
+All zero Abaqus references are counted separately and accepted only with a
+field-unit absolute tolerance; no denominator floor is added. The B5.5 maximum
+zero-reference heat-reaction difference is `1.38295e-8 W`. The generators,
+extractors, PowerShell runners, inputs, and exported comma-separated references
+are tracked by `SHA256SUMS` under their corresponding `b53` through `b518`
+prefixes.
+
+`c3d8t_validation_contract.tsv` is an audited inventory of every registered
+C3D8T Abaqus test. Existing scoped operator and legacy path tests retain their
+explicit boundaries. Any newly registered C3D8T Abaqus test must be a complete
+full-field or contact-full-field path: all time points, all eight nodal fields,
+all integration-point heat flux, stress, strain, and active histories must be
+compared. A contact path must also compare opening, pressure, both slip
+components, contact force, resultant, moment, and force center. The standard
+gate is `0.1%`; an integrated finite-strain path may use `0.5%`. A higher contact
+gate requires a named, evidence-backed qualification boundary.
 
 ## B5.19 C3D8T finite-deformation selective integration
 

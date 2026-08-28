@@ -313,8 +313,9 @@ R_capacity_i = detJ_corner_i * rho(T_i) * cp(T_i) * (T_i_new-T_i_old)/dt
 ```
 
 因此常数或温度相关体积热容都只产生对角的温度—温度热容 Jacobian。畸变单元
-使用各角点自己的参考构形 `detJ`，不把总单元体积简单平均八份。体热源仍使用
-参考构形八点 Gauss 积分；RZ Quad4 与混合阶 HEX20 仍使用一致热容。
+使用各角点自己的构形 `detJ`，不把总单元体积简单平均八份。小应变的角点热容、
+体热源、表面热流和对流使用参考构形；有限应变的这些项使用当前构形。RZ Quad4
+与混合阶 HEX20 仍使用一致热容。
 
 HEX8 导热的构形随应变形式变化。小应变使用参考构形；有限应变使用当前构形：
 
@@ -323,8 +324,9 @@ R_conduction_i = integral_Vcurrent k(T)*grad_current(N_i).grad_current(T) dVcurr
 ```
 
 当前形函数梯度和当前体积测度都从试探变形梯度计算，所以有限应变热残量对位移
-具有非零几何 Jacobian。角点节点热容与体热源目前仍在参考构形积分；对流边界也
-仍使用参考表面。这些尚未由 Abaqus 探针识别的项不随本次导热构形修改扩张。
+具有非零几何 Jacobian。B5.4 的独立 Abaqus 探针进一步识别了有限应变角点热容、
+体热源、表面热流和对流都采用当前构形，并用至少 `0.333511` 的相对差排除了相应
+参考构形备选规则。
 
 ### 5.2 Norton 蠕变
 
@@ -836,7 +838,7 @@ max_pointwise_relative = max_i |x_i-x_ref_i|/|x_ref_i|
 | 稳态 RZ 体弱式 | `m0.steady` | 实心圆柱温度、自由热膨胀、厚壁圆筒和 MOOSE 全场 |
 | 无摩擦热—力接触 | `m1.contact`、`m33.contact` | 非匹配 STS/NTS、斜面、端面、多区域和 MOOSE 全场 |
 | HEX8 表面到面接触 | `b38.hex8_sts_identification`、`b39.hex8_sts_multicase`、`b40.hex8_sts_friction`、`b41.hex8_sts_finite_sliding`、`b42.hex8_sts_friction_objectivity`、`b43.hex8_sts_finite_strain` | Abaqus 约束识别、匹配与非匹配场量、倾斜初始间隙、双切向摩擦、有限滑移跨面、真实当前面积和法向演化、累计滑移、逐增量法向旋转、反向再粘着、客观历史、切线、事务、重启动和 MPI 等价 |
-| HEX8 热力体算子 | `b49.hex8_c3d8t_operator`、`b50.hex8_c3d8t_capacity`、`b51.hex8_c3d8t_finite_heat`、`b519.hex8_c3d8t_finite_selective` | Abaqus C3D8T 的 32 自由度切线、八点非仿射应变及热流、逐列瞬态热容、有限变形后导热构形和畸变有限应变选择性体积积分识别；热膨胀八节点平均温度、角点节点热容和有限应变当前构形导热均由生产内核复现；体热源、变形后热容及对流构形仍保持单独识别边界 |
+| HEX8 热力体算子 | `b49.hex8_c3d8t_operator` 至 `b519.hex8_c3d8t_finite_selective` | Abaqus C3D8T 的 32 自由度切线、八点非仿射应变及热流、角点瞬态热容、小应变参考构形与有限应变当前构形热载荷、温度相关物性、多时间步、多材料、塑性、蠕变、耦合非弹性、非共轴路径和畸变有限应变选择性体积积分；B5.5、B5.8 和 B5.9 直接覆盖完整节点场及积分点热流、应力和应变，B5.10 至 B5.18 的存量参考未导出空间均匀温度路径的积分点热流，该边界由 C3D8T 验证契约登记 |
 | HEX8 热接触 | `b52.hex8_c3d8t_thermal_contact`、`b520.hex8_c3d8t_gap_conductance`、`b521.hex8_c3d8t_thermal_contact_path`、`b522.hex8_c3d8t_faceted_thermal_contact` | Abaqus 固定间隙串联热阻，导热系数对间隙、压力和平均温度的局部导数，非匹配面的闭合、跨面滑移、开放和再接触，事务回滚、重启动、分布式等价，以及三分片曲面上的压力相关热流；B5.22 的机械矢量合力差异作为明确的 qualified 边界保留 |
 | Coulomb 摩擦 | `m51.friction` | 粘着、滑移、反向再粘着、局部切线、守恒和 MOOSE |
 | 完整链大滑移搜索 | `m52.large_sliding` | 跨多段所有权、力连续、MPI 等价、重启动和 MOOSE |

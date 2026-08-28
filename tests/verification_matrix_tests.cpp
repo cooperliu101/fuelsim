@@ -45,12 +45,94 @@ void check_evidence(
             throw std::runtime_error(row_id + " evidence is empty: " + relative);
     }
 }
+
+void check_c3d8t_contract(const std::string& path, const std::set<std::string>& registered_tests) {
+    const std::string nodal_contract = "T,U1,U2,U3,RFL,RF1,RF2,RF3";
+    const std::string integration_contract =
+        "HFL1,HFL2,HFL3,S11,S22,S33,S12,S13,S23,E11,E22,E33,E12,E13,E23,active_history";
+    const std::string contact_contract = "opening,pressure,slip1,slip2,contact_force,resultant,moment,force_center";
+    const std::string zero_contract = "separate_absolute_no_denominator_floor";
+    const std::set<std::string> existing_scoped_tests = {
+        "fuelsim_b49_hex8_c3d8t_operator_abaqus_tests",
+        "fuelsim_b50_hex8_c3d8t_capacity_abaqus_tests",
+        "fuelsim_b51_hex8_c3d8t_finite_heat_abaqus_tests",
+        "fuelsim_b52_hex8_c3d8t_thermal_contact_abaqus_tests",
+        "fuelsim_b53_hex8_c3d8t_thermal_load_abaqus_tests",
+        "fuelsim_b54_hex8_c3d8t_finite_thermal_load_abaqus_tests",
+        "fuelsim_b56_hex8_c3d8t_temperature_operator_abaqus_tests",
+        "fuelsim_b57_hex8_c3d8t_temperature_capacity_abaqus_tests",
+        "fuelsim_b510_hex8_c3d8t_small_j2_abaqus_tests",
+        "fuelsim_b511_hex8_c3d8t_small_norton_abaqus_tests",
+        "fuelsim_b512_hex8_c3d8t_small_coupled_abaqus_tests",
+        "fuelsim_b513_hex8_c3d8t_small_noncoaxial_abaqus_tests",
+        "fuelsim_b514_hex8_c3d8t_finite_elastic_abaqus_tests",
+        "fuelsim_b515_hex8_c3d8t_finite_j2_abaqus_tests",
+        "fuelsim_b516_hex8_c3d8t_finite_norton_abaqus_tests",
+        "fuelsim_b517_hex8_c3d8t_finite_coupled_abaqus_tests",
+        "fuelsim_b518_hex8_c3d8t_finite_noncoaxial_abaqus_tests",
+        "fuelsim_b519_hex8_c3d8t_finite_selective_abaqus_tests",
+        "fuelsim_b520_hex8_c3d8t_gap_conductance_abaqus_tests",
+        "fuelsim_b521_hex8_c3d8t_thermal_contact_path_abaqus_tests",
+        "fuelsim_b522_hex8_c3d8t_faceted_thermal_contact_abaqus_tests",
+    };
+
+    std::set<std::string> registered_c3d8t;
+    for (const std::string& test : registered_tests)
+        if (test.find("hex8_c3d8t") != std::string::npos && test.find("_abaqus_tests") != std::string::npos)
+            registered_c3d8t.insert(test);
+
+    std::ifstream input(path);
+    if (!input) throw std::runtime_error("Could not read C3D8T validation contract: " + path);
+    std::string line;
+    if (!std::getline(input, line) || line != "ctest\tscope\tall_time_steps\tnodal_fields\tintegration_fields\tcontact_"
+                                              "fields\tacceptance_class\tzero_reference_policy\tknown_boundary")
+        throw std::runtime_error("C3D8T validation contract header does not match schema");
+    std::set<std::string> found_tests;
+    std::size_t line_number = 1;
+    while (std::getline(input, line)) {
+        ++line_number;
+        if (!line.empty() && line.back() == '\r') line.pop_back();
+        if (line.empty()) throw std::runtime_error("Blank C3D8T contract row at line " + std::to_string(line_number));
+        const std::vector<std::string> fields = split(line, '\t');
+        if (fields.size() != 9)
+            throw std::runtime_error("C3D8T contract row must have nine fields at line " + std::to_string(line_number));
+        for (const std::string& field : fields)
+            if (field.empty())
+                throw std::runtime_error("Empty C3D8T contract field at line " + std::to_string(line_number));
+        const std::string& test = fields[0];
+        const std::string& scope = fields[1];
+        if (registered_c3d8t.count(test) == 0)
+            throw std::runtime_error("C3D8T contract names an unregistered test: " + test);
+        if (!found_tests.insert(test).second) throw std::runtime_error("Duplicate C3D8T contract test: " + test);
+        if (fields[7] != zero_contract)
+            throw std::runtime_error(test + " does not use the required zero-reference policy");
+
+        const bool complete = scope == "full_field" || scope == "contact_full_field";
+        if (!complete && existing_scoped_tests.count(test) == 0)
+            throw std::runtime_error(test + " is a new C3D8T test without complete full-field coverage");
+        if (!complete) continue;
+        if (fields[2] != "yes" || fields[3] != nodal_contract || fields[4] != integration_contract)
+            throw std::runtime_error(
+                test + " does not satisfy the complete C3D8T time, nodal, and integration contract");
+        if ((scope == "contact_full_field" && fields[5] != contact_contract) ||
+            (scope == "full_field" && fields[5] != "none"))
+            throw std::runtime_error(test + " does not satisfy its C3D8T contact-field contract");
+        if (fields[6] != "base_0.1_percent" && fields[6] != "integrated_finite_0.5_percent" &&
+            fields[6] != "qualified_contact")
+            throw std::runtime_error(test + " has an invalid C3D8T acceptance class");
+        if (fields[6] == "qualified_contact" && (scope != "contact_full_field" || fields[8] == "none"))
+            throw std::runtime_error(test + " lacks a documented contact qualification boundary");
+    }
+    if (found_tests != registered_c3d8t)
+        throw std::runtime_error("C3D8T validation contract does not cover every registered Abaqus test");
+    std::cout << "c3d8t_validation_contract_rows=" << found_tests.size() << '\n';
+}
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 4) {
+    if (argc != 5) {
         std::cerr << "Usage: fuelsim_verification_matrix_tests "
-                     "<matrix.tsv> <repository> <registered-tests>\n";
+                     "<matrix.tsv> <repository> <registered-tests> <c3d8t-contract.tsv>\n";
         return 2;
     }
     try {
@@ -100,6 +182,22 @@ int main(int argc, char** argv) {
             "b50.hex8_c3d8t_capacity",
             "b51.hex8_c3d8t_finite_heat",
             "b52.hex8_c3d8t_thermal_contact",
+            "b53.hex8_c3d8t_thermal_load",
+            "b54.hex8_c3d8t_finite_thermal_load",
+            "b55.hex8_c3d8t_transient_full_field",
+            "b56.hex8_c3d8t_temperature_operator",
+            "b57.hex8_c3d8t_temperature_capacity",
+            "b58.hex8_c3d8t_multistep",
+            "b59.hex8_c3d8t_multimaterial",
+            "b510.hex8_c3d8t_small_j2",
+            "b511.hex8_c3d8t_small_norton",
+            "b512.hex8_c3d8t_small_coupled",
+            "b513.hex8_c3d8t_small_noncoaxial",
+            "b514.hex8_c3d8t_finite_elastic",
+            "b515.hex8_c3d8t_finite_j2",
+            "b516.hex8_c3d8t_finite_norton",
+            "b517.hex8_c3d8t_finite_coupled",
+            "b518.hex8_c3d8t_finite_noncoaxial",
             "b519.hex8_c3d8t_finite_selective",
             "b520.hex8_c3d8t_gap_conductance",
             "b521.hex8_c3d8t_thermal_contact_path",
@@ -174,8 +272,9 @@ int main(int argc, char** argv) {
         }
         if (found_ids != required_ids)
             throw std::runtime_error("Verification matrix is missing one or more required rows");
-        if (verified != 55 || qualified != 7 || measured != 3 || limitations != 1)
+        if (verified != 71 || qualified != 7 || measured != 3 || limitations != 1)
             throw std::runtime_error("Verification matrix status counts differ from release schema");
+        check_c3d8t_contract(argv[4], registered_tests);
         std::cout << "verification_matrix_rows=" << found_ids.size() << '\n'
                   << "verification_matrix_verified=" << verified << '\n'
                   << "verification_matrix_qualified=" << qualified << '\n'

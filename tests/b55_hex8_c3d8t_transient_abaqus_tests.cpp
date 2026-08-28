@@ -17,7 +17,7 @@
 namespace {
 struct NodeReference final {
     std::size_t node;
-    std::array<double, 4> fields;
+    std::array<double, 8> fields;
 };
 
 struct IntegrationReference final {
@@ -25,6 +25,7 @@ struct IntegrationReference final {
     fuelsim::CartesianPoint3 position;
     std::array<double, 3> heat_flux;
     fuelsim::SymmetricTensor3Values stress;
+    fuelsim::SymmetricTensor3Values strain;
 };
 
 bool check(bool condition, const std::string& message) {
@@ -57,10 +58,11 @@ std::vector<NodeReference> read_nodes(const std::string& path) {
     while (std::getline(input, line)) {
         const std::vector<std::string> values = split_csv(line);
         if (values.size() != 9) throw std::invalid_argument("Unexpected Abaqus B5.5 nodal column count in " + path);
-        std::array<double, 4> fields = {
-            number(values, 1, path), number(values, 2, path), number(values, 3, path), number(values, 4, path)};
-        for (std::size_t component = 1; component < fields.size(); ++component)
-            if (std::abs(fields[component]) < 1.0e-20) fields[component] = 0.0;
+        std::array<double, 8> fields{};
+        for (std::size_t field = 0; field < fields.size(); ++field) {
+            fields[field] = number(values, field + 1, path);
+            if (std::abs(fields[field]) < 1.0e-20) fields[field] = 0.0;
+        }
         result.push_back({static_cast<std::size_t>(number(values, 0, path)), fields});
     }
     if (result.size() != 12) throw std::invalid_argument("Abaqus B5.5 nodal reference must contain twelve nodes");
@@ -85,7 +87,9 @@ std::vector<IntegrationReference> read_integration(const std::string& path) {
             {number(values, 2, path), number(values, 3, path), number(values, 4, path)},
             {number(values, 6, path), number(values, 7, path), number(values, 8, path)},
             {number(values, 9, path), number(values, 10, path), number(values, 11, path), number(values, 12, path),
-                number(values, 14, path), number(values, 13, path)}});
+                number(values, 14, path), number(values, 13, path)},
+            {number(values, 15, path), number(values, 16, path), number(values, 17, path),
+                0.5 * number(values, 18, path), 0.5 * number(values, 20, path), 0.5 * number(values, 19, path)}});
     }
     if (result.size() != 16)
         throw std::invalid_argument("Abaqus B5.5 integration-point reference must contain sixteen rows");
@@ -116,9 +120,12 @@ fuelsim::ThermoelasticProperties material() {
 fuelsim::SpatialDefinition definition() {
     fuelsim::SpatialDefinition result;
     result.regions.push_back({"solid", "solid", material(), 4.0e6, 300.0});
+    result.time_tables.emplace_back(
+        "right_temperature", std::vector<double>{0.0, 1.0}, std::vector<double>{300.0, 400.0});
     result.boundary_conditions = {
         {"left_temperature", fuelsim::BoundaryConditionType::dirichlet, "x0", fuelsim::Field::temperature, 300.0},
-        {"right_temperature", fuelsim::BoundaryConditionType::dirichlet, "x2", fuelsim::Field::temperature, 400.0},
+        {"right_temperature", fuelsim::BoundaryConditionType::dirichlet, "x2", fuelsim::Field::temperature, 1.0, false,
+            "right_temperature"},
         {"fix_x", fuelsim::BoundaryConditionType::dirichlet, "x0", fuelsim::Field::displacement_x, 0.0},
         {"fix_y", fuelsim::BoundaryConditionType::dirichlet, "y0", fuelsim::Field::displacement_y, 0.0},
         {"fix_z", fuelsim::BoundaryConditionType::dirichlet, "z0", fuelsim::Field::displacement_z, 0.0},
@@ -146,24 +153,39 @@ fuelsim::SolverOptions solver_options() {
     return options;
 }
 
-std::array<fuelsim::test::FieldErrorMetrics, 4> compare_nodes(const fuelsim::TransientProblem& problem,
-    const std::vector<double>& state, const std::vector<NodeReference>& reference) {
-    std::array<fuelsim::test::FieldErrorMetrics, 4> result;
-    const auto& dofs = fuelsim::cartesian::ProblemAccess::dof_map(problem);
-    const std::array<fuelsim::Field, 4> fields = {fuelsim::Field::temperature, fuelsim::Field::displacement_x,
-        fuelsim::Field::displacement_y, fuelsim::Field::displacement_z};
-    for (const NodeReference& node : reference) {
-        if (node.node < 1 || node.node > 12) throw std::invalid_argument("Abaqus B5.5 node label lies outside mesh");
-        for (std::size_t field = 0; field < fields.size(); ++field)
-            result[field].add(state[dofs.dof(fields[field], node.node - 1)], node.fields[field]);
+std::vector<double> raw_residual(fuelsim::TransientProblem& problem, const std::vector<double>& state) {
+    std::vector<double> result(problem.dof_count(), 0.0);
+    fuelsim::ContributionWorkspace workspace;
+    for (std::size_t contribution = 0; contribution < problem.contribution_count(); ++contribution) {
+        problem.evaluate_contribution(contribution, state, workspace, false);
+        for (std::size_t local = 0; local < workspace.dofs.size(); ++local)
+            result[workspace.dofs[local]] += workspace.residual[local];
     }
     return result;
 }
 
-std::array<fuelsim::test::FieldErrorMetrics, 9> compare_integration(const fuelsim::TransientProblem& problem,
+std::array<fuelsim::test::FieldErrorMetrics, 8> compare_nodes(
+    fuelsim::TransientProblem& problem, const std::vector<double>& state, const std::vector<NodeReference>& reference) {
+    std::array<fuelsim::test::FieldErrorMetrics, 8> result;
+    const auto& dofs = fuelsim::cartesian::ProblemAccess::dof_map(problem);
+    const std::array<fuelsim::Field, 4> fields = {fuelsim::Field::temperature, fuelsim::Field::displacement_x,
+        fuelsim::Field::displacement_y, fuelsim::Field::displacement_z};
+    problem.begin_time_step({1.0, 1.0, true});
+    const std::vector<double> reaction = raw_residual(problem, state);
+    for (const NodeReference& node : reference) {
+        if (node.node < 1 || node.node > 12) throw std::invalid_argument("Abaqus B5.5 node label lies outside mesh");
+        for (std::size_t field = 0; field < fields.size(); ++field) {
+            result[field].add(state[dofs.dof(fields[field], node.node - 1)], node.fields[field]);
+            result[4 + field].add(reaction[dofs.dof(fields[field], node.node - 1)], node.fields[4 + field]);
+        }
+    }
+    return result;
+}
+
+std::array<fuelsim::test::FieldErrorMetrics, 15> compare_integration(const fuelsim::TransientProblem& problem,
     const fuelsim::UnstructuredHex8Mesh& input_mesh, const std::vector<double>& state,
     const std::vector<IntegrationReference>& reference, double& maximum_coordinate_error) {
-    std::array<fuelsim::test::FieldErrorMetrics, 9> result;
+    std::array<fuelsim::test::FieldErrorMetrics, 15> result;
     const auto& dofs = fuelsim::cartesian::ProblemAccess::dof_map(problem);
     for (const IntegrationReference& expected : reference) {
         if (expected.element < 1 || expected.element > 2)
@@ -175,6 +197,9 @@ std::array<fuelsim::test::FieldErrorMetrics, 9> compare_integration(const fuelsi
             const std::size_t global = input_mesh.elements()[element].nodes[local];
             coordinates[local] = input_mesh.nodes()[global];
             local_state[local] = state[dofs.dof(fuelsim::Field::temperature, global)];
+            local_state[8 + local] = state[dofs.dof(fuelsim::Field::displacement_x, global)];
+            local_state[16 + local] = state[dofs.dof(fuelsim::Field::displacement_y, global)];
+            local_state[24 + local] = state[dofs.dof(fuelsim::Field::displacement_z, global)];
         }
         const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(coordinates);
         std::size_t closest = 0;
@@ -203,8 +228,34 @@ std::array<fuelsim::test::FieldErrorMetrics, 9> compare_integration(const fuelsi
             actual_stress.xx, actual_stress.yy, actual_stress.zz, actual_stress.xy, actual_stress.yz, actual_stress.xz};
         const std::array<double, 6> expected_components = {expected.stress.xx, expected.stress.yy, expected.stress.zz,
             expected.stress.xy, expected.stress.yz, expected.stress.xz};
-        for (std::size_t component = 0; component < 6; ++component)
+        fuelsim::Hex8LocalAdValues passive{};
+        for (std::size_t dof = 0; dof < passive.size(); ++dof) passive[dof] = local_state[dof];
+        double volume = 0.0, average_trace = 0.0;
+        for (const fuelsim::Hex8QuadraturePoint& qpoint : geometry.points) {
+            const fuelsim::CartesianKinematics kinematics = fuelsim::evaluate_cartesian_incremental_kinematics(
+                qpoint, passive, fuelsim::Hex8LocalValues{}, fuelsim::StrainFormulation::small);
+            volume += qpoint.weighted_measure;
+            average_trace += qpoint.weighted_measure *
+                             (kinematics.strain_increment.xx.value() + kinematics.strain_increment.yy.value() +
+                                 kinematics.strain_increment.zz.value());
+        }
+        average_trace /= volume;
+        const fuelsim::CartesianKinematics kinematics = fuelsim::evaluate_cartesian_incremental_kinematics(
+            point, passive, fuelsim::Hex8LocalValues{}, fuelsim::StrainFormulation::small);
+        fuelsim::SymmetricTensor3 actual_strain = kinematics.strain_increment;
+        const adlite::Scalar correction =
+            (average_trace - actual_strain.xx - actual_strain.yy - actual_strain.zz) / 3.0;
+        actual_strain.xx += correction;
+        actual_strain.yy += correction;
+        actual_strain.zz += correction;
+        const std::array<double, 6> actual_strain_components = {actual_strain.xx.value(), actual_strain.yy.value(),
+            actual_strain.zz.value(), actual_strain.xy.value(), actual_strain.yz.value(), actual_strain.xz.value()};
+        const std::array<double, 6> expected_strain_components = {expected.strain.xx, expected.strain.yy,
+            expected.strain.zz, expected.strain.xy, expected.strain.yz, expected.strain.xz};
+        for (std::size_t component = 0; component < 6; ++component) {
             result[3 + component].add(actual_components[component], expected_components[component]);
+            result[9 + component].add(actual_strain_components[component], expected_strain_components[component]);
+        }
     }
     return result;
 }
@@ -224,24 +275,30 @@ int main(int argc, char** argv) {
             fuelsim::solve_transient(problem, {1.0, 1.0, 1.0, 1.0, 1.0, 0.5, 0, 1.0}, solver_options());
         bool passed = check(solve.completed && solve.accepted_steps.size() == 1 && solve.rejected_steps.empty(),
             "B5.5 accepts one Backward Euler step without cutback");
-        const auto nodal = compare_nodes(problem, problem.committed_solution(), read_nodes(argv[1]));
-        const std::array<std::string, 4> nodal_names = {
-            "temperature", "displacement_x", "displacement_y", "displacement_z"};
+        fuelsim::TransientProblem reaction_problem(definition(), input_mesh);
+        const auto nodal = compare_nodes(reaction_problem, problem.committed_solution(), read_nodes(argv[1]));
+        const std::array<std::string, 8> nodal_names = {"temperature", "displacement_x", "displacement_y",
+            "displacement_z", "reaction_heat_flux", "reaction_force_x", "reaction_force_y", "reaction_force_z"};
+        const std::array<double, 8> nodal_zero_tolerances = {
+            1.0e-12, 1.0e-14, 1.0e-14, 1.0e-14, 2.0e-8, 1.0e-2, 1.0e-2, 1.0e-2};
         for (std::size_t field = 0; field < nodal.size(); ++field) {
             fuelsim::test::print_relative_metrics("b55_" + nodal_names[field], nodal[field]);
             passed = check(fuelsim::test::relative_metrics_below(nodal[field], 1.0e-3) &&
-                               nodal[field].maximum_zero_reference_difference < 1.0e-10,
+                               nodal[field].maximum_zero_reference_difference < nodal_zero_tolerances[field],
                          "B5.5 " + nodal_names[field] + " three metrics are below 0.1 percent") &&
                      passed;
         }
         double coordinate_error = 0.0;
         const auto integration = compare_integration(
             problem, input_mesh, problem.committed_solution(), read_integration(argv[2]), coordinate_error);
-        const std::array<std::string, 9> integration_names = {"heat_flux_x", "heat_flux_y", "heat_flux_z", "stress_xx",
-            "stress_yy", "stress_zz", "stress_xy", "stress_yz", "stress_xz"};
+        const std::array<std::string, 15> integration_names = {"heat_flux_x", "heat_flux_y", "heat_flux_z", "stress_xx",
+            "stress_yy", "stress_zz", "stress_xy", "stress_yz", "stress_xz", "strain_xx", "strain_yy", "strain_zz",
+            "strain_xy", "strain_yz", "strain_xz"};
         for (std::size_t field = 0; field < integration.size(); ++field) {
             fuelsim::test::print_relative_metrics("b55_" + integration_names[field], integration[field]);
-            passed = check(fuelsim::test::relative_metrics_below(integration[field], 1.0e-3),
+            passed = check(fuelsim::test::relative_metrics_below(integration[field], 1.0e-3) &&
+                               integration[field].maximum_zero_reference_difference <
+                                   (field < 3 ? 1.0e-8 : (field < 9 ? 1.0e-2 : 1.0e-14)),
                          "B5.5 " + integration_names[field] + " three metrics are below 0.1 percent") &&
                      passed;
         }

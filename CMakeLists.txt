@@ -2013,6 +2013,7 @@ if(BUILD_TESTING)
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/verification_matrix.tsv"
             "${CMAKE_CURRENT_SOURCE_DIR}"
             "${CMAKE_CURRENT_BINARY_DIR}/fuelsim_registered_tests.txt"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/c3d8t_validation_contract.tsv"
     )
     set_tests_properties(fuelsim_verification_matrix_tests PROPERTIES
         LABELS "audit;release"
