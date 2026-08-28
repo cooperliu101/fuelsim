@@ -1567,18 +1567,115 @@ are componentwise exact. Regenerate and execute the reference with
 
 ## B5.22 C3D8T faceted curved thermal contact
 
-B5.22 applies pressure-dependent conductance on a three-facet quarter-cylinder
-interface. All three facets are active. The nodal heat-flow relative L2,
-relative absolute-peak, and maximum pointwise-relative errors are
-`8.62250e-15`, `1.19429e-14`, and `1.50664e-14`; 16 zero references remain
-exact, total heat differs by `8.20689e-15`, the pressure-weighted scalar contact
-force differs by `1.64628e-14`, and two-sided thermal imbalance is below
-`4.27e-13 W`.
+B5.22 applies pressure-dependent conductance on quarter-cylinder interfaces
+with three, six, and twelve planar facets. It also repeats the three-facet case
+after exchanging the primary and secondary designation and after halving the
+radius while retaining the same angular span. Every facet remains active.
 
-This case has one explicit qualification boundary. The mechanical vector
-resultant differs by `1.01018%`: Fuelsim gives
-`(95626.6568,95626.6568,0) N`, while Abaqus gives
-`(94670.3125,94670.3125,0) N`. B5.22 therefore qualifies the pressure-weighted
-thermal law on this faceted geometry, not the mechanical vector recovery. The
-separate B4.5 case remains the mechanical curved-contact evidence. Regenerate
-and execute this reference with `generate_b522.py` and `run_b522.ps1`.
+For three facets, the nodal heat-flow relative L2, relative absolute-peak, and
+maximum pointwise-relative errors are `8.62250e-15`, `1.19429e-14`, and
+`1.50664e-14`; 16 zero references remain exact, total heat differs by
+`8.20689e-15`, the pressure-weighted scalar contact force differs by
+`1.64628e-14`, and two-sided thermal imbalance is below `4.27e-13 W`. The six-
+and twelve-facet heat-flow errors remain below `1e-6`; their non-roundoff part
+is bounded by the single-precision Abaqus export.
+
+The original mechanical vector-resultant difference of `1.01018%` contracts to
+`0.438014%` with six facets and `0.167826%` with twelve facets. The respective
+error ratios are `0.433598` and `0.383151`. Fuelsim matches the analytical
+integral of the constant normal on each planar facet within `5.2e-15`, so the
+contracting difference is not caused by the pressure magnitude or by thermal
+contact assembly. Exchanging the designation gives `0.6188%` thermal and
+`1.6394%` mechanical error; halving the radius gives `1.4530%` mechanical
+error. These controlled changes identify Abaqus normal smoothing, surface
+designation, and curvature as the boundary of the mechanical recovery.
+
+B5.22 therefore remains qualified. It validates pressure-dependent thermal
+contact on the tested faceted curves and records the mechanical convergence
+trend, but it does not claim entry-by-entry reproduction of Abaqus curved
+mechanical contact recovery. Regenerate all five references with
+`generate_b522.py` and `run_b522.ps1`.
+
+## B5.23 integrated C3D8T transient contact path
+
+B5.23 is the direct integrated Abaqus comparison required by the C3D8T
+validation contract. Four elements form two deformable bodies, and twenty
+accepted increments advance from `0` to `0.4 s`. The path combines finite
+strain, temperature-dependent conductivity, heat capacity, elasticity and
+thermal expansion, fully implicit J2 plasticity and Norton creep, pressure,
+Coulomb friction with `mu=0.05` and Abaqus-relative
+`slip_tolerance=0.005`, and pressure-dependent thermal conductance
+`h=50+0.001*p`.
+
+Every accepted time compares all twelve nodes for temperature, three
+displacements, thermal reaction, and three mechanical reactions. All
+thirty-two integration-point histories compare heat flux, stress, logarithmic
+strain, elastic, plastic, and creep tensors and both equivalent histories. The
+contact export supplies opening, pressure, two slip components, force and
+resultants; the energy export supplies internal, elastic, plastic, creep,
+friction, external-work, boundary-heat, and stored-heat channels. Zero
+references are counted separately without a denominator floor.
+
+Temperature relative L2 is `0.116%`, and the displacement vector relative L2
+is `0.263%`. Reaction-vector metrics and the aggregate stress, logarithmic
+strain, elastic, plastic, and creep metrics remain below `0.5%`, except for
+qualified pointwise transition values: displacement reaches `2.75%` at a
+small reference and plastic history reaches `3.83%` at activation. Integrated
+bulk energy quantities remain below `1%`. Friction dissipation has `6.27%`
+relative L2, `5.66%` relative absolute-peak, and `59.4%` maximum pointwise
+error at low onset; the final values are `118.81 J` and `112.45 J`. This is an
+explicit qualified boundary rather than a widened general field tolerance.
+
+Fuelsim's two-sided thermal-contact imbalance remains below `3.8e-14 W`.
+Abaqus recovered nodal contact heat differs substantially when reconstructed
+from the small interface-temperature difference, and the exported contact
+status is inferred rather than the exact internal `CSTATUS`. Those two values
+are diagnostic and are not acceptance observables; B5.21 separately validates
+the thermal-contact operator and conservation directly. Regenerate and run
+the reference with `generate_b523.py` and `run_b523.ps1`.
+
+## B5.24 through B5.27 system qualification studies
+
+B5.24 reruns the B5.23 deformable two-body system across one, two, and three
+thickness layers; time steps `0.04`, `0.02`, and `0.01 s`; penalties `5e8`,
+`1e9`, and `2e9 Pa/m`; friction coefficients `0.01`, `0.05`, and `0.1`;
+relative slip tolerances `0.0025`, `0.005`, and `0.01`; and pressure-
+conductance coefficients `0.0005`, `0.001`, and `0.002`. Every run completes
+with active contact and no rejected step. Mesh and time-step changes contract
+for the selected coupled observables. Penetration decreases with penalty while
+the pressure-controlled normal resultant stays stable; tangential resistance
+increases with friction coefficient; friction dissipation decreases with slip
+tolerance; and heat transfer increases with the pressure-conductance
+coefficient. Only the base point is directly compared with Abaqus, so the scan
+is qualified trend and independence evidence.
+
+B5.25 combines a sinusoidally distorted mesh, traction-controlled bending,
+finite strain, a thermal gradient, friction, thermal contact, and Poisson
+ratios `0.30`, `0.45`, `0.49`, and `0.499`. From `0.49` to `0.499`, maximum
+bending displacement changes by `0.735%` and maximum von Mises stress changes
+by `0.0203%`. At `0.499`, thickness refinement changes displacement by
+`11.64%`, stress by `3.57%`, and contact resultant by `0.168%`, below the
+explicit qualified gates of `15%`, `5%`, and `1%`. B4.9 and B5.9 directly
+validate constituent Abaqus operators, but this exact combined path has no
+direct Abaqus full-field reference.
+
+B5.26 is a composite evidence row rather than a new executable. B5.21 covers
+closure, opening, cross-face sliding, and recontact; H20.36 covers sticking,
+mixed stick-slip, forward and reverse sliding, resticking, tangents, and
+restart; B5.10 through B5.18 cover first yield, creep-only relaxation, and
+plastic-creep activation. Local and transient transaction tests cover active
+tangents, failed-step rollback, retry, and restart. No single Abaqus path
+drives all these transitions and automatic time-step reductions, so this row
+remains qualified.
+
+B5.27 is a quarter-cylinder engineering-scale fuel-cladding study with separate
+fuel and clad blocks spanning radii `1` to `4.7 mm` and height `40 mm`. It runs
+to `10000 s` with finite strain, frictional mechanical contact, thermal
+contact, and physical-scale material values. Coarse, medium, and fine meshes
+retain 12, 20, and 35 active contact nodes. Medium-to-fine contact force changes
+by `0.36%`, maximum von Mises stress by `6.58%`, and clad temperature
+negligibly. Halving the `1000 s` time step has negligible selected-output
+effect. Penalties `5e13`, `1e14`, and `2e14 Pa/m` reduce maximum penetration
+from `0.942` to `0.487` and `0.248 micrometres`, while the contact-force spread
+stays below `5%`. This is an internal engineering independence study, not a
+direct Abaqus full-field comparison or a nuclear-safety qualification.

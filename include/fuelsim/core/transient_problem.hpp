@@ -29,7 +29,9 @@ struct TransientConservationSummary final {
            internal_mechanical_work_increment = 0.0, pressure_traction_work_increment = 0.0,
            dirichlet_reaction_work_increment = 0.0, contact_work_increment = 0.0, mechanical_work_balance = 0.0,
            relative_mechanical_work_balance = 0.0, unconstrained_mechanical_residual_l2 = 0.0,
-           elastic_energy_change = 0.0, plastic_dissipation_increment = 0.0, creep_dissipation_increment = 0.0;
+           elastic_energy_change = 0.0, plastic_dissipation_increment = 0.0, creep_dissipation_increment = 0.0,
+           friction_dissipation_increment = 0.0, trapezoidal_pressure_traction_work_increment = 0.0,
+           trapezoidal_dirichlet_reaction_work_increment = 0.0;
 };
 
 struct TransientConservationField final {
@@ -37,7 +39,7 @@ struct TransientConservationField final {
     double TransientConservationSummary::* member;
 };
 
-inline constexpr std::array<TransientConservationField, 19> transient_conservation_fields = {{
+inline constexpr std::array<TransientConservationField, 22> transient_conservation_fields = {{
     {"generated_heat_rate", &TransientConservationSummary::generated_heat_rate},
     {"stored_heat_rate", &TransientConservationSummary::stored_heat_rate},
     {"convection_heat_rate", &TransientConservationSummary::convection_heat_rate},
@@ -57,6 +59,11 @@ inline constexpr std::array<TransientConservationField, 19> transient_conservati
     {"elastic_energy_change", &TransientConservationSummary::elastic_energy_change},
     {"plastic_dissipation_increment", &TransientConservationSummary::plastic_dissipation_increment},
     {"creep_dissipation_increment", &TransientConservationSummary::creep_dissipation_increment},
+    {"friction_dissipation_increment", &TransientConservationSummary::friction_dissipation_increment},
+    {"trapezoidal_pressure_traction_work_increment",
+        &TransientConservationSummary::trapezoidal_pressure_traction_work_increment},
+    {"trapezoidal_dirichlet_reaction_work_increment",
+        &TransientConservationSummary::trapezoidal_dirichlet_reaction_work_increment},
 }};
 
 class TransientProblem final : public NonlinearProblem {
@@ -105,8 +112,8 @@ class TransientProblem final : public NonlinearProblem {
   private:
     friend class BackendAccess;
     void apply_spatial_controls(double time, double load_factor);
-    std::vector<double> accumulate_contribution_conservation(
-        const std::vector<double>& solution, TransientConservationSummary& summary) const;
+    std::vector<double> accumulate_contribution_conservation(const std::vector<double>& solution,
+        TransientConservationSummary& summary, std::vector<double>* external_load_residual = nullptr) const;
     void clear_active_time_step() noexcept;
     void require_active_time_step() const;
     std::unique_ptr<SpatialProblemStorage> _impl;

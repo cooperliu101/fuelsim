@@ -29,17 +29,21 @@ def append_annular(nodes, node_map, r0, r1, a0, a1):
     return element
 
 
-def deck():
-    angles = (0.0, math.pi / 6.0, math.pi / 3.0, math.pi / 2.0)
+def deck(facets=3, primary_radius=1.0, secondary_radius=1.005, swap=False):
+    angles = tuple(index * math.pi / (2.0 * facets) for index in range(facets + 1))
     nodes = []
     primary_map = {}
     secondary_map = {}
     primary = []
     secondary = []
-    for index in range(3):
-        primary.append(append_annular(nodes, primary_map, 0.8, 1.0, angles[index], angles[index + 1]))
-    for index in range(3):
-        secondary.append(append_annular(nodes, secondary_map, 1.005, 1.2, angles[index], angles[index + 1]))
+    for index in range(facets):
+        primary.append(append_annular(
+            nodes, primary_map, primary_radius - 0.2, primary_radius, angles[index], angles[index + 1]))
+    for index in range(facets):
+        secondary.append(append_annular(
+            nodes, secondary_map, secondary_radius, secondary_radius + 0.195, angles[index], angles[index + 1]))
+    primary_node_count = 4 * (facets + 1)
+    all_node_count = 2 * primary_node_count
     lines = [
         "*Heading",
         "** B5.22 faceted-cylinder C3D8T pressure-dependent thermal contact.",
@@ -52,16 +56,16 @@ def deck():
     for label, element in enumerate(primary, 1):
         lines.append("%d, %s" % (label, ", ".join(str(node) for node in element)))
     lines.append("*Element, type=C3D8T, elset=SECONDARY")
-    for label, element in enumerate(secondary, 4):
+    for label, element in enumerate(secondary, facets + 1):
         lines.append("%d, %s" % (label, ", ".join(str(node) for node in element)))
     lines.extend(
         [
             "*Nset, nset=ALL_NODES, generate",
-            "1, 32, 1",
+            "1, %d, 1" % all_node_count,
             "*Nset, nset=PRIMARY_ALL, generate",
-            "1, 16, 1",
+            "1, %d, 1" % primary_node_count,
             "*Nset, nset=SECONDARY_ALL, generate",
-            "17, 32, 1",
+            "%d, %d, 1" % (primary_node_count + 1, all_node_count),
             "*Surface, type=ELEMENT, name=PRIMARY_CONTACT",
             "PRIMARY, S4",
             "*Surface, type=ELEMENT, name=SECONDARY_CONTACT",
@@ -90,7 +94,7 @@ def deck():
             "0.0000000000000000e0, 0.0000000000000000e0",
             "2.0000000000000000e2, 2.0000000000000000e5",
             "*Contact Pair, interaction=CONTACT, type=SURFACE TO SURFACE, adjust=0.",
-            "SECONDARY_CONTACT, PRIMARY_CONTACT",
+            "PRIMARY_CONTACT, SECONDARY_CONTACT" if swap else "SECONDARY_CONTACT, PRIMARY_CONTACT",
             "*Initial Conditions, type=TEMPERATURE",
             "PRIMARY_ALL, 3.0000000000000000e2",
             "SECONDARY_ALL, 4.0000000000000000e2",
@@ -100,10 +104,10 @@ def deck():
             "*Boundary, op=NEW",
         ]
     )
-    for node in range(1, 17):
+    for node in range(1, primary_node_count + 1):
         lines.append("%d, 1, 3, 0.0" % node)
         lines.append("%d, 11, 11, 3.0000000000000000e2" % node)
-    for node in range(17, 33):
+    for node in range(primary_node_count + 1, all_node_count + 1):
         point = nodes[node - 1]
         radius = math.hypot(point[0], point[1])
         displacement = (-0.015 * point[0] / radius, -0.015 * point[1] / radius, 0.0)
@@ -124,6 +128,14 @@ def deck():
 
 
 if __name__ == "__main__":
-    output = Path(__file__).with_name("b522_hex8_c3d8t_faceted_thermal_contact.inp")
-    output.write_text(deck(), encoding="utf-8")
-    print("wrote %s" % output)
+    cases = (
+        ("b522_hex8_c3d8t_faceted_thermal_contact", 3, 1.0, 1.005, False),
+        ("b522_hex8_c3d8t_faceted_thermal_contact_f6", 6, 1.0, 1.005, False),
+        ("b522_hex8_c3d8t_faceted_thermal_contact_f12", 12, 1.0, 1.005, False),
+        ("b522_hex8_c3d8t_faceted_thermal_contact_swapped", 3, 1.0, 1.005, True),
+        ("b522_hex8_c3d8t_faceted_thermal_contact_tight", 3, 0.5, 0.505, False),
+    )
+    for name, facets, primary_radius, secondary_radius, swap in cases:
+        output = Path(__file__).with_name(name + ".inp")
+        output.write_text(deck(facets, primary_radius, secondary_radius, swap), encoding="utf-8")
+        print("wrote %s" % output)

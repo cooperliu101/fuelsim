@@ -42,31 +42,25 @@ bool nearly_equal(double left, double right) {
 
 bool compare_committed_states(
     const fuelsim::TransientCommittedState& left, const fuelsim::TransientCommittedState& right) {
-    const std::array<double, 19> left_conservation = {left.conservation.generated_heat_rate,
-        left.conservation.stored_heat_rate, left.conservation.convection_heat_rate,
-        left.conservation.surface_heat_input_rate, left.conservation.interface_heat_imbalance,
-        left.conservation.dirichlet_heat_input_rate, left.conservation.global_thermal_balance,
-        left.conservation.relative_thermal_balance, left.conservation.unconstrained_thermal_residual_l2,
-        left.conservation.internal_mechanical_work_increment, left.conservation.pressure_traction_work_increment,
-        left.conservation.dirichlet_reaction_work_increment, left.conservation.contact_work_increment,
-        left.conservation.mechanical_work_balance, left.conservation.relative_mechanical_work_balance,
-        left.conservation.unconstrained_mechanical_residual_l2, left.conservation.elastic_energy_change,
-        left.conservation.plastic_dissipation_increment, left.conservation.creep_dissipation_increment};
-    const std::array<double, 19> right_conservation = {right.conservation.generated_heat_rate,
-        right.conservation.stored_heat_rate, right.conservation.convection_heat_rate,
-        right.conservation.surface_heat_input_rate, right.conservation.interface_heat_imbalance,
-        right.conservation.dirichlet_heat_input_rate, right.conservation.global_thermal_balance,
-        right.conservation.relative_thermal_balance, right.conservation.unconstrained_thermal_residual_l2,
-        right.conservation.internal_mechanical_work_increment, right.conservation.pressure_traction_work_increment,
-        right.conservation.dirichlet_reaction_work_increment, right.conservation.contact_work_increment,
-        right.conservation.mechanical_work_balance, right.conservation.relative_mechanical_work_balance,
-        right.conservation.unconstrained_mechanical_residual_l2, right.conservation.elastic_energy_change,
-        right.conservation.plastic_dissipation_increment, right.conservation.creep_dissipation_increment};
+    std::array<double, fuelsim::transient_conservation_fields.size()> left_conservation{}, right_conservation{};
+    for (std::size_t index = 0; index < fuelsim::transient_conservation_fields.size(); ++index) {
+        const auto member = fuelsim::transient_conservation_fields[index].member;
+        left_conservation[index] = left.conservation.*member;
+        right_conservation[index] = right.conservation.*member;
+    }
     bool passed =
         check(nearly_equal(left.time, right.time) && nearly_equal(left.load_factor, right.load_factor),
             "restart preserves committed time and load") &&
         check(std::equal(left_conservation.begin(), left_conservation.end(), right_conservation.begin(), nearly_equal),
             "restart preserves the last conservation summary") &&
+        check(left.raw_residual.size() == right.raw_residual.size() &&
+                  std::equal(
+                      left.raw_residual.begin(), left.raw_residual.end(), right.raw_residual.begin(), nearly_equal),
+            "restart preserves the committed raw residual") &&
+        check(left.external_load_residual.size() == right.external_load_residual.size() &&
+                  std::equal(left.external_load_residual.begin(), left.external_load_residual.end(),
+                      right.external_load_residual.begin(), nearly_equal),
+            "restart preserves the committed pressure and traction residual") &&
         check(left.solution.size() == right.solution.size(), "restart preserves nodal-state layout") &&
         check(left.material_histories.size() == right.material_histories.size(),
             "restart preserves material-region layout") &&
@@ -187,13 +181,13 @@ bool test_friction_history_checkpoint(const std::string& input_path, const std::
     {
         std::fstream file(checkpoint_path, std::ios::binary | std::ios::in | std::ios::out);
         if (!file) return check(false, "friction checkpoint opens for version test");
-        const std::array<unsigned char, 4> old_version = {5U, 0U, 0U, 0U};
+        const std::array<unsigned char, 4> old_version = {14U, 0U, 0U, 0U};
         file.seekp(16, std::ios::beg);
         file.write(reinterpret_cast<const char*>(old_version.data()), static_cast<std::streamsize>(old_version.size()));
     }
     fuelsim::TransientProblem old_version_target(input.spatial, mesh);
     passed = expect_failure([&]() { (void)fuelsim::restore_transient_checkpoint(checkpoint_path, old_version_target); },
-                 "version is not supported", "checkpoint version 6 rejects the previous format") &&
+                 "version is not supported", "checkpoint version 15 rejects the previous format") &&
              passed;
     return check(std::remove(checkpoint_path.c_str()) == 0, "friction checkpoint artifact is removed") && passed;
 }

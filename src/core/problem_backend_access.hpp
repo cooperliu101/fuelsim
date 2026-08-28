@@ -13,6 +13,7 @@ struct TransientCommittedState final {
     std::vector<std::vector<Quad4MaterialHistory>> material_histories;
     std::vector<std::vector<CartesianMaterialHistory>> cartesian_material_histories;
     std::vector<std::vector<ContactPointHistory>> contact_histories;
+    std::vector<double> raw_residual, external_load_residual;
     TransientConservationSummary conservation;
     double time = 0.0, load_factor = 0.0;
 };

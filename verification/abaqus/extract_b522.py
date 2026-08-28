@@ -16,7 +16,7 @@ def double_data(value):
         return value.data
 
 
-def nodal_field(frame, prefix):
+def nodal_field(frame, prefix, labels):
     field = frame.fieldOutputs[prefix] if prefix in frame.fieldOutputs else None
     if field is None:
         matches = [name for name in frame.fieldOutputs.keys() if name.strip().startswith(prefix)]
@@ -25,10 +25,10 @@ def nodal_field(frame, prefix):
         field = frame.fieldOutputs[matches[0]]
     result = {}
     for value in field.values:
-        if value.nodeLabel in range(1, 33):
+        if value.nodeLabel in labels:
             result[value.nodeLabel] = double_data(value)
-    if len(result) != 32:
-        raise RuntimeError("%s has %d nodal values, expected 32" % (prefix, len(result)))
+    if len(result) != len(labels):
+        raise RuntimeError("%s has %d nodal values, expected %d" % (prefix, len(result), len(labels)))
     return result
 
 
@@ -38,14 +38,16 @@ def canonical_zero(value):
 
 odb = openOdb(path=sys.argv[1], readOnly=True)
 try:
+    instance = list(odb.rootAssembly.instances.values())[0]
+    labels = tuple(sorted(node.label for node in instance.nodes))
     frame = odb.steps["LOAD"].frames[-1]
-    temperature = nodal_field(frame, "NT11")
-    reaction_flux = nodal_field(frame, "RFL")
-    displacement = nodal_field(frame, "U")
-    reaction_force = nodal_field(frame, "RF")
+    temperature = nodal_field(frame, "NT11", labels)
+    reaction_flux = nodal_field(frame, "RFL", labels)
+    displacement = nodal_field(frame, "U", labels)
+    reaction_force = nodal_field(frame, "RF", labels)
     output = open(sys.argv[2], "wb")
     output.write("node,temperature_k,reaction_heat_flux_w,u1_m,u2_m,u3_m,rf1_n,rf2_n,rf3_n\n")
-    for node in range(1, 33):
+    for node in labels:
         output.write(
             "%d,%.16g,%.16g,%.16g,%.16g,%.16g,%.16g,%.16g,%.16g\n"
             % (

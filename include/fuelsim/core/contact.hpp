@@ -145,7 +145,7 @@ struct CartesianHeatQuadratureValue final {
 
 struct CartesianContactPointValue final {
     bool projected;
-    double gap, pressure, tributary_area, contact_force, tangential_traction, tangential_force;
+    double gap, pressure, tributary_area, contact_force, tangential_traction, tangential_force, friction_dissipation;
     std::array<double, 3> normal, tangent_first, tangential_traction_vector, elastic_tangential_slip;
     bool sliding;
 };

@@ -1335,6 +1335,7 @@ SpatialAssembly::AbaqusAveragedConstraintValue SpatialAssembly::averaged_constra
         history_normal += result.elastic_tangential_slip[component] * normal[component];
     for (std::size_t component = 0; component < 3; ++component)
         result.elastic_tangential_slip[component] -= history_normal * normal[component];
+    const std::array<double, 3> trial_elastic_tangential_slip = result.elastic_tangential_slip;
     const double sliding_limit = properties.friction_coefficient * result.pressure;
     result.stick_stiffness =
         properties.maximum_elastic_slip > 0.0 ? sliding_limit / properties.maximum_elastic_slip : properties.penalty;
@@ -1358,6 +1359,10 @@ SpatialAssembly::AbaqusAveragedConstraintValue SpatialAssembly::averaged_constra
             result.elastic_tangential_slip[component] = result.tangential_traction[component] / result.stick_stiffness;
         }
         result.sliding = true;
+        for (std::size_t component = 0; component < 3; ++component)
+            result.friction_dissipation +=
+                constraint.area * result.tangential_traction[component] *
+                (trial_elastic_tangential_slip[component] - result.elastic_tangential_slip[component]);
     }
     result.tangential_force = constraint.area * std::hypot(result.tangential_traction[0], result.tangential_traction[1],
                                                     result.tangential_traction[2]);
@@ -3201,13 +3206,14 @@ void SpatialAssembly::validate_local_state(
     }
 }
 
-void SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
+double SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
     if (state.size() != dof_count())
         throw std::invalid_argument("Three-dimensional committed contact state size mismatch");
     update_contact_search_trees(state);
     refresh_finite_averaged_constraints(state);
     update_mechanical_candidates(0, contribution_count(), state);
     std::vector<std::vector<ContactPointHistory>> staged = _contact_histories;
+    double friction_dissipation = 0.0;
     std::vector<std::vector<bool>> updated(_definition.contacts.size());
     for (std::size_t contact = 0; contact < _definition.contacts.size(); ++contact)
         updated[contact].resize(_contact_histories[contact].size(), false);
@@ -3257,6 +3263,7 @@ void SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
             }
             staged[candidate.contact][candidate.secondary] = trial;
             updated[candidate.contact][candidate.secondary] = true;
+            friction_dissipation += value.friction_dissipation;
         }
         for (const AbaqusAveragedConstraint& constraint : _abaqus_averaged_constraints) {
             std::vector<std::size_t> dofs;
@@ -3275,6 +3282,7 @@ void SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
                 throw std::logic_error("Abaqus-style averaged constraints share one friction-history slot");
             staged[constraint.contact][constraint.secondary] = trial;
             updated[constraint.contact][constraint.secondary] = true;
+            friction_dissipation += value.friction_dissipation;
         }
         for (std::size_t contact = 0; contact < _definition.contacts.size(); ++contact) {
             if (!_definition.contacts[contact].mechanical) continue;
@@ -3287,7 +3295,7 @@ void SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
         }
         _contact_histories.swap(staged);
         _committed_contact_solution = state;
-        return;
+        return friction_dissipation;
     }
     for (std::size_t point = 0; point < _mechanical_active_primary.size(); ++point) {
         const std::size_t primary = _mechanical_active_primary[point];
@@ -3335,6 +3343,7 @@ void SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
         }
         staged[candidate.contact][candidate.secondary] = trial;
         updated[candidate.contact][candidate.secondary] = true;
+        friction_dissipation += value.friction_dissipation;
     }
     for (const AbaqusAveragedConstraint& constraint : _abaqus_averaged_constraints) {
         std::vector<std::size_t> dofs;
@@ -3353,6 +3362,7 @@ void SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
             throw std::logic_error("Abaqus-style averaged constraints share one friction-history slot");
         staged[constraint.contact][constraint.secondary] = trial;
         updated[constraint.contact][constraint.secondary] = true;
+        friction_dissipation += value.friction_dissipation;
     }
     for (std::size_t contact = 0; contact < _definition.contacts.size(); ++contact) {
         if (!_definition.contacts[contact].mechanical) continue;
@@ -3365,6 +3375,7 @@ void SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
     }
     _contact_histories.swap(staged);
     _committed_contact_solution = state;
+    return friction_dissipation;
 }
 
 void SpatialAssembly::restore_contact_state(

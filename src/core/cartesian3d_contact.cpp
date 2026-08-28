@@ -22,7 +22,7 @@ struct CartesianContactAdValue final {
     std::array<adlite::Scalar, 4> primary_shape{};
     ActivePoint3 normal{}, tangent_first{}, elastic_tangential_slip{}, tangential_traction_vector{};
     adlite::Scalar gap{0.0}, pressure{0.0}, tributary_area{0.0}, contact_force{0.0}, tangential_traction{0.0},
-        tangential_force{0.0};
+        tangential_force{0.0}, friction_dissipation{0.0};
 };
 
 struct SurfaceBasis final {
@@ -272,6 +272,7 @@ void apply_surface_friction(const NormalContactProperties& properties, const Con
     const adlite::Scalar history_normal = dot(result.elastic_tangential_slip, result.normal);
     for (std::size_t component = 0; component < 3; ++component)
         result.elastic_tangential_slip[component] -= history_normal * result.normal[component];
+    const ActivePoint3 trial_elastic_tangential_slip = result.elastic_tangential_slip;
     const adlite::Scalar sliding_limit = properties.friction_coefficient * result.pressure,
                          stick_stiffness = properties.maximum_elastic_slip > 0.0
                                                ? sliding_limit / properties.maximum_elastic_slip
@@ -295,6 +296,11 @@ void apply_surface_friction(const NormalContactProperties& properties, const Con
         }
         result.tangential_traction = sliding_limit;
         result.sliding = true;
+        for (std::size_t component = 0; component < 3; ++component)
+            result.friction_dissipation +=
+                result.tangential_traction_vector[component] *
+                (trial_elastic_tangential_slip[component] - result.elastic_tangential_slip[component]);
+        result.friction_dissipation *= result.tributary_area;
     }
     result.tangential_force = result.tangential_traction * result.tributary_area;
 }
@@ -427,6 +433,7 @@ CartesianContactAdValue evaluate_mechanical(const NormalContactProperties& prope
     const adlite::Scalar history_normal = dot(result.elastic_tangential_slip, result.normal);
     for (std::size_t component = 0; component < 3; ++component)
         result.elastic_tangential_slip[component] -= history_normal * result.normal[component];
+    const ActivePoint3 trial_elastic_tangential_slip = result.elastic_tangential_slip;
     ActivePoint3 trial_traction{};
     for (std::size_t component = 0; component < 3; ++component)
         trial_traction[component] = properties.penalty * result.elastic_tangential_slip[component];
@@ -446,6 +453,11 @@ CartesianContactAdValue evaluate_mechanical(const NormalContactProperties& prope
         }
         result.tangential_traction = sliding_limit;
         result.sliding = true;
+        for (std::size_t component = 0; component < 3; ++component)
+            result.friction_dissipation +=
+                result.tangential_traction_vector[component] *
+                (trial_elastic_tangential_slip[component] - result.elastic_tangential_slip[component]);
+        result.friction_dissipation *= result.tributary_area;
     }
     result.tangential_force = result.tangential_traction * result.tributary_area;
     return result;
@@ -549,7 +561,7 @@ CartesianContactPointValue compute_quad4_to_quad4_contact_value(const NormalCont
         evaluate_surface_mechanical(properties, geometry, make_ad_state(state, false), committed_state, history);
     return {value.projected, value.gap.value(), value.pressure.value(), value.tributary_area.value(),
         value.contact_force.value(), value.tangential_traction.value(), value.tangential_force.value(),
-        {value.normal[0].value(), value.normal[1].value(), value.normal[2].value()},
+        value.friction_dissipation.value(), {value.normal[0].value(), value.normal[1].value(), value.normal[2].value()},
         {value.tangent_first[0].value(), value.tangent_first[1].value(), value.tangent_first[2].value()},
         {value.tangential_traction_vector[0].value(), value.tangential_traction_vector[1].value(),
             value.tangential_traction_vector[2].value()},
@@ -595,7 +607,8 @@ CartesianContactPointValue compute_node_to_quad4_contact_value(const NormalConta
         evaluate_mechanical(properties, geometry, make_ad_state(state, false), committed_state, history);
     return {value.projected, value.gap.value(), value.pressure.value(), value.tributary_area.value(),
         value.contact_force.value(), value.tangential_traction.value(), value.tangential_force.value(),
-        {value.normal[0].value(), value.normal[1].value(), value.normal[2].value()}, {},
+        value.friction_dissipation.value(), {value.normal[0].value(), value.normal[1].value(), value.normal[2].value()},
+        {},
         {value.tangential_traction_vector[0].value(), value.tangential_traction_vector[1].value(),
             value.tangential_traction_vector[2].value()},
         {value.elastic_tangential_slip[0].value(), value.elastic_tangential_slip[1].value(),

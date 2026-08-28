@@ -887,8 +887,10 @@ bool test_cartesian_surface_contact_kernels() {
     const fuelsim::CartesianContactPointValue sliding = fuelsim::compute_node_to_quad4_contact_value(
         {1000.0, 0.05, false}, contact_geometry, state, committed, history);
     passed = check(sliding.sliding && near(sliding.tangential_traction, 0.5, 1.0e-12) &&
-                       near(sliding.elastic_tangential_slip[1], 0.0005, 1.0e-12),
-                 "three-dimensional Coulomb contact caps sliding traction and stores the vector elastic slip") &&
+                       near(sliding.elastic_tangential_slip[1], 0.0005, 1.0e-12) &&
+                       near(sliding.friction_dissipation, 6.25e-5, 1.0e-12),
+                 "three-dimensional Coulomb contact caps sliding traction, stores the vector elastic slip, and "
+                 "integrates the dissipated sliding work") &&
              passed;
     std::array<double, 32> direction{};
     for (std::size_t dof = 8; dof < direction.size(); ++dof)
@@ -939,18 +941,22 @@ bool test_cartesian_surface_contact_kernels() {
         stick_properties, finite_geometry, state, committed, history, &finite_jacobian);
     const fuelsim::CartesianContactPointValue finite_stick =
         fuelsim::compute_quad4_to_quad4_contact_value(stick_properties, finite_geometry, state, committed, history);
+    const fuelsim::CartesianContactPointValue finite_sliding = fuelsim::compute_quad4_to_quad4_contact_value(
+        {1000.0, 0.05, false}, finite_geometry, state, committed, history);
     resultant = {};
     for (std::size_t component = 0; component < 3; ++component)
         for (std::size_t node = 0; node < 8; ++node) resultant[component] += finite_contact[8 * (component + 1) + node];
-    passed = check(finite_stick.projected && near(finite_stick.gap, -0.01, 1.0e-12) &&
-                       near(finite_stick.pressure, 10.0, 1.0e-12) && near(finite_stick.tributary_area, 0.25, 1.0e-12) &&
-                       near(finite_stick.contact_force, 2.5, 1.0e-12) &&
-                       near(finite_stick.tangential_traction, 1.0, 1.0e-12) && !finite_stick.sliding &&
-                       near(resultant[0], 0.0, 1.0e-12) && near(resultant[1], 0.0, 1.0e-12) &&
-                       near(resultant[2], 0.0, 1.0e-12),
-                 "HEX8 finite-sliding surface contact uses the node-centered area, current projection, and "
-                 "equal-and-opposite three-component force") &&
-             passed;
+    passed =
+        check(finite_stick.projected && near(finite_stick.gap, -0.01, 1.0e-12) &&
+                  near(finite_stick.pressure, 10.0, 1.0e-12) && near(finite_stick.tributary_area, 0.25, 1.0e-12) &&
+                  near(finite_stick.contact_force, 2.5, 1.0e-12) &&
+                  near(finite_stick.tangential_traction, 1.0, 1.0e-12) && !finite_stick.sliding &&
+                  near(finite_stick.friction_dissipation, 0.0, 1.0e-12) && finite_sliding.sliding &&
+                  near(finite_sliding.friction_dissipation, 6.25e-5, 1.0e-12) && near(resultant[0], 0.0, 1.0e-12) &&
+                  near(resultant[1], 0.0, 1.0e-12) && near(resultant[2], 0.0, 1.0e-12),
+            "HEX8 finite-sliding surface contact uses the node-centered area, current projection, and "
+            "equal-and-opposite three-component force") &&
+        passed;
     plus = state;
     minus = state;
     for (std::size_t dof = 0; dof < state.size(); ++dof) {

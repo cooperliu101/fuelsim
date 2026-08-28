@@ -55,6 +55,27 @@ void finalize_conservation(const NonlinearProblem& problem, const std::vector<do
     result.relative_mechanical_work_balance =
         mechanical_scale > 0.0 ? std::abs(result.mechanical_work_balance) / mechanical_scale : 0.0;
 }
+
+void add_trapezoidal_external_work(const NonlinearProblem& problem, const std::vector<double>& current,
+    const std::vector<double>& old, const std::vector<double>& current_raw_residual,
+    const std::vector<double>& old_raw_residual, const std::vector<double>& current_external_load_residual,
+    const std::vector<double>& old_external_load_residual, TransientConservationSummary& result) {
+    if (current_raw_residual.size() != problem.dof_count() || old_raw_residual.size() != problem.dof_count() ||
+        current_external_load_residual.size() != problem.dof_count() ||
+        old_external_load_residual.size() != problem.dof_count())
+        throw std::logic_error("Transient trapezoidal work residual layout does not match the problem");
+    std::vector<bool> constrained(problem.dof_count(), false);
+    for (const DirichletCondition& condition : problem.dirichlet_conditions()) constrained[condition.dof] = true;
+    for (std::size_t dof = 0; dof < problem.dof_count(); ++dof) {
+        if (problem.field_layout()[problem.field_index(dof)].category == FieldCategory::thermal) continue;
+        const double increment = current[dof] - old[dof];
+        result.trapezoidal_pressure_traction_work_increment -=
+            0.5 * (old_external_load_residual[dof] + current_external_load_residual[dof]) * increment;
+        if (constrained[dof])
+            result.trapezoidal_dirichlet_reaction_work_increment +=
+                0.5 * (old_raw_residual[dof] + current_raw_residual[dof]) * increment;
+    }
+}
 } // namespace
 
 namespace {
@@ -237,7 +258,7 @@ class SpatialProblemStorage {
     std::vector<std::vector<CartesianMaterialHistory>> cartesian_material_histories;
     std::vector<std::vector<CartesianMaterialHistory>> _staged_cartesian_material_histories;
     TransientConservationSummary last_conservation_summary;
-    std::vector<double> committed_solution;
+    std::vector<double> committed_solution, committed_raw_residual, committed_external_load_residual;
     double committed_time = 0.0, committed_load_factor = 0.0, active_time_step = 0.0, active_end_time = 0.0,
            active_load_factor = 0.0;
     std::vector<std::vector<ContactPointHistory>> active_contact_histories;
@@ -383,9 +404,10 @@ void SteadyProblem::compute_contribution(std::size_t index, const std::vector<do
     if (jacobian != nullptr) jacobian->assign(local_jacobian.begin(), local_jacobian.end());
 }
 
-std::vector<double> TransientProblem::accumulate_contribution_conservation(
-    const std::vector<double>& solution, TransientConservationSummary& summary) const {
+std::vector<double> TransientProblem::accumulate_contribution_conservation(const std::vector<double>& solution,
+    TransientConservationSummary& summary, std::vector<double>* external_load_residual) const {
     std::vector<double> raw_residual(dof_count(), 0.0);
+    if (external_load_residual != nullptr) external_load_residual->assign(dof_count(), 0.0);
     ContributionWorkspace workspace;
     for (std::size_t entry = 0; entry < contribution_count(); ++entry) {
         evaluate_contribution(entry, solution, workspace, false);
@@ -411,6 +433,9 @@ std::vector<double> TransientProblem::accumulate_contribution_conservation(
                 summary.contact_work_increment += work;
             else if (type == SpatialContributionType::pressure || type == SpatialContributionType::traction)
                 summary.pressure_traction_work_increment -= work;
+            if (external_load_residual != nullptr &&
+                (type == SpatialContributionType::pressure || type == SpatialContributionType::traction))
+                (*external_load_residual)[dof] += residual;
         }
     }
     return raw_residual;
@@ -514,6 +539,8 @@ TransientProblem::TransientProblem(SpatialDefinition definition, const Unstructu
     }
     apply_spatial_controls(0.0, 0.0);
     _impl->committed_solution = _impl->rz->initial_state();
+    _impl->committed_raw_residual.assign(dof_count(), 0.0);
+    _impl->committed_external_load_residual.assign(dof_count(), 0.0);
     _impl->rz->restore_contact_state(_impl->committed_solution, _impl->rz->committed_contact_histories());
 }
 
@@ -521,6 +548,8 @@ TransientProblem::TransientProblem(SpatialDefinition definition, const Unstructu
     : _impl(std::make_unique<SpatialProblemStorage>(std::move(definition), source_mesh, true)) {
     apply_spatial_controls(0.0, 0.0);
     _impl->committed_solution = _impl->cartesian->initial_state();
+    _impl->committed_raw_residual.assign(dof_count(), 0.0);
+    _impl->committed_external_load_residual.assign(dof_count(), 0.0);
     _impl->cartesian->restore_contact_state(_impl->committed_solution, _impl->cartesian->committed_contact_histories());
 }
 
@@ -528,6 +557,8 @@ TransientProblem::TransientProblem(SpatialDefinition definition, const Unstructu
     : _impl(std::make_unique<SpatialProblemStorage>(std::move(definition), source_mesh, true)) {
     apply_spatial_controls(0.0, 0.0);
     _impl->committed_solution = _impl->cartesian->initial_state();
+    _impl->committed_raw_residual.assign(dof_count(), 0.0);
+    _impl->committed_external_load_residual.assign(dof_count(), 0.0);
     _impl->cartesian->restore_contact_state(_impl->committed_solution, _impl->cartesian->committed_contact_histories());
 }
 
@@ -610,15 +641,22 @@ RegionStateSummary TransientProblem::summarize_region(std::size_t region) const 
 TransientCommittedState BackendAccess::committed_state(const TransientProblem& problem) {
     const SpatialProblemStorage& storage = *problem._impl;
     return {storage.committed_solution, storage.material_histories, storage.cartesian_material_histories,
-        storage.committed_contact_histories(), storage.last_conservation_summary, storage.committed_time,
-        storage.committed_load_factor};
+        storage.committed_contact_histories(), storage.committed_raw_residual, storage.committed_external_load_residual,
+        storage.last_conservation_summary, storage.committed_time, storage.committed_load_factor};
 }
 
 void BackendAccess::restore_committed_state(TransientProblem& problem, TransientCommittedState state) {
     SpatialProblemStorage& storage = *problem._impl;
     if (storage.time_step_active) throw std::logic_error("TransientProblem cannot restore during an active time step");
     if (state.solution.size() != problem.dof_count() || !std::isfinite(state.time) || state.time < 0.0 ||
-        !std::isfinite(state.load_factor) || state.load_factor < 0.0)
+        !std::isfinite(state.load_factor) || state.load_factor < 0.0 ||
+        state.raw_residual.size() != problem.dof_count() ||
+        state.external_load_residual.size() != problem.dof_count() ||
+        !std::all_of(
+            state.raw_residual.begin(), state.raw_residual.end(), [](double value) { return std::isfinite(value); }) ||
+        !std::all_of(
+            state.external_load_residual.begin(), state.external_load_residual.end(),
+            [](double value) { return std::isfinite(value); }))
         throw std::invalid_argument("Transient committed state layout does not match the problem");
     if (storage.is_cartesian()) {
         storage.cartesian->validate_state(state.solution);
@@ -640,6 +678,8 @@ void BackendAccess::restore_committed_state(TransientProblem& problem, Transient
         }
         storage.cartesian->restore_contact_state(state.solution, std::move(state.contact_histories));
         storage.committed_solution = std::move(state.solution);
+        storage.committed_raw_residual = std::move(state.raw_residual);
+        storage.committed_external_load_residual = std::move(state.external_load_residual);
         storage.cartesian_material_histories = std::move(state.cartesian_material_histories);
         storage.last_conservation_summary = state.conservation;
         storage.committed_time = state.time;
@@ -672,6 +712,8 @@ void BackendAccess::restore_committed_state(TransientProblem& problem, Transient
     }
     storage.rz->restore_contact_state(state.solution, state.contact_histories);
     storage.committed_solution = std::move(state.solution);
+    storage.committed_raw_residual = std::move(state.raw_residual);
+    storage.committed_external_load_residual = std::move(state.external_load_residual);
     storage.material_histories = std::move(state.material_histories);
     storage.last_conservation_summary = state.conservation;
     storage.committed_time = state.time;
@@ -965,7 +1007,9 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                     throw std::domain_error("TransientProblem committed temperatures must be positive");
     if (_impl->is_cartesian()) {
         TransientConservationSummary conservation;
-        const std::vector<double> raw_residual = accumulate_contribution_conservation(converged_solution, conservation);
+        std::vector<double> external_load_residual;
+        const std::vector<double> raw_residual =
+            accumulate_contribution_conservation(converged_solution, conservation, &external_load_residual);
         auto& staged = _impl->_staged_cartesian_material_histories;
         for (std::size_t region = 0; region < _impl->cartesian->region_count(); ++region) {
             const std::size_t offset = _impl->cartesian->region_element_offset(region);
@@ -1089,13 +1133,20 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                 staged[region][element] = std::move(update);
             }
         }
+        add_trapezoidal_external_work(*this, converged_solution, _impl->committed_solution, raw_residual,
+            _impl->committed_raw_residual, external_load_residual, _impl->committed_external_load_residual,
+            conservation);
         finalize_conservation(*this, converged_solution, _impl->committed_solution, raw_residual, conservation);
+        conservation.friction_dissipation_increment = _impl->cartesian->commit_contact_state(converged_solution);
         _impl->last_conservation_summary = conservation;
-        _impl->cartesian->commit_contact_state(converged_solution);
         _impl->cartesian_material_histories.swap(staged);
+        _impl->committed_raw_residual = raw_residual;
+        _impl->committed_external_load_residual = std::move(external_load_residual);
     } else {
         TransientConservationSummary conservation;
-        const std::vector<double> raw_residual = accumulate_contribution_conservation(converged_solution, conservation);
+        std::vector<double> external_load_residual;
+        const std::vector<double> raw_residual =
+            accumulate_contribution_conservation(converged_solution, conservation, &external_load_residual);
         const std::size_t regions = _impl->rz->region_count();
         auto& staged = _impl->_staged_material_histories;
         for (std::size_t region = 0; region < regions; ++region) {
@@ -1143,10 +1194,15 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                 staged[region][element] = std::move(update);
             }
         }
+        add_trapezoidal_external_work(*this, converged_solution, _impl->committed_solution, raw_residual,
+            _impl->committed_raw_residual, external_load_residual, _impl->committed_external_load_residual,
+            conservation);
         finalize_conservation(*this, converged_solution, _impl->committed_solution, raw_residual, conservation);
         _impl->last_conservation_summary = conservation;
         _impl->rz->commit_contact_state(converged_solution);
         _impl->material_histories.swap(staged);
+        _impl->committed_raw_residual = raw_residual;
+        _impl->committed_external_load_residual = std::move(external_load_residual);
     }
     _impl->committed_solution = converged_solution;
     _impl->committed_time = _impl->active_end_time;

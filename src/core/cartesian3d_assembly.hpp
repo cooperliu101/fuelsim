@@ -41,7 +41,7 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
         return _contact_histories;
     }
 
-    void commit_contact_state(const std::vector<double>& state);
+    double commit_contact_state(const std::vector<double>& state);
     void restore_contact_state(
         const std::vector<double>& state, std::vector<std::vector<ContactPointHistory>> histories);
     std::vector<CartesianContactNodeSummary> summarize_contact_nodes(
@@ -199,7 +199,8 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     };
 
     struct AbaqusAveragedConstraintValue final {
-        double gap, pressure, force, stick_stiffness, trial_tangential_magnitude, tangential_force;
+        double gap, pressure, force, stick_stiffness, trial_tangential_magnitude, tangential_force,
+            friction_dissipation;
         std::array<double, 3> trial_tangential_traction, tangential_traction, tangential_slip, elastic_tangential_slip;
         bool sliding;
     };

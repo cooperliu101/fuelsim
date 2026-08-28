@@ -27,7 +27,7 @@ struct CartesianContactAdValue8 final {
     std::array<adlite::Scalar, 8> primary_shape{};
     ActivePoint3 normal{}, tangent_first{}, elastic_tangential_slip{}, tangential_traction_vector{};
     adlite::Scalar gap{0.0}, pressure{0.0}, tributary_area{0.0}, contact_force{0.0}, tangential_traction{0.0},
-        tangential_force{0.0};
+        tangential_force{0.0}, friction_dissipation{0.0};
 };
 
 struct SurfaceBasis final {
@@ -245,6 +245,7 @@ void apply_friction(const NormalContactProperties& properties, const ContactPoin
     const adlite::Scalar history_normal = dot(result.elastic_tangential_slip, result.normal);
     for (std::size_t component = 0; component < 3; ++component)
         result.elastic_tangential_slip[component] -= history_normal * result.normal[component];
+    const ActivePoint3 trial_elastic_tangential_slip = result.elastic_tangential_slip;
     const adlite::Scalar sliding_limit = properties.friction_coefficient * result.pressure,
                          stick_stiffness = properties.maximum_elastic_slip > 0.0
                                                ? sliding_limit / properties.maximum_elastic_slip
@@ -266,6 +267,11 @@ void apply_friction(const NormalContactProperties& properties, const ContactPoin
         }
         result.tangential_traction = sliding_limit;
         result.sliding = true;
+        for (std::size_t component = 0; component < 3; ++component)
+            result.friction_dissipation +=
+                result.tangential_traction_vector[component] *
+                (trial_elastic_tangential_slip[component] - result.elastic_tangential_slip[component]);
+        result.friction_dissipation *= result.tributary_area;
     }
     result.tangential_force = result.tangential_traction * result.tributary_area;
 }
@@ -569,7 +575,7 @@ CartesianContactPointValue compute_quad8_to_quad8_contact_value(const NormalCont
         evaluate_surface_mechanical(properties, geometry, make_ad_state(state, false), committed_state, history);
     return {value.projected, value.gap.value(), value.pressure.value(), value.tributary_area.value(),
         value.contact_force.value(), value.tangential_traction.value(), value.tangential_force.value(),
-        {value.normal[0].value(), value.normal[1].value(), value.normal[2].value()},
+        value.friction_dissipation.value(), {value.normal[0].value(), value.normal[1].value(), value.normal[2].value()},
         {value.tangent_first[0].value(), value.tangent_first[1].value(), value.tangent_first[2].value()},
         {value.tangential_traction_vector[0].value(), value.tangential_traction_vector[1].value(),
             value.tangential_traction_vector[2].value()},
@@ -643,7 +649,8 @@ CartesianContactPointValue compute_node_to_quad8_contact_value(const NormalConta
         evaluate_mechanical(properties, geometry, make_ad_state(state, false), committed_state, history);
     return {value.projected, value.gap.value(), value.pressure.value(), value.tributary_area.value(),
         value.contact_force.value(), value.tangential_traction.value(), value.tangential_force.value(),
-        {value.normal[0].value(), value.normal[1].value(), value.normal[2].value()}, {},
+        value.friction_dissipation.value(), {value.normal[0].value(), value.normal[1].value(), value.normal[2].value()},
+        {},
         {value.tangential_traction_vector[0].value(), value.tangential_traction_vector[1].value(),
             value.tangential_traction_vector[2].value()},
         {value.elastic_tangential_slip[0].value(), value.elastic_tangential_slip[1].value(),

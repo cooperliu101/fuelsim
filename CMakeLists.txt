@@ -592,9 +592,37 @@ if(BUILD_TESTING)
     fuelsim_enable_warnings(fuelsim_b522_hex8_c3d8t_faceted_thermal_contact_abaqus_tests)
     add_test(NAME fuelsim_b522_hex8_c3d8t_faceted_thermal_contact_abaqus_tests
         COMMAND fuelsim_b522_hex8_c3d8t_faceted_thermal_contact_abaqus_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b522_hex8_c3d8t_faceted_thermal_contact_nodal.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b522_hex8_c3d8t_faceted_thermal_contact_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b522_hex8_c3d8t_faceted_thermal_contact_f6_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b522_hex8_c3d8t_faceted_thermal_contact_f12_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b522_hex8_c3d8t_faceted_thermal_contact_swapped_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b522_hex8_c3d8t_faceted_thermal_contact_tight_nodal.csv")
     set_tests_properties(fuelsim_b522_hex8_c3d8t_faceted_thermal_contact_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;thermo-mechanical;contact;curved;abaqus")
+
+    add_executable(fuelsim_b523_hex8_c3d8t_integrated_abaqus_tests
+        tests/b523_hex8_c3d8t_integrated_abaqus_tests.cpp)
+    target_link_libraries(fuelsim_b523_hex8_c3d8t_integrated_abaqus_tests
+        PRIVATE fuelsim_moose_test_support fuelsim::solver)
+    fuelsim_enable_warnings(fuelsim_b523_hex8_c3d8t_integrated_abaqus_tests)
+    add_test(NAME fuelsim_b523_hex8_c3d8t_integrated_abaqus_tests
+        COMMAND fuelsim_b523_hex8_c3d8t_integrated_abaqus_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b523_hex8_c3d8t_integrated_path_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b523_hex8_c3d8t_integrated_path_integration.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b523_hex8_c3d8t_integrated_path_contact.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b523_hex8_c3d8t_integrated_path_energy.csv")
+    set_tests_properties(fuelsim_b523_hex8_c3d8t_integrated_abaqus_tests PROPERTIES
+        LABELS "acceptance;three-dimensional;hex8;transient;thermal;mechanical;finite-strain;plasticity;creep;friction;contact;abaqus")
+
+    add_executable(fuelsim_b527_hex8_engineering_fuel_clad_tests
+        tests/b527_hex8_engineering_fuel_clad_tests.cpp)
+    target_link_libraries(fuelsim_b527_hex8_engineering_fuel_clad_tests
+        PRIVATE fuelsim_moose_test_support fuelsim::solver)
+    fuelsim_enable_warnings(fuelsim_b527_hex8_engineering_fuel_clad_tests)
+    add_test(NAME fuelsim_b527_hex8_engineering_fuel_clad_tests
+        COMMAND fuelsim_b527_hex8_engineering_fuel_clad_tests)
+    set_tests_properties(fuelsim_b527_hex8_engineering_fuel_clad_tests PROPERTIES
+        LABELS "acceptance;three-dimensional;hex8;transient;thermal;mechanical;finite-strain;friction;contact;engineering")
 
     add_executable(fuelsim_b53_hex8_c3d8t_thermal_load_abaqus_tests
         tests/b53_hex8_c3d8t_thermal_load_abaqus_tests.cpp)
