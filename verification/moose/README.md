@@ -1316,36 +1316,38 @@ The temperature stays at `600 K` because M4.3 has no thermal load; it is a
 null control, not an independent finite-strain thermal-coupling discriminator.
 
 The earlier reference applied the inclined inner-edge pressure only to the
-radial equation. Adding the missing axial normal component lowers the stress
-relative L2 error from `0.004845%` to `0.000525%` and its maximum pointwise
-relative error from `2.6775%` to `0.5324%`; adding or removing the outer
-component traction changes these values negligibly. The corrected stress,
-elastic-strain, and combined-inelastic relative L2 errors are
-`0.000525%/0.000537%/0.000483%`, and their relative absolute-peak errors are
-all below `0.000158%`. Their maximum pointwise errors are
-`0.5324%/0.5324%/0.4467%`. The first two occur at the same `t=2.2 s`, element
-2, `rz` component, where the MOOSE reference stress is only `1.327 MPa`; the
-stress difference there is about `0.0071 MPa`, while the maximum absolute
-stress difference over the full history is `0.123 MPa`. No denominator floor
-is introduced. Stress and elastic strain use narrow `0.6%` pointwise gates;
-combined inelastic strain and every L2/peak metric retain `0.5%` gates.
+radial equation. Adding the missing axial normal component lowers the
+componentwise stress relative L2 error from `0.004845%` to `0.000525%`; adding
+or removing the outer component traction changes it negligibly. Acceptance now
+uses each complete axisymmetric tensor's Frobenius norm, with the `rz` shear
+component counted twice. The stress, elastic-strain, and combined-inelastic
+complete-tensor relative L2 errors are
+`0.000522%/0.000519%/0.000439%`, their relative absolute-peak errors are
+`0.00104%/0.00144%/0.000667%`, and their maximum pointwise errors are
+`0.00740%/0.00266%/0.01924%`. All three metrics therefore pass the uniform
+`0.5%` gate without a denominator floor. The original component diagnostics
+remain visible: stress and elastic strain reach `0.5324%` at the same
+`t=2.2 s`, element 2, `rz` component, where the MOOSE reference stress is only
+`1.327 MPa`; the stress difference there is about `0.0071 MPa`, while the
+maximum absolute stress difference over the full history is `0.123 MPa`.
 
-The isolation suite explains the remaining scale before any production-code
-change is considered. With displacement only, stress relative L2 errors are
+The isolation suite explains the componentwise zero-crossing scale before any
+production-code change is considered. With displacement only, stress relative L2 errors are
 `0.0000385%` for elastic, `0.000560%` for plastic, `0.000369%` for creep, and
 `0.000523%` for coupled plastic-creep. Adding the corrected follower pressure
 gives `0.000525%`; adding the component traction gives `0.000525%`. The
-creep-only stress crosses zero during reversal, so its maximum pointwise
-relative error is `3.6755%` despite a `0.000369%` L2 error and a `0.165 MPa`
-maximum absolute difference; that diagnostic alone uses an explicit `4%`
-pointwise qualified gate. For that variant the tracked
+creep-only stress crosses zero during reversal, so its component diagnostic
+reaches `3.6755%` despite a `0.000369%` L2 error and a `0.165 MPa` maximum
+absolute difference. Its complete-tensor relative L2, relative absolute-peak,
+and maximum pointwise errors are `0.000354%`, `0.00115%`, and `0.00272%`, so
+the same uniform `0.5%` gate applies. For that variant the tracked
 `m43_creep_displacement_rz_nodal_history.csv` contains all nine nodes at all
 100 time steps. Replaying those 900 nodal states through fuelsim's production
 transient material transaction reduces the stress relative L2 and maximum
 pointwise relative errors to `5.15e-8%` and `0.000602%`; all other replayed
 history pointwise errors are below `0.000210%`. The MOOSE states also satisfy
 the fuelsim free mechanical weak form to `0.001419%` of the local-force scale.
-This isolates the original `3.6755%` value to low-stress zero-crossing
+This isolates the original component diagnostic to low-stress zero-crossing
 amplification between independently equilibrated paths, not a reproduced
 Norton update defect. The
 single-element, fully prescribed noncoaxial material oracle agrees at near

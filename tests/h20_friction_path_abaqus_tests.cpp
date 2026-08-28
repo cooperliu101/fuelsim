@@ -149,6 +149,9 @@ fuelsim::TransientTimeOptions time_options(
     fuelsim::TransientTimeOptions options = definition.transient_execution;
     options.end_time = end_time;
     options.initial_time_step = initial_time_step;
+    options.minimum_time_step = std::min(options.minimum_time_step, initial_time_step);
+    options.maximum_time_step = initial_time_step;
+    options.growth_factor = 1.0;
     return options;
 }
 
@@ -162,6 +165,7 @@ struct StepState final {
 class Recorder final : public fuelsim::TransientStepObserver {
   public:
     void accepted_step(const fuelsim::TransientProblem& problem, const fuelsim::TransientAcceptedStep& step) override {
+        if (std::abs(step.time - std::round(step.time)) > 1.0e-12) return;
         const std::vector<double>& solution = problem.committed_solution();
         const std::vector<fuelsim::CartesianContactNodeSummary> contact =
             fuelsim::cartesian::ProblemAccess::summarize_contact_nodes(problem, 0, solution);
@@ -202,14 +206,14 @@ bool compare_abaqus_steps(const fuelsim::TransientProblem& problem, const fuelsi
     const std::vector<std::size_t> contact_nodes =
         fuelsim::cartesian::ProblemAccess::contact_secondary_source_nodes(problem, 0);
     constexpr double tolerance = 1.0e-2;
-    constexpr double nonmatching_displacement_pointwise_tolerance = 1.2e-1;
-    constexpr double nonmatching_force_pointwise_tolerance = 1.5e-2;
     constexpr double zero_tolerance = 1.2e-8;
     bool passed = true;
     for (std::size_t step = 0; step < states.size(); ++step) {
         std::array<fuelsim::test::FieldErrorMetrics, 3> displacement_metrics;
         fuelsim::test::FieldErrorMetrics normal_force, tangential_force, slip_1, slip_2;
+        fuelsim::test::GroupedFieldErrorMetrics displacement_vector, contact_force_vector, tangential_slip_vector;
         std::vector<bool> present(mesh.nodes().size(), false);
+        std::vector<std::size_t> displacement_source_ids;
         double maximum_coordinate_difference = 0.0;
         for (std::size_t region = 0; region < spatial.region_count(); ++region) {
             const auto& region_mesh = spatial.hex20_region_mesh(region);
@@ -225,9 +229,15 @@ bool compare_abaqus_steps(const fuelsim::TransientProblem& problem, const fuelsi
                         std::abs(mesh.nodes()[source].y - found->point.y),
                         std::abs(mesh.nodes()[source].z - found->point.z)});
                 const std::size_t global = spatial.global_node(region, local);
-                for (std::size_t component = 0; component < 3; ++component)
+                std::array<double, 3> actual_displacement{}, reference_displacement{};
+                for (std::size_t component = 0; component < 3; ++component) {
+                    actual_displacement[component] = states[step].solution[fields[component + 1].begin + global];
+                    reference_displacement[component] = found->displacement[component];
                     displacement_metrics[component].add(
-                        states[step].solution[fields[component + 1].begin + global], found->displacement[component]);
+                        actual_displacement[component], reference_displacement[component]);
+                }
+                displacement_vector.add(actual_displacement.data(), reference_displacement.data(), 3);
+                displacement_source_ids.push_back(source);
             }
         }
         if (contact_nodes.size() != states[step].contact.size() || contact_nodes.size() != contact[step].size())
@@ -246,32 +256,21 @@ bool compare_abaqus_steps(const fuelsim::TransientProblem& problem, const fuelsi
             tangential_force.add(-actual.tangential_contact_force[1], found->tangential_force[1]);
             slip_1.add(actual.tangential_slip[2], found->slip_1);
             slip_2.add(actual.tangential_slip[1], -found->slip_2);
+            const std::array<double, 2> actual_force = {-actual.normal_contact_force[0],
+                                            -actual.tangential_contact_force[1]},
+                                        reference_force = {found->normal_force[0], found->tangential_force[1]},
+                                        actual_slip = {actual.tangential_slip[2], actual.tangential_slip[1]},
+                                        reference_slip = {found->slip_1, -found->slip_2};
+            contact_force_vector.add(actual_force.data(), reference_force.data(), 2);
+            tangential_slip_vector.add(actual_slip.data(), reference_slip.data(), 2);
         }
         const std::string prefix = "h20_33_step_" + std::to_string(step + 1) + "_";
         for (std::size_t component = 0; component < 3; ++component) {
             const std::string name = prefix + "displacement_" + std::string(1, "xyz"[component]);
-            if (displacement_metrics[component].has_relative_norm()) {
+            if (displacement_metrics[component].has_relative_norm())
                 fuelsim::test::print_relative_metrics(name, displacement_metrics[component]);
-                const bool metric_passed =
-                    component == 0
-                        ? fuelsim::test::relative_metrics_below_with_pointwise_tolerance(
-                              displacement_metrics[component], tolerance, nonmatching_displacement_pointwise_tolerance)
-                        : fuelsim::test::relative_metrics_below(displacement_metrics[component], tolerance);
-                passed =
-                    check(metric_passed,
-                        "H20.33 step " + std::to_string(step + 1) +
-                            (component == 0
-                                    ? " normal displacement passes 1 percent aggregate metrics and the "
-                                      "explicit 12 percent nonmatching-transition pointwise gate"
-                                    : " tangential displacement passes all three Abaqus metrics below 1 percent")) &&
-                    passed;
-            } else {
+            else
                 fuelsim::test::print_absolute_metrics(name, displacement_metrics[component]);
-                passed = check(displacement_metrics[component].maximum_zero_reference_difference < zero_tolerance,
-                             "H20.33 step " + std::to_string(step + 1) +
-                                 " theoretical-zero displacement component passes its absolute check") &&
-                         passed;
-            }
         }
         fuelsim::test::print_relative_metrics(prefix + "signed_normal_force_x", normal_force);
         fuelsim::test::print_relative_metrics(prefix + "signed_tangential_force_y", tangential_force);
@@ -280,23 +279,29 @@ bool compare_abaqus_steps(const fuelsim::TransientProblem& problem, const fuelsi
         else
             fuelsim::test::print_absolute_metrics(prefix + "tangential_slip_1", slip_1);
         fuelsim::test::print_relative_metrics(prefix + "tangential_slip_2", slip_2);
+        fuelsim::test::print_grouped_relative_metrics(prefix + "displacement_vector", displacement_vector);
+        fuelsim::test::print_grouped_relative_metrics(prefix + "contact_force_vector", contact_force_vector);
+        fuelsim::test::print_grouped_relative_metrics(prefix + "tangential_slip_vector", tangential_slip_vector);
+        std::cout << prefix << "displacement_vector_maximum_pointwise_source_node="
+                  << displacement_source_ids.at(displacement_vector.maximum_pointwise_relative_index) << '\n'
+                  << prefix << "contact_force_vector_maximum_pointwise_source_node="
+                  << contact_nodes.at(contact_force_vector.maximum_pointwise_relative_index) << '\n'
+                  << prefix << "tangential_slip_vector_maximum_pointwise_source_node="
+                  << contact_nodes.at(tangential_slip_vector.maximum_pointwise_relative_index) << '\n';
         passed = check(maximum_coordinate_difference < 1.0e-7,
                      "H20.33 step " + std::to_string(step + 1) + " uses the tracked nonmatching Exodus mesh") &&
-                 check(fuelsim::test::relative_metrics_below_with_pointwise_tolerance(
-                           normal_force, tolerance, nonmatching_force_pointwise_tolerance),
+                 check(fuelsim::test::grouped_relative_metrics_below(displacement_vector, tolerance) &&
+                           displacement_vector.maximum_zero_reference_difference < zero_tolerance,
                      "H20.33 step " + std::to_string(step + 1) +
-                         " signed normal nodal force passes 1 percent aggregate metrics and the explicit 1.5 percent "
-                         "nonmatching-transfer pointwise gate") &&
-                 check(fuelsim::test::relative_metrics_below_with_pointwise_tolerance(
-                           tangential_force, tolerance, nonmatching_force_pointwise_tolerance),
+                         " complete displacement-vector metrics are below 1 percent") &&
+                 check(fuelsim::test::grouped_relative_metrics_below(contact_force_vector, tolerance) &&
+                           contact_force_vector.maximum_zero_reference_difference < zero_tolerance,
                      "H20.33 step " + std::to_string(step + 1) +
-                         " signed tangential nodal force passes 1 percent aggregate metrics and the explicit 1.5 "
-                         "percent nonmatching-transfer pointwise gate") &&
-                 check((slip_1.has_relative_norm() ? fuelsim::test::relative_metrics_below(slip_1, tolerance)
-                                                   : slip_1.maximum_zero_reference_difference < zero_tolerance) &&
-                           fuelsim::test::relative_metrics_below(slip_2, tolerance),
+                         " complete contact-force-vector metrics are below 1 percent") &&
+                 check(fuelsim::test::grouped_relative_metrics_below(tangential_slip_vector, tolerance) &&
+                           tangential_slip_vector.maximum_zero_reference_difference < zero_tolerance,
                      "H20.33 step " + std::to_string(step + 1) +
-                         " both Abaqus tangential-slip components pass all three metrics below 1 percent") &&
+                         " complete tangential-slip-vector metrics are below 1 percent") &&
                  passed;
         double actual_normal = 0.0, actual_tangential = 0.0;
         for (const fuelsim::CartesianContactNodeSummary& node : states[step].contact) {
@@ -366,7 +371,7 @@ bool run_path(const std::string& input_path, const std::string& displacement_pat
     Recorder full_recorder;
     fuelsim::TransientProblem full(input.spatial, mesh);
     const fuelsim::TransientResult full_result = fuelsim::solve_transient(
-        full, time_options(input, input.transient_execution.end_time, 1.0), solver, &full_recorder);
+        full, time_options(input, input.transient_execution.end_time, 0.1), solver, &full_recorder);
     bool passed = check(full_result.completed && full_recorder.states.size() == 7,
         "H20 friction path completes all seven prescribed load states");
     if (full_recorder.states.size() == 7) {
@@ -394,7 +399,7 @@ bool run_path(const std::string& input_path, const std::string& displacement_pat
     Recorder first_recorder;
     fuelsim::TransientProblem split(input.spatial, mesh);
     const fuelsim::TransientResult first =
-        fuelsim::solve_transient(split, time_options(input, 4.0, 1.0), solver, &first_recorder);
+        fuelsim::solve_transient(split, time_options(input, 4.0, 0.1), solver, &first_recorder);
     passed = check(first.completed && first_recorder.states.size() == 4,
                  "H20 friction path reaches its nonzero-slip checkpoint state") &&
              check(recorded_states_identical(first_recorder.states, full_recorder.states, 0),

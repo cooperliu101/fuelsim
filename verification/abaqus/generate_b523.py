@@ -12,23 +12,23 @@ TANGENTIAL_Z = (2.5e-3, 5.0e-3, 7.5e-3, 1.0e-2)
 
 def append_block(nodes, elements, x0, x1):
     node_map = {}
+    x_values = (x0, 0.5 * (x0 + x1), x1)
     for z in (0.0, 1.0):
-        for y in (0.0, 0.5, 1.0):
-            for x in (x0, x1):
+        for y in (0.0, 1.0):
+            for x in x_values:
                 node_map[(x, y, z)] = len(nodes) + 1
                 nodes.append((x, y, z))
-    for lower_y in (0.0, 0.5):
-        upper_y = lower_y + 0.5
+    for lower_x, upper_x in zip(x_values[:-1], x_values[1:]):
         elements.append(
             (
-                node_map[(x0, lower_y, 0.0)],
-                node_map[(x1, lower_y, 0.0)],
-                node_map[(x1, upper_y, 0.0)],
-                node_map[(x0, upper_y, 0.0)],
-                node_map[(x0, lower_y, 1.0)],
-                node_map[(x1, lower_y, 1.0)],
-                node_map[(x1, upper_y, 1.0)],
-                node_map[(x0, upper_y, 1.0)],
+                node_map[(lower_x, 0.0, 0.0)],
+                node_map[(upper_x, 0.0, 0.0)],
+                node_map[(upper_x, 1.0, 0.0)],
+                node_map[(lower_x, 1.0, 0.0)],
+                node_map[(lower_x, 0.0, 1.0)],
+                node_map[(upper_x, 0.0, 1.0)],
+                node_map[(upper_x, 1.0, 1.0)],
+                node_map[(lower_x, 1.0, 1.0)],
             )
         )
     return node_map
@@ -105,6 +105,16 @@ def deck():
     lines.append("*Element, type=C3D8T, elset=SECONDARY")
     for label, connectivity in enumerate(secondary_elements, 3):
         lines.append("%d, %s" % (label, ", ".join(str(node) for node in connectivity)))
+    lines.extend(
+        [
+            "*Elset, elset=PRIMARY_CONTACT_ELEMENTS",
+            "2",
+            "*Elset, elset=SECONDARY_CONTACT_ELEMENTS",
+            "3",
+            "*Elset, elset=SECONDARY_OUTER_ELEMENTS",
+            "4",
+        ]
+    )
     append_set(lines, "ALL_NODES", list(range(1, 25)))
     append_set(lines, "PRIMARY_ALL", primary_all)
     append_set(lines, "SECONDARY_ALL", secondary_all)
@@ -116,11 +126,11 @@ def deck():
     lines.extend(
         [
             "*Surface, type=ELEMENT, name=PRIMARY_CONTACT",
-            "PRIMARY, S4",
+            "PRIMARY_CONTACT_ELEMENTS, S4",
             "*Surface, type=ELEMENT, name=SECONDARY_CONTACT",
-            "SECONDARY, S6",
+            "SECONDARY_CONTACT_ELEMENTS, S6",
             "*Surface, type=ELEMENT, name=SECONDARY_OUTER",
-            "SECONDARY, S4",
+            "SECONDARY_OUTER_ELEMENTS, S4",
             "*Material, name=PRIMARY_MATERIAL",
             "*Elastic",
             "1.2000000000000000e8, 2.8000000000000003e-1, 3.0000000000000000e2",

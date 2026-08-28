@@ -51,7 +51,12 @@ double dot(const CartesianPoint3& first, const CartesianPoint3& second) {
 using Matrix4 = std::array<double, 16>;
 using Vector4 = std::array<double, 4>;
 using Matrix8 = std::array<double, 64>;
-using Vector8 = std::array<double, 8>;
+
+struct AbaqusQuad8TransferSample final {
+    double first;
+    double second;
+    double weight;
+};
 
 const std::array<std::array<double, 2>, 4>& abaqus_quad4_constraint_locations() {
     // B3.8 identifies these effective centers for Abaqus/Standard C3D8
@@ -179,33 +184,101 @@ const Matrix8& abaqus_quad8_averaging() {
     return value;
 }
 
-Vector8 solve8(Matrix8 matrix, Vector8 right_hand_side) {
-    for (std::size_t column = 0; column < 8; ++column) {
-        std::size_t pivot = column;
-        for (std::size_t row = column + 1; row < 8; ++row)
-            if (std::abs(matrix[row * 8 + column]) > std::abs(matrix[pivot * 8 + column])) pivot = row;
-        if (!(std::abs(matrix[pivot * 8 + column]) > 1.0e-14))
-            throw std::invalid_argument("Abaqus-style averaged contact has a singular secondary face Gram matrix");
-        if (pivot != column) {
-            for (std::size_t entry = column; entry < 8; ++entry)
-                std::swap(matrix[column * 8 + entry], matrix[pivot * 8 + entry]);
-            std::swap(right_hand_side[column], right_hand_side[pivot]);
-        }
-        const double diagonal = matrix[column * 8 + column];
-        for (std::size_t row = column + 1; row < 8; ++row) {
-            const double factor = matrix[row * 8 + column] / diagonal;
-            for (std::size_t entry = column; entry < 8; ++entry)
-                matrix[row * 8 + entry] -= factor * matrix[column * 8 + entry];
-            right_hand_side[row] -= factor * right_hand_side[column];
+const std::array<AbaqusQuad8TransferSample, 12>& abaqus_quad8_corner_transfer_rule() {
+    // H20.28 identifies this mesh-independent parent-face sampling rule from
+    // Abaqus/Standard R2018x primary meshes with 8, 16, and 32 subdivisions.
+    // The first two coordinates use [0, 1] on the complete secondary face.
+    static const std::array<AbaqusQuad8TransferSample, 12> value = {
+        {{0.028276366456420152, 0.12450141132135768, 0.086805555555562158},
+            {0.03199788301796376, 0.21899929433932117, 0.13765653331648353},
+            {0.033360052620092687, 0.033360052620092881, 0.12916616234614192},
+            {0.047248941508981852, 0.38603095325083253, 0.056145392295365942},
+            {0.10552883626879452, 0.1055288362687966, 0.058333837653884016},
+            {0.11941772515768481, 0.16952460230472302, 0.086215718815705361},
+            {0.12450141132135777, 0.028276366456420156, 0.086805555555567654},
+            {0.16952460230472319, 0.11941772515768576, 0.086215718815703918},
+            {0.17633545031537054, 0.26711181677179063, 0.03942680001684136},
+            {0.21899929433932119, 0.031997883017963316, 0.13765653331647812},
+            {0.26711181677178519, 0.1763354503153691, 0.039426800016858818},
+            {0.38603095325083064, 0.047248941508978792, 0.056145392295423285}}};
+    return value;
+}
+
+const std::array<AbaqusQuad8TransferSample, 40>& abaqus_quad8_edge_transfer_rule() {
+    static const std::array<AbaqusQuad8TransferSample, 40> value = {
+        {{0.028276366456418445, 0.12450141132135609, 0.0014138183228190539},
+            {0.031997883017964308, 0.21899929433932022, 0.0035378857178991023},
+            {0.033360052620099695, 0.033360052620091216, 0.0019890098870065402},
+            {0.047248941508978626, 0.38603095325083892, 0.0079520568710641521},
+            {0.10552883626880082, 0.10552883626879425, 0.0042609901129871917},
+            {0.10566243270259684, 0.5, 0.014174682452723866},
+            {0.11941772515768409, 0.16952460230472471, 0.0097562764622762116},
+            {0.12450141132135764, 0.028276366456420281, 0.0062250705660643595},
+            {0.16952460230472319, 0.11941772515768448, 0.013849944679972161},
+            {0.17633545031536924, 0.26711181677179047, 0.024587114282105537},
+            {0.21899929433932128, 0.031997883017963434, 0.024213929253937019},
+            {0.25, 0.35566243270259301, 0.052900635094618217}, {0.25, 0.64433756729741143, 0.0095993649054004881},
+            {0.26711181677179036, 0.17633545031537012, 0.037244404079395804},
+            {0.35566243270259157, 0.75000000000000011, 0.006250000000009805},
+            {0.35566243270259346, 0.25, 0.081249999999999295},
+            {0.38603095325083253, 0.047248941508981623, 0.064969499764469363},
+            {0.39433756729740682, 0.5, 0.03582531754730961}, {0.5, 0.10566243270259353, 0.11997595264190444},
+            {0.5, 0.39433756729740604, 0.055024047358088829}, {0.5, 0.60566243270259357, 0.023325317547314144},
+            {0.5, 0.89433756729742642, 0.0016746824527028559}, {0.60566243270259401, 0.5, 0.03582531754730503},
+            {0.61396904674916786, 0.047248941508981374, 0.064969499764467697},
+            {0.64433756729740654, 0.25, 0.081249999999991149}, {0.64433756729740688, 0.75, 0.0062499999999983133},
+            {0.73288818322821081, 0.17633545031536949, 0.037244404079388477},
+            {0.74999999999999989, 0.35566243270259401, 0.052900635094603674},
+            {0.75, 0.64433756729740743, 0.0095993649053841227},
+            {0.78100070566067914, 0.03199788301796349, 0.024213929253929546},
+            {0.82366454968462943, 0.26711181677178969, 0.024587114282093269},
+            {0.83047539769527723, 0.11941772515768355, 0.013849944679969167},
+            {0.8754985886786425, 0.028276366456420572, 0.0062250705660644168},
+            {0.88058227484231988, 0.16952460230472366, 0.0097562764622718401},
+            {0.89433756729740699, 0.5, 0.0141746824526763},
+            {0.89447116373120827, 0.10552883626879543, 0.0042609901129861093},
+            {0.95275105849101915, 0.38603095325082687, 0.0079520568710483106},
+            {0.96663994737990877, 0.03336005262008996, 0.0019890098870046931},
+            {0.96800211698203353, 0.21899929433932186, 0.0035378857178827283},
+            {0.97172363354357416, 0.12450141132135775, 0.0014138183228165758}}};
+    return value;
+}
+
+std::vector<AbaqusQuad8TransferSample> abaqus_quad8_primary_transfer_rule(std::size_t local_constraint) {
+    std::vector<AbaqusQuad8TransferSample> result;
+    if (local_constraint < 4) {
+        result.reserve(abaqus_quad8_corner_transfer_rule().size());
+        for (const AbaqusQuad8TransferSample& sample : abaqus_quad8_corner_transfer_rule()) result.push_back(sample);
+    } else if (local_constraint < 8) {
+        result.reserve(abaqus_quad8_edge_transfer_rule().size());
+        for (const AbaqusQuad8TransferSample& sample : abaqus_quad8_edge_transfer_rule()) result.push_back(sample);
+    } else {
+        throw std::out_of_range("Abaqus HEX20 contact constraint index exceeds the Quad8 face");
+    }
+    for (AbaqusQuad8TransferSample& sample : result) {
+        const double first = sample.first, second = sample.second;
+        if (local_constraint == 1)
+            sample.first = 1.0 - first;
+        else if (local_constraint == 2) {
+            sample.first = 1.0 - first;
+            sample.second = 1.0 - second;
+        } else if (local_constraint == 3)
+            sample.second = 1.0 - second;
+        else if (local_constraint == 5) {
+            sample.first = 1.0 - second;
+            sample.second = first;
+        } else if (local_constraint == 6)
+            sample.second = 1.0 - second;
+        else if (local_constraint == 7) {
+            sample.first = second;
+            sample.second = first;
         }
     }
-    Vector8 result{};
-    for (std::size_t reverse = 0; reverse < 8; ++reverse) {
-        const std::size_t row = 7 - reverse;
-        double value = right_hand_side[row];
-        for (std::size_t column = row + 1; column < 8; ++column) value -= matrix[row * 8 + column] * result[column];
-        result[row] = value / matrix[row * 8 + row];
-    }
+    const double sum = std::accumulate(result.begin(), result.end(), 0.0,
+        [](double value, const AbaqusQuad8TransferSample& sample) { return value + sample.weight; });
+    if (!std::isfinite(sum) || !(sum > 0.0))
+        throw std::logic_error("Abaqus HEX20 primary transfer rule has an invalid weight sum");
+    for (AbaqusQuad8TransferSample& sample : result) sample.weight /= sum;
     return result;
 }
 
@@ -1064,11 +1137,20 @@ void SpatialAssembly::compute_contribution(std::size_t index, const std::vector<
         Quad4SurfaceContactLocalValues current{};
         std::copy(state.begin(), state.end(), current.begin());
         const Quad4SurfaceContactLocalValues committed = contribution_state(index, _committed_contact_solution);
+        NormalContactProperties point_properties = _mechanical_properties[entry.contact];
+        if (entry.surface_to_surface &&
+            std::any_of(_abaqus_averaged_constraints.begin(), _abaqus_averaged_constraints.end(),
+                [&entry](const AbaqusAveragedConstraint& constraint) {
+                    return constraint.contact == entry.contact && constraint.friction_only;
+                })) {
+            point_properties.friction_coefficient = 0.0;
+            point_properties.maximum_elastic_slip = 0.0;
+        }
         Quad4SurfaceContactLocalJacobian local_jacobian{};
         const Quad4SurfaceContactLocalResidual result =
             entry.surface_to_surface
-                ? compute_quad4_to_quad4_contact(_mechanical_properties[entry.contact], entry.surface_geometry, current,
-                      committed, _contact_histories[entry.contact][entry.secondary],
+                ? compute_quad4_to_quad4_contact(point_properties, entry.surface_geometry, current, committed,
+                      _contact_histories[entry.contact][entry.secondary],
                       jacobian == nullptr ? nullptr : &local_jacobian)
                 : compute_node_to_quad4_contact(_mechanical_properties[entry.contact], entry.node_geometry, current,
                       committed, _contact_histories[entry.contact][entry.secondary],
@@ -1306,6 +1388,7 @@ SpatialAssembly::AbaqusAveragedConstraintValue SpatialAssembly::averaged_constra
     }
     const std::array<double, 3> normal = {constraint.normal.x, constraint.normal.y, constraint.normal.z};
     AbaqusAveragedConstraintValue result{};
+    result.tangent_first = {constraint.tangent_first.x, constraint.tangent_first.y, constraint.tangent_first.z};
     result.gap = constraint.reference_gap;
     for (std::size_t component = 0; component < 3; ++component) result.gap += normal[component] * relative[component];
     double normal_relative = 0.0;
@@ -1318,18 +1401,139 @@ SpatialAssembly::AbaqusAveragedConstraintValue SpatialAssembly::averaged_constra
     result.force = result.pressure * constraint.area;
     if (properties.friction_coefficient == 0.0 || !(result.pressure > 0.0)) return result;
 
-    std::array<double, 3> relative_increment{};
-    double normal_increment = 0.0;
-    for (std::size_t component = 0; component < 3; ++component) {
-        // The normal gap is primary minus secondary, whereas the established
-        // friction history convention is secondary minus primary.
-        relative_increment[component] = committed_relative[component] - relative[component];
-        normal_increment += normal[component] * relative_increment[component];
+    if (constraint.friction_only) {
+        const std::array<double, 3> current_first = result.tangent_first,
+                                    current_second = {normal[1] * current_first[2] - normal[2] * current_first[1],
+                                        normal[2] * current_first[0] - normal[0] * current_first[2],
+                                        normal[0] * current_first[1] - normal[1] * current_first[0]};
+        std::array<double, 2> elastic_components{};
+        for (std::size_t component = 0; component < 3; ++component) {
+            elastic_components[0] += history.cartesian_elastic_tangential_slip[component] * current_first[component];
+            elastic_components[1] += history.cartesian_elastic_tangential_slip[component] * current_second[component];
+        }
+        std::array<double, 2> total_components{};
+        for (std::size_t node = 0; node < node_count; ++node)
+            for (std::size_t component = 0; component < 3; ++component) {
+                const double coordinate = component == 0   ? constraint.reference_coordinates[node].x
+                                          : component == 1 ? constraint.reference_coordinates[node].y
+                                                           : constraint.reference_coordinates[node].z;
+                const double current_coordinate = coordinate + state[component * node_count + node];
+                const double increment =
+                    state[component * node_count + node] - committed_state[component * node_count + node];
+                total_components[0] -= constraint.tangent_first_coefficients[node][component] * current_coordinate;
+                total_components[1] -= constraint.tangent_second_coefficients[node][component] * current_coordinate;
+                elastic_components[0] -= constraint.tangent_first_coefficients[node][component] * increment;
+                elastic_components[1] -= constraint.tangent_second_coefficients[node][component] * increment;
+            }
+        for (std::size_t component = 0; component < 3; ++component) {
+            result.tangential_slip[component] =
+                total_components[0] * current_first[component] + total_components[1] * current_second[component];
+            result.elastic_tangential_slip[component] =
+                elastic_components[0] * current_first[component] + elastic_components[1] * current_second[component];
+        }
+        const std::array<double, 2> trial_elastic_components = elastic_components;
+        const double sliding_limit = properties.friction_coefficient * result.pressure;
+        result.stick_stiffness = properties.maximum_elastic_slip > 0.0 ? sliding_limit / properties.maximum_elastic_slip
+                                                                       : properties.penalty;
+        if (!std::isfinite(result.stick_stiffness) || !(result.stick_stiffness > 0.0))
+            throw std::domain_error("Abaqus-style averaged contact has a nonpositive tangential stick stiffness");
+        for (std::size_t tangent = 0; tangent < 2; ++tangent)
+            result.trial_tangential_traction_components[tangent] = result.stick_stiffness * elastic_components[tangent];
+        result.trial_tangential_magnitude =
+            std::hypot(result.trial_tangential_traction_components[0], result.trial_tangential_traction_components[1]);
+        if (result.trial_tangential_magnitude < sliding_limit ||
+            (result.trial_tangential_magnitude == sliding_limit && !history.sliding)) {
+            result.tangential_traction_components = result.trial_tangential_traction_components;
+        } else {
+            if (!(result.trial_tangential_magnitude > 0.0))
+                throw std::domain_error("Abaqus-style averaged sliding contact has an undefined tangential direction");
+            for (std::size_t tangent = 0; tangent < 2; ++tangent) {
+                result.tangential_traction_components[tangent] = sliding_limit *
+                                                                 result.trial_tangential_traction_components[tangent] /
+                                                                 result.trial_tangential_magnitude;
+                elastic_components[tangent] = result.tangential_traction_components[tangent] / result.stick_stiffness;
+                result.friction_dissipation += constraint.area * result.tangential_traction_components[tangent] *
+                                               (trial_elastic_components[tangent] - elastic_components[tangent]);
+            }
+            result.sliding = true;
+            for (std::size_t component = 0; component < 3; ++component)
+                result.elastic_tangential_slip[component] = elastic_components[0] * current_first[component] +
+                                                            elastic_components[1] * current_second[component];
+        }
+        for (std::size_t component = 0; component < 3; ++component) {
+            result.trial_tangential_traction[component] =
+                result.trial_tangential_traction_components[0] * current_first[component] +
+                result.trial_tangential_traction_components[1] * current_second[component];
+            result.tangential_traction[component] =
+                result.tangential_traction_components[0] * current_first[component] +
+                result.tangential_traction_components[1] * current_second[component];
+        }
+        result.tangential_force = constraint.area * std::hypot(result.tangential_traction_components[0],
+                                                        result.tangential_traction_components[1]);
+        return result;
     }
+
+    std::array<double, 3> relative_increment{};
+    if (constraint.finite_sliding) {
+        const std::array<double, 3> current_first = result.tangent_first,
+                                    current_second = {normal[1] * current_first[2] - normal[2] * current_first[1],
+                                        normal[2] * current_first[0] - normal[0] * current_first[2],
+                                        normal[0] * current_first[1] - normal[1] * current_first[0]};
+        std::array<double, 3> committed_normal = {constraint.reference_normal.x, constraint.reference_normal.y,
+                                  constraint.reference_normal.z},
+                              committed_first = {constraint.reference_tangent_first.x,
+                                  constraint.reference_tangent_first.y, constraint.reference_tangent_first.z};
+        if (history.cartesian_tangent_basis_initialized) {
+            committed_normal = history.cartesian_contact_normal;
+            committed_first = history.cartesian_contact_tangent_first;
+        }
+        const std::array<double, 3> committed_second = {
+            committed_normal[1] * committed_first[2] - committed_normal[2] * committed_first[1],
+            committed_normal[2] * committed_first[0] - committed_normal[0] * committed_first[2],
+            committed_normal[0] * committed_first[1] - committed_normal[1] * committed_first[0]};
+        std::array<double, 3> current_separation{}, committed_separation{}, transported_history{};
+        for (std::size_t component = 0; component < 3; ++component) {
+            for (std::size_t node = 0; node < node_count; ++node) {
+                const double coordinate = component == 0   ? constraint.reference_coordinates[node].x
+                                          : component == 1 ? constraint.reference_coordinates[node].y
+                                                           : constraint.reference_coordinates[node].z;
+                current_separation[component] +=
+                    constraint.gap_coefficients[node] * (coordinate + state[component * node_count + node]);
+                committed_separation[component] +=
+                    constraint.gap_coefficients[node] * (coordinate + committed_state[component * node_count + node]);
+            }
+        }
+        double current_first_coordinate = 0.0, current_second_coordinate = 0.0, committed_first_coordinate = 0.0,
+               committed_second_coordinate = 0.0, history_first = 0.0, history_second = 0.0;
+        for (std::size_t component = 0; component < 3; ++component) {
+            current_first_coordinate -= current_separation[component] * current_first[component];
+            current_second_coordinate -= current_separation[component] * current_second[component];
+            committed_first_coordinate -= committed_separation[component] * committed_first[component];
+            committed_second_coordinate -= committed_separation[component] * committed_second[component];
+            history_first += history.cartesian_elastic_tangential_slip[component] * committed_first[component];
+            history_second += history.cartesian_elastic_tangential_slip[component] * committed_second[component];
+        }
+        for (std::size_t component = 0; component < 3; ++component) {
+            transported_history[component] =
+                history_first * current_first[component] + history_second * current_second[component];
+            relative_increment[component] =
+                (current_first_coordinate - committed_first_coordinate) * current_first[component] +
+                (current_second_coordinate - committed_second_coordinate) * current_second[component];
+            result.elastic_tangential_slip[component] = transported_history[component] + relative_increment[component];
+        }
+    } else {
+        for (std::size_t component = 0; component < 3; ++component)
+            relative_increment[component] = committed_relative[component] - relative[component];
+    }
+    double normal_increment = 0.0;
     for (std::size_t component = 0; component < 3; ++component)
-        result.elastic_tangential_slip[component] = history.cartesian_elastic_tangential_slip[component] +
-                                                    relative_increment[component] -
-                                                    normal_increment * normal[component];
+        normal_increment += normal[component] * relative_increment[component];
+    for (std::size_t component = 0; component < 3; ++component)
+        if (!constraint.finite_sliding)
+            result.elastic_tangential_slip[component] =
+                history.cartesian_elastic_tangential_slip[component] + relative_increment[component];
+    for (std::size_t component = 0; component < 3; ++component)
+        result.elastic_tangential_slip[component] -= normal_increment * normal[component];
     double history_normal = 0.0;
     for (std::size_t component = 0; component < 3; ++component)
         history_normal += result.elastic_tangential_slip[component] * normal[component];
@@ -1369,6 +1573,295 @@ SpatialAssembly::AbaqusAveragedConstraintValue SpatialAssembly::averaged_constra
     return result;
 }
 
+void SpatialAssembly::compute_averaged_friction_geometry(const AbaqusAveragedConstraint& constraint,
+    const std::vector<double>& state, const std::array<double, 2>& traction, std::vector<double>& residual,
+    std::vector<double>* jacobian) const {
+    const std::size_t node_count = constraint.nodes.size(), local_size = 3 * node_count;
+    residual.assign(local_size, 0.0);
+    if (jacobian != nullptr) jacobian->assign(local_size * local_size, 0.0);
+    const Matrix4& averaging = abaqus_quad4_averaging();
+    for (const AbaqusAveragedConstraint::FiniteSlidingSample& sample : constraint.finite_sliding_samples) {
+        if (sample.primary_faces.empty()) continue;
+        const SecondaryContactFace& secondary =
+            _secondary_contact_faces.at(constraint.contact).at(sample.secondary_face);
+        const std::array<double, 2>& location = abaqus_quad4_constraint_locations().at(sample.secondary_local_point);
+        const Quad4FaceQuadraturePoint point = make_quad4_face_quadrature_point(
+                                           secondary.coordinates, location[0], location[1], 1.0),
+                                       normal_point = make_quad4_face_quadrature_point(secondary.coordinates,
+                                           (4.0 / 3.0) * location[0], (4.0 / 3.0) * location[1], 1.0);
+        std::array<double, 4> distribution{};
+        for (std::size_t node = 0; node < 4; ++node)
+            distribution[node] = averaging[sample.secondary_local_point * 4 + node];
+        for (const std::size_t primary_index : sample.primary_faces) {
+            const PrimaryContactFace& primary = _primary_contact_faces.at(constraint.contact).at(primary_index);
+            const Quad4ToQuad4MechanicalGeometry geometry = {secondary.coordinates, primary.coordinates, point.shape,
+                point.derivative_xi, point.derivative_eta, normal_point.derivative_xi, normal_point.derivative_eta,
+                1.0 / static_cast<double>(sample.primary_faces.size()), 1.0, sample.normal_orientation};
+            Quad4SurfaceContactLocalValues local_state{};
+            std::array<std::size_t, 8> local_nodes{};
+            for (std::size_t node = 0; node < 4; ++node) {
+                const auto secondary_node =
+                    std::find(constraint.nodes.begin(), constraint.nodes.end(), secondary.nodes[node]);
+                const auto primary_node =
+                    std::find(constraint.nodes.begin(), constraint.nodes.end(), primary.nodes[node]);
+                if (secondary_node == constraint.nodes.end() || primary_node == constraint.nodes.end())
+                    throw std::logic_error("HEX8 averaged friction geometry lost a contact node");
+                local_nodes[node] = static_cast<std::size_t>(secondary_node - constraint.nodes.begin());
+                local_nodes[4 + node] = static_cast<std::size_t>(primary_node - constraint.nodes.begin());
+            }
+            for (std::size_t component = 0; component < 3; ++component)
+                for (std::size_t node = 0; node < 8; ++node)
+                    local_state[8 * (component + 1) + node] = state[component * node_count + local_nodes[node]];
+            Quad4SurfaceContactLocalJacobian local_jacobian{};
+            const Quad4SurfaceContactLocalResidual local_residual =
+                compute_quad4_to_quad4_tangential_force_geometry(geometry, distribution, sample.tangent_orientation,
+                    traction[0], traction[1], local_state, jacobian == nullptr ? nullptr : &local_jacobian);
+            for (std::size_t row_component = 0; row_component < 3; ++row_component)
+                for (std::size_t row_node = 0; row_node < 8; ++row_node) {
+                    const std::size_t local_row = 8 * (row_component + 1) + row_node,
+                                      row = row_component * node_count + local_nodes[row_node];
+                    residual[row] += local_residual[local_row];
+                    if (jacobian != nullptr)
+                        for (std::size_t column_component = 0; column_component < 3; ++column_component)
+                            for (std::size_t column_node = 0; column_node < 8; ++column_node) {
+                                const std::size_t local_column = 8 * (column_component + 1) + column_node,
+                                                  column = column_component * node_count + local_nodes[column_node];
+                                (*jacobian)[row * local_size + column] +=
+                                    local_jacobian[local_row * quad4_surface_contact_local_dof_count + local_column];
+                            }
+                }
+        }
+    }
+}
+
+void SpatialAssembly::compute_averaged_friction_traction_derivatives(const AbaqusAveragedConstraint& constraint,
+    const std::vector<double>& state, const std::vector<double>& committed_state, const ContactPointHistory& history,
+    const AbaqusAveragedConstraintValue& value, std::array<std::vector<double>, 2>& derivatives) const {
+    const std::size_t node_count = constraint.nodes.size(), local_size = 3 * node_count;
+    double area = 0.0;
+    std::array<double, 3> normal_raw{}, tangent_raw{}, separation{};
+    std::array<double, 2> increment{};
+    std::vector<double> area_derivative(local_size);
+    std::array<std::vector<double>, 3> normal_raw_derivative, tangent_raw_derivative, separation_derivative;
+    std::array<std::vector<double>, 2> increment_derivative;
+    for (std::size_t component = 0; component < 3; ++component) {
+        normal_raw_derivative[component].resize(local_size);
+        tangent_raw_derivative[component].resize(local_size);
+        separation_derivative[component].resize(local_size);
+    }
+    for (std::size_t tangent = 0; tangent < 2; ++tangent) increment_derivative[tangent].resize(local_size);
+    const Matrix4& averaging = abaqus_quad4_averaging();
+    for (const AbaqusAveragedConstraint::FiniteSlidingSample& sample : constraint.finite_sliding_samples) {
+        if (sample.primary_faces.empty()) continue;
+        const SecondaryContactFace& secondary =
+            _secondary_contact_faces.at(constraint.contact).at(sample.secondary_face);
+        const std::array<double, 2>& location = abaqus_quad4_constraint_locations().at(sample.secondary_local_point);
+        const Quad4FaceQuadraturePoint point = make_quad4_face_quadrature_point(
+                                           secondary.coordinates, location[0], location[1], 1.0),
+                                       normal_point = make_quad4_face_quadrature_point(secondary.coordinates,
+                                           (4.0 / 3.0) * location[0], (4.0 / 3.0) * location[1], 1.0);
+        std::array<double, 4> distribution{};
+        for (std::size_t node = 0; node < 4; ++node)
+            distribution[node] = averaging[sample.secondary_local_point * 4 + node];
+        for (const std::size_t primary_index : sample.primary_faces) {
+            const PrimaryContactFace& primary = _primary_contact_faces.at(constraint.contact).at(primary_index);
+            const Quad4ToQuad4MechanicalGeometry geometry = {secondary.coordinates, primary.coordinates, point.shape,
+                point.derivative_xi, point.derivative_eta, normal_point.derivative_xi, normal_point.derivative_eta,
+                1.0 / static_cast<double>(sample.primary_faces.size()), 1.0, sample.normal_orientation};
+            Quad4SurfaceContactLocalValues local_state{}, local_committed{};
+            std::array<std::size_t, 8> local_nodes{};
+            for (std::size_t node = 0; node < 4; ++node) {
+                const auto secondary_node =
+                    std::find(constraint.nodes.begin(), constraint.nodes.end(), secondary.nodes[node]);
+                const auto primary_node =
+                    std::find(constraint.nodes.begin(), constraint.nodes.end(), primary.nodes[node]);
+                if (secondary_node == constraint.nodes.end() || primary_node == constraint.nodes.end())
+                    throw std::logic_error("HEX8 averaged friction derivative lost a contact node");
+                local_nodes[node] = static_cast<std::size_t>(secondary_node - constraint.nodes.begin());
+                local_nodes[4 + node] = static_cast<std::size_t>(primary_node - constraint.nodes.begin());
+            }
+            for (std::size_t component = 0; component < 3; ++component)
+                for (std::size_t node = 0; node < 8; ++node) {
+                    const std::size_t source = component * node_count + local_nodes[node],
+                                      target = 8 * (component + 1) + node;
+                    local_state[target] = state[source];
+                    local_committed[target] = committed_state[source];
+                }
+            Quad4AveragedFrictionGeometryJacobian local_jacobian{};
+            const Quad4AveragedFrictionGeometryValue geometry_value = compute_quad4_averaged_friction_geometry_value(
+                geometry, distribution, sample.tangent_orientation, local_state, local_committed, &local_jacobian);
+            if (!geometry_value.projected)
+                throw std::domain_error("HEX8 averaged friction derivative lost its selected primary face");
+            area += geometry_value.area;
+            for (std::size_t component = 0; component < 3; ++component) {
+                normal_raw[component] += geometry_value.area_normal[component];
+                tangent_raw[component] += geometry_value.area_tangent_first[component];
+                separation[component] += geometry_value.separation[component];
+            }
+            for (std::size_t tangent = 0; tangent < 2; ++tangent)
+                increment[tangent] += geometry_value.tangential_increment[tangent];
+            for (std::size_t column_component = 0; column_component < 3; ++column_component)
+                for (std::size_t column_node = 0; column_node < 8; ++column_node) {
+                    const std::size_t local_column = 8 * (column_component + 1) + column_node,
+                                      column = column_component * node_count + local_nodes[column_node];
+                    area_derivative[column] += local_jacobian[local_column];
+                    for (std::size_t component = 0; component < 3; ++component) {
+                        normal_raw_derivative[component][column] +=
+                            local_jacobian[(1 + component) * quad4_surface_contact_local_dof_count + local_column];
+                        tangent_raw_derivative[component][column] +=
+                            local_jacobian[(4 + component) * quad4_surface_contact_local_dof_count + local_column];
+                        separation_derivative[component][column] +=
+                            local_jacobian[(7 + component) * quad4_surface_contact_local_dof_count + local_column];
+                    }
+                    for (std::size_t tangent = 0; tangent < 2; ++tangent)
+                        increment_derivative[tangent][column] +=
+                            local_jacobian[(10 + tangent) * quad4_surface_contact_local_dof_count + local_column];
+                }
+        }
+    }
+    if (!(area > 0.0)) throw std::domain_error("HEX8 averaged friction derivative has a nonpositive area");
+    const double normal_measure =
+        std::sqrt(normal_raw[0] * normal_raw[0] + normal_raw[1] * normal_raw[1] + normal_raw[2] * normal_raw[2]);
+    std::array<double, 3> normal{};
+    std::array<std::vector<double>, 3> normal_derivative;
+    for (std::size_t component = 0; component < 3; ++component) {
+        normal[component] = normal_raw[component] / normal_measure;
+        normal_derivative[component].resize(local_size);
+    }
+    for (std::size_t column = 0; column < local_size; ++column) {
+        double measure_derivative = 0.0;
+        for (std::size_t component = 0; component < 3; ++component)
+            measure_derivative += normal[component] * normal_raw_derivative[component][column];
+        for (std::size_t component = 0; component < 3; ++component)
+            normal_derivative[component][column] =
+                (normal_raw_derivative[component][column] - normal[component] * measure_derivative) / normal_measure;
+    }
+    double tangent_normal = 0.0;
+    for (std::size_t component = 0; component < 3; ++component)
+        tangent_normal += tangent_raw[component] * normal[component];
+    std::array<double, 3> tangent_projected{};
+    std::array<std::vector<double>, 3> tangent_projected_derivative;
+    for (std::size_t component = 0; component < 3; ++component) {
+        tangent_projected[component] = tangent_raw[component] - tangent_normal * normal[component];
+        tangent_projected_derivative[component].resize(local_size);
+    }
+    for (std::size_t column = 0; column < local_size; ++column) {
+        double tangent_normal_derivative = 0.0;
+        for (std::size_t component = 0; component < 3; ++component)
+            tangent_normal_derivative += tangent_raw_derivative[component][column] * normal[component] +
+                                         tangent_raw[component] * normal_derivative[component][column];
+        for (std::size_t component = 0; component < 3; ++component)
+            tangent_projected_derivative[component][column] = tangent_raw_derivative[component][column] -
+                                                              tangent_normal_derivative * normal[component] -
+                                                              tangent_normal * normal_derivative[component][column];
+    }
+    const double tangent_measure =
+        std::sqrt(tangent_projected[0] * tangent_projected[0] + tangent_projected[1] * tangent_projected[1] +
+                  tangent_projected[2] * tangent_projected[2]);
+    std::array<double, 3> first{}, second{};
+    std::array<std::vector<double>, 3> first_derivative, second_derivative;
+    for (std::size_t component = 0; component < 3; ++component) {
+        first[component] = tangent_projected[component] / tangent_measure;
+        first_derivative[component].resize(local_size);
+        second_derivative[component].resize(local_size);
+    }
+    second = {normal[1] * first[2] - normal[2] * first[1], normal[2] * first[0] - normal[0] * first[2],
+        normal[0] * first[1] - normal[1] * first[0]};
+    for (std::size_t column = 0; column < local_size; ++column) {
+        double tangent_measure_derivative = 0.0;
+        for (std::size_t component = 0; component < 3; ++component)
+            tangent_measure_derivative += first[component] * tangent_projected_derivative[component][column];
+        for (std::size_t component = 0; component < 3; ++component)
+            first_derivative[component][column] =
+                (tangent_projected_derivative[component][column] - first[component] * tangent_measure_derivative) /
+                tangent_measure;
+        second_derivative[0][column] =
+            normal_derivative[1][column] * first[2] + normal[1] * first_derivative[2][column] -
+            normal_derivative[2][column] * first[1] - normal[2] * first_derivative[1][column];
+        second_derivative[1][column] =
+            normal_derivative[2][column] * first[0] + normal[2] * first_derivative[0][column] -
+            normal_derivative[0][column] * first[2] - normal[0] * first_derivative[2][column];
+        second_derivative[2][column] =
+            normal_derivative[0][column] * first[1] + normal[0] * first_derivative[1][column] -
+            normal_derivative[1][column] * first[0] - normal[1] * first_derivative[0][column];
+    }
+    std::array<double, 3> average_separation{};
+    std::array<std::vector<double>, 3> average_separation_derivative;
+    for (std::size_t component = 0; component < 3; ++component) {
+        average_separation[component] = separation[component] / area;
+        average_separation_derivative[component].resize(local_size);
+        for (std::size_t column = 0; column < local_size; ++column)
+            average_separation_derivative[component][column] =
+                (separation_derivative[component][column] - average_separation[component] * area_derivative[column]) /
+                area;
+    }
+    double gap = 0.0;
+    std::vector<double> gap_derivative(local_size);
+    for (std::size_t component = 0; component < 3; ++component)
+        gap += normal[component] * average_separation[component];
+    for (std::size_t column = 0; column < local_size; ++column)
+        for (std::size_t component = 0; component < 3; ++component)
+            gap_derivative[column] += normal_derivative[component][column] * average_separation[component] +
+                                      normal[component] * average_separation_derivative[component][column];
+    std::array<double, 2> elastic{};
+    std::array<std::vector<double>, 2> elastic_derivative;
+    const std::array<double, 3>& stored = history.cartesian_elastic_tangential_slip;
+    for (std::size_t tangent = 0; tangent < 2; ++tangent) {
+        elastic_derivative[tangent].resize(local_size);
+        const std::array<double, 3>& basis = tangent == 0 ? first : second;
+        const std::array<std::vector<double>, 3>& basis_derivative =
+            tangent == 0 ? first_derivative : second_derivative;
+        for (std::size_t component = 0; component < 3; ++component)
+            elastic[tangent] += stored[component] * basis[component];
+        elastic[tangent] -= increment[tangent] / area;
+        for (std::size_t column = 0; column < local_size; ++column) {
+            for (std::size_t component = 0; component < 3; ++component)
+                elastic_derivative[tangent][column] += stored[component] * basis_derivative[component][column];
+            elastic_derivative[tangent][column] -=
+                (increment_derivative[tangent][column] - increment[tangent] / area * area_derivative[column]) / area;
+        }
+    }
+    const NormalContactProperties& properties = _mechanical_properties[constraint.contact];
+    const double pressure = -properties.penalty * gap, sliding_limit = properties.friction_coefficient * pressure,
+                 stick_stiffness = properties.maximum_elastic_slip > 0.0
+                                       ? sliding_limit / properties.maximum_elastic_slip
+                                       : properties.penalty;
+    std::vector<double> pressure_derivative(local_size), stick_derivative(local_size);
+    for (std::size_t column = 0; column < local_size; ++column) {
+        pressure_derivative[column] = -properties.penalty * gap_derivative[column];
+        if (properties.maximum_elastic_slip > 0.0)
+            stick_derivative[column] =
+                properties.friction_coefficient * pressure_derivative[column] / properties.maximum_elastic_slip;
+    }
+    std::array<double, 2> trial{};
+    std::array<std::vector<double>, 2> trial_derivative;
+    for (std::size_t tangent = 0; tangent < 2; ++tangent) {
+        trial[tangent] = stick_stiffness * elastic[tangent];
+        trial_derivative[tangent].resize(local_size);
+        for (std::size_t column = 0; column < local_size; ++column)
+            trial_derivative[tangent][column] =
+                stick_stiffness * elastic_derivative[tangent][column] + stick_derivative[column] * elastic[tangent];
+    }
+    const double trial_magnitude = std::hypot(trial[0], trial[1]);
+    derivatives[0].assign(local_size, 0.0);
+    derivatives[1].assign(local_size, 0.0);
+    if (!value.sliding) {
+        derivatives = trial_derivative;
+        return;
+    }
+    for (std::size_t column = 0; column < local_size; ++column) {
+        const double magnitude_derivative =
+                         (trial[0] * trial_derivative[0][column] + trial[1] * trial_derivative[1][column]) /
+                         trial_magnitude,
+                     limit_derivative = properties.friction_coefficient * pressure_derivative[column];
+        for (std::size_t tangent = 0; tangent < 2; ++tangent)
+            derivatives[tangent][column] =
+                limit_derivative * trial[tangent] / trial_magnitude +
+                sliding_limit * (trial_derivative[tangent][column] / trial_magnitude -
+                                    trial[tangent] * magnitude_derivative / (trial_magnitude * trial_magnitude));
+    }
+}
+
 void SpatialAssembly::compute_averaged_constraint(const AbaqusAveragedConstraint& constraint,
     const std::vector<double>& state, std::vector<double>& residual, std::vector<double>* jacobian) const {
     const std::size_t node_count = constraint.nodes.size(), local_size = 3 * node_count;
@@ -1377,17 +1870,37 @@ void SpatialAssembly::compute_averaged_constraint(const AbaqusAveragedConstraint
     std::vector<double> committed_state(local_size);
     for (std::size_t local = 0; local < local_size; ++local)
         committed_state[local] = _committed_contact_solution.at(dofs[local]);
-    const ContactPointHistory& history = _contact_histories[constraint.contact][constraint.secondary];
+    const ContactPointHistory& history = _contact_histories[constraint.contact][constraint.history];
     const AbaqusAveragedConstraintValue value = averaged_constraint_value(constraint, state, committed_state, history);
     residual.assign(local_size, 0.0);
     if (jacobian != nullptr) jacobian->assign(local_size * local_size, 0.0);
     if (!(value.pressure > 0.0)) return;
     const std::array<double, 3> normal = {constraint.normal.x, constraint.normal.y, constraint.normal.z};
+    if (constraint.friction_only) {
+        compute_averaged_friction_geometry(constraint, state, value.tangential_traction_components, residual, jacobian);
+        if (jacobian == nullptr) return;
+        std::array<std::vector<double>, 2> traction_derivatives;
+        compute_averaged_friction_traction_derivatives(
+            constraint, state, committed_state, history, value, traction_derivatives);
+        for (std::size_t row_component = 0; row_component < 3; ++row_component)
+            for (std::size_t row_node = 0; row_node < node_count; ++row_node) {
+                const std::size_t row = row_component * node_count + row_node;
+                const std::array<double, 2> row_coefficient = {
+                    constraint.tangent_first_coefficients[row_node][row_component],
+                    constraint.tangent_second_coefficients[row_node][row_component]};
+                for (std::size_t column = 0; column < local_size; ++column)
+                    for (std::size_t tangent = 0; tangent < 2; ++tangent)
+                        (*jacobian)[row * local_size + column] -=
+                            constraint.area * row_coefficient[tangent] * traction_derivatives[tangent][column];
+            }
+        return;
+    }
     for (std::size_t component = 0; component < 3; ++component) {
         for (std::size_t node = 0; node < node_count; ++node) {
             const std::size_t local = component * node_count + node;
             residual[local] = -constraint.area * constraint.gap_coefficients[node] *
-                              (value.pressure * normal[component] + value.tangential_traction[component]);
+                              ((constraint.friction_only ? 0.0 : value.pressure * normal[component]) +
+                                  value.tangential_traction[component]);
         }
     }
     if (jacobian == nullptr) return;
@@ -1408,7 +1921,8 @@ void SpatialAssembly::compute_averaged_constraint(const AbaqusAveragedConstraint
                                  tangential_column_coefficient = -column_coefficient,
                                  pressure_derivative =
                                      -properties.penalty * normal[column_component] * column_coefficient;
-                    double traction_derivative = normal[row_component] * pressure_derivative;
+                    double traction_derivative =
+                        constraint.friction_only ? 0.0 : normal[row_component] * pressure_derivative;
                     if (properties.friction_coefficient > 0.0) {
                         const double tangent_projector = (row_component == column_component ? 1.0 : 0.0) -
                                                          normal[row_component] * normal[column_component];
@@ -1450,11 +1964,21 @@ void SpatialAssembly::refresh_finite_averaged_constraints(const std::vector<doub
         if (!constraint.finite_sliding) continue;
         std::fill(constraint.gap_coefficients.begin(), constraint.gap_coefficients.end(), 0.0);
         std::fill(constraint.secondary_coefficients.begin(), constraint.secondary_coefficients.end(), 0.0);
+        std::fill(constraint.tangent_first_coefficients.begin(), constraint.tangent_first_coefficients.end(),
+            std::array<double, 3>{});
+        std::fill(constraint.tangent_second_coefficients.begin(), constraint.tangent_second_coefficients.end(),
+            std::array<double, 3>{});
+        std::fill(constraint.secondary_tangent_first_coefficients.begin(),
+            constraint.secondary_tangent_first_coefficients.end(), std::array<double, 3>{});
+        std::fill(constraint.secondary_tangent_second_coefficients.begin(),
+            constraint.secondary_tangent_second_coefficients.end(), std::array<double, 3>{});
         constraint.normal = {};
+        constraint.tangent_first = {};
         constraint.area = 0.0;
         constraint.projected = true;
         std::vector<double> primary_face_weight(_primary_contact_faces.at(constraint.contact).size(), 0.0);
-        for (const AbaqusAveragedConstraint::FiniteSlidingSample& sample : constraint.finite_sliding_samples) {
+        for (AbaqusAveragedConstraint::FiniteSlidingSample& sample : constraint.finite_sliding_samples) {
+            sample.primary_faces.clear();
             const SecondaryContactFace& secondary =
                 _secondary_contact_faces.at(constraint.contact).at(sample.secondary_face);
             const Quad4FaceCoordinates secondary_current = current_face(secondary.nodes, secondary.coordinates);
@@ -1496,6 +2020,55 @@ void SpatialAssembly::refresh_finite_averaged_constraints(const std::vector<doub
             constraint.normal.x += local_area * sample.normal_orientation * area_vector.x / normal_measure;
             constraint.normal.y += local_area * sample.normal_orientation * area_vector.y / normal_measure;
             constraint.normal.z += local_area * sample.normal_orientation * area_vector.z / normal_measure;
+            CartesianPoint3 tangent = normal_point.tangent_xi;
+            const double tangent_measure = std::sqrt(dot(tangent, tangent));
+            if (!std::isfinite(tangent_measure) || !(tangent_measure > 0.0))
+                throw std::domain_error("HEX8 finite-sliding averaged constraint has an undefined current tangent");
+            constraint.tangent_first.x += local_area * sample.tangent_orientation * tangent.x / tangent_measure;
+            constraint.tangent_first.y += local_area * sample.tangent_orientation * tangent.y / tangent_measure;
+            constraint.tangent_first.z += local_area * sample.tangent_orientation * tangent.z / tangent_measure;
+            const CartesianPoint3 local_normal = {sample.normal_orientation * area_vector.x / normal_measure,
+                                      sample.normal_orientation * area_vector.y / normal_measure,
+                                      sample.normal_orientation * area_vector.z / normal_measure},
+                                  local_first = {sample.tangent_orientation * tangent.x / tangent_measure,
+                                      sample.tangent_orientation * tangent.y / tangent_measure,
+                                      sample.tangent_orientation * tangent.z / tangent_measure},
+                                  local_second = cross(local_normal, local_first);
+            for (std::size_t local_node = 0; local_node < 4; ++local_node) {
+                const double coefficient = local_area * averaging[sample.secondary_local_point * 4 + local_node];
+                const auto node =
+                    std::find(constraint.nodes.begin(), constraint.nodes.end(), secondary.nodes[local_node]);
+                const std::size_t node_index = static_cast<std::size_t>(node - constraint.nodes.begin());
+                const auto output = std::find(_secondary_boundaries.at(constraint.contact).boundary.nodes.begin(),
+                    _secondary_boundaries.at(constraint.contact).boundary.nodes.end(),
+                    _secondary_boundaries.at(constraint.contact)
+                        .boundary.faces.at(sample.secondary_face)
+                        .nodes[local_node]);
+                const std::size_t output_index = static_cast<std::size_t>(
+                    output - _secondary_boundaries.at(constraint.contact).boundary.nodes.begin());
+                const auto stored = std::find(
+                    constraint.secondary_output_nodes.begin(), constraint.secondary_output_nodes.end(), output_index);
+                const std::size_t stored_index =
+                    static_cast<std::size_t>(stored - constraint.secondary_output_nodes.begin());
+                for (std::size_t component = 0; component < 3; ++component) {
+                    constraint.tangent_first_coefficients[node_index][component] -=
+                        coefficient * (component == 0      ? local_first.x
+                                          : component == 1 ? local_first.y
+                                                           : local_first.z);
+                    constraint.tangent_second_coefficients[node_index][component] -=
+                        coefficient * (component == 0      ? local_second.x
+                                          : component == 1 ? local_second.y
+                                                           : local_second.z);
+                    constraint.secondary_tangent_first_coefficients[stored_index][component] +=
+                        coefficient * (component == 0      ? local_first.x
+                                          : component == 1 ? local_first.y
+                                                           : local_first.z);
+                    constraint.secondary_tangent_second_coefficients[stored_index][component] +=
+                        coefficient * (component == 0      ? local_second.x
+                                          : component == 1 ? local_second.y
+                                                           : local_second.z);
+                }
+            }
 
             struct Projection final {
                 std::size_t primary;
@@ -1530,6 +2103,7 @@ void SpatialAssembly::refresh_finite_averaged_constraints(const std::vector<doub
             }
             const double projection_weight = local_area / static_cast<double>(projections.size());
             for (const Projection& projection : projections) {
+                sample.primary_faces.push_back(projection.primary);
                 const PrimaryContactFace& face = primary_faces[projection.primary];
                 primary_face_weight[projection.primary] += projection_weight;
                 for (std::size_t local_node = 0; local_node < 4; ++local_node) {
@@ -1539,6 +2113,19 @@ void SpatialAssembly::refresh_finite_averaged_constraints(const std::vector<doub
                         throw std::logic_error("HEX8 finite-sliding averaged constraint lost a primary node");
                     constraint.gap_coefficients[static_cast<std::size_t>(node - constraint.nodes.begin())] +=
                         projection_weight * projection.value.primary_shape[local_node];
+                    const std::size_t node_index = static_cast<std::size_t>(node - constraint.nodes.begin());
+                    for (std::size_t component = 0; component < 3; ++component) {
+                        constraint.tangent_first_coefficients[node_index][component] +=
+                            projection_weight * projection.value.primary_shape[local_node] *
+                            (component == 0      ? local_first.x
+                                : component == 1 ? local_first.y
+                                                 : local_first.z);
+                        constraint.tangent_second_coefficients[node_index][component] +=
+                            projection_weight * projection.value.primary_shape[local_node] *
+                            (component == 0      ? local_second.x
+                                : component == 1 ? local_second.y
+                                                 : local_second.z);
+                    }
                 }
             }
         }
@@ -1550,8 +2137,29 @@ void SpatialAssembly::refresh_finite_averaged_constraints(const std::vector<doub
         constraint.normal.x /= normal_measure;
         constraint.normal.y /= normal_measure;
         constraint.normal.z /= normal_measure;
+        const double tangent_normal_component = dot(constraint.tangent_first, constraint.normal);
+        constraint.tangent_first.x -= tangent_normal_component * constraint.normal.x;
+        constraint.tangent_first.y -= tangent_normal_component * constraint.normal.y;
+        constraint.tangent_first.z -= tangent_normal_component * constraint.normal.z;
+        const double tangent_measure = std::sqrt(dot(constraint.tangent_first, constraint.tangent_first));
+        if (!std::isfinite(tangent_measure) || !(tangent_measure > 0.0))
+            throw std::domain_error(
+                "HEX8 finite-sliding averaged constraint has an undefined averaged current tangent");
+        constraint.tangent_first.x /= tangent_measure;
+        constraint.tangent_first.y /= tangent_measure;
+        constraint.tangent_first.z /= tangent_measure;
         for (double& coefficient : constraint.gap_coefficients) coefficient /= constraint.area;
         for (double& coefficient : constraint.secondary_coefficients) coefficient /= constraint.area;
+        for (std::size_t node = 0; node < constraint.nodes.size(); ++node)
+            for (std::size_t component = 0; component < 3; ++component) {
+                constraint.tangent_first_coefficients[node][component] /= constraint.area;
+                constraint.tangent_second_coefficients[node][component] /= constraint.area;
+            }
+        for (std::size_t output = 0; output < constraint.secondary_output_nodes.size(); ++output)
+            for (std::size_t component = 0; component < 3; ++component) {
+                constraint.secondary_tangent_first_coefficients[output][component] /= constraint.area;
+                constraint.secondary_tangent_second_coefficients[output][component] /= constraint.area;
+            }
         constraint.primary_face = static_cast<std::size_t>(
             std::max_element(primary_face_weight.begin(), primary_face_weight.end()) - primary_face_weight.begin());
         CartesianPoint3 separation{};
@@ -1582,13 +2190,15 @@ bool SpatialAssembly::summarize_averaged_contact(std::size_t contact_value, cons
             committed_state[local] = _committed_contact_solution.at(dofs[local]);
         }
         const AbaqusAveragedConstraintValue value = averaged_constraint_value(
-            constraint, local_state, committed_state, _contact_histories[constraint.contact][constraint.secondary]);
+            constraint, local_state, committed_state, _contact_histories[constraint.contact][constraint.history]);
         CartesianContactNodeSummary& predominant = summaries.at(constraint.secondary);
         predominant.projected = constraint.projected;
-        predominant.primary_face = constraint.primary_face;
-        predominant.gap = value.gap;
-        predominant.pressure = value.pressure;
-        predominant.tributary_area = constraint.area;
+        if (!constraint.friction_only) {
+            predominant.primary_face = constraint.primary_face;
+            predominant.gap = value.gap;
+            predominant.pressure = value.pressure;
+            predominant.tributary_area = constraint.area;
+        }
         predominant.tangential_slip = value.tangential_slip;
         predominant.elastic_tangential_slip = value.elastic_tangential_slip;
         predominant.sliding = value.sliding;
@@ -1596,26 +2206,41 @@ bool SpatialAssembly::summarize_averaged_contact(std::size_t contact_value, cons
             CartesianContactNodeSummary& output = summaries.at(constraint.secondary_output_nodes[entry]);
             output.projected = output.projected || constraint.projected;
             output.primary_face = constraint.primary_face;
-            output.contact_force += constraint.secondary_coefficients[entry] * value.force;
+            if (!constraint.friction_only)
+                output.contact_force += constraint.secondary_coefficients[entry] * value.force;
             output.tangential_force += constraint.secondary_coefficients[entry] * value.tangential_force;
             for (std::size_t component = 0; component < 3; ++component) {
                 const double normal = component == 0   ? constraint.normal.x
                                       : component == 1 ? constraint.normal.y
                                                        : constraint.normal.z;
-                output.normal_contact_force[component] +=
-                    constraint.secondary_coefficients[entry] * value.force * normal;
+                if (!constraint.friction_only)
+                    output.normal_contact_force[component] +=
+                        constraint.secondary_coefficients[entry] * value.force * normal;
                 output.tangential_contact_force[component] +=
-                    constraint.secondary_coefficients[entry] * constraint.area * value.tangential_traction[component];
+                    constraint.friction_only
+                        ? constraint.area * (constraint.secondary_tangent_first_coefficients[entry][component] *
+                                                    value.tangential_traction_components[0] +
+                                                constraint.secondary_tangent_second_coefficients[entry][component] *
+                                                    value.tangential_traction_components[1])
+                        : constraint.secondary_coefficients[entry] * constraint.area *
+                              value.tangential_traction[component];
             }
         }
     }
-    if (recover_finite_sliding_nodal_tractions)
+    if (recover_finite_sliding_nodal_tractions &&
+        std::any_of(_abaqus_averaged_constraints.begin(), _abaqus_averaged_constraints.end(),
+            [contact_value](const AbaqusAveragedConstraint& constraint) {
+                return constraint.contact == contact_value && !constraint.friction_only;
+            }))
         for (CartesianContactNodeSummary& summary : summaries)
             if (summary.tributary_area > 0.0) {
                 summary.pressure = summary.contact_force / summary.tributary_area;
                 summary.tangential_traction = summary.tangential_force / summary.tributary_area;
             }
-    return true;
+    return std::any_of(_abaqus_averaged_constraints.begin(), _abaqus_averaged_constraints.end(),
+        [contact_value](const AbaqusAveragedConstraint& constraint) {
+            return constraint.contact == contact_value && !constraint.friction_only;
+        });
 }
 
 Quad8SurfaceContactLocalValues SpatialAssembly::hex20_contact_state(
@@ -1672,6 +2297,27 @@ void SpatialAssembly::build_contacts(const UnstructuredHex8Mesh& source_mesh) {
                 definition.name);
         const Hex8RegionMesh& primary_mesh = _meshes[primary.region];
         const Hex8RegionMesh& secondary_mesh = _meshes[secondary.region];
+        bool noncoplanar_secondary = false;
+        if (secondary.boundary.faces.size() > 1) {
+            const Quad4FaceQuadraturePoint reference_normal_point = make_quad4_face_quadrature_point(
+                face_coordinates(secondary_mesh, secondary.boundary.faces.front()), 0.0, 0.0, 1.0);
+            const CartesianPoint3 reference_normal =
+                cross(reference_normal_point.tangent_xi, reference_normal_point.tangent_eta);
+            const double reference_measure = std::sqrt(dot(reference_normal, reference_normal));
+            for (std::size_t face = 1; face < secondary.boundary.faces.size(); ++face) {
+                const Quad4FaceQuadraturePoint normal_point = make_quad4_face_quadrature_point(
+                    face_coordinates(secondary_mesh, secondary.boundary.faces[face]), 0.0, 0.0, 1.0);
+                const CartesianPoint3 normal = cross(normal_point.tangent_xi, normal_point.tangent_eta);
+                const double measure = std::sqrt(dot(normal, normal));
+                const double cosine = std::abs(dot(reference_normal, normal) / (reference_measure * measure));
+                if (cosine < 1.0 - 1.0e-10) {
+                    noncoplanar_secondary = true;
+                    break;
+                }
+            }
+        }
+        const bool finite_averaged_friction =
+            definition.mechanical && finite_sliding && definition.friction_coefficient > 0.0 && noncoplanar_secondary;
         for (const std::size_t secondary_local : secondary.boundary.nodes) {
             const std::size_t source_node = secondary_mesh.source_node_ids().at(secondary_local);
             if (std::any_of(
@@ -1733,7 +2379,7 @@ void SpatialAssembly::build_contacts(const UnstructuredHex8Mesh& source_mesh) {
                 nodes[node] = global_node(primary.region, primary_face.nodes[node]);
             primary_faces.push_back({nodes, coordinates, element_centroid(primary_mesh, primary_face.parent_element)});
         }
-        if (finite_averaged && primary_faces.size() > 1) {
+        if (finite_averaged && definition.friction_coefficient == 0.0 && primary_faces.size() > 1) {
             const Quad4FaceQuadraturePoint reference_normal_point =
                 make_quad4_face_quadrature_point(primary_faces.front().coordinates, 0.0, 0.0, 1.0);
             const CartesianPoint3 reference_normal =
@@ -1791,13 +2437,14 @@ void SpatialAssembly::build_contacts(const UnstructuredHex8Mesh& source_mesh) {
         }
         if (!finite_sliding || finite_averaged)
             _contact_histories[contact_value].resize(secondary.boundary.nodes.size());
-        if (finite_averaged) {
+        if (finite_averaged || finite_averaged_friction) {
             struct ConstraintBuilder final {
                 std::map<std::size_t, double> secondary;
                 std::map<std::size_t, CartesianPoint3> coordinates;
                 std::map<std::size_t, double> secondary_output;
                 std::vector<AbaqusAveragedConstraint::FiniteSlidingSample> samples;
                 CartesianPoint3 normal{};
+                CartesianPoint3 tangent_first{};
                 double area = 0.0;
             };
 
@@ -1854,7 +2501,17 @@ void SpatialAssembly::build_contacts(const UnstructuredHex8Mesh& source_mesh) {
                     builder.normal.x += local_area * orientation * face_normal.x / normal_measure;
                     builder.normal.y += local_area * orientation * face_normal.y / normal_measure;
                     builder.normal.z += local_area * orientation * face_normal.z / normal_measure;
-                    builder.samples.push_back({secondary_face_index, local_constraint, orientation});
+                    CartesianPoint3 tangent = normal_point.tangent_xi;
+                    const double tangent_measure = std::sqrt(dot(tangent, tangent));
+                    if (!(tangent_measure > 0.0))
+                        throw std::invalid_argument("HEX8 finite-sliding averaged contact has an undefined tangent");
+                    const double tangent_orientation =
+                        builder.area == local_area || dot(builder.tangent_first, tangent) >= 0.0 ? 1.0 : -1.0;
+                    builder.tangent_first.x += local_area * tangent_orientation * tangent.x / tangent_measure;
+                    builder.tangent_first.y += local_area * tangent_orientation * tangent.y / tangent_measure;
+                    builder.tangent_first.z += local_area * tangent_orientation * tangent.z / tangent_measure;
+                    builder.samples.push_back(
+                        {secondary_face_index, local_constraint, orientation, tangent_orientation, {}});
                 }
             }
             std::vector<std::size_t> primary_nodes;
@@ -1876,10 +2533,29 @@ void SpatialAssembly::build_contacts(const UnstructuredHex8Mesh& source_mesh) {
                 AbaqusAveragedConstraint constraint{};
                 constraint.contact = contact_value;
                 constraint.secondary = output;
+                constraint.friction_only = finite_averaged_friction;
+                if (constraint.friction_only) {
+                    constraint.history = _contact_histories[contact_value].size();
+                    _contact_histories[contact_value].emplace_back();
+                } else {
+                    constraint.history = output;
+                }
                 constraint.finite_sliding = true;
                 constraint.area = builder.area;
                 constraint.normal = {builder.normal.x / normal_measure, builder.normal.y / normal_measure,
                     builder.normal.z / normal_measure};
+                const double tangent_normal_component = dot(builder.tangent_first, constraint.normal);
+                CartesianPoint3 tangent = {builder.tangent_first.x - tangent_normal_component * constraint.normal.x,
+                    builder.tangent_first.y - tangent_normal_component * constraint.normal.y,
+                    builder.tangent_first.z - tangent_normal_component * constraint.normal.z};
+                const double tangent_measure = std::sqrt(dot(tangent, tangent));
+                if (!(tangent_measure > 0.0))
+                    throw std::invalid_argument(
+                        "HEX8 finite-sliding averaged contact has an undefined averaged tangent");
+                constraint.tangent_first = {
+                    tangent.x / tangent_measure, tangent.y / tangent_measure, tangent.z / tangent_measure};
+                constraint.reference_normal = constraint.normal;
+                constraint.reference_tangent_first = constraint.tangent_first;
                 constraint.finite_sliding_samples = builder.samples;
                 for (const auto& entry : builder.secondary) {
                     constraint.nodes.push_back(entry.first);
@@ -1895,6 +2571,10 @@ void SpatialAssembly::build_contacts(const UnstructuredHex8Mesh& source_mesh) {
                     constraint.secondary_output_nodes.push_back(entry.first);
                     constraint.secondary_coefficients.push_back(entry.second / builder.area);
                 }
+                constraint.tangent_first_coefficients.resize(constraint.nodes.size());
+                constraint.tangent_second_coefficients.resize(constraint.nodes.size());
+                constraint.secondary_tangent_first_coefficients.resize(constraint.secondary_output_nodes.size());
+                constraint.secondary_tangent_second_coefficients.resize(constraint.secondary_output_nodes.size());
                 CartesianPoint3 separation{};
                 for (std::size_t node = 0; node < constraint.nodes.size(); ++node) {
                     const CartesianPoint3& point = constraint.reference_coordinates[node];
@@ -2097,6 +2777,7 @@ void SpatialAssembly::build_contacts(const UnstructuredHex8Mesh& source_mesh) {
                 AbaqusAveragedConstraint constraint{};
                 constraint.contact = contact_value;
                 constraint.secondary = output;
+                constraint.history = output;
                 constraint.normal = {builder.normal.x / normal_measure, builder.normal.y / normal_measure,
                     builder.normal.z / normal_measure};
                 constraint.area = builder.area;
@@ -2428,28 +3109,42 @@ void SpatialAssembly::build_hex20_contacts(const UnstructuredHex20Mesh& source_m
                 ++secondary_face_index) {
                 const Hex20SecondaryContactFace& face = secondary_faces[secondary_face_index];
                 const Quad8FaceElement& source_face = secondary.boundary.faces[secondary_face_index];
-                Matrix8 gram{};
+                const auto projection = [&](double xi, double eta, std::size_t primary_index) {
+                    const Quad8FaceMechanicalQuadraturePoint point =
+                        make_quad8_face_mechanical_point(face.coordinates, xi, eta, 1.0);
+                    const Hex20PrimaryContactFace& primary_face = primary_faces.at(primary_index);
+                    return compute_quad8_reference_projection(face.coordinates, primary_face.coordinates,
+                        point.displacement_shape,
+                        normal_orientation(
+                            primary_face.coordinates, face.parent_centroid, primary_face.parent_centroid));
+                };
+                const auto owner = [&](double xi, double eta) {
+                    const Quad8FaceMechanicalQuadraturePoint point =
+                        make_quad8_face_mechanical_point(face.coordinates, xi, eta, 1.0);
+                    double minimum_distance = std::numeric_limits<double>::infinity();
+                    std::size_t selected = std::numeric_limits<std::size_t>::max();
+                    for (std::size_t primary_index = 0; primary_index < primary_faces.size(); ++primary_index) {
+                        const Hex20PrimaryContactFace& primary_face = primary_faces[primary_index];
+                        const Quad8ReferenceProjectionValue reference = compute_quad8_reference_projection(
+                            face.coordinates, primary_face.coordinates, point.displacement_shape,
+                            normal_orientation(
+                                primary_face.coordinates, face.parent_centroid, primary_face.parent_centroid));
+                        if (!reference.projected) continue;
+                        const double distance = std::abs(reference.gap);
+                        if (distance < minimum_distance || (distance == minimum_distance && primary_index < selected)) {
+                            minimum_distance = distance;
+                            selected = primary_index;
+                        }
+                    }
+                    return selected;
+                };
                 double face_area = 0.0;
-                for (const Quad8FaceMechanicalQuadraturePoint& point : face.geometry.mechanical_points) {
-                    const double weighted_measure = point.quadrature_weight * reference_measure(point);
-                    face_area += weighted_measure;
-                    for (std::size_t row = 0; row < 8; ++row)
-                        for (std::size_t column = 0; column < 8; ++column)
-                            gram[row * 8 + column] +=
-                                weighted_measure * point.displacement_shape[row] * point.displacement_shape[column];
-                }
+                for (const Quad8FaceMechanicalQuadraturePoint& point : face.geometry.mechanical_points)
+                    face_area += point.quadrature_weight * reference_measure(point);
                 if (!std::isfinite(face_area) || !(face_area > 0.0))
                     throw std::invalid_argument("HEX20 averaged contact has a nonpositive secondary face area");
-                Matrix8 test_coefficients{};
                 for (std::size_t local_constraint = 0; local_constraint < 8; ++local_constraint) {
                     const double fraction = local_constraint < 4 ? 1.0 / 24.0 : 5.0 / 24.0;
-                    Vector8 weighted_averaging{};
-                    for (std::size_t node = 0; node < 8; ++node)
-                        weighted_averaging[node] = face_area * fraction * averaging[local_constraint * 8 + node];
-                    const Vector8 coefficients = solve8(gram, weighted_averaging);
-                    for (std::size_t node = 0; node < 8; ++node)
-                        test_coefficients[local_constraint * 8 + node] = coefficients[node];
-
                     const auto found = std::find(secondary.boundary.displacement_nodes.begin(),
                         secondary.boundary.displacement_nodes.end(), source_face.nodes[local_constraint]);
                     if (found == secondary.boundary.displacement_nodes.end())
@@ -2460,7 +3155,7 @@ void SpatialAssembly::build_hex20_contacts(const UnstructuredHex20Mesh& source_m
                     const double local_area = face_area * fraction;
                     builder.area += local_area;
                     for (std::size_t node = 0; node < 8; ++node) {
-                        const double value = weighted_averaging[node];
+                        const double value = local_area * averaging[local_constraint * 8 + node];
                         builder.secondary[face.displacement_nodes[node]] += value;
                         const auto output_node = std::find(secondary.boundary.displacement_nodes.begin(),
                             secondary.boundary.displacement_nodes.end(), source_face.nodes[node]);
@@ -2487,25 +3182,21 @@ void SpatialAssembly::build_hex20_contacts(const UnstructuredHex20Mesh& source_m
                     builder.normal.x += local_area * face_normal.x / normal_measure;
                     builder.normal.y += local_area * face_normal.y / normal_measure;
                     builder.normal.z += local_area * face_normal.z / normal_measure;
-                }
-
-                for (std::size_t point_index = 0; point_index < face.contact_points.size(); ++point_index) {
-                    const Quad8FaceMechanicalQuadraturePoint& point = face.contact_points[point_index];
-                    const std::size_t primary_index = face.contact_primary_faces[point_index];
-                    const Hex20PrimaryContactFace& primary_face = primary_faces[primary_index];
-                    const double weighted_measure = point.quadrature_weight * reference_measure(point);
-                    for (std::size_t local_constraint = 0; local_constraint < 8; ++local_constraint) {
-                        double test = 0.0;
-                        for (std::size_t node = 0; node < 8; ++node)
-                            test += test_coefficients[local_constraint * 8 + node] * point.displacement_shape[node];
-                        const auto found = std::find(secondary.boundary.displacement_nodes.begin(),
-                            secondary.boundary.displacement_nodes.end(), source_face.nodes[local_constraint]);
-                        const std::size_t output =
-                            static_cast<std::size_t>(found - secondary.boundary.displacement_nodes.begin());
-                        ConstraintBuilder& builder = builders[output];
+                    for (const AbaqusQuad8TransferSample& sample :
+                        abaqus_quad8_primary_transfer_rule(local_constraint)) {
+                        const double xi = 2.0 * sample.first - 1.0, eta = 2.0 * sample.second - 1.0;
+                        const std::size_t primary_index = owner(xi, eta);
+                        if (primary_index == std::numeric_limits<std::size_t>::max())
+                            throw std::invalid_argument("HEX20 small-sliding surface contact '" + definition.name +
+                                                        "' has an unprojected Abaqus primary-transfer sample");
+                        const Quad8ReferenceProjectionValue reference = projection(xi, eta, primary_index);
+                        if (!reference.projected)
+                            throw std::logic_error(
+                                "HEX20 small-sliding contact lost an Abaqus primary-transfer projection");
+                        const Hex20PrimaryContactFace& primary_face = primary_faces[primary_index];
                         for (std::size_t node = 0; node < 8; ++node) {
                             builder.primary[primary_face.displacement_nodes[node]] +=
-                                weighted_measure * test * face.contact_primary_shapes[point_index][node];
+                                local_area * sample.weight * reference.primary_shape[node];
                             builder.coordinates[primary_face.displacement_nodes[node]] = primary_face.coordinates[node];
                         }
                     }
@@ -2521,6 +3212,7 @@ void SpatialAssembly::build_hex20_contacts(const UnstructuredHex20Mesh& source_m
                 AbaqusAveragedConstraint constraint{};
                 constraint.contact = contact_value;
                 constraint.secondary = output;
+                constraint.history = output;
                 constraint.normal = {builder.normal.x / normal_measure, builder.normal.y / normal_measure,
                     builder.normal.z / normal_measure};
                 constraint.area = builder.area;
@@ -2829,7 +3521,7 @@ bool SpatialAssembly::mark_touched_mechanical_nodes(std::size_t first, std::size
         const std::size_t local = entry - ranges.mechanical_begin;
         if (local >= point_count) {
             const AbaqusAveragedConstraint& constraint = _abaqus_averaged_constraints.at(local - point_count);
-            _touched_mechanical_nodes[mechanical_node_index(constraint.contact, constraint.secondary)] = 1U;
+            _touched_mechanical_nodes[mechanical_node_index(constraint.contact, constraint.history)] = 1U;
         } else if (_uses_hex20) {
             const Hex20MechanicalPoint& point = _hex20_mechanical_points[local];
             _touched_mechanical_nodes[mechanical_node_index(point.contact, point.secondary)] = 1U;
@@ -3013,7 +3705,7 @@ void SpatialAssembly::update_mechanical_candidates(
             if (value.projected) _mechanical_active_primary[point] = primary;
         }
         for (const AbaqusAveragedConstraint& constraint : _abaqus_averaged_constraints) {
-            const std::size_t node = mechanical_node_index(constraint.contact, constraint.secondary);
+            const std::size_t node = mechanical_node_index(constraint.contact, constraint.history);
             if (_touched_mechanical_nodes[node] != 0U && constraint.projected)
                 _mechanical_selected_primary[node] = constraint.primary_face;
         }
@@ -3077,7 +3769,7 @@ void SpatialAssembly::update_mechanical_candidates(
         if (value.projected) _mechanical_active_primary[point] = primary;
     }
     for (const AbaqusAveragedConstraint& constraint : _abaqus_averaged_constraints) {
-        const std::size_t node = mechanical_node_index(constraint.contact, constraint.secondary);
+        const std::size_t node = mechanical_node_index(constraint.contact, constraint.history);
         if (_touched_mechanical_nodes[node] != 0U && constraint.projected)
             _mechanical_selected_primary[node] = constraint.primary_face;
     }
@@ -3187,9 +3879,10 @@ void SpatialAssembly::validate_local_state(
                 _definition.contacts[contact].mechanical_discretization ==
                     MechanicalContactDiscretization::surface_to_surface &&
                 _definition.contacts[contact].mechanical_sliding == MechanicalContactSliding::finite &&
+                _definition.contacts[contact].friction_coefficient == 0.0 &&
                 std::any_of(_abaqus_averaged_constraints.begin(), _abaqus_averaged_constraints.end(),
                     [contact](const AbaqusAveragedConstraint& constraint) {
-                        return constraint.contact == contact && constraint.finite_sliding;
+                        return constraint.contact == contact && constraint.finite_sliding && !constraint.friction_only;
                     });
             if (unprojected != 0 && !natural_finite_surface_release)
                 throw std::domain_error(
@@ -3274,14 +3967,14 @@ double SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
                 committed[local] = _committed_contact_solution.at(dofs[local]);
             }
             const AbaqusAveragedConstraintValue value = averaged_constraint_value(
-                constraint, current, committed, _contact_histories[constraint.contact][constraint.secondary]);
-            ContactPointHistory trial = _contact_histories[constraint.contact][constraint.secondary];
+                constraint, current, committed, _contact_histories[constraint.contact][constraint.history]);
+            ContactPointHistory trial = _contact_histories[constraint.contact][constraint.history];
             trial.sliding = value.sliding;
             trial.cartesian_elastic_tangential_slip = value.elastic_tangential_slip;
-            if (updated[constraint.contact][constraint.secondary])
+            if (updated[constraint.contact][constraint.history])
                 throw std::logic_error("Abaqus-style averaged constraints share one friction-history slot");
-            staged[constraint.contact][constraint.secondary] = trial;
-            updated[constraint.contact][constraint.secondary] = true;
+            staged[constraint.contact][constraint.history] = trial;
+            updated[constraint.contact][constraint.history] = true;
             friction_dissipation += value.friction_dissipation;
         }
         for (std::size_t contact = 0; contact < _definition.contacts.size(); ++contact) {
@@ -3303,10 +3996,18 @@ double SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
         const MechanicalCandidate candidate = mechanical_candidate(point, primary);
         const Quad4SurfaceContactLocalValues current = contact_state(candidate.nodes, state),
                                              committed = contact_state(candidate.nodes, _committed_contact_solution);
+        NormalContactProperties point_properties = _mechanical_properties[candidate.contact];
+        if (candidate.surface_to_surface &&
+            std::any_of(_abaqus_averaged_constraints.begin(), _abaqus_averaged_constraints.end(),
+                [&candidate](const AbaqusAveragedConstraint& constraint) {
+                    return constraint.contact == candidate.contact && constraint.friction_only;
+                })) {
+            point_properties.friction_coefficient = 0.0;
+            point_properties.maximum_elastic_slip = 0.0;
+        }
         const CartesianContactPointValue value =
             candidate.surface_to_surface
-                ? compute_quad4_to_quad4_contact_value(_mechanical_properties[candidate.contact],
-                      candidate.surface_geometry, current, committed,
+                ? compute_quad4_to_quad4_contact_value(point_properties, candidate.surface_geometry, current, committed,
                       _contact_histories[candidate.contact][candidate.secondary])
                 : compute_node_to_quad4_contact_value(_mechanical_properties[candidate.contact],
                       candidate.node_geometry, current, committed,
@@ -3315,8 +4016,7 @@ double SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
         ContactPointHistory trial = _contact_histories[candidate.contact][candidate.secondary];
         trial.sliding = value.sliding;
         trial.cartesian_elastic_tangential_slip = value.elastic_tangential_slip;
-        if (candidate.surface_to_surface && _mechanical_properties[candidate.contact].friction_coefficient > 0.0 &&
-            value.pressure > 0.0) {
+        if (candidate.surface_to_surface && point_properties.friction_coefficient > 0.0 && value.pressure > 0.0) {
             trial.cartesian_tangent_basis_initialized = true;
             trial.cartesian_contact_normal = value.normal;
             trial.cartesian_contact_tangent_first = value.tangent_first;
@@ -3354,14 +4054,21 @@ double SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
             committed[local] = _committed_contact_solution.at(dofs[local]);
         }
         const AbaqusAveragedConstraintValue value = averaged_constraint_value(
-            constraint, current, committed, _contact_histories[constraint.contact][constraint.secondary]);
-        ContactPointHistory trial = _contact_histories[constraint.contact][constraint.secondary];
+            constraint, current, committed, _contact_histories[constraint.contact][constraint.history]);
+        ContactPointHistory trial = _contact_histories[constraint.contact][constraint.history];
         trial.sliding = value.sliding;
         trial.cartesian_elastic_tangential_slip = value.elastic_tangential_slip;
-        if (updated[constraint.contact][constraint.secondary])
+        if (constraint.finite_sliding && _mechanical_properties[constraint.contact].friction_coefficient > 0.0 &&
+            value.pressure > 0.0) {
+            trial.cartesian_tangent_basis_initialized = true;
+            trial.cartesian_contact_normal =
+                std::array<double, 3>{constraint.normal.x, constraint.normal.y, constraint.normal.z};
+            trial.cartesian_contact_tangent_first = value.tangent_first;
+        }
+        if (updated[constraint.contact][constraint.history])
             throw std::logic_error("Abaqus-style averaged constraints share one friction-history slot");
-        staged[constraint.contact][constraint.secondary] = trial;
-        updated[constraint.contact][constraint.secondary] = true;
+        staged[constraint.contact][constraint.history] = trial;
+        updated[constraint.contact][constraint.history] = true;
         friction_dissipation += value.friction_dissipation;
     }
     for (std::size_t contact = 0; contact < _definition.contacts.size(); ++contact) {
@@ -3630,10 +4337,18 @@ std::vector<CartesianContactNodeSummary> SpatialAssembly::summarize_contact_node
         if (candidate.primary != _mechanical_selected_primary[node]) continue;
         const Quad4SurfaceContactLocalValues current = contact_state(candidate.nodes, state),
                                              committed = contact_state(candidate.nodes, _committed_contact_solution);
+        NormalContactProperties point_properties = _mechanical_properties[candidate.contact];
+        if (candidate.surface_to_surface &&
+            std::any_of(_abaqus_averaged_constraints.begin(), _abaqus_averaged_constraints.end(),
+                [&candidate](const AbaqusAveragedConstraint& constraint) {
+                    return constraint.contact == candidate.contact && constraint.friction_only;
+                })) {
+            point_properties.friction_coefficient = 0.0;
+            point_properties.maximum_elastic_slip = 0.0;
+        }
         const CartesianContactPointValue value =
             candidate.surface_to_surface
-                ? compute_quad4_to_quad4_contact_value(_mechanical_properties[candidate.contact],
-                      candidate.surface_geometry, current, committed,
+                ? compute_quad4_to_quad4_contact_value(point_properties, candidate.surface_geometry, current, committed,
                       _contact_histories[candidate.contact][candidate.secondary])
                 : compute_node_to_quad4_contact_value(_mechanical_properties[candidate.contact],
                       candidate.node_geometry, current, committed,

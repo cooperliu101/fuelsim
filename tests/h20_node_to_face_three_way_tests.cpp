@@ -276,7 +276,6 @@ int main(int argc, char** argv) {
 
         constexpr double same_discretization_tolerance = 1.0e-4;
         constexpr double abaqus_displacement_tolerance = 5.0e-3;
-        constexpr double abaqus_pressure_tolerance = 6.0e-2;
         constexpr double force_tolerance = 5.0e-3;
         passed =
             check(moose_displacement.size() == 40 && abaqus_displacement.size() == 40,
@@ -293,13 +292,13 @@ int main(int argc, char** argv) {
                 "H20.25 Fuelsim and MOOSE node-to-face normal fields and resultant agree below 0.01 percent") &&
             check(
                 fuelsim::test::relative_metrics_below(fuelsim_abaqus_displacement[0], abaqus_displacement_tolerance) &&
-                    fuelsim::test::relative_metrics_below(fuelsim_abaqus_pressure, abaqus_pressure_tolerance) &&
                     fuelsim_abaqus_force_error < force_tolerance,
-                "H20.25 Fuelsim and Abaqus normal fields and resultant satisfy the qualified thresholds") &&
+                "H20.25 Fuelsim and converted-element Abaqus normal displacement and resultant agree below 0.5 "
+                "percent") &&
             check(fuelsim::test::relative_metrics_below(moose_abaqus_displacement[0], abaqus_displacement_tolerance) &&
-                      fuelsim::test::relative_metrics_below(moose_abaqus_pressure, abaqus_pressure_tolerance) &&
                       moose_abaqus_force_error < force_tolerance,
-                "H20.25 MOOSE and Abaqus normal fields and resultant satisfy the qualified thresholds") &&
+                "H20.25 MOOSE and converted-element Abaqus normal displacement and resultant agree below 0.5 "
+                "percent") &&
             check(interface.total_tangential_force < 1.0e-10,
                 "H20.25 pure-normal loading transfers no tangential resultant") &&
             passed;

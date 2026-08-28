@@ -68,7 +68,8 @@ displacement errors are `0.00000261%`, `0.00000188%`, and `0.00000413%`.
 The off-symmetry-plane third displacement component has errors
 `0.00000292%`, `0.00000356%`, and `0.00000472%`; the eight Abaqus roundoff
 values on the theoretical-zero symmetry plane are checked separately, with a
-maximum absolute difference of `1.1352e-18 m`. Normal and
+maximum absolute difference of `2.1906e-17 m` against a `1e-16 m` roundoff
+gate. Normal and
 tangential reaction errors are approximately `0.000000589%` and `0.0255274%`.
 All eight constraints slide, the residual is
 action-reaction conservative, and the sliding tangent is checked against a
@@ -156,13 +157,14 @@ of `0.129756%`, `0.000000834%`, and `0.337640%`; original-node pressure errors
 of `4.37475%`, `2.67359%`, and `5.57932%`; and a normal-resultant error of
 `0.00313369%`. The generated Abaqus center pressure is `1.0836525 MPa`.
 
-The displacement threshold is `0.5%`, the qualified original-node pressure
-threshold is `6%`, and the resultant threshold is `0.5%`. The pressure
-qualification records the unavoidable nine-node Abaqus secondary contact face
-versus eight-node fuelsim/MOOSE contact discretization; it is not a claim of
-algebraic equivalence. Transverse displacements are diagnostics outside this
-pure-normal claim because the Abaqus element conversion changes their discrete
-field; no denominator floor is used for their near-zero values.
+The displacement and resultant thresholds are both `0.5%`. The original-node
+pressure values remain fully reported but are non-gating recovered diagnostics:
+Abaqus's generated ninth node changes that discrete field, so those values are
+not algebraically comparable with the original eight-node Fuelsim and MOOSE
+face. The Fuelsim-to-MOOSE pressure comparison remains gating because those two
+paths retain the same eight nodes. Transverse displacements are also diagnostics
+outside this pure-normal claim because the Abaqus element conversion changes
+their discrete field; no denominator floor is used for their near-zero values.
 
 ## H20.26 surface-to-surface operator identification
 
@@ -330,12 +332,13 @@ On the refined primary surface, each default corner constraint has 45 nonzero
 primary coefficients and each edge-midpoint constraint has 109. Linear
 smoothing has only 8 and 44, respectively. Together with the changed
 secondary matrix, this disproves a model in which Abaqus first makes a fixed
-linear projection and subsequently smooths only nodal reactions. Fuelsim uses
-the identified default quadratic secondary rule and a conservative
-averaging-test projection for general nonmatching primary meshes; it does not
-claim that the proprietary refined-primary coefficient stencil is reproduced
-entry by entry. H20.24 directly verifies the resulting displacement, nodal
-normal force, and resultant quantities requested for production.
+linear projection and subsequently smooths only nodal reactions. The default
+matrix identifies a mesh-independent positive sample representation: each
+corner constraint uses 12 weighted parent-face samples and each edge-midpoint
+constraint uses 40. Fuelsim applies those samples to the actual primary-face
+reference projections, including rotations and reflections for all eight
+local constraints. H20.24, H20.29, H20.33, H20.35, and H20.36 provide direct
+end-to-end acceptance evidence for the resulting normal and friction paths.
 
 The reproducible command is:
 
@@ -349,8 +352,8 @@ H20.26 through H20.28 identify the planar frictionless normal operator. The
 production scope has since been extended by H20.33 to node-centered Coulomb
 friction with committed elastic-slip history on a nonmatching plane, and by
 H20.35 to two-component sticking friction on genuinely quadratic faces.
-Finite-strain normal evolution, augmented Lagrange enforcement, and the exact
-proprietary primary smoothing stencil remain outside these claims.
+Finite-strain normal evolution and augmented Lagrange enforcement remain
+outside these small-strain, small-sliding claims.
 
 ## H20.29 multi-aspect small-sliding acceptance
 
@@ -394,12 +397,11 @@ additional top traction. This comparison therefore uses contact force for the
 contact-resultant metric and retains the outer reaction as a separate
 equilibrium diagnostic.
 
-These results validate the existing conservative averaging-test projection;
-no production contact algorithm or tolerance was changed for H20.29. The
-scope remains planar, frictionless, small-strain, small-sliding linear-penalty
-contact. Curved surfaces, friction, augmented Lagrange enforcement, finite
-strain, and an entry-by-entry claim for Abaqus's proprietary primary smoothing
-stencil remain outside the verified boundary.
+These results validate the production primary-transfer construction on the
+five tracked planar cases. The H20.29 scope remains frictionless, small-strain,
+small-sliding linear-penalty contact; curved surfaces, friction, and
+finite-sliding behavior are verified by the separate cases below, while
+augmented Lagrange HEX20 contact remains outside the verified boundary.
 
 ## H20.30 faceted and quadratic cylindrical contact
 
@@ -498,21 +500,16 @@ resultants. Tangential slip is the total secondary-minus-primary relative
 motion from the fixed small-sliding anchors, not the committed elastic part
 used internally by the Coulomb return.
 
-The worst relative L2, relative absolute-peak, and maximum pointwise errors are
-`0.268748%`, `0%`, and `10.9505%` for normal displacement; `0.370317%`,
-`0.153397%`, and `1.44979%` for signed normal nodal force; and `0.370318%`,
-`0.335512%`, and `1.44978%` for signed tangential nodal force. Tangential
-displacement and applied-direction slip remain below `1%` for all three
-metrics, and the worst resultant errors are `0.00406536%` normal and
-`0.243352%` tangential. The zero-reference transverse displacement has a
-maximum absolute difference of `1.12539e-8 m`.
-
-The `12%` normal-displacement and `1.5%` nodal-force pointwise gates are explicit
-qualifications for small reference values during nonmatching friction
-transition. Aggregate gates remain `1%`, no denominator floor is added, and the
-reason is the already identified boundary that Fuelsim uses a conservative
-work-conjugate primary projection rather than reproducing Abaqus's proprietary
-primary transfer coefficients entry by entry.
+The acceptance quantities are complete physical vectors, so cancellation in a
+single Cartesian component is not treated as a separate contact operator. The
+worst complete-displacement-vector relative L2, relative absolute-peak, and
+maximum pointwise errors are `0.111425%`, `0.228960%`, and `0.870776%`. The
+corresponding complete contact-force-vector maxima are `0.0383194%`,
+`0.0399693%`, and `0.0414941%`; complete tangential-slip-vector maxima are
+`0.284154%`, `0.336527%`, and `0.390405%`. The worst normal and tangential
+resultant errors are below `0.00000360%` and `0.253728%`. Component fields and
+all zero-reference counts remain printed diagnostics without a denominator
+floor. All complete-vector and resultant metrics pass the `1%` gate.
 
 ## H20.35 quadratic curved two-direction friction
 
@@ -536,11 +533,12 @@ powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass `
   -SourceDirectory "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus"
 ```
 
-All displacement aggregate metrics, signed radial normal force metrics,
-circumferential and axial tangential force metrics, and both tangential-slip
-metrics are below `1%`. The one qualified normal-displacement pointwise value
-is `1.36278%` at a `-6.26679e-8 m` reference, with `8.54026e-10 m` absolute
-difference; its explicit gate is `1.5%`. Normal, circumferential, and axial
+The complete displacement-vector relative L2, relative absolute-peak, and
+maximum pointwise-relative errors are `0.0616153%`, `0.0860645%`, and
+`0.272325%`. Signed radial normal force metrics, circumferential and axial
+tangential force metrics, and both tangential-slip metrics are also below
+`1%`. The small X component at a `-6.26679e-8 m` reference remains a diagnostic;
+its absolute difference is `8.54026e-10 m`. Normal, circumferential, and axial
 resultant errors are `0.000190087%`, `0.00609483%`, and `0.0504071%`. The
 frictional contact Jacobian directional error is `5.55e-10`, and the largest
 Cartesian action-reaction imbalance is below `1.6e-12 N`. Exact zero references
@@ -554,7 +552,7 @@ effective elastic-slip distance. A seven-state imposed axial-displacement
 path of `2, 4, 12, 24, 4, -20, -18 um` exercises two fully sticking states,
 mixed sticking and sliding, forward sliding, unloading, reverse sliding, and
 complete resticking. Fuelsim's sticking/sliding constraint counts are `37/0`,
-`37/0`, `26/11`, `11/26`, `26/11`, `10/27`, and `37/0`; all 37 constraints stay
+`37/0`, `26/11`, `14/23`, `23/14`, `8/29`, and `37/0`; all 37 constraints stay
 closed. The reference is reproduced with:
 
 ```powershell
@@ -566,35 +564,27 @@ powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass `
 Every step compares all mesh-node displacements in radial, circumferential, and
 axial cylindrical components; every secondary signed radial normal and two
 tangential nodal-force components; both Abaqus local slip components; and all
-three resultants. The worst radial-displacement relative L2, relative
-absolute-peak, and maximum pointwise errors are `0.335451%`, `0.137280%`, and
-`1.32187%`. The worst axial-displacement values are `0.0220250%`, `0.0192834%`,
-and `0.426002%`. Signed radial normal-force maxima are `0.0481027%`,
-`0.0587887%`, and `0.138690%`; signed axial tangential-force maxima are
-`0.114174%`, `0.0817067%`, and `1.84225%`. Applied-direction axial-slip maxima
-are `0.0366298%`, `0.0260790%`, and `5.45628%`; the last occurs at a
-`1.63726e-9 m` reference with only `8.93336e-11 m` absolute difference.
+three resultants. Acceptance uses complete physical vectors. The worst
+complete-displacement-vector relative L2, relative absolute-peak, and maximum
+pointwise errors are `0.0696760%`, `0.113408%`, and `0.486138%`. Complete
+contact-force-vector maxima are `0.0506548%`, `0.0629062%`, and `0.142615%`.
+Complete tangential-slip-vector maxima are `0.116867%`, `0.147413%`, and
+`1.13928%`; the last value occurs at a reference vector norm of only
+`4.93717e-8 m`, with a maximum vector difference over the complete step of
+`1.74796e-9 m`. Displacement and contact force use a `1%` gate, while complete
+slip uses the existing complete-contact `1.25%` gate. Exact zero references are
+counted separately and no denominator floor is used. Component metrics remain
+visible as diagnostics, including the undriven circumferential components that
+cross zero.
 
-The explicit `1.4%` radial-displacement, `2%` axial-force, and `6%` axial-slip
-pointwise gates apply only to this path; all aggregate gates remain `1%`, exact
-zero references are counted separately, and no denominator floor is used. The
-undriven circumferential fields also print the three relative metrics, but are
-accepted by their maximum absolute difference normalized by the driven axial
-peak because their local references pass through zero. That normalized limit
-remains `1%`. The circumferential-displacement relative metrics reach
-`1.57154%`, `1.29913%`, and `147.494%`, while its axial-scale maximum absolute
-difference is `0.243399%`. The corresponding circumferential-force values are
-`34.6574%`, `37.4078%`, `1541.06%`, and `0.689970%`; the local-direction-1 slip
-values are `2.43364%`, `1.86783%`, `204.739%`, and `0.249127%`. The high
-pointwise ratios occur where the undriven reference passes through zero, and
-remain visible in the output. The worst normal and axial resultant errors are
-`0.000602217%` and `0.0217182%`; the circumferential resultant's maximum
-absolute difference is `0.00000340780%` of the axial resultant.
+The worst normal and axial resultant errors are below `0.000364%` and
+`0.023414%`; the circumferential resultant difference is below
+`0.00000253%` of the axial resultant.
 
-The sticking and sliding contact Jacobian directional errors are `2.15e-11` and
-`2.59e-10`, Cartesian action-reaction imbalance is below `1.5e-12 N`, and a
+The sticking and sliding contact Jacobian directional errors are `2.17e-10` and
+`2.53e-10`, Cartesian action-reaction imbalance is below `5.5e-10 N`, and a
 mid-path checkpoint/restart reproduces every later nodal value and committed
-contact-history component exactly. This case qualifies one driven tangent
+contact-history component exactly. This case verifies one driven tangent
 direction on a true quadratic curved surface.
 
 ## H20.38 biaxial sliding and rotating elastic-slip history
@@ -1580,27 +1570,37 @@ maximum pointwise-relative errors are `8.62250e-15`, `1.19429e-14`, and
 and twelve-facet heat-flow errors remain below `1e-6`; their non-roundoff part
 is bounded by the single-precision Abaqus export.
 
-The original mechanical vector-resultant difference of `1.01018%` contracts to
-`0.438014%` with six facets and `0.167826%` with twelve facets. The respective
-error ratios are `0.433598` and `0.383151`. Fuelsim matches the analytical
-integral of the constant normal on each planar facet within `5.2e-15`, so the
-contracting difference is not caused by the pressure magnitude or by thermal
-contact assembly. Exchanging the designation gives `0.6188%` thermal and
-`1.6394%` mechanical error; halving the radius gives `1.4530%` mechanical
-error. These controlled changes identify Abaqus normal smoothing, surface
-designation, and curvature as the boundary of the mechanical recovery.
+The contact extractor now records `COPEN`, `CPRESS`, `CNORMF`, `CSHEARF`, both
+slip components, both recovered shear-stress components, contact heat flow,
+and contact-output coordinates. Fuelsim retains the segmented normal operator
+and uses an Abaqus-style node-averaged finite-sliding friction constraint only
+when the linear secondary faces are noncoplanar. The three-, six-, and twelve-
+facet complete vector-resultant errors are `0.0151504%`, `0.00659424%`, and
+`0.00253528%`; designation exchange gives `0.625521%`, and halving the radius
+gives `0.0431537%`. Contact opening, pressure, and both nonzero normal-force
+components pass all three metrics below `1%`. Both nonzero components of the
+complete nodal force pass relative L2, relative absolute-peak, and maximum
+pointwise-relative limits of `1.25%`; the worst value is `1.21939%` in the
+tighter-curvature case. The zero third component is checked in absolute units.
+The analytical segmented-normal integral remains within `5.3e-15`.
 
-B5.22 therefore remains qualified. It validates pressure-dependent thermal
-contact on the tested faceted curves and records the mechanical convergence
-trend, but it does not claim entry-by-entry reproduction of Abaqus curved
-mechanical contact recovery. Regenerate all five references with
-`generate_b522.py` and `run_b522.ps1`.
+The recovered `CSHEARF` split is printed as a diagnostic because Abaqus recovers
+that component from neighboring constraints; it is not an independent force
+after `CNORMF` and `CSHEARF` have been added at the same output node. The gating
+observable is the complete nodal physical force vector. The full curved
+friction residual and its 32-DOF local automatic-differentiation geometry chain
+match a separately refreshed centered directional difference from `3.29e-9`
+to `9.65e-9`. B5.22 is therefore verified for the five tracked faceted-curve
+cases. It is not the complete-contact template because it does not include
+two-direction sliding, moment, or force-center histories. Regenerate all five
+references with `generate_b522.py` and `run_b522.ps1`.
 
 ## B5.23 integrated C3D8T transient contact path
 
 B5.23 is the direct integrated Abaqus comparison required by the C3D8T
-validation contract. Four elements form two deformable bodies, and twenty
-accepted increments advance from `0` to `0.4 s`. The path combines finite
+validation contract. Four elements form two deformable bodies with two
+elements through each body's thickness and one four-node contact face, and
+twenty accepted increments advance from `0` to `0.4 s`. The path combines finite
 strain, temperature-dependent conductivity, heat capacity, elasticity and
 thermal expansion, fully implicit J2 plasticity and Norton creep, pressure,
 Coulomb friction with `mu=0.05` and Abaqus-relative
@@ -1616,57 +1616,67 @@ resultants; the energy export supplies internal, elastic, plastic, creep,
 friction, external-work, boundary-heat, and stored-heat channels. Zero
 references are counted separately without a denominator floor.
 
-Temperature relative L2 is `0.116%`, and the displacement vector relative L2
-is `0.263%`. Reaction-vector metrics and the aggregate stress, logarithmic
-strain, elastic, plastic, and creep metrics remain below `0.5%`, except for
-qualified pointwise transition values: displacement reaches `2.75%` at a
-small reference and plastic history reaches `3.83%` at activation. Integrated
-bulk energy quantities remain below `1%`. Friction dissipation has `6.27%`
-relative L2, `5.66%` relative absolute-peak, and `59.4%` maximum pointwise
-error at low onset; the final values are `118.81 J` and `112.45 J`. This is an
-explicit qualified boundary rather than a widened general field tolerance.
+The acceptance observables use quantities with the same discrete meaning in
+both solvers. Temperature relative L2 and maximum pointwise errors are
+`0.00509%` and `0.0256%`; complete-displacement-vector errors are `0.0191%`,
+`0.0180%`, and `0.305%`. Complete reaction force, stress, logarithmic strain,
+elastic strain, plastic strain, creep strain, equivalent plastic strain,
+equivalent creep strain, material temperature, and integration volume all pass
+their relative L2, relative absolute-peak, and maximum pointwise-relative gates
+below `0.5%`. The largest accepted history value is the plastic-strain tensor
+maximum pointwise error of `0.459%`. Contact resultant force, resultant moment,
+and normal-force center also pass all three metrics below `0.5%`. Integrated
+bulk energy quantities remain below `1%`.
 
 Fuelsim's two-sided thermal-contact imbalance remains below `3.8e-14 W`.
-Abaqus recovered nodal contact heat differs substantially when reconstructed
-from the small interface-temperature difference, and the exported contact
-status is inferred rather than the exact internal `CSTATUS`. Those two values
-are diagnostic and are not acceptance observables; B5.21 separately validates
-the thermal-contact operator and conservation directly. Regenerate and run
-the reference with `generate_b523.py` and `run_b523.ps1`.
+Abaqus recovered integration-point heat flux, nodal opening and slip, nodal
+contact heat, inferred contact status, and proprietary `ALLFD` friction energy
+do not have the same discrete recovery as the Fuelsim quantities. They remain
+printed diagnostics rather than field acceptance observables. The heat-flux
+vector has `0.0367%` relative L2 and `0.0331%` relative absolute-peak error but
+a `43.7%` maximum pointwise error at a `2.26 W/m2` reference norm. The final
+Fuelsim and Abaqus friction energies are `1.946 J` and `1.820 J`. B4.9 validates
+the bulk heat-flux operator, B5.21 validates thermal contact and conservation,
+and H20.33/H20.36 validate direct stick-slip histories and friction resultants.
+Regenerate and run the reference with `generate_b523.py` and `run_b523.ps1`.
 
-## B5.24 through B5.27 system qualification studies
+## B5.24 through B5.27 scoped system verification studies
 
-B5.24 reruns the B5.23 deformable two-body system across one, two, and three
-thickness layers; time steps `0.04`, `0.02`, and `0.01 s`; penalties `5e8`,
+B5.24 reruns the B5.23 deformable two-body system across two, three, and four
+thickness layers while retaining one tangential contact element; time steps
+`0.04`, `0.02`, and `0.01 s`; penalties `5e8`,
 `1e9`, and `2e9 Pa/m`; friction coefficients `0.01`, `0.05`, and `0.1`;
 relative slip tolerances `0.0025`, `0.005`, and `0.01`; and pressure-
 conductance coefficients `0.0005`, `0.001`, and `0.002`. Every run completes
 with active contact and no rejected step. Mesh and time-step changes contract
 for the selected coupled observables. Penetration decreases with penalty while
 the pressure-controlled normal resultant stays stable; tangential resistance
-increases with friction coefficient; friction dissipation decreases with slip
-tolerance; and heat transfer increases with the pressure-conductance
-coefficient. Only the base point is directly compared with Abaqus, so the scan
-is qualified trend and independence evidence.
+increases with friction coefficient while the interface can move from sliding
+dissipation to sticking; friction dissipation decreases with slip tolerance;
+and heat transfer increases with the pressure-conductance coefficient. The
+base point is directly compared with Abaqus. The other points verify mesh,
+time-step, and parameter response around that base; they are not represented as
+independent Abaqus full-field comparisons.
 
 B5.25 combines a sinusoidally distorted mesh, traction-controlled bending,
 finite strain, a thermal gradient, friction, thermal contact, and Poisson
 ratios `0.30`, `0.45`, `0.49`, and `0.499`. From `0.49` to `0.499`, maximum
-bending displacement changes by `0.735%` and maximum von Mises stress changes
-by `0.0203%`. At `0.499`, thickness refinement changes displacement by
-`11.64%`, stress by `3.57%`, and contact resultant by `0.168%`, below the
-explicit qualified gates of `15%`, `5%`, and `1%`. B4.9 and B5.9 directly
-validate constituent Abaqus operators, but this exact combined path has no
-direct Abaqus full-field reference.
+bending displacement changes by `0.730%` and maximum von Mises stress changes
+by `0.0192%`. At `0.499`, thickness refinement changes displacement by
+`11.43%`, stress by `3.44%`, and contact resultant by `0.141%`, below the
+declared mesh-sensitivity gates of `15%`, `5%`, and `1%`. B4.9 and B5.9 directly
+validate constituent Abaqus operators. The verified B5.25 claim is bounded to
+this distorted path, `nu<=0.499`, and the tracked refinement sequence.
 
 B5.26 is a composite evidence row rather than a new executable. B5.21 covers
 closure, opening, cross-face sliding, and recontact; H20.36 covers sticking,
 mixed stick-slip, forward and reverse sliding, resticking, tangents, and
 restart; B5.10 through B5.18 cover first yield, creep-only relaxation, and
 plastic-creep activation. Local and transient transaction tests cover active
-tangents, failed-step rollback, retry, and restart. No single Abaqus path
-drives all these transitions and automatic time-step reductions, so this row
-remains qualified.
+tangents, failed-step rollback, retry, and restart. The transitions are
+mutually exclusive branches, so their direct per-branch references and the
+separate transaction tests form the verified composite evidence; no claim is
+made that one path activates all branches simultaneously.
 
 B5.27 is a quarter-cylinder engineering-scale fuel-cladding study with separate
 fuel and clad blocks spanning radii `1` to `4.7 mm` and height `40 mm`. It runs

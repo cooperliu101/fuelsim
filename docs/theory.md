@@ -838,11 +838,11 @@ max_pointwise_relative = max_i |x_i-x_ref_i|/|x_ref_i|
 | 稳态 RZ 体弱式 | `m0.steady` | 实心圆柱温度、自由热膨胀、厚壁圆筒和 MOOSE 全场 |
 | 无摩擦热—力接触 | `m1.contact`、`m33.contact` | 非匹配 STS/NTS、斜面、端面、多区域和 MOOSE 全场 |
 | HEX8 表面到面接触 | `b38.hex8_sts_identification`、`b39.hex8_sts_multicase`、`b40.hex8_sts_friction`、`b41.hex8_sts_finite_sliding`、`b42.hex8_sts_friction_objectivity`、`b43.hex8_sts_finite_strain` | Abaqus 约束识别、匹配与非匹配场量、倾斜初始间隙、双切向摩擦、有限滑移跨面、真实当前面积和法向演化、累计滑移、逐增量法向旋转、反向再粘着、客观历史、切线、事务、重启动和 MPI 等价 |
-| HEX8 热力体算子 | `b49.hex8_c3d8t_operator` 至 `b519.hex8_c3d8t_finite_selective`、`b523.hex8_c3d8t_integrated_path` | Abaqus C3D8T 的 32 自由度切线、八点非仿射应变及热流、角点瞬态热容、小应变参考构形与有限应变当前构形热载荷、温度相关物性、多时间步、多材料、塑性、蠕变、耦合非弹性、非共轴路径和畸变有限应变选择性体积积分；B5.23 新增有限应变、温度相关材料、塑性—蠕变、压力、摩擦和压力相关热接触同时活跃的二十步完整节点场、积分点历史、接触量和能量对标，并保留低起始值场量及摩擦耗散的 qualified 边界 |
-| HEX8 热接触 | `b52.hex8_c3d8t_thermal_contact`、`b520.hex8_c3d8t_gap_conductance`、`b521.hex8_c3d8t_thermal_contact_path`、`b522.hex8_c3d8t_faceted_thermal_contact`、`b523.hex8_c3d8t_integrated_path` | Abaqus 固定间隙串联热阻，导热系数对间隙、压力和平均温度的局部导数，非匹配面的闭合、跨面滑移、开放和再接触，事务回滚、重启动、分布式等价，以及曲面分片收敛、面指定、曲率和综合瞬态路径；B5.22 的机械曲面法向恢复差异与 B5.23 的恢复量口径差异均作为明确的 qualified 边界保留 |
-| HEX8 参数与组合独立性 | `b524.hex8_load_parameter_independence`、`b525.hex8_distorted_nearly_incompressible` | 以 B5.23 Abaqus 基准点为锚的网格、时间步、罚刚度、摩擦系数、相对弹性滑移容差和压力相关导热扫描，以及畸变网格、牵引弯曲、近不可压缩弹性、热梯度和接触组合；非基准扫描点和精确组合没有逐点 Abaqus 全场参考，均按 qualified 边界使用 |
-| HEX8 非线性转变 | `b526.hex8_nonlinear_transitions` | 既有直接 Abaqus 路径与事务测试共同覆盖接触开闭、粘滑反转、首次屈服、蠕变到塑性激活、活跃切线、失败时间步回滚、缩步重试和重启动；没有单一综合 Abaqus 路径同时触发全部分支 |
-| 三维燃料—包壳工程研究 | `b527.hex8_engineering_fuel_clad` | 四分之一圆柱独立燃料和包壳块上的有限应变热—摩擦接触，并对网格、时间步和罚刚度检查独立性；属于内部工程研究，不是 Abaqus 全场对标或核安全鉴定 |
+| HEX8 热力体算子 | `b49.hex8_c3d8t_operator` 至 `b519.hex8_c3d8t_finite_selective`、`b523.hex8_c3d8t_integrated_path` | Abaqus C3D8T 的 32 自由度切线、八点非仿射应变及热流、角点瞬态热容、小应变参考构形与有限应变当前构形热载荷、温度相关物性、多时间步、多材料、塑性、蠕变、耦合非弹性、非共轴路径和畸变有限应变选择性体积积分；B5.23 在单一四节点接触面上新增有限应变、温度相关材料、塑性—蠕变、压力、摩擦和压力相关热接触同时活跃的二十步完整节点场、积分点历史、接触合力、合力矩、力心和整体能量对标；离散含义不同的 Abaqus 专有恢复量只作诊断 |
+| HEX8 热接触 | `b52.hex8_c3d8t_thermal_contact`、`b520.hex8_c3d8t_gap_conductance`、`b521.hex8_c3d8t_thermal_contact_path`、`b522.hex8_c3d8t_faceted_thermal_contact`、`b523.hex8_c3d8t_integrated_path` | Abaqus 固定间隙串联热阻，导热系数对间隙、压力和平均温度的局部导数，非匹配面的闭合、跨面滑移、开放和再接触，事务回滚、重启动、分布式等价，以及曲面分片收敛、面指定、曲率和综合瞬态路径；B5.22 以逐分片法向和非共面 secondary 节点平均摩擦复现五组 Abaqus 曲面接触完整节点力并验证一致切线；B5.23 严格比较同离散含义的热力节点场、本构历史与接触积分量，并把接触恢复量口径差异保留为诊断边界 |
+| HEX8 参数与组合独立性 | `b524.hex8_load_parameter_independence`、`b525.hex8_distorted_nearly_incompressible` | 以 B5.23 直接 Abaqus 基准点为锚的网格、时间步、罚刚度、摩擦系数、相对弹性滑移容差和压力相关导热扫描，以及畸变网格、牵引弯曲、近不可压缩弹性、热梯度和接触组合；验证范围是指定网格序列的收敛、参数响应和 `nu<=0.499` 的有界组合稳健性，不把非基准扫描点写成独立 Abaqus 全场解 |
+| HEX8 非线性转变 | `b526.hex8_nonlinear_transitions` | 多个直接 Abaqus 路径分别覆盖接触开闭、粘滑反转、首次屈服和蠕变到塑性激活，事务测试覆盖活跃切线、失败时间步回滚、缩小时间步重试和重启动；组合证据按互斥分支逐项验收，不要求一个人为载荷路径同时触发全部分支 |
+| 三维燃料—包壳工程研究 | `b527.hex8_engineering_fuel_clad` | 四分之一圆柱独立燃料和包壳块上的有限应变热—摩擦接触，并对网格、时间步和罚刚度检查独立性；已验证范围是指定内部工程模型的独立性，不是 Abaqus 全场对标或核安全鉴定 |
 | Coulomb 摩擦 | `m51.friction` | 粘着、滑移、反向再粘着、局部切线、守恒和 MOOSE |
 | 完整链大滑移搜索 | `m52.large_sliding` | 跨多段所有权、力连续、MPI 等价、重启动和 MOOSE |
 | 自动罚刚度和增广法 | `m54.augmented_contact` | 串联刚度、乘子事务、穿透门槛和约束极限 MOOSE 对比 |
@@ -894,10 +894,10 @@ max_pointwise_relative = max_i |x_i-x_ref_i|/|x_ref_i|
 - 跨检查点格式版本迁移、分布式网格、分布式材料历史或并行 Exodus I/O；
 - 试验数据验证、软件质量保证流程或法规鉴定。
 
-`m43.noncoaxial_finite_strain` 保留显式 qualified 门槛：规定换向路径的应力
-和弹性应变低参考尺度点使用 `0.6%` 最大逐点相对误差门槛，纯蠕变隔离路径的
-应力过零点使用 `4%` 门槛；两者都不增加分母下限，聚合误差和其他量仍使用
-验证矩阵规定的较紧门槛。详细实测值和误差位置见
+`m43.noncoaxial_finite_strain` 对完整轴对称张量使用 Frobenius 范数，其中
+`rz` 剪切分量在张量内积中计两次。应力、弹性应变和总非弹性应变的三项误差
+统一使用 `0.5%` 门槛；换向时的单分量过零误差仍无分母下限地输出为诊断，
+但不代替完整张量场的验收。详细实测值和误差位置见
 [`docs/m4.md`](m4.md) 与 [`docs/verification.md`](verification.md)。
 
 任何新增工程物理都必须先形成具体局部残量、ADlite 一致切线和独立参考，

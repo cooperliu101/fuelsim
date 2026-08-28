@@ -150,6 +150,15 @@ struct CartesianContactPointValue final {
     bool sliding;
 };
 
+struct Quad4AveragedFrictionGeometryValue final {
+    bool projected;
+    double area;
+    std::array<double, 3> area_normal, area_tangent_first, separation;
+    std::array<double, 2> tangential_increment;
+};
+
+using Quad4AveragedFrictionGeometryJacobian = std::array<double, 12 * quad4_surface_contact_local_dof_count>;
+
 Quad4SurfaceContactLocalResidual compute_quad4_to_quad4_gap_heat(const GapHeatProperties& properties,
     const Quad4ToQuad4HeatGeometry& geometry, const Quad4SurfaceContactLocalValues& state,
     Quad4SurfaceContactLocalJacobian* jacobian = nullptr);
@@ -174,6 +183,14 @@ Quad4SurfaceContactLocalResidual compute_quad4_to_quad4_contact(const NormalCont
     const Quad4ToQuad4MechanicalGeometry& geometry, const Quad4SurfaceContactLocalValues& state,
     const Quad4SurfaceContactLocalValues& committed_state, const ContactPointHistory& history,
     Quad4SurfaceContactLocalJacobian* jacobian = nullptr);
+Quad4SurfaceContactLocalResidual compute_quad4_to_quad4_tangential_force_geometry(
+    const Quad4ToQuad4MechanicalGeometry& geometry, const std::array<double, 4>& secondary_distribution,
+    double tangent_orientation, double first_traction, double second_traction,
+    const Quad4SurfaceContactLocalValues& state, Quad4SurfaceContactLocalJacobian* jacobian = nullptr);
+Quad4AveragedFrictionGeometryValue compute_quad4_averaged_friction_geometry_value(
+    const Quad4ToQuad4MechanicalGeometry& geometry, const std::array<double, 4>& secondary_distribution,
+    double tangent_orientation, const Quad4SurfaceContactLocalValues& state,
+    const Quad4SurfaceContactLocalValues& committed_state, Quad4AveragedFrictionGeometryJacobian* jacobian = nullptr);
 CartesianContactPointValue compute_quad4_to_quad4_contact_value(const NormalContactProperties& properties,
     const Quad4ToQuad4MechanicalGeometry& geometry, const Quad4SurfaceContactLocalValues& state,
     const Quad4SurfaceContactLocalValues& committed_state, const ContactPointHistory& history);

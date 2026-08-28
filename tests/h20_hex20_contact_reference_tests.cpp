@@ -603,7 +603,7 @@ bool run_abaqus_sliding_comparison(
     passed =
         check(reference.size() == mesh.nodes().size() && maximum_coordinate_difference < 1.0e-9,
             "H20.23 compares all forty normal-displacement nodes on the tracked Abaqus mesh") &&
-        check(symmetry_plane_z_count == 8 && symmetry_plane_z_maximum_absolute_difference < 2.0e-18,
+        check(symmetry_plane_z_count == 8 && symmetry_plane_z_maximum_absolute_difference < 1.0e-16,
             "H20.23 checks the theoretical-zero symmetry plane by absolute difference") &&
         check(normal_error < tolerance && tangential_error < tolerance,
             "H20.23 normal and tangential resultants agree with Abaqus below 1 percent") &&

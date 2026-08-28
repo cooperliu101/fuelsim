@@ -20,9 +20,10 @@ try {
     foreach ($JobName in $JobNames) {
         $InputFile = Join-Path $SourceDirectory "$JobName.inp"
         $NodalOutput = Join-Path $SourceDirectory "${JobName}_nodal.csv"
+        $ContactOutput = Join-Path $SourceDirectory "${JobName}_contact.csv"
         & abaqus job=$JobName input=$InputFile interactive
         if ($LASTEXITCODE -ne 0) { throw "Abaqus job $JobName failed with exit code $LASTEXITCODE" }
-        & abaqus python $Extractor "$JobName.odb" $NodalOutput
+        & abaqus python $Extractor "$JobName.odb" $NodalOutput $ContactOutput
         if ($LASTEXITCODE -ne 0) { throw "Abaqus extraction for $JobName failed with exit code $LASTEXITCODE" }
     }
 }

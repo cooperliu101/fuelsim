@@ -596,7 +596,12 @@ if(BUILD_TESTING)
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b522_hex8_c3d8t_faceted_thermal_contact_f6_nodal.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b522_hex8_c3d8t_faceted_thermal_contact_f12_nodal.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b522_hex8_c3d8t_faceted_thermal_contact_swapped_nodal.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b522_hex8_c3d8t_faceted_thermal_contact_tight_nodal.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b522_hex8_c3d8t_faceted_thermal_contact_tight_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b522_hex8_c3d8t_faceted_thermal_contact_contact.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b522_hex8_c3d8t_faceted_thermal_contact_f6_contact.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b522_hex8_c3d8t_faceted_thermal_contact_f12_contact.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b522_hex8_c3d8t_faceted_thermal_contact_swapped_contact.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b522_hex8_c3d8t_faceted_thermal_contact_tight_contact.csv")
     set_tests_properties(fuelsim_b522_hex8_c3d8t_faceted_thermal_contact_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;thermo-mechanical;contact;curved;abaqus")
 

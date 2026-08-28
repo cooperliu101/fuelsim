@@ -255,7 +255,7 @@ SECONDARY_OUTER, P, 10000.
 *Node Output
 COORD, RF, U
 *Contact Output
-CSTRESS, CDISP, CFORCE
+CSTRESS, CDISP, CFORCE, CTANDIR
 *End Step
 *Step, name=STICK, nlgeom=NO, inc=100
 *Static
@@ -266,7 +266,7 @@ secondary_outer, 3, 3, 4.e-6
 *Node Output
 COORD, RF, U
 *Contact Output
-CSTRESS, CDISP, CFORCE
+CSTRESS, CDISP, CFORCE, CTANDIR
 *End Step
 *Step, name=MIXED, nlgeom=NO, inc=100
 *Static
@@ -277,7 +277,7 @@ secondary_outer, 3, 3, 12.e-6
 *Node Output
 COORD, RF, U
 *Contact Output
-CSTRESS, CDISP, CFORCE
+CSTRESS, CDISP, CFORCE, CTANDIR
 *End Step
 *Step, name=FORWARD_SLIDE, nlgeom=NO, inc=100
 *Static
@@ -288,7 +288,7 @@ secondary_outer, 3, 3, 24.e-6
 *Node Output
 COORD, RF, U
 *Contact Output
-CSTRESS, CDISP, CFORCE
+CSTRESS, CDISP, CFORCE, CTANDIR
 *End Step
 *Step, name=UNLOAD, nlgeom=NO, inc=100
 *Static
@@ -299,7 +299,7 @@ secondary_outer, 3, 3, 4.e-6
 *Node Output
 COORD, RF, U
 *Contact Output
-CSTRESS, CDISP, CFORCE
+CSTRESS, CDISP, CFORCE, CTANDIR
 *End Step
 *Step, name=REVERSE_SLIDE, nlgeom=NO, inc=100
 *Static
@@ -310,7 +310,7 @@ secondary_outer, 3, 3, -20.e-6
 *Node Output
 COORD, RF, U
 *Contact Output
-CSTRESS, CDISP, CFORCE
+CSTRESS, CDISP, CFORCE, CTANDIR
 *End Step
 *Step, name=RESTICK, nlgeom=NO, inc=100
 *Static
@@ -321,5 +321,5 @@ secondary_outer, 3, 3, -18.e-6
 *Node Output
 COORD, RF, U
 *Contact Output
-CSTRESS, CDISP, CFORCE
+CSTRESS, CDISP, CFORCE, CTANDIR
 *End Step

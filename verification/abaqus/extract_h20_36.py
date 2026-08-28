@@ -88,7 +88,7 @@ contact_output = open(sys.argv[4], "wb")
 displacement_output.write("step,time,id,x,y,z,disp_x,disp_y,disp_z\n")
 contact_output.write(
     "step,time,id,x,y,z,cnormf_x,cnormf_y,cnormf_z,cshearf_x,cshearf_y,cshearf_z,"
-    "cslip1,cslip2,copen,cpress\n"
+    "cslip1,cslip2,ctandir1_x,ctandir1_y,ctandir1_z,ctandir2_x,ctandir2_y,ctandir2_z,copen,cpress\n"
 )
 
 for step_index, step_name in enumerate(step_names, 1):
@@ -131,15 +131,19 @@ for step_index, step_name in enumerate(step_names, 1):
     cshearf = nodal_values(frame, "CSHEARF", secondary_labels)
     cslip1 = nodal_values(frame, "CSLIP1", secondary_labels)
     cslip2 = nodal_values(frame, "CSLIP2", secondary_labels)
+    ctandir1 = nodal_values(frame, "CTANDIR1", secondary_labels)
+    ctandir2 = nodal_values(frame, "CTANDIR2", secondary_labels)
     copen = nodal_values(frame, "COPEN", secondary_labels)
     cpress = nodal_values(frame, "CPRESS", secondary_labels)
     for label in secondary_labels:
         coordinates = coordinates_by_label[label]
         normal = cnormf[label]
         shear = cshearf[label]
+        tangent_first = ctandir1[label]
+        tangent_second = ctandir2[label]
         contact_output.write(
             "%d,%.16g,%d,%.16g,%.16g,%.16g,%.16g,%.16g,%.16g,%.16g,%.16g,%.16g,"
-            "%.16g,%.16g,%.16g,%.16g\n"
+            "%.16g,%.16g,%.16g,%.16g,%.16g,%.16g,%.16g,%.16g,%.16g,%.16g\n"
             % (
                 step_index,
                 float(step_index),
@@ -155,6 +159,12 @@ for step_index, step_name in enumerate(step_names, 1):
                 component(shear, 2),
                 cslip1[label],
                 cslip2[label],
+                component(tangent_first, 0),
+                component(tangent_first, 1),
+                component(tangent_first, 2),
+                component(tangent_second, 0),
+                component(tangent_second, 1),
+                component(tangent_second, 2),
                 copen[label],
                 cpress[label],
             )

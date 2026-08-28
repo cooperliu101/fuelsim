@@ -96,7 +96,7 @@ try:
     labels = list(range(1, 25))
     contact_labels = sorted(node.label for node in instance.nodeSets["SECONDARY_CONTACT_NODES"].nodes)
     reference_coordinates = dict((node.label, node.coordinates) for node in instance.nodes)
-    if contact_labels != [13, 15, 17, 19, 21, 23]:
+    if contact_labels != [13, 16, 19, 22]:
         raise RuntimeError("unexpected B5.23 secondary contact labels: %s" % contact_labels)
 
     nodal = open(sys.argv[2], "wb")

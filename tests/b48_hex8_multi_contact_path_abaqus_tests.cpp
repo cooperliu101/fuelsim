@@ -639,7 +639,8 @@ bool compare(const fuelsim::TransientProblem& problem, const fuelsim::Unstructur
 }
 
 bool run(const std::string& input_path, const std::array<std::string, 2>& contact_paths,
-    const std::string& reaction_path, const std::string& energy_path, const std::string& checkpoint_path) {
+    const std::string& reaction_path, const std::string& energy_path, const std::string& checkpoint_path,
+    const fuelsim::PetscSession& session) {
     const fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
     const fuelsim::UnstructuredHex8Mesh mesh = fuelsim::read_exodus_hex8(input.mesh_file);
     const fuelsim::SolverOptions solver = solver_options(input);
@@ -661,7 +662,8 @@ bool run(const std::string& input_path, const std::array<std::string, 2>& contac
     passed = check(first.completed && split_recorder.states.size() == 2,
                  "B4.8 reaches the two-pair finite-sliding checkpoint") &&
              passed;
-    fuelsim::write_transient_checkpoint(checkpoint_path, split, first.next_time_step);
+    session.collective_root_action(
+        [&]() { fuelsim::write_transient_checkpoint(checkpoint_path, split, first.next_time_step); });
     fuelsim::TransientProblem restarted(input.spatial, mesh);
     const double restored_step = fuelsim::restore_transient_checkpoint(checkpoint_path, restarted);
     Recorder restart_recorder;
@@ -695,13 +697,16 @@ bool run(const std::string& input_path, const std::array<std::string, 2>& contac
     std::cout << "b48_contact_jacobian_directional_error=" << directional_error << '\n'
               << "b48_contact_action_reaction_maximum_absolute=" << action_reaction_error << '\n'
               << "b48_restart_maximum_absolute_difference=" << maximum_restart_difference << '\n';
-    passed =
-        check(directional_error < 1.0e-5,
-            "B4.8 sliding contact Jacobians match centered directional differences away from transitions") &&
-        check(action_reaction_error < 1.0e-10,
-            "B4.8 every mechanical contact constraint has equal and opposite three-component force") &&
-        check(std::remove(checkpoint_path.c_str()) == 0 || errno == ENOENT, "B4.8 removes its checkpoint artifact") &&
-        passed;
+    passed = check(directional_error < 1.0e-5,
+                 "B4.8 sliding contact Jacobians match centered directional differences away from transitions") &&
+             check(action_reaction_error < 1.0e-10,
+                 "B4.8 every mechanical contact constraint has equal and opposite three-component force") &&
+             passed;
+    session.collective_root_action([&]() {
+        if (std::remove(checkpoint_path.c_str()) != 0 && errno != ENOENT)
+            throw std::runtime_error("B4.8 could not remove its checkpoint artifact");
+    });
+    passed = check(true, "B4.8 removes its checkpoint artifact") && passed;
     return passed;
 }
 } // namespace
@@ -726,7 +731,7 @@ int main(int argc, char** argv) {
     try {
         std::cout << std::scientific << std::setprecision(12);
         fuelsim::PetscSession session(argc, argv, "fuelsim B4.8 HEX8 two-pair finite-sliding Abaqus comparison\n");
-        const bool passed = run(argv[1], {argv[2], argv[3]}, argv[4], argv[5], argv[6]);
+        const bool passed = run(argv[1], {argv[2], argv[3]}, argv[4], argv[5], argv[6], session);
         if (passed && session.rank() == 0) std::cout << "[PASS] B4.8 HEX8 two-pair finite-sliding Abaqus comparison\n";
         return passed ? 0 : 1;
     } catch (const std::exception& error) {

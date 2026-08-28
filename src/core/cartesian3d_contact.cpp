@@ -554,6 +554,91 @@ Quad4SurfaceContactLocalResidual compute_quad4_to_quad4_contact(const NormalCont
     return extract(ad_state, residual, jacobian);
 }
 
+Quad4SurfaceContactLocalResidual compute_quad4_to_quad4_tangential_force_geometry(
+    const Quad4ToQuad4MechanicalGeometry& geometry, const std::array<double, 4>& secondary_distribution,
+    double tangent_orientation, double first_traction, double second_traction,
+    const Quad4SurfaceContactLocalValues& state, Quad4SurfaceContactLocalJacobian* jacobian) {
+    const Quad4SurfaceContactLocalAdValues ad_state = make_ad_state(state, jacobian != nullptr);
+    Quad4SurfaceContactLocalAdValues residual{};
+    const std::array<ActivePoint3, 8> nodes =
+        current_nodes(geometry.secondary_coordinates, geometry.primary_coordinates, ad_state);
+    const ActivePoint3 secondary_point = interpolate_point(nodes, 0, geometry.secondary_shape);
+    const SurfaceProjection projection = project_to_primary(secondary_point, nodes, geometry.normal_orientation);
+    if (!projection.projected) return extract(ad_state, residual, jacobian);
+    const ActivePoint3 normal = secondary_average_normal(nodes, geometry),
+                       tangent = interpolate_point(nodes, 0, geometry.secondary_normal_derivative_xi);
+    const adlite::Scalar tangent_measure = norm(tangent);
+    if (!std::isfinite(tangent_measure.value()) || !(tangent_measure.value() > 0.0))
+        throw std::domain_error("Three-dimensional averaged friction has an undefined current tangent");
+    ActivePoint3 first{};
+    for (std::size_t component = 0; component < 3; ++component)
+        first[component] = tangent_orientation * tangent[component] / tangent_measure;
+    const ActivePoint3 second = cross(normal, first);
+    const adlite::Scalar area =
+        geometry.quadrature_weight *
+        current_surface_measure(nodes, 0, geometry.secondary_derivative_xi, geometry.secondary_derivative_eta);
+    for (std::size_t component = 0; component < 3; ++component) {
+        const std::size_t offset = 8 * (component + 1);
+        const adlite::Scalar force = area * (first_traction * first[component] + second_traction * second[component]);
+        for (std::size_t node = 0; node < 4; ++node) {
+            residual[offset + node] += secondary_distribution[node] * force;
+            residual[offset + 4 + node] -= projection.primary_shape[node] * force;
+        }
+    }
+    return extract(ad_state, residual, jacobian);
+}
+
+Quad4AveragedFrictionGeometryValue compute_quad4_averaged_friction_geometry_value(
+    const Quad4ToQuad4MechanicalGeometry& geometry, const std::array<double, 4>& secondary_distribution,
+    double tangent_orientation, const Quad4SurfaceContactLocalValues& state,
+    const Quad4SurfaceContactLocalValues& committed_state, Quad4AveragedFrictionGeometryJacobian* jacobian) {
+    const Quad4SurfaceContactLocalAdValues ad_state = make_ad_state(state, jacobian != nullptr),
+                                           committed_ad_state = make_ad_state(committed_state, false);
+    const std::array<ActivePoint3, 8> nodes = current_nodes(
+                                          geometry.secondary_coordinates, geometry.primary_coordinates, ad_state),
+                                      committed_nodes = current_nodes(geometry.secondary_coordinates,
+                                          geometry.primary_coordinates, committed_ad_state);
+    const ActivePoint3 secondary_point = interpolate_point(nodes, 0, geometry.secondary_shape);
+    const SurfaceProjection projection = project_to_primary(secondary_point, nodes, geometry.normal_orientation);
+    if (!projection.projected) return {};
+    const ActivePoint3 normal = secondary_average_normal(nodes, geometry),
+                       tangent = interpolate_point(nodes, 0, geometry.secondary_normal_derivative_xi);
+    const adlite::Scalar tangent_measure = norm(tangent);
+    if (!std::isfinite(tangent_measure.value()) || !(tangent_measure.value() > 0.0))
+        throw std::domain_error("Three-dimensional averaged friction has an undefined current tangent");
+    ActivePoint3 first{};
+    for (std::size_t component = 0; component < 3; ++component)
+        first[component] = tangent_orientation * tangent[component] / tangent_measure;
+    const ActivePoint3 second = cross(normal, first);
+    const adlite::Scalar area =
+        geometry.quadrature_weight *
+        current_surface_measure(nodes, 0, geometry.secondary_derivative_xi, geometry.secondary_derivative_eta);
+    const ActivePoint3 distributed_secondary = interpolate_point(nodes, 0, secondary_distribution),
+                       committed_secondary = interpolate_point(committed_nodes, 0, secondary_distribution),
+                       committed_primary = interpolate_point(committed_nodes, 4, projection.primary_shape),
+                       separation = subtract(projection.primary_point, distributed_secondary),
+                       increment = subtract(separation, subtract(committed_primary, committed_secondary));
+    Quad4SurfaceContactLocalAdValues output{};
+    output[0] = area;
+    for (std::size_t component = 0; component < 3; ++component) {
+        output[1 + component] = area * normal[component];
+        output[4 + component] = area * first[component];
+        output[7 + component] = area * separation[component];
+    }
+    output[10] = area * dot(increment, first);
+    output[11] = area * dot(increment, second);
+    Quad4SurfaceContactLocalJacobian local_jacobian{};
+    const Quad4SurfaceContactLocalResidual values =
+        extract(ad_state, output, jacobian == nullptr ? nullptr : &local_jacobian);
+    if (jacobian != nullptr)
+        for (std::size_t row = 0; row < 12; ++row)
+            for (std::size_t column = 0; column < quad4_surface_contact_local_dof_count; ++column)
+                (*jacobian)[row * quad4_surface_contact_local_dof_count + column] =
+                    local_jacobian[row * quad4_surface_contact_local_dof_count + column];
+    return {true, values[0], {values[1], values[2], values[3]}, {values[4], values[5], values[6]},
+        {values[7], values[8], values[9]}, {values[10], values[11]}};
+}
+
 CartesianContactPointValue compute_quad4_to_quad4_contact_value(const NormalContactProperties& properties,
     const Quad4ToQuad4MechanicalGeometry& geometry, const Quad4SurfaceContactLocalValues& state,
     const Quad4SurfaceContactLocalValues& committed_state, const ContactPointHistory& history) {

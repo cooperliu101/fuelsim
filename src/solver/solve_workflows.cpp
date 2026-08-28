@@ -171,6 +171,11 @@ bool reaches_end(double time, double end_time) {
     return end_time - time <= 16.0 * std::numeric_limits<double>::epsilon() * scale;
 }
 
+bool times_equal(double first, double second) {
+    const double scale = std::max({1.0, std::abs(first), std::abs(second)});
+    return std::abs(first - second) <= 16.0 * std::numeric_limits<double>::epsilon() * scale;
+}
+
 void validate_time_options(const TransientProblem& problem, const TransientTimeOptions& options) {
     if (problem.time_step_active()) throw std::logic_error("solve_transient cannot start with an active time step");
     const double time_scale = std::max({1.0, std::abs(problem.committed_time()), std::abs(options.end_time)}),
@@ -233,11 +238,11 @@ TransientResult solve_transient(TransientProblem& problem, const TransientTimeOp
         bool event_truncated = false;
         for (const double event : events) {
             if (reaches_end(problem.committed_time(), event)) continue;
-            if (event >= options.end_time || reaches_end(event, options.end_time)) break;
+            if (event > options.end_time && !times_equal(event, options.end_time)) break;
             const double event_step = event - problem.committed_time();
-            if (event_step < time_step && !reaches_end(event, problem.committed_time() + time_step)) {
+            if (event_step < time_step || times_equal(event, problem.committed_time() + time_step)) {
+                event_truncated = event_step < time_step && !times_equal(event, problem.committed_time() + time_step);
                 time_step = event_step;
-                event_truncated = true;
             }
             break;
         }

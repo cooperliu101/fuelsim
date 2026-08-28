@@ -231,6 +231,7 @@ bool run_case(const std::string& case_path, const std::string& displacement_path
     const auto& spatial = fuelsim::cartesian::ProblemAccess::view(problem);
     const auto& fields = spatial.field_layout();
     std::array<fuelsim::test::FieldErrorMetrics, 3> displacement_error;
+    fuelsim::test::GroupedFieldErrorMetrics displacement_vector_error;
     std::vector<bool> present(mesh.nodes().size(), false);
     double maximum_coordinate_error = 0.0;
     for (std::size_t region = 0; region < spatial.region_count(); ++region) {
@@ -245,9 +246,13 @@ bool run_case(const std::string& case_path, const std::string& displacement_path
             maximum_coordinate_error =
                 std::max(maximum_coordinate_error, coordinate_difference(mesh.nodes()[source], reference->point));
             const std::size_t global = spatial.global_node(region, local);
-            for (std::size_t component = 0; component < 3; ++component)
-                displacement_error[component].add(
-                    result.solve.state[fields[component + 1].begin + global], reference->displacement[component]);
+            std::array<double, 3> actual_displacement{}, reference_displacement{};
+            for (std::size_t component = 0; component < 3; ++component) {
+                actual_displacement[component] = result.solve.state[fields[component + 1].begin + global];
+                reference_displacement[component] = reference->displacement[component];
+                displacement_error[component].add(actual_displacement[component], reference_displacement[component]);
+            }
+            displacement_vector_error.add(actual_displacement.data(), reference_displacement.data(), 3);
         }
     }
 
@@ -298,17 +303,15 @@ bool run_case(const std::string& case_path, const std::string& displacement_path
     const double face_nonplanarity = maximum_secondary_face_nonplanarity(mesh);
     constexpr double relative_tolerance = 1.0e-2;
     constexpr double zero_tolerance = 1.0e-10;
-    fuelsim::test::print_relative_metrics("h20_35_displacement_x", displacement_error[0]);
-    passed = check(fuelsim::test::relative_metrics_below_with_pointwise_tolerance(
-                       displacement_error[0], relative_tolerance, 1.5e-2) &&
-                       displacement_error[0].maximum_zero_reference_difference < zero_tolerance,
-                 "H20.35 displacement_x passes 1 percent aggregate metrics, its explicit 1.5 percent small-value "
-                 "pointwise gate, and the separate zero-reference check") &&
+    for (std::size_t component = 0; component < 3; ++component)
+        fuelsim::test::print_relative_metrics(
+            "h20_35_displacement_" + std::string(1, "xyz"[component]), displacement_error[component]);
+    fuelsim::test::print_grouped_relative_metrics("h20_35_displacement_vector", displacement_vector_error);
+    passed = check(fuelsim::test::grouped_relative_metrics_below(displacement_vector_error, relative_tolerance) &&
+                       displacement_vector_error.maximum_zero_reference_difference < zero_tolerance,
+                 "H20.35 complete displacement-vector metrics and its separate zero-reference check are below 1 "
+                 "percent") &&
              passed;
-    for (std::size_t component = 1; component < 3; ++component)
-        passed = metric_passes("h20_35_displacement_" + std::string(1, "xyz"[component]), displacement_error[component],
-                     relative_tolerance, zero_tolerance) &&
-                 passed;
     passed =
         metric_passes("h20_35_signed_normal_radial_force", normal_force, relative_tolerance, zero_tolerance) && passed;
     passed = metric_passes("h20_35_signed_tangential_circumferential_force", circumferential_force, relative_tolerance,

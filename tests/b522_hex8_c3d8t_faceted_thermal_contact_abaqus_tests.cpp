@@ -23,6 +23,12 @@ struct NodeReference final {
     std::array<double, 3> displacement{}, reaction_force{};
 };
 
+struct ContactReference final {
+    std::array<double, 3> coordinates{}, normal_force{}, shear_force{};
+    double opening = 0.0, pressure = 0.0, slip1 = 0.0, slip2 = 0.0, shear_stress1 = 0.0, shear_stress2 = 0.0,
+           heat_flux = 0.0;
+};
+
 bool check(bool condition, const std::string& message) {
     if (condition) return true;
     std::cerr << "[FAIL] " << message << '\n';
@@ -60,6 +66,31 @@ std::vector<NodeReference> read_reference(const std::string& path) {
         const auto found = rows.find(node);
         if (found == rows.end()) throw std::invalid_argument("B5.22 Abaqus reference is incomplete");
         result.push_back(found->second);
+    }
+    return result;
+}
+
+std::map<std::size_t, ContactReference> read_contact_reference(const std::string& path) {
+    std::ifstream input(path);
+    if (!input) throw std::runtime_error("Could not read B5.22 Abaqus contact reference: " + path);
+    std::string line;
+    std::getline(input, line);
+    if (line != "node,x_m,y_m,z_m,opening_m,pressure_pa,slip1_m,slip2_m,shear_stress1_pa,shear_stress2_pa,"
+                "normal_force1_n,normal_force2_n,"
+                "normal_force3_n,shear_force1_n,shear_force2_n,shear_force3_n,contact_heat_flux_w")
+        throw std::invalid_argument("Unexpected B5.22 Abaqus contact header");
+    std::map<std::size_t, ContactReference> result;
+    while (std::getline(input, line)) {
+        const std::vector<std::string> values = split_csv(line);
+        if (values.size() != 17) throw std::invalid_argument("Unexpected B5.22 Abaqus contact column count");
+        const std::size_t node = std::stoul(values[0]);
+        if (node < 1 || result.count(node - 1) != 0)
+            throw std::invalid_argument("Invalid or duplicate B5.22 Abaqus contact node");
+        result[node - 1] = {{std::stod(values[1]), std::stod(values[2]), std::stod(values[3])},
+            {std::stod(values[10]), std::stod(values[11]), std::stod(values[12])},
+            {std::stod(values[13]), std::stod(values[14]), std::stod(values[15])}, std::stod(values[4]),
+            std::stod(values[5]), std::stod(values[6]), std::stod(values[7]), std::stod(values[8]),
+            std::stod(values[9]), std::stod(values[16])};
     }
     return result;
 }
@@ -173,13 +204,61 @@ std::vector<double> contact_residual(const fuelsim::cartesian::SpatialAssembly& 
     return global;
 }
 
+double mechanical_contact_directional_error(
+    fuelsim::SteadyProblem& problem, const std::vector<double>& state, double perturbation) {
+    const auto& spatial = fuelsim::cartesian::ProblemAccess::view(problem);
+    std::vector<double> direction(state.size()), analytic(state.size()), plus_residual(state.size()),
+        minus_residual(state.size());
+    for (std::size_t dof = 0; dof < state.size(); ++dof) direction[dof] = std::sin(static_cast<double>(dof + 1));
+    const auto assemble = [&](const std::vector<double>& current, std::vector<double>& residual,
+                              std::vector<double>* jacobian_action) {
+        problem.validate_state(current);
+        for (std::size_t contribution = 0; contribution < spatial.contribution_count(); ++contribution) {
+            if (spatial.contribution_type(contribution) != fuelsim::SpatialContributionType::mechanical_contact)
+                continue;
+            std::vector<std::size_t> dofs;
+            problem.contribution_dofs(contribution, dofs);
+            std::vector<double> local_state(dofs.size());
+            for (std::size_t local = 0; local < dofs.size(); ++local) local_state[local] = current[dofs[local]];
+            std::vector<double> local_residual, local_jacobian;
+            spatial.compute_contribution(contribution, local_state, nullptr, nullptr, 0.0, local_residual,
+                jacobian_action == nullptr ? nullptr : &local_jacobian);
+            for (std::size_t row = 0; row < dofs.size(); ++row) {
+                residual[dofs[row]] += local_residual[row];
+                if (jacobian_action != nullptr)
+                    for (std::size_t column = 0; column < dofs.size(); ++column)
+                        (*jacobian_action)[dofs[row]] +=
+                            local_jacobian[row * dofs.size() + column] * direction[dofs[column]];
+            }
+        }
+    };
+    std::vector<double> unused(state.size());
+    assemble(state, unused, &analytic);
+    std::vector<double> plus = state, minus = state;
+    for (std::size_t dof = 0; dof < state.size(); ++dof) {
+        plus[dof] += perturbation * direction[dof];
+        minus[dof] -= perturbation * direction[dof];
+    }
+    assemble(plus, plus_residual, nullptr);
+    assemble(minus, minus_residual, nullptr);
+    problem.validate_state(state);
+    double difference_squared = 0.0, reference_squared = 0.0;
+    for (std::size_t row = 0; row < state.size(); ++row) {
+        const double finite_difference = (plus_residual[row] - minus_residual[row]) / (2.0 * perturbation);
+        difference_squared += std::pow(analytic[row] - finite_difference, 2);
+        reference_squared += finite_difference * finite_difference;
+    }
+    return std::sqrt(difference_squared / reference_squared);
+}
+
 struct Comparison final {
     bool passed = false;
     double resultant_force_error = 0.0, pressure_weighted_force_error = 0.0, heat_rate_error = 0.0,
            normal_integration_error = 0.0;
 };
 
-Comparison compare(const std::vector<NodeReference>& reference, const std::string& name, std::size_t facets,
+Comparison compare(const std::vector<NodeReference>& reference,
+    const std::map<std::size_t, ContactReference>& contact_reference, const std::string& name, std::size_t facets,
     double primary_radius = 1.0, double secondary_radius = 1.005, bool swap = false) {
     const std::size_t primary_node_count = 4 * (facets + 1);
     const fuelsim::UnstructuredHex8Mesh source_mesh = mesh(facets, primary_radius, secondary_radius);
@@ -224,9 +303,56 @@ Comparison compare(const std::vector<NodeReference>& reference, const std::strin
         fuelsim::cartesian::ProblemAccess::summarize_interface(problem, 0, current);
     const std::vector<fuelsim::CartesianContactNodeSummary> contact =
         fuelsim::cartesian::ProblemAccess::summarize_contact_nodes(problem, 0, current);
+    const std::vector<std::size_t> contact_source_nodes =
+        fuelsim::cartesian::ProblemAccess::contact_secondary_source_nodes(problem, 0);
+    const double jacobian_error = mechanical_contact_directional_error(problem, current, 1.0e-8);
+    if (contact_source_nodes.size() != contact.size() || contact_reference.size() != contact.size())
+        throw std::invalid_argument("B5.22 Abaqus and Fuelsim contact-node counts differ");
     std::set<std::size_t> primary_faces;
     for (const auto& point : contact) primary_faces.insert(point.primary_face);
     fuelsim::test::print_relative_metrics("b522_" + name + "_nodal_reaction_heat_flux", nodal_heat);
+    std::array<fuelsim::test::FieldErrorMetrics, 3> contact_normal_force, contact_shear_force, contact_total_force;
+    fuelsim::test::FieldErrorMetrics contact_opening, contact_pressure;
+    std::array<double, 3> actual_secondary_normal_force{}, reference_secondary_normal_force{};
+    double contact_coordinate_difference = 0.0;
+    for (std::size_t node = 0; node < contact.size(); ++node) {
+        const auto found = contact_reference.find(contact_source_nodes[node]);
+        if (found == contact_reference.end())
+            throw std::invalid_argument("B5.22 Abaqus contact reference is missing a Fuelsim secondary node");
+        const std::size_t global = source_to_global.at(contact_source_nodes[node]);
+        const std::array<double, 3> actual_coordinates = {
+            contact[node].x + current[spatial.dof(fuelsim::Field::displacement_x, global)],
+            contact[node].y + current[spatial.dof(fuelsim::Field::displacement_y, global)],
+            contact[node].z + current[spatial.dof(fuelsim::Field::displacement_z, global)]};
+        contact_opening.add(contact[node].gap, found->second.opening);
+        contact_pressure.add(contact[node].pressure, found->second.pressure);
+        for (std::size_t component = 0; component < 3; ++component) {
+            contact_coordinate_difference = std::max(contact_coordinate_difference,
+                std::abs(actual_coordinates[component] - found->second.coordinates[component]));
+            const double actual_normal = -contact[node].normal_contact_force[component],
+                         actual_shear = -contact[node].tangential_contact_force[component];
+            actual_secondary_normal_force[component] += actual_normal;
+            reference_secondary_normal_force[component] += found->second.normal_force[component];
+            contact_normal_force[component].add(actual_normal, found->second.normal_force[component]);
+            contact_shear_force[component].add(actual_shear, found->second.shear_force[component]);
+            contact_total_force[component].add(actual_normal + actual_shear,
+                found->second.normal_force[component] + found->second.shear_force[component]);
+        }
+    }
+    fuelsim::test::print_relative_metrics("b522_" + name + "_contact_opening", contact_opening);
+    fuelsim::test::print_relative_metrics("b522_" + name + "_contact_pressure", contact_pressure);
+    for (std::size_t component = 0; component < 3; ++component) {
+        const std::string suffix = std::to_string(component + 1);
+        if (contact_normal_force[component].has_relative_norm())
+            fuelsim::test::print_relative_metrics(
+                "b522_" + name + "_contact_normal_force" + suffix, contact_normal_force[component]);
+        if (contact_shear_force[component].has_relative_norm())
+            fuelsim::test::print_relative_metrics(
+                "b522_" + name + "_contact_shear_force" + suffix, contact_shear_force[component]);
+        if (contact_total_force[component].has_relative_norm())
+            fuelsim::test::print_relative_metrics(
+                "b522_" + name + "_contact_total_force" + suffix, contact_total_force[component]);
+    }
     const double heat_rate_error =
         std::abs(actual_secondary_heat - reference_secondary_heat) / std::abs(reference_secondary_heat);
     double force_difference_squared = 0.0, reference_force_squared = 0.0;
@@ -245,14 +371,16 @@ Comparison compare(const std::vector<NodeReference>& reference, const std::strin
     const double integration_radius = swap ? primary_radius : secondary_radius - 0.015;
     const double facet_force = 1.0e7 * penetration * 2.0 * integration_radius * std::sin(0.5 * angle);
     std::array<double, 3> analytical_force{};
+    const double normal_sign = swap ? -1.0 : 1.0;
     for (std::size_t facet = 0; facet < facets; ++facet) {
         const double normal_angle = (static_cast<double>(facet) + 0.5) * angle;
-        analytical_force[0] += facet_force * std::cos(normal_angle);
-        analytical_force[1] += facet_force * std::sin(normal_angle);
+        analytical_force[0] += normal_sign * facet_force * std::cos(normal_angle);
+        analytical_force[1] += normal_sign * facet_force * std::sin(normal_angle);
     }
     double normal_difference_squared = 0.0, analytical_squared = 0.0;
     for (std::size_t component = 0; component < 3; ++component) {
-        normal_difference_squared += std::pow(actual_secondary_force[component] - analytical_force[component], 2);
+        normal_difference_squared +=
+            std::pow(actual_secondary_normal_force[component] - analytical_force[component], 2);
         analytical_squared += analytical_force[component] * analytical_force[component];
     }
     const double normal_integration_error = std::sqrt(normal_difference_squared / analytical_squared);
@@ -268,12 +396,22 @@ Comparison compare(const std::vector<NodeReference>& reference, const std::strin
               << actual_secondary_force[1] << ',' << actual_secondary_force[2] << '\n'
               << "b522_" << name << "_reference_secondary_force=" << reference_secondary_force[0] << ','
               << reference_secondary_force[1] << ',' << reference_secondary_force[2] << '\n'
+              << "b522_" << name << "_actual_secondary_normal_force=" << actual_secondary_normal_force[0] << ','
+              << actual_secondary_normal_force[1] << ',' << actual_secondary_normal_force[2] << '\n'
+              << "b522_" << name << "_reference_secondary_normal_force=" << reference_secondary_normal_force[0] << ','
+              << reference_secondary_normal_force[1] << ',' << reference_secondary_normal_force[2] << '\n'
               << "b522_" << name << "_analytical_secondary_force=" << analytical_force[0] << ',' << analytical_force[1]
               << ',' << analytical_force[2] << '\n'
               << "b522_" << name << "_state_maximum_absolute_difference=" << state_difference << '\n'
               << "b522_" << name << "_thermal_conservation_maximum_absolute=" << conservation_error << '\n'
               << "b522_" << name << "_active_primary_face_count=" << primary_faces.size() << '\n';
+    std::cout << "b522_" << name << "_contact_coordinate_maximum_absolute_difference=" << contact_coordinate_difference
+              << '\n'
+              << "b522_" << name << "_mechanical_contact_jacobian_directional_relative_error=" << jacobian_error
+              << '\n';
     const double thermal_tolerance = swap ? 7.0e-3 : 1.0e-6;
+    constexpr double contact_normal_tolerance = 1.0e-2, contact_total_tolerance = 1.25e-2,
+                     contact_zero_component_tolerance = 1.0e-9;
     const bool passed =
         check(state_difference < 3.0e-8, "B5.22 " + name + " Fuelsim and Abaqus use the same faceted-cylinder state") &&
         check(contact.size() == 2 * (facets + 1) && primary_faces.size() == facets &&
@@ -286,8 +424,24 @@ Comparison compare(const std::vector<NodeReference>& reference, const std::strin
         check(pressure_weighted_force_error < thermal_tolerance,
             "B5.22 " + name +
                 " pressure-weighted scalar contact force satisfies the designation-specific Abaqus heat-rate limit") &&
+        check(fuelsim::test::relative_metrics_below(contact_opening, contact_normal_tolerance) &&
+                  fuelsim::test::relative_metrics_below(contact_pressure, contact_normal_tolerance) &&
+                  fuelsim::test::relative_metrics_below(contact_normal_force[0], contact_normal_tolerance) &&
+                  fuelsim::test::relative_metrics_below(contact_normal_force[1], contact_normal_tolerance) &&
+                  contact_normal_force[2].absolute_peak() < contact_zero_component_tolerance,
+            "B5.22 " + name + " contact opening, pressure, and normal nodal force satisfy all direct Abaqus limits") &&
+        check(fuelsim::test::relative_metrics_below(contact_total_force[0], contact_total_tolerance) &&
+                  fuelsim::test::relative_metrics_below(contact_total_force[1], contact_total_tolerance) &&
+                  contact_total_force[2].absolute_peak() < contact_zero_component_tolerance &&
+                  resultant_force_error < contact_normal_tolerance,
+            "B5.22 " + name +
+                " complete nodal contact-force components and resultant satisfy the direct Abaqus limits") &&
+        check(contact_coordinate_difference < 3.0e-8,
+            "B5.22 " + name + " contact-output coordinates match the prescribed Abaqus state") &&
+        check(jacobian_error < 2.0e-5,
+            "B5.22 " + name + " curved frictional contact Jacobian matches a centered directional difference") &&
         check(normal_integration_error < 1.0e-12,
-            "B5.22 " + name + " mechanical resultant matches analytical constant-facet normal integration") &&
+            "B5.22 " + name + " normal resultant matches analytical constant-facet normal integration") &&
         check(nodal_heat.maximum_zero_reference_difference < 1.0e-10 && conservation_error < 1.0e-10 &&
                   std::abs(std::abs(interface.total_heat_rate) - std::abs(actual_secondary_heat)) < 1.0e-10,
             "B5.22 " + name + " curved thermal contact remains exactly conservative and has exact zero support");
@@ -296,18 +450,22 @@ Comparison compare(const std::vector<NodeReference>& reference, const std::strin
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 6) {
+    if (argc != 11) {
         std::cerr << "usage: fuelsim_b522_hex8_c3d8t_faceted_thermal_contact_abaqus_tests "
-                     "<facets3.csv> <facets6.csv> <facets12.csv> <swapped.csv> <tight.csv>\n";
+                     "<facets3-nodal.csv> <facets6-nodal.csv> <facets12-nodal.csv> <swapped-nodal.csv> "
+                     "<tight-nodal.csv> <facets3-contact.csv> <facets6-contact.csv> <facets12-contact.csv> "
+                     "<swapped-contact.csv> <tight-contact.csv>\n";
         return 2;
     }
     try {
         std::cout << std::scientific << std::setprecision(12);
-        const Comparison facets3 = compare(read_reference(argv[1]), "facets3", 3);
-        const Comparison facets6 = compare(read_reference(argv[2]), "facets6", 6);
-        const Comparison facets12 = compare(read_reference(argv[3]), "facets12", 12);
-        const Comparison swapped = compare(read_reference(argv[4]), "swapped", 3, 1.0, 1.005, true);
-        const Comparison tight = compare(read_reference(argv[5]), "tight", 3, 0.5, 0.505);
+        const Comparison facets3 = compare(read_reference(argv[1]), read_contact_reference(argv[6]), "facets3", 3);
+        const Comparison facets6 = compare(read_reference(argv[2]), read_contact_reference(argv[7]), "facets6", 6);
+        const Comparison facets12 = compare(read_reference(argv[3]), read_contact_reference(argv[8]), "facets12", 12);
+        const Comparison swapped =
+            compare(read_reference(argv[4]), read_contact_reference(argv[9]), "swapped", 3, 1.0, 1.005, true);
+        const Comparison tight =
+            compare(read_reference(argv[5]), read_contact_reference(argv[10]), "tight", 3, 0.5, 0.505);
         const double first_contraction = facets6.resultant_force_error / facets3.resultant_force_error,
                      second_contraction = facets12.resultant_force_error / facets6.resultant_force_error;
         std::cout << "b522_facets3_to_facets6_force_error_contraction=" << first_contraction << '\n'

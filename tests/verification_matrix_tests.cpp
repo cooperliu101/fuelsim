@@ -118,10 +118,15 @@ void check_c3d8t_contract(const std::string& path, const std::set<std::string>& 
             (scope == "full_field" && fields[5] != "none"))
             throw std::runtime_error(test + " does not satisfy its C3D8T contact-field contract");
         if (fields[6] != "base_0.1_percent" && fields[6] != "integrated_finite_0.5_percent" &&
+            fields[6] != "integrated_contact_0.5_percent" && fields[6] != "contact_1.25_percent_complete_force" &&
             fields[6] != "qualified_contact")
             throw std::runtime_error(test + " has an invalid C3D8T acceptance class");
         if (fields[6] == "qualified_contact" && (scope != "contact_full_field" || fields[8] == "none"))
             throw std::runtime_error(test + " lacks a documented contact qualification boundary");
+        if (fields[6] == "contact_1.25_percent_complete_force" &&
+            (test != "fuelsim_b522_hex8_c3d8t_faceted_thermal_contact_abaqus_tests" || scope != "contact_path" ||
+                fields[8] == "none"))
+            throw std::runtime_error(test + " misuses the B5.22 complete-force acceptance class");
     }
     if (found_tests != registered_c3d8t)
         throw std::runtime_error("C3D8T validation contract does not cover every registered Abaqus test");
@@ -277,7 +282,7 @@ int main(int argc, char** argv) {
         }
         if (found_ids != required_ids)
             throw std::runtime_error("Verification matrix is missing one or more required rows");
-        if (verified != 71 || qualified != 12 || measured != 3 || limitations != 1)
+        if (verified != 83 || qualified != 0 || measured != 3 || limitations != 1)
             throw std::runtime_error("Verification matrix status counts differ from release schema");
         check_c3d8t_contract(argv[4], registered_tests);
         std::cout << "verification_matrix_rows=" << found_ids.size() << '\n'

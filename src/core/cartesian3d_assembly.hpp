@@ -184,24 +184,29 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     struct AbaqusAveragedConstraint final {
         struct FiniteSlidingSample final {
             std::size_t secondary_face, secondary_local_point;
-            double normal_orientation;
+            double normal_orientation, tangent_orientation;
+            std::vector<std::size_t> primary_faces;
         };
 
-        std::size_t contact, secondary;
+        std::size_t contact, secondary, history;
         std::vector<std::size_t> nodes, secondary_output_nodes;
         std::vector<double> gap_coefficients, secondary_coefficients;
+        std::vector<std::array<double, 3>> tangent_first_coefficients, tangent_second_coefficients,
+            secondary_tangent_first_coefficients, secondary_tangent_second_coefficients;
         std::vector<CartesianPoint3> reference_coordinates;
         std::vector<FiniteSlidingSample> finite_sliding_samples;
-        CartesianPoint3 normal;
+        CartesianPoint3 normal, tangent_first, reference_normal, reference_tangent_first;
         double reference_gap, area;
         std::size_t primary_face = 0;
-        bool finite_sliding = false, projected = true;
+        bool finite_sliding = false, friction_only = false, projected = true;
     };
 
     struct AbaqusAveragedConstraintValue final {
         double gap, pressure, force, stick_stiffness, trial_tangential_magnitude, tangential_force,
             friction_dissipation;
-        std::array<double, 3> trial_tangential_traction, tangential_traction, tangential_slip, elastic_tangential_slip;
+        std::array<double, 3> trial_tangential_traction, tangential_traction, tangential_slip, elastic_tangential_slip,
+            tangent_first;
+        std::array<double, 2> trial_tangential_traction_components, tangential_traction_components;
         bool sliding;
     };
 
@@ -234,6 +239,13 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
         const ContactPointHistory& history) const;
     void compute_averaged_constraint(const AbaqusAveragedConstraint& constraint, const std::vector<double>& state,
         std::vector<double>& residual, std::vector<double>* jacobian) const;
+    void compute_averaged_friction_geometry(const AbaqusAveragedConstraint& constraint,
+        const std::vector<double>& state, const std::array<double, 2>& traction, std::vector<double>& residual,
+        std::vector<double>* jacobian) const;
+    void compute_averaged_friction_traction_derivatives(const AbaqusAveragedConstraint& constraint,
+        const std::vector<double>& state, const std::vector<double>& committed_state,
+        const ContactPointHistory& history, const AbaqusAveragedConstraintValue& value,
+        std::array<std::vector<double>, 2>& derivatives) const;
     void refresh_finite_averaged_constraints(const std::vector<double>& state) const;
     bool summarize_averaged_contact(std::size_t contact, const std::vector<double>& state,
         std::vector<CartesianContactNodeSummary>& summaries) const;
