@@ -1,4 +1,5 @@
 #include "fuelsim/solver/solve_workflows.hpp"
+#include "support/abaqus_hex8_full_field.hpp"
 #include "support/cartesian3d_problem_access.hpp"
 #include "support/material_factory.hpp"
 #include <algorithm>
@@ -104,9 +105,8 @@ fuelsim::SpatialDefinition definition(double penalty) {
                           fuelsim::StrainFormulation::finite},
         {"clad", "clad", material(15.0, 1.0e11, 0.32, 5.0e-6, 6.5e3, 330.0), 0.0, 600.0, -1, "",
             fuelsim::StrainFormulation::finite}};
-    const std::vector<double> times = {0.0, 2500.0, 5000.0, 7500.0, 10000.0};
-    result.time_tables.emplace_back(
-        "fuel_temperature", times, std::vector<double>{600.0, 750.0, 900.0, 1050.0, 1200.0});
+    const std::vector<double> times = {0.0, 10000.0};
+    result.time_tables.emplace_back("fuel_temperature", times, std::vector<double>{600.0, 1200.0});
     result.boundary_conditions = {
         {"fuel_temperature", fuelsim::BoundaryConditionType::dirichlet, "fuel_inner", fuelsim::Field::temperature, 1.0,
             false, "fuel_temperature"},
@@ -155,7 +155,7 @@ fuelsim::SolverOptions solver_options() {
 }
 
 struct Response final {
-    bool completed = false;
+    bool completed = false, full_field_passed = false;
     std::size_t accepted_steps = 0, rejected_steps = 0, active_contact_nodes = 0;
     int nonlinear_iterations = 0;
     double contact_force = 0.0, contact_heat_rate = 0.0, maximum_pressure = 0.0, maximum_penetration = 0.0,
@@ -164,10 +164,14 @@ struct Response final {
     std::string failure;
 };
 
-Response solve_case(const MeshDivisions& divisions, double time_step, double penalty) {
-    fuelsim::TransientProblem problem(definition(penalty), engineering_mesh(divisions));
+Response solve_case(const MeshDivisions& divisions, double time_step, double penalty, const std::string& case_name,
+    const std::string& reference_directory) {
+    const fuelsim::SpatialDefinition case_definition = definition(penalty);
+    const fuelsim::UnstructuredHex8Mesh case_mesh = engineering_mesh(divisions);
+    fuelsim::TransientProblem problem(case_definition, case_mesh);
+    fuelsim::test::AbaqusHex8SnapshotObserver observer;
     const fuelsim::TransientResult solve = fuelsim::solve_transient(
-        problem, {10000.0, time_step, time_step, time_step, 1.0, 0.5, 0, 0.0}, solver_options());
+        problem, {10000.0, time_step, time_step, time_step, 1.0, 0.5, 0, 0.0}, solver_options(), &observer);
     Response response;
     response.completed = solve.completed;
     response.accepted_steps = solve.accepted_steps.size();
@@ -175,6 +179,26 @@ Response solve_case(const MeshDivisions& divisions, double time_step, double pen
     response.nonlinear_iterations = solve.total_nonlinear_iterations;
     if (!solve.rejected_steps.empty()) response.failure = solve.rejected_steps.back().failure_message;
     if (!solve.completed) return response;
+    fuelsim::test::AbaqusHex8FullFieldOptions comparison;
+    comparison.case_name = case_name;
+    comparison.reference_prefix = reference_directory + "/" + case_name;
+    comparison.expected_steps = static_cast<std::size_t>(std::llround(10000.0 / time_step));
+    comparison.time_step = time_step;
+    comparison.bulk_relative_tolerance = 1.5e-2;
+    comparison.displacement_pointwise_relative_tolerance = 5.0e-2;
+    comparison.reaction_pointwise_relative_tolerance = 5.0e-2;
+    comparison.reaction_pointwise_absolute_tolerance = 1.0e-6;
+    comparison.stress_pointwise_relative_tolerance = 2.0e-2;
+    comparison.stress_pointwise_absolute_tolerance = 10.0;
+    comparison.logarithmic_strain_pointwise_relative_tolerance = 2.0e-2;
+    comparison.elastic_strain_pointwise_relative_tolerance = 2.0e-2;
+    comparison.elastic_strain_pointwise_absolute_tolerance = 1.0e-10;
+    comparison.contact_pointwise_relative_tolerance = 2.5e-2;
+    comparison.energy_pointwise_relative_tolerance = 5.0e-2;
+    comparison.minimum_contact_state_match_fraction = 0.95;
+    comparison.use_contact_summary_total_slip = true;
+    response.full_field_passed = fuelsim::test::compare_abaqus_hex8_full_field(
+        problem, case_definition, case_mesh, observer.snapshots(), comparison);
     const auto& spatial = fuelsim::cartesian::ProblemAccess::view(problem);
     const fuelsim::InterfaceSummary interface =
         fuelsim::cartesian::ProblemAccess::summarize_interface(problem, 0, solve.committed_state);
@@ -216,6 +240,7 @@ void print_response(const std::string& name, const Response& response) {
     std::cout << "b527_" << name << "_completed=" << response.completed << '\n'
               << "b527_" << name << "_accepted_steps=" << response.accepted_steps << '\n'
               << "b527_" << name << "_rejected_steps=" << response.rejected_steps << '\n'
+              << "b527_" << name << "_full_field_passed=" << response.full_field_passed << '\n'
               << "b527_" << name << "_nonlinear_iterations=" << response.nonlinear_iterations << '\n'
               << "b527_" << name << "_active_contact_nodes=" << response.active_contact_nodes << '\n'
               << "b527_" << name << "_contact_force=" << response.contact_force << '\n'
@@ -237,27 +262,54 @@ double relative_change(double left, double right) {
 } // namespace
 
 int main(int argc, char** argv) {
+    if (argc < 2) {
+        std::cerr << "Usage: fuelsim_b527_hex8_engineering_fuel_clad_tests <Abaqus reference directory> [case]\n";
+        return 2;
+    }
     try {
         std::cout << std::scientific << std::setprecision(12);
         fuelsim::PetscSession session(argc, argv, "fuelsim B5.27 engineering fuel-clad verification\n");
-        const Response coarse = solve_case({1, 1, 3, 2}, 1000.0, 1.0e14);
-        const Response medium = solve_case({2, 1, 4, 3}, 1000.0, 1.0e14);
-        const Response fine = solve_case({2, 2, 6, 4}, 1000.0, 1.0e14);
-        const Response half_step = solve_case({2, 1, 4, 3}, 500.0, 1.0e14);
-        const Response low_penalty = solve_case({2, 1, 4, 3}, 1000.0, 5.0e13);
-        const Response high_penalty = solve_case({2, 1, 4, 3}, 1000.0, 2.0e14);
-        const std::array<std::pair<const char*, const Response*>, 6> cases = {
-            {{"coarse", &coarse}, {"medium", &medium}, {"fine", &fine}, {"half_step", &half_step},
-                {"low_penalty", &low_penalty}, {"high_penalty", &high_penalty}}};
+        const std::string reference_directory = argv[1];
+        const std::string selected = argc > 2 ? argv[2] : "";
+        const std::array<std::string, 6> known_cases = {
+            "coarse", "medium", "fine", "half_step", "low_penalty", "high_penalty"};
+        if (!selected.empty() && std::find(known_cases.begin(), known_cases.end(), selected) == known_cases.end())
+            throw std::invalid_argument("Unknown B5.27 case: " + selected);
+        const auto enabled = [&](const std::string& name) { return selected.empty() || selected == name; };
+        const Response coarse = enabled("coarse")
+                                    ? solve_case({1, 1, 3, 2}, 1000.0, 1.0e14, "b527_coarse", reference_directory)
+                                    : Response{};
+        const Response medium = enabled("medium")
+                                    ? solve_case({2, 1, 4, 3}, 1000.0, 1.0e14, "b527_medium", reference_directory)
+                                    : Response{};
+        const Response fine =
+            enabled("fine") ? solve_case({2, 2, 6, 4}, 1000.0, 1.0e14, "b527_fine", reference_directory) : Response{};
+        const Response half_step = enabled("half_step")
+                                       ? solve_case({2, 1, 4, 3}, 500.0, 1.0e14, "b527_half_step", reference_directory)
+                                       : Response{};
+        const Response low_penalty =
+            enabled("low_penalty") ? solve_case({2, 1, 4, 3}, 1000.0, 5.0e13, "b527_low_penalty", reference_directory)
+                                   : Response{};
+        const Response high_penalty =
+            enabled("high_penalty") ? solve_case({2, 1, 4, 3}, 1000.0, 2.0e14, "b527_high_penalty", reference_directory)
+                                    : Response{};
+        std::vector<std::pair<std::string, const Response*>> cases;
+        if (enabled("coarse")) cases.emplace_back("coarse", &coarse);
+        if (enabled("medium")) cases.emplace_back("medium", &medium);
+        if (enabled("fine")) cases.emplace_back("fine", &fine);
+        if (enabled("half_step")) cases.emplace_back("half_step", &half_step);
+        if (enabled("low_penalty")) cases.emplace_back("low_penalty", &low_penalty);
+        if (enabled("high_penalty")) cases.emplace_back("high_penalty", &high_penalty);
         bool completed = true;
         for (const auto& item : cases) {
             print_response(item.first, *item.second);
-            completed = completed && item.second->completed && item.second->active_contact_nodes > 0 &&
-                        item.second->contact_force > 0.0 && std::abs(item.second->contact_heat_rate) > 0.0;
+            completed = completed && item.second->completed && item.second->full_field_passed &&
+                        item.second->active_contact_nodes > 0 && item.second->contact_force > 0.0 &&
+                        std::abs(item.second->contact_heat_rate) > 0.0;
         }
         bool passed = check(completed, "B5.27 every engineering fuel-clad mesh, time-step, and penalty case completes "
                                        "with active mechanical and thermal contact");
-        if (completed) {
+        if (completed && selected.empty()) {
             const double time_temperature_change =
                              relative_change(half_step.clad_average_temperature, medium.clad_average_temperature),
                          time_force_change = relative_change(half_step.contact_force, medium.contact_force),

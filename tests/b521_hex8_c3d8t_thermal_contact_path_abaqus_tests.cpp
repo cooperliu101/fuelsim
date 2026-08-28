@@ -185,6 +185,8 @@ std::vector<double> flatten_committed_state(const fuelsim::TransientProblem& pro
             result.push_back(history.normal_multiplier);
             result.insert(result.end(), history.cartesian_elastic_tangential_slip.begin(),
                 history.cartesian_elastic_tangential_slip.end());
+            result.insert(result.end(), history.cartesian_total_tangential_slip.begin(),
+                history.cartesian_total_tangential_slip.end());
             result.push_back(history.cartesian_tangent_basis_initialized ? 1.0 : 0.0);
             result.insert(
                 result.end(), history.cartesian_contact_normal.begin(), history.cartesian_contact_normal.end());

@@ -387,6 +387,7 @@ bool histories_equal(const std::vector<std::vector<fuelsim::ContactPointHistory>
             if (left.elastic_tangential_slip != right.elastic_tangential_slip || left.sliding != right.sliding ||
                 left.normal_multiplier != right.normal_multiplier ||
                 left.cartesian_elastic_tangential_slip != right.cartesian_elastic_tangential_slip ||
+                left.cartesian_total_tangential_slip != right.cartesian_total_tangential_slip ||
                 left.cartesian_tangent_basis_initialized != right.cartesian_tangent_basis_initialized ||
                 left.cartesian_contact_normal != right.cartesian_contact_normal ||
                 left.cartesian_contact_tangent_first != right.cartesian_contact_tangent_first)

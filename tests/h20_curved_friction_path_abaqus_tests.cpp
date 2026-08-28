@@ -472,6 +472,7 @@ bool histories_identical(const std::vector<fuelsim::ContactPointHistory>& actual
             actual[point].sliding != expected[point].sliding ||
             actual[point].normal_multiplier != expected[point].normal_multiplier ||
             actual[point].cartesian_elastic_tangential_slip != expected[point].cartesian_elastic_tangential_slip ||
+            actual[point].cartesian_total_tangential_slip != expected[point].cartesian_total_tangential_slip ||
             actual[point].cartesian_tangent_basis_initialized != expected[point].cartesian_tangent_basis_initialized ||
             actual[point].cartesian_contact_normal != expected[point].cartesian_contact_normal ||
             actual[point].cartesian_contact_tangent_first != expected[point].cartesian_contact_tangent_first)
@@ -541,9 +542,10 @@ bool run_path(const std::string& input_path, const std::string& displacement_pat
                      "H20.36 starts with two fully sticking states") &&
                  check(mixed[0] > 0 && mixed[1] > 0 && forward[1] > 0,
                      "H20.36 contains simultaneous sticking and sliding before forward sliding") &&
-                 check(unload[0] > 0 && unload[1] > 0 && reverse[0] > 0 && reverse[1] > 0 &&
+                 check(unload[0] > 0 && unload[1] > 0 && reverse[0] == 0 && reverse[1] == 37 &&
                            forward_resultant[1] * reverse_resultant[1] < 0.0,
-                     "H20.36 covers unloading and reverses the driven axial tangential resultant") &&
+                     "H20.36 covers mixed unloading, committed full reverse sliding, and reverses the driven axial "
+                     "tangential resultant") &&
                  check(restick[0] == 37 && restick[1] == 0, "H20.36 finishes with all 37 constraints restuck") &&
                  check(maximum_secondary_face_nonplanarity(mesh) > 1.0e-3,
                      "H20.36 uses genuinely quadratic contact faces rather than planar facets") &&

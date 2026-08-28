@@ -25,7 +25,7 @@ struct SurfaceProjection8 final {
 struct CartesianContactAdValue8 final {
     bool projected = false, sliding = false;
     std::array<adlite::Scalar, 8> primary_shape{};
-    ActivePoint3 normal{}, tangent_first{}, elastic_tangential_slip{}, tangential_traction_vector{};
+    ActivePoint3 normal{}, tangent_first{}, tangential_slip{}, elastic_tangential_slip{}, tangential_traction_vector{};
     adlite::Scalar gap{0.0}, pressure{0.0}, tributary_area{0.0}, contact_force{0.0}, tangential_traction{0.0},
         tangential_force{0.0}, friction_dissipation{0.0};
 };
@@ -236,12 +236,19 @@ CartesianContactAdValue8 evaluate_mechanical(const NormalContactProperties& prop
     const Quad8SurfaceContactLocalValues& committed_state, const ContactPointHistory& history);
 
 void apply_friction(const NormalContactProperties& properties, const ContactPointHistory& history,
-    const ActivePoint3& transported_history, const ActivePoint3& relative_increment, CartesianContactAdValue8& result) {
+    const ActivePoint3& transported_history, const ActivePoint3& transported_total_history,
+    const ActivePoint3& relative_increment, CartesianContactAdValue8& result) {
     if (properties.friction_coefficient == 0.0 || !(result.pressure.value() > 0.0)) return;
     const adlite::Scalar normal_increment = dot(relative_increment, result.normal);
-    for (std::size_t component = 0; component < 3; ++component)
+    for (std::size_t component = 0; component < 3; ++component) {
+        result.tangential_slip[component] = transported_total_history[component] + relative_increment[component] -
+                                            normal_increment * result.normal[component];
         result.elastic_tangential_slip[component] = transported_history[component] + relative_increment[component] -
                                                     normal_increment * result.normal[component];
+    }
+    const adlite::Scalar total_history_normal = dot(result.tangential_slip, result.normal);
+    for (std::size_t component = 0; component < 3; ++component)
+        result.tangential_slip[component] -= total_history_normal * result.normal[component];
     const adlite::Scalar history_normal = dot(result.elastic_tangential_slip, result.normal);
     for (std::size_t component = 0; component < 3; ++component)
         result.elastic_tangential_slip[component] -= history_normal * result.normal[component];
@@ -279,6 +286,11 @@ void apply_friction(const NormalContactProperties& properties, const ContactPoin
 ActivePoint3 stored_history(const ContactPointHistory& history) {
     return {history.cartesian_elastic_tangential_slip[0], history.cartesian_elastic_tangential_slip[1],
         history.cartesian_elastic_tangential_slip[2]};
+}
+
+ActivePoint3 stored_total_history(const ContactPointHistory& history) {
+    return {history.cartesian_total_tangential_slip[0], history.cartesian_total_tangential_slip[1],
+        history.cartesian_total_tangential_slip[2]};
 }
 
 SurfaceBasis surface_basis(const SurfaceProjection8& projection) {
@@ -438,6 +450,7 @@ CartesianContactAdValue8 evaluate_surface_mechanical(const NormalContactProperti
         result.tangent_first = current_basis.first;
         apply_friction(properties, history,
             transport_surface_vector(stored_history(history), current_basis, committed_contact_basis),
+            transport_surface_vector(stored_total_history(history), current_basis, committed_contact_basis),
             objective_surface_increment(
                 nodes, committed_nodes, secondary_shape, result.primary_shape, current_basis, committed_contact_basis),
             result);
@@ -487,7 +500,7 @@ CartesianContactAdValue8 evaluate_mechanical(const NormalContactProperties& prop
     std::array<adlite::Scalar, 8> secondary_shape{};
     secondary_shape[geometry.secondary_local_node] = 1.0;
     const Quad8SurfaceContactLocalAdValues committed_ad_state = make_ad_state(committed_state, false);
-    apply_friction(properties, history, stored_history(history),
+    apply_friction(properties, history, stored_history(history), stored_total_history(history),
         incremental_relative_displacement(state, committed_ad_state, secondary_shape, result.primary_shape), result);
     return result;
 }
@@ -579,6 +592,7 @@ CartesianContactPointValue compute_quad8_to_quad8_contact_value(const NormalCont
         {value.tangent_first[0].value(), value.tangent_first[1].value(), value.tangent_first[2].value()},
         {value.tangential_traction_vector[0].value(), value.tangential_traction_vector[1].value(),
             value.tangential_traction_vector[2].value()},
+        {value.tangential_slip[0].value(), value.tangential_slip[1].value(), value.tangential_slip[2].value()},
         {value.elastic_tangential_slip[0].value(), value.elastic_tangential_slip[1].value(),
             value.elastic_tangential_slip[2].value()},
         value.sliding};
@@ -653,6 +667,7 @@ CartesianContactPointValue compute_node_to_quad8_contact_value(const NormalConta
         {},
         {value.tangential_traction_vector[0].value(), value.tangential_traction_vector[1].value(),
             value.tangential_traction_vector[2].value()},
+        {value.tangential_slip[0].value(), value.tangential_slip[1].value(), value.tangential_slip[2].value()},
         {value.elastic_tangential_slip[0].value(), value.elastic_tangential_slip[1].value(),
             value.elastic_tangential_slip[2].value()},
         value.sliding};

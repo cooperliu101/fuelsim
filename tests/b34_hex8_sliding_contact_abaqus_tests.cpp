@@ -164,6 +164,7 @@ bool histories_equal(
             first[point].sliding != second[point].sliding ||
             first[point].normal_multiplier != second[point].normal_multiplier ||
             first[point].cartesian_elastic_tangential_slip != second[point].cartesian_elastic_tangential_slip ||
+            first[point].cartesian_total_tangential_slip != second[point].cartesian_total_tangential_slip ||
             first[point].cartesian_tangent_basis_initialized != second[point].cartesian_tangent_basis_initialized ||
             first[point].cartesian_contact_normal != second[point].cartesian_contact_normal ||
             first[point].cartesian_contact_tangent_first != second[point].cartesian_contact_tangent_first)

@@ -112,6 +112,8 @@ bool compare_committed_states(
                     cartesian_equal &&
                     nearly_equal(a.cartesian_elastic_tangential_slip[component],
                         b.cartesian_elastic_tangential_slip[component]) &&
+                    nearly_equal(
+                        a.cartesian_total_tangential_slip[component], b.cartesian_total_tangential_slip[component]) &&
                     nearly_equal(a.cartesian_contact_normal[component], b.cartesian_contact_normal[component]) &&
                     nearly_equal(
                         a.cartesian_contact_tangent_first[component], b.cartesian_contact_tangent_first[component]);
@@ -162,6 +164,7 @@ bool test_friction_history_checkpoint(const std::string& input_path, const std::
         return check(false, "friction checkpoint fixture has contact-node history");
     state.contact_histories.front().front() = {2.5e-7, true};
     state.contact_histories.front().front().cartesian_elastic_tangential_slip = {0.0, 2.0e-5, -3.0e-5};
+    state.contact_histories.front().front().cartesian_total_tangential_slip = {0.0, 8.0e-5, -9.0e-5};
     state.contact_histories.front().front().cartesian_tangent_basis_initialized = true;
     state.contact_histories.front().front().cartesian_contact_normal = {1.0, 0.0, 0.0};
     state.contact_histories.front().front().cartesian_contact_tangent_first = {0.0, 1.0, 0.0};
@@ -181,13 +184,13 @@ bool test_friction_history_checkpoint(const std::string& input_path, const std::
     {
         std::fstream file(checkpoint_path, std::ios::binary | std::ios::in | std::ios::out);
         if (!file) return check(false, "friction checkpoint opens for version test");
-        const std::array<unsigned char, 4> old_version = {14U, 0U, 0U, 0U};
+        const std::array<unsigned char, 4> old_version = {15U, 0U, 0U, 0U};
         file.seekp(16, std::ios::beg);
         file.write(reinterpret_cast<const char*>(old_version.data()), static_cast<std::streamsize>(old_version.size()));
     }
     fuelsim::TransientProblem old_version_target(input.spatial, mesh);
     passed = expect_failure([&]() { (void)fuelsim::restore_transient_checkpoint(checkpoint_path, old_version_target); },
-                 "version is not supported", "checkpoint version 15 rejects the previous format") &&
+                 "version is not supported", "checkpoint version 16 rejects the previous format") &&
              passed;
     return check(std::remove(checkpoint_path.c_str()) == 0, "friction checkpoint artifact is removed") && passed;
 }

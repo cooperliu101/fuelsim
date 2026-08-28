@@ -889,6 +889,9 @@ TransientTimeErrorEstimate compare_step_doubling_states(const TransientCommitted
             for (std::size_t component = 0; component < full.cartesian_elastic_tangential_slip.size(); ++component)
                 accumulate_time_error(contact_friction, full.cartesian_elastic_tangential_slip[component],
                     half.cartesian_elastic_tangential_slip[component]);
+            for (std::size_t component = 0; component < full.cartesian_total_tangential_slip.size(); ++component)
+                accumulate_time_error(contact_friction, full.cartesian_total_tangential_slip[component],
+                    half.cartesian_total_tangential_slip[component]);
             for (std::size_t component = 0; component < full.cartesian_contact_normal.size(); ++component) {
                 accumulate_time_error(contact_friction, full.cartesian_contact_normal[component],
                     half.cartesian_contact_normal[component]);

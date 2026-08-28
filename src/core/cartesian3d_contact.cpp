@@ -20,7 +20,7 @@ struct SurfaceProjection final {
 struct CartesianContactAdValue final {
     bool projected = false, sliding = false;
     std::array<adlite::Scalar, 4> primary_shape{};
-    ActivePoint3 normal{}, tangent_first{}, elastic_tangential_slip{}, tangential_traction_vector{};
+    ActivePoint3 normal{}, tangent_first{}, tangential_slip{}, elastic_tangential_slip{}, tangential_traction_vector{};
     adlite::Scalar gap{0.0}, pressure{0.0}, tributary_area{0.0}, contact_force{0.0}, tangential_traction{0.0},
         tangential_force{0.0}, friction_dissipation{0.0};
 };
@@ -217,6 +217,11 @@ ActivePoint3 stored_history(const ContactPointHistory& history) {
         history.cartesian_elastic_tangential_slip[2]};
 }
 
+ActivePoint3 stored_total_history(const ContactPointHistory& history) {
+    return {history.cartesian_total_tangential_slip[0], history.cartesian_total_tangential_slip[1],
+        history.cartesian_total_tangential_slip[2]};
+}
+
 ActivePoint3 relative_position(const std::array<ActivePoint3, 8>& nodes,
     const std::array<adlite::Scalar, 4>& secondary_shape, const std::array<adlite::Scalar, 4>& primary_shape) {
     return subtract(interpolate_point(nodes, 0, secondary_shape), interpolate_point(nodes, 4, primary_shape));
@@ -263,12 +268,19 @@ SurfaceProjection finite_sliding_committed_projection(const std::array<ActivePoi
 }
 
 void apply_surface_friction(const NormalContactProperties& properties, const ContactPointHistory& history,
-    const ActivePoint3& transported_history, const ActivePoint3& relative_increment, CartesianContactAdValue& result) {
+    const ActivePoint3& transported_history, const ActivePoint3& transported_total_history,
+    const ActivePoint3& relative_increment, CartesianContactAdValue& result) {
     if (properties.friction_coefficient == 0.0 || !(result.pressure.value() > 0.0)) return;
     const adlite::Scalar normal_increment = dot(relative_increment, result.normal);
-    for (std::size_t component = 0; component < 3; ++component)
+    for (std::size_t component = 0; component < 3; ++component) {
+        result.tangential_slip[component] = transported_total_history[component] + relative_increment[component] -
+                                            normal_increment * result.normal[component];
         result.elastic_tangential_slip[component] = transported_history[component] + relative_increment[component] -
                                                     normal_increment * result.normal[component];
+    }
+    const adlite::Scalar total_history_normal = dot(result.tangential_slip, result.normal);
+    for (std::size_t component = 0; component < 3; ++component)
+        result.tangential_slip[component] -= total_history_normal * result.normal[component];
     const adlite::Scalar history_normal = dot(result.elastic_tangential_slip, result.normal);
     for (std::size_t component = 0; component < 3; ++component)
         result.elastic_tangential_slip[component] -= history_normal * result.normal[component];
@@ -386,6 +398,7 @@ CartesianContactAdValue evaluate_surface_mechanical(const NormalContactPropertie
         result.tangent_first = current_basis.first;
         apply_surface_friction(properties, history,
             transport_surface_vector(stored_history(history), current_basis, committed_contact_basis),
+            transport_surface_vector(stored_total_history(history), current_basis, committed_contact_basis),
             objective_surface_increment(
                 nodes, committed_nodes, secondary_shape, result.primary_shape, current_basis, committed_contact_basis),
             result);
@@ -426,10 +439,16 @@ CartesianContactAdValue evaluate_mechanical(const NormalContactProperties& prope
     }
     const adlite::Scalar normal_increment = dot(relative_increment, result.normal);
     for (std::size_t component = 0; component < 3; ++component) {
+        const adlite::Scalar total_history_component = history.cartesian_total_tangential_slip[component];
         const adlite::Scalar history_component = history.cartesian_elastic_tangential_slip[component];
+        result.tangential_slip[component] =
+            total_history_component + relative_increment[component] - normal_increment * result.normal[component];
         result.elastic_tangential_slip[component] =
             history_component + relative_increment[component] - normal_increment * result.normal[component];
     }
+    const adlite::Scalar total_history_normal = dot(result.tangential_slip, result.normal);
+    for (std::size_t component = 0; component < 3; ++component)
+        result.tangential_slip[component] -= total_history_normal * result.normal[component];
     const adlite::Scalar history_normal = dot(result.elastic_tangential_slip, result.normal);
     for (std::size_t component = 0; component < 3; ++component)
         result.elastic_tangential_slip[component] -= history_normal * result.normal[component];
@@ -650,6 +669,7 @@ CartesianContactPointValue compute_quad4_to_quad4_contact_value(const NormalCont
         {value.tangent_first[0].value(), value.tangent_first[1].value(), value.tangent_first[2].value()},
         {value.tangential_traction_vector[0].value(), value.tangential_traction_vector[1].value(),
             value.tangential_traction_vector[2].value()},
+        {value.tangential_slip[0].value(), value.tangential_slip[1].value(), value.tangential_slip[2].value()},
         {value.elastic_tangential_slip[0].value(), value.elastic_tangential_slip[1].value(),
             value.elastic_tangential_slip[2].value()},
         value.sliding};
@@ -696,6 +716,7 @@ CartesianContactPointValue compute_node_to_quad4_contact_value(const NormalConta
         {},
         {value.tangential_traction_vector[0].value(), value.tangential_traction_vector[1].value(),
             value.tangential_traction_vector[2].value()},
+        {value.tangential_slip[0].value(), value.tangential_slip[1].value(), value.tangential_slip[2].value()},
         {value.elastic_tangential_slip[0].value(), value.elastic_tangential_slip[1].value(),
             value.elastic_tangential_slip[2].value()},
         value.sliding};

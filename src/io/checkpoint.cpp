@@ -20,7 +20,7 @@ namespace fuelsim {
 namespace {
 constexpr std::array<unsigned char, 16> checkpoint_magic = {
     'F', 'U', 'E', 'L', 'S', 'I', 'M', '_', 'C', 'H', 'E', 'C', 'K', 'P', 'T', '\0'};
-constexpr std::uint32_t checkpoint_version = 15U;
+constexpr std::uint32_t checkpoint_version = 16U;
 constexpr std::uint32_t endian_marker = 0x01020304U;
 constexpr std::uint64_t maximum_checkpoint_bytes = 16ULL * 1024ULL * 1024ULL * 1024ULL;
 
@@ -167,6 +167,7 @@ BinaryBuffer state_payload(const TransientProblem& problem, double next_time_ste
             payload.append_u32(history.sliding ? 1U : 0U);
             payload.append_double(history.normal_multiplier);
             for (double component : history.cartesian_elastic_tangential_slip) payload.append_double(component);
+            for (double component : history.cartesian_total_tangential_slip) payload.append_double(component);
             payload.append_u32(history.cartesian_tangent_basis_initialized ? 1U : 0U);
             for (double component : history.cartesian_contact_normal) payload.append_double(component);
             for (double component : history.cartesian_contact_tangent_first) payload.append_double(component);
@@ -285,6 +286,11 @@ double restore_transient_checkpoint(const std::string& path, TransientProblem& p
                 component = payload.read_double();
                 if (!std::isfinite(component))
                     throw std::runtime_error("Checkpoint Cartesian friction state is invalid");
+            }
+            for (double& component : history.cartesian_total_tangential_slip) {
+                component = payload.read_double();
+                if (!std::isfinite(component))
+                    throw std::runtime_error("Checkpoint Cartesian total-slip state is invalid");
             }
             const std::uint32_t basis_initialized = payload.read_u32();
             if (basis_initialized > 1U) throw std::runtime_error("Checkpoint Cartesian tangent basis is invalid");

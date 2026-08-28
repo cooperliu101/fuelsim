@@ -330,6 +330,7 @@ bool histories_identical(const std::vector<fuelsim::ContactPointHistory>& actual
             actual[point].sliding != expected[point].sliding ||
             actual[point].normal_multiplier != expected[point].normal_multiplier ||
             actual[point].cartesian_elastic_tangential_slip != expected[point].cartesian_elastic_tangential_slip ||
+            actual[point].cartesian_total_tangential_slip != expected[point].cartesian_total_tangential_slip ||
             actual[point].cartesian_tangent_basis_initialized != expected[point].cartesian_tangent_basis_initialized ||
             actual[point].cartesian_contact_normal != expected[point].cartesian_contact_normal ||
             actual[point].cartesian_contact_tangent_first != expected[point].cartesian_contact_tangent_first)
@@ -377,18 +378,19 @@ bool run_path(const std::string& input_path, const std::string& displacement_pat
     if (full_recorder.states.size() == 7) {
         const auto first = stick_slide_counts(full_recorder.states[0]);
         const auto second = stick_slide_counts(full_recorder.states[1]);
-        const auto mixed = stick_slide_counts(full_recorder.states[2]);
+        const auto forward_entry = stick_slide_counts(full_recorder.states[2]);
         const auto forward = stick_slide_counts(full_recorder.states[3]);
         const auto unload = stick_slide_counts(full_recorder.states[4]);
         const auto reverse = stick_slide_counts(full_recorder.states[5]);
         const auto restick = stick_slide_counts(full_recorder.states[6]);
         passed = check(first[0] == 13 && first[1] == 0 && second[0] == 13 && second[1] == 0,
                      "H20 friction path starts with two fully sticking states") &&
-                 check(mixed[0] > 0 && mixed[1] > 0 && forward[1] > 0,
-                     "H20 friction path contains simultaneous sticking and sliding before forward sliding") &&
-                 check(unload[1] > 0 && reverse[1] > 0 && tangential_resultant_y(full_recorder.states[4]) < 0.0 &&
+                 check(forward_entry[0] == 0 && forward_entry[1] == 13 && forward[0] == 0 && forward[1] == 13,
+                     "H20 friction path enters and remains in committed forward sliding") &&
+                 check(unload[0] == 0 && unload[1] == 13 && reverse[0] == 0 && reverse[1] == 13 &&
+                           tangential_resultant_y(full_recorder.states[4]) < 0.0 &&
                            tangential_resultant_y(full_recorder.states[5]) < 0.0,
-                     "H20 friction path covers unloading and reverse sliding with reversed signed force") &&
+                     "H20 friction path covers committed unloading and reverse sliding with reversed signed force") &&
                  check(restick[0] == 13 && restick[1] == 0,
                      "H20 friction path finishes with all thirteen constraints restuck") &&
                  passed;

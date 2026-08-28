@@ -1,0 +1,7 @@
+case	fuel_radial	clad_radial	angular	axial	time_step_s	penalty_pa_m	expected_frames
+b527_coarse	1	1	3	2	1000	100000000000000	10
+b527_fine	2	2	6	4	1000	100000000000000	10
+b527_half_step	2	1	4	3	500	100000000000000	20
+b527_high_penalty	2	1	4	3	1000	200000000000000	10
+b527_low_penalty	2	1	4	3	1000	50000000000000	10
+b527_medium	2	1	4	3	1000	100000000000000	10

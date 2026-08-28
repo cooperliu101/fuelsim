@@ -78,6 +78,7 @@ struct ContactPointHistory final {
     bool sliding = false;
     double normal_multiplier = 0.0;
     std::array<double, 3> cartesian_elastic_tangential_slip{};
+    std::array<double, 3> cartesian_total_tangential_slip{};
     bool cartesian_tangent_basis_initialized = false;
     std::array<double, 3> cartesian_contact_normal{}, cartesian_contact_tangent_first{};
 };
@@ -146,7 +147,7 @@ struct CartesianHeatQuadratureValue final {
 struct CartesianContactPointValue final {
     bool projected;
     double gap, pressure, tributary_area, contact_force, tangential_traction, tangential_force, friction_dissipation;
-    std::array<double, 3> normal, tangent_first, tangential_traction_vector, elastic_tangential_slip;
+    std::array<double, 3> normal, tangent_first, tangential_traction_vector, tangential_slip, elastic_tangential_slip;
     bool sliding;
 };
 

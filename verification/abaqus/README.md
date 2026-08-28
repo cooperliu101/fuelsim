@@ -479,9 +479,12 @@ proprietary nonmatching primary smoothing stencil remain outside these claims.
 H20.33 reuses the tracked 88-node, six-element H20.24 Exodus mesh and adds
 `mu = 0.3` Coulomb friction. Seven one-second load states prescribe tangential
 motion of `5`, `10`, `30`, `60`, `10`, `-50`, and `-45 um` at constant normal
-closure. The path begins fully sticking, contains simultaneous sticking and
-sliding constraints, reaches forward sliding, unloads, reverses into sliding,
-and finally returns all 13 constraints to sticking. A checkpoint is written
+closure. The path begins fully sticking, crosses the stick-to-slide transition
+between recorded output states, reaches two
+committed forward-sliding states, unloads through two committed reverse-sliding
+states, and finally returns all 13 constraints to sticking. The seven recorded
+committed counts are `13/0`, `13/0`, `0/13`, `0/13`, `0/13`, `0/13`, and
+`13/0`; no trial-state reclassification is used. A checkpoint is written
 after the fourth state; the remaining nodal state and every committed contact
 history value reproduce the uninterrupted path exactly.
 
@@ -552,7 +555,7 @@ effective elastic-slip distance. A seven-state imposed axial-displacement
 path of `2, 4, 12, 24, 4, -20, -18 um` exercises two fully sticking states,
 mixed sticking and sliding, forward sliding, unloading, reverse sliding, and
 complete resticking. Fuelsim's sticking/sliding constraint counts are `37/0`,
-`37/0`, `26/11`, `14/23`, `23/14`, `8/29`, and `37/0`; all 37 constraints stay
+`37/0`, `23/14`, `9/28`, `23/14`, `0/37`, and `37/0`; all 37 constraints stay
 closed. The reference is reproduced with:
 
 ```powershell
@@ -1628,6 +1631,12 @@ maximum pointwise error of `0.459%`. Contact resultant force, resultant moment,
 and normal-force center also pass all three metrics below `0.5%`. Integrated
 bulk energy quantities remain below `1%`.
 
+The constrained thermal-reaction relative L2 and relative absolute-peak errors
+are `0.2691%` and `0.3425%`. Its one larger pointwise-relative value occurs at a
+`-0.02226 W` reference and differs by approximately `0.00620 W`; it therefore
+uses an explicit `0.05 W` near-zero absolute qualification without a denominator
+floor.
+
 Fuelsim's two-sided thermal-contact imbalance remains below `3.8e-14 W`.
 Abaqus recovered integration-point heat flux, nodal opening and slip, nodal
 contact heat, inferred contact status, and proprietary `ALLFD` friction energy
@@ -1640,52 +1649,68 @@ the bulk heat-flux operator, B5.21 validates thermal contact and conservation,
 and H20.33/H20.36 validate direct stick-slip histories and friction resultants.
 Regenerate and run the reference with `generate_b523.py` and `run_b523.ps1`.
 
-## B5.24 through B5.27 scoped system verification studies
+## B5.24 through B5.27 per-case full-field system comparisons
 
-B5.24 reruns the B5.23 deformable two-body system across two, three, and four
-thickness layers while retaining one tangential contact element; time steps
-`0.04`, `0.02`, and `0.01 s`; penalties `5e8`,
-`1e9`, and `2e9 Pa/m`; friction coefficients `0.01`, `0.05`, and `0.1`;
-relative slip tolerances `0.0025`, `0.005`, and `0.01`; and pressure-
-conductance coefficients `0.0005`, `0.001`, and `0.002`. Every run completes
-with active contact and no rejected step. Mesh and time-step changes contract
-for the selected coupled observables. Penetration decreases with penalty while
-the pressure-controlled normal resultant stays stable; tangential resistance
-increases with friction coefficient while the interface can move from sliding
-dissipation to sticking; friction dissipation decreases with slip tolerance;
-and heat transfer increases with the pressure-conductance coefficient. The
-base point is directly compared with Abaqus. The other points verify mesh,
-time-step, and parameter response around that base; they are not represented as
-independent Abaqus full-field comparisons.
+B5.24 now has an independent Abaqus C3D8T deck and four complete reference
+files for each of its thirteen scan points. The cases cover two, three, and
+four thickness layers; time steps `0.04`, `0.02`, and `0.01 s`; penalties
+`5e8`, `1e9`, and `2e9 Pa/m`; friction coefficients `0.01`, `0.05`, and `0.1`;
+relative slip tolerances `0.0025`, `0.005`, and `0.01`; and pressure-conductance
+coefficients `0.0005`, `0.001`, and `0.002`. Every accepted Abaqus frame is
+compared for all nodal fields, all material-point fields, contact fields, and
+energy histories. Complete contact forces and contact resultants are gating;
+the proprietary local pressure, recovered slip, and inferred-state splits stay
+diagnostic, while the Fuelsim thermal-contact residual is replayed on every
+Abaqus state and gated. All thirteen direct comparisons pass in addition to the
+original convergence and monotonic parameter-response assertions. The exact
+case parameters and expected frame counts are in `b524_b525_cases.tsv`.
 
-B5.25 combines a sinusoidally distorted mesh, traction-controlled bending,
-finite strain, a thermal gradient, friction, thermal contact, and Poisson
-ratios `0.30`, `0.45`, `0.49`, and `0.499`. From `0.49` to `0.499`, maximum
-bending displacement changes by `0.730%` and maximum von Mises stress changes
-by `0.0192%`. At `0.499`, thickness refinement changes displacement by
-`11.43%`, stress by `3.44%`, and contact resultant by `0.141%`, below the
-declared mesh-sensitivity gates of `15%`, `5%`, and `1%`. B4.9 and B5.9 directly
-validate constituent Abaqus operators. The verified B5.25 claim is bounded to
-this distorted path, `nu<=0.499`, and the tracked refinement sequence.
+B5.25 has five corresponding full-field references: Poisson ratios `0.30`,
+`0.45`, `0.49`, and `0.499` on the distorted traction-controlled bending mesh,
+plus the thickness-refined `0.499` case. All twenty frames of every case compare
+the complete nodal, integration-point, contact, and energy data. The ordinary
+bulk gates remain `1%`; contact local recovery permits an explicit `3%`
+pointwise gate, the micro-slip recovery has a documented `25%` pointwise gate,
+and replayed contact heat uses a `3%` aggregate gate plus a `1 W` near-zero
+absolute qualification. No denominator floor is added. The five direct
+comparisons pass. From `nu=0.49` to `0.499`, displacement, equivalent-stress,
+and contact-force changes are `0.8639%`, `0.8430%`, and `0.02345%`. Refining the
+`nu=0.499` thickness mesh changes those observables by `13.6538%`, `9.14142%`,
+and `0.13117%`, within the explicit `15%`, `10%`, and `1%` sensitivity gates.
+These independent mesh-sensitivity limits apply to the sixteen-element
+tangential topology used by the five direct Abaqus studies and do not replace
+their per-case full-field gates.
 
-B5.26 is a composite evidence row rather than a new executable. B5.21 covers
-closure, opening, cross-face sliding, and recontact; H20.36 covers sticking,
-mixed stick-slip, forward and reverse sliding, resticking, tangents, and
-restart; B5.10 through B5.18 cover first yield, creep-only relaxation, and
-plastic-creep activation. Local and transient transaction tests cover active
-tangents, failed-step rollback, retry, and restart. The transitions are
-mutually exclusive branches, so their direct per-branch references and the
-separate transaction tests form the verified composite evidence; no claim is
-made that one path activates all branches simultaneously.
+B5.26 has six explicitly registered per-transition full-field references in
+`b526_full_field_cases.tsv`. Two new elastic contact paths isolate the contact
+branches. `b526_contact_cycle` has fifteen frames and visits seven open and
+eight active states in the sequence open, close, reopen, and recontact.
+`b526_friction_reversal` has twenty frames and visits sixty sticking and twenty
+sliding node states while the tangential resultant reverses from `+3648.95 N`
+to `-3747.20 N` and finishes in stick. Both paths match every Abaqus contact
+state and conserve contact heat below `1.1e-14 W`. The friction path's complete
+logarithmic-strain, elastic-strain, and displacement maximum pointwise errors
+are `0.7646%`, `0.5372%`, and `0.6913%`, so the recorded qualified bulk gate is
+`1%`; contact aggregate and pointwise gates are `0.5%` and `1.25%`, contact-heat
+replay uses `4%`, and one micro-slip point uses an explicit `5e-6 m` absolute
+gate. The other four entries reuse the complete B5.10, B5.12, B5.15, and B5.17
+Abaqus material paths for small- and finite-strain yield and coupled creep-to-
+plastic activation. Separate local and transient tests retain the tangent,
+rollback, retry, and restart transaction checks.
 
-B5.27 is a quarter-cylinder engineering-scale fuel-cladding study with separate
-fuel and clad blocks spanning radii `1` to `4.7 mm` and height `40 mm`. It runs
-to `10000 s` with finite strain, frictional mechanical contact, thermal
-contact, and physical-scale material values. Coarse, medium, and fine meshes
-retain 12, 20, and 35 active contact nodes. Medium-to-fine contact force changes
-by `0.36%`, maximum von Mises stress by `6.58%`, and clad temperature
-negligibly. Halving the `1000 s` time step has negligible selected-output
-effect. Penalties `5e13`, `1e14`, and `2e14 Pa/m` reduce maximum penetration
-from `0.942` to `0.487` and `0.248 micrometres`, while the contact-force spread
-stays below `5%`. This is an internal engineering independence study, not a
-direct Abaqus full-field comparison or a nuclear-safety qualification.
+B5.27 now has independent Abaqus input, nodal, integration-point, contact, and
+energy files for coarse, medium, and fine meshes, the half-time-step case, and
+the low- and high-penalty cases. The aggregate CTest reads and compares all six
+cases and also retains the mesh, time-step, and penalty independence assertions.
+Aggregate complete-field errors use a `1.5%` gate; displacement, logarithmic
+strain, and contact pointwise gates are `5%`, `2%`, and `2.5%`. Very small
+reaction, stress, and elastic-strain reference norms use explicit absolute gates
+of `1e-6 N`, `10 Pa`, and `1e-10` instead of the former broad relative gates.
+All six comparisons pass. This establishes full-field agreement for the tracked
+quarter-cylinder engineering model, but it is not a nuclear-safety
+qualification and does not cover untracked geometries, materials, or paths.
+
+Generate B5.24 through B5.26 with `generate_b524_b525.py`, extract them with
+`extract_b524_b525.py`, and run the two families with `run_b524_b525.ps1` and
+`run_b526.ps1`. Generate B5.27 with `generate_b527.py` and run it with
+`run_b527.ps1`. The manifests enumerate every case and every reference file.

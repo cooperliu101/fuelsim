@@ -1396,6 +1396,20 @@ SpatialAssembly::AbaqusAveragedConstraintValue SpatialAssembly::averaged_constra
         normal_relative += normal[component] * relative[component];
     for (std::size_t component = 0; component < 3; ++component)
         result.tangential_slip[component] = -relative[component] + normal_relative * normal[component];
+    if (constraint.finite_sliding) {
+        const std::array<double, 3> current_first = result.tangent_first,
+                                    current_second = {normal[1] * current_first[2] - normal[2] * current_first[1],
+                                        normal[2] * current_first[0] - normal[0] * current_first[2],
+                                        normal[0] * current_first[1] - normal[1] * current_first[0]};
+        double total_first = 0.0, total_second = 0.0;
+        for (std::size_t component = 0; component < 3; ++component) {
+            total_first += history.cartesian_total_tangential_slip[component] * current_first[component];
+            total_second += history.cartesian_total_tangential_slip[component] * current_second[component];
+        }
+        for (std::size_t component = 0; component < 3; ++component)
+            result.tangential_slip[component] =
+                total_first * current_first[component] + total_second * current_second[component];
+    }
     const NormalContactProperties& properties = _mechanical_properties[constraint.contact];
     result.pressure = std::max(-properties.penalty * result.gap, 0.0);
     result.force = result.pressure * constraint.area;
@@ -1406,22 +1420,19 @@ SpatialAssembly::AbaqusAveragedConstraintValue SpatialAssembly::averaged_constra
                                     current_second = {normal[1] * current_first[2] - normal[2] * current_first[1],
                                         normal[2] * current_first[0] - normal[0] * current_first[2],
                                         normal[0] * current_first[1] - normal[1] * current_first[0]};
-        std::array<double, 2> elastic_components{};
+        std::array<double, 2> elastic_components{}, total_components{};
         for (std::size_t component = 0; component < 3; ++component) {
             elastic_components[0] += history.cartesian_elastic_tangential_slip[component] * current_first[component];
             elastic_components[1] += history.cartesian_elastic_tangential_slip[component] * current_second[component];
+            total_components[0] += history.cartesian_total_tangential_slip[component] * current_first[component];
+            total_components[1] += history.cartesian_total_tangential_slip[component] * current_second[component];
         }
-        std::array<double, 2> total_components{};
         for (std::size_t node = 0; node < node_count; ++node)
             for (std::size_t component = 0; component < 3; ++component) {
-                const double coordinate = component == 0   ? constraint.reference_coordinates[node].x
-                                          : component == 1 ? constraint.reference_coordinates[node].y
-                                                           : constraint.reference_coordinates[node].z;
-                const double current_coordinate = coordinate + state[component * node_count + node];
                 const double increment =
                     state[component * node_count + node] - committed_state[component * node_count + node];
-                total_components[0] -= constraint.tangent_first_coefficients[node][component] * current_coordinate;
-                total_components[1] -= constraint.tangent_second_coefficients[node][component] * current_coordinate;
+                total_components[0] -= constraint.tangent_first_coefficients[node][component] * increment;
+                total_components[1] -= constraint.tangent_second_coefficients[node][component] * increment;
                 elastic_components[0] -= constraint.tangent_first_coefficients[node][component] * increment;
                 elastic_components[1] -= constraint.tangent_second_coefficients[node][component] * increment;
             }
@@ -1491,7 +1502,8 @@ SpatialAssembly::AbaqusAveragedConstraintValue SpatialAssembly::averaged_constra
             committed_normal[1] * committed_first[2] - committed_normal[2] * committed_first[1],
             committed_normal[2] * committed_first[0] - committed_normal[0] * committed_first[2],
             committed_normal[0] * committed_first[1] - committed_normal[1] * committed_first[0]};
-        std::array<double, 3> current_separation{}, committed_separation{}, transported_history{};
+        std::array<double, 3> current_separation{}, committed_separation{}, transported_history{},
+            transported_total_history{};
         for (std::size_t component = 0; component < 3; ++component) {
             for (std::size_t node = 0; node < node_count; ++node) {
                 const double coordinate = component == 0   ? constraint.reference_coordinates[node].x
@@ -1505,6 +1517,7 @@ SpatialAssembly::AbaqusAveragedConstraintValue SpatialAssembly::averaged_constra
         }
         double current_first_coordinate = 0.0, current_second_coordinate = 0.0, committed_first_coordinate = 0.0,
                committed_second_coordinate = 0.0, history_first = 0.0, history_second = 0.0;
+        double total_history_first = 0.0, total_history_second = 0.0;
         for (std::size_t component = 0; component < 3; ++component) {
             current_first_coordinate -= current_separation[component] * current_first[component];
             current_second_coordinate -= current_separation[component] * current_second[component];
@@ -1512,14 +1525,19 @@ SpatialAssembly::AbaqusAveragedConstraintValue SpatialAssembly::averaged_constra
             committed_second_coordinate -= committed_separation[component] * committed_second[component];
             history_first += history.cartesian_elastic_tangential_slip[component] * committed_first[component];
             history_second += history.cartesian_elastic_tangential_slip[component] * committed_second[component];
+            total_history_first += history.cartesian_total_tangential_slip[component] * committed_first[component];
+            total_history_second += history.cartesian_total_tangential_slip[component] * committed_second[component];
         }
         for (std::size_t component = 0; component < 3; ++component) {
             transported_history[component] =
                 history_first * current_first[component] + history_second * current_second[component];
+            transported_total_history[component] =
+                total_history_first * current_first[component] + total_history_second * current_second[component];
             relative_increment[component] =
                 (current_first_coordinate - committed_first_coordinate) * current_first[component] +
                 (current_second_coordinate - committed_second_coordinate) * current_second[component];
             result.elastic_tangential_slip[component] = transported_history[component] + relative_increment[component];
+            result.tangential_slip[component] = transported_total_history[component] + relative_increment[component];
         }
     } else {
         for (std::size_t component = 0; component < 3; ++component)
@@ -2175,6 +2193,7 @@ void SpatialAssembly::refresh_finite_averaged_constraints(const std::vector<doub
 bool SpatialAssembly::summarize_averaged_contact(std::size_t contact_value, const std::vector<double>& state,
     std::vector<CartesianContactNodeSummary>& summaries) const {
     refresh_finite_averaged_constraints(state);
+    const bool is_committed_state = state == _committed_contact_solution;
     const bool averaged = std::any_of(_abaqus_averaged_constraints.begin(), _abaqus_averaged_constraints.end(),
         [contact_value](const AbaqusAveragedConstraint& value) { return value.contact == contact_value; });
     if (!averaged) return false;
@@ -2201,7 +2220,8 @@ bool SpatialAssembly::summarize_averaged_contact(std::size_t contact_value, cons
         }
         predominant.tangential_slip = value.tangential_slip;
         predominant.elastic_tangential_slip = value.elastic_tangential_slip;
-        predominant.sliding = value.sliding;
+        predominant.sliding =
+            is_committed_state ? _contact_histories[constraint.contact][constraint.history].sliding : value.sliding;
         for (std::size_t entry = 0; entry < constraint.secondary_output_nodes.size(); ++entry) {
             CartesianContactNodeSummary& output = summaries.at(constraint.secondary_output_nodes[entry]);
             output.projected = output.projected || constraint.projected;
@@ -3929,6 +3949,7 @@ double SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
             if (!value.projected) continue;
             ContactPointHistory trial = _contact_histories[candidate.contact][candidate.secondary];
             trial.sliding = value.sliding;
+            trial.cartesian_total_tangential_slip = value.tangential_slip;
             trial.cartesian_elastic_tangential_slip = value.elastic_tangential_slip;
             if (candidate.surface_to_surface && _mechanical_properties[candidate.contact].friction_coefficient > 0.0 &&
                 value.pressure > 0.0) {
@@ -3945,6 +3966,12 @@ double SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
                     equal = equal && std::abs(prior.cartesian_elastic_tangential_slip[component] -
                                               trial.cartesian_elastic_tangential_slip[component]) <=
                                          64.0 * std::numeric_limits<double>::epsilon() * scale;
+                    const double total_scale =
+                        std::max({1.0, std::abs(prior.cartesian_total_tangential_slip[component]),
+                            std::abs(trial.cartesian_total_tangential_slip[component])});
+                    equal = equal && std::abs(prior.cartesian_total_tangential_slip[component] -
+                                              trial.cartesian_total_tangential_slip[component]) <=
+                                         64.0 * std::numeric_limits<double>::epsilon() * total_scale;
                     equal = equal &&
                             prior.cartesian_contact_normal[component] == trial.cartesian_contact_normal[component] &&
                             prior.cartesian_contact_tangent_first[component] ==
@@ -3971,6 +3998,7 @@ double SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
             ContactPointHistory trial = _contact_histories[constraint.contact][constraint.history];
             trial.sliding = value.sliding;
             trial.cartesian_elastic_tangential_slip = value.elastic_tangential_slip;
+            trial.cartesian_total_tangential_slip = value.tangential_slip;
             if (updated[constraint.contact][constraint.history])
                 throw std::logic_error("Abaqus-style averaged constraints share one friction-history slot");
             staged[constraint.contact][constraint.history] = trial;
@@ -4015,6 +4043,7 @@ double SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
         if (!value.projected) continue;
         ContactPointHistory trial = _contact_histories[candidate.contact][candidate.secondary];
         trial.sliding = value.sliding;
+        trial.cartesian_total_tangential_slip = value.tangential_slip;
         trial.cartesian_elastic_tangential_slip = value.elastic_tangential_slip;
         if (candidate.surface_to_surface && point_properties.friction_coefficient > 0.0 && value.pressure > 0.0) {
             trial.cartesian_tangent_basis_initialized = true;
@@ -4030,6 +4059,11 @@ double SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
                 equal = equal && std::abs(prior.cartesian_elastic_tangential_slip[component] -
                                           trial.cartesian_elastic_tangential_slip[component]) <=
                                      64.0 * std::numeric_limits<double>::epsilon() * scale;
+                const double total_scale = std::max({1.0, std::abs(prior.cartesian_total_tangential_slip[component]),
+                    std::abs(trial.cartesian_total_tangential_slip[component])});
+                equal = equal && std::abs(prior.cartesian_total_tangential_slip[component] -
+                                          trial.cartesian_total_tangential_slip[component]) <=
+                                     64.0 * std::numeric_limits<double>::epsilon() * total_scale;
                 equal = equal &&
                         prior.cartesian_contact_normal[component] == trial.cartesian_contact_normal[component] &&
                         prior.cartesian_contact_tangent_first[component] ==
@@ -4058,6 +4092,7 @@ double SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
         ContactPointHistory trial = _contact_histories[constraint.contact][constraint.history];
         trial.sliding = value.sliding;
         trial.cartesian_elastic_tangential_slip = value.elastic_tangential_slip;
+        trial.cartesian_total_tangential_slip = value.tangential_slip;
         if (constraint.finite_sliding && _mechanical_properties[constraint.contact].friction_coefficient > 0.0 &&
             value.pressure > 0.0) {
             trial.cartesian_tangent_basis_initialized = true;
@@ -4098,6 +4133,9 @@ void SpatialAssembly::restore_contact_state(
             for (double component : history.cartesian_elastic_tangential_slip)
                 if (!std::isfinite(component))
                     throw std::invalid_argument("Three-dimensional restored friction history is invalid");
+            for (double component : history.cartesian_total_tangential_slip)
+                if (!std::isfinite(component))
+                    throw std::invalid_argument("Three-dimensional restored total-slip history is invalid");
             for (double component : history.cartesian_contact_normal)
                 if (!std::isfinite(component))
                     throw std::invalid_argument("Three-dimensional restored contact normal is invalid");
@@ -4144,7 +4182,7 @@ std::vector<CartesianContactNodeSummary> SpatialAssembly::summarize_contact_node
         if (summarize_averaged_contact(contact_value, state, result)) return result;
         if (_definition.contacts[contact_value].mechanical_discretization ==
             MechanicalContactDiscretization::surface_to_surface) {
-            std::vector<std::array<double, 3>> weighted_slip(result.size());
+            std::vector<std::array<double, 3>> weighted_total_slip(result.size()), weighted_elastic_slip(result.size());
             std::vector<double> recovery_area(result.size()), recovery_force(result.size());
             for (std::size_t point = 0; point < _hex20_mechanical_points.size(); ++point) {
                 const std::size_t primary = _mechanical_active_primary[point];
@@ -4183,8 +4221,11 @@ std::vector<CartesianContactNodeSummary> SpatialAssembly::summarize_contact_node
                     for (std::size_t component = 0; component < 3; ++component)
                         summary.tangential_contact_force[component] +=
                             shape * value.tributary_area * value.tangential_traction_vector[component];
-                    for (std::size_t component = 0; component < 3; ++component)
-                        weighted_slip[output_node][component] += nodal_area * value.elastic_tangential_slip[component];
+                    for (std::size_t component = 0; component < 3; ++component) {
+                        weighted_total_slip[output_node][component] += nodal_area * value.tangential_slip[component];
+                        weighted_elastic_slip[output_node][component] +=
+                            nodal_area * value.elastic_tangential_slip[component];
+                    }
                     summary.sliding = summary.sliding || value.sliding;
                 }
             }
@@ -4275,9 +4316,11 @@ std::vector<CartesianContactNodeSummary> SpatialAssembly::summarize_contact_node
                 if (summary.tributary_area == 0.0) continue;
                 if (recovery_area[node] != 0.0) summary.pressure = recovery_force[node] / recovery_area[node];
                 summary.tangential_traction = summary.tangential_force / summary.tributary_area;
-                for (std::size_t component = 0; component < 3; ++component)
+                for (std::size_t component = 0; component < 3; ++component) {
+                    summary.tangential_slip[component] = weighted_total_slip[node][component] / summary.tributary_area;
                     summary.elastic_tangential_slip[component] =
-                        weighted_slip[node][component] / summary.tributary_area;
+                        weighted_elastic_slip[node][component] / summary.tributary_area;
+                }
             }
             return result;
         }
@@ -4308,6 +4351,7 @@ std::vector<CartesianContactNodeSummary> SpatialAssembly::summarize_contact_node
                 summary.tangential_contact_force[component] +=
                     value.tributary_area * value.tangential_traction_vector[component];
             summary.elastic_tangential_slip = value.elastic_tangential_slip;
+            summary.tangential_slip = value.tangential_slip;
             summary.sliding = value.sliding;
         }
         for (CartesianContactNodeSummary& summary : result)
@@ -4327,7 +4371,11 @@ std::vector<CartesianContactNodeSummary> SpatialAssembly::summarize_contact_node
             std::numeric_limits<double>::infinity(), 0.0, 0.0, 0.0, 0.0, 0.0, {}, {}, {}, {}, false});
     }
     if (summarize_averaged_contact(contact_value, state, result)) return result;
-    std::vector<std::array<double, 3>> weighted_slip(result.size());
+    const bool separately_averaged_friction = std::any_of(_abaqus_averaged_constraints.begin(),
+        _abaqus_averaged_constraints.end(), [contact_value](const AbaqusAveragedConstraint& constraint) {
+            return constraint.contact == contact_value && constraint.friction_only;
+        });
+    std::vector<std::array<double, 3>> weighted_total_slip(result.size()), weighted_elastic_slip(result.size());
     for (std::size_t point = 0; point < _mechanical_active_primary.size(); ++point) {
         const std::size_t primary = _mechanical_active_primary[point];
         if (primary == std::numeric_limits<std::size_t>::max()) continue;
@@ -4374,7 +4422,11 @@ std::vector<CartesianContactNodeSummary> SpatialAssembly::summarize_contact_node
                     summary.normal_contact_force[component] += shape * value.contact_force * value.normal[component];
                     summary.tangential_contact_force[component] +=
                         shape * value.tributary_area * value.tangential_traction_vector[component];
-                    weighted_slip[output_node][component] += nodal_area * value.elastic_tangential_slip[component];
+                    if (!separately_averaged_friction) {
+                        weighted_total_slip[output_node][component] += nodal_area * value.tangential_slip[component];
+                        weighted_elastic_slip[output_node][component] +=
+                            nodal_area * value.elastic_tangential_slip[component];
+                    }
                 }
                 summary.tangential_force += shape * value.tangential_force;
                 summary.sliding = summary.sliding || value.sliding;
@@ -4396,6 +4448,7 @@ std::vector<CartesianContactNodeSummary> SpatialAssembly::summarize_contact_node
             summary.tangential_contact_force[component] +=
                 value.tributary_area * value.tangential_traction_vector[component];
         summary.elastic_tangential_slip = value.elastic_tangential_slip;
+        summary.tangential_slip = value.tangential_slip;
         summary.sliding = value.sliding;
     }
     for (CartesianContactNodeSummary& summary : result)
@@ -4403,10 +4456,12 @@ std::vector<CartesianContactNodeSummary> SpatialAssembly::summarize_contact_node
             summary.pressure = summary.contact_force / summary.tributary_area;
             summary.tangential_traction = summary.tangential_force / summary.tributary_area;
             const std::size_t node = static_cast<std::size_t>(&summary - result.data());
-            for (std::size_t component = 0; component < 3; ++component)
-                if (weighted_slip[node][component] != 0.0)
+            if (!separately_averaged_friction)
+                for (std::size_t component = 0; component < 3; ++component) {
+                    summary.tangential_slip[component] = weighted_total_slip[node][component] / summary.tributary_area;
                     summary.elastic_tangential_slip[component] =
-                        weighted_slip[node][component] / summary.tributary_area;
+                        weighted_elastic_slip[node][component] / summary.tributary_area;
+                }
         }
     return result;
 }
