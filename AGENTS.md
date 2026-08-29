@@ -222,10 +222,18 @@ env \
   -DSEACASExodus_DIR="${fuelsim_dependency_root}/exodus-2024-06-27/lib/cmake/SEACASExodus" \
   -DFUELSIM_WARNINGS_AS_ERRORS=ON
 cmake --build build --parallel
+
+# 日常功能测试：保留每项核心功能的代表工况，排除扩展参数扫描和跨工况汇总
+ctest --test-dir build -LE qualification -j4 --output-on-failure
+
+# 完整发布验收：运行包括 qualification 标签工况在内的全部测试
 ctest --test-dir build --output-on-failure
 ```
 
-涉及 CMake、PETSc 求解层或依赖配置的修改必须完成上述入口的完整回归。
+日常功能测试用于开发过程中的快速反馈，不能替代完整发布验收。`qualification`
+标签只控制测试选择范围，不表示删除验证工况或放宽数值门槛。
+
+涉及 CMake、PETSc 求解层或依赖配置的修改必须完成上述完整发布验收入口的回归。
 
 PETSc/MPICH 测试在受限沙盒内可能出现 `OFI EP enable failed`。遇到该错误应在
 沙盒外重跑，不能归因于 fuelsim 数值实现。
