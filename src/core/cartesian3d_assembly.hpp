@@ -27,6 +27,11 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
 
     bool uses_hex20() const noexcept { return _uses_hex20; }
 
+    std::size_t region_material_point_count(std::size_t region) const {
+        if (_uses_hex20) return 27;
+        return this->region(region).hex8_element_formulation == Hex8ElementFormulation::c3d8rt ? 1 : 8;
+    }
+
     const Hex8RegionMesh& region_mesh(std::size_t index) const { return _meshes.at(index); }
 
     const Hex20RegionMesh& hex20_region_mesh(std::size_t index) const { return _hex20_meshes.at(index); }

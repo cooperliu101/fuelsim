@@ -212,6 +212,10 @@ int main(int argc, char** argv) {
             "b525.hex8_distorted_nearly_incompressible",
             "b526.hex8_nonlinear_transitions",
             "b527.hex8_engineering_fuel_clad",
+            "b528.hex8_c3d8rt_operator",
+            "b529.hex8_c3d8rt_capacity",
+            "b530.hex8_c3d8rt_thermal_load",
+            "b531.hex8_c3d8rt_transient_full_field",
             "io.exodus",
             "m0.steady",
             "m1.contact",
@@ -282,7 +286,7 @@ int main(int argc, char** argv) {
         }
         if (found_ids != required_ids)
             throw std::runtime_error("Verification matrix is missing one or more required rows");
-        if (verified != 83 || qualified != 0 || measured != 3 || limitations != 1)
+        if (verified != 87 || qualified != 0 || measured != 3 || limitations != 1)
             throw std::runtime_error("Verification matrix status counts differ from release schema");
         check_c3d8t_contract(argv[4], registered_tests);
         std::cout << "verification_matrix_rows=" << found_ids.size() << '\n'

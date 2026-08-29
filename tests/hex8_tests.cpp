@@ -614,6 +614,98 @@ bool test_cartesian_inelastic_material() {
     return passed;
 }
 
+bool test_reduced_integration_inelastic_jacobian() {
+    const fuelsim::Hex8Coordinates coordinates = unit_cube();
+    const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(coordinates);
+    fuelsim::Hex8LocalValues committed_state{}, state{};
+    for (std::size_t node = 0; node < 8; ++node) {
+        committed_state[node] = 300.0;
+        state[node] = 302.0 + 0.35 * static_cast<double>(node);
+        const fuelsim::CartesianPoint3& point = coordinates[node];
+        state[8 + node] = 0.20 * point.x + 0.02 * point.y + 0.01 * point.z;
+        state[16 + node] = 0.02 * point.x - 0.04 * point.y - 0.015 * point.z;
+        state[24 + node] = 0.01 * point.x - 0.015 * point.y - 0.03 * point.z;
+    }
+    const fuelsim::CartesianMaterialHistory committed_material(1);
+    bool passed = true;
+    for (const std::array<bool, 2> branch : {std::array<bool, 2>{false, true}, {true, false}, {true, true}}) {
+        const fuelsim::CartesianThermoelasticData data{
+            fuelsim::IsotropicThermoelasticMaterial(inelastic_properties(branch[0], branch[1])), 3.0, 1.0,
+            fuelsim::StrainFormulation::small, fuelsim::Hex8ElementFormulation::c3d8rt, 300.0};
+        fuelsim::Hex8LocalJacobian jacobian{};
+        (void)fuelsim::compute_hex8_transient(
+            data, geometry, state, committed_state, committed_material, 1.0, &jacobian);
+
+        std::array<double, 32> direction{};
+        for (std::size_t dof = 0; dof < direction.size(); ++dof)
+            direction[dof] = std::sin(0.31 * static_cast<double>(dof + 1));
+        std::array<double, 3> block_errors{};
+        for (std::size_t block = 0; block < block_errors.size(); ++block) {
+            const bool thermal_columns = block != 2;
+            const bool thermal_rows = block == 0;
+            const double step = thermal_columns ? 1.0e-4 : 1.0e-7;
+            fuelsim::Hex8LocalValues plus = state, minus = state;
+            for (std::size_t column = 0; column < direction.size(); ++column) {
+                if ((column < 8) != thermal_columns) continue;
+                plus[column] += step * direction[column];
+                minus[column] -= step * direction[column];
+            }
+            const fuelsim::Hex8LocalResidual plus_residual =
+                fuelsim::compute_hex8_transient(data, geometry, plus, committed_state, committed_material, 1.0);
+            const fuelsim::Hex8LocalResidual minus_residual =
+                fuelsim::compute_hex8_transient(data, geometry, minus, committed_state, committed_material, 1.0);
+            double difference_squared = 0.0, reference_squared = 0.0;
+            for (std::size_t row = 0; row < 32; ++row) {
+                if ((row < 8) != thermal_rows) continue;
+                double analytic = 0.0;
+                for (std::size_t column = 0; column < 32; ++column) {
+                    if ((column < 8) != thermal_columns) continue;
+                    analytic += jacobian[row * 32 + column] * direction[column];
+                }
+                const double numerical = (plus_residual[row] - minus_residual[row]) / (2.0 * step);
+                const double difference = analytic - numerical;
+                difference_squared += difference * difference;
+                reference_squared += numerical * numerical;
+            }
+            block_errors[block] = std::sqrt(difference_squared / reference_squared);
+        }
+        double thermal_displacement_maximum = 0.0;
+        for (std::size_t row = 0; row < 8; ++row)
+            for (std::size_t column = 8; column < 32; ++column)
+                thermal_displacement_maximum =
+                    std::max(thermal_displacement_maximum, std::abs(jacobian[row * 32 + column]));
+        const fuelsim::CartesianMaterialHistory update =
+            fuelsim::compute_hex8_transient_update(data, geometry, state, committed_state, committed_material, 1.0);
+        const fuelsim::CartesianMaterialPointState& point = update.front();
+        const double plastic_trace = point.plastic_strain[0] + point.plastic_strain[1] + point.plastic_strain[2];
+        const double creep_trace = point.creep_strain[0] + point.creep_strain[1] + point.creep_strain[2];
+        std::cout << "hex8_c3d8rt_inelastic_ktt_relative_error=" << block_errors[0] << '\n'
+                  << "hex8_c3d8rt_inelastic_kut_relative_error=" << block_errors[1] << '\n'
+                  << "hex8_c3d8rt_inelastic_kuu_relative_error=" << block_errors[2] << '\n';
+        passed =
+            check(*std::max_element(block_errors.begin(), block_errors.end()) < 2.0e-6,
+                "C3D8RT plastic, creep, and coupled Jacobian blocks match centered directional differences") &&
+            check(thermal_displacement_maximum == 0.0,
+                "small-strain C3D8RT thermal residual has no displacement coupling") &&
+            check(update.size() == 1 &&
+                      (branch[1] ? point.equivalent_plastic_strain > 0.0 : point.equivalent_plastic_strain == 0.0) &&
+                      (branch[0] ? point.equivalent_creep_strain > 0.0 : point.equivalent_creep_strain == 0.0) &&
+                      std::abs(plastic_trace) < 2.0e-15 && std::abs(creep_trace) < 2.0e-15,
+                "C3D8RT commits exactly one traceless plastic-creep material point with the requested branches") &&
+            check(committed_material.front().equivalent_plastic_strain == 0.0 &&
+                      committed_material.front().equivalent_creep_strain == 0.0,
+                "C3D8RT residual, Jacobian, and trial update do not mutate committed history") &&
+            passed;
+    }
+    try {
+        const fuelsim::CartesianThermoelasticData finite_data{fuelsim::IsotropicThermoelasticMaterial(properties()),
+            0.0, 0.0, fuelsim::StrainFormulation::finite, fuelsim::Hex8ElementFormulation::c3d8rt, 300.0};
+        (void)fuelsim::compute_hex8_transient(finite_data, geometry, state, committed_state, committed_material, 1.0);
+        passed = check(false, "C3D8RT explicitly rejects unsupported finite-strain integration") && passed;
+    } catch (const std::invalid_argument&) {}
+    return passed;
+}
+
 bool test_finite_strain_kinematics_and_coupled_jacobian() {
     const fuelsim::Hex8Coordinates coordinates = unit_cube();
     const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(coordinates);
@@ -1030,6 +1122,7 @@ int main() {
     passed = test_element_average_thermal_expansion_temperature() && passed;
     passed = test_transient_capacity_and_faces() && passed;
     passed = test_cartesian_inelastic_material() && passed;
+    passed = test_reduced_integration_inelastic_jacobian() && passed;
     passed = test_finite_strain_kinematics_and_coupled_jacobian() && passed;
     passed = test_cartesian_surface_contact_kernels() && passed;
     if (!passed) return 1;

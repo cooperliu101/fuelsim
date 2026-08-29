@@ -40,9 +40,14 @@ struct Hex8CapacityPoint final {
 struct Hex8Geometry final {
     std::array<Hex8QuadraturePoint, 8> points;
     std::array<Hex8CapacityPoint, hex8_node_count> capacity_points;
+    Hex8QuadraturePoint reduced_point;
+    std::array<Hex8CapacityPoint, hex8_node_count> reduced_capacity_points;
     std::array<std::array<double, 3>, hex8_node_count> average_shape_gradient;
+    std::array<std::array<double, 4>, hex8_node_count> hourglass_shape;
+    std::array<double, 4> thermal_hourglass_coefficients;
+    std::array<double, 3> mechanical_hourglass_metrics;
     CartesianPoint3 selective_position;
-    double reference_volume;
+    double reference_volume, reduced_body_source_measure;
 };
 
 struct Quad4FaceQuadraturePoint final {
@@ -68,6 +73,8 @@ struct CartesianThermoelasticData final {
     IsotropicThermoelasticMaterial material;
     double volumetric_heat_source, time;
     StrainFormulation strain_formulation = StrainFormulation::small;
+    Hex8ElementFormulation hex8_element_formulation = Hex8ElementFormulation::c3d8t;
+    double initial_temperature = 0.0;
 };
 
 struct CartesianKinematics final {

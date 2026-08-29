@@ -836,12 +836,16 @@ std::vector<std::vector<double>> cartesian_elements(const UnstructuredHex8Mesh& 
             std::array<SymmetricTensor3Values, 8> stresses{};
             if (histories == nullptr)
                 stresses = spatial.stress(region, element, *state);
+            else if (spatial.region_material_point_count(region) == 1)
+                stresses.fill(histories->at(region).at(element).front().stress);
             else
                 for (std::size_t q = 0; q < 8; ++q) stresses[q] = histories->at(region).at(element)[q].stress;
             store_cartesian_stress_values(source, stresses.data(), stresses.size(), result);
             if (histories == nullptr) continue;
             for (std::size_t q = 0; q < 8; ++q) {
-                const CartesianMaterialPointState& point = (*histories)[region][element][q];
+                const CartesianMaterialHistory& element_history = (*histories)[region][element];
+                const CartesianMaterialPointState& point =
+                    element_history[spatial.region_material_point_count(region) == 1 ? 0 : q];
                 result[48 + 2 * q][source] = point.equivalent_plastic_strain;
                 result[49 + 2 * q][source] = point.equivalent_creep_strain;
             }

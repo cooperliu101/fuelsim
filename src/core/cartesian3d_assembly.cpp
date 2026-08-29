@@ -601,6 +601,10 @@ SpatialContributionType boundary_contribution_type(BoundaryConditionType type) {
 SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const UnstructuredHex8Mesh& source_mesh)
     : SpatialLayout(definition, spatial_detail::resolve_block_ids(definition, source_mesh, true, true),
           spatial_detail::DofLayout::cartesian_3d) {
+    for (const RegionDefinition& region : _definition.regions)
+        if (region.hex8_element_formulation == Hex8ElementFormulation::c3d8rt &&
+            region.strain_formulation != StrainFormulation::small)
+            throw std::invalid_argument("C3D8RT currently supports only small strain: " + region.name);
     _meshes.reserve(_block_ids.size());
     for (const std::int64_t block_id : _block_ids)
         _meshes.push_back(Hex8RegionMesh::from_unstructured_block(source_mesh, block_id));
@@ -669,7 +673,8 @@ SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const Unstructure
         "Cartesian three-dimensional boundary has duplicate Dirichlet values");
     for (std::size_t region_index = 0; region_index < region_count(); ++region_index) {
         _kernel_data.push_back({IsotropicThermoelasticMaterial(region(region_index).material),
-            region_heat_source(region_index), 0.0, region(region_index).strain_formulation});
+            region_heat_source(region_index), 0.0, region(region_index).strain_formulation,
+            region(region_index).hex8_element_formulation, region(region_index).initial_temperature});
     }
     _committed_contact_solution = initial_state();
     validate_local_state(0, contribution_count(), _committed_contact_solution);
@@ -680,6 +685,9 @@ SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const Unstructure
     : SpatialLayout(definition, spatial_detail::resolve_block_ids(definition, source_mesh, true, true),
           spatial_detail::DofLayout::cartesian_3d),
       _uses_hex20(true) {
+    for (const RegionDefinition& region : _definition.regions)
+        if (region.hex8_element_formulation != Hex8ElementFormulation::c3d8t)
+            throw std::invalid_argument("C3D8RT formulation requires an eight-node HEX8 mesh: " + region.name);
     _hex20_meshes.reserve(_block_ids.size());
     for (const std::int64_t block_id : _block_ids)
         _hex20_meshes.push_back(Hex20RegionMesh::from_unstructured_block(source_mesh, block_id));
@@ -752,7 +760,8 @@ SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const Unstructure
         "HEX20 boundary has conflicting Dirichlet values", "HEX20 boundary has duplicate Dirichlet values");
     for (std::size_t region = 0; region < region_count(); ++region)
         _kernel_data.push_back({IsotropicThermoelasticMaterial(this->region(region).material),
-            region_heat_source(region), 0.0, this->region(region).strain_formulation});
+            region_heat_source(region), 0.0, this->region(region).strain_formulation,
+            this->region(region).hex8_element_formulation, this->region(region).initial_temperature});
     _committed_contact_solution = initial_state();
     validate_local_state(0, contribution_count(), _committed_contact_solution);
     refresh_controls();

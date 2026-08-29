@@ -161,12 +161,14 @@ bool fuzz_input_parser(const std::string& seed, const std::string& path) {
 }
 
 bool run_tests(const std::string& steady_path, const std::string& transient_path, const std::string& finite_strain_path,
-    const std::string& scaled_displacement_path, const std::string& traction_path, const std::string& malformed_path) {
+    const std::string& scaled_displacement_path, const std::string& traction_path, const std::string& c3d8rt_path,
+    const std::string& malformed_path) {
     const fuelsim::FuelSimCaseDefinition steady = fuelsim::read_case_input(steady_path);
     const fuelsim::FuelSimCaseDefinition transient = fuelsim::read_case_input(transient_path);
     const fuelsim::FuelSimCaseDefinition finite_strain = fuelsim::read_case_input(finite_strain_path);
     const fuelsim::FuelSimCaseDefinition scaled_displacement = fuelsim::read_case_input(scaled_displacement_path);
     const fuelsim::FuelSimCaseDefinition traction = fuelsim::read_case_input(traction_path);
+    const fuelsim::FuelSimCaseDefinition c3d8rt = fuelsim::read_case_input(c3d8rt_path);
     bool passed =
         check(steady.version == 3 && steady.problem == fuelsim::CaseProblem::steady &&
                   steady.geometry == fuelsim::CaseGeometry::axisymmetric_rz,
@@ -212,7 +214,10 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
                   traction.spatial.boundary_conditions.back().scale_with_load &&
                   !traction.spatial.boundary_conditions.back().use_displaced_geometry &&
                   !traction.spatial.boundary_conditions.back().configuration_explicit,
-            "scaled axial traction is parsed");
+            "scaled axial traction is parsed") &&
+        check(c3d8rt.geometry == fuelsim::CaseGeometry::cartesian_3d && c3d8rt.spatial.regions.size() == 1 &&
+                  c3d8rt.spatial.regions.front().hex8_element_formulation == fuelsim::Hex8ElementFormulation::c3d8rt,
+            "C3D8RT reduced-integration HEX8 formulation is parsed explicitly");
     std::string disabled_thermal_time_case = read_text(transient_path);
     const std::string load_ramp_line = "  load_ramp_time = 20\n";
     const std::size_t load_ramp_position = disabled_thermal_time_case.find(load_ramp_line);
@@ -747,15 +752,15 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 7) {
+    if (argc != 8) {
         std::cerr << "Usage: fuelsim_input_tests <steady.fsi> "
                      "<transient.fsi> <finite-strain.fsi> "
                      "<scaled-displacement.fsi> "
-                     "<traction.fsi> <malformed.fsi>\n";
+                     "<traction.fsi> <c3d8rt.fsi> <malformed.fsi>\n";
         return 2;
     }
     try {
-        if (!run_tests(argv[1], argv[2], argv[3], argv[4], argv[5], argv[6])) return 1;
+        if (!run_tests(argv[1], argv[2], argv[3], argv[4], argv[5], argv[6], argv[7])) return 1;
         std::cout << "[PASS] fuelsim strict input-card tests\n";
         return 0;
     } catch (const std::exception& error) {

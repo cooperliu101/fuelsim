@@ -130,10 +130,10 @@ class SpatialProblemStorage {
     }
 
     void initialize_cartesian_histories() {
-        const std::size_t points = cartesian->uses_hex20() ? 27U : 8U;
         cartesian_material_histories.resize(cartesian->region_count());
         _staged_cartesian_material_histories.resize(cartesian->region_count());
         for (std::size_t region = 0; region < cartesian->region_count(); ++region) {
+            const std::size_t points = cartesian->region_material_point_count(region);
             cartesian_material_histories[region].resize(cartesian->region_element_count(region));
             _staged_cartesian_material_histories[region].resize(cartesian->region_element_count(region));
             for (CartesianMaterialHistory& history : cartesian_material_histories[region]) history.resize(points);
@@ -667,7 +667,7 @@ void BackendAccess::restore_committed_state(TransientProblem& problem, Transient
         for (std::size_t region = 0; region < storage.cartesian->region_count(); ++region) {
             if (state.cartesian_material_histories[region].size() != storage.cartesian->region_element_count(region))
                 throw std::invalid_argument("Cartesian committed element state layout does not match");
-            const std::size_t expected_points = storage.cartesian->uses_hex20() ? 27U : 8U;
+            const std::size_t expected_points = storage.cartesian->region_material_point_count(region);
             for (const CartesianMaterialHistory& element : state.cartesian_material_histories[region]) {
                 if (element.size() != expected_points)
                     throw std::invalid_argument("Cartesian committed integration-point layout does not match");
@@ -1063,19 +1063,26 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                 const Hex8LocalValues current = _impl->cartesian->volume_state(offset + element, converged_solution);
                 const Hex8LocalValues old = _impl->cartesian->volume_state(offset + element, _impl->committed_solution);
                 const Hex8Geometry& geometry = _impl->cartesian->region_element_geometry(region, element);
+                const bool reduced =
+                    _impl->cartesian->region(region).hex8_element_formulation == Hex8ElementFormulation::c3d8rt;
+                const auto& capacity_points = reduced ? geometry.reduced_capacity_points : geometry.capacity_points;
                 CartesianMaterialHistory update = _impl->cartesian->transient_update(region, element, current, old,
                     _impl->cartesian_material_histories[region][element], _impl->active_time_step);
                 if (_impl->include_thermal_time_term)
                     for (std::size_t node = 0; node < hex8_node_count; ++node) {
-                        const Hex8CapacityPoint& point = geometry.capacity_points[node];
+                        const Hex8CapacityPoint& point = capacity_points[node];
                         conservation.stored_heat_rate +=
                             point.weighted_measure *
                             _impl->cartesian->heat_capacity(region, current[node], point.position) *
                             (current[node] - old[node]) / _impl->active_time_step;
                     }
-                for (const Hex8CapacityPoint& point : geometry.capacity_points)
+                if (reduced)
                     conservation.generated_heat_rate +=
-                        point.weighted_measure * _impl->cartesian->region_heat_source(region);
+                        geometry.reduced_body_source_measure * _impl->cartesian->region_heat_source(region);
+                else
+                    for (const Hex8CapacityPoint& point : capacity_points)
+                        conservation.generated_heat_rate +=
+                            point.weighted_measure * _impl->cartesian->region_heat_source(region);
                 double finite_current_volume = 0.0, finite_old_volume = 0.0;
                 if (_impl->cartesian->region(region).strain_formulation == StrainFormulation::finite) {
                     Hex8LocalAdValues active_current{}, active_old{};
@@ -1092,8 +1099,8 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                                 .current_weighted_measure.value();
                     }
                 }
-                for (std::size_t q = 0; q < geometry.points.size(); ++q) {
-                    const Hex8QuadraturePoint& point = geometry.points[q];
+                for (std::size_t q = 0; q < update.size(); ++q) {
+                    const Hex8QuadraturePoint& point = reduced ? geometry.reduced_point : geometry.points[q];
                     const CartesianMaterialPointState &old_history =
                                                           _impl->cartesian_material_histories[region][element][q],
                                                       &new_history = update[q];

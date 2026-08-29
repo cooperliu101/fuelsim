@@ -394,7 +394,7 @@ std::string read_optional_path(const std::string& input_path, const InputSection
 RegionDefinition read_region(
     const InputDocument& document, const InputSection& section, const std::vector<ParsedMaterial>& materials) {
     validate_keys(document, section,
-        {"block", "block_id", "material", "strain", "initial_temperature", "volumetric_heat_source",
+        {"block", "block_id", "material", "strain", "element", "initial_temperature", "volumetric_heat_source",
             "heat_source_function"});
     const InputEntry* block = find_entry(section, "block");
     const InputEntry* block_id = find_entry(section, "block_id");
@@ -432,6 +432,13 @@ RegionDefinition read_region(
         result.strain_formulation = StrainFormulation::finite;
     else
         value_error(document, strain, "unknown strain formulation '" + strain.value + "'");
+    const std::string element = read_optional_string(section, "element", "c3d8t");
+    if (element == "c3d8t")
+        result.hex8_element_formulation = Hex8ElementFormulation::c3d8t;
+    else if (element == "c3d8rt")
+        result.hex8_element_formulation = Hex8ElementFormulation::c3d8rt;
+    else
+        value_error(document, required_entry(document, section, "element"), "unknown HEX8 element '" + element + "'");
     return result;
 }
 
@@ -911,6 +918,11 @@ FuelSimCaseDefinition read_case_input(const std::string& path, const MaterialFun
     read_time_functions(document, result);
     const std::vector<ParsedMaterial> materials = read_materials(document, registry);
     read_regions(document, path, materials, result);
+    if (result.geometry != CaseGeometry::cartesian_3d)
+        for (const RegionDefinition& region : result.spatial.regions)
+            if (region.hex8_element_formulation != Hex8ElementFormulation::c3d8t)
+                throw std::invalid_argument(path + ": region '" + region.name +
+                                            "' selects c3d8rt outside Cartesian three-dimensional geometry");
     read_contacts(document, result);
     read_boundary_conditions(document, result);
     validate_time_function_references(path, result);

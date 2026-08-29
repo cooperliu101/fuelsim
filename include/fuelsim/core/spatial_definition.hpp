@@ -43,6 +43,7 @@ struct RegionDefinition final {
     std::int64_t block_id = -1;
     std::string heat_source_function{};
     StrainFormulation strain_formulation = StrainFormulation::small;
+    Hex8ElementFormulation hex8_element_formulation = Hex8ElementFormulation::c3d8t;
 };
 enum class MechanicalContactFormulation {
     penalty,

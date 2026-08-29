@@ -1515,6 +1515,51 @@ components, contact force, resultant, moment, and force center. The standard
 gate is `0.1%`; an integrated finite-strain path may use `0.5%`. A higher contact
 gate requires a named, evidence-backed qualification boundary.
 
+## B5.28 through B5.31 C3D8RT reduced-integration thermo-mechanics
+
+B5.28 reconstructs the complete 32 by 32 local Abaqus/Standard `C3D8RT`
+operator from 65 prescribed states. It uses a regular cube, a warped element,
+and a stronger warped holdout geometry that was fixed after the geometric rule
+was derived. Abaqus jobs use `output_precision=full`; single-precision reaction
+output is not used to modify either the algorithm or the acceptance threshold.
+The regular, warped, and holdout thermal-block errors are `4.12895e-9%`,
+`0.0503024%`, and `0.120803%`. The largest mechanical-block error is
+`4.74022e-6%`, and the largest temperature-to-mechanics block error is
+`1.48876e-8%`. Centered directional differences of the production residual are
+below `1.30e-7%` for all three active blocks.
+
+The mechanical hourglass operator uses the Abaqus default total-stiffness
+factor `0.005` times the initial shear modulus. The thermal stabilization is
+computed only from the volume-averaged gradients and their effective geometric
+metric. No coefficient, quadrature location, recovery weight, tolerance, or
+acceptance threshold was fitted to any of the three Abaqus matrices.
+
+B5.29 reconstructs all 64 entries of the transient capacity matrix on regular
+and warped elements. The production row-sum lumped consistent-capacity rule is
+exact relative to its analytic construction; the complete Abaqus matrix errors
+are `1.64636e-14%` and `9.06092e-8%`.
+
+B5.30 isolates reference body heat generation, surface heat flux, convection,
+and integration volume. The distorted C3D8RT body load is exactly the one-point
+center-Jacobian rule. Its relative error is `7.01065e-15`; a full-Gauss body
+alternative differs by `0.0530759`. Surface flux and convection errors are
+`4.82888e-15` and `2.90800e-16`, while the corresponding Gauss alternatives
+differ by `0.00776465` and `0.136281`. These alternatives prove that the probe
+distinguishes the implemented algorithms.
+
+B5.31 solves a two-element Backward Euler thermoelastic path and compares every
+node for temperature, three displacements, heat reaction, and three mechanical
+reactions, plus the single reduced integration point in each element for heat
+flux, stress, and strain. The largest relative L2, relative absolute-peak, or
+maximum pointwise-relative field metric is `0.00190399%`. Zero references are
+counted separately without a denominator floor; the largest zero-reference
+absolute force difference is `2.70375e-8 N`.
+
+The tracked inputs, full-precision extractors, PowerShell runners, and comma-
+separated references use the `b528` through `b531` prefixes. The verified scope
+is small strain. Finite-strain C3D8RT is explicitly rejected and is not inferred
+from these results.
+
 ## B5.19 C3D8T finite-deformation selective integration
 
 B5.19 applies a non-affine finite deformation to one distorted C3D8T element.

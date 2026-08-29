@@ -117,7 +117,10 @@ class ProblemAccess final {
         const TransientProblem& problem, std::size_t region, std::size_t element) {
         std::array<SymmetricTensor3Values, 8> result{};
         const CartesianMaterialHistory& history = material_history(problem, region, element);
-        for (std::size_t q = 0; q < result.size(); ++q) result[q] = history[q].stress;
+        if (history.size() == 1)
+            result.fill(history.front().stress);
+        else
+            for (std::size_t q = 0; q < result.size(); ++q) result[q] = history.at(q).stress;
         return result;
     }
 
