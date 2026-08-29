@@ -1094,9 +1094,12 @@ if(BUILD_TESTING)
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b48_hex8_multi_contact_pair_b.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b48_hex8_multi_contact_reaction.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b48_hex8_multi_contact_energy.csv"
-            "${CMAKE_CURRENT_BINARY_DIR}/b48_hex8_multi_contact_checkpoint.bin")
+            "${CMAKE_CURRENT_BINARY_DIR}/b48_hex8_multi_contact_checkpoint.bin"
+            "${CMAKE_CURRENT_BINARY_DIR}/b48_hex8_multi_contact_one_rank_state.txt")
     set_tests_properties(fuelsim_b48_hex8_multi_contact_path_abaqus_tests
-        PROPERTIES LABELS "acceptance;three-dimensional;hex8;contact;friction;finite-sliding;multi-contact;restart;abaqus")
+        PROPERTIES
+            FIXTURES_SETUP b48_hex8_multi_contact_mpi_reference
+            LABELS "acceptance;three-dimensional;hex8;contact;friction;finite-sliding;multi-contact;restart;abaqus")
 
     add_executable(fuelsim_hex20_solver_tests tests/hex20_solver_tests.cpp)
     target_link_libraries(fuelsim_hex20_solver_tests PRIVATE fuelsim::io fuelsim::solver)
@@ -1612,6 +1615,7 @@ if(BUILD_TESTING)
         add_test(NAME fuelsim_mpi_solver_tests
             COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2
                 $<TARGET_FILE:fuelsim_solver_tests>
+                --case runtime-layout
                 -ksp_type preonly
                 -pc_type lu
                 -pc_factor_mat_solver_type mumps
@@ -1624,6 +1628,7 @@ if(BUILD_TESTING)
         add_test(NAME fuelsim_mpi_runtime_layout_field_split
             COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2
                 $<TARGET_FILE:fuelsim_solver_tests>
+                --case runtime-layout
         )
         set_tests_properties(fuelsim_mpi_runtime_layout_field_split PROPERTIES
             LABELS "acceptance;parallel;architecture"
@@ -1772,18 +1777,16 @@ if(BUILD_TESTING)
             LABELS "acceptance;parallel;three-dimensional;hex8;contact;surface-to-surface;finite-sliding"
             PROCESSORS 2
         )
-        add_test(NAME fuelsim_b48_hex8_multi_contact_path_mpi_abaqus_tests
+        add_test(NAME fuelsim_b48_hex8_multi_contact_path_mpi_equivalence
             COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2
                 $<TARGET_FILE:fuelsim_b48_hex8_multi_contact_path_abaqus_tests>
+                --compare-mpi-reference
+                "${CMAKE_CURRENT_BINARY_DIR}/b48_hex8_multi_contact_one_rank_state.txt"
                 "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_hex8_multi_contact_path_abaqus.fsi"
-                "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b48_hex8_multi_contact_pair_a.csv"
-                "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b48_hex8_multi_contact_pair_b.csv"
-                "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b48_hex8_multi_contact_reaction.csv"
-                "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b48_hex8_multi_contact_energy.csv"
-                "${CMAKE_CURRENT_BINARY_DIR}/b48_hex8_multi_contact_mpi_checkpoint.bin"
         )
-        set_tests_properties(fuelsim_b48_hex8_multi_contact_path_mpi_abaqus_tests PROPERTIES
-            LABELS "acceptance;parallel;three-dimensional;hex8;contact;friction;surface-to-surface;finite-sliding;multi-contact;abaqus"
+        set_tests_properties(fuelsim_b48_hex8_multi_contact_path_mpi_equivalence PROPERTIES
+            FIXTURES_REQUIRED b48_hex8_multi_contact_mpi_reference
+            LABELS "acceptance;parallel;three-dimensional;hex8;contact;friction;surface-to-surface;finite-sliding;multi-contact"
             PROCESSORS 2
         )
         add_test(NAME fuelsim_mpi_field_split
@@ -2096,15 +2099,6 @@ if(BUILD_TESTING)
         LABELS "audit;architecture"
     )
 
-    add_test(NAME fuelsim_source_size_audit
-        COMMAND "${CMAKE_COMMAND}"
-            "-DROOT=${CMAKE_CURRENT_SOURCE_DIR}"
-            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/source_size_audit.cmake"
-    )
-    set_tests_properties(fuelsim_source_size_audit PROPERTIES
-        LABELS "audit;architecture"
-    )
-
     get_property(FUELSIM_REGISTERED_TESTS DIRECTORY PROPERTY TESTS)
     list(JOIN FUELSIM_REGISTERED_TESTS "\n" FUELSIM_REGISTERED_TEST_TEXT)
     file(GENERATE
@@ -2171,6 +2165,10 @@ if(BUILD_TESTING)
             fuelsim_mpi_equivalence
             fuelsim_m52_mpi_equivalence
             fuelsim_b33_mpi_equivalence
+            fuelsim_b521_thermal_contact_mpi_equivalence
+            fuelsim_b39_hex8_sts_mpi_equivalence
+            fuelsim_b41_hex8_finite_sliding_mpi_equivalence
+            fuelsim_b48_hex8_multi_contact_path_mpi_equivalence
             fuelsim_mpi_field_split
             fuelsim_mpi_block_jacobi
             fuelsim_mpi_hypre

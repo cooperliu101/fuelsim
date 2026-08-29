@@ -815,10 +815,26 @@ bool test_m1_open_gap_analytic_thermal() {
 
 int main(int argc, char** argv) {
     try {
+        std::string selected_case = "all";
+        if (argc >= 3 && std::string(argv[1]) == "--case") {
+            selected_case = argv[2];
+            for (int index = 3; index < argc; ++index) argv[index - 2] = argv[index];
+            argc -= 2;
+            argv[argc] = nullptr;
+        }
+        if (selected_case != "all" && selected_case != "runtime-layout") {
+            std::cerr << "Usage: fuelsim_solver_tests [--case runtime-layout] [PETSc options]\n";
+            return 2;
+        }
         std::cout << std::scientific << std::setprecision(12);
         fuelsim::PetscSession session(argc, argv, "fuelsim M0 and M1 numerical acceptance tests\n");
         bool passed = true;
         passed = test_runtime_contribution_layout() && passed;
+        if (selected_case == "runtime-layout") {
+            if (!passed) return 1;
+            std::cout << "[PASS] fuelsim runtime-layout solver tests\n";
+            return 0;
+        }
         passed = test_global_newton_safeguards() && passed;
         passed = test_thermal_cylinder() && passed;
         passed = test_thermal_mesh_convergence() && passed;

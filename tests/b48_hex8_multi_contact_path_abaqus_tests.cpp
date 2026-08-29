@@ -354,6 +354,86 @@ class Recorder final : public fuelsim::TransientStepObserver {
     std::vector<StepState> states;
 };
 
+void append_vector(std::vector<double>& output, const std::array<double, 3>& values) {
+    output.insert(output.end(), values.begin(), values.end());
+}
+
+std::vector<double> flatten_states(const std::vector<StepState>& states) {
+    std::vector<double> result;
+    result.push_back(static_cast<double>(states.size()));
+    for (const StepState& state : states) {
+        result.push_back(state.time);
+        result.push_back(static_cast<double>(state.solution.size()));
+        result.insert(result.end(), state.solution.begin(), state.solution.end());
+        for (std::size_t pair = 0; pair < 2; ++pair) {
+            result.push_back(static_cast<double>(state.contact[pair].size()));
+            for (const fuelsim::CartesianContactNodeSummary& contact : state.contact[pair]) {
+                result.insert(result.end(), {contact.x, contact.y, contact.z, contact.projected ? 1.0 : 0.0,
+                                                static_cast<double>(contact.primary_face), contact.gap,
+                                                contact.pressure, contact.tributary_area, contact.contact_force,
+                                                contact.tangential_traction, contact.tangential_force});
+                append_vector(result, contact.normal_contact_force);
+                append_vector(result, contact.tangential_contact_force);
+                append_vector(result, contact.tangential_slip);
+                append_vector(result, contact.elastic_tangential_slip);
+                result.push_back(contact.sliding ? 1.0 : 0.0);
+            }
+            result.push_back(static_cast<double>(state.histories[pair].size()));
+            for (const fuelsim::ContactPointHistory& history : state.histories[pair]) {
+                result.insert(result.end(),
+                    {history.elastic_tangential_slip, history.sliding ? 1.0 : 0.0, history.normal_multiplier,
+                        history.cartesian_tangent_basis_initialized ? 1.0 : 0.0});
+                append_vector(result, history.cartesian_elastic_tangential_slip);
+                append_vector(result, history.cartesian_total_tangential_slip);
+                append_vector(result, history.cartesian_contact_normal);
+                append_vector(result, history.cartesian_contact_tangent_first);
+            }
+        }
+    }
+    return result;
+}
+
+void write_mpi_reference(const std::string& path, const std::vector<StepState>& states) {
+    const std::vector<double> values = flatten_states(states);
+    std::ofstream output(path, std::ios::out | std::ios::trunc);
+    if (!output) throw std::runtime_error("Could not write B4.8 MPI reference: " + path);
+    output << values.size() << '\n' << std::setprecision(17);
+    for (double value : values) output << value << '\n';
+    if (!output) throw std::runtime_error("Could not complete B4.8 MPI reference: " + path);
+}
+
+void compare_mpi_reference(const std::string& path, const std::vector<StepState>& states) {
+    std::ifstream input(path);
+    if (!input) throw std::runtime_error("Could not read B4.8 MPI reference: " + path);
+    std::size_t count = 0;
+    input >> count;
+    std::vector<double> reference(count, 0.0);
+    for (double& value : reference) input >> value;
+    if (!input) throw std::runtime_error("B4.8 MPI reference is incomplete: " + path);
+    const std::vector<double> actual = flatten_states(states);
+    if (reference.size() != actual.size()) throw std::runtime_error("B4.8 MPI state layout differs between ranks");
+    double maximum_absolute = 0.0, maximum_scaled = 0.0;
+    std::size_t maximum_scaled_index = 0;
+    for (std::size_t index = 0; index < reference.size(); ++index) {
+        const double difference = std::abs(actual[index] - reference[index]);
+        maximum_absolute = std::max(maximum_absolute, difference);
+        const double scaled = difference / (1.0 + std::abs(reference[index]));
+        if (scaled > maximum_scaled) {
+            maximum_scaled = scaled;
+            maximum_scaled_index = index;
+        }
+    }
+    std::cout << "b48_mpi_equivalence_maximum_absolute=" << maximum_absolute << '\n'
+              << "b48_mpi_equivalence_maximum_scaled=" << maximum_scaled << '\n';
+    if (!(maximum_scaled < 1.0e-10)) {
+        std::ostringstream message;
+        message << "B4.8 one-rank and two-rank states differ: maximum scaled difference=" << maximum_scaled
+                << ", index=" << maximum_scaled_index << ", one-rank=" << reference[maximum_scaled_index]
+                << ", two-rank=" << actual[maximum_scaled_index];
+        throw std::runtime_error(message.str());
+    }
+}
+
 fuelsim::SolverOptions solver_options(const fuelsim::FuelSimCaseDefinition& input) {
     fuelsim::SolverOptions result;
     result.absolute_tolerance = input.solver.absolute_tolerance;
@@ -641,7 +721,7 @@ bool compare(const fuelsim::TransientProblem& problem, const fuelsim::Unstructur
 
 bool run(const std::string& input_path, const std::array<std::string, 2>& contact_paths,
     const std::string& reaction_path, const std::string& energy_path, const std::string& checkpoint_path,
-    const fuelsim::PetscSession& session) {
+    const std::string& mpi_reference_path, bool compare_mpi, const fuelsim::PetscSession& session) {
     const fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
     const fuelsim::UnstructuredHex8Mesh mesh = fuelsim::read_exodus_hex8(input.mesh_file);
     const fuelsim::SolverOptions solver = solver_options(input);
@@ -651,6 +731,23 @@ bool run(const std::string& input_path, const std::array<std::string, 2>& contac
         fuelsim::solve_transient(full, time_options(input, 4.0, 1.0), solver, &recorder);
     bool passed = check(result.completed && recorder.states.size() == step_count && result.rejected_steps.empty(),
         "B4.8 completes the same four accepted increments for both contact pairs without rejected steps");
+    if (compare_mpi) {
+        if (session.size() != 2) throw std::invalid_argument("B4.8 MPI comparison requires exactly two ranks");
+        if (!passed) return false;
+        const fuelsim::SolveResult& solve = result.last_attempt;
+        const auto expected = full.contribution_partition(static_cast<std::size_t>(solve.mpi_rank), 2U);
+        passed =
+            check(solve.local_contribution_begin == expected.first && solve.local_contribution_end == expected.second,
+                "B4.8 two-rank solve preserves the exact contribution ownership interval") &&
+            check(solve.maximum_shadow_state_dofs <= full.dof_count() &&
+                      solve.total_shadow_state_dofs <= 2U * full.dof_count() &&
+                      solve.total_remote_shadow_state_dofs > 0,
+                "B4.8 two-rank solve exchanges bounded nonempty shadow state") &&
+            passed;
+        if (session.rank() == 0) compare_mpi_reference(mpi_reference_path, recorder.states);
+        return passed;
+    }
+    if (session.size() != 1) throw std::invalid_argument("B4.8 Abaqus reference test requires one rank");
     const std::array<std::vector<ContactReference>, 2> contacts = {
         read_contact(contact_paths[0]), read_contact(contact_paths[1])};
     passed = compare(full, mesh, recorder.states, contacts, read_reactions(reaction_path), read_energy(energy_path)) &&
@@ -708,6 +805,7 @@ bool run(const std::string& input_path, const std::array<std::string, 2>& contac
             throw std::runtime_error("B4.8 could not remove its checkpoint artifact");
     });
     passed = check(true, "B4.8 removes its checkpoint artifact") && passed;
+    if (passed) session.collective_root_action([&]() { write_mpi_reference(mpi_reference_path, recorder.states); });
     return passed;
 }
 } // namespace
@@ -722,9 +820,12 @@ int main(int argc, char** argv) {
             return 1;
         }
     }
-    if (argc != 7) {
+    const bool compare_mpi = argc == 4 && std::string(argv[1]) == "--compare-mpi-reference";
+    if (argc != 8 && !compare_mpi) {
         std::cerr << "Usage: fuelsim_b48_hex8_multi_contact_path_abaqus_tests <case.fsi> <pair-a.csv> "
-                     "<pair-b.csv> <reaction.csv> <energy.csv> <checkpoint>\n"
+                     "<pair-b.csv> <reaction.csv> <energy.csv> <checkpoint> <mpi-reference>\n"
+                     "   or: fuelsim_b48_hex8_multi_contact_path_abaqus_tests --compare-mpi-reference "
+                     "<mpi-reference> <case.fsi>\n"
                      "   or: fuelsim_b48_hex8_multi_contact_path_abaqus_tests --generate <abaqus-directory> "
                      "<fuelsim-directory>\n";
         return 2;
@@ -732,8 +833,12 @@ int main(int argc, char** argv) {
     try {
         std::cout << std::scientific << std::setprecision(12);
         fuelsim::PetscSession session(argc, argv, "fuelsim B4.8 HEX8 two-pair finite-sliding Abaqus comparison\n");
-        const bool passed = run(argv[1], {argv[2], argv[3]}, argv[4], argv[5], argv[6], session);
-        if (passed && session.rank() == 0) std::cout << "[PASS] B4.8 HEX8 two-pair finite-sliding Abaqus comparison\n";
+        const bool passed = compare_mpi
+                                ? run(argv[3], {"", ""}, "", "", "", argv[2], true, session)
+                                : run(argv[1], {argv[2], argv[3]}, argv[4], argv[5], argv[6], argv[7], false, session);
+        if (passed && session.rank() == 0)
+            std::cout << (compare_mpi ? "[PASS] B4.8 one-rank/two-rank complete-state equivalence\n"
+                                      : "[PASS] B4.8 HEX8 two-pair finite-sliding Abaqus comparison\n");
         return passed ? 0 : 1;
     } catch (const std::exception& error) {
         std::cerr << "[FAIL] B4.8 comparison raised: " << error.what() << '\n';
