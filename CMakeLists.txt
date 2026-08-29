@@ -504,10 +504,8 @@ if(BUILD_TESTING)
     target_link_libraries(fuelsim_hex20_tests PRIVATE fuelsim::core)
     fuelsim_enable_warnings(fuelsim_hex20_tests)
     add_test(NAME fuelsim_hex20_tests COMMAND fuelsim_hex20_tests)
-    set_tests_properties(fuelsim_hex20_tests PROPERTIES LABELS "unit;three-dimensional;quadratic")
-    add_test(NAME fuelsim_h20_01_hex20_kernel_tests COMMAND fuelsim_hex20_tests)
-    set_tests_properties(fuelsim_h20_01_hex20_kernel_tests
-        PROPERTIES LABELS "unit;three-dimensional;quadratic")
+    set_tests_properties(fuelsim_hex20_tests
+        PROPERTIES LABELS "unit;three-dimensional;quadratic;warped-geometry;contact;friction")
 
     add_executable(fuelsim_hex8_solver_tests tests/hex8_solver_tests.cpp)
     target_link_libraries(fuelsim_hex8_solver_tests PRIVATE fuelsim::io fuelsim::solver)
@@ -1108,7 +1106,8 @@ if(BUILD_TESTING)
             "${CMAKE_CURRENT_BINARY_DIR}/hex20_mesh.e"
             "${CMAKE_CURRENT_BINARY_DIR}/hex20_steady_results.e"
             "${CMAKE_CURRENT_BINARY_DIR}/hex20_checkpoint.bin")
-    set_tests_properties(fuelsim_hex20_solver_tests PROPERTIES LABELS "integration;three-dimensional;quadratic")
+    set_tests_properties(fuelsim_hex20_solver_tests
+        PROPERTIES LABELS "integration;three-dimensional;quadratic;checkpoint;contact;multiblock")
 
     add_executable(fuelsim_b6_hex20_moose_tests tests/b6_hex20_moose_tests.cpp)
     target_link_libraries(fuelsim_b6_hex20_moose_tests
@@ -1200,30 +1199,6 @@ if(BUILD_TESTING)
             "1e-3")
     set_tests_properties(fuelsim_h20_10_finite_strain_moose_tests
         PROPERTIES LABELS "acceptance;three-dimensional;quadratic;finite-strain")
-    add_test(NAME fuelsim_h20_11_hex20_checkpoint_tests
-        COMMAND fuelsim_hex20_solver_tests
-            "${CMAKE_CURRENT_BINARY_DIR}/h20_11_hex20_mesh.e"
-            "${CMAKE_CURRENT_BINARY_DIR}/h20_11_hex20_steady_results.e"
-            "${CMAKE_CURRENT_BINARY_DIR}/h20_11_hex20_checkpoint.bin")
-    set_tests_properties(fuelsim_h20_11_hex20_checkpoint_tests
-        PROPERTIES LABELS "integration;three-dimensional;quadratic;checkpoint")
-    add_test(NAME fuelsim_h20_12_multiblock_shared_nodes_tests COMMAND fuelsim_multi_region_tests)
-    set_tests_properties(fuelsim_h20_12_multiblock_shared_nodes_tests
-        PROPERTIES LABELS "acceptance;three-dimensional;quadratic;multiblock")
-    add_test(NAME fuelsim_h20_13_warped_hex20_geometry_tests COMMAND fuelsim_hex20_tests)
-    set_tests_properties(fuelsim_h20_13_warped_hex20_geometry_tests
-        PROPERTIES LABELS "unit;three-dimensional;quadratic;warped-geometry")
-    add_test(NAME fuelsim_h20_14_hex20_contact_kernel_tests COMMAND fuelsim_hex20_tests)
-    set_tests_properties(fuelsim_h20_14_hex20_contact_kernel_tests
-        PROPERTIES LABELS "unit;three-dimensional;quadratic;contact;friction")
-    add_test(NAME fuelsim_h20_15_hex20_contact_assembly_tests
-        COMMAND fuelsim_hex20_solver_tests
-            "${CMAKE_CURRENT_BINARY_DIR}/h20_15_hex20_mesh.e"
-            "${CMAKE_CURRENT_BINARY_DIR}/h20_15_hex20_steady_results.e"
-            "${CMAKE_CURRENT_BINARY_DIR}/h20_15_hex20_checkpoint.bin")
-    set_tests_properties(fuelsim_h20_15_hex20_contact_assembly_tests
-        PROPERTIES LABELS "integration;three-dimensional;quadratic;contact")
-
     add_executable(fuelsim_h20_24_hex20_nonmatching_contact_tests tests/h20_nonmatching_contact_tests.cpp)
     target_link_libraries(fuelsim_h20_24_hex20_nonmatching_contact_tests PRIVATE fuelsim::io fuelsim::solver)
     fuelsim_enable_warnings(fuelsim_h20_24_hex20_nonmatching_contact_tests)

@@ -191,6 +191,52 @@ bool test_transient_restart(const fuelsim::PetscSession& session, const fuelsim:
     return passed;
 }
 
+bool test_multiblock_shared_nodes() {
+    std::vector<fuelsim::CartesianPoint3> nodes;
+    std::map<std::array<double, 3>, std::size_t> node_map;
+    const fuelsim::Hex20Element left = append_cuboid(nodes, node_map, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0),
+                                right = append_cuboid(nodes, node_map, 1.0, 2.0, 0.0, 1.0, 0.0, 1.0);
+    fuelsim::UnstructuredHex20Mesh mesh(std::move(nodes), {left, right}, {1, 2}, {{1, "left"}, {2, "right"}}, {}, {});
+    fuelsim::SpatialDefinition spatial;
+    spatial.regions = {{"left", "left", material(), 0.0, 300.0}, {"right", "right", material(), 0.0, 300.0}};
+    fuelsim::SteadyProblem problem(spatial, mesh);
+    const auto& view = fuelsim::cartesian::ProblemAccess::view(problem);
+    bool passed = check(view.region_count() == 2 && view.node_count() == 32 && view.temperature_node_count() == 12 &&
+                            problem.dof_count() == 108,
+        "two conforming HEX20 blocks share eight displacement nodes and four corner temperature nodes");
+
+    std::size_t shared_displacement_nodes = 0, shared_temperature_nodes = 0;
+    const auto& left_region = view.hex20_region_mesh(0);
+    const auto& right_region = view.hex20_region_mesh(1);
+    for (std::size_t left_local = 0; left_local < left_region.nodes().size(); ++left_local) {
+        const std::size_t source = left_region.source_node_ids()[left_local];
+        const auto found =
+            std::find(right_region.source_node_ids().begin(), right_region.source_node_ids().end(), source);
+        if (found == right_region.source_node_ids().end()) continue;
+        const std::size_t right_local = static_cast<std::size_t>(found - right_region.source_node_ids().begin());
+        ++shared_displacement_nodes;
+        passed = check(view.global_node(0, left_local) == view.global_node(1, right_local),
+                     "a shared HEX20 source node maps to one global displacement node") &&
+                 passed;
+        if (!left_region.temperature_nodes()[left_local]) continue;
+        ++shared_temperature_nodes;
+        passed = check(right_region.temperature_nodes()[right_local] &&
+                           view.global_temperature_node(0, left_local) == view.global_temperature_node(1, right_local),
+                     "a shared HEX20 corner maps to one global temperature node") &&
+                 passed;
+    }
+
+    std::vector<std::size_t> left_dofs, right_dofs;
+    problem.contribution_dofs(0, left_dofs);
+    problem.contribution_dofs(1, right_dofs);
+    std::size_t shared_dofs = 0;
+    for (const std::size_t dof : left_dofs)
+        if (std::find(right_dofs.begin(), right_dofs.end(), dof) != right_dofs.end()) ++shared_dofs;
+    return check(shared_displacement_nodes == 8 && shared_temperature_nodes == 4 && shared_dofs == 28,
+               "adjacent HEX20 contributions share exactly 24 displacement and four temperature DOFs") &&
+           passed;
+}
+
 bool test_contact_projection(const fuelsim::UnstructuredHex20Mesh& mesh) {
     (void)mesh;
     std::vector<fuelsim::CartesianPoint3> nodes;
@@ -678,9 +724,9 @@ int main(int argc, char** argv) {
     const std::string transient_results = std::string(argv[2]) + ".transient.e";
     const bool passed = test_steady_and_io(session, mesh, argv[1], argv[2]) &&
                         test_transient_restart(session, mesh, argv[3], transient_results) &&
-                        test_contact_projection(mesh) && test_surface_contact_fixed_reference_graph() &&
-                        test_surface_contact_finite_sliding() && test_finite_sliding_search_tree() &&
-                        test_finite_sliding_end_to_end();
+                        test_multiblock_shared_nodes() && test_contact_projection(mesh) &&
+                        test_surface_contact_fixed_reference_graph() && test_surface_contact_finite_sliding() &&
+                        test_finite_sliding_search_tree() && test_finite_sliding_end_to_end();
     session.collective_root_action([&]() {
         (void)std::remove(argv[1]);
         (void)std::remove(argv[2]);
