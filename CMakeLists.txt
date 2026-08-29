@@ -631,6 +631,57 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_b523_hex8_c3d8t_integrated_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;transient;thermal;mechanical;finite-strain;plasticity;creep;friction;contact;abaqus")
 
+    set(b524_b525_response_directory "${CMAKE_CURRENT_BINARY_DIR}/b524_b525_responses")
+    set(b524_b525_cases
+        b524_mesh_coarse
+        b524_mesh_medium
+        b524_mesh_fine
+        b524_time_coarse
+        b524_time_fine
+        b524_penalty_low
+        b524_penalty_high
+        b524_friction_low
+        b524_friction_high
+        b524_slip_low
+        b524_slip_high
+        b524_thermal_low
+        b524_thermal_high
+        b525_poisson_030
+        b525_poisson_045
+        b525_poisson_049
+        b525_poisson_0499
+        b525_poisson_0499_refined)
+    set(b524_b525_response_fixtures)
+    foreach(b524_b525_case IN LISTS b524_b525_cases)
+        set(b524_b525_test "fuelsim_${b524_b525_case}_abaqus_tests")
+        set(b524_b525_fixture "${b524_b525_case}_response")
+        add_test(NAME ${b524_b525_test}
+            COMMAND fuelsim_b523_hex8_c3d8t_integrated_abaqus_tests
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b523_hex8_c3d8t_integrated_path_nodal.csv"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b523_hex8_c3d8t_integrated_path_integration.csv"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b523_hex8_c3d8t_integrated_path_contact.csv"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b523_hex8_c3d8t_integrated_path_energy.csv"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus"
+                "${b524_b525_case}"
+                "${b524_b525_response_directory}/${b524_b525_case}.txt")
+        set_tests_properties(${b524_b525_test} PROPERTIES
+            FIXTURES_SETUP "${b524_b525_fixture}"
+            LABELS "acceptance;three-dimensional;hex8;transient;thermal;mechanical;finite-strain;friction;contact;abaqus;split-case")
+        list(APPEND b524_b525_response_fixtures "${b524_b525_fixture}")
+    endforeach()
+    add_test(NAME fuelsim_b524_b525_response_aggregate_tests
+        COMMAND fuelsim_b523_hex8_c3d8t_integrated_abaqus_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b523_hex8_c3d8t_integrated_path_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b523_hex8_c3d8t_integrated_path_integration.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b523_hex8_c3d8t_integrated_path_contact.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b523_hex8_c3d8t_integrated_path_energy.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus"
+            --aggregate-responses
+            "${b524_b525_response_directory}")
+    set_tests_properties(fuelsim_b524_b525_response_aggregate_tests PROPERTIES
+        FIXTURES_REQUIRED "${b524_b525_response_fixtures}"
+        LABELS "acceptance;three-dimensional;hex8;transient;thermal;mechanical;finite-strain;friction;contact;abaqus;aggregate")
+
     foreach(b526_case IN ITEMS b526_contact_cycle b526_friction_reversal)
         string(REPLACE "b526_" "" b526_suffix "${b526_case}")
         set(b526_test "fuelsim_b526_hex8_c3d8t_${b526_suffix}_abaqus_tests")

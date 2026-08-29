@@ -23,7 +23,7 @@ BASE = {
     "anchor_bending": False,
     "initial_gap": 0.0,
     "path": "monotonic",
-    "end_time": 0.4,
+    "end_time": 0.2,
 }
 
 
@@ -108,7 +108,7 @@ CASES = {
         anchor_bending=True,
     ),
     "b526_contact_cycle": configured(elastic_only=True, initial_gap=1.0e-4, path="contact_cycle", end_time=0.3),
-    "b526_friction_reversal": configured(elastic_only=True, path="friction_reversal"),
+    "b526_friction_reversal": configured(elastic_only=True, path="friction_reversal", end_time=0.4),
 }
 
 

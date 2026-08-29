@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -614,7 +615,8 @@ ScanResponse run_scan(std::size_t through_thickness_elements, std::size_t tangen
         mesh(through_thickness_elements, tangential_elements, distortion, parameters.initial_gap);
     fuelsim::TransientProblem problem(case_definition, case_mesh);
     fuelsim::test::AbaqusHex8SnapshotObserver observer;
-    const double end_time = parameters.path == ScanPath::contact_cycle ? 0.3 : 0.4;
+    const bool transition_case = case_name.rfind("b526_", 0) == 0;
+    const double end_time = transition_case ? (parameters.path == ScanPath::contact_cycle ? 0.3 : 0.4) : 0.2;
     const fuelsim::TransientResult solve =
         fuelsim::solve_transient(problem, {end_time, step, step, step, 1.0, 0.5, 0, 0.0}, solver_options(), &observer);
     ScanResponse response;
@@ -787,6 +789,45 @@ void print_scan(const std::string& name, const ScanResponse& response) {
         std::cout << prefix << "_failure_message=" << response.failure_message << '\n';
 }
 
+void write_scan_response(
+    const std::filesystem::path& path, const std::string& case_name, const ScanResponse& response) {
+    std::filesystem::create_directories(path.parent_path());
+    std::ofstream output(path);
+    if (!output) throw std::runtime_error("Could not open B5.24/B5.25 response output: " + path.string());
+    output << std::scientific << std::setprecision(17) << case_name << '\n'
+           << response.completed << ' ' << response.full_field_passed << ' ' << response.transition_verified << ' '
+           << response.accepted_steps << ' ' << response.rejected_steps << ' ' << response.active_contact_nodes << ' '
+           << response.open_contact_steps << ' ' << response.active_contact_steps << ' ' << response.sticking_nodes_seen
+           << ' ' << response.sliding_nodes_seen << ' ' << response.nonlinear_iterations << '\n'
+           << response.contact_force << ' ' << response.tangential_force << ' ' << response.contact_heat_rate << ' '
+           << response.maximum_penetration << ' ' << response.average_contact_temperature << ' '
+           << response.maximum_plastic_strain << ' ' << response.maximum_creep_strain << ' '
+           << response.maximum_equivalent_stress << ' ' << response.maximum_absolute_z_displacement << ' '
+           << response.friction_dissipation << ' ' << response.external_work << ' ' << response.boundary_heat_rate
+           << ' ' << response.minimum_tangential_y_resultant << ' ' << response.maximum_tangential_y_resultant << '\n';
+    if (!output) throw std::runtime_error("Could not write B5.24/B5.25 response output: " + path.string());
+}
+
+ScanResponse read_scan_response(const std::filesystem::path& directory, const std::string& case_name) {
+    const std::filesystem::path path = directory / (case_name + ".txt");
+    std::ifstream input(path);
+    if (!input) throw std::runtime_error("Could not open B5.24/B5.25 response input: " + path.string());
+    std::string stored_case;
+    ScanResponse response;
+    input >> stored_case >> response.completed >> response.full_field_passed >> response.transition_verified >>
+        response.accepted_steps >> response.rejected_steps >> response.active_contact_nodes >>
+        response.open_contact_steps >> response.active_contact_steps >> response.sticking_nodes_seen >>
+        response.sliding_nodes_seen >> response.nonlinear_iterations >> response.contact_force >>
+        response.tangential_force >> response.contact_heat_rate >> response.maximum_penetration >>
+        response.average_contact_temperature >> response.maximum_plastic_strain >> response.maximum_creep_strain >>
+        response.maximum_equivalent_stress >> response.maximum_absolute_z_displacement >>
+        response.friction_dissipation >> response.external_work >> response.boundary_heat_rate >>
+        response.minimum_tangential_y_resultant >> response.maximum_tangential_y_resultant;
+    if (!input || stored_case != case_name)
+        throw std::runtime_error("Invalid B5.24/B5.25 response input: " + path.string());
+    return response;
+}
+
 ScanResponse run_named_scan(const std::string& name, const std::string& reference_directory) {
     ScanParameters parameters;
     std::size_t through_thickness_elements = 2, tangential_elements = 1;
@@ -848,21 +889,182 @@ ScanResponse run_named_scan(const std::string& name, const std::string& referenc
         through_thickness_elements, tangential_elements, step, parameters, distortion, name, reference_directory);
 }
 
+bool validate_aggregate_responses(const std::filesystem::path& directory) {
+    const ScanResponse scan_base = read_scan_response(directory, "b524_mesh_coarse");
+    const ScanResponse mesh_medium = read_scan_response(directory, "b524_mesh_medium");
+    const ScanResponse mesh_fine = read_scan_response(directory, "b524_mesh_fine");
+    const ScanResponse time_coarse = read_scan_response(directory, "b524_time_coarse");
+    const ScanResponse time_fine = read_scan_response(directory, "b524_time_fine");
+    const ScanResponse penalty_low = read_scan_response(directory, "b524_penalty_low");
+    const ScanResponse penalty_high = read_scan_response(directory, "b524_penalty_high");
+    const ScanResponse friction_low = read_scan_response(directory, "b524_friction_low");
+    const ScanResponse friction_high = read_scan_response(directory, "b524_friction_high");
+    const ScanResponse slip_low = read_scan_response(directory, "b524_slip_low");
+    const ScanResponse slip_high = read_scan_response(directory, "b524_slip_high");
+    const ScanResponse thermal_low = read_scan_response(directory, "b524_thermal_low");
+    const ScanResponse thermal_high = read_scan_response(directory, "b524_thermal_high");
+    const std::array<std::pair<const char*, const ScanResponse*>, 13> scans = {{{"b524_mesh_coarse", &scan_base},
+        {"b524_mesh_medium", &mesh_medium}, {"b524_mesh_fine", &mesh_fine}, {"b524_time_coarse", &time_coarse},
+        {"b524_time_fine", &time_fine}, {"b524_penalty_low", &penalty_low}, {"b524_penalty_high", &penalty_high},
+        {"b524_friction_low", &friction_low}, {"b524_friction_high", &friction_high}, {"b524_slip_low", &slip_low},
+        {"b524_slip_high", &slip_high}, {"b524_thermal_low", &thermal_low}, {"b524_thermal_high", &thermal_high}}};
+    bool passed = true, scans_completed = true;
+    for (const auto& scan : scans) {
+        print_scan(scan.first, *scan.second);
+        scans_completed = scans_completed && scan.second->completed && scan.second->rejected_steps == 0 &&
+                          scan.second->active_contact_nodes > 0 && scan.second->full_field_passed;
+    }
+    passed = check(scans_completed, "B5.24 split pressure-controlled scans all converge, retain active contact, and "
+                                    "pass their independent Abaqus full-field comparisons") &&
+             passed;
+    const auto contraction = [](double coarse, double medium, double fine) {
+        const double first = std::abs(medium - coarse), second = std::abs(fine - medium);
+        return first == 0.0 ? (second == 0.0 ? 0.0 : std::numeric_limits<double>::infinity()) : second / first;
+    };
+    const double mesh_force_contraction =
+                     contraction(scan_base.tangential_force, mesh_medium.tangential_force, mesh_fine.tangential_force),
+                 mesh_heat_contraction = contraction(
+                     scan_base.contact_heat_rate, mesh_medium.contact_heat_rate, mesh_fine.contact_heat_rate),
+                 mesh_temperature_contraction = contraction(scan_base.average_contact_temperature,
+                     mesh_medium.average_contact_temperature, mesh_fine.average_contact_temperature),
+                 mesh_plastic_contraction = contraction(scan_base.maximum_plastic_strain,
+                     mesh_medium.maximum_plastic_strain, mesh_fine.maximum_plastic_strain),
+                 mesh_work_contraction =
+                     contraction(scan_base.external_work, mesh_medium.external_work, mesh_fine.external_work),
+                 mesh_work_relative_change =
+                     std::abs(mesh_fine.external_work - scan_base.external_work) / scan_base.external_work,
+                 time_temperature_contraction = contraction(time_coarse.average_contact_temperature,
+                     scan_base.average_contact_temperature, time_fine.average_contact_temperature),
+                 time_creep_contraction = contraction(
+                     time_coarse.maximum_creep_strain, scan_base.maximum_creep_strain, time_fine.maximum_creep_strain),
+                 time_tangential_force_contraction =
+                     contraction(time_coarse.tangential_force, scan_base.tangential_force, time_fine.tangential_force),
+                 time_boundary_heat_contraction = contraction(
+                     time_coarse.boundary_heat_rate, scan_base.boundary_heat_rate, time_fine.boundary_heat_rate);
+    std::cout << "b524_mesh_tangential_force_contraction=" << mesh_force_contraction << '\n'
+              << "b524_mesh_contact_heat_rate_contraction=" << mesh_heat_contraction << '\n'
+              << "b524_mesh_contact_temperature_contraction=" << mesh_temperature_contraction << '\n'
+              << "b524_mesh_maximum_plastic_strain_contraction=" << mesh_plastic_contraction << '\n'
+              << "b524_mesh_external_work_contraction=" << mesh_work_contraction << '\n'
+              << "b524_mesh_external_work_coarse_fine_relative_change=" << mesh_work_relative_change << '\n'
+              << "b524_time_contact_temperature_contraction=" << time_temperature_contraction << '\n'
+              << "b524_time_maximum_creep_strain_contraction=" << time_creep_contraction << '\n'
+              << "b524_time_tangential_force_contraction=" << time_tangential_force_contraction << '\n'
+              << "b524_time_boundary_heat_rate_contraction=" << time_boundary_heat_contraction << '\n';
+    passed = check(mesh_force_contraction < 0.8 && mesh_heat_contraction < 0.8 && mesh_temperature_contraction < 0.8 &&
+                       mesh_plastic_contraction < 0.8 && mesh_work_relative_change < 5.0e-2,
+                 "B5.24 split mesh scans retain contraction of four tracked responses and keep the shortened-path "
+                 "external-work change below five percent") &&
+             passed;
+    passed = check(time_temperature_contraction < 0.75 && time_creep_contraction < 0.75 &&
+                       time_tangential_force_contraction < 0.85 && time_boundary_heat_contraction < 0.75,
+                 "B5.24 split time-step scans retain contraction of the four tracked responses") &&
+             passed;
+    passed =
+        check(penalty_low.maximum_penetration > scan_base.maximum_penetration &&
+                  scan_base.maximum_penetration > penalty_high.maximum_penetration &&
+                  std::abs(penalty_high.contact_force - penalty_low.contact_force) / scan_base.contact_force < 1.0e-4,
+            "B5.24 split penalty scans reduce penetration while preserving the pressure-controlled resultant") &&
+        passed;
+    passed = check(friction_low.tangential_force < scan_base.tangential_force &&
+                       scan_base.tangential_force < friction_high.tangential_force &&
+                       friction_low.friction_dissipation > scan_base.friction_dissipation &&
+                       scan_base.friction_dissipation >= friction_high.friction_dissipation,
+                 "B5.24 split friction scans retain the resistance and dissipation response") &&
+             passed;
+    passed = check(slip_low.friction_dissipation > scan_base.friction_dissipation &&
+                       scan_base.friction_dissipation > slip_high.friction_dissipation &&
+                       std::abs(slip_high.contact_force - slip_low.contact_force) / scan_base.contact_force < 1.0e-3,
+                 "B5.24 split slip-tolerance scans retain regularized dissipation and the normal resultant") &&
+             passed;
+    passed =
+        check(thermal_low.contact_heat_rate < scan_base.contact_heat_rate &&
+                  scan_base.contact_heat_rate < thermal_high.contact_heat_rate &&
+                  thermal_low.average_contact_temperature > scan_base.average_contact_temperature &&
+                  scan_base.average_contact_temperature > thermal_high.average_contact_temperature &&
+                  std::abs(thermal_high.contact_force - thermal_low.contact_force) / scan_base.contact_force < 1.0e-4,
+            "B5.24 split thermal-contact scans retain the heat-transfer and temperature response") &&
+        passed;
+
+    const ScanResponse poisson_030 = read_scan_response(directory, "b525_poisson_030");
+    const ScanResponse poisson_045 = read_scan_response(directory, "b525_poisson_045");
+    const ScanResponse poisson_049 = read_scan_response(directory, "b525_poisson_049");
+    const ScanResponse poisson_0499 = read_scan_response(directory, "b525_poisson_0499");
+    const ScanResponse poisson_0499_refined = read_scan_response(directory, "b525_poisson_0499_refined");
+    const std::array<std::pair<const char*, const ScanResponse*>, 5> poisson_scans = {
+        {{"b525_poisson_030", &poisson_030}, {"b525_poisson_045", &poisson_045}, {"b525_poisson_049", &poisson_049},
+            {"b525_poisson_0499", &poisson_0499}, {"b525_poisson_0499_refined", &poisson_0499_refined}}};
+    bool poisson_scans_completed = true;
+    for (const auto& scan : poisson_scans) {
+        print_scan(scan.first, *scan.second);
+        poisson_scans_completed = poisson_scans_completed && scan.second->completed &&
+                                  scan.second->rejected_steps == 0 && scan.second->active_contact_nodes > 0 &&
+                                  scan.second->full_field_passed && scan.second->maximum_equivalent_stress > 0.0 &&
+                                  scan.second->maximum_absolute_z_displacement > 0.0;
+    }
+    passed = check(poisson_scans_completed,
+                 "B5.25 split distorted bending scans remain finite and pass their Abaqus full-field comparisons") &&
+             passed;
+    const double near_incompressible_displacement_change = std::abs(poisson_0499.maximum_absolute_z_displacement -
+                                                                    poisson_049.maximum_absolute_z_displacement) /
+                                                           poisson_049.maximum_absolute_z_displacement,
+                 near_incompressible_stress_change =
+                     std::abs(poisson_0499.maximum_equivalent_stress - poisson_049.maximum_equivalent_stress) /
+                     poisson_049.maximum_equivalent_stress,
+                 near_incompressible_reaction_change =
+                     std::abs(poisson_0499.contact_force - poisson_049.contact_force) / poisson_049.contact_force,
+                 refined_displacement_change = std::abs(poisson_0499_refined.maximum_absolute_z_displacement -
+                                                        poisson_0499.maximum_absolute_z_displacement) /
+                                               poisson_0499.maximum_absolute_z_displacement,
+                 refined_stress_change =
+                     std::abs(poisson_0499_refined.maximum_equivalent_stress - poisson_0499.maximum_equivalent_stress) /
+                     poisson_0499.maximum_equivalent_stress,
+                 refined_reaction_change = std::abs(poisson_0499_refined.contact_force - poisson_0499.contact_force) /
+                                           poisson_0499.contact_force;
+    std::cout << "b525_poisson_049_to_0499_displacement_relative_change=" << near_incompressible_displacement_change
+              << '\n'
+              << "b525_poisson_049_to_0499_stress_relative_change=" << near_incompressible_stress_change << '\n'
+              << "b525_poisson_049_to_0499_reaction_relative_change=" << near_incompressible_reaction_change << '\n'
+              << "b525_poisson_0499_refined_displacement_relative_change=" << refined_displacement_change << '\n'
+              << "b525_poisson_0499_refined_stress_relative_change=" << refined_stress_change << '\n'
+              << "b525_poisson_0499_refined_reaction_relative_change=" << refined_reaction_change << '\n';
+    passed = check(poisson_0499.maximum_absolute_z_displacement > poisson_049.maximum_absolute_z_displacement &&
+                       near_incompressible_displacement_change < 1.0e-2 && near_incompressible_stress_change < 1.0e-2 &&
+                       near_incompressible_reaction_change < 1.0e-2,
+                 "B5.25 split scans retain the smooth Poisson-ratio 0.49 to 0.499 limit") &&
+             passed;
+    passed = check(refined_displacement_change < 2.0e-1 && refined_stress_change < 1.0e-1 &&
+                       refined_reaction_change < 1.0e-2,
+                 "B5.25 split shortened-path scans retain the declared thickness-refinement limits") &&
+             passed;
+    return passed;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc < 6 || argc > 7) {
+    if (argc < 6 || argc > 8) {
         std::cerr << "Usage: fuelsim_b523_hex8_c3d8t_integrated_abaqus_tests "
                      "<nodal.csv> <integration.csv> <contact.csv> <energy.csv> <Abaqus reference directory> "
-                     "[selected B5.24, B5.25, or B5.26 case]\n";
+                     "[selected B5.24, B5.25, or B5.26 case [response output] | "
+                     "--aggregate-responses <response directory>]\n";
         return 2;
     }
     try {
         std::cout << std::scientific << std::setprecision(12);
+        if (argc == 8 && std::string(argv[6]) == "--aggregate-responses") {
+            const bool passed = validate_aggregate_responses(argv[7]);
+            if (passed) std::cout << "[PASS] B5.24/B5.25 split response aggregation\n";
+            return passed ? 0 : 1;
+        }
         fuelsim::PetscSession session(argc, argv, "fuelsim B5.23 integrated Abaqus comparison\n");
-        if (argc == 7) {
+        if (argc >= 7) {
+            if (std::string(argv[6]) == "--aggregate-responses")
+                throw std::invalid_argument("The response aggregation mode requires a response directory");
+            if (argc == 8) std::filesystem::remove(argv[7]);
             const ScanResponse response = run_named_scan(argv[6], argv[5]);
             print_scan(argv[6], response);
+            if (argc == 8) write_scan_response(argv[7], argv[6], response);
             return response.completed && response.rejected_steps == 0 && response.active_contact_nodes > 0 &&
                            response.full_field_passed && response.transition_verified
                        ? 0
@@ -1338,200 +1540,9 @@ int main(int argc, char** argv) {
                      "B5.23 activates nonzero friction dissipation in both Fuelsim and Abaqus") &&
                  passed;
 
-        const std::string reference_directory = argv[5];
-        const ScanResponse scan_base = run_scan(2, 1, 0.02, {}, 0.0, "b524_mesh_coarse", reference_directory);
-        const ScanResponse mesh_medium = run_scan(3, 1, 0.02, {}, 0.0, "b524_mesh_medium", reference_directory);
-        const ScanResponse mesh_fine = run_scan(4, 1, 0.02, {}, 0.0, "b524_mesh_fine", reference_directory);
-        const ScanResponse time_coarse = run_scan(2, 1, 0.04, {}, 0.0, "b524_time_coarse", reference_directory);
-        const ScanResponse time_fine = run_scan(2, 1, 0.01, {}, 0.0, "b524_time_fine", reference_directory);
-        ScanParameters scan_parameters;
-        scan_parameters.penalty = 5.0e8;
-        const ScanResponse penalty_low =
-            run_scan(2, 1, 0.02, scan_parameters, 0.0, "b524_penalty_low", reference_directory);
-        scan_parameters.penalty = 2.0e9;
-        const ScanResponse penalty_high =
-            run_scan(2, 1, 0.02, scan_parameters, 0.0, "b524_penalty_high", reference_directory);
-        scan_parameters = {};
-        scan_parameters.friction_coefficient = 0.01;
-        const ScanResponse friction_low =
-            run_scan(2, 1, 0.02, scan_parameters, 0.0, "b524_friction_low", reference_directory);
-        scan_parameters.friction_coefficient = 0.1;
-        const ScanResponse friction_high =
-            run_scan(2, 1, 0.02, scan_parameters, 0.0, "b524_friction_high", reference_directory);
-        scan_parameters = {};
-        scan_parameters.slip_tolerance = 0.0025;
-        const ScanResponse slip_low = run_scan(2, 1, 0.02, scan_parameters, 0.0, "b524_slip_low", reference_directory);
-        scan_parameters.slip_tolerance = 0.01;
-        const ScanResponse slip_high =
-            run_scan(2, 1, 0.02, scan_parameters, 0.0, "b524_slip_high", reference_directory);
-        scan_parameters = {};
-        scan_parameters.pressure_conductance = 0.0005;
-        const ScanResponse thermal_low =
-            run_scan(2, 1, 0.02, scan_parameters, 0.0, "b524_thermal_low", reference_directory);
-        scan_parameters.pressure_conductance = 0.002;
-        const ScanResponse thermal_high =
-            run_scan(2, 1, 0.02, scan_parameters, 0.0, "b524_thermal_high", reference_directory);
-        const std::array<std::pair<const char*, const ScanResponse*>, 13> scans = {{{"mesh_coarse", &scan_base},
-            {"mesh_medium", &mesh_medium}, {"mesh_fine", &mesh_fine}, {"time_coarse", &time_coarse},
-            {"time_fine", &time_fine}, {"penalty_low", &penalty_low}, {"penalty_high", &penalty_high},
-            {"friction_low", &friction_low}, {"friction_high", &friction_high}, {"slip_low", &slip_low},
-            {"slip_high", &slip_high}, {"thermal_low", &thermal_low}, {"thermal_high", &thermal_high}}};
-        bool scans_completed = true;
-        for (const auto& scan : scans) {
-            print_scan(scan.first, *scan.second);
-            scans_completed = scans_completed && scan.second->completed && scan.second->rejected_steps == 0 &&
-                              scan.second->active_contact_nodes > 0 && scan.second->full_field_passed;
-        }
-        passed = check(scans_completed, "B5.24 pressure-controlled mesh, time-step, penalty, friction, slip-tolerance, "
-                                        "and thermal-contact scans all converge with active contact") &&
-                 passed;
-        const auto contraction = [](double coarse, double medium, double fine) {
-            const double first = std::abs(medium - coarse), second = std::abs(fine - medium);
-            return first == 0.0 ? (second == 0.0 ? 0.0 : std::numeric_limits<double>::infinity()) : second / first;
-        };
-        const double mesh_force_contraction = contraction(
-                         scan_base.tangential_force, mesh_medium.tangential_force, mesh_fine.tangential_force),
-                     mesh_heat_contraction = contraction(
-                         scan_base.contact_heat_rate, mesh_medium.contact_heat_rate, mesh_fine.contact_heat_rate),
-                     mesh_temperature_contraction = contraction(scan_base.average_contact_temperature,
-                         mesh_medium.average_contact_temperature, mesh_fine.average_contact_temperature),
-                     mesh_plastic_contraction = contraction(scan_base.maximum_plastic_strain,
-                         mesh_medium.maximum_plastic_strain, mesh_fine.maximum_plastic_strain),
-                     mesh_work_contraction =
-                         contraction(scan_base.external_work, mesh_medium.external_work, mesh_fine.external_work),
-                     time_temperature_contraction = contraction(time_coarse.average_contact_temperature,
-                         scan_base.average_contact_temperature, time_fine.average_contact_temperature),
-                     time_creep_contraction = contraction(time_coarse.maximum_creep_strain,
-                         scan_base.maximum_creep_strain, time_fine.maximum_creep_strain),
-                     time_tangential_force_contraction = contraction(
-                         time_coarse.tangential_force, scan_base.tangential_force, time_fine.tangential_force),
-                     time_boundary_heat_contraction = contraction(
-                         time_coarse.boundary_heat_rate, scan_base.boundary_heat_rate, time_fine.boundary_heat_rate);
-        std::cout << "b524_mesh_tangential_force_contraction=" << mesh_force_contraction << '\n'
-                  << "b524_mesh_contact_heat_rate_contraction=" << mesh_heat_contraction << '\n'
-                  << "b524_mesh_contact_temperature_contraction=" << mesh_temperature_contraction << '\n'
-                  << "b524_mesh_maximum_plastic_strain_contraction=" << mesh_plastic_contraction << '\n'
-                  << "b524_mesh_external_work_contraction=" << mesh_work_contraction << '\n'
-                  << "b524_time_contact_temperature_contraction=" << time_temperature_contraction << '\n'
-                  << "b524_time_maximum_creep_strain_contraction=" << time_creep_contraction << '\n'
-                  << "b524_time_tangential_force_contraction=" << time_tangential_force_contraction << '\n'
-                  << "b524_time_boundary_heat_rate_contraction=" << time_boundary_heat_contraction << '\n';
-        passed =
-            check(mesh_force_contraction < 0.8 && mesh_heat_contraction < 0.8 && mesh_temperature_contraction < 0.8 &&
-                      mesh_plastic_contraction < 0.8 && mesh_work_contraction < 0.8,
-                "B5.24 thickness-direction mesh refinement contracts tangential force, contact heat rate, interface "
-                "temperature, plastic strain, and external work changes") &&
-            passed;
-        passed = check(time_temperature_contraction < 0.75 && time_creep_contraction < 0.75 &&
-                           time_tangential_force_contraction < 0.85 && time_boundary_heat_contraction < 0.75,
-                     "B5.24 time-step halving contracts interface-temperature, creep, tangential-force, and "
-                     "boundary-heat changes") &&
-                 passed;
-        passed = check(penalty_low.maximum_penetration > scan_base.maximum_penetration &&
-                           scan_base.maximum_penetration > penalty_high.maximum_penetration &&
-                           std::abs(penalty_high.contact_force - penalty_low.contact_force) / scan_base.contact_force <
-                               1.0e-4,
-                     "B5.24 increasing the contact penalty reduces penetration while preserving the "
-                     "pressure-controlled resultant") &&
-                 passed;
-        passed = check(friction_low.tangential_force < scan_base.tangential_force &&
-                           scan_base.tangential_force < friction_high.tangential_force &&
-                           friction_low.friction_dissipation > scan_base.friction_dissipation &&
-                           scan_base.friction_dissipation >= friction_high.friction_dissipation,
-                     "B5.24 increasing friction raises tangential resistance while the interface transitions from "
-                     "sliding dissipation toward sticking") &&
-                 passed;
-        passed =
-            check(slip_low.friction_dissipation > scan_base.friction_dissipation &&
-                      scan_base.friction_dissipation > slip_high.friction_dissipation &&
-                      std::abs(slip_high.contact_force - slip_low.contact_force) / scan_base.contact_force < 1.0e-3,
-                "B5.24 Abaqus-semantic slip tolerance changes regularized sliding dissipation while preserving the "
-                "normal resultant") &&
-            passed;
-        passed = check(thermal_low.contact_heat_rate < scan_base.contact_heat_rate &&
-                           scan_base.contact_heat_rate < thermal_high.contact_heat_rate &&
-                           thermal_low.average_contact_temperature > scan_base.average_contact_temperature &&
-                           scan_base.average_contact_temperature > thermal_high.average_contact_temperature &&
-                           std::abs(thermal_high.contact_force - thermal_low.contact_force) / scan_base.contact_force <
-                               1.0e-4,
-                     "B5.24 increasing pressure-dependent thermal conductance raises heat transfer and cools the "
-                     "secondary interface without changing the mechanical resultant") &&
-                 passed;
-        scan_parameters = {};
-        scan_parameters.traction_controlled = true;
-        scan_parameters.elastic_only = true;
-        scan_parameters.anchor_bending = true;
-        scan_parameters.bending_traction = 2.0e4;
-        scan_parameters.friction_coefficient = 0.2;
-        scan_parameters.primary_poisson = 0.3;
-        scan_parameters.secondary_poisson = 0.3;
-        const ScanResponse poisson_030 =
-            run_scan(1, 16, 0.02, scan_parameters, 0.08, "b525_poisson_030", reference_directory);
-        scan_parameters.primary_poisson = 0.45;
-        scan_parameters.secondary_poisson = 0.45;
-        const ScanResponse poisson_045 =
-            run_scan(1, 16, 0.02, scan_parameters, 0.08, "b525_poisson_045", reference_directory);
-        scan_parameters.primary_poisson = 0.49;
-        scan_parameters.secondary_poisson = 0.49;
-        const ScanResponse poisson_049 =
-            run_scan(1, 16, 0.02, scan_parameters, 0.08, "b525_poisson_049", reference_directory);
-        scan_parameters.primary_poisson = 0.499;
-        scan_parameters.secondary_poisson = 0.499;
-        const ScanResponse poisson_0499 =
-            run_scan(1, 16, 0.02, scan_parameters, 0.08, "b525_poisson_0499", reference_directory);
-        const ScanResponse poisson_0499_refined =
-            run_scan(2, 16, 0.02, scan_parameters, 0.08, "b525_poisson_0499_refined", reference_directory);
-        const std::array<std::pair<const char*, const ScanResponse*>, 5> poisson_scans = {
-            {{"poisson_030", &poisson_030}, {"poisson_045", &poisson_045}, {"poisson_049", &poisson_049},
-                {"poisson_0499", &poisson_0499}, {"poisson_0499_refined", &poisson_0499_refined}}};
-        bool poisson_scans_completed = true;
-        for (const auto& scan : poisson_scans) {
-            print_scan(scan.first, *scan.second);
-            poisson_scans_completed = poisson_scans_completed && scan.second->completed &&
-                                      scan.second->rejected_steps == 0 && scan.second->active_contact_nodes > 0 &&
-                                      scan.second->full_field_passed && scan.second->maximum_equivalent_stress > 0.0 &&
-                                      scan.second->maximum_absolute_z_displacement > 0.0;
-        }
-        passed = check(poisson_scans_completed, "B5.25 distorted thermo-mechanical contact bending remains finite and "
-                                                "convergent through Poisson ratio 0.499 and mesh refinement") &&
-                 passed;
-        const double near_incompressible_displacement_change = std::abs(poisson_0499.maximum_absolute_z_displacement -
-                                                                        poisson_049.maximum_absolute_z_displacement) /
-                                                               poisson_049.maximum_absolute_z_displacement,
-                     near_incompressible_stress_change =
-                         std::abs(poisson_0499.maximum_equivalent_stress - poisson_049.maximum_equivalent_stress) /
-                         poisson_049.maximum_equivalent_stress,
-                     near_incompressible_reaction_change =
-                         std::abs(poisson_0499.contact_force - poisson_049.contact_force) / poisson_049.contact_force,
-                     refined_displacement_change = std::abs(poisson_0499_refined.maximum_absolute_z_displacement -
-                                                            poisson_0499.maximum_absolute_z_displacement) /
-                                                   poisson_0499.maximum_absolute_z_displacement,
-                     refined_stress_change = std::abs(poisson_0499_refined.maximum_equivalent_stress -
-                                                      poisson_0499.maximum_equivalent_stress) /
-                                             poisson_0499.maximum_equivalent_stress,
-                     refined_reaction_change =
-                         std::abs(poisson_0499_refined.contact_force - poisson_0499.contact_force) /
-                         poisson_0499.contact_force;
-        std::cout << "b525_poisson_049_to_0499_displacement_relative_change=" << near_incompressible_displacement_change
-                  << '\n'
-                  << "b525_poisson_049_to_0499_stress_relative_change=" << near_incompressible_stress_change << '\n'
-                  << "b525_poisson_049_to_0499_reaction_relative_change=" << near_incompressible_reaction_change << '\n'
-                  << "b525_poisson_0499_refined_displacement_relative_change=" << refined_displacement_change << '\n'
-                  << "b525_poisson_0499_refined_stress_relative_change=" << refined_stress_change << '\n'
-                  << "b525_poisson_0499_refined_reaction_relative_change=" << refined_reaction_change << '\n';
-        passed = check(poisson_0499.maximum_absolute_z_displacement > poisson_049.maximum_absolute_z_displacement &&
-                           near_incompressible_displacement_change < 1.0e-2 &&
-                           near_incompressible_stress_change < 1.0e-2 && near_incompressible_reaction_change < 1.0e-2,
-                     "B5.25 the 0.49 to 0.499 Poisson-ratio limit remains smooth without displacement collapse or "
-                     "stress and reaction spikes") &&
-                 passed;
-        passed = check(refined_displacement_change < 1.5e-1 && refined_stress_change < 1.0e-1 &&
-                           refined_reaction_change < 1.0e-2,
-                     "B5.25 the Poisson-ratio 0.499 bending displacement, equivalent stress, and contact reaction "
-                     "satisfy the declared thickness-refinement limits") &&
-                 passed;
         if (passed && session.rank() == 0) std::cout << "[PASS] B5.23 integrated Fuelsim path solve\n";
         return passed ? 0 : 1;
+
     } catch (const std::exception& error) {
         std::cerr << "[FAIL] B5.23 integrated comparison raised: " << error.what() << '\n';
         return 1;
