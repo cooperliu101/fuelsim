@@ -13,28 +13,36 @@
 
 ## 目标与当前范围
 
-`fuelsim` 使用 C++17 开发核燃料性能有限元程序。当前生产入口从一个 Exodus
-文件自由组合任意数量的 2D 轴对称 RZ 区域，并选择稳态或瞬态求解：
+`fuelsim` 使用 C++17 开发核燃料性能有限元程序。当前生产入口读取一个
+Exodus 文件，显式选择二维轴对称 RZ 或三维 Cartesian 几何，使用相应网格
+中的任意数量命名区域，并选择稳态或瞬态求解：
 
 ```text
-体单元/界面固定 12 DOF -> ADlite 局部 Jacobian
-                       -> PETSc 统一稀疏装配 -> SNES Newton
+RZ Quad4 体单元 12 DOF / 界面候选 12 DOF
+三维 HEX8 体单元 32 DOF / HEX20 体单元 68 DOF
+                    -> ADlite 窄局部 Jacobian
+                    -> PETSc 统一稀疏装配 -> SNES Newton
 ```
 
-接触使用 secondary-side STS 热接触、secondary 节点到 primary 线段的唯一
-NTS 机械接触和 field-major 全局自由度：
+轴对称接触使用 secondary-side surface-to-surface（STS，面到面）热接触和
+secondary 节点到 primary 线段的唯一 node-to-surface（NTS，节点到面）机械
+接触；三维接触支持 NTS 和 STS。全局自由度均采用 field-major 排列：
 
 ```text
-[T(:), ur(:), uz(:)]
+RZ:       [T(:), ur(:), uz(:)]
+Cartesian:[T(:), ux(:), uy(:), uz(:)]
 ```
 
-M2.1 在相同空间离散上增加 Backward Euler 一致热容、物理时间步和
-committed/trial/commit/rollback。M2.2 增加通用 J2 Norton 蠕变、J2
+路线名称 M2.1 最初在 RZ Quad4 空间离散上增加 Backward Euler 一致热容、
+物理时间步和 committed/trial/commit/rollback；三维一阶 HEX8 后续按 Abaqus
+规则采用角点集总热容。M2.2 增加通用 J2 Norton 蠕变、J2
 线性硬化塑性及两者在同一材料点的全隐式耦合；当前不包含真实燃料或包壳
-经验模型。每个区域可独立选择 `small` 或 `finite` 应变；有限应变采用与
-MOOSE 默认一致的轴对称增量 Taylor 应变、Rashid 转动、历史张量客观旋转和
-当前构形力学弱式，已在非匹配网格 PCMI 中与 MOOSE 对比。有限应变
-follower pressure 另有独立 MOOSE 对比；非共轴耦合塑性—蠕变路径另以
+经验模型。每个区域可独立选择 `small` 或 `finite` 应变。轴对称有限应变采用
+与 MOOSE 默认一致的增量 Taylor 应变、Rashid 转动、历史张量客观旋转和当前
+构形力学弱式，已在非匹配网格 PCMI 中与 MOOSE 对比；三维有限应变的对应
+离散采用 Abaqus 风格的增量应变和 Hughes-Winget 客观转动，并另以 Abaqus 和
+MOOSE 算例鉴定。轴对称有限应变 follower pressure 另有
+独立 MOOSE 对比；非共轴耦合塑性—蠕变路径另以
 畸变四单元、100 个时间步和超过 25 度的转动逐步对比 MOOSE，并包含当前
 构形压力和分量牵引。
 
@@ -58,27 +66,44 @@ follower pressure 另有独立 MOOSE 对比；非共轴耦合塑性—蠕变路�
 
 ## 数值契约
 
-- 局部自由度顺序固定为
-  `[T0..T3, ur0..ur3, uz0..uz3]`。
-- ADlite 只按体单元或界面局部量播种，禁止按全局自由度播种：RZ 与三维 Hex8
-  体单元均采用两级窄播种——RZ 运动学链按 4 个面内位移梯度分量、积分点径向
+- 局部自由度顺序按单元拓扑固定：RZ Quad4 为
+  `[T0..T3, ur0..ur3, uz0..uz3]`，三维 HEX8 为
+  `[T0..T7, ux0..ux7, uy0..uy7, uz0..uz7]`，混合阶 HEX20 为
+  `[T0..T7, ux0..ux19, uy0..uy19, uz0..uz19]`。
+- ADlite 只按体单元或界面局部量播种，禁止按全局自由度播种。RZ 运动学链按
+  4 个面内位移梯度分量、积分点径向
   位移和积分点温度（宽度 6）播种，本构关系按 4 个应变分量加温度（宽度 5）
   播种并经 `adlite::compose` 挂回运动学链，单元 12×12 Jacobian 再由参考形
-  函数梯度与形函数的线性闭式链组装；Hex8 运动学链按 9 个位移梯度分量加
+  函数梯度与形函数的线性闭式链组装。HEX8 运动学链按 9 个位移梯度分量加
   积分点温度（宽度 10）播种，本构关系按 6 个应变分量加温度（宽度 7）播种，
-  同样经 `adlite::compose` 挂回并由闭式链组装 32×32 Jacobian；Quad4Face
-  边界与三维接触仍分别按 16 和 32 个局部自由度恒等播种。
+  同样经 `adlite::compose` 挂回并由闭式链组装 32×32 Jacobian；HEX20 使用
+  相同的宽度 10 运动学链和宽度 7 本构链，并闭式组装 68×68 Jacobian。三维
+  HEX8 Quad4 面边界为 16 个局部自由度，两个 Quad4 面的接触候选为 32 个；
+  HEX20 Quad8 面边界为 28 个局部自由度，两个 Quad8 面的接触候选为 56 个。
+  这些面边界和接触候选按各自局部自由度恒等播种；轴对称界面候选固定为
+  12 个局部自由度。
 - RZ 积分测度为完整的 `2*pi*r*detJ*w`。
 - 应变和应力分量顺序为 `[rr, zz, hoop, rz]`，`rz` 是张量剪应变。
-- 小应变区域在参考构形装配力学；有限应变区域从轴对称变形梯度形成
+- 三维 HEX8 力学采用与 Abaqus C3D8T 一致的选择性减缩体积积分。小应变时偏应变
+  保留八点积分，每个积分点的应变迹替换为按参考体积加权的单元平均迹。平均迹
+  对节点位移的闭式链加入 32×32 Jacobian，不得扩大宽度 10 的运动学播种或宽度
+  7 的本构播种。有限应变时采用由 B5.19 鉴定的 C3D8T 有限应变选择性体积处理，
+  体积平均量、当前积分点体积及其闭式位移链必须同时进入残量和 Jacobian。
+  RZ Quad4 和三维 HEX20 不采用这条 HEX8 专用规则。
+- 小应变区域在参考构形装配力学。轴对称有限应变区域从变形梯度形成
   `Fhat=F_new*inverse(F_old)`，使用 MOOSE 默认 Taylor 应变增量和 Rashid
   增量转动，并用 Cauchy 应力、当前构形形函数梯度和
   `2*pi*r_current*detJ_current*w` 装配内力。
-- 有限应变试探态必须保持面内变形 Jacobian、`F_hoop` 和当前半径为正；
-  非法态必须作为 domain error 进入线搜索或拒步，不得夹持。
-- 热传导和 M2 热容继续在参考构形积分。有限应变区域的 pressure 必须使用
-  当前半径、当前法向和当前表面测度形成 follower load；小应变 pressure 与
-  所有分量 traction 使用参考构形。
+- 三维有限应变区域使用 Abaqus 风格的增量应变、Hughes-Winget 客观转动、
+  Cauchy 应力、当前构形形函数梯度和当前体积测度装配力学。轴对称试探态必须
+  保持面内变形 Jacobian、`F_hoop` 和当前半径为正；三维试探态必须保持
+  committed、incremental 和 current 构形 Jacobian 为正，HEX8 有限应变选择性
+  体积积分还必须保持 midpoint 构形 Jacobian 为正。非法态必须作为 domain
+  error 进入线搜索或拒绝这个时间步、缩小步长重试，不得夹持。
+- RZ Quad4 和三维 HEX20 的热传导、体热源及 Backward Euler 热容在参考构形
+  积分。三维 HEX8 小应变的热传导、体热源、角点热容、表面热流和对流使用参考
+  构形；有限应变的上述五类热算子均使用当前构形。三维 HEX8 有限应变热残量
+  必须保留对位移的几何 Jacobian。
 - 有限应变材料必须在中间构形更新，并在步末以增量转动客观旋转应力以及
   弹性、塑性和蠕变张量历史；等效塑性和等效蠕变标量不得旋转。
 - MOOSE 默认 `ADComputeMultipleInelasticStress` 只客观旋转应力、弹性应变和
@@ -89,8 +114,10 @@ follower pressure 另有独立 MOOSE 对比；非共轴耦合塑性—蠕变路�
 - 历史变量使用 `double` 保存；只有 trial state 使用 ADlite。
 - RZ Quad4 与三维 HEX20 热容使用参考构形一致质量矩阵。三维 HEX8 按 Abaqus
   一阶热单元规则在八个自然坐标角点做节点积分，第 `i` 个节点的热容残量为
-  `detJ_i*rho(T_i)*cp(T_i)*(T_i_new-T_i_old)/dt`，因此热容 Jacobian 为对角矩阵；
-  三种体单元都不包含位移惯性。
+  `detJ_i*rho(T_i)*cp(T_i)*(T_i_new-T_i_old)/dt`。小应变的 `detJ_i` 为参考构形
+  角点 Jacobian 行列式，有限应变则为当前构形角点 Jacobian 行列式。热容的
+  温度—温度块按节点对角集总；有限应变的热残量—位移几何块一般不为零，因此
+  不能把整个 32×32 Jacobian 称为对角矩阵。三种体单元都不包含位移惯性。
 - M2 的所有 Newton、线搜索和失败重试必须从同一 committed 积分点状态
   重算 trial；只能在最终收敛解上重算一次并提交。
 - Backward Euler step-doubling 必须从同一完整 committed 状态比较节点场、
@@ -116,6 +143,8 @@ follower pressure 另有独立 MOOSE 对比；非共轴耦合塑性—蠕变路�
   几何和 committed 状态仍在各 rank 复制；PETSc 回调只收集本 rank 贡献及
   接触搜索依赖所需的影子自由度，输出文件只由 rank 0 写入。
 - 不隐式夹持异常材料值或几何值；非法结构输入应明确报错。
+- 以下从接触间隙到机械端点支承的线段链契约仅适用于二维轴对称 RZ 接触；
+  三维 Cartesian 接触使用随后单列的面搜索契约。
 - 接触间隙统一使用当前轴对称 RZ 几何：`g=(x_primary-x_secondary)·n_current`，
   其中 `n_current` 是由当前 primary 线段切向构造且从 secondary 指向 primary
   的单位法向；开放为正、穿透为负。圆柱侧面、水平端面和斜面不得分设不同的
@@ -135,6 +164,8 @@ follower pressure 另有独立 MOOSE 对比；非共轴耦合塑性—蠕变路�
   牵引上限为 `mu*p`，切向方向由当前构形投影确定。摩擦粘滑状态必须进入
   committed/trial/commit/rollback 事务和检查点；`mu=0` 必须保持无摩擦路径
   的逐位结果。
+- 当前范围不把摩擦耗散作为热方程热源。可以保留摩擦耗散能诊断，但 Abaqus
+  热力耦合对标必须关闭摩擦发热，不得把该反馈链列为当前完成条件。
 - 法向增广拉格朗日接触使用非负法向乘子和互补更新；自动罚刚度按两侧法向
   柔度串联及界面网格尺度计算，显式输入优先于自动值。
 - 热接触在构造期按参考 secondary-to-primary STS 重叠分片生成 secondary 侧
@@ -145,7 +176,7 @@ follower pressure 另有独立 MOOSE 对比；非共轴耦合塑性—蠕变路�
   外插或继续使用陈旧候选。只装配唯一活动候选，在当前 primary 法向上计算通用
   RZ 有符号间隙，在 secondary 当前轴对称表面测度上积分，并将严格相反的热流
   投影到 primary 节点。
-- 机械接触采用唯一 NTS 投影；secondary 节点反力按当前半边面积集总，并按
+- 轴对称机械接触采用唯一 NTS 投影；secondary 节点反力按当前半边面积集总，并按
   primary 线段形函数分配相反反力。
 - 机械 NTS 必须在当前构形上计算轴向或一般法向投影；每次状态验证都必须按
   当前几何重建完整 primary 链的候选段，并保持每个 secondary 节点至多一个
@@ -155,13 +186,24 @@ follower pressure 另有独立 MOOSE 对比；非共轴耦合塑性—蠕变路�
   只有整条 primary 链的首端和末端可以保留所属端点。不得让内部相邻线段重复
   装配，也不得让陈旧候选伪装成有效投影。机械接触可保留参考链首尾节点的
   物理端点支承；该机械专用端点夹持不得用于热接触积分点。
-- 已激活机械接触中任一 secondary 节点若从其全部候选线段失去投影，必须通过
+- 已激活轴对称机械接触中任一 secondary 节点若从其全部候选线段失去投影，
+  必须通过
   `validate_state` 明确拒绝当前 Newton 状态并进入线搜索或拒步恢复，不得静默
   置零接触力或继续使用端点力。
-- 热接触与机械接触都必须离散守恒。
-- 有限应变 pressure 使用当前法向与当前表面测度；pressure 和 traction 省略
-  `configuration` 时随应变形式采用推荐构形（小应变参考、有限应变当前），
-  显式选择时方向仍固定为全局 R/Z 分量，但当前周长和边长必须进入 ADlite 几何切线。
+- 轴对称热接触与机械接触都必须离散守恒。
+- 三维 Cartesian 接触在当前构形上支持 NTS 和 STS，并分别支持小滑移和有限
+  滑移。每个 secondary 节点或积分约束在一次状态验证中至多选择一个有效
+  primary 面候选；内部面边界不得重复归属，首次装配必须为所有潜在候选预留
+  稀疏零块。热流和机械反力在两侧必须严格离散守恒。
+- 三维热接触、NTS 机械接触、小滑移机械接触和带摩擦的有限滑移机械接触失去
+  全部有效投影时，必须由 `validate_state` 拒绝当前 Newton 状态。只有无摩擦
+  HEX8 有限滑移 STS 的平均表面约束可以在滑出对面后自然释放，并贡献严格零
+  残量；不得把这个例外扩大到其他接触离散。
+- pressure 和 traction 省略 `configuration` 时随应变形式采用推荐构形，即
+  小应变使用参考构形、有限应变使用当前构形；显式指定 `reference` 或 `current`
+  时必须遵从指定构形。pressure 使用所选构形的法向和表面测度；分量 traction
+  的方向始终固定为全局分量，但使用所选构形的表面测度。当前构形的周长、边长
+  或三维面测度必须进入 ADlite 几何切线。
 - 一个 M1 载荷路径只能构造一次问题几何，并在所有载荷步复用同一组
   SNES、Vec、Mat、非零结构和回调缓冲区；载荷步只更新具体热源参数。
 - 内部计时使用单调时钟，至少区分问题构造、求解器设置、非线性求解、残量
@@ -169,39 +211,42 @@ follower pressure 另有独立 MOOSE 对比；非共轴耦合塑性—蠕变路�
 
 ## 架构边界
 
-- `fuelsim_core`：网格、自由度、材料、Quad4 RZ 核和问题定义，仅依赖
-  ADlite。
+- `fuelsim_core`：网格、自由度、材料、Quad4 RZ、HEX8、混合阶 HEX20 数值核
+  和问题定义，仅依赖 ADlite。
 - `fuelsim_io`：严格解析带版本号的 `.fsi` 输入卡，并使用 Exodus API 在
-  `.e` 文件和 fuelsim 自有非结构 Quad4 网格及结果之间转换；保留元素块、
-  节点集和边集的 ID 与名称，不使用 DMPlex，不暴露 Exodus 类型，也不实现
-  对象工厂、表达式求值或兼容别名。
+  `.e` 文件和 fuelsim 自有非结构 Quad4、HEX8 或 HEX20 网格及结果之间转换；
+  保留元素块、节点集和边集的 ID 与名称，不使用 DMPlex，不暴露 Exodus 类型，
+  也不实现对象工厂、表达式求值或兼容别名。
 - `fuelsim_solver`：PETSc 会话、稀疏装配、SNES 求解、稳态加载和瞬态时间
   推进。
 - `NonlinearProblem` 只作为求解器端口；不得扩张成 MOOSE 式对象工厂。
-- 所有区域节点必须保持独立；默认 PCMI 包壳高度比芯块高 `20 um`，界面
-  通过轴向投影耦合。
+- 所有区域节点必须保持独立；轴对称默认 PCMI 算例的包壳高度比芯块高
+  `20 um`，界面通过轴向投影耦合。
 - 不复制 MOOSE 的对象工厂、继承层次或输入参数系统。
 - 不复制 jax_fuel 的运行时声明式 Kernel 注册系统。
 - 新物理先形成具体、可验证的局部残量，再考虑通用化。
 - 生产问题类型只保留 `SteadyProblem` 和 `TransientProblem`；M0/M1/M2
   只作为路线与回归名称。旧的专用问题类只能留在 `tests/support` 中支撑
   已有回归，不得重新进入公共头文件或生产库。
-- `SteadyProblem` 和 `TransientProblem` 从一个 `UnstructuredQuad4Mesh`
-  选择任意数量的命名块；每个块独立建立区域自由度、材料和
-  `small|finite` 应变形式。
+- `SteadyProblem` 和 `TransientProblem` 从与输入几何一致的
+  `UnstructuredQuad4Mesh`、`UnstructuredHex8Mesh` 或 `UnstructuredHex20Mesh`
+  选择任意数量的命名块；一个输入算例只使用一种体单元拓扑。每个块独立建立
+  区域自由度、材料和 `small|finite` 应变形式。
 - Contact 输入只接受 `primary` 和 `secondary` 边集名，不接受主/从 block；
   所属区域必须由 Exodus 边集相邻单元解析。每个接触对可独立启用热接触、
   机械接触或两者。
-- 瞬态问题使用 `TransientProblem`、自由函数 `solve_transient` 和
-  `Quad4RzTransientKernel`；不得把时间状态职责塞入 PETSc 回调。
+- 瞬态问题使用 `TransientProblem` 和自由函数 `solve_transient`，再按几何
+  进入 `Quad4RzTransientKernel` 或三维 Cartesian 装配路径；不得把时间状态
+  职责塞入 PETSc 回调。
 - 不增加材料对象工厂或标量泛型层。允许使用五个类型安全的材料函数注册表，
   分别注册热物性、弹性、本征应变、等效蠕变速率和塑性流动应力函数；注册
   函数必须使用具体 `adlite::Scalar`、严格具名参数和现有统一状态事务。
 - 除非用户明确要求，不增加旧 API 别名、适配器或兼容层。
-- 用户运行入口固定为 `fuelsim -i <case.fsi>`。输入 v2 只接受一个 Exodus
-  文件，使用 SI 单位和严格字段集合，不提供 include、宏、表达式、单位换算、
-  旧键别名或隐式默认问题；材料在 `[Materials]` 中由已注册函数组合，区域只
-  用 `material` 引用；网格几何与离散规模必须来自 Exodus 文件。
+- 用户运行入口固定为 `fuelsim -i <case.fsi>`。输入 v3 只接受一个 Exodus
+  文件，并要求显式选择 `axisymmetric_rz` 或 `cartesian_3d` 几何；使用 SI
+  单位和严格字段集合，不提供 include、宏、表达式、单位换算、旧键别名或隐式
+  默认问题。材料在 `[Materials]` 中由已注册函数组合，区域只用 `material`
+  引用；网格几何与离散规模必须来自 Exodus 文件。
 
 ## 必须执行的验收
 
@@ -243,16 +288,22 @@ PETSc/MPICH 测试在受限沙盒内可能出现 `OFI EP enable failed`。遇到
 1. 对应局部 AD Jacobian 与中心差分方向导数；
 2. 相关解析解；
 3. 默认端到端求解；
-4. 匹配物理、罚参数、加载路径和网格设置的 MOOSE 对标量。
+4. 匹配物理、罚参数、加载路径和网格设置的外部求解器对标量；三维 HEX8 以
+   Abaqus 为首要参考，已有明确 MOOSE 契约的轴对称或 HEX20 功能继续执行相应
+   MOOSE 对标。
 
-接触搜索或投影修改还必须检查：内部 primary 顶点参考态只有一个所有者，
-secondary 节点或热接触积分点滑过该顶点后所有权唯一转移且不双计，以及滑出
-完整 primary 链时按各离散契约处理：无摩擦 HEX8 有限滑移平均表面约束自然释放并
-贡献严格零残量，热接触、节点到表面、小滑移和摩擦有限滑移仍由失投影守卫拒绝；
-参考态竖直但当前态倾斜的侧面、
-水平端面和一般斜面都必须覆盖，并证明它们走同一通用 RZ 公式。热接触还必须
-检查同一参考分片的两个积分点可分别选择不同 primary 段、只有唯一候选计热且
-两侧热残量严格守恒。
+轴对称 RZ 接触搜索或投影修改还必须检查：内部 primary 顶点参考态只有一个
+所有者，secondary 节点或热接触积分点滑过该顶点后所有权唯一转移且不双计，
+滑出完整 primary 链时由失投影守卫拒绝。参考态竖直但当前态倾斜的侧面、水平
+端面和一般斜面都必须覆盖，并证明它们走同一通用 RZ 公式。热接触还必须检查
+同一参考分片的两个积分点可分别选择不同 primary 段、只有唯一候选计热且两侧
+热残量严格守恒。
+
+三维 Cartesian 接触搜索或投影修改还必须检查：面内部及共享边界只有一个
+所有者，secondary 节点或积分约束跨面后所有权唯一转移且不双计。滑出全部
+primary 面时，无摩擦 HEX8 有限滑移 STS 平均表面约束自然释放并贡献严格零
+残量；热接触、NTS、小滑移和带摩擦的有限滑移仍由失投影守卫拒绝。倾斜面、
+曲面离散、非匹配面和两侧离散守恒必须按修改影响范围覆盖。
 
 所有 fuelsim-to-MOOSE 对比必须读取 `verification/moose/` 下由对应 MOOSE
 输入生成并追踪的 `*_mesh.e`，不得在对比测试内使用 `make_annulus` 或硬编码
@@ -286,7 +337,7 @@ M2 还必须检查：
    `0.1%`；M2.3 的节点场、接触压力、总力、平均状态和 40 个积分点三指标
    也必须统一小于 `0.1%`。
 
-有限应变修改还必须检查：
+轴对称 RZ 有限应变修改还必须检查：
 
 1. 均匀轴对称伸长的 Taylor 应变增量、非零 committed 构形和当前体积测度
    解析解；
@@ -318,6 +369,26 @@ M2 还必须检查：
    全部材料点的塑性和蠕变累计迹漂移必须分别输出并小于 `7e-6` 和 `2e-7`。
 8. 有限应变 checkpoint/restart 必须在非零变形且塑性、蠕变剪切历史均活跃
    的 committed 状态保存，续算终态与不间断路径逐分量一致。
+
+三维 Cartesian 有限应变修改还必须检查：
+
+1. HEX8 或 HEX20 对应局部 AD Jacobian 与中心差分方向导数，以及非正三维
+   构形 Jacobian 的 domain-error 路径；
+2. HEX8 选择性体积积分必须分别覆盖小应变和有限应变，有限应变至少运行
+   `fuelsim_b519_hex8_c3d8t_finite_selective_abaqus_tests`，并比较节点反力、
+   八个积分点的当前坐标、当前体积和应力；
+3. HEX8 热学必须按改动范围运行 B4.9 至 B5.9 的局部算子、角点集总热容、
+   热接触、参考或当前构形热载荷以及瞬态全场路径；有限应变导热和热载荷至少
+   包含 `fuelsim_b51_hex8_c3d8t_finite_heat_abaqus_tests` 和
+   `fuelsim_b54_hex8_c3d8t_finite_thermal_load_abaqus_tests`；
+4. HEX8 弹性、J2 塑性、Norton 蠕变及其全隐式耦合修改必须按影响范围运行
+   B5.10 至 B5.18 的 Abaqus 全场路径，比较全部节点场、八个积分点历史和能量；
+5. HEX20 修改必须运行对应的局部核、端到端、MOOSE 或 Abaqus 外部对标以及
+   checkpoint/restart 测试；不得用 HEX8 结果替代混合阶 HEX20 的独立证据。
+
+三维 Abaqus 对标的具体字段、误差门槛和已鉴定边界以
+`verification/verification_matrix.tsv` 中对应行的追踪记录为准；不得把局部
+算子识别扩大声称为全场路径鉴定，也不得把 HEX8 结论外推给 HEX20。
 
 多接触组合的收敛测试必须逐接触对断言 `active_contact_nodes > 0`，不能只证明
 候选面可投影或开放间隙下能够收敛。
