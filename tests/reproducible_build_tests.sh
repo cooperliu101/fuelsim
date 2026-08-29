@@ -45,9 +45,9 @@ require_text "${workflow}" "runs-on: [self-hosted, linux, x64, fuelsim]"
 require_text "${workflow}" "-DFUELSIM_WARNINGS_AS_ERRORS=ON"
 require_text "${workflow}" "-DFUELSIM_ENABLE_SANITIZERS="
 require_text "${workflow}" \
-    "ctest --test-dir build-ci-release --output-on-failure"
+    "ctest --test-dir build-ci-release -j4 --output-on-failure"
 require_text "${workflow}" \
-    "ctest --test-dir build-ci-sanitizer --output-on-failure"
+    "ctest --test-dir build-ci-sanitizer -LE qualification -j4 --output-on-failure"
 require_text "${workflow}" "MPIR_CVAR_CH4_NETMOD=ofi"
 require_text "${workflow}" "FI_PROVIDER=tcp"
 

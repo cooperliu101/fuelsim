@@ -6,6 +6,8 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <filesystem>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <limits>
@@ -256,96 +258,132 @@ void print_response(const std::string& name, const Response& response) {
     if (!response.failure.empty()) std::cout << "b527_" << name << "_failure=" << response.failure << '\n';
 }
 
+void write_response(const std::filesystem::path& path, const std::string& name, const Response& response) {
+    if (!path.parent_path().empty()) std::filesystem::create_directories(path.parent_path());
+    std::ofstream output(path);
+    if (!output) throw std::runtime_error("Could not open B5.27 response output: " + path.string());
+    output << std::scientific << std::setprecision(17) << name << '\n'
+           << response.completed << ' ' << response.full_field_passed << ' ' << response.accepted_steps << ' '
+           << response.rejected_steps << ' ' << response.active_contact_nodes << ' ' << response.nonlinear_iterations
+           << '\n'
+           << response.contact_force << ' ' << response.contact_heat_rate << ' ' << response.maximum_pressure << ' '
+           << response.maximum_penetration << ' ' << response.fuel_average_temperature << ' '
+           << response.clad_average_temperature << ' ' << response.maximum_displacement << ' '
+           << response.maximum_equivalent_stress << ' ' << response.boundary_heat_rate << ' '
+           << response.stored_heat_rate << '\n';
+    if (!output) throw std::runtime_error("Could not write B5.27 response output: " + path.string());
+}
+
+Response read_response(const std::filesystem::path& directory, const std::string& name) {
+    const std::filesystem::path path = directory / (name + ".txt");
+    std::ifstream input(path);
+    if (!input) throw std::runtime_error("Could not open B5.27 response input: " + path.string());
+    std::string stored_name;
+    Response response;
+    input >> stored_name >> response.completed >> response.full_field_passed >> response.accepted_steps >>
+        response.rejected_steps >> response.active_contact_nodes >> response.nonlinear_iterations >>
+        response.contact_force >> response.contact_heat_rate >> response.maximum_pressure >>
+        response.maximum_penetration >> response.fuel_average_temperature >> response.clad_average_temperature >>
+        response.maximum_displacement >> response.maximum_equivalent_stress >> response.boundary_heat_rate >>
+        response.stored_heat_rate;
+    if (!input || stored_name != name) throw std::runtime_error("Invalid B5.27 response input: " + path.string());
+    return response;
+}
+
 double relative_change(double left, double right) {
     return std::abs(left - right) / std::max(std::abs(right), std::numeric_limits<double>::min());
+}
+
+bool validate_case(const std::string& name, const Response& response) {
+    return check(response.completed && response.full_field_passed && response.active_contact_nodes > 0 &&
+                     response.contact_force > 0.0 && std::abs(response.contact_heat_rate) > 0.0,
+        "B5.27 " + name +
+            " completes its independent Abaqus full-field comparison with active mechanical and "
+            "thermal contact");
+}
+
+Response solve_named_case(const std::string& name, const std::string& reference_directory) {
+    if (name == "coarse") return solve_case({1, 1, 3, 2}, 1000.0, 1.0e14, "b527_coarse", reference_directory);
+    if (name == "medium") return solve_case({2, 1, 4, 3}, 1000.0, 1.0e14, "b527_medium", reference_directory);
+    if (name == "fine") return solve_case({2, 2, 6, 4}, 1000.0, 1.0e14, "b527_fine", reference_directory);
+    if (name == "half_step") return solve_case({2, 1, 4, 3}, 500.0, 1.0e14, "b527_half_step", reference_directory);
+    if (name == "low_penalty") return solve_case({2, 1, 4, 3}, 1000.0, 5.0e13, "b527_low_penalty", reference_directory);
+    if (name == "high_penalty")
+        return solve_case({2, 1, 4, 3}, 1000.0, 2.0e14, "b527_high_penalty", reference_directory);
+    throw std::invalid_argument("Unknown B5.27 case: " + name);
+}
+
+bool validate_aggregate(const std::filesystem::path& directory) {
+    const Response coarse = read_response(directory, "coarse"), medium = read_response(directory, "medium"),
+                   fine = read_response(directory, "fine"), half_step = read_response(directory, "half_step"),
+                   low_penalty = read_response(directory, "low_penalty"),
+                   high_penalty = read_response(directory, "high_penalty");
+    const std::array<std::pair<const char*, const Response*>, 6> cases = {{{"coarse", &coarse}, {"medium", &medium},
+        {"fine", &fine}, {"half_step", &half_step}, {"low_penalty", &low_penalty}, {"high_penalty", &high_penalty}}};
+    bool passed = true;
+    for (const auto& item : cases) {
+        print_response(item.first, *item.second);
+        passed = validate_case(item.first, *item.second) && passed;
+    }
+    const double time_temperature_change =
+                     relative_change(half_step.clad_average_temperature, medium.clad_average_temperature),
+                 time_force_change = relative_change(half_step.contact_force, medium.contact_force),
+                 time_stress_change =
+                     relative_change(half_step.maximum_equivalent_stress, medium.maximum_equivalent_stress),
+                 medium_fine_temperature_change =
+                     relative_change(fine.clad_average_temperature, medium.clad_average_temperature),
+                 medium_fine_force_change = relative_change(fine.contact_force, medium.contact_force),
+                 medium_fine_stress_change =
+                     relative_change(fine.maximum_equivalent_stress, medium.maximum_equivalent_stress),
+                 penalty_force_change = relative_change(high_penalty.contact_force, low_penalty.contact_force);
+    std::cout << "b527_half_step_clad_temperature_relative_change=" << time_temperature_change << '\n'
+              << "b527_half_step_contact_force_relative_change=" << time_force_change << '\n'
+              << "b527_half_step_stress_relative_change=" << time_stress_change << '\n'
+              << "b527_medium_fine_clad_temperature_relative_change=" << medium_fine_temperature_change << '\n'
+              << "b527_medium_fine_contact_force_relative_change=" << medium_fine_force_change << '\n'
+              << "b527_medium_fine_stress_relative_change=" << medium_fine_stress_change << '\n'
+              << "b527_penalty_contact_force_relative_change=" << penalty_force_change << '\n';
+    passed = check(time_temperature_change < 5.0e-2 && time_force_change < 5.0e-2 && time_stress_change < 5.0e-2,
+                 "B5.27 split time-step pair changes clad temperature, contact force, and stress by less than five "
+                 "percent") &&
+             passed;
+    passed = check(medium_fine_temperature_change < 1.5e-1 && medium_fine_force_change < 1.5e-1 &&
+                       medium_fine_stress_change < 1.5e-1,
+                 "B5.27 split medium-to-fine mesh pair changes clad temperature, contact force, and stress by less "
+                 "than fifteen percent") &&
+             passed;
+    passed = check(low_penalty.maximum_penetration > medium.maximum_penetration &&
+                       medium.maximum_penetration > high_penalty.maximum_penetration && penalty_force_change < 5.0e-2,
+                 "B5.27 split penalty cases reduce penetration while preserving the engineering contact force") &&
+             passed;
+    return passed;
 }
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc < 2) {
-        std::cerr << "Usage: fuelsim_b527_hex8_engineering_fuel_clad_tests <Abaqus reference directory> [case]\n";
-        return 2;
-    }
     try {
         std::cout << std::scientific << std::setprecision(12);
+        if (argc == 3 && std::string(argv[1]) == "--aggregate-responses") {
+            const bool passed = validate_aggregate(argv[2]);
+            if (passed) std::cout << "[PASS] B5.27 split response aggregation\n";
+            return passed ? 0 : 1;
+        }
+        if (argc != 4) {
+            std::cerr << "Usage: fuelsim_b527_hex8_engineering_fuel_clad_tests "
+                         "<Abaqus reference directory> <case> <response output>\n"
+                         "   or: fuelsim_b527_hex8_engineering_fuel_clad_tests "
+                         "--aggregate-responses <response directory>\n";
+            return 2;
+        }
         fuelsim::PetscSession session(argc, argv, "fuelsim B5.27 engineering fuel-clad verification\n");
         const std::string reference_directory = argv[1];
-        const std::string selected = argc > 2 ? argv[2] : "";
-        const std::array<std::string, 6> known_cases = {
-            "coarse", "medium", "fine", "half_step", "low_penalty", "high_penalty"};
-        if (!selected.empty() && std::find(known_cases.begin(), known_cases.end(), selected) == known_cases.end())
-            throw std::invalid_argument("Unknown B5.27 case: " + selected);
-        const auto enabled = [&](const std::string& name) { return selected.empty() || selected == name; };
-        const Response coarse = enabled("coarse")
-                                    ? solve_case({1, 1, 3, 2}, 1000.0, 1.0e14, "b527_coarse", reference_directory)
-                                    : Response{};
-        const Response medium = enabled("medium")
-                                    ? solve_case({2, 1, 4, 3}, 1000.0, 1.0e14, "b527_medium", reference_directory)
-                                    : Response{};
-        const Response fine =
-            enabled("fine") ? solve_case({2, 2, 6, 4}, 1000.0, 1.0e14, "b527_fine", reference_directory) : Response{};
-        const Response half_step = enabled("half_step")
-                                       ? solve_case({2, 1, 4, 3}, 500.0, 1.0e14, "b527_half_step", reference_directory)
-                                       : Response{};
-        const Response low_penalty =
-            enabled("low_penalty") ? solve_case({2, 1, 4, 3}, 1000.0, 5.0e13, "b527_low_penalty", reference_directory)
-                                   : Response{};
-        const Response high_penalty =
-            enabled("high_penalty") ? solve_case({2, 1, 4, 3}, 1000.0, 2.0e14, "b527_high_penalty", reference_directory)
-                                    : Response{};
-        std::vector<std::pair<std::string, const Response*>> cases;
-        if (enabled("coarse")) cases.emplace_back("coarse", &coarse);
-        if (enabled("medium")) cases.emplace_back("medium", &medium);
-        if (enabled("fine")) cases.emplace_back("fine", &fine);
-        if (enabled("half_step")) cases.emplace_back("half_step", &half_step);
-        if (enabled("low_penalty")) cases.emplace_back("low_penalty", &low_penalty);
-        if (enabled("high_penalty")) cases.emplace_back("high_penalty", &high_penalty);
-        bool completed = true;
-        for (const auto& item : cases) {
-            print_response(item.first, *item.second);
-            completed = completed && item.second->completed && item.second->full_field_passed &&
-                        item.second->active_contact_nodes > 0 && item.second->contact_force > 0.0 &&
-                        std::abs(item.second->contact_heat_rate) > 0.0;
-        }
-        bool passed = check(completed, "B5.27 every engineering fuel-clad mesh, time-step, and penalty case completes "
-                                       "with active mechanical and thermal contact");
-        if (completed && selected.empty()) {
-            const double time_temperature_change =
-                             relative_change(half_step.clad_average_temperature, medium.clad_average_temperature),
-                         time_force_change = relative_change(half_step.contact_force, medium.contact_force),
-                         time_stress_change =
-                             relative_change(half_step.maximum_equivalent_stress, medium.maximum_equivalent_stress),
-                         medium_fine_temperature_change =
-                             relative_change(fine.clad_average_temperature, medium.clad_average_temperature),
-                         medium_fine_force_change = relative_change(fine.contact_force, medium.contact_force),
-                         medium_fine_stress_change =
-                             relative_change(fine.maximum_equivalent_stress, medium.maximum_equivalent_stress),
-                         penalty_force_change = relative_change(high_penalty.contact_force, low_penalty.contact_force);
-            std::cout << "b527_half_step_clad_temperature_relative_change=" << time_temperature_change << '\n'
-                      << "b527_half_step_contact_force_relative_change=" << time_force_change << '\n'
-                      << "b527_half_step_stress_relative_change=" << time_stress_change << '\n'
-                      << "b527_medium_fine_clad_temperature_relative_change=" << medium_fine_temperature_change << '\n'
-                      << "b527_medium_fine_contact_force_relative_change=" << medium_fine_force_change << '\n'
-                      << "b527_medium_fine_stress_relative_change=" << medium_fine_stress_change << '\n'
-                      << "b527_penalty_contact_force_relative_change=" << penalty_force_change << '\n';
-            passed =
-                check(time_temperature_change < 5.0e-2 && time_force_change < 5.0e-2 && time_stress_change < 5.0e-2,
-                    "B5.27 time-step halving changes clad temperature, contact force, and stress by less than five "
-                    "percent") &&
-                passed;
-            passed = check(medium_fine_temperature_change < 1.5e-1 && medium_fine_force_change < 1.5e-1 &&
-                               medium_fine_stress_change < 1.5e-1,
-                         "B5.27 medium-to-fine engineering mesh changes clad temperature, contact force, and stress by "
-                         "less than fifteen percent") &&
-                     passed;
-            passed =
-                check(low_penalty.maximum_penetration > medium.maximum_penetration &&
-                          medium.maximum_penetration > high_penalty.maximum_penetration &&
-                          penalty_force_change < 5.0e-2,
-                    "B5.27 penalty refinement reduces penetration while preserving the engineering contact force") &&
-                passed;
-        }
-        if (passed) std::cout << "[PASS] B5.27 engineering-scale three-dimensional fuel-clad verification\n";
+        const std::string name = argv[2];
+        std::filesystem::remove(argv[3]);
+        const Response response = solve_named_case(name, reference_directory);
+        print_response(name, response);
+        write_response(argv[3], name, response);
+        const bool passed = validate_case(name, response);
+        if (passed) std::cout << "[PASS] B5.27 " << name << " engineering-scale three-dimensional verification\n";
         return passed ? 0 : 1;
     } catch (const std::exception& error) {
         std::cerr << "[FAIL] B5.27 engineering fuel-clad verification raised: " << error.what() << '\n';

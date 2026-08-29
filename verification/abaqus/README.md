@@ -361,6 +361,8 @@ H20.29 extends the H20.24 end-to-end comparison from one one-dimensional face
 partition to five independently solved C3D20 cases. Every Abaqus input and
 Fuelsim version-3 input is generated from the same tracked Exodus mesh by
 `fuelsim_h20_29_hex20_sts_multicase_abaqus_tests --generate`.
+CTest registers the five cases separately, so they can run concurrently while
+retaining the same per-case acceptance checks.
 
 | Case | Primary/secondary face partitions | Additional variation |
 | --- | --- | --- |
@@ -687,6 +689,10 @@ L2, relative absolute-peak, and maximum pointwise-relative errors are:
 | complete global contact resultant | `0.0989609%` | `0.161791%` | `0.584019%` |
 | gap | `0.118193%` | `0.103406%` | `0.269798%` |
 | pressure | `0.0329806%` | `0.0683449%` | `0.0823490%` |
+
+CTest registers the small-strain and finite-strain paths separately. Each
+invocation solves only its selected strain formulation, so the two paths can run
+concurrently without changing their acceptance limits.
 
 All three metrics are below `1%` without a denominator floor. The largest
 Exodus-to-Abaqus output-database coordinate difference is `2.97395e-8 m`,
@@ -1673,10 +1679,15 @@ force, contact heat, interface temperature, and peak plastic strain are
 monotonically convergent at the shortened midpoint, so it uses an explicit
 coarse-to-fine sensitivity gate: `3.95757%`, below `5%`. The exact case
 parameters and expected frame counts are in `b524_b525_cases.tsv`.
+The coarse-mesh case remains in the daily functional profile. The other twelve
+B5.24 scan points and the lightweight aggregate carry the `qualification`
+label and remain part of the complete Release suite.
 On the tracked Release build, the eighteen cases plus aggregation take `17.44 s`
 wall time with four CTest workers and `68.65 s` summed processor time, compared
-with `133.63 s` for the old serial aggregate. The complete suite takes `257.88 s`
-serially, down from about `326.6 s`, and `78.14 s` with four workers.
+with `133.63 s` for the old serial aggregate. After also splitting B5.27,
+H20.29, and H20.40, the current 178-test complete suite takes `265.21 s`
+serially and `74.17 s` with four workers. The 157-test daily functional profile
+takes `48.85 s` with four workers.
 
 B5.25 has five corresponding full-field references: Poisson ratios `0.30`,
 `0.45`, `0.49`, and `0.499` on the distorted traction-controlled bending mesh,
@@ -1697,6 +1708,9 @@ none of the five direct Abaqus full-field gates was relaxed.
 These independent mesh-sensitivity limits apply to the sixteen-element
 tangential topology used by the five direct Abaqus studies and do not replace
 their per-case full-field gates.
+The `nu=0.49`, `nu=0.499`, and thickness-refined `nu=0.499` cases remain in the
+daily functional profile. The `nu=0.30` and `nu=0.45` cases carry the
+`qualification` label and remain in the complete Release suite.
 
 B5.26 has six explicitly registered per-transition full-field references in
 `b526_full_field_cases.tsv`. Two new elastic contact paths isolate the contact
@@ -1717,8 +1731,10 @@ rollback, retry, and restart transaction checks.
 
 B5.27 now has independent Abaqus input, nodal, integration-point, contact, and
 energy files for coarse, medium, and fine meshes, the half-time-step case, and
-the low- and high-penalty cases. The aggregate CTest reads and compares all six
-cases and also retains the mesh, time-step, and penalty independence assertions.
+the low- and high-penalty cases. Six independent CTests each solve and compare
+one case, then write a small response summary. A lightweight aggregate CTest
+reads those six summaries without solving again and retains the mesh, time-step,
+and penalty independence assertions.
 Aggregate complete-field errors use a `1.5%` gate; displacement, logarithmic
 strain, and contact pointwise gates are `5%`, `2%`, and `2.5%`. Very small
 reaction, stress, and elastic-strain reference norms use explicit absolute gates
@@ -1726,6 +1742,13 @@ of `1e-6 N`, `10 Pa`, and `1e-10` instead of the former broad relative gates.
 All six comparisons pass. This establishes full-field agreement for the tracked
 quarter-cylinder engineering model, but it is not a nuclear-safety
 qualification and does not cover untracked geometries, materials, or paths.
+The medium-mesh case remains in the daily functional profile. The other five
+cases and the response aggregate carry the `qualification` label and remain in
+the complete Release suite.
+Together, the six B5.27 cases, five H20.29 cases, two H20.40 cases, and the B5.27
+response aggregate take `34.32 s` wall time with four CTest workers and
+`108.11 s` summed processor time. Their three former serial aggregate tests took
+approximately `104.46 s` in total.
 
 Generate B5.24 through B5.26 with `generate_b524_b525.py`, extract them with
 `extract_b524_b525.py`, and run the two families with `run_b524_b525.ps1` and

@@ -391,15 +391,20 @@ int main(int argc, char** argv) {
             return 0;
         }
         if (argc != 4) {
-            std::cerr << "Usage: fuelsim_h20_40_curved_finite_sliding_abaqus_tests <mesh.e> <small.csv> <finite.csv>\n"
+            std::cerr << "Usage: fuelsim_h20_40_curved_finite_sliding_abaqus_tests "
+                         "<mesh.e> <small|finite> <reference.csv>\n"
                          "   or: fuelsim_h20_40_curved_finite_sliding_abaqus_tests --generate <abaqus-directory>\n";
             return 2;
         }
         const fuelsim::UnstructuredHex20Mesh mesh = fuelsim::read_exodus_hex20(argv[1]);
-        const bool small = compare_case(mesh, argv[2], fuelsim::StrainFormulation::small, "h20_40_small_");
-        const bool finite = compare_case(mesh, argv[3], fuelsim::StrainFormulation::finite, "h20_40_finite_");
-        if (small && finite) std::cout << "[PASS] H20.40 curved HEX20 finite-sliding Abaqus comparison\n";
-        return small && finite ? 0 : 1;
+        const std::string mode = argv[2];
+        const fuelsim::StrainFormulation strain =
+            mode == "small"    ? fuelsim::StrainFormulation::small
+            : mode == "finite" ? fuelsim::StrainFormulation::finite
+                               : throw std::invalid_argument("Unknown H20.40 strain mode: " + mode);
+        const bool passed = compare_case(mesh, argv[3], strain, "h20_40_" + mode + "_");
+        if (passed) std::cout << "[PASS] H20.40 " << mode << " curved HEX20 finite-sliding Abaqus comparison\n";
+        return passed ? 0 : 1;
     } catch (const std::exception& error) {
         std::cerr << "[FAIL] H20.40 raised: " << error.what() << '\n';
         return 1;

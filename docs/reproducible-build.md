@@ -113,12 +113,14 @@ cmake --build build-sanitize --parallel
 ASAN_OPTIONS=detect_leaks=0 \
 MPIR_CVAR_CH4_NETMOD=ofi \
 FI_PROVIDER=tcp \
-  ctest --test-dir build-sanitize --output-on-failure
+  ctest --test-dir build-sanitize -LE qualification -j4 --output-on-failure
 ```
 
 泄漏检查关闭是显式边界：当前 MOOSE PETSc 初始化会加载系统 CUDA 驱动，
 `libcuda.so.1` 在进程退出时保留分配，无法归因于 fuelsim。该入口仍完整执行
-地址越界和未定义行为检查，不能据此声称 LeakSanitizer 已通过。检测器任务
+地址越界和未定义行为检查，不能据此声称 LeakSanitizer 已通过。检测器任务运行
+排除 `qualification` 标签的日常功能测试；Release 任务仍运行包括扩展参数扫描和
+跨工况汇总在内的完整测试套件。检测器任务
 还固定 MPICH 使用 OFI 网络模块和 TCP provider；默认 UCX 网络模块在
 `PetscInitialize` 进入 fuelsim 代码前的地址交换中会触发外部库越界读取。
 Release 任务仍使用环境默认网络模块，且所有双进程等价性测试都必须通过。

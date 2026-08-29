@@ -651,6 +651,11 @@ if(BUILD_TESTING)
         b525_poisson_049
         b525_poisson_0499
         b525_poisson_0499_refined)
+    set(b524_b525_functional_cases
+        b524_mesh_coarse
+        b525_poisson_049
+        b525_poisson_0499
+        b525_poisson_0499_refined)
     set(b524_b525_response_fixtures)
     foreach(b524_b525_case IN LISTS b524_b525_cases)
         set(b524_b525_test "fuelsim_${b524_b525_case}_abaqus_tests")
@@ -664,9 +669,15 @@ if(BUILD_TESTING)
                 "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus"
                 "${b524_b525_case}"
                 "${b524_b525_response_directory}/${b524_b525_case}.txt")
+        set(b524_b525_labels
+            acceptance three-dimensional hex8 transient thermal mechanical finite-strain friction contact abaqus split-case)
+        list(FIND b524_b525_functional_cases "${b524_b525_case}" b524_b525_functional_index)
+        if(b524_b525_functional_index EQUAL -1)
+            list(APPEND b524_b525_labels qualification)
+        endif()
         set_tests_properties(${b524_b525_test} PROPERTIES
             FIXTURES_SETUP "${b524_b525_fixture}"
-            LABELS "acceptance;three-dimensional;hex8;transient;thermal;mechanical;finite-strain;friction;contact;abaqus;split-case")
+            LABELS "${b524_b525_labels}")
         list(APPEND b524_b525_response_fixtures "${b524_b525_fixture}")
     endforeach()
     add_test(NAME fuelsim_b524_b525_response_aggregate_tests
@@ -680,7 +691,7 @@ if(BUILD_TESTING)
             "${b524_b525_response_directory}")
     set_tests_properties(fuelsim_b524_b525_response_aggregate_tests PROPERTIES
         FIXTURES_REQUIRED "${b524_b525_response_fixtures}"
-        LABELS "acceptance;three-dimensional;hex8;transient;thermal;mechanical;finite-strain;friction;contact;abaqus;aggregate")
+        LABELS "acceptance;three-dimensional;hex8;transient;thermal;mechanical;finite-strain;friction;contact;abaqus;aggregate;qualification")
 
     foreach(b526_case IN ITEMS b526_contact_cycle b526_friction_reversal)
         string(REPLACE "b526_" "" b526_suffix "${b526_case}")
@@ -702,11 +713,34 @@ if(BUILD_TESTING)
     target_link_libraries(fuelsim_b527_hex8_engineering_fuel_clad_tests
         PRIVATE fuelsim_abaqus_hex8_test_support fuelsim_moose_test_support fuelsim::solver)
     fuelsim_enable_warnings(fuelsim_b527_hex8_engineering_fuel_clad_tests)
-    add_test(NAME fuelsim_b527_hex8_engineering_fuel_clad_tests
+    set(b527_response_directory "${CMAKE_CURRENT_BINARY_DIR}/b527_responses")
+    set(b527_cases coarse medium fine half_step low_penalty high_penalty)
+    set(b527_response_fixtures)
+    foreach(b527_case IN LISTS b527_cases)
+        set(b527_test "fuelsim_b527_${b527_case}_abaqus_tests")
+        set(b527_fixture "b527_${b527_case}_response")
+        set(b527_labels
+            acceptance three-dimensional hex8 transient thermal mechanical finite-strain friction contact engineering abaqus split-case)
+        if(NOT b527_case STREQUAL "medium")
+            list(APPEND b527_labels qualification)
+        endif()
+        add_test(NAME ${b527_test}
+            COMMAND fuelsim_b527_hex8_engineering_fuel_clad_tests
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus"
+                "${b527_case}"
+                "${b527_response_directory}/${b527_case}.txt")
+        set_tests_properties(${b527_test} PROPERTIES
+            FIXTURES_SETUP "${b527_fixture}"
+            LABELS "${b527_labels}")
+        list(APPEND b527_response_fixtures "${b527_fixture}")
+    endforeach()
+    add_test(NAME fuelsim_b527_response_aggregate_tests
         COMMAND fuelsim_b527_hex8_engineering_fuel_clad_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus")
-    set_tests_properties(fuelsim_b527_hex8_engineering_fuel_clad_tests PROPERTIES
-        LABELS "acceptance;three-dimensional;hex8;transient;thermal;mechanical;finite-strain;friction;contact;engineering")
+            --aggregate-responses
+            "${b527_response_directory}")
+    set_tests_properties(fuelsim_b527_response_aggregate_tests PROPERTIES
+        FIXTURES_REQUIRED "${b527_response_fixtures}"
+        LABELS "acceptance;three-dimensional;hex8;transient;thermal;mechanical;finite-strain;friction;contact;engineering;abaqus;aggregate;qualification")
 
     add_executable(fuelsim_b53_hex8_c3d8t_thermal_load_abaqus_tests
         tests/b53_hex8_c3d8t_thermal_load_abaqus_tests.cpp)
@@ -1168,9 +1202,9 @@ if(BUILD_TESTING)
         PROPERTIES LABELS "acceptance;three-dimensional;quadratic;finite-strain")
     add_test(NAME fuelsim_h20_11_hex20_checkpoint_tests
         COMMAND fuelsim_hex20_solver_tests
-            "${CMAKE_CURRENT_BINARY_DIR}/hex20_mesh.e"
-            "${CMAKE_CURRENT_BINARY_DIR}/hex20_steady_results.e"
-            "${CMAKE_CURRENT_BINARY_DIR}/hex20_checkpoint.bin")
+            "${CMAKE_CURRENT_BINARY_DIR}/h20_11_hex20_mesh.e"
+            "${CMAKE_CURRENT_BINARY_DIR}/h20_11_hex20_steady_results.e"
+            "${CMAKE_CURRENT_BINARY_DIR}/h20_11_hex20_checkpoint.bin")
     set_tests_properties(fuelsim_h20_11_hex20_checkpoint_tests
         PROPERTIES LABELS "integration;three-dimensional;quadratic;checkpoint")
     add_test(NAME fuelsim_h20_12_multiblock_shared_nodes_tests COMMAND fuelsim_multi_region_tests)
@@ -1184,9 +1218,9 @@ if(BUILD_TESTING)
         PROPERTIES LABELS "unit;three-dimensional;quadratic;contact;friction")
     add_test(NAME fuelsim_h20_15_hex20_contact_assembly_tests
         COMMAND fuelsim_hex20_solver_tests
-            "${CMAKE_CURRENT_BINARY_DIR}/hex20_mesh.e"
-            "${CMAKE_CURRENT_BINARY_DIR}/hex20_steady_results.e"
-            "${CMAKE_CURRENT_BINARY_DIR}/hex20_checkpoint.bin")
+            "${CMAKE_CURRENT_BINARY_DIR}/h20_15_hex20_mesh.e"
+            "${CMAKE_CURRENT_BINARY_DIR}/h20_15_hex20_steady_results.e"
+            "${CMAKE_CURRENT_BINARY_DIR}/h20_15_hex20_checkpoint.bin")
     set_tests_properties(fuelsim_h20_15_hex20_contact_assembly_tests
         PROPERTIES LABELS "integration;three-dimensional;quadratic;contact")
 
@@ -1356,35 +1390,18 @@ if(BUILD_TESTING)
     target_link_libraries(fuelsim_h20_29_hex20_sts_multicase_abaqus_tests
         PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
     fuelsim_enable_warnings(fuelsim_h20_29_hex20_sts_multicase_abaqus_tests)
-    add_test(NAME fuelsim_h20_29_hex20_sts_multicase_abaqus_tests
-        COMMAND fuelsim_h20_29_hex20_sts_multicase_abaqus_tests
-            biaxial
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex20_sts_biaxial_abaqus.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_29_hex20_sts_biaxial_displacement.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_29_hex20_sts_biaxial_force.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_29_hex20_sts_biaxial_reaction.csv"
-            tilted
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex20_sts_tilted_abaqus.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_29_hex20_sts_tilted_displacement.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_29_hex20_sts_tilted_force.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_29_hex20_sts_tilted_reaction.csv"
-            graded
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex20_sts_graded_abaqus.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_29_hex20_sts_graded_displacement.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_29_hex20_sts_graded_force.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_29_hex20_sts_graded_reaction.csv"
-            soft_penalty
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex20_sts_soft_penalty_abaqus.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_29_hex20_sts_soft_penalty_displacement.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_29_hex20_sts_soft_penalty_force.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_29_hex20_sts_soft_penalty_reaction.csv"
-            initial_gap
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex20_sts_initial_gap_abaqus.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_29_hex20_sts_initial_gap_displacement.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_29_hex20_sts_initial_gap_force.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_29_hex20_sts_initial_gap_reaction.csv")
-    set_tests_properties(fuelsim_h20_29_hex20_sts_multicase_abaqus_tests
-        PROPERTIES LABELS "acceptance;three-dimensional;hex20;contact;nonmatching;abaqus")
+    foreach(h20_29_case IN ITEMS biaxial tilted graded soft_penalty initial_gap)
+        set(h20_29_test "fuelsim_h20_29_hex20_sts_${h20_29_case}_abaqus_tests")
+        add_test(NAME ${h20_29_test}
+            COMMAND fuelsim_h20_29_hex20_sts_multicase_abaqus_tests
+                "${h20_29_case}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex20_sts_${h20_29_case}_abaqus.fsi"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_29_hex20_sts_${h20_29_case}_displacement.csv"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_29_hex20_sts_${h20_29_case}_force.csv"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_29_hex20_sts_${h20_29_case}_reaction.csv")
+        set_tests_properties(${h20_29_test}
+            PROPERTIES LABELS "acceptance;three-dimensional;hex20;contact;nonmatching;abaqus;split-case")
+    endforeach()
 
     add_executable(fuelsim_h20_30_hex20_curved_sts_abaqus_tests
         tests/h20_curved_sts_abaqus_tests.cpp)
@@ -1479,13 +1496,16 @@ if(BUILD_TESTING)
     target_link_libraries(fuelsim_h20_40_curved_finite_sliding_abaqus_tests
         PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
     fuelsim_enable_warnings(fuelsim_h20_40_curved_finite_sliding_abaqus_tests)
-    add_test(NAME fuelsim_h20_40_curved_finite_sliding_abaqus_tests
-        COMMAND fuelsim_h20_40_curved_finite_sliding_abaqus_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_40_hex20_curved_finite_sliding_mesh.e"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_40_hex20_curved_finite_sliding_small.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_40_hex20_curved_finite_sliding_finite.csv")
-    set_tests_properties(fuelsim_h20_40_curved_finite_sliding_abaqus_tests
-        PROPERTIES LABELS "acceptance;three-dimensional;hex20;contact;friction;curved;finite-sliding;abaqus")
+    foreach(h20_40_mode IN ITEMS small finite)
+        set(h20_40_test "fuelsim_h20_40_curved_finite_sliding_${h20_40_mode}_abaqus_tests")
+        add_test(NAME ${h20_40_test}
+            COMMAND fuelsim_h20_40_curved_finite_sliding_abaqus_tests
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_40_hex20_curved_finite_sliding_mesh.e"
+                "${h20_40_mode}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_40_hex20_curved_finite_sliding_${h20_40_mode}.csv")
+        set_tests_properties(${h20_40_test}
+            PROPERTIES LABELS "acceptance;three-dimensional;hex20;contact;friction;curved;finite-sliding;abaqus;split-case")
+    endforeach()
 
     add_executable(fuelsim_h20_31_hex20_curved_sts_identification_tests
         tests/h20_curved_sts_identification_tests.cpp)
