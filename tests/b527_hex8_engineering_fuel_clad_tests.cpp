@@ -199,6 +199,12 @@ Response solve_case(const MeshDivisions& divisions, double time_step, double pen
     comparison.energy_pointwise_relative_tolerance = 5.0e-2;
     comparison.minimum_contact_state_match_fraction = 0.95;
     comparison.use_contact_summary_total_slip = true;
+    if (case_name == "b527_medium") {
+        comparison.bulk_relative_tolerance = 1.0e-2;
+        comparison.displacement_pointwise_relative_tolerance = 1.0e-2;
+        comparison.contact_relative_tolerance = 1.0e-2;
+        comparison.contact_pointwise_relative_tolerance = 1.0e-2;
+    }
     response.full_field_passed = fuelsim::test::compare_abaqus_hex8_full_field(
         problem, case_definition, case_mesh, observer.snapshots(), comparison);
     const auto& spatial = fuelsim::cartesian::ProblemAccess::view(problem);

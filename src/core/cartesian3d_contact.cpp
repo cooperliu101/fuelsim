@@ -191,6 +191,51 @@ ActivePoint3 secondary_average_normal(
     return result;
 }
 
+struct SurfacePullbackCovectors final {
+    ActivePoint3 first, second;
+};
+
+SurfacePullbackCovectors surface_pullback_covectors(const std::array<ActivePoint3, 8>& current_nodes_value,
+    const std::array<ActivePoint3, 8>& reference_nodes, const Quad4ToQuad4MechanicalGeometry& geometry,
+    double tangent_orientation, const ActivePoint3& current_normal, const ActivePoint3& current_first) {
+    const ActivePoint3 current_xi = interpolate_point(current_nodes_value, 0, geometry.secondary_derivative_xi),
+                       current_eta = interpolate_point(current_nodes_value, 0, geometry.secondary_derivative_eta),
+                       reference_xi = interpolate_point(reference_nodes, 0, geometry.secondary_derivative_xi),
+                       reference_eta = interpolate_point(reference_nodes, 0, geometry.secondary_derivative_eta),
+                       current_second = cross(current_normal, current_first),
+                       reference_area = cross(reference_xi, reference_eta);
+    const adlite::Scalar reference_area_measure = norm(reference_area), reference_xi_measure = norm(reference_xi);
+    if (!std::isfinite(reference_area_measure.value()) || !(reference_area_measure.value() > 0.0) ||
+        !std::isfinite(reference_xi_measure.value()) || !(reference_xi_measure.value() > 0.0))
+        throw std::domain_error("Three-dimensional averaged friction has a degenerate reference tangent metric");
+    ActivePoint3 reference_normal{}, reference_first{};
+    for (std::size_t component = 0; component < 3; ++component) {
+        reference_normal[component] =
+            geometry.secondary_normal_orientation * reference_area[component] / reference_area_measure;
+        reference_first[component] = tangent_orientation * reference_xi[component] / reference_xi_measure;
+    }
+    const ActivePoint3 reference_second = cross(reference_normal, reference_first);
+    const adlite::Scalar current_11 = dot(current_xi, current_first), current_12 = dot(current_eta, current_first),
+                         current_21 = dot(current_xi, current_second), current_22 = dot(current_eta, current_second),
+                         reference_11 = dot(reference_xi, reference_first),
+                         reference_12 = dot(reference_eta, reference_first),
+                         reference_21 = dot(reference_xi, reference_second),
+                         reference_22 = dot(reference_eta, reference_second),
+                         current_determinant = current_11 * current_22 - current_12 * current_21;
+    if (!std::isfinite(current_determinant.value()) || !(std::abs(current_determinant.value()) > 0.0))
+        throw std::domain_error("Three-dimensional averaged friction has a singular current tangent metric");
+    const adlite::Scalar first_first = (reference_11 * current_22 - reference_12 * current_21) / current_determinant,
+                         first_second = (-reference_11 * current_12 + reference_12 * current_11) / current_determinant,
+                         second_first = (reference_21 * current_22 - reference_22 * current_21) / current_determinant,
+                         second_second = (-reference_21 * current_12 + reference_22 * current_11) / current_determinant;
+    SurfacePullbackCovectors result{};
+    for (std::size_t component = 0; component < 3; ++component) {
+        result.first[component] = first_first * current_first[component] + first_second * current_second[component];
+        result.second[component] = second_first * current_first[component] + second_second * current_second[component];
+    }
+    return result;
+}
+
 SurfaceBasis stored_surface_basis(const ContactPointHistory& history, const SurfaceBasis& fallback) {
     if (!history.cartesian_tangent_basis_initialized) return fallback;
     SurfaceBasis result;
@@ -585,7 +630,7 @@ Quad4SurfaceContactLocalResidual compute_quad4_to_quad4_tangential_force_geometr
     const SurfaceProjection projection = project_to_primary(secondary_point, nodes, geometry.normal_orientation);
     if (!projection.projected) return extract(ad_state, residual, jacobian);
     const ActivePoint3 normal = secondary_average_normal(nodes, geometry),
-                       tangent = interpolate_point(nodes, 0, geometry.secondary_normal_derivative_xi);
+                       tangent = interpolate_point(nodes, 0, geometry.secondary_derivative_xi);
     const adlite::Scalar tangent_measure = norm(tangent);
     if (!std::isfinite(tangent_measure.value()) || !(tangent_measure.value() > 0.0))
         throw std::domain_error("Three-dimensional averaged friction has an undefined current tangent");
@@ -613,22 +658,26 @@ Quad4AveragedFrictionGeometryValue compute_quad4_averaged_friction_geometry_valu
     const Quad4SurfaceContactLocalValues& committed_state, Quad4AveragedFrictionGeometryJacobian* jacobian) {
     const Quad4SurfaceContactLocalAdValues ad_state = make_ad_state(state, jacobian != nullptr),
                                            committed_ad_state = make_ad_state(committed_state, false);
+    const Quad4SurfaceContactLocalValues reference_state{};
     const std::array<ActivePoint3, 8> nodes = current_nodes(
                                           geometry.secondary_coordinates, geometry.primary_coordinates, ad_state),
                                       committed_nodes = current_nodes(geometry.secondary_coordinates,
-                                          geometry.primary_coordinates, committed_ad_state);
+                                          geometry.primary_coordinates, committed_ad_state),
+                                      reference_nodes = current_nodes(geometry.secondary_coordinates,
+                                          geometry.primary_coordinates, make_ad_state(reference_state, false));
     const ActivePoint3 secondary_point = interpolate_point(nodes, 0, geometry.secondary_shape);
     const SurfaceProjection projection = project_to_primary(secondary_point, nodes, geometry.normal_orientation);
     if (!projection.projected) return {};
     const ActivePoint3 normal = secondary_average_normal(nodes, geometry),
-                       tangent = interpolate_point(nodes, 0, geometry.secondary_normal_derivative_xi);
+                       tangent = interpolate_point(nodes, 0, geometry.secondary_derivative_xi);
     const adlite::Scalar tangent_measure = norm(tangent);
     if (!std::isfinite(tangent_measure.value()) || !(tangent_measure.value() > 0.0))
         throw std::domain_error("Three-dimensional averaged friction has an undefined current tangent");
     ActivePoint3 first{};
     for (std::size_t component = 0; component < 3; ++component)
         first[component] = tangent_orientation * tangent[component] / tangent_measure;
-    const ActivePoint3 second = cross(normal, first);
+    const SurfacePullbackCovectors pullback =
+        surface_pullback_covectors(nodes, reference_nodes, geometry, tangent_orientation, normal, first);
     const adlite::Scalar area =
         geometry.quadrature_weight *
         current_surface_measure(nodes, 0, geometry.secondary_derivative_xi, geometry.secondary_derivative_eta);
@@ -644,8 +693,8 @@ Quad4AveragedFrictionGeometryValue compute_quad4_averaged_friction_geometry_valu
         output[4 + component] = area * first[component];
         output[7 + component] = area * separation[component];
     }
-    output[10] = area * dot(increment, first);
-    output[11] = area * dot(increment, second);
+    output[10] = area * dot(increment, pullback.first);
+    output[11] = area * dot(increment, pullback.second);
     Quad4SurfaceContactLocalJacobian local_jacobian{};
     const Quad4SurfaceContactLocalResidual values =
         extract(ad_state, output, jacobian == nullptr ? nullptr : &local_jacobian);
@@ -656,6 +705,25 @@ Quad4AveragedFrictionGeometryValue compute_quad4_averaged_friction_geometry_valu
                     local_jacobian[row * quad4_surface_contact_local_dof_count + column];
     return {true, values[0], {values[1], values[2], values[3]}, {values[4], values[5], values[6]},
         {values[7], values[8], values[9]}, {values[10], values[11]}};
+}
+
+Quad4NormalForceAreaValue compute_quad4_to_quad4_normal_force_area(const NormalContactProperties& properties,
+    const Quad4ToQuad4MechanicalGeometry& geometry, const Quad4SurfaceContactLocalValues& state,
+    Quad4NormalForceAreaJacobian* jacobian) {
+    const Quad4SurfaceContactLocalAdValues ad_state = make_ad_state(state, jacobian != nullptr);
+    const CartesianContactAdValue value = evaluate_surface_mechanical(properties, geometry, ad_state, {}, {});
+    Quad4SurfaceContactLocalAdValues output{};
+    output[0] = value.contact_force;
+    output[1] = value.tributary_area;
+    Quad4SurfaceContactLocalJacobian full_jacobian{};
+    const Quad4SurfaceContactLocalResidual values =
+        extract(ad_state, output, jacobian == nullptr ? nullptr : &full_jacobian);
+    if (jacobian != nullptr)
+        for (std::size_t row = 0; row < 2; ++row)
+            for (std::size_t column = 0; column < quad4_surface_contact_local_dof_count; ++column)
+                (*jacobian)[row * quad4_surface_contact_local_dof_count + column] =
+                    full_jacobian[row * quad4_surface_contact_local_dof_count + column];
+    return {value.projected, values[0], values[1]};
 }
 
 CartesianContactPointValue compute_quad4_to_quad4_contact_value(const NormalContactProperties& properties,

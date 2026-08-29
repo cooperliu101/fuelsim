@@ -410,7 +410,7 @@ Comparison compare(const std::vector<NodeReference>& reference,
               << "b522_" << name << "_mechanical_contact_jacobian_directional_relative_error=" << jacobian_error
               << '\n';
     const double thermal_tolerance = swap ? 7.0e-3 : 1.0e-6;
-    constexpr double contact_normal_tolerance = 1.0e-2, contact_total_tolerance = 1.25e-2,
+    constexpr double contact_normal_tolerance = 1.0e-2, contact_total_tolerance = 1.0e-2,
                      contact_zero_component_tolerance = 1.0e-9;
     const bool passed =
         check(state_difference < 3.0e-8, "B5.22 " + name + " Fuelsim and Abaqus use the same faceted-cylinder state") &&
@@ -472,10 +472,13 @@ int main(int argc, char** argv) {
                   << "b522_facets6_to_facets12_force_error_contraction=" << second_contraction << '\n';
         const bool passed =
             facets3.passed && facets6.passed && facets12.passed && swapped.passed && tight.passed &&
-            check(first_contraction < 0.5 && second_contraction < 0.5,
-                "B5.22 Abaqus mechanical resultant difference contracts under each curved-facet refinement") &&
-            check(swapped.resultant_force_error < 2.0e-2 && tight.resultant_force_error < 2.0e-2,
-                "B5.22 designation exchange and tighter curvature keep the mechanical resultant difference below two "
+            check(facets3.resultant_force_error < 1.0e-6 &&
+                      facets6.resultant_force_error < facets3.resultant_force_error &&
+                      facets12.resultant_force_error < facets6.resultant_force_error,
+                "B5.22 Abaqus mechanical resultant difference stays below one part per million and decreases under "
+                "each curved-facet refinement") &&
+            check(swapped.resultant_force_error < 1.0e-2 && tight.resultant_force_error < 1.0e-2,
+                "B5.22 designation exchange and tighter curvature keep the mechanical resultant difference below one "
                 "percent");
         if (passed) std::cout << "[PASS] B5.22 Abaqus C3D8T faceted thermal contact\n";
         return passed ? 0 : 1;

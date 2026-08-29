@@ -160,6 +160,13 @@ struct Quad4AveragedFrictionGeometryValue final {
 
 using Quad4AveragedFrictionGeometryJacobian = std::array<double, 12 * quad4_surface_contact_local_dof_count>;
 
+struct Quad4NormalForceAreaValue final {
+    bool projected;
+    double force, area;
+};
+
+using Quad4NormalForceAreaJacobian = std::array<double, 2 * quad4_surface_contact_local_dof_count>;
+
 Quad4SurfaceContactLocalResidual compute_quad4_to_quad4_gap_heat(const GapHeatProperties& properties,
     const Quad4ToQuad4HeatGeometry& geometry, const Quad4SurfaceContactLocalValues& state,
     Quad4SurfaceContactLocalJacobian* jacobian = nullptr);
@@ -192,6 +199,9 @@ Quad4AveragedFrictionGeometryValue compute_quad4_averaged_friction_geometry_valu
     const Quad4ToQuad4MechanicalGeometry& geometry, const std::array<double, 4>& secondary_distribution,
     double tangent_orientation, const Quad4SurfaceContactLocalValues& state,
     const Quad4SurfaceContactLocalValues& committed_state, Quad4AveragedFrictionGeometryJacobian* jacobian = nullptr);
+Quad4NormalForceAreaValue compute_quad4_to_quad4_normal_force_area(const NormalContactProperties& properties,
+    const Quad4ToQuad4MechanicalGeometry& geometry, const Quad4SurfaceContactLocalValues& state,
+    Quad4NormalForceAreaJacobian* jacobian = nullptr);
 CartesianContactPointValue compute_quad4_to_quad4_contact_value(const NormalContactProperties& properties,
     const Quad4ToQuad4MechanicalGeometry& geometry, const Quad4SurfaceContactLocalValues& state,
     const Quad4SurfaceContactLocalValues& committed_state, const ContactPointHistory& history);

@@ -654,6 +654,10 @@ ScanResponse run_scan(std::size_t through_thickness_elements, std::size_t tangen
         comparison.contact_replayed_heat_rate_relative_tolerance = 3.0e-2;
         comparison.contact_replayed_heat_rate_pointwise_absolute_tolerance = 1.0;
         comparison.tangent_basis_tolerance = 1.0e-5;
+        if (case_name == "b525_poisson_0499_refined") {
+            comparison.contact_relative_tolerance = 1.0e-2;
+            comparison.contact_pointwise_relative_tolerance = 1.0e-2;
+        }
     }
     if (case_name.rfind("b526_", 0) == 0) {
         comparison.bulk_relative_tolerance = 1.0e-2;

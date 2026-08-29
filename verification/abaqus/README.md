@@ -1584,22 +1584,28 @@ slip components, both recovered shear-stress components, contact heat flow,
 and contact-output coordinates. Fuelsim retains the segmented normal operator
 and uses an Abaqus-style node-averaged finite-sliding friction constraint only
 when the linear secondary faces are noncoplanar. The three-, six-, and twelve-
-facet complete vector-resultant errors are `0.0151504%`, `0.00659424%`, and
-`0.00253528%`; designation exchange gives `0.625521%`, and halving the radius
-gives `0.0431537%`. Contact opening, pressure, and both nonzero normal-force
-components pass all three metrics below `1%`. Both nonzero components of the
-complete nodal force pass relative L2, relative absolute-peak, and maximum
-pointwise-relative limits of `1.25%`; the worst value is `1.21939%` in the
-tighter-curvature case. The zero third component is checked in absolute units.
-The analytical segmented-normal integral remains within `5.3e-15`.
+facet complete vector-resultant errors are `0.0000740971%`, `0.0000575747%`,
+and `0.0000308773%`; designation exchange gives `0.625521%`, and halving the
+radius gives `0.00000519571%`. Contact opening, pressure, and both nonzero
+normal-force components pass all three metrics below `1%`. Both nonzero
+components of the complete nodal force now pass relative L2, relative
+absolute-peak, and maximum pointwise-relative limits of `1%`; the worst value
+is `0.740496%` after designation exchange. The zero third component is checked
+in absolute units. The analytical segmented-normal integral remains within
+`5.3e-15`.
 
-The recovered `CSHEARF` split is printed as a diagnostic because Abaqus recovers
+The finite-sliding friction update uses the reference secondary-surface metric
+for slip, the current secondary tangent for force transmission, and the normal
+force from each matching segmented constraint for the Coulomb limit. These
+rules were selected from the discrete operators rather than calibrated against
+the five acceptance errors. The recovered `CSHEARF` split is printed as a
+diagnostic because Abaqus recovers
 that component from neighboring constraints; it is not an independent force
 after `CNORMF` and `CSHEARF` have been added at the same output node. The gating
 observable is the complete nodal physical force vector. The full curved
 friction residual and its 32-DOF local automatic-differentiation geometry chain
-match a separately refreshed centered directional difference from `3.29e-9`
-to `9.65e-9`. B5.22 is therefore verified for the five tracked faceted-curve
+match a separately refreshed centered directional difference from `3.35e-9`
+to `9.52e-9`. B5.22 is therefore verified for the five tracked faceted-curve
 cases. It is not the complete-contact template because it does not include
 two-direction sliding, moment, or force-center histories. Regenerate all five
 references with `generate_b522.py` and `run_b522.ps1`.
@@ -1707,7 +1713,15 @@ sensitivity gates. The displacement sensitivity gate changed from `15%` to
 none of the five direct Abaqus full-field gates was relaxed.
 These independent mesh-sensitivity limits apply to the sixteen-element
 tangential topology used by the five direct Abaqus studies and do not replace
-their per-case full-field gates.
+their per-case full-field gates. The one-layer `nu=0.499` case remains an
+explicit under-resolved sensitivity case: its contact-pressure maximum
+pointwise error is `2.91691%`. It is not used to qualify a nearly
+incompressible contact field below `1%`. In the two-layer thickness-refined
+`nu=0.499` case, displacement, stress, logarithmic strain, elastic strain,
+contact pressure, normal contact force, and complete contact force all pass
+their three metrics below `1%`; the largest is the normal-force maximum
+pointwise error of `0.999029%`. No material or contact coefficient differs
+between the two meshes.
 The `nu=0.49`, `nu=0.499`, and thickness-refined `nu=0.499` cases remain in the
 daily functional profile. The `nu=0.30` and `nu=0.45` cases carry the
 `qualification` label and remain in the complete Release suite.
@@ -1739,7 +1753,14 @@ Aggregate complete-field errors use a `1.5%` gate; displacement, logarithmic
 strain, and contact pointwise gates are `5%`, `2%`, and `2.5%`. Very small
 reaction, stress, and elastic-strain reference norms use explicit absolute gates
 of `1e-6 N`, `10 Pa`, and `1e-10` instead of the former broad relative gates.
-All six comparisons pass. This establishes full-field agreement for the tracked
+All six comparisons pass. The original twelve-element coarse case retains its
+`1.00114%` displacement maximum pointwise error as an under-resolved mesh
+sensitivity result. The 36-element engineering mesh is the below-`1%`
+qualification topology: displacement, contact pressure, contact slip, normal
+contact force, complete contact force, and recovered shear-force vectors all
+pass their three metrics below `1%`; their largest value is the `0.596834%`
+displacement maximum pointwise error. Material, contact, and time-integration
+parameters are unchanged. This establishes full-field agreement for the tracked
 quarter-cylinder engineering model, but it is not a nuclear-safety
 qualification and does not cover untracked geometries, materials, or paths.
 The medium-mesh case remains in the daily functional profile. The other five

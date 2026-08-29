@@ -192,7 +192,8 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
         std::vector<std::size_t> nodes, secondary_output_nodes;
         std::vector<double> gap_coefficients, secondary_coefficients;
         std::vector<std::array<double, 3>> tangent_first_coefficients, tangent_second_coefficients,
-            secondary_tangent_first_coefficients, secondary_tangent_second_coefficients;
+            traction_first_coefficients, traction_second_coefficients, secondary_tangent_first_coefficients,
+            secondary_tangent_second_coefficients;
         std::vector<CartesianPoint3> reference_coordinates;
         std::vector<FiniteSlidingSample> finite_sliding_samples;
         CartesianPoint3 normal, tangent_first, reference_normal, reference_tangent_first;
@@ -237,6 +238,8 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     AbaqusAveragedConstraintValue averaged_constraint_value(const AbaqusAveragedConstraint& constraint,
         const std::vector<double>& state, const std::vector<double>& committed_state,
         const ContactPointHistory& history) const;
+    double equivalent_normal_pressure(const AbaqusAveragedConstraint& constraint, const std::vector<double>& state,
+        std::vector<double>* derivative = nullptr, const std::vector<double>* friction_area_derivative = nullptr) const;
     void compute_averaged_constraint(const AbaqusAveragedConstraint& constraint, const std::vector<double>& state,
         std::vector<double>& residual, std::vector<double>* jacobian) const;
     void compute_averaged_friction_geometry(const AbaqusAveragedConstraint& constraint,
