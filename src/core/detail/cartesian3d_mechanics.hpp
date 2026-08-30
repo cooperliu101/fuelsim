@@ -24,6 +24,8 @@ struct KinematicsCore final {
 
 KinematicsCore evaluate_kinematics(
     const ActiveMatrix3& gradient, const Matrix3& committed_deformation, StrainFormulation strain_formulation);
+// This increment-only helper populates strain_increment and rotation. It cannot reconstruct the current
+// configuration, so current_inverse and current_determinant retain their default values and must not be read.
 KinematicsCore evaluate_hughes_winget_increment(const ActiveMatrix3& central_displacement_gradient);
 
 MaterialFunctionContext material_context(double time, const CartesianPoint3& point);

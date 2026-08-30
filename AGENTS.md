@@ -90,6 +90,19 @@ MOOSE 算例鉴定。轴对称有限应变 follower pressure 另有
   7 的本构播种。有限应变时采用由 B5.19 鉴定的 C3D8T 有限应变选择性体积处理，
   体积平均量、当前积分点体积及其闭式位移链必须同时进入残量和 Jacobian。
   RZ Quad4 和三维 HEX20 不采用这条 HEX8 专用规则。
+- 三维 HEX8 选择 `element = c3d8rt` 时采用 Abaqus C3D8RT 一点减缩积分规则，
+  不采用上一条 C3D8T 选择性体积积分。体积平均形函数梯度形成一个均匀应变和
+  一个体积加权材料温度，每个单元只保存一个材料积分点。热传导由均匀梯度项和
+  四个正交沙漏模态组成；均匀体热源使用中心 Jacobian 的 `8*detJ_center` 并平均
+  分到八个节点；Backward Euler 热容使用一致热容矩阵行和作为节点对角权重。
+  小应变使用参考构形权重，有限应变使用当前构形的体积、平均梯度和节点热容
+  权重，并保留热残量对位移的几何 Jacobian。
+- C3D8RT 力学沙漏控制固定使用 Abaqus 默认总刚度系数 `0.005` 乘初始温度剪切
+  模量，不提供输入覆盖，也不得根据验证误差拟合。有限应变沙漏能量必须把参考
+  模态位移通过单元平均变形梯度推前，完整保留 `F*D*transpose(F)` 及变形梯度
+  自身导数。C3D8RT 仍只使用宽度 10 的运动学链和宽度 7 的本构链；完整 32×32
+  Jacobian 当前按单列方向几何链组装，禁止改为 32 自由度恒等播种。有限应变还
+  必须分别保持 committed、midpoint 和 current 构形 Jacobian 为正。
 - 小应变区域在参考构形装配力学。轴对称有限应变区域从变形梯度形成
   `Fhat=F_new*inverse(F_old)`，使用 MOOSE 默认 Taylor 应变增量和 Rashid
   增量转动，并用 Cauchy 应力、当前构形形函数梯度和
@@ -112,7 +125,7 @@ MOOSE 算例鉴定。轴对称有限应变 follower pressure 另有
   非共轴对标必须比较 MOOSE 的总非弹性张量、应力、弹性张量和两个等效标量；
   fuelsim 分机制张量另由局部客观性测试约束。
 - 历史变量使用 `double` 保存；只有 trial state 使用 ADlite。
-- RZ Quad4 与三维 HEX20 热容使用参考构形一致质量矩阵。三维 HEX8 按 Abaqus
+- RZ Quad4 与三维 HEX20 热容使用参考构形一致质量矩阵。三维 C3D8T 按 Abaqus
   一阶热单元规则在八个自然坐标角点做节点积分，第 `i` 个节点的热容残量为
   `detJ_i*rho(T_i)*cp(T_i)*(T_i_new-T_i_old)/dt`。小应变的 `detJ_i` 为参考构形
   角点 Jacobian 行列式，有限应变则为当前构形角点 Jacobian 行列式。热容的

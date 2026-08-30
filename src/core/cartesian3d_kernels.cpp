@@ -1200,9 +1200,9 @@ adlite::Scalar reduced_hex8_temperature(const ActiveReducedHex8Geometry& geometr
 }
 
 Hex8LocalAdValues reduced_hex8_finite_residual(const CartesianThermoelasticData& data, const Hex8Geometry& reference,
-    const Hex8LocalAdValues& state, const Hex8LocalValues& committed_state,
-    const CartesianMaterialPointState* committed_material, double time_step, bool include_thermal_time_term,
-    double initial_shear_modulus, const ReducedFiniteStressLinearization& stress_linearization) {
+    const Hex8LocalAdValues& state, const Hex8LocalValues& committed_state, double time_step,
+    bool include_thermal_time_term, double initial_shear_modulus,
+    const ReducedFiniteStressLinearization& stress_linearization) {
     const auto displacement = reduced_hex8_displacement(state);
     const auto midpoint_displacement = reduced_hex8_midpoint_displacement(state, committed_state);
     const ActiveReducedHex8Geometry current = active_reduced_hex8_geometry(reference, displacement, "current");
@@ -1309,7 +1309,7 @@ Hex8LocalAdValues reduced_hex8_finite_residual(const CartesianThermoelasticData&
         }
     }
 
-    if (committed_material != nullptr && include_thermal_time_term)
+    if (include_thermal_time_term)
         for (std::size_t node = 0; node < hex8_node_count; ++node) {
             const adlite::Scalar capacity = data.material.heat_capacity(
                 state[node], material_context(data.time, reference.capacity_points[node].position));
@@ -1361,8 +1361,9 @@ void add_reduced_hex8_finite_strain_system(const CartesianThermoelasticData& dat
     if (!std::isfinite(initial_shear_modulus) || !(initial_shear_modulus > 0.0))
         throw std::invalid_argument("C3D8RT initial shear modulus must be finite and positive");
 
-    residual = reduced_hex8_finite_residual(data, geometry, passive_state, old_state, committed_material, time_step,
-        include_thermal_time_term, initial_shear_modulus, stress_linearization);
+    const bool add_thermal_time_term = committed_state != nullptr && include_thermal_time_term;
+    residual = reduced_hex8_finite_residual(data, geometry, passive_state, old_state, time_step, add_thermal_time_term,
+        initial_shear_modulus, stress_linearization);
     if (jacobian == nullptr) return;
     jacobian->fill(0.0);
     // The geometry of an average-strain element depends on all 24 displacement values. Apply
@@ -1372,9 +1373,8 @@ void add_reduced_hex8_finite_strain_system(const CartesianThermoelasticData& dat
         Hex8LocalAdValues directional_state{};
         ad_local_system::make_passive(state.data(), state.size(), directional_state.data());
         directional_state[column] = adlite::Scalar::independent(state[column], 0, 1);
-        const Hex8LocalAdValues directional_residual =
-            reduced_hex8_finite_residual(data, geometry, directional_state, old_state, committed_material, time_step,
-                include_thermal_time_term, initial_shear_modulus, stress_linearization);
+        const Hex8LocalAdValues directional_residual = reduced_hex8_finite_residual(data, geometry, directional_state,
+            old_state, time_step, add_thermal_time_term, initial_shear_modulus, stress_linearization);
         for (std::size_t row = 0; row < hex8_local_dof_count; ++row)
             (*jacobian)[row * hex8_local_dof_count + column] =
                 directional_residual[row].is_active() ? directional_residual[row].derivative(0) : 0.0;

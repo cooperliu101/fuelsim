@@ -745,6 +745,43 @@ bool test_reduced_integration_inelastic_jacobian() {
     return passed;
 }
 
+bool test_reduced_integration_thermoelastic_capacity_gate() {
+    const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(unit_cube());
+    fuelsim::Hex8LocalValues committed_state{}, state{};
+    for (std::size_t node = 0; node < 8; ++node) {
+        committed_state[node] = 300.0;
+        state[node] = 310.0;
+    }
+    std::array<fuelsim::Hex8LocalResidual, 2> steady{}, transient{};
+    std::array<fuelsim::Hex8LocalJacobian, 2> jacobian{};
+    const std::array<fuelsim::StrainFormulation, 2> formulations = {
+        fuelsim::StrainFormulation::small, fuelsim::StrainFormulation::finite};
+    bool passed = true;
+    for (std::size_t formulation = 0; formulation < formulations.size(); ++formulation) {
+        const fuelsim::CartesianThermoelasticData data{fuelsim::IsotropicThermoelasticMaterial(capacity_properties()),
+            0.0, 1.0, formulations[formulation], fuelsim::Hex8ElementFormulation::c3d8rt, 300.0};
+        steady[formulation] = fuelsim::compute_hex8_thermoelastic(data, geometry, state);
+        transient[formulation] =
+            fuelsim::compute_hex8_thermoelastic(data, geometry, state, &committed_state, 2.0, &jacobian[formulation]);
+        for (std::size_t node = 0; node < 8; ++node)
+            passed =
+                check(transient[formulation][node] - steady[formulation][node] > 0.0,
+                    "C3D8RT thermoelastic local interface adds heat capacity when a committed state is supplied") &&
+                passed;
+    }
+    for (std::size_t node = 0; node < 8; ++node) {
+        passed = check(near(transient[0][node] - steady[0][node], transient[1][node] - steady[1][node], 1.0e-13),
+                     "small- and finite-strain C3D8RT use the same committed-state heat-capacity gate") &&
+                 passed;
+        for (std::size_t column = 0; column < 8; ++column)
+            passed =
+                check(near(jacobian[0][node * 32 + column], jacobian[1][node * 32 + column], 1.0e-13),
+                    "undeformed small- and finite-strain C3D8RT thermal Jacobians include the same capacity term") &&
+                passed;
+    }
+    return passed;
+}
+
 bool test_finite_strain_kinematics_and_coupled_jacobian() {
     const fuelsim::Hex8Coordinates coordinates = unit_cube();
     const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(coordinates);
@@ -1181,6 +1218,7 @@ int main() {
     passed = test_transient_capacity_and_faces() && passed;
     passed = test_cartesian_inelastic_material() && passed;
     passed = test_reduced_integration_inelastic_jacobian() && passed;
+    passed = test_reduced_integration_thermoelastic_capacity_gate() && passed;
     passed = test_finite_strain_kinematics_and_coupled_jacobian() && passed;
     passed = test_cartesian_surface_contact_kernels() && passed;
     if (!passed) return 1;
