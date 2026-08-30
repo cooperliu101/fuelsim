@@ -601,12 +601,19 @@ secondary 侧切向合力；轴对称为有符号标量，三维为合力向量�
   stress_history_time_absolute_tolerance = 1
   time_error_safety_factor = 0.9
   include_thermal_time_term = true
+  use_linear_time_predictor = false
   restart = previous.checkpoint
 []
 ```
 
 `include_thermal_time_term` 默认为 `true`。设为 `false` 时，瞬态温度方程不加入
 `rho*cp*(T_new-T_old)/dt` 热容时间项，但仍保留热传导、热源和力学瞬态材料更新。
+
+`use_linear_time_predictor` 默认为 `false`。设为 `true` 时，从第二个时间步开始，
+求解器使用初始节点状态到当前已提交节点状态的线性割线，对下一个时间点作外推。
+该选项只改变牛顿法的初始猜测，不改变离散方程、材料参数或收敛门槛。若预测状态
+无效或不能收敛，求解器在缩小时间步之前先从当前已提交状态重试同一时间步。预测
+只依赖输入定义和现有检查点状态，因此重启动不需要保存额外的预测器历史。
 
 瞬态载荷因子为 `min(time/load_ramp_time, 1)`；`load_ramp_time = 0` 表示从
 首步起使用完整载荷。该因子同时控制各区域 `volumetric_heat_source` 和所有

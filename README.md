@@ -134,7 +134,9 @@ fuelsim_dependency_root="$(cd .. && pwd)/fuelsim-dependencies"
 
 PETSc 只负责求解，不需要启用 Exodus。Exodus 单独构建为串行 I/O 库并复用
 固定 MOOSE Conda 环境中的 NetCDF；fuelsim 不使用 DMPlex，也不使用
-`PetscViewerExodusII`。使用该环境中的 PETSc 构建 fuelsim：
+`PetscViewerExodusII`。固定的 ADlite 安装脚本和 fuelsim Release 配置都默认
+启用链接期跨翻译单元优化；性能验收要求保留该设置。使用该环境中的 PETSc
+构建 fuelsim：
 
 ```bash
 env \

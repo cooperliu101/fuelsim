@@ -265,12 +265,15 @@ bool test_finite_strain_restart(const std::string& input_path, const std::string
     const fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
     const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
     const fuelsim::SolverOptions solver = solver_options(input);
+    fuelsim::TransientTimeOptions full_options = time_options(input, input.transient_execution.end_time);
+    full_options.use_linear_time_predictor = true;
     fuelsim::TransientProblem uninterrupted(input.spatial, mesh);
-    const fuelsim::TransientResult full =
-        fuelsim::solve_transient(uninterrupted, time_options(input, input.transient_execution.end_time), solver);
+    const fuelsim::TransientResult full = fuelsim::solve_transient(uninterrupted, full_options, solver);
     bool passed = check(full.completed, "uninterrupted finite-strain solve completes");
     fuelsim::TransientProblem split(input.spatial, mesh);
-    const fuelsim::TransientResult first = fuelsim::solve_transient(split, time_options(input, 2.5), solver);
+    fuelsim::TransientTimeOptions first_options = time_options(input, 2.5);
+    first_options.use_linear_time_predictor = true;
+    const fuelsim::TransientResult first = fuelsim::solve_transient(split, first_options, solver);
     passed = check(first.completed && nearly_equal(split.committed_time(), 2.5),
                  "finite-strain restart split reaches the deformed state") &&
              passed;
@@ -295,6 +298,7 @@ bool test_finite_strain_restart(const std::string& input_path, const std::string
     passed = compare_committed_states(split_state, fuelsim::rz::ProblemAccess::committed_state(restarted)) && passed;
     fuelsim::TransientTimeOptions restart_options = time_options(input, input.transient_execution.end_time);
     restart_options.initial_time_step = restored_time_step;
+    restart_options.use_linear_time_predictor = true;
     const fuelsim::TransientResult second = fuelsim::solve_transient(restarted, restart_options, solver);
     passed = check(second.completed, "restarted finite-strain solve reaches end time") &&
              compare_committed_states(fuelsim::rz::ProblemAccess::committed_state(uninterrupted),

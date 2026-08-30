@@ -77,6 +77,7 @@ class TransientProblem final : public NonlinearProblem {
     ~TransientProblem() override;
     bool is_cartesian_3d() const noexcept;
     const SpatialDefinition& definition() const noexcept;
+    std::vector<double> initial_solution() const;
     const std::vector<double>& committed_solution() const noexcept;
     double committed_time() const noexcept;
     double committed_load_factor() const noexcept;

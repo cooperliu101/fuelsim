@@ -97,20 +97,35 @@ FiniteTracePoint finite_trace_point(const Hex8QuadraturePoint& point, const cart
         point.weighted_measure * midpoint_determinant, point.weighted_measure * kinematics.current_determinant};
 }
 
-double finite_average_hex8_strain_trace(
+struct FiniteAverageTraceValues final {
+    double value = 0.0;
+    double current_volume = 0.0;
+};
+
+FiniteAverageTraceValues finite_average_hex8_strain_trace_values(
     const Hex8Geometry& geometry, const Hex8LocalValues& state, const Hex8LocalValues& committed_state) {
     Hex8LocalAdValues passive{};
     ad_local_system::make_passive(state.data(), state.size(), passive.data());
     double numerator = 0.0, volume = 0.0;
+    FiniteAverageTraceValues result;
     for (const Hex8QuadraturePoint& point : geometry.points) {
         const FiniteTracePoint trace_point =
             finite_trace_point(point, displacement_gradient(point, passive), committed_state);
         numerator += trace_point.midpoint_weighted_measure.value() * trace_point.strain_trace.value();
         volume += trace_point.midpoint_weighted_measure.value();
+        result.current_volume += trace_point.current_weighted_measure.value();
     }
     if (!std::isfinite(volume) || !(volume > 0.0))
         throw std::domain_error("Abaqus finite-strain HEX8 midpoint volume must be finite and positive");
-    return numerator / volume;
+    if (!std::isfinite(result.current_volume) || !(result.current_volume > 0.0))
+        throw std::domain_error("Abaqus finite-strain HEX8 current volume must be finite and positive");
+    result.value = numerator / volume;
+    return result;
+}
+
+double finite_average_hex8_strain_trace(
+    const Hex8Geometry& geometry, const Hex8LocalValues& state, const Hex8LocalValues& committed_state) {
+    return finite_average_hex8_strain_trace_values(geometry, state, committed_state).value;
 }
 
 struct FiniteAverageTraceSystem final {
@@ -119,57 +134,6 @@ struct FiniteAverageTraceSystem final {
     double current_volume = 0.0;
     std::array<std::array<double, 3>, hex8_node_count> current_volume_derivatives{};
 };
-
-FiniteAverageTraceSystem finite_average_hex8_strain_trace_system(
-    const Hex8Geometry& geometry, const Hex8LocalValues& state, const Hex8LocalValues& committed_state) {
-    constexpr std::size_t width = 9;
-    FiniteAverageTraceSystem result;
-    double numerator = 0.0, volume = 0.0;
-    std::array<std::array<double, 3>, hex8_node_count> numerator_derivatives{}, volume_derivatives{};
-    for (const Hex8QuadraturePoint& point : geometry.points) {
-        cartesian_detail::ActiveMatrix3 gradient{};
-        for (std::size_t component = 0; component < 3; ++component)
-            for (std::size_t direction = 0; direction < 3; ++direction) {
-                double value = 0.0;
-                for (std::size_t node = 0; node < hex8_node_count; ++node)
-                    value += point.gradient[node][direction] * state[8 * (component + 1) + node];
-                gradient[component][direction] = adlite::Scalar::independent(value, component * 3 + direction, width);
-            }
-        const FiniteTracePoint trace_point = finite_trace_point(point, gradient, committed_state);
-        const adlite::Scalar point_numerator = trace_point.midpoint_weighted_measure * trace_point.strain_trace;
-        numerator += point_numerator.value();
-        volume += trace_point.midpoint_weighted_measure.value();
-        result.current_volume += trace_point.current_weighted_measure.value();
-        std::array<double, width> point_numerator_derivatives{}, point_volume_derivatives{},
-            point_current_volume_derivatives{};
-        point_numerator.copy_derivatives(point_numerator_derivatives.data(), point_numerator_derivatives.size());
-        trace_point.midpoint_weighted_measure.copy_derivatives(
-            point_volume_derivatives.data(), point_volume_derivatives.size());
-        trace_point.current_weighted_measure.copy_derivatives(
-            point_current_volume_derivatives.data(), point_current_volume_derivatives.size());
-        for (std::size_t node = 0; node < hex8_node_count; ++node)
-            for (std::size_t component = 0; component < 3; ++component)
-                for (std::size_t direction = 0; direction < 3; ++direction) {
-                    const double shape_chain = point.gradient[node][direction];
-                    numerator_derivatives[node][component] +=
-                        point_numerator_derivatives[component * 3 + direction] * shape_chain;
-                    volume_derivatives[node][component] +=
-                        point_volume_derivatives[component * 3 + direction] * shape_chain;
-                    result.current_volume_derivatives[node][component] +=
-                        point_current_volume_derivatives[component * 3 + direction] * shape_chain;
-                }
-    }
-    if (!std::isfinite(volume) || !(volume > 0.0))
-        throw std::domain_error("Abaqus finite-strain HEX8 midpoint volume must be finite and positive");
-    if (!std::isfinite(result.current_volume) || !(result.current_volume > 0.0))
-        throw std::domain_error("Abaqus finite-strain HEX8 current volume must be finite and positive");
-    result.value = numerator / volume;
-    for (std::size_t node = 0; node < hex8_node_count; ++node)
-        for (std::size_t component = 0; component < 3; ++component)
-            result.displacement_derivatives[node][component] =
-                (numerator_derivatives[node][component] - result.value * volume_derivatives[node][component]) / volume;
-    return result;
-}
 
 SymmetricTensor3 selectively_reduced_strain(
     const SymmetricTensor3& strain, double average_trace, StrainFormulation strain_formulation) {
@@ -227,23 +191,41 @@ SymmetricTensor3 rotate_cartesian_tensor(const SymmetricTensor3& tensor, const C
         {rotation.yx, rotation.yy, rotation.yz}, {rotation.zx, rotation.zy, rotation.zz}}};
     const cartesian_detail::ActiveMatrix3 value = {
         {{tensor.xx, tensor.xy, tensor.xz}, {tensor.xy, tensor.yy, tensor.yz}, {tensor.xz, tensor.yz, tensor.zz}}};
+    cartesian_detail::ActiveMatrix3 left{};
+    for (std::size_t i = 0; i < 3; ++i)
+        for (std::size_t k = 0; k < 3; ++k)
+            for (std::size_t l = 0; l < 3; ++l) left[i][k] += r[i][l] * value[l][k];
     cartesian_detail::ActiveMatrix3 rotated{};
     for (std::size_t i = 0; i < 3; ++i)
-        for (std::size_t j = 0; j < 3; ++j)
-            for (std::size_t k = 0; k < 3; ++k)
-                for (std::size_t l = 0; l < 3; ++l) rotated[i][j] += r[i][k] * value[k][l] * r[j][l];
+        for (std::size_t j = i; j < 3; ++j)
+            for (std::size_t k = 0; k < 3; ++k) rotated[i][j] += left[i][k] * r[j][k];
     return {rotated[0][0], rotated[1][1], rotated[2][2], rotated[0][1], rotated[1][2], rotated[0][2]};
 }
 
-CartesianInelasticStressResponse IsotropicThermoelasticMaterial::incremental_response(
-    const SymmetricTensor3& strain_increment, const CartesianRotation& rotation, const adlite::Scalar& temperature,
-    double committed_temperature, double time_step, const CartesianMaterialPointState& committed,
-    MaterialFunctionContext context) const {
+namespace {
+SymmetricTensor3Values rotate_cartesian_tensor_values(
+    const SymmetricTensor3Values& tensor, const cartesian_detail::Matrix3& rotation) {
+    const cartesian_detail::Matrix3 value = {{{{tensor.xx, tensor.xy, tensor.xz}}, {{tensor.xy, tensor.yy, tensor.yz}},
+        {{tensor.xz, tensor.yz, tensor.zz}}}};
+    cartesian_detail::Matrix3 left{};
+    for (std::size_t i = 0; i < 3; ++i)
+        for (std::size_t k = 0; k < 3; ++k)
+            for (std::size_t l = 0; l < 3; ++l) left[i][k] += rotation[i][l] * value[l][k];
+    cartesian_detail::Matrix3 rotated{};
+    for (std::size_t i = 0; i < 3; ++i)
+        for (std::size_t j = i; j < 3; ++j)
+            for (std::size_t k = 0; k < 3; ++k) rotated[i][j] += left[i][k] * rotation[j][k];
+    return {rotated[0][0], rotated[1][1], rotated[2][2], rotated[0][1], rotated[1][2], rotated[0][2]};
+}
+
+CartesianInelasticStressResponse evaluate_incremental_cartesian_response(const IsotropicThermoelasticMaterial& material,
+    const SymmetricTensor3& strain_increment, const adlite::Scalar& temperature, double committed_temperature,
+    double time_step, const CartesianMaterialPointState& committed, MaterialFunctionContext context) {
     if (!std::isfinite(committed_temperature) || !(committed_temperature > 0.0))
         throw std::domain_error("Incremental Cartesian material committed temperature must be finite and positive");
     MaterialFunctionContext old_context = context;
     old_context.time -= time_step;
-    const SymmetricTensor3 old_imposed = eigenstrain(adlite::Scalar(committed_temperature), old_context);
+    const SymmetricTensor3 old_imposed = material.eigenstrain(adlite::Scalar(committed_temperature), old_context);
     const SymmetricTensor3 synthetic_total{committed.elastic_strain[0] + strain_increment.xx + old_imposed.xx +
                                                committed.plastic_strain[0] + committed.creep_strain[0],
         committed.elastic_strain[1] + strain_increment.yy + old_imposed.yy + committed.plastic_strain[1] +
@@ -256,7 +238,16 @@ CartesianInelasticStressResponse IsotropicThermoelasticMaterial::incremental_res
             committed.creep_strain[4],
         committed.elastic_strain[5] + strain_increment.xz + old_imposed.xz + committed.plastic_strain[5] +
             committed.creep_strain[5]};
-    CartesianInelasticStressResponse result = response(synthetic_total, temperature, time_step, committed, context);
+    return material.response(synthetic_total, temperature, time_step, committed, context);
+}
+} // namespace
+
+CartesianInelasticStressResponse IsotropicThermoelasticMaterial::incremental_response(
+    const SymmetricTensor3& strain_increment, const CartesianRotation& rotation, const adlite::Scalar& temperature,
+    double committed_temperature, double time_step, const CartesianMaterialPointState& committed,
+    MaterialFunctionContext context) const {
+    CartesianInelasticStressResponse result = evaluate_incremental_cartesian_response(
+        *this, strain_increment, temperature, committed_temperature, time_step, committed, context);
     result.stress = rotate_cartesian_tensor(result.stress, rotation);
     std::array<double, 6>* histories[3] = {
         &result.trial_state.elastic_strain, &result.trial_state.plastic_strain, &result.trial_state.creep_strain};
@@ -371,18 +362,225 @@ struct FiniteElementPressureSystem final {
     std::array<double, hex8_local_dof_count> derivatives{};
 };
 
+struct FinitePointSystemCache final {
+    adlite::Scalar active_temperature;
+    CartesianKinematics kinematics;
+    cartesian_detail::CartesianStressTangent tangent;
+};
+
+struct FinitePointResidualCache final {
+    cartesian_detail::Matrix3 current_deformation{};
+    cartesian_detail::Matrix3 rotation{};
+    std::array<std::array<double, 3>, hex8_node_count> current_gradient{};
+    SymmetricTensor3Values strain_increment{};
+    SymmetricTensor3Values stress{};
+    double current_weighted_measure = 0.0;
+};
+
+cartesian_detail::Matrix3 multiply_matrices(
+    const cartesian_detail::Matrix3& first, const cartesian_detail::Matrix3& second) {
+    cartesian_detail::Matrix3 result{};
+    for (std::size_t i = 0; i < 3; ++i)
+        for (std::size_t j = 0; j < 3; ++j)
+            for (std::size_t k = 0; k < 3; ++k) result[i][j] += first[i][k] * second[k][j];
+    return result;
+}
+
+FinitePointResidualCache finite_point_residual_kinematics(
+    const Hex8QuadraturePoint& point, const Hex8LocalValues& state, const Hex8LocalValues& committed_state) {
+    FinitePointResidualCache result;
+    result.current_deformation = deformation_gradient(point, state);
+    const double current_determinant = cartesian_detail::determinant(result.current_deformation);
+    if (!std::isfinite(current_determinant) || !(current_determinant > 0.0))
+        throw std::domain_error("Finite-strain Cartesian deformation must preserve a positive Jacobian");
+    const cartesian_detail::Matrix3 current_inverse =
+        cartesian_detail::inverse(result.current_deformation, current_determinant);
+    const cartesian_detail::Matrix3 old_deformation = deformation_gradient(point, committed_state);
+    const double old_determinant = cartesian_detail::determinant(old_deformation);
+    if (!std::isfinite(old_determinant) || !(old_determinant > 0.0))
+        throw std::domain_error("Committed finite-strain Cartesian state requires a positive Jacobian");
+    const double incremental_determinant = current_determinant / old_determinant;
+    if (!std::isfinite(incremental_determinant) || !(incremental_determinant > 0.0))
+        throw std::domain_error("Incremental finite-strain Cartesian state requires a positive Jacobian");
+    // Use the algebraically identical central-deformation form of the
+    // Hughes-Winget map.  This residual-only path stores half of the map;
+    // the factors below recover the original strain and spin definitions.
+    cartesian_detail::Matrix3 deformation_sum{}, deformation_difference{};
+    for (std::size_t i = 0; i < 3; ++i)
+        for (std::size_t j = 0; j < 3; ++j) {
+            deformation_sum[i][j] = result.current_deformation[i][j] + old_deformation[i][j];
+            deformation_difference[i][j] = result.current_deformation[i][j] - old_deformation[i][j];
+        }
+    const double plus_determinant = cartesian_detail::determinant(deformation_sum);
+    if (!std::isfinite(plus_determinant) || plus_determinant == 0.0)
+        throw std::domain_error("Abaqus Hughes-Winget Cartesian increment has singular delta-F plus identity");
+    const cartesian_detail::Matrix3 hughes_winget =
+        multiply_matrices(deformation_difference, cartesian_detail::inverse(deformation_sum, plus_determinant));
+    cartesian_detail::Matrix3 spatial_strain{};
+    for (std::size_t i = 0; i < 3; ++i)
+        for (std::size_t j = 0; j < 3; ++j) spatial_strain[i][j] = hughes_winget[i][j] + hughes_winget[j][i];
+
+    cartesian_detail::Matrix3 rotation_numerator{}, rotation_denominator{};
+    for (std::size_t i = 0; i < 3; ++i) {
+        rotation_numerator[i][i] = 1.0;
+        rotation_denominator[i][i] = 1.0;
+        for (std::size_t j = 0; j < 3; ++j) {
+            const double half_spin = 0.5 * (hughes_winget[i][j] - hughes_winget[j][i]);
+            rotation_numerator[i][j] += half_spin;
+            rotation_denominator[i][j] -= half_spin;
+        }
+    }
+    const double rotation_denominator_determinant = cartesian_detail::determinant(rotation_denominator);
+    if (!std::isfinite(rotation_denominator_determinant) || rotation_denominator_determinant == 0.0)
+        throw std::domain_error("Abaqus Hughes-Winget Cartesian rotation denominator is singular");
+    result.rotation = multiply_matrices(
+        rotation_numerator, cartesian_detail::inverse(rotation_denominator, rotation_denominator_determinant));
+    const cartesian_detail::Matrix3 corotational_strain = multiply_matrices(
+        multiply_matrices({{{{result.rotation[0][0], result.rotation[1][0], result.rotation[2][0]}},
+                              {{result.rotation[0][1], result.rotation[1][1], result.rotation[2][1]}},
+                              {{result.rotation[0][2], result.rotation[1][2], result.rotation[2][2]}}}},
+            spatial_strain),
+        result.rotation);
+    result.strain_increment = {corotational_strain[0][0], corotational_strain[1][1], corotational_strain[2][2],
+        corotational_strain[0][1], corotational_strain[1][2], corotational_strain[0][2]};
+    result.current_weighted_measure = point.weighted_measure * current_determinant;
+    for (std::size_t node = 0; node < hex8_node_count; ++node)
+        for (std::size_t direction = 0; direction < 3; ++direction)
+            for (std::size_t reference = 0; reference < 3; ++reference)
+                result.current_gradient[node][direction] +=
+                    point.gradient[node][reference] * current_inverse[reference][direction];
+    return result;
+}
+
+FiniteAverageTraceValues prepare_finite_point_residuals(const Hex8Geometry& geometry, const Hex8LocalValues& state,
+    const Hex8LocalValues& committed_state, std::array<FinitePointResidualCache, hex8_node_count>& point_residuals) {
+    FiniteAverageTraceValues result;
+    double numerator = 0.0, midpoint_volume = 0.0;
+    for (std::size_t q = 0; q < geometry.points.size(); ++q) {
+        const Hex8QuadraturePoint& point = geometry.points[q];
+        FinitePointResidualCache& point_residual = point_residuals[q];
+        point_residual = finite_point_residual_kinematics(point, state, committed_state);
+        const cartesian_detail::Matrix3 old_deformation = deformation_gradient(point, committed_state);
+        cartesian_detail::Matrix3 midpoint{};
+        for (std::size_t i = 0; i < 3; ++i)
+            for (std::size_t j = 0; j < 3; ++j)
+                midpoint[i][j] = 0.5 * (point_residual.current_deformation[i][j] + old_deformation[i][j]);
+        const double point_midpoint_volume = point.weighted_measure * cartesian_detail::determinant(midpoint);
+        if (!std::isfinite(point_midpoint_volume) || !(point_midpoint_volume > 0.0))
+            throw std::domain_error(
+                "Abaqus finite-strain HEX8 midpoint configuration must preserve a positive Jacobian");
+        numerator += point_midpoint_volume * (point_residual.strain_increment.xx + point_residual.strain_increment.yy +
+                                                 point_residual.strain_increment.zz);
+        midpoint_volume += point_midpoint_volume;
+        result.current_volume += point_residual.current_weighted_measure;
+    }
+    if (!std::isfinite(midpoint_volume) || !(midpoint_volume > 0.0))
+        throw std::domain_error("Abaqus finite-strain HEX8 midpoint volume must be finite and positive");
+    if (!std::isfinite(result.current_volume) || !(result.current_volume > 0.0))
+        throw std::domain_error("Abaqus finite-strain HEX8 current volume must be finite and positive");
+    result.value = numerator / midpoint_volume;
+    return result;
+}
+
+CartesianRotation active_rotation(const cartesian_detail::Matrix3& rotation) {
+    return {rotation[0][0], rotation[0][1], rotation[0][2], rotation[1][0], rotation[1][1], rotation[1][2],
+        rotation[2][0], rotation[2][1], rotation[2][2]};
+}
+
+double prepare_finite_point_stresses(const IsotropicThermoelasticMaterial& material, const Hex8Geometry& geometry,
+    const Hex8LocalValues& state, double time, const Hex8LocalValues* committed_state,
+    const CartesianMaterialHistory* committed_material, double time_step, double average_strain_trace,
+    std::array<FinitePointResidualCache, hex8_node_count>& point_residuals) {
+    const Hex8LocalValues undeformed{};
+    const Hex8LocalValues& old_state = committed_state == nullptr ? undeformed : *committed_state;
+    const adlite::Scalar expansion_temperature(average_hex8_temperature(state));
+    const double old_expansion_temperature = average_hex8_temperature(old_state);
+    double element_pressure = 0.0;
+    for (std::size_t q = 0; q < geometry.points.size(); ++q) {
+        const Hex8QuadraturePoint& point = geometry.points[q];
+        const std::size_t material_node = hex8_node_to_gauss[q];
+        FinitePointResidualCache& point_residual = point_residuals[q];
+        const adlite::Scalar temperature(state[material_node]);
+        const SymmetricTensor3 strain{point_residual.strain_increment.xx, point_residual.strain_increment.yy,
+            point_residual.strain_increment.zz, point_residual.strain_increment.xy, point_residual.strain_increment.yz,
+            point_residual.strain_increment.xz};
+        const SymmetricTensor3 constitutive_strain =
+            selectively_reduced_strain(strain, average_strain_trace, StrainFormulation::finite);
+        const MaterialFunctionContext context = material_context(time, point.position);
+        SymmetricTensor3 stress;
+        if (committed_material == nullptr) {
+            stress = material.stress(
+                expansion_adjusted_strain(material, constitutive_strain, temperature, expansion_temperature, context),
+                temperature, context);
+            stress = rotate_cartesian_tensor(stress, active_rotation(point_residual.rotation));
+        } else {
+            stress = evaluate_incremental_cartesian_response(material,
+                expansion_adjusted_increment(material, constitutive_strain, temperature, expansion_temperature,
+                    old_state[material_node], old_expansion_temperature, time_step, context),
+                temperature, old_state[material_node], time_step, (*committed_material)[q], context)
+                         .stress;
+            stress = rotate_cartesian_tensor(stress, active_rotation(point_residual.rotation));
+        }
+        point_residual.stress = {stress.xx.value(), stress.yy.value(), stress.zz.value(), stress.xy.value(),
+            stress.yz.value(), stress.xz.value()};
+        element_pressure += point.weighted_measure / geometry.reference_volume *
+                            (point_residual.stress.xx + point_residual.stress.yy + point_residual.stress.zz) / 3.0;
+    }
+    return element_pressure;
+}
+
+void add_finite_hex8_point_residual(const Hex8QuadraturePoint& point, std::size_t material_node,
+    const Hex8LocalValues& state, const IsotropicThermoelasticMaterial& material, double time,
+    const FinitePointResidualCache& point_residual, double reference_volume, double current_volume,
+    double element_pressure, Hex8LocalAdValues& residual) {
+    const double conductivity =
+        material.conductivity(adlite::Scalar(state[material_node]), material_context(time, point.position)).value();
+    std::array<double, 3> temperature_gradient{};
+    for (std::size_t node = 0; node < hex8_node_count; ++node)
+        for (std::size_t direction = 0; direction < 3; ++direction)
+            temperature_gradient[direction] += point_residual.current_gradient[node][direction] * state[node];
+    const double point_pressure =
+        (point_residual.stress.xx + point_residual.stress.yy + point_residual.stress.zz) / 3.0;
+    const double deviatoric_scale =
+        point.weighted_measure * current_volume / (reference_volume * point_residual.current_weighted_measure);
+    const SymmetricTensor3Values stress{
+        deviatoric_scale * (point_residual.stress.xx - point_pressure) + element_pressure,
+        deviatoric_scale * (point_residual.stress.yy - point_pressure) + element_pressure,
+        deviatoric_scale * (point_residual.stress.zz - point_pressure) + element_pressure,
+        deviatoric_scale * point_residual.stress.xy, deviatoric_scale * point_residual.stress.yz,
+        deviatoric_scale * point_residual.stress.xz};
+    for (std::size_t node = 0; node < hex8_node_count; ++node) {
+        const double gradient_x = point_residual.current_gradient[node][0];
+        const double gradient_y = point_residual.current_gradient[node][1];
+        const double gradient_z = point_residual.current_gradient[node][2];
+        residual[node] += point_residual.current_weighted_measure * conductivity *
+                          (gradient_x * temperature_gradient[0] + gradient_y * temperature_gradient[1] +
+                              gradient_z * temperature_gradient[2]);
+        residual[8 + node] += point_residual.current_weighted_measure *
+                              (stress.xx * gradient_x + stress.xy * gradient_y + stress.xz * gradient_z);
+        residual[16 + node] += point_residual.current_weighted_measure *
+                               (stress.xy * gradient_x + stress.yy * gradient_y + stress.yz * gradient_z);
+        residual[24 + node] += point_residual.current_weighted_measure *
+                               (stress.xz * gradient_x + stress.yz * gradient_y + stress.zz * gradient_z);
+    }
+}
+
 FiniteElementPressureSystem finite_element_pressure_system(const IsotropicThermoelasticMaterial& material,
     const Hex8Geometry& geometry, const Hex8LocalValues& state, double time, const Hex8LocalValues* committed_state,
     const CartesianMaterialHistory* committed_material, double time_step,
-    const FiniteAverageTraceSystem& average_trace_system) {
+    FiniteAverageTraceSystem& average_trace_system,
+    std::array<FinitePointSystemCache, hex8_node_count>& point_systems) {
     constexpr std::size_t point_width = 10, temperature_index = 9;
     const Hex8LocalValues undeformed{};
     const Hex8LocalValues& old_state = committed_state == nullptr ? undeformed : *committed_state;
     const double expansion_temperature = average_hex8_temperature(state);
     FiniteElementPressureSystem result;
+    double trace_numerator = 0.0, midpoint_volume = 0.0, average_trace_pressure_derivative = 0.0;
+    std::array<std::array<double, 3>, hex8_node_count> trace_numerator_derivatives{}, midpoint_volume_derivatives{};
     for (std::size_t q = 0; q < geometry.points.size(); ++q) {
         const Hex8QuadraturePoint& point = geometry.points[q];
         const std::size_t material_node = hex8_node_to_gauss[q];
+        FinitePointSystemCache& point_system = point_systems[q];
         cartesian_detail::ActiveMatrix3 gradient{};
         for (std::size_t component = 0; component < 3; ++component)
             for (std::size_t direction = 0; direction < 3; ++direction) {
@@ -392,10 +590,47 @@ FiniteElementPressureSystem finite_element_pressure_system(const IsotropicThermo
                 gradient[component][direction] =
                     adlite::Scalar::independent(value, component * 3 + direction, point_width);
             }
-        const adlite::Scalar active_temperature =
+        point_system.active_temperature =
             adlite::Scalar::independent(state[material_node], temperature_index, point_width);
-        const CartesianKinematics kinematics =
+        point_system.kinematics =
             evaluate_cartesian_kinematics_from_gradient(point, gradient, old_state, StrainFormulation::finite);
+        const CartesianKinematics& kinematics = point_system.kinematics;
+        const cartesian_detail::Matrix3 old_gradient = deformation_gradient(point, old_state);
+        cartesian_detail::ActiveMatrix3 midpoint{};
+        for (std::size_t i = 0; i < 3; ++i)
+            for (std::size_t j = 0; j < 3; ++j) {
+                midpoint[i][j] = 0.5 * (gradient[i][j] + old_gradient[i][j]);
+                if (i == j) midpoint[i][j] += 0.5;
+            }
+        const adlite::Scalar midpoint_determinant = cartesian_detail::determinant(midpoint);
+        if (!std::isfinite(midpoint_determinant.value()) || !(midpoint_determinant.value() > 0.0))
+            throw std::domain_error(
+                "Abaqus finite-strain HEX8 midpoint configuration must preserve a positive Jacobian");
+        const adlite::Scalar point_midpoint_volume = point.weighted_measure * midpoint_determinant;
+        const adlite::Scalar point_trace =
+            kinematics.strain_increment.xx + kinematics.strain_increment.yy + kinematics.strain_increment.zz;
+        const adlite::Scalar point_trace_numerator = point_midpoint_volume * point_trace;
+        trace_numerator += point_trace_numerator.value();
+        midpoint_volume += point_midpoint_volume.value();
+        std::array<double, point_width> point_trace_numerator_derivatives{}, point_midpoint_volume_derivatives{},
+            point_current_volume_derivatives{};
+        point_trace_numerator.copy_derivatives(
+            point_trace_numerator_derivatives.data(), point_trace_numerator_derivatives.size());
+        point_midpoint_volume.copy_derivatives(
+            point_midpoint_volume_derivatives.data(), point_midpoint_volume_derivatives.size());
+        kinematics.current_weighted_measure.copy_derivatives(
+            point_current_volume_derivatives.data(), point_current_volume_derivatives.size());
+        for (std::size_t node = 0; node < hex8_node_count; ++node)
+            for (std::size_t component = 0; component < 3; ++component)
+                for (std::size_t direction = 0; direction < 3; ++direction) {
+                    const double shape_chain = point.gradient[node][direction];
+                    trace_numerator_derivatives[node][component] +=
+                        point_trace_numerator_derivatives[component * 3 + direction] * shape_chain;
+                    midpoint_volume_derivatives[node][component] +=
+                        point_midpoint_volume_derivatives[component * 3 + direction] * shape_chain;
+                    average_trace_system.current_volume_derivatives[node][component] +=
+                        point_current_volume_derivatives[component * 3 + direction] * shape_chain;
+                }
         const SymmetricTensor3 constitutive_strain = selectively_reduced_strain(
             kinematics.strain_increment, average_trace_system.value, StrainFormulation::finite);
         const std::array<const adlite::Scalar*, 6> strain_components = {&constitutive_strain.xx,
@@ -435,8 +670,9 @@ FiniteElementPressureSystem finite_element_pressure_system(const IsotropicThermo
                 fed_strain[component] = strain_components[component]->value() + point_imposed_values[component] -
                                         element_imposed_values[component];
         }
-        const cartesian_detail::CartesianStressTangent tangent = cartesian_detail::evaluate_stress_tangent(
+        point_system.tangent = cartesian_detail::evaluate_stress_tangent(
             material, fed_strain, state[material_node], time_step, point_committed_material, context);
+        const cartesian_detail::CartesianStressTangent& tangent = point_system.tangent;
         const std::array<double, 6> point_imposed_derivative =
                                         eigenstrain_temperature_derivative(material, state[material_node], context),
                                     element_imposed_derivative =
@@ -458,7 +694,7 @@ FiniteElementPressureSystem finite_element_pressure_system(const IsotropicThermo
         std::array<adlite::Scalar, 7> compose_inputs{};
         for (std::size_t component = 0; component < 6; ++component)
             compose_inputs[component] = *strain_components[component];
-        compose_inputs[6] = active_temperature;
+        compose_inputs[6] = point_system.active_temperature;
         std::array<double, 7> partials{};
         for (std::size_t component = 0; component < 6; ++component)
             partials[component] = pressure_strain_derivatives[component];
@@ -468,6 +704,7 @@ FiniteElementPressureSystem finite_element_pressure_system(const IsotropicThermo
             adlite::compose(pressure_value, compose_inputs.data(), partials.data(), compose_inputs.size());
         const double normalized_weight = point.weighted_measure / geometry.reference_volume;
         result.value += normalized_weight * pressure.value();
+        average_trace_pressure_derivative += normalized_weight * average_trace_derivative;
         std::array<double, point_width> derivatives{};
         pressure.copy_derivatives(derivatives.data(), derivatives.size());
         result.derivatives[material_node] += normalized_weight * derivatives[temperature_index];
@@ -478,13 +715,22 @@ FiniteElementPressureSystem finite_element_pressure_system(const IsotropicThermo
                 for (std::size_t direction = 0; direction < 3; ++direction)
                     local_chain +=
                         derivatives[displacement_component * 3 + direction] * point.gradient[node][direction];
-                result.derivatives[8 * (displacement_component + 1) + node] +=
-                    normalized_weight *
-                    (local_chain + average_trace_derivative *
-                                       average_trace_system.displacement_derivatives[node][displacement_component]);
+                result.derivatives[8 * (displacement_component + 1) + node] += normalized_weight * local_chain;
             }
         }
     }
+    if (!std::isfinite(midpoint_volume) || !(midpoint_volume > 0.0))
+        throw std::domain_error("Abaqus finite-strain HEX8 midpoint volume must be finite and positive");
+    const double active_average_trace = trace_numerator / midpoint_volume;
+    for (std::size_t node = 0; node < hex8_node_count; ++node)
+        for (std::size_t component = 0; component < 3; ++component) {
+            average_trace_system.displacement_derivatives[node][component] =
+                (trace_numerator_derivatives[node][component] -
+                    active_average_trace * midpoint_volume_derivatives[node][component]) /
+                midpoint_volume;
+            result.derivatives[8 * (component + 1) + node] +=
+                average_trace_pressure_derivative * average_trace_system.displacement_derivatives[node][component];
+        }
     return result;
 }
 
@@ -587,63 +833,76 @@ void add_hex8_point_system(const Hex8QuadraturePoint& point, std::size_t materia
     const std::array<std::array<double, 3>, hex8_node_count>& average_trace_displacement_derivatives,
     const SmallStrainElementPressureSystem& element_pressure, double reference_volume,
     const FiniteAverageTraceSystem& finite_average_trace_system,
-    const FiniteElementPressureSystem& finite_element_pressure) {
+    const FiniteElementPressureSystem& finite_element_pressure, const FinitePointSystemCache* finite_point_system) {
     constexpr std::size_t point_width = 10, temperature_index = 9;
-    std::array<double, 9> gradient_values{};
-    for (std::size_t component = 0; component < 3; ++component)
-        for (std::size_t direction = 0; direction < 3; ++direction)
-            for (std::size_t node = 0; node < 8; ++node)
-                gradient_values[component * 3 + direction] +=
-                    point.gradient[node][direction] * state[8 * (component + 1) + node];
     const double temperature_value = state[material_node];
     const double expansion_temperature_value = average_hex8_temperature(state);
-    cartesian_detail::ActiveMatrix3 active_gradient{};
-    for (std::size_t component = 0; component < 3; ++component)
-        for (std::size_t direction = 0; direction < 3; ++direction)
-            active_gradient[component][direction] = adlite::Scalar::independent(
-                gradient_values[component * 3 + direction], component * 3 + direction, point_width);
-    const adlite::Scalar active_temperature =
-        adlite::Scalar::independent(temperature_value, temperature_index, point_width);
     const Hex8LocalValues undeformed{};
     const Hex8LocalValues& old_state = committed_state == nullptr ? undeformed : *committed_state;
-    const CartesianKinematics kinematics =
-        evaluate_cartesian_kinematics_from_gradient(point, active_gradient, old_state, strain_formulation);
+    adlite::Scalar local_active_temperature;
+    CartesianKinematics local_kinematics;
+    if (finite_point_system == nullptr) {
+        cartesian_detail::ActiveMatrix3 active_gradient{};
+        for (std::size_t component = 0; component < 3; ++component)
+            for (std::size_t direction = 0; direction < 3; ++direction) {
+                double value = 0.0;
+                for (std::size_t node = 0; node < 8; ++node)
+                    value += point.gradient[node][direction] * state[8 * (component + 1) + node];
+                active_gradient[component][direction] =
+                    adlite::Scalar::independent(value, component * 3 + direction, point_width);
+            }
+        local_active_temperature = adlite::Scalar::independent(temperature_value, temperature_index, point_width);
+        local_kinematics =
+            evaluate_cartesian_kinematics_from_gradient(point, active_gradient, old_state, strain_formulation);
+    }
+    const adlite::Scalar& active_temperature =
+        finite_point_system == nullptr ? local_active_temperature : finite_point_system->active_temperature;
+    const CartesianKinematics& kinematics =
+        finite_point_system == nullptr ? local_kinematics : finite_point_system->kinematics;
     const SymmetricTensor3 constitutive_strain =
         selectively_reduced_strain(kinematics.strain_increment, average_strain_trace, strain_formulation);
     const MaterialFunctionContext context = material_context(time, point.position);
     const std::array<const adlite::Scalar*, 6> strain_components = {&constitutive_strain.xx, &constitutive_strain.yy,
         &constitutive_strain.zz, &constitutive_strain.xy, &constitutive_strain.yz, &constitutive_strain.xz};
-    std::array<double, 6> fed_strain{};
-    const SymmetricTensor3 point_imposed = material.eigenstrain(adlite::Scalar(temperature_value), context);
-    const SymmetricTensor3 element_imposed = material.eigenstrain(adlite::Scalar(expansion_temperature_value), context);
-    const std::array<double, 6> point_imposed_values = {point_imposed.xx.value(), point_imposed.yy.value(),
-        point_imposed.zz.value(), point_imposed.xy.value(), point_imposed.yz.value(), point_imposed.xz.value()};
-    const std::array<double, 6> element_imposed_values = {element_imposed.xx.value(), element_imposed.yy.value(),
-        element_imposed.zz.value(), element_imposed.xy.value(), element_imposed.yz.value(), element_imposed.xz.value()};
-    if (committed_material != nullptr && strain_formulation == StrainFormulation::finite) {
-        const double old_temperature = old_state[material_node];
-        if (!std::isfinite(old_temperature) || !(old_temperature > 0.0))
-            throw std::domain_error("Incremental Cartesian material committed temperature must be finite and positive");
-        MaterialFunctionContext old_context = context;
-        old_context.time -= time_step;
-        const SymmetricTensor3 old_element_imposed =
-            material.eigenstrain(adlite::Scalar(average_hex8_temperature(old_state)), old_context);
-        const std::array<double, 6> old_element_values = {old_element_imposed.xx.value(),
-            old_element_imposed.yy.value(), old_element_imposed.zz.value(), old_element_imposed.xy.value(),
-            old_element_imposed.yz.value(), old_element_imposed.xz.value()};
-        for (std::size_t component = 0; component < 6; ++component)
-            fed_strain[component] = committed_material->elastic_strain[component] +
-                                    strain_components[component]->value() + old_element_values[component] +
-                                    committed_material->plastic_strain[component] +
-                                    committed_material->creep_strain[component] + point_imposed_values[component] -
-                                    element_imposed_values[component];
-    } else {
-        for (std::size_t component = 0; component < 6; ++component)
-            fed_strain[component] = strain_components[component]->value() + point_imposed_values[component] -
-                                    element_imposed_values[component];
+    cartesian_detail::CartesianStressTangent local_tangent;
+    if (finite_point_system == nullptr) {
+        std::array<double, 6> fed_strain{};
+        const SymmetricTensor3 point_imposed = material.eigenstrain(adlite::Scalar(temperature_value), context);
+        const SymmetricTensor3 element_imposed =
+            material.eigenstrain(adlite::Scalar(expansion_temperature_value), context);
+        const std::array<double, 6> point_imposed_values = {point_imposed.xx.value(), point_imposed.yy.value(),
+            point_imposed.zz.value(), point_imposed.xy.value(), point_imposed.yz.value(), point_imposed.xz.value()};
+        const std::array<double, 6> element_imposed_values = {element_imposed.xx.value(), element_imposed.yy.value(),
+            element_imposed.zz.value(), element_imposed.xy.value(), element_imposed.yz.value(),
+            element_imposed.xz.value()};
+        if (committed_material != nullptr && strain_formulation == StrainFormulation::finite) {
+            const double old_temperature = old_state[material_node];
+            if (!std::isfinite(old_temperature) || !(old_temperature > 0.0))
+                throw std::domain_error(
+                    "Incremental Cartesian material committed temperature must be finite and positive");
+            MaterialFunctionContext old_context = context;
+            old_context.time -= time_step;
+            const SymmetricTensor3 old_element_imposed =
+                material.eigenstrain(adlite::Scalar(average_hex8_temperature(old_state)), old_context);
+            const std::array<double, 6> old_element_values = {old_element_imposed.xx.value(),
+                old_element_imposed.yy.value(), old_element_imposed.zz.value(), old_element_imposed.xy.value(),
+                old_element_imposed.yz.value(), old_element_imposed.xz.value()};
+            for (std::size_t component = 0; component < 6; ++component)
+                fed_strain[component] = committed_material->elastic_strain[component] +
+                                        strain_components[component]->value() + old_element_values[component] +
+                                        committed_material->plastic_strain[component] +
+                                        committed_material->creep_strain[component] + point_imposed_values[component] -
+                                        element_imposed_values[component];
+        } else {
+            for (std::size_t component = 0; component < 6; ++component)
+                fed_strain[component] = strain_components[component]->value() + point_imposed_values[component] -
+                                        element_imposed_values[component];
+        }
+        local_tangent = cartesian_detail::evaluate_stress_tangent(
+            material, fed_strain, temperature_value, time_step, committed_material, context);
     }
-    const cartesian_detail::CartesianStressTangent tangent = cartesian_detail::evaluate_stress_tangent(
-        material, fed_strain, temperature_value, time_step, committed_material, context);
+    const cartesian_detail::CartesianStressTangent& tangent =
+        finite_point_system == nullptr ? local_tangent : finite_point_system->tangent;
     const std::array<double, 6> point_imposed_derivative =
                                     eigenstrain_temperature_derivative(material, temperature_value, context),
                                 element_imposed_derivative =
@@ -675,7 +934,7 @@ void add_hex8_point_system(const Hex8QuadraturePoint& point, std::size_t materia
             adlite::compose(stress_values[component], compose_inputs.data(), partials.data(), compose_inputs.size());
     }
     SymmetricTensor3 stress{composed[0], composed[1], composed[2], composed[3], composed[4], composed[5]};
-    SymmetricTensor3 expansion_stress_derivative{expansion_thermal[0], expansion_thermal[1], expansion_thermal[2],
+    SymmetricTensor3Values expansion_stress_derivative{expansion_thermal[0], expansion_thermal[1], expansion_thermal[2],
         expansion_thermal[3], expansion_thermal[4], expansion_thermal[5]};
     if (strain_formulation == StrainFormulation::small) {
         const adlite::Scalar point_pressure = (stress.xx + stress.yy + stress.zz) / 3.0;
@@ -689,20 +948,19 @@ void add_hex8_point_system(const Hex8QuadraturePoint& point, std::size_t materia
     SymmetricTensor3 finite_point_deviatoric{};
     if (strain_formulation == StrainFormulation::finite) {
         stress = rotate_cartesian_tensor(stress, kinematics.rotation);
-        const CartesianRotation passive_rotation{kinematics.rotation.xx.value(), kinematics.rotation.xy.value(),
-            kinematics.rotation.xz.value(), kinematics.rotation.yx.value(), kinematics.rotation.yy.value(),
-            kinematics.rotation.yz.value(), kinematics.rotation.zx.value(), kinematics.rotation.zy.value(),
-            kinematics.rotation.zz.value()};
-        expansion_stress_derivative = rotate_cartesian_tensor(expansion_stress_derivative, passive_rotation);
-        const SymmetricTensor3 rotated_average_trace_derivative =
-            rotate_cartesian_tensor({average_trace_stress_derivative[0], average_trace_stress_derivative[1],
-                                        average_trace_stress_derivative[2], average_trace_stress_derivative[3],
-                                        average_trace_stress_derivative[4], average_trace_stress_derivative[5]},
+        const cartesian_detail::Matrix3 passive_rotation = {
+            {{kinematics.rotation.xx.value(), kinematics.rotation.xy.value(), kinematics.rotation.xz.value()},
+                {kinematics.rotation.yx.value(), kinematics.rotation.yy.value(), kinematics.rotation.yz.value()},
+                {kinematics.rotation.zx.value(), kinematics.rotation.zy.value(), kinematics.rotation.zz.value()}}};
+        expansion_stress_derivative = rotate_cartesian_tensor_values(expansion_stress_derivative, passive_rotation);
+        const SymmetricTensor3Values rotated_average_trace_derivative =
+            rotate_cartesian_tensor_values({average_trace_stress_derivative[0], average_trace_stress_derivative[1],
+                                               average_trace_stress_derivative[2], average_trace_stress_derivative[3],
+                                               average_trace_stress_derivative[4], average_trace_stress_derivative[5]},
                 passive_rotation);
-        average_trace_stress_derivative = {rotated_average_trace_derivative.xx.value(),
-            rotated_average_trace_derivative.yy.value(), rotated_average_trace_derivative.zz.value(),
-            rotated_average_trace_derivative.xy.value(), rotated_average_trace_derivative.yz.value(),
-            rotated_average_trace_derivative.xz.value()};
+        average_trace_stress_derivative = {rotated_average_trace_derivative.xx, rotated_average_trace_derivative.yy,
+            rotated_average_trace_derivative.zz, rotated_average_trace_derivative.xy,
+            rotated_average_trace_derivative.yz, rotated_average_trace_derivative.xz};
         const adlite::Scalar point_pressure = (stress.xx + stress.yy + stress.zz) / 3.0;
         finite_point_deviatoric = {stress.xx - point_pressure, stress.yy - point_pressure, stress.zz - point_pressure,
             stress.xy, stress.yz, stress.xz};
@@ -713,7 +971,7 @@ void add_hex8_point_system(const Hex8QuadraturePoint& point, std::size_t materia
             deviatoric_scale * finite_point_deviatoric.zz + finite_element_pressure.value,
             deviatoric_scale * finite_point_deviatoric.xy, deviatoric_scale * finite_point_deviatoric.yz,
             deviatoric_scale * finite_point_deviatoric.xz};
-        const adlite::Scalar expansion_pressure =
+        const double expansion_pressure =
             (expansion_stress_derivative.xx + expansion_stress_derivative.yy + expansion_stress_derivative.zz) / 3.0;
         expansion_stress_derivative = {deviatoric_scale.value() * (expansion_stress_derivative.xx - expansion_pressure),
             deviatoric_scale.value() * (expansion_stress_derivative.yy - expansion_pressure),
@@ -788,17 +1046,17 @@ void add_hex8_point_system(const Hex8QuadraturePoint& point, std::size_t materia
             point_residual[row].copy_derivatives(derivatives.data(), derivatives.size());
             const double expansion_derivative =
                 component == 0   ? kinematics.current_weighted_measure.value() *
-                                       (expansion_stress_derivative.xx.value() * current_gradient_x.value() +
-                                           expansion_stress_derivative.xy.value() * current_gradient_y.value() +
-                                           expansion_stress_derivative.xz.value() * current_gradient_z.value())
+                                       (expansion_stress_derivative.xx * current_gradient_x.value() +
+                                           expansion_stress_derivative.xy * current_gradient_y.value() +
+                                           expansion_stress_derivative.xz * current_gradient_z.value())
                 : component == 1 ? kinematics.current_weighted_measure.value() *
-                                       (expansion_stress_derivative.xy.value() * current_gradient_x.value() +
-                                           expansion_stress_derivative.yy.value() * current_gradient_y.value() +
-                                           expansion_stress_derivative.yz.value() * current_gradient_z.value())
+                                       (expansion_stress_derivative.xy * current_gradient_x.value() +
+                                           expansion_stress_derivative.yy * current_gradient_y.value() +
+                                           expansion_stress_derivative.yz * current_gradient_z.value())
                                  : kinematics.current_weighted_measure.value() *
-                                       (expansion_stress_derivative.xz.value() * current_gradient_x.value() +
-                                           expansion_stress_derivative.yz.value() * current_gradient_y.value() +
-                                           expansion_stress_derivative.zz.value() * current_gradient_z.value());
+                                       (expansion_stress_derivative.xz * current_gradient_x.value() +
+                                           expansion_stress_derivative.yz * current_gradient_y.value() +
+                                           expansion_stress_derivative.zz * current_gradient_z.value());
             const double average_trace_derivative =
                 component == 0   ? kinematics.current_weighted_measure.value() *
                                        (average_trace_stress_derivative[0] * current_gradient_x.value() +
@@ -867,8 +1125,12 @@ adlite::Scalar hex8_nodal_volume_measure(const Hex8Geometry& geometry, std::size
     StrainFormulation strain_formulation) {
     const Hex8QuadraturePoint& point = geometry.points[hex8_node_to_gauss[node]];
     if (strain_formulation == StrainFormulation::small) return point.weighted_measure;
-    return evaluate_cartesian_incremental_kinematics(point, state, Hex8LocalValues{}, strain_formulation)
-        .current_weighted_measure;
+    cartesian_detail::ActiveMatrix3 current = displacement_gradient(point, state);
+    for (std::size_t direction = 0; direction < 3; ++direction) current[direction][direction] += 1.0;
+    const adlite::Scalar determinant = cartesian_detail::determinant(current);
+    if (!std::isfinite(determinant.value()) || !(determinant.value() > 0.0))
+        throw std::domain_error("Finite-strain Cartesian deformation must preserve a positive Jacobian");
+    return point.weighted_measure * determinant;
 }
 
 struct Hex8NodalVolumeSystem final {
@@ -891,9 +1153,11 @@ Hex8NodalVolumeSystem hex8_nodal_volume_system(const Hex8Geometry& geometry, std
             active_gradient[component][direction] =
                 adlite::Scalar::independent(value, component * 3 + direction, width);
         }
-    const adlite::Scalar measure =
-        evaluate_cartesian_kinematics_from_gradient(point, active_gradient, Hex8LocalValues{}, strain_formulation)
-            .current_weighted_measure;
+    for (std::size_t direction = 0; direction < 3; ++direction) active_gradient[direction][direction] += 1.0;
+    const adlite::Scalar determinant = cartesian_detail::determinant(active_gradient);
+    if (!std::isfinite(determinant.value()) || !(determinant.value() > 0.0))
+        throw std::domain_error("Finite-strain Cartesian deformation must preserve a positive Jacobian");
+    const adlite::Scalar measure = point.weighted_measure * determinant;
     result.value = measure.value();
     measure.copy_derivatives(result.gradient_derivatives.data(), result.gradient_derivatives.size());
     return result;
@@ -1687,16 +1951,26 @@ Hex8LocalResidual compute_hex8_local(const CartesianThermoelasticData& data, con
     std::array<std::array<double, 3>, hex8_node_count> average_trace_displacement_derivatives =
         geometry.average_shape_gradient;
     FiniteAverageTraceSystem finite_average_trace;
+    std::array<FinitePointResidualCache, hex8_node_count> finite_point_residuals{};
     if (data.strain_formulation == StrainFormulation::finite) {
-        finite_average_trace = finite_average_hex8_strain_trace_system(geometry, state, old_state);
+        const FiniteAverageTraceValues values =
+            prepare_finite_point_residuals(geometry, state, old_state, finite_point_residuals);
+        finite_average_trace.value = values.value;
+        finite_average_trace.current_volume = values.current_volume;
         average_strain_trace = finite_average_trace.value;
-        average_trace_displacement_derivatives = finite_average_trace.displacement_derivatives;
     }
-    const FiniteElementPressureSystem finite_element_pressure =
-        data.strain_formulation == StrainFormulation::finite
-            ? finite_element_pressure_system(
-                  data.material, geometry, state, data.time, committed_state, history, time_step, finite_average_trace)
-            : FiniteElementPressureSystem{};
+    FiniteElementPressureSystem finite_element_pressure;
+    std::array<FinitePointSystemCache, hex8_node_count> finite_point_systems{};
+    if (data.strain_formulation == StrainFormulation::finite) {
+        if (jacobian == nullptr)
+            finite_element_pressure.value = prepare_finite_point_stresses(data.material, geometry, state, data.time,
+                committed_state, history, time_step, finite_average_trace.value, finite_point_residuals);
+        else
+            finite_element_pressure = finite_element_pressure_system(data.material, geometry, state, data.time,
+                committed_state, history, time_step, finite_average_trace, finite_point_systems);
+    }
+    if (data.strain_formulation == StrainFormulation::finite)
+        average_trace_displacement_derivatives = finite_average_trace.displacement_derivatives;
     if (jacobian == nullptr) {
         Hex8LocalAdValues active{};
         ad_local_system::make_passive(state.data(), state.size(), active.data());
@@ -1705,10 +1979,15 @@ Hex8LocalResidual compute_hex8_local(const CartesianThermoelasticData& data, con
                 ? small_strain_element_pressure(data.material, geometry, active, average_strain_trace, data.time)
                 : adlite::Scalar(0.0);
         for (std::size_t q = 0; q < geometry.points.size(); ++q)
-            add_hex8_point_residual(geometry.points[q], hex8_node_to_gauss[q], active, data.material,
-                data.strain_formulation, data.time, committed_state, history == nullptr ? nullptr : &(*history)[q],
-                time_step, average_strain_trace, element_pressure, geometry.reference_volume,
-                finite_average_trace.current_volume, finite_element_pressure.value, residual);
+            if (data.strain_formulation == StrainFormulation::finite)
+                add_finite_hex8_point_residual(geometry.points[q], hex8_node_to_gauss[q], state, data.material,
+                    data.time, finite_point_residuals[q], geometry.reference_volume,
+                    finite_average_trace.current_volume, finite_element_pressure.value, residual);
+            else
+                add_hex8_point_residual(geometry.points[q], hex8_node_to_gauss[q], active, data.material,
+                    data.strain_formulation, data.time, committed_state, history == nullptr ? nullptr : &(*history)[q],
+                    time_step, average_strain_trace, element_pressure, geometry.reference_volume,
+                    finite_average_trace.current_volume, finite_element_pressure.value, residual);
         add_hex8_nodal_body_source(geometry, active, data.strain_formulation, data.volumetric_heat_source, residual);
         if (committed_state != nullptr && include_thermal_time_term)
             add_hex8_lumped_capacity(geometry, active, *committed_state, data.material, data.time, time_step,
@@ -1726,7 +2005,8 @@ Hex8LocalResidual compute_hex8_local(const CartesianThermoelasticData& data, con
         add_hex8_point_system(geometry.points[q], hex8_node_to_gauss[q], state, data.material, data.strain_formulation,
             data.time, committed_state, history == nullptr ? nullptr : &(*history)[q], time_step, residual, *jacobian,
             average_strain_trace, average_trace_displacement_derivatives, element_pressure, geometry.reference_volume,
-            finite_average_trace, finite_element_pressure);
+            finite_average_trace, finite_element_pressure,
+            data.strain_formulation == StrainFormulation::finite ? &finite_point_systems[q] : nullptr);
     add_hex8_nodal_body_source_system(
         geometry, state, data.strain_formulation, data.volumetric_heat_source, residual, *jacobian);
     if (committed_state != nullptr && include_thermal_time_term)

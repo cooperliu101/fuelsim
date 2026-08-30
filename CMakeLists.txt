@@ -14,6 +14,16 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 option(FUELSIM_ENABLE_SANITIZERS
        "Build with AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 option(FUELSIM_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
+option(FUELSIM_ENABLE_RELEASE_IPO "Enable interprocedural optimization for Release builds" ON)
+
+if(FUELSIM_ENABLE_RELEASE_IPO)
+    include(CheckIPOSupported)
+    check_ipo_supported(RESULT fuelsim_ipo_supported OUTPUT fuelsim_ipo_error LANGUAGES CXX)
+    if(NOT fuelsim_ipo_supported)
+        message(FATAL_ERROR "Release interprocedural optimization is unavailable: ${fuelsim_ipo_error}")
+    endif()
+    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE ON)
+endif()
 
 find_package(adlite 0.2.1 CONFIG REQUIRED)
 find_package(PkgConfig REQUIRED)

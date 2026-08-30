@@ -1046,11 +1046,17 @@ The B5.46 Abaqus comparison converts the exact M5.8 Exodus mesh with
 `verification/abaqus/exodus_to_abaqus.py`. Abaqus R2018x uses one process,
 twenty fixed increments, and final-only field output. Its external wall time is
 `36.115237 s`; the analysis summary reports `24.8 s` CPU and `26 s` wall time.
-The pinned, one-thread Fuelsim C3D8T run takes `199.32 s` external wall time.
-The observed ratio is `5.519`, but it crosses native Windows and WSL
-and is not treated as a pure kernel comparison. A direct Fuelsim-to-Abaqus
-comparison run reports `179.164259 s` internal total time, of which residual
-and Jacobian callbacks consume `82.473280 s` and `78.663006 s`.
+The pinned, one-thread Fuelsim C3D8T Release external-wall trials take `43.24 s`,
+`42.36 s`, and `43.30 s` when both Fuelsim and ADlite use interprocedural
+optimization. Their `43.24 s` median gives an observed ratio of `1.1973`, but it
+crosses native Windows and WSL and is not treated as a pure kernel comparison.
+The full-field trial reports `37.421452 s` internal total time, of which residual
+and Jacobian callbacks consume `4.279848 s` and `19.289782 s`. It uses 89
+nonlinear iterations, 109 residual evaluations, and 47 Jacobian evaluations,
+versus Abaqus's 72 iterations and decompositions. A comparison against the saved
+pre-optimization degree-of-freedom state gives maximum absolute temperature and
+displacement differences of `3.88e-9 K` and `2.11e-12 m`. The optimization
+changes no material, contact, load, or convergence coefficient.
 
 The required unrelated RZ non-regression paths used the same pinning and
 thread settings. The 1,584-degree-of-freedom case retained 64 nonlinear and

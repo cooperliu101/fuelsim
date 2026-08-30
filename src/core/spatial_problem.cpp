@@ -583,6 +583,8 @@ rz::TransientBackendView BackendAccess::transient(const TransientProblem& proble
 
 const SpatialDefinition& TransientProblem::definition() const noexcept { return _impl->layout().definition(); }
 
+std::vector<double> TransientProblem::initial_solution() const { return _impl->layout().initial_state(); }
+
 const std::vector<double>& TransientProblem::committed_solution() const noexcept { return _impl->committed_solution; }
 
 double TransientProblem::committed_time() const noexcept { return _impl->committed_time; }

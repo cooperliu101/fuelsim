@@ -112,6 +112,7 @@ bool verify_m3_output_input(const std::string& path, const std::string& contents
                      definition.transient_execution.strain_history_time_absolute_tolerance == 2.0e-9 &&
                      definition.transient_execution.stress_history_time_absolute_tolerance == 5.0 &&
                      definition.transient_execution.time_error_safety_factor == 0.85 &&
+                     definition.transient_execution.use_linear_time_predictor &&
                      definition.solver.linear_solver == fuelsim::SolverOptions::LinearSolver::gmres &&
                      definition.solver.preconditioner == fuelsim::SolverOptions::Preconditioner::field_split &&
                      definition.solver.linear_relative_tolerance == 1.0e-7 &&
@@ -567,7 +568,8 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
                                                                    "\n  displacement_time_absolute_tolerance = 1e-10"
                                                                    "\n  strain_history_time_absolute_tolerance = 2e-9"
                                                                    "\n  stress_history_time_absolute_tolerance = 5"
-                                                                   "\n  time_error_safety_factor = 0.85");
+                                                                   "\n  time_error_safety_factor = 0.85"
+                                                                   "\n  use_linear_time_predictor = true");
     const std::string solver_start = "[Solver]";
     const std::size_t solver_position = m3_case.find(solver_start);
     if (solver_position == std::string::npos) return check(false, "transient fixture has a solver section");

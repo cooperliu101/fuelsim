@@ -43,6 +43,7 @@ env PATH="${toolchain_prefix}/bin:/usr/local/bin:/usr/bin:/bin" \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_CXX_COMPILER="${toolchain_prefix}/bin/c++" \
     -DCMAKE_INSTALL_PREFIX="${adlite_install_prefix}" \
+    -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
     -DBUILD_TESTING=ON \
     -DADLITE_BUILD_EXAMPLES=OFF
 

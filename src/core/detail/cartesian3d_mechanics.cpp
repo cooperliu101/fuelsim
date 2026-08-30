@@ -79,12 +79,15 @@ KinematicsCore evaluate_hughes_winget_increment(const ActiveMatrix3& central_dis
         for (std::size_t j = 0; j < 3; ++j)
             for (std::size_t k = 0; k < 3; ++k)
                 rotation[i][j] += rotation_numerator[i][k] * rotation_denominator_inverse[k][j];
-    ActiveMatrix3 corotational_strain{};
+    ActiveMatrix3 spatial_times_rotation{};
     for (std::size_t i = 0; i < 3; ++i)
         for (std::size_t j = 0; j < 3; ++j)
+            for (std::size_t k = 0; k < 3; ++k) spatial_times_rotation[i][j] += spatial_strain[i][k] * rotation[k][j];
+    ActiveMatrix3 corotational_strain{};
+    for (std::size_t i = 0; i < 3; ++i)
+        for (std::size_t j = i; j < 3; ++j)
             for (std::size_t k = 0; k < 3; ++k)
-                for (std::size_t l = 0; l < 3; ++l)
-                    corotational_strain[i][j] += rotation[k][i] * spatial_strain[k][l] * rotation[l][j];
+                corotational_strain[i][j] += rotation[k][i] * spatial_times_rotation[k][j];
     result.strain_increment = {corotational_strain[0][0], corotational_strain[1][1], corotational_strain[2][2],
         corotational_strain[0][1], corotational_strain[1][2], corotational_strain[0][2]};
     result.rotation = {rotation[0][0], rotation[0][1], rotation[0][2], rotation[1][0], rotation[1][1], rotation[1][2],
@@ -111,23 +114,27 @@ KinematicsCore evaluate_kinematics(
     const double old_determinant = determinant(committed_deformation);
     if (!std::isfinite(old_determinant) || !(old_determinant > 0.0))
         throw std::domain_error("Committed finite-strain Cartesian state requires a positive Jacobian");
-    const ActiveMatrix3 incremental = multiply(current, inverse(committed_deformation, old_determinant));
-    const adlite::Scalar incremental_determinant = determinant(incremental);
-    if (!std::isfinite(incremental_determinant.value()) || !(incremental_determinant.value() > 0.0))
+    const double incremental_determinant = result.current_determinant.value() / old_determinant;
+    if (!std::isfinite(incremental_determinant) || !(incremental_determinant > 0.0))
         throw std::domain_error("Incremental finite-strain Cartesian state requires a positive Jacobian");
-    ActiveMatrix3 plus_identity = incremental, minus_identity = incremental;
-    for (std::size_t direction = 0; direction < 3; ++direction) {
-        plus_identity[direction][direction] += 1.0;
-        minus_identity[direction][direction] -= 1.0;
-    }
-    const adlite::Scalar plus_determinant = determinant(plus_identity);
+    // (F_new F_old^-1 - I)(F_new F_old^-1 + I)^-1 is exactly
+    // (F_new - F_old)(F_new + F_old)^-1.  The latter avoids an active
+    // inverse and matrix product while retaining the same Hughes-Winget map.
+    ActiveMatrix3 deformation_sum{}, deformation_difference{};
+    for (std::size_t i = 0; i < 3; ++i)
+        for (std::size_t j = 0; j < 3; ++j) {
+            deformation_sum[i][j] = current[i][j] + committed_deformation[i][j];
+            deformation_difference[i][j] = current[i][j] - committed_deformation[i][j];
+        }
+    const adlite::Scalar plus_determinant = determinant(deformation_sum);
     if (!std::isfinite(plus_determinant.value()) || plus_determinant.value() == 0.0)
         throw std::domain_error("Abaqus Hughes-Winget Cartesian increment has singular delta-F plus identity");
-    const ActiveMatrix3 plus_inverse = inverse(plus_identity, plus_determinant);
+    const ActiveMatrix3 plus_inverse = inverse(deformation_sum, plus_determinant);
     ActiveMatrix3 hughes_winget{};
     for (std::size_t i = 0; i < 3; ++i)
         for (std::size_t j = 0; j < 3; ++j)
-            for (std::size_t k = 0; k < 3; ++k) hughes_winget[i][j] += 2.0 * minus_identity[i][k] * plus_inverse[k][j];
+            for (std::size_t k = 0; k < 3; ++k)
+                hughes_winget[i][j] += 2.0 * deformation_difference[i][k] * plus_inverse[k][j];
     ActiveMatrix3 spatial_strain{};
     for (std::size_t i = 0; i < 3; ++i)
         for (std::size_t j = 0; j < 3; ++j) spatial_strain[i][j] = 0.5 * (hughes_winget[i][j] + hughes_winget[j][i]);
@@ -149,12 +156,15 @@ KinematicsCore evaluate_kinematics(
         for (std::size_t j = 0; j < 3; ++j)
             for (std::size_t k = 0; k < 3; ++k)
                 rotation[i][j] += rotation_numerator[i][k] * rotation_denominator_inverse[k][j];
-    ActiveMatrix3 corotational_strain{};
+    ActiveMatrix3 spatial_times_rotation{};
     for (std::size_t i = 0; i < 3; ++i)
         for (std::size_t j = 0; j < 3; ++j)
+            for (std::size_t k = 0; k < 3; ++k) spatial_times_rotation[i][j] += spatial_strain[i][k] * rotation[k][j];
+    ActiveMatrix3 corotational_strain{};
+    for (std::size_t i = 0; i < 3; ++i)
+        for (std::size_t j = i; j < 3; ++j)
             for (std::size_t k = 0; k < 3; ++k)
-                for (std::size_t l = 0; l < 3; ++l)
-                    corotational_strain[i][j] += rotation[k][i] * spatial_strain[k][l] * rotation[l][j];
+                corotational_strain[i][j] += rotation[k][i] * spatial_times_rotation[k][j];
     result.strain_increment = {corotational_strain[0][0], corotational_strain[1][1], corotational_strain[2][2],
         corotational_strain[0][1], corotational_strain[1][2], corotational_strain[0][2]};
     result.rotation = {rotation[0][0], rotation[0][1], rotation[0][2], rotation[1][0], rotation[1][1], rotation[1][2],

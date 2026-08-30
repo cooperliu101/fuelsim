@@ -53,8 +53,10 @@ git -C "${fuelsim_source_root}/ADlite" checkout \
   "${fuelsim_toolchain_prefix}"
 ```
 
-脚本配置 Release ADlite、关闭示例、编译并运行 ADlite CTest，然后安装 CMake
-软件包配置。提交不匹配、源码不干净、测试失败或安装配置缺失都会返回非零。
+脚本配置 Release ADlite 并启用链接期跨翻译单元优化，关闭示例、编译并运行
+ADlite CTest，然后安装 CMake 软件包配置。Fuelsim 的 Release 构建默认使用同一
+优化；两者必须同时启用才能复现 B5.46 的单核计时。提交不匹配、源码不干净、
+测试失败或安装配置缺失都会返回非零。
 
 ## 安装串行 Exodus
 
@@ -92,7 +94,9 @@ cmake --build build --parallel
 ctest --test-dir build --output-on-failure
 ```
 
-只有 CTest 全部通过才构成 Release 验收；仅配置或编译成功不构成数值验收。
+Fuelsim 的 Release 配置默认启用链接期跨翻译单元优化；可用
+`-DFUELSIM_ENABLE_RELEASE_IPO=OFF` 显式关闭，但这种构建不用于性能验收。只有
+CTest 全部通过才构成 Release 验收；仅配置或编译成功不构成数值验收。
 
 ## 检测器验收
 

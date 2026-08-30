@@ -82,6 +82,34 @@ ActivePoint3 interpolate_primary(
     return result;
 }
 
+bool projection_increment_converged(const adlite::Scalar& delta_xi, const adlite::Scalar& delta_eta,
+    const adlite::Scalar& xi, const adlite::Scalar& eta) {
+    constexpr double value_tolerance = 64.0 * std::numeric_limits<double>::epsilon();
+    const double coordinate_scale = std::max({1.0, std::abs(xi.value()), std::abs(eta.value())});
+    if (std::max(std::abs(delta_xi.value()), std::abs(delta_eta.value())) > value_tolerance * coordinate_scale)
+        return false;
+    const std::size_t width = delta_xi.derivative_size();
+    if (width == 0) return true;
+    if (width != delta_eta.derivative_size() || width != xi.derivative_size() || width != eta.derivative_size() ||
+        width > quad4_surface_contact_local_dof_count)
+        throw std::logic_error("Three-dimensional contact projection derivative widths are inconsistent");
+    std::array<double, quad4_surface_contact_local_dof_count> delta_xi_derivatives{}, delta_eta_derivatives{},
+        xi_derivatives{}, eta_derivatives{};
+    delta_xi.copy_derivatives(delta_xi_derivatives.data(), width);
+    delta_eta.copy_derivatives(delta_eta_derivatives.data(), width);
+    xi.copy_derivatives(xi_derivatives.data(), width);
+    eta.copy_derivatives(eta_derivatives.data(), width);
+    constexpr double derivative_tolerance = 1.0e-12;
+    for (std::size_t derivative = 0; derivative < width; ++derivative) {
+        const double scale =
+            std::max({1.0, std::abs(xi_derivatives[derivative]), std::abs(eta_derivatives[derivative])});
+        if (std::max(std::abs(delta_xi_derivatives[derivative]), std::abs(delta_eta_derivatives[derivative])) >
+            derivative_tolerance * scale)
+            return false;
+    }
+    return true;
+}
+
 SurfaceProjection project_to_primary(
     const ActivePoint3& secondary_point, const std::array<ActivePoint3, 8>& nodes, double normal_orientation) {
     adlite::Scalar xi = 0.0, eta = 0.0;
@@ -107,6 +135,7 @@ SurfaceProjection project_to_primary(
                              delta_eta = (-jacobian_xi_xi * residual_eta + jacobian_eta_xi * residual_xi) / determinant;
         xi += delta_xi;
         eta += delta_eta;
+        if (projection_increment_converged(delta_xi, delta_eta, xi, eta)) break;
     }
     constexpr double tolerance = 1.0e-10;
     if (!std::isfinite(xi.value()) || !std::isfinite(eta.value()) || xi.value() < -1.0 - tolerance ||
