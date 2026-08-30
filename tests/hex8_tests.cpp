@@ -697,12 +697,51 @@ bool test_reduced_integration_inelastic_jacobian() {
                 "C3D8RT residual, Jacobian, and trial update do not mutate committed history") &&
             passed;
     }
-    try {
-        const fuelsim::CartesianThermoelasticData finite_data{fuelsim::IsotropicThermoelasticMaterial(properties()),
-            0.0, 0.0, fuelsim::StrainFormulation::finite, fuelsim::Hex8ElementFormulation::c3d8rt, 300.0};
-        (void)fuelsim::compute_hex8_transient(finite_data, geometry, state, committed_state, committed_material, 1.0);
-        passed = check(false, "C3D8RT explicitly rejects unsupported finite-strain integration") && passed;
-    } catch (const std::invalid_argument&) {}
+    const fuelsim::CartesianThermoelasticData finite_data{fuelsim::IsotropicThermoelasticMaterial(properties()), 3.0,
+        1.0, fuelsim::StrainFormulation::finite, fuelsim::Hex8ElementFormulation::c3d8rt, 300.0};
+    fuelsim::Hex8LocalJacobian finite_jacobian{};
+    const fuelsim::Hex8LocalResidual finite_residual = fuelsim::compute_hex8_transient(
+        finite_data, geometry, state, committed_state, committed_material, 1.0, &finite_jacobian);
+    const fuelsim::CartesianMaterialHistory finite_update =
+        fuelsim::compute_hex8_transient_update(finite_data, geometry, state, committed_state, committed_material, 1.0);
+    double thermal_displacement_maximum = 0.0;
+    for (std::size_t row = 0; row < 8; ++row)
+        for (std::size_t column = 8; column < 32; ++column)
+            thermal_displacement_maximum =
+                std::max(thermal_displacement_maximum, std::abs(finite_jacobian[row * 32 + column]));
+    passed =
+        check(std::all_of(
+                  finite_residual.begin(), finite_residual.end(), [](double value) { return std::isfinite(value); }) &&
+                  thermal_displacement_maximum > 0.0 && finite_update.size() == 1,
+            "finite-strain C3D8RT evaluates current-geometry thermal-mechanical coupling and one material point") &&
+        passed;
+    const auto rejects_domain = [&](const fuelsim::Hex8LocalValues& trial, const fuelsim::Hex8LocalValues& committed) {
+        try {
+            (void)fuelsim::compute_hex8_transient(finite_data, geometry, trial, committed, committed_material, 1.0);
+            return false;
+        } catch (const std::domain_error&) { return true; }
+    };
+    fuelsim::Hex8LocalValues invalid_current = state;
+    for (std::size_t node = 0; node < 8; ++node) invalid_current[8 + node] = -2.0 * coordinates[node].x;
+    fuelsim::Hex8LocalValues invalid_midpoint = committed_state;
+    for (std::size_t node = 0; node < 8; ++node) {
+        invalid_midpoint[8 + node] = -2.0 * coordinates[node].x;
+        invalid_midpoint[16 + node] = -2.0 * coordinates[node].y;
+    }
+    fuelsim::Hex8LocalValues invalid_committed = committed_state, expanded_current = committed_state;
+    for (std::size_t node = 0; node < 8; ++node)
+        for (std::size_t component = 0; component < 3; ++component) {
+            const double coordinate = component == 0   ? coordinates[node].x
+                                      : component == 1 ? coordinates[node].y
+                                                       : coordinates[node].z;
+            invalid_committed[8 * (component + 1) + node] = -2.0 * coordinate;
+            expanded_current[8 * (component + 1) + node] = 2.0 * coordinate;
+        }
+    passed =
+        check(rejects_domain(invalid_current, committed_state) && rejects_domain(invalid_midpoint, committed_state) &&
+                  rejects_domain(expanded_current, invalid_committed),
+            "finite-strain C3D8RT rejects nonpositive current, midpoint, and committed configurations") &&
+        passed;
     return passed;
 }
 

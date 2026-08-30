@@ -55,6 +55,43 @@ ActiveMatrix3 multiply(const ActiveMatrix3& first, const Matrix3& second) {
     return result;
 }
 
+KinematicsCore evaluate_hughes_winget_increment(const ActiveMatrix3& central_displacement_gradient) {
+    KinematicsCore result{};
+    const ActiveMatrix3& hughes_winget = central_displacement_gradient;
+    ActiveMatrix3 spatial_strain{};
+    for (std::size_t i = 0; i < 3; ++i)
+        for (std::size_t j = 0; j < 3; ++j) spatial_strain[i][j] = 0.5 * (hughes_winget[i][j] + hughes_winget[j][i]);
+
+    ActiveMatrix3 rotation_numerator = identity_active_matrix();
+    ActiveMatrix3 rotation_denominator = identity_active_matrix();
+    for (std::size_t i = 0; i < 3; ++i)
+        for (std::size_t j = 0; j < 3; ++j) {
+            const adlite::Scalar half_spin = 0.25 * (hughes_winget[i][j] - hughes_winget[j][i]);
+            rotation_numerator[i][j] += half_spin;
+            rotation_denominator[i][j] -= half_spin;
+        }
+    const adlite::Scalar rotation_denominator_determinant = determinant(rotation_denominator);
+    if (!std::isfinite(rotation_denominator_determinant.value()) || rotation_denominator_determinant.value() == 0.0)
+        throw std::domain_error("Abaqus Hughes-Winget Cartesian rotation denominator is singular");
+    const ActiveMatrix3 rotation_denominator_inverse = inverse(rotation_denominator, rotation_denominator_determinant);
+    ActiveMatrix3 rotation{};
+    for (std::size_t i = 0; i < 3; ++i)
+        for (std::size_t j = 0; j < 3; ++j)
+            for (std::size_t k = 0; k < 3; ++k)
+                rotation[i][j] += rotation_numerator[i][k] * rotation_denominator_inverse[k][j];
+    ActiveMatrix3 corotational_strain{};
+    for (std::size_t i = 0; i < 3; ++i)
+        for (std::size_t j = 0; j < 3; ++j)
+            for (std::size_t k = 0; k < 3; ++k)
+                for (std::size_t l = 0; l < 3; ++l)
+                    corotational_strain[i][j] += rotation[k][i] * spatial_strain[k][l] * rotation[l][j];
+    result.strain_increment = {corotational_strain[0][0], corotational_strain[1][1], corotational_strain[2][2],
+        corotational_strain[0][1], corotational_strain[1][2], corotational_strain[0][2]};
+    result.rotation = {rotation[0][0], rotation[0][1], rotation[0][2], rotation[1][0], rotation[1][1], rotation[1][2],
+        rotation[2][0], rotation[2][1], rotation[2][2]};
+    return result;
+}
+
 KinematicsCore evaluate_kinematics(
     const ActiveMatrix3& gradient, const Matrix3& committed_deformation, StrainFormulation strain_formulation) {
     KinematicsCore result{};

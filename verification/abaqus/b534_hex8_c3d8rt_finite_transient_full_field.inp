@@ -1,0 +1,72 @@
+*Heading
+** B5.34 Abaqus/Standard two-element finite-strain C3D8RT transient full-field probe.
+** SI units: metre, second, kelvin, watt, pascal.
+*Preprint, echo=NO, model=NO, history=NO, contact=NO
+*Node
+1, 0.0, 0.0, 0.0
+2, 1.0, 0.0, 0.0
+3, 2.0, 0.0, 0.0
+4, 0.0, 1.0, 0.0
+5, 1.0, 1.0, 0.0
+6, 2.0, 1.0, 0.0
+7, 0.0, 0.0, 1.0
+8, 1.0, 0.0, 1.0
+9, 2.0, 0.0, 1.0
+10, 0.0, 1.0, 1.0
+11, 1.0, 1.0, 1.0
+12, 2.0, 1.0, 1.0
+*Element, type=C3D8RT, elset=VOLUME
+1, 1, 2, 5, 4, 7, 8, 11, 10
+2, 2, 3, 6, 5, 8, 9, 12, 11
+*Surface, type=ELEMENT, name=RIGHT_SURFACE
+2, S4
+*Nset, nset=ALL_NODES, generate
+1, 12, 1
+*Nset, nset=LEFT
+1, 4, 7, 10
+*Nset, nset=RIGHT
+3, 6, 9, 12
+*Nset, nset=Y0
+1, 2, 3, 7, 8, 9
+*Nset, nset=Z0, generate
+1, 6, 1
+*Material, name=THERMAL_ELASTIC
+*Elastic
+2.0e11, 2.5e-1
+*Expansion, zero=3.0e2
+1.2e-5
+*Conductivity
+4.0
+*Density
+2.0e3
+*Specific Heat
+3.0e3
+*Solid Section, elset=VOLUME, material=THERMAL_ELASTIC
+,
+*Initial Conditions, type=TEMPERATURE
+ALL_NODES, 3.0e2
+*Step, name=TRANSIENT, nlgeom=YES, inc=4
+*Coupled Temperature-Displacement
+1.0, 1.0, 1.0, 1.0
+*Boundary
+LEFT, 11, 11, 3.0e2
+RIGHT, 11, 11, 4.0e2
+LEFT, 1, 1, 0.0
+LEFT, 2, 2, 0.0
+LEFT, 3, 3, 0.0
+*Dflux
+VOLUME, BF, 4.0e6
+1, S2, 5.0e3
+2, S2, 5.0e3
+*Film
+1, F5, 2.8e2, 2.0e1
+2, F5, 2.8e2, 2.0e1
+** Fuelsim component traction is fixed in the global frame by contract.
+*Dsload, follower=NO
+RIGHT_SURFACE, TRVEC, 2.0e6, 1.0, 0.0, 0.0
+*Output, field, frequency=1
+*Node Output
+COORD, NT, RFL, RF, U
+*Element Output, directions=YES
+COORD, HFL, IVOL, LE, S, TEMP
+*End Step

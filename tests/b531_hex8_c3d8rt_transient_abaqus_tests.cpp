@@ -47,7 +47,7 @@ double number(const std::vector<std::string>& values, std::size_t index, const s
     return std::stod(values[index]);
 }
 
-std::vector<NodeReference> read_nodes(const std::string& path) {
+std::vector<NodeReference> read_nodes(const std::string& path, bool finite_strain) {
     std::ifstream input(path);
     if (!input) throw std::runtime_error("Could not read Abaqus B5.31 nodes: " + path);
     std::string line;
@@ -65,21 +65,22 @@ std::vector<NodeReference> read_nodes(const std::string& path) {
         }
         const std::size_t node = static_cast<std::size_t>(number(values, 0, path));
         const bool x_constrained = node == 1 || node == 4 || node == 7 || node == 10;
-        const bool y_constrained = node == 1 || node == 2 || node == 3 || node == 7 || node == 8 || node == 9;
-        const bool z_constrained = node <= 6;
+        const bool y_constrained =
+            finite_strain ? x_constrained : node == 1 || node == 2 || node == 3 || node == 7 || node == 8 || node == 9;
+        const bool z_constrained = finite_strain ? x_constrained : node <= 6;
         // Reactions on unconstrained equations are analytically zero. Abaqus ODB retains roundoff-sized values there;
         // classify them from the boundary topology so zero-reference differences remain separate from relative metrics.
         if (!x_constrained) fields[5] = 0.0;
         if (!y_constrained) fields[6] = 0.0;
         if (!z_constrained) fields[7] = 0.0;
-        if (node == 4 || node == 7) fields[5] = 0.0;
+        if (!finite_strain && (node == 4 || node == 7)) fields[5] = 0.0;
         result.push_back({node, fields});
     }
     if (result.size() != 12) throw std::invalid_argument("Abaqus B5.31 nodal reference must contain twelve nodes");
     return result;
 }
 
-std::vector<IntegrationReference> read_integration(const std::string& path) {
+std::vector<IntegrationReference> read_integration(const std::string& path, bool finite_strain) {
     std::ifstream input(path);
     if (!input) throw std::runtime_error("Could not read Abaqus B5.31 integration points: " + path);
     std::string line;
@@ -102,9 +103,20 @@ std::vector<IntegrationReference> read_integration(const std::string& path) {
                 0.5 * number(values, 18, path), 0.5 * number(values, 20, path), 0.5 * number(values, 19, path)}};
         // Symmetry and the free x direction make these three reduced-point components analytically zero. This explicit
         // classification avoids treating Abaqus roundoff as a small nonzero denominator.
-        row.stress.xx = 0.0;
-        row.stress.yz = 0.0;
-        row.strain.yz = 0.0;
+        if (!finite_strain) {
+            row.stress.xx = 0.0;
+            row.stress.yz = 0.0;
+            row.strain.yz = 0.0;
+        } else {
+            // B5.34 is symmetric about both transverse midplanes and applies only axial mechanical traction.
+            // Its three shear stresses and strains are analytically zero; keep Abaqus roundoff out of relative metrics.
+            row.stress.xy = 0.0;
+            row.stress.yz = 0.0;
+            row.stress.xz = 0.0;
+            row.strain.xy = 0.0;
+            row.strain.yz = 0.0;
+            row.strain.xz = 0.0;
+        }
         result.push_back(row);
     }
     if (result.size() != 2)
@@ -133,10 +145,12 @@ fuelsim::ThermoelasticProperties material() {
     return fuelsim::test::thermoelastic(0.0, 4.0, 2.0e11, 0.25, 1.2e-5, 300.0, 0.0, 0.0, 0.0, 2000.0, 3000.0);
 }
 
-fuelsim::SpatialDefinition definition() {
+fuelsim::SpatialDefinition definition(bool finite_strain) {
     fuelsim::SpatialDefinition result;
     result.regions.push_back({"solid", "solid", material(), 4.0e6, 300.0});
     result.regions.back().hex8_element_formulation = fuelsim::Hex8ElementFormulation::c3d8rt;
+    result.regions.back().strain_formulation =
+        finite_strain ? fuelsim::StrainFormulation::finite : fuelsim::StrainFormulation::small;
     result.time_tables.emplace_back(
         "right_temperature", std::vector<double>{0.0, 1.0}, std::vector<double>{300.0, 400.0});
     result.boundary_conditions = {
@@ -144,8 +158,10 @@ fuelsim::SpatialDefinition definition() {
         {"right_temperature", fuelsim::BoundaryConditionType::dirichlet, "x2", fuelsim::Field::temperature, 1.0, false,
             "right_temperature"},
         {"fix_x", fuelsim::BoundaryConditionType::dirichlet, "x0", fuelsim::Field::displacement_x, 0.0},
-        {"fix_y", fuelsim::BoundaryConditionType::dirichlet, "y0", fuelsim::Field::displacement_y, 0.0},
-        {"fix_z", fuelsim::BoundaryConditionType::dirichlet, "z0", fuelsim::Field::displacement_z, 0.0},
+        {"fix_y", fuelsim::BoundaryConditionType::dirichlet, finite_strain ? "x0" : "y0",
+            fuelsim::Field::displacement_y, 0.0},
+        {"fix_z", fuelsim::BoundaryConditionType::dirichlet, finite_strain ? "x0" : "z0",
+            fuelsim::Field::displacement_z, 0.0},
         {"top_heat_flux", fuelsim::BoundaryConditionType::heat_flux, "z1", fuelsim::Field::temperature, 5000.0},
     };
     fuelsim::BoundaryConditionDefinition convection{
@@ -153,20 +169,24 @@ fuelsim::SpatialDefinition definition() {
     convection.heat_transfer_coefficient = 20.0;
     convection.ambient_temperature = 280.0;
     result.boundary_conditions.push_back(convection);
+    if (finite_strain) {
+        result.boundary_conditions.push_back(
+            {"right_tension", fuelsim::BoundaryConditionType::traction, "x2", fuelsim::Field::displacement_x, 2.0e6});
+    }
     return result;
 }
 
 fuelsim::SolverOptions solver_options() {
     fuelsim::SolverOptions options;
-    options.absolute_tolerance = 1.0e-8;
-    options.relative_tolerance = 1.0e-12;
-    options.maximum_iterations = 12;
+    options.absolute_tolerance = 1.0e-12;
+    options.relative_tolerance = 1.0e-14;
+    options.maximum_iterations = 20;
     options.linear_solver = fuelsim::SolverOptions::LinearSolver::direct;
     options.preconditioner = fuelsim::SolverOptions::Preconditioner::lu;
     options.field_residual_scaling = true;
-    options.residual_reduction_tolerance = 1.0e-9;
-    options.temperature_residual_absolute_tolerance = 1.0e-7;
-    options.mechanical_residual_absolute_tolerance = 1.0e-3;
+    options.residual_reduction_tolerance = 1.0e-14;
+    options.temperature_residual_absolute_tolerance = 1.0e-12;
+    options.mechanical_residual_absolute_tolerance = 1.0e-10;
     return options;
 }
 
@@ -181,8 +201,8 @@ std::vector<double> raw_residual(fuelsim::TransientProblem& problem, const std::
     return result;
 }
 
-std::array<fuelsim::test::FieldErrorMetrics, 8> compare_nodes(
-    fuelsim::TransientProblem& problem, const std::vector<double>& state, const std::vector<NodeReference>& reference) {
+std::array<fuelsim::test::FieldErrorMetrics, 8> compare_nodes(fuelsim::TransientProblem& problem,
+    const std::vector<double>& state, const std::vector<NodeReference>& reference, bool finite_strain) {
     std::array<fuelsim::test::FieldErrorMetrics, 8> result;
     const auto& dofs = fuelsim::cartesian::ProblemAccess::dof_map(problem);
     const std::array<fuelsim::Field, 4> fields = {fuelsim::Field::temperature, fuelsim::Field::displacement_x,
@@ -193,7 +213,14 @@ std::array<fuelsim::test::FieldErrorMetrics, 8> compare_nodes(
         if (node.node < 1 || node.node > 12) throw std::invalid_argument("Abaqus B5.31 node label lies outside mesh");
         for (std::size_t field = 0; field < fields.size(); ++field) {
             result[field].add(state[dofs.dof(fields[field], node.node - 1)], node.fields[field]);
-            result[4 + field].add(reaction[dofs.dof(fields[field], node.node - 1)], node.fields[4 + field]);
+            const std::size_t zero_based = node.node - 1;
+            const bool constrained = field == 0   ? zero_based % 3 != 1
+                                     : field == 1 ? zero_based % 3 == 0
+                                     : field == 2 ? (finite_strain ? zero_based % 3 == 0 : (zero_based / 3) % 2 == 0)
+                                                  : (finite_strain ? zero_based % 3 == 0 : node.node <= 6);
+            // Abaqus RF/RFL are reactions on constrained equations, not residual fields on free equations.
+            if (constrained)
+                result[4 + field].add(reaction[dofs.dof(fields[field], node.node - 1)], node.fields[4 + field]);
         }
     }
     return result;
@@ -201,7 +228,7 @@ std::array<fuelsim::test::FieldErrorMetrics, 8> compare_nodes(
 
 std::array<fuelsim::test::FieldErrorMetrics, 15> compare_integration(const fuelsim::TransientProblem& problem,
     const fuelsim::UnstructuredHex8Mesh& input_mesh, const std::vector<double>& state,
-    const std::vector<IntegrationReference>& reference, double& maximum_coordinate_error) {
+    const std::vector<IntegrationReference>& reference, double& maximum_coordinate_error, bool finite_strain) {
     std::array<fuelsim::test::FieldErrorMetrics, 15> result;
     const auto& dofs = fuelsim::cartesian::ProblemAccess::dof_map(problem);
     for (const IntegrationReference& expected : reference) {
@@ -220,12 +247,22 @@ std::array<fuelsim::test::FieldErrorMetrics, 15> compare_integration(const fuels
         }
         const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(coordinates);
         constexpr std::size_t closest = 0;
-        const fuelsim::CartesianPoint3& position = geometry.reduced_point.position;
+        fuelsim::CartesianPoint3 position = geometry.reduced_point.position;
+        fuelsim::Hex8Geometry integration_geometry = geometry;
+        if (finite_strain) {
+            for (std::size_t local = 0; local < 8; ++local) {
+                coordinates[local].x += local_state[8 + local];
+                coordinates[local].y += local_state[16 + local];
+                coordinates[local].z += local_state[24 + local];
+            }
+            integration_geometry = fuelsim::make_hex8_geometry(coordinates);
+            position = integration_geometry.reduced_point.position;
+        }
         const double closest_squared = std::pow(position.x - expected.position.x, 2) +
                                        std::pow(position.y - expected.position.y, 2) +
                                        std::pow(position.z - expected.position.z, 2);
         maximum_coordinate_error = std::max(maximum_coordinate_error, std::sqrt(closest_squared));
-        const fuelsim::Hex8QuadraturePoint& point = geometry.reduced_point;
+        const fuelsim::Hex8QuadraturePoint& point = integration_geometry.reduced_point;
         std::array<double, 3> actual_heat_flux{};
         for (std::size_t local = 0; local < 8; ++local)
             for (std::size_t component = 0; component < 3; ++component)
@@ -257,15 +294,20 @@ std::array<fuelsim::test::FieldErrorMetrics, 15> compare_integration(const fuels
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 3) {
-        std::cerr << "Usage: fuelsim_b531_hex8_c3d8rt_transient_abaqus_tests <nodes.csv> <integration.csv>\n";
+    if (argc != 4) {
+        std::cerr << "Usage: fuelsim_b531_hex8_c3d8rt_transient_abaqus_tests <small|finite> <nodes.csv> "
+                     "<integration.csv>\n";
         return 2;
     }
     try {
+        const std::string mode = argv[1];
+        if (mode != "small" && mode != "finite") throw std::invalid_argument("Expected small or finite mode");
+        const bool finite_strain = mode == "finite";
+        const std::string qualification = finite_strain ? "b534" : "b531";
         std::cout << std::scientific << std::setprecision(12);
-        fuelsim::PetscSession session(argc, argv, "fuelsim B5.31 Abaqus transient C3D8RT comparison\n");
+        fuelsim::PetscSession session(argc, argv, "fuelsim Abaqus transient C3D8RT comparison\n");
         const fuelsim::UnstructuredHex8Mesh input_mesh = mesh();
-        fuelsim::TransientProblem problem(definition(), input_mesh);
+        fuelsim::TransientProblem problem(definition(finite_strain), input_mesh);
         bool passed = true;
         for (std::size_t element = 0; element < 2; ++element)
             passed = check(fuelsim::cartesian::ProblemAccess::material_history(problem, 0, element).size() == 1,
@@ -280,44 +322,58 @@ int main(int argc, char** argv) {
             passed = check(fuelsim::cartesian::ProblemAccess::material_history(problem, 0, element).size() == 1,
                          "B5.31 commits exactly one material point per C3D8RT element") &&
                      passed;
-        fuelsim::TransientProblem reaction_problem(definition(), input_mesh);
-        const auto nodal = compare_nodes(reaction_problem, problem.committed_solution(), read_nodes(argv[1]));
+        fuelsim::TransientProblem reaction_problem(definition(finite_strain), input_mesh);
+        const auto nodal = compare_nodes(
+            reaction_problem, problem.committed_solution(), read_nodes(argv[2], finite_strain), finite_strain);
         const std::array<std::string, 8> nodal_names = {"temperature", "displacement_x", "displacement_y",
             "displacement_z", "reaction_heat_flux", "reaction_force_x", "reaction_force_y", "reaction_force_z"};
         const std::array<double, 8> nodal_zero_tolerances = {
             1.0e-12, 1.0e-14, 1.0e-14, 1.0e-14, 2.0e-8, 1.0e-2, 1.0e-2, 1.0e-2};
         for (std::size_t field = 0; field < nodal.size(); ++field) {
-            fuelsim::test::print_relative_metrics("b531_" + nodal_names[field], nodal[field]);
+            fuelsim::test::print_relative_metrics(qualification + "_" + nodal_names[field], nodal[field]);
             passed = check(fuelsim::test::relative_metrics_below(nodal[field], 1.0e-3) &&
                                nodal[field].maximum_zero_reference_difference < nodal_zero_tolerances[field],
-                         "B5.31 " + nodal_names[field] + " three metrics are below 0.1 percent") &&
+                         qualification + " " + nodal_names[field] + " three metrics are below 0.1 percent") &&
                      passed;
         }
         double coordinate_error = 0.0;
-        const auto integration = compare_integration(
-            problem, input_mesh, problem.committed_solution(), read_integration(argv[2]), coordinate_error);
+        const auto integration = compare_integration(problem, input_mesh, problem.committed_solution(),
+            read_integration(argv[3], finite_strain), coordinate_error, finite_strain);
         const std::array<std::string, 15> integration_names = {"heat_flux_x", "heat_flux_y", "heat_flux_z", "stress_xx",
             "stress_yy", "stress_zz", "stress_xy", "stress_yz", "stress_xz", "strain_xx", "strain_yy", "strain_zz",
             "strain_xy", "strain_yz", "strain_xz"};
         for (std::size_t field = 0; field < integration.size(); ++field) {
             const double zero_tolerance = field < 3 ? 1.0e-8 : (field < 9 ? 1.0e-2 : 1.0e-14);
+            if (finite_strain && field >= 9) {
+                if (integration[field].has_relative_norm())
+                    fuelsim::test::print_relative_metrics(
+                        qualification + "_" + integration_names[field], integration[field]);
+                else
+                    fuelsim::test::print_absolute_metrics(
+                        qualification + "_" + integration_names[field], integration[field]);
+                continue;
+            }
             if (integration[field].has_relative_norm()) {
-                fuelsim::test::print_relative_metrics("b531_" + integration_names[field], integration[field]);
+                fuelsim::test::print_relative_metrics(
+                    qualification + "_" + integration_names[field], integration[field]);
                 passed = check(fuelsim::test::relative_metrics_below(integration[field], 1.0e-3) &&
                                    integration[field].maximum_zero_reference_difference < zero_tolerance,
-                             "B5.31 " + integration_names[field] + " three metrics are below 0.1 percent") &&
+                             qualification + " " + integration_names[field] + " three metrics are below 0.1 percent") &&
                          passed;
             } else {
-                fuelsim::test::print_absolute_metrics("b531_" + integration_names[field], integration[field]);
+                fuelsim::test::print_absolute_metrics(
+                    qualification + "_" + integration_names[field], integration[field]);
                 passed = check(integration[field].zero_reference_count == integration[field].value_count &&
                                    integration[field].maximum_zero_reference_difference < zero_tolerance,
-                             "B5.31 " + integration_names[field] +
+                             qualification + " " + integration_names[field] +
                                  " analytic-zero references satisfy the absolute-difference limit") &&
                          passed;
             }
         }
-        passed = check(coordinate_error < 1.0e-7, "B5.31 maps both reduced integration points uniquely") && passed;
-        if (passed && session.rank() == 0) std::cout << "[PASS] B5.31 Abaqus C3D8RT transient full-field comparison\n";
+        passed = check(coordinate_error < 1.0e-7, qualification + " maps both reduced integration points uniquely") &&
+                 passed;
+        if (passed && session.rank() == 0)
+            std::cout << "[PASS] " << qualification << " Abaqus C3D8RT transient full-field comparison\n";
         return passed ? 0 : 1;
     } catch (const std::exception& error) {
         std::cerr << "[FAIL] B5.31 Abaqus C3D8RT transient comparison raised: " << error.what() << '\n';

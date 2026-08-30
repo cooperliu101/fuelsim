@@ -1572,7 +1572,9 @@ if(BUILD_TESTING)
         COMMAND fuelsim_b528_hex8_c3d8rt_operator_abaqus_tests
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b528_hex8_c3d8rt_operator_nodal.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b528_hex8_c3d8rt_warped_operator_nodal.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b528_hex8_c3d8rt_holdout_operator_nodal.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b528_hex8_c3d8rt_holdout_operator_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b532_hex8_c3d8rt_finite_regular_operator_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b532_hex8_c3d8rt_finite_warped_operator_nodal.csv")
     set_tests_properties(fuelsim_b528_hex8_c3d8rt_operator_abaqus_tests PROPERTIES
         LABELS "acceptance;abaqus;three-dimensional;reduced-integration")
 
@@ -1606,10 +1608,18 @@ if(BUILD_TESTING)
     fuelsim_enable_warnings(fuelsim_b531_hex8_c3d8rt_transient_abaqus_tests)
     add_test(NAME fuelsim_b531_hex8_c3d8rt_transient_abaqus_tests
         COMMAND fuelsim_b531_hex8_c3d8rt_transient_abaqus_tests
+            small
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b531_hex8_c3d8rt_transient_nodal.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b531_hex8_c3d8rt_transient_integration.csv")
     set_tests_properties(fuelsim_b531_hex8_c3d8rt_transient_abaqus_tests PROPERTIES
         LABELS "acceptance;abaqus;three-dimensional;reduced-integration;transient;thermo-mechanical")
+    add_test(NAME fuelsim_b534_hex8_c3d8rt_finite_transient_abaqus_tests
+        COMMAND fuelsim_b531_hex8_c3d8rt_transient_abaqus_tests
+            finite
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b534_hex8_c3d8rt_finite_transient_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b534_hex8_c3d8rt_finite_transient_integration.csv")
+    set_tests_properties(fuelsim_b534_hex8_c3d8rt_finite_transient_abaqus_tests PROPERTIES
+        LABELS "acceptance;abaqus;three-dimensional;reduced-integration;finite-strain;transient;thermo-mechanical")
     fuelsim_enable_warnings(fuelsim_multi_region_tests)
     add_test(NAME fuelsim_multi_region_tests COMMAND fuelsim_multi_region_tests)
     set_tests_properties(fuelsim_multi_region_tests PROPERTIES LABELS "acceptance")

@@ -601,10 +601,6 @@ SpatialContributionType boundary_contribution_type(BoundaryConditionType type) {
 SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const UnstructuredHex8Mesh& source_mesh)
     : SpatialLayout(definition, spatial_detail::resolve_block_ids(definition, source_mesh, true, true),
           spatial_detail::DofLayout::cartesian_3d) {
-    for (const RegionDefinition& region : _definition.regions)
-        if (region.hex8_element_formulation == Hex8ElementFormulation::c3d8rt &&
-            region.strain_formulation != StrainFormulation::small)
-            throw std::invalid_argument("C3D8RT currently supports only small strain: " + region.name);
     _meshes.reserve(_block_ids.size());
     for (const std::int64_t block_id : _block_ids)
         _meshes.push_back(Hex8RegionMesh::from_unstructured_block(source_mesh, block_id));
@@ -917,7 +913,12 @@ void SpatialAssembly::contribution_jacobian_pattern(std::size_t index, std::vect
             return;
         }
         pattern.assign(hex8_local_dof_count * hex8_local_dof_count, 0U);
-        set_pattern_block(pattern, hex8_local_dof_count, 0, 8, 0, 8);
+        const auto location = element_location(index);
+        const RegionDefinition& element_region = region(location.first);
+        const bool finite_reduced = element_region.hex8_element_formulation == Hex8ElementFormulation::c3d8rt &&
+                                    element_region.strain_formulation == StrainFormulation::finite;
+        const std::size_t thermal_column_end = finite_reduced ? hex8_local_dof_count : 8;
+        set_pattern_block(pattern, hex8_local_dof_count, 0, 8, 0, thermal_column_end);
         set_pattern_block(pattern, hex8_local_dof_count, 8, hex8_local_dof_count, 0, hex8_local_dof_count);
         return;
     }

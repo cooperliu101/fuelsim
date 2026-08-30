@@ -31,7 +31,8 @@ std::map<std::string, Step> read_steps(const std::string& path) {
     if (!input) throw std::runtime_error("Could not read Abaqus C3D8RT operator reference: " + path);
     std::string line;
     std::getline(input, line);
-    if (line != "step,node,temperature_k,ux_m,uy_m,uz_m,rfl_w,rf_x_n,rf_y_n,rf_z_n")
+    if (line != "step,node,temperature_k,ux_m,uy_m,uz_m,rfl_w,rf_x_n,rf_y_n,rf_z_n" &&
+        line != "case,node,temperature_k,ux_m,uy_m,uz_m,rfl_w,rf_x_n,rf_y_n,rf_z_n")
         throw std::invalid_argument("Unexpected Abaqus C3D8RT operator header");
     std::map<std::string, Step> result;
     while (std::getline(input, line)) {
@@ -79,16 +80,29 @@ double block_relative_error(const fuelsim::Hex8LocalJacobian& actual, const fuel
     return std::sqrt(numerator / denominator);
 }
 
-bool check_case(const std::string& path, const fuelsim::Hex8Coordinates& coordinates, double thermal_limit) {
+double vector_relative_error(const fuelsim::Hex8LocalResidual& actual, const fuelsim::Hex8LocalResidual& expected,
+    std::size_t begin, std::size_t end) {
+    double numerator = 0.0, denominator = 0.0;
+    for (std::size_t row = begin; row < end; ++row) {
+        const double difference = actual[row] - expected[row];
+        numerator += difference * difference;
+        denominator += expected[row] * expected[row];
+    }
+    return std::sqrt(numerator / denominator);
+}
+
+bool check_case(const std::string& path, const fuelsim::Hex8Coordinates& coordinates, double thermal_limit,
+    fuelsim::StrainFormulation strain_formulation = fuelsim::StrainFormulation::small) {
     const std::map<std::string, Step> steps = read_steps(path);
     const Step& base = steps.at("BASE");
     const fuelsim::ThermoelasticProperties properties =
         fuelsim::test::thermoelastic(0.0, 4.0, 2.0e11, 0.25, 1.2e-5, 300.0, 0.0, 0.0, 0.0, 2000.0, 3000.0);
     const fuelsim::CartesianThermoelasticData data{fuelsim::IsotropicThermoelasticMaterial(properties), 0.0, 0.0,
-        fuelsim::StrainFormulation::small, fuelsim::Hex8ElementFormulation::c3d8rt, 300.0};
+        strain_formulation, fuelsim::Hex8ElementFormulation::c3d8rt, 300.0};
     const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(coordinates);
     fuelsim::Hex8LocalJacobian actual{};
-    (void)fuelsim::compute_hex8_thermoelastic(data, geometry, base.state, nullptr, 0.0, &actual);
+    const fuelsim::Hex8LocalResidual actual_residual =
+        fuelsim::compute_hex8_thermoelastic(data, geometry, base.state, nullptr, 0.0, &actual);
     fuelsim::Hex8LocalJacobian expected{};
     for (std::size_t column = 0; column < local_size; ++column) {
         std::ostringstream plus_name, minus_name;
@@ -103,6 +117,8 @@ bool check_case(const std::string& path, const fuelsim::Hex8Coordinates& coordin
     const double thermal_error = block_relative_error(actual, expected, 0, 8, 0, 8);
     const double mechanical_error = block_relative_error(actual, expected, 8, 32, 8, 32);
     const double coupling_error = block_relative_error(actual, expected, 8, 32, 0, 8);
+    const double thermal_residual_error = vector_relative_error(actual_residual, base.reaction, 0, 8);
+    const double mechanical_residual_error = vector_relative_error(actual_residual, base.reaction, 8, 32);
 
     fuelsim::Hex8LocalJacobian finite_difference{};
     for (std::size_t column = 0; column < local_size; ++column) {
@@ -119,23 +135,31 @@ bool check_case(const std::string& path, const fuelsim::Hex8Coordinates& coordin
     const double local_thermal_error = block_relative_error(actual, finite_difference, 0, 8, 0, 8);
     const double local_mechanical_error = block_relative_error(actual, finite_difference, 8, 32, 8, 32);
     const double local_coupling_error = block_relative_error(actual, finite_difference, 8, 32, 0, 8);
-    std::cout << "C3D8RT operator " << path << ": Abaqus thermal=" << thermal_error * 100.0
-              << "%, mechanical=" << mechanical_error * 100.0 << "%, coupling=" << coupling_error * 100.0
+    std::cout << "C3D8RT operator " << path << ": Abaqus residual thermal=" << thermal_residual_error * 100.0
+              << "%, residual mechanical=" << mechanical_residual_error * 100.0
+              << "%, tangent thermal=" << thermal_error * 100.0 << "%, mechanical=" << mechanical_error * 100.0
+              << "%, coupling=" << coupling_error * 100.0
               << "%; centered-difference thermal=" << local_thermal_error * 100.0
               << "%, mechanical=" << local_mechanical_error * 100.0 << "%, coupling=" << local_coupling_error * 100.0
               << "%\n";
-    return thermal_error < thermal_limit && mechanical_error < 1.0e-6 && coupling_error < 1.0e-6 &&
+    const bool finite = strain_formulation == fuelsim::StrainFormulation::finite;
+    return thermal_residual_error < (finite ? 1.0e-3 : thermal_limit) &&
+           mechanical_residual_error < (finite ? 1.0e-2 : 1.0e-6) && thermal_error < thermal_limit &&
+           mechanical_error < (finite ? 1.0e-2 : 1.0e-6) && coupling_error < (finite ? 1.0e-4 : 1.0e-6) &&
            local_thermal_error < 1.0e-9 && local_mechanical_error < 2.0e-7 && local_coupling_error < 2.0e-7;
 }
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 4) {
-        std::cerr << "usage: fuelsim_b528_hex8_c3d8rt_operator_abaqus_tests regular.csv warped.csv holdout.csv\n";
+    if (argc != 6) {
+        std::cerr << "usage: fuelsim_b528_hex8_c3d8rt_operator_abaqus_tests regular.csv warped.csv holdout.csv "
+                     "finite_regular.csv finite_warped.csv\n";
         return 2;
     }
     bool ok = check_case(argv[1], regular_coordinates(), 1.0e-8);
     ok = check_case(argv[2], warped_coordinates(), 0.01) && ok;
     ok = check_case(argv[3], holdout_coordinates(), 0.01) && ok;
+    ok = check_case(argv[4], regular_coordinates(), 1.0e-3, fuelsim::StrainFormulation::finite) && ok;
+    ok = check_case(argv[5], warped_coordinates(), 1.0e-3, fuelsim::StrainFormulation::finite) && ok;
     return ok ? 0 : 1;
 }

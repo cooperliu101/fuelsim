@@ -24,6 +24,7 @@ struct KinematicsCore final {
 
 KinematicsCore evaluate_kinematics(
     const ActiveMatrix3& gradient, const Matrix3& committed_deformation, StrainFormulation strain_formulation);
+KinematicsCore evaluate_hughes_winget_increment(const ActiveMatrix3& central_displacement_gradient);
 
 MaterialFunctionContext material_context(double time, const CartesianPoint3& point);
 

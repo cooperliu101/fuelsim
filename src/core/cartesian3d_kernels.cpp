@@ -5,6 +5,7 @@
 #include <array>
 #include <cmath>
 #include <stdexcept>
+#include <string>
 
 namespace fuelsim {
 namespace {
@@ -13,6 +14,9 @@ constexpr std::array<std::array<double, 3>, 8> hex8_signs = {
     {{{-1.0, -1.0, -1.0}}, {{1.0, -1.0, -1.0}}, {{1.0, 1.0, -1.0}}, {{-1.0, 1.0, -1.0}}, {{-1.0, -1.0, 1.0}},
         {{1.0, -1.0, 1.0}}, {{1.0, 1.0, 1.0}}, {{-1.0, 1.0, 1.0}}}};
 constexpr std::array<std::size_t, hex8_node_count> hex8_node_to_gauss = {0, 1, 3, 2, 4, 5, 7, 6};
+constexpr std::array<std::array<double, 4>, hex8_node_count> finite_reduced_hex8_raw_hourglass = {
+    {{{1.0, -1.0, 1.0, -1.0}}, {{-1.0, -1.0, -1.0, 1.0}}, {{1.0, 1.0, -1.0, -1.0}}, {{-1.0, 1.0, 1.0, 1.0}},
+        {{1.0, 1.0, -1.0, 1.0}}, {{-1.0, 1.0, 1.0, -1.0}}, {{1.0, -1.0, 1.0, 1.0}}, {{-1.0, -1.0, -1.0, -1.0}}}};
 
 cartesian_detail::ActiveMatrix3 displacement_gradient(
     const Hex8QuadraturePoint& point, const Hex8LocalAdValues& state) {
@@ -955,12 +959,434 @@ void add_hex8_lumped_capacity_system(const Hex8Geometry& geometry, const Hex8Loc
     }
 }
 
+struct ActiveReducedHex8Geometry final {
+    adlite::Scalar volume{0.0}, center_measure{0.0};
+    std::array<std::array<adlite::Scalar, 3>, hex8_node_count> average_gradient{};
+    std::array<adlite::Scalar, hex8_node_count> shape_measures{};
+    std::array<std::array<adlite::Scalar, 4>, hex8_node_count> hourglass_shape{};
+    std::array<adlite::Scalar, 4> thermal_hourglass_coefficients{};
+};
+
+ActiveReducedHex8Geometry active_reduced_hex8_geometry(const Hex8Geometry& reference,
+    const std::array<std::array<adlite::Scalar, 3>, hex8_node_count>& displacement, const char* configuration_name) {
+    ActiveReducedHex8Geometry result;
+    std::array<std::array<adlite::Scalar, 3>, hex8_node_count> current_coordinates{};
+    for (std::size_t node = 0; node < hex8_node_count; ++node) {
+        current_coordinates[node][0] = reference.capacity_points[node].position.x + displacement[node][0];
+        current_coordinates[node][1] = reference.capacity_points[node].position.y + displacement[node][1];
+        current_coordinates[node][2] = reference.capacity_points[node].position.z + displacement[node][2];
+    }
+
+    for (const Hex8QuadraturePoint& point : reference.points) {
+        cartesian_detail::ActiveMatrix3 deformation{};
+        for (std::size_t component = 0; component < 3; ++component) {
+            deformation[component][component] = 1.0;
+            for (std::size_t direction = 0; direction < 3; ++direction)
+                for (std::size_t node = 0; node < hex8_node_count; ++node)
+                    deformation[component][direction] +=
+                        displacement[node][component] * point.gradient[node][direction];
+        }
+        const adlite::Scalar determinant = cartesian_detail::determinant(deformation);
+        if (!std::isfinite(determinant.value()) || !(determinant.value() > 0.0))
+            throw std::domain_error(std::string("C3D8RT ") + configuration_name +
+                                    " configuration must preserve positive Jacobians at all integration points");
+        const cartesian_detail::ActiveMatrix3 inverse = cartesian_detail::inverse(deformation, determinant);
+        const adlite::Scalar measure = point.weighted_measure * determinant;
+        result.volume += measure;
+        for (std::size_t node = 0; node < hex8_node_count; ++node) {
+            result.shape_measures[node] += measure * point.shape[node];
+            for (std::size_t current_direction = 0; current_direction < 3; ++current_direction) {
+                adlite::Scalar current_gradient = 0.0;
+                for (std::size_t reference_direction = 0; reference_direction < 3; ++reference_direction)
+                    current_gradient +=
+                        point.gradient[node][reference_direction] * inverse[reference_direction][current_direction];
+                result.average_gradient[node][current_direction] += measure * current_gradient;
+            }
+        }
+    }
+    if (!std::isfinite(result.volume.value()) || !(result.volume.value() > 0.0))
+        throw std::domain_error(std::string("C3D8RT ") + configuration_name + " volume must be finite and positive");
+    for (std::size_t node = 0; node < hex8_node_count; ++node)
+        for (std::size_t component = 0; component < 3; ++component)
+            result.average_gradient[node][component] /= result.volume;
+
+    cartesian_detail::ActiveMatrix3 center_jacobian{};
+    for (std::size_t physical = 0; physical < 3; ++physical)
+        for (std::size_t natural = 0; natural < 3; ++natural)
+            for (std::size_t node = 0; node < hex8_node_count; ++node)
+                center_jacobian[physical][natural] +=
+                    current_coordinates[node][physical] * hex8_signs[node][natural] / 8.0;
+    result.center_measure = 8.0 * cartesian_detail::determinant(center_jacobian);
+    if (!std::isfinite(result.center_measure.value()) || !(result.center_measure.value() > 0.0))
+        throw std::domain_error(
+            std::string("C3D8RT ") + configuration_name + " center Jacobian must be finite and positive");
+
+    for (std::size_t mode = 0; mode < 4; ++mode) {
+        std::array<adlite::Scalar, 3> projected_coordinate{};
+        for (std::size_t node = 0; node < hex8_node_count; ++node)
+            for (std::size_t component = 0; component < 3; ++component)
+                projected_coordinate[component] +=
+                    current_coordinates[node][component] * finite_reduced_hex8_raw_hourglass[node][mode];
+        for (std::size_t node = 0; node < hex8_node_count; ++node) {
+            result.hourglass_shape[node][mode] = finite_reduced_hex8_raw_hourglass[node][mode];
+            for (std::size_t component = 0; component < 3; ++component)
+                result.hourglass_shape[node][mode] -=
+                    result.average_gradient[node][component] * projected_coordinate[component];
+        }
+    }
+
+    cartesian_detail::ActiveMatrix3 inverse_effective_mapping{};
+    for (std::size_t natural = 0; natural < 3; ++natural)
+        for (std::size_t physical = 0; physical < 3; ++physical)
+            for (std::size_t node = 0; node < hex8_node_count; ++node)
+                inverse_effective_mapping[natural][physical] +=
+                    hex8_signs[node][natural] * result.average_gradient[node][physical];
+    const adlite::Scalar inverse_effective_determinant = cartesian_detail::determinant(inverse_effective_mapping);
+    if (!std::isfinite(inverse_effective_determinant.value()) || inverse_effective_determinant.value() == 0.0)
+        throw std::domain_error(std::string("C3D8RT ") + configuration_name + " effective mapping must be nonsingular");
+    const cartesian_detail::ActiveMatrix3 effective_mapping =
+        cartesian_detail::inverse(inverse_effective_mapping, inverse_effective_determinant);
+    cartesian_detail::ActiveMatrix3 metric{};
+    for (std::size_t first = 0; first < 3; ++first)
+        for (std::size_t second = 0; second < 3; ++second)
+            for (std::size_t physical = 0; physical < 3; ++physical)
+                metric[first][second] += effective_mapping[physical][first] * effective_mapping[physical][second];
+    const adlite::Scalar first_pivot = metric[0][0];
+    const adlite::Scalar second_pivot = metric[1][1] - metric[0][1] * metric[0][1] / first_pivot;
+    const adlite::Scalar leading_determinant = metric[0][0] * metric[1][1] - metric[0][1] * metric[0][1];
+    const adlite::Scalar third_pivot =
+        metric[2][2] - (metric[1][1] * metric[0][2] * metric[0][2] - 2.0 * metric[0][1] * metric[0][2] * metric[1][2] +
+                           metric[0][0] * metric[1][2] * metric[1][2]) /
+                           leading_determinant;
+    if (!std::isfinite(first_pivot.value()) || !std::isfinite(second_pivot.value()) ||
+        !std::isfinite(third_pivot.value()) || !(first_pivot.value() > 0.0) || !(second_pivot.value() > 0.0) ||
+        !(third_pivot.value() > 0.0))
+        throw std::domain_error(
+            std::string("C3D8RT ") + configuration_name + " effective metric must be positive definite");
+    const adlite::Scalar thermal_scale = result.volume / 192.0;
+    const adlite::Scalar inverse_x = 1.0 / first_pivot, inverse_y = 1.0 / second_pivot, inverse_z = 1.0 / third_pivot;
+    result.thermal_hourglass_coefficients = {thermal_scale * (inverse_x + inverse_y),
+        thermal_scale * (inverse_x + inverse_z), thermal_scale * (inverse_x + inverse_z),
+        thermal_scale * (inverse_x + inverse_y + inverse_z) / 3.0};
+    return result;
+}
+
+std::array<std::array<adlite::Scalar, 3>, hex8_node_count> reduced_hex8_displacement(const Hex8LocalAdValues& state) {
+    std::array<std::array<adlite::Scalar, 3>, hex8_node_count> result{};
+    for (std::size_t node = 0; node < hex8_node_count; ++node)
+        for (std::size_t component = 0; component < 3; ++component)
+            result[node][component] = state[8 * (component + 1) + node];
+    return result;
+}
+
+std::array<std::array<adlite::Scalar, 3>, hex8_node_count> reduced_hex8_midpoint_displacement(
+    const Hex8LocalAdValues& state, const Hex8LocalValues& committed_state) {
+    std::array<std::array<adlite::Scalar, 3>, hex8_node_count> result{};
+    for (std::size_t node = 0; node < hex8_node_count; ++node)
+        for (std::size_t component = 0; component < 3; ++component)
+            result[node][component] =
+                0.5 * (state[8 * (component + 1) + node] + committed_state[8 * (component + 1) + node]);
+    return result;
+}
+
+cartesian_detail::ActiveMatrix3 reduced_hex8_central_gradient(
+    const ActiveReducedHex8Geometry& midpoint, const Hex8LocalAdValues& state, const Hex8LocalValues& committed_state) {
+    cartesian_detail::ActiveMatrix3 central_gradient{};
+    for (std::size_t component = 0; component < 3; ++component)
+        for (std::size_t direction = 0; direction < 3; ++direction)
+            for (std::size_t node = 0; node < hex8_node_count; ++node)
+                central_gradient[component][direction] +=
+                    (state[8 * (component + 1) + node] - committed_state[8 * (component + 1) + node]) *
+                    midpoint.average_gradient[node][direction];
+    return central_gradient;
+}
+
+cartesian_detail::KinematicsCore reduced_hex8_finite_kinematics(
+    const ActiveReducedHex8Geometry& midpoint, const Hex8LocalAdValues& state, const Hex8LocalValues& committed_state) {
+    return cartesian_detail::evaluate_hughes_winget_increment(
+        reduced_hex8_central_gradient(midpoint, state, committed_state));
+}
+
+struct ReducedFiniteMaterialLinearization final {
+    SymmetricTensor3Values stress;
+    std::array<std::array<double, 6>, 6> tangent{};
+    std::array<double, 6> thermal{};
+};
+
+struct ReducedFiniteStressLinearization final {
+    SymmetricTensor3Values stress;
+    std::array<std::array<double, 10>, 6> tangent{};
+};
+
+ReducedFiniteMaterialLinearization reduced_finite_material_linearization(const IsotropicThermoelasticMaterial& material,
+    const SymmetricTensor3Values& strain_increment, double temperature, double committed_temperature, double time_step,
+    const CartesianMaterialPointState* committed_material, MaterialFunctionContext context) {
+    std::array<double, 7> seeds = {strain_increment.xx, strain_increment.yy, strain_increment.zz, strain_increment.xy,
+        strain_increment.yz, strain_increment.xz, temperature};
+    std::array<adlite::Scalar, 7> active{};
+    adlite::seed_identity(seeds.data(), seeds.size(), active.data());
+    const SymmetricTensor3 strain{active[0], active[1], active[2], active[3], active[4], active[5]};
+    SymmetricTensor3 stress;
+    if (committed_material == nullptr)
+        stress = material.stress(strain, active[6], context);
+    else
+        stress = material
+                     .incremental_response(strain, CartesianRotation{}, active[6], committed_temperature, time_step,
+                         *committed_material, context)
+                     .stress;
+    ReducedFiniteMaterialLinearization result;
+    result.stress = {stress.xx.value(), stress.yy.value(), stress.zz.value(), stress.xy.value(), stress.yz.value(),
+        stress.xz.value()};
+    const std::array<const adlite::Scalar*, 6> components = {
+        &stress.xx, &stress.yy, &stress.zz, &stress.xy, &stress.yz, &stress.xz};
+    std::array<double, 7> derivatives{};
+    for (std::size_t row = 0; row < 6; ++row) {
+        components[row]->copy_derivatives(derivatives.data(), derivatives.size());
+        for (std::size_t column = 0; column < 6; ++column) result.tangent[row][column] = derivatives[column];
+        result.thermal[row] = derivatives[6];
+    }
+    return result;
+}
+
+ReducedFiniteStressLinearization reduced_finite_stress_linearization(
+    const cartesian_detail::ActiveMatrix3& passive_gradient, double temperature,
+    const ReducedFiniteMaterialLinearization& material_linearization) {
+    std::array<double, 10> values{};
+    for (std::size_t component = 0; component < 3; ++component)
+        for (std::size_t direction = 0; direction < 3; ++direction)
+            values[3 * component + direction] = passive_gradient[component][direction].value();
+    values[9] = temperature;
+    std::array<adlite::Scalar, 10> active{};
+    adlite::seed_identity(values.data(), values.size(), active.data());
+    cartesian_detail::ActiveMatrix3 gradient{};
+    for (std::size_t component = 0; component < 3; ++component)
+        for (std::size_t direction = 0; direction < 3; ++direction)
+            gradient[component][direction] = active[3 * component + direction];
+    const cartesian_detail::KinematicsCore kinematics = cartesian_detail::evaluate_hughes_winget_increment(gradient);
+    const std::array<adlite::Scalar, 7> material_inputs = {kinematics.strain_increment.xx,
+        kinematics.strain_increment.yy, kinematics.strain_increment.zz, kinematics.strain_increment.xy,
+        kinematics.strain_increment.yz, kinematics.strain_increment.xz, active[9]};
+    const std::array<double, 6> stress_values = {material_linearization.stress.xx, material_linearization.stress.yy,
+        material_linearization.stress.zz, material_linearization.stress.xy, material_linearization.stress.yz,
+        material_linearization.stress.xz};
+    std::array<adlite::Scalar, 6> material_stress{};
+    std::array<double, 7> partials{};
+    for (std::size_t row = 0; row < 6; ++row) {
+        for (std::size_t column = 0; column < 6; ++column)
+            partials[column] = material_linearization.tangent[row][column];
+        partials[6] = material_linearization.thermal[row];
+        material_stress[row] =
+            adlite::compose(stress_values[row], material_inputs.data(), partials.data(), material_inputs.size());
+    }
+    const SymmetricTensor3 rotated =
+        rotate_cartesian_tensor({material_stress[0], material_stress[1], material_stress[2], material_stress[3],
+                                    material_stress[4], material_stress[5]},
+            kinematics.rotation);
+    const std::array<const adlite::Scalar*, 6> components = {
+        &rotated.xx, &rotated.yy, &rotated.zz, &rotated.xy, &rotated.yz, &rotated.xz};
+    ReducedFiniteStressLinearization result;
+    result.stress = {rotated.xx.value(), rotated.yy.value(), rotated.zz.value(), rotated.xy.value(), rotated.yz.value(),
+        rotated.xz.value()};
+    for (std::size_t row = 0; row < 6; ++row)
+        components[row]->copy_derivatives(result.tangent[row].data(), result.tangent[row].size());
+    return result;
+}
+
+adlite::Scalar reduced_hex8_temperature(const ActiveReducedHex8Geometry& geometry, const Hex8LocalAdValues& state) {
+    adlite::Scalar result = 0.0;
+    for (std::size_t node = 0; node < hex8_node_count; ++node)
+        result += geometry.shape_measures[node] * state[node] / geometry.volume;
+    return result;
+}
+
+Hex8LocalAdValues reduced_hex8_finite_residual(const CartesianThermoelasticData& data, const Hex8Geometry& reference,
+    const Hex8LocalAdValues& state, const Hex8LocalValues& committed_state,
+    const CartesianMaterialPointState* committed_material, double time_step, bool include_thermal_time_term,
+    double initial_shear_modulus, const ReducedFiniteStressLinearization& stress_linearization) {
+    const auto displacement = reduced_hex8_displacement(state);
+    const auto midpoint_displacement = reduced_hex8_midpoint_displacement(state, committed_state);
+    const ActiveReducedHex8Geometry current = active_reduced_hex8_geometry(reference, displacement, "current");
+    const ActiveReducedHex8Geometry midpoint =
+        active_reduced_hex8_geometry(reference, midpoint_displacement, "midpoint");
+    const cartesian_detail::ActiveMatrix3 central_gradient =
+        reduced_hex8_central_gradient(midpoint, state, committed_state);
+    const adlite::Scalar temperature = reduced_hex8_temperature(current, state);
+    const MaterialFunctionContext context = material_context(data.time, reference.reduced_point.position);
+
+    std::array<adlite::Scalar, 10> compose_inputs{};
+    for (std::size_t component = 0; component < 3; ++component)
+        for (std::size_t direction = 0; direction < 3; ++direction)
+            compose_inputs[3 * component + direction] = central_gradient[component][direction];
+    compose_inputs[9] = temperature;
+    const std::array<double, 6> stress_values = {stress_linearization.stress.xx, stress_linearization.stress.yy,
+        stress_linearization.stress.zz, stress_linearization.stress.xy, stress_linearization.stress.yz,
+        stress_linearization.stress.xz};
+    std::array<adlite::Scalar, 6> composed_stress{};
+    for (std::size_t row = 0; row < 6; ++row) {
+        composed_stress[row] = adlite::compose(
+            stress_values[row], compose_inputs.data(), stress_linearization.tangent[row].data(), compose_inputs.size());
+    }
+    const SymmetricTensor3 stress{composed_stress[0], composed_stress[1], composed_stress[2], composed_stress[3],
+        composed_stress[4], composed_stress[5]};
+
+    const adlite::Scalar conductivity = data.material.conductivity(temperature, context);
+    std::array<adlite::Scalar, 3> temperature_gradient{};
+    std::array<adlite::Scalar, 4> temperature_hourglass_amplitude{};
+    for (std::size_t node = 0; node < hex8_node_count; ++node) {
+        for (std::size_t direction = 0; direction < 3; ++direction)
+            temperature_gradient[direction] += current.average_gradient[node][direction] * state[node];
+        for (std::size_t mode = 0; mode < 4; ++mode)
+            temperature_hourglass_amplitude[mode] += current.hourglass_shape[node][mode] * state[node];
+    }
+
+    Hex8LocalAdValues residual{};
+    residual.fill(adlite::Scalar(0.0));
+    for (std::size_t node = 0; node < hex8_node_count; ++node) {
+        adlite::Scalar uniform_thermal = 0.0, hourglass_thermal = 0.0;
+        for (std::size_t direction = 0; direction < 3; ++direction)
+            uniform_thermal += current.average_gradient[node][direction] * temperature_gradient[direction];
+        for (std::size_t mode = 0; mode < 4; ++mode)
+            hourglass_thermal += current.hourglass_shape[node][mode] * current.thermal_hourglass_coefficients[mode] *
+                                 temperature_hourglass_amplitude[mode];
+        residual[node] += conductivity * (current.volume * uniform_thermal + hourglass_thermal) -
+                          current.center_measure * data.volumetric_heat_source / 8.0;
+        const adlite::Scalar gradient_x = current.average_gradient[node][0];
+        const adlite::Scalar gradient_y = current.average_gradient[node][1];
+        const adlite::Scalar gradient_z = current.average_gradient[node][2];
+        residual[8 + node] +=
+            current.volume * (stress.xx * gradient_x + stress.xy * gradient_y + stress.xz * gradient_z);
+        residual[16 + node] +=
+            current.volume * (stress.xy * gradient_x + stress.yy * gradient_y + stress.yz * gradient_z);
+        residual[24 + node] +=
+            current.volume * (stress.xz * gradient_x + stress.yz * gradient_y + stress.zz * gradient_z);
+    }
+
+    // Abaqus/Standard's finite-strain total-stiffness control transports each
+    // reference modal displacement through the element-average deformation
+    // before applying the reference hourglass metric.  Differentiate the
+    // resulting quadratic modal energy exactly: the first force term is the
+    // F D F^T push-forward, while the second is the derivative of F itself.
+    // The fixed 0.005 factor is Abaqus's documented default and is not
+    // calibrated from the verification probes.
+    cartesian_detail::ActiveMatrix3 average_deformation{};
+    for (std::size_t component = 0; component < 3; ++component) {
+        average_deformation[component][component] = 1.0;
+        for (std::size_t direction = 0; direction < 3; ++direction)
+            for (std::size_t node = 0; node < hex8_node_count; ++node)
+                average_deformation[component][direction] +=
+                    state[8 * (component + 1) + node] * reference.average_shape_gradient[node][direction];
+    }
+    constexpr double abaqus_total_stiffness_factor = 0.005;
+    for (std::size_t mode = 0; mode < 4; ++mode) {
+        std::array<adlite::Scalar, 3> reference_amplitude{};
+        for (std::size_t component = 0; component < 3; ++component)
+            for (std::size_t node = 0; node < hex8_node_count; ++node)
+                reference_amplitude[component] +=
+                    reference.hourglass_shape[node][mode] * state[8 * (component + 1) + node];
+        std::array<adlite::Scalar, 3> material_modal_force{};
+        for (std::size_t material_direction = 0; material_direction < 3; ++material_direction) {
+            adlite::Scalar transported_amplitude = 0.0;
+            for (std::size_t component = 0; component < 3; ++component)
+                transported_amplitude +=
+                    reference_amplitude[component] * average_deformation[component][material_direction];
+            material_modal_force[material_direction] = abaqus_total_stiffness_factor * initial_shear_modulus *
+                                                       reference.mechanical_hourglass_metrics[material_direction] *
+                                                       transported_amplitude;
+        }
+        for (std::size_t component = 0; component < 3; ++component) {
+            adlite::Scalar spatial_modal_force = 0.0;
+            for (std::size_t material_direction = 0; material_direction < 3; ++material_direction)
+                spatial_modal_force +=
+                    average_deformation[component][material_direction] * material_modal_force[material_direction];
+            for (std::size_t node = 0; node < hex8_node_count; ++node) {
+                adlite::Scalar deformation_gradient_term = 0.0;
+                for (std::size_t material_direction = 0; material_direction < 3; ++material_direction)
+                    deformation_gradient_term += reference.average_shape_gradient[node][material_direction] *
+                                                 material_modal_force[material_direction];
+                residual[8 * (component + 1) + node] += reference.hourglass_shape[node][mode] * spatial_modal_force +
+                                                        reference_amplitude[component] * deformation_gradient_term;
+            }
+        }
+    }
+
+    if (committed_material != nullptr && include_thermal_time_term)
+        for (std::size_t node = 0; node < hex8_node_count; ++node) {
+            const adlite::Scalar capacity = data.material.heat_capacity(
+                state[node], material_context(data.time, reference.capacity_points[node].position));
+            residual[node] +=
+                current.shape_measures[node] * capacity * (state[node] - committed_state[node]) / time_step;
+        }
+    return residual;
+}
+
+void add_reduced_hex8_finite_strain_system(const CartesianThermoelasticData& data, const Hex8Geometry& geometry,
+    const Hex8LocalValues& state, const Hex8LocalValues* committed_state,
+    const CartesianMaterialPointState* committed_material, double time_step, bool include_thermal_time_term,
+    Hex8LocalAdValues& residual, Hex8LocalJacobian* jacobian) {
+    if (!std::isfinite(data.initial_temperature) || !(data.initial_temperature > 0.0))
+        throw std::invalid_argument("C3D8RT requires a finite positive initial temperature");
+    const Hex8LocalValues undeformed{};
+    const Hex8LocalValues& old_state = committed_state == nullptr ? undeformed : *committed_state;
+    Hex8LocalAdValues passive_state{};
+    ad_local_system::make_passive(state.data(), state.size(), passive_state.data());
+    const ActiveReducedHex8Geometry passive_current =
+        active_reduced_hex8_geometry(geometry, reduced_hex8_displacement(passive_state), "current");
+    const ActiveReducedHex8Geometry passive_midpoint = active_reduced_hex8_geometry(
+        geometry, reduced_hex8_midpoint_displacement(passive_state, old_state), "midpoint");
+    const cartesian_detail::KinematicsCore passive_kinematics =
+        reduced_hex8_finite_kinematics(passive_midpoint, passive_state, old_state);
+    const adlite::Scalar passive_temperature = reduced_hex8_temperature(passive_current, passive_state);
+    double old_temperature = data.initial_temperature;
+    if (committed_material != nullptr) {
+        Hex8LocalAdValues passive_old_state{};
+        ad_local_system::make_passive(old_state.data(), old_state.size(), passive_old_state.data());
+        const ActiveReducedHex8Geometry old_geometry =
+            active_reduced_hex8_geometry(geometry, reduced_hex8_displacement(passive_old_state), "committed");
+        old_temperature = reduced_hex8_temperature(old_geometry, passive_old_state).value();
+    }
+    const SymmetricTensor3Values strain_values{passive_kinematics.strain_increment.xx.value(),
+        passive_kinematics.strain_increment.yy.value(), passive_kinematics.strain_increment.zz.value(),
+        passive_kinematics.strain_increment.xy.value(), passive_kinematics.strain_increment.yz.value(),
+        passive_kinematics.strain_increment.xz.value()};
+    const MaterialFunctionContext context = material_context(data.time, geometry.reduced_point.position);
+    const ReducedFiniteMaterialLinearization material_linearization =
+        reduced_finite_material_linearization(data.material, strain_values, passive_temperature.value(),
+            old_temperature, time_step, committed_material, context);
+    const ReducedFiniteStressLinearization stress_linearization =
+        reduced_finite_stress_linearization(reduced_hex8_central_gradient(passive_midpoint, passive_state, old_state),
+            passive_temperature.value(), material_linearization);
+    const ActiveThermoelasticProperties initial_properties = data.material.active_properties(
+        adlite::Scalar(data.initial_temperature), material_context(0.0, geometry.reduced_point.position));
+    const double initial_shear_modulus = initial_properties.shear_modulus.value();
+    if (!std::isfinite(initial_shear_modulus) || !(initial_shear_modulus > 0.0))
+        throw std::invalid_argument("C3D8RT initial shear modulus must be finite and positive");
+
+    residual = reduced_hex8_finite_residual(data, geometry, passive_state, old_state, committed_material, time_step,
+        include_thermal_time_term, initial_shear_modulus, stress_linearization);
+    if (jacobian == nullptr) return;
+    jacobian->fill(0.0);
+    // The geometry of an average-strain element depends on all 24 displacement values. Apply
+    // one exact directional geometry chain at a time after composing the width-7 material
+    // tangent into the width-10 kinematics chain above. This avoids a 32-DOF identity seed.
+    for (std::size_t column = 0; column < hex8_local_dof_count; ++column) {
+        Hex8LocalAdValues directional_state{};
+        ad_local_system::make_passive(state.data(), state.size(), directional_state.data());
+        directional_state[column] = adlite::Scalar::independent(state[column], 0, 1);
+        const Hex8LocalAdValues directional_residual =
+            reduced_hex8_finite_residual(data, geometry, directional_state, old_state, committed_material, time_step,
+                include_thermal_time_term, initial_shear_modulus, stress_linearization);
+        for (std::size_t row = 0; row < hex8_local_dof_count; ++row)
+            (*jacobian)[row * hex8_local_dof_count + column] =
+                directional_residual[row].is_active() ? directional_residual[row].derivative(0) : 0.0;
+    }
+}
+
 void add_reduced_hex8_small_strain_system(const CartesianThermoelasticData& data, const Hex8Geometry& geometry,
     const Hex8LocalValues& state, const Hex8LocalValues* committed_state,
     const CartesianMaterialPointState* committed_material, double time_step, bool include_thermal_time_term,
     Hex8LocalAdValues& residual, Hex8LocalJacobian* jacobian) {
     if (data.strain_formulation != StrainFormulation::small)
-        throw std::invalid_argument("C3D8RT finite-strain integration is not implemented");
+        throw std::logic_error("C3D8RT small-strain integration received a non-small strain formulation");
     if (!std::isfinite(data.initial_temperature) || !(data.initial_temperature > 0.0))
         throw std::invalid_argument("C3D8RT requires a finite positive initial temperature");
 
@@ -1155,8 +1581,14 @@ Hex8LocalResidual compute_hex8_local(const CartesianThermoelasticData& data, con
     residual.fill(adlite::Scalar(0.0));
     if (data.hex8_element_formulation == Hex8ElementFormulation::c3d8rt) {
         if (jacobian != nullptr) jacobian->fill(0.0);
-        add_reduced_hex8_small_strain_system(data, geometry, state, committed_state,
-            history == nullptr ? nullptr : &history->front(), time_step, include_thermal_time_term, residual, jacobian);
+        if (data.strain_formulation == StrainFormulation::finite)
+            add_reduced_hex8_finite_strain_system(data, geometry, state, committed_state,
+                history == nullptr ? nullptr : &history->front(), time_step, include_thermal_time_term, residual,
+                jacobian);
+        else
+            add_reduced_hex8_small_strain_system(data, geometry, state, committed_state,
+                history == nullptr ? nullptr : &history->front(), time_step, include_thermal_time_term, residual,
+                jacobian);
         Hex8LocalResidual result{};
         ad_local_system::extract_residual(residual.data(), residual.size(), result.data());
         return result;
@@ -1461,19 +1893,35 @@ CartesianMaterialHistory compute_hex8_transient_update(const CartesianThermoelas
     if (!std::isfinite(time_step) || !(time_step > 0.0))
         throw std::invalid_argument("HEX8 transient update time step must be finite and positive");
     if (data.hex8_element_formulation == Hex8ElementFormulation::c3d8rt) {
-        if (data.strain_formulation != StrainFormulation::small)
-            throw std::invalid_argument("C3D8RT finite-strain integration is not implemented");
         if (committed_material.size() != 1)
             throw std::invalid_argument("C3D8RT material history must contain one integration point");
         Hex8LocalAdValues passive{};
         ad_local_system::make_passive(state.data(), state.size(), passive.data());
         const Hex8QuadraturePoint& point = geometry.reduced_point;
-        const adlite::Scalar temperature = reduced_hex8_temperature(geometry, passive);
-        const CartesianKinematics kinematics =
-            evaluate_cartesian_incremental_kinematics(point, passive, committed_state, StrainFormulation::small);
         const MaterialFunctionContext context = material_context(data.time, point.position);
-        const CartesianInelasticStressResponse response = data.material.response(
-            kinematics.strain_increment, temperature, time_step, committed_material.front(), context);
+        CartesianInelasticStressResponse response;
+        if (data.strain_formulation == StrainFormulation::finite) {
+            const ActiveReducedHex8Geometry current =
+                active_reduced_hex8_geometry(geometry, reduced_hex8_displacement(passive), "current");
+            const ActiveReducedHex8Geometry midpoint = active_reduced_hex8_geometry(
+                geometry, reduced_hex8_midpoint_displacement(passive, committed_state), "midpoint");
+            const cartesian_detail::KinematicsCore kinematics =
+                reduced_hex8_finite_kinematics(midpoint, passive, committed_state);
+            const adlite::Scalar temperature = reduced_hex8_temperature(current, passive);
+            Hex8LocalAdValues passive_old{};
+            ad_local_system::make_passive(committed_state.data(), committed_state.size(), passive_old.data());
+            const ActiveReducedHex8Geometry old_geometry =
+                active_reduced_hex8_geometry(geometry, reduced_hex8_displacement(passive_old), "committed");
+            const double old_temperature = reduced_hex8_temperature(old_geometry, passive_old).value();
+            response = data.material.incremental_response(kinematics.strain_increment, kinematics.rotation, temperature,
+                old_temperature, time_step, committed_material.front(), context);
+        } else {
+            const adlite::Scalar temperature = reduced_hex8_temperature(geometry, passive);
+            const CartesianKinematics kinematics =
+                evaluate_cartesian_incremental_kinematics(point, passive, committed_state, StrainFormulation::small);
+            response = data.material.response(
+                kinematics.strain_increment, temperature, time_step, committed_material.front(), context);
+        }
         return CartesianMaterialHistory{response.trial_state};
     }
     if (committed_material.size() != geometry.points.size())
@@ -1518,15 +1966,28 @@ CartesianMaterialHistory compute_hex8_transient_update(const CartesianThermoelas
 std::array<SymmetricTensor3Values, 8> compute_hex8_stress(
     const CartesianThermoelasticData& data, const Hex8Geometry& geometry, const Hex8LocalValues& state) {
     if (data.hex8_element_formulation == Hex8ElementFormulation::c3d8rt) {
-        if (data.strain_formulation != StrainFormulation::small)
-            throw std::invalid_argument("C3D8RT finite-strain integration is not implemented");
         Hex8LocalAdValues passive{};
         ad_local_system::make_passive(state.data(), state.size(), passive.data());
-        const adlite::Scalar temperature = reduced_hex8_temperature(geometry, passive);
-        const CartesianKinematics kinematics = evaluate_cartesian_incremental_kinematics(
-            geometry.reduced_point, passive, Hex8LocalValues{}, StrainFormulation::small);
-        const SymmetricTensor3 stress = data.material.stress(
-            kinematics.strain_increment, temperature, material_context(data.time, geometry.reduced_point.position));
+        SymmetricTensor3 stress;
+        if (data.strain_formulation == StrainFormulation::finite) {
+            const Hex8LocalValues undeformed{};
+            const ActiveReducedHex8Geometry current =
+                active_reduced_hex8_geometry(geometry, reduced_hex8_displacement(passive), "current");
+            const ActiveReducedHex8Geometry midpoint = active_reduced_hex8_geometry(
+                geometry, reduced_hex8_midpoint_displacement(passive, undeformed), "midpoint");
+            const cartesian_detail::KinematicsCore kinematics =
+                reduced_hex8_finite_kinematics(midpoint, passive, undeformed);
+            const adlite::Scalar temperature = reduced_hex8_temperature(current, passive);
+            stress = rotate_cartesian_tensor(data.material.stress(kinematics.strain_increment, temperature,
+                                                 material_context(data.time, geometry.reduced_point.position)),
+                kinematics.rotation);
+        } else {
+            const adlite::Scalar temperature = reduced_hex8_temperature(geometry, passive);
+            const CartesianKinematics kinematics = evaluate_cartesian_incremental_kinematics(
+                geometry.reduced_point, passive, Hex8LocalValues{}, StrainFormulation::small);
+            stress = data.material.stress(
+                kinematics.strain_increment, temperature, material_context(data.time, geometry.reduced_point.position));
+        }
         const SymmetricTensor3Values values{stress.xx.value(), stress.yy.value(), stress.zz.value(), stress.xy.value(),
             stress.yz.value(), stress.xz.value()};
         std::array<SymmetricTensor3Values, 8> result{};

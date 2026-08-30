@@ -1515,7 +1515,7 @@ components, contact force, resultant, moment, and force center. The standard
 gate is `0.1%`; an integrated finite-strain path may use `0.5%`. A higher contact
 gate requires a named, evidence-backed qualification boundary.
 
-## B5.28 through B5.31 C3D8RT reduced-integration thermo-mechanics
+## B5.28 through B5.34 C3D8RT reduced-integration thermo-mechanics
 
 B5.28 reconstructs the complete 32 by 32 local Abaqus/Standard `C3D8RT`
 operator from 65 prescribed states. It uses a regular cube, a warped element,
@@ -1556,9 +1556,33 @@ counted separately without a denominator floor; the largest zero-reference
 absolute force difference is `2.70375e-8 N`.
 
 The tracked inputs, full-precision extractors, PowerShell runners, and comma-
-separated references use the `b528` through `b531` prefixes. The verified scope
-is small strain. Finite-strain C3D8RT is explicitly rejected and is not inferred
-from these results.
+separated references for this section use the `b528` through `b534` prefixes.
+B5.28 through B5.31 retain the small-strain evidence boundary.
+
+B5.32 reconstructs the finite-strain residual and complete 32 by 32 tangent on
+regular and warped elements. The regular residual errors are `0.00181254%` for
+thermal and `0.0730663%` for mechanics; the corresponding warped errors are
+`0.021043%` and `0.0709848%`. The worst Abaqus tangent-block error is
+`0.779172%`. Production Jacobians agree with centered differences within
+`3.73463e-6%`, including the displacement geometry blocks.
+
+B5.33 subtracts an otherwise identical one-pascal hourglass control from the
+default control and thereby isolates finite-strain hourglass force. Its twelve
+regular, warped, pure-direction, vector, and mixed-mode cases identify the
+complete derivative of the transported quadratic modal energy. Every isolated
+force has about `0.000959264%` relative error. The production factor remains
+the documented `0.005` times initial shear modulus; no projected scale from the
+identification script is used by fuelsim.
+
+B5.34 solves a two-element finite-strain Backward Euler path with nonuniform
+thermal loading and fixed-global-direction axial traction. Reactions are
+compared only on constrained equations, matching the Abaqus `RF/RFL`
+definition. Every nonzero-reference relative L2, relative absolute-peak, and
+maximum pointwise-relative metric is below `0.1%`; the worst is `0.0508446%`.
+Analytically zero shear components are reported separately without a
+denominator floor. B5.32 through B5.34 qualify only the stated one-step and
+prescribed-state finite-strain paths; they do not extend the element to an
+arbitrary large-rotation claim.
 
 ## B5.19 C3D8T finite-deformation selective integration
 
