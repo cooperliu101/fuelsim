@@ -319,6 +319,18 @@ bool test_hex20_contact_kernels() {
                  "HEX20 Q8 mechanical contact residual is action-reaction conservative") &&
              passed;
     fuelsim::NormalContactProperties friction_properties{1.0e5, 0.2, false};
+    fuelsim::ContactPointHistory accumulated_slip_history;
+    accumulated_slip_history.cartesian_total_tangential_slip = {0.0, 2.0e-4, -3.0e-4};
+    const auto open_node = fuelsim::compute_node_to_quad8_contact_value(
+        friction_properties, mechanical_geometry, committed, committed, accumulated_slip_history);
+    bool open_node_slip_is_retained = open_node.projected && open_node.pressure == 0.0;
+    for (std::size_t component = 0; component < 3; ++component)
+        open_node_slip_is_retained = open_node_slip_is_retained &&
+                                     near(open_node.tangential_slip[component],
+                                         accumulated_slip_history.cartesian_total_tangential_slip[component], 1.0e-12);
+    passed = check(open_node_slip_is_retained,
+                 "HEX20 node-to-face accumulated total tangential slip remains constant while contact is open") &&
+             passed;
     auto sliding_state = state;
     sliding_state[24] = 0.01;
     const auto sliding_value = fuelsim::compute_node_to_quad8_contact_value(
@@ -448,10 +460,20 @@ bool test_hex20_contact_kernels() {
         passed;
     const auto surface_sliding = fuelsim::compute_quad8_to_quad8_contact_value(
         friction_properties, center_geometry, surface_sliding_state, committed, {});
+    const auto open_surface = fuelsim::compute_quad8_to_quad8_contact_value(
+        friction_properties, center_geometry, committed, committed, accumulated_slip_history);
+    bool open_surface_slip_is_retained = open_surface.projected && open_surface.pressure == 0.0;
+    for (std::size_t component = 0; component < 3; ++component)
+        open_surface_slip_is_retained =
+            open_surface_slip_is_retained &&
+            near(open_surface.tangential_slip[component],
+                accumulated_slip_history.cartesian_total_tangential_slip[component], 1.0e-12);
     passed = check(surface_sliding.sliding &&
                        near(surface_sliding.tangential_traction,
                            friction_properties.friction_coefficient * surface_sliding.pressure, 1.0e-12),
                  "HEX20 surface-to-surface Coulomb friction caps the integration-point tangential traction") &&
+             check(open_surface_slip_is_retained,
+                 "HEX20 surface-to-surface accumulated total tangential slip remains constant while contact is open") &&
              passed;
     auto biaxial_sliding_state = state;
     for (std::size_t node = 0; node < 8; ++node) {

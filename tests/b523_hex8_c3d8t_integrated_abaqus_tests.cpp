@@ -679,12 +679,11 @@ ScanResponse run_scan(std::size_t through_thickness_elements, std::size_t tangen
         comparison.contact_replayed_heat_rate_pointwise_absolute_tolerance = 1.0;
         comparison.contact_total_heat_rate_relative_tolerance = 4.0e-2;
         comparison.contact_slip_pointwise_absolute_tolerance = 5.0e-6;
-        if (case_name == "b539_friction_reversal") comparison.gate_contact_slip = false;
         if (case_name == "b526_contact_cycle" || case_name == "b538_contact_cycle") {
             comparison.displacement_pointwise_absolute_tolerance = 1.0e-12;
             comparison.logarithmic_strain_pointwise_absolute_tolerance = 1.0e-11;
             comparison.external_work_pointwise_absolute_tolerance = 1.0e-12;
-            comparison.gate_contact_slip = false;
+            if (case_name == "b526_contact_cycle") comparison.gate_contact_slip = false;
         }
     }
     response.full_field_passed = fuelsim::test::compare_abaqus_hex8_full_field(

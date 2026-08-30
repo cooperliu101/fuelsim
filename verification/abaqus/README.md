@@ -1630,15 +1630,20 @@ as validation evidence because Abaqus artificial hourglass energy reached
 or `50.8879%`, and is therefore an explicit reduced-integration evidence
 boundary rather than a hidden correction.
 
-The B5.39 claim is qualified for slip history. Abaqus `CSLIP` and fuelsim's
-accumulated total tangential-slip state are not the same history measure. The
-reported slip-vector relative L2, relative absolute-peak, and maximum
-pointwise-relative errors are `7.04782%`, `2.94145%`, and `56.7689%`;
-`1.75473e-4 m` is the maximum vector difference. These values remain printed
-diagnostics and no denominator floor, coefficient adjustment, or acceptance
-threshold change is used to hide them. Contact force, shear traction, state,
-bulk fields, comparable energies, and discrete thermal conservation remain
-gated. B5.38 retains the same explicit `CSLIP` definition boundary.
+Abaqus `CSLIP` is the accumulated tangential relative displacement at a
+secondary contact node. Its local tangent components accumulate while contact
+is active, are resolved in the current local system, and remain constant while
+contact is open. Fuelsim now retains that accumulated constraint-point history
+through open states and recovers each HEX8 constraint point directly to its
+corresponding secondary face node instead of applying an additional shape-
+weighted smoothing pass. B5.38 slip-vector relative L2, relative absolute-peak,
+and maximum pointwise-relative errors are `0.00658777%`, `0.0106960%`, and
+`0.0108406%`; B5.39 errors are `0.0413877%`, `0.0335531%`, and `0.137566%`,
+with a `2.00162e-6 m` maximum vector difference. Neither comparison has a zero
+slip reference. Slip is therefore gated together with contact force, shear
+traction, state, bulk fields, comparable energies, and discrete thermal
+conservation. No denominator floor, physical-coefficient adjustment, or gate
+relaxation is used.
 
 Generate these contact decks with `generate_b538_b539.py` and run the Abaqus
 jobs and extraction with `run_b538_b539.ps1`. Reduced-integration energy files

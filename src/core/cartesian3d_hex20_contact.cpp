@@ -238,7 +238,9 @@ CartesianContactAdValue8 evaluate_mechanical(const NormalContactProperties& prop
 void apply_friction(const NormalContactProperties& properties, const ContactPointHistory& history,
     const ActivePoint3& transported_history, const ActivePoint3& transported_total_history,
     const ActivePoint3& relative_increment, CartesianContactAdValue8& result) {
-    if (properties.friction_coefficient == 0.0 || !(result.pressure.value() > 0.0)) return;
+    if (properties.friction_coefficient == 0.0) return;
+    result.tangential_slip = transported_total_history;
+    if (!(result.pressure.value() > 0.0)) return;
     const adlite::Scalar normal_increment = dot(relative_increment, result.normal);
     for (std::size_t component = 0; component < 3; ++component) {
         result.tangential_slip[component] = transported_total_history[component] + relative_increment[component] -
@@ -436,7 +438,7 @@ CartesianContactAdValue8 evaluate_surface_mechanical(const NormalContactProperti
         geometry.quadrature_weight * current_surface_measure(nodes, active_values(geometry.secondary_derivative_xi),
                                          active_values(geometry.secondary_derivative_eta), 0);
     result.contact_force = result.pressure * result.tributary_area;
-    if (properties.friction_coefficient != 0.0 && result.pressure.value() > 0.0) {
+    if (properties.friction_coefficient != 0.0) {
         const Quad8SurfaceContactLocalAdValues committed_ad_state = make_ad_state(committed_state, false);
         const std::array<ActivePoint3, 16> committed_nodes =
             current_nodes(geometry.secondary_coordinates, geometry.primary_coordinates, committed_ad_state);

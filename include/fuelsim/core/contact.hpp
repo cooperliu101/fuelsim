@@ -78,6 +78,8 @@ struct ContactPointHistory final {
     bool sliding = false;
     double normal_multiplier = 0.0;
     std::array<double, 3> cartesian_elastic_tangential_slip{};
+    // Abaqus CSLIP-compatible accumulated relative motion: add only while contact is active, transport it with the
+    // current tangent basis, and add no relative motion while the projected contact is open.
     std::array<double, 3> cartesian_total_tangential_slip{};
     bool cartesian_tangent_basis_initialized = false;
     std::array<double, 3> cartesian_contact_normal{}, cartesian_contact_tangent_first{};

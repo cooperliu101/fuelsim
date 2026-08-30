@@ -2314,6 +2314,10 @@ bool SpatialAssembly::summarize_averaged_contact(std::size_t contact_value, cons
     const bool averaged = std::any_of(_abaqus_averaged_constraints.begin(), _abaqus_averaged_constraints.end(),
         [contact_value](const AbaqusAveragedConstraint& value) { return value.contact == contact_value; });
     if (!averaged) return false;
+    const bool separately_averaged_friction = std::any_of(_abaqus_averaged_constraints.begin(),
+        _abaqus_averaged_constraints.end(), [contact_value](const AbaqusAveragedConstraint& value) {
+            return value.contact == contact_value && value.friction_only;
+        });
     std::vector<std::size_t> dofs;
     bool recover_finite_sliding_nodal_tractions = false;
     for (const AbaqusAveragedConstraint& constraint : _abaqus_averaged_constraints) {
@@ -2335,10 +2339,12 @@ bool SpatialAssembly::summarize_averaged_contact(std::size_t contact_value, cons
             predominant.pressure = value.pressure;
             predominant.tributary_area = constraint.area;
         }
-        predominant.tangential_slip = value.tangential_slip;
-        predominant.elastic_tangential_slip = value.elastic_tangential_slip;
-        predominant.sliding =
-            is_committed_state ? _contact_histories[constraint.contact][constraint.history].sliding : value.sliding;
+        if (!separately_averaged_friction || constraint.friction_only) {
+            predominant.tangential_slip = value.tangential_slip;
+            predominant.elastic_tangential_slip = value.elastic_tangential_slip;
+            predominant.sliding =
+                is_committed_state ? _contact_histories[constraint.contact][constraint.history].sliding : value.sliding;
+        }
         for (std::size_t entry = 0; entry < constraint.secondary_output_nodes.size(); ++entry) {
             CartesianContactNodeSummary& output = summaries.at(constraint.secondary_output_nodes[entry]);
             output.projected = output.projected || constraint.projected;
@@ -4070,8 +4076,7 @@ double SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
             trial.sliding = value.sliding;
             trial.cartesian_total_tangential_slip = value.tangential_slip;
             trial.cartesian_elastic_tangential_slip = value.elastic_tangential_slip;
-            if (candidate.surface_to_surface && _mechanical_properties[candidate.contact].friction_coefficient > 0.0 &&
-                value.pressure > 0.0) {
+            if (candidate.surface_to_surface && _mechanical_properties[candidate.contact].friction_coefficient > 0.0) {
                 trial.cartesian_tangent_basis_initialized = true;
                 trial.cartesian_contact_normal = value.normal;
                 trial.cartesian_contact_tangent_first = value.tangent_first;
@@ -4164,7 +4169,7 @@ double SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
         trial.sliding = value.sliding;
         trial.cartesian_total_tangential_slip = value.tangential_slip;
         trial.cartesian_elastic_tangential_slip = value.elastic_tangential_slip;
-        if (candidate.surface_to_surface && point_properties.friction_coefficient > 0.0 && value.pressure > 0.0) {
+        if (candidate.surface_to_surface && point_properties.friction_coefficient > 0.0) {
             trial.cartesian_tangent_basis_initialized = true;
             trial.cartesian_contact_normal = value.normal;
             trial.cartesian_contact_tangent_first = value.tangent_first;
@@ -4212,8 +4217,7 @@ double SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
         trial.sliding = value.sliding;
         trial.cartesian_elastic_tangential_slip = value.elastic_tangential_slip;
         trial.cartesian_total_tangential_slip = value.tangential_slip;
-        if (constraint.finite_sliding && _mechanical_properties[constraint.contact].friction_coefficient > 0.0 &&
-            value.pressure > 0.0) {
+        if (constraint.finite_sliding && _mechanical_properties[constraint.contact].friction_coefficient > 0.0) {
             trial.cartesian_tangent_basis_initialized = true;
             trial.cartesian_contact_normal =
                 std::array<double, 3>{constraint.normal.x, constraint.normal.y, constraint.normal.z};
@@ -4494,7 +4498,12 @@ std::vector<CartesianContactNodeSummary> SpatialAssembly::summarize_contact_node
         _abaqus_averaged_constraints.end(), [contact_value](const AbaqusAveragedConstraint& constraint) {
             return constraint.contact == contact_value && constraint.friction_only;
         });
-    std::vector<std::array<double, 3>> weighted_total_slip(result.size()), weighted_elastic_slip(result.size());
+    std::vector<std::array<double, 3>> recovered_total_slip(result.size()), recovered_elastic_slip(result.size());
+    std::vector<double> recovered_slip_weight(result.size());
+    std::vector<std::array<std::array<double, 3>, 4>> contact_point_total_slip(secondary.boundary.faces.size()),
+        contact_point_elastic_slip(secondary.boundary.faces.size());
+    std::vector<std::array<unsigned char, 4>> contact_point_slip_set(secondary.boundary.faces.size());
+    std::vector<double> contact_face_area(secondary.boundary.faces.size());
     for (std::size_t point = 0; point < _mechanical_active_primary.size(); ++point) {
         const std::size_t primary = _mechanical_active_primary[point];
         if (primary == std::numeric_limits<std::size_t>::max()) continue;
@@ -4522,6 +4531,14 @@ std::vector<CartesianContactNodeSummary> SpatialAssembly::summarize_contact_node
                       _contact_histories[candidate.contact][candidate.secondary]);
         if (!value.projected) continue;
         if (candidate.surface_to_surface) {
+            if (!separately_averaged_friction) {
+                contact_point_total_slip[candidate.secondary_face][candidate.secondary_local_point] =
+                    value.tangential_slip;
+                contact_point_elastic_slip[candidate.secondary_face][candidate.secondary_local_point] =
+                    value.elastic_tangential_slip;
+                contact_point_slip_set[candidate.secondary_face][candidate.secondary_local_point] = 1U;
+                contact_face_area[candidate.secondary_face] += value.tributary_area;
+            }
             const Quad4FaceElement& face = secondary.boundary.faces.at(candidate.secondary_face);
             for (std::size_t local_node = 0; local_node < face.nodes.size(); ++local_node) {
                 const auto found =
@@ -4541,11 +4558,6 @@ std::vector<CartesianContactNodeSummary> SpatialAssembly::summarize_contact_node
                     summary.normal_contact_force[component] += shape * value.contact_force * value.normal[component];
                     summary.tangential_contact_force[component] +=
                         shape * value.tributary_area * value.tangential_traction_vector[component];
-                    if (!separately_averaged_friction) {
-                        weighted_total_slip[output_node][component] += nodal_area * value.tangential_slip[component];
-                        weighted_elastic_slip[output_node][component] +=
-                            nodal_area * value.elastic_tangential_slip[component];
-                    }
                 }
                 summary.tangential_force += shape * value.tangential_force;
                 summary.sliding = summary.sliding || value.sliding;
@@ -4570,16 +4582,39 @@ std::vector<CartesianContactNodeSummary> SpatialAssembly::summarize_contact_node
         summary.tangential_slip = value.tangential_slip;
         summary.sliding = value.sliding;
     }
+    if (!separately_averaged_friction) {
+        for (std::size_t face_index = 0; face_index < secondary.boundary.faces.size(); ++face_index) {
+            if (std::find(contact_point_slip_set[face_index].begin(), contact_point_slip_set[face_index].end(), 0U) !=
+                contact_point_slip_set[face_index].end())
+                continue;
+            const Quad4FaceElement& face = secondary.boundary.faces[face_index];
+            for (std::size_t local_node = 0; local_node < 4; ++local_node) {
+                const auto found =
+                    std::find(secondary.boundary.nodes.begin(), secondary.boundary.nodes.end(), face.nodes[local_node]);
+                if (found == secondary.boundary.nodes.end())
+                    throw std::logic_error("HEX8 surface-contact slip output node mapping failed");
+                const std::size_t output_node = static_cast<std::size_t>(found - secondary.boundary.nodes.begin());
+                recovered_slip_weight[output_node] += contact_face_area[face_index];
+                for (std::size_t component = 0; component < 3; ++component) {
+                    recovered_total_slip[output_node][component] +=
+                        contact_face_area[face_index] * contact_point_total_slip[face_index][local_node][component];
+                    recovered_elastic_slip[output_node][component] +=
+                        contact_face_area[face_index] * contact_point_elastic_slip[face_index][local_node][component];
+                }
+            }
+        }
+    }
     for (CartesianContactNodeSummary& summary : result)
         if (summary.tributary_area > 0.0) {
             summary.pressure = summary.contact_force / summary.tributary_area;
             summary.tangential_traction = summary.tangential_force / summary.tributary_area;
             const std::size_t node = static_cast<std::size_t>(&summary - result.data());
-            if (!separately_averaged_friction)
+            if (!separately_averaged_friction && recovered_slip_weight[node] > 0.0)
                 for (std::size_t component = 0; component < 3; ++component) {
-                    summary.tangential_slip[component] = weighted_total_slip[node][component] / summary.tributary_area;
+                    summary.tangential_slip[component] =
+                        recovered_total_slip[node][component] / recovered_slip_weight[node];
                     summary.elastic_tangential_slip[component] =
-                        weighted_elastic_slip[node][component] / summary.tributary_area;
+                        recovered_elastic_slip[node][component] / recovered_slip_weight[node];
                 }
         }
     return result;

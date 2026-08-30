@@ -1088,6 +1088,25 @@ bool test_cartesian_surface_contact_kernels() {
             "HEX8 finite-sliding surface contact uses the node-centered area, current projection, and "
             "equal-and-opposite three-component force") &&
         passed;
+    fuelsim::ContactPointHistory accumulated_slip_history;
+    accumulated_slip_history.cartesian_total_tangential_slip = {0.0, 2.0e-4, -3.0e-4};
+    fuelsim::Quad4SurfaceContactLocalValues open_state = committed;
+    const fuelsim::CartesianContactPointValue open_surface = fuelsim::compute_quad4_to_quad4_contact_value(
+                                                  stick_properties, finite_geometry, open_state, open_state,
+                                                  accumulated_slip_history),
+                                              open_node = fuelsim::compute_node_to_quad4_contact_value(stick_properties,
+                                                  contact_geometry, open_state, open_state, accumulated_slip_history);
+    bool open_slip_is_retained =
+        open_surface.projected && open_node.projected && open_surface.pressure == 0.0 && open_node.pressure == 0.0;
+    for (std::size_t component = 0; component < 3; ++component)
+        open_slip_is_retained = open_slip_is_retained &&
+                                near(open_surface.tangential_slip[component],
+                                    accumulated_slip_history.cartesian_total_tangential_slip[component], 1.0e-12) &&
+                                near(open_node.tangential_slip[component],
+                                    accumulated_slip_history.cartesian_total_tangential_slip[component], 1.0e-12);
+    passed = check(open_slip_is_retained,
+                 "HEX8 accumulated total tangential slip remains constant while projected contact is open") &&
+             passed;
     plus = state;
     minus = state;
     for (std::size_t dof = 0; dof < state.size(); ++dof) {
