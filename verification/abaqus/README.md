@@ -1759,7 +1759,7 @@ increments without cutback, using 72 iterations and matrix decompositions.
 The Fuelsim benchmark compares final values by exact reference coordinate.
 Temperature, contact pressure, element-average equivalent stress, equivalent
 plastic strain, and equivalent creep strain have worst three-metric errors of
-`0.0240800%`, `0.107236%`, `0.0129459%`, `0.0131801%`, and `0.0371836%`.
+`0.0240800%`, `0.107250%`, `0.0129484%`, `0.0131827%`, and `0.0371868%`.
 The transverse Cartesian components have `0.651296%` relative L2 error but
 only `0.0203817%` relative absolute-peak error and about `90.2 nm` maximum
 absolute difference. Their very large maximum pointwise relative value uses an
