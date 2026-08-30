@@ -1199,6 +1199,24 @@ adlite::Scalar reduced_hex8_temperature(const ActiveReducedHex8Geometry& geometr
     return result;
 }
 
+SymmetricTensor3 compose_reduced_finite_stress(const cartesian_detail::ActiveMatrix3& central_gradient,
+    const adlite::Scalar& temperature, const ReducedFiniteStressLinearization& stress_linearization) {
+    std::array<adlite::Scalar, 10> compose_inputs{};
+    for (std::size_t component = 0; component < 3; ++component)
+        for (std::size_t direction = 0; direction < 3; ++direction)
+            compose_inputs[3 * component + direction] = central_gradient[component][direction];
+    compose_inputs[9] = temperature;
+    const std::array<double, 6> stress_values = {stress_linearization.stress.xx, stress_linearization.stress.yy,
+        stress_linearization.stress.zz, stress_linearization.stress.xy, stress_linearization.stress.yz,
+        stress_linearization.stress.xz};
+    std::array<adlite::Scalar, 6> composed_stress{};
+    for (std::size_t row = 0; row < 6; ++row)
+        composed_stress[row] = adlite::compose(
+            stress_values[row], compose_inputs.data(), stress_linearization.tangent[row].data(), compose_inputs.size());
+    return {composed_stress[0], composed_stress[1], composed_stress[2], composed_stress[3], composed_stress[4],
+        composed_stress[5]};
+}
+
 Hex8LocalAdValues reduced_hex8_finite_residual(const CartesianThermoelasticData& data, const Hex8Geometry& reference,
     const Hex8LocalAdValues& state, const Hex8LocalValues& committed_state, double time_step,
     bool include_thermal_time_term, double initial_shear_modulus,
@@ -1213,21 +1231,7 @@ Hex8LocalAdValues reduced_hex8_finite_residual(const CartesianThermoelasticData&
     const adlite::Scalar temperature = reduced_hex8_temperature(current, state);
     const MaterialFunctionContext context = material_context(data.time, reference.reduced_point.position);
 
-    std::array<adlite::Scalar, 10> compose_inputs{};
-    for (std::size_t component = 0; component < 3; ++component)
-        for (std::size_t direction = 0; direction < 3; ++direction)
-            compose_inputs[3 * component + direction] = central_gradient[component][direction];
-    compose_inputs[9] = temperature;
-    const std::array<double, 6> stress_values = {stress_linearization.stress.xx, stress_linearization.stress.yy,
-        stress_linearization.stress.zz, stress_linearization.stress.xy, stress_linearization.stress.yz,
-        stress_linearization.stress.xz};
-    std::array<adlite::Scalar, 6> composed_stress{};
-    for (std::size_t row = 0; row < 6; ++row) {
-        composed_stress[row] = adlite::compose(
-            stress_values[row], compose_inputs.data(), stress_linearization.tangent[row].data(), compose_inputs.size());
-    }
-    const SymmetricTensor3 stress{composed_stress[0], composed_stress[1], composed_stress[2], composed_stress[3],
-        composed_stress[4], composed_stress[5]};
+    const SymmetricTensor3 stress = compose_reduced_finite_stress(central_gradient, temperature, stress_linearization);
 
     const adlite::Scalar conductivity = data.material.conductivity(temperature, context);
     std::array<adlite::Scalar, 3> temperature_gradient{};
@@ -1319,6 +1323,56 @@ Hex8LocalAdValues reduced_hex8_finite_residual(const CartesianThermoelasticData&
     return residual;
 }
 
+Hex8LocalAdValues reduced_hex8_finite_temperature_residual(const CartesianThermoelasticData& data,
+    const Hex8Geometry& reference, const ActiveReducedHex8Geometry& current,
+    const cartesian_detail::ActiveMatrix3& central_gradient, const Hex8LocalAdValues& state,
+    const Hex8LocalValues& committed_state, double time_step, bool include_thermal_time_term,
+    const ReducedFiniteStressLinearization& stress_linearization) {
+    const adlite::Scalar temperature = reduced_hex8_temperature(current, state);
+    const MaterialFunctionContext context = material_context(data.time, reference.reduced_point.position);
+    const SymmetricTensor3 stress = compose_reduced_finite_stress(central_gradient, temperature, stress_linearization);
+    const adlite::Scalar conductivity = data.material.conductivity(temperature, context);
+
+    std::array<adlite::Scalar, 3> temperature_gradient{};
+    std::array<adlite::Scalar, 4> temperature_hourglass_amplitude{};
+    for (std::size_t node = 0; node < hex8_node_count; ++node) {
+        for (std::size_t direction = 0; direction < 3; ++direction)
+            temperature_gradient[direction] += current.average_gradient[node][direction] * state[node];
+        for (std::size_t mode = 0; mode < 4; ++mode)
+            temperature_hourglass_amplitude[mode] += current.hourglass_shape[node][mode] * state[node];
+    }
+
+    Hex8LocalAdValues residual{};
+    residual.fill(adlite::Scalar(0.0));
+    for (std::size_t node = 0; node < hex8_node_count; ++node) {
+        adlite::Scalar uniform_thermal = 0.0, hourglass_thermal = 0.0;
+        for (std::size_t direction = 0; direction < 3; ++direction)
+            uniform_thermal += current.average_gradient[node][direction] * temperature_gradient[direction];
+        for (std::size_t mode = 0; mode < 4; ++mode)
+            hourglass_thermal += current.hourglass_shape[node][mode] * current.thermal_hourglass_coefficients[mode] *
+                                 temperature_hourglass_amplitude[mode];
+        residual[node] += conductivity * (current.volume * uniform_thermal + hourglass_thermal);
+        const adlite::Scalar gradient_x = current.average_gradient[node][0];
+        const adlite::Scalar gradient_y = current.average_gradient[node][1];
+        const adlite::Scalar gradient_z = current.average_gradient[node][2];
+        residual[8 + node] +=
+            current.volume * (stress.xx * gradient_x + stress.xy * gradient_y + stress.xz * gradient_z);
+        residual[16 + node] +=
+            current.volume * (stress.xy * gradient_x + stress.yy * gradient_y + stress.yz * gradient_z);
+        residual[24 + node] +=
+            current.volume * (stress.xz * gradient_x + stress.yz * gradient_y + stress.zz * gradient_z);
+    }
+
+    if (include_thermal_time_term)
+        for (std::size_t node = 0; node < hex8_node_count; ++node) {
+            const adlite::Scalar capacity = data.material.heat_capacity(
+                state[node], material_context(data.time, reference.capacity_points[node].position));
+            residual[node] +=
+                current.shape_measures[node] * capacity * (state[node] - committed_state[node]) / time_step;
+        }
+    return residual;
+}
+
 void add_reduced_hex8_finite_strain_system(const CartesianThermoelasticData& data, const Hex8Geometry& geometry,
     const Hex8LocalValues& state, const Hex8LocalValues* committed_state,
     const CartesianMaterialPointState* committed_material, double time_step, bool include_thermal_time_term,
@@ -1352,9 +1406,10 @@ void add_reduced_hex8_finite_strain_system(const CartesianThermoelasticData& dat
     const ReducedFiniteMaterialLinearization material_linearization =
         reduced_finite_material_linearization(data.material, strain_values, passive_temperature.value(),
             old_temperature, time_step, committed_material, context);
-    const ReducedFiniteStressLinearization stress_linearization =
-        reduced_finite_stress_linearization(reduced_hex8_central_gradient(passive_midpoint, passive_state, old_state),
-            passive_temperature.value(), material_linearization);
+    const cartesian_detail::ActiveMatrix3 passive_central_gradient =
+        reduced_hex8_central_gradient(passive_midpoint, passive_state, old_state);
+    const ReducedFiniteStressLinearization stress_linearization = reduced_finite_stress_linearization(
+        passive_central_gradient, passive_temperature.value(), material_linearization);
     const ActiveThermoelasticProperties initial_properties = data.material.active_properties(
         adlite::Scalar(data.initial_temperature), material_context(0.0, geometry.reduced_point.position));
     const double initial_shear_modulus = initial_properties.shear_modulus.value();
@@ -1362,9 +1417,11 @@ void add_reduced_hex8_finite_strain_system(const CartesianThermoelasticData& dat
         throw std::invalid_argument("C3D8RT initial shear modulus must be finite and positive");
 
     const bool add_thermal_time_term = committed_state != nullptr && include_thermal_time_term;
-    residual = reduced_hex8_finite_residual(data, geometry, passive_state, old_state, time_step, add_thermal_time_term,
-        initial_shear_modulus, stress_linearization);
-    if (jacobian == nullptr) return;
+    if (jacobian == nullptr) {
+        residual = reduced_hex8_finite_residual(data, geometry, passive_state, old_state, time_step,
+            add_thermal_time_term, initial_shear_modulus, stress_linearization);
+        return;
+    }
     jacobian->fill(0.0);
     // Current and midpoint geometry depend on all 24 displacement values, while material
     // properties and capacity depend on all eight temperatures.  Evaluate those two independent
@@ -1380,6 +1437,9 @@ void add_reduced_hex8_finite_strain_system(const CartesianThermoelasticData& dat
         }
     const Hex8LocalAdValues displacement_residual = reduced_hex8_finite_residual(data, geometry, displacement_state,
         old_state, time_step, add_thermal_time_term, initial_shear_modulus, stress_linearization);
+    // The active displacement block has the same primal values as the passive state, so it also
+    // supplies the residual without a third complete finite-strain residual evaluation.
+    residual = displacement_residual;
     std::array<double, 24> displacement_derivatives{};
     for (std::size_t row = 0; row < hex8_local_dof_count; ++row) {
         if (!displacement_residual[row].is_active()) continue;
@@ -1394,8 +1454,12 @@ void add_reduced_hex8_finite_strain_system(const CartesianThermoelasticData& dat
     ad_local_system::make_passive(state.data(), state.size(), temperature_state.data());
     for (std::size_t node = 0; node < hex8_node_count; ++node)
         temperature_state[node] = adlite::Scalar::independent(state[node], node, hex8_node_count);
-    const Hex8LocalAdValues temperature_residual = reduced_hex8_finite_residual(data, geometry, temperature_state,
-        old_state, time_step, add_thermal_time_term, initial_shear_modulus, stress_linearization);
+    // Current geometry and the central displacement gradient are passive for temperature columns.
+    // Reuse them and omit only terms whose temperature derivatives are identically zero: the
+    // volumetric heat source and mechanical hourglass force.
+    const Hex8LocalAdValues temperature_residual =
+        reduced_hex8_finite_temperature_residual(data, geometry, passive_current, passive_central_gradient,
+            temperature_state, old_state, time_step, add_thermal_time_term, stress_linearization);
     std::array<double, hex8_node_count> temperature_derivatives{};
     for (std::size_t row = 0; row < hex8_local_dof_count; ++row) {
         if (!temperature_residual[row].is_active()) continue;

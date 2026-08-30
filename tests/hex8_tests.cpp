@@ -702,6 +702,8 @@ bool test_reduced_integration_inelastic_jacobian() {
     fuelsim::Hex8LocalJacobian finite_jacobian{};
     const fuelsim::Hex8LocalResidual finite_residual = fuelsim::compute_hex8_transient(
         finite_data, geometry, state, committed_state, committed_material, 1.0, &finite_jacobian);
+    const fuelsim::Hex8LocalResidual finite_residual_without_jacobian =
+        fuelsim::compute_hex8_transient(finite_data, geometry, state, committed_state, committed_material, 1.0);
     const fuelsim::CartesianMaterialHistory finite_update =
         fuelsim::compute_hex8_transient_update(finite_data, geometry, state, committed_state, committed_material, 1.0);
     double thermal_displacement_maximum = 0.0;
@@ -714,6 +716,8 @@ bool test_reduced_integration_inelastic_jacobian() {
                   finite_residual.begin(), finite_residual.end(), [](double value) { return std::isfinite(value); }) &&
                   thermal_displacement_maximum > 0.0 && finite_update.size() == 1,
             "finite-strain C3D8RT evaluates current-geometry thermal-mechanical coupling and one material point") &&
+        check(finite_residual == finite_residual_without_jacobian,
+            "finite-strain C3D8RT Jacobian and residual-only paths produce identical residual values") &&
         passed;
     const auto rejects_domain = [&](const fuelsim::Hex8LocalValues& trial, const fuelsim::Hex8LocalValues& committed) {
         try {

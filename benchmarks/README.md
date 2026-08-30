@@ -1008,3 +1008,43 @@ processes can start.
 30,148-degree-of-freedom manual C3D8RT configuration. It was not timed in this
 change; the larger configuration is therefore a reproducible pending
 benchmark, not a reported result.
+
+### 2026-08-30 C3D8RT finite-Jacobian follow-up
+
+The paired baseline is commit `53378b5`. Both Release runs used one MPI
+process pinned to CPU 0 and one thread for OpenMP, OpenBLAS, MKL, and NumExpr.
+The CPU governor reported `performance`, but hardware frequency was not fixed.
+One unrecorded baseline run warmed the executable and input path before the
+recorded pair. Both sides solved the same 6,468-degree-of-freedom, 20-step
+`transient_integrated_c3d8rt.fsi` case and wrote the complete degree-of-freedom
+vector.
+
+The follow-up removes two remaining sources of repeated work. A Jacobian call
+now takes its primal residual from the 24-displacement block instead of first
+performing a separate passive residual evaluation. The eight-temperature block
+reuses the already available passive current geometry and central displacement
+gradient, and evaluates only terms with nonzero temperature derivatives. It
+therefore omits only the temperature-independent body-source and mechanical
+hourglass terms. The fixed `0.005` hourglass coefficient, quadrature, material
+properties, residual, and complete consistent Jacobian are unchanged.
+
+| measurement | `53378b5` baseline | follow-up candidate | change |
+| --- | ---: | ---: | ---: |
+| end-to-end wall seconds | 130.13 | 119.37 | 8.27 percent lower |
+| residual callback seconds | 40.8384 | 40.9964 | 0.39 percent higher |
+| Jacobian callback seconds | 55.4484 | 44.2830 | 20.14 percent lower |
+
+The baseline and candidate degree-of-freedom files are both 132,341 bytes and
+have the identical SHA-256 digest
+`e56452c4e5c0cd3ca6c6367d1d373898e6de9d425e90c81c61f3a20afe6cb558`.
+The local centered-difference tests also require the residual returned by a
+Jacobian call to equal the residual-only path entry by entry.
+
+The required unrelated RZ non-regression paths used the same pinning and
+thread settings. The 1,584-degree-of-freedom case retained 64 nonlinear and
+linear iterations and the identical final residual; its single-sample internal
+time changed from `0.876840 s` to `0.902755 s`, which is reported as
+subsecond run-to-run variation rather than a speed claim. The 23,010-degree-of-
+freedom, 20-step case retained 62 nonlinear and linear iterations and the
+identical final residual; load-path time changed from `26.584185 s` to
+`26.401516 s`, or 0.69 percent lower.
