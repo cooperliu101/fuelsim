@@ -493,7 +493,10 @@ bool compare_abaqus_hex8_full_field(const TransientProblem& solved_problem, cons
                  contact_replayed_heat_rate_pointwise_tolerance = pointwise_tolerance(
                      options.contact_replayed_heat_rate_pointwise_relative_tolerance, contact_pointwise_tolerance),
                  contact_total_heat_rate_relative_tolerance = pointwise_tolerance(
-                     options.contact_total_heat_rate_relative_tolerance, options.contact_relative_tolerance);
+                     options.contact_total_heat_rate_relative_tolerance, options.contact_relative_tolerance),
+                 contact_total_heat_rate_pointwise_tolerance =
+                     pointwise_tolerance(options.contact_total_heat_rate_pointwise_relative_tolerance,
+                         contact_total_heat_rate_relative_tolerance);
     if (!(options.bulk_relative_tolerance > 0.0) || !(options.contact_relative_tolerance > 0.0) ||
         !(options.energy_relative_tolerance > 0.0) || !(options.reaction_zero_absolute_tolerance > 0.0) ||
         !(options.minimum_contact_state_match_fraction >= 0.0) ||
@@ -825,6 +828,7 @@ bool compare_abaqus_hex8_full_field(const TransientProblem& solved_problem, cons
         }
         if (snapshot.contact.size() != contact_sources.size())
             throw std::invalid_argument(options.case_name + " Fuelsim contact snapshot has an invalid node count");
+        spatial.validate_state(snapshot.state);
         const std::vector<double> thermal_contact =
             thermal_contact_residual(spatial, snapshot.state, maximum_contact_heat_conservation_error);
         std::vector<double> abaqus_state = contact_replay_problem.committed_solution();
@@ -1045,7 +1049,7 @@ bool compare_abaqus_hex8_full_field(const TransientProblem& solved_problem, cons
              passed;
     passed =
         report_metric(prefix + "contact_total_heat_rate", total_contact_heat_rate,
-            contact_total_heat_rate_relative_tolerance, contact_total_heat_rate_relative_tolerance, 1.0e-2, true) &&
+            contact_total_heat_rate_relative_tolerance, contact_total_heat_rate_pointwise_tolerance, 1.0e-2, true) &&
         passed;
     passed = report_grouped(prefix + "contact_position", contact_position, options.contact_relative_tolerance,
                  contact_pointwise_tolerance, options.coordinate_tolerance, true) &&

@@ -1584,7 +1584,7 @@ denominator floor. B5.32 through B5.34 qualify only the stated one-step and
 prescribed-state finite-strain paths; they do not extend the element to an
 arbitrary large-rotation claim.
 
-## B5.35 through B5.39 C3D8RT finite-strain materials and contact
+## B5.35 through B5.40 C3D8RT finite-strain materials and contact
 
 B5.35, B5.36, and B5.37 extend the finite-strain C3D8RT evidence to J2
 plasticity, Norton creep, and the fully implicit coupled plasticity-creep
@@ -1651,6 +1651,43 @@ include Abaqus `ALLAE`; comparisons use `ALLIE - ALLAE` for physical internal
 energy while reporting `ALLAE` independently. Existing C3D8T energy files
 retain their legacy column layout. Inputs, reference comma-separated files,
 generators, extractors, and runners are tracked by `SHA256SUMS`.
+
+B5.40 is the dedicated nonmatching C3D8RT contact path. Its primary surface has
+two adjacent Quad4 faces over `y=[0,2]`, while the smaller secondary surface has
+one Quad4 face over `y=[0.1,0.9]`; the out-of-plane extents are also unequal.
+The secondary surface closes on the lower primary face, opens, crosses the
+shared primary edge while open, closes on the upper face, and then repeats the
+open transfer in the reverse direction. The `0.5 mm` initial gap remains
+clearly open under the imposed `10 K` temperature rise, and each closure uses a
+`0.5 mm` prescribed normal displacement. All 45 fixed `0.02 s` increments are
+accepted without a cutback; 34 frames are open, 11 are active, and the final
+four secondary constraints are active.
+
+Contact-pressure relative L2, relative absolute-peak, and maximum
+pointwise-relative errors are `0.169420%`, `0.192834%`, and `0.212430%`.
+Accumulated total-slip-vector errors are `0.00182397%`, `0.00279226%`, and
+`0.00279980%`. Total-contact-heat-rate errors are `1.67864%`, `0.594574%`, and
+`13.0459%`; the last value occurs at the first lower-rate closure, so this row
+is qualified with a `4%` aggregate gate and an explicit `20%` pointwise gate.
+Direct and Abaqus-state-replayed contact heat remain conservative within
+`2.0e-15 W`. The discrete Abaqus stick-slide classification agrees for
+`90.5556%` of node-frame states and remains diagnostic because the continuous
+force and accumulated-slip fields are gated. Near-zero pointwise displacement,
+reaction, stress, logarithmic-strain, elastic-strain, and external-work
+references use documented absolute-difference qualifications without a
+denominator floor. Temperature, stress-tensor, and internal-energy relative L2
+errors are `0.00202505%`, `0.140500%`, and `0.284479%`. Abaqus artificial energy
+reaches `0.0466314 J`, or `10.8015%` of internal energy.
+
+Generate the B5.40 input with `generate_b540.py` and run and extract the Abaqus
+R2018x reference with `run_b540.ps1`. The shared full-field comparison now
+refreshes the original Fuelsim contact-candidate cache at every stored state;
+without that refresh, replaying an upper-face snapshot after a final lower-face
+state incorrectly reused the final thermal candidate. No production contact
+operator or physical coefficient changed. The material data, `1e9 Pa/m`
+penalty, `0.05` friction coefficient, `0.005` slip tolerance, affine conductance
+law, and fixed `0.005` C3D8RT hourglass coefficient are not fitted to the
+reference.
 
 ## B5.19 C3D8T finite-deformation selective integration
 

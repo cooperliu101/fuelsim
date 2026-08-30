@@ -56,6 +56,7 @@ struct AbaqusHex8FullFieldOptions final {
     double contact_replayed_heat_rate_pointwise_relative_tolerance = 0.0;
     double contact_replayed_heat_rate_pointwise_absolute_tolerance = 0.0;
     double contact_total_heat_rate_relative_tolerance = 0.0;
+    double contact_total_heat_rate_pointwise_relative_tolerance = 0.0;
     double energy_relative_tolerance = 1.0e-2;
     double energy_pointwise_relative_tolerance = 0.0;
     double external_work_pointwise_absolute_tolerance = 0.0;

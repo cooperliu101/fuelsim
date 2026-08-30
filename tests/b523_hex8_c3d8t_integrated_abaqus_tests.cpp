@@ -24,14 +24,15 @@ constexpr double time_step = 0.02;
 constexpr double pi = 3.141592653589793238462643383279502884;
 constexpr std::size_t increment_count = 20;
 
-enum class ScanPath { monotonic, contact_cycle, friction_reversal };
+enum class ScanPath { monotonic, contact_cycle, friction_reversal, nonmatching_contact_cycle };
 
 struct ScanParameters final {
     double penalty = 1.0e9, friction_coefficient = 0.05, slip_tolerance = 0.005, conductance = 50.0,
            pressure_conductance = 0.001, primary_poisson = 0.28, secondary_poisson = 0.3, bending_traction = 0.0;
     double initial_gap = 0.0;
     double normal_displacement_scale = 1.0, tangential_displacement_scale = 1.0;
-    bool traction_controlled = false, elastic_only = false, anchor_bending = false, reduced_integration = false;
+    bool traction_controlled = false, elastic_only = false, anchor_bending = false, reduced_integration = false,
+         nonmatching_mesh = false;
     ScanPath path = ScanPath::monotonic;
 };
 
@@ -324,29 +325,43 @@ fuelsim::SymmetricTensor3Values logarithmic_strain(
 }
 
 fuelsim::UnstructuredHex8Mesh mesh(std::size_t through_thickness_elements = 1, std::size_t tangential_elements = 2,
-    double distortion = 0.0, double initial_gap = 0.0) {
+    double distortion = 0.0, double initial_gap = 0.0, bool nonmatching = false) {
     if (through_thickness_elements == 0 || tangential_elements == 0)
         throw std::invalid_argument("B5.23 mesh divisions must be positive");
     std::vector<fuelsim::CartesianPoint3> nodes;
     std::vector<fuelsim::Hex8Element> elements;
     std::vector<std::int64_t> element_blocks;
-    std::array<std::vector<fuelsim::ElementSide>, 8> faces;
-    const std::size_t nodes_per_block = 2 * (tangential_elements + 1) * (through_thickness_elements + 1);
+    std::array<std::vector<fuelsim::ElementSide>, 10> faces;
+    const std::array<std::size_t, 2> tangential_divisions =
+        nonmatching ? std::array<std::size_t, 2>{2, 1}
+                    : std::array<std::size_t, 2>{tangential_elements, tangential_elements};
+    const std::array<double, 2> y_lower =
+                                    nonmatching ? std::array<double, 2>{0.0, 0.1} : std::array<double, 2>{0.0, 0.0},
+                                y_upper =
+                                    nonmatching ? std::array<double, 2>{2.0, 0.9} : std::array<double, 2>{1.0, 1.0},
+                                z_lower =
+                                    nonmatching ? std::array<double, 2>{-1.0, 0.1} : std::array<double, 2>{0.0, 0.0},
+                                z_upper =
+                                    nonmatching ? std::array<double, 2>{2.0, 0.9} : std::array<double, 2>{1.0, 1.0};
+    const std::array<std::size_t, 2> block_offsets = {
+        0, 2 * (tangential_divisions[0] + 1) * (through_thickness_elements + 1)};
     const auto node = [&](std::size_t block, std::size_t z, std::size_t y, std::size_t x) {
-        return block * nodes_per_block + z * (tangential_elements + 1) * (through_thickness_elements + 1) +
+        return block_offsets[block] + z * (tangential_divisions[block] + 1) * (through_thickness_elements + 1) +
                y * (through_thickness_elements + 1) + x;
     };
     for (std::size_t block = 0; block < 2; ++block)
-        for (double z : {0.0, 1.0})
-            for (std::size_t y = 0; y <= tangential_elements; ++y)
+        for (std::size_t z = 0; z < 2; ++z)
+            for (std::size_t y = 0; y <= tangential_divisions[block]; ++y)
                 for (std::size_t x = 0; x <= through_thickness_elements; ++x)
                     nodes.push_back({static_cast<double>(block) + (block == 1 ? initial_gap : 0.0) +
                                          static_cast<double>(x) / static_cast<double>(through_thickness_elements) +
                                          distortion * std::sin(pi * static_cast<double>(y) /
-                                                               static_cast<double>(tangential_elements)),
-                        static_cast<double>(y) / static_cast<double>(tangential_elements), z});
+                                                               static_cast<double>(tangential_divisions[block])),
+                        y_lower[block] + (y_upper[block] - y_lower[block]) * static_cast<double>(y) /
+                                             static_cast<double>(tangential_divisions[block]),
+                        z == 0 ? z_lower[block] : z_upper[block]});
     for (std::size_t block = 0; block < 2; ++block)
-        for (std::size_t y = 0; y < tangential_elements; ++y)
+        for (std::size_t y = 0; y < tangential_divisions[block]; ++y)
             for (std::size_t x = 0; x < through_thickness_elements; ++x) {
                 const std::size_t element_index = elements.size();
                 elements.push_back({{{node(block, 0, y, x), node(block, 0, y, x + 1), node(block, 0, y + 1, x + 1),
@@ -357,24 +372,29 @@ fuelsim::UnstructuredHex8Mesh mesh(std::size_t through_thickness_elements = 1, s
                 if (block == 0 && x + 1 == through_thickness_elements) faces[1].push_back({element_index, 1});
                 if (block == 1 && x == 0) faces[2].push_back({element_index, 3});
                 if (block == 1 && x + 1 == through_thickness_elements) faces[3].push_back({element_index, 1});
-                if (block == 1 && x + 1 == through_thickness_elements && 2 * y < tangential_elements)
+                if (block == 1 && x + 1 == through_thickness_elements && 2 * y < tangential_divisions[block])
                     faces[6].push_back({element_index, 1});
-                if (block == 1 && x + 1 == through_thickness_elements && 2 * y >= tangential_elements)
+                if (block == 1 && x + 1 == through_thickness_elements && 2 * y >= tangential_divisions[block])
                     faces[7].push_back({element_index, 1});
                 if (block == 1 && y == 0) faces[4].push_back({element_index, 0});
+                if (block == 1 && y + 1 == tangential_divisions[block]) faces[8].push_back({element_index, 2});
                 if (block == 1) faces[5].push_back({element_index, 4});
+                if (block == 1) faces[9].push_back({element_index, 5});
             }
 
     std::vector<std::size_t> primary_outer, secondary_outer, secondary_y0, secondary_z0;
     for (std::size_t z = 0; z < 2; ++z)
-        for (std::size_t y = 0; y <= tangential_elements; ++y) {
-            primary_outer.push_back(node(0, z, y, 0));
+        for (std::size_t y = 0; y <= tangential_divisions[0]; ++y) primary_outer.push_back(node(0, z, y, 0));
+    for (std::size_t z = 0; z < 2; ++z)
+        for (std::size_t y = 0; y <= tangential_divisions[1]; ++y)
             secondary_outer.push_back(node(1, z, y, through_thickness_elements));
-        }
     for (std::size_t z = 0; z < 2; ++z)
         for (std::size_t x = 0; x <= through_thickness_elements; ++x) secondary_y0.push_back(node(1, z, 0, x));
-    for (std::size_t y = 0; y <= tangential_elements; ++y)
+    for (std::size_t y = 0; y <= tangential_divisions[1]; ++y)
         for (std::size_t x = 0; x <= through_thickness_elements; ++x) secondary_z0.push_back(node(1, 0, y, x));
+    std::vector<fuelsim::ElementSide> secondary_all_surface;
+    for (const std::size_t face : {2U, 3U, 4U, 5U, 8U, 9U})
+        secondary_all_surface.insert(secondary_all_surface.end(), faces[face].begin(), faces[face].end());
     return fuelsim::UnstructuredHex8Mesh(std::move(nodes), std::move(elements), std::move(element_blocks),
         {{1, "primary"}, {2, "secondary"}},
         {{11, "primary_outer_nodes", primary_outer}, {12, "secondary_outer_nodes", secondary_outer},
@@ -382,7 +402,7 @@ fuelsim::UnstructuredHex8Mesh mesh(std::size_t through_thickness_elements = 1, s
         {{21, "primary_outer", faces[0]}, {22, "primary_contact", faces[1]}, {23, "secondary_contact", faces[2]},
             {24, "secondary_outer", faces[3]}, {25, "secondary_y0_surface", faces[4]},
             {26, "secondary_z0_surface", faces[5]}, {27, "secondary_outer_lower", faces[6]},
-            {28, "secondary_outer_upper", faces[7]}});
+            {28, "secondary_outer_upper", faces[7]}, {29, "secondary_all_surface", secondary_all_surface}});
 }
 
 fuelsim::ThermoelasticProperties primary_material(double poisson = 0.28) {
@@ -430,9 +450,11 @@ fuelsim::SpatialDefinition definition(const ScanParameters& parameters = {}) {
     if (parameters.reduced_integration)
         for (fuelsim::RegionDefinition& region : result.regions)
             region.hex8_element_formulation = fuelsim::Hex8ElementFormulation::c3d8rt;
-    const std::vector<double> times = parameters.path == ScanPath::monotonic
-                                          ? std::vector<double>{0.0, 0.4}
-                                          : std::vector<double>{0.0, 0.1, 0.2, 0.3, 0.4};
+    const std::vector<double> times =
+        parameters.path == ScanPath::monotonic ? std::vector<double>{0.0, 0.4}
+        : parameters.path == ScanPath::nonmatching_contact_cycle
+            ? std::vector<double>{0.0, 0.08, 0.10, 0.18, 0.20, 0.40, 0.48, 0.50, 0.58, 0.60, 0.80, 0.88, 0.90}
+            : std::vector<double>{0.0, 0.1, 0.2, 0.3, 0.4};
     if (parameters.path == ScanPath::monotonic) {
         result.time_tables.emplace_back("secondary_temperature", times, std::vector<double>{300.0, 500.0});
         result.time_tables.emplace_back("pressure", times, std::vector<double>{0.0, 3.5e5});
@@ -448,6 +470,18 @@ fuelsim::SpatialDefinition definition(const ScanParameters& parameters = {}) {
         result.time_tables.emplace_back("normal_x", times, std::vector<double>{0.0, -2.0e-4, 0.0, -2.0e-4, -2.0e-4});
         result.time_tables.emplace_back("tangential_y", times, std::vector<double>(times.size(), 0.0));
         result.time_tables.emplace_back("tangential_z", times, std::vector<double>(times.size(), 0.0));
+        result.time_tables.emplace_back("bending_traction", times, std::vector<double>(times.size(), 0.0));
+    } else if (parameters.path == ScanPath::nonmatching_contact_cycle) {
+        result.time_tables.emplace_back("secondary_temperature", times,
+            std::vector<double>{
+                300.0, 308.0, 310.0, 310.0, 310.0, 310.0, 310.0, 310.0, 310.0, 310.0, 310.0, 310.0, 310.0});
+        result.time_tables.emplace_back("pressure", times, std::vector<double>(times.size(), 0.0));
+        result.time_tables.emplace_back("normal_x", times,
+            std::vector<double>{0.0, 0.0, -5.0e-4, -5.0e-4, 0.0, 0.0, 0.0, -5.0e-4, -5.0e-4, 0.0, 0.0, 0.0, -5.0e-4});
+        result.time_tables.emplace_back("tangential_y", times,
+            std::vector<double>{0.0, 0.04, 0.05, 0.05, 0.05, 0.95, 0.95, 0.95, 0.95, 0.95, 0.05, 0.05, 0.05});
+        result.time_tables.emplace_back("tangential_z", times,
+            std::vector<double>{0.0, 0.032, 0.04, 0.04, 0.04, 0.20, 0.20, 0.20, 0.20, 0.20, 0.40, 0.40, 0.40});
         result.time_tables.emplace_back("bending_traction", times, std::vector<double>(times.size(), 0.0));
     } else {
         result.time_tables.emplace_back(
@@ -477,12 +511,14 @@ fuelsim::SpatialDefinition definition(const ScanParameters& parameters = {}) {
             fuelsim::Field::temperature, 1.0, false, "secondary_temperature"},
     };
     if (parameters.path != ScanPath::monotonic) {
+        const std::string tangential_boundary =
+            parameters.path == ScanPath::nonmatching_contact_cycle ? "secondary_all_surface" : "secondary_outer";
         result.boundary_conditions.push_back({"secondary_normal_x", fuelsim::BoundaryConditionType::dirichlet,
             "secondary_outer", fuelsim::Field::displacement_x, 1.0, false, "normal_x"});
         result.boundary_conditions.push_back({"secondary_tangential_y", fuelsim::BoundaryConditionType::dirichlet,
-            "secondary_outer", fuelsim::Field::displacement_y, 1.0, false, "tangential_y"});
+            tangential_boundary, fuelsim::Field::displacement_y, 1.0, false, "tangential_y"});
         result.boundary_conditions.push_back({"secondary_tangential_z", fuelsim::BoundaryConditionType::dirichlet,
-            "secondary_outer", fuelsim::Field::displacement_z, 1.0, false, "tangential_z"});
+            tangential_boundary, fuelsim::Field::displacement_z, 1.0, false, "tangential_z"});
     } else if (parameters.traction_controlled) {
         result.boundary_conditions.push_back(
             configured_boundary("lower_bending_traction", fuelsim::BoundaryConditionType::traction,
@@ -619,12 +655,15 @@ ScanResponse run_scan(std::size_t through_thickness_elements, std::size_t tangen
     const ScanParameters& parameters, double distortion, const std::string& case_name,
     const std::string& reference_directory) {
     const fuelsim::SpatialDefinition case_definition = definition(parameters);
-    const fuelsim::UnstructuredHex8Mesh case_mesh =
-        mesh(through_thickness_elements, tangential_elements, distortion, parameters.initial_gap);
+    const fuelsim::UnstructuredHex8Mesh case_mesh = mesh(through_thickness_elements, tangential_elements, distortion,
+        parameters.initial_gap, parameters.nonmatching_mesh);
     fuelsim::TransientProblem problem(case_definition, case_mesh);
     fuelsim::test::AbaqusHex8SnapshotObserver observer;
-    const bool transition_case = case_name.rfind("b526_", 0) == 0 || case_name.rfind("b53", 0) == 0;
-    const double end_time = transition_case ? (parameters.path == ScanPath::contact_cycle ? 0.3 : 0.4) : 0.2;
+    const bool transition_case = case_name.rfind("b526_", 0) == 0 || case_name.rfind("b53", 0) == 0 ||
+                                 parameters.path == ScanPath::nonmatching_contact_cycle;
+    const double end_time = parameters.path == ScanPath::nonmatching_contact_cycle ? 0.9
+                            : transition_case ? (parameters.path == ScanPath::contact_cycle ? 0.3 : 0.4)
+                                              : 0.2;
     const fuelsim::TransientResult solve =
         fuelsim::solve_transient(problem, {end_time, step, step, step, 1.0, 0.5, 0, 0.0}, solver_options(), &observer);
     ScanResponse response;
@@ -668,7 +707,7 @@ ScanResponse run_scan(std::size_t through_thickness_elements, std::size_t tangen
             comparison.contact_pointwise_relative_tolerance = 1.0e-2;
         }
     }
-    if (case_name.rfind("b526_", 0) == 0 || case_name.rfind("b53", 0) == 0) {
+    if (case_name.rfind("b526_", 0) == 0 || case_name.rfind("b53", 0) == 0 || case_name.rfind("b540_", 0) == 0) {
         comparison.bulk_relative_tolerance = 1.0e-2;
         comparison.contact_relative_tolerance = 5.0e-3;
         comparison.contact_pointwise_relative_tolerance = 1.25e-2;
@@ -686,6 +725,17 @@ ScanResponse run_scan(std::size_t through_thickness_elements, std::size_t tangen
             if (case_name == "b526_contact_cycle") comparison.gate_contact_slip = false;
         }
     }
+    if (case_name == "b540_nonmatching_contact_cycle") {
+        comparison.displacement_pointwise_absolute_tolerance = 5.0e-8;
+        comparison.reaction_pointwise_absolute_tolerance = 5.0e-2;
+        comparison.stress_pointwise_absolute_tolerance = 1.0e-1;
+        comparison.logarithmic_strain_pointwise_absolute_tolerance = 2.0e-8;
+        comparison.elastic_strain_pointwise_absolute_tolerance = 2.0e-10;
+        comparison.energy_pointwise_relative_tolerance = 7.5e-2;
+        comparison.external_work_pointwise_absolute_tolerance = 1.0e-12;
+        comparison.contact_total_heat_rate_pointwise_relative_tolerance = 2.0e-1;
+        comparison.gate_contact_state = false;
+    }
     response.full_field_passed = fuelsim::test::compare_abaqus_hex8_full_field(
         problem, case_definition, case_mesh, observer.snapshots(), comparison);
     const fuelsim::InterfaceSummary interface =
@@ -696,13 +746,18 @@ ScanResponse run_scan(std::size_t through_thickness_elements, std::size_t tangen
     response.contact_heat_rate = interface.total_heat_rate;
     response.maximum_penetration = std::max(0.0, -interface.minimum_contact_gap);
     response.boundary_heat_rate = solve.accepted_steps.back().conservation.dirichlet_heat_input_rate;
-    bool active_seen = false, reopened_seen = false, recontact_seen = false;
+    bool active_seen = false, reopened_seen = false, recontact_seen = false, crossed_primary_face = false;
     bool final_active = false, final_sticking = false;
+    std::size_t first_active_primary_face = std::numeric_limits<std::size_t>::max();
     for (const fuelsim::test::AbaqusHex8StepSnapshot& snapshot : observer.snapshots()) {
         std::size_t active_nodes = 0, sticking_nodes = 0, sliding_nodes = 0;
         double tangential_y_resultant = 0.0;
         for (const fuelsim::CartesianContactNodeSummary& point : snapshot.contact) {
             if (!(point.pressure > 0.0)) continue;
+            if (first_active_primary_face == std::numeric_limits<std::size_t>::max())
+                first_active_primary_face = point.primary_face;
+            else if (point.primary_face != first_active_primary_face)
+                crossed_primary_face = true;
             ++active_nodes;
             ++(point.sliding ? sliding_nodes : sticking_nodes);
             tangential_y_resultant += point.tangential_contact_force[1];
@@ -726,6 +781,9 @@ ScanResponse run_scan(std::size_t through_thickness_elements, std::size_t tangen
     }
     if (parameters.path == ScanPath::contact_cycle)
         response.transition_verified = active_seen && reopened_seen && recontact_seen && final_active;
+    else if (parameters.path == ScanPath::nonmatching_contact_cycle)
+        response.transition_verified =
+            active_seen && crossed_primary_face && reopened_seen && recontact_seen && final_active;
     else if (parameters.path == ScanPath::friction_reversal)
         response.transition_verified = response.sticking_nodes_seen > 0 && response.sliding_nodes_seen > 0 &&
                                        response.minimum_tangential_y_resultant < 0.0 &&
@@ -886,8 +944,15 @@ ScanResponse run_named_scan(const std::string& name, const std::string& referenc
         parameters.path = ScanPath::friction_reversal;
         parameters.reduced_integration = true;
         parameters.normal_displacement_scale = 0.125;
+    } else if (name == "b540_nonmatching_contact_cycle") {
+        through_thickness_elements = 1;
+        parameters.elastic_only = true;
+        parameters.initial_gap = 5.0e-4;
+        parameters.path = ScanPath::nonmatching_contact_cycle;
+        parameters.reduced_integration = true;
+        parameters.nonmatching_mesh = true;
     } else if (name != "b524_mesh_coarse" && name.rfind("b525_", 0) != 0)
-        throw std::invalid_argument("Unknown B5.24, B5.25, B5.26, B5.38, or B5.39 selected case: " + name);
+        throw std::invalid_argument("Unknown B5.24, B5.25, B5.26, B5.38, B5.39, or B5.40 selected case: " + name);
     if (name.rfind("b525_", 0) == 0) {
         through_thickness_elements = name == "b525_poisson_0499_refined" ? 2 : 1;
         tangential_elements = 16;
@@ -1069,7 +1134,7 @@ int main(int argc, char** argv) {
     if (argc < 6 || argc > 8) {
         std::cerr << "Usage: fuelsim_b523_hex8_c3d8t_integrated_abaqus_tests "
                      "<nodal.csv> <integration.csv> <contact.csv> <energy.csv> <Abaqus reference directory> "
-                     "[selected B5.24, B5.25, B5.26, B5.38, or B5.39 case [response output] | "
+                     "[selected B5.24, B5.25, B5.26, B5.38, B5.39, or B5.40 case [response output] | "
                      "--aggregate-responses <response directory>]\n";
         return 2;
     }

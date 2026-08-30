@@ -123,12 +123,18 @@ def append_set(lines, keyword, name, labels):
 
 def build_mesh(parameters):
     nx = parameters["through"]
-    ny = parameters["tangential"]
+    tangential_divisions = (
+        parameters.get("primary_tangential", parameters["tangential"]),
+        parameters.get("secondary_tangential", parameters["tangential"]),
+    )
+    y_bounds = parameters.get("y_bounds", ((0.0, 1.0), (0.0, 1.0)))
+    z_bounds = parameters.get("z_bounds", ((0.0, 1.0), (0.0, 1.0)))
     distortion = parameters["distortion"]
     nodes = []
     elements = [[], []]
     node_maps = []
     for block in range(2):
+        ny = tangential_divisions[block]
         node_map = {}
         for z in range(2):
             for y in range(ny + 1):
@@ -141,8 +147,9 @@ def build_mesh(parameters):
                             + (parameters["initial_gap"] if block == 1 else 0.0)
                             + float(x) / nx
                             + distortion * math.sin(math.pi * float(y) / ny),
-                            float(y) / ny,
-                            float(z),
+                            y_bounds[block][0]
+                            + (y_bounds[block][1] - y_bounds[block][0]) * float(y) / ny,
+                            z_bounds[block][z],
                         )
                     )
         node_maps.append(node_map)
@@ -224,25 +231,36 @@ def append_amplitude(lines, name, times, values):
 def deck(name, parameters):
     nodes, elements, node_maps = build_mesh(parameters)
     nx = parameters["through"]
-    ny = parameters["tangential"]
+    primary_ny = parameters.get("primary_tangential", parameters["tangential"])
+    secondary_ny = parameters.get("secondary_tangential", parameters["tangential"])
     primary_count = len(elements[0])
     primary_labels = list(range(1, primary_count + 1))
     secondary_labels = list(range(primary_count + 1, primary_count + len(elements[1]) + 1))
-    primary_contact_elements = [primary_labels[y * nx + nx - 1] for y in range(ny)]
-    secondary_contact_elements = [secondary_labels[y * nx] for y in range(ny)]
-    secondary_outer_elements = [secondary_labels[y * nx + nx - 1] for y in range(ny)]
-    secondary_lower_elements = [secondary_outer_elements[y] for y in range(ny) if 2 * y < ny]
-    secondary_upper_elements = [secondary_outer_elements[y] for y in range(ny) if 2 * y >= ny]
-    primary_outer_nodes = [node_maps[0][(z, y, 0)] for z in range(2) for y in range(ny + 1)]
-    secondary_outer_nodes = [node_maps[1][(z, y, nx)] for z in range(2) for y in range(ny + 1)]
-    secondary_contact_nodes = [node_maps[1][(z, y, 0)] for z in range(2) for y in range(ny + 1)]
+    primary_contact_elements = [primary_labels[y * nx + nx - 1] for y in range(primary_ny)]
+    secondary_contact_elements = [secondary_labels[y * nx] for y in range(secondary_ny)]
+    secondary_outer_elements = [secondary_labels[y * nx + nx - 1] for y in range(secondary_ny)]
+    secondary_lower_elements = [secondary_outer_elements[y] for y in range(secondary_ny) if 2 * y < secondary_ny]
+    secondary_upper_elements = [secondary_outer_elements[y] for y in range(secondary_ny) if 2 * y >= secondary_ny]
+    primary_outer_nodes = [node_maps[0][(z, y, 0)] for z in range(2) for y in range(primary_ny + 1)]
+    secondary_outer_nodes = [node_maps[1][(z, y, nx)] for z in range(2) for y in range(secondary_ny + 1)]
+    secondary_contact_nodes = [node_maps[1][(z, y, 0)] for z in range(2) for y in range(secondary_ny + 1)]
+    secondary_all_nodes = [
+        node_maps[1][(z, y, x)] for z in range(2) for y in range(secondary_ny + 1) for x in range(nx + 1)
+    ]
     secondary_y0_nodes = [node_maps[1][(z, 0, x)] for z in range(2) for x in range(nx + 1)]
 
     lines = [
         "*Heading",
         "** %s: generated full-field Abaqus reference." % name,
         "** through=%d tangential=%d step=%.16e distortion=%.16e initial_gap=%.16e path=%s"
-        % (nx, ny, parameters["step"], parameters["distortion"], parameters["initial_gap"], parameters["path"]),
+        % (
+            nx,
+            parameters["tangential"],
+            parameters["step"],
+            parameters["distortion"],
+            parameters["initial_gap"],
+            parameters["path"],
+        ),
         "*Preprint, echo=NO, model=NO, history=NO, contact=YES",
         "*Node",
     ]
@@ -264,6 +282,8 @@ def deck(name, parameters):
     append_set(lines, "Nset", "PRIMARY_OUTER_NODES", primary_outer_nodes)
     append_set(lines, "Nset", "SECONDARY_OUTER_NODES", secondary_outer_nodes)
     append_set(lines, "Nset", "SECONDARY_CONTACT_NODES", secondary_contact_nodes)
+    if parameters["path"] == "nonmatching_contact_cycle":
+        append_set(lines, "Nset", "SECONDARY_ALL_NODES", secondary_all_nodes)
     if parameters["anchor_bending"]:
         append_set(lines, "Nset", "SECONDARY_Y0", secondary_y0_nodes)
     lines.extend(
@@ -305,7 +325,19 @@ def deck(name, parameters):
             "SECONDARY_CONTACT, PRIMARY_CONTACT",
         ]
     )
-    times = [0.0, 0.1, 0.2, 0.3, 0.4]
+    if parameters["path"] == "nonmatching_contact_cycle":
+        times = [0.0, 0.08, 0.10, 0.18, 0.20, 0.40, 0.48, 0.50, 0.58, 0.60, 0.80, 0.88, 0.90]
+        temperature = [300.0, 308.0, 310.0, 310.0, 310.0, 310.0, 310.0,
+                       310.0, 310.0, 310.0, 310.0, 310.0, 310.0]
+        pressure = [0.0] * len(times)
+        normal = [0.0, 0.0, -5.0e-4, -5.0e-4, 0.0, 0.0, 0.0,
+                  -5.0e-4, -5.0e-4, 0.0, 0.0, 0.0, -5.0e-4]
+        tangential_y = [0.0, 0.04, 0.05, 0.05, 0.05, 0.95, 0.95,
+                        0.95, 0.95, 0.95, 0.05, 0.05, 0.05]
+        tangential_z = [0.0, 0.032, 0.04, 0.04, 0.04, 0.20, 0.20,
+                        0.20, 0.20, 0.20, 0.40, 0.40, 0.40]
+    else:
+        times = [0.0, 0.1, 0.2, 0.3, 0.4]
     if parameters["path"] == "contact_cycle":
         temperature = [300.0, 301.0, 301.0, 301.0, 301.0]
         pressure = [0.0] * 5
@@ -321,7 +353,7 @@ def deck(name, parameters):
             for value in [0.0, 2.0e-5, 1.2e-2, -4.0e-3, -3.98e-3]
         ]
         tangential_z = [0.0] * 5
-    else:
+    elif parameters["path"] == "monotonic":
         temperature = [300.0, 350.0, 400.0, 450.0, 500.0]
         pressure = [0.0, 8.75e4, 1.75e5, 2.625e5, 3.5e5]
         normal = [0.0] * 5
@@ -332,7 +364,9 @@ def deck(name, parameters):
     append_amplitude(lines, "NORMAL_PATH", times, normal)
     append_amplitude(lines, "TANGENTIAL_Y_PATH", times, tangential_y)
     append_amplitude(lines, "TANGENTIAL_Z_PATH", times, tangential_z)
-    append_amplitude(lines, "BENDING_PATH", times, [0.0, 0.25, 0.5, 0.75, 1.0])
+    append_amplitude(
+        lines, "BENDING_PATH", times, [float(index) / float(len(times) - 1) for index in range(len(times))]
+    )
     lines.extend(
         [
             "*Initial Conditions, type=TEMPERATURE",
@@ -354,14 +388,19 @@ def deck(name, parameters):
     if parameters["anchor_bending"]:
         lines.extend(["*Boundary", "SECONDARY_Y0, 2, 3, 0.0"])
     if parameters["path"] != "monotonic":
+        tangential_nodes = (
+            "SECONDARY_ALL_NODES"
+            if parameters["path"] == "nonmatching_contact_cycle"
+            else "SECONDARY_OUTER_NODES"
+        )
         lines.extend(
             [
                 "*Boundary, amplitude=NORMAL_PATH",
                 "SECONDARY_OUTER_NODES, 1, 1, 1.0",
                 "*Boundary, amplitude=TANGENTIAL_Y_PATH",
-                "SECONDARY_OUTER_NODES, 2, 2, 1.0",
+                "%s, 2, 2, 1.0" % tangential_nodes,
                 "*Boundary, amplitude=TANGENTIAL_Z_PATH",
-                "SECONDARY_OUTER_NODES, 3, 3, 1.0",
+                "%s, 3, 3, 1.0" % tangential_nodes,
             ]
         )
     elif parameters["traction_controlled"]:

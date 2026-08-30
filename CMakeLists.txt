@@ -723,6 +723,17 @@ if(BUILD_TESTING)
             LABELS "acceptance;three-dimensional;hex8;c3d8rt;reduced-integration;transient;thermal;mechanical;finite-strain;friction;contact;abaqus;transition")
     endforeach()
 
+    add_test(NAME fuelsim_b540_c3d8rt_nonmatching_contact_abaqus_tests
+        COMMAND fuelsim_b523_hex8_c3d8t_integrated_abaqus_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b523_hex8_c3d8t_integrated_path_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b523_hex8_c3d8t_integrated_path_integration.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b523_hex8_c3d8t_integrated_path_contact.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b523_hex8_c3d8t_integrated_path_energy.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus"
+            b540_nonmatching_contact_cycle)
+    set_tests_properties(fuelsim_b540_c3d8rt_nonmatching_contact_abaqus_tests PROPERTIES
+        LABELS "acceptance;three-dimensional;hex8;c3d8rt;reduced-integration;transient;thermal;mechanical;finite-strain;friction;contact;nonmatching;abaqus;transition")
+
     add_executable(fuelsim_b527_hex8_engineering_fuel_clad_tests
         tests/b527_hex8_engineering_fuel_clad_tests.cpp)
     target_link_libraries(fuelsim_b527_hex8_engineering_fuel_clad_tests
