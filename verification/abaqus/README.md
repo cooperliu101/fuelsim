@@ -1737,6 +1737,47 @@ denominator floor. A separately attempted strong shear-reversal extension did
 not agree with Abaqus and is not reference evidence for this row. Nothing from
 that failed extension was used to adjust production coefficients or gates.
 
+## B5.46 full-size M5.8 C3D8T benchmark
+
+B5.46 reuses the exact tracked M5.8 Exodus mesh rather than rebuilding its
+coordinates. `exodus_to_abaqus.py` converts three-dimensional HEX8 nodes,
+connectivity, element blocks, node sets, and side sets to an Abaqus include;
+the Exodus side sequence maps to Abaqus faces `S3,S4,S5,S6,S1,S2`. It also
+writes a compact JSON manifest with exact reference coordinates and
+connectivity for deterministic extraction. The current utility reads classic
+NetCDF Exodus files through SciPy and intentionally rejects non-HEX8 blocks.
+
+Run `generate_b546.py` to regenerate the input, mesh include, and manifest,
+then run `run_b546.ps1` on Windows with Abaqus R2018x. The 1,617-node,
+1,152-element C3D8T model uses the same two material blocks, analytic fuel
+conductivity, analytic gas-gap conductance, twenty fixed `0.05 s` increments,
+current pressure loads, node-to-surface penalty contact, and Coulomb friction
+as `transient_integrated_hex8.fsi`. The analytic functions are densely sampled
+for Abaqus table input; no coefficient is fitted. Abaqus completes all twenty
+increments without cutback, using 72 iterations and matrix decompositions.
+
+The Fuelsim benchmark compares final values by exact reference coordinate.
+Temperature, contact pressure, element-average equivalent stress, equivalent
+plastic strain, and equivalent creep strain have worst three-metric errors of
+`0.0240800%`, `0.107236%`, `0.0129459%`, `0.0131801%`, and `0.0371836%`.
+The transverse Cartesian components have `0.651296%` relative L2 error but
+only `0.0203817%` relative absolute-peak error and about `90.2 nm` maximum
+absolute difference. Their very large maximum pointwise relative value uses an
+Abaqus reference near `0.0204 nm`; the circumferential component is also near
+zero. These values remain explicit in
+`b546_m58_c3d8t_integrated_comparison.tsv` without a denominator floor, so this
+row is measured evidence and not a new verified acceptance case.
+
+Abaqus takes `36.1152 s` external wall time and reports `24.8 s` total CPU and
+`26 s` analysis wall time with one process. The controlled Fuelsim C3D8T run
+takes `199.32 s` external wall time. Both run on the same physical
+machine, but Abaqus runs natively on Windows while Fuelsim runs in WSL; the
+observed `5.519` external-wall ratio is therefore not claimed as a pure solver-
+kernel ratio. Fuelsim's comparison run spends about 90.1 percent of its
+`179.164 s` internal total time in residual and Jacobian callbacks.
+The generated mesh, extracted reference fields, comparison summary, scripts,
+and timing record are covered by `SHA256SUMS`.
+
 ## B5.19 C3D8T finite-deformation selective integration
 
 B5.19 applies a non-affine finite deformation to one distorted C3D8T element.

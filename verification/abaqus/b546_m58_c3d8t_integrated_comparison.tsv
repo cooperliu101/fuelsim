@@ -1,0 +1,11 @@
+field	relative_l2_percent	relative_absolute_peak_percent	maximum_pointwise_relative_percent	zero_reference_count	maximum_zero_reference_absolute_difference	maximum_absolute_difference	interpretation
+temperature	0.01420571480164	0.02405263561996	0.02408002354667	0	0	0.1456683399 K	ordinary nonzero field
+displacement_x	0.6512958646532	0.02038172689487	11399.67395493	145	1.953890137541e-19 m	9.01642396567e-8 m	pointwise maximum uses a -2.038327065870e-11 m Abaqus reference; the complete component remains a measured near-axisymmetry qualification
+displacement_y	0.6512958753882	0.02038170099656	11399.67396767	145	8.351332714737e-19 m	9.01642398259e-8 m	pointwise maximum uses a -2.038327064743e-11 m Abaqus reference; the complete component remains a measured near-axisymmetry qualification
+displacement_z	0.0005773975454413	0	0.1015662833789	48	0 m	7.9665607e-9 m	prescribed-zero boundaries are classified separately; the pointwise maximum differs by 3.116757788e-10 m at a 3.068693354e-7 m reference
+radial_displacement	0.03541503845312	0.02153216700329	2.928053231865	136	0 m	4.8252438334e-9 m	the pointwise maximum differs by 3.213479418e-10 m at a 1.097479849e-8 m reference
+tangential_displacement	8276.848566467	8288.425551970	99013.30754863	136	0 m	9.01619398532e-8 m	both solutions are nearly axisymmetric; Abaqus peaks near 1.09e-9 m and Fuelsim near 9.12e-8 m, so relative metrics are intentionally not hidden by a denominator floor
+contact_pressure	0.08333991701344	0.07197774854081	0.1072360525204	0	0	96.50218273 Pa	all 144 secondary nodes are active
+equivalent_stress	0.006827751228525	0.01101012591693	0.01294588088179	0	0	7284.22536 Pa	reference-volume-weighted average of eight integration points
+equivalent_plastic_strain	0.006959907241689	0.01120528936695	0.01318012448793	0	0	3.64211268e-7	reference-volume-weighted average of eight integration points
+equivalent_creep_strain	0.02166603669474	0.02684600275810	0.03718364644698	0	0	1.659449782e-8	reference-volume-weighted average of eight integration points

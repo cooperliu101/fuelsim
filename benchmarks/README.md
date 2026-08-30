@@ -1040,6 +1040,18 @@ have the identical SHA-256 digest
 The local centered-difference tests also require the residual returned by a
 Jacobian call to equal the residual-only path entry by entry.
 
+## M5.8 C3D8T Abaqus timing
+
+The B5.46 Abaqus comparison converts the exact M5.8 Exodus mesh with
+`verification/abaqus/exodus_to_abaqus.py`. Abaqus R2018x uses one process,
+twenty fixed increments, and final-only field output. Its external wall time is
+`36.115237 s`; the analysis summary reports `24.8 s` CPU and `26 s` wall time.
+The pinned, one-thread Fuelsim C3D8T run takes `199.32 s` external wall time.
+The observed ratio is `5.519`, but it crosses native Windows and WSL
+and is not treated as a pure kernel comparison. A direct Fuelsim-to-Abaqus
+comparison run reports `179.164259 s` internal total time, of which residual
+and Jacobian callbacks consume `82.473280 s` and `78.663006 s`.
+
 The required unrelated RZ non-regression paths used the same pinning and
 thread settings. The 1,584-degree-of-freedom case retained 64 nonlinear and
 linear iterations and the identical final residual; its single-sample internal
