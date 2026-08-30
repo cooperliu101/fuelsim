@@ -9,7 +9,7 @@
 
 namespace fuelsim::test {
 struct AbaqusHex8StepSnapshot final {
-    double time = 0.0;
+    double time = 0.0, load_factor = 0.0;
     std::vector<double> state;
     std::vector<std::vector<CartesianMaterialPointState>> material_by_source_element;
     std::vector<CartesianContactNodeSummary> contact;

@@ -134,13 +134,13 @@ int main(int argc, char** argv) {
         comparison.bulk_relative_tolerance = 1.0e-2;
         comparison.energy_relative_tolerance = 1.0e-2;
         // The distorted bending path keeps the aggregate reaction metrics at one percent, but one
-        // low-force mechanical component needs the explicitly recorded four-percent pointwise gate.
+        // low-resultant constrained-node vector needs the explicitly recorded four-percent pointwise gate.
         comparison.reaction_pointwise_relative_tolerance = 4.0e-2;
         comparison.reaction_zero_absolute_tolerance = 1.0e-3;
-        // Abaqus and Fuelsim distribute the same boundary heat rate differently over constrained
-        // nodes on this distorted mesh.  The nodal RFL values remain reported, while the summed
-        // boundary heat rate is the conservative quantity used for acceptance.
-        comparison.gate_reaction_heat_flux = false;
+        // The only nodal heat-reaction relative outlier is a 0.003451 W difference at a
+        // 0.302267 W reference value.  Keep the undiluted relative metric and use an explicit
+        // absolute check for this low-rate cancellation; all aggregate metrics retain one percent.
+        comparison.reaction_heat_flux_pointwise_absolute_tolerance = 1.0e-2;
         const bool passed = fuelsim::test::compare_abaqus_hex8_full_field(
             problem, case_definition, case_mesh, observer.snapshots(), comparison);
         std::cout << "b544_accepted_steps=" << solve.accepted_steps.size() << '\n'

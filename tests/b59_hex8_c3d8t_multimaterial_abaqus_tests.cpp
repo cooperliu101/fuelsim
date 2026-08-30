@@ -48,7 +48,7 @@ struct IntegrationReference final {
 };
 
 struct StepSnapshot final {
-    double time;
+    double time, load_factor;
     std::vector<double> state;
     fuelsim::TransientConservationSummary conservation;
 };
@@ -66,7 +66,7 @@ struct BendingSummary final {
 class SnapshotObserver final : public fuelsim::TransientStepObserver {
   public:
     void accepted_step(const fuelsim::TransientProblem& problem, const fuelsim::TransientAcceptedStep& step) override {
-        _snapshots.push_back({step.time, problem.committed_solution(), step.conservation});
+        _snapshots.push_back({step.time, step.load_factor, problem.committed_solution(), step.conservation});
     }
 
     const std::vector<StepSnapshot>& snapshots() const noexcept { return _snapshots; }
@@ -409,7 +409,7 @@ BendingSummary run_case(const CaseSpec& spec, const std::vector<NodeReference>& 
     std::size_t compared_nodes = 0;
     for (std::size_t stage = 1; stage <= 4; ++stage) {
         const StepSnapshot& snapshot = *snapshots.at(stage);
-        reaction_problem.begin_time_step({snapshot.time, step_time, true});
+        reaction_problem.begin_time_step({snapshot.time, snapshot.load_factor, true});
         const std::vector<double> reaction = raw_residual(reaction_problem, snapshot.state);
         for (const NodeReference& reference : node_reference) {
             if (reference.case_name != spec.name || reference.stage != stage) continue;

@@ -432,6 +432,7 @@ std::vector<double> secondary_nodal_areas(const UnstructuredHex8Mesh& mesh, cons
 void AbaqusHex8SnapshotObserver::accepted_step(const TransientProblem& problem, const TransientAcceptedStep& step) {
     AbaqusHex8StepSnapshot snapshot;
     snapshot.time = step.time;
+    snapshot.load_factor = step.load_factor;
     snapshot.state = problem.committed_solution();
     snapshot.conservation = step.conservation;
     const cartesian::SpatialAssembly& spatial = cartesian::ProblemAccess::view(problem);
@@ -552,7 +553,7 @@ bool compare_abaqus_hex8_full_field(const TransientProblem& solved_problem, cons
     std::size_t nodal_rows = 0;
     for (std::size_t increment = 1; increment <= options.expected_steps; ++increment) {
         const AbaqusHex8StepSnapshot& snapshot = snapshots.at(increment - 1);
-        reaction_problem.begin_time_step({snapshot.time, options.time_step, true});
+        reaction_problem.begin_time_step({snapshot.time, snapshot.load_factor, true});
         const std::vector<double> reaction = raw_residual(reaction_problem, snapshot.state);
         for (const NodeReference& reference : nodes) {
             if (reference.increment != increment) continue;
@@ -599,7 +600,6 @@ bool compare_abaqus_hex8_full_field(const TransientProblem& solved_problem, cons
                  reaction_pointwise_tolerance, options.reaction_zero_absolute_tolerance, true,
                  options.reaction_pointwise_absolute_tolerance) &&
              passed;
-
     std::array<FieldErrorMetrics, 37> integration_metrics;
     GroupedFieldErrorMetrics integration_position, heat_flux_vector, stress_tensor, logarithmic_strain_tensor,
         elastic_strain_tensor, plastic_strain_tensor, creep_strain_tensor;
@@ -850,7 +850,7 @@ bool compare_abaqus_hex8_full_field(const TransientProblem& solved_problem, cons
             }
             if (replayed_nodes != mesh.nodes().size() || !(snapshot.time > replay_previous_time))
                 throw std::invalid_argument(options.case_name + " Abaqus thermal-contact replay is incomplete");
-            contact_replay_problem.begin_time_step({snapshot.time, snapshot.time - replay_previous_time, true});
+            contact_replay_problem.begin_time_step({snapshot.time, snapshot.load_factor, true});
             contact_replay_problem.validate_state(abaqus_state);
             const std::vector<double> abaqus_state_thermal_contact = thermal_contact_residual(
                 contact_replay_spatial, abaqus_state, maximum_replayed_contact_heat_conservation_error);

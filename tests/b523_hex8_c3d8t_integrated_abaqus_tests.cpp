@@ -37,7 +37,7 @@ struct ScanParameters final {
 };
 
 struct StepSnapshot final {
-    double time = 0.0;
+    double time = 0.0, load_factor = 0.0;
     std::vector<double> state;
     std::vector<std::vector<fuelsim::CartesianMaterialPointState>> material;
     std::vector<fuelsim::CartesianContactNodeSummary> contact;
@@ -81,6 +81,7 @@ class SnapshotObserver final : public fuelsim::TransientStepObserver {
     void accepted_step(const fuelsim::TransientProblem& problem, const fuelsim::TransientAcceptedStep& step) override {
         StepSnapshot snapshot;
         snapshot.time = step.time;
+        snapshot.load_factor = step.load_factor;
         snapshot.state = problem.committed_solution();
         snapshot.conservation = step.conservation;
         for (std::size_t region = 0; region < fuelsim::cartesian::ProblemAccess::region_count(problem); ++region) {
@@ -1221,7 +1222,7 @@ int main(int argc, char** argv) {
             fuelsim::Field::displacement_y, fuelsim::Field::displacement_z};
         for (std::size_t increment = 1; increment <= increment_count; ++increment) {
             const StepSnapshot& snapshot = observer.snapshots().at(increment - 1);
-            reaction_problem.begin_time_step({snapshot.time, time_step, true});
+            reaction_problem.begin_time_step({snapshot.time, snapshot.load_factor, true});
             const std::vector<double> reaction = raw_residual(reaction_problem, snapshot.state);
             for (const NodeReference& reference : node_reference) {
                 if (reference.increment != increment) continue;
