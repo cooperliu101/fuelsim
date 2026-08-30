@@ -30,7 +30,8 @@ struct ScanParameters final {
     double penalty = 1.0e9, friction_coefficient = 0.05, slip_tolerance = 0.005, conductance = 50.0,
            pressure_conductance = 0.001, primary_poisson = 0.28, secondary_poisson = 0.3, bending_traction = 0.0;
     double initial_gap = 0.0;
-    bool traction_controlled = false, elastic_only = false, anchor_bending = false;
+    double normal_displacement_scale = 1.0, tangential_displacement_scale = 1.0;
+    bool traction_controlled = false, elastic_only = false, anchor_bending = false, reduced_integration = false;
     ScanPath path = ScanPath::monotonic;
 };
 
@@ -426,6 +427,9 @@ fuelsim::SpatialDefinition definition(const ScanParameters& parameters = {}) {
                           fuelsim::StrainFormulation::finite},
         {"secondary", "secondary", secondary_material(parameters.secondary_poisson, parameters.elastic_only), 0.0,
             300.0, -1, "", fuelsim::StrainFormulation::finite}};
+    if (parameters.reduced_integration)
+        for (fuelsim::RegionDefinition& region : result.regions)
+            region.hex8_element_formulation = fuelsim::Hex8ElementFormulation::c3d8rt;
     const std::vector<double> times = parameters.path == ScanPath::monotonic
                                           ? std::vector<double>{0.0, 0.4}
                                           : std::vector<double>{0.0, 0.1, 0.2, 0.3, 0.4};
@@ -449,10 +453,14 @@ fuelsim::SpatialDefinition definition(const ScanParameters& parameters = {}) {
         result.time_tables.emplace_back(
             "secondary_temperature", times, std::vector<double>{300.0, 400.0, 400.0, 400.0, 400.0});
         result.time_tables.emplace_back("pressure", times, std::vector<double>(times.size(), 0.0));
-        result.time_tables.emplace_back(
-            "normal_x", times, std::vector<double>{0.0, -1.0e-3, -1.0e-3, -1.0e-3, -1.0e-3});
-        result.time_tables.emplace_back(
-            "tangential_y", times, std::vector<double>{0.0, 2.0e-5, 1.2e-2, -4.0e-3, -3.98e-3});
+        result.time_tables.emplace_back("normal_x", times,
+            std::vector<double>{0.0, -1.0e-3 * parameters.normal_displacement_scale,
+                -1.0e-3 * parameters.normal_displacement_scale, -1.0e-3 * parameters.normal_displacement_scale,
+                -1.0e-3 * parameters.normal_displacement_scale});
+        result.time_tables.emplace_back("tangential_y", times,
+            std::vector<double>{0.0, 2.0e-5 * parameters.tangential_displacement_scale,
+                1.2e-2 * parameters.tangential_displacement_scale, -4.0e-3 * parameters.tangential_displacement_scale,
+                -3.98e-3 * parameters.tangential_displacement_scale});
         result.time_tables.emplace_back("tangential_z", times, std::vector<double>(times.size(), 0.0));
         result.time_tables.emplace_back("bending_traction", times, std::vector<double>(times.size(), 0.0));
     }
@@ -615,7 +623,7 @@ ScanResponse run_scan(std::size_t through_thickness_elements, std::size_t tangen
         mesh(through_thickness_elements, tangential_elements, distortion, parameters.initial_gap);
     fuelsim::TransientProblem problem(case_definition, case_mesh);
     fuelsim::test::AbaqusHex8SnapshotObserver observer;
-    const bool transition_case = case_name.rfind("b526_", 0) == 0;
+    const bool transition_case = case_name.rfind("b526_", 0) == 0 || case_name.rfind("b53", 0) == 0;
     const double end_time = transition_case ? (parameters.path == ScanPath::contact_cycle ? 0.3 : 0.4) : 0.2;
     const fuelsim::TransientResult solve =
         fuelsim::solve_transient(problem, {end_time, step, step, step, 1.0, 0.5, 0, 0.0}, solver_options(), &observer);
@@ -634,6 +642,7 @@ ScanResponse run_scan(std::size_t through_thickness_elements, std::size_t tangen
     comparison.reference_prefix = reference_directory + "/" + case_name;
     comparison.expected_steps = static_cast<std::size_t>(std::llround(end_time / step));
     comparison.time_step = step;
+    comparison.reduced_integration = parameters.reduced_integration;
     comparison.use_contact_summary_total_slip = true;
     if (case_name.rfind("b524_", 0) == 0) {
         comparison.reaction_heat_flux_pointwise_absolute_tolerance = 5.0e-2;
@@ -659,7 +668,7 @@ ScanResponse run_scan(std::size_t through_thickness_elements, std::size_t tangen
             comparison.contact_pointwise_relative_tolerance = 1.0e-2;
         }
     }
-    if (case_name.rfind("b526_", 0) == 0) {
+    if (case_name.rfind("b526_", 0) == 0 || case_name.rfind("b53", 0) == 0) {
         comparison.bulk_relative_tolerance = 1.0e-2;
         comparison.contact_relative_tolerance = 5.0e-3;
         comparison.contact_pointwise_relative_tolerance = 1.25e-2;
@@ -670,7 +679,8 @@ ScanResponse run_scan(std::size_t through_thickness_elements, std::size_t tangen
         comparison.contact_replayed_heat_rate_pointwise_absolute_tolerance = 1.0;
         comparison.contact_total_heat_rate_relative_tolerance = 4.0e-2;
         comparison.contact_slip_pointwise_absolute_tolerance = 5.0e-6;
-        if (case_name == "b526_contact_cycle") {
+        if (case_name == "b539_friction_reversal") comparison.gate_contact_slip = false;
+        if (case_name == "b526_contact_cycle" || case_name == "b538_contact_cycle") {
             comparison.displacement_pointwise_absolute_tolerance = 1.0e-12;
             comparison.logarithmic_strain_pointwise_absolute_tolerance = 1.0e-11;
             comparison.external_work_pointwise_absolute_tolerance = 1.0e-12;
@@ -763,7 +773,7 @@ ScanResponse run_scan(std::size_t through_thickness_elements, std::size_t tangen
 
 void print_scan(const std::string& name, const ScanResponse& response) {
     const std::string prefix =
-        name.rfind("b52", 0) == 0 ? name : (name.rfind("poisson_", 0) == 0 ? "b525_" + name : "b524_" + name);
+        name.rfind("b5", 0) == 0 ? name : (name.rfind("poisson_", 0) == 0 ? "b525_" + name : "b524_" + name);
     std::cout << prefix << "_completed=" << response.completed << '\n'
               << prefix << "_accepted_steps=" << response.accepted_steps << '\n'
               << prefix << "_rejected_steps=" << response.rejected_steps << '\n'
@@ -867,8 +877,18 @@ ScanResponse run_named_scan(const std::string& name, const std::string& referenc
     } else if (name == "b526_friction_reversal") {
         parameters.elastic_only = true;
         parameters.path = ScanPath::friction_reversal;
+    } else if (name == "b538_contact_cycle") {
+        parameters.elastic_only = true;
+        parameters.initial_gap = 1.0e-4;
+        parameters.path = ScanPath::contact_cycle;
+        parameters.reduced_integration = true;
+    } else if (name == "b539_friction_reversal") {
+        parameters.elastic_only = true;
+        parameters.path = ScanPath::friction_reversal;
+        parameters.reduced_integration = true;
+        parameters.normal_displacement_scale = 0.125;
     } else if (name != "b524_mesh_coarse" && name.rfind("b525_", 0) != 0)
-        throw std::invalid_argument("Unknown B5.24, B5.25, or B5.26 selected case: " + name);
+        throw std::invalid_argument("Unknown B5.24, B5.25, B5.26, B5.38, or B5.39 selected case: " + name);
     if (name.rfind("b525_", 0) == 0) {
         through_thickness_elements = name == "b525_poisson_0499_refined" ? 2 : 1;
         tangential_elements = 16;
@@ -1050,7 +1070,7 @@ int main(int argc, char** argv) {
     if (argc < 6 || argc > 8) {
         std::cerr << "Usage: fuelsim_b523_hex8_c3d8t_integrated_abaqus_tests "
                      "<nodal.csv> <integration.csv> <contact.csv> <energy.csv> <Abaqus reference directory> "
-                     "[selected B5.24, B5.25, or B5.26 case [response output] | "
+                     "[selected B5.24, B5.25, B5.26, B5.38, or B5.39 case [response output] | "
                      "--aggregate-responses <response directory>]\n";
         return 2;
     }

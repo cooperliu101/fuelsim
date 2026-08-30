@@ -24,6 +24,9 @@ BASE = {
     "initial_gap": 0.0,
     "path": "monotonic",
     "end_time": 0.2,
+    "element_type": "C3D8T",
+    "tangential_displacement_scale": 1.0,
+    "normal_displacement_scale": 1.0,
 }
 
 
@@ -245,10 +248,10 @@ def deck(name, parameters):
     ]
     for label, point in enumerate(nodes, 1):
         lines.append("%d, %.16e, %.16e, %.16e" % ((label,) + point))
-    lines.append("*Element, type=C3D8T, elset=PRIMARY")
+    lines.append("*Element, type=%s, elset=PRIMARY" % parameters["element_type"])
     for label, connectivity in zip(primary_labels, elements[0]):
         lines.append("%d, %s" % (label, ", ".join(str(value) for value in connectivity)))
-    lines.append("*Element, type=C3D8T, elset=SECONDARY")
+    lines.append("*Element, type=%s, elset=SECONDARY" % parameters["element_type"])
     for label, connectivity in zip(secondary_labels, elements[1]):
         lines.append("%d, %s" % (label, ", ".join(str(value) for value in connectivity)))
     append_set(lines, "Elset", "PRIMARY_CONTACT_ELEMENTS", primary_contact_elements)
@@ -312,8 +315,11 @@ def deck(name, parameters):
     elif parameters["path"] == "friction_reversal":
         temperature = [300.0, 400.0, 400.0, 400.0, 400.0]
         pressure = [0.0] * 5
-        normal = [0.0, -1.0e-3, -1.0e-3, -1.0e-3, -1.0e-3]
-        tangential_y = [0.0, 2.0e-5, 1.2e-2, -4.0e-3, -3.98e-3]
+        normal = [0.0] + [-1.0e-3 * parameters["normal_displacement_scale"]] * 4
+        tangential_y = [
+            value * parameters["tangential_displacement_scale"]
+            for value in [0.0, 2.0e-5, 1.2e-2, -4.0e-3, -3.98e-3]
+        ]
         tangential_z = [0.0] * 5
     else:
         temperature = [300.0, 350.0, 400.0, 450.0, 500.0]
@@ -388,7 +394,9 @@ def deck(name, parameters):
             "CDISP, CFORCE, CSTRESS, CTANDIR, CSTATUS, HFL",
             "*Output, history, frequency=1",
             "*Energy Output",
-            "ALLCD, ALLFD, ALLIE, ALLPD, ALLSE, ALLWK",
+            "ALLAE, ALLCD, ALLFD, ALLIE, ALLPD, ALLSE, ALLWK"
+            if parameters["element_type"] == "C3D8RT"
+            else "ALLCD, ALLFD, ALLIE, ALLPD, ALLSE, ALLWK",
             "*End Step",
         ]
     )

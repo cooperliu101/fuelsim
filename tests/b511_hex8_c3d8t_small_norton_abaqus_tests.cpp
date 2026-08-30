@@ -20,9 +20,13 @@ constexpr double preload_time = 1.0e-9;
 constexpr double time_step = 0.1;
 constexpr double applied_stress = 3.0e8;
 
-const char* case_id(bool finite_strain) { return finite_strain ? "B5.16" : "B5.11"; }
+const char* case_id(bool finite_strain, bool reduced_integration) {
+    return reduced_integration ? "B5.36" : (finite_strain ? "B5.16" : "B5.11");
+}
 
-const char* metric_prefix(bool finite_strain) { return finite_strain ? "b516_" : "b511_"; }
+const char* metric_prefix(bool finite_strain, bool reduced_integration) {
+    return reduced_integration ? "b536_" : (finite_strain ? "b516_" : "b511_");
+}
 
 struct NodeReference final {
     std::size_t stage, node;
@@ -47,7 +51,7 @@ struct EnergyReference final {
 struct StepSnapshot final {
     double time;
     std::vector<double> state;
-    std::array<fuelsim::CartesianMaterialPointState, 8> material;
+    std::vector<fuelsim::CartesianMaterialPointState> material;
     fuelsim::TransientConservationSummary conservation;
 };
 
@@ -57,9 +61,9 @@ class SnapshotObserver final : public fuelsim::TransientStepObserver {
         StepSnapshot snapshot{step.time, problem.committed_solution(), {}, step.conservation};
         const fuelsim::CartesianMaterialHistory& history =
             fuelsim::cartesian::ProblemAccess::material_history(problem, 0, 0);
-        if (history.size() != snapshot.material.size())
-            throw std::invalid_argument("B5.11 material history does not contain eight points");
-        std::copy(history.begin(), history.end(), snapshot.material.begin());
+        if (history.size() != 1 && history.size() != 8)
+            throw std::invalid_argument("Abaqus Norton material history does not contain one or eight points");
+        snapshot.material.assign(history.begin(), history.end());
         _snapshots.push_back(std::move(snapshot));
     }
 
@@ -141,7 +145,8 @@ std::vector<NodeReference> read_nodes(const std::string& path) {
     return result;
 }
 
-std::vector<IntegrationReference> read_integration(const std::string& path, bool finite_strain) {
+std::vector<IntegrationReference> read_integration(
+    const std::string& path, bool finite_strain, bool reduced_integration) {
     std::ifstream input(path);
     if (!input) throw std::runtime_error("Could not read Abaqus B5.11 integration points: " + path);
     std::string line;
@@ -177,8 +182,8 @@ std::vector<IntegrationReference> read_integration(const std::string& path, bool
             stress, tensor(values, 14, path, 1.0e-15), tensor(values, 20, path, 1.0e-15),
             tensor(values, 26, path, 1.0e-15), number(values, 32, path), number(values, 33, path)});
     }
-    if (result.size() != 80)
-        throw std::invalid_argument("Abaqus B5.11 integration-point reference must contain 80 rows");
+    if (result.size() != (reduced_integration ? 10 : 80))
+        throw std::invalid_argument("Abaqus Norton integration-point reference has an unexpected row count");
     const double relative_residual = maximum_raw_transverse_stress / maximum_active_stress;
     std::cout << "abaqus_raw_transverse_stress_maximum_absolute=" << maximum_raw_transverse_stress << '\n'
               << "abaqus_raw_transverse_stress_relative_active_scale=" << relative_residual << '\n';
@@ -218,10 +223,11 @@ fuelsim::ThermoelasticProperties material() {
         600.0);
 }
 
-fuelsim::SpatialDefinition definition(bool finite_strain) {
+fuelsim::SpatialDefinition definition(bool finite_strain, bool reduced_integration) {
     fuelsim::SpatialDefinition result;
     result.regions.push_back({"solid", "solid", material(), 0.0, 600.0, -1, "",
         finite_strain ? fuelsim::StrainFormulation::finite : fuelsim::StrainFormulation::small});
+    if (reduced_integration) result.regions.back().hex8_element_formulation = fuelsim::Hex8ElementFormulation::c3d8rt;
     result.boundary_conditions = {
         {"temperature", fuelsim::BoundaryConditionType::dirichlet, "left", fuelsim::Field::temperature, 600.0},
         {"fix_x", fuelsim::BoundaryConditionType::dirichlet, "left", fuelsim::Field::displacement_x, 0.0},
@@ -323,42 +329,44 @@ fuelsim::SymmetricTensor3Values logarithmic_strain(
 int main(int argc, char** argv) {
     if (argc != 5) {
         std::cerr << "Usage: fuelsim_b511_hex8_c3d8t_small_norton_abaqus_tests "
-                     "<small|finite> <nodes.csv> <integration.csv> <energy.csv>\n";
+                     "<small|finite|finite_reduced> <nodes.csv> <integration.csv> <energy.csv>\n";
         return 2;
     }
     try {
         std::cout << std::scientific << std::setprecision(12);
         fuelsim::PetscSession session(argc, argv, "fuelsim Abaqus Norton comparison\n");
         const std::string branch = argv[1];
-        if (branch != "small" && branch != "finite")
-            throw std::invalid_argument("Abaqus Norton comparison branch must be small or finite");
-        const bool finite_strain = branch == "finite";
+        const bool reduced_integration = branch == "finite_reduced";
+        const bool finite_strain = branch == "finite" || reduced_integration;
+        if (branch != "small" && branch != "finite" && branch != "finite_reduced")
+            throw std::invalid_argument("Abaqus Norton branch is not recognized");
         const std::vector<NodeReference> node_reference = read_nodes(argv[2]);
-        const std::vector<IntegrationReference> integration_reference = read_integration(argv[3], finite_strain);
+        const std::vector<IntegrationReference> integration_reference =
+            read_integration(argv[3], finite_strain, reduced_integration);
         const std::vector<EnergyReference> energy_reference = read_energy(argv[4]);
         const fuelsim::UnstructuredHex8Mesh input_mesh = mesh();
-        fuelsim::TransientProblem problem(definition(finite_strain), input_mesh);
+        fuelsim::TransientProblem problem(definition(finite_strain, reduced_integration), input_mesh);
         const fuelsim::TransientResult preload = fuelsim::solve_transient(problem, preload_options(), solver_options());
         SnapshotObserver observer;
         const fuelsim::TransientResult solve =
             fuelsim::solve_transient(problem, hold_options(), solver_options(), &observer);
-        bool passed =
-            check(preload.completed && preload.accepted_steps.size() == 1 && preload.rejected_steps.empty(),
-                std::string(case_id(finite_strain)) + " establishes the constant-force preload without cutback") &&
-            check(solve.completed && observer.snapshots().size() == 10 && solve.accepted_steps.size() == 10 &&
-                      solve.rejected_steps.empty(),
-                std::string(case_id(finite_strain)) +
-                    " accepts the ten constant-force creep increments without cutback");
+        bool passed = check(preload.completed && preload.accepted_steps.size() == 1 && preload.rejected_steps.empty(),
+                          std::string(case_id(finite_strain, reduced_integration)) +
+                              " establishes the constant-force preload without cutback") &&
+                      check(solve.completed && observer.snapshots().size() == 10 && solve.accepted_steps.size() == 10 &&
+                                solve.rejected_steps.empty(),
+                          std::string(case_id(finite_strain, reduced_integration)) +
+                              " accepts the ten constant-force creep increments without cutback");
         std::map<std::size_t, const StepSnapshot*> snapshots;
         for (const StepSnapshot& snapshot : observer.snapshots())
             snapshots.emplace(stage_from_time(snapshot.time), &snapshot);
 
         std::array<fuelsim::test::FieldErrorMetrics, 8> nodal_metrics;
-        fuelsim::TransientProblem reaction_problem(definition(finite_strain), input_mesh);
+        fuelsim::TransientProblem reaction_problem(definition(finite_strain, reduced_integration), input_mesh);
         const fuelsim::TransientResult reaction_preload =
             fuelsim::solve_transient(reaction_problem, preload_options(), solver_options());
-        passed = check(reaction_preload.completed,
-                     std::string(case_id(finite_strain)) + " reaction replay establishes the same preload") &&
+        passed = check(reaction_preload.completed, std::string(case_id(finite_strain, reduced_integration)) +
+                                                       " reaction replay establishes the same preload") &&
                  passed;
         const auto& dofs = fuelsim::cartesian::ProblemAccess::dof_map(reaction_problem);
         const std::array<fuelsim::Field, 4> fields = {fuelsim::Field::temperature, fuelsim::Field::displacement_x,
@@ -381,8 +389,8 @@ int main(int argc, char** argv) {
             }
             reaction_problem.commit_time_step(snapshot.state);
             passed = check(snapshot.conservation.creep_dissipation_increment >= -1.0e-8,
-                         std::string(case_id(finite_strain)) + " creep dissipation is nonnegative at stage " +
-                             std::to_string(stage)) &&
+                         std::string(case_id(finite_strain, reduced_integration)) +
+                             " creep dissipation is nonnegative at stage " + std::to_string(stage)) &&
                      passed;
         }
         const std::array<std::string, 8> nodal_names = {"temperature", "displacement_x", "displacement_y",
@@ -390,9 +398,9 @@ int main(int argc, char** argv) {
         const std::array<double, 8> nodal_zero_tolerances = {
             1.0e-12, 1.0e-14, 1.0e-14, 1.0e-14, 1.0e-10, 1.0e-2, 1.0e-2, 1.0e-2};
         for (std::size_t field = 0; field < nodal_metrics.size(); ++field) {
-            print_metrics(metric_prefix(finite_strain) + nodal_names[field], nodal_metrics[field]);
+            print_metrics(metric_prefix(finite_strain, reduced_integration) + nodal_names[field], nodal_metrics[field]);
             passed = check(metrics_pass(nodal_metrics[field], 1.0e-3, nodal_zero_tolerances[field]),
-                         std::string(case_id(finite_strain)) + " " + nodal_names[field] +
+                         std::string(case_id(finite_strain, reduced_integration)) + " " + nodal_names[field] +
                              " metrics are below the acceptance limits") &&
                      passed;
         }
@@ -405,15 +413,18 @@ int main(int argc, char** argv) {
             const StepSnapshot& snapshot = *snapshots.at(reference.stage);
             std::size_t closest = 0;
             double closest_squared = std::numeric_limits<double>::max();
-            for (std::size_t q = 0; q < 8; ++q) {
-                fuelsim::CartesianPoint3 point = geometry.points[q].position;
+            const std::size_t point_count = reduced_integration ? 1 : 8;
+            for (std::size_t q = 0; q < point_count; ++q) {
+                const fuelsim::Hex8QuadraturePoint& quadrature_point =
+                    reduced_integration ? geometry.reduced_point : geometry.points[q];
+                fuelsim::CartesianPoint3 point = quadrature_point.position;
                 if (finite_strain)
                     for (std::size_t node = 0; node < 8; ++node) {
-                        point.x += geometry.points[q].shape[node] *
+                        point.x += quadrature_point.shape[node] *
                                    snapshot.state[dofs.dof(fuelsim::Field::displacement_x, node)];
-                        point.y += geometry.points[q].shape[node] *
+                        point.y += quadrature_point.shape[node] *
                                    snapshot.state[dofs.dof(fuelsim::Field::displacement_y, node)];
-                        point.z += geometry.points[q].shape[node] *
+                        point.z += quadrature_point.shape[node] *
                                    snapshot.state[dofs.dof(fuelsim::Field::displacement_z, node)];
                     }
                 const double distance_squared = std::pow(point.x - reference.position.x, 2) +
@@ -435,11 +446,13 @@ int main(int argc, char** argv) {
             }
             for (std::size_t local = 0; local < passive.size(); ++local) passive_values[local] = passive[local].value();
             const fuelsim::CartesianMaterialPointState& actual = snapshot.material[closest];
+            const fuelsim::Hex8QuadraturePoint& material_point =
+                reduced_integration ? geometry.reduced_point : geometry.points[closest];
             const std::array<double, 6> actual_stress = components(actual.stress);
             const std::array<double, 6> expected_stress = components(reference.stress);
             std::array<double, 6> actual_total{};
             if (finite_strain)
-                actual_total = components(logarithmic_strain(geometry.points[closest], passive_values));
+                actual_total = components(logarithmic_strain(material_point, passive_values));
             else {
                 double volume = 0.0, average_trace = 0.0;
                 for (const fuelsim::Hex8QuadraturePoint& point : geometry.points) {
@@ -473,11 +486,11 @@ int main(int argc, char** argv) {
             }
             integration_metrics[24].add(actual.equivalent_creep_strain, reference.equivalent_creep_strain);
             integration_metrics[25].add(passive[0].value(), reference.temperature);
-            const double actual_measure =
-                finite_strain ? fuelsim::evaluate_cartesian_incremental_kinematics(geometry.points[closest], passive,
-                                    passive_values, fuelsim::StrainFormulation::finite)
-                                    .current_weighted_measure.value()
-                              : geometry.points[closest].weighted_measure;
+            const double actual_measure = finite_strain
+                                              ? fuelsim::evaluate_cartesian_incremental_kinematics(material_point,
+                                                    passive, passive_values, fuelsim::StrainFormulation::finite)
+                                                    .current_weighted_measure.value()
+                                              : material_point.weighted_measure;
             integration_metrics[26].add(actual_measure, reference.integration_volume);
         }
         const std::array<std::string, 27> integration_names = {"stress_xx", "stress_yy", "stress_zz", "stress_xy",
@@ -487,17 +500,19 @@ int main(int argc, char** argv) {
             "creep_strain_yz", "creep_strain_xz", "equivalent_creep_strain", "material_temperature",
             "integration_volume"};
         for (std::size_t field = 0; field < integration_metrics.size(); ++field) {
-            print_metrics(metric_prefix(finite_strain) + integration_names[field], integration_metrics[field]);
+            print_metrics(metric_prefix(finite_strain, reduced_integration) + integration_names[field],
+                integration_metrics[field]);
             const double zero_tolerance = field < 6 ? 1.0e-2 : (field == 26 ? 1.0e-14 : 1.0e-14);
             passed = check(metrics_pass(integration_metrics[field], 1.0e-3, zero_tolerance),
-                         std::string(case_id(finite_strain)) + " " + integration_names[field] +
+                         std::string(case_id(finite_strain, reduced_integration)) + " " + integration_names[field] +
                              " metrics are below 0.1 percent") &&
                      passed;
         }
         passed = check(maximum_coordinate_error < (finite_strain ? 1.0e-10 : 1.0e-12),
-                     std::string(case_id(finite_strain)) + " maps every integration point at all ten accepted times") &&
+                     std::string(case_id(finite_strain, reduced_integration)) +
+                         " maps every integration point at all ten accepted times") &&
                  passed;
-        std::cout << metric_prefix(finite_strain)
+        std::cout << metric_prefix(finite_strain, reduced_integration)
                   << "maximum_integration_coordinate_absolute_difference=" << maximum_coordinate_error << '\n';
 
         std::array<fuelsim::test::FieldErrorMetrics, 3> energy_metrics;
@@ -513,20 +528,22 @@ int main(int argc, char** argv) {
         }
         const std::array<std::string, 3> energy_names = {"internal_energy", "creep_dissipation", "external_work"};
         for (std::size_t field = 0; field < energy_metrics.size(); ++field) {
-            print_metrics(metric_prefix(finite_strain) + energy_names[field], energy_metrics[field]);
-            passed = check(metrics_pass(energy_metrics[field], 1.0e-3, 1.0e-8), std::string(case_id(finite_strain)) +
-                                                                                    " " + energy_names[field] +
-                                                                                    " metrics are below 0.1 percent") &&
+            print_metrics(
+                metric_prefix(finite_strain, reduced_integration) + energy_names[field], energy_metrics[field]);
+            passed = check(metrics_pass(energy_metrics[field], 1.0e-3, 1.0e-8),
+                         std::string(case_id(finite_strain, reduced_integration)) + " " + energy_names[field] +
+                             " metrics are below 0.1 percent") &&
                      passed;
         }
         passed = check(snapshots.at(1)->material[0].equivalent_creep_strain > 0.0 &&
                            snapshots.at(10)->material[0].equivalent_creep_strain >
                                9.9 * snapshots.at(1)->material[0].equivalent_creep_strain,
-                     std::string(case_id(finite_strain)) +
+                     std::string(case_id(finite_strain, reduced_integration)) +
                          " accumulates positive Norton creep throughout the ten constant-force holds") &&
                  passed;
         if (passed && session.rank() == 0)
-            std::cout << "[PASS] " << case_id(finite_strain) << " Abaqus C3D8T constant-force Norton comparison\n";
+            std::cout << "[PASS] " << case_id(finite_strain, reduced_integration) << " Abaqus "
+                      << (reduced_integration ? "C3D8RT" : "C3D8T") << " constant-force Norton comparison\n";
         return passed ? 0 : 1;
     } catch (const std::exception& error) {
         std::cerr << "[FAIL] B5.11 Abaqus comparison raised: " << error.what() << '\n';

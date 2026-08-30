@@ -45,7 +45,7 @@ struct ContactReference final {
 struct EnergyReference final {
     std::size_t increment = 0;
     double time = 0.0, internal = 0.0, elastic = 0.0, plastic = 0.0, creep = 0.0, friction = 0.0, external_work = 0.0,
-           boundary_heat_rate = 0.0;
+           boundary_heat_rate = 0.0, artificial = 0.0;
 };
 
 std::vector<std::string> split_csv(const std::string& line) {
@@ -193,16 +193,21 @@ std::vector<EnergyReference> read_energy(const std::string& path) {
     if (!input) throw std::runtime_error("Could not read Abaqus HEX8 energy reference: " + path);
     std::string line;
     std::getline(input, line);
-    if (line != "increment,time_s,allie_j,allse_j,allpd_j,allcd_j,allfd_j,allwk_j,boundary_heat_rate_w")
+    const std::string legacy_header =
+        "increment,time_s,allie_j,allse_j,allpd_j,allcd_j,allfd_j,allwk_j,boundary_heat_rate_w";
+    const bool has_artificial_energy = line == legacy_header + ",allae_j";
+    if (line != legacy_header && !has_artificial_energy)
         throw std::invalid_argument("Unexpected Abaqus HEX8 energy header in " + path);
     std::vector<EnergyReference> result;
     while (std::getline(input, line)) {
         if (line.empty()) continue;
         const std::vector<std::string> values = split_csv(line);
-        if (values.size() != 9) throw std::invalid_argument("Unexpected Abaqus HEX8 energy columns in " + path);
+        if (values.size() != (has_artificial_energy ? 10 : 9))
+            throw std::invalid_argument("Unexpected Abaqus HEX8 energy columns in " + path);
         result.push_back({positive_integer(number(values, 0, path), path), number(values, 1, path),
             number(values, 2, path), number(values, 3, path), number(values, 4, path), number(values, 5, path),
-            number(values, 6, path), number(values, 7, path), number(values, 8, path)});
+            number(values, 6, path), number(values, 7, path), number(values, 8, path),
+            has_artificial_energy ? number(values, 9, path) : 0.0});
     }
     return result;
 }
@@ -499,20 +504,21 @@ bool compare_abaqus_hex8_full_field(const TransientProblem& solved_problem, cons
         read_integration(options.reference_prefix + "_integration.csv");
     const std::vector<ContactReference> contact = read_contact(options.reference_prefix + "_contact.csv");
     const std::vector<EnergyReference> energy = read_energy(options.reference_prefix + "_energy.csv");
+    const std::size_t integration_points_per_element = options.reduced_integration ? 1 : 8;
     const cartesian::SpatialAssembly& spatial = cartesian::ProblemAccess::view(solved_problem);
     const std::vector<std::size_t> contact_sources =
         cartesian::ProblemAccess::contact_secondary_source_nodes(solved_problem, 0);
     if (snapshots.size() != options.expected_steps || nodes.size() != options.expected_steps * mesh.nodes().size() ||
-        integration.size() != options.expected_steps * mesh.elements().size() * 8 ||
+        integration.size() != options.expected_steps * mesh.elements().size() * integration_points_per_element ||
         contact.size() != options.expected_steps * contact_sources.size() || energy.size() != options.expected_steps) {
         std::ostringstream message;
         message << options.case_name
                 << " Abaqus full-field row counts do not match the Fuelsim case: steps=" << snapshots.size() << '/'
                 << options.expected_steps << ", nodal_rows=" << nodes.size() << '/'
                 << options.expected_steps * mesh.nodes().size() << ", integration_rows=" << integration.size() << '/'
-                << options.expected_steps * mesh.elements().size() * 8 << ", contact_rows=" << contact.size() << '/'
-                << options.expected_steps * contact_sources.size() << ", energy_rows=" << energy.size() << '/'
-                << options.expected_steps;
+                << options.expected_steps * mesh.elements().size() * integration_points_per_element
+                << ", contact_rows=" << contact.size() << '/' << options.expected_steps * contact_sources.size()
+                << ", energy_rows=" << energy.size() << '/' << options.expected_steps;
         throw std::invalid_argument(message.str());
     }
 
@@ -595,7 +601,8 @@ bool compare_abaqus_hex8_full_field(const TransientProblem& solved_problem, cons
     double maximum_integration_coordinate_difference = 0.0;
     std::set<std::tuple<std::size_t, std::size_t, std::size_t>> mapped_integration_points;
     for (const IntegrationReference& reference : integration) {
-        if (reference.increment > snapshots.size() || reference.element > mesh.elements().size() || reference.point > 8)
+        if (reference.increment > snapshots.size() || reference.element > mesh.elements().size() ||
+            reference.point > integration_points_per_element)
             throw std::invalid_argument(options.case_name + " Abaqus integration index is invalid");
         const AbaqusHex8StepSnapshot& snapshot = snapshots.at(reference.increment - 1);
         if (std::abs(reference.time - snapshot.time) > 1.0e-7)
@@ -617,12 +624,14 @@ bool compare_abaqus_hex8_full_field(const TransientProblem& solved_problem, cons
         std::size_t closest = 0;
         double closest_squared = std::numeric_limits<double>::max();
         std::array<double, 3> closest_position{};
-        for (std::size_t q = 0; q < 8; ++q) {
-            CartesianPoint3 current = geometry.points[q].position;
+        for (std::size_t q = 0; q < integration_points_per_element; ++q) {
+            const Hex8QuadraturePoint& candidate =
+                options.reduced_integration ? geometry.reduced_point : geometry.points[q];
+            CartesianPoint3 current = candidate.position;
             for (std::size_t local = 0; local < 8; ++local) {
-                current.x += geometry.points[q].shape[local] * local_state[8 + local];
-                current.y += geometry.points[q].shape[local] * local_state[16 + local];
-                current.z += geometry.points[q].shape[local] * local_state[24 + local];
+                current.x += candidate.shape[local] * local_state[8 + local];
+                current.y += candidate.shape[local] * local_state[16 + local];
+                current.z += candidate.shape[local] * local_state[24 + local];
             }
             const double distance_squared = std::pow(current.x - reference.position.x, 2) +
                                             std::pow(current.y - reference.position.y, 2) +
@@ -637,7 +646,8 @@ bool compare_abaqus_hex8_full_field(const TransientProblem& solved_problem, cons
             std::max(maximum_integration_coordinate_difference, std::sqrt(closest_squared));
         if (!mapped_integration_points.emplace(reference.increment, source_element, closest).second)
             throw std::invalid_argument(options.case_name + " maps two Abaqus rows to one Fuelsim integration point");
-        const Hex8QuadraturePoint& point = geometry.points[closest];
+        const Hex8QuadraturePoint& point =
+            options.reduced_integration ? geometry.reduced_point : geometry.points[closest];
         Hex8LocalAdValues passive{};
         for (std::size_t local = 0; local < local_state.size(); ++local) passive[local] = local_state[local];
         const StrainFormulation formulation = definition.regions.at(region).strain_formulation;
@@ -651,7 +661,28 @@ bool compare_abaqus_hex8_full_field(const TransientProblem& solved_problem, cons
                     evaluate_cartesian_incremental_kinematics(volume_point, passive, Hex8LocalValues{}, formulation)
                         .current_weighted_measure.value();
         }
-        const double material_temperature = local_state[gauss_to_material_node[closest]];
+        double material_temperature = local_state[gauss_to_material_node[closest]];
+        std::array<std::array<double, 3>, 8> thermal_gradient{};
+        if (options.reduced_integration) {
+            material_temperature = 0.0;
+            for (const Hex8QuadraturePoint& volume_point : geometry.points) {
+                const CartesianKinematics volume_kinematics =
+                    evaluate_cartesian_incremental_kinematics(volume_point, passive, Hex8LocalValues{}, formulation);
+                const double measure = formulation == StrainFormulation::finite
+                                           ? volume_kinematics.current_weighted_measure.value()
+                                           : volume_point.weighted_measure;
+                for (std::size_t local = 0; local < 8; ++local) {
+                    material_temperature += measure * volume_point.shape[local] * local_state[local] / current_volume;
+                    for (std::size_t component = 0; component < 3; ++component)
+                        thermal_gradient[local][component] +=
+                            measure * volume_kinematics.current_gradient[local][component].value() / current_volume;
+                }
+            }
+        } else {
+            for (std::size_t local = 0; local < 8; ++local)
+                for (std::size_t component = 0; component < 3; ++component)
+                    thermal_gradient[local][component] = kinematics.current_gradient[local][component].value();
+        }
         const double conductivity = materials.at(region)
                                         .conductivity(adlite::Scalar(material_temperature),
                                             {snapshot.time, point.position.x, point.position.y, point.position.z})
@@ -659,14 +690,13 @@ bool compare_abaqus_hex8_full_field(const TransientProblem& solved_problem, cons
         std::array<double, 3> actual_heat_flux{};
         for (std::size_t local = 0; local < 8; ++local)
             for (std::size_t component = 0; component < 3; ++component)
-                actual_heat_flux[component] -=
-                    conductivity * kinematics.current_gradient[local][component].value() * local_state[local];
+                actual_heat_flux[component] -= conductivity * thermal_gradient[local][component] * local_state[local];
         const CartesianMaterialPointState& material =
             snapshot.material_by_source_element.at(source_element).at(closest);
         const std::array<double, 6> actual_stress = components(material.stress),
                                     expected_stress = components(reference.stress);
         std::array<double, 6> actual_logarithmic = components(logarithmic_strain(point, local_state));
-        if (formulation == StrainFormulation::finite) {
+        if (formulation == StrainFormulation::finite && !options.reduced_integration) {
             const double local_trace = actual_logarithmic[0] + actual_logarithmic[1] + actual_logarithmic[2];
             const double selective_trace = std::log(current_volume / geometry.reference_volume);
             for (std::size_t component = 0; component < 3; ++component)
@@ -697,9 +727,11 @@ bool compare_abaqus_hex8_full_field(const TransientProblem& solved_problem, cons
         integration_metrics[27].add(material.equivalent_plastic_strain, reference.equivalent_plastic_strain);
         integration_metrics[34].add(material.equivalent_creep_strain, reference.equivalent_creep_strain);
         integration_metrics[35].add(material_temperature, reference.temperature);
-        const double volume = formulation == StrainFormulation::finite
-                                  ? point.weighted_measure / geometry.reference_volume * current_volume
-                                  : point.weighted_measure;
+        const double volume = options.reduced_integration
+                                  ? current_volume
+                                  : (formulation == StrainFormulation::finite
+                                            ? point.weighted_measure / geometry.reference_volume * current_volume
+                                            : point.weighted_measure);
         integration_metrics[36].add(volume, reference.integration_volume);
     }
     const std::array<std::string, 37> integration_names = {"heat_flux_x", "heat_flux_y", "heat_flux_z", "stress_xx",
@@ -771,6 +803,7 @@ bool compare_abaqus_hex8_full_field(const TransientProblem& solved_problem, cons
     std::array<std::size_t, 9> contact_state_pairs{};
     bool first_contact_state_mismatch_reported = false;
     std::array<FieldErrorMetrics, 7> energy_metrics;
+    double maximum_abaqus_artificial_energy = 0.0, maximum_abaqus_artificial_energy_fraction = 0.0;
     double cumulative_elastic = 0.0, cumulative_plastic = 0.0, cumulative_creep = 0.0, cumulative_friction = 0.0,
            cumulative_external_work = 0.0;
     TransientProblem contact_replay_problem(definition, mesh);
@@ -980,7 +1013,12 @@ bool compare_abaqus_hex8_full_field(const TransientProblem& solved_problem, cons
         cumulative_friction += snapshot.conservation.friction_dissipation_increment;
         cumulative_external_work += snapshot.conservation.trapezoidal_pressure_traction_work_increment +
                                     snapshot.conservation.trapezoidal_dirichlet_reaction_work_increment;
-        energy_metrics[0].add(cumulative_elastic + cumulative_plastic + cumulative_creep, expected.internal);
+        maximum_abaqus_artificial_energy = std::max(maximum_abaqus_artificial_energy, std::abs(expected.artificial));
+        if (expected.internal != 0.0)
+            maximum_abaqus_artificial_energy_fraction =
+                std::max(maximum_abaqus_artificial_energy_fraction, std::abs(expected.artificial / expected.internal));
+        energy_metrics[0].add(
+            cumulative_elastic + cumulative_plastic + cumulative_creep, expected.internal - expected.artificial);
         energy_metrics[1].add(cumulative_elastic, expected.elastic);
         energy_metrics[2].add(cumulative_plastic, expected.plastic);
         energy_metrics[3].add(cumulative_creep, expected.creep);
@@ -1072,6 +1110,10 @@ bool compare_abaqus_hex8_full_field(const TransientProblem& solved_problem, cons
                      field == 5 ? options.external_work_pointwise_absolute_tolerance : 0.0) &&
                  passed;
     }
+    std::cout << prefix << "abaqus_artificial_energy_maximum_absolute=" << maximum_abaqus_artificial_energy << '\n'
+              << prefix
+              << "abaqus_artificial_energy_maximum_internal_fraction=" << maximum_abaqus_artificial_energy_fraction
+              << '\n';
     std::cout << prefix << "compared_nodal_rows=" << nodes.size() << '\n'
               << prefix << "compared_integration_rows=" << integration.size() << '\n'
               << prefix << "compared_contact_rows=" << contact.size() << '\n'

@@ -62,6 +62,7 @@ struct AbaqusHex8FullFieldOptions final {
     double coordinate_tolerance = 1.0e-7;
     double minimum_contact_state_match_fraction = 1.0;
     double tangent_basis_tolerance = 1.0e-9;
+    bool reduced_integration = false;
     bool use_contact_summary_total_slip = false;
     bool gate_contact_slip = true;
     bool gate_contact_pressure = true;

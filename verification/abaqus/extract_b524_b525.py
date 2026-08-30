@@ -5,10 +5,10 @@ import sys
 from odbAccess import openOdb
 
 
-if len(sys.argv) != 7:
+if len(sys.argv) not in (7, 8):
     raise RuntimeError(
         "usage: extract_b524_b525.py <job.odb> <nodal.csv> <integration.csv> "
-        "<contact.csv> <energy.csv> <expected_frames>"
+        "<contact.csv> <energy.csv> <expected_frames> [reduced]"
     )
 
 
@@ -117,7 +117,12 @@ try:
         "contact_heat_flux_w,shear_traction1_pa,shear_traction2_pa,"
         "tangent1_x,tangent1_y,tangent1_z,tangent2_x,tangent2_y,tangent2_z,state\n"
     )
-    energy.write("increment,time_s,allie_j,allse_j,allpd_j,allcd_j,allfd_j,allwk_j,boundary_heat_rate_w\n")
+    include_artificial_energy = len(sys.argv) == 8 and sys.argv[7] == "reduced"
+    energy.write(
+        "increment,time_s,allie_j,allse_j,allpd_j,allcd_j,allfd_j,allwk_j,boundary_heat_rate_w"
+        + (",allae_j" if include_artificial_energy else "")
+        + "\n"
+    )
 
     step = odb.steps["PATH"]
     increment = 0
@@ -147,8 +152,8 @@ try:
         for name in ("CE", "CEEQ", "PE", "PEEQ"):
             fields[name] = integration_values(optional_field(frame, name))
         for element in element_labels:
-            for point in range(1, 9):
-                key = (element, point)
+            for key in sorted(key for key in fields["S"] if key[0] == element):
+                point = key[1]
                 pe = fields["PE"].get(key, zero6)
                 ce = fields["CE"].get(key, zero6)
                 integration.write(
@@ -208,9 +213,7 @@ try:
                 )
             )
 
-        energy.write(
-            "%d,%.16g,%.16g,%.16g,%.16g,%.16g,%.16g,%.16g,%.16g\n"
-            % (
+        energy_values = (
                 increment,
                 time,
                 history_at(step, "ALLIE", frame_index),
@@ -221,6 +224,10 @@ try:
                 history_at(step, "ALLWK", frame_index),
                 sum(reaction_flux.values()),
             )
+        if include_artificial_energy:
+            energy_values += (history_at(step, "ALLAE", frame_index),)
+        energy.write(
+            ("%d," + ",".join(["%.16g"] * (len(energy_values) - 1)) + "\n") % energy_values
         )
     if increment != expected_frames:
         raise RuntimeError("expected %d fixed increments, got %d" % (expected_frames, increment))

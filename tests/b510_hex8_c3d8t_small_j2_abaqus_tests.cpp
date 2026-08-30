@@ -27,7 +27,16 @@ constexpr std::array<double, 20> noncoaxial_axial_path = {0.0012, 0.00165, 0.002
 constexpr std::array<double, 20> noncoaxial_shear_path = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0008, 0.0016, 0.0024, 0.0032,
     0.004, 0.004, 0.004, 0.004, 0.004, 0.004, 0.0024, 0.0008, -0.0008, -0.0024, -0.004};
 
-enum class Branch { plastic, coupled, noncoaxial, finite_plastic, finite_coupled, finite_noncoaxial };
+enum class Branch {
+    plastic,
+    coupled,
+    noncoaxial,
+    finite_plastic,
+    finite_coupled,
+    finite_noncoaxial,
+    finite_reduced_plastic,
+    finite_reduced_coupled
+};
 
 struct NodeReference final {
     std::size_t stage, node;
@@ -57,6 +66,8 @@ const char* case_id(Branch branch) {
     case Branch::finite_plastic: return "B5.15";
     case Branch::finite_coupled: return "B5.17";
     case Branch::finite_noncoaxial: return "B5.18";
+    case Branch::finite_reduced_plastic: return "B5.35";
+    case Branch::finite_reduced_coupled: return "B5.37";
     }
     throw std::logic_error("Unknown Abaqus inelastic branch");
 }
@@ -69,19 +80,31 @@ const char* metric_prefix(Branch branch) {
     case Branch::finite_plastic: return "b515_";
     case Branch::finite_coupled: return "b517_";
     case Branch::finite_noncoaxial: return "b518_";
+    case Branch::finite_reduced_plastic: return "b535_";
+    case Branch::finite_reduced_coupled: return "b537_";
     }
     throw std::logic_error("Unknown Abaqus inelastic branch");
 }
 
 bool finite_strain(Branch branch) {
-    return branch == Branch::finite_plastic || branch == Branch::finite_coupled || branch == Branch::finite_noncoaxial;
+    return branch == Branch::finite_plastic || branch == Branch::finite_coupled ||
+           branch == Branch::finite_noncoaxial || branch == Branch::finite_reduced_plastic ||
+           branch == Branch::finite_reduced_coupled;
 }
 
-bool plastic_only(Branch branch) { return branch == Branch::plastic || branch == Branch::finite_plastic; }
+bool reduced_integration(Branch branch) {
+    return branch == Branch::finite_reduced_plastic || branch == Branch::finite_reduced_coupled;
+}
+
+bool plastic_only(Branch branch) {
+    return branch == Branch::plastic || branch == Branch::finite_plastic || branch == Branch::finite_reduced_plastic;
+}
 
 bool noncoaxial(Branch branch) { return branch == Branch::noncoaxial || branch == Branch::finite_noncoaxial; }
 
-bool monotonic_coupled(Branch branch) { return branch == Branch::coupled || branch == Branch::finite_coupled; }
+bool monotonic_coupled(Branch branch) {
+    return branch == Branch::coupled || branch == Branch::finite_coupled || branch == Branch::finite_reduced_coupled;
+}
 
 std::size_t stage_count(Branch branch) { return noncoaxial(branch) ? 20 : 10; }
 
@@ -94,13 +117,15 @@ Branch parse_branch(const std::string& value) {
     if (value == "finite_plastic") return Branch::finite_plastic;
     if (value == "finite_coupled") return Branch::finite_coupled;
     if (value == "finite_noncoaxial") return Branch::finite_noncoaxial;
+    if (value == "finite_reduced_plastic") return Branch::finite_reduced_plastic;
+    if (value == "finite_reduced_coupled") return Branch::finite_reduced_coupled;
     throw std::invalid_argument("Abaqus inelastic branch is not recognized");
 }
 
 struct StepSnapshot final {
     double time;
     std::vector<double> state;
-    std::array<fuelsim::CartesianMaterialPointState, 8> material;
+    std::vector<fuelsim::CartesianMaterialPointState> material;
     fuelsim::TransientConservationSummary conservation;
 };
 
@@ -110,9 +135,9 @@ class SnapshotObserver final : public fuelsim::TransientStepObserver {
         StepSnapshot snapshot{step.time, problem.committed_solution(), {}, step.conservation};
         const fuelsim::CartesianMaterialHistory& history =
             fuelsim::cartesian::ProblemAccess::material_history(problem, 0, 0);
-        if (history.size() != snapshot.material.size())
-            throw std::invalid_argument("B5.10 material history does not contain eight points");
-        std::copy(history.begin(), history.end(), snapshot.material.begin());
+        if (history.size() != 1 && history.size() != 8)
+            throw std::invalid_argument("Abaqus inelastic material history does not contain one or eight points");
+        snapshot.material.assign(history.begin(), history.end());
         _snapshots.push_back(std::move(snapshot));
     }
 
@@ -251,7 +276,7 @@ std::vector<IntegrationReference> read_integration(const std::string& path, Bran
             plastic_only(branch) ? 0.0 : number(values, 39, path),
             number(values, plastic_only(branch) ? 33 : 40, path)});
     }
-    if (result.size() != 8 * stage_count(branch))
+    if (result.size() != (reduced_integration(branch) ? 1 : 8) * stage_count(branch))
         throw std::invalid_argument("Abaqus small-strain integration-point reference has an unexpected row count");
     if (noncoaxial(branch)) {
         const double relative_residual = maximum_raw_free_z_stress / maximum_active_stress;
@@ -309,6 +334,8 @@ fuelsim::SpatialDefinition definition(Branch branch) {
     fuelsim::SpatialDefinition result;
     result.regions.push_back({"solid", "solid", material(branch), 0.0, 600.0, -1, "",
         finite_strain(branch) ? fuelsim::StrainFormulation::finite : fuelsim::StrainFormulation::small});
+    if (reduced_integration(branch))
+        result.regions.back().hex8_element_formulation = fuelsim::Hex8ElementFormulation::c3d8rt;
     if (noncoaxial(branch)) {
         std::vector<double> times{0.0}, axial{0.0}, shear{0.0};
         for (std::size_t stage = 0; stage < stage_count(branch); ++stage) {
@@ -429,7 +456,8 @@ fuelsim::SymmetricTensor3Values logarithmic_strain(
 int main(int argc, char** argv) {
     if (argc != 5) {
         std::cerr << "Usage: fuelsim_b510_hex8_c3d8t_small_j2_abaqus_tests "
-                     "<plastic|coupled|noncoaxial|finite_plastic|finite_coupled|finite_noncoaxial> "
+                     "<plastic|coupled|noncoaxial|finite_plastic|finite_coupled|finite_noncoaxial|"
+                     "finite_reduced_plastic|finite_reduced_coupled> "
                      "<nodes.csv> <integration.csv> <energy.csv>\n";
         return 2;
     }
@@ -510,13 +538,16 @@ int main(int argc, char** argv) {
             for (std::size_t local = 0; local < passive.size(); ++local) passive_values[local] = passive[local].value();
             std::size_t closest = 0;
             double closest_squared = std::numeric_limits<double>::max();
-            for (std::size_t q = 0; q < 8; ++q) {
-                fuelsim::CartesianPoint3 point = geometry.points[q].position;
+            const std::size_t point_count = reduced_integration(branch) ? 1 : 8;
+            for (std::size_t q = 0; q < point_count; ++q) {
+                const fuelsim::Hex8QuadraturePoint& quadrature_point =
+                    reduced_integration(branch) ? geometry.reduced_point : geometry.points[q];
+                fuelsim::CartesianPoint3 point = quadrature_point.position;
                 if (finite_strain(branch))
                     for (std::size_t node = 0; node < 8; ++node) {
-                        point.x += geometry.points[q].shape[node] * passive[8 + node].value();
-                        point.y += geometry.points[q].shape[node] * passive[16 + node].value();
-                        point.z += geometry.points[q].shape[node] * passive[24 + node].value();
+                        point.x += quadrature_point.shape[node] * passive[8 + node].value();
+                        point.y += quadrature_point.shape[node] * passive[16 + node].value();
+                        point.z += quadrature_point.shape[node] * passive[24 + node].value();
                     }
                 const double distance_squared = std::pow(point.x - reference.position.x, 2) +
                                                 std::pow(point.y - reference.position.y, 2) +
@@ -528,11 +559,13 @@ int main(int argc, char** argv) {
             }
             maximum_coordinate_error = std::max(maximum_coordinate_error, std::sqrt(closest_squared));
             const fuelsim::CartesianMaterialPointState& actual = snapshot.material[closest];
+            const fuelsim::Hex8QuadraturePoint& material_point =
+                reduced_integration(branch) ? geometry.reduced_point : geometry.points[closest];
             const std::array<double, 6> actual_stress = components(actual.stress);
             const std::array<double, 6> expected_stress = components(reference.stress);
             std::array<double, 6> actual_total{};
             if (finite_strain(branch))
-                actual_total = components(logarithmic_strain(geometry.points[closest], passive_values));
+                actual_total = components(logarithmic_strain(material_point, passive_values));
             else {
                 double volume = 0.0, average_trace = 0.0;
                 for (const fuelsim::Hex8QuadraturePoint& point : geometry.points) {
@@ -569,11 +602,11 @@ int main(int argc, char** argv) {
             integration_metrics[30].add(actual.equivalent_plastic_strain, reference.equivalent_plastic_strain);
             integration_metrics[31].add(actual.equivalent_creep_strain, reference.equivalent_creep_strain);
             integration_metrics[32].add(passive[0].value(), reference.temperature);
-            const double actual_measure =
-                finite_strain(branch) ? fuelsim::evaluate_cartesian_incremental_kinematics(geometry.points[closest],
-                                            passive, passive_values, fuelsim::StrainFormulation::finite)
-                                            .current_weighted_measure.value()
-                                      : geometry.points[closest].weighted_measure;
+            const double actual_measure = finite_strain(branch)
+                                              ? fuelsim::evaluate_cartesian_incremental_kinematics(material_point,
+                                                    passive, passive_values, fuelsim::StrainFormulation::finite)
+                                                    .current_weighted_measure.value()
+                                              : material_point.weighted_measure;
             integration_metrics[33].add(actual_measure, reference.integration_volume);
         }
         const std::array<std::string, 34> integration_names = {"stress_xx", "stress_yy", "stress_zz", "stress_xy",
@@ -654,7 +687,8 @@ int main(int argc, char** argv) {
                              " accumulates both mechanisms and reverses the plastic shear direction") &&
                      passed;
         if (passed && session.rank() == 0) {
-            std::cout << "[PASS] " << case_id(branch) << " Abaqus C3D8T "
+            std::cout << "[PASS] " << case_id(branch) << " Abaqus "
+                      << (reduced_integration(branch) ? "C3D8RT " : "C3D8T ")
                       << (finite_strain(branch) ? "finite-strain" : "small-strain") << ' '
                       << (plastic_only(branch)
                                  ? "J2 load/unload/reversal"

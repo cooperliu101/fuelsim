@@ -88,8 +88,8 @@ try:
             for value in frame.fieldOutputs[strain_name].values
             if value.elementLabel and value.integrationPoint
         }
-        for point in range(1, 9):
-            key = (1, point)
+        for key in sorted(key for key in fields["S"] if key[0] == 1):
+            point = key[1]
             integration.write(
                 "%d,%.16g,1,%d,%.16g,%.16g,%.16g,%.16g,"
                 "%.16g,%.16g,%.16g,%.16g,%.16g,%.16g,"

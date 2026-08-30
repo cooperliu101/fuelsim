@@ -1584,6 +1584,69 @@ denominator floor. B5.32 through B5.34 qualify only the stated one-step and
 prescribed-state finite-strain paths; they do not extend the element to an
 arbitrary large-rotation claim.
 
+## B5.35 through B5.39 C3D8RT finite-strain materials and contact
+
+B5.35, B5.36, and B5.37 extend the finite-strain C3D8RT evidence to J2
+plasticity, Norton creep, and the fully implicit coupled plasticity-creep
+update. Each deck uses one reduced material point, full-precision Abaqus
+output, and the same load or force history as its independently established
+C3D8T material path. Every frame compares all eight nodes, constrained
+reactions, the reduced-point stress, logarithmic strain, elastic strain,
+active inelastic histories, current integration volume, and comparable
+energies. The worst relative L2, relative absolute-peak, or maximum
+pointwise-relative errors are `0.0352662%`, `0.0712657%`, and `0.0749445%`,
+respectively. Analytically zero references remain separate absolute checks.
+
+The generator is `generate_b535_b537.py`, and `run_b535_b537.ps1` executes the
+three Abaqus jobs and extracts their references. The extractor changes in
+`extract_b510.py`, `extract_b511.py`, and `extract_b512.py` enumerate the
+integration points actually present in the output database, so the same
+scripts retain eight-point C3D8T behavior and accept one-point C3D8RT output.
+The material data, constitutive coefficients, load paths, and fixed Abaqus
+default hourglass factor of `0.005` are not adjusted from comparison errors.
+
+B5.38 is a fifteen-frame finite-sliding surface-to-surface thermal-mechanical
+contact cycle. It visits open, closed, reopened, and recontacted states. All
+sixty node-frame contact states agree with Abaqus: twenty-eight are open and
+thirty-two are sticking. The normal-force relative L2 error is
+`0.000153404%`; the largest gated contact pointwise error is `0.710816%` for
+the shear force and traction. Both the direct and replayed two-sided contact
+heat imbalances remain below `2.8e-17 W`. The maximum Abaqus artificial
+hourglass energy is `2.71136e-4 J`; the reported `98.5524%` internal-energy
+fraction occurs at a frame whose physical internal energy is nearly zero.
+
+B5.39 is a twenty-frame Coulomb-friction reversal path. It records
+seventy-six sticking and four sliding node-frame states, matches all eighty
+Abaqus state classifications, reverses the tangential resultant, and returns
+to sticking. Its displacement-vector, stress-tensor, normal-contact-force,
+and shear-traction relative L2 errors are `0.0635675%`, `0.0244155%`,
+`0.00952656%`, and `0.140503%`. Contact heat conservation remains below
+`5.4e-15 W`. The normal prescribed displacement is one eighth of the B5.26
+path so that the unchanged tangential loading crosses the unchanged Coulomb
+limit under C3D8RT. Material, friction, contact, and hourglass coefficients
+are not fitted. A trial with three times the tangential loading was rejected
+as validation evidence because Abaqus artificial hourglass energy reached
+`55.5%` of total internal energy. In the retained path it reaches `3.41002 J`,
+or `50.8879%`, and is therefore an explicit reduced-integration evidence
+boundary rather than a hidden correction.
+
+The B5.39 claim is qualified for slip history. Abaqus `CSLIP` and fuelsim's
+accumulated total tangential-slip state are not the same history measure. The
+reported slip-vector relative L2, relative absolute-peak, and maximum
+pointwise-relative errors are `7.04782%`, `2.94145%`, and `56.7689%`;
+`1.75473e-4 m` is the maximum vector difference. These values remain printed
+diagnostics and no denominator floor, coefficient adjustment, or acceptance
+threshold change is used to hide them. Contact force, shear traction, state,
+bulk fields, comparable energies, and discrete thermal conservation remain
+gated. B5.38 retains the same explicit `CSLIP` definition boundary.
+
+Generate these contact decks with `generate_b538_b539.py` and run the Abaqus
+jobs and extraction with `run_b538_b539.ps1`. Reduced-integration energy files
+include Abaqus `ALLAE`; comparisons use `ALLIE - ALLAE` for physical internal
+energy while reporting `ALLAE` independently. Existing C3D8T energy files
+retain their legacy column layout. Inputs, reference comma-separated files,
+generators, extractors, and runners are tracked by `SHA256SUMS`.
+
 ## B5.19 C3D8T finite-deformation selective integration
 
 B5.19 applies a non-affine finite deformation to one distorted C3D8T element.
