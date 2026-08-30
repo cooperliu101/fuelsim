@@ -449,8 +449,11 @@ void AbaqusHex8SnapshotObserver::accepted_step(const TransientProblem& problem, 
             snapshot.material_by_source_element[source].assign(history.begin(), history.end());
         }
     }
-    snapshot.contact = cartesian::ProblemAccess::summarize_contact_nodes(problem, 0, snapshot.state);
-    snapshot.contact_history = cartesian::ProblemAccess::committed_contact_histories(problem).at(0);
+    const auto& contact_histories = cartesian::ProblemAccess::committed_contact_histories(problem);
+    if (!contact_histories.empty()) {
+        snapshot.contact = cartesian::ProblemAccess::summarize_contact_nodes(problem, 0, snapshot.state);
+        snapshot.contact_history = contact_histories.front();
+    }
     _snapshots.push_back(std::move(snapshot));
 }
 
@@ -509,8 +512,10 @@ bool compare_abaqus_hex8_full_field(const TransientProblem& solved_problem, cons
     const std::vector<EnergyReference> energy = read_energy(options.reference_prefix + "_energy.csv");
     const std::size_t integration_points_per_element = options.reduced_integration ? 1 : 8;
     const cartesian::SpatialAssembly& spatial = cartesian::ProblemAccess::view(solved_problem);
+    const bool has_contact = !definition.contacts.empty();
     const std::vector<std::size_t> contact_sources =
-        cartesian::ProblemAccess::contact_secondary_source_nodes(solved_problem, 0);
+        has_contact ? cartesian::ProblemAccess::contact_secondary_source_nodes(solved_problem, 0)
+                    : std::vector<std::size_t>{};
     if (snapshots.size() != options.expected_steps || nodes.size() != options.expected_steps * mesh.nodes().size() ||
         integration.size() != options.expected_steps * mesh.elements().size() * integration_points_per_element ||
         contact.size() != options.expected_steps * contact_sources.size() || energy.size() != options.expected_steps) {
@@ -578,15 +583,15 @@ bool compare_abaqus_hex8_full_field(const TransientProblem& solved_problem, cons
     const std::array<std::string, 8> nodal_names = {"temperature", "displacement_x", "displacement_y", "displacement_z",
         "reaction_heat_flux", "reaction_force_x", "reaction_force_y", "reaction_force_z"};
     for (std::size_t field = 0; field < nodal_metrics.size(); ++field)
-        passed =
-            report_metric(prefix + nodal_names[field], nodal_metrics[field], options.bulk_relative_tolerance,
-                field == 4 ? reaction_heat_flux_pointwise_tolerance : bulk_pointwise_tolerance,
-                field == 0   ? 1.0e-8
-                : field < 4  ? 1.0e-10
-                : field == 4 ? 1.0e-2
-                             : 1.0,
-                field == 0 || field == 4, field == 4 ? options.reaction_heat_flux_pointwise_absolute_tolerance : 0.0) &&
-            passed;
+        passed = report_metric(prefix + nodal_names[field], nodal_metrics[field], options.bulk_relative_tolerance,
+                     field == 4 ? reaction_heat_flux_pointwise_tolerance : bulk_pointwise_tolerance,
+                     field == 0   ? 1.0e-8
+                     : field < 4  ? 1.0e-10
+                     : field == 4 ? 1.0e-2
+                                  : 1.0,
+                     field == 0 || (field == 4 && options.gate_reaction_heat_flux),
+                     field == 4 ? options.reaction_heat_flux_pointwise_absolute_tolerance : 0.0) &&
+                 passed;
     passed = report_grouped(prefix + "displacement_vector", displacement_vector, options.bulk_relative_tolerance,
                  displacement_pointwise_tolerance, 1.0e-10, true, options.displacement_pointwise_absolute_tolerance) &&
              passed;
@@ -805,7 +810,7 @@ bool compare_abaqus_hex8_full_field(const TransientProblem& solved_problem, cons
     bool contact_states_match = true;
     std::array<std::size_t, 9> contact_state_pairs{};
     bool first_contact_state_mismatch_reported = false;
-    std::array<FieldErrorMetrics, 7> energy_metrics;
+    std::array<FieldErrorMetrics, 8> energy_metrics;
     double maximum_abaqus_artificial_energy = 0.0, maximum_abaqus_artificial_energy_fraction = 0.0;
     double cumulative_elastic = 0.0, cumulative_plastic = 0.0, cumulative_creep = 0.0, cumulative_friction = 0.0,
            cumulative_external_work = 0.0;
@@ -817,195 +822,204 @@ bool compare_abaqus_hex8_full_field(const TransientProblem& solved_problem, cons
     double replay_previous_time = 0.0;
     for (std::size_t increment = 1; increment <= options.expected_steps; ++increment) {
         const AbaqusHex8StepSnapshot& snapshot = snapshots.at(increment - 1);
-        for (std::size_t history = 0; history < snapshot.contact_history.size(); ++history) {
-            const std::array<double, 3>& total = snapshot.contact_history[history].cartesian_total_tangential_slip;
-            const double magnitude = std::hypot(total[0], total[1], total[2]);
-            if (magnitude > maximum_history_total_slip) {
-                maximum_history_total_slip = magnitude;
-                maximum_history_total_slip_increment = increment;
-                maximum_history_total_slip_index = history;
+        if (has_contact) {
+            for (std::size_t history = 0; history < snapshot.contact_history.size(); ++history) {
+                const std::array<double, 3>& total = snapshot.contact_history[history].cartesian_total_tangential_slip;
+                const double magnitude = std::hypot(total[0], total[1], total[2]);
+                if (magnitude > maximum_history_total_slip) {
+                    maximum_history_total_slip = magnitude;
+                    maximum_history_total_slip_increment = increment;
+                    maximum_history_total_slip_index = history;
+                }
             }
-        }
-        if (snapshot.contact.size() != contact_sources.size())
-            throw std::invalid_argument(options.case_name + " Fuelsim contact snapshot has an invalid node count");
-        spatial.validate_state(snapshot.state);
-        const std::vector<double> thermal_contact =
-            thermal_contact_residual(spatial, snapshot.state, maximum_contact_heat_conservation_error);
-        std::vector<double> abaqus_state = contact_replay_problem.committed_solution();
-        std::size_t replayed_nodes = 0;
-        for (const NodeReference& reference : nodes) {
-            if (reference.increment != increment) continue;
-            if (std::abs(reference.time - snapshot.time) > 1.0e-7)
-                throw std::invalid_argument(options.case_name + " Abaqus replay time is invalid");
-            const std::size_t global = source_to_global.at(reference.node - 1);
-            for (std::size_t field = 0; field < replay_fields.size(); ++field)
-                abaqus_state[contact_replay_dofs.dof(replay_fields[field], global)] = reference.fields[field];
-            ++replayed_nodes;
-        }
-        if (replayed_nodes != mesh.nodes().size() || !(snapshot.time > replay_previous_time))
-            throw std::invalid_argument(options.case_name + " Abaqus thermal-contact replay is incomplete");
-        contact_replay_problem.begin_time_step({snapshot.time, snapshot.time - replay_previous_time, true});
-        contact_replay_problem.validate_state(abaqus_state);
-        const std::vector<double> abaqus_state_thermal_contact = thermal_contact_residual(
-            contact_replay_spatial, abaqus_state, maximum_replayed_contact_heat_conservation_error);
-        const std::vector<double> contact_area =
-            secondary_nodal_areas(mesh, definition.contacts.at(0).secondary, spatial, source_to_global, snapshot.state);
-        std::array<double, 3> actual_resultant{}, expected_resultant{}, actual_moment{}, expected_moment{},
-            actual_center_sum{}, expected_center_sum{};
-        double actual_center_weight = 0.0, expected_center_weight = 0.0, actual_heat_rate = 0.0,
-               replayed_heat_rate = 0.0;
-        for (std::size_t output = 0; output < contact_sources.size(); ++output) {
-            const std::size_t source = contact_sources.at(output);
-            const auto found = std::find_if(contact.begin(), contact.end(), [&](const ContactReference& value) {
-                return value.increment == increment && value.node == source + 1;
-            });
-            if (found == contact.end())
-                throw std::invalid_argument(options.case_name + " Abaqus contact-node mapping is incomplete");
-            if (std::abs(found->time - snapshot.time) > 1.0e-7)
-                throw std::invalid_argument(options.case_name + " Abaqus contact time is invalid");
-            const CartesianContactNodeSummary& actual = snapshot.contact.at(output);
-            const std::size_t global = source_to_global.at(source);
-            const std::size_t primary_source = options.use_contact_summary_total_slip
-                                                   ? std::numeric_limits<std::size_t>::max()
-                                                   : matching_primary_source(mesh, contact_sources, source);
-            const std::size_t primary_global = options.use_contact_summary_total_slip
-                                                   ? std::numeric_limits<std::size_t>::max()
-                                                   : source_to_global.at(primary_source);
-            const std::array<Field, 3> displacement_fields = {
-                Field::displacement_x, Field::displacement_y, Field::displacement_z};
-            std::array<double, 3> actual_position = {
-                mesh.nodes().at(source).x, mesh.nodes().at(source).y, mesh.nodes().at(source).z};
-            const std::array<double, 3> expected_position = {found->position.x, found->position.y, found->position.z};
-            std::array<double, 3> expected_slip{}, actual_slip{}, relative_displacement{}, actual_force{},
-                expected_force{}, actual_normal{}, expected_normal{}, actual_shear{}, expected_shear{},
-                actual_shear_stress{}, expected_shear_stress{};
-            for (std::size_t component = 0; component < 3; ++component) {
-                actual_position[component] += snapshot.state[spatial.dof(displacement_fields[component], global)];
-                if (!options.use_contact_summary_total_slip)
-                    relative_displacement[component] =
-                        snapshot.state[spatial.dof(displacement_fields[component], global)] -
-                        snapshot.state[spatial.dof(displacement_fields[component], primary_global)];
-                expected_slip[component] = found->slip_first * found->tangent_first[component] +
-                                           found->slip_second * found->tangent_second[component];
-                actual_normal[component] = -actual.normal_contact_force[component];
-                expected_normal[component] = found->normal_force[component];
-                actual_shear[component] = -actual.tangential_contact_force[component];
-                expected_shear[component] = found->shear_force[component];
-                actual_force[component] = actual_normal[component] + actual_shear[component];
-                expected_force[component] = expected_normal[component] + expected_shear[component];
-                expected_shear_stress[component] = -found->shear_traction_first * found->tangent_first[component] -
-                                                   found->shear_traction_second * found->tangent_second[component];
-                if (actual.tributary_area > 0.0)
-                    actual_shear_stress[component] = actual_shear[component] / actual.tributary_area;
-                actual_resultant[component] += actual_force[component];
-                expected_resultant[component] += expected_force[component];
+            if (snapshot.contact.size() != contact_sources.size())
+                throw std::invalid_argument(options.case_name + " Fuelsim contact snapshot has an invalid node count");
+            spatial.validate_state(snapshot.state);
+            const std::vector<double> thermal_contact =
+                thermal_contact_residual(spatial, snapshot.state, maximum_contact_heat_conservation_error);
+            std::vector<double> abaqus_state = contact_replay_problem.committed_solution();
+            std::size_t replayed_nodes = 0;
+            for (const NodeReference& reference : nodes) {
+                if (reference.increment != increment) continue;
+                if (std::abs(reference.time - snapshot.time) > 1.0e-7)
+                    throw std::invalid_argument(options.case_name + " Abaqus replay time is invalid");
+                const std::size_t global = source_to_global.at(reference.node - 1);
+                for (std::size_t field = 0; field < replay_fields.size(); ++field)
+                    abaqus_state[contact_replay_dofs.dof(replay_fields[field], global)] = reference.fields[field];
+                ++replayed_nodes;
             }
-            if (options.use_contact_summary_total_slip)
-                actual_slip = actual.tangential_slip;
-            else {
-                const double actual_slip_first = relative_displacement[0] * found->tangent_first[0] +
-                                                 relative_displacement[1] * found->tangent_first[1] +
-                                                 relative_displacement[2] * found->tangent_first[2];
-                const double actual_slip_second = relative_displacement[0] * found->tangent_second[0] +
-                                                  relative_displacement[1] * found->tangent_second[1] +
-                                                  relative_displacement[2] * found->tangent_second[2];
-                for (std::size_t component = 0; component < 3; ++component)
-                    actual_slip[component] = actual_slip_first * found->tangent_first[component] +
-                                             actual_slip_second * found->tangent_second[component];
+            if (replayed_nodes != mesh.nodes().size() || !(snapshot.time > replay_previous_time))
+                throw std::invalid_argument(options.case_name + " Abaqus thermal-contact replay is incomplete");
+            contact_replay_problem.begin_time_step({snapshot.time, snapshot.time - replay_previous_time, true});
+            contact_replay_problem.validate_state(abaqus_state);
+            const std::vector<double> abaqus_state_thermal_contact = thermal_contact_residual(
+                contact_replay_spatial, abaqus_state, maximum_replayed_contact_heat_conservation_error);
+            const std::vector<double> contact_area = secondary_nodal_areas(
+                mesh, definition.contacts.at(0).secondary, spatial, source_to_global, snapshot.state);
+            std::array<double, 3> actual_resultant{}, expected_resultant{}, actual_moment{}, expected_moment{},
+                actual_center_sum{}, expected_center_sum{};
+            double actual_center_weight = 0.0, expected_center_weight = 0.0, actual_heat_rate = 0.0,
+                   replayed_heat_rate = 0.0;
+            for (std::size_t output = 0; output < contact_sources.size(); ++output) {
+                const std::size_t source = contact_sources.at(output);
+                const auto found = std::find_if(contact.begin(), contact.end(), [&](const ContactReference& value) {
+                    return value.increment == increment && value.node == source + 1;
+                });
+                if (found == contact.end())
+                    throw std::invalid_argument(options.case_name + " Abaqus contact-node mapping is incomplete");
+                if (std::abs(found->time - snapshot.time) > 1.0e-7)
+                    throw std::invalid_argument(options.case_name + " Abaqus contact time is invalid");
+                const CartesianContactNodeSummary& actual = snapshot.contact.at(output);
+                const std::size_t global = source_to_global.at(source);
+                const std::size_t primary_source = options.use_contact_summary_total_slip
+                                                       ? std::numeric_limits<std::size_t>::max()
+                                                       : matching_primary_source(mesh, contact_sources, source);
+                const std::size_t primary_global = options.use_contact_summary_total_slip
+                                                       ? std::numeric_limits<std::size_t>::max()
+                                                       : source_to_global.at(primary_source);
+                const std::array<Field, 3> displacement_fields = {
+                    Field::displacement_x, Field::displacement_y, Field::displacement_z};
+                std::array<double, 3> actual_position = {
+                    mesh.nodes().at(source).x, mesh.nodes().at(source).y, mesh.nodes().at(source).z};
+                const std::array<double, 3> expected_position = {
+                    found->position.x, found->position.y, found->position.z};
+                std::array<double, 3> expected_slip{}, actual_slip{}, relative_displacement{}, actual_force{},
+                    expected_force{}, actual_normal{}, expected_normal{}, actual_shear{}, expected_shear{},
+                    actual_shear_stress{}, expected_shear_stress{};
+                for (std::size_t component = 0; component < 3; ++component) {
+                    actual_position[component] += snapshot.state[spatial.dof(displacement_fields[component], global)];
+                    if (!options.use_contact_summary_total_slip)
+                        relative_displacement[component] =
+                            snapshot.state[spatial.dof(displacement_fields[component], global)] -
+                            snapshot.state[spatial.dof(displacement_fields[component], primary_global)];
+                    expected_slip[component] = found->slip_first * found->tangent_first[component] +
+                                               found->slip_second * found->tangent_second[component];
+                    actual_normal[component] = -actual.normal_contact_force[component];
+                    expected_normal[component] = found->normal_force[component];
+                    actual_shear[component] = -actual.tangential_contact_force[component];
+                    expected_shear[component] = found->shear_force[component];
+                    actual_force[component] = actual_normal[component] + actual_shear[component];
+                    expected_force[component] = expected_normal[component] + expected_shear[component];
+                    expected_shear_stress[component] = -found->shear_traction_first * found->tangent_first[component] -
+                                                       found->shear_traction_second * found->tangent_second[component];
+                    if (actual.tributary_area > 0.0)
+                        actual_shear_stress[component] = actual_shear[component] / actual.tributary_area;
+                    actual_resultant[component] += actual_force[component];
+                    expected_resultant[component] += expected_force[component];
+                }
+                if (options.use_contact_summary_total_slip)
+                    actual_slip = actual.tangential_slip;
+                else {
+                    const double actual_slip_first = relative_displacement[0] * found->tangent_first[0] +
+                                                     relative_displacement[1] * found->tangent_first[1] +
+                                                     relative_displacement[2] * found->tangent_first[2];
+                    const double actual_slip_second = relative_displacement[0] * found->tangent_second[0] +
+                                                      relative_displacement[1] * found->tangent_second[1] +
+                                                      relative_displacement[2] * found->tangent_second[2];
+                    for (std::size_t component = 0; component < 3; ++component)
+                        actual_slip[component] = actual_slip_first * found->tangent_first[component] +
+                                                 actual_slip_second * found->tangent_second[component];
+                }
+                maximum_summary_total_slip =
+                    std::max(maximum_summary_total_slip, std::hypot(actual_slip[0], actual_slip[1], actual_slip[2]));
+                contact_position.add(actual_position.data(), expected_position.data(), 3);
+                if (found->state != 0) contact_slip.add(actual_slip.data(), expected_slip.data(), 3);
+                contact_normal_force.add(actual_normal.data(), expected_normal.data(), 3);
+                contact_shear_force.add(actual_shear.data(), expected_shear.data(), 3);
+                contact_shear_traction.add(actual_shear_stress.data(), expected_shear_stress.data(), 3);
+                contact_complete_force.add(actual_force.data(), expected_force.data(), 3);
+                contact_scalar_metrics[0].add(actual.gap, found->opening);
+                contact_scalar_metrics[1].add(actual.pressure, found->pressure);
+                if (found->state != 0)
+                    contact_scalar_metrics[2].add(std::hypot(actual_slip[0], actual_slip[1], actual_slip[2]),
+                        std::hypot(expected_slip[0], expected_slip[1], expected_slip[2]));
+                const double actual_normal_force = std::hypot(actual_normal[0], actual_normal[1], actual_normal[2]),
+                             expected_normal_force =
+                                 std::hypot(expected_normal[0], expected_normal[1], expected_normal[2]),
+                             actual_shear_force = std::hypot(actual_shear[0], actual_shear[1], actual_shear[2]),
+                             expected_shear_force = std::hypot(expected_shear[0], expected_shear[1], expected_shear[2]);
+                contact_scalar_metrics[3].add(actual_normal_force, expected_normal_force);
+                contact_scalar_metrics[4].add(actual_shear_force, expected_shear_force);
+                const std::size_t temperature_dof = spatial.dof(Field::temperature, global);
+                const std::size_t replay_temperature_dof = contact_replay_dofs.dof(Field::temperature, global);
+                const double expected_nodal_heat_rate = found->heat_flux * contact_area.at(source);
+                contact_scalar_metrics[5].add(thermal_contact.at(temperature_dof), expected_nodal_heat_rate);
+                replayed_contact_heat_rate.add(
+                    thermal_contact.at(temperature_dof), abaqus_state_thermal_contact.at(replay_temperature_dof));
+                actual_heat_rate += thermal_contact.at(temperature_dof);
+                replayed_heat_rate += abaqus_state_thermal_contact.at(replay_temperature_dof);
+                const double actual_weight = actual_normal_force, expected_weight = expected_normal_force;
+                actual_center_weight += actual_weight;
+                expected_center_weight += expected_weight;
+                for (std::size_t component = 0; component < 3; ++component) {
+                    actual_center_sum[component] += actual_weight * actual_position[component];
+                    expected_center_sum[component] += expected_weight * expected_position[component];
+                }
+                const auto add_moment = [](std::array<double, 3>& moment, const std::array<double, 3>& position,
+                                            const std::array<double, 3>& force) {
+                    moment[0] += position[1] * force[2] - position[2] * force[1];
+                    moment[1] += position[2] * force[0] - position[0] * force[2];
+                    moment[2] += position[0] * force[1] - position[1] * force[0];
+                };
+                add_moment(actual_moment, actual_position, actual_force);
+                add_moment(expected_moment, expected_position, expected_force);
+                maximum_tangent_basis_error = std::max({maximum_tangent_basis_error,
+                    std::abs(found->tangent_first[0] * found->tangent_first[0] +
+                             found->tangent_first[1] * found->tangent_first[1] +
+                             found->tangent_first[2] * found->tangent_first[2] - 1.0),
+                    std::abs(found->tangent_second[0] * found->tangent_second[0] +
+                             found->tangent_second[1] * found->tangent_second[1] +
+                             found->tangent_second[2] * found->tangent_second[2] - 1.0),
+                    std::abs(found->tangent_first[0] * found->tangent_second[0] +
+                             found->tangent_first[1] * found->tangent_second[1] +
+                             found->tangent_first[2] * found->tangent_second[2])});
+                const std::size_t actual_state = actual.pressure <= 0.0 ? 0 : actual.sliding ? 2 : 1;
+                ++contact_state_pairs.at(3 * actual_state + found->state);
+                if (actual_state != found->state && !first_contact_state_mismatch_reported) {
+                    const double actual_elastic_slip = std::hypot(actual.elastic_tangential_slip[0],
+                                     actual.elastic_tangential_slip[1], actual.elastic_tangential_slip[2]),
+                                 actual_total_slip = std::hypot(actual_slip[0], actual_slip[1], actual_slip[2]),
+                                 expected_total_slip = std::hypot(expected_slip[0], expected_slip[1], expected_slip[2]),
+                                 friction = definition.contacts.at(0).friction_coefficient,
+                                 actual_coulomb_ratio = actual.pressure > 0.0 && friction > 0.0
+                                                            ? actual_shear_force / (friction * actual_normal_force)
+                                                            : 0.0,
+                                 expected_coulomb_ratio =
+                                     found->pressure > 0.0 && friction > 0.0
+                                         ? expected_shear_force / (friction * expected_normal_force)
+                                         : 0.0;
+                    std::cout << prefix << "first_contact_state_mismatch_increment=" << increment << '\n'
+                              << prefix << "first_contact_state_mismatch_node=" << source + 1 << '\n'
+                              << prefix << "first_contact_state_mismatch_actual=" << actual_state << '\n'
+                              << prefix << "first_contact_state_mismatch_reference=" << found->state << '\n'
+                              << prefix << "first_contact_state_mismatch_actual_elastic_slip=" << actual_elastic_slip
+                              << '\n'
+                              << prefix << "first_contact_state_mismatch_actual_total_slip=" << actual_total_slip
+                              << '\n'
+                              << prefix << "first_contact_state_mismatch_reference_total_slip=" << expected_total_slip
+                              << '\n'
+                              << prefix << "first_contact_state_mismatch_actual_coulomb_ratio=" << actual_coulomb_ratio
+                              << '\n'
+                              << prefix
+                              << "first_contact_state_mismatch_reference_coulomb_ratio=" << expected_coulomb_ratio
+                              << '\n';
+                    first_contact_state_mismatch_reported = true;
+                }
+                contact_states_match = contact_states_match && actual_state == found->state;
             }
-            maximum_summary_total_slip =
-                std::max(maximum_summary_total_slip, std::hypot(actual_slip[0], actual_slip[1], actual_slip[2]));
-            contact_position.add(actual_position.data(), expected_position.data(), 3);
-            if (found->state != 0) contact_slip.add(actual_slip.data(), expected_slip.data(), 3);
-            contact_normal_force.add(actual_normal.data(), expected_normal.data(), 3);
-            contact_shear_force.add(actual_shear.data(), expected_shear.data(), 3);
-            contact_shear_traction.add(actual_shear_stress.data(), expected_shear_stress.data(), 3);
-            contact_complete_force.add(actual_force.data(), expected_force.data(), 3);
-            contact_scalar_metrics[0].add(actual.gap, found->opening);
-            contact_scalar_metrics[1].add(actual.pressure, found->pressure);
-            if (found->state != 0)
-                contact_scalar_metrics[2].add(std::hypot(actual_slip[0], actual_slip[1], actual_slip[2]),
-                    std::hypot(expected_slip[0], expected_slip[1], expected_slip[2]));
-            const double actual_normal_force = std::hypot(actual_normal[0], actual_normal[1], actual_normal[2]),
-                         expected_normal_force = std::hypot(expected_normal[0], expected_normal[1], expected_normal[2]),
-                         actual_shear_force = std::hypot(actual_shear[0], actual_shear[1], actual_shear[2]),
-                         expected_shear_force = std::hypot(expected_shear[0], expected_shear[1], expected_shear[2]);
-            contact_scalar_metrics[3].add(actual_normal_force, expected_normal_force);
-            contact_scalar_metrics[4].add(actual_shear_force, expected_shear_force);
-            const std::size_t temperature_dof = spatial.dof(Field::temperature, global);
-            const std::size_t replay_temperature_dof = contact_replay_dofs.dof(Field::temperature, global);
-            const double expected_nodal_heat_rate = found->heat_flux * contact_area.at(source);
-            contact_scalar_metrics[5].add(thermal_contact.at(temperature_dof), expected_nodal_heat_rate);
-            replayed_contact_heat_rate.add(
-                thermal_contact.at(temperature_dof), abaqus_state_thermal_contact.at(replay_temperature_dof));
-            actual_heat_rate += thermal_contact.at(temperature_dof);
-            replayed_heat_rate += abaqus_state_thermal_contact.at(replay_temperature_dof);
-            const double actual_weight = actual_normal_force, expected_weight = expected_normal_force;
-            actual_center_weight += actual_weight;
-            expected_center_weight += expected_weight;
-            for (std::size_t component = 0; component < 3; ++component) {
-                actual_center_sum[component] += actual_weight * actual_position[component];
-                expected_center_sum[component] += expected_weight * expected_position[component];
+            total_contact_heat_rate.add(actual_heat_rate, replayed_heat_rate);
+            contact_resultant.add(actual_resultant.data(), expected_resultant.data(), 3);
+            contact_moment.add(actual_moment.data(), expected_moment.data(), 3);
+            if (actual_center_weight > 0.0 && expected_center_weight > 0.0) {
+                std::array<double, 3> actual_center{}, expected_center{};
+                for (std::size_t component = 0; component < 3; ++component) {
+                    actual_center[component] = actual_center_sum[component] / actual_center_weight;
+                    expected_center[component] = expected_center_sum[component] / expected_center_weight;
+                }
+                contact_center.add(actual_center.data(), expected_center.data(), 3);
             }
-            const auto add_moment = [](std::array<double, 3>& moment, const std::array<double, 3>& position,
-                                        const std::array<double, 3>& force) {
-                moment[0] += position[1] * force[2] - position[2] * force[1];
-                moment[1] += position[2] * force[0] - position[0] * force[2];
-                moment[2] += position[0] * force[1] - position[1] * force[0];
-            };
-            add_moment(actual_moment, actual_position, actual_force);
-            add_moment(expected_moment, expected_position, expected_force);
-            maximum_tangent_basis_error = std::max({maximum_tangent_basis_error,
-                std::abs(found->tangent_first[0] * found->tangent_first[0] +
-                         found->tangent_first[1] * found->tangent_first[1] +
-                         found->tangent_first[2] * found->tangent_first[2] - 1.0),
-                std::abs(found->tangent_second[0] * found->tangent_second[0] +
-                         found->tangent_second[1] * found->tangent_second[1] +
-                         found->tangent_second[2] * found->tangent_second[2] - 1.0),
-                std::abs(found->tangent_first[0] * found->tangent_second[0] +
-                         found->tangent_first[1] * found->tangent_second[1] +
-                         found->tangent_first[2] * found->tangent_second[2])});
-            const std::size_t actual_state = actual.pressure <= 0.0 ? 0 : actual.sliding ? 2 : 1;
-            ++contact_state_pairs.at(3 * actual_state + found->state);
-            if (actual_state != found->state && !first_contact_state_mismatch_reported) {
-                const double actual_elastic_slip = std::hypot(actual.elastic_tangential_slip[0],
-                                 actual.elastic_tangential_slip[1], actual.elastic_tangential_slip[2]),
-                             actual_total_slip = std::hypot(actual_slip[0], actual_slip[1], actual_slip[2]),
-                             expected_total_slip = std::hypot(expected_slip[0], expected_slip[1], expected_slip[2]),
-                             friction = definition.contacts.at(0).friction_coefficient,
-                             actual_coulomb_ratio = actual.pressure > 0.0 && friction > 0.0
-                                                        ? actual_shear_force / (friction * actual_normal_force)
-                                                        : 0.0,
-                             expected_coulomb_ratio = found->pressure > 0.0 && friction > 0.0
-                                                          ? expected_shear_force / (friction * expected_normal_force)
-                                                          : 0.0;
-                std::cout << prefix << "first_contact_state_mismatch_increment=" << increment << '\n'
-                          << prefix << "first_contact_state_mismatch_node=" << source + 1 << '\n'
-                          << prefix << "first_contact_state_mismatch_actual=" << actual_state << '\n'
-                          << prefix << "first_contact_state_mismatch_reference=" << found->state << '\n'
-                          << prefix << "first_contact_state_mismatch_actual_elastic_slip=" << actual_elastic_slip
-                          << '\n'
-                          << prefix << "first_contact_state_mismatch_actual_total_slip=" << actual_total_slip << '\n'
-                          << prefix << "first_contact_state_mismatch_reference_total_slip=" << expected_total_slip
-                          << '\n'
-                          << prefix << "first_contact_state_mismatch_actual_coulomb_ratio=" << actual_coulomb_ratio
-                          << '\n'
-                          << prefix << "first_contact_state_mismatch_reference_coulomb_ratio=" << expected_coulomb_ratio
-                          << '\n';
-                first_contact_state_mismatch_reported = true;
-            }
-            contact_states_match = contact_states_match && actual_state == found->state;
-        }
-        total_contact_heat_rate.add(actual_heat_rate, replayed_heat_rate);
-        contact_resultant.add(actual_resultant.data(), expected_resultant.data(), 3);
-        contact_moment.add(actual_moment.data(), expected_moment.data(), 3);
-        if (actual_center_weight > 0.0 && expected_center_weight > 0.0) {
-            std::array<double, 3> actual_center{}, expected_center{};
-            for (std::size_t component = 0; component < 3; ++component) {
-                actual_center[component] = actual_center_sum[component] / actual_center_weight;
-                expected_center[component] = expected_center_sum[component] / expected_center_weight;
-            }
-            contact_center.add(actual_center.data(), expected_center.data(), 3);
+            contact_replay_problem.commit_time_step(abaqus_state);
+            replay_previous_time = snapshot.time;
         }
 
         const EnergyReference& expected = energy.at(increment - 1);
@@ -1029,89 +1043,96 @@ bool compare_abaqus_hex8_full_field(const TransientProblem& solved_problem, cons
         energy_metrics[4].add(cumulative_friction, expected.friction);
         energy_metrics[5].add(cumulative_external_work, expected.external_work);
         energy_metrics[6].add(snapshot.conservation.dirichlet_heat_input_rate, expected.boundary_heat_rate);
-        contact_replay_problem.commit_time_step(abaqus_state);
-        replay_previous_time = snapshot.time;
+        energy_metrics[7].add(snapshot.conservation.mechanical_hourglass_energy, expected.artificial);
     }
-    const std::array<std::string, 6> contact_scalar_names = {"contact_opening", "contact_pressure",
-        "contact_slip_magnitude", "contact_normal_force_magnitude", "contact_shear_force_magnitude",
-        "contact_recovered_heat_rate"};
-    for (std::size_t field = 0; field < contact_scalar_metrics.size(); ++field)
-        passed = report_metric(prefix + contact_scalar_names[field], contact_scalar_metrics[field],
-                     options.contact_relative_tolerance, contact_pointwise_tolerance,
-                     field == 0 || field == 2 ? 1.0e-10
-                     : field == 1             ? 1.0
-                                              : 1.0e-2,
-                     (field == 1 && options.gate_contact_pressure) || field == 3) &&
+    if (has_contact) {
+        const std::array<std::string, 6> contact_scalar_names = {"contact_opening", "contact_pressure",
+            "contact_slip_magnitude", "contact_normal_force_magnitude", "contact_shear_force_magnitude",
+            "contact_recovered_heat_rate"};
+        for (std::size_t field = 0; field < contact_scalar_metrics.size(); ++field)
+            passed = report_metric(prefix + contact_scalar_names[field], contact_scalar_metrics[field],
+                         options.contact_relative_tolerance, contact_pointwise_tolerance,
+                         field == 0 || field == 2 ? 1.0e-10
+                         : field == 1             ? 1.0
+                                                  : 1.0e-2,
+                         (field == 1 && options.gate_contact_pressure) || field == 3) &&
+                     passed;
+        passed = report_metric(prefix + "contact_abaqus_state_replayed_heat_rate", replayed_contact_heat_rate,
+                     contact_replayed_heat_rate_relative_tolerance, contact_replayed_heat_rate_pointwise_tolerance,
+                     1.0e-2, true, options.contact_replayed_heat_rate_pointwise_absolute_tolerance) &&
                  passed;
-    passed = report_metric(prefix + "contact_abaqus_state_replayed_heat_rate", replayed_contact_heat_rate,
-                 contact_replayed_heat_rate_relative_tolerance, contact_replayed_heat_rate_pointwise_tolerance, 1.0e-2,
-                 true, options.contact_replayed_heat_rate_pointwise_absolute_tolerance) &&
-             passed;
-    passed =
-        report_metric(prefix + "contact_total_heat_rate", total_contact_heat_rate,
-            contact_total_heat_rate_relative_tolerance, contact_total_heat_rate_pointwise_tolerance, 1.0e-2, true) &&
-        passed;
-    passed = report_grouped(prefix + "contact_position", contact_position, options.contact_relative_tolerance,
-                 contact_pointwise_tolerance, options.coordinate_tolerance, true) &&
-             passed;
-    passed = report_grouped(prefix + "contact_slip_vector", contact_slip, options.contact_relative_tolerance,
-                 contact_slip_pointwise_tolerance, 1.0e-10, options.gate_contact_slip,
-                 options.contact_slip_pointwise_absolute_tolerance) &&
-             passed;
-    passed = report_grouped(prefix + "contact_normal_force_vector", contact_normal_force,
-                 options.contact_relative_tolerance, contact_pointwise_tolerance, 1.0e-2, true) &&
-             passed;
-    passed = report_grouped(prefix + "contact_complete_force_vector", contact_complete_force,
-                 options.contact_relative_tolerance, contact_pointwise_tolerance, 1.0e-2, true) &&
-             passed;
-    passed = report_grouped(prefix + "contact_resultant", contact_resultant, options.contact_relative_tolerance,
-                 contact_pointwise_tolerance, 1.0e-2, true) &&
-             passed;
-    passed = report_grouped(prefix + "contact_moment", contact_moment, options.contact_relative_tolerance,
-                 contact_pointwise_tolerance, 1.0e-2, true) &&
-             passed;
-    passed = report_grouped(prefix + "contact_normal_force_center", contact_center, options.contact_relative_tolerance,
-                 contact_pointwise_tolerance, options.coordinate_tolerance, true) &&
-             passed;
-    report_grouped(prefix + "contact_shear_force_vector", contact_shear_force, options.contact_relative_tolerance,
-        contact_pointwise_tolerance, 1.0e-2, false);
-    report_grouped(prefix + "contact_shear_traction_vector", contact_shear_traction, options.contact_relative_tolerance,
-        contact_pointwise_tolerance, 1.0, false);
-    const std::size_t contact_state_count =
-                          std::accumulate(contact_state_pairs.begin(), contact_state_pairs.end(), std::size_t{0}),
-                      matching_contact_state_count =
-                          contact_state_pairs[0] + contact_state_pairs[4] + contact_state_pairs[8];
-    const double contact_state_match_fraction =
-        contact_state_count > 0
-            ? static_cast<double>(matching_contact_state_count) / static_cast<double>(contact_state_count)
-            : 0.0;
-    std::cout << prefix << "contact_states_match=" << contact_states_match << '\n'
-              << prefix << "contact_state_pairs_00_01_02_10_11_12_20_21_22=";
-    for (std::size_t pair = 0; pair < contact_state_pairs.size(); ++pair)
-        std::cout << (pair == 0 ? "" : ",") << contact_state_pairs[pair];
-    std::cout << '\n'
-              << prefix << "contact_state_match_fraction=" << contact_state_match_fraction << '\n'
-              << prefix << "maximum_tangent_basis_error=" << maximum_tangent_basis_error << '\n'
-              << prefix << "maximum_summary_total_slip=" << maximum_summary_total_slip << '\n'
-              << prefix << "maximum_history_total_slip=" << maximum_history_total_slip << '\n'
-              << prefix << "maximum_history_total_slip_increment=" << maximum_history_total_slip_increment << '\n'
-              << prefix << "maximum_history_total_slip_index=" << maximum_history_total_slip_index << '\n'
-              << prefix << "maximum_contact_heat_conservation_error=" << maximum_contact_heat_conservation_error << '\n'
-              << prefix
-              << "maximum_replayed_contact_heat_conservation_error=" << maximum_replayed_contact_heat_conservation_error
-              << '\n';
-    if ((options.gate_contact_state && contact_state_match_fraction < options.minimum_contact_state_match_fraction) ||
-        maximum_tangent_basis_error >= options.tangent_basis_tolerance ||
-        maximum_contact_heat_conservation_error >= 1.0e-8 || maximum_replayed_contact_heat_conservation_error >= 1.0e-8)
-        passed = false;
+        passed = report_metric(prefix + "contact_total_heat_rate", total_contact_heat_rate,
+                     contact_total_heat_rate_relative_tolerance, contact_total_heat_rate_pointwise_tolerance, 1.0e-2,
+                     true) &&
+                 passed;
+        passed = report_grouped(prefix + "contact_position", contact_position, options.contact_relative_tolerance,
+                     contact_pointwise_tolerance, options.coordinate_tolerance, true) &&
+                 passed;
+        passed = report_grouped(prefix + "contact_slip_vector", contact_slip, options.contact_relative_tolerance,
+                     contact_slip_pointwise_tolerance, 1.0e-10, options.gate_contact_slip,
+                     options.contact_slip_pointwise_absolute_tolerance) &&
+                 passed;
+        passed = report_grouped(prefix + "contact_normal_force_vector", contact_normal_force,
+                     options.contact_relative_tolerance, contact_pointwise_tolerance, 1.0e-2, true) &&
+                 passed;
+        passed = report_grouped(prefix + "contact_complete_force_vector", contact_complete_force,
+                     options.contact_relative_tolerance, contact_pointwise_tolerance, 1.0e-2, true) &&
+                 passed;
+        passed = report_grouped(prefix + "contact_resultant", contact_resultant, options.contact_relative_tolerance,
+                     contact_pointwise_tolerance, 1.0e-2, true) &&
+                 passed;
+        passed = report_grouped(prefix + "contact_moment", contact_moment, options.contact_relative_tolerance,
+                     contact_pointwise_tolerance, 1.0e-2, true) &&
+                 passed;
+        passed =
+            report_grouped(prefix + "contact_normal_force_center", contact_center, options.contact_relative_tolerance,
+                contact_pointwise_tolerance, options.coordinate_tolerance, true) &&
+            passed;
+        report_grouped(prefix + "contact_shear_force_vector", contact_shear_force, options.contact_relative_tolerance,
+            contact_pointwise_tolerance, 1.0e-2, false);
+        report_grouped(prefix + "contact_shear_traction_vector", contact_shear_traction,
+            options.contact_relative_tolerance, contact_pointwise_tolerance, 1.0, false);
+        const std::size_t contact_state_count =
+                              std::accumulate(contact_state_pairs.begin(), contact_state_pairs.end(), std::size_t{0}),
+                          matching_contact_state_count =
+                              contact_state_pairs[0] + contact_state_pairs[4] + contact_state_pairs[8];
+        const double contact_state_match_fraction =
+            contact_state_count > 0
+                ? static_cast<double>(matching_contact_state_count) / static_cast<double>(contact_state_count)
+                : 0.0;
+        std::cout << prefix << "contact_states_match=" << contact_states_match << '\n'
+                  << prefix << "contact_state_pairs_00_01_02_10_11_12_20_21_22=";
+        for (std::size_t pair = 0; pair < contact_state_pairs.size(); ++pair)
+            std::cout << (pair == 0 ? "" : ",") << contact_state_pairs[pair];
+        std::cout << '\n'
+                  << prefix << "contact_state_match_fraction=" << contact_state_match_fraction << '\n'
+                  << prefix << "maximum_tangent_basis_error=" << maximum_tangent_basis_error << '\n'
+                  << prefix << "maximum_summary_total_slip=" << maximum_summary_total_slip << '\n'
+                  << prefix << "maximum_history_total_slip=" << maximum_history_total_slip << '\n'
+                  << prefix << "maximum_history_total_slip_increment=" << maximum_history_total_slip_increment << '\n'
+                  << prefix << "maximum_history_total_slip_index=" << maximum_history_total_slip_index << '\n'
+                  << prefix << "maximum_contact_heat_conservation_error=" << maximum_contact_heat_conservation_error
+                  << '\n'
+                  << prefix << "maximum_replayed_contact_heat_conservation_error="
+                  << maximum_replayed_contact_heat_conservation_error << '\n';
+        if ((options.gate_contact_state &&
+                contact_state_match_fraction < options.minimum_contact_state_match_fraction) ||
+            maximum_tangent_basis_error >= options.tangent_basis_tolerance ||
+            maximum_contact_heat_conservation_error >= 1.0e-8 ||
+            maximum_replayed_contact_heat_conservation_error >= 1.0e-8)
+            passed = false;
+    }
 
-    const std::array<std::string, 7> energy_names = {"internal_energy", "elastic_energy", "plastic_dissipation",
-        "creep_dissipation", "friction_dissipation", "external_work", "boundary_heat_rate"};
+    const std::array<std::string, 8> energy_names = {"internal_energy", "elastic_energy", "plastic_dissipation",
+        "creep_dissipation", "friction_dissipation", "external_work", "boundary_heat_rate",
+        "mechanical_hourglass_energy"};
     for (std::size_t field = 0; field < energy_metrics.size(); ++field) {
         const bool comparable = field != 4;
         passed = report_metric(prefix + energy_names[field], energy_metrics[field], options.energy_relative_tolerance,
                      energy_pointwise_tolerance, field == 6 ? 1.0e-2 : 1.0e-8, comparable,
-                     field == 5 ? options.external_work_pointwise_absolute_tolerance : 0.0) &&
+                     field == 5   ? options.external_work_pointwise_absolute_tolerance
+                     : field == 7 ? options.hourglass_energy_pointwise_absolute_tolerance
+                                  : 0.0) &&
                  passed;
     }
     std::cout << prefix << "abaqus_artificial_energy_maximum_absolute=" << maximum_abaqus_artificial_energy << '\n'

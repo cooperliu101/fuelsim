@@ -732,6 +732,7 @@ ScanResponse run_scan(std::size_t through_thickness_elements, std::size_t tangen
         comparison.logarithmic_strain_pointwise_absolute_tolerance = 2.0e-8;
         comparison.elastic_strain_pointwise_absolute_tolerance = 2.0e-10;
         comparison.energy_pointwise_relative_tolerance = 7.5e-2;
+        comparison.hourglass_energy_pointwise_absolute_tolerance = 1.0e-8;
         comparison.external_work_pointwise_absolute_tolerance = 1.0e-12;
         comparison.contact_total_heat_rate_pointwise_relative_tolerance = 2.0e-1;
         comparison.gate_contact_state = false;

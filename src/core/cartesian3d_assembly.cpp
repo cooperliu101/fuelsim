@@ -1269,6 +1269,12 @@ double SpatialAssembly::heat_capacity(std::size_t region, double temperature, co
     return data.material.heat_capacity(temperature, {data.time, position.x, position.y, position.z}).value();
 }
 
+double SpatialAssembly::mechanical_hourglass_energy(
+    std::size_t region, std::size_t element, const Hex8LocalValues& state) const {
+    return compute_hex8_mechanical_hourglass_energy(
+        _kernel_data.at(region), region_element_geometry(region, element), state);
+}
+
 SpatialAssembly::ContributionRanges SpatialAssembly::contribution_ranges() const noexcept {
     const std::size_t thermal_begin = volume_contribution_count(),
                       mechanical_begin = thermal_begin + _thermal_contact_offsets.back(),

@@ -99,6 +99,8 @@ Hex8LocalResidual compute_hex8_transient(const CartesianThermoelasticData& data,
 CartesianMaterialHistory compute_hex8_transient_update(const CartesianThermoelasticData& data,
     const Hex8Geometry& geometry, const Hex8LocalValues& state, const Hex8LocalValues& committed_state,
     const CartesianMaterialHistory& committed_material, double time_step);
+double compute_hex8_mechanical_hourglass_energy(
+    const CartesianThermoelasticData& data, const Hex8Geometry& geometry, const Hex8LocalValues& state);
 std::array<SymmetricTensor3Values, 8> compute_hex8_stress(
     const CartesianThermoelasticData& data, const Hex8Geometry& geometry, const Hex8LocalValues& state);
 enum class CartesianTractionComponent { x, y, z };

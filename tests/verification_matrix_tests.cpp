@@ -225,6 +225,11 @@ int main(int argc, char** argv) {
             "b538.hex8_c3d8rt_contact_cycle",
             "b539.hex8_c3d8rt_friction_reversal",
             "b540.hex8_c3d8rt_nonmatching_contact_cycle",
+            "b541.hex8_c3d8rt_small_j2",
+            "b542.hex8_c3d8rt_small_norton",
+            "b543.hex8_c3d8rt_small_coupled",
+            "b544.hex8_c3d8rt_distorted_bending",
+            "b545.hex8_c3d8rt_finite_noncoaxial",
             "io.exodus",
             "m0.steady",
             "m1.contact",
@@ -236,6 +241,7 @@ int main(int argc, char** argv) {
             "m56.iterative_solver",
             "m57.integrated",
             "m58.integrated_hex8",
+            "m59.c3d8rt_parallel",
             "m21.transient",
             "m22.inelastic",
             "m23.pcmi",
@@ -249,6 +255,7 @@ int main(int argc, char** argv) {
             "m42.follower_pressure",
             "m43.noncoaxial_finite_strain",
             "performance.m34",
+            "performance.c3d8rt",
             "scope.boundary",
         };
         std::set<std::string> found_ids;
@@ -295,7 +302,7 @@ int main(int argc, char** argv) {
         }
         if (found_ids != required_ids)
             throw std::runtime_error("Verification matrix is missing one or more required rows");
-        if (verified != 95 || qualified != 1 || measured != 3 || limitations != 1)
+        if (verified != 100 || qualified != 2 || measured != 4 || limitations != 1)
             throw std::runtime_error("Verification matrix status counts differ from release schema");
         check_c3d8t_contract(argv[4], registered_tests);
         std::cout << "verification_matrix_rows=" << found_ids.size() << '\n'

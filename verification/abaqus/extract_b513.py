@@ -5,8 +5,15 @@ import sys
 from odbAccess import openOdb
 
 
-if len(sys.argv) != 5:
-    raise RuntimeError("usage: extract_b513.py <job.odb> <nodal.csv> <integration.csv> <energy.csv>")
+if len(sys.argv) not in (5, 7):
+    raise RuntimeError(
+        "usage: extract_b513.py <job.odb> <nodal.csv> <integration.csv> <energy.csv> [stage_count full|reduced]"
+    )
+
+stage_count = int(sys.argv[5]) if len(sys.argv) == 7 else 20
+reduced_integration = len(sys.argv) == 7 and sys.argv[6] == "reduced"
+if stage_count < 1 or (len(sys.argv) == 7 and sys.argv[6] not in ("full", "reduced")):
+    raise RuntimeError("invalid noncoaxial extraction controls")
 
 
 def double_data(value):
@@ -61,7 +68,7 @@ try:
     energy.write(
         "stage,time_s,internal_energy_j,plastic_dissipation_j,creep_dissipation_j,external_work_j\n"
     )
-    for stage in range(1, 21):
+    for stage in range(1, stage_count + 1):
         step = odb.steps["STEP%d" % stage]
         frame = step.frames[-1]
         time = 0.001 * stage
@@ -91,7 +98,7 @@ try:
             for value in frame.fieldOutputs[strain_name].values
             if value.elementLabel and value.integrationPoint
         }
-        for point in range(1, 9):
+        for point in range(1, 2 if reduced_integration else 9):
             key = (1, point)
             integration.write(
                 "%d,%.16g,1,%d,%.16g,%.16g,%.16g,%.16g,"

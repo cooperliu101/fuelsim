@@ -1,0 +1,1 @@
+increment,time_s,node,x_m,y_m,z_m,opening_m,pressure_pa,slip1_m,slip2_m,normal_force1_n,normal_force2_n,normal_force3_n,shear_force1_n,shear_force2_n,shear_force3_n,contact_heat_flux_w,shear_traction1_pa,shear_traction2_pa,tangent1_x,tangent1_y,tangent1_z,tangent2_x,tangent2_y,tangent2_z,state

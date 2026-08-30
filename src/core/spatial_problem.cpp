@@ -840,10 +840,13 @@ TransientConservationSummary combine_rz_half_step_conservation(
         mechanical_scale > 0.0 ? std::abs(result.mechanical_work_balance) / mechanical_scale : 0.0;
     result.unconstrained_mechanical_residual_l2 =
         std::max(first.unconstrained_mechanical_residual_l2, second.unconstrained_mechanical_residual_l2);
-    for (std::size_t index = 16; index < transient_conservation_fields.size(); ++index) {
+    for (std::size_t index = 16; index < 22; ++index) {
         double TransientConservationSummary::* member = transient_conservation_fields[index].member;
         result.*member = first.*member + second.*member;
     }
+    result.mechanical_hourglass_energy = second.mechanical_hourglass_energy;
+    result.mechanical_hourglass_energy_change =
+        first.mechanical_hourglass_energy_change + second.mechanical_hourglass_energy_change;
     return result;
 }
 
@@ -1083,6 +1086,13 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                     for (const Hex8CapacityPoint& point : capacity_points)
                         conservation.generated_heat_rate +=
                             point.weighted_measure * _impl->cartesian->region_heat_source(region);
+                if (reduced) {
+                    const double current_hourglass =
+                        _impl->cartesian->mechanical_hourglass_energy(region, element, current);
+                    const double old_hourglass = _impl->cartesian->mechanical_hourglass_energy(region, element, old);
+                    conservation.mechanical_hourglass_energy += current_hourglass;
+                    conservation.mechanical_hourglass_energy_change += current_hourglass - old_hourglass;
+                }
                 double finite_current_volume = 0.0, finite_old_volume = 0.0;
                 if (_impl->cartesian->region(region).strain_formulation == StrainFormulation::finite) {
                     Hex8LocalAdValues active_current{}, active_old{};

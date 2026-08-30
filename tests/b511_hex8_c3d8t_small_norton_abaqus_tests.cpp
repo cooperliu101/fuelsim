@@ -21,11 +21,11 @@ constexpr double time_step = 0.1;
 constexpr double applied_stress = 3.0e8;
 
 const char* case_id(bool finite_strain, bool reduced_integration) {
-    return reduced_integration ? "B5.36" : (finite_strain ? "B5.16" : "B5.11");
+    return reduced_integration ? (finite_strain ? "B5.36" : "B5.42") : (finite_strain ? "B5.16" : "B5.11");
 }
 
 const char* metric_prefix(bool finite_strain, bool reduced_integration) {
-    return reduced_integration ? "b536_" : (finite_strain ? "b516_" : "b511_");
+    return reduced_integration ? (finite_strain ? "b536_" : "b542_") : (finite_strain ? "b516_" : "b511_");
 }
 
 struct NodeReference final {
@@ -329,16 +329,16 @@ fuelsim::SymmetricTensor3Values logarithmic_strain(
 int main(int argc, char** argv) {
     if (argc != 5) {
         std::cerr << "Usage: fuelsim_b511_hex8_c3d8t_small_norton_abaqus_tests "
-                     "<small|finite|finite_reduced> <nodes.csv> <integration.csv> <energy.csv>\n";
+                     "<small|reduced|finite|finite_reduced> <nodes.csv> <integration.csv> <energy.csv>\n";
         return 2;
     }
     try {
         std::cout << std::scientific << std::setprecision(12);
         fuelsim::PetscSession session(argc, argv, "fuelsim Abaqus Norton comparison\n");
         const std::string branch = argv[1];
-        const bool reduced_integration = branch == "finite_reduced";
-        const bool finite_strain = branch == "finite" || reduced_integration;
-        if (branch != "small" && branch != "finite" && branch != "finite_reduced")
+        const bool reduced_integration = branch == "reduced" || branch == "finite_reduced";
+        const bool finite_strain = branch == "finite" || branch == "finite_reduced";
+        if (branch != "small" && branch != "reduced" && branch != "finite" && branch != "finite_reduced")
             throw std::invalid_argument("Abaqus Norton branch is not recognized");
         const std::vector<NodeReference> node_reference = read_nodes(argv[2]);
         const std::vector<IntegrationReference> integration_reference =

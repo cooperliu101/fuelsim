@@ -782,6 +782,55 @@ bool test_reduced_integration_thermoelastic_capacity_gate() {
     return passed;
 }
 
+bool test_reduced_integration_hourglass_energy() {
+    const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(unit_cube());
+    fuelsim::Hex8LocalValues state{};
+    for (std::size_t node = 0; node < 8; ++node) {
+        state[node] = 400.0;
+        const double mode = (node == 0 || node == 2 || node == 5 || node == 7) ? 1.0 : -1.0;
+        state[8 + node] = 0.03 * mode + 0.01 * geometry.reduced_point.gradient[node][0];
+        state[16 + node] = -0.02 * mode;
+        state[24 + node] = 0.015 * mode;
+    }
+    const fuelsim::ThermoelasticProperties fixed = fuelsim::test::thermoelastic(0.0, 1.0, 200.0, 0.25, 0.0, 300.0, 0.0);
+    const fuelsim::ThermoelasticProperties varying_initial =
+        fuelsim::test::thermoelastic(0.0, 1.0, 100.0, 0.25, 0.0, 300.0, 1.0);
+    bool passed = true;
+    for (const fuelsim::StrainFormulation formulation :
+        {fuelsim::StrainFormulation::small, fuelsim::StrainFormulation::finite}) {
+        const fuelsim::CartesianThermoelasticData fixed_data{fuelsim::IsotropicThermoelasticMaterial(fixed), 0.0, 0.0,
+            formulation, fuelsim::Hex8ElementFormulation::c3d8rt, 300.0};
+        const fuelsim::CartesianThermoelasticData varying_data{fuelsim::IsotropicThermoelasticMaterial(varying_initial),
+            0.0, 0.0, formulation, fuelsim::Hex8ElementFormulation::c3d8rt, 300.0};
+        const fuelsim::Hex8LocalResidual fixed_residual =
+            fuelsim::compute_hex8_thermoelastic(fixed_data, geometry, state);
+        const fuelsim::Hex8LocalResidual varying_residual =
+            fuelsim::compute_hex8_thermoelastic(varying_data, geometry, state);
+        double maximum_error = 0.0, maximum_scale = 0.0;
+        constexpr double step = 1.0e-7;
+        for (std::size_t column = 8; column < state.size(); ++column) {
+            fuelsim::Hex8LocalValues plus = state, minus = state;
+            plus[column] += step;
+            minus[column] -= step;
+            const double plus_energy = fuelsim::compute_hex8_mechanical_hourglass_energy(fixed_data, geometry, plus) -
+                                       fuelsim::compute_hex8_mechanical_hourglass_energy(varying_data, geometry, plus);
+            const double minus_energy =
+                fuelsim::compute_hex8_mechanical_hourglass_energy(fixed_data, geometry, minus) -
+                fuelsim::compute_hex8_mechanical_hourglass_energy(varying_data, geometry, minus);
+            const double numerical = (plus_energy - minus_energy) / (2.0 * step);
+            const double analytic = fixed_residual[column] - varying_residual[column];
+            maximum_error = std::max(maximum_error, std::abs(analytic - numerical));
+            maximum_scale = std::max({maximum_scale, std::abs(analytic), std::abs(numerical)});
+        }
+        const double relative_error = maximum_error / maximum_scale;
+        std::cout << "hex8_c3d8rt_hourglass_energy_gradient_relative_error=" << relative_error << '\n';
+        passed = check(relative_error < 2.0e-8,
+                     "C3D8RT mechanical hourglass energy gradient equals the residual hourglass force") &&
+                 passed;
+    }
+    return passed;
+}
+
 bool test_finite_strain_kinematics_and_coupled_jacobian() {
     const fuelsim::Hex8Coordinates coordinates = unit_cube();
     const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(coordinates);
@@ -1219,6 +1268,7 @@ int main() {
     passed = test_cartesian_inelastic_material() && passed;
     passed = test_reduced_integration_inelastic_jacobian() && passed;
     passed = test_reduced_integration_thermoelastic_capacity_gate() && passed;
+    passed = test_reduced_integration_hourglass_energy() && passed;
     passed = test_finite_strain_kinematics_and_coupled_jacobian() && passed;
     passed = test_cartesian_surface_contact_kernels() && passed;
     if (!passed) return 1;

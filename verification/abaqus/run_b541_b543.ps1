@@ -1,0 +1,44 @@
+param(
+    [Parameter(Mandatory = $true)]
+    [string]$SourceDirectory,
+    [string]$Case = ""
+)
+
+$ErrorActionPreference = "Stop"
+$Cases = @(
+    @{ Job = "b541_hex8_c3d8rt_small_j2"; Extractor = "extract_b510.py" },
+    @{ Job = "b542_hex8_c3d8rt_small_norton"; Extractor = "extract_b511.py" },
+    @{ Job = "b543_hex8_c3d8rt_small_coupled"; Extractor = "extract_b512.py" }
+)
+if ($Case -ne "") {
+    $Cases = @($Cases | Where-Object { $_.Job -eq $Case })
+    if ($Cases.Count -ne 1) { throw "Unknown B5.41-B5.43 case: $Case" }
+}
+$Work = Join-Path $env:TEMP ("fuelsim_b541_b543_" + [guid]::NewGuid().ToString("N"))
+New-Item -ItemType Directory -Path $Work | Out-Null
+foreach ($Item in $Cases) {
+    $JobName = $Item.Job
+    $InputFile = "$JobName.inp"
+    Copy-Item (Join-Path $SourceDirectory $InputFile) $Work
+    Copy-Item (Join-Path $SourceDirectory $Item.Extractor) $Work
+    Set-Location $Work
+    & "C:\SIMULIA\Commands\abaqus.bat" job=$JobName input=$InputFile output_precision=full interactive
+    if ($LASTEXITCODE -ne 0) { throw "Abaqus $JobName solve failed with exit code $LASTEXITCODE" }
+    if (!(Test-Path "$JobName.sta") -or
+        !(Select-String -Path "$JobName.sta" -Pattern "THE ANALYSIS HAS COMPLETED SUCCESSFULLY" -Quiet)) {
+        throw "Abaqus $JobName did not report successful completion"
+    }
+    $Outputs = @("${JobName}_nodal.csv", "${JobName}_integration.csv", "${JobName}_energy.csv")
+    & "C:\SIMULIA\Commands\abaqus.bat" python $Item.Extractor "$JobName.odb" $Outputs[0] $Outputs[1] $Outputs[2]
+    if ($LASTEXITCODE -ne 0) { throw "Abaqus $JobName extraction failed with exit code $LASTEXITCODE" }
+    $ExpectedLines = @(81, 11, 11)
+    for ($Index = 0; $Index -lt $Outputs.Count; ++$Index) {
+        if (!(Test-Path $Outputs[$Index]) -or
+            (Get-Content $Outputs[$Index] | Measure-Object -Line).Lines -ne $ExpectedLines[$Index]) {
+            throw "Abaqus $JobName extraction produced an incomplete $($Outputs[$Index])"
+        }
+    }
+    foreach ($Output in $Outputs) { Copy-Item $Output $SourceDirectory }
+    Write-Output "Completed Abaqus small-strain C3D8RT material case: $JobName"
+}
+Write-Output "Abaqus B5.41-B5.43 work directory: $Work"

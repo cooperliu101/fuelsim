@@ -951,3 +951,60 @@ and the five tracked MOOSE CSV references were regenerated for the 18-step
 path with the recorded `july-opt` binary; every M5.7 metric remains far below
 its 0.5 percent limit (largest field metric 0.206719 percent, largest
 quadrature-point metric 0.148170 percent).
+
+## 2026-08-30 C3D8RT contact timing and two-process equivalence
+
+The C3D8RT baseline reuses the M5.8 cylindrical 1,617-node, 1,152-element,
+6,468-degree-of-freedom mesh and its 20 fixed Backward Euler steps. Both fuel
+and cladding regions select C3D8RT in
+`verification/fuelsim/transient_integrated_c3d8rt.fsi`; thermal and mechanical
+contact, Coulomb friction, cladding plasticity and creep, and one PETSc
+workspace remain active. OpenMP and library thread counts were one. These runs
+used the same executable and environment but were not CPU-pinned, so the
+numbers are a baseline and cost-location measurement rather than a general
+speed claim.
+
+The original C3D8RT implementation evaluated the complete finite-strain
+residual once for each of 32 Jacobian columns. It now preserves the width-7
+material and width-10 kinematics chains, then evaluates one 24-displacement
+geometry block and one eight-temperature block. It does not use a complete
+32-degree-of-freedom identity seed. The residual, material data, and fixed
+`0.005` hourglass coefficient are unchanged.
+
+The same CTest command before and after this change gives:
+
+| measurement | column-by-column C3D8RT | two-block C3D8RT | change |
+| --- | ---: | ---: | ---: |
+| wall seconds | 452.58 | 135.10 | 70.15 percent lower |
+| Jacobian callback seconds | 379.651 | 54.6117 | 85.62 percent lower |
+
+A separate explicitly one-thread sequential pair used identical commands
+apart from the element choice:
+
+| measurement | C3D8T, one process | optimized C3D8RT, one process |
+| --- | ---: | ---: |
+| wall seconds | 203.38 | 127.59 |
+| residual callback seconds | 84.6926 | 40.8294 |
+| Jacobian callback seconds | 79.9235 | 53.3877 |
+
+On this fixed case, optimized C3D8RT wall time is `0.62734` times C3D8T, or
+`37.27%` lower, and its Jacobian callback time is `33.20%` lower. These are
+paired measurements for this machine and path, not a general element-speed
+claim.
+
+The release-only CTest fixture first writes the complete one-process
+degree-of-freedom vector and then compares the two-process result. The one-
+process contribution interval is `[0,2688)`. The two-process intervals are
+`[0,664)` and `[664,2688)`, which are nonoverlapping and complete. Maximum
+one-process/two-process differences are `1.393800630467e-9 K` for temperature
+and `6.565067039261e-12 m` for displacement; the largest difference divided by
+its explicit tolerance is `0.06513751675647`. The optimized fixture takes
+`135.10 s` at one process and `79.20 s` at two processes, or `214.31 s` total.
+This is direct evidence for the
+C3D8RT region-plus-contact combination rather than merely evidence that two
+processes can start.
+
+`verification/fuelsim/transient_integrated_c3d8rt_30k.fsi` also records the
+30,148-degree-of-freedom manual C3D8RT configuration. It was not timed in this
+change; the larger configuration is therefore a reproducible pending
+benchmark, not a reported result.

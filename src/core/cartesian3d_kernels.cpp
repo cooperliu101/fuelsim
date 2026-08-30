@@ -1366,18 +1366,42 @@ void add_reduced_hex8_finite_strain_system(const CartesianThermoelasticData& dat
         initial_shear_modulus, stress_linearization);
     if (jacobian == nullptr) return;
     jacobian->fill(0.0);
-    // The geometry of an average-strain element depends on all 24 displacement values. Apply
-    // one exact directional geometry chain at a time after composing the width-7 material
-    // tangent into the width-10 kinematics chain above. This avoids a 32-DOF identity seed.
-    for (std::size_t column = 0; column < hex8_local_dof_count; ++column) {
-        Hex8LocalAdValues directional_state{};
-        ad_local_system::make_passive(state.data(), state.size(), directional_state.data());
-        directional_state[column] = adlite::Scalar::independent(state[column], 0, 1);
-        const Hex8LocalAdValues directional_residual = reduced_hex8_finite_residual(data, geometry, directional_state,
-            old_state, time_step, add_thermal_time_term, initial_shear_modulus, stress_linearization);
-        for (std::size_t row = 0; row < hex8_local_dof_count; ++row)
-            (*jacobian)[row * hex8_local_dof_count + column] =
-                directional_residual[row].is_active() ? directional_residual[row].derivative(0) : 0.0;
+    // Current and midpoint geometry depend on all 24 displacement values, while material
+    // properties and capacity depend on all eight temperatures.  Evaluate those two independent
+    // blocks once each after composing the width-7 material tangent into the width-10 kinematics
+    // chain above.  This preserves the prohibition on a complete 32-DOF identity seed and avoids
+    // rebuilding the full reduced-integration residual once per Jacobian column.
+    Hex8LocalAdValues displacement_state{};
+    ad_local_system::make_passive(state.data(), state.size(), displacement_state.data());
+    for (std::size_t component = 0; component < 3; ++component)
+        for (std::size_t node = 0; node < hex8_node_count; ++node) {
+            const std::size_t column = 8 * (component + 1) + node;
+            displacement_state[column] = adlite::Scalar::independent(state[column], 8 * component + node, 24);
+        }
+    const Hex8LocalAdValues displacement_residual = reduced_hex8_finite_residual(data, geometry, displacement_state,
+        old_state, time_step, add_thermal_time_term, initial_shear_modulus, stress_linearization);
+    std::array<double, 24> displacement_derivatives{};
+    for (std::size_t row = 0; row < hex8_local_dof_count; ++row) {
+        if (!displacement_residual[row].is_active()) continue;
+        displacement_residual[row].copy_derivatives(displacement_derivatives.data(), displacement_derivatives.size());
+        for (std::size_t component = 0; component < 3; ++component)
+            for (std::size_t node = 0; node < hex8_node_count; ++node)
+                (*jacobian)[row * hex8_local_dof_count + 8 * (component + 1) + node] =
+                    displacement_derivatives[8 * component + node];
+    }
+
+    Hex8LocalAdValues temperature_state{};
+    ad_local_system::make_passive(state.data(), state.size(), temperature_state.data());
+    for (std::size_t node = 0; node < hex8_node_count; ++node)
+        temperature_state[node] = adlite::Scalar::independent(state[node], node, hex8_node_count);
+    const Hex8LocalAdValues temperature_residual = reduced_hex8_finite_residual(data, geometry, temperature_state,
+        old_state, time_step, add_thermal_time_term, initial_shear_modulus, stress_linearization);
+    std::array<double, hex8_node_count> temperature_derivatives{};
+    for (std::size_t row = 0; row < hex8_local_dof_count; ++row) {
+        if (!temperature_residual[row].is_active()) continue;
+        temperature_residual[row].copy_derivatives(temperature_derivatives.data(), temperature_derivatives.size());
+        for (std::size_t node = 0; node < hex8_node_count; ++node)
+            (*jacobian)[row * hex8_local_dof_count + node] = temperature_derivatives[node];
     }
 }
 
@@ -1961,6 +1985,61 @@ CartesianMaterialHistory compute_hex8_transient_update(const CartesianThermoelas
         result[q] = response.trial_state;
     }
     return result;
+}
+
+double compute_hex8_mechanical_hourglass_energy(
+    const CartesianThermoelasticData& data, const Hex8Geometry& geometry, const Hex8LocalValues& state) {
+    if (data.hex8_element_formulation != Hex8ElementFormulation::c3d8rt) return 0.0;
+    if (!std::isfinite(data.initial_temperature) || !(data.initial_temperature > 0.0))
+        throw std::invalid_argument("C3D8RT requires a finite positive initial temperature");
+    const ActiveThermoelasticProperties initial_properties = data.material.active_properties(
+        adlite::Scalar(data.initial_temperature), material_context(0.0, geometry.reduced_point.position));
+    const double initial_shear_modulus = initial_properties.shear_modulus.value();
+    if (!std::isfinite(initial_shear_modulus) || !(initial_shear_modulus > 0.0))
+        throw std::invalid_argument("C3D8RT initial shear modulus must be finite and positive");
+
+    constexpr double abaqus_total_stiffness_factor = 0.005;
+    double energy = 0.0;
+    if (data.strain_formulation == StrainFormulation::small) {
+        for (std::size_t component = 0; component < 3; ++component)
+            for (std::size_t mode = 0; mode < 4; ++mode) {
+                double amplitude = 0.0;
+                for (std::size_t node = 0; node < hex8_node_count; ++node)
+                    amplitude += geometry.hourglass_shape[node][mode] * state[8 * (component + 1) + node];
+                const double stiffness = abaqus_total_stiffness_factor * initial_shear_modulus *
+                                         geometry.mechanical_hourglass_metrics[component];
+                energy += 0.5 * stiffness * amplitude * amplitude;
+            }
+        return energy;
+    }
+    if (data.strain_formulation != StrainFormulation::finite)
+        throw std::invalid_argument("C3D8RT hourglass energy requires small or finite strain");
+
+    std::array<std::array<double, 3>, 3> average_deformation{};
+    for (std::size_t component = 0; component < 3; ++component) {
+        average_deformation[component][component] = 1.0;
+        for (std::size_t direction = 0; direction < 3; ++direction)
+            for (std::size_t node = 0; node < hex8_node_count; ++node)
+                average_deformation[component][direction] +=
+                    state[8 * (component + 1) + node] * geometry.average_shape_gradient[node][direction];
+    }
+    for (std::size_t mode = 0; mode < 4; ++mode) {
+        std::array<double, 3> reference_amplitude{};
+        for (std::size_t component = 0; component < 3; ++component)
+            for (std::size_t node = 0; node < hex8_node_count; ++node)
+                reference_amplitude[component] +=
+                    geometry.hourglass_shape[node][mode] * state[8 * (component + 1) + node];
+        for (std::size_t material_direction = 0; material_direction < 3; ++material_direction) {
+            double transported_amplitude = 0.0;
+            for (std::size_t component = 0; component < 3; ++component)
+                transported_amplitude +=
+                    reference_amplitude[component] * average_deformation[component][material_direction];
+            const double stiffness = abaqus_total_stiffness_factor * initial_shear_modulus *
+                                     geometry.mechanical_hourglass_metrics[material_direction];
+            energy += 0.5 * stiffness * transported_amplitude * transported_amplitude;
+        }
+    }
+    return energy;
 }
 
 std::array<SymmetricTensor3Values, 8> compute_hex8_stress(

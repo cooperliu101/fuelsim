@@ -734,6 +734,17 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_b540_c3d8rt_nonmatching_contact_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;c3d8rt;reduced-integration;transient;thermal;mechanical;finite-strain;friction;contact;nonmatching;abaqus;transition")
 
+    add_executable(fuelsim_b544_hex8_c3d8rt_distorted_bending_abaqus_tests
+        tests/b544_hex8_c3d8rt_distorted_bending_abaqus_tests.cpp)
+    target_link_libraries(fuelsim_b544_hex8_c3d8rt_distorted_bending_abaqus_tests
+        PRIVATE fuelsim_abaqus_hex8_test_support fuelsim::solver)
+    fuelsim_enable_warnings(fuelsim_b544_hex8_c3d8rt_distorted_bending_abaqus_tests)
+    add_test(NAME fuelsim_b544_hex8_c3d8rt_distorted_bending_abaqus_tests
+        COMMAND fuelsim_b544_hex8_c3d8rt_distorted_bending_abaqus_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus")
+    set_tests_properties(fuelsim_b544_hex8_c3d8rt_distorted_bending_abaqus_tests PROPERTIES
+        LABELS "acceptance;three-dimensional;hex8;c3d8rt;reduced-integration;transient;thermal;mechanical;finite-strain;bending;distorted-mesh;temperature-dependent;abaqus")
+
     add_executable(fuelsim_b527_hex8_engineering_fuel_clad_tests
         tests/b527_hex8_engineering_fuel_clad_tests.cpp)
     target_link_libraries(fuelsim_b527_hex8_engineering_fuel_clad_tests
@@ -926,6 +937,33 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_b537_hex8_c3d8rt_finite_coupled_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;c3d8rt;reduced-integration;transient;mechanical;plasticity;creep;finite-strain;abaqus")
 
+    add_test(NAME fuelsim_b541_hex8_c3d8rt_small_j2_abaqus_tests
+        COMMAND fuelsim_b510_hex8_c3d8t_small_j2_abaqus_tests
+            reduced_plastic
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b541_hex8_c3d8rt_small_j2_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b541_hex8_c3d8rt_small_j2_integration.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b541_hex8_c3d8rt_small_j2_energy.csv")
+    set_tests_properties(fuelsim_b541_hex8_c3d8rt_small_j2_abaqus_tests PROPERTIES
+        LABELS "acceptance;three-dimensional;hex8;c3d8rt;reduced-integration;transient;mechanical;plasticity;small-strain;reversal;abaqus")
+
+    add_test(NAME fuelsim_b543_hex8_c3d8rt_small_coupled_abaqus_tests
+        COMMAND fuelsim_b510_hex8_c3d8t_small_j2_abaqus_tests
+            reduced_coupled
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b543_hex8_c3d8rt_small_coupled_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b543_hex8_c3d8rt_small_coupled_integration.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b543_hex8_c3d8rt_small_coupled_energy.csv")
+    set_tests_properties(fuelsim_b543_hex8_c3d8rt_small_coupled_abaqus_tests PROPERTIES
+        LABELS "acceptance;three-dimensional;hex8;c3d8rt;reduced-integration;transient;mechanical;plasticity;creep;small-strain;abaqus")
+
+    add_test(NAME fuelsim_b545_hex8_c3d8rt_finite_noncoaxial_abaqus_tests
+        COMMAND fuelsim_b510_hex8_c3d8t_small_j2_abaqus_tests
+            finite_reduced_noncoaxial
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b545_hex8_c3d8rt_finite_noncoaxial_100step_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b545_hex8_c3d8rt_finite_noncoaxial_100step_integration.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b545_hex8_c3d8rt_finite_noncoaxial_100step_energy.csv")
+    set_tests_properties(fuelsim_b545_hex8_c3d8rt_finite_noncoaxial_abaqus_tests PROPERTIES
+        LABELS "acceptance;three-dimensional;hex8;c3d8rt;reduced-integration;transient;mechanical;plasticity;creep;finite-strain;noncoaxial;large-rotation;abaqus")
+
     add_test(NAME fuelsim_b518_hex8_c3d8t_finite_noncoaxial_abaqus_tests
         COMMAND fuelsim_b510_hex8_c3d8t_small_j2_abaqus_tests
             finite_noncoaxial
@@ -978,6 +1016,15 @@ if(BUILD_TESTING)
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b536_hex8_c3d8rt_finite_norton_energy.csv")
     set_tests_properties(fuelsim_b536_hex8_c3d8rt_finite_norton_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;c3d8rt;reduced-integration;transient;mechanical;creep;finite-strain;abaqus")
+
+    add_test(NAME fuelsim_b542_hex8_c3d8rt_small_norton_abaqus_tests
+        COMMAND fuelsim_b511_hex8_c3d8t_small_norton_abaqus_tests
+            reduced
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b542_hex8_c3d8rt_small_norton_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b542_hex8_c3d8rt_small_norton_integration.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b542_hex8_c3d8rt_small_norton_energy.csv")
+    set_tests_properties(fuelsim_b542_hex8_c3d8rt_small_norton_abaqus_tests PROPERTIES
+        LABELS "acceptance;three-dimensional;hex8;c3d8rt;reduced-integration;transient;mechanical;creep;small-strain;abaqus")
 
     add_executable(fuelsim_b39_hex8_sts_multicase_abaqus_tests
         tests/b39_hex8_sts_multicase_abaqus_tests.cpp)
@@ -1700,6 +1747,31 @@ if(BUILD_TESTING)
         NO_DEFAULT_PATH
     )
     if(FUELSIM_MPIEXEC_EXECUTABLE)
+        set(c3d8rt_mpi_reference "${CMAKE_CURRENT_BINARY_DIR}/c3d8rt_contact_one_rank.dof")
+        add_test(NAME fuelsim_c3d8rt_contact_one_rank_reference
+            COMMAND $<TARGET_FILE:fuelsim_m58_integrated_hex8_benchmark>
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_integrated_c3d8rt.fsi"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m58_integrated_hex8_all_nodes_0020.csv"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m58_integrated_hex8_contact_pressure_0020.csv"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m58_integrated_hex8_clad_state_0020.csv"
+                write_dof "${c3d8rt_mpi_reference}")
+        set_tests_properties(fuelsim_c3d8rt_contact_one_rank_reference PROPERTIES
+            FIXTURES_SETUP c3d8rt_contact_reference
+            LABELS "integration;mpi-reference;three-dimensional;hex8;c3d8rt;finite-strain;contact;qualification")
+        add_test(NAME fuelsim_c3d8rt_contact_two_rank_equivalence
+            COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2
+                $<TARGET_FILE:fuelsim_m58_integrated_hex8_benchmark>
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_integrated_c3d8rt.fsi"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m58_integrated_hex8_all_nodes_0020.csv"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m58_integrated_hex8_contact_pressure_0020.csv"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m58_integrated_hex8_clad_state_0020.csv"
+                compare_dof "${c3d8rt_mpi_reference}")
+        set_tests_properties(fuelsim_c3d8rt_contact_two_rank_equivalence PROPERTIES
+            FIXTURES_REQUIRED c3d8rt_contact_reference
+            PROCESSORS 2
+            RUN_SERIAL TRUE
+            LABELS "integration;mpi;three-dimensional;hex8;c3d8rt;finite-strain;contact;equivalence;qualification")
+
         add_test(NAME fuelsim_mpi_hex8_solver_tests
             COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2
                     "$<TARGET_FILE:fuelsim_hex8_solver_tests>"
@@ -2271,6 +2343,7 @@ if(BUILD_TESTING)
     if(FUELSIM_MPIEXEC_EXECUTABLE)
         set(FUELSIM_CTEST_TWO_RANK_TESTS
             fuelsim_mpi_hex8_solver_tests
+            fuelsim_c3d8rt_contact_two_rank_equivalence
             fuelsim_mpi_hex20_solver_tests
             fuelsim_mpi_solver_tests
             fuelsim_mpi_runtime_layout_field_split
