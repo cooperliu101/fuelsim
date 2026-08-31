@@ -181,6 +181,7 @@ fuelsim::SolverOptions solver_options(const fuelsim::FuelSimCaseDefinition& defi
     result.linear_relative_tolerance = definition.solver.linear_relative_tolerance;
     result.maximum_linear_iterations = definition.solver.maximum_linear_iterations;
     result.jacobian_lag = definition.solver.jacobian_lag;
+    result.line_search = definition.solver.line_search;
     result.backtracking_fallback = definition.solver.backtracking_fallback;
     result.field_residual_scaling = definition.solver.field_residual_scaling;
     result.residual_reduction_tolerance = definition.solver.residual_reduction_tolerance;

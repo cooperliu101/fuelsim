@@ -211,7 +211,8 @@
   linear_solver = direct
   preconditioner = lu
   direct_factorization = mumps
-  jacobian_lag = 2
+  jacobian_lag = 3
+  line_search = backtracking
   absolute_tolerance = 1e-7
   relative_tolerance = 1e-8
   step_tolerance = 1e-12

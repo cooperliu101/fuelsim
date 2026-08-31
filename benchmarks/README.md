@@ -1072,11 +1072,14 @@ identical final residual; load-path time changed from `26.584185 s` to
 B5.47 converts the exact same 1,617-node and 1,152-element M5.8 Exodus mesh to
 Abaqus C3D8RT. Both Abaqus and Fuelsim complete twenty fixed `0.05 s`
 increments without cutback. The controlled one-process Abaqus R2018x run takes
-`23.489094 s` external wall time and 74 iterations. One CPU-0-pinned Fuelsim
-Release trial with all numerical-library thread counts fixed to one takes
-`129.02 s`, with `121.210197 s` internal total time, 193 nonlinear iterations,
-222 residual evaluations, and 101 Jacobian evaluations. The observed external-
-wall ratio is `5.492761875`. This is a single paired engineering measurement
+`23.489094 s` external wall time and 74 iterations. The paired pre-change
+Fuelsim trial at commit `6cf276c` takes `129.70 s`. After the passive residual,
+closed geometry/Jacobian chain, explicit backtracking line search, and a
+Jacobian reuse period of three, the CPU-0-pinned Fuelsim Release trial takes
+`30.51 s`. Its `26.171176 s` internal total contains `3.446739 s` in residual
+callbacks and `6.802040 s` in Jacobian callbacks, with 128 nonlinear iterations,
+150 residual evaluations, and 51 Jacobian evaluations. The final external-wall
+ratio is `1.298900673`. This is a single paired engineering measurement
 across native Windows and WSL, not a general speed ratio or a pure kernel
 comparison.
 

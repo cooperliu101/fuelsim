@@ -802,7 +802,7 @@ void read_solver(const InputDocument& document, const std::string& path, FuelSim
             "preconditioner", "direct_factorization", "linear_relative_tolerance", "maximum_linear_iterations",
             "backtracking_fallback", "field_residual_scaling", "residual_reduction_tolerance",
             "temperature_residual_absolute_tolerance", "mechanical_residual_absolute_tolerance",
-            "temperature_residual_scale", "mechanical_residual_scale", "jacobian_lag"});
+            "temperature_residual_scale", "mechanical_residual_scale", "jacobian_lag", "line_search"});
     result.solver.absolute_tolerance = read_optional_double(document, solver, "absolute_tolerance", 1.0e-8);
     result.solver.relative_tolerance = read_optional_double(document, solver, "relative_tolerance", 1.0e-10);
     result.solver.step_tolerance = read_optional_double(document, solver, "step_tolerance", 1.0e-12);
@@ -841,6 +841,13 @@ void read_solver(const InputDocument& document, const std::string& path, FuelSim
     result.solver.maximum_linear_iterations = read_optional_int(document, solver, "maximum_linear_iterations", 500);
     result.solver.jacobian_lag = read_optional_int(document, solver, "jacobian_lag", 1);
     if (result.solver.jacobian_lag < 1) throw std::invalid_argument(path + ": jacobian_lag must be at least one");
+    const std::string line_search = read_optional_string(solver, "line_search", "basic");
+    if (line_search == "basic")
+        result.solver.line_search = SolverOptions::LineSearch::basic;
+    else if (line_search == "backtracking")
+        result.solver.line_search = SolverOptions::LineSearch::backtracking;
+    else
+        throw std::invalid_argument(path + ": line_search must be 'basic' or 'backtracking'");
     result.solver.backtracking_fallback = read_optional_bool(document, solver, "backtracking_fallback", true);
     result.solver.field_residual_scaling = read_optional_bool(document, solver, "field_residual_scaling", false);
     result.solver.residual_reduction_tolerance =

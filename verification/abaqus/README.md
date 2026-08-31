@@ -1813,9 +1813,11 @@ maximum is `0.167434 um` and is checked against an explicit `1 um` absolute
 bound. This exception and the radial pointwise exception keep B5.47 qualified
 rather than generally verified.
 
-The single controlled CPU-0-pinned, one-thread Fuelsim trial takes `129.02 s`
-external wall time and 193 nonlinear iterations. The same-machine one-process
-Abaqus run takes `23.4891 s` and 74 iterations, giving an observed `5.49276`
+The paired pre-change commit `6cf276c` takes `129.70 s` in a controlled
+CPU-0-pinned, one-thread Fuelsim trial. The passive residual, closed Jacobian,
+direct backtracking line search, and Jacobian reuse period of three reduce it to
+`30.51 s`, with 128 nonlinear iterations. The same-machine one-process Abaqus
+run takes `23.4891 s` and 74 iterations, giving a final observed `1.2989`
 wall-time ratio. Abaqus runs natively on Windows while Fuelsim runs in WSL, so
 the result is an end-to-end engineering comparison rather than a pure element-
 kernel or linear-solver ratio. The CTest is labelled `qualification`, runs

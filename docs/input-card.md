@@ -676,7 +676,10 @@ L2 差最大值大于 1 时完整回滚并缩步，成功时采用两个半步�
 - `maximum_linear_iterations`，默认 `500`；
 - `jacobian_lag`，默认 `1`；设为大于一的整数时，在该数量的非线性迭代内复用
   已装配的 Jacobian 矩阵；
-- `backtracking_fallback`，默认 `true`；BASIC 失败后从原始初值用 BT 重试；
+- `line_search = basic|backtracking`，默认 `basic`；`basic` 接受完整 Newton 步，
+  `backtracking` 在残量未充分下降或试探态越过物理域时缩短 Newton 步；
+- `backtracking_fallback`，默认 `true`；使用 `basic` 且求解失败时，从原始初值
+  改用 `backtracking` 重试；显式选择 `backtracking` 时不再执行这次重复求解；
 - `residual_reduction_tolerance`，默认 `1e-6`，用于总残量和分场残量复核；
 - `temperature_residual_absolute_tolerance`，默认 `1e-8 W`；
 - `mechanical_residual_absolute_tolerance`，默认 `1e-4 N`，同时用于径向和轴向；

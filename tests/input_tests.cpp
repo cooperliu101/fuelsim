@@ -117,6 +117,7 @@ bool verify_m3_output_input(const std::string& path, const std::string& contents
                      definition.solver.preconditioner == fuelsim::SolverOptions::Preconditioner::field_split &&
                      definition.solver.linear_relative_tolerance == 1.0e-7 &&
                      definition.solver.maximum_linear_iterations == 700 && definition.solver.jacobian_lag == 2 &&
+                     definition.solver.line_search == fuelsim::SolverOptions::LineSearch::backtracking &&
                      definition.solver.backtracking_fallback && definition.solver.field_residual_scaling &&
                      definition.solver.residual_reduction_tolerance == 2.0e-6 &&
                      definition.solver.temperature_residual_absolute_tolerance == 3.0e-8 &&
@@ -578,6 +579,7 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
                                                           "\n  linear_relative_tolerance = 1e-7"
                                                           "\n  maximum_linear_iterations = 700"
                                                           "\n  jacobian_lag = 2"
+                                                          "\n  line_search = backtracking"
                                                           "\n  backtracking_fallback = true"
                                                           "\n  field_residual_scaling = true"
                                                           "\n  residual_reduction_tolerance = 2e-6"
@@ -620,6 +622,13 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
     const std::size_t preconditioner_position = invalid_preconditioner.find(valid_preconditioner);
     invalid_preconditioner.replace(preconditioner_position, valid_preconditioner.size(), "preconditioner = magic");
     passed = expect_case_failure(malformed_path, invalid_preconditioner, "preconditioner must be") && passed;
+    std::string invalid_line_search = m3_case;
+    const std::string valid_line_search = "line_search = backtracking";
+    const std::size_t line_search_position = invalid_line_search.find(valid_line_search);
+    invalid_line_search.replace(line_search_position, valid_line_search.size(), "line_search = cubic");
+    passed =
+        expect_case_failure(malformed_path, invalid_line_search, "line_search must be 'basic' or 'backtracking'") &&
+        passed;
     std::string direct_mumps_case = read_text(steady_path);
     const std::size_t direct_mumps_solver = direct_mumps_case.find(solver_start);
     if (direct_mumps_solver == std::string::npos) return check(false, "steady fixture has a solver section");
