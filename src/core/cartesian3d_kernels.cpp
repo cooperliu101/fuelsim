@@ -2187,7 +2187,94 @@ void add_reduced_hex8_finite_jacobian(const CartesianThermoelasticData& data, co
         }
 }
 
-void add_reduced_hex8_finite_strain_system(const CartesianThermoelasticData& data, const Hex8Geometry& geometry,
+void assemble_c3d8t_finite_strain_system(const CartesianThermoelasticData& data, const Hex8Geometry& geometry,
+    const Hex8LocalValues& state, const Hex8LocalValues* committed_state, const CartesianMaterialHistory* history,
+    double time_step, bool include_thermal_time_term, Hex8LocalAdValues& residual, Hex8LocalJacobian* jacobian) {
+    const Hex8LocalValues undeformed{};
+    const Hex8LocalValues& old_state = committed_state == nullptr ? undeformed : *committed_state;
+    FiniteAverageTraceSystem average_trace;
+    std::array<FinitePointResidualCache, hex8_node_count> point_residuals{};
+    const FiniteAverageTraceValues values =
+        jacobian == nullptr ? prepare_finite_point_residuals(geometry, state, old_state, point_residuals)
+                            : finite_average_hex8_strain_trace_values(geometry, state, old_state);
+    average_trace.value = values.value;
+    average_trace.current_volume = values.current_volume;
+
+    FiniteElementPressureSystem element_pressure;
+    std::array<FinitePointSystemCache, hex8_node_count> point_systems{};
+    if (jacobian == nullptr)
+        element_pressure.value = prepare_finite_point_stresses(data.material, geometry, state, data.time,
+            committed_state, history, time_step, average_trace.value, point_residuals);
+    else
+        element_pressure = finite_element_pressure_system(data.material, geometry, state, data.time, committed_state,
+            history, time_step, average_trace, point_systems);
+
+    if (jacobian == nullptr) {
+        Hex8LocalAdValues passive{};
+        ad_local_system::make_passive(state.data(), state.size(), passive.data());
+        for (std::size_t q = 0; q < geometry.points.size(); ++q)
+            add_finite_hex8_point_residual(geometry.points[q], hex8_node_to_gauss[q], state, data.material, data.time,
+                point_residuals[q], geometry.reference_volume, average_trace.current_volume, element_pressure.value,
+                residual);
+        add_hex8_nodal_body_source(geometry, passive, StrainFormulation::finite, data.volumetric_heat_source, residual);
+        if (committed_state != nullptr && include_thermal_time_term)
+            add_hex8_lumped_capacity(geometry, passive, *committed_state, data.material, data.time, time_step,
+                StrainFormulation::finite, residual);
+        return;
+    }
+
+    jacobian->fill(0.0);
+    const SmallStrainElementPressureSystem small_pressure{};
+    for (std::size_t q = 0; q < geometry.points.size(); ++q)
+        add_hex8_point_system(geometry.points[q], hex8_node_to_gauss[q], state, data.material,
+            StrainFormulation::finite, data.time, committed_state, history == nullptr ? nullptr : &(*history)[q],
+            time_step, residual, *jacobian, average_trace.value, average_trace.displacement_derivatives, small_pressure,
+            geometry.reference_volume, average_trace, element_pressure, &point_systems[q]);
+    add_hex8_nodal_body_source_system(
+        geometry, state, StrainFormulation::finite, data.volumetric_heat_source, residual, *jacobian);
+    if (committed_state != nullptr && include_thermal_time_term)
+        add_hex8_lumped_capacity_system(geometry, state, *committed_state, data.material, data.time, time_step,
+            StrainFormulation::finite, residual, *jacobian);
+}
+
+void assemble_c3d8t_small_strain_system(const CartesianThermoelasticData& data, const Hex8Geometry& geometry,
+    const Hex8LocalValues& state, const Hex8LocalValues* committed_state, const CartesianMaterialHistory* history,
+    double time_step, bool include_thermal_time_term, Hex8LocalAdValues& residual, Hex8LocalJacobian* jacobian) {
+    const double average_trace = average_hex8_strain_trace(geometry, state);
+    if (jacobian == nullptr) {
+        Hex8LocalAdValues passive{};
+        ad_local_system::make_passive(state.data(), state.size(), passive.data());
+        const adlite::Scalar element_pressure =
+            small_strain_element_pressure(data.material, geometry, passive, average_trace, data.time);
+        for (std::size_t q = 0; q < geometry.points.size(); ++q)
+            add_hex8_point_residual(geometry.points[q], hex8_node_to_gauss[q], passive, data.material,
+                StrainFormulation::small, data.time, committed_state, history == nullptr ? nullptr : &(*history)[q],
+                time_step, average_trace, element_pressure, geometry.reference_volume, 0.0, 0.0, residual);
+        add_hex8_nodal_body_source(geometry, passive, StrainFormulation::small, data.volumetric_heat_source, residual);
+        if (committed_state != nullptr && include_thermal_time_term)
+            add_hex8_lumped_capacity(geometry, passive, *committed_state, data.material, data.time, time_step,
+                StrainFormulation::small, residual);
+        return;
+    }
+
+    jacobian->fill(0.0);
+    const SmallStrainElementPressureSystem element_pressure =
+        small_strain_element_pressure_system(data.material, geometry, state, average_trace, data.time);
+    const FiniteAverageTraceSystem finite_average_trace{};
+    const FiniteElementPressureSystem finite_element_pressure{};
+    for (std::size_t q = 0; q < geometry.points.size(); ++q)
+        add_hex8_point_system(geometry.points[q], hex8_node_to_gauss[q], state, data.material, StrainFormulation::small,
+            data.time, committed_state, history == nullptr ? nullptr : &(*history)[q], time_step, residual, *jacobian,
+            average_trace, geometry.average_shape_gradient, element_pressure, geometry.reference_volume,
+            finite_average_trace, finite_element_pressure, nullptr);
+    add_hex8_nodal_body_source_system(
+        geometry, state, StrainFormulation::small, data.volumetric_heat_source, residual, *jacobian);
+    if (committed_state != nullptr && include_thermal_time_term)
+        add_hex8_lumped_capacity_system(geometry, state, *committed_state, data.material, data.time, time_step,
+            StrainFormulation::small, residual, *jacobian);
+}
+
+void assemble_c3d8rt_finite_strain_system(const CartesianThermoelasticData& data, const Hex8Geometry& geometry,
     const Hex8LocalValues& state, const Hex8LocalValues* committed_state,
     const CartesianMaterialPointState* committed_material, double time_step, bool include_thermal_time_term,
     Hex8LocalAdValues& residual, Hex8LocalJacobian* jacobian) {
@@ -2222,6 +2309,7 @@ void add_reduced_hex8_finite_strain_system(const CartesianThermoelasticData& dat
     for (std::size_t row = 0; row < hex8_local_dof_count; ++row) residual[row] = passive_residual[row];
     if (jacobian == nullptr) return;
 
+    jacobian->fill(0.0);
     const ReducedFiniteMaterialLinearization material_linearization =
         reduced_finite_material_linearization(data.material, kinematics.strain_increment, temperature, old_temperature,
             time_step, committed_material, context);
@@ -2236,7 +2324,7 @@ void add_reduced_hex8_finite_strain_system(const CartesianThermoelasticData& dat
         *jacobian);
 }
 
-void add_reduced_hex8_small_strain_system(const CartesianThermoelasticData& data, const Hex8Geometry& geometry,
+void assemble_c3d8rt_small_strain_system(const CartesianThermoelasticData& data, const Hex8Geometry& geometry,
     const Hex8LocalValues& state, const Hex8LocalValues* committed_state,
     const CartesianMaterialPointState* committed_material, double time_step, bool include_thermal_time_term,
     Hex8LocalAdValues& residual, Hex8LocalJacobian* jacobian) {
@@ -2244,6 +2332,7 @@ void add_reduced_hex8_small_strain_system(const CartesianThermoelasticData& data
         throw std::logic_error("C3D8RT small-strain integration received a non-small strain formulation");
     if (!std::isfinite(data.initial_temperature) || !(data.initial_temperature > 0.0))
         throw std::invalid_argument("C3D8RT requires a finite positive initial temperature");
+    if (jacobian != nullptr) jacobian->fill(0.0);
 
     constexpr std::size_t point_width = 10, temperature_index = 9;
     const Hex8QuadraturePoint& point = geometry.reduced_point;
@@ -2435,87 +2524,21 @@ Hex8LocalResidual compute_hex8_local(const CartesianThermoelasticData& data, con
     Hex8LocalAdValues residual{};
     residual.fill(adlite::Scalar(0.0));
     if (data.hex8_element_formulation == Hex8ElementFormulation::c3d8rt) {
-        if (jacobian != nullptr) jacobian->fill(0.0);
         if (data.strain_formulation == StrainFormulation::finite)
-            add_reduced_hex8_finite_strain_system(data, geometry, state, committed_state,
+            assemble_c3d8rt_finite_strain_system(data, geometry, state, committed_state,
                 history == nullptr ? nullptr : &history->front(), time_step, include_thermal_time_term, residual,
                 jacobian);
         else
-            add_reduced_hex8_small_strain_system(data, geometry, state, committed_state,
+            assemble_c3d8rt_small_strain_system(data, geometry, state, committed_state,
                 history == nullptr ? nullptr : &history->front(), time_step, include_thermal_time_term, residual,
                 jacobian);
-        Hex8LocalResidual result{};
-        ad_local_system::extract_residual(residual.data(), residual.size(), result.data());
-        return result;
+    } else if (data.strain_formulation == StrainFormulation::finite) {
+        assemble_c3d8t_finite_strain_system(
+            data, geometry, state, committed_state, history, time_step, include_thermal_time_term, residual, jacobian);
+    } else {
+        assemble_c3d8t_small_strain_system(
+            data, geometry, state, committed_state, history, time_step, include_thermal_time_term, residual, jacobian);
     }
-    const Hex8LocalValues undeformed{};
-    const Hex8LocalValues& old_state = committed_state == nullptr ? undeformed : *committed_state;
-    double average_strain_trace = average_hex8_strain_trace(geometry, state);
-    std::array<std::array<double, 3>, hex8_node_count> average_trace_displacement_derivatives =
-        geometry.average_shape_gradient;
-    FiniteAverageTraceSystem finite_average_trace;
-    std::array<FinitePointResidualCache, hex8_node_count> finite_point_residuals{};
-    if (data.strain_formulation == StrainFormulation::finite) {
-        const FiniteAverageTraceValues values =
-            jacobian == nullptr ? prepare_finite_point_residuals(geometry, state, old_state, finite_point_residuals)
-                                : finite_average_hex8_strain_trace_values(geometry, state, old_state);
-        finite_average_trace.value = values.value;
-        finite_average_trace.current_volume = values.current_volume;
-        average_strain_trace = finite_average_trace.value;
-    }
-    FiniteElementPressureSystem finite_element_pressure;
-    std::array<FinitePointSystemCache, hex8_node_count> finite_point_systems{};
-    if (data.strain_formulation == StrainFormulation::finite) {
-        if (jacobian == nullptr)
-            finite_element_pressure.value = prepare_finite_point_stresses(data.material, geometry, state, data.time,
-                committed_state, history, time_step, finite_average_trace.value, finite_point_residuals);
-        else
-            finite_element_pressure = finite_element_pressure_system(data.material, geometry, state, data.time,
-                committed_state, history, time_step, finite_average_trace, finite_point_systems);
-    }
-    if (data.strain_formulation == StrainFormulation::finite)
-        average_trace_displacement_derivatives = finite_average_trace.displacement_derivatives;
-    if (jacobian == nullptr) {
-        Hex8LocalAdValues active{};
-        ad_local_system::make_passive(state.data(), state.size(), active.data());
-        const adlite::Scalar element_pressure =
-            data.strain_formulation == StrainFormulation::small
-                ? small_strain_element_pressure(data.material, geometry, active, average_strain_trace, data.time)
-                : adlite::Scalar(0.0);
-        for (std::size_t q = 0; q < geometry.points.size(); ++q)
-            if (data.strain_formulation == StrainFormulation::finite)
-                add_finite_hex8_point_residual(geometry.points[q], hex8_node_to_gauss[q], state, data.material,
-                    data.time, finite_point_residuals[q], geometry.reference_volume,
-                    finite_average_trace.current_volume, finite_element_pressure.value, residual);
-            else
-                add_hex8_point_residual(geometry.points[q], hex8_node_to_gauss[q], active, data.material,
-                    data.strain_formulation, data.time, committed_state, history == nullptr ? nullptr : &(*history)[q],
-                    time_step, average_strain_trace, element_pressure, geometry.reference_volume,
-                    finite_average_trace.current_volume, finite_element_pressure.value, residual);
-        add_hex8_nodal_body_source(geometry, active, data.strain_formulation, data.volumetric_heat_source, residual);
-        if (committed_state != nullptr && include_thermal_time_term)
-            add_hex8_lumped_capacity(geometry, active, *committed_state, data.material, data.time, time_step,
-                data.strain_formulation, residual);
-        Hex8LocalResidual result{};
-        ad_local_system::extract_residual(residual.data(), residual.size(), result.data());
-        return result;
-    }
-    jacobian->fill(0.0);
-    const SmallStrainElementPressureSystem element_pressure =
-        data.strain_formulation == StrainFormulation::small
-            ? small_strain_element_pressure_system(data.material, geometry, state, average_strain_trace, data.time)
-            : SmallStrainElementPressureSystem{};
-    for (std::size_t q = 0; q < geometry.points.size(); ++q)
-        add_hex8_point_system(geometry.points[q], hex8_node_to_gauss[q], state, data.material, data.strain_formulation,
-            data.time, committed_state, history == nullptr ? nullptr : &(*history)[q], time_step, residual, *jacobian,
-            average_strain_trace, average_trace_displacement_derivatives, element_pressure, geometry.reference_volume,
-            finite_average_trace, finite_element_pressure,
-            data.strain_formulation == StrainFormulation::finite ? &finite_point_systems[q] : nullptr);
-    add_hex8_nodal_body_source_system(
-        geometry, state, data.strain_formulation, data.volumetric_heat_source, residual, *jacobian);
-    if (committed_state != nullptr && include_thermal_time_term)
-        add_hex8_lumped_capacity_system(geometry, state, *committed_state, data.material, data.time, time_step,
-            data.strain_formulation, residual, *jacobian);
     Hex8LocalResidual result{};
     ad_local_system::extract_residual(residual.data(), residual.size(), result.data());
     return result;
