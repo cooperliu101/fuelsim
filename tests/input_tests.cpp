@@ -104,6 +104,7 @@ bool verify_m3_output_input(const std::string& path, const std::string& contents
                      definition.spatial.boundary_conditions.back().type == fuelsim::BoundaryConditionType::convection &&
                      definition.spatial.boundary_conditions.back().coefficient_function == "power" &&
                      definition.spatial.boundary_conditions.back().ambient_temperature_function == "power" &&
+                     !definition.spatial.boundary_conditions.back().configuration_explicit &&
                      definition.transient_execution.target_nonlinear_iterations == 6 &&
                      definition.transient_execution.iteration_window == 2 &&
                      definition.transient_execution.time_error_relative_tolerance == 2.0e-4 &&
@@ -720,12 +721,55 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
         current_configuration.size(), "configuration = rotating");
     passed =
         expect_case_failure(malformed_path, invalid_pressure_configuration, "must be reference or current") && passed;
-    std::string convection_configuration = m3_case;
-    const std::string convection_type = "type = convection";
-    const std::size_t convection_position = convection_configuration.find(convection_type);
-    if (convection_position == std::string::npos) return check(false, "M3 fixture has a convection condition");
-    convection_configuration.insert(convection_position + convection_type.size(), "\n    configuration = current");
-    passed = expect_case_failure(malformed_path, convection_configuration, "not valid for type='convection'") && passed;
+    std::string convection_configuration = read_text(c3d8rt_path);
+    const std::string convection_section = "\n  [configured_convection]\n    type = convection\n"
+                                           "    boundary = clad_rmax\n"
+                                           "    heat_transfer_coefficient = 1000\n"
+                                           "    ambient_temperature = 600\n"
+                                           "    configuration = current\n  []\n";
+    const std::string cartesian_executioner = "\n[Executioner]";
+    const std::size_t cartesian_executioner_position = convection_configuration.find(cartesian_executioner);
+    if (cartesian_executioner_position == std::string::npos)
+        return check(false, "C3D8RT fixture has an executioner section");
+    const std::size_t cartesian_boundary_close = convection_configuration.rfind("[]", cartesian_executioner_position);
+    if (cartesian_boundary_close == std::string::npos) return check(false, "C3D8RT fixture closes boundary conditions");
+    convection_configuration.insert(cartesian_boundary_close, convection_section);
+    {
+        std::ofstream output(malformed_path, std::ios::out | std::ios::trunc);
+        if (!output) return check(false, "could not create current-convection input fixture");
+        output << convection_configuration;
+    }
+    const fuelsim::FuelSimCaseDefinition current_convection = fuelsim::read_case_input(malformed_path);
+    passed = check(current_convection.spatial.boundary_conditions.back().type ==
+                           fuelsim::BoundaryConditionType::convection &&
+                       current_convection.spatial.boundary_conditions.back().use_displaced_geometry &&
+                       current_convection.spatial.boundary_conditions.back().configuration_explicit,
+                 "current-configuration convection is parsed") &&
+             passed;
+    if (std::remove(malformed_path.c_str()) != 0)
+        return check(false, "could not remove current-convection input fixture");
+    std::string reference_convection = convection_configuration;
+    const std::string current_convection_configuration = "configuration = current";
+    reference_convection.replace(reference_convection.rfind(current_convection_configuration),
+        current_convection_configuration.size(), "configuration = reference");
+    {
+        std::ofstream output(malformed_path, std::ios::out | std::ios::trunc);
+        if (!output) return check(false, "could not create reference-convection input fixture");
+        output << reference_convection;
+    }
+    const fuelsim::FuelSimCaseDefinition parsed_reference_convection = fuelsim::read_case_input(malformed_path);
+    passed = check(!parsed_reference_convection.spatial.boundary_conditions.back().use_displaced_geometry &&
+                       parsed_reference_convection.spatial.boundary_conditions.back().configuration_explicit,
+                 "reference-configuration convection is parsed") &&
+             passed;
+    if (std::remove(malformed_path.c_str()) != 0)
+        return check(false, "could not remove reference-convection input fixture");
+    std::string invalid_convection_configuration = convection_configuration;
+    invalid_convection_configuration.replace(invalid_convection_configuration.rfind(current_convection_configuration),
+        current_convection_configuration.size(), "configuration = rotating");
+    passed = expect_case_failure(malformed_path, invalid_convection_configuration,
+                 "convection configuration must be reference or current") &&
+             passed;
     std::string unknown_function = read_text(transient_path);
     const std::size_t unknown_heat_position = unknown_function.find(heat_source);
     unknown_function.insert(unknown_heat_position + heat_source.size(), "\n    heat_source_function = missing");

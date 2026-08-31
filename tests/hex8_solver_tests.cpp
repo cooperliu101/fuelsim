@@ -720,38 +720,94 @@ bool test_finite_sliding_end_to_end() {
     return passed;
 }
 
-bool test_mechanical_boundary_configuration_selection(const fuelsim::UnstructuredHex8Mesh& mesh) {
+bool test_boundary_configuration_selection(const fuelsim::UnstructuredHex8Mesh& mesh) {
     const auto warning_count = [&](fuelsim::BoundaryConditionType type, fuelsim::Field field, bool finite_strain,
-                                   bool current_configuration, bool configuration_explicit = true) {
+                                   bool current_configuration, fuelsim::Hex8ElementFormulation element_formulation,
+                                   bool configuration_explicit = true) {
         fuelsim::SpatialDefinition definition;
         definition.regions.push_back({"solid", "solid", material(), 0.0, 300.0});
         definition.regions.front().strain_formulation =
             finite_strain ? fuelsim::StrainFormulation::finite : fuelsim::StrainFormulation::small;
+        definition.regions.front().hex8_element_formulation = element_formulation;
         fuelsim::BoundaryConditionDefinition boundary{"boundary", type, "x2", field, 1.0e6};
+        if (type == fuelsim::BoundaryConditionType::convection) {
+            boundary.heat_transfer_coefficient = 1000.0;
+            boundary.ambient_temperature = 300.0;
+        }
         boundary.use_displaced_geometry = current_configuration;
         boundary.configuration_explicit = configuration_explicit;
         definition.boundary_conditions.push_back(boundary);
         fuelsim::SteadyProblem problem(std::move(definition), mesh);
         return fuelsim::cartesian::ProblemAccess::dof_map(problem).configuration_warnings().size();
     };
-    const auto check_type = [&](fuelsim::BoundaryConditionType type, fuelsim::Field field, const char* name) {
-        const std::size_t reference_small = warning_count(type, field, false, false);
-        const std::size_t current_small = warning_count(type, field, false, true);
-        const std::size_t reference_finite = warning_count(type, field, true, false);
-        const std::size_t current_finite = warning_count(type, field, true, true);
+    const auto check_type = [&](fuelsim::BoundaryConditionType type, fuelsim::Field field,
+                                fuelsim::Hex8ElementFormulation element_formulation, const char* element_name,
+                                const char* boundary_name) {
+        const std::size_t reference_small = warning_count(type, field, false, false, element_formulation);
+        const std::size_t current_small = warning_count(type, field, false, true, element_formulation);
+        const std::size_t reference_finite = warning_count(type, field, true, false, element_formulation);
+        const std::size_t current_finite = warning_count(type, field, true, true, element_formulation);
         bool result = check(reference_small == 0 && current_small == 1 && reference_finite == 1 && current_finite == 0,
-            std::string("three-dimensional ") + name +
+            std::string(element_name) + " " + boundary_name +
                 " accepts both configurations and warns for non-recommended choices");
-        const std::size_t default_small = warning_count(type, field, false, false, false);
-        const std::size_t default_finite = warning_count(type, field, true, false, false);
+        const std::size_t default_small = warning_count(type, field, false, false, element_formulation, false);
+        const std::size_t default_finite = warning_count(type, field, true, false, element_formulation, false);
         result = check(default_small == 0 && default_finite == 0,
-                     std::string("three-dimensional ") + name +
+                     std::string(element_name) + " " + boundary_name +
                          " omits configuration without warning for the strain-dependent recommendation") &&
                  result;
         return result;
     };
-    return check_type(fuelsim::BoundaryConditionType::pressure, fuelsim::Field::displacement_x, "pressure") &&
-           check_type(fuelsim::BoundaryConditionType::traction, fuelsim::Field::displacement_x, "traction");
+    const auto convection_has_geometry_columns = [&](bool finite_strain, bool current_configuration,
+                                                     fuelsim::Hex8ElementFormulation element_formulation,
+                                                     bool configuration_explicit) {
+        fuelsim::SpatialDefinition definition;
+        definition.regions.push_back({"solid", "solid", material(), 0.0, 300.0});
+        definition.regions.front().strain_formulation =
+            finite_strain ? fuelsim::StrainFormulation::finite : fuelsim::StrainFormulation::small;
+        definition.regions.front().hex8_element_formulation = element_formulation;
+        fuelsim::BoundaryConditionDefinition boundary{
+            "convection", fuelsim::BoundaryConditionType::convection, "x2", fuelsim::Field::temperature, 0.0};
+        boundary.heat_transfer_coefficient = 1000.0;
+        boundary.ambient_temperature = 300.0;
+        boundary.use_displaced_geometry = current_configuration;
+        boundary.configuration_explicit = configuration_explicit;
+        definition.boundary_conditions.push_back(boundary);
+        fuelsim::SteadyProblem problem(std::move(definition), mesh);
+        const fuelsim::cartesian::SpatialAssembly& spatial = fuelsim::cartesian::ProblemAccess::view(problem);
+        for (std::size_t contribution = 0; contribution < spatial.contribution_count(); ++contribution) {
+            if (spatial.contribution_type(contribution) != fuelsim::SpatialContributionType::convection) continue;
+            std::vector<unsigned char> pattern;
+            problem.contribution_jacobian_pattern(contribution, pattern);
+            for (std::size_t row = 0; row < 4; ++row)
+                for (std::size_t column = 4; column < 16; ++column)
+                    if (pattern[row * 16 + column] != 0U) return true;
+            return false;
+        }
+        throw std::logic_error("convection contribution is missing from the configuration test");
+    };
+    bool passed = true;
+    for (const auto element : {fuelsim::Hex8ElementFormulation::c3d8t, fuelsim::Hex8ElementFormulation::c3d8rt}) {
+        const char* element_name = element == fuelsim::Hex8ElementFormulation::c3d8t ? "C3D8T" : "C3D8RT";
+        passed = check_type(fuelsim::BoundaryConditionType::pressure, fuelsim::Field::displacement_x, element,
+                     element_name, "pressure") &&
+                 check_type(fuelsim::BoundaryConditionType::traction, fuelsim::Field::displacement_x, element,
+                     element_name, "traction") &&
+                 check_type(fuelsim::BoundaryConditionType::heat_flux, fuelsim::Field::temperature, element,
+                     element_name, "surface heat flux") &&
+                 check_type(fuelsim::BoundaryConditionType::convection, fuelsim::Field::temperature, element,
+                     element_name, "convection") &&
+                 passed;
+        const bool explicit_reference = convection_has_geometry_columns(true, false, element, true);
+        const bool explicit_current = convection_has_geometry_columns(false, true, element, true);
+        const bool default_small = convection_has_geometry_columns(false, false, element, false);
+        const bool default_finite = convection_has_geometry_columns(true, false, element, false);
+        passed = check(!explicit_reference && explicit_current && !default_small && default_finite,
+                     std::string(element_name) +
+                         " convection honors explicit configuration and strain-dependent defaults") &&
+                 passed;
+    }
+    return passed;
 }
 
 fuelsim::SpatialDefinition inelastic_definition(bool creep, bool plasticity,
@@ -860,7 +916,7 @@ int main(int argc, char** argv) {
     passed = test_surface_contact_finite_sliding() && passed;
     passed = test_finite_sliding_search_tree() && passed;
     passed = test_finite_sliding_end_to_end() && passed;
-    passed = test_mechanical_boundary_configuration_selection(mesh) && passed;
+    passed = test_boundary_configuration_selection(mesh) && passed;
     passed = test_inelastic_branches(session, mesh, argv[3]) && passed;
     session.collective_root_action([&]() {
         (void)std::remove(argv[1]);

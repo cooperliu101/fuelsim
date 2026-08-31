@@ -553,20 +553,22 @@ pressure 在 `configuration = reference` 时使用参考半径、参考法向和
 在 `configuration = current` 时使用当前端点计算当前半径、当前法向和当前 Line2
 测度，因而是 follower load；ADlite 同时生成方向、周长和边长变化产生的几何刚度。
 
-### 6.3 分量 traction 与对流
+### 6.3 分量 traction、表面热流与对流
 
 traction 的方向固定为用户选择的全局 R 或 Z 分量。未指定构型时，小应变使用参考表面、
 有限应变使用当前表面；显式 `configuration = current` 时使用当前半径和当前边长，但方向仍不随法向
 转动。
 
-对流热流是：
+三维 HEX8 C3D8T 和 C3D8RT 的表面热流与对流都可显式选择参考或当前构形；省略
+`configuration` 时，小应变采用参考构形，有限应变采用当前构形。当前构形的面
+测度及其位移导数进入热残量和一致 Jacobian。对流热流是：
 
 ```text
 q_convection = h_c * (T - T_ambient)
 ```
 
-它在参考 Line2 表面上积分，正值表示热量从求解区域流向环境。换热系数和
-环境温度可以分别由时间表驱动。
+正值表示热量从求解区域流向环境。换热系数和环境温度可以分别由时间表驱动。
+轴对称 RZ 和三维 HEX20 的对流仍固定在参考表面。
 
 ## 7. 热接触离散
 

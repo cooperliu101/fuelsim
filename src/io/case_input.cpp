@@ -639,7 +639,6 @@ BoundaryConditionDefinition read_boundary_condition(const InputDocument& documen
         return result;
     }
     if (type == "convection") {
-        forbid_key(document, section, "configuration", "type='convection'");
         forbid_key(document, section, "field", "type='convection'");
         forbid_key(document, section, "value", "type='convection'");
         forbid_key(document, section, "scale_with_load", "type='convection'");
@@ -650,6 +649,13 @@ BoundaryConditionDefinition read_boundary_condition(const InputDocument& documen
         result.ambient_temperature = read_double(document, section, "ambient_temperature");
         result.coefficient_function = read_optional_string(section, "coefficient_function", {});
         result.ambient_temperature_function = read_optional_string(section, "ambient_temperature_function", {});
+        const InputEntry* configuration_entry = find_entry(section, "configuration");
+        const std::string configuration = read_optional_string(section, "configuration", "reference");
+        if (configuration != "reference" && configuration != "current")
+            value_error(document, required_entry(document, section, "configuration"),
+                "convection configuration must be reference or current");
+        result.use_displaced_geometry = configuration == "current";
+        result.configuration_explicit = configuration_entry != nullptr;
         return result;
     }
     value_error(document, required_entry(document, section, "type"), "unknown boundary-condition type '" + type + "'");

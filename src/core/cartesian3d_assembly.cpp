@@ -648,7 +648,7 @@ SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const Unstructure
             continue;
         }
         if (boundary.type == BoundaryConditionType::pressure || boundary.type == BoundaryConditionType::traction ||
-            boundary.type == BoundaryConditionType::heat_flux)
+            boundary.type == BoundaryConditionType::heat_flux || boundary.type == BoundaryConditionType::convection)
             record_configuration_warning(boundary, this->region(region));
         const std::size_t kernel = _boundary_data.size();
         const bool displaced_geometry = boundary_uses_displaced_geometry(boundary, this->region(region));
@@ -733,6 +733,9 @@ SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const Unstructure
             }
             continue;
         }
+        if (boundary.type == BoundaryConditionType::convection && boundary.configuration_explicit)
+            throw std::invalid_argument(
+                "Convection configuration is currently supported only for C3D8T and C3D8RT: " + boundary.name);
         if (boundary.type == BoundaryConditionType::pressure || boundary.type == BoundaryConditionType::traction)
             record_configuration_warning(boundary, this->region(region));
         const std::size_t kernel = _boundary_data.size();

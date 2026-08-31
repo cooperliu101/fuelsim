@@ -546,15 +546,19 @@ secondary 侧切向合力；轴对称为有符号标量，三维为合力向量�
     boundary = clad_outer
     heat_transfer_coefficient = 1000
     ambient_temperature = 500
+    configuration = current
     coefficient_function = coolant_flow
     ambient_temperature_function = coolant_temperature
   []
 []
 ```
 
-两个函数均可省略；存在时分别乘以对应基值。换热系数和环境温度的物理范围由
-用户负责，程序不强制检查。
-对流项使用参考表面测度。三维 HEX20 的一阶温度对流边界采用 2×2（4 点）面内
+两个函数均可省略；存在时分别乘以对应基值。三维 HEX8 C3D8T 和 C3D8RT 的
+`heat_flux` 与 `convection` 都可显式选择 `configuration = reference` 或
+`configuration = current`。省略时，小应变使用参考表面，有限应变使用当前表面；
+当前表面测度及其位移导数进入热残量和一致 Jacobian。换热系数和环境温度的物理范围由
+用户负责，程序不强制检查。轴对称 RZ 和三维 HEX20 的对流仍只使用参考表面，
+不接受显式 `configuration`。三维 HEX20 的一阶温度对流边界采用 2×2（4 点）面内
 积分；同一二次面上的压力和分量牵引仍采用 3×3（9 点）积分。轴对称边界作为
 12 自由度贡献装配，三维四节点面作为 16 自由度贡献装配，HEX20 二次面作为 28
 自由度贡献装配；这些贡献的残量和温度

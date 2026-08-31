@@ -482,6 +482,9 @@ void SpatialAssembly::build_boundaries(const UnstructuredQuad4Mesh& source_mesh)
         } else if (definition.type == BoundaryConditionType::heat_flux) {
             throw std::invalid_argument("Axisymmetric surface heat flux is not implemented");
         } else {
+            if (definition.configuration_explicit)
+                throw std::invalid_argument(
+                    "Convection configuration is currently supported only for C3D8T and C3D8RT: " + definition.name);
             type = SpatialContributionType::convection;
             _boundary_data.push_back({Line2RzBoundaryKind::convection, TractionComponent::radial,
                 definition.heat_transfer_coefficient, definition.ambient_temperature, false});

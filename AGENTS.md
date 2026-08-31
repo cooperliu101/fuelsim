@@ -221,6 +221,10 @@ MOOSE 算例鉴定。轴对称有限应变 follower pressure 另有
   时必须遵从指定构形。pressure 使用所选构形的法向和表面测度；分量 traction
   的方向始终固定为全局分量，但使用所选构形的表面测度。当前构形的周长、边长
   或三维面测度必须进入 ADlite 几何切线。
+- 三维 HEX8 C3D8T 和 C3D8RT 的 surface heat flux 与 convection 同样接受
+  `configuration = reference|current`；省略时小应变使用参考构形、有限应变
+  使用当前构形。当前构形的表面测度及其位移导数必须进入热残量和一致 Jacobian。
+  轴对称 RZ 和三维 HEX20 的 convection 仍固定使用参考构形，不接受该字段。
 - 一个 M1 载荷路径只能构造一次问题几何，并在所有载荷步复用同一组
   SNES、Vec、Mat、非零结构和回调缓冲区；载荷步只更新具体热源参数。
 - 内部计时使用单调时钟，至少区分问题构造、求解器设置、非线性求解、残量
