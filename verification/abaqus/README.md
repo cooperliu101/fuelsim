@@ -1769,19 +1769,19 @@ zero. These values remain explicit in
 row is measured evidence and not a new verified acceptance case.
 
 Abaqus takes `36.1152 s` external wall time and reports `24.8 s` total CPU and
-`26 s` analysis wall time with one process. The controlled Fuelsim C3D8T
-standard Release trials take `43.24 s`, `42.36 s`, and `43.30 s` external wall
-time when both Fuelsim and ADlite use interprocedural optimization. Their
-`43.24 s` median gives a `1.1973` ratio. Both run on the same physical machine,
-but Abaqus runs natively on Windows while Fuelsim runs in WSL, so this ratio is
-not claimed as a pure solver-kernel comparison. The full-field Fuelsim trial
-reports `37.421452 s` internal total time, with `4.279848 s` in residual callbacks
-and `19.289782 s` in Jacobian callbacks. It uses 89 nonlinear iterations, 109
-residual evaluations, and 47 Jacobian evaluations, versus Abaqus's 72 iterations
-and matrix decompositions. Comparison with the saved pre-optimization
-degree-of-freedom state gives maximum absolute temperature and displacement
-differences of `3.88e-9 K` and `2.11e-12 m`. No material, contact, load, or
-convergence coefficient is fitted or changed for timing.
+`26 s` analysis wall time with one process. The final controlled Fuelsim C3D8T
+standard Release trials take `34.15 s`, `34.08 s`, and `33.99 s` externally;
+their `34.08 s` median is `5.635%` below Abaqus and gives a `0.943646` ratio.
+Both run on the same physical machine, but Abaqus runs natively on Windows while
+Fuelsim runs in WSL, so this ratio is not claimed as a pure solver-kernel
+comparison. The representative full-field Fuelsim trial takes `34.35 s`
+externally and reports `27.626988 s` internally, with `6.487015 s` in residual
+callbacks and `12.795092 s` in Jacobian callbacks. It uses 92 nonlinear
+iterations, 112 residual evaluations, and 26 Jacobian evaluations, versus
+Abaqus's 72 iterations and matrix decompositions. The residual-only path avoids
+constructing derivative-bearing finite-strain caches, and a Jacobian reuse
+period of five lowers derivative assembly frequency. No material, contact, load,
+fixed time step, convergence, or stabilization coefficient is fitted or changed.
 The generated mesh, extracted reference fields, comparison summary, scripts,
 and timing record are covered by `SHA256SUMS`.
 

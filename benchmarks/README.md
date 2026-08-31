@@ -1046,26 +1046,31 @@ The B5.46 Abaqus comparison converts the exact M5.8 Exodus mesh with
 `verification/abaqus/exodus_to_abaqus.py`. Abaqus R2018x uses one process,
 twenty fixed increments, and final-only field output. Its external wall time is
 `36.115237 s`; the analysis summary reports `24.8 s` CPU and `26 s` wall time.
-The pinned, one-thread Fuelsim C3D8T Release external-wall trials take `43.24 s`,
-`42.36 s`, and `43.30 s` when both Fuelsim and ADlite use interprocedural
-optimization. Their `43.24 s` median gives an observed ratio of `1.1973`, but it
-crosses native Windows and WSL and is not treated as a pure kernel comparison.
-The full-field trial reports `37.421452 s` internal total time, of which residual
-and Jacobian callbacks consume `4.279848 s` and `19.289782 s`. It uses 89
-nonlinear iterations, 109 residual evaluations, and 47 Jacobian evaluations,
-versus Abaqus's 72 iterations and decompositions. A comparison against the saved
-pre-optimization degree-of-freedom state gives maximum absolute temperature and
-displacement differences of `3.88e-9 K` and `2.11e-12 m`. The optimization
-changes no material, contact, load, or convergence coefficient.
+The final pinned, one-thread Fuelsim C3D8T Release external-wall trials take
+`34.15 s`, `34.08 s`, and `33.99 s` when both Fuelsim and ADlite use
+interprocedural optimization. Their `34.08 s` median is `5.635%` below Abaqus
+and gives an observed ratio of `0.943646`. The representative full-field Abaqus
+comparison takes `34.35 s` externally and reports `27.626988 s` internally, of
+which residual and Jacobian callbacks consume `6.487015 s` and `12.795092 s`.
+It uses 92 nonlinear iterations, 112 residual evaluations, and 26 Jacobian
+evaluations, versus Abaqus's 72 iterations and decompositions. The C3D8T
+residual-only path reuses ordinary-double finite-kinematics and stress caches
+instead of constructing the derivative-bearing element-pressure system, while
+matching the active path's arithmetic order. A Jacobian reuse period of five
+reduces derivative assembly without changing the fixed time steps or convergence
+limits. The comparison crosses native Windows and WSL and is not treated as a
+pure kernel comparison. No material, contact, load, convergence, or
+stabilization coefficient changes.
 
 The required unrelated RZ non-regression paths used the same pinning and
-thread settings. The 1,584-degree-of-freedom case retained 64 nonlinear and
-linear iterations and the identical final residual; its single-sample internal
-time changed from `0.876840 s` to `0.902755 s`, which is reported as
-subsecond run-to-run variation rather than a speed claim. The 23,010-degree-of-
-freedom, 20-step case retained 62 nonlinear and linear iterations and the
-identical final residual; load-path time changed from `26.584185 s` to
-`26.401516 s`, or 0.69 percent lower.
+thread settings. After one warm-up per executable, the 1,584-degree-of-freedom
+pre-change internal times were `0.861824 s`, `0.858642 s`, and `0.854164 s`;
+the candidate times were `0.852278 s`, `0.849842 s`, and `0.854755 s`. The
+medians are `0.858642 s` and `0.852278 s`, respectively, or 0.74 percent lower
+for the candidate. The 23,010-degree-of-freedom, 20-step candidate completed in
+`25.355092 s` with 62 nonlinear iterations, 82 residual evaluations, 62
+Jacobian evaluations, one PETSc workspace, and a final residual norm of
+`3.249125466882e-09`.
 
 ## M5.8 C3D8RT Abaqus timing
 
