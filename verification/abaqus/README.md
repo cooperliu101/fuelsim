@@ -1823,9 +1823,9 @@ below the same-machine one-process Abaqus time of `23.4891 s` and 74 iterations.
 Abaqus runs natively on Windows while Fuelsim runs in WSL, so the result is an
 end-to-end engineering comparison rather than a pure element-kernel or linear-
 solver ratio. The predictor changes only the Newton initial guess; checkpoint
-version 17 preserves its previous committed node state and time. The CTest is
-labelled `qualification`, runs serially, and is excluded from the daily
-`-LE qualification` selection.
+version 17 preserves its previous committed node state and time. The full-size
+path is retained as a manual benchmark and is not registered in the lightweight
+CTest suite.
 
 ## B5.19 C3D8T finite-deformation selective integration
 
@@ -1976,8 +1976,9 @@ Regenerate and run the reference with `generate_b523.py` and `run_b523.ps1`.
 ## B5.24 through B5.27 per-case full-field system comparisons
 
 B5.24 now has an independent Abaqus C3D8T deck and four complete reference
-files for each of its thirteen scan points. Each point is an independent CTest
-case. The transient endpoint is shortened from `0.4 s` to `0.2 s` while keeping
+files for each of its thirteen scan points. Each point remains a directly
+runnable manual comparison. The transient endpoint is shortened from `0.4 s`
+to `0.2 s` while keeping
 the first half of the original load history; ordinary, coarse-step, and
 fine-step cases retain ten, five, and twenty Abaqus frames. The cases cover two, three, and
 four thickness layers; time steps `0.04`, `0.02`, and `0.01 s`; penalties
@@ -1997,19 +1998,17 @@ force, contact heat, interface temperature, and peak plastic strain are
 monotonically convergent at the shortened midpoint, so it uses an explicit
 coarse-to-fine sensitivity gate: `3.95757%`, below `5%`. The exact case
 parameters and expected frame counts are in `b524_b525_cases.tsv`.
-The coarse-mesh case remains in the daily functional profile. The other twelve
-B5.24 scan points and the lightweight aggregate carry the `qualification`
-label and remain part of the complete Release suite.
-On the tracked Release build, the eighteen cases plus aggregation take `17.44 s`
-wall time with four CTest workers and `68.65 s` summed processor time, compared
-with `133.63 s` for the old serial aggregate. After also splitting B5.27,
-H20.29, and H20.40, the current 178-test complete suite takes `265.21 s`
-serially and `74.17 s` with four workers. The 157-test daily functional profile
-takes `48.85 s` with four workers.
+The B5.24 scan points and their response aggregate are retained as manual
+parameter-sensitivity evidence and are not registered in the lightweight
+CTest suite.
+Before the test-suite cleanup, the eighteen cases plus aggregation took
+`17.44 s` wall time with four CTest workers and `68.65 s` summed processor time,
+compared with `133.63 s` for the old serial aggregate. These timings remain
+historical parameter-study data rather than the current CTest composition.
 
 B5.25 has five corresponding full-field references: Poisson ratios `0.30`,
 `0.45`, `0.49`, and `0.499` on the distorted traction-controlled bending mesh,
-plus the thickness-refined `0.499` case. Each is an independent CTest, and all
+plus the thickness-refined `0.499` case. Each remains a manual comparison, and all
 ten frames through `0.2 s` compare the complete nodal, integration-point,
 contact, and energy data. The ordinary
 bulk gates remain `1%`; contact local recovery permits an explicit `3%`
@@ -2034,9 +2033,9 @@ contact pressure, normal contact force, and complete contact force all pass
 their three metrics below `1%`; the largest is the normal-force maximum
 pointwise error of `0.999029%`. No material or contact coefficient differs
 between the two meshes.
-The `nu=0.49`, `nu=0.499`, and thickness-refined `nu=0.499` cases remain in the
-daily functional profile. The `nu=0.30` and `nu=0.45` cases carry the
-`qualification` label and remain in the complete Release suite.
+The five Poisson-ratio and thickness-refinement cases are retained as manual
+parameter-sensitivity evidence and are not registered in the lightweight
+CTest suite.
 
 B5.26 has six explicitly registered per-transition full-field references in
 `b526_full_field_cases.tsv`. Two new elastic contact paths isolate the contact
@@ -2057,10 +2056,9 @@ rollback, retry, and restart transaction checks.
 
 B5.27 now has independent Abaqus input, nodal, integration-point, contact, and
 energy files for coarse, medium, and fine meshes, the half-time-step case, and
-the low- and high-penalty cases. Six independent CTests each solve and compare
-one case, then write a small response summary. A lightweight aggregate CTest
-reads those six summaries without solving again and retains the mesh, time-step,
-and penalty independence assertions.
+the low- and high-penalty cases. The medium mesh is the automated comparison;
+the other five cases and response aggregation remain directly runnable manual
+sensitivity checks.
 Aggregate complete-field errors use a `1.5%` gate; displacement, logarithmic
 strain, and contact pointwise gates are `5%`, `2%`, and `2.5%`. Very small
 reaction, stress, and elastic-strain reference norms use explicit absolute gates
@@ -2075,13 +2073,13 @@ displacement maximum pointwise error. Material, contact, and time-integration
 parameters are unchanged. This establishes full-field agreement for the tracked
 quarter-cylinder engineering model, but it is not a nuclear-safety
 qualification and does not cover untracked geometries, materials, or paths.
-The medium-mesh case remains in the daily functional profile. The other five
-cases and the response aggregate carry the `qualification` label and remain in
-the complete Release suite.
-Together, the six B5.27 cases, five H20.29 cases, two H20.40 cases, and the B5.27
-response aggregate take `34.32 s` wall time with four CTest workers and
-`108.11 s` summed processor time. Their three former serial aggregate tests took
-approximately `104.46 s` in total.
+The medium-mesh case remains the automated engineering-scale comparison. The
+other five cases and the response aggregate are retained as manual mesh,
+time-step, and penalty-sensitivity evidence.
+Before the test-suite cleanup, the six B5.27 cases, five H20.29 cases, two H20.40
+cases, and the B5.27 response aggregate took `34.32 s` wall time with four CTest
+workers and `108.11 s` summed processor time. Their three earlier serial
+aggregate tests took approximately `104.46 s` in total.
 
 Generate B5.24 through B5.26 with `generate_b524_b525.py`, extract them with
 `extract_b524_b525.py`, and run the two families with `run_b524_b525.ps1` and

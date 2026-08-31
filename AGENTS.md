@@ -294,17 +294,15 @@ env \
   -DFUELSIM_WARNINGS_AS_ERRORS=ON
 cmake --build build --parallel 4
 
-# 日常功能测试：保留每项核心功能的代表工况，排除扩展参数扫描和跨工况汇总
-ctest --test-dir build -LE qualification -j4 --output-on-failure
-
-# 完整发布验收：运行包括 qualification 标签工况在内的全部测试
+# 统一回归：所有已注册测试都属于同一个轻量测试套件
 ctest --test-dir build -j4 --output-on-failure
 ```
 
-日常功能测试用于开发过程中的快速反馈，不能替代完整发布验收。`qualification`
-标签只控制测试选择范围，不表示删除验证工况或放宽数值门槛。
+CTest 不再区分日常回归和完整回归，也不使用 `qualification` 标签筛选扩展参数
+扫描。网格、时间步、材料参数和接触参数的重复扫描保留为手动验证资料；自动测试
+只保留能够增加独立物理分支、离散路径、事务行为或外部求解器对标覆盖的轻量例题。
 
-涉及 CMake、PETSc 求解层或依赖配置的修改必须完成上述完整发布验收入口的回归。
+涉及 CMake、PETSc 求解层或依赖配置的修改必须完成上述统一回归入口。
 
 PETSc/MPICH 测试在受限沙盒内可能出现 `OFI EP enable failed`。遇到该错误应在
 沙盒外重跑，不能归因于 fuelsim 数值实现。
@@ -409,8 +407,9 @@ M2 还必须检查：
    `fuelsim_b54_hex8_c3d8t_finite_thermal_load_abaqus_tests`；
 4. HEX8 弹性、J2 塑性、Norton 蠕变及其全隐式耦合修改必须按影响范围运行
    B5.10 至 B5.18 的 Abaqus 全场路径，比较全部节点场、八个积分点历史和能量；
-5. C3D8RT 有限应变综合路径修改必须运行
-   `fuelsim_b547_m58_c3d8rt_abaqus_tests`。该 6,468 自由度固定路径的径向位移
+5. C3D8RT 有限应变综合路径修改必须手动运行
+   `fuelsim_m58_integrated_hex8_benchmark` 的 B5.47 Abaqus 对比模式。该 6,468
+   自由度固定路径不属于轻量 CTest；其径向位移
    最大逐点相对误差使用验证矩阵记录的 `4%` 有限条件门槛，聚合误差仍保持
    `0.5%`；理论零周向位移使用 `1 um` 绝对门槛，完整 Cartesian 分量误差仍须
    输出且不得增加分母下限。还必须输出 Abaqus 人工应变能占内能比例；

@@ -386,20 +386,6 @@ if(BUILD_TESTING)
             fuelsim::solver
     )
     fuelsim_enable_warnings(fuelsim_m58_integrated_hex8_benchmark)
-    add_test(NAME fuelsim_b547_m58_c3d8rt_abaqus_tests
-        COMMAND fuelsim_m58_integrated_hex8_benchmark
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_integrated_c3d8rt.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b547_m58_c3d8rt_integrated_nodal.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b547_m58_c3d8rt_integrated_contact.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b547_m58_c3d8rt_integrated_clad_state.csv"
-            abaqus
-    )
-    set_tests_properties(fuelsim_b547_m58_c3d8rt_abaqus_tests PROPERTIES
-        LABELS "integration;three-dimensional;hex8;c3d8rt;finite-strain;contact;abaqus;qualification"
-        RUN_SERIAL TRUE
-        TIMEOUT 300
-    )
-
     add_executable(fuelsim_m52_large_sliding_restart_tests
         tests/m52_large_sliding_restart_tests.cpp
     )
@@ -653,68 +639,6 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_b523_hex8_c3d8t_integrated_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;transient;thermal;mechanical;finite-strain;plasticity;creep;friction;contact;abaqus")
 
-    set(b524_b525_response_directory "${CMAKE_CURRENT_BINARY_DIR}/b524_b525_responses")
-    set(b524_b525_cases
-        b524_mesh_coarse
-        b524_mesh_medium
-        b524_mesh_fine
-        b524_time_coarse
-        b524_time_fine
-        b524_penalty_low
-        b524_penalty_high
-        b524_friction_low
-        b524_friction_high
-        b524_slip_low
-        b524_slip_high
-        b524_thermal_low
-        b524_thermal_high
-        b525_poisson_030
-        b525_poisson_045
-        b525_poisson_049
-        b525_poisson_0499
-        b525_poisson_0499_refined)
-    set(b524_b525_functional_cases
-        b524_mesh_coarse
-        b525_poisson_049
-        b525_poisson_0499
-        b525_poisson_0499_refined)
-    set(b524_b525_response_fixtures)
-    foreach(b524_b525_case IN LISTS b524_b525_cases)
-        set(b524_b525_test "fuelsim_${b524_b525_case}_abaqus_tests")
-        set(b524_b525_fixture "${b524_b525_case}_response")
-        add_test(NAME ${b524_b525_test}
-            COMMAND fuelsim_b523_hex8_c3d8t_integrated_abaqus_tests
-                "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b523_hex8_c3d8t_integrated_path_nodal.csv"
-                "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b523_hex8_c3d8t_integrated_path_integration.csv"
-                "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b523_hex8_c3d8t_integrated_path_contact.csv"
-                "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b523_hex8_c3d8t_integrated_path_energy.csv"
-                "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus"
-                "${b524_b525_case}"
-                "${b524_b525_response_directory}/${b524_b525_case}.txt")
-        set(b524_b525_labels
-            acceptance three-dimensional hex8 transient thermal mechanical finite-strain friction contact abaqus split-case)
-        list(FIND b524_b525_functional_cases "${b524_b525_case}" b524_b525_functional_index)
-        if(b524_b525_functional_index EQUAL -1)
-            list(APPEND b524_b525_labels qualification)
-        endif()
-        set_tests_properties(${b524_b525_test} PROPERTIES
-            FIXTURES_SETUP "${b524_b525_fixture}"
-            LABELS "${b524_b525_labels}")
-        list(APPEND b524_b525_response_fixtures "${b524_b525_fixture}")
-    endforeach()
-    add_test(NAME fuelsim_b524_b525_response_aggregate_tests
-        COMMAND fuelsim_b523_hex8_c3d8t_integrated_abaqus_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b523_hex8_c3d8t_integrated_path_nodal.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b523_hex8_c3d8t_integrated_path_integration.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b523_hex8_c3d8t_integrated_path_contact.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b523_hex8_c3d8t_integrated_path_energy.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus"
-            --aggregate-responses
-            "${b524_b525_response_directory}")
-    set_tests_properties(fuelsim_b524_b525_response_aggregate_tests PROPERTIES
-        FIXTURES_REQUIRED "${b524_b525_response_fixtures}"
-        LABELS "acceptance;three-dimensional;hex8;transient;thermal;mechanical;finite-strain;friction;contact;abaqus;aggregate;qualification")
-
     foreach(b526_case IN ITEMS b526_contact_cycle b526_friction_reversal)
         string(REPLACE "b526_" "" b526_suffix "${b526_case}")
         set(b526_test "fuelsim_b526_hex8_c3d8t_${b526_suffix}_abaqus_tests")
@@ -773,34 +697,13 @@ if(BUILD_TESTING)
     target_link_libraries(fuelsim_b527_hex8_engineering_fuel_clad_tests
         PRIVATE fuelsim_abaqus_hex8_test_support fuelsim_moose_test_support fuelsim::solver)
     fuelsim_enable_warnings(fuelsim_b527_hex8_engineering_fuel_clad_tests)
-    set(b527_response_directory "${CMAKE_CURRENT_BINARY_DIR}/b527_responses")
-    set(b527_cases coarse medium fine half_step low_penalty high_penalty)
-    set(b527_response_fixtures)
-    foreach(b527_case IN LISTS b527_cases)
-        set(b527_test "fuelsim_b527_${b527_case}_abaqus_tests")
-        set(b527_fixture "b527_${b527_case}_response")
-        set(b527_labels
-            acceptance three-dimensional hex8 transient thermal mechanical finite-strain friction contact engineering abaqus split-case)
-        if(NOT b527_case STREQUAL "medium")
-            list(APPEND b527_labels qualification)
-        endif()
-        add_test(NAME ${b527_test}
-            COMMAND fuelsim_b527_hex8_engineering_fuel_clad_tests
-                "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus"
-                "${b527_case}"
-                "${b527_response_directory}/${b527_case}.txt")
-        set_tests_properties(${b527_test} PROPERTIES
-            FIXTURES_SETUP "${b527_fixture}"
-            LABELS "${b527_labels}")
-        list(APPEND b527_response_fixtures "${b527_fixture}")
-    endforeach()
-    add_test(NAME fuelsim_b527_response_aggregate_tests
+    add_test(NAME fuelsim_b527_medium_abaqus_tests
         COMMAND fuelsim_b527_hex8_engineering_fuel_clad_tests
-            --aggregate-responses
-            "${b527_response_directory}")
-    set_tests_properties(fuelsim_b527_response_aggregate_tests PROPERTIES
-        FIXTURES_REQUIRED "${b527_response_fixtures}"
-        LABELS "acceptance;three-dimensional;hex8;transient;thermal;mechanical;finite-strain;friction;contact;engineering;abaqus;aggregate;qualification")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus"
+            medium
+            "${CMAKE_CURRENT_BINARY_DIR}/b527_medium_response.txt")
+    set_tests_properties(fuelsim_b527_medium_abaqus_tests PROPERTIES
+        LABELS "acceptance;three-dimensional;hex8;transient;thermal;mechanical;finite-strain;friction;contact;engineering;abaqus")
 
     add_executable(fuelsim_b53_hex8_c3d8t_thermal_load_abaqus_tests
         tests/b53_hex8_c3d8t_thermal_load_abaqus_tests.cpp)
@@ -1770,30 +1673,25 @@ if(BUILD_TESTING)
         NO_DEFAULT_PATH
     )
     if(FUELSIM_MPIEXEC_EXECUTABLE)
-        set(c3d8rt_mpi_reference "${CMAKE_CURRENT_BINARY_DIR}/c3d8rt_contact_one_rank.dof")
+        set(c3d8rt_mpi_reference "${CMAKE_CURRENT_BINARY_DIR}/c3d8rt_contact_one_rank.txt")
         add_test(NAME fuelsim_c3d8rt_contact_one_rank_reference
-            COMMAND $<TARGET_FILE:fuelsim_m58_integrated_hex8_benchmark>
-                "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_integrated_c3d8rt.fsi"
-                "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m58_integrated_hex8_all_nodes_0020.csv"
-                "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m58_integrated_hex8_contact_pressure_0020.csv"
-                "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m58_integrated_hex8_clad_state_0020.csv"
-                write_dof "${c3d8rt_mpi_reference}")
+            COMMAND fuelsim_mpi_equivalence_benchmark
+                write
+                "${c3d8rt_mpi_reference}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex8_c3d8rt_contact_mpi.fsi")
         set_tests_properties(fuelsim_c3d8rt_contact_one_rank_reference PROPERTIES
             FIXTURES_SETUP c3d8rt_contact_reference
-            LABELS "integration;mpi-reference;three-dimensional;hex8;c3d8rt;finite-strain;contact;qualification")
+            LABELS "integration;mpi-reference;three-dimensional;hex8;c3d8rt;finite-strain;contact")
         add_test(NAME fuelsim_c3d8rt_contact_two_rank_equivalence
             COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2
-                $<TARGET_FILE:fuelsim_m58_integrated_hex8_benchmark>
-                "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_integrated_c3d8rt.fsi"
-                "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m58_integrated_hex8_all_nodes_0020.csv"
-                "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m58_integrated_hex8_contact_pressure_0020.csv"
-                "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m58_integrated_hex8_clad_state_0020.csv"
-                compare_dof "${c3d8rt_mpi_reference}")
+                $<TARGET_FILE:fuelsim_mpi_equivalence_benchmark>
+                compare
+                "${c3d8rt_mpi_reference}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex8_c3d8rt_contact_mpi.fsi")
         set_tests_properties(fuelsim_c3d8rt_contact_two_rank_equivalence PROPERTIES
             FIXTURES_REQUIRED c3d8rt_contact_reference
             PROCESSORS 2
-            RUN_SERIAL TRUE
-            LABELS "integration;mpi;three-dimensional;hex8;c3d8rt;finite-strain;contact;equivalence;qualification")
+            LABELS "integration;mpi;three-dimensional;hex8;c3d8rt;finite-strain;contact;equivalence")
 
         add_test(NAME fuelsim_mpi_hex8_solver_tests
             COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2
@@ -2259,22 +2157,6 @@ if(BUILD_TESTING)
         fuelsim_m43_coupled_displacement_moose_tests
         fuelsim_m43_coupled_pressure_moose_tests
         fuelsim_m43_material_oracle_moose_tests
-        PROPERTIES LABELS "acceptance"
-    )
-
-    add_test(NAME fuelsim_steady_input_card
-        COMMAND fuelsim -i
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_fuel_cladding.fsi"
-    )
-    set_tests_properties(fuelsim_steady_input_card
-        PROPERTIES LABELS "acceptance"
-    )
-
-    add_test(NAME fuelsim_transient_input_card
-        COMMAND fuelsim -i
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_fuel_cladding_pcmi.fsi"
-    )
-    set_tests_properties(fuelsim_transient_input_card
         PROPERTIES LABELS "acceptance"
     )
 

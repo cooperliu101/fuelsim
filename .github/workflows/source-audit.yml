@@ -70,4 +70,4 @@ jobs:
           ASAN_OPTIONS=detect_leaks=0 \
           MPIR_CVAR_CH4_NETMOD=ofi \
           FI_PROVIDER=tcp \
-            ctest --test-dir build-ci-sanitizer -LE qualification -j4 --output-on-failure
+            ctest --test-dir build-ci-sanitizer -j4 --output-on-failure

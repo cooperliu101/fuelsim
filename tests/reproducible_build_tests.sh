@@ -47,7 +47,7 @@ require_text "${workflow}" "-DFUELSIM_ENABLE_SANITIZERS="
 require_text "${workflow}" \
     "ctest --test-dir build-ci-release -j4 --output-on-failure"
 require_text "${workflow}" \
-    "ctest --test-dir build-ci-sanitizer -LE qualification -j4 --output-on-failure"
+    "ctest --test-dir build-ci-sanitizer -j4 --output-on-failure"
 require_text "${workflow}" "MPIR_CVAR_CH4_NETMOD=ofi"
 require_text "${workflow}" "FI_PROVIDER=tcp"
 

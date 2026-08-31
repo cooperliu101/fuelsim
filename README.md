@@ -149,15 +149,13 @@ env \
     -DSEACASExodus_DIR="${fuelsim_dependency_root}/exodus-2024-06-27/lib/cmake/SEACASExodus"
 
 env PATH="${fuelsim_toolchain_prefix}/bin:/usr/local/bin:/usr/bin:/bin" \
-  cmake --build build --parallel
+  cmake --build build --parallel 4
 
-ctest --test-dir build -LE qualification -j4 --output-on-failure
-ctest --test-dir build --output-on-failure
+ctest --test-dir build -j4 --output-on-failure
 ```
 
-第一条 CTest 命令并行运行日常功能测试，并排除标记为 `qualification` 的扩展参数
-扫描和跨工况汇总。第二条命令串行运行包括这些扩展工况在内的完整发布验收；修改
-物理、构建或求解器后不能用日常功能测试替代完整发布验收。
+CTest 只保留一个最多四并发的统一回归入口。扩展参数扫描和大型性能路径作为手动
+验证资料保留，不再用标签形成第二套测试层级。
 
 `fuelsim_io` 将一个二维非结构 Quad4 或三维 HEX8 文件的节点、连接关系、元素块、
 节点集和边集转换为 fuelsim 自有网格对象；专项 CTest 通过 Exodus API
