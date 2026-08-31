@@ -215,7 +215,7 @@
   absolute_tolerance = 1e-7
   relative_tolerance = 1e-8
   step_tolerance = 1e-12
-  maximum_iterations = 20
+  maximum_iterations = 40
   backtracking_fallback = true
   field_residual_scaling = true
   temperature_residual_absolute_tolerance = 1e-8

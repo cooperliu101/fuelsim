@@ -207,6 +207,15 @@ bool below(const std::string& name, const fuelsim::test::FieldErrorMetrics& metr
         name + " relative L2, relative absolute-peak, and maximum pointwise errors are below 0.5 percent");
 }
 
+bool below_with_pointwise_tolerance(const std::string& name, const fuelsim::test::FieldErrorMetrics& metrics,
+    double aggregate_tolerance, double pointwise_tolerance, bool output) {
+    if (output) fuelsim::test::print_relative_metrics(name, metrics);
+    return check(fuelsim::test::relative_metrics_below_with_pointwise_tolerance(
+                     metrics, aggregate_tolerance, pointwise_tolerance),
+        name + " relative L2 and relative absolute-peak errors satisfy the aggregate tolerance, and the maximum "
+               "pointwise error satisfies its explicit qualified tolerance");
+}
+
 bool run(const std::string& input_path, const std::string& nodal_path, const std::string& contact_path,
     const std::string& element_path, const std::string& reference_mode, const std::string& reference_path,
     bool output) {
@@ -283,7 +292,7 @@ bool run(const std::string& input_path, const std::string& nodal_path, const std
     const auto node_reference = read_nodes(nodal_path);
     if (node_reference.size() != source.nodes().size()) throw std::invalid_argument("M5.8 node counts differ");
     std::array<fuelsim::test::FieldErrorMetrics, 4> nodal;
-    fuelsim::test::FieldErrorMetrics radial_displacement, tangential_displacement;
+    fuelsim::test::FieldErrorMetrics radial_displacement, tangential_displacement, tangential_analytic_zero;
     double maximum_coordinate_difference = 0.0;
     const auto& dofs = fuelsim::cartesian::ProblemAccess::dof_map(problem);
     for (std::size_t region = 0; region < fuelsim::cartesian::ProblemAccess::region_count(problem); ++region) {
@@ -321,14 +330,32 @@ bool run(const std::string& input_path, const std::string& nodal_path, const std
                     (point.x * reference_fields[1] + point.y * reference_fields[2]) / radius);
                 tangential_displacement.add((-point.y * actual[1] + point.x * actual[2]) / radius,
                     (-point.y * reference_fields[1] + point.x * reference_fields[2]) / radius);
+                tangential_analytic_zero.add((-point.y * actual[1] + point.x * actual[2]) / radius, 0.0);
             }
         }
     }
     const std::array<std::string, 4> nodal_names = {
         "temperature", "displacement_x", "displacement_y", "displacement_z"};
-    for (std::size_t field = 0; field < nodal.size(); ++field)
-        passed = below("m58_" + nodal_names[field], nodal[field], output) && passed;
-    if (output) {
+    const bool abaqus_reference = reference_mode == "abaqus";
+    for (std::size_t field = 0; field < nodal.size(); ++field) {
+        if (abaqus_reference && (field == 1 || field == 2)) {
+            if (output) fuelsim::test::print_relative_metrics("m58_" + nodal_names[field], nodal[field]);
+        } else {
+            passed = below("m58_" + nodal_names[field], nodal[field], output) && passed;
+        }
+    }
+    if (abaqus_reference) {
+        passed =
+            below_with_pointwise_tolerance("m58_radial_displacement", radial_displacement, 5.0e-3, 4.0e-2, output) &&
+            passed;
+        if (output) {
+            fuelsim::test::print_relative_metrics("m58_tangential_displacement", tangential_displacement);
+            fuelsim::test::print_absolute_metrics("m58_tangential_analytic_zero", tangential_analytic_zero);
+        }
+        passed = check(tangential_analytic_zero.maximum_absolute_difference < 1.0e-6,
+                     "M5.8 analytical-zero tangential displacement remains below one micrometre") &&
+                 passed;
+    } else if (output) {
         fuelsim::test::print_relative_metrics("m58_radial_displacement", radial_displacement);
         fuelsim::test::print_relative_metrics("m58_tangential_displacement", tangential_displacement);
     }
@@ -403,6 +430,8 @@ bool run(const std::string& input_path, const std::string& nodal_path, const std
     if (output)
         std::cout << "m58_dofs=" << problem.dof_count() << '\n'
                   << "m58_initial_minimum_gap=" << initial_minimum_gap << '\n'
+                  << "m58_accepted_steps=" << solve.accepted_steps.size() << '\n'
+                  << "m58_rejected_steps=" << solve.rejected_steps.size() << '\n'
                   << "m58_nonlinear_iterations=" << solve.total_nonlinear_iterations << '\n'
                   << "m58_residual_evaluations=" << solve.aggregate_timing.residual_evaluations << '\n'
                   << "m58_jacobian_evaluations=" << solve.aggregate_timing.jacobian_evaluations << '\n'
@@ -447,26 +476,29 @@ bool run(const std::string& input_path, const std::string& nodal_path, const std
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 5 && argc != 7) {
+    if (argc != 5 && argc != 6 && argc != 7) {
         std::cerr << "Usage: fuelsim_m58_integrated_hex8_benchmark "
                      "<case.fsi> <all-nodes.csv> <contact.csv> <element-state.csv> "
-                     "[write|compare|write_dof|compare_dof <dof-reference>]\n";
+                     "[abaqus|write|compare|write_dof|compare_dof [dof-reference]]\n";
         return 2;
     }
     try {
         std::cout << std::scientific << std::setprecision(12);
         fuelsim::PetscSession session(argc, argv, "fuelsim M5.8 integrated Hex8 benchmark\n");
-        const std::string reference_mode = argc == 7 ? argv[5] : "";
+        const std::string reference_mode = argc >= 6 ? argv[5] : "";
         const std::string reference_path = argc == 7 ? argv[6] : "";
-        if (!reference_mode.empty() && reference_mode != "write" && reference_mode != "compare" &&
-            reference_mode != "write_dof" && reference_mode != "compare_dof")
+        if (!reference_mode.empty() && reference_mode != "abaqus" && reference_mode != "write" &&
+            reference_mode != "compare" && reference_mode != "write_dof" && reference_mode != "compare_dof")
             throw std::invalid_argument(
-                "M5.8 degree-of-freedom reference mode must be write, compare, write_dof, or compare_dof");
+                "M5.8 reference mode must be abaqus, write, compare, write_dof, or compare_dof");
+        if ((reference_mode == "abaqus") != (argc == 6))
+            throw std::invalid_argument("M5.8 Abaqus mode takes no degree-of-freedom reference path");
         if (!run(argv[1], argv[2], argv[3], argv[4], reference_mode, reference_path, session.rank() == 0)) return 1;
         if (session.rank() == 0)
             std::cout << (reference_mode == "write_dof" || reference_mode == "compare_dof"
                               ? "[PASS] M5.8 integrated Hex8 degree-of-freedom reference\n"
-                              : "[PASS] M5.8 integrated Hex8 MOOSE comparison\n");
+                          : reference_mode == "abaqus" ? "[PASS] M5.8 integrated Hex8 Abaqus comparison\n"
+                                                       : "[PASS] M5.8 integrated Hex8 MOOSE comparison\n");
         return 0;
     } catch (const std::exception& error) {
         std::cerr << "[FAIL] M5.8 benchmark raised: " << error.what() << '\n';

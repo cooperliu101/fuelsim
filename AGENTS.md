@@ -401,7 +401,12 @@ M2 还必须检查：
    `fuelsim_b54_hex8_c3d8t_finite_thermal_load_abaqus_tests`；
 4. HEX8 弹性、J2 塑性、Norton 蠕变及其全隐式耦合修改必须按影响范围运行
    B5.10 至 B5.18 的 Abaqus 全场路径，比较全部节点场、八个积分点历史和能量；
-5. HEX20 修改必须运行对应的局部核、端到端、MOOSE 或 Abaqus 外部对标以及
+5. C3D8RT 有限应变综合路径修改必须运行
+   `fuelsim_b547_m58_c3d8rt_abaqus_tests`。该 6,468 自由度固定路径的径向位移
+   最大逐点相对误差使用验证矩阵记录的 `4%` 有限条件门槛，聚合误差仍保持
+   `0.5%`；理论零周向位移使用 `1 um` 绝对门槛，完整 Cartesian 分量误差仍须
+   输出且不得增加分母下限。还必须输出 Abaqus 人工应变能占内能比例；
+6. HEX20 修改必须运行对应的局部核、端到端、MOOSE 或 Abaqus 外部对标以及
    checkpoint/restart 测试；不得用 HEX8 结果替代混合阶 HEX20 的独立证据。
 
 三维 Abaqus 对标的具体字段、误差门槛和已鉴定边界以

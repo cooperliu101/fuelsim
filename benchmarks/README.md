@@ -1066,3 +1066,24 @@ subsecond run-to-run variation rather than a speed claim. The 23,010-degree-of-
 freedom, 20-step case retained 62 nonlinear and linear iterations and the
 identical final residual; load-path time changed from `26.584185 s` to
 `26.401516 s`, or 0.69 percent lower.
+
+## M5.8 C3D8RT Abaqus timing
+
+B5.47 converts the exact same 1,617-node and 1,152-element M5.8 Exodus mesh to
+Abaqus C3D8RT. Both Abaqus and Fuelsim complete twenty fixed `0.05 s`
+increments without cutback. The controlled one-process Abaqus R2018x run takes
+`23.489094 s` external wall time and 74 iterations. One CPU-0-pinned Fuelsim
+Release trial with all numerical-library thread counts fixed to one takes
+`129.02 s`, with `121.210197 s` internal total time, 193 nonlinear iterations,
+222 residual evaluations, and 101 Jacobian evaluations. The observed external-
+wall ratio is `5.492761875`. This is a single paired engineering measurement
+across native Windows and WSL, not a general speed ratio or a pure kernel
+comparison.
+
+The fixed-path field qualification is documented by B5.47 rather than inferred
+from timing. All ordinary scalar and axial field metrics pass `0.5%`; the
+radial pointwise error uses the recorded `4%` small-reference gate, complete
+Cartesian and tangential diagnostics remain visible, and analytical-zero
+tangential displacement uses a `1 um` absolute bound. Abaqus artificial strain
+energy stays below `0.221711%` of internal energy. No physical or hourglass
+coefficient is changed for either the error or timing comparison.

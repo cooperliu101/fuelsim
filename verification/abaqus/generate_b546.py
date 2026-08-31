@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the B5.46 full-size M5.8-equivalent Abaqus C3D8T case."""
+"""Generate the full-size M5.8-equivalent Abaqus C3D8T or C3D8RT cases."""
 
 from pathlib import Path
 
@@ -38,15 +38,15 @@ def analytic_gap_conductance(lines):
         lines.append("%.16g, %.16g" % (0.004 / gap, gap))
 
 
-def deck():
+def deck(job=JOB, case_name="B5.46", element_type="C3D8T"):
     lines = [
         "*Heading",
-        "** B5.46 full-size M5.8-equivalent finite-strain C3D8T benchmark.",
+        "** %s full-size M5.8-equivalent finite-strain %s benchmark." % (case_name, element_type),
         "** The mesh include is converted directly from m58_integrated_hex8_mesh.e.",
         "** SI units: metre, second, kelvin, pascal, watt.",
         "** Temperature and gap tables sample the stated analytic functions; no coefficient is fitted.",
         "*Preprint, echo=NO, model=NO, history=NO, contact=YES",
-        "*Include, input=%s_mesh.inc" % JOB,
+        "*Include, input=%s_mesh.inc" % job,
         "*Material, name=FUEL_MATERIAL",
         "*Elastic",
         "2e11, 0.316",
@@ -129,32 +129,40 @@ def deck():
             "CEEQ, IVOL, PEEQ, S",
             "*Contact Output",
             "CDISP, CFORCE, CSTRESS, HFL",
-            "*Output, history, frequency=20",
+            "*Output, history, frequency=%d" % (1 if element_type == "C3D8RT" else 20),
             "*Energy Output",
-            "ALLCD, ALLFD, ALLIE, ALLPD, ALLSE, ALLWK",
+            (
+                "ALLAE, ALLCD, ALLFD, ALLIE, ALLPD, ALLSE, ALLWK"
+                if element_type == "C3D8RT"
+                else "ALLCD, ALLFD, ALLIE, ALLPD, ALLSE, ALLWK"
+            ),
             "*End Step",
         ]
     )
     return "\n".join(lines) + "\n"
 
 
-def main():
+def generate(job=JOB, case_name="B5.46", element_type="C3D8T"):
     directory = Path(__file__).resolve().parent
     exodus = directory.parent / "moose" / "m58_integrated_hex8_mesh.e"
-    mesh_include = directory / (JOB + "_mesh.inc")
-    manifest = directory / (JOB + "_mesh.json")
-    mesh = convert(exodus, mesh_include, manifest, "C3D8T")
-    input_path = directory / (JOB + ".inp")
-    input_path.write_text(deck(), encoding="ascii")
+    mesh_include = directory / (job + "_mesh.inc")
+    manifest = directory / (job + "_mesh.json")
+    mesh = convert(exodus, mesh_include, manifest, element_type)
+    input_path = directory / (job + ".inp")
+    input_path.write_text(deck(job, case_name, element_type), encoding="ascii")
     if len(mesh["nodes"]) != 1617 or len(mesh["elements"]) != 1152:
-        raise RuntimeError("B5.46 expected 1617 nodes and 1152 elements")
+        raise RuntimeError("%s expected 1617 nodes and 1152 elements" % case_name)
     expected_blocks = ["FUEL", "CLAD"]
     expected_sets = {"FUEL_OUTER", "FUEL_BOTTOM", "FUEL_TOP", "CLAD_RMIN", "CLAD_RMAX", "CLAD_BOTTOM", "CLAD_TOP"}
     if [block["name"] for block in mesh["blocks"]] != expected_blocks:
-        raise RuntimeError("B5.46 element block names changed")
+        raise RuntimeError("%s element block names changed" % case_name)
     if {side_set["name"] for side_set in mesh["side_sets"]} != expected_sets:
-        raise RuntimeError("B5.46 side-set names changed")
+        raise RuntimeError("%s side-set names changed" % case_name)
     print("wrote %s, %s, and %s" % (input_path, mesh_include, manifest))
+
+
+def main():
+    generate()
 
 
 if __name__ == "__main__":

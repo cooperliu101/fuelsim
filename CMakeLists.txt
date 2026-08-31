@@ -386,6 +386,19 @@ if(BUILD_TESTING)
             fuelsim::solver
     )
     fuelsim_enable_warnings(fuelsim_m58_integrated_hex8_benchmark)
+    add_test(NAME fuelsim_b547_m58_c3d8rt_abaqus_tests
+        COMMAND fuelsim_m58_integrated_hex8_benchmark
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_integrated_c3d8rt.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b547_m58_c3d8rt_integrated_nodal.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b547_m58_c3d8rt_integrated_contact.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b547_m58_c3d8rt_integrated_clad_state.csv"
+            abaqus
+    )
+    set_tests_properties(fuelsim_b547_m58_c3d8rt_abaqus_tests PROPERTIES
+        LABELS "integration;three-dimensional;hex8;c3d8rt;finite-strain;contact;abaqus;qualification"
+        RUN_SERIAL TRUE
+        TIMEOUT 300
+    )
 
     add_executable(fuelsim_m52_large_sliding_restart_tests
         tests/m52_large_sliding_restart_tests.cpp

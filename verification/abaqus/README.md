@@ -1785,6 +1785,42 @@ convergence coefficient is fitted or changed for timing.
 The generated mesh, extracted reference fields, comparison summary, scripts,
 and timing record are covered by `SHA256SUMS`.
 
+## B5.47 full-size M5.8 C3D8RT benchmark
+
+B5.47 uses the same Exodus conversion, 1,617 nodes, 1,152 elements, two material
+blocks, boundary sets, contact surfaces, material functions, and twenty fixed
+`0.05 s` increments as B5.46. `generate_b547.py` selects C3D8RT for both fuel
+and cladding without changing a material, contact, load, or hourglass
+coefficient. `extract_b547.py` reads the single reduced integration point in
+each cladding element and records `ALLAE` artificial strain energy at every
+increment. Abaqus R2018x completes all increments without cutback, using 74
+iterations. Artificial energy reaches at most `0.221711%` of internal energy
+and finishes at `0.165738%`.
+
+Fuelsim also completes exactly twenty increments without a rejected step when
+the per-increment nonlinear-iteration allowance is 40. Temperature, axial
+displacement, contact pressure, equivalent stress, equivalent plastic strain,
+and equivalent creep strain pass all three metrics below `0.5%`. Radial
+displacement has `0.0354460%` relative L2 and `0.0231052%` relative
+absolute-peak errors. Its `2.95120%` pointwise value differs by only
+`0.321325 nm` at a `10.8879 nm` reference and uses an explicit `4%` qualified
+fixed-path gate.
+
+Complete Cartesian-component and tangential metrics remain in
+`b547_m58_c3d8rt_integrated_comparison.tsv` without a denominator floor. The
+axisymmetric loading makes the exact tangential displacement zero; the Fuelsim
+maximum is `0.167434 um` and is checked against an explicit `1 um` absolute
+bound. This exception and the radial pointwise exception keep B5.47 qualified
+rather than generally verified.
+
+The single controlled CPU-0-pinned, one-thread Fuelsim trial takes `129.02 s`
+external wall time and 193 nonlinear iterations. The same-machine one-process
+Abaqus run takes `23.4891 s` and 74 iterations, giving an observed `5.49276`
+wall-time ratio. Abaqus runs natively on Windows while Fuelsim runs in WSL, so
+the result is an end-to-end engineering comparison rather than a pure element-
+kernel or linear-solver ratio. The CTest is labelled `qualification`, runs
+serially, and is excluded from the daily `-LE qualification` selection.
+
 ## B5.19 C3D8T finite-deformation selective integration
 
 B5.19 applies a non-affine finite deformation to one distorted C3D8T element.
