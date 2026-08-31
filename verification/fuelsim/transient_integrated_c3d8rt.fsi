@@ -205,6 +205,7 @@
   cutback_factor = 0.5
   maximum_cutbacks = 3
   load_ramp_time = 0
+  use_linear_time_predictor = true
 []
 
 [Solver]

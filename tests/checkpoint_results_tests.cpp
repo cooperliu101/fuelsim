@@ -51,6 +51,11 @@ bool compare_committed_states(
     bool passed =
         check(nearly_equal(left.time, right.time) && nearly_equal(left.load_factor, right.load_factor),
             "restart preserves committed time and load") &&
+        check(nearly_equal(left.previous_time, right.previous_time) &&
+                  left.previous_solution.size() == right.previous_solution.size() &&
+                  std::equal(left.previous_solution.begin(), left.previous_solution.end(),
+                      right.previous_solution.begin(), nearly_equal),
+            "restart preserves the linear-predictor reference state") &&
         check(std::equal(left_conservation.begin(), left_conservation.end(), right_conservation.begin(), nearly_equal),
             "restart preserves the last conservation summary") &&
         check(left.raw_residual.size() == right.raw_residual.size() &&
@@ -184,13 +189,13 @@ bool test_friction_history_checkpoint(const std::string& input_path, const std::
     {
         std::fstream file(checkpoint_path, std::ios::binary | std::ios::in | std::ios::out);
         if (!file) return check(false, "friction checkpoint opens for version test");
-        const std::array<unsigned char, 4> old_version = {15U, 0U, 0U, 0U};
+        const std::array<unsigned char, 4> old_version = {16U, 0U, 0U, 0U};
         file.seekp(16, std::ios::beg);
         file.write(reinterpret_cast<const char*>(old_version.data()), static_cast<std::streamsize>(old_version.size()));
     }
     fuelsim::TransientProblem old_version_target(input.spatial, mesh);
     passed = expect_failure([&]() { (void)fuelsim::restore_transient_checkpoint(checkpoint_path, old_version_target); },
-                 "version is not supported", "checkpoint version 16 rejects the previous format") &&
+                 "version is not supported", "checkpoint version 17 rejects the previous format") &&
              passed;
     return check(std::remove(checkpoint_path.c_str()) == 0, "friction checkpoint artifact is removed") && passed;
 }
@@ -276,6 +281,10 @@ bool test_finite_strain_restart(const std::string& input_path, const std::string
     const fuelsim::TransientResult first = fuelsim::solve_transient(split, first_options, solver);
     passed = check(first.completed && nearly_equal(split.committed_time(), 2.5),
                  "finite-strain restart split reaches the deformed state") &&
+             check(split.has_previous_committed_solution() &&
+                       split.previous_committed_solution().size() == split.dof_count() &&
+                       split.previous_committed_time() < split.committed_time(),
+                 "finite-strain restart split retains the previous committed predictor state") &&
              passed;
     bool active_rotated_history = false;
     for (std::size_t element = 0; element < fuelsim::rz::ProblemAccess::region_mesh(split, 0).elements().size();

@@ -223,12 +223,15 @@ double accepted_next_time_step(const TransientTimeOptions& options, double actua
 TransientResult solve_transient(TransientProblem& problem, const TransientTimeOptions& options,
     const SolverOptions& solver_options, TransientStepObserver* observer) {
     validate_time_options(problem, options);
+    const bool recent_predictor_tracking =
+        options.use_linear_time_predictor && !(options.time_error_relative_tolerance > 0.0);
+    problem.track_previous_committed_solution(recent_predictor_tracking);
     const SteadyClock::time_point start = SteadyClock::now();
     TransientResult result;
     PetscSolver solver;
     const std::vector<double> events = problem.time_events();
+    const std::vector<double> initial_predictor_reference = problem.initial_solution();
     double next_time_step = options.initial_time_step;
-    const std::vector<double> predictor_reference_state = problem.initial_solution();
     const auto run_step = [&](double target_time, const std::vector<double>& initial_guess) {
         problem.begin_time_step(
             {target_time, load_factor_at_time(options, target_time), options.include_thermal_time_term});
@@ -293,9 +296,14 @@ TransientResult solve_transient(TransientProblem& problem, const TransientTimeOp
             bool base_state_available = false;
             const double base_time = problem.committed_time();
             const std::vector<double> base_solution = problem.committed_solution();
-            const bool predictor_used = options.use_linear_time_predictor && base_time > 0.0;
+            const bool predictor_used = options.use_linear_time_predictor &&
+                                        (error_control ? base_time > 0.0 : problem.has_previous_committed_solution());
+            const std::vector<double>* predictor_reference = !predictor_used ? nullptr
+                                                             : error_control ? &initial_predictor_reference
+                                                                             : &problem.previous_committed_solution();
+            const double predictor_reference_time = error_control ? 0.0 : problem.previous_committed_time();
             const std::vector<double> predicted_solution = linear_transient_predictor(
-                base_solution, predictor_used ? &predictor_reference_state : nullptr, base_time, 0.0, end_time);
+                base_solution, predictor_reference, base_time, predictor_reference_time, end_time);
             if (error_control) {
                 base_state = problem.capture_state();
                 base_state_available = true;
@@ -314,8 +322,8 @@ TransientResult solve_transient(TransientProblem& problem, const TransientTimeOp
                     if (full_step.converged) {
                         problem.restore_state(base_state);
                         const double half_time = base_time + 0.5 * time_step;
-                        const std::vector<double> first_half_prediction = linear_transient_predictor(base_solution,
-                            predictor_used ? &predictor_reference_state : nullptr, base_time, 0.0, half_time);
+                        const std::vector<double> first_half_prediction = linear_transient_predictor(
+                            base_solution, predictor_reference, base_time, predictor_reference_time, half_time);
                         const SolveResult first_half =
                             run_predicted_step(half_time, first_half_prediction, base_solution, predictor_used);
                         if (first_half.converged) first_half_conservation = problem.last_conservation_summary();
@@ -327,10 +335,11 @@ TransientResult solve_transient(TransientProblem& problem, const TransientTimeOp
                             base_state_available = false;
                         } else {
                             const std::vector<double> first_half_solution = problem.committed_solution();
-                            const std::vector<double> second_half_prediction = linear_transient_predictor(
-                                first_half_solution, &predictor_reference_state, half_time, 0.0, end_time);
-                            const SolveResult second_half =
-                                run_predicted_step(end_time, second_half_prediction, first_half_solution, true);
+                            const std::vector<double> second_half_prediction =
+                                linear_transient_predictor(first_half_solution,
+                                    predictor_used ? &initial_predictor_reference : nullptr, half_time, 0.0, end_time);
+                            const SolveResult second_half = run_predicted_step(
+                                end_time, second_half_prediction, first_half_solution, predictor_used);
                             controller_nonlinear_iterations =
                                 std::max(controller_nonlinear_iterations, second_half.nonlinear_iterations);
                             merge_attempt(attempt, second_half);

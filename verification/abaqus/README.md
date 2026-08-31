@@ -1816,12 +1816,16 @@ rather than generally verified.
 The paired pre-change commit `6cf276c` takes `129.70 s` in a controlled
 CPU-0-pinned, one-thread Fuelsim trial. The passive residual, closed Jacobian,
 direct backtracking line search, and Jacobian reuse period of three reduce it to
-`30.51 s`, with 128 nonlinear iterations. The same-machine one-process Abaqus
-run takes `23.4891 s` and 74 iterations, giving a final observed `1.2989`
-wall-time ratio. Abaqus runs natively on Windows while Fuelsim runs in WSL, so
-the result is an end-to-end engineering comparison rather than a pure element-
-kernel or linear-solver ratio. The CTest is labelled `qualification`, runs
-serially, and is excluded from the daily `-LE qualification` selection.
+`29.99 s` in the paired predictor-off control. With the recent-two-committed-step
+linear predictor enabled, three final repeated Fuelsim trials take `22.32 s`, `22.44 s`,
+and `22.75 s`; their `22.44 s` median uses 84 nonlinear iterations and is `4.47%`
+below the same-machine one-process Abaqus time of `23.4891 s` and 74 iterations.
+Abaqus runs natively on Windows while Fuelsim runs in WSL, so the result is an
+end-to-end engineering comparison rather than a pure element-kernel or linear-
+solver ratio. The predictor changes only the Newton initial guess; checkpoint
+version 17 preserves its previous committed node state and time. The CTest is
+labelled `qualification`, runs serially, and is excluded from the daily
+`-LE qualification` selection.
 
 ## B5.19 C3D8T finite-deformation selective integration
 

@@ -29,7 +29,7 @@ Release and run it on one pinned core:
 cmake -S . -B build \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_PREFIX_PATH=/tmp/adlite-fuelsim-install
-cmake --build build --parallel
+cmake --build build --parallel 4
 
 env \
   OMP_NUM_THREADS=1 \
@@ -1075,13 +1075,16 @@ increments without cutback. The controlled one-process Abaqus R2018x run takes
 `23.489094 s` external wall time and 74 iterations. The paired pre-change
 Fuelsim trial at commit `6cf276c` takes `129.70 s`. After the passive residual,
 closed geometry/Jacobian chain, explicit backtracking line search, and a
-Jacobian reuse period of three, the CPU-0-pinned Fuelsim Release trial takes
-`30.51 s`. Its `26.171176 s` internal total contains `3.446739 s` in residual
-callbacks and `6.802040 s` in Jacobian callbacks, with 128 nonlinear iterations,
-150 residual evaluations, and 51 Jacobian evaluations. The final external-wall
-ratio is `1.298900673`. This is a single paired engineering measurement
-across native Windows and WSL, not a general speed ratio or a pure kernel
-comparison.
+Jacobian reuse period of three, the predictor-off CPU-0-pinned Fuelsim Release
+control takes `29.99 s`. Enabling the recent-two-committed-step linear predictor
+reduces three final repeated trials to `22.32 s`, `22.44 s`, and `22.75 s`; their
+`22.44 s` median is `25.18%` below the paired predictor-off control and `4.47%`
+below Abaqus. The representative `18.062041 s` internal total contains
+`2.381772 s` in residual callbacks and `4.611456 s` in Jacobian callbacks, with
+84 nonlinear iterations, 104 residual evaluations, and 35 Jacobian evaluations.
+The Fuelsim-to-Abaqus external-wall ratio is `0.955336975`. This is a controlled
+end-to-end engineering comparison across native Windows and WSL, not a general
+speed ratio or a pure element-kernel or linear-solver comparison.
 
 The fixed-path field qualification is documented by B5.47 rather than inferred
 from timing. All ordinary scalar and axial field metrics pass `0.5%`; the
@@ -1089,4 +1092,6 @@ radial pointwise error uses the recorded `4%` small-reference gate, complete
 Cartesian and tangential diagnostics remain visible, and analytical-zero
 tangential displacement uses a `1 um` absolute bound. Abaqus artificial strain
 energy stays below `0.221711%` of internal energy. No physical or hourglass
-coefficient is changed for either the error or timing comparison.
+coefficient is changed for either the error or timing comparison. The predictor
+changes only the Newton initial guess; its previous committed node state and
+time are included in rollback, state snapshots, and checkpoint version 17.

@@ -20,7 +20,7 @@ namespace fuelsim {
 namespace {
 constexpr std::array<unsigned char, 16> checkpoint_magic = {
     'F', 'U', 'E', 'L', 'S', 'I', 'M', '_', 'C', 'H', 'E', 'C', 'K', 'P', 'T', '\0'};
-constexpr std::uint32_t checkpoint_version = 16U;
+constexpr std::uint32_t checkpoint_version = 17U;
 constexpr std::uint32_t endian_marker = 0x01020304U;
 constexpr std::uint64_t maximum_checkpoint_bytes = 16ULL * 1024ULL * 1024ULL * 1024ULL;
 
@@ -159,6 +159,9 @@ BinaryBuffer state_payload(const TransientProblem& problem, double next_time_ste
     payload.append_double(next_time_step);
     append_conservation(payload, state.conservation);
     for (const double value : state.solution) payload.append_double(value);
+    payload.append_u32(state.previous_solution.empty() ? 0U : 1U);
+    payload.append_double(state.previous_time);
+    for (const double value : state.previous_solution) payload.append_double(value);
     for (const double value : state.raw_residual) payload.append_double(value);
     for (const double value : state.external_load_residual) payload.append_double(value);
     for (const auto& contact : state.contact_histories) {
@@ -265,6 +268,13 @@ double restore_transient_checkpoint(const std::string& path, TransientProblem& p
         throw std::runtime_error("Checkpoint next time step is invalid");
     state.solution.resize(problem.dof_count());
     for (double& value : state.solution) value = payload.read_double();
+    const std::uint32_t has_previous_solution = payload.read_u32();
+    if (has_previous_solution > 1U) throw std::runtime_error("Checkpoint predictor state is invalid");
+    state.previous_time = payload.read_double();
+    if (has_previous_solution == 1U) {
+        state.previous_solution.resize(problem.dof_count());
+        for (double& value : state.previous_solution) value = payload.read_double();
+    }
     state.raw_residual.resize(problem.dof_count());
     for (double& value : state.raw_residual) value = payload.read_double();
     state.external_load_residual.resize(problem.dof_count());

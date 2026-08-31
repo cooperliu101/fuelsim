@@ -79,6 +79,10 @@ class TransientProblem final : public NonlinearProblem {
     const SpatialDefinition& definition() const noexcept;
     std::vector<double> initial_solution() const;
     const std::vector<double>& committed_solution() const noexcept;
+    bool has_previous_committed_solution() const noexcept;
+    const std::vector<double>& previous_committed_solution() const noexcept;
+    double previous_committed_time() const noexcept;
+    void track_previous_committed_solution(bool enabled);
     double committed_time() const noexcept;
     double committed_load_factor() const noexcept;
     bool time_step_active() const noexcept;

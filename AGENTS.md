@@ -270,6 +270,10 @@ MOOSE 算例鉴定。轴对称有限应变 follower pressure 另有
 
 后续开发使用原 `moose` Conda PETSc，并直接链接独立的串行 Exodus I/O
 库。PETSc 不需要启用 Exodus；不得使用 DMPlex 或 PETSc Exodus viewer。
+所有并行编译命令最多使用 4 个作业；不得使用没有显式作业数的 `--parallel`，
+以免 Release 链接时优化同时启动过多链接进程并耗尽 WSL 内存。
+所有 CTest 运行统一使用最多 4 个并发测试，不得使用串行完整回归；命令中必须
+显式指定 `-j4` 或更小的并发数。
 先安装 ADlite 和 Exodus，然后配置 fuelsim：
 
 ```bash
@@ -284,13 +288,13 @@ env \
   -DCMAKE_PREFIX_PATH="${fuelsim_dependency_root}/adlite-0.2.1" \
   -DSEACASExodus_DIR="${fuelsim_dependency_root}/exodus-2024-06-27/lib/cmake/SEACASExodus" \
   -DFUELSIM_WARNINGS_AS_ERRORS=ON
-cmake --build build --parallel
+cmake --build build --parallel 4
 
 # 日常功能测试：保留每项核心功能的代表工况，排除扩展参数扫描和跨工况汇总
 ctest --test-dir build -LE qualification -j4 --output-on-failure
 
 # 完整发布验收：运行包括 qualification 标签工况在内的全部测试
-ctest --test-dir build --output-on-failure
+ctest --test-dir build -j4 --output-on-failure
 ```
 
 日常功能测试用于开发过程中的快速反馈，不能替代完整发布验收。`qualification`

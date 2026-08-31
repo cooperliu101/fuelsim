@@ -258,11 +258,12 @@ class SpatialProblemStorage {
     std::vector<std::vector<CartesianMaterialHistory>> cartesian_material_histories;
     std::vector<std::vector<CartesianMaterialHistory>> _staged_cartesian_material_histories;
     TransientConservationSummary last_conservation_summary;
-    std::vector<double> committed_solution, committed_raw_residual, committed_external_load_residual;
+    std::vector<double> committed_solution, previous_committed_solution, committed_raw_residual,
+        committed_external_load_residual;
     double committed_time = 0.0, committed_load_factor = 0.0, active_time_step = 0.0, active_end_time = 0.0,
-           active_load_factor = 0.0;
+           active_load_factor = 0.0, previous_committed_time = 0.0;
     std::vector<std::vector<ContactPointHistory>> active_contact_histories;
-    bool time_step_active = false, include_thermal_time_term = true;
+    bool time_step_active = false, include_thermal_time_term = true, track_previous_committed_solution = false;
 };
 
 SteadyProblem::SteadyProblem(SpatialDefinition definition, const UnstructuredQuad4Mesh& source_mesh)
@@ -587,6 +588,26 @@ std::vector<double> TransientProblem::initial_solution() const { return _impl->l
 
 const std::vector<double>& TransientProblem::committed_solution() const noexcept { return _impl->committed_solution; }
 
+bool TransientProblem::has_previous_committed_solution() const noexcept {
+    return !_impl->previous_committed_solution.empty();
+}
+
+const std::vector<double>& TransientProblem::previous_committed_solution() const noexcept {
+    return _impl->previous_committed_solution;
+}
+
+double TransientProblem::previous_committed_time() const noexcept { return _impl->previous_committed_time; }
+
+void TransientProblem::track_previous_committed_solution(bool enabled) {
+    if (_impl->time_step_active)
+        throw std::logic_error("TransientProblem cannot change predictor tracking during an active time step");
+    _impl->track_previous_committed_solution = enabled;
+    if (!enabled) {
+        _impl->previous_committed_solution.clear();
+        _impl->previous_committed_time = 0.0;
+    }
+}
+
 double TransientProblem::committed_time() const noexcept { return _impl->committed_time; }
 
 double TransientProblem::committed_load_factor() const noexcept { return _impl->committed_load_factor; }
@@ -642,16 +663,25 @@ RegionStateSummary TransientProblem::summarize_region(std::size_t region) const 
 
 TransientCommittedState BackendAccess::committed_state(const TransientProblem& problem) {
     const SpatialProblemStorage& storage = *problem._impl;
-    return {storage.committed_solution, storage.material_histories, storage.cartesian_material_histories,
-        storage.committed_contact_histories(), storage.committed_raw_residual, storage.committed_external_load_residual,
-        storage.last_conservation_summary, storage.committed_time, storage.committed_load_factor};
+    return {storage.committed_solution, storage.previous_committed_solution, storage.material_histories,
+        storage.cartesian_material_histories, storage.committed_contact_histories(), storage.committed_raw_residual,
+        storage.committed_external_load_residual, storage.last_conservation_summary, storage.committed_time,
+        storage.committed_load_factor, storage.previous_committed_time};
 }
 
 void BackendAccess::restore_committed_state(TransientProblem& problem, TransientCommittedState state) {
     SpatialProblemStorage& storage = *problem._impl;
     if (storage.time_step_active) throw std::logic_error("TransientProblem cannot restore during an active time step");
-    if (state.solution.size() != problem.dof_count() || !std::isfinite(state.time) || state.time < 0.0 ||
-        !std::isfinite(state.load_factor) || state.load_factor < 0.0 ||
+    const bool previous_valid = state.previous_solution.empty()
+                                    ? state.previous_time == 0.0
+                                    : state.previous_solution.size() == problem.dof_count() &&
+                                          std::isfinite(state.previous_time) && state.previous_time >= 0.0 &&
+                                          state.previous_time < state.time &&
+                                          std::all_of(
+                                              state.previous_solution.begin(), state.previous_solution.end(),
+                                              [](double value) { return std::isfinite(value); });
+    if (state.solution.size() != problem.dof_count() || !previous_valid || !std::isfinite(state.time) ||
+        state.time < 0.0 || !std::isfinite(state.load_factor) || state.load_factor < 0.0 ||
         state.raw_residual.size() != problem.dof_count() ||
         state.external_load_residual.size() != problem.dof_count() ||
         !std::all_of(
@@ -680,12 +710,14 @@ void BackendAccess::restore_committed_state(TransientProblem& problem, Transient
         }
         storage.cartesian->restore_contact_state(state.solution, std::move(state.contact_histories));
         storage.committed_solution = std::move(state.solution);
+        storage.previous_committed_solution = std::move(state.previous_solution);
         storage.committed_raw_residual = std::move(state.raw_residual);
         storage.committed_external_load_residual = std::move(state.external_load_residual);
         storage.cartesian_material_histories = std::move(state.cartesian_material_histories);
         storage.last_conservation_summary = state.conservation;
         storage.committed_time = state.time;
         storage.committed_load_factor = state.load_factor;
+        storage.previous_committed_time = state.previous_time;
         problem.clear_active_time_step();
         problem.apply_spatial_controls(state.time, state.load_factor);
         return;
@@ -714,12 +746,14 @@ void BackendAccess::restore_committed_state(TransientProblem& problem, Transient
     }
     storage.rz->restore_contact_state(state.solution, state.contact_histories);
     storage.committed_solution = std::move(state.solution);
+    storage.previous_committed_solution = std::move(state.previous_solution);
     storage.committed_raw_residual = std::move(state.raw_residual);
     storage.committed_external_load_residual = std::move(state.external_load_residual);
     storage.material_histories = std::move(state.material_histories);
     storage.last_conservation_summary = state.conservation;
     storage.committed_time = state.time;
     storage.committed_load_factor = state.load_factor;
+    storage.previous_committed_time = state.previous_time;
     problem.clear_active_time_step();
     problem.apply_spatial_controls(storage.committed_time, storage.committed_load_factor);
 }
@@ -1225,6 +1259,10 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
         _impl->material_histories.swap(staged);
         _impl->committed_raw_residual = raw_residual;
         _impl->committed_external_load_residual = std::move(external_load_residual);
+    }
+    if (_impl->track_previous_committed_solution) {
+        _impl->previous_committed_solution = _impl->committed_solution;
+        _impl->previous_committed_time = _impl->committed_time;
     }
     _impl->committed_solution = converged_solution;
     _impl->committed_time = _impl->active_end_time;
