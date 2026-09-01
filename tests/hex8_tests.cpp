@@ -874,7 +874,24 @@ bool test_finite_strain_kinematics_and_coupled_jacobian() {
     }();
     const fuelsim::CartesianMaterialHistory committed_material(8);
     fuelsim::Hex8LocalJacobian jacobian{};
-    (void)fuelsim::compute_hex8_transient(data, geometry, state, committed_state, committed_material, 1.0, &jacobian);
+    const fuelsim::Hex8LocalResidual residual_with_jacobian =
+        fuelsim::compute_hex8_transient(data, geometry, state, committed_state, committed_material, 1.0, &jacobian);
+    const fuelsim::Hex8LocalResidual residual_without_jacobian =
+        fuelsim::compute_hex8_transient(data, geometry, state, committed_state, committed_material, 1.0);
+    double residual_path_maximum_difference = 0.0, residual_path_scale = 0.0;
+    for (std::size_t row = 0; row < residual_with_jacobian.size(); ++row) {
+        residual_path_maximum_difference = std::max(
+            residual_path_maximum_difference, std::abs(residual_with_jacobian[row] - residual_without_jacobian[row]));
+        residual_path_scale = std::max(
+            {residual_path_scale, std::abs(residual_with_jacobian[row]), std::abs(residual_without_jacobian[row])});
+    }
+    std::cout << "hex8_c3d8t_finite_residual_path_maximum_absolute_difference=" << residual_path_maximum_difference
+              << '\n'
+              << "hex8_c3d8t_finite_residual_path_relative_difference="
+              << residual_path_maximum_difference / residual_path_scale << '\n';
+    passed = check(residual_path_maximum_difference / residual_path_scale < 2.0e-14,
+                 "finite-strain C3D8T Jacobian and ordinary-double residual paths agree to roundoff") &&
+             passed;
     fuelsim::Hex8LocalValues heated_state = state;
     for (std::size_t node = 0; node < 8; ++node) heated_state[node] = 305.0;
     const fuelsim::Hex8LocalResidual with_capacity =

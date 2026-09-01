@@ -64,6 +64,8 @@ class NonlinearProblem {
     virtual std::size_t dof_count() const noexcept = 0;
     virtual std::size_t contribution_count() const noexcept = 0;
     virtual std::size_t sparsity_contribution_count() const noexcept;
+    // A state-dependent graph may grow as contact ownership changes; fixed graphs keep strict PETSc insertion checks.
+    virtual bool jacobian_sparsity_is_state_dependent() const noexcept;
     virtual std::pair<std::size_t, std::size_t> contribution_partition(
         std::size_t partition, std::size_t partition_count) const;
     virtual const std::vector<FieldDescriptor>& field_layout() const noexcept = 0;

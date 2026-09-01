@@ -1,0 +1,11 @@
+abaqus_external_wall_seconds=35.480477
+abaqus_cpus=1
+abaqus_output_precision=full
+windows_computer=MSI
+abaqus_job_time_summary_begin
+     JOB TIME SUMMARY
+       USER TIME (SEC)      =   29.100
+       SYSTEM TIME (SEC)    =   1.2000
+       TOTAL CPU TIME (SEC) =   30.300
+       WALLCLOCK TIME (SEC) =         31
+abaqus_job_time_summary_end

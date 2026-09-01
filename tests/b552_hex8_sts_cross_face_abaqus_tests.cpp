@@ -232,6 +232,9 @@ int main(int argc, char** argv) {
                   << "b552_mechanical_contact_jacobian_directional_relative_error=" << jacobian_error << '\n';
         bool passed = check(problem.dof_count() == 128 && source_mesh.elements().size() == 6,
             "B5.52 remains a lightweight six-element, 128-degree-of-freedom operator regression");
+        passed = check(problem.jacobian_sparsity_is_state_dependent(),
+                     "B5.52 finite-sliding averaged contact declares its changing active Jacobian support") &&
+                 passed;
         passed = check(interface.active_contact_nodes == 8 && contact.size() == 8 && partition.constraint_count == 8 &&
                            partition.active_primary_face_count == 3 && partition.cross_face_constraint_count == 4 &&
                            partition.maximum_owners_per_integration_point == 1 && partition.all_projected,

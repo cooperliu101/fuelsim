@@ -29,6 +29,145 @@ struct SurfaceBasis final {
     ActivePoint3 first{}, second{};
 };
 
+struct DoubleSurfaceProjection final {
+    bool projected = false;
+    bool xi_constrained = false, eta_constrained = false;
+    std::array<double, 4> primary_shape{};
+    CartesianPoint3 primary_point{}, normal{}, tangent_xi{};
+    double gap = 0.0, distance = 0.0, xi = 0.0, eta = 0.0;
+};
+
+CartesianPoint3 subtract_points(const CartesianPoint3& first, const CartesianPoint3& second) {
+    return {first.x - second.x, first.y - second.y, first.z - second.z};
+}
+
+double dot_points(const CartesianPoint3& first, const CartesianPoint3& second) {
+    return first.x * second.x + first.y * second.y + first.z * second.z;
+}
+
+CartesianPoint3 cross_points(const CartesianPoint3& first, const CartesianPoint3& second) {
+    return {first.y * second.z - first.z * second.y, first.z * second.x - first.x * second.z,
+        first.x * second.y - first.y * second.x};
+}
+
+double norm_point(const CartesianPoint3& value) { return std::hypot(std::hypot(value.x, value.y), value.z); }
+
+CartesianPoint3 interpolate_points(const std::array<CartesianPoint3, 4>& nodes, const std::array<double, 4>& shape) {
+    CartesianPoint3 result{};
+    for (std::size_t node = 0; node < 4; ++node) {
+        result.x += shape[node] * nodes[node].x;
+        result.y += shape[node] * nodes[node].y;
+        result.z += shape[node] * nodes[node].z;
+    }
+    return result;
+}
+
+void quad4_shape_values(double xi, double eta, std::array<double, 4>& shape, std::array<double, 4>& derivative_xi,
+    std::array<double, 4>& derivative_eta) {
+    shape = {0.25 * (1.0 - xi) * (1.0 - eta), 0.25 * (1.0 + xi) * (1.0 - eta), 0.25 * (1.0 + xi) * (1.0 + eta),
+        0.25 * (1.0 - xi) * (1.0 + eta)};
+    derivative_xi = {-0.25 * (1.0 - eta), 0.25 * (1.0 - eta), 0.25 * (1.0 + eta), -0.25 * (1.0 + eta)};
+    derivative_eta = {-0.25 * (1.0 - xi), -0.25 * (1.0 + xi), 0.25 * (1.0 + xi), 0.25 * (1.0 - xi)};
+}
+
+DoubleSurfaceProjection project_to_primary_double(const CartesianPoint3& secondary_point,
+    const std::array<CartesianPoint3, 4>& primary_nodes, double normal_orientation, bool bounded_closest) {
+    double xi = 0.0, eta = 0.0;
+    constexpr std::array<double, 4> mixed_coefficients = {0.25, -0.25, 0.25, -0.25};
+    const CartesianPoint3 mixed = interpolate_points(primary_nodes, mixed_coefficients);
+    for (std::size_t iteration = 0; iteration < 12; ++iteration) {
+        std::array<double, 4> shape{}, derivative_xi{}, derivative_eta{};
+        quad4_shape_values(xi, eta, shape, derivative_xi, derivative_eta);
+        const CartesianPoint3 point = interpolate_points(primary_nodes, shape),
+                              tangent_xi = interpolate_points(primary_nodes, derivative_xi),
+                              tangent_eta = interpolate_points(primary_nodes, derivative_eta),
+                              difference = subtract_points(secondary_point, point);
+        const double residual_xi = dot_points(difference, tangent_xi),
+                     residual_eta = dot_points(difference, tangent_eta),
+                     jacobian_xi_xi = -dot_points(tangent_xi, tangent_xi),
+                     jacobian_eta_eta = -dot_points(tangent_eta, tangent_eta),
+                     jacobian_xi_eta = -dot_points(tangent_eta, tangent_xi) + dot_points(difference, mixed),
+                     jacobian_eta_xi = -dot_points(tangent_xi, tangent_eta) + dot_points(difference, mixed),
+                     determinant = jacobian_xi_xi * jacobian_eta_eta - jacobian_xi_eta * jacobian_eta_xi;
+        if (!std::isfinite(determinant) || std::abs(determinant) <= std::numeric_limits<double>::min())
+            throw std::domain_error("Three-dimensional contact projection has a singular surface Jacobian");
+        const double delta_xi = (-residual_xi * jacobian_eta_eta + jacobian_xi_eta * residual_eta) / determinant,
+                     delta_eta = (-jacobian_xi_xi * residual_eta + jacobian_eta_xi * residual_xi) / determinant;
+        xi += delta_xi;
+        eta += delta_eta;
+        const double coordinate_scale = std::max({1.0, std::abs(xi), std::abs(eta)});
+        if (std::max(std::abs(delta_xi), std::abs(delta_eta)) <=
+            64.0 * std::numeric_limits<double>::epsilon() * coordinate_scale)
+            break;
+    }
+    constexpr double tolerance = 1.0e-10;
+    if (!std::isfinite(xi) || !std::isfinite(eta)) return {};
+    const auto projection_at = [&](double coordinate_xi, double coordinate_eta, bool xi_constrained = false,
+                                   bool eta_constrained = false) {
+        std::array<double, 4> shape{}, derivative_xi{}, derivative_eta{};
+        quad4_shape_values(coordinate_xi, coordinate_eta, shape, derivative_xi, derivative_eta);
+        const CartesianPoint3 primary_point = interpolate_points(primary_nodes, shape),
+                              tangent_xi = interpolate_points(primary_nodes, derivative_xi),
+                              tangent_eta = interpolate_points(primary_nodes, derivative_eta),
+                              area_vector = cross_points(tangent_xi, tangent_eta);
+        const double measure = norm_point(area_vector);
+        if (!std::isfinite(measure) || !(measure > 0.0))
+            throw std::domain_error("Three-dimensional contact primary face has a nonpositive current measure");
+        DoubleSurfaceProjection result;
+        result.projected = true;
+        result.xi_constrained = xi_constrained;
+        result.eta_constrained = eta_constrained;
+        result.primary_shape = shape;
+        result.primary_point = primary_point;
+        result.tangent_xi = tangent_xi;
+        result.xi = coordinate_xi;
+        result.eta = coordinate_eta;
+        result.normal = {normal_orientation * area_vector.x / measure, normal_orientation * area_vector.y / measure,
+            normal_orientation * area_vector.z / measure};
+        const CartesianPoint3 separation = subtract_points(primary_point, secondary_point);
+        result.gap = dot_points(separation, result.normal);
+        result.distance = norm_point(separation);
+        return result;
+    };
+    const bool interior =
+        xi >= -1.0 - tolerance && xi <= 1.0 + tolerance && eta >= -1.0 - tolerance && eta <= 1.0 + tolerance;
+    if (!bounded_closest) {
+        if (!interior) {
+            DoubleSurfaceProjection result;
+            result.xi = xi;
+            result.eta = eta;
+            return result;
+        }
+        return projection_at(std::max(-1.0, std::min(1.0, xi)), std::max(-1.0, std::min(1.0, eta)));
+    }
+    DoubleSurfaceProjection closest;
+    if (interior) closest = projection_at(xi, eta);
+    const auto consider_edge = [&](std::size_t first_node, std::size_t second_node, bool varying_xi,
+                                   double fixed_coordinate) {
+        const CartesianPoint3 center = {0.5 * (primary_nodes[first_node].x + primary_nodes[second_node].x),
+                                  0.5 * (primary_nodes[first_node].y + primary_nodes[second_node].y),
+                                  0.5 * (primary_nodes[first_node].z + primary_nodes[second_node].z)},
+                              half_tangent = {0.5 * (primary_nodes[second_node].x - primary_nodes[first_node].x),
+                                  0.5 * (primary_nodes[second_node].y - primary_nodes[first_node].y),
+                                  0.5 * (primary_nodes[second_node].z - primary_nodes[first_node].z)};
+        const double metric = dot_points(half_tangent, half_tangent);
+        if (!std::isfinite(metric) || !(metric > 0.0))
+            throw std::domain_error("Three-dimensional contact primary face has a degenerate current edge");
+        double edge_coordinate = dot_points(subtract_points(secondary_point, center), half_tangent) / metric;
+        const bool edge_constrained = edge_coordinate < -1.0 || edge_coordinate > 1.0;
+        edge_coordinate = std::max(-1.0, std::min(1.0, edge_coordinate));
+        const DoubleSurfaceProjection candidate =
+            varying_xi ? projection_at(edge_coordinate, fixed_coordinate, edge_constrained, true)
+                       : projection_at(fixed_coordinate, edge_coordinate, true, edge_constrained);
+        if (!closest.projected || candidate.distance < closest.distance) closest = candidate;
+    };
+    consider_edge(0, 1, true, -1.0);
+    consider_edge(1, 2, false, 1.0);
+    consider_edge(3, 2, true, 1.0);
+    consider_edge(0, 3, false, -1.0);
+    return closest;
+}
+
 Quad4SurfaceContactLocalAdValues make_ad_state(const Quad4SurfaceContactLocalValues& state, bool derivatives);
 
 ActivePoint3 subtract(const ActivePoint3& first, const ActivePoint3& second) {
@@ -202,6 +341,73 @@ SurfaceProjection project_to_primary(const ActivePoint3& secondary_point, const 
     consider_edge(3, 2, true, 1.0);
     consider_edge(0, 3, false, -1.0);
     return closest;
+}
+
+SurfaceProjection project_to_primary_from_double(const ActivePoint3& secondary_point,
+    const std::array<ActivePoint3, 8>& nodes, double normal_orientation,
+    const DoubleSurfaceProjection& double_projection) {
+    if (!double_projection.projected) return {};
+    adlite::Scalar xi = double_projection.xi, eta = double_projection.eta;
+    if (!double_projection.xi_constrained && !double_projection.eta_constrained) {
+        std::array<adlite::Scalar, 4> shape{}, derivative_xi{}, derivative_eta{};
+        quad4_shape(xi, eta, shape, derivative_xi, derivative_eta);
+        constexpr std::array<double, 4> mixed_coefficients = {0.25, -0.25, 0.25, -0.25};
+        const ActivePoint3 point = interpolate_primary(nodes, shape),
+                           tangent_xi = interpolate_primary(nodes, derivative_xi),
+                           tangent_eta = interpolate_primary(nodes, derivative_eta),
+                           mixed = interpolate_point(nodes, 4, mixed_coefficients),
+                           difference = subtract(secondary_point, point);
+        const adlite::Scalar residual_xi = dot(difference, tangent_xi), residual_eta = dot(difference, tangent_eta),
+                             jacobian_xi_xi = -dot(tangent_xi, tangent_xi),
+                             jacobian_eta_eta = -dot(tangent_eta, tangent_eta),
+                             jacobian_xi_eta = -dot(tangent_eta, tangent_xi) + dot(difference, mixed),
+                             jacobian_eta_xi = -dot(tangent_xi, tangent_eta) + dot(difference, mixed),
+                             determinant = jacobian_xi_xi * jacobian_eta_eta - jacobian_xi_eta * jacobian_eta_xi;
+        if (!std::isfinite(determinant.value()) || std::abs(determinant.value()) <= std::numeric_limits<double>::min())
+            throw std::domain_error("Three-dimensional contact projection has a singular surface Jacobian");
+        xi += (-residual_xi * jacobian_eta_eta + jacobian_xi_eta * residual_eta) / determinant;
+        eta += (-jacobian_xi_xi * residual_eta + jacobian_eta_xi * residual_xi) / determinant;
+    } else if (!double_projection.xi_constrained || !double_projection.eta_constrained) {
+        const bool varying_xi = !double_projection.xi_constrained;
+        const bool negative_fixed = varying_xi ? double_projection.eta < 0.0 : double_projection.xi < 0.0;
+        const std::size_t first_node = varying_xi ? (negative_fixed ? 0 : 3) : (negative_fixed ? 0 : 1),
+                          second_node = varying_xi ? (negative_fixed ? 1 : 2) : (negative_fixed ? 3 : 2);
+        ActivePoint3 center{}, half_tangent{};
+        for (std::size_t component = 0; component < 3; ++component) {
+            center[component] = 0.5 * (nodes[4 + first_node][component] + nodes[4 + second_node][component]);
+            half_tangent[component] = 0.5 * (nodes[4 + second_node][component] - nodes[4 + first_node][component]);
+        }
+        const adlite::Scalar metric = dot(half_tangent, half_tangent);
+        if (!std::isfinite(metric.value()) || !(metric.value() > 0.0))
+            throw std::domain_error("Three-dimensional contact primary face has a degenerate current edge");
+        const adlite::Scalar coordinate = dot(subtract(secondary_point, center), half_tangent) / metric;
+        if (varying_xi)
+            xi = coordinate;
+        else
+            eta = coordinate;
+    }
+
+    std::array<adlite::Scalar, 4> shape{}, derivative_xi{}, derivative_eta{};
+    quad4_shape(xi, eta, shape, derivative_xi, derivative_eta);
+    const ActivePoint3 primary_point = interpolate_primary(nodes, shape),
+                       tangent_xi = interpolate_primary(nodes, derivative_xi),
+                       tangent_eta = interpolate_primary(nodes, derivative_eta),
+                       area_vector = cross(tangent_xi, tangent_eta);
+    const adlite::Scalar measure = norm(area_vector);
+    if (!std::isfinite(measure.value()) || !(measure.value() > 0.0))
+        throw std::domain_error("Three-dimensional contact primary face has a nonpositive current measure");
+    SurfaceProjection result;
+    result.projected = true;
+    result.primary_shape = shape;
+    result.primary_point = primary_point;
+    result.tangent_xi = tangent_xi;
+    result.xi = xi;
+    result.eta = eta;
+    for (std::size_t component = 0; component < 3; ++component)
+        result.normal[component] = normal_orientation * area_vector[component] / measure;
+    result.gap = dot(subtract(primary_point, secondary_point), result.normal);
+    result.distance = norm(subtract(primary_point, secondary_point));
+    return result;
 }
 
 adlite::Scalar current_surface_measure(const std::array<ActivePoint3, 8>& nodes, std::size_t offset,
@@ -655,20 +861,17 @@ Quad4ReferenceProjectionValue compute_quad4_reference_projection(
     const std::array<CartesianPoint3, 4>& secondary_coordinates,
     const std::array<CartesianPoint3, 4>& primary_coordinates, const std::array<double, 4>& secondary_shape,
     double normal_orientation) {
-    const Quad4SurfaceContactLocalValues state{};
-    const std::array<ActivePoint3, 8> nodes =
-        current_nodes(secondary_coordinates, primary_coordinates, make_ad_state(state, false));
-    const SurfaceProjection projection =
-        project_to_primary(interpolate_point(nodes, 0, secondary_shape), nodes, normal_orientation);
+    const DoubleSurfaceProjection projection = project_to_primary_double(
+        interpolate_points(secondary_coordinates, secondary_shape), primary_coordinates, normal_orientation, false);
     Quad4ReferenceProjectionValue result{};
     result.projected = projection.projected;
-    result.xi = projection.xi.value();
-    result.eta = projection.eta.value();
+    result.xi = projection.xi;
+    result.eta = projection.eta;
     if (!projection.projected) return result;
-    for (std::size_t node = 0; node < 4; ++node) result.primary_shape[node] = projection.primary_shape[node].value();
-    result.normal = {projection.normal[0].value(), projection.normal[1].value(), projection.normal[2].value()};
-    result.gap = projection.gap.value();
-    result.distance = projection.distance.value();
+    result.primary_shape = projection.primary_shape;
+    result.normal = projection.normal;
+    result.gap = projection.gap;
+    result.distance = projection.distance;
     return result;
 }
 
@@ -676,20 +879,17 @@ Quad4ReferenceProjectionValue compute_quad4_reference_closest_projection(
     const std::array<CartesianPoint3, 4>& secondary_coordinates,
     const std::array<CartesianPoint3, 4>& primary_coordinates, const std::array<double, 4>& secondary_shape,
     double normal_orientation) {
-    const Quad4SurfaceContactLocalValues state{};
-    const std::array<ActivePoint3, 8> nodes =
-        current_nodes(secondary_coordinates, primary_coordinates, make_ad_state(state, false));
-    const SurfaceProjection projection =
-        project_to_primary(interpolate_point(nodes, 0, secondary_shape), nodes, normal_orientation, true);
+    const DoubleSurfaceProjection projection = project_to_primary_double(
+        interpolate_points(secondary_coordinates, secondary_shape), primary_coordinates, normal_orientation, true);
     Quad4ReferenceProjectionValue result{};
     result.projected = projection.projected;
-    result.xi = projection.xi.value();
-    result.eta = projection.eta.value();
+    result.xi = projection.xi;
+    result.eta = projection.eta;
     if (!projection.projected) return result;
-    for (std::size_t node = 0; node < 4; ++node) result.primary_shape[node] = projection.primary_shape[node].value();
-    result.normal = {projection.normal[0].value(), projection.normal[1].value(), projection.normal[2].value()};
-    result.gap = projection.gap.value();
-    result.distance = projection.distance.value();
+    result.primary_shape = projection.primary_shape;
+    result.normal = projection.normal;
+    result.gap = projection.gap;
+    result.distance = projection.distance;
     return result;
 }
 
@@ -827,12 +1027,61 @@ Quad4NormalForceAreaValue compute_quad4_to_quad4_normal_force_area(const NormalC
 Quad4FiniteRegionNormalGeometryValue compute_quad4_finite_region_normal_geometry(
     const Quad4ToQuad4MechanicalGeometry& geometry, const Quad4SurfaceContactLocalValues& state,
     Quad4FiniteRegionNormalGeometryJacobian* jacobian) {
+    std::array<CartesianPoint3, 4> secondary_nodes = geometry.secondary_coordinates,
+                                   primary_nodes = geometry.primary_coordinates;
+    for (std::size_t node = 0; node < 4; ++node) {
+        secondary_nodes[node].x += state[8 + node];
+        secondary_nodes[node].y += state[16 + node];
+        secondary_nodes[node].z += state[24 + node];
+        primary_nodes[node].x += state[12 + node];
+        primary_nodes[node].y += state[20 + node];
+        primary_nodes[node].z += state[28 + node];
+    }
+    const CartesianPoint3 secondary_point_value = interpolate_points(secondary_nodes, geometry.secondary_shape);
+    const DoubleSurfaceProjection double_projection =
+        project_to_primary_double(secondary_point_value, primary_nodes, geometry.normal_orientation, true);
+    if (jacobian == nullptr) {
+        const DoubleSurfaceProjection& projection = double_projection;
+        if (!projection.projected) return {};
+        const CartesianPoint3 normal_tangent_xi =
+                                  interpolate_points(secondary_nodes, geometry.secondary_normal_derivative_xi),
+                              normal_tangent_eta =
+                                  interpolate_points(secondary_nodes, geometry.secondary_normal_derivative_eta),
+                              normal_area_vector = cross_points(normal_tangent_xi, normal_tangent_eta),
+                              area_tangent_xi = interpolate_points(secondary_nodes, geometry.secondary_derivative_xi),
+                              area_tangent_eta = interpolate_points(secondary_nodes, geometry.secondary_derivative_eta),
+                              area_vector = cross_points(area_tangent_xi, area_tangent_eta);
+        const double normal_measure = norm_point(normal_area_vector), area_measure = norm_point(area_vector);
+        if (!std::isfinite(normal_measure) || !(normal_measure > 0.0))
+            throw std::domain_error("Three-dimensional secondary contact surface has an undefined averaged normal");
+        if (!std::isfinite(area_measure) || !(area_measure > 0.0))
+            throw std::domain_error("Three-dimensional contact secondary face has a nonpositive current measure");
+        const CartesianPoint3 normal = {geometry.secondary_normal_orientation * normal_area_vector.x / normal_measure,
+            geometry.secondary_normal_orientation * normal_area_vector.y / normal_measure,
+            geometry.secondary_normal_orientation * normal_area_vector.z / normal_measure};
+        Quad4FiniteRegionNormalGeometryValue result{};
+        result.projected = true;
+        result.area = geometry.quadrature_weight * area_measure;
+        result.gap_integral =
+            result.area * dot_points(subtract_points(projection.primary_point, secondary_point_value), normal);
+        const std::array<double, 3> normal_components = {normal.x, normal.y, normal.z};
+        for (std::size_t component = 0; component < 3; ++component) {
+            const std::size_t offset = 8 * (component + 1);
+            const double force = result.area * normal_components[component];
+            for (std::size_t node = 0; node < 4; ++node) {
+                result.unit_pressure_residual[offset + node] += geometry.secondary_shape[node] * force;
+                result.unit_pressure_residual[offset + 4 + node] -= projection.primary_shape[node] * force;
+            }
+        }
+        return result;
+    }
     const Quad4SurfaceContactLocalAdValues ad_state = make_ad_state(state, jacobian != nullptr);
     const std::array<ActivePoint3, 8> nodes =
         current_nodes(geometry.secondary_coordinates, geometry.primary_coordinates, ad_state);
     const std::array<adlite::Scalar, 4> secondary_shape = active_values(geometry.secondary_shape);
     const ActivePoint3 secondary_point = interpolate_point(nodes, 0, secondary_shape);
-    const SurfaceProjection projection = project_to_primary(secondary_point, nodes, geometry.normal_orientation, true);
+    const SurfaceProjection projection =
+        project_to_primary_from_double(secondary_point, nodes, geometry.normal_orientation, double_projection);
     if (!projection.projected) return {};
 
     const ActivePoint3 normal = secondary_average_normal(nodes, geometry);

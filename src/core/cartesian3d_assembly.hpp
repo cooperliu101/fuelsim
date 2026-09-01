@@ -66,6 +66,7 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     std::size_t contribution_count() const noexcept { return contribution_ranges().end; }
 
     std::size_t sparsity_contribution_count() const noexcept;
+    bool jacobian_sparsity_is_state_dependent() const noexcept;
     std::pair<std::size_t, std::size_t> contribution_partition(
         std::size_t partition, std::size_t partition_count) const;
 
@@ -153,6 +154,7 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
         std::array<std::size_t, 4> nodes;
         Quad4FaceCoordinates coordinates;
         CartesianPoint3 parent_centroid;
+        std::array<bool, 4> shared_edges{};
     };
 
     struct SecondaryContactFace final {
@@ -210,7 +212,7 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
         };
 
         std::size_t contact, secondary, history;
-        std::vector<std::size_t> nodes, secondary_output_nodes;
+        std::vector<std::size_t> nodes, active_nodes, active_node_indices, secondary_output_nodes;
         std::vector<double> gap_coefficients, secondary_coefficients;
         std::vector<std::array<double, 3>> tangent_first_coefficients, tangent_second_coefficients,
             traction_first_coefficients, traction_second_coefficients, secondary_tangent_first_coefficients,
@@ -221,6 +223,10 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
         double reference_gap, area;
         std::size_t primary_face = 0;
         bool finite_sliding = false, finite_region_normal = false, friction_only = false, projected = true;
+        mutable std::vector<double> finite_region_cached_state, finite_region_cached_pressure_derivative;
+        mutable double finite_region_cached_gap = 0.0, finite_region_cached_pressure = 0.0,
+                       finite_region_cached_force = 0.0;
+        mutable bool finite_region_cache_valid = false, finite_region_cached_derivative_valid = false;
     };
 
     struct AbaqusAveragedConstraintValue final {
@@ -256,12 +262,15 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     Quad8SurfaceContactLocalDofs hex20_contact_dofs(const Hex20ThermalCandidate& candidate) const;
     Quad8SurfaceContactLocalDofs hex20_contact_dofs(const Hex20MechanicalCandidate& candidate) const;
     void averaged_constraint_dofs(const AbaqusAveragedConstraint& constraint, std::vector<std::size_t>& dofs) const;
+    std::size_t averaged_sparsity_contribution_count() const noexcept;
+    void averaged_sparsity_contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const;
     AbaqusAveragedConstraintValue averaged_constraint_value(const AbaqusAveragedConstraint& constraint,
         const std::vector<double>& state, const std::vector<double>& committed_state,
         const ContactPointHistory& history) const;
     AbaqusAveragedConstraintValue finite_region_normal_value(const AbaqusAveragedConstraint& constraint,
-        const std::vector<double>& state, std::vector<double>* residual = nullptr,
-        std::vector<double>* jacobian = nullptr, std::vector<double>* pressure_derivative = nullptr) const;
+        const std::vector<std::size_t>& local_nodes, const std::vector<double>& state,
+        std::vector<double>* residual = nullptr, std::vector<double>* jacobian = nullptr,
+        std::vector<double>* pressure_derivative = nullptr) const;
     double equivalent_normal_pressure(const AbaqusAveragedConstraint& constraint, const std::vector<double>& state,
         std::vector<double>* derivative = nullptr, const std::vector<double>* friction_area_derivative = nullptr) const;
     void compute_averaged_constraint(const AbaqusAveragedConstraint& constraint, const std::vector<double>& state,
@@ -317,6 +326,8 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     mutable std::vector<spatial_detail::ContactSearchTree> _contact_search_trees;
     mutable std::vector<spatial_detail::ContactSearchBox> _contact_search_boxes;
     mutable spatial_detail::ContactSearchQuery _contact_search_query;
+    mutable std::vector<double> _fully_validated_contact_state;
+    mutable bool _fully_validated_contact_state_current = false;
     std::vector<std::vector<ContactPointHistory>> _contact_histories;
     std::vector<double> _committed_contact_solution;
     std::vector<ResolvedBoundary> _primary_boundaries, _secondary_boundaries;

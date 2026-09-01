@@ -1101,6 +1101,55 @@ coefficient is changed for either the error or timing comparison. The predictor
 changes only the Newton initial guess; its previous committed node state and
 time are included in rollback, state snapshots, and checkpoint version 17.
 
+## M5.8 finite-sliding surface-to-surface contact timing
+
+B5.53 and B5.54 repeat the same 1,617-node, 1,152-element, 6,468-degree-of-
+freedom, twenty-increment paths with explicit finite-sliding surface-to-surface
+mechanical contact in both Fuelsim and Abaqus. The element types are C3D8T and
+C3D8RT, respectively. Materials, loads, friction, penalty, convergence limits,
+time increments, direct MUMPS solve, and final-only reference output are
+unchanged from B5.46 and B5.47.
+
+CPU 0 is pinned and `OMP_NUM_THREADS`, `OPENBLAS_NUM_THREADS`,
+`MKL_NUM_THREADS`, and `NUMEXPR_NUM_THREADS` are all one. The controlled
+single-sample external-wall results are:
+
+| Case | Fuelsim | Abaqus | Fuelsim reduction | Fuelsim/Abaqus |
+| --- | ---: | ---: | ---: | ---: |
+| C3D8T B5.53 | `33.52 s` | `35.480477 s` | `5.5255%` | `0.944744909` |
+| C3D8RT B5.54 | `22.72 s` | `29.508592 s` | `23.0055%` | `0.769945242` |
+
+The corresponding Abaqus analysis wall times are `31 s` and `26 s`. Fuelsim
+internal totals are `27.340612002 s` and `18.617592879 s`. C3D8T uses 93
+nonlinear iterations, 113 residual evaluations, and 26 Jacobian evaluations;
+C3D8RT uses 84, 104, and 35. Both complete all twenty increments without a
+rejected step.
+
+The optimization keeps exact current-face projection as the ownership test but
+uses the contact search tree to reject faces whose current bounding boxes cannot
+be closer. It reuses the prior exact owner only as an initial search bound,
+precomputes shared primary edges, evaluates residual contact projection in
+ordinary double precision, compresses each active averaged constraint to its
+current node support, and permits state-dependent matrix nonzeros only for this
+finite-sliding averaged-contact path. Fixed-sparsity problems retain strict
+PETSc preallocation and new-nonzero errors.
+
+The complete field comparisons remain separate from timing. For B5.53, contact-
+pressure relative L2, relative absolute-peak, and maximum pointwise-relative
+errors are `0.0594374%`, `0.0436218%`, and `0.137470%`. For B5.54 they are
+`0.0496178%`, `0.0520941%`, and `0.0686526%`. All aggregate field metrics pass
+`0.5%`; radial-displacement pointwise errors are `2.90435%` and `2.93536%`
+under the existing fixed-path `4%` small-reference qualification. These are
+single end-to-end measurements across native Windows and WSL, not medians or
+pure kernel ratios.
+
+The tracked Fuelsim inputs are
+`verification/fuelsim/transient_integrated_c3d8t_sts.fsi` and
+`verification/fuelsim/transient_integrated_c3d8rt_sts.fsi`. The Abaqus decks,
+raw reference fields, comparison summaries, and external timing records use
+the `b553_m58_c3d8t_sts_*` and `b554_m58_c3d8rt_sts_*` prefixes under
+`verification/abaqus`.
+
 ## M5.8 C3D20T Abaqus timing and field comparison
 
 B5.48 upgrades every element of the tracked M5.8 mesh from HEX8 to HEX20

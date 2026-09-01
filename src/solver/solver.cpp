@@ -626,7 +626,8 @@ PetscErrorCode assemble_callback(SNES snes, Vec state, Vec residual, Mat jacobia
         if (linearize) {
             if (!context.pattern_locked) {
                 PetscCall(MatSetOption(jacobian, MAT_KEEP_NONZERO_PATTERN, PETSC_TRUE));
-                PetscCall(MatSetOption(jacobian, MAT_NEW_NONZERO_LOCATION_ERR, PETSC_TRUE));
+                if (!context.problem->jacobian_sparsity_is_state_dependent())
+                    PetscCall(MatSetOption(jacobian, MAT_NEW_NONZERO_LOCATION_ERR, PETSC_TRUE));
                 context.pattern_locked = true;
             }
             PetscCall(MatZeroRows(jacobian, static_cast<PetscInt>(context.constrained_dofs.size()),
@@ -785,14 +786,17 @@ class PetscSolver::Implementation final {
             check_petsc(
                 MatSetSizes(_objects->jacobian, local_count, local_count, _count, _count), "MatSetSizes Jacobian");
             check_petsc(MatSetType(_objects->jacobian, MATAIJ), "MatSetType Jacobian");
-            check_petsc(MatPreallocatorPreallocate(preallocator, PETSC_TRUE, _objects->jacobian),
+            check_petsc(
+                MatPreallocatorPreallocate(preallocator,
+                    problem.jacobian_sparsity_is_state_dependent() ? PETSC_FALSE : PETSC_TRUE, _objects->jacobian),
                 "MatPreallocatorPreallocate Jacobian");
             check_petsc(MatDestroy(&preallocator), "MatDestroy sparsity preallocator");
         } catch (...) {
             if (preallocator != nullptr) (void)MatDestroy(&preallocator);
             throw;
         }
-        check_petsc(MatSetOption(_objects->jacobian, MAT_NEW_NONZERO_ALLOCATION_ERR, PETSC_TRUE),
+        check_petsc(MatSetOption(_objects->jacobian, MAT_NEW_NONZERO_ALLOCATION_ERR,
+                        problem.jacobian_sparsity_is_state_dependent() ? PETSC_FALSE : PETSC_TRUE),
             "MatSetOption MAT_NEW_NONZERO_ALLOCATION_ERR");
         check_petsc(SNESCreate(PETSC_COMM_WORLD, &_objects->snes), "SNESCreate");
         check_petsc(SNESSetFunction(_objects->snes, _objects->residual, form_function, &_context), "SNESSetFunction");

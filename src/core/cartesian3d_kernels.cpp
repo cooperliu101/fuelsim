@@ -548,7 +548,7 @@ double prepare_finite_point_stresses(const IsotropicThermoelasticMaterial& mater
 void add_finite_hex8_point_residual(const Hex8QuadraturePoint& point, std::size_t material_node,
     const Hex8LocalValues& state, const IsotropicThermoelasticMaterial& material, double time,
     const FinitePointResidualCache& point_residual, double reference_volume, double current_volume,
-    double element_pressure, Hex8LocalAdValues& residual) {
+    double element_pressure, Hex8LocalResidual& residual) {
     const double conductivity =
         material.conductivity(adlite::Scalar(state[material_node]), material_context(time, point.position)).value();
     std::array<double, 3> temperature_gradient{};
@@ -579,6 +579,35 @@ void add_finite_hex8_point_residual(const Hex8QuadraturePoint& point, std::size_
         residual[24 + node] += point_residual.current_weighted_measure *
                                (stress.xz * gradient_x + stress.yz * gradient_y + stress.zz * gradient_z);
     }
+}
+
+Hex8LocalResidual c3d8t_finite_residual_values(const CartesianThermoelasticData& data, const Hex8Geometry& geometry,
+    const Hex8LocalValues& state, const Hex8LocalValues* committed_state, const CartesianMaterialHistory* history,
+    double time_step, bool include_thermal_time_term) {
+    const Hex8LocalValues undeformed{};
+    const Hex8LocalValues& old_state = committed_state == nullptr ? undeformed : *committed_state;
+    std::array<FinitePointResidualCache, hex8_node_count> point_residuals{};
+    const FiniteAverageTraceValues average_trace =
+        prepare_finite_point_residuals(geometry, state, old_state, point_residuals);
+    const double element_pressure = prepare_finite_point_stresses(data.material, geometry, state, data.time,
+        committed_state, history, time_step, average_trace.value, point_residuals);
+
+    Hex8LocalResidual residual{};
+    for (std::size_t q = 0; q < geometry.points.size(); ++q)
+        add_finite_hex8_point_residual(geometry.points[q], hex8_node_to_gauss[q], state, data.material, data.time,
+            point_residuals[q], geometry.reference_volume, average_trace.current_volume, element_pressure, residual);
+    for (std::size_t node = 0; node < hex8_node_count; ++node) {
+        const double nodal_measure = point_residuals[hex8_node_to_gauss[node]].current_weighted_measure;
+        residual[node] -= nodal_measure * data.volumetric_heat_source;
+        if (committed_state != nullptr && include_thermal_time_term) {
+            const double capacity = data.material
+                                        .heat_capacity(adlite::Scalar(state[node]),
+                                            material_context(data.time, geometry.capacity_points[node].position))
+                                        .value();
+            residual[node] += nodal_measure * capacity * (state[node] - (*committed_state)[node]) / time_step;
+        }
+    }
+    return residual;
 }
 
 FiniteElementPressureSystem finite_element_pressure_system(const IsotropicThermoelasticMaterial& material,
@@ -2190,38 +2219,24 @@ void add_reduced_hex8_finite_jacobian(const CartesianThermoelasticData& data, co
 void assemble_c3d8t_finite_strain_system(const CartesianThermoelasticData& data, const Hex8Geometry& geometry,
     const Hex8LocalValues& state, const Hex8LocalValues* committed_state, const CartesianMaterialHistory* history,
     double time_step, bool include_thermal_time_term, Hex8LocalAdValues& residual, Hex8LocalJacobian* jacobian) {
+    if (jacobian == nullptr) {
+        const Hex8LocalResidual passive_residual = c3d8t_finite_residual_values(
+            data, geometry, state, committed_state, history, time_step, include_thermal_time_term);
+        for (std::size_t row = 0; row < hex8_local_dof_count; ++row) residual[row] = passive_residual[row];
+        return;
+    }
+
     const Hex8LocalValues undeformed{};
     const Hex8LocalValues& old_state = committed_state == nullptr ? undeformed : *committed_state;
     FiniteAverageTraceSystem average_trace;
-    std::array<FinitePointResidualCache, hex8_node_count> point_residuals{};
-    const FiniteAverageTraceValues values =
-        jacobian == nullptr ? prepare_finite_point_residuals(geometry, state, old_state, point_residuals)
-                            : finite_average_hex8_strain_trace_values(geometry, state, old_state);
+    const FiniteAverageTraceValues values = finite_average_hex8_strain_trace_values(geometry, state, old_state);
     average_trace.value = values.value;
     average_trace.current_volume = values.current_volume;
 
     FiniteElementPressureSystem element_pressure;
     std::array<FinitePointSystemCache, hex8_node_count> point_systems{};
-    if (jacobian == nullptr)
-        element_pressure.value = prepare_finite_point_stresses(data.material, geometry, state, data.time,
-            committed_state, history, time_step, average_trace.value, point_residuals);
-    else
-        element_pressure = finite_element_pressure_system(data.material, geometry, state, data.time, committed_state,
-            history, time_step, average_trace, point_systems);
-
-    if (jacobian == nullptr) {
-        Hex8LocalAdValues passive{};
-        ad_local_system::make_passive(state.data(), state.size(), passive.data());
-        for (std::size_t q = 0; q < geometry.points.size(); ++q)
-            add_finite_hex8_point_residual(geometry.points[q], hex8_node_to_gauss[q], state, data.material, data.time,
-                point_residuals[q], geometry.reference_volume, average_trace.current_volume, element_pressure.value,
-                residual);
-        add_hex8_nodal_body_source(geometry, passive, StrainFormulation::finite, data.volumetric_heat_source, residual);
-        if (committed_state != nullptr && include_thermal_time_term)
-            add_hex8_lumped_capacity(geometry, passive, *committed_state, data.material, data.time, time_step,
-                StrainFormulation::finite, residual);
-        return;
-    }
+    element_pressure = finite_element_pressure_system(
+        data.material, geometry, state, data.time, committed_state, history, time_step, average_trace, point_systems);
 
     jacobian->fill(0.0);
     const SmallStrainElementPressureSystem small_pressure{};

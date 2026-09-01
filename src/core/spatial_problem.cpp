@@ -156,6 +156,10 @@ class SpatialProblemStorage {
         return is_cartesian() ? cartesian->sparsity_contribution_count() : rz->sparsity_contribution_count();
     }
 
+    bool jacobian_sparsity_is_state_dependent() const noexcept {
+        return is_cartesian() && cartesian->jacobian_sparsity_is_state_dependent();
+    }
+
     std::pair<std::size_t, std::size_t> contribution_partition(
         std::size_t partition, std::size_t partition_count) const {
         if (is_cartesian()) return cartesian->contribution_partition(partition, partition_count);
@@ -342,6 +346,10 @@ std::size_t SteadyProblem::dof_count() const noexcept { return _impl->layout().d
 std::size_t SteadyProblem::contribution_count() const noexcept { return _impl->contribution_count(); }
 
 std::size_t SteadyProblem::sparsity_contribution_count() const noexcept { return _impl->sparsity_contribution_count(); }
+
+bool SteadyProblem::jacobian_sparsity_is_state_dependent() const noexcept {
+    return _impl->jacobian_sparsity_is_state_dependent();
+}
 
 std::pair<std::size_t, std::size_t> SteadyProblem::contribution_partition(
     std::size_t partition, std::size_t partition_count) const {
@@ -1318,6 +1326,10 @@ std::size_t TransientProblem::contribution_count() const noexcept { return _impl
 
 std::size_t TransientProblem::sparsity_contribution_count() const noexcept {
     return _impl->sparsity_contribution_count();
+}
+
+bool TransientProblem::jacobian_sparsity_is_state_dependent() const noexcept {
+    return _impl->jacobian_sparsity_is_state_dependent();
 }
 
 std::pair<std::size_t, std::size_t> TransientProblem::contribution_partition(

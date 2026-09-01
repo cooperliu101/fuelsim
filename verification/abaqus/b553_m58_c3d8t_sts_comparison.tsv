@@ -1,0 +1,7 @@
+field	relative_l2_percent	relative_absolute_peak_percent	maximum_pointwise_relative_percent	acceptance
+temperature	0.0137754631	0.0238629372	0.0238629372	pass_below_0.5_percent
+radial_displacement	0.0295387653	0.0016428957	2.904352985	qualified_below_4_percent
+contact_pressure	0.0594373965	0.0436218126	0.137469728	pass_below_0.5_percent
+equivalent_stress	0.0007099188	0.0010180262	0.0014341871	pass_below_0.5_percent
+equivalent_plastic_strain	0.0007236463	0.0010360480	0.0014605729	pass_below_0.5_percent
+equivalent_creep_strain	0.0025986551	0.0030284631	0.0041266923	pass_below_0.5_percent

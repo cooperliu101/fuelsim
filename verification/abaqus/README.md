@@ -1829,6 +1829,31 @@ version 17 preserves its previous committed node state and time. The full-size
 path is retained as a manual benchmark and is not registered in the lightweight
 CTest suite.
 
+## B5.53 and B5.54 full-size finite-sliding surface-to-surface benchmarks
+
+B5.53 and B5.54 retain the exact B5.46 and B5.47 meshes, materials, thermal
+contact, friction coefficient, penalty, loads, convergence controls, and twenty
+fixed increments. Their only Abaqus contact-deck change is `type=SURFACE TO
+SURFACE`; the matching Fuelsim inputs explicitly select `discretization =
+surface_to_surface` and `sliding = finite`.
+
+Both solvers complete all twenty increments without cutback or a Fuelsim
+rejected step. The tracked field files are the final Abaqus values used by
+`fuelsim_m58_integrated_hex8_benchmark`. B5.53 contact-pressure relative L2,
+relative absolute-peak, and maximum pointwise-relative errors are `0.0594374%`,
+`0.0436218%`, and `0.137470%`; B5.54 gives `0.0496178%`, `0.0520941%`, and
+`0.0686526%`. The full summaries are stored in the corresponding comparison
+TSV files without a denominator floor.
+
+With CPU 0 pinned and all numerical-library thread counts set to one, the
+single controlled Fuelsim external times are `33.52 s` for C3D8T and `22.72 s`
+for C3D8RT. The matching one-process Abaqus external times are `35.480477 s`
+and `29.508592 s`, while their job summaries report `31 s` and `26 s` analysis
+wall time. Fuelsim is therefore `5.5255%` and `23.0055%` faster in these
+end-to-end cross-Windows-and-WSL measurements. These are single samples rather
+than medians, and no physical, contact, time-step, convergence, or hourglass
+coefficient is changed or fitted.
+
 ## B5.19 C3D8T finite-deformation selective integration
 
 B5.19 applies a non-affine finite deformation to one distorted C3D8T element.
