@@ -1293,7 +1293,7 @@ CLAD_RMAX, P, 2e6
 *Node Output
 COORD, NT, RF, RFL, U
 *Element Output, directions=YES
-CEEQ, IVOL, PEEQ, S
+CEEQ, COORD, IVOL, PEEQ, S
 *Contact Output
 CDISP, CFORCE, CSTRESS, HFL
 *Output, history, frequency=20

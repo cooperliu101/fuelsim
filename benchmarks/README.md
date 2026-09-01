@@ -1101,7 +1101,7 @@ coefficient is changed for either the error or timing comparison. The predictor
 changes only the Newton initial guess; its previous committed node state and
 time are included in rollback, state snapshots, and checkpoint version 17.
 
-## M5.8 C3D20T Abaqus timing
+## M5.8 C3D20T Abaqus timing and field comparison
 
 B5.48 upgrades every element of the tracked M5.8 mesh from HEX8 to HEX20
 without changing the 1,152-element partition, cylindrical geometry, two
@@ -1125,8 +1125,14 @@ in its job summary. The observed Fuelsim-to-Abaqus external-wall ratio is
 wall time is `33.962%` lower relative to Fuelsim.
 
 This is a same-mesh, same-input-physics end-to-end timing comparison across
-Windows and WSL, not a pure element-kernel ratio. The run confirms successful
-time integration, active contact, plasticity, creep, and Fuelsim conservation;
-it does not add a new B5.48 full-field qualification claim because the final
-fields have not been extracted and compared. Existing HEX20 local and external
-verification remains the numerical basis for the element implementation.
+Windows and WSL, not a pure element-kernel ratio. The final fields have now
+been extracted and compared, and B5.48 does not pass full-field qualification.
+Corner-temperature errors remain below `0.025%`, but radial-displacement,
+contact-pressure, equivalent-stress, equivalent-plastic-strain, and
+equivalent-creep-strain relative L2 errors are `21.9330%`, `29.4997%`,
+`37.1520%`, `37.9305%`, and `82.3086%`. The nominal-input runtime ratio must
+therefore not be presented as a qualified same-result performance comparison.
+The tracked `fuelsim_m58_integrated_hex20_results` target writes one final
+Exodus result without changing the timed production input, and
+`compare_b548.py` reproduces all three error metrics without a denominator
+floor. No production formula or coefficient is changed from this failure.

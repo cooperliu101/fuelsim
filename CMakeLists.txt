@@ -393,6 +393,13 @@ if(BUILD_TESTING)
         PRIVATE fuelsim::io
     )
     fuelsim_enable_warnings(fuelsim_m58_hex8_to_hex20)
+    add_executable(fuelsim_m58_integrated_hex20_results
+        benchmarks/m58_integrated_hex20_results.cpp
+    )
+    target_link_libraries(fuelsim_m58_integrated_hex20_results
+        PRIVATE fuelsim::io fuelsim::solver
+    )
+    fuelsim_enable_warnings(fuelsim_m58_integrated_hex20_results)
     add_executable(fuelsim_m52_large_sliding_restart_tests
         tests/m52_large_sliding_restart_tests.cpp
     )

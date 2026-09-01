@@ -9,7 +9,9 @@ $Work = Join-Path $env:TEMP ("fuelsim_b548_" + (Get-Date -Format "yyyyMMdd_HHmms
 New-Item -ItemType Directory -Path $Work | Out-Null
 foreach ($InputFile in @(
     "$JobName.inp",
-    "${JobName}_mesh.inc"
+    "${JobName}_mesh.inc",
+    "${JobName}_mesh.json",
+    "extract_b548.py"
 )) {
     Copy-Item (Join-Path $SourceDirectory $InputFile) $Work
 }
@@ -70,7 +72,23 @@ if ($IncrementSummary.Count -ne 21) {
 }
 $IncrementSummary | Set-Content -Encoding ASCII "${JobName}_increments.tsv"
 
-foreach ($Output in @("${JobName}_timing.txt", "${JobName}_increments.tsv")) {
+& "C:\SIMULIA\Commands\abaqus.bat" python extract_b548.py `
+    "$JobName.odb" `
+    "${JobName}_mesh.json" `
+    "${JobName}_nodal.csv" `
+    "${JobName}_contact.csv" `
+    "${JobName}_clad_points.csv"
+if ($LASTEXITCODE -ne 0) {
+    throw "Abaqus B5.48 field extraction failed with exit code $LASTEXITCODE"
+}
+
+foreach ($Output in @(
+    "${JobName}_timing.txt",
+    "${JobName}_increments.tsv",
+    "${JobName}_nodal.csv",
+    "${JobName}_contact.csv",
+    "${JobName}_clad_points.csv"
+)) {
     Copy-Item $Output $SourceDirectory
 }
 Write-Output "Abaqus B5.48 wall time: $($Stopwatch.Elapsed.TotalSeconds) seconds"

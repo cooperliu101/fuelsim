@@ -2088,7 +2088,7 @@ Generate B5.24 through B5.26 with `generate_b524_b525.py`, extract them with
 `run_b526.ps1`. Generate B5.27 with `generate_b527.py` and run it with
 `run_b527.ps1`. The manifests enumerate every case and every reference file.
 
-## B5.48 M5.8 C3D20T timing conversion
+## B5.48 M5.8 C3D20T conversion and failed full-field comparison
 
 B5.48 converts the exact 1,152-element M5.8 partition to quadratic HEX20
 geometry and displacement interpolation. The converter adds one globally
@@ -2109,10 +2109,60 @@ python3 verification/abaqus/generate_b548.py
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass \
   -File verification/abaqus/run_b548.ps1 \
   -SourceDirectory "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus"
+env OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+  taskset -c 0 ./build/fuelsim_m58_integrated_hex20_results \
+  verification/fuelsim/transient_integrated_c3d20t.fsi \
+  /tmp/b548_fuelsim_final.e
+python3 verification/abaqus/compare_b548.py \
+  /tmp/b548_fuelsim_final.e \
+  verification/abaqus/b548_m58_c3d20t_integrated_nodal.csv \
+  verification/abaqus/b548_m58_c3d20t_integrated_contact.csv \
+  verification/abaqus/b548_m58_c3d20t_integrated_clad_points.csv \
+  verification/abaqus/b548_m58_c3d20t_integrated_mesh.json \
+  verification/abaqus/b548_m58_c3d20t_integrated_comparison.tsv
 ```
 
 The tracked run completes twenty fixed increments without a cutback and takes
 `193.928138 s` externally. The job summary reports `181.50 s` total CPU time
-and `190 s` wall time. The timing and increment files are retained; no B5.48
-field reference is claimed until complete Fuelsim-to-Abaqus field extraction
-and the required three error metrics have been added.
+and `190 s` wall time. `extract_b548.py` retains all 5,969 nodal values, all
+416 original secondary contact-node values, and all 27 material points in each
+of the 512 cladding elements. The comparator matches material points by their
+current coordinates. Its largest matched-coordinate difference is
+`4.62798 um`, which is the physical solution difference, while the minimum
+second-nearest to nearest distance ratio is `23.7202`; the point association is
+therefore unambiguous.
+
+The full-field comparison does not pass. Corner-temperature relative L2,
+relative absolute-peak, and maximum pointwise-relative errors are
+`0.0142617%`, `0.0243000%`, and `0.0243000%`. In contrast, radial displacement
+has `21.9330%`, `22.4025%`, and `4103.94%`, with a `2.56841 um` maximum absolute
+difference; the very large pointwise value uses a `5.35e-22 m` Abaqus
+reference and no denominator floor. Axial displacement has `0.257470%`,
+`0.739164%`, and `108.717%`, with a `4.43504 um` maximum absolute difference.
+Contact pressure has `29.4997%`, `37.1450%`, and `41.1758%` errors. Fuelsim's
+maximum pressure is `92.6210 kPa`, while Abaqus reaches `72.4607 kPa`.
+
+At all 13,824 cladding material points, equivalent stress errors are
+`37.1520%`, `55.4549%`, and `496.504%`; equivalent plastic-strain errors are
+`37.9305%`, `55.9204%`, and `564.831%`; equivalent creep-strain errors are
+`82.3086%`, `87.7762%`, and `20225.0%`. Fuelsim and Abaqus maxima are
+`75.8377 MPa` versus `120.132 MPa`, `0.00374188` versus `0.00595660`, and
+`0.000106481` versus `0.000371678`, respectively. Recovered contact pressure,
+shear, and heat-flow surface integrals are retained as diagnostics because
+Abaqus and Fuelsim do not expose algebraically identical contact recovery
+operators.
+
+Abaqus warns that the C3D20T secondary surface has no midface node and creates
+finite-sliding internal contact elements at the 416 original secondary nodes.
+This differs from the small-sliding H20.25 conversion behavior, so H20.25 does
+not by itself explain the present mismatch. The present evidence localizes the
+failure to the coupled mechanical and contact path but does not yet separate
+the HEX20 finite-strain bulk contribution from the finite-sliding contact
+contribution. No production coefficient, tolerance, or implementation is
+changed from this failed comparison.
+
+The Fuelsim-to-Abaqus external-wall ratio remains `1.514272261`, meaning that
+Fuelsim is `51.427%` slower on the nominally matched input. Because the final
+mechanical fields are not equivalent, this is a runtime observation rather
+than a qualified same-result performance comparison or a pure element-kernel
+or linear-solver ratio.
