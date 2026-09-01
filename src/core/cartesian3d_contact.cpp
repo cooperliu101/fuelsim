@@ -14,7 +14,7 @@ struct SurfaceProjection final {
     bool projected = false;
     std::array<adlite::Scalar, 4> primary_shape{};
     ActivePoint3 primary_point{}, normal{}, tangent_xi{};
-    adlite::Scalar gap{0.0}, xi{0.0}, eta{0.0};
+    adlite::Scalar gap{0.0}, distance{0.0}, xi{0.0}, eta{0.0};
 };
 
 struct CartesianContactAdValue final {
@@ -110,8 +110,8 @@ bool projection_increment_converged(const adlite::Scalar& delta_xi, const adlite
     return true;
 }
 
-SurfaceProjection project_to_primary(
-    const ActivePoint3& secondary_point, const std::array<ActivePoint3, 8>& nodes, double normal_orientation) {
+SurfaceProjection project_to_primary(const ActivePoint3& secondary_point, const std::array<ActivePoint3, 8>& nodes,
+    double normal_orientation, bool bounded_closest = false) {
     adlite::Scalar xi = 0.0, eta = 0.0;
     constexpr std::array<double, 4> mixed_coefficients = {0.25, -0.25, 0.25, -0.25};
     for (std::size_t iteration = 0; iteration < 12; ++iteration) {
@@ -138,33 +138,70 @@ SurfaceProjection project_to_primary(
         if (projection_increment_converged(delta_xi, delta_eta, xi, eta)) break;
     }
     constexpr double tolerance = 1.0e-10;
-    if (!std::isfinite(xi.value()) || !std::isfinite(eta.value()) || xi.value() < -1.0 - tolerance ||
-        xi.value() > 1.0 + tolerance || eta.value() < -1.0 - tolerance || eta.value() > 1.0 + tolerance)
-        return {};
-    if (xi.value() < -1.0) xi = -1.0;
-    if (xi.value() > 1.0) xi = 1.0;
-    if (eta.value() < -1.0) eta = -1.0;
-    if (eta.value() > 1.0) eta = 1.0;
-    std::array<adlite::Scalar, 4> shape{}, derivative_xi{}, derivative_eta{};
-    quad4_shape(xi, eta, shape, derivative_xi, derivative_eta);
-    const ActivePoint3 primary_point = interpolate_primary(nodes, shape),
-                       tangent_xi = interpolate_primary(nodes, derivative_xi),
-                       tangent_eta = interpolate_primary(nodes, derivative_eta),
-                       area_vector = cross(tangent_xi, tangent_eta);
-    const adlite::Scalar measure = norm(area_vector);
-    if (!std::isfinite(measure.value()) || !(measure.value() > 0.0))
-        throw std::domain_error("Three-dimensional contact primary face has a nonpositive current measure");
-    SurfaceProjection result;
-    result.projected = true;
-    result.primary_shape = shape;
-    result.primary_point = primary_point;
-    result.tangent_xi = tangent_xi;
-    result.xi = xi;
-    result.eta = eta;
-    for (std::size_t component = 0; component < 3; ++component)
-        result.normal[component] = normal_orientation * area_vector[component] / measure;
-    result.gap = dot(subtract(primary_point, secondary_point), result.normal);
-    return result;
+    if (!std::isfinite(xi.value()) || !std::isfinite(eta.value())) return {};
+    const auto projection_at = [&](const adlite::Scalar& coordinate_xi, const adlite::Scalar& coordinate_eta) {
+        std::array<adlite::Scalar, 4> shape{}, derivative_xi{}, derivative_eta{};
+        quad4_shape(coordinate_xi, coordinate_eta, shape, derivative_xi, derivative_eta);
+        const ActivePoint3 primary_point = interpolate_primary(nodes, shape),
+                           tangent_xi = interpolate_primary(nodes, derivative_xi),
+                           tangent_eta = interpolate_primary(nodes, derivative_eta),
+                           area_vector = cross(tangent_xi, tangent_eta);
+        const adlite::Scalar measure = norm(area_vector);
+        if (!std::isfinite(measure.value()) || !(measure.value() > 0.0))
+            throw std::domain_error("Three-dimensional contact primary face has a nonpositive current measure");
+        SurfaceProjection result;
+        result.projected = true;
+        result.primary_shape = shape;
+        result.primary_point = primary_point;
+        result.tangent_xi = tangent_xi;
+        result.xi = coordinate_xi;
+        result.eta = coordinate_eta;
+        for (std::size_t component = 0; component < 3; ++component)
+            result.normal[component] = normal_orientation * area_vector[component] / measure;
+        result.gap = dot(subtract(primary_point, secondary_point), result.normal);
+        result.distance = norm(subtract(primary_point, secondary_point));
+        return result;
+    };
+    const bool interior = xi.value() >= -1.0 - tolerance && xi.value() <= 1.0 + tolerance &&
+                          eta.value() >= -1.0 - tolerance && eta.value() <= 1.0 + tolerance;
+    if (!bounded_closest) {
+        if (!interior) {
+            SurfaceProjection result;
+            result.xi = xi;
+            result.eta = eta;
+            return result;
+        }
+        if (xi.value() < -1.0) xi = -1.0;
+        if (xi.value() > 1.0) xi = 1.0;
+        if (eta.value() < -1.0) eta = -1.0;
+        if (eta.value() > 1.0) eta = 1.0;
+        return projection_at(xi, eta);
+    }
+
+    SurfaceProjection closest;
+    if (interior) closest = projection_at(xi, eta);
+    const auto consider_edge = [&](std::size_t first_node, std::size_t second_node, bool varying_xi,
+                                   double fixed_coordinate) {
+        ActivePoint3 center{}, half_tangent{};
+        for (std::size_t component = 0; component < 3; ++component) {
+            center[component] = 0.5 * (nodes[4 + first_node][component] + nodes[4 + second_node][component]);
+            half_tangent[component] = 0.5 * (nodes[4 + second_node][component] - nodes[4 + first_node][component]);
+        }
+        const adlite::Scalar metric = dot(half_tangent, half_tangent);
+        if (!std::isfinite(metric.value()) || !(metric.value() > 0.0))
+            throw std::domain_error("Three-dimensional contact primary face has a degenerate current edge");
+        adlite::Scalar edge_coordinate = dot(subtract(secondary_point, center), half_tangent) / metric;
+        if (edge_coordinate.value() < -1.0) edge_coordinate = -1.0;
+        if (edge_coordinate.value() > 1.0) edge_coordinate = 1.0;
+        const SurfaceProjection candidate = varying_xi ? projection_at(edge_coordinate, fixed_coordinate)
+                                                       : projection_at(fixed_coordinate, edge_coordinate);
+        if (!closest.projected || candidate.distance.value() < closest.distance.value()) closest = candidate;
+    };
+    consider_edge(0, 1, true, -1.0);
+    consider_edge(1, 2, false, 1.0);
+    consider_edge(3, 2, true, 1.0);
+    consider_edge(0, 3, false, -1.0);
+    return closest;
 }
 
 adlite::Scalar current_surface_measure(const std::array<ActivePoint3, 8>& nodes, std::size_t offset,
@@ -625,10 +662,34 @@ Quad4ReferenceProjectionValue compute_quad4_reference_projection(
         project_to_primary(interpolate_point(nodes, 0, secondary_shape), nodes, normal_orientation);
     Quad4ReferenceProjectionValue result{};
     result.projected = projection.projected;
+    result.xi = projection.xi.value();
+    result.eta = projection.eta.value();
     if (!projection.projected) return result;
     for (std::size_t node = 0; node < 4; ++node) result.primary_shape[node] = projection.primary_shape[node].value();
     result.normal = {projection.normal[0].value(), projection.normal[1].value(), projection.normal[2].value()};
     result.gap = projection.gap.value();
+    result.distance = projection.distance.value();
+    return result;
+}
+
+Quad4ReferenceProjectionValue compute_quad4_reference_closest_projection(
+    const std::array<CartesianPoint3, 4>& secondary_coordinates,
+    const std::array<CartesianPoint3, 4>& primary_coordinates, const std::array<double, 4>& secondary_shape,
+    double normal_orientation) {
+    const Quad4SurfaceContactLocalValues state{};
+    const std::array<ActivePoint3, 8> nodes =
+        current_nodes(secondary_coordinates, primary_coordinates, make_ad_state(state, false));
+    const SurfaceProjection projection =
+        project_to_primary(interpolate_point(nodes, 0, secondary_shape), nodes, normal_orientation, true);
+    Quad4ReferenceProjectionValue result{};
+    result.projected = projection.projected;
+    result.xi = projection.xi.value();
+    result.eta = projection.eta.value();
+    if (!projection.projected) return result;
+    for (std::size_t node = 0; node < 4; ++node) result.primary_shape[node] = projection.primary_shape[node].value();
+    result.normal = {projection.normal[0].value(), projection.normal[1].value(), projection.normal[2].value()};
+    result.gap = projection.gap.value();
+    result.distance = projection.distance.value();
     return result;
 }
 
@@ -761,6 +822,51 @@ Quad4NormalForceAreaValue compute_quad4_to_quad4_normal_force_area(const NormalC
                 (*jacobian)[row * quad4_surface_contact_local_dof_count + column] =
                     full_jacobian[row * quad4_surface_contact_local_dof_count + column];
     return {value.projected, values[0], values[1]};
+}
+
+Quad4FiniteRegionNormalGeometryValue compute_quad4_finite_region_normal_geometry(
+    const Quad4ToQuad4MechanicalGeometry& geometry, const Quad4SurfaceContactLocalValues& state,
+    Quad4FiniteRegionNormalGeometryJacobian* jacobian) {
+    const Quad4SurfaceContactLocalAdValues ad_state = make_ad_state(state, jacobian != nullptr);
+    const std::array<ActivePoint3, 8> nodes =
+        current_nodes(geometry.secondary_coordinates, geometry.primary_coordinates, ad_state);
+    const std::array<adlite::Scalar, 4> secondary_shape = active_values(geometry.secondary_shape);
+    const ActivePoint3 secondary_point = interpolate_point(nodes, 0, secondary_shape);
+    const SurfaceProjection projection = project_to_primary(secondary_point, nodes, geometry.normal_orientation, true);
+    if (!projection.projected) return {};
+
+    const ActivePoint3 normal = secondary_average_normal(nodes, geometry);
+    const adlite::Scalar gap = dot(subtract(projection.primary_point, secondary_point), normal),
+                         area = geometry.quadrature_weight * current_surface_measure(nodes, 0,
+                                                                 geometry.secondary_derivative_xi,
+                                                                 geometry.secondary_derivative_eta);
+    std::array<adlite::Scalar, quad4_finite_region_normal_geometry_output_count> output{};
+    output[0] = area;
+    output[1] = area * gap;
+    for (std::size_t component = 0; component < 3; ++component) {
+        const std::size_t offset = 8 * (component + 1);
+        const adlite::Scalar force = area * normal[component];
+        for (std::size_t node = 0; node < 4; ++node) {
+            output[2 + offset + node] += secondary_shape[node] * force;
+            output[2 + offset + 4 + node] -= projection.primary_shape[node] * force;
+        }
+    }
+
+    Quad4FiniteRegionNormalGeometryValue result{};
+    result.projected = true;
+    result.area = output[0].value();
+    result.gap_integral = output[1].value();
+    for (std::size_t row = 0; row < quad4_surface_contact_local_dof_count; ++row)
+        result.unit_pressure_residual[row] = output[2 + row].value();
+    if (jacobian != nullptr) {
+        std::array<double, quad4_surface_contact_local_dof_count> derivatives{};
+        for (std::size_t row = 0; row < output.size(); ++row) {
+            output[row].copy_derivatives(derivatives.data(), derivatives.size());
+            for (std::size_t column = 0; column < derivatives.size(); ++column)
+                (*jacobian)[row * quad4_surface_contact_local_dof_count + column] = derivatives[column];
+        }
+    }
+    return result;
 }
 
 CartesianContactPointValue compute_quad4_to_quad4_contact_value(const NormalContactProperties& properties,

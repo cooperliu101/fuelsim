@@ -54,6 +54,15 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     std::vector<std::size_t> contact_secondary_source_nodes(std::size_t contact_index) const;
     InterfaceSummary summarize_interface(std::size_t contact_index, const std::vector<double>& state) const;
 
+    struct FiniteRegionPartitionSummary final {
+        std::size_t constraint_count = 0, integration_point_count = 0, active_primary_face_count = 0,
+                    cross_face_constraint_count = 0, maximum_owners_per_integration_point = 0;
+        bool all_projected = true;
+    };
+
+    FiniteRegionPartitionSummary finite_region_partition_summary(
+        std::size_t contact_index, const std::vector<double>& state) const;
+
     std::size_t contribution_count() const noexcept { return contribution_ranges().end; }
 
     std::size_t sparsity_contribution_count() const noexcept;
@@ -189,9 +198,15 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
 
     struct AbaqusAveragedConstraint final {
         struct FiniteSlidingSample final {
+            struct NormalPoint final {
+                double xi, eta, weight;
+                std::size_t primary_face;
+            };
+
             std::size_t secondary_face, secondary_local_point;
             double normal_orientation, tangent_orientation;
             std::vector<std::size_t> primary_faces;
+            std::vector<NormalPoint> normal_points;
         };
 
         std::size_t contact, secondary, history;
@@ -205,7 +220,7 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
         CartesianPoint3 normal, tangent_first, reference_normal, reference_tangent_first;
         double reference_gap, area;
         std::size_t primary_face = 0;
-        bool finite_sliding = false, friction_only = false, projected = true;
+        bool finite_sliding = false, finite_region_normal = false, friction_only = false, projected = true;
     };
 
     struct AbaqusAveragedConstraintValue final {
@@ -244,6 +259,9 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     AbaqusAveragedConstraintValue averaged_constraint_value(const AbaqusAveragedConstraint& constraint,
         const std::vector<double>& state, const std::vector<double>& committed_state,
         const ContactPointHistory& history) const;
+    AbaqusAveragedConstraintValue finite_region_normal_value(const AbaqusAveragedConstraint& constraint,
+        const std::vector<double>& state, std::vector<double>* residual = nullptr,
+        std::vector<double>* jacobian = nullptr, std::vector<double>* pressure_derivative = nullptr) const;
     double equivalent_normal_pressure(const AbaqusAveragedConstraint& constraint, const std::vector<double>& state,
         std::vector<double>* derivative = nullptr, const std::vector<double>* friction_area_derivative = nullptr) const;
     void compute_averaged_constraint(const AbaqusAveragedConstraint& constraint, const std::vector<double>& state,

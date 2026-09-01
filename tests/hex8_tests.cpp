@@ -1223,6 +1223,43 @@ bool test_cartesian_surface_contact_kernels() {
             "HEX8 finite-sliding surface-contact automatic-differentiation Jacobian matches centered difference") &&
         passed;
 
+    fuelsim::Quad4FiniteRegionNormalGeometryJacobian finite_region_jacobian{};
+    const fuelsim::Quad4FiniteRegionNormalGeometryValue finite_region =
+        fuelsim::compute_quad4_finite_region_normal_geometry(finite_geometry, state, &finite_region_jacobian);
+    const fuelsim::Quad4FiniteRegionNormalGeometryValue finite_region_plus =
+                                                            fuelsim::compute_quad4_finite_region_normal_geometry(
+                                                                finite_geometry, plus),
+                                                        finite_region_minus =
+                                                            fuelsim::compute_quad4_finite_region_normal_geometry(
+                                                                finite_geometry, minus);
+    maximum_error = 0.0;
+    scale = 0.0;
+    for (std::size_t row = 0; row < fuelsim::quad4_finite_region_normal_geometry_output_count; ++row) {
+        double analytic = 0.0;
+        for (std::size_t column = 0; column < direction.size(); ++column)
+            analytic += finite_region_jacobian[row * direction.size() + column] * direction[column];
+        const auto output = [row](const fuelsim::Quad4FiniteRegionNormalGeometryValue& value) {
+            if (row == 0) return value.area;
+            if (row == 1) return value.gap_integral;
+            return value.unit_pressure_residual[row - 2];
+        };
+        const double numerical = (output(finite_region_plus) - output(finite_region_minus)) / (2.0 * step);
+        maximum_error = std::max(maximum_error, std::abs(analytic - numerical));
+        scale = std::max({scale, std::abs(analytic), std::abs(numerical)});
+    }
+    resultant = {};
+    for (std::size_t component = 0; component < 3; ++component)
+        for (std::size_t node = 0; node < 8; ++node)
+            resultant[component] += finite_region.unit_pressure_residual[8 * (component + 1) + node];
+    std::cout << "hex8_finite_region_normal_geometry_jacobian_relative_error=" << maximum_error / scale << '\n';
+    passed = check(finite_region.projected && near(finite_region.area, 0.25, 1.0e-12) &&
+                       near(finite_region.gap_integral, -0.0025, 1.0e-12) && near(resultant[0], 0.0, 1.0e-12) &&
+                       near(resultant[1], 0.0, 1.0e-12) && near(resultant[2], 0.0, 1.0e-12) &&
+                       maximum_error / scale < 2.0e-6,
+                 "HEX8 finite-region normal geometry integrates area and gap, conserves force, and matches a "
+                 "centered directional difference") &&
+             passed;
+
     fuelsim::Quad4SurfaceContactLocalValues objective_committed{}, objective_current{};
     for (std::size_t node = 0; node < 4; ++node) objective_committed[8 + node] = 0.02;
     constexpr double angle = 0.55, slip_first = 2.0e-4, slip_second = -3.0e-4;

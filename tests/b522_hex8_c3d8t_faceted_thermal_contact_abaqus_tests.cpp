@@ -277,6 +277,18 @@ Comparison compare(const std::vector<NodeReference>& reference,
     for (std::size_t region = 0; region < spatial.region_count(); ++region)
         for (std::size_t local = 0; local < spatial.region_mesh(region).nodes().size(); ++local)
             source_to_global[spatial.region_mesh(region).source_node_ids()[local]] = spatial.global_node(region, local);
+    bool lost_projection_rejected = false;
+    if (name == "facets3") {
+        std::vector<double> lost_projection = current;
+        for (std::size_t source = primary_node_count; source < source_mesh.nodes().size(); ++source) {
+            const std::size_t global = source_to_global.at(source);
+            lost_projection[spatial.dof(fuelsim::Field::displacement_z, global)] += 4.0;
+        }
+        try {
+            problem.validate_state(lost_projection);
+        } catch (const std::domain_error&) { lost_projection_rejected = true; }
+        problem.validate_state(current);
+    }
     fuelsim::test::FieldErrorMetrics nodal_heat;
     double state_difference = 0.0, actual_secondary_heat = 0.0, reference_secondary_heat = 0.0;
     std::array<double, 3> actual_secondary_force{}, reference_secondary_force{};
@@ -308,8 +320,7 @@ Comparison compare(const std::vector<NodeReference>& reference,
     const double jacobian_error = mechanical_contact_directional_error(problem, current, 1.0e-8);
     if (contact_source_nodes.size() != contact.size() || contact_reference.size() != contact.size())
         throw std::invalid_argument("B5.22 Abaqus and Fuelsim contact-node counts differ");
-    std::set<std::size_t> primary_faces;
-    for (const auto& point : contact) primary_faces.insert(point.primary_face);
+    const auto partition = spatial.finite_region_partition_summary(0, current);
     fuelsim::test::print_relative_metrics("b522_" + name + "_nodal_reaction_heat_flux", nodal_heat);
     std::array<fuelsim::test::FieldErrorMetrics, 3> contact_normal_force, contact_shear_force, contact_total_force;
     fuelsim::test::FieldErrorMetrics contact_opening, contact_pressure;
@@ -404,7 +415,13 @@ Comparison compare(const std::vector<NodeReference>& reference,
               << ',' << analytical_force[2] << '\n'
               << "b522_" << name << "_state_maximum_absolute_difference=" << state_difference << '\n'
               << "b522_" << name << "_thermal_conservation_maximum_absolute=" << conservation_error << '\n'
-              << "b522_" << name << "_active_primary_face_count=" << primary_faces.size() << '\n';
+              << "b522_" << name << "_active_primary_face_count=" << partition.active_primary_face_count << '\n'
+              << "b522_" << name << "_finite_region_integration_point_count=" << partition.integration_point_count
+              << '\n'
+              << "b522_" << name << "_cross_face_constraint_count=" << partition.cross_face_constraint_count << '\n'
+              << "b522_" << name
+              << "_maximum_owners_per_integration_point=" << partition.maximum_owners_per_integration_point << '\n';
+    if (name == "facets3") std::cout << "b522_facets3_lost_projection_rejected=" << lost_projection_rejected << '\n';
     std::cout << "b522_" << name << "_contact_coordinate_maximum_absolute_difference=" << contact_coordinate_difference
               << '\n'
               << "b522_" << name << "_mechanical_contact_jacobian_directional_relative_error=" << jacobian_error
@@ -414,9 +431,12 @@ Comparison compare(const std::vector<NodeReference>& reference,
                      contact_zero_component_tolerance = 1.0e-9;
     const bool passed =
         check(state_difference < 3.0e-8, "B5.22 " + name + " Fuelsim and Abaqus use the same faceted-cylinder state") &&
-        check(contact.size() == 2 * (facets + 1) && primary_faces.size() == facets &&
-                  interface.active_contact_nodes == contact.size(),
-            "B5.22 " + name + " activates every curved-surface contact node and primary facet") &&
+        check(contact.size() == 2 * (facets + 1) && partition.constraint_count == contact.size() &&
+                  partition.integration_point_count > contact.size() && partition.active_primary_face_count == facets &&
+                  partition.cross_face_constraint_count > 0 && partition.maximum_owners_per_integration_point == 1 &&
+                  partition.all_projected && interface.active_contact_nodes == contact.size(),
+            "B5.22 " + name +
+                " assigns every finite-region integration point uniquely across all current primary facets") &&
         check(
             fuelsim::test::relative_metrics_below(nodal_heat, thermal_tolerance) && heat_rate_error < thermal_tolerance,
             "B5.22 " + name +
@@ -440,6 +460,8 @@ Comparison compare(const std::vector<NodeReference>& reference,
             "B5.22 " + name + " contact-output coordinates match the prescribed Abaqus state") &&
         check(jacobian_error < 2.0e-5,
             "B5.22 " + name + " curved frictional contact Jacobian matches a centered directional difference") &&
+        check(name != "facets3" || lost_projection_rejected,
+            "B5.22 finite-sliding frictional contact rejects a state outside every current primary face") &&
         check(normal_integration_error < 1.0e-12,
             "B5.22 " + name + " normal resultant matches analytical constant-facet normal integration") &&
         check(nodal_heat.maximum_zero_reference_difference < 1.0e-10 && conservation_error < 1.0e-10 &&
