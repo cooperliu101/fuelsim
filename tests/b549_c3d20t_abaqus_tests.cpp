@@ -36,6 +36,13 @@ struct MaterialReference final {
     double volume, equivalent_stress, equivalent_plastic_strain, equivalent_creep_strain;
 };
 
+struct ContactReference final {
+    std::size_t node;
+    fuelsim::CartesianPoint3 point;
+    double pressure;
+    std::array<double, 3> normal_force;
+};
+
 bool check(bool condition, const std::string& message) {
     if (condition) return true;
     std::cerr << "[FAIL] " << message << '\n';
@@ -122,6 +129,28 @@ std::vector<MaterialReference> read_material(const std::string& path) {
     return result;
 }
 
+std::vector<ContactReference> read_contact(const std::string& path) {
+    std::ifstream input(path);
+    if (!input) throw std::runtime_error("Could not read C3D20T contact reference: " + path);
+    std::string line;
+    const std::string expected = "id,x,y,z,pressure,normal_x,normal_y,normal_z,shear_x,shear_y,shear_z";
+    if (!std::getline(input, line) || line != expected)
+        throw std::invalid_argument("Unexpected C3D20T contact header: " + path);
+    std::vector<ContactReference> result;
+    while (std::getline(input, line)) {
+        if (line.empty()) continue;
+        const auto values = split(line);
+        result.push_back({index_value(values, 0, path) - 1,
+            {number(values, 1, path), number(values, 2, path), number(values, 3, path)}, number(values, 4, path),
+            {number(values, 5, path), number(values, 6, path), number(values, 7, path)}});
+        for (std::size_t component = 8; component < 11; ++component)
+            if (number(values, component, path) != 0.0)
+                throw std::invalid_argument("C3D20T frictionless contact reference contains shear force: " + path);
+    }
+    if (result.size() != 8) throw std::invalid_argument("C3D20T contact reference requires eight secondary nodes");
+    return result;
+}
+
 fuelsim::SolverOptions solver_options(const fuelsim::FuelSimCaseDefinition& definition) {
     fuelsim::SolverOptions result;
     result.absolute_tolerance = definition.solver.absolute_tolerance;
@@ -166,10 +195,12 @@ double equivalent_stress(const fuelsim::SymmetricTensor3Values& stress) {
 }
 
 bool run(const std::string& case_path, const std::string& temperature_path, const std::string& displacement_path,
-    const std::string& material_path) {
+    const std::string& material_path, const std::string& contact_path) {
     const auto temperature_reference = read_temperature(temperature_path);
     const auto displacement_reference = read_displacement(displacement_path);
     const auto material_reference = read_material(material_path);
+    const std::vector<ContactReference> contact_reference =
+        contact_path.empty() ? std::vector<ContactReference>{} : read_contact(contact_path);
     const fuelsim::FuelSimCaseDefinition definition = fuelsim::read_case_input(case_path);
     const fuelsim::UnstructuredHex20Mesh mesh = fuelsim::read_exodus_hex20(definition.mesh_file);
     fuelsim::TransientProblem problem(definition.spatial, mesh);
@@ -220,7 +251,8 @@ bool run(const std::string& case_path, const std::string& temperature_path, cons
     std::map<std::size_t, std::vector<MaterialReference>> references_by_element;
     for (const auto& reference : material_reference) references_by_element[reference.element].push_back(reference);
     fuelsim::test::FieldErrorMetrics stress_metrics, plastic_metrics, creep_metrics;
-    double maximum_material_coordinate_difference = 0.0;
+    double maximum_material_coordinate_difference = 0.0,
+           minimum_material_second_to_first_distance_ratio = std::numeric_limits<double>::infinity();
     for (std::size_t region = 0; region < spatial.region_count(); ++region) {
         const fuelsim::Hex20RegionMesh& region_mesh = spatial.hex20_region_mesh(region);
         for (std::size_t element = 0; element < region_mesh.elements().size(); ++element) {
@@ -246,6 +278,15 @@ bool run(const std::string& case_path, const std::string& temperature_path, cons
                 for (std::size_t reference = 0; reference < 27; ++reference)
                     candidates.emplace_back(
                         distance(positions[actual], references[reference].position), actual, reference);
+            for (std::size_t actual = 0; actual < 27; ++actual) {
+                std::array<double, 27> distances{};
+                for (std::size_t reference = 0; reference < 27; ++reference)
+                    distances[reference] = distance(positions[actual], references[reference].position);
+                std::sort(distances.begin(), distances.end());
+                if (distances[0] > 0.0)
+                    minimum_material_second_to_first_distance_ratio =
+                        std::min(minimum_material_second_to_first_distance_ratio, distances[1] / distances[0]);
+            }
             std::sort(candidates.begin(), candidates.end());
             std::array<bool, 27> actual_used{}, reference_used{};
             std::size_t pair_count = 0;
@@ -271,8 +312,60 @@ bool run(const std::string& case_path, const std::string& temperature_path, cons
     fuelsim::test::print_relative_metrics("b549_equivalent_stress", stress_metrics);
     fuelsim::test::print_relative_metrics("b549_equivalent_plastic_strain", plastic_metrics);
     fuelsim::test::print_relative_metrics("b549_equivalent_creep_strain", creep_metrics);
+    double abaqus_contact_force = 0.0, fuelsim_contact_force = 0.0;
+    std::size_t active_contact_nodes = 0;
+    fuelsim::test::FieldErrorMetrics recovered_contact_pressure_metrics;
+    fuelsim::test::GroupedFieldErrorMetrics contact_normal_force_metrics;
+    if (!contact_reference.empty()) {
+        std::map<std::size_t, ContactReference> contact_by_node;
+        std::array<double, 3> resultant{};
+        for (const ContactReference& reference : contact_reference) {
+            contact_by_node.emplace(reference.node, reference);
+            maximum_reference_coordinate_difference = std::max(
+                maximum_reference_coordinate_difference, distance(mesh.nodes().at(reference.node), reference.point));
+            for (std::size_t component = 0; component < 3; ++component)
+                resultant[component] += reference.normal_force[component];
+        }
+        abaqus_contact_force = std::hypot(resultant[0], resultant[1], resultant[2]);
+        const auto summaries = fuelsim::cartesian::ProblemAccess::summarize_contact_nodes(problem, 0, state);
+        const auto source_nodes = fuelsim::cartesian::ProblemAccess::contact_secondary_source_nodes(problem, 0);
+        if (summaries.size() != source_nodes.size())
+            throw std::logic_error("C3D20T contact summary and source-node maps have different sizes");
+        for (std::size_t node = 0; node < summaries.size(); ++node) {
+            const auto& summary = summaries[node];
+            const ContactReference& reference = contact_by_node.at(source_nodes[node]);
+            if (summary.pressure > 0.0) ++active_contact_nodes;
+            recovered_contact_pressure_metrics.add(summary.pressure, reference.pressure);
+            std::array<double, 3> fuelsim_secondary_force{};
+            for (std::size_t component = 0; component < fuelsim_secondary_force.size(); ++component)
+                fuelsim_secondary_force[component] = -summary.normal_contact_force[component];
+            contact_normal_force_metrics.add(
+                fuelsim_secondary_force.data(), reference.normal_force.data(), reference.normal_force.size());
+        }
+        const fuelsim::InterfaceSummary interface =
+            fuelsim::cartesian::ProblemAccess::summarize_interface(problem, 0, state);
+        fuelsim_contact_force = interface.total_contact_force;
+        passed = check(active_contact_nodes > 0 && interface.active_contact_nodes == active_contact_nodes,
+                     "C3D20T contact comparison has active Fuelsim contact constraints") &&
+                 passed;
+        passed = check(abaqus_contact_force > 0.0 &&
+                           std::abs(fuelsim_contact_force - abaqus_contact_force) / abaqus_contact_force < 1.0e-2,
+                     "C3D20T total contact force differs from Abaqus by less than one percent") &&
+                 passed;
+        passed = check(fuelsim::test::grouped_relative_metrics_below(contact_normal_force_metrics, 1.0e-2),
+                     "C3D20T secondary nodal normal-force metrics are below one percent") &&
+                 passed;
+        fuelsim::test::print_relative_metrics(
+            "b550_recovered_contact_pressure_diagnostic", recovered_contact_pressure_metrics);
+        fuelsim::test::print_grouped_relative_metrics("b550_contact_normal_force", contact_normal_force_metrics);
+    }
     std::cout << "b549_reference_coordinate_maximum_difference=" << maximum_reference_coordinate_difference << '\n'
               << "b549_material_coordinate_maximum_difference=" << maximum_material_coordinate_difference << '\n'
+              << "b549_material_minimum_second_to_first_distance_ratio="
+              << minimum_material_second_to_first_distance_ratio << '\n'
+              << "b549_active_contact_nodes=" << active_contact_nodes << '\n'
+              << "b549_fuelsim_total_contact_force=" << fuelsim_contact_force << '\n'
+              << "b549_abaqus_total_contact_force=" << abaqus_contact_force << '\n'
               << "b549_accepted_steps=" << solve.accepted_steps.size() << '\n'
               << "b549_rejected_steps=" << solve.rejected_steps.size() << '\n'
               << "b549_nonlinear_iterations=" << solve.total_nonlinear_iterations << '\n'
@@ -281,7 +374,7 @@ bool run(const std::string& case_path, const std::string& temperature_path, cons
     passed = check(maximum_reference_coordinate_difference < 1.0e-14,
                  "B5.49 uses identical tracked Fuelsim and Abaqus reference coordinates") &&
              passed;
-    passed = check(maximum_material_coordinate_difference < 1.0e-6,
+    passed = check(minimum_material_second_to_first_distance_ratio > 10.0,
                  "B5.49 material-point association remains unambiguous in the current configuration") &&
              passed;
     passed = check(fuelsim::test::relative_metrics_below(temperature_metrics, tolerance),
@@ -309,15 +402,15 @@ bool run(const std::string& case_path, const std::string& temperature_path, cons
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 5) {
+    if (argc != 5 && argc != 6) {
         std::cerr << "Usage: fuelsim_b549_c3d20t_abaqus_tests <case.fsi> <temperature.csv> <displacement.csv> "
-                     "<material.csv>\n";
+                     "<material.csv> [contact.csv]\n";
         return 2;
     }
     try {
         std::cout << std::scientific << std::setprecision(12);
         fuelsim::PetscSession session(argc, argv, "fuelsim B5.49 C3D20T Abaqus comparison\n");
-        const bool passed = run(argv[1], argv[2], argv[3], argv[4]);
+        const bool passed = run(argv[1], argv[2], argv[3], argv[4], argc == 6 ? argv[5] : "");
         if (passed && session.rank() == 0) std::cout << "[PASS] B5.49 C3D20T Abaqus comparison\n";
         return passed ? 0 : 1;
     } catch (const std::exception& error) {

@@ -2239,3 +2239,64 @@ Abaqus contact operation is the sole cause, and the recovered nodal contact
 pressure remains diagnostic because the two solvers do not expose the same
 nodal recovery operator. No production coefficient, implementation, or
 acceptance threshold was changed.
+
+## B5.50 small C3D20T finite-sliding contact
+
+B5.50 retains the B5.49 eight-element, 376-degree-of-freedom, twenty-increment
+finite-strain thermo-inelastic path and replaces the interface Dirichlet
+conditions with coupled thermal contact and frictionless finite-sliding
+surface-to-surface mechanical contact. Abaqus/Standard uses its default C3D20T
+quadratic surface formulation with a `1e9 Pa/m` linear penalty. Fuelsim uses a
+separate HEX20 current-geometry implementation of the node-centered averaging
+operator identified by H20.26 and H20.28; it does not merge the HEX8 and HEX20
+contact kernels.
+
+Regenerate and run the comparison with:
+
+```text
+python3 verification/abaqus/generate_b550.py
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass \
+  -File verification/abaqus/run_b550.ps1 \
+  -SourceDirectory "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus"
+env OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+  taskset -c 0 ./build/fuelsim_m58_integrated_hex20_results \
+  verification/fuelsim/transient_b550_small_c3d20t_contact.fsi \
+  /tmp/b550_fuelsim_final.e
+python3 verification/abaqus/compare_b549.py \
+  /tmp/b550_fuelsim_final.e \
+  verification/abaqus/b550_small_c3d20t_contact_temperature.csv \
+  verification/abaqus/b550_small_c3d20t_contact_displacement.csv \
+  verification/abaqus/b550_small_c3d20t_contact_material.csv \
+  verification/abaqus/b549_small_c3d20t_mesh.json \
+  verification/abaqus/b550_small_c3d20t_contact_comparison.tsv
+ctest --test-dir build -R '^fuelsim_b550_c3d20t_contact_abaqus_tests$' -j1 --output-on-failure
+```
+
+Both solvers complete all twenty fixed increments without reducing the time
+step. Fuelsim uses 84 nonlinear iterations. The final full-field errors are:
+
+| Field | Relative L2 | Relative absolute peak | Maximum pointwise relative |
+|---|---:|---:|---:|
+| Temperature | `0.00616942%` | `0%` | `0.0156669%` |
+| Displacement vector | `0.0282371%` | `0.0205474%` | `0.133894%` |
+| Equivalent stress | `0.0211592%` | `0.0405102%` | `0.228688%` |
+| Equivalent plastic strain | `0.0387019%` | `0.0889083%` | `0.159708%` |
+| Equivalent creep strain | `0.0367474%` | `0.00175236%` | `0.0882133%` |
+| Secondary nodal normal-force vector | `0.0204250%` | `0.0190661%` | `0.0351833%` |
+
+All six accepted result groups pass all three metrics below one percent without
+a denominator floor. The Fuelsim and Abaqus total normal contact forces are
+`175000.0466 N` and `175000.0000 N`, a `0.000026644%` difference, and all eight
+secondary nodes have positive recovered constraint pressure. The maximum
+current material-point coordinate difference is `2.19048e-6 m`; the minimum
+second-nearest to nearest distance ratio is `4.37766e4`, so the 216-point
+association remains unambiguous.
+
+Abaqus reports one smoothed `CPRESS` value at every quadratic surface node,
+while Fuelsim reports the pressure of each node-centered penalty constraint.
+Those recovered nodal pressure values differ by `6.03528%`, `5.98775%`, and
+`6.08243%` in the three metrics. This is retained as a non-gating output-
+recovery diagnostic rather than being substituted for the accepted nodal
+normal-force vector or total-force equilibrium comparison. No penalty,
+material, load, time step, convergence threshold, averaging coefficient, or
+acceptance threshold was fitted to B5.50.

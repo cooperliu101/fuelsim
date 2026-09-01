@@ -255,6 +255,7 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
         const std::vector<double>& state, const std::vector<double>& committed_state,
         const ContactPointHistory& history, const AbaqusAveragedConstraintValue& value,
         std::array<std::vector<double>, 2>& derivatives) const;
+    void refresh_hex20_finite_averaged_constraints(const std::vector<double>& state) const;
     void refresh_finite_averaged_constraints(const std::vector<double>& state) const;
     bool summarize_averaged_contact(std::size_t contact, const std::vector<double>& state,
         std::vector<CartesianContactNodeSummary>& summaries) const;

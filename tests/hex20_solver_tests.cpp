@@ -638,8 +638,22 @@ bool test_finite_sliding_search_tree() {
         problem.contribution_dofs(contribution, dofs);
         if (!dofs.empty()) ++active_contributions;
     }
-    return check(selected_last_face && active_contributions == 9,
-        "HEX20 finite sliding uses the search tree to find the last of 65 primary faces");
+    const double jacobian_error = mechanical_contact_directional_error(problem, state, 1.0e-8);
+    std::vector<double> outside_state = state;
+    for (std::size_t local = 0; local < view.hex20_region_mesh(1).nodes().size(); ++local) {
+        const std::size_t global = view.global_node(1, local);
+        outside_state[view.dof(fuelsim::Field::displacement_y, global)] = 66.0;
+    }
+    bool outside_rejected = false;
+    try {
+        problem.validate_state(outside_state);
+    } catch (const std::domain_error&) { outside_rejected = true; }
+    return check(selected_last_face && active_contributions == 8,
+               "HEX20 finite-sliding averaged constraints use the search tree to find the last of 65 primary faces") &&
+           check(jacobian_error < 2.0e-5,
+               "HEX20 finite-sliding averaged contact Jacobian matches a centered directional difference") &&
+           check(outside_rejected,
+               "HEX20 finite-sliding averaged contact rejects a state outside the complete primary surface");
 }
 
 bool test_finite_sliding_end_to_end() {
