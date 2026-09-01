@@ -1100,3 +1100,33 @@ energy stays below `0.221711%` of internal energy. No physical or hourglass
 coefficient is changed for either the error or timing comparison. The predictor
 changes only the Newton initial guess; its previous committed node state and
 time are included in rollback, state snapshots, and checkpoint version 17.
+
+## M5.8 C3D20T Abaqus timing
+
+B5.48 upgrades every element of the tracked M5.8 mesh from HEX8 to HEX20
+without changing the 1,152-element partition, cylindrical geometry, two
+material regions, contact surfaces, material coefficients, loads, or twenty
+fixed `0.05 s` increments. Unique edge midpoints increase the mesh from 1,617
+corner nodes to 5,969 displacement nodes. Both Fuelsim and Abaqus activate
+temperature only at the 1,617 corners, so each model has 19,524 coupled degrees
+of freedom. The conversion keeps Fuelsim's local HEX20 ordering in Exodus and
+explicitly maps its top-edge and vertical-edge midpoint groups to the Abaqus
+C3D20T ordering in the generated include.
+
+Both solvers use one process and a direct solver. Fuelsim is pinned to CPU 0,
+and OpenMP, OpenBLAS, MKL, and NumExpr are each limited to one thread. Abaqus
+R2018x uses `cpus=1`. Both complete all twenty increments without a cutback.
+Fuelsim takes 86 nonlinear iterations and Abaqus takes 71 total iterations.
+The controlled Fuelsim external-wall trials are `295.89 s`, `293.66 s`, and
+`291.32 s`; their median is `293.66 s`. The Abaqus external wall time is
+`193.928138 s`, with `181.50 s` total CPU time and `190 s` reported wall time
+in its job summary. The observed Fuelsim-to-Abaqus external-wall ratio is
+`1.514272261`: Fuelsim is `51.427%` slower relative to Abaqus, while Abaqus's
+wall time is `33.962%` lower relative to Fuelsim.
+
+This is a same-mesh, same-input-physics end-to-end timing comparison across
+Windows and WSL, not a pure element-kernel ratio. The run confirms successful
+time integration, active contact, plasticity, creep, and Fuelsim conservation;
+it does not add a new B5.48 full-field qualification claim because the final
+fields have not been extracted and compared. Existing HEX20 local and external
+verification remains the numerical basis for the element implementation.

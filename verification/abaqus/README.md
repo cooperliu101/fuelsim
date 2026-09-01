@@ -1744,8 +1744,10 @@ coordinates. `exodus_to_abaqus.py` converts three-dimensional HEX8 nodes,
 connectivity, element blocks, node sets, and side sets to an Abaqus include;
 the Exodus side sequence maps to Abaqus faces `S3,S4,S5,S6,S1,S2`. It also
 writes a compact JSON manifest with exact reference coordinates and
-connectivity for deterministic extraction. The current utility reads classic
-NetCDF Exodus files through SciPy and intentionally rejects non-HEX8 blocks.
+connectivity for deterministic extraction. The utility reads classic NetCDF-3
+Exodus files through SciPy and NetCDF-4 Exodus files through the netCDF4 Python
+package. It accepts uniform HEX8 or HEX20 blocks and rejects other or mixed
+brick orders.
 
 Run `generate_b546.py` to regenerate the input, mesh include, and manifest,
 then run `run_b546.ps1` on Windows with Abaqus R2018x. The 1,617-node,
@@ -2085,3 +2087,32 @@ Generate B5.24 through B5.26 with `generate_b524_b525.py`, extract them with
 `extract_b524_b525.py`, and run the two families with `run_b524_b525.ps1` and
 `run_b526.ps1`. Generate B5.27 with `generate_b527.py` and run it with
 `run_b527.ps1`. The manifests enumerate every case and every reference file.
+
+## B5.48 M5.8 C3D20T timing conversion
+
+B5.48 converts the exact 1,152-element M5.8 partition to quadratic HEX20
+geometry and displacement interpolation. The converter adds one globally
+shared midpoint per unique HEX8 edge, producing 5,969 displacement nodes and
+retaining the 1,617 original corner-temperature nodes. This gives 19,524
+coupled degrees of freedom in both Fuelsim and Abaqus C3D20T. The generated
+Exodus file uses Fuelsim's local HEX20 midpoint ordering; the Abaqus include
+reorders the four top-edge midpoint nodes ahead of the four vertical-edge
+midpoint nodes as required by C3D20T.
+
+Regenerate the mesh and Abaqus input, then run the one-process Abaqus job with:
+
+```text
+./build/fuelsim_m58_hex8_to_hex20 \
+  verification/moose/m58_integrated_hex8_mesh.e \
+  verification/moose/m58_integrated_hex20_mesh.e
+python3 verification/abaqus/generate_b548.py
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass \
+  -File verification/abaqus/run_b548.ps1 \
+  -SourceDirectory "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus"
+```
+
+The tracked run completes twenty fixed increments without a cutback and takes
+`193.928138 s` externally. The job summary reports `181.50 s` total CPU time
+and `190 s` wall time. The timing and increment files are retained; no B5.48
+field reference is claimed until complete Fuelsim-to-Abaqus field extraction
+and the required three error metrics have been added.

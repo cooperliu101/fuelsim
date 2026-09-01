@@ -42,7 +42,7 @@ def deck(job=JOB, case_name="B5.46", element_type="C3D8T"):
     lines = [
         "*Heading",
         "** %s full-size M5.8-equivalent finite-strain %s benchmark." % (case_name, element_type),
-        "** The mesh include is converted directly from m58_integrated_hex8_mesh.e.",
+        "** The mesh include is converted directly from the tracked M5.8 Exodus mesh.",
         "** SI units: metre, second, kelvin, pascal, watt.",
         "** Temperature and gap tables sample the stated analytic functions; no coefficient is fitted.",
         "*Preprint, echo=NO, model=NO, history=NO, contact=YES",
@@ -142,16 +142,25 @@ def deck(job=JOB, case_name="B5.46", element_type="C3D8T"):
     return "\n".join(lines) + "\n"
 
 
-def generate(job=JOB, case_name="B5.46", element_type="C3D8T"):
+def generate(
+    job=JOB,
+    case_name="B5.46",
+    element_type="C3D8T",
+    mesh_name="m58_integrated_hex8_mesh.e",
+    expected_nodes=1617,
+    expected_elements=1152,
+):
     directory = Path(__file__).resolve().parent
-    exodus = directory.parent / "moose" / "m58_integrated_hex8_mesh.e"
+    exodus = directory.parent / "moose" / mesh_name
     mesh_include = directory / (job + "_mesh.inc")
     manifest = directory / (job + "_mesh.json")
     mesh = convert(exodus, mesh_include, manifest, element_type)
     input_path = directory / (job + ".inp")
     input_path.write_text(deck(job, case_name, element_type), encoding="ascii")
-    if len(mesh["nodes"]) != 1617 or len(mesh["elements"]) != 1152:
-        raise RuntimeError("%s expected 1617 nodes and 1152 elements" % case_name)
+    if len(mesh["nodes"]) != expected_nodes or len(mesh["elements"]) != expected_elements:
+        raise RuntimeError(
+            "%s expected %d nodes and %d elements" % (case_name, expected_nodes, expected_elements)
+        )
     expected_blocks = ["FUEL", "CLAD"]
     expected_sets = {"FUEL_OUTER", "FUEL_BOTTOM", "FUEL_TOP", "CLAD_RMIN", "CLAD_RMAX", "CLAD_BOTTOM", "CLAD_TOP"}
     if [block["name"] for block in mesh["blocks"]] != expected_blocks:

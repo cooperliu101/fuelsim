@@ -386,6 +386,13 @@ if(BUILD_TESTING)
             fuelsim::solver
     )
     fuelsim_enable_warnings(fuelsim_m58_integrated_hex8_benchmark)
+    add_executable(fuelsim_m58_hex8_to_hex20
+        benchmarks/m58_hex8_to_hex20.cpp
+    )
+    target_link_libraries(fuelsim_m58_hex8_to_hex20
+        PRIVATE fuelsim::io
+    )
+    fuelsim_enable_warnings(fuelsim_m58_hex8_to_hex20)
     add_executable(fuelsim_m52_large_sliding_restart_tests
         tests/m52_large_sliding_restart_tests.cpp
     )
