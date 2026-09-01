@@ -2166,3 +2166,76 @@ Fuelsim is `51.427%` slower on the nominally matched input. Because the final
 mechanical fields are not equivalent, this is a runtime observation rather
 than a qualified same-result performance comparison or a pure element-kernel
 or linear-solver ratio.
+
+## B5.49 small C3D20T volume-element isolation
+
+B5.49 separates the C3D20T volume-element path from the contact difference
+observed in B5.48. The tracked mesh has eight HEX20 elements in two independent
+blocks, 112 quadratic displacement nodes, 40 corner-temperature nodes, and 376
+coupled degrees of freedom. Both blocks use finite strain and a fixed
+`0.02 s` Backward Euler time step for twenty increments. One block carries a
+temperature gradient. The second block carries the same temperature gradient,
+current-configuration pressure, J2 linear-hardening plasticity, and Norton
+creep. There is no contact in the accepted baseline, so the result is evidence
+for Fuelsim's mixed U2-T1 volume implementation rather than a claim about the
+Abaqus contact surface generated from C3D20T.
+
+Regenerate and run the case with:
+
+```text
+cmake --build build --parallel 4 --target fuelsim_b549_small_c3d20t_mesh
+./build/fuelsim_b549_small_c3d20t_mesh \
+  verification/abaqus/b549_small_c3d20t_mesh.e
+python3 verification/abaqus/generate_b549.py
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass \
+  -File verification/abaqus/run_b549.ps1 \
+  -SourceDirectory "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus"
+env OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+  taskset -c 0 ./build/fuelsim_m58_integrated_hex20_results \
+  verification/fuelsim/transient_b549_small_c3d20t.fsi \
+  /tmp/b549_fuelsim_final.e
+python3 verification/abaqus/compare_b549.py \
+  /tmp/b549_fuelsim_final.e \
+  verification/abaqus/b549_small_c3d20t_temperature.csv \
+  verification/abaqus/b549_small_c3d20t_displacement.csv \
+  verification/abaqus/b549_small_c3d20t_material.csv \
+  verification/abaqus/b549_small_c3d20t_mesh.json \
+  verification/abaqus/b549_small_c3d20t_comparison.tsv
+ctest --test-dir build -R '^fuelsim_b549_c3d20t_abaqus_tests$' -j1 --output-on-failure
+```
+
+Both solvers complete all twenty fixed increments without reducing the time
+step. Fuelsim uses 65 nonlinear iterations. The final full-field errors are:
+
+| Field | Relative L2 | Relative absolute peak | Maximum pointwise relative |
+|---|---:|---:|---:|
+| Temperature | `0.00601858%` | `0%` | `0.0158256%` |
+| Displacement vector | `0.00404531%` | `0.00375528%` | `0.0236363%` |
+| Equivalent stress | `0.00176376%` | `0.00113177%` | `0.0768957%` |
+| Equivalent plastic strain | `0.00307327%` | `0.00246047%` | `0.0305505%` |
+| Equivalent creep strain | `0.00238408%` | `0.000318486%` | `0.0104691%` |
+
+The temperature peak error is zero because both solvers impose the same
+`400 K` maximum boundary value. Eight analytically fixed displacement vectors
+and 108 elastic-block plastic and creep values have zero references; their
+maximum absolute differences are exactly zero and are reported separately.
+The maximum current material-point coordinate difference is
+`2.85569e-7 m`, while the minimum second-nearest to nearest distance ratio is
+`3.38653e5`, so the 216-point association is unambiguous. The C++ self-check
+applies a strict `1%` gate to all three nonzero-reference metrics without a
+denominator floor.
+
+`b549_small_c3d20t_exploratory_stages.tsv` records the non-gating isolation
+steps that preceded the accepted baseline. On the refined 376-degree-of-freedom
+finite-strain surface-to-surface contact path, all relative L2 errors are below
+`0.37%`, but isolated displacement, stress, and plastic-strain pointwise errors
+remain `1.20274%`, `1.21926%`, and `1.65663%`. On the 216-degree-of-freedom
+node-to-surface path with a ten-percent primary-face overhang, temperature L2
+error remains `0.0455877%`, while displacement, stress, plastic-strain, and
+creep-strain L2 errors become `37.1189%`, `18.0758%`, `37.6442%`, and
+`59.3682%`. These stages localize the first observed failure above one percent
+to adding contact to the coupled path. They do not prove that one proprietary
+Abaqus contact operation is the sole cause, and the recovered nodal contact
+pressure remains diagnostic because the two solvers do not expose the same
+nodal recovery operator. No production coefficient, implementation, or
+acceptance threshold was changed.

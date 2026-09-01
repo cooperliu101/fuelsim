@@ -400,6 +400,13 @@ if(BUILD_TESTING)
         PRIVATE fuelsim::io fuelsim::solver
     )
     fuelsim_enable_warnings(fuelsim_m58_integrated_hex20_results)
+    add_executable(fuelsim_b549_small_c3d20t_mesh
+        benchmarks/b549_small_c3d20t_mesh.cpp
+    )
+    target_link_libraries(fuelsim_b549_small_c3d20t_mesh
+        PRIVATE fuelsim::io
+    )
+    fuelsim_enable_warnings(fuelsim_b549_small_c3d20t_mesh)
     add_executable(fuelsim_m52_large_sliding_restart_tests
         tests/m52_large_sliding_restart_tests.cpp
     )
@@ -1526,6 +1533,20 @@ if(BUILD_TESTING)
         set_tests_properties(${h20_40_test}
             PROPERTIES LABELS "acceptance;three-dimensional;hex20;contact;friction;curved;finite-sliding;abaqus;split-case")
     endforeach()
+
+    add_executable(fuelsim_b549_c3d20t_abaqus_tests
+        tests/b549_c3d20t_abaqus_tests.cpp)
+    target_link_libraries(fuelsim_b549_c3d20t_abaqus_tests
+        PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
+    fuelsim_enable_warnings(fuelsim_b549_c3d20t_abaqus_tests)
+    add_test(NAME fuelsim_b549_c3d20t_abaqus_tests
+        COMMAND fuelsim_b549_c3d20t_abaqus_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_b549_small_c3d20t.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b549_small_c3d20t_temperature.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b549_small_c3d20t_displacement.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b549_small_c3d20t_material.csv")
+    set_tests_properties(fuelsim_b549_c3d20t_abaqus_tests PROPERTIES
+        LABELS "acceptance;three-dimensional;hex20;c3d20t;transient;thermal;mechanical;finite-strain;plasticity;creep;abaqus")
 
     add_executable(fuelsim_h20_31_hex20_curved_sts_identification_tests
         tests/h20_curved_sts_identification_tests.cpp)

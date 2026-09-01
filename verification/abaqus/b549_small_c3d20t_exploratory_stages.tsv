@@ -1,0 +1,25 @@
+stage	dofs	contact	strain	field	relative_l2_percent	maximum_pointwise_relative_percent	note
+full_load_sts	216	surface_to_surface	finite	temperature	0.303557	1.12777	Exploratory non-gating path before load isolation
+full_load_sts	216	surface_to_surface	finite	displacement_vector	1.69261	100	The pointwise value included an Abaqus numerical zero before zero normalization
+full_load_sts	216	surface_to_surface	finite	equivalent_stress	0.485929	1.71797	Exploratory non-gating path
+full_load_sts	216	surface_to_surface	finite	equivalent_plastic_strain	1.14088	2.5935	Exploratory non-gating path
+full_load_sts	216	surface_to_surface	finite	equivalent_creep_strain	1.41398	3.49664	Exploratory non-gating path
+full_load_sts	216	surface_to_surface	finite	nodal_contact_pressure	36.1186	146.394	Diagnostic only because the solvers recover different nodal pressure fields
+half_load_sts	216	surface_to_surface	finite	temperature	0.110706	0.317427	Exploratory non-gating path
+half_load_sts	216	surface_to_surface	finite	displacement_vector	0.580959	1.62943	Exploratory non-gating path
+half_load_sts	216	surface_to_surface	finite	equivalent_stress	0.287740	1.45994	Exploratory non-gating path
+half_load_sts	216	surface_to_surface	finite	equivalent_plastic_strain	3.53519	8.08739	Plasticity was only marginally active
+half_load_sts	216	surface_to_surface	finite	equivalent_creep_strain	0.641622	2.49967	Exploratory non-gating path
+half_load_sts	216	surface_to_surface	finite	nodal_contact_pressure	31.7805	135.728	Diagnostic only because the solvers recover different nodal pressure fields
+half_load_nts_overhang	216	node_to_surface	finite	temperature	0.0455877	0.0938997	Primary face extends ten percent beyond the secondary face
+half_load_nts_overhang	216	node_to_surface	finite	displacement_vector	37.1189	143.548	First large mechanical divergence on the isolated contact path
+half_load_nts_overhang	216	node_to_surface	finite	equivalent_stress	18.0758	95.9935	Exploratory limitation evidence
+half_load_nts_overhang	216	node_to_surface	finite	equivalent_plastic_strain	37.6442	100	Exploratory limitation evidence
+half_load_nts_overhang	216	node_to_surface	finite	equivalent_creep_strain	59.3682	140.319	Exploratory limitation evidence
+half_load_nts_overhang	216	node_to_surface	finite	nodal_contact_pressure	72.9187	100	Diagnostic only because the solvers recover different nodal pressure fields
+refined_half_load_sts	376	surface_to_surface	finite	temperature	0.00616942	0.0156669	Eight-element refined isolation
+refined_half_load_sts	376	surface_to_surface	finite	displacement_vector	0.163149	1.20274	Aggregate passes but one point remains above one percent
+refined_half_load_sts	376	surface_to_surface	finite	equivalent_stress	0.115218	1.21926	Aggregate passes but one point remains above one percent
+refined_half_load_sts	376	surface_to_surface	finite	equivalent_plastic_strain	0.199609	1.65663	Aggregate passes but one point remains above one percent
+refined_half_load_sts	376	surface_to_surface	finite	equivalent_creep_strain	0.360404	0.900358	All three creep metrics pass in this stage
+refined_half_load_sts	376	surface_to_surface	finite	nodal_contact_pressure	6.67704	8.01637	Diagnostic only because the solvers recover different nodal pressure fields
