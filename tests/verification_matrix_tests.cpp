@@ -74,6 +74,7 @@ void check_c3d8t_contract(const std::string& path, const std::set<std::string>& 
         "fuelsim_b520_hex8_c3d8t_gap_conductance_abaqus_tests",
         "fuelsim_b521_hex8_c3d8t_thermal_contact_path_abaqus_tests",
         "fuelsim_b522_hex8_c3d8t_faceted_thermal_contact_abaqus_tests",
+        "fuelsim_b552_hex8_c3d8t_sts_cross_face_abaqus_tests",
     };
 
     std::set<std::string> registered_c3d8t;
@@ -235,6 +236,7 @@ int main(int argc, char** argv) {
             "b548.m58_c3d20t_timing",
             "b549.small_c3d20t_volume",
             "b550.small_c3d20t_contact",
+            "b552.hex8_c3d8t_sts_cross_face",
             "io.exodus",
             "m0.steady",
             "m1.contact",
@@ -307,7 +309,7 @@ int main(int argc, char** argv) {
         }
         if (found_ids != required_ids)
             throw std::runtime_error("Verification matrix is missing one or more required rows");
-        if (verified != 100 || qualified != 2 || measured != 8 || limitations != 2)
+        if (verified != 101 || qualified != 2 || measured != 8 || limitations != 2)
             throw std::runtime_error("Verification matrix status counts differ from release schema");
         check_c3d8t_contract(argv[4], registered_tests);
         std::cout << "verification_matrix_rows=" << found_ids.size() << '\n'

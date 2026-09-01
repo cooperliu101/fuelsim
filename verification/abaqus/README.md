@@ -2088,6 +2088,39 @@ Generate B5.24 through B5.26 with `generate_b524_b525.py`, extract them with
 `run_b526.ps1`. Generate B5.27 with `generate_b527.py` and run it with
 `run_b527.ps1`. The manifests enumerate every case and every reference file.
 
+## B5.52 lightweight cross-primary-face C3D8T contact operator
+
+B5.52 is the lightweight regression for the HEX8 surface-to-surface finite-
+sliding normal-integration correction. It contains six C3D8T elements, 32 nodes,
+and 128 coupled degrees of freedom. Three faceted cylindrical primary faces and
+three secondary faces produce eight active node-centered constraints; four
+constraint regions cross a current primary-face boundary. The secondary radial
+penetration varies with both circumferential angle and axial coordinate, so one
+representative primary face cannot reproduce the integrated current normal and
+area.
+
+The test compares the prescribed contact state rather than an equilibrium solve.
+Against Abaqus R2018x, pressure relative L2, relative absolute-peak, and maximum
+pointwise-relative errors are `0.0324157%`, `0.0014344%`, and `0.0493700%`.
+Every Cartesian normal nodal-force metric is below `0.00236%`, and the contact
+Jacobian has `2.53456e-9` relative centered-directional-difference error. There
+are no zero pressure references and no denominator floor.
+
+The same source, reference data, compiler, dependencies, and Release options
+built against pre-change commit `ffedc54` give pressure errors of `1.22547%`,
+`1.21852%`, and `2.17721%`. The fixed one-percent gate therefore fails before
+the current-geometry finite-region correction and passes afterward; the three
+errors contract by factors of `37.8`, `849`, and `44.1`. The paired results are
+stored in `b552_hex8_sts_cross_face_comparison.tsv`. This is an operator-level
+accuracy qualification, not a solved loading-path or speed claim.
+
+Regenerate the input with `generate_b552.py`, then run Abaqus and extract the
+tracked nodal and contact references with:
+
+```text
+powershell -ExecutionPolicy Bypass -File run_b552.ps1 -SourceDirectory <abaqus-directory>
+```
+
 ## B5.48 M5.8 C3D20T conversion and failed full-field comparison
 
 B5.48 converts the exact 1,152-element M5.8 partition to quadratic HEX20

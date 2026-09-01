@@ -726,6 +726,17 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_b527_medium_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;transient;thermal;mechanical;finite-strain;friction;contact;engineering;abaqus")
 
+    add_executable(fuelsim_b552_hex8_c3d8t_sts_cross_face_abaqus_tests
+        tests/b552_hex8_sts_cross_face_abaqus_tests.cpp)
+    target_link_libraries(fuelsim_b552_hex8_c3d8t_sts_cross_face_abaqus_tests
+        PRIVATE fuelsim_moose_test_support fuelsim::core)
+    fuelsim_enable_warnings(fuelsim_b552_hex8_c3d8t_sts_cross_face_abaqus_tests)
+    add_test(NAME fuelsim_b552_hex8_c3d8t_sts_cross_face_abaqus_tests
+        COMMAND fuelsim_b552_hex8_c3d8t_sts_cross_face_abaqus_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus")
+    set_tests_properties(fuelsim_b552_hex8_c3d8t_sts_cross_face_abaqus_tests PROPERTIES
+        LABELS "acceptance;three-dimensional;hex8;c3d8t;steady;mechanical;finite-strain;contact;surface-to-surface;finite-sliding;operator-identification;abaqus")
+
     add_executable(fuelsim_b53_hex8_c3d8t_thermal_load_abaqus_tests
         tests/b53_hex8_c3d8t_thermal_load_abaqus_tests.cpp)
     target_link_libraries(fuelsim_b53_hex8_c3d8t_thermal_load_abaqus_tests PRIVATE fuelsim::core)
