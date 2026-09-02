@@ -1,0 +1,4 @@
+quantity	role	relative_l2_percent	relative_absolute_peak_percent	maximum_pointwise_relative_percent	relative_total_difference_percent	note
+node_centered_constraint_pressure	acceptance	0.00417812	0.00167097	0.0152589	-	Pressure is computed as max(-penalty*COPEN,0) in both solvers; 11 of 29 constraints are active and 18 exact-zero references have zero maximum absolute difference.
+secondary_nodal_normal_force	acceptance	0.00250301	0.00264717	0.0150092	0.000710217	Signed Abaqus CNORMF is compared at all 29 secondary nodes; eight exact-zero references have zero maximum absolute difference and the total-force comparison is shown in the total-difference column.
+recovered_nodal_contact_pressure	limitation	39.7049	23.0681	132.133	-	Abaqus CPRESS is positive at 16 nodes, including five nodes with positive COPEN; Fuelsim deliberately does not extend full-face pressure recovery across a partially active quadratic face.

@@ -162,6 +162,7 @@ int main(int argc, char** argv) {
             "h20.node_to_face_three_way",
             "h20.sts_finite_sliding_planar",
             "h20.sts_finite_sliding_curved",
+            "h20.sts_finite_sliding_partial_contact",
             "h20.sts_multicase",
             "h20.abaqus_curved_sts_identification",
             "h20.sts_curved",
@@ -311,7 +312,7 @@ int main(int argc, char** argv) {
         }
         if (found_ids != required_ids)
             throw std::runtime_error("Verification matrix is missing one or more required rows");
-        if (verified != 101 || qualified != 2 || measured != 10 || limitations != 2)
+        if (verified != 101 || qualified != 3 || measured != 10 || limitations != 2)
             throw std::runtime_error("Verification matrix status counts differ from release schema");
         check_c3d8t_contract(argv[4], registered_tests);
         std::cout << "verification_matrix_rows=" << found_ids.size() << '\n'

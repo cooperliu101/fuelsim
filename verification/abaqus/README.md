@@ -703,6 +703,47 @@ crossing, slide-out rejection and rollback, an end-to-end four-load-step solve
 for both strain formulations, and a 65-primary-face case that forces the
 spatial search-tree path.
 
+## H20.41 finite-sliding partial contact
+
+H20.41 reuses the tracked H20.29 graded C3D20 mesh to keep the automatic
+comparison small at 468 total degrees of freedom. The secondary outer face is
+closed by `10 um`, while a positive `20000 Pa` traction on its top bends the
+interface open. The final state therefore has 11 active node-centered
+constraints among 29 secondary contact nodes. Four of the six quadratic
+secondary faces contain both active and open nodes, so this case places the
+contact front inside a face instead of between whole faces. Both solvers use a
+frictionless finite-sliding surface-to-surface penalty formulation with a
+`1e11 Pa/m` normal penalty and four equal steady load increments.
+
+The Abaqus R2018x reference is reproduced with:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass `
+  -File "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus\run_h20_41.ps1" `
+  -SourceDirectory "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus"
+```
+
+The node-centered constraint pressure, defined independently in both solvers
+as `max(-penalty*COPEN,0)`, has relative L2, relative absolute-peak, and maximum
+pointwise-relative errors of `0.00417812%`, `0.00167097%`, and `0.0152589%`.
+The corresponding signed secondary normal nodal-force errors are `0.00250301%`,
+`0.00264717%`, and `0.0150092%`. The total normal contact force is
+`4090.009656308 N` in Fuelsim and `4090.038704459 N` in Abaqus, a
+`0.000710217%` difference. Exact-zero references are counted separately, with
+no denominator floor, and every Fuelsim constraint remains projected.
+
+Abaqus's displayed `CPRESS` is a recovered output rather than the contact-force
+operator itself. It is positive at 16 nodes in this case, including five nodes
+whose `COPEN` is positive and whose `CNORMF` is zero. Direct comparison of that
+recovered field gives `39.7049%`, `23.0681%`, and `132.133%` for the same three
+metrics. Fuelsim therefore does not apply its qualified full-face pressure
+recovery rule to a partially active quadratic face. The automatic test accepts
+the active-constraint topology, node-centered constraint pressure, signed
+nodal force, and total resultant below `1%`; it prints, but does not accept as
+equivalent, the proprietary Abaqus recovered-pressure field. This limitation
+is recorded explicitly instead of changing the physical contact residual or
+Jacobian to fit a display quantity.
+
 ## B3.4 C3D8 deformable small-sliding friction
 
 B3.4 uses two deformable C3D8 blocks on the tracked narrow-margin mesh. Both

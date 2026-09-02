@@ -1545,6 +1545,18 @@ if(BUILD_TESTING)
             PROPERTIES LABELS "acceptance;three-dimensional;hex20;contact;friction;curved;finite-sliding;abaqus;split-case")
     endforeach()
 
+    add_executable(fuelsim_h20_41_hex20_partial_contact_abaqus_tests
+        tests/h20_partial_contact_abaqus_tests.cpp)
+    target_link_libraries(fuelsim_h20_41_hex20_partial_contact_abaqus_tests
+        PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
+    fuelsim_enable_warnings(fuelsim_h20_41_hex20_partial_contact_abaqus_tests)
+    add_test(NAME fuelsim_h20_41_hex20_partial_contact_abaqus_tests
+        COMMAND fuelsim_h20_41_hex20_partial_contact_abaqus_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex20_finite_sliding_partial_contact_abaqus.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_41_hex20_finite_sliding_partial_contact_contact.csv")
+    set_tests_properties(fuelsim_h20_41_hex20_partial_contact_abaqus_tests
+        PROPERTIES LABELS "acceptance;three-dimensional;hex20;contact;partial-contact;finite-sliding;abaqus")
+
     add_executable(fuelsim_b549_c3d20t_abaqus_tests
         tests/b549_c3d20t_abaqus_tests.cpp)
     target_link_libraries(fuelsim_b549_c3d20t_abaqus_tests
