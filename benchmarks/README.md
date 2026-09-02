@@ -581,7 +581,7 @@ env PATH=/home/cooper/miniforge/envs/moose/bin:/usr/local/bin:/usr/bin:/bin \
   OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 \
   NUMEXPR_NUM_THREADS=1 taskset -c 0 \
   /usr/bin/time -f 'wall_seconds=%e' \
-  ./build/fuelsim -i verification/fuelsim/transient_integrated_hex8.fsi
+  ./build/fuelsim -i verification/fuelsim/transient_integrated_c3d8t.fsi
 ```
 
 From `verification/moose`, the matching MOOSE command was:
@@ -608,7 +608,7 @@ manually from the repository root with:
 
 ```bash
 ./build/fuelsim_m58_integrated_hex8_benchmark \
-  verification/fuelsim/transient_integrated_hex8.fsi \
+  verification/fuelsim/transient_integrated_c3d8t.fsi \
   verification/moose/m58_integrated_hex8_all_nodes_0020.csv \
   verification/moose/m58_integrated_hex8_contact_pressure_0020.csv \
   verification/moose/m58_integrated_hex8_clad_state_0020.csv
@@ -701,7 +701,7 @@ env PATH=/home/cooper/miniforge/envs/moose/bin:/usr/local/bin:/usr/bin:/bin \
   /usr/bin/time -f 'process_wall_seconds=%e' \
   taskset -c 0 \
   /home/cooper/miniforge/envs/moose/bin/mpiexec -bind-to core -n 1 \
-  ./build/fuelsim -i verification/fuelsim/transient_integrated_hex8.fsi
+  ./build/fuelsim -i verification/fuelsim/transient_integrated_c3d8t.fsi
 ```
 
 The tracked M5.8 input now explicitly selects MUMPS at every process count, so

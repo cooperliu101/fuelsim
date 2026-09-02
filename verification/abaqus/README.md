@@ -1754,7 +1754,7 @@ then run `run_b546.ps1` on Windows with Abaqus R2018x. The 1,617-node,
 1,152-element C3D8T model uses the same two material blocks, analytic fuel
 conductivity, analytic gas-gap conductance, twenty fixed `0.05 s` increments,
 current pressure loads, node-to-surface penalty contact, and Coulomb friction
-as `transient_integrated_hex8.fsi`. The analytic functions are densely sampled
+as `transient_integrated_c3d8t.fsi`. The analytic functions are densely sampled
 for Abaqus table input; no coefficient is fitted. Abaqus completes all twenty
 increments without cutback, using 72 iterations and matrix decompositions.
 
