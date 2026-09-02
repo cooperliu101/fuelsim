@@ -713,7 +713,11 @@ constraints among 29 secondary contact nodes. Four of the six quadratic
 secondary faces contain both active and open nodes, so this case places the
 contact front inside a face instead of between whole faces. Both solvers use a
 frictionless finite-sliding surface-to-surface penalty formulation with a
-`1e11 Pa/m` normal penalty and four equal steady load increments.
+`1e11 Pa/m` normal penalty and the same final loading. Abaqus reaches that load
+in ten equal increments of normalized size `0.1`; Fuelsim uses four equal
+steady load increments. This increment-count difference does not introduce a
+material-history comparison because H20.41 is small-strain elastic and only
+the converged final equilibrium is compared.
 
 The Abaqus R2018x reference is reproduced with:
 
@@ -732,17 +736,91 @@ The corresponding signed secondary normal nodal-force errors are `0.00250301%`,
 `0.000710217%` difference. Exact-zero references are counted separately, with
 no denominator floor, and every Fuelsim constraint remains projected.
 
-Abaqus's displayed `CPRESS` is a recovered output rather than the contact-force
-operator itself. It is positive at 16 nodes in this case, including five nodes
-whose `COPEN` is positive and whose `CNORMF` is zero. Direct comparison of that
-recovered field gives `39.7049%`, `23.0681%`, and `132.133%` for the same three
-metrics. Fuelsim therefore does not apply its qualified full-face pressure
-recovery rule to a partially active quadratic face. The automatic test accepts
-the active-constraint topology, node-centered constraint pressure, signed
-nodal force, and total resultant below `1%`; it prints, but does not accept as
-equivalent, the proprietary Abaqus recovered-pressure field. This limitation
-is recorded explicitly instead of changing the physical contact residual or
-Jacobian to fit a display quantity.
+Abaqus's displayed `CPRESS` is a recovered output rather than the pointwise
+constraint pressure. It is positive at 16 nodes in this case, including five
+nodes whose `COPEN` is positive. The recorded Abaqus `CNORMF` is also nonzero at
+all five nodes because the quadratic surface formulation redistributes nodal
+contact force; neither displayed field is therefore used to count active
+pointwise constraints. Fuelsim retains the `COPEN`-derived pressure separately
+as `constraint_pressure` and uses that quantity for the active-node count.
+
+The H20.42 recovery described below reduces the Fuelsim-to-Abaqus displayed
+`CPRESS` errors to `0.00254196%`, `0.000433241%`, and `0.0189632%` for relative
+L2, relative absolute-peak, and maximum pointwise-relative error. Abaqus and
+Fuelsim now have the same 16 positive recovered-pressure nodes. All three
+recovered-pressure metrics, the independently retained constraint-pressure
+metrics, and the signed nodal-force metrics are accepted below `1%`, without a
+denominator floor. Thirteen exact-zero `CPRESS` references have zero maximum
+absolute difference. The recovery is output-only: it does not modify contact
+residuals, the Jacobian, nodal forces, or the converged solution.
+
+## H20.42 C3D20 pressure-recovery identification
+
+H20.42 isolates the nodal output operation with 128 fixed-geometry C3D20
+contact states. Every displacement is fixed and nodewise overclosure is
+prescribed with Abaqus `*CLEARANCE, TABULAR`, so a `1e11 Pa/m` linear penalty
+sets the unsmoothed constraint pressure without an equilibrium-solve ambiguity.
+The states comprise one uniform baseline, positive and negative perturbations
+of each of the 29 secondary nodes, the H20.41 final `COPEN` state, random
+partial-contact states with alternate positive opening magnitudes, random
+fully active states, and wide-dynamic-range fully active holdouts. The
+fixed-clearance probe uses small sliding because that is the Abaqus input
+boundary for tabular clearance. H20.41 and B5.50 separately exercise the same
+recovery in finite-sliding solved states.
+
+For one quadratic eight-node face, let `p` contain its nonnegative
+`max(-penalty*COPEN,0)` values in corner-then-midside order. The exact linear
+stage identified from the assembled multi-face perturbations is `q = M*p/24`,
+where
+
+```text
+M = [17 -3  1 -3  7 -1 -1  7
+     -3 17 -3  1  7  7 -1 -1
+      1 -3 17 -3 -1  7  7 -1
+     -3  1 -3 17 -1 -1  7  7
+      7  7 -1 -1  7  3 -1  3
+     -1  7  7 -1  3  7  3 -1
+     -1 -1  7  7 -1  3  7  3
+      7 -1 -1  7  3 -1  3  7]
+```
+
+This symmetric, idempotent, rank-four matrix is the equal-norm least-squares
+projection onto the four-node bilinear-face subspace. Contributions from
+adjacent faces are averaged arithmetically at a shared node. The maximum
+absolute difference between an assembled Abaqus perturbation coefficient and
+this matrix is `7.45931e-15`.
+
+Away from the small perturbations, the observed Abaqus output has an additional
+state-dependent nonlinear bounding behavior. An isolated face and the
+partial-contact probes behave as a minimum/maximum bound, while smooth fully
+active multi-face perturbations retain small excursions outside that range.
+The available probes do not identify every proprietary branch.
+Fuelsim therefore applies a conservative connected-secondary-surface bound
+after face assembly. Across all 128 states, this qualified surrogate has
+worst-case relative L2, relative absolute-peak, and maximum pointwise-relative
+errors of `0.230798%`, `0.603622%`, and `0.628931%`. Exact-zero references have
+zero maximum absolute difference. Omitting the bound gives corresponding
+worst errors of `8.15622%`, `17.7443%`, and `65.7222%`, including a
+`2.30033 MPa` value where Abaqus reports exact zero. Thus the bound is retained,
+but the result is not described as an entry-by-entry reconstruction of every
+Abaqus internal branch.
+
+Reproduce the manual identification with:
+
+```text
+python3 verification/abaqus/generate_h20_42.py /tmp/fuelsim_h20_42_probe
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass \
+  -File verification/abaqus/run_h20_42.ps1 \
+  -SourceDirectory "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus" \
+  -ProbeDirectory "\\wsl.localhost\Ubuntu\tmp\fuelsim_h20_42_probe"
+python3 verification/abaqus/compare_h20_42.py \
+  /tmp/fuelsim_h20_42_probe/h20_42_hex20_pressure_recovery.csv \
+  /tmp/fuelsim_h20_42_probe/h20_42_hex20_pressure_recovery_metrics.tsv
+```
+
+The tracked H20.42 metric table records the R2018x result. The generated input
+and raw output remain reproducible temporary artifacts rather than adding 128
+disconnected copies of the H20.41 mesh to the repository.
 
 ## B3.4 C3D8 deformable small-sliding friction
 
@@ -2401,11 +2479,12 @@ maximum pointwise-relative errors are `0.0840691%`, `0.0210557%`, and
 
 For this fully active quadratic face, all eight Abaqus `CPRESS` values are
 `166718.333 Pa`, exactly the mean of the four corner and four edge-midpoint
-constraint-pressure means. Fuelsim now removes only that alternating
-corner-versus-edge mode during output recovery, while retaining variations
-within both four-node groups. It does not smooth a partially active face. The
-recovered Fuelsim value is `166639.406 Pa`; its three pressure errors are all
-`0.0473414%`, and the B5.50 test gates both constraint and recovered pressure
-below `0.5%`. The contact residual, Jacobian, nodal-force distribution, total
-force, penalty, material, load, time step, convergence threshold, and identified
-constraint averaging coefficients are unchanged.
+constraint-pressure means. The H20.42 face projector removes that alternating
+mode for this particular two-level pressure pattern. Fuelsim's connected-face
+bound does not change the projected constant, so its recovered value remains
+`166639.406 Pa`; all three pressure errors are `0.0473414%`, and the B5.50 test
+gates both constraint and recovered pressure below `0.5%`. The same recovery
+also applies to partially active faces, as independently accepted by H20.41.
+The contact residual, Jacobian, nodal-force distribution, total force, penalty,
+material, load, time step, convergence threshold, and identified constraint
+averaging coefficients are unchanged.

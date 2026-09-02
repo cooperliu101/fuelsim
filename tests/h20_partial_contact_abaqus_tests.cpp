@@ -115,7 +115,7 @@ bool run(const std::string& case_path, const std::string& reference_path) {
         const Reference& reference = reference_by_node.at(source_nodes[node]);
         coordinate_error =
             std::max(coordinate_error, coordinate_difference(mesh.nodes().at(reference.node), reference.point));
-        const double actual_constraint = std::max(-penalty * summaries[node].gap, 0.0);
+        const double actual_constraint = summaries[node].constraint_pressure;
         const double reference_constraint = std::max(-penalty * reference.gap, 0.0);
         constraint_pressure.add(actual_constraint, reference_constraint);
         recovered_pressure.add(summaries[node].pressure, reference.pressure);
@@ -164,9 +164,9 @@ bool run(const std::string& case_path, const std::string& reference_path) {
     constexpr double tolerance = 1.0e-2;
     passed = check(coordinate_error < 1.0e-14, "H20.41 uses identical Abaqus and Fuelsim coordinates") && passed;
     passed =
-        check(fuelsim_constraint_active == 11 && fuelsim_recovered_positive == 11 && abaqus_constraint_active == 11 &&
+        check(fuelsim_constraint_active == 11 && fuelsim_recovered_positive == 16 && abaqus_constraint_active == 11 &&
                   abaqus_recovered_positive == 16 && abaqus_recovery_extension == 5 && partial_faces == 4,
-            "H20.41 places the contact front inside quadratic secondary faces") &&
+            "H20.41 recovers the Abaqus positive-pressure support across partially active quadratic faces") &&
         passed;
     passed = check(interface.projected_contact_nodes == references.size() && interface.unprojected_contact_nodes == 0 &&
                        interface.active_contact_nodes == fuelsim_constraint_active,
@@ -174,6 +174,9 @@ bool run(const std::string& case_path, const std::string& reference_path) {
              passed;
     passed = check(fuelsim::test::relative_metrics_below(constraint_pressure, tolerance),
                  "H20.41 constraint-pressure metrics are below one percent") &&
+             passed;
+    passed = check(fuelsim::test::relative_metrics_below(recovered_pressure, tolerance),
+                 "H20.41 recovered-pressure metrics are below one percent") &&
              passed;
     passed = check(fuelsim::test::grouped_relative_metrics_below(normal_force, tolerance),
                  "H20.41 nodal normal-force metrics are below one percent") &&

@@ -1,4 +1,4 @@
 quantity	role	relative_l2_percent	relative_absolute_peak_percent	maximum_pointwise_relative_percent	relative_total_difference_percent	note
 secondary_nodal_normal_force	acceptance	0.0204250	0.0190661	0.0351833	0.000026644	Fuelsim sign is reversed to the Abaqus secondary-side action convention before comparison
 node_centered_constraint_pressure	acceptance	0.0840691	0.0210557	0.124417	-	Abaqus constraint pressure is reconstructed directly as max(-penalty*COPEN,0) before either solver's nodal CPRESS recovery
-recovered_nodal_contact_pressure	acceptance	0.0473414	0.0473414	0.0473414	-	Fuelsim filters only the fully active quadratic-face corner-versus-edge alternating mode before reporting CPRESS
+recovered_nodal_contact_pressure	acceptance	0.0473414	0.0473414	0.0473414	-	The H20.42 face projector and connected-surface range limiter remove the corner-versus-edge alternating mode in this fully active case before Fuelsim reports CPRESS

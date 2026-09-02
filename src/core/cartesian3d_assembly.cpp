@@ -229,6 +229,21 @@ const Matrix8& abaqus_quad8_averaging() {
     return value;
 }
 
+const Matrix8& abaqus_quad8_pressure_recovery() {
+    // H20.42 identifies this as the exact linear stage in Abaqus/Standard: project the eight nonnegative constraint
+    // pressures on each quadratic face onto the Q4-compatible bilinear nodal subspace.  The matrix is the equal-norm
+    // least-squares projector.  The probe outputs retain additional state-dependent nonlinear behavior.
+    static const Matrix8 value = {{17.0 / 24.0, -3.0 / 24.0, 1.0 / 24.0, -3.0 / 24.0, 7.0 / 24.0, -1.0 / 24.0,
+        -1.0 / 24.0, 7.0 / 24.0, -3.0 / 24.0, 17.0 / 24.0, -3.0 / 24.0, 1.0 / 24.0, 7.0 / 24.0, 7.0 / 24.0, -1.0 / 24.0,
+        -1.0 / 24.0, 1.0 / 24.0, -3.0 / 24.0, 17.0 / 24.0, -3.0 / 24.0, -1.0 / 24.0, 7.0 / 24.0, 7.0 / 24.0,
+        -1.0 / 24.0, -3.0 / 24.0, 1.0 / 24.0, -3.0 / 24.0, 17.0 / 24.0, -1.0 / 24.0, -1.0 / 24.0, 7.0 / 24.0,
+        7.0 / 24.0, 7.0 / 24.0, 7.0 / 24.0, -1.0 / 24.0, -1.0 / 24.0, 7.0 / 24.0, 3.0 / 24.0, -1.0 / 24.0, 3.0 / 24.0,
+        -1.0 / 24.0, 7.0 / 24.0, 7.0 / 24.0, -1.0 / 24.0, 3.0 / 24.0, 7.0 / 24.0, 3.0 / 24.0, -1.0 / 24.0, -1.0 / 24.0,
+        -1.0 / 24.0, 7.0 / 24.0, 7.0 / 24.0, -1.0 / 24.0, 3.0 / 24.0, 7.0 / 24.0, 3.0 / 24.0, 7.0 / 24.0, -1.0 / 24.0,
+        -1.0 / 24.0, 7.0 / 24.0, 3.0 / 24.0, -1.0 / 24.0, 3.0 / 24.0, 7.0 / 24.0}};
+    return value;
+}
+
 const std::array<AbaqusQuad8TransferSample, 12>& abaqus_quad8_corner_transfer_rule() {
     // H20.28 identifies this mesh-independent parent-face sampling rule from
     // Abaqus/Standard R2018x primary meshes with 8, 16, and 32 subdivisions.
@@ -3014,6 +3029,7 @@ bool SpatialAssembly::summarize_averaged_contact(std::size_t contact_value, cons
         if (!constraint.friction_only) {
             predominant.primary_face = constraint.primary_face;
             predominant.gap = value.gap;
+            predominant.constraint_pressure = value.pressure;
             predominant.pressure = value.pressure;
             predominant.tributary_area = constraint.area;
         }
@@ -3085,12 +3101,20 @@ bool SpatialAssembly::summarize_averaged_contact(std::size_t contact_value, cons
             }
     if (_uses_hex20 && recover_finite_sliding_nodal_tractions && !finite_region_normals) {
         const ResolvedHex20Boundary& secondary = _hex20_secondary_boundaries.at(contact_value);
-        std::vector<double> pressure_correction(summaries.size());
-        std::vector<std::size_t> pressure_correction_count(summaries.size());
+        const Matrix8& recovery = abaqus_quad8_pressure_recovery();
+        std::vector<double> recovered_pressure(summaries.size());
+        std::vector<std::size_t> recovery_count(summaries.size());
+        std::vector<std::size_t> component_parent(summaries.size());
+        std::iota(component_parent.begin(), component_parent.end(), 0);
+        const auto component_root = [&component_parent](std::size_t node) {
+            while (component_parent[node] != node) {
+                component_parent[node] = component_parent[component_parent[node]];
+                node = component_parent[node];
+            }
+            return node;
+        };
         for (const Quad8FaceElement& face : secondary.boundary.faces) {
             std::array<std::size_t, 8> output_nodes{};
-            bool fully_active = true;
-            double corner_mean = 0.0, edge_mean = 0.0;
             for (std::size_t local_node = 0; local_node < face.nodes.size(); ++local_node) {
                 const auto found = std::find(secondary.boundary.displacement_nodes.begin(),
                     secondary.boundary.displacement_nodes.end(), face.nodes[local_node]);
@@ -3099,26 +3123,38 @@ bool SpatialAssembly::summarize_averaged_contact(std::size_t contact_value, cons
                 const std::size_t output_node =
                     static_cast<std::size_t>(found - secondary.boundary.displacement_nodes.begin());
                 output_nodes[local_node] = output_node;
-                const double pressure = summaries[output_node].pressure;
-                fully_active = fully_active && summaries[output_node].projected && pressure > 0.0;
-                (local_node < 4 ? corner_mean : edge_mean) += 0.25 * pressure;
             }
-            if (!fully_active) continue;
-            // Abaqus reports a smoothed CPRESS field rather than the raw node-centered constraint pressures. For a
-            // fully active quadratic face, remove only the alternating corner-versus-edge mode identified by the
-            // B5.50 COPEN/CPRESS pair. Retain variations within each four-node group and do not spread pressure into
-            // a partially active face.
-            const double face_mean = 0.5 * (corner_mean + edge_mean);
+            for (std::size_t local_node = 1; local_node < output_nodes.size(); ++local_node) {
+                const std::size_t first_root = component_root(output_nodes[0]);
+                const std::size_t next_root = component_root(output_nodes[local_node]);
+                if (first_root != next_root) component_parent[next_root] = first_root;
+            }
             for (std::size_t local_node = 0; local_node < output_nodes.size(); ++local_node) {
                 const std::size_t output_node = output_nodes[local_node];
-                pressure_correction[output_node] += face_mean - (local_node < 4 ? corner_mean : edge_mean);
-                ++pressure_correction_count[output_node];
+                for (std::size_t input_node = 0; input_node < output_nodes.size(); ++input_node) {
+                    const double pressure = summaries[output_nodes[input_node]].constraint_pressure;
+                    recovered_pressure[output_node] += recovery[local_node * 8 + input_node] * pressure;
+                }
+                ++recovery_count[output_node];
             }
         }
+        std::vector<double> component_minimum(summaries.size(), std::numeric_limits<double>::infinity());
+        std::vector<double> component_maximum(summaries.size(), -std::numeric_limits<double>::infinity());
         for (std::size_t node = 0; node < summaries.size(); ++node)
-            if (pressure_correction_count[node] != 0)
-                summaries[node].pressure +=
-                    pressure_correction[node] / static_cast<double>(pressure_correction_count[node]);
+            if (recovery_count[node] != 0) {
+                const std::size_t root = component_root(node);
+                component_minimum[root] = std::min(component_minimum[root], summaries[node].constraint_pressure);
+                component_maximum[root] = std::max(component_maximum[root], summaries[node].constraint_pressure);
+            }
+        for (std::size_t node = 0; node < summaries.size(); ++node)
+            if (recovery_count[node] != 0) {
+                // H20.42 shows that face values are averaged arithmetically at shared nodes. Component-wide bounds
+                // reproduce partial-contact probes and provide a conservative surrogate for Abaqus's unidentified
+                // nonlinear branch; all 128 H20.42 states remain below one percent in each accepted relative metric.
+                const std::size_t root = component_root(node);
+                const double average = recovered_pressure[node] / static_cast<double>(recovery_count[node]);
+                summaries[node].pressure = std::clamp(average, component_minimum[root], component_maximum[root]);
+            }
     }
     if (finite_region_normals)
         for (std::size_t node = 0; node < summaries.size(); ++node) {
@@ -3129,6 +3165,7 @@ bool SpatialAssembly::summarize_averaged_contact(std::size_t contact_value, cons
                 finite_region_normal_area[node][2]);
             if (summary.tributary_area > 0.0) {
                 summary.pressure = normal_force / summary.tributary_area;
+                summary.constraint_pressure = summary.pressure;
                 summary.tangential_traction = summary.tangential_force / summary.tributary_area;
             }
         }
@@ -5171,7 +5208,7 @@ std::vector<CartesianContactNodeSummary> SpatialAssembly::summarize_contact_node
         for (std::size_t node : secondary.boundary.displacement_nodes) {
             const CartesianPoint3& point = mesh.nodes().at(node);
             result.push_back({point.x, point.y, point.z, false, std::numeric_limits<std::size_t>::max(),
-                std::numeric_limits<double>::infinity(), 0.0, 0.0, 0.0, 0.0, 0.0, {}, {}, {}, {}, false});
+                std::numeric_limits<double>::infinity(), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, {}, {}, {}, {}, false});
         }
         if (summarize_averaged_contact(contact_value, state, result)) return result;
         if (_definition.contacts[contact_value].mechanical_discretization ==
@@ -5309,6 +5346,7 @@ std::vector<CartesianContactNodeSummary> SpatialAssembly::summarize_contact_node
                 CartesianContactNodeSummary& summary = result[node];
                 if (summary.tributary_area == 0.0) continue;
                 if (recovery_area[node] != 0.0) summary.pressure = recovery_force[node] / recovery_area[node];
+                summary.constraint_pressure = summary.pressure;
                 summary.tangential_traction = summary.tangential_force / summary.tributary_area;
                 for (std::size_t component = 0; component < 3; ++component) {
                     summary.tangential_slip[component] = weighted_total_slip[node][component] / summary.tributary_area;
@@ -5351,6 +5389,7 @@ std::vector<CartesianContactNodeSummary> SpatialAssembly::summarize_contact_node
         for (CartesianContactNodeSummary& summary : result)
             if (summary.tributary_area != 0.0) {
                 summary.pressure = summary.contact_force / summary.tributary_area;
+                summary.constraint_pressure = summary.pressure;
                 summary.tangential_traction = summary.tangential_force / summary.tributary_area;
             }
         return result;
@@ -5362,7 +5401,7 @@ std::vector<CartesianContactNodeSummary> SpatialAssembly::summarize_contact_node
     for (std::size_t node : secondary.boundary.nodes) {
         const CartesianPoint3& point = mesh.nodes().at(node);
         result.push_back({point.x, point.y, point.z, false, std::numeric_limits<std::size_t>::max(),
-            std::numeric_limits<double>::infinity(), 0.0, 0.0, 0.0, 0.0, 0.0, {}, {}, {}, {}, false});
+            std::numeric_limits<double>::infinity(), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, {}, {}, {}, {}, false});
     }
     if (summarize_averaged_contact(contact_value, state, result)) return result;
     const bool separately_averaged_friction = std::any_of(_abaqus_averaged_constraints.begin(),
@@ -5478,6 +5517,7 @@ std::vector<CartesianContactNodeSummary> SpatialAssembly::summarize_contact_node
     for (CartesianContactNodeSummary& summary : result)
         if (summary.tributary_area > 0.0) {
             summary.pressure = summary.contact_force / summary.tributary_area;
+            summary.constraint_pressure = summary.pressure;
             summary.tangential_traction = summary.tangential_force / summary.tributary_area;
             const std::size_t node = static_cast<std::size_t>(&summary - result.data());
             if (!separately_averaged_friction && recovered_slip_weight[node] > 0.0)
@@ -5548,7 +5588,7 @@ InterfaceSummary SpatialAssembly::summarize_interface(
             result.maximum_contact_pressure = std::max(result.maximum_contact_pressure, node.pressure);
             result.total_contact_force += node.contact_force;
             result.total_tangential_force += node.tangential_force;
-            if (node.pressure > 0.0) ++result.active_contact_nodes;
+            if (node.constraint_pressure > 0.0) ++result.active_contact_nodes;
         }
     } else {
         result.minimum_contact_gap = 0.0;

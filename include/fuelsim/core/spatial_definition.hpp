@@ -130,7 +130,7 @@ struct CartesianContactNodeSummary final {
     double x, y, z;
     bool projected;
     std::size_t primary_face;
-    double gap, pressure, tributary_area, contact_force, tangential_traction, tangential_force;
+    double gap, constraint_pressure, pressure, tributary_area, contact_force, tangential_traction, tangential_force;
     std::array<double, 3> normal_contact_force, tangential_contact_force, tangential_slip, elastic_tangential_slip;
     bool sliding;
 };
