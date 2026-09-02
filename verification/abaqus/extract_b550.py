@@ -133,12 +133,13 @@ try:
                     raise RuntimeError("missing B5.50 integration value for %s" % (key,))
                 output.write("%d,%d,%.17g,%.17g,%.17g,%.17g,%.16g,%.16g,%.16g\n" % (label, point, point_coordinates[key][0], point_coordinates[key][1], point_coordinates[key][2], volume[key], equivalent_stress(stress[key]), plastic.get(key, 0.0), creep.get(key, 0.0)))
 
+    gap = nodal_values(contact_field(frame, "COPEN"), secondary_contact_labels)
     pressure = nodal_values(contact_field(frame, "CPRESS"), secondary_contact_labels)
     normal = nodal_values(contact_field(frame, "CNORMF"), secondary_contact_labels)
     shear = nodal_values(contact_field(frame, "CSHEARF"), secondary_contact_labels)
     with open(sys.argv[6], "wb") as output:
-        output.write("id,x,y,z,pressure,normal_x,normal_y,normal_z,shear_x,shear_y,shear_z\n")
+        output.write("id,x,y,z,gap,pressure,normal_x,normal_y,normal_z,shear_x,shear_y,shear_z\n")
         for label in sorted(secondary_contact_labels):
-            output.write("%d,%.17g,%.17g,%.17g,%.16g,%.16g,%.16g,%.16g,%.16g,%.16g,%.16g\n" % ((label,) + tuple(coordinates[label]) + (pressure[label],) + tuple(normal[label]) + tuple(shear[label])))
+            output.write("%d,%.17g,%.17g,%.17g,%.16g,%.16g,%.16g,%.16g,%.16g,%.16g,%.16g,%.16g\n" % ((label,) + tuple(coordinates[label]) + (gap[label], pressure[label]) + tuple(normal[label]) + tuple(shear[label])))
 finally:
     odb.close()

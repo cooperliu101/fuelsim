@@ -1477,12 +1477,13 @@ void SpatialAssembly::averaged_sparsity_contribution_dofs(std::size_t index, std
             continue;
         }
         std::vector<std::size_t> nodes;
-        if (constraint->finite_sliding)
+        if (constraint->finite_sliding) {
             for (const AbaqusAveragedConstraint& candidate : _abaqus_averaged_constraints)
                 if (candidate.finite_sliding && candidate.contact == constraint->contact)
                     nodes.insert(nodes.end(), candidate.nodes.begin(), candidate.nodes.end());
-                else
-                    nodes = constraint->nodes;
+        } else {
+            nodes = constraint->nodes;
+        }
         std::sort(nodes.begin(), nodes.end());
         nodes.erase(std::unique(nodes.begin(), nodes.end()), nodes.end());
         dofs.clear();
@@ -3082,6 +3083,43 @@ bool SpatialAssembly::summarize_averaged_contact(std::size_t contact_value, cons
                 if (!_uses_hex20) summary.pressure = summary.contact_force / summary.tributary_area;
                 summary.tangential_traction = summary.tangential_force / summary.tributary_area;
             }
+    if (_uses_hex20 && recover_finite_sliding_nodal_tractions && !finite_region_normals) {
+        const ResolvedHex20Boundary& secondary = _hex20_secondary_boundaries.at(contact_value);
+        std::vector<double> pressure_correction(summaries.size());
+        std::vector<std::size_t> pressure_correction_count(summaries.size());
+        for (const Quad8FaceElement& face : secondary.boundary.faces) {
+            std::array<std::size_t, 8> output_nodes{};
+            bool fully_active = true;
+            double corner_mean = 0.0, edge_mean = 0.0;
+            for (std::size_t local_node = 0; local_node < face.nodes.size(); ++local_node) {
+                const auto found = std::find(secondary.boundary.displacement_nodes.begin(),
+                    secondary.boundary.displacement_nodes.end(), face.nodes[local_node]);
+                if (found == secondary.boundary.displacement_nodes.end())
+                    throw std::logic_error("HEX20 contact-pressure recovery node mapping failed");
+                const std::size_t output_node =
+                    static_cast<std::size_t>(found - secondary.boundary.displacement_nodes.begin());
+                output_nodes[local_node] = output_node;
+                const double pressure = summaries[output_node].pressure;
+                fully_active = fully_active && summaries[output_node].projected && pressure > 0.0;
+                (local_node < 4 ? corner_mean : edge_mean) += 0.25 * pressure;
+            }
+            if (!fully_active) continue;
+            // Abaqus reports a smoothed CPRESS field rather than the raw node-centered constraint pressures. For a
+            // fully active quadratic face, remove only the alternating corner-versus-edge mode identified by the
+            // B5.50 COPEN/CPRESS pair. Retain variations within each four-node group and do not spread pressure into
+            // a partially active face.
+            const double face_mean = 0.5 * (corner_mean + edge_mean);
+            for (std::size_t local_node = 0; local_node < output_nodes.size(); ++local_node) {
+                const std::size_t output_node = output_nodes[local_node];
+                pressure_correction[output_node] += face_mean - (local_node < 4 ? corner_mean : edge_mean);
+                ++pressure_correction_count[output_node];
+            }
+        }
+        for (std::size_t node = 0; node < summaries.size(); ++node)
+            if (pressure_correction_count[node] != 0)
+                summaries[node].pressure +=
+                    pressure_correction[node] / static_cast<double>(pressure_correction_count[node]);
+    }
     if (finite_region_normals)
         for (std::size_t node = 0; node < summaries.size(); ++node) {
             CartesianContactNodeSummary& summary = summaries[node];

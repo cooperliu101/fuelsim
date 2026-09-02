@@ -2350,11 +2350,21 @@ current material-point coordinate difference is `2.19048e-6 m`; the minimum
 second-nearest to nearest distance ratio is `4.37766e4`, so the 216-point
 association remains unambiguous.
 
-Abaqus reports one smoothed `CPRESS` value at every quadratic surface node,
-while Fuelsim reports the pressure of each node-centered penalty constraint.
-Those recovered nodal pressure values differ by `6.03528%`, `5.98775%`, and
-`6.08243%` in the three metrics. This is retained as a non-gating output-
-recovery diagnostic rather than being substituted for the accepted nodal
-normal-force vector or total-force equilibrium comparison. No penalty,
-material, load, time step, convergence threshold, averaging coefficient, or
-acceptance threshold was fitted to B5.50.
+Abaqus reports one smoothed `CPRESS` value at every quadratic surface node and
+also exposes the unsmoothed node-centered constraint gap as `COPEN`. Reconstructing
+the Abaqus constraint pressure as `max(-1e9*COPEN,0)` gives corner values near
+`156773 Pa` and edge-midpoint values near `176664 Pa`; Fuelsim gives approximately
+`156578 Pa` and `176701 Pa`. Their relative L2, relative absolute-peak, and
+maximum pointwise-relative errors are `0.0840691%`, `0.0210557%`, and
+`0.124417%`.
+
+For this fully active quadratic face, all eight Abaqus `CPRESS` values are
+`166718.333 Pa`, exactly the mean of the four corner and four edge-midpoint
+constraint-pressure means. Fuelsim now removes only that alternating
+corner-versus-edge mode during output recovery, while retaining variations
+within both four-node groups. It does not smooth a partially active face. The
+recovered Fuelsim value is `166639.406 Pa`; its three pressure errors are all
+`0.0473414%`, and the B5.50 test gates both constraint and recovered pressure
+below `0.5%`. The contact residual, Jacobian, nodal-force distribution, total
+force, penalty, material, load, time step, convergence threshold, and identified
+constraint averaging coefficients are unchanged.

@@ -39,7 +39,7 @@ struct MaterialReference final {
 struct ContactReference final {
     std::size_t node;
     fuelsim::CartesianPoint3 point;
-    double pressure;
+    double gap, pressure;
     std::array<double, 3> normal_force;
 };
 
@@ -133,7 +133,7 @@ std::vector<ContactReference> read_contact(const std::string& path) {
     std::ifstream input(path);
     if (!input) throw std::runtime_error("Could not read C3D20T contact reference: " + path);
     std::string line;
-    const std::string expected = "id,x,y,z,pressure,normal_x,normal_y,normal_z,shear_x,shear_y,shear_z";
+    const std::string expected = "id,x,y,z,gap,pressure,normal_x,normal_y,normal_z,shear_x,shear_y,shear_z";
     if (!std::getline(input, line) || line != expected)
         throw std::invalid_argument("Unexpected C3D20T contact header: " + path);
     std::vector<ContactReference> result;
@@ -142,8 +142,8 @@ std::vector<ContactReference> read_contact(const std::string& path) {
         const auto values = split(line);
         result.push_back({index_value(values, 0, path) - 1,
             {number(values, 1, path), number(values, 2, path), number(values, 3, path)}, number(values, 4, path),
-            {number(values, 5, path), number(values, 6, path), number(values, 7, path)}});
-        for (std::size_t component = 8; component < 11; ++component)
+            number(values, 5, path), {number(values, 6, path), number(values, 7, path), number(values, 8, path)}});
+        for (std::size_t component = 9; component < 12; ++component)
             if (number(values, component, path) != 0.0)
                 throw std::invalid_argument("C3D20T frictionless contact reference contains shear force: " + path);
     }
@@ -314,7 +314,7 @@ bool run(const std::string& case_path, const std::string& temperature_path, cons
     fuelsim::test::print_relative_metrics("b549_equivalent_creep_strain", creep_metrics);
     double abaqus_contact_force = 0.0, fuelsim_contact_force = 0.0;
     std::size_t active_contact_nodes = 0;
-    fuelsim::test::FieldErrorMetrics recovered_contact_pressure_metrics;
+    fuelsim::test::FieldErrorMetrics constraint_contact_pressure_metrics, recovered_contact_pressure_metrics;
     fuelsim::test::GroupedFieldErrorMetrics contact_normal_force_metrics;
     if (!contact_reference.empty()) {
         std::map<std::size_t, ContactReference> contact_by_node;
@@ -335,6 +335,9 @@ bool run(const std::string& case_path, const std::string& temperature_path, cons
             const auto& summary = summaries[node];
             const ContactReference& reference = contact_by_node.at(source_nodes[node]);
             if (summary.pressure > 0.0) ++active_contact_nodes;
+            const double penalty = definition.spatial.contacts.at(0).penalty;
+            constraint_contact_pressure_metrics.add(
+                std::max(-penalty * summary.gap, 0.0), std::max(-penalty * reference.gap, 0.0));
             recovered_contact_pressure_metrics.add(summary.pressure, reference.pressure);
             std::array<double, 3> fuelsim_secondary_force{};
             for (std::size_t component = 0; component < fuelsim_secondary_force.size(); ++component)
@@ -355,8 +358,15 @@ bool run(const std::string& case_path, const std::string& temperature_path, cons
         passed = check(fuelsim::test::grouped_relative_metrics_below(contact_normal_force_metrics, 1.0e-2),
                      "C3D20T secondary nodal normal-force metrics are below one percent") &&
                  passed;
-        fuelsim::test::print_relative_metrics(
-            "b550_recovered_contact_pressure_diagnostic", recovered_contact_pressure_metrics);
+        constexpr double pressure_tolerance = 5.0e-3;
+        passed = check(fuelsim::test::relative_metrics_below(constraint_contact_pressure_metrics, pressure_tolerance),
+                     "C3D20T node-centered constraint-pressure metrics are below 0.5 percent") &&
+                 passed;
+        passed = check(fuelsim::test::relative_metrics_below(recovered_contact_pressure_metrics, pressure_tolerance),
+                     "C3D20T recovered nodal contact-pressure metrics are below 0.5 percent") &&
+                 passed;
+        fuelsim::test::print_relative_metrics("b550_constraint_contact_pressure", constraint_contact_pressure_metrics);
+        fuelsim::test::print_relative_metrics("b550_recovered_contact_pressure", recovered_contact_pressure_metrics);
         fuelsim::test::print_grouped_relative_metrics("b550_contact_normal_force", contact_normal_force_metrics);
     }
     std::cout << "b549_reference_coordinate_maximum_difference=" << maximum_reference_coordinate_difference << '\n'
