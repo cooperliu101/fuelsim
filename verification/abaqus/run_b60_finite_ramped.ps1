@@ -51,11 +51,26 @@ if (Test-Path "$JobName.dat") {
     if ($SummaryStart -ge 0) {
         $Timing += "abaqus_job_time_summary_begin"
         $SummaryEnd = [Math]::Min($SummaryStart + 4, $DatLines.Count - 1)
-        $Timing += $DatLines[$SummaryStart..$SummaryEnd]
+        $Timing += @($DatLines[$SummaryStart..$SummaryEnd] | ForEach-Object { $_.TrimEnd() })
         $Timing += "abaqus_job_time_summary_end"
     }
 }
-$Timing | Set-Content -Encoding ASCII "${JobName}_timing.txt"
+if (Test-Path "$JobName.msg") {
+    $MessageText = Get-Content "$JobName.msg" -Raw
+    foreach ($Metric in @(
+        @{ Name = "abaqus_increments"; Pattern = "TOTAL OF\s+(\d+)\s+INCREMENTS" },
+        @{ Name = "abaqus_nonlinear_iterations"; Pattern = "(\d+)\s+ITERATIONS INCLUDING CONTACT ITERATIONS" },
+        @{ Name = "abaqus_equation_solver_passes"; Pattern = "(\d+)\s+PASSES THROUGH THE EQUATION SOLVER" },
+        @{ Name = "abaqus_matrix_decompositions"; Pattern = "(\d+)\s+INVOLVE MATRIX DECOMPOSITION" },
+        @{ Name = "abaqus_equation_reorderings"; Pattern = "(\d+)\s+REORDERING OF EQUATIONS" },
+        @{ Name = "abaqus_line_search_residual_evaluations"; Pattern = "(\d+)\s+ADDITIONAL RESIDUAL EVALUATIONS FOR LINE SEARCHES" },
+        @{ Name = "abaqus_line_search_operator_evaluations"; Pattern = "(\d+)\s+ADDITIONAL OPERATOR EVALUATIONS FOR LINE SEARCHES" }
+    )) {
+        if ($MessageText -match $Metric.Pattern) { $Timing += "$($Metric.Name)=$($Matches[1])" }
+    }
+}
+$TimingText = ($Timing -join "`n") + "`n"
+[System.IO.File]::WriteAllText("$PWD\${JobName}_timing.txt", $TimingText, [System.Text.Encoding]::ASCII)
 
 & "C:\SIMULIA\Commands\abaqus.bat" python extract_b60_finite.py `
     "$JobName.odb" "b60_long_plate_meat_clad_c3d8rt.json" "${JobName}_nodal.csv" 10.0

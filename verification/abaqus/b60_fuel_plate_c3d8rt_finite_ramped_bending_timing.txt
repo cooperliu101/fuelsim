@@ -9,3 +9,10 @@ abaqus_job_time_summary_begin
        TOTAL CPU TIME (SEC) =   3.5000
        WALLCLOCK TIME (SEC) =          4
 abaqus_job_time_summary_end
+abaqus_increments=10
+abaqus_nonlinear_iterations=19
+abaqus_equation_solver_passes=19
+abaqus_matrix_decompositions=19
+abaqus_equation_reorderings=1
+abaqus_line_search_residual_evaluations=0
+abaqus_line_search_operator_evaluations=0
