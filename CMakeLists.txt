@@ -1579,6 +1579,15 @@ if(BUILD_TESTING)
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b550_small_c3d20t_contact.csv")
     set_tests_properties(fuelsim_b550_c3d20t_contact_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex20;c3d20t;transient;thermal;mechanical;contact;finite-sliding;finite-strain;plasticity;creep;abaqus")
+    add_test(NAME fuelsim_b555_c3d20t_friction_abaqus_tests
+        COMMAND fuelsim_b549_c3d20t_abaqus_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_b555_small_c3d20t_friction.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b555_small_c3d20t_friction_temperature.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b555_small_c3d20t_friction_displacement.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b555_small_c3d20t_friction_material.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b555_small_c3d20t_friction.csv")
+    set_tests_properties(fuelsim_b555_c3d20t_friction_abaqus_tests PROPERTIES
+        LABELS "acceptance;three-dimensional;hex20;c3d20t;transient;thermal;mechanical;contact;friction;finite-sliding;finite-strain;plasticity;creep;abaqus")
 
     add_executable(fuelsim_h20_31_hex20_curved_sts_identification_tests
         tests/h20_curved_sts_identification_tests.cpp)

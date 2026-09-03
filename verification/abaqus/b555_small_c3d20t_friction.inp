@@ -1,0 +1,106 @@
+*Heading
+** B5.55 small C3D20T finite-strain thermo-inelastic friction case.
+** Eight elements, 112 displacement nodes, 40 temperature nodes, and 376 total degrees of freedom.
+** SI units: metre, second, kelvin, pascal, watt.
+*Preprint, echo=NO, model=NO, history=NO, contact=YES
+*Include, input=b549_small_c3d20t_mesh.inc
+*Nset, nset=ALL_TEMPERATURE_NODES
+1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16
+17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32
+33, 34, 35, 36, 37, 38, 39, 40
+*Nset, nset=PRIMARY_OUTER_NODES
+1, 6, 11, 16, 44, 45, 48, 52
+*Nset, nset=PRIMARY_OUTER_TEMPERATURE
+1, 6, 11, 16
+*Nset, nset=SECONDARY_OUTER_NODES
+25, 30, 35, 40, 106, 108, 109, 111
+*Nset, nset=SECONDARY_OUTER_TEMPERATURE
+25, 30, 35, 40
+*Nset, nset=PRIMARY_CONTACT_NODES
+5, 10, 15, 20, 70, 72, 73, 75
+*Nset, nset=PRIMARY_CONTACT_TEMPERATURE
+5, 10, 15, 20
+*Nset, nset=SECONDARY_CONTACT_NODES
+21, 26, 31, 36, 80, 81, 84, 88
+*Nset, nset=SECONDARY_CONTACT_TEMPERATURE
+21, 26, 31, 36
+*Material, name=PRIMARY_MATERIAL
+*Elastic
+1.2e8, 0.28
+*Expansion, zero=300
+8e-6
+*Conductivity
+15
+*Density
+100
+*Specific Heat
+1
+*Material, name=SECONDARY_MATERIAL
+*Elastic
+1e8, 0.3
+*Expansion, zero=300
+1e-5
+*Plastic
+1e5, 0
+1.01e7, 1
+*Creep, law=TIME
+1.25e-20, 3, 0
+*Conductivity
+10
+*Density
+100
+*Specific Heat
+1
+*Solid Section, elset=PRIMARY, material=PRIMARY_MATERIAL
+,
+*Solid Section, elset=SECONDARY, material=SECONDARY_MATERIAL
+,
+*Surface Interaction, name=COUPLED_CONTACT
+*Surface Behavior, pressure-overclosure=LINEAR
+1e9
+*Friction, slip tolerance=1e-4
+0.2
+*Gap Heat Generation
+0, 0.5
+*Gap Conductance, pressure
+50, 0
+550, 5e5
+*Contact Pair, interaction=COUPLED_CONTACT, type=SURFACE TO SURFACE, adjust=0.
+SECONDARY_CONTACT, PRIMARY_CONTACT
+*Amplitude, name=SECONDARY_TEMPERATURE, time=TOTAL TIME
+0, 300, 0.4, 400
+*Amplitude, name=OUTER_PRESSURE, time=TOTAL TIME
+0, 0, 0.4, 175000
+*Amplitude, name=TANGENTIAL_Y, time=TOTAL TIME
+0, 0, 0.4, 0.0003
+*Amplitude, name=TANGENTIAL_Z, time=TOTAL TIME
+0, 0, 0.4, 0.0004
+*Initial Conditions, type=TEMPERATURE
+ALL_TEMPERATURE_NODES, 300
+*Step, name=PATH, nlgeom=YES, inc=40
+*Coupled Temperature-Displacement
+0.02, 0.4, 0.02, 0.02
+*Controls, parameters=FIELD, field=DISPLACEMENT
+1e-10, 1e-10, , , , 1e-10
+*Boundary
+PRIMARY_OUTER_NODES, 1, 3, 0
+PRIMARY_OUTER_TEMPERATURE, 11, 11, 300
+*Boundary, amplitude=SECONDARY_TEMPERATURE
+SECONDARY_OUTER_TEMPERATURE, 11, 11, 1
+*Boundary, amplitude=TANGENTIAL_Y
+SECONDARY_OUTER_NODES, 2, 2, 1
+*Boundary, amplitude=TANGENTIAL_Z
+SECONDARY_OUTER_NODES, 3, 3, 1
+*Dsload, follower=YES, amplitude=OUTER_PRESSURE
+SECONDARY_OUTER, P, 1
+*Output, field, frequency=20
+*Node Output
+COORD, NT, RF, RFL, U
+*Element Output, directions=YES
+CEEQ, COORD, IVOL, PEEQ, S, TEMP
+*Contact Output
+CDISP, CFORCE, CSTRESS, CTANDIR, HFL
+*Output, history, frequency=20
+*Energy Output
+ALLCD, ALLFD, ALLIE, ALLPD, ALLSE, ALLWK
+*End Step

@@ -2489,6 +2489,93 @@ The contact residual, Jacobian, nodal-force distribution, total force, penalty,
 material, load, time step, convergence threshold, and identified constraint
 averaging coefficients are unchanged.
 
+## B5.55 small C3D20T finite-sliding friction
+
+B5.55 adds Coulomb friction to the B5.50 small integrated contact case without
+changing its eight-element mesh, 112 quadratic displacement nodes, 40
+corner-temperature nodes, 376 coupled degrees of freedom, material laws,
+normal pressure, contact penalty, thermal conductance, or twenty fixed
+`0.02 s` increments. The friction coefficient is `0.2`, the elastic slip
+tolerance is `1e-4`, and the secondary outer face reaches prescribed tangential
+displacements of `0.3 mm` in y and `0.4 mm` in z.
+
+For a strictly planar quadratic interface, Fuelsim now applies tangential
+friction through the same eight current-geometry, node-centered averaged
+constraints used for the Abaqus-aligned finite-sliding normal contact. The
+selection is based on geometric coplanarity of every node and quadrature normal
+on both boundaries. A curved or warped boundary retains the existing 3 by 3
+integration-point path, where each point needs its own local tangent plane. No
+penalty, friction, material, load, quadrature, or acceptance coefficient was
+fitted to B5.55.
+
+Abaqus fully coupled temperature-displacement analysis otherwise converts
+frictional dissipation to heat by default. The deck uses `*GAP HEAT GENERATION`
+with conversion fraction zero so that both solvers represent the current
+Fuelsim scope, in which frictional dissipation is diagnostic and is not a heat
+source.
+
+Regenerate and run the comparison with:
+
+```text
+python3 verification/abaqus/generate_b555.py
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass \
+  -File verification/abaqus/run_b555.ps1 \
+  -SourceDirectory "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus"
+env OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+  taskset -c 0 ./build/fuelsim_m58_integrated_hex20_results \
+  verification/fuelsim/transient_b555_small_c3d20t_friction.fsi \
+  /tmp/b555_fuelsim_final.e
+ctest --test-dir build -R '^fuelsim_b555_c3d20t_friction_abaqus_tests$' \
+  -j1 --output-on-failure
+```
+
+Both solvers complete all twenty increments without reducing the time step.
+Fuelsim uses 92 nonlinear iterations, and all eight active secondary constraints
+are sliding at the final state. The full-field and contact errors are:
+
+| Quantity | Relative L2 | Relative absolute peak | Maximum pointwise relative |
+|---|---:|---:|---:|
+| Temperature | `0.00621513%` | `0%` | `0.0164823%` |
+| Displacement vector | `0.00700512%` | `0.00743935%` | `0.0259163%` |
+| Equivalent stress | `0.00358823%` | `0.000940131%` | `0.0193410%` |
+| Equivalent plastic strain | `0.00639168%` | `0.00205818%` | `0.0412690%` |
+| Equivalent creep strain | `0.00371367%` | `0.00131218%` | `0.0124208%` |
+| Contact gap | `0.0343508%` | `0.0659685%` | `0.0659685%` |
+| Node-centered constraint pressure | `0.0343508%` | `0.0659685%` | `0.0659685%` |
+| Recovered nodal pressure | `0.0308565%` | `0.0566680%` | `0.0566680%` |
+| Secondary nodal normal-force vector | `0.00654542%` | `0.00605764%` | `0.0145023%` |
+| Secondary nodal tangential-force vector | `0.147648%` | `0.106814%` | `0.334738%` |
+| Tangential-slip vector | `0.0540692%` | `0.0548723%` | `0.0751010%` |
+| Complete tangential resultant vector | `0.0193414%` | `0.0193414%` | `0.0193414%` |
+
+All three metrics for every accepted quantity are below `0.5%`, without a
+denominator floor. The worst metric is the `0.334738%` maximum pointwise error
+of the secondary nodal tangential-force vector. The complete tangential force
+resultants have magnitudes `613.091188 N` in Fuelsim and `612.973348 N` in
+Abaqus. The normal contact-force magnitudes are `175007.379461 N` and
+`175007.385869 N`, a `0.00000366127%` difference. The centered directional
+contact Jacobian error is `2.67116e-7`.
+
+The Abaqus extractor keeps every unconstrained raw field value. Only the three
+displacement components prescribed exactly to zero on `PRIMARY_OUTER` are
+written as their mathematical boundary values; this prevents an Abaqus value
+near `1e-42 m` from being mislabeled as a physical nonzero reference. Zero
+reference counts and maximum absolute differences remain separate diagnostics.
+
+The Fuelsim integral of tangential traction magnitude is `35001.4759 N`, while
+the sum of magnitudes of Abaqus consistent nodal tangential forces is
+`19606.7922 N`. Those scalars are not the same discrete quantity: quadratic
+consistent nodal forces can cancel and can have negative interpolation weights.
+They are therefore diagnostic only; acceptance uses the eight nodal force
+vectors and their complete vector resultant.
+
+One CPU-0-pinned, one-process, one-thread observation gives Fuelsim an external
+wall time of `2.33 s`, including final Exodus output, and an internal total time
+of `1.64703 s`. Abaqus with `cpus=1` takes `5.289723 s` externally and reports
+`1 s` of analysis wall time. These are startup-dominated, cross-Windows-and-WSL
+single observations rather than timing medians, so B5.55 is an accuracy
+qualification rather than a performance conclusion.
+
 ## B5.51 full-size C3D20T finite-sliding surface-to-surface contact
 
 B5.51 uses the full 1,152-element M5.8 HEX20 mesh, 5,969 quadratic

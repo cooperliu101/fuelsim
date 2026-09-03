@@ -2311,8 +2311,6 @@ void SpatialAssembly::compute_averaged_constraint(const AbaqusAveragedConstraint
     if (!(value.pressure > 0.0)) return;
     const std::array<double, 3> normal = {constraint.normal.x, constraint.normal.y, constraint.normal.z};
     const bool local_normal_gradients = !constraint.normal_gap_coefficients.empty();
-    if (local_normal_gradients && _mechanical_properties[constraint.contact].friction_coefficient != 0.0)
-        throw std::logic_error("HEX20 local-normal averaged contact does not support friction");
     const auto gap_gradient = [&constraint, &normal, &stored_node, local_normal_gradients](
                                   std::size_t node, std::size_t component) {
         const std::size_t stored = stored_node(node);
@@ -2375,13 +2373,9 @@ void SpatialAssembly::compute_averaged_constraint(const AbaqusAveragedConstraint
                                  tangential_column_coefficient = -column_coefficient,
                                  pressure_derivative =
                                      -properties.penalty * gap_gradient(column_node, column_component);
-                    if (local_normal_gradients) {
-                        (*jacobian)[row * local_size + column] =
-                            -constraint.area * gap_gradient(row_node, row_component) * pressure_derivative;
-                        continue;
-                    }
-                    double traction_derivative =
-                        constraint.friction_only ? 0.0 : normal[row_component] * pressure_derivative;
+                    double traction_derivative = local_normal_gradients || constraint.friction_only
+                                                     ? 0.0
+                                                     : normal[row_component] * pressure_derivative;
                     if (properties.friction_coefficient > 0.0) {
                         const double tangent_projector = (row_component == column_component ? 1.0 : 0.0) -
                                                          normal[row_component] * normal[column_component];
@@ -2401,7 +2395,10 @@ void SpatialAssembly::compute_averaged_constraint(const AbaqusAveragedConstraint
                                         tangential_column_coefficient);
                         }
                     }
-                    (*jacobian)[row * local_size + column] = -constraint.area * row_coefficient * traction_derivative;
+                    (*jacobian)[row * local_size + column] =
+                        -constraint.area *
+                        ((local_normal_gradients ? gap_gradient(row_node, row_component) * pressure_derivative : 0.0) +
+                            row_coefficient * traction_derivative);
                 }
         }
 }
@@ -2411,15 +2408,23 @@ void SpatialAssembly::refresh_hex20_finite_averaged_constraints(const std::vecto
                                   const std::array<std::size_t, 8>& nodes, const Quad8FaceCoordinates& reference) {
         Quad8FaceCoordinates result = reference;
         for (std::size_t node = 0; node < 8; ++node) {
-            result[node].x += state.at(dof(Field::displacement_x, nodes[node]));
-            result[node].y += state.at(dof(Field::displacement_y, nodes[node]));
-            result[node].z += state.at(dof(Field::displacement_z, nodes[node]));
+            const double displacement_x = state.at(dof(Field::displacement_x, nodes[node]));
+            const double displacement_y = state.at(dof(Field::displacement_y, nodes[node]));
+            const double displacement_z = state.at(dof(Field::displacement_z, nodes[node]));
+            if (!std::isfinite(displacement_x) || !std::isfinite(displacement_y) || !std::isfinite(displacement_z))
+                throw std::logic_error("HEX20 finite-sliding averaged constraint is missing the required shadow "
+                                       "displacement of global node " +
+                                       std::to_string(nodes[node]));
+            result[node].x += displacement_x;
+            result[node].y += displacement_y;
+            result[node].z += displacement_z;
         }
         return result;
     };
     const Matrix8& averaging = abaqus_quad8_averaging();
     for (AbaqusAveragedConstraint& constraint : _abaqus_averaged_constraints) {
         if (!constraint.finite_sliding) continue;
+        if (_touched_mechanical_nodes[mechanical_node_index(constraint.contact, constraint.history)] == 0U) continue;
         std::vector<std::size_t> required_nodes;
         std::fill(constraint.gap_coefficients.begin(), constraint.gap_coefficients.end(), 0.0);
         std::fill(constraint.secondary_coefficients.begin(), constraint.secondary_coefficients.end(), 0.0);
@@ -3988,9 +3993,47 @@ void SpatialAssembly::build_hex20_contacts(const UnstructuredHex20Mesh& source_m
             throw std::invalid_argument("finite sliding requires HEX20 surface_to_surface contact: " + definition.name);
         // Abaqus-style node-centered averaged constraints are used for
         // small-strain small sliding and, through a separate current-geometry
-        // refresh path, frictionless finite sliding.
+        // refresh path, frictionless finite sliding. Frictional finite sliding
+        // uses the same averaged constraint only when both sides are planar;
+        // otherwise its two tangential directions must remain local to each
+        // surface integration point.
         const bool finite_sliding = definition.mechanical_sliding == MechanicalContactSliding::finite;
-        const bool finite_averaged = surface_to_surface && finite_sliding && definition.friction_coefficient == 0.0,
+        const auto planar_boundary = [](const Hex20RegionMesh& mesh, const ResolvedHex20Boundary& boundary) {
+            CartesianPoint3 reference_normal{}, reference_point{};
+            double coordinate_scale = 1.0;
+            bool initialized = false;
+            for (const Quad8FaceElement& face : boundary.boundary.faces) {
+                const Quad8FaceCoordinates coordinates = face_coordinates(mesh, face);
+                if (!initialized) reference_point = coordinates.front();
+                for (const CartesianPoint3& coordinate : coordinates)
+                    coordinate_scale = std::max(coordinate_scale,
+                        std::max({std::abs(coordinate.x), std::abs(coordinate.y), std::abs(coordinate.z)}));
+                const Quad8FaceGeometry geometry = make_quad8_face_geometry(coordinates);
+                for (const Quad8FaceMechanicalQuadraturePoint& point : geometry.mechanical_points) {
+                    const CartesianPoint3 area_vector = cross(point.tangent_xi, point.tangent_eta);
+                    const double measure = std::sqrt(dot(area_vector, area_vector));
+                    if (!std::isfinite(measure) || !(measure > 0.0)) return false;
+                    const CartesianPoint3 normal = {
+                        area_vector.x / measure, area_vector.y / measure, area_vector.z / measure};
+                    if (!initialized) {
+                        reference_normal = normal;
+                        initialized = true;
+                    } else if (std::abs(dot(reference_normal, normal)) < 1.0 - 1.0e-10)
+                        return false;
+                }
+            }
+            for (const Quad8FaceElement& face : boundary.boundary.faces)
+                for (const CartesianPoint3& coordinate : face_coordinates(mesh, face))
+                    if (std::abs((coordinate.x - reference_point.x) * reference_normal.x +
+                                 (coordinate.y - reference_point.y) * reference_normal.y +
+                                 (coordinate.z - reference_point.z) * reference_normal.z) > 1.0e-10 * coordinate_scale)
+                        return false;
+            return initialized;
+        };
+        const bool planar_friction = definition.friction_coefficient > 0.0 && planar_boundary(primary_mesh, primary) &&
+                                     planar_boundary(secondary_mesh, secondary);
+        const bool finite_averaged = surface_to_surface && finite_sliding &&
+                                     (definition.friction_coefficient == 0.0 || planar_friction),
                    abaqus_averaged =
                        finite_averaged ||
                        (surface_to_surface && !finite_sliding &&
@@ -4639,6 +4682,14 @@ void SpatialAssembly::update_contact_search_trees(const std::vector<double>& sta
     if (state.size() != dof_count())
         throw std::invalid_argument("Three-dimensional contact-search tree state size mismatch");
     for (std::size_t contact = 0; contact < _definition.contacts.size(); ++contact) {
+        bool thermal_touched = false, mechanical_touched = false;
+        for (std::size_t point = _thermal_contact_offsets[contact]; point < _thermal_contact_offsets[contact + 1];
+            ++point)
+            thermal_touched = thermal_touched || _touched_thermal_points[point] != 0U;
+        for (std::size_t node = _mechanical_contact_offsets[contact]; node < _mechanical_contact_offsets[contact + 1];
+            ++node)
+            mechanical_touched = mechanical_touched || _touched_mechanical_nodes[node] != 0U;
+        if (!thermal_touched && !mechanical_touched) continue;
         if (_uses_hex20) {
             const ResolvedHex20Boundary& primary = _hex20_primary_boundaries[contact];
             if (primary.boundary.faces.size() <= spatial_detail::contact_search_tree_minimum_items) continue;
@@ -5019,6 +5070,22 @@ std::vector<std::size_t> SpatialAssembly::required_state_dofs(std::size_t first,
                     _hex20_secondary_contact_faces[point.contact][point.secondary_face];
                 append_hex20_face(face.temperature_nodes, face.displacement_nodes);
             }
+            const ContributionRanges ranges = contribution_ranges();
+            const std::size_t mechanical_begin = std::max(first, ranges.mechanical_begin),
+                              mechanical_end = std::min(last, ranges.boundary_begin),
+                              point_count = _hex20_mechanical_points.size();
+            for (std::size_t entry = mechanical_begin; entry < mechanical_end; ++entry) {
+                const std::size_t local = entry - ranges.mechanical_begin;
+                if (local < point_count) continue;
+                const AbaqusAveragedConstraint& constraint = _abaqus_averaged_constraints.at(local - point_count);
+                if (!constraint.finite_sliding) continue;
+                touched_contacts[constraint.contact] = 1U;
+                for (const AbaqusAveragedConstraint::FiniteSlidingSample& sample : constraint.finite_sliding_samples) {
+                    const Hex20SecondaryContactFace& face =
+                        _hex20_secondary_contact_faces[constraint.contact][sample.secondary_face];
+                    append_hex20_face(face.temperature_nodes, face.displacement_nodes);
+                }
+            }
         } else {
             for (const MechanicalPoint& point : _mechanical_points) {
                 if (_touched_mechanical_nodes[mechanical_node_index(point.contact, point.secondary)] == 0U) continue;
@@ -5047,6 +5114,8 @@ void SpatialAssembly::validate_local_state(
     if (state.size() != dof_count())
         throw std::invalid_argument("Three-dimensional local validation state has the wrong size");
     _fully_validated_contact_state_current = false;
+    mark_touched_thermal_points(first, last);
+    mark_touched_mechanical_nodes(first, last);
     update_contact_search_trees(state);
     update_thermal_candidates(first, last, state);
     refresh_finite_averaged_constraints(state);
@@ -5186,6 +5255,12 @@ double SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
             trial.sliding = value.sliding;
             trial.cartesian_elastic_tangential_slip = value.elastic_tangential_slip;
             trial.cartesian_total_tangential_slip = value.tangential_slip;
+            if (constraint.finite_sliding && _mechanical_properties[constraint.contact].friction_coefficient > 0.0) {
+                trial.cartesian_tangent_basis_initialized = true;
+                trial.cartesian_contact_normal =
+                    std::array<double, 3>{constraint.normal.x, constraint.normal.y, constraint.normal.z};
+                trial.cartesian_contact_tangent_first = value.tangent_first;
+            }
             if (updated[constraint.contact][constraint.history])
                 throw std::logic_error("Abaqus-style averaged constraints share one friction-history slot");
             staged[constraint.contact][constraint.history] = trial;

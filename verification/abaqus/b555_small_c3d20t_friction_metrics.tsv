@@ -1,0 +1,14 @@
+quantity	role	relative_l2_percent	relative_absolute_peak_percent	maximum_pointwise_relative_percent	relative_total_difference_percent	note
+temperature	acceptance	0.00621513	0	0.0164823	-	Abaqus frictional heat generation is explicitly disabled so both solvers compare the same thermal equations
+displacement_vector	acceptance	0.00700512	0.00743935	0.0259163	-	Eight fully fixed reference vectors are recorded as exact boundary values rather than magnitude-thresholded
+equivalent_stress	acceptance	0.00358823	0.000940131	0.0193410	-	Compared at 216 current-coordinate-associated C3D20T material points
+equivalent_plastic_strain	acceptance	0.00639168	0.00205818	0.0412690	-	Zero reference points are reported separately without a denominator floor
+equivalent_creep_strain	acceptance	0.00371367	0.00131218	0.0124208	-	Zero reference points are reported separately without a denominator floor
+contact_gap	acceptance	0.0343508	0.0659685	0.0659685	-	Signed node-centered finite-sliding constraint gap
+node_centered_constraint_pressure	acceptance	0.0343508	0.0659685	0.0659685	-	Reconstructed as max(-1e9*gap,0) for both solvers
+recovered_nodal_contact_pressure	acceptance	0.0308565	0.0566680	0.0566680	-	Output recovery is compared independently from the constraint pressure
+secondary_nodal_normal_force_vector	acceptance	0.00654542	0.00605764	0.0145023	0.00000366127	Fuelsim sign is reversed to the Abaqus secondary-side action convention
+secondary_nodal_tangential_force_vector	acceptance	0.147648	0.106814	0.334738	-	All eight secondary constraints are sliding
+tangential_slip_vector	acceptance	0.0540692	0.0548723	0.0751010	-	Abaqus CSLIP1 and CSLIP2 are mapped through its two reported tangent directions
+complete_tangential_resultant_vector	acceptance	0.0193414	0.0193414	0.0193414	0.0193414	Vector sum of all secondary nodal tangential forces
+integrated_tangential_traction_magnitude	diagnostic	-	-	-	-	Fuelsim integral of traction magnitude is 35001.4759 N; Abaqus sum of consistent nodal-force magnitudes is 19606.7922 N, so these unlike scalar quantities are not compared

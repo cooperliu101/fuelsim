@@ -520,11 +520,11 @@ bool test_surface_contact_finite_sliding() {
         }
         const std::array<std::size_t, 3> lower_owners = owner_counts(lower_state),
                                          upper_owners = owner_counts(upper_state);
-        passed =
-            check(lower_owners == std::array<std::size_t, 3>{9, 0, 0} &&
-                      upper_owners == std::array<std::size_t, 3>{0, 9, 0},
-                "HEX20 finite sliding uniquely transfers all nine integration points across a primary-face edge") &&
-            passed;
+        passed = check(lower_owners == std::array<std::size_t, 3>{8, 0, 0} &&
+                           upper_owners == std::array<std::size_t, 3>{0, 8, 0},
+                     "HEX20 planar finite sliding uniquely transfers all eight node-centered constraints across a "
+                     "primary-face edge") &&
+                 passed;
         const fuelsim::InterfaceSummary upper_summary =
             fuelsim::cartesian::ProblemAccess::summarize_interface(problem, 0, upper_state);
         const auto upper_nodes = fuelsim::cartesian::ProblemAccess::summarize_contact_nodes(problem, 0, upper_state);
@@ -540,19 +540,19 @@ bool test_surface_contact_finite_sliding() {
                  passed;
         problem.commit_internal_state(upper_state);
         const auto& upper_histories = fuelsim::cartesian::ProblemAccess::committed_contact_histories(problem).at(0);
-        passed = check(upper_histories.size() == 9 &&
+        passed = check(upper_histories.size() == 8 &&
                            std::all_of(upper_histories.begin(), upper_histories.end(),
                                [](const auto& history) {
                                    return history.sliding && history.cartesian_tangent_basis_initialized &&
                                           std::abs(history.cartesian_elastic_tangential_slip[1]) > 0.0 &&
                                           std::abs(history.cartesian_elastic_tangential_slip[2]) > 0.0;
                                }),
-                     "HEX20 finite sliding commits nine biaxial friction histories on the new primary face") &&
+                     "HEX20 planar finite sliding commits eight biaxial friction histories on the new primary face") &&
                  passed;
         const std::array<std::size_t, 3> reverse_owners = owner_counts(lower_state);
         const double transported_jacobian_error = mechanical_contact_directional_error(problem, lower_state, 1.0e-8);
-        passed = check(reverse_owners == std::array<std::size_t, 3>{9, 0, 0},
-                     "HEX20 finite sliding uniquely transfers ownership back across the primary-face edge") &&
+        passed = check(reverse_owners == std::array<std::size_t, 3>{8, 0, 0},
+                     "HEX20 planar finite sliding uniquely transfers ownership back across the primary-face edge") &&
                  check(transported_jacobian_error < 2.0e-5,
                      "HEX20 finite-sliding Jacobian includes the transported biaxial friction history") &&
                  passed;
@@ -565,10 +565,9 @@ bool test_surface_contact_finite_sliding() {
         try {
             problem.validate_state(outside_state);
         } catch (const std::domain_error&) { outside_rejected = true; }
-        passed =
-            check(outside_rejected,
-                "HEX20 finite sliding rejects a state after integration points leave the complete primary surface") &&
-            passed;
+        passed = check(outside_rejected,
+                     "HEX20 finite sliding rejects a state after all constraints leave the complete primary surface") &&
+                 passed;
         problem.commit_internal_state(lower_state);
         problem.restore_internal_state(initial_snapshot, problem.initial_state());
         const auto& restored = fuelsim::cartesian::ProblemAccess::committed_contact_histories(problem).at(0);
@@ -714,7 +713,7 @@ bool test_finite_sliding_end_to_end() {
                            std::all_of(summaries.begin(), summaries.end(),
                                [](const auto& summary) { return summary.projected && summary.primary_face == 1; }),
                      "HEX20 finite-sliding end-to-end solve transfers the complete secondary face") &&
-                 check(histories.size() == 9 &&
+                 check(histories.size() == 8 &&
                            std::all_of(histories.begin(), histories.end(),
                                [](const auto& history) {
                                    return history.sliding && history.cartesian_tangent_basis_initialized &&

@@ -292,7 +292,7 @@ bool compare_case(const fuelsim::UnstructuredHex20Mesh& mesh, const std::string&
         force_center.add(actual_center_z / actual_weight, reference_center_z / reference_weight);
         problem.commit_internal_state(state);
         const auto& histories = fuelsim::cartesian::ProblemAccess::committed_contact_histories(problem).at(0);
-        all_basis_initialized = all_basis_initialized && histories.size() == 9 &&
+        all_basis_initialized = all_basis_initialized && histories.size() == actual.size() &&
                                 std::all_of(histories.begin(), histories.end(), [](const auto& history) {
                                     return history.sliding && history.cartesian_tangent_basis_initialized;
                                 });
@@ -309,7 +309,7 @@ bool compare_case(const fuelsim::UnstructuredHex20Mesh& mesh, const std::string&
     return check(maximum_coordinate_difference < 3.0e-8,
                prefix + "uses the exact tracked Exodus coordinates in Abaqus") &&
            check(all_projected_and_sliding && all_basis_initialized,
-               prefix + "keeps all contact nodes projected and all nine integration-point histories sliding") &&
+               prefix + "keeps all contact nodes projected and all node-centered constraint histories sliding") &&
            check(fuelsim::test::relative_metrics_below(normal, tolerance) &&
                      normal.maximum_zero_reference_difference < zero_tolerance,
                prefix + "normal nodal-force metrics and zero-reference values agree with Abaqus below 1 percent") &&

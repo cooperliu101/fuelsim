@@ -1,0 +1,9 @@
+fuelsim_external_wall_seconds=2.33
+fuelsim_internal_total_seconds=1.64703
+fuelsim_internal_nonlinear_solve_seconds=1.63786
+fuelsim_cpu_affinity=0
+fuelsim_processes=1
+fuelsim_numerical_library_threads=1
+fuelsim_direct_factorization=mumps
+fuelsim_output=final_exodus
+fuelsim_timing_samples=1
