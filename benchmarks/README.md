@@ -1276,9 +1276,12 @@ Run the Fuelsim side with one process and one thread per numerical library:
 ```
 
 On the current machine this completed all ten increments with one PETSc workspace
-setup and an internal solver time of `15.80 s` in the representative run. With
-the process fixed to one CPU core and all numerical libraries restricted to one
-thread, the external time was `16.09 s` (median of three runs). The final
+setup and an internal solver time of `4.36 s` in the representative run. The
+benchmark passes the input Jacobian-lag setting through to the solver; for this
+linear, constant-coefficient case, `jacobian_lag = 10` reduces Jacobian
+evaluations from 125 to 17 without changing the converged field. With the
+process fixed to one CPU core and all numerical libraries restricted to one
+thread, the external time was `4.45 s` (median of three sequential runs). The final
 temperature range is `600--700 K`; the free-right-edge displacement-z range is
 `2.4244148e-6 m`, while the largest absolute right-edge z displacement is
 `4.474 mm`.
@@ -1295,7 +1298,7 @@ python3 verification/abaqus/compare_b60.py \
   verification/abaqus/b60_fuel_plate_c3d8rt_bending_nodal.csv \
   --fuelsim-timing /tmp/b60_fuelsim_timing.tsv \
   --abaqus-timing verification/abaqus/b60_fuel_plate_c3d8rt_bending_timing.txt \
-  --fuelsim-external-seconds 16.09
+  --fuelsim-external-seconds 4.45
 ```
 
 The recorded Abaqus runs used one CPU and full output precision; their external
@@ -1308,7 +1311,7 @@ are `3.95e-8 K`, `3.69e-12 m`, `5.25e-12 m`, and `2.76e-11 m`. The free-edge
 bending ranges differ by `5.12e-13 m`. The large pointwise percentages reported
 for near-zero displacement references are denominator amplification, not a large
 absolute field discrepancy. Using the median external times, Fuelsim/Abaqus is
-`3.002`, so Abaqus is about `3.00x` faster in this cross Windows-and-WSL
+`0.830`, so Fuelsim is about `1.20x` faster in this cross Windows-and-WSL
 measurement.
 The reproducible metric summary is stored in
 `verification/abaqus/b60_fuel_plate_c3d8rt_bending_comparison.tsv`.

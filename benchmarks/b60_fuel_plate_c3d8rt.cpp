@@ -87,6 +87,7 @@ int main(int argc, char** argv) {
         options.linear_solver = definition.solver.linear_solver;
         options.preconditioner = definition.solver.preconditioner;
         options.direct_factorization = definition.solver.direct_factorization;
+        options.jacobian_lag = definition.solver.jacobian_lag;
         options.field_residual_scaling = definition.solver.field_residual_scaling;
         options.temperature_residual_absolute_tolerance = definition.solver.temperature_residual_absolute_tolerance;
         options.mechanical_residual_absolute_tolerance = definition.solver.mechanical_residual_absolute_tolerance;

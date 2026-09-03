@@ -120,6 +120,8 @@
   linear_solver = direct
   preconditioner = lu
   direct_factorization = mumps
+  # Constant small-strain thermoelastic Jacobian; reuse it between Newton steps.
+  jacobian_lag = 10
   absolute_tolerance = 1e-8
   relative_tolerance = 1e-10
   step_tolerance = 1e-12

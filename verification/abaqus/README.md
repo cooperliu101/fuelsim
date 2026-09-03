@@ -2803,7 +2803,7 @@ file to print all three field-error metrics, maximum absolute differences,
 zero-reference diagnostics, the free-edge bending range, and the external speed
 ratio. The recorded one-CPU Abaqus wall times are `5.394995 s`, `3.387755 s`,
 and `5.359170 s` (median `5.359170 s`); the Fuelsim median external time is
-`16.09 s`, giving a Fuelsim/Abaqus ratio of `3.002`. Relative L2 errors against
+`4.45 s`, giving a Fuelsim/Abaqus ratio of `0.830`. Relative L2 errors against
 the final Abaqus nodal fields are `5.86e-10%` (temperature), `1.85e-6%`
 (displacement-x), `2.72e-5%` (displacement-y), and `9.06e-7%` (displacement-z).
 The corresponding relative absolute-peak errors are `5.65e-9%`, `3.14e-6%`,
