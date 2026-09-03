@@ -69,6 +69,8 @@ void validate_dirichlet_conditions(
 double function_value(const SpatialDefinition& definition, double time, const std::string& name);
 double controlled_value(const SpatialDefinition& definition, double time, double load_factor, double value,
     bool scale_with_load, const std::string& function);
+double function_average_value(
+    const SpatialDefinition& definition, double begin_time, double end_time, const std::string& name);
 
 class SpatialLayout {
   public:
@@ -86,6 +88,7 @@ class SpatialLayout {
 
     std::pair<std::size_t, std::size_t> element_location(std::size_t index) const;
     double region_heat_source(std::size_t index) const;
+    double region_heat_source_average(std::size_t index, double begin_time, double end_time) const;
 
     double load_factor() const noexcept { return _load_factor; }
 

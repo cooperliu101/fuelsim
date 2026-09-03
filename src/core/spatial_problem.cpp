@@ -1033,6 +1033,12 @@ void TransientProblem::begin_time_step(const TransientStepInput& input) {
     if (uses_augmented_contact()) _impl->active_contact_histories = _impl->committed_contact_histories();
     try {
         apply_spatial_controls(input.end_time, input.load_factor);
+        if (_impl->is_cartesian())
+            _impl->cartesian->set_heat_source_interval(_impl->committed_time, input.end_time);
+        else
+            for (std::size_t region = 0; region < _impl->rz->region_count(); ++region)
+                _impl->kernel_data[region].volumetric_heat_source =
+                    _impl->rz->region_heat_source_average(region, _impl->committed_time, input.end_time);
     } catch (...) {
         if (!_impl->active_contact_histories.empty())
             _impl->restore_contact_state(_impl->committed_solution, std::move(_impl->active_contact_histories));
@@ -1084,7 +1090,8 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                                 _impl->cartesian->heat_capacity(region, current_temperature, point.position) *
                                 (current_temperature - old_temperature) / _impl->active_time_step;
                         conservation.generated_heat_rate +=
-                            point.weighted_measure * _impl->cartesian->region_heat_source(region);
+                            point.weighted_measure * _impl->cartesian->region_heat_source_average(
+                                                         region, _impl->committed_time, _impl->active_end_time);
                     }
                     for (std::size_t q = 0; q < geometry.mechanical_points.size(); ++q) {
                         const Hex20MechanicalQuadraturePoint& point = geometry.mechanical_points[q];
@@ -1125,11 +1132,13 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                     }
                 if (reduced)
                     conservation.generated_heat_rate +=
-                        geometry.reduced_body_source_measure * _impl->cartesian->region_heat_source(region);
+                        geometry.reduced_body_source_measure * _impl->cartesian->region_heat_source_average(region,
+                                                                   _impl->committed_time, _impl->active_end_time);
                 else
                     for (const Hex8CapacityPoint& point : capacity_points)
                         conservation.generated_heat_rate +=
-                            point.weighted_measure * _impl->cartesian->region_heat_source(region);
+                            point.weighted_measure * _impl->cartesian->region_heat_source_average(
+                                                         region, _impl->committed_time, _impl->active_end_time);
                 if (reduced) {
                     const double current_hourglass =
                         _impl->cartesian->mechanical_hourglass_energy(region, element, current);
@@ -1437,5 +1446,18 @@ double PiecewiseLinearTimeTable::value(double time) const {
     const std::size_t right = static_cast<std::size_t>(upper - _times.begin()), left = right - 1;
     const double fraction = (time - _times[left]) / (_times[right] - _times[left]);
     return (1.0 - fraction) * _values[left] + fraction * _values[right];
+}
+
+double PiecewiseLinearTimeTable::average_value(double begin_time, double end_time) const {
+    if (!std::isfinite(begin_time) || !std::isfinite(end_time) || begin_time < 0.0 || !(end_time > begin_time))
+        throw std::invalid_argument("Time-table averaging interval must be finite, nonnegative, and increasing");
+    double integral = 0.0, left = begin_time;
+    while (left < end_time) {
+        const auto upper = std::upper_bound(_times.begin(), _times.end(), left);
+        const double right = upper == _times.end() ? end_time : std::min(end_time, *upper);
+        integral += 0.5 * (value(left) + value(right)) * (right - left);
+        left = right;
+    }
+    return integral / (end_time - begin_time);
 }
 } // namespace fuelsim

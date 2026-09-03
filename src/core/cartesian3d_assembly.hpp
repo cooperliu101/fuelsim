@@ -41,6 +41,7 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     const Hex20Geometry& hex20_region_element_geometry(std::size_t region_index, std::size_t element_index) const;
     void set_load_factor(double load_factor);
     void set_time(double time);
+    void set_heat_source_interval(double begin_time, double end_time);
 
     const std::vector<std::vector<ContactPointHistory>>& committed_contact_histories() const noexcept {
         return _contact_histories;

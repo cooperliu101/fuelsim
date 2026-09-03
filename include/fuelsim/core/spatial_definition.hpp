@@ -30,10 +30,16 @@ class PiecewiseLinearTimeTable final {
     const std::vector<double>& values() const noexcept { return _values; }
 
     double value(double time) const;
+    double average_value(double begin_time, double end_time) const;
 
   private:
     std::string _name;
     std::vector<double> _times, _values;
+};
+
+enum class HeatSourceTimeEvaluation {
+    end_time,
+    interval_average,
 };
 
 struct RegionDefinition final {
@@ -44,6 +50,7 @@ struct RegionDefinition final {
     std::string heat_source_function{};
     StrainFormulation strain_formulation = StrainFormulation::small;
     Hex8ElementFormulation hex8_element_formulation = Hex8ElementFormulation::c3d8t;
+    HeatSourceTimeEvaluation heat_source_time_evaluation = HeatSourceTimeEvaluation::end_time;
 };
 enum class MechanicalContactFormulation {
     penalty,

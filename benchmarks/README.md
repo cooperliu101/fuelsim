@@ -1191,9 +1191,10 @@ floor. No production formula or coefficient is changed from this failure.
 B5.51 replaces the node-to-surface mechanical interface with frictionless
 finite-sliding surface-to-surface contact and constrains all quadratic top and
 bottom face displacement nodes in both solvers. It also raises the fuel heat
-source to `2e8 W/m^3`, producing final contact heat rates of `14.621175 W` in
-Fuelsim and `4.780984 W` in Abaqus. This is a 19,524-degree-of-freedom,
-twenty-step manual benchmark.
+source to `2e8 W/m^3`. Correct bilinear interpolation of the four C3D20T thermal
+`HFL` values on the quadratic current surface gives final contact heat rates of
+`14.308063 W` in Fuelsim and `14.342998 W` in Abaqus. This is a
+19,524-degree-of-freedom, twenty-step manual benchmark.
 
 On CPU 0 with every listed numerical library restricted to one thread,
 Fuelsim takes `321.00 s` externally and `305.412 s` internally. Abaqus R2018x
@@ -1203,11 +1204,14 @@ time. The external ratio is `0.527917`, so Fuelsim is `47.2083%` faster, or
 nonlinear iterations, 106 residual evaluations, 38 Jacobian evaluations, and
 one PETSc workspace setup; its peak resident memory is `1,355,672 kB`.
 
-The corresponding bulk solution is comparable: temperature, radial
-displacement, equivalent stress, equivalent plastic strain, and equivalent
-creep strain have relative L2 errors of `0.135292%`, `0.301275%`,
-`0.00775585%`, `0.00789622%`, and `0.0211876%`. Recovered contact-pressure L2
-error is `1.01531%`, while its surface-integrated force differs by `0.427196%`.
-The contact heat-rate difference remains `205.819%`; consequently the result
-supports a same-bulk-solution speed comparison but not a qualified thermal
-contact-output equivalence claim.
+The corrected source-time treatment gives temperature, radial-displacement,
+equivalent-stress, equivalent-plastic-strain, and equivalent-creep-strain
+relative L2 errors of `0.00848163%`, `0.00957857%`, `0.00753074%`,
+`0.00766877%`, and `0.0143257%`. The contact heat-rate difference is
+`0.243566%`, and the native normal-force resultant differs by `0.471652%`.
+Recovered contact-pressure L2 error remains `1.42812%`, so that display field is
+still a documented recovery limitation and B5.51 is not fully qualified. The
+corrected accuracy run took `324.68 s` externally and `323.365 s` internally
+with one numerical-library thread but without processor pinning. The controlled
+`321.00 s` Fuelsim timing above belongs to the older endpoint-source result and
+must not be used as a strict same-result speed ratio after this correction.

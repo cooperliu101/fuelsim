@@ -100,6 +100,7 @@
     initial_temperature = 600
     volumetric_heat_source = 2e8
     heat_source_function = power
+    heat_source_time_evaluation = interval_average
   []
   [cladding]
     block = clad

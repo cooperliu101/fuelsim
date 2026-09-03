@@ -2536,36 +2536,51 @@ The final high-heat-flow field errors are:
 
 | Field | Relative L2 | Relative absolute peak | Maximum pointwise relative |
 |---|---:|---:|---:|
-| Corner temperature | `0.135292%` | `0.227167%` | `0.227167%` |
-| Radial displacement | `0.301275%` | `0.405356%` | diagnostic near-zero reference |
-| Equivalent stress | `0.00775585%` | `0.0214569%` | `0.0681765%` |
-| Equivalent plastic strain | `0.00789622%` | `0.0217442%` | `0.0292795%` |
-| Equivalent creep strain | `0.0211876%` | `0.0271107%` | `0.0510846%` |
-| Recovered contact pressure | `1.01531%` | `1.00781%` | `1.34999%` |
+| Corner temperature | `0.00848163%` | `0.0433424%` | `0.0466490%` |
+| Radial displacement | `0.00957857%` | `0.0137193%` | diagnostic near-zero reference |
+| Equivalent stress | `0.00753074%` | `0.0194554%` | `0.0581679%` |
+| Equivalent plastic strain | `0.00766877%` | `0.0197159%` | `0.0265347%` |
+| Equivalent creep strain | `0.0143257%` | `0.0216908%` | `0.0463297%` |
+| Recovered contact pressure | `1.42812%` | `1.42480%` | `1.43567%` |
 
-The radial-displacement maximum absolute difference is `46.2272 nm`. Cartesian
+The radial-displacement maximum absolute difference is `1.56456 nm`. Cartesian
 component pointwise-relative maxima and the tangential-displacement relative
 metrics are dominated by numerical references close to zero; the maximum
-tangential absolute difference is `9.46498e-12 m`, and no denominator floor is
-used. The Fuelsim and Abaqus recovered-pressure surface integrals are
-`11.0968326 N` and `11.1444412 N`, a `0.427196%` difference. The displayed
-nodal pressure remains above the desired one-percent pointwise boundary and is
-therefore a documented recovery limitation rather than a qualified result.
+tangential absolute difference is `9.40142e-12 m`, and no denominator floor is
+used. Summing each Abaqus native normal contact-force vector after projection
+onto that node's current radial direction gives `11.1031456 N`, versus the
+Fuelsim constraint resultant of `11.0507774 N`, a `0.471652%` difference. The
+separate integral of Abaqus recovered `CPRESS` is `11.1444412 N`, which differs
+from the same Fuelsim constraint resultant by `0.840454%`. The latter quantity
+mixes a recovered display field with the native constraint force and is retained
+only as a recovery diagnostic. The displayed nodal pressure remains above the
+`0.5%` field boundary, so B5.51 remains measured rather than fully qualified.
 
-Increasing the heat source raises the final contact heat rates from
-`1.472950 W` and `0.480522 W` to `14.621175 W` and `4.780984 W` for Fuelsim and
-Abaqus. The relative difference remains `205.819%`, so the discrepancy is not
-caused by division by a small reference. It remains a thermal-contact
-discretization or output-definition limitation even though the full
-temperature field passes all three `0.5%` metrics.
+The original comparison incorrectly interpolated the four C3D20T corner-node
+`HFL` values with all eight quadratic displacement shapes, whose missing
+midside thermal values reduce a constant field to minus one third. The corrected
+integration uses bilinear thermal interpolation on the full quadratic current
+surface geometry. It gives an Abaqus final contact heat rate of `14.3429981 W`.
+Fuelsim originally gave `14.6211747 W`, a `1.93946%` difference. A one-element
+C3D20T body-flux probe showed that Abaqus integrates a linearly varying `DFLUX`
+amplitude by its interval average: a unit ramp over `0.05 s` with unit density,
+specific heat, and volume raises all thermal nodes by `0.0249939 K`, matching
+the exact `0.025 K` interval-average result. B5.51 now explicitly selects exact
+piecewise-linear interval averaging for its fuel source. The resulting Fuelsim
+contact heat rate is `14.3080634 W`, only `0.243566%` below Abaqus. No contact
+conductance, contact penalty, material coefficient, mesh, or acceptance gate was
+changed.
 
-With CPU 0 pinned and OpenMP, OpenBLAS, MKL, and NumExpr each limited to one
-thread, Fuelsim completes all twenty steps without a rejected step in
-`321.00 s` external wall time and `305.412 s` internal time. It uses 86
-nonlinear iterations, 106 residual evaluations, 38 Jacobian evaluations, and
-one PETSc workspace setup. Abaqus R2018x with `cpus=1` takes `608.050095 s`
-externally and reports `604 s` analysis wall time. Fuelsim therefore takes
-`0.527917` times the Abaqus external time, or is `1.89424` times as fast. These
-are single cross-Windows-and-WSL end-to-end observations, not medians or pure
-kernel timings. The full B5.51 comparison remains manual and is not registered
-with CTest.
+The corrected Fuelsim accuracy run completes all twenty steps without a rejected
+step in `324.68 s` external wall time and `323.365 s` internal time. It was
+limited to one numerical-library thread but was not pinned to one processor, so
+it is not a replacement controlled timing baseline. The earlier endpoint-source
+run used 86 nonlinear iterations, 106 residual evaluations, 38 Jacobian
+evaluations, and one PETSc workspace setup. Its controlled CPU-0 times were
+`321.00 s` external and `305.412 s` internal. Abaqus R2018x with `cpus=1` takes
+`608.050095 s` externally and reports `604 s` analysis wall time. Because the
+thermal source evaluation changed, that older speed ratio is historical rather
+than a strict same-result comparison for the corrected solution. These are
+single cross-Windows-and-WSL end-to-end observations, not medians or pure kernel
+timings. The full B5.51 comparison remains manual and is not registered with
+CTest.

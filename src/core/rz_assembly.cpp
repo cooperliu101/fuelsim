@@ -88,6 +88,14 @@ double function_value(const SpatialDefinition& definition, double time, const st
     return found->value(time);
 }
 
+double function_average_value(
+    const SpatialDefinition& definition, double begin_time, double end_time, const std::string& name) {
+    const auto found = std::find_if(definition.time_tables.begin(), definition.time_tables.end(),
+        [&name](const PiecewiseLinearTimeTable& table) { return table.name() == name; });
+    if (found == definition.time_tables.end()) throw std::invalid_argument("Unknown time-table function: " + name);
+    return found->average_value(begin_time, end_time);
+}
+
 double controlled_value(const SpatialDefinition& definition, double time, double load_factor, double value,
     bool scale_with_load, const std::string& function) {
     if (!function.empty()) return value * function_value(definition, time, function);
@@ -222,6 +230,13 @@ double SpatialLayout::region_heat_source(std::size_t index) const {
     const RegionDefinition& value = region(index);
     return controlled_value(
         _definition, _time, _load_factor, value.volumetric_heat_source, true, value.heat_source_function);
+}
+
+double SpatialLayout::region_heat_source_average(std::size_t index, double begin_time, double end_time) const {
+    const RegionDefinition& value = region(index);
+    if (value.heat_source_time_evaluation == HeatSourceTimeEvaluation::end_time) return region_heat_source(index);
+    return value.volumetric_heat_source *
+           function_average_value(_definition, begin_time, end_time, value.heat_source_function);
 }
 
 std::vector<double> SpatialLayout::initial_state() const {

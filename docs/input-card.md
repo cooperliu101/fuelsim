@@ -170,6 +170,7 @@ J2 关联塑性、沿最终 J2 方向的等效蠕变以及二者的全隐式耦�
     initial_temperature = 600
     volumetric_heat_source = 2e8
     heat_source_function = power
+    heat_source_time_evaluation = interval_average
   []
 []
 ```
@@ -198,9 +199,12 @@ Abaqus 默认总刚度算法，不提供可调系数；有限应变 `c3d8rt` 会
 每个区域必须用 `material` 引用 `[Materials]` 中已经定义的材料。旧版把导热率、
 弹性和非弹性参数直接写在区域内的格式不再接受。
 
-`heat_source_function` 可选；存在时，当前体积热源为
-`volumetric_heat_source * function(time)`。未设置时沿用执行器
-`load_ramp_time` 的全局载荷因子。
+`heat_source_function` 可选；存在时，体积热源为
+`volumetric_heat_source * function(time)`。`heat_source_time_evaluation` 可选为
+`end_time` 或 `interval_average`，默认 `end_time`；前者在时间步末采样函数，
+后者对当前时间步内的分段线性函数做精确平均。`interval_average` 需要同时设置
+`heat_source_function`，可用于复现 Abaqus 对随时间变化体热源的步内平均。
+未设置 `heat_source_function` 时沿用执行器 `load_ramp_time` 的全局载荷因子。
 
 ## 接触
 

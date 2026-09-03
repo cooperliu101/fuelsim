@@ -39,6 +39,7 @@ void hash_region_definition(std::uint64_t& hash, const RegionDefinition& spatial
     hash_double(hash, spatial.volumetric_heat_source);
     hash_double(hash, spatial.initial_temperature);
     hash_string(hash, spatial.heat_source_function);
+    hash_integer(hash, static_cast<std::int64_t>(spatial.heat_source_time_evaluation));
     hash_integer(hash, static_cast<std::int64_t>(spatial.hex8_element_formulation));
 }
 

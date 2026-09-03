@@ -1578,6 +1578,10 @@ bool test_time_table_and_convection() {
     bool passed =
         check(table.value(0.0) == 0.0 && table.value(1.0) == 0.5 && table.value(3.0) == 0.8 && table.value(8.0) == 0.4,
             "piecewise-linear table interpolates and holds endpoints");
+    passed = check(table.average_value(0.0, 1.0) == 0.25 && std::abs(table.average_value(1.0, 3.0) - 0.825) < 1.0e-15 &&
+                       std::abs(table.average_value(4.0, 8.0) - 0.425) < 1.0e-15,
+                 "piecewise-linear table averages exactly across knots and held endpoints") &&
+             passed;
     const fuelsim::Line2RzBoundaryGeometry geometry =
         fuelsim::make_line2_rz_boundary_geometry({{{0.005, 0.0}, {0.005, 0.01}}}, {{1, 2}});
     const fuelsim::Line2RzBoundaryData data = {

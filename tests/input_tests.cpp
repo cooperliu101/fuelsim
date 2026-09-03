@@ -101,6 +101,8 @@ bool verify_m3_output_input(const std::string& path, const std::string& contents
                      definition.outputs.checkpoint_interval == 5 && definition.spatial.time_tables.size() == 1 &&
                      definition.spatial.time_tables[0].value(1.0) == 0.5 &&
                      definition.spatial.regions[0].heat_source_function == "power" &&
+                     definition.spatial.regions[0].heat_source_time_evaluation ==
+                         fuelsim::HeatSourceTimeEvaluation::interval_average &&
                      definition.spatial.boundary_conditions.back().type == fuelsim::BoundaryConditionType::convection &&
                      definition.spatial.boundary_conditions.back().coefficient_function == "power" &&
                      definition.spatial.boundary_conditions.back().ambient_temperature_function == "power" &&
@@ -547,7 +549,8 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
     const std::size_t heat_source_position = m3_case.find(heat_source);
     if (heat_source_position == std::string::npos)
         return check(false, "transient fixture has the expected heat source");
-    m3_case.insert(heat_source_position + heat_source.size(), "\n    heat_source_function = power");
+    m3_case.insert(heat_source_position + heat_source.size(),
+        "\n    heat_source_function = power\n    heat_source_time_evaluation = interval_average");
     const std::string executioner_start = "\n[Executioner]";
     const std::size_t executioner_start_position = m3_case.find(executioner_start);
     if (executioner_start_position == std::string::npos)
@@ -774,6 +777,14 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
     const std::size_t unknown_heat_position = unknown_function.find(heat_source);
     unknown_function.insert(unknown_heat_position + heat_source.size(), "\n    heat_source_function = missing");
     passed = expect_case_failure(malformed_path, unknown_function, "unknown time function 'missing'") && passed;
+    std::string invalid_heat_source_time_evaluation = m3_case;
+    const std::string valid_heat_source_time_evaluation = "heat_source_time_evaluation = interval_average";
+    invalid_heat_source_time_evaluation.replace(
+        invalid_heat_source_time_evaluation.find(valid_heat_source_time_evaluation),
+        valid_heat_source_time_evaluation.size(), "heat_source_time_evaluation = midpoint");
+    passed = expect_case_failure(
+                 malformed_path, invalid_heat_source_time_evaluation, "must be end_time or interval_average") &&
+             passed;
     std::string invalid_table = m3_case;
     const std::string valid_times = "times = 0 2 5";
     const std::size_t valid_times_position = invalid_table.find(valid_times);

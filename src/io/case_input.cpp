@@ -395,7 +395,7 @@ RegionDefinition read_region(
     const InputDocument& document, const InputSection& section, const std::vector<ParsedMaterial>& materials) {
     validate_keys(document, section,
         {"block", "block_id", "material", "strain", "element", "initial_temperature", "volumetric_heat_source",
-            "heat_source_function"});
+            "heat_source_function", "heat_source_time_evaluation"});
     const InputEntry* block = find_entry(section, "block");
     const InputEntry* block_id = find_entry(section, "block_id");
     if ((block == nullptr) == (block_id == nullptr))
@@ -425,6 +425,19 @@ RegionDefinition read_region(
     RegionDefinition result = {section.name, block == nullptr ? std::string{} : block->value, std::move(thermoelastic),
         read_double(document, section, "volumetric_heat_source"), initial_temperature, resolved_block_id};
     result.heat_source_function = read_optional_string(section, "heat_source_function", {});
+    const std::string heat_source_time_evaluation =
+        read_optional_string(section, "heat_source_time_evaluation", "end_time");
+    if (heat_source_time_evaluation == "end_time")
+        result.heat_source_time_evaluation = HeatSourceTimeEvaluation::end_time;
+    else if (heat_source_time_evaluation == "interval_average")
+        result.heat_source_time_evaluation = HeatSourceTimeEvaluation::interval_average;
+    else
+        value_error(document, required_entry(document, section, "heat_source_time_evaluation"),
+            "heat_source_time_evaluation must be end_time or interval_average");
+    if (result.heat_source_time_evaluation == HeatSourceTimeEvaluation::interval_average &&
+        result.heat_source_function.empty())
+        value_error(document, required_entry(document, section, "heat_source_time_evaluation"),
+            "heat_source_time_evaluation=interval_average requires heat_source_function");
     const InputEntry strain = required_entry(document, section, "strain");
     if (strain.value == "small")
         result.strain_formulation = StrainFormulation::small;

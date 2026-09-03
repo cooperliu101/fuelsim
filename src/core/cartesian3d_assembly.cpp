@@ -812,6 +812,11 @@ void SpatialAssembly::set_time(double value) {
     refresh_controls();
 }
 
+void SpatialAssembly::set_heat_source_interval(double begin_time, double end_time) {
+    for (std::size_t region = 0; region < region_count(); ++region)
+        _kernel_data[region].volumetric_heat_source = region_heat_source_average(region, begin_time, end_time);
+}
+
 void SpatialAssembly::validate_state(const std::vector<double>& state) const {
     if (state.size() != dof_count())
         throw std::invalid_argument("Three-dimensional state size does not match the problem");

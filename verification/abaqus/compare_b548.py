@@ -130,6 +130,17 @@ def quad8_shapes(xi, eta):
     return shape, derivative_xi, derivative_eta
 
 
+def quad4_shapes(xi, eta):
+    return np.asarray(
+        [
+            0.25 * (1.0 - xi) * (1.0 - eta),
+            0.25 * (1.0 + xi) * (1.0 - eta),
+            0.25 * (1.0 + xi) * (1.0 + eta),
+            0.25 * (1.0 - xi) * (1.0 + eta),
+        ]
+    )
+
+
 def equivalent_stress(components):
     mean = sum(components[:3]) / 3.0
     return math.sqrt(
@@ -229,6 +240,7 @@ def main():
         raise RuntimeError("%s contact result count differs" % arguments.case_name)
     contact_metrics = Metrics()
     contact_maxima = [0.0, 0.0]
+    abaqus_native_normal_force = 0.0
     for row in contact:
         index = int(row["id"]) - 1
         actual = nodal["contact_pressure_fuel_cladding"][index]
@@ -238,6 +250,15 @@ def main():
         contact_metrics.add(actual, reference)
         contact_maxima[0] = max(contact_maxima[0], abs(actual))
         contact_maxima[1] = max(contact_maxima[1], abs(reference))
+        current_x = float(row["current_x"])
+        current_y = float(row["current_y"])
+        current_radius = math.hypot(current_x, current_y)
+        if current_radius == 0.0:
+            raise RuntimeError("%s contact node lies on the cylinder axis" % arguments.case_name)
+        abaqus_native_normal_force += (
+            float(row["normal_force_x"]) * current_x
+            + float(row["normal_force_y"]) * current_y
+        ) / current_radius
     metrics["contact_pressure"] = contact_metrics
     maxima["contact_pressure"] = contact_maxima
 
@@ -279,8 +300,14 @@ def main():
                 abaqus_contact_area += area
                 abaqus_contact_force += shape.dot(pressure) * area
                 abaqus_tangential_force += shape.dot(shear) * area
-                abaqus_heat_rate += shape.dot(heat) * area
+                # C3D20T has temperature and thermal-contact flux only at the four corner
+                # nodes.  Its current contact area is nevertheless carried by the full Q8
+                # displacement geometry.  Interpolating the four nonzero HFL values with
+                # Q8 shapes would introduce the zero-valued midside displacement nodes and
+                # reduce a constant flux integral to minus one third of its physical value.
+                abaqus_heat_rate += quad4_shapes(xi, eta).dot(heat[:4]) * area
     for name, actual, reference in (
+        ("contact_normal_force_resultant", global_values["contact_force_fuel_cladding"], abs(abaqus_native_normal_force)),
         ("recovered_contact_pressure_integral", global_values["contact_force_fuel_cladding"], abaqus_contact_force),
         ("recovered_contact_shear_integral", global_values["contact_tangential_force_fuel_cladding"], abaqus_tangential_force),
         ("recovered_contact_heat_integral", global_values["contact_heat_rate_fuel_cladding"], abs(abaqus_heat_rate)),
