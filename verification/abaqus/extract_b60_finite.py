@@ -6,8 +6,8 @@ import sys
 from odbAccess import openOdb
 
 
-if len(sys.argv) != 4:
-    raise RuntimeError("usage: extract_b60_finite.py <job.odb> <mesh.json> <nodal.csv>")
+if len(sys.argv) != 5:
+    raise RuntimeError("usage: extract_b60_finite.py <job.odb> <mesh.json> <nodal.csv> <final step time>")
 
 
 def data(value):
@@ -46,8 +46,9 @@ try:
         raise RuntimeError("B6.0 finite-strain expects exactly one Abaqus step")
     step = list(odb.steps.values())[0]
     frame = step.frames[-1]
-    if abs(frame.frameValue - 10.0) > 1.0e-10:
-        raise RuntimeError("B6.0 finite-strain final Abaqus frame is not at ten seconds")
+    final_time = float(sys.argv[4])
+    if abs(frame.frameValue - final_time) > 1.0e-10:
+        raise RuntimeError("B6.0 finite-strain final Abaqus frame has the wrong step time")
     temperature = nodal_values(field(frame, "NT11"), labels)
     displacement = nodal_values(field(frame, "U"), labels)
     output = open(sys.argv[3], "wb")

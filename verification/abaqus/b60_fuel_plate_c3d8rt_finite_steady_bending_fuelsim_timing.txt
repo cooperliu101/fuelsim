@@ -1,0 +1,15 @@
+fuelsim_solver_seconds=1.517750997
+fuelsim_total_seconds=1.537061863
+fuelsim_cpu_affinity=0
+fuelsim_numerical_library_threads=1
+fuelsim_direct_factorization=mumps
+fuelsim_global_state_dofs=7140
+fuelsim_completed_load_steps=1
+fuelsim_rejected_load_steps=0
+fuelsim_load_cutbacks=0
+fuelsim_nonlinear_iterations=10
+fuelsim_linear_iterations=10
+fuelsim_residual_evaluations=11
+fuelsim_jacobian_evaluations=10
+fuelsim_workspace_setups=1
+timing_scope=single diagnostic observation; no cross-solver performance claim

@@ -58,7 +58,7 @@ if (Test-Path "$JobName.dat") {
 $Timing | Set-Content -Encoding ASCII "${JobName}_timing.txt"
 
 & "C:\SIMULIA\Commands\abaqus.bat" python extract_b60_finite.py `
-    "$JobName.odb" "b60_long_plate_meat_clad_c3d8rt.json" "${JobName}_nodal.csv"
+    "$JobName.odb" "b60_long_plate_meat_clad_c3d8rt.json" "${JobName}_nodal.csv" 10.0
 if ($LASTEXITCODE -ne 0) {
     throw "Abaqus B6.0 finite-strain extraction failed with exit code $LASTEXITCODE"
 }

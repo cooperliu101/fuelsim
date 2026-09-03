@@ -1407,3 +1407,34 @@ job summary reports `3.5 s` total CPU time and `4 s` analysis wall time. The
 external Fuelsim/Abaqus ratio is `0.875921`, so Fuelsim uses `12.4079%` less
 external wall time in this cross-Windows-and-WSL comparison. Complete evidence
 is stored in the ramped comparison and timing artifacts.
+
+### B6.0 steady-state finite-strain thermoelastic path
+
+The B6.0 benchmark executable also accepts
+`verification/fuelsim/steady_b60_fuel_plate_c3d8rt_finite_bending.fsi`. This
+input retains the same mesh, C3D8RT elements, fuel heat source, final face
+temperatures, material properties, and clamp, but solves one steady load step
+without a heat-capacity term. The matching Abaqus input uses one steady-state
+coupled temperature-displacement increment with nonlinear geometry enabled.
+
+```text
+./build/fuelsim_b60_fuel_plate_c3d8rt_benchmark \
+  verification/fuelsim/steady_b60_fuel_plate_c3d8rt_finite_bending.fsi \
+  /tmp/b60_finite_steady_nodal.csv /tmp/b60_finite_steady_timing.tsv
+powershell -ExecutionPolicy Bypass -File verification/abaqus/run_b60_finite_steady.ps1 \
+  -SourceDirectory verification/abaqus
+python3 verification/abaqus/compare_b60.py \
+  /tmp/b60_finite_steady_nodal.csv \
+  verification/abaqus/b60_fuel_plate_c3d8rt_finite_steady_bending_nodal.csv
+```
+
+Temperature passes relative L2, relative absolute-peak, and maximum pointwise
+errors at `2.38853e-5%`, `0.000108974%`, and `0.000111735%`. The corresponding
+free-node complete displacement-vector errors are `0.00832005%`, `0.00861825%`,
+and `0.0436061%`, with a `3.92546e-7 m` maximum absolute difference. Component
+pointwise percentages remain near-zero-reference diagnostics without a
+denominator floor. Fuelsim uses 10 nonlinear iterations and 10 Jacobian
+evaluations; Abaqus uses 5 nonlinear iterations and 5 matrix decompositions.
+The recorded single-run timings are diagnostic only. This comparison qualifies
+the one-step steady final equilibrium and does not replace the transient B6.0
+path.

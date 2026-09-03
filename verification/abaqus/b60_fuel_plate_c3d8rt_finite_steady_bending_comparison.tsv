@@ -1,0 +1,9 @@
+field	relative_l2_percent	relative_absolute_peak_percent	maximum_pointwise_relative_percent	maximum_absolute_difference	zero_reference_count	maximum_zero_reference_absolute_difference
+temperature	2.38852644e-05	0.000108973649	0.000111735397	0.00076281554 K	0	0 K
+displacement_x	0.040972592	0.0286160564	100	3.68504088e-08 m	0	0 m
+displacement_y	0.105809192	0.0849454506	94187.4535	1.13239076e-08 m	0	0 m
+displacement_z	0.00828850521	0.00859961114	100	3.91683056e-07 m	0	0 m
+free_node_displacement_vector	0.00832005386	0.00861825106	0.0436060838	3.92545811e-07 m	0	0 m
+free_right_edge_bending_range	-	-	-	Fuelsim 6.13837432312e-06 m; Abaqus 6.13886637643e-06 m; difference 4.92053303484e-10 m	-	-
+solver_work	-	-	-	Fuelsim one load step, 10 nonlinear iterations, 11 residual evaluations, 10 Jacobian evaluations, and one workspace; Abaqus one increment, 5 nonlinear iterations, 5 equation-solver passes, and 5 matrix decompositions	-	-
+qualification	-	-	-	QUALIFIED: temperature and the free-node displacement-vector three metrics are below 0.5 percent	-	Component pointwise percentages remain diagnostics because their extrema use Abaqus references from 4.57e-42 m to 2.16e-20 m; no denominator floor is used

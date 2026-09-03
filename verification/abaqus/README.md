@@ -2887,3 +2887,44 @@ workspace setup. Its three external times are `7.81`, `6.54`, and `6.51 s`
 and Fuelsim uses `12.4079%` less wall time. The comparison remains a controlled
 cross-Windows-and-WSL measurement rather than a same-operating-system kernel
 timing.
+
+### B6.0 steady-state finite-strain thermoelastic path
+
+The steady-state path reuses the same 1,785-node, 1,200-element fuel-plate mesh,
+C3D8RT formulation, elastic and thermal properties, `2e8 W/m^3` fuel heat
+source, left-face clamp, and final `700/600 K` front/back temperatures. Fuelsim
+uses one steady load step, and Abaqus uses one
+`*COUPLED TEMPERATURE-DISPLACEMENT, STEADY STATE` increment with `NLGEOM=YES`.
+Density and specific heat remain recorded as material provenance, but heat
+capacity is absent from both steady equations. This is a final-equilibrium
+comparison and is not equivalent to the ten-second transient path.
+
+```text
+./build/fuelsim_b60_fuel_plate_c3d8rt_benchmark \
+  verification/fuelsim/steady_b60_fuel_plate_c3d8rt_finite_bending.fsi \
+  /tmp/b60-finite-steady-nodal.csv /tmp/b60-finite-steady-timing.tsv
+powershell -ExecutionPolicy Bypass -File verification/abaqus/run_b60_finite_steady.ps1 \
+  -SourceDirectory verification/abaqus
+python3 verification/abaqus/compare_b60.py \
+  /tmp/b60-finite-steady-nodal.csv \
+  verification/abaqus/b60_fuel_plate_c3d8rt_finite_steady_bending_nodal.csv
+```
+
+Temperature relative L2, relative absolute-peak, and maximum pointwise errors
+are `2.38853e-5%`, `0.000108974%`, and `0.000111735%`. The free-node complete
+displacement-vector errors are `0.00832005%`, `0.00861825%`, and `0.0436061%`;
+all six acceptance metrics are below `0.5%` without a denominator floor. The
+maximum displacement-vector difference is `3.92546e-7 m`. The free-right-edge
+bending ranges are `6.13837432e-6 m` for Fuelsim and `6.13886638e-6 m` for
+Abaqus, differing by `4.92053e-10 m`.
+
+Raw componentwise pointwise percentages remain diagnostics because their worst
+Abaqus reference components range from `4.57e-42 m` to `2.16e-20 m`; their
+maximum absolute differences are at most `3.91683e-7 m`. Fuelsim completes the
+single load step without rejection using 10 nonlinear iterations, 11 residual
+evaluations, 10 Jacobian evaluations, and one PETSc workspace. Abaqus completes
+one increment without a cutback using 5 nonlinear iterations, 5 equation-solver
+passes, and 5 matrix decompositions. The retained timings are single-run startup-
+dominated diagnostics and are not a cross-solver performance claim. This result
+qualifies the one-step steady thermoelastic final equilibrium only; it does not
+qualify transient heat capacity or path-dependent material evolution.
