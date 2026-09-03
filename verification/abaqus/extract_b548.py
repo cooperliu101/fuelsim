@@ -118,6 +118,7 @@ try:
     nodal.close()
 
     pressure_field = contact_field(frame, "CPRESS")
+    opening = nodal_values(contact_field(frame, "COPEN"), fuel_outer_labels)
     normal_force = nodal_values(contact_field(frame, "CNORMF"), fuel_outer_labels)
     shear_force = nodal_values(contact_field(frame, "CSHEARF"), fuel_outer_labels)
     shear_1 = nodal_values(contact_field(frame, "CSHEAR1"), fuel_outer_labels)
@@ -144,16 +145,16 @@ try:
         if label not in coordinates:
             generated += 1
     contact = open(sys.argv[4], "wb")
-    contact.write("contact_pressure,shear_1,shear_2,normal_force_x,normal_force_y,normal_force_z,shear_force_x,shear_force_y,shear_force_z,heat_flow,id,x,y,z,current_x,current_y,current_z,generated\n")
+    contact.write("contact_pressure,contact_opening,shear_1,shear_2,normal_force_x,normal_force_y,normal_force_z,shear_force_x,shear_force_y,shear_force_z,heat_flow,id,x,y,z,current_x,current_y,current_z,generated\n")
     instance = odb.rootAssembly.instances["PART-1-1"]
     instance_coordinates = dict((node.label, node.coordinates) for node in instance.nodes)
     for label in sorted(pressure.keys()):
         reference = coordinates.get(label, instance_coordinates[label])
         current = current_coordinates.get(label, reference)
         contact.write(
-            "%.16g,%.16g,%.16g,%.16g,%.16g,%.16g,%.16g,%.16g,%.16g,%.16g,%d,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%d\n"
+            "%.16g,%.16g,%.16g,%.16g,%.16g,%.16g,%.16g,%.16g,%.16g,%.16g,%.16g,%d,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%d\n"
             % (
-                (pressure[label], shear_1[label], shear_2[label])
+                (pressure[label], opening[label], shear_1[label], shear_2[label])
                 + tuple(normal_force[label])
                 + tuple(shear_force[label])
                 + (heat_flow[label], label)

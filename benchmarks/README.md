@@ -1185,3 +1185,29 @@ The tracked `fuelsim_m58_integrated_hex20_results` target writes one final
 Exodus result without changing the timed production input, and
 `compare_b548.py` reproduces all three error metrics without a denominator
 floor. No production formula or coefficient is changed from this failure.
+
+## B5.51 C3D20T surface-to-surface timing after boundary correction
+
+B5.51 replaces the node-to-surface mechanical interface with frictionless
+finite-sliding surface-to-surface contact and constrains all quadratic top and
+bottom face displacement nodes in both solvers. It also raises the fuel heat
+source to `2e8 W/m^3`, producing final contact heat rates of `14.621175 W` in
+Fuelsim and `4.780984 W` in Abaqus. This is a 19,524-degree-of-freedom,
+twenty-step manual benchmark.
+
+On CPU 0 with every listed numerical library restricted to one thread,
+Fuelsim takes `321.00 s` externally and `305.412 s` internally. Abaqus R2018x
+with `cpus=1` takes `608.050095 s` externally and reports `604 s` analysis wall
+time. The external ratio is `0.527917`, so Fuelsim is `47.2083%` faster, or
+`1.89424` times as fast, in this single end-to-end observation. Fuelsim uses 86
+nonlinear iterations, 106 residual evaluations, 38 Jacobian evaluations, and
+one PETSc workspace setup; its peak resident memory is `1,355,672 kB`.
+
+The corresponding bulk solution is comparable: temperature, radial
+displacement, equivalent stress, equivalent plastic strain, and equivalent
+creep strain have relative L2 errors of `0.135292%`, `0.301275%`,
+`0.00775585%`, `0.00789622%`, and `0.0211876%`. Recovered contact-pressure L2
+error is `1.01531%`, while its surface-integrated force differs by `0.427196%`.
+The contact heat-rate difference remains `205.819%`; consequently the result
+supports a same-bulk-solution speed comparison but not a qualified thermal
+contact-output equivalence claim.

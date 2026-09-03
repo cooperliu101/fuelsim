@@ -2488,3 +2488,84 @@ also applies to partially active faces, as independently accepted by H20.41.
 The contact residual, Jacobian, nodal-force distribution, total force, penalty,
 material, load, time step, convergence threshold, and identified constraint
 averaging coefficients are unchanged.
+
+## B5.51 full-size C3D20T finite-sliding surface-to-surface contact
+
+B5.51 uses the full 1,152-element M5.8 HEX20 mesh, 5,969 quadratic
+displacement nodes, 1,617 corner-temperature nodes, and 19,524 coupled degrees
+of freedom. The mechanical interface is frictionless finite-sliding
+surface-to-surface contact. The fuel volumetric heat source is `2e8 W/m^3`, ten
+times the earlier M5.8 value, so that the final contact heat transfer is large
+enough to remain a material diagnostic. The gap-conductance law, mechanical
+penalty, materials, pressure and displacement histories, and twenty fixed
+`0.05 s` increments are unchanged.
+
+The C3D20T Abaqus deck must constrain all quadratic displacement nodes on the
+fuel and cladding top and bottom faces. The Exodus node sets inherited from the
+original HEX8 mesh contain only corner nodes, whereas Fuelsim resolves a side
+set to all eight displacement nodes on every quadratic face. B5.51 therefore
+generates four explicit full-face displacement node sets from the HEX20 side
+sets. Before this correction, the unmatched Abaqus boundary omitted edge
+midpoints and produced large but artificial cladding displacement and stress
+errors. With the corrected boundary, the first-step cladding displacement
+relative L2 error is `0.00135207%` and the equivalent-stress relative L2 error
+is `0.000678058%`.
+
+Regenerate and run this manual comparison with:
+
+```text
+python3 verification/abaqus/generate_b551.py
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass \
+  -File verification/abaqus/run_b551.ps1 \
+  -SourceDirectory "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus"
+env OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+  taskset -c 0 /usr/bin/time -v \
+  ./build/fuelsim_m58_integrated_hex20_results \
+  verification/fuelsim/transient_integrated_c3d20t_finite_sliding.fsi \
+  /tmp/b551_fuelsim_final.e
+python3 verification/abaqus/compare_b548.py --case-name B5.51 \
+  /tmp/b551_fuelsim_final.e \
+  verification/abaqus/b551_m58_c3d20t_finite_sliding_nodal.csv \
+  verification/abaqus/b551_m58_c3d20t_finite_sliding_contact.csv \
+  verification/abaqus/b551_m58_c3d20t_finite_sliding_clad_points.csv \
+  verification/abaqus/b548_m58_c3d20t_integrated_mesh.json \
+  verification/abaqus/b551_m58_c3d20t_finite_sliding_comparison.tsv
+```
+
+The final high-heat-flow field errors are:
+
+| Field | Relative L2 | Relative absolute peak | Maximum pointwise relative |
+|---|---:|---:|---:|
+| Corner temperature | `0.135292%` | `0.227167%` | `0.227167%` |
+| Radial displacement | `0.301275%` | `0.405356%` | diagnostic near-zero reference |
+| Equivalent stress | `0.00775585%` | `0.0214569%` | `0.0681765%` |
+| Equivalent plastic strain | `0.00789622%` | `0.0217442%` | `0.0292795%` |
+| Equivalent creep strain | `0.0211876%` | `0.0271107%` | `0.0510846%` |
+| Recovered contact pressure | `1.01531%` | `1.00781%` | `1.34999%` |
+
+The radial-displacement maximum absolute difference is `46.2272 nm`. Cartesian
+component pointwise-relative maxima and the tangential-displacement relative
+metrics are dominated by numerical references close to zero; the maximum
+tangential absolute difference is `9.46498e-12 m`, and no denominator floor is
+used. The Fuelsim and Abaqus recovered-pressure surface integrals are
+`11.0968326 N` and `11.1444412 N`, a `0.427196%` difference. The displayed
+nodal pressure remains above the desired one-percent pointwise boundary and is
+therefore a documented recovery limitation rather than a qualified result.
+
+Increasing the heat source raises the final contact heat rates from
+`1.472950 W` and `0.480522 W` to `14.621175 W` and `4.780984 W` for Fuelsim and
+Abaqus. The relative difference remains `205.819%`, so the discrepancy is not
+caused by division by a small reference. It remains a thermal-contact
+discretization or output-definition limitation even though the full
+temperature field passes all three `0.5%` metrics.
+
+With CPU 0 pinned and OpenMP, OpenBLAS, MKL, and NumExpr each limited to one
+thread, Fuelsim completes all twenty steps without a rejected step in
+`321.00 s` external wall time and `305.412 s` internal time. It uses 86
+nonlinear iterations, 106 residual evaluations, 38 Jacobian evaluations, and
+one PETSc workspace setup. Abaqus R2018x with `cpus=1` takes `608.050095 s`
+externally and reports `604 s` analysis wall time. Fuelsim therefore takes
+`0.527917` times the Abaqus external time, or is `1.89424` times as fast. These
+are single cross-Windows-and-WSL end-to-end observations, not medians or pure
+kernel timings. The full B5.51 comparison remains manual and is not registered
+with CTest.

@@ -34,6 +34,11 @@ struct SurfaceBasis final {
     ActivePoint3 first{}, second{};
 };
 
+struct DoubleQuad8ShapeValues final {
+    std::array<double, 8> shape{}, derivative_xi{}, derivative_eta{};
+    std::array<double, 8> second_xi{}, second_xi_eta{}, second_eta{};
+};
+
 Quad8SurfaceContactLocalAdValues make_ad_state(const Quad8SurfaceContactLocalValues& state, bool derivatives);
 
 ActivePoint3 subtract(const ActivePoint3& first, const ActivePoint3& second) {
@@ -64,6 +69,45 @@ void quad8_shape(const adlite::Scalar& xi, const adlite::Scalar& eta, Quad8Shape
     result.second_xi_eta = {0.25 * (1.0 - 2.0 * xi - 2.0 * eta), -0.25 * (1.0 + 2.0 * xi - 2.0 * eta),
         0.25 * (1.0 + 2.0 * xi + 2.0 * eta), 0.25 * (-1.0 + 2.0 * xi - 2.0 * eta), xi, -eta, -xi, eta};
     result.second_eta = {0.5 * xm, 0.5 * xp, 0.5 * xp, 0.5 * xm, 0.0, -xp, 0.0, -xm};
+}
+
+void double_quad8_shape(double xi, double eta, DoubleQuad8ShapeValues& result) {
+    const double xm = 1.0 - xi, xp = 1.0 + xi, ym = 1.0 - eta, yp = 1.0 + eta;
+    result.shape = {0.25 * xm * ym * (-xi - eta - 1.0), 0.25 * xp * ym * (xi - eta - 1.0),
+        0.25 * xp * yp * (xi + eta - 1.0), 0.25 * xm * yp * (-xi + eta - 1.0), 0.5 * (1.0 - xi * xi) * ym,
+        0.5 * xp * (1.0 - eta * eta), 0.5 * (1.0 - xi * xi) * yp, 0.5 * xm * (1.0 - eta * eta)};
+    result.derivative_xi = {0.25 * ym * (2.0 * xi + eta), 0.25 * ym * (2.0 * xi - eta), 0.25 * yp * (2.0 * xi + eta),
+        0.25 * yp * (2.0 * xi - eta), -xi * ym, 0.5 * (1.0 - eta * eta), -xi * yp, -0.5 * (1.0 - eta * eta)};
+    result.derivative_eta = {0.25 * xm * (xi + 2.0 * eta), 0.25 * xp * (-xi + 2.0 * eta), 0.25 * xp * (xi + 2.0 * eta),
+        0.25 * xm * (-xi + 2.0 * eta), -0.5 * (1.0 - xi * xi), -xp * eta, 0.5 * (1.0 - xi * xi), -xm * eta};
+    result.second_xi = {0.5 * ym, 0.5 * ym, 0.5 * yp, 0.5 * yp, -ym, 0.0, -yp, 0.0};
+    result.second_xi_eta = {0.25 * (1.0 - 2.0 * xi - 2.0 * eta), -0.25 * (1.0 + 2.0 * xi - 2.0 * eta),
+        0.25 * (1.0 + 2.0 * xi + 2.0 * eta), 0.25 * (-1.0 + 2.0 * xi - 2.0 * eta), xi, -eta, -xi, eta};
+    result.second_eta = {0.5 * xm, 0.5 * xp, 0.5 * xp, 0.5 * xm, 0.0, -xp, 0.0, -xm};
+}
+
+CartesianPoint3 double_interpolate(
+    const std::array<CartesianPoint3, 8>& coordinates, const std::array<double, 8>& coefficients) {
+    CartesianPoint3 result{};
+    for (std::size_t node = 0; node < coordinates.size(); ++node) {
+        result.x += coefficients[node] * coordinates[node].x;
+        result.y += coefficients[node] * coordinates[node].y;
+        result.z += coefficients[node] * coordinates[node].z;
+    }
+    return result;
+}
+
+CartesianPoint3 double_subtract(const CartesianPoint3& first, const CartesianPoint3& second) {
+    return {first.x - second.x, first.y - second.y, first.z - second.z};
+}
+
+double double_dot(const CartesianPoint3& first, const CartesianPoint3& second) {
+    return first.x * second.x + first.y * second.y + first.z * second.z;
+}
+
+CartesianPoint3 double_cross(const CartesianPoint3& first, const CartesianPoint3& second) {
+    return {first.y * second.z - first.z * second.y, first.z * second.x - first.x * second.z,
+        first.x * second.y - first.y * second.x};
 }
 
 void quad4_temperature_shape(
@@ -616,24 +660,53 @@ Quad8ReferenceProjectionValue compute_quad8_reference_projection(
     const std::array<CartesianPoint3, 8>& secondary_coordinates,
     const std::array<CartesianPoint3, 8>& primary_coordinates, const std::array<double, 8>& secondary_shape,
     double normal_orientation) {
-    const Quad8SurfaceContactLocalValues state{};
-    const std::array<ActivePoint3, 16> nodes =
-        current_nodes(secondary_coordinates, primary_coordinates, make_ad_state(state, false));
-    const SurfaceProjection8 projection =
-        project_to_primary(interpolate_point(nodes, 0, active_values(secondary_shape)), nodes, normal_orientation);
+    const CartesianPoint3 secondary_point = double_interpolate(secondary_coordinates, secondary_shape);
     Quad8ReferenceProjectionValue result{};
-    result.projected = projection.projected;
-    if (!projection.projected) return result;
-    Quad8ShapeValues primary_values;
-    quad8_shape(projection.xi, projection.eta, primary_values);
-    for (std::size_t node = 0; node < result.primary_shape.size(); ++node)
-        result.primary_shape[node] = projection.primary_shape[node].value();
-    for (std::size_t node = 0; node < result.primary_derivative_xi.size(); ++node) {
-        result.primary_derivative_xi[node] = primary_values.derivative_xi[node].value();
-        result.primary_derivative_eta[node] = primary_values.derivative_eta[node].value();
+    double xi = 0.0, eta = 0.0;
+    for (std::size_t iteration = 0; iteration < 16; ++iteration) {
+        DoubleQuad8ShapeValues values;
+        double_quad8_shape(xi, eta, values);
+        const CartesianPoint3 point = double_interpolate(primary_coordinates, values.shape),
+                              tangent_xi = double_interpolate(primary_coordinates, values.derivative_xi),
+                              tangent_eta = double_interpolate(primary_coordinates, values.derivative_eta),
+                              tangent_xi_xi = double_interpolate(primary_coordinates, values.second_xi),
+                              tangent_xi_eta = double_interpolate(primary_coordinates, values.second_xi_eta),
+                              tangent_eta_eta = double_interpolate(primary_coordinates, values.second_eta),
+                              difference = double_subtract(secondary_point, point);
+        const double residual_xi = double_dot(difference, tangent_xi),
+                     residual_eta = double_dot(difference, tangent_eta),
+                     jacobian_xi_xi = -double_dot(tangent_xi, tangent_xi) + double_dot(difference, tangent_xi_xi),
+                     jacobian_xi_eta = -double_dot(tangent_eta, tangent_xi) + double_dot(difference, tangent_xi_eta),
+                     jacobian_eta_xi = -double_dot(tangent_xi, tangent_eta) + double_dot(difference, tangent_xi_eta),
+                     jacobian_eta_eta = -double_dot(tangent_eta, tangent_eta) + double_dot(difference, tangent_eta_eta),
+                     determinant = jacobian_xi_xi * jacobian_eta_eta - jacobian_xi_eta * jacobian_eta_xi;
+        if (!std::isfinite(determinant) || std::abs(determinant) <= std::numeric_limits<double>::min())
+            throw std::domain_error("HEX20 contact projection has a singular Q8 surface Jacobian");
+        xi += (-residual_xi * jacobian_eta_eta + jacobian_xi_eta * residual_eta) / determinant;
+        eta += (-jacobian_xi_xi * residual_eta + jacobian_eta_xi * residual_xi) / determinant;
     }
-    result.normal = {projection.normal[0].value(), projection.normal[1].value(), projection.normal[2].value()};
-    result.gap = projection.gap.value();
+    constexpr double tolerance = 1.0e-10;
+    if (!std::isfinite(xi) || !std::isfinite(eta) || xi < -1.0 - tolerance || xi > 1.0 + tolerance ||
+        eta < -1.0 - tolerance || eta > 1.0 + tolerance)
+        return result;
+    xi = std::max(-1.0, std::min(1.0, xi));
+    eta = std::max(-1.0, std::min(1.0, eta));
+    DoubleQuad8ShapeValues values;
+    double_quad8_shape(xi, eta, values);
+    const CartesianPoint3 primary_point = double_interpolate(primary_coordinates, values.shape),
+                          tangent_xi = double_interpolate(primary_coordinates, values.derivative_xi),
+                          tangent_eta = double_interpolate(primary_coordinates, values.derivative_eta),
+                          area_vector = double_cross(tangent_xi, tangent_eta);
+    const double measure = std::sqrt(double_dot(area_vector, area_vector));
+    if (!std::isfinite(measure) || !(measure > 0.0))
+        throw std::domain_error("HEX20 contact primary Q8 face has a nonpositive current measure");
+    result.projected = true;
+    result.primary_shape = values.shape;
+    result.primary_derivative_xi = values.derivative_xi;
+    result.primary_derivative_eta = values.derivative_eta;
+    result.normal = {normal_orientation * area_vector.x / measure, normal_orientation * area_vector.y / measure,
+        normal_orientation * area_vector.z / measure};
+    result.gap = double_dot(double_subtract(primary_point, secondary_point), result.normal);
     return result;
 }
 

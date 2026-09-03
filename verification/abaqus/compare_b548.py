@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare final Fuelsim HEX20 results with the tracked Abaqus B5.48 fields."""
+"""Compare final Fuelsim HEX20 results with a full-size Abaqus reference."""
 
 import argparse
 import csv
@@ -44,8 +44,16 @@ class Metrics:
         self.count += 1
 
     def row(self, name, actual_maximum, reference_maximum):
-        relative_l2 = math.sqrt(self.difference_squared / self.reference_squared)
-        relative_peak = self.maximum_absolute_difference / self.maximum_absolute_reference
+        relative_l2 = (
+            math.sqrt(self.difference_squared / self.reference_squared)
+            if self.reference_squared > 0.0
+            else (0.0 if self.difference_squared == 0.0 else math.nan)
+        )
+        relative_peak = (
+            self.maximum_absolute_difference / self.maximum_absolute_reference
+            if self.maximum_absolute_reference > 0.0
+            else (0.0 if self.maximum_absolute_difference == 0.0 else math.nan)
+        )
         return {
             "field": name,
             "count": self.count,
@@ -135,6 +143,7 @@ def equivalent_stress(components):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--case-name", default="B5.48")
     parser.add_argument("fuelsim_exodus")
     parser.add_argument("abaqus_nodal")
     parser.add_argument("abaqus_contact")
@@ -142,6 +151,7 @@ def main():
     parser.add_argument("abaqus_mesh")
     parser.add_argument("output")
     arguments = parser.parse_args()
+    output_prefix = arguments.case_name.lower().replace(".", "")
 
     database = Dataset(arguments.fuelsim_exodus)
     try:
@@ -171,7 +181,7 @@ def main():
     current_coordinates = coordinates + displacement
     abaqus_nodes = dict((int(row["id"]), row) for row in read_csv(arguments.abaqus_nodal))
     if len(abaqus_nodes) != len(coordinates):
-        raise RuntimeError("B5.48 nodal result count differs")
+        raise RuntimeError("%s nodal result count differs" % arguments.case_name)
     corner_nodes = set((np.vstack((fuel_connectivity[:, :8], connectivity[:, :8])) + 1).reshape(-1).tolist())
 
     metrics = {}
@@ -216,7 +226,7 @@ def main():
 
     contact = read_csv(arguments.abaqus_contact)
     if len(contact) != 416:
-        raise RuntimeError("B5.48 contact result count differs")
+        raise RuntimeError("%s contact result count differs" % arguments.case_name)
     contact_metrics = Metrics()
     contact_maxima = [0.0, 0.0]
     for row in contact:
@@ -224,7 +234,7 @@ def main():
         actual = nodal["contact_pressure_fuel_cladding"][index]
         reference = float(row["contact_pressure"])
         if not math.isfinite(actual):
-            raise RuntimeError("B5.48 Fuelsim contact pressure is missing")
+            raise RuntimeError("%s Fuelsim contact pressure is missing" % arguments.case_name)
         contact_metrics.add(actual, reference)
         contact_maxima[0] = max(contact_maxima[0], abs(actual))
         contact_maxima[1] = max(contact_maxima[1], abs(reference))
@@ -282,7 +292,7 @@ def main():
 
     point_rows = read_csv(arguments.abaqus_clad_points)
     if len(point_rows) != 512 * 27:
-        raise RuntimeError("B5.48 clad integration-point result count differs")
+        raise RuntimeError("%s clad integration-point result count differs" % arguments.case_name)
     reference_by_element = {}
     for row in point_rows:
         reference_by_element.setdefault(int(row["element"]), []).append(row)
@@ -317,7 +327,7 @@ def main():
                 unused_actual.remove(actual_point)
                 unused_reference.remove(reference_point)
         if unused_actual or unused_reference:
-            raise RuntimeError("B5.48 integration-point coordinate matching failed")
+            raise RuntimeError("%s integration-point coordinate matching failed" % arguments.case_name)
         for actual_point, reference_point, distance in pairs:
             maximum_point_coordinate_difference = max(maximum_point_coordinate_difference, distance)
             sorted_distances = np.sort(distances[actual_point])
@@ -351,14 +361,17 @@ def main():
         writer = csv.DictWriter(output, fieldnames=fieldnames, delimiter="\t", lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
-    print("b548_axis_transverse_analytic_zero_maximum_absolute=%.12e" % axis_transverse_maximum)
-    print("b548_abaqus_integrated_contact_area=%.12e" % abaqus_contact_area)
-    print("b548_integration_point_maximum_coordinate_difference=%.12e" % maximum_point_coordinate_difference)
-    print("b548_integration_point_minimum_second_to_first_distance_ratio=%.12e" % minimum_second_to_first_distance_ratio)
+    print("%s_axis_transverse_analytic_zero_maximum_absolute=%.12e" % (output_prefix, axis_transverse_maximum))
+    print("%s_abaqus_integrated_contact_area=%.12e" % (output_prefix, abaqus_contact_area))
+    print("%s_integration_point_maximum_coordinate_difference=%.12e" %
+          (output_prefix, maximum_point_coordinate_difference))
+    print("%s_integration_point_minimum_second_to_first_distance_ratio=%.12e" %
+          (output_prefix, minimum_second_to_first_distance_ratio))
     for row in rows:
         print(
-            "b548_%s relative_l2=%.6g%% relative_peak=%.6g%% pointwise=%.6g%% max_abs=%.12e zeros=%d"
+            "%s_%s relative_l2=%.6g%% relative_peak=%.6g%% pointwise=%.6g%% max_abs=%.12e zeros=%d"
             % (
+                output_prefix,
                 row["field"],
                 row["relative_l2_percent"],
                 row["relative_absolute_peak_percent"],

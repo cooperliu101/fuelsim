@@ -1461,44 +1461,103 @@ void SpatialAssembly::averaged_constraint_dofs(
 }
 
 std::size_t SpatialAssembly::averaged_sparsity_contribution_count() const noexcept {
-    std::size_t result = 0;
-    for (auto constraint = _abaqus_averaged_constraints.begin(); constraint != _abaqus_averaged_constraints.end();
-        ++constraint) {
-        if (!constraint->finite_sliding) {
-            ++result;
-            continue;
+    if (!_uses_hex20) {
+        std::size_t result = 0;
+        for (auto constraint = _abaqus_averaged_constraints.begin(); constraint != _abaqus_averaged_constraints.end();
+            ++constraint) {
+            if (!constraint->finite_sliding) {
+                ++result;
+                continue;
+            }
+            const bool first_for_contact = std::none_of(_abaqus_averaged_constraints.begin(), constraint,
+                [constraint](const AbaqusAveragedConstraint& previous) {
+                    return previous.finite_sliding && previous.contact == constraint->contact;
+                });
+            if (first_for_contact) ++result;
         }
-        const bool first_for_contact = std::none_of(
-            _abaqus_averaged_constraints.begin(), constraint, [constraint](const AbaqusAveragedConstraint& previous) {
-                return previous.finite_sliding && previous.contact == constraint->contact;
-            });
-        if (first_for_contact) ++result;
+        return result;
     }
+    std::size_t result = _abaqus_averaged_constraints.size();
+    for (auto constraint = _abaqus_averaged_constraints.begin(); constraint != _abaqus_averaged_constraints.end();
+        ++constraint)
+        if (constraint->finite_sliding && std::none_of(_abaqus_averaged_constraints.begin(), constraint,
+                                              [constraint](const AbaqusAveragedConstraint& previous) {
+                                                  return previous.finite_sliding &&
+                                                         previous.contact == constraint->contact;
+                                              }))
+            ++result;
     return result;
 }
 
 void SpatialAssembly::averaged_sparsity_contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const {
+    if (!_uses_hex20) {
+        for (auto constraint = _abaqus_averaged_constraints.begin(); constraint != _abaqus_averaged_constraints.end();
+            ++constraint) {
+            const bool first_for_contact =
+                !constraint->finite_sliding ||
+                std::none_of(_abaqus_averaged_constraints.begin(), constraint,
+                    [constraint](const AbaqusAveragedConstraint& previous) {
+                        return previous.finite_sliding && previous.contact == constraint->contact;
+                    });
+            if (!first_for_contact) continue;
+            if (index != 0) {
+                --index;
+                continue;
+            }
+            std::vector<std::size_t> nodes;
+            if (constraint->finite_sliding) {
+                for (const AbaqusAveragedConstraint& candidate : _abaqus_averaged_constraints)
+                    if (candidate.finite_sliding && candidate.contact == constraint->contact)
+                        nodes.insert(nodes.end(), candidate.nodes.begin(), candidate.nodes.end());
+            } else {
+                nodes = constraint->nodes;
+            }
+            std::sort(nodes.begin(), nodes.end());
+            nodes.erase(std::unique(nodes.begin(), nodes.end()), nodes.end());
+            dofs.clear();
+            dofs.reserve(3 * nodes.size());
+            for (const Field field : {Field::displacement_x, Field::displacement_y, Field::displacement_z})
+                for (const std::size_t node : nodes) dofs.push_back(dof(field, node));
+            return;
+        }
+        throw std::out_of_range("Three-dimensional averaged-contact sparsity index is out of range");
+    }
     for (auto constraint = _abaqus_averaged_constraints.begin(); constraint != _abaqus_averaged_constraints.end();
         ++constraint) {
+        std::vector<std::size_t> nodes;
+        if (constraint->finite_sliding) {
+            for (const AbaqusAveragedConstraint::FiniteSlidingSample& sample : constraint->finite_sliding_samples) {
+                const Hex20SecondaryContactFace& secondary =
+                    _hex20_secondary_contact_faces.at(constraint->contact).at(sample.secondary_face);
+                nodes.insert(nodes.end(), secondary.displacement_nodes.begin(), secondary.displacement_nodes.end());
+            }
+        } else {
+            nodes = constraint->nodes;
+        }
+        if (index == 0) {
+            std::sort(nodes.begin(), nodes.end());
+            nodes.erase(std::unique(nodes.begin(), nodes.end()), nodes.end());
+            dofs.clear();
+            dofs.reserve(3 * nodes.size());
+            for (const Field field : {Field::displacement_x, Field::displacement_y, Field::displacement_z})
+                for (const std::size_t node : nodes) dofs.push_back(dof(field, node));
+            return;
+        }
+        --index;
         const bool first_for_contact =
-            !constraint->finite_sliding ||
-            std::none_of(_abaqus_averaged_constraints.begin(), constraint,
-                [constraint](const AbaqusAveragedConstraint& previous) {
-                    return previous.finite_sliding && previous.contact == constraint->contact;
-                });
+            constraint->finite_sliding && std::none_of(_abaqus_averaged_constraints.begin(), constraint,
+                                              [constraint](const AbaqusAveragedConstraint& previous) {
+                                                  return previous.finite_sliding &&
+                                                         previous.contact == constraint->contact;
+                                              });
         if (!first_for_contact) continue;
         if (index != 0) {
             --index;
             continue;
         }
-        std::vector<std::size_t> nodes;
-        if (constraint->finite_sliding) {
-            for (const AbaqusAveragedConstraint& candidate : _abaqus_averaged_constraints)
-                if (candidate.finite_sliding && candidate.contact == constraint->contact)
-                    nodes.insert(nodes.end(), candidate.nodes.begin(), candidate.nodes.end());
-        } else {
-            nodes = constraint->nodes;
-        }
+        nodes.clear();
+        for (const Hex20PrimaryContactFace& primary : _hex20_primary_contact_faces.at(constraint->contact))
+            nodes.insert(nodes.end(), primary.displacement_nodes.begin(), primary.displacement_nodes.end());
         std::sort(nodes.begin(), nodes.end());
         nodes.erase(std::unique(nodes.begin(), nodes.end()), nodes.end());
         dofs.clear();
@@ -1507,7 +1566,7 @@ void SpatialAssembly::averaged_sparsity_contribution_dofs(std::size_t index, std
             for (const std::size_t node : nodes) dofs.push_back(dof(field, node));
         return;
     }
-    throw std::out_of_range("Three-dimensional averaged-contact sparsity index is out of range");
+    throw std::out_of_range("HEX20 averaged-contact sparsity index is out of range");
 }
 
 SpatialAssembly::AbaqusAveragedConstraintValue SpatialAssembly::averaged_constraint_value(
@@ -2332,6 +2391,7 @@ void SpatialAssembly::refresh_hex20_finite_averaged_constraints(const std::vecto
     const Matrix8& averaging = abaqus_quad8_averaging();
     for (AbaqusAveragedConstraint& constraint : _abaqus_averaged_constraints) {
         if (!constraint.finite_sliding) continue;
+        std::vector<std::size_t> required_nodes;
         std::fill(constraint.gap_coefficients.begin(), constraint.gap_coefficients.end(), 0.0);
         std::fill(constraint.secondary_coefficients.begin(), constraint.secondary_coefficients.end(), 0.0);
         constraint.normal = {};
@@ -2343,6 +2403,8 @@ void SpatialAssembly::refresh_hex20_finite_averaged_constraints(const std::vecto
             sample.primary_faces.clear();
             const Hex20SecondaryContactFace& secondary =
                 _hex20_secondary_contact_faces.at(constraint.contact).at(sample.secondary_face);
+            required_nodes.insert(
+                required_nodes.end(), secondary.displacement_nodes.begin(), secondary.displacement_nodes.end());
             const Quad8FaceCoordinates secondary_current =
                 current_face(secondary.displacement_nodes, secondary.coordinates);
             const Quad8FaceGeometry current_geometry = make_quad8_face_geometry(secondary_current);
@@ -2449,6 +2511,8 @@ void SpatialAssembly::refresh_hex20_finite_averaged_constraints(const std::vecto
                     sample.primary_faces.push_back(selected);
                 primary_face_weight[selected] += local_area * transfer.weight;
                 const Hex20PrimaryContactFace& primary = primary_faces[selected];
+                required_nodes.insert(
+                    required_nodes.end(), primary.displacement_nodes.begin(), primary.displacement_nodes.end());
                 for (std::size_t local_node = 0; local_node < 8; ++local_node) {
                     const auto node = std::find(
                         constraint.nodes.begin(), constraint.nodes.end(), primary.displacement_nodes[local_node]);
@@ -2491,6 +2555,17 @@ void SpatialAssembly::refresh_hex20_finite_averaged_constraints(const std::vecto
             separation.z += constraint.gap_coefficients[node] * constraint.reference_coordinates[node].z;
         }
         constraint.reference_gap = dot(separation, constraint.normal);
+        std::sort(required_nodes.begin(), required_nodes.end());
+        required_nodes.erase(std::unique(required_nodes.begin(), required_nodes.end()), required_nodes.end());
+        constraint.active_nodes.clear();
+        constraint.active_node_indices.clear();
+        for (std::size_t stored = 0; stored < constraint.nodes.size(); ++stored)
+            if (std::binary_search(required_nodes.begin(), required_nodes.end(), constraint.nodes[stored])) {
+                constraint.active_nodes.push_back(constraint.nodes[stored]);
+                constraint.active_node_indices.push_back(stored);
+            }
+        if (constraint.active_nodes.empty())
+            throw std::logic_error("HEX20 finite-sliding averaged constraint has no active nodes");
     }
 }
 
@@ -3957,7 +4032,7 @@ void SpatialAssembly::build_hex20_contacts(const UnstructuredHex20Mesh& source_m
                             secondary_face_index, secondary_local_node, std::numeric_limits<std::size_t>::max()});
                 }
         }
-        if (definition.mechanical && surface_to_surface) {
+        if (definition.mechanical && surface_to_surface && !finite_averaged) {
             constexpr std::array<double, 3> points = {-0.7745966692414834, 0.0, 0.7745966692414834};
             constexpr std::array<double, 3> weights = {5.0 / 9.0, 8.0 / 9.0, 5.0 / 9.0};
 
@@ -4118,6 +4193,31 @@ void SpatialAssembly::build_hex20_contacts(const UnstructuredHex20Mesh& source_m
                     }
                     return selected;
                 };
+                std::size_t representative_primary = std::numeric_limits<std::size_t>::max();
+                if (finite_averaged) {
+                    const Quad8FaceMechanicalQuadraturePoint face_center =
+                        make_quad8_face_mechanical_point(face.coordinates, 0.0, 0.0, 1.0);
+                    double representative_distance = std::numeric_limits<double>::infinity();
+                    for (std::size_t primary_index = 0; primary_index < primary_faces.size(); ++primary_index) {
+                        const Hex20PrimaryContactFace& primary_face = primary_faces[primary_index];
+                        const Quad8ReferenceProjectionValue reference = compute_quad8_reference_projection(
+                            face.coordinates, primary_face.coordinates, face_center.displacement_shape,
+                            normal_orientation(
+                                primary_face.coordinates, face.parent_centroid, primary_face.parent_centroid));
+                        if (!reference.projected) continue;
+                        const double distance = std::abs(reference.gap);
+                        if (distance < representative_distance ||
+                            (distance == representative_distance && primary_index < representative_primary)) {
+                            representative_distance = distance;
+                            representative_primary = primary_index;
+                        }
+                    }
+                } else {
+                    representative_primary = face.contact_primary_faces.at(face.contact_primary_faces.size() / 2);
+                }
+                if (representative_primary == std::numeric_limits<std::size_t>::max())
+                    throw std::invalid_argument("HEX20 averaged surface contact '" + definition.name +
+                                                "' has an unprojected reference face center");
                 double face_area = 0.0;
                 for (const Quad8FaceMechanicalQuadraturePoint& point : face.geometry.mechanical_points)
                     face_area += point.quadrature_weight * reference_measure(point);
@@ -4149,8 +4249,7 @@ void SpatialAssembly::build_hex20_contacts(const UnstructuredHex20Mesh& source_m
                     const Quad8FaceMechanicalQuadraturePoint constraint_point =
                         make_quad8_face_mechanical_point(face.coordinates, location[0], location[1], 1.0);
                     CartesianPoint3 face_normal = cross(constraint_point.tangent_xi, constraint_point.tangent_eta);
-                    const std::size_t primary_index =
-                        face.contact_primary_faces.at(face.contact_primary_faces.size() / 2);
+                    const std::size_t primary_index = representative_primary;
                     const CartesianPoint3 direction =
                         subtract(primary_faces[primary_index].parent_centroid, face.parent_centroid);
                     double orientation = 1.0;
