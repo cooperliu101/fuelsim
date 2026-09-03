@@ -1,7 +1,7 @@
 field	relative_l2_percent	relative_absolute_peak_percent	maximum_pointwise_relative_percent	maximum_absolute_difference	zero_reference_count	maximum_zero_reference_absolute_difference
-temperature	2.75695653e-09	1.51842577e-08	1.62750647e-08	1.06289804e-07 K	0	0 K
-displacement_x	1.1707537e-05	8.86100495e-06	100	7.83737246e-13 m	0	0 m
-displacement_y	1.27683487e-05	1.9474928e-05	16749.9872	4.35902122e-13 m	0	0 m
-displacement_z	4.27444782e-06	4.61288664e-06	100	2.48778456e-12 m	0	0 m
-free_right_edge_bending_range	-	-	-	5.56211706e-14 m difference	-	-
-external_wall_time	-	-	-	Fuelsim 2.82 s; Abaqus 3.331169 s median	-	Fuelsim/Abaqus 0.846550
+temperature	8.18671986e-09	3.78250239e-08	4.05740888e-08	2.64775167e-07 K	0	0 K
+displacement_x	1.10352172e-05	1.41578049e-05	100	1.17253138e-11 m	0	0 m
+displacement_y	3.85823673e-05	4.97101905e-05	18029.2822	6.61635022e-12 m	0	0 m
+displacement_z	1.21798855e-05	1.29764939e-05	100	8.27022438e-11 m	0	0 m
+free_right_edge_bending_range	-	-	-	Fuelsim 9.81753725e-06 m; Abaqus 9.81753092e-06 m; difference 6.32880879e-12 m	-	-
+external_wall_time	-	-	-	Fuelsim 2.83 s median; Abaqus 3.378766 s median	-	Fuelsim/Abaqus 0.837584

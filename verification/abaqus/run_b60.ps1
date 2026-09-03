@@ -10,8 +10,8 @@ $Work = Join-Path $env:TEMP ("fuelsim_b60_" + (Get-Date -Format "yyyyMMdd_HHmmss
 New-Item -ItemType Directory -Path $Work | Out-Null
 foreach ($InputFile in @(
     "b60_fuel_plate_c3d8rt_bending.inp",
-    "b60_b36_plate_mesh_c3d8rt.inc",
-    "b60_b36_plate_mesh_c3d8rt.json",
+    "b60_long_plate_meat_clad_c3d8rt.inc",
+    "b60_long_plate_meat_clad_c3d8rt.json",
     "extract_b60.py"
 )) {
     Copy-Item (Join-Path $SourceDirectory $InputFile) $Work
@@ -58,7 +58,7 @@ if (Test-Path "$JobName.dat") {
 $Timing | Set-Content -Encoding ASCII "${JobName}_timing.txt"
 
 & "C:\SIMULIA\Commands\abaqus.bat" python extract_b60.py `
-    "$JobName.odb" "b60_b36_plate_mesh_c3d8rt.json" "${JobName}_nodal.csv"
+    "$JobName.odb" "b60_long_plate_meat_clad_c3d8rt.json" "${JobName}_nodal.csv"
 if ($LASTEXITCODE -ne 0) {
     throw "Abaqus B6.0 extraction failed with exit code $LASTEXITCODE"
 }

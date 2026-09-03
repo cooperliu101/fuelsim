@@ -34,6 +34,7 @@ files.
 | B3 HEX8 thermoelasticity | `b3_hex8_mesh.e` | 12 / 2 HEX8 | `910088a0aad60aa2ab02f00c3b8cf384bc2a2a2377f41c3db7e554d5ca9481f2` |
 | B3.5 shared meat-cladding HEX8 | `b35_hex8_shared_meat_clad_mesh.e` | 12 / 2 HEX8 | `fb654f61edd322846a19c6227c9060fb879bf57ba35c02ece57558fadf5dd236` |
 | B3.6 shared-node fuel plate | `b36_plate_meat_clad_mesh.e` | 455 / 288 HEX8 | `fc65a9a839bfde4625d3f28411335a89fa0123c3e91eac50ad72aac27202077c` |
+| B6.0 long fuel plate | `b60_long_plate_meat_clad_mesh.e` | 455 / 288 HEX8 | `0bc6b88d1e8e98fadbc526afefc47da5879e60a54d979c63b61e92e026d66c4b` |
 | B3.3 HEX8 coupled contact | `b33_hex8_contact_mesh.e` | 16 / 2 HEX8 | `e710f3add10b71478f786521af44cde8ff3fb81d4becf1fbab1266955ba43cf7` |
 | B3.4 shared HEX8 mesh fixture | `b34_hex8_sliding_contact_mesh.e` | 16 / 2 HEX8 | `d9ec3f16dd1c836f88e4cdf21195b47cb8766e34e97415cd84fb94b1ea48e2f6` |
 | B3.7 HEX8 nonmatching two-pair friction | `b37_hex8_multi_contact_mesh.e` | 40 / 6 HEX8 | `c2d1610df6f29148fdc373df5e1e257c7a432ac2114fd9b27c283965685da5b3` |

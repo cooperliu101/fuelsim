@@ -6,7 +6,7 @@
 
 [Mesh]
   type = exodus
-  file = ../moose/b36_plate_meat_clad_mesh.e
+  file = ../moose/b60_long_plate_meat_clad_mesh.e
 []
 
 [Materials]
@@ -25,7 +25,7 @@
     [eigenstrains]
       [thermal_expansion]
         function = isotropic_thermal_expansion
-        thermal_expansion = 1e-5
+        thermal_expansion = 1e-4
         reference_temperature = 600
       []
     []

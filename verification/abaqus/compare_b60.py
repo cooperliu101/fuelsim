@@ -76,15 +76,16 @@ for field in ("temperature", "displacement_x", "displacement_y", "displacement_z
     reference = [float(abaqus[node][field]) for node in sorted(abaqus)]
     metrics(field, actual, reference)
 
-right = [node for node in sorted(fuelsim) if abs(float(fuelsim[node]["x"]) - 0.012) < 1.0e-12]
+right_x = max(float(fuelsim[node]["x"]) for node in fuelsim)
+right = [node for node in sorted(fuelsim) if abs(float(fuelsim[node]["x"]) - right_x) < 1.0e-12]
 fuelsim_tip = max(float(fuelsim[node]["displacement_z"]) for node in right) - min(
     float(fuelsim[node]["displacement_z"]) for node in right
 )
 abaqus_tip = max(float(abaqus[node]["displacement_z"]) for node in right) - min(
     float(abaqus[node]["displacement_z"]) for node in right
 )
-print("free-right-edge bending range: Fuelsim=%.12g m Abaqus=%.12g m absolute difference=%.12g m" %
-      (fuelsim_tip, abaqus_tip, abs(fuelsim_tip - abaqus_tip)))
+print("free-right-edge bending range (x=%.12g m): Fuelsim=%.12g m Abaqus=%.12g m absolute difference=%.12g m" %
+      (right_x, fuelsim_tip, abaqus_tip, abs(fuelsim_tip - abaqus_tip)))
 
 fuelsim_time = timing(args.fuelsim_timing)
 abaqus_time = timing(args.abaqus_timing)

@@ -3,12 +3,12 @@
 ** The central MEAT block is enclosed by CLAD on the tracked B3.6 plate mesh.
 ** Prescribed unequal front/back temperatures produce a through-thickness thermal gradient and bending.
 *Preprint, echo=NO, model=NO, history=NO, contact=NO
-*Include, input=b60_b36_plate_mesh_c3d8rt.inc
+*Include, input=b60_long_plate_meat_clad_c3d8rt.inc
 *Material, name=FUEL
 *Elastic
 2.0e11, 0.30
 *Expansion, zero=600.
-1.0e-5
+1.0e-4
 *Conductivity
 3.0
 *Density
