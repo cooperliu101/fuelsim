@@ -94,7 +94,7 @@
     type = dirichlet
     boundary = plate_front
     field = temperature
-    value = 650
+    value = 700
   []
   [back_temperature]
     type = dirichlet

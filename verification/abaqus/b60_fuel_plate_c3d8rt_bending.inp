@@ -40,7 +40,7 @@ N_PLATE_LEFT, 1, 3, 0.
 *DFLUX
 MEAT, BF, 2.0e8
 *Boundary
-N_PLATE_FRONT, 11, 11, 650.
+N_PLATE_FRONT, 11, 11, 700.
 N_PLATE_BACK, 11, 11, 600.
 *Output, field, frequency=1
 *Node Output

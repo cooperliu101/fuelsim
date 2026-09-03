@@ -2782,8 +2782,8 @@ coverage of the curved node-centered friction Jacobian and external-field path.
 
 The B6.0 deck uses the tracked B3.6 Exodus mesh converted to C3D8RT: 80 central
 fuel elements are enclosed by 208 cladding elements. A constant fuel heat source
-of `2e8 W/m^3` and prescribed front/back temperatures (`650` and `600 K`) create
-a through-thickness thermal gradient. The left face is clamped in all
+of `2e8 W/m^3` and prescribed front/back temperatures (`700` and `600 K`) create
+a stronger through-thickness thermal gradient. The left face is clamped in all
 displacement components, so the free right edge bends.
 
 Run the deck on Abaqus R2018x with one process from the repository directory:
@@ -2798,12 +2798,12 @@ available, and final nodal `NT11`/`U` values. Use
 `verification/abaqus/compare_b60.py` with the Fuelsim benchmark CSV and timing
 file to print all three field-error metrics, maximum absolute differences,
 zero-reference diagnostics, the free-edge bending range, and the external speed
-ratio. The recorded one-CPU Abaqus wall time is `3.334000 s` (other runs
-`3.340088 s` and `3.358216 s`); the Fuelsim median external time is `2.06 s`,
-giving a median Fuelsim/Abaqus ratio of `0.617`. Relative L2 errors against the final Abaqus
-nodal fields are `1.28e-8%` (temperature), `1.16e-5%` (displacement-x),
-`1.26e-5%` (displacement-y), and `4.27e-6%` (displacement-z). The corresponding
-relative absolute-peak errors are `7.53e-8%`, `8.82e-6%`, `1.93e-5%`, and
-`4.62e-6%`; the bending-range absolute difference is `2.65e-14 m`.
+ratio. The recorded one-CPU Abaqus wall time is `3.331169 s` (other runs
+`3.299745 s` and `3.434263 s`); the Fuelsim median external time is `2.82 s`,
+giving a median Fuelsim/Abaqus ratio of `0.847`. Relative L2 errors against the final Abaqus
+nodal fields are `2.76e-9%` (temperature), `1.17e-5%` (displacement-x),
+`1.28e-5%` (displacement-y), and `4.27e-6%` (displacement-z). The corresponding
+relative absolute-peak errors are `1.52e-8%`, `8.86e-6%`, `1.95e-5%`, and
+`4.61e-6%`; the bending-range absolute difference is `5.56e-14 m`.
 The same numeric summary is retained in
 `verification/abaqus/b60_fuel_plate_c3d8rt_bending_comparison.tsv`.
