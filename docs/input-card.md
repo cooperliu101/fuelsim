@@ -582,12 +582,20 @@ secondary 侧切向合力；轴对称为有符号标量，三维为合力向量�
   cutback_factor = 0.5
   maximum_cutbacks = 12
   minimum_load_increment = 1e-6
+  use_small_strain_predictor = false
 []
 ```
 
-后三项可省略并使用上示默认值。名义载荷步失败时，执行器缩小从最近成功载荷
+`cutback_factor`、`maximum_cutbacks` 和 `minimum_load_increment` 可省略并使用
+上示默认值。名义载荷步失败时，执行器缩小从最近成功载荷
 到目标载荷的增量；成功的中间状态成为下一次尝试的初值。最小载荷增量会实际
 尝试一次后才报告失败。
+
+`use_small_strain_predictor` 默认为 `false`。设为 `true` 时，只允许一个稳态载荷
+步、至少一个有限应变区域且不能含接触。求解器先在完整载荷下求一次小应变
+热弹性平衡，再把该节点场作为原有限应变方程的初值。两阶段复用同一个 PETSc
+稀疏矩阵和求解器工作区；预测阶段不提交或累计材料历史，也不改变最终有限应变
+残量。该选项适合强弯曲稳态弹性问题，不表示小应变解本身是最终解。
 
 瞬态执行器为：
 
@@ -700,7 +708,10 @@ L2 差最大值大于 1 时完整回滚并缩步，成功时采用两个半步�
 - `residual_reduction_tolerance`，默认 `1e-6`，用于总残量和分场残量复核；
 - `temperature_residual_absolute_tolerance`，默认 `1e-8 W`；
 - `mechanical_residual_absolute_tolerance`，默认 `1e-4 N`，同时用于径向和轴向；
-- `field_residual_scaling`，默认 `false`，可选启用热/力分组的自动行缩放。
+- `field_residual_scaling`，默认 `false`，可选启用热/力分组的自动行缩放；
+- `field_residual_convergence`，默认 `false`；设为 `true` 时，PETSc 在每次非线性
+  迭代后使用与最终残量复核相同的逐场物理绝对、相对降低和数值噪声门槛判断
+  收敛，避免方程已经达到用户指定的物理平衡精度后仍按更严的混合总范数迭代；
 - `temperature_residual_scale` 与 `mechanical_residual_scale`，默认均为 `0`；
   成对设为正数时作为跨求解固定的物理残量特征尺度，与自动行缩放互斥。
 
@@ -718,6 +729,9 @@ PETSc `-snes_linesearch_type` 仍可覆盖具体类型；输入卡可关闭自�
 但其初始残量尺度随载荷步改变，默认验证路径只启用分场诊断和复核。
 两个分场绝对门槛具有明确物理单位；极小载荷或不同量级模型应在输入卡中按
 所需平衡精度显式收紧或放宽，不能用混合单位的总残量容差替代。
+启用 `field_residual_convergence` 只把这套既有最终复核前移到每次迭代；默认
+关闭，因此不会改变其他算例的停止位置。物理绝对门槛过松会降低解精度，必须
+结合外部对标或网格与时间步收敛研究确定，不能仅为减少迭代而放宽。
 PETSc 若以 `MAX_IT`、`LINE_SEARCH` 或 `LOCAL_MIN` 等负原因停止，fuelsim 只在
 重新计算的总残量和三个分场残量都通过同一套复核时才接受该状态；原始负原因
 仍保留在诊断中。输出同时报告本次和全程 KSP 迭代数。

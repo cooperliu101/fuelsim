@@ -208,6 +208,9 @@ struct SolverContext final {
     std::vector<bool> constrained;
     bool field_residual_scaling = true;
     double residual_scaling_floor = 1.0e-8;
+    bool field_residual_convergence = false;
+    double relative_tolerance = 1.0e-10, residual_reduction_tolerance = 1.0e-6,
+           temperature_residual_absolute_tolerance = 1.0e-8, mechanical_residual_absolute_tolerance = 1.0e-4;
     bool first_residual = true, thermal_scaling_initialized = false, mechanics_scaling_initialized = false;
     std::vector<double> initial_field_residual_norms, field_residual_reference_norms;
     std::vector<double> latest_unscaled_field_residual_norms, latest_field_residual_norms;
@@ -669,6 +672,36 @@ PetscErrorCode form_jacobian(SNES snes, Vec state, Mat jacobian, Mat preconditio
     PetscCall(assemble_callback(snes, state, nullptr, jacobian, raw_context));
     PetscFunctionReturn(PETSC_SUCCESS);
 }
+
+PetscErrorCode field_residual_convergence_test(SNES snes, PetscInt iteration, PetscReal state_norm, PetscReal step_norm,
+    PetscReal residual_norm, SNESConvergedReason* reason, void* raw_context) {
+    PetscFunctionBeginUser;
+    PetscCall(SNESConvergedDefault(snes, iteration, state_norm, step_norm, residual_norm, reason, nullptr));
+    if (*reason != SNES_CONVERGED_ITERATING) PetscFunctionReturn(PETSC_SUCCESS);
+    const SolverContext& context = *static_cast<const SolverContext*>(raw_context);
+    if (!context.field_residual_convergence || context.last_function_domain_error || iteration == 0)
+        PetscFunctionReturn(PETSC_SUCCESS);
+    constexpr double numerical_residual_floor = 10.0 * std::sqrt(std::numeric_limits<double>::epsilon());
+    bool converged = true;
+    for (std::size_t field = 0; field < context.latest_field_residual_norms.size(); ++field) {
+        const double initial_scaled =
+            context.initial_field_residual_norms[field] * context.field_residual_scalings[field];
+        const double reference = std::max(initial_scaled, context.field_residual_reference_norms[field]);
+        const double physical_tolerance = context.problem->field_layout()[field].category == FieldCategory::thermal
+                                              ? context.temperature_residual_absolute_tolerance
+                                              : context.mechanical_residual_absolute_tolerance;
+        const double configured_threshold = std::max(
+            physical_tolerance * context.field_residual_scalings[field], context.relative_tolerance * reference);
+        const double independent_threshold =
+            std::max(numerical_residual_floor, context.residual_reduction_tolerance * reference);
+        const double threshold = std::max(configured_threshold, independent_threshold) *
+                                 (1.0 + 64.0 * std::numeric_limits<double>::epsilon());
+        converged = std::isfinite(context.latest_field_residual_norms[field]) &&
+                    context.latest_field_residual_norms[field] <= threshold && converged;
+    }
+    if (converged) *reason = SNES_CONVERGED_FNORM_ABS;
+    PetscFunctionReturn(PETSC_SUCCESS);
+}
 } // namespace
 
 class PetscSolver::Implementation final {
@@ -972,6 +1005,11 @@ SolveResult PetscSolver::solve_once(
     context.initial_residual_norm = std::numeric_limits<double>::quiet_NaN();
     context.field_residual_scaling = residual_scaling;
     context.residual_scaling_floor = options.absolute_tolerance;
+    context.field_residual_convergence = options.field_residual_convergence;
+    context.relative_tolerance = options.relative_tolerance;
+    context.residual_reduction_tolerance = options.residual_reduction_tolerance;
+    context.temperature_residual_absolute_tolerance = options.temperature_residual_absolute_tolerance;
+    context.mechanical_residual_absolute_tolerance = options.mechanical_residual_absolute_tolerance;
     context.first_residual = true;
     context.thermal_scaling_initialized = fixed_temperature_scale;
     context.mechanics_scaling_initialized = fixed_mechanical_scale;
@@ -1011,6 +1049,10 @@ SolveResult PetscSolver::solve_once(
         "SNESLineSearchSetType");
     configure_linear_solver(objects, problem, options, PetscGlobalSize, context);
     check_petsc(SNESSetFromOptions(objects.snes), "SNESSetFromOptions");
+    check_petsc(SNESSetConvergenceTest(objects.snes,
+                    options.field_residual_convergence ? field_residual_convergence_test : SNESConvergedDefault,
+                    options.field_residual_convergence ? static_cast<void*>(&context) : nullptr, nullptr),
+        "SNESSetConvergenceTest");
     const MemorySnapshot setup_memory = memory_snapshot();
     context.timing.setup_resident_bytes = static_cast<std::size_t>(setup_memory.resident_bytes);
     context.timing.maximum_peak_resident_bytes = std::max(

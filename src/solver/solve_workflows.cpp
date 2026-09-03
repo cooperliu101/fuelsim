@@ -14,6 +14,13 @@ using SteadyClock = solver_detail::Clock;
 using solver_detail::accumulate_timing;
 using solver_detail::seconds_since;
 
+class SteadyWorkflowAccess final {
+  public:
+    static void set_small_strain_predictor_active(SteadyProblem& problem, bool active) {
+        problem.set_small_strain_predictor_active(active);
+    }
+};
+
 namespace solver_workflow {
 namespace {
 void merge_attempt(SolveResult& aggregate, const SolveResult& addition) {
@@ -91,11 +98,13 @@ SolveResult solve_contact_equilibrium(PetscSolver& solver, NonlinearProblem& pro
 using solver_workflow::initial_guess_with_dirichlet_values;
 using solver_workflow::solve_contact_equilibrium;
 
-SteadyResult solve_steady(SteadyProblem& problem, const SteadyLoadOptions& load_options, const SolverOptions& options) {
+namespace {
+SteadyResult solve_steady_from_state(PetscSolver& solver, SteadyProblem& problem, const SteadyLoadOptions& load_options,
+    const SolverOptions& options, std::vector<double> state) {
     const SteadyClock::time_point start = SteadyClock::now();
     SteadyResult result;
-    PetscSolver solver;
-    std::vector<double> state = problem.initial_state();
+    if (state.size() != problem.dof_count())
+        throw std::invalid_argument("steady initial state size does not match the problem");
     double accepted_load_factor = 0.0;
     for (std::size_t step = 1; step <= load_options.load_steps; ++step) {
         const double target_load_factor = static_cast<double>(step) / static_cast<double>(load_options.load_steps);
@@ -156,6 +165,44 @@ SteadyResult solve_steady(SteadyProblem& problem, const SteadyLoadOptions& load_
     result.completed = true;
     result.total_seconds = seconds_since(start);
     return result;
+}
+
+SteadyResult solve_steady_with_small_strain_predictor(
+    SteadyProblem& problem, const SteadyLoadOptions& load_options, const SolverOptions& options) {
+    if (load_options.load_steps != 1U)
+        throw std::invalid_argument("small-strain steady predictor requires exactly one finite-strain load step");
+    SteadyLoadOptions predictor_options = load_options;
+    predictor_options.use_small_strain_predictor = false;
+    PetscSolver solver;
+    SteadyWorkflowAccess::set_small_strain_predictor_active(problem, true);
+    SteadyResult predictor;
+    try {
+        predictor = solve_steady_from_state(solver, problem, predictor_options, options, problem.initial_state());
+    } catch (...) {
+        SteadyWorkflowAccess::set_small_strain_predictor_active(problem, false);
+        throw;
+    }
+    SteadyWorkflowAccess::set_small_strain_predictor_active(problem, false);
+    if (!predictor.completed || !predictor.solve.converged)
+        throw std::runtime_error("small-strain steady predictor did not converge: " + predictor.solve.failure_message);
+    SteadyResult result = solve_steady_from_state(solver, problem, load_options, options, predictor.solve.state);
+    result.used_small_strain_predictor = true;
+    result.predictor_nonlinear_iterations = predictor.total_nonlinear_iterations;
+    result.predictor_linear_iterations = predictor.total_linear_iterations;
+    result.predictor_timing = predictor.aggregate_timing;
+    result.total_nonlinear_iterations += predictor.total_nonlinear_iterations;
+    result.total_linear_iterations += predictor.total_linear_iterations;
+    accumulate_timing(result.aggregate_timing, predictor.aggregate_timing);
+    result.total_seconds += predictor.total_seconds;
+    return result;
+}
+} // namespace
+
+SteadyResult solve_steady(SteadyProblem& problem, const SteadyLoadOptions& load_options, const SolverOptions& options) {
+    if (load_options.use_small_strain_predictor)
+        return solve_steady_with_small_strain_predictor(problem, load_options, options);
+    PetscSolver solver;
+    return solve_steady_from_state(solver, problem, load_options, options, problem.initial_state());
 }
 
 double step_factor(const TransientTimeOptions& options, double error) {

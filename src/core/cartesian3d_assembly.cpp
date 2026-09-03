@@ -817,6 +817,11 @@ void SpatialAssembly::set_heat_source_interval(double begin_time, double end_tim
         _kernel_data[region].volumetric_heat_source = region_heat_source_average(region, begin_time, end_time);
 }
 
+void SpatialAssembly::set_region_strain_formulation(std::size_t region, StrainFormulation formulation) {
+    spatial_detail::SpatialLayout::set_region_strain_formulation(region, formulation);
+    _kernel_data.at(region).strain_formulation = formulation;
+}
+
 void SpatialAssembly::validate_state(const std::vector<double>& state) const {
     if (state.size() != dof_count())
         throw std::invalid_argument("Three-dimensional state size does not match the problem");

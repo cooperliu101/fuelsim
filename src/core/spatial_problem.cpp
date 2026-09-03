@@ -144,6 +144,43 @@ class SpatialProblemStorage {
 
     bool is_cartesian() const noexcept { return cartesian != nullptr; }
 
+    void initialize_steady_strain_formulations() {
+        _steady_strain_formulations.reserve(layout().region_count());
+        for (std::size_t region = 0; region < layout().region_count(); ++region)
+            _steady_strain_formulations.push_back(layout().region(region).strain_formulation);
+    }
+
+    void set_small_strain_predictor_active(bool active) {
+        if (!_steady_strain_formulations.empty() && active && !layout().definition().contacts.empty())
+            throw std::invalid_argument("small-strain steady predictor does not support contact");
+        const bool has_finite_strain =
+            std::any_of(_steady_strain_formulations.begin(), _steady_strain_formulations.end(),
+                [](StrainFormulation formulation) { return formulation == StrainFormulation::finite; });
+        if (active && !has_finite_strain)
+            throw std::invalid_argument("small-strain steady predictor requires at least one finite-strain region");
+        if (active && _steady_sparsity_patterns.empty()) {
+            _steady_sparsity_patterns.resize(sparsity_contribution_count());
+            for (std::size_t index = 0; index < _steady_sparsity_patterns.size(); ++index) {
+                if (is_cartesian())
+                    cartesian->sparsity_contribution_jacobian_pattern(index, _steady_sparsity_patterns[index]);
+                else {
+                    const LocalDofs dofs = rz->sparsity_contribution_dofs(index);
+                    _steady_sparsity_patterns[index].assign(dofs.size() * dofs.size(), 1U);
+                }
+            }
+        }
+        for (std::size_t region = 0; region < _steady_strain_formulations.size(); ++region) {
+            const StrainFormulation formulation =
+                active ? StrainFormulation::small : _steady_strain_formulations[region];
+            if (is_cartesian())
+                cartesian->set_region_strain_formulation(region, formulation);
+            else {
+                rz->set_region_strain_formulation(region, formulation);
+                kernel_data[region].strain_formulation = formulation;
+            }
+        }
+    }
+
     const spatial_detail::SpatialLayout& layout() const noexcept {
         return is_cartesian() ? static_cast<const spatial_detail::SpatialLayout&>(*cartesian) : *rz;
     }
@@ -249,6 +286,10 @@ class SpatialProblemStorage {
     }
 
     void sparsity_contribution_jacobian_pattern(std::size_t index, std::vector<unsigned char>& pattern) const {
+        if (!_steady_sparsity_patterns.empty()) {
+            pattern = _steady_sparsity_patterns.at(index);
+            return;
+        }
         if (is_cartesian()) return cartesian->sparsity_contribution_jacobian_pattern(index, pattern);
         const LocalDofs dofs = rz->sparsity_contribution_dofs(index);
         pattern.assign(dofs.size() * dofs.size(), 1U);
@@ -267,17 +308,25 @@ class SpatialProblemStorage {
     double committed_time = 0.0, committed_load_factor = 0.0, active_time_step = 0.0, active_end_time = 0.0,
            active_load_factor = 0.0, previous_committed_time = 0.0;
     std::vector<std::vector<ContactPointHistory>> active_contact_histories;
+    std::vector<StrainFormulation> _steady_strain_formulations;
+    std::vector<std::vector<unsigned char>> _steady_sparsity_patterns;
     bool time_step_active = false, include_thermal_time_term = true, track_previous_committed_solution = false;
 };
 
 SteadyProblem::SteadyProblem(SpatialDefinition definition, const UnstructuredQuad4Mesh& source_mesh)
-    : _impl(std::make_unique<SpatialProblemStorage>(std::move(definition), source_mesh)) {}
+    : _impl(std::make_unique<SpatialProblemStorage>(std::move(definition), source_mesh)) {
+    _impl->initialize_steady_strain_formulations();
+}
 
 SteadyProblem::SteadyProblem(SpatialDefinition definition, const UnstructuredHex8Mesh& source_mesh)
-    : _impl(std::make_unique<SpatialProblemStorage>(std::move(definition), source_mesh, false)) {}
+    : _impl(std::make_unique<SpatialProblemStorage>(std::move(definition), source_mesh, false)) {
+    _impl->initialize_steady_strain_formulations();
+}
 
 SteadyProblem::SteadyProblem(SpatialDefinition definition, const UnstructuredHex20Mesh& source_mesh)
-    : _impl(std::make_unique<SpatialProblemStorage>(std::move(definition), source_mesh, false)) {}
+    : _impl(std::make_unique<SpatialProblemStorage>(std::move(definition), source_mesh, false)) {
+    _impl->initialize_steady_strain_formulations();
+}
 
 SteadyProblem::~SteadyProblem() = default;
 
@@ -321,6 +370,8 @@ void SteadyProblem::set_time(double value) {
     for (std::size_t region = 0; region < _impl->rz->region_count(); ++region)
         _impl->kernel_data[region].volumetric_heat_source = _impl->rz->region_heat_source(region);
 }
+
+void SteadyProblem::set_small_strain_predictor_active(bool active) { _impl->set_small_strain_predictor_active(active); }
 
 std::vector<double> SteadyProblem::initial_state() const { return _impl->layout().initial_state(); }
 

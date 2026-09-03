@@ -2868,25 +2868,28 @@ python3 verification/abaqus/compare_b60.py \
   verification/abaqus/b60_fuel_plate_c3d8rt_finite_ramped_bending_nodal.csv \
   --fuelsim-timing /tmp/b60-finite-ramped-timing.tsv \
   --abaqus-timing verification/abaqus/b60_fuel_plate_c3d8rt_finite_ramped_bending_timing.txt \
-  --fuelsim-external-seconds 6.54
+  --fuelsim-external-seconds 5.51
 ```
 
-Temperature passes the three error metrics at `2.32913e-5%`, `0.000116121%`,
-and `0.000124927%`. The free-node complete displacement vector passes at
-`0.00996672%`, `0.0101872%`, and `0.0444445%`; its maximum absolute vector
-difference is `4.64277e-7 m`. The X-, Y-, and Z-component relative L2 errors are
-`0.0493656%`, `0.104850%`, and `0.00992884%`. Componentwise pointwise extrema
+Temperature passes the three error metrics at `2.32915e-5%`, `0.000116123%`,
+and `0.000124929%`. The free-node complete displacement vector passes at
+`0.00996254%`, `0.0101835%`, and `0.0444374%`; its maximum absolute vector
+difference is `4.64109e-7 m`. The X-, Y-, and Z-component relative L2 errors are
+`0.0493539%`, `0.104850%`, and `0.00992465%`. Componentwise pointwise extrema
 are retained as small-reference diagnostics without a denominator floor.
 
 Fuelsim uses MUMPS, one fixed CPU, one thread for every numerical library, a
-linear time predictor, and `predictor_jacobian_lag = 2`; it completes with no
-rejected step, 45 nonlinear iterations, 27 Jacobian evaluations, and one
-workspace setup. Its three external times are `7.81`, `6.54`, and `6.51 s`
-(median `6.54 s`). Abaqus `cpus=1` gives `12.649117`, `7.3038743`, and
-`7.4664226 s` (median `7.4664226 s`). Thus the external ratio is `0.875921`,
-and Fuelsim uses `12.4079%` less wall time. The comparison remains a controlled
+linear time predictor, a fully updated Jacobian, and per-field physical
+residual convergence; it completes with no rejected step, 21 nonlinear
+iterations, 21 Jacobian evaluations, and one workspace setup. Abaqus uses 19
+nonlinear iterations, 19 equation-solver passes, and 19 matrix decompositions.
+Its three external times are `5.49`, `5.51`, and `5.69 s` (median `5.51 s`).
+Abaqus `cpus=1` gives `12.649117`, `7.3038743`, and `7.4664226 s` (median
+`7.4664226 s`). Thus the external ratio is `0.737971`, and Fuelsim uses
+`26.2029%` less wall time. The comparison remains a controlled
 cross-Windows-and-WSL measurement rather than a same-operating-system kernel
-timing.
+timing. The baseline, corrected, and Abaqus solver counts are retained in
+`b60_fuel_plate_c3d8rt_nonlinear_iteration_diagnosis.tsv`.
 
 ### B6.0 steady-state finite-strain thermoelastic path
 
@@ -2898,6 +2901,14 @@ uses one steady load step, and Abaqus uses one
 Density and specific heat remain recorded as material provenance, but heat
 capacity is absent from both steady equations. This is a final-equilibrium
 comparison and is not equivalent to the ten-second transient path.
+
+Centered directional-difference checks at all 11 states visited by the
+original zero-displacement Newton path found a worst field-block Jacobian error
+of `8.63e-7`. The extra iterations therefore came from the full thermal bending
+load starting outside the useful local Newton region, not from an inconsistent
+Jacobian. The small-strain solve is used only to generate a close full-load
+initial displacement; the reported final state still satisfies the unchanged
+finite-strain residual.
 
 ```text
 ./build/fuelsim_b60_fuel_plate_c3d8rt_benchmark \
@@ -2911,20 +2922,24 @@ python3 verification/abaqus/compare_b60.py \
 ```
 
 Temperature relative L2, relative absolute-peak, and maximum pointwise errors
-are `2.38853e-5%`, `0.000108974%`, and `0.000111735%`. The free-node complete
-displacement-vector errors are `0.00832005%`, `0.00861825%`, and `0.0436061%`;
+are `2.38862e-5%`, `0.000108914%`, and `0.000111674%`. The free-node complete
+displacement-vector errors are `0.0126146%`, `0.0126317%`, and `0.0485431%`;
 all six acceptance metrics are below `0.5%` without a denominator floor. The
-maximum displacement-vector difference is `3.92546e-7 m`. The free-right-edge
-bending ranges are `6.13837432e-6 m` for Fuelsim and `6.13886638e-6 m` for
-Abaqus, differing by `4.92053e-10 m`.
+maximum displacement-vector difference is `5.75351e-7 m`. The free-right-edge
+bending ranges are `6.13810230e-6 m` for Fuelsim and `6.13886638e-6 m` for
+Abaqus, differing by `7.64080e-10 m`.
 
 Raw componentwise pointwise percentages remain diagnostics because their worst
 Abaqus reference components range from `4.57e-42 m` to `2.16e-20 m`; their
-maximum absolute differences are at most `3.91683e-7 m`. Fuelsim completes the
-single load step without rejection using 10 nonlinear iterations, 11 residual
-evaluations, 10 Jacobian evaluations, and one PETSc workspace. Abaqus completes
-one increment without a cutback using 5 nonlinear iterations, 5 equation-solver
-passes, and 5 matrix decompositions. The retained timings are single-run startup-
-dominated diagnostics and are not a cross-solver performance claim. This result
-qualifies the one-step steady thermoelastic final equilibrium only; it does not
-qualify transient heat capacity or path-dependent material evolution.
+maximum absolute differences are at most `5.74183e-7 m`. Fuelsim first solves a
+full-load small-strain predictor in one iteration, then reaches the finite-
+strain equilibrium in four corrector iterations. The total is 5 nonlinear
+iterations, 7 residual evaluations, 5 Jacobian evaluations, and one reused
+PETSc workspace. Abaqus completes one increment without a cutback using 5
+nonlinear iterations, 5 equation-solver passes, and 5 matrix decompositions.
+The three Fuelsim external times are `1.27`, `1.30`, and `1.28 s`; these startup-
+dominated diagnostics are not a cross-operating-system performance claim. This
+result qualifies the one-step steady thermoelastic final equilibrium only; it
+does not qualify transient heat capacity or path-dependent material evolution.
+The complete iteration diagnosis is retained in
+`b60_fuel_plate_c3d8rt_nonlinear_iteration_diagnosis.tsv`.

@@ -1380,7 +1380,7 @@ python3 verification/abaqus/compare_b60.py \
   verification/abaqus/b60_fuel_plate_c3d8rt_finite_ramped_bending_nodal.csv \
   --fuelsim-timing /tmp/b60_finite_ramped_timing.tsv \
   --abaqus-timing verification/abaqus/b60_fuel_plate_c3d8rt_finite_ramped_bending_timing.txt \
-  --fuelsim-external-seconds 6.54
+  --fuelsim-external-seconds 5.51
 ```
 
 Temperature relative L2, relative absolute-peak, and maximum pointwise errors
@@ -1393,20 +1393,23 @@ diagnostics: the extrema use Abaqus reference components between `7.09e-41 m`
 and `5.16e-10 m`. The maximum vector difference is `4.64277e-7 m`, and the
 free-right-edge bending ranges differ by `6.19017e-10 m`.
 
-The Fuelsim input uses a linear time predictor and explicitly sets
-`predictor_jacobian_lag = 2`. The first step, which has no predictor, retains
-`jacobian_lag = 1`; later predicted steps reuse each assembled Jacobian once.
-This reduces Jacobian evaluations from 35 to 27. All ten steps converge without
-rejection, using 45 nonlinear iterations and one PETSc workspace.
+The Fuelsim input uses a linear time predictor, rebuilds the Jacobian at every
+Newton iteration, and enables convergence on the same per-field physical
+residual tolerances used by the final residual audit. All ten steps converge
+without rejection in 21 nonlinear iterations and 21 Jacobian evaluations,
+using one PETSc workspace. Abaqus uses 19 nonlinear iterations, 19 equation-
+solver passes, and 19 matrix decompositions, so Fuelsim is two iterations, or
+`10.5263%`, above Abaqus while remaining at a similar level.
 
 With CPU 0 pinned, MUMPS selected, and all numerical libraries restricted to
-one thread, Fuelsim external times were `7.81`, `6.54`, and `6.51 s`, with a
-`6.54 s` median. The matching Abaqus `cpus=1` times were `12.649117`,
+one thread, Fuelsim external times were `5.49`, `5.51`, and `5.69 s`, with a
+`5.51 s` median. The matching Abaqus `cpus=1` times were `12.649117`,
 `7.3038743`, and `7.4664226 s`, with a `7.4664226 s` median; its representative
 job summary reports `3.5 s` total CPU time and `4 s` analysis wall time. The
-external Fuelsim/Abaqus ratio is `0.875921`, so Fuelsim uses `12.4079%` less
+external Fuelsim/Abaqus ratio is `0.737971`, so Fuelsim uses `26.2029%` less
 external wall time in this cross-Windows-and-WSL comparison. Complete evidence
-is stored in the ramped comparison and timing artifacts.
+is stored in the ramped comparison, timing, and
+`b60_fuel_plate_c3d8rt_nonlinear_iteration_diagnosis.tsv` artifacts.
 
 ### B6.0 steady-state finite-strain thermoelastic path
 
@@ -1416,6 +1419,13 @@ input retains the same mesh, C3D8RT elements, fuel heat source, final face
 temperatures, material properties, and clamp, but solves one steady load step
 without a heat-capacity term. The matching Abaqus input uses one steady-state
 coupled temperature-displacement increment with nonlinear geometry enabled.
+
+Centered directional-difference checks at all 11 states visited by the
+original zero-displacement Newton path found a worst field-block Jacobian error
+of `8.63e-7`. The excess iterations therefore came from applying the full
+thermal bending load at a poor initial displacement, not from a missing tangent
+term. The optional small-strain solve supplies a close full-load displacement
+shape before the unchanged finite-strain equations are solved.
 
 ```text
 ./build/fuelsim_b60_fuel_plate_c3d8rt_benchmark \
@@ -1429,12 +1439,16 @@ python3 verification/abaqus/compare_b60.py \
 ```
 
 Temperature passes relative L2, relative absolute-peak, and maximum pointwise
-errors at `2.38853e-5%`, `0.000108974%`, and `0.000111735%`. The corresponding
-free-node complete displacement-vector errors are `0.00832005%`, `0.00861825%`,
-and `0.0436061%`, with a `3.92546e-7 m` maximum absolute difference. Component
+errors at `2.38862e-5%`, `0.000108914%`, and `0.000111674%`. The corresponding
+free-node complete displacement-vector errors are `0.0126146%`, `0.0126317%`,
+and `0.0485431%`, with a `5.75351e-7 m` maximum absolute difference. Component
 pointwise percentages remain near-zero-reference diagnostics without a
-denominator floor. Fuelsim uses 10 nonlinear iterations and 10 Jacobian
-evaluations; Abaqus uses 5 nonlinear iterations and 5 matrix decompositions.
-The recorded single-run timings are diagnostic only. This comparison qualifies
-the one-step steady final equilibrium and does not replace the transient B6.0
-path.
+denominator floor. A full-load small-strain predictor takes one iteration, and
+the finite-strain corrector takes four more; both reuse one PETSc workspace.
+The total is 5 nonlinear iterations and 5 Jacobian evaluations, exactly the
+same as Abaqus. The three fixed-CPU external times are `1.27`, `1.30`, and
+`1.28 s`; these startup-dominated cross-operating-system timings are diagnostic
+only. This comparison qualifies the one-step steady final equilibrium and does
+not replace the transient B6.0 path. The baseline, corrected, and Abaqus solver
+counts are retained together in
+`verification/abaqus/b60_fuel_plate_c3d8rt_nonlinear_iteration_diagnosis.tsv`.

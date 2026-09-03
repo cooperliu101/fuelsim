@@ -771,7 +771,8 @@ void read_executioner(const InputDocument& document, const std::string& path, Fu
     const std::string executioner_type = read_string(document, executioner, "type");
     if (result.problem == CaseProblem::steady) {
         validate_keys(document, executioner,
-            {"type", "load_steps", "cutback_factor", "maximum_cutbacks", "minimum_load_increment"});
+            {"type", "load_steps", "cutback_factor", "maximum_cutbacks", "minimum_load_increment",
+                "use_small_strain_predictor"});
         if (executioner_type != "steady")
             value_error(
                 document, required_entry(document, executioner, "type"), "problem='steady' requires type='steady'");
@@ -781,6 +782,8 @@ void read_executioner(const InputDocument& document, const std::string& path, Fu
             read_optional_size(document, executioner, "maximum_cutbacks", 12);
         result.steady_execution.minimum_load_increment =
             read_optional_double(document, executioner, "minimum_load_increment", 1.0e-6);
+        result.steady_execution.use_small_strain_predictor =
+            read_optional_bool(document, executioner, "use_small_strain_predictor", false);
     } else {
         validate_keys(document, executioner,
             {"type", "end_time", "initial_time_step", "minimum_time_step", "maximum_time_step", "growth_factor",
@@ -819,10 +822,10 @@ void read_solver(const InputDocument& document, const std::string& path, FuelSim
     validate_keys(document, solver,
         {"absolute_tolerance", "relative_tolerance", "step_tolerance", "maximum_iterations", "linear_solver",
             "preconditioner", "direct_factorization", "linear_relative_tolerance", "maximum_linear_iterations",
-            "backtracking_fallback", "field_residual_scaling", "residual_reduction_tolerance",
-            "temperature_residual_absolute_tolerance", "mechanical_residual_absolute_tolerance",
-            "temperature_residual_scale", "mechanical_residual_scale", "jacobian_lag", "predictor_jacobian_lag",
-            "line_search"});
+            "backtracking_fallback", "field_residual_scaling", "field_residual_convergence",
+            "residual_reduction_tolerance", "temperature_residual_absolute_tolerance",
+            "mechanical_residual_absolute_tolerance", "temperature_residual_scale", "mechanical_residual_scale",
+            "jacobian_lag", "predictor_jacobian_lag", "line_search"});
     result.solver.absolute_tolerance = read_optional_double(document, solver, "absolute_tolerance", 1.0e-8);
     result.solver.relative_tolerance = read_optional_double(document, solver, "relative_tolerance", 1.0e-10);
     result.solver.step_tolerance = read_optional_double(document, solver, "step_tolerance", 1.0e-12);
@@ -871,6 +874,8 @@ void read_solver(const InputDocument& document, const std::string& path, FuelSim
         throw std::invalid_argument(path + ": line_search must be 'basic' or 'backtracking'");
     result.solver.backtracking_fallback = read_optional_bool(document, solver, "backtracking_fallback", true);
     result.solver.field_residual_scaling = read_optional_bool(document, solver, "field_residual_scaling", false);
+    result.solver.field_residual_convergence =
+        read_optional_bool(document, solver, "field_residual_convergence", false);
     result.solver.residual_reduction_tolerance =
         read_optional_double(document, solver, "residual_reduction_tolerance", 1.0e-6);
     result.solver.temperature_residual_absolute_tolerance =

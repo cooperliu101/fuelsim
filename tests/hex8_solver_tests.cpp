@@ -242,6 +242,24 @@ bool test_steady(
     return passed;
 }
 
+bool test_small_strain_steady_predictor(const fuelsim::UnstructuredHex8Mesh& mesh) {
+    fuelsim::SpatialDefinition definition = steady_definition();
+    definition.regions[0].strain_formulation = fuelsim::StrainFormulation::finite;
+    definition.regions[0].hex8_element_formulation = fuelsim::Hex8ElementFormulation::c3d8rt;
+    fuelsim::SteadyProblem problem(std::move(definition), mesh);
+    fuelsim::SteadyLoadOptions load_options{1, 0.5, 4, 1.0e-6, true};
+    const fuelsim::SteadyResult result = fuelsim::solve_steady(problem, load_options, solver_options());
+    const auto& spatial = fuelsim::cartesian::ProblemAccess::view(problem);
+    return check(result.completed && result.solve.converged && result.used_small_strain_predictor &&
+                     result.predictor_nonlinear_iterations > 0 && result.solve.nonlinear_iterations > 0 &&
+                     result.total_nonlinear_iterations ==
+                         result.predictor_nonlinear_iterations + result.solve.nonlinear_iterations &&
+                     result.aggregate_timing.workspace_setups == 1 && result.predictor_timing.workspace_setups == 1 &&
+                     result.solve.timing.workspace_setups == 0 &&
+                     spatial.region(0).strain_formulation == fuelsim::StrainFormulation::finite,
+        "small-strain steady predictor reuses one PETSc workspace and restores the finite-strain formulation");
+}
+
 bool test_convection_boundary(const fuelsim::UnstructuredHex8Mesh& mesh) {
     fuelsim::SpatialDefinition definition;
     definition.regions.push_back({"solid", "solid", material(), 0.0, 300.0});
@@ -908,6 +926,7 @@ int main(int argc, char** argv) {
     fuelsim::PetscSession session(argc, argv, "fuelsim HEX8 solver tests\n");
     const fuelsim::UnstructuredHex8Mesh mesh = two_element_mesh();
     bool passed = test_steady(session, mesh, argv[1]);
+    passed = test_small_strain_steady_predictor(mesh) && passed;
     passed = test_convection_boundary(mesh) && passed;
     passed = test_transient(session, mesh, argv[3], argv[2]) && passed;
     passed = test_multiple_regions() && passed;

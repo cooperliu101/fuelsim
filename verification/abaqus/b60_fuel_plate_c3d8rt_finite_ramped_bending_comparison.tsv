@@ -1,9 +1,10 @@
 field	relative_l2_percent	relative_absolute_peak_percent	maximum_pointwise_relative_percent	maximum_absolute_difference	zero_reference_count	maximum_zero_reference_absolute_difference
-temperature	2.32913091e-05	0.000116121022	0.000124926552	0.000812847152 K	0	0 K
-displacement_x	0.0493656333	0.0343010245	100	4.43250112e-08 m	0	0 m
-displacement_y	0.104850218	0.0833626744	378.313147	1.11012816e-08 m	0	0 m
-displacement_z	0.00992883911	0.0101622345	100	4.63125189e-07 m	0	0 m
-free_node_displacement_vector	0.0099667239	0.0101871513	0.0444444547	4.64277272e-07 m	0	0 m
-free_right_edge_bending_range	-	-	-	Fuelsim 6.14659582389e-06 m; Abaqus 6.14721484061e-06 m; difference 6.19016723297e-10 m	-	-
-external_wall_time	-	-	-	Fuelsim samples 7.81, 6.54, 6.51 s, median 6.54 s; Abaqus samples 12.649117, 7.3038743, 7.4664226 s, median 7.4664226 s	-	Fuelsim/Abaqus 0.875921489
-qualification	-	-	-	QUALIFIED: temperature and the free-node displacement-vector three metrics are below 0.5 percent; Fuelsim median external wall time is 12.4079 percent below Abaqus	-	Component pointwise percentages remain diagnostics because their extrema use Abaqus references from 7.09e-41 m to 5.16e-10 m; no denominator floor is used
+temperature	2.32915219e-05	0.00011612321	0.000124928907	0.000812862472 K	0	0 K
+displacement_x	0.0493538554	0.0342920516	100	4.43134161e-08 m	0	0 m
+displacement_y	0.10485006	0.083364493	378.311713	1.11015238e-08 m	0	0 m
+displacement_z	0.00992465231	0.0101585419	100	4.62956905e-07 m	0	0 m
+free_node_displacement_vector	0.00996253606	0.0101834522	0.0444374038	4.6410869e-07 m	0	0 m
+free_right_edge_bending_range	-	-	-	Fuelsim 6.14659603815e-06 m; Abaqus 6.14721484061e-06 m; difference 6.18802458059e-10 m	-	-
+solver_work	-	-	-	Fuelsim ten increments use 21 nonlinear iterations and 21 Jacobian evaluations; Abaqus ten increments use 19 nonlinear iterations, 19 equation-solver passes, and 19 matrix decompositions	-	Fuelsim is 2 iterations, or 10.5263 percent, above Abaqus
+external_wall_time	-	-	-	Fuelsim samples 5.49, 5.51, 5.69 s, median 5.51 s; Abaqus samples 12.649117, 7.3038743, 7.4664226 s, median 7.4664226 s	-	Fuelsim/Abaqus 0.737970511
+qualification	-	-	-	QUALIFIED: temperature and the free-node displacement-vector three metrics are below 0.5 percent; Fuelsim median external wall time is 26.2029 percent below Abaqus	-	Component pointwise percentages remain diagnostics because their extrema use Abaqus references from 7.09e-41 m to 5.16e-10 m; no denominator floor is used

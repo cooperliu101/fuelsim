@@ -342,6 +342,14 @@ bool run_steady(const FuelSimCaseDefinition& definition, const UnstructuredQuad4
     output.value("load_cutbacks", result.total_cutbacks);
     output.value("nonlinear_iterations_total", result.total_nonlinear_iterations);
     output.value("linear_iterations_total", result.total_linear_iterations);
+    output.value("residual_evaluations_total", result.aggregate_timing.residual_evaluations);
+    output.value("jacobian_evaluations_total", result.aggregate_timing.jacobian_evaluations);
+    output.value("used_small_strain_predictor", result.used_small_strain_predictor);
+    if (result.used_small_strain_predictor) {
+        output.value("predictor_nonlinear_iterations", result.predictor_nonlinear_iterations);
+        output.value("predictor_linear_iterations", result.predictor_linear_iterations);
+        output.value("predictor_jacobian_evaluations", result.predictor_timing.jacobian_evaluations);
+    }
     output.value("residual_norm", result.solve.residual_norm);
     write_solver_diagnostics(result.solve, problem.uses_augmented_contact(), output);
     write_memory_diagnostics("aggregate_memory.", result.aggregate_timing, output);
@@ -473,6 +481,8 @@ bool run_transient(const FuelSimCaseDefinition& definition, const UnstructuredQu
     output.value("total_cutbacks", result.total_cutbacks);
     output.value("nonlinear_iterations_total", result.total_nonlinear_iterations);
     output.value("linear_iterations_total", result.total_linear_iterations);
+    output.value("residual_evaluations_total", result.aggregate_timing.residual_evaluations);
+    output.value("jacobian_evaluations_total", result.aggregate_timing.jacobian_evaluations);
     output.value("petsc_workspace_setups", result.aggregate_timing.workspace_setups);
     write_solver_diagnostics(result.last_attempt, problem.uses_augmented_contact(), output);
     write_memory_diagnostics("aggregate_memory.", result.aggregate_timing, output);

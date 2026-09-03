@@ -80,6 +80,10 @@ class SpatialLayout {
 
     const RegionDefinition& region(std::size_t index) const { return _definition.regions.at(index); }
 
+    void set_region_strain_formulation(std::size_t index, StrainFormulation formulation) {
+        _definition.regions.at(index).strain_formulation = formulation;
+    }
+
     std::size_t region_node_offset(std::size_t index) const;
     std::size_t region_element_count(std::size_t index) const;
     std::size_t region_element_offset(std::size_t index) const;

@@ -12,6 +12,7 @@ class UnstructuredHex8Mesh;
 class UnstructuredHex20Mesh;
 class SpatialProblemStorage;
 class BackendAccess;
+class SteadyWorkflowAccess;
 
 class SteadyProblem final : public NonlinearProblem {
   public:
@@ -49,6 +50,8 @@ class SteadyProblem final : public NonlinearProblem {
 
   private:
     friend class BackendAccess;
+    friend class SteadyWorkflowAccess;
+    void set_small_strain_predictor_active(bool active);
     std::unique_ptr<SpatialProblemStorage> _impl;
 };
 } // namespace fuelsim

@@ -123,6 +123,7 @@ bool verify_m3_output_input(const std::string& path, const std::string& contents
                      definition.solver.predictor_jacobian_lag == 3 &&
                      definition.solver.line_search == fuelsim::SolverOptions::LineSearch::backtracking &&
                      definition.solver.backtracking_fallback && definition.solver.field_residual_scaling &&
+                     definition.solver.field_residual_convergence &&
                      definition.solver.residual_reduction_tolerance == 2.0e-6 &&
                      definition.solver.temperature_residual_absolute_tolerance == 3.0e-8 &&
                      definition.solver.mechanical_residual_absolute_tolerance == 4.0e-6 &&
@@ -193,7 +194,7 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
                   steady.solver.preconditioner == fuelsim::SolverOptions::Preconditioner::automatic &&
                   steady.solver.direct_factorization == fuelsim::SolverOptions::DirectFactorization::automatic &&
                   steady.solver.linear_relative_tolerance == 1.0e-8 && steady.solver.maximum_linear_iterations == 500 &&
-                  steady.solver.jacobian_lag == 1,
+                  steady.solver.jacobian_lag == 1 && !steady.steady_execution.use_small_strain_predictor,
             "steady execution and solver fields are parsed") &&
         check(transient.problem == fuelsim::CaseProblem::transient,
             "transient input selects the physical transient problem") &&
@@ -588,6 +589,7 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
                                                           "\n  line_search = backtracking"
                                                           "\n  backtracking_fallback = true"
                                                           "\n  field_residual_scaling = true"
+                                                          "\n  field_residual_convergence = true"
                                                           "\n  residual_reduction_tolerance = 2e-6"
                                                           "\n  temperature_residual_absolute_tolerance = 3e-8"
                                                           "\n  mechanical_residual_absolute_tolerance = 4e-6");

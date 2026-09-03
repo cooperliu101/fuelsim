@@ -42,6 +42,7 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     void set_load_factor(double load_factor);
     void set_time(double time);
     void set_heat_source_interval(double begin_time, double end_time);
+    void set_region_strain_formulation(std::size_t region, StrainFormulation formulation);
 
     const std::vector<std::vector<ContactPointHistory>>& committed_contact_histories() const noexcept {
         return _contact_histories;

@@ -107,6 +107,8 @@
 [Executioner]
   type = steady
   load_steps = 1
+  # Use the full-load small-strain equilibrium only as the finite-strain initial guess.
+  use_small_strain_predictor = true
 []
 
 [Solver]
@@ -119,6 +121,8 @@
   step_tolerance = 1e-12
   maximum_iterations = 30
   field_residual_scaling = true
+  # Stop on the same physical field tolerances used by the final residual audit.
+  field_residual_convergence = true
   temperature_residual_absolute_tolerance = 1e-6
   mechanical_residual_absolute_tolerance = 1e-3
 []

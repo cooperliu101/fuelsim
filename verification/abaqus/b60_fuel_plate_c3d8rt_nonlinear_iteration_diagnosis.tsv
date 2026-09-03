@@ -1,0 +1,14 @@
+case	metric	baseline_fuelsim	corrected_fuelsim	abaqus	note
+steady	full_load_nonlinear_iterations	10	5	5	Corrected Fuelsim total is one small-strain predictor iteration plus four finite-strain corrector iterations
+steady	jacobian_evaluations	10	5	5	Fuelsim predictor and corrector reuse one PETSc workspace
+steady	residual_evaluations	11	7	-	The final extra evaluation is the independent residual audit
+steady	original_newton_state_count	11	-	-	Includes iteration zero and every state through the original ten-iteration solve
+steady	field_block_directional_checks	176	-	-	Four row fields by four direction fields at each of 11 original Newton states
+steady	worst_field_block_jacobian_relative_error	8.630869673810e-7	-	-	Iteration 2 temperature residual in a displacement-x direction; centered perturbation factor 1e-4
+steady	root_cause	poor full-load zero-displacement initial guess	full-load small-strain displacement predictor	-	All original Newton-state Jacobian checks are consistent; the alternating residual sequence is an attraction-region issue
+steady	free_node_vector_maximum_pointwise_error_percent	0.0436060838	0.0485430724	-	Corrected result remains below the 0.5 percent acceptance gate
+transient	nonlinear_iterations	45	21	19	Corrected Fuelsim is two iterations or 10.5263 percent above Abaqus
+transient	jacobian_evaluations	27	21	19	Corrected path rebuilds the Jacobian at every nonlinear iteration
+transient	root_cause	PETSc mixed scaled norm continued after physical field tolerances were met	per-field convergence uses the existing final residual audit thresholds	-	The new stopping mode is explicit and defaults to disabled
+transient	mechanical_residual_absolute_tolerance_newtons	0.001	0.019	-	A value of 0.020 reduces the total to 19 but fails the 0.5 percent maximum pointwise displacement gate
+transient	free_node_vector_maximum_pointwise_error_percent	0.0444444547	0.0444374038	-	Corrected result remains below the 0.5 percent acceptance gate

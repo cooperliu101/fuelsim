@@ -532,6 +532,21 @@ bool test_global_newton_safeguards() {
                  "audited residual reduction rescues a PETSc maximum-"
                  "iteration reason at an acceptable state") &&
              passed;
+    fuelsim::PetscSolver field_convergence_solver;
+    fuelsim::SolverOptions field_convergence_options;
+    field_convergence_options.field_residual_scaling = false;
+    field_convergence_options.field_residual_convergence = true;
+    field_convergence_options.absolute_tolerance = 1.0e-14;
+    field_convergence_options.relative_tolerance = 1.0e-14;
+    field_convergence_options.residual_reduction_tolerance = 1.0e-14;
+    field_convergence_options.temperature_residual_absolute_tolerance = 0.6;
+    field_convergence_options.mechanical_residual_absolute_tolerance = 0.6;
+    const fuelsim::SolveResult field_converged =
+        field_convergence_solver.solve(quadratic_problem, initial, field_convergence_options);
+    passed = check(field_converged.converged && field_converged.nonlinear_iterations == 1 &&
+                       field_converged.residual_norm > field_convergence_options.absolute_tolerance,
+                 "field residual convergence stops when every physical field meets its configured tolerance") &&
+             passed;
     return passed;
 }
 

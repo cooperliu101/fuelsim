@@ -12,6 +12,7 @@ struct SteadyLoadOptions final {
     double cutback_factor = 0.5;
     std::size_t maximum_cutbacks_per_step = 12;
     double minimum_load_increment = 1.0e-6;
+    bool use_small_strain_predictor = false;
 };
 
 struct SteadyRejectedLoadStep final {
@@ -27,8 +28,10 @@ struct SteadyResult final {
     std::size_t completed_steps = 0, total_cutbacks = 0;
     bool completed = false;
     int total_nonlinear_iterations = 0, total_linear_iterations = 0;
+    bool used_small_strain_predictor = false;
+    int predictor_nonlinear_iterations = 0, predictor_linear_iterations = 0;
     double total_seconds = 0.0;
-    SolveTiming aggregate_timing;
+    SolveTiming aggregate_timing, predictor_timing;
 };
 
 SteadyResult solve_steady(

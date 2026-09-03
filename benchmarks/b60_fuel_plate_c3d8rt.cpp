@@ -86,6 +86,13 @@ void write_steady_timing(const std::string& path, const fuelsim::SteadyResult& r
            << "completed_load_steps\t" << result.completed_steps << '\n'
            << "rejected_load_steps\t" << result.rejected_steps.size() << '\n'
            << "load_cutbacks\t" << result.total_cutbacks << '\n'
+           << "used_small_strain_predictor\t" << result.used_small_strain_predictor << '\n'
+           << "predictor_nonlinear_iterations\t" << result.predictor_nonlinear_iterations << '\n'
+           << "predictor_linear_iterations\t" << result.predictor_linear_iterations << '\n'
+           << "predictor_jacobian_evaluations\t" << result.predictor_timing.jacobian_evaluations << '\n'
+           << "finite_corrector_nonlinear_iterations\t" << result.solve.nonlinear_iterations << '\n'
+           << "finite_corrector_linear_iterations\t" << result.solve.linear_iterations << '\n'
+           << "finite_corrector_jacobian_evaluations\t" << result.solve.timing.jacobian_evaluations << '\n'
            << "nonlinear_iterations\t" << result.total_nonlinear_iterations << '\n'
            << "linear_iterations\t" << result.total_linear_iterations << '\n'
            << "residual_evaluations\t" << result.aggregate_timing.residual_evaluations << '\n'
@@ -109,6 +116,7 @@ fuelsim::SolverOptions solver_options(const fuelsim::FuelSimCaseDefinition& defi
     options.jacobian_lag = definition.solver.jacobian_lag;
     options.predictor_jacobian_lag = definition.solver.predictor_jacobian_lag;
     options.field_residual_scaling = definition.solver.field_residual_scaling;
+    options.field_residual_convergence = definition.solver.field_residual_convergence;
     options.temperature_residual_absolute_tolerance = definition.solver.temperature_residual_absolute_tolerance;
     options.mechanical_residual_absolute_tolerance = definition.solver.mechanical_residual_absolute_tolerance;
     return options;
