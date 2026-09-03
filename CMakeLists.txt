@@ -386,6 +386,13 @@ if(BUILD_TESTING)
             fuelsim::solver
     )
     fuelsim_enable_warnings(fuelsim_m58_integrated_hex8_benchmark)
+    add_executable(fuelsim_b60_fuel_plate_c3d8rt_benchmark
+        benchmarks/b60_fuel_plate_c3d8rt.cpp
+    )
+    target_link_libraries(fuelsim_b60_fuel_plate_c3d8rt_benchmark
+        PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver
+    )
+    fuelsim_enable_warnings(fuelsim_b60_fuel_plate_c3d8rt_benchmark)
     add_executable(fuelsim_m58_hex8_to_hex20
         benchmarks/m58_hex8_to_hex20.cpp
     )

@@ -1251,3 +1251,58 @@ vector and Abaqus smoothed `CSHEAR` integral remain explicitly reported
 diagnostics because they compare unstable near-zero curved-basis components or
 different recovered quantities. The full commands and all error rows are in
 `verification/abaqus/README.md` and the B5.56 comparison artifact.
+
+## B6.0 C3D8RT fuel-plate thermo-mechanical bending
+
+B6.0 reuses the tracked B3.6 plate mesh: 80 central `meat` elements are
+continuously enclosed by 208 `clad` elements. Both blocks use C3D8RT with the
+same four-field degrees of freedom at shared interface nodes. The fuel block
+generates `2e8 W/m^3`; the front and back cladding faces are prescribed at `650`
+and `600 K`, producing a through-thickness temperature gradient and a measurable
+free-edge bending displacement. The left face is clamped in all three
+displacement components. The path has 455 nodes, 288 elements, 1,820 degrees of
+freedom, and ten fixed one-second increments.
+
+Run the Fuelsim side with one process and one thread per numerical library:
+
+```text
+./build/fuelsim_b60_fuel_plate_c3d8rt_benchmark \
+  verification/fuelsim/transient_b60_fuel_plate_c3d8rt_bending.fsi \
+  /tmp/b60_fuelsim_nodal.csv /tmp/b60_fuelsim_timing.tsv
+```
+
+On the current machine this completed all ten increments with 65 nonlinear
+iterations, one PETSc workspace setup, and an internal benchmark time of
+`1.55 s`. An external one-process, one-thread run was `2.04 s` (median of three
+runs). The final temperature range is `600--650.0000 K`; the free-right-edge
+displacement-z range is `1.5095633e-6 m`, which is the bending diagnostic.
+
+The Abaqus deck uses the same converted mesh include and C3D8RT element,
+coupled temperature-displacement transient step, material data, heat source,
+clamp, and prescribed front/back temperatures. On a machine with Abaqus R2018x,
+run
+`verification/abaqus/run_b60.ps1`, then extract and compare:
+
+```text
+python3 verification/abaqus/compare_b60.py \
+  /tmp/b60_fuelsim_nodal.csv \
+  verification/abaqus/b60_fuel_plate_c3d8rt_bending_nodal.csv \
+  --fuelsim-timing /tmp/b60_fuelsim_timing.tsv \
+  --abaqus-timing verification/abaqus/b60_fuel_plate_c3d8rt_bending_timing.txt \
+  --fuelsim-external-seconds 2.04
+```
+
+The recorded Abaqus run used one CPU and full output precision; its external wall
+time was `3.334000 s` (other runs were `3.340088 s` and `3.358216 s`). Relative
+L2 errors are
+`1.28e-8%` for temperature, `1.16e-5%` for displacement-x,
+`1.26e-5%` for displacement-y, and `4.27e-6%` for displacement-z. Relative
+absolute-peak errors are respectively `7.53e-8%`, `8.82e-6%`, `1.93e-5%`, and
+`4.62e-6%`; maximum absolute differences are `4.90e-7 K`, `3.94e-13 m`,
+`2.19e-13 m`, and `1.25e-12 m`. The free-edge bending ranges differ by
+`2.65e-14 m`. The large pointwise percentages reported for displacement-y are
+near-zero reference amplification, not a large absolute field discrepancy.
+Using the median external times, Fuelsim/Abaqus is `0.611`, so Fuelsim is about
+`1.64x` faster in this cross Windows-and-WSL measurement.
+The reproducible metric summary is stored in
+`verification/abaqus/b60_fuel_plate_c3d8rt_bending_comparison.tsv`.
