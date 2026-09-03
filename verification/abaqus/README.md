@@ -2799,8 +2799,8 @@ available, and final nodal `NT11`/`U` values. Use
 file to print all three field-error metrics, maximum absolute differences,
 zero-reference diagnostics, the free-edge bending range, and the external speed
 ratio. The recorded one-CPU Abaqus wall time is `3.334000 s` (other runs
-`3.340088 s` and `3.358216 s`); the Fuelsim median external time is `2.04 s`,
-giving a median Fuelsim/Abaqus ratio of `0.611`. Relative L2 errors against the final Abaqus
+`3.340088 s` and `3.358216 s`); the Fuelsim median external time is `2.06 s`,
+giving a median Fuelsim/Abaqus ratio of `0.617`. Relative L2 errors against the final Abaqus
 nodal fields are `1.28e-8%` (temperature), `1.16e-5%` (displacement-x),
 `1.26e-5%` (displacement-y), and `4.27e-6%` (displacement-z). The corresponding
 relative absolute-peak errors are `7.53e-8%`, `8.82e-6%`, `1.93e-5%`, and

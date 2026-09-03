@@ -1273,7 +1273,8 @@ Run the Fuelsim side with one process and one thread per numerical library:
 
 On the current machine this completed all ten increments with 65 nonlinear
 iterations, one PETSc workspace setup, and an internal benchmark time of
-`1.55 s`. An external one-process, one-thread run was `2.04 s` (median of three
+`1.55 s`. With the process fixed to one CPU core and all numerical libraries
+restricted to one thread, the external time was `2.06 s` (median of three
 runs). The final temperature range is `600--650.0000 K`; the free-right-edge
 displacement-z range is `1.5095633e-6 m`, which is the bending diagnostic.
 
@@ -1289,7 +1290,7 @@ python3 verification/abaqus/compare_b60.py \
   verification/abaqus/b60_fuel_plate_c3d8rt_bending_nodal.csv \
   --fuelsim-timing /tmp/b60_fuelsim_timing.tsv \
   --abaqus-timing verification/abaqus/b60_fuel_plate_c3d8rt_bending_timing.txt \
-  --fuelsim-external-seconds 2.04
+  --fuelsim-external-seconds 2.06
 ```
 
 The recorded Abaqus run used one CPU and full output precision; its external wall
@@ -1302,7 +1303,7 @@ absolute-peak errors are respectively `7.53e-8%`, `8.82e-6%`, `1.93e-5%`, and
 `2.19e-13 m`, and `1.25e-12 m`. The free-edge bending ranges differ by
 `2.65e-14 m`. The large pointwise percentages reported for displacement-y are
 near-zero reference amplification, not a large absolute field discrepancy.
-Using the median external times, Fuelsim/Abaqus is `0.611`, so Fuelsim is about
-`1.64x` faster in this cross Windows-and-WSL measurement.
+Using the median external times, Fuelsim/Abaqus is `0.617`, so Fuelsim is about
+`1.62x` faster in this cross Windows-and-WSL measurement.
 The reproducible metric summary is stored in
 `verification/abaqus/b60_fuel_plate_c3d8rt_bending_comparison.tsv`.
