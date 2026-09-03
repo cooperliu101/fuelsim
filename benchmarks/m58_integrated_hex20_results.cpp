@@ -1,9 +1,12 @@
 #include "fuelsim/io/case_input.hpp"
 #include "fuelsim/io/results_io.hpp"
 #include "fuelsim/solver/solve_workflows.hpp"
+#include "support/cartesian3d_problem_access.hpp"
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -117,6 +120,36 @@ int main(int argc, char** argv) {
             std::cerr << "M5.8 HEX20 solve failed: " << result.last_attempt.failure_message << '\n';
             return 1;
         }
+        const auto& spatial = fuelsim::cartesian::ProblemAccess::view(problem);
+        std::vector<std::size_t> source_to_global(mesh.nodes().size(), std::numeric_limits<std::size_t>::max());
+        for (std::size_t region = 0; region < spatial.region_count(); ++region) {
+            const fuelsim::Hex20RegionMesh& region_mesh = spatial.hex20_region_mesh(region);
+            for (std::size_t local = 0; local < region_mesh.nodes().size(); ++local)
+                source_to_global[region_mesh.source_node_ids()[local]] = spatial.global_node(region, local);
+        }
+        const std::vector<fuelsim::CartesianContactNodeSummary> contact =
+            fuelsim::cartesian::ProblemAccess::summarize_contact_nodes(problem, 0, problem.committed_solution());
+        const std::vector<std::size_t> contact_sources =
+            fuelsim::cartesian::ProblemAccess::contact_secondary_source_nodes(problem, 0);
+        if (contact.size() != contact_sources.size())
+            throw std::logic_error("M5.8 HEX20 contact result mapping size mismatch");
+        double radial_normal_force = 0.0;
+        for (std::size_t node = 0; node < contact.size(); ++node) {
+            const std::size_t source = contact_sources[node], global = source_to_global.at(source);
+            if (global == std::numeric_limits<std::size_t>::max())
+                throw std::logic_error("M5.8 HEX20 contact result has an unmapped source node");
+            const double current_x = mesh.nodes()[source].x +
+                                     problem.committed_solution()[spatial.dof(fuelsim::Field::displacement_x, global)],
+                         current_y = mesh.nodes()[source].y +
+                                     problem.committed_solution()[spatial.dof(fuelsim::Field::displacement_y, global)],
+                         current_radius = std::hypot(current_x, current_y);
+            if (!(current_radius > 0.0)) throw std::domain_error("M5.8 HEX20 contact node lies on the cylinder axis");
+            radial_normal_force += (contact[node].normal_contact_force[0] * current_x +
+                                       contact[node].normal_contact_force[1] * current_y) /
+                                   current_radius;
+        }
+        if (session.rank() == 0)
+            std::cout << "m58_hex20_radial_normal_contact_force=" << std::abs(radial_normal_force) << '\n';
         fuelsim::ExodusTransientResultsWriter writer(argv[2], mesh, problem);
         writer.append(problem);
         return 0;

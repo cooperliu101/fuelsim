@@ -1186,7 +1186,7 @@ Exodus result without changing the timed production input, and
 `compare_b548.py` reproduces all three error metrics without a denominator
 floor. No production formula or coefficient is changed from this failure.
 
-## B5.51 C3D20T surface-to-surface timing after boundary correction
+## B5.51 C3D20T surface-to-surface timing after heat and pressure correction
 
 B5.51 replaces the node-to-surface mechanical interface with frictionless
 finite-sliding surface-to-surface contact and constrains all quadratic top and
@@ -1197,21 +1197,23 @@ source to `2e8 W/m^3`. Correct bilinear interpolation of the four C3D20T thermal
 19,524-degree-of-freedom, twenty-step manual benchmark.
 
 On CPU 0 with every listed numerical library restricted to one thread,
-Fuelsim takes `321.00 s` externally and `305.412 s` internally. Abaqus R2018x
+Fuelsim takes `317.07 s` externally and `300.873 s` internally. Abaqus R2018x
 with `cpus=1` takes `608.050095 s` externally and reports `604 s` analysis wall
-time. The external ratio is `0.527917`, so Fuelsim is `47.2083%` faster, or
-`1.89424` times as fast, in this single end-to-end observation. Fuelsim uses 86
-nonlinear iterations, 106 residual evaluations, 38 Jacobian evaluations, and
-one PETSc workspace setup; its peak resident memory is `1,355,672 kB`.
+time. Fuelsim is `1.918` times as fast by external wall time and `2.007` times as
+fast when its internal total is compared with Abaqus analysis time in this
+single observation. Fuelsim uses 86 nonlinear iterations, 106 residual
+evaluations, 38 Jacobian evaluations, and one PETSc workspace setup; its peak
+resident memory is `1,363,652 kB`.
 
 The corrected source-time treatment gives temperature, radial-displacement,
 equivalent-stress, equivalent-plastic-strain, and equivalent-creep-strain
-relative L2 errors of `0.00848163%`, `0.00957857%`, `0.00753074%`,
-`0.00766877%`, and `0.0143257%`. The contact heat-rate difference is
-`0.243566%`, and the native normal-force resultant differs by `0.471652%`.
-Recovered contact-pressure L2 error remains `1.42812%`, so that display field is
-still a documented recovery limitation and B5.51 is not fully qualified. The
-corrected accuracy run took `324.68 s` externally and `323.365 s` internally
-with one numerical-library thread but without processor pinning. The controlled
-`321.00 s` Fuelsim timing above belongs to the older endpoint-source result and
-must not be used as a strict same-result speed ratio after this correction.
+relative L2 errors of `0.00848164%`, `0.00336854%`, `0.00683641%`,
+`0.00696828%`, and `0.0108461%`. Resolving each curved secondary face's normal
+gap before shared-node averaging reduces recovered contact-pressure L2, peak,
+and pointwise errors to `0.00209098%`, `0.00298428%`, and `0.00411733%`.
+The recovered-pressure surface-integral error is `0.000136010%`; direct radial
+projection of native nodal normal-force vectors differs by `0.0000557156%`.
+The contact heat-rate difference is `0.243566%`. All matched nonzero physical
+fields and contact integrals are below `0.5%`, so B5.51 is qualified. Near-zero
+tangential displacement percentages remain diagnostic and use no denominator
+floor.

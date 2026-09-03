@@ -182,6 +182,40 @@ fuelsim::TransientTimeOptions time_options(const fuelsim::FuelSimCaseDefinition&
         input.stress_history_time_absolute_tolerance, input.include_thermal_time_term, input.use_linear_time_predictor};
 }
 
+double mechanical_contact_directional_error(
+    fuelsim::TransientProblem& problem, const std::vector<double>& global_state, double perturbation) {
+    const auto& spatial = fuelsim::cartesian::ProblemAccess::view(problem);
+    double maximum_error = 0.0;
+    for (std::size_t contribution = 0; contribution < spatial.contribution_count(); ++contribution) {
+        if (spatial.contribution_type(contribution) != fuelsim::SpatialContributionType::mechanical_contact) continue;
+        std::vector<std::size_t> dofs;
+        problem.contribution_dofs(contribution, dofs);
+        std::vector<double> local_state(dofs.size()), direction(dofs.size()), plus(dofs.size()), minus(dofs.size());
+        for (std::size_t local = 0; local < dofs.size(); ++local) {
+            local_state[local] = global_state[dofs[local]];
+            direction[local] = std::sin(static_cast<double>(local + 1));
+            plus[local] = local_state[local] + perturbation * direction[local];
+            minus[local] = local_state[local] - perturbation * direction[local];
+        }
+        std::vector<double> residual, jacobian, plus_residual, minus_residual;
+        spatial.compute_contribution(contribution, local_state, nullptr, nullptr, 0.0, residual, &jacobian);
+        spatial.compute_contribution(contribution, plus, nullptr, nullptr, 0.0, plus_residual, nullptr);
+        spatial.compute_contribution(contribution, minus, nullptr, nullptr, 0.0, minus_residual, nullptr);
+        double difference_squared = 0.0, reference_squared = 0.0;
+        for (std::size_t row = 0; row < local_state.size(); ++row) {
+            double analytic = 0.0;
+            for (std::size_t column = 0; column < local_state.size(); ++column)
+                analytic += jacobian[row * local_state.size() + column] * direction[column];
+            const double finite_difference = (plus_residual[row] - minus_residual[row]) / (2.0 * perturbation);
+            difference_squared += std::pow(analytic - finite_difference, 2);
+            reference_squared += finite_difference * finite_difference;
+        }
+        if (reference_squared > 0.0)
+            maximum_error = std::max(maximum_error, std::sqrt(difference_squared / reference_squared));
+    }
+    return maximum_error;
+}
+
 double distance(const fuelsim::CartesianPoint3& first, const fuelsim::CartesianPoint3& second) {
     return std::sqrt(
         std::pow(first.x - second.x, 2) + std::pow(first.y - second.y, 2) + std::pow(first.z - second.z, 2));
@@ -313,6 +347,7 @@ bool run(const std::string& case_path, const std::string& temperature_path, cons
     fuelsim::test::print_relative_metrics("b549_equivalent_plastic_strain", plastic_metrics);
     fuelsim::test::print_relative_metrics("b549_equivalent_creep_strain", creep_metrics);
     double abaqus_contact_force = 0.0, fuelsim_contact_force = 0.0;
+    double contact_jacobian_directional_error = 0.0;
     std::size_t active_contact_nodes = 0;
     fuelsim::test::FieldErrorMetrics constraint_contact_pressure_metrics, recovered_contact_pressure_metrics;
     fuelsim::test::GroupedFieldErrorMetrics contact_normal_force_metrics;
@@ -348,6 +383,7 @@ bool run(const std::string& case_path, const std::string& temperature_path, cons
         const fuelsim::InterfaceSummary interface =
             fuelsim::cartesian::ProblemAccess::summarize_interface(problem, 0, state);
         fuelsim_contact_force = interface.total_contact_force;
+        contact_jacobian_directional_error = mechanical_contact_directional_error(problem, state, 1.0e-8);
         passed = check(active_contact_nodes > 0 && interface.active_contact_nodes == active_contact_nodes,
                      "C3D20T contact comparison has active Fuelsim contact constraints") &&
                  passed;
@@ -365,6 +401,9 @@ bool run(const std::string& case_path, const std::string& temperature_path, cons
         passed = check(fuelsim::test::relative_metrics_below(recovered_contact_pressure_metrics, pressure_tolerance),
                      "C3D20T recovered nodal contact-pressure metrics are below 0.5 percent") &&
                  passed;
+        passed = check(contact_jacobian_directional_error < 2.0e-5,
+                     "C3D20T finite-sliding contact Jacobian matches a centered directional difference") &&
+                 passed;
         fuelsim::test::print_relative_metrics("b550_constraint_contact_pressure", constraint_contact_pressure_metrics);
         fuelsim::test::print_relative_metrics("b550_recovered_contact_pressure", recovered_contact_pressure_metrics);
         fuelsim::test::print_grouped_relative_metrics("b550_contact_normal_force", contact_normal_force_metrics);
@@ -376,6 +415,7 @@ bool run(const std::string& case_path, const std::string& temperature_path, cons
               << "b549_active_contact_nodes=" << active_contact_nodes << '\n'
               << "b549_fuelsim_total_contact_force=" << fuelsim_contact_force << '\n'
               << "b549_abaqus_total_contact_force=" << abaqus_contact_force << '\n'
+              << "b549_contact_jacobian_directional_error=" << contact_jacobian_directional_error << '\n'
               << "b549_accepted_steps=" << solve.accepted_steps.size() << '\n'
               << "b549_rejected_steps=" << solve.rejected_steps.size() << '\n'
               << "b549_nonlinear_iterations=" << solve.total_nonlinear_iterations << '\n'

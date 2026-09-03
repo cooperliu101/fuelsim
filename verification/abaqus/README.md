@@ -2536,25 +2536,36 @@ The final high-heat-flow field errors are:
 
 | Field | Relative L2 | Relative absolute peak | Maximum pointwise relative |
 |---|---:|---:|---:|
-| Corner temperature | `0.00848163%` | `0.0433424%` | `0.0466490%` |
-| Radial displacement | `0.00957857%` | `0.0137193%` | diagnostic near-zero reference |
-| Equivalent stress | `0.00753074%` | `0.0194554%` | `0.0581679%` |
-| Equivalent plastic strain | `0.00766877%` | `0.0197159%` | `0.0265347%` |
-| Equivalent creep strain | `0.0143257%` | `0.0216908%` | `0.0463297%` |
-| Recovered contact pressure | `1.42812%` | `1.42480%` | `1.43567%` |
+| Corner temperature | `0.00848164%` | `0.0433425%` | `0.0466491%` |
+| Radial displacement | `0.00336854%` | `0.00528321%` | diagnostic near-zero reference |
+| Equivalent stress | `0.00683641%` | `0.0210520%` | `0.0282182%` |
+| Equivalent plastic strain | `0.00696828%` | `0.0213339%` | `0.0287270%` |
+| Equivalent creep strain | `0.0108461%` | `0.0194467%` | `0.0379103%` |
+| Recovered contact pressure | `0.00209098%` | `0.00298428%` | `0.00411733%` |
 
-The radial-displacement maximum absolute difference is `1.56456 nm`. Cartesian
+The radial-displacement maximum absolute difference is `0.602502 nm`. Cartesian
 component pointwise-relative maxima and the tangential-displacement relative
 metrics are dominated by numerical references close to zero; the maximum
-tangential absolute difference is `9.40142e-12 m`, and no denominator floor is
-used. Summing each Abaqus native normal contact-force vector after projection
-onto that node's current radial direction gives `11.1031456 N`, versus the
-Fuelsim constraint resultant of `11.0507774 N`, a `0.471652%` difference. The
-separate integral of Abaqus recovered `CPRESS` is `11.1444412 N`, which differs
-from the same Fuelsim constraint resultant by `0.840454%`. The latter quantity
-mixes a recovered display field with the native constraint force and is retained
-only as a recovery diagnostic. The displayed nodal pressure remains above the
-`0.5%` field boundary, so B5.51 remains measured rather than fully qualified.
+tangential absolute difference is `1.12673e-12 m`, and no denominator floor is
+used. The previous curved-interface constraint first averaged the vector
+separation and adjacent-face normals and only then took their dot product. A
+shared corner therefore lost part of its normal gap by a cross-face cosine
+factor. The corrected finite-sliding path forms each face's scalar gap and
+closed-form displacement gradient in its own current local normal before
+averaging the shared constraint. The same vector gradients distribute the
+normal residual and Jacobian to both surfaces.
+
+Projecting the resulting Fuelsim and Abaqus native nodal normal-force vectors
+onto their current radial directions gives `11.1031394 N` and `11.1031456 N`, a
+`0.0000557156%` error. Integrating each program's recovered nodal pressure on its
+own current quadratic surface gives `11.1444564 N` and `11.1444412 N`, a
+`0.000136010%` error. The comparison table also retains the `0.643605%`
+difference between the Fuelsim scalar constraint integral and the Abaqus native
+nodal-force resultant, but its name explicitly marks that it compares unlike
+discrete quantities. It is a diagnostic and is not used as a field acceptance
+metric. All matched nonzero physical fields and contact integrals are below the
+`0.5%` boundary, so B5.51 is qualified. No penalty, material coefficient, mesh,
+or acceptance gate was fitted.
 
 The original comparison incorrectly interpolated the four C3D20T corner-node
 `HFL` values with all eight quadratic displacement shapes, whose missing
@@ -2571,16 +2582,12 @@ contact heat rate is `14.3080634 W`, only `0.243566%` below Abaqus. No contact
 conductance, contact penalty, material coefficient, mesh, or acceptance gate was
 changed.
 
-The corrected Fuelsim accuracy run completes all twenty steps without a rejected
-step in `324.68 s` external wall time and `323.365 s` internal time. It was
-limited to one numerical-library thread but was not pinned to one processor, so
-it is not a replacement controlled timing baseline. The earlier endpoint-source
-run used 86 nonlinear iterations, 106 residual evaluations, 38 Jacobian
-evaluations, and one PETSc workspace setup. Its controlled CPU-0 times were
-`321.00 s` external and `305.412 s` internal. Abaqus R2018x with `cpus=1` takes
-`608.050095 s` externally and reports `604 s` analysis wall time. Because the
-thermal source evaluation changed, that older speed ratio is historical rather
-than a strict same-result comparison for the corrected solution. These are
-single cross-Windows-and-WSL end-to-end observations, not medians or pure kernel
-timings. The full B5.51 comparison remains manual and is not registered with
-CTest.
+The final Fuelsim run completes all twenty steps without a rejected step. It uses
+86 nonlinear iterations, 106 residual evaluations, 38 Jacobian evaluations, and
+one PETSc workspace setup. With one numerical-library thread pinned to CPU 0, it
+takes `317.07 s` externally and `300.873 s` internally. Abaqus R2018x with
+`cpus=1` takes `608.050095 s` externally and reports `604 s` analysis wall time.
+The corresponding external and internal speed ratios are `1.918` and `2.007`.
+These are single cross-Windows-and-WSL observations, not timing medians or pure
+kernel timings. The full B5.51 comparison remains manual and is not registered
+with CTest.

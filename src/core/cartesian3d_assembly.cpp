@@ -1585,6 +1585,9 @@ SpatialAssembly::AbaqusAveragedConstraintValue SpatialAssembly::averaged_constra
     const auto stored_node = [&constraint](std::size_t local) {
         return constraint.active_node_indices.empty() ? local : constraint.active_node_indices.at(local);
     };
+    const bool local_normal_gradients = !constraint.normal_gap_coefficients.empty();
+    if (local_normal_gradients && constraint.normal_gap_coefficients.size() != constraint.nodes.size())
+        throw std::logic_error("Abaqus-style averaged contact has inconsistent local-normal gap coefficients");
     if (!constraint.projected) return {};
     std::array<double, 3> relative{}, committed_relative{};
     for (std::size_t component = 0; component < 3; ++component) {
@@ -1598,7 +1601,14 @@ SpatialAssembly::AbaqusAveragedConstraintValue SpatialAssembly::averaged_constra
     AbaqusAveragedConstraintValue result{};
     result.tangent_first = {constraint.tangent_first.x, constraint.tangent_first.y, constraint.tangent_first.z};
     result.gap = constraint.reference_gap;
-    for (std::size_t component = 0; component < 3; ++component) result.gap += normal[component] * relative[component];
+    if (local_normal_gradients)
+        for (std::size_t component = 0; component < 3; ++component)
+            for (std::size_t node = 0; node < node_count; ++node)
+                result.gap += constraint.normal_gap_coefficients[stored_node(node)][component] *
+                              state[component * node_count + node];
+    else
+        for (std::size_t component = 0; component < 3; ++component)
+            result.gap += normal[component] * relative[component];
     double normal_relative = 0.0;
     for (std::size_t component = 0; component < 3; ++component)
         normal_relative += normal[component] * relative[component];
@@ -2300,6 +2310,15 @@ void SpatialAssembly::compute_averaged_constraint(const AbaqusAveragedConstraint
     if (jacobian != nullptr) jacobian->assign(local_size * local_size, 0.0);
     if (!(value.pressure > 0.0)) return;
     const std::array<double, 3> normal = {constraint.normal.x, constraint.normal.y, constraint.normal.z};
+    const bool local_normal_gradients = !constraint.normal_gap_coefficients.empty();
+    if (local_normal_gradients && _mechanical_properties[constraint.contact].friction_coefficient != 0.0)
+        throw std::logic_error("HEX20 local-normal averaged contact does not support friction");
+    const auto gap_gradient = [&constraint, &normal, &stored_node, local_normal_gradients](
+                                  std::size_t node, std::size_t component) {
+        const std::size_t stored = stored_node(node);
+        return local_normal_gradients ? constraint.normal_gap_coefficients[stored][component]
+                                      : constraint.gap_coefficients[stored] * normal[component];
+    };
     if (constraint.friction_only) {
         for (std::size_t row_component = 0; row_component < 3; ++row_component)
             for (std::size_t row_node = 0; row_node < node_count; ++row_node) {
@@ -2333,9 +2352,9 @@ void SpatialAssembly::compute_averaged_constraint(const AbaqusAveragedConstraint
     for (std::size_t component = 0; component < 3; ++component) {
         for (std::size_t node = 0; node < node_count; ++node) {
             const std::size_t local = component * node_count + node;
-            residual[local] = -constraint.area * constraint.gap_coefficients[stored_node(node)] *
-                              ((constraint.friction_only ? 0.0 : value.pressure * normal[component]) +
-                                  value.tangential_traction[component]);
+            residual[local] = -constraint.area * (value.pressure * gap_gradient(node, component) +
+                                                     constraint.gap_coefficients[stored_node(node)] *
+                                                         value.tangential_traction[component]);
         }
     }
     if (jacobian == nullptr) return;
@@ -2355,7 +2374,12 @@ void SpatialAssembly::compute_averaged_constraint(const AbaqusAveragedConstraint
                     const double column_coefficient = constraint.gap_coefficients[stored_node(column_node)],
                                  tangential_column_coefficient = -column_coefficient,
                                  pressure_derivative =
-                                     -properties.penalty * normal[column_component] * column_coefficient;
+                                     -properties.penalty * gap_gradient(column_node, column_component);
+                    if (local_normal_gradients) {
+                        (*jacobian)[row * local_size + column] =
+                            -constraint.area * gap_gradient(row_node, row_component) * pressure_derivative;
+                        continue;
+                    }
                     double traction_derivative =
                         constraint.friction_only ? 0.0 : normal[row_component] * pressure_derivative;
                     if (properties.friction_coefficient > 0.0) {
@@ -2399,6 +2423,10 @@ void SpatialAssembly::refresh_hex20_finite_averaged_constraints(const std::vecto
         std::vector<std::size_t> required_nodes;
         std::fill(constraint.gap_coefficients.begin(), constraint.gap_coefficients.end(), 0.0);
         std::fill(constraint.secondary_coefficients.begin(), constraint.secondary_coefficients.end(), 0.0);
+        std::fill(constraint.normal_gap_coefficients.begin(), constraint.normal_gap_coefficients.end(),
+            std::array<double, 3>{});
+        std::fill(constraint.secondary_normal_coefficients.begin(), constraint.secondary_normal_coefficients.end(),
+            std::array<double, 3>{});
         constraint.normal = {};
         constraint.tangent_first = {};
         constraint.area = 0.0;
@@ -2421,13 +2449,28 @@ void SpatialAssembly::refresh_hex20_finite_averaged_constraints(const std::vecto
             if (!std::isfinite(local_area) || !(local_area > 0.0))
                 throw std::domain_error("HEX20 finite-sliding averaged constraint has a nonpositive current area");
             constraint.area += local_area;
+            const std::array<double, 2>& location =
+                abaqus_quad8_constraint_locations().at(sample.secondary_local_point);
+            const Quad8FaceMechanicalQuadraturePoint constraint_point =
+                make_quad8_face_mechanical_point(secondary_current, location[0], location[1], 1.0);
+            const CartesianPoint3 area_vector = cross(constraint_point.tangent_xi, constraint_point.tangent_eta);
+            const double normal_measure = std::sqrt(dot(area_vector, area_vector));
+            if (!std::isfinite(normal_measure) || !(normal_measure > 0.0))
+                throw std::domain_error("HEX20 finite-sliding averaged constraint has an undefined current normal");
+            const CartesianPoint3 local_normal = {sample.normal_orientation * area_vector.x / normal_measure,
+                sample.normal_orientation * area_vector.y / normal_measure,
+                sample.normal_orientation * area_vector.z / normal_measure};
             for (std::size_t local_node = 0; local_node < 8; ++local_node) {
                 const double coefficient = local_area * averaging[sample.secondary_local_point * 8 + local_node];
                 const auto node = std::find(
                     constraint.nodes.begin(), constraint.nodes.end(), secondary.displacement_nodes[local_node]);
                 if (node == constraint.nodes.end())
                     throw std::logic_error("HEX20 finite-sliding averaged constraint lost a secondary node");
-                constraint.gap_coefficients[static_cast<std::size_t>(node - constraint.nodes.begin())] -= coefficient;
+                const std::size_t stored_node = static_cast<std::size_t>(node - constraint.nodes.begin());
+                constraint.gap_coefficients[stored_node] -= coefficient;
+                constraint.normal_gap_coefficients[stored_node][0] -= coefficient * local_normal.x;
+                constraint.normal_gap_coefficients[stored_node][1] -= coefficient * local_normal.y;
+                constraint.normal_gap_coefficients[stored_node][2] -= coefficient * local_normal.z;
                 const auto output =
                     std::find(_hex20_secondary_boundaries.at(constraint.contact).boundary.displacement_nodes.begin(),
                         _hex20_secondary_boundaries.at(constraint.contact).boundary.displacement_nodes.end(),
@@ -2442,20 +2485,13 @@ void SpatialAssembly::refresh_hex20_finite_averaged_constraints(const std::vecto
                     constraint.secondary_output_nodes.begin(), constraint.secondary_output_nodes.end(), output_index);
                 if (stored == constraint.secondary_output_nodes.end())
                     throw std::logic_error("HEX20 finite-sliding averaged constraint output support changed");
-                constraint.secondary_coefficients[static_cast<std::size_t>(
-                    stored - constraint.secondary_output_nodes.begin())] += coefficient;
+                const std::size_t stored_output =
+                    static_cast<std::size_t>(stored - constraint.secondary_output_nodes.begin());
+                constraint.secondary_coefficients[stored_output] += coefficient;
+                constraint.secondary_normal_coefficients[stored_output][0] += coefficient * local_normal.x;
+                constraint.secondary_normal_coefficients[stored_output][1] += coefficient * local_normal.y;
+                constraint.secondary_normal_coefficients[stored_output][2] += coefficient * local_normal.z;
             }
-            const std::array<double, 2>& location =
-                abaqus_quad8_constraint_locations().at(sample.secondary_local_point);
-            const Quad8FaceMechanicalQuadraturePoint constraint_point =
-                make_quad8_face_mechanical_point(secondary_current, location[0], location[1], 1.0);
-            const CartesianPoint3 area_vector = cross(constraint_point.tangent_xi, constraint_point.tangent_eta);
-            const double normal_measure = std::sqrt(dot(area_vector, area_vector));
-            if (!std::isfinite(normal_measure) || !(normal_measure > 0.0))
-                throw std::domain_error("HEX20 finite-sliding averaged constraint has an undefined current normal");
-            const CartesianPoint3 local_normal = {sample.normal_orientation * area_vector.x / normal_measure,
-                sample.normal_orientation * area_vector.y / normal_measure,
-                sample.normal_orientation * area_vector.z / normal_measure};
             constraint.normal.x += local_area * local_normal.x;
             constraint.normal.y += local_area * local_normal.y;
             constraint.normal.z += local_area * local_normal.z;
@@ -2523,8 +2559,13 @@ void SpatialAssembly::refresh_hex20_finite_averaged_constraints(const std::vecto
                         constraint.nodes.begin(), constraint.nodes.end(), primary.displacement_nodes[local_node]);
                     if (node == constraint.nodes.end())
                         throw std::logic_error("HEX20 finite-sliding averaged constraint lost a primary node");
-                    constraint.gap_coefficients[static_cast<std::size_t>(node - constraint.nodes.begin())] +=
+                    const std::size_t stored_node = static_cast<std::size_t>(node - constraint.nodes.begin());
+                    const double coefficient =
                         local_area * transfer.weight * selected_projection.primary_shape[local_node];
+                    constraint.gap_coefficients[stored_node] += coefficient;
+                    constraint.normal_gap_coefficients[stored_node][0] += coefficient * local_normal.x;
+                    constraint.normal_gap_coefficients[stored_node][1] += coefficient * local_normal.y;
+                    constraint.normal_gap_coefficients[stored_node][2] += coefficient * local_normal.z;
                 }
             }
         }
@@ -2550,16 +2591,20 @@ void SpatialAssembly::refresh_hex20_finite_averaged_constraints(const std::vecto
         constraint.tangent_first.z /= tangent_measure;
         for (double& coefficient : constraint.gap_coefficients) coefficient /= constraint.area;
         for (double& coefficient : constraint.secondary_coefficients) coefficient /= constraint.area;
+        for (std::array<double, 3>& coefficient : constraint.normal_gap_coefficients)
+            for (double& component : coefficient) component /= constraint.area;
+        for (std::array<double, 3>& coefficient : constraint.secondary_normal_coefficients)
+            for (double& component : coefficient) component /= constraint.area;
         if (!primary_face_weight.empty())
             constraint.primary_face = static_cast<std::size_t>(
                 std::max_element(primary_face_weight.begin(), primary_face_weight.end()) - primary_face_weight.begin());
-        CartesianPoint3 separation{};
+        constraint.reference_gap = 0.0;
         for (std::size_t node = 0; node < constraint.nodes.size(); ++node) {
-            separation.x += constraint.gap_coefficients[node] * constraint.reference_coordinates[node].x;
-            separation.y += constraint.gap_coefficients[node] * constraint.reference_coordinates[node].y;
-            separation.z += constraint.gap_coefficients[node] * constraint.reference_coordinates[node].z;
+            constraint.reference_gap +=
+                constraint.normal_gap_coefficients[node][0] * constraint.reference_coordinates[node].x +
+                constraint.normal_gap_coefficients[node][1] * constraint.reference_coordinates[node].y +
+                constraint.normal_gap_coefficients[node][2] * constraint.reference_coordinates[node].z;
         }
-        constraint.reference_gap = dot(separation, constraint.normal);
         std::sort(required_nodes.begin(), required_nodes.end());
         required_nodes.erase(std::unique(required_nodes.begin(), required_nodes.end()), required_nodes.end());
         constraint.active_nodes.clear();
@@ -3157,7 +3202,9 @@ bool SpatialAssembly::summarize_averaged_contact(std::size_t contact_value, cons
                                                        : constraint.normal.z;
                 if (!constraint.friction_only)
                     output.normal_contact_force[component] +=
-                        constraint.secondary_coefficients[entry] * value.force * normal;
+                        constraint.secondary_normal_coefficients.empty()
+                            ? constraint.secondary_coefficients[entry] * value.force * normal
+                            : constraint.secondary_normal_coefficients[entry][component] * value.force;
                 output.tangential_contact_force[component] +=
                     constraint.friction_only
                         ? constraint.area * (constraint.secondary_tangent_first_coefficients[entry][component] *
@@ -4350,7 +4397,7 @@ void SpatialAssembly::build_hex20_contacts(const UnstructuredHex20Mesh& source_m
                 double secondary_sum = 0.0, primary_sum = 0.0;
                 for (const auto& entry : builder.secondary) {
                     const double coefficient = -entry.second / builder.area;
-                    if (std::abs(coefficient) <= 1.0e-14) continue;
+                    if (!finite_averaged && std::abs(coefficient) <= 1.0e-14) continue;
                     constraint.nodes.push_back(entry.first);
                     constraint.gap_coefficients.push_back(coefficient);
                     if (finite_averaged)
@@ -4375,6 +4422,10 @@ void SpatialAssembly::build_hex20_contacts(const UnstructuredHex20Mesh& source_m
                 for (const auto& entry : builder.secondary_output) {
                     constraint.secondary_output_nodes.push_back(entry.first);
                     constraint.secondary_coefficients.push_back(entry.second / builder.area);
+                }
+                if (finite_averaged) {
+                    constraint.normal_gap_coefficients.resize(constraint.nodes.size());
+                    constraint.secondary_normal_coefficients.resize(constraint.secondary_output_nodes.size());
                 }
                 if (std::abs(secondary_sum - 1.0) > 1.0e-10 ||
                     (!finite_averaged && std::abs(primary_sum - 1.0) > 1.0e-10))

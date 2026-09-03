@@ -278,6 +278,7 @@ def main():
     gauss_surface = (-math.sqrt(3.0 / 5.0), 0.0, math.sqrt(3.0 / 5.0))
     weights_surface = (5.0 / 9.0, 8.0 / 9.0, 5.0 / 9.0)
     abaqus_contact_force = 0.0
+    fuelsim_recovered_contact_force = 0.0
     abaqus_tangential_force = 0.0
     abaqus_heat_rate = 0.0
     abaqus_contact_area = 0.0
@@ -287,6 +288,8 @@ def main():
         rows = [contact_by_label[label] for label in labels]
         points = np.asarray([[float(row[name]) for name in ("current_x", "current_y", "current_z")] for row in rows])
         pressure = np.asarray([float(row["contact_pressure"]) for row in rows])
+        fuelsim_points = current_coordinates[np.asarray(labels, dtype=int) - 1]
+        fuelsim_pressure = nodal["contact_pressure_fuel_cladding"][np.asarray(labels, dtype=int) - 1]
         shear = np.asarray([math.hypot(float(row["shear_1"]), float(row["shear_2"])) for row in rows])
         heat = np.asarray([float(row["heat_flow"]) for row in rows])
         for xi_index, xi in enumerate(gauss_surface):
@@ -297,8 +300,16 @@ def main():
                     * weights_surface[xi_index]
                     * weights_surface[eta_index]
                 )
+                fuelsim_area = (
+                    np.linalg.norm(
+                        np.cross(derivative_xi.dot(fuelsim_points), derivative_eta.dot(fuelsim_points))
+                    )
+                    * weights_surface[xi_index]
+                    * weights_surface[eta_index]
+                )
                 abaqus_contact_area += area
                 abaqus_contact_force += shape.dot(pressure) * area
+                fuelsim_recovered_contact_force += shape.dot(fuelsim_pressure) * fuelsim_area
                 abaqus_tangential_force += shape.dot(shear) * area
                 # C3D20T has temperature and thermal-contact flux only at the four corner
                 # nodes.  Its current contact area is nevertheless carried by the full Q8
@@ -307,8 +318,8 @@ def main():
                 # reduce a constant flux integral to minus one third of its physical value.
                 abaqus_heat_rate += quad4_shapes(xi, eta).dot(heat[:4]) * area
     for name, actual, reference in (
-        ("contact_normal_force_resultant", global_values["contact_force_fuel_cladding"], abs(abaqus_native_normal_force)),
-        ("recovered_contact_pressure_integral", global_values["contact_force_fuel_cladding"], abaqus_contact_force),
+        ("contact_constraint_force_vs_abaqus_native_resultant", global_values["contact_force_fuel_cladding"], abs(abaqus_native_normal_force)),
+        ("recovered_contact_pressure_integral", fuelsim_recovered_contact_force, abaqus_contact_force),
         ("recovered_contact_shear_integral", global_values["contact_tangential_force_fuel_cladding"], abaqus_tangential_force),
         ("recovered_contact_heat_integral", global_values["contact_heat_rate_fuel_cladding"], abs(abaqus_heat_rate)),
     ):

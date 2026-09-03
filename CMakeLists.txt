@@ -397,7 +397,7 @@ if(BUILD_TESTING)
         benchmarks/m58_integrated_hex20_results.cpp
     )
     target_link_libraries(fuelsim_m58_integrated_hex20_results
-        PRIVATE fuelsim::io fuelsim::solver
+        PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver
     )
     fuelsim_enable_warnings(fuelsim_m58_integrated_hex20_results)
     add_executable(fuelsim_b549_small_c3d20t_mesh

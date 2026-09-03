@@ -215,6 +215,7 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
         std::size_t contact, secondary, history;
         std::vector<std::size_t> nodes, active_nodes, active_node_indices, secondary_output_nodes;
         std::vector<double> gap_coefficients, secondary_coefficients;
+        std::vector<std::array<double, 3>> normal_gap_coefficients, secondary_normal_coefficients;
         std::vector<std::array<double, 3>> tangent_first_coefficients, tangent_second_coefficients,
             traction_first_coefficients, traction_second_coefficients, secondary_tangent_first_coefficients,
             secondary_tangent_second_coefficients;
