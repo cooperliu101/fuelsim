@@ -1254,16 +1254,16 @@ different recovered quantities. The full commands and all error rows are in
 
 ## B6.0 C3D8RT fuel-plate thermo-mechanical bending
 
-B6.0 uses a 24 mm × 6 mm × 1 mm plate: 80 central `meat` elements are
-continuously enclosed by 208 `clad` elements. The x coordinates are stretched from
-the original 12 mm plate while preserving the element and material partition, so
-the fuel core remains centered and the element count stays 288. Both blocks use
-C3D8RT with the same four-field degrees of freedom at shared interface nodes. The
-fuel block generates `2e8 W/m^3`; the front and back cladding faces are prescribed
-at `700` and `600 K`, producing a strong through-thickness temperature gradient
-and a measurable free-edge bending displacement. The left face is clamped in all
-three displacement components. The path has 455 nodes, 288 elements, 1,820
-degrees of freedom, and ten fixed one-second increments. The fuel isotropic
+B6.0 uses a 100 mm × 6 mm × 1 mm plate: 80 central `meat` elements are
+continuously enclosed by 1,120 `clad` elements. The structured mesh has 50, 6,
+and 4 elements along x, y, and z; the fuel core occupies x=`0.04--0.06 m`,
+y=`0.001--0.005 m`, z=`0.00025--0.00075 m`. Both blocks use C3D8RT with the
+same four-field degrees of freedom at shared interface nodes. The fuel block
+generates `2e8 W/m^3`; the front and back faces are prescribed at `700` and
+`600 K`, producing a strong through-thickness temperature gradient and a
+measurable free-edge bending displacement. The left face is clamped in all three
+displacement components. The path has 1,785 nodes, 1,200 elements, 7,140 degrees
+of freedom, and ten fixed one-second increments. The fuel isotropic
 thermal-expansion coefficient is `1e-4 K^-1`; the cladding coefficient remains
 `5e-6 K^-1`.
 
@@ -1275,13 +1275,13 @@ Run the Fuelsim side with one process and one thread per numerical library:
   /tmp/b60_fuelsim_nodal.csv /tmp/b60_fuelsim_timing.tsv
 ```
 
-On the current machine this completed all ten increments with 65 nonlinear
-iterations, one PETSc workspace setup, and an internal benchmark time of
-`2.32 s`. With the process fixed to one CPU core and all numerical libraries
-restricted to one thread, the external time was `2.83 s` (median of three
-runs). The final temperature range is `600--700.0000 K`; the free-right-edge
-displacement-z range is `9.8175372e-6 m`, while the largest absolute right-edge
-z displacement is about `0.637 mm`.
+On the current machine this completed all ten increments with one PETSc workspace
+setup and an internal solver time of `15.80 s` in the representative run. With
+the process fixed to one CPU core and all numerical libraries restricted to one
+thread, the external time was `16.09 s` (median of three runs). The final
+temperature range is `600--700 K`; the free-right-edge displacement-z range is
+`2.4244148e-6 m`, while the largest absolute right-edge z displacement is
+`4.474 mm`.
 
 The Abaqus deck uses the same converted mesh include and C3D8RT element,
 coupled temperature-displacement transient step, material data, heat source,
@@ -1295,19 +1295,20 @@ python3 verification/abaqus/compare_b60.py \
   verification/abaqus/b60_fuel_plate_c3d8rt_bending_nodal.csv \
   --fuelsim-timing /tmp/b60_fuelsim_timing.tsv \
   --abaqus-timing verification/abaqus/b60_fuel_plate_c3d8rt_bending_timing.txt \
-  --fuelsim-external-seconds 2.83
+  --fuelsim-external-seconds 16.09
 ```
 
 The recorded Abaqus runs used one CPU and full output precision; their external
-wall times were `3.332926 s`, `3.391444 s`, and `3.378766 s` (median
-`3.378766 s`). Relative L2 errors are `8.19e-9%` for temperature,
-`1.10e-5%` for displacement-x, `3.86e-5%` for displacement-y, and
-`1.22e-5%` for displacement-z. Relative absolute-peak errors are respectively
-`3.78e-8%`, `1.42e-5%`, `4.97e-5%`, and `1.30e-5%`; maximum absolute differences
-are `2.65e-7 K`, `1.17e-11 m`, `6.62e-12 m`, and `8.27e-11 m`. The free-edge
-bending ranges differ by `6.33e-12 m`. The large pointwise percentages reported for displacement-y are
-near-zero reference amplification, not a large absolute field discrepancy.
-Using the median external times, Fuelsim/Abaqus is `0.838`, so Fuelsim is about
-`1.19x` faster in this cross Windows-and-WSL measurement.
+wall times were `5.394995 s`, `3.387755 s`, and `5.359170 s` (median
+`5.359170 s`). Relative L2 errors are `5.86e-10%` for temperature,
+`1.85e-6%` for displacement-x, `2.72e-5%` for displacement-y, and
+`9.06e-7%` for displacement-z. Relative absolute-peak errors are respectively
+`5.65e-9%`, `3.14e-6%`, `3.93e-5%`, and `6.18e-7%`; maximum absolute differences
+are `3.95e-8 K`, `3.69e-12 m`, `5.25e-12 m`, and `2.76e-11 m`. The free-edge
+bending ranges differ by `5.12e-13 m`. The large pointwise percentages reported
+for near-zero displacement references are denominator amplification, not a large
+absolute field discrepancy. Using the median external times, Fuelsim/Abaqus is
+`3.002`, so Abaqus is about `3.00x` faster in this cross Windows-and-WSL
+measurement.
 The reproducible metric summary is stored in
 `verification/abaqus/b60_fuel_plate_c3d8rt_bending_comparison.tsv`.

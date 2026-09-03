@@ -2780,12 +2780,12 @@ coverage of the curved node-centered friction Jacobian and external-field path.
 
 ## B6.0 C3D8RT fuel-plate thermo-mechanical bending
 
-The B6.0 deck uses a 24 mm × 6 mm × 1 mm plate converted to C3D8RT: 80 central
-fuel elements are enclosed by 208 cladding elements. The fuel block is centered
-and the x coordinates are stretched from the original 12 mm mesh. A constant fuel
-heat source of `2e8 W/m^3` and prescribed front/back temperatures (`700` and
-`600 K`) create a stronger through-thickness thermal gradient. The left face is
-clamped in all displacement components, so the free right edge bends.
+The B6.0 deck uses a 100 mm × 6 mm × 1 mm plate converted to C3D8RT: 80 central
+fuel elements are enclosed by 1,120 cladding elements. The structured mesh has
+1,785 nodes and 1,200 elements, with the fuel core centered in the plate. A
+constant fuel heat source of `2e8 W/m^3` and prescribed front/back temperatures
+(`700` and `600 K`) create a strong through-thickness thermal gradient. The left
+face is clamped in all displacement components, so the free right edge bends.
 The fuel thermal-expansion coefficient is `1e-4 K^-1`; the cladding value is
 `5e-6 K^-1`.
 
@@ -2801,13 +2801,13 @@ available, and final nodal `NT11`/`U` values. Use
 `verification/abaqus/compare_b60.py` with the Fuelsim benchmark CSV and timing
 file to print all three field-error metrics, maximum absolute differences,
 zero-reference diagnostics, the free-edge bending range, and the external speed
-ratio. The recorded one-CPU Abaqus wall times are `3.332926 s`, `3.391444 s`,
-and `3.378766 s` (median `3.378766 s`); the Fuelsim median external time is
-`2.83 s`, giving a Fuelsim/Abaqus ratio of `0.838`. Relative L2
-errors against the final Abaqus nodal fields are `8.19e-9%` (temperature),
-`1.10e-5%` (displacement-x), `3.86e-5%` (displacement-y), and `1.22e-5%`
-(displacement-z). The corresponding relative absolute-peak errors are
-`3.78e-8%`, `1.42e-5%`, `4.97e-5%`, and `1.30e-5%`; the bending-range absolute
-difference is `6.33e-12 m`.
+ratio. The recorded one-CPU Abaqus wall times are `5.394995 s`, `3.387755 s`,
+and `5.359170 s` (median `5.359170 s`); the Fuelsim median external time is
+`16.09 s`, giving a Fuelsim/Abaqus ratio of `3.002`. Relative L2 errors against
+the final Abaqus nodal fields are `5.86e-10%` (temperature), `1.85e-6%`
+(displacement-x), `2.72e-5%` (displacement-y), and `9.06e-7%` (displacement-z).
+The corresponding relative absolute-peak errors are `5.65e-9%`, `3.14e-6%`,
+`3.93e-5%`, and `6.18e-7%`; the bending-range absolute difference is
+`5.12e-13 m`.
 The same numeric summary is retained in
 `verification/abaqus/b60_fuel_plate_c3d8rt_bending_comparison.tsv`.

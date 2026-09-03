@@ -1,6 +1,6 @@
 *Heading
 ** B6.0 coupled fuel-plate bending benchmark using C3D8RT.
-** The central MEAT block is enclosed by CLAD on the tracked B3.6 plate mesh.
+** The central MEAT block is enclosed by CLAD on the 100 mm tracked plate mesh.
 ** Prescribed unequal front/back temperatures produce a through-thickness thermal gradient and bending.
 *Preprint, echo=NO, model=NO, history=NO, contact=NO
 *Include, input=b60_long_plate_meat_clad_c3d8rt.inc
