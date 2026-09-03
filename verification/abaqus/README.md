@@ -690,9 +690,10 @@ L2, relative absolute-peak, and maximum pointwise-relative errors are:
 | gap | `0.118193%` | `0.103406%` | `0.269798%` |
 | pressure | `0.0329806%` | `0.0683449%` | `0.0823490%` |
 
-CTest registers the small-strain and finite-strain paths separately. Each
-invocation solves only its selected strain formulation, so the two paths can run
-concurrently without changing their acceptance limits.
+CTest registers only the finite-strain path because this prescribed-displacement
+contact comparison does not solve the volume equilibrium equations. The tracked
+small-strain Abaqus input and reference remain available for manual replay, while
+H20.39 retains automatic small- and finite-strain path coverage.
 
 All three metrics are below `1%` without a denominator floor. The largest
 Exodus-to-Abaqus output-database coordinate difference is `2.97395e-8 m`,

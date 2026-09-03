@@ -1534,16 +1534,13 @@ if(BUILD_TESTING)
     target_link_libraries(fuelsim_h20_40_curved_finite_sliding_abaqus_tests
         PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
     fuelsim_enable_warnings(fuelsim_h20_40_curved_finite_sliding_abaqus_tests)
-    foreach(h20_40_mode IN ITEMS small finite)
-        set(h20_40_test "fuelsim_h20_40_curved_finite_sliding_${h20_40_mode}_abaqus_tests")
-        add_test(NAME ${h20_40_test}
-            COMMAND fuelsim_h20_40_curved_finite_sliding_abaqus_tests
-                "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_40_hex20_curved_finite_sliding_mesh.e"
-                "${h20_40_mode}"
-                "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_40_hex20_curved_finite_sliding_${h20_40_mode}.csv")
-        set_tests_properties(${h20_40_test}
-            PROPERTIES LABELS "acceptance;three-dimensional;hex20;contact;friction;curved;finite-sliding;abaqus;split-case")
-    endforeach()
+    add_test(NAME fuelsim_h20_40_curved_finite_sliding_finite_abaqus_tests
+        COMMAND fuelsim_h20_40_curved_finite_sliding_abaqus_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_40_hex20_curved_finite_sliding_mesh.e"
+            finite
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_40_hex20_curved_finite_sliding_finite.csv")
+    set_tests_properties(fuelsim_h20_40_curved_finite_sliding_finite_abaqus_tests
+        PROPERTIES LABELS "acceptance;three-dimensional;hex20;contact;friction;curved;finite-sliding;abaqus")
 
     add_executable(fuelsim_h20_41_hex20_partial_contact_abaqus_tests
         tests/h20_partial_contact_abaqus_tests.cpp)
