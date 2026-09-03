@@ -712,8 +712,11 @@ bool run_unnormalized_area_comparison(const std::string& case_path, const std::s
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 18) {
-        std::cerr << "Usage: fuelsim_h20_hex20_contact_reference_tests <thermal.fsi> <temperature.csv> "
+    const bool thermal_only = argc == 4 && std::string(argv[1]) == "--thermal-only";
+    if (!thermal_only && argc != 18) {
+        std::cerr << "Usage: fuelsim_h20_hex20_contact_reference_tests --thermal-only "
+                     "<thermal.fsi> <temperature.csv>\n"
+                     "   or: fuelsim_h20_hex20_contact_reference_tests <thermal.fsi> <temperature.csv> "
                      "<mechanical.fsi> <displacement.csv> <contact.csv> <sliding.fsi> <reaction.csv> "
                      "<mortar.fsi> <mortar_displacement.csv> <mortar_reaction.csv> "
                      "<abaqus_friction_displacement.csv> <abaqus_friction_reaction.csv> "
@@ -724,6 +727,13 @@ int main(int argc, char** argv) {
     try {
         std::cout << std::scientific << std::setprecision(12);
         fuelsim::PetscSession session(argc, argv, "fuelsim HEX20 contact external-reference comparisons\n");
+        if (thermal_only) {
+            const bool passed = run_thermal(argv[2], argv[3]);
+            if (passed && session.rank() == 0) std::cout << "[PASS] HEX20 thermal-contact external comparison\n";
+            return passed ? 0 : 1;
+        }
+        // Retain the legacy node-to-surface comparison calls for source-level
+        // reference while the production C3D20T branch is disabled.
         const bool passed = run_thermal(argv[1], argv[2]) && run_mechanical(argv[3], argv[4], argv[5]) &&
                             run_sliding(argv[6], argv[7]) && run_mortar_area_comparison(argv[8], argv[9], argv[10]) &&
                             run_abaqus_sliding_comparison(argv[8], argv[11], argv[12]) &&

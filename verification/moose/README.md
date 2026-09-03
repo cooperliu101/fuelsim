@@ -71,6 +71,12 @@ are counted and checked separately.
 
 ## H20.16--19 mixed-order HEX20 contact
 
+H20.16 thermal contact remains in the automatic suite. The H20.17--19 and
+H20.22 mechanical node-to-surface comparisons below are retained as historical
+evidence only: current Fuelsim builds reject C3D20T `node_to_surface` mechanical
+contact during problem construction, while the legacy implementation and
+reference files remain available for follow-up study.
+
 `h20_16_hex20_contact_mesh.i` generates the tracked two-element HEX20 mesh with
 a one-micrometre initial penetration. Temperature uses first-order interpolation
 on the corner nodes, while displacement and contact geometry use all 20 element
@@ -231,6 +237,10 @@ field with one or ten load increments, so the tracked H20.24 input does not use
 that workaround.
 
 ## H20.25 traditional HEX20 node-to-face contact
+
+This test is no longer registered in CTest because the corresponding Fuelsim
+C3D20T node-to-surface branch is disabled. Its source, input, and MOOSE/Abaqus
+references remain tracked as historical evidence.
 
 `h20_25_hex20_node_to_face.i` isolates pure-normal traditional penalty contact
 on the tracked H20.16 two-element mesh. Fuelsim and MOOSE both use the original

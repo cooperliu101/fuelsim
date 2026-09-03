@@ -136,6 +136,11 @@ recorded with the tracked input and snapshots in `verification/moose/README.md`.
 
 ## H20.25 mixed-order HEX20 node-to-surface contact
 
+This comparison is retained as historical evidence, but it is no longer
+registered in CTest. Fuelsim now rejects C3D20T `node_to_surface` mechanical
+contact during problem construction; the implementation, input, and external
+reference files remain in the repository for follow-up study.
+
 `h20_25_hex20_node_to_surface_contact.inp` uses the same two-element mesh,
 elastic constants, `1e13 Pa/m` linear normal penalty, and final 21 micrometre
 closure as the fuelsim and MOOSE H20.25 cases. It changes only the Abaqus
@@ -2267,6 +2272,11 @@ powershell -ExecutionPolicy Bypass -File run_b552.ps1 -SourceDirectory <abaqus-d
 ```
 
 ## B5.48 M5.8 C3D20T conversion and failed full-field comparison
+
+The Fuelsim command recorded below is retained for historical reproducibility,
+but current builds stop at problem construction because this input selects the
+disabled C3D20T `node_to_surface` mechanical-contact branch. The implementation
+and artifacts have not been deleted.
 
 B5.48 converts the exact 1,152-element M5.8 partition to quadratic HEX20
 geometry and displacement interpolation. The converter adds one globally

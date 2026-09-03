@@ -3987,6 +3987,13 @@ void SpatialAssembly::build_hex20_contacts(const UnstructuredHex20Mesh& source_m
                 "HEX20 contact currently supports the penalty formulation only: " + definition.name);
         if (definition.mechanical_discretization == MechanicalContactDiscretization::automatic)
             definition.mechanical_discretization = MechanicalContactDiscretization::surface_to_surface;
+        // Keep the legacy HEX20 node-to-surface construction and evaluation code
+        // below for follow-up study, but do not expose that C3D20T path while its
+        // Abaqus discretization mismatch remains unresolved.
+        if (definition.mechanical &&
+            definition.mechanical_discretization == MechanicalContactDiscretization::node_to_surface)
+            throw std::invalid_argument(
+                "C3D20T node_to_surface mechanical contact is disabled; use surface_to_surface: " + definition.name);
         const bool surface_to_surface =
             definition.mechanical_discretization == MechanicalContactDiscretization::surface_to_surface;
         if (definition.mechanical_sliding == MechanicalContactSliding::finite && !surface_to_surface)

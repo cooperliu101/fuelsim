@@ -286,7 +286,8 @@ penalty = penalty_factor * k_interface
 
 `discretization` 可显式选择 `node_to_surface` 或 `surface_to_surface`。省略时，
 HEX20 机械接触采用 `surface_to_surface`，HEX8 和轴对称 RZ 采用
-`node_to_surface`。三维 HEX8 和 HEX20 的 `surface_to_surface` 当前只支持罚函数形式；
+`node_to_surface`。C3D20T 当前明确拒绝显式 `node_to_surface`，其保留实现只作为
+后续研究代码，不属于可用输入路径。三维 HEX8 和 HEX20 的 `surface_to_surface` 当前只支持罚函数形式；
 HEX8 必须显式选择该离散。HEX8 的 `sliding = small` 只允许两侧均为小应变，
 `sliding = finite` 可用于小应变或有限应变区域。轴对称 RZ 机械接触仍只采用节点到线段离散。
 `sliding` 可选择 `small` 或 `finite`，省略时为 `small`；该键只允许与显式的
@@ -348,7 +349,8 @@ H20.30 使用同一组 Exodus 坐标分别比较平面面片拼成的四分之�
 `0.063526%` 和 `0.289203%`，节点径向接触力三项误差分别为 `0.047713%`、
 `0.056410%` 和 `0.106361%`，均小于 `1%`；径向合力误差为 `0.0000723%`。
 
-`quad8_nodal_area_rule` 只适用于显式选择的 HEX20 `node_to_surface` 对比路径。
+`quad8_nodal_area_rule` 属于目前已屏蔽的 HEX20 `node_to_surface` 对比路径，保留
+字段和下述定义只用于读取历史输入及后续研究；生产 C3D20T 问题会在构造时拒绝该路径。
 `positive_lumped` 先计算每个节点的平方形函数积分，再按当前面面积归一化：
 
 ```text
@@ -362,8 +364,8 @@ nodal_area_i = face_area * raw_area_i / sum(raw_area)
 与 MOOSE 的传统 node-face `MechanicalContactConstraint` 且
 `normalize_penalty = true` 的结果对比。该旧规则在规则 QUAD8 面的角点面积为
 `-1/12`、边中点面积为 `1/3`，所以角点不具有正的 Coulomb 摩擦容量。
-`consistent_shape` 只允许用于 HEX20 `node_to_surface`；二维 RZ、HEX8 和
-`surface_to_surface` 接触会在问题构造时拒绝它。
+`consistent_shape` 的遗留实现只对应 HEX20 `node_to_surface`；当前所有可运行的
+C3D20T、二维 RZ、HEX8 和 `surface_to_surface` 接触都会在问题构造时拒绝它。
 
 H20.19 另用 MOOSE 的双基函数 mortar 面积分作为独立排序参考。在同一二单元纯法向
 压缩算例中，`consistent_shape` 的法向位移和合力比 `positive_lumped` 更接近 mortar，

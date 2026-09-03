@@ -379,6 +379,19 @@ bool test_contact_projection(const fuelsim::UnstructuredHex20Mesh& mesh) {
                            }),
                  "HEX20 finite-strain surface contact commits nine biaxial sliding histories at slip_tolerance") &&
              passed;
+    fuelsim::SpatialDefinition disabled_node_to_surface = spatial;
+    disabled_node_to_surface.contacts[0].mechanical_discretization =
+        fuelsim::MechanicalContactDiscretization::node_to_surface;
+    try {
+        const fuelsim::SteadyProblem disabled_problem(disabled_node_to_surface, contact_mesh);
+        (void)disabled_problem;
+        passed = check(false, "C3D20T node-to-surface mechanical contact is rejected") && passed;
+    } catch (const std::invalid_argument& error) {
+        passed = check(std::string(error.what()) ==
+                           "C3D20T node_to_surface mechanical contact is disabled; use surface_to_surface: interface",
+                     "C3D20T node-to-surface mechanical contact reports the disabled production path") &&
+                 passed;
+    }
     return passed;
 }
 

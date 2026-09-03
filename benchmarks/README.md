@@ -1152,6 +1152,12 @@ the `b553_m58_c3d8t_sts_*` and `b554_m58_c3d8rt_sts_*` prefixes under
 
 ## M5.8 C3D20T Abaqus timing and field comparison
 
+This B5.48 node-to-surface result is historical evidence. The tracked input and
+timing records are retained, but current Fuelsim builds reject C3D20T
+`node_to_surface` mechanical contact during problem construction; current
+C3D20T qualification and timing work uses the surface-to-surface B5.51 and
+B5.56 paths below.
+
 B5.48 upgrades every element of the tracked M5.8 mesh from HEX8 to HEX20
 without changing the 1,152-element partition, cylindrical geometry, two
 material regions, contact surfaces, material coefficients, loads, or twenty

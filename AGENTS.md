@@ -26,7 +26,9 @@ RZ Quad4 体单元 12 DOF / 界面候选 12 DOF
 
 轴对称接触使用 secondary-side surface-to-surface（STS，面到面）热接触和
 secondary 节点到 primary 线段的唯一 node-to-surface（NTS，节点到面）机械
-接触；三维接触支持 NTS 和 STS。全局自由度均采用 field-major 排列：
+接触；三维 HEX8 接触支持 NTS 和 STS，C3D20T 机械接触只启用 STS。C3D20T
+的旧 NTS 实现暂时保留在源码中，但问题构造会明确拒绝该路径。全局自由度均采用
+field-major 排列：
 
 ```text
 RZ:       [T(:), ur(:), uz(:)]
@@ -208,11 +210,12 @@ MOOSE 算例鉴定。轴对称有限应变 follower pressure 另有
   `validate_state` 明确拒绝当前 Newton 状态并进入线搜索或拒步恢复，不得静默
   置零接触力或继续使用端点力。
 - 轴对称热接触与机械接触都必须离散守恒。
-- 三维 Cartesian 接触在当前构形上支持 NTS 和 STS，并分别支持小滑移和有限
-  滑移。每个 secondary 节点或积分约束在一次状态验证中至多选择一个有效
+- 三维 Cartesian HEX8 接触在当前构形上支持 NTS 和 STS；C3D20T 机械接触只启用
+  STS，旧 NTS 实现保留但问题构造必须明确拒绝。每个 secondary 节点或积分约束
+  在一次状态验证中至多选择一个有效
   primary 面候选；内部面边界不得重复归属，首次装配必须为所有潜在候选预留
   稀疏零块。热流和机械反力在两侧必须严格离散守恒。
-- 三维热接触、NTS 机械接触、小滑移机械接触和带摩擦的有限滑移机械接触失去
+- 三维热接触、HEX8 NTS 机械接触、小滑移机械接触和带摩擦的有限滑移机械接触失去
   全部有效投影时，必须由 `validate_state` 拒绝当前 Newton 状态。只有无摩擦
   HEX8 有限滑移 STS 的平均表面约束可以在滑出对面后自然释放，并贡献严格零
   残量；不得把这个例外扩大到其他接触离散。

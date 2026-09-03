@@ -1346,44 +1346,22 @@ if(BUILD_TESTING)
     target_link_libraries(fuelsim_h20_hex20_contact_reference_tests
         PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
     fuelsim_enable_warnings(fuelsim_h20_hex20_contact_reference_tests)
-    add_test(NAME fuelsim_h20_hex20_contact_reference_tests
+    add_test(NAME fuelsim_h20_hex20_thermal_contact_reference_tests
         COMMAND fuelsim_h20_hex20_contact_reference_tests
+            --thermal-only
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex20_thermal_contact_moose.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_16_hex20_thermal_contact_temperature_nodes_0001.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex20_mechanical_contact_moose.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_17_hex20_mechanical_contact_displacement_nodes_0010.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_17_hex20_mechanical_contact_secondary_contact_0010.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex20_sliding_contact_moose.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_18_hex20_sliding_contact.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex20_mortar_area_compare.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_19_hex20_mortar_mechanical_displacement_nodes_0001.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_19_hex20_mortar_mechanical.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_23_hex20_surface_friction_displacement.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_23_hex20_surface_friction_reaction.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_21_hex20_surface_contact_displacement.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_21_hex20_surface_contact_reaction.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_22_hex20_unnormalized_mechanical_displacement_nodes_0009.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_22_hex20_unnormalized_mechanical_secondary_contact_0009.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_22_hex20_unnormalized_mechanical.csv")
-    set_tests_properties(fuelsim_h20_hex20_contact_reference_tests
-        PROPERTIES LABELS "acceptance;three-dimensional;hex20;contact;friction")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_16_hex20_thermal_contact_temperature_nodes_0001.csv")
+    set_tests_properties(fuelsim_h20_hex20_thermal_contact_reference_tests
+        PROPERTIES LABELS "acceptance;three-dimensional;hex20;contact;thermal")
 
     add_executable(fuelsim_h20_25_hex20_node_to_face_three_way_tests
         tests/h20_node_to_face_three_way_tests.cpp)
     target_link_libraries(fuelsim_h20_25_hex20_node_to_face_three_way_tests
         PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
     fuelsim_enable_warnings(fuelsim_h20_25_hex20_node_to_face_three_way_tests)
-    add_test(NAME fuelsim_h20_25_hex20_node_to_face_three_way_tests
-        COMMAND fuelsim_h20_25_hex20_node_to_face_three_way_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex20_mortar_area_compare.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_25_hex20_node_to_face_displacement_nodes_0001.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_25_hex20_node_to_face_secondary_contact_0001.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_25_hex20_node_to_face_reaction.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_25_hex20_node_to_surface_contact_displacement.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_25_hex20_node_to_surface_contact_pressure.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_25_hex20_node_to_surface_contact_reaction.csv")
-    set_tests_properties(fuelsim_h20_25_hex20_node_to_face_three_way_tests
-        PROPERTIES LABELS "acceptance;three-dimensional;hex20;contact;abaqus;moose")
+    # The H20.25 executable and reference data are intentionally retained, but
+    # its CTest registration stays disabled with the production C3D20T
+    # node-to-surface branch.
 
     add_executable(fuelsim_h20_26_abaqus_sts_identification_tests
         tests/h20_abaqus_sts_identification_tests.cpp)
