@@ -276,6 +276,68 @@ fuelsim::SpatialDefinition definition(fuelsim::StrainFormulation strain) {
     return result;
 }
 
+double mechanical_contact_directional_error(
+    fuelsim::SteadyProblem& problem, const std::vector<double>& global_state, double perturbation) {
+    const auto& spatial = fuelsim::cartesian::ProblemAccess::view(problem);
+    std::vector<double> trial_state = global_state;
+    const std::vector<std::size_t> source_nodes =
+        fuelsim::cartesian::ProblemAccess::contact_secondary_source_nodes(problem, 0);
+    const std::vector<fuelsim::CartesianContactNodeSummary> summaries =
+        fuelsim::cartesian::ProblemAccess::summarize_contact_nodes(problem, 0, global_state);
+    if (source_nodes.size() != summaries.size())
+        throw std::logic_error("H20.40 contact Jacobian check has inconsistent secondary-node maps");
+    std::map<std::size_t, std::size_t> source_to_global;
+    for (std::size_t region = 0; region < spatial.region_count(); ++region) {
+        const fuelsim::Hex20RegionMesh& region_mesh = spatial.hex20_region_mesh(region);
+        for (std::size_t local = 0; local < region_mesh.nodes().size(); ++local)
+            source_to_global.emplace(region_mesh.source_node_ids()[local], spatial.global_node(region, local));
+    }
+    constexpr double sliding_trial_increment = 1.0e-5;
+    for (std::size_t node = 0; node < source_nodes.size(); ++node) {
+        const auto& slip = summaries[node].tangential_slip;
+        const double magnitude = std::hypot(slip[0], slip[1], slip[2]);
+        if (!(magnitude > 0.0)) continue;
+        const std::size_t global = source_to_global.at(source_nodes[node]);
+        trial_state[spatial.dof(fuelsim::Field::displacement_x, global)] +=
+            sliding_trial_increment * slip[0] / magnitude;
+        trial_state[spatial.dof(fuelsim::Field::displacement_y, global)] +=
+            sliding_trial_increment * slip[1] / magnitude;
+        trial_state[spatial.dof(fuelsim::Field::displacement_z, global)] +=
+            sliding_trial_increment * slip[2] / magnitude;
+    }
+    problem.validate_state(trial_state);
+    double maximum_error = 0.0;
+    for (std::size_t contribution = 0; contribution < spatial.contribution_count(); ++contribution) {
+        if (spatial.contribution_type(contribution) != fuelsim::SpatialContributionType::mechanical_contact) continue;
+        std::vector<std::size_t> dofs;
+        problem.contribution_dofs(contribution, dofs);
+        std::vector<double> state(dofs.size()), direction(dofs.size()), plus(dofs.size()), minus(dofs.size());
+        for (std::size_t local = 0; local < dofs.size(); ++local) {
+            state[local] = trial_state[dofs[local]];
+            direction[local] = std::sin(static_cast<double>(local + 1));
+            plus[local] = state[local] + perturbation * direction[local];
+            minus[local] = state[local] - perturbation * direction[local];
+        }
+        std::vector<double> residual, jacobian, plus_residual, minus_residual;
+        spatial.compute_contribution(contribution, state, nullptr, nullptr, 0.0, residual, &jacobian);
+        spatial.compute_contribution(contribution, plus, nullptr, nullptr, 0.0, plus_residual, nullptr);
+        spatial.compute_contribution(contribution, minus, nullptr, nullptr, 0.0, minus_residual, nullptr);
+        double difference_squared = 0.0, reference_squared = 0.0;
+        for (std::size_t row = 0; row < state.size(); ++row) {
+            double analytic = 0.0;
+            for (std::size_t column = 0; column < state.size(); ++column)
+                analytic += jacobian[row * state.size() + column] * direction[column];
+            const double finite_difference = (plus_residual[row] - minus_residual[row]) / (2.0 * perturbation);
+            difference_squared += std::pow(analytic - finite_difference, 2);
+            reference_squared += finite_difference * finite_difference;
+        }
+        if (reference_squared > 0.0)
+            maximum_error = std::max(maximum_error, std::sqrt(difference_squared / reference_squared));
+    }
+    problem.validate_state(global_state);
+    return maximum_error;
+}
+
 bool compare_case(const fuelsim::UnstructuredHex20Mesh& mesh, const std::string& reference_path,
     fuelsim::StrainFormulation strain, const std::string& prefix) {
     const std::vector<std::vector<ReferenceNode>> reference = read_reference(reference_path);
@@ -285,7 +347,7 @@ bool compare_case(const fuelsim::UnstructuredHex20Mesh& mesh, const std::string&
         fuelsim::cartesian::ProblemAccess::contact_secondary_source_nodes(problem, 0);
     fuelsim::test::FieldErrorMetrics normal_radial, tangential_circumferential, tangential_axial, resultant, gap,
         pressure;
-    double maximum_coordinate_difference = 0.0;
+    double maximum_coordinate_difference = 0.0, contact_jacobian_error = 0.0;
     bool all_projected_and_sliding = true, all_basis_initialized = true;
     for (std::size_t step = 0; step < path.size(); ++step) {
         const fuelsim::Hex20RegionMesh& secondary = spatial.hex20_region_mesh(1);
@@ -349,10 +411,12 @@ bool compare_case(const fuelsim::UnstructuredHex20Mesh& mesh, const std::string&
         }
         problem.commit_internal_state(state);
         const auto& histories = fuelsim::cartesian::ProblemAccess::committed_contact_histories(problem).at(0);
-        all_basis_initialized = all_basis_initialized && histories.size() == 72 &&
+        all_basis_initialized = all_basis_initialized && histories.size() == actual.size() &&
                                 std::all_of(histories.begin(), histories.end(), [](const auto& history) {
                                     return history.sliding && history.cartesian_tangent_basis_initialized;
                                 });
+        if (step + 1 == path.size())
+            contact_jacobian_error = mechanical_contact_directional_error(problem, state, 1.0e-8);
     }
     fuelsim::test::print_relative_metrics(prefix + "normal_radial_nodal_force", normal_radial);
     fuelsim::test::print_relative_metrics(
@@ -362,11 +426,14 @@ bool compare_case(const fuelsim::UnstructuredHex20Mesh& mesh, const std::string&
     fuelsim::test::print_relative_metrics(prefix + "gap", gap);
     fuelsim::test::print_relative_metrics(prefix + "pressure", pressure);
     std::cout << prefix << "maximum_coordinate_difference=" << maximum_coordinate_difference << '\n';
+    std::cout << prefix << "contact_jacobian_directional_error=" << contact_jacobian_error << '\n';
     constexpr double tolerance = 1.0e-2, zero_tolerance = 1.0e-8;
     return check(maximum_coordinate_difference < 3.1e-8,
                prefix + "uses the tracked Exodus coordinates within Abaqus output-database precision") &&
            check(all_projected_and_sliding && all_basis_initialized,
-               prefix + "keeps every curved contact node projected and all 72 histories sliding") &&
+               prefix + "keeps every curved contact node projected and every node-centered history sliding") &&
+           check(contact_jacobian_error < 2.0e-5,
+               prefix + "curved node-centered contact Jacobian matches a centered directional difference") &&
            check(fuelsim::test::relative_metrics_below(normal_radial, tolerance) &&
                      normal_radial.maximum_zero_reference_difference < zero_tolerance,
                prefix + "radial normal nodal-force metrics agree with Abaqus below 1 percent") &&

@@ -1217,3 +1217,31 @@ The contact heat-rate difference is `0.243566%`. All matched nonzero physical
 fields and contact integrals are below `0.5%`, so B5.51 is qualified. Near-zero
 tangential displacement percentages remain diagnostic and use no denominator
 floor.
+
+## B5.56 C3D20T surface-to-surface friction timing
+
+B5.56 keeps the complete B5.51 workload and adds Coulomb friction with
+`mu=0.002`. Both solvers use finite-sliding surface-to-surface contact and zero
+frictional heat conversion. Fuelsim uses one current-geometry constraint and
+friction history per unique secondary quadratic node; curved-face samples form
+the local normal, tangent, scalar gap, and displacement gradient before their
+node-centered average. This reduces the large case from 141,568 contact
+contributions on the old nine-points-per-face path to 2,592 while retaining the
+full finite-sliding candidate sparsity.
+
+On CPU 0 with one process and every numerical library restricted to one thread,
+two Fuelsim runs take `321.49 s` and `324.12 s` externally; the median is
+`322.805 s`. Their internal totals are `305.652 s` and `307.853 s`. Abaqus
+R2018x with `cpus=1` takes `628.510266 s` externally and reports `624 s`
+analysis wall time. Fuelsim is `1.947` times as fast by external wall time and
+uses `48.64%` less time in this controlled cross-Windows-and-WSL comparison.
+
+All 416 secondary contact nodes are projected and sliding. Contact pressure,
+gap, normal-force magnitude, tangential-force magnitude, dominant axial shear,
+tangential-slip magnitude, temperature, material histories, recovered pressure
+and heat integrals pass the tracked `0.5%` gates. The complete tangential
+resultant differs by `4.41650e-5%`. The raw Cartesian tangential nodal-force
+vector and Abaqus smoothed `CSHEAR` integral remain explicitly reported
+diagnostics because they compare unstable near-zero curved-basis components or
+different recovered quantities. The full commands and all error rows are in
+`verification/abaqus/README.md` and the B5.56 comparison artifact.

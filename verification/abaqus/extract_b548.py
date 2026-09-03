@@ -7,10 +7,13 @@ import sys
 from odbAccess import openOdb
 
 
-if len(sys.argv) != 6:
+if len(sys.argv) not in (6, 7):
     raise RuntimeError(
-        "usage: extract_b548.py <job.odb> <mesh.json> <nodal.csv> <contact.csv> <clad-points.csv>"
+        "usage: extract_b548.py <job.odb> <mesh.json> <nodal.csv> <contact.csv> <clad-points.csv> [--friction]"
     )
+friction_output = len(sys.argv) == 7 and sys.argv[6] == "--friction"
+if len(sys.argv) == 7 and not friction_output:
+    raise RuntimeError("unknown extract_b548.py option %s" % sys.argv[6])
 
 
 def data(value):
@@ -123,6 +126,11 @@ try:
     shear_force = nodal_values(contact_field(frame, "CSHEARF"), fuel_outer_labels)
     shear_1 = nodal_values(contact_field(frame, "CSHEAR1"), fuel_outer_labels)
     shear_2 = nodal_values(contact_field(frame, "CSHEAR2"), fuel_outer_labels)
+    if friction_output:
+        slip_1 = nodal_values(contact_field(frame, "CSLIP1"), fuel_outer_labels)
+        slip_2 = nodal_values(contact_field(frame, "CSLIP2"), fuel_outer_labels)
+        tangent_1 = nodal_values(contact_field(frame, "CTANDIR1"), fuel_outer_labels)
+        tangent_2 = nodal_values(contact_field(frame, "CTANDIR2"), fuel_outer_labels)
     heat_flow = nodal_values(contact_field(frame, "HFL"), fuel_outer_labels)
     current_coordinates = nodal_values(exact_field(frame, "COORD"), all_labels)
     pressure = {}
@@ -145,24 +153,30 @@ try:
         if label not in coordinates:
             generated += 1
     contact = open(sys.argv[4], "wb")
-    contact.write("contact_pressure,contact_opening,shear_1,shear_2,normal_force_x,normal_force_y,normal_force_z,shear_force_x,shear_force_y,shear_force_z,heat_flow,id,x,y,z,current_x,current_y,current_z,generated\n")
+    contact.write("contact_pressure,contact_opening,shear_1,shear_2,normal_force_x,normal_force_y,normal_force_z,shear_force_x,shear_force_y,shear_force_z,heat_flow,id,x,y,z,current_x,current_y,current_z,generated")
+    if friction_output:
+        contact.write(",slip_1,slip_2,tangent_1_x,tangent_1_y,tangent_1_z,tangent_2_x,tangent_2_y,tangent_2_z")
+    contact.write("\n")
     instance = odb.rootAssembly.instances["PART-1-1"]
     instance_coordinates = dict((node.label, node.coordinates) for node in instance.nodes)
     for label in sorted(pressure.keys()):
         reference = coordinates.get(label, instance_coordinates[label])
         current = current_coordinates.get(label, reference)
-        contact.write(
-            "%.16g,%.16g,%.16g,%.16g,%.16g,%.16g,%.16g,%.16g,%.16g,%.16g,%.16g,%d,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%d\n"
-            % (
-                (pressure[label], opening[label], shear_1[label], shear_2[label])
-                + tuple(normal_force[label])
-                + tuple(shear_force[label])
-                + (heat_flow[label], label)
-                + tuple(reference)
-                + tuple(current)
-                + (0 if label in coordinates else 1,)
-            )
+        values = (
+            (pressure[label], opening[label], shear_1[label], shear_2[label])
+            + tuple(normal_force[label])
+            + tuple(shear_force[label])
+            + (heat_flow[label], label)
+            + tuple(reference)
+            + tuple(current)
+            + (0 if label in coordinates else 1,)
         )
+        line = "%.16g,%.16g,%.16g,%.16g,%.16g,%.16g,%.16g,%.16g,%.16g,%.16g,%.16g,%d,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%d" % values
+        if friction_output:
+            line += ",%.16g,%.16g,%.16g,%.16g,%.16g,%.16g,%.16g,%.16g" % (
+                (slip_1[label], slip_2[label]) + tuple(tangent_1[label]) + tuple(tangent_2[label])
+            )
+        contact.write(line + "\n")
     contact.close()
     if len(pressure) != len(fuel_outer_labels):
         raise RuntimeError("B5.48 contact output has %d secondary nodes, expected %d" % (len(pressure), len(fuel_outer_labels)))

@@ -2499,14 +2499,13 @@ normal pressure, contact penalty, thermal conductance, or twenty fixed
 tolerance is `1e-4`, and the secondary outer face reaches prescribed tangential
 displacements of `0.3 mm` in y and `0.4 mm` in z.
 
-For a strictly planar quadratic interface, Fuelsim now applies tangential
-friction through the same eight current-geometry, node-centered averaged
-constraints used for the Abaqus-aligned finite-sliding normal contact. The
-selection is based on geometric coplanarity of every node and quadrature normal
-on both boundaries. A curved or warped boundary retains the existing 3 by 3
-integration-point path, where each point needs its own local tangent plane. No
-penalty, friction, material, load, quadrature, or acceptance coefficient was
-fitted to B5.55.
+Fuelsim applies tangential friction through the same eight current-geometry,
+node-centered averaged constraints used for the Abaqus-aligned finite-sliding
+normal contact. The later B5.56 qualification extends this same discretization
+to curved and warped quadratic interfaces by assembling each contributing
+face's local normal and tangent before node-centered averaging. No penalty,
+friction, material, load, quadrature, or acceptance coefficient was fitted to
+B5.55.
 
 Abaqus fully coupled temperature-displacement analysis otherwise converts
 frictional dissipation to heat by default. The deck uses `*GAP HEAT GENERATION`
@@ -2678,3 +2677,92 @@ The corresponding external and internal speed ratios are `1.918` and `2.007`.
 These are single cross-Windows-and-WSL observations, not timing medians or pure
 kernel timings. The full B5.51 comparison remains manual and is not registered
 with CTest.
+
+## B5.56 full-size C3D20T finite-sliding surface-to-surface friction
+
+B5.56 adds the original M5.8 Coulomb coefficient `0.002` to the qualified
+B5.51 path. The mesh, 19,524 coupled degrees of freedom, finite-strain material
+laws, `2e8 W/m^3` fuel heat source, contact penalty, pressure and displacement
+histories, and twenty fixed `0.05 s` increments are unchanged. The mechanical
+interface explicitly uses finite-sliding surface-to-surface contact in both
+solvers. Abaqus frictional heat generation is set to zero, matching the current
+Fuelsim scope.
+
+Regenerate and run the manual comparison with:
+
+```text
+python3 verification/abaqus/generate_b556.py
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass \
+  -File verification/abaqus/run_b556.ps1 \
+  -SourceDirectory "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus"
+env OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+  taskset -c 0 /usr/bin/time -v \
+  ./build/fuelsim_m58_integrated_hex20_results \
+  verification/fuelsim/transient_b556_integrated_c3d20t_finite_sliding_friction.fsi \
+  /tmp/b556_fuelsim_final.e /tmp/b556_fuelsim_contact.csv
+python3 verification/abaqus/compare_b548.py --case-name B5.56 \
+  --fuelsim-contact /tmp/b556_fuelsim_contact.csv --contact-penalty 1e10 \
+  --require-qualified /tmp/b556_fuelsim_final.e \
+  verification/abaqus/b556_m58_c3d20t_finite_sliding_friction_nodal.csv \
+  verification/abaqus/b556_m58_c3d20t_finite_sliding_friction_contact.csv \
+  verification/abaqus/b556_m58_c3d20t_finite_sliding_friction_clad_points.csv \
+  verification/abaqus/b548_m58_c3d20t_integrated_mesh.json \
+  verification/abaqus/b556_m58_c3d20t_finite_sliding_friction_comparison.tsv
+```
+
+The previous curved friction path created nine contact histories and residual
+contributions per secondary quadratic face. On this model it produced 141,568
+contributions and needed approximately 562 seconds for only the first accepted
+increment, so it could not meet the Abaqus timing target. The revised
+surface-to-surface path keeps one constraint and one friction history per unique
+secondary quadratic node. Each constraint constructs its current normal,
+tangent, scalar gap, and displacement gradient from its contributing curved-face
+samples before node-centered averaging. The large model therefore has 2,592
+contact contributions, a `98.2%` reduction, while the complete primary-surface
+candidate graph remains preallocated for finite-sliding search.
+
+Both solvers complete all twenty increments without reducing the time step.
+Fuelsim uses 86 nonlinear iterations, 106 residual evaluations, 38 Jacobian
+evaluations, and one PETSc workspace setup. All 416 secondary contact nodes are
+projected and sliding at the final state. The directly comparable errors are:
+
+| Quantity | Relative L2 | Relative absolute peak | Maximum pointwise relative |
+|---|---:|---:|---:|
+| Corner temperature | `0.00848164%` | `0.0433425%` | `0.0466492%` |
+| Recovered contact pressure | `0.00209103%` | `0.00298436%` | `0.00411740%` |
+| Constraint gap | `0.00224463%` | `0.00393932%` | `0.00517040%` |
+| Normal nodal-force magnitude | `0.00232929%` | `0.00413306%` | `0.0104146%` |
+| Tangential nodal-force magnitude | `0.00675056%` | `0.0212800%` | `0.0433509%` |
+| Axial tangential nodal force | `0.00231840%` | `0.00403815%` | `0.00784516%` |
+| Tangential-slip magnitude | `0.00367428%` | `0.00458812%` | `0.00500114%` |
+| Axial tangential slip | `0.00367371%` | `0.00458739%` | `0.00499546%` |
+| Equivalent stress | `0.00683642%` | `0.0210517%` | `0.0282182%` |
+| Equivalent plastic strain | `0.00696828%` | `0.0213336%` | `0.0287270%` |
+| Equivalent creep strain | `0.0108461%` | `0.0194465%` | `0.0379096%` |
+
+The recovered-pressure and contact-heat integral errors are `0.000136038%` and
+`0.243566%`. The complete tangential-force resultant differs by
+`4.41650e-5%`, or `9.87050e-9 N`. These quantities and every row enforced by
+`--require-qualified` satisfy the `0.5%` boundary without a denominator floor.
+The radial-displacement L2 and peak errors are `0.00336858%` and `0.00528323%`,
+with a `0.602502 nm` maximum absolute difference; its pointwise percentage is a
+near-zero-reference diagnostic.
+
+The raw three-component tangential nodal-force vector has `0.504181%` relative
+L2 error because its very small radial and circumferential components do not
+share a stable component basis between the two curved-surface recoveries. Its
+physical magnitude, dominant axial component, and complete resultant all pass
+the three or absolute gates above. The `7.33535%` recovered-shear integral also
+compares unlike quantities: a Fuelsim constraint resultant and Abaqus smoothed
+`CSHEAR` integration. Both rows remain in the table as diagnostics and are not
+silently floored or treated as same-discretization acceptance fields.
+
+With one process, one numerical-library thread, and CPU 0 pinned, two Fuelsim
+runs take `321.49 s` and `324.12 s` externally, for a `322.805 s` median. Their
+internal totals are `305.652 s` and `307.853 s`. The single Abaqus R2018x
+`cpus=1` run takes `628.510266 s` externally and reports `624 s` analysis wall
+time. The external-wall speed ratio is therefore `1.947`, so Fuelsim uses
+`48.64%` less external wall time. These are controlled cross-Windows-and-WSL
+observations, not same-operating-system kernel timings. The full B5.56 run
+remains a manual benchmark; H20.40 and B5.55 retain lightweight automated
+coverage of the curved node-centered friction Jacobian and external-field path.

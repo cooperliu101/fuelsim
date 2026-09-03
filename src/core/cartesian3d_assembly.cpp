@@ -3993,47 +3993,11 @@ void SpatialAssembly::build_hex20_contacts(const UnstructuredHex20Mesh& source_m
             throw std::invalid_argument("finite sliding requires HEX20 surface_to_surface contact: " + definition.name);
         // Abaqus-style node-centered averaged constraints are used for
         // small-strain small sliding and, through a separate current-geometry
-        // refresh path, frictionless finite sliding. Frictional finite sliding
-        // uses the same averaged constraint only when both sides are planar;
-        // otherwise its two tangential directions must remain local to each
-        // surface integration point.
+        // refresh path, finite sliding. Each curved constraint forms its current
+        // normal and tangent from its own contributing face samples before the
+        // node-centered friction update.
         const bool finite_sliding = definition.mechanical_sliding == MechanicalContactSliding::finite;
-        const auto planar_boundary = [](const Hex20RegionMesh& mesh, const ResolvedHex20Boundary& boundary) {
-            CartesianPoint3 reference_normal{}, reference_point{};
-            double coordinate_scale = 1.0;
-            bool initialized = false;
-            for (const Quad8FaceElement& face : boundary.boundary.faces) {
-                const Quad8FaceCoordinates coordinates = face_coordinates(mesh, face);
-                if (!initialized) reference_point = coordinates.front();
-                for (const CartesianPoint3& coordinate : coordinates)
-                    coordinate_scale = std::max(coordinate_scale,
-                        std::max({std::abs(coordinate.x), std::abs(coordinate.y), std::abs(coordinate.z)}));
-                const Quad8FaceGeometry geometry = make_quad8_face_geometry(coordinates);
-                for (const Quad8FaceMechanicalQuadraturePoint& point : geometry.mechanical_points) {
-                    const CartesianPoint3 area_vector = cross(point.tangent_xi, point.tangent_eta);
-                    const double measure = std::sqrt(dot(area_vector, area_vector));
-                    if (!std::isfinite(measure) || !(measure > 0.0)) return false;
-                    const CartesianPoint3 normal = {
-                        area_vector.x / measure, area_vector.y / measure, area_vector.z / measure};
-                    if (!initialized) {
-                        reference_normal = normal;
-                        initialized = true;
-                    } else if (std::abs(dot(reference_normal, normal)) < 1.0 - 1.0e-10)
-                        return false;
-                }
-            }
-            for (const Quad8FaceElement& face : boundary.boundary.faces)
-                for (const CartesianPoint3& coordinate : face_coordinates(mesh, face))
-                    if (std::abs((coordinate.x - reference_point.x) * reference_normal.x +
-                                 (coordinate.y - reference_point.y) * reference_normal.y +
-                                 (coordinate.z - reference_point.z) * reference_normal.z) > 1.0e-10 * coordinate_scale)
-                        return false;
-            return initialized;
-        };
-        const bool planar_friction = definition.friction_coefficient > 0.0 && planar_boundary(primary_mesh, primary) &&
-                                     planar_boundary(secondary_mesh, secondary);
-        const bool finite_averaged = surface_to_surface && finite_sliding &&
-                                     (definition.friction_coefficient == 0.0 || planar_friction),
+        const bool finite_averaged = surface_to_surface && finite_sliding,
                    abaqus_averaged =
                        finite_averaged ||
                        (surface_to_surface && !finite_sliding &&

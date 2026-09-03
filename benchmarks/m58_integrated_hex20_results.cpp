@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <limits>
 #include <stdexcept>
@@ -68,8 +70,9 @@ fuelsim::TransientTimeOptions time_options(const fuelsim::FuelSimCaseDefinition&
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 3) {
-        std::cerr << "Usage: fuelsim_m58_integrated_hex20_results <case.fsi> <final-results.e>\n";
+    if (argc != 3 && argc != 4) {
+        std::cerr << "Usage: fuelsim_m58_integrated_hex20_results <case.fsi> <final-results.e> "
+                     "[contact-results.csv]\n";
         return 2;
     }
     try {
@@ -150,6 +153,28 @@ int main(int argc, char** argv) {
         }
         if (session.rank() == 0)
             std::cout << "m58_hex20_radial_normal_contact_force=" << std::abs(radial_normal_force) << '\n';
+        if (session.rank() == 0 && argc == 4) {
+            std::ofstream output(argv[3]);
+            if (!output)
+                throw std::runtime_error("Could not write M5.8 HEX20 contact results: " + std::string(argv[3]));
+            output << "id,x,y,z,gap,constraint_pressure,recovered_pressure,normal_force_x,normal_force_y,"
+                      "normal_force_z,tangential_force_x,tangential_force_y,tangential_force_z,slip_x,slip_y,"
+                      "slip_z,elastic_slip_x,elastic_slip_y,elastic_slip_z,projected,sliding,primary_face\n"
+                   << std::setprecision(17);
+            for (std::size_t node = 0; node < contact.size(); ++node) {
+                const std::size_t source = contact_sources[node];
+                const fuelsim::CartesianContactNodeSummary& value = contact[node];
+                output << source + 1 << ',' << mesh.nodes()[source].x << ',' << mesh.nodes()[source].y << ','
+                       << mesh.nodes()[source].z << ',' << value.gap << ',' << value.constraint_pressure << ','
+                       << value.pressure;
+                for (const double component : value.normal_contact_force) output << ',' << component;
+                for (const double component : value.tangential_contact_force) output << ',' << component;
+                for (const double component : value.tangential_slip) output << ',' << component;
+                for (const double component : value.elastic_tangential_slip) output << ',' << component;
+                output << ',' << (value.projected ? 1 : 0) << ',' << (value.sliding ? 1 : 0) << ','
+                       << value.primary_face << '\n';
+            }
+        }
         fuelsim::ExodusTransientResultsWriter writer(argv[2], mesh, problem);
         writer.append(problem);
         return 0;

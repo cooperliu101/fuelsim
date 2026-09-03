@@ -155,6 +155,13 @@ def equivalent_stress(components):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--case-name", default="B5.48")
+    parser.add_argument("--fuelsim-contact")
+    parser.add_argument("--contact-penalty", type=float)
+    parser.add_argument(
+        "--require-qualified",
+        action="store_true",
+        help="enforce the full-size STS comparison gates used by B5.56",
+    )
     parser.add_argument("fuelsim_exodus")
     parser.add_argument("abaqus_nodal")
     parser.add_argument("abaqus_contact")
@@ -241,6 +248,7 @@ def main():
     contact_metrics = Metrics()
     contact_maxima = [0.0, 0.0]
     abaqus_native_normal_force = 0.0
+    abaqus_native_tangential_resultant = np.zeros(3)
     for row in contact:
         index = int(row["id"]) - 1
         actual = nodal["contact_pressure_fuel_cladding"][index]
@@ -259,8 +267,108 @@ def main():
             float(row["normal_force_x"]) * current_x
             + float(row["normal_force_y"]) * current_y
         ) / current_radius
+        for component, name in enumerate(("shear_force_x", "shear_force_y", "shear_force_z")):
+            abaqus_native_tangential_resultant[component] += float(row[name])
     metrics["contact_pressure"] = contact_metrics
     maxima["contact_pressure"] = contact_maxima
+
+    if arguments.fuelsim_contact:
+        if arguments.contact_penalty is None or not math.isfinite(arguments.contact_penalty) or arguments.contact_penalty <= 0.0:
+            raise RuntimeError("--fuelsim-contact requires a positive --contact-penalty")
+        fuelsim_contact_rows = read_csv(arguments.fuelsim_contact)
+        fuelsim_contact = dict((int(row["id"]), row) for row in fuelsim_contact_rows)
+        if len(fuelsim_contact) != len(contact) or len(fuelsim_contact) != len(fuelsim_contact_rows):
+            raise RuntimeError("%s Fuelsim contact result count differs" % arguments.case_name)
+        contact_names = (
+            "contact_gap",
+            "contact_constraint_pressure",
+            "secondary_nodal_normal_force_vector",
+            "secondary_nodal_normal_force_magnitude",
+            "secondary_nodal_tangential_force_vector",
+            "secondary_nodal_tangential_force_magnitude",
+            "secondary_nodal_axial_tangential_force",
+            "tangential_slip_vector",
+            "tangential_slip_magnitude",
+            "axial_tangential_slip",
+            "complete_tangential_resultant_vector",
+        )
+        for name in contact_names:
+            metrics[name], maxima[name] = Metrics(), [0.0, 0.0]
+        actual_tangential_resultant = np.zeros(3)
+        reference_tangential_resultant = np.zeros(3)
+        projected_count = 0
+        sliding_count = 0
+        for reference_row in contact:
+            label = int(reference_row["id"])
+            if label not in fuelsim_contact:
+                raise RuntimeError("%s Fuelsim contact result is missing node %d" % (arguments.case_name, label))
+            actual_row = fuelsim_contact[label]
+            projected_count += int(actual_row["projected"])
+            sliding_count += int(actual_row["sliding"])
+            actual_gap = float(actual_row["gap"])
+            reference_gap = float(reference_row["contact_opening"])
+            actual_constraint_pressure = float(actual_row["constraint_pressure"])
+            reference_constraint_pressure = max(-arguments.contact_penalty * reference_gap, 0.0)
+            for name, actual, reference in (
+                ("contact_gap", actual_gap, reference_gap),
+                ("contact_constraint_pressure", actual_constraint_pressure, reference_constraint_pressure),
+            ):
+                metrics[name].add(actual, reference)
+                maxima[name][0] = max(maxima[name][0], abs(actual))
+                maxima[name][1] = max(maxima[name][1], abs(reference))
+            actual_normal = np.asarray(
+                [-float(actual_row["normal_force_%s" % component]) for component in ("x", "y", "z")]
+            )
+            actual_tangential = np.asarray(
+                [-float(actual_row["tangential_force_%s" % component]) for component in ("x", "y", "z")]
+            )
+            reference_normal = np.asarray(
+                [float(reference_row["normal_force_%s" % component]) for component in ("x", "y", "z")]
+            )
+            reference_tangential = np.asarray(
+                [float(reference_row["shear_force_%s" % component]) for component in ("x", "y", "z")]
+            )
+            reference_slip = np.asarray(
+                [
+                    float(reference_row["slip_1"]) * float(reference_row["tangent_1_%s" % component])
+                    + float(reference_row["slip_2"]) * float(reference_row["tangent_2_%s" % component])
+                    for component in ("x", "y", "z")
+                ]
+            )
+            actual_slip = np.asarray([float(actual_row["slip_%s" % component]) for component in ("x", "y", "z")])
+            for name, actual, reference in (
+                ("secondary_nodal_normal_force_vector", actual_normal, reference_normal),
+                ("secondary_nodal_tangential_force_vector", actual_tangential, reference_tangential),
+                ("tangential_slip_vector", actual_slip, reference_slip),
+            ):
+                for actual_component, reference_component in zip(actual, reference):
+                    metrics[name].add(actual_component, reference_component)
+                maxima[name][0] = max(maxima[name][0], float(np.max(np.abs(actual))))
+                maxima[name][1] = max(maxima[name][1], float(np.max(np.abs(reference))))
+            for name, actual, reference in (
+                ("secondary_nodal_normal_force_magnitude", float(np.linalg.norm(actual_normal)),
+                 float(np.linalg.norm(reference_normal))),
+                ("secondary_nodal_tangential_force_magnitude", float(np.linalg.norm(actual_tangential)),
+                 float(np.linalg.norm(reference_tangential))),
+                ("secondary_nodal_axial_tangential_force", actual_tangential[2], reference_tangential[2]),
+                ("tangential_slip_magnitude", float(np.linalg.norm(actual_slip)), float(np.linalg.norm(reference_slip))),
+                ("axial_tangential_slip", actual_slip[2], reference_slip[2]),
+            ):
+                metrics[name].add(actual, reference)
+                maxima[name][0] = max(maxima[name][0], abs(actual))
+                maxima[name][1] = max(maxima[name][1], abs(reference))
+            actual_tangential_resultant += actual_tangential
+            reference_tangential_resultant += reference_tangential
+        for actual, reference in zip(actual_tangential_resultant, reference_tangential_resultant):
+            metrics["complete_tangential_resultant_vector"].add(actual, reference)
+            maxima["complete_tangential_resultant_vector"][0] = max(
+                maxima["complete_tangential_resultant_vector"][0], abs(actual)
+            )
+            maxima["complete_tangential_resultant_vector"][1] = max(
+                maxima["complete_tangential_resultant_vector"][1], abs(reference)
+            )
+        print("%s_contact_projected_nodes=%d" % (output_prefix, projected_count))
+        print("%s_contact_sliding_nodes=%d" % (output_prefix, sliding_count))
 
     with Path(arguments.abaqus_mesh).open() as source:
         mesh = json.load(source)
@@ -319,6 +427,9 @@ def main():
                 abaqus_heat_rate += quad4_shapes(xi, eta).dot(heat[:4]) * area
     for name, actual, reference in (
         ("contact_constraint_force_vs_abaqus_native_resultant", global_values["contact_force_fuel_cladding"], abs(abaqus_native_normal_force)),
+        ("contact_constraint_tangential_force_vs_abaqus_native_resultant",
+         global_values["contact_tangential_force_fuel_cladding"],
+         float(np.linalg.norm(abaqus_native_tangential_resultant))),
         ("recovered_contact_pressure_integral", fuelsim_recovered_contact_force, abaqus_contact_force),
         ("recovered_contact_shear_integral", global_values["contact_tangential_force_fuel_cladding"], abaqus_tangential_force),
         ("recovered_contact_heat_integral", global_values["contact_heat_rate_fuel_cladding"], abs(abaqus_heat_rate)),
@@ -418,6 +529,64 @@ def main():
                 row["zero_reference_count"],
             )
         )
+    if arguments.require_qualified:
+        if not arguments.fuelsim_contact:
+            raise RuntimeError("--require-qualified requires --fuelsim-contact")
+        qualified_fields = (
+            "temperature_corner",
+            "temperature_interpolated",
+            "contact_pressure",
+            "contact_gap",
+            "contact_constraint_pressure",
+            "secondary_nodal_normal_force_magnitude",
+            "secondary_nodal_tangential_force_magnitude",
+            "secondary_nodal_axial_tangential_force",
+            "tangential_slip_magnitude",
+            "axial_tangential_slip",
+            "contact_constraint_tangential_force_vs_abaqus_native_resultant",
+            "recovered_contact_pressure_integral",
+            "recovered_contact_heat_integral",
+            "equivalent_stress",
+            "equivalent_plastic_strain",
+            "equivalent_creep_strain",
+        )
+        rows_by_name = dict((row["field"], row) for row in rows)
+        failed = []
+        for name in qualified_fields:
+            row = rows_by_name[name]
+            for metric in (
+                "relative_l2_percent",
+                "relative_absolute_peak_percent",
+                "maximum_pointwise_relative_percent",
+            ):
+                if not math.isfinite(row[metric]) or row[metric] >= 0.5:
+                    failed.append("%s %s=%.12g%%" % (name, metric, row[metric]))
+        radial = rows_by_name["radial_displacement"]
+        for metric in ("relative_l2_percent", "relative_absolute_peak_percent"):
+            if not math.isfinite(radial[metric]) or radial[metric] >= 0.5:
+                failed.append("radial_displacement %s=%.12g%%" % (metric, radial[metric]))
+        if radial["maximum_absolute_difference"] >= 1.0e-9:
+            failed.append(
+                "radial_displacement maximum_absolute_difference=%.12g m"
+                % radial["maximum_absolute_difference"]
+            )
+        resultant = rows_by_name["complete_tangential_resultant_vector"]
+        for metric in ("relative_l2_percent", "relative_absolute_peak_percent"):
+            if not math.isfinite(resultant[metric]) or resultant[metric] >= 0.5:
+                failed.append("complete_tangential_resultant_vector %s=%.12g%%" % (metric, resultant[metric]))
+        if resultant["maximum_absolute_difference"] >= 1.0e-8:
+            failed.append(
+                "complete_tangential_resultant_vector maximum_absolute_difference=%.12g N"
+                % resultant["maximum_absolute_difference"]
+            )
+        if projected_count != len(contact) or sliding_count != len(contact):
+            failed.append(
+                "projected/sliding contact nodes=%d/%d of %d"
+                % (projected_count, sliding_count, len(contact))
+            )
+        if failed:
+            raise RuntimeError("%s qualification failed: %s" % (arguments.case_name, "; ".join(failed)))
+        print("%s_sts_qualification=passed" % output_prefix)
 
 
 if __name__ == "__main__":
