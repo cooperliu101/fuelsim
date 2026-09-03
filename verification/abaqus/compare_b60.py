@@ -42,6 +42,32 @@ def metrics(name, actual, reference):
     )
 
 
+def vector_metrics(name, actual, reference):
+    if len(actual) != len(reference):
+        raise RuntimeError("node count differs for " + name)
+    differences = [math.sqrt(sum((a[i] - b[i]) ** 2 for i in range(3))) for a, b in zip(actual, reference)]
+    references = [math.sqrt(sum(value * value for value in b)) for b in reference]
+    difference_squared = sum(value * value for value in differences)
+    reference_squared = sum(value * value for value in references)
+    maximum_difference = max(differences, default=0.0)
+    maximum_reference = max(references, default=0.0)
+    nonzero = [difference / reference for difference, reference in zip(differences, references) if reference != 0.0]
+    zero = [difference for difference, reference in zip(differences, references) if reference == 0.0]
+    print(
+        "%s: relative L2=%.9g%% relative absolute peak=%.9g%% maximum pointwise=%.9g%% "
+        "maximum absolute difference=%.9g zero references=%d maximum zero-reference absolute difference=%.9g"
+        % (
+            name,
+            100.0 * math.sqrt(difference_squared / reference_squared),
+            100.0 * maximum_difference / maximum_reference,
+            100.0 * max(nonzero, default=0.0),
+            maximum_difference,
+            len(zero),
+            max(zero, default=0.0),
+        )
+    )
+
+
 def timing(path):
     values = {}
     if not path:
@@ -75,6 +101,16 @@ for field in ("temperature", "displacement_x", "displacement_y", "displacement_z
     actual = [float(fuelsim[node][field]) for node in sorted(fuelsim)]
     reference = [float(abaqus[node][field]) for node in sorted(abaqus)]
     metrics(field, actual, reference)
+
+minimum_x = min(float(fuelsim[node]["x"]) for node in fuelsim)
+free_nodes = [node for node in sorted(fuelsim) if abs(float(fuelsim[node]["x"]) - minimum_x) >= 1.0e-12]
+vector_metrics(
+    "free-node displacement vector",
+    [tuple(float(fuelsim[node]["displacement_" + component]) for component in ("x", "y", "z"))
+     for node in free_nodes],
+    [tuple(float(abaqus[node]["displacement_" + component]) for component in ("x", "y", "z"))
+     for node in free_nodes],
+)
 
 right_x = max(float(fuelsim[node]["x"]) for node in fuelsim)
 right = [node for node in sorted(fuelsim) if abs(float(fuelsim[node]["x"]) - right_x) < 1.0e-12]

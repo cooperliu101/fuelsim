@@ -2847,3 +2847,43 @@ ranges are `2.46815e-6 m` (Fuelsim) and `6.13938e-6 m` (Abaqus), differing by
 threshold, but the finite-strain mechanics path fails the comparison gate and
 must be corrected before qualification. The full metric row is in
 `b60_fuel_plate_c3d8rt_finite_bending_comparison.tsv`.
+
+### B6.0 qualified finite-strain ramped path
+
+The qualified path keeps the same 1,785-node, 1,200-element mesh, materials,
+fuel heat source, C3D8RT formulation, and ten fixed one-second increments. It
+prescribes the front-face temperature with a matched linear `600--700 K`
+history in both solvers. This avoids applying the complete thermal deformation
+in the first finite-strain increment; the instant-temperature result above is
+retained as a diagnostic boundary on large-increment path sensitivity.
+
+```text
+./build/fuelsim_b60_fuel_plate_c3d8rt_benchmark \
+  verification/fuelsim/transient_b60_fuel_plate_c3d8rt_finite_ramped_bending.fsi \
+  /tmp/b60-finite-ramped-nodal.csv /tmp/b60-finite-ramped-timing.tsv
+powershell -ExecutionPolicy Bypass -File verification/abaqus/run_b60_finite_ramped.ps1 \
+  -SourceDirectory verification/abaqus
+python3 verification/abaqus/compare_b60.py \
+  /tmp/b60-finite-ramped-nodal.csv \
+  verification/abaqus/b60_fuel_plate_c3d8rt_finite_ramped_bending_nodal.csv \
+  --fuelsim-timing /tmp/b60-finite-ramped-timing.tsv \
+  --abaqus-timing verification/abaqus/b60_fuel_plate_c3d8rt_finite_ramped_bending_timing.txt \
+  --fuelsim-external-seconds 6.54
+```
+
+Temperature passes the three error metrics at `2.32913e-5%`, `0.000116121%`,
+and `0.000124927%`. The free-node complete displacement vector passes at
+`0.00996672%`, `0.0101872%`, and `0.0444445%`; its maximum absolute vector
+difference is `4.64277e-7 m`. The X-, Y-, and Z-component relative L2 errors are
+`0.0493656%`, `0.104850%`, and `0.00992884%`. Componentwise pointwise extrema
+are retained as small-reference diagnostics without a denominator floor.
+
+Fuelsim uses MUMPS, one fixed CPU, one thread for every numerical library, a
+linear time predictor, and `predictor_jacobian_lag = 2`; it completes with no
+rejected step, 45 nonlinear iterations, 27 Jacobian evaluations, and one
+workspace setup. Its three external times are `7.81`, `6.54`, and `6.51 s`
+(median `6.54 s`). Abaqus `cpus=1` gives `12.649117`, `7.3038743`, and
+`7.4664226 s` (median `7.4664226 s`). Thus the external ratio is `0.875921`,
+and Fuelsim uses `12.4079%` less wall time. The comparison remains a controlled
+cross-Windows-and-WSL measurement rather than a same-operating-system kernel
+timing.

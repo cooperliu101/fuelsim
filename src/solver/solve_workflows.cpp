@@ -232,12 +232,14 @@ TransientResult solve_transient(TransientProblem& problem, const TransientTimeOp
     const std::vector<double> events = problem.time_events();
     const std::vector<double> initial_predictor_reference = problem.initial_solution();
     double next_time_step = options.initial_time_step;
-    const auto run_step = [&](double target_time, const std::vector<double>& initial_guess) {
+    const auto run_step = [&](double target_time, const std::vector<double>& initial_guess, int jacobian_lag) {
         problem.begin_time_step(
             {target_time, load_factor_at_time(options, target_time), options.include_thermal_time_term});
         try {
+            SolverOptions step_solver_options = solver_options;
+            step_solver_options.jacobian_lag = jacobian_lag;
             SolveResult step_result = solve_contact_equilibrium(
-                solver, problem, initial_guess_with_dirichlet_values(problem, initial_guess), solver_options);
+                solver, problem, initial_guess_with_dirichlet_values(problem, initial_guess), step_solver_options);
             if (step_result.converged)
                 problem.commit_time_step(step_result.state);
             else
@@ -252,7 +254,10 @@ TransientResult solve_transient(TransientProblem& problem, const TransientTimeOp
                                         const std::vector<double>& committed, bool predictor_used) {
         SolveResult step_result;
         try {
-            step_result = run_step(target_time, predicted);
+            const int predictor_lag = predictor_used && solver_options.predictor_jacobian_lag > 0
+                                          ? solver_options.predictor_jacobian_lag
+                                          : solver_options.jacobian_lag;
+            step_result = run_step(target_time, predicted, predictor_lag);
         } catch (const std::domain_error& error) {
             if (!predictor_used) throw;
             step_result.converged = false;
@@ -265,7 +270,7 @@ TransientResult solve_transient(TransientProblem& problem, const TransientTimeOp
             step_result.failure_message = error.what();
         }
         if (step_result.converged || !predictor_used) return step_result;
-        SolveResult fallback = run_step(target_time, committed);
+        SolveResult fallback = run_step(target_time, committed, solver_options.jacobian_lag);
         merge_attempt(step_result, fallback);
         return step_result;
     };

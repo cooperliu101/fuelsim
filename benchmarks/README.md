@@ -1356,3 +1356,54 @@ The very large pointwise percentages also include amplification at small but
 nonzero displacement references, while the reported absolute differences give
 their physical scale. The complete rows are retained in
 `verification/abaqus/b60_fuel_plate_c3d8rt_finite_bending_comparison.tsv`.
+
+### B6.0 qualified finite-strain ramped path
+
+The qualified finite-strain comparison retains the same mesh, materials, heat
+source, ten one-second increments, C3D8RT elements, and nonlinear-geometry
+settings. The only physical-path correction is to prescribe the front-face
+temperature as the same linear `600--700 K` history in both solvers. The older
+instant-temperature path remains above as a diagnostic because it applies the
+full temperature change in the first large-deformation increment and produces
+a path-dependent mismatch between the two incremental finite-strain updates.
+
+Run the matched ramped inputs and compare their final nodal fields:
+
+```text
+./build/fuelsim_b60_fuel_plate_c3d8rt_benchmark \
+  verification/fuelsim/transient_b60_fuel_plate_c3d8rt_finite_ramped_bending.fsi \
+  /tmp/b60_finite_ramped_nodal.csv /tmp/b60_finite_ramped_timing.tsv
+powershell -ExecutionPolicy Bypass -File verification/abaqus/run_b60_finite_ramped.ps1 \
+  -SourceDirectory verification/abaqus
+python3 verification/abaqus/compare_b60.py \
+  /tmp/b60_finite_ramped_nodal.csv \
+  verification/abaqus/b60_fuel_plate_c3d8rt_finite_ramped_bending_nodal.csv \
+  --fuelsim-timing /tmp/b60_finite_ramped_timing.tsv \
+  --abaqus-timing verification/abaqus/b60_fuel_plate_c3d8rt_finite_ramped_bending_timing.txt \
+  --fuelsim-external-seconds 6.54
+```
+
+Temperature relative L2, relative absolute-peak, and maximum pointwise errors
+are `2.32913e-5%`, `0.000116121%`, and `0.000124927%`. On the free nodes, the
+complete displacement-vector errors are `0.00996672%`, `0.0101872%`, and
+`0.0444445%`, so all three acceptance metrics are below `0.5%` without a
+denominator floor. The X-, Y-, and Z-displacement aggregate errors are also at
+most `0.104851%`. Their raw componentwise pointwise percentages remain
+diagnostics: the extrema use Abaqus reference components between `7.09e-41 m`
+and `5.16e-10 m`. The maximum vector difference is `4.64277e-7 m`, and the
+free-right-edge bending ranges differ by `6.19017e-10 m`.
+
+The Fuelsim input uses a linear time predictor and explicitly sets
+`predictor_jacobian_lag = 2`. The first step, which has no predictor, retains
+`jacobian_lag = 1`; later predicted steps reuse each assembled Jacobian once.
+This reduces Jacobian evaluations from 35 to 27. All ten steps converge without
+rejection, using 45 nonlinear iterations and one PETSc workspace.
+
+With CPU 0 pinned, MUMPS selected, and all numerical libraries restricted to
+one thread, Fuelsim external times were `7.81`, `6.54`, and `6.51 s`, with a
+`6.54 s` median. The matching Abaqus `cpus=1` times were `12.649117`,
+`7.3038743`, and `7.4664226 s`, with a `7.4664226 s` median; its representative
+job summary reports `3.5 s` total CPU time and `4 s` analysis wall time. The
+external Fuelsim/Abaqus ratio is `0.875921`, so Fuelsim uses `12.4079%` less
+external wall time in this cross-Windows-and-WSL comparison. Complete evidence
+is stored in the ramped comparison and timing artifacts.

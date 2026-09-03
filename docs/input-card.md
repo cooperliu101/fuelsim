@@ -690,6 +690,9 @@ L2 差最大值大于 1 时完整回滚并缩步，成功时采用两个半步�
 - `maximum_linear_iterations`，默认 `500`；
 - `jacobian_lag`，默认 `1`；设为大于一的整数时，在该数量的非线性迭代内复用
   已装配的 Jacobian 矩阵；
+- `predictor_jacobian_lag`，默认 `0`，表示沿用 `jacobian_lag`；设为正整数时，
+  只对已使用线性时间外推初值的瞬态时间步采用该复用间隔。外推不可用或外推
+  求解失败后从 committed 状态重试时，仍采用 `jacobian_lag`；
 - `line_search = basic|backtracking`，默认 `basic`；`basic` 接受完整 Newton 步，
   `backtracking` 在残量未充分下降或试探态越过物理域时缩短 Newton 步；
 - `backtracking_fallback`，默认 `true`；使用 `basic` 且求解失败时，从原始初值

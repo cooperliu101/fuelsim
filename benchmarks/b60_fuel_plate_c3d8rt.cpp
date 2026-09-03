@@ -62,7 +62,17 @@ void write_timing(const std::string& path, const fuelsim::TransientResult& resul
            << "linear_iterations\t" << result.total_linear_iterations << '\n'
            << "residual_evaluations\t" << result.aggregate_timing.residual_evaluations << '\n'
            << "jacobian_evaluations\t" << result.aggregate_timing.jacobian_evaluations << '\n'
+           << "residual_callback_seconds\t" << result.aggregate_timing.residual_callback_seconds << '\n'
+           << "jacobian_callback_seconds\t" << result.aggregate_timing.jacobian_callback_seconds << '\n'
+           << "local_residual_assembly_seconds\t" << result.aggregate_timing.local_residual_assembly_seconds << '\n'
+           << "local_jacobian_assembly_seconds\t" << result.aggregate_timing.local_jacobian_assembly_seconds << '\n'
            << "workspace_setups\t" << result.aggregate_timing.workspace_setups << '\n';
+    for (std::size_t step = 0; step < result.accepted_steps.size(); ++step) {
+        output << "step_" << (step + 1U) << "_nonlinear_iterations\t"
+               << result.accepted_steps[step].nonlinear_iterations << '\n'
+               << "step_" << (step + 1U) << "_linear_iterations\t" << result.accepted_steps[step].linear_iterations
+               << '\n';
+    }
 }
 } // namespace
 
@@ -88,6 +98,7 @@ int main(int argc, char** argv) {
         options.preconditioner = definition.solver.preconditioner;
         options.direct_factorization = definition.solver.direct_factorization;
         options.jacobian_lag = definition.solver.jacobian_lag;
+        options.predictor_jacobian_lag = definition.solver.predictor_jacobian_lag;
         options.field_residual_scaling = definition.solver.field_residual_scaling;
         options.temperature_residual_absolute_tolerance = definition.solver.temperature_residual_absolute_tolerance;
         options.mechanical_residual_absolute_tolerance = definition.solver.mechanical_residual_absolute_tolerance;
@@ -103,7 +114,8 @@ int main(int argc, char** argv) {
         const auto solve_start = Clock::now();
         const fuelsim::TransientResult result = fuelsim::solve_transient(problem, time_options, options);
         const auto solve_end = Clock::now();
-        if (!result.completed) throw std::runtime_error("B6.0 Fuelsim solve did not complete");
+        if (!result.completed)
+            throw std::runtime_error("B6.0 Fuelsim solve did not complete: " + result.last_attempt.failure_message);
         if (session.rank() == 0) {
             write_nodes(argv[2], mesh, problem);
             const double setup_seconds = std::chrono::duration<double>(problem_end - setup_end).count();
