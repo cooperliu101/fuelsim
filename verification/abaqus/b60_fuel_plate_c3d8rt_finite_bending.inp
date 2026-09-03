@@ -1,0 +1,53 @@
+*Heading
+** B6.0 finite-strain coupled fuel-plate bending benchmark using C3D8RT.
+** The central MEAT block is enclosed by CLAD on the 100 mm tracked plate mesh.
+** Prescribed unequal front/back temperatures produce a through-thickness thermal gradient and bending.
+*Preprint, echo=NO, model=NO, history=NO, contact=NO
+*Include, input=b60_long_plate_meat_clad_c3d8rt.inc
+*Material, name=FUEL
+*Elastic
+2.0e11, 0.30
+*Expansion, zero=600.
+1.0e-4
+*Conductivity
+3.0
+*Density
+10970.
+*Specific Heat
+300.
+*Material, name=CLAD
+*Elastic
+1.0e11, 0.32
+*Expansion, zero=600.
+5.0e-6
+*Conductivity
+16.0
+*Density
+6500.
+*Specific Heat
+330.
+*Solid Section, elset=MEAT, material=FUEL
+,
+*Solid Section, elset=CLAD, material=CLAD
+,
+*Initial Conditions, type=TEMPERATURE
+ALL_NODES, 600.
+*Step, name=FINITE_HEAT_AND_BEND, nlgeom=YES, inc=30
+*Coupled Temperature-Displacement
+1.0, 10.0, 1.0, 1.0
+*Boundary
+N_PLATE_LEFT, 1, 3, 0.
+*DFLUX
+MEAT, BF, 2.0e8
+*Boundary
+N_PLATE_FRONT, 11, 11, 700.
+N_PLATE_BACK, 11, 11, 600.
+*Output, field, frequency=1
+*Node Output
+NT, U, RF
+*Element Output, directions=YES
+COORD, E, IVOL, S, TEMP
+*Output, history, frequency=1
+*Energy Output
+ALLIE, ALLWK, ALLAE
+*End Step

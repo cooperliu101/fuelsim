@@ -1,0 +1,8 @@
+field	relative_l2_percent	relative_absolute_peak_percent	maximum_pointwise_relative_percent	maximum_absolute_difference	zero_reference_count	maximum_zero_reference_absolute_difference
+temperature	0.000517074741	0.00140904112	0.0014612353	0.00986328782 K	0	0 K
+displacement_x	81.9794806	69.4869862	42960.105	8.94936408e-05 m	0	0 m
+displacement_y	8.64330815	5.66219076	84261.7697	7.54854727e-07 m	0	0 m
+displacement_z	34.6238002	33.0662375	100	0.00150611488 m	0	0 m
+free_right_edge_bending_range	-	-	-	Fuelsim 2.46815206618e-06 m; Abaqus 6.13937862311e-06 m; difference 3.67122655692e-06 m	-	-
+external_wall_time	-	-	-	Fuelsim 30.79 s median; Abaqus 9.425431 s median	-	Fuelsim/Abaqus 3.26669412
+qualification	-	-	-	DIAGNOSTIC ONLY: finite-strain mechanical comparison does not meet the qualification gate; temperature aggregate error is below 0.5%, but displacement errors are not	-	-

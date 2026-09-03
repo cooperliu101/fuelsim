@@ -1315,3 +1315,44 @@ absolute field discrepancy. Using the median external times, Fuelsim/Abaqus is
 measurement.
 The reproducible metric summary is stored in
 `verification/abaqus/b60_fuel_plate_c3d8rt_bending_comparison.tsv`.
+
+### B6.0 finite-strain diagnostic extension
+
+The same 100 mm mesh and ten one-second increments are also run with
+`strain = finite` in both Fuelsim regions and `NLGEOM=YES` in Abaqus. This is a
+manual diagnostic comparison, not a qualified production path or a CTest: it
+was added to expose the finite-strain C3D8RT mechanics before any accuracy gate
+is claimed.
+
+Run Fuelsim with the finite input and run Abaqus with the matching PowerShell
+wrapper:
+
+```text
+./build/fuelsim_b60_fuel_plate_c3d8rt_benchmark \
+  verification/fuelsim/transient_b60_fuel_plate_c3d8rt_finite_bending.fsi \
+  /tmp/b60_finite_nodal.csv /tmp/b60_finite_timing.tsv
+powershell -ExecutionPolicy Bypass -File verification/abaqus/run_b60_finite.ps1 \
+  -SourceDirectory verification/abaqus
+python3 verification/abaqus/compare_b60.py \
+  /tmp/b60_finite_nodal.csv \
+  verification/abaqus/b60_fuel_plate_c3d8rt_finite_bending_nodal.csv \
+  --fuelsim-timing /tmp/b60_finite_timing.tsv \
+  --abaqus-timing verification/abaqus/b60_fuel_plate_c3d8rt_finite_bending_timing.txt \
+  --fuelsim-external-seconds 30.79
+```
+
+The controlled three-run medians are `30.79 s` for Fuelsim and `9.425431 s`
+for Abaqus, giving a Fuelsim/Abaqus external ratio of `3.26669`; Abaqus is
+about `3.27x` faster for this finite-strain path. Temperature relative L2,
+relative absolute-peak, and maximum pointwise errors are `0.000517%`,
+`0.001409%`, and `0.001461%`, respectively. The corresponding displacement-x,
+-y, and -z relative L2 errors are `81.9795%`, `8.64331%`, and `34.6238%`.
+The free-right-edge bending ranges are `2.46815e-6 m` (Fuelsim) and
+`6.13938e-6 m` (Abaqus), an absolute difference of `3.67123e-6 m`.
+
+These mechanics errors fail the finite-strain comparison gate; the result is
+stored as a diagnostic baseline for the next C3D8RT finite-strain correction.
+The very large pointwise percentages also include amplification at small but
+nonzero displacement references, while the reported absolute differences give
+their physical scale. The complete rows are retained in
+`verification/abaqus/b60_fuel_plate_c3d8rt_finite_bending_comparison.tsv`.

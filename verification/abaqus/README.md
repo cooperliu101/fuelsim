@@ -2811,3 +2811,39 @@ The corresponding relative absolute-peak errors are `5.65e-9%`, `3.14e-6%`,
 `5.12e-13 m`.
 The same numeric summary is retained in
 `verification/abaqus/b60_fuel_plate_c3d8rt_bending_comparison.tsv`.
+
+### B6.0 finite-strain diagnostic extension
+
+The finite-strain counterpart uses the same tracked 100 mm mesh, material
+properties, thermal loading, clamp, and ten one-second increments. Both
+Fuelsim regions select `strain = finite`; the Abaqus deck enables `NLGEOM=YES`.
+This path is deliberately manual and diagnostic only. It is not registered in
+CTest and it is not a finite-strain qualification claim.
+
+Run the Fuelsim input with the existing B6.0 benchmark executable, then run
+the matching Abaqus deck from a Windows PowerShell session:
+
+```text
+./build/fuelsim_b60_fuel_plate_c3d8rt_benchmark \
+  verification/fuelsim/transient_b60_fuel_plate_c3d8rt_finite_bending.fsi \
+  /tmp/b60_finite_nodal.csv /tmp/b60_finite_timing.tsv
+powershell -ExecutionPolicy Bypass -File verification/abaqus/run_b60_finite.ps1 \
+  -SourceDirectory verification/abaqus
+```
+
+Using one CPU and one thread per numerical library, the three-run external
+medians were `30.79 s` (Fuelsim) and `9.425431 s` (Abaqus), or a Fuelsim/Abaqus
+ratio of `3.26669`. The Abaqus job summary reports `5.8 s` total CPU time and
+`6 s` analysis wall time; the external wall measurement is the comparison
+metric.
+
+The final nodal comparison gives temperature relative L2 `0.000517%`, relative
+absolute-peak `0.001409%`, and maximum pointwise `0.001461%`. Mechanics do not
+yet agree: displacement-x, -y, and -z relative L2 errors are `81.9795%`,
+`8.64331%`, and `34.6238%`; their maximum absolute differences are
+`8.94936e-5 m`, `7.54855e-7 m`, and `1.50611e-3 m`. The free-right-edge bending
+ranges are `2.46815e-6 m` (Fuelsim) and `6.13938e-6 m` (Abaqus), differing by
+`3.67123e-6 m`. Therefore temperature is below the aggregate `0.5%` diagnostic
+threshold, but the finite-strain mechanics path fails the comparison gate and
+must be corrected before qualification. The full metric row is in
+`b60_fuel_plate_c3d8rt_finite_bending_comparison.tsv`.
