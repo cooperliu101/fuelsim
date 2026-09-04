@@ -3056,6 +3056,62 @@ stress and equivalent plastic strain first exceed it at 8 seconds with
 `0.640403%` and `0.655898%` pointwise errors. The exact per-frame metrics are in
 `b61_fuel_plate_c3d20t_finite_inelastic_bending_increment_diagnosis.tsv`.
 
+The material update was isolated from the global thermal and mechanical
+equations by replaying all five Abaqus nodal states through the production
+Fuelsim material transaction. At the same nodal history, the largest relative
+L2 errors over the five states are `2.75439e-6%` for equivalent stress,
+`4.66510e-8%` for equivalent plastic strain, and `2.72523e-7%` for equivalent
+creep strain. The free mechanical residual divided by the constrained-force
+norm is at most `1.11394e-6`. The corresponding thermal ratio grows from
+`0.000264374` at 2 seconds to `0.00441261` at 10 seconds. These results rule out
+the fully implicit plasticity-creep update, material-point ordering, and the
+mechanical internal-force assembly as the source of the accumulated comparison
+error. The replay executable is a manual diagnostic and is not registered in
+CTest.
+
+The remaining difference is the finite-strain thermal configuration. Abaqus
+integration-point heat flux at 10 seconds was reconstructed from the extracted
+corner temperatures using the same quadratic displacement geometry and linear
+temperature interpolation. Reference-configuration conduction gives
+`0.609607%` relative L2 error, and end-of-increment current-configuration
+conduction gives `0.0692630%`. The arithmetic midpoint of the 8-second and
+10-second nodal configurations gives `2.38697e-13%`, which is roundoff-level
+agreement. Fuelsim deliberately retains its existing HEX20 contract in which
+thermal conduction, body heat source, and backward-Euler heat capacity are
+integrated in the reference configuration. Therefore the strict material-field
+gate cannot be met by changing the creep integrator or its coefficients; a
+separate decision to change the HEX20 finite-strain thermal contract would be
+required.
+
+The extended extraction and heat-flux reconstruction can be repeated with the
+following manual commands. The normal extractor invocation continues to write
+the compact comparison format; the literal `diagnostics` argument adds heat
+flux and the complete stress, elastic-strain, plastic-strain, and creep-strain
+tensors.
+
+```text
+abaqus python verification/abaqus/extract_b61_c3d20t.py \
+  b61.odb verification/abaqus/b60_long_plate_meat_clad_c3d20t_mesh.json \
+  /tmp/b61-step4-nodal.csv /tmp/b61-step4-integration.csv 4 diagnostics
+abaqus python verification/abaqus/extract_b61_c3d20t.py \
+  b61.odb verification/abaqus/b60_long_plate_meat_clad_c3d20t_mesh.json \
+  /tmp/b61-step5-nodal.csv /tmp/b61-step5-integration.csv 5 diagnostics
+python3 verification/abaqus/compare_b61_c3d20t_heat_flux.py \
+  verification/abaqus/b60_long_plate_meat_clad_c3d20t_mesh.json \
+  /tmp/b61-step4-nodal.csv /tmp/b61-step5-nodal.csv \
+  /tmp/b61-step5-integration.csv
+./build/fuelsim_b61_c3d20t_material_replay \
+  verification/fuelsim/transient_b61_fuel_plate_c3d20t_finite_inelastic_bending.fsi \
+  /tmp/b61-step1-nodal.csv /tmp/b61-step2-nodal.csv \
+  /tmp/b61-step3-nodal.csv /tmp/b61-step4-nodal.csv \
+  /tmp/b61-step5-nodal.csv /tmp/b61-replay-material.csv \
+  /tmp/b61-replay-residual.csv
+python3 verification/abaqus/compare_b61_c3d20t_replay.py \
+  /tmp/b61-replay-material.csv /tmp/b61-step1-integration.csv \
+  /tmp/b61-step2-integration.csv /tmp/b61-step3-integration.csv \
+  /tmp/b61-step4-integration.csv /tmp/b61-step5-integration.csv
+```
+
 Alternating CPU-zero, one-thread runs give pre-change external times of `70.76`,
 `74.94`, and `70.71 s`, with a `70.76 s` median. The first ordinary-double
 geometry residual, compact C3D20T integration-point work arrays, and PETSc

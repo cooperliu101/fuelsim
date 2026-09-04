@@ -6,10 +6,14 @@ import sys
 from odbAccess import openOdb
 
 
-if len(sys.argv) not in (5, 6):
+if len(sys.argv) not in (5, 6, 7):
     raise RuntimeError(
-        "usage: extract_b61_c3d20t.py <job.odb> <mesh.json> <nodal.csv> <integration.csv> [frame_number]"
+        "usage: extract_b61_c3d20t.py <job.odb> <mesh.json> <nodal.csv> <integration.csv> "
+        "[frame_number [diagnostics]]"
     )
+diagnostics = len(sys.argv) == 7
+if diagnostics and sys.argv[6] != "diagnostics":
+    raise RuntimeError("B6.1 C3D20T optional extraction mode must be diagnostics")
 
 
 def data(value):
@@ -91,14 +95,47 @@ try:
     for name, values in (("COORD", coordinates), ("IVOL", volumes), ("S", mises), ("PEEQ", peeq), ("CEEQ", ceeq)):
         if set(values) != expected:
             raise RuntimeError("B6.1 C3D20T %s does not contain all 27 integration points" % name)
+    if diagnostics:
+        heat_fluxes = integration_values(frame, "HFL")
+        stresses = integration_values(frame, "S")
+        elastic_strains = integration_values(frame, "EE")
+        plastic_strains = integration_values(frame, "PE")
+        creep_strains = integration_values(frame, "CE")
+        for name, values in (("HFL", heat_fluxes), ("S", stresses), ("EE", elastic_strains),
+                             ("PE", plastic_strains), ("CE", creep_strains)):
+            if set(values) != expected:
+                raise RuntimeError("B6.1 C3D20T %s does not contain all 27 integration points" % name)
     with open(sys.argv[4], "wb") as output:
-        output.write("element,integration_point,current_x,current_y,current_z,ivol,vonmises_stress,peeq,ceeq\n")
+        if diagnostics:
+            output.write(
+                "element,integration_point,current_x,current_y,current_z,ivol,vonmises_stress,peeq,ceeq,"
+                "hfl1_w_m2,hfl2_w_m2,hfl3_w_m2,"
+                "s11_pa,s22_pa,s33_pa,s12_pa,s13_pa,s23_pa,"
+                "ee11,ee22,ee33,ee12,ee13,ee23,"
+                "pe11,pe22,pe33,pe12,pe13,pe23,"
+                "ce11,ce22,ce33,ce12,ce13,ce23\n"
+            )
+        else:
+            output.write(
+                "element,integration_point,current_x,current_y,current_z,ivol,vonmises_stress,peeq,ceeq\n"
+            )
         for element in element_labels:
             for point in range(1, 28):
                 key = (element, point)
-                output.write(
-                    "%d,%d,%.16g,%.16g,%.16g,%.16g,%.16g,%.16g,%.16g\n"
-                    % ((element, point) + tuple(coordinates[key]) + (volumes[key], mises[key], peeq[key], ceeq[key]))
-                )
+                common = (element, point) + tuple(coordinates[key]) + (volumes[key], mises[key], peeq[key], ceeq[key])
+                if diagnostics:
+                    output.write(
+                        ("%d,%d," + ",".join(["%.16g"] * 34) + "\n")
+                        % (
+                            common
+                            + tuple(heat_fluxes[key])
+                            + tuple(stresses[key])
+                            + tuple(elastic_strains[key])
+                            + tuple(plastic_strains[key])
+                            + tuple(creep_strains[key])
+                        )
+                    )
+                else:
+                    output.write("%d,%d,%.16g,%.16g,%.16g,%.16g,%.16g,%.16g,%.16g\n" % common)
 finally:
     odb.close()

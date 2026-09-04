@@ -393,6 +393,13 @@ if(BUILD_TESTING)
         PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver
     )
     fuelsim_enable_warnings(fuelsim_b60_fuel_plate_c3d8rt_benchmark)
+    add_executable(fuelsim_b61_c3d20t_material_replay
+        benchmarks/b61_c3d20t_material_replay.cpp
+    )
+    target_link_libraries(fuelsim_b61_c3d20t_material_replay
+        PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver
+    )
+    fuelsim_enable_warnings(fuelsim_b61_c3d20t_material_replay)
     add_test(NAME fuelsim_b60_c3d8rt_finite_steady_bending_tests
         COMMAND fuelsim_b60_fuel_plate_c3d8rt_benchmark
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_b60_fuel_plate_c3d8rt_finite_bending.fsi"
