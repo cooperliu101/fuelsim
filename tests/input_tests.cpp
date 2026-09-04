@@ -1,4 +1,8 @@
+#include "core/problem_backend_access.hpp"
+#include "fuelsim/core/steady_problem.hpp"
 #include "fuelsim/io/case_input.hpp"
+#include "fuelsim/io/results_io.hpp"
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <exception>
@@ -439,6 +443,19 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
                  "omitting penalty selects the documented automatic "
                  "contact factor") &&
              passed;
+    const fuelsim::FuelSimCaseDefinition explicit_penalty = fuelsim::read_case_input(steady_path);
+    const fuelsim::UnstructuredQuad4Mesh automatic_penalty_mesh =
+        fuelsim::read_exodus_quad4(explicit_penalty.mesh_file);
+    const fuelsim::SteadyProblem automatic_penalty_problem(automatic_penalty.spatial, automatic_penalty_mesh);
+    const double fuel_normal_length = 0.00412 / 40.0;
+    const double clad_normal_length = (0.004692 - 0.004122) / 6.0;
+    const double expected_automatic_penalty = 1.0 / (fuel_normal_length / 2.0e11 + clad_normal_length / 7.5e10);
+    const double resolved_automatic_penalty =
+        fuelsim::BackendAccess::steady(automatic_penalty_problem).spatial.definition().contacts[0].penalty;
+    passed =
+        check(std::abs(resolved_automatic_penalty - expected_automatic_penalty) < 1.0e-12 * expected_automatic_penalty,
+            "automatic contact penalty uses the two-sided normal compliance") &&
+        passed;
     std::string augmented_case = read_text(steady_path);
     const std::string penalty_formulation = "formulation = penalty";
     const std::size_t formulation_position = augmented_case.find(penalty_formulation);
@@ -819,11 +836,11 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
     passed = expect_case_failure(malformed_path, steady_checkpoint, "only valid for transient cases") && passed;
     std::string mesh_overwrite = read_text(steady_path);
     const std::string mesh_file = "file = ../moose/m1_fuel_cladding_gap_rz_mesh.e";
-    const std::size_t mesh_output = mesh_overwrite.find(console);
+    const std::string summary_file = "csv = steady_fuel_cladding_summary.csv";
+    const std::size_t mesh_output = mesh_overwrite.find(summary_file);
     if (mesh_overwrite.find(mesh_file) == std::string::npos || mesh_output == std::string::npos)
         return check(false, "steady fixture has expected mesh and output");
-    mesh_overwrite.insert(mesh_output + console.size(), "\n  csv = ../moose/"
-                                                        "m1_fuel_cladding_gap_rz_mesh.e");
+    mesh_overwrite.replace(mesh_output, summary_file.size(), "csv = ../moose/m1_fuel_cladding_gap_rz_mesh.e");
     passed = expect_case_failure(malformed_path, mesh_overwrite, "must not overwrite the input mesh") && passed;
     std::string output_collision = read_text(transient_path);
     const std::size_t collision_output = output_collision.find(console);

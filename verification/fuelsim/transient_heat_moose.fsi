@@ -73,4 +73,6 @@
 
 [Outputs]
   console = false
+  csv = transient_heat_moose_summary.csv
+  exodus = transient_heat_moose_results.e
 []

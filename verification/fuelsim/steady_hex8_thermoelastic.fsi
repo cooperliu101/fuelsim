@@ -91,4 +91,5 @@
 
 [Outputs]
   console = false
+  exodus = steady_hex8_thermoelastic_results.e
 []

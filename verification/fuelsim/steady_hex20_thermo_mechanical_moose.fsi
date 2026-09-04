@@ -93,4 +93,5 @@
 
 [Outputs]
   console = false
+  exodus = steady_hex20_thermo_mechanical_moose_results.e
 []

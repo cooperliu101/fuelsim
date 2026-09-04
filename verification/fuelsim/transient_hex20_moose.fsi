@@ -86,4 +86,6 @@
 
 [Outputs]
   console = false
+  csv = transient_hex20_moose_summary.csv
+  exodus = transient_hex20_moose_results.e
 []

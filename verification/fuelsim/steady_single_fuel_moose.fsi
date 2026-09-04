@@ -81,4 +81,5 @@
 
 [Outputs]
   console = false
+  exodus = steady_single_fuel_moose_results.e
 []

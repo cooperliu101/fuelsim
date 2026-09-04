@@ -63,12 +63,13 @@ corner nodes. July/MOOSE reports 68 total degrees of freedom. Its non-automatic-
 differentiation stress-divergence path is used because the configured MOOSE
 automatic-differentiation container is narrower than this element-local system.
 
-The reference is a uniform 100 K free thermal expansion. The fuelsim comparison
-reads `b6_hex20_u2_t1.e` directly, compares all eight temperature degrees of
-freedom and all 60 displacement degrees of freedom, and reports relative L2,
-relative absolute-peak, and maximum pointwise-relative errors. Temperature is
-exact and the largest displacement metric is below `4.6e-15`; zero references
-are counted and checked separately.
+The reference is a uniform 100 K free thermal expansion. CTest runs the actual
+`fuelsim -i steady_hex20_u2_t1_moose.fsi` production command and the independent
+result checker reads its Exodus output. The check compares all eight temperature
+degrees of freedom and all 60 displacement degrees of freedom, and reports
+relative L2, relative absolute-peak, and maximum pointwise-relative errors.
+Temperature is exact and the largest displacement metric is below `4.6e-15`;
+zero references are counted and checked separately.
 
 ## H20.16--19 mixed-order HEX20 contact
 
@@ -300,10 +301,12 @@ patch `ux = 0.001 x`, `uy = -0.00025 y`, `uz = -0.00025 z`.
 
 The checked run used one MPI rank and one thread with
 `/home/cooper/projects/july/july-opt`, MOOSE commit `93b11698be`, and PETSc
-3.25.2. `fuelsim_b3_hex8_moose_tests` reads the same tracked Exodus file and
-compares all 12 nodes. It also compares the MOOSE element stress to all eight
-fuelsim integration points per element; this is valid for this constant-stress
-patch, while nonuniform integration-point validation remains future work.
+3.25.2. CTest runs the actual `fuelsim -i steady_hex8_thermoelastic.fsi`
+production command. The independent result checker reads the generated Exodus
+file and compares all 12 nodes. It also compares the MOOSE element stress to all
+eight fuelsim integration points per element; this is valid for this
+constant-stress patch, while nonuniform integration-point validation remains
+future work.
 Temperature, three displacements, and nonzero stress all pass the three relative
 metrics below 0.1 percent. Zero reference values are reported with a separate
 absolute difference and no denominator floor.
@@ -526,8 +529,9 @@ Fuelsim tangential traction and resultant.
 `m0_simple_fuel_rz.i` is the independent reference for the M0 steady
 thermoelastic fuel cylinder. Both heat conduction and mechanics use the
 reference mesh so that the weak form matches fuelsim exactly.
-`fuelsim_m0_moose_tests` obtains that mesh from
-`m0_simple_fuel_rz_mesh.e` and compares all 451 nodes.
+CTest runs the actual `fuelsim -i steady_single_fuel_moose.fsi` production
+command, which obtains that mesh from `m0_simple_fuel_rz_mesh.e`. The independent
+result checker then reads the generated Exodus file and compares all 451 nodes.
 
 The checked run used:
 
@@ -642,9 +646,11 @@ ab1a3da68b8cfa0f630b0ad61865970a0fe6492c4b10a846d80badb51a7cf979
 
 The file contains 528 nodes and 460 Quad4 elements. The `fuel=0` and
 `clad=1` blocks, together with the named MOOSE node and side sets, are read
-through the direct Exodus API. `fuelsim_m1_exodus_moose_tests` reconstructs
-the two current structured RZ blocks from those entities and runs the M1
-solver on the imported mesh; it does not regenerate the mesh in fuelsim.
+through the direct Exodus API. CTest runs the production command
+`fuelsim -i verification/fuelsim/steady_fuel_cladding.fsi` on that imported
+mesh. An independent result checker then reads the production Exodus and CSV
+files and compares them with the tracked MOOSE references; it neither
+reconstructs the problem nor invokes a Fuelsim solver.
 
 The final full-field fuelsim-to-MOOSE differences are:
 
@@ -689,10 +695,12 @@ mesh therefore isolates support for original Exodus Quad4 connectivity from
 future generalization of the contact-surface geometry.
 
 The production `RegionMesh` reads all 528 nodes and 460 elements without
-coordinate reconstruction. `fuelsim_m1_unstructured_moose_tests` first checks
-that the legacy structured conversion rejects both blocks, then compares every
-temperature and displacement node and all 11 secondary contact-pressure
-nodes. For a field `u`, the reported metrics are:
+coordinate reconstruction. CTest runs the production command
+`fuelsim -i verification/fuelsim/steady_fuel_cladding_unstructured.fsi` and an
+independent result checker compares every temperature and displacement node
+and all 11 secondary contact-pressure nodes. The non-tensor connectivity is
+therefore exercised through the production mesh import rather than through a
+test-only mesh reconstruction. For a field `u`, the reported metrics are:
 
 ```text
 relative L2           = sqrt(sum((u_fuelsim-u_moose)^2)/sum(u_moose^2))
@@ -752,9 +760,10 @@ maximum absolute difference at those nodes:          0 / 0
 residual on a 4x2 Quad4 RZ mesh. The cylinder is insulated, has uniform
 properties, and is heated by a constant volumetric source:
 
-`tests/m2_solver_tests.cpp` reads all eight elements from
-`m21_transient_heat_rz_mesh.e`; its MOOSE comparison no longer uses a
-hard-coded one-element geometry.
+CTest runs `fuelsim -i verification/fuelsim/transient_heat_moose.fsi`, which
+reads all eight elements from `m21_transient_heat_rz_mesh.e`. The independent
+result checker compares the final production Exodus fields with the tracked
+MOOSE reference; no test-only one-element geometry or second solve is used.
 
 ```text
 density = 10000 kg/m^3

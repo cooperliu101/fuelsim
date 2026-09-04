@@ -157,6 +157,17 @@ if(BUILD_TESTING)
     target_link_libraries(fuelsim_test_mesh_fixture PUBLIC fuelsim::core)
     fuelsim_enable_warnings(fuelsim_test_mesh_fixture)
 
+    add_library(fuelsim_exodus_result_test_support
+        tests/support/exodus_result_reader.cpp
+    )
+    target_include_directories(fuelsim_exodus_result_test_support
+        PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/tests"
+    )
+    target_link_libraries(fuelsim_exodus_result_test_support
+        PRIVATE SEACASExodus::exodus
+    )
+    fuelsim_enable_warnings(fuelsim_exodus_result_test_support)
+
     add_library(fuelsim_moose_test_support
         tests/support/moose_field_comparison.cpp
     )
@@ -167,6 +178,49 @@ if(BUILD_TESTING)
         PUBLIC fuelsim::core
     )
     fuelsim_enable_warnings(fuelsim_moose_test_support)
+
+    add_executable(fuelsim_production_result_tests
+        tests/production_result_tests.cpp
+    )
+    target_link_libraries(fuelsim_production_result_tests
+        PRIVATE fuelsim_exodus_result_test_support
+    )
+    fuelsim_enable_warnings(fuelsim_production_result_tests)
+
+    function(fuelsim_stage_blackbox_case output_variable case_name input_name)
+        set(case_root "${CMAKE_CURRENT_BINARY_DIR}/blackbox/${case_name}/verification")
+        set(case_directory "${case_root}/fuelsim")
+        file(MAKE_DIRECTORY "${case_directory}")
+        foreach(reference_directory IN ITEMS moose abaqus)
+            if(NOT EXISTS "${case_root}/${reference_directory}")
+                file(CREATE_LINK "${CMAKE_CURRENT_SOURCE_DIR}/verification/${reference_directory}"
+                    "${case_root}/${reference_directory}" SYMBOLIC COPY_ON_ERROR)
+            endif()
+        endforeach()
+        configure_file(
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/${input_name}"
+            "${case_directory}/${input_name}"
+            COPYONLY
+        )
+        set(${output_variable} "${case_directory}/${input_name}" PARENT_SCOPE)
+    endfunction()
+
+    function(fuelsim_add_hex20_blackbox_test test_name case_name input_name
+        temperature_reference displacement_reference tolerance field_selection test_labels)
+        fuelsim_stage_blackbox_case(staged_input "${case_name}" "${input_name}")
+        get_filename_component(case_directory "${staged_input}" DIRECTORY)
+        get_filename_component(case_stem "${input_name}" NAME_WE)
+        set(results "${case_directory}/${case_stem}_results.e")
+        add_test(NAME "${test_name}"
+            COMMAND "${CMAKE_COMMAND}"
+                "-DFUELSIM_EXECUTABLE=$<TARGET_FILE:fuelsim>"
+                "-DINPUT_FILE=${staged_input}"
+                "-DOUTPUT_FILE=${results}"
+                "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_production_result_tests>"
+                "-DCHECK_ARGUMENTS=hex20-fields;${results};${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/${temperature_reference};${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/${displacement_reference};${tolerance};${field_selection}"
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_case.cmake")
+        set_tests_properties("${test_name}" PROPERTIES LABELS "${test_labels}")
+    endfunction()
 
     add_library(fuelsim_abaqus_hex8_test_support
         tests/support/abaqus_hex8_full_field.cpp
@@ -473,22 +527,22 @@ if(BUILD_TESTING)
         LABELS "integration"
     )
 
-    add_executable(fuelsim_m1_exodus_moose_tests
-        tests/m1_exodus_moose_tests.cpp
-    )
-    target_link_libraries(fuelsim_m1_exodus_moose_tests
-        PRIVATE
-            fuelsim_moose_test_support
-            fuelsim::io
-            fuelsim::solver
-    )
-    fuelsim_enable_warnings(fuelsim_m1_exodus_moose_tests)
+    fuelsim_stage_blackbox_case(
+        FUELSIM_M1_BLACKBOX_INPUT m1 steady_fuel_cladding.fsi)
+    get_filename_component(FUELSIM_M1_BLACKBOX_DIRECTORY
+        "${FUELSIM_M1_BLACKBOX_INPUT}" DIRECTORY)
+    set(FUELSIM_M1_BLACKBOX_RESULTS
+        "${FUELSIM_M1_BLACKBOX_DIRECTORY}/steady_fuel_cladding_results.e")
+    set(FUELSIM_M1_BLACKBOX_SUMMARY
+        "${FUELSIM_M1_BLACKBOX_DIRECTORY}/steady_fuel_cladding_summary.csv")
     add_test(NAME fuelsim_m1_exodus_moose_tests
-        COMMAND fuelsim_m1_exodus_moose_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_fuel_cladding.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m1_fuel_cladding_gap_rz_all_nodes_final.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m1_fuel_surface_final.csv"
-    )
+        COMMAND "${CMAKE_COMMAND}"
+            "-DFUELSIM_EXECUTABLE=$<TARGET_FILE:fuelsim>"
+            "-DINPUT_FILE=${FUELSIM_M1_BLACKBOX_INPUT}"
+            "-DOUTPUT_FILES=${FUELSIM_M1_BLACKBOX_RESULTS};${FUELSIM_M1_BLACKBOX_SUMMARY}"
+            "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_production_result_tests>"
+            "-DCHECK_ARGUMENTS=m1;${FUELSIM_M1_BLACKBOX_RESULTS};${FUELSIM_M1_BLACKBOX_SUMMARY};${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m1_fuel_cladding_gap_rz_all_nodes_final.csv;${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m1_fuel_surface_final.csv"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_case.cmake")
     set_tests_properties(fuelsim_m1_exodus_moose_tests PROPERTIES
         LABELS "acceptance"
     )
@@ -530,38 +584,40 @@ if(BUILD_TESTING)
         PROPERTIES LABELS "integration"
     )
 
-    add_executable(fuelsim_m1_unstructured_moose_tests
-        tests/m1_unstructured_moose_tests.cpp
-    )
-    target_link_libraries(fuelsim_m1_unstructured_moose_tests
-        PRIVATE
-            fuelsim_moose_test_support
-            fuelsim::io
-            fuelsim::solver
-    )
-    fuelsim_enable_warnings(fuelsim_m1_unstructured_moose_tests)
+    fuelsim_stage_blackbox_case(FUELSIM_M1_UNSTRUCTURED_BLACKBOX_INPUT
+        m1_unstructured steady_fuel_cladding_unstructured.fsi)
+    get_filename_component(FUELSIM_M1_UNSTRUCTURED_BLACKBOX_DIRECTORY
+        "${FUELSIM_M1_UNSTRUCTURED_BLACKBOX_INPUT}" DIRECTORY)
+    set(FUELSIM_M1_UNSTRUCTURED_BLACKBOX_RESULTS
+        "${FUELSIM_M1_UNSTRUCTURED_BLACKBOX_DIRECTORY}/steady_fuel_cladding_unstructured_results.e")
+    set(FUELSIM_M1_UNSTRUCTURED_BLACKBOX_SUMMARY
+        "${FUELSIM_M1_UNSTRUCTURED_BLACKBOX_DIRECTORY}/steady_fuel_cladding_unstructured_summary.csv")
     add_test(NAME fuelsim_m1_unstructured_moose_tests
-        COMMAND fuelsim_m1_unstructured_moose_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_fuel_cladding_unstructured.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m1_fuel_cladding_unstructured_rz_all_nodes_final.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m1_fuel_cladding_unstructured_rz_fuel_surface_final.csv"
-    )
+        COMMAND "${CMAKE_COMMAND}"
+            "-DFUELSIM_EXECUTABLE=$<TARGET_FILE:fuelsim>"
+            "-DINPUT_FILE=${FUELSIM_M1_UNSTRUCTURED_BLACKBOX_INPUT}"
+            "-DOUTPUT_FILES=${FUELSIM_M1_UNSTRUCTURED_BLACKBOX_RESULTS};${FUELSIM_M1_UNSTRUCTURED_BLACKBOX_SUMMARY}"
+            "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_production_result_tests>"
+            "-DCHECK_ARGUMENTS=m1-unstructured;${FUELSIM_M1_UNSTRUCTURED_BLACKBOX_RESULTS};${FUELSIM_M1_UNSTRUCTURED_BLACKBOX_SUMMARY};${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m1_fuel_cladding_unstructured_rz_all_nodes_final.csv;${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m1_fuel_cladding_unstructured_rz_fuel_surface_final.csv"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_case.cmake")
     set_tests_properties(fuelsim_m1_unstructured_moose_tests PROPERTIES
         LABELS "acceptance"
     )
 
-    add_executable(fuelsim_m0_moose_tests tests/m0_moose_tests.cpp)
-    target_link_libraries(fuelsim_m0_moose_tests
-        PRIVATE
-            fuelsim_moose_test_support
-            fuelsim::io
-            fuelsim::solver
-    )
-    fuelsim_enable_warnings(fuelsim_m0_moose_tests)
+    fuelsim_stage_blackbox_case(
+        FUELSIM_M0_BLACKBOX_INPUT m0 steady_single_fuel_moose.fsi)
+    get_filename_component(FUELSIM_M0_BLACKBOX_DIRECTORY
+        "${FUELSIM_M0_BLACKBOX_INPUT}" DIRECTORY)
+    set(FUELSIM_M0_BLACKBOX_RESULTS
+        "${FUELSIM_M0_BLACKBOX_DIRECTORY}/steady_single_fuel_moose_results.e")
     add_test(NAME fuelsim_m0_moose_tests
-        COMMAND fuelsim_m0_moose_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_single_fuel_moose.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m0_simple_fuel_rz_all_nodes_final.csv"
+        COMMAND "${CMAKE_COMMAND}"
+            "-DFUELSIM_EXECUTABLE=$<TARGET_FILE:fuelsim>"
+            "-DINPUT_FILE=${FUELSIM_M0_BLACKBOX_INPUT}"
+            "-DOUTPUT_FILE=${FUELSIM_M0_BLACKBOX_RESULTS}"
+            "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_production_result_tests>"
+            "-DCHECK_ARGUMENTS=m0;${FUELSIM_M0_BLACKBOX_RESULTS};${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m0_simple_fuel_rz_all_nodes_final.csv"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_case.cmake"
     )
     set_tests_properties(fuelsim_m0_moose_tests PROPERTIES
         LABELS "acceptance"
@@ -1222,65 +1278,60 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_hex20_solver_tests
         PROPERTIES LABELS "integration;three-dimensional;quadratic;checkpoint;contact;multiblock")
 
-    add_executable(fuelsim_b6_hex20_moose_tests tests/b6_hex20_moose_tests.cpp)
-    target_link_libraries(fuelsim_b6_hex20_moose_tests
-        PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
-    fuelsim_enable_warnings(fuelsim_b6_hex20_moose_tests)
+    fuelsim_stage_blackbox_case(
+        FUELSIM_B6_BLACKBOX_INPUT b6 steady_hex20_u2_t1_moose.fsi)
+    get_filename_component(FUELSIM_B6_BLACKBOX_DIRECTORY
+        "${FUELSIM_B6_BLACKBOX_INPUT}" DIRECTORY)
+    set(FUELSIM_B6_BLACKBOX_RESULTS
+        "${FUELSIM_B6_BLACKBOX_DIRECTORY}/steady_hex20_u2_t1_moose_results.e")
     add_test(NAME fuelsim_b6_hex20_moose_tests
-        COMMAND fuelsim_b6_hex20_moose_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex20_u2_t1_moose.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b6_hex20_u2_t1_temperature_nodes_0001.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b6_hex20_u2_t1_displacement_nodes_0001.csv")
+        COMMAND "${CMAKE_COMMAND}"
+            "-DFUELSIM_EXECUTABLE=$<TARGET_FILE:fuelsim>"
+            "-DINPUT_FILE=${FUELSIM_B6_BLACKBOX_INPUT}"
+            "-DOUTPUT_FILE=${FUELSIM_B6_BLACKBOX_RESULTS}"
+            "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_production_result_tests>"
+            "-DCHECK_ARGUMENTS=b6;${FUELSIM_B6_BLACKBOX_RESULTS};${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b6_hex20_u2_t1_temperature_nodes_0001.csv;${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b6_hex20_u2_t1_displacement_nodes_0001.csv"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_case.cmake")
     set_tests_properties(fuelsim_b6_hex20_moose_tests
         PROPERTIES LABELS "acceptance;three-dimensional;quadratic")
 
-    add_executable(fuelsim_hex20_moose_case_tests tests/hex20_moose_case_tests.cpp)
-    target_link_libraries(fuelsim_hex20_moose_case_tests
-        PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
-    fuelsim_enable_warnings(fuelsim_hex20_moose_case_tests)
-    add_test(NAME fuelsim_h20_02_convection_moose_tests
-        COMMAND fuelsim_hex20_moose_case_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex20_convection_moose.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_02_convection_temperature_nodes_0001.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_02_convection_displacement_nodes_0001.csv"
-            "1e-3" temperature_only)
-    set_tests_properties(fuelsim_h20_02_convection_moose_tests
-        PROPERTIES LABELS "acceptance;three-dimensional;quadratic")
-    add_test(NAME fuelsim_h20_03_pressure_moose_tests
-        COMMAND fuelsim_hex20_moose_case_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex20_pressure_moose.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_03_pressure_temperature_nodes_0001.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_03_pressure_displacement_nodes_0001.csv"
-            "1e-5")
-    set_tests_properties(fuelsim_h20_03_pressure_moose_tests
-        PROPERTIES LABELS "acceptance;three-dimensional;quadratic")
-    add_test(NAME fuelsim_h20_04_traction_moose_tests
-        COMMAND fuelsim_hex20_moose_case_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex20_traction_moose.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_04_traction_temperature_nodes_0001.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_04_traction_displacement_nodes_0001.csv"
-            "1e-5")
-    set_tests_properties(fuelsim_h20_04_traction_moose_tests
-        PROPERTIES LABELS "acceptance;three-dimensional;quadratic")
-    add_test(NAME fuelsim_h20_05_thermo_mechanical_moose_tests
-        COMMAND fuelsim_hex20_moose_case_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex20_thermo_mechanical_moose.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_05_thermo_mechanical_temperature_nodes_0001.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_05_thermo_mechanical_displacement_nodes_0001.csv"
-            "1e-5")
-    set_tests_properties(fuelsim_h20_05_thermo_mechanical_moose_tests
-        PROPERTIES LABELS "acceptance;three-dimensional;quadratic")
+    fuelsim_add_hex20_blackbox_test(fuelsim_h20_02_convection_moose_tests h20_02
+        steady_hex20_convection_moose.fsi
+        h20_02_convection_temperature_nodes_0001.csv
+        h20_02_convection_displacement_nodes_0001.csv
+        1e-3 temperature-only "acceptance;three-dimensional;quadratic")
+    fuelsim_add_hex20_blackbox_test(fuelsim_h20_03_pressure_moose_tests h20_03
+        steady_hex20_pressure_moose.fsi
+        h20_03_pressure_temperature_nodes_0001.csv
+        h20_03_pressure_displacement_nodes_0001.csv
+        1e-5 all "acceptance;three-dimensional;quadratic")
+    fuelsim_add_hex20_blackbox_test(fuelsim_h20_04_traction_moose_tests h20_04
+        steady_hex20_traction_moose.fsi
+        h20_04_traction_temperature_nodes_0001.csv
+        h20_04_traction_displacement_nodes_0001.csv
+        1e-5 all "acceptance;three-dimensional;quadratic")
+    fuelsim_add_hex20_blackbox_test(fuelsim_h20_05_thermo_mechanical_moose_tests h20_05
+        steady_hex20_thermo_mechanical_moose.fsi
+        h20_05_thermo_mechanical_temperature_nodes_0001.csv
+        h20_05_thermo_mechanical_displacement_nodes_0001.csv
+        1e-5 all "acceptance;three-dimensional;quadratic")
 
-    add_executable(fuelsim_hex20_transient_moose_tests tests/hex20_transient_moose_tests.cpp)
-    target_link_libraries(fuelsim_hex20_transient_moose_tests
-        PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
-    fuelsim_enable_warnings(fuelsim_hex20_transient_moose_tests)
+    fuelsim_stage_blackbox_case(
+        FUELSIM_H20_06_BLACKBOX_INPUT h20_06 transient_hex20_moose.fsi)
+    get_filename_component(FUELSIM_H20_06_BLACKBOX_DIRECTORY
+        "${FUELSIM_H20_06_BLACKBOX_INPUT}" DIRECTORY)
+    set(FUELSIM_H20_06_BLACKBOX_RESULTS
+        "${FUELSIM_H20_06_BLACKBOX_DIRECTORY}/transient_hex20_moose_results.e")
+    set(FUELSIM_H20_06_BLACKBOX_SUMMARY
+        "${FUELSIM_H20_06_BLACKBOX_DIRECTORY}/transient_hex20_moose_summary.csv")
     add_test(NAME fuelsim_h20_06_transient_moose_tests
-        COMMAND fuelsim_hex20_transient_moose_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_hex20_moose.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_06_transient_temperature_nodes_0001.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_06_transient_displacement_nodes_0001.csv"
-            "1e-3")
+        COMMAND "${CMAKE_COMMAND}"
+            "-DFUELSIM_EXECUTABLE=$<TARGET_FILE:fuelsim>"
+            "-DINPUT_FILE=${FUELSIM_H20_06_BLACKBOX_INPUT}"
+            "-DOUTPUT_FILES=${FUELSIM_H20_06_BLACKBOX_RESULTS};${FUELSIM_H20_06_BLACKBOX_SUMMARY}"
+            "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_production_result_tests>"
+            "-DCHECK_ARGUMENTS=hex20-transient;${FUELSIM_H20_06_BLACKBOX_RESULTS};${FUELSIM_H20_06_BLACKBOX_SUMMARY};${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_06_transient_temperature_nodes_0001.csv;${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_06_transient_displacement_nodes_0001.csv;1e-3"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_case.cmake")
     set_tests_properties(fuelsim_h20_06_transient_moose_tests
         PROPERTIES LABELS "acceptance;three-dimensional;quadratic;transient")
 
@@ -1304,14 +1355,11 @@ if(BUILD_TESTING)
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_07_inelastic_coupled_element_state_0001.csv")
     set_tests_properties(fuelsim_h20_07_08_09_inelastic_moose_tests
         PROPERTIES LABELS "acceptance;three-dimensional;quadratic;transient;inelastic")
-    add_test(NAME fuelsim_h20_10_finite_strain_moose_tests
-        COMMAND fuelsim_hex20_moose_case_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex20_finite_moose.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_10_finite_temperature_nodes_0001.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_10_finite_displacement_nodes_0001.csv"
-            "1e-3")
-    set_tests_properties(fuelsim_h20_10_finite_strain_moose_tests
-        PROPERTIES LABELS "acceptance;three-dimensional;quadratic;finite-strain")
+    fuelsim_add_hex20_blackbox_test(fuelsim_h20_10_finite_strain_moose_tests h20_10
+        steady_hex20_finite_moose.fsi
+        h20_10_finite_temperature_nodes_0001.csv
+        h20_10_finite_displacement_nodes_0001.csv
+        1e-3 all "acceptance;three-dimensional;quadratic;finite-strain")
     add_executable(fuelsim_h20_24_hex20_nonmatching_contact_tests tests/h20_nonmatching_contact_tests.cpp)
     target_link_libraries(fuelsim_h20_24_hex20_nonmatching_contact_tests PRIVATE fuelsim::io fuelsim::solver)
     fuelsim_enable_warnings(fuelsim_h20_24_hex20_nonmatching_contact_tests)
@@ -1320,25 +1368,36 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_h20_24_hex20_nonmatching_contact_tests
         PROPERTIES LABELS "integration;three-dimensional;quadratic;contact;nonmatching")
 
-    add_executable(fuelsim_b3_hex8_moose_tests tests/b3_hex8_moose_tests.cpp)
-    target_link_libraries(fuelsim_b3_hex8_moose_tests
-        PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
-    fuelsim_enable_warnings(fuelsim_b3_hex8_moose_tests)
+    fuelsim_stage_blackbox_case(
+        FUELSIM_B3_BLACKBOX_INPUT b3 steady_hex8_thermoelastic.fsi)
+    get_filename_component(FUELSIM_B3_BLACKBOX_DIRECTORY
+        "${FUELSIM_B3_BLACKBOX_INPUT}" DIRECTORY)
+    set(FUELSIM_B3_BLACKBOX_RESULTS
+        "${FUELSIM_B3_BLACKBOX_DIRECTORY}/steady_hex8_thermoelastic_results.e")
     add_test(NAME fuelsim_b3_hex8_moose_tests
-        COMMAND fuelsim_b3_hex8_moose_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex8_thermoelastic.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b3_hex8_thermoelastic_all_nodes_final.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b3_hex8_thermoelastic_element_stress_final.csv")
+        COMMAND "${CMAKE_COMMAND}"
+            "-DFUELSIM_EXECUTABLE=$<TARGET_FILE:fuelsim>"
+            "-DINPUT_FILE=${FUELSIM_B3_BLACKBOX_INPUT}"
+            "-DOUTPUT_FILE=${FUELSIM_B3_BLACKBOX_RESULTS}"
+            "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_production_result_tests>"
+            "-DCHECK_ARGUMENTS=b3;${FUELSIM_B3_BLACKBOX_RESULTS};${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b3_hex8_thermoelastic_all_nodes_final.csv;${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b3_hex8_thermoelastic_element_stress_final.csv"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_case.cmake")
     set_tests_properties(fuelsim_b3_hex8_moose_tests PROPERTIES LABELS "acceptance;three-dimensional")
 
-    add_executable(fuelsim_b35_hex8_shared_nodes_moose_tests tests/b35_hex8_shared_nodes_moose_tests.cpp)
-    target_link_libraries(fuelsim_b35_hex8_shared_nodes_moose_tests
-        PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
-    fuelsim_enable_warnings(fuelsim_b35_hex8_shared_nodes_moose_tests)
+    fuelsim_stage_blackbox_case(FUELSIM_B35_BLACKBOX_INPUT b35
+        steady_hex8_shared_meat_clad_moose.fsi)
+    get_filename_component(FUELSIM_B35_BLACKBOX_DIRECTORY
+        "${FUELSIM_B35_BLACKBOX_INPUT}" DIRECTORY)
+    set(FUELSIM_B35_BLACKBOX_RESULTS
+        "${FUELSIM_B35_BLACKBOX_DIRECTORY}/steady_hex8_shared_meat_clad_moose_results.e")
     add_test(NAME fuelsim_b35_hex8_shared_nodes_moose_tests
-        COMMAND fuelsim_b35_hex8_shared_nodes_moose_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex8_shared_meat_clad_moose.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b35_hex8_shared_meat_clad_all_nodes_0001.csv")
+        COMMAND "${CMAKE_COMMAND}"
+            "-DFUELSIM_EXECUTABLE=$<TARGET_FILE:fuelsim>"
+            "-DINPUT_FILE=${FUELSIM_B35_BLACKBOX_INPUT}"
+            "-DOUTPUT_FILE=${FUELSIM_B35_BLACKBOX_RESULTS}"
+            "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_production_result_tests>"
+            "-DCHECK_ARGUMENTS=cartesian-fields;${FUELSIM_B35_BLACKBOX_RESULTS};${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b35_hex8_shared_meat_clad_all_nodes_0001.csv;1e-3"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_case.cmake")
     set_tests_properties(fuelsim_b35_hex8_shared_nodes_moose_tests
         PROPERTIES LABELS "acceptance;three-dimensional")
 
@@ -1354,14 +1413,20 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_b36_plate_meat_clad_moose_tests
         PROPERTIES LABELS "acceptance;three-dimensional;inelastic")
 
-    add_executable(fuelsim_rz_shared_nodes_moose_tests tests/rz_shared_nodes_moose_tests.cpp)
-    target_link_libraries(fuelsim_rz_shared_nodes_moose_tests
-        PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
-    fuelsim_enable_warnings(fuelsim_rz_shared_nodes_moose_tests)
+    fuelsim_stage_blackbox_case(FUELSIM_RZ_SHARED_BLACKBOX_INPUT rz_shared
+        steady_rz_shared_meat_clad_moose.fsi)
+    get_filename_component(FUELSIM_RZ_SHARED_BLACKBOX_DIRECTORY
+        "${FUELSIM_RZ_SHARED_BLACKBOX_INPUT}" DIRECTORY)
+    set(FUELSIM_RZ_SHARED_BLACKBOX_RESULTS
+        "${FUELSIM_RZ_SHARED_BLACKBOX_DIRECTORY}/steady_rz_shared_meat_clad_moose_results.e")
     add_test(NAME fuelsim_rz_shared_nodes_moose_tests
-        COMMAND fuelsim_rz_shared_nodes_moose_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_rz_shared_meat_clad_moose.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/rz_shared_meat_clad_out_all_nodes_0001.csv")
+        COMMAND "${CMAKE_COMMAND}"
+            "-DFUELSIM_EXECUTABLE=$<TARGET_FILE:fuelsim>"
+            "-DINPUT_FILE=${FUELSIM_RZ_SHARED_BLACKBOX_INPUT}"
+            "-DOUTPUT_FILE=${FUELSIM_RZ_SHARED_BLACKBOX_RESULTS}"
+            "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_production_result_tests>"
+            "-DCHECK_ARGUMENTS=rz-fields;${FUELSIM_RZ_SHARED_BLACKBOX_RESULTS};${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/rz_shared_meat_clad_out_all_nodes_0001.csv;1e-3"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_case.cmake")
     set_tests_properties(fuelsim_rz_shared_nodes_moose_tests PROPERTIES LABELS "acceptance;axisymmetric")
 
     add_executable(fuelsim_b33_hex8_contact_moose_tests tests/b33_hex8_contact_moose_tests.cpp)
@@ -2071,18 +2136,22 @@ if(BUILD_TESTING)
         )
     endif()
 
-    add_executable(fuelsim_m2_solver_tests tests/m2_solver_tests.cpp)
-    target_link_libraries(fuelsim_m2_solver_tests
-        PRIVATE
-            fuelsim_moose_test_support
-            fuelsim::io
-            fuelsim::solver
-    )
-    fuelsim_enable_warnings(fuelsim_m2_solver_tests)
+    fuelsim_stage_blackbox_case(
+        FUELSIM_M21_BLACKBOX_INPUT m21 transient_heat_moose.fsi)
+    get_filename_component(FUELSIM_M21_BLACKBOX_DIRECTORY
+        "${FUELSIM_M21_BLACKBOX_INPUT}" DIRECTORY)
+    set(FUELSIM_M21_BLACKBOX_RESULTS
+        "${FUELSIM_M21_BLACKBOX_DIRECTORY}/transient_heat_moose_results.e")
+    set(FUELSIM_M21_BLACKBOX_SUMMARY
+        "${FUELSIM_M21_BLACKBOX_DIRECTORY}/transient_heat_moose_summary.csv")
     add_test(NAME fuelsim_m2_solver_tests
-        COMMAND fuelsim_m2_solver_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_heat_moose.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m21_transient_heat_rz_all_nodes_final.csv"
+        COMMAND "${CMAKE_COMMAND}"
+            "-DFUELSIM_EXECUTABLE=$<TARGET_FILE:fuelsim>"
+            "-DINPUT_FILE=${FUELSIM_M21_BLACKBOX_INPUT}"
+            "-DOUTPUT_FILES=${FUELSIM_M21_BLACKBOX_RESULTS};${FUELSIM_M21_BLACKBOX_SUMMARY}"
+            "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_production_result_tests>"
+            "-DCHECK_ARGUMENTS=m21;${FUELSIM_M21_BLACKBOX_RESULTS};${FUELSIM_M21_BLACKBOX_SUMMARY};${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m21_transient_heat_rz_all_nodes_final.csv"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_case.cmake"
     )
     set_tests_properties(fuelsim_m2_solver_tests PROPERTIES LABELS "acceptance")
 

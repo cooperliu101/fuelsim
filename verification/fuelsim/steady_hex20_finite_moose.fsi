@@ -83,4 +83,5 @@
 []
 [Outputs]
   console = false
+  exodus = steady_hex20_finite_moose_results.e
 []

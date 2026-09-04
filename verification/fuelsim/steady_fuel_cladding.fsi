@@ -138,4 +138,6 @@
 
 [Outputs]
   console = true
+  csv = steady_fuel_cladding_summary.csv
+  exodus = steady_fuel_cladding_results.e
 []

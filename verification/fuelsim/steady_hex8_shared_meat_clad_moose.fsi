@@ -116,4 +116,5 @@
 
 [Outputs]
   console = false
+  exodus = steady_hex8_shared_meat_clad_moose_results.e
 []

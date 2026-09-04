@@ -86,4 +86,5 @@
 
 [Outputs]
   console = false
+  exodus = steady_hex20_traction_moose_results.e
 []

@@ -110,4 +110,5 @@
 
 [Outputs]
   console = false
+  exodus = steady_rz_shared_meat_clad_moose_results.e
 []

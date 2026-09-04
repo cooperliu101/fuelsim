@@ -155,7 +155,8 @@ ctest --test-dir build -j4 --output-on-failure
 ```
 
 CTest 只保留一个最多四并发的统一回归入口。扩展参数扫描和大型性能路径作为手动
-验证资料保留，不再用标签形成第二套测试层级。
+验证资料保留，不再用标签形成第二套测试层级。端到端生产算例与内部数值契约
+测试的入口边界见 [测试入口说明](tests/README.md)。
 
 `fuelsim_io` 将一个二维非结构 Quad4 或三维 HEX8 文件的节点、连接关系、元素块、
 节点集和边集转换为 fuelsim 自有网格对象；专项 CTest 通过 Exodus API
@@ -235,23 +236,21 @@ Vec、Mat、SNES、贡献计算和线性求解均为真实分布式对象。
   verification/moose/m41_finite_strain_pcmi_rz_out.csv
 ```
 
-运行 MOOSE Exodus 网格驱动的 M1 验收：
+运行 MOOSE Exodus 网格驱动的 M1 生产算例：
 
 ```bash
-./build/fuelsim_m1_exodus_moose_tests \
-  verification/fuelsim/steady_fuel_cladding.fsi \
-  verification/moose/m1_fuel_cladding_gap_rz_all_nodes_final.csv \
-  verification/moose/m1_fuel_surface_final.csv
+./build/fuelsim -i verification/fuelsim/steady_fuel_cladding.fsi
 ```
 
-运行内部节点畸变、不可转换为张量积网格的 M1 全场验收：
+运行内部节点畸变、不可转换为张量积网格的 M1 生产算例：
 
 ```bash
-./build/fuelsim_m1_unstructured_moose_tests \
-  verification/fuelsim/steady_fuel_cladding_unstructured.fsi \
-  verification/moose/m1_fuel_cladding_unstructured_rz_all_nodes_final.csv \
-  verification/moose/m1_fuel_cladding_unstructured_rz_fuel_surface_final.csv
+./build/fuelsim -i verification/fuelsim/steady_fuel_cladding_unstructured.fsi
 ```
+
+上述命令只运行用户实际使用的 `fuelsim` 可执行程序。CTest 将每张完整输入卡
+原样复制到独立目录后运行同一命令，再由不链接求解核心的结果检查程序读取
+生产 Exodus 和 CSV 输出，并与版本库中的 MOOSE 参考结果比较。
 
 稳态示例将热源分成 20 个线性载荷步，以稳定跨越接触活动集的切换。
 PETSc 选项仍可在命令行覆盖，例如：

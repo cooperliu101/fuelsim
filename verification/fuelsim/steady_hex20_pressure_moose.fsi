@@ -85,4 +85,5 @@
 
 [Outputs]
   console = false
+  exodus = steady_hex20_pressure_moose_results.e
 []

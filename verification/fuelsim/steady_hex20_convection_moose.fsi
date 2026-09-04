@@ -92,4 +92,5 @@
 
 [Outputs]
   console = false
+  exodus = steady_hex20_convection_moose_results.e
 []
