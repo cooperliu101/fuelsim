@@ -937,7 +937,10 @@ void SpatialAssembly::contribution_jacobian_pattern(std::size_t index, std::vect
     if (index < ranges.thermal_begin) {
         if (_uses_hex20) {
             pattern.assign(hex20_local_dof_count * hex20_local_dof_count, 0U);
-            set_pattern_block(pattern, hex20_local_dof_count, 0, 8, 0, 8);
+            const auto location = element_location(index);
+            const std::size_t thermal_column_end =
+                region(location.first).strain_formulation == StrainFormulation::finite ? hex20_local_dof_count : 8;
+            set_pattern_block(pattern, hex20_local_dof_count, 0, 8, 0, thermal_column_end);
             set_pattern_block(pattern, hex20_local_dof_count, 8, hex20_local_dof_count, 0, hex20_local_dof_count);
             return;
         }

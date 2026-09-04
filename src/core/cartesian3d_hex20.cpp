@@ -243,6 +243,7 @@ struct Hex20Kinematics final {
     SymmetricTensor3 strain_increment;
     CartesianRotation rotation;
     std::array<std::array<adlite::Scalar, 3>, 20> current_gradient;
+    Matrix3 current_inverse_values{}, midpoint_inverse_values{};
     adlite::Scalar current_weighted_measure{0.0};
 };
 
@@ -260,6 +261,12 @@ Hex20Kinematics evaluate_kinematics(const Hex20MechanicalQuadraturePoint& point,
             for (std::size_t reference = 0; reference < 3; ++reference)
                 result.current_gradient[node][direction] +=
                     point.displacement_gradient[node][reference] * core.current_inverse[reference][direction];
+    if (strain_formulation == StrainFormulation::finite)
+        for (std::size_t i = 0; i < 3; ++i)
+            for (std::size_t j = 0; j < 3; ++j) {
+                result.current_inverse_values[i][j] = core.current_inverse[i][j].value();
+                result.midpoint_inverse_values[i][j] = core.midpoint_inverse[i][j].value();
+            }
     return result;
 }
 
@@ -285,6 +292,70 @@ double interpolate_temperature_values(const Hex20MechanicalQuadraturePoint& poin
 double interpolate_temperature_values(const Hex20ThermalQuadraturePoint& point, const Hex20LocalValues& state) {
     double result = 0.0;
     for (std::size_t node = 0; node < 8; ++node) result += point.temperature_shape[node] * state[node];
+    return result;
+}
+
+struct Hex20SourceMeasureValues final {
+    Matrix3 measure_derivative{};
+    double weighted_measure = 0.0;
+};
+
+Hex20SourceMeasureValues evaluate_source_measure_values(
+    const Hex20MechanicalQuadraturePoint& point, const Hex20LocalValues& state) {
+    Matrix3 current{};
+    for (std::size_t direction = 0; direction < 3; ++direction) current[direction][direction] = 1.0;
+    for (std::size_t component = 0; component < 3; ++component)
+        for (std::size_t direction = 0; direction < 3; ++direction)
+            for (std::size_t node = 0; node < 8; ++node)
+                current[component][direction] +=
+                    point.source_displacement_gradient[node][direction] * state[8 + 20 * component + node];
+    const double determinant_value = determinant(current);
+    if (!std::isfinite(determinant_value) || !(determinant_value > 0.0))
+        throw std::domain_error("Finite-strain HEX20 thermal source corner configuration requires a positive Jacobian");
+    Matrix3 cofactor{};
+    cofactor[0][0] = current[1][1] * current[2][2] - current[1][2] * current[2][1];
+    cofactor[0][1] = current[1][2] * current[2][0] - current[1][0] * current[2][2];
+    cofactor[0][2] = current[1][0] * current[2][1] - current[1][1] * current[2][0];
+    cofactor[1][0] = current[0][2] * current[2][1] - current[0][1] * current[2][2];
+    cofactor[1][1] = current[0][0] * current[2][2] - current[0][2] * current[2][0];
+    cofactor[1][2] = current[0][1] * current[2][0] - current[0][0] * current[2][1];
+    cofactor[2][0] = current[0][1] * current[1][2] - current[0][2] * current[1][1];
+    cofactor[2][1] = current[0][2] * current[1][0] - current[0][0] * current[1][2];
+    cofactor[2][2] = current[0][0] * current[1][1] - current[0][1] * current[1][0];
+    for (auto& row : cofactor)
+        for (double& value : row) value *= point.source_weighted_measure;
+    return {cofactor, point.source_weighted_measure * determinant_value};
+}
+
+struct Hex20FiniteThermalKinematicsValues final {
+    std::array<std::array<double, 3>, 8> midpoint_temperature_gradient{};
+    double current_weighted_measure = 0.0;
+};
+
+Hex20FiniteThermalKinematicsValues evaluate_finite_thermal_kinematics_values(
+    const Hex20MechanicalQuadraturePoint& point, const Hex20LocalValues& state,
+    const Hex20LocalValues& committed_state) {
+    Hex20FiniteThermalKinematicsValues result;
+    const Matrix3 current = deformation_gradient(point, state), old = deformation_gradient(point, committed_state);
+    const double current_determinant = determinant(current), old_determinant = determinant(old);
+    if (!std::isfinite(current_determinant) || !(current_determinant > 0.0))
+        throw std::domain_error("Finite-strain HEX20 thermal current configuration requires a positive Jacobian");
+    if (!std::isfinite(old_determinant) || !(old_determinant > 0.0))
+        throw std::domain_error("Finite-strain HEX20 thermal committed configuration requires a positive Jacobian");
+    Matrix3 midpoint{};
+    for (std::size_t i = 0; i < 3; ++i)
+        for (std::size_t j = 0; j < 3; ++j) midpoint[i][j] = 0.5 * (current[i][j] + old[i][j]);
+    const double midpoint_determinant = determinant(midpoint);
+    if (!std::isfinite(midpoint_determinant) || !(midpoint_determinant > 0.0))
+        throw std::domain_error("Finite-strain HEX20 thermal midpoint configuration requires a positive Jacobian");
+    const Matrix3 midpoint_inverse = inverse(midpoint, midpoint_determinant);
+    for (std::size_t node = 0; node < 8; ++node)
+        for (std::size_t direction = 0; direction < 3; ++direction)
+            for (std::size_t reference = 0; reference < 3; ++reference)
+                result.midpoint_temperature_gradient[node][direction] +=
+                    point.temperature_gradient[node][reference] * midpoint_inverse[reference][direction];
+    result.current_weighted_measure = point.weighted_measure * current_determinant;
+
     return result;
 }
 
@@ -396,10 +467,134 @@ void add_thermal_point_system(const Hex20ThermalQuadraturePoint& point, const He
     }
 }
 
+void add_finite_thermal_point_residual_values(const Hex20MechanicalQuadraturePoint& point,
+    const Hex20LocalValues& state, const IsotropicThermoelasticMaterial& material, double time,
+    double volumetric_heat_source, const Hex20LocalValues* committed_state, double time_step,
+    Hex20LocalResidual& residual, bool include_thermal_time_term) {
+    const Hex20LocalValues undeformed{};
+    const Hex20LocalValues& old_state = committed_state == nullptr ? undeformed : *committed_state;
+    const Hex20FiniteThermalKinematicsValues kinematics =
+        evaluate_finite_thermal_kinematics_values(point, state, old_state);
+    const double temperature = interpolate_temperature_values(point, state);
+    std::array<double, 3> temperature_gradient{};
+    for (std::size_t node = 0; node < 8; ++node)
+        for (std::size_t direction = 0; direction < 3; ++direction)
+            temperature_gradient[direction] += kinematics.midpoint_temperature_gradient[node][direction] * state[node];
+    const MaterialFunctionContext context = material_context(time, point.position);
+    const double conductivity = material.conductivity(adlite::Scalar(temperature), context).value();
+    double temperature_rate = 0.0, heat_capacity = 0.0;
+    if (committed_state != nullptr && include_thermal_time_term) {
+        const double old_temperature = interpolate_temperature_values(point, *committed_state);
+        temperature_rate = (temperature - old_temperature) / time_step;
+        heat_capacity = material.heat_capacity(adlite::Scalar(temperature), context).value();
+    }
+    const double source_measure =
+        volumetric_heat_source == 0.0 ? 0.0 : evaluate_source_measure_values(point, state).weighted_measure;
+    for (std::size_t node = 0; node < 8; ++node) {
+        double conduction = 0.0;
+        for (std::size_t direction = 0; direction < 3; ++direction)
+            conduction += kinematics.midpoint_temperature_gradient[node][direction] * temperature_gradient[direction];
+        residual[node] +=
+            kinematics.current_weighted_measure *
+                (conductivity * conduction + point.temperature_shape[node] * heat_capacity * temperature_rate) -
+            source_measure * point.temperature_shape[node] * volumetric_heat_source;
+    }
+}
+
+void add_finite_thermal_point_system(const Hex20MechanicalQuadraturePoint& point, const Hex20LocalValues& state,
+    const IsotropicThermoelasticMaterial& material, double time, double volumetric_heat_source,
+    const Hex20LocalValues* committed_state, double time_step, const Hex20Kinematics& kinematics,
+    const adlite::Scalar& active_temperature, Hex20LocalResidual& residual, Hex20LocalJacobian& jacobian,
+    bool include_thermal_time_term) {
+    constexpr std::size_t point_width = 10, temperature_index = 9;
+    const MaterialFunctionContext context = material_context(time, point.position);
+    const adlite::Scalar conductivity = material.conductivity(active_temperature, context);
+    adlite::Scalar temperature_rate = 0.0, heat_capacity = 0.0;
+    if (committed_state != nullptr && include_thermal_time_term) {
+        const double old_temperature = interpolate_temperature_values(point, *committed_state);
+        temperature_rate = (active_temperature - old_temperature) / time_step;
+        heat_capacity = material.heat_capacity(active_temperature, context);
+    }
+    std::array<std::array<double, 3>, 8> midpoint_gradient{};
+    for (std::size_t node = 0; node < 8; ++node)
+        for (std::size_t direction = 0; direction < 3; ++direction)
+            for (std::size_t reference = 0; reference < 3; ++reference)
+                midpoint_gradient[node][direction] += point.temperature_gradient[node][reference] *
+                                                      kinematics.midpoint_inverse_values[reference][direction];
+    std::array<double, 3> temperature_gradient{};
+    for (std::size_t node = 0; node < 8; ++node)
+        for (std::size_t direction = 0; direction < 3; ++direction)
+            temperature_gradient[direction] += midpoint_gradient[node][direction] * state[node];
+    Hex20SourceMeasureValues source;
+    if (volumetric_heat_source != 0.0) source = evaluate_source_measure_values(point, state);
+    std::array<std::array<double, 8>, 3> source_displacement_derivative{};
+    if (volumetric_heat_source != 0.0)
+        for (std::size_t component = 0; component < 3; ++component)
+            for (std::size_t other = 0; other < 8; ++other)
+                for (std::size_t direction = 0; direction < 3; ++direction)
+                    source_displacement_derivative[component][other] +=
+                        source.measure_derivative[component][direction] *
+                        point.source_displacement_gradient[other][direction];
+    std::array<double, 3> midpoint_projected_temperature{};
+    for (std::size_t row = 0; row < 3; ++row)
+        for (std::size_t direction = 0; direction < 3; ++direction)
+            midpoint_projected_temperature[row] +=
+                kinematics.midpoint_inverse_values[row][direction] * temperature_gradient[direction];
+
+    std::array<double, point_width> derivatives{};
+    for (std::size_t node = 0; node < 8; ++node) {
+        double conduction = 0.0;
+        for (std::size_t direction = 0; direction < 3; ++direction)
+            conduction += midpoint_gradient[node][direction] * temperature_gradient[direction];
+        const adlite::Scalar thermal_integrand =
+            conductivity * conduction + point.temperature_shape[node] * heat_capacity * temperature_rate;
+        thermal_integrand.copy_derivatives(derivatives.data(), derivatives.size());
+        const double current_weight = kinematics.current_weighted_measure.value();
+        std::array<double, 3> midpoint_projected_test{};
+        for (std::size_t row = 0; row < 3; ++row)
+            for (std::size_t direction = 0; direction < 3; ++direction)
+                midpoint_projected_test[row] +=
+                    midpoint_gradient[node][direction] * kinematics.midpoint_inverse_values[row][direction];
+        std::array<std::array<double, 3>, 3> full_gradient_derivative{};
+        for (std::size_t component = 0; component < 3; ++component)
+            for (std::size_t direction = 0; direction < 3; ++direction) {
+                const double conduction_derivative =
+                    -0.5 * (midpoint_gradient[node][component] * midpoint_projected_temperature[direction] +
+                               temperature_gradient[component] * midpoint_projected_test[direction]);
+                full_gradient_derivative[component][direction] =
+                    current_weight *
+                    (kinematics.current_inverse_values[direction][component] * thermal_integrand.value() +
+                        conductivity.value() * conduction_derivative);
+            }
+        for (std::size_t displacement_component = 0; displacement_component < 3; ++displacement_component)
+            for (std::size_t other = 0; other < 20; ++other) {
+                double chained = 0.0;
+                for (std::size_t direction = 0; direction < 3; ++direction)
+                    chained += full_gradient_derivative[displacement_component][direction] *
+                               point.displacement_gradient[other][direction];
+                if (other < 8)
+                    chained -= point.temperature_shape[node] * volumetric_heat_source *
+                               source_displacement_derivative[displacement_component][other];
+                jacobian[node * hex20_local_dof_count + 8 + 20 * displacement_component + other] += chained;
+            }
+        for (std::size_t other = 0; other < 8; ++other) {
+            double gradient_dot = 0.0;
+            for (std::size_t direction = 0; direction < 3; ++direction)
+                gradient_dot += midpoint_gradient[node][direction] * midpoint_gradient[other][direction];
+            jacobian[node * hex20_local_dof_count + other] +=
+                current_weight *
+                (conductivity.value() * gradient_dot + point.temperature_shape[other] * derivatives[temperature_index]);
+        }
+        residual[node] += current_weight * thermal_integrand.value() -
+                          source.weighted_measure * point.temperature_shape[node] * volumetric_heat_source;
+    }
+}
+
 void add_mechanical_point_system(const Hex20MechanicalQuadraturePoint& point, const Hex20LocalValues& state,
     const IsotropicThermoelasticMaterial& material, StrainFormulation strain_formulation, double time,
-    const Hex20LocalValues* committed_state, const CartesianMaterialPointState* committed_material, double time_step,
-    Hex20LocalResidual& residual, Hex20LocalJacobian& jacobian) {
+    double volumetric_heat_source, const Hex20LocalValues* committed_state,
+    const CartesianMaterialPointState* committed_material, double time_step, Hex20LocalResidual& residual,
+    Hex20LocalJacobian& jacobian, bool include_thermal_time_term) {
     constexpr std::size_t point_width = 10, temperature_index = 9;
     std::array<double, 9> gradient_values{};
     for (std::size_t component = 0; component < 3; ++component)
@@ -419,6 +614,9 @@ void add_mechanical_point_system(const Hex20MechanicalQuadraturePoint& point, co
     const Hex20LocalValues undeformed{};
     const Hex20LocalValues& old_state = committed_state == nullptr ? undeformed : *committed_state;
     const Hex20Kinematics kinematics = evaluate_kinematics(point, active_gradient, old_state, strain_formulation);
+    if (strain_formulation == StrainFormulation::finite)
+        add_finite_thermal_point_system(point, state, material, time, volumetric_heat_source, committed_state,
+            time_step, kinematics, active_temperature, residual, jacobian, include_thermal_time_term);
     const MaterialFunctionContext context = material_context(time, point.position);
     const std::array<const adlite::Scalar*, 6> strain_components = {&kinematics.strain_increment.xx,
         &kinematics.strain_increment.yy, &kinematics.strain_increment.zz, &kinematics.strain_increment.xy,
@@ -502,9 +700,14 @@ Hex20LocalResidual compute_local(const CartesianThermoelasticData& data, const H
         throw std::invalid_argument("HEX20 material history must contain 27 integration points");
     if (jacobian == nullptr) {
         Hex20LocalResidual result{};
-        for (const Hex20ThermalQuadraturePoint& point : geometry.thermal_points)
-            add_thermal_point_residual_values(point, state, data.material, data.time, data.volumetric_heat_source,
-                committed_state, time_step, result, include_thermal_time_term);
+        if (data.strain_formulation == StrainFormulation::finite)
+            for (const Hex20MechanicalQuadraturePoint& point : geometry.mechanical_points)
+                add_finite_thermal_point_residual_values(point, state, data.material, data.time,
+                    data.volumetric_heat_source, committed_state, time_step, result, include_thermal_time_term);
+        else
+            for (const Hex20ThermalQuadraturePoint& point : geometry.thermal_points)
+                add_thermal_point_residual_values(point, state, data.material, data.time, data.volumetric_heat_source,
+                    committed_state, time_step, result, include_thermal_time_term);
         for (std::size_t q = 0; q < geometry.mechanical_points.size(); ++q)
             add_mechanical_point_residual_values(geometry.mechanical_points[q], state, data.material,
                 data.strain_formulation, data.time, committed_state, history == nullptr ? nullptr : &(*history)[q],
@@ -513,12 +716,14 @@ Hex20LocalResidual compute_local(const CartesianThermoelasticData& data, const H
     }
     Hex20LocalResidual residual{};
     jacobian->fill(0.0);
-    for (const Hex20ThermalQuadraturePoint& point : geometry.thermal_points)
-        add_thermal_point_system(point, state, data.material, data.time, data.volumetric_heat_source, committed_state,
-            time_step, residual, *jacobian, include_thermal_time_term);
+    if (data.strain_formulation != StrainFormulation::finite)
+        for (const Hex20ThermalQuadraturePoint& point : geometry.thermal_points)
+            add_thermal_point_system(point, state, data.material, data.time, data.volumetric_heat_source,
+                committed_state, time_step, residual, *jacobian, include_thermal_time_term);
     for (std::size_t q = 0; q < geometry.mechanical_points.size(); ++q)
         add_mechanical_point_system(geometry.mechanical_points[q], state, data.material, data.strain_formulation,
-            data.time, committed_state, history == nullptr ? nullptr : &(*history)[q], time_step, residual, *jacobian);
+            data.time, data.volumetric_heat_source, committed_state, history == nullptr ? nullptr : &(*history)[q],
+            time_step, residual, *jacobian, include_thermal_time_term);
     return residual;
 }
 
@@ -580,6 +785,31 @@ Hex20Geometry make_hex20_geometry(const Hex20Coordinates& coordinates) {
                 point.position = mapping.position;
                 point.weighted_measure =
                     mapping.determinant * gauss3_weights[kx] * gauss3_weights[ky] * gauss3_weights[kz];
+                Matrix3 source_jacobian{};
+                for (std::size_t node = 0; node < 8; ++node) {
+                    const std::array<double, 3> coordinate = {
+                        coordinates[node].x, coordinates[node].y, coordinates[node].z};
+                    for (std::size_t physical = 0; physical < 3; ++physical)
+                        for (std::size_t natural = 0; natural < 3; ++natural)
+                            source_jacobian[physical][natural] +=
+                                coordinate[physical] * mapping.temperature_derivative[node][natural];
+                }
+                const double source_determinant = determinant(source_jacobian);
+                if (!std::isfinite(source_determinant) || !(source_determinant > 0.0))
+                    throw std::invalid_argument(
+                        "Hex20Geometry thermal source corners require a finite positive Jacobian determinant");
+                const Matrix3 source_inverse = inverse(source_jacobian, source_determinant);
+                point.source_weighted_measure =
+                    source_determinant * gauss3_weights[kx] * gauss3_weights[ky] * gauss3_weights[kz];
+                for (std::size_t node = 0; node < 8; ++node)
+                    for (std::size_t physical = 0; physical < 3; ++physical)
+                        for (std::size_t natural = 0; natural < 3; ++natural) {
+                            point.temperature_gradient[node][physical] +=
+                                mapping.temperature_derivative[node][natural] *
+                                mapping.inverse_jacobian[natural][physical];
+                            point.source_displacement_gradient[node][physical] +=
+                                mapping.temperature_derivative[node][natural] * source_inverse[natural][physical];
+                        }
                 for (std::size_t node = 0; node < 20; ++node)
                     for (std::size_t physical = 0; physical < 3; ++physical)
                         for (std::size_t natural = 0; natural < 3; ++natural)

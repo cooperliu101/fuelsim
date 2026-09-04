@@ -39,8 +39,11 @@ struct Hex20MechanicalQuadraturePoint final {
     std::array<double, hex20_displacement_node_count> displacement_shape;
     std::array<std::array<double, 3>, hex20_displacement_node_count> displacement_gradient;
     std::array<double, hex20_temperature_node_count> temperature_shape;
+    std::array<std::array<double, 3>, hex20_temperature_node_count> temperature_gradient;
+    std::array<std::array<double, 3>, hex20_temperature_node_count> source_displacement_gradient;
     CartesianPoint3 position;
     double weighted_measure;
+    double source_weighted_measure;
 };
 
 struct Hex20Geometry final {

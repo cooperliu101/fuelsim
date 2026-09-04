@@ -1514,3 +1514,33 @@ nonlinear iterations on both sides. The current 23,010-degree-of-freedom,
 62 Jacobian evaluations, one PETSc workspace, and a final residual norm of
 `3.24913e-9`. These runs check for a general solver regression and do not replace
 the matched B6.1 Abaqus comparison.
+
+## Manual C3D20T finite-strain plate bending
+
+Three C3D20T cases use the 1,200-element quadratic-displacement and
+linear-temperature plate mesh: one steady thermoelastic equilibrium, ten fixed
+one-second thermoelastic increments, and five fixed two-second increments with
+fully coupled J2 plasticity and Norton creep. They are intentionally manual and
+are not registered in CTest.
+
+The finite-strain thermal volume operators match independently identified
+Abaqus behavior: 27-point conduction with midpoint gradients and current-volume
+measure, 27-point consistent current-volume heat capacity, and current-volume
+body source based on the eight temperature corners. The geometric Jacobian uses
+closed double-precision derivatives and reuses the mechanical kinematics; no
+material coefficient or time step was changed for performance.
+
+For fixed-core, one-thread external wall time, the Fuelsim and Abaqus medians
+are `14.67` and `19.555856 s` for steady bending, `57.40` and `75.822728 s` for
+the ten-step path, and `52.75` and `55.964890 s` for the plasticity-creep path.
+Fuelsim is respectively `24.9841%`, `24.2971%`, and `5.74448%` faster.
+
+The plasticity-creep case passes all three `0.5%` field metrics, including all
+32,400 integration-point stress, equivalent plastic-strain, and equivalent
+creep-strain values. The thermoelastic cases pass temperature and complete
+displacement-vector metrics, while maximum pointwise stress errors remain
+`2.47082%` and `15.3961%` only at kilopascal-scale reference stresses; their
+relative L2 errors are `3.17327e-5%` and `0.000264014%`. No denominator floor or
+extra accuracy treatment is used. Complete commands and evidence are in
+`verification/abaqus/README.md` and the corresponding comparison and timing
+artifacts.

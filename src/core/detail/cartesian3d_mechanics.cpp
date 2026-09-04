@@ -130,6 +130,8 @@ KinematicsCore evaluate_kinematics(
     if (!std::isfinite(plus_determinant.value()) || plus_determinant.value() == 0.0)
         throw std::domain_error("Abaqus Hughes-Winget Cartesian increment has singular delta-F plus identity");
     const ActiveMatrix3 plus_inverse = inverse(deformation_sum, plus_determinant);
+    for (std::size_t i = 0; i < 3; ++i)
+        for (std::size_t j = 0; j < 3; ++j) result.midpoint_inverse[i][j] = 2.0 * plus_inverse[i][j];
     ActiveMatrix3 hughes_winget{};
     for (std::size_t i = 0; i < 3; ++i)
         for (std::size_t j = 0; j < 3; ++j)

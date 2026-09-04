@@ -1,0 +1,4 @@
+field	relative_l2_percent	relative_absolute_peak_percent	maximum_pointwise_relative_percent	maximum_absolute_difference	zero_reference_count	maximum_zero_reference_absolute_difference
+temperature	1.8394419673612953e-06	1.9861603602423982e-05	2.1273858314149936e-05	0.00013903122521696787	0	0.0
+free_node_displacement_vector	0.0013591899846599118	0.001157167996117877	0.0035130542687185043	5.780560830559178e-08	0	0.0
+vonmises_stress	0.0002640138916815619	0.00044315243068080047	15.396069220259118	6927.832372426987	0	0.0

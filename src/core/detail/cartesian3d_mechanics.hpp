@@ -19,6 +19,7 @@ struct KinematicsCore final {
     SymmetricTensor3 strain_increment;
     CartesianRotation rotation;
     ActiveMatrix3 current_inverse{};
+    ActiveMatrix3 midpoint_inverse{};
     adlite::Scalar current_determinant{1.0};
 };
 

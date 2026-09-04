@@ -1,0 +1,15 @@
+abaqus_external_wall_seconds=19.501707
+abaqus_external_wall_seconds_repeated=19.555856,19.645926,19.501707
+abaqus_external_wall_median_seconds=19.555856
+abaqus_cpus=1
+abaqus_output_precision=full
+windows_computer=MSI
+abaqus_job_time_summary_begin
+     JOB TIME SUMMARY
+       USER TIME (SEC)      =   13.400
+       SYSTEM TIME (SEC)    =  0.70000
+       TOTAL CPU TIME (SEC) =   14.100
+       WALLCLOCK TIME (SEC) =         16
+abaqus_job_time_summary_end
+abaqus_increments=1
+abaqus_nonlinear_iterations=5

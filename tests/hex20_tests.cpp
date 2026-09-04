@@ -38,7 +38,8 @@ fuelsim::ThermoelasticProperties material(bool inelastic = false) {
 
 double directional_jacobian_error(const fuelsim::CartesianThermoelasticData& data,
     const fuelsim::Hex20Geometry& geometry, const fuelsim::Hex20LocalValues& state,
-    const fuelsim::Hex20LocalValues& old, const fuelsim::CartesianMaterialHistory& history) {
+    const fuelsim::Hex20LocalValues& old, const fuelsim::CartesianMaterialHistory& history, std::size_t first_row = 0,
+    std::size_t row_count = fuelsim::hex20_local_dof_count) {
     fuelsim::Hex20LocalJacobian jacobian{};
     (void)fuelsim::compute_hex20_transient(data, geometry, state, old, history, 0.5, &jacobian);
     fuelsim::Hex20LocalValues direction{};
@@ -53,7 +54,7 @@ double directional_jacobian_error(const fuelsim::CartesianThermoelasticData& dat
     const auto plus_residual = fuelsim::compute_hex20_transient(data, geometry, plus, old, history, 0.5);
     const auto minus_residual = fuelsim::compute_hex20_transient(data, geometry, minus, old, history, 0.5);
     double error = 0.0, scale = 0.0;
-    for (std::size_t row = 0; row < state.size(); ++row) {
+    for (std::size_t row = first_row; row < first_row + row_count; ++row) {
         double analytic = 0.0;
         for (std::size_t column = 0; column < state.size(); ++column)
             analytic += jacobian[row * state.size() + column] * direction[column];
@@ -201,6 +202,114 @@ bool test_geometry_and_constant_strain() {
     return true;
 }
 
+bool test_finite_thermal_operators() {
+    const auto coordinates = unit_cube();
+    const fuelsim::Hex20Geometry geometry = fuelsim::make_hex20_geometry(coordinates);
+    const fuelsim::ThermoelasticProperties properties =
+        fuelsim::test::thermoelastic(0.0, 4.0, 2.0e5, 0.25, 0.0, 300.0, 0.0, 0.0, 0.0, 2.0, 3.0);
+    const fuelsim::CartesianThermoelasticData conduction_data{
+        fuelsim::IsotropicThermoelasticMaterial(properties), 0.0, 1.0, fuelsim::StrainFormulation::finite};
+    fuelsim::Hex20LocalValues state{};
+    constexpr double gradient_x = 7.0, gradient_y = -5.0, gradient_z = 3.0;
+    for (std::size_t node = 0; node < 8; ++node)
+        state[node] = 300.0 + gradient_x * coordinates[node].x + gradient_y * coordinates[node].y +
+                      gradient_z * coordinates[node].z;
+    for (std::size_t node = 0; node < 20; ++node) {
+        state[8 + node] = coordinates[node].x;
+        state[28 + node] = 0.2 * coordinates[node].y;
+    }
+    const auto conduction = fuelsim::compute_hex20_thermoelastic(conduction_data, geometry, state);
+    bool passed = true;
+    for (std::size_t node = 0; node < 8; ++node) {
+        const double sign_x = 2.0 * coordinates[node].x - 1.0, sign_y = 2.0 * coordinates[node].y - 1.0,
+                     sign_z = 2.0 * coordinates[node].z - 1.0;
+        const double expected =
+            4.0 * 2.4 * 0.25 *
+            (sign_x * gradient_x / (1.5 * 1.5) + sign_y * gradient_y / (1.1 * 1.1) + sign_z * gradient_z);
+        passed = check(near(conduction[node], expected, 2.0e-13),
+                     "finite-strain HEX20 conduction uses midpoint gradients and the current quadratic volume") &&
+                 passed;
+    }
+
+    fuelsim::Hex20LocalValues uniform = state;
+    for (std::size_t node = 0; node < 8; ++node) uniform[node] = 300.0;
+    const fuelsim::CartesianThermoelasticData source_data{
+        fuelsim::IsotropicThermoelasticMaterial(properties), 10.0, 1.0, fuelsim::StrainFormulation::finite};
+    const auto source = fuelsim::compute_hex20_thermoelastic(source_data, geometry, uniform);
+    const double source_sum = std::accumulate(source.begin(), source.begin() + 8, 0.0);
+    passed = check(near(source_sum, -24.0, 2.0e-13),
+                 "finite-strain HEX20 body source uses the current eight-corner volume") &&
+             passed;
+
+    fuelsim::Hex20LocalValues midside = uniform;
+    for (std::size_t node = 0; node < 20; ++node) {
+        midside[8 + node] = 0.0;
+        midside[28 + node] = 0.0;
+    }
+    midside[8 + 8] = 0.05;
+    const auto midside_source = fuelsim::compute_hex20_thermoelastic(source_data, geometry, midside);
+    const double midside_source_sum = std::accumulate(midside_source.begin(), midside_source.begin() + 8, 0.0);
+    passed = check(near(midside_source_sum, -10.0, 2.0e-13),
+                 "finite-strain HEX20 body source excludes displacement midside nodes from its volume") &&
+             passed;
+    const fuelsim::CartesianThermoelasticData small_source_data{
+        fuelsim::IsotropicThermoelasticMaterial(properties), 10.0, 1.0, fuelsim::StrainFormulation::small};
+    const auto small_source = fuelsim::compute_hex20_thermoelastic(small_source_data, geometry, midside);
+    passed = check(near(std::accumulate(small_source.begin(), small_source.begin() + 8, 0.0), -10.0, 2.0e-13),
+                 "small-strain HEX20 body source retains the reference-volume operator") &&
+             passed;
+
+    fuelsim::Hex20LocalValues old = state;
+    for (std::size_t node = 0; node < 8; ++node) {
+        old[node] = 300.0;
+        state[node] = 301.0 + static_cast<double>(node);
+    }
+    for (std::size_t node = 0; node < 20; ++node) {
+        old[8 + node] = 0.0;
+        old[28 + node] = 0.0;
+        old[48 + node] = 0.0;
+    }
+    const fuelsim::CartesianMaterialHistory history(27);
+    const auto transient =
+        fuelsim::compute_hex20_transient(conduction_data, geometry, state, old, history, 1.0, nullptr, true);
+    const auto steady =
+        fuelsim::compute_hex20_transient(conduction_data, geometry, state, old, history, 1.0, nullptr, false);
+    for (std::size_t node = 0; node < 8; ++node) {
+        double expected_capacity = 0.0;
+        for (std::size_t other = 0; other < 8; ++other) {
+            double mass = 1.0;
+            for (std::size_t direction = 0; direction < 3; ++direction) {
+                const double left = direction == 0   ? coordinates[node].x
+                                    : direction == 1 ? coordinates[node].y
+                                                     : coordinates[node].z;
+                const double right = direction == 0   ? coordinates[other].x
+                                     : direction == 1 ? coordinates[other].y
+                                                      : coordinates[other].z;
+                mass *= left == right ? 2.0 : 1.0;
+            }
+            expected_capacity += mass * static_cast<double>(other + 1);
+        }
+        expected_capacity *= 6.0 * 2.4 / 216.0;
+        passed = check(near(transient[node] - steady[node], expected_capacity, 3.0e-12),
+                     "finite-strain HEX20 capacity uses the consistent current-volume matrix") &&
+                 passed;
+    }
+
+    fuelsim::Hex20LocalValues invalid = uniform;
+    for (std::size_t node = 0; node < 20; ++node) {
+        invalid[8 + node] = -2.0 * coordinates[node].x;
+        invalid[28 + node] = -2.0 * coordinates[node].y;
+    }
+    bool midpoint_rejected = false;
+    try {
+        (void)fuelsim::compute_hex20_thermoelastic(conduction_data, geometry, invalid);
+    } catch (const std::domain_error& error) {
+        midpoint_rejected = std::string(error.what()).find("midpoint") != std::string::npos;
+    }
+    return check(midpoint_rejected, "finite-strain HEX20 thermal integration rejects a singular midpoint geometry") &&
+           passed;
+}
+
 bool test_jacobian_and_transient_history() {
     const auto coordinates = unit_cube();
     const fuelsim::Hex20Geometry geometry = fuelsim::make_hex20_geometry(coordinates);
@@ -225,6 +334,7 @@ bool test_jacobian_and_transient_history() {
     const fuelsim::CartesianThermoelasticData finite_data{
         fuelsim::IsotropicThermoelasticMaterial(material(true)), 4.0e5, 1.0, fuelsim::StrainFormulation::finite};
     const double finite_error = directional_jacobian_error(finite_data, geometry, state, old, history);
+    const double finite_thermal_error = directional_jacobian_error(finite_data, geometry, state, old, history, 0, 8);
     const double finite_residual_error = residual_path_error(finite_data, geometry, state, old, history);
     fuelsim::Hex20LocalValues invalid = state;
     for (std::size_t node = 0; node < 20; ++node) invalid[8 + node] = -2.0 * coordinates[node].x;
@@ -234,11 +344,14 @@ bool test_jacobian_and_transient_history() {
     } catch (const std::domain_error&) { invalid_rejected = true; }
     std::cout << "hex20_directional_jacobian_relative_error=" << small_error << '\n'
               << "hex20_finite_directional_jacobian_relative_error=" << finite_error << '\n'
+              << "hex20_finite_thermal_directional_jacobian_relative_error=" << finite_thermal_error << '\n'
               << "hex20_residual_path_relative_error=" << small_residual_error << '\n'
               << "hex20_finite_residual_path_relative_error=" << finite_residual_error << '\n';
     return check(small_error < 2.0e-6,
                "68-DOF narrow automatic-differentiation Jacobian matches a centered directional difference") &&
            check(finite_error < 3.0e-6, "finite-strain 68-DOF Jacobian matches a centered directional difference") &&
+           check(finite_thermal_error < 3.0e-6,
+               "finite-strain HEX20 thermal rows match a centered directional difference") &&
            check(small_residual_error < 2.0e-14 && finite_residual_error < 2.0e-14,
                "ordinary-double HEX20 residual matches the Jacobian-call residual") &&
            check(invalid_rejected, "finite-strain HEX20 rejects a nonpositive deformation Jacobian") &&
@@ -675,8 +788,8 @@ bool test_hex20_contact_kernels() {
 
 int main() {
     const bool passed = test_geometry_and_constant_strain() && test_material_value_paths() &&
-                        test_jacobian_and_transient_history() && test_quadratic_face() && test_warped_geometry() &&
-                        test_hex20_contact_kernels();
+                        test_finite_thermal_operators() && test_jacobian_and_transient_history() &&
+                        test_quadratic_face() && test_warped_geometry() && test_hex20_contact_kernels();
     if (passed) std::cout << "All HEX20-U2/T1 kernel tests passed\n";
     return passed ? 0 : 1;
 }

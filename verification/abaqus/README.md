@@ -3021,6 +3021,51 @@ path, and the B6.1 five-increment coupled plasticity-creep path. The former
 instantaneous transient temperature step has been removed. None of these three
 cases is registered in CTest.
 
+The two B6.0 cases use the same 6,493 displacement nodes, 1,785 temperature
+nodes, 1,200 elements, heat source, material constants, face temperatures, and
+clamp in both programs. The steady case uses one final-equilibrium increment;
+the transient case ramps the front face from 600 to 700 K through ten fixed
+one-second increments. Run and compare them with:
+
+```text
+./build/fuelsim_b60_fuel_plate_c3d8rt_benchmark \
+  verification/fuelsim/steady_b60_fuel_plate_c3d20t_finite_bending.fsi \
+  /tmp/b60-c3d20t-steady-nodal.csv /tmp/b60-c3d20t-steady-timing.tsv \
+  /tmp/b60-c3d20t-steady-material.csv
+./build/fuelsim_b60_fuel_plate_c3d8rt_benchmark \
+  verification/fuelsim/transient_b60_fuel_plate_c3d20t_finite_ramped_bending.fsi \
+  /tmp/b60-c3d20t-ramped-nodal.csv /tmp/b60-c3d20t-ramped-timing.tsv \
+  /tmp/b60-c3d20t-ramped-material.csv
+powershell -ExecutionPolicy Bypass -File verification/abaqus/run_b60_c3d20t.ps1 \
+  -SourceDirectory verification/abaqus -Mode steady
+powershell -ExecutionPolicy Bypass -File verification/abaqus/run_b60_c3d20t.ps1 \
+  -SourceDirectory verification/abaqus -Mode ramped
+```
+
+For the steady case, temperature and complete free-node displacement vectors
+have largest three-metric errors of `8.02536e-7%` and `8.39380e-5%`.
+Equivalent stress has `3.17327e-5%` relative L2 and `6.00884e-5%` relative
+absolute-peak error, but its maximum pointwise error is `2.47082%` at a
+`4.77771 kPa` Abaqus reference whose absolute difference is `118.049 Pa`.
+For the ten-step case, the corresponding largest temperature and displacement
+errors are `2.12739e-5%` and `0.00351305%`. Equivalent stress has `0.000264014%`
+relative L2 and `0.000443152%` relative absolute-peak error, but its maximum
+pointwise error is `15.3961%` at a `3.72823 kPa` Abaqus reference whose absolute
+difference is `574.002 Pa`. The low-stress pointwise diagnostics are above the
+strict `0.5%` gate. No denominator floor, gate relaxation, tighter convergence
+tolerance, or other accuracy treatment is applied.
+
+With CPU zero fixed, MUMPS, and one thread per numerical library, the steady
+Fuelsim external times are `14.67`, `14.61`, and `14.67 s`; the median is
+`14.67 s`. Abaqus one-processor samples are `19.555856`, `19.645926`, and
+`19.501707 s`; the median is `19.555856 s`, so Fuelsim uses `24.9841%` less
+external wall time. The ten-step Fuelsim samples are `58.27`, `57.40`, and
+`56.98 s`; the median is `57.40 s`. The three completed Abaqus samples are
+`81.924249`, `73.730023`, and `75.822728 s`; the median is `75.822728 s`, so
+Fuelsim uses `24.2971%` less external wall time. Two earlier Abaqus attempts
+that ended during the first increment are excluded rather than counted as
+timing observations.
+
 Run the inelastic Abaqus case and the matched Fuelsim benchmark as follows:
 
 ```text
@@ -3039,35 +3084,17 @@ python3 verification/abaqus/compare_b61_c3d20t.py \
 ```
 
 The material comparison is performed at all 27 material integration points of
-each element, not at nodes. The current final-state temperature and complete
-free-node displacement-vector metrics pass the three 0.5 percent checks. The
-equivalent-stress and equivalent-plastic-strain maximum pointwise errors are
-`0.782648%` and `0.797110%`. Equivalent creep strain has `0.307199%` relative
-L2 error, `0.564291%` relative absolute-peak error, and `2.03872%` maximum
-pointwise error. The comparison therefore exits with failure and the case is
-not qualified. No denominator floor is used.
+each element, not at nodes. All three metrics are below `0.5%` without a
+denominator floor. Temperature has a largest metric of `5.21632e-6%`, and the
+complete free-node displacement vector has `0.000218008%`. Equivalent stress
+has `5.47289e-5%` relative L2, `0.000213534%` relative absolute-peak, and
+`0.000451034%` maximum pointwise error. Equivalent plastic strain has
+`5.52125e-5%`, `0.000214561%`, and `0.000458907%`; equivalent creep strain has
+`0.000323543%`, `0.000414389%`, and `0.00186349%`.
 
-The five-frame integration-point diagnosis shows cumulative separation rather
-than an integration-point numbering error. At 2 seconds, the largest metrics
-for equivalent stress, equivalent plastic strain, and equivalent creep strain
-are `0.0989014%`, `0.102316%`, and `0.296408%`. Equivalent creep strain first
-exceeds the gate at 4 seconds with a `0.681278%` pointwise error; equivalent
-stress and equivalent plastic strain first exceed it at 8 seconds with
-`0.640403%` and `0.655898%` pointwise errors. The exact per-frame metrics are in
-`b61_fuel_plate_c3d20t_finite_inelastic_bending_increment_diagnosis.tsv`.
-
-The material update was isolated from the global thermal and mechanical
-equations by replaying all five Abaqus nodal states through the production
-Fuelsim material transaction. At the same nodal history, the largest relative
-L2 errors over the five states are `2.75439e-6%` for equivalent stress,
-`4.66510e-8%` for equivalent plastic strain, and `2.72523e-7%` for equivalent
-creep strain. The free mechanical residual divided by the constrained-force
-norm is at most `1.11394e-6`. The corresponding thermal ratio grows from
-`0.000264374` at 2 seconds to `0.00441261` at 10 seconds. These results rule out
-the fully implicit plasticity-creep update, material-point ordering, and the
-mechanical internal-force assembly as the source of the accumulated comparison
-error. The replay executable is a manual diagnostic and is not registered in
-CTest.
+The earlier five-frame material replay isolated a cumulative thermal-equation
+difference from the fully implicit plasticity-creep update. It remains as a
+manual diagnostic and is not registered in CTest.
 
 The remaining difference is the finite-strain thermal configuration. Abaqus
 integration-point heat flux at 10 seconds was reconstructed from the extracted
@@ -3093,11 +3120,12 @@ message file at all five states: `9.13091e-10`, `1.42133e-9`, `5.15035e-8`,
 are retained in
 `b61_fuel_plate_c3d20t_thermal_operator_identification.tsv`.
 
-Fuelsim deliberately retains its existing HEX20 contract in which thermal
-conduction, body heat source, and backward-Euler heat capacity are integrated
-in the reference configuration. Therefore the strict material-field gate
-cannot be met by changing the creep integrator or its coefficients; a separate
-decision to change the HEX20 finite-strain thermal contract would be required.
+The production finite-strain HEX20 implementation now follows these independently
+identified operators. Small-strain HEX20 and the axisymmetric quadratic element
+retain their reference-configuration thermal integration. The finite-strain
+thermal geometric Jacobian is assembled by closed double-precision formulas and
+reuses the mechanical kinematics at each of the 27 integration points; neither
+the material coefficients nor the time steps were changed.
 
 The extended extraction and heat-flux reconstruction can be repeated with the
 following manual commands. The normal extractor invocation continues to write
@@ -3128,20 +3156,16 @@ python3 verification/abaqus/compare_b61_c3d20t_replay.py \
   /tmp/b61-step4-integration.csv /tmp/b61-step5-integration.csv
 ```
 
-Alternating CPU-zero, one-thread runs give pre-change external times of `70.76`,
-`74.94`, and `70.71 s`, with a `70.76 s` median. The first ordinary-double
-geometry residual, compact C3D20T integration-point work arrays, and PETSc
-matrix-insertion change reduced the median to `59.24 s`. The final concrete
-double-precision built-in constitutive value path gives `54.18`, `54.19`, and
-`53.23 s`, with a `54.18 s` median. This is a `23.4313%` same-machine reduction
-from the pre-change median and an additional `8.54153%` reduction from the first
-optimized version. The final internal solver median is `53.4952 s`; the residual
-callback median falls from the original `15.1326 s` to `1.45844 s`. All versions
-use 24 nonlinear iterations, 34 residual evaluations, 24 Jacobian evaluations,
-and one PETSc workspace, and their nodal and material outputs are byte-identical.
+After adding the identified thermal operators, the first unoptimized run took
+`61.29 s`. Closed geometric derivatives and kinematics reuse reduce the final
+external samples to `52.75`, `52.23`, and `54.24 s`, with a `52.75 s` median,
+a `13.9338%` reduction from that corrected implementation. The final internal
+solver median is `51.8871 s`; its Jacobian callback median is `36.8127 s`.
+All runs use 24 nonlinear iterations, 34 residual evaluations, 24 Jacobian
+evaluations, and one PETSc workspace. The three final outputs are byte-identical.
 
 Abaqus one-processor external samples are `55.964890`, `57.913743`, and
-`55.747469 s`, with a `55.964890 s` median. Fuelsim is therefore `3.18930%`
+`55.747469 s`, with a `55.964890 s` median. Fuelsim is therefore `5.74448%`
 faster by external wall time for this matched workload. Material constants, five
 fixed increments, convergence tolerances, MUMPS direct solution, and PORD
 ordering were unchanged.
