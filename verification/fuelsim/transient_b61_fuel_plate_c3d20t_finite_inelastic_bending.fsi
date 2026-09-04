@@ -9,6 +9,19 @@
   file = ../abaqus/b60_long_plate_meat_clad_c3d20t_mesh.e
 []
 
+[TimeFunctions]
+  [front_temperature]
+    type = piecewise_linear
+    times = 0 10
+    values = 600 800
+  []
+  [right_displacement_x]
+    type = piecewise_linear
+    times = 0 10
+    values = 0 8e-4
+  []
+[]
+
 [Materials]
   [fuel]
     [thermal]
@@ -29,6 +42,17 @@
         reference_temperature = 600
       []
     []
+    [creep]
+      function = norton
+      coefficient = 3.5e-4
+      reference_stress = 1e8
+      stress_exponent = 3
+    []
+    [plasticity]
+      function = linear_isotropic_hardening
+      yield_stress = 1e6
+      hardening_modulus = 2e10
+    []
   []
   [cladding]
     [thermal]
@@ -48,6 +72,17 @@
         thermal_expansion = 5e-6
         reference_temperature = 600
       []
+    []
+    [creep]
+      function = norton
+      coefficient = 3.5e-4
+      reference_stress = 1e8
+      stress_exponent = 3
+    []
+    [plasticity]
+      function = linear_isotropic_hardening
+      yield_stress = 1e6
+      hardening_modulus = 2e10
     []
   []
 []
@@ -70,7 +105,7 @@
 []
 
 [BoundaryConditions]
-  [clamp]
+  [clamp_x]
     type = dirichlet
     boundary = plate_left
     field = displacement_x
@@ -92,7 +127,8 @@
     type = dirichlet
     boundary = plate_front
     field = temperature
-    value = 700
+    value = 1
+    function = front_temperature
   []
   [back_temperature]
     type = dirichlet
@@ -100,33 +136,45 @@
     field = temperature
     value = 600
   []
+  [right_displacement_x]
+    type = dirichlet
+    boundary = plate_right
+    field = displacement_x
+    value = 1
+    function = right_displacement_x
+  []
 []
 
 [Executioner]
   type = transient
   end_time = 10
-  initial_time_step = 1
-  minimum_time_step = 1
-  maximum_time_step = 1
+  initial_time_step = 2
+  minimum_time_step = 2
+  maximum_time_step = 2
   growth_factor = 1
   cutback_factor = 0.5
   maximum_cutbacks = 0
   load_ramp_time = 0
+  use_linear_time_predictor = true
 []
 
 [Solver]
   linear_solver = direct
   preconditioner = lu
   direct_factorization = mumps
-  # Constant small-strain thermoelastic Jacobian; reuse it between Newton steps.
+  mumps_ordering = pord
   jacobian_lag = 1
+  predictor_jacobian_lag = 1
   absolute_tolerance = 1e-8
   relative_tolerance = 1e-10
   step_tolerance = 1e-12
-  maximum_iterations = 30
+  maximum_iterations = 40
   field_residual_scaling = true
+  field_residual_convergence = true
+  residual_reduction_tolerance = 3e-7
   temperature_residual_absolute_tolerance = 1e-6
   mechanical_residual_absolute_tolerance = 1e-3
+  line_search = backtracking
 []
 
 [Outputs]

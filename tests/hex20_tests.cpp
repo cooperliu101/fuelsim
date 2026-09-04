@@ -64,6 +64,20 @@ double directional_jacobian_error(const fuelsim::CartesianThermoelasticData& dat
     return error / scale;
 }
 
+double residual_path_error(const fuelsim::CartesianThermoelasticData& data, const fuelsim::Hex20Geometry& geometry,
+    const fuelsim::Hex20LocalValues& state, const fuelsim::Hex20LocalValues& old,
+    const fuelsim::CartesianMaterialHistory& history) {
+    fuelsim::Hex20LocalJacobian jacobian{};
+    const auto system_residual = fuelsim::compute_hex20_transient(data, geometry, state, old, history, 0.5, &jacobian);
+    const auto residual = fuelsim::compute_hex20_transient(data, geometry, state, old, history, 0.5);
+    double error = 0.0, scale = 0.0;
+    for (std::size_t row = 0; row < residual.size(); ++row) {
+        error = std::max(error, std::abs(residual[row] - system_residual[row]));
+        scale = std::max({scale, 1.0, std::abs(residual[row]), std::abs(system_residual[row])});
+    }
+    return error / scale;
+}
+
 bool test_geometry_and_constant_strain() {
     const auto coordinates = unit_cube();
     const fuelsim::Hex20Geometry geometry = fuelsim::make_hex20_geometry(coordinates);
@@ -140,6 +154,7 @@ bool test_jacobian_and_transient_history() {
     }
     const fuelsim::CartesianMaterialHistory history(27);
     const double small_error = directional_jacobian_error(data, geometry, state, old, history);
+    const double small_residual_error = residual_path_error(data, geometry, state, old, history);
     const fuelsim::CartesianMaterialHistory update =
         fuelsim::compute_hex20_transient_update(data, geometry, state, old, history, 0.5);
     bool active = false;
@@ -148,6 +163,7 @@ bool test_jacobian_and_transient_history() {
     const fuelsim::CartesianThermoelasticData finite_data{
         fuelsim::IsotropicThermoelasticMaterial(material(true)), 4.0e5, 1.0, fuelsim::StrainFormulation::finite};
     const double finite_error = directional_jacobian_error(finite_data, geometry, state, old, history);
+    const double finite_residual_error = residual_path_error(finite_data, geometry, state, old, history);
     fuelsim::Hex20LocalValues invalid = state;
     for (std::size_t node = 0; node < 20; ++node) invalid[8 + node] = -2.0 * coordinates[node].x;
     bool invalid_rejected = false;
@@ -155,10 +171,14 @@ bool test_jacobian_and_transient_history() {
         fuelsim::validate_hex20_deformation(geometry.mechanical_points[0], invalid);
     } catch (const std::domain_error&) { invalid_rejected = true; }
     std::cout << "hex20_directional_jacobian_relative_error=" << small_error << '\n'
-              << "hex20_finite_directional_jacobian_relative_error=" << finite_error << '\n';
+              << "hex20_finite_directional_jacobian_relative_error=" << finite_error << '\n'
+              << "hex20_residual_path_relative_error=" << small_residual_error << '\n'
+              << "hex20_finite_residual_path_relative_error=" << finite_residual_error << '\n';
     return check(small_error < 2.0e-6,
                "68-DOF narrow automatic-differentiation Jacobian matches a centered directional difference") &&
            check(finite_error < 3.0e-6, "finite-strain 68-DOF Jacobian matches a centered directional difference") &&
+           check(small_residual_error < 2.0e-14 && finite_residual_error < 2.0e-14,
+               "ordinary-double HEX20 residual matches the Jacobian-call residual") &&
            check(invalid_rejected, "finite-strain HEX20 rejects a nonpositive deformation Jacobian") &&
            check(update.size() == 27 && active, "HEX20 transient update commits 27 active inelastic material points");
 }

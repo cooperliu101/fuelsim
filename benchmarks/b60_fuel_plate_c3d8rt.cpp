@@ -4,6 +4,7 @@
 #include "support/cartesian3d_problem_access.hpp"
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -90,6 +91,49 @@ void write_nodes(const std::string& path, const fuelsim::UnstructuredHex20Mesh& 
     }
 }
 
+double equivalent_stress(const fuelsim::SymmetricTensor3Values& stress) {
+    const double mean = (stress.xx + stress.yy + stress.zz) / 3.0;
+    return std::sqrt(1.5 * ((stress.xx - mean) * (stress.xx - mean) + (stress.yy - mean) * (stress.yy - mean) +
+                               (stress.zz - mean) * (stress.zz - mean) +
+                               2.0 * (stress.xy * stress.xy + stress.yz * stress.yz + stress.xz * stress.xz)));
+}
+
+void write_material(
+    const std::string& path, const fuelsim::cartesian::SpatialAssembly& spatial, const std::vector<double>& state) {
+    std::ofstream output(path);
+    if (!output) throw std::runtime_error("Could not write B6.0 Fuelsim material output: " + path);
+    output << "element,integration_point,vonmises_stress,peeq,ceeq\n";
+    output << std::scientific << std::setprecision(17);
+    for (std::size_t region = 0; region < spatial.region_count(); ++region) {
+        const auto& region_mesh = spatial.hex20_region_mesh(region);
+        for (std::size_t element = 0; element < region_mesh.elements().size(); ++element) {
+            const auto stresses = spatial.hex20_stress(region, element, state);
+            for (std::size_t point = 0; point < stresses.size(); ++point)
+                output << (region_mesh.source_element_ids().at(element) + 1U) << ',' << (point + 1U) << ','
+                       << equivalent_stress(stresses[point]) << ",0,0\n";
+        }
+    }
+}
+
+void write_material(const std::string& path, const fuelsim::cartesian::SpatialAssembly& spatial,
+    const fuelsim::TransientProblem& problem) {
+    std::ofstream output(path);
+    if (!output) throw std::runtime_error("Could not write B6.0 Fuelsim material output: " + path);
+    output << "element,integration_point,vonmises_stress,peeq,ceeq\n";
+    output << std::scientific << std::setprecision(17);
+    for (std::size_t region = 0; region < spatial.region_count(); ++region) {
+        const auto& region_mesh = spatial.hex20_region_mesh(region);
+        for (std::size_t element = 0; element < region_mesh.elements().size(); ++element) {
+            const auto stresses = fuelsim::cartesian::ProblemAccess::hex20_stress(problem, region, element);
+            const auto& history = fuelsim::cartesian::ProblemAccess::material_history(problem, region, element);
+            for (std::size_t point = 0; point < stresses.size(); ++point)
+                output << (region_mesh.source_element_ids().at(element) + 1U) << ',' << (point + 1U) << ','
+                       << equivalent_stress(stresses[point]) << ',' << history.at(point).equivalent_plastic_strain
+                       << ',' << history.at(point).equivalent_creep_strain << '\n';
+        }
+    }
+}
+
 void write_transient_timing(const std::string& path, const fuelsim::TransientResult& result, double setup_seconds,
     double solver_seconds, double total_seconds, const fuelsim::TransientProblem& problem) {
     std::ofstream output(path);
@@ -171,8 +215,9 @@ fuelsim::SolverOptions solver_options(const fuelsim::FuelSimCaseDefinition& defi
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 4) {
-        std::cerr << "Usage: fuelsim_b60_fuel_plate_c3d8rt_benchmark <case.fsi> <nodal.csv> <timing.tsv>\n";
+    if (argc != 4 && argc != 5) {
+        std::cerr
+            << "Usage: fuelsim_b60_fuel_plate_c3d8rt_benchmark <case.fsi> <nodal.csv> <timing.tsv> [material.csv]\n";
         return 2;
     }
     try {
@@ -195,6 +240,8 @@ int main(int argc, char** argv) {
                         "B6.0 HEX20 steady Fuelsim solve did not complete: " + result.solve.failure_message);
                 if (session.rank() == 0) {
                     write_nodes(argv[2], mesh, fuelsim::cartesian::ProblemAccess::view(problem), result.solve.state);
+                    if (argc == 5)
+                        write_material(argv[4], fuelsim::cartesian::ProblemAccess::view(problem), result.solve.state);
                     const double setup_seconds = std::chrono::duration<double>(problem_end - setup_end).count();
                     const double solver_seconds = std::chrono::duration<double>(solve_end - solve_start).count();
                     const double total_seconds = std::chrono::duration<double>(solve_end - total_start).count();
@@ -228,6 +275,7 @@ int main(int argc, char** argv) {
             if (session.rank() == 0) {
                 write_nodes(
                     argv[2], mesh, fuelsim::cartesian::ProblemAccess::view(problem), problem.committed_solution());
+                if (argc == 5) write_material(argv[4], fuelsim::cartesian::ProblemAccess::view(problem), problem);
                 const double setup_seconds = std::chrono::duration<double>(problem_end - setup_end).count();
                 const double solver_seconds = std::chrono::duration<double>(solve_end - solve_start).count();
                 const double total_seconds = std::chrono::duration<double>(solve_end - total_start).count();

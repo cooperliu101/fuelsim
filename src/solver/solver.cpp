@@ -135,6 +135,7 @@ PetscInt checked_petsc_int(std::size_t value) {
 
 struct MatrixInsertionWorkspace final {
     std::vector<PetscInt> rows, columns;
+    std::vector<std::size_t> local_rows;
     std::vector<unsigned char> grouped_rows;
     std::vector<double> values;
 };
@@ -161,6 +162,7 @@ PetscErrorCode insert_pattern_blocks(Mat matrix, const std::vector<PetscInt>& do
         workspace.grouped_rows[row] = 1U;
         if (workspace.columns.empty()) continue;
         workspace.rows.assign(1, dofs[row]);
+        workspace.local_rows.assign(1, row);
         for (std::size_t candidate = row + 1U; candidate < count; ++candidate) {
             if (workspace.grouped_rows[candidate] != 0U || dofs[candidate] < ownership_begin ||
                 dofs[candidate] >= ownership_end)
@@ -169,23 +171,25 @@ PetscErrorCode insert_pattern_blocks(Mat matrix, const std::vector<PetscInt>& do
             const auto candidate_first = pattern.begin() + static_cast<std::ptrdiff_t>(candidate * count);
             if (std::equal(first, first + static_cast<std::ptrdiff_t>(count), candidate_first)) {
                 workspace.rows.push_back(dofs[candidate]);
+                workspace.local_rows.push_back(candidate);
                 workspace.grouped_rows[candidate] = 1U;
             }
         }
+        bool contiguous_full_block = workspace.columns.size() == count;
+        for (std::size_t local = 0; contiguous_full_block && local < workspace.local_rows.size(); ++local)
+            contiguous_full_block = workspace.local_rows[local] == workspace.local_rows.front() + local;
+        if (contiguous_full_block) {
+            PetscCall(MatSetValues(matrix, static_cast<PetscInt>(workspace.rows.size()), workspace.rows.data(),
+                static_cast<PetscInt>(workspace.columns.size()), workspace.columns.data(),
+                dense_values.data() + workspace.local_rows.front() * count, mode));
+            continue;
+        }
         workspace.values.clear();
         workspace.values.reserve(workspace.rows.size() * workspace.columns.size());
-        for (std::size_t local_row = 0; local_row < count; ++local_row) {
-            if (workspace.grouped_rows[local_row] == 0U || dofs[local_row] < ownership_begin ||
-                dofs[local_row] >= ownership_end)
-                continue;
-            if (!std::equal(pattern.begin() + static_cast<std::ptrdiff_t>(row * count),
-                    pattern.begin() + static_cast<std::ptrdiff_t>((row + 1U) * count),
-                    pattern.begin() + static_cast<std::ptrdiff_t>(local_row * count)))
-                continue;
+        for (const std::size_t local_row : workspace.local_rows)
             for (std::size_t column = 0; column < count; ++column)
                 if (pattern[row * count + column] != 0U)
                     workspace.values.push_back(dense_values[local_row * count + column]);
-        }
         PetscCall(MatSetValues(matrix, static_cast<PetscInt>(workspace.rows.size()), workspace.rows.data(),
             static_cast<PetscInt>(workspace.columns.size()), workspace.columns.data(), workspace.values.data(), mode));
     }

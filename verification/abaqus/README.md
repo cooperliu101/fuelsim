@@ -2848,9 +2848,10 @@ threshold, but the finite-strain mechanics path fails the comparison gate and
 must be corrected before qualification. The full metric row is in
 `b60_fuel_plate_c3d8rt_finite_bending_comparison.tsv`.
 
-The corresponding C3D20T inputs are retained for manual Abaqus and Fuelsim
-investigation under the `b60_*_c3d20t_*` names. Their three cases are currently
-not registered in CTest; registration will wait until the independent C3D20T
+The corresponding C3D20T steady and ramped inputs are retained for manual
+Abaqus and Fuelsim investigation under the `b60_*_c3d20t_*` names. Together
+with the B6.1 C3D20T plasticity-creep bending case, these three cases are not
+registered in CTest; registration will wait until the independent C3D20T
 accuracy and timing evidence is complete.
 
 ### B6.0 qualified finite-strain ramped path
@@ -3011,3 +3012,53 @@ C++ assembly and data-path changes. No material coefficient was changed for timi
 Fuelsim uses 26 nonlinear iterations and Jacobians; Abaqus uses 14 nonlinear
 iterations and matrix decompositions. The complete results are stored in the
 B6.1 comparison and timing artifacts.
+
+### Manual C3D20T plate-bending set
+
+The C3D20T investigation now contains exactly three manual cases: the B6.0
+steady thermoelastic equilibrium, the B6.0 ten-increment ramped thermoelastic
+path, and the B6.1 five-increment coupled plasticity-creep path. The former
+instantaneous transient temperature step has been removed. None of these three
+cases is registered in CTest.
+
+Run the inelastic Abaqus case and the matched Fuelsim benchmark as follows:
+
+```text
+powershell -ExecutionPolicy Bypass -File verification/abaqus/run_b61_c3d20t.ps1 \
+  -SourceDirectory verification/abaqus
+./build/fuelsim_b60_fuel_plate_c3d8rt_benchmark \
+  verification/fuelsim/transient_b61_fuel_plate_c3d20t_finite_inelastic_bending.fsi \
+  /tmp/b61-c3d20t-nodal.csv /tmp/b61-c3d20t-timing.tsv \
+  /tmp/b61-c3d20t-material.csv
+python3 verification/abaqus/compare_b61_c3d20t.py \
+  verification/abaqus/b60_long_plate_meat_clad_c3d20t_mesh.json \
+  /tmp/b61-c3d20t-nodal.csv /tmp/b61-c3d20t-material.csv \
+  verification/abaqus/b61_fuel_plate_c3d20t_finite_inelastic_bending_nodal.csv \
+  verification/abaqus/b61_fuel_plate_c3d20t_finite_inelastic_bending_integration.csv \
+  /tmp/b61-c3d20t-comparison.tsv
+```
+
+The material comparison is performed at all 27 material integration points of
+each element, not at nodes. The current final-state temperature and complete
+free-node displacement-vector metrics pass the three 0.5 percent checks. The
+equivalent-stress and equivalent-plastic-strain maximum pointwise errors are
+`0.782648%` and `0.797110%`. Equivalent creep strain has `0.307199%` relative
+L2 error, `0.564291%` relative absolute-peak error, and `2.03872%` maximum
+pointwise error. The comparison therefore exits with failure and the case is
+not qualified. No denominator floor is used.
+
+Alternating CPU-zero, one-thread runs give pre-change external times of `70.76`,
+`74.94`, and `70.71 s`, with a `70.76 s` median. The ordinary-double residual,
+compact C3D20T integration-point work arrays, and PETSc matrix-insertion change
+give `58.93`, `59.24`, and `61.10 s`, with a `59.24 s` median. This is a
+`16.2804%` same-machine reduction. The corresponding internal solver medians
+are `70.2071` and `58.6483 s`; residual-callback medians fall from `15.1326` to
+`5.40760 s`. Both versions use 24 nonlinear iterations, 34 residual evaluations,
+24 Jacobian evaluations, and one PETSc workspace, and their nodal outputs are
+byte-identical.
+
+The available Abaqus one-processor observation took `55.964890 s`, so the
+optimized Fuelsim median is still `5.85208%` slower. Abaqus has only one
+observation rather than a three-sample median; no cross-solver speed
+qualification is claimed. Material constants, five fixed increments,
+convergence tolerances, MUMPS direct solution, and PORD ordering were unchanged.

@@ -1,7 +1,7 @@
 param(
     [Parameter(Mandatory = $true)]
     [string]$SourceDirectory,
-    [ValidateSet("steady", "transient", "ramped")]
+    [ValidateSet("steady", "ramped")]
     [string]$Mode = "ramped"
 )
 
@@ -11,10 +11,6 @@ switch ($Mode) {
     "steady" {
         $Stem = "b60_fuel_plate_c3d20t_finite_steady_bending"
         $FinalTime = "1.0"
-    }
-    "transient" {
-        $Stem = "b60_fuel_plate_c3d20t_finite_bending"
-        $FinalTime = "10.0"
     }
     "ramped" {
         $Stem = "b60_fuel_plate_c3d20t_finite_ramped_bending"
