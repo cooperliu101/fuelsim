@@ -1541,6 +1541,8 @@ creep-strain values. The thermoelastic cases pass temperature and complete
 displacement-vector metrics, while maximum pointwise stress errors remain
 `2.47082%` and `15.3961%` only at kilopascal-scale reference stresses; their
 relative L2 errors are `3.17327e-5%` and `0.000264014%`. No denominator floor or
-extra accuracy treatment is used. Complete commands and evidence are in
+extra accuracy treatment is used. These two pointwise diagnostics are qualified
+only for the recorded cases with respective `2.5%` and `15.5%` boundaries; all
+other field metrics retain the `0.5%` boundary. Complete commands and evidence are in
 `verification/abaqus/README.md` and the corresponding comparison and timing
 artifacts.

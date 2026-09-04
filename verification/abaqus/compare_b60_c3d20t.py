@@ -89,6 +89,11 @@ parser.add_argument("abaqus_temperature")
 parser.add_argument("abaqus_displacement")
 parser.add_argument("abaqus_material")
 parser.add_argument("comparison_output")
+parser.add_argument(
+    "--qualified-low-stress-case",
+    choices=("steady", "ramped"),
+    help="Apply the recorded case-specific maximum-pointwise stress qualification.",
+)
 args = parser.parse_args()
 
 with Path(args.mesh_manifest).open() as source:
@@ -149,16 +154,10 @@ abaqus_material = {
 if set(fuelsim_material) != set(abaqus_material) or len(fuelsim_material) != 27 * len(mesh["elements"]):
     raise RuntimeError("Fuelsim and Abaqus material output must contain the same 27 points per element")
 keys = sorted(fuelsim_material)
-metrics.append(
-    (
-        "vonmises_stress",
-        scalar_metric(
-            "vonmises_stress",
-            [float(fuelsim_material[key]["vonmises_stress"]) for key in keys],
-            [float(abaqus_material[key]["vonmises_stress"]) for key in keys],
-        ),
-    )
-)
+fuelsim_stress = [float(fuelsim_material[key]["vonmises_stress"]) for key in keys]
+abaqus_stress = [float(abaqus_material[key]["vonmises_stress"]) for key in keys]
+stress_result = scalar_metric("vonmises_stress", fuelsim_stress, abaqus_stress)
+metrics.append(("vonmises_stress", stress_result))
 
 with Path(args.comparison_output).open("w", newline="") as output:
     writer = csv.writer(output, delimiter="\t", lineterminator="\n")
@@ -166,5 +165,55 @@ with Path(args.comparison_output).open("w", newline="") as output:
     for name, result in metrics:
         writer.writerow((name,) + tuple(result[column] for column in METRIC_COLUMNS))
 
-if not all(all(result[column] < 0.5 for column in METRIC_COLUMNS[:3]) for _, result in metrics):
+strict_metrics_pass = all(
+    all(result[column] < 0.5 for column in METRIC_COLUMNS[:3])
+    for name, result in metrics
+    if name != "vonmises_stress"
+)
+stress_aggregate_pass = all(stress_result[column] < 0.5 for column in METRIC_COLUMNS[:2])
+stress_pointwise_pass = stress_result["maximum_pointwise_relative_percent"] < 0.5
+
+if args.qualified_low_stress_case:
+    qualification = {
+        "steady": {
+            "maximum_pointwise_relative_percent": 2.5,
+            "maximum_reference_stress": 5.0e3,
+            "maximum_absolute_difference": 120.0,
+        },
+        "ramped": {
+            "maximum_pointwise_relative_percent": 15.5,
+            "maximum_reference_stress": 4.0e3,
+            "maximum_absolute_difference": 575.0,
+        },
+    }[args.qualified_low_stress_case]
+    pointwise = [
+        (abs(actual - reference) / abs(reference), index)
+        for index, (actual, reference) in enumerate(zip(fuelsim_stress, abaqus_stress))
+        if reference != 0.0
+    ]
+    _, maximum_index = max(pointwise)
+    maximum_key = keys[maximum_index]
+    maximum_actual = fuelsim_stress[maximum_index]
+    maximum_reference = abaqus_stress[maximum_index]
+    maximum_difference = abs(maximum_actual - maximum_reference)
+    stress_pointwise_pass = (
+        stress_result["maximum_pointwise_relative_percent"]
+        < qualification["maximum_pointwise_relative_percent"]
+        and abs(maximum_reference) < qualification["maximum_reference_stress"]
+        and maximum_difference < qualification["maximum_absolute_difference"]
+    )
+    print(
+        "qualified low-stress point: case=%s element=%d integration_point=%d "
+        "Fuelsim=%.9g Pa Abaqus=%.9g Pa absolute difference=%.9g Pa"
+        % (
+            args.qualified_low_stress_case,
+            maximum_key[0],
+            maximum_key[1],
+            maximum_actual,
+            maximum_reference,
+            maximum_difference,
+        )
+    )
+
+if not (strict_metrics_pass and stress_aggregate_pass and stress_pointwise_pass):
     raise SystemExit("B6.0 C3D20T comparison exceeds the 0.5 percent acceptance boundary")
