@@ -143,6 +143,20 @@ Matrix3 multiply_values(const Matrix3& first, const Matrix3& second) {
     return result;
 }
 
+SymmetricTensor3Values rotate_tensor_values(const SymmetricTensor3Values& tensor, const CartesianRotation& rotation) {
+    const Matrix3 rotation_values = {{{{rotation.xx.value(), rotation.xy.value(), rotation.xz.value()}},
+        {{rotation.yx.value(), rotation.yy.value(), rotation.yz.value()}},
+        {{rotation.zx.value(), rotation.zy.value(), rotation.zz.value()}}}};
+    const Matrix3 value = {{{{tensor.xx, tensor.xy, tensor.xz}}, {{tensor.xy, tensor.yy, tensor.yz}},
+        {{tensor.xz, tensor.yz, tensor.zz}}}};
+    const Matrix3 left = multiply_values(rotation_values, value);
+    Matrix3 rotated{};
+    for (std::size_t i = 0; i < 3; ++i)
+        for (std::size_t j = i; j < 3; ++j)
+            for (std::size_t k = 0; k < 3; ++k) rotated[i][j] += left[i][k] * rotation_values[j][k];
+    return {rotated[0][0], rotated[1][1], rotated[2][2], rotated[0][1], rotated[1][2], rotated[0][2]};
+}
+
 struct Hex20KinematicsValues final {
     SymmetricTensor3Values strain_increment{};
     CartesianRotation rotation{};
@@ -311,31 +325,28 @@ void add_mechanical_point_residual_values(const Hex20MechanicalQuadraturePoint& 
     const Hex20LocalValues undeformed{};
     const Hex20LocalValues& old_state = committed_state == nullptr ? undeformed : *committed_state;
     const Hex20KinematicsValues kinematics = evaluate_kinematics_values(point, state, old_state, strain_formulation);
-    const SymmetricTensor3 strain{kinematics.strain_increment.xx, kinematics.strain_increment.yy,
+    const SymmetricTensor3Values strain{kinematics.strain_increment.xx, kinematics.strain_increment.yy,
         kinematics.strain_increment.zz, kinematics.strain_increment.xy, kinematics.strain_increment.yz,
         kinematics.strain_increment.xz};
-    SymmetricTensor3 stress;
+    SymmetricTensor3Values stress{};
     if (committed_material == nullptr) {
-        stress = material.stress(strain, adlite::Scalar(temperature), context);
-        if (strain_formulation == StrainFormulation::finite)
-            stress = rotate_cartesian_tensor(stress, kinematics.rotation);
+        stress = material.stress_values(strain, temperature, context);
+        if (strain_formulation == StrainFormulation::finite) stress = rotate_tensor_values(stress, kinematics.rotation);
     } else if (strain_formulation == StrainFormulation::finite) {
         const double old_temperature = interpolate_temperature_values(point, old_state);
         stress = material
-                     .incremental_response(strain, kinematics.rotation, adlite::Scalar(temperature), old_temperature,
-                         time_step, *committed_material, context)
+                     .incremental_response_values(strain, kinematics.rotation, temperature, old_temperature, time_step,
+                         *committed_material, context)
                      .stress;
     } else {
-        stress = material.response(strain, adlite::Scalar(temperature), time_step, *committed_material, context).stress;
+        stress = material.response_values(strain, temperature, time_step, *committed_material, context).stress;
     }
-    const SymmetricTensor3Values values{stress.xx.value(), stress.yy.value(), stress.zz.value(), stress.xy.value(),
-        stress.yz.value(), stress.xz.value()};
     for (std::size_t node = 0; node < 20; ++node) {
         const double gx = kinematics.current_gradient[node][0], gy = kinematics.current_gradient[node][1],
                      gz = kinematics.current_gradient[node][2];
-        residual[8 + node] += kinematics.current_weighted_measure * (values.xx * gx + values.xy * gy + values.xz * gz);
-        residual[28 + node] += kinematics.current_weighted_measure * (values.xy * gx + values.yy * gy + values.yz * gz);
-        residual[48 + node] += kinematics.current_weighted_measure * (values.xz * gx + values.yz * gy + values.zz * gz);
+        residual[8 + node] += kinematics.current_weighted_measure * (stress.xx * gx + stress.xy * gy + stress.xz * gz);
+        residual[28 + node] += kinematics.current_weighted_measure * (stress.xy * gx + stress.yy * gy + stress.yz * gz);
+        residual[48 + node] += kinematics.current_weighted_measure * (stress.xz * gx + stress.yz * gy + stress.zz * gz);
     }
 }
 

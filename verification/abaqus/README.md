@@ -3048,17 +3048,19 @@ pointwise error. The comparison therefore exits with failure and the case is
 not qualified. No denominator floor is used.
 
 Alternating CPU-zero, one-thread runs give pre-change external times of `70.76`,
-`74.94`, and `70.71 s`, with a `70.76 s` median. The ordinary-double residual,
-compact C3D20T integration-point work arrays, and PETSc matrix-insertion change
-give `58.93`, `59.24`, and `61.10 s`, with a `59.24 s` median. This is a
-`16.2804%` same-machine reduction. The corresponding internal solver medians
-are `70.2071` and `58.6483 s`; residual-callback medians fall from `15.1326` to
-`5.40760 s`. Both versions use 24 nonlinear iterations, 34 residual evaluations,
-24 Jacobian evaluations, and one PETSc workspace, and their nodal outputs are
-byte-identical.
+`74.94`, and `70.71 s`, with a `70.76 s` median. The first ordinary-double
+geometry residual, compact C3D20T integration-point work arrays, and PETSc
+matrix-insertion change reduced the median to `59.24 s`. The final concrete
+double-precision built-in constitutive value path gives `54.18`, `54.19`, and
+`53.23 s`, with a `54.18 s` median. This is a `23.4313%` same-machine reduction
+from the pre-change median and an additional `8.54153%` reduction from the first
+optimized version. The final internal solver median is `53.4952 s`; the residual
+callback median falls from the original `15.1326 s` to `1.45844 s`. All versions
+use 24 nonlinear iterations, 34 residual evaluations, 24 Jacobian evaluations,
+and one PETSc workspace, and their nodal and material outputs are byte-identical.
 
-The available Abaqus one-processor observation took `55.964890 s`, so the
-optimized Fuelsim median is still `5.85208%` slower. Abaqus has only one
-observation rather than a three-sample median; no cross-solver speed
-qualification is claimed. Material constants, five fixed increments,
-convergence tolerances, MUMPS direct solution, and PORD ordering were unchanged.
+Abaqus one-processor external samples are `55.964890`, `57.913743`, and
+`55.747469 s`, with a `55.964890 s` median. Fuelsim is therefore `3.18930%`
+faster by external wall time for this matched workload. Material constants, five
+fixed increments, convergence tolerances, MUMPS direct solution, and PORD
+ordering were unchanged.

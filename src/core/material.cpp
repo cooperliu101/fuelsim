@@ -135,6 +135,19 @@ SymmetricTensor3 IsotropicThermoelasticMaterial::stress(
         2.0 * active.shear_modulus * (strain.xz - imposed.xz)};
 }
 
+SymmetricTensor3Values IsotropicThermoelasticMaterial::stress_values(
+    const SymmetricTensor3Values& strain, double temperature, MaterialFunctionContext context) const {
+    const ActiveThermoelasticProperties active = active_properties(adlite::Scalar(temperature), context);
+    const SymmetricTensor3 imposed = eigenstrain(adlite::Scalar(temperature), context);
+    const double lame_lambda = active.lame_lambda.value(), shear_modulus = active.shear_modulus.value();
+    const double strain_xx = strain.xx - imposed.xx.value(), strain_yy = strain.yy - imposed.yy.value(),
+                 strain_zz = strain.zz - imposed.zz.value(), trace = strain_xx + strain_yy + strain_zz;
+    return {lame_lambda * trace + 2.0 * shear_modulus * strain_xx,
+        lame_lambda * trace + 2.0 * shear_modulus * strain_yy, lame_lambda * trace + 2.0 * shear_modulus * strain_zz,
+        2.0 * shear_modulus * (strain.xy - imposed.xy.value()), 2.0 * shear_modulus * (strain.yz - imposed.yz.value()),
+        2.0 * shear_modulus * (strain.xz - imposed.xz.value())};
+}
+
 namespace {
 constexpr std::size_t component_count = 4;
 constexpr int maximum_creep_iterations = 100;
@@ -695,6 +708,95 @@ ActiveJ2PlasticityProperties active_plasticity_properties(
     return active;
 }
 
+CartesianMaterialPointState evaluate_inelastic_tensor_values(const MaterialFunctionSet& functions, double lame_lambda,
+    double shear_modulus, const std::array<double, 6>& total, const std::array<double, 6>& imposed,
+    const CartesianMaterialPointState& committed, double temperature, double time_step) {
+    CartesianMaterialPointState result = committed;
+    std::array<double, 6> elastic{}, trial_stress{}, deviatoric{};
+    for (std::size_t component = 0; component < 6; ++component) {
+        if (!std::isfinite(total[component])) throw std::domain_error("Inelastic material strain is not finite");
+        elastic[component] = total[component] - imposed[component] - committed.plastic_strain[component] -
+                             committed.creep_strain[component];
+    }
+    const double trace = elastic[0] + elastic[1] + elastic[2];
+    for (std::size_t component = 0; component < 3; ++component)
+        trial_stress[component] = lame_lambda * trace + 2.0 * shear_modulus * elastic[component];
+    for (std::size_t component = 3; component < 6; ++component)
+        trial_stress[component] = 2.0 * shear_modulus * elastic[component];
+    const double mean = (trial_stress[0] + trial_stress[1] + trial_stress[2]) / 3.0;
+    for (std::size_t component = 0; component < 6; ++component)
+        deviatoric[component] = trial_stress[component] - (component < 3 ? mean : 0.0);
+    double normal_norm = 0.0, shear_norm = 0.0;
+    for (std::size_t component = 0; component < 3; ++component)
+        normal_norm = std::hypot(normal_norm, deviatoric[component]);
+    for (std::size_t component = 3; component < 6; ++component)
+        shear_norm = std::hypot(shear_norm, deviatoric[component]);
+    constexpr double square_root_two = 1.414213562373095048801688724209698079;
+    constexpr double square_root_three_halves = 1.224744871391589049098642037352945695;
+    const double equivalent_trial_stress =
+        square_root_three_halves * std::hypot(normal_norm, square_root_two * shear_norm);
+    if (!std::isfinite(equivalent_trial_stress))
+        throw std::overflow_error("Inelastic material trial equivalent stress is not finite");
+
+    double equivalent_stress = equivalent_trial_stress, plastic_increment = 0.0, creep_increment = 0.0,
+           zero_stress_scale = 1.0;
+    if (functions.has_creep()) {
+        const ActiveNortonCreepProperties active_creep =
+            active_creep_properties(functions.creep, adlite::Scalar(temperature));
+        const NortonCreepProperties creep = {active_creep.coefficient.value(), active_creep.reference_stress.value(),
+            active_creep.stress_exponent.value()};
+        if (functions.has_plasticity()) {
+            const ActiveJ2PlasticityProperties active_plasticity =
+                active_plasticity_properties(functions.plasticity, adlite::Scalar(temperature));
+            const J2PlasticityProperties plasticity = {
+                active_plasticity.yield_stress.value(), active_plasticity.isotropic_hardening_modulus.value()};
+            const CoupledUpdate update = solve_coupled_update(equivalent_trial_stress, shear_modulus, time_step, creep,
+                plasticity, committed.equivalent_plastic_strain);
+            equivalent_stress = update.equivalent_stress;
+            plastic_increment = update.plastic_increment;
+            creep_increment = update.creep_increment;
+        } else if (time_step != 0.0 && creep.coefficient != 0.0) {
+            const NortonRoot root =
+                solve_norton_equivalent_stress(equivalent_trial_stress, shear_modulus, time_step, creep);
+            equivalent_stress = root.equivalent_stress;
+            creep_increment = evaluate_creep_increment(root.equivalent_stress, time_step, creep);
+            zero_stress_scale = root.trial_stress_derivative;
+        }
+    } else if (functions.has_plasticity() && equivalent_trial_stress != 0.0) {
+        const ActiveJ2PlasticityProperties active_plasticity =
+            active_plasticity_properties(functions.plasticity, adlite::Scalar(temperature));
+        const double hardening = active_plasticity.isotropic_hardening_modulus.value();
+        const double current_yield =
+            active_plasticity.yield_stress.value() + hardening * committed.equivalent_plastic_strain;
+        if (!std::isfinite(current_yield))
+            throw std::overflow_error("J2 plasticity current yield stress is not finite");
+        if (equivalent_trial_stress > current_yield) {
+            plastic_increment = (equivalent_trial_stress - current_yield) / (3.0 * shear_modulus + hardening);
+            equivalent_stress = equivalent_trial_stress - 3.0 * shear_modulus * plastic_increment;
+        }
+    }
+    const bool zero = equivalent_trial_stress == 0.0;
+    const double scale = zero ? zero_stress_scale : equivalent_stress / equivalent_trial_stress;
+    for (std::size_t component = 0; component < 6; ++component) {
+        if (zero)
+            result.creep_strain[component] += (1.0 - scale) * deviatoric[component] / (2.0 * shear_modulus);
+        else {
+            const double direction = 1.5 * deviatoric[component] / equivalent_trial_stress;
+            result.plastic_strain[component] += plastic_increment * direction;
+            result.creep_strain[component] += creep_increment * direction;
+        }
+        result.elastic_strain[component] = elastic[component] -
+                                           (result.plastic_strain[component] - committed.plastic_strain[component]) -
+                                           (result.creep_strain[component] - committed.creep_strain[component]);
+    }
+    result.stress = {mean + scale * deviatoric[0], mean + scale * deviatoric[1], mean + scale * deviatoric[2],
+        scale * deviatoric[3], scale * deviatoric[4], scale * deviatoric[5]};
+    result.equivalent_plastic_strain += plastic_increment;
+    result.equivalent_creep_strain += creep_increment;
+    validate_material_point_state(result);
+    return result;
+}
+
 struct InelasticScalarUpdate final {
     adlite::Scalar equivalent_stress, plastic_increment, creep_increment, zero_stress_scale{1.0};
 };
@@ -892,6 +994,39 @@ CartesianInelasticStressResponse IsotropicThermoelasticMaterial::response(const 
     return {
         {update.stress[0], update.stress[1], update.stress[2], update.stress[3], update.stress[4], update.stress[5]},
         trial};
+}
+
+CartesianMaterialPointState IsotropicThermoelasticMaterial::response_values(const SymmetricTensor3Values& strain,
+    double temperature, double time_step, const CartesianMaterialPointState& committed,
+    MaterialFunctionContext context) const {
+    validate_material_point_state(committed);
+    if (!std::isfinite(temperature) || !std::isfinite(time_step) || time_step < 0.0)
+        throw std::domain_error("Inelastic material temperature or time step is invalid");
+    const MaterialFunctionSet& material_functions = functions();
+    const bool builtin_creep = !material_functions.has_creep() ||
+                               material_functions.creep.builtin.kind != CreepBuiltinParameters::Kind::custom;
+    const bool builtin_plasticity =
+        !material_functions.has_plasticity() ||
+        material_functions.plasticity.builtin.kind != PlasticBuiltinParameters::Kind::custom;
+    const bool matching_reference =
+        material_functions.creep.builtin.kind != CreepBuiltinParameters::Kind::linear_temperature_norton ||
+        material_functions.plasticity.builtin.kind !=
+            PlasticBuiltinParameters::Kind::linear_temperature_isotropic_hardening ||
+        material_functions.creep.builtin.reference_temperature ==
+            material_functions.plasticity.builtin.reference_temperature;
+    if (!(builtin_creep && builtin_plasticity && matching_reference)) {
+        const CartesianInelasticStressResponse response =
+            this->response({strain.xx, strain.yy, strain.zz, strain.xy, strain.yz, strain.xz},
+                adlite::Scalar(temperature), time_step, committed, context);
+        return response.trial_state;
+    }
+    const ActiveThermoelasticProperties active = active_properties(adlite::Scalar(temperature), context);
+    const SymmetricTensor3 imposed = eigenstrain(adlite::Scalar(temperature), context);
+    return evaluate_inelastic_tensor_values(material_functions, active.lame_lambda.value(),
+        active.shear_modulus.value(), {strain.xx, strain.yy, strain.zz, strain.xy, strain.yz, strain.xz},
+        {imposed.xx.value(), imposed.yy.value(), imposed.zz.value(), imposed.xy.value(), imposed.yz.value(),
+            imposed.xz.value()},
+        committed, temperature, time_step);
 }
 
 InelasticStressResponse IsotropicThermoelasticMaterial::incremental_response(const adlite::Scalar& strain_increment_rr,

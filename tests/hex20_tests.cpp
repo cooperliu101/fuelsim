@@ -78,6 +78,68 @@ double residual_path_error(const fuelsim::CartesianThermoelasticData& data, cons
     return error / scale;
 }
 
+double material_state_error(
+    const fuelsim::CartesianMaterialPointState& first, const fuelsim::CartesianMaterialPointState& second) {
+    double error = 0.0, scale = 1.0;
+    const std::array<const std::array<double, 6>*, 3> first_histories = {
+        &first.elastic_strain, &first.plastic_strain, &first.creep_strain};
+    const std::array<const std::array<double, 6>*, 3> second_histories = {
+        &second.elastic_strain, &second.plastic_strain, &second.creep_strain};
+    for (std::size_t history = 0; history < first_histories.size(); ++history)
+        for (std::size_t component = 0; component < 6; ++component) {
+            const double first_value = (*first_histories[history])[component];
+            const double second_value = (*second_histories[history])[component];
+            error = std::max(error, std::abs(first_value - second_value));
+            scale = std::max({scale, std::abs(first_value), std::abs(second_value)});
+        }
+    const std::array<double, 8> first_scalars = {first.stress.xx, first.stress.yy, first.stress.zz, first.stress.xy,
+        first.stress.yz, first.stress.xz, first.equivalent_plastic_strain, first.equivalent_creep_strain};
+    const std::array<double, 8> second_scalars = {second.stress.xx, second.stress.yy, second.stress.zz,
+        second.stress.xy, second.stress.yz, second.stress.xz, second.equivalent_plastic_strain,
+        second.equivalent_creep_strain};
+    for (std::size_t component = 0; component < first_scalars.size(); ++component) {
+        error = std::max(error, std::abs(first_scalars[component] - second_scalars[component]));
+        scale = std::max({scale, std::abs(first_scalars[component]), std::abs(second_scalars[component])});
+    }
+    return error / scale;
+}
+
+bool test_material_value_paths() {
+    fuelsim::ThermoelasticProperties elastic =
+        fuelsim::test::thermoelastic(3000.0, 4.0, 2.0e5, 0.25, 1.2e-5, 300.0, -10.0, 1.0e-5, 2.0e-8);
+    std::array<fuelsim::ThermoelasticProperties, 4> properties = {elastic,
+        fuelsim::test::with_plasticity(elastic, 20.0, 10.0, 300.0, -0.01, 0.02),
+        fuelsim::test::with_norton(elastic, 1.0e-6, 10.0, 3.0, 300.0, 1.0e-8, 0.01, 1.0e-3),
+        fuelsim::test::with_plasticity(
+            fuelsim::test::with_norton(elastic, 1.0e-6, 10.0, 3.0, 300.0, 1.0e-8, 0.01, 1.0e-3), 20.0, 10.0, 300.0,
+            -0.01, 0.02)};
+    const fuelsim::SymmetricTensor3Values strain{0.02, -0.004, 0.002, 0.003, -0.001, 0.002};
+    const fuelsim::SymmetricTensor3 active_strain{strain.xx, strain.yy, strain.zz, strain.xy, strain.yz, strain.xz};
+    fuelsim::CartesianRotation rotation;
+    constexpr double angle = 0.31;
+    rotation.xx = std::cos(angle);
+    rotation.xy = -std::sin(angle);
+    rotation.yx = std::sin(angle);
+    rotation.yy = std::cos(angle);
+    double maximum_error = 0.0;
+    for (const fuelsim::ThermoelasticProperties& property : properties) {
+        const fuelsim::IsotropicThermoelasticMaterial model(property);
+        const fuelsim::CartesianMaterialPointState committed{};
+        const fuelsim::CartesianMaterialPointState active =
+            model.response(active_strain, adlite::Scalar(315.0), 0.5, committed).trial_state;
+        const fuelsim::CartesianMaterialPointState values = model.response_values(strain, 315.0, 0.5, committed);
+        maximum_error = std::max(maximum_error, material_state_error(active, values));
+        const fuelsim::CartesianMaterialPointState active_incremental =
+            model.incremental_response(active_strain, rotation, adlite::Scalar(325.0), 315.0, 0.5, active).trial_state;
+        const fuelsim::CartesianMaterialPointState values_incremental =
+            model.incremental_response_values(strain, rotation, 325.0, 315.0, 0.5, active);
+        maximum_error = std::max(maximum_error, material_state_error(active_incremental, values_incremental));
+    }
+    std::cout << "hex20_material_value_path_relative_error=" << maximum_error << '\n';
+    return check(maximum_error < 2.0e-14,
+        "ordinary-double Cartesian material values match passive automatic differentiation for all built-in branches");
+}
+
 bool test_geometry_and_constant_strain() {
     const auto coordinates = unit_cube();
     const fuelsim::Hex20Geometry geometry = fuelsim::make_hex20_geometry(coordinates);
@@ -612,8 +674,9 @@ bool test_hex20_contact_kernels() {
 } // namespace
 
 int main() {
-    const bool passed = test_geometry_and_constant_strain() && test_jacobian_and_transient_history() &&
-                        test_quadratic_face() && test_warped_geometry() && test_hex20_contact_kernels();
+    const bool passed = test_geometry_and_constant_strain() && test_material_value_paths() &&
+                        test_jacobian_and_transient_history() && test_quadratic_face() && test_warped_geometry() &&
+                        test_hex20_contact_kernels();
     if (passed) std::cout << "All HEX20-U2/T1 kernel tests passed\n";
     return passed ? 0 : 1;
 }

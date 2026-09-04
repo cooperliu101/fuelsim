@@ -83,6 +83,8 @@ class IsotropicThermoelasticMaterial final {
         MaterialFunctionContext context = {}) const;
     SymmetricTensor3 stress(
         const SymmetricTensor3& strain, const adlite::Scalar& temperature, MaterialFunctionContext context = {}) const;
+    SymmetricTensor3Values stress_values(
+        const SymmetricTensor3Values& strain, double temperature, MaterialFunctionContext context = {}) const;
     InelasticStressResponse response(const adlite::Scalar& strain_rr, const adlite::Scalar& strain_zz,
         const adlite::Scalar& strain_hoop, const adlite::Scalar& strain_rz, const adlite::Scalar& temperature,
         double time_step, const MaterialPointState& committed, MaterialFunctionContext context = {}) const;
@@ -91,6 +93,11 @@ class IsotropicThermoelasticMaterial final {
     CartesianInelasticStressResponse incremental_response(const SymmetricTensor3& strain_increment,
         const CartesianRotation& rotation, const adlite::Scalar& temperature, double committed_temperature,
         double time_step, const CartesianMaterialPointState& committed, MaterialFunctionContext context = {}) const;
+    CartesianMaterialPointState response_values(const SymmetricTensor3Values& strain, double temperature,
+        double time_step, const CartesianMaterialPointState& committed, MaterialFunctionContext context = {}) const;
+    CartesianMaterialPointState incremental_response_values(const SymmetricTensor3Values& strain_increment,
+        const CartesianRotation& rotation, double temperature, double committed_temperature, double time_step,
+        const CartesianMaterialPointState& committed, MaterialFunctionContext context = {}) const;
     InelasticStressResponse incremental_response(const adlite::Scalar& strain_increment_rr,
         const adlite::Scalar& strain_increment_zz, const adlite::Scalar& strain_increment_hoop,
         const adlite::Scalar& strain_increment_rz, const AxisymmetricRotation& rotation,

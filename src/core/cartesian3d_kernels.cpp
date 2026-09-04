@@ -265,6 +265,47 @@ CartesianInelasticStressResponse IsotropicThermoelasticMaterial::incremental_res
     return result;
 }
 
+CartesianMaterialPointState IsotropicThermoelasticMaterial::incremental_response_values(
+    const SymmetricTensor3Values& strain_increment, const CartesianRotation& rotation, double temperature,
+    double committed_temperature, double time_step, const CartesianMaterialPointState& committed,
+    MaterialFunctionContext context) const {
+    if (!std::isfinite(committed_temperature) || !(committed_temperature > 0.0))
+        throw std::domain_error("Incremental Cartesian material committed temperature must be finite and positive");
+    MaterialFunctionContext old_context = context;
+    old_context.time -= time_step;
+    const SymmetricTensor3 old_imposed = eigenstrain(adlite::Scalar(committed_temperature), old_context);
+    const SymmetricTensor3Values synthetic_total{committed.elastic_strain[0] + strain_increment.xx +
+                                                     old_imposed.xx.value() + committed.plastic_strain[0] +
+                                                     committed.creep_strain[0],
+        committed.elastic_strain[1] + strain_increment.yy + old_imposed.yy.value() + committed.plastic_strain[1] +
+            committed.creep_strain[1],
+        committed.elastic_strain[2] + strain_increment.zz + old_imposed.zz.value() + committed.plastic_strain[2] +
+            committed.creep_strain[2],
+        committed.elastic_strain[3] + strain_increment.xy + old_imposed.xy.value() + committed.plastic_strain[3] +
+            committed.creep_strain[3],
+        committed.elastic_strain[4] + strain_increment.yz + old_imposed.yz.value() + committed.plastic_strain[4] +
+            committed.creep_strain[4],
+        committed.elastic_strain[5] + strain_increment.xz + old_imposed.xz.value() + committed.plastic_strain[5] +
+            committed.creep_strain[5]};
+    CartesianMaterialPointState result = response_values(synthetic_total, temperature, time_step, committed, context);
+    const cartesian_detail::Matrix3 rotation_values = {
+        {{{rotation.xx.value(), rotation.xy.value(), rotation.xz.value()}},
+            {{rotation.yx.value(), rotation.yy.value(), rotation.yz.value()}},
+            {{rotation.zx.value(), rotation.zy.value(), rotation.zz.value()}}}};
+    result.stress = rotate_cartesian_tensor_values(result.stress, rotation_values);
+    std::array<double, 6>* histories[3] = {&result.elastic_strain, &result.plastic_strain, &result.creep_strain};
+    for (std::array<double, 6>* history : histories) {
+        const SymmetricTensor3Values rotated = rotate_cartesian_tensor_values(
+            {(*history)[0], (*history)[1], (*history)[2], (*history)[3], (*history)[4], (*history)[5]},
+            rotation_values);
+        *history = {rotated.xx, rotated.yy, rotated.zz, rotated.xy, rotated.yz, rotated.xz};
+        for (double component : *history)
+            if (!std::isfinite(component))
+                throw std::domain_error("Rotated Cartesian material history must contain only finite values");
+    }
+    return result;
+}
+
 void validate_cartesian_deformation(const Hex8QuadraturePoint& point, const Hex8LocalValues& state) {
     const double value = cartesian_detail::determinant(deformation_gradient(point, state));
     if (!std::isfinite(value) || !(value > 0.0))
