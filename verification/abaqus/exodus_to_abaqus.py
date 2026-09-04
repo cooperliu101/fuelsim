@@ -26,6 +26,14 @@ except ImportError:
 
 EXODUS_TO_ABAQUS_HEX_FACE = ("S3", "S4", "S5", "S6", "S1", "S2")
 FUELSIM_TO_ABAQUS_HEX20_NODES = tuple(range(12)) + (16, 17, 18, 19, 12, 13, 14, 15)
+HEX20_FACE_NODES = (
+    (0, 1, 5, 4, 8, 13, 16, 12),
+    (1, 2, 6, 5, 9, 14, 17, 13),
+    (2, 3, 7, 6, 10, 15, 18, 14),
+    (3, 0, 4, 7, 11, 12, 19, 15),
+    (0, 3, 2, 1, 11, 10, 9, 8),
+    (4, 5, 6, 7, 16, 17, 18, 19),
+)
 
 
 def _dimension_size(database, name):
@@ -241,8 +249,30 @@ def write_abaqus_hex_mesh(mesh, output_path, element_type="C3D8T"):
     lines.append("*Nset, nset=ALL_NODES")
     _append_labels(lines, [node["label"] for node in mesh["nodes"]])
     for node_set in mesh["node_sets"]:
+        node_labels = list(node_set["nodes"])
+        displacement_labels = list(node_labels)
+        if element_type.upper().startswith("C3D20"):
+            node_label_set = set(displacement_labels)
+            elements_by_label = {element["label"]: element for element in mesh["elements"]}
+            matching_side_sets = [
+                side_set for side_set in mesh["side_sets"] if side_set["source_name"] == node_set["source_name"]
+            ]
+            for side_set in matching_side_sets:
+                for face in side_set["faces"]:
+                    element = elements_by_label[face["element"]]
+                    local_nodes = HEX20_FACE_NODES[face["exodus_side"] - 1]
+                    corner_labels = [element["nodes"][index] for index in local_nodes[:4]]
+                    if not all(label in node_label_set for label in corner_labels):
+                        raise RuntimeError(
+                            "C3D20T node set %s does not contain all corners of its side-set face" % node_set["source_name"]
+                        )
+                    displacement_labels.extend(element["nodes"][index] for index in local_nodes[4:])
+            displacement_labels = sorted(set(displacement_labels))
         lines.append("*Nset, nset=%s" % node_set["name"])
-        _append_labels(lines, node_set["nodes"])
+        _append_labels(lines, node_labels)
+        if element_type.upper().startswith("C3D20"):
+            lines.append("*Nset, nset=%s_DISP" % node_set["name"])
+            _append_labels(lines, displacement_labels)
     for side_set in mesh["side_sets"]:
         lines.append("*Surface, type=ELEMENT, name=%s" % side_set["name"])
         for face in side_set["faces"]:

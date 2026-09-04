@@ -2848,6 +2848,11 @@ threshold, but the finite-strain mechanics path fails the comparison gate and
 must be corrected before qualification. The full metric row is in
 `b60_fuel_plate_c3d8rt_finite_bending_comparison.tsv`.
 
+The corresponding C3D20T inputs are retained for manual Abaqus and Fuelsim
+investigation under the `b60_*_c3d20t_*` names. Their three cases are currently
+not registered in CTest; registration will wait until the independent C3D20T
+accuracy and timing evidence is complete.
+
 ### B6.0 qualified finite-strain ramped path
 
 The qualified path keeps the same 1,785-node, 1,200-element mesh, materials,

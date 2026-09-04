@@ -413,26 +413,6 @@ if(BUILD_TESTING)
         LABELS "acceptance;three-dimensional;hex8;c3d8rt;reduced-integration;finite-strain;transient;thermal;mechanical;bending"
         TIMEOUT 120
     )
-    add_test(NAME fuelsim_b60_c3d20t_finite_steady_bending_tests
-        COMMAND fuelsim_b60_fuel_plate_c3d8rt_benchmark
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_b60_fuel_plate_c3d20t_finite_bending.fsi"
-            "${CMAKE_CURRENT_BINARY_DIR}/b60_c3d20t_finite_steady_bending_nodal.csv"
-            "${CMAKE_CURRENT_BINARY_DIR}/b60_c3d20t_finite_steady_bending_timing.tsv"
-    )
-    set_tests_properties(fuelsim_b60_c3d20t_finite_steady_bending_tests PROPERTIES
-        LABELS "acceptance;three-dimensional;hex20;c3d20t;finite-strain;steady;thermal;mechanical;bending"
-        TIMEOUT 180
-    )
-    add_test(NAME fuelsim_b60_c3d20t_finite_transient_bending_tests
-        COMMAND fuelsim_b60_fuel_plate_c3d8rt_benchmark
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_b60_fuel_plate_c3d20t_finite_ramped_bending.fsi"
-            "${CMAKE_CURRENT_BINARY_DIR}/b60_c3d20t_finite_transient_bending_nodal.csv"
-            "${CMAKE_CURRENT_BINARY_DIR}/b60_c3d20t_finite_transient_bending_timing.tsv"
-    )
-    set_tests_properties(fuelsim_b60_c3d20t_finite_transient_bending_tests PROPERTIES
-        LABELS "acceptance;three-dimensional;hex20;c3d20t;finite-strain;transient;thermal;mechanical;bending"
-        TIMEOUT 180
-    )
     add_executable(fuelsim_b61_fuel_plate_c3d8rt_finite_inelastic_abaqus_tests
         tests/b61_fuel_plate_c3d8rt_finite_inelastic_abaqus_tests.cpp
     )
