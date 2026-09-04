@@ -3076,12 +3076,28 @@ temperature interpolation. Reference-configuration conduction gives
 `0.609607%` relative L2 error, and end-of-increment current-configuration
 conduction gives `0.0692630%`. The arithmetic midpoint of the 8-second and
 10-second nodal configurations gives `2.38697e-13%`, which is roundoff-level
-agreement. Fuelsim deliberately retains its existing HEX20 contract in which
-thermal conduction, body heat source, and backward-Euler heat capacity are
-integrated in the reference configuration. Therefore the strict material-field
-gate cannot be met by changing the creep integrator or its coefficients; a
-separate decision to change the HEX20 finite-strain thermal contract would be
-required.
+agreement.
+
+Affine and deliberately distorted one-element probes separately identify the
+weak-form measures and integration order. Abaqus uses full quadratic midpoint-
+configuration gradients for both the temperature and test functions, a full
+quadratic end-configuration volume measure, and 3 by 3 by 3 Gauss integration
+for conduction. Heat capacity uses a consistent matrix with the full quadratic
+end configuration and the same integration rule. Body heat source uses an end-
+configuration measure formed only from the eight linear temperature corners;
+moving one displacement midside node changes the mechanical integration volume
+but leaves this source measure unchanged. Combining these three identified
+operators reproduces the maximum free thermal residual reported in the Abaqus
+message file at all five states: `9.13091e-10`, `1.42133e-9`, `5.15035e-8`,
+`1.64890e-8`, and `1.33300e-8 W`. The probe values and rejected alternatives
+are retained in
+`b61_fuel_plate_c3d20t_thermal_operator_identification.tsv`.
+
+Fuelsim deliberately retains its existing HEX20 contract in which thermal
+conduction, body heat source, and backward-Euler heat capacity are integrated
+in the reference configuration. Therefore the strict material-field gate
+cannot be met by changing the creep integrator or its coefficients; a separate
+decision to change the HEX20 finite-strain thermal contract would be required.
 
 The extended extraction and heat-flux reconstruction can be repeated with the
 following manual commands. The normal extractor invocation continues to write

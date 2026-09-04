@@ -1,0 +1,12 @@
+probe	observable	abaqus_value	identified_operator_value	absolute_difference	contrasting_value	conclusion
+plate_final_heat_flux	relative_l2_percent	0	2.38697317657e-13	2.38697317657e-13	0.609607298877_reference;0.0692630369784_current	Heat-flux gradient uses the full quadratic increment-midpoint geometry
+distorted_conduction	eight_corner_reaction_l2_w	8.49110680719	8.49110680835	1.69236139775e-7	0.00784598388794_g2_error	Both test and temperature gradients use the full quadratic increment-midpoint geometry, the measure uses the full quadratic end geometry, and integration is 3 by 3 by 3
+affine_body_source	total_reaction_w	-24	-24	0	-10_reference;-16.875_midpoint	Body heat source uses the end geometry
+distorted_body_source	total_reaction_w	-24	-24	0	-22.9333333333_full_quadratic_end	Body heat source measure uses the eight temperature corners rather than the displacement midside nodes
+affine_capacity	total_reaction_w	144	144	0	60_reference;101.25_midpoint	Heat capacity uses the full quadratic end geometry
+distorted_nonuniform_capacity	eight_corner_reaction_l2_w	22.3926333478	22.3926333566	5.86759439084e-7	0.00530041640931_g2_error	Heat capacity uses the consistent matrix on the full quadratic end geometry with 3 by 3 by 3 integration
+plate_step_1	maximum_free_thermal_residual_w	9.131e-10	9.13091438397e-10	8.561603e-15	-	Identified operator reproduces the Abaqus converged residual
+plate_step_2	maximum_free_thermal_residual_w	1.421e-9	1.42132774018e-9	3.2774018e-13	-	Identified operator reproduces the Abaqus converged residual
+plate_step_3	maximum_free_thermal_residual_w	5.150e-8	5.15034542914e-8	3.4542914e-12	-	Identified operator reproduces the Abaqus converged residual
+plate_step_4	maximum_free_thermal_residual_w	1.649e-8	1.64889540448e-8	1.0459552e-12	-	Identified operator reproduces the Abaqus converged residual
+plate_step_5	maximum_free_thermal_residual_w	1.333e-8	1.33300388564e-8	3.88564e-14	-	Identified operator reproduces the Abaqus converged residual

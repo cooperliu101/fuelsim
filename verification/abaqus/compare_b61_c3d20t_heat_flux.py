@@ -11,7 +11,11 @@ if len(sys.argv) != 5:
     )
 
 
-GAUSS3 = (-math.sqrt(3.0 / 5.0), 0.0, math.sqrt(3.0 / 5.0))
+GAUSS3 = (
+    (-math.sqrt(3.0 / 5.0), 5.0 / 9.0),
+    (0.0, 8.0 / 9.0),
+    (math.sqrt(3.0 / 5.0), 5.0 / 9.0),
+)
 SIGNS = (
     (-1.0, -1.0, -1.0),
     (1.0, -1.0, -1.0),
@@ -116,14 +120,25 @@ def temperature_shape_derivatives(xi, eta, zeta):
     )
 
 
-def inverse_jacobian(coordinates, xi, eta, zeta):
-    derivatives = displacement_shape_derivatives(xi, eta, zeta)
+def temperature_shapes(xi, eta, zeta):
+    return tuple(
+        0.125 * (1.0 + sx * xi) * (1.0 + sy * eta) * (1.0 + sz * zeta)
+        for sx, sy, sz in SIGNS
+    )
+
+
+def geometry(coordinates, xi, eta, zeta, quadratic=True):
+    derivatives = (
+        displacement_shape_derivatives(xi, eta, zeta)
+        if quadratic
+        else temperature_shape_derivatives(xi, eta, zeta)
+    )
     jacobian = [[0.0] * 3 for _ in range(3)]
     for coordinate, derivative in zip(coordinates, derivatives):
         for physical in range(3):
             for natural in range(3):
                 jacobian[physical][natural] += coordinate[physical] * derivative[natural]
-    return inverse(jacobian)
+    return determinant(jacobian), inverse(jacobian)
 
 
 def metrics(calculated, reference):
@@ -159,6 +174,12 @@ reference_flux = {
 }
 reference_coordinates = {node["label"]: tuple(node["coordinates"]) for node in mesh["nodes"]}
 calculated_flux = {name: {} for name in ("reference", "increment_midpoint", "current")}
+corner_nodes = set(node for element in mesh["elements"] for node in element["nodes"][:8])
+fixed_temperature_nodes = set()
+for node_set in mesh["node_sets"]:
+    if node_set["name"].lower() in ("plate_back", "plate_front"):
+        fixed_temperature_nodes.update(node_set["nodes"])
+thermal_residual = {node: 0.0 for node in corner_nodes}
 
 for element in mesh["elements"]:
     labels = element["nodes"]
@@ -186,15 +207,21 @@ for element in mesh["elements"]:
         ],
     }
     temperatures = [float(current[label]["temperature"]) for label in labels[:8]]
-    conductivity = 3.0 if element["block"] == "MEAT" else 16.0
+    previous_temperatures = [float(previous[label]["temperature"]) for label in labels[:8]]
+    if element["block"] == "MEAT":
+        conductivity, capacity, source = 3.0, 10970.0 * 300.0, 2.0e8
+    else:
+        conductivity, capacity, source = 16.0, 6500.0 * 330.0, 0.0
     point = 0
-    for zeta in GAUSS3:
-        for eta in GAUSS3:
-            for xi in GAUSS3:
+    for zeta, weight_z in GAUSS3:
+        for eta, weight_y in GAUSS3:
+            for xi, weight_x in GAUSS3:
                 point += 1
+                weight = weight_x * weight_y * weight_z
+                shapes = temperature_shapes(xi, eta, zeta)
                 natural_derivatives = temperature_shape_derivatives(xi, eta, zeta)
                 for name, coordinates in configurations.items():
-                    mapping = inverse_jacobian(coordinates, xi, eta, zeta)
+                    mapping = geometry(coordinates, xi, eta, zeta)[1]
                     gradient = tuple(
                         sum(
                             natural_derivatives[node][natural] * mapping[natural][physical] * temperatures[node]
@@ -205,6 +232,39 @@ for element in mesh["elements"]:
                     )
                     calculated_flux[name][(element["label"], point)] = tuple(
                         -conductivity * component for component in gradient
+                    )
+                current_determinant = geometry(configurations["current"], xi, eta, zeta)[0]
+                midpoint_mapping = geometry(configurations["increment_midpoint"], xi, eta, zeta)[1]
+                linear_current_determinant = geometry(
+                    configurations["current"][:8], xi, eta, zeta, quadratic=False
+                )[0]
+                midpoint_gradients = [
+                    tuple(
+                        sum(
+                            natural_derivatives[node][natural] * midpoint_mapping[natural][physical]
+                            for natural in range(3)
+                        )
+                        for physical in range(3)
+                    )
+                    for node in range(8)
+                ]
+                midpoint_temperature_gradient = tuple(
+                    sum(midpoint_gradients[node][physical] * temperatures[node] for node in range(8))
+                    for physical in range(3)
+                )
+                temperature_rate = sum(
+                    shapes[node] * (temperatures[node] - previous_temperatures[node]) / 2.0
+                    for node in range(8)
+                )
+                for node, label in enumerate(labels[:8]):
+                    conduction = sum(
+                        midpoint_gradients[node][physical] * midpoint_temperature_gradient[physical]
+                        for physical in range(3)
+                    )
+                    thermal_residual[label] += weight * (
+                        conductivity * current_determinant * conduction
+                        + capacity * current_determinant * shapes[node] * temperature_rate
+                        - source * linear_current_determinant * shapes[node]
                     )
 
 if set(reference_flux) != set(calculated_flux["reference"]):
@@ -218,3 +278,14 @@ for name in ("reference", "increment_midpoint", "current"):
         "%s_maximum_absolute_difference_w_m2=%.12g"
         % ((name, values[0], name, values[1], name, values[2], name, values[3]))
     )
+free_residual = [
+    value for node, value in thermal_residual.items() if node not in fixed_temperature_nodes
+]
+print(
+    "abaqus_operator_free_thermal_residual_l2_w=%.12g\n"
+    "abaqus_operator_maximum_free_thermal_residual_w=%.12g"
+    % (
+        math.sqrt(sum(value * value for value in free_residual)),
+        max(abs(value) for value in free_residual),
+    )
+)
