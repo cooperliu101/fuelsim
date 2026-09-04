@@ -2943,3 +2943,53 @@ result qualifies the one-step steady thermoelastic final equilibrium only; it
 does not qualify transient heat capacity or path-dependent material evolution.
 The complete iteration diagnosis is retained in
 `b60_fuel_plate_c3d8rt_nonlinear_iteration_diagnosis.tsv`.
+
+## B6.1 finite-strain plate bending with plasticity and creep
+
+B6.1 reuses the qualified B6.0 ramped fuel-plate mesh and load path. It adds
+fully coupled J2 plasticity and Norton creep to both finite-strain C3D8RT
+regions. Both Abaqus and Fuelsim use a 200 MPa initial yield stress, 2 GPa
+linear isotropic hardening, and a Norton rate of `1e-4 s^-1` at 100 MPa with
+stress exponent 3. The equivalent Abaqus time-hardening coefficient is
+`1e-28 Pa^-3 s^-1`. Inelastic dissipation heat generation is disabled in both
+programs. These simplified constants qualify the numerical path only and are
+not empirical material models.
+
+Run Abaqus R2018x on one processor, then run the registered comparison:
+
+```text
+powershell -ExecutionPolicy Bypass -File verification/abaqus/run_b61.ps1 \
+  -SourceDirectory verification/abaqus
+ctest --test-dir build \
+  -R '^fuelsim_b61_fuel_plate_c3d8rt_finite_inelastic_abaqus_tests$' \
+  -j1 --output-on-failure
+```
+
+The extractor writes every one of the ten accepted increments: 17,850 nodal
+rows, 12,000 material-point rows, and ten energy rows. It maps Abaqus element
+labels through the tracked mesh manifest because the Exodus reader stores the
+two blocks in block order rather than Abaqus global-label order. The maximum
+matched material-point coordinate difference is `2.56091e-7 m`.
+
+Displacement-vector errors are `0.00453753%` relative L2, `0.00826074%`
+relative absolute peak, and `0.0570103%` maximum pointwise relative. Equivalent
+plastic-strain errors are `0.0364082%`, `0.0149187%`, and `0.369616%`.
+Equivalent creep-strain errors are `0.00721628%`, `0.000158704%`, and `3.122%`;
+the pointwise maximum has an Abaqus reference of only `6.07083e-11`. Stress
+relative L2 and relative absolute-peak errors are `0.0231611%` and `0.0472078%`;
+its `4.16196%` pointwise maximum has a 0.549508 MPa reference tensor norm.
+The explicit 5 percent pointwise qualification covers these low-amplitude
+stress, elastic-strain, and creep locations. Aggregate and peak gates remain
+0.5 percent, no denominator floor is used, and zero-reference counts and
+absolute differences remain separately reported. The observed maximum
+equivalent plastic and creep strains are `0.00346166` and `0.00756423`.
+
+With CPU 0 fixed, MUMPS, and one thread per numerical library, the three
+Fuelsim external times are `7.54`, `7.45`, and `7.54 s`; the median is
+`7.54 s`. Abaqus `cpus=1` takes `9.452420`, `9.596636`, and `9.328452 s`;
+the median is `9.452420 s`. The external ratio is `0.797679`, so Fuelsim uses
+`20.2321%` less wall time in this controlled cross-Windows-and-WSL observation.
+The latest Abaqus job summary separately reports 5.1 seconds of total CPU time
+and 5 seconds of analysis wall time. Fuelsim uses 34 nonlinear iterations and
+34 Jacobians; Abaqus uses 22 nonlinear iterations and 22 matrix decompositions.
+The complete results are stored in the B6.1 comparison and timing artifacts.

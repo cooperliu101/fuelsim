@@ -1,0 +1,22 @@
+quantity	relative_l2_percent	relative_absolute_peak_percent	maximum_pointwise_relative_percent	maximum_absolute_difference	zero_reference_count	maximum_zero_reference_absolute_difference	status_or_note
+temperature	5.93337e-6	0	0.000130458	0.000812037151 K	0	0 K	pass 0.5 percent
+displacement_vector	0.00453753	0.00826074	0.0570103	2.60412e-7 m	350	0 m	pass 0.5 percent
+reaction_force_vector	0.323711	0.468749	0.63649	0.0273381 N	17500	0 N	qualified 1 percent pointwise at 1.25864 N reference norm
+stress_tensor	0.0231611	0.0472078	4.16196	190871 Pa	0	0 Pa	qualified 5 percent pointwise at 0.549508 MPa reference norm
+logarithmic_strain_tensor	0.0144798	0.0163986	0.203392	3.14687e-6	0	0	pass 0.5 percent
+elastic_strain_tensor	0.0348637	0.0660293	3.31194	1.21428e-6	0	0	qualified 5 percent pointwise at 6.00041e-6 reference norm
+plastic_strain_tensor	0.037124	0.0436382	0.369834	1.84899e-6	11764	0	pass 0.5 percent
+equivalent_plastic_strain	0.0364082	0.0149187	0.369616	1.47658931e-6	11764	0	pass 0.5 percent
+creep_strain_tensor	0.0135528	0.018699	3.68192	1.73151e-6	0	0	qualified 5 percent pointwise at 4.24737e-10 reference norm
+equivalent_creep_strain	0.00721628	0.000158704	3.122	1.13183396e-6	0	0	qualified 5 percent pointwise at 6.07083e-11 reference value
+internal_energy	0.260124	0.331218	0.331218	0.000202 J	0	0 J	pass 0.5 percent
+elastic_energy	0.0084706	0.0118644	0.0118644	1.5e-6 J	0	0 J	pass 0.5 percent
+plastic_dissipation	0.0277118	0.0315216	0.0315216	1.67e-6 J	2	0 J	pass 0.5 percent
+creep_dissipation	0.402689	0.477571	0.477571	0.0002052 J	0	0 J	pass 0.5 percent
+boundary_heat_rate	0.0136723	0.0404155	0.0404155	0.00058 W	0	0 W	pass 0.5 percent
+mechanical_hourglass_energy	0.0279968	0.0287401	0.0287401	2.22e-7 J	0	0 J	pass 0.5 percent
+abaqus_artificial_energy_fraction	-	-	1.25358	0.000774226 J	-	-	maximum ALLAE divided by internal energy
+compared_rows	-	-	-	17850 nodal; 12000 integration; 10 energy	-	-	all ten accepted increments
+active_histories	-	-	-	maximum equivalent plastic 0.00346166; maximum equivalent creep 0.00756423	-	-	both mechanisms active
+solver_counts	-	-	-	Fuelsim 34 nonlinear and 34 Jacobian; Abaqus 22 nonlinear and 22 decompositions	-	-	10 increments and no cutback in either solver
+external_wall_time	-	-	-	Fuelsim samples 7.54, 7.45, 7.54 s, median 7.54 s; Abaqus samples 9.452420, 9.596636, 9.328452 s, median 9.452420 s	-	-	Fuelsim divided by Abaqus 0.797679; Fuelsim uses 20.2321 percent less wall time

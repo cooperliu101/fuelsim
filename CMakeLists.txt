@@ -393,6 +393,22 @@ if(BUILD_TESTING)
         PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver
     )
     fuelsim_enable_warnings(fuelsim_b60_fuel_plate_c3d8rt_benchmark)
+    add_executable(fuelsim_b61_fuel_plate_c3d8rt_finite_inelastic_abaqus_tests
+        tests/b61_fuel_plate_c3d8rt_finite_inelastic_abaqus_tests.cpp
+    )
+    target_link_libraries(fuelsim_b61_fuel_plate_c3d8rt_finite_inelastic_abaqus_tests
+        PRIVATE fuelsim_abaqus_hex8_test_support fuelsim::io fuelsim::solver
+    )
+    fuelsim_enable_warnings(fuelsim_b61_fuel_plate_c3d8rt_finite_inelastic_abaqus_tests)
+    add_test(NAME fuelsim_b61_fuel_plate_c3d8rt_finite_inelastic_abaqus_tests
+        COMMAND fuelsim_b61_fuel_plate_c3d8rt_finite_inelastic_abaqus_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_b61_fuel_plate_c3d8rt_finite_inelastic_bending.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b61_fuel_plate_c3d8rt_finite_inelastic_bending"
+    )
+    set_tests_properties(fuelsim_b61_fuel_plate_c3d8rt_finite_inelastic_abaqus_tests PROPERTIES
+        LABELS "acceptance;three-dimensional;hex8;c3d8rt;reduced-integration;transient;thermal;mechanical;finite-strain;bending;plasticity;creep;abaqus"
+        TIMEOUT 120
+    )
     add_executable(fuelsim_m58_hex8_to_hex20
         benchmarks/m58_hex8_to_hex20.cpp
     )
