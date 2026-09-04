@@ -1498,6 +1498,22 @@ ReducedHex8GeometryDerivatives reduced_hex8_geometry_derivatives(const Hex8Geome
                     hex8_signs[node][natural] * values.average_gradient[node][physical];
     const cartesian_detail::Matrix3 effective_mapping =
         cartesian_detail::inverse(inverse_effective_mapping, cartesian_detail::determinant(inverse_effective_mapping));
+    cartesian_detail::Matrix3 metric{};
+    for (std::size_t first = 0; first < 3; ++first)
+        for (std::size_t second = 0; second < 3; ++second)
+            for (std::size_t physical = 0; physical < 3; ++physical)
+                metric[first][second] += effective_mapping[physical][first] * effective_mapping[physical][second];
+    const double first_pivot = metric[0][0];
+    const double second_pivot = metric[1][1] - metric[0][1] * metric[0][1] / first_pivot;
+    const double leading = metric[0][0] * metric[1][1] - metric[0][1] * metric[0][1];
+    const double numerator = metric[1][1] * metric[0][2] * metric[0][2] -
+                             2.0 * metric[0][1] * metric[0][2] * metric[1][2] +
+                             metric[0][0] * metric[1][2] * metric[1][2];
+    const double third_pivot = metric[2][2] - numerator / leading;
+    const double inverse_x = 1.0 / first_pivot, inverse_y = 1.0 / second_pivot, inverse_z = 1.0 / third_pivot;
+    const double thermal_scale = values.volume / 192.0;
+    const std::array<double, 4> sums = {
+        inverse_x + inverse_y, inverse_x + inverse_z, inverse_x + inverse_z, (inverse_x + inverse_y + inverse_z) / 3.0};
     for (std::size_t column = 0; column < reduced_displacement_dof_count; ++column) {
         cartesian_detail::Matrix3 mapping_derivative{}, effective_derivative{};
         for (std::size_t natural = 0; natural < 3; ++natural)
@@ -1511,28 +1527,21 @@ ReducedHex8GeometryDerivatives reduced_hex8_geometry_derivatives(const Hex8Geome
                     for (std::size_t j = 0; j < 3; ++j)
                         effective_derivative[first][second] -=
                             effective_mapping[first][i] * mapping_derivative[i][j] * effective_mapping[j][second];
-        cartesian_detail::Matrix3 metric{}, metric_derivative{};
+        cartesian_detail::Matrix3 metric_derivative{};
         for (std::size_t first = 0; first < 3; ++first)
             for (std::size_t second = 0; second < 3; ++second)
                 for (std::size_t physical = 0; physical < 3; ++physical) {
-                    metric[first][second] += effective_mapping[physical][first] * effective_mapping[physical][second];
                     metric_derivative[first][second] +=
                         effective_derivative[physical][first] * effective_mapping[physical][second] +
                         effective_mapping[physical][first] * effective_derivative[physical][second];
                 }
-        const double first_pivot = metric[0][0];
         const double first_pivot_derivative = metric_derivative[0][0];
-        const double second_pivot = metric[1][1] - metric[0][1] * metric[0][1] / first_pivot;
         const double second_pivot_derivative =
             metric_derivative[1][1] - 2.0 * metric[0][1] * metric_derivative[0][1] / first_pivot +
             metric[0][1] * metric[0][1] * first_pivot_derivative / (first_pivot * first_pivot);
-        const double leading = metric[0][0] * metric[1][1] - metric[0][1] * metric[0][1];
         const double leading_derivative = metric_derivative[0][0] * metric[1][1] +
                                           metric[0][0] * metric_derivative[1][1] -
                                           2.0 * metric[0][1] * metric_derivative[0][1];
-        const double numerator = metric[1][1] * metric[0][2] * metric[0][2] -
-                                 2.0 * metric[0][1] * metric[0][2] * metric[1][2] +
-                                 metric[0][0] * metric[1][2] * metric[1][2];
         const double numerator_derivative = metric_derivative[1][1] * metric[0][2] * metric[0][2] +
                                             2.0 * metric[1][1] * metric[0][2] * metric_derivative[0][2] -
                                             2.0 * (metric_derivative[0][1] * metric[0][2] * metric[1][2] +
@@ -1540,17 +1549,12 @@ ReducedHex8GeometryDerivatives reduced_hex8_geometry_derivatives(const Hex8Geome
                                                       metric[0][1] * metric[0][2] * metric_derivative[1][2]) +
                                             metric_derivative[0][0] * metric[1][2] * metric[1][2] +
                                             2.0 * metric[0][0] * metric[1][2] * metric_derivative[1][2];
-        const double third_pivot = metric[2][2] - numerator / leading;
         const double third_pivot_derivative = metric_derivative[2][2] - numerator_derivative / leading +
                                               numerator * leading_derivative / (leading * leading);
-        const double inverse_x = 1.0 / first_pivot, inverse_y = 1.0 / second_pivot, inverse_z = 1.0 / third_pivot;
         const double inverse_x_derivative = -first_pivot_derivative * inverse_x * inverse_x;
         const double inverse_y_derivative = -second_pivot_derivative * inverse_y * inverse_y;
         const double inverse_z_derivative = -third_pivot_derivative * inverse_z * inverse_z;
-        const double thermal_scale = values.volume / 192.0;
         const double thermal_scale_derivative = result.volume[column] / 192.0;
-        const std::array<double, 4> sums = {inverse_x + inverse_y, inverse_x + inverse_z, inverse_x + inverse_z,
-            (inverse_x + inverse_y + inverse_z) / 3.0};
         const std::array<double, 4> sum_derivatives = {inverse_x_derivative + inverse_y_derivative,
             inverse_x_derivative + inverse_z_derivative, inverse_x_derivative + inverse_z_derivative,
             (inverse_x_derivative + inverse_y_derivative + inverse_z_derivative) / 3.0};

@@ -19,10 +19,13 @@ fuelsim::SolverOptions solver_options(const fuelsim::FuelSimCaseDefinition& defi
     options.linear_solver = definition.solver.linear_solver;
     options.preconditioner = definition.solver.preconditioner;
     options.direct_factorization = definition.solver.direct_factorization;
+    options.mumps_ordering = definition.solver.mumps_ordering;
     options.jacobian_lag = definition.solver.jacobian_lag;
     options.predictor_jacobian_lag = definition.solver.predictor_jacobian_lag;
+    options.line_search = definition.solver.line_search;
     options.field_residual_scaling = definition.solver.field_residual_scaling;
     options.field_residual_convergence = definition.solver.field_residual_convergence;
+    options.residual_reduction_tolerance = definition.solver.residual_reduction_tolerance;
     options.temperature_residual_absolute_tolerance = definition.solver.temperature_residual_absolute_tolerance;
     options.mechanical_residual_absolute_tolerance = definition.solver.mechanical_residual_absolute_tolerance;
     return options;
@@ -52,8 +55,8 @@ int main(int argc, char** argv) {
             execution.use_linear_time_predictor};
         const fuelsim::TransientResult solve =
             fuelsim::solve_transient(problem, time_options, solver_options(definition), &observer);
-        if (!solve.completed || solve.accepted_steps.size() != 10 || !solve.rejected_steps.empty()) {
-            std::cerr << "[FAIL] B6.1 did not complete ten fixed time steps";
+        if (!solve.completed || solve.accepted_steps.size() != 5 || !solve.rejected_steps.empty()) {
+            std::cerr << "[FAIL] B6.1 did not complete five fixed time steps";
             if (!solve.rejected_steps.empty()) std::cerr << ": " << solve.rejected_steps.back().failure_message;
             std::cerr << '\n';
             return 1;
@@ -73,25 +76,6 @@ int main(int argc, char** argv) {
             std::cerr << "[FAIL] B6.1 did not activate both plasticity and creep\n";
             return 1;
         }
-        fuelsim::test::AbaqusHex8FullFieldOptions comparison;
-        comparison.case_name = "b61_fuel_plate_c3d8rt_finite_inelastic_bending";
-        comparison.reference_prefix = argv[2];
-        comparison.expected_steps = 10;
-        comparison.time_step = 1.0;
-        comparison.reduced_integration = true;
-        comparison.bulk_relative_tolerance = 5.0e-3;
-        comparison.energy_relative_tolerance = 5.0e-3;
-        comparison.reaction_zero_absolute_tolerance = 1.0e-3;
-        // Aggregate and relative absolute-peak errors retain the 0.5 percent gate. The explicit pointwise
-        // exceptions keep undiluted denominators for low-amplitude locations: the largest stress difference is
-        // 4.162 percent at a 0.550 MPa tensor norm, and the largest creep difference is 3.682 percent at a
-        // 4.247e-10 tensor norm. The constrained-node reaction vector reaches 0.637 percent at 1.259 N.
-        comparison.reaction_pointwise_relative_tolerance = 1.0e-2;
-        comparison.stress_pointwise_relative_tolerance = 5.0e-2;
-        comparison.elastic_strain_pointwise_relative_tolerance = 5.0e-2;
-        comparison.inelastic_pointwise_relative_tolerance = 5.0e-2;
-        const bool passed = fuelsim::test::compare_abaqus_hex8_full_field(
-            problem, definition.spatial, mesh, observer.snapshots(), comparison);
         std::cout << "b61_accepted_steps=" << solve.accepted_steps.size() << '\n'
                   << "b61_rejected_steps=" << solve.rejected_steps.size() << '\n'
                   << "b61_nonlinear_iterations=" << solve.total_nonlinear_iterations << '\n'
@@ -99,6 +83,19 @@ int main(int argc, char** argv) {
                   << "b61_jacobian_evaluations=" << solve.aggregate_timing.jacobian_evaluations << '\n'
                   << "b61_maximum_equivalent_plastic_strain=" << maximum_plastic_strain << '\n'
                   << "b61_maximum_equivalent_creep_strain=" << maximum_creep_strain << '\n';
+        fuelsim::test::AbaqusHex8FullFieldOptions comparison;
+        comparison.case_name = "b61_fuel_plate_c3d8rt_finite_inelastic_bending";
+        comparison.reference_prefix = argv[2];
+        comparison.expected_steps = 5;
+        comparison.time_step = 2.0;
+        comparison.reduced_integration = true;
+        comparison.bulk_relative_tolerance = 5.0e-3;
+        comparison.energy_relative_tolerance = 5.0e-3;
+        comparison.reaction_zero_absolute_tolerance = 1.0e-3;
+        // The increased plastic and creep histories eliminate the former near-zero reference exceptions, so every
+        // nonzero field uses the common 0.5 percent aggregate, absolute-peak, and pointwise relative-error gate.
+        const bool passed = fuelsim::test::compare_abaqus_hex8_full_field(
+            problem, definition.spatial, mesh, observer.snapshots(), comparison);
         return passed ? 0 : 1;
     } catch (const std::exception& error) {
         std::cerr << "[FAIL] B6.1 exception: " << error.what() << '\n';

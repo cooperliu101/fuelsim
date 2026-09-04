@@ -39,6 +39,8 @@ std::size_t NonlinearProblem::sparsity_contribution_count() const noexcept { ret
 
 bool NonlinearProblem::jacobian_sparsity_is_state_dependent() const noexcept { return false; }
 
+bool NonlinearProblem::contribution_metadata_is_fixed() const noexcept { return false; }
+
 std::pair<std::size_t, std::size_t> NonlinearProblem::contribution_partition(
     std::size_t partition, std::size_t partition_count) const {
     if (partition_count == 0 || partition >= partition_count)

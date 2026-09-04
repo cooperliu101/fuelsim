@@ -93,11 +93,11 @@ try:
         "increment,time_s,allie_j,allse_j,allpd_j,allcd_j,allfd_j,allwk_j,boundary_heat_rate_w,allae_j\n"
     )
     step = odb.steps["FINITE_INELASTIC_BENDING"]
-    if len(step.frames) != 11:
-        raise RuntimeError("B6.1 expected ten fixed increments, got %d" % (len(step.frames) - 1))
+    if len(step.frames) != 6:
+        raise RuntimeError("B6.1 expected five fixed increments, got %d" % (len(step.frames) - 1))
     for increment in range(1, len(step.frames)):
         frame = step.frames[increment]
-        if abs(frame.frameValue - float(increment)) > 1.0e-10:
+        if abs(frame.frameValue - 2.0 * float(increment)) > 1.0e-10:
             raise RuntimeError("B6.1 frame %d has time %.16g" % (increment, frame.frameValue))
         temperature = nodal_values(frame, "NT11")
         displacement = nodal_values(frame, "U")

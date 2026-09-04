@@ -222,7 +222,14 @@ struct SolverContext final {
     std::vector<PetscInt> petsc_contribution_dofs;
     std::vector<unsigned char> contribution_jacobian_pattern;
     ContributionWorkspace contribution_workspace;
-    std::vector<double> scaled_contribution_jacobian;
+
+    struct FixedContributionMetadata final {
+        std::vector<std::size_t> dofs;
+        std::vector<PetscInt> petsc_dofs;
+        std::vector<unsigned char> jacobian_pattern;
+    };
+
+    std::vector<FixedContributionMetadata> fixed_contributions;
     MatrixInsertionWorkspace matrix_insertion;
     double initial_residual_norm = std::numeric_limits<double>::quiet_NaN();
     bool saw_domain_error = false, last_function_domain_error = false;
@@ -235,16 +242,20 @@ PetscErrorCode assemble_contributions(SolverContext& context, Vec residual, Mat 
     const bool linearize = jacobian != nullptr;
     context.problem->validate_local_state(context.contribution_begin, context.contribution_end, context.state_values);
     for (std::size_t entry = context.contribution_begin; entry < context.contribution_end; ++entry) {
-        context.problem->contribution_dofs(entry, context.contribution_workspace.dofs);
-        const std::size_t local_count = context.contribution_workspace.dofs.size();
+        const SolverContext::FixedContributionMetadata* fixed =
+            context.fixed_contributions.empty() ? nullptr
+                                                : &context.fixed_contributions.at(entry - context.contribution_begin);
+        if (fixed == nullptr) context.problem->contribution_dofs(entry, context.contribution_workspace.dofs);
+        const std::vector<std::size_t>& dofs = fixed == nullptr ? context.contribution_workspace.dofs : fixed->dofs;
+        const std::size_t local_count = dofs.size();
         context.contribution_workspace.resize(local_count, linearize);
-        context.petsc_contribution_dofs.resize(local_count);
         for (std::size_t local = 0; local < local_count; ++local)
-            context.contribution_workspace.state[local] =
-                context.state_values[context.contribution_workspace.dofs[local]];
-        for (std::size_t local = 0; local < local_count; ++local)
-            context.petsc_contribution_dofs[local] =
-                context.problem_to_petsc[context.contribution_workspace.dofs[local]];
+            context.contribution_workspace.state[local] = context.state_values[dofs[local]];
+        if (fixed == nullptr) {
+            context.petsc_contribution_dofs.resize(local_count);
+            for (std::size_t local = 0; local < local_count; ++local)
+                context.petsc_contribution_dofs[local] = context.problem_to_petsc[dofs[local]];
+        }
         std::vector<double>* local_jacobian = linearize ? &context.contribution_workspace.jacobian : nullptr;
         context.problem->compute_contribution(
             entry, context.contribution_workspace.state, context.contribution_workspace.residual, local_jacobian);
@@ -252,26 +263,29 @@ PetscErrorCode assemble_contributions(SolverContext& context, Vec residual, Mat 
             (linearize && context.contribution_workspace.jacobian.size() != local_count * local_count))
             throw std::logic_error("NonlinearProblem contribution output has the wrong size");
         const PetscInt petsc_local_count = checked_petsc_int(local_count);
-        const PetscInt* petsc_dofs = context.petsc_contribution_dofs.data();
+        const std::vector<PetscInt>& petsc_dof_vector =
+            fixed == nullptr ? context.petsc_contribution_dofs : fixed->petsc_dofs;
+        const PetscInt* petsc_dofs = petsc_dof_vector.data();
         if (!linearize) {
             PetscCall(VecSetValues(
                 residual, petsc_local_count, petsc_dofs, context.contribution_workspace.residual.data(), ADD_VALUES));
             continue;
         }
-        context.scaled_contribution_jacobian = context.contribution_workspace.jacobian;
+        std::vector<double>& scaled_jacobian = context.contribution_workspace.jacobian;
         if (context.field_residual_scaling) {
             for (std::size_t row = 0; row < local_count; ++row) {
-                const std::size_t global_row = context.contribution_workspace.dofs[row];
+                const std::size_t global_row = dofs[row];
                 if (context.constrained[global_row]) continue;
                 const std::size_t field = context.dof_fields[global_row];
                 for (std::size_t column = 0; column < local_count; ++column)
-                    context.scaled_contribution_jacobian[row * local_count + column] *=
-                        context.field_residual_scalings[field];
+                    scaled_jacobian[row * local_count + column] *= context.field_residual_scalings[field];
             }
         }
-        context.problem->contribution_jacobian_pattern(entry, context.contribution_jacobian_pattern);
-        PetscCall(insert_pattern_blocks(jacobian, context.petsc_contribution_dofs,
-            context.contribution_jacobian_pattern, context.scaled_contribution_jacobian, ADD_VALUES, 0,
+        if (fixed == nullptr)
+            context.problem->contribution_jacobian_pattern(entry, context.contribution_jacobian_pattern);
+        const std::vector<unsigned char>& jacobian_pattern =
+            fixed == nullptr ? context.contribution_jacobian_pattern : fixed->jacobian_pattern;
+        PetscCall(insert_pattern_blocks(jacobian, petsc_dof_vector, jacobian_pattern, scaled_jacobian, ADD_VALUES, 0,
             checked_petsc_int(context.problem->dof_count()), context.matrix_insertion));
     }
     PetscFunctionReturn(PETSC_SUCCESS);
@@ -339,14 +353,16 @@ void configure_linear_solver(PetscObjects& objects, const NonlinearProblem& prob
                                     ? std::string(requested_solver.data()) == std::string(MATSOLVERMUMPS)
                                     : default_mumps;
         if (uses_mumps) {
-            // SCOTCH ordering measured faster and more robust than the MUMPS default on this benchmark;
-            // an explicit user setting always wins.
+            // Preserve SCOTCH as the robust default. A case may select PORD after a controlled same-workload audit,
+            // while an explicit PETSc command-line setting always wins.
             PetscBool ordering_set = PETSC_FALSE;
             check_petsc(PetscOptionsHasName(nullptr, nullptr, "-mat_mumps_icntl_7", &ordering_set),
                 "PetscOptionsHasName MUMPS ordering");
-            if (ordering_set == PETSC_FALSE)
-                check_petsc(PetscOptionsSetValue(nullptr, "-mat_mumps_icntl_7", "3"),
-                    "PetscOptionsSetValue MUMPS SCOTCH ordering");
+            if (ordering_set == PETSC_FALSE) {
+                const char* ordering = options.mumps_ordering == SolverOptions::MumpsOrdering::pord ? "4" : "3";
+                check_petsc(PetscOptionsSetValue(nullptr, "-mat_mumps_icntl_7", ordering),
+                    "PetscOptionsSetValue MUMPS ordering");
+            }
             if (world_size >= 4) {
                 PetscBool memory_relaxation_set = PETSC_FALSE;
                 check_petsc(PetscOptionsHasName(nullptr, nullptr, "-mat_mumps_icntl_14", &memory_relaxation_set),
@@ -758,16 +774,27 @@ class PetscSolver::Implementation final {
         }
         std::size_t maximum_local_dofs = 0;
         std::vector<std::size_t> contribution_dofs;
+        const bool fixed_contributions = problem.contribution_metadata_is_fixed();
+        if (fixed_contributions)
+            _context.fixed_contributions.resize(_context.contribution_end - _context.contribution_begin);
         for (std::size_t entry = _context.contribution_begin; entry < _context.contribution_end; ++entry) {
             problem.contribution_dofs(entry, contribution_dofs);
             maximum_local_dofs = std::max(maximum_local_dofs, contribution_dofs.size());
             for (const std::size_t dof : contribution_dofs)
                 if (dof >= problem.dof_count())
                     throw std::out_of_range("NonlinearProblem contribution DOF is out of range");
+            if (fixed_contributions) {
+                SolverContext::FixedContributionMetadata& fixed =
+                    _context.fixed_contributions.at(entry - _context.contribution_begin);
+                fixed.dofs = contribution_dofs;
+                fixed.petsc_dofs.resize(contribution_dofs.size());
+                for (std::size_t local = 0; local < contribution_dofs.size(); ++local)
+                    fixed.petsc_dofs[local] = _context.problem_to_petsc[contribution_dofs[local]];
+                problem.contribution_jacobian_pattern(entry, fixed.jacobian_pattern);
+            }
         }
         _context.contribution_workspace.reserve(maximum_local_dofs);
         _context.petsc_contribution_dofs.reserve(maximum_local_dofs);
-        _context.scaled_contribution_jacobian.reserve(maximum_local_dofs * maximum_local_dofs);
         _context.contribution_jacobian_pattern.reserve(maximum_local_dofs * maximum_local_dofs);
         _context.matrix_insertion.rows.reserve(maximum_local_dofs);
         _context.matrix_insertion.columns.reserve(maximum_local_dofs);

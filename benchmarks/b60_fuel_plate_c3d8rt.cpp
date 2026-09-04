@@ -113,10 +113,13 @@ fuelsim::SolverOptions solver_options(const fuelsim::FuelSimCaseDefinition& defi
     options.linear_solver = definition.solver.linear_solver;
     options.preconditioner = definition.solver.preconditioner;
     options.direct_factorization = definition.solver.direct_factorization;
+    options.mumps_ordering = definition.solver.mumps_ordering;
     options.jacobian_lag = definition.solver.jacobian_lag;
     options.predictor_jacobian_lag = definition.solver.predictor_jacobian_lag;
+    options.line_search = definition.solver.line_search;
     options.field_residual_scaling = definition.solver.field_residual_scaling;
     options.field_residual_convergence = definition.solver.field_residual_convergence;
+    options.residual_reduction_tolerance = definition.solver.residual_reduction_tolerance;
     options.temperature_residual_absolute_tolerance = definition.solver.temperature_residual_absolute_tolerance;
     options.mechanical_residual_absolute_tolerance = definition.solver.mechanical_residual_absolute_tolerance;
     return options;

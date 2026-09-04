@@ -193,6 +193,7 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
                   steady.solver.linear_solver == fuelsim::SolverOptions::LinearSolver::automatic &&
                   steady.solver.preconditioner == fuelsim::SolverOptions::Preconditioner::automatic &&
                   steady.solver.direct_factorization == fuelsim::SolverOptions::DirectFactorization::automatic &&
+                  steady.solver.mumps_ordering == fuelsim::SolverOptions::MumpsOrdering::automatic &&
                   steady.solver.linear_relative_tolerance == 1.0e-8 && steady.solver.maximum_linear_iterations == 500 &&
                   steady.solver.jacobian_lag == 1 && !steady.steady_execution.use_small_strain_predictor,
             "steady execution and solver fields are parsed") &&
@@ -646,8 +647,8 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
     std::string direct_mumps_case = read_text(steady_path);
     const std::size_t direct_mumps_solver = direct_mumps_case.find(solver_start);
     if (direct_mumps_solver == std::string::npos) return check(false, "steady fixture has a solver section");
-    direct_mumps_case.insert(
-        direct_mumps_solver + solver_start.size(), "\n  linear_solver = direct\n  direct_factorization = mumps");
+    direct_mumps_case.insert(direct_mumps_solver + solver_start.size(),
+        "\n  linear_solver = direct\n  direct_factorization = mumps\n  mumps_ordering = pord");
     {
         std::ofstream output(malformed_path, std::ios::out | std::ios::trunc);
         if (!output) return check(false, "could not create direct-MUMPS input fixture");
@@ -655,8 +656,9 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
     }
     const fuelsim::FuelSimCaseDefinition direct_mumps = fuelsim::read_case_input(malformed_path);
     passed = check(direct_mumps.solver.linear_solver == fuelsim::SolverOptions::LinearSolver::direct &&
-                       direct_mumps.solver.direct_factorization == fuelsim::SolverOptions::DirectFactorization::mumps,
-                 "direct MUMPS factorization is parsed") &&
+                       direct_mumps.solver.direct_factorization == fuelsim::SolverOptions::DirectFactorization::mumps &&
+                       direct_mumps.solver.mumps_ordering == fuelsim::SolverOptions::MumpsOrdering::pord,
+                 "direct MUMPS factorization and ordering are parsed") &&
              passed;
     if (std::remove(malformed_path.c_str()) != 0) return check(false, "could not remove direct-MUMPS input fixture");
     std::string incompatible_mumps_case = m3_case;
@@ -665,6 +667,12 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
     passed = expect_case_failure(
                  malformed_path, incompatible_mumps_case, "direct_factorization=mumps requires a direct LU solve") &&
              passed;
+    std::string invalid_mumps_ordering = direct_mumps_case;
+    const std::string valid_mumps_ordering = "mumps_ordering = pord";
+    const std::size_t mumps_ordering_position = invalid_mumps_ordering.find(valid_mumps_ordering);
+    invalid_mumps_ordering.replace(
+        mumps_ordering_position, valid_mumps_ordering.size(), "mumps_ordering = nested_dissection");
+    passed = expect_case_failure(malformed_path, invalid_mumps_ordering, "mumps_ordering must be") && passed;
     std::string fixed_scaling_case = read_text(transient_path);
     const std::size_t fixed_scaling_solver = fixed_scaling_case.find(solver_start);
     if (fixed_scaling_solver == std::string::npos) return check(false, "transient fixture has a solver section");

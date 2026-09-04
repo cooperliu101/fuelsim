@@ -13,7 +13,12 @@
   [front_temperature]
     type = piecewise_linear
     times = 0 10
-    values = 600 700
+    values = 600 800
+  []
+  [right_displacement_x]
+    type = piecewise_linear
+    times = 0 10
+    values = 0 8e-4
   []
 []
 
@@ -39,14 +44,14 @@
     []
     [creep]
       function = norton
-      coefficient = 1e-4
+      coefficient = 3.5e-4
       reference_stress = 1e8
       stress_exponent = 3
     []
     [plasticity]
       function = linear_isotropic_hardening
-      yield_stress = 2e8
-      hardening_modulus = 2e9
+      yield_stress = 1e6
+      hardening_modulus = 2e10
     []
   []
   [cladding]
@@ -70,14 +75,14 @@
     []
     [creep]
       function = norton
-      coefficient = 1e-4
+      coefficient = 3.5e-4
       reference_stress = 1e8
       stress_exponent = 3
     []
     [plasticity]
       function = linear_isotropic_hardening
-      yield_stress = 2e8
-      hardening_modulus = 2e9
+      yield_stress = 1e6
+      hardening_modulus = 2e10
     []
   []
 []
@@ -133,14 +138,21 @@
     field = temperature
     value = 600
   []
+  [right_displacement_x]
+    type = dirichlet
+    boundary = plate_right
+    field = displacement_x
+    value = 1
+    function = right_displacement_x
+  []
 []
 
 [Executioner]
   type = transient
   end_time = 10
-  initial_time_step = 1
-  minimum_time_step = 1
-  maximum_time_step = 1
+  initial_time_step = 2
+  minimum_time_step = 2
+  maximum_time_step = 2
   growth_factor = 1
   cutback_factor = 0.5
   maximum_cutbacks = 0
@@ -152,6 +164,7 @@
   linear_solver = direct
   preconditioner = lu
   direct_factorization = mumps
+  mumps_ordering = pord
   jacobian_lag = 1
   predictor_jacobian_lag = 1
   absolute_tolerance = 1e-8
@@ -160,8 +173,10 @@
   maximum_iterations = 40
   field_residual_scaling = true
   field_residual_convergence = true
+  residual_reduction_tolerance = 3e-7
   temperature_residual_absolute_tolerance = 1e-6
   mechanical_residual_absolute_tolerance = 1e-3
+  line_search = backtracking
 []
 
 [Outputs]

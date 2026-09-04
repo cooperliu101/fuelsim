@@ -2946,14 +2946,18 @@ The complete iteration diagnosis is retained in
 
 ## B6.1 finite-strain plate bending with plasticity and creep
 
-B6.1 reuses the qualified B6.0 ramped fuel-plate mesh and load path. It adds
-fully coupled J2 plasticity and Norton creep to both finite-strain C3D8RT
-regions. Both Abaqus and Fuelsim use a 200 MPa initial yield stress, 2 GPa
-linear isotropic hardening, and a Norton rate of `1e-4 s^-1` at 100 MPa with
+B6.1 reuses the qualified B6.0 fuel-plate mesh, heat source, back-face
+temperature, and clamp. To remove the former near-zero plastic-onset and creep
+comparisons, the matched Fuelsim and Abaqus path uses five fixed two-second
+increments, a front-face temperature ramp from 600 to 800 K, and 0.8 mm axial
+extension of the 100 mm plate. Both finite-strain C3D8RT regions use fully
+coupled J2 plasticity and Norton creep with a 1 MPa initial yield stress, 20 GPa
+linear isotropic hardening, and a Norton rate of `3.5e-4 s^-1` at 100 MPa with
 stress exponent 3. The equivalent Abaqus time-hardening coefficient is
-`1e-28 Pa^-3 s^-1`. Inelastic dissipation heat generation is disabled in both
-programs. These simplified constants qualify the numerical path only and are
-not empirical material models.
+`3.5e-28 Pa^-3 s^-1`. Inelastic dissipation heat generation is disabled in both
+programs. These simplified constants exercise the numerical path and are not
+empirical material models. They are held fixed throughout the accuracy,
+commit-level paired timing, and Abaqus timing measurements.
 
 Run Abaqus R2018x on one processor, then run the registered comparison:
 
@@ -2962,34 +2966,43 @@ powershell -ExecutionPolicy Bypass -File verification/abaqus/run_b61.ps1 \
   -SourceDirectory verification/abaqus
 ctest --test-dir build \
   -R '^fuelsim_b61_fuel_plate_c3d8rt_finite_inelastic_abaqus_tests$' \
-  -j1 --output-on-failure
+  -j4 --output-on-failure
 ```
 
-The extractor writes every one of the ten accepted increments: 17,850 nodal
-rows, 12,000 material-point rows, and ten energy rows. It maps Abaqus element
+The extractor writes every one of the five accepted increments: 8,925 nodal
+rows, 6,000 material-point rows, and five energy rows. It maps Abaqus element
 labels through the tracked mesh manifest because the Exodus reader stores the
 two blocks in block order rather than Abaqus global-label order. The maximum
-matched material-point coordinate difference is `2.56091e-7 m`.
+matched material-point coordinate difference is `4.30611e-8 m`.
 
-Displacement-vector errors are `0.00453753%` relative L2, `0.00826074%`
-relative absolute peak, and `0.0570103%` maximum pointwise relative. Equivalent
-plastic-strain errors are `0.0364082%`, `0.0149187%`, and `0.369616%`.
-Equivalent creep-strain errors are `0.00721628%`, `0.000158704%`, and `3.122%`;
-the pointwise maximum has an Abaqus reference of only `6.07083e-11`. Stress
-relative L2 and relative absolute-peak errors are `0.0231611%` and `0.0472078%`;
-its `4.16196%` pointwise maximum has a 0.549508 MPa reference tensor norm.
-The explicit 5 percent pointwise qualification covers these low-amplitude
-stress, elastic-strain, and creep locations. Aggregate and peak gates remain
-0.5 percent, no denominator floor is used, and zero-reference counts and
-absolute differences remain separately reported. The observed maximum
-equivalent plastic and creep strains are `0.00346166` and `0.00756423`.
+Displacement-vector errors are `0.00382850%` relative L2, `0.00593139%`
+relative absolute peak, and `0.0678457%` maximum pointwise relative. Reaction-
+force-vector errors are `0.0772653%`, `0.205813%`, and `0.447050%`. Stress-
+tensor errors are `0.0194975%`, `0.0690957%`, and `0.103000%`. The corresponding
+three errors are `0.00857108%`, `0.000734885%`, and `0.0807925%` for equivalent
+plastic strain, and `0.0207731%`, `0.00368103%`, and `0.210174%` for equivalent
+creep strain. Every accepted field now passes the common 0.5 percent gate; the
+former qualified pointwise exceptions have been removed. No denominator floor
+is used, and zero-reference counts and absolute differences remain separately
+reported. All 6,000 material-point rows have nonzero plastic and creep
+references. The maximum equivalent plastic and creep strains are `0.00802400`
+and `0.00823199`.
 
-With CPU 0 fixed, MUMPS, and one thread per numerical library, the three
-Fuelsim external times are `7.54`, `7.45`, and `7.54 s`; the median is
-`7.54 s`. Abaqus `cpus=1` takes `9.452420`, `9.596636`, and `9.328452 s`;
-the median is `9.452420 s`. The external ratio is `0.797679`, so Fuelsim uses
-`20.2321%` less wall time in this controlled cross-Windows-and-WSL observation.
-The latest Abaqus job summary separately reports 5.1 seconds of total CPU time
-and 5 seconds of analysis wall time. Fuelsim uses 34 nonlinear iterations and
-34 Jacobians; Abaqus uses 22 nonlinear iterations and 22 matrix decompositions.
-The complete results are stored in the B6.1 comparison and timing artifacts.
+With CPU 0 fixed, MUMPS, one thread per numerical library, identical material
+parameters, and output disabled, the three Fuelsim production-entry external
+times are `5.30`, `5.34`, and `5.34 s`; the median is `5.34 s`. Abaqus `cpus=1`
+takes `5.389362`, `5.4808106`, and `5.3975893 s`; the median is `5.3975893 s`.
+The external ratio is `0.989331`, so Fuelsim uses `1.06694%` less wall time in
+this controlled cross-Windows-and-WSL observation. The same physical workload
+through the production entry built from pre-change commit `26dde87`, using its
+default SCOTCH ordering, has `5.77`, `5.88`, and `5.89 s` formal samples and a
+`5.88 s` median. Fixed contribution metadata,
+in-place Jacobian scaling, hoisted C3D8RT geometry invariants, direct volume-
+state gathering, explicit PORD ordering, and backtracking line search reduce the
+commit-paired median by `9.18367%`. This overall value includes the explicit
+ordering and line-search selections. With PORD forced on both commits, their
+medians are `5.35` and `5.34 s`; this isolates a `0.186916%` reduction from the
+C++ assembly and data-path changes. No material coefficient was changed for timing.
+Fuelsim uses 26 nonlinear iterations and Jacobians; Abaqus uses 14 nonlinear
+iterations and matrix decompositions. The complete results are stored in the
+B6.1 comparison and timing artifacts.

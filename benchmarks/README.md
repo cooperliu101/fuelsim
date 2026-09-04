@@ -1455,45 +1455,62 @@ counts are retained together in
 
 ## B6.1 finite-strain inelastic fuel-plate bending
 
-B6.1 extends the qualified B6.0 ramped plate without changing its 1,785-node,
-1,200-element mesh, 7,140 degrees of freedom, boundary conditions, heat source,
-or ten fixed one-second increments. Both regions use the finite-strain C3D8RT
-formulation and add fully coupled J2 plasticity with linear isotropic hardening
-and Norton creep. The common verification constants are a 200 MPa initial yield
-stress, a 2 GPa hardening modulus, and a Norton rate of `1e-4 s^-1` at 100 MPa
-with exponent 3. Inelastic dissipation is excluded from the heat equation in
-both programs. These constants exercise the numerical branches and are not
-empirical fuel or cladding models.
+B6.1 retains the 1,785-node, 1,200-element and 7,140-degree-of-freedom B6.0
+mesh, heat source, back-face temperature, and clamp. The matched five-step path
+ramps the front face from 600 to 800 K and extends the 100 mm plate axially by
+0.8 mm. Both finite-strain C3D8RT regions use fully coupled J2 plasticity and
+Norton creep. The common verification constants are a 1 MPa initial yield
+stress, a 20 GPa hardening modulus, and a Norton rate of `3.5e-4 s^-1` at
+100 MPa with exponent 3. Inelastic dissipation is excluded from the heat
+equation in both programs. These constants exercise the numerical branches and
+are not empirical fuel or cladding models; they remain unchanged in every
+performance run.
 
-The registered comparison runs all ten increments and checks 17,850 nodal
-records, 12,000 material-point records, and ten energy records:
+The registered comparison runs all five increments and checks 8,925 nodal
+records, 6,000 material-point records, and five energy records:
 
 ```text
 ctest --test-dir build \
   -R '^fuelsim_b61_fuel_plate_c3d8rt_finite_inelastic_abaqus_tests$' \
-  -j1 --output-on-failure
+  -j4 --output-on-failure
 ```
 
 The relative L2, relative absolute-peak, and maximum pointwise-relative errors
-are `0.00453753%`, `0.00826074%`, and `0.0570103%` for the displacement vector;
-`0.0364082%`, `0.0149187%`, and `0.369616%` for equivalent plastic strain; and
-`0.00721628%`, `0.000158704%`, and `3.122%` for equivalent creep strain. The
-last pointwise value uses a `6.07083e-11` Abaqus reference and is retained
-without a denominator floor under the explicit 5 percent small-reference gate.
-The stress tensor likewise has `0.0231611%` relative L2 and `0.0472078%`
-relative absolute-peak errors, while its `4.16196%` pointwise maximum occurs at
-a 0.549508 MPa reference tensor norm. Maximum equivalent plastic and creep
-strains are `0.00346166` and `0.00756423`, so both mechanisms are active.
-Abaqus artificial strain energy reaches `1.25358%` of internal energy.
+are `0.00382850%`, `0.00593139%`, and `0.0678457%` for displacement; `0.0772653%`,
+`0.205813%`, and `0.447050%` for reaction force; `0.0194975%`, `0.0690957%`, and
+`0.103000%` for stress; `0.00857108%`, `0.000734885%`, and `0.0807925%` for
+equivalent plastic strain; and `0.0207731%`, `0.00368103%`, and `0.210174%` for
+equivalent creep strain. All use the common 0.5 percent gate without a
+denominator floor. All 6,000 material-point rows have nonzero plastic and creep
+references. Maximum equivalent plastic and creep strains are `0.00802400` and
+`0.00823199`. Abaqus artificial strain energy reaches `0.788155%` of internal
+energy.
 
 For the controlled timing runs, CPU 0 was fixed, MUMPS was selected, and every
-numerical library was limited to one thread. Fuelsim external times were `7.54`,
-`7.45`, and `7.54 s`, with a `7.54 s` median. Abaqus `cpus=1` external times
-were `9.452420`, `9.596636`, and `9.328452 s`, with a `9.452420 s` median. The
-Fuelsim-to-Abaqus ratio is `0.797679`, so Fuelsim uses `20.2321%` less external
-wall time in this cross-Windows-and-WSL comparison. Abaqus uses 22 nonlinear
-iterations and matrix decompositions; Fuelsim uses 34 nonlinear iterations and
-Jacobians with one PETSc workspace. External wall time, not either program's
-internal timer, is the speed comparison metric. Complete field, energy, solver,
-and timing data are retained in
+numerical library was limited to one thread. Fuelsim production-entry external
+times were `5.30`, `5.34`, and `5.34 s`, with a `5.34 s` median. Abaqus
+`cpus=1` external times were `5.389362`, `5.4808106`, and `5.3975893 s`, with a
+`5.3975893 s` median. The Fuelsim-to-Abaqus ratio is `0.989331`, so Fuelsim uses
+`1.06694%` less external wall time in this cross-Windows-and-WSL comparison.
+The same physical workload through the production entry at pre-change commit
+`26dde87`, using its default SCOTCH ordering, has a `5.88 s` median; the current
+PORD-selected path is `9.18367%` lower without a material change.
+For a stricter code-path isolation, forcing PORD on both commits gives `5.35`
+and `5.34 s` medians, a `0.186916%` reduction from the C++ assembly and data
+changes alone. Abaqus
+uses 14 nonlinear iterations and matrix decompositions; Fuelsim uses 26
+nonlinear iterations and Jacobians with one PETSc workspace. External wall
+time, not either program's internal timer, is the speed comparison metric.
+Complete field, energy, solver, and timing data are retained in
 `verification/abaqus/b61_fuel_plate_c3d8rt_finite_inelastic_bending_comparison.tsv`.
+
+The required unrelated solver regression used the same CPU and thread limits.
+For the 1,584-degree-of-freedom case, pre-change commit `26dde87` formal samples
+were `1.42`, `1.41`, and `1.39 s`, while the current samples were `1.40`, `1.40`,
+and `1.38 s`; the medians are `1.41` and `1.40 s`, respectively, with 64
+nonlinear iterations on both sides. The current 23,010-degree-of-freedom,
+20-step direct MUMPS case completed all 20 steps in `27.81 s` externally and
+`27.3085 s` internally, with 62 nonlinear iterations, 82 residual evaluations,
+62 Jacobian evaluations, one PETSc workspace, and a final residual norm of
+`3.24913e-9`. These runs check for a general solver regression and do not replace
+the matched B6.1 Abaqus comparison.

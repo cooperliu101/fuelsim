@@ -1089,23 +1089,35 @@ void SpatialAssembly::sparsity_contribution_jacobian_pattern(
 
 Hex8LocalValues SpatialAssembly::volume_state(std::size_t index, const std::vector<double>& global_state) const {
     if (_uses_hex20) throw std::logic_error("HEX8 volume state requested from a HEX20 problem");
-    std::vector<std::size_t> dofs;
-    contribution_dofs(index, dofs);
-    if (dofs.size() != hex8_local_dof_count)
-        throw std::logic_error("HEX8 volume contribution has an invalid DOF layout");
+    if (index >= volume_contribution_count()) throw std::out_of_range("HEX8 volume contribution is out of range");
+    const auto location = element_location(index);
+    const Hex8Element& element = _meshes[location.first].elements()[location.second];
     Hex8LocalValues result{};
-    for (std::size_t local = 0; local < result.size(); ++local) result[local] = global_state.at(dofs[local]);
+    for (std::size_t node = 0; node < element.nodes.size(); ++node) {
+        const std::size_t global = global_node(location.first, element.nodes[node]);
+        result[node] = global_state.at(dof(Field::temperature, global));
+        result[8 + node] = global_state.at(dof(Field::displacement_x, global));
+        result[16 + node] = global_state.at(dof(Field::displacement_y, global));
+        result[24 + node] = global_state.at(dof(Field::displacement_z, global));
+    }
     return result;
 }
 
 Hex20LocalValues SpatialAssembly::hex20_volume_state(std::size_t index, const std::vector<double>& global_state) const {
     if (!_uses_hex20) throw std::logic_error("HEX20 volume state requested from a HEX8 problem");
-    std::vector<std::size_t> dofs;
-    contribution_dofs(index, dofs);
-    if (dofs.size() != hex20_local_dof_count)
-        throw std::logic_error("HEX20 volume contribution has an invalid DOF layout");
+    if (index >= volume_contribution_count()) throw std::out_of_range("HEX20 volume contribution is out of range");
+    const auto location = element_location(index);
+    const Hex20Element& element = _hex20_meshes[location.first].elements()[location.second];
     Hex20LocalValues result{};
-    for (std::size_t local = 0; local < result.size(); ++local) result[local] = global_state.at(dofs[local]);
+    for (std::size_t node = 0; node < 8; ++node)
+        result[node] =
+            global_state.at(dof(Field::temperature, global_temperature_node(location.first, element.nodes[node])));
+    for (std::size_t node = 0; node < element.nodes.size(); ++node) {
+        const std::size_t global = global_node(location.first, element.nodes[node]);
+        result[8 + node] = global_state.at(dof(Field::displacement_x, global));
+        result[28 + node] = global_state.at(dof(Field::displacement_y, global));
+        result[48 + node] = global_state.at(dof(Field::displacement_z, global));
+    }
     return result;
 }
 

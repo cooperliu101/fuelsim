@@ -263,7 +263,8 @@ PETSc 选项仍可在命令行覆盖，例如：
 ```
 
 多 rank 默认使用 PETSc 并行 MUMPS 直接分解，单 rank 可用
-`direct_factorization = mumps` 明确选择同一分解器；也可在 `[Solver]` 选择
+`direct_factorization = mumps` 明确选择同一分解器；经过具体算例计时后可用
+`mumps_ordering = scotch|pord` 选择排序算法，默认保持 SCOTCH。也可在 `[Solver]` 选择
 `gmres` 与 `block_jacobi`、`field_split` 或 `hypre`。例如：
 
 ```bash

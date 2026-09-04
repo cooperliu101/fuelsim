@@ -43,12 +43,18 @@ struct SolverOptions final {
         automatic,
         mumps,
     };
+    enum class MumpsOrdering {
+        automatic,
+        scotch,
+        pord,
+    };
     double absolute_tolerance = 1.0e-8, relative_tolerance = 1.0e-10, step_tolerance = 1.0e-12;
     int maximum_iterations = 40;
     LineSearch line_search = LineSearch::basic;
     LinearSolver linear_solver = LinearSolver::automatic;
     Preconditioner preconditioner = Preconditioner::automatic;
     DirectFactorization direct_factorization = DirectFactorization::automatic;
+    MumpsOrdering mumps_ordering = MumpsOrdering::automatic;
     double linear_relative_tolerance = 1.0e-8;
     int maximum_linear_iterations = 500, jacobian_lag = 1, predictor_jacobian_lag = 0;
     bool backtracking_fallback = true, field_residual_scaling = false, field_residual_convergence = false;

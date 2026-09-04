@@ -821,9 +821,9 @@ void read_solver(const InputDocument& document, const std::string& path, FuelSim
     const InputSection& solver = *solver_section;
     validate_keys(document, solver,
         {"absolute_tolerance", "relative_tolerance", "step_tolerance", "maximum_iterations", "linear_solver",
-            "preconditioner", "direct_factorization", "linear_relative_tolerance", "maximum_linear_iterations",
-            "backtracking_fallback", "field_residual_scaling", "field_residual_convergence",
-            "residual_reduction_tolerance", "temperature_residual_absolute_tolerance",
+            "preconditioner", "direct_factorization", "mumps_ordering", "linear_relative_tolerance",
+            "maximum_linear_iterations", "backtracking_fallback", "field_residual_scaling",
+            "field_residual_convergence", "residual_reduction_tolerance", "temperature_residual_absolute_tolerance",
             "mechanical_residual_absolute_tolerance", "temperature_residual_scale", "mechanical_residual_scale",
             "jacobian_lag", "predictor_jacobian_lag", "line_search"});
     result.solver.absolute_tolerance = read_optional_double(document, solver, "absolute_tolerance", 1.0e-8);
@@ -854,6 +854,13 @@ void read_solver(const InputDocument& document, const std::string& path, FuelSim
         result.solver.direct_factorization = SolverOptions::DirectFactorization::mumps;
     else if (direct_factorization != "automatic")
         throw std::invalid_argument(path + ": direct_factorization must be automatic or mumps");
+    const std::string mumps_ordering = read_optional_string(solver, "mumps_ordering", "automatic");
+    if (mumps_ordering == "scotch")
+        result.solver.mumps_ordering = SolverOptions::MumpsOrdering::scotch;
+    else if (mumps_ordering == "pord")
+        result.solver.mumps_ordering = SolverOptions::MumpsOrdering::pord;
+    else if (mumps_ordering != "automatic")
+        throw std::invalid_argument(path + ": mumps_ordering must be automatic, scotch, or pord");
     if (result.solver.direct_factorization == SolverOptions::DirectFactorization::mumps &&
         (result.solver.linear_solver == SolverOptions::LinearSolver::gmres ||
             (result.solver.preconditioner != SolverOptions::Preconditioner::automatic &&
