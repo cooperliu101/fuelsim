@@ -6,8 +6,10 @@ import sys
 from odbAccess import openOdb
 
 
-if len(sys.argv) != 5:
-    raise RuntimeError("usage: extract_b61_c3d20t.py <job.odb> <mesh.json> <nodal.csv> <integration.csv>")
+if len(sys.argv) not in (5, 6):
+    raise RuntimeError(
+        "usage: extract_b61_c3d20t.py <job.odb> <mesh.json> <nodal.csv> <integration.csv> [frame_number]"
+    )
 
 
 def data(value):
@@ -57,9 +59,16 @@ try:
     step = odb.steps["FINITE_INELASTIC_BENDING"]
     if len(step.frames) != 6:
         raise RuntimeError("B6.1 C3D20T expected five fixed increments, got %d" % (len(step.frames) - 1))
-    frame = step.frames[-1]
-    if abs(frame.frameValue - 10.0) > 1.0e-10:
-        raise RuntimeError("B6.1 C3D20T final frame has time %.16g" % frame.frameValue)
+    frame_number = len(step.frames) - 1 if len(sys.argv) == 5 else int(sys.argv[5])
+    if frame_number < 1 or frame_number >= len(step.frames):
+        raise RuntimeError("B6.1 C3D20T frame number must be between 1 and 5")
+    frame = step.frames[frame_number]
+    expected_time = 2.0 * frame_number
+    if abs(frame.frameValue - expected_time) > 1.0e-10:
+        raise RuntimeError(
+            "B6.1 C3D20T frame %d has time %.16g instead of %.16g"
+            % (frame_number, frame.frameValue, expected_time)
+        )
 
     temperature = nodal_values(frame, "NT11")
     displacement = nodal_values(frame, "U")

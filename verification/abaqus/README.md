@@ -3047,6 +3047,15 @@ L2 error, `0.564291%` relative absolute-peak error, and `2.03872%` maximum
 pointwise error. The comparison therefore exits with failure and the case is
 not qualified. No denominator floor is used.
 
+The five-frame integration-point diagnosis shows cumulative separation rather
+than an integration-point numbering error. At 2 seconds, the largest metrics
+for equivalent stress, equivalent plastic strain, and equivalent creep strain
+are `0.0989014%`, `0.102316%`, and `0.296408%`. Equivalent creep strain first
+exceeds the gate at 4 seconds with a `0.681278%` pointwise error; equivalent
+stress and equivalent plastic strain first exceed it at 8 seconds with
+`0.640403%` and `0.655898%` pointwise errors. The exact per-frame metrics are in
+`b61_fuel_plate_c3d20t_finite_inelastic_bending_increment_diagnosis.tsv`.
+
 Alternating CPU-zero, one-thread runs give pre-change external times of `70.76`,
 `74.94`, and `70.71 s`, with a `70.76 s` median. The first ordinary-double
 geometry residual, compact C3D20T integration-point work arrays, and PETSc
