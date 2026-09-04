@@ -46,6 +46,50 @@ void write_nodes(const std::string& path, const fuelsim::UnstructuredHex8Mesh& m
     }
 }
 
+void write_nodes(const std::string& path, const fuelsim::UnstructuredHex20Mesh& mesh,
+    const fuelsim::cartesian::SpatialAssembly& spatial, const std::vector<double>& state) {
+    std::vector<std::size_t> source_global(mesh.nodes().size(), 0U);
+    std::vector<bool> present(mesh.nodes().size(), false);
+    std::vector<bool> temperature_active(mesh.nodes().size(), false);
+    std::vector<std::size_t> source_temperature_global(mesh.nodes().size(), 0U);
+    for (std::size_t region = 0; region < spatial.region_count(); ++region) {
+        const auto& region_mesh = spatial.hex20_region_mesh(region);
+        for (std::size_t local = 0; local < region_mesh.nodes().size(); ++local) {
+            const std::size_t source = region_mesh.source_node_ids().at(local);
+            const std::size_t global = spatial.global_node(region, local);
+            if (present[source] && source_global[source] != global)
+                throw std::runtime_error("B6.0 HEX20 interface node maps to multiple global nodes");
+            source_global[source] = global;
+            present[source] = true;
+            if (region_mesh.temperature_nodes().at(local)) {
+                const std::size_t temperature_global = spatial.global_temperature_node(region, local);
+                if (temperature_active[source] && source_temperature_global[source] != temperature_global)
+                    throw std::runtime_error("B6.0 HEX20 temperature node maps to multiple global nodes");
+                source_temperature_global[source] = temperature_global;
+                temperature_active[source] = true;
+            }
+        }
+    }
+    std::ofstream output(path);
+    if (!output) throw std::runtime_error("Could not write B6.0 Fuelsim nodal output: " + path);
+    output << "id,x,y,z,temperature,displacement_x,displacement_y,displacement_z\n";
+    output << std::scientific << std::setprecision(17);
+    for (std::size_t source = 0; source < mesh.nodes().size(); ++source) {
+        if (!present[source])
+            throw std::runtime_error("B6.0 HEX20 mesh node was not assigned a global degree of freedom");
+        const std::size_t global = source_global[source];
+        const auto& point = mesh.nodes()[source];
+        const double temperature =
+            temperature_active[source]
+                ? state[spatial.dof(fuelsim::Field::temperature, source_temperature_global[source])]
+                : 0.0;
+        output << (source + 1U) << ',' << point.x << ',' << point.y << ',' << point.z << ',' << temperature << ','
+               << state[spatial.dof(fuelsim::Field::displacement_x, global)] << ','
+               << state[spatial.dof(fuelsim::Field::displacement_y, global)] << ','
+               << state[spatial.dof(fuelsim::Field::displacement_z, global)] << '\n';
+    }
+}
+
 void write_transient_timing(const std::string& path, const fuelsim::TransientResult& result, double setup_seconds,
     double solver_seconds, double total_seconds, const fuelsim::TransientProblem& problem) {
     std::ofstream output(path);
@@ -135,9 +179,69 @@ int main(int argc, char** argv) {
         fuelsim::PetscSession session(argc, argv, "fuelsim B6.0 C3D8RT fuel-plate bending benchmark\n");
         const auto total_start = Clock::now();
         const fuelsim::FuelSimCaseDefinition definition = fuelsim::read_case_input(argv[1]);
-        const fuelsim::UnstructuredHex8Mesh mesh = fuelsim::read_exodus_hex8(definition.mesh_file);
         const auto setup_end = Clock::now();
         const fuelsim::SolverOptions options = solver_options(definition);
+        if (fuelsim::exodus_uses_hex20(definition.mesh_file)) {
+            const fuelsim::UnstructuredHex20Mesh mesh = fuelsim::read_exodus_hex20(definition.mesh_file);
+            if (definition.problem == fuelsim::CaseProblem::steady) {
+                fuelsim::SteadyProblem problem(definition.spatial, mesh);
+                const auto problem_end = Clock::now();
+                const auto solve_start = Clock::now();
+                const fuelsim::SteadyResult result =
+                    fuelsim::solve_steady(problem, definition.steady_execution, options);
+                const auto solve_end = Clock::now();
+                if (!result.completed || !result.solve.converged)
+                    throw std::runtime_error(
+                        "B6.0 HEX20 steady Fuelsim solve did not complete: " + result.solve.failure_message);
+                if (session.rank() == 0) {
+                    write_nodes(argv[2], mesh, fuelsim::cartesian::ProblemAccess::view(problem), result.solve.state);
+                    const double setup_seconds = std::chrono::duration<double>(problem_end - setup_end).count();
+                    const double solver_seconds = std::chrono::duration<double>(solve_end - solve_start).count();
+                    const double total_seconds = std::chrono::duration<double>(solve_end - total_start).count();
+                    write_steady_timing(argv[3], result, setup_seconds, solver_seconds, total_seconds, problem);
+                    std::cout << std::scientific << std::setprecision(12) << "b60_dofs=" << problem.dof_count() << '\n'
+                              << "b60_completed_load_steps=" << result.completed_steps << '\n'
+                              << "b60_setup_seconds=" << setup_seconds << '\n'
+                              << "b60_solver_seconds=" << solver_seconds << '\n'
+                              << "b60_total_seconds=" << total_seconds << '\n'
+                              << "b60_workspace_setups=" << result.aggregate_timing.workspace_setups << '\n';
+                }
+                return 0;
+            }
+            fuelsim::TransientProblem problem(definition.spatial, mesh);
+            const auto problem_end = Clock::now();
+            const auto& execution = definition.transient_execution;
+            const fuelsim::TransientTimeOptions time_options = {execution.end_time, execution.initial_time_step,
+                execution.minimum_time_step, execution.maximum_time_step, execution.growth_factor,
+                execution.cutback_factor, execution.maximum_cutbacks_per_step, execution.load_ramp_time,
+                execution.target_nonlinear_iterations, execution.iteration_window,
+                execution.time_error_relative_tolerance, execution.temperature_time_absolute_tolerance,
+                execution.displacement_time_absolute_tolerance, execution.time_error_safety_factor,
+                execution.strain_history_time_absolute_tolerance, execution.stress_history_time_absolute_tolerance,
+                execution.include_thermal_time_term, execution.use_linear_time_predictor};
+            const auto solve_start = Clock::now();
+            const fuelsim::TransientResult result = fuelsim::solve_transient(problem, time_options, options);
+            const auto solve_end = Clock::now();
+            if (!result.completed)
+                throw std::runtime_error(
+                    "B6.0 HEX20 Fuelsim solve did not complete: " + result.last_attempt.failure_message);
+            if (session.rank() == 0) {
+                write_nodes(
+                    argv[2], mesh, fuelsim::cartesian::ProblemAccess::view(problem), problem.committed_solution());
+                const double setup_seconds = std::chrono::duration<double>(problem_end - setup_end).count();
+                const double solver_seconds = std::chrono::duration<double>(solve_end - solve_start).count();
+                const double total_seconds = std::chrono::duration<double>(solve_end - total_start).count();
+                write_transient_timing(argv[3], result, setup_seconds, solver_seconds, total_seconds, problem);
+                std::cout << std::scientific << std::setprecision(12) << "b60_dofs=" << problem.dof_count() << '\n'
+                          << "b60_accepted_steps=" << result.accepted_steps.size() << '\n'
+                          << "b60_setup_seconds=" << setup_seconds << '\n'
+                          << "b60_solver_seconds=" << solver_seconds << '\n'
+                          << "b60_total_seconds=" << total_seconds << '\n'
+                          << "b60_workspace_setups=" << result.aggregate_timing.workspace_setups << '\n';
+            }
+            return 0;
+        }
+        const fuelsim::UnstructuredHex8Mesh mesh = fuelsim::read_exodus_hex8(definition.mesh_file);
         if (definition.problem == fuelsim::CaseProblem::steady) {
             fuelsim::SteadyProblem problem(definition.spatial, mesh);
             const auto problem_end = Clock::now();
