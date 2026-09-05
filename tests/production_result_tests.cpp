@@ -638,12 +638,152 @@ void require_argument_count(const std::string& mode, int argc, int expected) {
     if (argc != expected)
         throw std::invalid_argument("Production result check '" + mode + "' received the wrong number of arguments");
 }
+
+bool completed_summary(const std::string& path, const std::string& problem) {
+    const auto summary = read_summary(path);
+    return check(summary.at("completed") == "true" && summary.at("problem") == problem,
+               "Production summary confirms completion of the expected problem") &&
+           check(
+               summary_number(summary, "petsc_workspace_setups") == 1.0, "Production solve reuses one PETSc workspace");
+}
+
+bool run_hex20_inelastic(const std::string& results_path, const std::string& summary_path,
+    const std::string& temperature_path, const std::string& displacement_path, const std::string& material_path) {
+    bool passed = run_hex20_transient(results_path, summary_path, temperature_path, displacement_path, 5.0e-3);
+    passed = completed_summary(summary_path, "transient") && passed;
+    const auto results = fuelsim::test::read_final_exodus_results(results_path);
+    passed = check(std::abs(results.time - 1.0) < 1.0e-12, "HEX20 result reaches the specified final time") && passed;
+    std::ifstream input(material_path);
+    if (!input) throw std::runtime_error("Could not read material reference: " + material_path);
+    std::string line;
+    if (!std::getline(input, line)) throw std::invalid_argument("Empty material reference");
+    const auto header = split_csv(line);
+    if (!std::getline(input, line)) throw std::invalid_argument("Missing material reference row");
+    const auto row = split_csv(line);
+    if (identifier(row, column_index(header, "id", material_path), material_path) != 0)
+        throw std::invalid_argument("Expected the single HEX20 element with source ID zero");
+    while (std::getline(input, line))
+        if (!line.empty()) throw std::invalid_argument("Expected exactly one HEX20 material reference row");
+    const std::array<std::string, 8> reference_names = {"stress_xx", "stress_yy", "stress_zz", "stress_xy", "stress_yz",
+        "stress_xz", "effective_plastic_strain", "effective_creep_strain"};
+    const std::array<std::string, 8> output_names = {
+        "stress_xx", "stress_yy", "stress_zz", "stress_xy", "stress_yz", "stress_xz", "equiv_plastic", "equiv_creep"};
+    for (std::size_t component = 0; component < reference_names.size(); ++component) {
+        const double reference =
+            number(row, column_index(header, reference_names[component], material_path), material_path);
+        FieldErrorMetrics metrics;
+        for (std::size_t q = 0; q < 27; ++q) {
+            const auto& values = results.element(output_names[component] + "_q" + std::to_string(q));
+            if (values.size() != 1) throw std::invalid_argument("Expected exactly one production HEX20 element");
+            metrics.add(values[0], reference);
+        }
+        // These are the original H20.07-09 gates, including the transverse-stress absolute gates.
+        const bool inactive = metrics.maximum_reference < 1.0e-14;
+        const bool transverse = component >= 1 && component <= 5;
+        if (inactive || transverse) {
+            std::cout << output_names[component]
+                      << "_maximum_absolute_difference=" << metrics.maximum_absolute_difference << '\n'
+                      << output_names[component] << "_zero_reference_count=" << metrics.zero_reference_count << '\n'
+                      << output_names[component]
+                      << "_maximum_zero_reference_difference=" << metrics.maximum_zero_reference_difference << '\n';
+        } else {
+            print_relative_metrics(output_names[component], metrics);
+        }
+        const bool matches = inactive ? metrics.maximum_absolute_difference < 1.0e-10
+                                      : (transverse ? metrics.maximum_absolute_difference < 1.0
+                                                    : relative_metrics_below(metrics, 5.0e-3));
+        passed =
+            check(matches, "All 27 HEX20 material points pass the original " + reference_names[component] + " gate") &&
+            passed;
+    }
+    return passed;
+}
+
+bool run_m54(const std::string& results_path, const std::string& summary_path, const std::string& nodal_path,
+    const std::string& pressure_path) {
+    bool passed = run_m1("m54", results_path, summary_path, nodal_path, pressure_path);
+    passed = completed_summary(summary_path, "steady") && passed;
+    const auto summary = read_summary(summary_path);
+    const auto results = fuelsim::test::read_final_exodus_results(results_path);
+    const auto& pressure = results.nodal("contact_pressure_fuel_cladding");
+    const auto& gap = results.nodal("contact_gap_fuel_cladding");
+    std::size_t count = 0, active = 0;
+    double maximum_penetration = 0.0;
+    for (std::size_t node = 0; node < pressure.size(); ++node) {
+        if (std::isnan(pressure[node])) continue;
+        if (!std::isfinite(pressure[node]) || !std::isfinite(gap[node]))
+            throw std::invalid_argument("Invalid production contact field");
+        ++count;
+        if (pressure[node] > 0.0) ++active;
+        maximum_penetration = std::max(maximum_penetration, -gap[node]);
+    }
+    passed =
+        check(count > 0 && active == count &&
+                  summary_number(summary, "contact.fuel_cladding.projected_contact_nodes") ==
+                      static_cast<double>(count) &&
+                  summary_number(summary, "contact.fuel_cladding.active_contact_nodes") == static_cast<double>(count),
+            "M5.4 projects and activates every contact node") &&
+        passed;
+    passed = check(maximum_penetration <= 1.0e-9 && summary_number(summary, "augmented_lagrangian_iterations") > 0,
+                 "M5.4 updates multipliers and satisfies the original 1 nm penetration tolerance") &&
+             passed;
+    std::cout << "m54_maximum_penetration=" << maximum_penetration << '\n';
+    return passed;
+}
+
+bool compare_result_files(
+    const std::string& actual_path, const std::string& reference_path, double tolerance, bool uniaxial_mpi = false) {
+    if (!std::isfinite(tolerance) || tolerance < 0.0)
+        throw std::invalid_argument("Equivalence tolerance must be finite and nonnegative");
+    const auto actual = fuelsim::test::read_final_exodus_results(actual_path);
+    const auto reference = fuelsim::test::read_final_exodus_results(reference_path);
+    if (actual.nodes != reference.nodes || actual.nodal_variable_names != reference.nodal_variable_names ||
+        actual.element_variable_names != reference.element_variable_names ||
+        std::abs(actual.time - reference.time) > 1.0e-12)
+        throw std::invalid_argument("Production result mesh, variable schema or final time differs");
+    bool passed = true;
+    for (int category = 0; category < 2; ++category) {
+        const auto& values = category == 0 ? actual.nodal_variables : actual.element_variables;
+        const auto& expected = category == 0 ? reference.nodal_variables : reference.element_variables;
+        const auto& names = category == 0 ? actual.nodal_variable_names : actual.element_variable_names;
+        for (std::size_t variable = 0; variable < values.size(); ++variable) {
+            if (values[variable].size() != expected[variable].size())
+                throw std::invalid_argument("Result field sizes differ");
+            double maximum_difference = 0.0, scale = 0.0;
+            std::size_t compared = 0, missing = 0;
+            for (std::size_t item = 0; item < values[variable].size(); ++item) {
+                const double a = values[variable][item], b = expected[variable][item];
+                if (std::isnan(a) && std::isnan(b)) {
+                    ++missing;
+                    continue;
+                }
+                if (!std::isfinite(a) || !std::isfinite(b))
+                    throw std::invalid_argument("Result missing-value masks differ or contain infinity");
+                maximum_difference = std::max(maximum_difference, std::abs(a - b));
+                scale = std::max(scale, std::abs(b));
+                ++compared;
+            }
+            // This MPI card is uniaxial. Transverse/shear stresses are physically zero;
+            // distributed factorization leaves sub-micropascal roundoff, not a relative field error.
+            const bool zero_stress =
+                uniaxial_mpi && names[variable].rfind("stress_", 0) == 0 && names[variable].rfind("stress_xx_", 0) != 0;
+            const double bound =
+                zero_stress ? 1.0e-5 : (tolerance == 0.0 ? 0.0 : (scale == 0.0 ? 1.0e-12 : tolerance * scale));
+            passed = check(maximum_difference <= bound, names[variable] + " production equivalence") && passed;
+            std::cout << names[variable] << "_maximum_absolute_difference=" << maximum_difference
+                      << " reference_absolute_peak=" << scale << " absolute_bound=" << bound << " compared=" << compared
+                      << " missing=" << missing << '\n';
+        }
+    }
+    return passed;
+}
 } // namespace
 
 int main(int argc, char** argv) {
     if (argc < 2) {
         std::cerr << "Usage: fuelsim_production_result_tests "
-                     "<m0|m1|m1-unstructured|m21|b3|b6|rz-fields|cartesian-fields|hex20-fields|hex20-transient> "
+                     "<m0|m1|m1-unstructured|m21|b3|b6|rz-fields|rz-steady|cartesian-fields|"
+                     "hex20-fields|hex20-transient|hex20-inelastic|m54|equivalence|mpi-equivalence|restart> "
                      "<result.e> <summary-and-reference files...>\n";
         return 2;
     }
@@ -682,6 +822,33 @@ int main(int argc, char** argv) {
         } else if (mode == "hex20-transient") {
             require_argument_count(mode, argc, 7);
             passed = run_hex20_transient(argv[2], argv[3], argv[4], argv[5], std::stod(argv[6]));
+        } else if (mode == "hex20-inelastic") {
+            require_argument_count(mode, argc, 7);
+            passed = run_hex20_inelastic(argv[2], argv[3], argv[4], argv[5], argv[6]);
+        } else if (mode == "rz-steady") {
+            require_argument_count(mode, argc, 6);
+            passed = run_rz_fields("rz_steady", argv[2], argv[4], std::stod(argv[5]));
+            passed = completed_summary(argv[3], "steady") && passed;
+        } else if (mode == "m54") {
+            require_argument_count(mode, argc, 6);
+            passed = run_m54(argv[2], argv[3], argv[4], argv[5]);
+        } else if (mode == "equivalence") {
+            require_argument_count(mode, argc, 5);
+            passed = compare_result_files(argv[2], argv[3], std::stod(argv[4]));
+        } else if (mode == "mpi-equivalence" || mode == "restart") {
+            require_argument_count(mode, argc, 5);
+            passed = completed_summary(argv[3], "transient");
+            const auto summary = read_summary(argv[3]);
+            passed = check(summary_number(summary, "mpi_ranks") == (mode == "restart" ? 1.0 : 2.0),
+                         "Production summary confirms the requested process count") &&
+                     passed;
+            if (mode == "restart")
+                passed = check(summary_number(summary, "accepted_steps") == 5.0,
+                             "Restart completes the five remaining time steps") &&
+                         passed;
+            passed =
+                compare_result_files(argv[2], argv[4], mode == "restart" ? 0.0 : 1.0e-10, mode == "mpi-equivalence") &&
+                passed;
         } else {
             throw std::invalid_argument("Unknown production result check '" + mode + "'");
         }

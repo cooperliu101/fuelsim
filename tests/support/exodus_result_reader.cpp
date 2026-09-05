@@ -137,6 +137,7 @@ ExodusResults read_final_exodus_results(const std::string& path) {
         result.nodes[node] = {coordinates[0][node], coordinates[1][node], coordinates[2][node]};
 
     const int final_step = static_cast<int>(result.step_count);
+    check_exodus(ex_get_time(file.id(), final_step, &result.time), "Could not read result time");
     result.nodal_variable_names = variable_names(file.id(), EX_NODAL);
     result.nodal_variables =
         read_nodal_variables(file.id(), final_step, node_count, result.nodal_variable_names.size());

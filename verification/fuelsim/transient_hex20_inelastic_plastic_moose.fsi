@@ -90,4 +90,6 @@
 []
 [Outputs]
   console = false
+  csv = transient_hex20_inelastic_plastic_moose_summary.csv
+  exodus = transient_hex20_inelastic_plastic_moose_results.e
 []

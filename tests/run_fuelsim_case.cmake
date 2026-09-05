@@ -20,7 +20,7 @@ foreach(output_file IN LISTS output_files)
 endforeach()
 
 execute_process(
-    COMMAND "${FUELSIM_EXECUTABLE}" -i "${INPUT_FILE}"
+    COMMAND ${FUELSIM_LAUNCHER} "${FUELSIM_EXECUTABLE}" -i "${INPUT_FILE}"
     RESULT_VARIABLE fuelsim_status
     OUTPUT_VARIABLE fuelsim_stdout
     ERROR_VARIABLE fuelsim_stderr

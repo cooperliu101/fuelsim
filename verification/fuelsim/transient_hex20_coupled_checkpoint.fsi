@@ -26,6 +26,11 @@
       reference_stress = 1e8
       stress_exponent = 3
     []
+    [plasticity]
+      function = linear_isotropic_hardening
+      yield_stress = 2e8
+      hardening_modulus = 2e9
+    []
   []
 []
 [Regions]
@@ -72,7 +77,7 @@
 []
 [Executioner]
   type = transient
-  end_time = 1
+  end_time = 0.5
   initial_time_step = 0.1
   minimum_time_step = 0.1
   maximum_time_step = 0.1
@@ -91,6 +96,6 @@
 []
 [Outputs]
   console = false
-  csv = transient_hex20_inelastic_creep_moose_summary.csv
-  exodus = transient_hex20_inelastic_creep_moose_results.e
+  checkpoint = transient_hex20_coupled.checkpoint
+  checkpoint_interval = 5
 []

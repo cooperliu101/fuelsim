@@ -222,6 +222,23 @@ if(BUILD_TESTING)
         set_tests_properties("${test_name}" PROPERTIES LABELS "${test_labels}")
     endfunction()
 
+    # Test scheduling only: every physical input card is copied byte-for-byte.
+    function(fuelsim_add_production_test test_name case_name input_stem check_mode)
+        fuelsim_stage_blackbox_case(staged_input "${case_name}" "${input_stem}.fsi")
+        get_filename_component(case_directory "${staged_input}" DIRECTORY)
+        set(results "${case_directory}/${input_stem}_results.e")
+        set(summary "${case_directory}/${input_stem}_summary.csv")
+        add_test(NAME "${test_name}"
+            COMMAND "${CMAKE_COMMAND}"
+                "-DFUELSIM_EXECUTABLE=$<TARGET_FILE:fuelsim>"
+                "-DINPUT_FILE=${staged_input}"
+                "-DOUTPUT_FILES=${results};${summary}"
+                "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_production_result_tests>"
+                "-DCHECK_ARGUMENTS=${check_mode};${results};${summary};${ARGN}"
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_case.cmake")
+        set_tests_properties("${test_name}" PROPERTIES LABELS "acceptance;production" TIMEOUT 120)
+    endfunction()
+
     add_library(fuelsim_abaqus_hex8_test_support
         tests/support/abaqus_hex8_full_field.cpp
     )
@@ -547,25 +564,10 @@ if(BUILD_TESTING)
         LABELS "acceptance"
     )
 
-    add_executable(fuelsim_m54_augmented_contact_moose_tests
-        tests/m54_augmented_contact_moose_tests.cpp
-    )
-    target_link_libraries(fuelsim_m54_augmented_contact_moose_tests
-        PRIVATE
-            fuelsim::io
-            fuelsim::solver
-            fuelsim_moose_test_support
-    )
-    fuelsim_enable_warnings(fuelsim_m54_augmented_contact_moose_tests)
-    add_test(NAME fuelsim_m54_augmented_contact_moose_tests
-        COMMAND fuelsim_m54_augmented_contact_moose_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_augmented_contact_moose.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m54_augmented_contact_rz_all_nodes_final.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m54_augmented_contact_rz_fuel_surface_final.csv"
-    )
-    set_tests_properties(fuelsim_m54_augmented_contact_moose_tests PROPERTIES
-        LABELS "acceptance"
-    )
+    fuelsim_add_production_test(fuelsim_m54_augmented_contact_moose_tests m54
+        steady_augmented_contact_moose m54
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m54_augmented_contact_rz_all_nodes_final.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m54_augmented_contact_rz_fuel_surface_final.csv")
 
     add_executable(fuelsim_m54_transient_augmented_contact_tests
         tests/m54_transient_augmented_contact_tests.cpp
@@ -1335,26 +1337,22 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_h20_06_transient_moose_tests
         PROPERTIES LABELS "acceptance;three-dimensional;quadratic;transient")
 
-    add_executable(fuelsim_hex20_inelastic_moose_tests tests/hex20_inelastic_moose_tests.cpp)
-    target_link_libraries(fuelsim_hex20_inelastic_moose_tests
-        PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
-    fuelsim_enable_warnings(fuelsim_hex20_inelastic_moose_tests)
-    add_test(NAME fuelsim_h20_07_08_09_inelastic_moose_tests
-        COMMAND fuelsim_hex20_inelastic_moose_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_hex20_inelastic_plastic_moose.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_07_inelastic_plastic_temperature_nodes_0001.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_07_inelastic_plastic_displacement_nodes_0001.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_07_inelastic_plastic_element_state_0001.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_hex20_inelastic_creep_moose.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_07_inelastic_creep_temperature_nodes_0001.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_07_inelastic_creep_displacement_nodes_0001.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_07_inelastic_creep_element_state_0001.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_hex20_inelastic_coupled_moose.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_07_inelastic_coupled_temperature_nodes_0001.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_07_inelastic_coupled_displacement_nodes_0001.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_07_inelastic_coupled_element_state_0001.csv")
-    set_tests_properties(fuelsim_h20_07_08_09_inelastic_moose_tests
-        PROPERTIES LABELS "acceptance;three-dimensional;quadratic;transient;inelastic")
+    add_executable(fuelsim_hex20_history_contract_tests tests/hex20_history_contract_tests.cpp)
+    target_link_libraries(fuelsim_hex20_history_contract_tests PRIVATE fuelsim::io)
+    target_include_directories(fuelsim_hex20_history_contract_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/tests")
+    fuelsim_enable_warnings(fuelsim_hex20_history_contract_tests)
+    add_test(NAME fuelsim_hex20_history_contract_tests COMMAND fuelsim_hex20_history_contract_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_hex20_inelastic_plastic_moose.fsi"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_hex20_inelastic_creep_moose.fsi"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_hex20_inelastic_coupled_moose.fsi")
+    set_tests_properties(fuelsim_hex20_history_contract_tests PROPERTIES LABELS "unit;quadratic;transaction")
+    foreach(branch IN ITEMS plastic creep coupled)
+        fuelsim_add_production_test(fuelsim_h20_inelastic_${branch}_moose_tests h20_inelastic_${branch}
+            transient_hex20_inelastic_${branch}_moose hex20-inelastic
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_07_inelastic_${branch}_temperature_nodes_0001.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_07_inelastic_${branch}_displacement_nodes_0001.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_07_inelastic_${branch}_element_state_0001.csv")
+    endforeach()
     fuelsim_add_hex20_blackbox_test(fuelsim_h20_10_finite_strain_moose_tests h20_10
         steady_hex20_finite_moose.fsi
         h20_10_finite_temperature_nodes_0001.csv
@@ -1838,7 +1836,43 @@ if(BUILD_TESTING)
         HINTS "${PETSC_PREFIX}/bin"
         NO_DEFAULT_PATH
     )
+    set(h20_production_reference "${CMAKE_CURRENT_BINARY_DIR}/blackbox/h20_inelastic_coupled/verification/fuelsim/transient_hex20_inelastic_coupled_moose_results.e")
+    set_tests_properties(fuelsim_h20_inelastic_coupled_moose_tests PROPERTIES
+        FIXTURES_SETUP h20_production_reference)
+    fuelsim_stage_blackbox_case(h20_checkpoint_input h20_restart transient_hex20_coupled_checkpoint.fsi)
+    fuelsim_stage_blackbox_case(h20_restart_input h20_restart transient_hex20_coupled_restart.fsi)
+    get_filename_component(h20_restart_directory "${h20_restart_input}" DIRECTORY)
+    set(h20_restart_result "${h20_restart_directory}/transient_hex20_coupled_restart_results.part1.e")
+    set(h20_restart_summary "${h20_restart_directory}/transient_hex20_coupled_restart_summary.csv")
+    add_test(NAME fuelsim_production_hex20_restart
+        COMMAND "${CMAKE_COMMAND}"
+            "-DFUELSIM_EXECUTABLE=$<TARGET_FILE:fuelsim>"
+            "-DCHECKPOINT_INPUT=${h20_checkpoint_input}"
+            "-DCHECKPOINT_FILE=${h20_restart_directory}/transient_hex20_coupled.checkpoint"
+            "-DINPUT_FILE=${h20_restart_input}"
+            "-DOUTPUT_FILES=${h20_restart_result};${h20_restart_summary}"
+            "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_production_result_tests>"
+            "-DCHECK_ARGUMENTS=restart;${h20_restart_result};${h20_restart_summary};${h20_production_reference}"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_restart.cmake")
+    set_tests_properties(fuelsim_production_hex20_restart PROPERTIES
+        FIXTURES_REQUIRED h20_production_reference LABELS "acceptance;production;restart" TIMEOUT 120)
     if(FUELSIM_MPIEXEC_EXECUTABLE)
+        fuelsim_stage_blackbox_case(h20_mpi_input h20_mpi transient_hex20_inelastic_coupled_moose.fsi)
+        get_filename_component(h20_mpi_directory "${h20_mpi_input}" DIRECTORY)
+        set(h20_mpi_result "${h20_mpi_directory}/transient_hex20_inelastic_coupled_moose_results.e")
+        set(h20_mpi_summary "${h20_mpi_directory}/transient_hex20_inelastic_coupled_moose_summary.csv")
+        add_test(NAME fuelsim_production_hex20_mpi_equivalence
+            COMMAND "${CMAKE_COMMAND}"
+                "-DFUELSIM_EXECUTABLE=$<TARGET_FILE:fuelsim>"
+                "-DFUELSIM_LAUNCHER=${FUELSIM_MPIEXEC_EXECUTABLE};-n;2"
+                "-DINPUT_FILE=${h20_mpi_input}"
+                "-DOUTPUT_FILES=${h20_mpi_result};${h20_mpi_summary}"
+                "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_production_result_tests>"
+                "-DCHECK_ARGUMENTS=mpi-equivalence;${h20_mpi_result};${h20_mpi_summary};${h20_production_reference}"
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_case.cmake")
+        set_tests_properties(fuelsim_production_hex20_mpi_equivalence PROPERTIES
+            FIXTURES_REQUIRED h20_production_reference LABELS "acceptance;production;mpi"
+            PROCESSORS 2 TIMEOUT 120)
         set(c3d8rt_mpi_reference "${CMAKE_CURRENT_BINARY_DIR}/c3d8rt_contact_one_rank.txt")
         add_test(NAME fuelsim_c3d8rt_contact_one_rank_reference
             COMMAND fuelsim_mpi_equivalence_benchmark
@@ -2233,26 +2267,12 @@ if(BUILD_TESTING)
         PROPERTIES LABELS "acceptance"
     )
 
-    add_executable(fuelsim_m42_follower_pressure_moose_tests
-        tests/m42_follower_pressure_moose_tests.cpp
-    )
-    target_link_libraries(fuelsim_m42_follower_pressure_moose_tests
-        PRIVATE
-            fuelsim_moose_test_support
-            fuelsim::io
-            fuelsim::solver
-    )
-    fuelsim_enable_warnings(fuelsim_m42_follower_pressure_moose_tests)
-    add_test(NAME fuelsim_m42_follower_pressure_moose_tests
-        COMMAND fuelsim_m42_follower_pressure_moose_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_finite_follower_pressure.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m42_follower_pressure_rz_all_nodes_final.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_finite_left_top_pressure.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m42_left_top_pressure_rz_all_nodes_final.csv"
-    )
-    set_tests_properties(fuelsim_m42_follower_pressure_moose_tests
-        PROPERTIES LABELS "acceptance"
-    )
+    fuelsim_add_production_test(fuelsim_m42_follower_pressure_moose_tests m42_right
+        steady_finite_follower_pressure rz-steady
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m42_follower_pressure_rz_all_nodes_final.csv" 5e-3)
+    fuelsim_add_production_test(fuelsim_m42_left_top_pressure_moose_tests m42_left_top
+        steady_finite_left_top_pressure rz-steady
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m42_left_top_pressure_rz_all_nodes_final.csv" 5e-3)
 
     add_executable(fuelsim_m43_noncoaxial_finite_strain_moose_tests
         tests/m43_noncoaxial_finite_strain_moose_tests.cpp
@@ -2417,6 +2437,7 @@ if(BUILD_TESTING)
     # exercise a distributed PETSc path, not process-level oversubscription.
     if(FUELSIM_MPIEXEC_EXECUTABLE)
         set(FUELSIM_CTEST_TWO_RANK_TESTS
+            fuelsim_production_hex20_mpi_equivalence
             fuelsim_mpi_hex8_solver_tests
             fuelsim_c3d8rt_contact_two_rank_equivalence
             fuelsim_mpi_hex20_solver_tests

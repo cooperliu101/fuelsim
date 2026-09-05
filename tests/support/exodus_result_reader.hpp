@@ -13,6 +13,7 @@ struct ExodusResults final {
     std::vector<std::string> element_variable_names;
     std::vector<std::vector<double>> element_variables;
     std::size_t step_count = 0;
+    double time = 0.0;
 
     const std::vector<double>& nodal(const std::string& name) const;
     const std::vector<double>& element(const std::string& name) const;

@@ -140,4 +140,6 @@
 
 [Outputs]
   console = true
+  csv = steady_augmented_contact_moose_summary.csv
+  exodus = steady_augmented_contact_moose_results.e
 []

@@ -84,4 +84,6 @@
 
 [Outputs]
   console = false
+  csv = steady_finite_left_top_pressure_summary.csv
+  exodus = steady_finite_left_top_pressure_results.e
 []
