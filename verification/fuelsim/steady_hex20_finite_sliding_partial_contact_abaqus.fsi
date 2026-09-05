@@ -149,5 +149,7 @@
 []
 
 [Outputs]
+  csv = steady_hex20_finite_sliding_partial_contact_abaqus_summary.csv
+  exodus = steady_hex20_finite_sliding_partial_contact_abaqus_results.e
   console = true
 []

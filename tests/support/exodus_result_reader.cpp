@@ -184,6 +184,28 @@ ExodusResults read_exodus_results(const std::string& path, std::size_t step) {
         check_exodus(ex_get_name(file.id(), EX_SIDE_SET, id, name.data()), "Could not read side-set name");
         result.side_set_names.emplace_back(name.data());
         result.side_set_sizes.push_back(count(entries, "side-set entries"));
+        std::int64_t list_size = 0;
+        check_exodus(
+            ex_get_side_set_node_list_len(file.id(), id, &list_size), "Could not read side-set node-list size");
+        std::vector<std::int64_t> face_sizes(count(entries, "side-set entries"));
+        std::vector<std::int64_t> face_nodes(count(list_size, "side-set node-list size"));
+        if (entries != 0)
+            check_exodus(ex_get_side_set_node_list(file.id(), id, face_sizes.data(), face_nodes.data()),
+                "Could not read side-set face nodes");
+        std::vector<std::vector<std::size_t>> faces;
+        std::size_t offset = 0;
+        for (const auto face_size : face_sizes) {
+            std::vector<std::size_t> nodes;
+            for (std::size_t local = 0; local < count(face_size, "side-set face size"); ++local) {
+                const auto node = face_nodes.at(offset++);
+                if (node <= 0 || static_cast<std::uint64_t>(node) > node_count)
+                    throw std::invalid_argument("Side-set face contains an invalid source node");
+                nodes.push_back(static_cast<std::size_t>(node - 1));
+            }
+            faces.push_back(std::move(nodes));
+        }
+        if (offset != face_nodes.size()) throw std::invalid_argument("Side-set node-list size is inconsistent");
+        result.side_set_face_nodes.push_back(std::move(faces));
     }
     result.global_variable_names = variable_names(file.id(), EX_GLOBAL);
     result.global_variables.resize(result.global_variable_names.size());

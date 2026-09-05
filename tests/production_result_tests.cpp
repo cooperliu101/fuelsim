@@ -927,6 +927,36 @@ int main(int argc, char** argv) {
         } else if (mode == "cartesian-fields") {
             require_argument_count(mode, argc, 5);
             passed = run_cartesian_fields("cartesian_case", argv[2], argv[3], std::stod(argv[4]));
+        } else if (mode == "hex20-friction-path-33" || mode == "hex20-friction-path-36") {
+            require_argument_count(mode, argc, mode == "hex20-friction-path-33" ? 7 : 6);
+            passed = completed_summary(argv[3], "transient");
+            passed = check(summary_number(read_summary(argv[3]), "accepted_steps") == 70.0,
+                         "HEX20 friction path completes seventy prescribed increments") &&
+                     passed;
+            if (mode == "hex20-friction-path-33")
+                passed = fuelsim::test::check_hex20_friction_path_33(argv[2], argv[4], argv[5], argv[6]) && passed;
+            else
+                passed = fuelsim::test::check_hex20_friction_path_36(argv[2], argv[4], argv[5]) && passed;
+        } else if (mode == "hex20-partial-contact") {
+            require_argument_count(mode, argc, 5);
+            passed = completed_summary(argv[3], "steady");
+            passed = check(summary_number(read_summary(argv[3]), "load_steps_completed") == 4.0,
+                         "H20.41 completes four load steps") &&
+                     passed;
+            const auto summary = read_summary(argv[3]);
+            passed = check(summary_number(summary, "contact.interface.projected_contact_nodes") == 29.0 &&
+                               summary_number(summary, "contact.interface.unprojected_contact_nodes") == 0.0 &&
+                               summary_number(summary, "contact.interface.active_contact_nodes") == 11.0,
+                         "H20.41 summary reports the physical active-constraint topology") &&
+                     passed;
+            passed = fuelsim::test::check_hex20_partial_contact(argv[2], argv[4]) && passed;
+        } else if (mode == "b40") {
+            require_argument_count(mode, argc, 6);
+            passed = completed_summary(argv[3], "transient");
+            passed = check(summary_number(read_summary(argv[3]), "accepted_steps") == 4.0,
+                         "B4.0 completes four prescribed biaxial friction steps") &&
+                     passed;
+            passed = fuelsim::test::check_hex8_biaxial_friction(argv[2], argv[4], argv[5]) && passed;
         } else if (mode == "b34" || mode == "b34-transient") {
             require_argument_count(mode, argc, 7);
             const bool transient = mode == "b34-transient";
@@ -1218,6 +1248,13 @@ int main(int argc, char** argv) {
         } else if (mode == "equivalence") {
             require_argument_count(mode, argc, 5);
             passed = compare_result_files(argv[2], argv[3], std::stod(argv[4]));
+        } else if (mode == "b40-restart") {
+            require_argument_count(mode, argc, 5);
+            passed = completed_summary(argv[3], "transient");
+            passed = check(summary_number(read_summary(argv[3]), "accepted_steps") == 2.0,
+                         "B4.0 restart completes two remaining time steps") &&
+                     passed;
+            passed = compare_result_files(argv[2], argv[4], 0.0, false) && passed;
         } else if (mode == "mpi-equivalence" || mode == "restart") {
             require_argument_count(mode, argc, 5);
             passed = completed_summary(argv[3], "transient");

@@ -1,15 +1,10 @@
-#include "fuelsim/io/case_input.hpp"
-#include "fuelsim/io/checkpoint.hpp"
-#include "fuelsim/io/results_io.hpp"
-#include "fuelsim/solver/solve_workflows.hpp"
-#include "support/cartesian3d_problem_access.hpp"
-#include "support/moose_field_comparison.hpp"
+#include "support/field_error_metrics.hpp"
+#include "support/production_checks.hpp"
+#include "support/production_contact_history.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
-#include <cstdio>
 #include <fstream>
-#include <iomanip>
 #include <iostream>
 #include <limits>
 #include <sstream>
@@ -18,15 +13,17 @@
 #include <vector>
 
 namespace {
+using StepState = fuelsim::test::OutputContactStep;
+
 struct DisplacementReference final {
     std::size_t id;
-    fuelsim::CartesianPoint3 point;
+    fuelsim::test::OutputPoint point;
     std::array<double, 3> displacement;
 };
 
 struct ContactReference final {
     std::size_t id;
-    fuelsim::CartesianPoint3 point;
+    fuelsim::test::OutputPoint point;
     std::array<double, 3> normal_force, tangential_force;
     double slip_1, slip_2;
 };
@@ -130,81 +127,14 @@ bool check(bool condition, const std::string& message) {
     return false;
 }
 
-fuelsim::SolverOptions solver_options(const fuelsim::FuelSimCaseDefinition& definition) {
-    fuelsim::SolverOptions options;
-    options.absolute_tolerance = definition.solver.absolute_tolerance;
-    options.relative_tolerance = definition.solver.relative_tolerance;
-    options.step_tolerance = definition.solver.step_tolerance;
-    options.maximum_iterations = definition.solver.maximum_iterations;
-    options.linear_solver = definition.solver.linear_solver;
-    options.direct_factorization = definition.solver.direct_factorization;
-    options.field_residual_scaling = definition.solver.field_residual_scaling;
-    options.linear_relative_tolerance = definition.solver.linear_relative_tolerance;
-    options.maximum_linear_iterations = definition.solver.maximum_linear_iterations;
-    return options;
-}
-
-fuelsim::TransientTimeOptions time_options(
-    const fuelsim::FuelSimCaseDefinition& definition, double end_time, double initial_time_step) {
-    fuelsim::TransientTimeOptions options = definition.transient_execution;
-    options.end_time = end_time;
-    options.initial_time_step = initial_time_step;
-    options.minimum_time_step = std::min(options.minimum_time_step, initial_time_step);
-    options.maximum_time_step = initial_time_step;
-    options.growth_factor = 1.0;
-    return options;
-}
-
-struct StepState final {
-    double time;
-    std::vector<double> solution;
-    std::vector<fuelsim::CartesianContactNodeSummary> contact;
-    std::vector<fuelsim::ContactPointHistory> histories;
-};
-
-class Recorder final : public fuelsim::TransientStepObserver {
-  public:
-    void accepted_step(const fuelsim::TransientProblem& problem, const fuelsim::TransientAcceptedStep& step) override {
-        if (std::abs(step.time - std::round(step.time)) > 1.0e-12) return;
-        const std::vector<double>& solution = problem.committed_solution();
-        const std::vector<fuelsim::CartesianContactNodeSummary> contact =
-            fuelsim::cartesian::ProblemAccess::summarize_contact_nodes(problem, 0, solution);
-        std::size_t sticking = 0, sliding = 0;
-        for (const fuelsim::CartesianContactNodeSummary& node : contact) {
-            if (!(node.pressure > 0.0)) continue;
-            if (node.sliding)
-                ++sliding;
-            else
-                ++sticking;
-        }
-        double normal_x = 0.0, tangential_y = 0.0, tangential_z = 0.0;
-        for (const fuelsim::CartesianContactNodeSummary& node : contact) {
-            normal_x += node.normal_contact_force[0];
-            tangential_y += node.tangential_contact_force[1];
-            tangential_z += node.tangential_contact_force[2];
-        }
-        std::cout << "h20_friction_path_time=" << step.time << " sticking=" << sticking << " sliding=" << sliding
-                  << " normal_x=" << normal_x << " tangential_y=" << tangential_y << " tangential_z=" << tangential_z
-                  << '\n';
-        states.push_back({step.time, solution, contact,
-            fuelsim::cartesian::ProblemAccess::committed_contact_histories(problem).at(0)});
-    }
-
-    std::vector<StepState> states;
-};
-
-bool compare_abaqus_steps(const fuelsim::TransientProblem& problem, const fuelsim::UnstructuredHex20Mesh& mesh,
-    const std::vector<StepState>& states, const std::string& displacement_path, const std::string& contact_path,
-    const std::string& reaction_path) {
+bool compare_abaqus_steps(const std::vector<StepState>& states, const std::string& displacement_path,
+    const std::string& contact_path, const std::string& reaction_path) {
     const auto displacement = read_displacement_reference(displacement_path);
     const auto contact = read_contact_reference(contact_path);
     const auto reaction = read_reaction_reference(reaction_path);
     if (states.size() != displacement.size() || states.size() != contact.size() || states.size() != reaction.size())
         throw std::invalid_argument("H20.33 Fuelsim and Abaqus step counts differ");
-    const auto& spatial = fuelsim::cartesian::ProblemAccess::view(problem);
-    const auto& fields = spatial.field_layout();
-    const std::vector<std::size_t> contact_nodes =
-        fuelsim::cartesian::ProblemAccess::contact_secondary_source_nodes(problem, 0);
+    const auto& contact_nodes = states.front().source_nodes;
     constexpr double tolerance = 1.0e-2;
     constexpr double zero_tolerance = 1.2e-8;
     bool passed = true;
@@ -212,33 +142,30 @@ bool compare_abaqus_steps(const fuelsim::TransientProblem& problem, const fuelsi
         std::array<fuelsim::test::FieldErrorMetrics, 3> displacement_metrics;
         fuelsim::test::FieldErrorMetrics normal_force, tangential_force, slip_1, slip_2;
         fuelsim::test::GroupedFieldErrorMetrics displacement_vector, contact_force_vector, tangential_slip_vector;
-        std::vector<bool> present(mesh.nodes().size(), false);
+        std::vector<bool> present(states[step].output.nodes.size(), false);
         std::vector<std::size_t> displacement_source_ids;
         double maximum_coordinate_difference = 0.0;
-        for (std::size_t region = 0; region < spatial.region_count(); ++region) {
-            const auto& region_mesh = spatial.hex20_region_mesh(region);
-            for (std::size_t local = 0; local < region_mesh.nodes().size(); ++local) {
-                const std::size_t source = region_mesh.source_node_ids()[local];
-                const auto found = std::find_if(displacement[step].begin(), displacement[step].end(),
-                    [source](const DisplacementReference& value) { return value.id == source; });
-                if (found == displacement[step].end() || present[source])
-                    throw std::invalid_argument("H20.33 displacement source-node mapping is incomplete or repeated");
-                present[source] = true;
-                maximum_coordinate_difference =
-                    std::max({maximum_coordinate_difference, std::abs(mesh.nodes()[source].x - found->point.x),
-                        std::abs(mesh.nodes()[source].y - found->point.y),
-                        std::abs(mesh.nodes()[source].z - found->point.z)});
-                const std::size_t global = spatial.global_node(region, local);
-                std::array<double, 3> actual_displacement{}, reference_displacement{};
-                for (std::size_t component = 0; component < 3; ++component) {
-                    actual_displacement[component] = states[step].solution[fields[component + 1].begin + global];
-                    reference_displacement[component] = found->displacement[component];
-                    displacement_metrics[component].add(
-                        actual_displacement[component], reference_displacement[component]);
-                }
-                displacement_vector.add(actual_displacement.data(), reference_displacement.data(), 3);
-                displacement_source_ids.push_back(source);
+        if (displacement[step].size() != states[step].output.nodes.size())
+            throw std::invalid_argument("Displacement reference must cover every production mesh node");
+        for (std::size_t source = 0; source < states[step].output.nodes.size(); ++source) {
+            const auto found = std::find_if(displacement[step].begin(), displacement[step].end(),
+                [source](const DisplacementReference& value) { return value.id == source; });
+            if (found == displacement[step].end() || present[source])
+                throw std::invalid_argument("H20.33 displacement source-node mapping is incomplete or repeated");
+            present[source] = true;
+            maximum_coordinate_difference = std::max(
+                {maximum_coordinate_difference, std::abs(states[step].output.nodes[source][0] - found->point.x),
+                    std::abs(states[step].output.nodes[source][1] - found->point.y),
+                    std::abs(states[step].output.nodes[source][2] - found->point.z)});
+            std::array<double, 3> actual_displacement{}, reference_displacement{};
+            for (std::size_t component = 0; component < 3; ++component) {
+                actual_displacement[component] =
+                    states[step].output.nodal("displacement_" + std::string(1, "xyz"[component])).at(source);
+                reference_displacement[component] = found->displacement[component];
+                displacement_metrics[component].add(actual_displacement[component], reference_displacement[component]);
             }
+            displacement_vector.add(actual_displacement.data(), reference_displacement.data(), 3);
+            displacement_source_ids.push_back(source);
         }
         if (contact_nodes.size() != states[step].contact.size() || contact_nodes.size() != contact[step].size())
             throw std::invalid_argument("H20.33 contact-node counts differ");
@@ -246,7 +173,7 @@ bool compare_abaqus_steps(const fuelsim::TransientProblem& problem, const fuelsi
             const auto found = std::find_if(contact[step].begin(), contact[step].end(),
                 [&](const ContactReference& value) { return value.id == contact_nodes[node]; });
             if (found == contact[step].end()) throw std::invalid_argument("H20.33 contact-node mapping is incomplete");
-            const fuelsim::CartesianContactNodeSummary& actual = states[step].contact[node];
+            const fuelsim::test::OutputContact& actual = states[step].contact[node];
             maximum_coordinate_difference =
                 std::max({maximum_coordinate_difference, std::abs(actual.x - found->point.x),
                     std::abs(actual.y - found->point.y), std::abs(actual.z - found->point.z)});
@@ -304,7 +231,7 @@ bool compare_abaqus_steps(const fuelsim::TransientProblem& problem, const fuelsi
                          " complete tangential-slip-vector metrics are below 1 percent") &&
                  passed;
         double actual_normal = 0.0, actual_tangential = 0.0;
-        for (const fuelsim::CartesianContactNodeSummary& node : states[step].contact) {
+        for (const fuelsim::test::OutputContact& node : states[step].contact) {
             actual_normal += node.normal_contact_force[0];
             actual_tangential += node.tangential_contact_force[1];
         }
@@ -322,36 +249,9 @@ bool compare_abaqus_steps(const fuelsim::TransientProblem& problem, const fuelsi
     return passed;
 }
 
-bool histories_identical(const std::vector<fuelsim::ContactPointHistory>& actual,
-    const std::vector<fuelsim::ContactPointHistory>& expected) {
-    if (actual.size() != expected.size()) return false;
-    for (std::size_t point = 0; point < actual.size(); ++point)
-        if (actual[point].elastic_tangential_slip != expected[point].elastic_tangential_slip ||
-            actual[point].sliding != expected[point].sliding ||
-            actual[point].normal_multiplier != expected[point].normal_multiplier ||
-            actual[point].cartesian_elastic_tangential_slip != expected[point].cartesian_elastic_tangential_slip ||
-            actual[point].cartesian_total_tangential_slip != expected[point].cartesian_total_tangential_slip ||
-            actual[point].cartesian_tangent_basis_initialized != expected[point].cartesian_tangent_basis_initialized ||
-            actual[point].cartesian_contact_normal != expected[point].cartesian_contact_normal ||
-            actual[point].cartesian_contact_tangent_first != expected[point].cartesian_contact_tangent_first)
-            return false;
-    return true;
-}
-
-bool recorded_states_identical(
-    const std::vector<StepState>& actual, const std::vector<StepState>& expected, std::size_t expected_begin) {
-    if (actual.size() + expected_begin > expected.size()) return false;
-    for (std::size_t step = 0; step < actual.size(); ++step)
-        if (actual[step].time != expected[expected_begin + step].time ||
-            actual[step].solution != expected[expected_begin + step].solution ||
-            !histories_identical(actual[step].histories, expected[expected_begin + step].histories))
-            return false;
-    return true;
-}
-
 std::array<std::size_t, 2> stick_slide_counts(const StepState& state) {
     std::array<std::size_t, 2> result{};
-    for (const fuelsim::CartesianContactNodeSummary& node : state.contact) {
+    for (const fuelsim::test::OutputContact& node : state.contact) {
         if (!(node.pressure > 0.0)) continue;
         ++result[node.sliding ? 1 : 0];
     }
@@ -360,94 +260,37 @@ std::array<std::size_t, 2> stick_slide_counts(const StepState& state) {
 
 double tangential_resultant_y(const StepState& state) {
     double result = 0.0;
-    for (const fuelsim::CartesianContactNodeSummary& node : state.contact) result += node.tangential_contact_force[1];
+    for (const fuelsim::test::OutputContact& node : state.contact) result += node.tangential_contact_force[1];
     return result;
 }
 
-bool run_path(const std::string& input_path, const std::string& displacement_path, const std::string& contact_path,
-    const std::string& reaction_path, const std::string& checkpoint_path) {
-    const fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
-    const fuelsim::UnstructuredHex20Mesh mesh = fuelsim::read_exodus_hex20(input.mesh_file);
-    const fuelsim::SolverOptions solver = solver_options(input);
-    Recorder full_recorder;
-    fuelsim::TransientProblem full(input.spatial, mesh);
-    const fuelsim::TransientResult full_result = fuelsim::solve_transient(
-        full, time_options(input, input.transient_execution.end_time, 0.1), solver, &full_recorder);
-    bool passed = check(full_result.completed && full_recorder.states.size() == 7,
-        "H20 friction path completes all seven prescribed load states");
-    if (full_recorder.states.size() == 7) {
-        const auto first = stick_slide_counts(full_recorder.states[0]);
-        const auto second = stick_slide_counts(full_recorder.states[1]);
-        const auto forward_entry = stick_slide_counts(full_recorder.states[2]);
-        const auto forward = stick_slide_counts(full_recorder.states[3]);
-        const auto unload = stick_slide_counts(full_recorder.states[4]);
-        const auto reverse = stick_slide_counts(full_recorder.states[5]);
-        const auto restick = stick_slide_counts(full_recorder.states[6]);
+} // namespace
+
+namespace fuelsim::test {
+bool check_hex20_friction_path_33(const std::string& output_path, const std::string& displacement_path,
+    const std::string& contact_path, const std::string& reaction_path) {
+    const auto states = read_seven_contact_steps(output_path, 13);
+    bool passed = true;
+    if (states.size() == 7) {
+        const auto first = stick_slide_counts(states[0]);
+        const auto second = stick_slide_counts(states[1]);
+        const auto forward_entry = stick_slide_counts(states[2]);
+        const auto forward = stick_slide_counts(states[3]);
+        const auto unload = stick_slide_counts(states[4]);
+        const auto reverse = stick_slide_counts(states[5]);
+        const auto restick = stick_slide_counts(states[6]);
         passed = check(first[0] == 13 && first[1] == 0 && second[0] == 13 && second[1] == 0,
                      "H20 friction path starts with two fully sticking states") &&
                  check(forward_entry[0] == 0 && forward_entry[1] == 13 && forward[0] == 0 && forward[1] == 13,
                      "H20 friction path enters and remains in committed forward sliding") &&
                  check(unload[0] == 0 && unload[1] == 13 && reverse[0] == 0 && reverse[1] == 13 &&
-                           tangential_resultant_y(full_recorder.states[4]) < 0.0 &&
-                           tangential_resultant_y(full_recorder.states[5]) < 0.0,
+                           tangential_resultant_y(states[4]) < 0.0 && tangential_resultant_y(states[5]) < 0.0,
                      "H20 friction path covers committed unloading and reverse sliding with reversed signed force") &&
                  check(restick[0] == 13 && restick[1] == 0,
                      "H20 friction path finishes with all thirteen constraints restuck") &&
                  passed;
     }
-    passed = compare_abaqus_steps(full, mesh, full_recorder.states, displacement_path, contact_path, reaction_path) &&
-             passed;
 
-    Recorder first_recorder;
-    fuelsim::TransientProblem split(input.spatial, mesh);
-    const fuelsim::TransientResult first =
-        fuelsim::solve_transient(split, time_options(input, 4.0, 0.1), solver, &first_recorder);
-    passed = check(first.completed && first_recorder.states.size() == 4,
-                 "H20 friction path reaches its nonzero-slip checkpoint state") &&
-             check(recorded_states_identical(first_recorder.states, full_recorder.states, 0),
-                 "H20 friction split run reproduces the first four uninterrupted nodal and contact-history states") &&
-             passed;
-    fuelsim::write_transient_checkpoint(checkpoint_path, split, first.next_time_step);
-    fuelsim::TransientProblem restarted(input.spatial, mesh);
-    const double restored_step = fuelsim::restore_transient_checkpoint(checkpoint_path, restarted);
-    Recorder second_recorder;
-    const fuelsim::TransientResult second = fuelsim::solve_transient(
-        restarted, time_options(input, input.transient_execution.end_time, restored_step), solver, &second_recorder);
-    passed = check(second.completed && second_recorder.states.size() == 3,
-                 "H20 friction checkpoint restores and completes the reversed path") &&
-             check(recorded_states_identical(second_recorder.states, full_recorder.states, 4),
-                 "H20 friction restart reproduces every remaining nodal and contact-history state exactly") &&
-             passed;
-    double maximum_restart_difference = 0.0;
-    const std::vector<double>& expected = full.committed_solution();
-    const std::vector<double>& actual = restarted.committed_solution();
-    if (expected.size() != actual.size())
-        passed = check(false, "H20 friction restart preserves the global state layout") && passed;
-    else
-        for (std::size_t dof = 0; dof < expected.size(); ++dof)
-            maximum_restart_difference = std::max(maximum_restart_difference, std::abs(expected[dof] - actual[dof]));
-    passed =
-        check(maximum_restart_difference < 1.0e-13, "H20 friction restart reproduces the uninterrupted final state") &&
-        check(std::remove(checkpoint_path.c_str()) == 0, "H20 friction checkpoint artifact is removed") && passed;
-    std::cout << "h20_friction_restart_maximum_absolute_difference=" << maximum_restart_difference << '\n';
-    return passed;
+    return compare_abaqus_steps(states, displacement_path, contact_path, reaction_path) && passed;
 }
-} // namespace
-
-int main(int argc, char** argv) {
-    if (argc != 6) {
-        std::cerr << "Usage: fuelsim_h20_friction_path_abaqus_tests <case.fsi> <displacement.csv> <contact.csv> "
-                     "<reaction.csv> <checkpoint>\n";
-        return 2;
-    }
-    try {
-        std::cout << std::scientific << std::setprecision(12);
-        fuelsim::PetscSession session(argc, argv, "fuelsim HEX20 Abaqus friction-path comparison\n");
-        if (!run_path(argv[1], argv[2], argv[3], argv[4], argv[5])) return 1;
-        std::cout << "[PASS] fuelsim HEX20 friction path and restart\n";
-        return 0;
-    } catch (const std::exception& error) {
-        std::cerr << "[FAIL] H20 friction path raised: " << error.what() << '\n';
-        return 1;
-    }
-}
+} // namespace fuelsim::test

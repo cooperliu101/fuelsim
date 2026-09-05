@@ -2,6 +2,13 @@
 #include <string>
 
 namespace fuelsim::test {
+bool check_hex20_friction_path_33(const std::string& output_path, const std::string& displacement_path,
+    const std::string& contact_path, const std::string& reaction_path);
+bool check_hex20_friction_path_36(
+    const std::string& output_path, const std::string& displacement_path, const std::string& contact_path);
+bool check_hex20_partial_contact(const std::string& output_path, const std::string& reference_path);
+bool check_hex8_biaxial_friction(
+    const std::string& output_path, const std::string& contact_path, const std::string& reaction_path);
 bool check_hex8_sliding(const std::string& output_path, const std::string& nodes_path, const std::string& contact_path,
     const std::string& reaction_path);
 bool check_hex20_curved_friction(

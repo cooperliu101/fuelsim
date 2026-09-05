@@ -3,12 +3,10 @@
   problem = transient
   geometry = cartesian_3d
 []
-
 [Mesh]
   type = exodus
   file = ../abaqus/b40_hex8_sts_friction_mesh.e
 []
-
 [Materials]
   [elastic]
     [thermal]
@@ -24,7 +22,6 @@
     []
   []
 []
-
 [Regions]
   [primary]
     block = primary
@@ -41,7 +38,6 @@
     volumetric_heat_source = 0
   []
 []
-
 [TimeFunctions]
   [normal_path]
     type = piecewise_linear
@@ -59,7 +55,6 @@
     values = 0 4e-6 16e-6 15e-6 30e-6
   []
 []
-
 [Contact]
   [interface]
     primary = primary_contact
@@ -74,7 +69,6 @@
     []
   []
 []
-
 [BoundaryConditions]
   [primary_temperature]
     type = dirichlet
@@ -128,9 +122,9 @@
     function = tangent_z_path
   []
 []
-
 [Executioner]
   type = transient
+  restart = transient_hex8_sts_friction_split.checkpoint
   end_time = 4
   initial_time_step = 1
   minimum_time_step = 0.125
@@ -140,7 +134,6 @@
   maximum_cutbacks = 3
   load_ramp_time = 0
 []
-
 [Solver]
   absolute_tolerance = 1e-8
   relative_tolerance = 1e-11
@@ -152,11 +145,10 @@
   linear_relative_tolerance = 1e-11
   maximum_linear_iterations = 400
 []
-
 [Outputs]
   console = true
-  csv = transient_hex8_sts_friction_abaqus_summary.csv
-  exodus = transient_hex8_sts_friction_abaqus_results.e
-  checkpoint = transient_hex8_sts_friction_abaqus.checkpoint
+  csv = transient_hex8_sts_friction_restart_summary.csv
+  exodus = transient_hex8_sts_friction_restart_results.e
+  checkpoint = transient_hex8_sts_friction_restart.checkpoint
   checkpoint_interval = 1
 []

@@ -138,9 +138,9 @@
 [Executioner]
   type = transient
   end_time = 7
-  initial_time_step = 1
-  minimum_time_step = 0.125
-  maximum_time_step = 1
+  initial_time_step = 0.1
+  minimum_time_step = 0.1
+  maximum_time_step = 0.1
   growth_factor = 1
   cutback_factor = 0.5
   maximum_cutbacks = 3
@@ -161,4 +161,7 @@
 
 [Outputs]
   console = true
+  csv = transient_hex20_nonmatching_friction_abaqus_summary.csv
+  exodus = transient_hex20_nonmatching_friction_abaqus_results.e
+  exodus_interval = 10
 []

@@ -196,6 +196,10 @@ if(BUILD_TESTING)
         tests/production_hex20_curved.cpp
         tests/production_hex20_curved_friction.cpp
         tests/production_hex8_sliding.cpp
+        tests/production_hex8_biaxial_friction.cpp
+        tests/production_hex20_partial_contact.cpp
+        tests/production_hex20_friction_path_33.cpp
+        tests/production_hex20_friction_path_36.cpp
     )
     target_link_libraries(fuelsim_production_result_tests
         PRIVATE fuelsim_exodus_result_test_support fuelsim_field_error_metrics
@@ -244,7 +248,7 @@ if(BUILD_TESTING)
         set(results "${case_directory}/${input_stem}_results.e")
         set(summary "${case_directory}/${input_stem}_summary.csv")
         set(output_files "${results};${summary}")
-        if(check_mode STREQUAL "hex8-inelastic" OR check_mode STREQUAL "b34-transient")
+        if(check_mode STREQUAL "hex8-inelastic" OR check_mode STREQUAL "b34-transient" OR check_mode STREQUAL "b40")
             list(APPEND output_files "${case_directory}/${input_stem}.checkpoint")
         endif()
         add_test(NAME "${test_name}"
@@ -1075,19 +1079,41 @@ if(BUILD_TESTING)
             FIXTURES_REQUIRED "b39_${b39_case}_production" LABELS "unit;contact;jacobian;conservation")
     endforeach()
 
-    add_executable(fuelsim_b40_hex8_sts_friction_abaqus_tests
-        tests/b40_hex8_sts_friction_abaqus_tests.cpp)
-    target_link_libraries(fuelsim_b40_hex8_sts_friction_abaqus_tests
-        PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
-    fuelsim_enable_warnings(fuelsim_b40_hex8_sts_friction_abaqus_tests)
-    add_test(NAME fuelsim_b40_hex8_sts_friction_abaqus_tests
-        COMMAND fuelsim_b40_hex8_sts_friction_abaqus_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_hex8_sts_friction_abaqus.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b40_hex8_sts_friction_contact.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b40_hex8_sts_friction_reaction.csv"
-            "${CMAKE_CURRENT_BINARY_DIR}/b40_hex8_sts_friction_checkpoint.bin")
+    fuelsim_add_production_test(fuelsim_b40_hex8_sts_friction_abaqus_tests b40
+        transient_hex8_sts_friction_abaqus b40
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b40_hex8_sts_friction_contact.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b40_hex8_sts_friction_reaction.csv")
     set_tests_properties(fuelsim_b40_hex8_sts_friction_abaqus_tests
-        PROPERTIES LABELS "acceptance;three-dimensional;hex8;contact;friction;restart;abaqus")
+        PROPERTIES FIXTURES_SETUP b40_production LABELS "acceptance;production;hex8;contact;friction;abaqus")
+    fuelsim_stage_blackbox_case(b40_checkpoint_input b40_restart transient_hex8_sts_friction_checkpoint.fsi)
+    fuelsim_stage_blackbox_case(b40_restart_input b40_restart transient_hex8_sts_friction_restart.fsi)
+    get_filename_component(b40_restart_directory "${b40_restart_input}" DIRECTORY)
+    set(b40_full_directory "${CMAKE_CURRENT_BINARY_DIR}/blackbox/b40/verification/fuelsim")
+    set(b40_restart_result "${b40_restart_directory}/transient_hex8_sts_friction_restart_results.part1.e")
+    set(b40_restart_summary "${b40_restart_directory}/transient_hex8_sts_friction_restart_summary.csv")
+    add_test(NAME fuelsim_b40_production_restart
+        COMMAND "${CMAKE_COMMAND}"
+            "-DFUELSIM_EXECUTABLE=$<TARGET_FILE:fuelsim>"
+            "-DCHECKPOINT_INPUT=${b40_checkpoint_input}"
+            "-DCHECKPOINT_FILE=${b40_restart_directory}/transient_hex8_sts_friction_split.checkpoint"
+            "-DINPUT_FILE=${b40_restart_input}"
+            "-DOUTPUT_FILES=${b40_restart_result};${b40_restart_summary};${b40_restart_directory}/transient_hex8_sts_friction_restart.checkpoint"
+            "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_production_result_tests>"
+            "-DCHECK_ARGUMENTS=b40-restart;${b40_restart_result};${b40_restart_summary};${b40_full_directory}/transient_hex8_sts_friction_abaqus_results.e"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_restart.cmake")
+    set_tests_properties(fuelsim_b40_production_restart PROPERTIES FIXTURES_REQUIRED b40_production
+        FIXTURES_SETUP b40_restart_production LABELS "acceptance;production;restart;friction" TIMEOUT 120)
+    add_executable(fuelsim_hex8_biaxial_friction_contract_tests tests/hex8_biaxial_friction_contract_tests.cpp)
+    target_link_libraries(fuelsim_hex8_biaxial_friction_contract_tests PRIVATE fuelsim::io)
+    fuelsim_enable_warnings(fuelsim_hex8_biaxial_friction_contract_tests)
+    add_test(NAME fuelsim_b40_friction_history_contract
+        COMMAND fuelsim_hex8_biaxial_friction_contract_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_hex8_sts_friction_abaqus.fsi"
+            "${b40_full_directory}/transient_hex8_sts_friction_abaqus.checkpoint"
+            "${b40_restart_directory}/transient_hex8_sts_friction_restart.checkpoint"
+            "${b40_restart_directory}/transient_hex8_sts_friction_split.checkpoint")
+    set_tests_properties(fuelsim_b40_friction_history_contract PROPERTIES
+        FIXTURES_REQUIRED "b40_production;b40_restart_production" LABELS "unit;hex8;friction;jacobian;checkpoint")
 
     add_executable(fuelsim_b41_hex8_finite_sliding_abaqus_tests
         tests/b41_hex8_finite_sliding_abaqus_tests.cpp)
@@ -1527,18 +1553,11 @@ if(BUILD_TESTING)
         set_tests_properties("fuelsim_h20_30_${curved_case}_contract" PROPERTIES
             FIXTURES_REQUIRED "h20_30_${curved_case}_production" LABELS "unit;hex20;contact;jacobian;conservation")
     endforeach()
-    add_executable(fuelsim_h20_friction_path_abaqus_tests
-        tests/h20_friction_path_abaqus_tests.cpp)
-    target_link_libraries(fuelsim_h20_friction_path_abaqus_tests
-        PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
-    fuelsim_enable_warnings(fuelsim_h20_friction_path_abaqus_tests)
-    add_test(NAME fuelsim_h20_friction_path_abaqus_tests
-        COMMAND fuelsim_h20_friction_path_abaqus_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_hex20_nonmatching_friction_abaqus.fsi"
+    fuelsim_add_production_test(fuelsim_h20_friction_path_abaqus_tests h20_33
+            transient_hex20_nonmatching_friction_abaqus hex20-friction-path-33
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_33_hex20_nonmatching_friction_path_displacement.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_33_hex20_nonmatching_friction_path_contact.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_33_hex20_nonmatching_friction_path_reaction.csv"
-            "${CMAKE_CURRENT_BINARY_DIR}/h20_friction_path_checkpoint.bin")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_33_hex20_nonmatching_friction_path_reaction.csv")
     set_tests_properties(fuelsim_h20_friction_path_abaqus_tests
         PROPERTIES LABELS "acceptance;three-dimensional;hex20;contact;friction;nonmatching;abaqus;restart")
 
@@ -1556,19 +1575,30 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_h20_35_curved_friction_contract PROPERTIES
         FIXTURES_REQUIRED h20_35_production LABELS "unit;hex20;contact;friction;jacobian;conservation")
 
-    add_executable(fuelsim_h20_36_curved_friction_path_abaqus_tests
-        tests/h20_curved_friction_path_abaqus_tests.cpp)
-    target_link_libraries(fuelsim_h20_36_curved_friction_path_abaqus_tests
-        PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
-    fuelsim_enable_warnings(fuelsim_h20_36_curved_friction_path_abaqus_tests)
-    add_test(NAME fuelsim_h20_36_curved_friction_path_abaqus_tests
-        COMMAND fuelsim_h20_36_curved_friction_path_abaqus_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_hex20_sts_quadratic_cylinder_friction_path_abaqus.fsi"
+    fuelsim_add_production_test(fuelsim_h20_36_curved_friction_path_abaqus_tests h20_36
+            transient_hex20_sts_quadratic_cylinder_friction_path_abaqus hex20-friction-path-36
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_36_hex20_sts_quadratic_cylinder_friction_path_displacement.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_36_hex20_sts_quadratic_cylinder_friction_path_contact.csv"
-            "${CMAKE_CURRENT_BINARY_DIR}/h20_curved_friction_path_checkpoint.bin")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_36_hex20_sts_quadratic_cylinder_friction_path_contact.csv")
     set_tests_properties(fuelsim_h20_36_curved_friction_path_abaqus_tests
         PROPERTIES LABELS "acceptance;three-dimensional;hex20;contact;friction;curved;abaqus;restart")
+
+    foreach(friction_path IN ITEMS 33 36)
+        add_executable(fuelsim_hex20_friction_transaction_${friction_path}_tests
+            tests/hex20_friction_transaction_${friction_path}_tests.cpp)
+        target_link_libraries(fuelsim_hex20_friction_transaction_${friction_path}_tests
+            PRIVATE fuelsim::io fuelsim::solver)
+        fuelsim_enable_warnings(fuelsim_hex20_friction_transaction_${friction_path}_tests)
+    endforeach()
+    add_test(NAME fuelsim_h20_33_friction_transaction_contract
+        COMMAND fuelsim_hex20_friction_transaction_33_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_hex20_nonmatching_friction_abaqus.fsi"
+            "${CMAKE_CURRENT_BINARY_DIR}/h20_33_transaction.checkpoint")
+    add_test(NAME fuelsim_h20_36_friction_transaction_contract
+        COMMAND fuelsim_hex20_friction_transaction_36_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_hex20_sts_quadratic_cylinder_friction_path_abaqus.fsi"
+            "${CMAKE_CURRENT_BINARY_DIR}/h20_36_transaction.checkpoint")
+    set_tests_properties(fuelsim_h20_33_friction_transaction_contract fuelsim_h20_36_friction_transaction_contract
+        PROPERTIES LABELS "unit;hex20;friction;transaction;checkpoint" TIMEOUT 120)
 
     add_executable(fuelsim_h20_38_friction_objectivity_abaqus_tests
         tests/h20_friction_objectivity_abaqus_tests.cpp)
@@ -1609,15 +1639,9 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_h20_40_curved_finite_sliding_finite_abaqus_tests
         PROPERTIES LABELS "acceptance;three-dimensional;hex20;contact;friction;curved;finite-sliding;abaqus")
 
-    add_executable(fuelsim_h20_41_hex20_partial_contact_abaqus_tests
-        tests/h20_partial_contact_abaqus_tests.cpp)
-    target_link_libraries(fuelsim_h20_41_hex20_partial_contact_abaqus_tests
-        PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
-    fuelsim_enable_warnings(fuelsim_h20_41_hex20_partial_contact_abaqus_tests)
-    add_test(NAME fuelsim_h20_41_hex20_partial_contact_abaqus_tests
-        COMMAND fuelsim_h20_41_hex20_partial_contact_abaqus_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex20_finite_sliding_partial_contact_abaqus.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_41_hex20_finite_sliding_partial_contact_contact.csv")
+    fuelsim_add_production_test(fuelsim_h20_41_hex20_partial_contact_abaqus_tests h20_41
+        steady_hex20_finite_sliding_partial_contact_abaqus hex20-partial-contact
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_41_hex20_finite_sliding_partial_contact_contact.csv")
     set_tests_properties(fuelsim_h20_41_hex20_partial_contact_abaqus_tests
         PROPERTIES LABELS "acceptance;three-dimensional;hex20;contact;partial-contact;finite-sliding;abaqus")
 
