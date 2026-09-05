@@ -936,6 +936,19 @@ int main(int argc, char** argv) {
                          "B5.5 completes one Backward Euler increment without a rejected step") &&
                      passed;
             passed = fuelsim::test::check_hex8_b55(argv[2], argv[4], argv[5]) && passed;
+        } else if (mode == "hex8-inelastic-abaqus") {
+            require_argument_count(mode, argc, 8);
+            passed = completed_summary(argv[3], "transient");
+            const std::string branch = argv[4];
+            const double steps = branch == "finite_reduced_noncoaxial"            ? 100.0
+                                 : branch.find("noncoaxial") != std::string::npos ? 20.0
+                                                                                  : 10.0;
+            const auto summary = read_summary(argv[3]);
+            passed = check(summary_number(summary, "accepted_steps") == steps &&
+                               summary_number(summary, "rejected_steps") == 0.0,
+                         "Inelastic production path accepts every prescribed stage without a rejected step") &&
+                     passed;
+            passed = fuelsim::test::check_hex8_inelastic_abaqus(argv[2], branch, argv[5], argv[6], argv[7]) && passed;
         } else if (mode == "b531" || mode == "b534") {
             require_argument_count(mode, argc, 6);
             passed = completed_summary(argv[3], "transient");

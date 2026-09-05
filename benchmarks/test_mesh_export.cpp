@@ -25,9 +25,18 @@ fuelsim::UnstructuredHex8Mesh mesh() {
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 3 || std::string(argv[1]) != "b55") return 2;
+    if (argc != 3) return 2;
     try {
-        fuelsim::write_exodus_hex8(argv[2], mesh());
+        if (std::string(argv[1]) == "b55")
+            fuelsim::write_exodus_hex8(argv[2], mesh());
+        else if (std::string(argv[1]) == "b510")
+            fuelsim::write_exodus_hex8(argv[2],
+                fuelsim::UnstructuredHex8Mesh(
+                    {{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}, {0, 0, 1}, {1, 0, 1}, {1, 1, 1}, {0, 1, 1}},
+                    {{{{0, 1, 2, 3, 4, 5, 6, 7}}}}, {1}, {{1, "solid"}}, {},
+                    {{11, "left", {{0, 3}}}, {12, "right", {{0, 1}}}, {13, "y0", {{0, 0}}}, {14, "z0", {{0, 4}}}}));
+        else
+            return 2;
         return 0;
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

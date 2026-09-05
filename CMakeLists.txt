@@ -205,6 +205,7 @@ if(BUILD_TESTING)
         tests/production_hex8_b55.cpp
         tests/production_hex8_b58.cpp
         tests/production_hex8_b531.cpp
+        tests/production_hex8_inelastic_abaqus.cpp
     )
     target_link_libraries(fuelsim_production_result_tests
         PRIVATE fuelsim_exodus_result_test_support fuelsim_field_error_metrics
@@ -910,32 +911,24 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_b59_hex8_c3d8t_multimaterial_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;transient;thermal;mechanical;multimaterial;refinement;abaqus")
 
-    add_executable(fuelsim_b510_hex8_c3d8t_small_j2_abaqus_tests
-        tests/b510_hex8_c3d8t_small_j2_abaqus_tests.cpp)
-    target_link_libraries(fuelsim_b510_hex8_c3d8t_small_j2_abaqus_tests
-        PRIVATE fuelsim_moose_test_support fuelsim::solver)
-    fuelsim_enable_warnings(fuelsim_b510_hex8_c3d8t_small_j2_abaqus_tests)
-    add_test(NAME fuelsim_b510_hex8_c3d8t_small_j2_abaqus_tests
-        COMMAND fuelsim_b510_hex8_c3d8t_small_j2_abaqus_tests
-            plastic
+    fuelsim_add_production_test(fuelsim_b510_hex8_c3d8t_small_j2_abaqus_tests b510
+        transient_b510_small_j2 hex8-inelastic-abaqus plastic
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b510_hex8_c3d8t_small_j2_nodal.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b510_hex8_c3d8t_small_j2_integration.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b510_hex8_c3d8t_small_j2_energy.csv")
     set_tests_properties(fuelsim_b510_hex8_c3d8t_small_j2_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;transient;mechanical;plasticity;abaqus")
 
-    add_test(NAME fuelsim_b512_hex8_c3d8t_small_coupled_abaqus_tests
-        COMMAND fuelsim_b510_hex8_c3d8t_small_j2_abaqus_tests
-            coupled
+    fuelsim_add_production_test(fuelsim_b512_hex8_c3d8t_small_coupled_abaqus_tests b512
+        transient_b512_small_coupled hex8-inelastic-abaqus coupled
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b512_hex8_c3d8t_small_coupled_nodal.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b512_hex8_c3d8t_small_coupled_integration.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b512_hex8_c3d8t_small_coupled_energy.csv")
     set_tests_properties(fuelsim_b512_hex8_c3d8t_small_coupled_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;transient;mechanical;plasticity;creep;abaqus")
 
-    add_test(NAME fuelsim_b513_hex8_c3d8t_small_noncoaxial_abaqus_tests
-        COMMAND fuelsim_b510_hex8_c3d8t_small_j2_abaqus_tests
-            noncoaxial
+    fuelsim_add_production_test(fuelsim_b513_hex8_c3d8t_small_noncoaxial_abaqus_tests b513
+        transient_b513_small_noncoaxial hex8-inelastic-abaqus noncoaxial
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b513_hex8_c3d8t_small_noncoaxial_nodal.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b513_hex8_c3d8t_small_noncoaxial_integration.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b513_hex8_c3d8t_small_noncoaxial_energy.csv")
@@ -955,72 +948,64 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_b514_hex8_c3d8t_finite_elastic_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;transient;mechanical;elasticity;finite-strain;rotation;abaqus")
 
-    add_test(NAME fuelsim_b515_hex8_c3d8t_finite_j2_abaqus_tests
-        COMMAND fuelsim_b510_hex8_c3d8t_small_j2_abaqus_tests
-            finite_plastic
+    fuelsim_add_production_test(fuelsim_b515_hex8_c3d8t_finite_j2_abaqus_tests b515
+        transient_b515_finite_j2 hex8-inelastic-abaqus finite_plastic
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b515_hex8_c3d8t_finite_j2_nodal.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b515_hex8_c3d8t_finite_j2_integration.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b515_hex8_c3d8t_finite_j2_energy.csv")
     set_tests_properties(fuelsim_b515_hex8_c3d8t_finite_j2_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;transient;mechanical;plasticity;finite-strain;reversal;abaqus")
 
-    add_test(NAME fuelsim_b517_hex8_c3d8t_finite_coupled_abaqus_tests
-        COMMAND fuelsim_b510_hex8_c3d8t_small_j2_abaqus_tests
-            finite_coupled
+    fuelsim_add_production_test(fuelsim_b517_hex8_c3d8t_finite_coupled_abaqus_tests b517
+        transient_b517_finite_coupled hex8-inelastic-abaqus finite_coupled
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b517_hex8_c3d8t_finite_coupled_nodal.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b517_hex8_c3d8t_finite_coupled_integration.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b517_hex8_c3d8t_finite_coupled_energy.csv")
     set_tests_properties(fuelsim_b517_hex8_c3d8t_finite_coupled_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;transient;mechanical;plasticity;creep;finite-strain;abaqus")
 
-    add_test(NAME fuelsim_b535_hex8_c3d8rt_finite_j2_abaqus_tests
-        COMMAND fuelsim_b510_hex8_c3d8t_small_j2_abaqus_tests
-            finite_reduced_plastic
+    fuelsim_add_production_test(fuelsim_b535_hex8_c3d8rt_finite_j2_abaqus_tests b535
+        transient_b535_finite_c3d8rt_j2 hex8-inelastic-abaqus finite_reduced_plastic
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b535_hex8_c3d8rt_finite_j2_nodal.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b535_hex8_c3d8rt_finite_j2_integration.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b535_hex8_c3d8rt_finite_j2_energy.csv")
     set_tests_properties(fuelsim_b535_hex8_c3d8rt_finite_j2_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;c3d8rt;reduced-integration;transient;mechanical;plasticity;finite-strain;reversal;abaqus")
 
-    add_test(NAME fuelsim_b537_hex8_c3d8rt_finite_coupled_abaqus_tests
-        COMMAND fuelsim_b510_hex8_c3d8t_small_j2_abaqus_tests
-            finite_reduced_coupled
+    fuelsim_add_production_test(fuelsim_b537_hex8_c3d8rt_finite_coupled_abaqus_tests b537
+        transient_b537_finite_c3d8rt_coupled hex8-inelastic-abaqus finite_reduced_coupled
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b537_hex8_c3d8rt_finite_coupled_nodal.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b537_hex8_c3d8rt_finite_coupled_integration.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b537_hex8_c3d8rt_finite_coupled_energy.csv")
     set_tests_properties(fuelsim_b537_hex8_c3d8rt_finite_coupled_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;c3d8rt;reduced-integration;transient;mechanical;plasticity;creep;finite-strain;abaqus")
 
-    add_test(NAME fuelsim_b541_hex8_c3d8rt_small_j2_abaqus_tests
-        COMMAND fuelsim_b510_hex8_c3d8t_small_j2_abaqus_tests
-            reduced_plastic
+    fuelsim_add_production_test(fuelsim_b541_hex8_c3d8rt_small_j2_abaqus_tests b541
+        transient_b541_small_c3d8rt_j2 hex8-inelastic-abaqus reduced_plastic
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b541_hex8_c3d8rt_small_j2_nodal.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b541_hex8_c3d8rt_small_j2_integration.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b541_hex8_c3d8rt_small_j2_energy.csv")
     set_tests_properties(fuelsim_b541_hex8_c3d8rt_small_j2_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;c3d8rt;reduced-integration;transient;mechanical;plasticity;small-strain;reversal;abaqus")
 
-    add_test(NAME fuelsim_b543_hex8_c3d8rt_small_coupled_abaqus_tests
-        COMMAND fuelsim_b510_hex8_c3d8t_small_j2_abaqus_tests
-            reduced_coupled
+    fuelsim_add_production_test(fuelsim_b543_hex8_c3d8rt_small_coupled_abaqus_tests b543
+        transient_b543_small_c3d8rt_coupled hex8-inelastic-abaqus reduced_coupled
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b543_hex8_c3d8rt_small_coupled_nodal.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b543_hex8_c3d8rt_small_coupled_integration.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b543_hex8_c3d8rt_small_coupled_energy.csv")
     set_tests_properties(fuelsim_b543_hex8_c3d8rt_small_coupled_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;c3d8rt;reduced-integration;transient;mechanical;plasticity;creep;small-strain;abaqus")
 
-    add_test(NAME fuelsim_b545_hex8_c3d8rt_finite_noncoaxial_abaqus_tests
-        COMMAND fuelsim_b510_hex8_c3d8t_small_j2_abaqus_tests
-            finite_reduced_noncoaxial
+    fuelsim_add_production_test(fuelsim_b545_hex8_c3d8rt_finite_noncoaxial_abaqus_tests b545
+        transient_b545_finite_c3d8rt_noncoaxial hex8-inelastic-abaqus finite_reduced_noncoaxial
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b545_hex8_c3d8rt_finite_noncoaxial_100step_nodal.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b545_hex8_c3d8rt_finite_noncoaxial_100step_integration.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b545_hex8_c3d8rt_finite_noncoaxial_100step_energy.csv")
     set_tests_properties(fuelsim_b545_hex8_c3d8rt_finite_noncoaxial_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;c3d8rt;reduced-integration;transient;mechanical;plasticity;creep;finite-strain;noncoaxial;large-rotation;abaqus")
 
-    add_test(NAME fuelsim_b518_hex8_c3d8t_finite_noncoaxial_abaqus_tests
-        COMMAND fuelsim_b510_hex8_c3d8t_small_j2_abaqus_tests
-            finite_noncoaxial
+    fuelsim_add_production_test(fuelsim_b518_hex8_c3d8t_finite_noncoaxial_abaqus_tests b518
+        transient_b518_finite_noncoaxial hex8-inelastic-abaqus finite_noncoaxial
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b518_hex8_c3d8t_finite_noncoaxial_nodal.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b518_hex8_c3d8t_finite_noncoaxial_integration.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b518_hex8_c3d8t_finite_noncoaxial_energy.csv")

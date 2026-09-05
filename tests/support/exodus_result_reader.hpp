@@ -30,5 +30,7 @@ struct ExodusResults final {
 ExodusResults read_final_exodus_results(const std::string& path);
 // Exodus step numbers are one-based; zero selects the final frame.
 ExodusResults read_exodus_results(const std::string& path, std::size_t step);
+// Includes the initial frame and keeps the file open for the complete read.
+std::vector<ExodusResults> read_exodus_history(const std::string& path);
 } // namespace fuelsim::test
 #endif

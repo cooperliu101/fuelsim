@@ -126,8 +126,27 @@ double ExodusResults::global(const std::string& name) const {
 
 ExodusResults read_final_exodus_results(const std::string& path) { return read_exodus_results(path, 0); }
 
-ExodusResults read_exodus_results(const std::string& path, std::size_t step) {
-    ExodusFile file(path);
+namespace {
+ExodusResults read_open_exodus_results(
+    const ExodusFile& file, std::size_t step, const ExodusResults* metadata = nullptr) {
+    if (metadata != nullptr) {
+        ExodusResults result = *metadata;
+        if (step == 0 || step > result.step_count) throw std::invalid_argument("Requested Exodus step does not exist");
+        const int frame = static_cast<int>(step);
+        check_exodus(ex_get_time(file.id(), frame, &result.time), "Could not read result time");
+        if (!std::isfinite(result.time)) throw std::invalid_argument("Exodus result time is not finite");
+        std::size_t elements = 0;
+        for (const auto size : result.block_element_counts) elements += size;
+        result.nodal_variables =
+            read_nodal_variables(file.id(), frame, result.nodes.size(), result.nodal_variable_names.size());
+        result.element_variables =
+            read_element_variables(file.id(), frame, elements, result.element_variable_names.size());
+        if (!result.global_variables.empty())
+            check_exodus(ex_get_var(file.id(), frame, EX_GLOBAL, 1, 0,
+                             static_cast<std::int64_t>(result.global_variables.size()), result.global_variables.data()),
+                "Could not read global result variables");
+        return result;
+    }
     ExodusResults result;
     const std::size_t dimension = count(ex_inquire_int(file.id(), EX_INQ_DIM), "coordinate dimension");
     const std::size_t node_count = count(ex_inquire_int(file.id(), EX_INQ_NODES), "node count");
@@ -213,6 +232,24 @@ ExodusResults read_exodus_results(const std::string& path, std::size_t step) {
         check_exodus(ex_get_var(file.id(), final_step, EX_GLOBAL, 1, 0,
                          static_cast<std::int64_t>(result.global_variables.size()), result.global_variables.data()),
             "Could not read global result variables");
+    return result;
+}
+} // namespace
+
+ExodusResults read_exodus_results(const std::string& path, std::size_t step) {
+    const ExodusFile file(path);
+    return read_open_exodus_results(file, step);
+}
+
+std::vector<ExodusResults> read_exodus_history(const std::string& path) {
+    const ExodusFile file(path);
+    auto first = read_open_exodus_results(file, 1);
+    const auto steps = first.step_count;
+    std::vector<ExodusResults> result;
+    result.reserve(steps);
+    result.push_back(std::move(first));
+    for (std::size_t step = 2; step <= steps; ++step)
+        result.push_back(read_open_exodus_results(file, step, &result.front()));
     return result;
 }
 } // namespace fuelsim::test

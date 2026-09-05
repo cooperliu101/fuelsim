@@ -3,6 +3,8 @@
 #include <string>
 
 namespace fuelsim::test {
+bool check_hex8_inelastic_abaqus(const std::string& output_path, const std::string& branch_name,
+    const std::string& nodal_path, const std::string& integration_path, const std::string& energy_path);
 bool check_hex8_b55(const std::string& output_path, const std::string& nodal_path, const std::string& integration_path);
 bool check_hex8_b58(const std::string& output_path, const std::string& nodal_path, const std::string& integration_path);
 bool check_hex8_b531(const std::string& output_path, const std::string& nodal_path, const std::string& integration_path,
