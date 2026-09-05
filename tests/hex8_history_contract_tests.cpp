@@ -55,6 +55,11 @@ void verify(
     const auto expected = fuelsim::cartesian::ProblemAccess::committed_state(problem);
     const auto result = fuelsim::test::read_final_exodus_results(output);
     if (result.time != expected.time) throw std::runtime_error("Output and checkpoint times differ");
+    for (const auto& field : fuelsim::transient_conservation_fields)
+        if (result.global("conservation_" + std::string(field.name)) != expected.conservation.*(field.member))
+            throw std::runtime_error("Output conservation diagnostic differs from committed checkpoint");
+    std::vector<double> constraints(problem.dof_count(), 0.0);
+    for (const auto& condition : problem.dirichlet_conditions()) constraints.at(condition.dof) = 1.0;
     const auto& spatial = fuelsim::cartesian::ProblemAccess::view(problem);
     const std::array<std::string, 4> field_names = {
         "temperature", "displacement_x", "displacement_y", "displacement_z"};
@@ -69,7 +74,8 @@ void verify(
             for (std::size_t field = 0; field < 4; ++field) {
                 const std::size_t dof = spatial.field_layout()[field].begin + global;
                 if (result.nodal(field_names[field]).at(source) != expected.solution.at(dof) ||
-                    result.nodal(reaction_names[field]).at(source) != expected.raw_residual.at(dof))
+                    result.nodal(reaction_names[field]).at(source) != expected.raw_residual.at(dof) ||
+                    result.nodal("dirichlet_" + field_names[field]).at(source) != constraints.at(dof))
                     throw std::runtime_error("Output nodal field or pre-commit reaction differs from checkpoint");
             }
         }

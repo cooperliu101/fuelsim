@@ -927,6 +927,24 @@ int main(int argc, char** argv) {
         } else if (mode == "cartesian-fields") {
             require_argument_count(mode, argc, 5);
             passed = run_cartesian_fields("cartesian_case", argv[2], argv[3], std::stod(argv[4]));
+        } else if (mode == "b55") {
+            require_argument_count(mode, argc, 6);
+            passed = completed_summary(argv[3], "transient");
+            const auto summary = read_summary(argv[3]);
+            passed = check(summary_number(summary, "accepted_steps") == 1.0 &&
+                               summary_number(summary, "rejected_steps") == 0.0,
+                         "B5.5 completes one Backward Euler increment without a rejected step") &&
+                     passed;
+            passed = fuelsim::test::check_hex8_b55(argv[2], argv[4], argv[5]) && passed;
+        } else if (mode == "b58") {
+            require_argument_count(mode, argc, 6);
+            passed = completed_summary(argv[3], "transient");
+            const auto summary = read_summary(argv[3]);
+            passed = check(summary_number(summary, "accepted_steps") == 4.0 &&
+                               summary_number(summary, "rejected_steps") == 0.0,
+                         "B5.8 completes four prescribed increments without a rejected step") &&
+                     passed;
+            passed = fuelsim::test::check_hex8_b58(argv[2], argv[4], argv[5]) && passed;
         } else if (mode == "b549" || mode == "b550" || mode == "b555") {
             require_argument_count(mode, argc, mode == "b549" ? 7 : 8);
             passed = completed_summary(argv[3], "transient");

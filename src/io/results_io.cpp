@@ -2,6 +2,7 @@
 #include "core/problem_backend_access.hpp"
 #include "detail/fnv_hash.hpp"
 #include "fuelsim/core/transient_problem.hpp"
+#include "io/hex8_result_fields.hpp"
 #include "io/problem_signature.hpp"
 #include <algorithm>
 #include <array>
@@ -489,18 +490,29 @@ std::vector<std::string> cartesian_nodal_variable_names(
         result.push_back("reaction_force_x");
         result.push_back("reaction_force_y");
         result.push_back("reaction_force_z");
+        for (const char* field : {"temperature", "displacement_x", "displacement_y", "displacement_z"})
+            result.push_back("dirichlet_" + std::string(field));
     }
     return result;
 }
 
-std::vector<std::string> global_variable_names(const std::vector<ContactDefinition>& contacts) {
+std::vector<std::string> global_variable_names(const std::vector<ContactDefinition>& contacts, bool transient = false) {
     std::vector<std::string> result = {"load_factor"};
     for (const ContactDefinition& contact : contacts) {
         result.push_back("contact_heat_rate_" + contact.name);
         result.push_back("contact_force_" + contact.name);
         result.push_back("contact_tangential_force_" + contact.name);
     }
+    if (transient)
+        for (const auto& field : transient_conservation_fields)
+            result.push_back("conservation_" + std::string(field.name));
     return result;
+}
+
+std::vector<double> transient_globals(std::vector<double> values, const TransientProblem& problem) {
+    const auto& conservation = problem.last_conservation_summary();
+    for (const auto& field : transient_conservation_fields) values.push_back(conservation.*(field.member));
+    return values;
 }
 
 void append_component_variable_names(std::vector<std::string>& result, const char* prefix, std::size_t q) {
@@ -555,6 +567,10 @@ std::vector<std::string> cartesian_transient_variable_names(std::size_t point_co
         for (std::size_t q = 0; q < point_count; ++q)
             for (const char* component : {"x", "y", "z"})
                 result.push_back("current_" + std::string(component) + "_q" + std::to_string(q));
+    else
+        for (std::size_t q = 0; q < point_count; ++q)
+            for (const auto* field : io_detail::hex8_derived_field_names)
+                result.push_back(std::string(field) + "_q" + std::to_string(q));
     return result;
 }
 
@@ -885,6 +901,9 @@ void append_cartesian_reactions(const cartesian::SpatialAssembly& spatial, const
     }
     append_reaction_values(spatial, source_nodes, spatial.uses_hex20(), temperature_nodes,
         BackendAccess::committed_raw_residual(problem), values);
+    std::vector<double> constraints(problem.dof_count(), 0.0);
+    for (const auto& condition : problem.dirichlet_conditions()) constraints.at(condition.dof) = 1.0;
+    append_reaction_values(spatial, source_nodes, spatial.uses_hex20(), temperature_nodes, constraints, values);
 }
 
 std::vector<double> cartesian_globals(
@@ -914,12 +933,13 @@ void store_cartesian_stress_values(std::size_t source, const SymmetricTensor3Val
 
 std::vector<std::vector<double>> cartesian_elements(const UnstructuredHex8Mesh& mesh,
     const cartesian::SpatialAssembly& spatial, const std::vector<double>* state,
-    const std::vector<std::vector<CartesianMaterialHistory>>* histories = nullptr) {
+    const std::vector<std::vector<CartesianMaterialHistory>>* histories = nullptr, double time = 0.0) {
     const double missing = std::numeric_limits<double>::quiet_NaN();
     std::vector<std::vector<double>> result(
-        histories == nullptr ? 48 : 208, std::vector<double>(mesh.elements().size(), missing));
+        histories == nullptr ? 48 : 400, std::vector<double>(mesh.elements().size(), missing));
     for (std::size_t region = 0; region < spatial.region_count(); ++region) {
         const Hex8RegionMesh& region_mesh = spatial.region_mesh(region);
+        const IsotropicThermoelasticMaterial material(spatial.region(region).material);
         for (std::size_t element = 0; element < region_mesh.elements().size(); ++element) {
             const std::size_t source = region_mesh.source_element_ids()[element];
             std::array<SymmetricTensor3Values, 8> stresses{};
@@ -931,6 +951,18 @@ std::vector<std::vector<double>> cartesian_elements(const UnstructuredHex8Mesh& 
                 for (std::size_t q = 0; q < 8; ++q) stresses[q] = histories->at(region).at(element)[q].stress;
             store_cartesian_stress_values(source, stresses.data(), stresses.size(), result);
             if (histories == nullptr) continue;
+            Hex8LocalValues local_state{};
+            for (std::size_t node = 0; node < 8; ++node) {
+                const auto global = spatial.global_node(region, region_mesh.elements()[element].nodes[node]);
+                for (std::size_t field = 0; field < 4; ++field)
+                    local_state[8 * field + node] = state->at(spatial.field_layout()[field].begin + global);
+            }
+            const auto derived =
+                io_detail::hex8_derived_results(spatial.region_element_geometry(region, element), local_state, material,
+                    spatial.region(region).strain_formulation, spatial.region_material_point_count(region) == 1, time);
+            for (std::size_t q = 0; q < 8; ++q)
+                for (std::size_t field = 0; field < io_detail::hex8_derived_field_names.size(); ++field)
+                    result[208 + 24 * q + field][source] = derived[q][field];
             for (std::size_t q = 0; q < 8; ++q) {
                 const CartesianMaterialHistory& element_history = (*histories)[region][element];
                 const CartesianMaterialPointState& point =
@@ -1114,7 +1146,7 @@ ExodusTransientResultsWriter::ExodusTransientResultsWriter(
     const std::vector<ContactDefinition>& contacts = problem.definition().contacts;
     write_exodus_quad4(_path, *_rz_mesh);
     define_result_variables(_path, results_mesh_view(*_rz_mesh), nodal_variable_names(contacts, true),
-        transient_element_variable_names(), global_variable_names(contacts));
+        transient_element_variable_names(), global_variable_names(contacts, true));
 }
 
 ExodusTransientResultsWriter::ExodusTransientResultsWriter(
@@ -1125,7 +1157,7 @@ ExodusTransientResultsWriter::ExodusTransientResultsWriter(
     const std::vector<ContactDefinition>& contacts = problem.definition().contacts;
     write_exodus_hex8(_path, *_hex_mesh);
     define_result_variables(_path, results_mesh_view(*_hex_mesh), cartesian_nodal_variable_names(contacts, true),
-        cartesian_transient_variable_names(), global_variable_names(contacts));
+        cartesian_transient_variable_names(), global_variable_names(contacts, true));
 }
 
 ExodusTransientResultsWriter::ExodusTransientResultsWriter(
@@ -1136,7 +1168,7 @@ ExodusTransientResultsWriter::ExodusTransientResultsWriter(
     const std::vector<ContactDefinition>& contacts = problem.definition().contacts;
     write_exodus_hex20(_path, *_hex20_mesh);
     define_result_variables(_path, results_mesh_view(*_hex20_mesh), cartesian_nodal_variable_names(contacts, true),
-        cartesian_transient_variable_names(27), global_variable_names(contacts));
+        cartesian_transient_variable_names(27), global_variable_names(contacts, true));
 }
 
 void ExodusTransientResultsWriter::append(const TransientProblem& problem) {
@@ -1153,14 +1185,17 @@ void ExodusTransientResultsWriter::append(const TransientProblem& problem) {
         write_result_step(_path, results_mesh_view(*_hex20_mesh), _step_count, problem.committed_time(), nodal_values,
             cartesian_elements(*_hex20_mesh, spatial, &problem.committed_solution(),
                 &BackendAccess::cartesian_material_histories(problem)),
-            cartesian_globals(spatial, problem.committed_solution(), problem.committed_load_factor()));
+            transient_globals(
+                cartesian_globals(spatial, problem.committed_solution(), problem.committed_load_factor()), problem));
     } else if (_hex_mesh) {
         const cartesian::SpatialAssembly& spatial = BackendAccess::cartesian_spatial(problem);
         fill_cartesian_nodal(*_hex_mesh, spatial, problem.committed_solution(), nodal_values);
         append_cartesian_reactions(spatial, problem, nodal_values);
         write_result_step(_path, results_mesh_view(*_hex_mesh), _step_count, problem.committed_time(), nodal_values,
-            cartesian_elements(*_hex_mesh, spatial, nullptr, &BackendAccess::cartesian_material_histories(problem)),
-            cartesian_globals(spatial, problem.committed_solution(), problem.committed_load_factor()));
+            cartesian_elements(*_hex_mesh, spatial, &problem.committed_solution(),
+                &BackendAccess::cartesian_material_histories(problem), problem.committed_time()),
+            transient_globals(
+                cartesian_globals(spatial, problem.committed_solution(), problem.committed_load_factor()), problem));
     } else {
         const rz::SpatialAssembly& spatial = BackendAccess::transient(problem).spatial;
         fill_rz_nodal(*_rz_mesh, spatial, problem.committed_solution(), nodal_values);
@@ -1171,7 +1206,8 @@ void ExodusTransientResultsWriter::append(const TransientProblem& problem) {
             spatial, source_nodes, false, {}, BackendAccess::committed_raw_residual(problem), nodal_values);
         write_result_step(_path, results_mesh_view(*_rz_mesh), _step_count, problem.committed_time(), nodal_values,
             transient_elements(*_rz_mesh, problem),
-            rz_globals(spatial, problem.committed_solution(), problem.committed_load_factor()));
+            transient_globals(
+                rz_globals(spatial, problem.committed_solution(), problem.committed_load_factor()), problem));
     }
 }
 

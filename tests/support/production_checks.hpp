@@ -3,6 +3,8 @@
 #include <string>
 
 namespace fuelsim::test {
+bool check_hex8_b55(const std::string& output_path, const std::string& nodal_path, const std::string& integration_path);
+bool check_hex8_b58(const std::string& output_path, const std::string& nodal_path, const std::string& integration_path);
 bool check_hex20_integrated(const std::string& output_path, const std::string& temperature_path,
     const std::string& displacement_path, const std::string& material_path, const std::string& contact_path,
     bool frictional, std::size_t summary_active);

@@ -101,6 +101,7 @@ add_library(fuelsim_io
     src/io/checkpoint.cpp
     src/io/problem_signature.cpp
     src/io/results_io.cpp
+    src/io/hex8_result_fields.cpp
 )
 add_library(fuelsim::io ALIAS fuelsim_io)
 
@@ -201,6 +202,8 @@ if(BUILD_TESTING)
         tests/production_hex20_friction_path_33.cpp
         tests/production_hex20_friction_path_36.cpp
         tests/production_hex20_integrated.cpp
+        tests/production_hex8_b55.cpp
+        tests/production_hex8_b58.cpp
     )
     target_link_libraries(fuelsim_production_result_tests
         PRIVATE fuelsim_exodus_result_test_support fuelsim_field_error_metrics
@@ -211,7 +214,7 @@ if(BUILD_TESTING)
         set(case_root "${CMAKE_CURRENT_BINARY_DIR}/blackbox/${case_name}/verification")
         set(case_directory "${case_root}/fuelsim")
         file(MAKE_DIRECTORY "${case_directory}")
-        foreach(reference_directory IN ITEMS moose abaqus)
+        foreach(reference_directory IN ITEMS moose abaqus meshes)
             if(NOT EXISTS "${case_root}/${reference_directory}")
                 file(CREATE_LINK "${CMAKE_CURRENT_SOURCE_DIR}/verification/${reference_directory}"
                     "${case_root}/${reference_directory}" SYMBOLIC COPY_ON_ERROR)
@@ -263,6 +266,16 @@ if(BUILD_TESTING)
                 -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_case.cmake")
         set_tests_properties("${test_name}" PROPERTIES LABELS "acceptance;production" TIMEOUT 120)
     endfunction()
+
+    add_executable(fuelsim_hex8_result_fields_tests tests/hex8_result_fields_tests.cpp)
+    target_link_libraries(fuelsim_hex8_result_fields_tests PRIVATE fuelsim::io)
+    target_include_directories(fuelsim_hex8_result_fields_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    fuelsim_enable_warnings(fuelsim_hex8_result_fields_tests)
+    add_test(NAME fuelsim_hex8_result_fields_tests COMMAND fuelsim_hex8_result_fields_tests)
+    set_tests_properties(fuelsim_hex8_result_fields_tests PROPERTIES LABELS "unit;io;hex8;analytic")
+    add_executable(fuelsim_test_mesh_export EXCLUDE_FROM_ALL benchmarks/test_mesh_export.cpp)
+    target_link_libraries(fuelsim_test_mesh_export PRIVATE fuelsim::io)
+    fuelsim_enable_warnings(fuelsim_test_mesh_export)
 
     add_library(fuelsim_abaqus_hex8_test_support
         tests/support/abaqus_hex8_full_field.cpp
@@ -836,13 +849,8 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_b54_hex8_c3d8t_finite_thermal_load_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;finite-strain;transient;thermal;abaqus;identification")
 
-    add_executable(fuelsim_b55_hex8_c3d8t_transient_abaqus_tests
-        tests/b55_hex8_c3d8t_transient_abaqus_tests.cpp)
-    target_link_libraries(fuelsim_b55_hex8_c3d8t_transient_abaqus_tests
-        PRIVATE fuelsim_moose_test_support fuelsim::solver)
-    fuelsim_enable_warnings(fuelsim_b55_hex8_c3d8t_transient_abaqus_tests)
-    add_test(NAME fuelsim_b55_hex8_c3d8t_transient_abaqus_tests
-        COMMAND fuelsim_b55_hex8_c3d8t_transient_abaqus_tests
+    fuelsim_add_production_test(fuelsim_b55_hex8_c3d8t_transient_abaqus_tests b55
+            transient_b55_hex8_c3d8t_thermal b55
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b55_hex8_c3d8t_transient_nodal.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b55_hex8_c3d8t_transient_integration.csv")
     set_tests_properties(fuelsim_b55_hex8_c3d8t_transient_abaqus_tests PROPERTIES
@@ -866,13 +874,8 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_b57_hex8_c3d8t_temperature_capacity_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex8;transient;thermal;temperature-dependent;abaqus;identification")
 
-    add_executable(fuelsim_b58_hex8_c3d8t_multistep_abaqus_tests
-        tests/b58_hex8_c3d8t_multistep_abaqus_tests.cpp)
-    target_link_libraries(fuelsim_b58_hex8_c3d8t_multistep_abaqus_tests
-        PRIVATE fuelsim_moose_test_support fuelsim::solver)
-    fuelsim_enable_warnings(fuelsim_b58_hex8_c3d8t_multistep_abaqus_tests)
-    add_test(NAME fuelsim_b58_hex8_c3d8t_multistep_abaqus_tests
-        COMMAND fuelsim_b58_hex8_c3d8t_multistep_abaqus_tests
+    fuelsim_add_production_test(fuelsim_b58_hex8_c3d8t_multistep_abaqus_tests b58
+            transient_b58_hex8_c3d8t_multistep b58
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b58_hex8_c3d8t_multistep_nodal.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b58_hex8_c3d8t_multistep_integration.csv")
     set_tests_properties(fuelsim_b58_hex8_c3d8t_multistep_abaqus_tests PROPERTIES
