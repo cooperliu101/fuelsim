@@ -1,0 +1,48 @@
+*Heading
+** Axisymmetric thermomechanical contact of two rings, small strain.
+*Preprint, echo=NO, model=NO, history=NO, contact=NO
+*Include, input=b7_rz_contact_mesh.inc
+*Material, name=SOLID
+*Elastic
+1e9, 0.3
+*Conductivity
+10
+*Density
+1000
+*Specific Heat
+100
+*Solid Section, elset=LOWER, material=SOLID
+,
+*Solid Section, elset=UPPER, material=SOLID
+,
+*Initial Conditions, type=TEMPERATURE
+ALL, 650
+*Surface Interaction, name=INTERFACE
+*Surface Behavior, pressure-overclosure=LINEAR
+1e13
+*Gap Conductance
+1e5, 0
+1e5, 1e-6
+0, 1
+*Contact Pair, interaction=INTERFACE, type=NODE TO SURFACE, adjust=0
+S_LOWER, S_UPPER
+*Step, name=CONTACT, nlgeom=NO, inc=20
+*Coupled Temperature-Displacement, steady state
+1, 1, 1, 1
+*Controls, parameters=FIELD, field=DISPLACEMENT
+1e-10, 1e-10, , , , 1e-10
+*Boundary
+RADIAL_FIXED, 1, 1, 0
+BOTTOM, 2, 2, 0
+TOP, 2, 2, -5e-6
+BOTTOM, 11, 11, 700
+TOP, 11, 11, 600
+*Output, field, frequency=1
+*Node Output
+NT, U, RF, RFL
+*Element Output, directions=YES
+S, EE, COORD, IVOL, HFL
+*Contact Output
+CSTRESS, CDISP, CFORCE, HFL
+*Output, history, frequency=0
+*End Step

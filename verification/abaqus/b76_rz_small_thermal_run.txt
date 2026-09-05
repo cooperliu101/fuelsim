@@ -1,0 +1,5 @@
+case=b76_rz_small_thermal
+external_seconds=4.0512329
+cpus=1
+processor_affinity=1
+input_sha256=18ED613BBC30E7D6924C07ABCCDE1D33B259FCE34438F10E1974C1D47367AF7B

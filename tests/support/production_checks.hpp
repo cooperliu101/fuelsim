@@ -3,6 +3,8 @@
 #include <string>
 
 namespace fuelsim::test {
+bool check_rz_abaqus(const std::string& output_path, const std::string& node_path, const std::string& point_path,
+    const std::string& mechanisms);
 bool check_hex8_multi_contact_path(const std::string& output, const std::string& reference_directory);
 bool check_hex8_finite_contact(
     const std::string& output_path, const std::string& node_path, const std::string& contact_path);

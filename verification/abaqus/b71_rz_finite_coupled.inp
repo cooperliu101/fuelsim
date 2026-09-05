@@ -1,0 +1,41 @@
+*Heading
+** Finite-strain axisymmetric simultaneous J2 plasticity and Norton creep.
+*Preprint, echo=NO, model=NO, history=NO, contact=NO
+*Include, input=b7_rz_material_mesh.inc
+*Material, name=SOLID
+*Elastic
+2e11, 0.3
+*Plastic
+1e6, 0
+2.001e9, 0.1
+*Creep, law=TIME
+1e-28, 3, 0
+*Conductivity
+10
+*Density
+1000
+*Specific Heat
+100
+*Solid Section, elset=SOLID, material=SOLID
+,
+*Initial Conditions, type=TEMPERATURE
+ALL, 600
+*Amplitude, name=EXTENSION, time=TOTAL TIME
+0, 0, 1, 1
+*Step, name=LOAD, nlgeom=YES, inc=5
+*Coupled Temperature-Displacement
+0.2, 1, 0.2, 0.2
+*Controls, parameters=FIELD, field=DISPLACEMENT
+1e-10, 1e-10, , , , 1e-10
+*Boundary
+AXIS, 1, 1, 0
+BOTTOM, 2, 2, 0
+*Boundary, amplitude=EXTENSION
+TOP, 2, 2, 1e-5
+*Output, field, frequency=1
+*Node Output
+NT, U, RF, RFL
+*Element Output, directions=YES
+S, EE, PE, PEEQ, CE, CEEQ, COORD, IVOL, HFL
+*Output, history, frequency=0
+*End Step

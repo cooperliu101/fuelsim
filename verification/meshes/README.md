@@ -1,5 +1,13 @@
 # 显式生产测试网格
 
+- `b7_rz_material.e` 是半径和高度均为 1 mm 的单个轴对称四节点单元，
+  与 `verification/abaqus/b7_rz_material_mesh.inc` 使用相同坐标和节点编号。
+  文件逐字复用已有 `m22_coupled_plastic_creep_traction_rz_mesh.e`，不改变几何。
+- `b7_rz_contact.e` 包含两个径向范围 1—2 mm、高度各为 1 mm 的环形区域，
+  初始轴向间隙为 1 μm。两个区域保留独立节点，分别定义径向约束边集。
+  `verification/abaqus/generate_b7_rz_contact_mesh.py` 只生成这个网格及对应的
+  Abaqus 网格文件，不生成或改写任何物理输入卡；自动测试直接读取已提交网格。
+
 - `b510_hex8_unit_cube.e` 保留原 B5.10 系列的八个源节点、单位立方体单元、
   `solid` 区域以及 `left`、`right`、`y0`、`z0` 边集，供十一条非弹性路径使用。
 

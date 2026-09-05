@@ -1,5 +1,11 @@
 # fuelsim
 
+轴对称和三维均以 Abaqus 为首要外部参考。轴对称 B7.0—B7.9 使用 CAX4T
+四节点温度—位移耦合单元，覆盖小应变、有限应变、热机械接触、蠕变、塑性以及
+蠕变与塑性同时作用，所有已定义的非零场三项相对误差均要求小于 0.5%。
+算例、逐项结果和适用边界见[轴对称 Abaqus 验证记录](verification/abaqus/b7_rz_validation.md)。
+原有 MOOSE 参考保留特殊加载、非共轴历史等补充覆盖。
+
 `fuelsim` 是一个依赖精简的 C++17 核燃料性能有限元程序。统一可执行程序
 通过输入卡选择 `SteadyProblem` 或 `TransientProblem`，并从一个 Exodus
 文件自由组合任意数量的物理区域。稳态问题包含：

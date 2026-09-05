@@ -1,0 +1,5 @@
+case=b74_rz_small_plastic
+external_seconds=4.0359834
+cpus=1
+processor_affinity=1
+input_sha256=CA4B6DF5B528F36A31C60BCC33E25CF6A762D4B2596FBD3936441F3B08F77AA5

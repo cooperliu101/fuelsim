@@ -1,0 +1,5 @@
+case=b71_rz_finite_coupled
+external_seconds=4.0390789
+cpus=1
+processor_affinity=1
+input_sha256=AA0F9B6D52E57BB4A8C58CB02B563E59F91C7F0DD3D4ABC1C3875B5B1564BDA5

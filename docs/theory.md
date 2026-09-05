@@ -21,7 +21,8 @@ fuelsim -i <case.fsi>
 - 局部自动微分与中心差分检查约束一致切线；
 - 解析解和制造解约束独立可计算的极限；
 - 端到端 CTest 约束输入、网格、装配、求解和输出的组合；
-- MOOSE 对标约束相同网格、物理和加载路径下的场量结果；
+- Abaqus 作为轴对称和三维首要参考，约束相同网格、物理和加载路径下的场量结果；
+  MOOSE 特殊加载与非共轴历史保留为补充覆盖；
 - `measured` 和 `limitation` 证据分别记录受控观测与尚未鉴定的边界。
 
 机器可读的证据索引是
@@ -30,6 +31,8 @@ fuelsim -i <case.fsi>
 [`docs/verification.md`](verification.md)。MOOSE 输入、网格、结果和校验和的
 溯源说明见 [`verification/moose/README.md`](../verification/moose/README.md)
 及 [`verification/moose/SHA256SUMS`](../verification/moose/SHA256SUMS)。
+轴对称 Abaqus CAX4T 的完整输入、逐项误差及适用边界见
+[`verification/abaqus/b7_rz_validation.md`](../verification/abaqus/b7_rz_validation.md)。
 
 ## 2. 软件边界与状态流
 

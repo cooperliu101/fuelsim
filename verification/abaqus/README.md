@@ -1,5 +1,14 @@
 # Abaqus references
 
+## B7.0—B7.9 axisymmetric CAX4T qualification
+
+Axisymmetric validation now uses Abaqus CAX4T as its primary external reference.
+The ten production-input cases cover small and finite strain, thermal mechanical
+contact, Norton creep, J2 plasticity, and simultaneous creep and plasticity.
+Every defined nonzero-field metric has a strict 0.5% gate. See
+[the validation record](b7_rz_validation.md) for the exact coverage, zero-reference
+policy, raw reference provenance, reproducible commands, and scope boundaries.
+
 ## H20.21 mixed-order HEX20 normal contact
 
 `h20_21_hex20_surface_contact.inp` is a two-element Abaqus/Standard C3D20

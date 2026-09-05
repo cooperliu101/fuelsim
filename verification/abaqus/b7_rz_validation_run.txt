@@ -1,0 +1,32 @@
+validation_date=2026-09-06
+source_base_commit=11a5810a3e48ec7931f341b23dd2019e3edcb311
+build_type=Release
+compiler=c++ (conda-forge gcc 14.3.0-19) 14.3.0
+warnings_as_errors=ON
+build_command=cmake --build build --parallel 4
+regression_command=ctest --test-dir build -j4 --output-on-failure
+regression_passed=219
+regression_failed=0
+regression_external_seconds=101.26
+abaqus_version=3DEXPERIENCE R2018x
+abaqus_successful_cases=10
+production_abaqus_cases_passed=10
+maximum_relative_error_percent=0.00496432767987
+maximum_error_field=b75_rz_finite_plastic bottom axial reaction
+relative_error_limit_percent=0.5
+compared_field_groups=88
+zero_reference_field_groups=28
+build/fuelsim_sha256=b91f4e2f9df8b6b89b391e580b64d42c75c3c9632605d05d106a08e142442134
+build/fuelsim_production_result_tests_sha256=a195dc57058f577e7e18addf80f868f335f224d06863f2cf7de2f3760d9323ba
+tests/production_rz_abaqus.cpp_sha256=5e20523a8a18b0be6ffc7b8d228e459ee3d9c9f005f3f6cbe4771c2ac2f06ba9
+
+Checker rejection audit: only temporary copies of reference CSVs were modified. Production inputs and committed reference values were unchanged.
+mutation	exit_code	result
+stress	1	rz_abaqus_qualification=failed
+pressure	1	rz_abaqus_qualification=failed
+missing	1	[FAIL] production result comparison raised: vector::_M_range_check: __n (which is 19) >= this->size() (which is 19)
+time	1	[FAIL] production result comparison raised: Abaqus material history does not match production output
+zero	1	rz_abaqus_qualification=failed
+
+All 47 provenance entries matched; all ten staged Fuelsim inputs were byte-identical to their source cards; all ten executed Abaqus input hashes matched.
+Native Windows CSV, run and status captures retain original line endings. Native status captures also retain original spacing and encoding.

@@ -187,6 +187,7 @@ if(BUILD_TESTING)
     add_executable(fuelsim_production_result_tests
         tests/production_result_tests.cpp
         tests/production_rz_contact.cpp
+        tests/production_rz_abaqus.cpp
         tests/production_hex20_contact.cpp
         tests/production_hex8_contact.cpp
         tests/production_rz_integrated.cpp
@@ -2139,6 +2140,23 @@ if(BUILD_TESTING)
         PROPERTIES LABELS "acceptance"
     )
 
+    # Primary axisymmetric Abaqus qualification. Only scheduling metadata is generated;
+    # every physical input is a complete, tracked card copied without substitutions.
+    foreach(rz_case IN ITEMS b70_rz_small_coupled b71_rz_finite_coupled
+        b72_rz_small_creep b73_rz_finite_creep b74_rz_small_plastic b75_rz_finite_plastic
+        b76_rz_small_thermal b77_rz_finite_thermal b78_rz_small_contact b79_rz_finite_contact)
+        string(REGEX REPLACE ".*_" "" rz_mechanism "${rz_case}")
+        if(rz_mechanism STREQUAL "contact")
+            set(rz_input "steady_${rz_case}")
+        else()
+            set(rz_input "transient_${rz_case}")
+        endif()
+        fuelsim_add_production_test("fuelsim_${rz_case}_abaqus_tests" "${rz_case}" "${rz_input}" rz-abaqus
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${rz_case}_nodes.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${rz_case}_points.csv" "${rz_mechanism}")
+    endforeach()
+
+    # Historical MOOSE references retain independent load and rotation coverage.
     fuelsim_add_production_test(fuelsim_m22_j2_moose_tests m22_j2 transient_j2_plastic_moose m22
         "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m22_j2_plastic_rz_all_nodes_final.csv" j2
     )

@@ -910,7 +910,10 @@ int main(int argc, char** argv) {
         std::cout << std::scientific << std::setprecision(12);
         const std::string mode = argv[1];
         bool passed = false;
-        if (mode == "m0") {
+        if (mode == "rz-abaqus") {
+            require_argument_count(mode, argc, 7);
+            passed = fuelsim::test::check_rz_abaqus(argv[2], argv[4], argv[5], argv[6]);
+        } else if (mode == "m0") {
             require_argument_count(mode, argc, 4);
             passed = run_m0(argv[2], argv[3]);
         } else if (mode == "m21") {
