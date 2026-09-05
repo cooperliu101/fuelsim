@@ -3,10 +3,12 @@
   problem = transient
   geometry = axisymmetric_rz
 []
+
 [Mesh]
   type = exodus
   file = ../moose/m52_large_sliding_contact_rz_mesh.e
 []
+
 [Materials]
   [lower]
     [thermal]
@@ -15,12 +17,14 @@
       density = 10000
       specific_heat = 300
     []
+
     [elasticity]
       function = constant_isotropic
       young_modulus = 2e11
       poisson_ratio = 0.3
     []
   []
+
   [upper]
     [thermal]
       function = constant_thermophysical
@@ -28,13 +32,16 @@
       density = 10000
       specific_heat = 300
     []
+
     [elasticity]
       function = constant_isotropic
       young_modulus = 2e11
       poisson_ratio = 0.3
     []
   []
+
 []
+
 [Regions]
   [lower]
     block = lower_pellet
@@ -51,6 +58,7 @@
     volumetric_heat_source = 0
   []
 []
+
 [Contact]
   [pellet_stack]
     primary = upper_bottom
@@ -61,6 +69,7 @@
     []
   []
 []
+
 [BoundaryConditions]
   [lower_axis]
     type = dirichlet
@@ -127,6 +136,7 @@
     value = 800
   []
 []
+
 [Executioner]
   type = transient
   end_time = 1
@@ -137,16 +147,17 @@
   cutback_factor = 0.5
   maximum_cutbacks = 2
   load_ramp_time = 1
-  restart = transient_large_sliding_contact_split.checkpoint
 []
+
 [Solver]
   absolute_tolerance = 1e-8
   relative_tolerance = 1e-10
   step_tolerance = 1e-12
   maximum_iterations = 80
 []
+
 [Outputs]
   console = false
-  csv = transient_large_sliding_contact_restart_summary.csv
-  exodus = transient_large_sliding_contact_restart_results.e
+  csv = transient_large_sliding_contact_summary.csv
+  exodus = transient_large_sliding_contact_results.e
 []

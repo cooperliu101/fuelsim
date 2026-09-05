@@ -204,6 +204,7 @@ if(BUILD_TESTING)
         tests/production_hex20_integrated.cpp
         tests/production_hex8_b55.cpp
         tests/production_hex8_b58.cpp
+        tests/production_hex8_b531.cpp
     )
     target_link_libraries(fuelsim_production_result_tests
         PRIVATE fuelsim_exodus_result_test_support fuelsim_field_error_metrics
@@ -253,7 +254,8 @@ if(BUILD_TESTING)
         set(summary "${case_directory}/${input_stem}_summary.csv")
         set(output_files "${results};${summary}")
         if(check_mode STREQUAL "hex8-inelastic" OR check_mode STREQUAL "b34-transient" OR check_mode STREQUAL "b40"
-            OR check_mode STREQUAL "b549" OR check_mode STREQUAL "b550" OR check_mode STREQUAL "b555")
+            OR check_mode STREQUAL "b549" OR check_mode STREQUAL "b550" OR check_mode STREQUAL "b555"
+            OR check_mode STREQUAL "b531" OR check_mode STREQUAL "b534")
             list(APPEND output_files "${case_directory}/${input_stem}.checkpoint")
         endif()
         add_test(NAME "${test_name}"
@@ -509,21 +511,36 @@ if(BUILD_TESTING)
         PRIVATE fuelsim::io
     )
     fuelsim_enable_warnings(fuelsim_b549_small_c3d20t_mesh)
-    add_executable(fuelsim_m52_large_sliding_restart_tests
-        tests/m52_large_sliding_restart_tests.cpp
-    )
-    target_link_libraries(fuelsim_m52_large_sliding_restart_tests
-        PRIVATE fuelsim::io fuelsim::solver
-    )
-    fuelsim_enable_warnings(fuelsim_m52_large_sliding_restart_tests)
+    fuelsim_add_production_test(fuelsim_m52_transient_reference m52_transient
+        transient_large_sliding_contact m52-transient)
+    set_tests_properties(fuelsim_m52_transient_reference PROPERTIES FIXTURES_SETUP m52_transient_production)
+    fuelsim_stage_blackbox_case(m52_checkpoint_input m52_restart transient_large_sliding_contact_checkpoint.fsi)
+    fuelsim_stage_blackbox_case(m52_restart_input m52_restart transient_large_sliding_contact_restart.fsi)
+    get_filename_component(m52_restart_directory "${m52_restart_input}" DIRECTORY)
+    set(m52_full_directory "${CMAKE_CURRENT_BINARY_DIR}/blackbox/m52_transient/verification/fuelsim")
+    set(m52_restart_result "${m52_restart_directory}/transient_large_sliding_contact_restart_results.part1.e")
+    set(m52_restart_summary "${m52_restart_directory}/transient_large_sliding_contact_restart_summary.csv")
     add_test(NAME fuelsim_m52_large_sliding_restart_tests
-        COMMAND fuelsim_m52_large_sliding_restart_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_large_sliding_contact_restart.fsi"
-            "${CMAKE_CURRENT_BINARY_DIR}/m52_checkpoint.bin"
-    )
+        COMMAND "${CMAKE_COMMAND}"
+            "-DFUELSIM_EXECUTABLE=$<TARGET_FILE:fuelsim>"
+            "-DCHECKPOINT_INPUT=${m52_checkpoint_input}"
+            "-DCHECKPOINT_FILE=${m52_restart_directory}/transient_large_sliding_contact_split.checkpoint"
+            "-DINPUT_FILE=${m52_restart_input}"
+            "-DOUTPUT_FILES=${m52_restart_result};${m52_restart_summary}"
+            "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_production_result_tests>"
+            "-DCHECK_ARGUMENTS=m52-restart;${m52_restart_result};${m52_restart_summary};${m52_full_directory}/transient_large_sliding_contact_results.e"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_restart.cmake")
     set_tests_properties(fuelsim_m52_large_sliding_restart_tests PROPERTIES
-        LABELS "integration"
-    )
+        FIXTURES_REQUIRED m52_transient_production FIXTURES_SETUP m52_restart_production
+        LABELS "acceptance;production;restart;contact" TIMEOUT 120)
+    add_executable(fuelsim_rz_restart_step_contract_tests tests/rz_restart_step_contract_tests.cpp)
+    target_link_libraries(fuelsim_rz_restart_step_contract_tests PRIVATE fuelsim::io)
+    fuelsim_enable_warnings(fuelsim_rz_restart_step_contract_tests)
+    add_test(NAME fuelsim_m52_restart_step_contract
+        COMMAND fuelsim_rz_restart_step_contract_tests "${m52_restart_input}"
+            "${m52_restart_directory}/transient_large_sliding_contact_split.checkpoint")
+    set_tests_properties(fuelsim_m52_restart_step_contract PROPERTIES
+        FIXTURES_REQUIRED m52_restart_production LABELS "unit;checkpoint;transaction")
 
     fuelsim_stage_blackbox_case(
         FUELSIM_M1_BLACKBOX_INPUT m1 steady_fuel_cladding.fsi)
@@ -1798,25 +1815,38 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_b530_hex8_c3d8rt_thermal_load_abaqus_tests PROPERTIES
         LABELS "acceptance;abaqus;three-dimensional;reduced-integration;thermal")
 
-    add_executable(fuelsim_b531_hex8_c3d8rt_transient_abaqus_tests
-        tests/b531_hex8_c3d8rt_transient_abaqus_tests.cpp)
-    target_link_libraries(fuelsim_b531_hex8_c3d8rt_transient_abaqus_tests
-        PRIVATE fuelsim_moose_test_support fuelsim::solver)
-    fuelsim_enable_warnings(fuelsim_b531_hex8_c3d8rt_transient_abaqus_tests)
-    add_test(NAME fuelsim_b531_hex8_c3d8rt_transient_abaqus_tests
-        COMMAND fuelsim_b531_hex8_c3d8rt_transient_abaqus_tests
-            small
+    fuelsim_add_production_test(fuelsim_b531_hex8_c3d8rt_transient_abaqus_tests b531
+            transient_b531_hex8_c3d8rt b531
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b531_hex8_c3d8rt_transient_nodal.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b531_hex8_c3d8rt_transient_integration.csv")
     set_tests_properties(fuelsim_b531_hex8_c3d8rt_transient_abaqus_tests PROPERTIES
         LABELS "acceptance;abaqus;three-dimensional;reduced-integration;transient;thermo-mechanical")
-    add_test(NAME fuelsim_b534_hex8_c3d8rt_finite_transient_abaqus_tests
-        COMMAND fuelsim_b531_hex8_c3d8rt_transient_abaqus_tests
-            finite
+    fuelsim_add_production_test(fuelsim_b534_hex8_c3d8rt_finite_transient_abaqus_tests b534
+            transient_b534_hex8_c3d8rt_finite b534
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b534_hex8_c3d8rt_finite_transient_nodal.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b534_hex8_c3d8rt_finite_transient_integration.csv")
     set_tests_properties(fuelsim_b534_hex8_c3d8rt_finite_transient_abaqus_tests PROPERTIES
         LABELS "acceptance;abaqus;three-dimensional;reduced-integration;finite-strain;transient;thermo-mechanical")
+    add_executable(fuelsim_hex8_reduced_history_contract_tests tests/hex8_reduced_history_contract_tests.cpp)
+    target_link_libraries(fuelsim_hex8_reduced_history_contract_tests PRIVATE fuelsim::io fuelsim_exodus_result_test_support)
+    fuelsim_enable_warnings(fuelsim_hex8_reduced_history_contract_tests)
+    set_tests_properties(fuelsim_b531_hex8_c3d8rt_transient_abaqus_tests PROPERTIES FIXTURES_SETUP b531_production)
+    set_tests_properties(fuelsim_b534_hex8_c3d8rt_finite_transient_abaqus_tests PROPERTIES FIXTURES_SETUP b534_production)
+    foreach(reduced_case IN ITEMS b531 b534)
+        if(reduced_case STREQUAL "b531")
+            set(reduced_stem transient_b531_hex8_c3d8rt)
+        else()
+            set(reduced_stem transient_b534_hex8_c3d8rt_finite)
+        endif()
+        set(reduced_directory "${CMAKE_CURRENT_BINARY_DIR}/blackbox/${reduced_case}/verification/fuelsim")
+        add_test(NAME fuelsim_${reduced_case}_history_contract
+            COMMAND fuelsim_hex8_reduced_history_contract_tests
+                "${reduced_directory}/${reduced_stem}.fsi"
+                "${reduced_directory}/${reduced_stem}.checkpoint"
+                "${reduced_directory}/${reduced_stem}_results.e")
+        set_tests_properties(fuelsim_${reduced_case}_history_contract PROPERTIES
+            FIXTURES_REQUIRED ${reduced_case}_production LABELS "unit;transaction;reduced-integration")
+    endforeach()
     fuelsim_enable_warnings(fuelsim_multi_region_tests)
     add_test(NAME fuelsim_multi_region_tests COMMAND fuelsim_multi_region_tests)
     set_tests_properties(fuelsim_multi_region_tests PROPERTIES LABELS "acceptance")

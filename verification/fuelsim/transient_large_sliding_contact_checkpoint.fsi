@@ -129,7 +129,7 @@
 []
 [Executioner]
   type = transient
-  end_time = 1
+  end_time = 0.5
   initial_time_step = 0.05
   minimum_time_step = 0.05
   maximum_time_step = 0.05
@@ -137,7 +137,6 @@
   cutback_factor = 0.5
   maximum_cutbacks = 2
   load_ramp_time = 1
-  restart = transient_large_sliding_contact_split.checkpoint
 []
 [Solver]
   absolute_tolerance = 1e-8
@@ -147,6 +146,5 @@
 []
 [Outputs]
   console = false
-  csv = transient_large_sliding_contact_restart_summary.csv
-  exodus = transient_large_sliding_contact_restart_results.e
+  checkpoint = transient_large_sliding_contact_split.checkpoint
 []

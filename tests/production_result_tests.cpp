@@ -936,6 +936,15 @@ int main(int argc, char** argv) {
                          "B5.5 completes one Backward Euler increment without a rejected step") &&
                      passed;
             passed = fuelsim::test::check_hex8_b55(argv[2], argv[4], argv[5]) && passed;
+        } else if (mode == "b531" || mode == "b534") {
+            require_argument_count(mode, argc, 6);
+            passed = completed_summary(argv[3], "transient");
+            const auto summary = read_summary(argv[3]);
+            passed = check(summary_number(summary, "accepted_steps") == 1.0 &&
+                               summary_number(summary, "rejected_steps") == 0.0,
+                         "C3D8RT completes one prescribed increment without a rejected step") &&
+                     passed;
+            passed = fuelsim::test::check_hex8_b531(argv[2], argv[4], argv[5], mode == "b534") && passed;
         } else if (mode == "b58") {
             require_argument_count(mode, argc, 6);
             passed = completed_summary(argv[3], "transient");
@@ -1281,6 +1290,49 @@ int main(int argc, char** argv) {
         } else if (mode == "equivalence") {
             require_argument_count(mode, argc, 5);
             passed = compare_result_files(argv[2], argv[3], std::stod(argv[4]));
+        } else if (mode == "m52-transient") {
+            require_argument_count(mode, argc, 4);
+            passed = completed_summary(argv[3], "transient");
+            passed = check(summary_number(read_summary(argv[3]), "accepted_steps") == 20.0 &&
+                               fuelsim::test::read_final_exodus_results(argv[2]).time == 1.0,
+                         "M5.2 continuous production path completes twenty prescribed steps") &&
+                     passed;
+        } else if (mode == "m52-restart") {
+            require_argument_count(mode, argc, 5);
+            passed = completed_summary(argv[3], "transient");
+            passed = check(summary_number(read_summary(argv[3]), "accepted_steps") == 10.0,
+                         "M5.2 production restart completes the ten remaining steps") &&
+                     passed;
+            const auto actual = fuelsim::test::read_final_exodus_results(argv[2]);
+            const auto expected = fuelsim::test::read_final_exodus_results(argv[4]);
+            if (actual.time != 1.0 || expected.time != 1.0 || actual.nodes != expected.nodes)
+                throw std::runtime_error("M5.2 restart output mesh or time differs");
+            double maximum_absolute = 0.0, maximum_scaled = 0.0;
+            for (const auto* field : {"temperature", "displacement_r", "displacement_z"}) {
+                const auto& a = actual.nodal(field);
+                const auto& e = expected.nodal(field);
+                if (a.size() != e.size()) throw std::runtime_error("M5.2 restart nodal sizes differ");
+                for (std::size_t node = 0; node < a.size(); ++node) {
+                    if (!std::isfinite(a[node]) || !std::isfinite(e[node]))
+                        throw std::runtime_error("M5.2 restart has a nonfinite nodal state");
+                    const double difference = std::abs(a[node] - e[node]);
+                    maximum_absolute = std::max(maximum_absolute, difference);
+                    maximum_scaled = std::max(maximum_scaled, difference / (1.0 + std::abs(e[node])));
+                }
+            }
+            for (const auto* field : {"projected", "primary_segment", "pressure"}) {
+                const auto name = "contact_" + std::string(field) + "_pellet_stack";
+                const auto& a = actual.nodal(name);
+                const auto& e = expected.nodal(name);
+                if (a.size() != e.size()) throw std::runtime_error("M5.2 restart contact sizes differ");
+                for (std::size_t node = 0; node < a.size(); ++node)
+                    passed = check((std::isnan(a[node]) && std::isnan(e[node])) || a[node] == e[node],
+                                 "M5.2 restart contact ownership and pressure are exact") &&
+                             passed;
+            }
+            std::cout << "m52_restart_maximum_absolute=" << maximum_absolute << '\n'
+                      << "m52_restart_maximum_scaled=" << maximum_scaled << '\n';
+            passed = check(maximum_scaled < 1e-13, "M5.2 restart retains the original nodal-state tolerance") && passed;
         } else if (mode == "b40-restart") {
             require_argument_count(mode, argc, 5);
             passed = completed_summary(argv[3], "transient");
