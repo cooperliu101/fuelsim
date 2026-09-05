@@ -724,6 +724,10 @@ RegionStateSummary TransientProblem::summarize_region(std::size_t region) const 
     return result;
 }
 
+const std::vector<double>& BackendAccess::committed_raw_residual(const TransientProblem& problem) noexcept {
+    return problem._impl->committed_raw_residual;
+}
+
 TransientCommittedState BackendAccess::committed_state(const TransientProblem& problem) {
     const SpatialProblemStorage& storage = *problem._impl;
     return {storage.committed_solution, storage.previous_committed_solution, storage.material_histories,

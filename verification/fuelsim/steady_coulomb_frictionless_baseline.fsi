@@ -18,13 +18,11 @@
       density = 1
       specific_heat = 1
     []
-
     [elasticity]
       function = constant_isotropic
       young_modulus = 2e11
       poisson_ratio = 0.316
     []
-
     [eigenstrains]
       [thermal_expansion]
         function = isotropic_thermal_expansion
@@ -33,7 +31,6 @@
       []
     []
   []
-
   [cladding]
     [thermal]
       function = constant_thermophysical
@@ -41,13 +38,11 @@
       density = 1
       specific_heat = 1
     []
-
     [elasticity]
       function = constant_isotropic
       young_modulus = 7.5e10
       poisson_ratio = 0.3
     []
-
     [eigenstrains]
       [thermal_expansion]
         function = isotropic_thermal_expansion
@@ -56,7 +51,6 @@
       []
     []
   []
-
 []
 
 [Regions]
@@ -67,7 +61,6 @@
     initial_temperature = 600
     volumetric_heat_source = 2e8
   []
-
   [cladding]
     block = clad
     material = cladding
@@ -81,16 +74,14 @@
   [fuel_cladding]
     primary = clad_left
     secondary = fuel_right
-
     [thermal]
       gap_conductivity = 0.4
       minimum_gap = 1e-6
     []
-
     [mechanical]
       formulation = penalty
       penalty = 1e14
-      mu = 0.3
+      mu = 0
     []
   []
 []
@@ -102,21 +93,18 @@
     field = radial_displacement
     value = 0
   []
-
   [fuel_bottom]
     type = dirichlet
     boundary = fuel_bottom
     field = axial_displacement
     value = 0
   []
-
   [cladding_bottom]
     type = dirichlet
     boundary = clad_bottom
     field = axial_displacement
     value = 0
   []
-
   [cladding_outer_temperature]
     type = dirichlet
     boundary = clad_right
@@ -139,6 +127,6 @@
 
 [Outputs]
   console = true
-  csv = steady_coulomb_friction_moose_summary.csv
-  exodus = steady_coulomb_friction_moose_results.e
+  csv = steady_coulomb_frictionless_baseline_summary.csv
+  exodus = steady_coulomb_frictionless_baseline_results.e
 []

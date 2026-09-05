@@ -151,4 +151,6 @@
 
 [Outputs]
   console = false
+  csv = steady_large_sliding_contact_moose_summary.csv
+  exodus = steady_large_sliding_contact_moose_results.e
 []

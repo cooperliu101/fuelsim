@@ -43,6 +43,7 @@ class BackendAccess final {
     static const std::vector<std::vector<CartesianMaterialHistory>>& cartesian_material_histories(
         const TransientProblem& problem) noexcept;
     static TransientCommittedState committed_state(const TransientProblem& problem);
+    static const std::vector<double>& committed_raw_residual(const TransientProblem& problem) noexcept;
     static void restore_committed_state(TransientProblem& problem, TransientCommittedState state);
 };
 } // namespace fuelsim

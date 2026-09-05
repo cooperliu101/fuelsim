@@ -1,5 +1,6 @@
 #include "support/exodus_result_reader.hpp"
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <exodusII.h>
 #include <limits>
@@ -47,6 +48,8 @@ std::vector<std::string> variable_names(int exoid, ex_entity_type type) {
         "Could not read variable count from fuelsim Exodus results");
     const std::size_t maximum_name_length =
         count(ex_inquire_int(exoid, EX_INQ_DB_MAX_ALLOWED_NAME_LENGTH), "maximum variable-name length");
+    check_exodus(ex_set_max_name_length(exoid, static_cast<int>(maximum_name_length)),
+        "Could not configure full Exodus variable-name reads");
     std::vector<char> storage(maximum_name_length + 1, '\0');
     std::vector<std::string> result;
     result.reserve(static_cast<std::size_t>(variable_count));
@@ -115,7 +118,15 @@ const std::vector<double>& ExodusResults::element(const std::string& name) const
     return named_variable(element_variable_names, element_variables, name);
 }
 
-ExodusResults read_final_exodus_results(const std::string& path) {
+double ExodusResults::global(const std::string& name) const {
+    const auto found = std::find(global_variable_names.begin(), global_variable_names.end(), name);
+    if (found == global_variable_names.end()) throw std::invalid_argument("Missing Exodus global variable: " + name);
+    return global_variables.at(static_cast<std::size_t>(found - global_variable_names.begin()));
+}
+
+ExodusResults read_final_exodus_results(const std::string& path) { return read_exodus_results(path, 0); }
+
+ExodusResults read_exodus_results(const std::string& path, std::size_t step) {
     ExodusFile file(path);
     ExodusResults result;
     const std::size_t dimension = count(ex_inquire_int(file.id(), EX_INQ_DIM), "coordinate dimension");
@@ -136,14 +147,37 @@ ExodusResults read_final_exodus_results(const std::string& path) {
     for (std::size_t node = 0; node < node_count; ++node)
         result.nodes[node] = {coordinates[0][node], coordinates[1][node], coordinates[2][node]};
 
-    const int final_step = static_cast<int>(result.step_count);
+    if (step > result.step_count) throw std::invalid_argument("Requested Exodus step does not exist");
+    const int final_step = static_cast<int>(step == 0 ? result.step_count : step);
     check_exodus(ex_get_time(file.id(), final_step, &result.time), "Could not read result time");
+    if (!std::isfinite(result.time)) throw std::invalid_argument("Exodus result time is not finite");
     result.nodal_variable_names = variable_names(file.id(), EX_NODAL);
     result.nodal_variables =
         read_nodal_variables(file.id(), final_step, node_count, result.nodal_variable_names.size());
     result.element_variable_names = variable_names(file.id(), EX_ELEM_BLOCK);
+    const auto block_count = count(ex_inquire_int(file.id(), EX_INQ_ELEM_BLK), "element-block count");
+    std::vector<std::int64_t> block_ids(block_count);
+    if (block_count != 0)
+        check_exodus(ex_get_ids(file.id(), EX_ELEM_BLOCK, block_ids.data()), "Could not read result block IDs");
+    const auto maximum_name = count(ex_inquire_int(file.id(), EX_INQ_DB_MAX_ALLOWED_NAME_LENGTH), "name length");
+    for (const auto id : block_ids) {
+        ex_block block{};
+        block.type = EX_ELEM_BLOCK;
+        block.id = id;
+        check_exodus(ex_get_block_param(file.id(), &block), "Could not read result block dimensions");
+        std::vector<char> name(maximum_name + 1, '\0');
+        check_exodus(ex_get_name(file.id(), EX_ELEM_BLOCK, id, name.data()), "Could not read result block name");
+        result.block_names.emplace_back(name.data());
+        result.block_element_counts.push_back(count(block.num_entry, "block element count"));
+    }
     result.element_variables =
         read_element_variables(file.id(), final_step, element_count, result.element_variable_names.size());
+    result.global_variable_names = variable_names(file.id(), EX_GLOBAL);
+    result.global_variables.resize(result.global_variable_names.size());
+    if (!result.global_variables.empty())
+        check_exodus(ex_get_var(file.id(), final_step, EX_GLOBAL, 1, 0,
+                         static_cast<std::int64_t>(result.global_variables.size()), result.global_variables.data()),
+            "Could not read global result variables");
     return result;
 }
 } // namespace fuelsim::test

@@ -249,6 +249,7 @@ void write_exodus_mesh(const std::string& path, const ExodusMeshData& mesh) {
     if (exoid < 0) throw std::runtime_error("Could not create Exodus file '" + path + "': " + ex_strerror(exoid));
     ExodusFile file(exoid);
     ex_set_int64_status(file.id(), EX_ALL_INT64_API);
+    check_exodus(ex_set_option(file.id(), EX_OPT_MAX_NAME_LENGTH, 256), "Could not reserve Exodus result name length");
     std::vector<BlockConnectivity> blocks;
     for (const ElementBlockInfo& block : mesh.element_blocks) blocks.push_back({block.id, block.name, {}, {}});
     for (std::size_t element = 0; element < mesh.elements.size(); ++element) {
@@ -429,6 +430,9 @@ ExodusFile open_results(const std::string& path) {
     const int exoid = ex_open(path.c_str(), EX_WRITE, &cpu_word_size, &io_word_size, &version);
     if (exoid < 0) throw std::runtime_error("Could not open Exodus results file '" + path + "': " + ex_strerror(exoid));
     ex_set_int64_status(exoid, EX_ALL_INT64_API);
+    check_exodus(
+        ex_set_max_name_length(exoid, static_cast<int>(ex_inquire_int(exoid, EX_INQ_DB_MAX_ALLOWED_NAME_LENGTH))),
+        "Could not configure Exodus result name length");
     return ExodusFile(exoid);
 }
 
@@ -441,6 +445,10 @@ std::vector<char*> variable_name_pointers(const std::vector<std::string>& names)
 
 void define_variable_names(
     int exoid, ex_entity_type type, const std::vector<std::string>& names, const std::string& category) {
+    const auto maximum_length = ex_inquire_int(exoid, EX_INQ_DB_MAX_ALLOWED_NAME_LENGTH);
+    for (const auto& name : names)
+        if (maximum_length < 0 || name.size() > static_cast<std::size_t>(maximum_length))
+            throw std::invalid_argument("Exodus result variable name exceeds the file capacity: " + name);
     std::vector<char*> pointers = variable_name_pointers(names);
     check_exodus(ex_put_variable_param(exoid, type, static_cast<int>(pointers.size())),
         "Could not define Exodus " + category + " variables");
@@ -448,26 +456,39 @@ void define_variable_names(
         "Could not name Exodus " + category + " variables");
 }
 
-std::vector<std::string> nodal_variable_names(const std::vector<ContactDefinition>& contacts) {
+constexpr std::array<const char*, 13> rz_contact_fields = {"gap", "pressure", "tangential_traction",
+    "elastic_tangential_slip", "sliding", "projected", "primary_segment", "tributary_area", "tributary_length",
+    "normal_force", "tangential_force", "current_r", "current_z"};
+constexpr std::array<const char*, 26> cartesian_contact_fields = {"gap", "pressure", "tangential_traction",
+    "elastic_tangential_slip", "sliding", "projected", "primary_face", "tributary_area", "normal_force",
+    "constraint_pressure", "current_x", "current_y", "current_z", "normal_force_x", "normal_force_y", "normal_force_z",
+    "tangential_force_x", "tangential_force_y", "tangential_force_z", "total_slip_x", "total_slip_y", "total_slip_z",
+    "elastic_slip_x", "elastic_slip_y", "elastic_slip_z", "tangential_force"};
+
+std::vector<std::string> nodal_variable_names(const std::vector<ContactDefinition>& contacts, bool transient = false) {
     std::vector<std::string> result = {"temperature", "displacement_r", "displacement_z"};
-    for (const ContactDefinition& contact : contacts) {
-        result.push_back("contact_gap_" + contact.name);
-        result.push_back("contact_pressure_" + contact.name);
-        result.push_back("contact_tangential_traction_" + contact.name);
-        result.push_back("contact_elastic_tangential_slip_" + contact.name);
-        result.push_back("contact_sliding_" + contact.name);
+    for (const ContactDefinition& contact : contacts)
+        for (const char* field : rz_contact_fields)
+            result.push_back("contact_" + std::string(field) + "_" + contact.name);
+    if (transient) {
+        result.push_back("reaction_heat_flux");
+        result.push_back("reaction_force_r");
+        result.push_back("reaction_force_z");
     }
     return result;
 }
 
-std::vector<std::string> cartesian_nodal_variable_names(const std::vector<ContactDefinition>& contacts) {
+std::vector<std::string> cartesian_nodal_variable_names(
+    const std::vector<ContactDefinition>& contacts, bool transient = false) {
     std::vector<std::string> result = {"temperature", "displacement_x", "displacement_y", "displacement_z"};
-    for (const ContactDefinition& contact : contacts) {
-        result.push_back("contact_gap_" + contact.name);
-        result.push_back("contact_pressure_" + contact.name);
-        result.push_back("contact_tangential_traction_" + contact.name);
-        result.push_back("contact_elastic_tangential_slip_" + contact.name);
-        result.push_back("contact_sliding_" + contact.name);
+    for (const ContactDefinition& contact : contacts)
+        for (const char* field : cartesian_contact_fields)
+            result.push_back("contact_" + std::string(field) + "_" + contact.name);
+    if (transient) {
+        result.push_back("reaction_heat_flux");
+        result.push_back("reaction_force_x");
+        result.push_back("reaction_force_y");
+        result.push_back("reaction_force_z");
     }
     return result;
 }
@@ -503,6 +524,7 @@ std::vector<std::string> transient_element_variable_names() {
         result.push_back("equiv_plastic_q" + std::to_string(q));
         result.push_back("equiv_creep_q" + std::to_string(q));
     }
+    for (std::size_t q = 0; q < 4; ++q) append_component_variable_names(result, "elastic_", q);
     return result;
 }
 
@@ -522,6 +544,10 @@ std::vector<std::string> cartesian_transient_variable_names(std::size_t point_co
         result.push_back("equiv_plastic_q" + std::to_string(q));
         result.push_back("equiv_creep_q" + std::to_string(q));
     }
+    for (std::size_t q = 0; q < point_count; ++q)
+        for (const char* prefix : {"elastic_", "plastic_", "creep_"})
+            for (const char* component : cartesian_stress_components)
+                result.push_back(std::string(prefix) + component + "_q" + std::to_string(q));
     return result;
 }
 
@@ -625,13 +651,22 @@ void fill_contact_nodal_values(std::size_t contact, const std::vector<std::size_
     const std::vector<ContactNodeSummary>& summary, std::vector<std::vector<double>>& values) {
     if (nodes.size() != summary.size()) throw std::logic_error("Contact result mapping size mismatch");
     const double missing = std::numeric_limits<double>::quiet_NaN();
-    const std::size_t base = 3 + 5 * contact;
+    const std::size_t base = 3 + rz_contact_fields.size() * contact;
     for (std::size_t node = 0; node < nodes.size(); ++node) {
         values[base].at(nodes[node]) = summary[node].projected ? summary[node].gap : missing;
         values[base + 1].at(nodes[node]) = summary[node].projected ? summary[node].pressure : missing;
         values[base + 2].at(nodes[node]) = summary[node].projected ? summary[node].tangential_traction : missing;
         values[base + 3].at(nodes[node]) = summary[node].projected ? summary[node].elastic_tangential_slip : missing;
         values[base + 4].at(nodes[node]) = summary[node].projected ? (summary[node].sliding ? 1.0 : 0.0) : missing;
+        const auto& item = summary[node];
+        values[base + 5].at(nodes[node]) = item.projected ? 1.0 : 0.0;
+        values[base + 6].at(nodes[node]) = item.projected ? static_cast<double>(item.primary_segment) : missing;
+        values[base + 7].at(nodes[node]) = item.tributary_area;
+        values[base + 8].at(nodes[node]) = item.tributary_length;
+        values[base + 9].at(nodes[node]) = item.contact_force;
+        values[base + 10].at(nodes[node]) = item.tangential_force;
+        values[base + 11].at(nodes[node]) = item.r + values[1].at(nodes[node]);
+        values[base + 12].at(nodes[node]) = item.z + values[2].at(nodes[node]);
     }
 }
 
@@ -715,6 +750,7 @@ std::vector<std::vector<double>> transient_elements(
                 for (std::size_t component = 0; component < 4; ++component) {
                     result[history_offset + component][source] = history[q].plastic_strain[component];
                     result[history_offset + 4 + component][source] = history[q].creep_strain[component];
+                    result[56 + 4 * q + component][source] = history[q].elastic_strain[component];
                 }
                 result[history_offset + 8][source] = history[q].equivalent_plastic_strain;
                 result[history_offset + 9][source] = history[q].equivalent_creep_strain;
@@ -722,6 +758,29 @@ std::vector<std::vector<double>> transient_elements(
         }
     }
     return result;
+}
+
+void fill_cartesian_contact_values(std::size_t contact, const std::vector<std::size_t>& nodes,
+    const std::vector<CartesianContactNodeSummary>& summary, std::vector<std::vector<double>>& values) {
+    if (nodes.size() != summary.size()) throw std::logic_error("Cartesian contact result mapping size mismatch");
+    const double missing = std::numeric_limits<double>::quiet_NaN();
+    const std::size_t base = 4 + cartesian_contact_fields.size() * contact;
+    for (std::size_t node = 0; node < nodes.size(); ++node) {
+        const auto& s = summary[node];
+        const auto& slip = s.elastic_tangential_slip;
+        const std::array<double, 26> fields = {s.projected ? s.gap : missing, s.projected ? s.pressure : missing,
+            s.projected ? s.tangential_traction : missing,
+            s.projected ? std::hypot(slip[0], slip[1], slip[2]) : missing,
+            s.projected ? (s.sliding ? 1.0 : 0.0) : missing, s.projected ? 1.0 : 0.0,
+            s.projected ? static_cast<double>(s.primary_face) : missing, s.tributary_area, s.contact_force,
+            s.constraint_pressure, s.x + values[1].at(nodes[node]), s.y + values[2].at(nodes[node]),
+            s.z + values[3].at(nodes[node]), s.normal_contact_force[0], s.normal_contact_force[1],
+            s.normal_contact_force[2], s.tangential_contact_force[0], s.tangential_contact_force[1],
+            s.tangential_contact_force[2], s.tangential_slip[0], s.tangential_slip[1], s.tangential_slip[2], slip[0],
+            slip[1], slip[2], s.tangential_force};
+        for (std::size_t field = 0; field < fields.size(); ++field)
+            values[base + field].at(nodes[node]) = fields[field];
+    }
 }
 
 void fill_cartesian_nodal(const UnstructuredHex8Mesh& mesh, const cartesian::SpatialAssembly& spatial,
@@ -738,16 +797,7 @@ void fill_cartesian_nodal(const UnstructuredHex8Mesh& mesh, const cartesian::Spa
         const std::vector<CartesianContactNodeSummary> summary = spatial.summarize_contact_nodes(contact, state);
         if (nodes.size() != summary.size())
             throw std::logic_error("Three-dimensional contact result mapping size mismatch");
-        const std::size_t base = 4 + 5 * contact;
-        for (std::size_t node = 0; node < nodes.size(); ++node) {
-            if (!summary[node].projected) continue;
-            values[base][nodes[node]] = summary[node].gap;
-            values[base + 1][nodes[node]] = summary[node].pressure;
-            values[base + 2][nodes[node]] = summary[node].tangential_traction;
-            const std::array<double, 3>& slip = summary[node].elastic_tangential_slip;
-            values[base + 3][nodes[node]] = std::sqrt(slip[0] * slip[0] + slip[1] * slip[1] + slip[2] * slip[2]);
-            values[base + 4][nodes[node]] = summary[node].sliding ? 1.0 : 0.0;
-        }
+        fill_cartesian_contact_values(contact, nodes, summary, values);
     }
 }
 
@@ -785,17 +835,41 @@ void fill_cartesian_nodal(const UnstructuredHex20Mesh& mesh, const cartesian::Sp
         const std::vector<std::size_t> nodes = spatial.contact_secondary_source_nodes(contact);
         const std::vector<CartesianContactNodeSummary> summary = spatial.summarize_contact_nodes(contact, state);
         if (nodes.size() != summary.size()) throw std::logic_error("HEX20 contact result mapping size mismatch");
-        const std::size_t base = 4 + 5 * contact;
-        for (std::size_t node = 0; node < nodes.size(); ++node) {
-            if (!summary[node].projected) continue;
-            values[base][nodes[node]] = summary[node].gap;
-            values[base + 1][nodes[node]] = summary[node].pressure;
-            values[base + 2][nodes[node]] = summary[node].tangential_traction;
-            const std::array<double, 3>& slip = summary[node].elastic_tangential_slip;
-            values[base + 3][nodes[node]] = std::sqrt(slip[0] * slip[0] + slip[1] * slip[1] + slip[2] * slip[2]);
-            values[base + 4][nodes[node]] = summary[node].sliding ? 1.0 : 0.0;
-        }
+        fill_cartesian_contact_values(contact, nodes, summary, values);
     }
+}
+
+void append_reaction_values(const spatial_detail::SpatialLayout& spatial,
+    const std::vector<std::vector<std::size_t>>& source_nodes, bool quadratic,
+    const std::vector<std::vector<bool>>& temperature_nodes, const std::vector<double>& raw_residual,
+    std::vector<std::vector<double>>& values) {
+    // Residuals were evaluated before committing this step. Never evaluate constitutive history again
+    // for output.
+    const std::size_t offset = values.size(), node_count = values.front().size();
+    const auto& fields = spatial.field_layout();
+    values.resize(offset + fields.size(), std::vector<double>(node_count, std::numeric_limits<double>::quiet_NaN()));
+    for (std::size_t region = 0; region < source_nodes.size(); ++region)
+        for (std::size_t local = 0; local < source_nodes[region].size(); ++local)
+            for (std::size_t field = 0; field < fields.size(); ++field) {
+                if (quadratic && field == 0 && !temperature_nodes[region][local]) continue;
+                const std::size_t global =
+                    field == 0 ? spatial.global_temperature_node(region, local) : spatial.global_node(region, local);
+                values[offset + field].at(source_nodes[region][local]) =
+                    raw_residual.empty() ? 0.0 : raw_residual.at(fields[field].begin + global);
+            }
+}
+
+void append_cartesian_reactions(const cartesian::SpatialAssembly& spatial, const TransientProblem& problem,
+    std::vector<std::vector<double>>& values) {
+    std::vector<std::vector<std::size_t>> source_nodes;
+    std::vector<std::vector<bool>> temperature_nodes;
+    for (std::size_t region = 0; region < spatial.region_count(); ++region) {
+        source_nodes.push_back(spatial.uses_hex20() ? spatial.hex20_region_mesh(region).source_node_ids()
+                                                    : spatial.region_mesh(region).source_node_ids());
+        if (spatial.uses_hex20()) temperature_nodes.push_back(spatial.hex20_region_mesh(region).temperature_nodes());
+    }
+    append_reaction_values(spatial, source_nodes, spatial.uses_hex20(), temperature_nodes,
+        BackendAccess::committed_raw_residual(problem), values);
 }
 
 std::vector<double> cartesian_globals(
@@ -828,7 +902,7 @@ std::vector<std::vector<double>> cartesian_elements(const UnstructuredHex8Mesh& 
     const std::vector<std::vector<CartesianMaterialHistory>>* histories = nullptr) {
     const double missing = std::numeric_limits<double>::quiet_NaN();
     std::vector<std::vector<double>> result(
-        histories == nullptr ? 48 : 64, std::vector<double>(mesh.elements().size(), missing));
+        histories == nullptr ? 48 : 208, std::vector<double>(mesh.elements().size(), missing));
     for (std::size_t region = 0; region < spatial.region_count(); ++region) {
         const Hex8RegionMesh& region_mesh = spatial.region_mesh(region);
         for (std::size_t element = 0; element < region_mesh.elements().size(); ++element) {
@@ -848,6 +922,11 @@ std::vector<std::vector<double>> cartesian_elements(const UnstructuredHex8Mesh& 
                     element_history[spatial.region_material_point_count(region) == 1 ? 0 : q];
                 result[48 + 2 * q][source] = point.equivalent_plastic_strain;
                 result[49 + 2 * q][source] = point.equivalent_creep_strain;
+                for (std::size_t c = 0; c < 6; ++c) {
+                    result[64 + 18 * q + c][source] = point.elastic_strain[c];
+                    result[70 + 18 * q + c][source] = point.plastic_strain[c];
+                    result[76 + 18 * q + c][source] = point.creep_strain[c];
+                }
             }
         }
     }
@@ -859,7 +938,7 @@ std::vector<std::vector<double>> cartesian_elements(const UnstructuredHex20Mesh&
     const std::vector<std::vector<CartesianMaterialHistory>>* histories = nullptr) {
     const double missing = std::numeric_limits<double>::quiet_NaN();
     std::vector<std::vector<double>> result(
-        histories == nullptr ? 162 : 216, std::vector<double>(mesh.elements().size(), missing));
+        histories == nullptr ? 162 : 702, std::vector<double>(mesh.elements().size(), missing));
     for (std::size_t region = 0; region < spatial.region_count(); ++region) {
         const Hex20RegionMesh& region_mesh = spatial.hex20_region_mesh(region);
         for (std::size_t element = 0; element < region_mesh.elements().size(); ++element) {
@@ -876,6 +955,11 @@ std::vector<std::vector<double>> cartesian_elements(const UnstructuredHex20Mesh&
                 const CartesianMaterialPointState& point = histories->at(region).at(element).at(q);
                 result[162 + 2 * q][source] = point.equivalent_plastic_strain;
                 result[163 + 2 * q][source] = point.equivalent_creep_strain;
+                for (std::size_t c = 0; c < 6; ++c) {
+                    result[216 + 18 * q + c][source] = point.elastic_strain[c];
+                    result[222 + 18 * q + c][source] = point.plastic_strain[c];
+                    result[228 + 18 * q + c][source] = point.creep_strain[c];
+                }
             }
         }
     }
@@ -1004,7 +1088,7 @@ ExodusTransientResultsWriter::ExodusTransientResultsWriter(
     if (_path.empty()) throw std::invalid_argument("Exodus result path must not be empty");
     const std::vector<ContactDefinition>& contacts = problem.definition().contacts;
     write_exodus_quad4(_path, *_rz_mesh);
-    define_result_variables(_path, results_mesh_view(*_rz_mesh), nodal_variable_names(contacts),
+    define_result_variables(_path, results_mesh_view(*_rz_mesh), nodal_variable_names(contacts, true),
         transient_element_variable_names(), global_variable_names(contacts));
 }
 
@@ -1015,7 +1099,7 @@ ExodusTransientResultsWriter::ExodusTransientResultsWriter(
     if (_path.empty()) throw std::invalid_argument("Exodus result path must not be empty");
     const std::vector<ContactDefinition>& contacts = problem.definition().contacts;
     write_exodus_hex8(_path, *_hex_mesh);
-    define_result_variables(_path, results_mesh_view(*_hex_mesh), cartesian_nodal_variable_names(contacts),
+    define_result_variables(_path, results_mesh_view(*_hex_mesh), cartesian_nodal_variable_names(contacts, true),
         cartesian_transient_variable_names(), global_variable_names(contacts));
 }
 
@@ -1026,7 +1110,7 @@ ExodusTransientResultsWriter::ExodusTransientResultsWriter(
     if (_path.empty()) throw std::invalid_argument("Exodus result path must not be empty");
     const std::vector<ContactDefinition>& contacts = problem.definition().contacts;
     write_exodus_hex20(_path, *_hex20_mesh);
-    define_result_variables(_path, results_mesh_view(*_hex20_mesh), cartesian_nodal_variable_names(contacts),
+    define_result_variables(_path, results_mesh_view(*_hex20_mesh), cartesian_nodal_variable_names(contacts, true),
         cartesian_transient_variable_names(27), global_variable_names(contacts));
 }
 
@@ -1040,18 +1124,25 @@ void ExodusTransientResultsWriter::append(const TransientProblem& problem) {
     if (_hex20_mesh) {
         const cartesian::SpatialAssembly& spatial = BackendAccess::cartesian_spatial(problem);
         fill_cartesian_nodal(*_hex20_mesh, spatial, problem.committed_solution(), nodal_values);
+        append_cartesian_reactions(spatial, problem, nodal_values);
         write_result_step(_path, results_mesh_view(*_hex20_mesh), _step_count, problem.committed_time(), nodal_values,
             cartesian_elements(*_hex20_mesh, spatial, nullptr, &BackendAccess::cartesian_material_histories(problem)),
             cartesian_globals(spatial, problem.committed_solution(), problem.committed_load_factor()));
     } else if (_hex_mesh) {
         const cartesian::SpatialAssembly& spatial = BackendAccess::cartesian_spatial(problem);
         fill_cartesian_nodal(*_hex_mesh, spatial, problem.committed_solution(), nodal_values);
+        append_cartesian_reactions(spatial, problem, nodal_values);
         write_result_step(_path, results_mesh_view(*_hex_mesh), _step_count, problem.committed_time(), nodal_values,
             cartesian_elements(*_hex_mesh, spatial, nullptr, &BackendAccess::cartesian_material_histories(problem)),
             cartesian_globals(spatial, problem.committed_solution(), problem.committed_load_factor()));
     } else {
         const rz::SpatialAssembly& spatial = BackendAccess::transient(problem).spatial;
         fill_rz_nodal(*_rz_mesh, spatial, problem.committed_solution(), nodal_values);
+        std::vector<std::vector<std::size_t>> source_nodes;
+        for (std::size_t region = 0; region < spatial.region_count(); ++region)
+            source_nodes.push_back(spatial.region_mesh(region).source_node_ids());
+        append_reaction_values(
+            spatial, source_nodes, false, {}, BackendAccess::committed_raw_residual(problem), nodal_values);
         write_result_step(_path, results_mesh_view(*_rz_mesh), _step_count, problem.committed_time(), nodal_values,
             transient_elements(*_rz_mesh, problem),
             rz_globals(spatial, problem.committed_solution(), problem.committed_load_factor()));

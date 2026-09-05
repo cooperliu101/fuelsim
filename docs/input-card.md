@@ -1,5 +1,7 @@
 # fuelsim 输入卡 v3
 
+结果文件中的节点场、完整材料张量、接触力和反力定义见[结果字段说明](result-fields.md)。
+
 `fuelsim` 只使用一个显式输入文件：
 
 ```bash

@@ -173,3 +173,17 @@
   maximum_cutbacks = 12
   minimum_load_increment = 1e-6
 []
+
+[Solver]
+  absolute_tolerance = 1e-8
+  relative_tolerance = 1e-10
+  step_tolerance = 1e-12
+  maximum_iterations = 40
+  linear_solver = direct
+  preconditioner = lu
+[]
+[Outputs]
+  console = false
+  csv = steady_multi_nonmatching_friction_moose_summary.csv
+  exodus = steady_multi_nonmatching_friction_moose_results.e
+[]

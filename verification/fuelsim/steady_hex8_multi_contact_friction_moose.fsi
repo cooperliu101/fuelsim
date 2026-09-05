@@ -222,4 +222,6 @@
 
 [Outputs]
   console = true
+  csv = steady_hex8_multi_contact_friction_moose_summary.csv
+  exodus = steady_hex8_multi_contact_friction_moose_results.e
 []

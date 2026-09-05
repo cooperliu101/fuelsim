@@ -142,4 +142,6 @@
 
 [Outputs]
   console = true
+  csv = steady_hex8_sts_tilted_gap_abaqus_summary.csv
+  exodus = steady_hex8_sts_tilted_gap_abaqus_results.e
 []

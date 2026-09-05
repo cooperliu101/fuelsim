@@ -139,4 +139,6 @@
 
 [Outputs]
   console = true
+  csv = steady_hex20_nonmatching_contact_abaqus_summary.csv
+  exodus = steady_hex20_nonmatching_contact_abaqus_results.e
 []

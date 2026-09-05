@@ -1,4 +1,6 @@
 #include "support/exodus_result_reader.hpp"
+#include "support/field_error_metrics.hpp"
+#include "support/production_checks.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -43,91 +45,9 @@ std::size_t identifier(const std::vector<std::string>& values, std::size_t index
     return static_cast<std::size_t>(result);
 }
 
-struct FieldErrorMetrics final {
-    double difference_squared = 0.0;
-    double reference_squared = 0.0;
-    double maximum_actual = 0.0;
-    double maximum_reference = 0.0;
-    double maximum_absolute_difference = 0.0;
-    double maximum_pointwise_relative = 0.0;
-    double maximum_zero_reference_difference = 0.0;
-    std::size_t value_count = 0;
-    std::size_t nonzero_reference_count = 0;
-    std::size_t zero_reference_count = 0;
-    std::size_t maximum_absolute_difference_index = 0;
-    std::size_t maximum_pointwise_relative_index = 0;
-    double maximum_pointwise_relative_actual = 0.0;
-    double maximum_pointwise_relative_reference = 0.0;
-    double maximum_absolute_difference_actual = 0.0;
-    double maximum_absolute_difference_reference = 0.0;
-
-    void add(double actual, double reference) {
-        if (!std::isfinite(actual) || !std::isfinite(reference))
-            throw std::invalid_argument("Production and reference field values must be finite");
-        const double difference = actual - reference;
-        difference_squared += difference * difference;
-        reference_squared += reference * reference;
-        maximum_actual = std::max(maximum_actual, std::abs(actual));
-        maximum_reference = std::max(maximum_reference, std::abs(reference));
-        if (std::abs(difference) > maximum_absolute_difference) {
-            maximum_absolute_difference = std::abs(difference);
-            maximum_absolute_difference_index = value_count;
-            maximum_absolute_difference_actual = actual;
-            maximum_absolute_difference_reference = reference;
-        }
-        if (reference != 0.0) {
-            const double relative = std::abs(difference) / std::abs(reference);
-            if (relative > maximum_pointwise_relative) {
-                maximum_pointwise_relative = relative;
-                maximum_pointwise_relative_index = value_count;
-                maximum_pointwise_relative_actual = actual;
-                maximum_pointwise_relative_reference = reference;
-            }
-            ++nonzero_reference_count;
-        } else {
-            maximum_zero_reference_difference = std::max(maximum_zero_reference_difference, std::abs(difference));
-            ++zero_reference_count;
-        }
-        ++value_count;
-    }
-
-    double relative_l2() const {
-        if (reference_squared == 0.0) throw std::domain_error("Relative L2 error is undefined");
-        return std::sqrt(difference_squared / reference_squared);
-    }
-
-    double relative_absolute_peak() const {
-        if (maximum_reference == 0.0) throw std::domain_error("Relative absolute-peak error is undefined");
-        return std::abs(maximum_actual - maximum_reference) / maximum_reference;
-    }
-
-    double maximum_pointwise_relative_error() const {
-        if (nonzero_reference_count == 0) throw std::domain_error("Pointwise relative error is undefined");
-        return maximum_pointwise_relative;
-    }
-};
-
-bool relative_metrics_below(const FieldErrorMetrics& metrics, double tolerance) {
-    return metrics.relative_l2() < tolerance && metrics.relative_absolute_peak() < tolerance &&
-           metrics.maximum_pointwise_relative_error() < tolerance;
-}
-
-void print_relative_metrics(const std::string& name, const FieldErrorMetrics& metrics) {
-    std::cout << name << "_relative_l2=" << metrics.relative_l2() << '\n';
-    std::cout << name << "_relative_absolute_peak=" << metrics.relative_absolute_peak() << '\n';
-    std::cout << name << "_maximum_pointwise_relative=" << metrics.maximum_pointwise_relative_error() << '\n';
-    std::cout << name << "_maximum_pointwise_relative_index=" << metrics.maximum_pointwise_relative_index << '\n';
-    std::cout << name << "_maximum_pointwise_relative_actual=" << metrics.maximum_pointwise_relative_actual << '\n';
-    std::cout << name << "_maximum_pointwise_relative_reference=" << metrics.maximum_pointwise_relative_reference
-              << '\n';
-    std::cout << name << "_maximum_absolute_difference_index=" << metrics.maximum_absolute_difference_index << '\n';
-    std::cout << name << "_maximum_absolute_difference_actual=" << metrics.maximum_absolute_difference_actual << '\n';
-    std::cout << name << "_maximum_absolute_difference_reference=" << metrics.maximum_absolute_difference_reference
-              << '\n';
-    std::cout << name << "_zero_reference_count=" << metrics.zero_reference_count << '\n';
-    std::cout << name << "_maximum_zero_reference_absolute_difference=" << metrics.maximum_zero_reference_difference
-              << '\n';
-}
+using fuelsim::test::FieldErrorMetrics;
+using fuelsim::test::print_relative_metrics;
+using fuelsim::test::relative_metrics_below;
 
 struct RzNodalReference final {
     double radius;
@@ -699,6 +619,58 @@ bool run_hex20_inelastic(const std::string& results_path, const std::string& sum
     return passed;
 }
 
+bool run_hex8_inelastic(const std::string& result_path, const std::string& summary_path, const std::string& nodal_path,
+    const std::string& material_path) {
+    bool passed = completed_summary(summary_path, "transient") &&
+                  run_cartesian_fields("hex8_inelastic", result_path, nodal_path, 5.0e-3);
+    const auto result = fuelsim::test::read_final_exodus_results(result_path);
+    passed = check(summary_number(read_summary(summary_path), "accepted_steps") == 10 &&
+                       std::abs(result.time - 1.0) < 1.0e-12,
+                 "HEX8 accepts ten steps and reaches the prescribed end time") &&
+             passed;
+    std::ifstream input(material_path);
+    if (!input) throw std::runtime_error("Could not read HEX8 material reference");
+    std::string line;
+    if (!std::getline(input, line)) throw std::invalid_argument("Empty HEX8 material reference");
+    const auto header = split_csv(line);
+    const std::array<std::string, 8> names = {
+        "stress_xx", "stress_yy", "stress_zz", "stress_xy", "stress_yz", "stress_xz", "equiv_plastic", "equiv_creep"};
+    std::array<FieldErrorMetrics, 8> metrics;
+    std::vector<bool> present(result.element("stress_xx_q0").size(), false);
+    while (std::getline(input, line)) {
+        if (line.empty()) continue;
+        const auto row = split_csv(line);
+        const auto element = identifier(row, column_index(header, "id", material_path), material_path);
+        if (element >= present.size() || present[element])
+            throw std::invalid_argument("Invalid or repeated material element");
+        present[element] = true;
+        for (std::size_t c = 0; c < 8; ++c) {
+            const std::string reference_name =
+                c < 6 ? names[c] : (c == 6 ? "effective_plastic_strain" : "effective_creep_strain");
+            const double expected = number(row, column_index(header, reference_name, material_path), material_path);
+            for (std::size_t q = 0; q < 8; ++q)
+                metrics[c].add(result.element(names[c] + "_q" + std::to_string(q))[element], expected);
+        }
+    }
+    passed = check(!present.empty() && std::all_of(present.begin(), present.end(), [](bool p) { return p; }),
+                 "HEX8 compares all elements and all eight material points") &&
+             passed;
+    for (std::size_t c = 0; c < 8; ++c) {
+        if (metrics[c].maximum_reference > 0.0)
+            print_relative_metrics("hex8_" + names[c], metrics[c]);
+        else
+            std::cout << "hex8_" << names[c]
+                      << "_maximum_absolute_difference=" << metrics[c].maximum_absolute_difference
+                      << " zero_reference_count=" << metrics[c].zero_reference_count << '\n';
+        const bool matches = c >= 1 && c <= 5 ? metrics[c].maximum_absolute_difference < 1.0
+                                              : (c >= 6 && metrics[c].maximum_reference == 0.0
+                                                        ? metrics[c].maximum_absolute_difference < 1.0e-14
+                                                        : relative_metrics_below(metrics[c], 5.0e-3));
+        passed = check(matches, "HEX8 material field retains its original MOOSE gate: " + names[c]) && passed;
+    }
+    return passed;
+}
+
 bool run_m54(const std::string& results_path, const std::string& summary_path, const std::string& nodal_path,
     const std::string& pressure_path) {
     bool passed = run_m1("m54", results_path, summary_path, nodal_path, pressure_path);
@@ -729,6 +701,103 @@ bool run_m54(const std::string& results_path, const std::string& summary_path, c
              passed;
     std::cout << "m54_maximum_penetration=" << maximum_penetration << '\n';
     return passed;
+}
+
+bool run_planar_sts(const std::string& result_path, const std::string& summary_path,
+    const std::string& displacement_path, const std::string& force_path, const std::string& resultant_path,
+    bool hex8 = false) {
+    const auto result = fuelsim::test::read_final_exodus_results(result_path);
+    bool passed = completed_summary(summary_path, "steady");
+    const auto summary = read_summary(summary_path);
+    passed =
+        check(summary_number(summary, "load_steps_completed") == 4, "Planar STS completes four load steps") && passed;
+    const std::array<std::string, 3> components = {"displacement_x", "displacement_y", "displacement_z"};
+    std::ifstream displacement(displacement_path), force(force_path), resultant(resultant_path);
+    if (!displacement || !force || !resultant) throw std::runtime_error("Could not open planar STS references");
+    std::string line;
+    if (!std::getline(displacement, line) || line != "normal_displacement,normal_x,normal_y,normal_z,id,x,y,z")
+        throw std::invalid_argument("Unexpected planar STS displacement header");
+    FieldErrorMetrics displacement_error, force_error;
+    std::vector<bool> visited(result.nodes.size(), false), force_visited(result.nodes.size(), false);
+    std::array<double, 3> normal{};
+    while (std::getline(displacement, line)) {
+        if (line.empty()) continue;
+        const auto row = split_csv(line);
+        const auto node = identifier(row, 4, displacement_path);
+        if (node >= visited.size() || visited[node])
+            throw std::invalid_argument("Repeated or invalid displacement node");
+        visited[node] = true;
+        if (displacement_error.value_count == 0)
+            for (std::size_t c = 0; c < 3; ++c) normal[c] = number(row, c + 1, displacement_path);
+        double actual = 0.0;
+        for (std::size_t c = 0; c < 3; ++c) {
+            if (std::abs(result.nodes[node][c] - number(row, c + 5, displacement_path)) >= 1.0e-12)
+                throw std::invalid_argument("Planar STS displacement coordinates differ");
+            actual += normal[c] * result.nodal(components[c])[node];
+        }
+        displacement_error.add(actual, number(row, 0, displacement_path));
+    }
+    if (!std::getline(force, line) || line != "normal_force,id,x,y,z")
+        throw std::invalid_argument("Unexpected planar STS force header");
+    const auto& actual_force = result.nodal("contact_normal_force_interface");
+    const auto& projected = result.nodal("contact_projected_interface");
+    const auto& pressure = result.nodal("contact_pressure_interface");
+    while (std::getline(force, line)) {
+        if (line.empty()) continue;
+        const auto row = split_csv(line);
+        const auto node = identifier(row, 1, force_path);
+        if (node >= force_visited.size() || force_visited[node])
+            throw std::invalid_argument("Repeated or invalid force node");
+        force_visited[node] = true;
+        for (std::size_t c = 0; c < 3; ++c)
+            if (std::abs(result.nodes[node][c] - number(row, c + 2, force_path)) >= 1.0e-12)
+                throw std::invalid_argument("Planar STS force coordinates differ");
+        passed = check(projected[node] == 1.0 && pressure[node] > 0.0,
+                     "Every planar contact constraint is projected and active") &&
+                 passed;
+        force_error.add(actual_force[node], number(row, 0, force_path));
+    }
+    std::size_t contact_nodes = 0;
+    std::array<double, 3> normal_resultant{};
+    double maximum_tangential_force = 0.0;
+    for (std::size_t node = 0; node < projected.size(); ++node)
+        if (!std::isnan(projected[node])) {
+            ++contact_nodes;
+            if (!force_visited[node]) throw std::invalid_argument("Missing planar STS force reference");
+            if (hex8) {
+                const std::array<std::string, 3> axes = {"x", "y", "z"};
+                for (std::size_t c = 0; c < 3; ++c)
+                    normal_resultant[c] -= result.nodal("contact_normal_force_" + axes[c] + "_interface")[node];
+                maximum_tangential_force =
+                    std::max(maximum_tangential_force, result.nodal("contact_tangential_force_interface")[node]);
+            }
+        }
+    if (hex8) {
+        const double magnitude = std::hypot(normal_resultant[0], normal_resultant[1], normal_resultant[2]);
+        double direction_error = 0.0;
+        for (std::size_t c = 0; c < 3; ++c)
+            direction_error = std::max(direction_error, std::abs(normal_resultant[c] / magnitude - normal[c]));
+        passed = check(magnitude > 0.0 && direction_error < 1.0e-12 && maximum_tangential_force < 1.0e-10,
+                     "B3.9 frictionless resultant follows the reference normal") &&
+                 passed;
+    }
+    if (!std::getline(resultant, line) || line != "normal_contact_resultant,normal_outer_reaction" ||
+        !std::getline(resultant, line))
+        throw std::invalid_argument("Invalid planar STS resultant reference");
+    const auto row = split_csv(line);
+    const double expected = std::abs(number(row, 0, resultant_path));
+    const double actual = result.global("contact_force_interface");
+    print_relative_metrics("planar_sts_normal_displacement", displacement_error);
+    print_relative_metrics("planar_sts_normal_force", force_error);
+    std::cout << "planar_sts_normal_resultant=" << actual << " reference=" << expected
+              << " reference_outer_reaction=" << std::abs(number(row, 1, resultant_path)) << '\n';
+    return check(displacement_error.value_count == result.nodes.size() && contact_nodes > 0 &&
+                     force_error.value_count == contact_nodes,
+               "Planar STS covers every node and contact constraint") &&
+           check(relative_metrics_below(displacement_error, 1.0e-2) && relative_metrics_below(force_error, 1.0e-2) &&
+                     expected > 0 && std::abs(actual - expected) / expected < 1.0e-2,
+               "Planar STS retains all original 1 percent gates") &&
+           passed;
 }
 
 bool compare_result_files(
@@ -767,8 +836,20 @@ bool compare_result_files(
             // distributed factorization leaves sub-micropascal roundoff, not a relative field error.
             const bool zero_stress =
                 uniaxial_mpi && names[variable].rfind("stress_", 0) == 0 && names[variable].rfind("stress_xx_", 0) != 0;
+            const bool zero_reaction =
+                uniaxial_mpi && (names[variable] == "reaction_force_y" || names[variable] == "reaction_force_z");
+            const bool zero_shear_strain =
+                uniaxial_mpi &&
+                (names[variable].rfind("elastic_", 0) == 0 || names[variable].rfind("plastic_", 0) == 0 ||
+                    names[variable].rfind("creep_", 0) == 0) &&
+                (names[variable].find("_xy_q") != std::string::npos ||
+                    names[variable].find("_yz_q") != std::string::npos ||
+                    names[variable].find("_xz_q") != std::string::npos);
             const double bound =
-                zero_stress ? 1.0e-5 : (tolerance == 0.0 ? 0.0 : (scale == 0.0 ? 1.0e-12 : tolerance * scale));
+                zero_stress || zero_reaction
+                    ? 1.0e-5
+                    : (zero_shear_strain ? 1.0e-14
+                                         : (tolerance == 0.0 ? 0.0 : (scale == 0.0 ? 1.0e-12 : tolerance * scale)));
             passed = check(maximum_difference <= bound, names[variable] + " production equivalence") && passed;
             std::cout << names[variable] << "_maximum_absolute_difference=" << maximum_difference
                       << " reference_absolute_peak=" << scale << " absolute_bound=" << bound << " compared=" << compared
@@ -825,13 +906,125 @@ int main(int argc, char** argv) {
         } else if (mode == "hex20-inelastic") {
             require_argument_count(mode, argc, 7);
             passed = run_hex20_inelastic(argv[2], argv[3], argv[4], argv[5], argv[6]);
+        } else if (mode == "hex8-inelastic") {
+            require_argument_count(mode, argc, 6);
+            passed = run_hex8_inelastic(argv[2], argv[3], argv[4], argv[5]);
         } else if (mode == "rz-steady") {
             require_argument_count(mode, argc, 6);
             passed = run_rz_fields("rz_steady", argv[2], argv[4], std::stod(argv[5]));
             passed = completed_summary(argv[3], "steady") && passed;
+        } else if (mode == "frictionless") {
+            require_argument_count(mode, argc, 5);
+            passed = completed_summary(argv[3], "steady");
+            const auto result = fuelsim::test::read_final_exodus_results(argv[2]);
+            const std::string contact = argv[4];
+            const auto& projected = result.nodal("contact_projected_" + contact);
+            std::size_t count = 0;
+            for (std::size_t node = 0; node < projected.size(); ++node) {
+                if (std::isnan(projected[node])) continue;
+                ++count;
+                passed = check(projected[node] == 1.0 &&
+                                   result.nodal("contact_tangential_traction_" + contact)[node] == 0.0 &&
+                                   result.nodal("contact_tangential_force_" + contact)[node] == 0.0,
+                             "Frictionless baseline has projected contact and exactly zero tangential force") &&
+                         passed;
+            }
+            passed = check(count > 0, "Frictionless baseline contains contact nodes") && passed;
+        } else if (mode == "m51") {
+            require_argument_count(mode, argc, 7);
+            passed = completed_summary(argv[3], "steady");
+            passed = run_rz_fields("m51", argv[2], argv[4], 1.0e-2) && passed;
+            const auto result = fuelsim::test::read_final_exodus_results(argv[2]);
+            const auto baseline = fuelsim::test::read_final_exodus_results(argv[6]);
+            if (result.nodes != baseline.nodes) throw std::invalid_argument("M5.1 baseline node mapping differs");
+            const auto pressure_error =
+                compare_contact_pressure(result, "contact_pressure_fuel_cladding", argv[5], 1.0e-12);
+            print_relative_metrics("m51_contact_pressure", pressure_error);
+            const auto& projected = result.nodal("contact_projected_fuel_cladding");
+            double maximum_pressure = 0.0, maximum_excess = 0.0;
+            std::size_t count = 0, sliding = 0;
+            double difference_squared = 0.0, scale_squared = 0.0;
+            for (std::size_t node = 0; node < result.nodes.size(); ++node) {
+                const double axial = result.nodal("displacement_z")[node];
+                const double difference = axial - baseline.nodal("displacement_z")[node];
+                difference_squared += difference * difference;
+                scale_squared += axial * axial;
+                if (std::isnan(projected[node])) continue;
+                ++count;
+                const double pressure = result.nodal("contact_pressure_fuel_cladding")[node];
+                maximum_pressure = std::max(maximum_pressure, pressure);
+                maximum_excess = std::max(maximum_excess,
+                    std::abs(result.nodal("contact_tangential_traction_fuel_cladding")[node]) - 0.3 * pressure);
+                sliding += result.nodal("contact_sliding_fuel_cladding")[node] == 1.0 ? 1U : 0U;
+                passed = check(projected[node] == 1.0 && pressure > 0.0,
+                             "M5.1 all contact nodes are active and projected") &&
+                         passed;
+            }
+            const double effect = std::sqrt(difference_squared / scale_squared);
+            passed = check(count > 0 && sliding > 0 && maximum_excess <= 1.0e-12 * maximum_pressure &&
+                               std::abs(result.global("contact_tangential_force_fuel_cladding")) > 0.0 &&
+                               relative_metrics_below(pressure_error, 1.0e-2) && effect > 1.0e-3 &&
+                               summary_number(read_summary(argv[3]), "load_steps_completed") == 20.0,
+                         "M5.1 retains pressure, friction activation, Coulomb cap and baseline-effect gates") &&
+                     passed;
+            std::cout << "m51_frictional_axial_field_change=" << effect << " sliding_nodes=" << sliding << '\n';
+        } else if (mode == "m52") {
+            require_argument_count(mode, argc, 6);
+            passed = completed_summary(argv[3], "steady");
+            passed = run_rz_fields("m52", argv[2], argv[4], 1.0e-2) && passed;
+            const auto result = fuelsim::test::read_final_exodus_results(argv[2]);
+            const auto pressure = compare_contact_pressure(result, "contact_pressure_pellet_stack", argv[5], 1.0e-12);
+            print_relative_metrics("m52_contact_pressure", pressure);
+            std::size_t active = 0;
+            double maximum_radius = 0.0;
+            const auto& projected = result.nodal("contact_projected_pellet_stack");
+            for (std::size_t node = 0; node < projected.size(); ++node) {
+                if (std::isnan(projected[node])) continue;
+                passed = check(projected[node] == 1.0 && result.nodal("contact_pressure_pellet_stack")[node] > 0.0,
+                             "M5.2 every contact node remains projected and active") &&
+                         passed;
+                ++active;
+                maximum_radius = std::max(maximum_radius, result.nodal("contact_current_r_pellet_stack")[node]);
+            }
+            passed = check(result.nodes.size() == 402 && active == 5 && maximum_radius > 4.2e-3 &&
+                               maximum_radius < 8.0e-3 && result.global("contact_force_pellet_stack") > 0.0 &&
+                               relative_metrics_below(pressure, 1.0e-2) &&
+                               summary_number(read_summary(argv[3]), "load_steps_completed") == 20.0 &&
+                               summary_number(read_summary(argv[3]), "petsc_workspace_setups") == 1.0,
+                         "M5.2 retains the field, radius, contact-force and workspace gates") &&
+                     passed;
+            std::cout << "m52_maximum_secondary_current_radius=" << maximum_radius << '\n';
         } else if (mode == "m54") {
             require_argument_count(mode, argc, 6);
             passed = run_m54(argv[2], argv[3], argv[4], argv[5]);
+        } else if (mode == "rz-multi-contact") {
+            require_argument_count(mode, argc, 8);
+            passed = completed_summary(argv[3], "steady");
+            passed =
+                check(summary_number(read_summary(argv[3]), "regions") == 3.0, "RZ multi-contact has three regions") &&
+                passed;
+            passed = run_rz_fields("rz_multi_contact", argv[2], argv[4], 1.0e-3) && passed;
+            passed = fuelsim::test::check_rz_multi_contact(argv[2], argv[5], argv[6], std::stod(argv[7])) && passed;
+        } else if (mode == "hex8-multi-contact") {
+            require_argument_count(mode, argc, 7);
+            passed = completed_summary(argv[3], "steady");
+            passed = check(summary_number(read_summary(argv[3]), "load_steps_completed") == 1.0 &&
+                               summary_number(read_summary(argv[3]), "regions") == 4.0,
+                         "B3.7 completes one load step for four regions") &&
+                     passed;
+            passed = fuelsim::test::check_hex8_multi_contact(argv[2], argv[4], argv[5], argv[6]) && passed;
+        } else if (mode == "hex20-nonmatching") {
+            require_argument_count(mode, argc, 9);
+            passed = completed_summary(argv[3], "steady");
+            passed = check(summary_number(read_summary(argv[3]), "load_steps_completed") == 1.0 &&
+                               summary_number(read_summary(argv[3]), "petsc_workspace_setups") == 1.0,
+                         "H20.24 completes one compression step") &&
+                     passed;
+            passed =
+                fuelsim::test::check_hex20_nonmatching(argv[2], argv[4], argv[5], argv[6], argv[7], argv[8]) && passed;
+        } else if (mode == "planar-sts" || mode == "planar-sts-hex8") {
+            require_argument_count(mode, argc, 7);
+            passed = run_planar_sts(argv[2], argv[3], argv[4], argv[5], argv[6], mode == "planar-sts-hex8");
         } else if (mode == "equivalence") {
             require_argument_count(mode, argc, 5);
             passed = compare_result_files(argv[2], argv[3], std::stod(argv[4]));

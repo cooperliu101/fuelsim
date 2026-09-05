@@ -91,4 +91,7 @@
 []
 [Outputs]
   console = false
+  csv = transient_hex8_finite_creep_moose_summary.csv
+  exodus = transient_hex8_finite_creep_moose_results.e
+  checkpoint = transient_hex8_finite_creep_moose.checkpoint
 []

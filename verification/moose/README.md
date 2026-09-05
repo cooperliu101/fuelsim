@@ -426,7 +426,8 @@ thread. They were generated with:
   Outputs/file_base=b32_hex8_finite_coupled
 ```
 
-`fuelsim_b32_hex8_finite_inelastic_moose_tests` compares all nodes and all
+`fuelsim_b32_hex8_plastic_moose_tests`, `fuelsim_b32_hex8_creep_moose_tests`, and
+`fuelsim_b32_hex8_coupled_moose_tests` run explicit input cards through the production executable and compare all nodes and all
 fuelsim integration points. Temperature, three displacements, nonzero axial
 stress, and active equivalent plastic and creep histories must pass relative
 L2, relative absolute-peak, and maximum pointwise-relative errors below 0.5

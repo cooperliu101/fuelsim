@@ -345,9 +345,9 @@ bool verify_exodus(const std::string& path, const fuelsim::UnstructuredQuad4Mesh
     int global_variables = 0;
     bool passed = check(ex_inquire_int(exoid, EX_INQ_TIME) == static_cast<std::int64_t>(expected_steps),
                       "Exodus stores the initial and every accepted committed step") &&
-                  check(ex_get_variable_param(exoid, EX_NODAL, &nodal_variables) == 0 && nodal_variables == 8,
+                  check(ex_get_variable_param(exoid, EX_NODAL, &nodal_variables) == 0 && nodal_variables == 19,
                       "Exodus defines temperature, displacement, gap and pressure") &&
-                  check(ex_get_variable_param(exoid, EX_ELEM_BLOCK, &element_variables) == 0 && element_variables == 56,
+                  check(ex_get_variable_param(exoid, EX_ELEM_BLOCK, &element_variables) == 0 && element_variables == 72,
                       "Exodus defines stress and inelastic integration-point fields") &&
                   check(ex_get_variable_param(exoid, EX_GLOBAL, &global_variables) == 0 && global_variables == 4,
                       "Exodus defines load and conservative interface totals");
@@ -397,7 +397,7 @@ bool verify_steady_results(const fuelsim::FuelSimCaseDefinition& input, const fu
     int global_variables = 0;
     const bool passed =
         check(ex_inquire_int(exoid, EX_INQ_TIME) == 1, "steady Exodus result contains one final state") &&
-        check(ex_get_variable_param(exoid, EX_NODAL, &nodal_variables) == 0 && nodal_variables == 8,
+        check(ex_get_variable_param(exoid, EX_NODAL, &nodal_variables) == 0 && nodal_variables == 16,
             "steady Exodus result contains nodal contact fields") &&
         check(ex_get_variable_param(exoid, EX_ELEM_BLOCK, &element_variables) == 0 && element_variables == 16,
             "steady Exodus result contains four-point stresses") &&

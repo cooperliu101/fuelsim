@@ -930,11 +930,10 @@ secondary node, centered-difference Jacobians below `3.1e-10`, exact
 three-component action-reaction balance to `1.6e-12 N`, the inclined normal,
 and one-rank/two-rank state and contribution-ownership equivalence.
 
-The three references are reproduced by:
+The three production cases use complete tracked input cards. For example:
 
 ```bash
-build/fuelsim_b39_hex8_sts_multicase_abaqus_tests --generate \
-  verification/abaqus verification/fuelsim
+build/fuelsim -i verification/fuelsim/steady_hex8_sts_matching_abaqus.fsi
 ```
 
 ```powershell

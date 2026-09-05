@@ -141,4 +141,6 @@
 
 [Outputs]
   console = true
+  csv = steady_hex20_sts_initial_gap_abaqus_summary.csv
+  exodus = steady_hex20_sts_initial_gap_abaqus_results.e
 []

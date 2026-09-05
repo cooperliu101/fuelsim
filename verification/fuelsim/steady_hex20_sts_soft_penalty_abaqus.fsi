@@ -141,4 +141,6 @@
 
 [Outputs]
   console = true
+  csv = steady_hex20_sts_soft_penalty_abaqus_summary.csv
+  exodus = steady_hex20_sts_soft_penalty_abaqus_results.e
 []

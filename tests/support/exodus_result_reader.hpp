@@ -8,17 +8,24 @@
 namespace fuelsim::test {
 struct ExodusResults final {
     std::vector<std::array<double, 3>> nodes;
+    std::vector<std::string> block_names;
+    std::vector<std::size_t> block_element_counts;
     std::vector<std::string> nodal_variable_names;
     std::vector<std::vector<double>> nodal_variables;
     std::vector<std::string> element_variable_names;
     std::vector<std::vector<double>> element_variables;
+    std::vector<std::string> global_variable_names;
+    std::vector<double> global_variables;
     std::size_t step_count = 0;
     double time = 0.0;
 
     const std::vector<double>& nodal(const std::string& name) const;
     const std::vector<double>& element(const std::string& name) const;
+    double global(const std::string& name) const;
 };
 
 ExodusResults read_final_exodus_results(const std::string& path);
+// Exodus step numbers are one-based; zero selects the final frame.
+ExodusResults read_exodus_results(const std::string& path, std::size_t step);
 } // namespace fuelsim::test
 #endif

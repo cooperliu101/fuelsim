@@ -96,4 +96,7 @@
 []
 [Outputs]
   console = false
+  csv = transient_hex8_finite_coupled_moose_summary.csv
+  exodus = transient_hex8_finite_coupled_moose_results.e
+  checkpoint = transient_hex8_finite_coupled_moose.checkpoint
 []

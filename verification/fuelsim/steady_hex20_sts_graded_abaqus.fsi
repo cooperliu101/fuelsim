@@ -149,4 +149,6 @@
 
 [Outputs]
   console = true
+  csv = steady_hex20_sts_graded_abaqus_summary.csv
+  exodus = steady_hex20_sts_graded_abaqus_results.e
 []
