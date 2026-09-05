@@ -544,6 +544,41 @@ bool run_b6(
     return run_hex20_fields("b6_hex20", results_path, temperature_path, displacement_path, 1.0e-8, true);
 }
 
+bool completed_summary(const std::string& path, const std::string& problem);
+
+bool run_hex20_thermal_contact(
+    const std::string& result_path, const std::string& summary_path, const std::string& reference_path) {
+    const auto output = fuelsim::test::read_final_exodus_results(result_path);
+    const auto reference = read_mixed_order_reference(reference_path, true);
+    const auto& temperature = output.nodal("temperature");
+    std::vector<bool> present(output.nodes.size(), false);
+    FieldErrorMetrics error;
+    double coordinate_error = 0.0;
+    for (const auto& row : reference) {
+        if (row.id >= present.size() || present[row.id])
+            throw std::invalid_argument("H20.16 temperature node mapping is incomplete or repeated");
+        present[row.id] = true;
+        for (std::size_t component = 0; component < 3; ++component)
+            coordinate_error =
+                std::max(coordinate_error, std::abs(output.nodes[row.id][component] - row.point[component]));
+        error.add(temperature.at(row.id), row.values[0]);
+    }
+    // Steady HEX20 Exodus output also interpolates temperature onto displacement
+    // midpoint nodes. The tracked reference contains the sixteen solved corner
+    // temperatures, not these visualization-only interpolated values.
+    print_relative_metrics("h20_16_temperature", error);
+    const double heat_rate = output.global("contact_heat_rate_interface");
+    std::cout << "h20_16_total_heat_rate=" << heat_rate << '\n';
+    return completed_summary(summary_path, "steady") &&
+           check(summary_number(read_summary(summary_path), "load_steps_completed") == 1.0,
+               "H20.16 completes one load step") &&
+           check(output.nodes.size() == 40 && reference.size() == 16,
+               "H20.16 compares all sixteen first-order temperature nodes") &&
+           check(relative_metrics_below(error, 5.0e-3), "H20.16 temperature errors pass 0.5 percent") &&
+           check(coordinate_error < 1.0e-12, "H20.16 tracked MOOSE coordinates match") &&
+           check(heat_rate > 0.0, "H20.16 transfers nonzero heat");
+}
+
 bool run_hex20_transient(const std::string& results_path, const std::string& summary_path,
     const std::string& temperature_path, const std::string& displacement_path, double tolerance) {
     bool passed =
@@ -892,6 +927,32 @@ int main(int argc, char** argv) {
         } else if (mode == "cartesian-fields") {
             require_argument_count(mode, argc, 5);
             passed = run_cartesian_fields("cartesian_case", argv[2], argv[3], std::stod(argv[4]));
+        } else if (mode == "b34" || mode == "b34-transient") {
+            require_argument_count(mode, argc, 7);
+            const bool transient = mode == "b34-transient";
+            passed = completed_summary(argv[3], transient ? "transient" : "steady");
+            passed = check(summary_number(
+                               read_summary(argv[3]), transient ? "accepted_steps" : "load_steps_completed") == 1.0,
+                         "B3.4 completes one full loading step") &&
+                     passed;
+            passed = fuelsim::test::check_hex8_sliding(argv[2], argv[4], argv[5], argv[6]) && passed;
+        } else if (mode == "hex20-thermal-contact") {
+            require_argument_count(mode, argc, 5);
+            passed = run_hex20_thermal_contact(argv[2], argv[3], argv[4]);
+        } else if (mode == "hex20-curved-friction") {
+            require_argument_count(mode, argc, 6);
+            passed = completed_summary(argv[3], "steady");
+            passed = check(summary_number(read_summary(argv[3]), "load_steps_completed") == 4.0,
+                         "H20.35 completes four load steps") &&
+                     passed;
+            passed = fuelsim::test::check_hex20_curved_friction(argv[2], argv[4], argv[5]) && passed;
+        } else if (mode == "hex20-curved") {
+            require_argument_count(mode, argc, 8);
+            passed = completed_summary(argv[3], "steady");
+            passed = check(summary_number(read_summary(argv[3]), "load_steps_completed") == 4.0,
+                         "H20.30 completes four load steps") &&
+                     passed;
+            passed = fuelsim::test::check_hex20_curved(argv[2], argv[4], argv[5], argv[6], argv[7]) && passed;
         } else if (mode == "b33") {
             require_argument_count(mode, argc, 8);
             passed = completed_summary(argv[3], "steady");

@@ -170,4 +170,6 @@
 
 [Outputs]
   console = true
+  csv = steady_hex20_sts_quadratic_cylinder_friction_abaqus_summary.csv
+  exodus = steady_hex20_sts_quadratic_cylinder_friction_abaqus_results.e
 []

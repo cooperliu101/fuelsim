@@ -133,4 +133,6 @@
 
 [Outputs]
   console = true
+  csv = steady_hex20_thermal_contact_moose_summary.csv
+  exodus = steady_hex20_thermal_contact_moose_results.e
 []

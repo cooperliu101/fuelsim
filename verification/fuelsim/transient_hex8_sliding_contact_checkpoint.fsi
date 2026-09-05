@@ -1,6 +1,6 @@
 [Case]
   version = 3
-  problem = steady
+  problem = transient
   geometry = cartesian_3d
 []
 
@@ -124,8 +124,15 @@
 []
 
 [Executioner]
-  type = steady
-  load_steps = 1
+  type = transient
+  end_time = 1
+  initial_time_step = 1
+  minimum_time_step = 1
+  maximum_time_step = 1
+  growth_factor = 1
+  cutback_factor = 0.5
+  maximum_cutbacks = 0
+  load_ramp_time = 0
 []
 
 [Solver]
@@ -139,6 +146,8 @@
 
 [Outputs]
   console = true
-  csv = steady_hex8_sliding_contact_abaqus_summary.csv
-  exodus = steady_hex8_sliding_contact_abaqus_results.e
+  csv = transient_hex8_sliding_contact_checkpoint_summary.csv
+  exodus = transient_hex8_sliding_contact_checkpoint_results.e
+  checkpoint = transient_hex8_sliding_contact_checkpoint.checkpoint
+  checkpoint_interval = 1
 []

@@ -2,6 +2,12 @@
 #include <string>
 
 namespace fuelsim::test {
+bool check_hex8_sliding(const std::string& output_path, const std::string& nodes_path, const std::string& contact_path,
+    const std::string& reaction_path);
+bool check_hex20_curved_friction(
+    const std::string& output_path, const std::string& displacement_path, const std::string& contact_path);
+bool check_hex20_curved(const std::string& output_path, const std::string& name, const std::string& displacement_path,
+    const std::string& force_path, const std::string& resultant_path);
 bool check_hex8_sticking(const std::string& output_path, const std::string& thermal_path,
     const std::string& mechanical_path, const std::string& contact_path, const std::string& baseline_path);
 bool check_hex8_shared_plate(
