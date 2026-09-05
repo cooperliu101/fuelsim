@@ -6,8 +6,8 @@ namespace fuelsim::test {
 bool check_hex8_multi_contact_path(const std::string& output, const std::string& reference_directory);
 bool check_hex8_finite_contact(
     const std::string& output_path, const std::string& node_path, const std::string& contact_path);
-bool check_hex8_multimaterial(const std::string& coarse, const std::string& refined, const std::string& distorted,
-    const std::string& nodal_path, const std::string& integration_path);
+bool check_hex8_multimaterial(const std::string& coarse, const std::string& distorted, const std::string& nodal_path,
+    const std::string& integration_path);
 bool check_hex8_norton_abaqus(const std::string& output_path, const std::string& branch, const std::string& nodal_path,
     const std::string& integration_path, const std::string& energy_path);
 bool check_hex8_inelastic_abaqus(const std::string& output_path, const std::string& branch_name,

@@ -26,8 +26,7 @@ struct CaseSpec final {
     bool distorted;
 };
 
-constexpr std::array<CaseSpec, 3> cases = {
-    CaseSpec{"coarse", 2, 1, 1, false}, CaseSpec{"refined", 4, 2, 2, false}, CaseSpec{"distorted", 4, 2, 2, true}};
+constexpr std::array<CaseSpec, 2> cases = {CaseSpec{"coarse", 2, 1, 1, false}, CaseSpec{"distorted", 4, 2, 2, true}};
 
 struct MeshData final {
     fuelsim::UnstructuredHex8Mesh mesh;

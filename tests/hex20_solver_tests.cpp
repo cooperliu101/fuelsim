@@ -745,14 +745,16 @@ int main(int argc, char** argv) {
         std::cerr << "Usage: fuelsim_hex20_solver_tests <mesh.e> <steady.e> <checkpoint.bin>\n";
         return 2;
     }
+    const bool mpi_only = argc > 4 && std::string(argv[4]) == "--mpi-only";
     fuelsim::PetscSession session(argc, argv, "fuelsim HEX20-U2/T1 solver tests\n");
     const fuelsim::UnstructuredHex20Mesh mesh = unit_mesh();
     const std::string transient_results = std::string(argv[2]) + ".transient.e";
-    const bool passed = test_steady_and_io(session, mesh, argv[1], argv[2]) &&
-                        test_transient_restart(session, mesh, argv[3], transient_results) &&
-                        test_multiblock_shared_nodes() && test_contact_projection(mesh) &&
-                        test_surface_contact_fixed_reference_graph() && test_surface_contact_finite_sliding() &&
-                        test_finite_sliding_search_tree() && test_finite_sliding_end_to_end();
+    bool passed = test_steady_and_io(session, mesh, argv[1], argv[2]) &&
+                  test_transient_restart(session, mesh, argv[3], transient_results) && test_finite_sliding_end_to_end();
+    if (!mpi_only)
+        passed = test_multiblock_shared_nodes() && test_contact_projection(mesh) &&
+                 test_surface_contact_fixed_reference_graph() && test_surface_contact_finite_sliding() &&
+                 test_finite_sliding_search_tree() && passed;
     session.collective_root_action([&]() {
         (void)std::remove(argv[1]);
         (void)std::remove(argv[2]);

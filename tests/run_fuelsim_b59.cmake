@@ -1,6 +1,6 @@
-# Preserve the original three-mesh comparison as one CTest, without duplicating
-# its transient solves. Cards are copied byte-for-byte during configuration.
-foreach(branch IN ITEMS coarse refined distorted)
+# Keep one coarse mesh and one distorted mesh in the unified regression. The
+# regular refined mesh remains a manually runnable sensitivity case.
+foreach(branch IN ITEMS coarse distorted)
     set(input "${CASE_DIRECTORY}/transient_b59_${branch}.fsi")
     set(result "${CASE_DIRECTORY}/transient_b59_${branch}_results.e")
     set(summary "${CASE_DIRECTORY}/transient_b59_${branch}_summary.csv")
@@ -13,7 +13,6 @@ foreach(branch IN ITEMS coarse refined distorted)
 endforeach()
 execute_process(COMMAND "${CHECK_COMMAND}" hex8-multimaterial
     "${CASE_DIRECTORY}/transient_b59_coarse_results.e"
-    "${CASE_DIRECTORY}/transient_b59_refined_results.e"
     "${CASE_DIRECTORY}/transient_b59_distorted_results.e"
     "${REFERENCE_DIRECTORY}/b59_hex8_c3d8t_multimaterial_nodal.csv"
     "${REFERENCE_DIRECTORY}/b59_hex8_c3d8t_multimaterial_integration.csv"

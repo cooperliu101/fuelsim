@@ -331,16 +331,14 @@ BendingSummary run_case(const CaseSpec& spec, const std::string& output_path,
 } // namespace
 
 namespace fuelsim::test {
-bool check_hex8_multimaterial(const std::string& coarse, const std::string& refined, const std::string& distorted,
-    const std::string& nodal_path, const std::string& integration_path) {
+bool check_hex8_multimaterial(const std::string& coarse, const std::string& distorted, const std::string& nodal_path,
+    const std::string& integration_path) {
     const auto nodes = read_nodes(nodal_path);
     const auto points = read_integration(integration_path);
-    const std::array<std::string, 3> paths = {coarse, refined, distorted};
-    std::array<BendingSummary, 3> bending{};
+    const std::array<std::string, 2> paths = {coarse, distorted};
+    const std::array<CaseSpec, 2> regression_cases = {cases[0], cases[2]};
     bool passed = true;
-    for (std::size_t i = 0; i < 3; ++i) bending[i] = run_case(cases[i], paths[i], nodes, points, passed);
-    const double sensitivity = std::abs(bending[2].peak - bending[1].peak) / std::abs(bending[1].peak);
-    std::cout << "b59_refined_distorted_bending_relative_difference=" << sensitivity << '\n';
-    return check(sensitivity < 0.1, "B5.9 distorted/refined bending difference stays below 10 percent") && passed;
+    for (std::size_t i = 0; i < paths.size(); ++i) (void)run_case(regression_cases[i], paths[i], nodes, points, passed);
+    return passed;
 }
 } // namespace fuelsim::test

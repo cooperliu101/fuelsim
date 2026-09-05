@@ -1428,9 +1428,9 @@ int main(int argc, char** argv) {
                          "B6.0 temperature and free-node displacement vector satisfy the recorded 0.5 percent gates") &&
                      passed;
         } else if (mode == "hex8-multimaterial") {
-            require_argument_count(mode, argc, 7);
+            require_argument_count(mode, argc, 6);
             passed = true;
-            for (int index = 2; index <= 4; ++index) {
+            for (int index = 2; index <= 3; ++index) {
                 const std::string output = argv[index];
                 const auto position = output.rfind("_results.e");
                 if (position == std::string::npos) throw std::invalid_argument("B5.9 result filename is invalid");
@@ -1442,7 +1442,7 @@ int main(int argc, char** argv) {
                              "B5.9 accepts exactly four increments without retrying") &&
                          passed;
             }
-            passed = fuelsim::test::check_hex8_multimaterial(argv[2], argv[3], argv[4], argv[5], argv[6]) && passed;
+            passed = fuelsim::test::check_hex8_multimaterial(argv[2], argv[3], argv[4], argv[5]) && passed;
         } else if (mode == "hex8-multi-contact-path") {
             require_argument_count(mode, argc, 5);
             passed = completed_summary(argv[3], "transient");

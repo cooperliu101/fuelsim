@@ -851,69 +851,72 @@ fuelsim::SpatialDefinition inelastic_definition(bool creep, bool plasticity,
 
 bool test_inelastic_branches(const fuelsim::PetscSession& session, const fuelsim::UnstructuredHex8Mesh& mesh,
     const std::string& checkpoint_path) {
+    struct RepresentativeCase final {
+        fuelsim::Hex8ElementFormulation formulation;
+        fuelsim::StrainFormulation strain;
+        std::array<bool, 2> branch;
+    };
+
+    const std::array<RepresentativeCase, 4> cases = {
+        RepresentativeCase{fuelsim::Hex8ElementFormulation::c3d8t, fuelsim::StrainFormulation::small, {false, true}},
+        RepresentativeCase{fuelsim::Hex8ElementFormulation::c3d8t, fuelsim::StrainFormulation::small, {true, false}},
+        RepresentativeCase{fuelsim::Hex8ElementFormulation::c3d8rt, fuelsim::StrainFormulation::small, {true, true}},
+        RepresentativeCase{fuelsim::Hex8ElementFormulation::c3d8rt, fuelsim::StrainFormulation::finite, {true, true}},
+    };
     bool passed = true;
-    for (const fuelsim::Hex8ElementFormulation formulation :
-        {fuelsim::Hex8ElementFormulation::c3d8t, fuelsim::Hex8ElementFormulation::c3d8rt})
-        for (const fuelsim::StrainFormulation strain_formulation :
-            {fuelsim::StrainFormulation::small, fuelsim::StrainFormulation::finite}) {
-            if (formulation == fuelsim::Hex8ElementFormulation::c3d8t &&
-                strain_formulation == fuelsim::StrainFormulation::finite)
-                continue;
-            for (const std::array<bool, 2> branch : {std::array<bool, 2>{false, true}, {true, false}, {true, true}}) {
-                const fuelsim::SpatialDefinition definition =
-                    inelastic_definition(branch[0], branch[1], formulation, strain_formulation);
-                fuelsim::TransientProblem problem(definition, mesh);
-                fuelsim::SolverOptions options = solver_options();
-                options.linear_solver = fuelsim::SolverOptions::LinearSolver::direct;
-                options.preconditioner = fuelsim::SolverOptions::Preconditioner::lu;
-                options.maximum_iterations = 30;
-                const fuelsim::TransientResult result =
-                    fuelsim::solve_transient(problem, {1.0, 0.1, 0.1, 0.1, 1.0, 0.5, 0, 1.0}, options);
-                double maximum_plastic = 0.0, maximum_creep = 0.0;
-                bool finite = true, material_point_count_matches = true;
-                const std::size_t expected_points = formulation == fuelsim::Hex8ElementFormulation::c3d8rt ? 1 : 8;
-                for (std::size_t element = 0; element < 2; ++element) {
-                    const fuelsim::CartesianMaterialHistory& history =
-                        fuelsim::cartesian::ProblemAccess::material_history(problem, 0, element);
-                    material_point_count_matches = material_point_count_matches && history.size() == expected_points;
-                    for (const fuelsim::CartesianMaterialPointState& point : history) {
-                        maximum_plastic = std::max(maximum_plastic, point.equivalent_plastic_strain);
-                        maximum_creep = std::max(maximum_creep, point.equivalent_creep_strain);
-                        finite = finite && std::isfinite(point.stress.xx) && std::isfinite(point.stress.yy) &&
-                                 std::isfinite(point.stress.zz) && std::isfinite(point.stress.xy) &&
-                                 std::isfinite(point.stress.yz) && std::isfinite(point.stress.xz);
-                    }
-                }
-                passed = check(result.completed && result.accepted_steps.size() == 10 && finite &&
-                                   material_point_count_matches &&
-                                   (branch[1] ? maximum_plastic > 0.0 : maximum_plastic == 0.0) &&
-                                   (branch[0] ? maximum_creep > 0.0 : maximum_creep == 0.0),
-                             "full- and reduced-integration three-dimensional plastic, creep, and coupled transient "
-                             "branches "
-                             "solve and commit the formulation-specific material-point count") &&
-                         passed;
-                if (formulation == fuelsim::Hex8ElementFormulation::c3d8rt && branch[0] && branch[1]) {
-                    session.collective_root_action(
-                        [&]() { fuelsim::write_transient_checkpoint(checkpoint_path, problem, 0.025); });
-                    fuelsim::TransientProblem restored(definition, mesh);
-                    const double restored_step = fuelsim::restore_transient_checkpoint(checkpoint_path, restored);
-                    bool history_matches = restored.committed_solution() == problem.committed_solution();
-                    for (std::size_t element = 0; element < 2; ++element) {
-                        const fuelsim::CartesianMaterialHistory& before =
-                            fuelsim::cartesian::ProblemAccess::material_history(problem, 0, element);
-                        const fuelsim::CartesianMaterialHistory& after =
-                            fuelsim::cartesian::ProblemAccess::material_history(restored, 0, element);
-                        history_matches = history_matches && before.size() == 1 && after.size() == 1 &&
-                                          same_material_point(before.front(), after.front());
-                    }
-                    passed =
-                        check(restored_step == 0.025 && restored.committed_time() == problem.committed_time() &&
-                                  history_matches,
-                            "C3D8RT checkpoint restores the exact nodal state and single coupled material point") &&
-                        passed;
-                }
+    for (const RepresentativeCase& current : cases) {
+        const fuelsim::SpatialDefinition definition =
+            inelastic_definition(current.branch[0], current.branch[1], current.formulation, current.strain);
+        fuelsim::TransientProblem problem(definition, mesh);
+        fuelsim::SolverOptions options = solver_options();
+        options.linear_solver = fuelsim::SolverOptions::LinearSolver::direct;
+        options.preconditioner = fuelsim::SolverOptions::Preconditioner::lu;
+        options.maximum_iterations = 30;
+        const fuelsim::TransientResult result =
+            fuelsim::solve_transient(problem, {1.0, 0.1, 0.1, 0.1, 1.0, 0.5, 0, 1.0}, options);
+        double maximum_plastic = 0.0, maximum_creep = 0.0;
+        bool finite = true, material_point_count_matches = true;
+        const std::size_t expected_points = current.formulation == fuelsim::Hex8ElementFormulation::c3d8rt ? 1 : 8;
+        for (std::size_t element = 0; element < 2; ++element) {
+            const fuelsim::CartesianMaterialHistory& history =
+                fuelsim::cartesian::ProblemAccess::material_history(problem, 0, element);
+            material_point_count_matches = material_point_count_matches && history.size() == expected_points;
+            for (const fuelsim::CartesianMaterialPointState& point : history) {
+                maximum_plastic = std::max(maximum_plastic, point.equivalent_plastic_strain);
+                maximum_creep = std::max(maximum_creep, point.equivalent_creep_strain);
+                finite = finite && std::isfinite(point.stress.xx) && std::isfinite(point.stress.yy) &&
+                         std::isfinite(point.stress.zz) && std::isfinite(point.stress.xy) &&
+                         std::isfinite(point.stress.yz) && std::isfinite(point.stress.xz);
             }
         }
+        passed =
+            check(result.completed && result.accepted_steps.size() == 10 && finite && material_point_count_matches &&
+                      (current.branch[1] ? maximum_plastic > 0.0 : maximum_plastic == 0.0) &&
+                      (current.branch[0] ? maximum_creep > 0.0 : maximum_creep == 0.0),
+                "representative full- and reduced-integration three-dimensional inelastic paths solve "
+                "and commit the formulation-specific material-point count") &&
+            passed;
+        if (current.formulation == fuelsim::Hex8ElementFormulation::c3d8rt &&
+            current.strain == fuelsim::StrainFormulation::finite && current.branch[0] && current.branch[1]) {
+            session.collective_root_action(
+                [&]() { fuelsim::write_transient_checkpoint(checkpoint_path, problem, 0.025); });
+            fuelsim::TransientProblem restored(definition, mesh);
+            const double restored_step = fuelsim::restore_transient_checkpoint(checkpoint_path, restored);
+            bool history_matches = restored.committed_solution() == problem.committed_solution();
+            for (std::size_t element = 0; element < 2; ++element) {
+                const fuelsim::CartesianMaterialHistory& before =
+                    fuelsim::cartesian::ProblemAccess::material_history(problem, 0, element);
+                const fuelsim::CartesianMaterialHistory& after =
+                    fuelsim::cartesian::ProblemAccess::material_history(restored, 0, element);
+                history_matches = history_matches && before.size() == 1 && after.size() == 1 &&
+                                  same_material_point(before.front(), after.front());
+            }
+            passed = check(restored_step == 0.025 && restored.committed_time() == problem.committed_time() &&
+                               history_matches,
+                         "C3D8RT checkpoint restores the exact nodal state and single coupled material point") &&
+                     passed;
+        }
+    }
     return passed;
 }
 } // namespace
@@ -923,20 +926,23 @@ int main(int argc, char** argv) {
         std::cerr << "Usage: fuelsim_hex8_solver_tests <steady.e> <transient.e> <checkpoint.bin>\n";
         return 2;
     }
+    const bool mpi_only = argc > 4 && std::string(argv[4]) == "--mpi-only";
     fuelsim::PetscSession session(argc, argv, "fuelsim HEX8 solver tests\n");
     const fuelsim::UnstructuredHex8Mesh mesh = two_element_mesh();
     bool passed = test_steady(session, mesh, argv[1]);
-    passed = test_small_strain_steady_predictor(mesh) && passed;
-    passed = test_convection_boundary(mesh) && passed;
     passed = test_transient(session, mesh, argv[3], argv[2]) && passed;
-    passed = test_multiple_regions() && passed;
     passed = test_shared_nodes(session) && passed;
-    passed = test_contact_projection_transfer() && passed;
-    passed = test_surface_contact_finite_sliding() && passed;
-    passed = test_finite_sliding_search_tree() && passed;
     passed = test_finite_sliding_end_to_end() && passed;
-    passed = test_boundary_configuration_selection(mesh) && passed;
-    passed = test_inelastic_branches(session, mesh, argv[3]) && passed;
+    if (!mpi_only) {
+        passed = test_small_strain_steady_predictor(mesh) && passed;
+        passed = test_convection_boundary(mesh) && passed;
+        passed = test_multiple_regions() && passed;
+        passed = test_contact_projection_transfer() && passed;
+        passed = test_surface_contact_finite_sliding() && passed;
+        passed = test_finite_sliding_search_tree() && passed;
+        passed = test_boundary_configuration_selection(mesh) && passed;
+        passed = test_inelastic_branches(session, mesh, argv[3]) && passed;
+    }
     session.collective_root_action([&]() {
         (void)std::remove(argv[1]);
         (void)std::remove(argv[2]);

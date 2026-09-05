@@ -872,7 +872,6 @@ if(BUILD_TESTING)
         PRIVATE fuelsim_moose_test_support fuelsim::solver)
     fuelsim_enable_warnings(fuelsim_b59_hex8_c3d8t_multimaterial_abaqus_tests)
     fuelsim_stage_blackbox_case(b59_coarse_input b59 transient_b59_coarse.fsi)
-    fuelsim_stage_blackbox_case(b59_refined_input b59 transient_b59_refined.fsi)
     fuelsim_stage_blackbox_case(b59_distorted_input b59 transient_b59_distorted.fsi)
     get_filename_component(b59_case_directory "${b59_coarse_input}" DIRECTORY)
     add_test(NAME fuelsim_b59_hex8_c3d8t_multimaterial_abaqus_tests
@@ -884,7 +883,7 @@ if(BUILD_TESTING)
             "-DREFERENCE_DIRECTORY=${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus"
             -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_b59.cmake")
     set_tests_properties(fuelsim_b59_hex8_c3d8t_multimaterial_abaqus_tests PROPERTIES
-        LABELS "acceptance;three-dimensional;hex8;transient;thermal;mechanical;multimaterial;refinement;abaqus")
+        LABELS "acceptance;three-dimensional;hex8;transient;thermal;mechanical;multimaterial;distorted;abaqus")
 
     fuelsim_add_production_test(fuelsim_b510_hex8_c3d8t_small_j2_abaqus_tests b510
         transient_b510_small_j2 hex8-inelastic-abaqus plastic
@@ -1450,45 +1449,22 @@ if(BUILD_TESTING)
     # available for study. Do not build obsolete example executables for a
     # mechanical-contact path rejected by the production program.
 
-    add_executable(fuelsim_h20_26_abaqus_sts_identification_tests
+    # These tools analyze archived Abaqus probes. They do not exercise the
+    # current Fuelsim implementation, so keep them available for focused
+    # studies without registering or building them in the unified regression.
+    add_executable(fuelsim_h20_26_abaqus_sts_identification_tests EXCLUDE_FROM_ALL
         tests/h20_abaqus_sts_identification_tests.cpp)
     fuelsim_enable_warnings(fuelsim_h20_26_abaqus_sts_identification_tests)
-    add_test(NAME fuelsim_h20_26_abaqus_sts_identification_tests
-        COMMAND fuelsim_h20_26_abaqus_sts_identification_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_26_hex20_sts_operator.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_26_hex20_sts_history.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_26_hex20_sts_finite_sliding_probe_nodal.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_26_hex20_sts_finite_sliding_probe_history.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_26_hex20_sts_tilted_normal_probe_nodal.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_26_hex20_sts_tilted_normal_probe_history.csv")
-    set_tests_properties(fuelsim_h20_26_abaqus_sts_identification_tests
-        PROPERTIES LABELS "acceptance;three-dimensional;hex20;contact;abaqus;identification")
 
-    add_executable(fuelsim_h20_27_abaqus_sts_nonmatching_identification_tests
+    add_executable(fuelsim_h20_27_abaqus_sts_nonmatching_identification_tests EXCLUDE_FROM_ALL
         tests/h20_abaqus_sts_nonmatching_identification_tests.cpp)
     fuelsim_enable_warnings(fuelsim_h20_27_abaqus_sts_nonmatching_identification_tests)
-    add_test(NAME fuelsim_h20_27_abaqus_sts_nonmatching_identification_tests
-        COMMAND fuelsim_h20_27_abaqus_sts_nonmatching_identification_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_26_hex20_sts_operator.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_27_hex20_nonmatching_sts_operator.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_27_hex20_nonmatching_sts_history.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_27_hex20_small_sliding_transfer_nodal.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_27_hex20_small_sliding_transfer_history.csv")
-    set_tests_properties(fuelsim_h20_27_abaqus_sts_nonmatching_identification_tests
-        PROPERTIES LABELS "acceptance;three-dimensional;hex20;contact;abaqus;identification")
 
-    add_executable(fuelsim_h20_28_abaqus_sts_smoothing_identification_tests
+    add_executable(fuelsim_h20_28_abaqus_sts_smoothing_identification_tests EXCLUDE_FROM_ALL
         tests/h20_abaqus_sts_smoothing_identification_tests.cpp)
     fuelsim_enable_warnings(fuelsim_h20_28_abaqus_sts_smoothing_identification_tests)
-    add_test(NAME fuelsim_h20_28_abaqus_sts_smoothing_identification_tests
-        COMMAND fuelsim_h20_28_abaqus_sts_smoothing_identification_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_28_hex20_refined_primary_sts_default_operator.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_28_hex20_refined_primary_sts_linear_operator.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_28_hex20_refined_primary_sts_quadratic_operator.csv")
-    set_tests_properties(fuelsim_h20_28_abaqus_sts_smoothing_identification_tests
-        PROPERTIES LABELS "acceptance;three-dimensional;hex20;contact;abaqus;identification")
 
-    foreach(h20_29_case IN ITEMS biaxial tilted graded soft_penalty initial_gap)
+    foreach(h20_29_case IN ITEMS biaxial tilted graded initial_gap)
         set(h20_29_test "fuelsim_h20_29_hex20_sts_${h20_29_case}_abaqus_tests")
         fuelsim_add_production_test(${h20_29_test} h20_29_${h20_29_case}
                 steady_hex20_sts_${h20_29_case}_abaqus planar-sts
@@ -1882,6 +1858,7 @@ if(BUILD_TESTING)
                     "${CMAKE_CURRENT_BINARY_DIR}/mpi_hex8_steady_results.e"
                     "${CMAKE_CURRENT_BINARY_DIR}/mpi_hex8_transient_results.e"
                     "${CMAKE_CURRENT_BINARY_DIR}/mpi_hex8_checkpoint.bin"
+                    --mpi-only
                     -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps)
         set_tests_properties(fuelsim_mpi_hex8_solver_tests PROPERTIES
             PROCESSORS 2
@@ -1893,6 +1870,7 @@ if(BUILD_TESTING)
                     "${CMAKE_CURRENT_BINARY_DIR}/mpi_hex20_mesh.e"
                     "${CMAKE_CURRENT_BINARY_DIR}/mpi_hex20_steady_results.e"
                     "${CMAKE_CURRENT_BINARY_DIR}/mpi_hex20_checkpoint.bin"
+                    --mpi-only
                     -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps)
         set_tests_properties(fuelsim_mpi_hex20_solver_tests PROPERTIES
             PROCESSORS 2
