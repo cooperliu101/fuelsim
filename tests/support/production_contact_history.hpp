@@ -25,13 +25,14 @@ struct OutputContactStep final {
 };
 
 inline std::vector<OutputContactStep> read_seven_contact_steps(const std::string& path, std::size_t contact_count) {
-    const auto final = read_final_exodus_results(path);
+    const auto history = read_exodus_nodal_history(path);
+    const auto& final = history.back();
     if (final.step_count != 8 || std::abs(final.time - 7.0) > 1e-12)
         throw std::invalid_argument("Friction output requires seven integer-second stages and its initial frame");
     std::vector<OutputContactStep> result;
     for (std::size_t step = 1; step <= 7; ++step) {
         OutputContactStep record;
-        record.output = read_exodus_results(path, step + 1);
+        record.output = history.at(step);
         const auto& output = record.output;
         if (std::abs(output.time - static_cast<double>(step)) > 1e-12)
             throw std::invalid_argument("Friction path frame time differs from reference");

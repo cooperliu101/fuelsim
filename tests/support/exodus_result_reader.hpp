@@ -32,5 +32,7 @@ ExodusResults read_final_exodus_results(const std::string& path);
 ExodusResults read_exodus_results(const std::string& path, std::size_t step);
 // Includes the initial frame and keeps the file open for the complete read.
 std::vector<ExodusResults> read_exodus_history(const std::string& path);
+// Reads coordinates and nodal variables only; intended for contact and nodal-history comparisons.
+std::vector<ExodusResults> read_exodus_nodal_history(const std::string& path);
 } // namespace fuelsim::test
 #endif

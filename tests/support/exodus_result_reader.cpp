@@ -42,6 +42,12 @@ std::size_t count(std::int64_t value, const std::string& name) {
     return static_cast<std::size_t>(value);
 }
 
+std::size_t product(std::size_t left, std::size_t right, const std::string& name) {
+    if (right != 0 && left > std::numeric_limits<std::size_t>::max() / right)
+        throw std::runtime_error("Invalid " + name + " in fuelsim Exodus results");
+    return left * right;
+}
+
 std::vector<std::string> variable_names(int exoid, ex_entity_type type) {
     int variable_count = 0;
     check_exodus(ex_get_variable_param(exoid, type, &variable_count),
@@ -127,8 +133,9 @@ double ExodusResults::global(const std::string& name) const {
 ExodusResults read_final_exodus_results(const std::string& path) { return read_exodus_results(path, 0); }
 
 namespace {
-ExodusResults read_open_exodus_results(
-    const ExodusFile& file, std::size_t step, const ExodusResults* metadata = nullptr) {
+ExodusResults read_open_exodus_results(const ExodusFile& file, std::size_t step,
+    const ExodusResults* metadata = nullptr, bool include_element_variables = true,
+    bool include_global_variables = true) {
     if (metadata != nullptr) {
         ExodusResults result = *metadata;
         if (step == 0 || step > result.step_count) throw std::invalid_argument("Requested Exodus step does not exist");
@@ -139,9 +146,10 @@ ExodusResults read_open_exodus_results(
         for (const auto size : result.block_element_counts) elements += size;
         result.nodal_variables =
             read_nodal_variables(file.id(), frame, result.nodes.size(), result.nodal_variable_names.size());
-        result.element_variables =
-            read_element_variables(file.id(), frame, elements, result.element_variable_names.size());
-        if (!result.global_variables.empty())
+        if (include_element_variables)
+            result.element_variables =
+                read_element_variables(file.id(), frame, elements, result.element_variable_names.size());
+        if (include_global_variables && !result.global_variables.empty())
             check_exodus(ex_get_var(file.id(), frame, EX_GLOBAL, 1, 0,
                              static_cast<std::int64_t>(result.global_variables.size()), result.global_variables.data()),
                 "Could not read global result variables");
@@ -173,7 +181,7 @@ ExodusResults read_open_exodus_results(
     result.nodal_variable_names = variable_names(file.id(), EX_NODAL);
     result.nodal_variables =
         read_nodal_variables(file.id(), final_step, node_count, result.nodal_variable_names.size());
-    result.element_variable_names = variable_names(file.id(), EX_ELEM_BLOCK);
+    if (include_element_variables) result.element_variable_names = variable_names(file.id(), EX_ELEM_BLOCK);
     const auto block_count = count(ex_inquire_int(file.id(), EX_INQ_ELEM_BLK), "element-block count");
     std::vector<std::int64_t> block_ids(block_count);
     if (block_count != 0)
@@ -189,8 +197,9 @@ ExodusResults read_open_exodus_results(
         result.block_names.emplace_back(name.data());
         result.block_element_counts.push_back(count(block.num_entry, "block element count"));
     }
-    result.element_variables =
-        read_element_variables(file.id(), final_step, element_count, result.element_variable_names.size());
+    if (include_element_variables)
+        result.element_variables =
+            read_element_variables(file.id(), final_step, element_count, result.element_variable_names.size());
     const auto side_count = count(ex_inquire_int(file.id(), EX_INQ_SIDE_SETS), "side-set count");
     std::vector<std::int64_t> side_ids(side_count);
     if (side_count != 0)
@@ -226,9 +235,9 @@ ExodusResults read_open_exodus_results(
         if (offset != face_nodes.size()) throw std::invalid_argument("Side-set node-list size is inconsistent");
         result.side_set_face_nodes.push_back(std::move(faces));
     }
-    result.global_variable_names = variable_names(file.id(), EX_GLOBAL);
+    if (include_global_variables) result.global_variable_names = variable_names(file.id(), EX_GLOBAL);
     result.global_variables.resize(result.global_variable_names.size());
-    if (!result.global_variables.empty())
+    if (include_global_variables && !result.global_variables.empty())
         check_exodus(ex_get_var(file.id(), final_step, EX_GLOBAL, 1, 0,
                          static_cast<std::int64_t>(result.global_variables.size()), result.global_variables.data()),
             "Could not read global result variables");
@@ -241,15 +250,85 @@ ExodusResults read_exodus_results(const std::string& path, std::size_t step) {
     return read_open_exodus_results(file, step);
 }
 
-std::vector<ExodusResults> read_exodus_history(const std::string& path) {
+namespace {
+std::vector<ExodusResults> read_history(
+    const std::string& path, bool include_element_variables, bool include_global_variables) {
     const ExodusFile file(path);
-    auto first = read_open_exodus_results(file, 1);
-    const auto steps = first.step_count;
-    std::vector<ExodusResults> result;
-    result.reserve(steps);
-    result.push_back(std::move(first));
-    for (std::size_t step = 2; step <= steps; ++step)
-        result.push_back(read_open_exodus_results(file, step, &result.front()));
+    ExodusResults metadata =
+        read_open_exodus_results(file, 1, nullptr, include_element_variables, include_global_variables);
+    const std::size_t steps = metadata.step_count;
+    metadata.nodal_variables.clear();
+    metadata.element_variables.clear();
+    metadata.global_variables.clear();
+
+    std::vector<double> times(steps, 0.0);
+    check_exodus(ex_get_all_times(file.id(), times.data()), "Could not read all fuelsim result times");
+    std::vector<ExodusResults> result(steps, metadata);
+    for (std::size_t step = 0; step < steps; ++step) {
+        if (!std::isfinite(times[step])) throw std::invalid_argument("Exodus result time is not finite");
+        result[step].time = times[step];
+        result[step].nodal_variables.assign(metadata.nodal_variable_names.size(), {});
+        result[step].element_variables.assign(metadata.element_variable_names.size(), {});
+        result[step].global_variables.assign(metadata.global_variable_names.size(), 0.0);
+    }
+
+    const std::size_t node_count = metadata.nodes.size();
+    std::vector<double> values(product(steps, node_count, "nodal history size"), 0.0);
+    for (std::size_t variable = 0; variable < metadata.nodal_variable_names.size(); ++variable) {
+        check_exodus(ex_get_var_multi_time(file.id(), EX_NODAL, static_cast<int>(variable + 1), 1,
+                         static_cast<std::int64_t>(node_count), 1, static_cast<int>(steps), values.data()),
+            "Could not read a complete nodal-variable history from fuelsim Exodus results");
+        for (std::size_t step = 0; step < steps; ++step)
+            result[step].nodal_variables[variable].assign(
+                values.begin() + static_cast<std::ptrdiff_t>(step * node_count),
+                values.begin() + static_cast<std::ptrdiff_t>((step + 1) * node_count));
+    }
+
+    const std::size_t element_count = [&]() {
+        std::size_t total = 0;
+        for (const std::size_t block_size : metadata.block_element_counts) total += block_size;
+        return total;
+    }();
+    std::vector<std::int64_t> block_ids(metadata.block_element_counts.size(), 0);
+    if (!block_ids.empty())
+        check_exodus(ex_get_ids(file.id(), EX_ELEM_BLOCK, block_ids.data()), "Could not read result block IDs");
+    for (ExodusResults& frame : result)
+        for (std::vector<double>& variable : frame.element_variables) variable.reserve(element_count);
+    for (std::size_t block = 0; block < block_ids.size(); ++block) {
+        const std::size_t block_size = metadata.block_element_counts[block];
+        values.assign(product(steps, block_size, "element history size"), 0.0);
+        for (std::size_t variable = 0; variable < metadata.element_variable_names.size(); ++variable) {
+            if (block_size != 0)
+                check_exodus(
+                    ex_get_var_multi_time(file.id(), EX_ELEM_BLOCK, static_cast<int>(variable + 1), block_ids[block],
+                        static_cast<std::int64_t>(block_size), 1, static_cast<int>(steps), values.data()),
+                    "Could not read a complete element-variable history from fuelsim Exodus results");
+            for (std::size_t step = 0; step < steps; ++step) {
+                const auto begin = values.begin() + static_cast<std::ptrdiff_t>(step * block_size);
+                result[step].element_variables[variable].insert(result[step].element_variables[variable].end(), begin,
+                    begin + static_cast<std::ptrdiff_t>(block_size));
+            }
+        }
+    }
+    for (const ExodusResults& frame : result)
+        for (const std::vector<double>& variable : frame.element_variables)
+            if (variable.size() != element_count)
+                throw std::runtime_error("Element count changed while reading fuelsim Exodus result history");
+
+    values.assign(steps, 0.0);
+    for (std::size_t variable = 0; variable < metadata.global_variable_names.size(); ++variable) {
+        check_exodus(ex_get_var_time(file.id(), EX_GLOBAL, static_cast<int>(variable + 1), 0, 1,
+                         static_cast<int>(steps), values.data()),
+            "Could not read a complete global-variable history from fuelsim Exodus results");
+        for (std::size_t step = 0; step < steps; ++step) result[step].global_variables[variable] = values[step];
+    }
     return result;
+}
+} // namespace
+
+std::vector<ExodusResults> read_exodus_history(const std::string& path) { return read_history(path, true, true); }
+
+std::vector<ExodusResults> read_exodus_nodal_history(const std::string& path) {
+    return read_history(path, false, false);
 }
 } // namespace fuelsim::test

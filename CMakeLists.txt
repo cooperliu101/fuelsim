@@ -212,7 +212,6 @@ if(BUILD_TESTING)
     )
     fuelsim_enable_warnings(fuelsim_production_result_tests)
 
-    include(cmake/InternalChecks.cmake)
 
     function(fuelsim_stage_blackbox_case output_variable case_name input_name)
         set(case_root "${CMAKE_CURRENT_BINARY_DIR}/blackbox/${case_name}/verification")
@@ -276,8 +275,8 @@ if(BUILD_TESTING)
     target_link_libraries(fuelsim_hex8_result_fields_tests PRIVATE fuelsim::io)
     target_include_directories(fuelsim_hex8_result_fields_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
     fuelsim_enable_warnings(fuelsim_hex8_result_fields_tests)
-    fuelsim_add_internal_check(hex8 NAME fuelsim_hex8_result_fields_tests COMMAND fuelsim_hex8_result_fields_tests)
-    fuelsim_set_internal_properties(fuelsim_hex8_result_fields_tests PROPERTIES LABELS "unit;io;hex8;analytic")
+    add_test(NAME fuelsim_hex8_result_fields_tests COMMAND fuelsim_hex8_result_fields_tests)
+    set_tests_properties(fuelsim_hex8_result_fields_tests PROPERTIES LABELS "unit;io;hex8;analytic")
     add_executable(fuelsim_test_mesh_export EXCLUDE_FROM_ALL benchmarks/test_mesh_export.cpp)
     target_link_libraries(fuelsim_test_mesh_export PRIVATE fuelsim::io)
     fuelsim_enable_warnings(fuelsim_test_mesh_export)
@@ -380,9 +379,9 @@ if(BUILD_TESTING)
     target_link_libraries(fuelsim_rz_contact_projection_contract_tests PRIVATE fuelsim::io)
     target_include_directories(fuelsim_rz_contact_projection_contract_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/tests")
     fuelsim_enable_warnings(fuelsim_rz_contact_projection_contract_tests)
-    fuelsim_add_internal_check(rz NAME fuelsim_rz_contact_projection_contract COMMAND fuelsim_rz_contact_projection_contract_tests
+    add_test(NAME fuelsim_rz_contact_projection_contract COMMAND fuelsim_rz_contact_projection_contract_tests
         "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_two_pellet_contact_moose.fsi")
-    fuelsim_set_internal_properties(fuelsim_rz_contact_projection_contract PROPERTIES LABELS "unit;contact;projection")
+    set_tests_properties(fuelsim_rz_contact_projection_contract PROPERTIES LABELS "unit;contact;projection")
     fuelsim_add_production_test(fuelsim_m3_contact_tests m33_two_pellet steady_two_pellet_contact_moose rz-two-pellet
         "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m33_two_pellet_contact_rz_out_all_nodes_0001.csv"
         "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m33_two_pellet_contact_rz_out_lower_surface_0001.csv")
@@ -417,10 +416,10 @@ if(BUILD_TESTING)
     target_link_libraries(fuelsim_rz_sliding_contract_tests PRIVATE fuelsim::io fuelsim_exodus_result_test_support)
     target_include_directories(fuelsim_rz_sliding_contract_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/tests")
     fuelsim_enable_warnings(fuelsim_rz_sliding_contract_tests)
-    fuelsim_add_internal_check(rz NAME fuelsim_m52_sliding_ownership_contract COMMAND fuelsim_rz_sliding_contract_tests
+    add_test(NAME fuelsim_m52_sliding_ownership_contract COMMAND fuelsim_rz_sliding_contract_tests
         "${CMAKE_CURRENT_BINARY_DIR}/blackbox/m52/verification/fuelsim/steady_large_sliding_contact_moose.fsi"
         "${CMAKE_CURRENT_BINARY_DIR}/blackbox/m52/verification/fuelsim/steady_large_sliding_contact_moose_results.e")
-    fuelsim_set_internal_properties(fuelsim_m52_sliding_ownership_contract PROPERTIES
+    set_tests_properties(fuelsim_m52_sliding_ownership_contract PROPERTIES
         FIXTURES_REQUIRED m52_production LABELS "unit;contact;projection")
 
     fuelsim_add_production_test(fuelsim_m57_integrated_validation_tests m57
@@ -539,10 +538,10 @@ if(BUILD_TESTING)
     add_executable(fuelsim_rz_restart_step_contract_tests tests/rz_restart_step_contract_tests.cpp)
     target_link_libraries(fuelsim_rz_restart_step_contract_tests PRIVATE fuelsim::io)
     fuelsim_enable_warnings(fuelsim_rz_restart_step_contract_tests)
-    fuelsim_add_internal_check(rz NAME fuelsim_m52_restart_step_contract
+    add_test(NAME fuelsim_m52_restart_step_contract
         COMMAND fuelsim_rz_restart_step_contract_tests "${m52_restart_input}"
             "${m52_restart_directory}/transient_large_sliding_contact_split.checkpoint")
-    fuelsim_set_internal_properties(fuelsim_m52_restart_step_contract PROPERTIES
+    set_tests_properties(fuelsim_m52_restart_step_contract PROPERTIES
         FIXTURES_REQUIRED m52_restart_production LABELS "unit;checkpoint;transaction")
 
     fuelsim_stage_blackbox_case(
@@ -1081,10 +1080,10 @@ if(BUILD_TESTING)
         set_tests_properties(${b39_test} PROPERTIES FIXTURES_SETUP "b39_${b39_case}_production"
             LABELS "acceptance;production;three-dimensional;hex8;contact;abaqus")
         set(b39_directory "${CMAKE_CURRENT_BINARY_DIR}/blackbox/b39_${b39_case}/verification/fuelsim")
-        fuelsim_add_internal_check(hex8 NAME "fuelsim_b39_${b39_case}_contact_contract"
+        add_test(NAME "fuelsim_b39_${b39_case}_contact_contract"
             COMMAND fuelsim_hex8_sts_contract_tests "${b39_directory}/${b39_stem}.fsi"
                 "${b39_directory}/${b39_stem}_results.e")
-        fuelsim_set_internal_properties("fuelsim_b39_${b39_case}_contact_contract" PROPERTIES
+        set_tests_properties("fuelsim_b39_${b39_case}_contact_contract" PROPERTIES
             FIXTURES_REQUIRED "b39_${b39_case}_production" LABELS "unit;contact;jacobian;conservation")
     endforeach()
 
@@ -1115,13 +1114,13 @@ if(BUILD_TESTING)
     add_executable(fuelsim_hex8_biaxial_friction_contract_tests tests/hex8_biaxial_friction_contract_tests.cpp)
     target_link_libraries(fuelsim_hex8_biaxial_friction_contract_tests PRIVATE fuelsim::io)
     fuelsim_enable_warnings(fuelsim_hex8_biaxial_friction_contract_tests)
-    fuelsim_add_internal_check(hex8 NAME fuelsim_b40_friction_history_contract
+    add_test(NAME fuelsim_b40_friction_history_contract
         COMMAND fuelsim_hex8_biaxial_friction_contract_tests
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_hex8_sts_friction_abaqus.fsi"
             "${b40_full_directory}/transient_hex8_sts_friction_abaqus.checkpoint"
             "${b40_restart_directory}/transient_hex8_sts_friction_restart.checkpoint"
             "${b40_restart_directory}/transient_hex8_sts_friction_split.checkpoint")
-    fuelsim_set_internal_properties(fuelsim_b40_friction_history_contract PROPERTIES
+    set_tests_properties(fuelsim_b40_friction_history_contract PROPERTIES
         FIXTURES_REQUIRED "b40_production;b40_restart_production" LABELS "unit;hex8;friction;jacobian;checkpoint")
 
     add_executable(fuelsim_b41_hex8_finite_sliding_abaqus_tests
@@ -1334,11 +1333,11 @@ if(BUILD_TESTING)
     target_link_libraries(fuelsim_hex20_history_contract_tests PRIVATE fuelsim::io)
     target_include_directories(fuelsim_hex20_history_contract_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/tests")
     fuelsim_enable_warnings(fuelsim_hex20_history_contract_tests)
-    fuelsim_add_internal_check(hex20 NAME fuelsim_hex20_history_contract_tests COMMAND fuelsim_hex20_history_contract_tests
+    add_test(NAME fuelsim_hex20_history_contract_tests COMMAND fuelsim_hex20_history_contract_tests
         "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_hex20_inelastic_plastic_moose.fsi"
         "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_hex20_inelastic_creep_moose.fsi"
         "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_hex20_inelastic_coupled_moose.fsi")
-    fuelsim_set_internal_properties(fuelsim_hex20_history_contract_tests PROPERTIES LABELS "unit;quadratic;transaction")
+    set_tests_properties(fuelsim_hex20_history_contract_tests PROPERTIES LABELS "unit;quadratic;transaction")
     foreach(branch IN ITEMS plastic creep coupled)
         fuelsim_add_production_test(fuelsim_h20_inelastic_${branch}_moose_tests h20_inelastic_${branch}
             transient_hex20_inelastic_${branch}_moose hex20-inelastic
@@ -1356,11 +1355,11 @@ if(BUILD_TESTING)
         PRIVATE fuelsim::io fuelsim_exodus_result_test_support)
     target_include_directories(fuelsim_h20_24_hex20_nonmatching_contact_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/tests")
     fuelsim_enable_warnings(fuelsim_h20_24_hex20_nonmatching_contact_tests)
-    fuelsim_add_internal_check(hex20 NAME fuelsim_h20_24_hex20_nonmatching_contact_tests
+    add_test(NAME fuelsim_h20_24_hex20_nonmatching_contact_tests
         COMMAND fuelsim_h20_24_hex20_nonmatching_contact_tests
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex20_nonmatching_contact_abaqus.fsi"
             "${CMAKE_CURRENT_BINARY_DIR}/blackbox/h20_24_nonmatching/verification/fuelsim/steady_hex20_nonmatching_contact_abaqus_results.e")
-    fuelsim_set_internal_properties(fuelsim_h20_24_hex20_nonmatching_contact_tests
+    set_tests_properties(fuelsim_h20_24_hex20_nonmatching_contact_tests
         PROPERTIES FIXTURES_REQUIRED h20_24_production LABELS "unit;three-dimensional;quadratic;contact;nonmatching;jacobian;conservation")
 
     fuelsim_stage_blackbox_case(
@@ -1416,12 +1415,12 @@ if(BUILD_TESTING)
         else()
             set(plate_stem transient_plate_meat_clad_moose)
         endif()
-        fuelsim_add_internal_check(hex8 NAME "fuelsim_${plate_case}_shared_nodes_contract"
+        add_test(NAME "fuelsim_${plate_case}_shared_nodes_contract"
             COMMAND fuelsim_hex8_shared_nodes_contract_tests
                 "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/${plate_stem}.fsi"
                 "${CMAKE_CURRENT_BINARY_DIR}/blackbox/${plate_case}/verification/fuelsim/${plate_stem}_results.e"
                 "${plate_case}")
-        fuelsim_set_internal_properties("fuelsim_${plate_case}_shared_nodes_contract" PROPERTIES
+        set_tests_properties("fuelsim_${plate_case}_shared_nodes_contract" PROPERTIES
             FIXTURES_REQUIRED "${plate_case}_production" LABELS "unit;shared-nodes;conservation")
     endforeach()
 
@@ -1471,13 +1470,13 @@ if(BUILD_TESTING)
         PRIVATE fuelsim::io fuelsim_exodus_result_test_support)
     target_include_directories(fuelsim_hex8_friction_checkpoint_contract_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/tests")
     fuelsim_enable_warnings(fuelsim_hex8_friction_checkpoint_contract_tests)
-    fuelsim_add_internal_check(hex8 NAME fuelsim_b34_friction_checkpoint_contract
+    add_test(NAME fuelsim_b34_friction_checkpoint_contract
         COMMAND fuelsim_hex8_friction_checkpoint_contract_tests
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_hex8_sliding_contact_checkpoint.fsi"
             "${CMAKE_CURRENT_BINARY_DIR}/blackbox/b34_transient/verification/fuelsim/transient_hex8_sliding_contact_checkpoint.checkpoint"
             "${CMAKE_CURRENT_BINARY_DIR}/blackbox/b34_transient/verification/fuelsim/transient_hex8_sliding_contact_checkpoint_results.e"
             "${CMAKE_CURRENT_BINARY_DIR}/blackbox/b34_transient/verification/fuelsim/roundtrip.checkpoint")
-    fuelsim_set_internal_properties(fuelsim_b34_friction_checkpoint_contract PROPERTIES
+    set_tests_properties(fuelsim_b34_friction_checkpoint_contract PROPERTIES
         FIXTURES_REQUIRED b34_transient_production LABELS "unit;hex8;friction;checkpoint;transaction")
 
     fuelsim_add_production_test(fuelsim_h20_hex20_thermal_contact_reference_tests h20_16
@@ -1554,12 +1553,12 @@ if(BUILD_TESTING)
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_30_hex20_sts_${curved_case}_resultant.csv")
         set_tests_properties("${curved_test}" PROPERTIES FIXTURES_SETUP "h20_30_${curved_case}_production"
             LABELS "acceptance;production;three-dimensional;hex20;contact;curved;abaqus")
-        fuelsim_add_internal_check(hex20 NAME "fuelsim_h20_30_${curved_case}_contract"
+        add_test(NAME "fuelsim_h20_30_${curved_case}_contract"
             COMMAND fuelsim_hex20_curved_contact_contract_tests
                 "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/${curved_stem}.fsi"
                 "${CMAKE_CURRENT_BINARY_DIR}/blackbox/h20_30_${curved_case}/verification/fuelsim/${curved_stem}_results.e"
                 "${curved_case}")
-        fuelsim_set_internal_properties("fuelsim_h20_30_${curved_case}_contract" PROPERTIES
+        set_tests_properties("fuelsim_h20_30_${curved_case}_contract" PROPERTIES
             FIXTURES_REQUIRED "h20_30_${curved_case}_production" LABELS "unit;hex20;contact;jacobian;conservation")
     endforeach()
     fuelsim_add_production_test(fuelsim_h20_friction_path_abaqus_tests h20_33
@@ -1576,12 +1575,12 @@ if(BUILD_TESTING)
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/h20_35_hex20_sts_quadratic_cylinder_friction_contact.csv")
     set_tests_properties(fuelsim_h20_35_curved_friction_abaqus_tests
         PROPERTIES FIXTURES_SETUP h20_35_production LABELS "acceptance;production;three-dimensional;hex20;contact;friction;curved;abaqus")
-    fuelsim_add_internal_check(hex20 NAME fuelsim_h20_35_curved_friction_contract
+    add_test(NAME fuelsim_h20_35_curved_friction_contract
         COMMAND fuelsim_hex20_curved_contact_contract_tests
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex20_sts_quadratic_cylinder_friction_abaqus.fsi"
             "${CMAKE_CURRENT_BINARY_DIR}/blackbox/h20_35/verification/fuelsim/steady_hex20_sts_quadratic_cylinder_friction_abaqus_results.e"
             quadratic_friction)
-    fuelsim_set_internal_properties(fuelsim_h20_35_curved_friction_contract PROPERTIES
+    set_tests_properties(fuelsim_h20_35_curved_friction_contract PROPERTIES
         FIXTURES_REQUIRED h20_35_production LABELS "unit;hex20;contact;friction;jacobian;conservation")
 
     fuelsim_add_production_test(fuelsim_h20_36_curved_friction_path_abaqus_tests h20_36
@@ -1598,15 +1597,15 @@ if(BUILD_TESTING)
             PRIVATE fuelsim::io fuelsim::solver)
         fuelsim_enable_warnings(fuelsim_hex20_friction_transaction_${friction_path}_tests)
     endforeach()
-    fuelsim_add_internal_check(hex20 NAME fuelsim_h20_33_friction_transaction_contract
+    add_test(NAME fuelsim_h20_33_friction_transaction_contract
         COMMAND fuelsim_hex20_friction_transaction_33_tests
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_hex20_nonmatching_friction_abaqus.fsi"
             "${CMAKE_CURRENT_BINARY_DIR}/h20_33_transaction.checkpoint")
-    fuelsim_add_internal_check(hex20 NAME fuelsim_h20_36_friction_transaction_contract
+    add_test(NAME fuelsim_h20_36_friction_transaction_contract
         COMMAND fuelsim_hex20_friction_transaction_36_tests
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_hex20_sts_quadratic_cylinder_friction_path_abaqus.fsi"
             "${CMAKE_CURRENT_BINARY_DIR}/h20_36_transaction.checkpoint")
-    fuelsim_set_internal_properties(fuelsim_h20_33_friction_transaction_contract fuelsim_h20_36_friction_transaction_contract
+    set_tests_properties(fuelsim_h20_33_friction_transaction_contract fuelsim_h20_36_friction_transaction_contract
         PROPERTIES LABELS "unit;hex20;friction;transaction;checkpoint" TIMEOUT 120)
 
     add_executable(fuelsim_h20_38_friction_objectivity_abaqus_tests
@@ -1689,12 +1688,12 @@ if(BUILD_TESTING)
         else()
             set(integrated_stem transient_b555_small_c3d20t_friction)
         endif()
-        fuelsim_add_internal_check(hex20 NAME fuelsim_${integrated_case}_output_contract
+        add_test(NAME fuelsim_${integrated_case}_output_contract
             COMMAND fuelsim_hex20_integrated_output_contract_tests
                 "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/${integrated_stem}.fsi"
                 "${CMAKE_CURRENT_BINARY_DIR}/blackbox/${integrated_case}/verification/fuelsim/${integrated_stem}.checkpoint"
                 "${CMAKE_CURRENT_BINARY_DIR}/blackbox/${integrated_case}/verification/fuelsim/${integrated_stem}_results.e")
-        fuelsim_set_internal_properties(fuelsim_${integrated_case}_output_contract PROPERTIES
+        set_tests_properties(fuelsim_${integrated_case}_output_contract PROPERTIES
             FIXTURES_REQUIRED ${integrated_case}_production LABELS "unit;hex20;io;jacobian;contact")
     endforeach()
 
@@ -1749,13 +1748,13 @@ if(BUILD_TESTING)
                 "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/${hex8_prefix}_hex8_${hex8_strain}${branch}_element_state_final.csv")
             set_tests_properties(${hex8_test} PROPERTIES FIXTURES_SETUP "${hex8_case}_production")
             set(hex8_directory "${CMAKE_CURRENT_BINARY_DIR}/blackbox/${hex8_case}/verification/fuelsim")
-            fuelsim_add_internal_check(hex8 NAME "fuelsim_${hex8_case}_history_contract"
+            add_test(NAME "fuelsim_${hex8_case}_history_contract"
                 COMMAND fuelsim_hex8_history_contract_tests
                     "${hex8_directory}/${hex8_stem}.fsi"
                     "${hex8_directory}/${hex8_stem}.checkpoint"
                     "${hex8_directory}/history_roundtrip.checkpoint"
                     "${hex8_directory}/${hex8_stem}_results.e")
-            fuelsim_set_internal_properties("fuelsim_${hex8_case}_history_contract" PROPERTIES
+            set_tests_properties("fuelsim_${hex8_case}_history_contract" PROPERTIES
                 FIXTURES_REQUIRED "${hex8_case}_production" LABELS "unit;transaction;checkpoint")
         endforeach()
     endforeach()
@@ -1826,12 +1825,12 @@ if(BUILD_TESTING)
             set(reduced_stem transient_b534_hex8_c3d8rt_finite)
         endif()
         set(reduced_directory "${CMAKE_CURRENT_BINARY_DIR}/blackbox/${reduced_case}/verification/fuelsim")
-        fuelsim_add_internal_check(hex8 NAME fuelsim_${reduced_case}_history_contract
+        add_test(NAME fuelsim_${reduced_case}_history_contract
             COMMAND fuelsim_hex8_reduced_history_contract_tests
                 "${reduced_directory}/${reduced_stem}.fsi"
                 "${reduced_directory}/${reduced_stem}.checkpoint"
                 "${reduced_directory}/${reduced_stem}_results.e")
-        fuelsim_set_internal_properties(fuelsim_${reduced_case}_history_contract PROPERTIES
+        set_tests_properties(fuelsim_${reduced_case}_history_contract PROPERTIES
             FIXTURES_REQUIRED ${reduced_case}_production LABELS "unit;transaction;reduced-integration")
     endforeach()
     fuelsim_enable_warnings(fuelsim_multi_region_tests)
@@ -1925,7 +1924,6 @@ if(BUILD_TESTING)
                     -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps)
         set_tests_properties(fuelsim_mpi_hex8_solver_tests PROPERTIES
             PROCESSORS 2
-            RUN_SERIAL TRUE
             LABELS "integration;mpi;three-dimensional")
 
         add_test(NAME fuelsim_mpi_hex20_solver_tests
@@ -1937,7 +1935,6 @@ if(BUILD_TESTING)
                     -ksp_type preonly -pc_type lu -pc_factor_mat_solver_type mumps)
         set_tests_properties(fuelsim_mpi_hex20_solver_tests PROPERTIES
             PROCESSORS 2
-            RUN_SERIAL TRUE
             LABELS "integration;mpi;three-dimensional;quadratic")
 
         add_test(NAME fuelsim_mpi_solver_tests
@@ -2289,11 +2286,11 @@ if(BUILD_TESTING)
     add_executable(fuelsim_rz_creep_replay_contract_tests tests/rz_creep_replay_contract_tests.cpp)
     target_link_libraries(fuelsim_rz_creep_replay_contract_tests PRIVATE fuelsim::io fuelsim_moose_test_support)
     fuelsim_enable_warnings(fuelsim_rz_creep_replay_contract_tests)
-    fuelsim_add_internal_check(rz NAME fuelsim_m43_creep_shared_state_contract COMMAND fuelsim_rz_creep_replay_contract_tests
+    add_test(NAME fuelsim_m43_creep_shared_state_contract COMMAND fuelsim_rz_creep_replay_contract_tests
         "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_noncoaxial_finite_strain_creep_displacement.fsi"
         "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_creep_displacement_rz_element_history.csv"
         "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_creep_displacement_rz_nodal_history.csv")
-    fuelsim_set_internal_properties(fuelsim_m43_creep_shared_state_contract PROPERTIES LABELS "unit;material;transaction")
+    set_tests_properties(fuelsim_m43_creep_shared_state_contract PROPERTIES LABELS "unit;material;transaction")
 
     add_test(NAME fuelsim_transient_jacobian_check
         COMMAND fuelsim -i
@@ -2323,7 +2320,6 @@ if(BUILD_TESTING)
         LABELS "audit;architecture"
     )
 
-    fuelsim_register_internal_groups()
     get_property(FUELSIM_REGISTERED_TESTS DIRECTORY PROPERTY TESTS)
     list(JOIN FUELSIM_REGISTERED_TESTS "\n" FUELSIM_REGISTERED_TEST_TEXT)
     file(GENERATE
@@ -2378,32 +2374,4 @@ if(BUILD_TESTING)
         ENVIRONMENT "${FUELSIM_CTEST_THREAD_ENVIRONMENT}"
     )
 
-    # Do not run independent two-rank cases concurrently when callers choose
-    # ctest -j: each case already owns two MPI processes and is intended to
-    # exercise a distributed PETSc path, not process-level oversubscription.
-    if(FUELSIM_MPIEXEC_EXECUTABLE)
-        set(FUELSIM_CTEST_TWO_RANK_TESTS
-            fuelsim_production_hex20_mpi_equivalence
-            fuelsim_mpi_hex8_solver_tests
-            fuelsim_c3d8rt_contact_two_rank_equivalence
-            fuelsim_mpi_hex20_solver_tests
-            fuelsim_mpi_solver_tests
-            fuelsim_mpi_runtime_layout_field_split
-            fuelsim_mpi_equivalence
-            fuelsim_m52_mpi_equivalence
-            fuelsim_b33_mpi_equivalence
-            fuelsim_b521_thermal_contact_mpi_equivalence
-            fuelsim_b39_hex8_sts_mpi_equivalence
-            fuelsim_b41_hex8_finite_sliding_mpi_equivalence
-            fuelsim_b48_hex8_multi_contact_path_mpi_equivalence
-            fuelsim_mpi_field_split
-            fuelsim_mpi_block_jacobi
-            fuelsim_mpi_hypre
-            fuelsim_transient_mpi_equivalence
-            fuelsim_mpi_root_io_failure
-        )
-        set_tests_properties(${FUELSIM_CTEST_TWO_RANK_TESTS} PROPERTIES
-            RESOURCE_LOCK fuelsim_two_rank_mpi
-        )
-    endif()
 endif()
