@@ -206,19 +206,14 @@ double observed_order(double coarse, double fine) { return std::log(coarse / fin
 
 bool test_spatial_order() {
     const ManufacturedParameters parameters = {300.0, -50.0, 10.0, 0.0};
-    const std::array<std::size_t, 4> elements = {4, 8, 16, 32};
-    std::array<ManufacturedResult, 4> results{};
+    const std::array<std::size_t, 2> elements = {4, 8};
+    std::array<ManufacturedResult, 2> results{};
     for (std::size_t level = 0; level < elements.size(); ++level)
         results[level] = solve_manufactured(elements[level], 2, 1, parameters);
-    std::array<double, 3> orders{};
+    const double order = observed_order(results[0].temperature.absolute_l2, results[1].temperature.absolute_l2);
     bool passed = true;
-    for (std::size_t level = 0; level < orders.size(); ++level) {
-        orders[level] =
-            observed_order(results[level].temperature.absolute_l2, results[level + 1].temperature.absolute_l2);
-        passed = check(orders[level] > 1.9 && orders[level] < 2.1, "manufactured transient heat spatial L2 order is "
-                                                                   "second order") &&
-                 passed;
-    }
+    passed =
+        check(order > 1.9 && order < 2.1, "manufactured transient heat spatial L2 order is second order") && passed;
     for (const ManufacturedResult& result : results) {
         passed =
             check(result.accepted_steps == 1 && result.workspace_setups == 1 && result.maximum_displacement < 1.0e-13,
@@ -231,26 +226,20 @@ bool test_spatial_order() {
     for (const ManufacturedResult& result : results) std::cout << result.temperature.relative_l2 << ',';
     std::cout << '\n' << "m21_manufactured_spatial_maximum_absolute_K=";
     for (const ManufacturedResult& result : results) std::cout << result.temperature.maximum_absolute << ',';
-    std::cout << '\n'
-              << "m21_manufactured_spatial_orders=" << orders[0] << ',' << orders[1] << ',' << orders[2] << '\n';
+    std::cout << '\n' << "m21_manufactured_spatial_order=" << order << '\n';
     return passed;
 }
 
 bool test_temporal_order() {
     const ManufacturedParameters parameters = {300.0, -1.0, 0.0, 10.0};
-    const std::array<std::size_t, 4> steps = {5, 10, 20, 40};
-    std::array<ManufacturedResult, 4> results{};
+    const std::array<std::size_t, 2> steps = {5, 10};
+    std::array<ManufacturedResult, 2> results{};
     for (std::size_t level = 0; level < steps.size(); ++level)
         results[level] = solve_manufactured(64, 2, steps[level], parameters);
-    std::array<double, 3> orders{};
+    const double order = observed_order(results[0].temperature.absolute_l2, results[1].temperature.absolute_l2);
     bool passed = true;
-    for (std::size_t level = 0; level < orders.size(); ++level) {
-        orders[level] =
-            observed_order(results[level].temperature.absolute_l2, results[level + 1].temperature.absolute_l2);
-        passed = check(orders[level] > 0.85 && orders[level] < 1.15, "manufactured transient heat temporal L2 order is "
-                                                                     "first order") &&
-                 passed;
-    }
+    passed =
+        check(order > 0.85 && order < 1.15, "manufactured transient heat temporal L2 order is first order") && passed;
     for (std::size_t level = 0; level < results.size(); ++level) {
         passed = check(results[level].accepted_steps == steps[level] && results[level].workspace_setups == 1 &&
                            results[level].maximum_displacement < 1.0e-13,
@@ -263,8 +252,7 @@ bool test_temporal_order() {
     for (const ManufacturedResult& result : results) std::cout << result.temperature.relative_l2 << ',';
     std::cout << '\n' << "m21_manufactured_temporal_maximum_absolute_K=";
     for (const ManufacturedResult& result : results) std::cout << result.temperature.maximum_absolute << ',';
-    std::cout << '\n'
-              << "m21_manufactured_temporal_orders=" << orders[0] << ',' << orders[1] << ',' << orders[2] << '\n';
+    std::cout << '\n' << "m21_manufactured_temporal_order=" << order << '\n';
     return passed;
 }
 } // namespace

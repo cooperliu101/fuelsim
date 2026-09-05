@@ -1,6 +1,8 @@
 #include "fuelsim/io/case_input.hpp"
 #include "fuelsim/io/results_io.hpp"
 #include "fuelsim/solver/solve_workflows.hpp"
+#include "support/cartesian3d_problem_access.hpp"
+#include "support/exodus_result_reader.hpp"
 #include "support/rz_problem_access.hpp"
 #include <algorithm>
 #include <array>
@@ -37,6 +39,44 @@ std::vector<double> read_reference(const std::string& path) {
     return result;
 }
 
+std::vector<double> read_production_reference(
+    const std::string& path, const fuelsim::SteadyProblem& problem, fuelsim::CaseGeometry geometry) {
+    const fuelsim::test::ExodusResults output = fuelsim::test::read_final_exodus_results(path);
+    std::vector<double> result(problem.dof_count(), std::numeric_limits<double>::quiet_NaN());
+    if (geometry == fuelsim::CaseGeometry::cartesian_3d) {
+        const auto& layout = fuelsim::cartesian::ProblemAccess::dof_map(problem);
+        const std::array<fuelsim::Field, 4> fields = {fuelsim::Field::temperature, fuelsim::Field::displacement_x,
+            fuelsim::Field::displacement_y, fuelsim::Field::displacement_z};
+        const std::array<std::string, 4> names = {"temperature", "displacement_x", "displacement_y", "displacement_z"};
+        for (std::size_t region = 0; region < fuelsim::cartesian::ProblemAccess::region_count(problem); ++region) {
+            const auto& mesh = fuelsim::cartesian::ProblemAccess::region_mesh(problem, region);
+            for (std::size_t local = 0; local < mesh.nodes().size(); ++local) {
+                const std::size_t source = mesh.source_node_ids().at(local);
+                const std::size_t global = layout.global_node(region, local);
+                for (std::size_t field = 0; field < fields.size(); ++field)
+                    result.at(layout.dof(fields[field], global)) = output.nodal(names[field]).at(source);
+            }
+        }
+    } else {
+        const auto& layout = fuelsim::rz::ProblemAccess::dof_map(problem);
+        const std::array<fuelsim::Field, 3> fields = {
+            fuelsim::Field::temperature, fuelsim::Field::radial_displacement, fuelsim::Field::axial_displacement};
+        const std::array<std::string, 3> names = {"temperature", "displacement_r", "displacement_z"};
+        for (std::size_t region = 0; region < fuelsim::rz::ProblemAccess::region_count(problem); ++region) {
+            const auto& mesh = fuelsim::rz::ProblemAccess::region_mesh(problem, region);
+            for (std::size_t local = 0; local < mesh.nodes().size(); ++local) {
+                const std::size_t source = mesh.source_node_ids().at(local);
+                const std::size_t global = layout.global_node(region, local);
+                for (std::size_t field = 0; field < fields.size(); ++field)
+                    result.at(layout.dof(fields[field], global)) = output.nodal(names[field]).at(source);
+            }
+        }
+    }
+    if (std::any_of(result.begin(), result.end(), [](double value) { return !std::isfinite(value); }))
+        throw std::runtime_error("Production Exodus reference does not cover every global degree of freedom");
+    return result;
+}
+
 std::vector<double> flatten_transient_state(const fuelsim::TransientProblem& problem) {
     std::vector<double> result = {problem.committed_time(), problem.committed_load_factor()};
     result.insert(result.end(), problem.committed_solution().begin(), problem.committed_solution().end());
@@ -69,8 +109,11 @@ std::vector<double> flatten_transient_state(const fuelsim::TransientProblem& pro
     return result;
 }
 
-void compare_reference(const std::string& path, const std::vector<double>& state, double tolerance) {
-    const std::vector<double> reference = read_reference(path);
+void compare_reference(const std::string& path, const std::vector<double>& state, const fuelsim::SteadyProblem& problem,
+    fuelsim::CaseGeometry geometry, double tolerance) {
+    const bool production_output = path.size() >= 2 && path.substr(path.size() - 2) == ".e";
+    const std::vector<double> reference =
+        production_output ? read_production_reference(path, problem, geometry) : read_reference(path);
     if (reference.size() != state.size()) throw std::runtime_error("MPI reference state size differs");
     double maximum_absolute = 0.0;
     double maximum_scaled = 0.0;
@@ -519,8 +562,8 @@ int main(int argc, char** argv) {
                 ", total=" + std::to_string(result.solve.total_shadow_state_dofs) +
                 ", remote=" + std::to_string(result.solve.total_remote_shadow_state_dofs));
         if (session.rank() == 0) {
-            compare_reference(
-                reference_path, result.solve.state, field_split || block_jacobi || hypre ? 1.0e-7 : 1.0e-10);
+            compare_reference(reference_path, result.solve.state, problem, definition.geometry,
+                field_split || block_jacobi || hypre ? 1.0e-7 : 1.0e-10);
             std::cout << "steady_maximum_shadow_state_dofs=" << result.solve.maximum_shadow_state_dofs << '\n'
                       << "steady_total_remote_shadow_state_dofs=" << result.solve.total_remote_shadow_state_dofs
                       << '\n';

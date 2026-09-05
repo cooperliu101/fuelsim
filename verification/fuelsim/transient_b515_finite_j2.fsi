@@ -106,4 +106,5 @@
   console = true
   csv = transient_b515_finite_j2_summary.csv
   exodus = transient_b515_finite_j2_results.e
+  checkpoint = transient_b515_finite_j2.checkpoint
 []

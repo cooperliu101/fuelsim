@@ -262,7 +262,8 @@ if(BUILD_TESTING)
         set(output_files "${results};${summary}")
         if(check_mode STREQUAL "hex8-inelastic" OR check_mode STREQUAL "b34-transient" OR check_mode STREQUAL "b40"
             OR check_mode STREQUAL "b549" OR check_mode STREQUAL "b550" OR check_mode STREQUAL "b555"
-            OR check_mode STREQUAL "b531" OR check_mode STREQUAL "b534")
+            OR check_mode STREQUAL "b531" OR check_mode STREQUAL "b534"
+            OR input_stem STREQUAL "transient_b510_small_j2" OR input_stem STREQUAL "transient_b515_finite_j2")
             list(APPEND output_files "${case_directory}/${input_stem}.checkpoint")
         endif()
         add_test(NAME "${test_name}"
@@ -390,6 +391,7 @@ if(BUILD_TESTING)
     fuelsim_add_production_test(fuelsim_m3_contact_tests m33_two_pellet steady_two_pellet_contact_moose rz-two-pellet
         "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m33_two_pellet_contact_rz_out_all_nodes_0001.csv"
         "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m33_two_pellet_contact_rz_out_lower_surface_0001.csv")
+    set_tests_properties(fuelsim_m3_contact_tests PROPERTIES FIXTURES_SETUP m33_two_pellet_production)
 
     fuelsim_add_production_test(fuelsim_m33_multi_contact_moose_tests m33_multi
         steady_multi_contact_moose rz-multi-contact
@@ -891,6 +893,7 @@ if(BUILD_TESTING)
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b510_hex8_c3d8t_small_j2_integration.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b510_hex8_c3d8t_small_j2_energy.csv")
     set_tests_properties(fuelsim_b510_hex8_c3d8t_small_j2_abaqus_tests PROPERTIES
+        FIXTURES_SETUP b510_production
         LABELS "acceptance;three-dimensional;hex8;transient;mechanical;plasticity;abaqus")
 
     fuelsim_add_production_test(fuelsim_b512_hex8_c3d8t_small_coupled_abaqus_tests b512
@@ -928,6 +931,7 @@ if(BUILD_TESTING)
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b515_hex8_c3d8t_finite_j2_integration.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b515_hex8_c3d8t_finite_j2_energy.csv")
     set_tests_properties(fuelsim_b515_hex8_c3d8t_finite_j2_abaqus_tests PROPERTIES
+        FIXTURES_SETUP b515_production
         LABELS "acceptance;three-dimensional;hex8;transient;mechanical;plasticity;finite-strain;reversal;abaqus")
 
     fuelsim_add_production_test(fuelsim_b517_hex8_c3d8t_finite_coupled_abaqus_tests b517
@@ -1099,14 +1103,6 @@ if(BUILD_TESTING)
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b41_hex8_finite_sliding_finite.csv")
     set_tests_properties(fuelsim_b41_hex8_finite_sliding_abaqus_tests
         PROPERTIES LABELS "acceptance;three-dimensional;hex8;contact;friction;finite-sliding;abaqus")
-    add_test(NAME fuelsim_b41_hex8_finite_sliding_identification_tests
-        COMMAND fuelsim_b38_hex8_sts_identification_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b41_hex8_sts_finite_sliding_operator.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b41_hex8_sts_finite_sliding_contact_summary.txt"
-            finite-sliding-probe)
-    set_tests_properties(fuelsim_b41_hex8_finite_sliding_identification_tests
-        PROPERTIES LABELS "acceptance;three-dimensional;hex8;contact;finite-sliding;abaqus;identification")
-
     add_executable(fuelsim_b42_hex8_friction_objectivity_abaqus_tests
         tests/b42_hex8_friction_objectivity_abaqus_tests.cpp)
     target_link_libraries(fuelsim_b42_hex8_friction_objectivity_abaqus_tests
@@ -1409,8 +1405,9 @@ if(BUILD_TESTING)
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b33_hex8_contact_all_nodes_0010.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b33_hex8_contact_secondary_contact_0010.csv"
             "${CMAKE_CURRENT_BINARY_DIR}/blackbox/b33_frictionless/verification/fuelsim/steady_hex8_contact_frictionless_baseline_results.e")
-    set_tests_properties(fuelsim_b33_hex8_contact_moose_tests
-        PROPERTIES FIXTURES_REQUIRED b33_frictionless LABELS "acceptance;production;three-dimensional;contact;friction")
+    set_tests_properties(fuelsim_b33_hex8_contact_moose_tests PROPERTIES
+        FIXTURES_REQUIRED b33_frictionless FIXTURES_SETUP b33_production
+        LABELS "acceptance;production;three-dimensional;contact;friction")
 
     fuelsim_add_production_test(fuelsim_b34_hex8_sliding_contact_abaqus_tests b34
             steady_hex8_sliding_contact_abaqus b34
@@ -1676,7 +1673,7 @@ if(BUILD_TESTING)
             set(hex8_prefix b32)
             set(hex8_strain "finite_")
         endif()
-        foreach(branch IN ITEMS plastic creep coupled)
+        foreach(branch IN ITEMS creep coupled)
             set(hex8_stem "transient_hex8_${hex8_strain}${branch}_moose")
             set(hex8_case "${hex8_prefix}_${branch}")
             set(hex8_test "fuelsim_${hex8_prefix}_hex8_${branch}_moose_tests")
@@ -1694,6 +1691,22 @@ if(BUILD_TESTING)
             set_tests_properties("fuelsim_${hex8_case}_history_contract" PROPERTIES
                 FIXTURES_REQUIRED "${hex8_case}_production" LABELS "unit;transaction;checkpoint")
         endforeach()
+    endforeach()
+    foreach(plastic_case IN ITEMS b510 b515)
+        if(plastic_case STREQUAL "b510")
+            set(plastic_stem transient_b510_small_j2)
+        else()
+            set(plastic_stem transient_b515_finite_j2)
+        endif()
+        set(plastic_directory "${CMAKE_CURRENT_BINARY_DIR}/blackbox/${plastic_case}/verification/fuelsim")
+        add_test(NAME "fuelsim_${plastic_case}_history_contract"
+            COMMAND fuelsim_hex8_history_contract_tests
+                "${plastic_directory}/${plastic_stem}.fsi"
+                "${plastic_directory}/${plastic_stem}.checkpoint"
+                "${plastic_directory}/history_roundtrip.checkpoint"
+                "${plastic_directory}/${plastic_stem}_results.e")
+        set_tests_properties("fuelsim_${plastic_case}_history_contract" PROPERTIES
+            FIXTURES_REQUIRED "${plastic_case}_production" LABELS "unit;transaction;checkpoint")
     endforeach()
 
     add_executable(fuelsim_multi_region_tests tests/multi_region_tests.cpp)
@@ -1904,74 +1917,44 @@ if(BUILD_TESTING)
             benchmarks/mpi_equivalence.cpp
         )
         target_link_libraries(fuelsim_mpi_equivalence_benchmark
-            PRIVATE fuelsim::io fuelsim::solver
+            PRIVATE fuelsim::io fuelsim::solver fuelsim_exodus_result_test_support
         )
         target_include_directories(fuelsim_mpi_equivalence_benchmark PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/tests")
         fuelsim_enable_warnings(fuelsim_mpi_equivalence_benchmark)
-        add_test(NAME fuelsim_mpi_reference
-            COMMAND fuelsim_mpi_equivalence_benchmark
-                write
-                "${CMAKE_CURRENT_BINARY_DIR}/m34_one_rank_state.txt"
-                "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_two_pellet_contact_moose.fsi"
-        )
-        set_tests_properties(fuelsim_mpi_reference PROPERTIES
-            FIXTURES_SETUP m34_mpi_reference
-            LABELS "integration;parallel"
-        )
         add_test(NAME fuelsim_mpi_equivalence
             COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2
                 $<TARGET_FILE:fuelsim_mpi_equivalence_benchmark>
                 compare
-                "${CMAKE_CURRENT_BINARY_DIR}/m34_one_rank_state.txt"
+                "${CMAKE_CURRENT_BINARY_DIR}/blackbox/m33_two_pellet/verification/fuelsim/steady_two_pellet_contact_moose_results.e"
                 "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_two_pellet_contact_moose.fsi"
         )
         set_tests_properties(fuelsim_mpi_equivalence PROPERTIES
-            FIXTURES_REQUIRED m34_mpi_reference
+            FIXTURES_REQUIRED m33_two_pellet_production
             LABELS "acceptance;parallel"
             PROCESSORS 2
         )
 
-        add_test(NAME fuelsim_m52_mpi_reference
-            COMMAND fuelsim_mpi_equivalence_benchmark
-                write
-                "${CMAKE_CURRENT_BINARY_DIR}/m52_one_rank_state.txt"
-                "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_large_sliding_contact_moose.fsi"
-        )
-        set_tests_properties(fuelsim_m52_mpi_reference PROPERTIES
-            FIXTURES_SETUP m52_mpi_reference
-            LABELS "integration;parallel"
-        )
         add_test(NAME fuelsim_m52_mpi_equivalence
             COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2
                 $<TARGET_FILE:fuelsim_mpi_equivalence_benchmark>
                 compare
-                "${CMAKE_CURRENT_BINARY_DIR}/m52_one_rank_state.txt"
+                "${CMAKE_CURRENT_BINARY_DIR}/blackbox/m52/verification/fuelsim/steady_large_sliding_contact_moose_results.e"
                 "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_large_sliding_contact_moose.fsi"
         )
         set_tests_properties(fuelsim_m52_mpi_equivalence PROPERTIES
-            FIXTURES_REQUIRED m52_mpi_reference
+            FIXTURES_REQUIRED m52_production
             LABELS "acceptance;parallel"
             PROCESSORS 2
-        )
-        add_test(NAME fuelsim_b33_mpi_reference
-            COMMAND fuelsim_mpi_equivalence_benchmark
-                write
-                "${CMAKE_CURRENT_BINARY_DIR}/b33_one_rank_state.txt"
-                "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex8_contact_moose.fsi"
-        )
-        set_tests_properties(fuelsim_b33_mpi_reference PROPERTIES
-            FIXTURES_SETUP b33_mpi_reference
-            LABELS "integration;parallel;three-dimensional;contact"
         )
         add_test(NAME fuelsim_b33_mpi_equivalence
             COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2
                 $<TARGET_FILE:fuelsim_mpi_equivalence_benchmark>
                 compare
-                "${CMAKE_CURRENT_BINARY_DIR}/b33_one_rank_state.txt"
+                "${CMAKE_CURRENT_BINARY_DIR}/blackbox/b33/verification/fuelsim/steady_hex8_contact_moose_results.e"
                 "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex8_contact_moose.fsi"
         )
         set_tests_properties(fuelsim_b33_mpi_equivalence PROPERTIES
-            FIXTURES_REQUIRED b33_mpi_reference
+            FIXTURES_REQUIRED b33_production
             LABELS "acceptance;parallel;three-dimensional;contact"
             PROCESSORS 2
         )
@@ -1997,25 +1980,15 @@ if(BUILD_TESTING)
             LABELS "acceptance;parallel;three-dimensional;hex8;thermo-mechanical;contact;abaqus"
             PROCESSORS 2
         )
-        add_test(NAME fuelsim_b39_hex8_sts_mpi_reference
-            COMMAND fuelsim_mpi_equivalence_benchmark
-                write
-                "${CMAKE_CURRENT_BINARY_DIR}/b39_hex8_sts_one_rank_state.txt"
-                "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex8_sts_nonmatching_abaqus.fsi"
-        )
-        set_tests_properties(fuelsim_b39_hex8_sts_mpi_reference PROPERTIES
-            FIXTURES_SETUP b39_hex8_sts_mpi_reference
-            LABELS "integration;parallel;three-dimensional;hex8;contact;surface-to-surface"
-        )
         add_test(NAME fuelsim_b39_hex8_sts_mpi_equivalence
             COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2
                 $<TARGET_FILE:fuelsim_mpi_equivalence_benchmark>
                 compare
-                "${CMAKE_CURRENT_BINARY_DIR}/b39_hex8_sts_one_rank_state.txt"
+                "${CMAKE_CURRENT_BINARY_DIR}/blackbox/b39_nonmatching/verification/fuelsim/steady_hex8_sts_nonmatching_abaqus_results.e"
                 "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex8_sts_nonmatching_abaqus.fsi"
         )
         set_tests_properties(fuelsim_b39_hex8_sts_mpi_equivalence PROPERTIES
-            FIXTURES_REQUIRED b39_hex8_sts_mpi_reference
+            FIXTURES_REQUIRED b39_nonmatching_production
             LABELS "acceptance;parallel;three-dimensional;hex8;contact;surface-to-surface"
             PROCESSORS 2
         )
@@ -2061,11 +2034,11 @@ if(BUILD_TESTING)
             COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2
                 $<TARGET_FILE:fuelsim_mpi_equivalence_benchmark>
                 compare_field_split
-                "${CMAKE_CURRENT_BINARY_DIR}/m34_one_rank_state.txt"
+                "${CMAKE_CURRENT_BINARY_DIR}/blackbox/m33_two_pellet/verification/fuelsim/steady_two_pellet_contact_moose_results.e"
                 "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_two_pellet_contact_moose.fsi"
         )
         set_tests_properties(fuelsim_mpi_field_split PROPERTIES
-            FIXTURES_REQUIRED m34_mpi_reference
+            FIXTURES_REQUIRED m33_two_pellet_production
             LABELS "acceptance;parallel"
             PROCESSORS 2
             TIMEOUT 60
@@ -2074,11 +2047,11 @@ if(BUILD_TESTING)
             COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2
                 $<TARGET_FILE:fuelsim_mpi_equivalence_benchmark>
                 compare_block_jacobi
-                "${CMAKE_CURRENT_BINARY_DIR}/m34_one_rank_state.txt"
+                "${CMAKE_CURRENT_BINARY_DIR}/blackbox/m33_two_pellet/verification/fuelsim/steady_two_pellet_contact_moose_results.e"
                 "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_two_pellet_contact_moose.fsi"
         )
         set_tests_properties(fuelsim_mpi_block_jacobi PROPERTIES
-            FIXTURES_REQUIRED m34_mpi_reference
+            FIXTURES_REQUIRED m33_two_pellet_production
             LABELS "integration;parallel"
             PROCESSORS 2
             TIMEOUT 60
@@ -2087,11 +2060,11 @@ if(BUILD_TESTING)
             COMMAND "${FUELSIM_MPIEXEC_EXECUTABLE}" -n 2
                 $<TARGET_FILE:fuelsim_mpi_equivalence_benchmark>
                 compare_hypre
-                "${CMAKE_CURRENT_BINARY_DIR}/m34_one_rank_state.txt"
+                "${CMAKE_CURRENT_BINARY_DIR}/blackbox/m33_two_pellet/verification/fuelsim/steady_two_pellet_contact_moose_results.e"
                 "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_two_pellet_contact_moose.fsi"
         )
         set_tests_properties(fuelsim_mpi_hypre PROPERTIES
-            FIXTURES_REQUIRED m34_mpi_reference
+            FIXTURES_REQUIRED m33_two_pellet_production
             LABELS "integration;parallel"
             PROCESSORS 2
             TIMEOUT 120

@@ -837,8 +837,10 @@ int main(int argc, char** argv) {
             argc -= 2;
             argv[argc] = nullptr;
         }
-        if (selected_case != "all" && selected_case != "runtime-layout") {
-            std::cerr << "Usage: fuelsim_solver_tests [--case runtime-layout] [PETSc options]\n";
+        if (selected_case != "all" && selected_case != "runtime-layout" &&
+            selected_case != "thermal-mesh-convergence") {
+            std::cerr << "Usage: fuelsim_solver_tests "
+                         "[--case runtime-layout|thermal-mesh-convergence] [PETSc options]\n";
             return 2;
         }
         std::cout << std::scientific << std::setprecision(12);
@@ -850,9 +852,14 @@ int main(int argc, char** argv) {
             std::cout << "[PASS] fuelsim runtime-layout solver tests\n";
             return 0;
         }
+        if (selected_case == "thermal-mesh-convergence") {
+            passed = test_thermal_mesh_convergence() && passed;
+            if (!passed) return 1;
+            std::cout << "[PASS] fuelsim thermal mesh-convergence study\n";
+            return 0;
+        }
         passed = test_global_newton_safeguards() && passed;
         passed = test_thermal_cylinder() && passed;
-        passed = test_thermal_mesh_convergence() && passed;
         passed = test_free_thermal_expansion() && passed;
         passed = test_lame_open_ended_cylinder() && passed;
         passed = test_m1_open_gap_analytic_thermal() && passed;

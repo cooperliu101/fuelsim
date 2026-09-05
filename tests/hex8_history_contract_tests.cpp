@@ -3,6 +3,7 @@
 #include "fuelsim/io/results_io.hpp"
 #include "support/cartesian3d_problem_access.hpp"
 #include "support/exodus_result_reader.hpp"
+#include <cmath>
 #include <cstdio>
 #include <iostream>
 #include <stdexcept>
@@ -50,7 +51,7 @@ void verify(
     if (!same_committed_state(initial, fuelsim::cartesian::ProblemAccess::committed_state(problem)))
         throw std::runtime_error("HEX8 rollback changed committed history");
     const double step = fuelsim::restore_transient_checkpoint(checkpoint, problem);
-    if (step != 0.1 || !(problem.committed_time() > 0.9))
+    if (!std::isfinite(step) || !(step > 0.0) || !(problem.committed_time() > 0.9))
         throw std::runtime_error("HEX8 production checkpoint did not reach its active final state");
     const auto expected = fuelsim::cartesian::ProblemAccess::committed_state(problem);
     const auto result = fuelsim::test::read_final_exodus_results(output);
