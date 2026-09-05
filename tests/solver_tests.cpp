@@ -104,6 +104,60 @@ class TwelveDofProblem : public fuelsim::NonlinearProblem {
     std::vector<fuelsim::DirichletCondition> _conditions;
 };
 
+class ChangingCouplingProblem final : public TwelveDofProblem {
+  public:
+    void set_coupling(double value) { _coupling = value; }
+
+    bool jacobian_sparsity_is_state_dependent() const noexcept override { return true; }
+
+    void compute_contribution(std::size_t index, const std::vector<double>& state, std::vector<double>& residual,
+        std::vector<double>* jacobian) const override {
+        validate_contribution(index);
+        residual.resize(state.size());
+        for (std::size_t dof = 0; dof < state.size(); ++dof) residual[dof] = 1.0e-20 * (state[dof] - 1.0);
+        // The uniformly scaled system is well-conditioned. Zero filtering
+        // must preserve its tiny coefficients, including a remote coupling.
+        residual[0] += 0.5 * _coupling * (state.back() * state.back() - 1.0);
+        if (!jacobian) return;
+        jacobian->assign(state.size() * state.size(), 0.0);
+        for (std::size_t dof = 0; dof < state.size(); ++dof) (*jacobian)[dof * state.size() + dof] = 1.0e-20;
+        (*jacobian)[state.size() - 1] = _coupling * state.back();
+    }
+
+  private:
+    double _coupling = 0.0;
+};
+
+bool test_changing_direct_coupling() {
+    ChangingCouplingProblem problem;
+    fuelsim::PetscSolver solver;
+    fuelsim::SolverOptions options;
+    options.linear_solver = fuelsim::SolverOptions::LinearSolver::direct;
+    options.direct_factorization = fuelsim::SolverOptions::DirectFactorization::mumps;
+    options.backtracking_fallback = false;
+    options.absolute_tolerance = 1.0e-30;
+    bool passed = true;
+    for (const double coupling : {0.0, 1.0e-20, 0.0, -2.0e-20}) {
+        problem.set_coupling(coupling);
+        const auto result = solver.solve(problem, std::vector<double>(problem.dof_count(), 0.0), options);
+        const int expected_iterations = coupling == 0.0 ? 1 : 2;
+        if (!result.converged || result.nonlinear_iterations != expected_iterations)
+            std::cerr << "changing_coupling=" << coupling << " iterations=" << result.nonlinear_iterations
+                      << " reason=" << result.convergence_reason << " state0=" << result.state[0]
+                      << " state_last=" << result.state.back() << '\n';
+        passed = check(result.converged && result.nonlinear_iterations == expected_iterations,
+                     "direct factorization updates tiny couplings within Newton iteration and across solves") &&
+                 passed;
+        for (std::size_t dof = 0; dof < result.state.size(); ++dof) {
+            const double expected = 1.0;
+            passed = check(std::abs(result.state[dof] / expected - 1.0) < 1.0e-12,
+                         "direct factorization preserves the exact coupled solution") &&
+                     passed;
+        }
+    }
+    return passed;
+}
+
 class LogDomainProblem final : public TwelveDofProblem {
   public:
     void compute_contribution(std::size_t index, const std::vector<double>& state, std::vector<double>& residual,
@@ -847,6 +901,7 @@ int main(int argc, char** argv) {
         fuelsim::PetscSession session(argc, argv, "fuelsim M0 and M1 numerical acceptance tests\n");
         bool passed = true;
         passed = test_runtime_contribution_layout() && passed;
+        passed = test_changing_direct_coupling() && passed;
         if (selected_case == "runtime-layout") {
             if (!passed) return 1;
             std::cout << "[PASS] fuelsim runtime-layout solver tests\n";

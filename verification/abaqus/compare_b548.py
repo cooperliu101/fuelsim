@@ -272,10 +272,28 @@ def main():
     metrics["contact_pressure"] = contact_metrics
     maxima["contact_pressure"] = contact_maxima
 
+    fuelsim_contact_rows = None
     if arguments.fuelsim_contact:
-        if arguments.contact_penalty is None or not math.isfinite(arguments.contact_penalty) or arguments.contact_penalty <= 0.0:
-            raise RuntimeError("--fuelsim-contact requires a positive --contact-penalty")
         fuelsim_contact_rows = read_csv(arguments.fuelsim_contact)
+    elif arguments.contact_penalty is not None:
+        # Production Exodus output contains the same per-secondary-node data.
+        # Read it directly so qualification never needs an internal solver driver.
+        contact_fields = ("gap", "constraint_pressure", "projected", "sliding",
+                          "normal_force_x", "normal_force_y", "normal_force_z",
+                          "tangential_force_x", "tangential_force_y", "tangential_force_z",
+                          "slip_x", "slip_y", "slip_z")
+        fuelsim_contact_rows = []
+        secondary_indices = np.flatnonzero(np.isfinite(nodal["contact_projected_fuel_cladding"]))
+        for index in secondary_indices:
+            label = int(index) + 1
+            row = {"id": label}
+            for field in contact_fields:
+                output_field = "total_" + field if field.startswith("slip_") else field
+                row[field] = nodal["contact_%s_fuel_cladding" % output_field][label - 1]
+            fuelsim_contact_rows.append(row)
+    if fuelsim_contact_rows is not None:
+        if arguments.contact_penalty is None or not math.isfinite(arguments.contact_penalty) or arguments.contact_penalty <= 0.0:
+            raise RuntimeError("contact comparison requires a positive --contact-penalty")
         fuelsim_contact = dict((int(row["id"]), row) for row in fuelsim_contact_rows)
         if len(fuelsim_contact) != len(contact) or len(fuelsim_contact) != len(fuelsim_contact_rows):
             raise RuntimeError("%s Fuelsim contact result count differs" % arguments.case_name)
@@ -530,8 +548,8 @@ def main():
             )
         )
     if arguments.require_qualified:
-        if not arguments.fuelsim_contact:
-            raise RuntimeError("--require-qualified requires --fuelsim-contact")
+        if fuelsim_contact_rows is None:
+            raise RuntimeError("--require-qualified requires a positive --contact-penalty")
         qualified_fields = (
             "temperature_corner",
             "temperature_interpolated",

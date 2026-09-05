@@ -710,9 +710,9 @@ list and process count to `taskset -c 0,1` and `-n 2`.
 
 ## 2026-08-16 M5.8 four-process direct-MUMPS efficiency
 
-The four-process work keeps the direct MUMPS algorithm. The M5.8 input selects
-MUMPS for one process as well as multiple processes, uses the same SCOTCH
-ordering unless the user overrides it, and retains the four-process MUMPS
+This historical four-process comparison used the direct MUMPS algorithm. The
+M5.8 input selected MUMPS for one process as well as multiple processes and used
+the then-default SCOTCH ordering. The code retained the four-process MUMPS
 memory-relaxation guard. PETSc uses an internal node-major ordering to keep the
 four fields of each Hex8 node local while the public state remains field-major.
 Exact local Jacobian patterns omit structurally zero thermal-mechanical blocks,
@@ -1235,12 +1235,28 @@ node-centered average. This reduces the large case from 141,568 contact
 contributions on the old nine-points-per-face path to 2,592 while retaining the
 full finite-sliding candidate sparsity.
 
+The MUMPS/PORD direct-solver path now keeps that complete assembly matrix and
+builds a separate, numerically equal factor matrix. Only exact off-diagonal
+zeros are removed, and each Jacobian update rebuilds symbolic factorization.
+PORD is the automatic MUMPS ordering because it preserves the tested bitwise
+checkpoint replay when repeated symbolic analyses are necessary. Explicit
+SCOTCH or other PETSc orderings retain the full-matrix path. No contact law,
+material parameter, time step, nonlinear tolerance, or accuracy gate changes.
+The diagnostic profile records a reduction in factor setup from `163.54 s` to
+`61.457 s`; its output-enabled run is separate from the formal timing samples.
+
 On CPU 0 with one process and every numerical library restricted to one thread,
-three production-entry Fuelsim runs take `276.62 s`, `277.35 s`, and `276.73 s`
-externally; the median is `276.73 s`. Three CPU-0-affinity Abaqus R2018x
-`cpus=1` runs take `246.060648 s`, `242.800037 s`, and `238.666468 s`; their
-median is `242.800037 s`. Fuelsim therefore uses `13.9744%` more external wall
-time in this controlled cross-Windows-and-WSL comparison.
+three production-entry Fuelsim runs take `191.03 s`, `193.43 s`, and `194.99 s`
+externally; the median is `193.43 s`. The alternating CPU-0-affinity Abaqus
+R2018x `cpus=1` runs take `232.874728 s`, `240.817169 s`, and `239.089524 s`;
+their median is `239.089524 s`. Field, history, and restart output are disabled
+for formal timing. Fuelsim uses `19.0973%` less external wall time, a `1.23605x`
+speedup on this Intel Core i9-13980HX host across Windows and WSL2. Abaqus
+analysis wall times are `227`, `236`, and `234 s`; its analysis CPU times are
+`218.30`, `223.60`, and `224.00 s`. These remain distinct from external wall
+time. The unchanged baseline executable was independently checked at `277.78 s`
+with profiling enabled. The formal samples and separate diagnostic profile are
+stored alongside the B5.56 reference results.
 
 All 416 secondary contact nodes are projected and sliding. Contact pressure,
 gap, normal-force magnitude, tangential-force magnitude, dominant axial shear,

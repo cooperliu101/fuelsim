@@ -1,0 +1,4 @@
+sample	fuelsim_external_seconds	fuelsim_internal_seconds	abaqus_external_seconds	abaqus_analysis_wall_seconds	abaqus_analysis_cpu_seconds	fuelsim_peak_kib
+1	191.03	190.071927319	232.874728	227.0	218.3	1432476
+2	193.43	192.302785936	240.817169	236.0	223.6	1437488
+3	194.99	194.026174038	239.089524	234.0	224.0	1436704

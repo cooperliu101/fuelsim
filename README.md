@@ -263,7 +263,11 @@ PETSc 选项仍可在命令行覆盖，例如：
 
 多 rank 默认使用 PETSc 并行 MUMPS 直接分解，单 rank 可用
 `direct_factorization = mumps` 明确选择同一分解器；经过具体算例计时后可用
-`mumps_ordering = scotch|pord` 选择排序算法，默认保持 SCOTCH。也可在 `[Solver]` 选择
+`mumps_ordering = scotch|pord` 选择排序算法，默认使用 PORD，已通过重复符号分解时的
+重启动逐位一致性检查。
+MUMPS 配合 PORD 时会为直接分解另建等值矩阵，删除严格为零的非对角元素，并在
+每次矩阵更新时重建符号分解；完整接触候选仍保留在装配矩阵中。显式选择 SCOTCH 或
+其他 PETSc 排序时保留完整矩阵分解路径。也可在 `[Solver]` 选择
 `gmres` 与 `block_jacobi`、`field_split` 或 `hypre`。例如：
 
 ```bash

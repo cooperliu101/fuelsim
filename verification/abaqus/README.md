@@ -2700,27 +2700,47 @@ interface explicitly uses finite-sliding surface-to-surface contact in both
 solvers. Abaqus frictional heat generation is set to zero, matching the current
 Fuelsim scope.
 
-Regenerate and run the manual comparison with:
+Run the manual comparison through the production executable with:
 
 ```text
-python3 verification/abaqus/generate_b556.py
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass \
   -File verification/abaqus/run_b556.ps1 \
   -SourceDirectory "\\wsl.localhost\Ubuntu\home\cooper\ai_project\fuelsim\verification\abaqus"
 env OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
   taskset -c 0 /usr/bin/time -v \
-  ./build/fuelsim_m58_integrated_hex20_results \
-  verification/fuelsim/transient_b556_integrated_c3d20t_finite_sliding_friction.fsi \
-  /tmp/b556_fuelsim_final.e /tmp/b556_fuelsim_contact.csv
+  ./build/fuelsim -i \
+  verification/fuelsim/transient_b556_integrated_c3d20t_finite_sliding_friction_results.fsi
 python3 verification/abaqus/compare_b548.py --case-name B5.56 \
-  --fuelsim-contact /tmp/b556_fuelsim_contact.csv --contact-penalty 1e10 \
-  --require-qualified /tmp/b556_fuelsim_final.e \
+  --contact-penalty 1e10 --require-qualified \
+  verification/fuelsim/transient_b556_integrated_c3d20t_finite_sliding_friction_results.e \
   verification/abaqus/b556_m58_c3d20t_finite_sliding_friction_nodal.csv \
   verification/abaqus/b556_m58_c3d20t_finite_sliding_friction_contact.csv \
   verification/abaqus/b556_m58_c3d20t_finite_sliding_friction_clad_points.csv \
   verification/abaqus/b548_m58_c3d20t_integrated_mesh.json \
   verification/abaqus/b556_m58_c3d20t_finite_sliding_friction_comparison.tsv
 ```
+
+The result input is a complete, checked-in production card. It differs from
+the timing card only in `[Outputs]`. The comparator reads nodal contact fields
+directly from the final Exodus state; it does not link the solver or recompute
+the problem. To repeat output-disabled timing, run each program separately on
+the otherwise idle host and alternate them for three samples:
+
+```text
+env OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+  taskset -c 0 /usr/bin/time -v ./build/fuelsim -i \
+  verification/fuelsim/transient_b556_integrated_c3d20t_finite_sliding_friction.fsi
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass \
+  -File verification/abaqus/run_b556_timing.ps1 \
+  -DestinationDirectory "\\wsl.localhost\Ubuntu\tmp\b556_timing_sample_1" -Repetitions 1
+```
+
+Use a separate destination directory for each pair. The explicit Abaqus timing
+input preserves the entire mesh, material, contact, load, and step definition,
+and disables field, history, and restart output. The runner applies CPU affinity
+before launching Abaqus and retains `.sta`, `.msg`, `.dat`, external wall time,
+and the analysis `JOB TIME SUMMARY` in disposable directories. Normal analysis
+status and log files remain enabled.
 
 The previous curved friction path created nine contact histories and residual
 contributions per secondary quadratic face. On this model it produced 141,568
@@ -2774,11 +2794,28 @@ checks; it compares two independently converged full-model solutions rather
 than action and reaction assembled in one residual evaluation.
 
 With one process, one numerical-library thread, and CPU 0 pinned, three Fuelsim
-production-entry runs take `276.62 s`, `277.35 s`, and `276.73 s` externally,
-for a `276.73 s` median. Three CPU-0-affinity Abaqus R2018x `cpus=1` runs take
-`246.060648 s`, `242.800037 s`, and `238.666468 s`, for a `242.800037 s`
-median. Fuelsim uses `13.9744%` more external wall time. These are controlled
-cross-Windows-and-WSL observations, not same-operating-system kernel timings.
+production-entry runs take `191.03 s`, `193.43 s`, and `194.99 s` externally,
+for a `193.43 s` median. The alternating CPU-0-affinity Abaqus R2018x `cpus=1`
+runs take `232.874728 s`, `240.817169 s`, and `239.089524 s`, for a
+`239.089524 s` median. Both formal timing inputs disable result output. Fuelsim
+uses `19.0973%` less external wall time, a `1.23605x` speedup. Abaqus reports
+analysis wall times of `227`, `236`, and `234 s`, and analysis CPU times of
+`218.30`, `223.60`, and `224.00 s`. These measurements use an Intel Core
+i9-13980HX with Abaqus on Windows and Fuelsim on WSL2. Compilation, CTest, and the other solver did not run
+concurrently with any formal timing sample.
+
+The optimization retains the complete contact assembly matrix and supplies
+MUMPS with a separate equal matrix containing only exact nonzeros and its
+diagonal. Every Jacobian update refreshes this matrix and symbolic
+factorization. Automatic MUMPS ordering now selects PORD, which passes the
+bitwise friction-checkpoint replay tests with repeated symbolic analyses;
+explicit SCOTCH and other PETSc orderings use the complete matrix path. The
+separate diagnostic profile records factor setup falling from `163.54 s` to
+`61.457 s`, including the extra symbolic analyses. Formal output-disabled peak
+resident memory is at most `1,437,488 KiB`. The unified regression passes
+`209/209` tests, including contact Jacobians, restart, and one-/two-process
+equivalence. No accuracy gate was relaxed for this optimization.
+
 The full B5.56 run
 remains a manual benchmark; H20.40 and B5.55 retain lightweight automated
 coverage of the curved node-centered friction Jacobian and external-field path.

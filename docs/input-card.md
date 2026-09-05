@@ -696,8 +696,10 @@ L2 差最大值大于 1 时完整回滚并缩步，成功时采用两个半步�
 - `preconditioner = automatic|lu|block_jacobi|field_split|hypre`；
 - `direct_factorization = automatic|mumps`；默认 `automatic` 在单 rank 使用 PETSc
   LU、多 rank 使用 MUMPS，`mumps` 则在所有进程数明确选择 MUMPS；
-- `mumps_ordering = automatic|scotch|pord`；默认 `automatic` 保持 SCOTCH，只有在
-  相同工作量的受控计时和完整数值回归支持时才应显式选择 PORD；
+- `mumps_ordering = automatic|scotch|pord`；默认 `automatic` 使用 PORD。
+  MUMPS 配合 PORD 时，直接分解使用另建的等值矩阵，仅删除严格为零的非对角元素，
+  每次矩阵更新重新进行符号分解，完整接触候选仍保留在装配矩阵中。该组合已通过
+  重启动逐位一致性检查。显式选择 SCOTCH 或其他 PETSc 排序时使用完整矩阵路径；
 - `linear_relative_tolerance`，默认 `1e-8`；
 - `maximum_linear_iterations`，默认 `500`；
 - `jacobian_lag`，默认 `1`；设为大于一的整数时，在该数量的非线性迭代内复用

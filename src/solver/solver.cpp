@@ -300,6 +300,7 @@ struct PetscObjects final {
     Vec state = nullptr;
     Vec residual = nullptr;
     Mat jacobian = nullptr;
+    Mat factor_matrix = nullptr;
     Vec gathered_state = nullptr;
     VecScatter state_scatter = nullptr;
 
@@ -310,6 +311,7 @@ struct PetscObjects final {
         (void)VecDestroy(&state);
         (void)VecDestroy(&residual);
         (void)MatDestroy(&jacobian);
+        (void)MatDestroy(&factor_matrix);
     }
 };
 
@@ -357,13 +359,14 @@ void configure_linear_solver(PetscObjects& objects, const NonlinearProblem& prob
                                     ? std::string(requested_solver.data()) == std::string(MATSOLVERMUMPS)
                                     : default_mumps;
         if (uses_mumps) {
-            // Preserve SCOTCH as the robust default. A case may select PORD after a controlled same-workload audit,
-            // while an explicit PETSc command-line setting always wins.
+            // Compact factor matrices require repeated symbolic analysis.
+            // PORD is deterministic across those analyses and checkpoint
+            // restarts; explicit input/PETSc ordering choices still win.
             PetscBool ordering_set = PETSC_FALSE;
             check_petsc(PetscOptionsHasName(nullptr, nullptr, "-mat_mumps_icntl_7", &ordering_set),
                 "PetscOptionsHasName MUMPS ordering");
             if (ordering_set == PETSC_FALSE) {
-                const char* ordering = options.mumps_ordering == SolverOptions::MumpsOrdering::pord ? "4" : "3";
+                const char* ordering = options.mumps_ordering == SolverOptions::MumpsOrdering::scotch ? "3" : "4";
                 check_petsc(PetscOptionsSetValue(nullptr, "-mat_mumps_icntl_7", ordering),
                     "PetscOptionsSetValue MUMPS ordering");
             }
@@ -688,8 +691,27 @@ PetscErrorCode form_function(SNES snes, Vec state, Vec residual, void* raw_conte
 
 PetscErrorCode form_jacobian(SNES snes, Vec state, Mat jacobian, Mat preconditioner, void* raw_context) {
     PetscFunctionBeginUser;
-    PetscCheck(jacobian == preconditioner, PETSC_COMM_WORLD, PETSC_ERR_SUP, "fuelsim requires one matrix for J and P");
     PetscCall(assemble_callback(snes, state, nullptr, jacobian, raw_context));
+    if (jacobian != preconditioner) {
+        const SteadyClock::time_point copy_start = SteadyClock::now();
+        // Keep every potential contact coupling in the assembly matrix. The
+        // direct factorization needs only its numerically nonzero entries; no
+        // magnitude threshold or approximation is used here. Recopy on every
+        // Jacobian update so previously inactive couplings can become active.
+        PetscCall(MatCopy(jacobian, preconditioner, DIFFERENT_NONZERO_PATTERN));
+        PetscCall(MatEliminateZeros(preconditioner, PETSC_TRUE));
+        PetscCall(MatAssemblyBegin(preconditioner, MAT_FINAL_ASSEMBLY));
+        PetscCall(MatAssemblyEnd(preconditioner, MAT_FINAL_ASSEMBLY));
+        // Compaction changes the graph independently of the complete assembly
+        // pattern. Invalidate the factor's symbolic state as well as its values.
+        KSP ksp = nullptr;
+        PC pc = nullptr;
+        PetscCall(SNESGetKSP(snes, &ksp));
+        PetscCall(KSPGetPC(ksp, &pc));
+        PetscCall(PCReset(pc));
+        PetscCall(PCSetOperators(pc, jacobian, preconditioner));
+        static_cast<SolverContext*>(raw_context)->timing.jacobian_callback_seconds += seconds_since(copy_start);
+    }
     PetscFunctionReturn(PETSC_SUCCESS);
 }
 
@@ -1080,6 +1102,35 @@ SolveResult PetscSolver::solve_once(
         "SNESLineSearchSetType");
     configure_linear_solver(objects, problem, options, PetscGlobalSize, context);
     check_petsc(SNESSetFromOptions(objects.snes), "SNESSetFromOptions");
+    KSP linear_solver = nullptr;
+    PC preconditioner = nullptr;
+    PetscBool direct_factorization = PETSC_FALSE;
+    check_petsc(SNESGetKSP(objects.snes, &linear_solver), "SNESGetKSP factor matrix");
+    check_petsc(KSPGetPC(linear_solver, &preconditioner), "KSPGetPC factor matrix");
+    check_petsc(PetscObjectTypeCompare(reinterpret_cast<PetscObject>(preconditioner), PCLU, &direct_factorization),
+        "PetscObjectTypeCompare factor matrix");
+    if (direct_factorization) {
+        MatSolverType factor_type = nullptr;
+        check_petsc(PCFactorGetMatSolverType(preconditioner, &factor_type), "PCFactorGetMatSolverType factor matrix");
+        direct_factorization = factor_type && std::string(factor_type) == MATSOLVERMUMPS ? PETSC_TRUE : PETSC_FALSE;
+        PetscInt ordering = 0;
+        check_petsc(PetscOptionsGetInt(nullptr, nullptr, "-mat_mumps_icntl_7", &ordering, nullptr),
+            "PetscOptionsGetInt factor matrix ordering");
+        if (ordering != 4) direct_factorization = PETSC_FALSE;
+    }
+    if (direct_factorization && !objects.factor_matrix) {
+        check_petsc(MatDuplicate(objects.jacobian, MAT_DO_NOT_COPY_VALUES, &objects.factor_matrix),
+            "MatDuplicate factor matrix");
+        check_petsc(MatSetOption(objects.factor_matrix, MAT_NEW_NONZERO_LOCATION_ERR, PETSC_FALSE),
+            "MatSetOption factor matrix locations");
+        check_petsc(MatSetOption(objects.factor_matrix, MAT_NEW_NONZERO_ALLOCATION_ERR, PETSC_FALSE),
+            "MatSetOption factor matrix allocation");
+        check_petsc(MatAssemblyBegin(objects.factor_matrix, MAT_FINAL_ASSEMBLY), "MatAssemblyBegin factor matrix");
+        check_petsc(MatAssemblyEnd(objects.factor_matrix, MAT_FINAL_ASSEMBLY), "MatAssemblyEnd factor matrix");
+    }
+    check_petsc(SNESSetJacobian(objects.snes, objects.jacobian,
+                    direct_factorization ? objects.factor_matrix : objects.jacobian, form_jacobian, &context),
+        "SNESSetJacobian factor matrix");
     check_petsc(SNESSetConvergenceTest(objects.snes,
                     options.field_residual_convergence ? field_residual_convergence_test : SNESConvergedDefault,
                     options.field_residual_convergence ? static_cast<void*>(&context) : nullptr, nullptr),
