@@ -200,6 +200,7 @@ if(BUILD_TESTING)
         tests/production_hex20_partial_contact.cpp
         tests/production_hex20_friction_path_33.cpp
         tests/production_hex20_friction_path_36.cpp
+        tests/production_hex20_integrated.cpp
     )
     target_link_libraries(fuelsim_production_result_tests
         PRIVATE fuelsim_exodus_result_test_support fuelsim_field_error_metrics
@@ -248,7 +249,8 @@ if(BUILD_TESTING)
         set(results "${case_directory}/${input_stem}_results.e")
         set(summary "${case_directory}/${input_stem}_summary.csv")
         set(output_files "${results};${summary}")
-        if(check_mode STREQUAL "hex8-inelastic" OR check_mode STREQUAL "b34-transient" OR check_mode STREQUAL "b40")
+        if(check_mode STREQUAL "hex8-inelastic" OR check_mode STREQUAL "b34-transient" OR check_mode STREQUAL "b40"
+            OR check_mode STREQUAL "b549" OR check_mode STREQUAL "b550" OR check_mode STREQUAL "b555")
             list(APPEND output_files "${case_directory}/${input_stem}.checkpoint")
         endif()
         add_test(NAME "${test_name}"
@@ -1645,37 +1647,49 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_h20_41_hex20_partial_contact_abaqus_tests
         PROPERTIES LABELS "acceptance;three-dimensional;hex20;contact;partial-contact;finite-sliding;abaqus")
 
-    add_executable(fuelsim_b549_c3d20t_abaqus_tests
-        tests/b549_c3d20t_abaqus_tests.cpp)
-    target_link_libraries(fuelsim_b549_c3d20t_abaqus_tests
-        PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
-    fuelsim_enable_warnings(fuelsim_b549_c3d20t_abaqus_tests)
-    add_test(NAME fuelsim_b549_c3d20t_abaqus_tests
-        COMMAND fuelsim_b549_c3d20t_abaqus_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_b549_small_c3d20t.fsi"
+    fuelsim_add_production_test(fuelsim_b549_c3d20t_abaqus_tests b549 transient_b549_small_c3d20t b549
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b549_small_c3d20t_temperature.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b549_small_c3d20t_displacement.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b549_small_c3d20t_material.csv")
     set_tests_properties(fuelsim_b549_c3d20t_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex20;c3d20t;transient;thermal;mechanical;finite-strain;plasticity;creep;abaqus")
-    add_test(NAME fuelsim_b550_c3d20t_contact_abaqus_tests
-        COMMAND fuelsim_b549_c3d20t_abaqus_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_b550_small_c3d20t_contact.fsi"
+    fuelsim_add_production_test(fuelsim_b550_c3d20t_contact_abaqus_tests b550 transient_b550_small_c3d20t_contact b550
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b550_small_c3d20t_contact_temperature.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b550_small_c3d20t_contact_displacement.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b550_small_c3d20t_contact_material.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b550_small_c3d20t_contact.csv")
     set_tests_properties(fuelsim_b550_c3d20t_contact_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex20;c3d20t;transient;thermal;mechanical;contact;finite-sliding;finite-strain;plasticity;creep;abaqus")
-    add_test(NAME fuelsim_b555_c3d20t_friction_abaqus_tests
-        COMMAND fuelsim_b549_c3d20t_abaqus_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_b555_small_c3d20t_friction.fsi"
+    fuelsim_add_production_test(fuelsim_b555_c3d20t_friction_abaqus_tests b555 transient_b555_small_c3d20t_friction b555
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b555_small_c3d20t_friction_temperature.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b555_small_c3d20t_friction_displacement.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b555_small_c3d20t_friction_material.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b555_small_c3d20t_friction.csv")
     set_tests_properties(fuelsim_b555_c3d20t_friction_abaqus_tests PROPERTIES
         LABELS "acceptance;three-dimensional;hex20;c3d20t;transient;thermal;mechanical;contact;friction;finite-sliding;finite-strain;plasticity;creep;abaqus")
+    add_executable(fuelsim_hex20_integrated_output_contract_tests tests/hex20_integrated_output_contract_tests.cpp)
+    target_link_libraries(fuelsim_hex20_integrated_output_contract_tests
+        PRIVATE fuelsim::io fuelsim_exodus_result_test_support)
+    fuelsim_enable_warnings(fuelsim_hex20_integrated_output_contract_tests)
+    set_tests_properties(fuelsim_b549_c3d20t_abaqus_tests PROPERTIES FIXTURES_SETUP b549_production)
+    set_tests_properties(fuelsim_b550_c3d20t_contact_abaqus_tests PROPERTIES FIXTURES_SETUP b550_production)
+    set_tests_properties(fuelsim_b555_c3d20t_friction_abaqus_tests PROPERTIES FIXTURES_SETUP b555_production)
+    foreach(integrated_case IN ITEMS b549 b550 b555)
+        if(integrated_case STREQUAL "b549")
+            set(integrated_stem transient_b549_small_c3d20t)
+        elseif(integrated_case STREQUAL "b550")
+            set(integrated_stem transient_b550_small_c3d20t_contact)
+        else()
+            set(integrated_stem transient_b555_small_c3d20t_friction)
+        endif()
+        add_test(NAME fuelsim_${integrated_case}_output_contract
+            COMMAND fuelsim_hex20_integrated_output_contract_tests
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/${integrated_stem}.fsi"
+                "${CMAKE_CURRENT_BINARY_DIR}/blackbox/${integrated_case}/verification/fuelsim/${integrated_stem}.checkpoint"
+                "${CMAKE_CURRENT_BINARY_DIR}/blackbox/${integrated_case}/verification/fuelsim/${integrated_stem}_results.e")
+        set_tests_properties(fuelsim_${integrated_case}_output_contract PROPERTIES
+            FIXTURES_REQUIRED ${integrated_case}_production LABELS "unit;hex20;io;jacobian;contact")
+    endforeach()
 
     add_executable(fuelsim_h20_31_hex20_curved_sts_identification_tests
         tests/h20_curved_sts_identification_tests.cpp)

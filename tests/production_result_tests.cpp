@@ -927,6 +927,21 @@ int main(int argc, char** argv) {
         } else if (mode == "cartesian-fields") {
             require_argument_count(mode, argc, 5);
             passed = run_cartesian_fields("cartesian_case", argv[2], argv[3], std::stod(argv[4]));
+        } else if (mode == "b549" || mode == "b550" || mode == "b555") {
+            require_argument_count(mode, argc, mode == "b549" ? 7 : 8);
+            passed = completed_summary(argv[3], "transient");
+            const auto summary = read_summary(argv[3]);
+            passed = check(summary_number(summary, "accepted_steps") == 20.0 &&
+                               summary_number(summary, "rejected_steps") == 0.0,
+                         "C3D20T integrated path completes twenty prescribed increments without rejected steps") &&
+                     passed;
+            const auto active =
+                mode == "b549"
+                    ? 0
+                    : static_cast<std::size_t>(summary_number(summary, "contact.coupled_contact.active_contact_nodes"));
+            passed = fuelsim::test::check_hex20_integrated(
+                         argv[2], argv[4], argv[5], argv[6], mode == "b549" ? "" : argv[7], mode == "b555", active) &&
+                     passed;
         } else if (mode == "hex20-friction-path-33" || mode == "hex20-friction-path-36") {
             require_argument_count(mode, argc, mode == "hex20-friction-path-33" ? 7 : 6);
             passed = completed_summary(argv[3], "transient");

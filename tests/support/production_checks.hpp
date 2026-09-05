@@ -1,7 +1,11 @@
 #pragma once
+#include <cstddef>
 #include <string>
 
 namespace fuelsim::test {
+bool check_hex20_integrated(const std::string& output_path, const std::string& temperature_path,
+    const std::string& displacement_path, const std::string& material_path, const std::string& contact_path,
+    bool frictional, std::size_t summary_active);
 bool check_hex20_friction_path_33(const std::string& output_path, const std::string& displacement_path,
     const std::string& contact_path, const std::string& reaction_path);
 bool check_hex20_friction_path_36(

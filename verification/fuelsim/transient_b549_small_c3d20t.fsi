@@ -206,4 +206,9 @@
 
 [Outputs]
   console = false
+  csv = transient_b549_small_c3d20t_summary.csv
+  exodus = transient_b549_small_c3d20t_results.e
+  exodus_interval = 20
+  checkpoint = transient_b549_small_c3d20t.checkpoint
+  checkpoint_interval = 20
 []

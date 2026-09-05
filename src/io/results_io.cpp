@@ -551,6 +551,10 @@ std::vector<std::string> cartesian_transient_variable_names(std::size_t point_co
         for (const char* prefix : {"elastic_", "plastic_", "creep_"})
             for (const char* component : cartesian_stress_components)
                 result.push_back(std::string(prefix) + component + "_q" + std::to_string(q));
+    if (point_count == 27)
+        for (std::size_t q = 0; q < point_count; ++q)
+            for (const char* component : {"x", "y", "z"})
+                result.push_back("current_" + std::string(component) + "_q" + std::to_string(q));
     return result;
 }
 
@@ -949,7 +953,7 @@ std::vector<std::vector<double>> cartesian_elements(const UnstructuredHex20Mesh&
     const std::vector<std::vector<CartesianMaterialHistory>>* histories = nullptr) {
     const double missing = std::numeric_limits<double>::quiet_NaN();
     std::vector<std::vector<double>> result(
-        histories == nullptr ? 162 : 702, std::vector<double>(mesh.elements().size(), missing));
+        histories == nullptr ? 162 : 783, std::vector<double>(mesh.elements().size(), missing));
     for (std::size_t region = 0; region < spatial.region_count(); ++region) {
         const Hex20RegionMesh& region_mesh = spatial.hex20_region_mesh(region);
         for (std::size_t element = 0; element < region_mesh.elements().size(); ++element) {
@@ -966,6 +970,16 @@ std::vector<std::vector<double>> cartesian_elements(const UnstructuredHex20Mesh&
                 const CartesianMaterialPointState& point = histories->at(region).at(element).at(q);
                 result[162 + 2 * q][source] = point.equivalent_plastic_strain;
                 result[163 + 2 * q][source] = point.equivalent_creep_strain;
+                const auto& quadrature = spatial.hex20_region_element_geometry(region, element).mechanical_points[q];
+                std::array<double, 3> position = {quadrature.position.x, quadrature.position.y, quadrature.position.z};
+                for (std::size_t local = 0; local < 20; ++local) {
+                    const auto global = spatial.global_node(region, region_mesh.elements()[element].nodes[local]);
+                    for (std::size_t component = 0; component < 3; ++component)
+                        position[component] += quadrature.displacement_shape[local] *
+                                               state->at(spatial.field_layout()[component + 1].begin + global);
+                }
+                for (std::size_t component = 0; component < 3; ++component)
+                    result[702 + 3 * q + component][source] = position[component];
                 for (std::size_t c = 0; c < 6; ++c) {
                     result[216 + 18 * q + c][source] = point.elastic_strain[c];
                     result[222 + 18 * q + c][source] = point.plastic_strain[c];
@@ -1137,7 +1151,8 @@ void ExodusTransientResultsWriter::append(const TransientProblem& problem) {
         fill_cartesian_nodal(*_hex20_mesh, spatial, problem.committed_solution(), nodal_values);
         append_cartesian_reactions(spatial, problem, nodal_values);
         write_result_step(_path, results_mesh_view(*_hex20_mesh), _step_count, problem.committed_time(), nodal_values,
-            cartesian_elements(*_hex20_mesh, spatial, nullptr, &BackendAccess::cartesian_material_histories(problem)),
+            cartesian_elements(*_hex20_mesh, spatial, &problem.committed_solution(),
+                &BackendAccess::cartesian_material_histories(problem)),
             cartesian_globals(spatial, problem.committed_solution(), problem.committed_load_factor()));
     } else if (_hex_mesh) {
         const cartesian::SpatialAssembly& spatial = BackendAccess::cartesian_spatial(problem);

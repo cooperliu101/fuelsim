@@ -207,4 +207,9 @@
 
 [Outputs]
   console = false
+  csv = transient_b555_small_c3d20t_friction_summary.csv
+  exodus = transient_b555_small_c3d20t_friction_results.e
+  exodus_interval = 20
+  checkpoint = transient_b555_small_c3d20t_friction.checkpoint
+  checkpoint_interval = 20
 []
