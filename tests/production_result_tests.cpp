@@ -1,6 +1,7 @@
 #include "support/exodus_result_reader.hpp"
 #include "support/field_error_metrics.hpp"
 #include "support/production_checks.hpp"
+#include "support/production_hex8_full_field.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -936,6 +937,15 @@ int main(int argc, char** argv) {
                          "B5.5 completes one Backward Euler increment without a rejected step") &&
                      passed;
             passed = fuelsim::test::check_hex8_b55(argv[2], argv[4], argv[5]) && passed;
+        } else if (mode == "hex8-norton-abaqus") {
+            require_argument_count(mode, argc, 8);
+            passed = completed_summary(argv[3], "transient");
+            const auto summary = read_summary(argv[3]);
+            passed = check(summary_number(summary, "accepted_steps") == 11.0 &&
+                               summary_number(summary, "rejected_steps") == 0.0,
+                         "Norton production path completes one preload and ten constant-force holds") &&
+                     passed;
+            passed = fuelsim::test::check_hex8_norton_abaqus(argv[2], argv[4], argv[5], argv[6], argv[7]) && passed;
         } else if (mode == "hex8-inelastic-abaqus") {
             require_argument_count(mode, argc, 8);
             passed = completed_summary(argv[3], "transient");
@@ -1346,6 +1356,121 @@ int main(int argc, char** argv) {
             std::cout << "m52_restart_maximum_absolute=" << maximum_absolute << '\n'
                       << "m52_restart_maximum_scaled=" << maximum_scaled << '\n';
             passed = check(maximum_scaled < 1e-13, "M5.2 restart retains the original nodal-state tolerance") && passed;
+        } else if (mode == "b60") {
+            require_argument_count(mode, argc, 6);
+            const std::string problem = argv[4];
+            if (problem != "steady" && problem != "transient") throw std::invalid_argument("Unknown B6.0 problem type");
+            passed = completed_summary(argv[3], argv[4]);
+            const auto output = fuelsim::test::read_final_exodus_results(argv[2]);
+            const auto summary = read_summary(argv[3]);
+            if (problem == "transient")
+                passed =
+                    check(summary_number(summary, "accepted_steps") == 10 &&
+                              summary_number(summary, "rejected_steps") == 0 && std::abs(output.time - 10.0) < 1e-12,
+                        "B6.0 completes ten prescribed increments without retrying") &&
+                    passed;
+            else
+                passed = check(summary_number(summary, "load_steps_completed") == 1 &&
+                                   summary_number(summary, "rejected_load_steps") == 0,
+                             "B6.0 completes its single steady load step without retrying") &&
+                         passed;
+            std::ifstream reference(argv[5]);
+            std::string line;
+            if (!std::getline(reference, line) ||
+                line != "id,x,y,z,temperature,displacement_x,displacement_y,displacement_z")
+                throw std::invalid_argument("Unexpected B6.0 nodal reference header");
+            FieldErrorMetrics temperature;
+            std::array<FieldErrorMetrics, 3> components;
+            fuelsim::test::GroupedFieldErrorMetrics displacement;
+            std::vector<bool> seen(output.nodes.size(), false);
+            double minimum_x = output.nodes.at(0)[0];
+            for (const auto& point : output.nodes) minimum_x = std::min(minimum_x, point[0]);
+            const std::array<std::string, 3> names = {"displacement_x", "displacement_y", "displacement_z"};
+            while (std::getline(reference, line)) {
+                if (line.empty()) continue;
+                const auto values = split_csv(line);
+                if (values.size() != 8) throw std::invalid_argument("Unexpected B6.0 nodal column count");
+                const auto id = identifier(values, 0, argv[5]);
+                if (id == 0 || id > seen.size() || seen[id - 1])
+                    throw std::invalid_argument("B6.0 reference node is invalid or repeated");
+                const auto node = id - 1;
+                seen[node] = true;
+                std::array<double, 3> actual{}, expected{};
+                for (std::size_t c = 0; c < 3; ++c) {
+                    if (std::abs(output.nodes[node][c] - number(values, c + 1, argv[5])) >= 1e-14)
+                        throw std::invalid_argument("B6.0 reference mesh coordinates differ");
+                    actual[c] = output.nodal(names[c]).at(node);
+                    expected[c] = number(values, c + 5, argv[5]);
+                    components[c].add(actual[c], expected[c]);
+                }
+                temperature.add(output.nodal("temperature").at(node), number(values, 4, argv[5]));
+                if (std::abs(output.nodes[node][0] - minimum_x) >= 1e-12)
+                    displacement.add(actual.data(), expected.data(), 3);
+            }
+            if (seen.empty() || std::find(seen.begin(), seen.end(), false) != seen.end())
+                throw std::invalid_argument("B6.0 reference does not cover every node");
+            print_relative_metrics("b60_temperature", temperature);
+            for (std::size_t c = 0; c < 3; ++c) print_relative_metrics("b60_" + names[c], components[c]);
+            fuelsim::test::print_grouped_relative_metrics("b60_free_node_displacement_vector", displacement);
+            passed = check(relative_metrics_below(temperature, 5e-3) &&
+                               temperature.maximum_zero_reference_difference < 1e-8 &&
+                               fuelsim::test::grouped_relative_metrics_below(displacement, 5e-3) &&
+                               displacement.maximum_zero_reference_difference < 1e-10,
+                         "B6.0 temperature and free-node displacement vector satisfy the recorded 0.5 percent gates") &&
+                     passed;
+        } else if (mode == "hex8-multimaterial") {
+            require_argument_count(mode, argc, 7);
+            passed = true;
+            for (int index = 2; index <= 4; ++index) {
+                const std::string output = argv[index];
+                const auto position = output.rfind("_results.e");
+                if (position == std::string::npos) throw std::invalid_argument("B5.9 result filename is invalid");
+                const auto summary_path = output.substr(0, position) + "_summary.csv";
+                passed = completed_summary(summary_path, "transient") && passed;
+                const auto summary = read_summary(summary_path);
+                passed = check(summary_number(summary, "accepted_steps") == 4 &&
+                                   summary_number(summary, "rejected_steps") == 0,
+                             "B5.9 accepts exactly four increments without retrying") &&
+                         passed;
+            }
+            passed = fuelsim::test::check_hex8_multimaterial(argv[2], argv[3], argv[4], argv[5], argv[6]) && passed;
+        } else if (mode == "hex8-bulk-abaqus") {
+            require_argument_count(mode, argc, 6);
+            fuelsim::test::ProductionHex8FullFieldOptions options;
+            options.case_name = argv[4];
+            options.reference_prefix = argv[5];
+            options.reduced_integration = true;
+            options.reaction_zero_absolute_tolerance = 1e-3;
+            if (options.case_name == "b61") {
+                options.expected_steps = 5;
+                options.time_step = 2;
+                options.bulk_relative_tolerance = 5e-3;
+                options.energy_relative_tolerance = 5e-3;
+            } else if (options.case_name == "b544") {
+                options.expected_steps = 10;
+                options.time_step = 1e5;
+                options.reaction_pointwise_relative_tolerance = 4e-2;
+                options.reaction_heat_flux_pointwise_absolute_tolerance = 1e-2;
+            } else
+                throw std::invalid_argument("Unknown bulk comparison case");
+            passed = completed_summary(argv[3], "transient");
+            passed = check(summary_number(read_summary(argv[3]), "accepted_steps") ==
+                               static_cast<double>(options.expected_steps),
+                         "Production completes every fixed time step") &&
+                     passed;
+            passed = check(summary_number(read_summary(argv[3]), "rejected_steps") == 0,
+                         "Production fixed-step path does not retry any increment") &&
+                     passed;
+            passed = fuelsim::test::compare_production_hex8_full_field(argv[2], options) && passed;
+            if (options.case_name == "b61") {
+                const auto final = fuelsim::test::read_final_exodus_results(argv[2]);
+                const auto& plastic = final.element("equiv_plastic_q0");
+                const auto& creep = final.element("equiv_creep_q0");
+                passed = check(*std::max_element(plastic.begin(), plastic.end()) > 0 &&
+                                   *std::max_element(creep.begin(), creep.end()) > 0,
+                             "B6.1 activates plasticity and creep") &&
+                         passed;
+            }
         } else if (mode == "b40-restart") {
             require_argument_count(mode, argc, 5);
             passed = completed_summary(argv[3], "transient");

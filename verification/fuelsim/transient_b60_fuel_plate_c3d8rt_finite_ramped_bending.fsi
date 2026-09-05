@@ -148,4 +148,7 @@
 
 [Outputs]
   console = false
+  csv = transient_b60_fuel_plate_c3d8rt_finite_ramped_bending_summary.csv
+  exodus = transient_b60_fuel_plate_c3d8rt_finite_ramped_bending_results.e
+  exodus_interval = 10
 []

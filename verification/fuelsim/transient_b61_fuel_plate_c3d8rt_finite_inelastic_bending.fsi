@@ -181,4 +181,6 @@
 
 [Outputs]
   console = false
+  csv = transient_b61_fuel_plate_c3d8rt_finite_inelastic_bending_summary.csv
+  exodus = transient_b61_fuel_plate_c3d8rt_finite_inelastic_bending_results.e
 []

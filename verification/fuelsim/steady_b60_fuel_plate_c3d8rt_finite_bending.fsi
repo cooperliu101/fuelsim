@@ -129,4 +129,6 @@
 
 [Outputs]
   console = false
+  csv = steady_b60_fuel_plate_c3d8rt_finite_bending_summary.csv
+  exodus = steady_b60_fuel_plate_c3d8rt_finite_bending_results.e
 []
