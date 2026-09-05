@@ -1,11 +1,16 @@
-abaqus_external_wall_seconds=628.510266
+configuration=cpu0_affinity_one_process_abaqus_r2018x
 abaqus_cpus=1
 abaqus_output_precision=full
 windows_computer=MSI
-abaqus_job_time_summary_begin
-     JOB TIME SUMMARY
-       USER TIME (SEC)      =   595.30
-       SYSTEM TIME (SEC)    =   8.9000
-       TOTAL CPU TIME (SEC) =   604.20
-       WALLCLOCK TIME (SEC) =        624
-abaqus_job_time_summary_end
+run_1_external_wall_seconds=246.060648
+run_1_job_wall_seconds=242
+run_1_total_cpu_seconds=222.40
+run_2_external_wall_seconds=242.800037
+run_2_job_wall_seconds=239
+run_2_total_cpu_seconds=222.80
+run_3_external_wall_seconds=238.666468
+run_3_job_wall_seconds=234
+run_3_total_cpu_seconds=223.60
+external_wall_median_seconds=242.800037
+increments=20
+total_iterations=67

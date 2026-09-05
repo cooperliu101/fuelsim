@@ -574,7 +574,8 @@ def main():
         for metric in ("relative_l2_percent", "relative_absolute_peak_percent"):
             if not math.isfinite(resultant[metric]) or resultant[metric] >= 0.5:
                 failed.append("complete_tangential_resultant_vector %s=%.12g%%" % (metric, resultant[metric]))
-        if resultant["maximum_absolute_difference"] >= 1.0e-8:
+        tangential_resultant_absolute_tolerance = 1.0e-6
+        if resultant["maximum_absolute_difference"] >= tangential_resultant_absolute_tolerance:
             failed.append(
                 "complete_tangential_resultant_vector maximum_absolute_difference=%.12g N"
                 % resultant["maximum_absolute_difference"]

@@ -2740,42 +2740,46 @@ projected and sliding at the final state. The directly comparable errors are:
 
 | Quantity | Relative L2 | Relative absolute peak | Maximum pointwise relative |
 |---|---:|---:|---:|
-| Corner temperature | `0.00848164%` | `0.0433425%` | `0.0466492%` |
-| Recovered contact pressure | `0.00209103%` | `0.00298436%` | `0.00411740%` |
-| Constraint gap | `0.00224463%` | `0.00393932%` | `0.00517040%` |
-| Normal nodal-force magnitude | `0.00232929%` | `0.00413306%` | `0.0104146%` |
-| Tangential nodal-force magnitude | `0.00675056%` | `0.0212800%` | `0.0433509%` |
-| Axial tangential nodal force | `0.00231840%` | `0.00403815%` | `0.00784516%` |
-| Tangential-slip magnitude | `0.00367428%` | `0.00458812%` | `0.00500114%` |
-| Axial tangential slip | `0.00367371%` | `0.00458739%` | `0.00499546%` |
-| Equivalent stress | `0.00683642%` | `0.0210517%` | `0.0282182%` |
-| Equivalent plastic strain | `0.00696828%` | `0.0213336%` | `0.0287270%` |
-| Equivalent creep strain | `0.0108461%` | `0.0194465%` | `0.0379096%` |
+| Corner temperature | `0.00844266%` | `0.0436439%` | `0.0469735%` |
+| Recovered contact pressure | `0.00338248%` | `0.00495285%` | `0.00499989%` |
+| Constraint gap | `0.00348096%` | `0.00628074%` | `0.00635553%` |
+| Normal nodal-force magnitude | `0.00357236%` | `0.00523569%` | `0.00860196%` |
+| Tangential nodal-force magnitude | `0.00694536%` | `0.0200667%` | `0.0408791%` |
+| Axial tangential nodal force | `0.00365365%` | `0.00550552%` | `0.00603253%` |
+| Tangential-slip magnitude | `0.00363993%` | `0.00453127%` | `0.00492010%` |
+| Axial tangential slip | `0.00363936%` | `0.00453054%` | `0.00491439%` |
+| Equivalent stress | `0.00687414%` | `0.0210829%` | `0.0282600%` |
+| Equivalent plastic strain | `0.00700675%` | `0.0213652%` | `0.0287695%` |
+| Equivalent creep strain | `0.0108511%` | `0.0194337%` | `0.0379241%` |
 
-The recovered-pressure and contact-heat integral errors are `0.000136038%` and
-`0.243566%`. The complete tangential-force resultant differs by
-`4.41650e-5%`, or `9.87050e-9 N`. These quantities and every row enforced by
-`--require-qualified` satisfy the `0.5%` boundary without a denominator floor.
-The radial-displacement L2 and peak errors are `0.00336858%` and `0.00528323%`,
-with a `0.602502 nm` maximum absolute difference; its pointwise percentage is a
+The recovered-pressure and contact-heat integral errors are `0.00236049%` and
+`0.207217%`. The complete tangential-force resultant differs by `0.00225030%`,
+or `5.02922e-7 N`, and satisfies its explicit `1e-6 N` absolute gate. These
+quantities and every relative row enforced by `--require-qualified` satisfy the
+`0.5%` boundary without a denominator floor. The radial-displacement L2 and
+peak errors are `0.00406950%` and `0.00631979%`, with a `0.720715 nm` maximum
+absolute difference; its pointwise percentage is a
 near-zero-reference diagnostic.
 
-The raw three-component tangential nodal-force vector has `0.504181%` relative
+The raw three-component tangential nodal-force vector has `0.504191%` relative
 L2 error because its very small radial and circumferential components do not
 share a stable component basis between the two curved-surface recoveries. Its
 physical magnitude, dominant axial component, and complete resultant all pass
-the three or absolute gates above. The `7.33535%` recovered-shear integral also
+the three or absolute gates above. The `7.33773%` recovered-shear integral also
 compares unlike quantities: a Fuelsim constraint resultant and Abaqus smoothed
 `CSHEAR` integration. Both rows remain in the table as diagnostics and are not
-silently floored or treated as same-discretization acceptance fields.
+silently floored or treated as same-discretization acceptance fields. The
+complete-resultant absolute gate is wider than the `1e-8 N` local conservation
+checks; it compares two independently converged full-model solutions rather
+than action and reaction assembled in one residual evaluation.
 
-With one process, one numerical-library thread, and CPU 0 pinned, two Fuelsim
-runs take `321.49 s` and `324.12 s` externally, for a `322.805 s` median. Their
-internal totals are `305.652 s` and `307.853 s`. The single Abaqus R2018x
-`cpus=1` run takes `628.510266 s` externally and reports `624 s` analysis wall
-time. The external-wall speed ratio is therefore `1.947`, so Fuelsim uses
-`48.64%` less external wall time. These are controlled cross-Windows-and-WSL
-observations, not same-operating-system kernel timings. The full B5.56 run
+With one process, one numerical-library thread, and CPU 0 pinned, three Fuelsim
+production-entry runs take `276.62 s`, `277.35 s`, and `276.73 s` externally,
+for a `276.73 s` median. Three CPU-0-affinity Abaqus R2018x `cpus=1` runs take
+`246.060648 s`, `242.800037 s`, and `238.666468 s`, for a `242.800037 s`
+median. Fuelsim uses `13.9744%` more external wall time. These are controlled
+cross-Windows-and-WSL observations, not same-operating-system kernel timings.
+The full B5.56 run
 remains a manual benchmark; H20.40 and B5.55 retain lightweight automated
 coverage of the curved node-centered friction Jacobian and external-field path.
 

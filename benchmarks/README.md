@@ -1236,17 +1236,18 @@ contributions on the old nine-points-per-face path to 2,592 while retaining the
 full finite-sliding candidate sparsity.
 
 On CPU 0 with one process and every numerical library restricted to one thread,
-two Fuelsim runs take `321.49 s` and `324.12 s` externally; the median is
-`322.805 s`. Their internal totals are `305.652 s` and `307.853 s`. Abaqus
-R2018x with `cpus=1` takes `628.510266 s` externally and reports `624 s`
-analysis wall time. Fuelsim is `1.947` times as fast by external wall time and
-uses `48.64%` less time in this controlled cross-Windows-and-WSL comparison.
+three production-entry Fuelsim runs take `276.62 s`, `277.35 s`, and `276.73 s`
+externally; the median is `276.73 s`. Three CPU-0-affinity Abaqus R2018x
+`cpus=1` runs take `246.060648 s`, `242.800037 s`, and `238.666468 s`; their
+median is `242.800037 s`. Fuelsim therefore uses `13.9744%` more external wall
+time in this controlled cross-Windows-and-WSL comparison.
 
 All 416 secondary contact nodes are projected and sliding. Contact pressure,
 gap, normal-force magnitude, tangential-force magnitude, dominant axial shear,
 tangential-slip magnitude, temperature, material histories, recovered pressure
 and heat integrals pass the tracked `0.5%` gates. The complete tangential
-resultant differs by `4.41650e-5%`. The raw Cartesian tangential nodal-force
+resultant differs by `0.00225030%` and `5.02922e-7 N`, below its explicit
+`1e-6 N` absolute gate. The raw Cartesian tangential nodal-force
 vector and Abaqus smoothed `CSHEAR` integral remain explicitly reported
 diagnostics because they compare unstable near-zero curved-basis components or
 different recovered quantities. The full commands and all error rows are in
