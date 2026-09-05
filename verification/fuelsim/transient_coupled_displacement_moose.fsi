@@ -93,4 +93,6 @@
 
 [Outputs]
   console = false
+  csv = transient_coupled_displacement_moose_summary.csv
+  exodus = transient_coupled_displacement_moose_results.e
 []

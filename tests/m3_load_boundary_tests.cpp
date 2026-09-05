@@ -1,7 +1,6 @@
 #include "fuelsim/io/case_input.hpp"
 #include "fuelsim/io/results_io.hpp"
 #include "fuelsim/solver/solve_workflows.hpp"
-#include "support/moose_field_comparison.hpp"
 #include "support/rz_problem_access.hpp"
 #include <algorithm>
 #include <array>
@@ -38,42 +37,6 @@ bool test_time_event_alignment(const std::string& input_path) {
                      result.accepted_steps[2].time_step == 1.25,
         "iteration-adaptive stepping grows, lands on an event, and "
         "preserves the controller step");
-}
-
-bool test_moose_time_table_convection(const std::string& input_path, const std::string& nodal_reference_path) {
-    const fuelsim::FuelSimCaseDefinition definition = fuelsim::read_case_input(input_path);
-    const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(definition.mesh_file);
-    fuelsim::TransientProblem problem(definition.spatial, mesh);
-    const fuelsim::TransientTimeOptions time_options = {definition.transient_execution.end_time,
-        definition.transient_execution.initial_time_step, definition.transient_execution.minimum_time_step,
-        definition.transient_execution.maximum_time_step, definition.transient_execution.growth_factor,
-        definition.transient_execution.cutback_factor, definition.transient_execution.maximum_cutbacks_per_step,
-        definition.transient_execution.load_ramp_time};
-    const fuelsim::SolverOptions solver_options = {definition.solver.absolute_tolerance,
-        definition.solver.relative_tolerance, definition.solver.step_tolerance, definition.solver.maximum_iterations};
-    const fuelsim::TransientResult result = fuelsim::solve_transient(problem, time_options, solver_options);
-    bool passed =
-        check(result.completed && result.accepted_steps.size() == 4 && result.accepted_steps[0].time == 2.5 &&
-                  result.accepted_steps[1].time == 5.0 && result.accepted_steps[2].time == 8.0 &&
-                  result.accepted_steps[3].time == 10.0,
-            "M3.1 lands on power-table events and preserves nominal dt") &&
-        check(problem.contribution_count() == 10, "M3.1 adds two local convection contributions to eight Quad4s");
-    const std::vector<fuelsim::test::NodalFieldReference> reference =
-        fuelsim::test::read_moose_nodal_reference(nodal_reference_path);
-    const fuelsim::test::NodalFieldComparison fields =
-        fuelsim::test::compare_moose_nodal_fields(problem, result.committed_state, reference);
-    passed = check(fields.node_count == mesh.nodes().size() && fields.maximum_coordinate_difference < 1.0e-12,
-                 "M3.1 compares every MOOSE convection node") &&
-             passed;
-    passed = check(fuelsim::test::relative_metrics_below(fields.temperature, 1.0e-3),
-                 "M3.1 convection temperature full-field errors pass") &&
-             passed;
-    passed = check(fuelsim::test::absolute_metrics_below(fields.radial_displacement, 1.0e-12) &&
-                       fuelsim::test::absolute_metrics_below(fields.axial_displacement, 1.0e-12),
-                 "M3.1 zero displacement fields pass") &&
-             passed;
-    fuelsim::test::print_relative_metrics("m31_convection_temperature", fields.temperature);
-    return passed;
 }
 
 double temperature_relative_l2(
@@ -569,57 +532,21 @@ bool test_steady_load_cutback(const std::string& input_path) {
     return passed;
 }
 
-bool test_pressure_production_path(const std::string& input_path) {
-    const fuelsim::FuelSimCaseDefinition input = fuelsim::read_case_input(input_path);
-    const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::read_exodus_quad4(input.mesh_file);
-    fuelsim::SteadyProblem problem(input.spatial, mesh);
-    const fuelsim::SteadyResult result = fuelsim::solve_steady(problem,
-        {input.steady_execution.load_steps, input.steady_execution.cutback_factor,
-            input.steady_execution.maximum_cutbacks_per_step, input.steady_execution.minimum_load_increment},
-        {input.solver.absolute_tolerance, input.solver.relative_tolerance, input.solver.step_tolerance,
-            input.solver.maximum_iterations});
-    if (!check(result.completed && result.solve.converged, "pressure input-card production solve converges"))
-        return false;
-    double radial_stress_sum = 0.0;
-    double hoop_stress_sum = 0.0;
-    std::size_t stress_points = 0;
-    for (std::size_t element = 0; element < fuelsim::rz::ProblemAccess::region_element_count(problem, 0); ++element) {
-        const fuelsim::LocalValues local = fuelsim::rz::ProblemAccess::contribution_state(
-            problem, fuelsim::rz::ProblemAccess::region_element_offset(problem, 0) + element, result.solve.state);
-        for (const fuelsim::AxisymmetricStressValues& stress :
-            fuelsim::compute_quad4_rz_thermoelastic_stress(fuelsim::rz::ProblemAccess::region_kernel_data(problem, 0),
-                fuelsim::rz::ProblemAccess::region_element_geometry(problem, 0, element), local)) {
-            radial_stress_sum += stress.rr;
-            hoop_stress_sum += stress.hoop;
-            ++stress_points;
-        }
-    }
-    const double average_radial_stress = radial_stress_sum / static_cast<double>(stress_points);
-    const double average_hoop_stress = hoop_stress_sum / static_cast<double>(stress_points);
-    const double relative_error =
-        std::max(std::abs(average_radial_stress + 1.0e6) / 1.0e6, std::abs(average_hoop_stress + 1.0e6) / 1.0e6);
-    std::cout << "pressure_average_radial_stress=" << average_radial_stress << '\n';
-    std::cout << "pressure_average_hoop_stress=" << average_hoop_stress << '\n';
-    std::cout << "pressure_cylinder_stress_relative_error=" << relative_error << '\n';
-    return check(relative_error < 1.0e-10, "radial pressure input produces the solid-cylinder stress");
-}
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 6) {
+    if (argc != 4) {
         std::cerr << "Usage: fuelsim_m3_load_boundary_tests <m21.fsi> "
-                     "<m31.fsi> <m31-all-nodes.csv> <pcmi.fsi> "
-                     "<pressure.fsi>\n";
+                     "<m31.fsi> <pcmi.fsi>\n";
         return 2;
     }
     try {
         std::cout << std::scientific << std::setprecision(12);
         fuelsim::PetscSession session(argc, argv, "fuelsim M3.1 time loads and boundary test\n");
-        if (!test_time_event_alignment(argv[1]) || !test_moose_time_table_convection(argv[2], argv[3]) ||
-            !test_opaque_state_snapshot(argv[4]) || !test_time_error_control(argv[2]) ||
-            !test_history_time_error_control(argv[4]) || !test_long_transient_time_convergence(argv[4]) ||
-            !test_long_transient_diagnostics(argv[4]) || !test_failure_diagnostics(argv[4]) ||
-            !test_steady_load_cutback(argv[4]) || !test_pressure_production_path(argv[5]))
+        if (!test_time_event_alignment(argv[1]) || !test_opaque_state_snapshot(argv[3]) ||
+            !test_time_error_control(argv[2]) || !test_history_time_error_control(argv[3]) ||
+            !test_long_transient_time_convergence(argv[3]) || !test_long_transient_diagnostics(argv[3]) ||
+            !test_failure_diagnostics(argv[3]) || !test_steady_load_cutback(argv[3]))
             return 1;
         std::cout << "[PASS] fuelsim M3.1 time loads and boundary test\n";
         return 0;

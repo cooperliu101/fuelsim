@@ -188,6 +188,11 @@ if(BUILD_TESTING)
         tests/production_rz_contact.cpp
         tests/production_hex20_contact.cpp
         tests/production_hex8_contact.cpp
+        tests/production_rz_integrated.cpp
+        tests/production_rz_inelastic.cpp
+        tests/production_rz_noncoaxial.cpp
+        tests/production_hex8_plate.cpp
+        tests/production_hex8_sticking.cpp
     )
     target_link_libraries(fuelsim_production_result_tests
         PRIVATE fuelsim_exodus_result_test_support fuelsim_field_error_metrics
@@ -275,7 +280,7 @@ if(BUILD_TESTING)
     add_test(NAME fuelsim_input_tests
         COMMAND fuelsim_input_tests
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_fuel_cladding.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_fuel_cladding_pcmi.fsi"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/input_cards/transient_pcmi_parser_base.fsi"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_finite_strain_pcmi.fsi"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_coupled_displacement_moose.fsi"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_coupled_traction_moose.fsi"
@@ -335,33 +340,25 @@ if(BUILD_TESTING)
         COMMAND fuelsim_m3_load_boundary_tests
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_heat_moose.fsi"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_table_convection_moose.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m31_transient_table_convection_rz_all_nodes_final.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_fuel_cladding_pcmi.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_pressure_boundary.fsi"
     )
     set_tests_properties(fuelsim_m3_load_boundary_tests PROPERTIES
-        LABELS "acceptance"
+        LABELS "unit;time-control;transaction"
     )
+    fuelsim_add_production_test(fuelsim_m31_convection_moose_tests m31 transient_table_convection_moose m31
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m31_transient_table_convection_rz_all_nodes_final.csv")
+    fuelsim_add_production_test(fuelsim_pressure_cylinder_analytic_tests pressure_cylinder steady_pressure_boundary pressure-cylinder)
 
-    add_executable(fuelsim_m3_contact_tests
-        tests/m3_contact_tests.cpp
-    )
-    target_link_libraries(fuelsim_m3_contact_tests
-        PRIVATE
-            fuelsim_moose_test_support
-            fuelsim::io
-            fuelsim::solver
-    )
-    fuelsim_enable_warnings(fuelsim_m3_contact_tests)
-    add_test(NAME fuelsim_m3_contact_tests
-        COMMAND fuelsim_m3_contact_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_two_pellet_contact_moose.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m33_two_pellet_contact_rz_out_all_nodes_0001.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m33_two_pellet_contact_rz_out_lower_surface_0001.csv"
-    )
-    set_tests_properties(fuelsim_m3_contact_tests PROPERTIES
-        LABELS "acceptance"
-    )
+    add_executable(fuelsim_rz_contact_projection_contract_tests tests/rz_contact_projection_contract_tests.cpp)
+    target_link_libraries(fuelsim_rz_contact_projection_contract_tests PRIVATE fuelsim::io)
+    target_include_directories(fuelsim_rz_contact_projection_contract_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/tests")
+    fuelsim_enable_warnings(fuelsim_rz_contact_projection_contract_tests)
+    add_test(NAME fuelsim_rz_contact_projection_contract COMMAND fuelsim_rz_contact_projection_contract_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_two_pellet_contact_moose.fsi")
+    set_tests_properties(fuelsim_rz_contact_projection_contract PROPERTIES LABELS "unit;contact;projection")
+    fuelsim_add_production_test(fuelsim_m3_contact_tests m33_two_pellet steady_two_pellet_contact_moose rz-two-pellet
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m33_two_pellet_contact_rz_out_all_nodes_0001.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m33_two_pellet_contact_rz_out_lower_surface_0001.csv")
 
     fuelsim_add_production_test(fuelsim_m33_multi_contact_moose_tests m33_multi
         steady_multi_contact_moose rz-multi-contact
@@ -399,29 +396,15 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_m52_sliding_ownership_contract PROPERTIES
         FIXTURES_REQUIRED m52_production LABELS "unit;contact;projection")
 
-    add_executable(fuelsim_m57_integrated_validation_tests
-        tests/m57_integrated_validation_tests.cpp
+    fuelsim_add_production_test(fuelsim_m57_integrated_validation_tests m57
+        transient_integrated_fuel_cladding_ctest m57
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m57_integrated_fuel_cladding_rz_ctest_all_nodes_final.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m57_integrated_fuel_cladding_rz_ctest_contact_pressure_final.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m57_integrated_fuel_cladding_rz_ctest_clad_qp_coordinates_final.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m57_integrated_fuel_cladding_rz_ctest_clad_qp_values_final.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m57_integrated_fuel_cladding_rz_ctest_out.csv"
     )
-    target_link_libraries(fuelsim_m57_integrated_validation_tests
-        PRIVATE
-            fuelsim_moose_test_support
-            fuelsim::io
-            fuelsim::solver
-    )
-    fuelsim_enable_warnings(fuelsim_m57_integrated_validation_tests)
-    add_test(NAME fuelsim_m57_integrated_validation_tests
-        COMMAND fuelsim_m57_integrated_validation_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_integrated_fuel_cladding_ctest.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m57_integrated_fuel_cladding_rz_ctest_all_nodes_final.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m57_integrated_fuel_cladding_rz_ctest_contact_pressure_final.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m57_integrated_fuel_cladding_rz_ctest_clad_qp_coordinates_final.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m57_integrated_fuel_cladding_rz_ctest_clad_qp_values_final.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m57_integrated_fuel_cladding_rz_ctest_out.csv"
-    )
-    set_tests_properties(fuelsim_m57_integrated_validation_tests PROPERTIES
-        LABELS "acceptance"
-        TIMEOUT 180
-    )
+    set_tests_properties(fuelsim_m57_integrated_validation_tests PROPERTIES TIMEOUT 180)
 
     add_executable(fuelsim_m58_integrated_hex8_benchmark
         benchmarks/m58_integrated_hex8.cpp
@@ -1331,12 +1314,16 @@ if(BUILD_TESTING)
         h20_10_finite_displacement_nodes_0001.csv
         1e-3 all "acceptance;three-dimensional;quadratic;finite-strain")
     add_executable(fuelsim_h20_24_hex20_nonmatching_contact_tests tests/h20_nonmatching_contact_tests.cpp)
-    target_link_libraries(fuelsim_h20_24_hex20_nonmatching_contact_tests PRIVATE fuelsim::io fuelsim::solver)
+    target_link_libraries(fuelsim_h20_24_hex20_nonmatching_contact_tests
+        PRIVATE fuelsim::io fuelsim_exodus_result_test_support)
+    target_include_directories(fuelsim_h20_24_hex20_nonmatching_contact_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/tests")
     fuelsim_enable_warnings(fuelsim_h20_24_hex20_nonmatching_contact_tests)
     add_test(NAME fuelsim_h20_24_hex20_nonmatching_contact_tests
-        COMMAND fuelsim_h20_24_hex20_nonmatching_contact_tests)
+        COMMAND fuelsim_h20_24_hex20_nonmatching_contact_tests
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex20_nonmatching_contact_abaqus.fsi"
+            "${CMAKE_CURRENT_BINARY_DIR}/blackbox/h20_24_nonmatching/verification/fuelsim/steady_hex20_nonmatching_contact_abaqus_results.e")
     set_tests_properties(fuelsim_h20_24_hex20_nonmatching_contact_tests
-        PROPERTIES LABELS "integration;three-dimensional;quadratic;contact;nonmatching")
+        PROPERTIES FIXTURES_REQUIRED h20_24_production LABELS "unit;three-dimensional;quadratic;contact;nonmatching;jacobian;conservation")
 
     fuelsim_stage_blackbox_case(
         FUELSIM_B3_BLACKBOX_INPUT b3 steady_hex8_thermoelastic.fsi)
@@ -1366,22 +1353,39 @@ if(BUILD_TESTING)
             "-DINPUT_FILE=${FUELSIM_B35_BLACKBOX_INPUT}"
             "-DOUTPUT_FILE=${FUELSIM_B35_BLACKBOX_RESULTS}"
             "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_production_result_tests>"
-            "-DCHECK_ARGUMENTS=cartesian-fields;${FUELSIM_B35_BLACKBOX_RESULTS};${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b35_hex8_shared_meat_clad_all_nodes_0001.csv;1e-3"
+            "-DCHECK_ARGUMENTS=b35;${FUELSIM_B35_BLACKBOX_RESULTS};${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b35_hex8_shared_meat_clad_all_nodes_0001.csv"
             -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_case.cmake")
     set_tests_properties(fuelsim_b35_hex8_shared_nodes_moose_tests
         PROPERTIES LABELS "acceptance;three-dimensional")
 
-    add_executable(fuelsim_b36_plate_meat_clad_moose_tests tests/b36_plate_meat_clad_moose_tests.cpp)
-    target_link_libraries(fuelsim_b36_plate_meat_clad_moose_tests
-        PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
-    fuelsim_enable_warnings(fuelsim_b36_plate_meat_clad_moose_tests)
-    add_test(NAME fuelsim_b36_plate_meat_clad_moose_tests
-        COMMAND fuelsim_b36_plate_meat_clad_moose_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_plate_meat_clad_moose.fsi"
+    fuelsim_add_production_test(fuelsim_b36_plate_meat_clad_moose_tests b36
+            transient_plate_meat_clad_moose b36
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b36_plate_meat_clad_all_nodes_0040.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b36_plate_meat_clad_element_state_0040.csv")
     set_tests_properties(fuelsim_b36_plate_meat_clad_moose_tests
         PROPERTIES LABELS "acceptance;three-dimensional;inelastic")
+
+    add_executable(fuelsim_hex8_shared_nodes_contract_tests tests/hex8_shared_nodes_contract_tests.cpp)
+    target_link_libraries(fuelsim_hex8_shared_nodes_contract_tests
+        PRIVATE fuelsim::io fuelsim_exodus_result_test_support)
+    target_include_directories(fuelsim_hex8_shared_nodes_contract_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/tests")
+    fuelsim_enable_warnings(fuelsim_hex8_shared_nodes_contract_tests)
+    set_tests_properties(fuelsim_b35_hex8_shared_nodes_moose_tests PROPERTIES FIXTURES_SETUP b35_production)
+    set_tests_properties(fuelsim_b36_plate_meat_clad_moose_tests PROPERTIES FIXTURES_SETUP b36_production)
+    foreach(plate_case IN ITEMS b35 b36)
+        if(plate_case STREQUAL "b35")
+            set(plate_stem steady_hex8_shared_meat_clad_moose)
+        else()
+            set(plate_stem transient_plate_meat_clad_moose)
+        endif()
+        add_test(NAME "fuelsim_${plate_case}_shared_nodes_contract"
+            COMMAND fuelsim_hex8_shared_nodes_contract_tests
+                "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/${plate_stem}.fsi"
+                "${CMAKE_CURRENT_BINARY_DIR}/blackbox/${plate_case}/verification/fuelsim/${plate_stem}_results.e"
+                "${plate_case}")
+        set_tests_properties("fuelsim_${plate_case}_shared_nodes_contract" PROPERTIES
+            FIXTURES_REQUIRED "${plate_case}_production" LABELS "unit;shared-nodes;conservation")
+    endforeach()
 
     fuelsim_stage_blackbox_case(FUELSIM_RZ_SHARED_BLACKBOX_INPUT rz_shared
         steady_rz_shared_meat_clad_moose.fsi)
@@ -1399,18 +1403,17 @@ if(BUILD_TESTING)
             -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_case.cmake")
     set_tests_properties(fuelsim_rz_shared_nodes_moose_tests PROPERTIES LABELS "acceptance;axisymmetric")
 
-    add_executable(fuelsim_b33_hex8_contact_moose_tests tests/b33_hex8_contact_moose_tests.cpp)
-    target_link_libraries(fuelsim_b33_hex8_contact_moose_tests
-        PRIVATE fuelsim_moose_test_support fuelsim::io fuelsim::solver)
-    fuelsim_enable_warnings(fuelsim_b33_hex8_contact_moose_tests)
-    add_test(NAME fuelsim_b33_hex8_contact_moose_tests
-        COMMAND fuelsim_b33_hex8_contact_moose_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/steady_hex8_contact_moose.fsi"
+    fuelsim_add_production_test(fuelsim_b33_frictionless_baseline b33_frictionless
+        steady_hex8_contact_frictionless_baseline frictionless interface)
+    set_tests_properties(fuelsim_b33_frictionless_baseline PROPERTIES FIXTURES_SETUP b33_frictionless)
+    fuelsim_add_production_test(fuelsim_b33_hex8_contact_moose_tests b33
+            steady_hex8_contact_moose b33
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b33_hex8_thermal_contact_all_nodes_0001.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b33_hex8_contact_all_nodes_0010.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b33_hex8_contact_secondary_contact_0010.csv")
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/b33_hex8_contact_secondary_contact_0010.csv"
+            "${CMAKE_CURRENT_BINARY_DIR}/blackbox/b33_frictionless/verification/fuelsim/steady_hex8_contact_frictionless_baseline_results.e")
     set_tests_properties(fuelsim_b33_hex8_contact_moose_tests
-        PROPERTIES LABELS "acceptance;three-dimensional;contact;friction")
+        PROPERTIES FIXTURES_REQUIRED b33_frictionless LABELS "acceptance;production;three-dimensional;contact;friction")
 
     add_executable(fuelsim_b34_hex8_sliding_contact_abaqus_tests
         tests/b34_hex8_sliding_contact_abaqus_tests.cpp)
@@ -1662,7 +1665,7 @@ if(BUILD_TESTING)
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_24_hex20_nonmatching_mortar_all_nodes_0001.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/h20_24_hex20_nonmatching_mortar.csv")
     set_tests_properties(fuelsim_h20_24_hex20_nonmatching_abaqus_tests
-        PROPERTIES LABELS "acceptance;three-dimensional;hex20;contact;nonmatching;abaqus;moose")
+        PROPERTIES FIXTURES_SETUP h20_24_production LABELS "acceptance;three-dimensional;hex20;contact;nonmatching;abaqus;moose")
 
     fuelsim_add_production_test(fuelsim_b37_hex8_multi_contact_moose_tests b37_multi_contact
             steady_hex8_multi_contact_friction_moose hex8-multi-contact
@@ -2157,68 +2160,36 @@ if(BUILD_TESTING)
         PROPERTIES LABELS "acceptance"
     )
 
-    add_executable(fuelsim_m2_inelastic_solver_tests
-        tests/m2_inelastic_solver_tests.cpp
+    fuelsim_add_production_test(fuelsim_m22_j2_moose_tests m22_j2 transient_j2_plastic_moose m22
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m22_j2_plastic_rz_all_nodes_final.csv" j2
     )
-    target_link_libraries(fuelsim_m2_inelastic_solver_tests
-        PRIVATE
-            fuelsim_moose_test_support
-            fuelsim::io
-            fuelsim::solver
+    fuelsim_add_production_test(fuelsim_m22_norton_moose_tests m22_norton transient_norton_creep_moose m22
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m22_norton_creep_rz_all_nodes_final.csv" norton
     )
-    fuelsim_enable_warnings(fuelsim_m2_inelastic_solver_tests)
-    add_test(NAME fuelsim_m2_inelastic_solver_tests
-        COMMAND fuelsim_m2_inelastic_solver_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_j2_plastic_moose.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_norton_creep_moose.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_coupled_displacement_moose.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_coupled_traction_moose.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m22_j2_plastic_rz_all_nodes_final.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m22_norton_creep_rz_all_nodes_final.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m22_coupled_plastic_creep_rz_all_nodes_final.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m22_coupled_plastic_creep_traction_rz_all_nodes_final.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_j2_unload_reload_moose.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m22_j2_unload_reload_rz_all_nodes_final.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m22_j2_unload_reload_rz_out.csv"
+    fuelsim_add_production_test(fuelsim_m22_coupled_displacement_moose_tests m22_coupled_displacement transient_coupled_displacement_moose m22
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m22_coupled_plastic_creep_rz_all_nodes_final.csv" coupled_displacement
     )
-    set_tests_properties(fuelsim_m2_inelastic_solver_tests
-        PROPERTIES LABELS "acceptance"
+    fuelsim_add_production_test(fuelsim_m22_coupled_traction_moose_tests m22_coupled_traction transient_coupled_traction_moose m22
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m22_coupled_plastic_creep_traction_rz_all_nodes_final.csv" coupled_traction
+    )
+    fuelsim_add_production_test(fuelsim_m22_j2_unload_reload_moose_tests m22_j2_unload_reload transient_j2_unload_reload_moose m22
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m22_j2_unload_reload_rz_all_nodes_final.csv" j2_unload_reload
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m22_j2_unload_reload_rz_out.csv"
     )
 
-    add_executable(fuelsim_m2_pcmi_solver_tests
-        tests/m2_pcmi_solver_tests.cpp
+    fuelsim_add_production_test(fuelsim_m2_pcmi_solver_tests m23 transient_fuel_cladding_pcmi m23
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m23_pcmi_coupled_cladding_rz_all_nodes_final.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m23_pcmi_coupled_cladding_rz_fuel_surface_final.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m23_pcmi_coupled_cladding_rz_clad_qp_coordinates_final.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m23_pcmi_coupled_cladding_rz_clad_qp_values_final.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m23_pcmi_coupled_cladding_rz_out.csv"
     )
-    target_link_libraries(fuelsim_m2_pcmi_solver_tests
-        PRIVATE
-            fuelsim_moose_test_support
-            fuelsim::io
-            fuelsim::solver
-    )
-    fuelsim_enable_warnings(fuelsim_m2_pcmi_solver_tests)
-    add_test(NAME fuelsim_m2_pcmi_solver_tests
-        COMMAND fuelsim_m2_pcmi_solver_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_fuel_cladding_pcmi.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m23_pcmi_coupled_cladding_rz_all_nodes_final.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m23_pcmi_coupled_cladding_rz_fuel_surface_final.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m23_pcmi_coupled_cladding_rz_clad_qp_coordinates_final.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m23_pcmi_coupled_cladding_rz_clad_qp_values_final.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m23_pcmi_coupled_cladding_rz_out.csv"
-    )
-    set_tests_properties(fuelsim_m2_pcmi_solver_tests
-        PROPERTIES LABELS "acceptance"
-    )
-
-    add_test(NAME fuelsim_m41_finite_strain_pcmi_tests
-        COMMAND fuelsim_m2_pcmi_solver_tests
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_finite_strain_pcmi.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m41_finite_strain_pcmi_rz_all_nodes_final.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m41_finite_strain_pcmi_rz_fuel_surface_final.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m41_finite_strain_pcmi_rz_clad_qp_coordinates_final.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m41_finite_strain_pcmi_rz_clad_qp_values_final.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m41_finite_strain_pcmi_rz_out.csv"
-    )
-    set_tests_properties(fuelsim_m41_finite_strain_pcmi_tests
-        PROPERTIES LABELS "acceptance"
+    fuelsim_add_production_test(fuelsim_m41_finite_strain_pcmi_tests m41 transient_finite_strain_pcmi m41
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m41_finite_strain_pcmi_rz_all_nodes_final.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m41_finite_strain_pcmi_rz_fuel_surface_final.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m41_finite_strain_pcmi_rz_clad_qp_coordinates_final.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m41_finite_strain_pcmi_rz_clad_qp_values_final.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m41_finite_strain_pcmi_rz_out.csv"
     )
 
     fuelsim_add_production_test(fuelsim_m42_follower_pressure_moose_tests m42_right
@@ -2228,81 +2199,35 @@ if(BUILD_TESTING)
         steady_finite_left_top_pressure rz-steady
         "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m42_left_top_pressure_rz_all_nodes_final.csv" 5e-3)
 
-    add_executable(fuelsim_m43_noncoaxial_finite_strain_moose_tests
-        tests/m43_noncoaxial_finite_strain_moose_tests.cpp
-    )
-    target_link_libraries(fuelsim_m43_noncoaxial_finite_strain_moose_tests
-        PRIVATE
-            fuelsim_moose_test_support
-            fuelsim::io
-            fuelsim::solver
-    )
-    fuelsim_enable_warnings(
-        fuelsim_m43_noncoaxial_finite_strain_moose_tests
-    )
-    add_test(NAME fuelsim_m43_noncoaxial_finite_strain_moose_tests
-        COMMAND fuelsim_m43_noncoaxial_finite_strain_moose_tests
-            production
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_noncoaxial_finite_strain.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_noncoaxial_finite_strain_rz_all_nodes_final.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_noncoaxial_finite_strain_rz_element_history.csv"
-    )
-    set_tests_properties(
-        fuelsim_m43_noncoaxial_finite_strain_moose_tests
-        PROPERTIES LABELS "acceptance"
-    )
-    add_test(NAME fuelsim_m43_elastic_displacement_moose_tests
-        COMMAND fuelsim_m43_noncoaxial_finite_strain_moose_tests
-            elastic_displacement
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_noncoaxial_finite_strain_elastic_displacement.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_elastic_displacement_rz_all_nodes_final.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_elastic_displacement_rz_element_history.csv"
-    )
-    add_test(NAME fuelsim_m43_plastic_displacement_moose_tests
-        COMMAND fuelsim_m43_noncoaxial_finite_strain_moose_tests
-            plastic_displacement
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_noncoaxial_finite_strain_plastic_displacement.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_plastic_displacement_rz_all_nodes_final.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_plastic_displacement_rz_element_history.csv"
-    )
-    add_test(NAME fuelsim_m43_creep_displacement_moose_tests
-        COMMAND fuelsim_m43_noncoaxial_finite_strain_moose_tests
-            creep_displacement
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_noncoaxial_finite_strain_creep_displacement.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_creep_displacement_rz_all_nodes_final.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_creep_displacement_rz_element_history.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_creep_displacement_rz_nodal_history.csv"
-    )
-    add_test(NAME fuelsim_m43_coupled_displacement_moose_tests
-        COMMAND fuelsim_m43_noncoaxial_finite_strain_moose_tests
-            coupled_displacement
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_noncoaxial_finite_strain_coupled_displacement.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_coupled_displacement_rz_all_nodes_final.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_coupled_displacement_rz_element_history.csv"
-    )
-    add_test(NAME fuelsim_m43_coupled_pressure_moose_tests
-        COMMAND fuelsim_m43_noncoaxial_finite_strain_moose_tests
-            coupled_pressure
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_noncoaxial_finite_strain_coupled_pressure.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_coupled_pressure_rz_all_nodes_final.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_coupled_pressure_rz_element_history.csv"
-    )
-    add_test(NAME fuelsim_m43_material_oracle_moose_tests
-        COMMAND fuelsim_m43_noncoaxial_finite_strain_moose_tests
-            material_oracle
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_noncoaxial_finite_strain_material_oracle.fsi"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_material_oracle_rz_all_nodes_final.csv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_material_oracle_rz_element_history.csv"
-    )
-    set_tests_properties(
-        fuelsim_m43_elastic_displacement_moose_tests
-        fuelsim_m43_plastic_displacement_moose_tests
-        fuelsim_m43_creep_displacement_moose_tests
-        fuelsim_m43_coupled_displacement_moose_tests
-        fuelsim_m43_coupled_pressure_moose_tests
-        fuelsim_m43_material_oracle_moose_tests
-        PROPERTIES LABELS "acceptance"
-    )
+    fuelsim_add_production_test(fuelsim_m43_noncoaxial_finite_strain_moose_tests m43_production transient_noncoaxial_finite_strain m43
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_noncoaxial_finite_strain_rz_all_nodes_final.csv" production
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_noncoaxial_finite_strain_rz_element_history.csv")
+    fuelsim_add_production_test(fuelsim_m43_elastic_displacement_moose_tests m43_elastic_displacement transient_noncoaxial_finite_strain_elastic_displacement m43
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_elastic_displacement_rz_all_nodes_final.csv" elastic_displacement
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_elastic_displacement_rz_element_history.csv")
+    fuelsim_add_production_test(fuelsim_m43_plastic_displacement_moose_tests m43_plastic_displacement transient_noncoaxial_finite_strain_plastic_displacement m43
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_plastic_displacement_rz_all_nodes_final.csv" plastic_displacement
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_plastic_displacement_rz_element_history.csv")
+    fuelsim_add_production_test(fuelsim_m43_creep_displacement_moose_tests m43_creep_displacement transient_noncoaxial_finite_strain_creep_displacement m43
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_creep_displacement_rz_all_nodes_final.csv" creep_displacement
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_creep_displacement_rz_element_history.csv")
+    fuelsim_add_production_test(fuelsim_m43_coupled_displacement_moose_tests m43_coupled_displacement transient_noncoaxial_finite_strain_coupled_displacement m43
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_coupled_displacement_rz_all_nodes_final.csv" coupled_displacement
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_coupled_displacement_rz_element_history.csv")
+    fuelsim_add_production_test(fuelsim_m43_coupled_pressure_moose_tests m43_coupled_pressure transient_noncoaxial_finite_strain_coupled_pressure m43
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_coupled_pressure_rz_all_nodes_final.csv" coupled_pressure
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_coupled_pressure_rz_element_history.csv")
+    fuelsim_add_production_test(fuelsim_m43_material_oracle_moose_tests m43_material_oracle transient_noncoaxial_finite_strain_material_oracle m43
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_material_oracle_rz_all_nodes_final.csv" material_oracle
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_material_oracle_rz_element_history.csv")
+    add_executable(fuelsim_rz_creep_replay_contract_tests tests/rz_creep_replay_contract_tests.cpp)
+    target_link_libraries(fuelsim_rz_creep_replay_contract_tests PRIVATE fuelsim::io fuelsim_moose_test_support)
+    fuelsim_enable_warnings(fuelsim_rz_creep_replay_contract_tests)
+    add_test(NAME fuelsim_m43_creep_shared_state_contract COMMAND fuelsim_rz_creep_replay_contract_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/fuelsim/transient_noncoaxial_finite_strain_creep_displacement.fsi"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_creep_displacement_rz_element_history.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m43_creep_displacement_rz_nodal_history.csv")
+    set_tests_properties(fuelsim_m43_creep_shared_state_contract PROPERTIES LABELS "unit;material;transaction")
 
     add_test(NAME fuelsim_transient_jacobian_check
         COMMAND fuelsim -i

@@ -210,4 +210,6 @@
 
 [Outputs]
   console = false
+  csv = transient_integrated_fuel_cladding_ctest_summary.csv
+  exodus = transient_integrated_fuel_cladding_ctest_results.e
 []

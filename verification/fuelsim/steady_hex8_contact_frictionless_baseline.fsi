@@ -66,7 +66,7 @@
     [mechanical]
       formulation = penalty
       penalty = 1e13
-      mu = 0.2
+      mu = 0
     []
   []
 []
@@ -141,6 +141,6 @@
 
 [Outputs]
   console = true
-  csv = steady_hex8_contact_moose_summary.csv
-  exodus = steady_hex8_contact_moose_results.e
+  csv = steady_hex8_contact_frictionless_baseline_summary.csv
+  exodus = steady_hex8_contact_frictionless_baseline_results.e
 []

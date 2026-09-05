@@ -15,6 +15,13 @@
 三维一点减缩积分单元目前将同一个材料状态写入八个位置编号，其余八节点单元
 有八个独立材料点，二十节点单元有 27 个独立材料点。
 
+轴对称瞬态积分点还输出 `reference_r_q<index>`、`reference_z_q<index>` 和
+`reference_measure_q<index>`。前两个字段为参考构形坐标，第三个是完整的
+`2*pi*r*detJ*w` 参考积分测度；它们可用于按参考体积计算逐单元材料平均值，
+不得当作有限应变的当前体积。摘要中的 `minimum_accepted_time_step`、
+`maximum_accepted_time_step` 和 `maximum_accepted_time_error_estimate` 只统计
+本次执行接受的时间步；续算时不包括检查点之前的步骤。
+
 瞬态节点输出还包含 `reaction_heat_flux` 和 `reaction_force_<direction>`。
 它们是接受这个时间步时、提交材料状态之前计算的未施加 Dirichlet 行替换的
 物理残量；不是缩放后的求解器残量。受约束自由度上的值是热反力或机械反力，

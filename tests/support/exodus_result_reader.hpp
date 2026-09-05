@@ -10,6 +10,8 @@ struct ExodusResults final {
     std::vector<std::array<double, 3>> nodes;
     std::vector<std::string> block_names;
     std::vector<std::size_t> block_element_counts;
+    std::vector<std::string> side_set_names;
+    std::vector<std::size_t> side_set_sizes;
     std::vector<std::string> nodal_variable_names;
     std::vector<std::vector<double>> nodal_variables;
     std::vector<std::string> element_variable_names;

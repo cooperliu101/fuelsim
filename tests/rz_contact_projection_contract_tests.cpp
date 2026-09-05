@@ -1,7 +1,5 @@
 #include "fuelsim/io/case_input.hpp"
 #include "fuelsim/io/results_io.hpp"
-#include "fuelsim/solver/solve_workflows.hpp"
-#include "support/moose_field_comparison.hpp"
 #include "support/rz_problem_access.hpp"
 #include <algorithm>
 #include <exception>
@@ -21,42 +19,7 @@ bool check(bool condition, const std::string& message) {
     return false;
 }
 
-std::vector<std::string> split_csv(const std::string& line) {
-    std::vector<std::string> result;
-    std::istringstream input(line);
-    std::string field;
-    while (std::getline(input, field, ',')) result.push_back(field);
-    return result;
-}
-
-std::size_t column(const std::vector<std::string>& header, const std::string& name) {
-    const auto found = std::find(header.begin(), header.end(), name);
-    if (found == header.end()) throw std::invalid_argument("MOOSE contact CSV is missing column: " + name);
-    return static_cast<std::size_t>(found - header.begin());
-}
-
-std::vector<std::pair<double, double>> read_radial_pressure(const std::string& path) {
-    std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read MOOSE contact CSV: " + path);
-    std::string line;
-    if (!std::getline(input, line)) throw std::invalid_argument("MOOSE contact CSV is empty: " + path);
-    const std::vector<std::string> header = split_csv(line);
-    const std::size_t radius = column(header, "x");
-    const std::size_t pressure = column(header, "contact_pressure");
-    std::vector<std::pair<double, double>> result;
-    while (std::getline(input, line)) {
-        if (line.empty()) continue;
-        const std::vector<std::string> values = split_csv(line);
-        if (radius >= values.size() || pressure >= values.size())
-            throw std::invalid_argument("MOOSE contact CSV row is incomplete");
-        result.emplace_back(std::stod(values[radius]), std::stod(values[pressure]));
-    }
-    std::sort(result.begin(), result.end());
-    return result;
-}
-
-bool run_comparison(const std::string& input_path, const std::string& nodal_reference_path,
-    const std::string& pressure_reference_path) {
+bool check_projection(const std::string& input_path) {
     const fuelsim::FuelSimCaseDefinition definition = fuelsim::read_case_input(input_path);
     const fuelsim::UnstructuredQuad4Mesh source = fuelsim::read_exodus_quad4(definition.mesh_file);
     bool passed =
@@ -168,63 +131,16 @@ bool run_comparison(const std::string& input_path, const std::string& nodal_refe
                  "M3.3 dynamically selected contact reactions remain "
                  "discretely conservative") &&
              passed;
-    const fuelsim::SolverOptions options = {definition.solver.absolute_tolerance, definition.solver.relative_tolerance,
-        definition.solver.step_tolerance, definition.solver.maximum_iterations};
-    const fuelsim::SteadyResult result = fuelsim::solve_steady(problem,
-        {definition.steady_execution.load_steps, definition.steady_execution.cutback_factor,
-            definition.steady_execution.maximum_cutbacks_per_step, definition.steady_execution.minimum_load_increment},
-        options);
-    passed = check(result.completed && result.solve.converged, "M3.3 two-pellet contact solve converges") && passed;
-    const std::vector<fuelsim::test::NodalFieldReference> reference =
-        fuelsim::test::read_moose_nodal_reference(nodal_reference_path);
-    const fuelsim::test::NodalFieldComparison fields =
-        fuelsim::test::compare_moose_nodal_fields(problem, result.solve.state, reference);
-    constexpr double tolerance = 1.0e-2;
-    passed = check(fields.node_count == source.nodes().size() && fields.maximum_coordinate_difference < 1.0e-12,
-                 "M3.3 compares every MOOSE node at matching coordinates") &&
-             check(fuelsim::test::relative_metrics_below(fields.temperature, tolerance),
-                 "M3.3 temperature three full-field errors pass") &&
-             check(fuelsim::test::relative_metrics_below(fields.radial_displacement, tolerance),
-                 "M3.3 radial-displacement three full-field errors pass") &&
-             check(fuelsim::test::relative_metrics_below(fields.axial_displacement, tolerance),
-                 "M3.3 axial-displacement three full-field errors pass") &&
-             passed;
-    const std::vector<fuelsim::ContactNodeSummary> actual =
-        fuelsim::rz::ProblemAccess::summarize_contact_nodes(problem, 0, result.solve.state);
-    const std::vector<std::pair<double, double>> pressure_reference = read_radial_pressure(pressure_reference_path);
-    if (actual.size() != pressure_reference.size())
-        throw std::invalid_argument("M3.3 fuelsim and MOOSE contact node counts differ");
-    fuelsim::test::FieldErrorMetrics pressure;
-    for (std::size_t node = 0; node < actual.size(); ++node) {
-        if (std::abs(actual[node].r - pressure_reference[node].first) > 1.0e-12)
-            throw std::invalid_argument("M3.3 fuelsim and MOOSE contact radii differ");
-        pressure.add(actual[node].pressure, pressure_reference[node].second);
-    }
-    passed = check(fuelsim::test::relative_metrics_below(pressure, tolerance),
-                 "M3.3 contact-pressure three full-field errors pass") &&
-             passed;
-    fuelsim::test::print_relative_metrics("m33_temperature", fields.temperature);
-    fuelsim::test::print_relative_metrics("m33_radial_displacement", fields.radial_displacement);
-    fuelsim::test::print_relative_metrics("m33_axial_displacement", fields.axial_displacement);
-    fuelsim::test::print_relative_metrics("m33_contact_pressure", pressure);
     return passed;
 }
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 4) {
-        std::cerr << "Usage: fuelsim_m3_contact_tests <case.fsi> "
-                     "<all-nodes.csv> <contact.csv>\n";
-        return 2;
-    }
+    if (argc != 2) return 2;
     try {
-        std::cout << std::scientific << std::setprecision(12);
-        fuelsim::PetscSession session(argc, argv, "fuelsim M3.3 contact comparison\n");
-        if (!run_comparison(argv[1], argv[2], argv[3])) return 1;
-        std::cout << "[PASS] M3.3 nonmatching two-pellet MOOSE comparison\n";
-        return 0;
+        return check_projection(argv[1]) ? 0 : 1;
     } catch (const std::exception& error) {
-        std::cerr << "[FAIL] M3.3 comparison raised: " << error.what() << '\n';
+        std::cerr << "[FAIL] " << error.what() << '\n';
         return 1;
     }
 }

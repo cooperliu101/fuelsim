@@ -150,4 +150,6 @@
 
 [Outputs]
   console = false
+  csv = transient_plate_meat_clad_moose_summary.csv
+  exodus = transient_plate_meat_clad_moose_results.e
 []

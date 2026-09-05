@@ -94,4 +94,6 @@
 
 [Outputs]
   console = false
+  csv = transient_j2_unload_reload_moose_summary.csv
+  exodus = transient_j2_unload_reload_moose_results.e
 []

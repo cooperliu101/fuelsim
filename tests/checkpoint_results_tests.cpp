@@ -347,7 +347,7 @@ bool verify_exodus(const std::string& path, const fuelsim::UnstructuredQuad4Mesh
                       "Exodus stores the initial and every accepted committed step") &&
                   check(ex_get_variable_param(exoid, EX_NODAL, &nodal_variables) == 0 && nodal_variables == 19,
                       "Exodus defines temperature, displacement, gap and pressure") &&
-                  check(ex_get_variable_param(exoid, EX_ELEM_BLOCK, &element_variables) == 0 && element_variables == 72,
+                  check(ex_get_variable_param(exoid, EX_ELEM_BLOCK, &element_variables) == 0 && element_variables == 84,
                       "Exodus defines stress and inelastic integration-point fields") &&
                   check(ex_get_variable_param(exoid, EX_GLOBAL, &global_variables) == 0 && global_variables == 4,
                       "Exodus defines load and conservative interface totals");

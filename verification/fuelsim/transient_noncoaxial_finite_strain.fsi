@@ -128,4 +128,6 @@
 
 [Outputs]
   console = false
+  csv = transient_noncoaxial_finite_strain_summary.csv
+  exodus = transient_noncoaxial_finite_strain_results.e
 []

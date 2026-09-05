@@ -86,4 +86,6 @@
 
 [Outputs]
   console = false
+  csv = transient_norton_creep_moose_summary.csv
+  exodus = transient_norton_creep_moose_results.e
 []

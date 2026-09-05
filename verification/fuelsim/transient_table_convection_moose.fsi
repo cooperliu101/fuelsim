@@ -88,4 +88,6 @@
 
 [Outputs]
   console = false
+  csv = transient_table_convection_moose_summary.csv
+  exodus = transient_table_convection_moose_results.e
 []

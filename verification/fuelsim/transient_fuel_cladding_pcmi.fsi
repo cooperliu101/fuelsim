@@ -146,8 +146,12 @@
   relative_tolerance = 1e-10
   step_tolerance = 1e-12
   maximum_iterations = 80
+  line_search = basic
+  backtracking_fallback = false
 []
 
 [Outputs]
   console = true
+  csv = transient_fuel_cladding_pcmi_summary.csv
+  exodus = transient_fuel_cladding_pcmi_results.e
 []

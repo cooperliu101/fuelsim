@@ -78,4 +78,6 @@
 
 [Outputs]
   console = false
+  csv = steady_pressure_boundary_summary.csv
+  exodus = steady_pressure_boundary_results.e
 []

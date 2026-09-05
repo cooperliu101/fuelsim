@@ -100,4 +100,6 @@
 
 [Outputs]
   console = false
+  csv = transient_noncoaxial_finite_strain_elastic_displacement_summary.csv
+  exodus = transient_noncoaxial_finite_strain_elastic_displacement_results.e
 []

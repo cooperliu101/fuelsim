@@ -462,6 +462,19 @@ bool run_transient(const FuelSimCaseDefinition& definition, const UnstructuredQu
     output.value("committed_time", result.committed_time);
     output.value("next_time_step", result.next_time_step);
     output.value("accepted_steps", result.accepted_steps.size());
+    output.value("contributions", problem.contribution_count());
+    if (!result.accepted_steps.empty()) {
+        double minimum_step = result.accepted_steps.front().time_step;
+        double maximum_step = minimum_step, maximum_time_error = 0.0;
+        for (const auto& step : result.accepted_steps) {
+            minimum_step = std::min(minimum_step, step.time_step);
+            maximum_step = std::max(maximum_step, step.time_step);
+            maximum_time_error = std::max(maximum_time_error, step.time_error_estimate);
+        }
+        output.value("minimum_accepted_time_step", minimum_step);
+        output.value("maximum_accepted_time_step", maximum_step);
+        output.value("maximum_accepted_time_error_estimate", maximum_time_error);
+    }
     output.value("time_error_rejections", result.time_error_rejections);
     output.value("rejected_steps", result.rejected_steps.size());
     if (!result.rejected_steps.empty()) {

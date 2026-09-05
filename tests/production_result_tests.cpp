@@ -128,14 +128,15 @@ RzNodalComparison compare_rz_nodal_results(
     return comparison;
 }
 
-std::vector<double> read_contact_pressure_reference(const std::string& path, std::vector<double>& coordinates) {
+std::vector<double> read_contact_pressure_reference(
+    const std::string& path, std::vector<double>& coordinates, std::size_t coordinate_component) {
     std::ifstream input(path);
     if (!input) throw std::runtime_error("Could not read MOOSE pressure reference: " + path);
     std::string line;
     if (!std::getline(input, line)) throw std::invalid_argument("MOOSE pressure reference is empty: " + path);
     const std::vector<std::string> header = split_csv(line);
     const std::size_t pressure_column = column_index(header, "contact_pressure", path);
-    const std::size_t coordinate_column = column_index(header, "y", path);
+    const std::size_t coordinate_column = column_index(header, coordinate_component == 0 ? "x" : "y", path);
     std::vector<std::pair<double, double>> values;
     while (std::getline(input, line)) {
         if (line.empty()) continue;
@@ -238,13 +239,16 @@ double summary_number(const std::map<std::string, std::string>& summary, const s
 }
 
 FieldErrorMetrics compare_contact_pressure(const fuelsim::test::ExodusResults& results,
-    const std::string& variable_name, const std::string& reference_path, double coordinate_tolerance) {
+    const std::string& variable_name, const std::string& reference_path, double coordinate_tolerance,
+    std::size_t coordinate_component = 1) {
     std::vector<double> reference_coordinates;
-    const std::vector<double> reference = read_contact_pressure_reference(reference_path, reference_coordinates);
+    const std::vector<double> reference =
+        read_contact_pressure_reference(reference_path, reference_coordinates, coordinate_component);
     const std::vector<double>& pressure = results.nodal(variable_name);
     std::vector<std::pair<double, double>> actual;
     for (std::size_t node = 0; node < pressure.size(); ++node)
-        if (std::isfinite(pressure[node])) actual.emplace_back(results.nodes[node][1], pressure[node]);
+        if (std::isfinite(pressure[node]))
+            actual.emplace_back(results.nodes[node][coordinate_component], pressure[node]);
     std::sort(actual.begin(), actual.end());
     if (actual.size() != reference.size())
         throw std::invalid_argument("MOOSE and production-result contact-pressure counts differ");
@@ -519,7 +523,7 @@ bool run_hex20_fields(const std::string& name, const std::string& results_path, 
         }
     }
     print_relative_metrics(name + "_temperature", temperature_error);
-    bool passed = check(relative_metrics_below(temperature_error, tolerance),
+    bool passed = check(relative_metrics_below(temperature_error, name == "b6_hex20" ? 1.0e-10 : tolerance),
         "HEX20 temperature relative L2, relative absolute peak, and maximum pointwise errors pass");
     if (compare_displacement) {
         for (std::size_t component = 0; component < displacement_error.size(); ++component) {
@@ -862,9 +866,7 @@ bool compare_result_files(
 
 int main(int argc, char** argv) {
     if (argc < 2) {
-        std::cerr << "Usage: fuelsim_production_result_tests "
-                     "<m0|m1|m1-unstructured|m21|b3|b6|rz-fields|rz-steady|cartesian-fields|"
-                     "hex20-fields|hex20-transient|hex20-inelastic|m54|equivalence|mpi-equivalence|restart> "
+        std::cerr << "Usage: fuelsim_production_result_tests <check-mode> "
                      "<result.e> <summary-and-reference files...>\n";
         return 2;
     }
@@ -890,6 +892,23 @@ int main(int argc, char** argv) {
         } else if (mode == "cartesian-fields") {
             require_argument_count(mode, argc, 5);
             passed = run_cartesian_fields("cartesian_case", argv[2], argv[3], std::stod(argv[4]));
+        } else if (mode == "b33") {
+            require_argument_count(mode, argc, 8);
+            passed = completed_summary(argv[3], "steady");
+            passed = check(summary_number(read_summary(argv[3]), "load_steps_completed") == 10.0,
+                         "B3.3 completes ten load steps") &&
+                     passed;
+            passed = fuelsim::test::check_hex8_sticking(argv[2], argv[4], argv[5], argv[6], argv[7]) && passed;
+        } else if (mode == "b35") {
+            require_argument_count(mode, argc, 4);
+            passed = fuelsim::test::check_hex8_shared_plate(argv[2], argv[3], "");
+        } else if (mode == "b36") {
+            require_argument_count(mode, argc, 6);
+            passed = completed_summary(argv[3], "transient");
+            passed = check(summary_number(read_summary(argv[3]), "accepted_steps") == 40.0,
+                         "B3.6 accepts forty time steps") &&
+                     passed;
+            passed = fuelsim::test::check_hex8_shared_plate(argv[2], argv[4], argv[5]) && passed;
         } else if (mode == "b6") {
             require_argument_count(mode, argc, 5);
             passed = run_b6(argv[2], argv[3], argv[4]);
@@ -994,9 +1013,119 @@ int main(int argc, char** argv) {
                          "M5.2 retains the field, radius, contact-force and workspace gates") &&
                      passed;
             std::cout << "m52_maximum_secondary_current_radius=" << maximum_radius << '\n';
+        } else if (mode == "m31") {
+            require_argument_count(mode, argc, 5);
+            passed = completed_summary(argv[3], "transient");
+            const auto result = fuelsim::test::read_final_exodus_results(argv[2]);
+            const auto fields = compare_rz_nodal_results(result, read_rz_nodal_reference(argv[4]));
+            print_relative_metrics("m31_temperature", fields.temperature);
+            passed =
+                check(fields.maximum_coordinate_difference < 1.0e-12 &&
+                          relative_metrics_below(fields.temperature, 1.0e-3) &&
+                          fuelsim::test::absolute_metrics_below(fields.radial_displacement, 1.0e-12) &&
+                          fuelsim::test::absolute_metrics_below(fields.axial_displacement, 1.0e-12) &&
+                          result.step_count == 5 && summary_number(read_summary(argv[3]), "accepted_steps") == 4.0 &&
+                          summary_number(read_summary(argv[3]), "contributions") == 10.0,
+                    "M3.1 retains full fields, zero displacement, four steps and ten contributions") &&
+                passed;
+            const std::array<double, 5> times = {0.0, 2.5, 5.0, 8.0, 10.0};
+            for (std::size_t step = 0; step < times.size(); ++step)
+                passed = check(fuelsim::test::read_exodus_results(argv[2], step + 1).time == times[step],
+                             "M3.1 lands exactly on each power-table event") &&
+                         passed;
+        } else if (mode == "pressure-cylinder") {
+            require_argument_count(mode, argc, 4);
+            passed = completed_summary(argv[3], "steady");
+            const auto result = fuelsim::test::read_final_exodus_results(argv[2]);
+            for (const auto* component : {"rr", "hoop"}) {
+                double stress = 0.0;
+                std::size_t count = 0;
+                for (std::size_t q = 0; q < 4; ++q)
+                    for (const double value :
+                        result.element(std::string("stress_") + component + "_q" + std::to_string(q))) {
+                        stress += value;
+                        ++count;
+                    }
+                stress /= static_cast<double>(count);
+                std::cout << "pressure_average_" << component << "=" << stress << '\n';
+                passed = check(count > 0 && std::abs(stress + 1.0e6) / 1.0e6 < 1.0e-10,
+                             "Radial pressure produces the analytic solid-cylinder stress") &&
+                         passed;
+            }
+        } else if (mode == "m43") {
+            require_argument_count(mode, argc, 7);
+            passed = completed_summary(argv[3], "transient");
+            const double tolerance = std::string(argv[5]) == "material_oracle" ? 5.0e-6 : 5.0e-3;
+            passed = run_rz_fields("m43", argv[2], argv[4], tolerance) && passed;
+            const auto fields = compare_rz_nodal_results(
+                fuelsim::test::read_final_exodus_results(argv[2]), read_rz_nodal_reference(argv[4]));
+            passed = check(fields.temperature.maximum_zero_reference_difference < 1.0e-12 &&
+                               fields.radial_displacement.maximum_zero_reference_difference < 1.0e-14 &&
+                               fields.axial_displacement.maximum_zero_reference_difference < 1.0e-14 &&
+                               summary_number(read_summary(argv[3]), "accepted_steps") == 100.0 &&
+                               summary_number(read_summary(argv[3]), "rejected_steps") == 0.0,
+                         "M4.3 retains nodal zero-reference gates and one hundred accepted steps without rejection") &&
+                     passed;
+            passed = fuelsim::test::check_rz_noncoaxial(argv[2], argv[5], argv[6]) && passed;
+        } else if (mode == "m22") {
+            if (argc != 6 && argc != 7)
+                throw std::invalid_argument(
+                    "M2.2 checker requires result, summary, nodes, branch and optional history");
+            passed = completed_summary(argv[3], "transient");
+            passed = run_rz_fields("m22", argv[2], argv[4], 1.0e-3) && passed;
+            const std::string branch = argv[5];
+            passed = check(summary_number(read_summary(argv[3]), "accepted_steps") ==
+                               (branch == "j2_unload_reload" ? 30.0 : 10.0),
+                         "M2.2 commits every configured time step") &&
+                     passed;
+            passed = fuelsim::test::check_rz_inelastic(argv[2], branch, argc == 7 ? argv[6] : "") && passed;
+        } else if (mode == "m23" || mode == "m41") {
+            require_argument_count(mode, argc, 9);
+            const double tolerance = mode == "m23" ? 1.0e-3 : 5.0e-3;
+            passed = completed_summary(argv[3], "transient");
+            passed = run_rz_fields(mode, argv[2], argv[4], tolerance) && passed;
+            const auto result = fuelsim::test::read_final_exodus_results(argv[2]);
+            const auto pressure = compare_contact_pressure(result, "contact_pressure_fuel_cladding", argv[5], 1.0e-12);
+            print_relative_metrics(mode + "_contact_pressure", pressure);
+            passed = check(relative_metrics_below(pressure, tolerance) &&
+                               summary_number(read_summary(argv[3]), "accepted_steps") == 20.0 &&
+                               summary_number(read_summary(argv[3]), "total_cutbacks") == 0.0,
+                         "PCMI completes twenty fixed steps without cutbacks and retains the pressure gate") &&
+                     passed;
+            passed = fuelsim::test::check_rz_pcmi(argv[2], argv[6], argv[7], argv[8], argv[5], tolerance) && passed;
+        } else if (mode == "m57") {
+            require_argument_count(mode, argc, 9);
+            passed = completed_summary(argv[3], "transient");
+            passed = run_rz_fields("m57", argv[2], argv[4], 5.0e-3) && passed;
+            const auto result = fuelsim::test::read_final_exodus_results(argv[2]);
+            const auto pressure = compare_contact_pressure(result, "contact_pressure_fuel_cladding", argv[5], 1.0e-12);
+            print_relative_metrics("m57_contact_pressure", pressure);
+            const auto summary = read_summary(argv[3]);
+            passed =
+                check(relative_metrics_below(pressure, 5.0e-3) && summary_number(summary, "accepted_steps") == 18.0 &&
+                          summary_number(summary, "time_error_rejections") == 0.0 &&
+                          summary_number(summary, "maximum_accepted_time_error_estimate") > 0.0 &&
+                          summary_number(summary, "maximum_accepted_time_error_estimate") < 1.0 &&
+                          summary_number(summary, "minimum_accepted_time_step") <
+                              summary_number(summary, "maximum_accepted_time_step") &&
+                          std::abs(summary_number(summary, "conservation.interface_heat_imbalance")) < 1.0e-10,
+                    "M5.7 retains adaptive-step, pressure and thermal conservation gates") &&
+                passed;
+            passed = fuelsim::test::check_rz_integrated(argv[2], argv[6], argv[7], argv[8]) && passed;
         } else if (mode == "m54") {
             require_argument_count(mode, argc, 6);
             passed = run_m54(argv[2], argv[3], argv[4], argv[5]);
+        } else if (mode == "rz-two-pellet") {
+            require_argument_count(mode, argc, 6);
+            passed = completed_summary(argv[3], "steady");
+            passed = run_rz_fields("m33_two_pellet", argv[2], argv[4], 1.0e-2) && passed;
+            const auto result = fuelsim::test::read_final_exodus_results(argv[2]);
+            const auto pressure =
+                compare_contact_pressure(result, "contact_pressure_pellet_stack", argv[5], 1.0e-12, 0);
+            print_relative_metrics("m33_two_pellet_pressure", pressure);
+            passed =
+                check(relative_metrics_below(pressure, 1.0e-2), "Two-pellet pressure retains three 1 percent gates") &&
+                passed;
         } else if (mode == "rz-multi-contact") {
             require_argument_count(mode, argc, 8);
             passed = completed_summary(argv[3], "steady");

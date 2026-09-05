@@ -121,4 +121,6 @@
 
 [Outputs]
   console = false
+  csv = transient_noncoaxial_finite_strain_coupled_pressure_summary.csv
+  exodus = transient_noncoaxial_finite_strain_coupled_pressure_results.e
 []

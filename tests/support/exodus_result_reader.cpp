@@ -172,6 +172,19 @@ ExodusResults read_exodus_results(const std::string& path, std::size_t step) {
     }
     result.element_variables =
         read_element_variables(file.id(), final_step, element_count, result.element_variable_names.size());
+    const auto side_count = count(ex_inquire_int(file.id(), EX_INQ_SIDE_SETS), "side-set count");
+    std::vector<std::int64_t> side_ids(side_count);
+    if (side_count != 0)
+        check_exodus(ex_get_ids(file.id(), EX_SIDE_SET, side_ids.data()), "Could not read side-set IDs");
+    for (const auto id : side_ids) {
+        std::int64_t entries = 0, factors = 0;
+        check_exodus(
+            ex_get_set_param(file.id(), EX_SIDE_SET, id, &entries, &factors), "Could not read side-set dimensions");
+        std::vector<char> name(maximum_name + 1, '\0');
+        check_exodus(ex_get_name(file.id(), EX_SIDE_SET, id, name.data()), "Could not read side-set name");
+        result.side_set_names.emplace_back(name.data());
+        result.side_set_sizes.push_back(count(entries, "side-set entries"));
+    }
     result.global_variable_names = variable_names(file.id(), EX_GLOBAL);
     result.global_variables.resize(result.global_variable_names.size());
     if (!result.global_variables.empty())

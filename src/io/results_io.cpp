@@ -525,6 +525,9 @@ std::vector<std::string> transient_element_variable_names() {
         result.push_back("equiv_creep_q" + std::to_string(q));
     }
     for (std::size_t q = 0; q < 4; ++q) append_component_variable_names(result, "elastic_", q);
+    for (std::size_t q = 0; q < 4; ++q)
+        for (const char* field : {"reference_r", "reference_z", "reference_measure"})
+            result.push_back(std::string(field) + "_q" + std::to_string(q));
     return result;
 }
 
@@ -754,6 +757,14 @@ std::vector<std::vector<double>> transient_elements(
                 }
                 result[history_offset + 8][source] = history[q].equivalent_plastic_strain;
                 result[history_offset + 9][source] = history[q].equivalent_creep_strain;
+                const auto& point = backend.spatial.region_element_geometry(region, element).points[q];
+                double axial_coordinate = 0.0;
+                for (std::size_t node = 0; node < 4; ++node)
+                    axial_coordinate +=
+                        point.shape[node] * region_mesh.nodes()[region_mesh.elements()[element].nodes[node]].z;
+                result[72 + 3 * q][source] = point.radius;
+                result[73 + 3 * q][source] = axial_coordinate;
+                result[74 + 3 * q][source] = point.weighted_measure;
             }
         }
     }

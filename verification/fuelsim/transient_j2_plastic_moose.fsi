@@ -86,4 +86,6 @@
 
 [Outputs]
   console = false
+  csv = transient_j2_plastic_moose_summary.csv
+  exodus = transient_j2_plastic_moose_results.e
 []

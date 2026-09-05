@@ -143,4 +143,6 @@
 
 [Outputs]
   console = false
+  csv = steady_two_pellet_contact_moose_summary.csv
+  exodus = steady_two_pellet_contact_moose_results.e
 []
