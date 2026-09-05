@@ -7,6 +7,164 @@
 #include <vector>
 
 namespace {
+namespace b523 {
+constexpr double pi = 3.141592653589793238462643383279502884;
+
+fuelsim::UnstructuredHex8Mesh mesh(std::size_t through_thickness_elements = 1, std::size_t tangential_elements = 2,
+    double distortion = 0.0, double initial_gap = 0.0, bool nonmatching = false) {
+    if (through_thickness_elements == 0 || tangential_elements == 0)
+        throw std::invalid_argument("B5.23 mesh divisions must be positive");
+    std::vector<fuelsim::CartesianPoint3> nodes;
+    std::vector<fuelsim::Hex8Element> elements;
+    std::vector<std::int64_t> element_blocks;
+    std::array<std::vector<fuelsim::ElementSide>, 10> faces;
+    const std::array<std::size_t, 2> tangential_divisions =
+        nonmatching ? std::array<std::size_t, 2>{2, 1}
+                    : std::array<std::size_t, 2>{tangential_elements, tangential_elements};
+    const std::array<double, 2> y_lower =
+                                    nonmatching ? std::array<double, 2>{0.0, 0.1} : std::array<double, 2>{0.0, 0.0},
+                                y_upper =
+                                    nonmatching ? std::array<double, 2>{2.0, 0.9} : std::array<double, 2>{1.0, 1.0},
+                                z_lower =
+                                    nonmatching ? std::array<double, 2>{-1.0, 0.1} : std::array<double, 2>{0.0, 0.0},
+                                z_upper =
+                                    nonmatching ? std::array<double, 2>{2.0, 0.9} : std::array<double, 2>{1.0, 1.0};
+    const std::array<std::size_t, 2> block_offsets = {
+        0, 2 * (tangential_divisions[0] + 1) * (through_thickness_elements + 1)};
+    const auto node = [&](std::size_t block, std::size_t z, std::size_t y, std::size_t x) {
+        return block_offsets[block] + z * (tangential_divisions[block] + 1) * (through_thickness_elements + 1) +
+               y * (through_thickness_elements + 1) + x;
+    };
+    for (std::size_t block = 0; block < 2; ++block)
+        for (std::size_t z = 0; z < 2; ++z)
+            for (std::size_t y = 0; y <= tangential_divisions[block]; ++y)
+                for (std::size_t x = 0; x <= through_thickness_elements; ++x)
+                    nodes.push_back({static_cast<double>(block) + (block == 1 ? initial_gap : 0.0) +
+                                         static_cast<double>(x) / static_cast<double>(through_thickness_elements) +
+                                         distortion * std::sin(pi * static_cast<double>(y) /
+                                                               static_cast<double>(tangential_divisions[block])),
+                        y_lower[block] + (y_upper[block] - y_lower[block]) * static_cast<double>(y) /
+                                             static_cast<double>(tangential_divisions[block]),
+                        z == 0 ? z_lower[block] : z_upper[block]});
+    for (std::size_t block = 0; block < 2; ++block)
+        for (std::size_t y = 0; y < tangential_divisions[block]; ++y)
+            for (std::size_t x = 0; x < through_thickness_elements; ++x) {
+                const std::size_t element_index = elements.size();
+                elements.push_back({{{node(block, 0, y, x), node(block, 0, y, x + 1), node(block, 0, y + 1, x + 1),
+                    node(block, 0, y + 1, x), node(block, 1, y, x), node(block, 1, y, x + 1),
+                    node(block, 1, y + 1, x + 1), node(block, 1, y + 1, x)}}});
+                element_blocks.push_back(block == 0 ? 1 : 2);
+                if (block == 0 && x == 0) faces[0].push_back({element_index, 3});
+                if (block == 0 && x + 1 == through_thickness_elements) faces[1].push_back({element_index, 1});
+                if (block == 1 && x == 0) faces[2].push_back({element_index, 3});
+                if (block == 1 && x + 1 == through_thickness_elements) faces[3].push_back({element_index, 1});
+                if (block == 1 && x + 1 == through_thickness_elements && 2 * y < tangential_divisions[block])
+                    faces[6].push_back({element_index, 1});
+                if (block == 1 && x + 1 == through_thickness_elements && 2 * y >= tangential_divisions[block])
+                    faces[7].push_back({element_index, 1});
+                if (block == 1 && y == 0) faces[4].push_back({element_index, 0});
+                if (block == 1 && y + 1 == tangential_divisions[block]) faces[8].push_back({element_index, 2});
+                if (block == 1) faces[5].push_back({element_index, 4});
+                if (block == 1) faces[9].push_back({element_index, 5});
+            }
+
+    std::vector<std::size_t> primary_outer, secondary_outer, secondary_y0, secondary_z0;
+    for (std::size_t z = 0; z < 2; ++z)
+        for (std::size_t y = 0; y <= tangential_divisions[0]; ++y) primary_outer.push_back(node(0, z, y, 0));
+    for (std::size_t z = 0; z < 2; ++z)
+        for (std::size_t y = 0; y <= tangential_divisions[1]; ++y)
+            secondary_outer.push_back(node(1, z, y, through_thickness_elements));
+    for (std::size_t z = 0; z < 2; ++z)
+        for (std::size_t x = 0; x <= through_thickness_elements; ++x) secondary_y0.push_back(node(1, z, 0, x));
+    for (std::size_t y = 0; y <= tangential_divisions[1]; ++y)
+        for (std::size_t x = 0; x <= through_thickness_elements; ++x) secondary_z0.push_back(node(1, 0, y, x));
+    std::vector<fuelsim::ElementSide> secondary_all_surface;
+    for (const std::size_t face : {2U, 3U, 4U, 5U, 8U, 9U})
+        secondary_all_surface.insert(secondary_all_surface.end(), faces[face].begin(), faces[face].end());
+    return fuelsim::UnstructuredHex8Mesh(std::move(nodes), std::move(elements), std::move(element_blocks),
+        {{1, "primary"}, {2, "secondary"}},
+        {{11, "primary_outer_nodes", primary_outer}, {12, "secondary_outer_nodes", secondary_outer},
+            {13, "secondary_y0", secondary_y0}, {14, "secondary_z0", secondary_z0}},
+        {{21, "primary_outer", faces[0]}, {22, "primary_contact", faces[1]}, {23, "secondary_contact", faces[2]},
+            {24, "secondary_outer", faces[3]}, {25, "secondary_y0_surface", faces[4]},
+            {26, "secondary_z0_surface", faces[5]}, {27, "secondary_outer_lower", faces[6]},
+            {28, "secondary_outer_upper", faces[7]}, {29, "secondary_all_surface", secondary_all_surface}});
+}
+} // namespace b523
+
+namespace b527 {
+constexpr double pi = 3.141592653589793238462643383279502884;
+
+struct MeshDivisions final {
+    std::size_t fuel_radial, clad_radial, angular, axial;
+};
+
+struct RegionGrid final {
+    std::size_t offset, radial_nodes, angular_nodes, axial_nodes;
+};
+
+std::size_t node(const RegionGrid& grid, std::size_t radial, std::size_t angular, std::size_t axial) {
+    return grid.offset + axial * grid.angular_nodes * grid.radial_nodes + angular * grid.radial_nodes + radial;
+}
+
+void append_region_nodes(std::vector<fuelsim::CartesianPoint3>& nodes, double inner_radius, double outer_radius,
+    double height, std::size_t radial_elements, std::size_t angular_elements, std::size_t axial_elements) {
+    for (std::size_t axial = 0; axial <= axial_elements; ++axial)
+        for (std::size_t angular = 0; angular <= angular_elements; ++angular)
+            for (std::size_t radial = 0; radial <= radial_elements; ++radial) {
+                const double radius = inner_radius + (outer_radius - inner_radius) * static_cast<double>(radial) /
+                                                         static_cast<double>(radial_elements),
+                             angle = 0.5 * pi * static_cast<double>(angular) / static_cast<double>(angular_elements),
+                             z = height * static_cast<double>(axial) / static_cast<double>(axial_elements);
+                nodes.push_back({radius * std::cos(angle), radius * std::sin(angle), z});
+            }
+}
+
+fuelsim::UnstructuredHex8Mesh engineering_mesh(const MeshDivisions& divisions) {
+    constexpr double fuel_inner_radius = 1.0e-3, fuel_outer_radius = 4.0e-3, clad_inner_radius = 4.005e-3,
+                     clad_outer_radius = 4.7e-3, height = 4.0e-2;
+    std::vector<fuelsim::CartesianPoint3> nodes;
+    append_region_nodes(
+        nodes, fuel_inner_radius, fuel_outer_radius, height, divisions.fuel_radial, divisions.angular, divisions.axial);
+    const std::size_t fuel_node_count = nodes.size();
+    append_region_nodes(
+        nodes, clad_inner_radius, clad_outer_radius, height, divisions.clad_radial, divisions.angular, divisions.axial);
+    const RegionGrid fuel{0, divisions.fuel_radial + 1, divisions.angular + 1, divisions.axial + 1},
+        clad{fuel_node_count, divisions.clad_radial + 1, divisions.angular + 1, divisions.axial + 1};
+    std::vector<fuelsim::Hex8Element> elements;
+    std::vector<std::int64_t> blocks;
+    std::array<std::vector<fuelsim::ElementSide>, 10> sides;
+    const auto append_elements = [&](const RegionGrid& grid, std::size_t radial_elements, std::int64_t block) {
+        for (std::size_t axial = 0; axial < divisions.axial; ++axial)
+            for (std::size_t angular = 0; angular < divisions.angular; ++angular)
+                for (std::size_t radial = 0; radial < radial_elements; ++radial) {
+                    const std::size_t index = elements.size();
+                    elements.push_back({{{node(grid, radial, angular, axial), node(grid, radial + 1, angular, axial),
+                        node(grid, radial + 1, angular + 1, axial), node(grid, radial, angular + 1, axial),
+                        node(grid, radial, angular, axial + 1), node(grid, radial + 1, angular, axial + 1),
+                        node(grid, radial + 1, angular + 1, axial + 1), node(grid, radial, angular + 1, axial + 1)}}});
+                    blocks.push_back(block);
+                    if (block == 1 && radial == 0) sides[0].push_back({index, 3});
+                    if (block == 1 && radial + 1 == radial_elements) sides[1].push_back({index, 1});
+                    if (block == 2 && radial == 0) sides[2].push_back({index, 3});
+                    if (block == 2 && radial + 1 == radial_elements) sides[3].push_back({index, 1});
+                    const std::size_t symmetry_offset = block == 1 ? 4 : 7;
+                    if (angular == 0) sides[symmetry_offset].push_back({index, 0});
+                    if (angular + 1 == divisions.angular) sides[symmetry_offset + 1].push_back({index, 2});
+                    if (axial == 0) sides[symmetry_offset + 2].push_back({index, 4});
+                }
+    };
+    append_elements(fuel, divisions.fuel_radial, 1);
+    append_elements(clad, divisions.clad_radial, 2);
+    return fuelsim::UnstructuredHex8Mesh(std::move(nodes), std::move(elements), std::move(blocks),
+        {{1, "fuel"}, {2, "clad"}}, {},
+        {{10, "fuel_inner", sides[0]}, {11, "fuel_outer", sides[1]}, {12, "clad_inner", sides[2]},
+            {13, "clad_outer", sides[3]}, {14, "fuel_symmetry_y", sides[4]}, {15, "fuel_symmetry_x", sides[5]},
+            {16, "fuel_bottom", sides[6]}, {17, "clad_symmetry_y", sides[7]}, {18, "clad_symmetry_x", sides[8]},
+            {19, "clad_bottom", sides[9]}});
+}
+} // namespace b527
+
 namespace b59 {
 constexpr double length = 2.0, half_thickness = 0.1, width = 0.25, step_time = 1.0e7;
 
@@ -163,6 +321,14 @@ int main(int argc, char** argv) {
             fuelsim::write_exodus_hex8(argv[2], b59::make_mesh(b59::cases[1]).mesh);
         else if (std::string(argv[1]) == "b59_distorted")
             fuelsim::write_exodus_hex8(argv[2], b59::make_mesh(b59::cases[2]).mesh);
+        else if (std::string(argv[1]) == "b526_cycle")
+            fuelsim::write_exodus_hex8(argv[2], b523::mesh(2, 1, 0, 1e-4));
+        else if (std::string(argv[1]) == "b526_reversal")
+            fuelsim::write_exodus_hex8(argv[2], b523::mesh(2, 1));
+        else if (std::string(argv[1]) == "b540")
+            fuelsim::write_exodus_hex8(argv[2], b523::mesh(1, 1, 0, 5e-4, true));
+        else if (std::string(argv[1]) == "b527")
+            fuelsim::write_exodus_hex8(argv[2], b527::engineering_mesh({2, 1, 4, 3}));
         else if (std::string(argv[1]) == "b544")
             fuelsim::write_exodus_hex8(argv[2], b544::mesh());
         else if (std::string(argv[1]) == "b510")

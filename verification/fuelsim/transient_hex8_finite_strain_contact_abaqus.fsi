@@ -245,4 +245,6 @@
 
 [Outputs]
   console = true
+  csv = transient_hex8_finite_strain_contact_abaqus_summary.csv
+  exodus = transient_hex8_finite_strain_contact_abaqus_results.e
 []

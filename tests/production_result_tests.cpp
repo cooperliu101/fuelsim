@@ -937,6 +937,15 @@ int main(int argc, char** argv) {
                          "B5.5 completes one Backward Euler increment without a rejected step") &&
                      passed;
             passed = fuelsim::test::check_hex8_b55(argv[2], argv[4], argv[5]) && passed;
+        } else if (mode == "hex8-finite-contact") {
+            require_argument_count(mode, argc, 6);
+            passed = completed_summary(argv[3], "transient");
+            const auto summary = read_summary(argv[3]);
+            passed =
+                check(summary_number(summary, "accepted_steps") == 20 && summary_number(summary, "rejected_steps") == 0,
+                    "B4.3 completes twenty fixed production increments") &&
+                passed;
+            passed = fuelsim::test::check_hex8_finite_contact(argv[2], argv[4], argv[5]) && passed;
         } else if (mode == "hex8-norton-abaqus") {
             require_argument_count(mode, argc, 8);
             passed = completed_summary(argv[3], "transient");
@@ -1434,6 +1443,89 @@ int main(int argc, char** argv) {
                          passed;
             }
             passed = fuelsim::test::check_hex8_multimaterial(argv[2], argv[3], argv[4], argv[5], argv[6]) && passed;
+        } else if (mode == "hex8-multi-contact-path") {
+            require_argument_count(mode, argc, 5);
+            passed = completed_summary(argv[3], "transient");
+            const auto summary = read_summary(argv[3]);
+            passed =
+                check(summary_number(summary, "accepted_steps") == 4 && summary_number(summary, "rejected_steps") == 0,
+                    "B4.8 completes four increments without retrying") &&
+                passed;
+            passed = fuelsim::test::check_hex8_multi_contact_path(argv[2], argv[4]) && passed;
+        } else if (mode == "hex8-contact-path") {
+            require_argument_count(mode, argc, 6);
+            fuelsim::test::ProductionHex8FullFieldOptions options;
+            options.case_name = argv[4];
+            options.reference_prefix = argv[5];
+            if (options.case_name == "b523") {
+                options.contact_name = "coupled_contact";
+                options.expected_steps = 20;
+                options.time_step = 0.02;
+                options.bulk_relative_tolerance = 5e-3;
+                options.reaction_heat_flux_pointwise_absolute_tolerance = 0.05;
+                options.gate_contact_pressure = false;
+                options.gate_contact_slip = false;
+                options.gate_contact_state = false;
+            } else if (options.case_name == "b527_medium") {
+                options.contact_name = "fuel_clad_contact";
+                options.expected_steps = 10;
+                options.time_step = 1000;
+                options.bulk_relative_tolerance = 1e-2;
+                options.displacement_pointwise_relative_tolerance = 1e-2;
+                options.reaction_pointwise_relative_tolerance = 5e-2;
+                options.reaction_pointwise_absolute_tolerance = 1e-6;
+                options.stress_pointwise_relative_tolerance = 2e-2;
+                options.stress_pointwise_absolute_tolerance = 10;
+                options.logarithmic_strain_pointwise_relative_tolerance = 2e-2;
+                options.elastic_strain_pointwise_relative_tolerance = 2e-2;
+                options.elastic_strain_pointwise_absolute_tolerance = 1e-10;
+                options.contact_relative_tolerance = 1e-2;
+                options.contact_pointwise_relative_tolerance = 1e-2;
+                options.energy_pointwise_relative_tolerance = 5e-2;
+                options.minimum_contact_state_match_fraction = 0.95;
+            } else if (options.case_name == "b526_contact_cycle" || options.case_name == "b538_contact_cycle" ||
+                       options.case_name == "b526_friction_reversal" || options.case_name == "b539_friction_reversal" ||
+                       options.case_name == "b540_nonmatching_contact_cycle") {
+                options.contact_name = "coupled_contact";
+                options.time_step = 0.02;
+                options.reduced_integration =
+                    options.case_name != "b526_contact_cycle" && options.case_name != "b526_friction_reversal";
+                options.contact_relative_tolerance = 5e-3;
+                options.contact_pointwise_relative_tolerance = 1.25e-2;
+                options.reaction_heat_flux_pointwise_absolute_tolerance = 0.2;
+                options.contact_slip_pointwise_absolute_tolerance = 5e-6;
+                if (options.case_name == "b526_contact_cycle" || options.case_name == "b538_contact_cycle") {
+                    options.expected_steps = 15;
+                    options.contact_transition = "cycle";
+                    options.displacement_pointwise_absolute_tolerance = 1e-12;
+                    options.logarithmic_strain_pointwise_absolute_tolerance = 1e-11;
+                    options.external_work_pointwise_absolute_tolerance = 1e-12;
+                    options.gate_contact_slip = options.case_name != "b526_contact_cycle";
+                } else if (options.case_name == "b540_nonmatching_contact_cycle") {
+                    options.expected_steps = 45;
+                    options.contact_transition = "nonmatching";
+                    options.displacement_pointwise_absolute_tolerance = 5e-8;
+                    options.reaction_pointwise_absolute_tolerance = 0.05;
+                    options.stress_pointwise_absolute_tolerance = 0.1;
+                    options.logarithmic_strain_pointwise_absolute_tolerance = 2e-8;
+                    options.elastic_strain_pointwise_absolute_tolerance = 2e-10;
+                    options.energy_pointwise_relative_tolerance = 0.075;
+                    options.hourglass_energy_pointwise_absolute_tolerance = 1e-8;
+                    options.external_work_pointwise_absolute_tolerance = 1e-12;
+                    options.gate_contact_state = false;
+                } else {
+                    options.expected_steps = 20;
+                    options.contact_transition = "reversal";
+                }
+            } else
+                throw std::invalid_argument("Unknown contact path");
+            passed = completed_summary(argv[3], "transient");
+            const auto summary = read_summary(argv[3]);
+            passed = check(summary_number(summary, "accepted_steps") == static_cast<double>(options.expected_steps) &&
+                               summary_number(summary, "rejected_steps") == 0,
+                         "Contact path completes every fixed increment without retrying") &&
+                     passed;
+            passed = fuelsim::test::compare_production_hex8_full_field(argv[2], options) && passed;
         } else if (mode == "hex8-bulk-abaqus") {
             require_argument_count(mode, argc, 6);
             fuelsim::test::ProductionHex8FullFieldOptions options;
@@ -1471,11 +1563,70 @@ int main(int argc, char** argv) {
                              "B6.1 activates plasticity and creep") &&
                          passed;
             }
-        } else if (mode == "b40-restart") {
+        } else if (mode == "b48-mpi") {
+            require_argument_count(mode, argc, 5);
+            passed = completed_summary(argv[3], "transient");
+            const auto summary = read_summary(argv[3]);
+            passed =
+                check(summary_number(summary, "mpi_ranks") == 2 && summary_number(summary, "accepted_steps") == 4 &&
+                          summary_number(summary, "rejected_steps") == 0,
+                    "B4.8 runs four increments on two MPI ranks") &&
+                passed;
+            const double dofs = summary_number(summary, "global_state_dofs");
+            passed = check(summary_number(summary, "maximum_shadow_state_dofs") <= dofs &&
+                               summary_number(summary, "total_shadow_state_dofs") <= 2 * dofs &&
+                               summary_number(summary, "total_remote_shadow_state_dofs") > 0,
+                         "B4.8 exchanges bounded, nonempty remote state") &&
+                     passed;
+            const auto actual = fuelsim::test::read_exodus_nodal_history(argv[2]);
+            const auto reference = fuelsim::test::read_exodus_nodal_history(argv[4]);
+            if (actual.size() != 5 || reference.size() != 5)
+                throw std::invalid_argument("B4.8 MPI history is incomplete");
+            double maximum_difference = 0, maximum_scaled_difference = 0;
+            std::size_t compared_values = 0;
+            for (std::size_t step = 0; step < actual.size(); ++step) {
+                if (actual[step].time != reference[step].time || actual[step].nodes != reference[step].nodes ||
+                    actual[step].nodal_variable_names != reference[step].nodal_variable_names ||
+                    actual[step].element_variable_names != reference[step].element_variable_names)
+                    throw std::invalid_argument("B4.8 MPI history schema or mesh differs");
+                for (int category = 0; category < 2; ++category) {
+                    const auto& values = category == 0 ? actual[step].nodal_variables : actual[step].element_variables;
+                    const auto& expected =
+                        category == 0 ? reference[step].nodal_variables : reference[step].element_variables;
+                    for (std::size_t field = 0; field < values.size(); ++field) {
+                        if (values[field].size() != expected[field].size())
+                            throw std::invalid_argument("B4.8 MPI field lengths differ");
+                        for (std::size_t item = 0; item < values[field].size(); ++item) {
+                            const double a = values[field][item], b = expected[field][item];
+                            if (std::isnan(a) && std::isnan(b)) continue;
+                            maximum_difference = std::max(maximum_difference, std::abs(a - b));
+                            maximum_scaled_difference =
+                                std::max(maximum_scaled_difference, std::abs(a - b) / (1 + std::abs(b)));
+                            ++compared_values;
+                            if (!std::isfinite(a) || !std::isfinite(b) ||
+                                !(std::abs(a - b) / (1 + std::abs(b)) < 1e-10))
+                                throw std::runtime_error(
+                                    "B4.8 MPI history differs: step=" + std::to_string(step) + " field=" +
+                                    (category == 0 ? actual[step].nodal_variable_names[field]
+                                                   : actual[step].element_variable_names[field]) +
+                                    " item=" + std::to_string(item) + " actual=" + std::to_string(a) +
+                                    " reference=" + std::to_string(b));
+                        }
+                    }
+                }
+            }
+            std::cout << "b48_mpi_history_compared_values=" << compared_values << '\n'
+                      << "b48_mpi_history_maximum_absolute_difference=" << maximum_difference << '\n'
+                      << "b48_mpi_history_maximum_scaled_difference=" << maximum_scaled_difference << '\n'
+                      << "b48_step2_source_node3_reaction_x_one_rank=" << reference[2].nodal("reaction_force_x").at(2)
+                      << '\n'
+                      << "b48_step2_source_node3_reaction_x_two_rank=" << actual[2].nodal("reaction_force_x").at(2)
+                      << '\n';
+        } else if (mode == "b40-restart" || mode == "b48-restart") {
             require_argument_count(mode, argc, 5);
             passed = completed_summary(argv[3], "transient");
             passed = check(summary_number(read_summary(argv[3]), "accepted_steps") == 2.0,
-                         "B4.0 restart completes two remaining time steps") &&
+                         "Restart completes two remaining time steps") &&
                      passed;
             passed = compare_result_files(argv[2], argv[4], 0.0, false) && passed;
         } else if (mode == "mpi-equivalence" || mode == "restart") {

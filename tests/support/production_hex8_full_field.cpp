@@ -7,6 +7,7 @@
 #include <fstream>
 #include <iostream>
 #include <limits>
+#include <map>
 #include <numeric>
 #include <set>
 #include <sstream>
@@ -38,6 +39,15 @@ struct IntegrationReference final {
     std::array<double, 3> heat_flux{};
     SymmetricTensor3Values stress{}, logarithmic_strain{}, elastic_strain{}, plastic_strain{}, creep_strain{};
     double equivalent_plastic_strain = 0.0, equivalent_creep_strain = 0.0, integration_volume = 0.0;
+};
+
+struct ContactReference final {
+    std::size_t increment = 0, node = 0, state = 0;
+    double time = 0.0;
+    CartesianPoint3 position{};
+    double opening = 0.0, pressure = 0.0, slip_first = 0.0, slip_second = 0.0;
+    std::array<double, 3> normal_force{}, shear_force{}, tangent_first{}, tangent_second{};
+    double heat_flux = 0.0, shear_traction_first = 0.0, shear_traction_second = 0.0;
 };
 
 struct EnergyReference final {
@@ -134,6 +144,64 @@ std::vector<IntegrationReference> read_integration(const std::string& path) {
         reference.creep_strain = tensor(values, 36, path, true);
         reference.equivalent_creep_strain = number(values, 42, path);
         reference.integration_volume = number(values, 43, path);
+        result.push_back(reference);
+    }
+    return result;
+}
+
+std::size_t nonnegative_integer(double value, const std::string& path) {
+    const double rounded = std::round(value);
+    if (std::abs(value - rounded) > 1.0e-12 || rounded < 0.0)
+        throw std::invalid_argument("Abaqus HEX8 full-field index is not a nonnegative integer in " + path);
+    return static_cast<std::size_t>(rounded);
+}
+
+std::vector<ContactReference> read_contact(const std::string& path, bool integrated_baseline = false) {
+    std::ifstream input(path);
+    if (!input) throw std::runtime_error("Could not read Abaqus HEX8 contact reference: " + path);
+    std::string line;
+    std::getline(input, line);
+    const std::string expected =
+        integrated_baseline
+            ? "increment,time_s,node,x_m,y_m,z_m,opening_m,pressure_pa,slip1_m,slip2_m,normal_force1_n,"
+              "normal_force2_n,normal_force3_n,shear_force1_n,shear_force2_n,shear_force3_n,contact_heat_flux_w,state"
+            : "increment,time_s,node,x_m,y_m,z_m,opening_m,pressure_pa,slip1_m,slip2_m,normal_force1_n,"
+              "normal_force2_n,normal_force3_n,shear_force1_n,shear_force2_n,shear_force3_n,contact_heat_flux_w,"
+              "shear_traction1_pa,shear_traction2_pa,tangent1_x,tangent1_y,tangent1_z,tangent2_x,tangent2_y,"
+              "tangent2_z,state";
+    if (line != expected) throw std::invalid_argument("Unexpected Abaqus HEX8 contact header in " + path);
+    std::vector<ContactReference> result;
+    while (std::getline(input, line)) {
+        if (line.empty()) continue;
+        const std::vector<std::string> values = split_csv(line);
+        if (values.size() != (integrated_baseline ? 18U : 26U))
+            throw std::invalid_argument("Unexpected Abaqus HEX8 contact columns in " + path);
+        ContactReference reference;
+        reference.increment = positive_integer(number(values, 0, path), path);
+        reference.time = number(values, 1, path);
+        reference.node = positive_integer(number(values, 2, path), path);
+        reference.position = {number(values, 3, path), number(values, 4, path), number(values, 5, path)};
+        reference.opening = number(values, 6, path);
+        reference.pressure = number(values, 7, path);
+        reference.slip_first = number(values, 8, path);
+        reference.slip_second = number(values, 9, path);
+        for (std::size_t component = 0; component < 3; ++component) {
+            reference.normal_force[component] = number(values, 10 + component, path);
+            reference.shear_force[component] = number(values, 13 + component, path);
+            if (!integrated_baseline) {
+                reference.tangent_first[component] = number(values, 19 + component, path);
+                reference.tangent_second[component] = number(values, 22 + component, path);
+            }
+        }
+        reference.heat_flux = number(values, 16, path);
+        if (integrated_baseline) {
+            reference.tangent_first = {0, 0, 1};
+            reference.tangent_second = {0, -1, 0};
+        } else {
+            reference.shear_traction_first = number(values, 17, path);
+            reference.shear_traction_second = number(values, 18, path);
+        }
+        reference.state = nonnegative_integer(number(values, integrated_baseline ? 17 : 25, path), path);
         result.push_back(reference);
     }
     return result;
@@ -245,6 +313,166 @@ bool report_grouped(const std::string& name, const GroupedFieldErrorMetrics& met
     return passed;
 }
 
+bool compare_contact_history(const std::vector<ExodusResults>& frames, const ProductionHex8FullFieldOptions& options) {
+    const bool integrated_baseline = options.case_name == "b523";
+    const auto refs = read_contact(options.reference_prefix + "_contact.csv", integrated_baseline);
+    std::array<FieldErrorMetrics, 3> baseline_resultants;
+    const auto prefix = options.case_name + "_";
+    const auto suffix = "_" + options.contact_name;
+    if (refs.empty()) throw std::invalid_argument("Contact reference must not be empty");
+    std::array<GroupedFieldErrorMetrics, 8> vectors;
+    FieldErrorMetrics pressure, normal_magnitude;
+    std::set<std::pair<std::size_t, std::size_t>> seen;
+    std::map<std::size_t, double> initial_faces;
+    std::size_t state_count = 0, matched_states = 0, sticking_seen = 0, sliding_seen = 0;
+    bool active_seen = false, reopened = false, recontact = false, crossed = false, final_active = false,
+         final_sticking = false;
+    double minimum_y = 0, maximum_y = 0, maximum_basis_error = 0;
+    const std::array<std::string, 3> axes = {"x", "y", "z"};
+    for (std::size_t step = 1; step < frames.size(); ++step) {
+        const auto& frame = frames[step];
+        std::array<double, 3> force{}, expected_force{}, moment{}, expected_moment{}, center{}, expected_center{};
+        double weight = 0, expected_weight = 0, tangent_y = 0;
+        std::size_t active = 0, sliding = 0, count = 0, output_count = 0;
+        for (double flag : frame.nodal("contact_projected" + suffix))
+            if (!std::isnan(flag)) ++output_count;
+        for (const auto& ref : refs) {
+            if (ref.increment != step) continue;
+            if (ref.node == 0 || ref.node > frame.nodes.size() || std::abs(ref.time - frame.time) > 1e-7 ||
+                !seen.emplace(step, ref.node).second)
+                throw std::invalid_argument("Contact reference association is invalid");
+            ++count;
+            const auto n = ref.node - 1;
+            std::array<double, 3> p{}, ep = {ref.position.x, ref.position.y, ref.position.z}, nf{},
+                                       enf = ref.normal_force, sf{}, esf = ref.shear_force, f{}, ef{}, slip{}, eslip{};
+            for (std::size_t c = 0; c < 3; ++c) {
+                p[c] = frame.nodes[n][c] + frame.nodal("displacement_" + axes[c]).at(n);
+                nf[c] = -frame.nodal("contact_normal_force_" + axes[c] + suffix).at(n);
+                sf[c] = -frame.nodal("contact_tangential_force_" + axes[c] + suffix).at(n);
+                f[c] = nf[c] + sf[c];
+                ef[c] = enf[c] + esf[c];
+                slip[c] = frame.nodal("contact_total_slip_" + axes[c] + suffix).at(n);
+                eslip[c] = ref.slip_first * ref.tangent_first[c] + ref.slip_second * ref.tangent_second[c];
+                force[c] += f[c];
+                expected_force[c] += ef[c];
+            }
+            vectors[0].add(p.data(), ep.data(), 3);
+            if (ref.state != 0) vectors[1].add(slip.data(), eslip.data(), 3);
+            vectors[2].add(nf.data(), enf.data(), 3);
+            vectors[3].add(f.data(), ef.data(), 3);
+            vectors[7].add(sf.data(), esf.data(), 3);
+            const double w = std::hypot(nf[0], nf[1], nf[2]), ew = std::hypot(enf[0], enf[1], enf[2]);
+            normal_magnitude.add(w, ew);
+            pressure.add(frame.nodal("contact_pressure" + suffix).at(n), ref.pressure);
+            weight += w;
+            expected_weight += ew;
+            for (std::size_t c = 0; c < 3; ++c) {
+                const auto next = (c + 1) % 3, last = (c + 2) % 3;
+                moment[c] += p[next] * f[last] - p[last] * f[next];
+                expected_moment[c] += ep[next] * ef[last] - ep[last] * ef[next];
+                center[c] += w * p[c];
+                expected_center[c] += ew * ep[c];
+            }
+            double first_norm = 0, second_norm = 0, orthogonal = 0;
+            for (std::size_t c = 0; c < 3; ++c) {
+                first_norm += ref.tangent_first[c] * ref.tangent_first[c];
+                second_norm += ref.tangent_second[c] * ref.tangent_second[c];
+                orthogonal += ref.tangent_first[c] * ref.tangent_second[c];
+            }
+            maximum_basis_error = std::max(
+                {maximum_basis_error, std::abs(first_norm - 1), std::abs(second_norm - 1), std::abs(orthogonal)});
+            const std::size_t state = frame.nodal("contact_pressure" + suffix).at(n) <= 0  ? 0
+                                      : frame.nodal("contact_sliding" + suffix).at(n) == 1 ? 2
+                                                                                           : 1;
+            ++state_count;
+            if (state == ref.state) ++matched_states;
+            if (state != 0) {
+                ++active;
+                if (state == 2) ++sliding;
+                tangent_y -= sf[1];
+                const double face = frame.nodal("contact_primary_face" + suffix).at(n);
+                if (!std::isfinite(face)) throw std::invalid_argument("Active contact has no primary face");
+                if (!initial_faces.emplace(n, face).second && initial_faces.at(n) != face) crossed = true;
+            }
+        }
+        if (count == 0 || count != output_count)
+            throw std::invalid_argument("Contact reference does not cover every output constraint");
+        vectors[4].add(force.data(), expected_force.data(), 3);
+        vectors[5].add(moment.data(), expected_moment.data(), 3);
+        for (std::size_t c = 0; c < 3; ++c) {
+            baseline_resultants[0].add(force[c], expected_force[c]);
+            baseline_resultants[1].add(moment[c], expected_moment[c]);
+        }
+        if (weight > 0 && expected_weight > 0) {
+            for (std::size_t c = 0; c < 3; ++c) {
+                center[c] /= weight;
+                expected_center[c] /= expected_weight;
+            }
+            vectors[6].add(center.data(), expected_center.data(), 3);
+            for (std::size_t c = 0; c < 3; ++c) baseline_resultants[2].add(center[c], expected_center[c]);
+        }
+        if (active == 0) {
+            if (active_seen) reopened = true;
+        } else {
+            if (reopened) recontact = true;
+            active_seen = true;
+        }
+        sticking_seen += active - sliding;
+        sliding_seen += sliding;
+        minimum_y = std::min(minimum_y, tangent_y);
+        maximum_y = std::max(maximum_y, tangent_y);
+        final_active = active > 0;
+        final_sticking = final_active && sliding == 0;
+    }
+    const double pointwise = options.contact_pointwise_relative_tolerance > 0
+                                 ? options.contact_pointwise_relative_tolerance
+                                 : options.contact_relative_tolerance;
+    const std::array<std::string, 8> names = {"contact_position", "contact_slip_vector", "contact_normal_force_vector",
+        "contact_complete_force_vector", "contact_resultant", "contact_moment", "contact_normal_force_center",
+        "contact_shear_force_vector"};
+    bool passed = true;
+    for (std::size_t i = 0; i < vectors.size(); ++i)
+        passed = report_grouped(prefix + names[i], vectors[i], options.contact_relative_tolerance, pointwise,
+                     i == 0 || i == 6 ? options.coordinate_tolerance
+                     : i == 1         ? 1e-10
+                                      : 1e-2,
+                     !integrated_baseline && i != 7 && (i != 1 || options.gate_contact_slip),
+                     i == 1 ? options.contact_slip_pointwise_absolute_tolerance : 0) &&
+                 passed;
+    passed = report_metric(prefix + "contact_pressure", pressure, options.contact_relative_tolerance, pointwise, 1,
+                 options.gate_contact_pressure) &&
+             passed;
+    passed = report_metric(prefix + "contact_normal_force_magnitude", normal_magnitude,
+                 options.contact_relative_tolerance, pointwise, 1e-2, !integrated_baseline) &&
+             passed;
+    if (integrated_baseline)
+        for (std::size_t i = 0; i < 3; ++i)
+            passed = report_metric(prefix + names[4 + i] + "_components", baseline_resultants[i], 5e-3, 5e-3,
+                         i == 2 ? 1e-8 : 1, true) &&
+                     passed;
+    const double fraction = static_cast<double>(matched_states) / static_cast<double>(state_count);
+    bool transition = true;
+    if (options.contact_transition == "cycle")
+        transition = active_seen && reopened && recontact && final_active;
+    else if (options.contact_transition == "nonmatching")
+        transition = active_seen && reopened && recontact && crossed && final_active;
+    else if (options.contact_transition == "reversal")
+        transition = sticking_seen > 0 && sliding_seen > 0 && minimum_y < 0 && maximum_y > 0 && final_sticking;
+    std::cout << prefix << "contact_state_match_fraction=" << fraction << '\n'
+              << prefix << "contact_transition_verified=" << transition << '\n'
+              << prefix << "maximum_tangent_basis_error=" << maximum_basis_error << '\n';
+    if (seen.size() != refs.size() || !final_active || !transition || maximum_basis_error >= 1e-9 ||
+        (options.gate_contact_state && fraction < options.minimum_contact_state_match_fraction)) {
+        std::cerr << "[FAIL] " << prefix << "contact coverage, state, transition, or reference basis check failed\n";
+        passed = false;
+    }
+    if (options.case_name == "b527_medium" && !(std::abs(frames.back().global("contact_heat_rate" + suffix)) > 0)) {
+        std::cerr << "[FAIL] B5.27 requires active thermal contact\n";
+        passed = false;
+    }
+    return passed;
+}
+
 std::array<double, 6> tensor_output(const ExodusResults& frame, const std::string& name, std::size_t q, std::size_t e) {
     std::array<double, 6> result{};
     const std::array<std::string, 6> names = {"xx", "yy", "zz", "xy", "yz", "xz"};
@@ -286,7 +514,7 @@ bool compare_production_hex8_full_field(const std::string& output_path, const Pr
     const std::vector<NodeReference> nodes = read_nodes(options.reference_prefix + "_nodal.csv");
     const std::vector<IntegrationReference> integration =
         read_integration(options.reference_prefix + "_integration.csv");
-    require_contact_free_reference(options.reference_prefix + "_contact.csv");
+    if (options.contact_name.empty()) require_contact_free_reference(options.reference_prefix + "_contact.csv");
     const std::vector<EnergyReference> energy = read_energy(options.reference_prefix + "_energy.csv");
     const std::size_t integration_points_per_element = options.reduced_integration ? 1 : 8;
     const auto frames = read_exodus_history(output_path);
@@ -440,7 +668,8 @@ bool compare_production_hex8_full_field(const std::string& output_path, const Pr
                  bulk_pointwise_tolerance, options.coordinate_tolerance, true) &&
              passed;
     passed = report_grouped(prefix + "stress_tensor", stress_tensor, options.bulk_relative_tolerance,
-                 stress_pointwise_tolerance, 1.0, true, options.stress_pointwise_absolute_tolerance) &&
+                 stress_pointwise_tolerance, options.case_name == "b523" ? 1e-12 : 1.0, true,
+                 options.stress_pointwise_absolute_tolerance) &&
              passed;
     passed = report_grouped(prefix + "logarithmic_strain_tensor", logarithmic_strain_tensor,
                  options.bulk_relative_tolerance, logarithmic_strain_pointwise_tolerance, 1.0e-12, true,
@@ -463,7 +692,7 @@ bool compare_production_hex8_full_field(const std::string& output_path, const Pr
                  inelastic_pointwise_tolerance, 1.0e-12, true) &&
              passed;
     passed = report_metric(prefix + "material_temperature", integration_metrics[35], options.bulk_relative_tolerance,
-                 bulk_pointwise_tolerance, 1.0e-8, true) &&
+                 bulk_pointwise_tolerance, options.case_name == "b523" ? 1e-12 : 1.0e-8, true) &&
              passed;
     passed = report_metric(prefix + "integration_volume", integration_metrics[36], options.bulk_relative_tolerance,
                  bulk_pointwise_tolerance, 1.0e-15, true) &&
@@ -472,12 +701,14 @@ bool compare_production_hex8_full_field(const std::string& output_path, const Pr
         bulk_pointwise_tolerance, 1.0e-6, false);
     std::cout << prefix << "maximum_integration_coordinate_difference=" << maximum_integration_coordinate_difference
               << '\n';
-    if (maximum_integration_coordinate_difference >= 1.0e-3) {
+    if (maximum_integration_coordinate_difference >= (options.case_name == "b523" ? 1e-4 : 1e-3)) {
         std::cerr << "[FAIL] " << options.case_name << " integration-point coordinates do not map uniquely\n";
         passed = false;
     }
 
     std::array<FieldErrorMetrics, 8> energy_metrics;
+    FieldErrorMetrics stored_heat;
+    double cumulative_stored_heat = 0, cumulative_reference_heat = 0;
     double maximum_abaqus_artificial_energy = 0.0, maximum_abaqus_artificial_energy_fraction = 0.0;
     double cumulative_elastic = 0.0, cumulative_plastic = 0.0, cumulative_creep = 0.0, cumulative_friction = 0.0,
            cumulative_external_work = 0.0;
@@ -505,18 +736,24 @@ bool compare_production_hex8_full_field(const std::string& output_path, const Pr
         energy_metrics[5].add(cumulative_external_work, expected.external_work);
         energy_metrics[6].add(snapshot.global("conservation_dirichlet_heat_input_rate"), expected.boundary_heat_rate);
         energy_metrics[7].add(snapshot.global("conservation_mechanical_hourglass_energy"), expected.artificial);
+        if (options.case_name == "b523") {
+            cumulative_stored_heat += snapshot.global("conservation_stored_heat_rate") * options.time_step;
+            cumulative_reference_heat += expected.boundary_heat_rate * options.time_step;
+            stored_heat.add(cumulative_stored_heat, cumulative_reference_heat);
+        }
     }
     const std::array<std::string, 8> energy_names = {"internal_energy", "elastic_energy", "plastic_dissipation",
         "creep_dissipation", "friction_dissipation", "external_work", "boundary_heat_rate",
         "mechanical_hourglass_energy"};
     for (std::size_t field = 0; field < energy_metrics.size(); ++field) {
         const bool comparable = field != 4;
-        passed = report_metric(prefix + energy_names[field], energy_metrics[field], options.energy_relative_tolerance,
-                     energy_pointwise_tolerance, field == 6 ? 1.0e-2 : 1.0e-8, comparable,
-                     field == 5   ? options.external_work_pointwise_absolute_tolerance
-                     : field == 7 ? options.hourglass_energy_pointwise_absolute_tolerance
-                                  : 0.0) &&
-                 passed;
+        passed =
+            report_metric(prefix + energy_names[field], energy_metrics[field], options.energy_relative_tolerance,
+                energy_pointwise_tolerance, field == 6 && options.case_name != "b523" ? 1.0e-2 : 1.0e-8, comparable,
+                field == 5   ? options.external_work_pointwise_absolute_tolerance
+                : field == 7 ? options.hourglass_energy_pointwise_absolute_tolerance
+                             : 0.0) &&
+            passed;
     }
     std::cout << prefix << "abaqus_artificial_energy_maximum_absolute=" << maximum_abaqus_artificial_energy << '\n'
               << prefix
@@ -524,8 +761,22 @@ bool compare_production_hex8_full_field(const std::string& output_path, const Pr
               << '\n';
     std::cout << prefix << "compared_nodal_rows=" << nodes.size() << '\n'
               << prefix << "compared_integration_rows=" << integration.size() << '\n'
-              << prefix << "compared_contact_rows=" << 0 << '\n'
               << prefix << "compared_energy_rows=" << energy.size() << '\n';
+    if (!options.contact_name.empty()) passed = compare_contact_history(frames, options) && passed;
+    if (options.case_name == "b523") {
+        passed = report_metric(prefix + "stored_heat", stored_heat, 1e-2, 1e-2, 1e-8, true) && passed;
+        const auto& final = frames.back();
+        const auto active = std::count_if(final.nodal("contact_pressure_coupled_contact").begin(),
+            final.nodal("contact_pressure_coupled_contact").end(), [](double p) { return p > 0; });
+        const auto& plastic = final.element("equiv_plastic_q0");
+        const auto& creep = final.element("equiv_creep_q0");
+        if (active != 4 || !(*std::max_element(plastic.begin(), plastic.end()) > 0) ||
+            !(*std::max_element(creep.begin(), creep.end()) > 0) ||
+            !(cumulative_friction > 0 && energy.back().friction > 0)) {
+            std::cerr << "[FAIL] B5.23 must activate both inelastic mechanisms, friction, and all four contact nodes\n";
+            passed = false;
+        }
+    }
     if (passed) std::cout << "[PASS] " << options.case_name << " Abaqus full-field comparison\n";
     return passed;
 }

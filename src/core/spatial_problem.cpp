@@ -1120,6 +1120,12 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
             for (std::size_t dof = field.begin; dof < field.end; ++dof)
                 if (!(converged_solution[dof] > 0.0))
                     throw std::domain_error("TransientProblem committed temperatures must be positive");
+    // Solver callbacks validate only the contributions owned by this MPI rank.
+    // Committed diagnostics and histories are replicated and traverse all
+    // contributions, including contact candidates outside that local partition.
+    // Refresh their projections from the complete converged state before
+    // assembling reactions or committing any history.
+    _impl->validate_state(converged_solution);
     if (_impl->is_cartesian()) {
         TransientConservationSummary conservation;
         std::vector<double> external_load_residual;

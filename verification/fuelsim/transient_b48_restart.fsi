@@ -3,12 +3,10 @@
   problem = transient
   geometry = cartesian_3d
 []
-
 [Mesh]
   type = exodus
   file = ../abaqus/b48_hex8_multi_contact_mesh.e
 []
-
 [Materials]
   [elastic]
     [thermal]
@@ -24,7 +22,6 @@
     []
   []
 []
-
 [Regions]
   [primary_a]
     block = primary_a
@@ -55,7 +52,6 @@
     volumetric_heat_source = 0
   []
 []
-
 [TimeFunctions]
   [pair_a_x]
     type = piecewise_linear
@@ -88,7 +84,6 @@
     values = 0 0.014 0.42 0.63 0.84
   []
 []
-
 [Contact]
   [pair_a]
     primary = primary_a_contact
@@ -115,7 +110,6 @@
     []
   []
 []
-
 [BoundaryConditions]
   [primary_a_temperature]
     type = dirichlet
@@ -220,9 +214,9 @@
     function = pair_b_z
   []
 []
-
 [Executioner]
   type = transient
+  restart = b48_split.checkpoint
   end_time = 4
   initial_time_step = 1
   minimum_time_step = 0.125
@@ -232,7 +226,6 @@
   maximum_cutbacks = 3
   load_ramp_time = 0
 []
-
 [Solver]
   absolute_tolerance = 1e-8
   relative_tolerance = 1e-11
@@ -244,11 +237,10 @@
   linear_relative_tolerance = 1e-11
   maximum_linear_iterations = 400
 []
-
 [Outputs]
-  console = true
-  csv = transient_hex8_multi_contact_path_abaqus_summary.csv
-  exodus = transient_hex8_multi_contact_path_abaqus_results.e
-  checkpoint = b48_full.checkpoint
+  console = false
+  csv = transient_b48_restart_summary.csv
+  exodus = transient_b48_restart_results.e
+  checkpoint = b48_restart.checkpoint
   checkpoint_interval = 1
 []
