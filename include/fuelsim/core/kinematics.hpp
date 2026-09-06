@@ -10,5 +10,5 @@ enum class Hex8ElementFormulation {
     c3d8t,
     c3d8rt,
 };
-enum class RzElementFormulation { quad4, cax4t, cax4rt, cax8t };
+enum class RzElementFormulation { quad4, cax4t, cax4rt, cax8t, cax8rt };
 } // namespace fuelsim

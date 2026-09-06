@@ -18,6 +18,7 @@ struct Quad8RzPoint final {
 struct Quad8RzGeometry final {
     Quad8RzCoordinates coordinates;
     std::array<Quad8RzPoint, 9> points;
+    std::size_t point_count = 9;
 };
 
 struct Quad8RzResult final {
@@ -28,7 +29,8 @@ struct Quad8RzResult final {
 };
 
 Quad8RzPoint evaluate_quad8_rz_point(const Quad8RzCoordinates& coordinates, double xi, double eta, double weight);
-Quad8RzGeometry make_quad8_rz_geometry(const Quad8RzCoordinates& coordinates);
+Quad8RzGeometry make_quad8_rz_geometry(
+    const Quad8RzCoordinates& coordinates, RzElementFormulation formulation = RzElementFormulation::cax8t);
 Quad8RzResult compute_quad8_rz(const Quad4RzData& data, const Quad8RzGeometry& geometry, const Quad8RzValues& state,
     const Quad8RzValues& committed, const Quad8MaterialHistory* history, double time_step, bool jacobian,
     bool thermal_time = true);

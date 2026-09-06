@@ -1,0 +1,39 @@
+*Heading
+** Small-strain axisymmetric J2 plasticity with unloading and reloading.
+*Preprint, echo=NO, model=NO, history=NO, contact=NO
+*Include, input=b12_cax8rt_material_mesh.inc
+*Material, name=SOLID
+*Elastic
+2e11, 0.3
+*Plastic
+1e6, 0
+2.001e9, 0.1
+*Conductivity
+10
+*Density
+1000
+*Specific Heat
+100
+*Solid Section, elset=SOLID, material=SOLID
+,
+*Initial Conditions, type=TEMPERATURE
+ALL, 600
+*Amplitude, name=EXTENSION, time=TOTAL TIME
+0, 0, 0.4, 0.8, 0.6, 0.7, 1, 1
+*Step, name=LOAD, nlgeom=NO, inc=5
+*Coupled Temperature-Displacement
+0.2, 1, 0.2, 0.2
+*Controls, parameters=FIELD, field=DISPLACEMENT
+1e-10, 1e-10, , , , 1e-10
+*Boundary
+AXIS, 1, 1, 0
+BOTTOM, 2, 2, 0
+*Boundary, amplitude=EXTENSION
+TOP, 2, 2, 1e-5
+*Output, field, frequency=1
+*Node Output
+NT, U, RF, RFL
+*Element Output, directions=YES
+S, EE, PE, PEEQ, COORD, IVOL, HFL
+*Output, history, frequency=0
+*End Step

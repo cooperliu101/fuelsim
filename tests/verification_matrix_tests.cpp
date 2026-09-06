@@ -166,6 +166,21 @@ int main(int argc, char** argv) {
             "b112.cax8t_small_friction",
             "b113.cax8t_finite_sliding",
             "b114.cax8t_recovery",
+            "b120.cax8rt_small_probe",
+            "b121.cax8rt_finite_probe",
+            "b122.cax8rt_small_contact",
+            "b123.cax8rt_finite_contact",
+            "b124.cax8rt_small_coupled",
+            "b125.cax8rt_finite_coupled",
+            "b126.cax8rt_small_creep",
+            "b127.cax8rt_finite_creep",
+            "b128.cax8rt_small_plastic",
+            "b129.cax8rt_finite_plastic",
+            "b1210.cax8rt_small_thermal",
+            "b1211.cax8rt_finite_thermal",
+            "b1212.cax8rt_small_friction",
+            "b1213.cax8rt_finite_sliding",
+            "b1214.cax8rt_recovery",
             "b90.cax4rt_small_probe",
             "b91.cax4rt_finite_probe",
             "b92.cax4rt_rectangle_probe",
@@ -373,7 +388,7 @@ int main(int argc, char** argv) {
         }
         if (found_ids != required_ids)
             throw std::runtime_error("Verification matrix is missing one or more required rows");
-        if (verified != 145 || qualified != 8 || measured != 12 || limitations != 3)
+        if (verified != 160 || qualified != 8 || measured != 12 || limitations != 3)
             throw std::runtime_error("Verification matrix status counts differ from release schema");
         check_c3d8t_contract(argv[4], registered_tests);
         std::cout << "verification_matrix_rows=" << found_ids.size() << '\n'

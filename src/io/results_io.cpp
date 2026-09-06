@@ -858,7 +858,7 @@ std::vector<std::vector<double>> quad8_elements(const UnstructuredQuad8Mesh& sou
                                  ? (*histories)[r][e]
                                  : compute_quad8_rz((*data)[r], geometry, local, {}, nullptr, 0, false, false).history;
         std::size_t variable = 0;
-        for (std::size_t q = 0; q < 9; ++q) {
+        for (std::size_t q = 0; q < geometry.point_count; ++q) {
             const auto& point = history[q];
             for (double component : {point.stress.rr, point.stress.zz, point.stress.hoop, point.stress.rz})
                 values[variable++][source_element] = component;
@@ -876,7 +876,7 @@ std::vector<std::vector<double>> quad8_elements(const UnstructuredQuad8Mesh& sou
             values[variable++][source_element] = radius;
             values[variable++][source_element] = axial;
         }
-        values.back()[source_element] = 9;
+        values.back()[source_element] = static_cast<double>(geometry.point_count);
     }
     return values;
 }

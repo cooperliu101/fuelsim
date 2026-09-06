@@ -1082,7 +1082,7 @@ TransientConservationSummary combine_rz_half_step_conservation(
 
 TransientTimeErrorEstimate compare_step_doubling_states(const TransientCommittedState& full_step,
     const TransientCommittedState& two_half_steps, const std::vector<FieldDescriptor>& fields,
-    std::size_t expected_dof_count, const TransientTimeOptions& options) {
+    std::size_t expected_dof_count, const TransientTimeOptions& options, const rz8::SpatialAssembly* quad8) {
     if (full_step.solution.size() != two_half_steps.solution.size() || full_step.solution.size() != expected_dof_count)
         throw std::logic_error("step-doubling nodal-state layouts differ");
     if (full_step.material_histories.size() != two_half_steps.material_histories.size())
@@ -1096,7 +1096,7 @@ TransientTimeErrorEstimate compare_step_doubling_states(const TransientCommitted
         const auto &first = full_step.quad8_material_histories[r], &second = two_half_steps.quad8_material_histories[r];
         if (first.size() != second.size()) throw std::logic_error("CAX8T step-doubling element layouts differ");
         for (std::size_t e = 0; e < first.size(); ++e)
-            for (std::size_t q = 0; q < 9; ++q) {
+            for (std::size_t q = 0; q < quad8->region_element_geometry(r, e).point_count; ++q) {
                 const auto &a = first[e][q], &b = second[e][q];
                 const double as[] = {a.stress.rr, a.stress.zz, a.stress.hoop, a.stress.rz},
                              bs[] = {b.stress.rr, b.stress.zz, b.stress.hoop, b.stress.rz};
@@ -1212,7 +1212,7 @@ TransientTimeErrorEstimate TransientProblem::step_doubling_error(const ProblemSt
         rz::assign_material_time_errors(result, material, options);
         return result;
     }
-    return rz::compare_step_doubling_states(full, half, field_layout(), dof_count(), options);
+    return rz::compare_step_doubling_states(full, half, field_layout(), dof_count(), options, _impl->rz8.get());
 }
 
 void TransientProblem::combine_last_half_step_conservation(const TransientConservationSummary& first_half) {
@@ -1289,7 +1289,7 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                     _impl->active_time_step, false, _impl->include_thermal_time_term);
             conservation.stored_heat_rate += update.stored_heat_rate;
             conservation.generated_heat_rate += update.generated_heat_rate;
-            for (std::size_t q = 0; q < 9; ++q) {
+            for (std::size_t q = 0; q < geometry.point_count; ++q) {
                 const auto &a = _impl->quad8_material_histories[r][e][q], &b = update.history[q];
                 const double w = geometry.points[q].weighted_measure;
                 conservation.elastic_energy_change += .5 * w *

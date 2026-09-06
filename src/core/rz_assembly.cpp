@@ -1284,6 +1284,10 @@ void SpatialAssembly::update_contact_search_trees(const std::vector<double>& sta
 SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const UnstructuredQuad4Mesh& source_mesh)
     : SpatialLayout(definition, spatial_detail::resolve_block_ids(definition, source_mesh, true, true),
           spatial_detail::DofLayout::axisymmetric_rz) {
+    for (const auto& value : _definition.regions)
+        if (value.rz_element_formulation == RzElementFormulation::cax8t ||
+            value.rz_element_formulation == RzElementFormulation::cax8rt)
+            throw std::invalid_argument("CAX8T and CAX8RT require a QUAD8 mesh");
     _meshes.reserve(_block_ids.size());
     for (const std::int64_t block_id : _block_ids)
         _meshes.push_back(RegionMesh::from_unstructured_block(source_mesh, block_id));

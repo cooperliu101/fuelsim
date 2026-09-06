@@ -11,8 +11,9 @@ SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const Unstructure
     std::vector<std::vector<std::size_t>> source_nodes;
     std::vector<std::vector<bool>> temperature_nodes;
     for (std::size_t r = 0; r < region_count(); ++r) {
-        if (region(r).rz_element_formulation != RzElementFormulation::cax8t)
-            throw std::invalid_argument("QUAD8 axisymmetric regions require element = cax8t");
+        if (region(r).rz_element_formulation != RzElementFormulation::cax8t &&
+            region(r).rz_element_formulation != RzElementFormulation::cax8rt)
+            throw std::invalid_argument("QUAD8 axisymmetric regions require element = cax8t or cax8rt");
         _meshes.push_back(Quad8RegionMesh::from_unstructured_block(source, _block_ids[r]));
         const auto& mesh = _meshes.back();
         nodes.push_back(mesh.nodes().size());
@@ -23,7 +24,7 @@ SpatialAssembly::SpatialAssembly(SpatialDefinition definition, const Unstructure
         for (const auto& e : mesh.elements()) {
             Quad8RzCoordinates coordinates;
             for (std::size_t n = 0; n < 8; ++n) coordinates[n] = mesh.nodes()[e.nodes[n]];
-            _geometries.back().push_back(make_quad8_rz_geometry(coordinates));
+            _geometries.back().push_back(make_quad8_rz_geometry(coordinates, region(r).rz_element_formulation));
         }
     }
     initialize_counts(nodes, elements);

@@ -423,6 +423,31 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
              passed;
     cax4rt_case.replace(cax4rt_case.find("axisymmetric_rz"), 15, "cartesian_3d");
     passed = expect_case_failure(malformed_path, cax4rt_case, "unknown HEX8 element 'cax4rt'") && passed;
+    for (const auto& element : {std::string("cax8t"), std::string("cax8rt")}) {
+        std::string quadratic_case = read_text(steady_path);
+        quadratic_case.insert(quadratic_case.find("    strain ="), "    element = " + element + "\n");
+        {
+            std::ofstream output(malformed_path);
+            output << quadratic_case;
+        }
+        const auto quadratic = fuelsim::read_case_input(malformed_path);
+        passed = check(quadratic.spatial.regions.front().rz_element_formulation ==
+                           (element == "cax8t" ? fuelsim::RzElementFormulation::cax8t
+                                               : fuelsim::RzElementFormulation::cax8rt),
+                     "RZ input selects the requested quadratic formulation") &&
+                 passed;
+        bool rejected = false;
+        try {
+            const fuelsim::SteadyProblem invalid(
+                quadratic.spatial, fuelsim::read_exodus_quad4(fuelsim::read_case_input(steady_path).mesh_file));
+        } catch (const std::invalid_argument& error) {
+            rejected = std::string(error.what()) == "CAX8T and CAX8RT require a QUAD8 mesh";
+        }
+        passed = check(rejected, "Quadratic RZ elements reject a QUAD4 mesh") && passed;
+        quadratic_case.replace(quadratic_case.find("axisymmetric_rz"), 15, "cartesian_3d");
+        passed =
+            expect_case_failure(malformed_path, quadratic_case, "unknown HEX8 element '" + element + "'") && passed;
+    }
     std::string missing_friction_slip_tolerance_case = read_text(steady_path);
     missing_friction_slip_tolerance_case.insert(
         missing_friction_slip_tolerance_case.find(contact_penalty) + contact_penalty.size(),

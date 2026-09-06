@@ -2240,6 +2240,80 @@ if(BUILD_TESTING)
         "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b114_cax8t_recovery_points.csv"
         "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b114_cax8t_recovery_contact.csv")
 
+    foreach(cax8rt_case IN ITEMS b120_cax8rt_small_probe b121_cax8rt_finite_probe
+        b124_cax8rt_small_coupled b125_cax8rt_finite_coupled
+        b126_cax8rt_small_creep b127_cax8rt_finite_creep
+        b128_cax8rt_small_plastic b129_cax8rt_finite_plastic
+        b1210_cax8rt_small_thermal b1211_cax8rt_finite_thermal)
+        string(REGEX REPLACE ".*_" "" cax8rt_mechanism "${cax8rt_case}")
+        fuelsim_add_production_test("fuelsim_${cax8rt_case}_abaqus_tests" "${cax8rt_case}"
+            "transient_${cax8rt_case}" rz-abaqus
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${cax8rt_case}_nodes.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${cax8rt_case}_points.csv" "${cax8rt_mechanism}")
+    endforeach()
+
+    foreach(cax8rt_case IN ITEMS b122_cax8rt_small_contact b123_cax8rt_finite_contact)
+        fuelsim_add_production_test("fuelsim_${cax8rt_case}_abaqus_tests" "${cax8rt_case}"
+            "steady_${cax8rt_case}" rz-abaqus
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${cax8rt_case}_nodes.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${cax8rt_case}_points.csv" contact)
+    endforeach()
+
+    fuelsim_add_production_test(fuelsim_b1212_cax8rt_small_friction_abaqus_tests b1212_cax8rt_small_friction
+        transient_b1212_cax8rt_small_friction rz8-friction-abaqus
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b1212_cax8rt_small_friction_nodes.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b1212_cax8rt_small_friction_points.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b1212_cax8rt_small_friction_contact.csv")
+    fuelsim_add_production_test(fuelsim_b1213_cax8rt_finite_sliding_abaqus_tests b1213_cax8rt_finite_sliding
+        transient_b1213_cax8rt_finite_sliding rz8-sliding-abaqus
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b1213_cax8rt_finite_sliding_nodes.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b1213_cax8rt_finite_sliding_points.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b1213_cax8rt_finite_sliding_contact.csv")
+
+    fuelsim_add_production_test(fuelsim_b1214_cax8rt_recovery_abaqus_tests b1214_cax8rt_recovery
+        transient_b1214_cax8rt_recovery rz8-recovery-abaqus
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b1214_cax8rt_recovery_nodes.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b1214_cax8rt_recovery_points.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b1214_cax8rt_recovery_contact.csv")
+
+    set_tests_properties(fuelsim_b125_cax8rt_finite_coupled_abaqus_tests PROPERTIES FIXTURES_SETUP b125_cax8rt_finite_coupled)
+    fuelsim_stage_blackbox_case(rz8_split b125_cax8rt_finite_coupled_restart transient_b125_cax8rt_finite_coupled_split.fsi)
+    fuelsim_stage_blackbox_case(rz8_restart b125_cax8rt_finite_coupled_restart transient_b125_cax8rt_finite_coupled_restart.fsi)
+    get_filename_component(rz8_directory "${rz8_restart}" DIRECTORY)
+    set(rz8_result "${rz8_directory}/transient_b125_cax8rt_finite_coupled_restart_results.part1.e")
+    set(rz8_summary "${rz8_directory}/transient_b125_cax8rt_finite_coupled_restart_summary.csv")
+    add_test(NAME fuelsim_b125_cax8rt_finite_coupled_restart_tests
+        COMMAND "${CMAKE_COMMAND}"
+            "-DFUELSIM_EXECUTABLE=$<TARGET_FILE:fuelsim>"
+            "-DCHECKPOINT_INPUT=${rz8_split}"
+            "-DCHECKPOINT_FILE=${rz8_directory}/transient_b125_cax8rt_finite_coupled_split.checkpoint"
+            "-DINPUT_FILE=${rz8_restart}"
+            "-DOUTPUT_FILES=${rz8_result};${rz8_summary}"
+            "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_production_result_tests>"
+            "-DCHECK_ARGUMENTS=rz8-restart;${rz8_result};${rz8_summary};${CMAKE_CURRENT_BINARY_DIR}/blackbox/b125_cax8rt_finite_coupled/verification/fuelsim/transient_b125_cax8rt_finite_coupled_results.e;3"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_restart.cmake")
+    set_tests_properties(fuelsim_b125_cax8rt_finite_coupled_restart_tests PROPERTIES
+        FIXTURES_REQUIRED b125_cax8rt_finite_coupled LABELS "acceptance;production;restart;cax8rt" TIMEOUT 120)
+
+    set_tests_properties(fuelsim_b1213_cax8rt_finite_sliding_abaqus_tests PROPERTIES FIXTURES_SETUP b1213_cax8rt_finite_sliding)
+    fuelsim_stage_blackbox_case(rz8_split b1213_cax8rt_finite_sliding_restart transient_b1213_cax8rt_finite_sliding_split.fsi)
+    fuelsim_stage_blackbox_case(rz8_restart b1213_cax8rt_finite_sliding_restart transient_b1213_cax8rt_finite_sliding_restart.fsi)
+    get_filename_component(rz8_directory "${rz8_restart}" DIRECTORY)
+    set(rz8_result "${rz8_directory}/transient_b1213_cax8rt_finite_sliding_restart_results.part1.e")
+    set(rz8_summary "${rz8_directory}/transient_b1213_cax8rt_finite_sliding_restart_summary.csv")
+    add_test(NAME fuelsim_b1213_cax8rt_finite_sliding_restart_tests
+        COMMAND "${CMAKE_COMMAND}"
+            "-DFUELSIM_EXECUTABLE=$<TARGET_FILE:fuelsim>"
+            "-DCHECKPOINT_INPUT=${rz8_split}"
+            "-DCHECKPOINT_FILE=${rz8_directory}/transient_b1213_cax8rt_finite_sliding_split.checkpoint"
+            "-DINPUT_FILE=${rz8_restart}"
+            "-DOUTPUT_FILES=${rz8_result};${rz8_summary}"
+            "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_production_result_tests>"
+            "-DCHECK_ARGUMENTS=rz8-restart;${rz8_result};${rz8_summary};${CMAKE_CURRENT_BINARY_DIR}/blackbox/b1213_cax8rt_finite_sliding/verification/fuelsim/transient_b1213_cax8rt_finite_sliding_results.e;5"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_restart.cmake")
+    set_tests_properties(fuelsim_b1213_cax8rt_finite_sliding_restart_tests PROPERTIES
+        FIXTURES_REQUIRED b1213_cax8rt_finite_sliding LABELS "acceptance;production;restart;cax8rt" TIMEOUT 120)
+
     fuelsim_add_production_test(fuelsim_b915_cax4rt_thermal_identification_abaqus_tests b915_cax4rt_thermal_identification
         transient_b915_cax4rt_thermal_identification rz-abaqus
         "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b915_cax4rt_thermal_identification_nodes.csv"

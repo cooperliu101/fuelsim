@@ -72,8 +72,17 @@ Quad8RzPoint evaluate_quad8_rz_point(const Quad8RzCoordinates& coordinates, doub
     return p;
 }
 
-Quad8RzGeometry make_quad8_rz_geometry(const Quad8RzCoordinates& coordinates) {
+Quad8RzGeometry make_quad8_rz_geometry(const Quad8RzCoordinates& coordinates, RzElementFormulation formulation) {
     Quad8RzGeometry result{coordinates, {}};
+    if (formulation == RzElementFormulation::cax8rt) {
+        result.point_count = 4;
+        const double g = 1 / std::sqrt(3.0);
+        const std::array<double, 4> xi = {-g, g, g, -g}, eta = {-g, -g, g, g};
+        for (std::size_t q = 0; q < 4; ++q) result.points[q] = evaluate_quad8_rz_point(coordinates, xi[q], eta[q], 1);
+        return result;
+    }
+    if (formulation != RzElementFormulation::cax8t)
+        throw std::invalid_argument("QUAD8 geometry requires cax8t or cax8rt");
     const double g = std::sqrt(3.0 / 5.0);
     const std::array<double, 3> q = {-g, 0, g}, w = {5.0 / 9, 8.0 / 9, 5.0 / 9};
     for (std::size_t j = 0; j < 3; ++j)
@@ -163,7 +172,7 @@ Quad8RzResult compute_quad8_rz(const Quad4RzData& data, const Quad8RzGeometry& g
         throw std::invalid_argument("CAX8T material update requires positive finite time step");
     const bool finite = data.strain_formulation == StrainFormulation::finite;
     Quad8RzResult result;
-    for (std::size_t q = 0; q < 9; ++q) {
+    for (std::size_t q = 0; q < geometry.point_count; ++q) {
         const auto& p = geometry.points[q];
         const auto k = kinematics(p, state, committed, finite, jacobian);
         const auto& t = k.active[5];

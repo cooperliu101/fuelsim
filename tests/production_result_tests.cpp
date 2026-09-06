@@ -1641,20 +1641,21 @@ int main(int argc, char** argv) {
                          "Restart completes two remaining time steps") &&
                      passed;
             passed = compare_result_files(argv[2], argv[4], 0.0, false) && passed;
-        } else if (mode == "mpi-equivalence" || mode == "restart") {
-            require_argument_count(mode, argc, 5);
+        } else if (mode == "mpi-equivalence" || mode == "restart" || mode == "rz8-restart") {
+            const bool restarting = mode != "mpi-equivalence";
+            require_argument_count(mode, argc, mode == "rz8-restart" ? 6 : 5);
             passed = completed_summary(argv[3], "transient");
             const auto summary = read_summary(argv[3]);
-            passed = check(summary_number(summary, "mpi_ranks") == (mode == "restart" ? 1.0 : 2.0),
+            passed = check(summary_number(summary, "mpi_ranks") == (restarting ? 1.0 : 2.0),
                          "Production summary confirms the requested process count") &&
                      passed;
-            if (mode == "restart")
-                passed = check(summary_number(summary, "accepted_steps") == 5.0,
-                             "Restart completes the five remaining time steps") &&
+            if (restarting)
+                passed = check(summary_number(summary, "accepted_steps") ==
+                                   (mode == "rz8-restart" ? std::stod(argv[5]) : 5.0),
+                             "Restart completes the expected remaining time steps") &&
                          passed;
             passed =
-                compare_result_files(argv[2], argv[4], mode == "restart" ? 0.0 : 1.0e-10, mode == "mpi-equivalence") &&
-                passed;
+                compare_result_files(argv[2], argv[4], restarting ? 0.0 : 1.0e-10, mode == "mpi-equivalence") && passed;
         } else {
             throw std::invalid_argument("Unknown production result check '" + mode + "'");
         }

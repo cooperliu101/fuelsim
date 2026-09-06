@@ -198,7 +198,12 @@ traction 的构形选择规则见下文。区域发生非正 Jacobian、非正�
 Abaqus 默认总刚度算法，不提供可调系数；有限应变 `c3d8rt` 会在问题构造时明确
 报错。HEX20 不能选择上述 HEX8 单元公式。
 
-二维轴对称区域可以选择 `element = quad4|cax4t|cax4rt`，省略时使用 `quad4`。
+二维轴对称区域可以选择 `element = quad4|cax4t|cax4rt|cax8t|cax8rt`，省略时使用 `quad4`。
+其中 `cax8t` 和 `cax8rt` 必须使用 QUAD8 八节点网格；位移在八个节点上求解，
+温度只在四个角点上求解。CAX8T 采用 3×3 积分，CAX8RT 采用 2×2 积分；
+两者均支持小应变、有限应变、热机械接触、摩擦、蠕变、塑性和蠕变与塑性耦合。
+减缩积分不改变二次接触边、温度自由度或材料函数的输入方式。CAX8RT 的完整例题
+与误差定义见 [CAX8RT 验证记录](../verification/abaqus/b12_cax8rt_validation.md)。
 `cax4t` 的四节点力学公式采用 Abaqus 的面内选择性体积处理和独立环向平均，
 有限应变采用 Hughes-Winget 增量应变与客观转动。B8.0 和 B8.1 分别验证小应变
 摩擦和有限应变大滑移。`quad4` 和 `cax4t` 使用既有参考构形热传导、体热源和

@@ -74,7 +74,7 @@
 `current_z`。`primary_segment` 是生产接触链中的零起始线段下标，仅在成功
 投影时有值，可用于检查跨线段后投影归属的改变。
 
-CAX8T（八节点轴对称温度—位移耦合单元）的 secondary 接触边，即节点约束所在侧，
+CAX8T 和 CAX8RT（八节点轴对称温度—位移耦合单元）的 secondary 接触边，即节点约束所在侧，
 另外输出 `contact_recovered_pressure_<pair>` 和 `contact_recovered_shear_<pair>`，
 单位均为 Pa。前者为正压缩的恢复压力，对应 Abaqus 的 `CPRESS`；后者为沿当前
 primary 边切向的物理剪切应力，对应 `CSHEAR1`。原始 `tangential_traction` 使用
@@ -97,3 +97,10 @@ primary 边切向的物理剪切应力，对应 `CSHEAR1`。原始 `tangential_t
 原有全局变量 `contact_force_<pair>`、`contact_tangential_force_<pair>` 和
 `contact_heat_rate_<pair>` 继续给出该接触对的标量总量。三维矢量合力应从完整
 节点力分量求和，不能把标量压力合力作为任意方向的矢量合力使用。
+
+CAX8RT 的 `material_point_count` 为 4，活跃积分点为 `q0`—`q3`，自然坐标依次为
+`(-g,-g)`、`(g,-g)`、`(g,g)`、`(-g,g)`，其中 `g=1/sqrt(3)`。为了让不同区域采用
+CAX8T 或 CAX8RT 时仍可写入同一结果文件，二次单元结果保留九点字段集合；CAX8RT
+的 `q4`—`q8` 为 NaN，表示没有这个积分点，不能当作零应力或零应变参加统计。
+检查点只保存各单元实际活跃的材料积分点。`temperature_active` 标记真正参与求解的
+角点温度；边中点显示温度是插值结果。

@@ -70,7 +70,8 @@ void SpatialAssembly::build_contacts(const UnstructuredQuad8Mesh& source) {
                 for (const auto& edge : boundary->boundary.elements) {
                     const auto& geometry = _geometries[boundary->region][edge.parent_element];
                     double volume = 0, radius = 0;
-                    for (const auto& p : geometry.points) {
+                    for (std::size_t q = 0; q < geometry.point_count; ++q) {
+                        const auto& p = geometry.points[q];
                         volume += p.weighted_measure;
                         radius += p.weighted_measure * p.radius;
                     }

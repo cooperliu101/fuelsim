@@ -238,7 +238,8 @@ bool check_rz_abaqus(const std::string& output_path, const std::string& node_pat
                 reference_opposite_force += row.at("contact_force_z");
                 if (frame.nodal("contact_projected_interface")[n] == 1.0) {
                     pressure.add(frame.nodal("contact_pressure_interface")[n], row.at("contact_pressure"));
-                    if (frame.element("material_point_count").front() == 9.0) {
+                    if (std::find(frame.nodal_variable_names.begin(), frame.nodal_variable_names.end(),
+                            "temperature_active") != frame.nodal_variable_names.end()) {
                         recovered_pressure.add(
                             frame.nodal("contact_recovered_pressure_interface")[n], row.at("contact_pressure"));
                         recovered_shear.add(frame.nodal("contact_recovered_shear_interface")[n], 0.0);
@@ -273,6 +274,13 @@ bool check_rz_abaqus(const std::string& output_path, const std::string& node_pat
                     for (const auto& component : components)
                         if (!std::isnan(frame.element("stress_" + component + "_q" + std::to_string(q))[e]))
                             throw std::runtime_error("Inactive CAX4RT output must not masquerade as a material point");
+            if (point_count == 4 && std::find(frame.nodal_variable_names.begin(), frame.nodal_variable_names.end(),
+                                        "temperature_active") != frame.nodal_variable_names.end())
+                for (std::size_t q = 4; q < 9; ++q)
+                    for (const auto& name : frame.element_variable_names)
+                        if (name.size() >= 3 && name.substr(name.size() - 3) == "_q" + std::to_string(q) &&
+                            !std::isnan(frame.element(name)[e]))
+                            throw std::runtime_error("Inactive CAX8RT output must be NaN");
             for (std::size_t aq = 0; aq < point_count; ++aq) {
                 const auto& row = points.at(point_row++);
                 if (!same_time(row.at("time"), frame.time) || row.at("element") != static_cast<double>(e + 1) ||
