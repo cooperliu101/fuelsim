@@ -2204,13 +2204,35 @@ if(BUILD_TESTING)
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${cax4rt_case}_points.csv" "${cax4rt_mechanism}")
     endforeach()
 
-    foreach(cax8t_case IN ITEMS b100_cax8t_small_probe b101_cax8t_finite_probe)
+    foreach(cax8t_case IN ITEMS b100_cax8t_small_probe b101_cax8t_finite_probe
+        b104_cax8t_small_coupled b105_cax8t_finite_coupled
+        b106_cax8t_small_creep b107_cax8t_finite_creep
+        b108_cax8t_small_plastic b109_cax8t_finite_plastic
+        b110_cax8t_small_thermal b111_cax8t_finite_thermal)
         string(REGEX REPLACE ".*_" "" cax8t_mechanism "${cax8t_case}")
         fuelsim_add_production_test("fuelsim_${cax8t_case}_abaqus_tests" "${cax8t_case}"
             "transient_${cax8t_case}" rz-abaqus
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${cax8t_case}_nodes.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${cax8t_case}_points.csv" "${cax8t_mechanism}")
     endforeach()
+
+    foreach(cax8t_case IN ITEMS b102_cax8t_small_contact b103_cax8t_finite_contact)
+        fuelsim_add_production_test("fuelsim_${cax8t_case}_abaqus_tests" "${cax8t_case}"
+            "steady_${cax8t_case}" rz-abaqus
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${cax8t_case}_nodes.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${cax8t_case}_points.csv" contact)
+    endforeach()
+
+    fuelsim_add_production_test(fuelsim_b112_cax8t_small_friction_abaqus_tests b112_cax8t_small_friction
+        transient_b112_cax8t_small_friction rz8-friction-abaqus
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b112_cax8t_small_friction_nodes.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b112_cax8t_small_friction_points.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b112_cax8t_small_friction_contact.csv")
+    fuelsim_add_production_test(fuelsim_b113_cax8t_finite_sliding_abaqus_tests b113_cax8t_finite_sliding
+        transient_b113_cax8t_finite_sliding rz8-sliding-abaqus
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b113_cax8t_finite_sliding_nodes.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b113_cax8t_finite_sliding_points.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b113_cax8t_finite_sliding_contact.csv")
 
     fuelsim_add_production_test(fuelsim_b915_cax4rt_thermal_identification_abaqus_tests b915_cax4rt_thermal_identification
         transient_b915_cax4rt_thermal_identification rz-abaqus

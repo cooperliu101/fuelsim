@@ -1,0 +1,8 @@
+case=b103_cax8t_finite_contact
+abaqus_version=3DEXPERIENCE R2018x
+cpus=1
+output_precision=full
+completed_utc=2026-09-06T14:32:42.5575398Z
+work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_cax8t_c3cca8ac2a17417f85ff2dbd039e3ddb
+input_sha256=00D8F1D9EC8568A7D3D391AD1C895D17BC58EDACBF4443583B950E84973145E1
+extractor_sha256=6FB927B752E2A06DFAC09D69902BA8A95828C48604CF39247D31850CA53090A8

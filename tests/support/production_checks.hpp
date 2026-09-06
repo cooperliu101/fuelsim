@@ -4,7 +4,8 @@
 
 namespace fuelsim::test {
 bool check_rz_sliding_abaqus(const std::string& output_path, const std::string& node_path,
-    const std::string& point_path, const std::string& contact_path, bool require_segment_crossing);
+    const std::string& point_path, const std::string& contact_path, bool require_segment_crossing,
+    bool quadratic_contact = false);
 bool check_rz_abaqus(const std::string& output_path, const std::string& node_path, const std::string& point_path,
     const std::string& mechanisms);
 bool check_hex8_multi_contact_path(const std::string& output, const std::string& reference_directory);

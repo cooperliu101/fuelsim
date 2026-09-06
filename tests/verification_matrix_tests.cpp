@@ -151,6 +151,20 @@ int main(int argc, char** argv) {
         if (!std::getline(matrix, line) || line != "id\tstatus\tcapability\tctest\tevidence\tacceptance")
             throw std::runtime_error("Verification matrix header does not match schema");
         const std::set<std::string> required_ids = {
+            "b100.cax8t_small_probe",
+            "b101.cax8t_finite_probe",
+            "b102.cax8t_small_contact",
+            "b103.cax8t_finite_contact",
+            "b104.cax8t_small_coupled",
+            "b105.cax8t_finite_coupled",
+            "b106.cax8t_small_creep",
+            "b107.cax8t_finite_creep",
+            "b108.cax8t_small_plastic",
+            "b109.cax8t_finite_plastic",
+            "b110.cax8t_small_thermal",
+            "b111.cax8t_finite_thermal",
+            "b112.cax8t_small_friction",
+            "b113.cax8t_finite_sliding",
             "b90.cax4rt_small_probe",
             "b91.cax4rt_finite_probe",
             "b92.cax4rt_rectangle_probe",
@@ -358,7 +372,7 @@ int main(int argc, char** argv) {
         }
         if (found_ids != required_ids)
             throw std::runtime_error("Verification matrix is missing one or more required rows");
-        if (verified != 130 || qualified != 8 || measured != 12 || limitations != 3)
+        if (verified != 144 || qualified != 8 || measured != 12 || limitations != 3)
             throw std::runtime_error("Verification matrix status counts differ from release schema");
         check_c3d8t_contract(argv[4], registered_tests);
         std::cout << "verification_matrix_rows=" << found_ids.size() << '\n'

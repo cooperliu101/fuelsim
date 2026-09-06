@@ -86,9 +86,35 @@ void SpatialAssembly::build_contacts(const UnstructuredQuad8Mesh& source) {
         }
         if (contact.mechanical && (!(penalty > 0) || !std::isfinite(penalty)))
             throw std::invalid_argument("CAX8T contact penalty must be positive");
+        double maximum_elastic_slip = 0.0;
+        if (contact.friction_slip_tolerance > 0.0) {
+            double reference_length = 0.0;
+            for (const auto& edge : secondary.boundary.elements) {
+                std::array<RzPoint, 3> coordinates;
+                for (std::size_t n = 0; n < coordinates.size(); ++n)
+                    coordinates[n] = _meshes[secondary.region].nodes()[edge.nodes[n]];
+                const double g = std::sqrt(3.0 / 5.0);
+                const std::array<double, 3> locations = {-g, 0.0, g};
+                const std::array<double, 3> weights = {5.0 / 9.0, 8.0 / 9.0, 5.0 / 9.0};
+                for (std::size_t q = 0; q < locations.size(); ++q) {
+                    const double x = locations[q];
+                    const std::array<double, 3> derivative = {x - 0.5, x + 0.5, -2.0 * x};
+                    double dr = 0.0, dz = 0.0;
+                    for (std::size_t n = 0; n < coordinates.size(); ++n) {
+                        dr += derivative[n] * coordinates[n].r;
+                        dz += derivative[n] * coordinates[n].z;
+                    }
+                    reference_length += weights[q] * std::hypot(dr, dz);
+                }
+            }
+            maximum_elastic_slip = contact.friction_slip_tolerance * reference_length /
+                                   static_cast<double>(secondary.boundary.elements.size());
+            if (!std::isfinite(maximum_elastic_slip) || !(maximum_elastic_slip > 0.0))
+                throw std::invalid_argument("CAX8T slip_tolerance gives an invalid elastic slip: " + contact.name);
+        }
         _mechanical.push_back({penalty, contact.friction_coefficient,
             contact.mechanical_formulation == MechanicalContactFormulation::augmented_lagrangian,
-            contact.friction_slip_tolerance});
+            maximum_elastic_slip});
         _heat.push_back({contact.gap_conductivity, contact.minimum_gap, contact.gap_heat_conductance_law,
             contact.gap_conductance, contact.gap_conductance_clearance_derivative,
             contact.gap_conductance_pressure_derivative, contact.gap_conductance_temperature_derivative,

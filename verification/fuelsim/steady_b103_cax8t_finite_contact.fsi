@@ -5,7 +5,7 @@
 []
 [Mesh]
   type = exodus
-  file = ../meshes/b102_rz_contact.e
+  file = ../meshes/b10_cax8t_contact.e
 []
 [Materials]
   [solid]
@@ -25,17 +25,17 @@
 [Regions]
   [lower]
     block = lower
-    material = solid
     element = cax8t
-    strain = small
+    material = solid
+    strain = finite
     initial_temperature = 650
     volumetric_heat_source = 0
   []
   [upper]
     block = upper
-    material = solid
     element = cax8t
-    strain = small
+    material = solid
+    strain = finite
     initial_temperature = 650
     volumetric_heat_source = 0
   []
@@ -55,39 +55,39 @@
   []
 []
 [BoundaryConditions]
-  [lower_r]
+  [radial]
     type = dirichlet
-    boundary = lower_fixed
+    boundary = lower_radial
     field = radial_displacement
     value = 0
   []
-  [upper_r]
+  [upper_radial]
     type = dirichlet
-    boundary = upper_fixed
+    boundary = upper_radial
     field = radial_displacement
     value = 0
   []
-  [lower_z]
+  [bottom]
     type = dirichlet
-    boundary = lower_fixed
+    boundary = bottom
     field = axial_displacement
     value = 0
   []
-  [upper_z]
+  [top]
     type = dirichlet
-    boundary = upper_fixed
+    boundary = top
     field = axial_displacement
     value = -5e-6
   []
-  [lower_t]
+  [hot]
     type = dirichlet
-    boundary = lower_temp
+    boundary = bottom
     field = temperature
     value = 700
   []
-  [upper_t]
+  [cold]
     type = dirichlet
-    boundary = upper_temp
+    boundary = top
     field = temperature
     value = 600
   []
@@ -106,6 +106,6 @@
 []
 [Outputs]
   console = true
-  csv = steady_b102_cax8t_contact_summary.csv
-  exodus = steady_b102_cax8t_contact_results.e
+  csv = steady_b103_cax8t_finite_contact_summary.csv
+  exodus = steady_b103_cax8t_finite_contact_results.e
 []

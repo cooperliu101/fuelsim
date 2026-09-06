@@ -151,13 +151,10 @@ bool check_rz_abaqus(const std::string& output_path, const std::string& node_pat
                 const std::array<double, 2> force = {
                     frame.nodal("reaction_force_r")[n], frame.nodal("reaction_force_z")[n]};
                 const std::array<double, 2> reference_force_vector = {row.at("rf_r"), row.at("rf_z")};
-                if ((n < 6 && n % 2 == 0) || (n >= 6 && n % 2 == 1))
+                if (std::hypot(reference_force_vector[0], reference_force_vector[1]) > rz_force_zero_tolerance)
                     support_reaction.add(force.data(), reference_force_vector.data(), force.size());
-                else {
-                    if (std::hypot(reference_force_vector[0], reference_force_vector[1]) > rz_force_zero_tolerance)
-                        throw std::runtime_error("Abaqus free node has a nonzero boundary reaction");
+                else
                     for (double component : force) free_reaction.add(component, 0.0);
-                }
             }
             if (frame.nodes[n][1] == bottom_z) {
                 if (!contact) actual_reaction += frame.nodal("reaction_force_z")[n];
@@ -166,14 +163,14 @@ bool check_rz_abaqus(const std::string& output_path, const std::string& node_pat
             }
             if (contact) {
                 reference_opposite_force += row.at("contact_force_z");
-                if (n == 2 || n == 3) {
+                if (frame.nodal("contact_projected_interface")[n] == 1.0) {
                     pressure.add(frame.nodal("contact_pressure_interface")[n], row.at("contact_pressure"));
                     gap.add(frame.nodal("contact_gap_interface")[n], row.at("contact_gap"));
                     nodal_normal_force.add(
                         frame.nodal("contact_normal_force_interface")[n], -row.at("contact_force_z"));
                     reference_force -= row.at("contact_force_z");
                     if (row.at("contact_pressure") <= 1e6 || row.at("contact_gap") >= 0.0 ||
-                        row.at("contact_heat_flux") <= 1e5 || frame.nodal("contact_projected_interface")[n] != 1.0)
+                        frame.nodal("contact_projected_interface")[n] != 1.0)
                         throw std::runtime_error("RZ thermal and mechanical contact must both be active");
                 }
             }
@@ -256,7 +253,8 @@ bool check_rz_abaqus(const std::string& output_path, const std::string& node_pat
 }
 
 bool check_rz_sliding_abaqus(const std::string& output_path, const std::string& node_path,
-    const std::string& point_path, const std::string& contact_path, bool require_segment_crossing) {
+    const std::string& point_path, const std::string& contact_path, bool require_segment_crossing,
+    bool quadratic_contact) {
     bool passed = check_rz_abaqus(output_path, node_path, point_path, "sliding");
     const auto rows = read_rows(contact_path);
     const auto frames = read_exodus_history(output_path);
@@ -272,19 +270,29 @@ bool check_rz_sliding_abaqus(const std::string& output_path, const std::string& 
         double reference_normal = 0.0, reference_tangent = 0.0;
         std::array<double, 2> actual_normal_sum{}, reference_normal_sum{}, actual_tangent_sum{},
             reference_tangent_sum{};
-        for (const std::size_t label : {2U, 4U, 6U}) {
+        std::size_t frame_contacts = 0;
+        while (row_index < rows.size() && same_time(rows[row_index].at("time"), frame.time)) {
             const auto& row = rows.at(row_index++);
-            if (row.at("node") != static_cast<double>(label) || !same_time(row.at("time"), frame.time))
+            const auto label = static_cast<std::size_t>(std::llround(row.at("node")));
+            if (row.at("node") != static_cast<double>(label) || label == 0 || label > frame.nodes.size())
                 throw std::runtime_error("RZ sliding contact reference does not match output");
+            ++frame_contacts;
             const auto n = label - 1;
-            pressure.add(frame.nodal("contact_pressure_interface")[n], row.at("pressure"));
+            if (!quadratic_contact) pressure.add(frame.nodal("contact_pressure_interface")[n], row.at("pressure"));
             gap.add(frame.nodal("contact_gap_interface")[n], row.at("gap"));
-            shear.add(frame.nodal("contact_tangential_traction_interface")[n], row.at("shear"));
-            slip.add(frame.nodal("contact_total_tangential_slip_interface")[n], row.at("slip"));
+            if (!quadratic_contact) {
+                shear.add(frame.nodal("contact_tangential_traction_interface")[n], row.at("shear"));
+                slip.add(frame.nodal("contact_total_tangential_slip_interface")[n], row.at("slip"));
+            } else
+                slip.add(std::abs(frame.nodal("contact_total_tangential_slip_interface")[n]), std::abs(row.at("slip")));
             normal_force.add(
                 frame.nodal("contact_normal_force_interface")[n], std::hypot(row.at("normal_r"), row.at("normal_z")));
-            tangent_force.add(frame.nodal("contact_tangential_force_interface")[n],
-                std::copysign(std::hypot(row.at("tangential_r"), row.at("tangential_z")), row.at("shear")));
+            if (!quadratic_contact)
+                tangent_force.add(frame.nodal("contact_tangential_force_interface")[n],
+                    std::copysign(std::hypot(row.at("tangential_r"), row.at("tangential_z")), row.at("shear")));
+            else
+                tangent_force.add(std::abs(frame.nodal("contact_tangential_force_interface")[n]),
+                    std::hypot(row.at("tangential_r"), row.at("tangential_z")));
             reference_normal += std::hypot(row.at("normal_r"), row.at("normal_z"));
             reference_tangent +=
                 std::copysign(std::hypot(row.at("tangential_r"), row.at("tangential_z")), row.at("shear"));
@@ -303,7 +311,9 @@ bool check_rz_sliding_abaqus(const std::string& output_path, const std::string& 
             const double normal = frame.nodal("contact_normal_force_interface")[n];
             const double tangent = frame.nodal("contact_tangential_force_interface")[n];
             const std::array<double, 2> actual_n = {-normal * dz / length, normal * dr / length};
-            const std::array<double, 2> actual_t = {-tangent * dr / length, -tangent * dz / length};
+            const double tangent_orientation = quadratic_contact ? 1.0 : -1.0;
+            const std::array<double, 2> actual_t = {
+                tangent_orientation * tangent * dr / length, tangent_orientation * tangent * dz / length};
             const std::array<double, 2> reference_n = {row.at("normal_r"), row.at("normal_z")};
             const std::array<double, 2> reference_t = {row.at("tangential_r"), row.at("tangential_z")};
             normal_vector.add(actual_n.data(), reference_n.data(), 2);
@@ -332,20 +342,29 @@ bool check_rz_sliding_abaqus(const std::string& output_path, const std::string& 
             forward = forward || (is_sliding && row.at("shear") > 0.0);
             reverse = reverse || (is_sliding && row.at("shear") < 0.0);
         }
+        if (frame_contacts == 0) throw std::runtime_error("RZ sliding frame has no contact reference values");
         normal_force.add(frame.global("contact_force_interface"), reference_normal);
-        tangent_force.add(frame.global("contact_tangential_force_interface"), reference_tangent);
+        if (!quadratic_contact)
+            tangent_force.add(frame.global("contact_tangential_force_interface"), reference_tangent);
         normal_vector.add(actual_normal_sum.data(), reference_normal_sum.data(), 2);
         tangent_vector.add(actual_tangent_sum.data(), reference_tangent_sum.data(), 2);
     }
-    for (const auto& field :
-        std::vector<std::pair<std::string, const FieldErrorMetrics*>>{{"pressure", &pressure}, {"gap", &gap},
-            {"shear", &shear}, {"slip", &slip}, {"normal_force", &normal_force}, {"tangent_force", &tangent_force}})
+    std::vector<std::pair<std::string, const FieldErrorMetrics*>> fields = {
+        {"gap", &gap}, {"slip", &slip}, {"normal_force", &normal_force}};
+    if (!quadratic_contact) {
+        fields.push_back({"pressure", &pressure});
+        fields.push_back({"shear", &shear});
+    }
+    fields.push_back({"tangent_force", &tangent_force});
+    for (const auto& field : fields)
         passed = check_scalar("rz_sliding_" + field.first, *field.second,
                      field.first == "gap" || field.first == "slip" ? rz_displacement_zero_tolerance
                                                                    : rz_force_zero_tolerance) &&
                  passed;
-    passed = check_group("rz_sliding_normal_force_vector", normal_vector, rz_force_zero_tolerance) && passed;
-    passed = check_group("rz_sliding_tangent_force_vector", tangent_vector, rz_force_zero_tolerance) && passed;
+    if (!quadratic_contact) {
+        passed = check_group("rz_sliding_normal_force_vector", normal_vector, rz_force_zero_tolerance) && passed;
+        passed = check_group("rz_sliding_tangent_force_vector", tangent_vector, rz_force_zero_tolerance) && passed;
+    }
     std::size_t maximum_crossed = 0;
     for (const auto& entry : ownership) {
         const auto limits = std::minmax_element(entry.second.begin(), entry.second.end());

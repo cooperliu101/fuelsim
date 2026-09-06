@@ -187,7 +187,8 @@ Line3ContactResult compute_line3_contact(const Line3ContactGeometry& geometry, c
             if (mechanical.maximum_elastic_slip > 0) {
                 const auto stiffness = limit / mechanical.maximum_elastic_slip;
                 trial_traction = stiffness * elastic;
-                if (std::abs(trial_traction.value()) > limit.value()) {
+                const double magnitude = std::abs(trial_traction.value());
+                if (magnitude > limit.value() || (magnitude == limit.value() && history.sliding)) {
                     sliding = true;
                     traction = trial_traction.value() > 0 ? limit : -limit;
                     elastic = traction / stiffness;

@@ -842,10 +842,9 @@ std::vector<std::vector<double>> quad8_elements(const UnstructuredQuad8Mesh& sou
         Quad8RzValues local{};
         for (std::size_t i = 0; i < 20; ++i) local[i] = state[dofs[i]];
         const auto& geometry = spatial.region_element_geometry(r, e);
-        Quad8MaterialHistory empty_history{};
-        const auto history =
-            histories ? (*histories)[r][e]
-                      : compute_quad8_rz((*data)[r], geometry, local, {}, &empty_history, .1, false, false).history;
+        const auto history = histories
+                                 ? (*histories)[r][e]
+                                 : compute_quad8_rz((*data)[r], geometry, local, {}, nullptr, 0, false, false).history;
         std::size_t variable = 0;
         for (std::size_t q = 0; q < 9; ++q) {
             const auto& point = history[q];
