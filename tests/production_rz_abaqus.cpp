@@ -15,6 +15,14 @@
 namespace {
 using Row = std::map<std::string, double>;
 
+constexpr double rz_relative_tolerance = 0.001;
+constexpr double rz_temperature_zero_tolerance = 1e-11;
+constexpr double rz_displacement_zero_tolerance = 1e-13;
+constexpr double rz_force_zero_tolerance = 1e-8;
+constexpr double rz_stress_zero_tolerance = 1e-4;
+constexpr double rz_strain_zero_tolerance = 1e-13;
+constexpr double rz_heat_rate_zero_tolerance = 1e-11;
+
 std::vector<std::string> split(const std::string& line) {
     std::vector<std::string> result;
     std::istringstream stream(line);
@@ -61,7 +69,7 @@ bool check_scalar(const std::string& name, const fuelsim::test::FieldErrorMetric
                   << '\n';
     }
     return metrics.value_count > 0 &&
-           (!metrics.has_relative_norm() || fuelsim::test::relative_metrics_below(metrics, 0.005)) &&
+           (!metrics.has_relative_norm() || fuelsim::test::relative_metrics_below(metrics, rz_relative_tolerance)) &&
            metrics.maximum_zero_reference_difference <= zero_tolerance;
 }
 
@@ -74,7 +82,8 @@ bool check_group(
                   << name << "_maximum_zero_reference_absolute_difference=" << metrics.maximum_zero_reference_difference
                   << '\n';
     return metrics.group_count > 0 &&
-           (!metrics.has_relative_norm() || fuelsim::test::grouped_relative_metrics_below(metrics, 0.005)) &&
+           (!metrics.has_relative_norm() ||
+               fuelsim::test::grouped_relative_metrics_below(metrics, rz_relative_tolerance)) &&
            metrics.maximum_zero_reference_difference <= zero_tolerance;
 }
 
@@ -126,7 +135,7 @@ bool check_rz_abaqus(const std::string& output_path, const std::string& node_pat
             if ((frame.nodes[n][0] == 0.0 && (frame.nodes[n][1] == 0.0 || mechanisms == "thermal")) ||
                 (contact && frame.nodes[n][1] == bottom_z) ||
                 (mechanisms == "sliding" && frame.nodes[n][0] == outer_r)) {
-                if (std::hypot(reference[0], reference[1]) > 1e-12)
+                if (std::hypot(reference[0], reference[1]) > rz_displacement_zero_tolerance)
                     throw std::runtime_error("Abaqus violates the fixed origin displacement");
                 reference = {0.0, 0.0};
             }
@@ -145,7 +154,7 @@ bool check_rz_abaqus(const std::string& output_path, const std::string& node_pat
                 if ((n < 6 && n % 2 == 0) || (n >= 6 && n % 2 == 1))
                     support_reaction.add(force.data(), reference_force_vector.data(), force.size());
                 else {
-                    if (std::hypot(reference_force_vector[0], reference_force_vector[1]) > 1e-7)
+                    if (std::hypot(reference_force_vector[0], reference_force_vector[1]) > rz_force_zero_tolerance)
                         throw std::runtime_error("Abaqus free node has a nonzero boundary reaction");
                     for (double component : force) free_reaction.add(component, 0.0);
                 }
@@ -172,7 +181,8 @@ bool check_rz_abaqus(const std::string& output_path, const std::string& node_pat
         if (contact) {
             normal_force.add(frame.global("contact_force_interface"), reference_force);
             heat_rate.add(frame.global("contact_heat_rate_interface"), reference_heat);
-            if (std::abs(reference_opposite_force) > 1e-7 || std::abs(reference_force - reference_reaction) > 1e-7)
+            if (std::abs(reference_opposite_force) > rz_force_zero_tolerance ||
+                std::abs(reference_force - reference_reaction) > rz_force_zero_tolerance)
                 throw std::runtime_error("Abaqus contact reference violates force equilibrium");
         } else
             reaction.add(actual_reaction, reference_reaction);
@@ -214,25 +224,29 @@ bool check_rz_abaqus(const std::string& output_path, const std::string& node_pat
         }
     }
     bool passed = accepted > 0 && node_row == nodes.size() && point_row == points.size();
-    passed = check_scalar("rz_temperature", temperature, 1e-10) && passed;
-    passed = check_group("rz_displacement", displacement, 1e-12) && passed;
+    passed = check_scalar("rz_temperature", temperature, rz_temperature_zero_tolerance) && passed;
+    passed = check_group("rz_displacement", displacement, rz_displacement_zero_tolerance) && passed;
     if (mechanisms == "sliding" || mechanisms == "probe") {
-        passed = check_group("rz_support_reaction", support_reaction, 1e-7) && passed;
-        if (mechanisms == "sliding") passed = check_scalar("rz_free_node_reaction", free_reaction, 1e-7) && passed;
-        if (mechanisms == "probe") passed = check_scalar("rz_reaction_heat", reaction_heat, 1e-7) && passed;
+        passed = check_group("rz_support_reaction", support_reaction, rz_force_zero_tolerance) && passed;
+        if (mechanisms == "sliding")
+            passed = check_scalar("rz_free_node_reaction", free_reaction, rz_force_zero_tolerance) && passed;
+        if (mechanisms == "probe")
+            passed = check_scalar("rz_reaction_heat", reaction_heat, rz_heat_rate_zero_tolerance) && passed;
     }
-    if (!contact) passed = check_scalar("rz_bottom_axial_reaction", reaction, 1e-7) && passed;
+    if (!contact) passed = check_scalar("rz_bottom_axial_reaction", reaction, rz_force_zero_tolerance) && passed;
     for (std::size_t t = 0; t < (contact ? 1 : tensors.size()); ++t)
-        passed = check_group("rz_" + prefixes[t] + "tensor", tensors[t], t == 0 ? 1e-3 : 1e-12) && passed;
+        passed = check_group("rz_" + prefixes[t] + "tensor", tensors[t],
+                     t == 0 ? rz_stress_zero_tolerance : rz_strain_zero_tolerance) &&
+                 passed;
     if (contact) {
-        passed = check_scalar("rz_contact_pressure", pressure, 1e-3) && passed;
-        passed = check_scalar("rz_contact_gap", gap, 1e-12) && passed;
-        passed = check_scalar("rz_contact_nodal_normal_force", nodal_normal_force, 1e-7) && passed;
-        passed = check_scalar("rz_contact_normal_force", normal_force, 1e-7) && passed;
-        passed = check_scalar("rz_contact_heat_rate", heat_rate, 1e-10) && passed;
+        passed = check_scalar("rz_contact_pressure", pressure, rz_stress_zero_tolerance) && passed;
+        passed = check_scalar("rz_contact_gap", gap, rz_displacement_zero_tolerance) && passed;
+        passed = check_scalar("rz_contact_nodal_normal_force", nodal_normal_force, rz_force_zero_tolerance) && passed;
+        passed = check_scalar("rz_contact_normal_force", normal_force, rz_force_zero_tolerance) && passed;
+        passed = check_scalar("rz_contact_heat_rate", heat_rate, rz_heat_rate_zero_tolerance) && passed;
     } else {
-        passed = check_scalar("rz_equivalent_plastic_strain", plastic, 1e-12) && passed;
-        passed = check_scalar("rz_equivalent_creep_strain", creep, 1e-12) && passed;
+        passed = check_scalar("rz_equivalent_plastic_strain", plastic, rz_strain_zero_tolerance) && passed;
+        passed = check_scalar("rz_equivalent_creep_strain", creep, rz_strain_zero_tolerance) && passed;
     }
     if (mechanisms == "plastic" || mechanisms == "coupled") passed = max_plastic > 1e-5 && passed;
     if (mechanisms == "creep" || mechanisms == "coupled") passed = max_creep > 1e-6 && passed;
@@ -304,8 +318,8 @@ bool check_rz_sliding_abaqus(const std::string& output_path, const std::string& 
             if (!(row.at("pressure") > 1e5) || !(row.at("gap") < 0.0))
                 throw std::runtime_error("Friction qualification requires active compressive contact");
             const double friction_ratio = std::abs(row.at("shear")) / (0.2 * row.at("pressure"));
-            const bool reference_sliding = std::abs(friction_ratio - 1.0) < 1e-7;
-            if (friction_ratio > 1.0 + 1e-7 || reference_sliding != is_sliding)
+            const bool reference_sliding = std::abs(friction_ratio - 1.0) < 1e-8;
+            if (friction_ratio > 1.0 + 1e-8 || reference_sliding != is_sliding)
                 throw std::runtime_error("Coulomb sticking/sliding state differs from Abaqus");
             if (previous_sliding[label] && !reference_sliding &&
                 (row.at("slip") - previous_slip[label]) * previous_shear[label] < 0.0)
@@ -327,10 +341,11 @@ bool check_rz_sliding_abaqus(const std::string& output_path, const std::string& 
         std::vector<std::pair<std::string, const FieldErrorMetrics*>>{{"pressure", &pressure}, {"gap", &gap},
             {"shear", &shear}, {"slip", &slip}, {"normal_force", &normal_force}, {"tangent_force", &tangent_force}})
         passed = check_scalar("rz_sliding_" + field.first, *field.second,
-                     field.first == "gap" || field.first == "slip" ? 1e-12 : 1e-7) &&
+                     field.first == "gap" || field.first == "slip" ? rz_displacement_zero_tolerance
+                                                                   : rz_force_zero_tolerance) &&
                  passed;
-    passed = check_group("rz_sliding_normal_force_vector", normal_vector, 1e-7) && passed;
-    passed = check_group("rz_sliding_tangent_force_vector", tangent_vector, 1e-7) && passed;
+    passed = check_group("rz_sliding_normal_force_vector", normal_vector, rz_force_zero_tolerance) && passed;
+    passed = check_group("rz_sliding_tangent_force_vector", tangent_vector, rz_force_zero_tolerance) && passed;
     std::size_t maximum_crossed = 0;
     for (const auto& entry : ownership) {
         const auto limits = std::minmax_element(entry.second.begin(), entry.second.end());
