@@ -3,6 +3,7 @@
 #include "fuelsim/core/rz_quad4.hpp"
 #include "fuelsim/core/steady_problem.hpp"
 #include "fuelsim/core/transient_problem.hpp"
+#include "rz8_assembly.hpp"
 #include "rz_assembly.hpp"
 #include <array>
 #include <vector>
@@ -16,6 +17,7 @@ struct TransientCommittedState final {
     std::vector<double> raw_residual, external_load_residual;
     TransientConservationSummary conservation;
     double time = 0.0, load_factor = 0.0, previous_time = 0.0;
+    std::vector<std::vector<Quad8MaterialHistory>> quad8_material_histories;
 };
 
 namespace rz {
@@ -36,6 +38,12 @@ struct TransientBackendView final {
 
 class BackendAccess final {
   public:
+    static const rz8::SpatialAssembly& quad8_spatial(const SteadyProblem& problem) noexcept;
+    static const rz8::SpatialAssembly& quad8_spatial(const TransientProblem& problem) noexcept;
+    static bool uses_quad8(const SteadyProblem& problem) noexcept;
+    static const std::vector<Quad4RzData>& quad8_kernel_data(const SteadyProblem& problem) noexcept;
+    static const std::vector<std::vector<Quad8MaterialHistory>>& quad8_material_histories(
+        const TransientProblem& problem) noexcept;
     static rz::SteadyBackendView steady(const SteadyProblem& problem) noexcept;
     static rz::TransientBackendView transient(const TransientProblem& problem) noexcept;
     static const cartesian::SpatialAssembly& cartesian_spatial(const SteadyProblem& problem) noexcept;

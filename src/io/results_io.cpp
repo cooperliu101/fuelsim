@@ -335,6 +335,29 @@ UnstructuredQuad4Mesh read_exodus_quad4(const std::string& path) {
         std::move(data.element_blocks), std::move(data.node_sets), std::move(data.side_sets));
 }
 
+UnstructuredQuad8Mesh read_exodus_quad8(const std::string& path) {
+    auto data = read_exodus_mesh(path, 2, 8, 4, "QUAD8", "QUAD", "fuelsim Quad8 mesh");
+    std::vector<RzPoint> nodes;
+    for (const auto& node : data.nodes) nodes.push_back({node[0], node[1]});
+    std::vector<Quad8Element> elements;
+    for (const auto& value : data.elements)
+        elements.push_back({{value[0], value[1], value[2], value[3], value[4], value[5], value[6], value[7]}});
+    return UnstructuredQuad8Mesh(std::move(nodes), std::move(elements), std::move(data.element_block_ids),
+        std::move(data.element_blocks), std::move(data.node_sets), std::move(data.side_sets));
+}
+
+void write_exodus_quad8(const std::string& path, const UnstructuredQuad8Mesh& mesh) {
+    ExodusMeshData data{2, 8, 4, "QUAD8", "QUAD", "fuelsim Quad8 mesh", {"r", "z", nullptr}, {}, {},
+        mesh.element_block_ids(), mesh.element_blocks(), mesh.node_sets(), mesh.side_sets()};
+    for (const auto& node : mesh.nodes()) data.nodes.push_back({node.r, node.z, 0});
+    for (const auto& element : mesh.elements()) {
+        std::array<std::size_t, 20> nodes{};
+        std::copy(element.nodes.begin(), element.nodes.end(), nodes.begin());
+        data.elements.push_back(nodes);
+    }
+    write_exodus_mesh(path, data);
+}
+
 void write_exodus_quad4(const std::string& path, const UnstructuredQuad4Mesh& mesh) {
     ExodusMeshData data{2, 4, 4, "QUAD4", "QUAD", "fuelsim Quad4 mesh", {"r", "z", nullptr}, {}, {},
         mesh.element_block_ids(), mesh.element_blocks(), mesh.node_sets(), mesh.side_sets()};
@@ -399,6 +422,34 @@ bool exodus_uses_hex20(const std::string& path) {
         node_count = block.num_nodes_per_entry;
     }
     return node_count == 20;
+}
+
+bool exodus_uses_quad8(const std::string& path) {
+    int cpu_word_size = static_cast<int>(sizeof(double)), io_word_size = 0;
+    float version = 0.0F;
+    const int exoid = ex_open(path.c_str(), EX_READ, &cpu_word_size, &io_word_size, &version);
+    if (exoid < 0) throw std::runtime_error("Could not open Exodus file '" + path + "': " + ex_strerror(exoid));
+    ExodusFile file(exoid);
+    ex_set_int64_status(file.id(), EX_ALL_INT64_API);
+    ex_init_params parameters{};
+    check_exodus(ex_get_init_ext(file.id(), &parameters), "Could not read Exodus model parameters");
+    if (parameters.num_dim != 2 || parameters.num_elem_blk <= 0)
+        throw std::runtime_error("Axisymmetric Exodus mesh must contain element blocks");
+    std::vector<std::int64_t> block_ids(checked_size(parameters.num_elem_blk, "Exodus element block count"));
+    check_exodus(ex_get_ids(file.id(), EX_ELEM_BLOCK, block_ids.data()), "Could not read Exodus element block IDs");
+    std::int64_t node_count = 0;
+    for (const std::int64_t block_id : block_ids) {
+        ex_block block{};
+        block.id = block_id;
+        block.type = EX_ELEM_BLOCK;
+        check_exodus(ex_get_block_param(file.id(), &block), "Could not read Exodus element block");
+        if (block.num_nodes_per_entry != 4 && block.num_nodes_per_entry != 8)
+            throw std::runtime_error("Axisymmetric Exodus element blocks must contain only QUAD4 or QUAD8 elements");
+        if (node_count != 0 && node_count != block.num_nodes_per_entry)
+            throw std::runtime_error("Axisymmetric Exodus mesh cannot mix QUAD4 and QUAD8 element blocks");
+        node_count = block.num_nodes_per_entry;
+    }
+    return node_count == 8;
 }
 
 void write_exodus_hex8(const std::string& path, const UnstructuredHex8Mesh& mesh) {
@@ -586,6 +637,10 @@ ResultsMeshView results_mesh_view(const UnstructuredQuad4Mesh& mesh) {
     return {mesh.nodes().size(), mesh.elements().size(), mesh.element_blocks(), mesh.element_block_ids()};
 }
 
+ResultsMeshView results_mesh_view(const UnstructuredQuad8Mesh& mesh) {
+    return {mesh.nodes().size(), mesh.elements().size(), mesh.element_blocks(), mesh.element_block_ids()};
+}
+
 ResultsMeshView results_mesh_view(const UnstructuredHex8Mesh& mesh) {
     return {mesh.nodes().size(), mesh.elements().size(), mesh.element_blocks(), mesh.element_block_ids()};
 }
@@ -710,6 +765,119 @@ void fill_rz_nodal(const UnstructuredQuad4Mesh& mesh, const rz::SpatialAssembly&
         const std::vector<ContactNodeSummary> summary = spatial.summarize_contact_nodes(contact, state);
         fill_contact_nodal_values(contact, nodes, summary, values);
     }
+}
+
+std::vector<std::string> quad8_element_names(bool transient) {
+    std::vector<std::string> result;
+    for (std::size_t q = 0; q < 9; ++q) {
+        for (const char* component : {"rr", "zz", "hoop", "rz"})
+            result.push_back("stress_" + std::string(component) + "_q" + std::to_string(q));
+        if (transient) {
+            for (const char* prefix : {"elastic_", "plastic_", "creep_"})
+                for (const char* component : {"rr", "zz", "hoop", "rz"})
+                    result.push_back(std::string(prefix) + component + "_q" + std::to_string(q));
+            result.push_back("equiv_plastic_q" + std::to_string(q));
+            result.push_back("equiv_creep_q" + std::to_string(q));
+        }
+        result.push_back("current_r_q" + std::to_string(q));
+        result.push_back("current_z_q" + std::to_string(q));
+    }
+    result.push_back("material_point_count");
+    return result;
+}
+
+std::vector<std::string> quad8_nodal_names(const std::vector<ContactDefinition>& contacts, bool transient) {
+    auto names = nodal_variable_names(contacts, transient);
+    names.push_back("temperature_active");
+    return names;
+}
+
+std::vector<std::vector<double>> quad8_nodal(const UnstructuredQuad8Mesh& source, const rz8::SpatialAssembly& spatial,
+    const std::vector<double>& state, const std::vector<double>* raw) {
+    const auto& contacts = spatial.definition().contacts;
+    const auto count = quad8_nodal_names(contacts, raw != nullptr).size();
+    std::vector<std::vector<double>> values(
+        count, std::vector<double>(source.nodes().size(), std::numeric_limits<double>::quiet_NaN()));
+    for (std::size_t r = 0; r < spatial.region_count(); ++r) {
+        const auto& mesh = spatial.region_mesh(r);
+        for (std::size_t n = 0; n < mesh.nodes().size(); ++n) {
+            const auto source_node = mesh.source_node_ids()[n], global = spatial.global_node(r, n);
+            values[1][source_node] = state[spatial.dof(Field::radial_displacement, global)];
+            values[2][source_node] = state[spatial.dof(Field::axial_displacement, global)];
+            const bool thermal = mesh.temperature_nodes()[n];
+            values.back()[source_node] = thermal ? 1 : 0;
+            if (thermal)
+                values[0][source_node] = state[spatial.dof(Field::temperature, spatial.global_temperature_node(r, n))];
+            if (raw) {
+                const auto offset = 3 + contacts.size() * rz_contact_fields.size();
+                values[offset][source_node] =
+                    thermal ? (*raw)[spatial.dof(Field::temperature, spatial.global_temperature_node(r, n))] : 0;
+                values[offset + 1][source_node] = (*raw)[spatial.dof(Field::radial_displacement, global)];
+                values[offset + 2][source_node] = (*raw)[spatial.dof(Field::axial_displacement, global)];
+            }
+        }
+        for (const auto& e : mesh.elements())
+            for (std::size_t s = 0; s < 4; ++s)
+                values[0][mesh.source_node_ids()[e.nodes[4 + s]]] =
+                    .5 * (state[spatial.dof(Field::temperature, spatial.global_temperature_node(r, e.nodes[s]))] +
+                             state[spatial.dof(
+                                 Field::temperature, spatial.global_temperature_node(r, e.nodes[(s + 1) % 4]))]);
+    }
+    for (std::size_t c = 0; c < contacts.size(); ++c)
+        fill_contact_nodal_values(
+            c, spatial.contact_secondary_source_nodes(c), spatial.summarize_contact_nodes(c, state), values);
+    return values;
+}
+
+std::vector<std::vector<double>> quad8_elements(const UnstructuredQuad8Mesh& source,
+    const rz8::SpatialAssembly& spatial, const std::vector<double>& state,
+    const std::vector<std::vector<Quad8MaterialHistory>>* histories, const std::vector<Quad4RzData>* data) {
+    std::vector<std::vector<double>> values(quad8_element_names(histories != nullptr).size(),
+        std::vector<double>(source.elements().size(), std::numeric_limits<double>::quiet_NaN()));
+    std::vector<std::size_t> dofs;
+    for (std::size_t index = 0; index < spatial.volume_contribution_count(); ++index) {
+        const auto [r, e] = spatial.element_location(index);
+        const auto source_element = spatial.region_mesh(r).source_element_ids()[e];
+        spatial.contribution_dofs(index, dofs);
+        Quad8RzValues local{};
+        for (std::size_t i = 0; i < 20; ++i) local[i] = state[dofs[i]];
+        const auto& geometry = spatial.region_element_geometry(r, e);
+        Quad8MaterialHistory empty_history{};
+        const auto history =
+            histories ? (*histories)[r][e]
+                      : compute_quad8_rz((*data)[r], geometry, local, {}, &empty_history, .1, false, false).history;
+        std::size_t variable = 0;
+        for (std::size_t q = 0; q < 9; ++q) {
+            const auto& point = history[q];
+            for (double component : {point.stress.rr, point.stress.zz, point.stress.hoop, point.stress.rz})
+                values[variable++][source_element] = component;
+            if (histories) {
+                for (const auto* tensor : {&point.elastic_strain, &point.plastic_strain, &point.creep_strain})
+                    for (double component : *tensor) values[variable++][source_element] = component;
+                values[variable++][source_element] = point.equivalent_plastic_strain;
+                values[variable++][source_element] = point.equivalent_creep_strain;
+            }
+            double radius = geometry.points[q].radius, axial = geometry.points[q].axial_coordinate;
+            for (std::size_t n = 0; n < 8; ++n) {
+                radius += geometry.points[q].shape[n] * local[4 + n];
+                axial += geometry.points[q].shape[n] * local[12 + n];
+            }
+            values[variable++][source_element] = radius;
+            values[variable++][source_element] = axial;
+        }
+        values.back()[source_element] = 9;
+    }
+    return values;
+}
+
+std::vector<double> quad8_globals(const rz8::SpatialAssembly& spatial, const std::vector<double>& state, double load) {
+    std::vector<double> result = {load};
+    for (std::size_t c = 0; c < spatial.definition().contacts.size(); ++c) {
+        const auto summary = spatial.summarize_interface(c, state);
+        result.insert(
+            result.end(), {summary.total_heat_rate, summary.total_contact_force, summary.total_tangential_force});
+    }
+    return result;
 }
 
 std::vector<double> rz_globals(
@@ -1102,6 +1270,14 @@ void EngineeringHistoryWriter::append(
                     << summary.total_heat_rate << ',' << summary.total_contact_force << ','
                     << summary.total_tangential_force;
         }
+    } else if (problem.uses_quad8()) {
+        const auto& spatial = BackendAccess::quad8_spatial(problem);
+        for (std::size_t c = 0; c < problem.definition().contacts.size(); ++c) {
+            const auto summary = spatial.summarize_interface(c, state);
+            _stream << ',' << summary.minimum_gap << ',' << summary.maximum_contact_pressure << ','
+                    << summary.total_heat_rate << ',' << summary.total_contact_force << ','
+                    << summary.total_tangential_force;
+        }
     } else {
         const rz::TransientBackendView backend = BackendAccess::transient(problem);
         for (std::size_t contact = 0; contact < problem.definition().contacts.size(); ++contact) {
@@ -1128,6 +1304,17 @@ void write_steady_results(const std::string& path, const UnstructuredQuad4Mesh& 
     fill_rz_nodal(mesh, BackendAccess::steady(problem).spatial, state, nodal_values);
     write_result_step(path, results_mesh_view(mesh), 1, 1.0, nodal_values, steady_elements(mesh, problem, state),
         rz_globals(BackendAccess::steady(problem).spatial, state, problem.load_factor()));
+}
+
+void write_steady_results(const std::string& path, const UnstructuredQuad8Mesh& mesh, const SteadyProblem& problem,
+    const std::vector<double>& state) {
+    const auto& spatial = BackendAccess::quad8_spatial(problem);
+    write_exodus_quad8(path, mesh);
+    define_result_variables(path, results_mesh_view(mesh), quad8_nodal_names(spatial.definition().contacts, false),
+        quad8_element_names(false), global_variable_names(spatial.definition().contacts));
+    write_result_step(path, results_mesh_view(mesh), 1, 1, quad8_nodal(mesh, spatial, state, nullptr),
+        quad8_elements(mesh, spatial, state, nullptr, &BackendAccess::quad8_kernel_data(problem)),
+        quad8_globals(spatial, state, problem.load_factor()));
 }
 
 void write_steady_results(const std::string& path, const UnstructuredHex8Mesh& mesh, const SteadyProblem& problem,
@@ -1191,6 +1378,16 @@ ExodusTransientResultsWriter::ExodusTransientResultsWriter(
         cartesian_transient_variable_names(27), global_variable_names(contacts, true));
 }
 
+ExodusTransientResultsWriter::ExodusTransientResultsWriter(
+    std::string path, UnstructuredQuad8Mesh mesh, const TransientProblem& problem)
+    : _path(std::move(path)), _quad8_mesh(std::make_unique<UnstructuredQuad8Mesh>(std::move(mesh))),
+      _problem_signature(transient_problem_signature(problem)), _step_count(0) {
+    write_exodus_quad8(_path, *_quad8_mesh);
+    define_result_variables(_path, results_mesh_view(*_quad8_mesh),
+        quad8_nodal_names(problem.definition().contacts, true), quad8_element_names(true),
+        global_variable_names(problem.definition().contacts, true));
+}
+
 void ExodusTransientResultsWriter::append(const TransientProblem& problem) {
     if (problem.time_step_active())
         throw std::logic_error("Exodus results cannot be written during an active time step");
@@ -1198,7 +1395,14 @@ void ExodusTransientResultsWriter::append(const TransientProblem& problem) {
         throw std::invalid_argument("Exodus result problem does not match writer model");
     ++_step_count;
     std::vector<std::vector<double>> nodal_values;
-    if (_hex20_mesh) {
+    if (_quad8_mesh) {
+        const auto& spatial = BackendAccess::quad8_spatial(problem);
+        const auto& state = problem.committed_solution();
+        write_result_step(_path, results_mesh_view(*_quad8_mesh), _step_count, problem.committed_time(),
+            quad8_nodal(*_quad8_mesh, spatial, state, &BackendAccess::committed_raw_residual(problem)),
+            quad8_elements(*_quad8_mesh, spatial, state, &BackendAccess::quad8_material_histories(problem), nullptr),
+            transient_globals(quad8_globals(spatial, state, problem.committed_load_factor()), problem));
+    } else if (_hex20_mesh) {
         const cartesian::SpatialAssembly& spatial = BackendAccess::cartesian_spatial(problem);
         fill_cartesian_nodal(*_hex20_mesh, spatial, problem.committed_solution(), nodal_values);
         append_cartesian_reactions(spatial, problem, nodal_values);

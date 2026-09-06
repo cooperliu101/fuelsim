@@ -79,8 +79,13 @@ add_library(fuelsim_core
     src/core/cartesian3d_kernels.cpp
     src/core/cartesian3d_hex20.cpp
     src/core/rz_kernels.cpp
+    src/core/rz_quad8.cpp
+    src/core/rz8_assembly.cpp
+    src/core/rz8_contact.cpp
+    src/core/detail/line3_rz_contact.cpp
     src/core/detail/cax4rt.cpp
     src/core/mesh.cpp
+    src/core/mesh_quad8.cpp
     src/core/material.cpp
     src/core/material_functions.cpp
     src/core/nonlinear_problem.cpp
@@ -620,6 +625,10 @@ if(BUILD_TESTING)
     )
 
     add_executable(fuelsim_core_tests tests/core_tests.cpp)
+    add_executable(fuelsim_quad8_rz_tests tests/quad8_rz_tests.cpp)
+    target_link_libraries(fuelsim_quad8_rz_tests PRIVATE fuelsim::core)
+    fuelsim_enable_warnings(fuelsim_quad8_rz_tests)
+    add_test(NAME fuelsim_quad8_rz_tests COMMAND fuelsim_quad8_rz_tests)
     target_link_libraries(fuelsim_core_tests
         PRIVATE fuelsim_test_mesh_fixture fuelsim::core
     )
@@ -2193,6 +2202,14 @@ if(BUILD_TESTING)
             "${cax4rt_input}" rz-abaqus
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${cax4rt_case}_nodes.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${cax4rt_case}_points.csv" "${cax4rt_mechanism}")
+    endforeach()
+
+    foreach(cax8t_case IN ITEMS b100_cax8t_small_probe b101_cax8t_finite_probe)
+        string(REGEX REPLACE ".*_" "" cax8t_mechanism "${cax8t_case}")
+        fuelsim_add_production_test("fuelsim_${cax8t_case}_abaqus_tests" "${cax8t_case}"
+            "transient_${cax8t_case}" rz-abaqus
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${cax8t_case}_nodes.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${cax8t_case}_points.csv" "${cax8t_mechanism}")
     endforeach()
 
     fuelsim_add_production_test(fuelsim_b915_cax4rt_thermal_identification_abaqus_tests b915_cax4rt_thermal_identification

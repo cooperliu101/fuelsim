@@ -99,6 +99,40 @@ void hash_contacts(std::uint64_t& hash, const SpatialDefinition& definition) {
 std::uint64_t transient_problem_signature(const TransientProblem& problem) {
     std::uint64_t hash = detail::fnv1a_offset;
     const bool cartesian = problem.is_cartesian_3d();
+    if (problem.uses_quad8()) {
+        hash_string(hash, "axisymmetric_rz_quad8_u2_t1_nine_points");
+        hash_size(hash, problem.dof_count());
+        const auto& spatial = BackendAccess::quad8_spatial(problem);
+        for (std::size_t r = 0; r < spatial.region_count(); ++r) {
+            hash_region_definition(hash, spatial.region(r));
+            hash_integer(hash, static_cast<std::int64_t>(spatial.region(r).strain_formulation));
+            const auto& mesh = spatial.region_mesh(r);
+            hash_size(hash, mesh.nodes().size());
+            for (std::size_t n = 0; n < mesh.nodes().size(); ++n) {
+                hash_double(hash, mesh.nodes()[n].r);
+                hash_double(hash, mesh.nodes()[n].z);
+                hash_size(hash, mesh.source_node_ids()[n]);
+                hash_size(hash, spatial.global_node(r, n));
+                hash_integer(hash, mesh.temperature_nodes()[n] ? 1 : 0);
+            }
+            hash_size(hash, mesh.elements().size());
+            for (const auto& e : mesh.elements())
+                for (auto n : e.nodes) hash_size(hash, n);
+        }
+        for (const auto& bc : problem.definition().boundary_conditions)
+            hash_integer(hash, bc.configuration_explicit ? 1 : 0);
+        for (const auto& bc : spatial.dirichlet_conditions()) hash_size(hash, bc.dof);
+        for (std::size_t i = spatial.volume_contribution_count(); i < spatial.sparsity_contribution_count(); ++i) {
+            std::vector<std::size_t> dofs;
+            spatial.sparsity_contribution_dofs(i, dofs);
+            hash_size(hash, dofs.size());
+            for (auto d : dofs) hash_size(hash, d);
+        }
+        hash_contacts(hash, problem.definition());
+        hash_boundaries(hash, problem.definition(), true);
+        hash_time_tables(hash, problem.definition());
+        return hash;
+    }
     const bool hex20 = cartesian && BackendAccess::cartesian_spatial(problem).uses_hex20();
     hash_string(hash, cartesian ? (hex20 ? "cartesian_3d_hex20_u2_t1" : "cartesian_3d_hex8") : "axisymmetric_rz_quad4");
     hash_string(hash, cartesian ? "xx,yy,zz,xy,yz,xz" : "rr,zz,hoop,rz");

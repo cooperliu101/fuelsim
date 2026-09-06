@@ -72,10 +72,12 @@ inline constexpr std::array<TransientConservationField, 24> transient_conservati
 class TransientProblem final : public NonlinearProblem {
   public:
     TransientProblem(SpatialDefinition definition, const UnstructuredQuad4Mesh& source_mesh);
+    TransientProblem(SpatialDefinition definition, const UnstructuredQuad8Mesh& source_mesh);
     TransientProblem(SpatialDefinition definition, const UnstructuredHex8Mesh& source_mesh);
     TransientProblem(SpatialDefinition definition, const UnstructuredHex20Mesh& source_mesh);
     ~TransientProblem() override;
     bool is_cartesian_3d() const noexcept;
+    bool uses_quad8() const noexcept;
     const SpatialDefinition& definition() const noexcept;
     std::vector<double> initial_solution() const;
     const std::vector<double>& committed_solution() const noexcept;

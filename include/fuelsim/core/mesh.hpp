@@ -18,6 +18,15 @@ struct Quad4Element final {
     std::array<std::size_t, 4> nodes;
 };
 
+struct Quad8Element final {
+    std::array<std::size_t, 8> nodes;
+};
+
+struct Line3BoundaryElement final {
+    std::array<std::size_t, 3> nodes;
+    std::size_t parent_element, local_side;
+};
+
 struct Line2BoundaryElement final {
     std::array<std::size_t, 2> nodes;
 };
@@ -102,6 +111,21 @@ class UnstructuredQuad4Mesh final : public UnstructuredMeshMetadata {
     std::vector<Quad4Element> _elements;
 };
 
+class UnstructuredQuad8Mesh final : public UnstructuredMeshMetadata {
+  public:
+    UnstructuredQuad8Mesh(std::vector<RzPoint> nodes, std::vector<Quad8Element> elements,
+        std::vector<std::int64_t> element_block_ids, std::vector<ElementBlockInfo> element_blocks,
+        std::vector<NodeSet> node_sets, std::vector<SideSet> side_sets);
+
+    const std::vector<RzPoint>& nodes() const noexcept { return _nodes; }
+
+    const std::vector<Quad8Element>& elements() const noexcept { return _elements; }
+
+  private:
+    std::vector<RzPoint> _nodes;
+    std::vector<Quad8Element> _elements;
+};
+
 class UnstructuredHex8Mesh final : public UnstructuredMeshMetadata {
   public:
     UnstructuredHex8Mesh(std::vector<CartesianPoint3> nodes, std::vector<Hex8Element> elements,
@@ -174,6 +198,30 @@ class RegionMesh final : public RegionMeshMapping {
     RegionMesh(const UnstructuredQuad4Mesh& source, std::int64_t block_id);
     std::vector<RzPoint> _nodes;
     std::vector<Quad4Element> _elements;
+};
+
+struct Quad8RegionBoundary final {
+    std::vector<std::size_t> temperature_nodes, displacement_nodes;
+    std::vector<Line3BoundaryElement> elements;
+};
+
+class Quad8RegionMesh final : public RegionMeshMapping {
+  public:
+    static Quad8RegionMesh from_unstructured_block(const UnstructuredQuad8Mesh& source, std::int64_t block_id);
+
+    const std::vector<RzPoint>& nodes() const noexcept { return _nodes; }
+
+    const std::vector<Quad8Element>& elements() const noexcept { return _elements; }
+
+    const std::vector<bool>& temperature_nodes() const noexcept { return _temperature_nodes; }
+
+    Quad8RegionBoundary map_side_set(const UnstructuredQuad8Mesh& source, const std::string& name) const;
+
+  private:
+    Quad8RegionMesh(const UnstructuredQuad8Mesh& source, std::int64_t block_id);
+    std::vector<RzPoint> _nodes;
+    std::vector<Quad8Element> _elements;
+    std::vector<bool> _temperature_nodes;
 };
 
 struct Hex8RegionBoundary final {

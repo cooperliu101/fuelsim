@@ -313,18 +313,22 @@ void write_configuration_warnings(const spatial_detail::SpatialLayout& spatial, 
 }
 
 bool run_steady(const FuelSimCaseDefinition& definition, const UnstructuredQuad4Mesh* rz_source,
-    const UnstructuredHex8Mesh* hex_source, const UnstructuredHex20Mesh* hex20_source, CaseOutput& output,
-    bool check_jacobian, const PetscSession& session) {
+    const UnstructuredHex8Mesh* hex_source, const UnstructuredHex20Mesh* hex20_source,
+    const UnstructuredQuad8Mesh* quad8_source, CaseOutput& output, bool check_jacobian, const PetscSession& session) {
     std::unique_ptr<SteadyProblem> problem_storage;
     if (hex20_source != nullptr)
         problem_storage = std::make_unique<SteadyProblem>(definition.spatial, *hex20_source);
     else if (hex_source != nullptr)
         problem_storage = std::make_unique<SteadyProblem>(definition.spatial, *hex_source);
+    else if (quad8_source)
+        problem_storage = std::make_unique<SteadyProblem>(definition.spatial, *quad8_source);
     else
         problem_storage = std::make_unique<SteadyProblem>(definition.spatial, *rz_source);
     SteadyProblem& problem = *problem_storage;
     if (hex_source != nullptr || hex20_source != nullptr)
         write_configuration_warnings(BackendAccess::cartesian_spatial(problem), session);
+    else if (quad8_source)
+        write_configuration_warnings(BackendAccess::quad8_spatial(problem), session);
     else
         write_configuration_warnings(BackendAccess::steady(problem).spatial, session);
     if (check_jacobian) {
@@ -363,6 +367,11 @@ bool run_steady(const FuelSimCaseDefinition& definition, const UnstructuredQuad4
             for (std::size_t contact = 0; contact < definition.spatial.contacts.size(); ++contact)
                 write_interface_summary(spatial.definition().contacts.at(contact).name,
                     spatial.summarize_interface(contact, result.solve.state), output);
+        } else if (quad8_source) {
+            const auto& spatial = BackendAccess::quad8_spatial(problem);
+            for (std::size_t c = 0; c < definition.spatial.contacts.size(); ++c)
+                write_interface_summary(
+                    definition.spatial.contacts[c].name, spatial.summarize_interface(c, result.solve.state), output);
         } else {
             const rz::SpatialAssembly& spatial = BackendAccess::steady(problem).spatial;
             for (std::size_t contact = 0; contact < definition.spatial.contacts.size(); ++contact)
@@ -376,6 +385,8 @@ bool run_steady(const FuelSimCaseDefinition& definition, const UnstructuredQuad4
                 write_steady_results(definition.outputs.exodus_file, *hex20_source, problem, result.solve.state);
             else if (hex_source != nullptr)
                 write_steady_results(definition.outputs.exodus_file, *hex_source, problem, result.solve.state);
+            else if (quad8_source)
+                write_steady_results(definition.outputs.exodus_file, *quad8_source, problem, result.solve.state);
             else
                 write_steady_results(definition.outputs.exodus_file, *rz_source, problem, result.solve.state);
         });
@@ -383,18 +394,22 @@ bool run_steady(const FuelSimCaseDefinition& definition, const UnstructuredQuad4
 }
 
 bool run_transient(const FuelSimCaseDefinition& definition, const UnstructuredQuad4Mesh* rz_source,
-    const UnstructuredHex8Mesh* hex_source, const UnstructuredHex20Mesh* hex20_source, CaseOutput& output,
-    bool check_jacobian, const PetscSession& session) {
+    const UnstructuredHex8Mesh* hex_source, const UnstructuredHex20Mesh* hex20_source,
+    const UnstructuredQuad8Mesh* quad8_source, CaseOutput& output, bool check_jacobian, const PetscSession& session) {
     std::unique_ptr<TransientProblem> problem_storage;
     if (hex20_source != nullptr)
         problem_storage = std::make_unique<TransientProblem>(definition.spatial, *hex20_source);
     else if (hex_source != nullptr)
         problem_storage = std::make_unique<TransientProblem>(definition.spatial, *hex_source);
+    else if (quad8_source)
+        problem_storage = std::make_unique<TransientProblem>(definition.spatial, *quad8_source);
     else
         problem_storage = std::make_unique<TransientProblem>(definition.spatial, *rz_source);
     TransientProblem& problem = *problem_storage;
     if (hex_source != nullptr || hex20_source != nullptr)
         write_configuration_warnings(BackendAccess::cartesian_spatial(problem), session);
+    else if (quad8_source)
+        write_configuration_warnings(BackendAccess::quad8_spatial(problem), session);
     else
         write_configuration_warnings(BackendAccess::transient(problem).spatial, session);
     double restart_time_step = 0.0;
@@ -433,6 +448,8 @@ bool run_transient(const FuelSimCaseDefinition& definition, const UnstructuredQu
                 results = std::make_unique<ExodusTransientResultsWriter>(results_path, *hex20_source, problem);
             else if (hex_source != nullptr)
                 results = std::make_unique<ExodusTransientResultsWriter>(results_path, *hex_source, problem);
+            else if (quad8_source)
+                results = std::make_unique<ExodusTransientResultsWriter>(results_path, *quad8_source, problem);
             else
                 results = std::make_unique<ExodusTransientResultsWriter>(results_path, *rz_source, problem);
             results->append(problem);
@@ -512,6 +529,11 @@ bool run_transient(const FuelSimCaseDefinition& definition, const UnstructuredQu
         for (std::size_t contact = 0; contact < definition.spatial.contacts.size(); ++contact)
             write_interface_summary(definition.spatial.contacts[contact].name,
                 spatial.summarize_interface(contact, result.committed_state), output);
+    } else if (quad8_source) {
+        const auto& spatial = BackendAccess::quad8_spatial(problem);
+        for (std::size_t c = 0; c < definition.spatial.contacts.size(); ++c)
+            write_interface_summary(
+                definition.spatial.contacts[c].name, spatial.summarize_interface(c, result.committed_state), output);
     } else {
         const rz::TransientBackendView backend = BackendAccess::transient(problem);
         for (std::size_t contact = 0; contact < definition.spatial.contacts.size(); ++contact)
@@ -528,6 +550,7 @@ int run_application(int argc, char** argv) {
         PetscSession session(argc, argv, "fuelsim input-driven multi-region thermo-mechanics solver\n");
         const bool root_rank = session.rank() == 0;
         std::unique_ptr<UnstructuredQuad4Mesh> rz_source;
+        std::unique_ptr<UnstructuredQuad8Mesh> quad8_source;
         std::unique_ptr<UnstructuredHex8Mesh> hex_source;
         std::unique_ptr<UnstructuredHex20Mesh> hex20_source;
         if (definition.geometry == CaseGeometry::cartesian_3d)
@@ -535,6 +558,8 @@ int run_application(int argc, char** argv) {
                 hex20_source = std::make_unique<UnstructuredHex20Mesh>(read_exodus_hex20(definition.mesh_file));
             else
                 hex_source = std::make_unique<UnstructuredHex8Mesh>(read_exodus_hex8(definition.mesh_file));
+        else if (exodus_uses_quad8(definition.mesh_file))
+            quad8_source = std::make_unique<UnstructuredQuad8Mesh>(read_exodus_quad8(definition.mesh_file));
         else
             rz_source = std::make_unique<UnstructuredQuad4Mesh>(read_exodus_quad4(definition.mesh_file));
         std::unique_ptr<CaseOutput> output;
@@ -546,9 +571,9 @@ int run_application(int argc, char** argv) {
         output->value("mpi_ranks", session.size());
         const bool completed = definition.problem == CaseProblem::steady
                                    ? run_steady(definition, rz_source.get(), hex_source.get(), hex20_source.get(),
-                                         *output, command.check_jacobian, session)
+                                         quad8_source.get(), *output, command.check_jacobian, session)
                                    : run_transient(definition, rz_source.get(), hex_source.get(), hex20_source.get(),
-                                         *output, command.check_jacobian, session);
+                                         quad8_source.get(), *output, command.check_jacobian, session);
         return completed ? 0 : 1;
     } catch (const std::exception& error) {
         std::cerr << "fuelsim failed: " << error.what() << '\n';

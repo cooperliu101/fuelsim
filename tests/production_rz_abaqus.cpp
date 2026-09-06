@@ -180,7 +180,7 @@ bool check_rz_abaqus(const std::string& output_path, const std::string& node_pat
         for (const auto count : frame.block_element_counts) elements += count;
         for (std::size_t e = 0; e < elements; ++e) {
             const double reported_count = frame.element("material_point_count")[e];
-            if (reported_count != 1.0 && reported_count != 4.0)
+            if (reported_count != 1.0 && reported_count != 4.0 && reported_count != 9.0)
                 throw std::runtime_error("Invalid RZ material point count");
             const auto point_count = static_cast<std::size_t>(reported_count);
             if (point_count == 1)
@@ -193,7 +193,7 @@ bool check_rz_abaqus(const std::string& output_path, const std::string& node_pat
                 if (!same_time(row.at("time"), frame.time) || row.at("element") != static_cast<double>(e + 1) ||
                     row.at("point") != static_cast<double>(aq + 1))
                     throw std::runtime_error("Abaqus material history does not match production output");
-                const auto suffix = "_q" + std::to_string(point_map[aq]);
+                const auto suffix = "_q" + std::to_string(point_count == 9 ? aq : point_map[aq]);
                 for (std::size_t t = 0; t < (contact ? 1 : tensors.size()); ++t) {
                     std::array<double, 4> actual{}, reference{};
                     for (std::size_t c = 0; c < components.size(); ++c) {

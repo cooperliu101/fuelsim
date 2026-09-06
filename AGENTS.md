@@ -241,10 +241,10 @@ Cartesian:[T(:), ux(:), uy(:), uz(:)]
 
 ## 架构边界
 
-- `fuelsim_core`：网格、自由度、材料、Quad4 RZ、HEX8、混合阶 HEX20 数值核
+- `fuelsim_core`：网格、自由度、材料、Quad4/CAX8T RZ、HEX8、混合阶 HEX20 数值核
   和问题定义，仅依赖 ADlite。
 - `fuelsim_io`：严格解析带版本号的 `.fsi` 输入卡，并使用 Exodus API 在
-  `.e` 文件和 fuelsim 自有非结构 Quad4、HEX8 或 HEX20 网格及结果之间转换；
+  `.e` 文件和 fuelsim 自有非结构 Quad4、QUAD8、HEX8 或 HEX20 网格及结果之间转换；
   保留元素块、节点集和边集的 ID 与名称，不使用 DMPlex，不暴露 Exodus 类型，
   也不实现对象工厂、表达式求值或兼容别名。
 - `fuelsim_solver`：PETSc 会话、稀疏装配、SNES 求解、稳态加载和瞬态时间
@@ -260,7 +260,7 @@ Cartesian:[T(:), ux(:), uy(:), uz(:)]
   只作为路线与回归名称。旧的专用问题类只能留在 `tests/support` 中支撑
   已有回归，不得重新进入公共头文件或生产库。
 - `SteadyProblem` 和 `TransientProblem` 从与输入几何一致的
-  `UnstructuredQuad4Mesh`、`UnstructuredHex8Mesh` 或 `UnstructuredHex20Mesh`
+  `UnstructuredQuad4Mesh`、`UnstructuredQuad8Mesh`、`UnstructuredHex8Mesh` 或 `UnstructuredHex20Mesh`
   选择任意数量的命名块；一个输入算例只使用一种体单元拓扑。每个块独立建立
   区域自由度、材料和 `small|finite` 应变形式。
 - Contact 输入只接受 `primary` 和 `secondary` 边集名，不接受主/从 block；

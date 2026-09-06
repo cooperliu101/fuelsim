@@ -183,6 +183,12 @@ BinaryBuffer state_payload(const TransientProblem& problem, double next_time_ste
                 for (const CartesianMaterialPointState& point : element) append_material_point(payload, point);
         return payload;
     }
+    if (problem.uses_quad8()) {
+        for (const auto& region : state.quad8_material_histories)
+            for (const auto& element : region)
+                for (const auto& point : element) append_material_point(payload, point);
+        return payload;
+    }
     for (std::size_t region = 0; region < state.material_histories.size(); ++region) {
         for (std::size_t element = 0; element < state.material_histories[region].size(); ++element)
             for (std::size_t q = 0; q < 4; ++q)
@@ -348,6 +354,15 @@ double restore_transient_checkpoint(const std::string& path, TransientProblem& p
             }
         }
         if (!payload.at_end()) throw std::runtime_error("Checkpoint payload contains trailing data");
+        BackendAccess::restore_committed_state(problem, std::move(state));
+        return next_time_step;
+    }
+    if (problem.uses_quad8()) {
+        state.quad8_material_histories = BackendAccess::quad8_material_histories(problem);
+        for (auto& region : state.quad8_material_histories)
+            for (auto& element : region)
+                for (auto& point : element) read_material_point(payload, point);
+        if (!payload.at_end()) throw std::runtime_error("CAX8T checkpoint contains trailing data");
         BackendAccess::restore_committed_state(problem, std::move(state));
         return next_time_step;
     }
