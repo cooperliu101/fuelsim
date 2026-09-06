@@ -386,9 +386,31 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
         passed;
     std::string node_sliding_case = surface_contact_case;
     node_sliding_case.replace(node_sliding_case.find("surface_to_surface"), 18, "node_to_surface");
+    {
+        std::ofstream output(malformed_path);
+        output << node_sliding_case;
+    }
+    const auto rz_sliding = fuelsim::read_case_input(malformed_path);
+    passed = check(rz_sliding.spatial.contacts[0].mechanical_sliding == fuelsim::MechanicalContactSliding::finite &&
+                       rz_sliding.spatial.contacts[0].friction_slip_tolerance == 1e-8,
+                 "RZ NTS accepts explicit finite sliding and elastic slip tolerance") &&
+             passed;
+    node_sliding_case.replace(node_sliding_case.find("axisymmetric_rz"), 15, "cartesian_3d");
     passed = expect_case_failure(
                  malformed_path, node_sliding_case, "sliding applies only to discretization = surface_to_surface") &&
              passed;
+    std::string cax4t_case = read_text(steady_path);
+    cax4t_case.insert(cax4t_case.find("    strain ="), "    element = cax4t\n");
+    {
+        std::ofstream output(malformed_path);
+        output << cax4t_case;
+    }
+    const auto cax4t_input = fuelsim::read_case_input(malformed_path);
+    passed = check(cax4t_input.spatial.regions.front().rz_element_formulation == fuelsim::RzElementFormulation::cax4t,
+                 "axisymmetric input selects the CAX4T mechanics formulation explicitly") &&
+             passed;
+    cax4t_case.replace(cax4t_case.find("axisymmetric_rz"), 15, "cartesian_3d");
+    passed = expect_case_failure(malformed_path, cax4t_case, "unknown HEX8 element 'cax4t'") && passed;
     std::string missing_friction_slip_tolerance_case = read_text(steady_path);
     missing_friction_slip_tolerance_case.insert(
         missing_friction_slip_tolerance_case.find(contact_penalty) + contact_penalty.size(),

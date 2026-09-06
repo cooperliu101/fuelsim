@@ -457,9 +457,9 @@ void define_variable_names(
         "Could not name Exodus " + category + " variables");
 }
 
-constexpr std::array<const char*, 13> rz_contact_fields = {"gap", "pressure", "tangential_traction",
+constexpr std::array<const char*, 14> rz_contact_fields = {"gap", "pressure", "tangential_traction",
     "elastic_tangential_slip", "sliding", "projected", "primary_segment", "tributary_area", "tributary_length",
-    "normal_force", "tangential_force", "current_r", "current_z"};
+    "normal_force", "tangential_force", "current_r", "current_z", "total_tangential_slip"};
 constexpr std::array<const char*, 26> cartesian_contact_fields = {"gap", "pressure", "tangential_traction",
     "elastic_tangential_slip", "sliding", "projected", "primary_face", "tributary_area", "normal_force",
     "constraint_pressure", "current_x", "current_y", "current_z", "normal_force_x", "normal_force_y", "normal_force_z",
@@ -690,6 +690,7 @@ void fill_contact_nodal_values(std::size_t contact, const std::vector<std::size_
         values[base + 10].at(nodes[node]) = item.tangential_force;
         values[base + 11].at(nodes[node]) = item.r + values[1].at(nodes[node]);
         values[base + 12].at(nodes[node]) = item.z + values[2].at(nodes[node]);
+        values[base + 13].at(nodes[node]) = item.total_tangential_slip;
     }
 }
 

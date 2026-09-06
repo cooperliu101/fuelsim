@@ -51,6 +51,7 @@ struct RegionDefinition final {
     StrainFormulation strain_formulation = StrainFormulation::small;
     Hex8ElementFormulation hex8_element_formulation = Hex8ElementFormulation::c3d8t;
     HeatSourceTimeEvaluation heat_source_time_evaluation = HeatSourceTimeEvaluation::end_time;
+    RzElementFormulation rz_element_formulation = RzElementFormulation::quad4;
 };
 enum class MechanicalContactFormulation {
     penalty,
@@ -131,6 +132,7 @@ struct ContactNodeSummary final {
     double gap, pressure, tributary_area, tributary_length, contact_force, tangential_traction, tangential_force,
         elastic_tangential_slip;
     bool sliding;
+    double total_tangential_slip = 0.0;
 };
 
 struct CartesianContactNodeSummary final {

@@ -1,5 +1,12 @@
 # Abaqus references
 
+## B8.0—B8.1 轴对称摩擦与有限滑移
+
+新增两个可变形非匹配环形网格算例，覆盖小应变摩擦、有限应变跨线段滑移、
+正向滑动、反向运动后重新粘着和反向滑动。全部字段及接触力向量使用严格的
+0.5% 门槛，详细指标、CAX4T 力学公式与适用边界见
+[轴对称摩擦验证记录](b8_rz_friction_validation.md)。
+
 ## B7.0—B7.9 axisymmetric CAX4T qualification
 
 Axisymmetric validation now uses Abaqus CAX4T as its primary external reference.

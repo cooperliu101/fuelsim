@@ -103,7 +103,7 @@ class SpatialProblemStorage {
         for (std::size_t region = 0; region < rz->region_count(); ++region) {
             const RegionDefinition& value = rz->region(region);
             kernel_data.push_back({IsotropicThermoelasticMaterial(value.material), rz->region_heat_source(region), 0.0,
-                value.strain_formulation});
+                value.strain_formulation, value.rz_element_formulation});
         }
     }
 

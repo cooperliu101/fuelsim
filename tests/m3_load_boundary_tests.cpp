@@ -168,6 +168,7 @@ bool test_opaque_state_snapshot(const std::string& input_path) {
                 const fuelsim::ContactPointHistory& actual = restored.contact_histories[contact][point];
                 const fuelsim::ContactPointHistory& expected = reference.contact_histories[contact][point];
                 identical = identical && actual.elastic_tangential_slip == expected.elastic_tangential_slip &&
+                            actual.total_tangential_slip == expected.total_tangential_slip &&
                             actual.normal_multiplier == expected.normal_multiplier &&
                             actual.sliding == expected.sliding;
             }

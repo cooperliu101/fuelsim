@@ -632,15 +632,18 @@ void SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
             compute_node_to_line_rz_contact_value(_mechanical_properties[candidate.contact], candidate.geometry,
                 local_state, committed_state, _contact_histories[candidate.contact][candidate.secondary]);
         if (!value.projected) continue;
-        const ContactPointHistory trial = {value.elastic_tangential_slip, value.sliding,
+        ContactPointHistory trial = {value.elastic_tangential_slip, value.sliding,
             _contact_histories[candidate.contact][candidate.secondary].normal_multiplier};
+        trial.total_tangential_slip = value.total_tangential_slip;
         if (updated[candidate.contact][candidate.secondary]) {
             const ContactPointHistory& prior = staged[candidate.contact][candidate.secondary];
             const double scale =
                 std::max({1.0, std::abs(prior.elastic_tangential_slip), std::abs(trial.elastic_tangential_slip)});
             if (std::abs(prior.elastic_tangential_slip - trial.elastic_tangential_slip) >
                     32.0 * std::numeric_limits<double>::epsilon() * scale ||
-                prior.sliding != trial.sliding)
+                prior.sliding != trial.sliding ||
+                std::abs(prior.total_tangential_slip - trial.total_tangential_slip) >
+                    32.0 * std::numeric_limits<double>::epsilon() * scale)
                 throw std::logic_error("Mechanical half-edges disagree on contact-node friction history");
             continue;
         }
@@ -666,8 +669,8 @@ void SpatialAssembly::restore_contact_state(
         if (histories[contact_value].size() != _contact_histories[contact_value].size())
             throw std::invalid_argument("SpatialAssembly restored contact history layout mismatch");
         for (const ContactPointHistory& history : histories[contact_value])
-            if (!std::isfinite(history.elastic_tangential_slip) || !std::isfinite(history.normal_multiplier) ||
-                history.normal_multiplier < 0.0)
+            if (!std::isfinite(history.elastic_tangential_slip) || !std::isfinite(history.total_tangential_slip) ||
+                !std::isfinite(history.normal_multiplier) || history.normal_multiplier < 0.0)
                 throw std::invalid_argument("SpatialAssembly restored contact history is invalid");
     }
     _committed_contact_solution = state;
@@ -882,6 +885,7 @@ std::vector<ContactNodeSummary> SpatialAssembly::summarize_contact_nodes(
     update_mechanical_candidates(0, contribution_count(), state);
     const ResolvedBoundary& secondary = _secondary_boundaries.at(contact_value);
     const RegionMesh& mesh = _meshes[secondary.region];
+    const bool committed = state == _committed_contact_solution;
     std::vector<ContactNodeSummary> result;
     result.reserve(secondary.boundary.nodes.size());
     for (std::size_t node : secondary.boundary.nodes) {
@@ -914,7 +918,10 @@ std::vector<ContactNodeSummary> SpatialAssembly::summarize_contact_nodes(
         node.contact_force += value.contact_force;
         node.tangential_force += value.tangential_force;
         node.elastic_tangential_slip = value.elastic_tangential_slip;
-        node.sliding = value.sliding;
+        node.total_tangential_slip = value.total_tangential_slip;
+        // A zero-increment return-map evaluation can round a saturated traction below its cap.
+        // Accepted output reports the committed classification, not that artificial reclassification.
+        node.sliding = committed ? _contact_histories[contact_value][secondary_index].sliding : value.sliding;
     }
     for (ContactNodeSummary& node : result) {
         if (node.tributary_area > 0.0) {
@@ -1392,10 +1399,6 @@ void SpatialAssembly::build_contacts(const UnstructuredQuad4Mesh& source_mesh) {
             throw std::invalid_argument(
                 "surface_to_surface mechanical contact requires three-dimensional HEX8 or HEX20 faces: " +
                 contact_definition.name);
-        if (contact_definition.mechanical_sliding == MechanicalContactSliding::finite)
-            throw std::invalid_argument(
-                "finite sliding requires three-dimensional HEX8 or HEX20 surface_to_surface contact: " +
-                contact_definition.name);
         if (contact_definition.mechanical_discretization == MechanicalContactDiscretization::automatic)
             contact_definition.mechanical_discretization = MechanicalContactDiscretization::node_to_surface;
         if (contact_definition.quad8_nodal_area_rule != Quad8NodalAreaRule::positive_lumped)
@@ -1406,10 +1409,6 @@ void SpatialAssembly::build_contacts(const UnstructuredQuad4Mesh& source_mesh) {
         ResolvedBoundary secondary = resolve_boundary(source_mesh, contact_definition.secondary);
         if (primary.region == secondary.region)
             throw std::invalid_argument("Self-contact is not supported: " + contact_definition.name);
-        if (contact_definition.friction_slip_tolerance > 0.0)
-            throw std::invalid_argument(
-                "slip_tolerance currently requires three-dimensional surface_to_surface contact: " +
-                contact_definition.name);
         const RegionMesh &primary_mesh = _meshes[primary.region], &secondary_mesh = _meshes[secondary.region];
         primary.boundary =
             ordered_connected_boundary(primary_mesh, std::move(primary.boundary), contact_definition.primary);
@@ -1439,10 +1438,25 @@ void SpatialAssembly::build_contacts(const UnstructuredQuad4Mesh& source_mesh) {
             contact_definition.thermal ? contact_definition.gap_conductance_temperature_derivative : 0.0,
             contact_definition.thermal ? contact_definition.gap_conductance_reference_temperature : 0.0,
             contact_definition.mechanical ? contact_definition.penalty : 0.0});
+        double maximum_elastic_slip = 0.0;
+        if (contact_definition.friction_slip_tolerance > 0.0) {
+            double reference_length = 0.0;
+            for (const auto& edge : secondary.boundary.elements) {
+                const auto coordinates = edge_coordinates(secondary_mesh, edge);
+                reference_length +=
+                    std::hypot(coordinates[1].r - coordinates[0].r, coordinates[1].z - coordinates[0].z);
+            }
+            maximum_elastic_slip = contact_definition.friction_slip_tolerance * reference_length /
+                                   static_cast<double>(secondary.boundary.elements.size());
+            if (!std::isfinite(maximum_elastic_slip) || !(maximum_elastic_slip > 0.0))
+                throw std::invalid_argument(
+                    "RZ slip_tolerance gives an invalid elastic slip: " + contact_definition.name);
+        }
         _mechanical_properties.push_back({contact_definition.mechanical ? contact_definition.penalty : 1.0,
             contact_definition.mechanical ? contact_definition.friction_coefficient : 0.0,
             contact_definition.mechanical &&
-                contact_definition.mechanical_formulation == MechanicalContactFormulation::augmented_lagrangian});
+                contact_definition.mechanical_formulation == MechanicalContactFormulation::augmented_lagrangian,
+            maximum_elastic_slip});
         if (contact_definition.thermal) {
             for (std::size_t edge_index = 0; edge_index < secondary.boundary.elements.size(); ++edge_index) {
                 const Line2BoundaryElement& secondary_edge = secondary.boundary.elements[edge_index];

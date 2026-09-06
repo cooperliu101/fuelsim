@@ -1,0 +1,40 @@
+validation_date=2026-09-06
+source_base_commit=494d2100360f6863b9c5cc8053ed97dd33febaf7
+build_type=Release
+compiler=c++ (conda-forge gcc 14.3.0-19) 14.3.0
+warnings_as_errors=ON
+build_command=cmake --build build --parallel 4
+regression_command=ctest --test-dir build -j4 --output-on-failure
+regression_passed=222
+regression_failed=0
+regression_ctest_external_seconds=104.33
+abaqus_version=3DEXPERIENCE R2018x
+abaqus_successful_cases=2
+production_abaqus_cases_passed=2
+accepted_times_per_case=10
+relative_error_limit_percent=0.5
+compared_field_groups=38
+b80_rz_small_friction_maximum_relative_error_percent=4.68553600682e-07
+b81_rz_finite_sliding_maximum_relative_error_percent=1.40018547694e-06
+build/fuelsim_sha256=21d235106fbbdf3c8a881f87e0246b3b417ab250dcf9b815f972e8717844e450
+build/fuelsim_production_result_tests_sha256=e5ea534593363fe59c5415f0c9144641e1fb99b5e8e6c21f3c7c316982ea189f
+tests/production_rz_abaqus.cpp_sha256=c94b92f724b08ae61bfcd908b05401ca55eeeb3a1aabfd6338ec935b10aff504
+
+Checker rejection audit: only temporary reference copies were modified; all five checks returned failure as expected.
+mutation	exit_code
+pressure	1
+slip	1
+normal_direction	1
+missing	1
+missing_segment_crossing	1
+
+Two-rank B8.1 production run used the same final executable and unchanged literal input card; the complete Abaqus checker passed.
+All 11 output times (including initial state) were compared at every node; maximum absolute differences follow.
+field,count,maximum_absolute_difference
+temperature,220,0
+displacement_r,220,5.4464218508451512e-19
+displacement_z,220,2.8968526796097072e-19
+
+Both production input copies were byte-identical to source. Both native Abaqus input, mesh and extractor hashes matched source.
+The unified regression includes local CAX4T elastic/inelastic directional derivatives, pressure-dependent friction stick/slip derivatives, full state rollback, checkpoint version 18 roundtrip and existing MPI contribution ownership tests.
+The accumulated signed slip is an output diagnostic; elastic slip and stick/slip state continue to govern physical-state time error.

@@ -391,8 +391,8 @@ std::string read_optional_path(const std::string& input_path, const InputSection
     return value.empty() ? std::string{} : resolved_path(input_path, value);
 }
 
-RegionDefinition read_region(
-    const InputDocument& document, const InputSection& section, const std::vector<ParsedMaterial>& materials) {
+RegionDefinition read_region(const InputDocument& document, const InputSection& section,
+    const std::vector<ParsedMaterial>& materials, CaseGeometry geometry) {
     validate_keys(document, section,
         {"block", "block_id", "material", "strain", "element", "initial_temperature", "volumetric_heat_source",
             "heat_source_function", "heat_source_time_evaluation"});
@@ -445,7 +445,17 @@ RegionDefinition read_region(
         result.strain_formulation = StrainFormulation::finite;
     else
         value_error(document, strain, "unknown strain formulation '" + strain.value + "'");
-    const std::string element = read_optional_string(section, "element", "c3d8t");
+    const std::string element =
+        read_optional_string(section, "element", geometry == CaseGeometry::axisymmetric_rz ? "quad4" : "c3d8t");
+    if (geometry == CaseGeometry::axisymmetric_rz) {
+        if (element == "quad4")
+            result.rz_element_formulation = RzElementFormulation::quad4;
+        else if (element == "cax4t")
+            result.rz_element_formulation = RzElementFormulation::cax4t;
+        else
+            value_error(document, required_entry(document, section, "element"), "unknown RZ element '" + element + "'");
+        return result;
+    }
     if (element == "c3d8t")
         result.hex8_element_formulation = Hex8ElementFormulation::c3d8t;
     else if (element == "c3d8rt")
@@ -455,7 +465,7 @@ RegionDefinition read_region(
     return result;
 }
 
-ContactDefinition read_contact(const InputDocument& document, const InputSection& section) {
+ContactDefinition read_contact(const InputDocument& document, const InputSection& section, CaseGeometry geometry) {
     validate_keys(document, section, {"primary", "secondary"});
     const std::string base = section.path;
     const InputSection* thermal = find_section(document, base + "/thermal");
@@ -524,7 +534,8 @@ ContactDefinition read_contact(const InputDocument& document, const InputSection
             value_error(document, required_entry(document, *mechanical, "sliding"),
                 "mechanical sliding must be 'small' or 'finite'");
         if (find_entry(*mechanical, "sliding") != nullptr &&
-            result.mechanical_discretization != MechanicalContactDiscretization::surface_to_surface)
+            result.mechanical_discretization != MechanicalContactDiscretization::surface_to_surface &&
+            !(geometry == CaseGeometry::axisymmetric_rz && sliding == "finite"))
             value_error(document, required_entry(document, *mechanical, "sliding"),
                 "sliding applies only to discretization = surface_to_surface");
         const InputEntry* penalty = find_entry(*mechanical, "penalty");
@@ -728,7 +739,7 @@ void read_regions(const InputDocument& document, const std::string& path, const 
     const InputSection& regions = required_section(document, "Regions");
     validate_keys(document, regions, {});
     for (const InputSection* section : direct_children(document, "Regions"))
-        result.spatial.regions.push_back(read_region(document, *section, materials));
+        result.spatial.regions.push_back(read_region(document, *section, materials, result.geometry));
     if (result.spatial.regions.empty()) throw std::invalid_argument(path + ": [Regions] requires a child region");
 }
 
@@ -736,7 +747,7 @@ void read_contacts(const InputDocument& document, FuelSimCaseDefinition& result)
     if (const InputSection* contacts = find_section(document, "Contact"); contacts != nullptr)
         validate_keys(document, *contacts, {});
     for (const InputSection* section : direct_children(document, "Contact"))
-        result.spatial.contacts.push_back(read_contact(document, *section));
+        result.spatial.contacts.push_back(read_contact(document, *section, result.geometry));
 }
 
 void read_boundary_conditions(const InputDocument& document, FuelSimCaseDefinition& result) {

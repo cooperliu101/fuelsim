@@ -33,6 +33,7 @@ struct AxisymmetricKinematics final {
     std::array<adlite::Scalar, quad4_node_count> gradient_r, gradient_z;
     adlite::Scalar radius, weighted_measure, strain_rr, strain_zz, strain_hoop, strain_rz;
     AxisymmetricRotation rotation;
+    adlite::Scalar midpoint_weighted_measure = 0.0;
 };
 
 AxisymmetricKinematics evaluate_axisymmetric_kinematics(
@@ -44,6 +45,7 @@ struct Quad4RzData final {
     IsotropicThermoelasticMaterial material;
     double volumetric_heat_source = 0.0, time = 0.0;
     StrainFormulation strain_formulation = StrainFormulation::small;
+    RzElementFormulation element_formulation = RzElementFormulation::quad4;
 };
 
 LocalResidual compute_quad4_rz_thermoelastic(const Quad4RzData& data, const Quad4RzGeometry& geometry,

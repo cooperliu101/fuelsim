@@ -33,6 +33,8 @@ fuelsim -i <case.fsi>
 及 [`verification/moose/SHA256SUMS`](../verification/moose/SHA256SUMS)。
 轴对称 Abaqus CAX4T 的完整输入、逐项误差及适用边界见
 [`verification/abaqus/b7_rz_validation.md`](../verification/abaqus/b7_rz_validation.md)。
+轴对称可选 CAX4T 力学公式、摩擦弹性滑移和跨线段有限滑移的独立验证见
+[`verification/abaqus/b8_rz_friction_validation.md`](../verification/abaqus/b8_rz_friction_validation.md)。
 
 ## 2. 软件边界与状态流
 

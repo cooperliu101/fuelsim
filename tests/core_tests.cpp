@@ -232,6 +232,146 @@ bool test_element_jacobian() {
     return passed;
 }
 
+bool test_cax4t_kinematics_and_jacobian() {
+    const fuelsim::Quad4Coordinates coordinates = {{{1.0, 0.0}, {2.1, 0.1}, {2.0, 1.2}, {0.9, 1.0}}};
+    const auto geometry = fuelsim::make_quad4_rz_geometry(coordinates);
+    fuelsim::Quad4RzData data{fuelsim::IsotropicThermoelasticMaterial(properties())};
+    data.element_formulation = fuelsim::RzElementFormulation::cax4t;
+    const fuelsim::LocalValues direction = {0.2, -0.3, 0.4, -0.1, 0.3, -0.5, 0.2, 0.4, -0.2, 0.35, -0.45, 0.25};
+    bool passed = true;
+    for (const auto formulation : {fuelsim::StrainFormulation::small, fuelsim::StrainFormulation::finite}) {
+        data.strain_formulation = formulation;
+        fuelsim::LocalValues initial{}, old{}, state{};
+        for (std::size_t n = 0; n < 4; ++n) {
+            initial[n] = old[n] = state[n] = 600.0;
+            old[4 + n] = 0.03 * coordinates[n].r;
+            old[8 + n] = -0.02 * coordinates[n].z;
+            state[4 + n] = 0.08 * coordinates[n].r;
+            state[8 + n] = -0.04 * coordinates[n].z;
+        }
+        const auto old_history = fuelsim::compute_quad4_rz_transient_update(data, geometry, old, initial, {}, 0.1);
+        const auto affine = fuelsim::compute_quad4_rz_transient_update(data, geometry, state, old, old_history, 0.1);
+        const bool finite = formulation == fuelsim::StrainFormulation::finite;
+        const double radial = finite ? 2.0 * 0.03 / 2.03 + 2.0 * 0.05 / 2.11 : 0.08;
+        const double axial = finite ? -2.0 * 0.02 / 1.98 - 2.0 * 0.02 / 1.94 : -0.04;
+        double affine_error = 0.0;
+        for (const auto& h : affine)
+            affine_error =
+                std::max({affine_error, std::abs(h.elastic_strain[0] - radial), std::abs(h.elastic_strain[1] - axial),
+                    std::abs(h.elastic_strain[2] - radial), std::abs(h.elastic_strain[3])});
+        passed = check(affine_error < 2e-14, "CAX4T homogeneous stretch follows the analytical incremental strain") &&
+                 passed;
+        state[5] += 0.025;
+        state[6] += 0.015;
+        state[10] -= 0.020;
+        state[11] += 0.010;
+        state[0] += 3.0;
+        state[2] -= 2.0;
+        fuelsim::LocalJacobian jacobian{};
+        const auto active =
+            fuelsim::compute_quad4_rz_transient(data, geometry, state, old, old_history, 0.1, &jacobian);
+        const auto passive = fuelsim::compute_quad4_rz_transient(data, geometry, state, old, old_history, 0.1);
+        passed =
+            check(active == passive, "CAX4T residual and Jacobian evaluations return identical residuals") && passed;
+        constexpr double step = 1e-5;
+        auto plus = state, minus = state;
+        for (std::size_t j = 0; j < 12; ++j) {
+            plus[j] += step * direction[j];
+            minus[j] -= step * direction[j];
+        }
+        const auto rp = fuelsim::compute_quad4_rz_transient(data, geometry, plus, old, old_history, 0.1);
+        const auto rm = fuelsim::compute_quad4_rz_transient(data, geometry, minus, old, old_history, 0.1);
+        double derivative_error = 0.0;
+        for (std::size_t i = 0; i < 12; ++i) {
+            double ad = 0.0;
+            for (std::size_t j = 0; j < 12; ++j) ad += jacobian[12 * i + j] * direction[j];
+            derivative_error = std::max(derivative_error, scaled_error(ad, (rp[i] - rm[i]) / (2.0 * step)));
+        }
+        passed =
+            check(derivative_error < 2e-7, "CAX4T coupled volume and hoop Jacobian matches centered differences") &&
+            passed;
+        std::cout << "cax4t_" << (finite ? "finite" : "small") << "_directional_jacobian_error=" << derivative_error
+                  << '\n';
+        // Axial rigid translation is an exact axisymmetric rigid motion, including with committed stress.
+        auto translated = state;
+        for (std::size_t n = 0; n < 4; ++n) translated[8 + n] += 0.5;
+        const auto shifted = fuelsim::compute_quad4_rz_transient(data, geometry, translated, old, old_history, 0.1);
+        double translation_error = 0.0;
+        for (std::size_t i = 0; i < 12; ++i)
+            translation_error = std::max(translation_error, scaled_error(shifted[i], passive[i]));
+        passed =
+            check(translation_error < 1e-12, "CAX4T internal forces are invariant under axial rigid translation") &&
+            passed;
+        if (finite) {
+            auto invalid_midpoint = initial;
+            for (std::size_t n = 0; n < 4; ++n) {
+                invalid_midpoint[4 + n] = 5.0 - 3.0 * coordinates[n].r;
+                invalid_midpoint[8 + n] = -1.5 * coordinates[n].z;
+            }
+            // det(F_new)=1 and all current radii are positive, but det(F_mid)<0.
+            bool rejected = false;
+            try {
+                (void)fuelsim::compute_quad4_rz_transient(data, geometry, invalid_midpoint, initial, {}, 0.1);
+            } catch (const std::domain_error& error) {
+                rejected = std::string(error.what()).find("midpoint") != std::string::npos;
+            }
+            passed =
+                check(rejected, "CAX4T rejects an invalid midpoint even when its current volume is positive") && passed;
+        }
+    }
+    for (const auto formulation : {fuelsim::StrainFormulation::small, fuelsim::StrainFormulation::finite}) {
+        data.strain_formulation = formulation;
+        for (int mechanism = 0; mechanism < 3; ++mechanism) {
+            auto material = properties();
+            if (mechanism != 0) material = fuelsim::test::with_norton(material, 1e-4, 1e8, 3.0);
+            if (mechanism != 1) material = fuelsim::test::with_plasticity(material, 1e8, 2e10);
+            data.material = fuelsim::IsotropicThermoelasticMaterial(material);
+            fuelsim::LocalValues initial{}, old{}, state{};
+            for (std::size_t n = 0; n < 4; ++n) {
+                initial[n] = old[n] = state[n] = 600.0;
+                old[4 + n] = 0.001 * coordinates[n].r;
+                old[8 + n] = -0.001 * coordinates[n].z;
+                state[4 + n] = 0.004 * coordinates[n].r;
+                state[8 + n] = -0.005 * coordinates[n].z;
+            }
+            state[5] += 0.0003;
+            state[10] -= 0.0002;
+            const auto history = fuelsim::compute_quad4_rz_transient_update(data, geometry, old, initial, {}, 0.1);
+            fuelsim::LocalJacobian jacobian{};
+            const auto residual =
+                fuelsim::compute_quad4_rz_transient(data, geometry, state, old, history, 0.1, &jacobian);
+            passed = check(residual == fuelsim::compute_quad4_rz_transient(data, geometry, state, old, history, 0.1),
+                         "CAX4T inelastic material residual agrees exactly between passive and Jacobian paths") &&
+                     passed;
+            auto plus = state, minus = state;
+            constexpr double step = 1e-5;
+            for (std::size_t j = 0; j < 12; ++j) {
+                plus[j] += step * direction[j];
+                minus[j] -= step * direction[j];
+            }
+            const auto rp = fuelsim::compute_quad4_rz_transient(data, geometry, plus, old, history, 0.1);
+            const auto rm = fuelsim::compute_quad4_rz_transient(data, geometry, minus, old, history, 0.1);
+            double error = 0.0;
+            for (std::size_t i = 0; i < 12; ++i) {
+                double ad = 0.0;
+                for (std::size_t j = 0; j < 12; ++j) ad += jacobian[12 * i + j] * direction[j];
+                error = std::max(error, scaled_error(ad, (rp[i] - rm[i]) / (2.0 * step)));
+            }
+            const auto next = fuelsim::compute_quad4_rz_transient_update(data, geometry, state, old, history, 0.1);
+            for (const auto& point : next) {
+                if (mechanism != 0)
+                    passed = check(point.equivalent_creep_strain > 1e-6, "CAX4T creep branch is active") && passed;
+                if (mechanism != 1)
+                    passed = check(point.equivalent_plastic_strain > 1e-6, "CAX4T plastic branch is active") && passed;
+            }
+            passed = check(error < 2e-6, "CAX4T active inelastic Jacobian matches centered differences") && passed;
+            std::cout << "cax4t_inelastic_" << static_cast<int>(formulation) << '_' << mechanism
+                      << "_jacobian_error=" << error << '\n';
+        }
+    }
+    return passed;
+}
+
 bool test_finite_strain_kinematics_and_jacobian() {
     const fuelsim::Quad4Coordinates coordinates = {{
         {1.0, 0.0},
@@ -1019,6 +1159,41 @@ bool test_gap_heat_and_normal_contact() {
                  closed_state, sliding_history) &&
              passed;
     const fuelsim::NormalContactProperties sloped_friction_properties{1.0e14, 0.3};
+    const fuelsim::NormalContactProperties elastic_slip_properties{1.0e14, 0.3, false, 5.0e-7};
+    const auto abaqus_stick = fuelsim::compute_node_to_line_rz_contact_value(
+        elastic_slip_properties, contact_geometry, sticking_state, closed_state, {});
+    passed = check(!abaqus_stick.sliding &&
+                       relative_difference(abaqus_stick.tangential_traction,
+                           0.3 * abaqus_stick.pressure * abaqus_stick.elastic_tangential_slip / 5e-7) < 1e-13,
+                 "RZ elastic-slip stiffness depends on the current normal pressure") &&
+             passed;
+    passed = test_friction_contact_case("pressure_dependent_stick", elastic_slip_properties, contact_geometry,
+                 sticking_state, closed_state, {}) &&
+             passed;
+    passed = test_friction_contact_case("pressure_dependent_slide", elastic_slip_properties, contact_geometry,
+                 sliding_state, closed_state, {}) &&
+             passed;
+    fuelsim::ContactPointHistory accumulated_history;
+    accumulated_history.total_tangential_slip = 4e-6;
+    passed = check(fuelsim::compute_node_to_line_rz_contact(elastic_slip_properties, contact_geometry, sticking_state,
+                       closed_state,
+                       accumulated_history) == fuelsim::compute_node_to_line_rz_contact(elastic_slip_properties,
+                                                   contact_geometry, sticking_state, closed_state, {}),
+                 "RZ accumulated-slip output history does not change the contact residual") &&
+             passed;
+    const auto accumulated = fuelsim::compute_node_to_line_rz_contact_value(
+        elastic_slip_properties, contact_geometry, sticking_state, closed_state, accumulated_history);
+    passed = check(std::abs(accumulated.total_tangential_slip - 4.1e-6) < 1e-18,
+                 "RZ total slip adds active relative motion independently of elastic slip") &&
+             passed;
+    auto open_slip_state = sticking_state;
+    open_slip_state[5] -= 1e-3;
+    const auto open_slip = fuelsim::compute_node_to_line_rz_contact_value(
+        elastic_slip_properties, contact_geometry, open_slip_state, closed_state, accumulated_history);
+    passed =
+        check(open_slip.pressure == 0.0 && open_slip.total_tangential_slip == accumulated_history.total_tangential_slip,
+            "RZ accumulated slip is frozen while contact is open") &&
+        passed;
     const double sloped_tangent_component = 1.0 / std::sqrt(2.0);
     fuelsim::LocalValues sloped_sticking_state = sloped_closed_state;
     sloped_sticking_state[5] += 1.0e-7 * sloped_tangent_component;
@@ -1820,6 +1995,7 @@ int main() {
     passed = test_mesh_and_geometry() && passed;
     passed = test_element_jacobian() && passed;
     passed = test_finite_strain_kinematics_and_jacobian() && passed;
+    passed = test_cax4t_kinematics_and_jacobian() && passed;
     passed = test_gap_heat_and_normal_contact() && passed;
     passed = test_heat_point_primary_owner() && passed;
     passed = test_thermal_owner_transfer_assembly() && passed;

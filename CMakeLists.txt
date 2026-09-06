@@ -263,7 +263,7 @@ if(BUILD_TESTING)
         set(output_files "${results};${summary}")
         if(check_mode STREQUAL "hex8-inelastic" OR check_mode STREQUAL "b34-transient" OR check_mode STREQUAL "b40"
             OR check_mode STREQUAL "b549" OR check_mode STREQUAL "b550" OR check_mode STREQUAL "b555"
-            OR check_mode STREQUAL "b531" OR check_mode STREQUAL "b534"
+            OR check_mode STREQUAL "b531" OR check_mode STREQUAL "b534" OR check_mode STREQUAL "rz-sliding-abaqus"
             OR input_stem STREQUAL "transient_b510_small_j2" OR input_stem STREQUAL "transient_b515_finite_j2")
             list(APPEND output_files "${case_directory}/${input_stem}.checkpoint")
         endif()
@@ -2155,6 +2155,28 @@ if(BUILD_TESTING)
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${rz_case}_nodes.csv"
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${rz_case}_points.csv" "${rz_mechanism}")
     endforeach()
+
+    fuelsim_add_production_test(fuelsim_b80_rz_small_friction_abaqus_tests b80_rz_small_friction
+        transient_b80_rz_small_friction rz-friction-abaqus
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b80_rz_small_friction_nodes.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b80_rz_small_friction_points.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b80_rz_small_friction_contact.csv")
+    fuelsim_add_production_test(fuelsim_b81_rz_finite_sliding_abaqus_tests b81_rz_finite_sliding
+        transient_b81_rz_finite_sliding rz-sliding-abaqus
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b81_rz_finite_sliding_nodes.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b81_rz_finite_sliding_points.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b81_rz_finite_sliding_contact.csv")
+    set_tests_properties(fuelsim_b81_rz_finite_sliding_abaqus_tests PROPERTIES FIXTURES_SETUP b81_rz_production)
+    add_executable(fuelsim_rz_friction_history_contract_tests tests/rz_friction_history_contract_tests.cpp)
+    target_link_libraries(fuelsim_rz_friction_history_contract_tests PRIVATE fuelsim::io fuelsim_exodus_result_test_support)
+    target_include_directories(fuelsim_rz_friction_history_contract_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src" "${CMAKE_CURRENT_SOURCE_DIR}/tests")
+    fuelsim_enable_warnings(fuelsim_rz_friction_history_contract_tests)
+    add_test(NAME fuelsim_b81_rz_friction_history_contract COMMAND fuelsim_rz_friction_history_contract_tests
+        "${CMAKE_CURRENT_BINARY_DIR}/blackbox/b81_rz_finite_sliding/verification/fuelsim/transient_b81_rz_finite_sliding.fsi"
+        "${CMAKE_CURRENT_BINARY_DIR}/blackbox/b81_rz_finite_sliding/verification/fuelsim/transient_b81_rz_finite_sliding.checkpoint"
+        "${CMAKE_CURRENT_BINARY_DIR}/blackbox/b81_rz_finite_sliding/verification/fuelsim/transient_b81_rz_finite_sliding_results.e")
+    set_tests_properties(fuelsim_b81_rz_friction_history_contract PROPERTIES
+        FIXTURES_REQUIRED b81_rz_production LABELS "unit;contact;checkpoint")
 
     # Historical MOOSE references retain independent load and rotation coverage.
     fuelsim_add_production_test(fuelsim_m22_j2_moose_tests m22_j2 transient_j2_plastic_moose m22

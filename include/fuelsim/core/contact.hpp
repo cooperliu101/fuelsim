@@ -83,6 +83,8 @@ struct ContactPointHistory final {
     std::array<double, 3> cartesian_total_tangential_slip{};
     bool cartesian_tangent_basis_initialized = false;
     std::array<double, 3> cartesian_contact_normal{}, cartesian_contact_tangent_first{};
+    // Signed accumulated relative motion in the current RZ tangent direction; frozen while open.
+    double total_tangential_slip = 0.0;
 };
 
 struct ContactPointValue final {
@@ -90,6 +92,7 @@ struct ContactPointValue final {
     double gap, pressure, tributary_area, tributary_length, contact_force, tangential_traction, tangential_force,
         elastic_tangential_slip;
     bool sliding;
+    double total_tangential_slip = 0.0;
 };
 
 NodeToLineRzContactGeometry make_node_to_line_rz_contact_geometry(

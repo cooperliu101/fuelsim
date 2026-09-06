@@ -122,12 +122,12 @@ bool compare_committed_states(
                     nearly_equal(a.cartesian_contact_normal[component], b.cartesian_contact_normal[component]) &&
                     nearly_equal(
                         a.cartesian_contact_tangent_first[component], b.cartesian_contact_tangent_first[component]);
-            passed =
-                check(nearly_equal(a.elastic_tangential_slip, b.elastic_tangential_slip) && a.sliding == b.sliding &&
-                          nearly_equal(a.normal_multiplier, b.normal_multiplier) && cartesian_equal,
-                    "restart reproduces committed friction and normal "
-                    "multiplier history") &&
-                passed;
+            passed = check(nearly_equal(a.elastic_tangential_slip, b.elastic_tangential_slip) &&
+                               a.sliding == b.sliding && nearly_equal(a.normal_multiplier, b.normal_multiplier) &&
+                               nearly_equal(a.total_tangential_slip, b.total_tangential_slip) && cartesian_equal,
+                         "restart reproduces committed friction and normal "
+                         "multiplier history") &&
+                     passed;
         }
     }
     return passed;
@@ -168,6 +168,7 @@ bool test_friction_history_checkpoint(const std::string& input_path, const std::
     if (state.contact_histories.empty() || state.contact_histories.front().empty())
         return check(false, "friction checkpoint fixture has contact-node history");
     state.contact_histories.front().front() = {2.5e-7, true};
+    state.contact_histories.front().front().total_tangential_slip = -3.25e-3;
     state.contact_histories.front().front().cartesian_elastic_tangential_slip = {0.0, 2.0e-5, -3.0e-5};
     state.contact_histories.front().front().cartesian_total_tangential_slip = {0.0, 8.0e-5, -9.0e-5};
     state.contact_histories.front().front().cartesian_tangent_basis_initialized = true;
@@ -189,13 +190,13 @@ bool test_friction_history_checkpoint(const std::string& input_path, const std::
     {
         std::fstream file(checkpoint_path, std::ios::binary | std::ios::in | std::ios::out);
         if (!file) return check(false, "friction checkpoint opens for version test");
-        const std::array<unsigned char, 4> old_version = {16U, 0U, 0U, 0U};
+        const std::array<unsigned char, 4> old_version = {17U, 0U, 0U, 0U};
         file.seekp(16, std::ios::beg);
         file.write(reinterpret_cast<const char*>(old_version.data()), static_cast<std::streamsize>(old_version.size()));
     }
     fuelsim::TransientProblem old_version_target(input.spatial, mesh);
     passed = expect_failure([&]() { (void)fuelsim::restore_transient_checkpoint(checkpoint_path, old_version_target); },
-                 "version is not supported", "checkpoint version 17 rejects the previous format") &&
+                 "version is not supported", "checkpoint version 18 rejects the previous format") &&
              passed;
     return check(std::remove(checkpoint_path.c_str()) == 0, "friction checkpoint artifact is removed") && passed;
 }
@@ -345,7 +346,7 @@ bool verify_exodus(const std::string& path, const fuelsim::UnstructuredQuad4Mesh
     int global_variables = 0;
     bool passed = check(ex_inquire_int(exoid, EX_INQ_TIME) == static_cast<std::int64_t>(expected_steps),
                       "Exodus stores the initial and every accepted committed step") &&
-                  check(ex_get_variable_param(exoid, EX_NODAL, &nodal_variables) == 0 && nodal_variables == 19,
+                  check(ex_get_variable_param(exoid, EX_NODAL, &nodal_variables) == 0 && nodal_variables == 20,
                       "Exodus defines temperature, displacement, gap and pressure") &&
                   check(ex_get_variable_param(exoid, EX_ELEM_BLOCK, &element_variables) == 0 && element_variables == 84,
                       "Exodus defines stress and inelastic integration-point fields") &&
@@ -397,14 +398,13 @@ bool verify_steady_results(const fuelsim::FuelSimCaseDefinition& input, const fu
     int global_variables = 0;
     const bool passed =
         check(ex_inquire_int(exoid, EX_INQ_TIME) == 1, "steady Exodus result contains one final state") &&
-        check(ex_get_variable_param(exoid, EX_NODAL, &nodal_variables) == 0 && nodal_variables == 16,
+        check(ex_get_variable_param(exoid, EX_NODAL, &nodal_variables) == 0 && nodal_variables == 17,
             "steady Exodus result contains nodal contact fields") &&
         check(ex_get_variable_param(exoid, EX_ELEM_BLOCK, &element_variables) == 0 && element_variables == 16,
             "steady Exodus result contains four-point stresses") &&
         check(ex_get_variable_param(exoid, EX_GLOBAL, &global_variables) == 0 && global_variables == 4,
-            "steady Exodus result contains interface totals") &&
-        check(ex_close(exoid) == 0, "steady Exodus result closes cleanly");
-    return passed;
+            "steady Exodus result contains interface totals");
+    return check(ex_close(exoid) == 0, "steady Exodus result closes cleanly") && passed;
 }
 
 bool run_tests(const std::string& steady_input_path, const std::string& transient_input_path,

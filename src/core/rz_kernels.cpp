@@ -151,7 +151,7 @@ AxisymmetricKinematics evaluate_axisymmetric_kinematics_from_point(const RzQuadr
     const adlite::Scalar& radial_displacement, const adlite::Scalar& displacement_gradient_rr,
     const adlite::Scalar& displacement_gradient_rz, const adlite::Scalar& displacement_gradient_zr,
     const adlite::Scalar& displacement_gradient_zz, const LocalValues& committed_state,
-    StrainFormulation strain_formulation) {
+    StrainFormulation strain_formulation, bool cax4t = false) {
     AxisymmetricKinematics result{};
     if (strain_formulation == StrainFormulation::small) {
         for (std::size_t node = 0; node < quad4_node_count; ++node) {
@@ -160,6 +160,7 @@ AxisymmetricKinematics evaluate_axisymmetric_kinematics_from_point(const RzQuadr
         }
         result.radius = point.radius;
         result.weighted_measure = point.weighted_measure;
+        result.midpoint_weighted_measure = point.weighted_measure;
         result.strain_rr = displacement_gradient_rr;
         result.strain_zz = displacement_gradient_zz;
         result.strain_hoop = radial_displacement / point.radius;
@@ -207,6 +208,36 @@ AxisymmetricKinematics evaluate_axisymmetric_kinematics_from_point(const RzQuadr
     if (!std::isfinite(incremental_determinant.value()) || !(incremental_determinant.value() > 0.0) ||
         !std::isfinite(incremental_hoop.value()) || !(incremental_hoop.value() > 0.0))
         throw std::domain_error("Incremental finite-strain RZ state requires positive Jacobian and hoop stretch");
+    if (cax4t) {
+        const adlite::Scalar sum_rr = deformation_rr + old_deformation_rr, sum_rz = deformation_rz + old_deformation_rz,
+                             sum_zr = deformation_zr + old_deformation_zr, sum_zz = deformation_zz + old_deformation_zz,
+                             sum_hoop = deformation_hoop + old_deformation_hoop,
+                             determinant_sum = sum_rr * sum_zz - sum_rz * sum_zr;
+        if (!(determinant_sum.value() > 0.0) || !(sum_hoop.value() > 0.0))
+            throw std::domain_error("CAX4T midpoint configuration must preserve positive volume");
+        result.midpoint_weighted_measure = point.weighted_measure * determinant_sum * sum_hoop / 8.0;
+        const adlite::Scalar
+            hrr = 2.0 *
+                  ((deformation_rr - old_deformation_rr) * sum_zz - (deformation_rz - old_deformation_rz) * sum_zr) /
+                  determinant_sum,
+            hrz = 2.0 *
+                  (-(deformation_rr - old_deformation_rr) * sum_rz + (deformation_rz - old_deformation_rz) * sum_rr) /
+                  determinant_sum,
+            hzr = 2.0 *
+                  ((deformation_zr - old_deformation_zr) * sum_zz - (deformation_zz - old_deformation_zz) * sum_zr) /
+                  determinant_sum,
+            hzz = 2.0 *
+                  (-(deformation_zr - old_deformation_zr) * sum_rz + (deformation_zz - old_deformation_zz) * sum_rr) /
+                  determinant_sum,
+            shear = 0.5 * (hrz + hzr), spin = 0.25 * (hrz - hzr), denom = 1.0 + spin * spin,
+            cosine = (1.0 - spin * spin) / denom, sine = 2.0 * spin / denom;
+        result.rotation = {cosine, sine, -sine, cosine, adlite::Scalar(1.0)};
+        result.strain_rr = cosine * cosine * hrr - 2.0 * cosine * sine * shear + sine * sine * hzz;
+        result.strain_zz = sine * sine * hrr + 2.0 * cosine * sine * shear + cosine * cosine * hzz;
+        result.strain_rz = cosine * sine * (hrr - hzz) + (cosine * cosine - sine * sine) * shear;
+        result.strain_hoop = 2.0 * (deformation_hoop - old_deformation_hoop) / sum_hoop;
+        return result;
+    }
     const adlite::Scalar inverse_rr = incremental_zz / incremental_determinant,
                          inverse_rz = -incremental_rz / incremental_determinant,
                          inverse_zr = -incremental_zr / incremental_determinant,
@@ -443,8 +474,284 @@ void add_quad4_rz_point_system(const RzQuadraturePoint& point, const LocalValues
 }
 } // namespace
 
+namespace {
+// CAX4T uses point-local width-six kinematics and width-five constitutive AD.
+// Cross-point volume/pressure dependencies are assembled through explicit nodal chains.
+LocalValues cax4t_nodal_chain(const adlite::Scalar& value, const RzQuadraturePoint& point) {
+    std::array<double, 6> d{};
+    value.copy_derivatives(d.data(), d.size());
+    LocalValues result{};
+    for (std::size_t n = 0; n < 4; ++n) {
+        result[n] = d[5] * point.shape[n];
+        result[4 + n] = d[0] * point.gradient_r[n] + d[1] * point.gradient_z[n] + d[4] * point.shape[n];
+        result[8 + n] = d[2] * point.gradient_r[n] + d[3] * point.gradient_z[n];
+    }
+    return result;
+}
+
+struct Cax4tPointSystem final {
+    AxisymmetricKinematics kinematics;
+    adlite::Scalar temperature;
+    AxisymmetricStress stress;
+    std::array<LocalValues, 4> stress_derivatives{};
+    MaterialPointState history;
+};
+
+struct Cax4tSystem final {
+    LocalResidual residual{};
+    LocalJacobian jacobian{};
+    Quad4MaterialHistory history{};
+};
+
+Cax4tSystem compute_cax4t_system(const Quad4RzData& data, const Quad4RzGeometry& geometry, const LocalValues& state,
+    const LocalValues& old_state, const Quad4MaterialHistory* old_history, double time_step, bool jacobian,
+    bool thermal_time) {
+    std::array<Cax4tPointSystem, 4> systems;
+    double numerator = 0.0, midpoint_volume = 0.0, current_volume = 0.0, reference_volume = 0.0;
+    LocalValues numerator_derivatives{}, midpoint_derivatives{}, volume_derivatives{}, hoop_shape{};
+    double hoop_new = 0.0, hoop_old = 0.0;
+    for (std::size_t q = 0; q < 4; ++q) {
+        const auto& point = geometry.points[q];
+        auto& s = systems[q];
+        const std::array<double, 6> seeds = {quad4_rz_detail::interpolate(point.gradient_r, state, 4),
+            quad4_rz_detail::interpolate(point.gradient_z, state, 4),
+            quad4_rz_detail::interpolate(point.gradient_r, state, 8),
+            quad4_rz_detail::interpolate(point.gradient_z, state, 8),
+            quad4_rz_detail::interpolate(point.shape, state, 4), quad4_rz_detail::interpolate(point.shape, state, 0)};
+        std::array<adlite::Scalar, 6> active;
+        for (std::size_t i = 0; i < 6; ++i)
+            active[i] = jacobian ? adlite::Scalar::independent(seeds[i], i, 6) : adlite::Scalar(seeds[i]);
+        s.temperature = active[5];
+        s.kinematics = evaluate_axisymmetric_kinematics_from_point(
+            point, active[4], active[0], active[1], active[2], active[3], old_state, data.strain_formulation, true);
+        const auto& k = s.kinematics;
+        const adlite::Scalar weighted_trace = k.midpoint_weighted_measure * (k.strain_rr + k.strain_zz + k.strain_hoop);
+        numerator += weighted_trace.value();
+        midpoint_volume += k.midpoint_weighted_measure.value();
+        current_volume += k.weighted_measure.value();
+        reference_volume += point.weighted_measure;
+        hoop_new += point.weighted_measure * (1.0 + seeds[4] / point.radius);
+        hoop_old +=
+            point.weighted_measure * (1.0 + quad4_rz_detail::interpolate(point.shape, old_state, 4) / point.radius);
+        for (std::size_t n = 0; n < 4; ++n) hoop_shape[4 + n] += point.weighted_measure * point.shape[n] / point.radius;
+        if (jacobian) {
+            const auto a = cax4t_nodal_chain(weighted_trace, point);
+            const auto b = cax4t_nodal_chain(k.midpoint_weighted_measure, point);
+            const auto c = cax4t_nodal_chain(k.weighted_measure, point);
+            for (std::size_t j = 0; j < 12; ++j) {
+                numerator_derivatives[j] += a[j];
+                midpoint_derivatives[j] += b[j];
+                volume_derivatives[j] += c[j];
+            }
+        }
+    }
+    if (!std::isfinite(midpoint_volume) || !std::isfinite(current_volume) || !std::isfinite(reference_volume) ||
+        !(midpoint_volume > 0.0) || !(current_volume > 0.0) || !(reference_volume > 0.0))
+        throw std::domain_error("CAX4T requires positive reference, midpoint and current volumes");
+    const double average_trace = numerator / midpoint_volume;
+    LocalValues average_derivatives{};
+    for (std::size_t j = 0; j < 12; ++j)
+        average_derivatives[j] = (numerator_derivatives[j] - average_trace * midpoint_derivatives[j]) / midpoint_volume;
+    hoop_new /= reference_volume;
+    hoop_old /= reference_volume;
+    for (double& d : hoop_shape) d /= reference_volume;
+    const bool finite_strain = data.strain_formulation == StrainFormulation::finite;
+    // Abaqus averages F_hoop over reference volume before forming its central increment.
+    // The independently averaged full trace then supplies only the in-plane correction.
+    const double average_hoop = finite_strain ? 2.0 * (hoop_new - hoop_old) / (hoop_new + hoop_old) : hoop_new - 1.0;
+    LocalValues hoop_derivatives{};
+    for (std::size_t j = 0; j < 12; ++j)
+        hoop_derivatives[j] =
+            hoop_shape[j] * (finite_strain ? 4.0 * hoop_old / ((hoop_new + hoop_old) * (hoop_new + hoop_old)) : 1.0);
+    double pressure = 0.0, hoop_stress = 0.0;
+    LocalValues pressure_derivatives{}, hoop_stress_derivatives{};
+    Cax4tSystem result;
+    for (std::size_t q = 0; q < 4; ++q) {
+        const auto& point = geometry.points[q];
+        auto& s = systems[q];
+        auto& k = s.kinematics;
+        const adlite::Scalar correction = (average_trace - average_hoop - k.strain_rr - k.strain_zz) / 2.0;
+        k.strain_rr += correction;
+        k.strain_zz += correction;
+        k.strain_hoop = average_hoop;
+        const std::array<adlite::Scalar, 5> inputs = {
+            k.strain_rr, k.strain_zz, k.strain_hoop, k.strain_rz, s.temperature};
+        std::array<double, 4> fed = {
+            k.strain_rr.value(), k.strain_zz.value(), k.strain_hoop.value(), k.strain_rz.value()};
+        const auto context = rz_material_context(data.time, point);
+        if (old_history && data.strain_formulation == StrainFormulation::finite) {
+            auto old_context = context;
+            old_context.time -= time_step;
+            const auto eigen = data.material.eigenstrain_rz(
+                adlite::Scalar(quad4_rz_detail::interpolate(point.shape, old_state, 0)), old_context);
+            const std::array<double, 4> imposed = {
+                eigen.rr.value(), eigen.zz.value(), eigen.hoop.value(), eigen.rz.value()};
+            for (std::size_t i = 0; i < 4; ++i)
+                fed[i] = (*old_history)[q].elastic_strain[i] + inputs[i].value() + imposed[i] +
+                         (*old_history)[q].plastic_strain[i] + (*old_history)[q].creep_strain[i];
+        }
+        AxisymmetricStressTangent tangent;
+        if (jacobian) {
+            tangent = evaluate_axisymmetric_stress_tangent(data.material, fed, s.temperature.value(), time_step,
+                old_history ? &(*old_history)[q] : nullptr, context);
+        } else {
+            const auto sigma =
+                old_history ? data.material
+                                  .response(fed[0], fed[1], fed[2], fed[3], s.temperature.value(), time_step,
+                                      (*old_history)[q], context)
+                                  .stress
+                            : data.material.stress(fed[0], fed[1], fed[2], fed[3], s.temperature.value(), context);
+            tangent.stress = {sigma.rr.value(), sigma.zz.value(), sigma.hoop.value(), sigma.rz.value()};
+        }
+        const std::array<double, 4> values = {
+            tangent.stress.rr, tangent.stress.zz, tangent.stress.hoop, tangent.stress.rz};
+        std::array<adlite::Scalar, 4> sigma;
+        std::array<double, 4> trace_response{}, hoop_response{};
+        for (std::size_t i = 0; i < 4; ++i) {
+            std::array<double, 5> partials{};
+            for (std::size_t j = 0; j < 4; ++j) partials[j] = tangent.tangent[i][j];
+            partials[4] = tangent.thermal[i];
+            sigma[i] =
+                jacobian ? adlite::compose(values[i], inputs.data(), partials.data(), 5) : adlite::Scalar(values[i]);
+            trace_response[i] = (partials[0] + partials[1]) / 2.0;
+            hoop_response[i] = partials[2] - trace_response[i];
+        }
+        s.stress = {sigma[0], sigma[1], sigma[2], sigma[3]};
+        AxisymmetricStress trace_stress = {trace_response[0], trace_response[1], trace_response[2], trace_response[3]};
+        AxisymmetricStress hoop_tangent = {hoop_response[0], hoop_response[1], hoop_response[2], hoop_response[3]};
+        if (data.strain_formulation == StrainFormulation::finite) {
+            s.stress = rotate_axisymmetric_tensor(s.stress, k.rotation);
+            trace_stress = rotate_axisymmetric_tensor(trace_stress, k.rotation);
+            hoop_tangent = rotate_axisymmetric_tensor(hoop_tangent, k.rotation);
+        }
+        const std::array<adlite::Scalar, 4> final_sigma = {s.stress.rr, s.stress.zz, s.stress.hoop, s.stress.rz};
+        trace_response = {
+            trace_stress.rr.value(), trace_stress.zz.value(), trace_stress.hoop.value(), trace_stress.rz.value()};
+        hoop_response = {
+            hoop_tangent.rr.value(), hoop_tangent.zz.value(), hoop_tangent.hoop.value(), hoop_tangent.rz.value()};
+        if (jacobian)
+            for (std::size_t i = 0; i < 4; ++i) {
+                s.stress_derivatives[i] = cax4t_nodal_chain(final_sigma[i], point);
+                for (std::size_t j = 0; j < 12; ++j)
+                    s.stress_derivatives[i][j] +=
+                        trace_response[i] * average_derivatives[j] + hoop_response[i] * hoop_derivatives[j];
+            }
+        const double weight = point.weighted_measure / reference_volume;
+        pressure += weight * (s.stress.rr.value() + s.stress.zz.value()) / 2.0;
+        hoop_stress += weight * s.stress.hoop.value();
+        for (std::size_t j = 0; j < 12; ++j) {
+            pressure_derivatives[j] += weight * (s.stress_derivatives[0][j] + s.stress_derivatives[1][j]) / 2.0;
+            hoop_stress_derivatives[j] += weight * s.stress_derivatives[2][j];
+        }
+        if (old_history) {
+            const AxisymmetricRotation rotation = {k.rotation.rr.value(), k.rotation.rz.value(), k.rotation.zr.value(),
+                k.rotation.zz.value(), k.rotation.hoop.value()};
+            const auto response = data.strain_formulation == StrainFormulation::finite
+                                      ? data.material.incremental_response(k.strain_rr.value(), k.strain_zz.value(),
+                                            k.strain_hoop.value(), k.strain_rz.value(), rotation, s.temperature.value(),
+                                            quad4_rz_detail::interpolate(point.shape, old_state, 0), time_step,
+                                            (*old_history)[q], context)
+                                      : data.material.response(fed[0], fed[1], fed[2], fed[3], s.temperature.value(),
+                                            time_step, (*old_history)[q], context);
+            s.history = IsotropicThermoelasticMaterial::state_values(response.trial_state);
+        }
+        s.history.stress = {s.stress.rr.value(), s.stress.zz.value(), s.stress.hoop.value(), s.stress.rz.value()};
+        result.history[q] = s.history;
+    }
+    for (std::size_t q = 0; q < 4; ++q) {
+        const auto& point = geometry.points[q];
+        const auto& s = systems[q];
+        const auto& k = s.kinematics;
+        const double w = k.weighted_measure.value();
+        const double point_pressure = (s.stress.rr.value() + s.stress.zz.value()) / 2.0;
+        const bool finite = data.strain_formulation == StrainFormulation::finite;
+        const double scale = finite ? point.weighted_measure * current_volume / (reference_volume * w) : 1.0;
+        const std::array<double, 4> deviator = {
+            s.stress.rr.value() - point_pressure, s.stress.zz.value() - point_pressure, 0.0, s.stress.rz.value()};
+        const std::array<double, 4> stress = {
+            scale * deviator[0] + pressure, scale * deviator[1] + pressure, pressure, scale * deviator[3]};
+        const auto wd = jacobian ? cax4t_nodal_chain(k.weighted_measure, point) : LocalValues{};
+        std::array<LocalValues, 4> sd{};
+        if (jacobian)
+            for (std::size_t j = 0; j < 12; ++j) {
+                const double pd = (s.stress_derivatives[0][j] + s.stress_derivatives[1][j]) / 2.0;
+                const double ds = finite ? scale * (volume_derivatives[j] / current_volume - wd[j] / w) : 0.0;
+                for (std::size_t i = 0; i < 4; ++i)
+                    sd[i][j] = i == 2 ? pressure_derivatives[j]
+                                      : ds * deviator[i] + scale * (s.stress_derivatives[i][j] - (i < 2 ? pd : 0.0)) +
+                                            (i < 2 ? pressure_derivatives[j] : 0.0);
+            }
+        const auto context = rz_material_context(data.time, point);
+        const auto conductivity = data.material.conductivity(s.temperature, context);
+        const double tr = quad4_rz_detail::interpolate(point.gradient_r, state, 0),
+                     tz = quad4_rz_detail::interpolate(point.gradient_z, state, 0);
+        adlite::Scalar capacity_rate = 0.0;
+        if (thermal_time && old_history)
+            capacity_rate = data.material.heat_capacity(s.temperature, context) *
+                            (s.temperature - quad4_rz_detail::interpolate(point.shape, old_state, 0)) / time_step;
+        for (std::size_t n = 0; n < 4; ++n) {
+            const adlite::Scalar hoop = point.shape[n] / k.radius;
+            const std::array<adlite::Scalar, 4> radial = {k.gradient_r[n], adlite::Scalar(0.0), hoop, k.gradient_z[n]};
+            const std::array<adlite::Scalar, 4> axial = {
+                adlite::Scalar(0.0), k.gradient_z[n], adlite::Scalar(0.0), k.gradient_r[n]};
+            for (std::size_t equation = 0; equation < 2; ++equation) {
+                const auto& b = equation == 0 ? radial : axial;
+                const auto row = 4 * (equation + 1) + n;
+                double contraction = 0.0;
+                for (std::size_t i = 0; i < 4; ++i) contraction += b[i].value() * stress[i];
+                result.residual[row] += w * contraction;
+                if (jacobian) {
+                    for (std::size_t j = 0; j < 12; ++j) result.jacobian[row * 12 + j] += wd[j] * contraction;
+                    for (std::size_t i = 0; i < 4; ++i) {
+                        const auto bd = cax4t_nodal_chain(b[i], point);
+                        for (std::size_t j = 0; j < 12; ++j)
+                            result.jacobian[row * 12 + j] += w * (bd[j] * stress[i] + b[i].value() * sd[i][j]);
+                    }
+                }
+            }
+            const auto thermal = point.weighted_measure *
+                                 (conductivity * (point.gradient_r[n] * tr + point.gradient_z[n] * tz) +
+                                     capacity_rate * point.shape[n] - data.volumetric_heat_source * point.shape[n]);
+            result.residual[n] += thermal.value();
+            if (jacobian) {
+                const auto td = cax4t_nodal_chain(thermal, point);
+                for (std::size_t j = 0; j < 12; ++j) result.jacobian[n * 12 + j] += td[j];
+                for (std::size_t j = 0; j < 4; ++j)
+                    result.jacobian[n * 12 + j] +=
+                        point.weighted_measure * conductivity.value() *
+                        (point.gradient_r[n] * point.gradient_r[j] + point.gradient_z[n] * point.gradient_z[j]);
+            }
+        }
+    }
+    // The virtual-work hoop term is p_plane*N/r plus
+    // (average_sigma_hoop-p_plane)*average_reference(N/R)/average_F_hoop.
+    // Its nonlocal part cannot be assembled with the unmodified pointwise hoop B entry.
+    const double hoop_factor = current_volume / (finite_strain ? hoop_new : 1.0);
+    for (std::size_t n = 0; n < 4; ++n) {
+        const auto row = 4 + n;
+        result.residual[row] += hoop_factor * (hoop_stress - pressure) * hoop_shape[row];
+        if (jacobian)
+            for (std::size_t j = 0; j < 12; ++j) {
+                const double factor_derivative =
+                    finite_strain
+                        ? volume_derivatives[j] / hoop_new - current_volume * hoop_shape[j] / (hoop_new * hoop_new)
+                        : 0.0;
+                result.jacobian[row * 12 + j] +=
+                    hoop_shape[row] * (factor_derivative * (hoop_stress - pressure) +
+                                          hoop_factor * (hoop_stress_derivatives[j] - pressure_derivatives[j]));
+            }
+    }
+    return result;
+}
+} // namespace
+
 LocalResidual compute_quad4_rz_thermoelastic(
     const Quad4RzData& data, const Quad4RzGeometry& geometry, const LocalValues& state, LocalJacobian* jacobian) {
+    if (data.element_formulation == RzElementFormulation::cax4t) {
+        const auto result = compute_cax4t_system(data, geometry, state, {}, nullptr, 0.0, jacobian != nullptr, false);
+        if (jacobian) *jacobian = result.jacobian;
+        return result.residual;
+    }
     LocalAdValues ad_residual{};
     ad_residual.fill(adlite::Scalar(0.0));
     if (jacobian != nullptr) {
@@ -471,6 +778,12 @@ LocalResidual compute_quad4_rz_thermoelastic(
 
 std::array<AxisymmetricStressValues, 4> compute_quad4_rz_thermoelastic_stress(
     const Quad4RzData& data, const Quad4RzGeometry& geometry, const LocalValues& state) {
+    if (data.element_formulation == RzElementFormulation::cax4t) {
+        const auto result = compute_cax4t_system(data, geometry, state, {}, nullptr, 0.0, false, false);
+        std::array<AxisymmetricStressValues, 4> stress;
+        for (std::size_t q = 0; q < 4; ++q) stress[q] = result.history[q].stress;
+        return stress;
+    }
     const LocalAdValues passive_state = quad4_rz_detail::ad_state(state);
     std::array<AxisymmetricStressValues, 4> result{};
     for (std::size_t q = 0; q < geometry.points.size(); ++q) {
@@ -528,6 +841,12 @@ LocalResidual compute_quad4_rz_transient(const Quad4RzData& data, const Quad4RzG
     bool include_thermal_time_term) {
     validate_time_step(time_step);
     validate_committed_state(committed_state);
+    if (data.element_formulation == RzElementFormulation::cax4t) {
+        const auto result = compute_cax4t_system(data, geometry, current_state, committed_state, &committed_material,
+            time_step, jacobian != nullptr, include_thermal_time_term);
+        if (jacobian) *jacobian = result.jacobian;
+        return result.residual;
+    }
     LocalAdValues ad_residual{};
     ad_residual.fill(adlite::Scalar(0.0));
     if (jacobian != nullptr) {
@@ -563,6 +882,10 @@ Quad4MaterialHistory compute_quad4_rz_transient_update(const Quad4RzData& data, 
     const LocalValues& converged_state, const LocalValues& committed_state,
     const Quad4MaterialHistory& committed_material, double time_step) {
     validate_time_step(time_step);
+    if (data.element_formulation == RzElementFormulation::cax4t)
+        return compute_cax4t_system(
+            data, geometry, converged_state, committed_state, &committed_material, time_step, false, false)
+            .history;
     const LocalAdValues passive_state = quad4_rz_detail::ad_state(converged_state);
     Quad4MaterialHistory result{};
     for (std::size_t q = 0; q < geometry.points.size(); ++q) {
@@ -693,7 +1016,8 @@ struct ContactAdValue final {
     bool projected = false;
     adlite::Scalar gap = 0.0, pressure = 0.0, tributary_area = 0.0, tributary_length = 0.0, contact_force = 0.0,
                    primary_shape_0 = 0.0, primary_shape_1 = 0.0, normal_r = 0.0, normal_z = 0.0, tangent_r = 0.0,
-                   tangent_z = 0.0, tangential_traction = 0.0, tangential_force = 0.0, elastic_tangential_slip = 0.0;
+                   tangent_z = 0.0, tangential_traction = 0.0, tangential_force = 0.0, elastic_tangential_slip = 0.0,
+                   total_tangential_slip = 0.0;
     bool sliding = false;
 };
 
@@ -840,6 +1164,7 @@ bool clamp_owned_chain_endpoint(
 
 void evaluate_friction(ContactAdValue& value, const NodeToLineRzContactGeometry& geometry, const LocalAdValues& state,
     const LocalValues& committed_state, const ContactPointHistory& history, const NormalContactProperties& properties) {
+    value.total_tangential_slip = history.total_tangential_slip;
     if (properties.friction_coefficient == 0.0 || !(value.pressure.value() > 0.0)) return;
     const std::size_t secondary = geometry.secondary_local_node;
     const adlite::Scalar secondary_increment_r = state[4 + secondary] - committed_state[4 + secondary],
@@ -850,9 +1175,14 @@ void evaluate_friction(ContactAdValue& value, const NodeToLineRzContactGeometry&
                                                value.primary_shape_1 * (state[11] - committed_state[11]);
     const adlite::Scalar tangential_increment = (secondary_increment_r - primary_increment_r) * value.tangent_r +
                                                 (secondary_increment_z - primary_increment_z) * value.tangent_z;
+    value.total_tangential_slip += tangential_increment;
     const adlite::Scalar trial_slip = history.elastic_tangential_slip + tangential_increment,
-                         trial_traction = properties.penalty * trial_slip,
-                         sliding_limit = properties.friction_coefficient * value.pressure;
+                         sliding_limit = properties.friction_coefficient * value.pressure,
+                         stick_stiffness = properties.maximum_elastic_slip > 0.0
+                                               ? sliding_limit / properties.maximum_elastic_slip
+                                               : adlite::Scalar(properties.penalty),
+                         trial_traction = properties.maximum_elastic_slip > 0.0 ? stick_stiffness * trial_slip
+                                                                                : properties.penalty * trial_slip;
     const double trial_magnitude = std::abs(trial_traction.value());
     if (trial_magnitude < sliding_limit.value() || (trial_magnitude == sliding_limit.value() && !history.sliding)) {
         value.tangential_traction = trial_traction;
@@ -860,7 +1190,9 @@ void evaluate_friction(ContactAdValue& value, const NodeToLineRzContactGeometry&
     } else {
         const double direction = trial_traction.value() < 0.0 ? -1.0 : 1.0;
         value.tangential_traction = direction * sliding_limit;
-        value.elastic_tangential_slip = value.tangential_traction / properties.penalty;
+        value.elastic_tangential_slip = properties.maximum_elastic_slip > 0.0
+                                            ? value.tangential_traction / stick_stiffness
+                                            : value.tangential_traction / properties.penalty;
         value.sliding = true;
     }
     value.tangential_force = value.tangential_traction * value.tributary_area;
@@ -1077,6 +1409,7 @@ ContactPointValue compute_node_to_line_rz_contact_value(const NormalContactPrope
         result.tangential_force.value(),
         result.elastic_tangential_slip.value(),
         result.sliding,
+        result.total_tangential_slip.value(),
     };
 }
 

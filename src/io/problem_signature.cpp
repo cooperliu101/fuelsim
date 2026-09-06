@@ -41,6 +41,7 @@ void hash_region_definition(std::uint64_t& hash, const RegionDefinition& spatial
     hash_string(hash, spatial.heat_source_function);
     hash_integer(hash, static_cast<std::int64_t>(spatial.heat_source_time_evaluation));
     hash_integer(hash, static_cast<std::int64_t>(spatial.hex8_element_formulation));
+    hash_integer(hash, static_cast<std::int64_t>(spatial.rz_element_formulation));
 }
 
 void hash_boundaries(std::uint64_t& hash, const SpatialDefinition& definition, bool include_displaced_geometry) {
