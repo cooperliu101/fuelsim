@@ -788,6 +788,10 @@ std::vector<std::string> quad8_element_names(bool transient) {
 
 std::vector<std::string> quad8_nodal_names(const std::vector<ContactDefinition>& contacts, bool transient) {
     auto names = nodal_variable_names(contacts, transient);
+    for (const auto& contact : contacts) {
+        names.push_back("contact_recovered_pressure_" + contact.name);
+        names.push_back("contact_recovered_shear_" + contact.name);
+    }
     names.push_back("temperature_active");
     return names;
 }
@@ -823,9 +827,17 @@ std::vector<std::vector<double>> quad8_nodal(const UnstructuredQuad8Mesh& source
                              state[spatial.dof(
                                  Field::temperature, spatial.global_temperature_node(r, e.nodes[(s + 1) % 4]))]);
     }
-    for (std::size_t c = 0; c < contacts.size(); ++c)
-        fill_contact_nodal_values(
-            c, spatial.contact_secondary_source_nodes(c), spatial.summarize_contact_nodes(c, state), values);
+    const auto recovery_offset = nodal_variable_names(contacts, raw != nullptr).size();
+    for (std::size_t c = 0; c < contacts.size(); ++c) {
+        const auto nodes = spatial.contact_secondary_source_nodes(c);
+        const auto summary = spatial.summarize_contact_nodes(c, state);
+        fill_contact_nodal_values(c, nodes, summary, values);
+        const auto recovered = spatial.recover_contact_tractions(c, summary, state);
+        for (std::size_t n = 0; n < nodes.size(); ++n) {
+            values[recovery_offset + 2 * c][nodes[n]] = recovered[n][0];
+            values[recovery_offset + 2 * c + 1][nodes[n]] = recovered[n][1];
+        }
+    }
     return values;
 }
 

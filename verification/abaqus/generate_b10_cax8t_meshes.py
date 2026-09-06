@@ -213,6 +213,7 @@ def write_sliding_mesh():
     (ROOT / "b10_cax8t_sliding_mesh.inc").write_text("\n".join(lines) + "\n")
 
 
-write_material_mesh()
-write_contact_mesh()
-write_sliding_mesh()
+if __name__ == "__main__":
+    write_material_mesh()
+    write_contact_mesh()
+    write_sliding_mesh()

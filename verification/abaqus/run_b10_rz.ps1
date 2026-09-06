@@ -14,7 +14,7 @@ foreach ($Case in ($Cases -join ',').Split(',')) {
     Copy-Item (Join-Path $PSScriptRoot "b10*mesh.inc") $Work -ErrorAction SilentlyContinue
     $Extractor = "extract_b10_rz.py"
     if ($Case -match "contact") { $Extractor = "extract_b102_rz.py" }
-    if ($Case -match "friction|sliding") { $Extractor = "extract_b8_rz.py" }
+    if ($Case -match "friction|sliding|recovery") { $Extractor = "extract_b8_rz.py" }
     Copy-Item (Join-Path $PSScriptRoot $Extractor) $Work
     Write-Output "case=$Case work_directory=$Work"
     Push-Location $Work
@@ -30,7 +30,7 @@ foreach ($Case in ($Cases -join ',').Split(',')) {
         & C:\SIMULIA\Commands\abaqus.bat python $Extractor "$Case.odb" $Case
         if ($LASTEXITCODE -ne 0) { throw "Extraction failed: $Case" }
         $Kinds = @("nodes", "points")
-        if ($Case -match "friction|sliding") { $Kinds += "contact" }
+        if ($Case -match "friction|sliding|recovery") { $Kinds += "contact" }
         foreach ($Kind in $Kinds) {
             $Output = "${Case}_${Kind}.csv"
             if (!(Test-Path $Output) -or (Get-Content $Output | Measure-Object -Line).Lines -lt 2) {

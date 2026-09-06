@@ -59,7 +59,12 @@ std::vector<Row> read_rows(const std::string& path) {
     return rows;
 }
 
-bool check_scalar(const std::string& name, const fuelsim::test::FieldErrorMetrics& metrics, double zero_tolerance) {
+bool check_scalar(const std::string& name, const fuelsim::test::FieldErrorMetrics& metrics, double zero_tolerance,
+    bool absolute_only = false) {
+    if (absolute_only) {
+        std::cout << name << "_maximum_absolute_difference=" << metrics.maximum_absolute_difference << '\n';
+        return metrics.value_count > 0 && metrics.maximum_absolute_difference <= zero_tolerance;
+    }
     if (metrics.has_relative_norm())
         fuelsim::test::print_relative_metrics(name, metrics);
     else {
@@ -73,8 +78,12 @@ bool check_scalar(const std::string& name, const fuelsim::test::FieldErrorMetric
            metrics.maximum_zero_reference_difference <= zero_tolerance;
 }
 
-bool check_group(
-    const std::string& name, const fuelsim::test::GroupedFieldErrorMetrics& metrics, double zero_tolerance) {
+bool check_group(const std::string& name, const fuelsim::test::GroupedFieldErrorMetrics& metrics, double zero_tolerance,
+    bool absolute_only = false) {
+    if (absolute_only) {
+        std::cout << name << "_maximum_absolute_difference=" << metrics.maximum_difference << '\n';
+        return metrics.group_count > 0 && metrics.maximum_difference <= zero_tolerance;
+    }
     if (metrics.has_relative_norm())
         fuelsim::test::print_grouped_relative_metrics(name, metrics);
     else
@@ -94,8 +103,71 @@ bool same_time(double reference, double actual) {
 } // namespace
 
 namespace fuelsim::test {
+bool check_rz8_recovery_abaqus(const std::string& output_path, const std::string& node_path,
+    const std::string& point_path, const std::string& contact_path) {
+    bool passed = check_rz_abaqus(output_path, node_path, point_path, "probe", true);
+    const auto rows = read_rows(contact_path);
+    const auto frames = read_exodus_history(output_path);
+    FieldErrorMetrics pressure, shear, gap, normal, tangent;
+    std::size_t index = 0, open_frames = 0, mixed_frames = 0, near_zero_count = 0;
+    double near_zero_difference = 0;
+    for (const auto& frame : frames) {
+        if (frame.time == 0) continue;
+        std::size_t count = 0, closed = 0;
+        while (index < rows.size() && same_time(rows[index].at("time"), frame.time)) {
+            const auto& row = rows[index++];
+            const auto label = static_cast<std::size_t>(std::llround(row.at("node")));
+            if (label == 0 || label > frame.nodes.size() || row.at("node") != static_cast<double>(label))
+                throw std::runtime_error("CAX8T recovery reference has an invalid node label");
+            const auto n = label - 1;
+            const double raw_pressure = frame.nodal("contact_pressure_interface")[n];
+            const double raw_shear = frame.nodal("contact_tangential_traction_interface")[n];
+            const double area = frame.nodal("contact_tributary_area_interface")[n];
+            const double fn = frame.nodal("contact_normal_force_interface")[n];
+            const double ft = frame.nodal("contact_tangential_force_interface")[n];
+            if (std::abs(raw_pressure * area - fn) > 1e-9 || std::abs(raw_shear * area - ft) > 1e-9)
+                throw std::runtime_error("CAX8T recovery changed raw force/traction output");
+            const double p = frame.nodal("contact_recovered_pressure_interface")[n];
+            const double s = frame.nodal("contact_recovered_shear_interface")[n];
+            for (const auto& item :
+                std::array<std::pair<double, double>, 2>{{{p, row.at("pressure")}, {s, row.at("shear")}}}) {
+                if (!std::isfinite(item.first)) throw std::runtime_error("Nonfinite recovered contact traction");
+                if (std::abs(item.second) <= rz_stress_zero_tolerance) {
+                    ++near_zero_count;
+                    near_zero_difference = std::max(near_zero_difference, std::abs(item.first - item.second));
+                }
+            }
+            if (std::abs(row.at("pressure")) > rz_stress_zero_tolerance) pressure.add(p, row.at("pressure"));
+            if (std::abs(row.at("shear")) > rz_stress_zero_tolerance) shear.add(s, row.at("shear"));
+            gap.add(frame.nodal("contact_gap_interface")[n], row.at("gap"));
+            normal.add(fn, std::hypot(row.at("normal_r"), row.at("normal_z")));
+            tangent.add(std::abs(ft), std::hypot(row.at("tangential_r"), row.at("tangential_z")));
+            ++count;
+            if (row.at("gap") < 0) ++closed;
+        }
+        if (count != 5) throw std::runtime_error("CAX8T two-edge recovery must compare five nodes each frame");
+        open_frames += closed == 0 ? 1 : 0;
+        mixed_frames += closed > 0 && closed < count ? 1 : 0;
+    }
+    passed = check_scalar("rz8_recovered_pressure", pressure, rz_stress_zero_tolerance) && passed;
+    passed = check_scalar("rz8_recovered_shear", shear, rz_stress_zero_tolerance) && passed;
+    passed = check_scalar("rz8_recovery_gap", gap, rz_displacement_zero_tolerance) && passed;
+    passed = check_scalar("rz8_recovery_normal_force", normal, rz_force_zero_tolerance) && passed;
+    // Vanishing reaction noise in Abaqus is checked in absolute units above for
+    // recovered stresses; force magnitudes use the same absolute roundoff gate.
+    std::cout << "rz8_recovery_tangent_force_maximum_absolute_difference=" << tangent.maximum_absolute_difference
+              << '\n';
+    passed = tangent.maximum_absolute_difference < rz_force_zero_tolerance && passed;
+    std::cout << "rz8_recovery_near_zero_stress_count=" << near_zero_count << '\n'
+              << "rz8_recovery_near_zero_stress_maximum_absolute_difference=" << near_zero_difference << '\n'
+              << "rz8_recovery_open_frames=" << open_frames << '\n'
+              << "rz8_recovery_partial_frames=" << mixed_frames << '\n';
+    return passed && index == rows.size() && index == 70 && open_frames == 1 && mixed_frames == 5 &&
+           near_zero_difference <= rz_stress_zero_tolerance;
+}
+
 bool check_rz_abaqus(const std::string& output_path, const std::string& node_path, const std::string& point_path,
-    const std::string& mechanisms) {
+    const std::string& mechanisms, bool prescribed_state_absolute_check) {
     const auto nodes = read_rows(node_path), points = read_rows(point_path);
     const auto frames = read_exodus_history(output_path);
     const bool contact = mechanisms == "contact";
@@ -104,6 +176,7 @@ bool check_rz_abaqus(const std::string& output_path, const std::string& node_pat
         throw std::runtime_error("Unknown RZ qualification mechanism");
     FieldErrorMetrics temperature, reaction, plastic, creep;
     FieldErrorMetrics pressure, gap, nodal_normal_force, normal_force, heat_rate;
+    FieldErrorMetrics recovered_pressure, recovered_shear;
     GroupedFieldErrorMetrics displacement, support_reaction;
     FieldErrorMetrics free_reaction;
     FieldErrorMetrics reaction_heat;
@@ -165,6 +238,11 @@ bool check_rz_abaqus(const std::string& output_path, const std::string& node_pat
                 reference_opposite_force += row.at("contact_force_z");
                 if (frame.nodal("contact_projected_interface")[n] == 1.0) {
                     pressure.add(frame.nodal("contact_pressure_interface")[n], row.at("contact_pressure"));
+                    if (frame.element("material_point_count").front() == 9.0) {
+                        recovered_pressure.add(
+                            frame.nodal("contact_recovered_pressure_interface")[n], row.at("contact_pressure"));
+                        recovered_shear.add(frame.nodal("contact_recovered_shear_interface")[n], 0.0);
+                    }
                     gap.add(frame.nodal("contact_gap_interface")[n], row.at("contact_gap"));
                     nodal_normal_force.add(
                         frame.nodal("contact_normal_force_interface")[n], -row.at("contact_force_z"));
@@ -221,19 +299,30 @@ bool check_rz_abaqus(const std::string& output_path, const std::string& node_pat
         }
     }
     bool passed = accepted > 0 && node_row == nodes.size() && point_row == points.size();
-    passed = check_scalar("rz_temperature", temperature, rz_temperature_zero_tolerance) && passed;
-    passed = check_group("rz_displacement", displacement, rz_displacement_zero_tolerance) && passed;
+    passed =
+        check_scalar("rz_temperature", temperature, rz_temperature_zero_tolerance, prescribed_state_absolute_check) &&
+        passed;
+    passed =
+        check_group("rz_displacement", displacement, rz_displacement_zero_tolerance, prescribed_state_absolute_check) &&
+        passed;
     if (mechanisms == "sliding" || mechanisms == "probe") {
-        passed = check_group("rz_support_reaction", support_reaction, rz_force_zero_tolerance) && passed;
+        passed = check_group("rz_support_reaction", support_reaction, rz_force_zero_tolerance,
+                     prescribed_state_absolute_check) &&
+                 passed;
         if (mechanisms == "sliding")
             passed = check_scalar("rz_free_node_reaction", free_reaction, rz_force_zero_tolerance) && passed;
         if (mechanisms == "probe")
-            passed = check_scalar("rz_reaction_heat", reaction_heat, rz_heat_rate_zero_tolerance) && passed;
+            passed = check_scalar("rz_reaction_heat", reaction_heat, rz_heat_rate_zero_tolerance,
+                         prescribed_state_absolute_check) &&
+                     passed;
     }
-    if (!contact) passed = check_scalar("rz_bottom_axial_reaction", reaction, rz_force_zero_tolerance) && passed;
+    if (!contact)
+        passed = check_scalar(
+                     "rz_bottom_axial_reaction", reaction, rz_force_zero_tolerance, prescribed_state_absolute_check) &&
+                 passed;
     for (std::size_t t = 0; t < (contact ? 1 : tensors.size()); ++t)
         passed = check_group("rz_" + prefixes[t] + "tensor", tensors[t],
-                     t == 0 ? rz_stress_zero_tolerance : rz_strain_zero_tolerance) &&
+                     t == 0 ? rz_stress_zero_tolerance : rz_strain_zero_tolerance, prescribed_state_absolute_check) &&
                  passed;
     if (contact) {
         passed = check_scalar("rz_contact_pressure", pressure, rz_stress_zero_tolerance) && passed;
@@ -241,9 +330,18 @@ bool check_rz_abaqus(const std::string& output_path, const std::string& node_pat
         passed = check_scalar("rz_contact_nodal_normal_force", nodal_normal_force, rz_force_zero_tolerance) && passed;
         passed = check_scalar("rz_contact_normal_force", normal_force, rz_force_zero_tolerance) && passed;
         passed = check_scalar("rz_contact_heat_rate", heat_rate, rz_heat_rate_zero_tolerance) && passed;
+        if (recovered_pressure.value_count > 0) {
+            passed =
+                check_scalar("rz_contact_recovered_pressure", recovered_pressure, rz_stress_zero_tolerance) && passed;
+            passed = check_scalar("rz_contact_recovered_shear", recovered_shear, rz_stress_zero_tolerance) && passed;
+        }
     } else {
-        passed = check_scalar("rz_equivalent_plastic_strain", plastic, rz_strain_zero_tolerance) && passed;
-        passed = check_scalar("rz_equivalent_creep_strain", creep, rz_strain_zero_tolerance) && passed;
+        passed = check_scalar("rz_equivalent_plastic_strain", plastic, rz_strain_zero_tolerance,
+                     prescribed_state_absolute_check) &&
+                 passed;
+        passed = check_scalar(
+                     "rz_equivalent_creep_strain", creep, rz_strain_zero_tolerance, prescribed_state_absolute_check) &&
+                 passed;
     }
     if (mechanisms == "plastic" || mechanisms == "coupled") passed = max_plastic > 1e-5 && passed;
     if (mechanisms == "creep" || mechanisms == "coupled") passed = max_creep > 1e-6 && passed;
@@ -278,12 +376,16 @@ bool check_rz_sliding_abaqus(const std::string& output_path, const std::string& 
                 throw std::runtime_error("RZ sliding contact reference does not match output");
             ++frame_contacts;
             const auto n = label - 1;
-            if (!quadratic_contact) pressure.add(frame.nodal("contact_pressure_interface")[n], row.at("pressure"));
+            pressure.add(frame.nodal(quadratic_contact ? "contact_recovered_pressure_interface"
+                                                       : "contact_pressure_interface")[n],
+                row.at("pressure"));
+            shear.add(frame.nodal(quadratic_contact ? "contact_recovered_shear_interface"
+                                                    : "contact_tangential_traction_interface")[n],
+                row.at("shear"));
             gap.add(frame.nodal("contact_gap_interface")[n], row.at("gap"));
-            if (!quadratic_contact) {
-                shear.add(frame.nodal("contact_tangential_traction_interface")[n], row.at("shear"));
+            if (!quadratic_contact)
                 slip.add(frame.nodal("contact_total_tangential_slip_interface")[n], row.at("slip"));
-            } else
+            else
                 slip.add(std::abs(frame.nodal("contact_total_tangential_slip_interface")[n]), std::abs(row.at("slip")));
             normal_force.add(
                 frame.nodal("contact_normal_force_interface")[n], std::hypot(row.at("normal_r"), row.at("normal_z")));
@@ -351,10 +453,8 @@ bool check_rz_sliding_abaqus(const std::string& output_path, const std::string& 
     }
     std::vector<std::pair<std::string, const FieldErrorMetrics*>> fields = {
         {"gap", &gap}, {"slip", &slip}, {"normal_force", &normal_force}};
-    if (!quadratic_contact) {
-        fields.push_back({"pressure", &pressure});
-        fields.push_back({"shear", &shear});
-    }
+    fields.push_back({"pressure", &pressure});
+    fields.push_back({"shear", &shear});
     fields.push_back({"tangent_force", &tangent_force});
     for (const auto& field : fields)
         passed = check_scalar("rz_sliding_" + field.first, *field.second,

@@ -2234,6 +2234,12 @@ if(BUILD_TESTING)
         "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b113_cax8t_finite_sliding_points.csv"
         "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b113_cax8t_finite_sliding_contact.csv")
 
+    fuelsim_add_production_test(fuelsim_b114_cax8t_recovery_abaqus_tests b114_cax8t_recovery
+        transient_b114_cax8t_recovery rz8-recovery-abaqus
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b114_cax8t_recovery_nodes.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b114_cax8t_recovery_points.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b114_cax8t_recovery_contact.csv")
+
     fuelsim_add_production_test(fuelsim_b915_cax4rt_thermal_identification_abaqus_tests b915_cax4rt_thermal_identification
         transient_b915_cax4rt_thermal_identification rz-abaqus
         "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b915_cax4rt_thermal_identification_nodes.csv"

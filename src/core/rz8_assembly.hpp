@@ -59,6 +59,10 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     std::vector<ContactNodeSummary> summarize_contact_nodes(
         std::size_t contact, const std::vector<double>& state) const;
     std::vector<std::size_t> contact_secondary_source_nodes(std::size_t contact) const;
+    // Output-only recovery: positive compression and shear in the primary tangent
+    // direction (physical secondary force, opposite the residual traction sign).
+    std::vector<std::array<double, 2>> recover_contact_tractions(
+        std::size_t contact, const std::vector<ContactNodeSummary>& nodes, const std::vector<double>& state) const;
 
   private:
     struct Boundary final {

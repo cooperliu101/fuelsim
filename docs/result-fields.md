@@ -74,6 +74,20 @@
 `current_z`。`primary_segment` 是生产接触链中的零起始线段下标，仅在成功
 投影时有值，可用于检查跨线段后投影归属的改变。
 
+CAX8T（八节点轴对称温度—位移耦合单元）的 secondary 接触边，即节点约束所在侧，
+另外输出 `contact_recovered_pressure_<pair>` 和 `contact_recovered_shear_<pair>`，
+单位均为 Pa。前者为正压缩的恢复压力，对应 Abaqus 的 `CPRESS`；后者为沿当前
+primary 边切向的物理剪切应力，对应 `CSHEAR1`。原始 `tangential_traction` 使用
+残量符号，因此恢复前须反号才能与这里的物理剪切应力比较。
+
+恢复使用二次边节点值的线性最小二乘投影，在相邻边共享节点处取算术平均，并对
+恢复结果应用经 Abaqus 例题识别的极值限制。恢复只在写结果时计算；原始 `pressure`、
+`tangential_traction`、节点力、接触活动状态和历史仍保持其原有物理含义。
+局部接触时，恢复压力可延伸至没有节点接触力的相邻节点，不能用恢复压力乘节点
+面积重建接触力，也不能用它判断该节点是否真正接触。完全分离时两项恢复值为零。
+不属于 secondary 接触边的节点保持空值。适用证据见
+[CAX8T 接触恢复验证](../verification/abaqus/b114_cax8t_recovery_validation.md)。
+
 三维接触还输出 `primary_face`、`constraint_pressure`、`current_x/y/z`、
 `normal_force_x/y/z`、`tangential_force_x/y/z`、`total_slip_x/y/z` 和
 `elastic_slip_x/y/z`。`primary_face` 是生产搜索中的零起始面下标，不是 Exodus

@@ -254,6 +254,77 @@ std::vector<ContactNodeSummary> SpatialAssembly::summarize_contact_nodes(
     return result;
 }
 
+std::vector<std::array<double, 2>> SpatialAssembly::recover_contact_tractions(
+    std::size_t contact, const std::vector<ContactNodeSummary>& nodes, const std::vector<double>& state) const {
+    const auto& boundary = _secondary.at(contact).boundary;
+    if (nodes.size() != boundary.displacement_nodes.size())
+        throw std::invalid_argument("CAX8T contact recovery node count mismatch");
+    std::vector<std::array<double, 2>> result(nodes.size());
+    if (!_definition.contacts.at(contact).mechanical) return result;
+    std::vector<std::size_t> counts(nodes.size());
+    std::vector<std::size_t> indices(_meshes[_secondary[contact].region].nodes().size(), invalid);
+    std::array<double, 2> minimum = {std::numeric_limits<double>::infinity(), std::numeric_limits<double>::infinity()};
+    std::array<double, 2> maximum = {
+        -std::numeric_limits<double>::infinity(), -std::numeric_limits<double>::infinity()};
+    for (std::size_t n = 0; n < nodes.size(); ++n) {
+        indices[boundary.displacement_nodes[n]] = n;
+        if (!std::isfinite(nodes[n].pressure) || nodes[n].pressure < 0 || !std::isfinite(nodes[n].tangential_traction))
+            throw std::domain_error("CAX8T contact recovery requires finite compressive tractions");
+        maximum[0] = std::max(maximum[0], nodes[n].pressure);
+        maximum[1] = std::max(maximum[1], nodes[n].tangential_traction);
+        minimum[0] = std::min(minimum[0], nodes[n].pressure);
+        minimum[1] = std::min(minimum[1], nodes[n].tangential_traction);
+    }
+    // The pair-wide range includes zero at primary nodes that participate in no
+    // active constraint. B10.14 distinguishes this from secondary-only bounds.
+    const auto& primary = _primary.at(contact);
+    std::vector<bool> participating(_meshes[primary.region].nodes().size(), false);
+    for (const auto c : _active_candidates) {
+        const auto& candidate = _candidates[c];
+        if (candidate.contact != contact || !candidate.geometry.mechanical || nodes[candidate.secondary].pressure <= 0)
+            continue;
+        const double x = candidate_value(c, state).primary_coordinate;
+        const std::array<double, 3> shape = {x * (x - 1) / 2, x * (x + 1) / 2, 1 - x * x};
+        const auto& edge = primary.boundary.elements[candidate.primary];
+        for (std::size_t n = 0; n < 3; ++n)
+            if (shape[n] != 0.0) participating[edge.nodes[n]] = true;
+    }
+    for (const auto node : primary.boundary.displacement_nodes)
+        if (!participating[node])
+            for (std::size_t field = 0; field < 2; ++field) {
+                minimum[field] = std::min(minimum[field], 0.0);
+                maximum[field] = std::max(maximum[field], 0.0);
+            }
+    // Equal-weight least-squares projection from quadratic nodal values onto
+    // {1, xi}, with xi = {-1, 1, 0}. Shared edge endpoints are averaged.
+    constexpr std::array<std::array<double, 3>, 3> projection = {
+        {{5.0 / 6, -1.0 / 6, 1.0 / 3}, {-1.0 / 6, 5.0 / 6, 1.0 / 3}, {1.0 / 3, 1.0 / 3, 1.0 / 3}}};
+    for (const auto& edge : boundary.elements) {
+        std::array<std::size_t, 3> output;
+        for (std::size_t i = 0; i < 3; ++i) {
+            output[i] = indices.at(edge.nodes[i]);
+            if (output[i] == invalid) throw std::logic_error("CAX8T recovery edge node missing from boundary");
+        }
+        for (std::size_t i = 0; i < 3; ++i) {
+            for (std::size_t j = 0; j < 3; ++j) {
+                result[output[i]][0] += projection[i][j] * nodes[output[j]].pressure;
+                result[output[i]][1] += projection[i][j] * nodes[output[j]].tangential_traction;
+            }
+            ++counts[output[i]];
+        }
+    }
+    for (std::size_t n = 0; n < nodes.size(); ++n) {
+        if (counts[n] == 0) throw std::logic_error("CAX8T recovery node has no adjacent edge");
+        // This limiter is part of output recovery, not material/geometry clipping.
+        // It prevents new extrema in the pair-wide traction range.
+        for (std::size_t field = 0; field < 2; ++field)
+            result[n][field] =
+                std::clamp(result[n][field] / static_cast<double>(counts[n]), minimum[field], maximum[field]);
+        result[n][1] = -result[n][1];
+    }
+    return result;
+}
+
 InterfaceSummary SpatialAssembly::summarize_interface(std::size_t contact, const std::vector<double>& state) const {
     InterfaceSummary summary;
     const auto nodes = summarize_contact_nodes(contact, state);

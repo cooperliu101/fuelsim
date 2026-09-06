@@ -3,11 +3,13 @@
 #include <string>
 
 namespace fuelsim::test {
+bool check_rz8_recovery_abaqus(const std::string& output_path, const std::string& node_path,
+    const std::string& point_path, const std::string& contact_path);
 bool check_rz_sliding_abaqus(const std::string& output_path, const std::string& node_path,
     const std::string& point_path, const std::string& contact_path, bool require_segment_crossing,
     bool quadratic_contact = false);
 bool check_rz_abaqus(const std::string& output_path, const std::string& node_path, const std::string& point_path,
-    const std::string& mechanisms);
+    const std::string& mechanisms, bool prescribed_state_absolute_check = false);
 bool check_hex8_multi_contact_path(const std::string& output, const std::string& reference_directory);
 bool check_hex8_finite_contact(
     const std::string& output_path, const std::string& node_path, const std::string& contact_path);
