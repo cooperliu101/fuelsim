@@ -464,10 +464,39 @@ void SpatialAssembly::build_boundaries(const UnstructuredQuad4Mesh& source_mesh)
         const BoundaryConditionDefinition& definition = _definition.boundary_conditions[boundary_index];
         if (definition.name.empty() || definition.boundary.empty())
             throw std::invalid_argument("Boundary-condition names and boundaries must be valid");
-        const ResolvedBoundary resolved = resolve_boundary(source_mesh, definition.boundary);
         if (definition.scale_with_load && !definition.function.empty())
             throw std::invalid_argument(
                 "Boundary condition cannot combine scale_with_load and a time function: " + definition.name);
+        // A node set can prescribe an individual nodal field without inventing a surface.
+        // Existing side-set names retain their established interpretation.
+        const bool side_set = std::any_of(source_mesh.side_sets().begin(), source_mesh.side_sets().end(),
+            [&](const SideSet& set) { return set.name == definition.boundary; });
+        if (definition.type == BoundaryConditionType::dirichlet && !side_set) {
+            const auto set = std::find_if(source_mesh.node_sets().begin(), source_mesh.node_sets().end(),
+                [&](const NodeSet& value) { return value.name == definition.boundary; });
+            if (set != source_mesh.node_sets().end()) {
+                std::vector<std::size_t> prescribed;
+                for (const std::size_t source : set->nodes) {
+                    bool found = false;
+                    for (std::size_t region = 0; region < _meshes.size(); ++region) {
+                        const auto& nodes = _meshes[region].source_node_ids();
+                        const auto node = std::find(nodes.begin(), nodes.end(), source);
+                        if (node == nodes.end()) continue;
+                        prescribed.push_back(
+                            dof(definition.field, global_node(region, static_cast<std::size_t>(node - nodes.begin()))));
+                        found = true;
+                    }
+                    if (!found)
+                        throw std::invalid_argument(
+                            "Dirichlet node set contains an inactive mesh node: " + definition.boundary);
+                }
+                std::sort(prescribed.begin(), prescribed.end());
+                prescribed.erase(std::unique(prescribed.begin(), prescribed.end()), prescribed.end());
+                for (const auto index : prescribed) add_dirichlet(index, boundary_index);
+                continue;
+            }
+        }
+        const ResolvedBoundary resolved = resolve_boundary(source_mesh, definition.boundary);
         if (definition.type == BoundaryConditionType::dirichlet) {
             for (const std::size_t local_node : resolved.boundary.nodes) {
                 const std::size_t dof = this->dof(definition.field, global_node(resolved.region, local_node));

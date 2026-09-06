@@ -79,6 +79,7 @@ add_library(fuelsim_core
     src/core/cartesian3d_kernels.cpp
     src/core/cartesian3d_hex20.cpp
     src/core/rz_kernels.cpp
+    src/core/detail/cax4rt.cpp
     src/core/mesh.cpp
     src/core/material.cpp
     src/core/material_functions.cpp
@@ -2177,6 +2178,45 @@ if(BUILD_TESTING)
         "${CMAKE_CURRENT_BINARY_DIR}/blackbox/b81_rz_finite_sliding/verification/fuelsim/transient_b81_rz_finite_sliding_results.e")
     set_tests_properties(fuelsim_b81_rz_friction_history_contract PROPERTIES
         FIXTURES_REQUIRED b81_rz_production LABELS "unit;contact;checkpoint")
+
+    foreach(cax4rt_case IN ITEMS b90_cax4rt_small_probe b91_cax4rt_finite_probe b92_cax4rt_rectangle_probe
+        b93_cax4rt_small_coupled b94_cax4rt_finite_coupled b95_cax4rt_small_creep
+        b96_cax4rt_finite_creep b97_cax4rt_small_plastic b98_cax4rt_finite_plastic
+        b99_cax4rt_small_thermal b910_cax4rt_finite_thermal b911_cax4rt_small_contact b912_cax4rt_finite_contact)
+        string(REGEX REPLACE ".*_" "" cax4rt_mechanism "${cax4rt_case}")
+        if(cax4rt_mechanism STREQUAL "contact")
+            set(cax4rt_input "steady_${cax4rt_case}")
+        else()
+            set(cax4rt_input "transient_${cax4rt_case}")
+        endif()
+        fuelsim_add_production_test("fuelsim_${cax4rt_case}_abaqus_tests" "${cax4rt_case}"
+            "${cax4rt_input}" rz-abaqus
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${cax4rt_case}_nodes.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${cax4rt_case}_points.csv" "${cax4rt_mechanism}")
+    endforeach()
+
+    fuelsim_add_production_test(fuelsim_b915_cax4rt_thermal_identification_abaqus_tests b915_cax4rt_thermal_identification
+        transient_b915_cax4rt_thermal_identification rz-abaqus
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b915_cax4rt_thermal_identification_nodes.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b915_cax4rt_thermal_identification_points.csv" probe)
+
+    fuelsim_add_production_test(fuelsim_b913_cax4rt_small_friction_abaqus_tests b913_cax4rt_small_friction
+        transient_b913_cax4rt_small_friction rz-friction-abaqus
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b913_cax4rt_small_friction_nodes.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b913_cax4rt_small_friction_points.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b913_cax4rt_small_friction_contact.csv")
+    fuelsim_add_production_test(fuelsim_b914_cax4rt_finite_sliding_abaqus_tests b914_cax4rt_finite_sliding
+        transient_b914_cax4rt_finite_sliding rz-sliding-abaqus
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b914_cax4rt_finite_sliding_nodes.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b914_cax4rt_finite_sliding_points.csv"
+        "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b914_cax4rt_finite_sliding_contact.csv")
+    set_tests_properties(fuelsim_b914_cax4rt_finite_sliding_abaqus_tests PROPERTIES FIXTURES_SETUP b914_cax4rt_production)
+    add_test(NAME fuelsim_b914_cax4rt_friction_history_contract COMMAND fuelsim_rz_friction_history_contract_tests
+        "${CMAKE_CURRENT_BINARY_DIR}/blackbox/b914_cax4rt_finite_sliding/verification/fuelsim/transient_b914_cax4rt_finite_sliding.fsi"
+        "${CMAKE_CURRENT_BINARY_DIR}/blackbox/b914_cax4rt_finite_sliding/verification/fuelsim/transient_b914_cax4rt_finite_sliding.checkpoint"
+        "${CMAKE_CURRENT_BINARY_DIR}/blackbox/b914_cax4rt_finite_sliding/verification/fuelsim/transient_b914_cax4rt_finite_sliding_results.e")
+    set_tests_properties(fuelsim_b914_cax4rt_friction_history_contract PROPERTIES
+        FIXTURES_REQUIRED b914_cax4rt_production LABELS "unit;contact;checkpoint")
 
     # Historical MOOSE references retain independent load and rotation coverage.
     fuelsim_add_production_test(fuelsim_m22_j2_moose_tests m22_j2 transient_j2_plastic_moose m22

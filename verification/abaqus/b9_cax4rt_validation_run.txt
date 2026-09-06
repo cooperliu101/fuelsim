@@ -1,0 +1,63 @@
+validation_date=2026-09-06
+source_base_commit=331c2077f2eee18b18316984307e201294d46395
+build_type=Release
+compiler=c++ (conda-forge gcc 14.3.0-19) 14.3.0
+warnings_as_errors=ON
+build_command=cmake --build build --parallel 4
+regression_command=ctest --test-dir build -j4 --output-on-failure
+regression_passed=239
+regression_failed=0
+regression_ctest_external_seconds=107.89
+abaqus_version=3DEXPERIENCE R2018x
+abaqus_successful_cases=16
+production_abaqus_cases_passed=16
+relative_error_limit_percent=0.5
+maximum_relative_error_percent=0.0178155965845
+active_material_points_per_cax4rt_element=1
+b914_accepted_times=20
+b914_abaqus_surface_smoothing=0
+b914_primary_segments_crossed=2
+build/fuelsim_sha256=642b1bed77dddc3f7cb7f1bbf3dd1e0f2529da6f4986a00413221e40aa592b10
+build/fuelsim_production_result_tests_sha256=e8da5af5b15be08d58d879645199ecb56e0f6faddbe0b83618b3959cc6614d3a
+src/core/detail/cax4rt.cpp_sha256=0bc34c89e3778598b3a4ac928ca395c83cd6e8fced6128caaa41117ae92cb21f
+tests/production_rz_abaqus.cpp_sha256=db83b402e8703679c2507080c0c7a1ce5781cec772e47e99af56308e5d21b651
+
+All sixteen native input, included mesh and extractor hashes matched source.
+Raw native CSV files and status records were copied byte-for-byte.
+All staged production input cards were byte-identical to the committed source cards.
+
+Checker rejection audit: only temporary reference or result copies were modified.
+mutation	exit_code
+heat_reaction	1
+stress_tensor	1
+contact_pressure	1
+contact_slip	1
+missing_material_point	1
+noninteger_point_count	1
+inactive_material_point	1
+
+Two-rank B9.14 production used the identical final executable and literal input.
+The complete native Abaqus checker passed for the two-rank output.
+matched_times=21
+literal_input_copy=byte_identical
+field,count,maximum_absolute_difference
+temperature,420,3.4106051316484809e-13
+displacement_r,420,7.1997800516615529e-19
+displacement_z,420,1.0842021724855044e-18
+inactive_field_masks=identical
+
+The unified suite includes one-rank/two-rank contribution ownership checks,
+elastic/plastic/creep/coupled directional derivatives and analytical homogeneous stretch,
+thermal geometry derivatives, passive/Jacobian residual identity, positive hourglass energy,
+affine and rigid-translation invariance, invalid midpoint rejection, checkpoint roundtrip,
+complete trial rollback, and friction-state sensitivity in step-doubling.
+
+CAX4RT local derivative output:
+CAX4RT_small_directional_jacobian_error=1.150268317829e-07
+CAX4RT_finite_directional_jacobian_error=2.223238493715e-11
+CAX4RT_inelastic_0_0_jacobian_error=5.100323213357e-08
+CAX4RT_inelastic_0_1_jacobian_error=5.100323213357e-08
+CAX4RT_inelastic_0_2_jacobian_error=5.100323213357e-08
+CAX4RT_inelastic_1_0_jacobian_error=1.795486563650e-08
+CAX4RT_inelastic_1_1_jacobian_error=3.197709671631e-08
+CAX4RT_inelastic_1_2_jacobian_error=1.804997869407e-08

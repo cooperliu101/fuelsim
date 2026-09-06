@@ -520,15 +520,16 @@ void append_component_variable_names(std::vector<std::string>& result, const cha
         result.push_back(std::string(prefix) + std::string(component) + "_q" + std::to_string(q));
 }
 
-std::vector<std::string> stress_variable_names() {
+std::vector<std::string> stress_variable_names(bool include_count = true) {
     std::vector<std::string> result;
     result.reserve(16);
     for (std::size_t q = 0; q < 4; ++q) append_component_variable_names(result, "stress_", q);
+    if (include_count) result.push_back("material_point_count");
     return result;
 }
 
 std::vector<std::string> transient_element_variable_names() {
-    std::vector<std::string> result = stress_variable_names();
+    std::vector<std::string> result = stress_variable_names(false);
     result.reserve(56);
     for (std::size_t q = 0; q < 4; ++q) {
         append_component_variable_names(result, "plastic_", q);
@@ -540,6 +541,7 @@ std::vector<std::string> transient_element_variable_names() {
     for (std::size_t q = 0; q < 4; ++q)
         for (const char* field : {"reference_r", "reference_z", "reference_measure"})
             result.push_back(std::string(field) + "_q" + std::to_string(q));
+    result.push_back("material_point_count");
     return result;
 }
 
@@ -723,8 +725,8 @@ std::vector<double> rz_globals(
 }
 
 void store_stress_values(std::size_t source, const std::array<AxisymmetricStressValues, 4>& stresses,
-    std::vector<std::vector<double>>& values) {
-    for (std::size_t q = 0; q < stresses.size(); ++q) {
+    std::vector<std::vector<double>>& values, std::size_t point_count = 4) {
+    for (std::size_t q = 0; q < point_count; ++q) {
         const std::size_t offset = 4 * q;
         values[offset][source] = stresses[q].rr;
         values[offset + 1][source] = stresses[q].zz;
@@ -749,7 +751,10 @@ std::vector<std::vector<double>> steady_elements(
             const auto stresses = compute_quad4_rz_thermoelastic_stress(
                 backend.kernel_data[region], backend.spatial.region_element_geometry(region, element), local);
             const std::size_t source = region_mesh.source_element_ids().at(element);
-            store_stress_values(source, stresses, result);
+            const std::size_t count =
+                backend.kernel_data[region].element_formulation == RzElementFormulation::cax4rt ? 1 : 4;
+            store_stress_values(source, stresses, result, count);
+            result.back()[source] = static_cast<double>(count);
         }
     }
     return result;
@@ -768,8 +773,11 @@ std::vector<std::vector<double>> transient_elements(
             const Quad4MaterialHistory& history = backend.histories.at(region).at(element);
             std::array<AxisymmetricStressValues, 4> stresses{};
             for (std::size_t q = 0; q < stresses.size(); ++q) stresses[q] = history[q].stress;
-            store_stress_values(source, stresses, result);
-            for (std::size_t q = 0; q < 4; ++q) {
+            const bool reduced = backend.spatial.region(region).rz_element_formulation == RzElementFormulation::cax4rt;
+            const std::size_t count = reduced ? 1 : 4;
+            result.back()[source] = static_cast<double>(count);
+            store_stress_values(source, stresses, result, count);
+            for (std::size_t q = 0; q < count; ++q) {
                 const std::size_t history_offset = 16 + 10 * q;
                 for (std::size_t component = 0; component < 4; ++component) {
                     result[history_offset + component][source] = history[q].plastic_strain[component];
@@ -778,7 +786,18 @@ std::vector<std::vector<double>> transient_elements(
                 }
                 result[history_offset + 8][source] = history[q].equivalent_plastic_strain;
                 result[history_offset + 9][source] = history[q].equivalent_creep_strain;
-                const auto& point = backend.spatial.region_element_geometry(region, element).points[q];
+                const auto& geometry = backend.spatial.region_element_geometry(region, element);
+                auto point = geometry.points[q];
+                if (reduced) {
+                    point = {};
+                    for (const auto& p : geometry.points) {
+                        point.weighted_measure += p.weighted_measure;
+                        point.radius += p.weighted_measure * p.radius;
+                        for (std::size_t n = 0; n < 4; ++n) point.shape[n] += p.weighted_measure * p.shape[n];
+                    }
+                    point.radius /= point.weighted_measure;
+                    for (double& value : point.shape) value /= point.weighted_measure;
+                }
                 double axial_coordinate = 0.0;
                 for (std::size_t node = 0; node < 4; ++node)
                     axial_coordinate +=

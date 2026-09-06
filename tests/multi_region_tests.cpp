@@ -97,7 +97,7 @@ fuelsim::UnstructuredQuad4Mesh shared_node_material_mesh() {
             {{{0, 1, 2, 3}}},
             {{{1, 4, 5, 2}}},
         },
-        {1, 2}, {{1, "meat"}, {2, "clad"}}, {},
+        {1, 2}, {{1, "meat"}, {2, "clad"}}, {{1, "interface_nodes", {1, 2}}, {2, "clad_nodes", {4, 5}}},
         {
             {1, "meat_left", {{{0, 3}}}},
             {2, "clad_right", {{{1, 1}}}},
@@ -320,6 +320,28 @@ bool test_shared_block_nodes() {
         fuelsim::SteadyProblem inconsistent(shared_node_definition(301.0), mesh);
         (void)inconsistent.initial_state();
     } catch (const std::invalid_argument&) { inconsistent_initial_temperature_rejected = true; }
+    auto nodal_definition = shared_node_definition();
+    nodal_definition.boundary_conditions.push_back(
+        dirichlet("interface_temperature", "interface_nodes", fuelsim::Field::temperature, 400.0));
+    const fuelsim::SteadyProblem nodal_problem(nodal_definition, mesh);
+    for (const auto node : {meat_interface_bottom, meat_interface_top}) {
+        const auto index = dofs.dof(fuelsim::Field::temperature, node);
+        const auto count = std::count_if(nodal_problem.dirichlet_conditions().begin(),
+            nodal_problem.dirichlet_conditions().end(), [&](const fuelsim::DirichletCondition& condition) {
+                return condition.dof == index && condition.value == 400.0;
+            });
+        passed = check(count == 1, "an RZ node-set condition constrains each shared field node exactly once") && passed;
+    }
+    nodal_definition.regions.resize(1);
+    nodal_definition.boundary_conditions = {
+        dirichlet("inactive_nodes", "clad_nodes", fuelsim::Field::temperature, 400.0)};
+    bool inactive_nodes_rejected = false;
+    try {
+        fuelsim::SteadyProblem invalid(nodal_definition, mesh);
+    } catch (const std::invalid_argument& error) {
+        inactive_nodes_rejected = std::string(error.what()).find("inactive mesh node") != std::string::npos;
+    }
+    passed = check(inactive_nodes_rejected, "an RZ node set cannot silently constrain an unselected region") && passed;
     return check(inconsistent_initial_temperature_rejected,
                "conforming shared nodes reject inconsistent block initial temperatures") &&
            passed;

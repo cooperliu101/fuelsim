@@ -411,6 +411,18 @@ bool run_tests(const std::string& steady_path, const std::string& transient_path
              passed;
     cax4t_case.replace(cax4t_case.find("axisymmetric_rz"), 15, "cartesian_3d");
     passed = expect_case_failure(malformed_path, cax4t_case, "unknown HEX8 element 'cax4t'") && passed;
+    std::string cax4rt_case = read_text(steady_path);
+    cax4rt_case.insert(cax4rt_case.find("    strain ="), "    element = cax4rt\n");
+    {
+        std::ofstream output(malformed_path);
+        output << cax4rt_case;
+    }
+    passed = check(fuelsim::read_case_input(malformed_path).spatial.regions.front().rz_element_formulation ==
+                       fuelsim::RzElementFormulation::cax4rt,
+                 "axisymmetric input selects the CAX4RT reduced-integration formulation") &&
+             passed;
+    cax4rt_case.replace(cax4rt_case.find("axisymmetric_rz"), 15, "cartesian_3d");
+    passed = expect_case_failure(malformed_path, cax4rt_case, "unknown HEX8 element 'cax4rt'") && passed;
     std::string missing_friction_slip_tolerance_case = read_text(steady_path);
     missing_friction_slip_tolerance_case.insert(
         missing_friction_slip_tolerance_case.find(contact_penalty) + contact_penalty.size(),

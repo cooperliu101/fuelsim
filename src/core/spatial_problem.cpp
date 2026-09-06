@@ -1,5 +1,6 @@
 #include "cartesian3d_assembly.hpp"
 #include "core/problem_backend_access.hpp"
+#include "detail/cax4rt.hpp"
 #include "fuelsim/core/cartesian3d_hex8.hpp"
 #include "fuelsim/core/nonlinear_problem.hpp"
 #include "fuelsim/core/spatial_definition.hpp"
@@ -103,7 +104,7 @@ class SpatialProblemStorage {
         for (std::size_t region = 0; region < rz->region_count(); ++region) {
             const RegionDefinition& value = rz->region(region);
             kernel_data.push_back({IsotropicThermoelasticMaterial(value.material), rz->region_heat_source(region), 0.0,
-                value.strain_formulation, value.rz_element_formulation});
+                value.strain_formulation, value.rz_element_formulation, value.initial_temperature});
         }
     }
 
@@ -1296,6 +1297,19 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                 const Quad4RzGeometry& geometry = _impl->rz->region_element_geometry(region, element);
                 Quad4MaterialHistory update = compute_quad4_rz_transient_update(_impl->kernel_data[region], geometry,
                     state, committed_state, _impl->material_histories[region][element], _impl->active_time_step);
+                const bool reduced = _impl->kernel_data[region].element_formulation == RzElementFormulation::cax4rt;
+                if (reduced) {
+                    const auto rates = rz::cax4rt_thermal_rates(_impl->kernel_data[region], geometry, state,
+                        committed_state, _impl->active_time_step, _impl->include_thermal_time_term);
+                    conservation.stored_heat_rate += rates[0];
+                    conservation.generated_heat_rate += rates[1];
+                    const double current_hourglass =
+                        rz::cax4rt_hourglass_energy(_impl->kernel_data[region], geometry, state);
+                    const double old_hourglass =
+                        rz::cax4rt_hourglass_energy(_impl->kernel_data[region], geometry, committed_state);
+                    conservation.mechanical_hourglass_energy += current_hourglass;
+                    conservation.mechanical_hourglass_energy_change += current_hourglass - old_hourglass;
+                }
                 for (std::size_t q = 0; q < geometry.points.size(); ++q) {
                     const RzQuadraturePoint& point = geometry.points[q];
                     double current_temperature = 0.0, old_temperature = 0.0;
@@ -1308,13 +1322,14 @@ void TransientProblem::commit_time_step(const std::vector<double>& converged_sol
                         kernel_data.time, point.radius, 0.0, point.axial_coordinate};
                     const double heat_capacity =
                         kernel_data.material.heat_capacity(current_temperature, context).value();
-                    if (_impl->include_thermal_time_term)
+                    if (!reduced && _impl->include_thermal_time_term)
                         conservation.stored_heat_rate += point.weighted_measure * heat_capacity *
                                                          (current_temperature - old_temperature) /
                                                          _impl->active_time_step;
-                    conservation.generated_heat_rate += point.weighted_measure * kernel_data.volumetric_heat_source;
-                    const MaterialPointState &old_history = _impl->material_histories[region][element][q],
-                                             &new_history = update[q];
+                    if (!reduced)
+                        conservation.generated_heat_rate += point.weighted_measure * kernel_data.volumetric_heat_source;
+                    const MaterialPointState &old_history = _impl->material_histories[region][element][reduced ? 0 : q],
+                                             &new_history = update[reduced ? 0 : q];
                     const AxisymmetricStressValues &old_stress = old_history.stress, &new_stress = new_history.stress;
                     conservation.elastic_energy_change +=
                         0.5 * point.weighted_measure *

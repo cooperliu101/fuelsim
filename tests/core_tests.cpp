@@ -1,3 +1,4 @@
+#include "core/detail/cax4rt.hpp"
 #include "core/spatial_layout.hpp"
 #include "fuelsim/core/contact.hpp"
 #include "fuelsim/core/material.hpp"
@@ -232,15 +233,18 @@ bool test_element_jacobian() {
     return passed;
 }
 
-bool test_cax4t_kinematics_and_jacobian() {
+bool test_cax_kinematics_and_jacobian(bool reduced) {
+    const std::string name = reduced ? "CAX4RT" : "CAX4T";
+    const std::size_t points = reduced ? 1 : 4;
     const fuelsim::Quad4Coordinates coordinates = {{{1.0, 0.0}, {2.1, 0.1}, {2.0, 1.2}, {0.9, 1.0}}};
     const auto geometry = fuelsim::make_quad4_rz_geometry(coordinates);
     fuelsim::Quad4RzData data{fuelsim::IsotropicThermoelasticMaterial(properties())};
-    data.element_formulation = fuelsim::RzElementFormulation::cax4t;
+    data.element_formulation = reduced ? fuelsim::RzElementFormulation::cax4rt : fuelsim::RzElementFormulation::cax4t;
     const fuelsim::LocalValues direction = {0.2, -0.3, 0.4, -0.1, 0.3, -0.5, 0.2, 0.4, -0.2, 0.35, -0.45, 0.25};
     bool passed = true;
     for (const auto formulation : {fuelsim::StrainFormulation::small, fuelsim::StrainFormulation::finite}) {
         data.strain_formulation = formulation;
+        data.volumetric_heat_source = reduced && formulation == fuelsim::StrainFormulation::finite ? 2e6 : 0.0;
         fuelsim::LocalValues initial{}, old{}, state{};
         for (std::size_t n = 0; n < 4; ++n) {
             initial[n] = old[n] = state[n] = 600.0;
@@ -255,12 +259,18 @@ bool test_cax4t_kinematics_and_jacobian() {
         const double radial = finite ? 2.0 * 0.03 / 2.03 + 2.0 * 0.05 / 2.11 : 0.08;
         const double axial = finite ? -2.0 * 0.02 / 1.98 - 2.0 * 0.02 / 1.94 : -0.04;
         double affine_error = 0.0;
-        for (const auto& h : affine)
+        for (std::size_t q = 0; q < points; ++q) {
+            const auto& h = affine[q];
             affine_error =
                 std::max({affine_error, std::abs(h.elastic_strain[0] - radial), std::abs(h.elastic_strain[1] - axial),
                     std::abs(h.elastic_strain[2] - radial), std::abs(h.elastic_strain[3])});
-        passed = check(affine_error < 2e-14, "CAX4T homogeneous stretch follows the analytical incremental strain") &&
+        }
+        passed = check(affine_error < 2e-14, name + " homogeneous stretch follows the analytical incremental strain") &&
                  passed;
+        if (reduced)
+            passed = check(fuelsim::rz::cax4rt_hourglass_energy(data, geometry, state) < 1e-20,
+                         "CAX4RT affine deformation has no artificial hourglass energy") &&
+                     passed;
         state[5] += 0.025;
         state[6] += 0.015;
         state[10] -= 0.020;
@@ -272,7 +282,7 @@ bool test_cax4t_kinematics_and_jacobian() {
             fuelsim::compute_quad4_rz_transient(data, geometry, state, old, old_history, 0.1, &jacobian);
         const auto passive = fuelsim::compute_quad4_rz_transient(data, geometry, state, old, old_history, 0.1);
         passed =
-            check(active == passive, "CAX4T residual and Jacobian evaluations return identical residuals") && passed;
+            check(active == passive, name + " residual and Jacobian evaluations return identical residuals") && passed;
         constexpr double step = 1e-5;
         auto plus = state, minus = state;
         for (std::size_t j = 0; j < 12; ++j) {
@@ -288,9 +298,9 @@ bool test_cax4t_kinematics_and_jacobian() {
             derivative_error = std::max(derivative_error, scaled_error(ad, (rp[i] - rm[i]) / (2.0 * step)));
         }
         passed =
-            check(derivative_error < 2e-7, "CAX4T coupled volume and hoop Jacobian matches centered differences") &&
+            check(derivative_error < 2e-7, name + " coupled volume and hoop Jacobian matches centered differences") &&
             passed;
-        std::cout << "cax4t_" << (finite ? "finite" : "small") << "_directional_jacobian_error=" << derivative_error
+        std::cout << name + "_" << (finite ? "finite" : "small") << "_directional_jacobian_error=" << derivative_error
                   << '\n';
         // Axial rigid translation is an exact axisymmetric rigid motion, including with committed stress.
         auto translated = state;
@@ -300,8 +310,15 @@ bool test_cax4t_kinematics_and_jacobian() {
         for (std::size_t i = 0; i < 12; ++i)
             translation_error = std::max(translation_error, scaled_error(shifted[i], passive[i]));
         passed =
-            check(translation_error < 1e-12, "CAX4T internal forces are invariant under axial rigid translation") &&
+            check(translation_error < 1e-12, name + " internal forces are invariant under axial rigid translation") &&
             passed;
+        if (reduced) {
+            const double energy = fuelsim::rz::cax4rt_hourglass_energy(data, geometry, state);
+            const double shifted_energy = fuelsim::rz::cax4rt_hourglass_energy(data, geometry, translated);
+            passed = check(energy > 0.0 && std::abs(energy - shifted_energy) < 1e-12 * energy,
+                         "CAX4RT hourglass energy is positive and invariant under axial translation") &&
+                     passed;
+        }
         if (finite) {
             auto invalid_midpoint = initial;
             for (std::size_t n = 0; n < 4; ++n) {
@@ -315,12 +332,13 @@ bool test_cax4t_kinematics_and_jacobian() {
             } catch (const std::domain_error& error) {
                 rejected = std::string(error.what()).find("midpoint") != std::string::npos;
             }
-            passed =
-                check(rejected, "CAX4T rejects an invalid midpoint even when its current volume is positive") && passed;
+            passed = check(rejected, name + " rejects an invalid midpoint even when its current volume is positive") &&
+                     passed;
         }
     }
     for (const auto formulation : {fuelsim::StrainFormulation::small, fuelsim::StrainFormulation::finite}) {
         data.strain_formulation = formulation;
+        data.volumetric_heat_source = reduced && formulation == fuelsim::StrainFormulation::finite ? 2e6 : 0.0;
         for (int mechanism = 0; mechanism < 3; ++mechanism) {
             auto material = properties();
             if (mechanism != 0) material = fuelsim::test::with_norton(material, 1e-4, 1e8, 3.0);
@@ -341,7 +359,7 @@ bool test_cax4t_kinematics_and_jacobian() {
             const auto residual =
                 fuelsim::compute_quad4_rz_transient(data, geometry, state, old, history, 0.1, &jacobian);
             passed = check(residual == fuelsim::compute_quad4_rz_transient(data, geometry, state, old, history, 0.1),
-                         "CAX4T inelastic material residual agrees exactly between passive and Jacobian paths") &&
+                         name + " inelastic material residual agrees exactly between passive and Jacobian paths") &&
                      passed;
             auto plus = state, minus = state;
             constexpr double step = 1e-5;
@@ -358,14 +376,16 @@ bool test_cax4t_kinematics_and_jacobian() {
                 error = std::max(error, scaled_error(ad, (rp[i] - rm[i]) / (2.0 * step)));
             }
             const auto next = fuelsim::compute_quad4_rz_transient_update(data, geometry, state, old, history, 0.1);
-            for (const auto& point : next) {
+            for (std::size_t q = 0; q < points; ++q) {
+                const auto& point = next[q];
                 if (mechanism != 0)
-                    passed = check(point.equivalent_creep_strain > 1e-6, "CAX4T creep branch is active") && passed;
+                    passed = check(point.equivalent_creep_strain > 1e-6, name + " creep branch is active") && passed;
                 if (mechanism != 1)
-                    passed = check(point.equivalent_plastic_strain > 1e-6, "CAX4T plastic branch is active") && passed;
+                    passed =
+                        check(point.equivalent_plastic_strain > 1e-6, name + " plastic branch is active") && passed;
             }
-            passed = check(error < 2e-6, "CAX4T active inelastic Jacobian matches centered differences") && passed;
-            std::cout << "cax4t_inelastic_" << static_cast<int>(formulation) << '_' << mechanism
+            passed = check(error < 2e-6, name + " active inelastic Jacobian matches centered differences") && passed;
+            std::cout << name + "_inelastic_" << static_cast<int>(formulation) << '_' << mechanism
                       << "_jacobian_error=" << error << '\n';
         }
     }
@@ -1995,7 +2015,8 @@ int main() {
     passed = test_mesh_and_geometry() && passed;
     passed = test_element_jacobian() && passed;
     passed = test_finite_strain_kinematics_and_jacobian() && passed;
-    passed = test_cax4t_kinematics_and_jacobian() && passed;
+    passed = test_cax_kinematics_and_jacobian(false) && passed;
+    passed = test_cax_kinematics_and_jacobian(true) && passed;
     passed = test_gap_heat_and_normal_contact() && passed;
     passed = test_heat_point_primary_owner() && passed;
     passed = test_thermal_owner_transfer_assembly() && passed;

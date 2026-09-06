@@ -1,4 +1,5 @@
 #include "detail/ad_local_system.hpp"
+#include "detail/cax4rt.hpp"
 #include "fuelsim/core/contact.hpp"
 #include "fuelsim/core/rz_quad4.hpp"
 #include <adlite/adlite.hpp>
@@ -50,6 +51,7 @@ Quad4RzGeometry make_quad4_rz_geometry(const Quad4Coordinates& coordinates) {
         {{-gauss, gauss}},
     }};
     Quad4RzGeometry geometry{};
+    geometry.coordinates = coordinates;
     for (std::size_t q = 0; q < locations.size(); ++q) {
         const double xi = locations[q][0], eta = locations[q][1];
         const std::array<double, quad4_node_count> shape = shape_functions(xi, eta);
@@ -747,6 +749,11 @@ Cax4tSystem compute_cax4t_system(const Quad4RzData& data, const Quad4RzGeometry&
 
 LocalResidual compute_quad4_rz_thermoelastic(
     const Quad4RzData& data, const Quad4RzGeometry& geometry, const LocalValues& state, LocalJacobian* jacobian) {
+    if (data.element_formulation == RzElementFormulation::cax4rt) {
+        const auto result = rz::compute_cax4rt(data, geometry, state, {}, nullptr, 0.0, jacobian != nullptr, false);
+        if (jacobian) *jacobian = result.jacobian;
+        return result.residual;
+    }
     if (data.element_formulation == RzElementFormulation::cax4t) {
         const auto result = compute_cax4t_system(data, geometry, state, {}, nullptr, 0.0, jacobian != nullptr, false);
         if (jacobian) *jacobian = result.jacobian;
@@ -778,6 +785,12 @@ LocalResidual compute_quad4_rz_thermoelastic(
 
 std::array<AxisymmetricStressValues, 4> compute_quad4_rz_thermoelastic_stress(
     const Quad4RzData& data, const Quad4RzGeometry& geometry, const LocalValues& state) {
+    if (data.element_formulation == RzElementFormulation::cax4rt) {
+        const auto result = rz::compute_cax4rt(data, geometry, state, {}, nullptr, 0.0, false, false);
+        std::array<AxisymmetricStressValues, 4> stress{};
+        stress[0] = result.history[0].stress;
+        return stress;
+    }
     if (data.element_formulation == RzElementFormulation::cax4t) {
         const auto result = compute_cax4t_system(data, geometry, state, {}, nullptr, 0.0, false, false);
         std::array<AxisymmetricStressValues, 4> stress;
@@ -841,6 +854,12 @@ LocalResidual compute_quad4_rz_transient(const Quad4RzData& data, const Quad4RzG
     bool include_thermal_time_term) {
     validate_time_step(time_step);
     validate_committed_state(committed_state);
+    if (data.element_formulation == RzElementFormulation::cax4rt) {
+        const auto result = rz::compute_cax4rt(data, geometry, current_state, committed_state, &committed_material,
+            time_step, jacobian != nullptr, include_thermal_time_term);
+        if (jacobian) *jacobian = result.jacobian;
+        return result.residual;
+    }
     if (data.element_formulation == RzElementFormulation::cax4t) {
         const auto result = compute_cax4t_system(data, geometry, current_state, committed_state, &committed_material,
             time_step, jacobian != nullptr, include_thermal_time_term);
@@ -882,6 +901,10 @@ Quad4MaterialHistory compute_quad4_rz_transient_update(const Quad4RzData& data, 
     const LocalValues& converged_state, const LocalValues& committed_state,
     const Quad4MaterialHistory& committed_material, double time_step) {
     validate_time_step(time_step);
+    if (data.element_formulation == RzElementFormulation::cax4rt)
+        return rz::compute_cax4rt(
+            data, geometry, converged_state, committed_state, &committed_material, time_step, false, false)
+            .history;
     if (data.element_formulation == RzElementFormulation::cax4t)
         return compute_cax4t_system(
             data, geometry, converged_state, committed_state, &committed_material, time_step, false, false)

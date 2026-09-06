@@ -452,6 +452,8 @@ RegionDefinition read_region(const InputDocument& document, const InputSection& 
             result.rz_element_formulation = RzElementFormulation::quad4;
         else if (element == "cax4t")
             result.rz_element_formulation = RzElementFormulation::cax4t;
+        else if (element == "cax4rt")
+            result.rz_element_formulation = RzElementFormulation::cax4rt;
         else
             value_error(document, required_entry(document, section, "element"), "unknown RZ element '" + element + "'");
         return result;

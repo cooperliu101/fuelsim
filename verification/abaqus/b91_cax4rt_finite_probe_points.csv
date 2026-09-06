@@ -1,0 +1,2 @@
+time,element,point,stress_rr,stress_zz,stress_hoop,stress_rz,elastic_rr,elastic_zz,elastic_hoop,elastic_rz,plastic_rr,plastic_zz,plastic_hoop,plastic_rz,creep_rr,creep_zz,creep_hoop,creep_rz,equiv_plastic,equiv_creep
+0.10000000149011612,1,1,79719.96040335072,85328.347906449882,54866.794166408901,-980.32789688317564,0.044671174885136021,0.051681659264009985,0.013604717088958749,-0.0012254098711039696,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0

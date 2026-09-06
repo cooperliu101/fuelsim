@@ -25,6 +25,7 @@ struct RzQuadraturePoint final {
 
 struct Quad4RzGeometry final {
     std::array<RzQuadraturePoint, 4> points;
+    Quad4Coordinates coordinates{};
 };
 
 Quad4RzGeometry make_quad4_rz_geometry(const Quad4Coordinates& coordinates);
@@ -46,6 +47,7 @@ struct Quad4RzData final {
     double volumetric_heat_source = 0.0, time = 0.0;
     StrainFormulation strain_formulation = StrainFormulation::small;
     RzElementFormulation element_formulation = RzElementFormulation::quad4;
+    double initial_temperature = 600.0;
 };
 
 LocalResidual compute_quad4_rz_thermoelastic(const Quad4RzData& data, const Quad4RzGeometry& geometry,

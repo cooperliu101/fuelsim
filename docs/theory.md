@@ -35,6 +35,8 @@ fuelsim -i <case.fsi>
 [`verification/abaqus/b7_rz_validation.md`](../verification/abaqus/b7_rz_validation.md)。
 轴对称可选 CAX4T 力学公式、摩擦弹性滑移和跨线段有限滑移的独立验证见
 [`verification/abaqus/b8_rz_friction_validation.md`](../verification/abaqus/b8_rz_friction_validation.md)。
+轴对称 CAX4RT 的单材料点减缩积分、力学与热稳定化、有限应变几何导数和完整
+功能对比见 [CAX4RT 验证与离散说明](../verification/abaqus/b9_cax4rt_validation.md)。
 
 ## 2. 软件边界与状态流
 

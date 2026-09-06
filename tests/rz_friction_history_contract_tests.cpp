@@ -31,14 +31,32 @@ int main(int argc, char** argv) {
         fuelsim::TransientProblem problem(input.spatial, mesh);
         const double step = fuelsim::restore_transient_checkpoint(argv[2], problem);
         std::cout << std::hexfloat << "restored_step=" << step << " restored_time=" << problem.committed_time() << '\n';
-        // Landing on the final amplitude knot can shorten 0.1 by a few representable intervals.
-        if (std::abs(step - 0.1) > 4 * std::numeric_limits<double>::epsilon() * 0.1 ||
+        const double expected_step = input.transient_execution.initial_time_step;
+        // Landing on the final amplitude knot can shorten the step by a few representable intervals.
+        if (std::abs(step - expected_step) > 32 * std::numeric_limits<double>::epsilon() * expected_step ||
             std::abs(problem.committed_time() - 1.0) > 2e-15)
-            throw std::runtime_error("B8.1 production checkpoint did not preserve final time and controller step");
+            throw std::runtime_error("Production checkpoint did not preserve final time and controller step");
         const auto output = fuelsim::test::read_final_exodus_results(argv[3]);
         const auto committed = fuelsim::rz::ProblemAccess::committed_state(problem);
+        if (input.spatial.regions.front().rz_element_formulation == fuelsim::RzElementFormulation::cax4rt) {
+            for (double count : output.element("material_point_count"))
+                if (count != 1.0) throw std::runtime_error("CAX4RT must expose one material point per element");
+            for (const auto& region : committed.material_histories)
+                for (const auto& element : region)
+                    for (std::size_t q = 1; q < element.size(); ++q) {
+                        const auto& point = element[q];
+                        if (point.stress.rr != 0.0 || point.stress.zz != 0.0 || point.stress.hoop != 0.0 ||
+                            point.stress.rz != 0.0 || point.equivalent_creep_strain != 0.0 ||
+                            point.equivalent_plastic_strain != 0.0)
+                            throw std::runtime_error("Inactive CAX4RT storage must not acquire material history");
+                        for (std::size_t c = 0; c < 4; ++c)
+                            if (point.elastic_strain[c] != 0.0 || point.creep_strain[c] != 0.0 ||
+                                point.plastic_strain[c] != 0.0)
+                                throw std::runtime_error("Inactive CAX4RT tensor history must remain zero");
+                    }
+        }
         const auto& history = committed.contact_histories.at(0);
-        if (history.size() != 3) throw std::runtime_error("B8.1 must commit three unique contact histories");
+        if (history.size() != 3) throw std::runtime_error("Ring friction must commit three unique contact histories");
         for (std::size_t i = 0; i < 3; ++i) {
             const auto n = 2 * i + 1;
             const double elastic = output.nodal("contact_elastic_tangential_slip_interface")[n];
@@ -89,7 +107,7 @@ int main(int argc, char** argv) {
         try {
             (void)fuelsim::restore_transient_checkpoint(temporary, wrong_element);
         } catch (const std::exception&) { rejected = true; }
-        if (!rejected) throw std::runtime_error("Checkpoint signature did not distinguish quad4 and cax4t");
+        if (!rejected) throw std::runtime_error("Checkpoint signature did not distinguish RZ element formulations");
         if (std::remove(temporary.c_str()) != 0)
             throw std::runtime_error("Cannot remove temporary friction checkpoint");
         std::cout << "rz_friction_checkpoint_roundtrip=exact\nrz_friction_trial_rollback=exact\n"

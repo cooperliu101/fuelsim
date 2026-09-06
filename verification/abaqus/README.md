@@ -7,6 +7,13 @@
 0.5% 门槛，详细指标、CAX4T 力学公式与适用边界见
 [轴对称摩擦验证记录](b8_rz_friction_validation.md)。
 
+## CAX4RT qualification
+
+B9.0—B9.15 exercise the production `element = cax4rt` path against native Abaqus CAX4RT.
+The sixteen literal input cards cover small and finite strain, thermal operators, creep,
+plasticity, simultaneous creep/plasticity, thermal-mechanical contact, friction and finite sliding.
+See [the numerical contracts and validation record](b9_cax4rt_validation.md).
+
 ## B7.0—B7.9 axisymmetric CAX4T qualification
 
 Axisymmetric validation now uses Abaqus CAX4T as its primary external reference.

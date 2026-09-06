@@ -24,6 +24,11 @@ primary 线段。全部接受时间点的材料场、支承反力、压力、间
 接触力向量和合力使用同一个 0.5% 门槛，见
 [轴对称摩擦与有限滑移验证记录](../verification/abaqus/b8_rz_friction_validation.md)。
 
+CAX4RT 的十六个生产算例覆盖 CAX4T 已有的小应变、有限应变、热机械接触、
+蠕变、塑性及两者同时作用，并覆盖摩擦、大滑移与检查点历史。额外的热算子算例
+检查非均匀温度、毫米尺度、倾斜单元和局部节点顺序。所有比较继续使用严格的
+0.5% 三项相对误差门槛，详见 [CAX4RT 验证记录](../verification/abaqus/b9_cax4rt_validation.md)。
+
 ## 证据等级
 
 - `verified`：有自动 CTest，并且验收判据和参考文件均进入 Git；

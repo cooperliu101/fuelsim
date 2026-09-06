@@ -61,7 +61,7 @@ Cartesian:[T(:), ux(:), uy(:), uz(:)]
   同样经 `adlite::compose` 挂回并由闭式链组装 32×32 Jacobian；HEX20 使用
   相同的宽度 10 运动学链和宽度 7 本构链，并闭式组装 68×68 Jacobian。
 - RZ 积分测度为完整的 `2*pi*r*detJ*w`。
-- 轴对称区域可显式选择 `element = quad4|cax4t`，省略时保留 `quad4`。
+- 轴对称区域可显式选择 `element = quad4|cax4t|cax4rt`，省略时保留 `quad4`。
   `cax4t` 使用四个材料积分点和 Abaqus 轴对称选择性体积处理：平均完整体积应变，
   环向分量单独平均，剩余修正只平均分配到两个面内正应变，不能套用三维的三等分规则。
   有限应变使用增量中间构形的 Hughes-Winget 应变与转动；环向变形梯度按参考体积
@@ -70,6 +70,19 @@ Cartesian:[T(:), ux(:), uy(:), uz(:)]
   的本构播种，经闭式节点链装配，不得扩大为完整单元自由度播种。
   `cax4t` 当前沿用 RZ 参考构形热算子；B8.0/B8.1 鉴定的是等温摩擦力学，
   不能据此声称 Abaqus CAX4T 的非均匀瞬态热算子已经全部等价。
+- `cax4rt` 使用体积平均梯度和一个活跃材料积分点，小应变和有限应变均支持。
+  有限应变独立平均完整体积增量与环向增量，采用 Hughes-Winget 客观转动。
+  力学沙漏能量为 `0.5*C*|Fbar^T*a|^2`，小应变以单位矩阵代替 `Fbar`；
+  `a=sum(gamma_i*u_i)`，`gamma_i=Gamma_i-gradbar_i·sum(Gamma_j*X_j)`，
+  `Gamma=[1,-1,1,-1]`，`C=0.005*G_initial*V_ref*sum(|gradbar_i|^2)/(sum(gamma_i*Gamma_i))^2`。
+  初始剪切模量来自初始温度，不能按验证误差调整。能量、残量及其完整导数必须一致。
+  热传导采用均匀梯度与一个沙漏模态；B9.0/B9.1/B9.2/B9.15 原生算子识别得到
+  热模态系数 `V*(|gradbar_0|^2+|gradbar_1|^2)/(12*pi)`，保留局部节点顺序。
+  热容使用 `integral(N_i*dV)` 作为节点对角权重；体热源按中心体积均分到四个节点。
+  小应变使用参考构形，有限应变使用当前构形，并闭式保留热残量对位移的几何导数。
+  仍只使用宽度 6 的运动学和宽度 5 的本构播种。材料历史沿用容量为四的存储，
+  只有第零项活跃，其余项始终为零；输出明确记录 `material_point_count=1`，
+  不活跃积分点字段为 NaN，不能作为额外积分点参与统计或更新。
 - 应变和应力分量顺序为 `[rr, zz, hoop, rz]`，`rz` 是张量剪应变。
 - fuelsim的c3d8t 力学采用与 Abaqus C3D8T 一致的选择性减缩体积积分。小应变时偏应变
   保留八点积分，每个积分点的应变迹替换为按参考体积加权的单元平均迹。平均迹
@@ -94,7 +107,7 @@ Cartesian:[T(:), ux(:), uy(:), uz(:)]
   重复完整残量。残量必须使用独立的普通双精度路径，并与 Jacobian 调用返回的
   残量逐项相同。有限应变还必须分别保持 committed、midpoint 和 current 构形
   Jacobian 为正。
-- 小应变区域在参考构形装配力学。轴对称有限应变区域从变形梯度形成
+- 小应变区域在参考构形装配力学。默认 `quad4` 轴对称有限应变区域从变形梯度形成
   `Fhat=F_new*inverse(F_old)`，使用 MOOSE 默认 Taylor 应变增量和 Rashid
   增量转动，并用 Cauchy 应力、当前构形形函数梯度和
   `2*pi*r_current*detJ_current*w` 装配内力。
@@ -104,7 +117,8 @@ Cartesian:[T(:), ux(:), uy(:), uz(:)]
   committed、incremental 和 current 构形 Jacobian 为正，HEX8 有限应变选择性
   体积积分还必须保持 midpoint 构形 Jacobian 为正。非法态必须作为 domain
   error 进入线搜索或拒绝这个时间步、缩小步长重试，不得夹持。
-- RZ Quad4 的热传导、体热源及 Backward Euler 热容在参考构形积分。三维 HEX20
+- RZ `quad4` 和 `cax4t` 的热传导、体热源及 Backward Euler 热容在参考构形积分。
+  `cax4rt` 使用前述减缩积分专用热算子。三维 HEX20
   小应变的上述三个体热算子也使用参考构形。有限应变 C3D20T 按 Abaqus 识别结果
   使用 `3*3*3` 积分：热传导的试函数梯度和温度梯度使用增量中间构形，积分测度
   使用完整二次位移几何的当前构形；一致热容矩阵使用完整二次位移几何的当前构形；
@@ -121,7 +135,7 @@ Cartesian:[T(:), ux(:), uy(:), uz(:)]
   非共轴对标必须比较 MOOSE 的总非弹性张量、应力、弹性张量和两个等效标量；
   fuelsim 分机制张量另由局部客观性测试约束。
 - 历史变量使用 `double` 保存；只有 trial state 使用 ADlite。
-- RZ Quad4 与小应变三维 HEX20 热容使用参考构形一致质量矩阵；有限应变三维
+- RZ `quad4`、`cax4t` 与小应变三维 HEX20 热容使用参考构形一致质量矩阵；有限应变三维
   HEX20 使用上一条规定的当前构形一致热容矩阵。三维 C3D8T 按 Abaqus
   一阶热单元规则在八个自然坐标角点做节点积分，第 `i` 个节点的热容残量为
   `detJ_i*rho(T_i)*cp(T_i)*(T_i_new-T_i_old)/dt`。小应变的 `detJ_i` 为参考构形

@@ -91,12 +91,13 @@ bool check_rz_abaqus(const std::string& output_path, const std::string& node_pat
     const auto frames = read_exodus_history(output_path);
     const bool contact = mechanisms == "contact";
     if (!contact && mechanisms != "plastic" && mechanisms != "creep" && mechanisms != "coupled" &&
-        mechanisms != "thermal" && mechanisms != "sliding")
+        mechanisms != "thermal" && mechanisms != "sliding" && mechanisms != "probe")
         throw std::runtime_error("Unknown RZ qualification mechanism");
     FieldErrorMetrics temperature, reaction, plastic, creep;
     FieldErrorMetrics pressure, gap, nodal_normal_force, normal_force, heat_rate;
     GroupedFieldErrorMetrics displacement, support_reaction;
     FieldErrorMetrics free_reaction;
+    FieldErrorMetrics reaction_heat;
     std::array<GroupedFieldErrorMetrics, 4> tensors;
     std::size_t node_row = 0, point_row = 0, accepted = 0;
     double max_plastic = 0.0, max_creep = 0.0;
@@ -130,6 +131,13 @@ bool check_rz_abaqus(const std::string& output_path, const std::string& node_pat
                 reference = {0.0, 0.0};
             }
             displacement.add(actual.data(), reference.data(), actual.size());
+            if (mechanisms == "probe") {
+                const std::array<double, 2> force = {
+                    frame.nodal("reaction_force_r")[n], frame.nodal("reaction_force_z")[n]};
+                const std::array<double, 2> reference_force_vector = {row.at("rf_r"), row.at("rf_z")};
+                support_reaction.add(force.data(), reference_force_vector.data(), 2);
+                reaction_heat.add(frame.nodal("reaction_heat_flux")[n], row.at("reaction_heat"));
+            }
             if (mechanisms == "sliding") {
                 const std::array<double, 2> force = {
                     frame.nodal("reaction_force_r")[n], frame.nodal("reaction_force_z")[n]};
@@ -171,7 +179,16 @@ bool check_rz_abaqus(const std::string& output_path, const std::string& node_pat
         std::size_t elements = 0;
         for (const auto count : frame.block_element_counts) elements += count;
         for (std::size_t e = 0; e < elements; ++e) {
-            for (std::size_t aq = 0; aq < 4; ++aq) {
+            const double reported_count = frame.element("material_point_count")[e];
+            if (reported_count != 1.0 && reported_count != 4.0)
+                throw std::runtime_error("Invalid RZ material point count");
+            const auto point_count = static_cast<std::size_t>(reported_count);
+            if (point_count == 1)
+                for (std::size_t q = 1; q < 4; ++q)
+                    for (const auto& component : components)
+                        if (!std::isnan(frame.element("stress_" + component + "_q" + std::to_string(q))[e]))
+                            throw std::runtime_error("Inactive CAX4RT output must not masquerade as a material point");
+            for (std::size_t aq = 0; aq < point_count; ++aq) {
                 const auto& row = points.at(point_row++);
                 if (!same_time(row.at("time"), frame.time) || row.at("element") != static_cast<double>(e + 1) ||
                     row.at("point") != static_cast<double>(aq + 1))
@@ -199,9 +216,10 @@ bool check_rz_abaqus(const std::string& output_path, const std::string& node_pat
     bool passed = accepted > 0 && node_row == nodes.size() && point_row == points.size();
     passed = check_scalar("rz_temperature", temperature, 1e-10) && passed;
     passed = check_group("rz_displacement", displacement, 1e-12) && passed;
-    if (mechanisms == "sliding") {
+    if (mechanisms == "sliding" || mechanisms == "probe") {
         passed = check_group("rz_support_reaction", support_reaction, 1e-7) && passed;
-        passed = check_scalar("rz_free_node_reaction", free_reaction, 1e-7) && passed;
+        if (mechanisms == "sliding") passed = check_scalar("rz_free_node_reaction", free_reaction, 1e-7) && passed;
+        if (mechanisms == "probe") passed = check_scalar("rz_reaction_heat", reaction_heat, 1e-7) && passed;
     }
     if (!contact) passed = check_scalar("rz_bottom_axial_reaction", reaction, 1e-7) && passed;
     for (std::size_t t = 0; t < (contact ? 1 : tensors.size()); ++t)
