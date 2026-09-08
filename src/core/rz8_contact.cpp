@@ -10,28 +10,34 @@ constexpr auto invalid = std::numeric_limits<std::size_t>::max();
 
 void order_chain(Quad8RegionBoundary& boundary) {
     auto remaining = boundary.elements;
-    if (remaining.empty()) throw std::invalid_argument("CAX8T contact boundary is empty");
+    if (remaining.empty())
+        throw std::invalid_argument("CAX8T contact boundary is empty");
     std::size_t first = invalid;
     for (std::size_t i = 0; i < remaining.size(); ++i) {
         bool predecessor = false;
         for (const auto& e : remaining)
-            if (e.nodes[1] == remaining[i].nodes[0]) predecessor = true;
+            if (e.nodes[1] == remaining[i].nodes[0])
+                predecessor = true;
         if (!predecessor) {
-            if (first != invalid) throw std::invalid_argument("CAX8T contact must form one connected open chain");
+            if (first != invalid)
+                throw std::invalid_argument("CAX8T contact must form one connected open chain");
             first = i;
         }
     }
-    if (first == invalid) throw std::invalid_argument("CAX8T contact must form an open chain");
+    if (first == invalid)
+        throw std::invalid_argument("CAX8T contact must form an open chain");
     boundary.elements.clear();
     while (!remaining.empty()) {
         const auto next = remaining[first];
         boundary.elements.push_back(next);
         remaining.erase(remaining.begin() + static_cast<std::ptrdiff_t>(first));
-        if (remaining.empty()) break;
+        if (remaining.empty())
+            break;
         first = invalid;
         for (std::size_t i = 0; i < remaining.size(); ++i)
             if (remaining[i].nodes[0] == next.nodes[1]) {
-                if (first != invalid) throw std::invalid_argument("CAX8T contact chain branches");
+                if (first != invalid)
+                    throw std::invalid_argument("CAX8T contact chain branches");
                 first = i;
             }
         if (first == invalid)
@@ -108,21 +114,28 @@ void SpatialAssembly::build_contacts(const UnstructuredQuad8Mesh& source) {
                     reference_length += weights[q] * std::hypot(dr, dz);
                 }
             }
-            maximum_elastic_slip = contact.friction_slip_tolerance * reference_length /
-                                   static_cast<double>(secondary.boundary.elements.size());
+            maximum_elastic_slip = contact.friction_slip_tolerance * reference_length
+                                   / static_cast<double>(secondary.boundary.elements.size());
             if (!std::isfinite(maximum_elastic_slip) || !(maximum_elastic_slip > 0.0))
                 throw std::invalid_argument("CAX8T slip_tolerance gives an invalid elastic slip: " + contact.name);
         }
-        _mechanical.push_back({penalty, contact.friction_coefficient,
+        _mechanical.push_back({penalty,
+            contact.friction_coefficient,
             contact.mechanical_formulation == MechanicalContactFormulation::augmented_lagrangian,
             maximum_elastic_slip});
-        _heat.push_back({contact.gap_conductivity, contact.minimum_gap, contact.gap_heat_conductance_law,
-            contact.gap_conductance, contact.gap_conductance_clearance_derivative,
-            contact.gap_conductance_pressure_derivative, contact.gap_conductance_temperature_derivative,
-            contact.gap_conductance_reference_temperature, penalty});
+        _heat.push_back({contact.gap_conductivity,
+            contact.minimum_gap,
+            contact.gap_heat_conductance_law,
+            contact.gap_conductance,
+            contact.gap_conductance_clearance_derivative,
+            contact.gap_conductance_pressure_derivative,
+            contact.gap_conductance_temperature_derivative,
+            contact.gap_conductance_reference_temperature,
+            penalty});
         for (const auto& edge : secondary.boundary.elements) {
             std::array<RzPoint, 3> coordinates;
-            for (std::size_t n = 0; n < 3; ++n) coordinates[n] = _meshes[secondary.region].nodes()[edge.nodes[n]];
+            for (std::size_t n = 0; n < 3; ++n)
+                coordinates[n] = _meshes[secondary.region].nodes()[edge.nodes[n]];
             std::vector<double> cuts = {-1, 1};
             for (const auto& pe : primary.boundary.elements)
                 for (std::size_t n = 0; n < 2; ++n) {
@@ -136,15 +149,27 @@ void SpatialAssembly::build_contacts(const UnstructuredQuad8Mesh& source) {
                 cuts.end());
             const auto add_point = [&](bool mechanical, double coordinate, double weight, std::size_t node) {
                 const auto point = _contact_points.size(), first = _candidates.size();
-                const auto sn =
-                    static_cast<std::size_t>(std::find(secondary.boundary.displacement_nodes.begin(),
-                                                 secondary.boundary.displacement_nodes.end(), edge.nodes[node]) -
-                                             secondary.boundary.displacement_nodes.begin());
+                const auto sn = static_cast<std::size_t>(std::find(secondary.boundary.displacement_nodes.begin(),
+                                                             secondary.boundary.displacement_nodes.end(),
+                                                             edge.nodes[node])
+                                                         - secondary.boundary.displacement_nodes.begin());
                 for (std::size_t p = 0; p < primary.boundary.elements.size(); ++p) {
                     const auto& pe = primary.boundary.elements[p];
-                    Candidate candidate{{coordinates, {}, p == 0, p + 1 == primary.boundary.elements.size(), coordinate,
-                                            weight, node, mechanical},
-                        {}, c, point, sn, p};
+                    Candidate candidate{{coordinates,
+                                            {},
+                                            p == 0,
+                                            p + 1 == primary.boundary.elements.size(),
+                                            coordinate,
+                                            weight,
+                                            node,
+                                            mechanical},
+                        {},
+                        c,
+                        point,
+                        sn,
+                        p};
+                    candidate.geometry.nodal_heat =
+                        !mechanical && contact.thermal_discretization == ThermalContactDiscretization::node_to_surface;
                     for (std::size_t n = 0; n < 3; ++n)
                         candidate.geometry.primary[n] = _meshes[primary.region].nodes()[pe.nodes[n]];
                     for (std::size_t n = 0; n < 2; ++n) {
@@ -168,38 +193,53 @@ void SpatialAssembly::build_contacts(const UnstructuredQuad8Mesh& source) {
                 _contact_points.push_back({first, _candidates.size()});
             };
             if (contact.mechanical)
-                for (std::size_t n = 0; n < 3; ++n) add_point(true, 0, 0, n);
+                for (std::size_t n = 0; n < 3; ++n)
+                    add_point(true, 0, 0, n);
             if (contact.thermal) {
+                if (contact.thermal_discretization == ThermalContactDiscretization::node_to_surface) {
+                    add_point(false, -1, 1, 0);
+                    add_point(false, 1, 1, 1);
+                    continue;
+                }
                 const double g = std::sqrt(3.0 / 5.0);
                 const std::array<double, 3> qs = {-g, 0, g}, weights = {5.0 / 9, 8.0 / 9, 5.0 / 9};
                 for (std::size_t i = 1; i < cuts.size(); ++i)
                     for (std::size_t q = 0; q < 3; ++q)
-                        add_point(false, (cuts[i] + cuts[i - 1]) / 2 + qs[q] * (cuts[i] - cuts[i - 1]) / 2,
-                            weights[q] * (cuts[i] - cuts[i - 1]) / 2, 0);
+                        add_point(false,
+                            (cuts[i] + cuts[i - 1]) / 2 + qs[q] * (cuts[i] - cuts[i - 1]) / 2,
+                            weights[q] * (cuts[i] - cuts[i - 1]) / 2,
+                            0);
             }
         }
     }
     _active_candidates.assign(_contact_points.size(), invalid);
 }
 
-Line3ContactResult SpatialAssembly::candidate_value(
-    std::size_t index, const std::vector<double>& state, bool jacobian) const {
+Line3ContactResult
+SpatialAssembly::candidate_value(std::size_t index, const std::vector<double>& state, bool jacobian) const {
     const auto& candidate = _candidates.at(index);
     std::vector<double> local(16), old(16);
     for (std::size_t i = 0; i < 16; ++i) {
         local[i] = state[candidate.dofs[i]];
         old[i] = _committed_contact_solution[candidate.dofs[i]];
     }
-    return compute_line3_contact(candidate.geometry, _heat[candidate.contact], _mechanical[candidate.contact], local,
-        old, _contact_histories[candidate.contact][candidate.secondary], jacobian);
+    return compute_line3_contact(candidate.geometry,
+        _heat[candidate.contact],
+        _mechanical[candidate.contact],
+        local,
+        old,
+        _contact_histories[candidate.contact][candidate.secondary],
+        jacobian);
 }
 
-void SpatialAssembly::validate_contact_state(
-    std::size_t first, std::size_t last, const std::vector<double>& state) const {
+void SpatialAssembly::validate_contact_state(std::size_t first,
+    std::size_t last,
+    const std::vector<double>& state) const {
     const auto offset = volume_contribution_count() + _boundaries.size();
     for (std::size_t p = 0; p < _contact_points.size(); ++p) {
         const auto& point = _contact_points[p];
-        if (last <= offset + point.first || first >= offset + point.last) continue;
+        if (last <= offset + point.first || first >= offset + point.last)
+            continue;
         auto& selected = _active_candidates[p];
         selected = invalid;
         double distance = std::numeric_limits<double>::infinity();
@@ -213,19 +253,21 @@ void SpatialAssembly::validate_contact_state(
                 distance = std::abs(gap);
             }
         }
-        if (selected == invalid) throw std::domain_error("CAX8T contact point lost all current primary projections");
+        if (selected == invalid)
+            throw std::domain_error("CAX8T contact point lost all current primary projections");
     }
 }
 
 std::vector<std::size_t> SpatialAssembly::contact_secondary_source_nodes(std::size_t contact) const {
     const auto& boundary = _secondary.at(contact);
     std::vector<std::size_t> result;
-    for (auto n : boundary.boundary.displacement_nodes) result.push_back(_meshes[boundary.region].source_node_ids()[n]);
+    for (auto n : boundary.boundary.displacement_nodes)
+        result.push_back(_meshes[boundary.region].source_node_ids()[n]);
     return result;
 }
 
-std::vector<ContactNodeSummary> SpatialAssembly::summarize_contact_nodes(
-    std::size_t contact, const std::vector<double>& state) const {
+std::vector<ContactNodeSummary> SpatialAssembly::summarize_contact_nodes(std::size_t contact,
+    const std::vector<double>& state) const {
     validate_contact_state(0, contribution_count(), state);
     const auto& boundary = _secondary.at(contact);
     std::vector<ContactNodeSummary> result(boundary.boundary.displacement_nodes.size());
@@ -236,7 +278,8 @@ std::vector<ContactNodeSummary> SpatialAssembly::summarize_contact_nodes(
     }
     for (auto c : _active_candidates) {
         const auto& candidate = _candidates[c];
-        if (candidate.contact != contact || !candidate.geometry.mechanical) continue;
+        if (candidate.contact != contact || !candidate.geometry.mechanical)
+            continue;
         const auto value = candidate_value(c, state).mechanical;
         auto& row = result[candidate.secondary];
         row.projected = value.projected;
@@ -255,18 +298,20 @@ std::vector<ContactNodeSummary> SpatialAssembly::summarize_contact_nodes(
     return result;
 }
 
-std::vector<std::array<double, 2>> SpatialAssembly::recover_contact_tractions(
-    std::size_t contact, const std::vector<ContactNodeSummary>& nodes, const std::vector<double>& state) const {
+std::vector<std::array<double, 2>> SpatialAssembly::recover_contact_tractions(std::size_t contact,
+    const std::vector<ContactNodeSummary>& nodes,
+    const std::vector<double>& state) const {
     const auto& boundary = _secondary.at(contact).boundary;
     if (nodes.size() != boundary.displacement_nodes.size())
         throw std::invalid_argument("CAX8T contact recovery node count mismatch");
     std::vector<std::array<double, 2>> result(nodes.size());
-    if (!_definition.contacts.at(contact).mechanical) return result;
+    if (!_definition.contacts.at(contact).mechanical)
+        return result;
     std::vector<std::size_t> counts(nodes.size());
     std::vector<std::size_t> indices(_meshes[_secondary[contact].region].nodes().size(), invalid);
     std::array<double, 2> minimum = {std::numeric_limits<double>::infinity(), std::numeric_limits<double>::infinity()};
-    std::array<double, 2> maximum = {
-        -std::numeric_limits<double>::infinity(), -std::numeric_limits<double>::infinity()};
+    std::array<double, 2> maximum = {-std::numeric_limits<double>::infinity(),
+        -std::numeric_limits<double>::infinity()};
     for (std::size_t n = 0; n < nodes.size(); ++n) {
         indices[boundary.displacement_nodes[n]] = n;
         if (!std::isfinite(nodes[n].pressure) || nodes[n].pressure < 0 || !std::isfinite(nodes[n].tangential_traction))
@@ -288,7 +333,8 @@ std::vector<std::array<double, 2>> SpatialAssembly::recover_contact_tractions(
         const std::array<double, 3> shape = {x * (x - 1) / 2, x * (x + 1) / 2, 1 - x * x};
         const auto& edge = primary.boundary.elements[candidate.primary];
         for (std::size_t n = 0; n < 3; ++n)
-            if (shape[n] != 0.0) participating[edge.nodes[n]] = true;
+            if (shape[n] != 0.0)
+                participating[edge.nodes[n]] = true;
     }
     for (const auto node : primary.boundary.displacement_nodes)
         if (!participating[node])
@@ -304,7 +350,8 @@ std::vector<std::array<double, 2>> SpatialAssembly::recover_contact_tractions(
         std::array<std::size_t, 3> output;
         for (std::size_t i = 0; i < 3; ++i) {
             output[i] = indices.at(edge.nodes[i]);
-            if (output[i] == invalid) throw std::logic_error("CAX8T recovery edge node missing from boundary");
+            if (output[i] == invalid)
+                throw std::logic_error("CAX8T recovery edge node missing from boundary");
         }
         for (std::size_t i = 0; i < 3; ++i) {
             for (std::size_t j = 0; j < 3; ++j) {
@@ -315,7 +362,8 @@ std::vector<std::array<double, 2>> SpatialAssembly::recover_contact_tractions(
         }
     }
     for (std::size_t n = 0; n < nodes.size(); ++n) {
-        if (counts[n] == 0) throw std::logic_error("CAX8T recovery node has no adjacent edge");
+        if (counts[n] == 0)
+            throw std::logic_error("CAX8T recovery node has no adjacent edge");
         // This limiter is part of output recovery, not material/geometry clipping.
         // It prevents new extrema in the pair-wide traction range.
         for (std::size_t field = 0; field < 2; ++field)
@@ -335,15 +383,18 @@ InterfaceSummary SpatialAssembly::summarize_interface(std::size_t contact, const
             summary.minimum_contact_gap = std::min(summary.minimum_contact_gap, n.gap);
         } else
             ++summary.unprojected_contact_nodes;
-        if (n.pressure > 0) ++summary.active_contact_nodes;
-        if (n.projected) summary.minimum_gap = std::min(summary.minimum_gap, n.gap);
+        if (n.pressure > 0)
+            ++summary.active_contact_nodes;
+        if (n.projected)
+            summary.minimum_gap = std::min(summary.minimum_gap, n.gap);
         summary.maximum_contact_pressure = std::max(summary.maximum_contact_pressure, n.pressure);
         summary.total_contact_force += n.contact_force;
         summary.total_tangential_force += n.tangential_force;
     }
     for (auto c : _active_candidates) {
         const auto& candidate = _candidates[c];
-        if (candidate.contact != contact || candidate.geometry.mechanical) continue;
+        if (candidate.contact != contact || candidate.geometry.mechanical)
+            continue;
         const auto value = candidate_value(c, state).thermal;
         summary.minimum_gap = std::min(summary.minimum_gap, value.gap);
         summary.total_heat_rate += value.heat_flux * value.weighted_measure;
@@ -355,7 +406,8 @@ void SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
     validate_state(state);
     auto staged = _contact_histories;
     for (std::size_t c = 0; c < _definition.contacts.size(); ++c) {
-        if (!_definition.contacts[c].mechanical) continue;
+        if (!_definition.contacts[c].mechanical)
+            continue;
         const auto rows = summarize_contact_nodes(c, state);
         for (std::size_t n = 0; n < rows.size(); ++n) {
             staged[c][n].elastic_tangential_slip = rows[n].elastic_tangential_slip;
@@ -367,16 +419,16 @@ void SpatialAssembly::commit_contact_state(const std::vector<double>& state) {
     _committed_contact_solution = state;
 }
 
-void SpatialAssembly::restore_contact_state(
-    const std::vector<double>& state, std::vector<std::vector<ContactPointHistory>> histories) {
+void SpatialAssembly::restore_contact_state(const std::vector<double>& state,
+    std::vector<std::vector<ContactPointHistory>> histories) {
     if (state.size() != dof_count() || histories.size() != _contact_histories.size())
         throw std::invalid_argument("CAX8T contact history layout mismatch");
     for (std::size_t c = 0; c < histories.size(); ++c) {
         if (histories[c].size() != _contact_histories[c].size())
             throw std::invalid_argument("CAX8T contact node history layout mismatch");
         for (const auto& h : histories[c])
-            if (!std::isfinite(h.elastic_tangential_slip) || !std::isfinite(h.total_tangential_slip) ||
-                !std::isfinite(h.normal_multiplier) || h.normal_multiplier < 0)
+            if (!std::isfinite(h.elastic_tangential_slip) || !std::isfinite(h.total_tangential_slip)
+                || !std::isfinite(h.normal_multiplier) || h.normal_multiplier < 0)
                 throw std::invalid_argument("CAX8T contact history is invalid");
     }
     _contact_histories = std::move(histories);
@@ -385,16 +437,18 @@ void SpatialAssembly::restore_contact_state(
 
 bool SpatialAssembly::uses_augmented_contact() const noexcept {
     for (const auto& c : _definition.contacts)
-        if (c.mechanical && c.mechanical_formulation == MechanicalContactFormulation::augmented_lagrangian) return true;
+        if (c.mechanical && c.mechanical_formulation == MechanicalContactFormulation::augmented_lagrangian)
+            return true;
     return false;
 }
 
-AugmentedContactUpdate SpatialAssembly::update_augmented_contact_multipliers(
-    const std::vector<double>& state, std::size_t completed) {
+AugmentedContactUpdate SpatialAssembly::update_augmented_contact_multipliers(const std::vector<double>& state,
+    std::size_t completed) {
     AugmentedContactUpdate result;
     for (std::size_t c = 0; c < _definition.contacts.size(); ++c) {
         const auto& contact = _definition.contacts[c];
-        if (!contact.mechanical || !_mechanical[c].augmented_lagrangian) continue;
+        if (!contact.mechanical || !_mechanical[c].augmented_lagrangian)
+            continue;
         const auto rows = summarize_contact_nodes(c, state);
         for (std::size_t n = 0; n < rows.size(); ++n) {
             const double penetration = std::max(0., -rows[n].gap),
@@ -403,7 +457,8 @@ AugmentedContactUpdate SpatialAssembly::update_augmented_contact_multipliers(
             result.maximum_penetration = std::max(result.maximum_penetration, penetration);
             result.maximum_constraint_violation = std::max(result.maximum_constraint_violation, violation);
             result.penetration_tolerance = std::max(result.penetration_tolerance, contact.penetration_tolerance);
-            if (violation > contact.penetration_tolerance) result.converged = false;
+            if (violation > contact.penetration_tolerance)
+                result.converged = false;
             if (completed >= contact.maximum_augmented_iterations)
                 result.update_allowed = false;
             else

@@ -15,7 +15,8 @@ constexpr std::size_t node_count = fuelsim::hex8_node_count;
 using Matrix8 = std::array<double, node_count * node_count>;
 
 bool check(bool condition, const std::string& message) {
-    if (condition) return true;
+    if (condition)
+        return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
@@ -24,13 +25,15 @@ std::vector<std::string> split_csv(const std::string& line) {
     std::vector<std::string> result;
     std::istringstream stream(line);
     std::string value;
-    while (std::getline(stream, value, ',')) result.push_back(value);
+    while (std::getline(stream, value, ','))
+        result.push_back(value);
     return result;
 }
 
 Matrix8 read_abaqus_total_matrix(const std::string& path) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read Abaqus C3D8T capacity reference: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read Abaqus C3D8T capacity reference: " + path);
     std::string line;
     std::getline(input, line);
     if (line != "input_local_node,output_local_node,node,temperature_k,reaction_heat_flux_w")
@@ -39,7 +42,8 @@ Matrix8 read_abaqus_total_matrix(const std::string& path) {
     std::array<bool, node_count * node_count> present{};
     while (std::getline(input, line)) {
         const std::vector<std::string> values = split_csv(line);
-        if (values.size() != 5) throw std::invalid_argument("Unexpected Abaqus C3D8T capacity column count in " + path);
+        if (values.size() != 5)
+            throw std::invalid_argument("Unexpected Abaqus C3D8T capacity column count in " + path);
         const std::size_t column = static_cast<std::size_t>(std::stoul(values[0]));
         const std::size_t row = static_cast<std::size_t>(std::stoul(values[1]));
         const std::size_t node = static_cast<std::size_t>(std::stoul(values[2]));
@@ -50,7 +54,8 @@ Matrix8 read_abaqus_total_matrix(const std::string& path) {
         if (std::abs(temperature - expected_temperature) > 1.0e-12)
             throw std::invalid_argument("Abaqus C3D8T capacity temperature does not match the declared probe");
         const std::size_t index = (row - 1) * node_count + column - 1;
-        if (present[index]) throw std::invalid_argument("Duplicate Abaqus C3D8T capacity matrix entry");
+        if (present[index])
+            throw std::invalid_argument("Duplicate Abaqus C3D8T capacity matrix entry");
         present[index] = true;
         result[index] = std::stod(values[4]);
     }
@@ -60,8 +65,14 @@ Matrix8 read_abaqus_total_matrix(const std::string& path) {
 }
 
 fuelsim::Hex8Coordinates unit_cube() {
-    return {{{0.0, 0.0, 0.0}, {1.0, 0.0, 0.0}, {1.0, 1.0, 0.0}, {0.0, 1.0, 0.0}, {0.0, 0.0, 1.0}, {1.0, 0.0, 1.0},
-        {1.0, 1.0, 1.0}, {0.0, 1.0, 1.0}}};
+    return {{{0.0, 0.0, 0.0},
+        {1.0, 0.0, 0.0},
+        {1.0, 1.0, 0.0},
+        {0.0, 1.0, 0.0},
+        {0.0, 0.0, 1.0},
+        {1.0, 0.0, 1.0},
+        {1.0, 1.0, 1.0},
+        {0.0, 1.0, 1.0}}};
 }
 
 fuelsim::ThermoelasticProperties properties() {
@@ -82,7 +93,8 @@ double maximum_row_sum_error(const Matrix8& matrix, double expected) {
     double maximum = 0.0;
     for (std::size_t row = 0; row < node_count; ++row) {
         double sum = 0.0;
-        for (std::size_t column = 0; column < node_count; ++column) sum += matrix[row * node_count + column];
+        for (std::size_t column = 0; column < node_count; ++column)
+            sum += matrix[row * node_count + column];
         maximum = std::max(maximum, std::abs(sum - expected));
     }
     return maximum;
@@ -99,7 +111,8 @@ int main(int argc, char** argv) {
         const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(unit_cube());
         const fuelsim::CartesianThermoelasticData data{fuelsim::IsotropicThermoelasticMaterial(properties()), 0.0, 1.0};
         fuelsim::Hex8LocalValues committed_state{};
-        for (std::size_t node = 0; node < node_count; ++node) committed_state[node] = 300.0;
+        for (std::size_t node = 0; node < node_count; ++node)
+            committed_state[node] = 300.0;
         const fuelsim::CartesianMaterialHistory committed_material(geometry.points.size());
         Matrix8 conduction{}, fuelsim_total{}, fuelsim_capacity{}, analytic_consistent{}, analytic_lumped{};
         for (std::size_t column = 0; column < node_count; ++column) {
@@ -155,24 +168,25 @@ int main(int argc, char** argv) {
 
         bool passed = true;
         passed = check(abaqus_lumped_error < 2.0e-12,
-                     "Abaqus C3D8T transient response identifies the diagonal lumped heat-capacity matrix") &&
-                 passed;
+                     "Abaqus C3D8T transient response identifies the diagonal lumped heat-capacity matrix")
+                 && passed;
         passed = check(fuelsim_lumped_error < 2.0e-12,
-                     "fuelsim production HEX8 uses the diagonal lumped heat-capacity matrix") &&
-                 passed;
+                     "fuelsim production HEX8 uses the diagonal lumped heat-capacity matrix")
+                 && passed;
         passed = check(fuelsim_total_error < 2.0e-12,
-                     "fuelsim conduction plus lumped heat capacity matches the Abaqus total reaction matrix") &&
-                 passed;
+                     "fuelsim conduction plus lumped heat capacity matches the Abaqus total reaction matrix")
+                 && passed;
         passed = check(consistent_capacity_difference > 0.5,
-                     "the nonuniform transient probe distinguishes the replaced consistent capacity matrix") &&
-                 passed;
+                     "the nonuniform transient probe distinguishes the replaced consistent capacity matrix")
+                 && passed;
         passed = check(abaqus_row_sum_error < 1.0e-6 && fuelsim_row_sum_error < 1.0e-6,
-                     "both capacity matrices preserve the same uniform-heating nodal row sum") &&
-                 passed;
+                     "both capacity matrices preserve the same uniform-heating nodal row sum")
+                 && passed;
         passed = check(maximum_abaqus_off_diagonal < 1.0e-6 && maximum_fuelsim_off_diagonal < 1.0e-6,
-                     "Abaqus and fuelsim lumped capacity matrices have zero off-diagonal entries") &&
-                 passed;
-        if (passed) std::cout << "[PASS] B5.0 Abaqus C3D8T heat-capacity identification\n";
+                     "Abaqus and fuelsim lumped capacity matrices have zero off-diagonal entries")
+                 && passed;
+        if (passed)
+            std::cout << "[PASS] B5.0 Abaqus C3D8T heat-capacity identification\n";
         return passed ? 0 : 1;
     } catch (const std::exception& error) {
         std::cerr << "[FAIL] " << error.what() << '\n';

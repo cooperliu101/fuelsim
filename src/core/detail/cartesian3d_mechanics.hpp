@@ -23,8 +23,9 @@ struct KinematicsCore final {
     adlite::Scalar current_determinant{1.0};
 };
 
-KinematicsCore evaluate_kinematics(
-    const ActiveMatrix3& gradient, const Matrix3& committed_deformation, StrainFormulation strain_formulation);
+KinematicsCore evaluate_kinematics(const ActiveMatrix3& gradient,
+    const Matrix3& committed_deformation,
+    StrainFormulation strain_formulation);
 // This increment-only helper populates strain_increment and rotation. It cannot reconstruct the current
 // configuration, so current_inverse and current_determinant retain their default values and must not be read.
 KinematicsCore evaluate_hughes_winget_increment(const ActiveMatrix3& central_displacement_gradient);
@@ -38,6 +39,9 @@ struct CartesianStressTangent final {
 };
 
 CartesianStressTangent evaluate_stress_tangent(const IsotropicThermoelasticMaterial& material,
-    const std::array<double, 6>& fed_strain, double temperature, double time_step,
-    const CartesianMaterialPointState* committed_material, MaterialFunctionContext context);
+    const std::array<double, 6>& fed_strain,
+    double temperature,
+    double time_step,
+    const CartesianMaterialPointState* committed_material,
+    MaterialFunctionContext context);
 } // namespace fuelsim::cartesian_detail

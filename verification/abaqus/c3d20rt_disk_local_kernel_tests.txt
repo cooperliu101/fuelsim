@@ -1,0 +1,8 @@
+hex20_material_value_path_relative_error=0
+hex20_directional_jacobian_relative_error=1.21825e-07
+hex20_finite_directional_jacobian_relative_error=8.70663e-08
+hex20_finite_thermal_directional_jacobian_relative_error=8.70663e-08
+hex20_residual_path_relative_error=0
+hex20_finite_residual_path_relative_error=0
+hex20_heat_patch_directional_error=5.52513e-10
+All HEX20-U2/T1 kernel tests passed

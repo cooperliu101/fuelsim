@@ -19,7 +19,8 @@
 
 namespace {
 bool check(bool condition, const std::string& message) {
-    if (condition) return true;
+    if (condition)
+        return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
@@ -32,8 +33,8 @@ fuelsim::ThermoelasticProperties constant_material(double conductivity, double t
     return fuelsim::test::thermoelastic(0.0, conductivity, 75.0e9, 0.3, thermal_expansion, 600.0);
 }
 
-fuelsim::BoundaryConditionDefinition dirichlet(
-    const std::string& name, const std::string& boundary, fuelsim::Field field, double value) {
+fuelsim::BoundaryConditionDefinition
+dirichlet(const std::string& name, const std::string& boundary, fuelsim::Field field, double value) {
     fuelsim::BoundaryConditionDefinition condition{};
     condition.name = name;
     condition.type = fuelsim::BoundaryConditionType::dirichlet;
@@ -54,8 +55,12 @@ fuelsim::BoundaryConditionDefinition pressure(const std::string& name, const std
 }
 
 fuelsim::SpatialDefinition single_region_definition(const fuelsim::ThermoelasticProperties& material,
-    double heat_source, double initial_temperature, double outer_temperature, double inner_radius,
-    double inner_pressure, double outer_pressure) {
+    double heat_source,
+    double initial_temperature,
+    double outer_temperature,
+    double inner_radius,
+    double inner_pressure,
+    double outer_pressure) {
     fuelsim::SpatialDefinition definition;
     definition.regions.push_back({"solid", "solid", material, heat_source, initial_temperature});
     if (inner_radius == 0.0)
@@ -83,7 +88,8 @@ class TwelveDofProblem : public fuelsim::NonlinearProblem {
     void contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const override {
         validate_contribution(index);
         dofs.resize(fuelsim::local_dof_count);
-        for (std::size_t dof = 0; dof < dofs.size(); ++dof) dofs[dof] = dof;
+        for (std::size_t dof = 0; dof < dofs.size(); ++dof)
+            dofs[dof] = dof;
     }
 
     const std::vector<fuelsim::DirichletCondition>& dirichlet_conditions() const noexcept override {
@@ -92,7 +98,8 @@ class TwelveDofProblem : public fuelsim::NonlinearProblem {
 
   protected:
     static void validate_contribution(std::size_t index) {
-        if (index != 0) throw std::out_of_range("TwelveDofProblem contribution index");
+        if (index != 0)
+            throw std::out_of_range("TwelveDofProblem contribution index");
     }
 
   private:
@@ -110,17 +117,22 @@ class ChangingCouplingProblem final : public TwelveDofProblem {
 
     bool jacobian_sparsity_is_state_dependent() const noexcept override { return true; }
 
-    void compute_contribution(std::size_t index, const std::vector<double>& state, std::vector<double>& residual,
+    void compute_contribution(std::size_t index,
+        const std::vector<double>& state,
+        std::vector<double>& residual,
         std::vector<double>* jacobian) const override {
         validate_contribution(index);
         residual.resize(state.size());
-        for (std::size_t dof = 0; dof < state.size(); ++dof) residual[dof] = 1.0e-20 * (state[dof] - 1.0);
+        for (std::size_t dof = 0; dof < state.size(); ++dof)
+            residual[dof] = 1.0e-20 * (state[dof] - 1.0);
         // The uniformly scaled system is well-conditioned. Zero filtering
         // must preserve its tiny coefficients, including a remote coupling.
         residual[0] += 0.5 * _coupling * (state.back() * state.back() - 1.0);
-        if (!jacobian) return;
+        if (!jacobian)
+            return;
         jacobian->assign(state.size() * state.size(), 0.0);
-        for (std::size_t dof = 0; dof < state.size(); ++dof) (*jacobian)[dof * state.size() + dof] = 1.0e-20;
+        for (std::size_t dof = 0; dof < state.size(); ++dof)
+            (*jacobian)[dof * state.size() + dof] = 1.0e-20;
         (*jacobian)[state.size() - 1] = _coupling * state.back();
     }
 
@@ -146,13 +158,13 @@ bool test_changing_direct_coupling() {
                       << " reason=" << result.convergence_reason << " state0=" << result.state[0]
                       << " state_last=" << result.state.back() << '\n';
         passed = check(result.converged && result.nonlinear_iterations == expected_iterations,
-                     "direct factorization updates tiny couplings within Newton iteration and across solves") &&
-                 passed;
+                     "direct factorization updates tiny couplings within Newton iteration and across solves")
+                 && passed;
         for (std::size_t dof = 0; dof < result.state.size(); ++dof) {
             const double expected = 1.0;
             passed = check(std::abs(result.state[dof] / expected - 1.0) < 1.0e-12,
-                         "direct factorization preserves the exact coupled solution") &&
-                     passed;
+                         "direct factorization preserves the exact coupled solution")
+                     && passed;
         }
     }
     return passed;
@@ -160,55 +172,74 @@ bool test_changing_direct_coupling() {
 
 class LogDomainProblem final : public TwelveDofProblem {
   public:
-    void compute_contribution(std::size_t index, const std::vector<double>& state, std::vector<double>& residual,
+    void compute_contribution(std::size_t index,
+        const std::vector<double>& state,
+        std::vector<double>& residual,
         std::vector<double>* jacobian) const override {
         validate_contribution(index);
         residual.resize(state.size());
         for (std::size_t dof = 0; dof < state.size(); ++dof) {
-            if (!(state[dof] > 0.0)) throw std::domain_error("log-domain Newton iterate must remain positive");
+            if (!(state[dof] > 0.0))
+                throw std::domain_error("log-domain Newton iterate must remain positive");
             residual[dof] = std::log(state[dof]) + 10.0;
         }
-        if (jacobian == nullptr) return;
+        if (jacobian == nullptr)
+            return;
         jacobian->assign(state.size() * state.size(), 0.0);
-        for (std::size_t dof = 0; dof < state.size(); ++dof) (*jacobian)[dof * state.size() + dof] = 1.0 / state[dof];
+        for (std::size_t dof = 0; dof < state.size(); ++dof)
+            (*jacobian)[dof * state.size() + dof] = 1.0 / state[dof];
     }
 };
 
 class StagnatingProblem final : public TwelveDofProblem {
   public:
-    void compute_contribution(std::size_t index, const std::vector<double>& state, std::vector<double>& residual,
+    void compute_contribution(std::size_t index,
+        const std::vector<double>& state,
+        std::vector<double>& residual,
         std::vector<double>* jacobian) const override {
         validate_contribution(index);
         residual.assign(state.size(), 1.0);
-        if (jacobian == nullptr) return;
+        if (jacobian == nullptr)
+            return;
         jacobian->assign(state.size() * state.size(), 0.0);
-        for (std::size_t dof = 0; dof < state.size(); ++dof) (*jacobian)[dof * state.size() + dof] = 1.0e20;
+        for (std::size_t dof = 0; dof < state.size(); ++dof)
+            (*jacobian)[dof * state.size() + dof] = 1.0e20;
     }
 };
 
 class FieldStagnatingProblem final : public TwelveDofProblem {
   public:
-    void compute_contribution(std::size_t index, const std::vector<double>& state, std::vector<double>& residual,
+    void compute_contribution(std::size_t index,
+        const std::vector<double>& state,
+        std::vector<double>& residual,
         std::vector<double>* jacobian) const override {
         validate_contribution(index);
         residual.assign(state.size(), 0.0);
-        for (std::size_t dof = 0; dof < 4; ++dof) residual[dof] = 1.1;
-        if (jacobian == nullptr) return;
+        for (std::size_t dof = 0; dof < 4; ++dof)
+            residual[dof] = 1.1;
+        if (jacobian == nullptr)
+            return;
         jacobian->assign(state.size() * state.size(), 0.0);
-        for (std::size_t dof = 0; dof < state.size(); ++dof) (*jacobian)[dof * state.size() + dof] = 1.0e20;
+        for (std::size_t dof = 0; dof < state.size(); ++dof)
+            (*jacobian)[dof * state.size() + dof] = 1.0e20;
     }
 };
 
 class QuadraticProblem final : public TwelveDofProblem {
   public:
-    void compute_contribution(std::size_t index, const std::vector<double>& state, std::vector<double>& residual,
+    void compute_contribution(std::size_t index,
+        const std::vector<double>& state,
+        std::vector<double>& residual,
         std::vector<double>* jacobian) const override {
         validate_contribution(index);
         residual.resize(state.size());
-        for (std::size_t dof = 0; dof < state.size(); ++dof) residual[dof] = state[dof] * state[dof] - 2.0;
-        if (jacobian == nullptr) return;
+        for (std::size_t dof = 0; dof < state.size(); ++dof)
+            residual[dof] = state[dof] * state[dof] - 2.0;
+        if (jacobian == nullptr)
+            return;
         jacobian->assign(state.size() * state.size(), 0.0);
-        for (std::size_t dof = 0; dof < state.size(); ++dof) (*jacobian)[dof * state.size() + dof] = 2.0 * state[dof];
+        for (std::size_t dof = 0; dof < state.size(); ++dof)
+            (*jacobian)[dof * state.size() + dof] = 2.0 * state[dof];
     }
 };
 
@@ -221,8 +252,10 @@ class RuntimeLayoutProblem final : public fuelsim::NonlinearProblem {
     const std::vector<fuelsim::FieldDescriptor>& field_layout() const noexcept override { return _fields; }
 
     std::size_t local_dof_count(std::size_t index) const {
-        if (index == 0) return 32;
-        if (index == 1) return _narrow_dofs.size();
+        if (index == 0)
+            return 32;
+        if (index == 1)
+            return _narrow_dofs.size();
         throw std::out_of_range("RuntimeLayoutProblem contribution index");
     }
 
@@ -230,7 +263,8 @@ class RuntimeLayoutProblem final : public fuelsim::NonlinearProblem {
         ++_dof_mapping_calls;
         if (index == 0) {
             dofs.resize(dof_count());
-            for (std::size_t dof = 0; dof < dofs.size(); ++dof) dofs[dof] = dof;
+            for (std::size_t dof = 0; dof < dofs.size(); ++dof)
+                dofs[dof] = dof;
             return;
         }
         if (index == 1) {
@@ -240,16 +274,20 @@ class RuntimeLayoutProblem final : public fuelsim::NonlinearProblem {
         throw std::out_of_range("RuntimeLayoutProblem contribution index");
     }
 
-    void compute_contribution(std::size_t index, const std::vector<double>& state, std::vector<double>& residual,
+    void compute_contribution(std::size_t index,
+        const std::vector<double>& state,
+        std::vector<double>& residual,
         std::vector<double>* jacobian) const override {
         const std::size_t local_count = local_dof_count(index);
-        if (state.size() != local_count) throw std::invalid_argument("RuntimeLayoutProblem contribution state size");
+        if (state.size() != local_count)
+            throw std::invalid_argument("RuntimeLayoutProblem contribution state size");
         if (jacobian == nullptr)
             ++_residual_calls.at(index);
         else
             ++_system_calls.at(index);
         compute_residual_values(index, state, residual);
-        if (jacobian == nullptr) return;
+        if (jacobian == nullptr)
+            return;
         jacobian->resize(local_count * local_count);
         for (std::size_t row = 0; row < local_count; ++row)
             for (std::size_t column = 0; column < local_count; ++column)
@@ -272,7 +310,8 @@ class RuntimeLayoutProblem final : public fuelsim::NonlinearProblem {
     std::size_t dof_mapping_call_count() const noexcept { return _dof_mapping_calls; }
 
     double target_value(std::size_t dof) const {
-        if (dof >= dof_count()) throw std::out_of_range("RuntimeLayoutProblem target DOF");
+        if (dof >= dof_count())
+            throw std::out_of_range("RuntimeLayoutProblem target DOF");
         return 0.5 + 0.025 * static_cast<double>(dof);
     }
 
@@ -281,25 +320,30 @@ class RuntimeLayoutProblem final : public fuelsim::NonlinearProblem {
         if (row >= local_count || column >= local_count)
             throw std::out_of_range("RuntimeLayoutProblem coefficient index");
         if (index == 0) {
-            if (row == column) return 4.0 + 0.01 * static_cast<double>(row + 1);
-            if (column == (row + 1) % local_count) return 0.2;
-            if (column == (row + 11) % local_count) return -0.04;
+            if (row == column)
+                return 4.0 + 0.01 * static_cast<double>(row + 1);
+            if (column == (row + 1) % local_count)
+                return 0.2;
+            if (column == (row + 11) % local_count)
+                return -0.04;
             return 0.0;
         }
-        if (row == column) return 0.7 + 0.02 * static_cast<double>(row);
+        if (row == column)
+            return 0.7 + 0.02 * static_cast<double>(row);
         return 0.005 * static_cast<double>((row + 1) * (column + 1));
     }
 
   private:
-    void compute_residual_values(
-        std::size_t index, const std::vector<double>& state, std::vector<double>& residual) const {
+    void
+    compute_residual_values(std::size_t index, const std::vector<double>& state, std::vector<double>& residual) const {
         const std::size_t local_count = local_dof_count(index);
-        if (state.size() != local_count) throw std::invalid_argument("RuntimeLayoutProblem contribution state size");
+        if (state.size() != local_count)
+            throw std::invalid_argument("RuntimeLayoutProblem contribution state size");
         residual.assign(local_count, 0.0);
         for (std::size_t row = 0; row < local_count; ++row)
             for (std::size_t column = 0; column < local_count; ++column)
-                residual[row] += contribution_coefficient(index, row, column) *
-                                 (state[column] - target_value(index == 0 ? column : _narrow_dofs[column]));
+                residual[row] += contribution_coefficient(index, row, column)
+                                 * (state[column] - target_value(index == 0 ? column : _narrow_dofs[column]));
     }
 
     std::vector<fuelsim::FieldDescriptor> _fields = {
@@ -318,16 +362,16 @@ class RuntimeLayoutProblem final : public fuelsim::NonlinearProblem {
 bool test_runtime_contribution_layout() {
     RuntimeLayoutProblem problem;
     const std::vector<fuelsim::FieldDescriptor>& fields = problem.field_layout();
-    bool passed = check(fields.size() == 4 && fields[0].name == "displacement_x" &&
-                            fields[0].category == fuelsim::FieldCategory::mechanical &&
-                            fields[1].name == "temperature" && fields[1].begin == 8 && fields[1].end == 16 &&
-                            fields[1].category == fuelsim::FieldCategory::thermal &&
-                            fields[2].category == fuelsim::FieldCategory::mechanical &&
-                            fields[3].category == fuelsim::FieldCategory::mechanical,
+    bool passed = check(fields.size() == 4 && fields[0].name == "displacement_x"
+                            && fields[0].category == fuelsim::FieldCategory::mechanical
+                            && fields[1].name == "temperature" && fields[1].begin == 8 && fields[1].end == 16
+                            && fields[1].category == fuelsim::FieldCategory::thermal
+                            && fields[2].category == fuelsim::FieldCategory::mechanical
+                            && fields[3].category == fuelsim::FieldCategory::mechanical,
         "runtime field metadata supports a non-leading thermal field and three mechanical fields");
     passed = check(problem.local_dof_count(0) == 32 && problem.local_dof_count(1) == 7,
-                 "runtime contributions report a wide contribution followed by a narrow contribution") &&
-             passed;
+                 "runtime contributions report a wide contribution followed by a narrow contribution")
+             && passed;
     std::vector<double> state(problem.dof_count());
     std::vector<double> direction(problem.dof_count());
     for (std::size_t dof = 0; dof < problem.dof_count(); ++dof) {
@@ -338,15 +382,15 @@ bool test_runtime_contribution_layout() {
     fuelsim::ContributionWorkspace workspace;
     problem.evaluate_contribution(0, state, workspace, true);
     passed =
-        check(workspace.dofs.size() == 32 && workspace.residual.size() == 32 && workspace.jacobian.size() == 32 * 32 &&
-                  workspace.jacobian[3 * 32 + 4] == 0.2 && workspace.jacobian[5 * 32 + 16] == -0.04,
-            "wide contribution exposes a 32 by 32 row-major Jacobian") &&
-        passed;
+        check(workspace.dofs.size() == 32 && workspace.residual.size() == 32 && workspace.jacobian.size() == 32 * 32
+                  && workspace.jacobian[3 * 32 + 4] == 0.2 && workspace.jacobian[5 * 32 + 16] == -0.04,
+            "wide contribution exposes a 32 by 32 row-major Jacobian")
+        && passed;
     problem.evaluate_contribution(1, state, workspace, true);
-    passed = check(workspace.dofs.size() == 7 && workspace.residual.size() == 7 && workspace.jacobian.size() == 7 * 7 &&
-                       std::abs(workspace.jacobian[2 * 7 + 5] - 0.09) < 1.0e-15,
-                 "reused contribution workspace shrinks to a 7 by 7 row-major Jacobian") &&
-             passed;
+    passed = check(workspace.dofs.size() == 7 && workspace.residual.size() == 7 && workspace.jacobian.size() == 7 * 7
+                       && std::abs(workspace.jacobian[2 * 7 + 5] - 0.09) < 1.0e-15,
+                 "reused contribution workspace shrinks to a 7 by 7 row-major Jacobian")
+             && passed;
     std::vector<double> expected_residual(problem.dof_count(), 0.0);
     for (std::size_t contribution = 0; contribution < problem.contribution_count(); ++contribution) {
         std::vector<std::size_t> dofs;
@@ -354,8 +398,8 @@ bool test_runtime_contribution_layout() {
         for (std::size_t row = 0; row < dofs.size(); ++row) {
             double value = 0.0;
             for (std::size_t column = 0; column < dofs.size(); ++column)
-                value += problem.contribution_coefficient(contribution, row, column) *
-                         (state[dofs[column]] - problem.target_value(dofs[column]));
+                value += problem.contribution_coefficient(contribution, row, column)
+                         * (state[dofs[column]] - problem.target_value(dofs[column]));
             expected_residual[dofs[row]] += value;
         }
     }
@@ -366,21 +410,20 @@ bool test_runtime_contribution_layout() {
         maximum_assembly_difference =
             std::max(maximum_assembly_difference, std::abs(assembled_residual[dof] - expected_residual[dof]));
     passed = check(maximum_assembly_difference < 1.0e-14,
-                 "runtime residual assembly handles consecutive 32 and 7 DOF contributions") &&
-             passed;
+                 "runtime residual assembly handles consecutive 32 and 7 DOF contributions")
+             && passed;
     const fuelsim::test::DirectionalJacobianCheck directional =
         fuelsim::test::check_directional_jacobian(problem, state, direction, 1.0e-6);
-    passed = check(directional.difference.l2.size() == fields.size() &&
-                       directional.difference.maximum_absolute.size() == fields.size(),
-                 "directional Jacobian diagnostics return one result per runtime field") &&
-             passed;
+    passed = check(directional.difference.l2.size() == fields.size()
+                       && directional.difference.maximum_absolute.size() == fields.size(),
+                 "directional Jacobian diagnostics return one result per runtime field")
+             && passed;
     for (std::size_t field = 0; field < fields.size(); ++field) {
         const double reference = directional.finite_difference_directional_derivative.l2[field];
-        passed =
-            check(reference > 0.0 && directional.difference.l2[field] < 1.0e-8 * (1.0 + reference) &&
-                      directional.difference.maximum_absolute[field] < 1.0e-8 * (1.0 + reference),
-                "runtime row-major Jacobian matches the centered directional difference for " + fields[field].name) &&
-            passed;
+        passed = check(reference > 0.0 && directional.difference.l2[field] < 1.0e-8 * (1.0 + reference)
+                           && directional.difference.maximum_absolute[field] < 1.0e-8 * (1.0 + reference),
+                     "runtime row-major Jacobian matches the centered directional difference for " + fields[field].name)
+                 && passed;
     }
     std::vector<double> initial(problem.dof_count(), 0.0);
     fuelsim::SolverOptions options;
@@ -402,31 +445,31 @@ bool test_runtime_contribution_layout() {
     problem.reset_callback_counts();
     const fuelsim::SolveResult result = solver.solve(problem, initial, options);
     passed = check(result.converged && result.nonlinear_iterations == 1,
-                 "runtime layout linear system converges in one exact Newton update") &&
-             passed;
-    const bool field_result_sizes = result.field_names.size() == fields.size() &&
-                                    result.initial_field_residual_norms.size() == fields.size() &&
-                                    result.field_residual_reference_norms.size() == fields.size() &&
-                                    result.final_field_residual_norms.size() == fields.size() &&
-                                    result.final_scaled_field_residual_norms.size() == fields.size() &&
-                                    result.field_residual_scalings.size() == fields.size();
+                 "runtime layout linear system converges in one exact Newton update")
+             && passed;
+    const bool field_result_sizes = result.field_names.size() == fields.size()
+                                    && result.initial_field_residual_norms.size() == fields.size()
+                                    && result.field_residual_reference_norms.size() == fields.size()
+                                    && result.final_field_residual_norms.size() == fields.size()
+                                    && result.final_scaled_field_residual_norms.size() == fields.size()
+                                    && result.field_residual_scalings.size() == fields.size();
     passed = check(field_result_sizes, "PETSc solve reports all four runtime fields") && passed;
     if (field_result_sizes) {
-        passed = check(result.field_names[0] == "displacement_x" && result.field_names[1] == "temperature" &&
-                           result.field_names[2] == "displacement_y" && result.field_names[3] == "displacement_z",
-                     "PETSc solve preserves runtime field names and order") &&
-                 passed;
-        passed = check(std::abs(result.field_residual_scalings[0] - 0.05) < 1.0e-15 &&
-                           std::abs(result.field_residual_scalings[1] - 0.005) < 1.0e-15 &&
-                           std::abs(result.field_residual_scalings[2] - 0.05) < 1.0e-15 &&
-                           std::abs(result.field_residual_scalings[3] - 0.05) < 1.0e-15,
-                     "fixed scaling follows thermal and mechanical categories instead of field index") &&
-                 passed;
+        passed = check(result.field_names[0] == "displacement_x" && result.field_names[1] == "temperature"
+                           && result.field_names[2] == "displacement_y" && result.field_names[3] == "displacement_z",
+                     "PETSc solve preserves runtime field names and order")
+                 && passed;
+        passed = check(std::abs(result.field_residual_scalings[0] - 0.05) < 1.0e-15
+                           && std::abs(result.field_residual_scalings[1] - 0.005) < 1.0e-15
+                           && std::abs(result.field_residual_scalings[2] - 0.05) < 1.0e-15
+                           && std::abs(result.field_residual_scalings[3] - 0.05) < 1.0e-15,
+                     "fixed scaling follows thermal and mechanical categories instead of field index")
+                 && passed;
         for (std::size_t field = 0; field < fields.size(); ++field) {
-            passed = check(std::abs(result.initial_field_residual_norms[field] - expected_initial_field_norms[field]) <
-                               1.0e-13 * (1.0 + expected_initial_field_norms[field]),
-                         "PETSc initial residual includes every runtime contribution for " + fields[field].name) &&
-                     passed;
+            passed = check(std::abs(result.initial_field_residual_norms[field] - expected_initial_field_norms[field])
+                               < 1.0e-13 * (1.0 + expected_initial_field_norms[field]),
+                         "PETSc initial residual includes every runtime contribution for " + fields[field].name)
+                     && passed;
         }
     }
     if (result.state.size() == problem.dof_count()) {
@@ -439,32 +482,32 @@ bool test_runtime_contribution_layout() {
     } else {
         passed = check(false, "runtime layout solve returns all 32 global DOFs") && passed;
     }
-    const auto expected_partition = problem.contribution_partition(
-        static_cast<std::size_t>(result.mpi_rank), static_cast<std::size_t>(result.mpi_size));
+    const auto expected_partition = problem.contribution_partition(static_cast<std::size_t>(result.mpi_rank),
+        static_cast<std::size_t>(result.mpi_size));
     const std::size_t expected_begin = expected_partition.first;
     const std::size_t expected_end = expected_partition.second;
     passed = check(result.local_contribution_begin == expected_begin && result.local_contribution_end == expected_end,
-                 "runtime layout solve preserves the exact per-rank contribution interval") &&
-             passed;
+                 "runtime layout solve preserves the exact per-rank contribution interval")
+             && passed;
     for (std::size_t contribution = 0; contribution < problem.contribution_count(); ++contribution) {
         const bool owned = contribution >= expected_begin && contribution < expected_end;
-        passed = check((problem.residual_call_count(contribution) > 0) == owned &&
-                           (problem.system_call_count(contribution) > 0) == owned,
-                     "PETSc evaluates each runtime contribution only on its assigned rank") &&
-                 passed;
+        passed = check((problem.residual_call_count(contribution) > 0) == owned
+                           && (problem.system_call_count(contribution) > 0) == owned,
+                     "PETSc evaluates each runtime contribution only on its assigned rank")
+                 && passed;
     }
     const std::size_t mapping_calls_after_setup = problem.dof_mapping_call_count();
     problem.reset_callback_counts();
     const fuelsim::SolveResult reused = solver.solve(problem, initial, options);
-    passed = check(reused.converged && reused.timing.workspace_setups == 0 &&
-                       problem.dof_mapping_call_count() > mapping_calls_after_setup,
-                 "reused PETSc workspace refreshes dynamic contribution mappings without rebuilding") &&
-             passed;
+    passed = check(reused.converged && reused.timing.workspace_setups == 0
+                       && problem.dof_mapping_call_count() > mapping_calls_after_setup,
+                 "reused PETSc workspace refreshes dynamic contribution mappings without rebuilding")
+             && passed;
     if (result.mpi_size == 2 && result.local_contribution_begin < result.local_contribution_end) {
         const std::size_t expected_local_width = result.mpi_rank == 0 ? 32 : 7;
         passed = check(problem.local_dof_count(result.local_contribution_begin) == expected_local_width,
-                     "two-rank solve assigns the wide and narrow contributions to different ranks") &&
-                 passed;
+                     "two-rank solve assigns the wide and narrow contributions to different ranks")
+                 && passed;
     }
     fuelsim::SolverOptions automatic_options = options;
     automatic_options.field_residual_scaling = true;
@@ -473,12 +516,12 @@ bool test_runtime_contribution_layout() {
     fuelsim::PetscSolver automatic_solver;
     problem.reset_callback_counts();
     const fuelsim::SolveResult automatic = automatic_solver.solve(problem, initial, automatic_options);
-    passed = check(automatic.converged && automatic.initial_field_residual_norms.size() == fields.size() &&
-                       automatic.field_residual_scalings.size() == fields.size(),
-                 "automatic scaling solves the four-field runtime problem") &&
-             passed;
-    if (automatic.initial_field_residual_norms.size() == fields.size() &&
-        automatic.field_residual_scalings.size() == fields.size()) {
+    passed = check(automatic.converged && automatic.initial_field_residual_norms.size() == fields.size()
+                       && automatic.field_residual_scalings.size() == fields.size(),
+                 "automatic scaling solves the four-field runtime problem")
+             && passed;
+    if (automatic.initial_field_residual_norms.size() == fields.size()
+        && automatic.field_residual_scalings.size() == fields.size()) {
         const double thermal_scale = 1.0 / expected_initial_field_norms[1];
         double mechanical_norm = 0.0;
         for (const std::size_t field : {0U, 2U, 3U})
@@ -486,31 +529,32 @@ bool test_runtime_contribution_layout() {
         const double mechanical_scale = 1.0 / mechanical_norm;
         bool initial_norms_match = true;
         for (std::size_t field = 0; field < fields.size(); ++field) {
-            initial_norms_match = initial_norms_match && std::abs(automatic.initial_field_residual_norms[field] -
-                                                                  expected_initial_field_norms[field]) <
-                                                             1.0e-13 * (1.0 + expected_initial_field_norms[field]);
+            initial_norms_match =
+                initial_norms_match
+                && std::abs(automatic.initial_field_residual_norms[field] - expected_initial_field_norms[field])
+                       < 1.0e-13 * (1.0 + expected_initial_field_norms[field]);
         }
         passed =
-            check(initial_norms_match &&
-                      std::abs(automatic.field_residual_scalings[1] - thermal_scale) < 1.0e-14 * thermal_scale &&
-                      std::abs(automatic.field_residual_scalings[0] - mechanical_scale) < 1.0e-14 * mechanical_scale &&
-                      std::abs(automatic.field_residual_scalings[2] - mechanical_scale) < 1.0e-14 * mechanical_scale &&
-                      std::abs(automatic.field_residual_scalings[3] - mechanical_scale) < 1.0e-14 * mechanical_scale,
-                "automatic scaling uses independently assembled thermal and three-field mechanical norms") &&
-            passed;
+            check(initial_norms_match
+                      && std::abs(automatic.field_residual_scalings[1] - thermal_scale) < 1.0e-14 * thermal_scale
+                      && std::abs(automatic.field_residual_scalings[0] - mechanical_scale) < 1.0e-14 * mechanical_scale
+                      && std::abs(automatic.field_residual_scalings[2] - mechanical_scale) < 1.0e-14 * mechanical_scale
+                      && std::abs(automatic.field_residual_scalings[3] - mechanical_scale) < 1.0e-14 * mechanical_scale,
+                "automatic scaling uses independently assembled thermal and three-field mechanical norms")
+            && passed;
     }
     RuntimeLayoutProblem changed_problem;
     passed = check(problem.discretization_identity() != changed_problem.discretization_identity(),
-                 "distinct nonlinear problems have distinct PETSc workspace identities") &&
-             passed;
+                 "distinct nonlinear problems have distinct PETSc workspace identities")
+             && passed;
     fuelsim::SolverOptions guard_options = options;
     fuelsim::PetscSolver guard_solver;
     const fuelsim::SolveResult guard_baseline = guard_solver.solve(changed_problem, initial, guard_options);
     RuntimeLayoutProblem replacement_problem;
     const fuelsim::SolveResult replacement = guard_solver.solve(replacement_problem, initial, guard_options);
     passed = check(guard_baseline.converged && replacement.converged && replacement.timing.workspace_setups == 1,
-                 "PETSc workspace rebuilds for a distinct discretization identity") &&
-             passed;
+                 "PETSc workspace rebuilds for a distinct discretization identity")
+             && passed;
     return passed;
 }
 
@@ -522,9 +566,9 @@ bool test_global_newton_safeguards() {
     failing_domain_options.backtracking_fallback = false;
     const fuelsim::SolveResult domain_failure =
         failing_domain_solver.solve(domain_problem, initial, failing_domain_options);
-    bool passed = check(!domain_failure.converged &&
-                            domain_failure.failure_category == fuelsim::SolveFailureCategory::physical_domain &&
-                            !domain_failure.failure_message.empty(),
+    bool passed = check(!domain_failure.converged
+                            && domain_failure.failure_category == fuelsim::SolveFailureCategory::physical_domain
+                            && !domain_failure.failure_message.empty(),
         "domain failure category and message are available on every rank");
     fuelsim::PetscSolver domain_solver;
     fuelsim::SolverOptions domain_options;
@@ -533,17 +577,30 @@ bool test_global_newton_safeguards() {
         std::cerr << "log-domain failure: category=" << fuelsim::solve_failure_category_name(domain.failure_category)
                   << " reason=" << domain.convergence_reason << " residual=" << domain.residual_norm
                   << " message=" << domain.failure_message << '\n';
-    passed = check(domain.converged && domain.used_backtracking_fallback && domain.nonlinear_attempts == 2 &&
-                       domain.linear_iterations > 0 &&
-                       domain.basic_failure_category == fuelsim::SolveFailureCategory::physical_domain,
+    passed = check(domain.converged && domain.used_backtracking_fallback && domain.nonlinear_attempts == 2
+                       && domain.linear_iterations > 0
+                       && domain.initial_failure_category == fuelsim::SolveFailureCategory::physical_domain,
                  "BASIC failure automatically retries with backtracking "
-                 "from the original state and reports KSP work") &&
-             passed;
+                 "from the original state and reports KSP work")
+             && passed;
     const double target = std::exp(-10.0);
+    fuelsim::PetscSolver critical_point_solver;
+    auto critical_point_options = domain_options;
+    critical_point_options.line_search = fuelsim::SolverOptions::LineSearch::critical_point;
+    const auto critical_point = critical_point_solver.solve(domain_problem, initial, critical_point_options);
+    passed = check(critical_point.converged && critical_point.used_backtracking_fallback
+                       && critical_point.nonlinear_attempts == 2
+                       && critical_point.initial_failure_category == fuelsim::SolveFailureCategory::physical_domain,
+                 "Critical-point domain failure retries from the original state using backtracking")
+             && passed;
+    for (const double value : critical_point.state)
+        passed = check(std::abs(value - target) < 1.0e-10 * target,
+                     "Critical-point fallback reaches the positive logarithmic root")
+                 && passed;
     for (double value : domain.state)
         passed =
-            check(std::abs(value - target) < 1.0e-10 * target, "backtracking reaches the positive logarithmic root") &&
-            passed;
+            check(std::abs(value - target) < 1.0e-10 * target, "backtracking reaches the positive logarithmic root")
+            && passed;
     StagnatingProblem stagnating_problem;
     fuelsim::PetscSolver stagnating_solver;
     fuelsim::SolverOptions options;
@@ -552,24 +609,24 @@ bool test_global_newton_safeguards() {
     options.field_residual_scaling = false;
     options.step_tolerance = 1.0e-8;
     const fuelsim::SolveResult stagnating = stagnating_solver.solve(stagnating_problem, initial, options);
-    passed = check(stagnating.convergence_reason > 0 && !stagnating.converged &&
-                       stagnating.failure_category == fuelsim::SolveFailureCategory::residual_verification,
-                 "positive step-stagnation reason fails residual review") &&
-             passed;
+    passed = check(stagnating.convergence_reason > 0 && !stagnating.converged
+                       && stagnating.failure_category == fuelsim::SolveFailureCategory::residual_verification,
+                 "positive step-stagnation reason fails residual review")
+             && passed;
     FieldStagnatingProblem field_problem;
     fuelsim::PetscSolver field_solver;
     fuelsim::SolverOptions field_options = options;
     field_options.temperature_residual_absolute_tolerance = 2.0;
     field_options.mechanical_residual_absolute_tolerance = 2.0;
     const fuelsim::SolveResult field_failure = field_solver.solve(field_problem, initial, field_options);
-    passed = check(!field_failure.converged && field_failure.residual_norm < std::sqrt(12.0) &&
-                       field_failure.final_scaled_field_residual_norms[0] >
-                           field_options.temperature_residual_absolute_tolerance &&
-                       field_failure.failure_category == fuelsim::SolveFailureCategory::residual_verification &&
-                       field_failure.failure_message.find("field0=") != std::string::npos,
+    passed = check(!field_failure.converged && field_failure.residual_norm < std::sqrt(12.0)
+                       && field_failure.final_scaled_field_residual_norms[0]
+                              > field_options.temperature_residual_absolute_tolerance
+                       && field_failure.failure_category == fuelsim::SolveFailureCategory::residual_verification
+                       && field_failure.failure_message.find("field0=") != std::string::npos,
                  "field residual audit rejects a state that passes the "
-                 "combined physical absolute scale") &&
-             passed;
+                 "combined physical absolute scale")
+             && passed;
     QuadraticProblem quadratic_problem;
     fuelsim::PetscSolver quadratic_solver;
     fuelsim::SolverOptions quadratic_options;
@@ -580,12 +637,12 @@ bool test_global_newton_safeguards() {
     quadratic_options.relative_tolerance = 1.0e-14;
     quadratic_options.residual_reduction_tolerance = 0.3;
     const fuelsim::SolveResult rescued = quadratic_solver.solve(quadratic_problem, initial, quadratic_options);
-    passed = check(rescued.convergence_reason < 0 && rescued.converged &&
-                       rescued.failure_category == fuelsim::SolveFailureCategory::none &&
-                       rescued.failure_message.empty() && rescued.residual_norm < 0.3 * std::sqrt(12.0),
+    passed = check(rescued.convergence_reason < 0 && rescued.converged
+                       && rescued.failure_category == fuelsim::SolveFailureCategory::none
+                       && rescued.failure_message.empty() && rescued.residual_norm < 0.3 * std::sqrt(12.0),
                  "audited residual reduction rescues a PETSc maximum-"
-                 "iteration reason at an acceptable state") &&
-             passed;
+                 "iteration reason at an acceptable state")
+             && passed;
     fuelsim::PetscSolver field_convergence_solver;
     fuelsim::SolverOptions field_convergence_options;
     field_convergence_options.field_residual_scaling = false;
@@ -597,10 +654,10 @@ bool test_global_newton_safeguards() {
     field_convergence_options.mechanical_residual_absolute_tolerance = 0.6;
     const fuelsim::SolveResult field_converged =
         field_convergence_solver.solve(quadratic_problem, initial, field_convergence_options);
-    passed = check(field_converged.converged && field_converged.nonlinear_iterations == 1 &&
-                       field_converged.residual_norm > field_convergence_options.absolute_tolerance,
-                 "field residual convergence stops when every physical field meets its configured tolerance") &&
-             passed;
+    passed = check(field_converged.converged && field_converged.nonlinear_iterations == 1
+                       && field_converged.residual_norm > field_convergence_options.absolute_tolerance,
+                 "field residual convergence stops when every physical field meets its configured tolerance")
+             && passed;
     return passed;
 }
 
@@ -612,25 +669,30 @@ bool test_thermal_cylinder() {
     constexpr double outer_temperature = 600.0;
     const fuelsim::UnstructuredQuad4Mesh mesh =
         fuelsim::test::make_disconnected_annular_mesh({{1, "solid", 0.0, radius, length, 32, 2}});
-    fuelsim::SteadyProblem problem(single_region_definition(constant_material(conductivity, 0.0), heat_source,
-                                       outer_temperature, outer_temperature, 0.0, 0.0, 0.0),
+    fuelsim::SteadyProblem problem(single_region_definition(constant_material(conductivity, 0.0),
+                                       heat_source,
+                                       outer_temperature,
+                                       outer_temperature,
+                                       0.0,
+                                       0.0,
+                                       0.0),
         mesh);
     fuelsim::PetscSolver solver;
     fuelsim::SolverOptions scaled_options;
     scaled_options.field_residual_scaling = true;
     const fuelsim::SolveResult result = solver.solve(problem, problem.initial_state(), scaled_options);
     bool passed = check(result.converged, "thermal cylinder SNES converged");
-    const auto expected_partition = problem.contribution_partition(
-        static_cast<std::size_t>(result.mpi_rank), static_cast<std::size_t>(result.mpi_size));
+    const auto expected_partition = problem.contribution_partition(static_cast<std::size_t>(result.mpi_rank),
+        static_cast<std::size_t>(result.mpi_size));
     const std::size_t expected_begin = expected_partition.first;
     const std::size_t expected_end = expected_partition.second;
     passed = check(result.local_contribution_begin == expected_begin && result.local_contribution_end == expected_end,
-                 "PETSc rank owns its exact nonoverlapping contribution range") &&
-             passed;
+                 "PETSc rank owns its exact nonoverlapping contribution range")
+             && passed;
     if (result.mpi_size > 1)
         passed = check(result.local_contribution_end - result.local_contribution_begin < problem.contribution_count(),
-                     "MPI rank does not repeat the complete model assembly") &&
-                 passed;
+                     "MPI rank does not repeat the complete model assembly")
+                 && passed;
     double maximum_scaled_error = 0.0;
     const double center_rise = heat_source * radius * radius / (4.0 * conductivity);
     for (std::size_t node = 0; node < fuelsim::rz::ProblemAccess::region_mesh(problem, 0).nodes().size(); ++node) {
@@ -641,8 +703,8 @@ bool test_thermal_cylinder() {
         maximum_scaled_error = std::max(maximum_scaled_error, std::abs(actual - expected) / center_rise);
     }
     passed = check(maximum_scaled_error < 1.0e-3,
-                 "thermal cylinder temperature error is below 0.1%; actual=" + std::to_string(maximum_scaled_error)) &&
-             passed;
+                 "thermal cylinder temperature error is below 0.1%; actual=" + std::to_string(maximum_scaled_error))
+             && passed;
     std::cout << "thermal_cylinder_maximum_scaled_error=" << maximum_scaled_error << '\n';
     return passed;
 }
@@ -655,12 +717,18 @@ double thermal_cylinder_error(std::size_t radial_elements) {
     constexpr double outer_temperature = 600.0;
     const fuelsim::UnstructuredQuad4Mesh mesh =
         fuelsim::test::make_disconnected_annular_mesh({{1, "solid", 0.0, radius, length, radial_elements, 2}});
-    fuelsim::SteadyProblem problem(single_region_definition(constant_material(conductivity, 0.0), heat_source,
-                                       outer_temperature, outer_temperature, 0.0, 0.0, 0.0),
+    fuelsim::SteadyProblem problem(single_region_definition(constant_material(conductivity, 0.0),
+                                       heat_source,
+                                       outer_temperature,
+                                       outer_temperature,
+                                       0.0,
+                                       0.0,
+                                       0.0),
         mesh);
     fuelsim::PetscSolver solver;
     const fuelsim::SolveResult result = solver.solve(problem, problem.initial_state());
-    if (!result.converged) throw std::runtime_error("thermal mesh-convergence solve did not converge");
+    if (!result.converged)
+        throw std::runtime_error("thermal mesh-convergence solve did not converge");
     const double center_rise = heat_source * radius * radius / (4.0 * conductivity);
     double maximum_error = 0.0;
     for (std::size_t node = 0; node < fuelsim::rz::ProblemAccess::region_mesh(problem, 0).nodes().size(); ++node) {
@@ -674,8 +742,9 @@ double thermal_cylinder_error(std::size_t radial_elements) {
 }
 
 bool test_thermal_mesh_convergence() {
-    const std::array<double, 3> errors = {
-        thermal_cylinder_error(8), thermal_cylinder_error(16), thermal_cylinder_error(32)};
+    const std::array<double, 3> errors = {thermal_cylinder_error(8),
+        thermal_cylinder_error(16),
+        thermal_cylinder_error(32)};
     const double first_ratio = errors[0] / errors[1];
     const double second_ratio = errors[1] / errors[2];
     const double first_order = std::log2(first_ratio);
@@ -697,7 +766,8 @@ bool test_free_thermal_expansion() {
     const fuelsim::UnstructuredQuad4Mesh mesh =
         fuelsim::test::make_disconnected_annular_mesh({{1, "solid", 0.0, radius, length, 8, 4}});
     const fuelsim::SteadyProblem problem(
-        single_region_definition(constant_material(4.0, alpha), 0.0, temperature, temperature, 0.0, 0.0, 0.0), mesh);
+        single_region_definition(constant_material(4.0, alpha), 0.0, temperature, temperature, 0.0, 0.0, 0.0),
+        mesh);
     fuelsim::PetscSolver solver;
     const fuelsim::SolveResult result = solver.solve(problem, problem.initial_state());
     bool passed = check(result.converged, "free expansion SNES converged");
@@ -724,7 +794,8 @@ bool test_free_thermal_expansion() {
             fuelsim::rz::ProblemAccess::contribution_state(problem, element, result.state);
         const auto stresses =
             fuelsim::compute_quad4_rz_thermoelastic_stress(fuelsim::rz::ProblemAccess::region_kernel_data(problem, 0),
-                fuelsim::rz::ProblemAccess::region_element_geometry(problem, 0, element), state);
+                fuelsim::rz::ProblemAccess::region_element_geometry(problem, 0, element),
+                state);
         for (const fuelsim::AxisymmetricStressValues& stress : stresses) {
             maximum_stress = std::max(maximum_stress, std::abs(stress.rr));
             maximum_stress = std::max(maximum_stress, std::abs(stress.zz));
@@ -734,8 +805,8 @@ bool test_free_thermal_expansion() {
     }
     passed = check(maximum_temperature_error < 1.0e-9, "free expansion temperature is uniform") && passed;
     passed = check(maximum_displacement_error / displacement_scale < 1.0e-8,
-                 "free expansion displacement matches analytic field") &&
-             passed;
+                 "free expansion displacement matches analytic field")
+             && passed;
     passed = check(maximum_stress < 100.0, "free expansion stress is below 100 Pa") && passed;
     std::cout << "free_expansion_maximum_temperature_error=" << maximum_temperature_error << '\n';
     std::cout << "free_expansion_maximum_displacement_relative_error="
@@ -756,7 +827,8 @@ bool test_lame_open_ended_cylinder() {
     const fuelsim::UnstructuredQuad4Mesh mesh =
         fuelsim::test::make_disconnected_annular_mesh({{1, "solid", inner_radius, outer_radius, length, 48, 2}});
     const fuelsim::SteadyProblem problem(
-        single_region_definition(material, 0.0, 600.0, 600.0, inner_radius, pressure, 0.0), mesh);
+        single_region_definition(material, 0.0, 600.0, 600.0, inner_radius, pressure, 0.0),
+        mesh);
     fuelsim::PetscSolver solver;
     const fuelsim::SolveResult result = solver.solve(problem, problem.initial_state());
     bool passed = check(result.converged, "Lame cylinder SNES converged");
@@ -767,8 +839,8 @@ bool test_lame_open_ended_cylinder() {
     std::cout << "lame_final_scaled_field_residuals=" << result.final_scaled_field_residual_norms[0] << ','
               << result.final_scaled_field_residual_norms[1] << ',' << result.final_scaled_field_residual_norms[2]
               << '\n';
-    const double B = pressure * inner_radius * inner_radius * outer_radius * outer_radius /
-                     (outer_radius * outer_radius - inner_radius * inner_radius);
+    const double B = pressure * inner_radius * inner_radius * outer_radius * outer_radius
+                     / (outer_radius * outer_radius - inner_radius * inner_radius);
     const double axial_strain = -2.0 * poisson_ratio * A / young_modulus;
     double maximum_radial_relative_error = 0.0;
     double maximum_axial_relative_error = 0.0;
@@ -811,10 +883,14 @@ bool test_m1_open_gap_analytic_thermal() {
     constexpr std::size_t fuel_radial_elements = 32;
     constexpr std::size_t cladding_radial_elements = 8;
     constexpr std::size_t axial_elements = 2;
-    const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::test::make_disconnected_annular_mesh(
-        {{1, "fuel", 0.0, fuel_radius, length, fuel_radial_elements, axial_elements},
-            {2, "clad", cladding_inner_radius, cladding_outer_radius, length, cladding_radial_elements,
-                axial_elements}});
+    const fuelsim::UnstructuredQuad4Mesh mesh = fuelsim::test::make_disconnected_annular_mesh({{1,
+                                                                                                   "fuel",
+                                                                                                   0.0,
+                                                                                                   fuel_radius,
+                                                                                                   length,
+                                                                                                   fuel_radial_elements,
+                                                                                                   axial_elements},
+        {2, "clad", cladding_inner_radius, cladding_outer_radius, length, cladding_radial_elements, axial_elements}});
     fuelsim::SpatialDefinition definition;
     definition.regions.push_back(
         {"fuel", "fuel", constant_material(fuel_conductivity, 0.0), heat_source, outer_temperature});
@@ -833,8 +909,8 @@ bool test_m1_open_gap_analytic_thermal() {
     const fuelsim::SteadyProblem problem(std::move(definition), mesh);
     fuelsim::PetscSolver solver;
     const fuelsim::SolveResult result = solver.solve(problem, problem.initial_state());
-    const double cladding_rise = heat_source * fuel_radius * fuel_radius / (2.0 * cladding_conductivity) *
-                                 std::log(cladding_outer_radius / cladding_inner_radius);
+    const double cladding_rise = heat_source * fuel_radius * fuel_radius / (2.0 * cladding_conductivity)
+                                 * std::log(cladding_outer_radius / cladding_inner_radius);
     const double gap_rise =
         heat_source * fuel_radius * (cladding_inner_radius - fuel_radius) / (2.0 * gap_conductivity);
     const double fuel_rise = heat_source * fuel_radius * fuel_radius / (4.0 * fuel_conductivity);
@@ -847,10 +923,10 @@ bool test_m1_open_gap_analytic_thermal() {
         fuelsim::test::annular_node_id(fuel_radial_elements, fuel_radial_elements, axial_mid);
     const std::size_t cladding_inner_local = fuelsim::test::annular_node_id(cladding_radial_elements, 0, axial_mid);
     const auto& dofs = fuelsim::rz::ProblemAccess::dof_map(problem);
-    const double actual_center = result.state[dofs.dof(
-        fuelsim::Field::temperature, fuelsim::rz::ProblemAccess::region_node_offset(problem, 0) + fuel_center_local)];
-    const double actual_fuel_surface = result.state[dofs.dof(
-        fuelsim::Field::temperature, fuelsim::rz::ProblemAccess::region_node_offset(problem, 0) + fuel_surface_local)];
+    const double actual_center = result.state[dofs.dof(fuelsim::Field::temperature,
+        fuelsim::rz::ProblemAccess::region_node_offset(problem, 0) + fuel_center_local)];
+    const double actual_fuel_surface = result.state[dofs.dof(fuelsim::Field::temperature,
+        fuelsim::rz::ProblemAccess::region_node_offset(problem, 0) + fuel_surface_local)];
     const double actual_cladding_inner = result.state[dofs.dof(fuelsim::Field::temperature,
         fuelsim::rz::ProblemAccess::region_node_offset(problem, 1) + cladding_inner_local)];
     const double temperature_scale = expected_center - outer_temperature;
@@ -864,15 +940,17 @@ bool test_m1_open_gap_analytic_thermal() {
     const double heat_balance_error = metric_relative_error(interface.total_heat_rate, expected_heat_rate);
     bool passed = check(result.converged, "M1 open-gap thermal SNES converged");
     passed = check(center_error < 1.0e-3, "M1 analytic center temperature error is below 0.1%") && passed;
-    passed = check(fuel_surface_error < 1.0e-3, "M1 analytic fuel-surface temperature error is below "
-                                                "0.1%") &&
-             passed;
-    passed = check(cladding_inner_error < 1.0e-3, "M1 analytic cladding-inner temperature error is below "
-                                                  "0.1%") &&
-             passed;
+    passed = check(fuel_surface_error < 1.0e-3,
+                 "M1 analytic fuel-surface temperature error is below "
+                 "0.1%")
+             && passed;
+    passed = check(cladding_inner_error < 1.0e-3,
+                 "M1 analytic cladding-inner temperature error is below "
+                 "0.1%")
+             && passed;
     passed = check(interface.minimum_gap > 0.0 && interface.maximum_contact_pressure == 0.0,
-                 "M1 analytic thermal case remains out of contact") &&
-             passed;
+                 "M1 analytic thermal case remains out of contact")
+             && passed;
     passed = check(heat_balance_error < 1.0e-9, "M1 interface heat rate balances generated power") && passed;
     std::cout << "m1_analytic_center_temperature_scaled_error=" << center_error << '\n';
     std::cout << "m1_analytic_fuel_surface_scaled_error=" << fuel_surface_error << '\n';
@@ -887,12 +965,13 @@ int main(int argc, char** argv) {
         std::string selected_case = "all";
         if (argc >= 3 && std::string(argv[1]) == "--case") {
             selected_case = argv[2];
-            for (int index = 3; index < argc; ++index) argv[index - 2] = argv[index];
+            for (int index = 3; index < argc; ++index)
+                argv[index - 2] = argv[index];
             argc -= 2;
             argv[argc] = nullptr;
         }
-        if (selected_case != "all" && selected_case != "runtime-layout" &&
-            selected_case != "thermal-mesh-convergence") {
+        if (selected_case != "all" && selected_case != "runtime-layout"
+            && selected_case != "thermal-mesh-convergence") {
             std::cerr << "Usage: fuelsim_solver_tests "
                          "[--case runtime-layout|thermal-mesh-convergence] [PETSc options]\n";
             return 2;
@@ -903,13 +982,15 @@ int main(int argc, char** argv) {
         passed = test_runtime_contribution_layout() && passed;
         passed = test_changing_direct_coupling() && passed;
         if (selected_case == "runtime-layout") {
-            if (!passed) return 1;
+            if (!passed)
+                return 1;
             std::cout << "[PASS] fuelsim runtime-layout solver tests\n";
             return 0;
         }
         if (selected_case == "thermal-mesh-convergence") {
             passed = test_thermal_mesh_convergence() && passed;
-            if (!passed) return 1;
+            if (!passed)
+                return 1;
             std::cout << "[PASS] fuelsim thermal mesh-convergence study\n";
             return 0;
         }
@@ -918,7 +999,8 @@ int main(int argc, char** argv) {
         passed = test_free_thermal_expansion() && passed;
         passed = test_lame_open_ended_cylinder() && passed;
         passed = test_m1_open_gap_analytic_thermal() && passed;
-        if (!passed) return 1;
+        if (!passed)
+            return 1;
         std::cout << "[PASS] fuelsim M0 and M1 solver acceptance tests\n";
         return 0;
     } catch (const std::exception& error) {

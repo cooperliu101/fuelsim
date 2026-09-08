@@ -1,0 +1,15 @@
+[  0%] Building CXX object CMakeFiles/fuelsim_core.dir/src/core/cartesian3d_assembly.cpp.o
+[  0%] Linking CXX static library libfuelsim_core.a
+[ 69%] Built target fuelsim_core
+[ 76%] Built target fuelsim_solver
+[100%] Built target fuelsim_io
+[100%] Linking CXX executable fuelsim
+[100%] Built target fuelsim
+[100%] Built target fuelsim_core
+[100%] Linking CXX executable fuelsim_hex20_tests
+[100%] Built target fuelsim_hex20_tests
+[ 64%] Built target fuelsim_core
+[ 71%] Built target fuelsim_solver
+[ 92%] Built target fuelsim_io
+[100%] Linking CXX executable fuelsim_hex20_solver_tests
+[100%] Built target fuelsim_hex20_solver_tests

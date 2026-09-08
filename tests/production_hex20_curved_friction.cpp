@@ -27,7 +27,8 @@ struct ContactReference final {
 };
 
 bool check(bool condition, const std::string& message) {
-    if (condition) return true;
+    if (condition)
+        return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
@@ -36,12 +37,14 @@ std::vector<std::string> split_csv(const std::string& line) {
     std::vector<std::string> result;
     std::stringstream stream(line);
     std::string field;
-    while (std::getline(stream, field, ',')) result.push_back(field);
+    while (std::getline(stream, field, ','))
+        result.push_back(field);
     return result;
 }
 
 double number(const std::vector<std::string>& values, std::size_t column, const std::string& path) {
-    if (column >= values.size()) throw std::invalid_argument("H20.35 CSV row is too short: " + path);
+    if (column >= values.size())
+        throw std::invalid_argument("H20.35 CSV row is too short: " + path);
     std::size_t parsed = 0;
     const double result = std::stod(values[column], &parsed);
     if (parsed != values[column].size() || !std::isfinite(result))
@@ -51,46 +54,51 @@ double number(const std::vector<std::string>& values, std::size_t column, const 
 
 std::size_t index_value(const std::vector<std::string>& values, std::size_t column, const std::string& path) {
     const double result = number(values, column, path);
-    if (result < 0.0 || result > static_cast<double>(std::numeric_limits<std::size_t>::max()) ||
-        std::floor(result) != result)
+    if (result < 0.0 || result > static_cast<double>(std::numeric_limits<std::size_t>::max())
+        || std::floor(result) != result)
         throw std::invalid_argument("H20.35 CSV contains an invalid node index: " + path);
     return static_cast<std::size_t>(result);
 }
 
 std::vector<DisplacementReference> read_displacements(const std::string& path) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read H20.35 displacement reference: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read H20.35 displacement reference: " + path);
     std::string line;
     std::getline(input, line);
     if (line != "id,x,y,z,disp_x,disp_y,disp_z")
         throw std::invalid_argument("Unexpected H20.35 displacement header in " + path);
     std::vector<DisplacementReference> result;
     while (std::getline(input, line)) {
-        if (line.empty()) continue;
+        if (line.empty())
+            continue;
         const std::vector<std::string> values = split_csv(line);
-        result.push_back(
-            {index_value(values, 0, path), {number(values, 1, path), number(values, 2, path), number(values, 3, path)},
-                {number(values, 4, path), number(values, 5, path), number(values, 6, path)}});
+        result.push_back({index_value(values, 0, path),
+            {number(values, 1, path), number(values, 2, path), number(values, 3, path)},
+            {number(values, 4, path), number(values, 5, path), number(values, 6, path)}});
     }
     return result;
 }
 
 std::vector<ContactReference> read_contact(const std::string& path) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read H20.35 contact reference: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read H20.35 contact reference: " + path);
     std::string line;
     std::getline(input, line);
     if (line != "id,x,y,z,cnormf_x,cnormf_y,cnormf_z,cshearf_x,cshearf_y,cshearf_z,cslip1,cslip2")
         throw std::invalid_argument("Unexpected H20.35 contact header in " + path);
     std::vector<ContactReference> result;
     while (std::getline(input, line)) {
-        if (line.empty()) continue;
+        if (line.empty())
+            continue;
         const std::vector<std::string> values = split_csv(line);
-        result.push_back(
-            {index_value(values, 0, path), {number(values, 1, path), number(values, 2, path), number(values, 3, path)},
-                {number(values, 4, path), number(values, 5, path), number(values, 6, path)},
-                {number(values, 7, path), number(values, 8, path), number(values, 9, path)}, number(values, 10, path),
-                number(values, 11, path)});
+        result.push_back({index_value(values, 0, path),
+            {number(values, 1, path), number(values, 2, path), number(values, 3, path)},
+            {number(values, 4, path), number(values, 5, path), number(values, 6, path)},
+            {number(values, 7, path), number(values, 8, path), number(values, 9, path)},
+            number(values, 10, path),
+            number(values, 11, path)});
     }
     return result;
 }
@@ -111,12 +119,14 @@ struct ContactCounts final {
     std::size_t active_contact_nodes = 0, unprojected_contact_nodes = 0;
 };
 
-bool metric_passes(const std::string& name, const fuelsim::test::FieldErrorMetrics& metric, double relative_tolerance,
+bool metric_passes(const std::string& name,
+    const fuelsim::test::FieldErrorMetrics& metric,
+    double relative_tolerance,
     double zero_tolerance) {
     if (metric.has_relative_norm()) {
         fuelsim::test::print_relative_metrics(name, metric);
-        return check(fuelsim::test::relative_metrics_below(metric, relative_tolerance) &&
-                         metric.maximum_zero_reference_difference < zero_tolerance,
+        return check(fuelsim::test::relative_metrics_below(metric, relative_tolerance)
+                         && metric.maximum_zero_reference_difference < zero_tolerance,
             name + " passes all three relative metrics and its separate zero-reference check");
     }
     fuelsim::test::print_absolute_metrics(name, metric);
@@ -127,8 +137,9 @@ bool metric_passes(const std::string& name, const fuelsim::test::FieldErrorMetri
 } // namespace
 
 namespace fuelsim::test {
-bool check_hex20_curved_friction(
-    const std::string& output_path, const std::string& displacement_path, const std::string& contact_path) {
+bool check_hex20_curved_friction(const std::string& output_path,
+    const std::string& displacement_path,
+    const std::string& contact_path) {
     const auto output = read_final_exodus_results(output_path);
     const auto displacement = read_displacements(displacement_path);
     const auto contact = read_contact(contact_path);
@@ -138,7 +149,8 @@ bool check_hex20_curved_friction(
     double maximum_coordinate_error = 0.0;
     const std::array<std::string, 3> names = {"displacement_x", "displacement_y", "displacement_z"};
     for (const auto& row : displacement) {
-        if (row.id >= present.size() || present[row.id]) throw std::runtime_error("H20.35 invalid nodal mapping");
+        if (row.id >= present.size() || present[row.id])
+            throw std::runtime_error("H20.35 invalid nodal mapping");
         present[row.id] = true;
         maximum_coordinate_error =
             std::max(maximum_coordinate_error, coordinate_difference(output.nodes[row.id], row.point));
@@ -155,7 +167,8 @@ bool check_hex20_curved_friction(
     bool all_sticking = true, passed = true;
     const auto& projected = output.nodal("contact_projected_interface");
     for (std::size_t node = 0; node < projected.size(); ++node) {
-        if (std::isnan(projected[node])) continue;
+        if (std::isnan(projected[node]))
+            continue;
         source_nodes.push_back(node);
         ContactValues values;
         for (std::size_t component = 0; component < 3; ++component) {
@@ -165,11 +178,14 @@ bool check_hex20_curved_friction(
             values.tangential_slip[component] = output.nodal("contact_total_slip_" + suffix)[node];
         }
         summaries.push_back(values);
-        if (projected[node] != 1.0) ++interface.unprojected_contact_nodes;
-        if (output.nodal("contact_pressure_interface")[node] > 0.0) ++interface.active_contact_nodes;
+        if (projected[node] != 1.0)
+            ++interface.unprojected_contact_nodes;
+        if (output.nodal("contact_pressure_interface")[node] > 0.0)
+            ++interface.active_contact_nodes;
         all_sticking = all_sticking && output.nodal("contact_sliding_interface")[node] == 0.0;
     }
-    if (summaries.size() != contact.size()) throw std::runtime_error("H20.35 contact node counts differ");
+    if (summaries.size() != contact.size())
+        throw std::runtime_error("H20.35 contact node counts differ");
     std::vector<bool> contact_seen(output.nodes.size(), false);
     for (const auto& row : contact) {
         if (row.id >= contact_seen.size() || contact_seen[row.id])
@@ -181,19 +197,24 @@ bool check_hex20_curved_friction(
     double actual_circumferential_resultant = 0.0, reference_circumferential_resultant = 0.0;
     double actual_axial_resultant = 0.0, reference_axial_resultant = 0.0;
     for (std::size_t node = 0; node < summaries.size(); ++node) {
-        const auto reference = std::find_if(contact.begin(), contact.end(),
-            [&](const ContactReference& value) { return value.id == source_nodes[node]; });
-        if (reference == contact.end()) throw std::invalid_argument("H20.35 contact-node mapping is incomplete");
-        maximum_coordinate_error = std::max(
-            maximum_coordinate_error, coordinate_difference(output.nodes[source_nodes[node]], reference->point));
+        const auto reference = std::find_if(contact.begin(), contact.end(), [&](const ContactReference& value) {
+            return value.id == source_nodes[node];
+        });
+        if (reference == contact.end())
+            throw std::invalid_argument("H20.35 contact-node mapping is incomplete");
+        maximum_coordinate_error = std::max(maximum_coordinate_error,
+            coordinate_difference(output.nodes[source_nodes[node]], reference->point));
         const double radius = std::hypot(reference->point[0], reference->point[1]);
         const std::array<double, 3> radial = {reference->point[0] / radius, reference->point[1] / radius, 0.0};
-        const std::array<double, 3> circumferential = {
-            -reference->point[1] / radius, reference->point[0] / radius, 0.0};
+        const std::array<double, 3> circumferential = {-reference->point[1] / radius,
+            reference->point[0] / radius,
+            0.0};
         const std::array<double, 3> actual_normal = {-summaries[node].normal_contact_force[0],
-            -summaries[node].normal_contact_force[1], -summaries[node].normal_contact_force[2]};
+            -summaries[node].normal_contact_force[1],
+            -summaries[node].normal_contact_force[2]};
         const std::array<double, 3> actual_tangent = {-summaries[node].tangential_contact_force[0],
-            -summaries[node].tangential_contact_force[1], -summaries[node].tangential_contact_force[2]};
+            -summaries[node].tangential_contact_force[1],
+            -summaries[node].tangential_contact_force[2]};
         const double actual_normal_value = dot(actual_normal, radial);
         const double reference_normal_value = dot(reference->normal_force, radial);
         const double actual_circumferential = dot(actual_tangent, circumferential);
@@ -216,47 +237,49 @@ bool check_hex20_curved_friction(
     constexpr double relative_tolerance = 1.0e-2;
     constexpr double zero_tolerance = 1.0e-10;
     for (std::size_t component = 0; component < 3; ++component)
-        fuelsim::test::print_relative_metrics(
-            "h20_35_displacement_" + std::string(1, "xyz"[component]), displacement_error[component]);
+        fuelsim::test::print_relative_metrics("h20_35_displacement_" + std::string(1, "xyz"[component]),
+            displacement_error[component]);
     fuelsim::test::print_grouped_relative_metrics("h20_35_displacement_vector", displacement_vector_error);
-    passed = check(fuelsim::test::grouped_relative_metrics_below(displacement_vector_error, relative_tolerance) &&
-                       displacement_vector_error.maximum_zero_reference_difference < zero_tolerance,
+    passed = check(fuelsim::test::grouped_relative_metrics_below(displacement_vector_error, relative_tolerance)
+                       && displacement_vector_error.maximum_zero_reference_difference < zero_tolerance,
                  "H20.35 complete displacement-vector metrics and its separate zero-reference check are below 1 "
-                 "percent") &&
-             passed;
+                 "percent")
+             && passed;
     passed =
         metric_passes("h20_35_signed_normal_radial_force", normal_force, relative_tolerance, zero_tolerance) && passed;
-    passed = metric_passes("h20_35_signed_tangential_circumferential_force", circumferential_force, relative_tolerance,
-                 zero_tolerance) &&
-             passed;
-    passed = metric_passes("h20_35_signed_tangential_axial_force", axial_force, relative_tolerance, zero_tolerance) &&
-             passed;
+    passed = metric_passes("h20_35_signed_tangential_circumferential_force",
+                 circumferential_force,
+                 relative_tolerance,
+                 zero_tolerance)
+             && passed;
+    passed = metric_passes("h20_35_signed_tangential_axial_force", axial_force, relative_tolerance, zero_tolerance)
+             && passed;
     passed = metric_passes("h20_35_tangential_slip_1", slip_1, relative_tolerance, zero_tolerance) && passed;
     passed = metric_passes("h20_35_tangential_slip_2", slip_2, relative_tolerance, zero_tolerance) && passed;
     const double normal_resultant_error =
         std::abs(actual_normal_resultant - reference_normal_resultant) / std::abs(reference_normal_resultant);
     const double circumferential_resultant_error =
-        std::abs(actual_circumferential_resultant - reference_circumferential_resultant) /
-        std::abs(reference_circumferential_resultant);
+        std::abs(actual_circumferential_resultant - reference_circumferential_resultant)
+        / std::abs(reference_circumferential_resultant);
     const double axial_resultant_error =
         std::abs(actual_axial_resultant - reference_axial_resultant) / std::abs(reference_axial_resultant);
     std::cout << "h20_35_normal_resultant_relative_error=" << normal_resultant_error << '\n'
               << "h20_35_circumferential_resultant_relative_error=" << circumferential_resultant_error << '\n'
               << "h20_35_axial_resultant_relative_error=" << axial_resultant_error << '\n'
               << '\n';
-    return check(displacement.size() == output.nodes.size() &&
-                     std::all_of(present.begin(), present.end(), [](bool value) { return value; }),
-               "H20.35 compares every tracked Exodus mesh node") &&
-           check(maximum_coordinate_error < 1.0e-12, "H20.35 references preserve the tracked Exodus coordinates") &&
-           check(interface.active_contact_nodes == summaries.size() && interface.unprojected_contact_nodes == 0,
-               "H20.35 keeps all 37 quadratic-surface contact nodes active and projected") &&
-           check(summaries.size() == 37 && all_sticking,
-               "H20.35 keeps every constraint in the two-direction sticking branch") &&
-           check(std::abs(reference_circumferential_resultant) > 1.0 && std::abs(reference_axial_resultant) > 1.0,
-               "H20.35 activates nonzero circumferential and axial tangential resultants") &&
-           check(normal_resultant_error < relative_tolerance && circumferential_resultant_error < relative_tolerance &&
-                     axial_resultant_error < relative_tolerance,
-               "H20.35 signed normal and both tangential resultants agree with Abaqus below 1 percent") &&
-           passed;
+    return check(displacement.size() == output.nodes.size()
+                     && std::all_of(present.begin(), present.end(), [](bool value) { return value; }),
+               "H20.35 compares every tracked Exodus mesh node")
+           && check(maximum_coordinate_error < 1.0e-12, "H20.35 references preserve the tracked Exodus coordinates")
+           && check(interface.active_contact_nodes == summaries.size() && interface.unprojected_contact_nodes == 0,
+               "H20.35 keeps all 37 quadratic-surface contact nodes active and projected")
+           && check(summaries.size() == 37 && all_sticking,
+               "H20.35 keeps every constraint in the two-direction sticking branch")
+           && check(std::abs(reference_circumferential_resultant) > 1.0 && std::abs(reference_axial_resultant) > 1.0,
+               "H20.35 activates nonzero circumferential and axial tangential resultants")
+           && check(normal_resultant_error < relative_tolerance && circumferential_resultant_error < relative_tolerance
+                        && axial_resultant_error < relative_tolerance,
+               "H20.35 signed normal and both tangential resultants agree with Abaqus below 1 percent")
+           && passed;
 }
 } // namespace fuelsim::test

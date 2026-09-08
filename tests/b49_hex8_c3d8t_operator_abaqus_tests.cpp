@@ -30,7 +30,8 @@ struct IntegrationPointReference final {
 };
 
 bool check(bool condition, const std::string& message) {
-    if (condition) return true;
+    if (condition)
+        return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
@@ -39,18 +40,21 @@ std::vector<std::string> split_csv(const std::string& line) {
     std::vector<std::string> result;
     std::istringstream stream(line);
     std::string value;
-    while (std::getline(stream, value, ',')) result.push_back(value);
+    while (std::getline(stream, value, ','))
+        result.push_back(value);
     return result;
 }
 
 double number(const std::vector<std::string>& values, std::size_t column, const std::string& path) {
-    if (column >= values.size()) throw std::invalid_argument("Incomplete Abaqus C3D8T row in " + path);
+    if (column >= values.size())
+        throw std::invalid_argument("Incomplete Abaqus C3D8T row in " + path);
     return std::stod(values[column]);
 }
 
 std::map<std::string, NodalStep> read_nodal_steps(const std::string& path) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read Abaqus C3D8T nodal reference: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read Abaqus C3D8T nodal reference: " + path);
     std::string line;
     std::getline(input, line);
     if (line != "step,node,temperature_k,ux_m,uy_m,uz_m,rfl_w,rf_x_n,rf_y_n,rf_z_n")
@@ -58,11 +62,14 @@ std::map<std::string, NodalStep> read_nodal_steps(const std::string& path) {
     std::map<std::string, NodalStep> result;
     while (std::getline(input, line)) {
         const std::vector<std::string> values = split_csv(line);
-        if (values.size() != 10) throw std::invalid_argument("Unexpected Abaqus C3D8T nodal column count in " + path);
+        if (values.size() != 10)
+            throw std::invalid_argument("Unexpected Abaqus C3D8T nodal column count in " + path);
         const std::size_t node = static_cast<std::size_t>(number(values, 1, path));
-        if (node < 1 || node > 8) throw std::invalid_argument("Abaqus C3D8T node label lies outside 1 through 8");
+        if (node < 1 || node > 8)
+            throw std::invalid_argument("Abaqus C3D8T node label lies outside 1 through 8");
         NodalStep& step = result[values[0]];
-        if (step.present[node - 1]) throw std::invalid_argument("Duplicate Abaqus C3D8T nodal row");
+        if (step.present[node - 1])
+            throw std::invalid_argument("Duplicate Abaqus C3D8T nodal row");
         step.present[node - 1] = true;
         step.state[node - 1] = number(values, 2, path);
         step.state[8 + node - 1] = number(values, 3, path);
@@ -73,7 +80,8 @@ std::map<std::string, NodalStep> read_nodal_steps(const std::string& path) {
         step.reaction[16 + node - 1] = number(values, 8, path);
         step.reaction[24 + node - 1] = number(values, 9, path);
     }
-    if (result.size() != 65) throw std::invalid_argument("Abaqus C3D8T nodal reference must contain 65 steps");
+    if (result.size() != 65)
+        throw std::invalid_argument("Abaqus C3D8T nodal reference must contain 65 steps");
     for (const auto& entry : result)
         if (std::find(entry.second.present.begin(), entry.second.present.end(), false) != entry.second.present.end())
             throw std::invalid_argument("Abaqus C3D8T step does not contain all eight nodes");
@@ -82,11 +90,13 @@ std::map<std::string, NodalStep> read_nodal_steps(const std::string& path) {
 
 std::vector<IntegrationPointReference> read_integration_points(const std::string& path) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read Abaqus C3D8T integration-point reference: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read Abaqus C3D8T integration-point reference: " + path);
     std::string line;
     std::getline(input, line);
-    if (line != "element,integration_point,x_m,y_m,z_m,temperature_k,hfl_x_w_m2,hfl_y_w_m2,hfl_z_w_m2,"
-                "e11,e22,e33,e12,e13,e23,s11_pa,s22_pa,s33_pa,s12_pa,s13_pa,s23_pa")
+    if (line
+        != "element,integration_point,x_m,y_m,z_m,temperature_k,hfl_x_w_m2,hfl_y_w_m2,hfl_z_w_m2,"
+           "e11,e22,e33,e12,e13,e23,s11_pa,s22_pa,s33_pa,s12_pa,s13_pa,s23_pa")
         throw std::invalid_argument("Unexpected Abaqus C3D8T integration-point header in " + path);
     std::vector<IntegrationPointReference> result;
     while (std::getline(input, line)) {
@@ -96,31 +106,59 @@ std::vector<IntegrationPointReference> read_integration_points(const std::string
         if (static_cast<std::size_t>(number(values, 0, path)) != 1)
             throw std::invalid_argument("Abaqus C3D8T reference contains an unexpected element label");
         result.push_back({{number(values, 2, path), number(values, 3, path), number(values, 4, path)},
-            number(values, 5, path), {number(values, 6, path), number(values, 7, path), number(values, 8, path)},
-            {number(values, 9, path), number(values, 10, path), number(values, 11, path),
-                0.5 * number(values, 12, path), 0.5 * number(values, 14, path), 0.5 * number(values, 13, path)},
-            {number(values, 15, path), number(values, 16, path), number(values, 17, path), number(values, 18, path),
-                number(values, 20, path), number(values, 19, path)}});
+            number(values, 5, path),
+            {number(values, 6, path), number(values, 7, path), number(values, 8, path)},
+            {number(values, 9, path),
+                number(values, 10, path),
+                number(values, 11, path),
+                0.5 * number(values, 12, path),
+                0.5 * number(values, 14, path),
+                0.5 * number(values, 13, path)},
+            {number(values, 15, path),
+                number(values, 16, path),
+                number(values, 17, path),
+                number(values, 18, path),
+                number(values, 20, path),
+                number(values, 19, path)}});
     }
-    if (result.size() != 8) throw std::invalid_argument("Abaqus C3D8T reference must contain eight integration points");
+    if (result.size() != 8)
+        throw std::invalid_argument("Abaqus C3D8T reference must contain eight integration points");
     return result;
 }
 
 fuelsim::Hex8Coordinates unit_cube() {
-    return {{{0.0, 0.0, 0.0}, {1.0, 0.0, 0.0}, {1.0, 1.0, 0.0}, {0.0, 1.0, 0.0}, {0.0, 0.0, 1.0}, {1.0, 0.0, 1.0},
-        {1.0, 1.0, 1.0}, {0.0, 1.0, 1.0}}};
+    return {{{0.0, 0.0, 0.0},
+        {1.0, 0.0, 0.0},
+        {1.0, 1.0, 0.0},
+        {0.0, 1.0, 0.0},
+        {0.0, 0.0, 1.0},
+        {1.0, 0.0, 1.0},
+        {1.0, 1.0, 1.0},
+        {0.0, 1.0, 1.0}}};
 }
 
 fuelsim::ThermoelasticProperties properties(bool temperature_dependent) {
-    fuelsim::ThermoelasticProperties result =
-        fuelsim::test::thermoelastic(0.0, 4.0, 2.0e11, 0.25, 1.2e-5, 300.0, temperature_dependent ? -1.0e8 : 0.0,
-            temperature_dependent ? 1.0e-4 : 0.0, temperature_dependent ? 2.0e-8 : 0.0, 2000.0, 3000.0);
+    fuelsim::ThermoelasticProperties result = fuelsim::test::thermoelastic(0.0,
+        4.0,
+        2.0e11,
+        0.25,
+        1.2e-5,
+        300.0,
+        temperature_dependent ? -1.0e8 : 0.0,
+        temperature_dependent ? 1.0e-4 : 0.0,
+        temperature_dependent ? 2.0e-8 : 0.0,
+        2000.0,
+        3000.0);
     if (temperature_dependent) {
         fuelsim::MaterialFunctionRegistry registry = fuelsim::make_builtin_material_function_registry();
         auto functions = std::make_shared<fuelsim::MaterialFunctionSet>(*result.functions);
         functions->thermal = registry.bind_thermal("linear_temperature_thermophysical",
-            {{"conductivity", 4.0}, {"density", 2000.0}, {"specific_heat", 3000.0}, {"reference_temperature", 300.0},
-                {"conductivity_temperature_coefficient", 0.01}, {"density_temperature_coefficient", 0.0},
+            {{"conductivity", 4.0},
+                {"density", 2000.0},
+                {"specific_heat", 3000.0},
+                {"reference_temperature", 300.0},
+                {"conductivity_temperature_coefficient", 0.01},
+                {"density_temperature_coefficient", 0.0},
                 {"specific_heat_temperature_coefficient", 0.0}});
         result.functions = std::move(functions);
     }
@@ -131,8 +169,9 @@ double relative_difference(double numerator_squared, double denominator_squared)
     return std::sqrt(numerator_squared / denominator_squared);
 }
 
-double relative_vector_error(
-    const fuelsim::Hex8LocalResidual& actual, const fuelsim::Hex8LocalResidual& expected, std::size_t begin) {
+double relative_vector_error(const fuelsim::Hex8LocalResidual& actual,
+    const fuelsim::Hex8LocalResidual& expected,
+    std::size_t begin) {
     double difference_squared = 0.0, expected_squared = 0.0;
     for (std::size_t row = begin; row < local_size; ++row) {
         difference_squared += (actual[row] - expected[row]) * (actual[row] - expected[row]);
@@ -141,8 +180,12 @@ double relative_vector_error(
     return relative_difference(difference_squared, expected_squared);
 }
 
-double block_error(const fuelsim::Hex8LocalJacobian& actual, const fuelsim::Hex8LocalJacobian& expected,
-    std::size_t row_begin, std::size_t row_end, std::size_t column_begin, std::size_t column_end) {
+double block_error(const fuelsim::Hex8LocalJacobian& actual,
+    const fuelsim::Hex8LocalJacobian& expected,
+    std::size_t row_begin,
+    std::size_t row_end,
+    std::size_t column_begin,
+    std::size_t column_end) {
     double difference_squared = 0.0, expected_squared = 0.0;
     for (std::size_t row = row_begin; row < row_end; ++row)
         for (std::size_t column = column_begin; column < column_end; ++column) {
@@ -154,30 +197,38 @@ double block_error(const fuelsim::Hex8LocalJacobian& actual, const fuelsim::Hex8
 }
 
 fuelsim::Hex8LocalResidual abaqus_c3d8t_residual(const fuelsim::Hex8Geometry& geometry,
-    const fuelsim::Hex8LocalValues& state, const fuelsim::IsotropicThermoelasticMaterial& material) {
+    const fuelsim::Hex8LocalValues& state,
+    const fuelsim::IsotropicThermoelasticMaterial& material) {
     const fuelsim::CartesianThermoelasticData data{material, 0.0, 0.0};
     fuelsim::Hex8LocalResidual result = fuelsim::compute_hex8_thermoelastic(data, geometry, state);
-    for (std::size_t row = 8; row < local_size; ++row) result[row] = 0.0;
+    for (std::size_t row = 8; row < local_size; ++row)
+        result[row] = 0.0;
     fuelsim::Hex8LocalAdValues passive{};
-    for (std::size_t dof = 0; dof < local_size; ++dof) passive[dof] = state[dof];
+    for (std::size_t dof = 0; dof < local_size; ++dof)
+        passive[dof] = state[dof];
     double volume = 0.0, average_trace = 0.0, average_temperature = 0.0;
-    for (std::size_t node = 0; node < 8; ++node) average_temperature += state[node] / 8.0;
+    for (std::size_t node = 0; node < 8; ++node)
+        average_temperature += state[node] / 8.0;
     std::array<fuelsim::SymmetricTensor3Values, 8> point_stresses{};
     double element_pressure = 0.0;
     for (std::size_t q = 0; q < geometry.points.size(); ++q) {
         const fuelsim::Hex8QuadraturePoint& point = geometry.points[q];
-        const fuelsim::CartesianKinematics kinematics = fuelsim::evaluate_cartesian_incremental_kinematics(
-            point, passive, fuelsim::Hex8LocalValues{}, fuelsim::StrainFormulation::small);
+        const fuelsim::CartesianKinematics kinematics = fuelsim::evaluate_cartesian_incremental_kinematics(point,
+            passive,
+            fuelsim::Hex8LocalValues{},
+            fuelsim::StrainFormulation::small);
         volume += point.weighted_measure;
-        average_trace +=
-            point.weighted_measure * (kinematics.strain_increment.xx.value() + kinematics.strain_increment.yy.value() +
-                                         kinematics.strain_increment.zz.value());
+        average_trace += point.weighted_measure
+                         * (kinematics.strain_increment.xx.value() + kinematics.strain_increment.yy.value()
+                             + kinematics.strain_increment.zz.value());
     }
     average_trace /= volume;
     for (std::size_t q = 0; q < geometry.points.size(); ++q) {
         const fuelsim::Hex8QuadraturePoint& point = geometry.points[q];
-        const fuelsim::CartesianKinematics kinematics = fuelsim::evaluate_cartesian_incremental_kinematics(
-            point, passive, fuelsim::Hex8LocalValues{}, fuelsim::StrainFormulation::small);
+        const fuelsim::CartesianKinematics kinematics = fuelsim::evaluate_cartesian_incremental_kinematics(point,
+            passive,
+            fuelsim::Hex8LocalValues{},
+            fuelsim::StrainFormulation::small);
         fuelsim::SymmetricTensor3 selective_strain = kinematics.strain_increment;
         const adlite::Scalar correction =
             (average_trace - selective_strain.xx - selective_strain.yy - selective_strain.zz) / 3.0;
@@ -194,8 +245,12 @@ fuelsim::Hex8LocalResidual abaqus_c3d8t_residual(const fuelsim::Hex8Geometry& ge
             selective_strain.yz + point_imposed.yz - average_imposed.yz,
             selective_strain.xz + point_imposed.xz - average_imposed.xz};
         const fuelsim::SymmetricTensor3 stress = material.stress(adjusted_strain, point_temperature);
-        point_stresses[q] = {stress.xx.value(), stress.yy.value(), stress.zz.value(), stress.xy.value(),
-            stress.yz.value(), stress.xz.value()};
+        point_stresses[q] = {stress.xx.value(),
+            stress.yy.value(),
+            stress.zz.value(),
+            stress.xy.value(),
+            stress.yz.value(),
+            stress.xz.value()};
         element_pressure +=
             point.weighted_measure / volume * (stress.xx.value() + stress.yy.value() + stress.zz.value()) / 3.0;
     }
@@ -235,8 +290,8 @@ bool compare_operator(const std::map<std::string, NodalStep>& steps, bool temper
         for (std::size_t dof = 0; dof < local_size; ++dof) {
             const double expected_plus = base.state[dof] + (dof == column ? perturbation : 0.0);
             const double expected_minus = base.state[dof] - (dof == column ? perturbation : 0.0);
-            if (std::abs(plus.state[dof] - expected_plus) > 1.0e-12 ||
-                std::abs(minus.state[dof] - expected_minus) > 1.0e-12)
+            if (std::abs(plus.state[dof] - expected_plus) > 1.0e-12
+                || std::abs(minus.state[dof] - expected_minus) > 1.0e-12)
                 throw std::invalid_argument("Abaqus C3D8T perturbation state does not match the declared probe");
         }
         for (std::size_t row = 0; row < local_size; ++row)
@@ -263,9 +318,9 @@ bool compare_operator(const std::map<std::string, NodalStep>& steps, bool temper
     double maximum_thermal_displacement = 0.0;
     for (std::size_t row = 0; row < 8; ++row)
         for (std::size_t column = 8; column < 32; ++column)
-            maximum_thermal_displacement =
-                std::max(maximum_thermal_displacement, std::max(std::abs(fuelsim_jacobian[row * local_size + column]),
-                                                           std::abs(abaqus_jacobian[row * local_size + column])));
+            maximum_thermal_displacement = std::max(maximum_thermal_displacement,
+                std::max(std::abs(fuelsim_jacobian[row * local_size + column]),
+                    std::abs(abaqus_jacobian[row * local_size + column])));
     double coupling_column_difference = 0.0, coupling_scale = 0.0, coupling_sum_difference = 0.0,
            coupling_sum_scale = 0.0;
     for (std::size_t row = 8; row < 32; ++row) {
@@ -305,51 +360,60 @@ bool compare_operator(const std::map<std::string, NodalStep>& steps, bool temper
     std::cout << "b49_production_mechanical_residual_relative_error=" << production_mechanical_residual_error << '\n';
     std::cout << "b49_c3d8t_compatible_mechanical_residual_relative_error=" << compatible_mechanical_error << '\n';
     (void)thermal_residual_error;
-    bool passed = check(thermal_error < 1.0e-9, "C3D8T and fuelsim thermal-conduction tangent blocks agree") &&
-                  check(compatible_error < 1.0e-8,
-                      "the identified selective-integration C3D8T operator matches the Abaqus tangent") &&
-                  check(maximum_thermal_displacement < 1.0e-8,
-                      "C3D8T and fuelsim thermal residuals have zero displacement derivative") &&
-                  check(temperature_dependent || coupling_column_difference / coupling_scale < 1.0e-9,
-                      "constant-property Abaqus first-order coupled element uses one constant expansion temperature") &&
-                  check(coupling_sum_difference / coupling_sum_scale < 1.0e-9,
-                      "uniform temperature perturbations give the same mechanical coupling") &&
-                  check(isolated_thermal_residual_error < 1.0e-12, "C3D8T and fuelsim base thermal residuals agree") &&
-                  check(compatible_mechanical_error < 1.0e-12,
-                      "C3D8T reactions match selective mechanical integration and constant expansion temperature") &&
-                  check(coupling_error < 1.0e-8,
-                      "fuelsim and C3D8T temperature-to-mechanics tangent blocks use the same element temperature") &&
-                  check(mechanical_error < 1.0e-8 && production_mechanical_residual_error < 1.0e-12,
-                      "the production selective mechanical operator matches C3D8T") &&
-                  true;
+    bool passed = check(thermal_error < 1.0e-9, "C3D8T and fuelsim thermal-conduction tangent blocks agree")
+                  && check(compatible_error < 1.0e-8,
+                      "the identified selective-integration C3D8T operator matches the Abaqus tangent")
+                  && check(maximum_thermal_displacement < 1.0e-8,
+                      "C3D8T and fuelsim thermal residuals have zero displacement derivative")
+                  && check(temperature_dependent || coupling_column_difference / coupling_scale < 1.0e-9,
+                      "constant-property Abaqus first-order coupled element uses one constant expansion temperature")
+                  && check(coupling_sum_difference / coupling_sum_scale < 1.0e-9,
+                      "uniform temperature perturbations give the same mechanical coupling")
+                  && check(isolated_thermal_residual_error < 1.0e-12, "C3D8T and fuelsim base thermal residuals agree")
+                  && check(compatible_mechanical_error < 1.0e-12,
+                      "C3D8T reactions match selective mechanical integration and constant expansion temperature")
+                  && check(coupling_error < 1.0e-8,
+                      "fuelsim and C3D8T temperature-to-mechanics tangent blocks use the same element temperature")
+                  && check(mechanical_error < 1.0e-8 && production_mechanical_residual_error < 1.0e-12,
+                      "the production selective mechanical operator matches C3D8T")
+                  && true;
     return passed;
 }
 
-double tensor_maximum_difference(
-    const fuelsim::SymmetricTensor3Values& first, const fuelsim::SymmetricTensor3Values& second) {
-    return std::max({std::abs(first.xx - second.xx), std::abs(first.yy - second.yy), std::abs(first.zz - second.zz),
-        std::abs(first.xy - second.xy), std::abs(first.yz - second.yz), std::abs(first.xz - second.xz)});
+double tensor_maximum_difference(const fuelsim::SymmetricTensor3Values& first,
+    const fuelsim::SymmetricTensor3Values& second) {
+    return std::max({std::abs(first.xx - second.xx),
+        std::abs(first.yy - second.yy),
+        std::abs(first.zz - second.zz),
+        std::abs(first.xy - second.xy),
+        std::abs(first.yz - second.yz),
+        std::abs(first.xz - second.xz)});
 }
 
-bool compare_integration_points(
-    const NodalStep& base, const std::vector<IntegrationPointReference>& references, bool temperature_dependent) {
+bool compare_integration_points(const NodalStep& base,
+    const std::vector<IntegrationPointReference>& references,
+    bool temperature_dependent) {
     const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(unit_cube());
     const fuelsim::IsotropicThermoelasticMaterial material(properties(temperature_dependent));
     const fuelsim::CartesianThermoelasticData data{material, 0.0, 0.0};
     const std::array<fuelsim::SymmetricTensor3Values, 8> production_stresses =
         fuelsim::compute_hex8_stress(data, geometry, base.state);
     fuelsim::Hex8LocalAdValues passive{};
-    for (std::size_t dof = 0; dof < local_size; ++dof) passive[dof] = base.state[dof];
+    for (std::size_t dof = 0; dof < local_size; ++dof)
+        passive[dof] = base.state[dof];
     double average_temperature = 0.0;
-    for (std::size_t node = 0; node < 8; ++node) average_temperature += base.state[node] / 8.0;
+    for (std::size_t node = 0; node < 8; ++node)
+        average_temperature += base.state[node] / 8.0;
     double volume = 0.0, average_trace = 0.0;
     for (const fuelsim::Hex8QuadraturePoint& point : geometry.points) {
-        const fuelsim::CartesianKinematics kinematics = fuelsim::evaluate_cartesian_incremental_kinematics(
-            point, passive, fuelsim::Hex8LocalValues{}, fuelsim::StrainFormulation::small);
+        const fuelsim::CartesianKinematics kinematics = fuelsim::evaluate_cartesian_incremental_kinematics(point,
+            passive,
+            fuelsim::Hex8LocalValues{},
+            fuelsim::StrainFormulation::small);
         volume += point.weighted_measure;
-        average_trace +=
-            point.weighted_measure * (kinematics.strain_increment.xx.value() + kinematics.strain_increment.yy.value() +
-                                         kinematics.strain_increment.zz.value());
+        average_trace += point.weighted_measure
+                         * (kinematics.strain_increment.xx.value() + kinematics.strain_increment.yy.value()
+                             + kinematics.strain_increment.zz.value());
     }
     average_trace /= volume;
     double maximum_coordinate_difference = 0.0, maximum_strain_difference = 0.0, maximum_heat_flux_difference = 0.0,
@@ -360,28 +424,34 @@ bool compare_integration_points(
         double closest_squared = std::numeric_limits<double>::max();
         for (std::size_t q = 0; q < geometry.points.size(); ++q) {
             const fuelsim::CartesianPoint3& point = geometry.points[q].position;
-            const double distance_squared = (point.x - reference.point.x) * (point.x - reference.point.x) +
-                                            (point.y - reference.point.y) * (point.y - reference.point.y) +
-                                            (point.z - reference.point.z) * (point.z - reference.point.z);
+            const double distance_squared = (point.x - reference.point.x) * (point.x - reference.point.x)
+                                            + (point.y - reference.point.y) * (point.y - reference.point.y)
+                                            + (point.z - reference.point.z) * (point.z - reference.point.z);
             if (distance_squared < closest_squared) {
                 closest = q;
                 closest_squared = distance_squared;
             }
         }
-        if (used[closest]) throw std::invalid_argument("Abaqus integration-point coordinate mapping is not unique");
+        if (used[closest])
+            throw std::invalid_argument("Abaqus integration-point coordinate mapping is not unique");
         used[closest] = true;
         maximum_coordinate_difference = std::max(maximum_coordinate_difference, std::sqrt(closest_squared));
         const fuelsim::Hex8QuadraturePoint& point = geometry.points[closest];
-        const fuelsim::CartesianKinematics kinematics = fuelsim::evaluate_cartesian_incremental_kinematics(
-            point, passive, fuelsim::Hex8LocalValues{}, fuelsim::StrainFormulation::small);
+        const fuelsim::CartesianKinematics kinematics = fuelsim::evaluate_cartesian_incremental_kinematics(point,
+            passive,
+            fuelsim::Hex8LocalValues{},
+            fuelsim::StrainFormulation::small);
         fuelsim::SymmetricTensor3 selective_strain = kinematics.strain_increment;
         const adlite::Scalar correction =
             (average_trace - selective_strain.xx - selective_strain.yy - selective_strain.zz) / 3.0;
         selective_strain.xx += correction;
         selective_strain.yy += correction;
         selective_strain.zz += correction;
-        const fuelsim::SymmetricTensor3Values strain = {selective_strain.xx.value(), selective_strain.yy.value(),
-            selective_strain.zz.value(), selective_strain.xy.value(), selective_strain.yz.value(),
+        const fuelsim::SymmetricTensor3Values strain = {selective_strain.xx.value(),
+            selective_strain.yy.value(),
+            selective_strain.zz.value(),
+            selective_strain.xy.value(),
+            selective_strain.yz.value(),
             selective_strain.xz.value()};
         maximum_strain_difference =
             std::max(maximum_strain_difference, tensor_maximum_difference(strain, reference.strain));
@@ -404,8 +474,10 @@ bool compare_integration_points(
             selective_strain.xz + point_imposed.xz - average_imposed.xz};
         const fuelsim::SymmetricTensor3 abaqus_temperature_stress = material.stress(adjusted_strain, point_temperature);
         const fuelsim::SymmetricTensor3Values abaqus_temperature_values = {abaqus_temperature_stress.xx.value(),
-            abaqus_temperature_stress.yy.value(), abaqus_temperature_stress.zz.value(),
-            abaqus_temperature_stress.xy.value(), abaqus_temperature_stress.yz.value(),
+            abaqus_temperature_stress.yy.value(),
+            abaqus_temperature_stress.zz.value(),
+            abaqus_temperature_stress.xy.value(),
+            abaqus_temperature_stress.yz.value(),
             abaqus_temperature_stress.xz.value()};
         maximum_constant_temperature_stress_difference = std::max(maximum_constant_temperature_stress_difference,
             tensor_maximum_difference(abaqus_temperature_values, reference.stress));
@@ -419,15 +491,15 @@ bool compare_integration_points(
     std::cout << "b49_constant_temperature_stress_maximum_difference=" << maximum_constant_temperature_stress_difference
               << '\n';
     std::cout << "b49_production_stress_maximum_difference=" << maximum_production_stress_difference << '\n';
-    return check(maximum_coordinate_difference < 1.0e-12, "C3D8T and fuelsim integration-point coordinates agree") &&
-           check(
-               maximum_strain_difference < 1.0e-15, "C3D8T and fuelsim non-affine strains agree at all eight points") &&
-           check(maximum_heat_flux_difference < 1.0e-10, "C3D8T and fuelsim heat fluxes agree at all eight points") &&
-           check(maximum_constant_temperature_stress_difference < 1.0e-3,
-               "C3D8T stresses use the element-average expansion temperature") &&
-           check(maximum_production_stress_difference < 1.0e-3,
-               "fuelsim production selective-integration stresses match C3D8T") &&
-           true;
+    return check(maximum_coordinate_difference < 1.0e-12, "C3D8T and fuelsim integration-point coordinates agree")
+           && check(maximum_strain_difference < 1.0e-15,
+               "C3D8T and fuelsim non-affine strains agree at all eight points")
+           && check(maximum_heat_flux_difference < 1.0e-10, "C3D8T and fuelsim heat fluxes agree at all eight points")
+           && check(maximum_constant_temperature_stress_difference < 1.0e-3,
+               "C3D8T stresses use the element-average expansion temperature")
+           && check(maximum_production_stress_difference < 1.0e-3,
+               "fuelsim production selective-integration stresses match C3D8T")
+           && true;
 }
 } // namespace
 
@@ -440,12 +512,14 @@ int main(int argc, char** argv) {
     try {
         std::cout << std::scientific;
         const bool temperature_dependent = argc == 4 && std::string(argv[3]) == "temperature_dependent";
-        if (argc == 4 && !temperature_dependent) throw std::invalid_argument("Unknown C3D8T operator material mode");
+        if (argc == 4 && !temperature_dependent)
+            throw std::invalid_argument("Unknown C3D8T operator material mode");
         const std::map<std::string, NodalStep> steps = read_nodal_steps(argv[1]);
         const std::vector<IntegrationPointReference> points = read_integration_points(argv[2]);
         bool passed = compare_operator(steps, temperature_dependent);
         passed = compare_integration_points(steps.at("BASE"), points, temperature_dependent) && passed;
-        if (!passed) return 1;
+        if (!passed)
+            return 1;
         std::cout << "[PASS] Abaqus C3D8T operator identification\n";
         return 0;
     } catch (const std::exception& error) {

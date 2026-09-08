@@ -9,7 +9,8 @@
 
 // Initial candidate ownership is an internal contract; final ownership comes from the production run.
 int main(int argc, char** argv) {
-    if (argc != 3) return 2;
+    if (argc != 3)
+        return 2;
     try {
         const auto definition = fuelsim::read_case_input(argv[1]);
         const auto mesh = fuelsim::read_exodus_quad4(definition.mesh_file);
@@ -21,8 +22,8 @@ int main(int argc, char** argv) {
         std::size_t maximum_change = 0;
         for (std::size_t node = 0; node < initial.size(); ++node) {
             const double final_segment = segments.at(sources.at(node));
-            if (!initial[node].projected || !std::isfinite(final_segment) || final_segment < 0.0 ||
-                std::floor(final_segment) != final_segment)
+            if (!initial[node].projected || !std::isfinite(final_segment) || final_segment < 0.0
+                || std::floor(final_segment) != final_segment)
                 throw std::runtime_error("M5.2 initial or final candidate ownership is invalid");
             const auto final_index = static_cast<std::size_t>(final_segment);
             if (final_index >= initial[node].primary_segment)

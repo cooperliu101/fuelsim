@@ -206,8 +206,11 @@ Abaqus 默认总刚度算法，不提供可调系数；有限应变 `c3d8rt` 会
 与误差定义见 [CAX8RT 验证记录](../verification/abaqus/b12_cax8rt_validation.md)。
 `cax4t` 的四节点力学公式采用 Abaqus 的面内选择性体积处理和独立环向平均，
 有限应变采用 Hughes-Winget 增量应变与客观转动。B8.0 和 B8.1 分别验证小应变
-摩擦和有限应变大滑移。`quad4` 和 `cax4t` 使用既有参考构形热传导、体热源和
-一致热容矩阵；新增的等温验证不表示已鉴定 Abaqus 非均匀瞬态热算子的全部规则。
+摩擦和有限应变大滑移。`quad4` 使用既有参考构形热传导、体热源和
+一致热容矩阵。`cax4t` 热容则使用形函数体积分形成的节点对角权重；导热系数在
+对应角点温度处求值，热膨胀使用四角点算术平均温度，其他力学物性在材料积分点求值。
+有限应变热传导使用增量中间构形梯度及单元整体体积比缩放，热容和体热源使用
+逐积分点当前构形测度。详见 [CAX4T 热算子修正记录](../verification/abaqus/B15_CAX4T.md)。
 
 `cax4rt` 是四节点轴对称温度—位移耦合减缩积分单元，支持 `strain = small|finite`，
 每个单元只有一个活跃材料积分点，支持热膨胀、塑性、蠕变、同时作用的塑性与蠕变，
@@ -216,9 +219,20 @@ Abaqus 默认总刚度算法，不提供可调系数；有限应变 `c3d8rt` 会
 当前构形。结果中的 `material_point_count` 为 1，仅 `_q0` 材料字段有效。
 完整输入与 Abaqus 对比见 [CAX4RT 验证记录](../verification/abaqus/b9_cax4rt_validation.md)。
 
-轴对称 Dirichlet 边界的 `boundary` 可以引用 Exodus 节点集，以便直接指定单个节点
+`cax4rt` 热膨胀使用轴对称体积平均温度，节点权重为
+`integral(N_i*dV)/integral(dV)`，与 `cax4t` 的等权算术平均不同。这是单元
+离散规则，不是输入选项。逐节点升温的原生探测及适用边界见
+[热膨胀温度鉴定](../verification/abaqus/thermal_expansion_probe/README.md)。
+
+轴对称和三维 HEX20 Dirichlet 边界的 `boundary` 可以引用 Exodus 节点集，以便直接指定单个节点
 或跨区域的共享节点。同名边集存在时优先解释为边集；节点集包含未选区域的独占节点
 时明确报错。压力、热流等表面载荷仍使用边集。
+HEX20 温度约束只作用于节点集中的温度角点；只有位移中间节点的温度约束会明确报错。
+
+HEX20 网格可以显式选择 `element = c3d20rt`，使用八个材料积分点和八个温度角点。
+省略时仍使用原来的全积分二十节点单元。C3D20RT 机械接触只支持
+`surface_to_surface`（面到面）离散。该单元仍在开发验收中；已完成的证据及尚未完成的
+精度、性能范围见 [C3D20RT 验证状态](../verification/abaqus/C3D20RT_STATUS.md)。
 
 每个区域必须用 `material` 引用 `[Materials]` 中已经定义的材料。旧版把导热率、
 弹性和非弹性参数直接写在区域内的格式不再接受。
@@ -260,6 +274,11 @@ Abaqus 默认总刚度算法，不提供可调系数；有限应变 `c3d8rt` 会
 ```
 
 一个接触对至少包含 `[thermal]` 或 `[mechanical]`，也可以同时包含两者。
+轴对称热接触的 `[thermal]` 可设置 `discretization = node_to_surface`，采用
+Abaqus 的 node-to-surface（NTS，节点到面）离散；省略时使用
+`surface_to_surface`（STS，面到面）。三维热接触暂不接受 `node_to_surface`。
+热接触和机械接触分别选择离散方式。例如轴对称两者都采用 NTS 时，应在两个
+子段中分别写入 `discretization = node_to_surface`。
 热接触省略 `law` 时使用 `gas_gap`，其导热系数为：
 
 ```text
@@ -486,17 +505,24 @@ Abaqus 自身的法向和切向合力转动三项误差也都小于 `0.1%`，两
 保存这两个量，并且不读取旧检查点格式。
 
 轴对称 RZ 接触的两侧必须来自不同区域且各自形成一条不分叉的开放边链。热接触
-按参考投影重叠区间切分 secondary-side STS 积分，机械接触采用 secondary 节点
-到 primary 线段的唯一 NTS 投影；二维法向同时装配径向和轴向反力。构造时分别
+可选择按参考投影重叠区间切分的 secondary-side STS 积分，或在 secondary 温度
+角点计算的 NTS 离散。机械接触采用 secondary 节点到 primary 表面的唯一 NTS
+投影；二维法向同时装配径向和轴向反力。构造时分别
 为每个热积分点和每个机械 secondary 节点预留整条 primary 链的潜在稀疏耦合，
 残量和 Jacobian 评估前按当前构形选择距离最近的唯一有效线段，因此两者都可以
 跨越任意数量的链内线段而不重建 PETSc 工作区。内部顶点使用半开区间，任何时刻
 只允许一条 primary 段拥有同一积分点或节点；整条链的首端和末端可以归属其端点。
 热积分点滑出完整 primary 链时，Newton 试探状态会作为物理域错误交给回溯线搜索；
 若仍无法恢复则拒绝当前载荷步或时间步，不会夹持到链端、静默返回零热流或继续
-使用陈旧候选。机械接触仍保留参考链首尾节点的物理端点支承，其他机械节点失去
-全部有效投影时同样拒绝状态。动态候选段由当前几何确定，不写入检查点。唯一活动
+使用陈旧候选。NTS 热接触和机械接触允许主表面首末段向外延伸其参数长度的 10%，
+在延伸段上继续投影和插值，不把投影夹持在端点。超出所有候选范围时，目前仍拒绝
+状态；尚未实现与 Abaqus 对齐的离开整个接触面后的自然释放。动态候选段由当前几何确定，不写入检查点。唯一活动
 热候选向两侧装配严格相反的残量，保证离散热守恒。
+
+CAX8T/CAX8RT 的 NTS 热接触只在温度角点传热，节点面积按当前角点连线上的
+线性形函数积分，不使用 secondary 边中节点计算热面积；primary 投影仍使用
+完整二次几何。机械接触包含边中节点，面积按二次形函数和当前曲线积分。
+四类单元的原生识别结果和比较范围见 [B14 NTS 验证记录](../verification/abaqus/B14_NTS.md)。
 
 三维笛卡尔接触同时支持 HEX8 四节点面和 HEX20 八节点二次面。热接触都在
 secondary 面的 2×2 四个积分点上计算；HEX20 温度仍只使用四个角点的一阶形函数，
@@ -736,10 +762,13 @@ L2 差最大值大于 1 时完整回滚并缩步，成功时采用两个半步�
 - `predictor_jacobian_lag`，默认 `0`，表示沿用 `jacobian_lag`；设为正整数时，
   只对已使用线性时间外推初值的瞬态时间步采用该复用间隔。外推不可用或外推
   求解失败后从 committed 状态重试时，仍采用 `jacobian_lag`；
-- `line_search = basic|backtracking`，默认 `basic`；`basic` 接受完整 Newton 步，
+- `line_search = basic|backtracking|critical_point`，默认 `basic`；`basic` 接受完整 Newton 步，
   `backtracking` 在残量未充分下降或试探态越过物理域时缩短 Newton 步；
-- `backtracking_fallback`，默认 `true`；使用 `basic` 且求解失败时，从原始初值
-  改用 `backtracking` 重试；显式选择 `backtracking` 时不再执行这次重复求解；
+  `critical_point` 使用 PETSc 临界点线搜索，沿 Newton 方向寻找残量与该方向内积的零点。
+  该方法按残量具有势函数的假设构造；对非对称耦合问题，需要逐算例检查收敛；
+- `backtracking_fallback`，默认 `true`；使用 `basic` 或 `critical_point` 且求解失败时，
+  从原始初值改用 `backtracking` 重试；显式选择 `backtracking` 时不再重复求解。
+  重试诊断 `initial_failure_category` 和 `initial_failure_message` 记录首次尝试的失败原因；
 - `residual_reduction_tolerance`，默认 `1e-6`，用于总残量和分场残量复核；
 - `temperature_residual_absolute_tolerance`，默认 `1e-8 W`；
 - `mechanical_residual_absolute_tolerance`，默认 `1e-4 N`，同时用于径向和轴向；

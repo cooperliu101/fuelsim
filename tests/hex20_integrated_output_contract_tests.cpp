@@ -12,8 +12,9 @@
 #include <vector>
 
 namespace {
-double mechanical_contact_directional_error(
-    fuelsim::TransientProblem& problem, const std::vector<double>& global_state, double perturbation) {
+double mechanical_contact_directional_error(fuelsim::TransientProblem& problem,
+    const std::vector<double>& global_state,
+    double perturbation) {
     const auto& spatial = fuelsim::cartesian::ProblemAccess::view(problem);
     std::vector<double> trial_state = global_state;
     const std::vector<std::size_t> source_nodes =
@@ -32,7 +33,8 @@ double mechanical_contact_directional_error(
     for (std::size_t node = 0; node < source_nodes.size(); ++node) {
         const auto& slip = summaries[node].tangential_slip;
         const double magnitude = std::hypot(slip[0], slip[1], slip[2]);
-        if (!(magnitude > 0.0)) continue;
+        if (!(magnitude > 0.0))
+            continue;
         const std::size_t global = source_to_global.at(source_nodes[node]);
         trial_state[spatial.dof(fuelsim::Field::displacement_x, global)] +=
             sliding_trial_increment * slip[0] / magnitude;
@@ -44,7 +46,8 @@ double mechanical_contact_directional_error(
     spatial.validate_state(trial_state);
     double maximum_error = 0.0;
     for (std::size_t contribution = 0; contribution < spatial.contribution_count(); ++contribution) {
-        if (spatial.contribution_type(contribution) != fuelsim::SpatialContributionType::mechanical_contact) continue;
+        if (spatial.contribution_type(contribution) != fuelsim::SpatialContributionType::mechanical_contact)
+            continue;
         std::vector<std::size_t> dofs;
         problem.contribution_dofs(contribution, dofs);
         std::vector<double> local_state(dofs.size()), direction(dofs.size()), plus(dofs.size()), minus(dofs.size());
@@ -56,8 +59,20 @@ double mechanical_contact_directional_error(
         }
         std::vector<double> residual, jacobian, plus_residual, minus_residual;
         spatial.compute_contribution(contribution, local_state, nullptr, nullptr, 0.0, residual, &jacobian);
-        spatial.compute_contribution(contribution, plus, nullptr, nullptr, 0.0, plus_residual, nullptr);
-        spatial.compute_contribution(contribution, minus, nullptr, nullptr, 0.0, minus_residual, nullptr);
+        const auto evaluate_perturbed = [&](const std::vector<double>& local, std::vector<double>& result) {
+            auto perturbed = trial_state;
+            for (std::size_t i = 0; i < dofs.size(); ++i)
+                perturbed[dofs[i]] = local[i];
+            spatial.validate_state(perturbed);
+            std::vector<std::size_t> perturbed_dofs;
+            problem.contribution_dofs(contribution, perturbed_dofs);
+            if (perturbed_dofs != dofs)
+                throw std::runtime_error("Integrated contact derivative crossed a candidate support transition");
+            spatial.compute_contribution(contribution, local, nullptr, nullptr, 0.0, result, nullptr);
+        };
+        evaluate_perturbed(plus, plus_residual);
+        evaluate_perturbed(minus, minus_residual);
+        spatial.validate_state(trial_state);
         double difference_squared = 0.0, reference_squared = 0.0;
         for (std::size_t row = 0; row < local_state.size(); ++row) {
             double analytic = 0.0;
@@ -94,8 +109,8 @@ void run(const std::string& input_path, const std::string& checkpoint_path, cons
             const auto global = spatial.global_node(region, local);
             displacement_nodes.emplace(source, global);
             for (std::size_t component = 0; component < 3; ++component)
-                if (output.nodal("displacement_" + std::string(1, "xyz"[component])).at(source) !=
-                    state.at(spatial.field_layout()[component + 1].begin + global))
+                if (output.nodal("displacement_" + std::string(1, "xyz"[component])).at(source)
+                    != state.at(spatial.field_layout()[component + 1].begin + global))
                     throw std::runtime_error("C3D20T displacement output differs from committed state");
             if (region_mesh.temperature_nodes()[local]) {
                 const auto temperature_node = spatial.global_temperature_node(region, local);
@@ -113,12 +128,13 @@ void run(const std::string& input_path, const std::string& checkpoint_path, cons
                 for (std::size_t local = 0; local < 20; ++local) {
                     const auto global = spatial.global_node(region, region_mesh.elements()[element].nodes[local]);
                     for (std::size_t component = 0; component < 3; ++component)
-                        current[component] += point.displacement_shape[local] *
-                                              state.at(spatial.field_layout()[component + 1].begin + global);
+                        current[component] += point.displacement_shape[local]
+                                              * state.at(spatial.field_layout()[component + 1].begin + global);
                 }
                 for (std::size_t component = 0; component < 3; ++component)
                     if (output.element("current_" + std::string(1, "xyz"[component]) + "_q" + std::to_string(q))
-                            .at(source) != current[component])
+                            .at(source)
+                        != current[component])
                         throw std::runtime_error(
                             "C3D20T material-point output coordinate differs from committed geometry");
             }
@@ -137,7 +153,8 @@ void run(const std::string& input_path, const std::string& checkpoint_path, cons
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 4) return 2;
+    if (argc != 4)
+        return 2;
     try {
         run(argv[1], argv[2], argv[3]);
         return 0;

@@ -1,0 +1,74 @@
+{
+  "cax4t": {
+    "creep": {
+      "failing_samples": 6438,
+      "max_absolute_difference_among_relative_failures": 1.8071514746357355e-07
+    },
+    "plastic": {
+      "failing_samples": 632,
+      "max_absolute_difference_among_relative_failures": 1.8844850707129766e-07
+    },
+    "gap": {
+      "failing_samples": 4,
+      "max_absolute_difference_among_relative_failures": 2.3076404506284325e-11
+    },
+    "pressure": {
+      "failing_samples": 2,
+      "max_absolute_difference_among_relative_failures": 107.47194914170723
+    }
+  },
+  "cax4rt": {
+    "creep": {
+      "failing_samples": 1741,
+      "max_absolute_difference_among_relative_failures": 1.7898292209318351e-07
+    },
+    "plastic": {
+      "failing_samples": 152,
+      "max_absolute_difference_among_relative_failures": 1.89282033876319e-07
+    },
+    "gap": {
+      "failing_samples": 3,
+      "max_absolute_difference_among_relative_failures": 4.1270389975776516e-11
+    },
+    "pressure": {
+      "failing_samples": 1,
+      "max_absolute_difference_among_relative_failures": 70.33013060010398
+    }
+  },
+  "cax8t": {
+    "creep": {
+      "failing_samples": 15250,
+      "max_absolute_difference_among_relative_failures": 1.816225293906211e-07
+    },
+    "plastic": {
+      "failing_samples": 1388,
+      "max_absolute_difference_among_relative_failures": 1.8804435707592362e-07
+    },
+    "gap": {
+      "failing_samples": 2,
+      "max_absolute_difference_among_relative_failures": 2.552524164387206e-13
+    },
+    "pressure": {
+      "failing_samples": 0,
+      "max_absolute_difference_among_relative_failures": 0
+    }
+  },
+  "cax8rt": {
+    "creep": {
+      "failing_samples": 6866,
+      "max_absolute_difference_among_relative_failures": 1.811428513183406e-07
+    },
+    "plastic": {
+      "failing_samples": 614,
+      "max_absolute_difference_among_relative_failures": 1.8537668881399732e-07
+    },
+    "gap": {
+      "failing_samples": 4,
+      "max_absolute_difference_among_relative_failures": 5.623443253553839e-11
+    },
+    "pressure": {
+      "failing_samples": 0,
+      "max_absolute_difference_among_relative_failures": 0
+    }
+  }
+}

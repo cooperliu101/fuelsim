@@ -1,0 +1,9 @@
+case=b150_cax4t_small_thermal_operator
+abaqus_version=3DEXPERIENCE R2018x
+cpus=1
+output_precision=full
+completed_utc=2026-09-07T03:38:33.7274071Z
+work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_cax4rt_b3b918b81d674121ab619bfb5df58447
+input_sha256=7D4BA6DECA4E0617238F728C4D6356587625392CED22E1FFCF5E1A3D65777206
+extractor=extract_b7_rz.py
+extractor_sha256=B5FC05311E2A30514CB9F2501763035C7663182F8C447125531DF2703BCC32A7

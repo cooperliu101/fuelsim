@@ -1,0 +1,200 @@
+{
+  "reason": "Keep dt0015625 as complete manual reference; retain dt003125 summaries and provenance; remove regenerable production outputs.",
+  "files": [
+    {
+      "path": "verification/abaqus/b13_small_time_study/dt003125/b13_small_cax4t_nodes.csv",
+      "bytes": 2973761,
+      "sha256": "18eec05b6699acd860bcd6b6ecef89c385819f421239a4fcf01d29571d010cef"
+    },
+    {
+      "path": "verification/abaqus/b13_small_time_study/dt003125/b13_small_cax4t_points.csv",
+      "bytes": 27229365,
+      "sha256": "e89778160b460b26c4483a63f917b07e6e5ef3192dde3278500cf9a3fd501875"
+    },
+    {
+      "path": "verification/abaqus/b13_small_time_study/dt003125/b13_small_cax4t_contact.csv",
+      "bytes": 390336,
+      "sha256": "96868cc5af90e35f01506d65e142a33c31c74ee2bbdf886a83d9224f3d58ce37"
+    },
+    {
+      "path": "verification/abaqus/b13_small_time_study/dt003125/b13_small_cax4t.dat",
+      "bytes": 14320,
+      "sha256": "32c6c49508b8fc8fb2c171fe251c7e6b1b1c5c863070da8ea616df3bb320cfe2"
+    },
+    {
+      "path": "verification/abaqus/b13_small_time_study/dt003125/b13_small_cax4t.msg",
+      "bytes": 2065951,
+      "sha256": "d27bd0bba3219438f4b4fee3a2716b3b1c6a88cc262f09a96d0d0eb8dec5e0ff"
+    },
+    {
+      "path": "verification/fuelsim/transient_b15_time_003125_results.e",
+      "bytes": 27079503,
+      "sha256": "a9bda15ba2813c11e4a7d9a15fa279a6b4ef384f15d5c51fb3b48aa53a780116"
+    },
+    {
+      "path": "verification/fuelsim/transient_b15_time_003125_summary.csv",
+      "bytes": 4622,
+      "sha256": "e223463e1cae3926698cee738626518f32a1a5f9a24cd20acdca8c85b866635c"
+    },
+    {
+      "path": "verification/fuelsim/transient_b15_time_0015625_results.e",
+      "bytes": 52957559,
+      "sha256": "fec4a188402446aad84704a36ccd167e5359f85a45b57124cad99344e72f5337"
+    },
+    {
+      "path": "verification/fuelsim/transient_b15_time_0015625_summary.csv",
+      "bytes": 4626,
+      "sha256": "24e523d35ec2ad0e565f0d5271678d908e729005b96030ecb3e9726dda410e5c"
+    },
+    {
+      "path": "verification/abaqus/b13_small_time_study/dt003125/b13_small_cax4rt_nodes.csv",
+      "bytes": 2981524,
+      "sha256": "242cc0b323cfe12e8a083f7cc50e094589b18868b48509609594536fdf01cce1"
+    },
+    {
+      "path": "verification/abaqus/b13_small_time_study/dt003125/b13_small_cax4rt_points.csv",
+      "bytes": 6771578,
+      "sha256": "83b4a4125699bc0bc9cd578398e43e720743a3771b9146083bf2ed13d290ef60"
+    },
+    {
+      "path": "verification/abaqus/b13_small_time_study/dt003125/b13_small_cax4rt_contact.csv",
+      "bytes": 391910,
+      "sha256": "fb83655cc48cbef236b9181d566224682807478909d892666ad51bc6a60f5c9e"
+    },
+    {
+      "path": "verification/abaqus/b13_small_time_study/dt003125/b13_small_cax4rt.dat",
+      "bytes": 14327,
+      "sha256": "3c42ea301912ba88b9a1a5705511e65692efab82c0e04b2f8fcb01eca3ac932d"
+    },
+    {
+      "path": "verification/abaqus/b13_small_time_study/dt003125/b13_small_cax4rt.msg",
+      "bytes": 1535648,
+      "sha256": "4a178b1a45038f228f14e401070099a0d8b9983ad246082216a3b160ed114877"
+    },
+    {
+      "path": "verification/fuelsim/transient_b13_small_cax4rt_dt003125_results.e",
+      "bytes": 27079503,
+      "sha256": "27653018db9d58b61326970ab51f955edb9b5c310180a644c6d03ef25751d13a"
+    },
+    {
+      "path": "verification/fuelsim/transient_b13_small_cax4rt_dt003125_summary.csv",
+      "bytes": 4642,
+      "sha256": "2d5969b811cedcc1206545503204ffe4372a147258155d05bdcabbd1b948e1f2"
+    },
+    {
+      "path": "verification/fuelsim/transient_b13_small_cax4rt_dt0015625_results.e",
+      "bytes": 52957559,
+      "sha256": "38d75e07af32470eace56aa057e21a95abfc5bfdba4402bc0fde7e1f19f4bef5"
+    },
+    {
+      "path": "verification/fuelsim/transient_b13_small_cax4rt_dt0015625_summary.csv",
+      "bytes": 4645,
+      "sha256": "f62685411ce398487c86c02d13b77ea192b2130b9e8f494659244f4438f6c2bc"
+    },
+    {
+      "path": "verification/fuelsim/transient_b13_small_cax4rt_dt003125.fsi",
+      "bytes": 3349,
+      "sha256": "d3771bfa566dfa1c3196f4a7c6ed4b36bcda8b9a5c9ade251398aa642369c2b5"
+    },
+    {
+      "path": "verification/abaqus/b13_small_time_study/dt003125/b13_small_cax8t_nodes.csv",
+      "bytes": 7645182,
+      "sha256": "edaeb06806c02e5789cfe14292ac2d9eeaac74a01740ea8f67129eb0c7d56d17"
+    },
+    {
+      "path": "verification/abaqus/b13_small_time_study/dt003125/b13_small_cax8t_points.csv",
+      "bytes": 61328446,
+      "sha256": "91d92239b4084dd6f078a0aaaf6cab4a977e97a53955d3731cb7972f3e4e6810"
+    },
+    {
+      "path": "verification/abaqus/b13_small_time_study/dt003125/b13_small_cax8t_contact.csv",
+      "bytes": 665955,
+      "sha256": "8908613240453a2baabed15d87c7fa24ca05e4f42848cd89f43ee57e14f0aafb"
+    },
+    {
+      "path": "verification/abaqus/b13_small_time_study/dt003125/b13_small_cax8t.dat",
+      "bytes": 15054,
+      "sha256": "df4ebe197843e86dfe7e6e284c478a5ddc38822e68c04a61064a4b38c4e3243b"
+    },
+    {
+      "path": "verification/abaqus/b13_small_time_study/dt003125/b13_small_cax8t.msg",
+      "bytes": 1567114,
+      "sha256": "8fd2add911b8e737ef2acf2501a83d57db31edaf4e50052b413e70cd0a8b558f"
+    },
+    {
+      "path": "verification/fuelsim/transient_b13_small_cax8t_dt003125_results.e",
+      "bytes": 61428105,
+      "sha256": "9ee007e3f3eb2deee938253eec8cb434747ae50ebe9c02e390a14e72aa0cfe0e"
+    },
+    {
+      "path": "verification/fuelsim/transient_b13_small_cax8t_dt003125_summary.csv",
+      "bytes": 4625,
+      "sha256": "bed1c80d35199505cc1c43b8fd6f5f4b87b02fd182ac732b5abaa73885a6a572"
+    },
+    {
+      "path": "verification/fuelsim/transient_b13_small_cax8t_dt0015625_results.e",
+      "bytes": 120475193,
+      "sha256": "0518dee38ec4a9946f5d08de5929f8b619fb6d892c295cde4865a879311764d8"
+    },
+    {
+      "path": "verification/fuelsim/transient_b13_small_cax8t_dt0015625_summary.csv",
+      "bytes": 4628,
+      "sha256": "7f1891697ac1b9d3ceb0e19dccf371b0c73480308e954634b95f270a88ce3f5b"
+    },
+    {
+      "path": "verification/fuelsim/transient_b13_small_cax8t_dt003125.fsi",
+      "bytes": 3328,
+      "sha256": "5f701be0b6ac3c794f291a254bffb75964b23ffd1dce8d37f49d4db557742419"
+    },
+    {
+      "path": "verification/abaqus/b13_small_time_study/dt003125/b13_small_cax8rt_nodes.csv",
+      "bytes": 7646606,
+      "sha256": "b6b776f1a0b2ee892589f3f367002cd4b042b23a7e18971a0cf0f5e2e2f9ebf6"
+    },
+    {
+      "path": "verification/abaqus/b13_small_time_study/dt003125/b13_small_cax8rt_points.csv",
+      "bytes": 27314405,
+      "sha256": "1ce231145d330bbdf25e0d9d86c9f0653f4d131e4b76cdbc9745b29f848c77ef"
+    },
+    {
+      "path": "verification/abaqus/b13_small_time_study/dt003125/b13_small_cax8rt_contact.csv",
+      "bytes": 665905,
+      "sha256": "9b21f2f5864cf46ccd157d2451f5068b937301e92b3f75d0defb5182e93f5417"
+    },
+    {
+      "path": "verification/abaqus/b13_small_time_study/dt003125/b13_small_cax8rt.dat",
+      "bytes": 15061,
+      "sha256": "bf0827d0aab5d5e7db3f5500d545dad8cda66924af1a90bc48b198328d38cd22"
+    },
+    {
+      "path": "verification/abaqus/b13_small_time_study/dt003125/b13_small_cax8rt.msg",
+      "bytes": 1549404,
+      "sha256": "2a952c6521e59cdef89720979c7cc137b5af44e01940c1032b4091a90e403e50"
+    },
+    {
+      "path": "verification/fuelsim/transient_b13_small_cax8rt_dt003125_results.e",
+      "bytes": 61428105,
+      "sha256": "3079d05e0e9775ec2c54c51f299e811b893596d7b477977d45f66ffed55daf21"
+    },
+    {
+      "path": "verification/fuelsim/transient_b13_small_cax8rt_dt003125_summary.csv",
+      "bytes": 4627,
+      "sha256": "32f2661194d91c3b20d2d21e29dddafa678f7d439b4670d47e80ab70cf9170c1"
+    },
+    {
+      "path": "verification/fuelsim/transient_b13_small_cax8rt_dt0015625_results.e",
+      "bytes": 120475193,
+      "sha256": "a2b7804c6756769b8a7bc7e2b9a4fcccb62e51e1a1ee7c029e9396b0e79dbaaf"
+    },
+    {
+      "path": "verification/fuelsim/transient_b13_small_cax8rt_dt0015625_summary.csv",
+      "bytes": 4630,
+      "sha256": "addfaa863ad7977a479e78243cc274e66708128d1d8eb067f2365aecddf3e75e"
+    },
+    {
+      "path": "verification/fuelsim/transient_b13_small_cax8rt_dt003125.fsi",
+      "bytes": 3333,
+      "sha256": "ffedf86c882d14b2360a2e7fde36fa71fb6616f6190d2ef3f03eb4c37a72c6ed"
+    }
+  ]
+}

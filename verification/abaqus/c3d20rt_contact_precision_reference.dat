@@ -1,0 +1,1287 @@
+1
+
+   Abaqus 3DEXPERIENCE R2018x                                  Date 08-9月-2026   Time 01:42:01
+   For use by Supplied by Team-SolidSQUAD under license from Dassault Systemes or its subsidiary.
+
+
+
+                         The Abaqus Software is a product of:
+
+                           Dassault Systemes SIMULIA Corp.
+                           1301 Atwood Avenue, Suite 101W
+                              Johnston, RI 02919, USA
+ 
+
+
+                   The Abaqus Software is available only under license
+                   from Dassault Systemes or its subsidiary and may be
+                   used or reproduced only in accordance with the terms
+                   of such license.
+ 
+                          On machine MSI 
+                          you are authorized to run
+                          Abaqus/Standard until 31-Dec-2055
+
+                          Your site id is:  
+
+
+ 
+                    For assistance or any other information you may
+                    obtain contact information for your local office
+                    from the world wide web at:
+
+                      http://www.3ds.com/products/simulia/locations/
+
+ 
+                * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
+                *                                                         * 
+                *                   *****************                     * 
+                *                   *  N O T I C E  *                     * 
+                *                   *****************                     * 
+                *                                                         * 
+                *                                                         * 
+                *               Abaqus 3DEXPERIENCE R2018x                * 
+                *                                                         * 
+                *          BUILD ID: 2017_11_08-01.21.41 127140           * 
+                *                                                         * 
+                *                                                         * 
+                *  Please make sure you are using                         * 
+                *  release 3DEXPERIENCE R2018x manuals                    * 
+                *  plus the notes accompanying this release.              * 
+                *                                                         * 
+                *                                                         * 
+                *                                                         * 
+                *                                                         * 
+                * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
+
+
+ 
+
+
+
+     PROCESSING PART, INSTANCE, AND ASSEMBLY INFORMATION
+   *******************************************************
+
+
+     END PROCESSING PART, INSTANCE, AND ASSEMBLY INFORMATION
+   ***********************************************************
+
+  *Initial Conditions, type=TEMPERATURE
+
+
+
+     OPTIONS BEING PROCESSED
+   ***************************
+
+
+  *Heading
+  *Node
+  *Element, type=C3D20RT, elset=PRIMARY
+  *Element, type=C3D20RT, elset=SECONDARY
+  *Elset, elset=ALL
+  *Nset, nset=PRIMARY_X0
+  *Nset, nset=SECONDARY_X2
+  *Nset, nset=SECONDARY_Y0
+  *Nset, nset=SECONDARY_Z0
+  *Nset, nset=ALL_NODES, generate
+  *Nset, nset=SECONDARY_NODES, generate
+  *Material, name=ELASTIC
+  *Elastic
+  *Conductivity
+  *Density
+  *Specific Heat
+  *Initial Conditions, type=TEMPERATURE
+  *Solid Section, elset=ALL, material=ELASTIC
+  *Solid Section, elset=ALL, material=ELASTIC
+  *Contact Pair, interaction=PENALTY_CONTACT, type=SURFACE TO SURFACE, small sliding, adjust=0.
+  *Surface, type=ELEMENT, name=PRIMARY_CONTACT
+  *Surface, type=ELEMENT, name=SECONDARY_CONTACT
+  *Contact Pair, interaction=PENALTY_CONTACT, type=SURFACE TO SURFACE, small sliding, adjust=0.
+  *Surface, type=ELEMENT, name=PRIMARY_CONTACT
+  *Surface, type=ELEMENT, name=SECONDARY_CONTACT
+  *Surface, type=ELEMENT, name=PRIMARY_CONTACT
+  *Surface, type=ELEMENT, name=SECONDARY_CONTACT
+  *Contact Pair, interaction=PENALTY_CONTACT, type=SURFACE TO SURFACE, small sliding, adjust=0.
+  *Surface Interaction, name=PENALTY_CONTACT
+  *Surface Behavior, pressure-overclosure=LINEAR
+  *Contact Pair, interaction=PENALTY_CONTACT, type=SURFACE TO SURFACE, small sliding, adjust=0.
+  *Contact Pair, interaction=PENALTY_CONTACT, type=SURFACE TO SURFACE, small sliding, adjust=0.
+  *Surface Interaction, name=PENALTY_CONTACT
+  *Surface Behavior, pressure-overclosure=LINEAR
+  *Friction, slip tolerance=1.e-5
+  *Gap Conductance
+  *Initial Conditions, type=TEMPERATURE
+  *Surface Interaction, name=PENALTY_CONTACT
+  *Boundary
+  *Boundary
+  *Boundary
+  *Boundary
+  *Boundary
+  *Boundary
+  *Boundary
+  *Boundary
+  *Contact Pair, interaction=PENALTY_CONTACT, type=SURFACE TO SURFACE, small sliding, adjust=0.
+
+
+  SLAVE : SECONDARY_CONTACT                                                               
+  MASTER: PRIMARY_CONTACT                                                                 
+
+  ADJUST ZONE DISTANCE FOR THIS CONTACT PAIR IS:   2.2200E-16
+
+              DISTANCE
+   NODE       ADJUSTED    REMARKS/WARNINGS
+        61   2.22045E-16  ADJUSTED TO (  1.0000    , 6.44930E-33,  1.0000    ).
+        69   4.44089E-16  ADJUSTED TO (  1.0000    , 1.11001E-32, 0.50000    ).
+        78   2.22045E-16  ADJUSTED TO (  1.0000    ,  2.0000    , 4.12505E-32).
+        83   1.11022E-16  ADJUSTED TO (  1.0000    ,  1.6000    ,-4.12302E-34).
+        88   2.22045E-16  ADJUSTED TO (  1.0000    ,  1.6000    ,  1.0000    ).
+
+
+
+  *Surface Interaction, name=PENALTY_CONTACT
+  *Contact Pair, interaction=PENALTY_CONTACT, type=SURFACE TO SURFACE, small sliding, adjust=0.
+  *Surface, type=ELEMENT, name=PRIMARY_CONTACT
+  *Surface, type=ELEMENT, name=SECONDARY_CONTACT
+  *Output, field, frequency=1
+  *Output, field, frequency=1
+  *Output, field, frequency=1
+  *Output, field, frequency=1
+  *Output, field, frequency=1
+  *Output, field, frequency=1
+  *Output, field, frequency=1
+  *Element Output, directions=YES
+  *Element Output, directions=YES
+  *Element Output, directions=YES
+  *Element Output, directions=YES
+  *Element Output, directions=YES
+  *Element Output, directions=YES
+  *Element Output, directions=YES
+  *Initial Conditions, type=TEMPERATURE
+  *Output, field, frequency=1
+  *Output, field, frequency=1
+  *Output, field, frequency=1
+  *Output, field, frequency=1
+  *Output, field, frequency=1
+  *Output, field, frequency=1
+  *Output, field, frequency=1
+  *Element Output, directions=YES
+  *Element Output, directions=YES
+  *Element Output, directions=YES
+  *Element Output, directions=YES
+  *Element Output, directions=YES
+  *Element Output, directions=YES
+  *Element Output, directions=YES
+  *Initial Conditions, type=TEMPERATURE
+
+ ***WARNING: INITIAL CONDITIONS ARE NOT UNIQUELY DEFINED FOR NODE 57. IF 
+             INITIAL CONDITIONS ARE ALL SPECIFIED EITHER ON NODE SETS OR ON 
+             NODE LABELS, THE LAST DEFINITION WILL BE USED. HOWEVER, IF INITIAL 
+             CONDITIONS ARE SPECIFIED ON BOTH NODE SETS AND NODE LABELS, THE 
+             VALUE SPECIFIED ON THE NODE SET WILL TAKE PRECEDENCE OVER THAT 
+             SPECIFIED ON THE NODE LABEL.
+
+ ***WARNING: INITIAL CONDITIONS ARE NOT UNIQUELY DEFINED FOR NODE 58. IF 
+             INITIAL CONDITIONS ARE ALL SPECIFIED EITHER ON NODE SETS OR ON 
+             NODE LABELS, THE LAST DEFINITION WILL BE USED. HOWEVER, IF INITIAL 
+             CONDITIONS ARE SPECIFIED ON BOTH NODE SETS AND NODE LABELS, THE 
+             VALUE SPECIFIED ON THE NODE SET WILL TAKE PRECEDENCE OVER THAT 
+             SPECIFIED ON THE NODE LABEL.
+
+ ***WARNING: INITIAL CONDITIONS ARE NOT UNIQUELY DEFINED FOR NODE 59. IF 
+             INITIAL CONDITIONS ARE ALL SPECIFIED EITHER ON NODE SETS OR ON 
+             NODE LABELS, THE LAST DEFINITION WILL BE USED. HOWEVER, IF INITIAL 
+             CONDITIONS ARE SPECIFIED ON BOTH NODE SETS AND NODE LABELS, THE 
+             VALUE SPECIFIED ON THE NODE SET WILL TAKE PRECEDENCE OVER THAT 
+             SPECIFIED ON THE NODE LABEL.
+
+ ***WARNING: INITIAL CONDITIONS ARE NOT UNIQUELY DEFINED FOR NODE 60. IF 
+             INITIAL CONDITIONS ARE ALL SPECIFIED EITHER ON NODE SETS OR ON 
+             NODE LABELS, THE LAST DEFINITION WILL BE USED. HOWEVER, IF INITIAL 
+             CONDITIONS ARE SPECIFIED ON BOTH NODE SETS AND NODE LABELS, THE 
+             VALUE SPECIFIED ON THE NODE SET WILL TAKE PRECEDENCE OVER THAT 
+             SPECIFIED ON THE NODE LABEL.
+
+ ***WARNING: INITIAL CONDITIONS ARE NOT UNIQUELY DEFINED FOR NODE 61. IF 
+             INITIAL CONDITIONS ARE ALL SPECIFIED EITHER ON NODE SETS OR ON 
+             NODE LABELS, THE LAST DEFINITION WILL BE USED. HOWEVER, IF INITIAL 
+             CONDITIONS ARE SPECIFIED ON BOTH NODE SETS AND NODE LABELS, THE 
+             VALUE SPECIFIED ON THE NODE SET WILL TAKE PRECEDENCE OVER THAT 
+             SPECIFIED ON THE NODE LABEL.
+
+ ***WARNING: INITIAL CONDITIONS ARE NOT UNIQUELY DEFINED FOR NODE 62. IF 
+             INITIAL CONDITIONS ARE ALL SPECIFIED EITHER ON NODE SETS OR ON 
+             NODE LABELS, THE LAST DEFINITION WILL BE USED. HOWEVER, IF INITIAL 
+             CONDITIONS ARE SPECIFIED ON BOTH NODE SETS AND NODE LABELS, THE 
+             VALUE SPECIFIED ON THE NODE SET WILL TAKE PRECEDENCE OVER THAT 
+             SPECIFIED ON THE NODE LABEL.
+
+ ***WARNING: INITIAL CONDITIONS ARE NOT UNIQUELY DEFINED FOR NODE 63. IF 
+             INITIAL CONDITIONS ARE ALL SPECIFIED EITHER ON NODE SETS OR ON 
+             NODE LABELS, THE LAST DEFINITION WILL BE USED. HOWEVER, IF INITIAL 
+             CONDITIONS ARE SPECIFIED ON BOTH NODE SETS AND NODE LABELS, THE 
+             VALUE SPECIFIED ON THE NODE SET WILL TAKE PRECEDENCE OVER THAT 
+             SPECIFIED ON THE NODE LABEL.
+
+ ***WARNING: INITIAL CONDITIONS ARE NOT UNIQUELY DEFINED FOR NODE 64. IF 
+             INITIAL CONDITIONS ARE ALL SPECIFIED EITHER ON NODE SETS OR ON 
+             NODE LABELS, THE LAST DEFINITION WILL BE USED. HOWEVER, IF INITIAL 
+             CONDITIONS ARE SPECIFIED ON BOTH NODE SETS AND NODE LABELS, THE 
+             VALUE SPECIFIED ON THE NODE SET WILL TAKE PRECEDENCE OVER THAT 
+             SPECIFIED ON THE NODE LABEL.
+
+ ***WARNING: INITIAL CONDITIONS ARE NOT UNIQUELY DEFINED FOR NODE 65. IF 
+             INITIAL CONDITIONS ARE ALL SPECIFIED EITHER ON NODE SETS OR ON 
+             NODE LABELS, THE LAST DEFINITION WILL BE USED. HOWEVER, IF INITIAL 
+             CONDITIONS ARE SPECIFIED ON BOTH NODE SETS AND NODE LABELS, THE 
+             VALUE SPECIFIED ON THE NODE SET WILL TAKE PRECEDENCE OVER THAT 
+             SPECIFIED ON THE NODE LABEL.
+
+ ***WARNING: INITIAL CONDITIONS ARE NOT UNIQUELY DEFINED FOR NODE 66. IF 
+             INITIAL CONDITIONS ARE ALL SPECIFIED EITHER ON NODE SETS OR ON 
+             NODE LABELS, THE LAST DEFINITION WILL BE USED. HOWEVER, IF INITIAL 
+             CONDITIONS ARE SPECIFIED ON BOTH NODE SETS AND ON NODE LABELS, THE 
+             VALUE SPECIFIED ON THE NODE SET WILL TAKE PRECEDENCE OVER THAT 
+             SPECIFIED ON THE NODE LABEL. THIS MESSAGE WILL NOT BE REPEATED FOR 
+             SUBSEQUENT NODES WITH DUPLICATE INITIAL CONDITIONS.
+
+ ***WARNING: The initial conditions defined on 32 nodes are not unique. The 
+             nodes have been identified in node set WarnNodeICDef.
+  *Output, field, frequency=1
+  *Output, field, frequency=1
+  *Output, field, frequency=1
+  *Output, field, frequency=1
+  *Output, field, frequency=1
+  *Output, field, frequency=1
+  *Output, field, frequency=1
+  *Element Output, directions=YES
+  *Element Output, directions=YES
+  *Element Output, directions=YES
+  *Element Output, directions=YES
+  *Element Output, directions=YES
+  *Element Output, directions=YES
+  *Element Output, directions=YES
+  *Step, name=INITIAL_STICK, nlgeom=NO, inc=100
+  *Output, field, frequency=1
+  *Step, name=STICK, nlgeom=NO, inc=100
+  *Output, field, frequency=1
+  *Step, name=MIXED, nlgeom=NO, inc=100
+  *Output, field, frequency=1
+  *Step, name=FORWARD_SLIDE, nlgeom=NO, inc=100
+  *Output, field, frequency=1
+  *Step, name=UNLOAD, nlgeom=NO, inc=100
+  *Output, field, frequency=1
+  *Step, name=REVERSE_SLIDE, nlgeom=NO, inc=100
+  *Output, field, frequency=1
+  *Step, name=RESTICK, nlgeom=NO, inc=100
+  *Output, field, frequency=1
+  *Step, name=INITIAL_STICK, nlgeom=NO, inc=100
+  *Step, name=STICK, nlgeom=NO, inc=100
+  *Step, name=MIXED, nlgeom=NO, inc=100
+  *Step, name=FORWARD_SLIDE, nlgeom=NO, inc=100
+  *Step, name=UNLOAD, nlgeom=NO, inc=100
+  *Step, name=REVERSE_SLIDE, nlgeom=NO, inc=100
+  *Step, name=RESTICK, nlgeom=NO, inc=100
+  *Step, name=INITIAL_STICK, nlgeom=NO, inc=100
+  *Coupled Temperature-Displacement
+  *Controls, parameters=FIELD, field=DISPLACEMENT
+  *Boundary
+  *Output, field, frequency=1
+  *Node Output
+  *Element Output, directions=YES
+  *Contact Output
+  *End Step
+  *Step, name=STICK, nlgeom=NO, inc=100
+  *Coupled Temperature-Displacement
+  *Controls, parameters=FIELD, field=DISPLACEMENT
+  *Boundary
+  *Output, field, frequency=1
+  *Node Output
+  *Element Output, directions=YES
+  *Contact Output
+  *End Step
+  *Step, name=MIXED, nlgeom=NO, inc=100
+  *Coupled Temperature-Displacement
+  *Controls, parameters=FIELD, field=DISPLACEMENT
+  *Boundary
+  *Output, field, frequency=1
+  *Node Output
+  *Element Output, directions=YES
+  *Contact Output
+  *End Step
+  *Step, name=FORWARD_SLIDE, nlgeom=NO, inc=100
+  *Coupled Temperature-Displacement
+  *Controls, parameters=FIELD, field=DISPLACEMENT
+  *Boundary
+  *Output, field, frequency=1
+  *Node Output
+  *Element Output, directions=YES
+  *Contact Output
+  *End Step
+  *Step, name=UNLOAD, nlgeom=NO, inc=100
+  *Coupled Temperature-Displacement
+  *Controls, parameters=FIELD, field=DISPLACEMENT
+  *Boundary
+  *Output, field, frequency=1
+  *Node Output
+  *Element Output, directions=YES
+  *Contact Output
+  *End Step
+  *Step, name=REVERSE_SLIDE, nlgeom=NO, inc=100
+  *Coupled Temperature-Displacement
+  *Controls, parameters=FIELD, field=DISPLACEMENT
+  *Boundary
+  *Output, field, frequency=1
+  *Node Output
+  *Element Output, directions=YES
+  *Contact Output
+  *End Step
+  *Step, name=RESTICK, nlgeom=NO, inc=100
+  *Coupled Temperature-Displacement
+  *Controls, parameters=FIELD, field=DISPLACEMENT
+  *Boundary
+  *Output, field, frequency=1
+  *Node Output
+  *Element Output, directions=YES
+  *Contact Output
+  *End Step
+  *Step, name=INITIAL_STICK, nlgeom=NO, inc=100
+  *Coupled Temperature-Displacement
+  *Boundary
+  *End Step
+  *Step, name=STICK, nlgeom=NO, inc=100
+  *Coupled Temperature-Displacement
+  *Boundary
+  *End Step
+  *Step, name=MIXED, nlgeom=NO, inc=100
+  *Coupled Temperature-Displacement
+  *Boundary
+  *End Step
+  *Step, name=FORWARD_SLIDE, nlgeom=NO, inc=100
+  *Coupled Temperature-Displacement
+  *Boundary
+  *End Step
+  *Step, name=UNLOAD, nlgeom=NO, inc=100
+  *Coupled Temperature-Displacement
+  *Boundary
+  *End Step
+  *Step, name=REVERSE_SLIDE, nlgeom=NO, inc=100
+  *Coupled Temperature-Displacement
+  *Boundary
+  *End Step
+  *Step, name=RESTICK, nlgeom=NO, inc=100
+  *Coupled Temperature-Displacement
+  *Boundary
+  *End Step
+
+
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 12 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 13 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 16 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 20 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 27 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 29 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 32 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 39 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 41 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 44 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 51 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 53 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 56 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 66 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 70 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 71 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 74 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 81 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 84 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 86 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: Boundary conditions are specified on inactive dof of 20 nodes. The 
+             nodes have been identified in node set WarnNodeBCInactiveDof.
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 12 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 13 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 16 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 20 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 27 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 29 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 32 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 39 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 41 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 44 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 51 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 53 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 56 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 66 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 70 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 71 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 74 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 81 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 84 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 86 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: Boundary conditions are specified on inactive dof of 20 nodes. The 
+             nodes have been identified in node set WarnNodeBCInactiveDof.
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 12 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 13 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 16 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 20 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 27 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 29 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 32 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 39 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 41 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 44 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 51 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 53 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 56 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 66 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 70 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 71 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 74 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 81 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 84 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 86 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: Boundary conditions are specified on inactive dof of 20 nodes. The 
+             nodes have been identified in node set WarnNodeBCInactiveDof.
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 12 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 13 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 16 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 20 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 27 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 29 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 32 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 39 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 41 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 44 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 51 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 53 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 56 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 66 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 70 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 71 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 74 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 81 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 84 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 86 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: Boundary conditions are specified on inactive dof of 20 nodes. The 
+             nodes have been identified in node set WarnNodeBCInactiveDof.
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 12 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 13 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 16 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 20 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 27 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 29 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 32 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 39 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 41 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 44 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 51 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 53 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 56 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 66 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 70 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 71 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 74 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 81 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 84 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 86 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: Boundary conditions are specified on inactive dof of 20 nodes. The 
+             nodes have been identified in node set WarnNodeBCInactiveDof.
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 12 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 13 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 16 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 20 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 27 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 29 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 32 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 39 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 41 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 44 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 51 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 53 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 56 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 66 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 70 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 71 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 74 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 81 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 84 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 86 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: Boundary conditions are specified on inactive dof of 20 nodes. The 
+             nodes have been identified in node set WarnNodeBCInactiveDof.
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 12 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 13 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 16 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 20 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 27 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 29 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 32 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 39 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 41 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 44 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 51 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 53 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 56 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 66 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 70 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 71 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 74 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 81 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 84 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: DEGREE OF FREEDOM 11 IS NOT ACTIVE ON NODE 86 - THIS BOUNDARY 
+             CONDITION IS IGNORED
+
+ ***WARNING: Boundary conditions are specified on inactive dof of 20 nodes. The 
+             nodes have been identified in node set WarnNodeBCInactiveDof.
+
+
+
+                            P R O B L E M   S I Z E
+
+
+          NUMBER OF ELEMENTS IS                                    19
+          NUMBER OF ELEMENTS DEFINED BY THE USER AND *TIE           6
+          NUMBER OF INTERNAL ELEMENTS GENERATED FOR CONTACT        13
+          NUMBER OF NODES IS                                      127
+          NUMBER OF NODES DEFINED BY THE USER                      88
+          NUMBER OF INTERNAL NODES GENERATED BY THE PROGRAM        39
+          TOTAL NUMBER OF VARIABLES IN THE MODEL                  355
+          (DEGREES OF FREEDOM PLUS MAX NO. OF ANY LAGRANGE MULTIPLIER
+           VARIABLES. INCLUDE *PRINT,SOLVE=YES TO GET THE ACTUAL NUMBER.)
+
+
+
+                              END OF USER INPUT PROCESSING
+
+
+
+     JOB TIME SUMMARY
+       USER TIME (SEC)      =  0.10000    
+       SYSTEM TIME (SEC)    =  0.10000    
+       TOTAL CPU TIME (SEC) =  0.20000    
+       WALLCLOCK TIME (SEC) =          0
+1
+
+   Abaqus 3DEXPERIENCE R2018x                                  Date 08-9月-2026   Time 01:42:01
+   For use by Supplied by Team-SolidSQUAD under license from Dassault Systemes or its subsidiary.
+
+                                                                                               STEP    1  INCREMENT    1
+                                                                                          TIME COMPLETED IN THIS STEP   0.00    
+
+
+                        S T E P       1     C O U P L E D - T E M P E R A T U R E - D I S P L A C E M E N T   A N A L Y S I S
+
+
+                                                                                          
+
+          FIXED TIME INCREMENTS
+          TIME INCREMENT IS                                    0.100    
+          TIME PERIOD IS                                        1.00    
+
+          CREEP AND SWELLING EFFECTS ARE OMITTED IN THIS STEP
+
+          CREEP AND SWELLING EFFECTS WILL BE IGNORED.
+
+          UNSYMMETRIC MATRIX STORAGE AND SOLUTION WILL BE USED
+  
+                   M E M O R Y   E S T I M A T E
+  
+ PROCESS      FLOATING PT       MINIMUM MEMORY        MEMORY TO
+              OPERATIONS           REQUIRED          MINIMIZE I/O
+             PER ITERATION           (MB)               (MB)
+  
+     1          3.46E+06               17                 24
+  
+ NOTE:
+      (1) SINCE ABAQUS DOES NOT PRE-ALLOCATE MEMORY AND ONLY ALLOCATES MEMORY AS NEEDED DURING THE ANALYSIS,
+          THE MEMORY REQUIREMENT PRINTED HERE CAN ONLY BE VIEWED AS A GENERAL GUIDELINE BASED ON THE BEST
+          KNOWLEDGE AVAILABLE AT THE BEGINNING OF A STEP BEFORE THE SOLUTION PROCESS HAS BEGUN.
+      (2) THE ESTIMATE IS NORMALLY UPDATED AT THE BEGINNING OF EVERY STEP. IT IS THE MAXIMUM VALUE OF THE
+          ESTIMATE FROM THE CURRENT STEP TO THE LAST STEP OF THE ANALYSIS, WITH UNSYMMETRIC SOLUTION TAKEN
+          INTO ACCOUNT IF APPLICABLE. 
+      (3) SINCE THE ESTIMATE IS BASED ON THE ACTIVE DEGREES OF FREEDOM IN THE FIRST ITERATION OF THE 
+          CURRENT STEP, THE MEMORY ESTIMATE MIGHT BE SIGNIFICANTLY DIFFERENT THAN ACTUAL USAGE FOR 
+          PROBLEMS WITH SUBSTANTIAL CHANGES IN ACTIVE DEGREES OF FREEDOM BETWEEN STEPS (OR EVEN WITHIN
+          THE SAME STEP). EXAMPLES ARE: PROBLEMS WITH SIGNIFICANT CONTACT CHANGES, PROBLEMS WITH MODEL
+          CHANGE, PROBLEMS WITH BOTH STATIC STEP AND STEADY STATE DYNAMIC PROCEDURES WHERE ACOUSTIC 
+          ELEMENTS WILL ONLY BE ACTIVATED IN THE STEADY STATE DYNAMIC STEPS.
+      (4) FOR MULTI-PROCESS EXECUTION, THE ESTIMATED VALUE OF FLOATING POINT OPERATIONS FOR EACH PROCESS
+          IS BASED ON AN INITIAL SCHEDULING OF OPERATIONS AND MIGHT NOT REFLECT THE ACTUAL FLOATING 
+          POINT OPERATIONS COMPLETED ON EACH PROCESS. OPERATIONS ARE DYNAMICALLY BALANCED DURING EXECUTION, 
+          SO THE ACTUAL BALANCE OF OPERATIONS BETWEEN PROCESSES IS EXPECTED TO BE BETTER THAN THE ESTIMATE
+          PRINTED HERE.
+      (5) THE UPPER LIMIT OF MEMORY THAT CAN BE ALLOCATED BY ABAQUS WILL IN GENERAL DEPEND ON THE VALUE OF
+          THE "MEMORY" PARAMETER AND THE AMOUNT OF PHYSICAL MEMORY AVAILABLE ON THE MACHINE. PLEASE SEE
+          THE "ABAQUS ANALYSIS USER'S MANUAL" FOR MORE DETAILS. THE ACTUAL USAGE OF MEMORY AND OF DISK
+          SPACE FOR SCRATCH DATA WILL DEPEND ON THIS UPPER LIMIT AS WELL AS THE MEMORY REQUIRED TO MINIMIZE
+          I/O. IF THE MEMORY UPPER LIMIT IS GREATER THAN THE MEMORY REQUIRED TO MINIMIZE I/O, THEN THE ACTUAL
+          MEMORY USAGE WILL BE CLOSE TO THE ESTIMATED "MEMORY TO MINIMIZE I/O" VALUE, AND THE SCRATCH DISK
+          USAGE WILL BE CLOSE-TO-ZERO; OTHERWISE, THE ACTUAL MEMORY USED WILL BE CLOSE TO THE PREVIOUSLY
+          MENTIONED MEMORY LIMIT, AND THE SCRATCH DISK USAGE WILL BE ROUGHLY PROPORTIONAL TO THE DIFFERENCE
+          BETWEEN THE ESTIMATED "MEMORY TO MINIMIZE I/O" AND THE MEMORY UPPER LIMIT. HOWEVER ACCURATE
+          ESTIMATE OF THE SCRATCH DISK SPACE IS NOT POSSIBLE.
+      (6) USING "*RESTART, WRITE" CAN GENERATE A LARGE AMOUNT OF DATA WRITTEN IN THE WORK DIRECTORY.
+1
+
+   Abaqus 3DEXPERIENCE R2018x                                  Date 08-9月-2026   Time 01:42:02
+   For use by Supplied by Team-SolidSQUAD under license from Dassault Systemes or its subsidiary.
+
+                                                                                               STEP    2  INCREMENT    1
+                                                                                          TIME COMPLETED IN THIS STEP   0.00    
+
+
+                        S T E P       2     C O U P L E D - T E M P E R A T U R E - D I S P L A C E M E N T   A N A L Y S I S
+
+
+                                                                                          
+
+          FIXED TIME INCREMENTS
+          TIME INCREMENT IS                                    0.100    
+          TIME PERIOD IS                                        1.00    
+
+          CREEP AND SWELLING EFFECTS ARE OMITTED IN THIS STEP
+
+          CREEP AND SWELLING EFFECTS WILL BE IGNORED.
+
+          UNSYMMETRIC MATRIX STORAGE AND SOLUTION WILL BE USED
+  
+                   M E M O R Y   E S T I M A T E
+  
+ PROCESS      FLOATING PT       MINIMUM MEMORY        MEMORY TO
+              OPERATIONS           REQUIRED          MINIMIZE I/O
+             PER ITERATION           (MB)               (MB)
+  
+     1          3.46E+06               17                 24
+  
+ NOTE:
+      (1) SINCE ABAQUS DOES NOT PRE-ALLOCATE MEMORY AND ONLY ALLOCATES MEMORY AS NEEDED DURING THE ANALYSIS,
+          THE MEMORY REQUIREMENT PRINTED HERE CAN ONLY BE VIEWED AS A GENERAL GUIDELINE BASED ON THE BEST
+          KNOWLEDGE AVAILABLE AT THE BEGINNING OF A STEP BEFORE THE SOLUTION PROCESS HAS BEGUN.
+      (2) THE ESTIMATE IS NORMALLY UPDATED AT THE BEGINNING OF EVERY STEP. IT IS THE MAXIMUM VALUE OF THE
+          ESTIMATE FROM THE CURRENT STEP TO THE LAST STEP OF THE ANALYSIS, WITH UNSYMMETRIC SOLUTION TAKEN
+          INTO ACCOUNT IF APPLICABLE. 
+      (3) SINCE THE ESTIMATE IS BASED ON THE ACTIVE DEGREES OF FREEDOM IN THE FIRST ITERATION OF THE 
+          CURRENT STEP, THE MEMORY ESTIMATE MIGHT BE SIGNIFICANTLY DIFFERENT THAN ACTUAL USAGE FOR 
+          PROBLEMS WITH SUBSTANTIAL CHANGES IN ACTIVE DEGREES OF FREEDOM BETWEEN STEPS (OR EVEN WITHIN
+          THE SAME STEP). EXAMPLES ARE: PROBLEMS WITH SIGNIFICANT CONTACT CHANGES, PROBLEMS WITH MODEL
+          CHANGE, PROBLEMS WITH BOTH STATIC STEP AND STEADY STATE DYNAMIC PROCEDURES WHERE ACOUSTIC 
+          ELEMENTS WILL ONLY BE ACTIVATED IN THE STEADY STATE DYNAMIC STEPS.
+      (4) FOR MULTI-PROCESS EXECUTION, THE ESTIMATED VALUE OF FLOATING POINT OPERATIONS FOR EACH PROCESS
+          IS BASED ON AN INITIAL SCHEDULING OF OPERATIONS AND MIGHT NOT REFLECT THE ACTUAL FLOATING 
+          POINT OPERATIONS COMPLETED ON EACH PROCESS. OPERATIONS ARE DYNAMICALLY BALANCED DURING EXECUTION, 
+          SO THE ACTUAL BALANCE OF OPERATIONS BETWEEN PROCESSES IS EXPECTED TO BE BETTER THAN THE ESTIMATE
+          PRINTED HERE.
+      (5) THE UPPER LIMIT OF MEMORY THAT CAN BE ALLOCATED BY ABAQUS WILL IN GENERAL DEPEND ON THE VALUE OF
+          THE "MEMORY" PARAMETER AND THE AMOUNT OF PHYSICAL MEMORY AVAILABLE ON THE MACHINE. PLEASE SEE
+          THE "ABAQUS ANALYSIS USER'S MANUAL" FOR MORE DETAILS. THE ACTUAL USAGE OF MEMORY AND OF DISK
+          SPACE FOR SCRATCH DATA WILL DEPEND ON THIS UPPER LIMIT AS WELL AS THE MEMORY REQUIRED TO MINIMIZE
+          I/O. IF THE MEMORY UPPER LIMIT IS GREATER THAN THE MEMORY REQUIRED TO MINIMIZE I/O, THEN THE ACTUAL
+          MEMORY USAGE WILL BE CLOSE TO THE ESTIMATED "MEMORY TO MINIMIZE I/O" VALUE, AND THE SCRATCH DISK
+          USAGE WILL BE CLOSE-TO-ZERO; OTHERWISE, THE ACTUAL MEMORY USED WILL BE CLOSE TO THE PREVIOUSLY
+          MENTIONED MEMORY LIMIT, AND THE SCRATCH DISK USAGE WILL BE ROUGHLY PROPORTIONAL TO THE DIFFERENCE
+          BETWEEN THE ESTIMATED "MEMORY TO MINIMIZE I/O" AND THE MEMORY UPPER LIMIT. HOWEVER ACCURATE
+          ESTIMATE OF THE SCRATCH DISK SPACE IS NOT POSSIBLE.
+      (6) USING "*RESTART, WRITE" CAN GENERATE A LARGE AMOUNT OF DATA WRITTEN IN THE WORK DIRECTORY.
+1
+
+   Abaqus 3DEXPERIENCE R2018x                                  Date 08-9月-2026   Time 01:42:02
+   For use by Supplied by Team-SolidSQUAD under license from Dassault Systemes or its subsidiary.
+
+                                                                                               STEP    3  INCREMENT    1
+                                                                                          TIME COMPLETED IN THIS STEP   0.00    
+
+
+                        S T E P       3     C O U P L E D - T E M P E R A T U R E - D I S P L A C E M E N T   A N A L Y S I S
+
+
+                                                                                          
+
+          FIXED TIME INCREMENTS
+          TIME INCREMENT IS                                    0.100    
+          TIME PERIOD IS                                        1.00    
+
+          CREEP AND SWELLING EFFECTS ARE OMITTED IN THIS STEP
+
+          CREEP AND SWELLING EFFECTS WILL BE IGNORED.
+
+          UNSYMMETRIC MATRIX STORAGE AND SOLUTION WILL BE USED
+  
+                   M E M O R Y   E S T I M A T E
+  
+ PROCESS      FLOATING PT       MINIMUM MEMORY        MEMORY TO
+              OPERATIONS           REQUIRED          MINIMIZE I/O
+             PER ITERATION           (MB)               (MB)
+  
+     1          3.46E+06               17                 24
+  
+ NOTE:
+      (1) SINCE ABAQUS DOES NOT PRE-ALLOCATE MEMORY AND ONLY ALLOCATES MEMORY AS NEEDED DURING THE ANALYSIS,
+          THE MEMORY REQUIREMENT PRINTED HERE CAN ONLY BE VIEWED AS A GENERAL GUIDELINE BASED ON THE BEST
+          KNOWLEDGE AVAILABLE AT THE BEGINNING OF A STEP BEFORE THE SOLUTION PROCESS HAS BEGUN.
+      (2) THE ESTIMATE IS NORMALLY UPDATED AT THE BEGINNING OF EVERY STEP. IT IS THE MAXIMUM VALUE OF THE
+          ESTIMATE FROM THE CURRENT STEP TO THE LAST STEP OF THE ANALYSIS, WITH UNSYMMETRIC SOLUTION TAKEN
+          INTO ACCOUNT IF APPLICABLE. 
+      (3) SINCE THE ESTIMATE IS BASED ON THE ACTIVE DEGREES OF FREEDOM IN THE FIRST ITERATION OF THE 
+          CURRENT STEP, THE MEMORY ESTIMATE MIGHT BE SIGNIFICANTLY DIFFERENT THAN ACTUAL USAGE FOR 
+          PROBLEMS WITH SUBSTANTIAL CHANGES IN ACTIVE DEGREES OF FREEDOM BETWEEN STEPS (OR EVEN WITHIN
+          THE SAME STEP). EXAMPLES ARE: PROBLEMS WITH SIGNIFICANT CONTACT CHANGES, PROBLEMS WITH MODEL
+          CHANGE, PROBLEMS WITH BOTH STATIC STEP AND STEADY STATE DYNAMIC PROCEDURES WHERE ACOUSTIC 
+          ELEMENTS WILL ONLY BE ACTIVATED IN THE STEADY STATE DYNAMIC STEPS.
+      (4) FOR MULTI-PROCESS EXECUTION, THE ESTIMATED VALUE OF FLOATING POINT OPERATIONS FOR EACH PROCESS
+          IS BASED ON AN INITIAL SCHEDULING OF OPERATIONS AND MIGHT NOT REFLECT THE ACTUAL FLOATING 
+          POINT OPERATIONS COMPLETED ON EACH PROCESS. OPERATIONS ARE DYNAMICALLY BALANCED DURING EXECUTION, 
+          SO THE ACTUAL BALANCE OF OPERATIONS BETWEEN PROCESSES IS EXPECTED TO BE BETTER THAN THE ESTIMATE
+          PRINTED HERE.
+      (5) THE UPPER LIMIT OF MEMORY THAT CAN BE ALLOCATED BY ABAQUS WILL IN GENERAL DEPEND ON THE VALUE OF
+          THE "MEMORY" PARAMETER AND THE AMOUNT OF PHYSICAL MEMORY AVAILABLE ON THE MACHINE. PLEASE SEE
+          THE "ABAQUS ANALYSIS USER'S MANUAL" FOR MORE DETAILS. THE ACTUAL USAGE OF MEMORY AND OF DISK
+          SPACE FOR SCRATCH DATA WILL DEPEND ON THIS UPPER LIMIT AS WELL AS THE MEMORY REQUIRED TO MINIMIZE
+          I/O. IF THE MEMORY UPPER LIMIT IS GREATER THAN THE MEMORY REQUIRED TO MINIMIZE I/O, THEN THE ACTUAL
+          MEMORY USAGE WILL BE CLOSE TO THE ESTIMATED "MEMORY TO MINIMIZE I/O" VALUE, AND THE SCRATCH DISK
+          USAGE WILL BE CLOSE-TO-ZERO; OTHERWISE, THE ACTUAL MEMORY USED WILL BE CLOSE TO THE PREVIOUSLY
+          MENTIONED MEMORY LIMIT, AND THE SCRATCH DISK USAGE WILL BE ROUGHLY PROPORTIONAL TO THE DIFFERENCE
+          BETWEEN THE ESTIMATED "MEMORY TO MINIMIZE I/O" AND THE MEMORY UPPER LIMIT. HOWEVER ACCURATE
+          ESTIMATE OF THE SCRATCH DISK SPACE IS NOT POSSIBLE.
+      (6) USING "*RESTART, WRITE" CAN GENERATE A LARGE AMOUNT OF DATA WRITTEN IN THE WORK DIRECTORY.
+1
+
+   Abaqus 3DEXPERIENCE R2018x                                  Date 08-9月-2026   Time 01:42:02
+   For use by Supplied by Team-SolidSQUAD under license from Dassault Systemes or its subsidiary.
+
+                                                                                               STEP    4  INCREMENT    1
+                                                                                          TIME COMPLETED IN THIS STEP   0.00    
+
+
+                        S T E P       4     C O U P L E D - T E M P E R A T U R E - D I S P L A C E M E N T   A N A L Y S I S
+
+
+                                                                                          
+
+          FIXED TIME INCREMENTS
+          TIME INCREMENT IS                                    0.100    
+          TIME PERIOD IS                                        1.00    
+
+          CREEP AND SWELLING EFFECTS ARE OMITTED IN THIS STEP
+
+          CREEP AND SWELLING EFFECTS WILL BE IGNORED.
+
+          UNSYMMETRIC MATRIX STORAGE AND SOLUTION WILL BE USED
+  
+                   M E M O R Y   E S T I M A T E
+  
+ PROCESS      FLOATING PT       MINIMUM MEMORY        MEMORY TO
+              OPERATIONS           REQUIRED          MINIMIZE I/O
+             PER ITERATION           (MB)               (MB)
+  
+     1          3.46E+06               17                 24
+  
+ NOTE:
+      (1) SINCE ABAQUS DOES NOT PRE-ALLOCATE MEMORY AND ONLY ALLOCATES MEMORY AS NEEDED DURING THE ANALYSIS,
+          THE MEMORY REQUIREMENT PRINTED HERE CAN ONLY BE VIEWED AS A GENERAL GUIDELINE BASED ON THE BEST
+          KNOWLEDGE AVAILABLE AT THE BEGINNING OF A STEP BEFORE THE SOLUTION PROCESS HAS BEGUN.
+      (2) THE ESTIMATE IS NORMALLY UPDATED AT THE BEGINNING OF EVERY STEP. IT IS THE MAXIMUM VALUE OF THE
+          ESTIMATE FROM THE CURRENT STEP TO THE LAST STEP OF THE ANALYSIS, WITH UNSYMMETRIC SOLUTION TAKEN
+          INTO ACCOUNT IF APPLICABLE. 
+      (3) SINCE THE ESTIMATE IS BASED ON THE ACTIVE DEGREES OF FREEDOM IN THE FIRST ITERATION OF THE 
+          CURRENT STEP, THE MEMORY ESTIMATE MIGHT BE SIGNIFICANTLY DIFFERENT THAN ACTUAL USAGE FOR 
+          PROBLEMS WITH SUBSTANTIAL CHANGES IN ACTIVE DEGREES OF FREEDOM BETWEEN STEPS (OR EVEN WITHIN
+          THE SAME STEP). EXAMPLES ARE: PROBLEMS WITH SIGNIFICANT CONTACT CHANGES, PROBLEMS WITH MODEL
+          CHANGE, PROBLEMS WITH BOTH STATIC STEP AND STEADY STATE DYNAMIC PROCEDURES WHERE ACOUSTIC 
+          ELEMENTS WILL ONLY BE ACTIVATED IN THE STEADY STATE DYNAMIC STEPS.
+      (4) FOR MULTI-PROCESS EXECUTION, THE ESTIMATED VALUE OF FLOATING POINT OPERATIONS FOR EACH PROCESS
+          IS BASED ON AN INITIAL SCHEDULING OF OPERATIONS AND MIGHT NOT REFLECT THE ACTUAL FLOATING 
+          POINT OPERATIONS COMPLETED ON EACH PROCESS. OPERATIONS ARE DYNAMICALLY BALANCED DURING EXECUTION, 
+          SO THE ACTUAL BALANCE OF OPERATIONS BETWEEN PROCESSES IS EXPECTED TO BE BETTER THAN THE ESTIMATE
+          PRINTED HERE.
+      (5) THE UPPER LIMIT OF MEMORY THAT CAN BE ALLOCATED BY ABAQUS WILL IN GENERAL DEPEND ON THE VALUE OF
+          THE "MEMORY" PARAMETER AND THE AMOUNT OF PHYSICAL MEMORY AVAILABLE ON THE MACHINE. PLEASE SEE
+          THE "ABAQUS ANALYSIS USER'S MANUAL" FOR MORE DETAILS. THE ACTUAL USAGE OF MEMORY AND OF DISK
+          SPACE FOR SCRATCH DATA WILL DEPEND ON THIS UPPER LIMIT AS WELL AS THE MEMORY REQUIRED TO MINIMIZE
+          I/O. IF THE MEMORY UPPER LIMIT IS GREATER THAN THE MEMORY REQUIRED TO MINIMIZE I/O, THEN THE ACTUAL
+          MEMORY USAGE WILL BE CLOSE TO THE ESTIMATED "MEMORY TO MINIMIZE I/O" VALUE, AND THE SCRATCH DISK
+          USAGE WILL BE CLOSE-TO-ZERO; OTHERWISE, THE ACTUAL MEMORY USED WILL BE CLOSE TO THE PREVIOUSLY
+          MENTIONED MEMORY LIMIT, AND THE SCRATCH DISK USAGE WILL BE ROUGHLY PROPORTIONAL TO THE DIFFERENCE
+          BETWEEN THE ESTIMATED "MEMORY TO MINIMIZE I/O" AND THE MEMORY UPPER LIMIT. HOWEVER ACCURATE
+          ESTIMATE OF THE SCRATCH DISK SPACE IS NOT POSSIBLE.
+      (6) USING "*RESTART, WRITE" CAN GENERATE A LARGE AMOUNT OF DATA WRITTEN IN THE WORK DIRECTORY.
+1
+
+   Abaqus 3DEXPERIENCE R2018x                                  Date 08-9月-2026   Time 01:42:03
+   For use by Supplied by Team-SolidSQUAD under license from Dassault Systemes or its subsidiary.
+
+                                                                                               STEP    5  INCREMENT    1
+                                                                                          TIME COMPLETED IN THIS STEP   0.00    
+
+
+                        S T E P       5     C O U P L E D - T E M P E R A T U R E - D I S P L A C E M E N T   A N A L Y S I S
+
+
+                                                                                          
+
+          FIXED TIME INCREMENTS
+          TIME INCREMENT IS                                    0.100    
+          TIME PERIOD IS                                        1.00    
+
+          CREEP AND SWELLING EFFECTS ARE OMITTED IN THIS STEP
+
+          CREEP AND SWELLING EFFECTS WILL BE IGNORED.
+
+          UNSYMMETRIC MATRIX STORAGE AND SOLUTION WILL BE USED
+  
+                   M E M O R Y   E S T I M A T E
+  
+ PROCESS      FLOATING PT       MINIMUM MEMORY        MEMORY TO
+              OPERATIONS           REQUIRED          MINIMIZE I/O
+             PER ITERATION           (MB)               (MB)
+  
+     1          3.46E+06               17                 24
+  
+ NOTE:
+      (1) SINCE ABAQUS DOES NOT PRE-ALLOCATE MEMORY AND ONLY ALLOCATES MEMORY AS NEEDED DURING THE ANALYSIS,
+          THE MEMORY REQUIREMENT PRINTED HERE CAN ONLY BE VIEWED AS A GENERAL GUIDELINE BASED ON THE BEST
+          KNOWLEDGE AVAILABLE AT THE BEGINNING OF A STEP BEFORE THE SOLUTION PROCESS HAS BEGUN.
+      (2) THE ESTIMATE IS NORMALLY UPDATED AT THE BEGINNING OF EVERY STEP. IT IS THE MAXIMUM VALUE OF THE
+          ESTIMATE FROM THE CURRENT STEP TO THE LAST STEP OF THE ANALYSIS, WITH UNSYMMETRIC SOLUTION TAKEN
+          INTO ACCOUNT IF APPLICABLE. 
+      (3) SINCE THE ESTIMATE IS BASED ON THE ACTIVE DEGREES OF FREEDOM IN THE FIRST ITERATION OF THE 
+          CURRENT STEP, THE MEMORY ESTIMATE MIGHT BE SIGNIFICANTLY DIFFERENT THAN ACTUAL USAGE FOR 
+          PROBLEMS WITH SUBSTANTIAL CHANGES IN ACTIVE DEGREES OF FREEDOM BETWEEN STEPS (OR EVEN WITHIN
+          THE SAME STEP). EXAMPLES ARE: PROBLEMS WITH SIGNIFICANT CONTACT CHANGES, PROBLEMS WITH MODEL
+          CHANGE, PROBLEMS WITH BOTH STATIC STEP AND STEADY STATE DYNAMIC PROCEDURES WHERE ACOUSTIC 
+          ELEMENTS WILL ONLY BE ACTIVATED IN THE STEADY STATE DYNAMIC STEPS.
+      (4) FOR MULTI-PROCESS EXECUTION, THE ESTIMATED VALUE OF FLOATING POINT OPERATIONS FOR EACH PROCESS
+          IS BASED ON AN INITIAL SCHEDULING OF OPERATIONS AND MIGHT NOT REFLECT THE ACTUAL FLOATING 
+          POINT OPERATIONS COMPLETED ON EACH PROCESS. OPERATIONS ARE DYNAMICALLY BALANCED DURING EXECUTION, 
+          SO THE ACTUAL BALANCE OF OPERATIONS BETWEEN PROCESSES IS EXPECTED TO BE BETTER THAN THE ESTIMATE
+          PRINTED HERE.
+      (5) THE UPPER LIMIT OF MEMORY THAT CAN BE ALLOCATED BY ABAQUS WILL IN GENERAL DEPEND ON THE VALUE OF
+          THE "MEMORY" PARAMETER AND THE AMOUNT OF PHYSICAL MEMORY AVAILABLE ON THE MACHINE. PLEASE SEE
+          THE "ABAQUS ANALYSIS USER'S MANUAL" FOR MORE DETAILS. THE ACTUAL USAGE OF MEMORY AND OF DISK
+          SPACE FOR SCRATCH DATA WILL DEPEND ON THIS UPPER LIMIT AS WELL AS THE MEMORY REQUIRED TO MINIMIZE
+          I/O. IF THE MEMORY UPPER LIMIT IS GREATER THAN THE MEMORY REQUIRED TO MINIMIZE I/O, THEN THE ACTUAL
+          MEMORY USAGE WILL BE CLOSE TO THE ESTIMATED "MEMORY TO MINIMIZE I/O" VALUE, AND THE SCRATCH DISK
+          USAGE WILL BE CLOSE-TO-ZERO; OTHERWISE, THE ACTUAL MEMORY USED WILL BE CLOSE TO THE PREVIOUSLY
+          MENTIONED MEMORY LIMIT, AND THE SCRATCH DISK USAGE WILL BE ROUGHLY PROPORTIONAL TO THE DIFFERENCE
+          BETWEEN THE ESTIMATED "MEMORY TO MINIMIZE I/O" AND THE MEMORY UPPER LIMIT. HOWEVER ACCURATE
+          ESTIMATE OF THE SCRATCH DISK SPACE IS NOT POSSIBLE.
+      (6) USING "*RESTART, WRITE" CAN GENERATE A LARGE AMOUNT OF DATA WRITTEN IN THE WORK DIRECTORY.
+1
+
+   Abaqus 3DEXPERIENCE R2018x                                  Date 08-9月-2026   Time 01:42:03
+   For use by Supplied by Team-SolidSQUAD under license from Dassault Systemes or its subsidiary.
+
+                                                                                               STEP    6  INCREMENT    1
+                                                                                          TIME COMPLETED IN THIS STEP   0.00    
+
+
+                        S T E P       6     C O U P L E D - T E M P E R A T U R E - D I S P L A C E M E N T   A N A L Y S I S
+
+
+                                                                                          
+
+          FIXED TIME INCREMENTS
+          TIME INCREMENT IS                                    0.100    
+          TIME PERIOD IS                                        1.00    
+
+          CREEP AND SWELLING EFFECTS ARE OMITTED IN THIS STEP
+
+          CREEP AND SWELLING EFFECTS WILL BE IGNORED.
+
+          UNSYMMETRIC MATRIX STORAGE AND SOLUTION WILL BE USED
+  
+                   M E M O R Y   E S T I M A T E
+  
+ PROCESS      FLOATING PT       MINIMUM MEMORY        MEMORY TO
+              OPERATIONS           REQUIRED          MINIMIZE I/O
+             PER ITERATION           (MB)               (MB)
+  
+     1          3.46E+06               17                 24
+  
+ NOTE:
+      (1) SINCE ABAQUS DOES NOT PRE-ALLOCATE MEMORY AND ONLY ALLOCATES MEMORY AS NEEDED DURING THE ANALYSIS,
+          THE MEMORY REQUIREMENT PRINTED HERE CAN ONLY BE VIEWED AS A GENERAL GUIDELINE BASED ON THE BEST
+          KNOWLEDGE AVAILABLE AT THE BEGINNING OF A STEP BEFORE THE SOLUTION PROCESS HAS BEGUN.
+      (2) THE ESTIMATE IS NORMALLY UPDATED AT THE BEGINNING OF EVERY STEP. IT IS THE MAXIMUM VALUE OF THE
+          ESTIMATE FROM THE CURRENT STEP TO THE LAST STEP OF THE ANALYSIS, WITH UNSYMMETRIC SOLUTION TAKEN
+          INTO ACCOUNT IF APPLICABLE. 
+      (3) SINCE THE ESTIMATE IS BASED ON THE ACTIVE DEGREES OF FREEDOM IN THE FIRST ITERATION OF THE 
+          CURRENT STEP, THE MEMORY ESTIMATE MIGHT BE SIGNIFICANTLY DIFFERENT THAN ACTUAL USAGE FOR 
+          PROBLEMS WITH SUBSTANTIAL CHANGES IN ACTIVE DEGREES OF FREEDOM BETWEEN STEPS (OR EVEN WITHIN
+          THE SAME STEP). EXAMPLES ARE: PROBLEMS WITH SIGNIFICANT CONTACT CHANGES, PROBLEMS WITH MODEL
+          CHANGE, PROBLEMS WITH BOTH STATIC STEP AND STEADY STATE DYNAMIC PROCEDURES WHERE ACOUSTIC 
+          ELEMENTS WILL ONLY BE ACTIVATED IN THE STEADY STATE DYNAMIC STEPS.
+      (4) FOR MULTI-PROCESS EXECUTION, THE ESTIMATED VALUE OF FLOATING POINT OPERATIONS FOR EACH PROCESS
+          IS BASED ON AN INITIAL SCHEDULING OF OPERATIONS AND MIGHT NOT REFLECT THE ACTUAL FLOATING 
+          POINT OPERATIONS COMPLETED ON EACH PROCESS. OPERATIONS ARE DYNAMICALLY BALANCED DURING EXECUTION, 
+          SO THE ACTUAL BALANCE OF OPERATIONS BETWEEN PROCESSES IS EXPECTED TO BE BETTER THAN THE ESTIMATE
+          PRINTED HERE.
+      (5) THE UPPER LIMIT OF MEMORY THAT CAN BE ALLOCATED BY ABAQUS WILL IN GENERAL DEPEND ON THE VALUE OF
+          THE "MEMORY" PARAMETER AND THE AMOUNT OF PHYSICAL MEMORY AVAILABLE ON THE MACHINE. PLEASE SEE
+          THE "ABAQUS ANALYSIS USER'S MANUAL" FOR MORE DETAILS. THE ACTUAL USAGE OF MEMORY AND OF DISK
+          SPACE FOR SCRATCH DATA WILL DEPEND ON THIS UPPER LIMIT AS WELL AS THE MEMORY REQUIRED TO MINIMIZE
+          I/O. IF THE MEMORY UPPER LIMIT IS GREATER THAN THE MEMORY REQUIRED TO MINIMIZE I/O, THEN THE ACTUAL
+          MEMORY USAGE WILL BE CLOSE TO THE ESTIMATED "MEMORY TO MINIMIZE I/O" VALUE, AND THE SCRATCH DISK
+          USAGE WILL BE CLOSE-TO-ZERO; OTHERWISE, THE ACTUAL MEMORY USED WILL BE CLOSE TO THE PREVIOUSLY
+          MENTIONED MEMORY LIMIT, AND THE SCRATCH DISK USAGE WILL BE ROUGHLY PROPORTIONAL TO THE DIFFERENCE
+          BETWEEN THE ESTIMATED "MEMORY TO MINIMIZE I/O" AND THE MEMORY UPPER LIMIT. HOWEVER ACCURATE
+          ESTIMATE OF THE SCRATCH DISK SPACE IS NOT POSSIBLE.
+      (6) USING "*RESTART, WRITE" CAN GENERATE A LARGE AMOUNT OF DATA WRITTEN IN THE WORK DIRECTORY.
+1
+
+   Abaqus 3DEXPERIENCE R2018x                                  Date 08-9月-2026   Time 01:42:03
+   For use by Supplied by Team-SolidSQUAD under license from Dassault Systemes or its subsidiary.
+
+                                                                                               STEP    7  INCREMENT    1
+                                                                                          TIME COMPLETED IN THIS STEP   0.00    
+
+
+                        S T E P       7     C O U P L E D - T E M P E R A T U R E - D I S P L A C E M E N T   A N A L Y S I S
+
+
+                                                                                          
+
+          FIXED TIME INCREMENTS
+          TIME INCREMENT IS                                    0.100    
+          TIME PERIOD IS                                        1.00    
+
+          CREEP AND SWELLING EFFECTS ARE OMITTED IN THIS STEP
+
+          CREEP AND SWELLING EFFECTS WILL BE IGNORED.
+
+          UNSYMMETRIC MATRIX STORAGE AND SOLUTION WILL BE USED
+  
+                   M E M O R Y   E S T I M A T E
+  
+ PROCESS      FLOATING PT       MINIMUM MEMORY        MEMORY TO
+              OPERATIONS           REQUIRED          MINIMIZE I/O
+             PER ITERATION           (MB)               (MB)
+  
+     1          3.46E+06               17                 24
+  
+ NOTE:
+      (1) SINCE ABAQUS DOES NOT PRE-ALLOCATE MEMORY AND ONLY ALLOCATES MEMORY AS NEEDED DURING THE ANALYSIS,
+          THE MEMORY REQUIREMENT PRINTED HERE CAN ONLY BE VIEWED AS A GENERAL GUIDELINE BASED ON THE BEST
+          KNOWLEDGE AVAILABLE AT THE BEGINNING OF A STEP BEFORE THE SOLUTION PROCESS HAS BEGUN.
+      (2) THE ESTIMATE IS NORMALLY UPDATED AT THE BEGINNING OF EVERY STEP. IT IS THE MAXIMUM VALUE OF THE
+          ESTIMATE FROM THE CURRENT STEP TO THE LAST STEP OF THE ANALYSIS, WITH UNSYMMETRIC SOLUTION TAKEN
+          INTO ACCOUNT IF APPLICABLE. 
+      (3) SINCE THE ESTIMATE IS BASED ON THE ACTIVE DEGREES OF FREEDOM IN THE FIRST ITERATION OF THE 
+          CURRENT STEP, THE MEMORY ESTIMATE MIGHT BE SIGNIFICANTLY DIFFERENT THAN ACTUAL USAGE FOR 
+          PROBLEMS WITH SUBSTANTIAL CHANGES IN ACTIVE DEGREES OF FREEDOM BETWEEN STEPS (OR EVEN WITHIN
+          THE SAME STEP). EXAMPLES ARE: PROBLEMS WITH SIGNIFICANT CONTACT CHANGES, PROBLEMS WITH MODEL
+          CHANGE, PROBLEMS WITH BOTH STATIC STEP AND STEADY STATE DYNAMIC PROCEDURES WHERE ACOUSTIC 
+          ELEMENTS WILL ONLY BE ACTIVATED IN THE STEADY STATE DYNAMIC STEPS.
+      (4) FOR MULTI-PROCESS EXECUTION, THE ESTIMATED VALUE OF FLOATING POINT OPERATIONS FOR EACH PROCESS
+          IS BASED ON AN INITIAL SCHEDULING OF OPERATIONS AND MIGHT NOT REFLECT THE ACTUAL FLOATING 
+          POINT OPERATIONS COMPLETED ON EACH PROCESS. OPERATIONS ARE DYNAMICALLY BALANCED DURING EXECUTION, 
+          SO THE ACTUAL BALANCE OF OPERATIONS BETWEEN PROCESSES IS EXPECTED TO BE BETTER THAN THE ESTIMATE
+          PRINTED HERE.
+      (5) THE UPPER LIMIT OF MEMORY THAT CAN BE ALLOCATED BY ABAQUS WILL IN GENERAL DEPEND ON THE VALUE OF
+          THE "MEMORY" PARAMETER AND THE AMOUNT OF PHYSICAL MEMORY AVAILABLE ON THE MACHINE. PLEASE SEE
+          THE "ABAQUS ANALYSIS USER'S MANUAL" FOR MORE DETAILS. THE ACTUAL USAGE OF MEMORY AND OF DISK
+          SPACE FOR SCRATCH DATA WILL DEPEND ON THIS UPPER LIMIT AS WELL AS THE MEMORY REQUIRED TO MINIMIZE
+          I/O. IF THE MEMORY UPPER LIMIT IS GREATER THAN THE MEMORY REQUIRED TO MINIMIZE I/O, THEN THE ACTUAL
+          MEMORY USAGE WILL BE CLOSE TO THE ESTIMATED "MEMORY TO MINIMIZE I/O" VALUE, AND THE SCRATCH DISK
+          USAGE WILL BE CLOSE-TO-ZERO; OTHERWISE, THE ACTUAL MEMORY USED WILL BE CLOSE TO THE PREVIOUSLY
+          MENTIONED MEMORY LIMIT, AND THE SCRATCH DISK USAGE WILL BE ROUGHLY PROPORTIONAL TO THE DIFFERENCE
+          BETWEEN THE ESTIMATED "MEMORY TO MINIMIZE I/O" AND THE MEMORY UPPER LIMIT. HOWEVER ACCURATE
+          ESTIMATE OF THE SCRATCH DISK SPACE IS NOT POSSIBLE.
+      (6) USING "*RESTART, WRITE" CAN GENERATE A LARGE AMOUNT OF DATA WRITTEN IN THE WORK DIRECTORY.
+
+
+          THE ANALYSIS HAS BEEN COMPLETED
+
+
+
+                              ANALYSIS COMPLETE
+                              WITH    158 WARNING MESSAGES ON THE DAT FILE
+
+
+
+     JOB TIME SUMMARY
+       USER TIME (SEC)      =   1.3000    
+       SYSTEM TIME (SEC)    =  0.70000    
+       TOTAL CPU TIME (SEC) =   2.0000    
+       WALLCLOCK TIME (SEC) =          3

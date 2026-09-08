@@ -16,13 +16,15 @@ std::vector<std::string> split(const std::string& line) {
     std::vector<std::string> result;
     std::istringstream stream(line);
     std::string value;
-    while (std::getline(stream, value, ',')) result.push_back(value);
+    while (std::getline(stream, value, ','))
+        result.push_back(value);
     return result;
 }
 
 Matrix8 read_matrix(const std::string& path) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read Abaqus C3D8RT capacity reference: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read Abaqus C3D8RT capacity reference: " + path);
     std::string line;
     std::getline(input, line);
     if (line != "input_local_node,output_local_node,node,temperature_k,reaction_heat_flux_w")
@@ -49,11 +51,16 @@ bool check_case(const std::string& path, const fuelsim::Hex8Coordinates& coordin
     const Matrix8 abaqus_total = read_matrix(path);
     const fuelsim::ThermoelasticProperties properties =
         fuelsim::test::thermoelastic(0.0, 4.0, 2.0e11, 0.25, 0.0, 300.0, 0.0, 0.0, 0.0, 2000.0, 3000.0);
-    const fuelsim::CartesianThermoelasticData data{fuelsim::IsotropicThermoelasticMaterial(properties), 0.0, 1.0,
-        fuelsim::StrainFormulation::small, fuelsim::Hex8ElementFormulation::c3d8rt, 300.0};
+    const fuelsim::CartesianThermoelasticData data{fuelsim::IsotropicThermoelasticMaterial(properties),
+        0.0,
+        1.0,
+        fuelsim::StrainFormulation::small,
+        fuelsim::Hex8ElementFormulation::c3d8rt,
+        300.0};
     const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(coordinates);
     fuelsim::Hex8LocalValues committed{};
-    for (std::size_t node = 0; node < 8; ++node) committed[node] = 300.0;
+    for (std::size_t node = 0; node < 8; ++node)
+        committed[node] = 300.0;
     const fuelsim::CartesianMaterialHistory history(1);
     Matrix8 fuelsim_total{}, fuelsim_capacity{}, expected_capacity{};
     for (std::size_t column = 0; column < 8; ++column) {
@@ -82,10 +89,23 @@ bool check_case(const std::string& path, const fuelsim::Hex8Coordinates& coordin
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 3) return 2;
-    const fuelsim::Hex8Coordinates regular = {{{0.0, 0.0, 0.0}, {1.0, 0.0, 0.0}, {1.0, 1.0, 0.0}, {0.0, 1.0, 0.0},
-        {0.0, 0.0, 1.0}, {1.0, 0.0, 1.0}, {1.0, 1.0, 1.0}, {0.0, 1.0, 1.0}}};
-    const fuelsim::Hex8Coordinates warped = {{{0.00, 0.00, 0.00}, {1.20, 0.10, -0.05}, {1.10, 1.00, 0.10},
-        {-0.10, 0.90, 0.00}, {0.05, -0.05, 1.00}, {1.15, 0.00, 1.20}, {1.00, 1.10, 1.10}, {-0.05, 1.00, 0.90}}};
+    if (argc != 3)
+        return 2;
+    const fuelsim::Hex8Coordinates regular = {{{0.0, 0.0, 0.0},
+        {1.0, 0.0, 0.0},
+        {1.0, 1.0, 0.0},
+        {0.0, 1.0, 0.0},
+        {0.0, 0.0, 1.0},
+        {1.0, 0.0, 1.0},
+        {1.0, 1.0, 1.0},
+        {0.0, 1.0, 1.0}}};
+    const fuelsim::Hex8Coordinates warped = {{{0.00, 0.00, 0.00},
+        {1.20, 0.10, -0.05},
+        {1.10, 1.00, 0.10},
+        {-0.10, 0.90, 0.00},
+        {0.05, -0.05, 1.00},
+        {1.15, 0.00, 1.20},
+        {1.00, 1.10, 1.10},
+        {-0.05, 1.00, 0.90}}};
     return check_case(argv[1], regular) && check_case(argv[2], warped) ? 0 : 1;
 }

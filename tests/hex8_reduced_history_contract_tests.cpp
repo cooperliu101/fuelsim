@@ -8,7 +8,8 @@
 #include <stdexcept>
 
 int main(int argc, char** argv) {
-    if (argc != 4) return 2;
+    if (argc != 4)
+        return 2;
     try {
         const auto input = fuelsim::read_case_input(argv[1]);
         const auto mesh = fuelsim::read_exodus_hex8(input.mesh_file);
@@ -28,8 +29,8 @@ int main(int argc, char** argv) {
             const std::array<std::string, 6> names = {"xx", "yy", "zz", "xy", "yz", "xz"};
             for (std::size_t q = 0; q < 8; ++q)
                 for (std::size_t field = 0; field < 6; ++field)
-                    if (output.element("stress_" + names[field] + "_q" + std::to_string(q)).at(element) !=
-                        values[field])
+                    if (output.element("stress_" + names[field] + "_q" + std::to_string(q)).at(element)
+                        != values[field])
                         throw std::runtime_error("C3D8RT output must repeat its single committed point exactly");
         }
         return 0;

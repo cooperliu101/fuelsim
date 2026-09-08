@@ -1,0 +1,23 @@
+abaqus_work_directory=C:\Users\TcroM\AppData\Local\Temp\c3d20rt_small_creep_hold_20260908_060517
+Analysis initiated from SIMULIA established products
+Abaqus JOB c3d20rt_small_creep_hold
+Abaqus 3DEXPERIENCE R2018x
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server localhost.
+<1019 out of 1024 licenses remain available>.
+Begin Analysis Input File Processor
+9/8/2026 6:05:18 AM
+Run pre.exe
+9/8/2026 6:05:19 AM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/8/2026 6:05:19 AM
+Run standard.exe
+9/8/2026 6:05:19 AM
+End Abaqus/Standard Analysis
+Begin Convert MFS to SFS
+9/8/2026 6:05:20 AM
+Run SMASimUtility.exe
+9/8/2026 6:05:20 AM
+End Convert MFS to SFS
+Abaqus JOB c3d20rt_small_creep_hold COMPLETED

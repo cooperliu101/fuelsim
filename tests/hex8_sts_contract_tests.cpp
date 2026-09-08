@@ -31,12 +31,14 @@ void verify(const std::string& card, const std::string& output) {
     std::array<double, 3> residual_balance{};
     double maximum_jacobian_directional_error = 0.0;
     for (std::size_t contribution = 0; contribution < spatial.contribution_count(); ++contribution) {
-        if (spatial.contribution_type(contribution) != fuelsim::SpatialContributionType::mechanical_contact) continue;
+        if (spatial.contribution_type(contribution) != fuelsim::SpatialContributionType::mechanical_contact)
+            continue;
         ++mechanical_contributions;
         std::vector<std::size_t> dofs;
         spatial.contribution_dofs(contribution, dofs);
         std::vector<double> local(dofs.size());
-        for (std::size_t index = 0; index < dofs.size(); ++index) local[index] = state[dofs[index]];
+        for (std::size_t index = 0; index < dofs.size(); ++index)
+            local[index] = state[dofs[index]];
         std::vector<double> residual, jacobian;
         spatial.compute_contribution(contribution, local, nullptr, nullptr, 0.0, residual, &jacobian);
         std::vector<double> direction(local.size()), plus = local, minus = local;
@@ -60,7 +62,8 @@ void verify(const std::string& card, const std::string& output) {
             const std::size_t global = dofs[row];
             for (std::size_t component = 0; component < 3; ++component) {
                 const auto& field = spatial.field_layout()[component + 1];
-                if (global >= field.begin && global < field.end) residual_balance[component] += residual[row];
+                if (global >= field.begin && global < field.end)
+                    residual_balance[component] += residual[row];
             }
         }
         maximum_jacobian_directional_error =
@@ -72,14 +75,15 @@ void verify(const std::string& card, const std::string& output) {
               << " contact_jacobian_directional_error=" << maximum_jacobian_directional_error
               << " residual_balance=" << residual_balance[0] << ',' << residual_balance[1] << ',' << residual_balance[2]
               << '\n';
-    if (mechanical_contributions != nodes.size() || nodes.empty() || !(maximum_jacobian_directional_error < 1.0e-7) ||
-        !(std::abs(residual_balance[0]) < 1.0e-8) || !(std::abs(residual_balance[1]) < 1.0e-8) ||
-        !(std::abs(residual_balance[2]) < 1.0e-8))
+    if (mechanical_contributions != nodes.size() || nodes.empty() || !(maximum_jacobian_directional_error < 1.0e-7)
+        || !(std::abs(residual_balance[0]) < 1.0e-8) || !(std::abs(residual_balance[1]) < 1.0e-8)
+        || !(std::abs(residual_balance[2]) < 1.0e-8))
         throw std::runtime_error("B3.9 unique constraint, directional derivative or action-reaction contract failed");
 }
 
 int main(int argc, char** argv) {
-    if (argc != 3) return 2;
+    if (argc != 3)
+        return 2;
     try {
         verify(argv[1], argv[2]);
         return 0;

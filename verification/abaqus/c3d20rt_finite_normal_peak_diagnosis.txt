@@ -1,0 +1,7 @@
+diagnostic_time 4.0
+local relative_l2 0.0002292780640609179 component_relative_l2 [1.49354872e-05 1.43472581e-01 4.22769201e-01] component_maximum_absolute_n [ 114.82648249 1956.90992463  147.64200649]
+sampled relative_l2 1.472522333420852e-05 component_relative_l2 [1.47252103e-05 1.91664336e-05 4.26900008e-05] component_maximum_absolute_n [1.14531548e+02 1.61874604e-01 1.93861233e-02]
+area_sampled relative_l2 8.79355157070054e-06 component_relative_l2 [8.79354236e-06 1.18791382e-05 2.42179936e-05] component_maximum_absolute_n [6.36981390e+01 1.05781039e-01 1.01411008e-02]
+raw_area_sampled relative_l2 2.4037075379342557e-08 component_relative_l2 [2.40368678e-08 6.68113829e-08 2.30717474e-07] component_maximum_absolute_n [2.14039185e-01 9.40184538e-04 1.48745870e-04]
+common relative_l2 0.00023409454106229212 component_relative_l2 [1.49320560e-05 1.46512847e-01 4.29505009e-01] component_maximum_absolute_n [ 114.76661903 2014.6787491   156.68626187]
+maximum_native_frame_normal_difference 9.638348910276758e-09

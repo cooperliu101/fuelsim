@@ -1,0 +1,82 @@
+{
+  "cax4t": {
+    "comparison_passed": true,
+    "maximum_relative_percent": 6.079812344928e-05,
+    "maximum_metric": "displacement_maximum_pointwise_relative",
+    "active_contact_samples": 45,
+    "fuelsim": {
+      "simultaneous": 440,
+      "total": 440,
+      "min_plastic_increment": 0.00011763845733020646,
+      "min_creep_increment": 3.1335439631198285e-06,
+      "max_backward_euler_relative_residual": 4.756230658017095e-15
+    },
+    "abaqus": {
+      "simultaneous": 440,
+      "total": 440,
+      "min_plastic_increment": 0.00011763845767757508,
+      "min_creep_increment": 3.1335439631760885e-06,
+      "max_backward_euler_relative_residual": 6.823500683261091e-15
+    }
+  },
+  "cax4rt": {
+    "comparison_passed": true,
+    "maximum_relative_percent": 0.007390375011118,
+    "maximum_metric": "displacement_maximum_pointwise_relative",
+    "active_contact_samples": 45,
+    "fuelsim": {
+      "simultaneous": 110,
+      "total": 110,
+      "min_plastic_increment": 0.00011466718482979203,
+      "min_creep_increment": 3.133543963175853e-06,
+      "max_backward_euler_relative_residual": 3.844134634312461e-15
+    },
+    "abaqus": {
+      "simultaneous": 110,
+      "total": 110,
+      "min_plastic_increment": 0.0001146669851602646,
+      "min_creep_increment": 3.1335439631760906e-06,
+      "max_backward_euler_relative_residual": 6.032286399316348e-15
+    }
+  },
+  "cax8t": {
+    "comparison_passed": true,
+    "maximum_relative_percent": 0.004988514683512,
+    "maximum_metric": "displacement_maximum_pointwise_relative",
+    "active_contact_samples": 81,
+    "fuelsim": {
+      "simultaneous": 990,
+      "total": 990,
+      "min_plastic_increment": 0.00011255275244203178,
+      "min_creep_increment": 3.1335439631760703e-06,
+      "max_backward_euler_relative_residual": 4.141379451967585e-15
+    },
+    "abaqus": {
+      "simultaneous": 990,
+      "total": 990,
+      "min_plastic_increment": 0.0001125527614129979,
+      "min_creep_increment": 3.1335439631760847e-06,
+      "max_backward_euler_relative_residual": 6.584789235556673e-15
+    }
+  },
+  "cax8rt": {
+    "comparison_passed": true,
+    "maximum_relative_percent": 0.37151978135020003,
+    "maximum_metric": "displacement_maximum_pointwise_relative",
+    "active_contact_samples": 81,
+    "fuelsim": {
+      "simultaneous": 440,
+      "total": 440,
+      "min_plastic_increment": 0.00011207926788143249,
+      "min_creep_increment": 3.1335439631760703e-06,
+      "max_backward_euler_relative_residual": 4.007331052497877e-15
+    },
+    "abaqus": {
+      "simultaneous": 440,
+      "total": 440,
+      "min_plastic_increment": 0.00011207928077752141,
+      "min_creep_increment": 3.133543963176079e-06,
+      "max_backward_euler_relative_residual": 6.956843231077136e-15
+    }
+  }
+}

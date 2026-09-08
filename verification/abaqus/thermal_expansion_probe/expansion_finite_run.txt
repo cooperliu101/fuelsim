@@ -1,0 +1,8 @@
+case=expansion_finite
+abaqus_version=3DEXPERIENCE R2018x
+cpus=1
+output_precision=full
+completed_utc=2026-09-07T10:23:32.7338296Z
+work_directory=C:\Users\TcroM\AppData\Local\Temp\fuelsim_expansion_2ce6158ba5984abd81d83bdf9c5b269e
+input_sha256=C04529F5748F324C5BB22D32F9638882A280CE5B1DE98735EB66B3D843C7DD41
+extractor_sha256=B5FC05311E2A30514CB9F2501763035C7663182F8C447125531DF2703BCC32A7

@@ -15,7 +15,8 @@ bool farther_contact_search_entry(const ContactSearchQueueEntry& first, const Co
 void ContactSearchTree::build(std::vector<ContactSearchBox> boxes) {
     _boxes = std::move(boxes);
     _nodes.clear();
-    if (_boxes.empty()) return;
+    if (_boxes.empty())
+        return;
     std::vector<std::size_t> indices(_boxes.size());
     std::iota(indices.begin(), indices.end(), 0);
     _nodes.reserve(2 * _boxes.size() - 1);
@@ -23,7 +24,8 @@ void ContactSearchTree::build(std::vector<ContactSearchBox> boxes) {
 }
 
 void ContactSearchTree::refit(const std::vector<ContactSearchBox>& boxes) {
-    if (!can_refit(boxes.size())) throw std::invalid_argument("Contact search tree refit layout mismatch");
+    if (!can_refit(boxes.size()))
+        throw std::invalid_argument("Contact search tree refit layout mismatch");
     for (std::size_t offset = _nodes.size(); offset-- > 0;) {
         Node& node = _nodes[offset];
         if (node.item != std::numeric_limits<std::size_t>::max()) {
@@ -64,12 +66,13 @@ std::size_t ContactSearchTree::build_node(std::vector<std::size_t>& indices, std
             axis = component;
     const std::size_t middle = begin + (end - begin) / 2;
     std::nth_element(indices.begin() + static_cast<std::ptrdiff_t>(begin),
-        indices.begin() + static_cast<std::ptrdiff_t>(middle), indices.begin() + static_cast<std::ptrdiff_t>(end),
+        indices.begin() + static_cast<std::ptrdiff_t>(middle),
+        indices.begin() + static_cast<std::ptrdiff_t>(end),
         [this, axis](std::size_t first, std::size_t second) {
             const double first_center = 0.5 * (_boxes[first].minimum[axis] + _boxes[first].maximum[axis]);
             const double second_center = 0.5 * (_boxes[second].minimum[axis] + _boxes[second].maximum[axis]);
-            return first_center < second_center ||
-                   (first_center == second_center && _boxes[first].item < _boxes[second].item);
+            return first_center < second_center
+                   || (first_center == second_center && _boxes[first].item < _boxes[second].item);
         });
     bounds.left = build_node(indices, begin, middle);
     bounds.right = build_node(indices, middle, end);
@@ -97,7 +100,8 @@ void ContactSearchTree::push_node(ContactSearchQuery& query, std::size_t node) c
 void ContactSearchTree::begin_query(const std::array<double, 3>& point, ContactSearchQuery& query) const {
     query.point = point;
     query.queue.clear();
-    if (!_nodes.empty()) push_node(query, 0);
+    if (!_nodes.empty())
+        push_node(query, 0);
 }
 
 bool ContactSearchTree::next_candidate(ContactSearchQuery& query, double maximum_distance, std::size_t& item) const {

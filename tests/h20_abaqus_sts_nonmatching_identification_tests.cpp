@@ -52,7 +52,8 @@ struct TransferState final {
 };
 
 bool check(bool condition, const std::string& message) {
-    if (condition) return true;
+    if (condition)
+        return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
@@ -61,8 +62,10 @@ std::vector<std::string> split_csv(const std::string& line) {
     std::vector<std::string> values;
     std::istringstream stream(line);
     std::string value;
-    while (std::getline(stream, value, ',')) values.push_back(value);
-    if (!line.empty() && line.back() == ',') values.emplace_back();
+    while (std::getline(stream, value, ','))
+        values.push_back(value);
+    if (!line.empty() && line.back() == ',')
+        values.emplace_back();
     return values;
 }
 
@@ -74,25 +77,30 @@ double number(const std::vector<std::string>& values, std::size_t index, const s
 
 MatchingData read_matching(const std::string& path) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read H20.26 operator reference: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read H20.26 operator reference: " + path);
     std::string line;
     std::getline(input, line);
-    if (line != "step,input_local_node,input_label,output_local_node,output_label,closure_delta_m,copen_m,"
-                "cpress_pa,cnormf_x_n,cnormf_y_n,cnormf_z_n")
+    if (line
+        != "step,input_local_node,input_label,output_local_node,output_label,closure_delta_m,copen_m,"
+           "cpress_pa,cnormf_x_n,cnormf_y_n,cnormf_z_n")
         throw std::invalid_argument("Unexpected H20.26 operator header in " + path);
     MatchingData result;
     std::size_t rows = 0;
     while (std::getline(input, line)) {
-        if (line.empty()) continue;
+        if (line.empty())
+            continue;
         const std::vector<std::string> values = split_csv(line);
-        if (values.at(0) == "BASE") continue;
+        if (values.at(0) == "BASE")
+            continue;
         const std::size_t input_node = static_cast<std::size_t>(number(values, 1, path)) - 1;
         const std::size_t output_node = static_cast<std::size_t>(number(values, 3, path)) - 1;
         if (input_node >= matching_count || output_node >= matching_count)
             throw std::invalid_argument("Invalid H20.26 local node in " + path);
         const bool plus = values.at(0).find("_PLUS") != std::string::npos;
         const bool minus = values.at(0).find("_MINUS") != std::string::npos;
-        if (plus == minus) throw std::invalid_argument("Invalid H20.26 perturbation step in " + path);
+        if (plus == minus)
+            throw std::invalid_argument("Invalid H20.26 perturbation step in " + path);
         (plus ? result.plus_copen : result.minus_copen)[output_node * matching_count + input_node] =
             number(values, 6, path);
         ++rows;
@@ -104,21 +112,25 @@ MatchingData read_matching(const std::string& path) {
 
 NonmatchingData read_nonmatching(const std::string& path) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read H20.27 operator reference: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read H20.27 operator reference: " + path);
     std::string line;
     std::getline(input, line);
-    if (line != "step,input_local_node,input_label,side,output_local_node,output_label,closure_delta_m,copen_m,"
-                "cpress_pa,cnormf_x_n,cnormf_y_n,cnormf_z_n")
+    if (line
+        != "step,input_local_node,input_label,side,output_local_node,output_label,closure_delta_m,copen_m,"
+           "cpress_pa,cnormf_x_n,cnormf_y_n,cnormf_z_n")
         throw std::invalid_argument("Unexpected H20.27 operator header in " + path);
 
     NonmatchingData result;
     std::size_t base_rows = 0, perturbation_rows = 0, open_rows = 0, reclose_rows = 0;
     while (std::getline(input, line)) {
-        if (line.empty()) continue;
+        if (line.empty())
+            continue;
         const std::vector<std::string> values = split_csv(line);
         const std::string& step = values.at(0);
         const bool secondary = values.at(3) == "secondary";
-        if (!secondary && values.at(3) != "primary") throw std::invalid_argument("Invalid H20.27 side in " + path);
+        if (!secondary && values.at(3) != "primary")
+            throw std::invalid_argument("Invalid H20.27 side in " + path);
         const std::size_t output_node = static_cast<std::size_t>(number(values, 4, path)) - 1;
         if ((secondary && output_node >= secondary_count) || (!secondary && output_node >= primary_count))
             throw std::invalid_argument("Invalid H20.27 output node in " + path);
@@ -162,10 +174,12 @@ NonmatchingData read_nonmatching(const std::string& path) {
         }
 
         const std::size_t input_node = static_cast<std::size_t>(number(values, 1, path)) - 1;
-        if (input_node >= secondary_count) throw std::invalid_argument("Invalid H20.27 input node in " + path);
+        if (input_node >= secondary_count)
+            throw std::invalid_argument("Invalid H20.27 input node in " + path);
         const bool plus = step.find("_PLUS") != std::string::npos;
         const bool minus = step.find("_MINUS") != std::string::npos;
-        if (plus == minus) throw std::invalid_argument("Invalid H20.27 perturbation step in " + path);
+        if (plus == minus)
+            throw std::invalid_argument("Invalid H20.27 perturbation step in " + path);
         if (secondary) {
             const std::size_t entry = output_node * secondary_count + input_node;
             (plus ? result.plus_copen : result.minus_copen)[entry] = number(values, 7, path);
@@ -178,25 +192,30 @@ NonmatchingData read_nonmatching(const std::string& path) {
         ++perturbation_rows;
     }
     const std::size_t state_rows = secondary_count + primary_count;
-    if (base_rows != state_rows || open_rows != state_rows || reclose_rows != state_rows ||
-        perturbation_rows != 2 * secondary_count * state_rows)
+    if (base_rows != state_rows || open_rows != state_rows || reclose_rows != state_rows
+        || perturbation_rows != 2 * secondary_count * state_rows)
         throw std::invalid_argument("Unexpected H20.27 operator row count in " + path);
     return result;
 }
 
 History read_history(const std::string& path, const std::string& requested_step) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read H20.27 history reference: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read H20.27 history reference: " + path);
     std::string line;
     std::getline(input, line);
-    if (line != "step,contact_area_m2,normal_force_x_n,normal_force_y_n,normal_force_z_n,"
-                "normal_moment_x_nm,normal_moment_y_nm,normal_moment_z_nm,center_x_m,center_y_m,center_z_m")
+    if (line
+        != "step,contact_area_m2,normal_force_x_n,normal_force_y_n,normal_force_z_n,"
+           "normal_moment_x_nm,normal_moment_y_nm,normal_moment_z_nm,center_x_m,center_y_m,center_z_m")
         throw std::invalid_argument("Unexpected H20.27 history header in " + path);
     while (std::getline(input, line)) {
-        if (line.empty()) continue;
+        if (line.empty())
+            continue;
         const std::vector<std::string> values = split_csv(line);
-        if (values.at(0) != requested_step) continue;
-        return {number(values, 1, path), {number(values, 2, path), number(values, 3, path), number(values, 4, path)},
+        if (values.at(0) != requested_step)
+            continue;
+        return {number(values, 1, path),
+            {number(values, 2, path), number(values, 3, path), number(values, 4, path)},
             {number(values, 5, path), number(values, 6, path), number(values, 7, path)},
             {number(values, 8, path), number(values, 9, path), number(values, 10, path)}};
     }
@@ -205,25 +224,30 @@ History read_history(const std::string& path, const std::string& requested_step)
 
 TransferState read_transfer_state(const std::string& path, const std::string& requested_step) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read H20.27 transfer reference: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read H20.27 transfer reference: " + path);
     std::string line;
     std::getline(input, line);
     if (line != "step,side,local_node,node_label,copen_m,cpress_pa,cnormf_x_n,cnormf_y_n,cnormf_z_n")
         throw std::invalid_argument("Unexpected H20.27 transfer header in " + path);
     TransferState result;
     while (std::getline(input, line)) {
-        if (line.empty()) continue;
+        if (line.empty())
+            continue;
         const std::vector<std::string> values = split_csv(line);
-        if (values.at(0) != requested_step) continue;
+        if (values.at(0) != requested_step)
+            continue;
         const std::size_t node = static_cast<std::size_t>(number(values, 2, path)) - 1;
         if (values.at(1) == "secondary") {
-            if (node >= matching_count) throw std::invalid_argument("Invalid H20.27 transfer secondary node");
+            if (node >= matching_count)
+                throw std::invalid_argument("Invalid H20.27 transfer secondary node");
             result.secondary_copen[node] = number(values, 4, path);
             result.secondary_pressure[node] = number(values, 5, path);
             result.secondary_force[node] = number(values, 6, path);
             ++result.secondary_rows;
         } else if (values.at(1) == "primary") {
-            if (node >= primary_count) throw std::invalid_argument("Invalid H20.27 transfer primary node");
+            if (node >= primary_count)
+                throw std::invalid_argument("Invalid H20.27 transfer primary node");
             result.primary_force[node] = number(values, 6, path);
             ++result.primary_rows;
         } else {
@@ -295,9 +319,13 @@ double relative_frobenius_transfer(const TransferMatrix& value, const TransferMa
 }
 
 std::array<double, matching_count> quad8_shape(double xi, double eta) {
-    return {0.25 * (1.0 - xi) * (1.0 - eta) * (-xi - eta - 1.0), 0.25 * (1.0 + xi) * (1.0 - eta) * (xi - eta - 1.0),
-        0.25 * (1.0 + xi) * (1.0 + eta) * (xi + eta - 1.0), 0.25 * (1.0 - xi) * (1.0 + eta) * (-xi + eta - 1.0),
-        0.5 * (1.0 - xi * xi) * (1.0 - eta), 0.5 * (1.0 + xi) * (1.0 - eta * eta), 0.5 * (1.0 - xi * xi) * (1.0 + eta),
+    return {0.25 * (1.0 - xi) * (1.0 - eta) * (-xi - eta - 1.0),
+        0.25 * (1.0 + xi) * (1.0 - eta) * (xi - eta - 1.0),
+        0.25 * (1.0 + xi) * (1.0 + eta) * (xi + eta - 1.0),
+        0.25 * (1.0 - xi) * (1.0 + eta) * (-xi + eta - 1.0),
+        0.5 * (1.0 - xi * xi) * (1.0 - eta),
+        0.5 * (1.0 + xi) * (1.0 - eta * eta),
+        0.5 * (1.0 - xi * xi) * (1.0 + eta),
         0.5 * (1.0 - xi) * (1.0 - eta * eta)};
 }
 
@@ -305,7 +333,9 @@ TransferMatrix point_projection_candidate(const Matrix13& averaging) {
     const std::array<double, secondary_count> y{0.0, 1.2, 1.2, 0.0, 0.6, 1.2, 0.6, 0.0, 2.0, 2.0, 1.6, 2.0, 1.6};
     const std::array<double, secondary_count> z{0.0, 0.0, 1.0, 1.0, 0.0, 0.5, 1.0, 0.5, 0.0, 1.0, 0.0, 0.5, 1.0};
     const std::array<std::array<std::size_t, matching_count>, 4> face_nodes{{{0, 1, 2, 3, 4, 5, 6, 7},
-        {1, 8, 9, 2, 10, 11, 12, 5}, {8, 13, 14, 9, 15, 16, 17, 11}, {13, 18, 19, 14, 20, 21, 22, 16}}};
+        {1, 8, 9, 2, 10, 11, 12, 5},
+        {8, 13, 14, 9, 15, 16, 17, 11},
+        {13, 18, 19, 14, 20, 21, 22, 16}}};
     TransferMatrix projection{};
     for (std::size_t node = 0; node < secondary_count; ++node) {
         const std::size_t face = std::min(static_cast<std::size_t>(y[node] / 0.5), std::size_t{3});
@@ -371,8 +401,19 @@ int main(int argc, char** argv) {
                 transpose_averaging[row * secondary_count + column] = averaging[column * secondary_count + row];
         }
         const Vector13 areas = solve13(transpose_averaging, normalized_base_force);
-        const Vector13 expected_areas{1.0 / 20.0, 1.0 / 12.0, 1.0 / 12.0, 1.0 / 20.0, 1.0 / 4.0, 5.0 / 12.0, 1.0 / 4.0,
-            1.0 / 4.0, 1.0 / 30.0, 1.0 / 30.0, 1.0 / 6.0, 1.0 / 6.0, 1.0 / 6.0};
+        const Vector13 expected_areas{1.0 / 20.0,
+            1.0 / 12.0,
+            1.0 / 12.0,
+            1.0 / 20.0,
+            1.0 / 4.0,
+            5.0 / 12.0,
+            1.0 / 4.0,
+            1.0 / 4.0,
+            1.0 / 30.0,
+            1.0 / 30.0,
+            1.0 / 6.0,
+            1.0 / 6.0,
+            1.0 / 6.0};
         double area_sum = 0.0, area_error = 0.0;
         for (std::size_t node = 0; node < secondary_count; ++node) {
             area_sum += areas[node];
@@ -407,8 +448,8 @@ int main(int argc, char** argv) {
                     weighted_averaging[row * secondary_count + column];
                 for (std::size_t constraint = 0; constraint < secondary_count; ++constraint)
                     reconstructed_secondary[row * secondary_count + column] +=
-                        penalty * averaging[constraint * secondary_count + row] * areas[constraint] *
-                        averaging[constraint * secondary_count + column];
+                        penalty * averaging[constraint * secondary_count + row] * areas[constraint]
+                        * averaging[constraint * secondary_count + column];
             }
         const double secondary_factorization_error = relative_frobenius13(reconstructed_secondary, secondary_tangent);
 
@@ -441,14 +482,14 @@ int main(int argc, char** argv) {
                     penalty * base_closure * transfer[constraint * primary_count + primary] * areas[constraint];
                 for (std::size_t input_node = 0; input_node < secondary_count; ++input_node)
                     reconstructed_primary[primary * secondary_count + input_node] -=
-                        penalty * transfer[constraint * primary_count + primary] *
-                        weighted_averaging[constraint * secondary_count + input_node];
+                        penalty * transfer[constraint * primary_count + primary]
+                        * weighted_averaging[constraint * secondary_count + input_node];
             }
         const double primary_factorization_error = relative_frobenius_primary(reconstructed_primary, primary_tangent);
         double primary_base_error = 0.0, tangent_conservation_error = 0.0, tangent_scale = 0.0;
         for (std::size_t primary = 0; primary < primary_count; ++primary)
-            primary_base_error = std::max(
-                primary_base_error, std::abs(reconstructed_base_primary[primary] - data.base_primary_force[primary]));
+            primary_base_error = std::max(primary_base_error,
+                std::abs(reconstructed_base_primary[primary] - data.base_primary_force[primary]));
         for (std::size_t input_node = 0; input_node < secondary_count; ++input_node) {
             double sum = 0.0, scale = 0.0;
             for (std::size_t secondary = 0; secondary < secondary_count; ++secondary) {
@@ -517,8 +558,8 @@ int main(int argc, char** argv) {
                 std::abs(transfer_return.secondary_force[node] - transfer_base.secondary_force[node]));
         }
         for (std::size_t node = 0; node < primary_count; ++node) {
-            shift_primary_change = std::max(
-                shift_primary_change, std::abs(transfer_shift.primary_force[node] - transfer_base.primary_force[node]));
+            shift_primary_change = std::max(shift_primary_change,
+                std::abs(transfer_shift.primary_force[node] - transfer_base.primary_force[node]));
             transfer_open_error = std::max(transfer_open_error, std::abs(transfer_open.primary_force[node]));
             transfer_reclose_error = std::max(transfer_reclose_error,
                 std::abs(transfer_reclose.primary_force[node] - transfer_shift.primary_force[node]));
@@ -554,43 +595,43 @@ int main(int argc, char** argv) {
 
         bool passed = true;
         passed = check(row_sum_error < 1.0e-9 && asymmetry > 0.4,
-                     "H20.27 nonmatching averaged constraints preserve rigid closure and remain nonsymmetric") &&
-                 passed;
+                     "H20.27 nonmatching averaged constraints preserve rigid closure and remain nonsymmetric")
+                 && passed;
         passed = check(area_error < 1.0e-9 && std::abs(area_sum - 2.0) < 1.0e-9,
-                     "H20.27 constraint areas are the positive facewise assembled C3D20 values") &&
-                 passed;
+                     "H20.27 constraint areas are the positive facewise assembled C3D20 values")
+                 && passed;
         passed = check(assembled_averaging_error < 1.0e-9,
-                     "H20.27 nonmatching secondary averaging is exactly assembled from the H20.26 face rule") &&
-                 passed;
+                     "H20.27 nonmatching secondary averaging is exactly assembled from the H20.26 face rule")
+                 && passed;
         passed = check(secondary_factorization_error < 1.0e-9,
-                     "H20.27 secondary tangent factors as penalty times A-transpose W A") &&
-                 passed;
-        passed = check(primary_factorization_error < 1.0e-12 && primary_base_error < 1.0e-7 &&
-                           transfer_row_sum_error < 1.0e-8 && tangent_conservation_relative < 1.0e-11,
-                     "H20.27 inferred primary transfer reproduces tangent, baseline force, and conservation") &&
-                 passed;
+                     "H20.27 secondary tangent factors as penalty times A-transpose W A")
+                 && passed;
+        passed = check(primary_factorization_error < 1.0e-12 && primary_base_error < 1.0e-7
+                           && transfer_row_sum_error < 1.0e-8 && tangent_conservation_relative < 1.0e-11,
+                     "H20.27 inferred primary transfer reproduces tangent, baseline force, and conservation")
+                 && passed;
         passed = check(displayed_pressure_error > 0.35,
-                     "H20.27 displayed CPRESS remains distinct from the averaged constraint operator") &&
-                 passed;
+                     "H20.27 displayed CPRESS remains distinct from the averaged constraint operator")
+                 && passed;
         passed = check(point_projection_error > 0.75,
-                     "H20.27 primary transfer cannot be replaced by point projection of secondary nodes") &&
-                 passed;
-        passed = check(open_error < 1.0e-10 && reclose_error < 1.0e-8 && open_history.area == 0.0 &&
-                           open_history.force[0] == 0.0 && std::abs(base_history.force[0] + 2.0e4) < 1.0e-8 &&
-                           std::abs(reclose_history.force[0] - base_history.force[0]) < 1.0e-8,
-                     "H20.27 nonmatching contact releases to zero and exactly recovers on recontact") &&
-                 passed;
-        passed = check(std::abs(transfer_shift_history.center[1] - transfer_base_history.center[1] - 0.1) < 1.0e-7 &&
-                           shift_primary_change < 1.0e-8 && shift_secondary_change < 1.0e-8 &&
-                           std::abs(transfer_shift_history.force[0] - transfer_base_history.force[0]) < 1.0e-8,
-                     "H20.27 small sliding moves the force center but keeps its original primary transfer anchor") &&
-                 passed;
-        passed = check(transfer_open_error < 1.0e-10 && transfer_open_history.area == 0.0 &&
-                           transfer_reclose_error < 1.0e-8 && transfer_return_error < 1.0e-8 &&
-                           std::abs(transfer_reclose_history.force[0] - transfer_shift_history.force[0]) < 1.0e-8 &&
-                           std::abs(transfer_return_history.force[0] - transfer_base_history.force[0]) < 1.0e-8,
-                     "H20.27 small sliding preserves fixed anchors through release, recontact, and return") &&
-                 passed;
+                     "H20.27 primary transfer cannot be replaced by point projection of secondary nodes")
+                 && passed;
+        passed = check(open_error < 1.0e-10 && reclose_error < 1.0e-8 && open_history.area == 0.0
+                           && open_history.force[0] == 0.0 && std::abs(base_history.force[0] + 2.0e4) < 1.0e-8
+                           && std::abs(reclose_history.force[0] - base_history.force[0]) < 1.0e-8,
+                     "H20.27 nonmatching contact releases to zero and exactly recovers on recontact")
+                 && passed;
+        passed = check(std::abs(transfer_shift_history.center[1] - transfer_base_history.center[1] - 0.1) < 1.0e-7
+                           && shift_primary_change < 1.0e-8 && shift_secondary_change < 1.0e-8
+                           && std::abs(transfer_shift_history.force[0] - transfer_base_history.force[0]) < 1.0e-8,
+                     "H20.27 small sliding moves the force center but keeps its original primary transfer anchor")
+                 && passed;
+        passed = check(transfer_open_error < 1.0e-10 && transfer_open_history.area == 0.0
+                           && transfer_reclose_error < 1.0e-8 && transfer_return_error < 1.0e-8
+                           && std::abs(transfer_reclose_history.force[0] - transfer_shift_history.force[0]) < 1.0e-8
+                           && std::abs(transfer_return_history.force[0] - transfer_base_history.force[0]) < 1.0e-8,
+                     "H20.27 small sliding preserves fixed anchors through release, recontact, and return")
+                 && passed;
         return passed ? 0 : 1;
     } catch (const std::exception& error) {
         std::cerr << "[FAIL] " << error.what() << '\n';

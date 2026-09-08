@@ -1,0 +1,3 @@
+reference_work_directory=C:\Users\TcroM\AppData\Local\Temp\c3d20rt_finite_contact_frictionless_20260908_072434
+contact_frame_rows=3640
+extraction_completed=true

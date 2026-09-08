@@ -49,9 +49,11 @@ inline FieldNorms field_norms(const NonlinearProblem& problem, const std::vector
 }
 
 inline DirectionalJacobianCheck check_directional_jacobian(const NonlinearProblem& problem,
-    const std::vector<double>& state, const std::vector<double>& direction, double step) {
-    if (state.size() != problem.dof_count() || direction.size() != problem.dof_count() || !std::isfinite(step) ||
-        !(step > 0.0))
+    const std::vector<double>& state,
+    const std::vector<double>& direction,
+    double step) {
+    if (state.size() != problem.dof_count() || direction.size() != problem.dof_count() || !std::isfinite(step)
+        || !(step > 0.0))
         throw std::invalid_argument("Directional Jacobian check inputs do not match the problem");
     problem.validate_discretization();
     problem.validate_state(state);
@@ -79,7 +81,9 @@ inline DirectionalJacobianCheck check_directional_jacobian(const NonlinearProble
         finite_difference[dof] = (plus_residual[dof] - minus_residual[dof]) / (2.0 * step);
         difference[dof] = analytic[dof] - finite_difference[dof];
     }
-    return {field_norms(problem, residual), field_norms(problem, analytic), field_norms(problem, finite_difference),
+    return {field_norms(problem, residual),
+        field_norms(problem, analytic),
+        field_norms(problem, finite_difference),
         field_norms(problem, difference)};
 }
 } // namespace fuelsim::test

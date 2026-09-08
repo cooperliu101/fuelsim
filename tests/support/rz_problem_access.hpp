@@ -10,15 +10,18 @@ struct LocalLinearization final {
     LocalJacobian jacobian;
 };
 
-inline LocalLinearization linearize_quad4_rz_thermoelastic(
-    const Quad4RzData& data, const Quad4RzGeometry& geometry, const LocalValues& state) {
+inline LocalLinearization
+linearize_quad4_rz_thermoelastic(const Quad4RzData& data, const Quad4RzGeometry& geometry, const LocalValues& state) {
     LocalLinearization result{};
     result.residual = compute_quad4_rz_thermoelastic(data, geometry, state, &result.jacobian);
     return result;
 }
 
-inline LocalLinearization linearize_quad4_rz_transient(const Quad4RzData& data, const Quad4RzGeometry& geometry,
-    const LocalValues& state, const LocalValues& committed_state, const Quad4MaterialHistory& history,
+inline LocalLinearization linearize_quad4_rz_transient(const Quad4RzData& data,
+    const Quad4RzGeometry& geometry,
+    const LocalValues& state,
+    const LocalValues& committed_state,
+    const Quad4MaterialHistory& history,
     double time_step) {
     LocalLinearization result{};
     result.residual =
@@ -26,22 +29,26 @@ inline LocalLinearization linearize_quad4_rz_transient(const Quad4RzData& data, 
     return result;
 }
 
-inline LocalLinearization linearize_line2_rz_boundary(
-    const Line2RzBoundaryData& data, const Line2RzBoundaryGeometry& geometry, const LocalValues& state) {
+inline LocalLinearization linearize_line2_rz_boundary(const Line2RzBoundaryData& data,
+    const Line2RzBoundaryGeometry& geometry,
+    const LocalValues& state) {
     LocalLinearization result{};
     result.residual = compute_line2_rz_boundary(data, geometry, state, &result.jacobian);
     return result;
 }
 
-inline LocalLinearization linearize_line2_rz_gap_heat(
-    const GapHeatProperties& properties, const Line2RzHeatPointGeometry& geometry, const LocalValues& state) {
+inline LocalLinearization linearize_line2_rz_gap_heat(const GapHeatProperties& properties,
+    const Line2RzHeatPointGeometry& geometry,
+    const LocalValues& state) {
     LocalLinearization result{};
     result.residual = compute_line2_rz_gap_heat(properties, geometry, state, &result.jacobian);
     return result;
 }
 
 inline LocalLinearization linearize_node_to_line_rz_contact(const NormalContactProperties& properties,
-    const NodeToLineRzContactGeometry& geometry, const LocalValues& state, const LocalValues& committed_state,
+    const NodeToLineRzContactGeometry& geometry,
+    const LocalValues& state,
+    const LocalValues& committed_state,
     const ContactPointHistory& history) {
     LocalLinearization result{};
     result.residual =
@@ -50,9 +57,11 @@ inline LocalLinearization linearize_node_to_line_rz_contact(const NormalContactP
 }
 
 inline std::size_t named_region(const SpatialDefinition& definition, const std::string& name) {
-    const auto found = std::find_if(definition.regions.begin(), definition.regions.end(),
+    const auto found = std::find_if(definition.regions.begin(),
+        definition.regions.end(),
         [&name](const RegionDefinition& region) { return region.name == name; });
-    if (found == definition.regions.end()) throw std::invalid_argument("Unknown region: " + name);
+    if (found == definition.regions.end())
+        throw std::invalid_argument("Unknown region: " + name);
     return static_cast<std::size_t>(found - definition.regions.begin());
 }
 
@@ -112,8 +121,8 @@ class ProblemAccess final {
         return view(problem).spatial.contribution_type(index);
     }
 
-    static const Quad4RzGeometry& region_element_geometry(
-        const SteadyProblem& problem, std::size_t region, std::size_t element) {
+    static const Quad4RzGeometry&
+    region_element_geometry(const SteadyProblem& problem, std::size_t region, std::size_t element) {
         return view(problem).spatial.region_element_geometry(region, element);
     }
 
@@ -130,8 +139,8 @@ class ProblemAccess final {
         return view(problem).spatial.committed_contact_histories();
     }
 
-    static std::vector<ContactNodeSummary> summarize_contact_nodes(
-        const SteadyProblem& problem, std::size_t contact, const std::vector<double>& state) {
+    static std::vector<ContactNodeSummary>
+    summarize_contact_nodes(const SteadyProblem& problem, std::size_t contact, const std::vector<double>& state) {
         return view(problem).spatial.summarize_contact_nodes(contact, state);
     }
 
@@ -139,8 +148,8 @@ class ProblemAccess final {
         return view(problem).spatial.contact_secondary_source_nodes(contact);
     }
 
-    static InterfaceSummary summarize_interface(
-        const SteadyProblem& problem, std::size_t contact, const std::vector<double>& state) {
+    static InterfaceSummary
+    summarize_interface(const SteadyProblem& problem, std::size_t contact, const std::vector<double>& state) {
         return view(problem).spatial.summarize_interface(contact, state);
     }
 
@@ -148,28 +157,30 @@ class ProblemAccess final {
         return view(problem).spatial.contribution_dofs(contribution);
     }
 
-    static LocalValues contribution_state(
-        const SteadyProblem& problem, std::size_t contribution, const std::vector<double>& state) {
+    static LocalValues
+    contribution_state(const SteadyProblem& problem, std::size_t contribution, const std::vector<double>& state) {
         if (state.size() != problem.dof_count())
             throw std::invalid_argument("SteadyProblem contribution state has the wrong global size");
         LocalValues result{};
         const LocalDofs dofs = contribution_dofs(problem, contribution);
-        for (std::size_t local = 0; local < dofs.size(); ++local) result[local] = state.at(dofs[local]);
+        for (std::size_t local = 0; local < dofs.size(); ++local)
+            result[local] = state.at(dofs[local]);
         return result;
     }
 
-    static LocalResidual contribution_residual(
-        const SteadyProblem& problem, std::size_t contribution, const LocalValues& state) {
+    static LocalResidual
+    contribution_residual(const SteadyProblem& problem, std::size_t contribution, const LocalValues& state) {
         const SteadyBackendView backend = view(problem);
         if (contribution >= backend.spatial.volume_contribution_count())
             return backend.spatial.compute_contribution(contribution, state);
         const auto location = backend.spatial.element_location(contribution);
         return compute_quad4_rz_thermoelastic(backend.kernel_data[location.first],
-            backend.spatial.region_element_geometry(location.first, location.second), state);
+            backend.spatial.region_element_geometry(location.first, location.second),
+            state);
     }
 
-    static LocalLinearization linearize_contribution(
-        const SteadyProblem& problem, std::size_t contribution, const LocalValues& state) {
+    static LocalLinearization
+    linearize_contribution(const SteadyProblem& problem, std::size_t contribution, const LocalValues& state) {
         const SteadyBackendView backend = view(problem);
         LocalLinearization result{};
         if (contribution >= backend.spatial.volume_contribution_count())
@@ -177,7 +188,9 @@ class ProblemAccess final {
         else {
             const auto location = backend.spatial.element_location(contribution);
             result.residual = compute_quad4_rz_thermoelastic(backend.kernel_data[location.first],
-                backend.spatial.region_element_geometry(location.first, location.second), state, &result.jacobian);
+                backend.spatial.region_element_geometry(location.first, location.second),
+                state,
+                &result.jacobian);
         }
         return result;
     }
@@ -214,8 +227,8 @@ class ProblemAccess final {
         return view(problem).kernel_data.at(index);
     }
 
-    static const Quad4RzGeometry& region_element_geometry(
-        const TransientProblem& problem, std::size_t region, std::size_t element) {
+    static const Quad4RzGeometry&
+    region_element_geometry(const TransientProblem& problem, std::size_t region, std::size_t element) {
         return view(problem).spatial.region_element_geometry(region, element);
     }
 
@@ -227,16 +240,17 @@ class ProblemAccess final {
         fuelsim::BackendAccess::restore_committed_state(problem, std::move(state));
     }
 
-    static const Quad4MaterialHistory& material_history(
-        const TransientProblem& problem, std::size_t region, std::size_t element) {
+    static const Quad4MaterialHistory&
+    material_history(const TransientProblem& problem, std::size_t region, std::size_t element) {
         return view(problem).histories.at(region).at(element);
     }
 
-    static std::array<AxisymmetricStressValues, 4> material_stress(
-        const TransientProblem& problem, std::size_t region, std::size_t element) {
+    static std::array<AxisymmetricStressValues, 4>
+    material_stress(const TransientProblem& problem, std::size_t region, std::size_t element) {
         std::array<AxisymmetricStressValues, 4> result{};
         const Quad4MaterialHistory& history = view(problem).histories.at(region).at(element);
-        for (std::size_t q = 0; q < result.size(); ++q) result[q] = history[q].stress;
+        for (std::size_t q = 0; q < result.size(); ++q)
+            result[q] = history[q].stress;
         return result;
     }
 
@@ -244,18 +258,18 @@ class ProblemAccess final {
         return problem.summarize_region(region);
     }
 
-    static InterfaceSummary summarize_interface(
-        const TransientProblem& problem, std::size_t contact, const std::vector<double>& state) {
+    static InterfaceSummary
+    summarize_interface(const TransientProblem& problem, std::size_t contact, const std::vector<double>& state) {
         return view(problem).spatial.summarize_interface(contact, state);
     }
 
-    static std::vector<ContactNodeSummary> summarize_contact_nodes(
-        const TransientProblem& problem, std::size_t contact, const std::vector<double>& state) {
+    static std::vector<ContactNodeSummary>
+    summarize_contact_nodes(const TransientProblem& problem, std::size_t contact, const std::vector<double>& state) {
         return view(problem).spatial.summarize_contact_nodes(contact, state);
     }
 
-    static std::vector<std::size_t> contact_secondary_source_nodes(
-        const TransientProblem& problem, std::size_t contact) {
+    static std::vector<std::size_t> contact_secondary_source_nodes(const TransientProblem& problem,
+        std::size_t contact) {
         return view(problem).spatial.contact_secondary_source_nodes(contact);
     }
 
@@ -263,18 +277,19 @@ class ProblemAccess final {
         return view(problem).spatial.contribution_dofs(contribution);
     }
 
-    static LocalValues contribution_state(
-        const TransientProblem& problem, std::size_t contribution, const std::vector<double>& state) {
+    static LocalValues
+    contribution_state(const TransientProblem& problem, std::size_t contribution, const std::vector<double>& state) {
         if (state.size() != problem.dof_count())
             throw std::invalid_argument("TransientProblem contribution state has the wrong global size");
         LocalValues result{};
         const LocalDofs dofs = contribution_dofs(problem, contribution);
-        for (std::size_t local = 0; local < dofs.size(); ++local) result[local] = state.at(dofs[local]);
+        for (std::size_t local = 0; local < dofs.size(); ++local)
+            result[local] = state.at(dofs[local]);
         return result;
     }
 
-    static LocalResidual contribution_residual(
-        const TransientProblem& problem, std::size_t contribution, const LocalValues& state) {
+    static LocalResidual
+    contribution_residual(const TransientProblem& problem, std::size_t contribution, const LocalValues& state) {
         const TransientBackendView backend = view(problem);
         if (!backend.time_step_active)
             throw std::logic_error("TransientProblem residual evaluation requires an active time step");
@@ -282,13 +297,15 @@ class ProblemAccess final {
             return backend.spatial.compute_contribution(contribution, state);
         const auto location = backend.spatial.element_location(contribution);
         return compute_quad4_rz_transient(backend.kernel_data[location.first],
-            backend.spatial.region_element_geometry(location.first, location.second), state,
+            backend.spatial.region_element_geometry(location.first, location.second),
+            state,
             contribution_state(problem, contribution, backend.committed_solution),
-            backend.histories[location.first][location.second], backend.active_time_step);
+            backend.histories[location.first][location.second],
+            backend.active_time_step);
     }
 
-    static LocalLinearization linearize_contribution(
-        const TransientProblem& problem, std::size_t contribution, const LocalValues& state) {
+    static LocalLinearization
+    linearize_contribution(const TransientProblem& problem, std::size_t contribution, const LocalValues& state) {
         const TransientBackendView backend = view(problem);
         if (!backend.time_step_active)
             throw std::logic_error("TransientProblem residual evaluation requires an active time step");
@@ -298,9 +315,12 @@ class ProblemAccess final {
         else {
             const auto location = backend.spatial.element_location(contribution);
             result.residual = compute_quad4_rz_transient(backend.kernel_data[location.first],
-                backend.spatial.region_element_geometry(location.first, location.second), state,
+                backend.spatial.region_element_geometry(location.first, location.second),
+                state,
                 contribution_state(problem, contribution, backend.committed_solution),
-                backend.histories[location.first][location.second], backend.active_time_step, &result.jacobian);
+                backend.histories[location.first][location.second],
+                backend.active_time_step,
+                &result.jacobian);
         }
         return result;
     }

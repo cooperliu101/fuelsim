@@ -1,0 +1,2 @@
+diagnostic_grid 8 relative_frobenius 0.0024286253961846144 maximum_absolute_coefficient_difference 0.0019246854606720654
+diagnostic_grid 16 relative_frobenius 0.0027138598460815914 maximum_absolute_coefficient_difference 0.0038111631007923252

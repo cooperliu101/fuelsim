@@ -35,7 +35,8 @@ struct MeshData final {
 };
 
 bool check(bool condition, const std::string& message) {
-    if (condition) return true;
+    if (condition)
+        return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
@@ -79,13 +80,21 @@ MeshData make_mesh(const CaseSpec& spec) {
             for (std::size_t iy = first_y; iy < last_y; ++iy)
                 for (std::size_t ix = 0; ix < spec.nx; ++ix) {
                     const std::size_t element = elements.size();
-                    elements.push_back({{{node(ix, iy, iz), node(ix + 1, iy, iz), node(ix + 1, iy + 1, iz),
-                        node(ix, iy + 1, iz), node(ix, iy, iz + 1), node(ix + 1, iy, iz + 1),
-                        node(ix + 1, iy + 1, iz + 1), node(ix, iy + 1, iz + 1)}}});
+                    elements.push_back({{{node(ix, iy, iz),
+                        node(ix + 1, iy, iz),
+                        node(ix + 1, iy + 1, iz),
+                        node(ix, iy + 1, iz),
+                        node(ix, iy, iz + 1),
+                        node(ix + 1, iy, iz + 1),
+                        node(ix + 1, iy + 1, iz + 1),
+                        node(ix, iy + 1, iz + 1)}}});
                     block_ids.push_back(static_cast<std::int64_t>(region + 1));
-                    if (region == 0 && iy == 0) bottom.push_back({element, 0});
-                    if (region == 1 && iy + 1 == ny) top.push_back({element, 2});
-                    if (region == 0 && ix == 0) left_lower.push_back({element, 3});
+                    if (region == 0 && iy == 0)
+                        bottom.push_back({element, 0});
+                    if (region == 1 && iy + 1 == ny)
+                        top.push_back({element, 2});
+                    if (region == 0 && ix == 0)
+                        left_lower.push_back({element, 3});
                 }
     }
     std::vector<std::size_t> interface_nodes, bottom_right_nodes, top_right_nodes;
@@ -95,10 +104,16 @@ MeshData make_mesh(const CaseSpec& spec) {
         bottom_right_nodes.push_back(node(spec.nx, 0, iz));
         top_right_nodes.push_back(node(spec.nx, ny, iz));
     }
-    fuelsim::UnstructuredHex8Mesh mesh(std::move(nodes), std::move(elements), std::move(block_ids),
-        {{1, "lower"}, {2, "upper"}}, {},
+    fuelsim::UnstructuredHex8Mesh mesh(std::move(nodes),
+        std::move(elements),
+        std::move(block_ids),
+        {{1, "lower"}, {2, "upper"}},
+        {},
         {{11, "bottom", std::move(bottom)}, {12, "top", std::move(top)}, {13, "left_lower", std::move(left_lower)}});
-    return {std::move(mesh), std::move(interface_nodes), std::move(bottom_right_nodes), std::move(top_right_nodes),
+    return {std::move(mesh),
+        std::move(interface_nodes),
+        std::move(bottom_right_nodes),
+        std::move(top_right_nodes),
         maximum_distortion};
 }
 
@@ -118,8 +133,13 @@ fuelsim::SpatialDefinition definition() {
         std::vector<double>{0.0, step_time, 2.0 * step_time, 3.0 * step_time, 4.0 * step_time},
         std::vector<double>{300.0, 480.0, 600.0, 600.0, 330.0});
     result.boundary_conditions = {
-        {"bottom_temperature", fuelsim::BoundaryConditionType::dirichlet, "bottom", fuelsim::Field::temperature, 1.0,
-            false, "bottom_temperature"},
+        {"bottom_temperature",
+            fuelsim::BoundaryConditionType::dirichlet,
+            "bottom",
+            fuelsim::Field::temperature,
+            1.0,
+            false,
+            "bottom_temperature"},
         {"top_temperature", fuelsim::BoundaryConditionType::dirichlet, "top", fuelsim::Field::temperature, 300.0},
         {"fix_x", fuelsim::BoundaryConditionType::dirichlet, "left_lower", fuelsim::Field::displacement_x, 0.0},
         {"fix_y", fuelsim::BoundaryConditionType::dirichlet, "left_lower", fuelsim::Field::displacement_y, 0.0},
@@ -151,7 +171,8 @@ fuelsim::SolverOptions solver_options() {
 }
 
 std::vector<std::size_t> source_global_nodes(const fuelsim::UnstructuredHex8Mesh& mesh,
-    const fuelsim::TransientProblem& problem, const std::vector<std::size_t>& interface_nodes) {
+    const fuelsim::TransientProblem& problem,
+    const std::vector<std::size_t>& interface_nodes) {
     const auto& dofs = fuelsim::cartesian::ProblemAccess::dof_map(problem);
     std::vector<std::size_t> result(mesh.nodes().size(), std::numeric_limits<std::size_t>::max());
     std::vector<std::size_t> occurrences(mesh.nodes().size(), 0);
@@ -176,13 +197,15 @@ std::vector<std::size_t> source_global_nodes(const fuelsim::UnstructuredHex8Mesh
     return result;
 }
 
-double interface_flux_imbalance(const MeshData& data, const std::vector<std::size_t>& source_to_global, bool& passed,
+double interface_flux_imbalance(const MeshData& data,
+    const std::vector<std::size_t>& source_to_global,
+    bool& passed,
     const std::string& case_name) {
     fuelsim::SteadyProblem problem(steady_cooled_definition(), data.mesh);
     const fuelsim::SteadyResult solve = fuelsim::solve_steady(problem, {1, 0.5, 0, 1.0e-6}, solver_options());
     passed = check(solve.completed && solve.solve.converged,
-                 "B5.9 " + case_name + " cooled steady interface-flux audit converges") &&
-             passed;
+                 "B5.9 " + case_name + " cooled steady interface-flux audit converges")
+             && passed;
     const auto& view = fuelsim::cartesian::ProblemAccess::view(problem);
     const auto& dofs = fuelsim::cartesian::ProblemAccess::dof_map(problem);
     std::vector<std::size_t> interface_dofs;
@@ -217,11 +240,11 @@ int main(int argc, char** argv) {
             const auto source_to_global = source_global_nodes(data.mesh, problem, data.interface_nodes);
             if (spec.distorted)
                 passed = check(interface_flux_imbalance(data, source_to_global, passed, spec.name) < 1e-10,
-                             std::string("B5.9 ") + spec.name + " cooled interface heat rates balance") &&
-                         passed;
+                             std::string("B5.9 ") + spec.name + " cooled interface heat rates balance")
+                         && passed;
             passed = check(spec.distorted ? data.maximum_distortion > 5e-3 : data.maximum_distortion == 0,
-                         "B5.9 mesh perturbation matches the specified branch") &&
-                     passed;
+                         "B5.9 mesh perturbation matches the specified branch")
+                     && passed;
         }
         return passed ? 0 : 1;
     } catch (const std::exception& error) {

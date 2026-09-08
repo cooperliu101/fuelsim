@@ -85,9 +85,14 @@ class UnstructuredMeshMetadata {
     std::int64_t side_set_block_id(const std::string& name) const;
 
   protected:
-    UnstructuredMeshMetadata(std::size_t node_count, std::size_t element_count, std::size_t sides_per_element,
-        std::vector<std::int64_t> element_block_ids, std::vector<ElementBlockInfo> element_blocks,
-        std::vector<NodeSet> node_sets, std::vector<SideSet> side_sets, const std::string& geometry_name);
+    UnstructuredMeshMetadata(std::size_t node_count,
+        std::size_t element_count,
+        std::size_t sides_per_element,
+        std::vector<std::int64_t> element_block_ids,
+        std::vector<ElementBlockInfo> element_blocks,
+        std::vector<NodeSet> node_sets,
+        std::vector<SideSet> side_sets,
+        const std::string& geometry_name);
 
   private:
     std::vector<std::int64_t> _element_block_ids;
@@ -98,9 +103,12 @@ class UnstructuredMeshMetadata {
 
 class UnstructuredQuad4Mesh final : public UnstructuredMeshMetadata {
   public:
-    UnstructuredQuad4Mesh(std::vector<RzPoint> nodes, std::vector<Quad4Element> elements,
-        std::vector<std::int64_t> element_block_ids, std::vector<ElementBlockInfo> element_blocks,
-        std::vector<NodeSet> node_sets, std::vector<SideSet> side_sets);
+    UnstructuredQuad4Mesh(std::vector<RzPoint> nodes,
+        std::vector<Quad4Element> elements,
+        std::vector<std::int64_t> element_block_ids,
+        std::vector<ElementBlockInfo> element_blocks,
+        std::vector<NodeSet> node_sets,
+        std::vector<SideSet> side_sets);
 
     const std::vector<RzPoint>& nodes() const noexcept { return _nodes; }
 
@@ -113,9 +121,12 @@ class UnstructuredQuad4Mesh final : public UnstructuredMeshMetadata {
 
 class UnstructuredQuad8Mesh final : public UnstructuredMeshMetadata {
   public:
-    UnstructuredQuad8Mesh(std::vector<RzPoint> nodes, std::vector<Quad8Element> elements,
-        std::vector<std::int64_t> element_block_ids, std::vector<ElementBlockInfo> element_blocks,
-        std::vector<NodeSet> node_sets, std::vector<SideSet> side_sets);
+    UnstructuredQuad8Mesh(std::vector<RzPoint> nodes,
+        std::vector<Quad8Element> elements,
+        std::vector<std::int64_t> element_block_ids,
+        std::vector<ElementBlockInfo> element_blocks,
+        std::vector<NodeSet> node_sets,
+        std::vector<SideSet> side_sets);
 
     const std::vector<RzPoint>& nodes() const noexcept { return _nodes; }
 
@@ -128,9 +139,12 @@ class UnstructuredQuad8Mesh final : public UnstructuredMeshMetadata {
 
 class UnstructuredHex8Mesh final : public UnstructuredMeshMetadata {
   public:
-    UnstructuredHex8Mesh(std::vector<CartesianPoint3> nodes, std::vector<Hex8Element> elements,
-        std::vector<std::int64_t> element_block_ids, std::vector<ElementBlockInfo> element_blocks,
-        std::vector<NodeSet> node_sets, std::vector<SideSet> side_sets);
+    UnstructuredHex8Mesh(std::vector<CartesianPoint3> nodes,
+        std::vector<Hex8Element> elements,
+        std::vector<std::int64_t> element_block_ids,
+        std::vector<ElementBlockInfo> element_blocks,
+        std::vector<NodeSet> node_sets,
+        std::vector<SideSet> side_sets);
 
     const std::vector<CartesianPoint3>& nodes() const noexcept { return _nodes; }
 
@@ -143,9 +157,12 @@ class UnstructuredHex8Mesh final : public UnstructuredMeshMetadata {
 
 class UnstructuredHex20Mesh final : public UnstructuredMeshMetadata {
   public:
-    UnstructuredHex20Mesh(std::vector<CartesianPoint3> nodes, std::vector<Hex20Element> elements,
-        std::vector<std::int64_t> element_block_ids, std::vector<ElementBlockInfo> element_blocks,
-        std::vector<NodeSet> node_sets, std::vector<SideSet> side_sets);
+    UnstructuredHex20Mesh(std::vector<CartesianPoint3> nodes,
+        std::vector<Hex20Element> elements,
+        std::vector<std::int64_t> element_block_ids,
+        std::vector<ElementBlockInfo> element_blocks,
+        std::vector<NodeSet> node_sets,
+        std::vector<SideSet> side_sets);
 
     const std::vector<CartesianPoint3>& nodes() const noexcept { return _nodes; }
 

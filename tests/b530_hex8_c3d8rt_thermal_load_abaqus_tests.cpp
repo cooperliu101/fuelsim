@@ -18,7 +18,8 @@ using IntegrationVolumes = std::array<double, 1>;
 using SurfaceGeometryValues = std::map<std::size_t, NodalValues>;
 
 bool check(bool condition, const std::string& message) {
-    if (condition) return true;
+    if (condition)
+        return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
@@ -27,13 +28,15 @@ std::vector<std::string> split_csv(const std::string& line) {
     std::vector<std::string> result;
     std::istringstream stream(line);
     std::string value;
-    while (std::getline(stream, value, ',')) result.push_back(value);
+    while (std::getline(stream, value, ','))
+        result.push_back(value);
     return result;
 }
 
 std::map<std::string, StepValues> read_reference(const std::string& path) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read Abaqus C3D8RT thermal-load reference: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read Abaqus C3D8RT thermal-load reference: " + path);
     std::string line;
     std::getline(input, line);
     if (line != "step,element,local_node,temperature_k,reaction_heat_flux_w")
@@ -65,7 +68,8 @@ std::map<std::string, StepValues> read_reference(const std::string& path) {
 
 IntegrationVolumes read_integration_volumes(const std::string& path) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read Abaqus C3D8RT integration-volume reference: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read Abaqus C3D8RT integration-volume reference: " + path);
     std::string line;
     std::getline(input, line);
     if (line != "step,element,integration_point,temperature_k,integration_volume_m3")
@@ -76,7 +80,8 @@ IntegrationVolumes read_integration_volumes(const std::string& path) {
         const std::vector<std::string> values = split_csv(line);
         if (values.size() != 5)
             throw std::invalid_argument("Unexpected Abaqus C3D8RT integration-volume column count in " + path);
-        if (values[0] != "BODY" || values[1] != "1") continue;
+        if (values[0] != "BODY" || values[1] != "1")
+            continue;
         const std::size_t point = static_cast<std::size_t>(std::stoul(values[2]));
         if (point != 1 || present[0])
             throw std::invalid_argument("Invalid Abaqus C3D8RT integration-volume point label");
@@ -90,7 +95,8 @@ IntegrationVolumes read_integration_volumes(const std::string& path) {
 
 SurfaceGeometryValues read_surface_geometry(const std::string& path) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read Abaqus C3D8RT surface-geometry reference: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read Abaqus C3D8RT surface-geometry reference: " + path);
     std::string line;
     std::getline(input, line);
     if (line != "element,local_node,reaction_heat_flux_w")
@@ -110,15 +116,21 @@ SurfaceGeometryValues read_surface_geometry(const std::string& path) {
     }
     constexpr std::array<std::size_t, 6> expected_elements = {2, 4, 5, 6, 7, 8};
     for (const std::size_t element : expected_elements)
-        if (result.find(element) == result.end() ||
-            std::find(present[element].begin(), present[element].end(), false) != present[element].end())
+        if (result.find(element) == result.end()
+            || std::find(present[element].begin(), present[element].end(), false) != present[element].end())
             throw std::invalid_argument("Incomplete Abaqus C3D8RT surface-geometry reference");
     return result;
 }
 
 fuelsim::Hex8Coordinates distorted_coordinates() {
-    return {{{0.00, 0.00, 0.00}, {1.20, 0.10, -0.05}, {1.10, 1.00, 0.10}, {-0.10, 0.90, 0.00}, {0.05, -0.10, 1.00},
-        {1.30, 0.00, 1.10}, {1.00, 1.20, 0.90}, {-0.20, 1.00, 1.20}}};
+    return {{{0.00, 0.00, 0.00},
+        {1.20, 0.10, -0.05},
+        {1.10, 1.00, 0.10},
+        {-0.10, 0.90, 0.00},
+        {0.05, -0.10, 1.00},
+        {1.30, 0.00, 1.10},
+        {1.00, 1.20, 0.90},
+        {-0.20, 1.00, 1.20}}};
 }
 
 fuelsim::Quad4FaceCoordinates planar_trapezoid_face() {
@@ -147,12 +159,16 @@ NodalValues full_gauss_body_load(const fuelsim::Hex8Geometry& geometry, double s
     return result;
 }
 
-NodalValues legacy_face_load(const fuelsim::Quad4FaceGeometry& geometry, const NodalValues& temperature, double load,
-    double ambient, bool convection) {
+NodalValues legacy_face_load(const fuelsim::Quad4FaceGeometry& geometry,
+    const NodalValues& temperature,
+    double load,
+    double ambient,
+    bool convection) {
     NodalValues result{};
     for (const fuelsim::Quad4FaceQuadraturePoint& point : geometry.points) {
         double point_temperature = 0.0;
-        for (std::size_t node = 0; node < 4; ++node) point_temperature += point.shape[node] * temperature[4 + node];
+        for (std::size_t node = 0; node < 4; ++node)
+            point_temperature += point.shape[node] * temperature[4 + node];
         const double flux = convection ? load * (point_temperature - ambient) : -load;
         for (std::size_t node = 0; node < 4; ++node)
             result[4 + node] += point.weighted_measure * point.shape[node] * flux;
@@ -175,8 +191,12 @@ int main(int argc, char** argv) {
         const fuelsim::Hex8Geometry geometry = fuelsim::make_hex8_geometry(coordinates);
         const fuelsim::ThermoelasticProperties properties =
             fuelsim::test::thermoelastic(0.0, 4.0, 2.0e11, 0.25, 0.0, 300.0, 0.0, 0.0, 0.0, 2000.0, 3000.0);
-        const fuelsim::CartesianThermoelasticData data{fuelsim::IsotropicThermoelasticMaterial(properties), 80.0, 1.0,
-            fuelsim::StrainFormulation::small, fuelsim::Hex8ElementFormulation::c3d8rt, 300.0};
+        const fuelsim::CartesianThermoelasticData data{fuelsim::IsotropicThermoelasticMaterial(properties),
+            80.0,
+            1.0,
+            fuelsim::StrainFormulation::small,
+            fuelsim::Hex8ElementFormulation::c3d8rt,
+            300.0};
         fuelsim::Hex8LocalValues volume_state{};
         std::fill(volume_state.begin(), volume_state.begin() + 8, 300.0);
         const fuelsim::Hex8LocalResidual volume_residual =
@@ -189,8 +209,10 @@ int main(int argc, char** argv) {
         const fuelsim::Quad4FaceGeometry face = fuelsim::make_quad4_face_geometry(face_coordinates);
         fuelsim::Quad4FaceLocalValues face_state{};
         std::fill(face_state.begin(), face_state.begin() + 4, 300.0);
-        const fuelsim::Quad4FaceBoundaryData flux_data = {
-            fuelsim::Quad4FaceBoundaryKind::surface_heat_flux, fuelsim::CartesianTractionComponent::x, 40.0, 0.0};
+        const fuelsim::Quad4FaceBoundaryData flux_data = {fuelsim::Quad4FaceBoundaryKind::surface_heat_flux,
+            fuelsim::CartesianTractionComponent::x,
+            40.0,
+            0.0};
         const fuelsim::Quad4FaceLocalResidual flux_residual =
             fuelsim::compute_quad4_face_boundary(flux_data, face, face_state);
         NodalValues surface{};
@@ -198,8 +220,10 @@ int main(int argc, char** argv) {
 
         const NodalValues film_temperature = {0.0, 0.0, 0.0, 0.0, 360.0, 410.0, 445.0, 385.0};
         std::copy(film_temperature.begin() + 4, film_temperature.end(), face_state.begin());
-        const fuelsim::Quad4FaceBoundaryData film_data = {
-            fuelsim::Quad4FaceBoundaryKind::convection, fuelsim::CartesianTractionComponent::x, 10.0, 250.0};
+        const fuelsim::Quad4FaceBoundaryData film_data = {fuelsim::Quad4FaceBoundaryKind::convection,
+            fuelsim::CartesianTractionComponent::x,
+            10.0,
+            250.0};
         const fuelsim::Quad4FaceLocalResidual film_residual =
             fuelsim::compute_quad4_face_boundary(film_data, face, face_state);
         NodalValues film{};
@@ -220,12 +244,16 @@ int main(int argc, char** argv) {
 
         double integration_volume_maximum_error = 0.0;
         for (std::size_t point = 0; point < integration_volumes.size(); ++point)
-            integration_volume_maximum_error = std::max(
-                integration_volume_maximum_error, std::abs(geometry.reference_volume - integration_volumes[point]));
+            integration_volume_maximum_error = std::max(integration_volume_maximum_error,
+                std::abs(geometry.reference_volume - integration_volumes[point]));
 
         const std::array<std::pair<std::size_t, fuelsim::Quad4FaceCoordinates>, 6> surface_cases = {
-            {{2, face_coordinates}, {4, planar_trapezoid_face()}, {5, face_coordinates},
-                {6, single_node_warp_face(0.1)}, {7, single_node_warp_face(0.5)}, {8, single_node_warp_face(1.0)}}};
+            {{2, face_coordinates},
+                {4, planar_trapezoid_face()},
+                {5, face_coordinates},
+                {6, single_node_warp_face(0.1)},
+                {7, single_node_warp_face(0.5)},
+                {8, single_node_warp_face(1.0)}}};
         double surface_geometry_maximum_error = 0.0;
         for (const auto& [element, surface_coordinates] : surface_cases) {
             const fuelsim::Quad4FaceGeometry surface_geometry = fuelsim::make_quad4_face_geometry(surface_coordinates);
@@ -233,8 +261,8 @@ int main(int argc, char** argv) {
                 fuelsim::compute_quad4_face_boundary(flux_data, surface_geometry, fuelsim::Quad4FaceLocalValues{});
             NodalValues actual{};
             std::copy(surface_residual.begin(), surface_residual.begin() + 4, actual.begin() + 4);
-            surface_geometry_maximum_error = std::max(
-                surface_geometry_maximum_error, relative_error(actual, surface_geometry_reference.at(element)));
+            surface_geometry_maximum_error = std::max(surface_geometry_maximum_error,
+                relative_error(actual, surface_geometry_reference.at(element)));
         }
         double identical_face_maximum_difference = 0.0;
         for (std::size_t node = 0; node < 8; ++node)
@@ -251,20 +279,22 @@ int main(int argc, char** argv) {
                   << "b530_gauss_surface_relative_error=" << legacy_surface_error << '\n'
                   << "b530_gauss_convection_relative_error=" << legacy_film_error << '\n';
         const bool passed =
-            check(body_error < 1.0e-12, "Abaqus and fuelsim nodal body-source vectors agree") &&
-            check(surface_error < 1.0e-12, "Abaqus and fuelsim nodal surface-flux vectors agree") &&
-            check(film_error < 1.0e-12, "Abaqus and fuelsim nodal convection vectors agree") &&
-            check(integration_volume_maximum_error < 1.0e-14,
-                "Abaqus C3D8RT integration volume equals the fuelsim reference volume") &&
-            check(
-                surface_geometry_maximum_error < 1.0e-12, "Abaqus surface weights agree for planar and warped faces") &&
-            check(identical_face_maximum_difference < 1.0e-12,
-                "Abaqus surface weights depend only on the loaded face geometry") &&
-            check(full_gauss_body_error > 1.0e-4, "the distorted body-source probe distinguishes the reduced "
-                                                  "equal-node rule from full Gauss integration") &&
-            check(legacy_surface_error > 1.0e-4, "the distorted surface-flux probe distinguishes Gauss integration") &&
-            check(legacy_film_error > 1.0e-4, "the nonuniform convection probe distinguishes Gauss integration");
-        if (passed) std::cout << "[PASS] B5.30 Abaqus C3D8RT thermal-load integration\n";
+            check(body_error < 1.0e-12, "Abaqus and fuelsim nodal body-source vectors agree")
+            && check(surface_error < 1.0e-12, "Abaqus and fuelsim nodal surface-flux vectors agree")
+            && check(film_error < 1.0e-12, "Abaqus and fuelsim nodal convection vectors agree")
+            && check(integration_volume_maximum_error < 1.0e-14,
+                "Abaqus C3D8RT integration volume equals the fuelsim reference volume")
+            && check(surface_geometry_maximum_error < 1.0e-12,
+                "Abaqus surface weights agree for planar and warped faces")
+            && check(identical_face_maximum_difference < 1.0e-12,
+                "Abaqus surface weights depend only on the loaded face geometry")
+            && check(full_gauss_body_error > 1.0e-4,
+                "the distorted body-source probe distinguishes the reduced "
+                "equal-node rule from full Gauss integration")
+            && check(legacy_surface_error > 1.0e-4, "the distorted surface-flux probe distinguishes Gauss integration")
+            && check(legacy_film_error > 1.0e-4, "the nonuniform convection probe distinguishes Gauss integration");
+        if (passed)
+            std::cout << "[PASS] B5.30 Abaqus C3D8RT thermal-load integration\n";
         return passed ? 0 : 1;
     } catch (const std::exception& error) {
         std::cerr << "[FAIL] B5.30 Abaqus C3D8RT thermal-load integration raised: " << error.what() << '\n';

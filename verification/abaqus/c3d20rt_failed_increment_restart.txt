@@ -1,0 +1,393 @@
+input_file=verification/fuelsim/transient_c3d20rt_finite_contact_failed_increment.fsi
+mesh_file=/home/cooper/ai_project/fuelsim/verification/meshes/c3d20rt_finite_contact.e
+mpi_ranks=1
+results_file=/home/cooper/ai_project/fuelsim/verification/fuelsim/transient_c3d20rt_finite_contact_failed_increment_results.part1.e
+  0 SNES Function norm 5.688656407169e-02
+      Line search: Using full step: fnorm 5.688656407169e-02 gnorm 2.275987328582e-02
+  1 SNES Function norm 2.275987328582e-02
+      Line search: gnorm after quadratic fit 2.304245738824e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.850443131534e-02 lambda=5.3429288222289477e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.548908405587e-02 lambda=5.3429288222289484e-03
+      Line search: Cubic step, current gnorm 2.274772453685e-02 lambda=5.3429288222289490e-04
+  2 SNES Function norm 2.274772453685e-02
+      Line search: gnorm after quadratic fit 2.304490918317e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.808975463575e-02 lambda=5.3133301573767430e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.586901107469e-02 lambda=5.3133301573767434e-03
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.279976642192e-02 lambda=5.3133301573767434e-04
+      Line search: Cubic step, current gnorm 2.274651599266e-02 lambda=5.3133301573767438e-05
+  3 SNES Function norm 2.274651599266e-02
+      Line search: gnorm after quadratic fit 2.304515240030e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.804851234932e-02 lambda=5.3104048107495076e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.590743278610e-02 lambda=5.3104048107495078e-03
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.282622568445e-02 lambda=5.3104048107495080e-04
+      Line search: Cubic step, current gnorm 2.274530817077e-02 lambda=5.3104048107495084e-05
+  4 SNES Function norm 2.274530817077e-02
+      Line search: gnorm after quadratic fit 2.304539596698e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.800734637860e-02 lambda=5.3074824995653289e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.594594657326e-02 lambda=5.3074824995653289e-03
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.285285471148e-02 lambda=5.3074824995653295e-04
+      Line search: Cubic step, current gnorm 2.274410108363e-02 lambda=5.3074824995653295e-05
+  5 SNES Function norm 2.274410108363e-02
+      Line search: gnorm after quadratic fit 2.304563988338e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.796625653131e-02 lambda=5.3045632491126725e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.598455178900e-02 lambda=5.3045632491126732e-03
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.287965255049e-02 lambda=5.3045632491126738e-04
+      Line search: Cubic step, current gnorm 2.274289472209e-02 lambda=5.3045632491126738e-05
+  6 SNES Function norm 2.274289472209e-02
+      Line search: gnorm after quadratic fit 2.304588414675e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.792524342546e-02 lambda=5.3016470392568293e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.602324774985e-02 lambda=5.3016470392568300e-03
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.290661824532e-02 lambda=5.3016470392568300e-04
+      Line search: Cubic step, current gnorm 2.274168908335e-02 lambda=5.3016470392568303e-05
+  7 SNES Function norm 2.274168908335e-02
+      Line search: gnorm after quadratic fit 2.304612875553e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.788430744728e-02 lambda=5.2987338627212333e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.606203379061e-02 lambda=5.2987338627212338e-03
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.293375084692e-02 lambda=5.2987338627212338e-04
+      Line search: Cubic step, current gnorm 2.274048416834e-02 lambda=5.2987338627212343e-05
+  8 SNES Function norm 2.274048416834e-02
+      Line search: gnorm after quadratic fit 2.304637370736e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.784344881087e-02 lambda=5.2958237222375727e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.610090923623e-02 lambda=5.2958237222375734e-03
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.296104939912e-02 lambda=5.2958237222375736e-04
+      Line search: Cubic step, current gnorm 2.273927999065e-02 lambda=5.2958237222375739e-05
+  9 SNES Function norm 2.273927999065e-02
+      Line search: gnorm after quadratic fit 2.304661900300e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.780266729965e-02 lambda=5.2929166449373469e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.613987346577e-02 lambda=5.2929166449373474e-03
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.298851296667e-02 lambda=5.2929166449373476e-04
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.274665822869e-02 lambda=5.2929166449373477e-05
+      Line search: Cubic step, current gnorm 2.273915963180e-02 lambda=5.2929166449373483e-06
+ 10 SNES Function norm 2.273915963180e-02
+      Line search: gnorm after quadratic fit 2.304664351365e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.779859190555e-02 lambda=5.2926262647731051e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.614377378667e-02 lambda=5.2926262647731053e-03
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.299126762716e-02 lambda=5.2926262647731053e-04
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.274926103943e-02 lambda=5.2926262647731053e-05
+      Line search: Cubic step, current gnorm 2.273903928152e-02 lambda=5.2926262647731060e-06
+ 11 SNES Function norm 2.273903928152e-02
+      Line search: gnorm after quadratic fit 2.304666802793e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.779451724822e-02 lambda=5.2923359174738734e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.614767498972e-02 lambda=5.2923359174738734e-03
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.299402392772e-02 lambda=5.2923359174738736e-04
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.275186557366e-02 lambda=5.2923359174738740e-05
+      Line search: Cubic step, current gnorm 2.273891893965e-02 lambda=5.2923359174738742e-06
+ 12 SNES Function norm 2.273891893965e-02
+      Line search: gnorm after quadratic fit 2.304669254584e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.779044332830e-02 lambda=5.2920456029280381e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.615157707369e-02 lambda=5.2920456029280387e-03
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.299678186774e-02 lambda=5.2920456029280393e-04
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.275447183403e-02 lambda=5.2920456029280393e-05
+      Line search: Cubic step, current gnorm 2.273879860480e-02 lambda=5.2920456029280393e-06
+ 13 SNES Function norm 2.273879860480e-02
+      Line search: gnorm after quadratic fit 2.304671706713e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.778637019690e-02 lambda=5.2917553181853795e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.615548003913e-02 lambda=5.2917553181853795e-03
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.299954144326e-02 lambda=5.2917553181853799e-04
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.275707981412e-02 lambda=5.2917553181853801e-05
+      Line search: Cubic step, current gnorm 2.273867827804e-02 lambda=5.2917553181853806e-06
+ 14 SNES Function norm 2.273867827804e-02
+      Line search: gnorm after quadratic fit 2.304674159182e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.778229781457e-02 lambda=5.2914650656345159e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.615938388044e-02 lambda=5.2914650656345165e-03
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.300230265367e-02 lambda=5.2914650656345165e-04
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.275968951702e-02 lambda=5.2914650656345170e-05
+      Line search: Cubic step, current gnorm 2.273855795938e-02 lambda=5.2914650656345173e-06
+ 15 SNES Function norm 2.273855795938e-02
+      Line search: gnorm after quadratic fit 2.304676611986e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.777822617585e-02 lambda=5.2911748456836265e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.616328859674e-02 lambda=5.2911748456836265e-03
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.300506550108e-02 lambda=5.2911748456836271e-04
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.276230093962e-02 lambda=5.2911748456836271e-05
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.273885318860e-02 lambda=5.2911748456836271e-06
+      Line search: Cubic step, current gnorm 2.273854113179e-02 lambda=7.4003342014126139e-07
+ 16 SNES Function norm 2.273854113179e-02
+      Line search: gnorm after quadratic fit 2.304676955043e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.777765677722e-02 lambda=5.2911342580083807e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.616383478038e-02 lambda=5.2911342580083814e-03
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.300545204006e-02 lambda=5.2911342580083817e-04
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.276266630982e-02 lambda=5.2911342580083817e-05
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.273921638146e-02 lambda=5.2911342580083818e-06
+      Line search: Cubic step, current gnorm 2.273852909953e-02 lambda=5.2911342580083825e-07
+ 17 SNES Function norm 2.273852909953e-02
+      Line search: gnorm after quadratic fit 2.304677200273e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.777724968280e-02 lambda=5.2911052379829522e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.616422529943e-02 lambda=5.2911052379829527e-03
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.300572842853e-02 lambda=5.2911052379829527e-04
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.276292756176e-02 lambda=5.2911052379829527e-05
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.273947608724e-02 lambda=5.2911052379829532e-06
+      Line search: Cubic step, current gnorm 2.273851706964e-02 lambda=5.2911052379829530e-07
+ 18 SNES Function norm 2.273851706964e-02
+      Line search: gnorm after quadratic fit 2.304677445588e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.777684253275e-02 lambda=5.2910762218144905e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.616461583317e-02 lambda=5.2910762218144908e-03
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.300600483488e-02 lambda=5.2910762218144906e-04
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.276318883833e-02 lambda=5.2910762218144910e-05
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.273973580575e-02 lambda=5.2910762218144917e-06
+      Line search: Cubic step, current gnorm 2.273850503874e-02 lambda=5.2910762218144923e-07
+ 19 SNES Function norm 2.273850503874e-02
+      Line search: gnorm after quadratic fit 2.304677690843e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.777643541183e-02 lambda=5.2910472047262791e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.616500637396e-02 lambda=5.2910472047262794e-03
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.300628125823e-02 lambda=5.2910472047262792e-04
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.276345012124e-02 lambda=5.2910472047262796e-05
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.273999554186e-02 lambda=5.2910472047262803e-06
+      Line search: Cubic step, current gnorm 2.273849300572e-02 lambda=5.2910472047262809e-07
+ 20 SNES Function norm 2.273849300572e-02
+      Line search: gnorm after quadratic fit 2.304677936081e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.777602838188e-02 lambda=5.2910181832369965e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.616539691690e-02 lambda=5.2910181832369965e-03
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.300655769649e-02 lambda=5.2910181832369963e-04
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.276371142653e-02 lambda=5.2910181832369968e-05
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.274025529432e-02 lambda=5.2910181832369975e-06
+      Line search: Cubic step, current gnorm 2.273848097364e-02 lambda=5.2910181832369975e-07
+ 21 SNES Function norm 2.273848097364e-02
+      Line search: gnorm after quadratic fit 2.304678181395e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.777562134942e-02 lambda=5.2909891626943373e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.616578747707e-02 lambda=5.2909891626943375e-03
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.300683415248e-02 lambda=5.2909891626943379e-04
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.276397275416e-02 lambda=5.2909891626943384e-05
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.274051506509e-02 lambda=5.2909891626943384e-06
+      Line search: Cubic step, current gnorm 2.273846894615e-02 lambda=5.2909891626943391e-07
+ 22 SNES Function norm 2.273846894615e-02
+      Line search: gnorm after quadratic fit 2.304678426721e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.777521413924e-02 lambda=5.2909601529235142e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.616617804817e-02 lambda=5.2909601529235149e-03
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.300711062703e-02 lambda=5.2909601529235154e-04
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.276423409083e-02 lambda=5.2909601529235159e-05
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.274077485561e-02 lambda=5.2909601529235159e-06
+      Line search: Cubic step, current gnorm 2.273845691550e-02 lambda=5.2909601529235161e-07
+ 23 SNES Function norm 2.273845691550e-02
+      Line search: gnorm after quadratic fit 2.304678671993e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.777480705349e-02 lambda=5.2909311368782713e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.616656862290e-02 lambda=5.2909311368782713e-03
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.300738711075e-02 lambda=5.2909311368782718e-04
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.276449544903e-02 lambda=5.2909311368782718e-05
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.274103466196e-02 lambda=5.2909311368782723e-06
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.273869696102e-02 lambda=5.2909311368782723e-07
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.273846327350e-02 lambda=5.2909311368782724e-08
+      Line search: Cubic step, current gnorm 2.273845679387e-02 lambda=5.2909311368782731e-09
+ 24 SNES Function norm 2.273845679387e-02
+      Line search: gnorm after quadratic fit 2.304678674416e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.777480302681e-02 lambda=5.2909308442166840e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.616657252918e-02 lambda=5.2909308442166845e-03
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.300738987740e-02 lambda=5.2909308442166845e-04
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.276449806321e-02 lambda=5.2909308442166845e-05
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.274103726159e-02 lambda=5.2909308442166847e-06
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.273869955888e-02 lambda=5.2909308442166851e-07
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.273846587234e-02 lambda=5.2909308442166855e-08
+      Line search: Cubic step, current gnorm 2.273845667276e-02 lambda=5.2909308442166860e-09
+ 25 SNES Function norm 2.273845667276e-02
+      Line search: gnorm after quadratic fit 2.304678676886e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.777479899625e-02 lambda=5.2909305517842550e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.616657643190e-02 lambda=5.2909305517842556e-03
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.300739263909e-02 lambda=5.2909305517842553e-04
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.276450067346e-02 lambda=5.2909305517842556e-05
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.274103985765e-02 lambda=5.2909305517842559e-06
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.273870215362e-02 lambda=5.2909305517842564e-07
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.273846847122e-02 lambda=5.2909305517842568e-08
+      Line search: Cubic step, current gnorm 2.273845655160e-02 lambda=5.2909305517842569e-09
+ 26 SNES Function norm 2.273845655160e-02
+      Line search: gnorm after quadratic fit 2.304678679311e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.777479495012e-02 lambda=5.2909302602001128e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.616658033668e-02 lambda=5.2909302602001133e-03
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.300739540826e-02 lambda=5.2909302602001135e-04
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.276450329089e-02 lambda=5.2909302602001139e-05
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.274104245379e-02 lambda=5.2909302602001146e-06
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.273870475291e-02 lambda=5.2909302602001152e-07
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.273847106562e-02 lambda=5.2909302602001156e-08
+      Line search: Cubic step, current gnorm 2.273845643485e-02 lambda=5.2909302602001156e-09
+ 27 SNES Function norm 2.273845643485e-02
+      Line search: gnorm after quadratic fit 2.304678681823e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.777479075075e-02 lambda=5.2909299773432873e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.616658424896e-02 lambda=5.2909299773432877e-03
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.300739816956e-02 lambda=5.2909299773432875e-04
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.276450590261e-02 lambda=5.2909299773432875e-05
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.274104505275e-02 lambda=5.2909299773432875e-06
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.273870734735e-02 lambda=5.2909299773432881e-07
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.273847366106e-02 lambda=5.2909299773432885e-08
+      Line search: Cubic step, current gnorm 2.273845631145e-02 lambda=5.2909299773432890e-09
+ 28 SNES Function norm 2.273845631145e-02
+      Line search: gnorm after quadratic fit 2.304678684221e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.777478679390e-02 lambda=5.2909296807875164e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.616658814890e-02 lambda=5.2909296807875164e-03
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.300740093543e-02 lambda=5.2909296807875171e-04
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.276450851516e-02 lambda=5.2909296807875171e-05
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.274104765070e-02 lambda=5.2909296807875176e-06
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.273870994643e-02 lambda=5.2909296807875178e-07
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.273847626181e-02 lambda=5.2909296807875179e-08
+      Line search: Cubic step, current gnorm 2.273845619446e-02 lambda=5.2909296807875184e-09
+ 29 SNES Function norm 2.273845619446e-02
+      Line search: gnorm after quadratic fit 2.304678686700e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.777478259203e-02 lambda=5.2909293979855158e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.616659205946e-02 lambda=5.2909293979855158e-03
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.300740370207e-02 lambda=5.2909293979855158e-04
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.276451113401e-02 lambda=5.2909293979855160e-05
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.274105024926e-02 lambda=5.2909293979855163e-06
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.273871254184e-02 lambda=5.2909293979855170e-07
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.273847885816e-02 lambda=5.2909293979855170e-08
+      Line search: Cubic step, current gnorm 2.273845607171e-02 lambda=5.2909293979855173e-09
+ 30 SNES Function norm 2.273845607171e-02
+      Line search: gnorm after quadratic fit 2.304678689146e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.777477862098e-02 lambda=5.2909291021619051e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.616659595996e-02 lambda=5.2909291021619054e-03
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.300740646384e-02 lambda=5.2909291021619061e-04
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.276451374186e-02 lambda=5.2909291021619066e-05
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.274105284667e-02 lambda=5.2909291021619073e-06
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.273871513953e-02 lambda=5.2909291021619071e-07
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.273848144797e-02 lambda=5.2909291021619071e-08
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.273845808231e-02 lambda=5.2909291021619074e-09
+      Line search: Cubic step, current gnorm 2.273845605914e-02 lambda=5.2909291021619081e-10
+ 31 SNES Function norm 2.273845605914e-02
+      Line search: gnorm after quadratic fit 2.304678689362e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.777477822747e-02 lambda=5.2909290724327332e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.616659635379e-02 lambda=5.2909290724327332e-03
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.300740674567e-02 lambda=5.2909290724327334e-04
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.276451400609e-02 lambda=5.2909290724327334e-05
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.274105310920e-02 lambda=5.2909290724327339e-06
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.273871539533e-02 lambda=5.2909290724327341e-07
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.273848170775e-02 lambda=5.2909290724327341e-08
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.273845833939e-02 lambda=5.2909290724327343e-09
+      Line search: Cubic step, current gnorm 2.273845604464e-02 lambda=5.2909290724327349e-10
+ 32 SNES Function norm 2.273845604464e-02
+      Line search: gnorm after quadratic fit 2.304678689598e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.777477791808e-02 lambda=5.2909290378232193e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.616659673964e-02 lambda=5.2909290378232200e-03
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.300740701881e-02 lambda=5.2909290378232198e-04
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.276451426392e-02 lambda=5.2909290378232199e-05
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.274105337004e-02 lambda=5.2909290378232201e-06
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.273871565740e-02 lambda=5.2909290378232199e-07
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.273848197185e-02 lambda=5.2909290378232200e-08
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.273845860472e-02 lambda=5.2909290378232204e-09
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.273845626437e-02 lambda=5.2909290378232210e-10
+      Line search: Cubic step, current gnorm 2.273845604421e-02 lambda=5.2909290378232211e-11
+ 33 SNES Function norm 2.273845604421e-02
+      Line search: gnorm after quadratic fit 2.304678689635e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.777477785063e-02 lambda=5.2909290364477203e-02
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.616659677654e-02 lambda=5.2909290364477205e-03
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.300740704758e-02 lambda=5.2909290364477207e-04
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.276451428993e-02 lambda=5.2909290364477211e-05
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.274105339324e-02 lambda=5.2909290364477216e-06
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.273871568237e-02 lambda=5.2909290364477220e-07
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.273848199870e-02 lambda=5.2909290364477226e-08
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.273845862530e-02 lambda=5.2909290364477232e-09
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.273845629304e-02 lambda=5.2909290364477230e-10
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.273845605871e-02 lambda=5.2909290364477231e-11
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.273845604725e-02 lambda=5.2909290364477235e-12
+      Line search: Cubic step no good, shrinking lambda, current gnorm 2.273845604776e-02 lambda=5.2909290364477233e-13
+      Line search: unable to find good step length! After 12 tries 
+      Line search: fnorm=2.2738456044205848e-02, gnorm=2.2738456047758541e-02, ynorm=8.4219806045935208e-02, minlambda=9.9999999999999998e-13, lambda=5.2909290364477233e-13, initial slope=-5.1703738327427682e-04
+problem=transient
+completed=false
+termination_reason=minimum_time_step
+regions=2
+contacts=1
+committed_time=3.850000000000e+00
+next_time_step=2.500000000000e-02
+accepted_steps=0
+contributions=25
+time_error_rejections=0
+rejected_steps=1
+last_rejected.attempted_end_time=3.875000000000e+00
+last_rejected.time_step=2.500000000000e-02
+last_rejected.cutback_index=0
+last_rejected.nonlinear_iterations=33
+last_rejected.linear_iterations=34
+last_rejected.convergence_reason=DIVERGED_LINE_SEARCH
+last_rejected.residual_norm=2.273845604421e-02
+last_rejected.time_error_estimate=0.000000000000e+00
+last_rejected.time_error.elastic_strain=0.000000000000e+00
+last_rejected.time_error.plastic_strain=0.000000000000e+00
+last_rejected.time_error.creep_strain=0.000000000000e+00
+last_rejected.time_error.equivalent_plastic_strain=0.000000000000e+00
+last_rejected.time_error.equivalent_creep_strain=0.000000000000e+00
+last_rejected.time_error.stress=0.000000000000e+00
+last_rejected.time_error.contact_friction=0.000000000000e+00
+last_rejected.time_error.contact_normal_multiplier=0.000000000000e+00
+last_rejected.failure_category=nonlinear_divergence
+last_rejected.failure_message=DIVERGED_LINE_SEARCH
+total_cutbacks=0
+nonlinear_iterations_total=33
+linear_iterations_total=34
+residual_evaluations_total=274
+jacobian_evaluations_total=34
+petsc_workspace_setups=1
+nonlinear_attempts=1
+linear_iterations=34
+used_backtracking_fallback=false
+augmented_lagrangian_iterations=0
+global_state_dofs=296
+maximum_shadow_state_dofs=296
+total_shadow_state_dofs=296
+total_remote_shadow_state_dofs=0
+memory.initial_resident_bytes=158212096
+memory.setup_resident_bytes=162144256
+memory.solve_resident_bytes=165879808
+memory.final_resident_bytes=165879808
+memory.minimum_peak_resident_bytes=165879808
+memory.maximum_peak_resident_bytes=165879808
+memory.total_peak_resident_bytes=165879808
+residual.temperature.initial_l2=1.770334222975e-01
+residual.temperature.reference_l2=1.770334222975e-04
+residual.temperature.final_l2=1.123229832897e-03
+residual.temperature.scaling=1.000000000000e-03
+residual.temperature.final_scaled_l2=1.123229832897e-06
+residual.displacement_x.initial_l2=2.794539829684e+05
+residual.displacement_x.reference_l2=1.397269914842e-02
+residual.displacement_x.final_l2=4.725216247841e+03
+residual.displacement_x.scaling=5.000000000000e-08
+residual.displacement_x.final_scaled_l2=2.362608123921e-04
+residual.displacement_y.initial_l2=1.102871435562e+06
+residual.displacement_y.reference_l2=6.016813361448e-02
+residual.displacement_y.final_l2=4.546785634842e+05
+residual.displacement_y.scaling=5.000000000000e-08
+residual.displacement_y.final_scaled_l2=2.273392817421e-02
+residual.displacement_z.initial_l2=2.105976165889e+01
+residual.displacement_z.reference_l2=1.166211695336e-02
+residual.displacement_z.final_l2=7.747841274788e+03
+residual.displacement_z.scaling=5.000000000000e-08
+residual.displacement_z.final_scaled_l2=3.873920637394e-04
+aggregate_memory.initial_resident_bytes=158212096
+aggregate_memory.setup_resident_bytes=162144256
+aggregate_memory.solve_resident_bytes=165879808
+aggregate_memory.final_resident_bytes=165879808
+aggregate_memory.minimum_peak_resident_bytes=165879808
+aggregate_memory.maximum_peak_resident_bytes=165879808
+aggregate_memory.total_peak_resident_bytes=165879808
+total_seconds=1.299973808300e+01
+conservation.generated_heat_rate=0.000000000000e+00
+conservation.stored_heat_rate=-2.876427523162e-03
+conservation.convection_heat_rate=0.000000000000e+00
+conservation.surface_heat_input_rate=0.000000000000e+00
+conservation.interface_heat_imbalance=1.847411112976e-13
+conservation.dirichlet_heat_input_rate=-4.223923292173e-03
+conservation.global_thermal_balance=1.347495769196e-03
+conservation.relative_thermal_balance=1.897787594171e-01
+conservation.unconstrained_thermal_residual_l2=3.611011568315e-12
+conservation.internal_mechanical_work_increment=-4.739045858014e+01
+conservation.pressure_traction_work_increment=0.000000000000e+00
+conservation.dirichlet_reaction_work_increment=4.518376681991e+03
+conservation.contact_work_increment=4.565767140570e+03
+conservation.mechanical_work_balance=-2.355591277592e-10
+conservation.relative_mechanical_work_balance=2.579622662598e-14
+conservation.unconstrained_mechanical_residual_l2=1.425539738324e-05
+conservation.elastic_energy_change=-4.763181389669e+01
+conservation.plastic_dissipation_increment=0.000000000000e+00
+conservation.creep_dissipation_increment=0.000000000000e+00
+conservation.friction_dissipation_increment=4.561702062589e+03
+conservation.trapezoidal_pressure_traction_work_increment=0.000000000000e+00
+conservation.trapezoidal_dirichlet_reaction_work_increment=4.519038952681e+03
+conservation.mechanical_hourglass_energy=0.000000000000e+00
+conservation.mechanical_hourglass_energy_change=0.000000000000e+00
+region.primary.maximum_equivalent_plastic_strain=0.000000000000e+00
+region.primary.maximum_equivalent_creep_strain=0.000000000000e+00
+region.secondary.maximum_equivalent_plastic_strain=0.000000000000e+00
+region.secondary.maximum_equivalent_creep_strain=0.000000000000e+00
+contact.interface.minimum_gap=-1.766067504590e-04
+contact.interface.maximum_contact_pressure=1.489097508954e+07
+contact.interface.total_heat_rate=1.001673513521e+03
+contact.interface.total_contact_force=2.049811241699e+07
+contact.interface.total_tangential_force=6.149433725097e+06
+contact.interface.projected_contact_nodes=13
+contact.interface.unprojected_contact_nodes=0
+contact.interface.active_contact_nodes=13

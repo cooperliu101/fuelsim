@@ -18,13 +18,15 @@ namespace {
 std::string checkpoint_bytes(const std::string& path, const fuelsim::TransientProblem& problem) {
     fuelsim::write_transient_checkpoint(path, problem, 0.1);
     std::ifstream file(path, std::ios::binary);
-    if (!file) throw std::runtime_error("Cannot read friction checkpoint bytes");
+    if (!file)
+        throw std::runtime_error("Cannot read friction checkpoint bytes");
     return {std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
 }
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 4) return 2;
+    if (argc != 4)
+        return 2;
     try {
         const auto input = fuelsim::read_case_input(argv[1]);
         const auto mesh = fuelsim::read_exodus_quad4(input.mesh_file);
@@ -33,38 +35,40 @@ int main(int argc, char** argv) {
         std::cout << std::hexfloat << "restored_step=" << step << " restored_time=" << problem.committed_time() << '\n';
         const double expected_step = input.transient_execution.initial_time_step;
         // Landing on the final amplitude knot can shorten the step by a few representable intervals.
-        if (std::abs(step - expected_step) > 32 * std::numeric_limits<double>::epsilon() * expected_step ||
-            std::abs(problem.committed_time() - 1.0) > 2e-15)
+        if (std::abs(step - expected_step) > 32 * std::numeric_limits<double>::epsilon() * expected_step
+            || std::abs(problem.committed_time() - 1.0) > 2e-15)
             throw std::runtime_error("Production checkpoint did not preserve final time and controller step");
         const auto output = fuelsim::test::read_final_exodus_results(argv[3]);
         const auto committed = fuelsim::rz::ProblemAccess::committed_state(problem);
         if (input.spatial.regions.front().rz_element_formulation == fuelsim::RzElementFormulation::cax4rt) {
             for (double count : output.element("material_point_count"))
-                if (count != 1.0) throw std::runtime_error("CAX4RT must expose one material point per element");
+                if (count != 1.0)
+                    throw std::runtime_error("CAX4RT must expose one material point per element");
             for (const auto& region : committed.material_histories)
                 for (const auto& element : region)
                     for (std::size_t q = 1; q < element.size(); ++q) {
                         const auto& point = element[q];
-                        if (point.stress.rr != 0.0 || point.stress.zz != 0.0 || point.stress.hoop != 0.0 ||
-                            point.stress.rz != 0.0 || point.equivalent_creep_strain != 0.0 ||
-                            point.equivalent_plastic_strain != 0.0)
+                        if (point.stress.rr != 0.0 || point.stress.zz != 0.0 || point.stress.hoop != 0.0
+                            || point.stress.rz != 0.0 || point.equivalent_creep_strain != 0.0
+                            || point.equivalent_plastic_strain != 0.0)
                             throw std::runtime_error("Inactive CAX4RT storage must not acquire material history");
                         for (std::size_t c = 0; c < 4; ++c)
-                            if (point.elastic_strain[c] != 0.0 || point.creep_strain[c] != 0.0 ||
-                                point.plastic_strain[c] != 0.0)
+                            if (point.elastic_strain[c] != 0.0 || point.creep_strain[c] != 0.0
+                                || point.plastic_strain[c] != 0.0)
                                 throw std::runtime_error("Inactive CAX4RT tensor history must remain zero");
                     }
         }
         const auto& history = committed.contact_histories.at(0);
-        if (history.size() != 3) throw std::runtime_error("Ring friction must commit three unique contact histories");
+        if (history.size() != 3)
+            throw std::runtime_error("Ring friction must commit three unique contact histories");
         for (std::size_t i = 0; i < 3; ++i) {
             const auto n = 2 * i + 1;
             const double elastic = output.nodal("contact_elastic_tangential_slip_interface")[n];
-            const double bound = 8 * std::numeric_limits<double>::epsilon() *
-                                 std::max(std::abs(elastic), std::abs(history[i].elastic_tangential_slip));
-            if (output.nodal("contact_total_tangential_slip_interface")[n] != history[i].total_tangential_slip ||
-                std::abs(elastic - history[i].elastic_tangential_slip) > bound ||
-                output.nodal("contact_sliding_interface")[n] != (history[i].sliding ? 1.0 : 0.0))
+            const double bound = 8 * std::numeric_limits<double>::epsilon()
+                                 * std::max(std::abs(elastic), std::abs(history[i].elastic_tangential_slip));
+            if (output.nodal("contact_total_tangential_slip_interface")[n] != history[i].total_tangential_slip
+                || std::abs(elastic - history[i].elastic_tangential_slip) > bound
+                || output.nodal("contact_sliding_interface")[n] != (history[i].sliding ? 1.0 : 0.0))
                 throw std::runtime_error("Production contact output differs from committed friction history");
         }
         const std::string temporary = std::string(argv[2]) + ".contract";
@@ -101,13 +105,17 @@ int main(int argc, char** argv) {
         if (checkpoint_bytes(temporary, problem) != original)
             throw std::runtime_error("Trial evaluation or rollback changed complete committed state");
         auto wrong_input = input.spatial;
-        for (auto& region : wrong_input.regions) region.rz_element_formulation = fuelsim::RzElementFormulation::quad4;
+        for (auto& region : wrong_input.regions)
+            region.rz_element_formulation = fuelsim::RzElementFormulation::quad4;
         fuelsim::TransientProblem wrong_element(wrong_input, mesh);
         bool rejected = false;
         try {
             (void)fuelsim::restore_transient_checkpoint(temporary, wrong_element);
-        } catch (const std::exception&) { rejected = true; }
-        if (!rejected) throw std::runtime_error("Checkpoint signature did not distinguish RZ element formulations");
+        } catch (const std::exception&) {
+            rejected = true;
+        }
+        if (!rejected)
+            throw std::runtime_error("Checkpoint signature did not distinguish RZ element formulations");
         if (std::remove(temporary.c_str()) != 0)
             throw std::runtime_error("Cannot remove temporary friction checkpoint");
         std::cout << "rz_friction_checkpoint_roundtrip=exact\nrz_friction_trial_rollback=exact\n"

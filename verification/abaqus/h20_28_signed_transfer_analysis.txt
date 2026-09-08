@@ -1,0 +1,9 @@
+h20_28_hex20_refined_primary_sts_default constraint_row 0 minimum_mid_edge_coefficient -2.2614265159432796e-14 primary_yz [0.0625, 0.625]
+h20_28_hex20_refined_primary_sts_default constraint_row 4 minimum_mid_edge_coefficient -1.2404206070036058e-14 primary_yz [0.625, 0.9375]
+h20_28_finite_transfer_probe constraint_row 0 minimum_mid_edge_coefficient -0.003462468951467098 primary_yz [0.3125, 0.0]
+h20_28_finite_transfer_probe constraint_row 4 minimum_mid_edge_coefficient -0.0086986152177916 primary_yz [0.5, 0.1875]
+h20_28_finite_transfer_16_probe constraint_row 0 minimum_mid_edge_coefficient -0.016529344121537153 primary_yz [0.21875, 0.125]
+h20_28_finite_transfer_16_probe constraint_row 4 minimum_mid_edge_coefficient -0.01972801755884396 primary_yz [0.5, 0.15625]
+primary_node_170_direct_gap_transfer [-0.003462475499661755, -0.0, -0.0, -0.0, -0.004006656503224696, -0.0, -0.0004904018114309334, -0.0]
+primary_node_170_force_transfer [-0.003462468951467098, -4.820721479986453e-09, -7.504904242280466e-09, -6.534663526628335e-09, -0.004006663938935068, -3.9402321961183196e-11, -0.0004903965644312899, 4.694300127683293e-09]
+maximum_absolute_difference 7.504904242280466e-09

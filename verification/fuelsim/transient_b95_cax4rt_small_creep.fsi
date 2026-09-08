@@ -20,6 +20,11 @@
       young_modulus = 2e11
       poisson_ratio = 0.3
     []
+    [plasticity]
+      function = linear_isotropic_hardening
+      yield_stress = 5e7
+      hardening_modulus = 2e11
+    []
     [creep]
       function = norton
       coefficient = 1e-4
@@ -62,21 +67,21 @@
 []
 [Executioner]
   type = transient
-  end_time = 1.0000000001
-  initial_time_step = 1e-10
-  minimum_time_step = 1e-10
+  end_time = 2
+  initial_time_step = 0.2
+  minimum_time_step = 0.2
   maximum_time_step = 0.2
-  growth_factor = 2e9
+  growth_factor = 1
   cutback_factor = 0.5
   maximum_cutbacks = 0
-  load_ramp_time = 1e-10
+  load_ramp_time = 1
 []
 [Solver]
   linear_solver = direct
   direct_factorization = mumps
-  absolute_tolerance = 1e-10
-  relative_tolerance = 1e-10
-  step_tolerance = 1e-12
+  absolute_tolerance = 1e-12
+  relative_tolerance = 1e-12
+  step_tolerance = 1e-14
   maximum_iterations = 40
 []
 [Outputs]

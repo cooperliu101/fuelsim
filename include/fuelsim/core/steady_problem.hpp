@@ -23,8 +23,8 @@ class SteadyProblem final : public NonlinearProblem {
     SteadyProblem(SpatialDefinition definition, const UnstructuredHex20Mesh& source_mesh);
     ~SteadyProblem() override;
     bool uses_augmented_contact() const noexcept override;
-    AugmentedContactUpdate update_augmented_contact_multipliers(
-        const std::vector<double>& state, std::size_t completed_updates) override;
+    AugmentedContactUpdate update_augmented_contact_multipliers(const std::vector<double>& state,
+        std::size_t completed_updates) override;
     void set_load_factor(double load_factor);
     double load_factor() const noexcept;
     void set_time(double time);
@@ -37,8 +37,8 @@ class SteadyProblem final : public NonlinearProblem {
     std::size_t sparsity_contribution_count() const noexcept override;
     bool jacobian_sparsity_is_state_dependent() const noexcept override;
     bool contribution_metadata_is_fixed() const noexcept override;
-    std::pair<std::size_t, std::size_t> contribution_partition(
-        std::size_t partition, std::size_t partition_count) const override;
+    std::pair<std::size_t, std::size_t> contribution_partition(std::size_t partition,
+        std::size_t partition_count) const override;
     const std::vector<FieldDescriptor>& field_layout() const noexcept override;
     const std::vector<DirichletCondition>& dirichlet_conditions() const noexcept override;
     void validate_state(const std::vector<double>& state) const override;
@@ -48,7 +48,9 @@ class SteadyProblem final : public NonlinearProblem {
     void contribution_jacobian_pattern(std::size_t index, std::vector<unsigned char>& pattern) const override;
     void sparsity_contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const override;
     void sparsity_contribution_jacobian_pattern(std::size_t index, std::vector<unsigned char>& pattern) const override;
-    void compute_contribution(std::size_t index, const std::vector<double>& state, std::vector<double>& residual,
+    void compute_contribution(std::size_t index,
+        const std::vector<double>& state,
+        std::vector<double>& residual,
         std::vector<double>* jacobian) const override;
 
   private:

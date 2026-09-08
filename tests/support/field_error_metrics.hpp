@@ -50,8 +50,9 @@ struct GroupedFieldErrorMetrics final {
 };
 
 bool relative_metrics_below(const FieldErrorMetrics& metrics, double tolerance);
-bool relative_metrics_below_with_pointwise_tolerance(
-    const FieldErrorMetrics& metrics, double aggregate_tolerance, double pointwise_tolerance);
+bool relative_metrics_below_with_pointwise_tolerance(const FieldErrorMetrics& metrics,
+    double aggregate_tolerance,
+    double pointwise_tolerance);
 bool absolute_metrics_below(const FieldErrorMetrics& metrics, double tolerance);
 bool grouped_relative_metrics_below(const GroupedFieldErrorMetrics& metrics, double tolerance);
 void print_relative_metrics(const std::string& name, const FieldErrorMetrics& metrics);

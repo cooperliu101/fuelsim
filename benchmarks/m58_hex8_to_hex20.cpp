@@ -10,8 +10,18 @@
 
 namespace {
 fuelsim::UnstructuredHex20Mesh upgrade(const fuelsim::UnstructuredHex8Mesh& source) {
-    static constexpr std::array<std::array<std::size_t, 2>, 12> edge_corners = {{{{0, 1}}, {{1, 2}}, {{2, 3}}, {{3, 0}},
-        {{0, 4}}, {{1, 5}}, {{2, 6}}, {{3, 7}}, {{4, 5}}, {{5, 6}}, {{6, 7}}, {{7, 4}}}};
+    static constexpr std::array<std::array<std::size_t, 2>, 12> edge_corners = {{{{0, 1}},
+        {{1, 2}},
+        {{2, 3}},
+        {{3, 0}},
+        {{0, 4}},
+        {{1, 5}},
+        {{2, 6}},
+        {{3, 7}},
+        {{4, 5}},
+        {{5, 6}},
+        {{6, 7}},
+        {{7, 4}}}};
 
     std::vector<fuelsim::CartesianPoint3> nodes = source.nodes();
     std::vector<fuelsim::Hex20Element> elements;
@@ -34,8 +44,12 @@ fuelsim::UnstructuredHex20Mesh upgrade(const fuelsim::UnstructuredHex8Mesh& sour
         }
         elements.push_back(element);
     }
-    return fuelsim::UnstructuredHex20Mesh(std::move(nodes), std::move(elements), source.element_block_ids(),
-        source.element_blocks(), source.node_sets(), source.side_sets());
+    return fuelsim::UnstructuredHex20Mesh(std::move(nodes),
+        std::move(elements),
+        source.element_block_ids(),
+        source.element_blocks(),
+        source.node_sets(),
+        source.side_sets());
 }
 } // namespace
 

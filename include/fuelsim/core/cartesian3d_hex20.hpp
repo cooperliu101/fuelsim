@@ -3,6 +3,7 @@
 #include <adlite/adlite.hpp>
 #include <array>
 #include <cstddef>
+#include <vector>
 
 namespace fuelsim {
 inline constexpr std::size_t hex20_temperature_node_count = 8;
@@ -48,7 +49,7 @@ struct Hex20MechanicalQuadraturePoint final {
 
 struct Hex20Geometry final {
     std::array<Hex20ThermalQuadraturePoint, hex20_thermal_quadrature_point_count> thermal_points;
-    std::array<Hex20MechanicalQuadraturePoint, hex20_mechanical_quadrature_point_count> mechanical_points;
+    std::vector<Hex20MechanicalQuadraturePoint> mechanical_points;
 };
 
 struct Quad8FaceThermalQuadraturePoint final {
@@ -71,23 +72,39 @@ struct Quad8FaceGeometry final {
     std::array<Quad8FaceMechanicalQuadraturePoint, quad8_face_mechanical_quadrature_point_count> mechanical_points;
 };
 
-Hex20Geometry make_hex20_geometry(const Hex20Coordinates& coordinates);
+Hex20Geometry make_hex20_geometry(const Hex20Coordinates& coordinates,
+    Hex20ElementFormulation formulation = Hex20ElementFormulation::c3d20t);
 Quad8FaceGeometry make_quad8_face_geometry(const Quad8FaceCoordinates& coordinates);
-Quad8FaceMechanicalQuadraturePoint make_quad8_face_mechanical_point(
-    const Quad8FaceCoordinates& coordinates, double xi, double eta, double quadrature_weight);
+Quad8FaceMechanicalQuadraturePoint make_quad8_face_mechanical_point(const Quad8FaceCoordinates& coordinates,
+    double xi,
+    double eta,
+    double quadrature_weight);
 void validate_hex20_deformation(const Hex20MechanicalQuadraturePoint& point, const Hex20LocalValues& state);
-Hex20LocalResidual compute_hex20_thermoelastic(const CartesianThermoelasticData& data, const Hex20Geometry& geometry,
-    const Hex20LocalValues& state, const Hex20LocalValues* committed_state = nullptr, double time_step = 0.0,
+Hex20LocalResidual compute_hex20_thermoelastic(const CartesianThermoelasticData& data,
+    const Hex20Geometry& geometry,
+    const Hex20LocalValues& state,
+    const Hex20LocalValues* committed_state = nullptr,
+    double time_step = 0.0,
     Hex20LocalJacobian* jacobian = nullptr);
-Hex20LocalResidual compute_hex20_transient(const CartesianThermoelasticData& data, const Hex20Geometry& geometry,
-    const Hex20LocalValues& state, const Hex20LocalValues& committed_state,
-    const CartesianMaterialHistory& committed_material, double time_step, Hex20LocalJacobian* jacobian = nullptr,
+Hex20LocalResidual compute_hex20_transient(const CartesianThermoelasticData& data,
+    const Hex20Geometry& geometry,
+    const Hex20LocalValues& state,
+    const Hex20LocalValues& committed_state,
+    const CartesianMaterialHistory& committed_material,
+    double time_step,
+    Hex20LocalJacobian* jacobian = nullptr,
     bool include_thermal_time_term = true);
 CartesianMaterialHistory compute_hex20_transient_update(const CartesianThermoelasticData& data,
-    const Hex20Geometry& geometry, const Hex20LocalValues& state, const Hex20LocalValues& committed_state,
-    const CartesianMaterialHistory& committed_material, double time_step);
-std::array<SymmetricTensor3Values, hex20_mechanical_quadrature_point_count> compute_hex20_stress(
-    const CartesianThermoelasticData& data, const Hex20Geometry& geometry, const Hex20LocalValues& state);
-Quad8FaceLocalResidual compute_quad8_face_boundary(const Quad4FaceBoundaryData& data, const Quad8FaceGeometry& geometry,
-    const Quad8FaceLocalValues& state, Quad8FaceLocalJacobian* jacobian = nullptr);
+    const Hex20Geometry& geometry,
+    const Hex20LocalValues& state,
+    const Hex20LocalValues& committed_state,
+    const CartesianMaterialHistory& committed_material,
+    double time_step);
+std::vector<SymmetricTensor3Values> compute_hex20_stress(const CartesianThermoelasticData& data,
+    const Hex20Geometry& geometry,
+    const Hex20LocalValues& state);
+Quad8FaceLocalResidual compute_quad8_face_boundary(const Quad4FaceBoundaryData& data,
+    const Quad8FaceGeometry& geometry,
+    const Quad8FaceLocalValues& state,
+    Quad8FaceLocalJacobian* jacobian = nullptr);
 } // namespace fuelsim

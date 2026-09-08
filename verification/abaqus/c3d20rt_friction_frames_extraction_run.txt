@@ -1,0 +1,2 @@
+reference_work_directory=C:\Users\TcroM\AppData\Local\Temp\c3d20rt_finite_contact_friction_20260908_030823
+matching_input=true; complete_contact_samples=3640

@@ -11,23 +11,25 @@
 
 namespace {
 bool check(bool condition, const std::string& message) {
-    if (condition) return true;
+    if (condition)
+        return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
 
-bool histories_equal(
-    const std::vector<fuelsim::ContactPointHistory>& first, const std::vector<fuelsim::ContactPointHistory>& second) {
-    if (first.size() != second.size()) return false;
+bool histories_equal(const std::vector<fuelsim::ContactPointHistory>& first,
+    const std::vector<fuelsim::ContactPointHistory>& second) {
+    if (first.size() != second.size())
+        return false;
     for (std::size_t point = 0; point < first.size(); ++point)
-        if (first[point].elastic_tangential_slip != second[point].elastic_tangential_slip ||
-            first[point].sliding != second[point].sliding ||
-            first[point].normal_multiplier != second[point].normal_multiplier ||
-            first[point].cartesian_elastic_tangential_slip != second[point].cartesian_elastic_tangential_slip ||
-            first[point].cartesian_total_tangential_slip != second[point].cartesian_total_tangential_slip ||
-            first[point].cartesian_tangent_basis_initialized != second[point].cartesian_tangent_basis_initialized ||
-            first[point].cartesian_contact_normal != second[point].cartesian_contact_normal ||
-            first[point].cartesian_contact_tangent_first != second[point].cartesian_contact_tangent_first)
+        if (first[point].elastic_tangential_slip != second[point].elastic_tangential_slip
+            || first[point].sliding != second[point].sliding
+            || first[point].normal_multiplier != second[point].normal_multiplier
+            || first[point].cartesian_elastic_tangential_slip != second[point].cartesian_elastic_tangential_slip
+            || first[point].cartesian_total_tangential_slip != second[point].cartesian_total_tangential_slip
+            || first[point].cartesian_tangent_basis_initialized != second[point].cartesian_tangent_basis_initialized
+            || first[point].cartesian_contact_normal != second[point].cartesian_contact_normal
+            || first[point].cartesian_contact_tangent_first != second[point].cartesian_contact_tangent_first)
             return false;
     return true;
 }
@@ -36,11 +38,13 @@ double jacobian_error(const fuelsim::TransientProblem& problem, const std::vecto
     const auto& spatial = fuelsim::cartesian::ProblemAccess::view(problem);
     double maximum = 0.0;
     for (std::size_t contribution = 0; contribution < spatial.contribution_count(); ++contribution) {
-        if (spatial.contribution_type(contribution) != fuelsim::SpatialContributionType::mechanical_contact) continue;
+        if (spatial.contribution_type(contribution) != fuelsim::SpatialContributionType::mechanical_contact)
+            continue;
         std::vector<std::size_t> dofs;
         spatial.contribution_dofs(contribution, dofs);
         std::vector<double> local(dofs.size());
-        for (std::size_t index = 0; index < dofs.size(); ++index) local[index] = state[dofs[index]];
+        for (std::size_t index = 0; index < dofs.size(); ++index)
+            local[index] = state[dofs[index]];
         std::vector<double> residual, jacobian;
         spatial.compute_contribution(contribution, local, nullptr, nullptr, 0.0, residual, &jacobian);
         std::vector<double> direction(local.size()), plus = local, minus = local;
@@ -67,7 +71,9 @@ double jacobian_error(const fuelsim::TransientProblem& problem, const std::vecto
     return maximum;
 }
 
-bool run(const std::string& input_path, const std::string& full_checkpoint, const std::string& restarted_checkpoint,
+bool run(const std::string& input_path,
+    const std::string& full_checkpoint,
+    const std::string& restarted_checkpoint,
     const std::string& split_checkpoint) {
     const auto input = fuelsim::read_case_input(input_path);
     const auto generated = fuelsim::read_exodus_hex8(input.mesh_file);
@@ -77,21 +83,21 @@ bool run(const std::string& input_path, const std::string& full_checkpoint, cons
     const double restart_step = fuelsim::restore_transient_checkpoint(restarted_checkpoint, restarted);
     const double split_step = fuelsim::restore_transient_checkpoint(split_checkpoint, split);
     bool passed =
-        check(full.committed_time() == 4.0 && restarted.committed_time() == 4.0 && split.committed_time() == 2.0 &&
-                  full_step == 1.0 && restart_step == 1.0 && split_step == 1.0,
+        check(full.committed_time() == 4.0 && restarted.committed_time() == 4.0 && split.committed_time() == 2.0
+                  && full_step == 1.0 && restart_step == 1.0 && split_step == 1.0,
             "B4.0 checkpoints preserve the exact physical time and next time step");
-    passed = check(full.committed_solution() == restarted.committed_solution() &&
-                       histories_equal(fuelsim::cartesian::ProblemAccess::committed_contact_histories(full).at(0),
+    passed = check(full.committed_solution() == restarted.committed_solution()
+                       && histories_equal(fuelsim::cartesian::ProblemAccess::committed_contact_histories(full).at(0),
                            fuelsim::cartesian::ProblemAccess::committed_contact_histories(restarted).at(0)),
-                 "B4.0 production restart exactly reproduces every nodal and contact history component") &&
-             passed;
+                 "B4.0 production restart exactly reproduces every nodal and contact history component")
+             && passed;
     const auto& split_history = fuelsim::cartesian::ProblemAccess::committed_contact_histories(split).at(0);
     passed = check(split_history.size() == 4, "B4.0 checkpoint contains four friction histories") && passed;
     for (const auto& point : split_history)
-        passed = check(point.sliding && std::abs(point.cartesian_elastic_tangential_slip[1]) > 0.0 &&
-                           std::abs(point.cartesian_elastic_tangential_slip[2]) > 0.0,
-                     "B4.0 restart begins from sliding with two nonzero elastic-slip components") &&
-                 passed;
+        passed = check(point.sliding && std::abs(point.cartesian_elastic_tangential_slip[1]) > 0.0
+                           && std::abs(point.cartesian_elastic_tangential_slip[2]) > 0.0,
+                     "B4.0 restart begins from sliding with two nonzero elastic-slip components")
+                 && passed;
     fuelsim::TransientProblem stick_problem(input.spatial, generated);
     std::vector<double> stick_trial = stick_problem.committed_solution();
     const auto& stick_spatial = fuelsim::cartesian::ProblemAccess::view(stick_problem);
@@ -116,13 +122,14 @@ bool run(const std::string& input_path, const std::string& full_checkpoint, cons
               << "b40_sticking_jacobian_directional_error=" << sticking_jacobian_error << '\n'
               << "b40_sliding_jacobian_directional_error=" << sliding_jacobian_error << '\n';
     return check(sticking_jacobian_error < 1.0e-7 && sliding_jacobian_error < 1.0e-7,
-               "B4.0 sticking and sliding Jacobians match centered directional differences") &&
-           passed;
+               "B4.0 sticking and sliding Jacobians match centered directional differences")
+           && passed;
 }
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 5) return 2;
+    if (argc != 5)
+        return 2;
     try {
         return run(argv[1], argv[2], argv[3], argv[4]) ? 0 : 1;
     } catch (const std::exception& error) {

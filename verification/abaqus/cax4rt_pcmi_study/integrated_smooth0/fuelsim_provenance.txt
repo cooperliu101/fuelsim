@@ -1,0 +1,2 @@
+result_path=build/blackbox/b13_integrated_cax4rt/verification/fuelsim/transient_b13_integrated_cax4rt_results.e
+result_sha256=f8c3cccf88fc7ca8d5439dd69156ba30c3ea32840a4aedafa572690d12082582

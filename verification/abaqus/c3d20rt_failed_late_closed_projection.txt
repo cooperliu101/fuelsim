@@ -1,0 +1,138 @@
+input_file=verification/fuelsim/transient_c3d20rt_finite_contact_failed_late.fsi
+mesh_file=/home/cooper/ai_project/fuelsim/verification/meshes/c3d20rt_finite_contact.e
+mpi_ranks=1
+results_file=/home/cooper/ai_project/fuelsim/verification/fuelsim/transient_c3d20rt_finite_contact_failed_late_results.part1.e
+  0 SNES Function norm 1.186023026552e-02
+  1 SNES Function norm 7.585044231387e-03
+  2 SNES Function norm 7.574149731296e-03
+  3 SNES Function norm 7.565428467761e-03
+  4 SNES Function norm 7.557863028740e-03
+  5 SNES Function norm 7.556957586645e-03
+  6 SNES Function norm 7.556181567771e-03
+  7 SNES Function norm 7.556074876508e-03
+  8 SNES Function norm 7.555988160216e-03
+  9 SNES Function norm 7.555912599958e-03
+ 10 SNES Function norm 7.555905028478e-03
+ 11 SNES Function norm 7.555904227996e-03
+ 12 SNES Function norm 7.555904062531e-03
+ 13 SNES Function norm 7.555903954389e-03
+ 14 SNES Function norm 7.555903865874e-03
+ 15 SNES Function norm 7.555903792315e-03
+ 16 SNES Function norm 7.555903782675e-03
+ 17 SNES Function norm 7.555903782567e-03
+ 18 SNES Function norm 7.555903782441e-03
+ 19 SNES Function norm 7.555903782429e-03
+problem=transient
+completed=false
+termination_reason=minimum_time_step
+regions=2
+contacts=1
+committed_time=4.878125000000e+00
+next_time_step=3.125000000000e-03
+accepted_steps=0
+contributions=25
+time_error_rejections=0
+rejected_steps=1
+last_rejected.attempted_end_time=4.881250000000e+00
+last_rejected.time_step=3.125000000000e-03
+last_rejected.cutback_index=0
+last_rejected.nonlinear_iterations=19
+last_rejected.linear_iterations=20
+last_rejected.convergence_reason=DIVERGED_LINE_SEARCH
+last_rejected.residual_norm=7.555903782429e-03
+last_rejected.time_error_estimate=0.000000000000e+00
+last_rejected.time_error.elastic_strain=0.000000000000e+00
+last_rejected.time_error.plastic_strain=0.000000000000e+00
+last_rejected.time_error.creep_strain=0.000000000000e+00
+last_rejected.time_error.equivalent_plastic_strain=0.000000000000e+00
+last_rejected.time_error.equivalent_creep_strain=0.000000000000e+00
+last_rejected.time_error.stress=0.000000000000e+00
+last_rejected.time_error.contact_friction=0.000000000000e+00
+last_rejected.time_error.contact_normal_multiplier=0.000000000000e+00
+last_rejected.failure_category=nonlinear_divergence
+last_rejected.failure_message=DIVERGED_LINE_SEARCH
+total_cutbacks=0
+nonlinear_iterations_total=19
+linear_iterations_total=20
+residual_evaluations_total=159
+jacobian_evaluations_total=20
+petsc_workspace_setups=1
+nonlinear_attempts=1
+linear_iterations=20
+used_backtracking_fallback=false
+augmented_lagrangian_iterations=0
+global_state_dofs=296
+maximum_shadow_state_dofs=296
+total_shadow_state_dofs=296
+total_remote_shadow_state_dofs=0
+memory.initial_resident_bytes=158081024
+memory.setup_resident_bytes=161816576
+memory.solve_resident_bytes=165748736
+memory.final_resident_bytes=165748736
+memory.minimum_peak_resident_bytes=165748736
+memory.maximum_peak_resident_bytes=165748736
+memory.total_peak_resident_bytes=165748736
+residual.temperature.initial_l2=2.020332134078e-01
+residual.temperature.reference_l2=2.020332134078e-04
+residual.temperature.final_l2=4.440843013160e-06
+residual.temperature.scaling=1.000000000000e-03
+residual.temperature.final_scaled_l2=4.440843013160e-09
+residual.displacement_x.initial_l2=5.873308950097e+04
+residual.displacement_x.reference_l2=2.936654475048e-03
+residual.displacement_x.final_l2=1.152332471768e+03
+residual.displacement_x.scaling=5.000000000000e-08
+residual.displacement_x.final_scaled_l2=5.761662358841e-05
+residual.displacement_y.initial_l2=2.297827712785e+05
+residual.displacement_y.reference_l2=6.379343665064e-02
+residual.displacement_y.final_l2=1.510147066836e+05
+residual.displacement_y.scaling=5.000000000000e-08
+residual.displacement_y.final_scaled_l2=7.550735334180e-03
+residual.displacement_z.initial_l2=5.828893599468e+00
+residual.displacement_z.reference_l2=1.397399962079e-03
+residual.displacement_z.final_l2=5.468389421014e+03
+residual.displacement_z.scaling=5.000000000000e-08
+residual.displacement_z.final_scaled_l2=2.734194710507e-04
+aggregate_memory.initial_resident_bytes=158081024
+aggregate_memory.setup_resident_bytes=161816576
+aggregate_memory.solve_resident_bytes=165748736
+aggregate_memory.final_resident_bytes=165748736
+aggregate_memory.minimum_peak_resident_bytes=165748736
+aggregate_memory.maximum_peak_resident_bytes=165748736
+aggregate_memory.total_peak_resident_bytes=165748736
+total_seconds=7.213525555000e+00
+conservation.generated_heat_rate=0.000000000000e+00
+conservation.stored_heat_rate=1.498385861102e-01
+conservation.convection_heat_rate=0.000000000000e+00
+conservation.surface_heat_input_rate=0.000000000000e+00
+conservation.interface_heat_imbalance=1.421085471520e-13
+conservation.dirichlet_heat_input_rate=1.474872931501e-01
+conservation.global_thermal_balance=2.351292960165e-03
+conservation.relative_thermal_balance=7.908134219644e-03
+conservation.unconstrained_thermal_residual_l2=1.358130071149e-11
+conservation.internal_mechanical_work_increment=1.627900915944e+02
+conservation.pressure_traction_work_increment=0.000000000000e+00
+conservation.dirichlet_reaction_work_increment=9.619717436553e+02
+conservation.contact_work_increment=7.991816520604e+02
+conservation.mechanical_work_balance=-5.368292477215e-10
+conservation.relative_mechanical_work_balance=2.790254761963e-13
+conservation.unconstrained_mechanical_residual_l2=1.550592629964e-05
+conservation.elastic_energy_change=1.646226101417e+02
+conservation.plastic_dissipation_increment=0.000000000000e+00
+conservation.creep_dissipation_increment=0.000000000000e+00
+conservation.friction_dissipation_increment=8.004718723158e+02
+conservation.trapezoidal_pressure_traction_work_increment=0.000000000000e+00
+conservation.trapezoidal_dirichlet_reaction_work_increment=9.613923847826e+02
+conservation.mechanical_hourglass_energy=0.000000000000e+00
+conservation.mechanical_hourglass_energy_change=0.000000000000e+00
+region.primary.maximum_equivalent_plastic_strain=0.000000000000e+00
+region.primary.maximum_equivalent_creep_strain=0.000000000000e+00
+region.secondary.maximum_equivalent_plastic_strain=0.000000000000e+00
+region.secondary.maximum_equivalent_creep_strain=0.000000000000e+00
+contact.interface.minimum_gap=-1.413371679351e-04
+contact.interface.maximum_contact_pressure=1.594786609792e+07
+contact.interface.total_heat_rate=1.002027741298e+03
+contact.interface.total_contact_force=2.091587947724e+07
+contact.interface.total_tangential_force=6.274763843172e+06
+contact.interface.projected_contact_nodes=13
+contact.interface.unprojected_contact_nodes=0
+contact.interface.active_contact_nodes=13

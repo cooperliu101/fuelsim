@@ -63,14 +63,23 @@ class ContactSearchTree final {
 };
 
 std::vector<std::int64_t> resolve_block_ids(const SpatialDefinition& definition,
-    const UnstructuredMeshMetadata& source_mesh, bool allow_contacts, bool allow_finite_strain);
-void validate_dirichlet_conditions(
-    std::vector<DirichletCondition>& conditions, const char* conflict_message, const char* duplicate_message);
+    const UnstructuredMeshMetadata& source_mesh,
+    bool allow_contacts,
+    bool allow_finite_strain);
+void validate_dirichlet_conditions(std::vector<DirichletCondition>& conditions,
+    const char* conflict_message,
+    const char* duplicate_message);
 double function_value(const SpatialDefinition& definition, double time, const std::string& name);
-double controlled_value(const SpatialDefinition& definition, double time, double load_factor, double value,
-    bool scale_with_load, const std::string& function);
-double function_average_value(
-    const SpatialDefinition& definition, double begin_time, double end_time, const std::string& name);
+double controlled_value(const SpatialDefinition& definition,
+    double time,
+    double load_factor,
+    double value,
+    bool scale_with_load,
+    const std::string& function);
+double function_average_value(const SpatialDefinition& definition,
+    double begin_time,
+    double end_time,
+    const std::string& name);
 
 class SpatialLayout {
   public:
@@ -126,8 +135,8 @@ class SpatialLayout {
     void set_time_value(double value);
     void refresh_dirichlet_values();
     ConvectionValues convection_values(const BoundaryConditionDefinition& boundary) const;
-    bool boundary_uses_displaced_geometry(
-        const BoundaryConditionDefinition& boundary, const RegionDefinition& region) const noexcept;
+    bool boundary_uses_displaced_geometry(const BoundaryConditionDefinition& boundary,
+        const RegionDefinition& region) const noexcept;
     void record_configuration_warning(const BoundaryConditionDefinition& boundary, const RegionDefinition& region);
     SpatialDefinition _definition;
     std::vector<std::int64_t> _block_ids;

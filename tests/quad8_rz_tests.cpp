@@ -1,3 +1,4 @@
+#include "core/detail/line3_rz_contact.hpp"
 #include "fuelsim/core/rz_quad8.hpp"
 #include "support/material_factory.hpp"
 #include <algorithm>
@@ -8,14 +9,78 @@
 
 int main() {
     try {
+        // Nonuniform temperature and genuinely curved geometry distinguish NTS
+        // heat transfer from surface integration and from mechanical nodal area.
+        for (std::size_t node = 0; node < 2; ++node) {
+            fuelsim::rz8::Line3ContactGeometry contact;
+            contact.secondary = {{{1, .2}, {1.2, 1.2}, {1.15, .7}}};
+            contact.primary = {{{1.8, 2}, {1.4, 0}, {1.7, 1}}};
+            contact.primary_first = contact.primary_last = true;
+            contact.coordinate = node == 0 ? -1 : 1;
+            contact.secondary_node = node;
+            contact.nodal_heat = true;
+            std::vector<double> v = {500, 650, 300, 350, .01, .02, .03, .01, .02, .03, .03, -.01, .02, -.02, .01, .01};
+            const fuelsim::GapHeatProperties heat{.2, 1e-5};
+            const fuelsim::NormalContactProperties mechanical{1e8};
+            const auto active = fuelsim::rz8::compute_line3_contact(contact, heat, mechanical, v, v, {}, true);
+            const auto passive = fuelsim::rz8::compute_line3_contact(contact, heat, mechanical, v, v, {}, false);
+            if (!active.thermal.projected || active.residual != passive.residual)
+                throw std::runtime_error("Quadratic NTS contact projection or passive residual failed");
+            double sum = 0, scale = 0;
+            for (std::size_t row = 0; row < 4; ++row) {
+                sum += active.residual[row];
+                scale += std::abs(active.residual[row]);
+            }
+            if (std::abs(sum) > 1e-13 * scale)
+                throw std::runtime_error("Quadratic NTS heat is not conserved");
+            for (std::size_t column = 0; column < 16; ++column) {
+                auto plus = v, minus = v;
+                const double step = column < 4 ? 1e-3 : 1e-6;
+                plus[column] += step;
+                minus[column] -= step;
+                const auto p = fuelsim::rz8::compute_line3_contact(contact, heat, mechanical, plus, v, {}, false);
+                const auto m = fuelsim::rz8::compute_line3_contact(contact, heat, mechanical, minus, v, {}, false);
+                for (std::size_t row = 0; row < 16; ++row) {
+                    const double fd = (p.residual[row] - m.residual[row]) / (2 * step),
+                                 ad = active.jacobian[16 * row + column];
+                    if (std::abs(fd - ad) > 2e-6 * (1 + std::abs(fd)))
+                        throw std::runtime_error("Quadratic NTS heat Jacobian differs from centered differences");
+                }
+            }
+            auto moved = v;
+            moved[6] += .02;
+            moved[9] -= .01;
+            const auto midnode = fuelsim::rz8::compute_line3_contact(contact, heat, mechanical, moved, v, {}, false);
+            if (midnode.residual != passive.residual)
+                throw std::runtime_error("NTS corner heat transfer incorrectly depends on secondary midnode");
+        }
         const fuelsim::Quad8RzCoordinates coordinates = {
             {{1, 0}, {2.1, .1}, {1.9, 1.2}, {.9, 1}, {1.55, .03}, {2.02, .65}, {1.4, 1.12}, {.93, .5}}};
 
         auto base = fuelsim::test::thermoelastic(0, 10, 1e6, .25, 1e-5, 600, 0, 0, 0, 1000, 100);
-        fuelsim::Quad8RzValues state = {600, 620, 590, 610, .01, .03, .06, -.02, .025, .038, .022, -.002, .02, -.01,
-                                   .07, .05, .003, .034, .065, .032},
+        fuelsim::Quad8RzValues state = {600,
+                                   620,
+                                   590,
+                                   610,
+                                   .01,
+                                   .03,
+                                   .06,
+                                   -.02,
+                                   .025,
+                                   .038,
+                                   .022,
+                                   -.002,
+                                   .02,
+                                   -.01,
+                                   .07,
+                                   .05,
+                                   .003,
+                                   .034,
+                                   .065,
+                                   .032},
                                old{};
-        for (std::size_t n = 0; n < 4; ++n) old[n] = 600;
+        for (std::size_t n = 0; n < 4; ++n)
+            old[n] = 600;
         double maximum = 0;
         // An affine annulus has exact volume and uniform strain under either rule.
         const fuelsim::Quad8RzCoordinates annulus = {
@@ -25,24 +90,27 @@ int main() {
             fuelsim::Quad4RzData data{fuelsim::IsotropicThermoelasticMaterial(base)};
             data.volumetric_heat_source = 1e4;
             fuelsim::Quad8RzValues affine{};
-            for (std::size_t n = 0; n < 4; ++n) affine[n] = 600;
+            for (std::size_t n = 0; n < 4; ++n)
+                affine[n] = 600;
             for (std::size_t n = 0; n < 8; ++n) {
                 affine[4 + n] = .001 * annulus[n].r;
                 affine[12 + n] = -.002 * annulus[n].z;
             }
             const auto result = fuelsim::compute_quad8_rz(data, geometry, affine, {}, nullptr, 0, false, false);
             double heat = 0;
-            for (std::size_t n = 0; n < 4; ++n) heat += result.residual[n];
+            for (std::size_t n = 0; n < 4; ++n)
+                heat += result.residual[n];
             if (std::abs(heat + 3 * std::acos(-1.0) * 1e4) > 1e-8)
                 throw std::runtime_error("QUAD8 source does not integrate the exact annular volume");
             for (std::size_t q = 0; q < geometry.point_count; ++q) {
                 const auto& s = result.history[q].stress;
-                if (std::abs(s.rr - 800) > 1e-8 || std::abs(s.zz + 1600) > 1e-8 || std::abs(s.hoop - 800) > 1e-8 ||
-                    std::abs(s.rz) > 1e-8)
+                if (std::abs(s.rr - 800) > 1e-8 || std::abs(s.zz + 1600) > 1e-8 || std::abs(s.hoop - 800) > 1e-8
+                    || std::abs(s.rz) > 1e-8)
                     throw std::runtime_error("QUAD8 affine elastic patch mismatch");
             }
             auto heated = affine;
-            for (std::size_t n = 0; n < 4; ++n) heated[n] = 630;
+            for (std::size_t n = 0; n < 4; ++n)
+                heated[n] = 630;
             const fuelsim::Quad8MaterialHistory history{};
             const auto transient = fuelsim::compute_quad8_rz(data, geometry, heated, affine, &history, .1, false);
             const double capacity = 3 * std::acos(-1.0) * 1000 * 100 * 30 / .1;
@@ -55,8 +123,10 @@ int main() {
                 throw std::runtime_error("QUAD8 integration count mismatch");
             for (int mechanism = 0; mechanism < 4; ++mechanism) {
                 auto properties = base;
-                if (mechanism & 1) properties = fuelsim::test::with_norton(properties, .01, 1e4, 3);
-                if (mechanism & 2) properties = fuelsim::test::with_plasticity(properties, 1e4, 1e5);
+                if (mechanism & 1)
+                    properties = fuelsim::test::with_norton(properties, .01, 1e4, 3);
+                if (mechanism & 2)
+                    properties = fuelsim::test::with_plasticity(properties, 1e4, 1e5);
                 for (auto form : {fuelsim::StrainFormulation::small, fuelsim::StrainFormulation::finite}) {
                     fuelsim::Quad4RzData data{fuelsim::IsotropicThermoelasticMaterial(properties)};
                     data.strain_formulation = form;
@@ -83,8 +153,8 @@ int main() {
                         const double relative = std::sqrt(error / std::max(scale, 1.0));
                         maximum = std::max(maximum, relative);
                         if (relative > 2e-6)
-                            throw std::runtime_error("QUAD8 centered derivative mismatch: " + std::to_string(column) +
-                                                     " " + std::to_string(relative));
+                            throw std::runtime_error("QUAD8 centered derivative mismatch: " + std::to_string(column)
+                                                     + " " + std::to_string(relative));
                     }
                     if (!mechanism) {
                         data.volumetric_heat_source = form == fuelsim::StrainFormulation::small ? 0 : 1e6;

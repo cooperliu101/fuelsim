@@ -38,19 +38,25 @@ inline std::vector<OutputContactStep> read_seven_contact_steps(const std::string
             throw std::invalid_argument("Friction path frame time differs from reference");
         const auto& projected = output.nodal("contact_projected_interface");
         for (std::size_t source = 0; source < projected.size(); ++source) {
-            if (!std::isfinite(projected[source])) continue;
+            if (!std::isfinite(projected[source]))
+                continue;
             const auto scalar = [&](const std::string& field) {
                 const double value = output.nodal("contact_" + field + "_interface").at(source);
-                if (!std::isfinite(value)) throw std::invalid_argument("Contact history output is not finite");
+                if (!std::isfinite(value))
+                    throw std::invalid_argument("Contact history output is not finite");
                 return value;
             };
             record.source_nodes.push_back(source);
             const auto& point = output.nodes.at(source);
-            record.contact.push_back(
-                {point[0], point[1], point[2], scalar("pressure"), scalar("projected") == 1.0, scalar("sliding") == 1.0,
-                    {scalar("normal_force_x"), scalar("normal_force_y"), scalar("normal_force_z")},
-                    {scalar("tangential_force_x"), scalar("tangential_force_y"), scalar("tangential_force_z")},
-                    {scalar("total_slip_x"), scalar("total_slip_y"), scalar("total_slip_z")}});
+            record.contact.push_back({point[0],
+                point[1],
+                point[2],
+                scalar("pressure"),
+                scalar("projected") == 1.0,
+                scalar("sliding") == 1.0,
+                {scalar("normal_force_x"), scalar("normal_force_y"), scalar("normal_force_z")},
+                {scalar("tangential_force_x"), scalar("tangential_force_y"), scalar("tangential_force_z")},
+                {scalar("total_slip_x"), scalar("total_slip_y"), scalar("total_slip_z")}});
         }
         if (record.contact.size() != contact_count)
             throw std::invalid_argument("Friction path contact-constraint count differs from reference");

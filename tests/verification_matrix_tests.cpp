@@ -13,27 +13,32 @@ std::vector<std::string> split(const std::string& text, char delimiter) {
     for (;;) {
         const std::size_t end = text.find(delimiter, begin);
         fields.push_back(text.substr(begin, end - begin));
-        if (end == std::string::npos) return fields;
+        if (end == std::string::npos)
+            return fields;
         begin = end + 1;
     }
 }
 
 std::set<std::string> read_registered_tests(const std::string& path) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read registered CTest list: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read registered CTest list: " + path);
     std::set<std::string> tests;
     std::string line;
     while (std::getline(input, line)) {
-        if (!line.empty() && line.back() == '\r') line.pop_back();
+        if (!line.empty() && line.back() == '\r')
+            line.pop_back();
         if (!line.empty() && !tests.insert(line).second)
             throw std::runtime_error("Duplicate registered CTest: " + line);
     }
     return tests;
 }
 
-void check_evidence(
-    const std::filesystem::path& repository, const std::string& row_id, const std::string& evidence_text) {
-    if (evidence_text == "-") throw std::runtime_error(row_id + " has no evidence");
+void check_evidence(const std::filesystem::path& repository,
+    const std::string& row_id,
+    const std::string& evidence_text) {
+    if (evidence_text == "-")
+        throw std::runtime_error(row_id + " has no evidence");
     for (const std::string& relative : split(evidence_text, ';')) {
         const std::filesystem::path path(relative);
         if (relative.empty() || path.is_absolute() || relative.find("..") != std::string::npos)
@@ -83,17 +88,22 @@ void check_c3d8t_contract(const std::string& path, const std::set<std::string>& 
             registered_c3d8t.insert(test);
 
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read C3D8T validation contract: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read C3D8T validation contract: " + path);
     std::string line;
-    if (!std::getline(input, line) || line != "ctest\tscope\tall_time_steps\tnodal_fields\tintegration_fields\tcontact_"
-                                              "fields\tacceptance_class\tzero_reference_policy\tknown_boundary")
+    if (!std::getline(input, line)
+        || line
+               != "ctest\tscope\tall_time_steps\tnodal_fields\tintegration_fields\tcontact_"
+                  "fields\tacceptance_class\tzero_reference_policy\tknown_boundary")
         throw std::runtime_error("C3D8T validation contract header does not match schema");
     std::set<std::string> found_tests;
     std::size_t line_number = 1;
     while (std::getline(input, line)) {
         ++line_number;
-        if (!line.empty() && line.back() == '\r') line.pop_back();
-        if (line.empty()) throw std::runtime_error("Blank C3D8T contract row at line " + std::to_string(line_number));
+        if (!line.empty() && line.back() == '\r')
+            line.pop_back();
+        if (line.empty())
+            throw std::runtime_error("Blank C3D8T contract row at line " + std::to_string(line_number));
         const std::vector<std::string> fields = split(line, '\t');
         if (fields.size() != 9)
             throw std::runtime_error("C3D8T contract row must have nine fields at line " + std::to_string(line_number));
@@ -104,29 +114,31 @@ void check_c3d8t_contract(const std::string& path, const std::set<std::string>& 
         const std::string& scope = fields[1];
         if (registered_c3d8t.count(test) == 0)
             throw std::runtime_error("C3D8T contract names an unregistered test: " + test);
-        if (!found_tests.insert(test).second) throw std::runtime_error("Duplicate C3D8T contract test: " + test);
+        if (!found_tests.insert(test).second)
+            throw std::runtime_error("Duplicate C3D8T contract test: " + test);
         if (fields[7] != zero_contract)
             throw std::runtime_error(test + " does not use the required zero-reference policy");
 
         const bool complete = scope == "full_field" || scope == "contact_full_field";
         if (!complete && existing_scoped_tests.count(test) == 0)
             throw std::runtime_error(test + " is a new C3D8T test without complete full-field coverage");
-        if (!complete) continue;
+        if (!complete)
+            continue;
         if (fields[2] != "yes" || fields[3] != nodal_contract || fields[4] != integration_contract)
             throw std::runtime_error(
                 test + " does not satisfy the complete C3D8T time, nodal, and integration contract");
-        if ((scope == "contact_full_field" && fields[5] != contact_contract) ||
-            (scope == "full_field" && fields[5] != "none"))
+        if ((scope == "contact_full_field" && fields[5] != contact_contract)
+            || (scope == "full_field" && fields[5] != "none"))
             throw std::runtime_error(test + " does not satisfy its C3D8T contact-field contract");
-        if (fields[6] != "base_0.1_percent" && fields[6] != "integrated_finite_0.5_percent" &&
-            fields[6] != "integrated_contact_0.5_percent" && fields[6] != "contact_1_percent_complete_force" &&
-            fields[6] != "qualified_contact")
+        if (fields[6] != "base_0.1_percent" && fields[6] != "integrated_finite_0.5_percent"
+            && fields[6] != "integrated_contact_0.5_percent" && fields[6] != "contact_1_percent_complete_force"
+            && fields[6] != "qualified_contact")
             throw std::runtime_error(test + " has an invalid C3D8T acceptance class");
         if (fields[6] == "qualified_contact" && (scope != "contact_full_field" || fields[8] == "none"))
             throw std::runtime_error(test + " lacks a documented contact qualification boundary");
-        if (fields[6] == "contact_1_percent_complete_force" &&
-            (test != "fuelsim_b522_hex8_c3d8t_faceted_thermal_contact_abaqus_tests" || scope != "contact_path" ||
-                fields[8] == "none"))
+        if (fields[6] == "contact_1_percent_complete_force"
+            && (test != "fuelsim_b522_hex8_c3d8t_faceted_thermal_contact_abaqus_tests" || scope != "contact_path"
+                || fields[8] == "none"))
             throw std::runtime_error(test + " misuses the B5.22 complete-force acceptance class");
     }
     if (found_tests != registered_c3d8t)
@@ -146,11 +158,34 @@ int main(int argc, char** argv) {
         const std::filesystem::path repository = argv[2];
         const std::set<std::string> registered_tests = read_registered_tests(argv[3]);
         std::ifstream matrix(matrix_path);
-        if (!matrix) throw std::runtime_error("Could not read verification matrix: " + matrix_path);
+        if (!matrix)
+            throw std::runtime_error("Could not read verification matrix: " + matrix_path);
         std::string line;
         if (!std::getline(matrix, line) || line != "id\tstatus\tcapability\tctest\tevidence\tacceptance")
             throw std::runtime_error("Verification matrix header does not match schema");
         const std::set<std::string> required_ids = {
+            "b150_cax4t_small_thermal_operator",
+            "c3d20rt_thermal_probe",
+            "c3d20rt_nonaffine_probe",
+            "c3d20rt_small_probe",
+            "c3d20rt_small_coupled",
+            "c3d20rt_finite_coupled",
+            "c3d20rt_small_plastic",
+            "c3d20rt_finite_plastic",
+            "c3d20rt_finite_creep",
+            "c3d20rt_small_creep_integration",
+            "c3d20rt_contact_friction",
+            "b916.cax4rt_variable_conductivity",
+            "b917.cax4rt_finite_thermal_operators",
+            "b150_cax4t_finite_thermal_operator",
+            "b151_cax4t_small_conductivity",
+            "b14_nts_cax4t",
+            "b14_nts_cax4rt",
+            "b14_nts_cax8t",
+            "b14_nts_cax8rt",
+            "b13_small",
+            "b13_finite",
+            "b13_integrated",
             "b100.cax8t_small_probe",
             "b101.cax8t_finite_probe",
             "b102.cax8t_small_contact",
@@ -347,28 +382,32 @@ int main(int argc, char** argv) {
         std::size_t line_number = 1;
         while (std::getline(matrix, line)) {
             ++line_number;
-            if (!line.empty() && line.back() == '\r') line.pop_back();
-            if (line.empty()) throw std::runtime_error("Blank matrix row at line " + std::to_string(line_number));
+            if (!line.empty() && line.back() == '\r')
+                line.pop_back();
+            if (line.empty())
+                throw std::runtime_error("Blank matrix row at line " + std::to_string(line_number));
             const std::vector<std::string> fields = split(line, '\t');
             if (fields.size() != 6)
                 throw std::runtime_error("Matrix row must have six fields at "
-                                         "line " +
-                                         std::to_string(line_number));
+                                         "line "
+                                         + std::to_string(line_number));
             for (const std::string& field : fields)
                 if (field.empty())
                     throw std::runtime_error("Empty matrix field at line " + std::to_string(line_number));
             const std::string& id = fields[0];
             const std::string& status = fields[1];
-            if (!found_ids.insert(id).second) throw std::runtime_error("Duplicate matrix id: " + id);
-            if (required_ids.count(id) == 0) throw std::runtime_error("Unexpected matrix id: " + id);
+            if (!found_ids.insert(id).second)
+                throw std::runtime_error("Duplicate matrix id: " + id);
+            if (required_ids.count(id) == 0)
+                throw std::runtime_error("Unexpected matrix id: " + id);
             if (status == "verified" || status == "qualified") {
                 if (status == "verified")
                     ++verified;
                 else
                     ++qualified;
                 if (fields[3] == "-") {
-                    if (status != "qualified" || manually_qualified_ids.count(id) == 0 ||
-                        fields[5].find("manual case is not registered in CTest") == std::string::npos)
+                    if (status != "qualified" || manually_qualified_ids.count(id) == 0
+                        || fields[5].find("manual case is not registered in CTest") == std::string::npos)
                         throw std::runtime_error(id + " has no qualifying CTest");
                 } else {
                     for (const std::string& test : split(fields[3], ';'))
@@ -377,10 +416,12 @@ int main(int argc, char** argv) {
                 }
             } else if (status == "measured") {
                 ++measured;
-                if (fields[3] != "-") throw std::runtime_error(id + " measured evidence must not masquerade as CTest");
+                if (fields[3] != "-")
+                    throw std::runtime_error(id + " measured evidence must not masquerade as CTest");
             } else if (status == "limitation") {
                 ++limitations;
-                if (fields[3] != "-") throw std::runtime_error(id + " limitation must not masquerade as CTest");
+                if (fields[3] != "-")
+                    throw std::runtime_error(id + " limitation must not masquerade as CTest");
             } else {
                 throw std::runtime_error(id + " has invalid status: " + status);
             }
@@ -388,7 +429,7 @@ int main(int argc, char** argv) {
         }
         if (found_ids != required_ids)
             throw std::runtime_error("Verification matrix is missing one or more required rows");
-        if (verified != 160 || qualified != 8 || measured != 12 || limitations != 3)
+        if (verified != 180 || qualified != 8 || measured != 12 || limitations != 5)
             throw std::runtime_error("Verification matrix status counts differ from release schema");
         check_c3d8t_contract(argv[4], registered_tests);
         std::cout << "verification_matrix_rows=" << found_ids.size() << '\n'

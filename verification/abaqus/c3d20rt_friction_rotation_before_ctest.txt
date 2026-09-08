@@ -1,0 +1,25 @@
+Internal ctest changing into directory: /home/cooper/ai_project/fuelsim/build
+Test project /home/cooper/ai_project/fuelsim/build
+    Start 101: fuelsim_hex20_solver_tests
+1/1 Test #101: fuelsim_hex20_solver_tests .......***Failed    1.34 sec
+Finite contact rigid-rotation slip error=8.83313e-07
+[FAIL] Common finite rigid rotation transports contact slip without adding relative motion
+Finite contact rigid-rotation slip error=8.83313e-07
+[FAIL] Common finite rigid rotation transports contact slip without adding relative motion
+
+
+0% tests passed, 1 tests failed out of 1
+
+Label Time Summary:
+checkpoint           =   1.34 sec*proc (1 test)
+contact              =   1.34 sec*proc (1 test)
+integration          =   1.34 sec*proc (1 test)
+multiblock           =   1.34 sec*proc (1 test)
+quadratic            =   1.34 sec*proc (1 test)
+three-dimensional    =   1.34 sec*proc (1 test)
+
+Total Test time (real) =   1.35 sec
+
+The following tests FAILED:
+	101 - fuelsim_hex20_solver_tests (Failed)
+Errors while running CTest

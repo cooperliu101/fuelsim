@@ -65,8 +65,10 @@ struct Quad4FaceGeometry final {
 };
 
 Hex8Geometry make_hex8_geometry(const Hex8Coordinates& coordinates);
-Quad4FaceQuadraturePoint make_quad4_face_quadrature_point(
-    const Quad4FaceCoordinates& coordinates, double xi, double eta, double quadrature_weight);
+Quad4FaceQuadraturePoint make_quad4_face_quadrature_point(const Quad4FaceCoordinates& coordinates,
+    double xi,
+    double eta,
+    double quadrature_weight);
 Quad4FaceGeometry make_quad4_face_geometry(const Quad4FaceCoordinates& coordinates);
 
 struct CartesianThermoelasticData final {
@@ -85,24 +87,36 @@ struct CartesianKinematics final {
 };
 
 CartesianKinematics evaluate_cartesian_incremental_kinematics(const Hex8QuadraturePoint& point,
-    const Hex8LocalAdValues& current_state, const Hex8LocalValues& committed_state,
+    const Hex8LocalAdValues& current_state,
+    const Hex8LocalValues& committed_state,
     StrainFormulation strain_formulation);
 void validate_cartesian_deformation(const Hex8QuadraturePoint& point, const Hex8LocalValues& state);
 using CartesianMaterialHistory = std::vector<CartesianMaterialPointState>;
-Hex8LocalResidual compute_hex8_thermoelastic(const CartesianThermoelasticData& data, const Hex8Geometry& geometry,
-    const Hex8LocalValues& state, const Hex8LocalValues* committed_state = nullptr, double time_step = 0.0,
+Hex8LocalResidual compute_hex8_thermoelastic(const CartesianThermoelasticData& data,
+    const Hex8Geometry& geometry,
+    const Hex8LocalValues& state,
+    const Hex8LocalValues* committed_state = nullptr,
+    double time_step = 0.0,
     Hex8LocalJacobian* jacobian = nullptr);
-Hex8LocalResidual compute_hex8_transient(const CartesianThermoelasticData& data, const Hex8Geometry& geometry,
-    const Hex8LocalValues& state, const Hex8LocalValues& committed_state,
-    const CartesianMaterialHistory& committed_material, double time_step, Hex8LocalJacobian* jacobian = nullptr,
+Hex8LocalResidual compute_hex8_transient(const CartesianThermoelasticData& data,
+    const Hex8Geometry& geometry,
+    const Hex8LocalValues& state,
+    const Hex8LocalValues& committed_state,
+    const CartesianMaterialHistory& committed_material,
+    double time_step,
+    Hex8LocalJacobian* jacobian = nullptr,
     bool include_thermal_time_term = true);
 CartesianMaterialHistory compute_hex8_transient_update(const CartesianThermoelasticData& data,
-    const Hex8Geometry& geometry, const Hex8LocalValues& state, const Hex8LocalValues& committed_state,
-    const CartesianMaterialHistory& committed_material, double time_step);
-double compute_hex8_mechanical_hourglass_energy(
-    const CartesianThermoelasticData& data, const Hex8Geometry& geometry, const Hex8LocalValues& state);
-std::array<SymmetricTensor3Values, 8> compute_hex8_stress(
-    const CartesianThermoelasticData& data, const Hex8Geometry& geometry, const Hex8LocalValues& state);
+    const Hex8Geometry& geometry,
+    const Hex8LocalValues& state,
+    const Hex8LocalValues& committed_state,
+    const CartesianMaterialHistory& committed_material,
+    double time_step);
+double compute_hex8_mechanical_hourglass_energy(const CartesianThermoelasticData& data,
+    const Hex8Geometry& geometry,
+    const Hex8LocalValues& state);
+std::array<SymmetricTensor3Values, 8>
+compute_hex8_stress(const CartesianThermoelasticData& data, const Hex8Geometry& geometry, const Hex8LocalValues& state);
 enum class CartesianTractionComponent { x, y, z };
 enum class Quad4FaceBoundaryKind { pressure, traction, surface_heat_flux, convection };
 
@@ -113,6 +127,8 @@ struct Quad4FaceBoundaryData final {
     bool use_displaced_geometry = false;
 };
 
-Quad4FaceLocalResidual compute_quad4_face_boundary(const Quad4FaceBoundaryData& data, const Quad4FaceGeometry& geometry,
-    const Quad4FaceLocalValues& state, Quad4FaceLocalJacobian* jacobian = nullptr);
+Quad4FaceLocalResidual compute_quad4_face_boundary(const Quad4FaceBoundaryData& data,
+    const Quad4FaceGeometry& geometry,
+    const Quad4FaceLocalValues& state,
+    Quad4FaceLocalJacobian* jacobian = nullptr);
 } // namespace fuelsim

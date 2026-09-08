@@ -29,7 +29,8 @@ struct ContactReference final {
 };
 
 bool check(bool condition, const std::string& message) {
-    if (condition) return true;
+    if (condition)
+        return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
@@ -38,34 +39,41 @@ std::vector<std::string> split_csv(const std::string& line) {
     std::vector<std::string> result;
     std::istringstream stream(line);
     std::string value;
-    while (std::getline(stream, value, ',')) result.push_back(value);
+    while (std::getline(stream, value, ','))
+        result.push_back(value);
     return result;
 }
 
 std::size_t column(const std::vector<std::string>& header, const std::string& name, const std::string& path) {
     const auto found = std::find(header.begin(), header.end(), name);
-    if (found == header.end()) throw std::invalid_argument("MOOSE CSV is missing column " + name + ": " + path);
+    if (found == header.end())
+        throw std::invalid_argument("MOOSE CSV is missing column " + name + ": " + path);
     return static_cast<std::size_t>(found - header.begin());
 }
 
 double number(const std::vector<std::string>& values, std::size_t index, const std::string& path) {
-    if (index >= values.size()) throw std::invalid_argument("Incomplete B3.7 MOOSE row: " + path);
+    if (index >= values.size())
+        throw std::invalid_argument("Incomplete B3.7 MOOSE row: " + path);
     const double value = std::stod(values[index]);
-    if (!std::isfinite(value)) throw std::invalid_argument("Non-finite B3.7 MOOSE value: " + path);
+    if (!std::isfinite(value))
+        throw std::invalid_argument("Non-finite B3.7 MOOSE value: " + path);
     return value;
 }
 
 std::size_t node_id(const std::vector<std::string>& values, std::size_t index, const std::string& path) {
     const double value = number(values, index, path);
-    if (value < 0.0 || std::floor(value) != value) throw std::invalid_argument("Invalid B3.7 node identifier");
+    if (value < 0.0 || std::floor(value) != value)
+        throw std::invalid_argument("Invalid B3.7 node identifier");
     return static_cast<std::size_t>(value);
 }
 
 std::vector<NodeReference> read_nodes(const std::string& path, std::size_t node_count) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read B3.7 MOOSE nodes: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read B3.7 MOOSE nodes: " + path);
     std::string line;
-    if (!std::getline(input, line)) throw std::invalid_argument("Empty B3.7 MOOSE nodal output: " + path);
+    if (!std::getline(input, line))
+        throw std::invalid_argument("Empty B3.7 MOOSE nodal output: " + path);
     const std::vector<std::string> header = split_csv(line);
     const std::size_t t = column(header, "T", path), dx = column(header, "disp_x", path),
                       dy = column(header, "disp_y", path), dz = column(header, "disp_z", path),
@@ -73,14 +81,17 @@ std::vector<NodeReference> read_nodes(const std::string& path, std::size_t node_
                       z = column(header, "z", path);
     std::vector<NodeReference> result(node_count);
     while (std::getline(input, line)) {
-        if (line.empty()) continue;
+        if (line.empty())
+            continue;
         const auto values = split_csv(line);
         const std::size_t source = node_id(values, id, path);
-        if (source >= node_count) throw std::invalid_argument("B3.7 MOOSE node identifier is outside the mesh");
+        if (source >= node_count)
+            throw std::invalid_argument("B3.7 MOOSE node identifier is outside the mesh");
         NodeReference candidate{{number(values, x, path), number(values, y, path), number(values, z, path)},
             {number(values, t, path), number(values, dx, path), number(values, dy, path), number(values, dz, path)},
             true};
-        if (result[source].present) throw std::invalid_argument("B3.7 MOOSE emitted duplicate node values");
+        if (result[source].present)
+            throw std::invalid_argument("B3.7 MOOSE emitted duplicate node values");
         result[source] = candidate;
     }
     if (std::any_of(result.begin(), result.end(), [](const NodeReference& value) { return !value.present; }))
@@ -90,59 +101,75 @@ std::vector<NodeReference> read_nodes(const std::string& path, std::size_t node_
 
 std::vector<ContactReference> read_contact(const std::string& path, const std::string& tangential_name) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read B3.7 MOOSE contact output: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read B3.7 MOOSE contact output: " + path);
     std::string line;
-    if (!std::getline(input, line)) throw std::invalid_argument("Empty B3.7 MOOSE contact output: " + path);
+    if (!std::getline(input, line))
+        throw std::invalid_argument("Empty B3.7 MOOSE contact output: " + path);
     const auto header = split_csv(line);
     const std::size_t pressure = column(header, "contact_pressure", path), id = column(header, "id", path),
                       area = column(header, "nodal_area", path), tangential = column(header, tangential_name, path),
                       x = column(header, "x", path), y = column(header, "y", path), z = column(header, "z", path);
     std::vector<ContactReference> result;
     while (std::getline(input, line)) {
-        if (line.empty()) continue;
+        if (line.empty())
+            continue;
         const auto values = split_csv(line);
-        result.push_back(
-            {node_id(values, id, path), {number(values, x, path), number(values, y, path), number(values, z, path)},
-                number(values, pressure, path), number(values, area, path), number(values, tangential, path)});
+        result.push_back({node_id(values, id, path),
+            {number(values, x, path), number(values, y, path), number(values, z, path)},
+            number(values, pressure, path),
+            number(values, area, path),
+            number(values, tangential, path)});
     }
-    if (result.empty()) throw std::invalid_argument("B3.7 MOOSE contact output has no nodes: " + path);
+    if (result.empty())
+        throw std::invalid_argument("B3.7 MOOSE contact output has no nodes: " + path);
     return result;
 }
 
-std::array<fuelsim::test::FieldErrorMetrics, 4> compare_nodes(
-    const fuelsim::test::ExodusResults& output, const std::vector<NodeReference>& reference, double& coordinate_error) {
+std::array<fuelsim::test::FieldErrorMetrics, 4> compare_nodes(const fuelsim::test::ExodusResults& output,
+    const std::vector<NodeReference>& reference,
+    double& coordinate_error) {
     std::array<fuelsim::test::FieldErrorMetrics, 4> result;
     const std::array<std::string, 4> names = {"temperature", "displacement_x", "displacement_y", "displacement_z"};
     for (std::size_t node = 0; node < output.nodes.size(); ++node) {
         for (std::size_t c = 0; c < 3; ++c)
             coordinate_error = std::max(coordinate_error, std::abs(output.nodes[node][c] - reference[node].point[c]));
-        for (std::size_t f = 0; f < 4; ++f) result[f].add(output.nodal(names[f])[node], reference[node].fields[f]);
+        for (std::size_t f = 0; f < 4; ++f)
+            result[f].add(output.nodal(names[f])[node], reference[node].fields[f]);
     }
     return result;
 }
 
-bool compare_contact(const fuelsim::test::ExodusResults& output, const std::vector<ContactReference>& reference,
-    double& coordinate_error, const std::string& name) {
+bool compare_contact(const fuelsim::test::ExodusResults& output,
+    const std::vector<ContactReference>& reference,
+    double& coordinate_error,
+    const std::string& name) {
     const auto& projected = output.nodal("contact_projected_" + name);
     const auto& pressures = output.nodal("contact_pressure_" + name);
     const auto& tractions = output.nodal("contact_tangential_traction_" + name);
     std::vector<std::size_t> source_nodes;
     double maximum_pressure = 0.0;
     for (std::size_t node = 0; node < projected.size(); ++node) {
-        if (std::isnan(projected[node])) continue;
-        if (projected[node] != 1.0) throw std::runtime_error("B3.7 contact node lost projection");
+        if (std::isnan(projected[node]))
+            continue;
+        if (projected[node] != 1.0)
+            throw std::runtime_error("B3.7 contact node lost projection");
         source_nodes.push_back(node);
         maximum_pressure = std::max(maximum_pressure, pressures[node]);
     }
-    if (reference.size() != source_nodes.size()) throw std::invalid_argument("B3.7 contact node counts differ");
+    if (reference.size() != source_nodes.size())
+        throw std::invalid_argument("B3.7 contact node counts differ");
     fuelsim::test::FieldErrorMetrics pressure, tangential;
     double actual_force = 0.0, reference_force = 0.0, actual_tangential_force = 0.0, reference_tangential_force = 0.0;
     std::size_t active = 0, sliding = 0;
     for (std::size_t index = 0; index < source_nodes.size(); ++index) {
-        const auto found = std::find_if(reference.begin(), reference.end(),
-            [&](const ContactReference& value) { return value.id == source_nodes[index]; });
-        if (found == reference.end()) throw std::invalid_argument("B3.7 MOOSE contact node is missing for " + name);
-        coordinate_error = std::max({coordinate_error, std::abs(output.nodes[source_nodes[index]][0] - found->point[0]),
+        const auto found = std::find_if(reference.begin(), reference.end(), [&](const ContactReference& value) {
+            return value.id == source_nodes[index];
+        });
+        if (found == reference.end())
+            throw std::invalid_argument("B3.7 MOOSE contact node is missing for " + name);
+        coordinate_error = std::max({coordinate_error,
+            std::abs(output.nodes[source_nodes[index]][0] - found->point[0]),
             std::abs(output.nodes[source_nodes[index]][1] - found->point[1]),
             std::abs(output.nodes[source_nodes[index]][2] - found->point[2])});
         pressure.add(pressures[source_nodes[index]], found->pressure);
@@ -153,7 +180,8 @@ bool compare_contact(const fuelsim::test::ExodusResults& output, const std::vect
         reference_tangential_force += found->tangential_force;
         if (pressures[source_nodes[index]] > 0.0) {
             ++active;
-            if (output.nodal("contact_sliding_" + name)[source_nodes[index]] == 1.0) ++sliding;
+            if (output.nodal("contact_sliding_" + name)[source_nodes[index]] == 1.0)
+                ++sliding;
         }
     }
     if (!(std::abs(reference_force) > 0.0) || !(std::abs(reference_tangential_force) > 0.0))
@@ -169,26 +197,30 @@ bool compare_contact(const fuelsim::test::ExodusResults& output, const std::vect
               << "b37_" << name << "_tangential_force_relative_error=" << tangential_force_error << '\n';
     const double maximum_capacity_excess = [&]() {
         double value = 0.0;
-        for (const auto node : source_nodes) value = std::max(value, tractions[node] - 0.001 * pressures[node]);
+        for (const auto node : source_nodes)
+            value = std::max(value, tractions[node] - 0.001 * pressures[node]);
         return value;
     }();
     return check(fuelsim::test::relative_metrics_below(pressure, 5.0e-3),
-               "B3.7 " + name + " pressure three MOOSE metrics pass") &&
-           check(fuelsim::test::relative_metrics_below(tangential, 5.0e-3),
-               "B3.7 " + name + " tangential traction three MOOSE metrics pass") &&
-           check(active > 0, "B3.7 " + name + " has active projected contact nodes") &&
-           check(sliding > 0, "B3.7 " + name + " activates Coulomb sliding") &&
-           check(force_error < 5.0e-3 && tangential_force_error < 5.0e-3,
-               "B3.7 " + name + " normal and tangential resultants pass") &&
-           check(maximum_capacity_excess <= 1.0e-12 * maximum_pressure, "B3.7 " + name + " respects the Coulomb cap");
+               "B3.7 " + name + " pressure three MOOSE metrics pass")
+           && check(fuelsim::test::relative_metrics_below(tangential, 5.0e-3),
+               "B3.7 " + name + " tangential traction three MOOSE metrics pass")
+           && check(active > 0, "B3.7 " + name + " has active projected contact nodes")
+           && check(sliding > 0, "B3.7 " + name + " activates Coulomb sliding")
+           && check(force_error < 5.0e-3 && tangential_force_error < 5.0e-3,
+               "B3.7 " + name + " normal and tangential resultants pass")
+           && check(maximum_capacity_excess <= 1.0e-12 * maximum_pressure,
+               "B3.7 " + name + " respects the Coulomb cap");
 }
 } // namespace
 
-bool fuelsim::test::check_hex8_multi_contact(const std::string& results, const std::string& nodal_reference,
-    const std::string& first_reference, const std::string& second_reference) {
+bool fuelsim::test::check_hex8_multi_contact(const std::string& results,
+    const std::string& nodal_reference,
+    const std::string& first_reference,
+    const std::string& second_reference) {
     const auto output = read_final_exodus_results(results);
-    if (output.block_element_counts.size() != 4 || output.block_element_counts[0] == output.block_element_counts[1] ||
-        output.block_element_counts[2] == output.block_element_counts[3])
+    if (output.block_element_counts.size() != 4 || output.block_element_counts[0] == output.block_element_counts[1]
+        || output.block_element_counts[2] == output.block_element_counts[3])
         throw std::runtime_error("B3.7 requires four blocks with nonmatching partitions");
     bool passed = true;
     double coordinate_error = 0.0;
@@ -198,33 +230,33 @@ bool fuelsim::test::check_hex8_multi_contact(const std::string& results, const s
         if (field == 3 || fields[field].maximum_reference < 1.0e-8) {
             fuelsim::test::print_absolute_metrics("b37_" + names[field], fields[field]);
             passed = check(fuelsim::test::absolute_metrics_below(fields[field], 1.0e-8),
-                         "B3.7 " + names[field] + " physical-zero absolute gate passes") &&
-                     passed;
+                         "B3.7 " + names[field] + " physical-zero absolute gate passes")
+                     && passed;
         } else if (field == 2) {
             fuelsim::test::print_relative_metrics("b37_" + names[field], fields[field]);
             passed =
                 check(fuelsim::test::relative_metrics_below_with_pointwise_tolerance(fields[field], 5.0e-3, 5.0e-2),
-                    "B3.7 displacement_y aggregate metrics pass with the near-zero pointwise gate") &&
-                passed;
+                    "B3.7 displacement_y aggregate metrics pass with the near-zero pointwise gate")
+                && passed;
         } else if (fields[field].has_relative_norm()) {
             fuelsim::test::print_relative_metrics("b37_" + names[field], fields[field]);
             passed = check(fuelsim::test::relative_metrics_below(fields[field], 5.0e-3),
-                         "B3.7 " + names[field] + " three MOOSE metrics pass") &&
-                     passed;
+                         "B3.7 " + names[field] + " three MOOSE metrics pass")
+                     && passed;
         } else {
             fuelsim::test::print_absolute_metrics("b37_" + names[field], fields[field]);
             passed = check(fuelsim::test::absolute_metrics_below(fields[field], 1.0e-12),
-                         "B3.7 " + names[field] + " zero-reference absolute gate passes") &&
-                     passed;
+                         "B3.7 " + names[field] + " zero-reference absolute gate passes")
+                     && passed;
         }
     }
     passed = check(coordinate_error < 1.0e-12, "B3.7 compares MOOSE values at matching coordinates") && passed;
-    passed = compare_contact(
-                 output, read_contact(first_reference, "pair_a_tangential_force_y"), coordinate_error, "pair_a") &&
-             passed;
-    passed = compare_contact(
-                 output, read_contact(second_reference, "pair_b_tangential_force_y"), coordinate_error, "pair_b") &&
-             passed;
+    passed =
+        compare_contact(output, read_contact(first_reference, "pair_a_tangential_force_y"), coordinate_error, "pair_a")
+        && passed;
+    passed =
+        compare_contact(output, read_contact(second_reference, "pair_b_tangential_force_y"), coordinate_error, "pair_b")
+        && passed;
 
     return check(coordinate_error < 1.0e-12, "B3.7 all nodal and contact coordinates match") && passed;
 }

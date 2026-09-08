@@ -1,0 +1,5 @@
+production_input_cards_byte_identical=true
+temperature_maximum_absolute_difference=1.1368683772161603e-13
+displacement_x_maximum_absolute_difference=2.9436088982981445e-17
+displacement_y_maximum_absolute_difference=4.4889358072688901e-17
+displacement_z_maximum_absolute_difference=5.1391182975812910e-17

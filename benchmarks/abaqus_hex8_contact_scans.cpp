@@ -105,7 +105,8 @@ class SnapshotObserver final : public fuelsim::TransientStepObserver {
 };
 
 bool check(bool condition, const std::string& message) {
-    if (condition) return true;
+    if (condition)
+        return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
@@ -114,12 +115,14 @@ std::vector<std::string> split_csv(const std::string& line) {
     std::vector<std::string> result;
     std::istringstream stream(line);
     std::string value;
-    while (std::getline(stream, value, ',')) result.push_back(value);
+    while (std::getline(stream, value, ','))
+        result.push_back(value);
     return result;
 }
 
 double number(const std::vector<std::string>& values, std::size_t index, const std::string& path) {
-    if (index >= values.size()) throw std::invalid_argument("Incomplete Abaqus B5.23 row in " + path);
+    if (index >= values.size())
+        throw std::invalid_argument("Incomplete Abaqus B5.23 row in " + path);
     return std::stod(values[index]);
 }
 
@@ -132,23 +135,27 @@ std::size_t positive_integer(double value, const std::string& path) {
 
 std::vector<NodeReference> read_nodes(const std::string& path) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read Abaqus B5.23 nodes: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read Abaqus B5.23 nodes: " + path);
     std::string line;
     std::getline(input, line);
     if (line != "increment,time_s,node,temperature_k,u1_m,u2_m,u3_m,reaction_heat_flux_w,rf1_n,rf2_n,rf3_n")
         throw std::invalid_argument("Unexpected Abaqus B5.23 nodal header in " + path);
     std::vector<NodeReference> result;
     while (std::getline(input, line)) {
-        if (line.empty()) continue;
+        if (line.empty())
+            continue;
         const std::vector<std::string> values = split_csv(line);
-        if (values.size() != 11) throw std::invalid_argument("Unexpected Abaqus B5.23 nodal column count in " + path);
+        if (values.size() != 11)
+            throw std::invalid_argument("Unexpected Abaqus B5.23 nodal column count in " + path);
         NodeReference reference;
         reference.increment = positive_integer(number(values, 0, path), path);
         reference.time = number(values, 1, path);
         reference.node = positive_integer(number(values, 2, path), path);
         for (std::size_t field = 0; field < reference.fields.size(); ++field) {
             reference.fields[field] = number(values, field + 3, path);
-            if (std::abs(reference.fields[field]) < 1.0e-20) reference.fields[field] = 0.0;
+            if (std::abs(reference.fields[field]) < 1.0e-20)
+                reference.fields[field] = 0.0;
         }
         result.push_back(reference);
     }
@@ -157,17 +164,21 @@ std::vector<NodeReference> read_nodes(const std::string& path) {
     return result;
 }
 
-fuelsim::SymmetricTensor3Values tensor(
-    const std::vector<std::string>& values, std::size_t start, const std::string& path, bool engineering_shear) {
+fuelsim::SymmetricTensor3Values
+tensor(const std::vector<std::string>& values, std::size_t start, const std::string& path, bool engineering_shear) {
     const double shear_scale = engineering_shear ? 0.5 : 1.0;
-    return {number(values, start, path), number(values, start + 1, path), number(values, start + 2, path),
-        shear_scale * number(values, start + 3, path), shear_scale * number(values, start + 5, path),
+    return {number(values, start, path),
+        number(values, start + 1, path),
+        number(values, start + 2, path),
+        shear_scale * number(values, start + 3, path),
+        shear_scale * number(values, start + 5, path),
         shear_scale * number(values, start + 4, path)};
 }
 
 std::vector<IntegrationReference> read_integration(const std::string& path) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read Abaqus B5.23 integration points: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read Abaqus B5.23 integration points: " + path);
     std::string line;
     std::getline(input, line);
     const std::string expected =
@@ -176,10 +187,12 @@ std::vector<IntegrationReference> read_integration(const std::string& path) {
         "le23_engineering,ee11,ee22,ee33,ee12_engineering,ee13_engineering,ee23_engineering,pe11,pe22,pe33,"
         "pe12_engineering,pe13_engineering,pe23_engineering,peeq,ce11,ce22,ce33,ce12_engineering,"
         "ce13_engineering,ce23_engineering,ceeq,ivol_m3";
-    if (line != expected) throw std::invalid_argument("Unexpected Abaqus B5.23 integration header in " + path);
+    if (line != expected)
+        throw std::invalid_argument("Unexpected Abaqus B5.23 integration header in " + path);
     std::vector<IntegrationReference> result;
     while (std::getline(input, line)) {
-        if (line.empty()) continue;
+        if (line.empty())
+            continue;
         const std::vector<std::string> values = split_csv(line);
         if (values.size() != 44)
             throw std::invalid_argument("Unexpected Abaqus B5.23 integration column count in " + path);
@@ -208,18 +221,22 @@ std::vector<IntegrationReference> read_integration(const std::string& path) {
 
 std::vector<ContactReference> read_contact(const std::string& path) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read Abaqus B5.23 contact: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read Abaqus B5.23 contact: " + path);
     std::string line;
     std::getline(input, line);
     const std::string expected =
         "increment,time_s,node,x_m,y_m,z_m,opening_m,pressure_pa,slip1_m,slip2_m,normal_force1_n,"
         "normal_force2_n,normal_force3_n,shear_force1_n,shear_force2_n,shear_force3_n,contact_heat_flux_w,state";
-    if (line != expected) throw std::invalid_argument("Unexpected Abaqus B5.23 contact header in " + path);
+    if (line != expected)
+        throw std::invalid_argument("Unexpected Abaqus B5.23 contact header in " + path);
     std::vector<ContactReference> result;
     while (std::getline(input, line)) {
-        if (line.empty()) continue;
+        if (line.empty())
+            continue;
         const std::vector<std::string> values = split_csv(line);
-        if (values.size() != 18) throw std::invalid_argument("Unexpected Abaqus B5.23 contact column count in " + path);
+        if (values.size() != 18)
+            throw std::invalid_argument("Unexpected Abaqus B5.23 contact column count in " + path);
         ContactReference value;
         value.increment = positive_integer(number(values, 0, path), path);
         value.time = number(values, 1, path);
@@ -244,19 +261,28 @@ std::vector<ContactReference> read_contact(const std::string& path) {
 
 std::vector<EnergyReference> read_energy(const std::string& path) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read Abaqus B5.23 energy: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read Abaqus B5.23 energy: " + path);
     std::string line;
     std::getline(input, line);
     if (line != "increment,time_s,allie_j,allse_j,allpd_j,allcd_j,allfd_j,allwk_j,boundary_heat_rate_w")
         throw std::invalid_argument("Unexpected Abaqus B5.23 energy header in " + path);
     std::vector<EnergyReference> result;
     while (std::getline(input, line)) {
-        if (line.empty()) continue;
+        if (line.empty())
+            continue;
         const std::vector<std::string> values = split_csv(line);
-        if (values.size() != 9) throw std::invalid_argument("Unexpected Abaqus B5.23 energy column count in " + path);
-        result.push_back({positive_integer(number(values, 0, path), path), number(values, 1, path),
-            number(values, 2, path), number(values, 3, path), number(values, 4, path), number(values, 5, path),
-            number(values, 6, path), number(values, 7, path), number(values, 8, path)});
+        if (values.size() != 9)
+            throw std::invalid_argument("Unexpected Abaqus B5.23 energy column count in " + path);
+        result.push_back({positive_integer(number(values, 0, path), path),
+            number(values, 1, path),
+            number(values, 2, path),
+            number(values, 3, path),
+            number(values, 4, path),
+            number(values, 5, path),
+            number(values, 6, path),
+            number(values, 7, path),
+            number(values, 8, path)});
     }
     if (result.size() != increment_count)
         throw std::invalid_argument("Abaqus B5.23 energy reference must contain 20 rows");
@@ -269,8 +295,8 @@ std::array<double, 6> components(const fuelsim::SymmetricTensor3Values& value) {
 
 using Matrix3 = std::array<std::array<double, 3>, 3>;
 
-fuelsim::SymmetricTensor3Values logarithmic_strain(
-    const fuelsim::Hex8QuadraturePoint& point, const fuelsim::Hex8LocalValues& state) {
+fuelsim::SymmetricTensor3Values logarithmic_strain(const fuelsim::Hex8QuadraturePoint& point,
+    const fuelsim::Hex8LocalValues& state) {
     Matrix3 deformation = {{{1.0, 0.0, 0.0}, {0.0, 1.0, 0.0}, {0.0, 0.0, 1.0}}};
     for (std::size_t component = 0; component < 3; ++component)
         for (std::size_t direction = 0; direction < 3; ++direction)
@@ -294,7 +320,8 @@ fuelsim::SymmetricTensor3Values logarithmic_strain(
                     largest = std::abs(left[row][column]);
                 }
         const double scale = std::max({1.0, std::abs(left[0][0]), std::abs(left[1][1]), std::abs(left[2][2])});
-        if (largest <= 1.0e-15 * scale) break;
+        if (largest <= 1.0e-15 * scale)
+            break;
         const double tau = (left[q][q] - left[p][p]) / (2.0 * left[p][q]);
         const double tangent = (tau >= 0.0 ? 1.0 : -1.0) / (std::abs(tau) + std::sqrt(1.0 + tau * tau));
         const double cosine = 1.0 / std::sqrt(1.0 + tangent * tangent), sine = tangent * cosine;
@@ -303,7 +330,8 @@ fuelsim::SymmetricTensor3Values logarithmic_strain(
         left[q][q] = aqq + tangent * apq;
         left[p][q] = left[q][p] = 0.0;
         for (std::size_t row = 0; row < 3; ++row) {
-            if (row == p || row == q) continue;
+            if (row == p || row == q)
+                continue;
             const double arp = left[row][p], arq = left[row][q];
             left[row][p] = left[p][row] = cosine * arp - sine * arq;
             left[row][q] = left[q][row] = sine * arp + cosine * arq;
@@ -326,8 +354,11 @@ fuelsim::SymmetricTensor3Values logarithmic_strain(
     return {result[0][0], result[1][1], result[2][2], result[0][1], result[1][2], result[0][2]};
 }
 
-fuelsim::UnstructuredHex8Mesh mesh(std::size_t through_thickness_elements = 1, std::size_t tangential_elements = 2,
-    double distortion = 0.0, double initial_gap = 0.0, bool nonmatching = false) {
+fuelsim::UnstructuredHex8Mesh mesh(std::size_t through_thickness_elements = 1,
+    std::size_t tangential_elements = 2,
+    double distortion = 0.0,
+    double initial_gap = 0.0,
+    bool nonmatching = false) {
     if (through_thickness_elements == 0 || tangential_elements == 0)
         throw std::invalid_argument("B5.23 mesh divisions must be positive");
     std::vector<fuelsim::CartesianPoint3> nodes;
@@ -345,66 +376,93 @@ fuelsim::UnstructuredHex8Mesh mesh(std::size_t through_thickness_elements = 1, s
                                     nonmatching ? std::array<double, 2>{-1.0, 0.1} : std::array<double, 2>{0.0, 0.0},
                                 z_upper =
                                     nonmatching ? std::array<double, 2>{2.0, 0.9} : std::array<double, 2>{1.0, 1.0};
-    const std::array<std::size_t, 2> block_offsets = {
-        0, 2 * (tangential_divisions[0] + 1) * (through_thickness_elements + 1)};
+    const std::array<std::size_t, 2> block_offsets = {0,
+        2 * (tangential_divisions[0] + 1) * (through_thickness_elements + 1)};
     const auto node = [&](std::size_t block, std::size_t z, std::size_t y, std::size_t x) {
-        return block_offsets[block] + z * (tangential_divisions[block] + 1) * (through_thickness_elements + 1) +
-               y * (through_thickness_elements + 1) + x;
+        return block_offsets[block] + z * (tangential_divisions[block] + 1) * (through_thickness_elements + 1)
+               + y * (through_thickness_elements + 1) + x;
     };
     for (std::size_t block = 0; block < 2; ++block)
         for (std::size_t z = 0; z < 2; ++z)
             for (std::size_t y = 0; y <= tangential_divisions[block]; ++y)
                 for (std::size_t x = 0; x <= through_thickness_elements; ++x)
-                    nodes.push_back({static_cast<double>(block) + (block == 1 ? initial_gap : 0.0) +
-                                         static_cast<double>(x) / static_cast<double>(through_thickness_elements) +
-                                         distortion * std::sin(pi * static_cast<double>(y) /
-                                                               static_cast<double>(tangential_divisions[block])),
-                        y_lower[block] + (y_upper[block] - y_lower[block]) * static_cast<double>(y) /
-                                             static_cast<double>(tangential_divisions[block]),
+                    nodes.push_back({static_cast<double>(block) + (block == 1 ? initial_gap : 0.0)
+                                         + static_cast<double>(x) / static_cast<double>(through_thickness_elements)
+                                         + distortion
+                                               * std::sin(pi * static_cast<double>(y)
+                                                          / static_cast<double>(tangential_divisions[block])),
+                        y_lower[block]
+                            + (y_upper[block] - y_lower[block]) * static_cast<double>(y)
+                                  / static_cast<double>(tangential_divisions[block]),
                         z == 0 ? z_lower[block] : z_upper[block]});
     for (std::size_t block = 0; block < 2; ++block)
         for (std::size_t y = 0; y < tangential_divisions[block]; ++y)
             for (std::size_t x = 0; x < through_thickness_elements; ++x) {
                 const std::size_t element_index = elements.size();
-                elements.push_back({{{node(block, 0, y, x), node(block, 0, y, x + 1), node(block, 0, y + 1, x + 1),
-                    node(block, 0, y + 1, x), node(block, 1, y, x), node(block, 1, y, x + 1),
-                    node(block, 1, y + 1, x + 1), node(block, 1, y + 1, x)}}});
+                elements.push_back({{{node(block, 0, y, x),
+                    node(block, 0, y, x + 1),
+                    node(block, 0, y + 1, x + 1),
+                    node(block, 0, y + 1, x),
+                    node(block, 1, y, x),
+                    node(block, 1, y, x + 1),
+                    node(block, 1, y + 1, x + 1),
+                    node(block, 1, y + 1, x)}}});
                 element_blocks.push_back(block == 0 ? 1 : 2);
-                if (block == 0 && x == 0) faces[0].push_back({element_index, 3});
-                if (block == 0 && x + 1 == through_thickness_elements) faces[1].push_back({element_index, 1});
-                if (block == 1 && x == 0) faces[2].push_back({element_index, 3});
-                if (block == 1 && x + 1 == through_thickness_elements) faces[3].push_back({element_index, 1});
+                if (block == 0 && x == 0)
+                    faces[0].push_back({element_index, 3});
+                if (block == 0 && x + 1 == through_thickness_elements)
+                    faces[1].push_back({element_index, 1});
+                if (block == 1 && x == 0)
+                    faces[2].push_back({element_index, 3});
+                if (block == 1 && x + 1 == through_thickness_elements)
+                    faces[3].push_back({element_index, 1});
                 if (block == 1 && x + 1 == through_thickness_elements && 2 * y < tangential_divisions[block])
                     faces[6].push_back({element_index, 1});
                 if (block == 1 && x + 1 == through_thickness_elements && 2 * y >= tangential_divisions[block])
                     faces[7].push_back({element_index, 1});
-                if (block == 1 && y == 0) faces[4].push_back({element_index, 0});
-                if (block == 1 && y + 1 == tangential_divisions[block]) faces[8].push_back({element_index, 2});
-                if (block == 1) faces[5].push_back({element_index, 4});
-                if (block == 1) faces[9].push_back({element_index, 5});
+                if (block == 1 && y == 0)
+                    faces[4].push_back({element_index, 0});
+                if (block == 1 && y + 1 == tangential_divisions[block])
+                    faces[8].push_back({element_index, 2});
+                if (block == 1)
+                    faces[5].push_back({element_index, 4});
+                if (block == 1)
+                    faces[9].push_back({element_index, 5});
             }
 
     std::vector<std::size_t> primary_outer, secondary_outer, secondary_y0, secondary_z0;
     for (std::size_t z = 0; z < 2; ++z)
-        for (std::size_t y = 0; y <= tangential_divisions[0]; ++y) primary_outer.push_back(node(0, z, y, 0));
+        for (std::size_t y = 0; y <= tangential_divisions[0]; ++y)
+            primary_outer.push_back(node(0, z, y, 0));
     for (std::size_t z = 0; z < 2; ++z)
         for (std::size_t y = 0; y <= tangential_divisions[1]; ++y)
             secondary_outer.push_back(node(1, z, y, through_thickness_elements));
     for (std::size_t z = 0; z < 2; ++z)
-        for (std::size_t x = 0; x <= through_thickness_elements; ++x) secondary_y0.push_back(node(1, z, 0, x));
+        for (std::size_t x = 0; x <= through_thickness_elements; ++x)
+            secondary_y0.push_back(node(1, z, 0, x));
     for (std::size_t y = 0; y <= tangential_divisions[1]; ++y)
-        for (std::size_t x = 0; x <= through_thickness_elements; ++x) secondary_z0.push_back(node(1, 0, y, x));
+        for (std::size_t x = 0; x <= through_thickness_elements; ++x)
+            secondary_z0.push_back(node(1, 0, y, x));
     std::vector<fuelsim::ElementSide> secondary_all_surface;
     for (const std::size_t face : {2U, 3U, 4U, 5U, 8U, 9U})
         secondary_all_surface.insert(secondary_all_surface.end(), faces[face].begin(), faces[face].end());
-    return fuelsim::UnstructuredHex8Mesh(std::move(nodes), std::move(elements), std::move(element_blocks),
+    return fuelsim::UnstructuredHex8Mesh(std::move(nodes),
+        std::move(elements),
+        std::move(element_blocks),
         {{1, "primary"}, {2, "secondary"}},
-        {{11, "primary_outer_nodes", primary_outer}, {12, "secondary_outer_nodes", secondary_outer},
-            {13, "secondary_y0", secondary_y0}, {14, "secondary_z0", secondary_z0}},
-        {{21, "primary_outer", faces[0]}, {22, "primary_contact", faces[1]}, {23, "secondary_contact", faces[2]},
-            {24, "secondary_outer", faces[3]}, {25, "secondary_y0_surface", faces[4]},
-            {26, "secondary_z0_surface", faces[5]}, {27, "secondary_outer_lower", faces[6]},
-            {28, "secondary_outer_upper", faces[7]}, {29, "secondary_all_surface", secondary_all_surface}});
+        {{11, "primary_outer_nodes", primary_outer},
+            {12, "secondary_outer_nodes", secondary_outer},
+            {13, "secondary_y0", secondary_y0},
+            {14, "secondary_z0", secondary_z0}},
+        {{21, "primary_outer", faces[0]},
+            {22, "primary_contact", faces[1]},
+            {23, "secondary_contact", faces[2]},
+            {24, "secondary_outer", faces[3]},
+            {25, "secondary_y0_surface", faces[4]},
+            {26, "secondary_z0_surface", faces[5]},
+            {27, "secondary_outer_lower", faces[6]},
+            {28, "secondary_outer_upper", faces[7]},
+            {29, "secondary_all_surface", secondary_all_surface}});
 }
 
 fuelsim::ThermoelasticProperties primary_material(double poisson = 0.28) {
@@ -413,8 +471,12 @@ fuelsim::ThermoelasticProperties primary_material(double poisson = 0.28) {
     fuelsim::MaterialFunctionRegistry registry = fuelsim::make_builtin_material_function_registry();
     auto functions = std::make_shared<fuelsim::MaterialFunctionSet>(*result.functions);
     functions->thermal = registry.bind_thermal("linear_temperature_thermophysical",
-        {{"conductivity", 15.0}, {"density", 100.0}, {"specific_heat", 1.0}, {"reference_temperature", 300.0},
-            {"conductivity_temperature_coefficient", 0.015}, {"density_temperature_coefficient", 0.0},
+        {{"conductivity", 15.0},
+            {"density", 100.0},
+            {"specific_heat", 1.0},
+            {"reference_temperature", 300.0},
+            {"conductivity_temperature_coefficient", 0.015},
+            {"density_temperature_coefficient", 0.0},
             {"specific_heat_temperature_coefficient", 0.001}});
     result.functions = std::move(functions);
     return result;
@@ -426,17 +488,26 @@ fuelsim::ThermoelasticProperties secondary_material(double poisson = 0.3, bool e
     fuelsim::MaterialFunctionRegistry registry = fuelsim::make_builtin_material_function_registry();
     auto functions = std::make_shared<fuelsim::MaterialFunctionSet>(*result.functions);
     functions->thermal = registry.bind_thermal("linear_temperature_thermophysical",
-        {{"conductivity", 10.0}, {"density", 100.0}, {"specific_heat", 1.0}, {"reference_temperature", 300.0},
-            {"conductivity_temperature_coefficient", 0.01}, {"density_temperature_coefficient", 0.0},
+        {{"conductivity", 10.0},
+            {"density", 100.0},
+            {"specific_heat", 1.0},
+            {"reference_temperature", 300.0},
+            {"conductivity_temperature_coefficient", 0.01},
+            {"density_temperature_coefficient", 0.0},
             {"specific_heat_temperature_coefficient", 0.001}});
     result.functions = std::move(functions);
-    if (elastic_only) return result;
+    if (elastic_only)
+        return result;
     result = fuelsim::test::with_plasticity(std::move(result), 2.0e5, 1.0e7, 300.0, -100.0, -5000.0);
     return fuelsim::test::with_norton(std::move(result), 1.0e-4, 2.0e5, 3.0, 300.0, 2.0e-7);
 }
 
-fuelsim::BoundaryConditionDefinition configured_boundary(const std::string& name, fuelsim::BoundaryConditionType type,
-    const std::string& boundary, fuelsim::Field field, const std::string& function, bool use_displaced_geometry) {
+fuelsim::BoundaryConditionDefinition configured_boundary(const std::string& name,
+    fuelsim::BoundaryConditionType type,
+    const std::string& boundary,
+    fuelsim::Field field,
+    const std::string& function,
+    bool use_displaced_geometry) {
     fuelsim::BoundaryConditionDefinition result{name, type, boundary, field, 1.0, false, function};
     result.use_displaced_geometry = use_displaced_geometry;
     result.configuration_explicit = true;
@@ -445,10 +516,22 @@ fuelsim::BoundaryConditionDefinition configured_boundary(const std::string& name
 
 fuelsim::SpatialDefinition definition(const ScanParameters& parameters = {}) {
     fuelsim::SpatialDefinition result;
-    result.regions = {{"primary", "primary", primary_material(parameters.primary_poisson), 0.0, 300.0, -1, "",
+    result.regions = {{"primary",
+                          "primary",
+                          primary_material(parameters.primary_poisson),
+                          0.0,
+                          300.0,
+                          -1,
+                          "",
                           fuelsim::StrainFormulation::finite},
-        {"secondary", "secondary", secondary_material(parameters.secondary_poisson, parameters.elastic_only), 0.0,
-            300.0, -1, "", fuelsim::StrainFormulation::finite}};
+        {"secondary",
+            "secondary",
+            secondary_material(parameters.secondary_poisson, parameters.elastic_only),
+            0.0,
+            300.0,
+            -1,
+            "",
+            fuelsim::StrainFormulation::finite}};
     if (parameters.reduced_integration)
         for (fuelsim::RegionDefinition& region : result.regions)
             region.hex8_element_formulation = fuelsim::Hex8ElementFormulation::c3d8rt;
@@ -463,88 +546,158 @@ fuelsim::SpatialDefinition definition(const ScanParameters& parameters = {}) {
         result.time_tables.emplace_back("normal_x", times, std::vector<double>{0.0, 0.0});
         result.time_tables.emplace_back("tangential_y", times, std::vector<double>{0.0, 2.0e-2});
         result.time_tables.emplace_back("tangential_z", times, std::vector<double>{0.0, 1.0e-2});
-        result.time_tables.emplace_back(
-            "bending_traction", times, std::vector<double>{0.0, parameters.bending_traction});
+        result.time_tables.emplace_back("bending_traction",
+            times,
+            std::vector<double>{0.0, parameters.bending_traction});
     } else if (parameters.path == ScanPath::contact_cycle) {
-        result.time_tables.emplace_back(
-            "secondary_temperature", times, std::vector<double>{300.0, 301.0, 301.0, 301.0, 301.0});
+        result.time_tables.emplace_back("secondary_temperature",
+            times,
+            std::vector<double>{300.0, 301.0, 301.0, 301.0, 301.0});
         result.time_tables.emplace_back("pressure", times, std::vector<double>(times.size(), 0.0));
         result.time_tables.emplace_back("normal_x", times, std::vector<double>{0.0, -2.0e-4, 0.0, -2.0e-4, -2.0e-4});
         result.time_tables.emplace_back("tangential_y", times, std::vector<double>(times.size(), 0.0));
         result.time_tables.emplace_back("tangential_z", times, std::vector<double>(times.size(), 0.0));
         result.time_tables.emplace_back("bending_traction", times, std::vector<double>(times.size(), 0.0));
     } else if (parameters.path == ScanPath::nonmatching_contact_cycle) {
-        result.time_tables.emplace_back("secondary_temperature", times,
-            std::vector<double>{
-                300.0, 308.0, 310.0, 310.0, 310.0, 310.0, 310.0, 310.0, 310.0, 310.0, 310.0, 310.0, 310.0});
+        result.time_tables.emplace_back("secondary_temperature",
+            times,
+            std::vector<
+                double>{300.0, 308.0, 310.0, 310.0, 310.0, 310.0, 310.0, 310.0, 310.0, 310.0, 310.0, 310.0, 310.0});
         result.time_tables.emplace_back("pressure", times, std::vector<double>(times.size(), 0.0));
-        result.time_tables.emplace_back("normal_x", times,
+        result.time_tables.emplace_back("normal_x",
+            times,
             std::vector<double>{0.0, 0.0, -5.0e-4, -5.0e-4, 0.0, 0.0, 0.0, -5.0e-4, -5.0e-4, 0.0, 0.0, 0.0, -5.0e-4});
-        result.time_tables.emplace_back("tangential_y", times,
+        result.time_tables.emplace_back("tangential_y",
+            times,
             std::vector<double>{0.0, 0.04, 0.05, 0.05, 0.05, 0.95, 0.95, 0.95, 0.95, 0.95, 0.05, 0.05, 0.05});
-        result.time_tables.emplace_back("tangential_z", times,
+        result.time_tables.emplace_back("tangential_z",
+            times,
             std::vector<double>{0.0, 0.032, 0.04, 0.04, 0.04, 0.20, 0.20, 0.20, 0.20, 0.20, 0.40, 0.40, 0.40});
         result.time_tables.emplace_back("bending_traction", times, std::vector<double>(times.size(), 0.0));
     } else {
-        result.time_tables.emplace_back(
-            "secondary_temperature", times, std::vector<double>{300.0, 400.0, 400.0, 400.0, 400.0});
+        result.time_tables.emplace_back("secondary_temperature",
+            times,
+            std::vector<double>{300.0, 400.0, 400.0, 400.0, 400.0});
         result.time_tables.emplace_back("pressure", times, std::vector<double>(times.size(), 0.0));
-        result.time_tables.emplace_back("normal_x", times,
-            std::vector<double>{0.0, -1.0e-3 * parameters.normal_displacement_scale,
-                -1.0e-3 * parameters.normal_displacement_scale, -1.0e-3 * parameters.normal_displacement_scale,
+        result.time_tables.emplace_back("normal_x",
+            times,
+            std::vector<double>{0.0,
+                -1.0e-3 * parameters.normal_displacement_scale,
+                -1.0e-3 * parameters.normal_displacement_scale,
+                -1.0e-3 * parameters.normal_displacement_scale,
                 -1.0e-3 * parameters.normal_displacement_scale});
-        result.time_tables.emplace_back("tangential_y", times,
-            std::vector<double>{0.0, 2.0e-5 * parameters.tangential_displacement_scale,
-                1.2e-2 * parameters.tangential_displacement_scale, -4.0e-3 * parameters.tangential_displacement_scale,
+        result.time_tables.emplace_back("tangential_y",
+            times,
+            std::vector<double>{0.0,
+                2.0e-5 * parameters.tangential_displacement_scale,
+                1.2e-2 * parameters.tangential_displacement_scale,
+                -4.0e-3 * parameters.tangential_displacement_scale,
                 -3.98e-3 * parameters.tangential_displacement_scale});
         result.time_tables.emplace_back("tangential_z", times, std::vector<double>(times.size(), 0.0));
         result.time_tables.emplace_back("bending_traction", times, std::vector<double>(times.size(), 0.0));
     }
     result.boundary_conditions = {
-        {"primary_temperature", fuelsim::BoundaryConditionType::dirichlet, "primary_outer", fuelsim::Field::temperature,
+        {"primary_temperature",
+            fuelsim::BoundaryConditionType::dirichlet,
+            "primary_outer",
+            fuelsim::Field::temperature,
             300.0},
-        {"primary_fix_x", fuelsim::BoundaryConditionType::dirichlet, "primary_outer", fuelsim::Field::displacement_x,
+        {"primary_fix_x",
+            fuelsim::BoundaryConditionType::dirichlet,
+            "primary_outer",
+            fuelsim::Field::displacement_x,
             0.0},
-        {"primary_fix_y", fuelsim::BoundaryConditionType::dirichlet, "primary_outer", fuelsim::Field::displacement_y,
+        {"primary_fix_y",
+            fuelsim::BoundaryConditionType::dirichlet,
+            "primary_outer",
+            fuelsim::Field::displacement_y,
             0.0},
-        {"primary_fix_z", fuelsim::BoundaryConditionType::dirichlet, "primary_outer", fuelsim::Field::displacement_z,
+        {"primary_fix_z",
+            fuelsim::BoundaryConditionType::dirichlet,
+            "primary_outer",
+            fuelsim::Field::displacement_z,
             0.0},
-        {"secondary_temperature", fuelsim::BoundaryConditionType::dirichlet, "secondary_outer",
-            fuelsim::Field::temperature, 1.0, false, "secondary_temperature"},
+        {"secondary_temperature",
+            fuelsim::BoundaryConditionType::dirichlet,
+            "secondary_outer",
+            fuelsim::Field::temperature,
+            1.0,
+            false,
+            "secondary_temperature"},
     };
     if (parameters.path != ScanPath::monotonic) {
         const std::string tangential_boundary =
             parameters.path == ScanPath::nonmatching_contact_cycle ? "secondary_all_surface" : "secondary_outer";
-        result.boundary_conditions.push_back({"secondary_normal_x", fuelsim::BoundaryConditionType::dirichlet,
-            "secondary_outer", fuelsim::Field::displacement_x, 1.0, false, "normal_x"});
-        result.boundary_conditions.push_back({"secondary_tangential_y", fuelsim::BoundaryConditionType::dirichlet,
-            tangential_boundary, fuelsim::Field::displacement_y, 1.0, false, "tangential_y"});
-        result.boundary_conditions.push_back({"secondary_tangential_z", fuelsim::BoundaryConditionType::dirichlet,
-            tangential_boundary, fuelsim::Field::displacement_z, 1.0, false, "tangential_z"});
+        result.boundary_conditions.push_back({"secondary_normal_x",
+            fuelsim::BoundaryConditionType::dirichlet,
+            "secondary_outer",
+            fuelsim::Field::displacement_x,
+            1.0,
+            false,
+            "normal_x"});
+        result.boundary_conditions.push_back({"secondary_tangential_y",
+            fuelsim::BoundaryConditionType::dirichlet,
+            tangential_boundary,
+            fuelsim::Field::displacement_y,
+            1.0,
+            false,
+            "tangential_y"});
+        result.boundary_conditions.push_back({"secondary_tangential_z",
+            fuelsim::BoundaryConditionType::dirichlet,
+            tangential_boundary,
+            fuelsim::Field::displacement_z,
+            1.0,
+            false,
+            "tangential_z"});
     } else if (parameters.traction_controlled) {
-        result.boundary_conditions.push_back(
-            configured_boundary("lower_bending_traction", fuelsim::BoundaryConditionType::traction,
-                "secondary_outer_lower", fuelsim::Field::displacement_z, "bending_traction", true));
-        result.boundary_conditions.push_back(
-            configured_boundary("upper_bending_traction", fuelsim::BoundaryConditionType::traction,
-                "secondary_outer_upper", fuelsim::Field::displacement_z, "bending_traction", true));
+        result.boundary_conditions.push_back(configured_boundary("lower_bending_traction",
+            fuelsim::BoundaryConditionType::traction,
+            "secondary_outer_lower",
+            fuelsim::Field::displacement_z,
+            "bending_traction",
+            true));
+        result.boundary_conditions.push_back(configured_boundary("upper_bending_traction",
+            fuelsim::BoundaryConditionType::traction,
+            "secondary_outer_upper",
+            fuelsim::Field::displacement_z,
+            "bending_traction",
+            true));
         result.boundary_conditions.back().value = -1.0;
         if (parameters.anchor_bending) {
-            result.boundary_conditions.push_back({"secondary_anchor_y", fuelsim::BoundaryConditionType::dirichlet,
-                "secondary_y0_surface", fuelsim::Field::displacement_y, 0.0});
-            result.boundary_conditions.push_back({"secondary_anchor_z", fuelsim::BoundaryConditionType::dirichlet,
-                "secondary_y0_surface", fuelsim::Field::displacement_z, 0.0});
+            result.boundary_conditions.push_back({"secondary_anchor_y",
+                fuelsim::BoundaryConditionType::dirichlet,
+                "secondary_y0_surface",
+                fuelsim::Field::displacement_y,
+                0.0});
+            result.boundary_conditions.push_back({"secondary_anchor_z",
+                fuelsim::BoundaryConditionType::dirichlet,
+                "secondary_y0_surface",
+                fuelsim::Field::displacement_z,
+                0.0});
         }
     } else {
-        result.boundary_conditions.push_back({"secondary_tangential_y", fuelsim::BoundaryConditionType::dirichlet,
-            "secondary_outer", fuelsim::Field::displacement_y, 1.0, false, "tangential_y"});
-        result.boundary_conditions.push_back({"secondary_tangential_z", fuelsim::BoundaryConditionType::dirichlet,
-            "secondary_outer", fuelsim::Field::displacement_z, 1.0, false, "tangential_z"});
+        result.boundary_conditions.push_back({"secondary_tangential_y",
+            fuelsim::BoundaryConditionType::dirichlet,
+            "secondary_outer",
+            fuelsim::Field::displacement_y,
+            1.0,
+            false,
+            "tangential_y"});
+        result.boundary_conditions.push_back({"secondary_tangential_z",
+            fuelsim::BoundaryConditionType::dirichlet,
+            "secondary_outer",
+            fuelsim::Field::displacement_z,
+            1.0,
+            false,
+            "tangential_z"});
     }
     if (parameters.path == ScanPath::monotonic)
-        result.boundary_conditions.push_back(
-            configured_boundary("outer_pressure", fuelsim::BoundaryConditionType::pressure, "secondary_outer",
-                fuelsim::Field::displacement_x, "pressure", true));
+        result.boundary_conditions.push_back(configured_boundary("outer_pressure",
+            fuelsim::BoundaryConditionType::pressure,
+            "secondary_outer",
+            fuelsim::Field::displacement_x,
+            "pressure",
+            true));
     fuelsim::ContactDefinition contact;
     contact.name = "coupled_contact";
     contact.primary = "primary_contact";
@@ -591,27 +744,35 @@ std::vector<double> raw_residual(fuelsim::TransientProblem& problem, const std::
 }
 
 std::vector<double> assembled_contact_residual(const fuelsim::cartesian::SpatialAssembly& spatial,
-    const std::vector<double>& state, fuelsim::SpatialContributionType type, double* conservation_error = nullptr) {
+    const std::vector<double>& state,
+    fuelsim::SpatialContributionType type,
+    double* conservation_error = nullptr) {
     std::vector<double> result(state.size(), 0.0);
     for (std::size_t contribution = 0; contribution < spatial.contribution_count(); ++contribution) {
-        if (spatial.contribution_type(contribution) != type) continue;
+        if (spatial.contribution_type(contribution) != type)
+            continue;
         std::vector<std::size_t> dofs;
         spatial.contribution_dofs(contribution, dofs);
         std::vector<double> local(dofs.size());
-        for (std::size_t index = 0; index < dofs.size(); ++index) local[index] = state[dofs[index]];
+        for (std::size_t index = 0; index < dofs.size(); ++index)
+            local[index] = state[dofs[index]];
         std::vector<double> residual;
         spatial.compute_contribution(contribution, local, nullptr, nullptr, 0.0, residual, nullptr);
         double balance = 0.0;
         for (std::size_t row = 0; row < dofs.size(); ++row) {
             result[dofs[row]] += residual[row];
-            if (type == fuelsim::SpatialContributionType::thermal_contact && row < 8) balance += residual[row];
+            if (type == fuelsim::SpatialContributionType::thermal_contact && row < 8)
+                balance += residual[row];
         }
-        if (conservation_error != nullptr) *conservation_error = std::max(*conservation_error, std::abs(balance));
+        if (conservation_error != nullptr)
+            *conservation_error = std::max(*conservation_error, std::abs(balance));
     }
     return result;
 }
 
-bool metrics_pass(const fuelsim::test::FieldErrorMetrics& metrics, double relative_tolerance, double zero_tolerance,
+bool metrics_pass(const fuelsim::test::FieldErrorMetrics& metrics,
+    double relative_tolerance,
+    double zero_tolerance,
     double qualified_pointwise_absolute_tolerance = 0.0) {
     if (metrics.has_relative_norm()) {
         const bool aggregate_passed =
@@ -619,10 +780,11 @@ bool metrics_pass(const fuelsim::test::FieldErrorMetrics& metrics, double relati
         const double maximum_pointwise_absolute_difference =
             std::abs(metrics.maximum_pointwise_relative_actual - metrics.maximum_pointwise_relative_reference);
         const bool pointwise_passed =
-            metrics.maximum_pointwise_relative_error() < relative_tolerance ||
-            (qualified_pointwise_absolute_tolerance > 0.0 &&
-                maximum_pointwise_absolute_difference < qualified_pointwise_absolute_tolerance);
-        if (!aggregate_passed || !pointwise_passed) return false;
+            metrics.maximum_pointwise_relative_error() < relative_tolerance
+            || (qualified_pointwise_absolute_tolerance > 0.0
+                && maximum_pointwise_absolute_difference < qualified_pointwise_absolute_tolerance);
+        if (!aggregate_passed || !pointwise_passed)
+            return false;
     }
     return metrics.maximum_zero_reference_difference < zero_tolerance;
 }
@@ -653,16 +815,23 @@ struct ScanResponse final {
     std::string failure_message;
 };
 
-ScanResponse run_scan(std::size_t through_thickness_elements, std::size_t tangential_elements, double step,
-    const ScanParameters& parameters, double distortion, const std::string& case_name,
+ScanResponse run_scan(std::size_t through_thickness_elements,
+    std::size_t tangential_elements,
+    double step,
+    const ScanParameters& parameters,
+    double distortion,
+    const std::string& case_name,
     const std::string& reference_directory) {
     const fuelsim::SpatialDefinition case_definition = definition(parameters);
-    const fuelsim::UnstructuredHex8Mesh case_mesh = mesh(through_thickness_elements, tangential_elements, distortion,
-        parameters.initial_gap, parameters.nonmatching_mesh);
+    const fuelsim::UnstructuredHex8Mesh case_mesh = mesh(through_thickness_elements,
+        tangential_elements,
+        distortion,
+        parameters.initial_gap,
+        parameters.nonmatching_mesh);
     fuelsim::TransientProblem problem(case_definition, case_mesh);
     fuelsim::test::AbaqusHex8SnapshotObserver observer;
-    const bool transition_case = case_name.rfind("b526_", 0) == 0 || case_name.rfind("b53", 0) == 0 ||
-                                 parameters.path == ScanPath::nonmatching_contact_cycle;
+    const bool transition_case = case_name.rfind("b526_", 0) == 0 || case_name.rfind("b53", 0) == 0
+                                 || parameters.path == ScanPath::nonmatching_contact_cycle;
     const double end_time = parameters.path == ScanPath::nonmatching_contact_cycle ? 0.9
                             : transition_case ? (parameters.path == ScanPath::contact_cycle ? 0.3 : 0.4)
                                               : 0.2;
@@ -675,9 +844,10 @@ ScanResponse run_scan(std::size_t through_thickness_elements, std::size_t tangen
     response.nonlinear_iterations = solve.total_nonlinear_iterations;
     if (!solve.rejected_steps.empty())
         response.failure_message =
-            std::string(fuelsim::solve_failure_category_name(solve.rejected_steps.back().failure_category)) + ": " +
-            solve.rejected_steps.back().failure_message;
-    if (!solve.completed || solve.accepted_steps.empty()) return response;
+            std::string(fuelsim::solve_failure_category_name(solve.rejected_steps.back().failure_category)) + ": "
+            + solve.rejected_steps.back().failure_message;
+    if (!solve.completed || solve.accepted_steps.empty())
+        return response;
     fuelsim::test::AbaqusHex8FullFieldOptions comparison;
     comparison.case_name = case_name;
     comparison.reference_prefix = reference_directory + "/" + case_name;
@@ -724,7 +894,8 @@ ScanResponse run_scan(std::size_t through_thickness_elements, std::size_t tangen
             comparison.displacement_pointwise_absolute_tolerance = 1.0e-12;
             comparison.logarithmic_strain_pointwise_absolute_tolerance = 1.0e-11;
             comparison.external_work_pointwise_absolute_tolerance = 1.0e-12;
-            if (case_name == "b526_contact_cycle") comparison.gate_contact_slip = false;
+            if (case_name == "b526_contact_cycle")
+                comparison.gate_contact_slip = false;
         }
     }
     if (case_name == "b540_nonmatching_contact_cycle") {
@@ -739,8 +910,11 @@ ScanResponse run_scan(std::size_t through_thickness_elements, std::size_t tangen
         comparison.contact_total_heat_rate_pointwise_relative_tolerance = 2.0e-1;
         comparison.gate_contact_state = false;
     }
-    response.full_field_passed = fuelsim::test::compare_abaqus_hex8_full_field(
-        problem, case_definition, case_mesh, observer.snapshots(), comparison);
+    response.full_field_passed = fuelsim::test::compare_abaqus_hex8_full_field(problem,
+        case_definition,
+        case_mesh,
+        observer.snapshots(),
+        comparison);
     const fuelsim::InterfaceSummary interface =
         fuelsim::cartesian::ProblemAccess::summarize_interface(problem, 0, solve.committed_state);
     response.active_contact_nodes = interface.active_contact_nodes;
@@ -756,7 +930,8 @@ ScanResponse run_scan(std::size_t through_thickness_elements, std::size_t tangen
         std::size_t active_nodes = 0, sticking_nodes = 0, sliding_nodes = 0;
         double tangential_y_resultant = 0.0;
         for (const fuelsim::CartesianContactNodeSummary& point : snapshot.contact) {
-            if (!(point.pressure > 0.0)) continue;
+            if (!(point.pressure > 0.0))
+                continue;
             if (first_active_primary_face == std::numeric_limits<std::size_t>::max())
                 first_active_primary_face = point.primary_face;
             else if (point.primary_face != first_active_primary_face)
@@ -769,10 +944,12 @@ ScanResponse run_scan(std::size_t through_thickness_elements, std::size_t tangen
         response.sliding_nodes_seen += sliding_nodes;
         if (active_nodes == 0) {
             ++response.open_contact_steps;
-            if (active_seen) reopened_seen = true;
+            if (active_seen)
+                reopened_seen = true;
         } else {
             ++response.active_contact_steps;
-            if (reopened_seen) recontact_seen = true;
+            if (reopened_seen)
+                recontact_seen = true;
             active_seen = true;
         }
         response.minimum_tangential_y_resultant =
@@ -788,22 +965,22 @@ ScanResponse run_scan(std::size_t through_thickness_elements, std::size_t tangen
         response.transition_verified =
             active_seen && crossed_primary_face && reopened_seen && recontact_seen && final_active;
     else if (parameters.path == ScanPath::friction_reversal)
-        response.transition_verified = response.sticking_nodes_seen > 0 && response.sliding_nodes_seen > 0 &&
-                                       response.minimum_tangential_y_resultant < 0.0 &&
-                                       response.maximum_tangential_y_resultant > 0.0 && final_sticking;
+        response.transition_verified = response.sticking_nodes_seen > 0 && response.sliding_nodes_seen > 0
+                                       && response.minimum_tangential_y_resultant < 0.0
+                                       && response.maximum_tangential_y_resultant > 0.0 && final_sticking;
     else
         response.transition_verified = true;
     for (const fuelsim::TransientAcceptedStep& accepted : solve.accepted_steps) {
         response.friction_dissipation += accepted.conservation.friction_dissipation_increment;
-        response.external_work += accepted.conservation.trapezoidal_pressure_traction_work_increment +
-                                  accepted.conservation.trapezoidal_dirichlet_reaction_work_increment;
+        response.external_work += accepted.conservation.trapezoidal_pressure_traction_work_increment
+                                  + accepted.conservation.trapezoidal_dirichlet_reaction_work_increment;
     }
     const auto& spatial = fuelsim::cartesian::ProblemAccess::view(problem);
     std::map<std::size_t, std::size_t> source_to_global;
     for (std::size_t region = 0; region < spatial.region_count(); ++region)
         for (std::size_t local = 0; local < spatial.region_mesh(region).nodes().size(); ++local)
-            source_to_global.emplace(
-                spatial.region_mesh(region).source_node_ids()[local], spatial.global_node(region, local));
+            source_to_global.emplace(spatial.region_mesh(region).source_node_ids()[local],
+                spatial.global_node(region, local));
     const std::vector<std::size_t> contact_sources =
         fuelsim::cartesian::ProblemAccess::contact_secondary_source_nodes(problem, 0);
     for (const std::size_t source : contact_sources)
@@ -824,9 +1001,11 @@ ScanResponse run_scan(std::size_t through_thickness_elements, std::size_t tangen
                 const double deviator_x = point.stress.xx - mean, deviator_y = point.stress.yy - mean,
                              deviator_z = point.stress.zz - mean;
                 response.maximum_equivalent_stress = std::max(response.maximum_equivalent_stress,
-                    std::sqrt(1.5 * (deviator_x * deviator_x + deviator_y * deviator_y + deviator_z * deviator_z +
-                                        2.0 * (point.stress.xy * point.stress.xy + point.stress.yz * point.stress.yz +
-                                                  point.stress.xz * point.stress.xz))));
+                    std::sqrt(1.5
+                              * (deviator_x * deviator_x + deviator_y * deviator_y + deviator_z * deviator_z
+                                  + 2.0
+                                        * (point.stress.xy * point.stress.xy + point.stress.yz * point.stress.yz
+                                            + point.stress.xz * point.stress.xz))));
             }
     return response;
 }
@@ -863,11 +1042,13 @@ void print_scan(const std::string& name, const ScanResponse& response) {
         std::cout << prefix << "_failure_message=" << response.failure_message << '\n';
 }
 
-void write_scan_response(
-    const std::filesystem::path& path, const std::string& case_name, const ScanResponse& response) {
+void write_scan_response(const std::filesystem::path& path,
+    const std::string& case_name,
+    const ScanResponse& response) {
     std::filesystem::create_directories(path.parent_path());
     std::ofstream output(path);
-    if (!output) throw std::runtime_error("Could not open B5.24/B5.25 response output: " + path.string());
+    if (!output)
+        throw std::runtime_error("Could not open B5.24/B5.25 response output: " + path.string());
     output << std::scientific << std::setprecision(17) << case_name << '\n'
            << response.completed << ' ' << response.full_field_passed << ' ' << response.transition_verified << ' '
            << response.accepted_steps << ' ' << response.rejected_steps << ' ' << response.active_contact_nodes << ' '
@@ -879,24 +1060,26 @@ void write_scan_response(
            << response.maximum_equivalent_stress << ' ' << response.maximum_absolute_z_displacement << ' '
            << response.friction_dissipation << ' ' << response.external_work << ' ' << response.boundary_heat_rate
            << ' ' << response.minimum_tangential_y_resultant << ' ' << response.maximum_tangential_y_resultant << '\n';
-    if (!output) throw std::runtime_error("Could not write B5.24/B5.25 response output: " + path.string());
+    if (!output)
+        throw std::runtime_error("Could not write B5.24/B5.25 response output: " + path.string());
 }
 
 ScanResponse read_scan_response(const std::filesystem::path& directory, const std::string& case_name) {
     const std::filesystem::path path = directory / (case_name + ".txt");
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not open B5.24/B5.25 response input: " + path.string());
+    if (!input)
+        throw std::runtime_error("Could not open B5.24/B5.25 response input: " + path.string());
     std::string stored_case;
     ScanResponse response;
-    input >> stored_case >> response.completed >> response.full_field_passed >> response.transition_verified >>
-        response.accepted_steps >> response.rejected_steps >> response.active_contact_nodes >>
-        response.open_contact_steps >> response.active_contact_steps >> response.sticking_nodes_seen >>
-        response.sliding_nodes_seen >> response.nonlinear_iterations >> response.contact_force >>
-        response.tangential_force >> response.contact_heat_rate >> response.maximum_penetration >>
-        response.average_contact_temperature >> response.maximum_plastic_strain >> response.maximum_creep_strain >>
-        response.maximum_equivalent_stress >> response.maximum_absolute_z_displacement >>
-        response.friction_dissipation >> response.external_work >> response.boundary_heat_rate >>
-        response.minimum_tangential_y_resultant >> response.maximum_tangential_y_resultant;
+    input >> stored_case >> response.completed >> response.full_field_passed >> response.transition_verified
+        >> response.accepted_steps >> response.rejected_steps >> response.active_contact_nodes
+        >> response.open_contact_steps >> response.active_contact_steps >> response.sticking_nodes_seen
+        >> response.sliding_nodes_seen >> response.nonlinear_iterations >> response.contact_force
+        >> response.tangential_force >> response.contact_heat_rate >> response.maximum_penetration
+        >> response.average_contact_temperature >> response.maximum_plastic_strain >> response.maximum_creep_strain
+        >> response.maximum_equivalent_stress >> response.maximum_absolute_z_displacement
+        >> response.friction_dissipation >> response.external_work >> response.boundary_heat_rate
+        >> response.minimum_tangential_y_resultant >> response.maximum_tangential_y_resultant;
     if (!input || stored_case != case_name)
         throw std::runtime_error("Invalid B5.24/B5.25 response input: " + path.string());
     return response;
@@ -976,8 +1159,13 @@ ScanResponse run_named_scan(const std::string& name, const std::string& referenc
         else
             throw std::invalid_argument("Unknown B5.25 selected case: " + name);
     }
-    return run_scan(
-        through_thickness_elements, tangential_elements, step, parameters, distortion, name, reference_directory);
+    return run_scan(through_thickness_elements,
+        tangential_elements,
+        step,
+        parameters,
+        distortion,
+        name,
+        reference_directory);
 }
 
 bool validate_aggregate_responses(const std::filesystem::path& directory) {
@@ -995,43 +1183,58 @@ bool validate_aggregate_responses(const std::filesystem::path& directory) {
     const ScanResponse thermal_low = read_scan_response(directory, "b524_thermal_low");
     const ScanResponse thermal_high = read_scan_response(directory, "b524_thermal_high");
     const std::array<std::pair<const char*, const ScanResponse*>, 13> scans = {{{"b524_mesh_coarse", &scan_base},
-        {"b524_mesh_medium", &mesh_medium}, {"b524_mesh_fine", &mesh_fine}, {"b524_time_coarse", &time_coarse},
-        {"b524_time_fine", &time_fine}, {"b524_penalty_low", &penalty_low}, {"b524_penalty_high", &penalty_high},
-        {"b524_friction_low", &friction_low}, {"b524_friction_high", &friction_high}, {"b524_slip_low", &slip_low},
-        {"b524_slip_high", &slip_high}, {"b524_thermal_low", &thermal_low}, {"b524_thermal_high", &thermal_high}}};
+        {"b524_mesh_medium", &mesh_medium},
+        {"b524_mesh_fine", &mesh_fine},
+        {"b524_time_coarse", &time_coarse},
+        {"b524_time_fine", &time_fine},
+        {"b524_penalty_low", &penalty_low},
+        {"b524_penalty_high", &penalty_high},
+        {"b524_friction_low", &friction_low},
+        {"b524_friction_high", &friction_high},
+        {"b524_slip_low", &slip_low},
+        {"b524_slip_high", &slip_high},
+        {"b524_thermal_low", &thermal_low},
+        {"b524_thermal_high", &thermal_high}}};
     bool passed = true, scans_completed = true;
     for (const auto& scan : scans) {
         print_scan(scan.first, *scan.second);
-        scans_completed = scans_completed && scan.second->completed && scan.second->rejected_steps == 0 &&
-                          scan.second->active_contact_nodes > 0 && scan.second->full_field_passed;
+        scans_completed = scans_completed && scan.second->completed && scan.second->rejected_steps == 0
+                          && scan.second->active_contact_nodes > 0 && scan.second->full_field_passed;
     }
-    passed = check(scans_completed, "B5.24 split pressure-controlled scans all converge, retain active contact, and "
-                                    "pass their independent Abaqus full-field comparisons") &&
-             passed;
+    passed = check(scans_completed,
+                 "B5.24 split pressure-controlled scans all converge, retain active contact, and "
+                 "pass their independent Abaqus full-field comparisons")
+             && passed;
     const auto contraction = [](double coarse, double medium, double fine) {
         const double first = std::abs(medium - coarse), second = std::abs(fine - medium);
         return first == 0.0 ? (second == 0.0 ? 0.0 : std::numeric_limits<double>::infinity()) : second / first;
     };
     const double mesh_force_contraction =
                      contraction(scan_base.tangential_force, mesh_medium.tangential_force, mesh_fine.tangential_force),
-                 mesh_heat_contraction = contraction(
-                     scan_base.contact_heat_rate, mesh_medium.contact_heat_rate, mesh_fine.contact_heat_rate),
+                 mesh_heat_contraction = contraction(scan_base.contact_heat_rate,
+                     mesh_medium.contact_heat_rate,
+                     mesh_fine.contact_heat_rate),
                  mesh_temperature_contraction = contraction(scan_base.average_contact_temperature,
-                     mesh_medium.average_contact_temperature, mesh_fine.average_contact_temperature),
+                     mesh_medium.average_contact_temperature,
+                     mesh_fine.average_contact_temperature),
                  mesh_plastic_contraction = contraction(scan_base.maximum_plastic_strain,
-                     mesh_medium.maximum_plastic_strain, mesh_fine.maximum_plastic_strain),
+                     mesh_medium.maximum_plastic_strain,
+                     mesh_fine.maximum_plastic_strain),
                  mesh_work_contraction =
                      contraction(scan_base.external_work, mesh_medium.external_work, mesh_fine.external_work),
                  mesh_work_relative_change =
                      std::abs(mesh_fine.external_work - scan_base.external_work) / scan_base.external_work,
                  time_temperature_contraction = contraction(time_coarse.average_contact_temperature,
-                     scan_base.average_contact_temperature, time_fine.average_contact_temperature),
-                 time_creep_contraction = contraction(
-                     time_coarse.maximum_creep_strain, scan_base.maximum_creep_strain, time_fine.maximum_creep_strain),
+                     scan_base.average_contact_temperature,
+                     time_fine.average_contact_temperature),
+                 time_creep_contraction = contraction(time_coarse.maximum_creep_strain,
+                     scan_base.maximum_creep_strain,
+                     time_fine.maximum_creep_strain),
                  time_tangential_force_contraction =
                      contraction(time_coarse.tangential_force, scan_base.tangential_force, time_fine.tangential_force),
-                 time_boundary_heat_contraction = contraction(
-                     time_coarse.boundary_heat_rate, scan_base.boundary_heat_rate, time_fine.boundary_heat_rate);
+                 time_boundary_heat_contraction = contraction(time_coarse.boundary_heat_rate,
+                     scan_base.boundary_heat_rate,
+                     time_fine.boundary_heat_rate);
     std::cout << "b524_mesh_tangential_force_contraction=" << mesh_force_contraction << '\n'
               << "b524_mesh_contact_heat_rate_contraction=" << mesh_heat_contraction << '\n'
               << "b524_mesh_contact_temperature_contraction=" << mesh_temperature_contraction << '\n'
@@ -1042,40 +1245,40 @@ bool validate_aggregate_responses(const std::filesystem::path& directory) {
               << "b524_time_maximum_creep_strain_contraction=" << time_creep_contraction << '\n'
               << "b524_time_tangential_force_contraction=" << time_tangential_force_contraction << '\n'
               << "b524_time_boundary_heat_rate_contraction=" << time_boundary_heat_contraction << '\n';
-    passed = check(mesh_force_contraction < 0.8 && mesh_heat_contraction < 0.8 && mesh_temperature_contraction < 0.8 &&
-                       mesh_plastic_contraction < 0.8 && mesh_work_relative_change < 5.0e-2,
+    passed = check(mesh_force_contraction < 0.8 && mesh_heat_contraction < 0.8 && mesh_temperature_contraction < 0.8
+                       && mesh_plastic_contraction < 0.8 && mesh_work_relative_change < 5.0e-2,
                  "B5.24 split mesh scans retain contraction of four tracked responses and keep the shortened-path "
-                 "external-work change below five percent") &&
-             passed;
-    passed = check(time_temperature_contraction < 0.75 && time_creep_contraction < 0.75 &&
-                       time_tangential_force_contraction < 0.85 && time_boundary_heat_contraction < 0.75,
-                 "B5.24 split time-step scans retain contraction of the four tracked responses") &&
-             passed;
-    passed =
-        check(penalty_low.maximum_penetration > scan_base.maximum_penetration &&
-                  scan_base.maximum_penetration > penalty_high.maximum_penetration &&
-                  std::abs(penalty_high.contact_force - penalty_low.contact_force) / scan_base.contact_force < 1.0e-4,
-            "B5.24 split penalty scans reduce penetration while preserving the pressure-controlled resultant") &&
-        passed;
-    passed = check(friction_low.tangential_force < scan_base.tangential_force &&
-                       scan_base.tangential_force < friction_high.tangential_force &&
-                       friction_low.friction_dissipation > scan_base.friction_dissipation &&
-                       scan_base.friction_dissipation >= friction_high.friction_dissipation,
-                 "B5.24 split friction scans retain the resistance and dissipation response") &&
-             passed;
-    passed = check(slip_low.friction_dissipation > scan_base.friction_dissipation &&
-                       scan_base.friction_dissipation > slip_high.friction_dissipation &&
-                       std::abs(slip_high.contact_force - slip_low.contact_force) / scan_base.contact_force < 1.0e-3,
-                 "B5.24 split slip-tolerance scans retain regularized dissipation and the normal resultant") &&
-             passed;
-    passed =
-        check(thermal_low.contact_heat_rate < scan_base.contact_heat_rate &&
-                  scan_base.contact_heat_rate < thermal_high.contact_heat_rate &&
-                  thermal_low.average_contact_temperature > scan_base.average_contact_temperature &&
-                  scan_base.average_contact_temperature > thermal_high.average_contact_temperature &&
-                  std::abs(thermal_high.contact_force - thermal_low.contact_force) / scan_base.contact_force < 1.0e-4,
-            "B5.24 split thermal-contact scans retain the heat-transfer and temperature response") &&
-        passed;
+                 "external-work change below five percent")
+             && passed;
+    passed = check(time_temperature_contraction < 0.75 && time_creep_contraction < 0.75
+                       && time_tangential_force_contraction < 0.85 && time_boundary_heat_contraction < 0.75,
+                 "B5.24 split time-step scans retain contraction of the four tracked responses")
+             && passed;
+    passed = check(penalty_low.maximum_penetration > scan_base.maximum_penetration
+                       && scan_base.maximum_penetration > penalty_high.maximum_penetration
+                       && std::abs(penalty_high.contact_force - penalty_low.contact_force) / scan_base.contact_force
+                              < 1.0e-4,
+                 "B5.24 split penalty scans reduce penetration while preserving the pressure-controlled resultant")
+             && passed;
+    passed = check(friction_low.tangential_force < scan_base.tangential_force
+                       && scan_base.tangential_force < friction_high.tangential_force
+                       && friction_low.friction_dissipation > scan_base.friction_dissipation
+                       && scan_base.friction_dissipation >= friction_high.friction_dissipation,
+                 "B5.24 split friction scans retain the resistance and dissipation response")
+             && passed;
+    passed = check(slip_low.friction_dissipation > scan_base.friction_dissipation
+                       && scan_base.friction_dissipation > slip_high.friction_dissipation
+                       && std::abs(slip_high.contact_force - slip_low.contact_force) / scan_base.contact_force < 1.0e-3,
+                 "B5.24 split slip-tolerance scans retain regularized dissipation and the normal resultant")
+             && passed;
+    passed = check(thermal_low.contact_heat_rate < scan_base.contact_heat_rate
+                       && scan_base.contact_heat_rate < thermal_high.contact_heat_rate
+                       && thermal_low.average_contact_temperature > scan_base.average_contact_temperature
+                       && scan_base.average_contact_temperature > thermal_high.average_contact_temperature
+                       && std::abs(thermal_high.contact_force - thermal_low.contact_force) / scan_base.contact_force
+                              < 1.0e-4,
+                 "B5.24 split thermal-contact scans retain the heat-transfer and temperature response")
+             && passed;
 
     const ScanResponse poisson_030 = read_scan_response(directory, "b525_poisson_030");
     const ScanResponse poisson_045 = read_scan_response(directory, "b525_poisson_045");
@@ -1083,35 +1286,38 @@ bool validate_aggregate_responses(const std::filesystem::path& directory) {
     const ScanResponse poisson_0499 = read_scan_response(directory, "b525_poisson_0499");
     const ScanResponse poisson_0499_refined = read_scan_response(directory, "b525_poisson_0499_refined");
     const std::array<std::pair<const char*, const ScanResponse*>, 5> poisson_scans = {
-        {{"b525_poisson_030", &poisson_030}, {"b525_poisson_045", &poisson_045}, {"b525_poisson_049", &poisson_049},
-            {"b525_poisson_0499", &poisson_0499}, {"b525_poisson_0499_refined", &poisson_0499_refined}}};
+        {{"b525_poisson_030", &poisson_030},
+            {"b525_poisson_045", &poisson_045},
+            {"b525_poisson_049", &poisson_049},
+            {"b525_poisson_0499", &poisson_0499},
+            {"b525_poisson_0499_refined", &poisson_0499_refined}}};
     bool poisson_scans_completed = true;
     for (const auto& scan : poisson_scans) {
         print_scan(scan.first, *scan.second);
-        poisson_scans_completed = poisson_scans_completed && scan.second->completed &&
-                                  scan.second->rejected_steps == 0 && scan.second->active_contact_nodes > 0 &&
-                                  scan.second->full_field_passed && scan.second->maximum_equivalent_stress > 0.0 &&
-                                  scan.second->maximum_absolute_z_displacement > 0.0;
+        poisson_scans_completed = poisson_scans_completed && scan.second->completed && scan.second->rejected_steps == 0
+                                  && scan.second->active_contact_nodes > 0 && scan.second->full_field_passed
+                                  && scan.second->maximum_equivalent_stress > 0.0
+                                  && scan.second->maximum_absolute_z_displacement > 0.0;
     }
     passed = check(poisson_scans_completed,
-                 "B5.25 split distorted bending scans remain finite and pass their Abaqus full-field comparisons") &&
-             passed;
-    const double near_incompressible_displacement_change = std::abs(poisson_0499.maximum_absolute_z_displacement -
-                                                                    poisson_049.maximum_absolute_z_displacement) /
-                                                           poisson_049.maximum_absolute_z_displacement,
+                 "B5.25 split distorted bending scans remain finite and pass their Abaqus full-field comparisons")
+             && passed;
+    const double near_incompressible_displacement_change = std::abs(poisson_0499.maximum_absolute_z_displacement
+                                                                    - poisson_049.maximum_absolute_z_displacement)
+                                                           / poisson_049.maximum_absolute_z_displacement,
                  near_incompressible_stress_change =
-                     std::abs(poisson_0499.maximum_equivalent_stress - poisson_049.maximum_equivalent_stress) /
-                     poisson_049.maximum_equivalent_stress,
+                     std::abs(poisson_0499.maximum_equivalent_stress - poisson_049.maximum_equivalent_stress)
+                     / poisson_049.maximum_equivalent_stress,
                  near_incompressible_reaction_change =
                      std::abs(poisson_0499.contact_force - poisson_049.contact_force) / poisson_049.contact_force,
-                 refined_displacement_change = std::abs(poisson_0499_refined.maximum_absolute_z_displacement -
-                                                        poisson_0499.maximum_absolute_z_displacement) /
-                                               poisson_0499.maximum_absolute_z_displacement,
+                 refined_displacement_change = std::abs(poisson_0499_refined.maximum_absolute_z_displacement
+                                                        - poisson_0499.maximum_absolute_z_displacement)
+                                               / poisson_0499.maximum_absolute_z_displacement,
                  refined_stress_change =
-                     std::abs(poisson_0499_refined.maximum_equivalent_stress - poisson_0499.maximum_equivalent_stress) /
-                     poisson_0499.maximum_equivalent_stress,
-                 refined_reaction_change = std::abs(poisson_0499_refined.contact_force - poisson_0499.contact_force) /
-                                           poisson_0499.contact_force;
+                     std::abs(poisson_0499_refined.maximum_equivalent_stress - poisson_0499.maximum_equivalent_stress)
+                     / poisson_0499.maximum_equivalent_stress,
+                 refined_reaction_change = std::abs(poisson_0499_refined.contact_force - poisson_0499.contact_force)
+                                           / poisson_0499.contact_force;
     std::cout << "b525_poisson_049_to_0499_displacement_relative_change=" << near_incompressible_displacement_change
               << '\n'
               << "b525_poisson_049_to_0499_stress_relative_change=" << near_incompressible_stress_change << '\n'
@@ -1119,15 +1325,15 @@ bool validate_aggregate_responses(const std::filesystem::path& directory) {
               << "b525_poisson_0499_refined_displacement_relative_change=" << refined_displacement_change << '\n'
               << "b525_poisson_0499_refined_stress_relative_change=" << refined_stress_change << '\n'
               << "b525_poisson_0499_refined_reaction_relative_change=" << refined_reaction_change << '\n';
-    passed = check(poisson_0499.maximum_absolute_z_displacement > poisson_049.maximum_absolute_z_displacement &&
-                       near_incompressible_displacement_change < 1.0e-2 && near_incompressible_stress_change < 1.0e-2 &&
-                       near_incompressible_reaction_change < 1.0e-2,
-                 "B5.25 split scans retain the smooth Poisson-ratio 0.49 to 0.499 limit") &&
-             passed;
-    passed = check(refined_displacement_change < 2.0e-1 && refined_stress_change < 1.0e-1 &&
-                       refined_reaction_change < 1.0e-2,
-                 "B5.25 split shortened-path scans retain the declared thickness-refinement limits") &&
-             passed;
+    passed = check(poisson_0499.maximum_absolute_z_displacement > poisson_049.maximum_absolute_z_displacement
+                       && near_incompressible_displacement_change < 1.0e-2 && near_incompressible_stress_change < 1.0e-2
+                       && near_incompressible_reaction_change < 1.0e-2,
+                 "B5.25 split scans retain the smooth Poisson-ratio 0.49 to 0.499 limit")
+             && passed;
+    passed = check(refined_displacement_change < 2.0e-1 && refined_stress_change < 1.0e-1
+                       && refined_reaction_change < 1.0e-2,
+                 "B5.25 split shortened-path scans retain the declared thickness-refinement limits")
+             && passed;
     return passed;
 }
 
@@ -1145,19 +1351,22 @@ int main(int argc, char** argv) {
         std::cout << std::scientific << std::setprecision(12);
         if (argc == 8 && std::string(argv[6]) == "--aggregate-responses") {
             const bool passed = validate_aggregate_responses(argv[7]);
-            if (passed) std::cout << "[PASS] B5.24/B5.25 split response aggregation\n";
+            if (passed)
+                std::cout << "[PASS] B5.24/B5.25 split response aggregation\n";
             return passed ? 0 : 1;
         }
         fuelsim::PetscSession session(argc, argv, "fuelsim B5.23 integrated Abaqus comparison\n");
         if (argc >= 7) {
             if (std::string(argv[6]) == "--aggregate-responses")
                 throw std::invalid_argument("The response aggregation mode requires a response directory");
-            if (argc == 8) std::filesystem::remove(argv[7]);
+            if (argc == 8)
+                std::filesystem::remove(argv[7]);
             const ScanResponse response = run_named_scan(argv[6], argv[5]);
             print_scan(argv[6], response);
-            if (argc == 8) write_scan_response(argv[7], argv[6], response);
-            return response.completed && response.rejected_steps == 0 && response.active_contact_nodes > 0 &&
-                           response.full_field_passed && response.transition_verified
+            if (argc == 8)
+                write_scan_response(argv[7], argv[6], response);
+            return response.completed && response.rejected_steps == 0 && response.active_contact_nodes > 0
+                           && response.full_field_passed && response.transition_verified
                        ? 0
                        : 1;
         }
@@ -1168,10 +1377,12 @@ int main(int argc, char** argv) {
         const fuelsim::UnstructuredHex8Mesh input_mesh = mesh(2, 1);
         fuelsim::TransientProblem problem(definition(), input_mesh);
         SnapshotObserver observer;
-        const fuelsim::TransientResult solve = fuelsim::solve_transient(
-            problem, {0.4, time_step, time_step, time_step, 1.0, 0.5, 0, 0.0}, solver_options(), &observer);
-        bool passed = check(solve.completed && observer.snapshots().size() == increment_count &&
-                                solve.accepted_steps.size() == increment_count && solve.rejected_steps.empty(),
+        const fuelsim::TransientResult solve = fuelsim::solve_transient(problem,
+            {0.4, time_step, time_step, time_step, 1.0, 0.5, 0, 0.0},
+            solver_options(),
+            &observer);
+        bool passed = check(solve.completed && observer.snapshots().size() == increment_count
+                                && solve.accepted_steps.size() == increment_count && solve.rejected_steps.empty(),
             "B5.23 completes all twenty fixed increments without reducing the time step");
         std::cout << "b523_completed=" << solve.completed << '\n'
                   << "b523_committed_time=" << solve.committed_time << '\n'
@@ -1180,7 +1391,8 @@ int main(int argc, char** argv) {
             std::cout << "b523_rejected_time=" << rejected.attempted_end_time
                       << " category=" << fuelsim::solve_failure_category_name(rejected.failure_category)
                       << " message=" << rejected.failure_message << '\n';
-        if (observer.snapshots().empty()) return 1;
+        if (observer.snapshots().empty())
+            return 1;
         double maximum_plastic = 0.0, maximum_creep = 0.0;
         for (const StepSnapshot& snapshot : observer.snapshots())
             for (const auto& element : snapshot.material)
@@ -1189,7 +1401,8 @@ int main(int argc, char** argv) {
                     maximum_creep = std::max(maximum_creep, point.equivalent_creep_strain);
                 }
         const StepSnapshot& final = observer.snapshots().back();
-        const std::size_t active = static_cast<std::size_t>(std::count_if(final.contact.begin(), final.contact.end(),
+        const std::size_t active = static_cast<std::size_t>(std::count_if(final.contact.begin(),
+            final.contact.end(),
             [](const fuelsim::CartesianContactNodeSummary& point) { return point.pressure > 0.0; }));
         std::cout << "b523_accepted_steps=" << observer.snapshots().size() << '\n'
                   << "b523_maximum_equivalent_plastic_strain=" << maximum_plastic << '\n'
@@ -1197,9 +1410,8 @@ int main(int argc, char** argv) {
                   << "b523_final_active_contact_nodes=" << active << '\n'
                   << "b523_final_stored_heat_rate=" << final.conservation.stored_heat_rate << '\n'
                   << "b523_final_boundary_heat_rate=" << final.conservation.dirichlet_heat_input_rate << '\n';
-        passed =
-            check(maximum_plastic > 0.0 && maximum_creep > 0.0, "B5.23 activates both plasticity and Norton creep") &&
-            passed;
+        passed = check(maximum_plastic > 0.0 && maximum_creep > 0.0, "B5.23 activates both plasticity and Norton creep")
+                 && passed;
         passed =
             check(active == 4, "B5.23 keeps all four secondary contact nodes active at the final increment") && passed;
 
@@ -1207,8 +1419,8 @@ int main(int argc, char** argv) {
         const auto& spatial = fuelsim::cartesian::ProblemAccess::view(problem);
         for (std::size_t region = 0; region < spatial.region_count(); ++region)
             for (std::size_t local = 0; local < spatial.region_mesh(region).nodes().size(); ++local)
-                source_to_global.emplace(
-                    spatial.region_mesh(region).source_node_ids()[local], spatial.global_node(region, local));
+                source_to_global.emplace(spatial.region_mesh(region).source_node_ids()[local],
+                    spatial.global_node(region, local));
         if (source_to_global.size() != 24)
             throw std::invalid_argument("Fuelsim B5.23 source-node map does not contain 24 independent nodes");
 
@@ -1219,14 +1431,17 @@ int main(int argc, char** argv) {
         std::vector<unsigned char> constrained_reaction_dofs(reaction_problem.dof_count(), 0U);
         for (const fuelsim::DirichletCondition& condition : reaction_problem.dirichlet_conditions())
             constrained_reaction_dofs.at(condition.dof) = 1U;
-        const std::array<fuelsim::Field, 4> fields = {fuelsim::Field::temperature, fuelsim::Field::displacement_x,
-            fuelsim::Field::displacement_y, fuelsim::Field::displacement_z};
+        const std::array<fuelsim::Field, 4> fields = {fuelsim::Field::temperature,
+            fuelsim::Field::displacement_x,
+            fuelsim::Field::displacement_y,
+            fuelsim::Field::displacement_z};
         for (std::size_t increment = 1; increment <= increment_count; ++increment) {
             const StepSnapshot& snapshot = observer.snapshots().at(increment - 1);
             reaction_problem.begin_time_step({snapshot.time, snapshot.load_factor, true});
             const std::vector<double> reaction = raw_residual(reaction_problem, snapshot.state);
             for (const NodeReference& reference : node_reference) {
-                if (reference.increment != increment) continue;
+                if (reference.increment != increment)
+                    continue;
                 if (reference.node > 24 || std::abs(reference.time - snapshot.time) > 1.0e-7)
                     throw std::invalid_argument("Abaqus B5.23 nodal label or time lies outside the path");
                 const std::size_t global = source_to_global.at(reference.node - 1);
@@ -1244,33 +1459,41 @@ int main(int argc, char** argv) {
                         reference_reaction_force[field - 1] = reference.fields[4 + field];
                     }
                 }
-                displacement_vector_metrics.add(
-                    actual_displacement.data(), reference_displacement.data(), actual_displacement.size());
-                reaction_force_vector_metrics.add(
-                    actual_reaction_force.data(), reference_reaction_force.data(), actual_reaction_force.size());
+                displacement_vector_metrics.add(actual_displacement.data(),
+                    reference_displacement.data(),
+                    actual_displacement.size());
+                reaction_force_vector_metrics.add(actual_reaction_force.data(),
+                    reference_reaction_force.data(),
+                    actual_reaction_force.size());
             }
             reaction_problem.commit_time_step(snapshot.state);
         }
-        const std::array<std::string, 8> nodal_names = {"temperature", "displacement_x", "displacement_y",
-            "displacement_z", "reaction_heat_flux", "reaction_force_x", "reaction_force_y", "reaction_force_z"};
+        const std::array<std::string, 8> nodal_names = {"temperature",
+            "displacement_x",
+            "displacement_y",
+            "displacement_z",
+            "reaction_heat_flux",
+            "reaction_force_x",
+            "reaction_force_y",
+            "reaction_force_z"};
         const std::array<double, 8> zero_tolerances = {1.0e-8, 1.0e-10, 1.0e-10, 1.0e-10, 1.0e-2, 1.0, 1.0, 1.0};
         for (std::size_t field = 0; field < nodal_metrics.size(); ++field)
             fuelsim::test::print_relative_metrics("b523_" + nodal_names[field], nodal_metrics[field]);
         print_grouped_metrics("b523_displacement_vector", displacement_vector_metrics);
         print_grouped_metrics("b523_reaction_force_vector", reaction_force_vector_metrics);
         passed = check(metrics_pass(nodal_metrics[0], 5.0e-3, zero_tolerances[0]),
-                     "B5.23 temperature field metrics are below 0.5 percent") &&
-                 passed;
+                     "B5.23 temperature field metrics are below 0.5 percent")
+                 && passed;
         passed = check(metrics_pass(nodal_metrics[4], 5.0e-3, zero_tolerances[4], 5.0e-2),
                      "B5.23 constrained thermal-reaction aggregate metrics are below 0.5 percent and the near-zero "
-                     "pointwise value satisfies the explicit 0.05 W absolute qualification") &&
-                 passed;
+                     "pointwise value satisfies the explicit 0.05 W absolute qualification")
+                 && passed;
         passed = check(grouped_metrics_pass(displacement_vector_metrics, 5.0e-3, 1.0e-10),
-                     "B5.23 displacement-vector field metrics are below 0.5 percent") &&
-                 passed;
+                     "B5.23 displacement-vector field metrics are below 0.5 percent")
+                 && passed;
         passed = check(grouped_metrics_pass(reaction_force_vector_metrics, 5.0e-3, 1.0),
-                     "B5.23 reaction-force-vector field metrics are below 0.5 percent") &&
-                 passed;
+                     "B5.23 reaction-force-vector field metrics are below 0.5 percent")
+                 && passed;
 
         std::array<fuelsim::test::FieldErrorMetrics, 37> integration_metrics;
         GroupedFieldErrorMetrics heat_flux_vector_metrics, stress_tensor_metrics, logarithmic_strain_tensor_metrics,
@@ -1307,9 +1530,9 @@ int main(int argc, char** argv) {
                     current.y += geometry.points[q].shape[node] * local_state[16 + node];
                     current.z += geometry.points[q].shape[node] * local_state[24 + node];
                 }
-                const double distance_squared = std::pow(current.x - reference.position.x, 2) +
-                                                std::pow(current.y - reference.position.y, 2) +
-                                                std::pow(current.z - reference.position.z, 2);
+                const double distance_squared = std::pow(current.x - reference.position.x, 2)
+                                                + std::pow(current.y - reference.position.y, 2)
+                                                + std::pow(current.z - reference.position.z, 2);
                 if (distance_squared < closest_squared) {
                     closest = q;
                     closest_squared = distance_squared;
@@ -1318,13 +1541,18 @@ int main(int argc, char** argv) {
             maximum_coordinate_difference = std::max(maximum_coordinate_difference, std::sqrt(closest_squared));
             const fuelsim::Hex8QuadraturePoint& point = geometry.points[closest];
             fuelsim::Hex8LocalAdValues passive{};
-            for (std::size_t local = 0; local < local_state.size(); ++local) passive[local] = local_state[local];
-            const fuelsim::CartesianKinematics kinematics = fuelsim::evaluate_cartesian_incremental_kinematics(
-                point, passive, fuelsim::Hex8LocalValues{}, fuelsim::StrainFormulation::finite);
+            for (std::size_t local = 0; local < local_state.size(); ++local)
+                passive[local] = local_state[local];
+            const fuelsim::CartesianKinematics kinematics = fuelsim::evaluate_cartesian_incremental_kinematics(point,
+                passive,
+                fuelsim::Hex8LocalValues{},
+                fuelsim::StrainFormulation::finite);
             double current_volume = 0.0;
             for (const fuelsim::Hex8QuadraturePoint& volume_point : geometry.points)
-                current_volume += fuelsim::evaluate_cartesian_incremental_kinematics(
-                    volume_point, passive, fuelsim::Hex8LocalValues{}, fuelsim::StrainFormulation::finite)
+                current_volume += fuelsim::evaluate_cartesian_incremental_kinematics(volume_point,
+                    passive,
+                    fuelsim::Hex8LocalValues{},
+                    fuelsim::StrainFormulation::finite)
                                       .current_weighted_measure.value();
             const double material_temperature = local_state[gauss_to_material_node[closest]];
             const fuelsim::IsotropicThermoelasticMaterial& constitutive =
@@ -1356,40 +1584,74 @@ int main(int argc, char** argv) {
             for (std::size_t component = 0; component < 6; ++component) {
                 integration_metrics[3 + component].add(actual_stress[component], expected_stress[component]);
                 integration_metrics[9 + component].add(actual_logarithmic[component], expected_logarithmic[component]);
-                integration_metrics[15 + component].add(
-                    material.elastic_strain[component], expected_elastic[component]);
-                integration_metrics[21 + component].add(
-                    material.plastic_strain[component], expected_plastic[component]);
+                integration_metrics[15 + component].add(material.elastic_strain[component],
+                    expected_elastic[component]);
+                integration_metrics[21 + component].add(material.plastic_strain[component],
+                    expected_plastic[component]);
                 integration_metrics[28 + component].add(material.creep_strain[component], expected_creep[component]);
             }
             heat_flux_vector_metrics.add(heat_flux.data(), reference.heat_flux.data(), heat_flux.size());
             stress_tensor_metrics.add(actual_stress.data(), expected_stress.data(), actual_stress.size());
-            logarithmic_strain_tensor_metrics.add(
-                actual_logarithmic.data(), expected_logarithmic.data(), actual_logarithmic.size());
-            elastic_strain_tensor_metrics.add(
-                material.elastic_strain.data(), expected_elastic.data(), material.elastic_strain.size());
-            plastic_strain_tensor_metrics.add(
-                material.plastic_strain.data(), expected_plastic.data(), material.plastic_strain.size());
-            creep_strain_tensor_metrics.add(
-                material.creep_strain.data(), expected_creep.data(), material.creep_strain.size());
+            logarithmic_strain_tensor_metrics.add(actual_logarithmic.data(),
+                expected_logarithmic.data(),
+                actual_logarithmic.size());
+            elastic_strain_tensor_metrics.add(material.elastic_strain.data(),
+                expected_elastic.data(),
+                material.elastic_strain.size());
+            plastic_strain_tensor_metrics.add(material.plastic_strain.data(),
+                expected_plastic.data(),
+                material.plastic_strain.size());
+            creep_strain_tensor_metrics.add(material.creep_strain.data(),
+                expected_creep.data(),
+                material.creep_strain.size());
             integration_metrics[27].add(material.equivalent_plastic_strain, reference.equivalent_plastic_strain);
             integration_metrics[34].add(material.equivalent_creep_strain, reference.equivalent_creep_strain);
             integration_metrics[35].add(material_temperature, reference.temperature);
             const double selective_volume = point.weighted_measure / geometry.reference_volume * current_volume;
             integration_metrics[36].add(selective_volume, reference.integration_volume);
         }
-        const std::array<std::string, 37> integration_names = {"heat_flux_x", "heat_flux_y", "heat_flux_z", "stress_xx",
-            "stress_yy", "stress_zz", "stress_xy", "stress_yz", "stress_xz", "log_strain_xx", "log_strain_yy",
-            "log_strain_zz", "log_strain_xy", "log_strain_yz", "log_strain_xz", "elastic_strain_xx",
-            "elastic_strain_yy", "elastic_strain_zz", "elastic_strain_xy", "elastic_strain_yz", "elastic_strain_xz",
-            "plastic_strain_xx", "plastic_strain_yy", "plastic_strain_zz", "plastic_strain_xy", "plastic_strain_yz",
-            "plastic_strain_xz", "equivalent_plastic_strain", "creep_strain_xx", "creep_strain_yy", "creep_strain_zz",
-            "creep_strain_xy", "creep_strain_yz", "creep_strain_xz", "equivalent_creep_strain", "material_temperature",
+        const std::array<std::string, 37> integration_names = {"heat_flux_x",
+            "heat_flux_y",
+            "heat_flux_z",
+            "stress_xx",
+            "stress_yy",
+            "stress_zz",
+            "stress_xy",
+            "stress_yz",
+            "stress_xz",
+            "log_strain_xx",
+            "log_strain_yy",
+            "log_strain_zz",
+            "log_strain_xy",
+            "log_strain_yz",
+            "log_strain_xz",
+            "elastic_strain_xx",
+            "elastic_strain_yy",
+            "elastic_strain_zz",
+            "elastic_strain_xy",
+            "elastic_strain_yz",
+            "elastic_strain_xz",
+            "plastic_strain_xx",
+            "plastic_strain_yy",
+            "plastic_strain_zz",
+            "plastic_strain_xy",
+            "plastic_strain_yz",
+            "plastic_strain_xz",
+            "equivalent_plastic_strain",
+            "creep_strain_xx",
+            "creep_strain_yy",
+            "creep_strain_zz",
+            "creep_strain_xy",
+            "creep_strain_yz",
+            "creep_strain_xz",
+            "equivalent_creep_strain",
+            "material_temperature",
             "integration_volume"};
         for (std::size_t field = 0; field < integration_metrics.size(); ++field)
             fuelsim::test::print_relative_metrics("b523_" + integration_names[field], integration_metrics[field]);
         const std::array<std::pair<const char*, const GroupedFieldErrorMetrics*>, 6> grouped_integration = {
-            {{"heat_flux_vector", &heat_flux_vector_metrics}, {"stress_tensor", &stress_tensor_metrics},
+            {{"heat_flux_vector", &heat_flux_vector_metrics},
+                {"stress_tensor", &stress_tensor_metrics},
                 {"logarithmic_strain_tensor", &logarithmic_strain_tensor_metrics},
                 {"elastic_strain_tensor", &elastic_strain_tensor_metrics},
                 {"plastic_strain_tensor", &plastic_strain_tensor_metrics},
@@ -1397,36 +1659,36 @@ int main(int argc, char** argv) {
         for (const auto& field : grouped_integration)
             print_grouped_metrics("b523_" + std::string(field.first), *field.second);
         passed = check(grouped_metrics_pass(stress_tensor_metrics, 5.0e-3, 1.0e-12),
-                     "B5.23 stress-tensor field metrics are below 0.5 percent") &&
-                 passed;
+                     "B5.23 stress-tensor field metrics are below 0.5 percent")
+                 && passed;
         passed = check(grouped_metrics_pass(logarithmic_strain_tensor_metrics, 5.0e-3, 1.0e-12),
-                     "B5.23 logarithmic-strain-tensor field metrics are below 0.5 percent") &&
-                 passed;
+                     "B5.23 logarithmic-strain-tensor field metrics are below 0.5 percent")
+                 && passed;
         passed = check(grouped_metrics_pass(elastic_strain_tensor_metrics, 5.0e-3, 1.0e-12),
-                     "B5.23 elastic-strain-tensor field metrics are below 0.5 percent") &&
-                 passed;
+                     "B5.23 elastic-strain-tensor field metrics are below 0.5 percent")
+                 && passed;
         passed = check(grouped_metrics_pass(plastic_strain_tensor_metrics, 5.0e-3, 1.0e-12),
-                     "B5.23 plastic-strain-tensor field metrics are below 0.5 percent") &&
-                 passed;
+                     "B5.23 plastic-strain-tensor field metrics are below 0.5 percent")
+                 && passed;
         passed = check(grouped_metrics_pass(creep_strain_tensor_metrics, 5.0e-3, 1.0e-12),
-                     "B5.23 creep-strain-tensor field metrics are below 0.5 percent") &&
-                 passed;
+                     "B5.23 creep-strain-tensor field metrics are below 0.5 percent")
+                 && passed;
         passed = check(metrics_pass(integration_metrics[27], 5.0e-3, 1.0e-12),
-                     "B5.23 equivalent-plastic-strain metrics are below 0.5 percent") &&
-                 passed;
+                     "B5.23 equivalent-plastic-strain metrics are below 0.5 percent")
+                 && passed;
         passed = check(metrics_pass(integration_metrics[34], 5.0e-3, 1.0e-12),
-                     "B5.23 equivalent-creep-strain metrics are below 0.5 percent") &&
-                 passed;
+                     "B5.23 equivalent-creep-strain metrics are below 0.5 percent")
+                 && passed;
         passed = check(metrics_pass(integration_metrics[35], 5.0e-3, 1.0e-12),
-                     "B5.23 material-temperature metrics are below 0.5 percent") &&
-                 passed;
+                     "B5.23 material-temperature metrics are below 0.5 percent")
+                 && passed;
         passed = check(metrics_pass(integration_metrics[36], 5.0e-3, 1.0e-12),
-                     "B5.23 integration-volume metrics are below 0.5 percent") &&
-                 passed;
+                     "B5.23 integration-volume metrics are below 0.5 percent")
+                 && passed;
         std::cout << "b523_maximum_integration_coordinate_difference=" << maximum_coordinate_difference << '\n';
         passed = check(maximum_coordinate_difference < 1.0e-4,
-                     "B5.23 maps all 640 current integration-point coordinates uniquely") &&
-                 passed;
+                     "B5.23 maps all 640 current integration-point coordinates uniquely")
+                 && passed;
 
         const std::vector<std::size_t> contact_sources =
             fuelsim::cartesian::ProblemAccess::contact_secondary_source_nodes(problem, 0);
@@ -1446,16 +1708,19 @@ int main(int argc, char** argv) {
         const double maximum_elastic_slip = 0.005 * std::sqrt(0.5);
         for (std::size_t increment = 1; increment <= increment_count; ++increment) {
             const StepSnapshot& snapshot = observer.snapshots().at(increment - 1);
-            const std::vector<double> thermal_contact = assembled_contact_residual(spatial, snapshot.state,
-                fuelsim::SpatialContributionType::thermal_contact, &maximum_contact_heat_conservation_error);
+            const std::vector<double> thermal_contact = assembled_contact_residual(spatial,
+                snapshot.state,
+                fuelsim::SpatialContributionType::thermal_contact,
+                &maximum_contact_heat_conservation_error);
             std::array<double, 3> actual_resultant{}, reference_resultant{}, actual_moment{}, reference_moment{},
                 actual_center_sum{}, reference_center_sum{};
             double actual_center_weight = 0.0, reference_center_weight = 0.0, actual_contact_heat_rate = 0.0,
                    reference_contact_heat_rate = 0.0;
             for (std::size_t node = 0; node < contact_sources.size(); ++node) {
                 const std::size_t source = contact_sources[node], source_label = source + 1;
-                const auto found = std::find_if(
-                    contact_reference.begin(), contact_reference.end(), [&](const ContactReference& value) {
+                const auto found = std::find_if(contact_reference.begin(),
+                    contact_reference.end(),
+                    [&](const ContactReference& value) {
                         return value.increment == increment && value.node == source_label;
                     });
                 if (found == contact_reference.end())
@@ -1464,23 +1729,27 @@ int main(int argc, char** argv) {
                     throw std::invalid_argument("Abaqus B5.23 contact time lies outside the path");
                 const fuelsim::CartesianContactNodeSummary& actual = snapshot.contact.at(node);
                 const std::size_t global = source_to_global.at(source);
-                const std::array<fuelsim::Field, 3> displacement_fields = {
-                    fuelsim::Field::displacement_x, fuelsim::Field::displacement_y, fuelsim::Field::displacement_z};
-                std::array<double, 3> actual_position = {
-                    input_mesh.nodes().at(source).x, input_mesh.nodes().at(source).y, input_mesh.nodes().at(source).z};
+                const std::array<fuelsim::Field, 3> displacement_fields = {fuelsim::Field::displacement_x,
+                    fuelsim::Field::displacement_y,
+                    fuelsim::Field::displacement_z};
+                std::array<double, 3> actual_position = {input_mesh.nodes().at(source).x,
+                    input_mesh.nodes().at(source).y,
+                    input_mesh.nodes().at(source).z};
                 for (std::size_t component = 0; component < 3; ++component)
                     actual_position[component] += snapshot.state[spatial.dof(displacement_fields[component], global)];
-                const std::array<double, 3> reference_position = {
-                    found->position.x, found->position.y, found->position.z};
+                const std::array<double, 3> reference_position = {found->position.x,
+                    found->position.y,
+                    found->position.z};
                 for (std::size_t component = 0; component < 3; ++component)
                     contact_metrics[0].add(actual_position[component], reference_position[component]);
                 contact_metrics[1].add(actual.gap, found->opening);
                 contact_metrics[2].add(actual.pressure, found->pressure);
 
-                const auto primary_found = std::find_if(input_mesh.nodes().begin(), input_mesh.nodes().begin() + 12,
+                const auto primary_found = std::find_if(input_mesh.nodes().begin(),
+                    input_mesh.nodes().begin() + 12,
                     [&](const fuelsim::CartesianPoint3& point) {
-                        return point.x == 1.0 && point.y == input_mesh.nodes().at(source).y &&
-                               point.z == input_mesh.nodes().at(source).z;
+                        return point.x == 1.0 && point.y == input_mesh.nodes().at(source).y
+                               && point.z == input_mesh.nodes().at(source).z;
                     });
                 if (primary_found == input_mesh.nodes().begin() + 12)
                     throw std::logic_error("B5.23 matching primary contact node was not found");
@@ -1491,8 +1760,8 @@ int main(int argc, char** argv) {
                     const double primary_position =
                         (component == 0      ? input_mesh.nodes().at(primary_source).x
                             : component == 1 ? input_mesh.nodes().at(primary_source).y
-                                             : input_mesh.nodes().at(primary_source).z) +
-                        snapshot.state[spatial.dof(displacement_fields[component], primary_global)];
+                                             : input_mesh.nodes().at(primary_source).z)
+                        + snapshot.state[spatial.dof(displacement_fields[component], primary_global)];
                     relative[component] = actual_position[component] - primary_position;
                 }
                 std::array<double, 3> normal{};
@@ -1525,21 +1794,21 @@ int main(int argc, char** argv) {
                 reference_normal_norm = std::sqrt(reference_normal_norm);
                 if (actual.contact_force > 0.0)
                     for (std::size_t component = 0; component < 3; ++component)
-                        actual_elastic[component] = actual.tangential_contact_force[component] * maximum_elastic_slip /
-                                                    (friction_coefficient * actual.contact_force);
+                        actual_elastic[component] = actual.tangential_contact_force[component] * maximum_elastic_slip
+                                                    / (friction_coefficient * actual.contact_force);
                 if (reference_normal_norm > 0.0)
                     for (std::size_t component = 0; component < 3; ++component)
-                        reference_elastic[component] = -found->shear_force[component] * maximum_elastic_slip /
-                                                       (friction_coefficient * reference_normal_norm);
+                        reference_elastic[component] = -found->shear_force[component] * maximum_elastic_slip
+                                                       / (friction_coefficient * reference_normal_norm);
                 for (std::size_t component = 0; component < 3; ++component) {
                     const double actual_plastic = actual_total_slip[component] - actual_elastic[component];
                     const double reference_plastic = reference_total_slip[component] - reference_elastic[component];
                     reconstructed_actual_friction_dissipation +=
-                        actual.tangential_contact_force[component] *
-                        (actual_plastic - previous_actual_plastic[node][component]);
+                        actual.tangential_contact_force[component]
+                        * (actual_plastic - previous_actual_plastic[node][component]);
                     reconstructed_reference_friction_dissipation -=
-                        found->shear_force[component] *
-                        (reference_plastic - previous_reference_plastic[node][component]);
+                        found->shear_force[component]
+                        * (reference_plastic - previous_reference_plastic[node][component]);
                     previous_actual_plastic[node][component] = actual_plastic;
                     previous_reference_plastic[node][component] = reference_plastic;
                     actual_resultant[component] += actual_force[component];
@@ -1549,7 +1818,8 @@ int main(int argc, char** argv) {
                 }
                 actual_center_weight += actual.contact_force;
                 reference_center_weight += reference_normal_norm;
-                const auto add_moment = [](std::array<double, 3>& moment, const std::array<double, 3>& point,
+                const auto add_moment = [](std::array<double, 3>& moment,
+                                            const std::array<double, 3>& point,
                                             const std::array<double, 3>& force) {
                     moment[0] += point[1] * force[2] - point[2] * force[1];
                     moment[1] += point[2] * force[0] - point[0] * force[2];
@@ -1579,8 +1849,8 @@ int main(int argc, char** argv) {
             cumulative_plastic += snapshot.conservation.plastic_dissipation_increment;
             cumulative_creep += snapshot.conservation.creep_dissipation_increment;
             actual_friction_dissipation += snapshot.conservation.friction_dissipation_increment;
-            cumulative_external_work += snapshot.conservation.trapezoidal_pressure_traction_work_increment +
-                                        snapshot.conservation.trapezoidal_dirichlet_reaction_work_increment;
+            cumulative_external_work += snapshot.conservation.trapezoidal_pressure_traction_work_increment
+                                        + snapshot.conservation.trapezoidal_dirichlet_reaction_work_increment;
             cumulative_stored_heat += snapshot.conservation.stored_heat_rate * time_step;
             cumulative_reference_heat += energy.boundary_heat_rate * time_step;
             energy_metrics[0].add(cumulative_elastic + cumulative_plastic + cumulative_creep, energy.internal);
@@ -1595,43 +1865,57 @@ int main(int argc, char** argv) {
         }
         std::cout << "b523_reconstructed_actual_friction_dissipation=" << reconstructed_actual_friction_dissipation
                   << '\n';
-        const std::array<std::string, 10> contact_names = {"current_coordinate", "opening", "pressure",
-            "slip_magnitude", "normal_force_vector", "shear_force_vector", "resultant_force_vector",
-            "resultant_moment_vector", "normal_force_center", "contact_heat_flux"};
+        const std::array<std::string, 10> contact_names = {"current_coordinate",
+            "opening",
+            "pressure",
+            "slip_magnitude",
+            "normal_force_vector",
+            "shear_force_vector",
+            "resultant_force_vector",
+            "resultant_moment_vector",
+            "normal_force_center",
+            "contact_heat_flux"};
         for (std::size_t field = 0; field < contact_metrics.size(); ++field)
             fuelsim::test::print_relative_metrics("b523_contact_" + contact_names[field], contact_metrics[field]);
         fuelsim::test::print_relative_metrics("b523_contact_total_heat_rate", total_contact_heat_rate_metrics);
         passed = check(metrics_pass(contact_metrics[6], 5.0e-3, 1.0),
-                     "B5.23 contact resultant-force metrics are below 0.5 percent") &&
-                 passed;
+                     "B5.23 contact resultant-force metrics are below 0.5 percent")
+                 && passed;
         passed = check(metrics_pass(contact_metrics[7], 5.0e-3, 1.0),
-                     "B5.23 contact resultant-moment metrics are below 0.5 percent") &&
-                 passed;
+                     "B5.23 contact resultant-moment metrics are below 0.5 percent")
+                 && passed;
         passed = check(metrics_pass(contact_metrics[8], 5.0e-3, 1.0e-8),
-                     "B5.23 contact normal-force-center metrics are below 0.5 percent") &&
-                 passed;
+                     "B5.23 contact normal-force-center metrics are below 0.5 percent")
+                 && passed;
         std::cout << "b523_contact_history_point_count=" << final.contact_history.size() << '\n'
                   << "b523_contact_states_match=" << contact_states_match << '\n'
                   << "b523_maximum_contact_heat_conservation_error=" << maximum_contact_heat_conservation_error << '\n';
         passed = check(maximum_contact_heat_conservation_error < 1.0e-10,
-                     "B5.23 thermal contact is discretely conservative at every increment") &&
-                 passed;
+                     "B5.23 thermal contact is discretely conservative at every increment")
+                 && passed;
 
-        const std::array<std::string, 9> energy_names = {"internal_energy", "elastic_energy", "plastic_dissipation",
-            "creep_dissipation", "friction_dissipation", "abaqus_reconstructed_friction_dissipation", "external_work",
-            "boundary_heat_rate", "stored_heat"};
+        const std::array<std::string, 9> energy_names = {"internal_energy",
+            "elastic_energy",
+            "plastic_dissipation",
+            "creep_dissipation",
+            "friction_dissipation",
+            "abaqus_reconstructed_friction_dissipation",
+            "external_work",
+            "boundary_heat_rate",
+            "stored_heat"};
         for (std::size_t field = 0; field < energy_metrics.size(); ++field) {
             fuelsim::test::print_relative_metrics("b523_" + energy_names[field], energy_metrics[field]);
             if (field != 4 && field != 5)
                 passed = check(metrics_pass(energy_metrics[field], 1.0e-2, 1.0e-8),
-                             "B5.23 " + energy_names[field] + " metrics are below one percent") &&
-                         passed;
+                             "B5.23 " + energy_names[field] + " metrics are below one percent")
+                         && passed;
         }
         passed = check(actual_friction_dissipation > 0.0 && energy_reference.back().friction > 0.0,
-                     "B5.23 activates nonzero friction dissipation in both Fuelsim and Abaqus") &&
-                 passed;
+                     "B5.23 activates nonzero friction dissipation in both Fuelsim and Abaqus")
+                 && passed;
 
-        if (passed && session.rank() == 0) std::cout << "[PASS] B5.23 integrated Fuelsim path solve\n";
+        if (passed && session.rank() == 0)
+            std::cout << "[PASS] B5.23 integrated Fuelsim path solve\n";
         return passed ? 0 : 1;
 
     } catch (const std::exception& error) {

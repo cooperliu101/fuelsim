@@ -46,7 +46,8 @@ struct StepState final {
 };
 
 bool check(bool condition, const std::string& message) {
-    if (!condition) std::cerr << "[FAIL] " << message << '\n';
+    if (!condition)
+        std::cerr << "[FAIL] " << message << '\n';
     return condition;
 }
 
@@ -54,12 +55,14 @@ std::vector<std::string> split(const std::string& line) {
     std::vector<std::string> result;
     std::istringstream input(line);
     std::string value;
-    while (std::getline(input, value, ',')) result.push_back(value);
+    while (std::getline(input, value, ','))
+        result.push_back(value);
     return result;
 }
 
 double number(const std::vector<std::string>& values, std::size_t column, const std::string& input_path) {
-    if (column >= values.size()) throw std::invalid_argument("Incomplete B4.8 CSV row: " + input_path);
+    if (column >= values.size())
+        throw std::invalid_argument("Incomplete B4.8 CSV row: " + input_path);
     std::size_t parsed = 0;
     const double result = std::stod(values[column], &parsed);
     if (parsed != values[column].size() || !std::isfinite(result))
@@ -69,90 +72,111 @@ double number(const std::vector<std::string>& values, std::size_t column, const 
 
 std::size_t index_value(const std::vector<std::string>& values, std::size_t column, const std::string& input_path) {
     const double value = number(values, column, input_path);
-    if (value < 0.0 || value > static_cast<double>(std::numeric_limits<std::size_t>::max()) ||
-        std::floor(value) != value)
+    if (value < 0.0 || value > static_cast<double>(std::numeric_limits<std::size_t>::max())
+        || std::floor(value) != value)
         throw std::invalid_argument("Invalid B4.8 CSV index: " + input_path);
     return static_cast<std::size_t>(value);
 }
 
 std::vector<ContactReference> read_contact(const std::string& input_path) {
     std::ifstream input(input_path);
-    if (!input) throw std::runtime_error("Could not read B4.8 contact reference: " + input_path);
+    if (!input)
+        throw std::runtime_error("Could not read B4.8 contact reference: " + input_path);
     std::string line;
-    if (!std::getline(input, line) || line != "step,id,x,y,z,normal_x,normal_y,normal_z,tangential_x,tangential_y,"
-                                              "tangential_z,slip1,slip2,gap,pressure,state")
+    if (!std::getline(input, line)
+        || line
+               != "step,id,x,y,z,normal_x,normal_y,normal_z,tangential_x,tangential_y,"
+                  "tangential_z,slip1,slip2,gap,pressure,state")
         throw std::invalid_argument("Unexpected B4.8 contact CSV header: " + input_path);
     std::vector<ContactReference> result;
     while (std::getline(input, line)) {
-        if (line.empty()) continue;
+        if (line.empty())
+            continue;
         const auto values = split(line);
-        result.push_back({index_value(values, 0, input_path), index_value(values, 1, input_path),
+        result.push_back({index_value(values, 0, input_path),
+            index_value(values, 1, input_path),
             index_value(values, 15, input_path),
             {number(values, 2, input_path), number(values, 3, input_path), number(values, 4, input_path)},
             {number(values, 5, input_path), number(values, 6, input_path), number(values, 7, input_path)},
             {number(values, 8, input_path), number(values, 9, input_path), number(values, 10, input_path)},
-            number(values, 11, input_path), number(values, 12, input_path), number(values, 13, input_path),
+            number(values, 11, input_path),
+            number(values, 12, input_path),
+            number(values, 13, input_path),
             number(values, 14, input_path)});
     }
-    if (result.size() != step_count * 4) throw std::invalid_argument("B4.8 contact reference must have sixteen rows");
+    if (result.size() != step_count * 4)
+        throw std::invalid_argument("B4.8 contact reference must have sixteen rows");
     return result;
 }
 
 std::vector<ReactionReference> read_reactions(const std::string& input_path) {
     std::ifstream input(input_path);
-    if (!input) throw std::runtime_error("Could not read B4.8 reaction reference: " + input_path);
+    if (!input)
+        throw std::runtime_error("Could not read B4.8 reaction reference: " + input_path);
     std::string line;
-    if (!std::getline(input, line) ||
-        line != "step,pair_a_x,pair_a_y,pair_a_z,pair_b_x,pair_b_y,pair_b_z,global_x,global_y,global_z")
+    if (!std::getline(input, line)
+        || line != "step,pair_a_x,pair_a_y,pair_a_z,pair_b_x,pair_b_y,pair_b_z,global_x,global_y,global_z")
         throw std::invalid_argument("Unexpected B4.8 reaction CSV header: " + input_path);
     std::vector<ReactionReference> result;
     while (std::getline(input, line)) {
-        if (line.empty()) continue;
+        if (line.empty())
+            continue;
         const auto values = split(line);
         result.push_back({index_value(values, 0, input_path),
             {{{number(values, 1, input_path), number(values, 2, input_path), number(values, 3, input_path)},
                 {number(values, 4, input_path), number(values, 5, input_path), number(values, 6, input_path)}}},
             {number(values, 7, input_path), number(values, 8, input_path), number(values, 9, input_path)}});
     }
-    if (result.size() != step_count) throw std::invalid_argument("B4.8 reaction reference must have four rows");
+    if (result.size() != step_count)
+        throw std::invalid_argument("B4.8 reaction reference must have four rows");
     return result;
 }
 
 std::vector<double> read_energy(const std::string& input_path) {
     std::ifstream input(input_path);
-    if (!input) throw std::runtime_error("Could not read B4.8 energy reference: " + input_path);
+    if (!input)
+        throw std::runtime_error("Could not read B4.8 energy reference: " + input_path);
     std::string line;
     if (!std::getline(input, line) || line != "step,allfd")
         throw std::invalid_argument("Unexpected B4.8 energy CSV header: " + input_path);
     std::vector<double> result;
     while (std::getline(input, line)) {
-        if (line.empty()) continue;
+        if (line.empty())
+            continue;
         const auto values = split(line);
         if (index_value(values, 0, input_path) != result.size() + 1)
             throw std::invalid_argument("B4.8 energy steps are not consecutive");
         result.push_back(number(values, 1, input_path));
     }
-    if (result.size() != step_count) throw std::invalid_argument("B4.8 energy reference must have four rows");
+    if (result.size() != step_count)
+        throw std::invalid_argument("B4.8 energy reference must have four rows");
     return result;
 }
 
-std::array<double, 3> reference_slip(const ContactReference& value) { return {0.0, -value.slip_2, value.slip_1}; }
+std::array<double, 3> reference_slip(const ContactReference& value) {
+    return {0.0, -value.slip_2, value.slip_1};
+}
 
 std::array<double, 3> reference_elastic_slip(const ContactReference& value, double mu) {
     std::array<double, 3> result{};
     const double normal =
-        std::sqrt(value.normal_force[0] * value.normal_force[0] + value.normal_force[1] * value.normal_force[1] +
-                  value.normal_force[2] * value.normal_force[2]);
-    if (normal == 0.0 || mu == 0.0) return result;
+        std::sqrt(value.normal_force[0] * value.normal_force[0] + value.normal_force[1] * value.normal_force[1]
+                  + value.normal_force[2] * value.normal_force[2]);
+    if (normal == 0.0 || mu == 0.0)
+        return result;
     for (std::size_t component = 0; component < 3; ++component)
         result[component] = -value.tangential_force[component] * elastic_slip / (mu * normal);
     return result;
 }
 
-bool compare(const std::vector<std::array<double, 3>>& mesh, const std::array<std::vector<std::size_t>, 2>& sources,
-    const std::vector<StepState>& states, const std::array<std::vector<ContactReference>, 2>& references,
-    const std::vector<ReactionReference>& reactions, const std::vector<double>& allfd) {
-    if (states.size() != step_count) throw std::invalid_argument("B4.8 Fuelsim path must contain four states");
+bool compare(const std::vector<std::array<double, 3>>& mesh,
+    const std::array<std::vector<std::size_t>, 2>& sources,
+    const std::vector<StepState>& states,
+    const std::array<std::vector<ContactReference>, 2>& references,
+    const std::vector<ReactionReference>& reactions,
+    const std::vector<double>& allfd) {
+    if (states.size() != step_count)
+        throw std::invalid_argument("B4.8 Fuelsim path must contain four states");
     std::array<fuelsim::test::FieldErrorMetrics, 2> normal, tangent_y, tangent_z, slip_y, slip_z, gap, pressure,
         resultant, force_center, dissipation;
     fuelsim::test::FieldErrorMetrics global_reaction, global_dissipation;
@@ -182,12 +206,14 @@ bool compare(const std::vector<std::array<double, 3>>& mesh, const std::array<st
                     std::find_if(references[pair].begin(), references[pair].end(), [&](const ContactReference& value) {
                         return value.step == step + 1 && value.id == sources[pair][node];
                     });
-                if (found == references[pair].end()) throw std::invalid_argument("B4.8 contact mapping is incomplete");
+                if (found == references[pair].end())
+                    throw std::invalid_argument("B4.8 contact mapping is incomplete");
                 const auto& actual = states[step].contact[pair][node];
                 const auto& point = mesh.at(sources[pair][node]);
-                maximum_coordinate_difference =
-                    std::max({maximum_coordinate_difference, std::abs(point[0] - found->point[0]),
-                        std::abs(point[1] - found->point[1]), std::abs(point[2] - found->point[2])});
+                maximum_coordinate_difference = std::max({maximum_coordinate_difference,
+                    std::abs(point[0] - found->point[0]),
+                    std::abs(point[1] - found->point[1]),
+                    std::abs(point[2] - found->point[2])});
                 normal[pair].add(-actual.normal_contact_force[0], found->normal_force[0]);
                 tangent_y[pair].add(-actual.tangential_contact_force[1], found->tangential_force[1]);
                 tangent_z[pair].add(-actual.tangential_contact_force[2], found->tangential_force[2]);
@@ -196,19 +222,22 @@ bool compare(const std::vector<std::array<double, 3>>& mesh, const std::array<st
                 slip_z[pair].add(displacement[2], found->slip_1);
                 gap[pair].add(actual.gap, found->gap);
                 pressure[pair].add(actual.pressure, found->pressure);
-                maximum_zero_reference_difference =
-                    std::max({maximum_zero_reference_difference, std::abs(actual.normal_contact_force[1]),
-                        std::abs(actual.normal_contact_force[2]), std::abs(actual.tangential_contact_force[0]),
-                        std::abs(found->normal_force[1]), std::abs(found->normal_force[2])});
+                maximum_zero_reference_difference = std::max({maximum_zero_reference_difference,
+                    std::abs(actual.normal_contact_force[1]),
+                    std::abs(actual.normal_contact_force[2]),
+                    std::abs(actual.tangential_contact_force[0]),
+                    std::abs(found->normal_force[1]),
+                    std::abs(found->normal_force[2])});
                 maximum_abaqus_shear_normal_component =
                     std::max(maximum_abaqus_shear_normal_component, std::abs(found->tangential_force[0]));
                 abaqus_shear_normal_resultant += found->tangential_force[0];
-                const std::array<double, 3> actual_force = {
-                    -actual.normal_contact_force[0] - actual.tangential_contact_force[0],
+                const std::array<double, 3> actual_force = {-actual.normal_contact_force[0]
+                                                                - actual.tangential_contact_force[0],
                     -actual.normal_contact_force[1] - actual.tangential_contact_force[1],
                     -actual.normal_contact_force[2] - actual.tangential_contact_force[2]};
-                const std::array<double, 3> actual_current = {
-                    point[0] + displacement[0], point[1] + displacement[1], point[2] + displacement[2]};
+                const std::array<double, 3> actual_current = {point[0] + displacement[0],
+                    point[1] + displacement[1],
+                    point[2] + displacement[2]};
                 const std::array<double, 3> reference_current = actual_current;
                 for (std::size_t component = 0; component < 3; ++component) {
                     actual_resultant[pair][component] += actual_force[component];
@@ -224,16 +253,16 @@ bool compare(const std::vector<std::array<double, 3>>& mesh, const std::array<st
                 for (std::size_t component = 0; component < 3; ++component) {
                     const double actual_total_slip = component == 0 ? 0.0 : displacement[component];
                     actual_plastic[component] =
-                        actual_total_slip -
-                        states[step].histories[pair][node].cartesian_elastic_tangential_slip[component];
+                        actual_total_slip
+                        - states[step].histories[pair][node].cartesian_elastic_tangential_slip[component];
                     reference_plastic[component] = reference_total_slip[component] - reference_elastic[component];
                     if (component > 0) {
                         actual_increment_dissipation -=
-                            (-actual.tangential_contact_force[component]) *
-                            (actual_plastic[component] - previous_actual_plastic[pair][node][component]);
+                            (-actual.tangential_contact_force[component])
+                            * (actual_plastic[component] - previous_actual_plastic[pair][node][component]);
                         reference_increment_dissipation -=
-                            found->tangential_force[component] *
-                            (reference_plastic[component] - previous_reference_plastic[pair][node][component]);
+                            found->tangential_force[component]
+                            * (reference_plastic[component] - previous_reference_plastic[pair][node][component]);
                     }
                 }
                 previous_actual_plastic[pair][node] = actual_plastic;
@@ -242,17 +271,20 @@ bool compare(const std::vector<std::array<double, 3>>& mesh, const std::array<st
                 states_match = states_match && actual_state == found->state;
                 all_active = all_active && actual.projected && actual.pressure > 0.0 && found->pressure > 0.0;
                 first_sticks = first_sticks && (step != 0 || (!actual.sliding && found->state == 1));
-                if (actual.sliding) ++sliding_nodes;
-                if (step == 0 && node == 0) first_primary_face[pair] = actual.primary_face;
-                if (step > 0 && actual.primary_face != first_primary_face[pair]) crossed_different_primary_faces = true;
+                if (actual.sliding)
+                    ++sliding_nodes;
+                if (step == 0 && node == 0)
+                    first_primary_face[pair] = actual.primary_face;
+                if (step > 0 && actual.primary_face != first_primary_face[pair])
+                    crossed_different_primary_faces = true;
             }
             later_slides = later_slides && (step == 0 || sliding_nodes > 0);
             maximum_abaqus_shear_normal_resultant =
                 std::max(maximum_abaqus_shear_normal_resultant, std::abs(abaqus_shear_normal_resultant));
             actual_cumulative_dissipation[pair] += actual_increment_dissipation;
             reference_cumulative_dissipation[pair] += reference_increment_dissipation;
-            dissipation[pair].add(
-                actual_cumulative_dissipation[pair], step == 0 ? 0.0 : reference_cumulative_dissipation[pair]);
+            dissipation[pair].add(actual_cumulative_dissipation[pair],
+                step == 0 ? 0.0 : reference_cumulative_dissipation[pair]);
             for (std::size_t component = 0; component < 3; ++component) {
                 resultant[pair].add(actual_resultant[pair][component], -reactions[step].pair[pair][component]);
                 force_center[pair].add(actual_center_sum[component] / actual_center_weight,
@@ -294,26 +326,27 @@ bool compare(const std::vector<std::array<double, 3>>& mesh, const std::array<st
               << "b48_abaqus_maximum_shear_normal_resultant=" << maximum_abaqus_shear_normal_resultant << '\n';
     constexpr double tolerance = 1.0e-2, zero_tolerance = 1.0e-7;
     const auto passes = [&](const fuelsim::test::FieldErrorMetrics& metric) {
-        return (!metric.has_relative_norm() || fuelsim::test::relative_metrics_below(metric, tolerance)) &&
-               metric.maximum_zero_reference_difference < zero_tolerance;
+        return (!metric.has_relative_norm() || fuelsim::test::relative_metrics_below(metric, tolerance))
+               && metric.maximum_zero_reference_difference < zero_tolerance;
     };
     bool fields_pass = passes(global_reaction) && passes(global_dissipation);
     for (std::size_t pair = 0; pair < 2; ++pair)
-        fields_pass = fields_pass && passes(normal[pair]) && passes(tangent_y[pair]) && passes(tangent_z[pair]) &&
-                      passes(slip_y[pair]) && passes(slip_z[pair]) && passes(gap[pair]) && passes(pressure[pair]) &&
-                      passes(resultant[pair]) && passes(force_center[pair]) && passes(dissipation[pair]);
-    return check(maximum_coordinate_difference < 3.0e-8, "B4.8 Abaqus and Fuelsim use the same tracked mesh") &&
-           check(all_active && first_sticks && later_slides && crossed_different_primary_faces,
+        fields_pass = fields_pass && passes(normal[pair]) && passes(tangent_y[pair]) && passes(tangent_z[pair])
+                      && passes(slip_y[pair]) && passes(slip_z[pair]) && passes(gap[pair]) && passes(pressure[pair])
+                      && passes(resultant[pair]) && passes(force_center[pair]) && passes(dissipation[pair]);
+    return check(maximum_coordinate_difference < 3.0e-8, "B4.8 Abaqus and Fuelsim use the same tracked mesh")
+           && check(all_active && first_sticks && later_slides && crossed_different_primary_faces,
                "B4.8 keeps both pairs active, starts in sticking, slides both pairs, and transfers primary-face "
-               "ownership") &&
-           check(
-               states_match, "B4.8 open, sticking, and sliding states agree with Abaqus at every accepted increment") &&
-           check(maximum_zero_reference_difference < zero_tolerance,
-               "B4.8 theoretical-zero contact-force components pass the separate absolute check") &&
-           check(maximum_abaqus_shear_normal_resultant < 1.0e-10,
-               "B4.8 Abaqus nodal shear leakage normal to the plane cancels in each pair resultant") &&
-           check(fields_pass, "B4.8 all per-pair nodal fields, resultants, force centers, friction dissipation, and "
-                              "global reactions pass the one-percent metrics");
+               "ownership")
+           && check(states_match,
+               "B4.8 open, sticking, and sliding states agree with Abaqus at every accepted increment")
+           && check(maximum_zero_reference_difference < zero_tolerance,
+               "B4.8 theoretical-zero contact-force components pass the separate absolute check")
+           && check(maximum_abaqus_shear_normal_resultant < 1.0e-10,
+               "B4.8 Abaqus nodal shear leakage normal to the plane cancels in each pair resultant")
+           && check(fields_pass,
+               "B4.8 all per-pair nodal fields, resultants, force centers, friction dissipation, and "
+               "global reactions pass the one-percent metrics");
 }
 
 } // namespace
@@ -321,7 +354,8 @@ bool compare(const std::vector<std::array<double, 3>>& mesh, const std::array<st
 namespace fuelsim::test {
 bool check_hex8_multi_contact_path(const std::string& output, const std::string& reference_directory) {
     const auto frames = read_exodus_nodal_history(output);
-    if (frames.size() != 5) throw std::invalid_argument("B4.8 requires initial state and four increments");
+    if (frames.size() != 5)
+        throw std::invalid_argument("B4.8 requires initial state and four increments");
     const std::array<std::vector<ContactReference>, 2> refs = {
         read_contact(reference_directory + "/b48_hex8_multi_contact_pair_a.csv"),
         read_contact(reference_directory + "/b48_hex8_multi_contact_pair_b.csv")};
@@ -331,13 +365,15 @@ bool check_hex8_multi_contact_path(const std::string& output, const std::string&
     for (std::size_t pair = 0; pair < 2; ++pair) {
         std::set<std::pair<std::size_t, std::size_t>> seen;
         for (const auto& ref : refs[pair]) {
-            if (ref.step < 1 || ref.step > 4 || ref.id >= frames[0].nodes.size() ||
-                !seen.emplace(ref.step, ref.id).second)
+            if (ref.step < 1 || ref.step > 4 || ref.id >= frames[0].nodes.size()
+                || !seen.emplace(ref.step, ref.id).second)
                 throw std::invalid_argument("B4.8 reference association is invalid");
-            if (ref.step == 1) sources[pair].push_back(ref.id);
+            if (ref.step == 1)
+                sources[pair].push_back(ref.id);
         }
         std::sort(sources[pair].begin(), sources[pair].end());
-        if (sources[pair].size() != 4) throw std::invalid_argument("B4.8 must contain four constraints per pair");
+        if (sources[pair].size() != 4)
+            throw std::invalid_argument("B4.8 must contain four constraints per pair");
     }
     std::vector<StepState> states;
     for (std::size_t step = 1; step < frames.size(); ++step) {
@@ -367,8 +403,9 @@ bool check_hex8_multi_contact_path(const std::string& output, const std::string&
                     history.cartesian_elastic_tangential_slip[c] =
                         frame.nodal("contact_elastic_slip_" + axis + suffix).at(n);
                 }
-                contact.contact_force = std::hypot(
-                    contact.normal_contact_force[0], contact.normal_contact_force[1], contact.normal_contact_force[2]);
+                contact.contact_force = std::hypot(contact.normal_contact_force[0],
+                    contact.normal_contact_force[1],
+                    contact.normal_contact_force[2]);
                 state.contact[pair].push_back(contact);
                 state.histories[pair].push_back(history);
             }

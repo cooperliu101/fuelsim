@@ -11,6 +11,7 @@ struct Line3ContactGeometry final {
     double coordinate = 0, weight = 0;
     std::size_t secondary_node = 0;
     bool mechanical = false;
+    bool nodal_heat = false;
 };
 
 struct Line3ContactResult final {
@@ -21,7 +22,11 @@ struct Line3ContactResult final {
     double primary_coordinate = 0;
 };
 
-Line3ContactResult compute_line3_contact(const Line3ContactGeometry& geometry, const GapHeatProperties& heat,
-    const NormalContactProperties& mechanical, const std::vector<double>& state, const std::vector<double>& old,
-    const ContactPointHistory& history, bool jacobian);
+Line3ContactResult compute_line3_contact(const Line3ContactGeometry& geometry,
+    const GapHeatProperties& heat,
+    const NormalContactProperties& mechanical,
+    const std::vector<double>& state,
+    const std::vector<double>& old,
+    const ContactPointHistory& history,
+    bool jacobian);
 } // namespace fuelsim::rz8

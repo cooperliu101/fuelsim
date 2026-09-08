@@ -1,0 +1,36 @@
+Internal ctest changing into directory: /home/cooper/ai_project/fuelsim/build
+Test project /home/cooper/ai_project/fuelsim/build
+      Start 282: fuelsim_b13_integrated_cax8t_abaqus_tests
+      Start 283: fuelsim_b13_integrated_cax8rt_abaqus_tests
+      Start 280: fuelsim_b13_integrated_cax4t_abaqus_tests
+      Start 274: fuelsim_b13_small_cax8t_abaqus_tests
+ 1/12 Test #274: fuelsim_b13_small_cax8t_abaqus_tests .........   Passed    3.30 sec
+      Start 281: fuelsim_b13_integrated_cax4rt_abaqus_tests
+ 2/12 Test #281: fuelsim_b13_integrated_cax4rt_abaqus_tests ...   Passed    5.43 sec
+      Start 275: fuelsim_b13_small_cax8rt_abaqus_tests
+ 3/12 Test #280: fuelsim_b13_integrated_cax4t_abaqus_tests ....   Passed   10.70 sec
+      Start 272: fuelsim_b13_small_cax4t_abaqus_tests
+ 4/12 Test #275: fuelsim_b13_small_cax8rt_abaqus_tests ........   Passed    2.07 sec
+      Start 278: fuelsim_b13_finite_cax8t_abaqus_tests
+ 5/12 Test #272: fuelsim_b13_small_cax4t_abaqus_tests .........   Passed    1.59 sec
+      Start 273: fuelsim_b13_small_cax4rt_abaqus_tests
+ 6/12 Test #273: fuelsim_b13_small_cax4rt_abaqus_tests ........   Passed    1.15 sec
+      Start 279: fuelsim_b13_finite_cax8rt_abaqus_tests
+ 7/12 Test #278: fuelsim_b13_finite_cax8t_abaqus_tests ........   Passed    3.13 sec
+      Start 276: fuelsim_b13_finite_cax4t_abaqus_tests
+ 8/12 Test #276: fuelsim_b13_finite_cax4t_abaqus_tests ........   Passed    1.72 sec
+      Start 277: fuelsim_b13_finite_cax4rt_abaqus_tests
+ 9/12 Test #279: fuelsim_b13_finite_cax8rt_abaqus_tests .......   Passed    2.55 sec
+10/12 Test #277: fuelsim_b13_finite_cax4rt_abaqus_tests .......   Passed    1.40 sec
+11/12 Test #283: fuelsim_b13_integrated_cax8rt_abaqus_tests ...   Passed   17.37 sec
+12/12 Test #282: fuelsim_b13_integrated_cax8t_abaqus_tests ....   Passed   22.93 sec
+
+100% tests passed, 0 tests failed out of 12
+
+Label Time Summary:
+abaqus        =  73.35 sec*proc (12 tests)
+acceptance    =  73.35 sec*proc (12 tests)
+pcmi          =  73.35 sec*proc (12 tests)
+production    =  73.35 sec*proc (12 tests)
+
+Total Test time (real) =  22.94 sec

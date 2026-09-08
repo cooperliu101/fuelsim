@@ -7,16 +7,16 @@
 
 namespace {
 bool same_point(const fuelsim::CartesianMaterialPointState& a, const fuelsim::CartesianMaterialPointState& b) {
-    return a.elastic_strain == b.elastic_strain && a.plastic_strain == b.plastic_strain &&
-           a.creep_strain == b.creep_strain && a.equivalent_plastic_strain == b.equivalent_plastic_strain &&
-           a.equivalent_creep_strain == b.equivalent_creep_strain && a.stress.xx == b.stress.xx &&
-           a.stress.yy == b.stress.yy && a.stress.zz == b.stress.zz && a.stress.xy == b.stress.xy &&
-           a.stress.yz == b.stress.yz && a.stress.xz == b.stress.xz;
+    return a.elastic_strain == b.elastic_strain && a.plastic_strain == b.plastic_strain
+           && a.creep_strain == b.creep_strain && a.equivalent_plastic_strain == b.equivalent_plastic_strain
+           && a.equivalent_creep_strain == b.equivalent_creep_strain && a.stress.xx == b.stress.xx
+           && a.stress.yy == b.stress.yy && a.stress.zz == b.stress.zz && a.stress.xy == b.stress.xy
+           && a.stress.yz == b.stress.yz && a.stress.xz == b.stress.xz;
 }
 
 void require_same(const fuelsim::TransientCommittedState& a, const fuelsim::TransientCommittedState& b) {
-    if (a.time != b.time || a.load_factor != b.load_factor || a.solution != b.solution ||
-        a.cartesian_material_histories.size() != b.cartesian_material_histories.size())
+    if (a.time != b.time || a.load_factor != b.load_factor || a.solution != b.solution
+        || a.cartesian_material_histories.size() != b.cartesian_material_histories.size())
         throw std::runtime_error("HEX20 evaluation or rollback changed committed state");
     for (std::size_t region = 0; region < a.cartesian_material_histories.size(); ++region) {
         if (a.cartesian_material_histories[region].size() != b.cartesian_material_histories[region].size())
@@ -46,9 +46,11 @@ void check_history(const std::string& path) {
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 4) return 2;
+    if (argc != 4)
+        return 2;
     try {
-        for (int argument = 1; argument < argc; ++argument) check_history(argv[argument]);
+        for (int argument = 1; argument < argc; ++argument)
+            check_history(argv[argument]);
         return 0;
     } catch (const std::exception& error) {
         std::cerr << "[FAIL] " << error.what() << '\n';

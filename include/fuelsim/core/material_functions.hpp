@@ -146,26 +146,40 @@ struct MaterialFunctionSet final {
 
 class MaterialFunctionRegistry final {
   public:
-    void add_thermal(std::string name, std::vector<MaterialParameterDefinition> parameters,
-        ThermalPropertyBinder function, std::uint32_t version = 1);
-    void add_elasticity(std::string name, std::vector<MaterialParameterDefinition> parameters,
-        ElasticPropertyBinder function, std::uint32_t version = 1);
-    void add_eigenstrain(std::string name, std::vector<MaterialParameterDefinition> parameters,
-        EigenstrainBinder function, std::uint32_t version = 1);
-    void add_creep(std::string name, std::vector<MaterialParameterDefinition> parameters, CreepRateBinder function,
+    void add_thermal(std::string name,
+        std::vector<MaterialParameterDefinition> parameters,
+        ThermalPropertyBinder function,
         std::uint32_t version = 1);
-    void add_plasticity(std::string name, std::vector<MaterialParameterDefinition> parameters,
-        PlasticFlowStressBinder function, std::uint32_t version = 1);
+    void add_elasticity(std::string name,
+        std::vector<MaterialParameterDefinition> parameters,
+        ElasticPropertyBinder function,
+        std::uint32_t version = 1);
+    void add_eigenstrain(std::string name,
+        std::vector<MaterialParameterDefinition> parameters,
+        EigenstrainBinder function,
+        std::uint32_t version = 1);
+    void add_creep(std::string name,
+        std::vector<MaterialParameterDefinition> parameters,
+        CreepRateBinder function,
+        std::uint32_t version = 1);
+    void add_plasticity(std::string name,
+        std::vector<MaterialParameterDefinition> parameters,
+        PlasticFlowStressBinder function,
+        std::uint32_t version = 1);
     ThermalFunctionInstance bind_thermal(const std::string& name, std::vector<MaterialParameterValue> values) const;
     ElasticFunctionInstance bind_elasticity(const std::string& name, std::vector<MaterialParameterValue> values) const;
-    EigenstrainFunctionInstance bind_eigenstrain(
-        const std::string& instance_name, const std::string& name, std::vector<MaterialParameterValue> values) const;
+    EigenstrainFunctionInstance bind_eigenstrain(const std::string& instance_name,
+        const std::string& name,
+        std::vector<MaterialParameterValue> values) const;
     CreepFunctionInstance bind_creep(const std::string& name, std::vector<MaterialParameterValue> values) const;
     PlasticFunctionInstance bind_plasticity(const std::string& name, std::vector<MaterialParameterValue> values) const;
 
   private:
     enum class Category { thermal, elasticity, eigenstrain, creep, plasticity };
-    using Function = std::variant<ThermalPropertyBinder, ElasticPropertyBinder, EigenstrainBinder, CreepRateBinder,
+    using Function = std::variant<ThermalPropertyBinder,
+        ElasticPropertyBinder,
+        EigenstrainBinder,
+        CreepRateBinder,
         PlasticFlowStressBinder>;
 
     struct Registration final {
@@ -176,8 +190,13 @@ class MaterialFunctionRegistry final {
         Function function;
     };
 
-    void add_registration(std::string name, std::vector<MaterialParameterDefinition> parameters, std::uint32_t version,
-        Category category, Function function, bool has_function, const char* category_name);
+    void add_registration(std::string name,
+        std::vector<MaterialParameterDefinition> parameters,
+        std::uint32_t version,
+        Category category,
+        Function function,
+        bool has_function,
+        const char* category_name);
     const Registration& find_registration(Category category, const std::string& name, const char* category_name) const;
     std::vector<Registration> _registrations;
 };

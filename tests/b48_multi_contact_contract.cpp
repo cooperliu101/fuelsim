@@ -13,19 +13,21 @@
 namespace {
 bool histories_equal(const std::vector<std::vector<fuelsim::ContactPointHistory>>& first,
     const std::vector<std::vector<fuelsim::ContactPointHistory>>& second) {
-    if (first.size() != second.size()) return false;
+    if (first.size() != second.size())
+        return false;
     for (std::size_t pair = 0; pair < first.size(); ++pair) {
-        if (first[pair].size() != second[pair].size()) return false;
+        if (first[pair].size() != second[pair].size())
+            return false;
         for (std::size_t point = 0; point < first[pair].size(); ++point) {
             const auto& left = first[pair][point];
             const auto& right = second[pair][point];
-            if (left.elastic_tangential_slip != right.elastic_tangential_slip || left.sliding != right.sliding ||
-                left.normal_multiplier != right.normal_multiplier ||
-                left.cartesian_elastic_tangential_slip != right.cartesian_elastic_tangential_slip ||
-                left.cartesian_total_tangential_slip != right.cartesian_total_tangential_slip ||
-                left.cartesian_tangent_basis_initialized != right.cartesian_tangent_basis_initialized ||
-                left.cartesian_contact_normal != right.cartesian_contact_normal ||
-                left.cartesian_contact_tangent_first != right.cartesian_contact_tangent_first)
+            if (left.elastic_tangential_slip != right.elastic_tangential_slip || left.sliding != right.sliding
+                || left.normal_multiplier != right.normal_multiplier
+                || left.cartesian_elastic_tangential_slip != right.cartesian_elastic_tangential_slip
+                || left.cartesian_total_tangential_slip != right.cartesian_total_tangential_slip
+                || left.cartesian_tangent_basis_initialized != right.cartesian_tangent_basis_initialized
+                || left.cartesian_contact_normal != right.cartesian_contact_normal
+                || left.cartesian_contact_tangent_first != right.cartesian_contact_tangent_first)
                 return false;
         }
     }
@@ -36,11 +38,13 @@ double jacobian_error(const fuelsim::TransientProblem& problem, const std::vecto
     const auto& spatial = fuelsim::cartesian::ProblemAccess::view(problem);
     double maximum = 0.0;
     for (std::size_t contribution = 0; contribution < spatial.contribution_count(); ++contribution) {
-        if (spatial.contribution_type(contribution) != fuelsim::SpatialContributionType::mechanical_contact) continue;
+        if (spatial.contribution_type(contribution) != fuelsim::SpatialContributionType::mechanical_contact)
+            continue;
         std::vector<std::size_t> dofs;
         spatial.contribution_dofs(contribution, dofs);
         std::vector<double> local(dofs.size());
-        for (std::size_t index = 0; index < dofs.size(); ++index) local[index] = state[dofs[index]];
+        for (std::size_t index = 0; index < dofs.size(); ++index)
+            local[index] = state[dofs[index]];
         std::vector<double> residual, jacobian;
         spatial.compute_contribution(contribution, local, nullptr, nullptr, 0.0, residual, &jacobian);
         std::vector<double> direction(local.size()), plus = local, minus = local;
@@ -62,7 +66,8 @@ double jacobian_error(const fuelsim::TransientProblem& problem, const std::vecto
             difference_squared += std::pow(analytic - reference, 2);
             reference_squared += reference * reference;
         }
-        if (reference_squared > 0.0) maximum = std::max(maximum, std::sqrt(difference_squared / reference_squared));
+        if (reference_squared > 0.0)
+            maximum = std::max(maximum, std::sqrt(difference_squared / reference_squared));
     }
     return maximum;
 }
@@ -71,11 +76,13 @@ double contact_action_reaction_error(const fuelsim::TransientProblem& problem, c
     const auto& spatial = fuelsim::cartesian::ProblemAccess::view(problem);
     double maximum = 0.0;
     for (std::size_t contribution = 0; contribution < spatial.contribution_count(); ++contribution) {
-        if (spatial.contribution_type(contribution) != fuelsim::SpatialContributionType::mechanical_contact) continue;
+        if (spatial.contribution_type(contribution) != fuelsim::SpatialContributionType::mechanical_contact)
+            continue;
         std::vector<std::size_t> dofs;
         spatial.contribution_dofs(contribution, dofs);
         std::vector<double> local(dofs.size());
-        for (std::size_t index = 0; index < dofs.size(); ++index) local[index] = state[dofs[index]];
+        for (std::size_t index = 0; index < dofs.size(); ++index)
+            local[index] = state[dofs[index]];
         std::vector<double> residual;
         spatial.compute_contribution(contribution, local, nullptr, nullptr, 0.0, residual, nullptr);
         std::array<double, 3> resultant{};
@@ -83,9 +90,11 @@ double contact_action_reaction_error(const fuelsim::TransientProblem& problem, c
         for (std::size_t row = 0; row < dofs.size(); ++row)
             for (std::size_t component = 0; component < 3; ++component) {
                 const auto& field = fields.at(component + 1);
-                if (dofs[row] >= field.begin && dofs[row] < field.end) resultant[component] += residual[row];
+                if (dofs[row] >= field.begin && dofs[row] < field.end)
+                    resultant[component] += residual[row];
             }
-        for (double value : resultant) maximum = std::max(maximum, std::abs(value));
+        for (double value : resultant)
+            maximum = std::max(maximum, std::abs(value));
     }
     return maximum;
 }
@@ -93,16 +102,17 @@ double contact_action_reaction_error(const fuelsim::TransientProblem& problem, c
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 5) return 2;
+    if (argc != 5)
+        return 2;
     try {
         const auto input = fuelsim::read_case_input(argv[1]);
         const auto mesh = fuelsim::read_exodus_hex8(input.mesh_file);
         fuelsim::TransientProblem full(input.spatial, mesh), restarted(input.spatial, mesh);
         const double full_step = fuelsim::restore_transient_checkpoint(argv[2], full);
         const double restart_step = fuelsim::restore_transient_checkpoint(argv[3], restarted);
-        if (full.committed_time() != 4 || restarted.committed_time() != 4 || full_step != restart_step ||
-            full.committed_solution() != restarted.committed_solution() ||
-            !histories_equal(fuelsim::cartesian::ProblemAccess::committed_contact_histories(full),
+        if (full.committed_time() != 4 || restarted.committed_time() != 4 || full_step != restart_step
+            || full.committed_solution() != restarted.committed_solution()
+            || !histories_equal(fuelsim::cartesian::ProblemAccess::committed_contact_histories(full),
                 fuelsim::cartesian::ProblemAccess::committed_contact_histories(restarted)))
             throw std::runtime_error("B4.8 restart must exactly preserve the complete nodal and friction histories");
         const auto& spatial = fuelsim::cartesian::ProblemAccess::view(full);
@@ -138,9 +148,9 @@ int main(int argc, char** argv) {
             partial.validate_local_state(interval.first, interval.second, state);
             complete.commit_time_step(state);
             partial.commit_time_step(state);
-            if (fuelsim::BackendAccess::committed_raw_residual(complete) !=
-                    fuelsim::BackendAccess::committed_raw_residual(partial) ||
-                !histories_equal(fuelsim::cartesian::ProblemAccess::committed_contact_histories(complete),
+            if (fuelsim::BackendAccess::committed_raw_residual(complete)
+                    != fuelsim::BackendAccess::committed_raw_residual(partial)
+                || !histories_equal(fuelsim::cartesian::ProblemAccess::committed_contact_histories(complete),
                     fuelsim::cartesian::ProblemAccess::committed_contact_histories(partial)))
                 throw std::runtime_error("B4.8 partial projection validation changed committed reactions or history");
         }

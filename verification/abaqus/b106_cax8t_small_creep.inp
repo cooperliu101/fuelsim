@@ -1,10 +1,13 @@
 *Heading
-** Small-strain axisymmetric constant-stress creep. Initial loading takes 1e-10 s.
+** Small-strain stress ramp and hold: creep before yield, then simultaneous plasticity and creep.
 *Preprint, echo=NO, model=NO, history=NO, contact=NO
 *Include, input=b10_cax8t_material_mesh.inc
 *Material, name=SOLID
 *Elastic
 2e11, 0.3
+*Plastic
+5e7, 0
+2.05e9, 0.01
 *Creep, law=TIME
 1e-28, 3, 0
 *Conductivity
@@ -17,33 +20,22 @@
 ,
 *Initial Conditions, type=TEMPERATURE
 ALL, 600
-*Step, name=PRELOAD, nlgeom=NO
+*Amplitude, name=RAMP_HOLD, time=TOTAL TIME
+0, 0, 1, 1, 2, 1
+*Step, name=RAMP_HOLD, nlgeom=NO, inc=10
 *Coupled Temperature-Displacement
-1e-10, 1e-10, 1e-10, 1e-10
-*Boundary
-AXIS, 1, 1, 0
-BOTTOM, 2, 2, 0
-*Dload
-SOLID, P3, -1e8
-*Output, field, frequency=1
-*Node Output
-NT, U, RF, RFL
-*Element Output, directions=YES
-S, EE, CE, CEEQ, COORD, IVOL, HFL
-*Output, history, frequency=0
-*End Step
-*Step, name=LOAD, nlgeom=NO, inc=5
-*Coupled Temperature-Displacement
-0.2, 1, 0.2, 0.2
+0.2, 2, 0.2, 0.2
 *Controls, parameters=FIELD, field=DISPLACEMENT
 1e-10, 1e-10, , , , 1e-10
 *Boundary
 AXIS, 1, 1, 0
 BOTTOM, 2, 2, 0
+*Dload, amplitude=RAMP_HOLD
+SOLID, P3, -1e8
 *Output, field, frequency=1
 *Node Output
 NT, U, RF, RFL
 *Element Output, directions=YES
-S, EE, CE, CEEQ, COORD, IVOL, HFL
+S, EE, PE, PEEQ, CE, CEEQ, COORD, IVOL, HFL
 *Output, history, frequency=0
 *End Step

@@ -1,0 +1,23 @@
+abaqus_work_directory=C:\Users\TcroM\AppData\Local\Temp\h20_28_finite_point_probe_20260908_041956
+Analysis initiated from SIMULIA established products
+Abaqus JOB h20_28_finite_point_probe
+Abaqus 3DEXPERIENCE R2018x
+Abaqus License Manager checked out the following licenses:
+Abaqus/Standard checked out 5 tokens from Flexnet server localhost.
+<1019 out of 1024 licenses remain available>.
+Begin Analysis Input File Processor
+9/8/2026 4:19:57 AM
+Run pre.exe
+9/8/2026 4:19:58 AM
+End Analysis Input File Processor
+Begin Abaqus/Standard Analysis
+9/8/2026 4:19:58 AM
+Run standard.exe
+9/8/2026 4:20:01 AM
+End Abaqus/Standard Analysis
+Begin Convert MFS to SFS
+9/8/2026 4:20:02 AM
+Run SMASimUtility.exe
+9/8/2026 4:20:02 AM
+End Convert MFS to SFS
+Abaqus JOB h20_28_finite_point_probe COMPLETED

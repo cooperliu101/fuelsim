@@ -17,7 +17,8 @@
 
 namespace {
 bool check(bool condition, const std::string& message) {
-    if (condition) return true;
+    if (condition)
+        return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
@@ -26,12 +27,14 @@ std::vector<std::string> split_csv(const std::string& line) {
     std::vector<std::string> result;
     std::istringstream stream(line);
     std::string value;
-    while (std::getline(stream, value, ',')) result.push_back(value);
+    while (std::getline(stream, value, ','))
+        result.push_back(value);
     return result;
 }
 
 double number(const std::vector<std::string>& values, std::size_t index, const std::string& path) {
-    if (index >= values.size()) throw std::invalid_argument("Incomplete reference row in " + path);
+    if (index >= values.size())
+        throw std::invalid_argument("Incomplete reference row in " + path);
     std::size_t parsed = 0;
     const double result = std::stod(values[index], &parsed);
     if (parsed != values[index].size() || !std::isfinite(result))
@@ -68,36 +71,46 @@ struct RzNodalComparison final {
 
 std::size_t column_index(const std::vector<std::string>& header, const std::string& name, const std::string& path) {
     const auto found = std::find(header.begin(), header.end(), name);
-    if (found == header.end()) throw std::invalid_argument("Reference CSV is missing column '" + name + "': " + path);
+    if (found == header.end())
+        throw std::invalid_argument("Reference CSV is missing column '" + name + "': " + path);
     return static_cast<std::size_t>(found - header.begin());
 }
 
 std::vector<RzNodalReference> read_rz_nodal_reference(const std::string& path) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read MOOSE nodal reference: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read MOOSE nodal reference: " + path);
     std::string line;
-    if (!std::getline(input, line)) throw std::invalid_argument("MOOSE nodal reference is empty: " + path);
+    if (!std::getline(input, line))
+        throw std::invalid_argument("MOOSE nodal reference is empty: " + path);
     const std::vector<std::string> header = split_csv(line);
-    const std::array<std::size_t, 6> columns = {column_index(header, "T", path), column_index(header, "disp_x", path),
-        column_index(header, "disp_y", path), column_index(header, "id", path), column_index(header, "x", path),
+    const std::array<std::size_t, 6> columns = {column_index(header, "T", path),
+        column_index(header, "disp_x", path),
+        column_index(header, "disp_y", path),
+        column_index(header, "id", path),
+        column_index(header, "x", path),
         column_index(header, "y", path)};
     std::vector<RzNodalReference> result;
     std::vector<bool> present;
     while (std::getline(input, line)) {
-        if (line.empty()) continue;
+        if (line.empty())
+            continue;
         const std::vector<std::string> fields = split_csv(line);
         const std::size_t id = identifier(fields, columns[3], path);
         if (id >= result.size()) {
             result.resize(id + 1);
             present.resize(id + 1, false);
         }
-        const RzNodalReference row = {number(fields, columns[4], path), number(fields, columns[5], path),
-            number(fields, columns[0], path), number(fields, columns[1], path), number(fields, columns[2], path)};
+        const RzNodalReference row = {number(fields, columns[4], path),
+            number(fields, columns[5], path),
+            number(fields, columns[0], path),
+            number(fields, columns[1], path),
+            number(fields, columns[2], path)};
         if (present[id]) {
             const RzNodalReference& previous = result[id];
-            if (previous.radius != row.radius || previous.axial_coordinate != row.axial_coordinate ||
-                previous.temperature != row.temperature || previous.radial_displacement != row.radial_displacement ||
-                previous.axial_displacement != row.axial_displacement)
+            if (previous.radius != row.radius || previous.axial_coordinate != row.axial_coordinate
+                || previous.temperature != row.temperature || previous.radial_displacement != row.radial_displacement
+                || previous.axial_displacement != row.axial_displacement)
                 throw std::invalid_argument("MOOSE emitted inconsistent duplicate values for a shared RZ node");
         } else {
             result[id] = row;
@@ -109,8 +122,8 @@ std::vector<RzNodalReference> read_rz_nodal_reference(const std::string& path) {
     return result;
 }
 
-RzNodalComparison compare_rz_nodal_results(
-    const fuelsim::test::ExodusResults& results, const std::vector<RzNodalReference>& reference) {
+RzNodalComparison compare_rz_nodal_results(const fuelsim::test::ExodusResults& results,
+    const std::vector<RzNodalReference>& reference) {
     if (results.nodes.size() != reference.size())
         throw std::invalid_argument("MOOSE and production-result node counts differ");
     const std::vector<double>& temperature = results.nodal("temperature");
@@ -119,9 +132,9 @@ RzNodalComparison compare_rz_nodal_results(
     RzNodalComparison comparison;
     comparison.node_count = results.nodes.size();
     for (std::size_t node = 0; node < results.nodes.size(); ++node) {
-        comparison.maximum_coordinate_difference = std::max(
-            {comparison.maximum_coordinate_difference, std::abs(results.nodes[node][0] - reference[node].radius),
-                std::abs(results.nodes[node][1] - reference[node].axial_coordinate)});
+        comparison.maximum_coordinate_difference = std::max({comparison.maximum_coordinate_difference,
+            std::abs(results.nodes[node][0] - reference[node].radius),
+            std::abs(results.nodes[node][1] - reference[node].axial_coordinate)});
         comparison.temperature.add(temperature[node], reference[node].temperature);
         comparison.radial_displacement.add(radial_displacement[node], reference[node].radial_displacement);
         comparison.axial_displacement.add(axial_displacement[node], reference[node].axial_displacement);
@@ -129,18 +142,22 @@ RzNodalComparison compare_rz_nodal_results(
     return comparison;
 }
 
-std::vector<double> read_contact_pressure_reference(
-    const std::string& path, std::vector<double>& coordinates, std::size_t coordinate_component) {
+std::vector<double> read_contact_pressure_reference(const std::string& path,
+    std::vector<double>& coordinates,
+    std::size_t coordinate_component) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read MOOSE pressure reference: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read MOOSE pressure reference: " + path);
     std::string line;
-    if (!std::getline(input, line)) throw std::invalid_argument("MOOSE pressure reference is empty: " + path);
+    if (!std::getline(input, line))
+        throw std::invalid_argument("MOOSE pressure reference is empty: " + path);
     const std::vector<std::string> header = split_csv(line);
     const std::size_t pressure_column = column_index(header, "contact_pressure", path);
     const std::size_t coordinate_column = column_index(header, coordinate_component == 0 ? "x" : "y", path);
     std::vector<std::pair<double, double>> values;
     while (std::getline(input, line)) {
-        if (line.empty()) continue;
+        if (line.empty())
+            continue;
         const std::vector<std::string> fields = split_csv(line);
         values.emplace_back(number(fields, coordinate_column, path), number(fields, pressure_column, path));
     }
@@ -151,7 +168,8 @@ std::vector<double> read_contact_pressure_reference(
         coordinates.push_back(value.first);
         result.push_back(value.second);
     }
-    if (result.empty()) throw std::invalid_argument("MOOSE pressure reference has no values: " + path);
+    if (result.empty())
+        throw std::invalid_argument("MOOSE pressure reference has no values: " + path);
     return result;
 }
 
@@ -162,15 +180,14 @@ bool run_m0(const std::string& results_path, const std::string& nodal_reference_
     constexpr double tolerance = 1.0e-10;
     bool passed = check(fields.node_count == reference.size() && fields.maximum_coordinate_difference < 1.0e-12,
         "M0 compares every production Exodus node at matching coordinates");
-    passed =
-        check(relative_metrics_below(fields.temperature, tolerance), "M0 full-field temperature three errors pass") &&
-        passed;
+    passed = check(relative_metrics_below(fields.temperature, tolerance), "M0 full-field temperature three errors pass")
+             && passed;
     passed = check(relative_metrics_below(fields.radial_displacement, tolerance),
-                 "M0 full-field radial displacement three errors pass") &&
-             passed;
+                 "M0 full-field radial displacement three errors pass")
+             && passed;
     passed = check(relative_metrics_below(fields.axial_displacement, tolerance),
-                 "M0 full-field axial displacement three errors pass") &&
-             passed;
+                 "M0 full-field axial displacement three errors pass")
+             && passed;
     print_relative_metrics("m0_temperature", fields.temperature);
     print_relative_metrics("m0_radial_displacement", fields.radial_displacement);
     print_relative_metrics("m0_axial_displacement", fields.axial_displacement);
@@ -180,8 +197,9 @@ bool run_m0(const std::string& results_path, const std::string& nodal_reference_
 std::map<std::string, std::string> read_summary(const std::string& path);
 double summary_number(const std::map<std::string, std::string>& summary, const std::string& name);
 
-bool run_m21(
-    const std::string& results_path, const std::string& summary_path, const std::string& nodal_reference_path) {
+bool run_m21(const std::string& results_path,
+    const std::string& summary_path,
+    const std::string& nodal_reference_path) {
     const std::vector<RzNodalReference> reference = read_rz_nodal_reference(nodal_reference_path);
     const RzNodalComparison fields =
         compare_rz_nodal_results(fuelsim::test::read_final_exodus_results(results_path), reference);
@@ -190,16 +208,16 @@ bool run_m21(
     bool passed = check(fields.node_count == reference.size() && fields.maximum_coordinate_difference < 1.0e-12,
         "M2.1 compares every production Exodus node at matching coordinates");
     passed = check(relative_metrics_below(fields.temperature, temperature_tolerance),
-                 "M2.1 full-field temperature three errors pass 0.1 percent") &&
-             passed;
-    passed = check(fields.radial_displacement.maximum_absolute_difference < zero_displacement_tolerance &&
-                       fields.radial_displacement.maximum_actual < zero_displacement_tolerance,
-                 "M2.1 radial displacement remains zero") &&
-             passed;
-    passed = check(fields.axial_displacement.maximum_absolute_difference < zero_displacement_tolerance &&
-                       fields.axial_displacement.maximum_actual < zero_displacement_tolerance,
-                 "M2.1 axial displacement remains zero") &&
-             passed;
+                 "M2.1 full-field temperature three errors pass 0.1 percent")
+             && passed;
+    passed = check(fields.radial_displacement.maximum_absolute_difference < zero_displacement_tolerance
+                       && fields.radial_displacement.maximum_actual < zero_displacement_tolerance,
+                 "M2.1 radial displacement remains zero")
+             && passed;
+    passed = check(fields.axial_displacement.maximum_absolute_difference < zero_displacement_tolerance
+                       && fields.axial_displacement.maximum_actual < zero_displacement_tolerance,
+                 "M2.1 axial displacement remains zero")
+             && passed;
     print_relative_metrics("m21_temperature", fields.temperature);
     std::cout << "m21_radial_displacement_maximum_absolute=" << fields.radial_displacement.maximum_absolute_difference
               << '\n';
@@ -207,23 +225,26 @@ bool run_m21(
               << '\n';
     const std::map<std::string, std::string> summary = read_summary(summary_path);
     passed = check(summary_number(summary, "accepted_steps") == 10.0,
-                 "M2.1 production transient completes ten accepted steps") &&
-             passed;
+                 "M2.1 production transient completes ten accepted steps")
+             && passed;
     passed = check(summary_number(summary, "petsc_workspace_setups") == 1.0,
-                 "M2.1 production transient reuses one PETSc workspace") &&
-             passed;
+                 "M2.1 production transient reuses one PETSc workspace")
+             && passed;
     return passed;
 }
 
 std::map<std::string, std::string> read_summary(const std::string& path) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read fuelsim summary: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read fuelsim summary: " + path);
     std::string line;
     std::getline(input, line);
-    if (line != "metric,value") throw std::invalid_argument("Unexpected fuelsim summary header in " + path);
+    if (line != "metric,value")
+        throw std::invalid_argument("Unexpected fuelsim summary header in " + path);
     std::map<std::string, std::string> result;
     while (std::getline(input, line)) {
-        if (line.empty()) continue;
+        if (line.empty())
+            continue;
         const std::size_t separator = line.find(',');
         if (separator == std::string::npos || separator == 0 || separator + 1 == line.size())
             throw std::invalid_argument("Invalid fuelsim summary row in " + path);
@@ -235,12 +256,15 @@ std::map<std::string, std::string> read_summary(const std::string& path) {
 
 double summary_number(const std::map<std::string, std::string>& summary, const std::string& name) {
     const auto found = summary.find(name);
-    if (found == summary.end()) throw std::invalid_argument("fuelsim summary is missing metric '" + name + "'");
+    if (found == summary.end())
+        throw std::invalid_argument("fuelsim summary is missing metric '" + name + "'");
     return number({found->second}, 0, "fuelsim summary metric " + name);
 }
 
 FieldErrorMetrics compare_contact_pressure(const fuelsim::test::ExodusResults& results,
-    const std::string& variable_name, const std::string& reference_path, double coordinate_tolerance,
+    const std::string& variable_name,
+    const std::string& reference_path,
+    double coordinate_tolerance,
     std::size_t coordinate_component = 1) {
     std::vector<double> reference_coordinates;
     const std::vector<double> reference =
@@ -262,8 +286,11 @@ FieldErrorMetrics compare_contact_pressure(const fuelsim::test::ExodusResults& r
     return metrics;
 }
 
-bool run_m1(const std::string& name, const std::string& results_path, const std::string& summary_path,
-    const std::string& nodal_reference_path, const std::string& pressure_reference_path) {
+bool run_m1(const std::string& name,
+    const std::string& results_path,
+    const std::string& summary_path,
+    const std::string& nodal_reference_path,
+    const std::string& pressure_reference_path) {
     const fuelsim::test::ExodusResults results = fuelsim::test::read_final_exodus_results(results_path);
     const std::vector<RzNodalReference> reference = read_rz_nodal_reference(nodal_reference_path);
     const RzNodalComparison fields = compare_rz_nodal_results(results, reference);
@@ -272,12 +299,12 @@ bool run_m1(const std::string& name, const std::string& results_path, const std:
     constexpr double tolerance = 1.0e-2;
     bool passed = check(fields.node_count == reference.size() && fields.maximum_coordinate_difference < 1.0e-12,
         name + " compares every production Exodus node at matching coordinates");
-    passed = check(relative_metrics_below(fields.temperature, tolerance) &&
-                       relative_metrics_below(fields.radial_displacement, tolerance) &&
-                       relative_metrics_below(fields.axial_displacement, tolerance) &&
-                       relative_metrics_below(pressure, tolerance),
-                 name + " full-field three-metric errors pass 1 percent") &&
-             passed;
+    passed = check(relative_metrics_below(fields.temperature, tolerance)
+                       && relative_metrics_below(fields.radial_displacement, tolerance)
+                       && relative_metrics_below(fields.axial_displacement, tolerance)
+                       && relative_metrics_below(pressure, tolerance),
+                 name + " full-field three-metric errors pass 1 percent")
+             && passed;
     print_relative_metrics(name + "_temperature", fields.temperature);
     print_relative_metrics(name + "_radial_displacement", fields.radial_displacement);
     print_relative_metrics(name + "_axial_displacement", fields.axial_displacement);
@@ -285,18 +312,18 @@ bool run_m1(const std::string& name, const std::string& results_path, const std:
 
     const std::map<std::string, std::string> summary = read_summary(summary_path);
     passed = check(summary_number(summary, "petsc_workspace_setups") == 1.0,
-                 name + " production path reuses one PETSc workspace") &&
-             passed;
+                 name + " production path reuses one PETSc workspace")
+             && passed;
     if (name == "m1") {
         FieldErrorMetrics total_force;
         total_force.add(summary_number(summary, "contact.fuel_cladding.total_contact_force"), 663.8896691615588);
         print_relative_metrics("m1_total_contact_force", total_force);
         passed =
             check(relative_metrics_below(total_force, tolerance), "M1 total contact force three errors pass") && passed;
-        passed = check(summary_number(summary, "contact.fuel_cladding.projected_contact_nodes") == 11.0 &&
-                           summary_number(summary, "contact.fuel_cladding.active_contact_nodes") == 11.0,
-                     "M1 projects and activates all fuel-surface nodes") &&
-                 passed;
+        passed = check(summary_number(summary, "contact.fuel_cladding.projected_contact_nodes") == 11.0
+                           && summary_number(summary, "contact.fuel_cladding.active_contact_nodes") == 11.0,
+                     "M1 projects and activates all fuel-surface nodes")
+                 && passed;
     }
     return passed;
 }
@@ -314,7 +341,8 @@ struct CartesianStressReference final {
 
 std::vector<CartesianNodeReference> read_cartesian_nodes(const std::string& path) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read three-dimensional MOOSE nodes: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read three-dimensional MOOSE nodes: " + path);
     std::string line;
     std::getline(input, line);
     if (line != "T,disp_x,disp_y,disp_z,id,x,y,z")
@@ -322,7 +350,8 @@ std::vector<CartesianNodeReference> read_cartesian_nodes(const std::string& path
     std::vector<CartesianNodeReference> result;
     std::vector<bool> present;
     while (std::getline(input, line)) {
-        if (line.empty()) continue;
+        if (line.empty())
+            continue;
         const std::vector<std::string> values = split_csv(line);
         const CartesianNodeReference row = {identifier(values, 4, path),
             {number(values, 5, path), number(values, 6, path), number(values, 7, path)},
@@ -347,18 +376,24 @@ std::vector<CartesianNodeReference> read_cartesian_nodes(const std::string& path
 
 std::vector<CartesianStressReference> read_cartesian_stresses(const std::string& path) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read three-dimensional MOOSE stresses: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read three-dimensional MOOSE stresses: " + path);
     std::string line;
     std::getline(input, line);
     if (line != "id,stress_xx,stress_xy,stress_xz,stress_yy,stress_yz,stress_zz,x,y,z")
         throw std::invalid_argument("Unexpected three-dimensional MOOSE stress header in " + path);
     std::vector<CartesianStressReference> result;
     while (std::getline(input, line)) {
-        if (line.empty()) continue;
+        if (line.empty())
+            continue;
         const std::vector<std::string> values = split_csv(line);
         result.push_back({identifier(values, 0, path),
-            {number(values, 1, path), number(values, 4, path), number(values, 6, path), number(values, 2, path),
-                number(values, 5, path), number(values, 3, path)}});
+            {number(values, 1, path),
+                number(values, 4, path),
+                number(values, 6, path),
+                number(values, 2, path),
+                number(values, 5, path),
+                number(values, 3, path)}});
     }
     return result;
 }
@@ -369,8 +404,10 @@ bool run_b3(const std::string& results_path, const std::string& nodal_path, cons
     const std::vector<CartesianStressReference> stresses = read_cartesian_stresses(stress_path);
     if (nodes.size() != results.nodes.size())
         throw std::invalid_argument("Three-dimensional MOOSE and fuelsim node counts differ");
-    const std::array<std::string, 4> field_names = {
-        "temperature", "displacement_x", "displacement_y", "displacement_z"};
+    const std::array<std::string, 4> field_names = {"temperature",
+        "displacement_x",
+        "displacement_y",
+        "displacement_z"};
     std::array<FieldErrorMetrics, 4> field_errors;
     double coordinate_error = 0.0;
     std::vector<bool> visited(results.nodes.size(), false);
@@ -379,8 +416,8 @@ bool run_b3(const std::string& results_path, const std::string& nodal_path, cons
             throw std::invalid_argument("Three-dimensional reference node IDs must be unique and in range");
         visited[reference.id] = true;
         for (std::size_t component = 0; component < 3; ++component)
-            coordinate_error = std::max(
-                coordinate_error, std::abs(results.nodes[reference.id][component] - reference.point[component]));
+            coordinate_error = std::max(coordinate_error,
+                std::abs(results.nodes[reference.id][component] - reference.point[component]));
         for (std::size_t field = 0; field < field_names.size(); ++field)
             field_errors[field].add(results.nodal(field_names[field]).at(reference.id), reference.fields[field]);
     }
@@ -401,65 +438,72 @@ bool run_b3(const std::string& results_path, const std::string& nodal_path, cons
     bool passed = true;
     for (std::size_t field = 0; field < field_errors.size(); ++field) {
         print_relative_metrics("b3_" + field_names[field], field_errors[field]);
-        passed = check(relative_metrics_below(field_errors[field], 1.0e-3) &&
-                           field_errors[field].maximum_zero_reference_difference < 1.0e-10,
-                     "stage B " + field_names[field] + " three metrics are below 0.1 percent") &&
-                 passed;
+        passed = check(relative_metrics_below(field_errors[field], 1.0e-3)
+                           && field_errors[field].maximum_zero_reference_difference < 1.0e-10,
+                     "stage B " + field_names[field] + " three metrics are below 0.1 percent")
+                 && passed;
     }
     print_relative_metrics("b3_stress_xx", stress_errors[0]);
     passed = check(relative_metrics_below(stress_errors[0], 1.0e-3),
-                 "stage B nonzero stress three metrics are below 0.1 percent") &&
-             passed;
+                 "stage B nonzero stress three metrics are below 0.1 percent")
+             && passed;
     for (std::size_t component = 1; component < stress_errors.size(); ++component)
         passed = check(stress_errors[component].maximum_absolute_difference < 1.0e-6,
-                     "stage B near-zero stress component satisfies its absolute tolerance") &&
-                 passed;
+                     "stage B near-zero stress component satisfies its absolute tolerance")
+                 && passed;
     return check(coordinate_error < 1.0e-12, "stage B compares all nodes at matching coordinates") && passed;
 }
 
-bool run_cartesian_fields(
-    const std::string& name, const std::string& results_path, const std::string& nodal_path, double tolerance) {
+bool run_cartesian_fields(const std::string& name,
+    const std::string& results_path,
+    const std::string& nodal_path,
+    double tolerance) {
     const fuelsim::test::ExodusResults results = fuelsim::test::read_final_exodus_results(results_path);
     const std::vector<CartesianNodeReference> nodes = read_cartesian_nodes(nodal_path);
     if (nodes.size() != results.nodes.size())
         throw std::invalid_argument("Three-dimensional MOOSE and production-result node counts differ");
-    const std::array<std::string, 4> field_names = {
-        "temperature", "displacement_x", "displacement_y", "displacement_z"};
+    const std::array<std::string, 4> field_names = {"temperature",
+        "displacement_x",
+        "displacement_y",
+        "displacement_z"};
     std::array<FieldErrorMetrics, 4> errors;
     double coordinate_error = 0.0;
     for (const CartesianNodeReference& reference : nodes) {
         for (std::size_t component = 0; component < 3; ++component)
-            coordinate_error = std::max(
-                coordinate_error, std::abs(results.nodes[reference.id][component] - reference.point[component]));
+            coordinate_error = std::max(coordinate_error,
+                std::abs(results.nodes[reference.id][component] - reference.point[component]));
         for (std::size_t field = 0; field < field_names.size(); ++field)
             errors[field].add(results.nodal(field_names[field]).at(reference.id), reference.fields[field]);
     }
     bool passed = true;
     for (std::size_t field = 0; field < errors.size(); ++field) {
         print_relative_metrics(name + "_" + field_names[field], errors[field]);
-        passed = check(relative_metrics_below(errors[field], tolerance) &&
-                           errors[field].maximum_zero_reference_difference < 1.0e-10,
-                     name + " full-field three-metric errors and zero-reference absolute errors pass") &&
-                 passed;
+        passed = check(relative_metrics_below(errors[field], tolerance)
+                           && errors[field].maximum_zero_reference_difference < 1.0e-10,
+                     name + " full-field three-metric errors and zero-reference absolute errors pass")
+                 && passed;
     }
-    return check(coordinate_error < 1.0e-12, name + " compares every production Exodus node at matching coordinates") &&
-           passed;
+    return check(coordinate_error < 1.0e-12, name + " compares every production Exodus node at matching coordinates")
+           && passed;
 }
 
-bool run_rz_fields(
-    const std::string& name, const std::string& results_path, const std::string& nodal_path, double tolerance) {
+bool run_rz_fields(const std::string& name,
+    const std::string& results_path,
+    const std::string& nodal_path,
+    double tolerance) {
     const std::vector<RzNodalReference> reference = read_rz_nodal_reference(nodal_path);
     const RzNodalComparison fields =
         compare_rz_nodal_results(fuelsim::test::read_final_exodus_results(results_path), reference);
     bool passed = check(fields.node_count == reference.size() && fields.maximum_coordinate_difference < 1.0e-12,
         name + " compares every production Exodus node at matching coordinates");
     for (const auto& field : {std::pair<std::string, const FieldErrorMetrics&>{"temperature", fields.temperature},
-             {"radial_displacement", fields.radial_displacement}, {"axial_displacement", fields.axial_displacement}}) {
+             {"radial_displacement", fields.radial_displacement},
+             {"axial_displacement", fields.axial_displacement}}) {
         print_relative_metrics(name + "_" + field.first, field.second);
-        passed = check(relative_metrics_below(field.second, tolerance) &&
-                           field.second.maximum_zero_reference_difference < 1.0e-10,
-                     name + " full-field three-metric errors and zero-reference absolute errors pass") &&
-                 passed;
+        passed = check(relative_metrics_below(field.second, tolerance)
+                           && field.second.maximum_zero_reference_difference < 1.0e-10,
+                     name + " full-field three-metric errors and zero-reference absolute errors pass")
+                 && passed;
     }
     return passed;
 }
@@ -472,20 +516,24 @@ struct MixedOrderReference final {
 
 std::vector<MixedOrderReference> read_mixed_order_reference(const std::string& path, bool temperature) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read HEX20 MOOSE reference: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read HEX20 MOOSE reference: " + path);
     std::string line;
     std::getline(input, line);
     const std::string expected = temperature ? "T,id,x,y,z" : "disp_x,disp_y,disp_z,id,x,y,z";
-    if (line != expected) throw std::invalid_argument("Unexpected HEX20 MOOSE reference header: " + path);
+    if (line != expected)
+        throw std::invalid_argument("Unexpected HEX20 MOOSE reference header: " + path);
     std::vector<MixedOrderReference> result;
     while (std::getline(input, line)) {
-        if (line.empty()) continue;
+        if (line.empty())
+            continue;
         const std::vector<std::string> values = split_csv(line);
         const std::size_t offset = temperature ? 1U : 3U;
         MixedOrderReference row{};
         row.id = identifier(values, offset, path);
-        row.point = {
-            number(values, offset + 1, path), number(values, offset + 2, path), number(values, offset + 3, path)};
+        row.point = {number(values, offset + 1, path),
+            number(values, offset + 2, path),
+            number(values, offset + 3, path)};
         if (temperature)
             row.values[0] = number(values, 0, path);
         else
@@ -496,8 +544,12 @@ std::vector<MixedOrderReference> read_mixed_order_reference(const std::string& p
     return result;
 }
 
-bool run_hex20_fields(const std::string& name, const std::string& results_path, const std::string& temperature_path,
-    const std::string& displacement_path, double tolerance, bool compare_displacement) {
+bool run_hex20_fields(const std::string& name,
+    const std::string& results_path,
+    const std::string& temperature_path,
+    const std::string& displacement_path,
+    double tolerance,
+    bool compare_displacement) {
     const fuelsim::test::ExodusResults results = fuelsim::test::read_final_exodus_results(results_path);
     const std::vector<MixedOrderReference> temperature = read_mixed_order_reference(temperature_path, true);
     const std::vector<MixedOrderReference> displacement = read_mixed_order_reference(displacement_path, false);
@@ -507,7 +559,8 @@ bool run_hex20_fields(const std::string& name, const std::string& results_path, 
     std::array<FieldErrorMetrics, 3> displacement_error;
     double coordinate_error = 0.0;
     for (const MixedOrderReference& row : temperature) {
-        if (row.id >= results.nodes.size()) throw std::invalid_argument("HEX20 temperature node ID is out of range");
+        if (row.id >= results.nodes.size())
+            throw std::invalid_argument("HEX20 temperature node ID is out of range");
         for (std::size_t component = 0; component < 3; ++component)
             coordinate_error =
                 std::max(coordinate_error, std::abs(results.nodes[row.id][component] - row.point[component]));
@@ -515,12 +568,13 @@ bool run_hex20_fields(const std::string& name, const std::string& results_path, 
     }
     const std::array<std::string, 3> displacement_names = {"displacement_x", "displacement_y", "displacement_z"};
     for (const MixedOrderReference& row : displacement) {
-        if (row.id >= results.nodes.size()) throw std::invalid_argument("HEX20 displacement node ID is out of range");
+        if (row.id >= results.nodes.size())
+            throw std::invalid_argument("HEX20 displacement node ID is out of range");
         for (std::size_t component = 0; component < 3; ++component) {
             coordinate_error =
                 std::max(coordinate_error, std::abs(results.nodes[row.id][component] - row.point[component]));
-            displacement_error[component].add(
-                results.nodal(displacement_names[component]).at(row.id), row.values[component]);
+            displacement_error[component].add(results.nodal(displacement_names[component]).at(row.id),
+                row.values[component]);
         }
     }
     print_relative_metrics(name + "_temperature", temperature_error);
@@ -529,26 +583,28 @@ bool run_hex20_fields(const std::string& name, const std::string& results_path, 
     if (compare_displacement) {
         for (std::size_t component = 0; component < displacement_error.size(); ++component) {
             print_relative_metrics(name + "_" + displacement_names[component], displacement_error[component]);
-            passed = check(relative_metrics_below(displacement_error[component], tolerance) &&
-                               displacement_error[component].maximum_zero_reference_difference < 1.0e-12,
-                         "HEX20 " + displacement_names[component] +
-                             " relative L2, relative absolute peak, and maximum pointwise errors pass") &&
-                     passed;
+            passed = check(relative_metrics_below(displacement_error[component], tolerance)
+                               && displacement_error[component].maximum_zero_reference_difference < 1.0e-12,
+                         "HEX20 " + displacement_names[component]
+                             + " relative L2, relative absolute peak, and maximum pointwise errors pass")
+                     && passed;
         }
     }
-    return check(coordinate_error < 1.0e-14, "HEX20 comparison uses identical tracked MOOSE mesh coordinates") &&
-           passed;
+    return check(coordinate_error < 1.0e-14, "HEX20 comparison uses identical tracked MOOSE mesh coordinates")
+           && passed;
 }
 
-bool run_b6(
-    const std::string& results_path, const std::string& temperature_path, const std::string& displacement_path) {
+bool run_b6(const std::string& results_path,
+    const std::string& temperature_path,
+    const std::string& displacement_path) {
     return run_hex20_fields("b6_hex20", results_path, temperature_path, displacement_path, 1.0e-8, true);
 }
 
 bool completed_summary(const std::string& path, const std::string& problem);
 
-bool run_hex20_thermal_contact(
-    const std::string& result_path, const std::string& summary_path, const std::string& reference_path) {
+bool run_hex20_thermal_contact(const std::string& result_path,
+    const std::string& summary_path,
+    const std::string& reference_path) {
     const auto output = fuelsim::test::read_final_exodus_results(result_path);
     const auto reference = read_mixed_order_reference(reference_path, true);
     const auto& temperature = output.nodal("temperature");
@@ -570,27 +626,30 @@ bool run_hex20_thermal_contact(
     print_relative_metrics("h20_16_temperature", error);
     const double heat_rate = output.global("contact_heat_rate_interface");
     std::cout << "h20_16_total_heat_rate=" << heat_rate << '\n';
-    return completed_summary(summary_path, "steady") &&
-           check(summary_number(read_summary(summary_path), "load_steps_completed") == 1.0,
-               "H20.16 completes one load step") &&
-           check(output.nodes.size() == 40 && reference.size() == 16,
-               "H20.16 compares all sixteen first-order temperature nodes") &&
-           check(relative_metrics_below(error, 5.0e-3), "H20.16 temperature errors pass 0.5 percent") &&
-           check(coordinate_error < 1.0e-12, "H20.16 tracked MOOSE coordinates match") &&
-           check(heat_rate > 0.0, "H20.16 transfers nonzero heat");
+    return completed_summary(summary_path, "steady")
+           && check(summary_number(read_summary(summary_path), "load_steps_completed") == 1.0,
+               "H20.16 completes one load step")
+           && check(output.nodes.size() == 40 && reference.size() == 16,
+               "H20.16 compares all sixteen first-order temperature nodes")
+           && check(relative_metrics_below(error, 5.0e-3), "H20.16 temperature errors pass 0.5 percent")
+           && check(coordinate_error < 1.0e-12, "H20.16 tracked MOOSE coordinates match")
+           && check(heat_rate > 0.0, "H20.16 transfers nonzero heat");
 }
 
-bool run_hex20_transient(const std::string& results_path, const std::string& summary_path,
-    const std::string& temperature_path, const std::string& displacement_path, double tolerance) {
+bool run_hex20_transient(const std::string& results_path,
+    const std::string& summary_path,
+    const std::string& temperature_path,
+    const std::string& displacement_path,
+    double tolerance) {
     bool passed =
         run_hex20_fields("hex20_transient", results_path, temperature_path, displacement_path, tolerance, true);
     const std::map<std::string, std::string> summary = read_summary(summary_path);
-    passed = check(summary_number(summary, "accepted_steps") == 10.0,
-                 "HEX20 production transient accepts ten fixed steps") &&
-             passed;
+    passed =
+        check(summary_number(summary, "accepted_steps") == 10.0, "HEX20 production transient accepts ten fixed steps")
+        && passed;
     passed = check(summary_number(summary, "petsc_workspace_setups") == 1.0,
-                 "HEX20 production transient reuses one PETSc workspace") &&
-             passed;
+                 "HEX20 production transient reuses one PETSc workspace")
+             && passed;
     return passed;
 }
 
@@ -602,39 +661,53 @@ void require_argument_count(const std::string& mode, int argc, int expected) {
 bool completed_summary(const std::string& path, const std::string& problem) {
     const auto summary = read_summary(path);
     return check(summary.at("completed") == "true" && summary.at("problem") == problem,
-               "Production summary confirms completion of the expected problem") &&
-           check(
-               summary_number(summary, "petsc_workspace_setups") == 1.0, "Production solve reuses one PETSc workspace");
+               "Production summary confirms completion of the expected problem")
+           && check(summary_number(summary, "petsc_workspace_setups") == 1.0,
+               "Production solve reuses one PETSc workspace");
 }
 
-bool run_hex20_inelastic(const std::string& results_path, const std::string& summary_path,
-    const std::string& temperature_path, const std::string& displacement_path, const std::string& material_path) {
+bool run_hex20_inelastic(const std::string& results_path,
+    const std::string& summary_path,
+    const std::string& temperature_path,
+    const std::string& displacement_path,
+    const std::string& material_path) {
     bool passed = run_hex20_transient(results_path, summary_path, temperature_path, displacement_path, 5.0e-3);
     passed = completed_summary(summary_path, "transient") && passed;
     const auto results = fuelsim::test::read_final_exodus_results(results_path);
     passed = check(std::abs(results.time - 1.0) < 1.0e-12, "HEX20 result reaches the specified final time") && passed;
     std::ifstream input(material_path);
-    if (!input) throw std::runtime_error("Could not read material reference: " + material_path);
+    if (!input)
+        throw std::runtime_error("Could not read material reference: " + material_path);
     std::string line;
-    if (!std::getline(input, line)) throw std::invalid_argument("Empty material reference");
+    if (!std::getline(input, line))
+        throw std::invalid_argument("Empty material reference");
     const auto header = split_csv(line);
-    if (!std::getline(input, line)) throw std::invalid_argument("Missing material reference row");
+    if (!std::getline(input, line))
+        throw std::invalid_argument("Missing material reference row");
     const auto row = split_csv(line);
     if (identifier(row, column_index(header, "id", material_path), material_path) != 0)
         throw std::invalid_argument("Expected the single HEX20 element with source ID zero");
     while (std::getline(input, line))
-        if (!line.empty()) throw std::invalid_argument("Expected exactly one HEX20 material reference row");
-    const std::array<std::string, 8> reference_names = {"stress_xx", "stress_yy", "stress_zz", "stress_xy", "stress_yz",
-        "stress_xz", "effective_plastic_strain", "effective_creep_strain"};
-    const std::array<std::string, 8> output_names = {
-        "stress_xx", "stress_yy", "stress_zz", "stress_xy", "stress_yz", "stress_xz", "equiv_plastic", "equiv_creep"};
+        if (!line.empty())
+            throw std::invalid_argument("Expected exactly one HEX20 material reference row");
+    const std::array<std::string, 8> reference_names = {"stress_xx",
+        "stress_yy",
+        "stress_zz",
+        "stress_xy",
+        "stress_yz",
+        "stress_xz",
+        "effective_plastic_strain",
+        "effective_creep_strain"};
+    const std::array<std::string, 8> output_names =
+        {"stress_xx", "stress_yy", "stress_zz", "stress_xy", "stress_yz", "stress_xz", "equiv_plastic", "equiv_creep"};
     for (std::size_t component = 0; component < reference_names.size(); ++component) {
         const double reference =
             number(row, column_index(header, reference_names[component], material_path), material_path);
         FieldErrorMetrics metrics;
         for (std::size_t q = 0; q < 27; ++q) {
             const auto& values = results.element(output_names[component] + "_q" + std::to_string(q));
-            if (values.size() != 1) throw std::invalid_argument("Expected exactly one production HEX20 element");
+            if (values.size() != 1)
+                throw std::invalid_argument("Expected exactly one production HEX20 element");
             metrics.add(values[0], reference);
         }
         // These are the original H20.07-09 gates, including the transverse-stress absolute gates.
@@ -653,32 +726,37 @@ bool run_hex20_inelastic(const std::string& results_path, const std::string& sum
                                       : (transverse ? metrics.maximum_absolute_difference < 1.0
                                                     : relative_metrics_below(metrics, 5.0e-3));
         passed =
-            check(matches, "All 27 HEX20 material points pass the original " + reference_names[component] + " gate") &&
-            passed;
+            check(matches, "All 27 HEX20 material points pass the original " + reference_names[component] + " gate")
+            && passed;
     }
     return passed;
 }
 
-bool run_hex8_inelastic(const std::string& result_path, const std::string& summary_path, const std::string& nodal_path,
+bool run_hex8_inelastic(const std::string& result_path,
+    const std::string& summary_path,
+    const std::string& nodal_path,
     const std::string& material_path) {
-    bool passed = completed_summary(summary_path, "transient") &&
-                  run_cartesian_fields("hex8_inelastic", result_path, nodal_path, 5.0e-3);
+    bool passed = completed_summary(summary_path, "transient")
+                  && run_cartesian_fields("hex8_inelastic", result_path, nodal_path, 5.0e-3);
     const auto result = fuelsim::test::read_final_exodus_results(result_path);
-    passed = check(summary_number(read_summary(summary_path), "accepted_steps") == 10 &&
-                       std::abs(result.time - 1.0) < 1.0e-12,
-                 "HEX8 accepts ten steps and reaches the prescribed end time") &&
-             passed;
+    passed = check(summary_number(read_summary(summary_path), "accepted_steps") == 10
+                       && std::abs(result.time - 1.0) < 1.0e-12,
+                 "HEX8 accepts ten steps and reaches the prescribed end time")
+             && passed;
     std::ifstream input(material_path);
-    if (!input) throw std::runtime_error("Could not read HEX8 material reference");
+    if (!input)
+        throw std::runtime_error("Could not read HEX8 material reference");
     std::string line;
-    if (!std::getline(input, line)) throw std::invalid_argument("Empty HEX8 material reference");
+    if (!std::getline(input, line))
+        throw std::invalid_argument("Empty HEX8 material reference");
     const auto header = split_csv(line);
-    const std::array<std::string, 8> names = {
-        "stress_xx", "stress_yy", "stress_zz", "stress_xy", "stress_yz", "stress_xz", "equiv_plastic", "equiv_creep"};
+    const std::array<std::string, 8> names =
+        {"stress_xx", "stress_yy", "stress_zz", "stress_xy", "stress_yz", "stress_xz", "equiv_plastic", "equiv_creep"};
     std::array<FieldErrorMetrics, 8> metrics;
     std::vector<bool> present(result.element("stress_xx_q0").size(), false);
     while (std::getline(input, line)) {
-        if (line.empty()) continue;
+        if (line.empty())
+            continue;
         const auto row = split_csv(line);
         const auto element = identifier(row, column_index(header, "id", material_path), material_path);
         if (element >= present.size() || present[element])
@@ -693,8 +771,8 @@ bool run_hex8_inelastic(const std::string& result_path, const std::string& summa
         }
     }
     passed = check(!present.empty() && std::all_of(present.begin(), present.end(), [](bool p) { return p; }),
-                 "HEX8 compares all elements and all eight material points") &&
-             passed;
+                 "HEX8 compares all elements and all eight material points")
+             && passed;
     for (std::size_t c = 0; c < 8; ++c) {
         if (metrics[c].maximum_reference > 0.0)
             print_relative_metrics("hex8_" + names[c], metrics[c]);
@@ -711,7 +789,9 @@ bool run_hex8_inelastic(const std::string& result_path, const std::string& summa
     return passed;
 }
 
-bool run_m54(const std::string& results_path, const std::string& summary_path, const std::string& nodal_path,
+bool run_m54(const std::string& results_path,
+    const std::string& summary_path,
+    const std::string& nodal_path,
     const std::string& pressure_path) {
     bool passed = run_m1("m54", results_path, summary_path, nodal_path, pressure_path);
     passed = completed_summary(summary_path, "steady") && passed;
@@ -722,29 +802,34 @@ bool run_m54(const std::string& results_path, const std::string& summary_path, c
     std::size_t count = 0, active = 0;
     double maximum_penetration = 0.0;
     for (std::size_t node = 0; node < pressure.size(); ++node) {
-        if (std::isnan(pressure[node])) continue;
+        if (std::isnan(pressure[node]))
+            continue;
         if (!std::isfinite(pressure[node]) || !std::isfinite(gap[node]))
             throw std::invalid_argument("Invalid production contact field");
         ++count;
-        if (pressure[node] > 0.0) ++active;
+        if (pressure[node] > 0.0)
+            ++active;
         maximum_penetration = std::max(maximum_penetration, -gap[node]);
     }
-    passed =
-        check(count > 0 && active == count &&
-                  summary_number(summary, "contact.fuel_cladding.projected_contact_nodes") ==
-                      static_cast<double>(count) &&
-                  summary_number(summary, "contact.fuel_cladding.active_contact_nodes") == static_cast<double>(count),
-            "M5.4 projects and activates every contact node") &&
-        passed;
+    passed = check(count > 0 && active == count
+                       && summary_number(summary, "contact.fuel_cladding.projected_contact_nodes")
+                              == static_cast<double>(count)
+                       && summary_number(summary, "contact.fuel_cladding.active_contact_nodes")
+                              == static_cast<double>(count),
+                 "M5.4 projects and activates every contact node")
+             && passed;
     passed = check(maximum_penetration <= 1.0e-9 && summary_number(summary, "augmented_lagrangian_iterations") > 0,
-                 "M5.4 updates multipliers and satisfies the original 1 nm penetration tolerance") &&
-             passed;
+                 "M5.4 updates multipliers and satisfies the original 1 nm penetration tolerance")
+             && passed;
     std::cout << "m54_maximum_penetration=" << maximum_penetration << '\n';
     return passed;
 }
 
-bool run_planar_sts(const std::string& result_path, const std::string& summary_path,
-    const std::string& displacement_path, const std::string& force_path, const std::string& resultant_path,
+bool run_planar_sts(const std::string& result_path,
+    const std::string& summary_path,
+    const std::string& displacement_path,
+    const std::string& force_path,
+    const std::string& resultant_path,
     bool hex8 = false) {
     const auto result = fuelsim::test::read_final_exodus_results(result_path);
     bool passed = completed_summary(summary_path, "steady");
@@ -753,7 +838,8 @@ bool run_planar_sts(const std::string& result_path, const std::string& summary_p
         check(summary_number(summary, "load_steps_completed") == 4, "Planar STS completes four load steps") && passed;
     const std::array<std::string, 3> components = {"displacement_x", "displacement_y", "displacement_z"};
     std::ifstream displacement(displacement_path), force(force_path), resultant(resultant_path);
-    if (!displacement || !force || !resultant) throw std::runtime_error("Could not open planar STS references");
+    if (!displacement || !force || !resultant)
+        throw std::runtime_error("Could not open planar STS references");
     std::string line;
     if (!std::getline(displacement, line) || line != "normal_displacement,normal_x,normal_y,normal_z,id,x,y,z")
         throw std::invalid_argument("Unexpected planar STS displacement header");
@@ -761,14 +847,16 @@ bool run_planar_sts(const std::string& result_path, const std::string& summary_p
     std::vector<bool> visited(result.nodes.size(), false), force_visited(result.nodes.size(), false);
     std::array<double, 3> normal{};
     while (std::getline(displacement, line)) {
-        if (line.empty()) continue;
+        if (line.empty())
+            continue;
         const auto row = split_csv(line);
         const auto node = identifier(row, 4, displacement_path);
         if (node >= visited.size() || visited[node])
             throw std::invalid_argument("Repeated or invalid displacement node");
         visited[node] = true;
         if (displacement_error.value_count == 0)
-            for (std::size_t c = 0; c < 3; ++c) normal[c] = number(row, c + 1, displacement_path);
+            for (std::size_t c = 0; c < 3; ++c)
+                normal[c] = number(row, c + 1, displacement_path);
         double actual = 0.0;
         for (std::size_t c = 0; c < 3; ++c) {
             if (std::abs(result.nodes[node][c] - number(row, c + 5, displacement_path)) >= 1.0e-12)
@@ -783,7 +871,8 @@ bool run_planar_sts(const std::string& result_path, const std::string& summary_p
     const auto& projected = result.nodal("contact_projected_interface");
     const auto& pressure = result.nodal("contact_pressure_interface");
     while (std::getline(force, line)) {
-        if (line.empty()) continue;
+        if (line.empty())
+            continue;
         const auto row = split_csv(line);
         const auto node = identifier(row, 1, force_path);
         if (node >= force_visited.size() || force_visited[node])
@@ -793,8 +882,8 @@ bool run_planar_sts(const std::string& result_path, const std::string& summary_p
             if (std::abs(result.nodes[node][c] - number(row, c + 2, force_path)) >= 1.0e-12)
                 throw std::invalid_argument("Planar STS force coordinates differ");
         passed = check(projected[node] == 1.0 && pressure[node] > 0.0,
-                     "Every planar contact constraint is projected and active") &&
-                 passed;
+                     "Every planar contact constraint is projected and active")
+                 && passed;
         force_error.add(actual_force[node], number(row, 0, force_path));
     }
     std::size_t contact_nodes = 0;
@@ -803,7 +892,8 @@ bool run_planar_sts(const std::string& result_path, const std::string& summary_p
     for (std::size_t node = 0; node < projected.size(); ++node)
         if (!std::isnan(projected[node])) {
             ++contact_nodes;
-            if (!force_visited[node]) throw std::invalid_argument("Missing planar STS force reference");
+            if (!force_visited[node])
+                throw std::invalid_argument("Missing planar STS force reference");
             if (hex8) {
                 const std::array<std::string, 3> axes = {"x", "y", "z"};
                 for (std::size_t c = 0; c < 3; ++c)
@@ -818,11 +908,11 @@ bool run_planar_sts(const std::string& result_path, const std::string& summary_p
         for (std::size_t c = 0; c < 3; ++c)
             direction_error = std::max(direction_error, std::abs(normal_resultant[c] / magnitude - normal[c]));
         passed = check(magnitude > 0.0 && direction_error < 1.0e-12 && maximum_tangential_force < 1.0e-10,
-                     "B3.9 frictionless resultant follows the reference normal") &&
-                 passed;
+                     "B3.9 frictionless resultant follows the reference normal")
+                 && passed;
     }
-    if (!std::getline(resultant, line) || line != "normal_contact_resultant,normal_outer_reaction" ||
-        !std::getline(resultant, line))
+    if (!std::getline(resultant, line) || line != "normal_contact_resultant,normal_outer_reaction"
+        || !std::getline(resultant, line))
         throw std::invalid_argument("Invalid planar STS resultant reference");
     const auto row = split_csv(line);
     const double expected = std::abs(number(row, 0, resultant_path));
@@ -831,24 +921,26 @@ bool run_planar_sts(const std::string& result_path, const std::string& summary_p
     print_relative_metrics("planar_sts_normal_force", force_error);
     std::cout << "planar_sts_normal_resultant=" << actual << " reference=" << expected
               << " reference_outer_reaction=" << std::abs(number(row, 1, resultant_path)) << '\n';
-    return check(displacement_error.value_count == result.nodes.size() && contact_nodes > 0 &&
-                     force_error.value_count == contact_nodes,
-               "Planar STS covers every node and contact constraint") &&
-           check(relative_metrics_below(displacement_error, 1.0e-2) && relative_metrics_below(force_error, 1.0e-2) &&
-                     expected > 0 && std::abs(actual - expected) / expected < 1.0e-2,
-               "Planar STS retains all original 1 percent gates") &&
-           passed;
+    return check(displacement_error.value_count == result.nodes.size() && contact_nodes > 0
+                     && force_error.value_count == contact_nodes,
+               "Planar STS covers every node and contact constraint")
+           && check(relative_metrics_below(displacement_error, 1.0e-2) && relative_metrics_below(force_error, 1.0e-2)
+                        && expected > 0 && std::abs(actual - expected) / expected < 1.0e-2,
+               "Planar STS retains all original 1 percent gates")
+           && passed;
 }
 
-bool compare_result_files(
-    const std::string& actual_path, const std::string& reference_path, double tolerance, bool uniaxial_mpi = false) {
+bool compare_result_files(const std::string& actual_path,
+    const std::string& reference_path,
+    double tolerance,
+    bool uniaxial_mpi = false) {
     if (!std::isfinite(tolerance) || tolerance < 0.0)
         throw std::invalid_argument("Equivalence tolerance must be finite and nonnegative");
     const auto actual = fuelsim::test::read_final_exodus_results(actual_path);
     const auto reference = fuelsim::test::read_final_exodus_results(reference_path);
-    if (actual.nodes != reference.nodes || actual.nodal_variable_names != reference.nodal_variable_names ||
-        actual.element_variable_names != reference.element_variable_names ||
-        std::abs(actual.time - reference.time) > 1.0e-12)
+    if (actual.nodes != reference.nodes || actual.nodal_variable_names != reference.nodal_variable_names
+        || actual.element_variable_names != reference.element_variable_names
+        || std::abs(actual.time - reference.time) > 1.0e-12)
         throw std::invalid_argument("Production result mesh, variable schema or final time differs");
     bool passed = true;
     for (int category = 0; category < 2; ++category) {
@@ -879,12 +971,12 @@ bool compare_result_files(
             const bool zero_reaction =
                 uniaxial_mpi && (names[variable] == "reaction_force_y" || names[variable] == "reaction_force_z");
             const bool zero_shear_strain =
-                uniaxial_mpi &&
-                (names[variable].rfind("elastic_", 0) == 0 || names[variable].rfind("plastic_", 0) == 0 ||
-                    names[variable].rfind("creep_", 0) == 0) &&
-                (names[variable].find("_xy_q") != std::string::npos ||
-                    names[variable].find("_yz_q") != std::string::npos ||
-                    names[variable].find("_xz_q") != std::string::npos);
+                uniaxial_mpi
+                && (names[variable].rfind("elastic_", 0) == 0 || names[variable].rfind("plastic_", 0) == 0
+                    || names[variable].rfind("creep_", 0) == 0)
+                && (names[variable].find("_xy_q") != std::string::npos
+                    || names[variable].find("_yz_q") != std::string::npos
+                    || names[variable].find("_xz_q") != std::string::npos);
             const double bound =
                 zero_stress || zero_reaction
                     ? 1.0e-5
@@ -910,12 +1002,16 @@ int main(int argc, char** argv) {
         std::cout << std::scientific << std::setprecision(12);
         const std::string mode = argv[1];
         bool passed = false;
-        if (mode == "rz-sliding-abaqus" || mode == "rz-friction-abaqus" || mode == "rz8-sliding-abaqus" ||
-            mode == "rz8-friction-abaqus") {
+        if (mode == "rz-sliding-abaqus" || mode == "rz-friction-abaqus" || mode == "rz8-sliding-abaqus"
+            || mode == "rz8-friction-abaqus") {
             require_argument_count(mode, argc, 7);
             const bool quadratic = mode.rfind("rz8-", 0) == 0;
-            passed = fuelsim::test::check_rz_sliding_abaqus(argv[2], argv[4], argv[5], argv[6],
-                mode == "rz-sliding-abaqus" || mode == "rz8-sliding-abaqus", quadratic);
+            passed = fuelsim::test::check_rz_sliding_abaqus(argv[2],
+                argv[4],
+                argv[5],
+                argv[6],
+                mode == "rz-sliding-abaqus" || mode == "rz8-sliding-abaqus",
+                quadratic);
         } else if (mode == "rz8-recovery-abaqus") {
             require_argument_count(mode, argc, 7);
             passed = fuelsim::test::check_rz8_recovery_abaqus(argv[2], argv[4], argv[5], argv[6]);
@@ -944,10 +1040,10 @@ int main(int argc, char** argv) {
             require_argument_count(mode, argc, 6);
             passed = completed_summary(argv[3], "transient");
             const auto summary = read_summary(argv[3]);
-            passed = check(summary_number(summary, "accepted_steps") == 1.0 &&
-                               summary_number(summary, "rejected_steps") == 0.0,
-                         "B5.5 completes one Backward Euler increment without a rejected step") &&
-                     passed;
+            passed = check(summary_number(summary, "accepted_steps") == 1.0
+                               && summary_number(summary, "rejected_steps") == 0.0,
+                         "B5.5 completes one Backward Euler increment without a rejected step")
+                     && passed;
             passed = fuelsim::test::check_hex8_b55(argv[2], argv[4], argv[5]) && passed;
         } else if (mode == "hex8-finite-contact") {
             require_argument_count(mode, argc, 6);
@@ -955,17 +1051,17 @@ int main(int argc, char** argv) {
             const auto summary = read_summary(argv[3]);
             passed =
                 check(summary_number(summary, "accepted_steps") == 20 && summary_number(summary, "rejected_steps") == 0,
-                    "B4.3 completes twenty fixed production increments") &&
-                passed;
+                    "B4.3 completes twenty fixed production increments")
+                && passed;
             passed = fuelsim::test::check_hex8_finite_contact(argv[2], argv[4], argv[5]) && passed;
         } else if (mode == "hex8-norton-abaqus") {
             require_argument_count(mode, argc, 8);
             passed = completed_summary(argv[3], "transient");
             const auto summary = read_summary(argv[3]);
-            passed = check(summary_number(summary, "accepted_steps") == 11.0 &&
-                               summary_number(summary, "rejected_steps") == 0.0,
-                         "Norton production path completes one preload and ten constant-force holds") &&
-                     passed;
+            passed = check(summary_number(summary, "accepted_steps") == 11.0
+                               && summary_number(summary, "rejected_steps") == 0.0,
+                         "Norton production path completes one preload and ten constant-force holds")
+                     && passed;
             passed = fuelsim::test::check_hex8_norton_abaqus(argv[2], argv[4], argv[5], argv[6], argv[7]) && passed;
         } else if (mode == "hex8-inelastic-abaqus") {
             require_argument_count(mode, argc, 8);
@@ -975,50 +1071,55 @@ int main(int argc, char** argv) {
                                  : branch.find("noncoaxial") != std::string::npos ? 20.0
                                                                                   : 10.0;
             const auto summary = read_summary(argv[3]);
-            passed = check(summary_number(summary, "accepted_steps") == steps &&
-                               summary_number(summary, "rejected_steps") == 0.0,
-                         "Inelastic production path accepts every prescribed stage without a rejected step") &&
-                     passed;
+            passed = check(summary_number(summary, "accepted_steps") == steps
+                               && summary_number(summary, "rejected_steps") == 0.0,
+                         "Inelastic production path accepts every prescribed stage without a rejected step")
+                     && passed;
             passed = fuelsim::test::check_hex8_inelastic_abaqus(argv[2], branch, argv[5], argv[6], argv[7]) && passed;
         } else if (mode == "b531" || mode == "b534") {
             require_argument_count(mode, argc, 6);
             passed = completed_summary(argv[3], "transient");
             const auto summary = read_summary(argv[3]);
-            passed = check(summary_number(summary, "accepted_steps") == 1.0 &&
-                               summary_number(summary, "rejected_steps") == 0.0,
-                         "C3D8RT completes one prescribed increment without a rejected step") &&
-                     passed;
+            passed = check(summary_number(summary, "accepted_steps") == 1.0
+                               && summary_number(summary, "rejected_steps") == 0.0,
+                         "C3D8RT completes one prescribed increment without a rejected step")
+                     && passed;
             passed = fuelsim::test::check_hex8_b531(argv[2], argv[4], argv[5], mode == "b534") && passed;
         } else if (mode == "b58") {
             require_argument_count(mode, argc, 6);
             passed = completed_summary(argv[3], "transient");
             const auto summary = read_summary(argv[3]);
-            passed = check(summary_number(summary, "accepted_steps") == 4.0 &&
-                               summary_number(summary, "rejected_steps") == 0.0,
-                         "B5.8 completes four prescribed increments without a rejected step") &&
-                     passed;
+            passed = check(summary_number(summary, "accepted_steps") == 4.0
+                               && summary_number(summary, "rejected_steps") == 0.0,
+                         "B5.8 completes four prescribed increments without a rejected step")
+                     && passed;
             passed = fuelsim::test::check_hex8_b58(argv[2], argv[4], argv[5]) && passed;
         } else if (mode == "b549" || mode == "b550" || mode == "b555") {
             require_argument_count(mode, argc, mode == "b549" ? 7 : 8);
             passed = completed_summary(argv[3], "transient");
             const auto summary = read_summary(argv[3]);
-            passed = check(summary_number(summary, "accepted_steps") == 20.0 &&
-                               summary_number(summary, "rejected_steps") == 0.0,
-                         "C3D20T integrated path completes twenty prescribed increments without rejected steps") &&
-                     passed;
+            passed = check(summary_number(summary, "accepted_steps") == 20.0
+                               && summary_number(summary, "rejected_steps") == 0.0,
+                         "C3D20T integrated path completes twenty prescribed increments without rejected steps")
+                     && passed;
             const auto active =
                 mode == "b549"
                     ? 0
                     : static_cast<std::size_t>(summary_number(summary, "contact.coupled_contact.active_contact_nodes"));
-            passed = fuelsim::test::check_hex20_integrated(
-                         argv[2], argv[4], argv[5], argv[6], mode == "b549" ? "" : argv[7], mode == "b555", active) &&
-                     passed;
+            passed = fuelsim::test::check_hex20_integrated(argv[2],
+                         argv[4],
+                         argv[5],
+                         argv[6],
+                         mode == "b549" ? "" : argv[7],
+                         mode == "b555",
+                         active)
+                     && passed;
         } else if (mode == "hex20-friction-path-33" || mode == "hex20-friction-path-36") {
             require_argument_count(mode, argc, mode == "hex20-friction-path-33" ? 7 : 6);
             passed = completed_summary(argv[3], "transient");
             passed = check(summary_number(read_summary(argv[3]), "accepted_steps") == 70.0,
-                         "HEX20 friction path completes seventy prescribed increments") &&
-                     passed;
+                         "HEX20 friction path completes seventy prescribed increments")
+                     && passed;
             if (mode == "hex20-friction-path-33")
                 passed = fuelsim::test::check_hex20_friction_path_33(argv[2], argv[4], argv[5], argv[6]) && passed;
             else
@@ -1027,30 +1128,30 @@ int main(int argc, char** argv) {
             require_argument_count(mode, argc, 5);
             passed = completed_summary(argv[3], "steady");
             passed = check(summary_number(read_summary(argv[3]), "load_steps_completed") == 4.0,
-                         "H20.41 completes four load steps") &&
-                     passed;
+                         "H20.41 completes four load steps")
+                     && passed;
             const auto summary = read_summary(argv[3]);
-            passed = check(summary_number(summary, "contact.interface.projected_contact_nodes") == 29.0 &&
-                               summary_number(summary, "contact.interface.unprojected_contact_nodes") == 0.0 &&
-                               summary_number(summary, "contact.interface.active_contact_nodes") == 11.0,
-                         "H20.41 summary reports the physical active-constraint topology") &&
-                     passed;
+            passed = check(summary_number(summary, "contact.interface.projected_contact_nodes") == 29.0
+                               && summary_number(summary, "contact.interface.unprojected_contact_nodes") == 0.0
+                               && summary_number(summary, "contact.interface.active_contact_nodes") == 11.0,
+                         "H20.41 summary reports the physical active-constraint topology")
+                     && passed;
             passed = fuelsim::test::check_hex20_partial_contact(argv[2], argv[4]) && passed;
         } else if (mode == "b40") {
             require_argument_count(mode, argc, 6);
             passed = completed_summary(argv[3], "transient");
             passed = check(summary_number(read_summary(argv[3]), "accepted_steps") == 4.0,
-                         "B4.0 completes four prescribed biaxial friction steps") &&
-                     passed;
+                         "B4.0 completes four prescribed biaxial friction steps")
+                     && passed;
             passed = fuelsim::test::check_hex8_biaxial_friction(argv[2], argv[4], argv[5]) && passed;
         } else if (mode == "b34" || mode == "b34-transient") {
             require_argument_count(mode, argc, 7);
             const bool transient = mode == "b34-transient";
             passed = completed_summary(argv[3], transient ? "transient" : "steady");
-            passed = check(summary_number(
-                               read_summary(argv[3]), transient ? "accepted_steps" : "load_steps_completed") == 1.0,
-                         "B3.4 completes one full loading step") &&
-                     passed;
+            passed = check(summary_number(read_summary(argv[3]), transient ? "accepted_steps" : "load_steps_completed")
+                               == 1.0,
+                         "B3.4 completes one full loading step")
+                     && passed;
             passed = fuelsim::test::check_hex8_sliding(argv[2], argv[4], argv[5], argv[6]) && passed;
         } else if (mode == "hex20-thermal-contact") {
             require_argument_count(mode, argc, 5);
@@ -1059,22 +1160,22 @@ int main(int argc, char** argv) {
             require_argument_count(mode, argc, 6);
             passed = completed_summary(argv[3], "steady");
             passed = check(summary_number(read_summary(argv[3]), "load_steps_completed") == 4.0,
-                         "H20.35 completes four load steps") &&
-                     passed;
+                         "H20.35 completes four load steps")
+                     && passed;
             passed = fuelsim::test::check_hex20_curved_friction(argv[2], argv[4], argv[5]) && passed;
         } else if (mode == "hex20-curved") {
             require_argument_count(mode, argc, 8);
             passed = completed_summary(argv[3], "steady");
             passed = check(summary_number(read_summary(argv[3]), "load_steps_completed") == 4.0,
-                         "H20.30 completes four load steps") &&
-                     passed;
+                         "H20.30 completes four load steps")
+                     && passed;
             passed = fuelsim::test::check_hex20_curved(argv[2], argv[4], argv[5], argv[6], argv[7]) && passed;
         } else if (mode == "b33") {
             require_argument_count(mode, argc, 8);
             passed = completed_summary(argv[3], "steady");
             passed = check(summary_number(read_summary(argv[3]), "load_steps_completed") == 10.0,
-                         "B3.3 completes ten load steps") &&
-                     passed;
+                         "B3.3 completes ten load steps")
+                     && passed;
             passed = fuelsim::test::check_hex8_sticking(argv[2], argv[4], argv[5], argv[6], argv[7]) && passed;
         } else if (mode == "b35") {
             require_argument_count(mode, argc, 4);
@@ -1082,9 +1183,9 @@ int main(int argc, char** argv) {
         } else if (mode == "b36") {
             require_argument_count(mode, argc, 6);
             passed = completed_summary(argv[3], "transient");
-            passed = check(summary_number(read_summary(argv[3]), "accepted_steps") == 40.0,
-                         "B3.6 accepts forty time steps") &&
-                     passed;
+            passed =
+                check(summary_number(read_summary(argv[3]), "accepted_steps") == 40.0, "B3.6 accepts forty time steps")
+                && passed;
             passed = fuelsim::test::check_hex8_shared_plate(argv[2], argv[4], argv[5]) && passed;
         } else if (mode == "b6") {
             require_argument_count(mode, argc, 5);
@@ -1117,13 +1218,14 @@ int main(int argc, char** argv) {
             const auto& projected = result.nodal("contact_projected_" + contact);
             std::size_t count = 0;
             for (std::size_t node = 0; node < projected.size(); ++node) {
-                if (std::isnan(projected[node])) continue;
+                if (std::isnan(projected[node]))
+                    continue;
                 ++count;
-                passed = check(projected[node] == 1.0 &&
-                                   result.nodal("contact_tangential_traction_" + contact)[node] == 0.0 &&
-                                   result.nodal("contact_tangential_force_" + contact)[node] == 0.0,
-                             "Frictionless baseline has projected contact and exactly zero tangential force") &&
-                         passed;
+                passed =
+                    check(projected[node] == 1.0 && result.nodal("contact_tangential_traction_" + contact)[node] == 0.0
+                              && result.nodal("contact_tangential_force_" + contact)[node] == 0.0,
+                        "Frictionless baseline has projected contact and exactly zero tangential force")
+                    && passed;
             }
             passed = check(count > 0, "Frictionless baseline contains contact nodes") && passed;
         } else if (mode == "m51") {
@@ -1132,7 +1234,8 @@ int main(int argc, char** argv) {
             passed = run_rz_fields("m51", argv[2], argv[4], 1.0e-2) && passed;
             const auto result = fuelsim::test::read_final_exodus_results(argv[2]);
             const auto baseline = fuelsim::test::read_final_exodus_results(argv[6]);
-            if (result.nodes != baseline.nodes) throw std::invalid_argument("M5.1 baseline node mapping differs");
+            if (result.nodes != baseline.nodes)
+                throw std::invalid_argument("M5.1 baseline node mapping differs");
             const auto pressure_error =
                 compare_contact_pressure(result, "contact_pressure_fuel_cladding", argv[5], 1.0e-12);
             print_relative_metrics("m51_contact_pressure", pressure_error);
@@ -1145,24 +1248,25 @@ int main(int argc, char** argv) {
                 const double difference = axial - baseline.nodal("displacement_z")[node];
                 difference_squared += difference * difference;
                 scale_squared += axial * axial;
-                if (std::isnan(projected[node])) continue;
+                if (std::isnan(projected[node]))
+                    continue;
                 ++count;
                 const double pressure = result.nodal("contact_pressure_fuel_cladding")[node];
                 maximum_pressure = std::max(maximum_pressure, pressure);
                 maximum_excess = std::max(maximum_excess,
                     std::abs(result.nodal("contact_tangential_traction_fuel_cladding")[node]) - 0.3 * pressure);
                 sliding += result.nodal("contact_sliding_fuel_cladding")[node] == 1.0 ? 1U : 0U;
-                passed = check(projected[node] == 1.0 && pressure > 0.0,
-                             "M5.1 all contact nodes are active and projected") &&
-                         passed;
+                passed =
+                    check(projected[node] == 1.0 && pressure > 0.0, "M5.1 all contact nodes are active and projected")
+                    && passed;
             }
             const double effect = std::sqrt(difference_squared / scale_squared);
-            passed = check(count > 0 && sliding > 0 && maximum_excess <= 1.0e-12 * maximum_pressure &&
-                               std::abs(result.global("contact_tangential_force_fuel_cladding")) > 0.0 &&
-                               relative_metrics_below(pressure_error, 1.0e-2) && effect > 1.0e-3 &&
-                               summary_number(read_summary(argv[3]), "load_steps_completed") == 20.0,
-                         "M5.1 retains pressure, friction activation, Coulomb cap and baseline-effect gates") &&
-                     passed;
+            passed = check(count > 0 && sliding > 0 && maximum_excess <= 1.0e-12 * maximum_pressure
+                               && std::abs(result.global("contact_tangential_force_fuel_cladding")) > 0.0
+                               && relative_metrics_below(pressure_error, 1.0e-2) && effect > 1.0e-3
+                               && summary_number(read_summary(argv[3]), "load_steps_completed") == 20.0,
+                         "M5.1 retains pressure, friction activation, Coulomb cap and baseline-effect gates")
+                     && passed;
             std::cout << "m51_frictional_axial_field_change=" << effect << " sliding_nodes=" << sliding << '\n';
         } else if (mode == "m52") {
             require_argument_count(mode, argc, 6);
@@ -1175,20 +1279,21 @@ int main(int argc, char** argv) {
             double maximum_radius = 0.0;
             const auto& projected = result.nodal("contact_projected_pellet_stack");
             for (std::size_t node = 0; node < projected.size(); ++node) {
-                if (std::isnan(projected[node])) continue;
+                if (std::isnan(projected[node]))
+                    continue;
                 passed = check(projected[node] == 1.0 && result.nodal("contact_pressure_pellet_stack")[node] > 0.0,
-                             "M5.2 every contact node remains projected and active") &&
-                         passed;
+                             "M5.2 every contact node remains projected and active")
+                         && passed;
                 ++active;
                 maximum_radius = std::max(maximum_radius, result.nodal("contact_current_r_pellet_stack")[node]);
             }
-            passed = check(result.nodes.size() == 402 && active == 5 && maximum_radius > 4.2e-3 &&
-                               maximum_radius < 8.0e-3 && result.global("contact_force_pellet_stack") > 0.0 &&
-                               relative_metrics_below(pressure, 1.0e-2) &&
-                               summary_number(read_summary(argv[3]), "load_steps_completed") == 20.0 &&
-                               summary_number(read_summary(argv[3]), "petsc_workspace_setups") == 1.0,
-                         "M5.2 retains the field, radius, contact-force and workspace gates") &&
-                     passed;
+            passed = check(result.nodes.size() == 402 && active == 5 && maximum_radius > 4.2e-3
+                               && maximum_radius < 8.0e-3 && result.global("contact_force_pellet_stack") > 0.0
+                               && relative_metrics_below(pressure, 1.0e-2)
+                               && summary_number(read_summary(argv[3]), "load_steps_completed") == 20.0
+                               && summary_number(read_summary(argv[3]), "petsc_workspace_setups") == 1.0,
+                         "M5.2 retains the field, radius, contact-force and workspace gates")
+                     && passed;
             std::cout << "m52_maximum_secondary_current_radius=" << maximum_radius << '\n';
         } else if (mode == "m31") {
             require_argument_count(mode, argc, 5);
@@ -1197,19 +1302,19 @@ int main(int argc, char** argv) {
             const auto fields = compare_rz_nodal_results(result, read_rz_nodal_reference(argv[4]));
             print_relative_metrics("m31_temperature", fields.temperature);
             passed =
-                check(fields.maximum_coordinate_difference < 1.0e-12 &&
-                          relative_metrics_below(fields.temperature, 1.0e-3) &&
-                          fuelsim::test::absolute_metrics_below(fields.radial_displacement, 1.0e-12) &&
-                          fuelsim::test::absolute_metrics_below(fields.axial_displacement, 1.0e-12) &&
-                          result.step_count == 5 && summary_number(read_summary(argv[3]), "accepted_steps") == 4.0 &&
-                          summary_number(read_summary(argv[3]), "contributions") == 10.0,
-                    "M3.1 retains full fields, zero displacement, four steps and ten contributions") &&
-                passed;
+                check(fields.maximum_coordinate_difference < 1.0e-12
+                          && relative_metrics_below(fields.temperature, 1.0e-3)
+                          && fuelsim::test::absolute_metrics_below(fields.radial_displacement, 1.0e-12)
+                          && fuelsim::test::absolute_metrics_below(fields.axial_displacement, 1.0e-12)
+                          && result.step_count == 5 && summary_number(read_summary(argv[3]), "accepted_steps") == 4.0
+                          && summary_number(read_summary(argv[3]), "contributions") == 10.0,
+                    "M3.1 retains full fields, zero displacement, four steps and ten contributions")
+                && passed;
             const std::array<double, 5> times = {0.0, 2.5, 5.0, 8.0, 10.0};
             for (std::size_t step = 0; step < times.size(); ++step)
                 passed = check(fuelsim::test::read_exodus_results(argv[2], step + 1).time == times[step],
-                             "M3.1 lands exactly on each power-table event") &&
-                         passed;
+                             "M3.1 lands exactly on each power-table event")
+                         && passed;
         } else if (mode == "pressure-cylinder") {
             require_argument_count(mode, argc, 4);
             passed = completed_summary(argv[3], "steady");
@@ -1226,23 +1331,23 @@ int main(int argc, char** argv) {
                 stress /= static_cast<double>(count);
                 std::cout << "pressure_average_" << component << "=" << stress << '\n';
                 passed = check(count > 0 && std::abs(stress + 1.0e6) / 1.0e6 < 1.0e-10,
-                             "Radial pressure produces the analytic solid-cylinder stress") &&
-                         passed;
+                             "Radial pressure produces the analytic solid-cylinder stress")
+                         && passed;
             }
         } else if (mode == "m43") {
             require_argument_count(mode, argc, 7);
             passed = completed_summary(argv[3], "transient");
             const double tolerance = std::string(argv[5]) == "material_oracle" ? 5.0e-6 : 5.0e-3;
             passed = run_rz_fields("m43", argv[2], argv[4], tolerance) && passed;
-            const auto fields = compare_rz_nodal_results(
-                fuelsim::test::read_final_exodus_results(argv[2]), read_rz_nodal_reference(argv[4]));
-            passed = check(fields.temperature.maximum_zero_reference_difference < 1.0e-12 &&
-                               fields.radial_displacement.maximum_zero_reference_difference < 1.0e-14 &&
-                               fields.axial_displacement.maximum_zero_reference_difference < 1.0e-14 &&
-                               summary_number(read_summary(argv[3]), "accepted_steps") == 100.0 &&
-                               summary_number(read_summary(argv[3]), "rejected_steps") == 0.0,
-                         "M4.3 retains nodal zero-reference gates and one hundred accepted steps without rejection") &&
-                     passed;
+            const auto fields = compare_rz_nodal_results(fuelsim::test::read_final_exodus_results(argv[2]),
+                read_rz_nodal_reference(argv[4]));
+            passed = check(fields.temperature.maximum_zero_reference_difference < 1.0e-12
+                               && fields.radial_displacement.maximum_zero_reference_difference < 1.0e-14
+                               && fields.axial_displacement.maximum_zero_reference_difference < 1.0e-14
+                               && summary_number(read_summary(argv[3]), "accepted_steps") == 100.0
+                               && summary_number(read_summary(argv[3]), "rejected_steps") == 0.0,
+                         "M4.3 retains nodal zero-reference gates and one hundred accepted steps without rejection")
+                     && passed;
             passed = fuelsim::test::check_rz_noncoaxial(argv[2], argv[5], argv[6]) && passed;
         } else if (mode == "m22") {
             if (argc != 6 && argc != 7)
@@ -1251,10 +1356,10 @@ int main(int argc, char** argv) {
             passed = completed_summary(argv[3], "transient");
             passed = run_rz_fields("m22", argv[2], argv[4], 1.0e-3) && passed;
             const std::string branch = argv[5];
-            passed = check(summary_number(read_summary(argv[3]), "accepted_steps") ==
-                               (branch == "j2_unload_reload" ? 30.0 : 10.0),
-                         "M2.2 commits every configured time step") &&
-                     passed;
+            passed = check(summary_number(read_summary(argv[3]), "accepted_steps")
+                               == (branch == "j2_unload_reload" ? 30.0 : 10.0),
+                         "M2.2 commits every configured time step")
+                     && passed;
             passed = fuelsim::test::check_rz_inelastic(argv[2], branch, argc == 7 ? argv[6] : "") && passed;
         } else if (mode == "m23" || mode == "m41") {
             require_argument_count(mode, argc, 9);
@@ -1264,11 +1369,11 @@ int main(int argc, char** argv) {
             const auto result = fuelsim::test::read_final_exodus_results(argv[2]);
             const auto pressure = compare_contact_pressure(result, "contact_pressure_fuel_cladding", argv[5], 1.0e-12);
             print_relative_metrics(mode + "_contact_pressure", pressure);
-            passed = check(relative_metrics_below(pressure, tolerance) &&
-                               summary_number(read_summary(argv[3]), "accepted_steps") == 20.0 &&
-                               summary_number(read_summary(argv[3]), "total_cutbacks") == 0.0,
-                         "PCMI completes twenty fixed steps without cutbacks and retains the pressure gate") &&
-                     passed;
+            passed = check(relative_metrics_below(pressure, tolerance)
+                               && summary_number(read_summary(argv[3]), "accepted_steps") == 20.0
+                               && summary_number(read_summary(argv[3]), "total_cutbacks") == 0.0,
+                         "PCMI completes twenty fixed steps without cutbacks and retains the pressure gate")
+                     && passed;
             passed = fuelsim::test::check_rz_pcmi(argv[2], argv[6], argv[7], argv[8], argv[5], tolerance) && passed;
         } else if (mode == "m57") {
             require_argument_count(mode, argc, 9);
@@ -1278,16 +1383,15 @@ int main(int argc, char** argv) {
             const auto pressure = compare_contact_pressure(result, "contact_pressure_fuel_cladding", argv[5], 1.0e-12);
             print_relative_metrics("m57_contact_pressure", pressure);
             const auto summary = read_summary(argv[3]);
-            passed =
-                check(relative_metrics_below(pressure, 5.0e-3) && summary_number(summary, "accepted_steps") == 18.0 &&
-                          summary_number(summary, "time_error_rejections") == 0.0 &&
-                          summary_number(summary, "maximum_accepted_time_error_estimate") > 0.0 &&
-                          summary_number(summary, "maximum_accepted_time_error_estimate") < 1.0 &&
-                          summary_number(summary, "minimum_accepted_time_step") <
-                              summary_number(summary, "maximum_accepted_time_step") &&
-                          std::abs(summary_number(summary, "conservation.interface_heat_imbalance")) < 1.0e-10,
-                    "M5.7 retains adaptive-step, pressure and thermal conservation gates") &&
-                passed;
+            passed = check(relative_metrics_below(pressure, 5.0e-3) && summary_number(summary, "accepted_steps") == 18.0
+                               && summary_number(summary, "time_error_rejections") == 0.0
+                               && summary_number(summary, "maximum_accepted_time_error_estimate") > 0.0
+                               && summary_number(summary, "maximum_accepted_time_error_estimate") < 1.0
+                               && summary_number(summary, "minimum_accepted_time_step")
+                                      < summary_number(summary, "maximum_accepted_time_step")
+                               && std::abs(summary_number(summary, "conservation.interface_heat_imbalance")) < 1.0e-10,
+                         "M5.7 retains adaptive-step, pressure and thermal conservation gates")
+                     && passed;
             passed = fuelsim::test::check_rz_integrated(argv[2], argv[6], argv[7], argv[8]) && passed;
         } else if (mode == "m54") {
             require_argument_count(mode, argc, 6);
@@ -1301,31 +1405,31 @@ int main(int argc, char** argv) {
                 compare_contact_pressure(result, "contact_pressure_pellet_stack", argv[5], 1.0e-12, 0);
             print_relative_metrics("m33_two_pellet_pressure", pressure);
             passed =
-                check(relative_metrics_below(pressure, 1.0e-2), "Two-pellet pressure retains three 1 percent gates") &&
-                passed;
+                check(relative_metrics_below(pressure, 1.0e-2), "Two-pellet pressure retains three 1 percent gates")
+                && passed;
         } else if (mode == "rz-multi-contact") {
             require_argument_count(mode, argc, 8);
             passed = completed_summary(argv[3], "steady");
             passed =
-                check(summary_number(read_summary(argv[3]), "regions") == 3.0, "RZ multi-contact has three regions") &&
-                passed;
+                check(summary_number(read_summary(argv[3]), "regions") == 3.0, "RZ multi-contact has three regions")
+                && passed;
             passed = run_rz_fields("rz_multi_contact", argv[2], argv[4], 1.0e-3) && passed;
             passed = fuelsim::test::check_rz_multi_contact(argv[2], argv[5], argv[6], std::stod(argv[7])) && passed;
         } else if (mode == "hex8-multi-contact") {
             require_argument_count(mode, argc, 7);
             passed = completed_summary(argv[3], "steady");
-            passed = check(summary_number(read_summary(argv[3]), "load_steps_completed") == 1.0 &&
-                               summary_number(read_summary(argv[3]), "regions") == 4.0,
-                         "B3.7 completes one load step for four regions") &&
-                     passed;
+            passed = check(summary_number(read_summary(argv[3]), "load_steps_completed") == 1.0
+                               && summary_number(read_summary(argv[3]), "regions") == 4.0,
+                         "B3.7 completes one load step for four regions")
+                     && passed;
             passed = fuelsim::test::check_hex8_multi_contact(argv[2], argv[4], argv[5], argv[6]) && passed;
         } else if (mode == "hex20-nonmatching") {
             require_argument_count(mode, argc, 9);
             passed = completed_summary(argv[3], "steady");
-            passed = check(summary_number(read_summary(argv[3]), "load_steps_completed") == 1.0 &&
-                               summary_number(read_summary(argv[3]), "petsc_workspace_setups") == 1.0,
-                         "H20.24 completes one compression step") &&
-                     passed;
+            passed = check(summary_number(read_summary(argv[3]), "load_steps_completed") == 1.0
+                               && summary_number(read_summary(argv[3]), "petsc_workspace_setups") == 1.0,
+                         "H20.24 completes one compression step")
+                     && passed;
             passed =
                 fuelsim::test::check_hex20_nonmatching(argv[2], argv[4], argv[5], argv[6], argv[7], argv[8]) && passed;
         } else if (mode == "planar-sts" || mode == "planar-sts-hex8") {
@@ -1337,16 +1441,16 @@ int main(int argc, char** argv) {
         } else if (mode == "m52-transient") {
             require_argument_count(mode, argc, 4);
             passed = completed_summary(argv[3], "transient");
-            passed = check(summary_number(read_summary(argv[3]), "accepted_steps") == 20.0 &&
-                               fuelsim::test::read_final_exodus_results(argv[2]).time == 1.0,
-                         "M5.2 continuous production path completes twenty prescribed steps") &&
-                     passed;
+            passed = check(summary_number(read_summary(argv[3]), "accepted_steps") == 20.0
+                               && fuelsim::test::read_final_exodus_results(argv[2]).time == 1.0,
+                         "M5.2 continuous production path completes twenty prescribed steps")
+                     && passed;
         } else if (mode == "m52-restart") {
             require_argument_count(mode, argc, 5);
             passed = completed_summary(argv[3], "transient");
             passed = check(summary_number(read_summary(argv[3]), "accepted_steps") == 10.0,
-                         "M5.2 production restart completes the ten remaining steps") &&
-                     passed;
+                         "M5.2 production restart completes the ten remaining steps")
+                     && passed;
             const auto actual = fuelsim::test::read_final_exodus_results(argv[2]);
             const auto expected = fuelsim::test::read_final_exodus_results(argv[4]);
             if (actual.time != 1.0 || expected.time != 1.0 || actual.nodes != expected.nodes)
@@ -1355,7 +1459,8 @@ int main(int argc, char** argv) {
             for (const auto* field : {"temperature", "displacement_r", "displacement_z"}) {
                 const auto& a = actual.nodal(field);
                 const auto& e = expected.nodal(field);
-                if (a.size() != e.size()) throw std::runtime_error("M5.2 restart nodal sizes differ");
+                if (a.size() != e.size())
+                    throw std::runtime_error("M5.2 restart nodal sizes differ");
                 for (std::size_t node = 0; node < a.size(); ++node) {
                     if (!std::isfinite(a[node]) || !std::isfinite(e[node]))
                         throw std::runtime_error("M5.2 restart has a nonfinite nodal state");
@@ -1368,11 +1473,12 @@ int main(int argc, char** argv) {
                 const auto name = "contact_" + std::string(field) + "_pellet_stack";
                 const auto& a = actual.nodal(name);
                 const auto& e = expected.nodal(name);
-                if (a.size() != e.size()) throw std::runtime_error("M5.2 restart contact sizes differ");
+                if (a.size() != e.size())
+                    throw std::runtime_error("M5.2 restart contact sizes differ");
                 for (std::size_t node = 0; node < a.size(); ++node)
                     passed = check((std::isnan(a[node]) && std::isnan(e[node])) || a[node] == e[node],
-                                 "M5.2 restart contact ownership and pressure are exact") &&
-                             passed;
+                                 "M5.2 restart contact ownership and pressure are exact")
+                             && passed;
             }
             std::cout << "m52_restart_maximum_absolute=" << maximum_absolute << '\n'
                       << "m52_restart_maximum_scaled=" << maximum_scaled << '\n';
@@ -1380,37 +1486,41 @@ int main(int argc, char** argv) {
         } else if (mode == "b60") {
             require_argument_count(mode, argc, 6);
             const std::string problem = argv[4];
-            if (problem != "steady" && problem != "transient") throw std::invalid_argument("Unknown B6.0 problem type");
+            if (problem != "steady" && problem != "transient")
+                throw std::invalid_argument("Unknown B6.0 problem type");
             passed = completed_summary(argv[3], argv[4]);
             const auto output = fuelsim::test::read_final_exodus_results(argv[2]);
             const auto summary = read_summary(argv[3]);
             if (problem == "transient")
                 passed =
-                    check(summary_number(summary, "accepted_steps") == 10 &&
-                              summary_number(summary, "rejected_steps") == 0 && std::abs(output.time - 10.0) < 1e-12,
-                        "B6.0 completes ten prescribed increments without retrying") &&
-                    passed;
+                    check(summary_number(summary, "accepted_steps") == 10
+                              && summary_number(summary, "rejected_steps") == 0 && std::abs(output.time - 10.0) < 1e-12,
+                        "B6.0 completes ten prescribed increments without retrying")
+                    && passed;
             else
-                passed = check(summary_number(summary, "load_steps_completed") == 1 &&
-                                   summary_number(summary, "rejected_load_steps") == 0,
-                             "B6.0 completes its single steady load step without retrying") &&
-                         passed;
+                passed = check(summary_number(summary, "load_steps_completed") == 1
+                                   && summary_number(summary, "rejected_load_steps") == 0,
+                             "B6.0 completes its single steady load step without retrying")
+                         && passed;
             std::ifstream reference(argv[5]);
             std::string line;
-            if (!std::getline(reference, line) ||
-                line != "id,x,y,z,temperature,displacement_x,displacement_y,displacement_z")
+            if (!std::getline(reference, line)
+                || line != "id,x,y,z,temperature,displacement_x,displacement_y,displacement_z")
                 throw std::invalid_argument("Unexpected B6.0 nodal reference header");
             FieldErrorMetrics temperature;
             std::array<FieldErrorMetrics, 3> components;
             fuelsim::test::GroupedFieldErrorMetrics displacement;
             std::vector<bool> seen(output.nodes.size(), false);
             double minimum_x = output.nodes.at(0)[0];
-            for (const auto& point : output.nodes) minimum_x = std::min(minimum_x, point[0]);
+            for (const auto& point : output.nodes)
+                minimum_x = std::min(minimum_x, point[0]);
             const std::array<std::string, 3> names = {"displacement_x", "displacement_y", "displacement_z"};
             while (std::getline(reference, line)) {
-                if (line.empty()) continue;
+                if (line.empty())
+                    continue;
                 const auto values = split_csv(line);
-                if (values.size() != 8) throw std::invalid_argument("Unexpected B6.0 nodal column count");
+                if (values.size() != 8)
+                    throw std::invalid_argument("Unexpected B6.0 nodal column count");
                 const auto id = identifier(values, 0, argv[5]);
                 if (id == 0 || id > seen.size() || seen[id - 1])
                     throw std::invalid_argument("B6.0 reference node is invalid or repeated");
@@ -1431,28 +1541,30 @@ int main(int argc, char** argv) {
             if (seen.empty() || std::find(seen.begin(), seen.end(), false) != seen.end())
                 throw std::invalid_argument("B6.0 reference does not cover every node");
             print_relative_metrics("b60_temperature", temperature);
-            for (std::size_t c = 0; c < 3; ++c) print_relative_metrics("b60_" + names[c], components[c]);
+            for (std::size_t c = 0; c < 3; ++c)
+                print_relative_metrics("b60_" + names[c], components[c]);
             fuelsim::test::print_grouped_relative_metrics("b60_free_node_displacement_vector", displacement);
-            passed = check(relative_metrics_below(temperature, 5e-3) &&
-                               temperature.maximum_zero_reference_difference < 1e-8 &&
-                               fuelsim::test::grouped_relative_metrics_below(displacement, 5e-3) &&
-                               displacement.maximum_zero_reference_difference < 1e-10,
-                         "B6.0 temperature and free-node displacement vector satisfy the recorded 0.5 percent gates") &&
-                     passed;
+            passed =
+                check(relative_metrics_below(temperature, 5e-3) && temperature.maximum_zero_reference_difference < 1e-8
+                          && fuelsim::test::grouped_relative_metrics_below(displacement, 5e-3)
+                          && displacement.maximum_zero_reference_difference < 1e-10,
+                    "B6.0 temperature and free-node displacement vector satisfy the recorded 0.5 percent gates")
+                && passed;
         } else if (mode == "hex8-multimaterial") {
             require_argument_count(mode, argc, 6);
             passed = true;
             for (int index = 2; index <= 3; ++index) {
                 const std::string output = argv[index];
                 const auto position = output.rfind("_results.e");
-                if (position == std::string::npos) throw std::invalid_argument("B5.9 result filename is invalid");
+                if (position == std::string::npos)
+                    throw std::invalid_argument("B5.9 result filename is invalid");
                 const auto summary_path = output.substr(0, position) + "_summary.csv";
                 passed = completed_summary(summary_path, "transient") && passed;
                 const auto summary = read_summary(summary_path);
-                passed = check(summary_number(summary, "accepted_steps") == 4 &&
-                                   summary_number(summary, "rejected_steps") == 0,
-                             "B5.9 accepts exactly four increments without retrying") &&
-                         passed;
+                passed = check(summary_number(summary, "accepted_steps") == 4
+                                   && summary_number(summary, "rejected_steps") == 0,
+                             "B5.9 accepts exactly four increments without retrying")
+                         && passed;
             }
             passed = fuelsim::test::check_hex8_multimaterial(argv[2], argv[3], argv[4], argv[5]) && passed;
         } else if (mode == "hex8-multi-contact-path") {
@@ -1461,8 +1573,8 @@ int main(int argc, char** argv) {
             const auto summary = read_summary(argv[3]);
             passed =
                 check(summary_number(summary, "accepted_steps") == 4 && summary_number(summary, "rejected_steps") == 0,
-                    "B4.8 completes four increments without retrying") &&
-                passed;
+                    "B4.8 completes four increments without retrying")
+                && passed;
             passed = fuelsim::test::check_hex8_multi_contact_path(argv[2], argv[4]) && passed;
         } else if (mode == "hex8-contact-path") {
             require_argument_count(mode, argc, 6);
@@ -1495,9 +1607,9 @@ int main(int argc, char** argv) {
                 options.contact_pointwise_relative_tolerance = 1e-2;
                 options.energy_pointwise_relative_tolerance = 5e-2;
                 options.minimum_contact_state_match_fraction = 0.95;
-            } else if (options.case_name == "b526_contact_cycle" || options.case_name == "b538_contact_cycle" ||
-                       options.case_name == "b526_friction_reversal" || options.case_name == "b539_friction_reversal" ||
-                       options.case_name == "b540_nonmatching_contact_cycle") {
+            } else if (options.case_name == "b526_contact_cycle" || options.case_name == "b538_contact_cycle"
+                       || options.case_name == "b526_friction_reversal" || options.case_name == "b539_friction_reversal"
+                       || options.case_name == "b540_nonmatching_contact_cycle") {
                 options.contact_name = "coupled_contact";
                 options.time_step = 0.02;
                 options.reduced_integration =
@@ -1533,10 +1645,10 @@ int main(int argc, char** argv) {
                 throw std::invalid_argument("Unknown contact path");
             passed = completed_summary(argv[3], "transient");
             const auto summary = read_summary(argv[3]);
-            passed = check(summary_number(summary, "accepted_steps") == static_cast<double>(options.expected_steps) &&
-                               summary_number(summary, "rejected_steps") == 0,
-                         "Contact path completes every fixed increment without retrying") &&
-                     passed;
+            passed = check(summary_number(summary, "accepted_steps") == static_cast<double>(options.expected_steps)
+                               && summary_number(summary, "rejected_steps") == 0,
+                         "Contact path completes every fixed increment without retrying")
+                     && passed;
             passed = fuelsim::test::compare_production_hex8_full_field(argv[2], options) && passed;
         } else if (mode == "hex8-bulk-abaqus") {
             require_argument_count(mode, argc, 6);
@@ -1558,38 +1670,37 @@ int main(int argc, char** argv) {
             } else
                 throw std::invalid_argument("Unknown bulk comparison case");
             passed = completed_summary(argv[3], "transient");
-            passed = check(summary_number(read_summary(argv[3]), "accepted_steps") ==
-                               static_cast<double>(options.expected_steps),
-                         "Production completes every fixed time step") &&
-                     passed;
+            passed = check(summary_number(read_summary(argv[3]), "accepted_steps")
+                               == static_cast<double>(options.expected_steps),
+                         "Production completes every fixed time step")
+                     && passed;
             passed = check(summary_number(read_summary(argv[3]), "rejected_steps") == 0,
-                         "Production fixed-step path does not retry any increment") &&
-                     passed;
+                         "Production fixed-step path does not retry any increment")
+                     && passed;
             passed = fuelsim::test::compare_production_hex8_full_field(argv[2], options) && passed;
             if (options.case_name == "b61") {
                 const auto final = fuelsim::test::read_final_exodus_results(argv[2]);
                 const auto& plastic = final.element("equiv_plastic_q0");
                 const auto& creep = final.element("equiv_creep_q0");
-                passed = check(*std::max_element(plastic.begin(), plastic.end()) > 0 &&
-                                   *std::max_element(creep.begin(), creep.end()) > 0,
-                             "B6.1 activates plasticity and creep") &&
-                         passed;
+                passed = check(*std::max_element(plastic.begin(), plastic.end()) > 0
+                                   && *std::max_element(creep.begin(), creep.end()) > 0,
+                             "B6.1 activates plasticity and creep")
+                         && passed;
             }
         } else if (mode == "b48-mpi") {
             require_argument_count(mode, argc, 5);
             passed = completed_summary(argv[3], "transient");
             const auto summary = read_summary(argv[3]);
-            passed =
-                check(summary_number(summary, "mpi_ranks") == 2 && summary_number(summary, "accepted_steps") == 4 &&
-                          summary_number(summary, "rejected_steps") == 0,
-                    "B4.8 runs four increments on two MPI ranks") &&
-                passed;
+            passed = check(summary_number(summary, "mpi_ranks") == 2 && summary_number(summary, "accepted_steps") == 4
+                               && summary_number(summary, "rejected_steps") == 0,
+                         "B4.8 runs four increments on two MPI ranks")
+                     && passed;
             const double dofs = summary_number(summary, "global_state_dofs");
-            passed = check(summary_number(summary, "maximum_shadow_state_dofs") <= dofs &&
-                               summary_number(summary, "total_shadow_state_dofs") <= 2 * dofs &&
-                               summary_number(summary, "total_remote_shadow_state_dofs") > 0,
-                         "B4.8 exchanges bounded, nonempty remote state") &&
-                     passed;
+            passed = check(summary_number(summary, "maximum_shadow_state_dofs") <= dofs
+                               && summary_number(summary, "total_shadow_state_dofs") <= 2 * dofs
+                               && summary_number(summary, "total_remote_shadow_state_dofs") > 0,
+                         "B4.8 exchanges bounded, nonempty remote state")
+                     && passed;
             const auto actual = fuelsim::test::read_exodus_nodal_history(argv[2]);
             const auto reference = fuelsim::test::read_exodus_nodal_history(argv[4]);
             if (actual.size() != 5 || reference.size() != 5)
@@ -1597,9 +1708,9 @@ int main(int argc, char** argv) {
             double maximum_difference = 0, maximum_scaled_difference = 0;
             std::size_t compared_values = 0;
             for (std::size_t step = 0; step < actual.size(); ++step) {
-                if (actual[step].time != reference[step].time || actual[step].nodes != reference[step].nodes ||
-                    actual[step].nodal_variable_names != reference[step].nodal_variable_names ||
-                    actual[step].element_variable_names != reference[step].element_variable_names)
+                if (actual[step].time != reference[step].time || actual[step].nodes != reference[step].nodes
+                    || actual[step].nodal_variable_names != reference[step].nodal_variable_names
+                    || actual[step].element_variable_names != reference[step].element_variable_names)
                     throw std::invalid_argument("B4.8 MPI history schema or mesh differs");
                 for (int category = 0; category < 2; ++category) {
                     const auto& values = category == 0 ? actual[step].nodal_variables : actual[step].element_variables;
@@ -1610,19 +1721,20 @@ int main(int argc, char** argv) {
                             throw std::invalid_argument("B4.8 MPI field lengths differ");
                         for (std::size_t item = 0; item < values[field].size(); ++item) {
                             const double a = values[field][item], b = expected[field][item];
-                            if (std::isnan(a) && std::isnan(b)) continue;
+                            if (std::isnan(a) && std::isnan(b))
+                                continue;
                             maximum_difference = std::max(maximum_difference, std::abs(a - b));
                             maximum_scaled_difference =
                                 std::max(maximum_scaled_difference, std::abs(a - b) / (1 + std::abs(b)));
                             ++compared_values;
-                            if (!std::isfinite(a) || !std::isfinite(b) ||
-                                !(std::abs(a - b) / (1 + std::abs(b)) < 1e-10))
+                            if (!std::isfinite(a) || !std::isfinite(b)
+                                || !(std::abs(a - b) / (1 + std::abs(b)) < 1e-10))
                                 throw std::runtime_error(
-                                    "B4.8 MPI history differs: step=" + std::to_string(step) + " field=" +
-                                    (category == 0 ? actual[step].nodal_variable_names[field]
-                                                   : actual[step].element_variable_names[field]) +
-                                    " item=" + std::to_string(item) + " actual=" + std::to_string(a) +
-                                    " reference=" + std::to_string(b));
+                                    "B4.8 MPI history differs: step=" + std::to_string(step) + " field="
+                                    + (category == 0 ? actual[step].nodal_variable_names[field]
+                                                     : actual[step].element_variable_names[field])
+                                    + " item=" + std::to_string(item) + " actual=" + std::to_string(a)
+                                    + " reference=" + std::to_string(b));
                         }
                     }
                 }
@@ -1638,8 +1750,8 @@ int main(int argc, char** argv) {
             require_argument_count(mode, argc, 5);
             passed = completed_summary(argv[3], "transient");
             passed = check(summary_number(read_summary(argv[3]), "accepted_steps") == 2.0,
-                         "Restart completes two remaining time steps") &&
-                     passed;
+                         "Restart completes two remaining time steps")
+                     && passed;
             passed = compare_result_files(argv[2], argv[4], 0.0, false) && passed;
         } else if (mode == "mpi-equivalence" || mode == "restart" || mode == "rz8-restart") {
             const bool restarting = mode != "mpi-equivalence";
@@ -1647,19 +1759,20 @@ int main(int argc, char** argv) {
             passed = completed_summary(argv[3], "transient");
             const auto summary = read_summary(argv[3]);
             passed = check(summary_number(summary, "mpi_ranks") == (restarting ? 1.0 : 2.0),
-                         "Production summary confirms the requested process count") &&
-                     passed;
+                         "Production summary confirms the requested process count")
+                     && passed;
             if (restarting)
-                passed = check(summary_number(summary, "accepted_steps") ==
-                                   (mode == "rz8-restart" ? std::stod(argv[5]) : 5.0),
-                             "Restart completes the expected remaining time steps") &&
-                         passed;
+                passed = check(summary_number(summary, "accepted_steps")
+                                   == (mode == "rz8-restart" ? std::stod(argv[5]) : 5.0),
+                             "Restart completes the expected remaining time steps")
+                         && passed;
             passed =
                 compare_result_files(argv[2], argv[4], restarting ? 0.0 : 1.0e-10, mode == "mpi-equivalence") && passed;
         } else {
             throw std::invalid_argument("Unknown production result check '" + mode + "'");
         }
-        if (passed) std::cout << "[PASS] production-executable result comparison " << mode << '\n';
+        if (passed)
+            std::cout << "[PASS] production-executable result comparison " << mode << '\n';
         return passed ? 0 : 1;
     } catch (const std::exception& error) {
         std::cerr << "[FAIL] production result comparison raised: " << error.what() << '\n';

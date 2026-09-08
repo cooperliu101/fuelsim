@@ -1,0 +1,234 @@
+Internal ctest changing into directory: /home/cooper/ai_project/fuelsim/build
+Test project /home/cooper/ai_project/fuelsim/build
+    Start 100: fuelsim_hex20_solver_tests
+1/1 Test #100: fuelsim_hex20_solver_tests .......***Failed    0.84 sec
+[FAIL] Event alignment preserves 280 fixed increments without a roundoff-sized extra step
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Every integer event is committed at its exact prescribed time
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Every integer event is committed at its exact prescribed time
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Every integer event is committed at its exact prescribed time
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Every integer event is committed at its exact prescribed time
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Every integer event is committed at its exact prescribed time
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+[FAIL] Every integer event is committed at its exact prescribed time
+[FAIL] Event alignment retains the controller step after a rounded event endpoint
+
+
+0% tests passed, 1 tests failed out of 1
+
+Label Time Summary:
+checkpoint           =   0.84 sec*proc (1 test)
+contact              =   0.84 sec*proc (1 test)
+integration          =   0.84 sec*proc (1 test)
+multiblock           =   0.84 sec*proc (1 test)
+quadratic            =   0.84 sec*proc (1 test)
+three-dimensional    =   0.84 sec*proc (1 test)
+
+Total Test time (real) =   0.85 sec
+
+The following tests FAILED:
+	100 - fuelsim_hex20_solver_tests (Failed)
+Errors while running CTest

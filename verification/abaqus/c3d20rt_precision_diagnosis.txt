@@ -1,0 +1,4 @@
+Abaqus force and displacement criteria: 1e-10 -> 1e-12.
+nodes.csv byte_identical=true sha256=7a9d65eaec9d864048da67dfe6657461ccb9840185937a343c57cf9e3f7133d5
+contact.csv byte_identical=true sha256=2453f292e319fd259a30850a440fee400293fec7620722009c2516a7664c28b0
+points.csv byte_identical=true sha256=505efc880daf016064870021a38f4fe49ec3793aa59a8efa2cdc454287663529

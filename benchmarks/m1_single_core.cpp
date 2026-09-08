@@ -23,8 +23,8 @@ struct BenchmarkCase final {
     fuelsim::SpatialDefinition definition;
 };
 
-fuelsim::BoundaryConditionDefinition dirichlet(
-    const std::string& name, const std::string& boundary, fuelsim::Field field, double value) {
+fuelsim::BoundaryConditionDefinition
+dirichlet(const std::string& name, const std::string& boundary, fuelsim::Field field, double value) {
     fuelsim::BoundaryConditionDefinition condition{};
     condition.name = name;
     condition.type = fuelsim::BoundaryConditionType::dirichlet;
@@ -34,7 +34,8 @@ fuelsim::BoundaryConditionDefinition dirichlet(
     return condition;
 }
 
-BenchmarkCase make_case(std::size_t requested_fuel_radial_elements, std::size_t requested_cladding_radial_elements,
+BenchmarkCase make_case(std::size_t requested_fuel_radial_elements,
+    std::size_t requested_cladding_radial_elements,
     std::size_t axial_elements) {
     BenchmarkCase result{
         fuelsim::test::make_disconnected_annular_mesh(
@@ -61,8 +62,8 @@ std::size_t parse_positive_size(const char* text, const char* name) {
     const std::string value(text);
     std::size_t consumed = 0;
     const unsigned long long parsed = std::stoull(value, &consumed);
-    if (value.empty() || value.front() == '-' || consumed != value.size() || parsed == 0 ||
-        parsed > static_cast<unsigned long long>(std::numeric_limits<std::size_t>::max()))
+    if (value.empty() || value.front() == '-' || consumed != value.size() || parsed == 0
+        || parsed > static_cast<unsigned long long>(std::numeric_limits<std::size_t>::max()))
         throw std::invalid_argument(std::string(name) + " must be a positive integer");
     return static_cast<std::size_t>(parsed);
 }
@@ -98,7 +99,8 @@ int main(int argc, char** argv) {
                                         "[medium|large] [direct|block_jacobi|field_split|hypre] "
                                         "[load_steps] [unscaled|scaled]");
         const std::size_t radial_multiplier = case_name == "medium" ? 1U : case_name == "large" ? 2U : 0U;
-        if (radial_multiplier == 0) throw std::invalid_argument("case must be medium or large");
+        if (radial_multiplier == 0)
+            throw std::invalid_argument("case must be medium or large");
         const std::size_t requested_fuel_radial_elements = radial_multiplier * fuel_radial_elements;
         const std::size_t requested_cladding_radial_elements = radial_multiplier * cladding_radial_elements;
         const std::size_t axial_elements = 64U;
@@ -118,7 +120,8 @@ int main(int argc, char** argv) {
             (requested_fuel_radial_elements + 1 + requested_cladding_radial_elements + 1) * (axial_elements + 1);
         const std::size_t elements =
             (requested_fuel_radial_elements + requested_cladding_radial_elements) * axial_elements;
-        if (session.rank() != 0) return result.completed && result.solve.converged ? 0 : 1;
+        if (session.rank() != 0)
+            return result.completed && result.solve.converged ? 0 : 1;
         std::cout << std::boolalpha << std::scientific << std::setprecision(12);
         std::cout << "case=m1-" << case_name << '\n';
         std::cout << "linear_solver=" << solver_name << '\n';
@@ -148,8 +151,8 @@ int main(int argc, char** argv) {
         std::cout << "total_remote_shadow_state_dofs=" << result.solve.total_remote_shadow_state_dofs << '\n';
         std::cout << "maximum_shadow_state_bytes=" << result.solve.maximum_shadow_state_dofs * sizeof(double) << '\n';
         std::cout << "maximum_shadow_workspace_bytes="
-                  << result.solve.maximum_shadow_state_dofs * (2 * sizeof(double) + sizeof(std::uint32_t)) +
-                         result.solve.global_state_dofs * sizeof(std::uint32_t)
+                  << result.solve.maximum_shadow_state_dofs * (2 * sizeof(double) + sizeof(std::uint32_t))
+                         + result.solve.global_state_dofs * sizeof(std::uint32_t)
                   << '\n';
         std::cout << "global_to_shadow_lookup_bytes=" << result.solve.global_state_dofs * sizeof(std::uint32_t) << '\n';
         std::cout << "replicated_callback_state_workspace_bytes=" << result.solve.global_state_dofs * 2 * sizeof(double)

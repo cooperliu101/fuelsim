@@ -179,6 +179,15 @@ if(BUILD_TESTING)
     target_include_directories(fuelsim_field_error_metrics PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/tests")
     fuelsim_enable_warnings(fuelsim_field_error_metrics)
 
+    add_executable(fuelsim_production_pcmi_abaqus tests/production_pcmi_abaqus.cpp)
+    target_link_libraries(fuelsim_production_pcmi_abaqus PRIVATE
+        fuelsim_exodus_result_test_support fuelsim_field_error_metrics)
+    fuelsim_enable_warnings(fuelsim_production_pcmi_abaqus)
+    add_executable(fuelsim_production_nts_abaqus tests/production_nts_abaqus.cpp)
+    target_link_libraries(fuelsim_production_nts_abaqus PRIVATE
+        fuelsim_exodus_result_test_support fuelsim_field_error_metrics)
+    fuelsim_enable_warnings(fuelsim_production_nts_abaqus)
+
     add_library(fuelsim_moose_test_support
         tests/support/moose_field_comparison.cpp
     )
@@ -641,6 +650,87 @@ if(BUILD_TESTING)
     fuelsim_enable_warnings(fuelsim_hex8_tests)
     add_test(NAME fuelsim_hex8_tests COMMAND fuelsim_hex8_tests)
     set_tests_properties(fuelsim_hex8_tests PROPERTIES LABELS "unit;three-dimensional")
+
+    add_executable(fuelsim_c3d20rt_probe_results tests/production_c3d20rt_probe.cpp)
+    add_executable(fuelsim_c3d20rt_material_results tests/production_c3d20rt_material.cpp)
+    target_link_libraries(fuelsim_c3d20rt_material_results PRIVATE
+        fuelsim_exodus_result_test_support fuelsim_field_error_metrics)
+    fuelsim_enable_warnings(fuelsim_c3d20rt_material_results)
+    add_executable(fuelsim_c3d20rt_contact_results tests/production_c3d20rt_contact.cpp)
+    target_link_libraries(fuelsim_c3d20rt_contact_results PRIVATE
+        fuelsim_exodus_result_test_support fuelsim_field_error_metrics)
+    fuelsim_enable_warnings(fuelsim_c3d20rt_contact_results)
+    # Manual prescribed-state diagnostic; it does not solve an end-to-end case.
+    add_executable(fuelsim_c3d20rt_friction_history_replay EXCLUDE_FROM_ALL
+        tests/c3d20rt_friction_history_replay.cpp)
+    target_include_directories(fuelsim_c3d20rt_friction_history_replay PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(fuelsim_c3d20rt_friction_history_replay PRIVATE fuelsim::io)
+    fuelsim_enable_warnings(fuelsim_c3d20rt_friction_history_replay)
+    fuelsim_stage_blackbox_case(c3d20rt_contact_input c3d20rt_contact_friction
+        transient_c3d20rt_contact_friction.fsi)
+    get_filename_component(c3d20rt_contact_directory "${c3d20rt_contact_input}" DIRECTORY)
+    set(c3d20rt_contact_output "${c3d20rt_contact_directory}/transient_c3d20rt_contact_friction_results.e")
+    add_test(NAME fuelsim_c3d20rt_contact_friction_abaqus_tests
+        COMMAND "${CMAKE_COMMAND}"
+            "-DFUELSIM_EXECUTABLE=$<TARGET_FILE:fuelsim>"
+            "-DINPUT_FILE=${c3d20rt_contact_input}"
+            "-DOUTPUT_FILE=${c3d20rt_contact_output}"
+            "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_c3d20rt_contact_results>"
+            "-DCHECK_ARGUMENTS=${c3d20rt_contact_output};${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/c3d20rt_contact_friction_nodes.csv;${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/c3d20rt_contact_friction_contact.csv;${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/c3d20rt_contact_friction_points.csv;70"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_case.cmake")
+    set_tests_properties(fuelsim_c3d20rt_contact_friction_abaqus_tests PROPERTIES
+        LABELS "three-dimensional;quadratic;abaqus;contact;thermal;friction;transient" TIMEOUT 180)
+    # A short zero-friction branch complements the full manual friction-reversal case.
+    fuelsim_stage_blackbox_case(c3d20rt_frictionless_input c3d20rt_finite_frictionless
+        transient_c3d20rt_finite_contact_frictionless.fsi)
+    get_filename_component(c3d20rt_frictionless_directory "${c3d20rt_frictionless_input}" DIRECTORY)
+    set(c3d20rt_frictionless_output "${c3d20rt_frictionless_directory}/transient_c3d20rt_finite_contact_frictionless_results.e")
+    add_test(NAME fuelsim_c3d20rt_finite_frictionless_abaqus_tests
+        COMMAND "${CMAKE_COMMAND}"
+            "-DFUELSIM_EXECUTABLE=$<TARGET_FILE:fuelsim>"
+            "-DINPUT_FILE=${c3d20rt_frictionless_input}"
+            "-DOUTPUT_FILE=${c3d20rt_frictionless_output}"
+            "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_c3d20rt_contact_results>"
+            "-DCHECK_ARGUMENTS=${c3d20rt_frictionless_output};${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/c3d20rt_finite_contact_frictionless_short_nodes.csv;${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/c3d20rt_finite_contact_frictionless_short_contact.csv;${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/c3d20rt_finite_contact_frictionless_short_points.csv;80;8;--qualified-finite-frictionless"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_case.cmake")
+    set_tests_properties(fuelsim_c3d20rt_finite_frictionless_abaqus_tests PROPERTIES
+        LABELS "three-dimensional;quadratic;abaqus;contact;thermal;transient" TIMEOUT 180)
+    foreach(c3d20rt_material_case IN ITEMS small_coupled finite_coupled small_plastic finite_plastic finite_creep small_creep_hold)
+        string(REGEX REPLACE "^(small|finite)_" "" c3d20rt_material_mode "${c3d20rt_material_case}")
+        set(c3d20rt_material_name "c3d20rt_${c3d20rt_material_case}")
+        fuelsim_stage_blackbox_case(c3d20rt_material_input "${c3d20rt_material_name}"
+            "transient_${c3d20rt_material_name}.fsi")
+        get_filename_component(c3d20rt_material_directory "${c3d20rt_material_input}" DIRECTORY)
+        set(c3d20rt_material_output "${c3d20rt_material_directory}/transient_${c3d20rt_material_name}_results.e")
+        add_test(NAME "fuelsim_${c3d20rt_material_name}_abaqus_tests"
+            COMMAND "${CMAKE_COMMAND}"
+                "-DFUELSIM_EXECUTABLE=$<TARGET_FILE:fuelsim>"
+                "-DINPUT_FILE=${c3d20rt_material_input}"
+                "-DOUTPUT_FILE=${c3d20rt_material_output}"
+                "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_c3d20rt_material_results>"
+                "-DCHECK_ARGUMENTS=${c3d20rt_material_output};${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${c3d20rt_material_name}_nodes.csv;${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${c3d20rt_material_name}_points.csv;${c3d20rt_material_mode}"
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_case.cmake")
+        set_tests_properties("fuelsim_${c3d20rt_material_name}_abaqus_tests" PROPERTIES
+            LABELS "three-dimensional;quadratic;abaqus;inelastic;transient")
+    endforeach()
+    target_link_libraries(fuelsim_c3d20rt_probe_results PRIVATE
+        fuelsim_exodus_result_test_support fuelsim_field_error_metrics)
+    fuelsim_enable_warnings(fuelsim_c3d20rt_probe_results)
+    foreach(c3d20rt_probe_name IN ITEMS c3d20rt_thermal_probe c3d20rt_nonaffine_probe c3d20rt_small_probe)
+        fuelsim_stage_blackbox_case(c3d20rt_probe_input ${c3d20rt_probe_name} transient_${c3d20rt_probe_name}.fsi)
+        get_filename_component(c3d20rt_probe_directory "${c3d20rt_probe_input}" DIRECTORY)
+        set(c3d20rt_probe_results "${c3d20rt_probe_directory}/transient_${c3d20rt_probe_name}_results.e")
+        add_test(NAME fuelsim_${c3d20rt_probe_name}_abaqus_tests
+            COMMAND "${CMAKE_COMMAND}"
+                "-DFUELSIM_EXECUTABLE=$<TARGET_FILE:fuelsim>"
+                "-DINPUT_FILE=${c3d20rt_probe_input}"
+                "-DOUTPUT_FILE=${c3d20rt_probe_results}"
+                "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_c3d20rt_probe_results>"
+                "-DCHECK_ARGUMENTS=${c3d20rt_probe_results};${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${c3d20rt_probe_name}_nodes.csv"
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_case.cmake")
+        set_tests_properties(fuelsim_${c3d20rt_probe_name}_abaqus_tests PROPERTIES
+            LABELS "three-dimensional;quadratic;abaqus;thermal;transient")
+    endforeach()
 
     add_executable(fuelsim_hex20_tests tests/hex20_tests.cpp)
     target_link_libraries(fuelsim_hex20_tests PRIVATE fuelsim::core)
@@ -2156,6 +2246,9 @@ if(BUILD_TESTING)
         b72_rz_small_creep b73_rz_finite_creep b74_rz_small_plastic b75_rz_finite_plastic
         b76_rz_small_thermal b77_rz_finite_thermal b78_rz_small_contact b79_rz_finite_contact)
         string(REGEX REPLACE ".*_" "" rz_mechanism "${rz_case}")
+        if(rz_case STREQUAL "b72_rz_small_creep")
+            set(rz_mechanism "creep-integration")
+        endif()
         if(rz_mechanism STREQUAL "contact")
             set(rz_input "steady_${rz_case}")
         else()
@@ -2188,11 +2281,22 @@ if(BUILD_TESTING)
     set_tests_properties(fuelsim_b81_rz_friction_history_contract PROPERTIES
         FIXTURES_REQUIRED b81_rz_production LABELS "unit;contact;checkpoint")
 
+    foreach(cax4t_thermal_case IN ITEMS b150_cax4t_small_thermal_operator
+        b150_cax4t_finite_thermal_operator b151_cax4t_small_conductivity)
+        fuelsim_add_production_test("fuelsim_${cax4t_thermal_case}_abaqus_tests" "${cax4t_thermal_case}"
+            "transient_${cax4t_thermal_case}" rz-abaqus
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${cax4t_thermal_case}_nodes.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${cax4t_thermal_case}_points.csv" "probe")
+    endforeach()
+
     foreach(cax4rt_case IN ITEMS b90_cax4rt_small_probe b91_cax4rt_finite_probe b92_cax4rt_rectangle_probe
         b93_cax4rt_small_coupled b94_cax4rt_finite_coupled b95_cax4rt_small_creep
         b96_cax4rt_finite_creep b97_cax4rt_small_plastic b98_cax4rt_finite_plastic
         b99_cax4rt_small_thermal b910_cax4rt_finite_thermal b911_cax4rt_small_contact b912_cax4rt_finite_contact)
         string(REGEX REPLACE ".*_" "" cax4rt_mechanism "${cax4rt_case}")
+        if(cax4rt_case STREQUAL "b95_cax4rt_small_creep")
+            set(cax4rt_mechanism "creep-integration")
+        endif()
         if(cax4rt_mechanism STREQUAL "contact")
             set(cax4rt_input "steady_${cax4rt_case}")
         else()
@@ -2210,6 +2314,9 @@ if(BUILD_TESTING)
         b108_cax8t_small_plastic b109_cax8t_finite_plastic
         b110_cax8t_small_thermal b111_cax8t_finite_thermal)
         string(REGEX REPLACE ".*_" "" cax8t_mechanism "${cax8t_case}")
+        if(cax8t_case STREQUAL "b106_cax8t_small_creep")
+            set(cax8t_mechanism "creep-integration")
+        endif()
         fuelsim_add_production_test("fuelsim_${cax8t_case}_abaqus_tests" "${cax8t_case}"
             "transient_${cax8t_case}" rz-abaqus
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${cax8t_case}_nodes.csv"
@@ -2246,6 +2353,9 @@ if(BUILD_TESTING)
         b128_cax8rt_small_plastic b129_cax8rt_finite_plastic
         b1210_cax8rt_small_thermal b1211_cax8rt_finite_thermal)
         string(REGEX REPLACE ".*_" "" cax8rt_mechanism "${cax8rt_case}")
+        if(cax8rt_case STREQUAL "b126_cax8rt_small_creep")
+            set(cax8rt_mechanism "creep-integration")
+        endif()
         fuelsim_add_production_test("fuelsim_${cax8rt_case}_abaqus_tests" "${cax8rt_case}"
             "transient_${cax8rt_case}" rz-abaqus
             "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${cax8rt_case}_nodes.csv"
@@ -2319,6 +2429,13 @@ if(BUILD_TESTING)
         "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b915_cax4rt_thermal_identification_nodes.csv"
         "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b915_cax4rt_thermal_identification_points.csv" probe)
 
+    foreach(cax4rt_thermal_case IN ITEMS b916_cax4rt_variable_conductivity b917_cax4rt_finite_thermal_operators)
+        fuelsim_add_production_test(fuelsim_${cax4rt_thermal_case}_abaqus_tests ${cax4rt_thermal_case}
+            transient_${cax4rt_thermal_case} rz-abaqus
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${cax4rt_thermal_case}_nodes.csv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${cax4rt_thermal_case}_points.csv" probe)
+    endforeach()
+
     fuelsim_add_production_test(fuelsim_b913_cax4rt_small_friction_abaqus_tests b913_cax4rt_small_friction
         transient_b913_cax4rt_small_friction rz-friction-abaqus
         "${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/b913_cax4rt_small_friction_nodes.csv"
@@ -2362,6 +2479,39 @@ if(BUILD_TESTING)
         "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m23_pcmi_coupled_cladding_rz_clad_qp_values_final.csv"
         "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m23_pcmi_coupled_cladding_rz_out.csv"
     )
+    foreach(pcmi_group IN ITEMS small finite integrated)
+        foreach(pcmi_element IN ITEMS cax4t cax4rt cax8t cax8rt)
+            set(pcmi_case "b13_${pcmi_group}_${pcmi_element}")
+            fuelsim_stage_blackbox_case(pcmi_input "${pcmi_case}" "transient_${pcmi_case}.fsi")
+            get_filename_component(pcmi_directory "${pcmi_input}" DIRECTORY)
+            set(pcmi_output "${pcmi_directory}/transient_${pcmi_case}_results.e")
+            add_test(NAME "fuelsim_${pcmi_case}_abaqus_tests"
+                COMMAND "${CMAKE_COMMAND}"
+                    "-DFUELSIM_EXECUTABLE=$<TARGET_FILE:fuelsim>"
+                    "-DINPUT_FILE=${pcmi_input}"
+                    "-DOUTPUT_FILE=${pcmi_output}"
+                    "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_production_pcmi_abaqus>"
+                    "-DCHECK_ARGUMENTS=${pcmi_output};${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${pcmi_case}_nodes.csv;${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${pcmi_case}_points.csv;${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${pcmi_case}_contact.csv;${pcmi_group}"
+                    -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_case.cmake")
+            set_tests_properties("fuelsim_${pcmi_case}_abaqus_tests" PROPERTIES
+                LABELS "acceptance;production;abaqus;pcmi" TIMEOUT 240)
+        endforeach()
+    endforeach()
+    foreach(nts_element IN ITEMS cax4t cax4rt cax8t cax8rt)
+        set(nts_case "b14_nts_${nts_element}")
+        fuelsim_stage_blackbox_case(nts_input "${nts_case}" "transient_${nts_case}.fsi")
+        get_filename_component(nts_directory "${nts_input}" DIRECTORY)
+        set(nts_output "${nts_directory}/transient_${nts_case}_results.e")
+        add_test(NAME "fuelsim_${nts_case}_abaqus_tests"
+            COMMAND "${CMAKE_COMMAND}"
+                "-DFUELSIM_EXECUTABLE=$<TARGET_FILE:fuelsim>"
+                "-DINPUT_FILE=${nts_input}"
+                "-DOUTPUT_FILE=${nts_output}"
+                "-DCHECK_COMMAND=$<TARGET_FILE:fuelsim_production_nts_abaqus>"
+                "-DCHECK_ARGUMENTS=${nts_output};${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${nts_case}_nodes.csv;${CMAKE_CURRENT_SOURCE_DIR}/verification/abaqus/${nts_case}_contact.csv"
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_fuelsim_case.cmake")
+        set_tests_properties("fuelsim_${nts_case}_abaqus_tests" PROPERTIES LABELS "acceptance;production;abaqus;contact" TIMEOUT 120)
+    endforeach()
     fuelsim_add_production_test(fuelsim_m41_finite_strain_pcmi_tests m41 transient_finite_strain_pcmi m41
         "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m41_finite_strain_pcmi_rz_all_nodes_final.csv"
         "${CMAKE_CURRENT_SOURCE_DIR}/verification/moose/m41_finite_strain_pcmi_rz_fuel_surface_final.csv"

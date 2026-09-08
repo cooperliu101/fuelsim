@@ -72,8 +72,10 @@ struct AbaqusHex8FullFieldOptions final {
     bool gate_contact_state = true;
 };
 
-bool compare_abaqus_hex8_full_field(const TransientProblem& solved_problem, const SpatialDefinition& definition,
-    const UnstructuredHex8Mesh& mesh, const std::vector<AbaqusHex8StepSnapshot>& snapshots,
+bool compare_abaqus_hex8_full_field(const TransientProblem& solved_problem,
+    const SpatialDefinition& definition,
+    const UnstructuredHex8Mesh& mesh,
+    const std::vector<AbaqusHex8StepSnapshot>& snapshots,
     const AbaqusHex8FullFieldOptions& options);
 } // namespace fuelsim::test
 

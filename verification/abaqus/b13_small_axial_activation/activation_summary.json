@@ -1,0 +1,42 @@
+{
+  "cax4t": {
+    "material_points": 40,
+    "fuelsim_first_plastic_min": 0.00013941615690929337,
+    "fuelsim_first_creep_min": 3.1335439631198285e-06,
+    "abaqus_first_plastic_min": 0.0001394161569220945,
+    "abaqus_first_creep_min": 3.1335439631760885e-06,
+    "fuelsim_simultaneous_samples": 1600,
+    "abaqus_simultaneous_samples": 1600,
+    "total_samples": 1600
+  },
+  "cax4rt": {
+    "material_points": 10,
+    "fuelsim_first_plastic_min": 0.0001394161569220464,
+    "fuelsim_first_creep_min": 3.133543963175853e-06,
+    "abaqus_first_plastic_min": 0.00013941615692209477,
+    "abaqus_first_creep_min": 3.1335439631760906e-06,
+    "fuelsim_simultaneous_samples": 400,
+    "abaqus_simultaneous_samples": 400,
+    "total_samples": 400
+  },
+  "cax8t": {
+    "material_points": 90,
+    "fuelsim_first_plastic_min": 0.00013941615692209376,
+    "fuelsim_first_creep_min": 3.1335439631760703e-06,
+    "abaqus_first_plastic_min": 0.00013941615692209363,
+    "abaqus_first_creep_min": 3.1335439631760847e-06,
+    "fuelsim_simultaneous_samples": 3600,
+    "abaqus_simultaneous_samples": 3600,
+    "total_samples": 3600
+  },
+  "cax8rt": {
+    "material_points": 40,
+    "fuelsim_first_plastic_min": 0.00013941615692209287,
+    "fuelsim_first_creep_min": 3.1335439631760703e-06,
+    "abaqus_first_plastic_min": 0.00013941615692209227,
+    "abaqus_first_creep_min": 3.133543963176079e-06,
+    "fuelsim_simultaneous_samples": 1600,
+    "abaqus_simultaneous_samples": 1600,
+    "total_samples": 1600
+  }
+}

@@ -23,7 +23,8 @@ struct IntegrationPointReference final {
 };
 
 bool check(bool condition, const std::string& message) {
-    if (condition) return true;
+    if (condition)
+        return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
@@ -32,13 +33,15 @@ std::vector<std::string> split_csv(const std::string& line) {
     std::vector<std::string> result;
     std::istringstream stream(line);
     std::string value;
-    while (std::getline(stream, value, ',')) result.push_back(value);
+    while (std::getline(stream, value, ','))
+        result.push_back(value);
     return result;
 }
 
 std::array<NodalReference, 8> read_nodal(const std::string& path) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read Abaqus finite-heat nodal reference: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read Abaqus finite-heat nodal reference: " + path);
     std::string line;
     std::getline(input, line);
     if (line != "node,x_current_m,y_current_m,z_current_m,temperature_k,ux_m,uy_m,uz_m,reaction_heat_flux_w")
@@ -53,8 +56,10 @@ std::array<NodalReference, 8> read_nodal(const std::string& path) {
         if (node < 1 || node > 8 || present[node - 1])
             throw std::invalid_argument("Invalid or duplicate Abaqus finite-heat node label");
         present[node - 1] = true;
-        result[node - 1] = {{std::stod(values[1]), std::stod(values[2]), std::stod(values[3])}, std::stod(values[4]),
-            {std::stod(values[5]), std::stod(values[6]), std::stod(values[7])}, std::stod(values[8])};
+        result[node - 1] = {{std::stod(values[1]), std::stod(values[2]), std::stod(values[3])},
+            std::stod(values[4]),
+            {std::stod(values[5]), std::stod(values[6]), std::stod(values[7])},
+            std::stod(values[8])};
     }
     if (std::find(present.begin(), present.end(), false) != present.end())
         throw std::invalid_argument("Abaqus finite-heat nodal reference must contain eight nodes");
@@ -63,7 +68,8 @@ std::array<NodalReference, 8> read_nodal(const std::string& path) {
 
 std::array<IntegrationPointReference, 8> read_integration_points(const std::string& path) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read Abaqus finite-heat integration-point reference: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read Abaqus finite-heat integration-point reference: " + path);
     std::string line;
     std::getline(input, line);
     if (line != "element,integration_point,x_current_m,y_current_m,z_current_m,hfl_x_w_m2,hfl_y_w_m2,hfl_z_w_m2")
@@ -87,11 +93,19 @@ std::array<IntegrationPointReference, 8> read_integration_points(const std::stri
 }
 
 fuelsim::Hex8Coordinates unit_cube() {
-    return {{{0.0, 0.0, 0.0}, {1.0, 0.0, 0.0}, {1.0, 1.0, 0.0}, {0.0, 1.0, 0.0}, {0.0, 0.0, 1.0}, {1.0, 0.0, 1.0},
-        {1.0, 1.0, 1.0}, {0.0, 1.0, 1.0}}};
+    return {{{0.0, 0.0, 0.0},
+        {1.0, 0.0, 0.0},
+        {1.0, 1.0, 0.0},
+        {0.0, 1.0, 0.0},
+        {0.0, 0.0, 1.0},
+        {1.0, 0.0, 1.0},
+        {1.0, 1.0, 1.0},
+        {0.0, 1.0, 1.0}}};
 }
 
-double relative_error(double actual, double expected) { return std::abs(actual - expected) / std::abs(expected); }
+double relative_error(double actual, double expected) {
+    return std::abs(actual - expected) / std::abs(expected);
+}
 } // namespace
 
 int main(int argc, char** argv) {
@@ -107,18 +121,20 @@ int main(int argc, char** argv) {
         fuelsim::Hex8LocalValues state{};
         double coordinate_maximum_difference = 0.0, displacement_maximum_difference = 0.0;
         for (std::size_t node = 0; node < 8; ++node) {
-            const fuelsim::CartesianPoint3 expected_current{
-                1.5 * coordinates[node].x, 1.25 * coordinates[node].y, 0.8 * coordinates[node].z};
+            const fuelsim::CartesianPoint3 expected_current{1.5 * coordinates[node].x,
+                1.25 * coordinates[node].y,
+                0.8 * coordinates[node].z};
             const fuelsim::CartesianPoint3 expected_displacement{expected_current.x - coordinates[node].x,
-                expected_current.y - coordinates[node].y, expected_current.z - coordinates[node].z};
-            coordinate_maximum_difference =
-                std::max({coordinate_maximum_difference, std::abs(nodal[node].current.x - expected_current.x),
-                    std::abs(nodal[node].current.y - expected_current.y),
-                    std::abs(nodal[node].current.z - expected_current.z)});
-            displacement_maximum_difference = std::max(
-                {displacement_maximum_difference, std::abs(nodal[node].displacement.x - expected_displacement.x),
-                    std::abs(nodal[node].displacement.y - expected_displacement.y),
-                    std::abs(nodal[node].displacement.z - expected_displacement.z)});
+                expected_current.y - coordinates[node].y,
+                expected_current.z - coordinates[node].z};
+            coordinate_maximum_difference = std::max({coordinate_maximum_difference,
+                std::abs(nodal[node].current.x - expected_current.x),
+                std::abs(nodal[node].current.y - expected_current.y),
+                std::abs(nodal[node].current.z - expected_current.z)});
+            displacement_maximum_difference = std::max({displacement_maximum_difference,
+                std::abs(nodal[node].displacement.x - expected_displacement.x),
+                std::abs(nodal[node].displacement.y - expected_displacement.y),
+                std::abs(nodal[node].displacement.z - expected_displacement.z)});
             state[node] = nodal[node].temperature;
             state[8 + node] = nodal[node].displacement.x;
             state[16 + node] = nodal[node].displacement.y;
@@ -126,8 +142,10 @@ int main(int argc, char** argv) {
         }
         const fuelsim::ThermoelasticProperties properties =
             fuelsim::test::thermoelastic(0.0, 4.0, 2.0e11, 0.25, 0.0, 300.0, 0.0, 0.0, 0.0, 2000.0, 3000.0);
-        const fuelsim::CartesianThermoelasticData data{
-            fuelsim::IsotropicThermoelasticMaterial(properties), 0.0, 1.0, fuelsim::StrainFormulation::finite};
+        const fuelsim::CartesianThermoelasticData data{fuelsim::IsotropicThermoelasticMaterial(properties),
+            0.0,
+            1.0,
+            fuelsim::StrainFormulation::finite};
         const fuelsim::Hex8LocalResidual fuelsim_residual = fuelsim::compute_hex8_thermoelastic(data, geometry, state);
         double abaqus_hot_reaction = 0.0, fuelsim_hot_reaction = 0.0;
         for (std::size_t node : {std::size_t{1}, std::size_t{2}, std::size_t{5}, std::size_t{6}}) {
@@ -156,18 +174,19 @@ int main(int argc, char** argv) {
 
         bool passed = true;
         passed = check(coordinate_maximum_difference < 2.0e-7 && displacement_maximum_difference < 2.0e-8,
-                     "Abaqus reaches the prescribed finite deformation") &&
-                 passed;
-        passed = check(abaqus_current_error < 1.0e-7 && heat_flux_maximum_difference < 2.0e-5 &&
-                           transverse_heat_flux_maximum < 1.0e-10,
-                     "Abaqus C3D8T evaluates conductivity on the current element dimensions") &&
-                 passed;
+                     "Abaqus reaches the prescribed finite deformation")
+                 && passed;
+        passed = check(abaqus_current_error < 1.0e-7 && heat_flux_maximum_difference < 2.0e-5
+                           && transverse_heat_flux_maximum < 1.0e-10,
+                     "Abaqus C3D8T evaluates conductivity on the current element dimensions")
+                 && passed;
         passed = check(fuelsim_current_error < 1.0e-7,
-                     "fuelsim finite-strain HEX8 evaluates conductivity on the current element dimensions") &&
-                 passed;
-        passed = check(production_error < 1.0e-7, "fuelsim production finite-strain heat rate matches Abaqus C3D8T") &&
-                 passed;
-        if (passed) std::cout << "[PASS] B5.1 Abaqus C3D8T finite-deformation heat identification\n";
+                     "fuelsim finite-strain HEX8 evaluates conductivity on the current element dimensions")
+                 && passed;
+        passed = check(production_error < 1.0e-7, "fuelsim production finite-strain heat rate matches Abaqus C3D8T")
+                 && passed;
+        if (passed)
+            std::cout << "[PASS] B5.1 Abaqus C3D8T finite-deformation heat identification\n";
         return passed ? 0 : 1;
     } catch (const std::exception& error) {
         std::cerr << "[FAIL] " << error.what() << '\n';

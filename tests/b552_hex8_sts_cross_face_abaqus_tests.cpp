@@ -25,7 +25,8 @@ struct ContactReference final {
 };
 
 bool check(bool condition, const std::string& message) {
-    if (condition) return true;
+    if (condition)
+        return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
@@ -34,29 +35,34 @@ std::vector<std::string> split_csv(const std::string& line) {
     std::vector<std::string> result;
     std::istringstream stream(line);
     std::string value;
-    while (std::getline(stream, value, ',')) result.push_back(value);
+    while (std::getline(stream, value, ','))
+        result.push_back(value);
     return result;
 }
 
 std::map<std::size_t, ContactReference> read_contact_reference(const std::string& path) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read B5.52 Abaqus contact reference: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read B5.52 Abaqus contact reference: " + path);
     std::string line;
     std::getline(input, line);
-    if (line != "node,x_m,y_m,z_m,opening_m,pressure_pa,slip1_m,slip2_m,shear_stress1_pa,shear_stress2_pa,"
-                "normal_force1_n,normal_force2_n,normal_force3_n,shear_force1_n,shear_force2_n,shear_force3_n,"
-                "contact_heat_flux_w")
+    if (line
+        != "node,x_m,y_m,z_m,opening_m,pressure_pa,slip1_m,slip2_m,shear_stress1_pa,shear_stress2_pa,"
+           "normal_force1_n,normal_force2_n,normal_force3_n,shear_force1_n,shear_force2_n,shear_force3_n,"
+           "contact_heat_flux_w")
         throw std::invalid_argument("Unexpected B5.52 Abaqus contact header");
     std::map<std::size_t, ContactReference> result;
     while (std::getline(input, line)) {
-        if (line.empty()) continue;
+        if (line.empty())
+            continue;
         const std::vector<std::string> values = split_csv(line);
-        if (values.size() != 17) throw std::invalid_argument("Unexpected B5.52 Abaqus contact column count");
+        if (values.size() != 17)
+            throw std::invalid_argument("Unexpected B5.52 Abaqus contact column count");
         const std::size_t node = std::stoul(values[0]);
         if (node == 0 || result.count(node - 1) != 0)
             throw std::invalid_argument("Invalid or duplicate B5.52 Abaqus contact node");
-        result[node - 1] = {
-            std::stod(values[5]), {std::stod(values[10]), std::stod(values[11]), std::stod(values[12])}};
+        result[node - 1] = {std::stod(values[5]),
+            {std::stod(values[10]), std::stod(values[11]), std::stod(values[12])}};
     }
     return result;
 }
@@ -66,13 +72,24 @@ fuelsim::CartesianPoint3 cylindrical(double radius, double angle, double z) {
 }
 
 fuelsim::Hex8Element append_annular(std::vector<fuelsim::CartesianPoint3>& nodes,
-    std::map<std::array<double, 3>, std::size_t>& node_map, double r0, double r1, double a0, double a1) {
-    const std::array<std::array<double, 3>, 8> logical = {{{r0, a0, 0.0}, {r1, a0, 0.0}, {r1, a1, 0.0}, {r0, a1, 0.0},
-        {r0, a0, 1.0}, {r1, a0, 1.0}, {r1, a1, 1.0}, {r0, a1, 1.0}}};
+    std::map<std::array<double, 3>, std::size_t>& node_map,
+    double r0,
+    double r1,
+    double a0,
+    double a1) {
+    const std::array<std::array<double, 3>, 8> logical = {{{r0, a0, 0.0},
+        {r1, a0, 0.0},
+        {r1, a1, 0.0},
+        {r0, a1, 0.0},
+        {r0, a0, 1.0},
+        {r1, a0, 1.0},
+        {r1, a1, 1.0},
+        {r0, a1, 1.0}}};
     fuelsim::Hex8Element element{};
     for (std::size_t local = 0; local < logical.size(); ++local) {
         const auto inserted = node_map.emplace(logical[local], nodes.size());
-        if (inserted.second) nodes.push_back(cylindrical(logical[local][0], logical[local][1], logical[local][2]));
+        if (inserted.second)
+            nodes.push_back(cylindrical(logical[local][0], logical[local][1], logical[local][2]));
         element.nodes[local] = inserted.first->second;
     }
     return element;
@@ -97,8 +114,11 @@ fuelsim::UnstructuredHex8Mesh mesh() {
         blocks.push_back(2);
         secondary_contact.push_back({elements.size() - 1, 3});
     }
-    return fuelsim::UnstructuredHex8Mesh(std::move(nodes), std::move(elements), std::move(blocks),
-        {{1, "primary"}, {2, "secondary"}}, {},
+    return fuelsim::UnstructuredHex8Mesh(std::move(nodes),
+        std::move(elements),
+        std::move(blocks),
+        {{1, "primary"}, {2, "secondary"}},
+        {},
         {{50, "primary_contact", primary_contact}, {60, "secondary_contact", secondary_contact}});
 }
 
@@ -121,10 +141,12 @@ fuelsim::SpatialDefinition definition() {
     return result;
 }
 
-double inward_displacement(double angle, double z) { return 0.014 + 0.003 * std::cos(2.0 * angle) + 0.002 * (z - 0.5); }
+double inward_displacement(double angle, double z) {
+    return 0.014 + 0.003 * std::cos(2.0 * angle) + 0.002 * (z - 0.5);
+}
 
-std::vector<double> prescribed_state(
-    const fuelsim::SteadyProblem& problem, const fuelsim::UnstructuredHex8Mesh& source_mesh) {
+std::vector<double> prescribed_state(const fuelsim::SteadyProblem& problem,
+    const fuelsim::UnstructuredHex8Mesh& source_mesh) {
     const auto& spatial = fuelsim::cartesian::ProblemAccess::view(problem);
     std::vector<double> result = problem.initial_state();
     for (std::size_t local = 0; local < spatial.region_mesh(1).nodes().size(); ++local) {
@@ -139,34 +161,42 @@ std::vector<double> prescribed_state(
     return result;
 }
 
-double mechanical_contact_directional_error(
-    fuelsim::SteadyProblem& problem, const std::vector<double>& state, double perturbation) {
+double mechanical_contact_directional_error(fuelsim::SteadyProblem& problem,
+    const std::vector<double>& state,
+    double perturbation) {
     const auto& spatial = fuelsim::cartesian::ProblemAccess::view(problem);
     std::vector<double> direction(state.size()), analytic(state.size()), plus_residual(state.size()),
         minus_residual(state.size());
-    for (std::size_t dof = 0; dof < state.size(); ++dof) direction[dof] = std::sin(static_cast<double>(dof + 1));
-    const auto assemble = [&](const std::vector<double>& current, std::vector<double>& residual,
-                              std::vector<double>* jacobian_action) {
-        problem.validate_state(current);
-        for (std::size_t contribution = 0; contribution < spatial.contribution_count(); ++contribution) {
-            if (spatial.contribution_type(contribution) != fuelsim::SpatialContributionType::mechanical_contact)
-                continue;
-            std::vector<std::size_t> dofs;
-            problem.contribution_dofs(contribution, dofs);
-            std::vector<double> local_state(dofs.size());
-            for (std::size_t local = 0; local < dofs.size(); ++local) local_state[local] = current[dofs[local]];
-            std::vector<double> local_residual, local_jacobian;
-            spatial.compute_contribution(contribution, local_state, nullptr, nullptr, 0.0, local_residual,
-                jacobian_action == nullptr ? nullptr : &local_jacobian);
-            for (std::size_t row = 0; row < dofs.size(); ++row) {
-                residual[dofs[row]] += local_residual[row];
-                if (jacobian_action != nullptr)
-                    for (std::size_t column = 0; column < dofs.size(); ++column)
-                        (*jacobian_action)[dofs[row]] +=
-                            local_jacobian[row * dofs.size() + column] * direction[dofs[column]];
+    for (std::size_t dof = 0; dof < state.size(); ++dof)
+        direction[dof] = std::sin(static_cast<double>(dof + 1));
+    const auto assemble =
+        [&](const std::vector<double>& current, std::vector<double>& residual, std::vector<double>* jacobian_action) {
+            problem.validate_state(current);
+            for (std::size_t contribution = 0; contribution < spatial.contribution_count(); ++contribution) {
+                if (spatial.contribution_type(contribution) != fuelsim::SpatialContributionType::mechanical_contact)
+                    continue;
+                std::vector<std::size_t> dofs;
+                problem.contribution_dofs(contribution, dofs);
+                std::vector<double> local_state(dofs.size());
+                for (std::size_t local = 0; local < dofs.size(); ++local)
+                    local_state[local] = current[dofs[local]];
+                std::vector<double> local_residual, local_jacobian;
+                spatial.compute_contribution(contribution,
+                    local_state,
+                    nullptr,
+                    nullptr,
+                    0.0,
+                    local_residual,
+                    jacobian_action == nullptr ? nullptr : &local_jacobian);
+                for (std::size_t row = 0; row < dofs.size(); ++row) {
+                    residual[dofs[row]] += local_residual[row];
+                    if (jacobian_action != nullptr)
+                        for (std::size_t column = 0; column < dofs.size(); ++column)
+                            (*jacobian_action)[dofs[row]] +=
+                                local_jacobian[row * dofs.size() + column] * direction[dofs[column]];
+                }
             }
-        }
-    };
+        };
     std::vector<double> unused(state.size()), plus = state, minus = state;
     assemble(state, unused, &analytic);
     for (std::size_t dof = 0; dof < state.size(); ++dof) {
@@ -210,17 +240,18 @@ int main(int argc, char** argv) {
         std::array<fuelsim::test::FieldErrorMetrics, 3> normal_force;
         for (std::size_t constraint = 0; constraint < contact.size(); ++constraint) {
             const auto found = reference.find(sources[constraint]);
-            if (found == reference.end()) throw std::invalid_argument("B5.52 Abaqus contact node is missing");
+            if (found == reference.end())
+                throw std::invalid_argument("B5.52 Abaqus contact node is missing");
             pressure.add(contact[constraint].pressure, found->second.pressure);
             for (std::size_t component = 0; component < 3; ++component)
-                normal_force[component].add(
-                    -contact[constraint].normal_contact_force[component], found->second.normal_force[component]);
+                normal_force[component].add(-contact[constraint].normal_contact_force[component],
+                    found->second.normal_force[component]);
         }
         fuelsim::test::print_relative_metrics("b552_contact_pressure", pressure);
         for (std::size_t component = 0; component < 3; ++component)
             if (normal_force[component].has_relative_norm())
-                fuelsim::test::print_relative_metrics(
-                    "b552_contact_normal_force_" + std::to_string(component + 1), normal_force[component]);
+                fuelsim::test::print_relative_metrics("b552_contact_normal_force_" + std::to_string(component + 1),
+                    normal_force[component]);
         const fuelsim::InterfaceSummary interface =
             fuelsim::cartesian::ProblemAccess::summarize_interface(problem, 0, state);
         const auto partition = spatial.finite_region_partition_summary(0, state);
@@ -233,27 +264,28 @@ int main(int argc, char** argv) {
         bool passed = check(problem.dof_count() == 128 && source_mesh.elements().size() == 6,
             "B5.52 remains a lightweight six-element, 128-degree-of-freedom operator regression");
         passed = check(problem.jacobian_sparsity_is_state_dependent(),
-                     "B5.52 finite-sliding averaged contact declares its changing active Jacobian support") &&
-                 passed;
-        passed = check(interface.active_contact_nodes == 8 && contact.size() == 8 && partition.constraint_count == 8 &&
-                           partition.active_primary_face_count == 3 && partition.cross_face_constraint_count == 4 &&
-                           partition.maximum_owners_per_integration_point == 1 && partition.all_projected,
-                     "B5.52 keeps all eight constraints active and uniquely partitions four cross-face regions") &&
-                 passed;
-        passed = check(fuelsim::test::relative_metrics_below(pressure, 1.0e-2) && pressure.zero_reference_count == 0 &&
-                           pressure.maximum_zero_reference_difference == 0.0,
+                     "B5.52 finite-sliding averaged contact declares its changing active Jacobian support")
+                 && passed;
+        passed = check(interface.active_contact_nodes == 8 && contact.size() == 8 && partition.constraint_count == 8
+                           && partition.active_primary_face_count == 3 && partition.cross_face_constraint_count == 4
+                           && partition.maximum_owners_per_integration_point == 1 && partition.all_projected,
+                     "B5.52 keeps all eight constraints active and uniquely partitions four cross-face regions")
+                 && passed;
+        passed = check(fuelsim::test::relative_metrics_below(pressure, 1.0e-2) && pressure.zero_reference_count == 0
+                           && pressure.maximum_zero_reference_difference == 0.0,
                      "B5.52 contact pressure passes relative L2, relative absolute peak, and maximum pointwise "
-                     "relative error below one percent without a denominator floor") &&
-                 passed;
-        passed = check(fuelsim::test::relative_metrics_below(normal_force[0], 1.0e-2) &&
-                           fuelsim::test::relative_metrics_below(normal_force[1], 1.0e-2) &&
-                           fuelsim::test::relative_metrics_below(normal_force[2], 1.0e-2),
-                     "B5.52 Cartesian normal nodal forces agree with Abaqus below one percent") &&
-                 passed;
+                     "relative error below one percent without a denominator floor")
+                 && passed;
+        passed = check(fuelsim::test::relative_metrics_below(normal_force[0], 1.0e-2)
+                           && fuelsim::test::relative_metrics_below(normal_force[1], 1.0e-2)
+                           && fuelsim::test::relative_metrics_below(normal_force[2], 1.0e-2),
+                     "B5.52 Cartesian normal nodal forces agree with Abaqus below one percent")
+                 && passed;
         passed = check(jacobian_error < 2.0e-5,
-                     "B5.52 finite-region contact Jacobian matches a centered directional difference") &&
-                 passed;
-        if (passed) std::cout << "[PASS] B5.52 lightweight cross-primary-face STS Abaqus verification\n";
+                     "B5.52 finite-region contact Jacobian matches a centered directional difference")
+                 && passed;
+        if (passed)
+            std::cout << "[PASS] B5.52 lightweight cross-primary-face STS Abaqus verification\n";
         return passed ? 0 : 1;
     } catch (const std::exception& error) {
         std::cerr << "[FAIL] " << error.what() << '\n';

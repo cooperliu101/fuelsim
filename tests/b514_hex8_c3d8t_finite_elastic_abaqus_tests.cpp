@@ -18,8 +18,14 @@ namespace {
 constexpr std::size_t stage_count = 20;
 constexpr double time_step = 1.0e-3;
 constexpr double pi = 3.141592653589793238462643383279502884;
-constexpr std::array<fuelsim::CartesianPoint3, 8> nodes = {{{0.0, 0.0, 0.0}, {1.0, 0.0, 0.0}, {1.0, 1.0, 0.0},
-    {0.0, 1.0, 0.0}, {0.0, 0.0, 1.0}, {1.0, 0.0, 1.0}, {1.0, 1.0, 1.0}, {0.0, 1.0, 1.0}}};
+constexpr std::array<fuelsim::CartesianPoint3, 8> nodes = {{{0.0, 0.0, 0.0},
+    {1.0, 0.0, 0.0},
+    {1.0, 1.0, 0.0},
+    {0.0, 1.0, 0.0},
+    {0.0, 0.0, 1.0},
+    {1.0, 0.0, 1.0},
+    {1.0, 1.0, 1.0},
+    {0.0, 1.0, 1.0}}};
 
 struct Deformation final {
     double stretch, shear, rotation;
@@ -46,7 +52,8 @@ struct EnergyReference final {
 };
 
 bool check(bool condition, const std::string& message) {
-    if (condition) return true;
+    if (condition)
+        return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
@@ -55,12 +62,14 @@ std::vector<std::string> split_csv(const std::string& line) {
     std::vector<std::string> result;
     std::istringstream stream(line);
     std::string value;
-    while (std::getline(stream, value, ',')) result.push_back(value);
+    while (std::getline(stream, value, ','))
+        result.push_back(value);
     return result;
 }
 
 double number(const std::vector<std::string>& values, std::size_t index, const std::string& path) {
-    if (index >= values.size()) throw std::invalid_argument("Incomplete Abaqus B5.14 row in " + path);
+    if (index >= values.size())
+        throw std::invalid_argument("Incomplete Abaqus B5.14 row in " + path);
     return std::stod(values[index]);
 }
 
@@ -71,12 +80,17 @@ std::size_t positive_integer(double value, const std::string& path) {
     return static_cast<std::size_t>(rounded);
 }
 
-double zero_noise(double value, double threshold) { return std::abs(value) < threshold ? 0.0 : value; }
+double zero_noise(double value, double threshold) {
+    return std::abs(value) < threshold ? 0.0 : value;
+}
 
-fuelsim::SymmetricTensor3Values tensor(
-    const std::vector<std::string>& values, std::size_t first, const std::string& path, double zero_threshold) {
-    fuelsim::SymmetricTensor3Values result = {number(values, first, path), number(values, first + 1, path),
-        number(values, first + 2, path), 0.5 * number(values, first + 3, path), 0.5 * number(values, first + 5, path),
+fuelsim::SymmetricTensor3Values
+tensor(const std::vector<std::string>& values, std::size_t first, const std::string& path, double zero_threshold) {
+    fuelsim::SymmetricTensor3Values result = {number(values, first, path),
+        number(values, first + 1, path),
+        number(values, first + 2, path),
+        0.5 * number(values, first + 3, path),
+        0.5 * number(values, first + 5, path),
         0.5 * number(values, first + 4, path)};
     for (double* value : {&result.xx, &result.yy, &result.zz, &result.xy, &result.yz, &result.xz})
         *value = zero_noise(*value, zero_threshold);
@@ -85,7 +99,8 @@ fuelsim::SymmetricTensor3Values tensor(
 
 std::vector<NodeReference> read_nodes(const std::string& path) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read Abaqus B5.14 nodes: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read Abaqus B5.14 nodes: " + path);
     std::string line;
     std::getline(input, line);
     if (line != "stage,time_s,node,temperature_k,ux_m,uy_m,uz_m,reaction_heat_flux_w,rfx_n,rfy_n,rfz_n")
@@ -93,7 +108,8 @@ std::vector<NodeReference> read_nodes(const std::string& path) {
     std::vector<NodeReference> result;
     while (std::getline(input, line)) {
         const std::vector<std::string> values = split_csv(line);
-        if (values.size() != 11) throw std::invalid_argument("Unexpected Abaqus B5.14 nodal column count in " + path);
+        if (values.size() != 11)
+            throw std::invalid_argument("Unexpected Abaqus B5.14 nodal column count in " + path);
         std::array<double, 8> fields{};
         for (std::size_t field = 0; field < fields.size(); ++field) {
             fields[field] = number(values, field + 3, path);
@@ -101,7 +117,9 @@ std::vector<NodeReference> read_nodes(const std::string& path) {
                 fields[field] = zero_noise(fields[field], field >= 5 ? 1.0e-3 : (field == 4 ? 1.0e-10 : 1.0e-16));
         }
         result.push_back({positive_integer(number(values, 0, path), path),
-            positive_integer(number(values, 2, path), path), number(values, 1, path), fields});
+            positive_integer(number(values, 2, path), path),
+            number(values, 1, path),
+            fields});
     }
     if (result.size() != 8 * stage_count)
         throw std::invalid_argument("Abaqus B5.14 nodal reference has an unexpected row count");
@@ -110,7 +128,8 @@ std::vector<NodeReference> read_nodes(const std::string& path) {
 
 std::vector<IntegrationReference> read_integration(const std::string& path) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read Abaqus B5.14 integration points: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read Abaqus B5.14 integration points: " + path);
     std::string line;
     std::getline(input, line);
     const std::string expected = "stage,time_s,element,integration_point,x_m,y_m,z_m,temperature_k,"
@@ -118,7 +137,8 @@ std::vector<IntegrationReference> read_integration(const std::string& path) {
                                  "e11,e22,e33,e12_engineering,e13_engineering,e23_engineering,"
                                  "ee11,ee22,ee33,ee12_engineering,ee13_engineering,ee23_engineering,"
                                  "le11,le22,le33,le12_engineering,le13_engineering,le23_engineering,ivol_m3";
-    if (line != expected) throw std::invalid_argument("Unexpected Abaqus B5.14 integration header in " + path);
+    if (line != expected)
+        throw std::invalid_argument("Unexpected Abaqus B5.14 integration header in " + path);
     std::vector<IntegrationReference> result;
     while (std::getline(input, line)) {
         const std::vector<std::string> values = split_csv(line);
@@ -126,15 +146,24 @@ std::vector<IntegrationReference> read_integration(const std::string& path) {
             throw std::invalid_argument("Unexpected Abaqus B5.14 integration column count in " + path);
         if (positive_integer(number(values, 2, path), path) != 1)
             throw std::invalid_argument("Abaqus B5.14 reference must contain one element");
-        fuelsim::SymmetricTensor3Values stress = {number(values, 8, path), number(values, 9, path),
-            number(values, 10, path), number(values, 11, path), number(values, 13, path), number(values, 12, path)};
+        fuelsim::SymmetricTensor3Values stress = {number(values, 8, path),
+            number(values, 9, path),
+            number(values, 10, path),
+            number(values, 11, path),
+            number(values, 13, path),
+            number(values, 12, path)};
         for (double* component : {&stress.xx, &stress.yy, &stress.zz, &stress.xy, &stress.yz, &stress.xz})
             *component = zero_noise(*component, 1.0);
-        result.push_back(
-            {positive_integer(number(values, 0, path), path), positive_integer(number(values, 3, path), path),
-                number(values, 1, path), {number(values, 4, path), number(values, 5, path), number(values, 6, path)},
-                number(values, 7, path), stress, tensor(values, 14, path, 1.0e-15), tensor(values, 20, path, 1.0e-15),
-                tensor(values, 26, path, 1.0e-15), number(values, 32, path)});
+        result.push_back({positive_integer(number(values, 0, path), path),
+            positive_integer(number(values, 3, path), path),
+            number(values, 1, path),
+            {number(values, 4, path), number(values, 5, path), number(values, 6, path)},
+            number(values, 7, path),
+            stress,
+            tensor(values, 14, path, 1.0e-15),
+            tensor(values, 20, path, 1.0e-15),
+            tensor(values, 26, path, 1.0e-15),
+            number(values, 32, path)});
     }
     if (result.size() != 8 * stage_count)
         throw std::invalid_argument("Abaqus B5.14 integration reference has an unexpected row count");
@@ -143,7 +172,8 @@ std::vector<IntegrationReference> read_integration(const std::string& path) {
 
 std::vector<EnergyReference> read_energy(const std::string& path) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read Abaqus B5.14 energy: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read Abaqus B5.14 energy: " + path);
     std::string line;
     std::getline(input, line);
     if (line != "stage,time_s,internal_energy_j,strain_energy_j,external_work_j")
@@ -151,9 +181,13 @@ std::vector<EnergyReference> read_energy(const std::string& path) {
     std::vector<EnergyReference> result;
     while (std::getline(input, line)) {
         const std::vector<std::string> values = split_csv(line);
-        if (values.size() != 5) throw std::invalid_argument("Unexpected Abaqus B5.14 energy column count in " + path);
-        result.push_back({positive_integer(number(values, 0, path), path), number(values, 1, path),
-            number(values, 2, path), number(values, 3, path), number(values, 4, path)});
+        if (values.size() != 5)
+            throw std::invalid_argument("Unexpected Abaqus B5.14 energy column count in " + path);
+        result.push_back({positive_integer(number(values, 0, path), path),
+            number(values, 1, path),
+            number(values, 2, path),
+            number(values, 3, path),
+            number(values, 4, path)});
     }
     if (result.size() != stage_count)
         throw std::invalid_argument("Abaqus B5.14 energy reference has an unexpected row count");
@@ -161,10 +195,14 @@ std::vector<EnergyReference> read_energy(const std::string& path) {
 }
 
 Deformation deformation(std::size_t stage) {
-    if (stage < 1 || stage > stage_count) throw std::out_of_range("B5.14 stage lies outside 1 through 20");
-    if (stage <= 5) return {1.0 + 0.006 * static_cast<double>(stage), 0.0, 0.0};
-    if (stage <= 10) return {1.03, 0.008 * static_cast<double>(stage - 5), 0.0};
-    if (stage <= 15) return {1.03, 0.04, 6.0 * static_cast<double>(stage - 10) * pi / 180.0};
+    if (stage < 1 || stage > stage_count)
+        throw std::out_of_range("B5.14 stage lies outside 1 through 20");
+    if (stage <= 5)
+        return {1.0 + 0.006 * static_cast<double>(stage), 0.0, 0.0};
+    if (stage <= 10)
+        return {1.03, 0.008 * static_cast<double>(stage - 5), 0.0};
+    if (stage <= 15)
+        return {1.03, 0.04, 6.0 * static_cast<double>(stage - 10) * pi / 180.0};
     return {1.03, 0.04, (30.0 - 6.0 * static_cast<double>(stage - 15)) * pi / 180.0};
 }
 
@@ -195,7 +233,11 @@ fuelsim::SymmetricTensor3Values logarithmic_strain(const Deformation& value) {
 
 fuelsim::UnstructuredHex8Mesh mesh() {
     return fuelsim::UnstructuredHex8Mesh(std::vector<fuelsim::CartesianPoint3>(nodes.begin(), nodes.end()),
-        {{{{0, 1, 2, 3, 4, 5, 6, 7}}}}, {1}, {{1, "solid"}}, {}, {});
+        {{{{0, 1, 2, 3, 4, 5, 6, 7}}}},
+        {1},
+        {{1, "solid"}},
+        {},
+        {});
 }
 
 fuelsim::SpatialDefinition definition() {
@@ -206,8 +248,8 @@ fuelsim::SpatialDefinition definition() {
     return result;
 }
 
-std::vector<double> prescribed_state(
-    const fuelsim::TransientProblem& problem, const Deformation& value, double temperature) {
+std::vector<double>
+prescribed_state(const fuelsim::TransientProblem& problem, const Deformation& value, double temperature) {
     std::vector<double> result = problem.committed_solution();
     const auto& dofs = fuelsim::cartesian::ProblemAccess::dof_map(problem);
     for (std::size_t node = 0; node < nodes.size(); ++node) {
@@ -278,12 +320,15 @@ int main(int argc, char** argv) {
             problem.begin_time_step({time, 1.0, true});
             const std::vector<double> reaction = raw_residual(problem, state);
             for (const NodeReference& reference : node_reference) {
-                if (reference.stage != stage) continue;
+                if (reference.stage != stage)
+                    continue;
                 if (reference.node < 1 || reference.node > 8 || std::abs(reference.time - time) > 1.0e-12)
                     throw std::invalid_argument("Abaqus B5.14 nodal label or time lies outside the path");
                 const std::size_t node = reference.node - 1;
                 const std::array<fuelsim::Field, 4> fields = {fuelsim::Field::temperature,
-                    fuelsim::Field::displacement_x, fuelsim::Field::displacement_y, fuelsim::Field::displacement_z};
+                    fuelsim::Field::displacement_x,
+                    fuelsim::Field::displacement_y,
+                    fuelsim::Field::displacement_z};
                 for (std::size_t field = 0; field < fields.size(); ++field) {
                     const std::size_t dof = dofs.dof(fields[field], node);
                     nodal_metrics[field].add(state[dof], reference.fields[field]);
@@ -296,14 +341,15 @@ int main(int argc, char** argv) {
                 fuelsim::cartesian::ProblemAccess::material_history(problem, 0, 0);
             const fuelsim::SymmetricTensor3Values exact_logarithmic = logarithmic_strain(value);
             for (const IntegrationReference& reference : integration_reference) {
-                if (reference.stage != stage) continue;
+                if (reference.stage != stage)
+                    continue;
                 std::size_t closest = 0;
                 double closest_squared = std::numeric_limits<double>::max();
                 for (std::size_t q = 0; q < geometry.points.size(); ++q) {
                     const fuelsim::CartesianPoint3 point = current_position(geometry.points[q].position, value);
-                    const double distance_squared = std::pow(point.x - reference.position.x, 2) +
-                                                    std::pow(point.y - reference.position.y, 2) +
-                                                    std::pow(point.z - reference.position.z, 2);
+                    const double distance_squared = std::pow(point.x - reference.position.x, 2)
+                                                    + std::pow(point.y - reference.position.y, 2)
+                                                    + std::pow(point.z - reference.position.z, 2);
                     if (distance_squared < closest_squared) {
                         closest = q;
                         closest_squared = distance_squared;
@@ -321,12 +367,12 @@ int main(int argc, char** argv) {
                     integration_metrics[1 + component].add(actual_stress[component], expected_stress[component]);
                     integration_metrics[7 + component].add(actual_elastic[component], expected_integrated[component]);
                     integration_metrics[13 + component].add(actual_elastic[component], expected_elastic[component]);
-                    integration_metrics[19 + component].add(
-                        actual_logarithmic[component], expected_logarithmic[component]);
+                    integration_metrics[19 + component].add(actual_logarithmic[component],
+                        expected_logarithmic[component]);
                     logarithmic_reference_metric.add(expected_integrated[component], expected_logarithmic[component]);
                 }
-                integration_metrics[25].add(
-                    geometry.points[closest].weighted_measure * value.stretch, reference.integration_volume);
+                integration_metrics[25].add(geometry.points[closest].weighted_measure * value.stretch,
+                    reference.integration_volume);
             }
             const EnergyReference& energy = energy_reference.at(stage - 1);
             if (energy.stage != stage || std::abs(energy.time - time) > 1.0e-12)
@@ -335,42 +381,69 @@ int main(int argc, char** argv) {
             energy_metrics[1].add(cumulative_elastic_energy, energy.strain_energy);
         }
 
-        const std::array<std::string, 8> nodal_names = {"temperature", "displacement_x", "displacement_y",
-            "displacement_z", "reaction_heat_flux", "reaction_force_x", "reaction_force_y", "reaction_force_z"};
-        const std::array<double, 8> nodal_zero_tolerances = {
-            1.0e-12, 1.0e-14, 1.0e-14, 1.0e-14, 1.0e-10, 1.0e-2, 1.0e-2, 1.0e-2};
+        const std::array<std::string, 8> nodal_names = {"temperature",
+            "displacement_x",
+            "displacement_y",
+            "displacement_z",
+            "reaction_heat_flux",
+            "reaction_force_x",
+            "reaction_force_y",
+            "reaction_force_z"};
+        const std::array<double, 8> nodal_zero_tolerances =
+            {1.0e-12, 1.0e-14, 1.0e-14, 1.0e-14, 1.0e-10, 1.0e-2, 1.0e-2, 1.0e-2};
         for (std::size_t field = 0; field < nodal_metrics.size(); ++field) {
             print_metrics("b514_" + nodal_names[field], nodal_metrics[field]);
             passed = check(metrics_pass(nodal_metrics[field], 1.0e-3, nodal_zero_tolerances[field]),
-                         "B5.14 " + nodal_names[field] + " metrics are below 0.1 percent") &&
-                     passed;
+                         "B5.14 " + nodal_names[field] + " metrics are below 0.1 percent")
+                     && passed;
         }
-        const std::array<std::string, 26> integration_names = {"coordinate", "stress_xx", "stress_yy", "stress_zz",
-            "stress_xy", "stress_yz", "stress_xz", "integrated_strain_xx", "integrated_strain_yy",
-            "integrated_strain_zz", "integrated_strain_xy", "integrated_strain_yz", "integrated_strain_xz",
-            "elastic_strain_xx", "elastic_strain_yy", "elastic_strain_zz", "elastic_strain_xy", "elastic_strain_yz",
-            "elastic_strain_xz", "logarithmic_strain_xx", "logarithmic_strain_yy", "logarithmic_strain_zz",
-            "logarithmic_strain_xy", "logarithmic_strain_yz", "logarithmic_strain_xz", "integration_volume"};
+        const std::array<std::string, 26> integration_names = {"coordinate",
+            "stress_xx",
+            "stress_yy",
+            "stress_zz",
+            "stress_xy",
+            "stress_yz",
+            "stress_xz",
+            "integrated_strain_xx",
+            "integrated_strain_yy",
+            "integrated_strain_zz",
+            "integrated_strain_xy",
+            "integrated_strain_yz",
+            "integrated_strain_xz",
+            "elastic_strain_xx",
+            "elastic_strain_yy",
+            "elastic_strain_zz",
+            "elastic_strain_xy",
+            "elastic_strain_yz",
+            "elastic_strain_xz",
+            "logarithmic_strain_xx",
+            "logarithmic_strain_yy",
+            "logarithmic_strain_zz",
+            "logarithmic_strain_xy",
+            "logarithmic_strain_yz",
+            "logarithmic_strain_xz",
+            "integration_volume"};
         for (std::size_t field = 0; field < integration_metrics.size(); ++field) {
             print_metrics("b514_" + integration_names[field], integration_metrics[field]);
             const double zero_tolerance = field == 0 ? 1.0e-12 : (field <= 6 ? 1.0e-2 : 1.0e-14);
             passed = check(metrics_pass(integration_metrics[field], 1.0e-3, zero_tolerance),
-                         "B5.14 " + integration_names[field] + " metrics are below 0.1 percent") &&
-                     passed;
+                         "B5.14 " + integration_names[field] + " metrics are below 0.1 percent")
+                     && passed;
         }
-        fuelsim::test::print_relative_metrics(
-            "b514_integrated_vs_exact_logarithmic_strain", logarithmic_reference_metric);
+        fuelsim::test::print_relative_metrics("b514_integrated_vs_exact_logarithmic_strain",
+            logarithmic_reference_metric);
         passed = check(logarithmic_reference_metric.maximum_absolute_difference > 1.0e-8,
-                     "B5.14 distinguishes Abaqus integrated strain E from exact logarithmic strain LE") &&
-                 passed;
+                     "B5.14 distinguishes Abaqus integrated strain E from exact logarithmic strain LE")
+                 && passed;
         const std::array<std::string, 2> energy_names = {"internal_energy", "strain_energy"};
         for (std::size_t field = 0; field < energy_metrics.size(); ++field) {
             print_metrics("b514_" + energy_names[field], energy_metrics[field]);
             passed = check(metrics_pass(energy_metrics[field], 1.0e-3, 1.0e-6),
-                         "B5.14 " + energy_names[field] + " metrics are below 0.1 percent") &&
-                     passed;
+                         "B5.14 " + energy_names[field] + " metrics are below 0.1 percent")
+                     && passed;
         }
-        if (!passed) return 1;
+        if (!passed)
+            return 1;
         std::cout << "[PASS] Abaqus B5.14 finite-strain elastic kinematics comparison\n";
         return 0;
     } catch (const std::exception& error) {

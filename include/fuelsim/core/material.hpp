@@ -74,35 +74,63 @@ class IsotropicThermoelasticMaterial final {
 
     adlite::Scalar conductivity(const adlite::Scalar& temperature, MaterialFunctionContext context = {}) const;
     adlite::Scalar heat_capacity(const adlite::Scalar& temperature, MaterialFunctionContext context = {}) const;
-    ActiveThermoelasticProperties active_properties(
-        const adlite::Scalar& temperature, MaterialFunctionContext context = {}) const;
+    ActiveThermoelasticProperties active_properties(const adlite::Scalar& temperature,
+        MaterialFunctionContext context = {}) const;
     AxisymmetricStrain eigenstrain_rz(const adlite::Scalar& temperature, MaterialFunctionContext context = {}) const;
     SymmetricTensor3 eigenstrain(const adlite::Scalar& temperature, MaterialFunctionContext context = {}) const;
-    AxisymmetricStress stress(const adlite::Scalar& strain_rr, const adlite::Scalar& strain_zz,
-        const adlite::Scalar& strain_hoop, const adlite::Scalar& strain_rz, const adlite::Scalar& temperature,
+    AxisymmetricStress stress(const adlite::Scalar& strain_rr,
+        const adlite::Scalar& strain_zz,
+        const adlite::Scalar& strain_hoop,
+        const adlite::Scalar& strain_rz,
+        const adlite::Scalar& temperature,
         MaterialFunctionContext context = {}) const;
-    SymmetricTensor3 stress(
-        const SymmetricTensor3& strain, const adlite::Scalar& temperature, MaterialFunctionContext context = {}) const;
-    SymmetricTensor3Values stress_values(
-        const SymmetricTensor3Values& strain, double temperature, MaterialFunctionContext context = {}) const;
-    InelasticStressResponse response(const adlite::Scalar& strain_rr, const adlite::Scalar& strain_zz,
-        const adlite::Scalar& strain_hoop, const adlite::Scalar& strain_rz, const adlite::Scalar& temperature,
-        double time_step, const MaterialPointState& committed, MaterialFunctionContext context = {}) const;
-    CartesianInelasticStressResponse response(const SymmetricTensor3& strain, const adlite::Scalar& temperature,
-        double time_step, const CartesianMaterialPointState& committed, MaterialFunctionContext context = {}) const;
+    SymmetricTensor3 stress(const SymmetricTensor3& strain,
+        const adlite::Scalar& temperature,
+        MaterialFunctionContext context = {}) const;
+    SymmetricTensor3Values
+    stress_values(const SymmetricTensor3Values& strain, double temperature, MaterialFunctionContext context = {}) const;
+    InelasticStressResponse response(const adlite::Scalar& strain_rr,
+        const adlite::Scalar& strain_zz,
+        const adlite::Scalar& strain_hoop,
+        const adlite::Scalar& strain_rz,
+        const adlite::Scalar& temperature,
+        double time_step,
+        const MaterialPointState& committed,
+        MaterialFunctionContext context = {}) const;
+    CartesianInelasticStressResponse response(const SymmetricTensor3& strain,
+        const adlite::Scalar& temperature,
+        double time_step,
+        const CartesianMaterialPointState& committed,
+        MaterialFunctionContext context = {}) const;
     CartesianInelasticStressResponse incremental_response(const SymmetricTensor3& strain_increment,
-        const CartesianRotation& rotation, const adlite::Scalar& temperature, double committed_temperature,
-        double time_step, const CartesianMaterialPointState& committed, MaterialFunctionContext context = {}) const;
-    CartesianMaterialPointState response_values(const SymmetricTensor3Values& strain, double temperature,
-        double time_step, const CartesianMaterialPointState& committed, MaterialFunctionContext context = {}) const;
+        const CartesianRotation& rotation,
+        const adlite::Scalar& temperature,
+        double committed_temperature,
+        double time_step,
+        const CartesianMaterialPointState& committed,
+        MaterialFunctionContext context = {}) const;
+    CartesianMaterialPointState response_values(const SymmetricTensor3Values& strain,
+        double temperature,
+        double time_step,
+        const CartesianMaterialPointState& committed,
+        MaterialFunctionContext context = {}) const;
     CartesianMaterialPointState incremental_response_values(const SymmetricTensor3Values& strain_increment,
-        const CartesianRotation& rotation, double temperature, double committed_temperature, double time_step,
-        const CartesianMaterialPointState& committed, MaterialFunctionContext context = {}) const;
+        const CartesianRotation& rotation,
+        double temperature,
+        double committed_temperature,
+        double time_step,
+        const CartesianMaterialPointState& committed,
+        MaterialFunctionContext context = {}) const;
     InelasticStressResponse incremental_response(const adlite::Scalar& strain_increment_rr,
-        const adlite::Scalar& strain_increment_zz, const adlite::Scalar& strain_increment_hoop,
-        const adlite::Scalar& strain_increment_rz, const AxisymmetricRotation& rotation,
-        const adlite::Scalar& temperature, double committed_temperature, double time_step,
-        const MaterialPointState& committed, MaterialFunctionContext context = {}) const;
+        const adlite::Scalar& strain_increment_zz,
+        const adlite::Scalar& strain_increment_hoop,
+        const adlite::Scalar& strain_increment_rz,
+        const AxisymmetricRotation& rotation,
+        const adlite::Scalar& temperature,
+        double committed_temperature,
+        double time_step,
+        const MaterialPointState& committed,
+        MaterialFunctionContext context = {}) const;
     static MaterialPointState state_values(const MaterialPointTrialState& trial_state);
 
   private:

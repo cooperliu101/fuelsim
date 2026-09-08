@@ -1,0 +1,13 @@
+Diagnostic comparison within Fuelsim; not an Abaqus speed qualification.
+Same 70-increment input, CPU 0, MUMPS, one OMP/BLAS thread; console and Exodus output enabled.
+Before: projection always executes sixteen iterations. External real 100.09 s; internal total 98.793149029 s.
+After: stop only when both projection values and derivatives converge. External real 38.43 s; internal total 37.313345973 s.
+Maximum nodal field absolute difference across all frames: 6.519530870718881e-8 (fields have different units).
+Maximum element field absolute difference across all frames: 4.0941586121334694e-8 (fields have different units).
+These absolute differences are a reproducibility diagnostic, not a replacement for field-specific acceptance.
+4affe7ede5718dbb737c0f5247656a109aaab2b5fb5576f16906a2f4f6d5d3a0  build/fuelsim
+56f0ab745a706eb2b4b7f636cda8a54c33f11dd553f1c1bddab42bd99e8c18b5  src/core/cartesian3d_hex20_contact.cpp
+eff9a44a6fb561298de4652ded2ac8011f390918d92199dc4998e1effc5c4c4e  verification/fuelsim/transient_c3d20rt_contact_friction.fsi
+788e59aeb5690cc0116353d9cd9b2d5d0127ac1720177a12a755e3969fc88f72  build/fuelsim
+50ef7cef30d277468c12e01421234ad879c396c7c6df283aa75fb6d4c321ce79  src/core/cartesian3d_hex20_contact.cpp
+eff9a44a6fb561298de4652ded2ac8011f390918d92199dc4998e1effc5c4c4e  verification/fuelsim/transient_c3d20rt_contact_friction.fsi

@@ -1,0 +1,159 @@
+input_file=verification/fuelsim/transient_c3d20rt_finite_contact_first_increment.fsi
+mesh_file=/home/cooper/ai_project/fuelsim/verification/meshes/c3d20rt_finite_contact.e
+mpi_ranks=1
+results_file=/home/cooper/ai_project/fuelsim/verification/fuelsim/transient_c3d20rt_finite_contact_first_increment_results.e
+  0 SNES Function norm 1.112617138942e+01
+  1 SNES Function norm 1.381355137718e+00
+  2 SNES Function norm 2.618160482014e-01
+  3 SNES Function norm 1.138691226309e-02
+  4 SNES Function norm 5.634696586136e-03
+  5 SNES Function norm 7.732332791141e-03
+  6 SNES Function norm 5.585054677106e-03
+  7 SNES Function norm 7.812784411655e-03
+  8 SNES Function norm 5.470855566615e-03
+  9 SNES Function norm 7.845467620292e-03
+ 10 SNES Function norm 5.442709248427e-03
+ 11 SNES Function norm 7.851887665058e-03
+ 12 SNES Function norm 5.434270249342e-03
+ 13 SNES Function norm 7.853413138299e-03
+ 14 SNES Function norm 5.430978740376e-03
+ 15 SNES Function norm 7.853540585037e-03
+ 16 SNES Function norm 5.429303343516e-03
+ 17 SNES Function norm 7.853245181325e-03
+ 18 SNES Function norm 5.428259970613e-03
+ 19 SNES Function norm 7.852757846309e-03
+ 20 SNES Function norm 5.427473975678e-03
+ 21 SNES Function norm 7.852217211164e-03
+ 22 SNES Function norm 5.426822175169e-03
+ 23 SNES Function norm 7.851676617380e-03
+ 24 SNES Function norm 5.426254099285e-03
+ 25 SNES Function norm 7.851164682311e-03
+ 26 SNES Function norm 5.425749827861e-03
+ 27 SNES Function norm 7.850691869231e-03
+ 28 SNES Function norm 5.425298816972e-03
+ 29 SNES Function norm 7.850261345497e-03
+ 30 SNES Function norm 5.424894545131e-03
+ 31 SNES Function norm 7.849872226456e-03
+ 32 SNES Function norm 5.424531970368e-03
+ 33 SNES Function norm 7.849522024330e-03
+ 34 SNES Function norm 5.424206849173e-03
+ 35 SNES Function norm 7.849207607201e-03
+ 36 SNES Function norm 5.423915425870e-03
+ 37 SNES Function norm 7.848925731792e-03
+ 38 SNES Function norm 5.423654325878e-03
+ 39 SNES Function norm 7.848673266227e-03
+ 40 SNES Function norm 5.423420493631e-03
+problem=transient
+completed=false
+termination_reason=minimum_time_step
+regions=2
+contacts=1
+committed_time=0.000000000000e+00
+next_time_step=2.500000000000e-02
+accepted_steps=0
+contributions=25
+time_error_rejections=0
+rejected_steps=1
+last_rejected.attempted_end_time=2.500000000000e-02
+last_rejected.time_step=2.500000000000e-02
+last_rejected.cutback_index=0
+last_rejected.nonlinear_iterations=40
+last_rejected.linear_iterations=40
+last_rejected.convergence_reason=DIVERGED_MAX_IT
+last_rejected.residual_norm=5.423420493631e-03
+last_rejected.time_error_estimate=0.000000000000e+00
+last_rejected.time_error.elastic_strain=0.000000000000e+00
+last_rejected.time_error.plastic_strain=0.000000000000e+00
+last_rejected.time_error.creep_strain=0.000000000000e+00
+last_rejected.time_error.equivalent_plastic_strain=0.000000000000e+00
+last_rejected.time_error.equivalent_creep_strain=0.000000000000e+00
+last_rejected.time_error.stress=0.000000000000e+00
+last_rejected.time_error.contact_friction=0.000000000000e+00
+last_rejected.time_error.contact_normal_multiplier=0.000000000000e+00
+last_rejected.failure_category=nonlinear_divergence
+last_rejected.failure_message=DIVERGED_MAX_IT
+total_cutbacks=0
+nonlinear_iterations_total=40
+linear_iterations_total=40
+residual_evaluations_total=122
+jacobian_evaluations_total=40
+petsc_workspace_setups=1
+nonlinear_attempts=1
+linear_iterations=40
+used_backtracking_fallback=false
+augmented_lagrangian_iterations=0
+global_state_dofs=296
+maximum_shadow_state_dofs=296
+total_shadow_state_dofs=296
+total_remote_shadow_state_dofs=0
+memory.initial_resident_bytes=157876224
+memory.setup_resident_bytes=161808384
+memory.solve_resident_bytes=165543936
+memory.final_resident_bytes=165543936
+memory.minimum_peak_resident_bytes=165543936
+memory.maximum_peak_resident_bytes=165543936
+memory.total_peak_resident_bytes=165543936
+residual.temperature.initial_l2=1.112592572978e+04
+residual.temperature.reference_l2=1.112592572978e+01
+residual.temperature.final_l2=1.229652790078e-03
+residual.temperature.scaling=1.000000000000e-03
+residual.temperature.final_scaled_l2=1.229652790078e-06
+residual.displacement_x.initial_l2=1.467222018960e+06
+residual.displacement_x.reference_l2=1.274094595528e+00
+residual.displacement_x.final_l2=7.139691731885e+03
+residual.displacement_x.scaling=5.000000000000e-08
+residual.displacement_x.final_scaled_l2=3.569845865942e-04
+residual.displacement_y.initial_l2=1.839466784732e+05
+residual.displacement_y.reference_l2=3.134574501401e-01
+residual.displacement_y.final_l2=9.098213200029e+04
+residual.displacement_y.scaling=5.000000000000e-08
+residual.displacement_y.final_scaled_l2=4.549106600015e-03
+residual.displacement_z.initial_l2=1.532196697435e-10
+residual.displacement_z.reference_l2=2.109437702926e-01
+residual.displacement_z.final_l2=5.862313360895e+04
+residual.displacement_z.scaling=5.000000000000e-08
+residual.displacement_z.final_scaled_l2=2.931156680448e-03
+aggregate_memory.initial_resident_bytes=157876224
+aggregate_memory.setup_resident_bytes=161808384
+aggregate_memory.solve_resident_bytes=165543936
+aggregate_memory.final_resident_bytes=165543936
+aggregate_memory.minimum_peak_resident_bytes=165543936
+aggregate_memory.maximum_peak_resident_bytes=165543936
+aggregate_memory.total_peak_resident_bytes=165543936
+total_seconds=7.070675759000e+00
+conservation.generated_heat_rate=0.000000000000e+00
+conservation.stored_heat_rate=0.000000000000e+00
+conservation.convection_heat_rate=0.000000000000e+00
+conservation.surface_heat_input_rate=0.000000000000e+00
+conservation.interface_heat_imbalance=0.000000000000e+00
+conservation.dirichlet_heat_input_rate=0.000000000000e+00
+conservation.global_thermal_balance=0.000000000000e+00
+conservation.relative_thermal_balance=0.000000000000e+00
+conservation.unconstrained_thermal_residual_l2=0.000000000000e+00
+conservation.internal_mechanical_work_increment=0.000000000000e+00
+conservation.pressure_traction_work_increment=0.000000000000e+00
+conservation.dirichlet_reaction_work_increment=0.000000000000e+00
+conservation.contact_work_increment=0.000000000000e+00
+conservation.mechanical_work_balance=0.000000000000e+00
+conservation.relative_mechanical_work_balance=0.000000000000e+00
+conservation.unconstrained_mechanical_residual_l2=0.000000000000e+00
+conservation.elastic_energy_change=0.000000000000e+00
+conservation.plastic_dissipation_increment=0.000000000000e+00
+conservation.creep_dissipation_increment=0.000000000000e+00
+conservation.friction_dissipation_increment=0.000000000000e+00
+conservation.trapezoidal_pressure_traction_work_increment=0.000000000000e+00
+conservation.trapezoidal_dirichlet_reaction_work_increment=0.000000000000e+00
+conservation.mechanical_hourglass_energy=0.000000000000e+00
+conservation.mechanical_hourglass_energy_change=0.000000000000e+00
+region.primary.maximum_equivalent_plastic_strain=0.000000000000e+00
+region.primary.maximum_equivalent_creep_strain=0.000000000000e+00
+region.secondary.maximum_equivalent_plastic_strain=0.000000000000e+00
+region.secondary.maximum_equivalent_creep_strain=0.000000000000e+00
+contact.interface.minimum_gap=-5.803866084496e-17
+contact.interface.maximum_contact_pressure=5.573666528313e-04
+contact.interface.total_heat_rate=2.000000000000e+04
+contact.interface.total_contact_force=5.688158277728e-04
+contact.interface.total_tangential_force=0.000000000000e+00
+contact.interface.projected_contact_nodes=13
+contact.interface.unprojected_contact_nodes=0
+contact.interface.active_contact_nodes=3

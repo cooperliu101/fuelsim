@@ -22,31 +22,40 @@
 namespace {
 void write_reference(const std::string& path, const std::vector<double>& state) {
     std::ofstream output(path, std::ios::out | std::ios::trunc);
-    if (!output) throw std::runtime_error("Could not write MPI reference: " + path);
+    if (!output)
+        throw std::runtime_error("Could not write MPI reference: " + path);
     output << state.size() << '\n' << std::setprecision(17);
-    for (double value : state) output << value << '\n';
-    if (!output) throw std::runtime_error("Could not complete MPI reference: " + path);
+    for (double value : state)
+        output << value << '\n';
+    if (!output)
+        throw std::runtime_error("Could not complete MPI reference: " + path);
 }
 
 std::vector<double> read_reference(const std::string& path) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read MPI reference: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read MPI reference: " + path);
     std::size_t count = 0;
     input >> count;
     std::vector<double> result(count, 0.0);
-    for (double& value : result) input >> value;
-    if (!input) throw std::runtime_error("MPI reference is incomplete: " + path);
+    for (double& value : result)
+        input >> value;
+    if (!input)
+        throw std::runtime_error("MPI reference is incomplete: " + path);
     return result;
 }
 
-std::vector<double> read_production_reference(
-    const std::string& path, const fuelsim::SteadyProblem& problem, fuelsim::CaseGeometry geometry) {
+std::vector<double> read_production_reference(const std::string& path,
+    const fuelsim::SteadyProblem& problem,
+    fuelsim::CaseGeometry geometry) {
     const fuelsim::test::ExodusResults output = fuelsim::test::read_final_exodus_results(path);
     std::vector<double> result(problem.dof_count(), std::numeric_limits<double>::quiet_NaN());
     if (geometry == fuelsim::CaseGeometry::cartesian_3d) {
         const auto& layout = fuelsim::cartesian::ProblemAccess::dof_map(problem);
-        const std::array<fuelsim::Field, 4> fields = {fuelsim::Field::temperature, fuelsim::Field::displacement_x,
-            fuelsim::Field::displacement_y, fuelsim::Field::displacement_z};
+        const std::array<fuelsim::Field, 4> fields = {fuelsim::Field::temperature,
+            fuelsim::Field::displacement_x,
+            fuelsim::Field::displacement_y,
+            fuelsim::Field::displacement_z};
         const std::array<std::string, 4> names = {"temperature", "displacement_x", "displacement_y", "displacement_z"};
         for (std::size_t region = 0; region < fuelsim::cartesian::ProblemAccess::region_count(problem); ++region) {
             const auto& mesh = fuelsim::cartesian::ProblemAccess::region_mesh(problem, region);
@@ -59,8 +68,9 @@ std::vector<double> read_production_reference(
         }
     } else {
         const auto& layout = fuelsim::rz::ProblemAccess::dof_map(problem);
-        const std::array<fuelsim::Field, 3> fields = {
-            fuelsim::Field::temperature, fuelsim::Field::radial_displacement, fuelsim::Field::axial_displacement};
+        const std::array<fuelsim::Field, 3> fields = {fuelsim::Field::temperature,
+            fuelsim::Field::radial_displacement,
+            fuelsim::Field::axial_displacement};
         const std::array<std::string, 3> names = {"temperature", "displacement_r", "displacement_z"};
         for (std::size_t region = 0; region < fuelsim::rz::ProblemAccess::region_count(problem); ++region) {
             const auto& mesh = fuelsim::rz::ProblemAccess::region_mesh(problem, region);
@@ -82,7 +92,8 @@ std::vector<double> flatten_transient_state(const fuelsim::TransientProblem& pro
     result.insert(result.end(), problem.committed_solution().begin(), problem.committed_solution().end());
     for (std::size_t region = 0; region < fuelsim::rz::ProblemAccess::region_count(problem); ++region) {
         for (std::size_t element = 0;
-            element < fuelsim::rz::ProblemAccess::region_mesh(problem, region).elements().size(); ++element) {
+            element < fuelsim::rz::ProblemAccess::region_mesh(problem, region).elements().size();
+            ++element) {
             const fuelsim::Quad4MaterialHistory& history =
                 fuelsim::rz::ProblemAccess::material_history(problem, region, element);
             const auto& stresses = fuelsim::rz::ProblemAccess::material_stress(problem, region, element);
@@ -109,12 +120,16 @@ std::vector<double> flatten_transient_state(const fuelsim::TransientProblem& pro
     return result;
 }
 
-void compare_reference(const std::string& path, const std::vector<double>& state, const fuelsim::SteadyProblem& problem,
-    fuelsim::CaseGeometry geometry, double tolerance) {
+void compare_reference(const std::string& path,
+    const std::vector<double>& state,
+    const fuelsim::SteadyProblem& problem,
+    fuelsim::CaseGeometry geometry,
+    double tolerance) {
     const bool production_output = path.size() >= 2 && path.substr(path.size() - 2) == ".e";
     const std::vector<double> reference =
         production_output ? read_production_reference(path, problem, geometry) : read_reference(path);
-    if (reference.size() != state.size()) throw std::runtime_error("MPI reference state size differs");
+    if (reference.size() != state.size())
+        throw std::runtime_error("MPI reference state size differs");
     double maximum_absolute = 0.0;
     double maximum_scaled = 0.0;
     std::size_t maximum_scaled_index = 0;
@@ -170,22 +185,25 @@ TransientStateLayout transient_state_layout(const fuelsim::TransientProblem& pro
         }
     }
     for (std::size_t contact = 0; contact < committed.contact_histories.size(); ++contact) {
-        if (committed.contact_histories[contact].size() !=
-            fuelsim::rz::ProblemAccess::contact_secondary_source_nodes(problem, contact).size())
+        if (committed.contact_histories[contact].size()
+            != fuelsim::rz::ProblemAccess::contact_secondary_source_nodes(problem, contact).size())
             throw std::runtime_error("Transient MPI contact-history point count differs from the secondary boundary");
         layout._contact_point_count += committed.contact_histories[contact].size();
     }
     constexpr std::size_t values_per_quadrature_point = 18;
     constexpr std::size_t values_per_contact_point = 3;
-    layout._flattened_size = 2 + problem.dof_count() + values_per_quadrature_point * layout._quadrature_point_count +
-                             values_per_contact_point * layout._contact_point_count;
+    layout._flattened_size = 2 + problem.dof_count() + values_per_quadrature_point * layout._quadrature_point_count
+                             + values_per_contact_point * layout._contact_point_count;
     return layout;
 }
 
 class DifferenceSummary final {
   public:
-    DifferenceSummary(
-        std::string name, std::string unit, double absolute_tolerance, double relative_tolerance, bool exact)
+    DifferenceSummary(std::string name,
+        std::string unit,
+        double absolute_tolerance,
+        double relative_tolerance,
+        bool exact)
         : _name(std::move(name)), _unit(std::move(unit)), _absolute_tolerance(absolute_tolerance),
           _relative_tolerance(relative_tolerance), _exact(exact) {}
 
@@ -254,13 +272,17 @@ class DifferenceSummary final {
     double _maximum_tolerance_actual = 0.0;
 };
 
-void add_difference(DifferenceSummary& summary, const std::vector<double>& reference, const std::vector<double>& state,
+void add_difference(DifferenceSummary& summary,
+    const std::vector<double>& reference,
+    const std::vector<double>& state,
     std::size_t flattened_index) {
     summary.add(reference[flattened_index], state[flattened_index], flattened_index);
 }
 
-void compare_transient_reference(const std::string& path, const std::vector<double>& state,
-    const fuelsim::TransientProblem& problem, bool rank_sensitive_adaptive_path) {
+void compare_transient_reference(const std::string& path,
+    const std::vector<double>& state,
+    const fuelsim::TransientProblem& problem,
+    bool rank_sensitive_adaptive_path) {
     const std::vector<double> reference = read_reference(path);
     const TransientStateLayout layout = transient_state_layout(problem);
     if (state.size() != layout._flattened_size || reference.size() != layout._flattened_size) {
@@ -292,22 +314,40 @@ void compare_transient_reference(const std::string& path, const std::vector<doub
     const double displacement_relative = rank_sensitive_adaptive_path ? 1.0e-8 : 1.0e-10;
     const double contact_relative = rank_sensitive_adaptive_path ? 1.0e-8 : 1.0e-10;
     DifferenceSummary temperature("temperature", "K", temperature_absolute, temperature_relative, false);
-    DifferenceSummary radial_displacement(
-        "radial_displacement", "m", displacement_absolute, displacement_relative, false);
-    DifferenceSummary axial_displacement(
-        "axial_displacement", "m", displacement_absolute, displacement_relative, false);
+    DifferenceSummary radial_displacement("radial_displacement",
+        "m",
+        displacement_absolute,
+        displacement_relative,
+        false);
+    DifferenceSummary axial_displacement("axial_displacement",
+        "m",
+        displacement_absolute,
+        displacement_relative,
+        false);
     DifferenceSummary elastic_strain("elastic_strain", "dimensionless", strain_absolute, field_relative, false);
     DifferenceSummary plastic_strain("plastic_strain", "dimensionless", strain_absolute, field_relative, false);
     DifferenceSummary creep_strain("creep_strain", "dimensionless", strain_absolute, field_relative, false);
-    DifferenceSummary equivalent_plastic_strain(
-        "equivalent_plastic_strain", "dimensionless", strain_absolute, field_relative, false);
-    DifferenceSummary equivalent_creep_strain(
-        "equivalent_creep_strain", "dimensionless", strain_absolute, field_relative, false);
+    DifferenceSummary equivalent_plastic_strain("equivalent_plastic_strain",
+        "dimensionless",
+        strain_absolute,
+        field_relative,
+        false);
+    DifferenceSummary equivalent_creep_strain("equivalent_creep_strain",
+        "dimensionless",
+        strain_absolute,
+        field_relative,
+        false);
     DifferenceSummary stress("stress", "Pa", stress_absolute, field_relative, false);
-    DifferenceSummary contact_slip(
-        "contact_elastic_tangential_slip", "m", contact_slip_absolute, contact_relative, false);
-    DifferenceSummary contact_multiplier(
-        "contact_normal_multiplier", "Pa", contact_multiplier_absolute, contact_relative, false);
+    DifferenceSummary contact_slip("contact_elastic_tangential_slip",
+        "m",
+        contact_slip_absolute,
+        contact_relative,
+        false);
+    DifferenceSummary contact_multiplier("contact_normal_multiplier",
+        "Pa",
+        contact_multiplier_absolute,
+        contact_relative,
+        false);
     DifferenceSummary contact_sliding("contact_sliding", "boolean", 0.0, 0.0, true);
     std::size_t index = 0;
     add_difference(time, reference, state, index++);
@@ -327,7 +367,8 @@ void compare_transient_reference(const std::string& path, const std::vector<doub
             add_difference(creep_strain, reference, state, index++);
         add_difference(equivalent_plastic_strain, reference, state, index++);
         add_difference(equivalent_creep_strain, reference, state, index++);
-        for (std::size_t component = 0; component < 4; ++component) add_difference(stress, reference, state, index++);
+        for (std::size_t component = 0; component < 4; ++component)
+            add_difference(stress, reference, state, index++);
     }
     for (std::size_t point = 0; point < layout._contact_point_count; ++point) {
         add_difference(contact_slip, reference, state, index++);
@@ -355,11 +396,13 @@ void compare_transient_reference(const std::string& path, const std::vector<doub
     const DifferenceSummary* worst_failure = nullptr;
     for (const DifferenceSummary* summary : summaries) {
         summary->print();
-        if (!summary->passed() &&
-            (worst_failure == nullptr || summary->maximum_tolerance_ratio() > worst_failure->maximum_tolerance_ratio()))
+        if (!summary->passed()
+            && (worst_failure == nullptr
+                || summary->maximum_tolerance_ratio() > worst_failure->maximum_tolerance_ratio()))
             worst_failure = summary;
     }
-    if (worst_failure != nullptr) throw std::runtime_error(worst_failure->failure_message());
+    if (worst_failure != nullptr)
+        throw std::runtime_error(worst_failure->failure_message());
 }
 } // namespace
 
@@ -378,21 +421,25 @@ int main(int argc, char** argv) {
         const std::string mode = argv[1];
         const std::string reference_path = argv[2];
         const std::string input_path = argv[3];
-        for (int index = 4; index < argc; ++index) argv[index - 3] = argv[index];
+        for (int index = 4; index < argc; ++index)
+            argv[index - 3] = argv[index];
         argc -= 3;
         argv[argc] = nullptr;
         fuelsim::PetscSession session(argc, argv, "fuelsim one/multi-rank equivalence benchmark\n");
         if (mode == "test_io_failure") {
-            if (session.size() != 2) throw std::invalid_argument("Collective I/O failure test requires two ranks");
+            if (session.size() != 2)
+                throw std::invalid_argument("Collective I/O failure test requires two ranks");
             bool caught = false;
             try {
                 session.collective_root_action([]() { throw std::runtime_error("intentional root I/O failure"); });
             } catch (const std::runtime_error& error) {
                 caught = std::string(error.what()).find("collective root-rank I/O failed") != std::string::npos;
             }
-            if (!caught) throw std::runtime_error("Collective root I/O failure did not reach every rank");
+            if (!caught)
+                throw std::runtime_error("Collective root I/O failure did not reach every rank");
             session.collective_root_action([]() {});
-            if (session.rank() == 0) std::cout << "[PASS] root I/O failure reached every rank\n";
+            if (session.rank() == 0)
+                std::cout << "[PASS] root I/O failure reached every rank\n";
             return 0;
         }
         const fuelsim::FuelSimCaseDefinition definition = fuelsim::read_case_input(input_path);
@@ -423,13 +470,22 @@ int main(int argc, char** argv) {
             fuelsim::TransientProblem problem(definition.spatial, source);
             const fuelsim::TransientTimeOptions& execution = definition.transient_execution;
             const fuelsim::TransientResult result = fuelsim::solve_transient(problem,
-                {execution.end_time, execution.initial_time_step, execution.minimum_time_step,
-                    execution.maximum_time_step, execution.growth_factor, execution.cutback_factor,
-                    execution.maximum_cutbacks_per_step, execution.load_ramp_time,
-                    execution.target_nonlinear_iterations, execution.iteration_window,
-                    execution.time_error_relative_tolerance, execution.temperature_time_absolute_tolerance,
-                    execution.displacement_time_absolute_tolerance, execution.time_error_safety_factor,
-                    execution.strain_history_time_absolute_tolerance, execution.stress_history_time_absolute_tolerance},
+                {execution.end_time,
+                    execution.initial_time_step,
+                    execution.minimum_time_step,
+                    execution.maximum_time_step,
+                    execution.growth_factor,
+                    execution.cutback_factor,
+                    execution.maximum_cutbacks_per_step,
+                    execution.load_ramp_time,
+                    execution.target_nonlinear_iterations,
+                    execution.iteration_window,
+                    execution.time_error_relative_tolerance,
+                    execution.temperature_time_absolute_tolerance,
+                    execution.displacement_time_absolute_tolerance,
+                    execution.time_error_safety_factor,
+                    execution.strain_history_time_absolute_tolerance,
+                    execution.stress_history_time_absolute_tolerance},
                 options);
             if (!result.completed || result.aggregate_timing.workspace_setups != 1) {
                 std::ostringstream message;
@@ -466,14 +522,14 @@ int main(int argc, char** argv) {
                 const std::size_t expected_end = expected.second;
                 if (shadow.local_contribution_begin != expected_begin || shadow.local_contribution_end != expected_end)
                     throw std::runtime_error("Transient MPI contribution partition differs from ownership contract");
-                if (shadow.maximum_shadow_state_dofs > problem.dof_count() ||
-                    shadow.total_shadow_state_dofs > ranks * problem.dof_count() ||
-                    shadow.total_remote_shadow_state_dofs == 0)
-                    throw std::runtime_error("Multi-rank transient shadow-state bounds failed: global=" +
-                                             std::to_string(problem.dof_count()) +
-                                             ", maximum=" + std::to_string(shadow.maximum_shadow_state_dofs) +
-                                             ", total=" + std::to_string(shadow.total_shadow_state_dofs) +
-                                             ", remote=" + std::to_string(shadow.total_remote_shadow_state_dofs));
+                if (shadow.maximum_shadow_state_dofs > problem.dof_count()
+                    || shadow.total_shadow_state_dofs > ranks * problem.dof_count()
+                    || shadow.total_remote_shadow_state_dofs == 0)
+                    throw std::runtime_error(
+                        "Multi-rank transient shadow-state bounds failed: global=" + std::to_string(problem.dof_count())
+                        + ", maximum=" + std::to_string(shadow.maximum_shadow_state_dofs)
+                        + ", total=" + std::to_string(shadow.total_shadow_state_dofs)
+                        + ", remote=" + std::to_string(shadow.total_remote_shadow_state_dofs));
             }
             if (session.rank() == 0) {
                 double minimum_time_step = std::numeric_limits<double>::infinity();
@@ -493,12 +549,14 @@ int main(int argc, char** argv) {
             }
             const std::vector<double> state = flatten_transient_state(problem);
             if (write_transient) {
-                if (session.size() != 1) throw std::invalid_argument("Transient MPI reference requires one rank");
+                if (session.size() != 1)
+                    throw std::invalid_argument("Transient MPI reference requires one rank");
                 write_reference(reference_path, state);
                 std::cout << "[PASS] wrote transient one-rank MPI reference\n";
                 return 0;
             }
-            if (session.size() < 2) throw std::invalid_argument("Transient MPI comparison requires at least two ranks");
+            if (session.size() < 2)
+                throw std::invalid_argument("Transient MPI comparison requires at least two ranks");
             if (session.rank() == 0) {
                 compare_transient_reference(reference_path, state, problem, integrated_path);
                 std::cout << "transient_maximum_shadow_state_dofs=" << shadow.maximum_shadow_state_dofs << '\n'
@@ -527,7 +585,8 @@ int main(int argc, char** argv) {
                                  : hypre        ? fuelsim::SolverOptions::Preconditioner::hypre
                                                 : fuelsim::SolverOptions::Preconditioner::lu;
         const fuelsim::SteadyResult result = fuelsim::solve_steady(problem,
-            {field_split ? 2U : definition.steady_execution.load_steps, definition.steady_execution.cutback_factor,
+            {field_split ? 2U : definition.steady_execution.load_steps,
+                definition.steady_execution.cutback_factor,
                 definition.steady_execution.maximum_cutbacks_per_step,
                 definition.steady_execution.minimum_load_increment},
             options);
@@ -540,29 +599,34 @@ int main(int argc, char** argv) {
         if (session.size() == 1 && result.solve.maximum_shadow_state_dofs != problem.dof_count())
             throw std::runtime_error("One-rank steady solve does not cover the full state");
         if (mode == "write") {
-            if (session.size() != 1) throw std::invalid_argument("MPI reference must be written with one rank");
+            if (session.size() != 1)
+                throw std::invalid_argument("MPI reference must be written with one rank");
             write_reference(reference_path, result.solve.state);
             std::cout << "[PASS] wrote one-rank MPI reference\n";
             return 0;
         }
         if (mode != "compare" && !field_split && !block_jacobi && !hypre)
             throw std::invalid_argument("Unknown MPI equivalence mode: " + mode);
-        if (session.size() != 2) throw std::invalid_argument("MPI comparison must run with exactly two ranks");
+        if (session.size() != 2)
+            throw std::invalid_argument("MPI comparison must run with exactly two ranks");
         const auto expected = problem.contribution_partition(static_cast<std::size_t>(result.solve.mpi_rank), 2U);
         const std::size_t expected_begin = expected.first;
         const std::size_t expected_end = expected.second;
-        if (result.solve.local_contribution_begin != expected_begin ||
-            result.solve.local_contribution_end != expected_end)
+        if (result.solve.local_contribution_begin != expected_begin
+            || result.solve.local_contribution_end != expected_end)
             throw std::runtime_error("MPI contribution partition differs from ownership contract");
-        if (!(result.solve.total_shadow_state_dofs < 2 * problem.dof_count()) ||
-            result.solve.total_remote_shadow_state_dofs == 0)
+        if (!(result.solve.total_shadow_state_dofs < 2 * problem.dof_count())
+            || result.solve.total_remote_shadow_state_dofs == 0)
             throw std::runtime_error(
-                "Two-rank steady shadow-state bounds failed: global=" + std::to_string(problem.dof_count()) +
-                ", maximum=" + std::to_string(result.solve.maximum_shadow_state_dofs) +
-                ", total=" + std::to_string(result.solve.total_shadow_state_dofs) +
-                ", remote=" + std::to_string(result.solve.total_remote_shadow_state_dofs));
+                "Two-rank steady shadow-state bounds failed: global=" + std::to_string(problem.dof_count())
+                + ", maximum=" + std::to_string(result.solve.maximum_shadow_state_dofs)
+                + ", total=" + std::to_string(result.solve.total_shadow_state_dofs)
+                + ", remote=" + std::to_string(result.solve.total_remote_shadow_state_dofs));
         if (session.rank() == 0) {
-            compare_reference(reference_path, result.solve.state, problem, definition.geometry,
+            compare_reference(reference_path,
+                result.solve.state,
+                problem,
+                definition.geometry,
                 field_split || block_jacobi || hypre ? 1.0e-7 : 1.0e-10);
             std::cout << "steady_maximum_shadow_state_dofs=" << result.solve.maximum_shadow_state_dofs << '\n'
                       << "steady_total_remote_shadow_state_dofs=" << result.solve.total_remote_shadow_state_dofs

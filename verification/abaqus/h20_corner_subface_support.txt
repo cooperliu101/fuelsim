@@ -1,0 +1,6 @@
+2 points 12 covered_nodes 96 uncovered_target 211 uncovered_max 0.04743808643880997
+nearest_old_sample_distance 4.8413394244973836e-15
+3 points 27 covered_nodes 196 uncovered_target 150 uncovered_max 0.052627558637308954
+4 points 48 covered_nodes 286 uncovered_target 84 uncovered_max 0.028971689228453293
+5 points 75 covered_nodes 357 uncovered_target 54 uncovered_max 0.036395628084008605
+6 points 108 covered_nodes 405 uncovered_target 16 uncovered_max 0.019679056035174124

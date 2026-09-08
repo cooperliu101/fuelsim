@@ -25,7 +25,8 @@ struct Record final {
 };
 
 bool check(bool condition, const std::string& message) {
-    if (condition) return true;
+    if (condition)
+        return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
@@ -34,39 +35,52 @@ std::vector<std::string> split_csv(const std::string& line) {
     std::vector<std::string> result;
     std::istringstream input(line);
     std::string value;
-    while (std::getline(input, value, ',')) result.push_back(value);
+    while (std::getline(input, value, ','))
+        result.push_back(value);
     return result;
 }
 
 std::vector<Record> read_records(const std::string& path) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read H20.31 operator reference: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read H20.31 operator reference: " + path);
     std::string line;
     std::getline(input, line);
-    if (line != "step,input_local_node,input_component,output_local_node,displacement_delta_m,copen_m,cpress_pa,"
-                "cnormf_x_n,cnormf_y_n,cnormf_z_n")
+    if (line
+        != "step,input_local_node,input_component,output_local_node,displacement_delta_m,copen_m,cpress_pa,"
+           "cnormf_x_n,cnormf_y_n,cnormf_z_n")
         throw std::invalid_argument("Unexpected H20.31 operator header in " + path);
     std::vector<Record> result;
     while (std::getline(input, line)) {
-        if (line.empty()) continue;
+        if (line.empty())
+            continue;
         const std::vector<std::string> values = split_csv(line);
-        if (values.size() != 10) throw std::invalid_argument("Incomplete H20.31 operator row in " + path);
-        result.push_back({values[0], values[2], static_cast<std::size_t>(std::stoul(values[1])),
-            static_cast<std::size_t>(std::stoul(values[3])), std::stod(values[4]), std::stod(values[5]),
-            std::stod(values[6]), {std::stod(values[7]), std::stod(values[8]), std::stod(values[9])}});
+        if (values.size() != 10)
+            throw std::invalid_argument("Incomplete H20.31 operator row in " + path);
+        result.push_back({values[0],
+            values[2],
+            static_cast<std::size_t>(std::stoul(values[1])),
+            static_cast<std::size_t>(std::stoul(values[3])),
+            std::stod(values[4]),
+            std::stod(values[5]),
+            std::stod(values[6]),
+            {std::stod(values[7]), std::stod(values[8]), std::stod(values[9])}});
     }
     return result;
 }
 
 const Record& find_record(const std::vector<Record>& records, const std::string& step, std::size_t output) {
-    const auto found = std::find_if(records.begin(), records.end(),
-        [&](const Record& record) { return record.step == step && record.output == output; });
-    if (found == records.end()) throw std::invalid_argument("Missing H20.31 step/output record");
+    const auto found = std::find_if(records.begin(), records.end(), [&](const Record& record) {
+        return record.step == step && record.output == output;
+    });
+    if (found == records.end())
+        throw std::invalid_argument("Missing H20.31 step/output record");
     return *found;
 }
 
 fuelsim::CartesianPoint3 cross(const fuelsim::CartesianPoint3& first, const fuelsim::CartesianPoint3& second) {
-    return {first.y * second.z - first.z * second.y, first.z * second.x - first.x * second.z,
+    return {first.y * second.z - first.z * second.y,
+        first.z * second.x - first.x * second.z,
         first.x * second.y - first.y * second.x};
 }
 
@@ -76,14 +90,18 @@ double dot(const fuelsim::CartesianPoint3& first, const fuelsim::CartesianPoint3
 
 fuelsim::CartesianPoint3 unit(const fuelsim::CartesianPoint3& value) {
     const double measure = std::sqrt(dot(value, value));
-    if (!(measure > 0.0)) throw std::invalid_argument("H20.31 has an undefined effective normal");
+    if (!(measure > 0.0))
+        throw std::invalid_argument("H20.31 has an undefined effective normal");
     return {value.x / measure, value.y / measure, value.z / measure};
 }
 
 fuelsim::Quad8FaceCoordinates first_secondary_face(const fuelsim::UnstructuredHex20Mesh& mesh) {
-    static constexpr std::array<std::array<std::size_t, 8>, 6> face_nodes = {
-        {{{0, 1, 5, 4, 8, 13, 16, 12}}, {{1, 2, 6, 5, 9, 14, 17, 13}}, {{2, 3, 7, 6, 10, 15, 18, 14}},
-            {{3, 0, 4, 7, 11, 12, 19, 15}}, {{0, 3, 2, 1, 11, 10, 9, 8}}, {{4, 5, 6, 7, 16, 17, 18, 19}}}};
+    static constexpr std::array<std::array<std::size_t, 8>, 6> face_nodes = {{{{0, 1, 5, 4, 8, 13, 16, 12}},
+        {{1, 2, 6, 5, 9, 14, 17, 13}},
+        {{2, 3, 7, 6, 10, 15, 18, 14}},
+        {{3, 0, 4, 7, 11, 12, 19, 15}},
+        {{0, 3, 2, 1, 11, 10, 9, 8}},
+        {{4, 5, 6, 7, 16, 17, 18, 19}}}};
     const fuelsim::ElementSide& side = mesh.side_set("secondary_contact").sides.front();
     fuelsim::Quad8FaceCoordinates result{};
     for (std::size_t local = 0; local < result.size(); ++local)
@@ -103,8 +121,14 @@ int main(int argc, char** argv) {
         const fuelsim::Quad8FaceCoordinates coordinates = first_secondary_face(mesh);
         // The Abaqus S6 output order is the reverse circumferential orientation
         // of Fuelsim's local side 3 order for this generated element.
-        const std::array<std::array<double, 2>, 8> locations = {{{0.75, -0.75}, {-0.75, -0.75}, {-0.75, 0.75},
-            {0.75, 0.75}, {0.0, -0.5}, {-0.5, 0.0}, {0.0, 0.5}, {0.5, 0.0}}};
+        const std::array<std::array<double, 2>, 8> locations = {{{0.75, -0.75},
+            {-0.75, -0.75},
+            {-0.75, 0.75},
+            {0.75, 0.75},
+            {0.0, -0.5},
+            {-0.5, 0.0},
+            {0.0, 0.5},
+            {0.5, 0.0}}};
         std::array<fuelsim::CartesianPoint3, 8> expected_normals{};
         for (std::size_t output = 0; output < node_count; ++output) {
             const fuelsim::Quad8FaceMechanicalQuadraturePoint point =
@@ -135,8 +159,8 @@ int main(int argc, char** argv) {
                         const std::size_t row = component_count * output + output_component;
                         const std::size_t column = component_count * input + component;
                         force_tangent[row * node_count * component_count + column] =
-                            (output_plus.force[output_component] - output_minus.force[output_component]) /
-                            (2.0 * perturbation);
+                            (output_plus.force[output_component] - output_minus.force[output_component])
+                            / (2.0 * perturbation);
                     }
                 }
             }
@@ -154,8 +178,8 @@ int main(int argc, char** argv) {
             maximum_normal_alignment_error =
                 std::max(maximum_normal_alignment_error, 1.0 - std::abs(dot(unit(gradient), expected_normals[output])));
             for (std::size_t other = output + 1; other < node_count; ++other)
-                minimum_effective_normal_dot = std::min(
-                    minimum_effective_normal_dot, std::abs(dot(expected_normals[output], expected_normals[other])));
+                minimum_effective_normal_dot = std::min(minimum_effective_normal_dot,
+                    std::abs(dot(expected_normals[output], expected_normals[other])));
         }
         double tangent_difference_squared = 0.0, tangent_reference_squared = 0.0;
         const std::size_t tangent_size = node_count * component_count;
@@ -174,19 +198,19 @@ int main(int argc, char** argv) {
                   << "h20_31_force_tangent_symmetry_error=" << tangent_symmetry_error << '\n';
         bool passed = true;
         passed = check(records.size() == 49 * node_count && maximum_delta_error < 1.0e-18,
-                     "H20.31 contains the base state and all forty-eight full-vector perturbation steps") &&
-                 passed;
+                     "H20.31 contains the base state and all forty-eight full-vector perturbation steps")
+                 && passed;
         passed =
             check(minimum_base_pressure > 0.0, "H20.31 keeps all eight curved secondary constraints active") && passed;
         passed = check(maximum_normal_alignment_error < 1.0e-5 && minimum_effective_normal_dot < 0.99,
-                     "H20.31 Abaqus gap gradients follow distinct normals at the identified effective centers") &&
-                 passed;
+                     "H20.31 Abaqus gap gradients follow distinct normals at the identified effective centers")
+                 && passed;
         passed =
-            check(maximum_axial_gap_gradient < 1.0e-8, "H20.31 cylindrical contact normals have no axial component") &&
-            passed;
+            check(maximum_axial_gap_gradient < 1.0e-8, "H20.31 cylindrical contact normals have no axial component")
+            && passed;
         passed = check(tangent_symmetry_error < 1.0e-10,
-                     "H20.31 Abaqus curved-contact force tangent is work-conjugate and symmetric") &&
-                 passed;
+                     "H20.31 Abaqus curved-contact force tangent is work-conjugate and symmetric")
+                 && passed;
         return passed ? 0 : 1;
     } catch (const std::exception& error) {
         std::cerr << "[FAIL] H20.31 curved Abaqus identification raised: " << error.what() << '\n';

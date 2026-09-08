@@ -78,7 +78,8 @@ Quad8RzGeometry make_quad8_rz_geometry(const Quad8RzCoordinates& coordinates, Rz
         result.point_count = 4;
         const double g = 1 / std::sqrt(3.0);
         const std::array<double, 4> xi = {-g, g, g, -g}, eta = {-g, -g, g, g};
-        for (std::size_t q = 0; q < 4; ++q) result.points[q] = evaluate_quad8_rz_point(coordinates, xi[q], eta[q], 1);
+        for (std::size_t q = 0; q < 4; ++q)
+            result.points[q] = evaluate_quad8_rz_point(coordinates, xi[q], eta[q], 1);
         return result;
     }
     if (formulation != RzElementFormulation::cax8t)
@@ -101,8 +102,11 @@ struct PointKinematics final {
     adlite::Scalar frr, frz, fzr, fzz, det, radius, measure;
 };
 
-PointKinematics kinematics(
-    const Quad8RzPoint& p, const Quad8RzValues& state, const Quad8RzValues& committed, bool finite, bool jacobian) {
+PointKinematics kinematics(const Quad8RzPoint& p,
+    const Quad8RzValues& state,
+    const Quad8RzValues& committed,
+    bool finite,
+    bool jacobian) {
     PointKinematics k;
     std::array<double, 6> value{};
     for (std::size_t n = 0; n < 8; ++n) {
@@ -135,13 +139,15 @@ PointKinematics kinematics(
     k.radius = p.radius + v[4];
     k.measure = finite ? p.weighted_measure * k.det * k.radius / p.radius : adlite::Scalar(p.weighted_measure);
     k.strain = {v[0], v[3], v[4] / p.radius, (v[1] + v[2]) / 2};
-    if (!finite) return k;
+    if (!finite)
+        return k;
     const double old_det = (1 + k.old[0]) * (1 + k.old[3]) - k.old[1] * k.old[2];
     if (!(k.det.value() > 0) || !(old_det > 0) || !(k.radius.value() > 0) || !(p.radius + k.old[4] > 0))
         throw std::domain_error("CAX8T committed and current deformation and radius must remain positive");
     const adlite::Scalar a = 2 + v[0] + k.old[0], b = v[1] + k.old[1], c = v[2] + k.old[2], d = 2 + v[3] + k.old[3],
                          det = a * d - b * c;
-    if (!(det.value() > 0)) throw std::domain_error("CAX8T midpoint deformation must remain positive");
+    if (!(det.value() > 0))
+        throw std::domain_error("CAX8T midpoint deformation must remain positive");
     const adlite::Scalar hrr = 2 * ((v[0] - k.old[0]) * d - (v[1] - k.old[1]) * c) / det,
                          hrz = 2 * (-(v[0] - k.old[0]) * b + (v[1] - k.old[1]) * a) / det,
                          hzr = 2 * ((v[2] - k.old[2]) * d - (v[3] - k.old[3]) * c) / det,
@@ -150,24 +156,36 @@ PointKinematics kinematics(
                          shear = (hrz + hzr) / 2;
     k.rotation = {cs, sn, -sn, cs, 1.0};
     k.strain = {cs * cs * hrr - 2 * cs * sn * shear + sn * sn * hzz,
-        sn * sn * hrr + 2 * cs * sn * shear + cs * cs * hzz, 2 * (v[4] - k.old[4]) / (2 * p.radius + v[4] + k.old[4]),
+        sn * sn * hrr + 2 * cs * sn * shear + cs * cs * hzz,
+        2 * (v[4] - k.old[4]) / (2 * p.radius + v[4] + k.old[4]),
         cs * sn * (hrr - hzz) + (cs * cs - sn * sn) * shear};
     return k;
 }
 
-void add_row(
-    Quad8RzResult& result, std::size_t row, const adlite::Scalar& value, const PointKinematics& k, bool jacobian) {
+void add_row(Quad8RzResult& result,
+    std::size_t row,
+    const adlite::Scalar& value,
+    const PointKinematics& k,
+    bool jacobian) {
     result.residual[row] += value.value();
-    if (!jacobian) return;
+    if (!jacobian)
+        return;
     std::array<double, 6> d{};
     value.copy_derivatives(d.data(), 6);
     for (std::size_t j = 0; j < 20; ++j)
-        for (std::size_t a = 0; a < 6; ++a) result.jacobian[20 * row + j] += d[a] * k.chain[a][j];
+        for (std::size_t a = 0; a < 6; ++a)
+            result.jacobian[20 * row + j] += d[a] * k.chain[a][j];
 }
 } // namespace
 
-Quad8RzResult compute_quad8_rz(const Quad4RzData& data, const Quad8RzGeometry& geometry, const Quad8RzValues& state,
-    const Quad8RzValues& committed, const Quad8MaterialHistory* history, double dt, bool jacobian, bool thermal_time) {
+Quad8RzResult compute_quad8_rz(const Quad4RzData& data,
+    const Quad8RzGeometry& geometry,
+    const Quad8RzValues& state,
+    const Quad8RzValues& committed,
+    const Quad8MaterialHistory* history,
+    double dt,
+    bool jacobian,
+    bool thermal_time) {
     if (history && (!(dt > 0) || !std::isfinite(dt)))
         throw std::invalid_argument("CAX8T material update requires positive finite time step");
     const bool finite = data.strain_formulation == StrainFormulation::finite;
@@ -177,24 +195,35 @@ Quad8RzResult compute_quad8_rz(const Quad4RzData& data, const Quad8RzGeometry& g
         const auto k = kinematics(p, state, committed, finite, jacobian);
         const auto& t = k.active[5];
         const MaterialFunctionContext context = {data.time, p.radius, 0, p.axial_coordinate};
-        std::array<double, 5> fed = {
-            k.strain[0].value(), k.strain[1].value(), k.strain[2].value(), k.strain[3].value(), t.value()};
+        std::array<double, 5> fed = {k.strain[0].value(),
+            k.strain[1].value(),
+            k.strain[2].value(),
+            k.strain[3].value(),
+            t.value()};
         if (finite && history) {
             auto old_context = context;
             old_context.time -= dt;
             const auto eigen = data.material.eigenstrain_rz(k.old[5], old_context);
-            const std::array<double, 4> imposed = {
-                eigen.rr.value(), eigen.zz.value(), eigen.hoop.value(), eigen.rz.value()};
+            const std::array<double, 4> imposed = {eigen.rr.value(),
+                eigen.zz.value(),
+                eigen.hoop.value(),
+                eigen.rz.value()};
             for (std::size_t c = 0; c < 4; ++c)
-                fed[c] += (*history)[q].elastic_strain[c] + (*history)[q].plastic_strain[c] +
-                          (*history)[q].creep_strain[c] + imposed[c];
+                fed[c] += (*history)[q].elastic_strain[c] + (*history)[q].plastic_strain[c]
+                          + (*history)[q].creep_strain[c] + imposed[c];
         }
         std::array<adlite::Scalar, 5> material;
         for (std::size_t i = 0; i < 5; ++i)
             material[i] = jacobian ? adlite::Scalar::independent(fed[i], i, 5) : adlite::Scalar(fed[i]);
         const auto raw =
             history ? data.material
-                          .response(material[0], material[1], material[2], material[3], material[4], dt, (*history)[q],
+                          .response(material[0],
+                              material[1],
+                              material[2],
+                              material[3],
+                              material[4],
+                              dt,
+                              (*history)[q],
                               context)
                           .stress
                     : data.material.stress(material[0], material[1], material[2], material[3], material[4], context);
@@ -203,20 +232,32 @@ Quad8RzResult compute_quad8_rz(const Quad4RzData& data, const Quad8RzGeometry& g
         std::array<adlite::Scalar, 4> composed;
         for (std::size_t c = 0; c < 4; ++c) {
             std::array<double, 5> partials{};
-            if (jacobian) components[c].copy_derivatives(partials.data(), 5);
+            if (jacobian)
+                components[c].copy_derivatives(partials.data(), 5);
             composed[c] = jacobian ? adlite::compose(components[c].value(), inputs.data(), partials.data(), 5)
                                    : adlite::Scalar(components[c].value());
         }
         AxisymmetricStress stress = {composed[0], composed[1], composed[2], composed[3]};
-        if (finite) stress = rotate_axisymmetric_tensor(stress, k.rotation);
+        if (finite)
+            stress = rotate_axisymmetric_tensor(stress, k.rotation);
         if (history) {
-            const AxisymmetricRotation rotation = {
-                k.rotation.rr.value(), k.rotation.rz.value(), k.rotation.zr.value(), k.rotation.zz.value(), 1.0};
+            const AxisymmetricRotation rotation = {k.rotation.rr.value(),
+                k.rotation.rz.value(),
+                k.rotation.zr.value(),
+                k.rotation.zz.value(),
+                1.0};
             const auto response =
-                finite
-                    ? data.material.incremental_response(k.strain[0].value(), k.strain[1].value(), k.strain[2].value(),
-                          k.strain[3].value(), rotation, t.value(), k.old[5], dt, (*history)[q], context)
-                    : data.material.response(fed[0], fed[1], fed[2], fed[3], fed[4], dt, (*history)[q], context);
+                finite ? data.material.incremental_response(k.strain[0].value(),
+                             k.strain[1].value(),
+                             k.strain[2].value(),
+                             k.strain[3].value(),
+                             rotation,
+                             t.value(),
+                             k.old[5],
+                             dt,
+                             (*history)[q],
+                             context)
+                       : data.material.response(fed[0], fed[1], fed[2], fed[3], fed[4], dt, (*history)[q], context);
             result.history[q] = IsotropicThermoelasticMaterial::state_values(response.trial_state);
         }
         result.history[q].stress = {stress.rr.value(), stress.zz.value(), stress.hoop.value(), stress.rz.value()};
@@ -262,9 +303,9 @@ Quad8RzResult compute_quad8_rz(const Quad4RzData& data, const Quad8RzGeometry& g
                 throw std::domain_error("CAX8T current linear source geometry must be positive");
             source_measure = p.source_measure * determinant * radius / p.source_radius;
             for (std::size_t n = 0; n < 4; ++n) {
-                source_derivative[4 + n] =
-                    source_measure * ((fd * p.source_gradient_r[n] - fc * p.source_gradient_z[n]) / determinant +
-                                         p.temperature_shape[n] / radius);
+                source_derivative[4 + n] = source_measure
+                                           * ((fd * p.source_gradient_r[n] - fc * p.source_gradient_z[n]) / determinant
+                                               + p.temperature_shape[n] / radius);
                 source_derivative[12 + n] =
                     source_measure * ((fa * p.source_gradient_z[n] - fb * p.source_gradient_r[n]) / determinant);
             }
@@ -275,11 +316,12 @@ Quad8RzResult compute_quad8_rz(const Quad4RzData& data, const Quad8RzGeometry& g
             const double source = p.temperature_shape[n] * data.volumetric_heat_source;
             result.residual[n] -= source * source_measure;
             if (jacobian)
-                for (std::size_t j = 4; j < 20; ++j) result.jacobian[20 * n + j] -= source * source_derivative[j];
+                for (std::size_t j = 4; j < 20; ++j)
+                    result.jacobian[20 * n + j] -= source * source_derivative[j];
             if (jacobian)
                 for (std::size_t j = 0; j < 4; ++j)
-                    result.jacobian[20 * n + j] += k.measure.value() * conductivity.value() *
-                                                   (gr[n].value() * gr[j].value() + gz[n].value() * gz[j].value());
+                    result.jacobian[20 * n + j] += k.measure.value() * conductivity.value()
+                                                   * (gr[n].value() * gr[j].value() + gz[n].value() * gz[j].value());
         }
         result.generated_heat_rate += source_measure * data.volumetric_heat_source;
         result.stored_heat_rate += k.measure.value() * capacity.value();

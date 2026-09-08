@@ -1,0 +1,129 @@
+directional_step=0.0001
+jacobian.temperature.residual_l2=678.828
+jacobian.temperature.analytic_l2=13.6494
+jacobian.temperature.finite_difference_l2=13.6494
+jacobian.temperature.difference_l2=5.5663e-08
+jacobian.temperature.relative_l2=4.07807e-09
+jacobian.temperature.maximum_absolute_difference=2.74488e-08
+jacobian.displacement_x.residual_l2=1.4676e+06
+jacobian.displacement_x.analytic_l2=22502.7
+jacobian.displacement_x.finite_difference_l2=22502.7
+jacobian.displacement_x.difference_l2=0.0694923
+jacobian.displacement_x.relative_l2=3.08817e-06
+jacobian.displacement_x.maximum_absolute_difference=0.0357843
+jacobian.displacement_y.residual_l2=183937
+jacobian.displacement_y.analytic_l2=1646.62
+jacobian.displacement_y.finite_difference_l2=1646.62
+jacobian.displacement_y.difference_l2=0.0112801
+jacobian.displacement_y.relative_l2=6.85049e-06
+jacobian.displacement_y.maximum_absolute_difference=0.00450536
+jacobian.displacement_z.residual_l2=0.327086
+jacobian.displacement_z.analytic_l2=2012.74
+jacobian.displacement_z.finite_difference_l2=2012.74
+jacobian.displacement_z.difference_l2=0.00213197
+jacobian.displacement_z.relative_l2=1.05924e-06
+jacobian.displacement_z.maximum_absolute_difference=0.00133258
+jacobian.check_passed=0
+directional_step=0.001
+jacobian.temperature.residual_l2=678.828
+jacobian.temperature.analytic_l2=13.6494
+jacobian.temperature.finite_difference_l2=13.6494
+jacobian.temperature.difference_l2=1.05312e-08
+jacobian.temperature.relative_l2=7.71549e-10
+jacobian.temperature.maximum_absolute_difference=5.80017e-09
+jacobian.displacement_x.residual_l2=1.4676e+06
+jacobian.displacement_x.analytic_l2=22502.7
+jacobian.displacement_x.finite_difference_l2=22502.7
+jacobian.displacement_x.difference_l2=0.00952776
+jacobian.displacement_x.relative_l2=4.23406e-07
+jacobian.displacement_x.maximum_absolute_difference=0.00480194
+jacobian.displacement_y.residual_l2=183937
+jacobian.displacement_y.analytic_l2=1646.62
+jacobian.displacement_y.finite_difference_l2=1646.62
+jacobian.displacement_y.difference_l2=0.00048093
+jacobian.displacement_y.relative_l2=2.92071e-07
+jacobian.displacement_y.maximum_absolute_difference=0.000220646
+jacobian.displacement_z.residual_l2=0.327086
+jacobian.displacement_z.analytic_l2=2012.74
+jacobian.displacement_z.finite_difference_l2=2012.74
+jacobian.displacement_z.difference_l2=0.000355843
+jacobian.displacement_z.relative_l2=1.76795e-07
+jacobian.displacement_z.maximum_absolute_difference=0.000132871
+jacobian.check_passed=1
+directional_step=0.01
+jacobian.temperature.residual_l2=678.828
+jacobian.temperature.analytic_l2=13.6494
+jacobian.temperature.finite_difference_l2=13.6494
+jacobian.temperature.difference_l2=5.59735e-10
+jacobian.temperature.relative_l2=4.10081e-11
+jacobian.temperature.maximum_absolute_difference=3.18797e-10
+jacobian.displacement_x.residual_l2=1.4676e+06
+jacobian.displacement_x.analytic_l2=22502.7
+jacobian.displacement_x.finite_difference_l2=22502.7
+jacobian.displacement_x.difference_l2=0.000320802
+jacobian.displacement_x.relative_l2=1.42562e-08
+jacobian.displacement_x.maximum_absolute_difference=0.00014806
+jacobian.displacement_y.residual_l2=183937
+jacobian.displacement_y.analytic_l2=1646.62
+jacobian.displacement_y.finite_difference_l2=1646.62
+jacobian.displacement_y.difference_l2=5.11044e-05
+jacobian.displacement_y.relative_l2=3.10359e-08
+jacobian.displacement_y.maximum_absolute_difference=2.28698e-05
+jacobian.displacement_z.residual_l2=0.327086
+jacobian.displacement_z.analytic_l2=2012.74
+jacobian.displacement_z.finite_difference_l2=2012.74
+jacobian.displacement_z.difference_l2=3.13002e-05
+jacobian.displacement_z.relative_l2=1.5551e-08
+jacobian.displacement_z.maximum_absolute_difference=1.40941e-05
+jacobian.check_passed=1
+directional_step=0.1
+jacobian.temperature.residual_l2=678.828
+jacobian.temperature.analytic_l2=13.6494
+jacobian.temperature.finite_difference_l2=13.6494
+jacobian.temperature.difference_l2=1.30947e-10
+jacobian.temperature.relative_l2=9.59365e-12
+jacobian.temperature.maximum_absolute_difference=6.69385e-11
+jacobian.displacement_x.residual_l2=1.4676e+06
+jacobian.displacement_x.analytic_l2=22502.7
+jacobian.displacement_x.finite_difference_l2=22502.7
+jacobian.displacement_x.difference_l2=0.000126506
+jacobian.displacement_x.relative_l2=5.62181e-09
+jacobian.displacement_x.maximum_absolute_difference=5.68655e-05
+jacobian.displacement_y.residual_l2=183937
+jacobian.displacement_y.analytic_l2=1646.62
+jacobian.displacement_y.finite_difference_l2=1646.62
+jacobian.displacement_y.difference_l2=3.20396e-05
+jacobian.displacement_y.relative_l2=1.94578e-08
+jacobian.displacement_y.maximum_absolute_difference=1.90356e-05
+jacobian.displacement_z.residual_l2=0.327086
+jacobian.displacement_z.analytic_l2=2012.74
+jacobian.displacement_z.finite_difference_l2=2012.74
+jacobian.displacement_z.difference_l2=8.2465e-06
+jacobian.displacement_z.relative_l2=4.09715e-09
+jacobian.displacement_z.maximum_absolute_difference=3.52594e-06
+jacobian.check_passed=1
+contribution=0 error=5.33183e-06 scale=1196.59 relative=4.45585e-09
+contribution=1 error=4.41793e-06 scale=755.87 relative=5.84483e-09
+contribution=2 error=4.14919e-06 scale=579.827 relative=7.15592e-09
+contribution=3 error=3.1445e-06 scale=654.367 relative=4.80541e-09
+contribution=4 error=3.26475e-06 scale=985.166 relative=3.31391e-09
+contribution=5 error=3.4661e-06 scale=622.823 relative=5.56515e-09
+contribution=6 error=5.81991e-10 scale=1.4732 relative=3.95053e-10
+contribution=7 error=1.20956e-10 scale=2.57375 relative=4.69962e-11
+contribution=8 error=3.16066e-10 scale=0.657911 relative=4.80409e-10
+contribution=9 error=2.44164e-11 scale=4.0681 relative=6.00193e-12
+contribution=10 error=3.45802e-11 scale=1.08531 relative=3.18622e-11
+contribution=11 error=1.55311e-10 scale=0.717007 relative=2.1661e-10
+contribution=12 error=9.02344e-05 scale=396.54 relative=2.27555e-07
+contribution=13 error=2.84305e-05 scale=56.6095 relative=5.02221e-07
+contribution=14 error=1.20027e-05 scale=1079.81 relative=1.11155e-08
+contribution=15 error=9.13562e-05 scale=2013.62 relative=4.53692e-08
+contribution=16 error=0.000359677 scale=6041.9 relative=5.95305e-08
+contribution=17 error=8.88495e-05 scale=9680.98 relative=9.17774e-09
+contribution=18 error=0.000182985 scale=1826.7 relative=1.00173e-07
+contribution=19 error=0.000179791 scale=7385.21 relative=2.43448e-08
+contribution=20 error=5.18717e-05 scale=1129.84 relative=4.59107e-08
+contribution=21 error=2.92359e-05 scale=569.463 relative=5.13395e-08
+contribution=22 error=0.0003439 scale=935.654 relative=3.6755e-07
+contribution=23 error=0.000286899 scale=3709.62 relative=7.73391e-08
+contribution=24 error=8.23262e-05 scale=3530.27 relative=2.33201e-08

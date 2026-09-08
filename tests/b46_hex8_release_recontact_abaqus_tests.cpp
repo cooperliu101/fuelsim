@@ -17,8 +17,9 @@
 #include <vector>
 
 namespace {
-constexpr std::array<fuelsim::Field, 3> displacement_fields = {
-    fuelsim::Field::displacement_x, fuelsim::Field::displacement_y, fuelsim::Field::displacement_z};
+constexpr std::array<fuelsim::Field, 3> displacement_fields = {fuelsim::Field::displacement_x,
+    fuelsim::Field::displacement_y,
+    fuelsim::Field::displacement_z};
 
 struct PathStep final {
     const char* name;
@@ -26,10 +27,12 @@ struct PathStep final {
     bool projected, active;
 };
 
-constexpr std::array<PathStep, 6> path = {
-    {{"CLOSE", {-0.01, 0.05, 0.04}, true, true}, {"SLIDE", {-0.01, 0.95, 0.20}, true, true},
-        {"OPEN", {0.02, 0.95, 0.20}, true, false}, {"OPEN_CROSS", {0.02, 0.05, 0.40}, true, false},
-        {"RECONTACT", {-0.01, 0.05, 0.40}, true, true}, {"SLIDE_OUT", {-0.01, 2.20, 0.40}, false, false}}};
+constexpr std::array<PathStep, 6> path = {{{"CLOSE", {-0.01, 0.05, 0.04}, true, true},
+    {"SLIDE", {-0.01, 0.95, 0.20}, true, true},
+    {"OPEN", {0.02, 0.95, 0.20}, true, false},
+    {"OPEN_CROSS", {0.02, 0.05, 0.40}, true, false},
+    {"RECONTACT", {-0.01, 0.05, 0.40}, true, true},
+    {"SLIDE_OUT", {-0.01, 2.20, 0.40}, false, false}}};
 
 struct NodeReference final {
     std::size_t step, id;
@@ -45,21 +48,34 @@ struct ContactReference final {
 };
 
 bool check(bool condition, const std::string& message) {
-    if (condition) return true;
+    if (condition)
+        return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
 
 fuelsim::Hex8Element append_cuboid(std::vector<fuelsim::CartesianPoint3>& nodes,
-    std::map<std::array<double, 3>, std::size_t>& node_map, double x0, double x1, double y0, double y1, double z0,
+    std::map<std::array<double, 3>, std::size_t>& node_map,
+    double x0,
+    double x1,
+    double y0,
+    double y1,
+    double z0,
     double z1) {
-    const std::array<fuelsim::CartesianPoint3, 8> points = {{{x0, y0, z0}, {x1, y0, z0}, {x1, y1, z0}, {x0, y1, z0},
-        {x0, y0, z1}, {x1, y0, z1}, {x1, y1, z1}, {x0, y1, z1}}};
+    const std::array<fuelsim::CartesianPoint3, 8> points = {{{x0, y0, z0},
+        {x1, y0, z0},
+        {x1, y1, z0},
+        {x0, y1, z0},
+        {x0, y0, z1},
+        {x1, y0, z1},
+        {x1, y1, z1},
+        {x0, y1, z1}}};
     fuelsim::Hex8Element element{};
     for (std::size_t local = 0; local < points.size(); ++local) {
         const std::array<double, 3> key = {points[local].x, points[local].y, points[local].z};
         const auto inserted = node_map.emplace(key, nodes.size());
-        if (inserted.second) nodes.push_back(points[local]);
+        if (inserted.second)
+            nodes.push_back(points[local]);
         element.nodes[local] = inserted.first->second;
     }
     return element;
@@ -72,13 +88,18 @@ fuelsim::UnstructuredHex8Mesh generate_mesh() {
                                primary_upper = append_cuboid(nodes, primary_nodes, 0.0, 1.0, 1.0, 2.0, -1.0, 2.0),
                                secondary = append_cuboid(nodes, secondary_nodes, 1.0, 2.0, 0.1, 0.9, 0.1, 0.9);
     std::vector<std::size_t> primary_all, secondary_all;
-    for (const auto& entry : primary_nodes) primary_all.push_back(entry.second);
-    for (const auto& entry : secondary_nodes) secondary_all.push_back(entry.second);
+    for (const auto& entry : primary_nodes)
+        primary_all.push_back(entry.second);
+    for (const auto& entry : secondary_nodes)
+        secondary_all.push_back(entry.second);
     std::sort(primary_all.begin(), primary_all.end());
     std::sort(secondary_all.begin(), secondary_all.end());
-    return fuelsim::UnstructuredHex8Mesh(std::move(nodes), {primary_lower, primary_upper, secondary}, {1, 1, 2},
+    return fuelsim::UnstructuredHex8Mesh(std::move(nodes),
+        {primary_lower, primary_upper, secondary},
+        {1, 1, 2},
         {{1, "primary"}, {2, "secondary"}},
-        {{10, "primary_all", primary_all}, {20, "secondary_all", secondary_all},
+        {{10, "primary_all", primary_all},
+            {20, "secondary_all", secondary_all},
             {30, "secondary_contact_nodes", {12, 15, 16, 19}}},
         {{40, "primary_contact", {{0, 1}, {1, 1}}}, {50, "secondary_contact", {{2, 3}}}});
 }
@@ -90,7 +111,8 @@ void write_labels(std::ofstream& output, const std::vector<std::size_t>& nodes) 
 
 void write_input(const std::string& path_name, const fuelsim::UnstructuredHex8Mesh& mesh) {
     std::ofstream output(path_name);
-    if (!output) throw std::runtime_error("Could not write B4.6 Abaqus input: " + path_name);
+    if (!output)
+        throw std::runtime_error("Could not write B4.6 Abaqus input: " + path_name);
     output << std::setprecision(16) << "*Heading\n** B4.6 C3D8 release, open crossing, recontact, and slide-out.\n"
            << "*Preprint, echo=NO, model=NO, history=NO, contact=YES\n*Node\n";
     for (std::size_t node = 0; node < mesh.nodes().size(); ++node)
@@ -99,9 +121,11 @@ void write_input(const std::string& path_name, const fuelsim::UnstructuredHex8Me
     for (std::int64_t block = 1; block <= 2; ++block) {
         output << "*Element, type=C3D8, elset=" << (block == 1 ? "PRIMARY" : "SECONDARY") << '\n';
         for (std::size_t element = 0; element < mesh.elements().size(); ++element) {
-            if (mesh.element_block_ids()[element] != block) continue;
+            if (mesh.element_block_ids()[element] != block)
+                continue;
             output << element + 1;
-            for (const std::size_t node : mesh.elements()[element].nodes) output << ", " << node + 1;
+            for (const std::size_t node : mesh.elements()[element].nodes)
+                output << ", " << node + 1;
             output << '\n';
         }
     }
@@ -139,23 +163,27 @@ std::vector<std::string> split(const std::string& line) {
     std::vector<std::string> result;
     std::istringstream input(line);
     std::string value;
-    while (std::getline(input, value, ',')) result.push_back(value);
+    while (std::getline(input, value, ','))
+        result.push_back(value);
     return result;
 }
 
-double number(const std::vector<std::string>& values, std::size_t column) { return std::stod(values.at(column)); }
+double number(const std::vector<std::string>& values, std::size_t column) {
+    return std::stod(values.at(column));
+}
 
 std::size_t index_value(const std::vector<std::string>& values, std::size_t column) {
     const double value = number(values, column);
-    if (value < 0.0 || value > static_cast<double>(std::numeric_limits<std::size_t>::max()) ||
-        value != std::floor(value))
+    if (value < 0.0 || value > static_cast<double>(std::numeric_limits<std::size_t>::max())
+        || value != std::floor(value))
         throw std::invalid_argument("Invalid B4.6 CSV index");
     return static_cast<std::size_t>(value);
 }
 
 std::vector<std::vector<NodeReference>> read_nodes(const std::string& path_name) {
     std::ifstream input(path_name);
-    if (!input) throw std::runtime_error("Could not read B4.6 node reference: " + path_name);
+    if (!input)
+        throw std::runtime_error("Could not read B4.6 node reference: " + path_name);
     std::string line;
     if (!std::getline(input, line) || line != "step,id,x,y,z,ux,uy,uz,rfx,rfy,rfz")
         throw std::invalid_argument("Invalid B4.6 node CSV");
@@ -163,17 +191,19 @@ std::vector<std::vector<NodeReference>> read_nodes(const std::string& path_name)
     while (std::getline(input, line)) {
         const auto values = split(line);
         const std::size_t step = index_value(values, 0);
-        result.at(step - 1).push_back(
-            {step - 1, index_value(values, 1), {number(values, 2), number(values, 3), number(values, 4)},
-                {number(values, 5), number(values, 6), number(values, 7)},
-                {number(values, 8), number(values, 9), number(values, 10)}});
+        result.at(step - 1).push_back({step - 1,
+            index_value(values, 1),
+            {number(values, 2), number(values, 3), number(values, 4)},
+            {number(values, 5), number(values, 6), number(values, 7)},
+            {number(values, 8), number(values, 9), number(values, 10)}});
     }
     return result;
 }
 
 std::vector<std::vector<ContactReference>> read_contact(const std::string& path_name) {
     std::ifstream input(path_name);
-    if (!input) throw std::runtime_error("Could not read B4.6 contact reference: " + path_name);
+    if (!input)
+        throw std::runtime_error("Could not read B4.6 contact reference: " + path_name);
     std::string line;
     if (!std::getline(input, line) || line != "step,id,x,y,z,normal_x,normal_y,normal_z,gap,pressure")
         throw std::invalid_argument("Invalid B4.6 contact CSV");
@@ -181,9 +211,12 @@ std::vector<std::vector<ContactReference>> read_contact(const std::string& path_
     while (std::getline(input, line)) {
         const auto values = split(line);
         const std::size_t step = index_value(values, 0);
-        result.at(step - 1).push_back(
-            {step - 1, index_value(values, 1), {number(values, 2), number(values, 3), number(values, 4)},
-                {number(values, 5), number(values, 6), number(values, 7)}, number(values, 8), number(values, 9)});
+        result.at(step - 1).push_back({step - 1,
+            index_value(values, 1),
+            {number(values, 2), number(values, 3), number(values, 4)},
+            {number(values, 5), number(values, 6), number(values, 7)},
+            number(values, 8),
+            number(values, 9)});
     }
     return result;
 }
@@ -219,20 +252,30 @@ std::vector<double> state_for_step(const fuelsim::SteadyProblem& problem, std::s
     return state;
 }
 
-std::vector<double> contact_residual(
-    const fuelsim::cartesian::SpatialAssembly& spatial, const std::vector<double>& state, double* jacobian_error) {
+std::vector<double> contact_residual(const fuelsim::cartesian::SpatialAssembly& spatial,
+    const std::vector<double>& state,
+    double* jacobian_error) {
     std::vector<double> global(state.size());
     for (std::size_t contribution = 0; contribution < spatial.contribution_count(); ++contribution) {
-        if (spatial.contribution_type(contribution) != fuelsim::SpatialContributionType::mechanical_contact) continue;
+        if (spatial.contribution_type(contribution) != fuelsim::SpatialContributionType::mechanical_contact)
+            continue;
         std::vector<std::size_t> dofs;
         spatial.contribution_dofs(contribution, dofs);
         std::vector<double> local(dofs.size());
-        for (std::size_t index = 0; index < dofs.size(); ++index) local[index] = state[dofs[index]];
+        for (std::size_t index = 0; index < dofs.size(); ++index)
+            local[index] = state[dofs[index]];
         std::vector<double> residual, jacobian;
-        spatial.compute_contribution(
-            contribution, local, nullptr, nullptr, 0.0, residual, jacobian_error == nullptr ? nullptr : &jacobian);
-        for (std::size_t row = 0; row < dofs.size(); ++row) global[dofs[row]] += residual[row];
-        if (jacobian_error == nullptr) continue;
+        spatial.compute_contribution(contribution,
+            local,
+            nullptr,
+            nullptr,
+            0.0,
+            residual,
+            jacobian_error == nullptr ? nullptr : &jacobian);
+        for (std::size_t row = 0; row < dofs.size(); ++row)
+            global[dofs[row]] += residual[row];
+        if (jacobian_error == nullptr)
+            continue;
         std::vector<double> direction(local.size()), plus = local, minus = local;
         constexpr double perturbation = 1.0e-8;
         for (std::size_t column = 0; column < local.size(); ++column) {
@@ -290,30 +333,34 @@ bool compare(const fuelsim::UnstructuredHex8Mesh& mesh, const std::string& node_
         std::array<double, 3> balance{}, actual_resultant{}, reference_resultant{};
         for (const auto& reference : nodes[step]) {
             const auto& point = mesh.nodes().at(reference.id);
-            coordinate_error = std::max({coordinate_error, std::abs(point.x - reference.point.x),
-                std::abs(point.y - reference.point.y), std::abs(point.z - reference.point.z)});
+            coordinate_error = std::max({coordinate_error,
+                std::abs(point.x - reference.point.x),
+                std::abs(point.y - reference.point.y),
+                std::abs(point.z - reference.point.z)});
             const std::size_t global = source_global.at(reference.id);
             for (std::size_t component = 0; component < 3; ++component) {
                 const double expected_displacement = reference.id >= 12 ? path[step].displacement[component] : 0.0;
                 displacement[component].add(expected_displacement, reference.displacement[component]);
-                reaction[component].add(
-                    residual[spatial.dof(displacement_fields[component], global)], reference.reaction[component]);
+                reaction[component].add(residual[spatial.dof(displacement_fields[component], global)],
+                    reference.reaction[component]);
                 balance[component] += residual[spatial.dof(displacement_fields[component], global)];
             }
         }
         for (std::size_t node = 0; node < actual.size(); ++node) {
-            const auto found = std::find_if(contacts[step].begin(), contacts[step].end(),
+            const auto found = std::find_if(contacts[step].begin(),
+                contacts[step].end(),
                 [&](const ContactReference& value) { return value.id == sources[node]; });
-            if (found == contacts[step].end()) throw std::invalid_argument("B4.6 contact mapping is incomplete");
+            if (found == contacts[step].end())
+                throw std::invalid_argument("B4.6 contact mapping is incomplete");
             const auto& initial = mesh.nodes().at(sources[node]);
-            current_coordinate_error =
-                std::max({current_coordinate_error, std::abs(initial.x + path[step].displacement[0] - found->current.x),
-                    std::abs(initial.y + path[step].displacement[1] - found->current.y),
-                    std::abs(initial.z + path[step].displacement[2] - found->current.z)});
+            current_coordinate_error = std::max({current_coordinate_error,
+                std::abs(initial.x + path[step].displacement[0] - found->current.x),
+                std::abs(initial.y + path[step].displacement[1] - found->current.y),
+                std::abs(initial.z + path[step].displacement[2] - found->current.z)});
             const std::size_t expected_face = step == 0 || step >= 3 ? 0 : 1;
-            states_match = states_match && actual[node].projected == path[step].projected &&
-                           (actual[node].pressure > 0.0) == path[step].active &&
-                           actual[node].primary_face == expected_face;
+            states_match = states_match && actual[node].projected == path[step].projected
+                           && (actual[node].pressure > 0.0) == path[step].active
+                           && actual[node].primary_face == expected_face;
             for (std::size_t component = 0; component < 3; ++component) {
                 const double actual_force = -actual[node].normal_contact_force[component];
                 normal[component].add(actual_force, found->normal_force[component]);
@@ -340,9 +387,9 @@ bool compare(const fuelsim::UnstructuredHex8Mesh& mesh, const std::string& node_
         }
     }
     for (const auto& reference : final_contact) {
-        abaqus_released = abaqus_released && std::abs(reference.normal_force[0]) < 1.0e-8 &&
-                          std::abs(reference.normal_force[1]) < 1.0e-8 &&
-                          std::abs(reference.normal_force[2]) < 1.0e-8 && std::abs(reference.pressure) < 1.0e-8;
+        abaqus_released = abaqus_released && std::abs(reference.normal_force[0]) < 1.0e-8
+                          && std::abs(reference.normal_force[1]) < 1.0e-8
+                          && std::abs(reference.normal_force[2]) < 1.0e-8 && std::abs(reference.pressure) < 1.0e-8;
         abaqus_no_projection_sentinel = abaqus_no_projection_sentinel && reference.gap < -1.0e30;
     }
     bool fuelsim_released = true;
@@ -352,9 +399,9 @@ bool compare(const fuelsim::UnstructuredHex8Mesh& mesh, const std::string& node_
         const auto actual = fuelsim::cartesian::ProblemAccess::summarize_contact_nodes(problem, 0, final_state);
         const std::vector<double> residual = contact_residual(spatial, final_state, nullptr);
         for (const auto& value : actual)
-            fuelsim_released = fuelsim_released && !value.projected && value.pressure == 0.0 &&
-                               value.contact_force == 0.0 && value.normal_contact_force[0] == 0.0 &&
-                               value.normal_contact_force[1] == 0.0 && value.normal_contact_force[2] == 0.0;
+            fuelsim_released = fuelsim_released && !value.projected && value.pressure == 0.0
+                               && value.contact_force == 0.0 && value.normal_contact_force[0] == 0.0
+                               && value.normal_contact_force[1] == 0.0 && value.normal_contact_force[2] == 0.0;
         for (const NodeReference& reference : final_nodes) {
             const std::size_t global = source_global.at(reference.id);
             for (std::size_t component = 0; component < 3; ++component)
@@ -362,7 +409,9 @@ bool compare(const fuelsim::UnstructuredHex8Mesh& mesh, const std::string& node_
                     fuelsim_released && residual[spatial.dof(displacement_fields[component], global)] == 0.0;
         }
         problem.commit_internal_state(final_state);
-    } catch (const std::exception&) { fuelsim_released = false; }
+    } catch (const std::exception&) {
+        fuelsim_released = false;
+    }
     for (std::size_t component = 0; component < 3; ++component) {
         print_metric("b46_displacement_" + std::to_string(component), displacement[component]);
         print_metric("b46_reaction_" + std::to_string(component), reaction[component]);
@@ -382,23 +431,24 @@ bool compare(const fuelsim::UnstructuredHex8Mesh& mesh, const std::string& node_
     };
     bool metrics = passes(gap) && passes(pressure);
     for (std::size_t component = 0; component < 3; ++component)
-        metrics = metrics && passes(displacement[component]) && passes(reaction[component]) &&
-                  passes(normal[component]) && passes(resultant[component]);
+        metrics = metrics && passes(displacement[component]) && passes(reaction[component]) && passes(normal[component])
+                  && passes(resultant[component]);
     const bool complete_reference =
-        nodes.size() == path.size() && contacts.size() == path.size() &&
-        std::all_of(nodes.begin(), nodes.end(), [](const auto& step) { return step.size() == 20; }) &&
-        std::all_of(contacts.begin(), contacts.end(), [](const auto& step) { return step.size() == 4; });
-    return check(complete_reference, "B4.6 reads all six tracked Abaqus states") &&
-           check(coordinate_error < 3.0e-8 && current_coordinate_error < 3.0e-8,
-               "B4.6 uses identical reference and current coordinates") &&
-           check(states_match, "B4.6 matches contact states and uniquely transfers all points across the internal face "
-                               "while closed and open") &&
-           check(metrics, "B4.6 matched states pass all three field metrics below 1 percent") &&
-           check(jacobian_error < 2.0e-5, "B4.6 active contact Jacobians match centered directional differences") &&
-           check(maximum_action_reaction < 1.0e-8, "B4.6 contact residual preserves three-component action-reaction") &&
-           check(abaqus_released && abaqus_no_projection_sentinel,
-               "B4.6 Abaqus naturally releases the secondary face after it leaves the complete primary surface") &&
-           check(fuelsim_released,
+        nodes.size() == path.size() && contacts.size() == path.size()
+        && std::all_of(nodes.begin(), nodes.end(), [](const auto& step) { return step.size() == 20; })
+        && std::all_of(contacts.begin(), contacts.end(), [](const auto& step) { return step.size() == 4; });
+    return check(complete_reference, "B4.6 reads all six tracked Abaqus states")
+           && check(coordinate_error < 3.0e-8 && current_coordinate_error < 3.0e-8,
+               "B4.6 uses identical reference and current coordinates")
+           && check(states_match,
+               "B4.6 matches contact states and uniquely transfers all points across the internal face "
+               "while closed and open")
+           && check(metrics, "B4.6 matched states pass all three field metrics below 1 percent")
+           && check(jacobian_error < 2.0e-5, "B4.6 active contact Jacobians match centered directional differences")
+           && check(maximum_action_reaction < 1.0e-8, "B4.6 contact residual preserves three-component action-reaction")
+           && check(abaqus_released && abaqus_no_projection_sentinel,
+               "B4.6 Abaqus naturally releases the secondary face after it leaves the complete primary surface")
+           && check(fuelsim_released,
                "B4.6 Fuelsim naturally releases the same lost-projection state with zero residual and can commit it");
 }
 } // namespace
@@ -416,7 +466,8 @@ int main(int argc, char** argv) {
         }
         std::cout << std::scientific << std::setprecision(12);
         const bool passed = compare(fuelsim::read_exodus_hex8(argv[1]), argv[2], argv[3]);
-        if (passed) std::cout << "[PASS] B4.6 HEX8 release, recontact, and slide-out comparison\n";
+        if (passed)
+            std::cout << "[PASS] B4.6 HEX8 release, recontact, and slide-out comparison\n";
         return passed ? 0 : 1;
     } catch (const std::exception& error) {
         std::cerr << "[FAIL] B4.6 raised: " << error.what() << '\n';

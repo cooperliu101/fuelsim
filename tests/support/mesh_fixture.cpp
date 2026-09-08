@@ -5,7 +5,8 @@
 
 namespace fuelsim::test {
 std::size_t annular_node_id(std::size_t radial_elements, std::size_t radial_index, std::size_t axial_index) {
-    if (radial_index > radial_elements) throw std::out_of_range("annular mesh radial node is out of range");
+    if (radial_index > radial_elements)
+        throw std::out_of_range("annular mesh radial node is out of range");
     const std::size_t radial_nodes = radial_elements + 1;
     if (axial_index > (std::numeric_limits<std::size_t>::max() - radial_index) / radial_nodes)
         throw std::length_error("annular mesh node index overflows");
@@ -13,7 +14,8 @@ std::size_t annular_node_id(std::size_t radial_elements, std::size_t radial_inde
 }
 
 UnstructuredQuad4Mesh make_disconnected_annular_mesh(const std::vector<AnnularBlockSpec>& blocks) {
-    if (blocks.empty()) throw std::invalid_argument("annular mesh fixture requires at least one block");
+    if (blocks.empty())
+        throw std::invalid_argument("annular mesh fixture requires at least one block");
     std::vector<RzPoint> nodes;
     std::vector<Quad4Element> elements;
     std::vector<std::int64_t> element_block_ids;
@@ -25,8 +27,8 @@ UnstructuredQuad4Mesh make_disconnected_annular_mesh(const std::vector<AnnularBl
     for (const AnnularBlockSpec& block : blocks) {
         if (block.id < 0 || block.name.empty())
             throw std::invalid_argument("annular mesh fixture requires a named nonnegative block");
-        if (!(block.inner_radius >= 0.0) || !(block.outer_radius > block.inner_radius) || !(block.length > 0.0) ||
-            block.radial_elements == 0 || block.axial_elements == 0)
+        if (!(block.inner_radius >= 0.0) || !(block.outer_radius > block.inner_radius) || !(block.length > 0.0)
+            || block.radial_elements == 0 || block.axial_elements == 0)
             throw std::invalid_argument("annular mesh fixture has invalid geometry or element count");
         const std::size_t radial_nodes = block.radial_elements + 1;
         const std::size_t axial_nodes = block.axial_elements + 1;
@@ -74,7 +76,11 @@ UnstructuredQuad4Mesh make_disconnected_annular_mesh(const std::vector<AnnularBl
         side_sets.push_back({next_side_set_id++, block.name + "_bottom", std::move(bottom)});
         side_sets.push_back({next_side_set_id++, block.name + "_top", std::move(top)});
     }
-    return UnstructuredQuad4Mesh(std::move(nodes), std::move(elements), std::move(element_block_ids),
-        std::move(element_blocks), {}, std::move(side_sets));
+    return UnstructuredQuad4Mesh(std::move(nodes),
+        std::move(elements),
+        std::move(element_block_ids),
+        std::move(element_blocks),
+        {},
+        std::move(side_sets));
 }
 } // namespace fuelsim::test

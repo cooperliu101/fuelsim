@@ -53,7 +53,8 @@ struct ReconstructedContact final {
 };
 
 bool check(bool condition, const std::string& message) {
-    if (condition) return true;
+    if (condition)
+        return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
@@ -63,20 +64,31 @@ fuelsim::CartesianPoint3 cylindrical(double radius, double angle, double z) {
 }
 
 fuelsim::Hex8Element append_annular(std::vector<fuelsim::CartesianPoint3>& nodes,
-    std::map<std::array<double, 3>, std::size_t>& node_map, double r0, double r1, double a0, double a1) {
-    const std::array<std::array<double, 3>, 8> logical = {{{r0, a0, 0.0}, {r1, a0, 0.0}, {r1, a1, 0.0}, {r0, a1, 0.0},
-        {r0, a0, 1.0}, {r1, a0, 1.0}, {r1, a1, 1.0}, {r0, a1, 1.0}}};
+    std::map<std::array<double, 3>, std::size_t>& node_map,
+    double r0,
+    double r1,
+    double a0,
+    double a1) {
+    const std::array<std::array<double, 3>, 8> logical = {{{r0, a0, 0.0},
+        {r1, a0, 0.0},
+        {r1, a1, 0.0},
+        {r0, a1, 0.0},
+        {r0, a0, 1.0},
+        {r1, a0, 1.0},
+        {r1, a1, 1.0},
+        {r0, a1, 1.0}}};
     fuelsim::Hex8Element element{};
     for (std::size_t local = 0; local < logical.size(); ++local) {
         const auto inserted = node_map.emplace(logical[local], nodes.size());
-        if (inserted.second) nodes.push_back(cylindrical(logical[local][0], logical[local][1], logical[local][2]));
+        if (inserted.second)
+            nodes.push_back(cylindrical(logical[local][0], logical[local][1], logical[local][2]));
         element.nodes[local] = inserted.first->second;
     }
     return element;
 }
 
-std::vector<std::size_t> side_nodes(
-    const std::vector<fuelsim::Hex8Element>& elements, const std::vector<fuelsim::ElementSide>& sides) {
+std::vector<std::size_t> side_nodes(const std::vector<fuelsim::Hex8Element>& elements,
+    const std::vector<fuelsim::ElementSide>& sides) {
     std::vector<std::size_t> result;
     for (const auto& side : sides)
         for (const std::size_t local : face_nodes[side.local_side])
@@ -104,8 +116,10 @@ GeneratedCase faceted_case() {
         secondary_contact.push_back({elements.size() - 1, 3});
     }
     std::vector<std::size_t> primary_all, secondary_all;
-    for (const auto& entry : primary_map) primary_all.push_back(entry.second);
-    for (const auto& entry : secondary_map) secondary_all.push_back(entry.second);
+    for (const auto& entry : primary_map)
+        primary_all.push_back(entry.second);
+    for (const auto& entry : secondary_map)
+        secondary_all.push_back(entry.second);
     std::sort(primary_all.begin(), primary_all.end());
     std::sort(secondary_all.begin(), secondary_all.end());
     const std::vector<std::size_t> primary_contact_nodes = side_nodes(elements, primary_contact),
@@ -116,9 +130,12 @@ GeneratedCase faceted_case() {
         displacement[node] = {-0.015 * nodes[node].x / radius, -0.015 * nodes[node].y / radius, 0.0};
     }
     return {"faceted_cylinder",
-        fuelsim::UnstructuredHex8Mesh(std::move(nodes), std::move(elements), std::move(blocks),
+        fuelsim::UnstructuredHex8Mesh(std::move(nodes),
+            std::move(elements),
+            std::move(blocks),
             {{1, "primary"}, {2, "secondary"}},
-            {{10, "primary_all", primary_all}, {20, "secondary_all", secondary_all},
+            {{10, "primary_all", primary_all},
+                {20, "secondary_all", secondary_all},
                 {30, "primary_contact_nodes", primary_contact_nodes},
                 {40, "secondary_contact_nodes", secondary_contact_nodes}},
             {{50, "primary_contact", primary_contact}, {60, "secondary_contact", secondary_contact}}),
@@ -129,20 +146,37 @@ GeneratedCase warped_case() {
     constexpr double warp = 0.125;
     constexpr double initial_gap = 1.0 / 256.0;
     constexpr double imposed_x = -3.0 / 256.0;
-    std::vector<fuelsim::CartesianPoint3> nodes = {{0.0, 0.0, 0.0}, {1.0, 0.0, 0.0}, {1.0, 1.0, 0.0}, {0.0, 1.0, 0.0},
-        {0.0, 0.0, 1.0}, {1.0, 0.0, 1.0}, {1.0 + warp, 1.0, 1.0}, {0.0, 1.0, 1.0}, {1.0 + initial_gap, 0.0, 0.0},
-        {2.0 + initial_gap, 0.0, 0.0}, {2.0 + initial_gap, 1.0, 0.0}, {1.0 + initial_gap, 1.0, 0.0},
-        {1.0 + initial_gap, 0.0, 1.0}, {2.0 + initial_gap, 0.0, 1.0}, {2.0 + warp + initial_gap, 1.0, 1.0},
+    std::vector<fuelsim::CartesianPoint3> nodes = {{0.0, 0.0, 0.0},
+        {1.0, 0.0, 0.0},
+        {1.0, 1.0, 0.0},
+        {0.0, 1.0, 0.0},
+        {0.0, 0.0, 1.0},
+        {1.0, 0.0, 1.0},
+        {1.0 + warp, 1.0, 1.0},
+        {0.0, 1.0, 1.0},
+        {1.0 + initial_gap, 0.0, 0.0},
+        {2.0 + initial_gap, 0.0, 0.0},
+        {2.0 + initial_gap, 1.0, 0.0},
+        {1.0 + initial_gap, 1.0, 0.0},
+        {1.0 + initial_gap, 0.0, 1.0},
+        {2.0 + initial_gap, 0.0, 1.0},
+        {2.0 + warp + initial_gap, 1.0, 1.0},
         {1.0 + warp + initial_gap, 1.0, 1.0}};
     std::vector<fuelsim::Hex8Element> elements(2);
     elements[0].nodes = {0, 1, 2, 3, 4, 5, 6, 7};
     elements[1].nodes = {8, 9, 10, 11, 12, 13, 14, 15};
     std::vector<std::array<double, 3>> displacement(nodes.size());
-    for (std::size_t node = 8; node < nodes.size(); ++node) displacement[node] = {imposed_x, 0.0, 0.0};
+    for (std::size_t node = 8; node < nodes.size(); ++node)
+        displacement[node] = {imposed_x, 0.0, 0.0};
     return {"warped_bilinear",
-        fuelsim::UnstructuredHex8Mesh(std::move(nodes), std::move(elements), {1, 2}, {{1, "primary"}, {2, "secondary"}},
-            {{10, "primary_all", {0, 1, 2, 3, 4, 5, 6, 7}}, {20, "secondary_all", {8, 9, 10, 11, 12, 13, 14, 15}},
-                {30, "primary_contact_nodes", {1, 2, 5, 6}}, {40, "secondary_contact_nodes", {8, 11, 12, 15}}},
+        fuelsim::UnstructuredHex8Mesh(std::move(nodes),
+            std::move(elements),
+            {1, 2},
+            {{1, "primary"}, {2, "secondary"}},
+            {{10, "primary_all", {0, 1, 2, 3, 4, 5, 6, 7}},
+                {20, "secondary_all", {8, 9, 10, 11, 12, 13, 14, 15}},
+                {30, "primary_contact_nodes", {1, 2, 5, 6}},
+                {40, "secondary_contact_nodes", {8, 11, 12, 15}}},
             {{50, "primary_contact", {{0, 1}}}, {60, "secondary_contact", {{1, 3}}}}),
         std::move(displacement)};
 }
@@ -161,7 +195,8 @@ void write_labels(std::ofstream& output, const std::vector<std::size_t>& nodes) 
 
 void write_input(const std::string& path, const GeneratedCase& generated, const std::string& smoothing) {
     std::ofstream output(path);
-    if (!output) throw std::runtime_error("Could not write B4.5 Abaqus input: " + path);
+    if (!output)
+        throw std::runtime_error("Could not write B4.5 Abaqus input: " + path);
     const auto& mesh = generated.mesh;
     output << std::setprecision(16) << "*Heading\n** B4.5 " << generated.name
            << " C3D8 nonplanar finite-sliding contact probe.\n*Preprint, echo=NO, model=NO, history=NO, "
@@ -172,9 +207,11 @@ void write_input(const std::string& path, const GeneratedCase& generated, const 
     for (std::int64_t block = 1; block <= 2; ++block) {
         output << "*Element, type=C3D8, elset=" << (block == 1 ? "PRIMARY" : "SECONDARY") << '\n';
         for (std::size_t element = 0; element < mesh.elements().size(); ++element) {
-            if (mesh.element_block_ids()[element] != block) continue;
+            if (mesh.element_block_ids()[element] != block)
+                continue;
             output << element + 1;
-            for (const std::size_t node : mesh.elements()[element].nodes) output << ", " << node + 1;
+            for (const std::size_t node : mesh.elements()[element].nodes)
+                output << ", " << node + 1;
             output << '\n';
         }
     }
@@ -189,7 +226,8 @@ void write_input(const std::string& path, const GeneratedCase& generated, const 
            << "*Solid Section, elset=SECONDARY, material=ELASTIC\n,\n"
            << "*Surface Interaction, name=CONTACT\n*Surface Behavior, pressure-overclosure=LINEAR\n1.e7,\n"
            << "*Contact Pair, interaction=CONTACT, type=SURFACE TO SURFACE, adjust=0.";
-    if (!smoothing.empty()) output << ", sliding transition=" << smoothing << " smoothing";
+    if (!smoothing.empty())
+        output << ", sliding transition=" << smoothing << " smoothing";
     output << "\nSECONDARY_CONTACT, PRIMARY_CONTACT\n*Step, name=LOAD, nlgeom=YES, inc=1\n"
            << "*Static\n1., 1., 1., 1.\n*Boundary, op=NEW\n";
     for (std::size_t node = 0; node < mesh.nodes().size(); ++node)
@@ -216,45 +254,54 @@ std::vector<std::string> split(const std::string& line) {
     std::vector<std::string> result;
     std::istringstream input(line);
     std::string value;
-    while (std::getline(input, value, ',')) result.push_back(value);
+    while (std::getline(input, value, ','))
+        result.push_back(value);
     return result;
 }
 
-double number(const std::vector<std::string>& values, std::size_t column) { return std::stod(values.at(column)); }
+double number(const std::vector<std::string>& values, std::size_t column) {
+    return std::stod(values.at(column));
+}
 
 std::vector<NodeReference> read_nodes(const std::string& path) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read B4.5 node reference: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read B4.5 node reference: " + path);
     std::string line;
-    if (!std::getline(input, line) || line != "id,x,y,z,ux,uy,uz") throw std::invalid_argument("Invalid B4.5 node CSV");
+    if (!std::getline(input, line) || line != "id,x,y,z,ux,uy,uz")
+        throw std::invalid_argument("Invalid B4.5 node CSV");
     std::vector<NodeReference> result;
     while (std::getline(input, line)) {
         const auto values = split(line);
-        result.push_back(
-            {static_cast<std::size_t>(number(values, 0)), {number(values, 1), number(values, 2), number(values, 3)},
-                {number(values, 4), number(values, 5), number(values, 6)}});
+        result.push_back({static_cast<std::size_t>(number(values, 0)),
+            {number(values, 1), number(values, 2), number(values, 3)},
+            {number(values, 4), number(values, 5), number(values, 6)}});
     }
     return result;
 }
 
 std::vector<ContactReference> read_contact(const std::string& path) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read B4.5 contact reference: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read B4.5 contact reference: " + path);
     std::string line;
     if (!std::getline(input, line) || line != "side,id,x,y,z,force_x,force_y,force_z,gap,pressure")
         throw std::invalid_argument("Invalid B4.5 contact CSV");
     std::vector<ContactReference> result;
     while (std::getline(input, line)) {
         const auto values = split(line);
-        result.push_back({values[0] == "secondary", static_cast<std::size_t>(number(values, 1)),
+        result.push_back({values[0] == "secondary",
+            static_cast<std::size_t>(number(values, 1)),
             {number(values, 2), number(values, 3), number(values, 4)},
-            {number(values, 5), number(values, 6), number(values, 7)}, number(values, 8), number(values, 9)});
+            {number(values, 5), number(values, 6), number(values, 7)},
+            number(values, 8),
+            number(values, 9)});
     }
     return result;
 }
 
-fuelsim::Quad4FaceCoordinates face_coordinates(
-    const fuelsim::UnstructuredHex8Mesh& mesh, const fuelsim::ElementSide& side) {
+fuelsim::Quad4FaceCoordinates face_coordinates(const fuelsim::UnstructuredHex8Mesh& mesh,
+    const fuelsim::ElementSide& side) {
     fuelsim::Quad4FaceCoordinates result{};
     for (std::size_t node = 0; node < 4; ++node)
         result[node] = mesh.nodes()[mesh.elements()[side.element].nodes[face_nodes[side.local_side][node]]];
@@ -265,7 +312,8 @@ ReconstructedContact reconstruct(const GeneratedCase& generated) {
     const auto& mesh = generated.mesh;
     const auto& primary_sides = mesh.side_set("primary_contact").sides;
     const auto& secondary_sides = mesh.side_set("secondary_contact").sides;
-    if (primary_sides.size() != secondary_sides.size()) throw std::logic_error("B4.5 paired face count differs");
+    if (primary_sides.size() != secondary_sides.size())
+        throw std::logic_error("B4.5 paired face count differs");
     ReconstructedContact result;
     for (std::size_t face = 0; face < secondary_sides.size(); ++face) {
         const auto secondary = face_coordinates(mesh, secondary_sides[face]);
@@ -282,17 +330,28 @@ ReconstructedContact reconstruct(const GeneratedCase& generated) {
             const auto quadrature = fuelsim::make_quad4_face_quadrature_point(secondary, xi, eta, 1.0);
             const auto normal_point =
                 fuelsim::make_quad4_face_quadrature_point(secondary, (4.0 / 3.0) * xi, (4.0 / 3.0) * eta, 1.0);
-            const fuelsim::Quad4ToQuad4MechanicalGeometry geometry{secondary, primary, quadrature.shape,
-                quadrature.derivative_xi, quadrature.derivative_eta, normal_point.derivative_xi,
-                normal_point.derivative_eta, 1.0, -1.0, 1.0};
+            const fuelsim::Quad4ToQuad4MechanicalGeometry geometry{secondary,
+                primary,
+                quadrature.shape,
+                quadrature.derivative_xi,
+                quadrature.derivative_eta,
+                normal_point.derivative_xi,
+                normal_point.derivative_eta,
+                1.0,
+                -1.0,
+                1.0};
             fuelsim::Quad4SurfaceContactLocalJacobian jacobian{};
-            const auto residual = fuelsim::compute_quad4_to_quad4_contact(
-                {1.0e7, 0.0, false, 0.0}, geometry, state, committed, {}, &jacobian);
+            const auto residual = fuelsim::compute_quad4_to_quad4_contact({1.0e7, 0.0, false, 0.0},
+                geometry,
+                state,
+                committed,
+                {},
+                &jacobian);
             const auto value =
                 fuelsim::compute_quad4_to_quad4_contact_value({1.0e7, 0.0, false, 0.0}, geometry, state, committed, {});
             if (!value.projected || !(value.pressure > 0.0))
-                throw std::logic_error("B4.5 " + generated.name + " face " + std::to_string(face) + " point " +
-                                       std::to_string(point) + " is inactive with gap " + std::to_string(value.gap));
+                throw std::logic_error("B4.5 " + generated.name + " face " + std::to_string(face) + " point "
+                                       + std::to_string(point) + " is inactive with gap " + std::to_string(value.gap));
             fuelsim::Quad4SurfaceContactLocalValues direction{}, plus = state, minus = state;
             constexpr double perturbation = 1.0e-8;
             for (std::size_t column = 0; column < direction.size(); ++column) {
@@ -300,10 +359,18 @@ ReconstructedContact reconstruct(const GeneratedCase& generated) {
                 plus[column] += perturbation * direction[column];
                 minus[column] -= perturbation * direction[column];
             }
-            const auto plus_residual = fuelsim::compute_quad4_to_quad4_contact(
-                {1.0e7, 0.0, false, 0.0}, geometry, plus, committed, {}, nullptr);
-            const auto minus_residual = fuelsim::compute_quad4_to_quad4_contact(
-                {1.0e7, 0.0, false, 0.0}, geometry, minus, committed, {}, nullptr);
+            const auto plus_residual = fuelsim::compute_quad4_to_quad4_contact({1.0e7, 0.0, false, 0.0},
+                geometry,
+                plus,
+                committed,
+                {},
+                nullptr);
+            const auto minus_residual = fuelsim::compute_quad4_to_quad4_contact({1.0e7, 0.0, false, 0.0},
+                geometry,
+                minus,
+                committed,
+                {},
+                nullptr);
             double difference_squared = 0.0, reference_squared = 0.0;
             for (std::size_t row = 0; row < residual.size(); ++row) {
                 double analytic = 0.0;
@@ -380,7 +447,9 @@ ReconstructedContact reconstruct(const GeneratedCase& generated) {
     return result;
 }
 
-double norm(const std::array<double, 3>& value) { return std::hypot(value[0], std::hypot(value[1], value[2])); }
+double norm(const std::array<double, 3>& value) {
+    return std::hypot(value[0], std::hypot(value[1], value[2]));
+}
 
 double primary_face_warp(const GeneratedCase& generated) {
     const auto side = generated.mesh.side_set("primary_contact").sides.front();
@@ -389,7 +458,8 @@ double primary_face_warp(const GeneratedCase& generated) {
                                 second = {face[3].x - face[0].x, face[3].y - face[0].y, face[3].z - face[0].z},
                                 diagonal = {face[2].x - face[0].x, face[2].y - face[0].y, face[2].z - face[0].z};
     const std::array<double, 3> normal = {first[1] * second[2] - first[2] * second[1],
-        first[2] * second[0] - first[0] * second[2], first[0] * second[1] - first[1] * second[0]};
+        first[2] * second[0] - first[0] * second[2],
+        first[0] * second[1] - first[1] * second[0]};
     return std::abs(normal[0] * diagonal[0] + normal[1] * diagonal[1] + normal[2] * diagonal[2]) / norm(normal);
 }
 
@@ -404,18 +474,22 @@ void print_metric(const std::string& name, const fuelsim::test::FieldErrorMetric
     }
 }
 
-bool compare(const GeneratedCase& generated, const std::string& mesh_path, const std::string& node_path,
-    const std::string& contact_path, const std::string& variant, bool require_transverse_force) {
+bool compare(const GeneratedCase& generated,
+    const std::string& mesh_path,
+    const std::string& node_path,
+    const std::string& contact_path,
+    const std::string& variant,
+    bool require_transverse_force) {
     fuelsim::UnstructuredHex8Mesh tracked_mesh = fuelsim::read_exodus_hex8(mesh_path);
-    if (tracked_mesh.nodes().size() != generated.mesh.nodes().size() ||
-        tracked_mesh.elements().size() != generated.mesh.elements().size())
+    if (tracked_mesh.nodes().size() != generated.mesh.nodes().size()
+        || tracked_mesh.elements().size() != generated.mesh.elements().size())
         throw std::invalid_argument("B4.5 tracked mesh size differs from its generator");
     double tracked_coordinate_error = 0.0;
     for (std::size_t node = 0; node < tracked_mesh.nodes().size(); ++node)
-        tracked_coordinate_error =
-            std::max({tracked_coordinate_error, std::abs(tracked_mesh.nodes()[node].x - generated.mesh.nodes()[node].x),
-                std::abs(tracked_mesh.nodes()[node].y - generated.mesh.nodes()[node].y),
-                std::abs(tracked_mesh.nodes()[node].z - generated.mesh.nodes()[node].z)});
+        tracked_coordinate_error = std::max({tracked_coordinate_error,
+            std::abs(tracked_mesh.nodes()[node].x - generated.mesh.nodes()[node].x),
+            std::abs(tracked_mesh.nodes()[node].y - generated.mesh.nodes()[node].y),
+            std::abs(tracked_mesh.nodes()[node].z - generated.mesh.nodes()[node].z)});
     for (std::size_t element = 0; element < tracked_mesh.elements().size(); ++element)
         if (tracked_mesh.elements()[element].nodes != generated.mesh.elements()[element].nodes)
             throw std::invalid_argument("B4.5 tracked mesh connectivity differs from its generator");
@@ -428,18 +502,21 @@ bool compare(const GeneratedCase& generated, const std::string& mesh_path, const
     double coordinate_error = 0.0;
     for (const auto& reference : nodes) {
         const auto& point = tracked.mesh.nodes().at(reference.id);
-        coordinate_error = std::max({coordinate_error, std::abs(point.x - reference.point.x),
-            std::abs(point.y - reference.point.y), std::abs(point.z - reference.point.z)});
+        coordinate_error = std::max({coordinate_error,
+            std::abs(point.x - reference.point.x),
+            std::abs(point.y - reference.point.y),
+            std::abs(point.z - reference.point.z)});
         for (std::size_t component = 0; component < 3; ++component)
-            displacement[component].add(
-                tracked.displacement[reference.id][component], reference.displacement[component]);
+            displacement[component].add(tracked.displacement[reference.id][component],
+                reference.displacement[component]);
     }
     std::array<double, 3> actual_resultant{}, reference_resultant{};
     double maximum_normal_angle = 0.0;
     for (const auto& reference : contacts) {
         const auto& forces = reference.secondary ? actual.secondary_force : actual.primary_force;
         const auto found = forces.find(reference.id);
-        if (found == forces.end()) throw std::logic_error("B4.5 contact node mapping is incomplete");
+        if (found == forces.end())
+            throw std::logic_error("B4.5 contact node mapping is incomplete");
         for (std::size_t component = 0; component < 3; ++component) {
             (reference.secondary ? secondary_force[component] : primary_force[component])
                 .add(found->second[component], reference.force[component]);
@@ -469,8 +546,8 @@ bool compare(const GeneratedCase& generated, const std::string& mesh_path, const
     resultant.add(norm(actual_resultant), norm(reference_resultant));
     for (std::size_t component = 0; component < 3; ++component) {
         print_metric("b45_" + tracked.name + "_displacement_" + std::to_string(component), displacement[component]);
-        print_metric(
-            "b45_" + tracked.name + "_secondary_force_" + std::to_string(component), secondary_force[component]);
+        print_metric("b45_" + tracked.name + "_secondary_force_" + std::to_string(component),
+            secondary_force[component]);
         print_metric("b45_" + tracked.name + "_primary_force_" + std::to_string(component), primary_force[component]);
     }
     print_metric("b45_" + tracked.name + "_gap", gap);
@@ -480,9 +557,10 @@ bool compare(const GeneratedCase& generated, const std::string& mesh_path, const
     const auto passes = [](const fuelsim::test::FieldErrorMetrics& metric) {
         return !metric.has_relative_norm() || fuelsim::test::relative_metrics_below(metric, 1.0e-2);
     };
-    bool metrics = passes(gap) && passes(pressure) && passes(area) && passes(resultant) && passes(secondary_force[0]) &&
-                   passes(primary_force[0]);
-    for (std::size_t component = 0; component < 3; ++component) metrics = metrics && passes(displacement[component]);
+    bool metrics = passes(gap) && passes(pressure) && passes(area) && passes(resultant) && passes(secondary_force[0])
+                   && passes(primary_force[0]);
+    for (std::size_t component = 0; component < 3; ++component)
+        metrics = metrics && passes(displacement[component]);
     if (require_transverse_force)
         for (std::size_t component = 1; component < 3; ++component)
             metrics = metrics && passes(secondary_force[component]) && passes(primary_force[component]);
@@ -496,20 +574,19 @@ bool compare(const GeneratedCase& generated, const std::string& mesh_path, const
               << "b45_" << tracked.name << "_point_count=" << actual.points << '\n'
               << "b45_" << tracked.name << "_balance=" << actual.balance[0] << ',' << actual.balance[1] << ','
               << actual.balance[2] << '\n';
-    return check(
-               nodes.size() == tracked.mesh.nodes().size(), "B4.5 compares every prescribed mesh-node displacement") &&
-           check(tracked_coordinate_error < 1.0e-7, "B4.5 reads the tracked Exodus geometry and connectivity") &&
-           check(coordinate_error < 1.0e-7, "B4.5 uses the tracked Abaqus geometry") &&
-           check(generated.name != "warped_bilinear" || face_warp > 0.1,
-               "B4.5 warped case has a genuinely noncoplanar primary face") &&
-           check(actual.jacobian_error < 1.0e-6,
-               "B4.5 active nonplanar contact Jacobians match centered directional differences") &&
-           check(actual.production_secondary_force_difference < 1.0e-8,
-               "B4.5 production assembly reproduces the identified finite-sliding secondary force operator") &&
-           check(std::abs(actual.balance[0]) < 1.0e-8 && std::abs(actual.balance[1]) < 1.0e-8 &&
-                     std::abs(actual.balance[2]) < 1.0e-8,
-               "B4.5 reconstructed contact preserves action-reaction") &&
-           check(metrics,
+    return check(nodes.size() == tracked.mesh.nodes().size(), "B4.5 compares every prescribed mesh-node displacement")
+           && check(tracked_coordinate_error < 1.0e-7, "B4.5 reads the tracked Exodus geometry and connectivity")
+           && check(coordinate_error < 1.0e-7, "B4.5 uses the tracked Abaqus geometry")
+           && check(generated.name != "warped_bilinear" || face_warp > 0.1,
+               "B4.5 warped case has a genuinely noncoplanar primary face")
+           && check(actual.jacobian_error < 1.0e-6,
+               "B4.5 active nonplanar contact Jacobians match centered directional differences")
+           && check(actual.production_secondary_force_difference < 1.0e-8,
+               "B4.5 production assembly reproduces the identified finite-sliding secondary force operator")
+           && check(std::abs(actual.balance[0]) < 1.0e-8 && std::abs(actual.balance[1]) < 1.0e-8
+                        && std::abs(actual.balance[2]) < 1.0e-8,
+               "B4.5 reconstructed contact preserves action-reaction")
+           && check(metrics,
                require_transverse_force
                    ? "B4.5 displacement, all force components, gap, pressure, area, and resultant pass 1 percent"
                    : "B4.5 displacement, normal-dominant force, gap, pressure, area, and resultant pass 1 percent");
@@ -518,7 +595,8 @@ bool compare(const GeneratedCase& generated, const std::string& mesh_path, const
 double contact_reference_difference(const std::string& first_path, const std::string& second_path) {
     const auto first = read_contact(first_path);
     const auto second = read_contact(second_path);
-    if (first.size() != second.size()) throw std::invalid_argument("B4.5 smoothing references have different sizes");
+    if (first.size() != second.size())
+        throw std::invalid_argument("B4.5 smoothing references have different sizes");
     double difference_squared = 0.0, reference_squared = 0.0;
     for (std::size_t row = 0; row < first.size(); ++row) {
         if (first[row].secondary != second[row].secondary || first[row].id != second[row].id)
@@ -562,11 +640,12 @@ int main(int argc, char** argv) {
         std::cout << "b45_warped_default_linear_force_relative_difference=" << default_linear << '\n'
                   << "b45_warped_default_quadratic_force_relative_difference=" << default_quadratic << '\n';
         passed = check(default_linear < 1.0e-14,
-                     "B4.5 Abaqus default C3D8 finite-sliding transition is exactly linear smoothing") &&
-                 check(default_quadratic > 1.0e-4,
-                     "B4.5 Abaqus quadratic smoothing measurably changes the warped-face nodal forces") &&
-                 passed;
-        if (passed) std::cout << "[PASS] B4.5 HEX8 nonplanar surface-to-surface comparison\n";
+                     "B4.5 Abaqus default C3D8 finite-sliding transition is exactly linear smoothing")
+                 && check(default_quadratic > 1.0e-4,
+                     "B4.5 Abaqus quadratic smoothing measurably changes the warped-face nodal forces")
+                 && passed;
+        if (passed)
+            std::cout << "[PASS] B4.5 HEX8 nonplanar surface-to-surface comparison\n";
         return passed ? 0 : 1;
     } catch (const std::exception& error) {
         std::cerr << "[FAIL] B4.5 comparison raised: " << error.what() << '\n';

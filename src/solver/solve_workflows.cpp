@@ -34,19 +34,19 @@ void merge_attempt(SolveResult& aggregate, const SolveResult& addition) {
     SolveTiming timing = aggregate.timing;
     accumulate_timing(timing, addition.timing);
     const bool used_backtracking = aggregate.used_backtracking_fallback || addition.used_backtracking_fallback;
-    const SolveFailureCategory basic_failure = aggregate.basic_failure_category != SolveFailureCategory::none
-                                                   ? aggregate.basic_failure_category
-                                                   : addition.basic_failure_category;
-    const std::string basic_message =
-        !aggregate.basic_failure_message.empty() ? aggregate.basic_failure_message : addition.basic_failure_message;
+    const SolveFailureCategory initial_failure = aggregate.initial_failure_category != SolveFailureCategory::none
+                                                     ? aggregate.initial_failure_category
+                                                     : addition.initial_failure_category;
+    const std::string initial_message = !aggregate.initial_failure_message.empty() ? aggregate.initial_failure_message
+                                                                                   : addition.initial_failure_message;
     aggregate = addition;
     aggregate.nonlinear_iterations = nonlinear_iterations;
     aggregate.linear_iterations = linear_iterations;
     aggregate.nonlinear_attempts = nonlinear_attempts;
     aggregate.timing = timing;
     aggregate.used_backtracking_fallback = used_backtracking;
-    aggregate.basic_failure_category = basic_failure;
-    aggregate.basic_failure_message = basic_message;
+    aggregate.initial_failure_category = initial_failure;
+    aggregate.initial_failure_message = initial_message;
     aggregate.augmented_lagrangian_iterations = augmented_iterations;
     aggregate.maximum_contact_penetration = maximum_penetration;
 }
@@ -55,15 +55,15 @@ void mark_augmented_failure(SolveResult& result, const AugmentedContactUpdate& s
     result.converged = false;
     result.failure_category = SolveFailureCategory::contact_constraint;
     result.failure_message =
-        "Augmented contact did not reach penetration tolerance after " + std::to_string(completed_updates) +
-        " multiplier updates; maximum constraint violation=" + std::to_string(status.maximum_constraint_violation) +
-        ", maximum penetration=" + std::to_string(status.maximum_penetration) +
-        ", tolerance=" + std::to_string(status.penetration_tolerance);
+        "Augmented contact did not reach penetration tolerance after " + std::to_string(completed_updates)
+        + " multiplier updates; maximum constraint violation=" + std::to_string(status.maximum_constraint_violation)
+        + ", maximum penetration=" + std::to_string(status.maximum_penetration)
+        + ", tolerance=" + std::to_string(status.penetration_tolerance);
 }
 } // namespace
 
-std::vector<double> initial_guess_with_dirichlet_values(
-    const NonlinearProblem& problem, const std::vector<double>& state) {
+std::vector<double> initial_guess_with_dirichlet_values(const NonlinearProblem& problem,
+    const std::vector<double>& state) {
     if (state.size() != problem.dof_count())
         throw std::invalid_argument("Dirichlet initial-guess state size does not match problem");
     std::vector<double> result = state;
@@ -72,16 +72,20 @@ std::vector<double> initial_guess_with_dirichlet_values(
     return result;
 }
 
-SolveResult solve_contact_equilibrium(PetscSolver& solver, NonlinearProblem& problem,
-    const std::vector<double>& initial_guess, const SolverOptions& options) {
+SolveResult solve_contact_equilibrium(PetscSolver& solver,
+    NonlinearProblem& problem,
+    const std::vector<double>& initial_guess,
+    const SolverOptions& options) {
     SolveResult result = solver.solve(problem, initial_guess, options);
-    if (!problem.uses_augmented_contact()) return result;
+    if (!problem.uses_augmented_contact())
+        return result;
     std::size_t updates = 0;
     while (result.converged) {
         const AugmentedContactUpdate status = problem.update_augmented_contact_multipliers(result.state, updates);
         result.maximum_contact_penetration = status.maximum_penetration;
         result.augmented_lagrangian_iterations = updates;
-        if (status.converged) return result;
+        if (status.converged)
+            return result;
         if (!status.update_allowed) {
             mark_augmented_failure(result, status, updates);
             return result;
@@ -99,8 +103,11 @@ using solver_workflow::initial_guess_with_dirichlet_values;
 using solver_workflow::solve_contact_equilibrium;
 
 namespace {
-SteadyResult solve_steady_from_state(PetscSolver& solver, SteadyProblem& problem, const SteadyLoadOptions& load_options,
-    const SolverOptions& options, std::vector<double> state) {
+SteadyResult solve_steady_from_state(PetscSolver& solver,
+    SteadyProblem& problem,
+    const SteadyLoadOptions& load_options,
+    const SolverOptions& options,
+    std::vector<double> state) {
     const SteadyClock::time_point start = SteadyClock::now();
     SteadyResult result;
     if (state.size() != problem.dof_count())
@@ -118,9 +125,12 @@ SteadyResult solve_steady_from_state(PetscSolver& solver, SteadyProblem& problem
                 attempt = SolveResult{};
                 try {
                     problem.set_load_factor(attempted_load_factor);
-                    attempt = solve_contact_equilibrium(
-                        solver, problem, initial_guess_with_dirichlet_values(problem, state), options);
-                    if (attempt.converged) problem.commit_internal_state(attempt.state);
+                    attempt = solve_contact_equilibrium(solver,
+                        problem,
+                        initial_guess_with_dirichlet_values(problem, state),
+                        options);
+                    if (attempt.converged)
+                        problem.commit_internal_state(attempt.state);
                 } catch (const std::domain_error& error) {
                     attempt.converged = false;
                     attempt.failure_category = SolveFailureCategory::physical_domain;
@@ -137,9 +147,13 @@ SteadyResult solve_steady_from_state(PetscSolver& solver, SteadyProblem& problem
                 accumulate_timing(result.aggregate_timing, attempt.timing);
                 result.total_nonlinear_iterations += attempt.nonlinear_iterations;
                 result.total_linear_iterations += attempt.linear_iterations;
-                if (attempt.converged) break;
-                result.rejected_steps.push_back({attempted_load_factor, load_increment, cutbacks,
-                    attempt.failure_category, attempt.failure_message});
+                if (attempt.converged)
+                    break;
+                result.rejected_steps.push_back({attempted_load_factor,
+                    load_increment,
+                    cutbacks,
+                    attempt.failure_category,
+                    attempt.failure_message});
                 result.solve = attempt;
                 if (cutbacks >= load_options.maximum_cutbacks_per_step) {
                     result.total_seconds = seconds_since(start);
@@ -167,8 +181,9 @@ SteadyResult solve_steady_from_state(PetscSolver& solver, SteadyProblem& problem
     return result;
 }
 
-SteadyResult solve_steady_with_small_strain_predictor(
-    SteadyProblem& problem, const SteadyLoadOptions& load_options, const SolverOptions& options) {
+SteadyResult solve_steady_with_small_strain_predictor(SteadyProblem& problem,
+    const SteadyLoadOptions& load_options,
+    const SolverOptions& options) {
     if (load_options.load_steps != 1U)
         throw std::invalid_argument("small-strain steady predictor requires exactly one finite-strain load step");
     SteadyLoadOptions predictor_options = load_options;
@@ -206,7 +221,8 @@ SteadyResult solve_steady(SteadyProblem& problem, const SteadyLoadOptions& load_
 }
 
 double step_factor(const TransientTimeOptions& options, double error) {
-    if (!(error > 0.0)) return options.growth_factor;
+    if (!(error > 0.0))
+        return options.growth_factor;
     return std::clamp(options.time_error_safety_factor / std::sqrt(error), 0.1, options.growth_factor);
 }
 
@@ -224,11 +240,15 @@ bool times_equal(double first, double second) {
 }
 
 std::vector<double> linear_transient_predictor(const std::vector<double>& committed,
-    const std::vector<double>* previous, double committed_time, double previous_time, double target_time) {
+    const std::vector<double>* previous,
+    double committed_time,
+    double previous_time,
+    double target_time) {
     if (previous == nullptr || previous->size() != committed.size() || !(committed_time > previous_time))
         return committed;
     const double factor = (target_time - committed_time) / (committed_time - previous_time);
-    if (!std::isfinite(factor)) return committed;
+    if (!std::isfinite(factor))
+        return committed;
     std::vector<double> result(committed.size());
     for (std::size_t dof = 0; dof < committed.size(); ++dof)
         result[dof] = committed[dof] + factor * (committed[dof] - (*previous)[dof]);
@@ -236,7 +256,8 @@ std::vector<double> linear_transient_predictor(const std::vector<double>& commit
 }
 
 void validate_time_options(const TransientProblem& problem, const TransientTimeOptions& options) {
-    if (problem.time_step_active()) throw std::logic_error("solve_transient cannot start with an active time step");
+    if (problem.time_step_active())
+        throw std::logic_error("solve_transient cannot start with an active time step");
     const double time_scale = std::max({1.0, std::abs(problem.committed_time()), std::abs(options.end_time)}),
                  time_tolerance = 16.0 * std::numeric_limits<double>::epsilon() * time_scale;
     if (!std::isfinite(options.end_time) || options.end_time < problem.committed_time() - time_tolerance)
@@ -244,15 +265,21 @@ void validate_time_options(const TransientProblem& problem, const TransientTimeO
 }
 
 double load_factor_at_time(const TransientTimeOptions& options, double time) {
-    if (options.load_ramp_time == 0.0) return 1.0;
+    if (options.load_ramp_time == 0.0)
+        return 1.0;
     return std::min(time / options.load_ramp_time, 1.0);
 }
 
-double accepted_next_time_step(const TransientTimeOptions& options, double actual_time_step,
-    double controller_time_step, bool event_truncated, std::size_t cutbacks, int nonlinear_iterations) {
-    const double base = event_truncated && cutbacks == 0 ? controller_time_step : actual_time_step;
+double accepted_next_time_step(const TransientTimeOptions& options,
+    double actual_time_step,
+    double controller_time_step,
+    bool event_aligned,
+    std::size_t cutbacks,
+    int nonlinear_iterations) {
+    const double base = event_aligned && cutbacks == 0 ? controller_time_step : actual_time_step;
     if (options.target_nonlinear_iterations == 0) {
-        if (cutbacks > 0) return std::clamp(base, options.minimum_time_step, options.maximum_time_step);
+        if (cutbacks > 0)
+            return std::clamp(base, options.minimum_time_step, options.maximum_time_step);
         return std::min(options.maximum_time_step, base * options.growth_factor);
     }
     const std::size_t iterations = nonlinear_iterations < 0 ? 0 : static_cast<std::size_t>(nonlinear_iterations),
@@ -261,14 +288,18 @@ double accepted_next_time_step(const TransientTimeOptions& options, double actua
         options.target_nonlinear_iterations > std::numeric_limits<std::size_t>::max() - options.iteration_window
             ? std::numeric_limits<std::size_t>::max()
             : options.target_nonlinear_iterations + options.iteration_window;
-    if (iterations < lower && cutbacks == 0) return std::min(options.maximum_time_step, base * options.growth_factor);
-    if (iterations > upper) return std::max(options.minimum_time_step, base * options.cutback_factor);
+    if (iterations < lower && cutbacks == 0)
+        return std::min(options.maximum_time_step, base * options.growth_factor);
+    if (iterations > upper)
+        return std::max(options.minimum_time_step, base * options.cutback_factor);
     return std::clamp(base, options.minimum_time_step, options.maximum_time_step);
 }
 } // namespace
 
-TransientResult solve_transient(TransientProblem& problem, const TransientTimeOptions& options,
-    const SolverOptions& solver_options, TransientStepObserver* observer) {
+TransientResult solve_transient(TransientProblem& problem,
+    const TransientTimeOptions& options,
+    const SolverOptions& solver_options,
+    TransientStepObserver* observer) {
     validate_time_options(problem, options);
     const bool recent_predictor_tracking =
         options.use_linear_time_predictor && !(options.time_error_relative_tolerance > 0.0);
@@ -285,8 +316,10 @@ TransientResult solve_transient(TransientProblem& problem, const TransientTimeOp
         try {
             SolverOptions step_solver_options = solver_options;
             step_solver_options.jacobian_lag = jacobian_lag;
-            SolveResult step_result = solve_contact_equilibrium(
-                solver, problem, initial_guess_with_dirichlet_values(problem, initial_guess), step_solver_options);
+            SolveResult step_result = solve_contact_equilibrium(solver,
+                problem,
+                initial_guess_with_dirichlet_values(problem, initial_guess),
+                step_solver_options);
             if (step_result.converged)
                 problem.commit_time_step(step_result.state);
             else
@@ -297,8 +330,10 @@ TransientResult solve_transient(TransientProblem& problem, const TransientTimeOp
             throw;
         }
     };
-    const auto run_predicted_step = [&](double target_time, const std::vector<double>& predicted,
-                                        const std::vector<double>& committed, bool predictor_used) {
+    const auto run_predicted_step = [&](double target_time,
+                                        const std::vector<double>& predicted,
+                                        const std::vector<double>& committed,
+                                        bool predictor_used) {
         SolveResult step_result;
         try {
             const int predictor_lag = predictor_used && solver_options.predictor_jacobian_lag > 0
@@ -306,17 +341,20 @@ TransientResult solve_transient(TransientProblem& problem, const TransientTimeOp
                                           : solver_options.jacobian_lag;
             step_result = run_step(target_time, predicted, predictor_lag);
         } catch (const std::domain_error& error) {
-            if (!predictor_used) throw;
+            if (!predictor_used)
+                throw;
             step_result.converged = false;
             step_result.failure_category = SolveFailureCategory::physical_domain;
             step_result.failure_message = error.what();
         } catch (const std::overflow_error& error) {
-            if (!predictor_used) throw;
+            if (!predictor_used)
+                throw;
             step_result.converged = false;
             step_result.failure_category = SolveFailureCategory::physical_domain;
             step_result.failure_message = error.what();
         }
-        if (step_result.converged || !predictor_used) return step_result;
+        if (step_result.converged || !predictor_used)
+            return step_result;
         SolveResult fallback = run_step(target_time, committed, solver_options.jacobian_lag);
         merge_attempt(step_result, fallback);
         return step_result;
@@ -324,13 +362,17 @@ TransientResult solve_transient(TransientProblem& problem, const TransientTimeOp
     while (!reaches_end(problem.committed_time(), options.end_time)) {
         const double controller_time_step = std::min(next_time_step, options.end_time - problem.committed_time());
         double time_step = controller_time_step;
-        bool event_truncated = false;
+        bool event_aligned = false;
         for (const double event : events) {
-            if (reaches_end(problem.committed_time(), event)) continue;
-            if (event > options.end_time && !times_equal(event, options.end_time)) break;
+            if (reaches_end(problem.committed_time(), event))
+                continue;
+            if (event > options.end_time && !times_equal(event, options.end_time))
+                break;
             const double event_step = event - problem.committed_time();
             if (event_step < time_step || times_equal(event, problem.committed_time() + time_step)) {
-                event_truncated = event_step < time_step && !times_equal(event, problem.committed_time() + time_step);
+                // A rounded event endpoint must not become the controller's next step:
+                // its small subtraction error would accumulate across subsequent increments.
+                event_aligned = true;
                 time_step = event_step;
             }
             break;
@@ -348,14 +390,18 @@ TransientResult solve_transient(TransientProblem& problem, const TransientTimeOp
             bool base_state_available = false;
             const double base_time = problem.committed_time();
             const std::vector<double> base_solution = problem.committed_solution();
-            const bool predictor_used = options.use_linear_time_predictor &&
-                                        (error_control ? base_time > 0.0 : problem.has_previous_committed_solution());
+            const bool predictor_used =
+                options.use_linear_time_predictor
+                && (error_control ? base_time > 0.0 : problem.has_previous_committed_solution());
             const std::vector<double>* predictor_reference = !predictor_used ? nullptr
                                                              : error_control ? &initial_predictor_reference
                                                                              : &problem.previous_committed_solution();
             const double predictor_reference_time = error_control ? 0.0 : problem.previous_committed_time();
-            const std::vector<double> predicted_solution = linear_transient_predictor(
-                base_solution, predictor_reference, base_time, predictor_reference_time, end_time);
+            const std::vector<double> predicted_solution = linear_transient_predictor(base_solution,
+                predictor_reference,
+                base_time,
+                predictor_reference_time,
+                end_time);
             if (error_control) {
                 base_state = problem.capture_state();
                 base_state_available = true;
@@ -368,17 +414,22 @@ TransientResult solve_transient(TransientProblem& problem, const TransientTimeOp
                     const SolveResult full_step =
                         run_predicted_step(end_time, predicted_solution, base_solution, predictor_used);
                     ProblemStateSnapshot full_step_state;
-                    if (full_step.converged) full_step_state = problem.capture_state();
+                    if (full_step.converged)
+                        full_step_state = problem.capture_state();
                     attempt = full_step;
                     controller_nonlinear_iterations = full_step.nonlinear_iterations;
                     if (full_step.converged) {
                         problem.restore_state(base_state);
                         const double half_time = base_time + 0.5 * time_step;
-                        const std::vector<double> first_half_prediction = linear_transient_predictor(
-                            base_solution, predictor_reference, base_time, predictor_reference_time, half_time);
+                        const std::vector<double> first_half_prediction = linear_transient_predictor(base_solution,
+                            predictor_reference,
+                            base_time,
+                            predictor_reference_time,
+                            half_time);
                         const SolveResult first_half =
                             run_predicted_step(half_time, first_half_prediction, base_solution, predictor_used);
-                        if (first_half.converged) first_half_conservation = problem.last_conservation_summary();
+                        if (first_half.converged)
+                            first_half_conservation = problem.last_conservation_summary();
                         controller_nonlinear_iterations =
                             std::max(controller_nonlinear_iterations, first_half.nonlinear_iterations);
                         merge_attempt(attempt, first_half);
@@ -389,9 +440,14 @@ TransientResult solve_transient(TransientProblem& problem, const TransientTimeOp
                             const std::vector<double> first_half_solution = problem.committed_solution();
                             const std::vector<double> second_half_prediction =
                                 linear_transient_predictor(first_half_solution,
-                                    predictor_used ? &initial_predictor_reference : nullptr, half_time, 0.0, end_time);
-                            const SolveResult second_half = run_predicted_step(
-                                end_time, second_half_prediction, first_half_solution, predictor_used);
+                                    predictor_used ? &initial_predictor_reference : nullptr,
+                                    half_time,
+                                    0.0,
+                                    end_time);
+                            const SolveResult second_half = run_predicted_step(end_time,
+                                second_half_prediction,
+                                first_half_solution,
+                                predictor_used);
                             controller_nonlinear_iterations =
                                 std::max(controller_nonlinear_iterations, second_half.nonlinear_iterations);
                             merge_attempt(attempt, second_half);
@@ -417,17 +473,20 @@ TransientResult solve_transient(TransientProblem& problem, const TransientTimeOp
                     }
                 }
             } catch (const std::domain_error& error) {
-                if (base_state_available) problem.restore_state(base_state);
+                if (base_state_available)
+                    problem.restore_state(base_state);
                 attempt.converged = false;
                 attempt.failure_category = SolveFailureCategory::physical_domain;
                 attempt.failure_message = error.what();
             } catch (const std::overflow_error& error) {
-                if (base_state_available) problem.restore_state(base_state);
+                if (base_state_available)
+                    problem.restore_state(base_state);
                 attempt.converged = false;
                 attempt.failure_category = SolveFailureCategory::physical_domain;
                 attempt.failure_message = error.what();
             } catch (...) {
-                if (base_state_available) problem.restore_state(base_state);
+                if (base_state_available)
+                    problem.restore_state(base_state);
                 throw;
             }
             accumulate_timing(result.aggregate_timing, attempt.timing);
@@ -435,25 +494,43 @@ TransientResult solve_transient(TransientProblem& problem, const TransientTimeOp
             result.total_linear_iterations += attempt.linear_iterations;
             result.last_attempt = std::move(attempt);
             if (result.last_attempt.converged) {
-                next_time_step = accepted_next_time_step(options, time_step, controller_time_step, event_truncated,
-                    cutbacks, controller_nonlinear_iterations);
+                next_time_step = accepted_next_time_step(options,
+                    time_step,
+                    controller_time_step,
+                    event_aligned,
+                    cutbacks,
+                    controller_nonlinear_iterations);
                 if (error_control) {
                     const double error_limited_step = time_step * step_factor(options, time_error_estimate);
-                    next_time_step = std::clamp(std::min(next_time_step, error_limited_step), options.minimum_time_step,
+                    next_time_step = std::clamp(std::min(next_time_step, error_limited_step),
+                        options.minimum_time_step,
                         options.maximum_time_step);
                 }
-                result.accepted_steps.push_back(
-                    {problem.committed_time(), time_step, next_time_step, problem.committed_load_factor(), cutbacks,
-                        result.last_attempt.nonlinear_iterations, result.last_attempt.linear_iterations,
-                        time_error_estimate, time_error_components, problem.last_conservation_summary()});
-                if (observer != nullptr) observer->accepted_step(problem, result.accepted_steps.back());
+                result.accepted_steps.push_back({problem.committed_time(),
+                    time_step,
+                    next_time_step,
+                    problem.committed_load_factor(),
+                    cutbacks,
+                    result.last_attempt.nonlinear_iterations,
+                    result.last_attempt.linear_iterations,
+                    time_error_estimate,
+                    time_error_components,
+                    problem.last_conservation_summary()});
+                if (observer != nullptr)
+                    observer->accepted_step(problem, result.accepted_steps.back());
                 break;
             }
-            result.rejected_steps.push_back(
-                {problem.committed_time() + time_step, time_step, cutbacks, result.last_attempt.nonlinear_iterations,
-                    result.last_attempt.linear_iterations, result.last_attempt.convergence_reason,
-                    result.last_attempt.residual_norm, result.last_attempt.failure_category,
-                    result.last_attempt.failure_message, time_error_estimate, time_error_components});
+            result.rejected_steps.push_back({problem.committed_time() + time_step,
+                time_step,
+                cutbacks,
+                result.last_attempt.nonlinear_iterations,
+                result.last_attempt.linear_iterations,
+                result.last_attempt.convergence_reason,
+                result.last_attempt.residual_norm,
+                result.last_attempt.failure_category,
+                result.last_attempt.failure_message,
+                time_error_estimate,
+                time_error_components});
             if (cutbacks >= options.maximum_cutbacks_per_step) {
                 result.termination_reason = TransientTerminationReason::maximum_cutbacks;
                 break;
@@ -473,10 +550,12 @@ TransientResult solve_transient(TransientProblem& problem, const TransientTimeOp
             ++cutbacks;
             ++result.total_cutbacks;
         }
-        if (!result.last_attempt.converged) break;
+        if (!result.last_attempt.converged)
+            break;
     }
     result.completed = reaches_end(problem.committed_time(), options.end_time);
-    if (result.completed) result.termination_reason = TransientTerminationReason::completed;
+    if (result.completed)
+        result.termination_reason = TransientTerminationReason::completed;
     result.committed_state = problem.committed_solution();
     result.committed_time = problem.committed_time();
     result.next_time_step = next_time_step;
@@ -486,10 +565,14 @@ TransientResult solve_transient(TransientProblem& problem, const TransientTimeOp
 
 const char* transient_termination_reason_name(TransientTerminationReason reason) noexcept {
     switch (reason) {
-    case TransientTerminationReason::not_started: return "not_started";
-    case TransientTerminationReason::completed: return "completed";
-    case TransientTerminationReason::maximum_cutbacks: return "maximum_cutbacks";
-    case TransientTerminationReason::minimum_time_step: return "minimum_time_step";
+    case TransientTerminationReason::not_started:
+        return "not_started";
+    case TransientTerminationReason::completed:
+        return "completed";
+    case TransientTerminationReason::maximum_cutbacks:
+        return "maximum_cutbacks";
+    case TransientTerminationReason::minimum_time_step:
+        return "minimum_time_step";
     }
     return "unknown";
 }

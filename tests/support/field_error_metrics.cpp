@@ -40,23 +40,30 @@ bool FieldErrorMetrics::has_relative_norm() const noexcept {
 }
 
 double FieldErrorMetrics::relative_l2() const {
-    if (!has_relative_norm()) throw std::domain_error("Relative full-field norm is undefined");
+    if (!has_relative_norm())
+        throw std::domain_error("Relative full-field norm is undefined");
     return std::sqrt(difference_squared / reference_squared);
 }
 
 double FieldErrorMetrics::relative_absolute_peak() const {
-    if (!has_relative_norm()) throw std::domain_error("Relative full-field peak is undefined");
+    if (!has_relative_norm())
+        throw std::domain_error("Relative full-field peak is undefined");
     return std::abs(maximum_actual - maximum_reference) / maximum_reference;
 }
 
 double FieldErrorMetrics::maximum_pointwise_relative_error() const {
-    if (!has_relative_norm()) throw std::domain_error("Pointwise relative full-field error is undefined");
+    if (!has_relative_norm())
+        throw std::domain_error("Pointwise relative full-field error is undefined");
     return maximum_pointwise_relative;
 }
 
-double FieldErrorMetrics::absolute_l2() const noexcept { return std::sqrt(difference_squared); }
+double FieldErrorMetrics::absolute_l2() const noexcept {
+    return std::sqrt(difference_squared);
+}
 
-double FieldErrorMetrics::absolute_peak() const noexcept { return std::abs(maximum_actual - maximum_reference); }
+double FieldErrorMetrics::absolute_peak() const noexcept {
+    return std::abs(maximum_actual - maximum_reference);
+}
 
 void GroupedFieldErrorMetrics::add(const double* actual, const double* reference, std::size_t component_count) {
     if (actual == nullptr || reference == nullptr || component_count == 0)
@@ -100,34 +107,37 @@ bool GroupedFieldErrorMetrics::has_relative_norm() const noexcept {
 }
 
 double GroupedFieldErrorMetrics::relative_l2() const {
-    if (!has_relative_norm()) throw std::domain_error("Grouped relative full-field norm is undefined");
+    if (!has_relative_norm())
+        throw std::domain_error("Grouped relative full-field norm is undefined");
     return std::sqrt(difference_squared / reference_squared);
 }
 
 double GroupedFieldErrorMetrics::relative_absolute_peak() const {
-    if (!has_relative_norm()) throw std::domain_error("Grouped relative full-field peak is undefined");
+    if (!has_relative_norm())
+        throw std::domain_error("Grouped relative full-field peak is undefined");
     return maximum_difference / maximum_reference;
 }
 
 bool relative_metrics_below(const FieldErrorMetrics& metrics, double tolerance) {
-    return metrics.relative_l2() < tolerance && metrics.relative_absolute_peak() < tolerance &&
-           metrics.maximum_pointwise_relative_error() < tolerance;
+    return metrics.relative_l2() < tolerance && metrics.relative_absolute_peak() < tolerance
+           && metrics.maximum_pointwise_relative_error() < tolerance;
 }
 
-bool relative_metrics_below_with_pointwise_tolerance(
-    const FieldErrorMetrics& metrics, double aggregate_tolerance, double pointwise_tolerance) {
-    return metrics.relative_l2() < aggregate_tolerance && metrics.relative_absolute_peak() < aggregate_tolerance &&
-           metrics.maximum_pointwise_relative_error() < pointwise_tolerance;
+bool relative_metrics_below_with_pointwise_tolerance(const FieldErrorMetrics& metrics,
+    double aggregate_tolerance,
+    double pointwise_tolerance) {
+    return metrics.relative_l2() < aggregate_tolerance && metrics.relative_absolute_peak() < aggregate_tolerance
+           && metrics.maximum_pointwise_relative_error() < pointwise_tolerance;
 }
 
 bool absolute_metrics_below(const FieldErrorMetrics& metrics, double tolerance) {
-    return metrics.absolute_l2() < tolerance && metrics.absolute_peak() < tolerance &&
-           metrics.maximum_absolute_difference < tolerance;
+    return metrics.absolute_l2() < tolerance && metrics.absolute_peak() < tolerance
+           && metrics.maximum_absolute_difference < tolerance;
 }
 
 bool grouped_relative_metrics_below(const GroupedFieldErrorMetrics& metrics, double tolerance) {
-    return metrics.relative_l2() < tolerance && metrics.relative_absolute_peak() < tolerance &&
-           metrics.maximum_pointwise_relative < tolerance;
+    return metrics.relative_l2() < tolerance && metrics.relative_absolute_peak() < tolerance
+           && metrics.maximum_pointwise_relative < tolerance;
 }
 
 void print_relative_metrics(const std::string& name, const FieldErrorMetrics& metrics) {

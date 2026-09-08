@@ -1,0 +1,521 @@
+*Heading
+** C3D20RT independent constant interface heat-flux distribution probe.
+** Generated from the same Fuelsim mesh that is stored as the tracked Exodus reference.
+*Node
+1, 0,0, 0
+2, 1,0, 0
+3, 1,1.2, 0
+4, 0,1.2, 0
+5, 0,0, 1
+6, 1,0, 1
+7, 1,1.2, 1
+8, 0,1.2, 1
+9, 0.5,0, 0
+10, 1,0.59999999999999998, 0
+11, 0.5,1.2, 0
+12, 0,0.59999999999999998, 0
+13, 0,0, 0.5
+14, 1,0, 0.5
+15, 1,1.2, 0.5
+16, 0,1.2, 0.5
+17, 0.5,0, 1
+18, 1,0.59999999999999998, 1
+19, 0.5,1.2, 1
+20, 0,0.59999999999999998, 1
+21, 1,1.3999999999999999, 0
+22, 0,1.3999999999999999, 0
+23, 1,1.3999999999999999, 1
+24, 0,1.3999999999999999, 1
+25, 1,1.2999999999999998, 0
+26, 0.5,1.3999999999999999, 0
+27, 0,1.2999999999999998, 0
+28, 1,1.3999999999999999, 0.5
+29, 0,1.3999999999999999, 0.5
+30, 1,1.2999999999999998, 1
+31, 0.5,1.3999999999999999, 1
+32, 0,1.2999999999999998, 1
+33, 1,1.6000000000000001, 0
+34, 0,1.6000000000000001, 0
+35, 1,1.6000000000000001, 1
+36, 0,1.6000000000000001, 1
+37, 1,1.5, 0
+38, 0.5,1.6000000000000001, 0
+39, 0,1.5, 0
+40, 1,1.6000000000000001, 0.5
+41, 0,1.6000000000000001, 0.5
+42, 1,1.5, 1
+43, 0.5,1.6000000000000001, 1
+44, 0,1.5, 1
+45, 1,2, 0
+46, 0,2, 0
+47, 1,2, 1
+48, 0,2, 1
+49, 1,1.8, 0
+50, 0.5,2, 0
+51, 0,1.8, 0
+52, 1,2, 0.5
+53, 0,2, 0.5
+54, 1,1.8, 1
+55, 0.5,2, 1
+56, 0,1.8, 1
+57, 1, 0, 0
+58, 2, 0, 0
+59, 2, 1.2, 0
+60, 1, 1.2, 0
+61, 1, 0, 1
+62, 2, 0, 1
+63, 2, 1.2, 1
+64, 1, 1.2, 1
+65, 1.5, 0, 0
+66, 2, 0.6, 0
+67, 1.5, 1.2, 0
+68, 1, 0.6, 0
+69, 1, 0, 0.5
+70, 2, 0, 0.5
+71, 2, 1.2, 0.5
+72, 1, 1.2, 0.5
+73, 1.5, 0, 1
+74, 2, 0.6, 1
+75, 1.5, 1.2, 1
+76, 1, 0.6, 1
+77, 2, 2, 0
+78, 1, 2, 0
+79, 2, 2, 1
+80, 1, 2, 1
+81, 2, 1.6, 0
+82, 1.5, 2, 0
+83, 1, 1.6, 0
+84, 2, 2, 0.5
+85, 1, 2, 0.5
+86, 2, 1.6, 1
+87, 1.5, 2, 1
+88, 1, 1.6, 1
+*Element, type=C3D20RT, elset=PRIMARY
+1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 17, 18, 19, 20, 13, 14, 15, 16
+2, 4, 3, 21, 22, 8, 7, 23, 24, 11, 25, 26, 27, 19, 30, 31, 32, 16, 15, 28, 29
+3, 22, 21, 33, 34, 24, 23, 35, 36, 26, 37, 38, 39, 31, 42, 43, 44, 29, 28, 40, 41
+4, 34, 33, 45, 46, 36, 35, 47, 48, 38, 49, 50, 51, 43, 54, 55, 56, 41, 40, 52, 53
+*Element, type=C3D20RT, elset=SECONDARY
+5, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 73, 74, 75, 76, 69, 70, 71, 72
+6, 60, 59, 77, 78, 64, 63, 79, 80, 67, 81, 82, 83, 75, 86, 87, 88, 72, 71, 84, 85
+*Elset, elset=ALL
+PRIMARY, SECONDARY
+*Nset, nset=PRIMARY_X0
+1, 4, 5, 8, 12, 13, 16, 20, 22, 24, 27, 29, 32, 34, 36, 39
+41, 44, 46, 48, 51, 53, 56
+*Nset, nset=SECONDARY_X2
+58, 59, 62, 63, 66, 70, 71, 74, 77, 79, 81, 84, 86
+*Nset, nset=SECONDARY_Y0
+57, 58, 61, 62, 65, 69, 70, 73
+*Nset, nset=SECONDARY_Z0
+57, 58, 59, 60, 65, 66, 67, 68, 77, 78, 81, 82, 83
+*Surface, type=ELEMENT, name=PRIMARY_CONTACT
+1, S4
+*Surface, type=ELEMENT, name=SECONDARY_CONTACT
+5, S6
+*Nset, nset=PRIMARY_NODES, generate
+1, 56, 1
+*Nset, nset=ALL_NODES, generate
+1, 88, 1
+*Nset, nset=SECONDARY_NODES, generate
+57, 88, 1
+*Material, name=ELASTIC
+*Elastic
+1.e9, 0.
+*Conductivity
+10
+*Density
+1
+*Specific Heat
+1
+*Solid Section, elset=ALL, material=ELASTIC
+,
+*Surface Interaction, name=PENALTY_CONTACT
+*Surface Behavior, pressure-overclosure=LINEAR
+1.e11,
+*Gap Conductance
+1, 0
+1, 1e-5
+*Gap Heat Generation
+0, 0.5
+*Contact Pair, interaction=PENALTY_CONTACT, type=SURFACE TO SURFACE, adjust=0.
+SECONDARY_CONTACT, PRIMARY_CONTACT
+*Initial Conditions, type=TEMPERATURE
+ALL_NODES, 300
+SECONDARY_NODES, 301
+*Step, name=UNIT_FLUX, nlgeom=YES, inc=1
+*Coupled Temperature-Displacement
+0.1, 0.1, 0.1, 0.1
+*Boundary
+ALL_NODES, 1, 3, 0.
+PRIMARY_NODES, 11, 11, 300
+SECONDARY_NODES, 11, 11, 301
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U, NT, RFL
+*Element Output, directions=YES
+S, EE, COORD, IVOL
+*Contact Output
+CSTRESS, CDISP, CFORCE, HFLA, CTANDIR
+*End Step
+
+*Step, name=NODE_2, nlgeom=YES, inc=1
+*Coupled Temperature-Displacement
+0.1, 0.1, 0.1, 0.1
+*Boundary, op=NEW
+ALL_NODES, 1, 3, 0.
+1, 11, 11, 300
+2, 11, 11, 301
+3, 11, 11, 300
+4, 11, 11, 300
+5, 11, 11, 300
+6, 11, 11, 300
+7, 11, 11, 300
+8, 11, 11, 300
+21, 11, 11, 300
+22, 11, 11, 300
+23, 11, 11, 300
+24, 11, 11, 300
+33, 11, 11, 300
+34, 11, 11, 300
+35, 11, 11, 300
+36, 11, 11, 300
+45, 11, 11, 300
+46, 11, 11, 300
+47, 11, 11, 300
+48, 11, 11, 300
+57, 11, 11, 301
+58, 11, 11, 301
+59, 11, 11, 301
+60, 11, 11, 301
+61, 11, 11, 301
+62, 11, 11, 301
+63, 11, 11, 301
+64, 11, 11, 301
+77, 11, 11, 301
+78, 11, 11, 301
+79, 11, 11, 301
+80, 11, 11, 301
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U, NT, RFL
+*Element Output, directions=YES
+S, EE, COORD, IVOL
+*Contact Output
+CSTRESS, CDISP, CFORCE, HFLA, CTANDIR
+*End Step
+*Step, name=NODE_3, nlgeom=YES, inc=1
+*Coupled Temperature-Displacement
+0.1, 0.1, 0.1, 0.1
+*Boundary, op=NEW
+ALL_NODES, 1, 3, 0.
+1, 11, 11, 300
+2, 11, 11, 300
+3, 11, 11, 301
+4, 11, 11, 300
+5, 11, 11, 300
+6, 11, 11, 300
+7, 11, 11, 300
+8, 11, 11, 300
+21, 11, 11, 300
+22, 11, 11, 300
+23, 11, 11, 300
+24, 11, 11, 300
+33, 11, 11, 300
+34, 11, 11, 300
+35, 11, 11, 300
+36, 11, 11, 300
+45, 11, 11, 300
+46, 11, 11, 300
+47, 11, 11, 300
+48, 11, 11, 300
+57, 11, 11, 301
+58, 11, 11, 301
+59, 11, 11, 301
+60, 11, 11, 301
+61, 11, 11, 301
+62, 11, 11, 301
+63, 11, 11, 301
+64, 11, 11, 301
+77, 11, 11, 301
+78, 11, 11, 301
+79, 11, 11, 301
+80, 11, 11, 301
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U, NT, RFL
+*Element Output, directions=YES
+S, EE, COORD, IVOL
+*Contact Output
+CSTRESS, CDISP, CFORCE, HFLA, CTANDIR
+*End Step
+*Step, name=NODE_6, nlgeom=YES, inc=1
+*Coupled Temperature-Displacement
+0.1, 0.1, 0.1, 0.1
+*Boundary, op=NEW
+ALL_NODES, 1, 3, 0.
+1, 11, 11, 300
+2, 11, 11, 300
+3, 11, 11, 300
+4, 11, 11, 300
+5, 11, 11, 300
+6, 11, 11, 301
+7, 11, 11, 300
+8, 11, 11, 300
+21, 11, 11, 300
+22, 11, 11, 300
+23, 11, 11, 300
+24, 11, 11, 300
+33, 11, 11, 300
+34, 11, 11, 300
+35, 11, 11, 300
+36, 11, 11, 300
+45, 11, 11, 300
+46, 11, 11, 300
+47, 11, 11, 300
+48, 11, 11, 300
+57, 11, 11, 301
+58, 11, 11, 301
+59, 11, 11, 301
+60, 11, 11, 301
+61, 11, 11, 301
+62, 11, 11, 301
+63, 11, 11, 301
+64, 11, 11, 301
+77, 11, 11, 301
+78, 11, 11, 301
+79, 11, 11, 301
+80, 11, 11, 301
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U, NT, RFL
+*Element Output, directions=YES
+S, EE, COORD, IVOL
+*Contact Output
+CSTRESS, CDISP, CFORCE, HFLA, CTANDIR
+*End Step
+*Step, name=NODE_7, nlgeom=YES, inc=1
+*Coupled Temperature-Displacement
+0.1, 0.1, 0.1, 0.1
+*Boundary, op=NEW
+ALL_NODES, 1, 3, 0.
+1, 11, 11, 300
+2, 11, 11, 300
+3, 11, 11, 300
+4, 11, 11, 300
+5, 11, 11, 300
+6, 11, 11, 300
+7, 11, 11, 301
+8, 11, 11, 300
+21, 11, 11, 300
+22, 11, 11, 300
+23, 11, 11, 300
+24, 11, 11, 300
+33, 11, 11, 300
+34, 11, 11, 300
+35, 11, 11, 300
+36, 11, 11, 300
+45, 11, 11, 300
+46, 11, 11, 300
+47, 11, 11, 300
+48, 11, 11, 300
+57, 11, 11, 301
+58, 11, 11, 301
+59, 11, 11, 301
+60, 11, 11, 301
+61, 11, 11, 301
+62, 11, 11, 301
+63, 11, 11, 301
+64, 11, 11, 301
+77, 11, 11, 301
+78, 11, 11, 301
+79, 11, 11, 301
+80, 11, 11, 301
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U, NT, RFL
+*Element Output, directions=YES
+S, EE, COORD, IVOL
+*Contact Output
+CSTRESS, CDISP, CFORCE, HFLA, CTANDIR
+*End Step
+*Step, name=NODE_57, nlgeom=YES, inc=1
+*Coupled Temperature-Displacement
+0.1, 0.1, 0.1, 0.1
+*Boundary, op=NEW
+ALL_NODES, 1, 3, 0.
+1, 11, 11, 300
+2, 11, 11, 300
+3, 11, 11, 300
+4, 11, 11, 300
+5, 11, 11, 300
+6, 11, 11, 300
+7, 11, 11, 300
+8, 11, 11, 300
+21, 11, 11, 300
+22, 11, 11, 300
+23, 11, 11, 300
+24, 11, 11, 300
+33, 11, 11, 300
+34, 11, 11, 300
+35, 11, 11, 300
+36, 11, 11, 300
+45, 11, 11, 300
+46, 11, 11, 300
+47, 11, 11, 300
+48, 11, 11, 300
+57, 11, 11, 302
+58, 11, 11, 301
+59, 11, 11, 301
+60, 11, 11, 301
+61, 11, 11, 301
+62, 11, 11, 301
+63, 11, 11, 301
+64, 11, 11, 301
+77, 11, 11, 301
+78, 11, 11, 301
+79, 11, 11, 301
+80, 11, 11, 301
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U, NT, RFL
+*Element Output, directions=YES
+S, EE, COORD, IVOL
+*Contact Output
+CSTRESS, CDISP, CFORCE, HFLA, CTANDIR
+*End Step
+*Step, name=NODE_60, nlgeom=YES, inc=1
+*Coupled Temperature-Displacement
+0.1, 0.1, 0.1, 0.1
+*Boundary, op=NEW
+ALL_NODES, 1, 3, 0.
+1, 11, 11, 300
+2, 11, 11, 300
+3, 11, 11, 300
+4, 11, 11, 300
+5, 11, 11, 300
+6, 11, 11, 300
+7, 11, 11, 300
+8, 11, 11, 300
+21, 11, 11, 300
+22, 11, 11, 300
+23, 11, 11, 300
+24, 11, 11, 300
+33, 11, 11, 300
+34, 11, 11, 300
+35, 11, 11, 300
+36, 11, 11, 300
+45, 11, 11, 300
+46, 11, 11, 300
+47, 11, 11, 300
+48, 11, 11, 300
+57, 11, 11, 301
+58, 11, 11, 301
+59, 11, 11, 301
+60, 11, 11, 302
+61, 11, 11, 301
+62, 11, 11, 301
+63, 11, 11, 301
+64, 11, 11, 301
+77, 11, 11, 301
+78, 11, 11, 301
+79, 11, 11, 301
+80, 11, 11, 301
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U, NT, RFL
+*Element Output, directions=YES
+S, EE, COORD, IVOL
+*Contact Output
+CSTRESS, CDISP, CFORCE, HFLA, CTANDIR
+*End Step
+*Step, name=NODE_61, nlgeom=YES, inc=1
+*Coupled Temperature-Displacement
+0.1, 0.1, 0.1, 0.1
+*Boundary, op=NEW
+ALL_NODES, 1, 3, 0.
+1, 11, 11, 300
+2, 11, 11, 300
+3, 11, 11, 300
+4, 11, 11, 300
+5, 11, 11, 300
+6, 11, 11, 300
+7, 11, 11, 300
+8, 11, 11, 300
+21, 11, 11, 300
+22, 11, 11, 300
+23, 11, 11, 300
+24, 11, 11, 300
+33, 11, 11, 300
+34, 11, 11, 300
+35, 11, 11, 300
+36, 11, 11, 300
+45, 11, 11, 300
+46, 11, 11, 300
+47, 11, 11, 300
+48, 11, 11, 300
+57, 11, 11, 301
+58, 11, 11, 301
+59, 11, 11, 301
+60, 11, 11, 301
+61, 11, 11, 302
+62, 11, 11, 301
+63, 11, 11, 301
+64, 11, 11, 301
+77, 11, 11, 301
+78, 11, 11, 301
+79, 11, 11, 301
+80, 11, 11, 301
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U, NT, RFL
+*Element Output, directions=YES
+S, EE, COORD, IVOL
+*Contact Output
+CSTRESS, CDISP, CFORCE, HFLA, CTANDIR
+*End Step
+*Step, name=NODE_64, nlgeom=YES, inc=1
+*Coupled Temperature-Displacement
+0.1, 0.1, 0.1, 0.1
+*Boundary, op=NEW
+ALL_NODES, 1, 3, 0.
+1, 11, 11, 300
+2, 11, 11, 300
+3, 11, 11, 300
+4, 11, 11, 300
+5, 11, 11, 300
+6, 11, 11, 300
+7, 11, 11, 300
+8, 11, 11, 300
+21, 11, 11, 300
+22, 11, 11, 300
+23, 11, 11, 300
+24, 11, 11, 300
+33, 11, 11, 300
+34, 11, 11, 300
+35, 11, 11, 300
+36, 11, 11, 300
+45, 11, 11, 300
+46, 11, 11, 300
+47, 11, 11, 300
+48, 11, 11, 300
+57, 11, 11, 301
+58, 11, 11, 301
+59, 11, 11, 301
+60, 11, 11, 301
+61, 11, 11, 301
+62, 11, 11, 301
+63, 11, 11, 301
+64, 11, 11, 302
+77, 11, 11, 301
+78, 11, 11, 301
+79, 11, 11, 301
+80, 11, 11, 301
+*Output, field, frequency=1
+*Node Output
+COORD, RF, U, NT, RFL
+*Element Output, directions=YES
+S, EE, COORD, IVOL
+*Contact Output
+CSTRESS, CDISP, CFORCE, HFLA, CTANDIR
+*End Step

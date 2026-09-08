@@ -1,0 +1,24 @@
+Internal ctest changing into directory: /home/cooper/ai_project/fuelsim/build
+Test project /home/cooper/ai_project/fuelsim/build
+    Start 178: fuelsim_mpi_hex20_solver_tests
+    Start 101: fuelsim_hex20_solver_tests
+    Start  41: fuelsim_hex20_tests
+1/3 Test  #41: fuelsim_hex20_tests ..............   Passed    0.01 sec
+2/3 Test #178: fuelsim_mpi_hex20_solver_tests ...   Passed    1.62 sec
+3/3 Test #101: fuelsim_hex20_solver_tests .......   Passed    2.33 sec
+
+100% tests passed, 0 tests failed out of 3
+
+Label Time Summary:
+checkpoint           =   2.33 sec*proc (1 test)
+contact              =   2.35 sec*proc (2 tests)
+friction             =   0.01 sec*proc (1 test)
+integration          =   5.57 sec*proc (2 tests)
+mpi                  =   3.24 sec*proc (1 test)
+multiblock           =   2.33 sec*proc (1 test)
+quadratic            =   5.58 sec*proc (3 tests)
+three-dimensional    =   5.58 sec*proc (3 tests)
+unit                 =   0.01 sec*proc (1 test)
+warped-geometry      =   0.01 sec*proc (1 test)
+
+Total Test time (real) =   2.35 sec

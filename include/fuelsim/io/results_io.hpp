@@ -32,13 +32,21 @@ class EngineeringHistoryWriter final {
     std::ofstream _stream;
 };
 
-void write_steady_results(const std::string& path, const UnstructuredQuad4Mesh& mesh, const SteadyProblem& problem,
+void write_steady_results(const std::string& path,
+    const UnstructuredQuad4Mesh& mesh,
+    const SteadyProblem& problem,
     const std::vector<double>& state);
-void write_steady_results(const std::string& path, const UnstructuredQuad8Mesh& mesh, const SteadyProblem& problem,
+void write_steady_results(const std::string& path,
+    const UnstructuredQuad8Mesh& mesh,
+    const SteadyProblem& problem,
     const std::vector<double>& state);
-void write_steady_results(const std::string& path, const UnstructuredHex8Mesh& mesh, const SteadyProblem& problem,
+void write_steady_results(const std::string& path,
+    const UnstructuredHex8Mesh& mesh,
+    const SteadyProblem& problem,
     const std::vector<double>& state);
-void write_steady_results(const std::string& path, const UnstructuredHex20Mesh& mesh, const SteadyProblem& problem,
+void write_steady_results(const std::string& path,
+    const UnstructuredHex20Mesh& mesh,
+    const SteadyProblem& problem,
     const std::vector<double>& state);
 
 class ExodusTransientResultsWriter final {

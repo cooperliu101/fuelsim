@@ -27,7 +27,9 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
         contribution_dofs(index, dofs);
     }
 
-    void compute_boundary(std::size_t index, const std::vector<double>& state, std::vector<double>& residual,
+    void compute_boundary(std::size_t index,
+        const std::vector<double>& state,
+        std::vector<double>& residual,
         std::vector<double>* jacobian) const;
     std::vector<std::size_t> required_state_dofs(std::size_t first, std::size_t last) const;
     void validate_local_state(std::size_t first, std::size_t last, const std::vector<double>& state) const;
@@ -51,18 +53,19 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     }
 
     void commit_contact_state(const std::vector<double>& state);
-    void restore_contact_state(
-        const std::vector<double>& state, std::vector<std::vector<ContactPointHistory>> histories);
+    void restore_contact_state(const std::vector<double>& state,
+        std::vector<std::vector<ContactPointHistory>> histories);
     bool uses_augmented_contact() const noexcept;
     AugmentedContactUpdate update_augmented_contact_multipliers(const std::vector<double>&, std::size_t);
     InterfaceSummary summarize_interface(std::size_t contact, const std::vector<double>& state) const;
-    std::vector<ContactNodeSummary> summarize_contact_nodes(
-        std::size_t contact, const std::vector<double>& state) const;
+    std::vector<ContactNodeSummary> summarize_contact_nodes(std::size_t contact,
+        const std::vector<double>& state) const;
     std::vector<std::size_t> contact_secondary_source_nodes(std::size_t contact) const;
     // Output-only recovery: positive compression and shear in the primary tangent
     // direction (physical secondary force, opposite the residual traction sign).
-    std::vector<std::array<double, 2>> recover_contact_tractions(
-        std::size_t contact, const std::vector<ContactNodeSummary>& nodes, const std::vector<double>& state) const;
+    std::vector<std::array<double, 2>> recover_contact_tractions(std::size_t contact,
+        const std::vector<ContactNodeSummary>& nodes,
+        const std::vector<double>& state) const;
 
   private:
     struct Boundary final {
@@ -98,8 +101,8 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     std::vector<NormalContactProperties> _mechanical;
     std::vector<double> _committed_contact_solution;
     void build_contacts(const UnstructuredQuad8Mesh& source);
-    Line3ContactResult candidate_value(
-        std::size_t candidate, const std::vector<double>& state, bool jacobian = false) const;
+    Line3ContactResult
+    candidate_value(std::size_t candidate, const std::vector<double>& state, bool jacobian = false) const;
     void validate_contact_state(std::size_t first, std::size_t last, const std::vector<double>& state) const;
 };
 } // namespace fuelsim::rz8

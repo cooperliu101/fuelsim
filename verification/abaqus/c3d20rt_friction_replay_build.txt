@@ -1,0 +1,5 @@
+[ 69%] Built target fuelsim_core
+[ 92%] Built target fuelsim_io
+[100%] Building CXX object CMakeFiles/fuelsim_c3d20rt_friction_history_replay.dir/tests/c3d20rt_friction_history_replay.cpp.o
+[100%] Linking CXX executable fuelsim_c3d20rt_friction_history_replay
+[100%] Built target fuelsim_c3d20rt_friction_history_replay

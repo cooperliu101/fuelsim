@@ -24,7 +24,8 @@ struct StateReference final {
 };
 
 bool check(bool condition, const std::string& message) {
-    if (condition) return true;
+    if (condition)
+        return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
@@ -33,13 +34,15 @@ std::vector<std::string> split_csv(const std::string& line) {
     std::vector<std::string> result;
     std::istringstream stream(line);
     std::string value;
-    while (std::getline(stream, value, ',')) result.push_back(value);
+    while (std::getline(stream, value, ','))
+        result.push_back(value);
     return result;
 }
 
 std::map<std::string, StateReference> read_reference(const std::string& path) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read Abaqus temperature-capacity reference: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read Abaqus temperature-capacity reference: " + path);
     std::string line;
     std::getline(input, line);
     if (line != "state,copy,local_node,node,temperature_k,reaction_heat_flux_w")
@@ -54,7 +57,8 @@ std::map<std::string, StateReference> read_reference(const std::string& path) {
         if (copy > 1 || node < 1 || node > node_count)
             throw std::invalid_argument("Invalid Abaqus temperature-capacity copy or node label");
         StateReference& state = result[values[0]];
-        if (state.present[copy][node - 1]) throw std::invalid_argument("Duplicate temperature-capacity row");
+        if (state.present[copy][node - 1])
+            throw std::invalid_argument("Duplicate temperature-capacity row");
         state.present[copy][node - 1] = true;
         const double temperature = std::stod(values[4]);
         if (copy == 0)
@@ -63,7 +67,8 @@ std::map<std::string, StateReference> read_reference(const std::string& path) {
             throw std::invalid_argument("Steady and transient temperature-capacity copies differ in temperature");
         state.reaction[copy][node - 1] = std::stod(values[5]);
     }
-    if (result.size() != 17) throw std::invalid_argument("Temperature-capacity reference must contain 17 states");
+    if (result.size() != 17)
+        throw std::invalid_argument("Temperature-capacity reference must contain 17 states");
     for (const auto& [name, state] : result)
         for (const auto& copy : state.present)
             if (std::find(copy.begin(), copy.end(), false) != copy.end())
@@ -72,8 +77,14 @@ std::map<std::string, StateReference> read_reference(const std::string& path) {
 }
 
 fuelsim::Hex8Coordinates distorted_coordinates() {
-    return {{{0.00, 0.00, 0.00}, {1.20, 0.10, -0.05}, {1.10, 1.00, 0.10}, {-0.10, 0.90, 0.00}, {0.05, -0.10, 1.00},
-        {1.30, 0.00, 1.10}, {1.00, 1.20, 0.90}, {-0.20, 1.00, 1.20}}};
+    return {{{0.00, 0.00, 0.00},
+        {1.20, 0.10, -0.05},
+        {1.10, 1.00, 0.10},
+        {-0.10, 0.90, 0.00},
+        {0.05, -0.10, 1.00},
+        {1.30, 0.00, 1.10},
+        {1.00, 1.20, 0.90},
+        {-0.20, 1.00, 1.20}}};
 }
 
 fuelsim::ThermoelasticProperties properties() {
@@ -82,8 +93,12 @@ fuelsim::ThermoelasticProperties properties() {
     fuelsim::MaterialFunctionRegistry registry = fuelsim::make_builtin_material_function_registry();
     auto functions = std::make_shared<fuelsim::MaterialFunctionSet>(*result.functions);
     functions->thermal = registry.bind_thermal("linear_temperature_thermophysical",
-        {{"conductivity", 4.0}, {"density", 2000.0}, {"specific_heat", 3000.0}, {"reference_temperature", 300.0},
-            {"conductivity_temperature_coefficient", 0.0}, {"density_temperature_coefficient", -1.0},
+        {{"conductivity", 4.0},
+            {"density", 2000.0},
+            {"specific_heat", 3000.0},
+            {"reference_temperature", 300.0},
+            {"conductivity_temperature_coefficient", 0.0},
+            {"density_temperature_coefficient", -1.0},
             {"specific_heat_temperature_coefficient", 4.0}});
     result.functions = std::move(functions);
     return result;
@@ -123,8 +138,8 @@ int main(int argc, char** argv) {
         return 2;
     }
     try {
-        constexpr std::array<double, node_count> old_temperature = {
-            310.0, 330.0, 350.0, 370.0, 390.0, 410.0, 430.0, 450.0};
+        constexpr std::array<double, node_count> old_temperature =
+            {310.0, 330.0, 350.0, 370.0, 390.0, 410.0, 430.0, 450.0};
         constexpr double perturbation = 1.0e-3;
         const std::map<std::string, StateReference> reference = read_reference(argv[1]);
         const StateReference& base = reference.at("BASE");
@@ -139,8 +154,14 @@ int main(int argc, char** argv) {
         fuelsim::Hex8LocalJacobian transient_jacobian{}, steady_jacobian{};
         const fuelsim::Hex8LocalResidual transient =
             fuelsim::compute_hex8_transient(data, geometry, state, committed_state, history, 1.0, &transient_jacobian);
-        const fuelsim::Hex8LocalResidual steady = fuelsim::compute_hex8_transient(
-            data, geometry, state, committed_state, history, 1.0, &steady_jacobian, false);
+        const fuelsim::Hex8LocalResidual steady = fuelsim::compute_hex8_transient(data,
+            geometry,
+            state,
+            committed_state,
+            history,
+            1.0,
+            &steady_jacobian,
+            false);
         NodalValues fuelsim_capacity{}, analytic_capacity{}, enthalpy_capacity{};
         for (std::size_t node = 0; node < node_count; ++node) {
             fuelsim_capacity[node] = transient[node] - steady[node];
@@ -150,8 +171,10 @@ int main(int argc, char** argv) {
             analytic_capacity[node] =
                 geometry.capacity_points[node].weighted_measure * density * specific_heat * increment;
             const double integrated_specific_heat =
-                3000.0 * increment + 2.0 * ((temperature - 300.0) * (temperature - 300.0) -
-                                               (committed_state[node] - 300.0) * (committed_state[node] - 300.0));
+                3000.0 * increment
+                + 2.0
+                      * ((temperature - 300.0) * (temperature - 300.0)
+                          - (committed_state[node] - 300.0) * (committed_state[node] - 300.0));
             enthalpy_capacity[node] =
                 geometry.capacity_points[node].weighted_measure * density * integrated_specific_heat;
         }
@@ -193,16 +216,17 @@ int main(int argc, char** argv) {
                   << "b57_abaqus_capacity_maximum_off_diagonal=" << abaqus_off_diagonal << '\n'
                   << "b57_fuelsim_capacity_maximum_off_diagonal=" << fuelsim_off_diagonal << '\n';
         const bool passed =
-            check(residual_error < 2.0e-12, "Fuelsim temperature-dependent lumped-capacity residual matches Abaqus") &&
-            check(analytic_error < 2.0e-12,
-                "Abaqus uses current rho(T) times cp(T) times the backward-Euler temperature increment") &&
-            check(jacobian_error < 2.0e-9,
-                "Fuelsim temperature-dependent lumped-capacity Jacobian matches the Abaqus centered tangent") &&
-            check(enthalpy_difference > 1.0e-3,
-                "the finite temperature increments distinguish the identified rule from an integrated-enthalpy rule") &&
-            check(abaqus_off_diagonal < 2.0e-4 && fuelsim_off_diagonal == 0.0,
+            check(residual_error < 2.0e-12, "Fuelsim temperature-dependent lumped-capacity residual matches Abaqus")
+            && check(analytic_error < 2.0e-12,
+                "Abaqus uses current rho(T) times cp(T) times the backward-Euler temperature increment")
+            && check(jacobian_error < 2.0e-9,
+                "Fuelsim temperature-dependent lumped-capacity Jacobian matches the Abaqus centered tangent")
+            && check(enthalpy_difference > 1.0e-3,
+                "the finite temperature increments distinguish the identified rule from an integrated-enthalpy rule")
+            && check(abaqus_off_diagonal < 2.0e-4 && fuelsim_off_diagonal == 0.0,
                 "Abaqus and Fuelsim temperature-dependent capacity tangents remain diagonal");
-        if (passed) std::cout << "[PASS] B5.7 Abaqus C3D8T temperature-dependent heat capacity\n";
+        if (passed)
+            std::cout << "[PASS] B5.7 Abaqus C3D8T temperature-dependent heat capacity\n";
         return passed ? 0 : 1;
     } catch (const std::exception& error) {
         std::cerr << "[FAIL] " << error.what() << '\n';

@@ -1,0 +1,40 @@
+Internal ctest changing into directory: /home/cooper/ai_project/fuelsim/build
+Test project /home/cooper/ai_project/fuelsim/build
+      Start 282: fuelsim_b13_integrated_cax8t_abaqus_tests
+      Start 283: fuelsim_b13_integrated_cax8rt_abaqus_tests
+      Start 280: fuelsim_b13_integrated_cax4t_abaqus_tests
+      Start 274: fuelsim_b13_small_cax8t_abaqus_tests
+ 1/13 Test #274: fuelsim_b13_small_cax8t_abaqus_tests .........   Passed    6.42 sec
+      Start 281: fuelsim_b13_integrated_cax4rt_abaqus_tests
+ 2/13 Test #280: fuelsim_b13_integrated_cax4t_abaqus_tests ....   Passed   10.54 sec
+      Start 275: fuelsim_b13_small_cax8rt_abaqus_tests
+ 3/13 Test #281: fuelsim_b13_integrated_cax4rt_abaqus_tests ...   Passed    5.46 sec
+      Start 272: fuelsim_b13_small_cax4t_abaqus_tests
+ 4/13 Test #272: fuelsim_b13_small_cax4t_abaqus_tests .........   Passed    2.69 sec
+      Start 273: fuelsim_b13_small_cax4rt_abaqus_tests
+ 5/13 Test #275: fuelsim_b13_small_cax8rt_abaqus_tests ........   Passed    4.47 sec
+      Start 278: fuelsim_b13_finite_cax8t_abaqus_tests
+ 6/13 Test #273: fuelsim_b13_small_cax4rt_abaqus_tests ........   Passed    2.18 sec
+      Start 279: fuelsim_b13_finite_cax8rt_abaqus_tests
+ 7/13 Test #283: fuelsim_b13_integrated_cax8rt_abaqus_tests ...   Passed   17.19 sec
+      Start 276: fuelsim_b13_finite_cax4t_abaqus_tests
+ 8/13 Test #278: fuelsim_b13_finite_cax8t_abaqus_tests ........   Passed    2.92 sec
+      Start 277: fuelsim_b13_finite_cax4rt_abaqus_tests
+ 9/13 Test #276: fuelsim_b13_finite_cax4t_abaqus_tests ........   Passed    1.71 sec
+      Start 304: fuelsim_abaqus_reference_sha256
+10/13 Test #279: fuelsim_b13_finite_cax8rt_abaqus_tests .......   Passed    2.46 sec
+11/13 Test #277: fuelsim_b13_finite_cax4rt_abaqus_tests .......   Passed    1.42 sec
+12/13 Test #304: fuelsim_abaqus_reference_sha256 ..............   Passed    0.90 sec
+13/13 Test #282: fuelsim_b13_integrated_cax8t_abaqus_tests ....   Passed   22.49 sec
+
+100% tests passed, 0 tests failed out of 13
+
+Label Time Summary:
+abaqus        =  79.95 sec*proc (12 tests)
+acceptance    =  79.95 sec*proc (12 tests)
+audit         =   0.90 sec*proc (1 test)
+pcmi          =  79.95 sec*proc (12 tests)
+production    =  79.95 sec*proc (12 tests)
+release       =   0.90 sec*proc (1 test)
+
+Total Test time (real) =  22.50 sec

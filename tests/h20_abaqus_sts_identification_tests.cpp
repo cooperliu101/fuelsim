@@ -39,7 +39,8 @@ struct NodalForces final {
 };
 
 bool check(bool condition, const std::string& message) {
-    if (condition) return true;
+    if (condition)
+        return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
@@ -48,32 +49,38 @@ std::vector<std::string> split_csv(const std::string& line) {
     std::vector<std::string> values;
     std::istringstream stream(line);
     std::string value;
-    while (std::getline(stream, value, ',')) values.push_back(value);
+    while (std::getline(stream, value, ','))
+        values.push_back(value);
     return values;
 }
 
 double number(const std::vector<std::string>& values, std::size_t index, const std::string& path) {
-    if (index >= values.size()) throw std::invalid_argument("Incomplete H20.26 reference row in " + path);
+    if (index >= values.size())
+        throw std::invalid_argument("Incomplete H20.26 reference row in " + path);
     return std::stod(values[index]);
 }
 
 OperatorData read_operator(const std::string& path) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read H20.26 operator reference: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read H20.26 operator reference: " + path);
     std::string line;
     std::getline(input, line);
-    if (line != "step,input_local_node,input_label,output_local_node,output_label,closure_delta_m,copen_m,"
-                "cpress_pa,cnormf_x_n,cnormf_y_n,cnormf_z_n")
+    if (line
+        != "step,input_local_node,input_label,output_local_node,output_label,closure_delta_m,copen_m,"
+           "cpress_pa,cnormf_x_n,cnormf_y_n,cnormf_z_n")
         throw std::invalid_argument("Unexpected H20.26 operator header in " + path);
 
     OperatorData result;
     std::size_t base_rows = 0, perturbation_rows = 0;
     while (std::getline(input, line)) {
-        if (line.empty()) continue;
+        if (line.empty())
+            continue;
         const std::vector<std::string> values = split_csv(line);
         const std::string& step = values.at(0);
         const std::size_t output = static_cast<std::size_t>(number(values, 3, path)) - 1;
-        if (output >= node_count) throw std::invalid_argument("Invalid H20.26 output node in " + path);
+        if (output >= node_count)
+            throw std::invalid_argument("Invalid H20.26 output node in " + path);
         if (step == "BASE") {
             result.base_copen[output] = number(values, 6, path);
             result.base_pressure[output] = number(values, 7, path);
@@ -82,10 +89,12 @@ OperatorData read_operator(const std::string& path) {
             continue;
         }
         const std::size_t input_node = static_cast<std::size_t>(number(values, 1, path)) - 1;
-        if (input_node >= node_count) throw std::invalid_argument("Invalid H20.26 input node in " + path);
+        if (input_node >= node_count)
+            throw std::invalid_argument("Invalid H20.26 input node in " + path);
         const bool plus = step.find("_PLUS") != std::string::npos;
         const bool minus = step.find("_MINUS") != std::string::npos;
-        if (plus == minus) throw std::invalid_argument("Invalid H20.26 perturbation step in " + path);
+        if (plus == minus)
+            throw std::invalid_argument("Invalid H20.26 perturbation step in " + path);
         const std::size_t entry = output * node_count + input_node;
         Matrix8& copen = plus ? result.plus_copen : result.minus_copen;
         Matrix8& pressure = plus ? result.plus_pressure : result.minus_pressure;
@@ -99,23 +108,29 @@ OperatorData read_operator(const std::string& path) {
     if (base_rows != node_count || perturbation_rows != 2 * node_count * node_count)
         throw std::invalid_argument("Unexpected H20.26 operator row count in " + path);
     for (const bool value : result.observed)
-        if (!value) throw std::invalid_argument("Missing H20.26 perturbation in " + path);
+        if (!value)
+            throw std::invalid_argument("Missing H20.26 perturbation in " + path);
     return result;
 }
 
 BaselineHistory read_baseline_history(const std::string& path) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read H20.26 history reference: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read H20.26 history reference: " + path);
     std::string line;
     std::getline(input, line);
-    if (line != "step,contact_area_m2,normal_force_x_n,normal_force_y_n,normal_force_z_n,"
-                "normal_moment_x_nm,normal_moment_y_nm,normal_moment_z_nm,center_x_m,center_y_m,center_z_m")
+    if (line
+        != "step,contact_area_m2,normal_force_x_n,normal_force_y_n,normal_force_z_n,"
+           "normal_moment_x_nm,normal_moment_y_nm,normal_moment_z_nm,center_x_m,center_y_m,center_z_m")
         throw std::invalid_argument("Unexpected H20.26 history header in " + path);
     while (std::getline(input, line)) {
-        if (line.empty()) continue;
+        if (line.empty())
+            continue;
         const std::vector<std::string> values = split_csv(line);
-        if (values.at(0) != "BASE") continue;
-        return {number(values, 1, path), {number(values, 2, path), number(values, 3, path), number(values, 4, path)},
+        if (values.at(0) != "BASE")
+            continue;
+        return {number(values, 1, path),
+            {number(values, 2, path), number(values, 3, path), number(values, 4, path)},
             {number(values, 5, path), number(values, 6, path), number(values, 7, path)},
             {number(values, 8, path), number(values, 9, path), number(values, 10, path)}};
     }
@@ -124,17 +139,22 @@ BaselineHistory read_baseline_history(const std::string& path) {
 
 GeometryHistory read_geometry_history(const std::string& path, const std::string& requested_step) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read H20.26 geometry history: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read H20.26 geometry history: " + path);
     std::string line;
     std::getline(input, line);
-    if (line != "case,step,contact_area_m2,normal_force_x_n,normal_force_y_n,normal_force_z_n,"
-                "normal_moment_x_nm,normal_moment_y_nm,normal_moment_z_nm,center_x_m,center_y_m,center_z_m")
+    if (line
+        != "case,step,contact_area_m2,normal_force_x_n,normal_force_y_n,normal_force_z_n,"
+           "normal_moment_x_nm,normal_moment_y_nm,normal_moment_z_nm,center_x_m,center_y_m,center_z_m")
         throw std::invalid_argument("Unexpected H20.26 geometry-history header in " + path);
     while (std::getline(input, line)) {
-        if (line.empty()) continue;
+        if (line.empty())
+            continue;
         const std::vector<std::string> values = split_csv(line);
-        if (values.at(1) != requested_step) continue;
-        return {number(values, 2, path), {number(values, 3, path), number(values, 4, path), number(values, 5, path)},
+        if (values.at(1) != requested_step)
+            continue;
+        return {number(values, 2, path),
+            {number(values, 3, path), number(values, 4, path), number(values, 5, path)},
             {number(values, 6, path), number(values, 7, path), number(values, 8, path)},
             {number(values, 9, path), number(values, 10, path), number(values, 11, path)}};
     }
@@ -143,19 +163,24 @@ GeometryHistory read_geometry_history(const std::string& path, const std::string
 
 NodalForces read_nodal_forces(const std::string& path, const std::string& requested_step) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read H20.26 geometry nodal reference: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read H20.26 geometry nodal reference: " + path);
     std::string line;
     std::getline(input, line);
-    if (line != "case,step,side,local_node,node_label,cnormf_x_n,cnormf_y_n,cnormf_z_n,copen_m,cpress_pa,"
-                "coord_x_m,coord_y_m,coord_z_m")
+    if (line
+        != "case,step,side,local_node,node_label,cnormf_x_n,cnormf_y_n,cnormf_z_n,copen_m,cpress_pa,"
+           "coord_x_m,coord_y_m,coord_z_m")
         throw std::invalid_argument("Unexpected H20.26 geometry-nodal header in " + path);
     NodalForces result;
     while (std::getline(input, line)) {
-        if (line.empty()) continue;
+        if (line.empty())
+            continue;
         const std::vector<std::string> values = split_csv(line);
-        if (values.at(1) != requested_step) continue;
+        if (values.at(1) != requested_step)
+            continue;
         const std::size_t node = static_cast<std::size_t>(number(values, 3, path)) - 1;
-        if (node >= node_count) throw std::invalid_argument("Invalid H20.26 geometry local node in " + path);
+        if (node >= node_count)
+            throw std::invalid_argument("Invalid H20.26 geometry local node in " + path);
         const std::array<double, 3> force{number(values, 5, path), number(values, 6, path), number(values, 7, path)};
         if (values.at(2) == "primary") {
             result.primary[node] = force;
@@ -210,23 +235,29 @@ double relative_frobenius(const Matrix8& value, const Matrix8& reference) {
         difference_squared += (value[entry] - reference[entry]) * (value[entry] - reference[entry]);
         reference_squared += reference[entry] * reference[entry];
     }
-    if (!(reference_squared > 0.0)) throw std::invalid_argument("H20.26 Frobenius reference is zero");
+    if (!(reference_squared > 0.0))
+        throw std::invalid_argument("H20.26 Frobenius reference is zero");
     return std::sqrt(difference_squared / reference_squared);
 }
 
 double maximum_pointwise_relative(const Matrix8& value, const Matrix8& reference) {
     double result = 0.0;
     for (std::size_t entry = 0; entry < value.size(); ++entry) {
-        if (reference[entry] == 0.0) throw std::invalid_argument("H20.26 pointwise reference is zero");
+        if (reference[entry] == 0.0)
+            throw std::invalid_argument("H20.26 pointwise reference is zero");
         result = std::max(result, std::abs(value[entry] - reference[entry]) / std::abs(reference[entry]));
     }
     return result;
 }
 
 std::array<double, 8> quad8_shape(double xi, double eta) {
-    return {0.25 * (1.0 - xi) * (1.0 - eta) * (-xi - eta - 1.0), 0.25 * (1.0 + xi) * (1.0 - eta) * (xi - eta - 1.0),
-        0.25 * (1.0 + xi) * (1.0 + eta) * (xi + eta - 1.0), 0.25 * (1.0 - xi) * (1.0 + eta) * (-xi + eta - 1.0),
-        0.5 * (1.0 - xi * xi) * (1.0 - eta), 0.5 * (1.0 + xi) * (1.0 - eta * eta), 0.5 * (1.0 - xi * xi) * (1.0 + eta),
+    return {0.25 * (1.0 - xi) * (1.0 - eta) * (-xi - eta - 1.0),
+        0.25 * (1.0 + xi) * (1.0 - eta) * (xi - eta - 1.0),
+        0.25 * (1.0 + xi) * (1.0 + eta) * (xi + eta - 1.0),
+        0.25 * (1.0 - xi) * (1.0 + eta) * (-xi + eta - 1.0),
+        0.5 * (1.0 - xi * xi) * (1.0 - eta),
+        0.5 * (1.0 + xi) * (1.0 - eta * eta),
+        0.5 * (1.0 - xi * xi) * (1.0 + eta),
         0.5 * (1.0 - xi) * (1.0 - eta * eta)};
 }
 
@@ -294,9 +325,9 @@ int main(int argc, char** argv) {
         for (std::size_t row = 0; row < node_count; ++row)
             for (std::size_t column = 0; column < node_count; ++column)
                 for (std::size_t constraint = 0; constraint < node_count; ++constraint)
-                    reconstructed[row * node_count + column] += penalty * averaging[constraint * node_count + row] *
-                                                                constraint_areas[constraint] *
-                                                                averaging[constraint * node_count + column];
+                    reconstructed[row * node_count + column] += penalty * averaging[constraint * node_count + row]
+                                                                * constraint_areas[constraint]
+                                                                * averaging[constraint * node_count + column];
 
         const Matrix8 continuum = continuum_consistent_operator();
         const double reconstruction_error = relative_frobenius(reconstructed, abaqus_operator);
@@ -316,8 +347,8 @@ int main(int argc, char** argv) {
                 finite_secondary_change = std::max(finite_secondary_change,
                     std::abs(finite_slide.secondary[node][component] - finite_base.secondary[node][component]));
             }
-            tilted_direction_error = std::max(
-                tilted_direction_error, std::abs(tilted.secondary[node][1] + 0.05 * tilted.secondary[node][0]));
+            tilted_direction_error = std::max(tilted_direction_error,
+                std::abs(tilted.secondary[node][1] + 0.05 * tilted.secondary[node][0]));
         }
         const double finite_center_shift = finite_slide_history.center[1] - finite_base_history.center[1];
         const double tilted_area_reference = std::sqrt(1.0 + 0.05 * 0.05);
@@ -356,45 +387,46 @@ int main(int argc, char** argv) {
 
         bool passed = true;
         passed = check(base_copen_error < 1.0e-16 && base_pressure_error < 1.0e-8 && base_force_error < 1.0e-9,
-                     "H20.26 uniform closure gives the exact C3D20 Q8 signed nodal-force pattern") &&
-                 passed;
-        passed = check(std::abs(history.area - 1.0) < 1.0e-12 && std::abs(history.force[0] + 1.0e4) < 1.0e-8 &&
-                           std::abs(history.force[1]) < 2.0e-12 && std::abs(history.force[2]) < 2.0e-12 &&
-                           std::abs(history.moment[1] + 5.0e3) < 1.0e-8 && std::abs(history.moment[2] - 5.0e3) < 1.0e-8,
-                     "H20.26 Abaqus history is consistent with unit area and the applied normal resultant") &&
-                 passed;
+                     "H20.26 uniform closure gives the exact C3D20 Q8 signed nodal-force pattern")
+                 && passed;
+        passed =
+            check(std::abs(history.area - 1.0) < 1.0e-12 && std::abs(history.force[0] + 1.0e4) < 1.0e-8
+                      && std::abs(history.force[1]) < 2.0e-12 && std::abs(history.force[2]) < 2.0e-12
+                      && std::abs(history.moment[1] + 5.0e3) < 1.0e-8 && std::abs(history.moment[2] - 5.0e3) < 1.0e-8,
+                "H20.26 Abaqus history is consistent with unit area and the applied normal resultant")
+            && passed;
         passed = check(row_sum_error < 1.0e-9,
-                     "H20.26 node-centered averaged constraints exactly reproduce rigid uniform closure") &&
-                 passed;
+                     "H20.26 node-centered averaged constraints exactly reproduce rigid uniform closure")
+                 && passed;
         passed = check(averaging_asymmetry > 0.4,
-                     "H20.26 constraint averaging is observably nonsymmetric and is not direct Q8 interpolation") &&
-                 passed;
+                     "H20.26 constraint averaging is observably nonsymmetric and is not direct Q8 interpolation")
+                 && passed;
         passed = check(area_error < 1.0e-9 && std::abs(area_sum - 1.0) < 1.0e-9,
-                     "H20.26 inferred positive constraint areas are 1/24 at corners and 5/24 at edge nodes") &&
-                 passed;
+                     "H20.26 inferred positive constraint areas are 1/24 at corners and 5/24 at edge nodes")
+                 && passed;
         passed = check(reconstruction_error < 1.0e-9 && reconstruction_pointwise < 1.0e-8,
-                     "H20.26 Abaqus tangent factors as penalty times A-transpose W A") &&
-                 passed;
+                     "H20.26 Abaqus tangent factors as penalty times A-transpose W A")
+                 && passed;
         passed = check(continuum_error > 0.19 && continuum_error < 0.20 && continuum_pointwise > 0.84,
-                     "H20.26 Abaqus tangent is distinct from direct continuum-consistent Q8 penalty integration") &&
-                 passed;
+                     "H20.26 Abaqus tangent is distinct from direct continuum-consistent Q8 penalty integration")
+                 && passed;
         passed = check(displayed_pressure_error > 0.3,
-                     "H20.26 displayed CPRESS is a recovered field and does not expose the constraint operator") &&
-                 passed;
-        passed = check(std::abs(finite_base_history.force[0] + 1.0e4) < 1.0e-8 &&
-                           std::abs(finite_slide_history.force[0] + 1.0e4) < 1.0e-8 &&
-                           std::abs(finite_center_shift - 0.1) < 3.0e-8 &&
-                           std::abs(finite_slide_history.moment[2] - 6.0e3) < 1.0e-8,
-                     "H20.26 finite-sliding STS transfers the unchanged normal resultant at the current position") &&
-                 passed;
+                     "H20.26 displayed CPRESS is a recovered field and does not expose the constraint operator")
+                 && passed;
+        passed = check(std::abs(finite_base_history.force[0] + 1.0e4) < 1.0e-8
+                           && std::abs(finite_slide_history.force[0] + 1.0e4) < 1.0e-8
+                           && std::abs(finite_center_shift - 0.1) < 3.0e-8
+                           && std::abs(finite_slide_history.moment[2] - 6.0e3) < 1.0e-8,
+                     "H20.26 finite-sliding STS transfers the unchanged normal resultant at the current position")
+                 && passed;
         passed = check(finite_primary_change > 1.0e3 && finite_secondary_change < 1.0e-8,
-                     "H20.26 finite sliding changes primary force transfer while preserving secondary nodal forces") &&
-                 passed;
-        passed = check(std::abs(tilted_history.area - tilted_area_reference) < 1.0e-7 &&
-                           std::abs(tilted_resultant_ratio + 0.05) < 1.0e-7 && tilted_direction_error < 1.0e-8 &&
-                           std::abs(tilted_history.force[2]) < 1.0e-8,
-                     "H20.26 small-sliding STS follows the tilted secondary averaged normal") &&
-                 passed;
+                     "H20.26 finite sliding changes primary force transfer while preserving secondary nodal forces")
+                 && passed;
+        passed = check(std::abs(tilted_history.area - tilted_area_reference) < 1.0e-7
+                           && std::abs(tilted_resultant_ratio + 0.05) < 1.0e-7 && tilted_direction_error < 1.0e-8
+                           && std::abs(tilted_history.force[2]) < 1.0e-8,
+                     "H20.26 small-sliding STS follows the tilted secondary averaged normal")
+                 && passed;
         return passed ? 0 : 1;
     } catch (const std::exception& error) {
         std::cerr << "[FAIL] " << error.what() << '\n';

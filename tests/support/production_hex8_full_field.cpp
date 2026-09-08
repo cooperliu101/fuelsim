@@ -60,12 +60,14 @@ std::vector<std::string> split_csv(const std::string& line) {
     std::vector<std::string> result;
     std::istringstream stream(line);
     std::string value;
-    while (std::getline(stream, value, ',')) result.push_back(value);
+    while (std::getline(stream, value, ','))
+        result.push_back(value);
     return result;
 }
 
 double number(const std::vector<std::string>& values, std::size_t index, const std::string& path) {
-    if (index >= values.size()) throw std::invalid_argument("Incomplete Abaqus HEX8 full-field row in " + path);
+    if (index >= values.size())
+        throw std::invalid_argument("Incomplete Abaqus HEX8 full-field row in " + path);
     std::size_t parsed = 0;
     const double result = std::stod(values[index], &parsed);
     if (parsed != values[index].size() || !std::isfinite(result))
@@ -80,26 +82,32 @@ std::size_t positive_integer(double value, const std::string& path) {
     return static_cast<std::size_t>(rounded);
 }
 
-SymmetricTensor3Values tensor(
-    const std::vector<std::string>& values, std::size_t start, const std::string& path, bool engineering_shear) {
+SymmetricTensor3Values
+tensor(const std::vector<std::string>& values, std::size_t start, const std::string& path, bool engineering_shear) {
     const double scale = engineering_shear ? 0.5 : 1.0;
-    return {number(values, start, path), number(values, start + 1, path), number(values, start + 2, path),
-        scale * number(values, start + 3, path), scale * number(values, start + 5, path),
+    return {number(values, start, path),
+        number(values, start + 1, path),
+        number(values, start + 2, path),
+        scale * number(values, start + 3, path),
+        scale * number(values, start + 5, path),
         scale * number(values, start + 4, path)};
 }
 
 std::vector<NodeReference> read_nodes(const std::string& path) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read Abaqus HEX8 nodal reference: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read Abaqus HEX8 nodal reference: " + path);
     std::string line;
     std::getline(input, line);
     if (line != "increment,time_s,node,temperature_k,u1_m,u2_m,u3_m,reaction_heat_flux_w,rf1_n,rf2_n,rf3_n")
         throw std::invalid_argument("Unexpected Abaqus HEX8 nodal header in " + path);
     std::vector<NodeReference> result;
     while (std::getline(input, line)) {
-        if (line.empty()) continue;
+        if (line.empty())
+            continue;
         const std::vector<std::string> values = split_csv(line);
-        if (values.size() != 11) throw std::invalid_argument("Unexpected Abaqus HEX8 nodal columns in " + path);
+        if (values.size() != 11)
+            throw std::invalid_argument("Unexpected Abaqus HEX8 nodal columns in " + path);
         NodeReference reference;
         reference.increment = positive_integer(number(values, 0, path), path);
         reference.time = number(values, 1, path);
@@ -113,7 +121,8 @@ std::vector<NodeReference> read_nodes(const std::string& path) {
 
 std::vector<IntegrationReference> read_integration(const std::string& path) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read Abaqus HEX8 integration reference: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read Abaqus HEX8 integration reference: " + path);
     std::string line;
     std::getline(input, line);
     const std::string expected =
@@ -122,12 +131,15 @@ std::vector<IntegrationReference> read_integration(const std::string& path) {
         "le23_engineering,ee11,ee22,ee33,ee12_engineering,ee13_engineering,ee23_engineering,pe11,pe22,pe33,"
         "pe12_engineering,pe13_engineering,pe23_engineering,peeq,ce11,ce22,ce33,ce12_engineering,"
         "ce13_engineering,ce23_engineering,ceeq,ivol_m3";
-    if (line != expected) throw std::invalid_argument("Unexpected Abaqus HEX8 integration header in " + path);
+    if (line != expected)
+        throw std::invalid_argument("Unexpected Abaqus HEX8 integration header in " + path);
     std::vector<IntegrationReference> result;
     while (std::getline(input, line)) {
-        if (line.empty()) continue;
+        if (line.empty())
+            continue;
         const std::vector<std::string> values = split_csv(line);
-        if (values.size() != 44) throw std::invalid_argument("Unexpected Abaqus HEX8 integration columns in " + path);
+        if (values.size() != 44)
+            throw std::invalid_argument("Unexpected Abaqus HEX8 integration columns in " + path);
         IntegrationReference reference;
         reference.increment = positive_integer(number(values, 0, path), path);
         reference.time = number(values, 1, path);
@@ -158,7 +170,8 @@ std::size_t nonnegative_integer(double value, const std::string& path) {
 
 std::vector<ContactReference> read_contact(const std::string& path, bool integrated_baseline = false) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read Abaqus HEX8 contact reference: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read Abaqus HEX8 contact reference: " + path);
     std::string line;
     std::getline(input, line);
     const std::string expected =
@@ -169,10 +182,12 @@ std::vector<ContactReference> read_contact(const std::string& path, bool integra
               "normal_force2_n,normal_force3_n,shear_force1_n,shear_force2_n,shear_force3_n,contact_heat_flux_w,"
               "shear_traction1_pa,shear_traction2_pa,tangent1_x,tangent1_y,tangent1_z,tangent2_x,tangent2_y,"
               "tangent2_z,state";
-    if (line != expected) throw std::invalid_argument("Unexpected Abaqus HEX8 contact header in " + path);
+    if (line != expected)
+        throw std::invalid_argument("Unexpected Abaqus HEX8 contact header in " + path);
     std::vector<ContactReference> result;
     while (std::getline(input, line)) {
-        if (line.empty()) continue;
+        if (line.empty())
+            continue;
         const std::vector<std::string> values = split_csv(line);
         if (values.size() != (integrated_baseline ? 18U : 26U))
             throw std::invalid_argument("Unexpected Abaqus HEX8 contact columns in " + path);
@@ -209,7 +224,8 @@ std::vector<ContactReference> read_contact(const std::string& path, bool integra
 
 void require_contact_free_reference(const std::string& path) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read Abaqus HEX8 contact reference: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read Abaqus HEX8 contact reference: " + path);
     std::string line;
     std::getline(input, line);
     const std::string expected =
@@ -217,14 +233,17 @@ void require_contact_free_reference(const std::string& path) {
         "normal_force2_n,normal_force3_n,shear_force1_n,shear_force2_n,shear_force3_n,contact_heat_flux_w,"
         "shear_traction1_pa,shear_traction2_pa,tangent1_x,tangent1_y,tangent1_z,tangent2_x,tangent2_y,"
         "tangent2_z,state";
-    if (line != expected) throw std::invalid_argument("Unexpected Abaqus HEX8 contact header in " + path);
+    if (line != expected)
+        throw std::invalid_argument("Unexpected Abaqus HEX8 contact header in " + path);
     while (std::getline(input, line))
-        if (!line.empty()) throw std::invalid_argument("Bulk result comparison cannot omit contact reference rows");
+        if (!line.empty())
+            throw std::invalid_argument("Bulk result comparison cannot omit contact reference rows");
 }
 
 std::vector<EnergyReference> read_energy(const std::string& path) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read Abaqus HEX8 energy reference: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read Abaqus HEX8 energy reference: " + path);
     std::string line;
     std::getline(input, line);
     const std::string legacy_header =
@@ -234,13 +253,20 @@ std::vector<EnergyReference> read_energy(const std::string& path) {
         throw std::invalid_argument("Unexpected Abaqus HEX8 energy header in " + path);
     std::vector<EnergyReference> result;
     while (std::getline(input, line)) {
-        if (line.empty()) continue;
+        if (line.empty())
+            continue;
         const std::vector<std::string> values = split_csv(line);
         if (values.size() != (has_artificial_energy ? 10 : 9))
             throw std::invalid_argument("Unexpected Abaqus HEX8 energy columns in " + path);
-        result.push_back({positive_integer(number(values, 0, path), path), number(values, 1, path),
-            number(values, 2, path), number(values, 3, path), number(values, 4, path), number(values, 5, path),
-            number(values, 6, path), number(values, 7, path), number(values, 8, path),
+        result.push_back({positive_integer(number(values, 0, path), path),
+            number(values, 1, path),
+            number(values, 2, path),
+            number(values, 3, path),
+            number(values, 4, path),
+            number(values, 5, path),
+            number(values, 6, path),
+            number(values, 7, path),
+            number(values, 8, path),
             has_artificial_energy ? number(values, 9, path) : 0.0});
     }
     return result;
@@ -252,52 +278,74 @@ std::array<double, 6> components(const SymmetricTensor3Values& value) {
 
 using Matrix3 = std::array<std::array<double, 3>, 3>;
 
-bool metrics_pass(const FieldErrorMetrics& metrics, double aggregate_tolerance, double pointwise_tolerance,
-    double zero_tolerance, double qualified_pointwise_absolute_tolerance = 0.0) {
+bool metrics_pass(const FieldErrorMetrics& metrics,
+    double aggregate_tolerance,
+    double pointwise_tolerance,
+    double zero_tolerance,
+    double qualified_pointwise_absolute_tolerance = 0.0) {
     if (metrics.has_relative_norm()) {
         const bool aggregate_passed =
             metrics.relative_l2() < aggregate_tolerance && metrics.relative_absolute_peak() < aggregate_tolerance;
         const double maximum_pointwise_absolute_difference =
             std::abs(metrics.maximum_pointwise_relative_actual - metrics.maximum_pointwise_relative_reference);
         const bool pointwise_passed =
-            metrics.maximum_pointwise_relative < pointwise_tolerance ||
-            (qualified_pointwise_absolute_tolerance > 0.0 &&
-                maximum_pointwise_absolute_difference < qualified_pointwise_absolute_tolerance);
-        if (!aggregate_passed || !pointwise_passed) return false;
-    }
-    return metrics.maximum_zero_reference_difference < zero_tolerance;
-}
-
-bool grouped_metrics_pass(const GroupedFieldErrorMetrics& metrics, double aggregate_tolerance,
-    double pointwise_tolerance, double zero_tolerance, double qualified_pointwise_absolute_tolerance = 0.0) {
-    if (metrics.has_relative_norm()) {
-        const double pointwise_absolute_difference =
-            metrics.maximum_pointwise_relative * metrics.maximum_pointwise_reference_norm;
-        const bool pointwise_passed = metrics.maximum_pointwise_relative < pointwise_tolerance ||
-                                      (qualified_pointwise_absolute_tolerance > 0.0 &&
-                                          pointwise_absolute_difference < qualified_pointwise_absolute_tolerance);
-        if (!(metrics.relative_l2() < aggregate_tolerance && metrics.relative_absolute_peak() < aggregate_tolerance &&
-                pointwise_passed))
+            metrics.maximum_pointwise_relative < pointwise_tolerance
+            || (qualified_pointwise_absolute_tolerance > 0.0
+                && maximum_pointwise_absolute_difference < qualified_pointwise_absolute_tolerance);
+        if (!aggregate_passed || !pointwise_passed)
             return false;
     }
     return metrics.maximum_zero_reference_difference < zero_tolerance;
 }
 
-bool report_metric(const std::string& name, const FieldErrorMetrics& metrics, double aggregate_tolerance,
-    double pointwise_tolerance, double zero_tolerance, bool gate, double qualified_pointwise_absolute_tolerance = 0.0) {
+bool grouped_metrics_pass(const GroupedFieldErrorMetrics& metrics,
+    double aggregate_tolerance,
+    double pointwise_tolerance,
+    double zero_tolerance,
+    double qualified_pointwise_absolute_tolerance = 0.0) {
+    if (metrics.has_relative_norm()) {
+        const double pointwise_absolute_difference =
+            metrics.maximum_pointwise_relative * metrics.maximum_pointwise_reference_norm;
+        const bool pointwise_passed = metrics.maximum_pointwise_relative < pointwise_tolerance
+                                      || (qualified_pointwise_absolute_tolerance > 0.0
+                                          && pointwise_absolute_difference < qualified_pointwise_absolute_tolerance);
+        if (!(metrics.relative_l2() < aggregate_tolerance && metrics.relative_absolute_peak() < aggregate_tolerance
+                && pointwise_passed))
+            return false;
+    }
+    return metrics.maximum_zero_reference_difference < zero_tolerance;
+}
+
+bool report_metric(const std::string& name,
+    const FieldErrorMetrics& metrics,
+    double aggregate_tolerance,
+    double pointwise_tolerance,
+    double zero_tolerance,
+    bool gate,
+    double qualified_pointwise_absolute_tolerance = 0.0) {
     if (metrics.has_relative_norm())
         print_relative_metrics(name, metrics);
     else
         print_absolute_metrics(name, metrics);
-    if (!gate) return true;
-    const bool passed = metrics_pass(
-        metrics, aggregate_tolerance, pointwise_tolerance, zero_tolerance, qualified_pointwise_absolute_tolerance);
-    if (!passed) std::cerr << "[FAIL] " << name << " exceeds its full-field gate\n";
+    if (!gate)
+        return true;
+    const bool passed = metrics_pass(metrics,
+        aggregate_tolerance,
+        pointwise_tolerance,
+        zero_tolerance,
+        qualified_pointwise_absolute_tolerance);
+    if (!passed)
+        std::cerr << "[FAIL] " << name << " exceeds its full-field gate\n";
     return passed;
 }
 
-bool report_grouped(const std::string& name, const GroupedFieldErrorMetrics& metrics, double aggregate_tolerance,
-    double pointwise_tolerance, double zero_tolerance, bool gate, double qualified_pointwise_absolute_tolerance = 0.0) {
+bool report_grouped(const std::string& name,
+    const GroupedFieldErrorMetrics& metrics,
+    double aggregate_tolerance,
+    double pointwise_tolerance,
+    double zero_tolerance,
+    bool gate,
+    double qualified_pointwise_absolute_tolerance = 0.0) {
     if (metrics.has_relative_norm())
         print_grouped_relative_metrics(name, metrics);
     else {
@@ -306,10 +354,15 @@ bool report_grouped(const std::string& name, const GroupedFieldErrorMetrics& met
                   << '\n'
                   << name << "_maximum_difference_index=" << metrics.maximum_difference_index << '\n';
     }
-    if (!gate) return true;
-    const bool passed = grouped_metrics_pass(
-        metrics, aggregate_tolerance, pointwise_tolerance, zero_tolerance, qualified_pointwise_absolute_tolerance);
-    if (!passed) std::cerr << "[FAIL] " << name << " exceeds its complete-vector or complete-tensor gate\n";
+    if (!gate)
+        return true;
+    const bool passed = grouped_metrics_pass(metrics,
+        aggregate_tolerance,
+        pointwise_tolerance,
+        zero_tolerance,
+        qualified_pointwise_absolute_tolerance);
+    if (!passed)
+        std::cerr << "[FAIL] " << name << " exceeds its complete-vector or complete-tensor gate\n";
     return passed;
 }
 
@@ -319,7 +372,8 @@ bool compare_contact_history(const std::vector<ExodusResults>& frames, const Pro
     std::array<FieldErrorMetrics, 3> baseline_resultants;
     const auto prefix = options.case_name + "_";
     const auto suffix = "_" + options.contact_name;
-    if (refs.empty()) throw std::invalid_argument("Contact reference must not be empty");
+    if (refs.empty())
+        throw std::invalid_argument("Contact reference must not be empty");
     std::array<GroupedFieldErrorMetrics, 8> vectors;
     FieldErrorMetrics pressure, normal_magnitude;
     std::set<std::pair<std::size_t, std::size_t>> seen;
@@ -335,11 +389,13 @@ bool compare_contact_history(const std::vector<ExodusResults>& frames, const Pro
         double weight = 0, expected_weight = 0, tangent_y = 0;
         std::size_t active = 0, sliding = 0, count = 0, output_count = 0;
         for (double flag : frame.nodal("contact_projected" + suffix))
-            if (!std::isnan(flag)) ++output_count;
+            if (!std::isnan(flag))
+                ++output_count;
         for (const auto& ref : refs) {
-            if (ref.increment != step) continue;
-            if (ref.node == 0 || ref.node > frame.nodes.size() || std::abs(ref.time - frame.time) > 1e-7 ||
-                !seen.emplace(step, ref.node).second)
+            if (ref.increment != step)
+                continue;
+            if (ref.node == 0 || ref.node > frame.nodes.size() || std::abs(ref.time - frame.time) > 1e-7
+                || !seen.emplace(step, ref.node).second)
                 throw std::invalid_argument("Contact reference association is invalid");
             ++count;
             const auto n = ref.node - 1;
@@ -357,7 +413,8 @@ bool compare_contact_history(const std::vector<ExodusResults>& frames, const Pro
                 expected_force[c] += ef[c];
             }
             vectors[0].add(p.data(), ep.data(), 3);
-            if (ref.state != 0) vectors[1].add(slip.data(), eslip.data(), 3);
+            if (ref.state != 0)
+                vectors[1].add(slip.data(), eslip.data(), 3);
             vectors[2].add(nf.data(), enf.data(), 3);
             vectors[3].add(f.data(), ef.data(), 3);
             vectors[7].add(sf.data(), esf.data(), 3);
@@ -385,14 +442,18 @@ bool compare_contact_history(const std::vector<ExodusResults>& frames, const Pro
                                       : frame.nodal("contact_sliding" + suffix).at(n) == 1 ? 2
                                                                                            : 1;
             ++state_count;
-            if (state == ref.state) ++matched_states;
+            if (state == ref.state)
+                ++matched_states;
             if (state != 0) {
                 ++active;
-                if (state == 2) ++sliding;
+                if (state == 2)
+                    ++sliding;
                 tangent_y -= sf[1];
                 const double face = frame.nodal("contact_primary_face" + suffix).at(n);
-                if (!std::isfinite(face)) throw std::invalid_argument("Active contact has no primary face");
-                if (!initial_faces.emplace(n, face).second && initial_faces.at(n) != face) crossed = true;
+                if (!std::isfinite(face))
+                    throw std::invalid_argument("Active contact has no primary face");
+                if (!initial_faces.emplace(n, face).second && initial_faces.at(n) != face)
+                    crossed = true;
             }
         }
         if (count == 0 || count != output_count)
@@ -409,12 +470,15 @@ bool compare_contact_history(const std::vector<ExodusResults>& frames, const Pro
                 expected_center[c] /= expected_weight;
             }
             vectors[6].add(center.data(), expected_center.data(), 3);
-            for (std::size_t c = 0; c < 3; ++c) baseline_resultants[2].add(center[c], expected_center[c]);
+            for (std::size_t c = 0; c < 3; ++c)
+                baseline_resultants[2].add(center[c], expected_center[c]);
         }
         if (active == 0) {
-            if (active_seen) reopened = true;
+            if (active_seen)
+                reopened = true;
         } else {
-            if (reopened) recontact = true;
+            if (reopened)
+                recontact = true;
             active_seen = true;
         }
         sticking_seen += active - sliding;
@@ -427,29 +491,49 @@ bool compare_contact_history(const std::vector<ExodusResults>& frames, const Pro
     const double pointwise = options.contact_pointwise_relative_tolerance > 0
                                  ? options.contact_pointwise_relative_tolerance
                                  : options.contact_relative_tolerance;
-    const std::array<std::string, 8> names = {"contact_position", "contact_slip_vector", "contact_normal_force_vector",
-        "contact_complete_force_vector", "contact_resultant", "contact_moment", "contact_normal_force_center",
+    const std::array<std::string, 8> names = {"contact_position",
+        "contact_slip_vector",
+        "contact_normal_force_vector",
+        "contact_complete_force_vector",
+        "contact_resultant",
+        "contact_moment",
+        "contact_normal_force_center",
         "contact_shear_force_vector"};
     bool passed = true;
     for (std::size_t i = 0; i < vectors.size(); ++i)
-        passed = report_grouped(prefix + names[i], vectors[i], options.contact_relative_tolerance, pointwise,
+        passed = report_grouped(prefix + names[i],
+                     vectors[i],
+                     options.contact_relative_tolerance,
+                     pointwise,
                      i == 0 || i == 6 ? options.coordinate_tolerance
                      : i == 1         ? 1e-10
                                       : 1e-2,
                      !integrated_baseline && i != 7 && (i != 1 || options.gate_contact_slip),
-                     i == 1 ? options.contact_slip_pointwise_absolute_tolerance : 0) &&
-                 passed;
-    passed = report_metric(prefix + "contact_pressure", pressure, options.contact_relative_tolerance, pointwise, 1,
-                 options.gate_contact_pressure) &&
-             passed;
-    passed = report_metric(prefix + "contact_normal_force_magnitude", normal_magnitude,
-                 options.contact_relative_tolerance, pointwise, 1e-2, !integrated_baseline) &&
-             passed;
+                     i == 1 ? options.contact_slip_pointwise_absolute_tolerance : 0)
+                 && passed;
+    passed = report_metric(prefix + "contact_pressure",
+                 pressure,
+                 options.contact_relative_tolerance,
+                 pointwise,
+                 1,
+                 options.gate_contact_pressure)
+             && passed;
+    passed = report_metric(prefix + "contact_normal_force_magnitude",
+                 normal_magnitude,
+                 options.contact_relative_tolerance,
+                 pointwise,
+                 1e-2,
+                 !integrated_baseline)
+             && passed;
     if (integrated_baseline)
         for (std::size_t i = 0; i < 3; ++i)
-            passed = report_metric(prefix + names[4 + i] + "_components", baseline_resultants[i], 5e-3, 5e-3,
-                         i == 2 ? 1e-8 : 1, true) &&
-                     passed;
+            passed = report_metric(prefix + names[4 + i] + "_components",
+                         baseline_resultants[i],
+                         5e-3,
+                         5e-3,
+                         i == 2 ? 1e-8 : 1,
+                         true)
+                     && passed;
     const double fraction = static_cast<double>(matched_states) / static_cast<double>(state_count);
     bool transition = true;
     if (options.contact_transition == "cycle")
@@ -461,8 +545,8 @@ bool compare_contact_history(const std::vector<ExodusResults>& frames, const Pro
     std::cout << prefix << "contact_state_match_fraction=" << fraction << '\n'
               << prefix << "contact_transition_verified=" << transition << '\n'
               << prefix << "maximum_tangent_basis_error=" << maximum_basis_error << '\n';
-    if (seen.size() != refs.size() || !final_active || !transition || maximum_basis_error >= 1e-9 ||
-        (options.gate_contact_state && fraction < options.minimum_contact_state_match_fraction)) {
+    if (seen.size() != refs.size() || !final_active || !transition || maximum_basis_error >= 1e-9
+        || (options.gate_contact_state && fraction < options.minimum_contact_state_match_fraction)) {
         std::cerr << "[FAIL] " << prefix << "contact coverage, state, transition, or reference basis check failed\n";
         passed = false;
     }
@@ -476,14 +560,15 @@ bool compare_contact_history(const std::vector<ExodusResults>& frames, const Pro
 std::array<double, 6> tensor_output(const ExodusResults& frame, const std::string& name, std::size_t q, std::size_t e) {
     std::array<double, 6> result{};
     const std::array<std::string, 6> names = {"xx", "yy", "zz", "xy", "yz", "xz"};
-    for (std::size_t c = 0; c < 6; ++c) result[c] = frame.element(name + names[c] + "_q" + std::to_string(q)).at(e);
+    for (std::size_t c = 0; c < 6; ++c)
+        result[c] = frame.element(name + names[c] + "_q" + std::to_string(q)).at(e);
     return result;
 }
 } // namespace
 
 bool compare_production_hex8_full_field(const std::string& output_path, const ProductionHex8FullFieldOptions& options) {
-    if (options.case_name.empty() || options.reference_prefix.empty() || options.expected_steps == 0 ||
-        !(options.time_step > 0.0))
+    if (options.case_name.empty() || options.reference_prefix.empty() || options.expected_steps == 0
+        || !(options.time_step > 0.0))
         throw std::invalid_argument("Abaqus HEX8 full-field options are incomplete");
     const double bulk_pointwise_tolerance = options.bulk_pointwise_relative_tolerance > 0.0
                                                 ? options.bulk_pointwise_relative_tolerance
@@ -496,25 +581,28 @@ bool compare_production_hex8_full_field(const std::string& output_path, const Pr
     };
     const double displacement_pointwise_tolerance =
                      pointwise_tolerance(options.displacement_pointwise_relative_tolerance, bulk_pointwise_tolerance),
-                 reaction_heat_flux_pointwise_tolerance = pointwise_tolerance(
-                     options.reaction_heat_flux_pointwise_relative_tolerance, bulk_pointwise_tolerance),
+                 reaction_heat_flux_pointwise_tolerance =
+                     pointwise_tolerance(options.reaction_heat_flux_pointwise_relative_tolerance,
+                         bulk_pointwise_tolerance),
                  reaction_pointwise_tolerance =
                      pointwise_tolerance(options.reaction_pointwise_relative_tolerance, bulk_pointwise_tolerance),
                  stress_pointwise_tolerance =
                      pointwise_tolerance(options.stress_pointwise_relative_tolerance, bulk_pointwise_tolerance),
-                 logarithmic_strain_pointwise_tolerance = pointwise_tolerance(
-                     options.logarithmic_strain_pointwise_relative_tolerance, bulk_pointwise_tolerance),
+                 logarithmic_strain_pointwise_tolerance =
+                     pointwise_tolerance(options.logarithmic_strain_pointwise_relative_tolerance,
+                         bulk_pointwise_tolerance),
                  elastic_strain_pointwise_tolerance =
                      pointwise_tolerance(options.elastic_strain_pointwise_relative_tolerance, bulk_pointwise_tolerance),
                  inelastic_pointwise_tolerance =
                      pointwise_tolerance(options.inelastic_pointwise_relative_tolerance, bulk_pointwise_tolerance);
-    if (!(options.bulk_relative_tolerance > 0.0) || !(options.energy_relative_tolerance > 0.0) ||
-        !(options.reaction_zero_absolute_tolerance > 0.0))
+    if (!(options.bulk_relative_tolerance > 0.0) || !(options.energy_relative_tolerance > 0.0)
+        || !(options.reaction_zero_absolute_tolerance > 0.0))
         throw std::invalid_argument("Abaqus HEX8 full-field tolerances are invalid");
     const std::vector<NodeReference> nodes = read_nodes(options.reference_prefix + "_nodal.csv");
     const std::vector<IntegrationReference> integration =
         read_integration(options.reference_prefix + "_integration.csv");
-    if (options.contact_name.empty()) require_contact_free_reference(options.reference_prefix + "_contact.csv");
+    if (options.contact_name.empty())
+        require_contact_free_reference(options.reference_prefix + "_contact.csv");
     const std::vector<EnergyReference> energy = read_energy(options.reference_prefix + "_energy.csv");
     const std::size_t integration_points_per_element = options.reduced_integration ? 1 : 8;
     const auto frames = read_exodus_history(output_path);
@@ -523,10 +611,11 @@ bool compare_production_hex8_full_field(const std::string& output_path, const Pr
     const auto& final = frames.back();
     const std::size_t node_count = final.nodes.size();
     std::size_t element_count = 0;
-    for (auto count : final.block_element_counts) element_count += count;
-    if (nodes.size() != options.expected_steps * node_count ||
-        integration.size() != options.expected_steps * element_count * integration_points_per_element ||
-        energy.size() != options.expected_steps)
+    for (auto count : final.block_element_counts)
+        element_count += count;
+    if (nodes.size() != options.expected_steps * node_count
+        || integration.size() != options.expected_steps * element_count * integration_points_per_element
+        || energy.size() != options.expected_steps)
         throw std::invalid_argument("Reference row count does not match production history");
     for (std::size_t step = 1; step < frames.size(); ++step)
         if (std::abs(frames[step].time - options.time_step * static_cast<double>(step)) > 1e-7)
@@ -535,21 +624,31 @@ bool compare_production_hex8_full_field(const std::string& output_path, const Pr
     bool passed = true;
     std::array<FieldErrorMetrics, 8> nodal_metrics;
     GroupedFieldErrorMetrics displacement_vector, reaction_force_vector;
-    const std::array<std::string, 8> output_names = {"temperature", "displacement_x", "displacement_y",
-        "displacement_z", "reaction_heat_flux", "reaction_force_x", "reaction_force_y", "reaction_force_z"};
-    const std::array<std::string, 4> constraints = {
-        "dirichlet_temperature", "dirichlet_displacement_x", "dirichlet_displacement_y", "dirichlet_displacement_z"};
+    const std::array<std::string, 8> output_names = {"temperature",
+        "displacement_x",
+        "displacement_y",
+        "displacement_z",
+        "reaction_heat_flux",
+        "reaction_force_x",
+        "reaction_force_y",
+        "reaction_force_z"};
+    const std::array<std::string, 4> constraints = {"dirichlet_temperature",
+        "dirichlet_displacement_x",
+        "dirichlet_displacement_y",
+        "dirichlet_displacement_z"};
     std::set<std::pair<std::size_t, std::size_t>> mapped_nodes;
     for (const auto& reference : nodes) {
-        if (reference.increment < 1 || reference.increment >= frames.size() || reference.node < 1 ||
-            reference.node > node_count || !mapped_nodes.emplace(reference.increment, reference.node).second)
+        if (reference.increment < 1 || reference.increment >= frames.size() || reference.node < 1
+            || reference.node > node_count || !mapped_nodes.emplace(reference.increment, reference.node).second)
             throw std::invalid_argument("Invalid or repeated reference node");
         const auto& frame = frames.at(reference.increment);
-        if (std::abs(frame.time - reference.time) > 1e-7) throw std::invalid_argument("Reference nodal time differs");
+        if (std::abs(frame.time - reference.time) > 1e-7)
+            throw std::invalid_argument("Reference nodal time differs");
         std::array<double, 3> actual_displacement{}, expected_displacement{}, actual_reaction{}, expected_reaction{};
         for (std::size_t f = 0; f < 8; ++f) {
             double value = frame.nodal(output_names[f]).at(reference.node - 1);
-            if (f >= 4 && frame.nodal(constraints[f - 4]).at(reference.node - 1) == 0) value = 0;
+            if (f >= 4 && frame.nodal(constraints[f - 4]).at(reference.node - 1) == 0)
+                value = 0;
             nodal_metrics[f].add(value, reference.fields[f]);
             if (f >= 1 && f < 4) {
                 actual_displacement[f - 1] = value;
@@ -563,33 +662,50 @@ bool compare_production_hex8_full_field(const std::string& output_path, const Pr
         displacement_vector.add(actual_displacement.data(), expected_displacement.data(), 3);
         reaction_force_vector.add(actual_reaction.data(), expected_reaction.data(), 3);
     }
-    const std::array<std::string, 8> nodal_names = {"temperature", "displacement_x", "displacement_y", "displacement_z",
-        "reaction_heat_flux", "reaction_force_x", "reaction_force_y", "reaction_force_z"};
+    const std::array<std::string, 8> nodal_names = {"temperature",
+        "displacement_x",
+        "displacement_y",
+        "displacement_z",
+        "reaction_heat_flux",
+        "reaction_force_x",
+        "reaction_force_y",
+        "reaction_force_z"};
     for (std::size_t field = 0; field < nodal_metrics.size(); ++field)
-        passed = report_metric(prefix + nodal_names[field], nodal_metrics[field], options.bulk_relative_tolerance,
+        passed = report_metric(prefix + nodal_names[field],
+                     nodal_metrics[field],
+                     options.bulk_relative_tolerance,
                      field == 4 ? reaction_heat_flux_pointwise_tolerance : bulk_pointwise_tolerance,
                      field == 0   ? 1.0e-8
                      : field < 4  ? 1.0e-10
                      : field == 4 ? 1.0e-2
                                   : 1.0,
                      field == 0 || (field == 4 && options.gate_reaction_heat_flux),
-                     field == 4 ? options.reaction_heat_flux_pointwise_absolute_tolerance : 0.0) &&
-                 passed;
-    passed = report_grouped(prefix + "displacement_vector", displacement_vector, options.bulk_relative_tolerance,
-                 displacement_pointwise_tolerance, 1.0e-10, true, options.displacement_pointwise_absolute_tolerance) &&
-             passed;
-    passed = report_grouped(prefix + "reaction_force_vector", reaction_force_vector, options.bulk_relative_tolerance,
-                 reaction_pointwise_tolerance, options.reaction_zero_absolute_tolerance, true,
-                 options.reaction_pointwise_absolute_tolerance) &&
-             passed;
+                     field == 4 ? options.reaction_heat_flux_pointwise_absolute_tolerance : 0.0)
+                 && passed;
+    passed = report_grouped(prefix + "displacement_vector",
+                 displacement_vector,
+                 options.bulk_relative_tolerance,
+                 displacement_pointwise_tolerance,
+                 1.0e-10,
+                 true,
+                 options.displacement_pointwise_absolute_tolerance)
+             && passed;
+    passed = report_grouped(prefix + "reaction_force_vector",
+                 reaction_force_vector,
+                 options.bulk_relative_tolerance,
+                 reaction_pointwise_tolerance,
+                 options.reaction_zero_absolute_tolerance,
+                 true,
+                 options.reaction_pointwise_absolute_tolerance)
+             && passed;
     std::array<FieldErrorMetrics, 37> integration_metrics;
     GroupedFieldErrorMetrics integration_position, heat_flux_vector, stress_tensor, logarithmic_strain_tensor,
         elastic_strain_tensor, plastic_strain_tensor, creep_strain_tensor;
     double maximum_integration_coordinate_difference = 0;
     std::set<std::tuple<std::size_t, std::size_t, std::size_t>> mapped_integration_points;
     for (const auto& reference : integration) {
-        if (reference.increment < 1 || reference.increment >= frames.size() || reference.element < 1 ||
-            reference.element > element_count)
+        if (reference.increment < 1 || reference.increment >= frames.size() || reference.element < 1
+            || reference.element > element_count)
             throw std::invalid_argument("Invalid integration reference");
         const auto& frame = frames.at(reference.increment);
         if (std::abs(frame.time - reference.time) > 1e-7)
@@ -601,7 +717,8 @@ bool compare_production_hex8_full_field(const std::string& output_path, const Pr
         for (std::size_t q = 0; q < integration_points_per_element; ++q) {
             const auto suffix = "_q" + std::to_string(q);
             const std::array<double, 3> p = {frame.element("current_x" + suffix).at(e),
-                frame.element("current_y" + suffix).at(e), frame.element("current_z" + suffix).at(e)};
+                frame.element("current_y" + suffix).at(e),
+                frame.element("current_z" + suffix).at(e)};
             const double d =
                 std::hypot(p[0] - reference.position.x, p[1] - reference.position.y, p[2] - reference.position.z);
             if (d < distance) {
@@ -615,7 +732,8 @@ bool compare_production_hex8_full_field(const std::string& output_path, const Pr
         maximum_integration_coordinate_difference = std::max(maximum_integration_coordinate_difference, distance);
         const auto suffix = "_q" + std::to_string(closest);
         const std::array<double, 3> actual_heat_flux = {frame.element("heat_flux_x" + suffix).at(e),
-            frame.element("heat_flux_y" + suffix).at(e), frame.element("heat_flux_z" + suffix).at(e)};
+            frame.element("heat_flux_y" + suffix).at(e),
+            frame.element("heat_flux_z" + suffix).at(e)};
         const auto actual_stress = tensor_output(frame, "stress_", closest, e);
         const auto actual_logarithmic = tensor_output(frame, "logarithmic_strain_", closest, e);
         const auto elastic = tensor_output(frame, "elastic_", closest, e),
@@ -626,10 +744,12 @@ bool compare_production_hex8_full_field(const std::string& output_path, const Pr
                    expected_elastic = components(reference.elastic_strain),
                    expected_plastic = components(reference.plastic_strain),
                    expected_creep = components(reference.creep_strain);
-        const std::array<double, 3> expected_position = {
-            reference.position.x, reference.position.y, reference.position.z};
+        const std::array<double, 3> expected_position = {reference.position.x,
+            reference.position.y,
+            reference.position.z};
         integration_position.add(closest_position.data(), expected_position.data(), 3);
-        for (std::size_t c = 0; c < 3; ++c) integration_metrics[c].add(actual_heat_flux[c], reference.heat_flux[c]);
+        for (std::size_t c = 0; c < 3; ++c)
+            integration_metrics[c].add(actual_heat_flux[c], reference.heat_flux[c]);
         for (std::size_t c = 0; c < 6; ++c) {
             integration_metrics[3 + c].add(actual_stress[c], expected_stress[c]);
             integration_metrics[9 + c].add(actual_logarithmic[c], expected_logarithmic[c]);
@@ -648,57 +768,132 @@ bool compare_production_hex8_full_field(const std::string& output_path, const Pr
         integration_metrics[35].add(frame.element("material_temperature" + suffix).at(e), reference.temperature);
         integration_metrics[36].add(frame.element("integration_measure" + suffix).at(e), reference.integration_volume);
     }
-    const std::array<std::string, 37> integration_names = {"heat_flux_x", "heat_flux_y", "heat_flux_z", "stress_xx",
-        "stress_yy", "stress_zz", "stress_xy", "stress_yz", "stress_xz", "logarithmic_strain_xx",
-        "logarithmic_strain_yy", "logarithmic_strain_zz", "logarithmic_strain_xy", "logarithmic_strain_yz",
-        "logarithmic_strain_xz", "elastic_strain_xx", "elastic_strain_yy", "elastic_strain_zz", "elastic_strain_xy",
-        "elastic_strain_yz", "elastic_strain_xz", "plastic_strain_xx", "plastic_strain_yy", "plastic_strain_zz",
-        "plastic_strain_xy", "plastic_strain_yz", "plastic_strain_xz", "equivalent_plastic_strain", "creep_strain_xx",
-        "creep_strain_yy", "creep_strain_zz", "creep_strain_xy", "creep_strain_yz", "creep_strain_xz",
-        "equivalent_creep_strain", "material_temperature", "integration_volume"};
+    const std::array<std::string, 37> integration_names = {"heat_flux_x",
+        "heat_flux_y",
+        "heat_flux_z",
+        "stress_xx",
+        "stress_yy",
+        "stress_zz",
+        "stress_xy",
+        "stress_yz",
+        "stress_xz",
+        "logarithmic_strain_xx",
+        "logarithmic_strain_yy",
+        "logarithmic_strain_zz",
+        "logarithmic_strain_xy",
+        "logarithmic_strain_yz",
+        "logarithmic_strain_xz",
+        "elastic_strain_xx",
+        "elastic_strain_yy",
+        "elastic_strain_zz",
+        "elastic_strain_xy",
+        "elastic_strain_yz",
+        "elastic_strain_xz",
+        "plastic_strain_xx",
+        "plastic_strain_yy",
+        "plastic_strain_zz",
+        "plastic_strain_xy",
+        "plastic_strain_yz",
+        "plastic_strain_xz",
+        "equivalent_plastic_strain",
+        "creep_strain_xx",
+        "creep_strain_yy",
+        "creep_strain_zz",
+        "creep_strain_xy",
+        "creep_strain_yz",
+        "creep_strain_xz",
+        "equivalent_creep_strain",
+        "material_temperature",
+        "integration_volume"};
     for (std::size_t field = 0; field < integration_metrics.size(); ++field)
-        report_metric(prefix + integration_names[field], integration_metrics[field], options.bulk_relative_tolerance,
+        report_metric(prefix + integration_names[field],
+            integration_metrics[field],
+            options.bulk_relative_tolerance,
             bulk_pointwise_tolerance,
             field < 3    ? 1.0e-6
             : field < 9  ? 1.0
             : field < 35 ? 1.0e-12
                          : 1.0e-10,
             false);
-    passed = report_grouped(prefix + "integration_position", integration_position, options.bulk_relative_tolerance,
-                 bulk_pointwise_tolerance, options.coordinate_tolerance, true) &&
-             passed;
-    passed = report_grouped(prefix + "stress_tensor", stress_tensor, options.bulk_relative_tolerance,
-                 stress_pointwise_tolerance, options.case_name == "b523" ? 1e-12 : 1.0, true,
-                 options.stress_pointwise_absolute_tolerance) &&
-             passed;
-    passed = report_grouped(prefix + "logarithmic_strain_tensor", logarithmic_strain_tensor,
-                 options.bulk_relative_tolerance, logarithmic_strain_pointwise_tolerance, 1.0e-12, true,
-                 options.logarithmic_strain_pointwise_absolute_tolerance) &&
-             passed;
-    passed =
-        report_grouped(prefix + "elastic_strain_tensor", elastic_strain_tensor, options.bulk_relative_tolerance,
-            elastic_strain_pointwise_tolerance, 1.0e-12, true, options.elastic_strain_pointwise_absolute_tolerance) &&
-        passed;
-    passed = report_grouped(prefix + "plastic_strain_tensor", plastic_strain_tensor, options.bulk_relative_tolerance,
-                 inelastic_pointwise_tolerance, 1.0e-12, true) &&
-             passed;
-    passed = report_grouped(prefix + "creep_strain_tensor", creep_strain_tensor, options.bulk_relative_tolerance,
-                 inelastic_pointwise_tolerance, 1.0e-12, true) &&
-             passed;
-    passed = report_metric(prefix + "equivalent_plastic_strain", integration_metrics[27],
-                 options.bulk_relative_tolerance, inelastic_pointwise_tolerance, 1.0e-12, true) &&
-             passed;
-    passed = report_metric(prefix + "equivalent_creep_strain", integration_metrics[34], options.bulk_relative_tolerance,
-                 inelastic_pointwise_tolerance, 1.0e-12, true) &&
-             passed;
-    passed = report_metric(prefix + "material_temperature", integration_metrics[35], options.bulk_relative_tolerance,
-                 bulk_pointwise_tolerance, options.case_name == "b523" ? 1e-12 : 1.0e-8, true) &&
-             passed;
-    passed = report_metric(prefix + "integration_volume", integration_metrics[36], options.bulk_relative_tolerance,
-                 bulk_pointwise_tolerance, 1.0e-15, true) &&
-             passed;
-    report_grouped(prefix + "heat_flux_vector", heat_flux_vector, options.bulk_relative_tolerance,
-        bulk_pointwise_tolerance, 1.0e-6, false);
+    passed = report_grouped(prefix + "integration_position",
+                 integration_position,
+                 options.bulk_relative_tolerance,
+                 bulk_pointwise_tolerance,
+                 options.coordinate_tolerance,
+                 true)
+             && passed;
+    passed = report_grouped(prefix + "stress_tensor",
+                 stress_tensor,
+                 options.bulk_relative_tolerance,
+                 stress_pointwise_tolerance,
+                 options.case_name == "b523" ? 1e-12 : 1.0,
+                 true,
+                 options.stress_pointwise_absolute_tolerance)
+             && passed;
+    passed = report_grouped(prefix + "logarithmic_strain_tensor",
+                 logarithmic_strain_tensor,
+                 options.bulk_relative_tolerance,
+                 logarithmic_strain_pointwise_tolerance,
+                 1.0e-12,
+                 true,
+                 options.logarithmic_strain_pointwise_absolute_tolerance)
+             && passed;
+    passed = report_grouped(prefix + "elastic_strain_tensor",
+                 elastic_strain_tensor,
+                 options.bulk_relative_tolerance,
+                 elastic_strain_pointwise_tolerance,
+                 1.0e-12,
+                 true,
+                 options.elastic_strain_pointwise_absolute_tolerance)
+             && passed;
+    passed = report_grouped(prefix + "plastic_strain_tensor",
+                 plastic_strain_tensor,
+                 options.bulk_relative_tolerance,
+                 inelastic_pointwise_tolerance,
+                 1.0e-12,
+                 true)
+             && passed;
+    passed = report_grouped(prefix + "creep_strain_tensor",
+                 creep_strain_tensor,
+                 options.bulk_relative_tolerance,
+                 inelastic_pointwise_tolerance,
+                 1.0e-12,
+                 true)
+             && passed;
+    passed = report_metric(prefix + "equivalent_plastic_strain",
+                 integration_metrics[27],
+                 options.bulk_relative_tolerance,
+                 inelastic_pointwise_tolerance,
+                 1.0e-12,
+                 true)
+             && passed;
+    passed = report_metric(prefix + "equivalent_creep_strain",
+                 integration_metrics[34],
+                 options.bulk_relative_tolerance,
+                 inelastic_pointwise_tolerance,
+                 1.0e-12,
+                 true)
+             && passed;
+    passed = report_metric(prefix + "material_temperature",
+                 integration_metrics[35],
+                 options.bulk_relative_tolerance,
+                 bulk_pointwise_tolerance,
+                 options.case_name == "b523" ? 1e-12 : 1.0e-8,
+                 true)
+             && passed;
+    passed = report_metric(prefix + "integration_volume",
+                 integration_metrics[36],
+                 options.bulk_relative_tolerance,
+                 bulk_pointwise_tolerance,
+                 1.0e-15,
+                 true)
+             && passed;
+    report_grouped(prefix + "heat_flux_vector",
+        heat_flux_vector,
+        options.bulk_relative_tolerance,
+        bulk_pointwise_tolerance,
+        1.0e-6,
+        false);
     std::cout << prefix << "maximum_integration_coordinate_difference=" << maximum_integration_coordinate_difference
               << '\n';
     if (maximum_integration_coordinate_difference >= (options.case_name == "b523" ? 1e-4 : 1e-3)) {
@@ -721,14 +916,14 @@ bool compare_production_hex8_full_field(const std::string& output_path, const Pr
         cumulative_plastic += snapshot.global("conservation_plastic_dissipation_increment");
         cumulative_creep += snapshot.global("conservation_creep_dissipation_increment");
         cumulative_friction += snapshot.global("conservation_friction_dissipation_increment");
-        cumulative_external_work += snapshot.global("conservation_trapezoidal_pressure_traction_work_increment") +
-                                    snapshot.global("conservation_trapezoidal_dirichlet_reaction_work_increment");
+        cumulative_external_work += snapshot.global("conservation_trapezoidal_pressure_traction_work_increment")
+                                    + snapshot.global("conservation_trapezoidal_dirichlet_reaction_work_increment");
         maximum_abaqus_artificial_energy = std::max(maximum_abaqus_artificial_energy, std::abs(expected.artificial));
         if (expected.internal != 0.0)
             maximum_abaqus_artificial_energy_fraction =
                 std::max(maximum_abaqus_artificial_energy_fraction, std::abs(expected.artificial / expected.internal));
-        energy_metrics[0].add(
-            cumulative_elastic + cumulative_plastic + cumulative_creep, expected.internal - expected.artificial);
+        energy_metrics[0].add(cumulative_elastic + cumulative_plastic + cumulative_creep,
+            expected.internal - expected.artificial);
         energy_metrics[1].add(cumulative_elastic, expected.elastic);
         energy_metrics[2].add(cumulative_plastic, expected.plastic);
         energy_metrics[3].add(cumulative_creep, expected.creep);
@@ -742,18 +937,26 @@ bool compare_production_hex8_full_field(const std::string& output_path, const Pr
             stored_heat.add(cumulative_stored_heat, cumulative_reference_heat);
         }
     }
-    const std::array<std::string, 8> energy_names = {"internal_energy", "elastic_energy", "plastic_dissipation",
-        "creep_dissipation", "friction_dissipation", "external_work", "boundary_heat_rate",
+    const std::array<std::string, 8> energy_names = {"internal_energy",
+        "elastic_energy",
+        "plastic_dissipation",
+        "creep_dissipation",
+        "friction_dissipation",
+        "external_work",
+        "boundary_heat_rate",
         "mechanical_hourglass_energy"};
     for (std::size_t field = 0; field < energy_metrics.size(); ++field) {
         const bool comparable = field != 4;
-        passed =
-            report_metric(prefix + energy_names[field], energy_metrics[field], options.energy_relative_tolerance,
-                energy_pointwise_tolerance, field == 6 && options.case_name != "b523" ? 1.0e-2 : 1.0e-8, comparable,
-                field == 5   ? options.external_work_pointwise_absolute_tolerance
-                : field == 7 ? options.hourglass_energy_pointwise_absolute_tolerance
-                             : 0.0) &&
-            passed;
+        passed = report_metric(prefix + energy_names[field],
+                     energy_metrics[field],
+                     options.energy_relative_tolerance,
+                     energy_pointwise_tolerance,
+                     field == 6 && options.case_name != "b523" ? 1.0e-2 : 1.0e-8,
+                     comparable,
+                     field == 5   ? options.external_work_pointwise_absolute_tolerance
+                     : field == 7 ? options.hourglass_energy_pointwise_absolute_tolerance
+                                  : 0.0)
+                 && passed;
     }
     std::cout << prefix << "abaqus_artificial_energy_maximum_absolute=" << maximum_abaqus_artificial_energy << '\n'
               << prefix
@@ -762,22 +965,25 @@ bool compare_production_hex8_full_field(const std::string& output_path, const Pr
     std::cout << prefix << "compared_nodal_rows=" << nodes.size() << '\n'
               << prefix << "compared_integration_rows=" << integration.size() << '\n'
               << prefix << "compared_energy_rows=" << energy.size() << '\n';
-    if (!options.contact_name.empty()) passed = compare_contact_history(frames, options) && passed;
+    if (!options.contact_name.empty())
+        passed = compare_contact_history(frames, options) && passed;
     if (options.case_name == "b523") {
         passed = report_metric(prefix + "stored_heat", stored_heat, 1e-2, 1e-2, 1e-8, true) && passed;
         const auto& final = frames.back();
         const auto active = std::count_if(final.nodal("contact_pressure_coupled_contact").begin(),
-            final.nodal("contact_pressure_coupled_contact").end(), [](double p) { return p > 0; });
+            final.nodal("contact_pressure_coupled_contact").end(),
+            [](double p) { return p > 0; });
         const auto& plastic = final.element("equiv_plastic_q0");
         const auto& creep = final.element("equiv_creep_q0");
-        if (active != 4 || !(*std::max_element(plastic.begin(), plastic.end()) > 0) ||
-            !(*std::max_element(creep.begin(), creep.end()) > 0) ||
-            !(cumulative_friction > 0 && energy.back().friction > 0)) {
+        if (active != 4 || !(*std::max_element(plastic.begin(), plastic.end()) > 0)
+            || !(*std::max_element(creep.begin(), creep.end()) > 0)
+            || !(cumulative_friction > 0 && energy.back().friction > 0)) {
             std::cerr << "[FAIL] B5.23 must activate both inelastic mechanisms, friction, and all four contact nodes\n";
             passed = false;
         }
     }
-    if (passed) std::cout << "[PASS] " << options.case_name << " Abaqus full-field comparison\n";
+    if (passed)
+        std::cout << "[PASS] " << options.case_name << " Abaqus full-field comparison\n";
     return passed;
 }
 } // namespace fuelsim::test

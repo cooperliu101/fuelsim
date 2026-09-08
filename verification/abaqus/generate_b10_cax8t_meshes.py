@@ -63,10 +63,10 @@ def write_exodus(path, title, coordinates, blocks, boundaries, node_sets):
             element_dimension = "num_el_in_blk%d" % index
             node_dimension = "num_nod_per_el%d" % index
             file.createDimension(element_dimension, len(elements))
-            file.createDimension(node_dimension, 8)
+            file.createDimension(node_dimension, len(elements[0]))
             connectivity = add_variable(
                 file, "connect%d" % index, (element_dimension, node_dimension), elements)
-            connectivity.elem_type = "QUAD8"
+            connectivity.elem_type = "QUAD8" if len(elements[0]) == 8 else "QUAD4"
         for index, (_, elements, sides) in enumerate(boundaries, 1):
             dimension = "num_side_ss%d" % index
             file.createDimension(dimension, len(sides))

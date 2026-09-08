@@ -27,13 +27,16 @@ struct NodalFieldComparison final {
 };
 
 std::vector<NodalFieldReference> read_moose_nodal_reference(const std::string& path);
-NodalFieldComparison compare_moose_nodal_fields(
-    const SteadyProblem& problem, const std::vector<double>& state, const std::vector<NodalFieldReference>& reference);
-NodalFieldComparison compare_moose_nodal_fields(const TransientProblem& problem, const std::vector<double>& state,
+NodalFieldComparison compare_moose_nodal_fields(const SteadyProblem& problem,
+    const std::vector<double>& state,
+    const std::vector<NodalFieldReference>& reference);
+NodalFieldComparison compare_moose_nodal_fields(const TransientProblem& problem,
+    const std::vector<double>& state,
     const std::vector<NodalFieldReference>& reference);
 std::vector<double> read_moose_contact_pressure_reference(const std::string& path, std::vector<double>& coordinates);
 FieldErrorMetrics compare_moose_contact_pressure(const std::vector<ContactNodeSummary>& actual,
-    const std::vector<double>& reference, const std::vector<double>& reference_coordinates,
+    const std::vector<double>& reference,
+    const std::vector<double>& reference_coordinates,
     double coordinate_tolerance);
 } // namespace fuelsim::test
 #endif

@@ -32,14 +32,14 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
 
     void commit_contact_state(const std::vector<double>& state);
     bool uses_augmented_contact() const noexcept;
-    AugmentedContactUpdate update_augmented_contact_multipliers(
-        const std::vector<double>& state, std::size_t completed_updates);
-    void restore_contact_state(
-        const std::vector<double>& state, std::vector<std::vector<ContactPointHistory>> histories);
+    AugmentedContactUpdate update_augmented_contact_multipliers(const std::vector<double>& state,
+        std::size_t completed_updates);
+    void restore_contact_state(const std::vector<double>& state,
+        std::vector<std::vector<ContactPointHistory>> histories);
     void set_load_factor(double load_factor);
     void set_time(double time);
-    std::vector<ContactNodeSummary> summarize_contact_nodes(
-        std::size_t contact_index, const std::vector<double>& state) const;
+    std::vector<ContactNodeSummary> summarize_contact_nodes(std::size_t contact_index,
+        const std::vector<double>& state) const;
     std::vector<std::size_t> contact_secondary_source_nodes(std::size_t contact_index) const;
     InterfaceSummary summarize_interface(std::size_t contact_index, const std::vector<double>& state) const;
 
@@ -52,10 +52,10 @@ class SpatialAssembly final : public spatial_detail::SpatialLayout {
     void validate_local_state(std::size_t first, std::size_t last, const std::vector<double>& state) const;
     LocalDofs contribution_dofs(std::size_t index) const;
     LocalDofs sparsity_contribution_dofs(std::size_t index) const;
-    LocalResidual compute_contribution(
-        std::size_t index, const LocalValues& state, LocalJacobian* jacobian = nullptr) const;
-    std::pair<std::size_t, std::array<std::size_t, 2>> edge_parent(
-        std::size_t region, const Line2BoundaryElement& edge) const;
+    LocalResidual
+    compute_contribution(std::size_t index, const LocalValues& state, LocalJacobian* jacobian = nullptr) const;
+    std::pair<std::size_t, std::array<std::size_t, 2>> edge_parent(std::size_t region,
+        const Line2BoundaryElement& edge) const;
 
   private:
     struct ContributionRanges final {

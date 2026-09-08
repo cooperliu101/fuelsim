@@ -11,8 +11,8 @@ constexpr std::array<double, 4> mode = {1.0, -1.0, 1.0, -1.0};
 constexpr std::array<std::array<double, 2>, 4> signs = {{{-1, -1}, {1, -1}, {1, 1}, {-1, 1}}};
 
 struct ReducedGeometry final {
-    double volume = 0.0, center_volume = 0.0;
-    LocalValues volume_derivative{}, center_derivative{};
+    double volume = 0.0;
+    LocalValues volume_derivative{};
     Gradient gradient{};
     GradientDerivative gradient_derivative{};
     std::array<double, 4> hoop{}, measures{}, gamma{};
@@ -44,9 +44,11 @@ ReducedGeometry reduce_geometry(const Quad4RzGeometry& reference, const LocalVal
         for (std::size_t n = 0; n < 4; ++n) {
             result.measures[n] += w * p.shape[n];
             result.hoop[n] += w * p.shape[n] / radius;
-            for (std::size_t d = 0; d < 2; ++d) result.gradient[n][d] += w * b[n][d];
+            for (std::size_t d = 0; d < 2; ++d)
+                result.gradient[n][d] += w * b[n][d];
         }
-        if (chain_scale == 0.0) continue;
+        if (chain_scale == 0.0)
+            continue;
         for (std::size_t j = 0; j < 8; ++j) {
             const auto a = j % 4, c = j / 4, column = 4 + j;
             const double dr = c == 0 ? p.shape[a] : 0.0;
@@ -63,14 +65,15 @@ ReducedGeometry reduce_geometry(const Quad4RzGeometry& reference, const LocalVal
     }
     for (std::size_t n = 0; n < 4; ++n) {
         result.hoop[n] /= result.volume;
-        for (std::size_t d = 0; d < 2; ++d) result.gradient[n][d] /= result.volume;
+        for (std::size_t d = 0; d < 2; ++d)
+            result.gradient[n][d] /= result.volume;
         for (std::size_t j = 0; j < 12; ++j) {
             result.hoop_derivative[n][j] =
                 (result.hoop_derivative[n][j] - result.hoop[n] * result.volume_derivative[j]) / result.volume;
             for (std::size_t d = 0; d < 2; ++d)
                 result.gradient_derivative[n][d][j] =
-                    (result.gradient_derivative[n][d][j] - result.gradient[n][d] * result.volume_derivative[j]) /
-                    result.volume;
+                    (result.gradient_derivative[n][d][j] - result.gradient[n][d] * result.volume_derivative[j])
+                    / result.volume;
         }
     }
     std::array<double, 2> projected{}, center{};
@@ -87,8 +90,8 @@ ReducedGeometry reduce_geometry(const Quad4RzGeometry& reference, const LocalVal
         jzz += z * signs[n][1] / 4.0;
     }
     const double det_center = jrr * jzz - jrz * jzr;
-    if (!(det_center > 0.0) || !(center[0] > 0.0)) throw std::domain_error("CAX4RT center geometry must be positive");
-    result.center_volume = 8.0 * std::acos(-1.0) * center[0] * det_center;
+    if (!(det_center > 0.0) || !(center[0] > 0.0))
+        throw std::domain_error("CAX4RT center geometry must be positive");
     for (std::size_t n = 0; n < 4; ++n) {
         result.gamma[n] = mode[n] - result.gradient[n][0] * projected[0] - result.gradient[n][1] * projected[1];
         for (std::size_t j = 4; j < 12; ++j) {
@@ -97,18 +100,14 @@ ReducedGeometry reduce_geometry(const Quad4RzGeometry& reference, const LocalVal
             for (std::size_t d = 0; d < 2; ++d)
                 result.gamma_derivative[n][j] -= result.gradient_derivative[n][d][j] * projected[d];
         }
-        result.center_derivative[4 + n] =
-            chain_scale * 8.0 * std::acos(-1.0) *
-            (det_center / 4.0 + center[0] * (signs[n][0] * jzz - signs[n][1] * jzr) / 4.0);
-        result.center_derivative[8 + n] =
-            chain_scale * 8.0 * std::acos(-1.0) * center[0] * (jrr * signs[n][1] - jrz * signs[n][0]) / 4.0;
     }
     // Abaqus/Standard CAX4RT thermal stabilization uses the first two local-node
     // mean gradients and the per-radian volume. Native operator identification
     // includes radial translation, aspect ratio, skew and a 1000-fold scale change.
     double norm = 0.0;
     for (std::size_t n = 0; n < 2; ++n)
-        for (double g : result.gradient[n]) norm += g * g;
+        for (double g : result.gradient[n])
+            norm += g * g;
     const double denominator = 12.0 * std::acos(-1.0);
     result.thermal_coefficient = result.volume * norm / denominator;
     for (std::size_t j = 4; j < 12; ++j) {
@@ -126,7 +125,8 @@ LocalValues chain(const adlite::Scalar& x, const std::array<LocalValues, 6>& see
     x.copy_derivatives(dx.data(), dx.size());
     LocalValues result{};
     for (std::size_t j = 0; j < 12; ++j)
-        for (std::size_t k = 0; k < 6; ++k) result[j] += dx[k] * seeds[k][j];
+        for (std::size_t k = 0; k < 6; ++k)
+            result[j] += dx[k] * seeds[k][j];
     return result;
 }
 
@@ -136,8 +136,10 @@ struct HourglassState final {
     std::array<std::array<double, 2>, 2> deformation = {{{1, 0}, {0, 1}}};
 };
 
-HourglassState hourglass_state(const Quad4RzData& data, const Quad4RzGeometry& geometry,
-    const ReducedGeometry& reference, const LocalValues& state) {
+HourglassState hourglass_state(const Quad4RzData& data,
+    const Quad4RzGeometry& geometry,
+    const ReducedGeometry& reference,
+    const LocalValues& state) {
     HourglassState result;
     double norm = 0.0, normalization = 0.0, radius = 0.0, axial = 0.0;
     for (const auto& point : geometry.points) {
@@ -146,7 +148,8 @@ HourglassState hourglass_state(const Quad4RzData& data, const Quad4RzGeometry& g
     }
     for (std::size_t n = 0; n < 4; ++n) {
         normalization += reference.gamma[n] * mode[n];
-        for (double b : reference.gradient[n]) norm += b * b;
+        for (double b : reference.gradient[n])
+            norm += b * b;
         for (std::size_t c = 0; c < 2; ++c) {
             result.amplitude[c] += reference.gamma[n] * state[4 + 4 * c + n];
             if (data.strain_formulation == StrainFormulation::finite)
@@ -160,20 +163,27 @@ HourglassState hourglass_state(const Quad4RzData& data, const Quad4RzGeometry& g
     if (!std::isfinite(result.coefficient) || !(result.coefficient > 0.0))
         throw std::domain_error("CAX4RT requires a positive finite initial hourglass stiffness");
     for (std::size_t d = 0; d < 2; ++d)
-        for (std::size_t c = 0; c < 2; ++c) result.transported[d] += result.deformation[c][d] * result.amplitude[c];
+        for (std::size_t c = 0; c < 2; ++c)
+            result.transported[d] += result.deformation[c][d] * result.amplitude[c];
     return result;
 }
 } // namespace
 
-Cax4rtResult compute_cax4rt(const Quad4RzData& data, const Quad4RzGeometry& geometry, const LocalValues& state,
-    const LocalValues& committed, const Quad4MaterialHistory* history, double time_step, bool jacobian,
+Cax4rtResult compute_cax4rt(const Quad4RzData& data,
+    const Quad4RzGeometry& geometry,
+    const LocalValues& state,
+    const LocalValues& committed,
+    const Quad4MaterialHistory* history,
+    double time_step,
+    bool jacobian,
     bool thermal_time) {
     const bool finite = data.strain_formulation == StrainFormulation::finite;
     const auto reference = reduce_geometry(geometry, {}, 0.0);
     const auto current = finite ? reduce_geometry(geometry, state, jacobian ? 1.0 : 0.0) : reference;
     const auto old = finite ? reduce_geometry(geometry, committed, 0.0) : reference;
     LocalValues midpoint_state{};
-    for (std::size_t j = 0; j < 12; ++j) midpoint_state[j] = (state[j] + committed[j]) / 2.0;
+    for (std::size_t j = 0; j < 12; ++j)
+        midpoint_state[j] = (state[j] + committed[j]) / 2.0;
     const auto midpoint = finite ? reduce_geometry(geometry, midpoint_state, jacobian ? 0.5 : 0.0) : reference;
     std::array<double, 6> values{}, old_values{};
     std::array<LocalValues, 6> seeds{};
@@ -192,7 +202,8 @@ Cax4rtResult compute_cax4rt(const Quad4RzData& data, const Quad4RzGeometry& geom
         seeds[5][n] = current.measures[n] / current.volume;
     }
     for (std::size_t j = 4; j < 12; ++j) {
-        for (std::size_t n = 0; n < 4; ++n) seeds[5][j] += current.measure_derivative[n][j] * state[n] / current.volume;
+        for (std::size_t n = 0; n < 4; ++n)
+            seeds[5][j] += current.measure_derivative[n][j] * state[n] / current.volume;
         seeds[5][j] -= values[5] * current.volume_derivative[j] / current.volume;
     }
     double trace = 0.0;
@@ -204,8 +215,8 @@ Cax4rtResult compute_cax4rt(const Quad4RzData& data, const Quad4RzGeometry& geom
         trace_derivative[4 + n] += midpoint.gradient[n][0] + midpoint.hoop[n];
         trace_derivative[8 + n] += midpoint.gradient[n][1];
         for (std::size_t j = 4; j < 12; ++j)
-            trace_derivative[j] += ur * (midpoint.gradient_derivative[n][0][j] + midpoint.hoop_derivative[n][j]) +
-                                   uz * midpoint.gradient_derivative[n][1][j];
+            trace_derivative[j] += ur * (midpoint.gradient_derivative[n][0][j] + midpoint.hoop_derivative[n][j])
+                                   + uz * midpoint.gradient_derivative[n][1][j];
     }
     std::array<adlite::Scalar, 6> active;
     for (std::size_t i = 0; i < 6; ++i)
@@ -221,7 +232,8 @@ Cax4rtResult compute_cax4rt(const Quad4RzData& data, const Quad4RzGeometry& geom
             throw std::domain_error("CAX4RT averaged deformation must be positive");
         const adlite::Scalar a = 2.0 + active[0] + old_values[0], b = active[1] + old_values[1],
                              c = active[2] + old_values[2], d = 2.0 + active[3] + old_values[3], det = a * d - b * c;
-        if (!(det.value() > 0.0)) throw std::domain_error("CAX4RT averaged midpoint must be positive");
+        if (!(det.value() > 0.0))
+            throw std::domain_error("CAX4RT averaged midpoint must be positive");
         const adlite::Scalar hrr = 2.0 * ((active[0] - old_values[0]) * d - (active[1] - old_values[1]) * c) / det,
                              hrz = 2.0 * (-(active[0] - old_values[0]) * b + (active[1] - old_values[1]) * a) / det,
                              hzr = 2.0 * ((active[2] - old_values[2]) * d - (active[3] - old_values[3]) * c) / det,
@@ -249,21 +261,33 @@ Cax4rtResult compute_cax4rt(const Quad4RzData& data, const Quad4RzGeometry& geom
         auto old_context = context;
         old_context.time -= time_step;
         const auto eigen = data.material.eigenstrain_rz(old_values[5], old_context);
-        const std::array<double, 4> imposed = {
-            eigen.rr.value(), eigen.zz.value(), eigen.hoop.value(), eigen.rz.value()};
+        const std::array<double, 4> imposed = {eigen.rr.value(),
+            eigen.zz.value(),
+            eigen.hoop.value(),
+            eigen.rz.value()};
         for (std::size_t i = 0; i < 4; ++i)
-            fed[i] += (*history)[0].elastic_strain[i] + (*history)[0].plastic_strain[i] +
-                      (*history)[0].creep_strain[i] + imposed[i];
+            fed[i] += (*history)[0].elastic_strain[i] + (*history)[0].plastic_strain[i] + (*history)[0].creep_strain[i]
+                      + imposed[i];
     }
     std::array<adlite::Scalar, 5> material_inputs;
     for (std::size_t i = 0; i < 5; ++i)
         material_inputs[i] = jacobian ? adlite::Scalar::independent(fed[i], i, 5) : adlite::Scalar(fed[i]);
     const auto raw = history ? data.material
-                                   .response(material_inputs[0], material_inputs[1], material_inputs[2],
-                                       material_inputs[3], material_inputs[4], time_step, (*history)[0], context)
+                                   .response(material_inputs[0],
+                                       material_inputs[1],
+                                       material_inputs[2],
+                                       material_inputs[3],
+                                       material_inputs[4],
+                                       time_step,
+                                       (*history)[0],
+                                       context)
                                    .stress
-                             : data.material.stress(material_inputs[0], material_inputs[1], material_inputs[2],
-                                   material_inputs[3], material_inputs[4], context);
+                             : data.material.stress(material_inputs[0],
+                                   material_inputs[1],
+                                   material_inputs[2],
+                                   material_inputs[3],
+                                   material_inputs[4],
+                                   context);
     const std::array<adlite::Scalar, 4> raw_components = {raw.rr, raw.zz, raw.hoop, raw.rz};
     std::array<adlite::Scalar, 4> composed;
     std::array<double, 4> trace_response{};
@@ -285,22 +309,35 @@ Cax4rtResult compute_cax4rt(const Quad4RzData& data, const Quad4RzGeometry& geom
     std::array<LocalValues, 4> stress_derivative{};
     for (std::size_t i = 0; i < 4; ++i) {
         stress_derivative[i] = chain(stress[i], seeds);
-        for (std::size_t j = 0; j < 12; ++j) stress_derivative[i][j] += trace_response[i] * trace_derivative[j];
+        for (std::size_t j = 0; j < 12; ++j)
+            stress_derivative[i][j] += trace_response[i] * trace_derivative[j];
     }
     Cax4rtResult result;
     if (history) {
-        const AxisymmetricRotation rot = {
-            rotation.rr.value(), rotation.rz.value(), rotation.zr.value(), rotation.zz.value(), 1.0};
+        const AxisymmetricRotation rot = {rotation.rr.value(),
+            rotation.rz.value(),
+            rotation.zr.value(),
+            rotation.zz.value(),
+            1.0};
         const auto response =
-            finite ? data.material.incremental_response(rr.value(), zz.value(), hoop.value(), rz.value(), rot,
-                         values[5], old_values[5], time_step, (*history)[0], context)
+            finite ? data.material.incremental_response(rr.value(),
+                         zz.value(),
+                         hoop.value(),
+                         rz.value(),
+                         rot,
+                         values[5],
+                         old_values[5],
+                         time_step,
+                         (*history)[0],
+                         context)
                    : data.material.response(fed[0], fed[1], fed[2], fed[3], fed[4], time_step, (*history)[0], context);
         result.history[0] = IsotropicThermoelasticMaterial::state_values(response.trial_state);
     }
     result.history[0].stress = {sigma.rr.value(), sigma.zz.value(), sigma.hoop.value(), sigma.rz.value()};
     const double p = (sigma.rr.value() + sigma.zz.value()) / 2.0;
     LocalValues dp{};
-    for (std::size_t j = 0; j < 12; ++j) dp[j] = (stress_derivative[0][j] + stress_derivative[1][j]) / 2.0;
+    for (std::size_t j = 0; j < 12; ++j)
+        dp[j] = (stress_derivative[0][j] + stress_derivative[1][j]) / 2.0;
     for (std::size_t n = 0; n < 4; ++n) {
         const adlite::Scalar br = finite ? (reference.gradient[n][0] * fzz - reference.gradient[n][1] * fzr) / fd
                                          : adlite::Scalar(reference.gradient[n][0]);
@@ -312,17 +349,18 @@ Cax4rtResult compute_cax4rt(const Quad4RzData& data, const Quad4RzGeometry& geom
             const auto row = 4 + 4 * c + n;
             const double dev = stress[c].value() - p;
             const double bmain = c == 0 ? br.value() : bz.value(), bcross = c == 0 ? bz.value() : br.value();
-            const double value = dev * bmain + sigma.rz.value() * bcross + p * current.gradient[n][c] +
-                                 (c == 0 ? p * current.hoop[n] + (sigma.hoop.value() - p) * bh.value() : 0.0);
+            const double value = dev * bmain + sigma.rz.value() * bcross + p * current.gradient[n][c]
+                                 + (c == 0 ? p * current.hoop[n] + (sigma.hoop.value() - p) * bh.value() : 0.0);
             result.residual[row] = current.volume * value;
-            if (!jacobian) continue;
+            if (!jacobian)
+                continue;
             for (std::size_t j = 0; j < 12; ++j) {
-                double dv = (stress_derivative[c][j] - dp[j]) * bmain + dev * (c == 0 ? dr[j] : dz[j]) +
-                            stress_derivative[3][j] * bcross + sigma.rz.value() * (c == 0 ? dz[j] : dr[j]) +
-                            dp[j] * current.gradient[n][c] + p * current.gradient_derivative[n][c][j];
+                double dv = (stress_derivative[c][j] - dp[j]) * bmain + dev * (c == 0 ? dr[j] : dz[j])
+                            + stress_derivative[3][j] * bcross + sigma.rz.value() * (c == 0 ? dz[j] : dr[j])
+                            + dp[j] * current.gradient[n][c] + p * current.gradient_derivative[n][c][j];
                 if (c == 0)
-                    dv += dp[j] * current.hoop[n] + p * current.hoop_derivative[n][j] +
-                          (stress_derivative[2][j] - dp[j]) * bh.value() + (sigma.hoop.value() - p) * dh[j];
+                    dv += dp[j] * current.hoop[n] + p * current.hoop_derivative[n][j]
+                          + (stress_derivative[2][j] - dp[j]) * bh.value() + (sigma.hoop.value() - p) * dh[j];
                 result.jacobian[row * 12 + j] = current.volume_derivative[j] * value + current.volume * dv;
             }
         }
@@ -341,7 +379,8 @@ Cax4rtResult compute_cax4rt(const Quad4RzData& data, const Quad4RzGeometry& geom
                 gnb += reference.gradient[n][d] * transported[d];
             }
             result.residual[row] += coefficient * (reference.gamma[n] * spatial + (finite ? amplitude[c] * gnb : 0.0));
-            if (!jacobian) continue;
+            if (!jacobian)
+                continue;
             for (std::size_t j = 0; j < 8; ++j) {
                 const auto a = j % 4, q = j / 4;
                 double spatial_derivative = 0.0, gn_derivative = 0.0;
@@ -353,44 +392,49 @@ Cax4rtResult compute_cax4rt(const Quad4RzData& data, const Quad4RzGeometry& geom
                     gn_derivative += reference.gradient[n][d] * db;
                 }
                 result.jacobian[row * 12 + 4 + j] +=
-                    coefficient *
-                    (reference.gamma[n] * spatial_derivative +
-                        (finite ? (c == q ? reference.gamma[a] * gnb : 0.0) + amplitude[c] * gn_derivative : 0.0));
+                    coefficient
+                    * (reference.gamma[n] * spatial_derivative
+                        + (finite ? (c == q ? reference.gamma[a] * gnb : 0.0) + amplitude[c] * gn_derivative : 0.0));
             }
         }
-    const auto k = data.material.conductivity(
-        jacobian ? adlite::Scalar::independent(values[5], 0, 1) : adlite::Scalar(values[5]), context);
+    const auto k =
+        data.material.conductivity(jacobian ? adlite::Scalar::independent(values[5], 0, 1) : adlite::Scalar(values[5]),
+            context);
     const double dk = k.is_active() ? k.derivative(0) : 0.0;
     std::array<double, 2> gradT{};
     double modalT = 0.0;
     for (std::size_t n = 0; n < 4; ++n) {
         modalT += current.gamma[n] * state[n];
-        for (std::size_t d = 0; d < 2; ++d) gradT[d] += current.gradient[n][d] * state[n];
+        for (std::size_t d = 0; d < 2; ++d)
+            gradT[d] += current.gradient[n][d] * state[n];
     }
     for (std::size_t n = 0; n < 4; ++n) {
         double uniform = 0.0;
-        for (std::size_t d = 0; d < 2; ++d) uniform += current.gradient[n][d] * gradT[d];
+        for (std::size_t d = 0; d < 2; ++d)
+            uniform += current.gradient[n][d] * gradT[d];
         const double conduction = current.volume * uniform + current.thermal_coefficient * current.gamma[n] * modalT;
-        result.residual[n] += k.value() * conduction - data.volumetric_heat_source * current.center_volume / 4.0;
+        result.residual[n] += k.value() * conduction - data.volumetric_heat_source * current.measures[n];
         if (jacobian)
             for (std::size_t j = 0; j < 12; ++j) {
                 double du = 0.0, dm = j < 4 ? current.gamma[j] : 0.0;
-                for (std::size_t m = 0; m < 4; ++m) dm += current.gamma_derivative[m][j] * state[m];
+                for (std::size_t m = 0; m < 4; ++m)
+                    dm += current.gamma_derivative[m][j] * state[m];
                 for (std::size_t d = 0; d < 2; ++d) {
                     double dg = j < 4 ? current.gradient[j][d] : 0.0;
-                    for (std::size_t m = 0; m < 4; ++m) dg += current.gradient_derivative[m][d][j] * state[m];
+                    for (std::size_t m = 0; m < 4; ++m)
+                        dg += current.gradient_derivative[m][d][j] * state[m];
                     du += current.gradient_derivative[n][d][j] * gradT[d] + current.gradient[n][d] * dg;
                 }
                 const double dc =
-                    current.volume_derivative[j] * uniform + current.volume * du +
-                    current.thermal_derivative[j] * current.gamma[n] * modalT +
-                    current.thermal_coefficient * (current.gamma_derivative[n][j] * modalT + current.gamma[n] * dm);
-                result.jacobian[n * 12 + j] += dk * seeds[5][j] * conduction + k.value() * dc -
-                                               data.volumetric_heat_source * current.center_derivative[j] / 4.0;
+                    current.volume_derivative[j] * uniform + current.volume * du
+                    + current.thermal_derivative[j] * current.gamma[n] * modalT
+                    + current.thermal_coefficient * (current.gamma_derivative[n][j] * modalT + current.gamma[n] * dm);
+                result.jacobian[n * 12 + j] += dk * seeds[5][j] * conduction + k.value() * dc
+                                               - data.volumetric_heat_source * current.measure_derivative[n][j];
             }
         if (history && thermal_time) {
-            const auto cap = data.material.heat_capacity(
-                jacobian ? adlite::Scalar::independent(state[n], 0, 1) : adlite::Scalar(state[n]),
+            const auto cap = data.material.heat_capacity(jacobian ? adlite::Scalar::independent(state[n], 0, 1)
+                                                                  : adlite::Scalar(state[n]),
                 {data.time, geometry.coordinates[n].r, 0.0, geometry.coordinates[n].z});
             const double rate = (state[n] - committed[n]) / time_step;
             result.residual[n] += current.measures[n] * cap.value() * rate;
@@ -398,33 +442,38 @@ Cax4rtResult compute_cax4rt(const Quad4RzData& data, const Quad4RzGeometry& geom
                 for (std::size_t j = 4; j < 12; ++j)
                     result.jacobian[n * 12 + j] += current.measure_derivative[n][j] * cap.value() * rate;
                 result.jacobian[n * 12 + n] +=
-                    current.measures[n] *
-                    (cap.value() / time_step + (cap.is_active() ? cap.derivative(0) : 0.0) * rate);
+                    current.measures[n]
+                    * (cap.value() / time_step + (cap.is_active() ? cap.derivative(0) : 0.0) * rate);
             }
         }
     }
     return result;
 }
 
-std::array<double, 2> cax4rt_thermal_rates(const Quad4RzData& data, const Quad4RzGeometry& geometry,
-    const LocalValues& state, const LocalValues& committed, double time_step, bool thermal_time) {
+std::array<double, 2> cax4rt_thermal_rates(const Quad4RzData& data,
+    const Quad4RzGeometry& geometry,
+    const LocalValues& state,
+    const LocalValues& committed,
+    double time_step,
+    bool thermal_time) {
     const auto current =
         reduce_geometry(geometry, data.strain_formulation == StrainFormulation::finite ? state : LocalValues{}, 0.0);
-    std::array<double, 2> rates = {0.0, data.volumetric_heat_source * current.center_volume};
+    std::array<double, 2> rates = {0.0, data.volumetric_heat_source * current.volume};
     if (thermal_time)
         for (std::size_t n = 0; n < 4; ++n)
             rates[0] +=
-                current.measures[n] *
-                data.material
-                    .heat_capacity(state[n], {data.time, geometry.coordinates[n].r, 0.0, geometry.coordinates[n].z})
-                    .value() *
-                (state[n] - committed[n]) / time_step;
+                current.measures[n]
+                * data.material
+                      .heat_capacity(state[n], {data.time, geometry.coordinates[n].r, 0.0, geometry.coordinates[n].z})
+                      .value()
+                * (state[n] - committed[n]) / time_step;
     return rates;
 }
 
 double cax4rt_hourglass_energy(const Quad4RzData& data, const Quad4RzGeometry& geometry, const LocalValues& state) {
     const auto hourglass = hourglass_state(data, geometry, reduce_geometry(geometry, {}, 0.0), state);
-    return 0.5 * hourglass.coefficient *
-           (hourglass.transported[0] * hourglass.transported[0] + hourglass.transported[1] * hourglass.transported[1]);
+    return 0.5 * hourglass.coefficient
+           * (hourglass.transported[0] * hourglass.transported[0]
+               + hourglass.transported[1] * hourglass.transported[1]);
 }
 } // namespace fuelsim::rz

@@ -13,8 +13,8 @@
 namespace {
 constexpr std::size_t node_count = 16;
 constexpr std::size_t step_count = 7;
-const std::array<std::string, step_count> step_names = {
-    "BASE", "GAP_PLUS", "GAP_MINUS", "SECONDARY_PLUS", "SECONDARY_MINUS", "PRIMARY_PLUS", "PRIMARY_MINUS"};
+const std::array<std::string, step_count> step_names =
+    {"BASE", "GAP_PLUS", "GAP_MINUS", "SECONDARY_PLUS", "SECONDARY_MINUS", "PRIMARY_PLUS", "PRIMARY_MINUS"};
 const std::array<std::size_t, 4> secondary_face_nodes = {1, 2, 6, 5};
 const std::array<std::size_t, 4> primary_face_nodes = {8, 11, 15, 12};
 
@@ -36,7 +36,8 @@ struct KernelProbe final {
 };
 
 bool check(bool condition, const std::string& message) {
-    if (condition) return true;
+    if (condition)
+        return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
@@ -45,19 +46,22 @@ std::vector<std::string> split_csv(const std::string& line) {
     std::vector<std::string> result;
     std::istringstream stream(line);
     std::string value;
-    while (std::getline(stream, value, ',')) result.push_back(value);
+    while (std::getline(stream, value, ','))
+        result.push_back(value);
     return result;
 }
 
 std::size_t step_index(const std::string& name) {
     const auto found = std::find(step_names.begin(), step_names.end(), name);
-    if (found == step_names.end()) throw std::invalid_argument("Unknown Abaqus B5.20 step " + name);
+    if (found == step_names.end())
+        throw std::invalid_argument("Unknown Abaqus B5.20 step " + name);
     return static_cast<std::size_t>(found - step_names.begin());
 }
 
 Reference read_reference(const std::string& path) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read Abaqus gap-conductance reference: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read Abaqus gap-conductance reference: " + path);
     std::string line;
     std::getline(input, line);
     if (line != "step,node,temperature_k,reaction_heat_flux_w,u1_m,reaction_force_x_n")
@@ -66,13 +70,16 @@ Reference read_reference(const std::string& path) {
     std::array<std::array<bool, node_count>, step_count> present{};
     while (std::getline(input, line)) {
         const std::vector<std::string> values = split_csv(line);
-        if (values.size() != 6) throw std::invalid_argument("Unexpected Abaqus B5.20 column count in " + path);
+        if (values.size() != 6)
+            throw std::invalid_argument("Unexpected Abaqus B5.20 column count in " + path);
         const std::size_t step = step_index(values[0]), node = std::stoul(values[1]);
         if (node < 1 || node > node_count || present[step][node - 1])
             throw std::invalid_argument("Invalid or duplicate Abaqus B5.20 node label in " + path);
         present[step][node - 1] = true;
-        result[step][node - 1] = {
-            std::stod(values[2]), std::stod(values[3]), std::stod(values[4]), std::stod(values[5])};
+        result[step][node - 1] = {std::stod(values[2]),
+            std::stod(values[3]),
+            std::stod(values[4]),
+            std::stod(values[5])};
     }
     for (const auto& step : present)
         if (std::find(step.begin(), step.end(), false) != step.end())
@@ -82,13 +89,16 @@ Reference read_reference(const std::string& path) {
 
 std::array<bool, node_count> interface_mask() {
     std::array<bool, node_count> result{};
-    for (const std::size_t node : secondary_face_nodes) result[node] = true;
-    for (const std::size_t node : primary_face_nodes) result[node] = true;
+    for (const std::size_t node : secondary_face_nodes)
+        result[node] = true;
+    for (const std::size_t node : primary_face_nodes)
+        result[node] = true;
     return result;
 }
 
 FieldMetrics field_metrics(const std::array<double, node_count>& actual,
-    const std::array<double, node_count>& reference, const std::array<bool, node_count>& nonzero_reference) {
+    const std::array<double, node_count>& reference,
+    const std::array<bool, node_count>& nonzero_reference) {
     double error_squared = 0.0, reference_squared = 0.0, maximum_error = 0.0, maximum_reference = 0.0;
     FieldMetrics result;
     for (std::size_t node = 0; node < node_count; ++node) {
@@ -112,12 +122,13 @@ FieldMetrics field_metrics(const std::array<double, node_count>& actual,
 
 std::array<double, node_count> reference_residual(const Reference& reference, std::size_t step) {
     std::array<double, node_count> result{};
-    for (std::size_t node = 0; node < node_count; ++node) result[node] = reference[step][node].reaction_heat_flux;
+    for (std::size_t node = 0; node < node_count; ++node)
+        result[node] = reference[step][node].reaction_heat_flux;
     return result;
 }
 
-std::array<double, node_count> reference_derivative(
-    const Reference& reference, std::size_t plus, std::size_t minus, double denominator) {
+std::array<double, node_count>
+reference_derivative(const Reference& reference, std::size_t plus, std::size_t minus, double denominator) {
     std::array<double, node_count> result{};
     for (std::size_t node = 0; node < node_count; ++node)
         result[node] =
@@ -126,10 +137,9 @@ std::array<double, node_count> reference_derivative(
 }
 
 KernelProbe evaluate_kernel(const fuelsim::GapHeatProperties& properties, double secondary_displacement) {
-    const fuelsim::Quad4FaceCoordinates secondary = {{{1.0, 0.0, 0.0}, {1.0, 1.0, 0.0}, {1.0, 1.0, 1.0},
-                                            {1.0, 0.0, 1.0}}},
-                                        primary = {
-                                            {{1.1, 0.0, 0.0}, {1.1, 1.0, 0.0}, {1.1, 1.0, 1.0}, {1.1, 0.0, 1.0}}};
+    const fuelsim::Quad4FaceCoordinates
+        secondary = {{{1.0, 0.0, 0.0}, {1.0, 1.0, 0.0}, {1.0, 1.0, 1.0}, {1.0, 0.0, 1.0}}},
+        primary = {{{1.1, 0.0, 0.0}, {1.1, 1.0, 0.0}, {1.1, 1.0, 1.0}, {1.1, 0.0, 1.0}}};
     const fuelsim::Quad4FaceGeometry face = fuelsim::make_quad4_face_geometry(secondary);
     fuelsim::Quad4SurfaceContactLocalValues state{};
     for (std::size_t node = 0; node < 4; ++node) {
@@ -140,8 +150,12 @@ KernelProbe evaluate_kernel(const fuelsim::GapHeatProperties& properties, double
     fuelsim::Quad4SurfaceContactLocalResidual local_residual{};
     fuelsim::Quad4SurfaceContactLocalJacobian local_jacobian{};
     for (const fuelsim::Quad4FaceQuadraturePoint& point : face.points) {
-        const fuelsim::Quad4ToQuad4HeatGeometry geometry{
-            secondary, primary, point.shape, point.derivative_xi, point.derivative_eta, 1.0};
+        const fuelsim::Quad4ToQuad4HeatGeometry geometry{secondary,
+            primary,
+            point.shape,
+            point.derivative_xi,
+            point.derivative_eta,
+            1.0};
         fuelsim::Quad4SurfaceContactLocalJacobian point_jacobian{};
         const fuelsim::Quad4SurfaceContactLocalResidual point_residual =
             fuelsim::compute_quad4_to_quad4_gap_heat(properties, geometry, state, &point_jacobian);
@@ -165,21 +179,26 @@ KernelProbe evaluate_kernel(const fuelsim::GapHeatProperties& properties, double
     return result;
 }
 
-bool metrics_pass(
-    const std::string& prefix, const FieldMetrics& metrics, double relative_tolerance, double zero_absolute_tolerance) {
+bool metrics_pass(const std::string& prefix,
+    const FieldMetrics& metrics,
+    double relative_tolerance,
+    double zero_absolute_tolerance) {
     std::cout << prefix << "_relative_l2=" << metrics.relative_l2 << '\n'
               << prefix << "_relative_absolute_peak=" << metrics.relative_absolute_peak << '\n'
               << prefix << "_maximum_pointwise_relative=" << metrics.maximum_pointwise_relative << '\n'
               << prefix << "_zero_reference_count=" << metrics.zero_reference_count << '\n'
               << prefix << "_zero_reference_maximum_absolute=" << metrics.zero_reference_maximum_absolute << '\n';
-    return check(metrics.relative_l2 < relative_tolerance && metrics.relative_absolute_peak < relative_tolerance &&
-                     metrics.maximum_pointwise_relative < relative_tolerance &&
-                     metrics.zero_reference_maximum_absolute < zero_absolute_tolerance,
+    return check(metrics.relative_l2 < relative_tolerance && metrics.relative_absolute_peak < relative_tolerance
+                     && metrics.maximum_pointwise_relative < relative_tolerance
+                     && metrics.zero_reference_maximum_absolute < zero_absolute_tolerance,
         prefix + " matches the Abaqus field using all three nonzero-reference metrics and separate zero accounting");
 }
 
-bool verify_law(const std::string& name, const Reference& reference, const fuelsim::GapHeatProperties& properties,
-    double displacement, double expected_pressure) {
+bool verify_law(const std::string& name,
+    const Reference& reference,
+    const fuelsim::GapHeatProperties& properties,
+    double displacement,
+    double expected_pressure) {
     const KernelProbe kernel = evaluate_kernel(properties, displacement);
     const std::array<bool, node_count> mask = interface_mask();
     const std::array<double, node_count> abaqus_residual = reference_residual(reference, 0);
@@ -189,31 +208,37 @@ bool verify_law(const std::string& name, const Reference& reference, const fuels
     const std::array<double, node_count> abaqus_primary_temperature_derivative =
         reference_derivative(reference, 5, 6, 2.0);
     bool passed = true;
-    passed = metrics_pass("b520_" + name + "_residual", field_metrics(kernel.residual, abaqus_residual, mask), 1.0e-12,
-                 1.0e-10) &&
-             passed;
-    passed =
-        metrics_pass("b520_" + name + "_displacement_derivative",
-            field_metrics(kernel.displacement_derivative, abaqus_displacement_derivative, mask), 1.0e-10, 1.0e-8) &&
-        passed;
+    passed = metrics_pass("b520_" + name + "_residual",
+                 field_metrics(kernel.residual, abaqus_residual, mask),
+                 1.0e-12,
+                 1.0e-10)
+             && passed;
+    passed = metrics_pass("b520_" + name + "_displacement_derivative",
+                 field_metrics(kernel.displacement_derivative, abaqus_displacement_derivative, mask),
+                 1.0e-10,
+                 1.0e-8)
+             && passed;
     passed = metrics_pass("b520_" + name + "_secondary_temperature_derivative",
                  field_metrics(kernel.secondary_temperature_derivative, abaqus_secondary_temperature_derivative, mask),
-                 1.0e-10, 1.0e-10) &&
-             passed;
+                 1.0e-10,
+                 1.0e-10)
+             && passed;
     passed = metrics_pass("b520_" + name + "_primary_temperature_derivative",
                  field_metrics(kernel.primary_temperature_derivative, abaqus_primary_temperature_derivative, mask),
-                 1.0e-10, 1.0e-10) &&
-             passed;
+                 1.0e-10,
+                 1.0e-10)
+             && passed;
     double abaqus_secondary_reaction_force = 0.0;
-    for (std::size_t node = 0; node < 8; ++node) abaqus_secondary_reaction_force += reference[0][node].reaction_force_x;
+    for (std::size_t node = 0; node < 8; ++node)
+        abaqus_secondary_reaction_force += reference[0][node].reaction_force_x;
     const double pressure_error =
         expected_pressure == 0.0 ? std::abs(abaqus_secondary_reaction_force)
                                  : std::abs(abaqus_secondary_reaction_force - expected_pressure) / expected_pressure;
     std::cout << "b520_" << name << "_abaqus_secondary_reaction_force=" << abaqus_secondary_reaction_force << '\n'
               << "b520_" << name << "_pressure_error=" << pressure_error << '\n';
     passed = check(pressure_error < 1.0e-9,
-                 name + " Abaqus mechanical reaction confirms the pressure supplied to gap conductance") &&
-             passed;
+                 name + " Abaqus mechanical reaction confirms the pressure supplied to gap conductance")
+             && passed;
     return passed;
 }
 } // namespace

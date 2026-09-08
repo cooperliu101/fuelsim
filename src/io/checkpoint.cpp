@@ -18,8 +18,8 @@
 
 namespace fuelsim {
 namespace {
-constexpr std::array<unsigned char, 16> checkpoint_magic = {
-    'F', 'U', 'E', 'L', 'S', 'I', 'M', '_', 'C', 'H', 'E', 'C', 'K', 'P', 'T', '\0'};
+constexpr std::array<unsigned char, 16> checkpoint_magic =
+    {'F', 'U', 'E', 'L', 'S', 'I', 'M', '_', 'C', 'H', 'E', 'C', 'K', 'P', 'T', '\0'};
 constexpr std::uint32_t checkpoint_version = 18U;
 constexpr std::uint32_t endian_marker = 0x01020304U;
 constexpr std::uint64_t maximum_checkpoint_bytes = 16ULL * 1024ULL * 1024ULL * 1024ULL;
@@ -33,11 +33,13 @@ std::uint64_t checksum(const std::vector<unsigned char>& bytes) {
 class BinaryBuffer final {
   public:
     void append_u32(std::uint32_t value) {
-        for (std::size_t byte = 0; byte < 4; ++byte) _bytes.push_back(static_cast<unsigned char>(value >> (8U * byte)));
+        for (std::size_t byte = 0; byte < 4; ++byte)
+            _bytes.push_back(static_cast<unsigned char>(value >> (8U * byte)));
     }
 
     void append_u64(std::uint64_t value) {
-        for (std::size_t byte = 0; byte < 8; ++byte) _bytes.push_back(static_cast<unsigned char>(value >> (8U * byte)));
+        for (std::size_t byte = 0; byte < 8; ++byte)
+            _bytes.push_back(static_cast<unsigned char>(value >> (8U * byte)));
     }
 
     void append_double(double value) { append_u64(detail::encode_double_bits(value)); }
@@ -82,55 +84,96 @@ class BinaryCursor final {
 
   private:
     void require(std::size_t size) const {
-        if (size > _bytes.size() - _position) throw std::runtime_error("Checkpoint payload is truncated");
+        if (size > _bytes.size() - _position)
+            throw std::runtime_error("Checkpoint payload is truncated");
     }
 
     const std::vector<unsigned char>& _bytes;
     std::size_t _position;
 };
 
-void append_material_values(BinaryBuffer& payload, const double* elastic, const double* plastic, const double* creep,
-    std::size_t count, double equivalent_plastic, double equivalent_creep, const double* stress) {
+void append_material_values(BinaryBuffer& payload,
+    const double* elastic,
+    const double* plastic,
+    const double* creep,
+    std::size_t count,
+    double equivalent_plastic,
+    double equivalent_creep,
+    const double* stress) {
     for (const double* values : {elastic, plastic, creep})
-        for (std::size_t component = 0; component < count; ++component) payload.append_double(values[component]);
+        for (std::size_t component = 0; component < count; ++component)
+            payload.append_double(values[component]);
     payload.append_double(equivalent_plastic);
     payload.append_double(equivalent_creep);
-    for (std::size_t component = 0; component < count; ++component) payload.append_double(stress[component]);
+    for (std::size_t component = 0; component < count; ++component)
+        payload.append_double(stress[component]);
 }
 
-void read_material_values(BinaryCursor& payload, double* elastic, double* plastic, double* creep, std::size_t count,
-    double& equivalent_plastic, double& equivalent_creep, double* stress) {
+void read_material_values(BinaryCursor& payload,
+    double* elastic,
+    double* plastic,
+    double* creep,
+    std::size_t count,
+    double& equivalent_plastic,
+    double& equivalent_creep,
+    double* stress) {
     for (double* values : {elastic, plastic, creep})
-        for (std::size_t component = 0; component < count; ++component) values[component] = payload.read_double();
+        for (std::size_t component = 0; component < count; ++component)
+            values[component] = payload.read_double();
     equivalent_plastic = payload.read_double();
     equivalent_creep = payload.read_double();
-    for (std::size_t component = 0; component < count; ++component) stress[component] = payload.read_double();
+    for (std::size_t component = 0; component < count; ++component)
+        stress[component] = payload.read_double();
 }
 
 void append_material_point(BinaryBuffer& payload, const MaterialPointState& state) {
     const double stress[] = {state.stress.rr, state.stress.zz, state.stress.hoop, state.stress.rz};
-    append_material_values(payload, state.elastic_strain.data(), state.plastic_strain.data(), state.creep_strain.data(),
-        state.elastic_strain.size(), state.equivalent_plastic_strain, state.equivalent_creep_strain, stress);
+    append_material_values(payload,
+        state.elastic_strain.data(),
+        state.plastic_strain.data(),
+        state.creep_strain.data(),
+        state.elastic_strain.size(),
+        state.equivalent_plastic_strain,
+        state.equivalent_creep_strain,
+        stress);
 }
 
 void read_material_point(BinaryCursor& payload, MaterialPointState& state) {
     double stress[4];
-    read_material_values(payload, state.elastic_strain.data(), state.plastic_strain.data(), state.creep_strain.data(),
-        4, state.equivalent_plastic_strain, state.equivalent_creep_strain, stress);
+    read_material_values(payload,
+        state.elastic_strain.data(),
+        state.plastic_strain.data(),
+        state.creep_strain.data(),
+        4,
+        state.equivalent_plastic_strain,
+        state.equivalent_creep_strain,
+        stress);
     state.stress = {stress[0], stress[1], stress[2], stress[3]};
 }
 
 void append_material_point(BinaryBuffer& payload, const CartesianMaterialPointState& state) {
-    const double stress[] = {
-        state.stress.xx, state.stress.yy, state.stress.zz, state.stress.xy, state.stress.yz, state.stress.xz};
-    append_material_values(payload, state.elastic_strain.data(), state.plastic_strain.data(), state.creep_strain.data(),
-        state.elastic_strain.size(), state.equivalent_plastic_strain, state.equivalent_creep_strain, stress);
+    const double stress[] =
+        {state.stress.xx, state.stress.yy, state.stress.zz, state.stress.xy, state.stress.yz, state.stress.xz};
+    append_material_values(payload,
+        state.elastic_strain.data(),
+        state.plastic_strain.data(),
+        state.creep_strain.data(),
+        state.elastic_strain.size(),
+        state.equivalent_plastic_strain,
+        state.equivalent_creep_strain,
+        stress);
 }
 
 void read_material_point(BinaryCursor& payload, CartesianMaterialPointState& state) {
     double stress[6];
-    read_material_values(payload, state.elastic_strain.data(), state.plastic_strain.data(), state.creep_strain.data(),
-        6, state.equivalent_plastic_strain, state.equivalent_creep_strain, stress);
+    read_material_values(payload,
+        state.elastic_strain.data(),
+        state.plastic_strain.data(),
+        state.creep_strain.data(),
+        6,
+        state.equivalent_plastic_strain,
+        state.equivalent_creep_strain,
+        stress);
     state.stress = {stress[0], stress[1], stress[2], stress[3], stress[4], stress[5]};
 }
 
@@ -158,29 +201,38 @@ BinaryBuffer state_payload(const TransientProblem& problem, double next_time_ste
     payload.append_double(state.load_factor);
     payload.append_double(next_time_step);
     append_conservation(payload, state.conservation);
-    for (const double value : state.solution) payload.append_double(value);
+    for (const double value : state.solution)
+        payload.append_double(value);
     payload.append_u32(state.previous_solution.empty() ? 0U : 1U);
     payload.append_double(state.previous_time);
-    for (const double value : state.previous_solution) payload.append_double(value);
-    for (const double value : state.raw_residual) payload.append_double(value);
-    for (const double value : state.external_load_residual) payload.append_double(value);
+    for (const double value : state.previous_solution)
+        payload.append_double(value);
+    for (const double value : state.raw_residual)
+        payload.append_double(value);
+    for (const double value : state.external_load_residual)
+        payload.append_double(value);
     for (const auto& contact : state.contact_histories) {
         for (const ContactPointHistory& history : contact) {
             payload.append_double(history.elastic_tangential_slip);
             payload.append_double(history.total_tangential_slip);
             payload.append_u32(history.sliding ? 1U : 0U);
             payload.append_double(history.normal_multiplier);
-            for (double component : history.cartesian_elastic_tangential_slip) payload.append_double(component);
-            for (double component : history.cartesian_total_tangential_slip) payload.append_double(component);
+            for (double component : history.cartesian_elastic_tangential_slip)
+                payload.append_double(component);
+            for (double component : history.cartesian_total_tangential_slip)
+                payload.append_double(component);
             payload.append_u32(history.cartesian_tangent_basis_initialized ? 1U : 0U);
-            for (double component : history.cartesian_contact_normal) payload.append_double(component);
-            for (double component : history.cartesian_contact_tangent_first) payload.append_double(component);
+            for (double component : history.cartesian_contact_normal)
+                payload.append_double(component);
+            for (double component : history.cartesian_contact_tangent_first)
+                payload.append_double(component);
         }
     }
     if (cartesian) {
         for (const auto& region : state.cartesian_material_histories)
             for (const CartesianMaterialHistory& element : region)
-                for (const CartesianMaterialPointState& point : element) append_material_point(payload, point);
+                for (const CartesianMaterialPointState& point : element)
+                    append_material_point(payload, point);
         return payload;
     }
     if (problem.uses_quad8()) {
@@ -209,14 +261,17 @@ void append_checkpoint_header(BinaryBuffer& file, const std::vector<unsigned cha
 
 std::vector<unsigned char> read_file(const std::string& path) {
     std::ifstream input(path, std::ios::binary | std::ios::ate);
-    if (!input) throw std::runtime_error("Could not open checkpoint '" + path + "'");
+    if (!input)
+        throw std::runtime_error("Could not open checkpoint '" + path + "'");
     const std::streamoff length = input.tellg();
     if (length < 0 || static_cast<std::uint64_t>(length) > maximum_checkpoint_bytes)
         throw std::runtime_error("Checkpoint size is invalid: " + path);
     input.seekg(0, std::ios::beg);
     std::vector<unsigned char> result(static_cast<std::size_t>(length));
-    if (!result.empty()) input.read(reinterpret_cast<char*>(result.data()), length);
-    if (!input) throw std::runtime_error("Could not read checkpoint '" + path + "'");
+    if (!result.empty())
+        input.read(reinterpret_cast<char*>(result.data()), length);
+    if (!input)
+        throw std::runtime_error("Could not read checkpoint '" + path + "'");
     return result;
 }
 
@@ -224,10 +279,12 @@ void write_atomic(const std::string& path, const std::vector<unsigned char>& byt
     const std::string temporary = path + ".tmp";
     try {
         std::ofstream output(temporary, std::ios::binary | std::ios::out | std::ios::trunc);
-        if (!output) throw std::runtime_error("Could not create checkpoint '" + temporary + "'");
+        if (!output)
+            throw std::runtime_error("Could not create checkpoint '" + temporary + "'");
         output.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
         output.close();
-        if (!output) throw std::runtime_error("Could not finish checkpoint '" + temporary + "'");
+        if (!output)
+            throw std::runtime_error("Could not finish checkpoint '" + temporary + "'");
         if (std::rename(temporary.c_str(), path.c_str()) != 0)
             throw std::runtime_error("Could not install checkpoint '" + path + "': " + std::strerror(errno));
     } catch (...) {
@@ -238,8 +295,10 @@ void write_atomic(const std::string& path, const std::vector<unsigned char>& byt
 } // namespace
 
 void write_transient_checkpoint(const std::string& path, const TransientProblem& problem, double next_time_step) {
-    if (path.empty()) throw std::invalid_argument("Checkpoint path must not be empty");
-    if (problem.time_step_active()) throw std::logic_error("Checkpoint cannot be written during an active time step");
+    if (path.empty())
+        throw std::invalid_argument("Checkpoint path must not be empty");
+    if (problem.time_step_active())
+        throw std::logic_error("Checkpoint cannot be written during an active time step");
     if (!std::isfinite(next_time_step) || !(next_time_step > 0.0))
         throw std::invalid_argument("Checkpoint next time step must be finite and positive");
     const BinaryBuffer payload = state_payload(problem, next_time_step);
@@ -254,13 +313,17 @@ double restore_transient_checkpoint(const std::string& path, TransientProblem& p
     BinaryCursor header(file);
     std::array<unsigned char, checkpoint_magic.size()> magic{};
     header.read_bytes(magic.data(), magic.size());
-    if (magic != checkpoint_magic) throw std::runtime_error("Checkpoint magic does not match fuelsim");
-    if (header.read_u32() != checkpoint_version) throw std::runtime_error("Checkpoint version is not supported");
-    if (header.read_u32() != endian_marker) throw std::runtime_error("Checkpoint endian marker is invalid");
+    if (magic != checkpoint_magic)
+        throw std::runtime_error("Checkpoint magic does not match fuelsim");
+    if (header.read_u32() != checkpoint_version)
+        throw std::runtime_error("Checkpoint version is not supported");
+    if (header.read_u32() != endian_marker)
+        throw std::runtime_error("Checkpoint endian marker is invalid");
     const std::uint64_t payload_size = header.read_u64();
     const std::uint64_t expected_checksum = header.read_u64();
     constexpr std::size_t header_size = 16U + 4U + 4U + 8U + 8U;
-    if (payload_size != file.size() - header_size) throw std::runtime_error("Checkpoint payload length is invalid");
+    if (payload_size != file.size() - header_size)
+        throw std::runtime_error("Checkpoint payload length is invalid");
     std::vector<unsigned char> payload_bytes(file.begin() + static_cast<std::ptrdiff_t>(header_size), file.end());
     if (checksum(payload_bytes) != expected_checksum)
         throw std::runtime_error("Checkpoint payload checksum does not match");
@@ -276,18 +339,23 @@ double restore_transient_checkpoint(const std::string& path, TransientProblem& p
     if (!std::isfinite(next_time_step) || !(next_time_step > 0.0))
         throw std::runtime_error("Checkpoint next time step is invalid");
     state.solution.resize(problem.dof_count());
-    for (double& value : state.solution) value = payload.read_double();
+    for (double& value : state.solution)
+        value = payload.read_double();
     const std::uint32_t has_previous_solution = payload.read_u32();
-    if (has_previous_solution > 1U) throw std::runtime_error("Checkpoint predictor state is invalid");
+    if (has_previous_solution > 1U)
+        throw std::runtime_error("Checkpoint predictor state is invalid");
     state.previous_time = payload.read_double();
     if (has_previous_solution == 1U) {
         state.previous_solution.resize(problem.dof_count());
-        for (double& value : state.previous_solution) value = payload.read_double();
+        for (double& value : state.previous_solution)
+            value = payload.read_double();
     }
     state.raw_residual.resize(problem.dof_count());
-    for (double& value : state.raw_residual) value = payload.read_double();
+    for (double& value : state.raw_residual)
+        value = payload.read_double();
     state.external_load_residual.resize(problem.dof_count());
-    for (double& value : state.external_load_residual) value = payload.read_double();
+    for (double& value : state.external_load_residual)
+        value = payload.read_double();
     const TransientCommittedState expected_state = BackendAccess::committed_state(problem);
     const auto& expected_histories = expected_state.contact_histories;
     state.contact_histories.resize(expected_histories.size());
@@ -299,7 +367,8 @@ double restore_transient_checkpoint(const std::string& path, TransientProblem& p
             if (!std::isfinite(history.total_tangential_slip))
                 throw std::runtime_error("Checkpoint RZ total-slip state is invalid");
             const std::uint32_t sliding = payload.read_u32();
-            if (sliding > 1U) throw std::runtime_error("Checkpoint friction state is invalid");
+            if (sliding > 1U)
+                throw std::runtime_error("Checkpoint friction state is invalid");
             history.sliding = sliding == 1U;
             history.normal_multiplier = payload.read_double();
             if (!std::isfinite(history.normal_multiplier) || history.normal_multiplier < 0.0)
@@ -315,7 +384,8 @@ double restore_transient_checkpoint(const std::string& path, TransientProblem& p
                     throw std::runtime_error("Checkpoint Cartesian total-slip state is invalid");
             }
             const std::uint32_t basis_initialized = payload.read_u32();
-            if (basis_initialized > 1U) throw std::runtime_error("Checkpoint Cartesian tangent basis is invalid");
+            if (basis_initialized > 1U)
+                throw std::runtime_error("Checkpoint Cartesian tangent basis is invalid");
             history.cartesian_tangent_basis_initialized = basis_initialized == 1U;
             for (double& component : history.cartesian_contact_normal) {
                 component = payload.read_double();
@@ -332,14 +402,14 @@ double restore_transient_checkpoint(const std::string& path, TransientProblem& p
                 for (std::size_t component = 0; component < 3; ++component) {
                     normal_norm +=
                         history.cartesian_contact_normal[component] * history.cartesian_contact_normal[component];
-                    tangent_norm += history.cartesian_contact_tangent_first[component] *
-                                    history.cartesian_contact_tangent_first[component];
-                    orthogonality += history.cartesian_contact_normal[component] *
-                                     history.cartesian_contact_tangent_first[component];
+                    tangent_norm += history.cartesian_contact_tangent_first[component]
+                                    * history.cartesian_contact_tangent_first[component];
+                    orthogonality += history.cartesian_contact_normal[component]
+                                     * history.cartesian_contact_tangent_first[component];
                 }
                 constexpr double basis_tolerance = 1.0e-8;
-                if (std::abs(normal_norm - 1.0) > basis_tolerance || std::abs(tangent_norm - 1.0) > basis_tolerance ||
-                    std::abs(orthogonality) > basis_tolerance)
+                if (std::abs(normal_norm - 1.0) > basis_tolerance || std::abs(tangent_norm - 1.0) > basis_tolerance
+                    || std::abs(orthogonality) > basis_tolerance)
                     throw std::runtime_error("Checkpoint Cartesian contact basis is not orthonormal");
             }
         }
@@ -352,10 +422,12 @@ double restore_transient_checkpoint(const std::string& path, TransientProblem& p
             for (std::size_t element_index = 0; element_index < expected_histories[region].size(); ++element_index) {
                 CartesianMaterialHistory& element = state.cartesian_material_histories[region][element_index];
                 element.resize(expected_histories[region][element_index].size());
-                for (CartesianMaterialPointState& point : element) read_material_point(payload, point);
+                for (CartesianMaterialPointState& point : element)
+                    read_material_point(payload, point);
             }
         }
-        if (!payload.at_end()) throw std::runtime_error("Checkpoint payload contains trailing data");
+        if (!payload.at_end())
+            throw std::runtime_error("Checkpoint payload contains trailing data");
         BackendAccess::restore_committed_state(problem, std::move(state));
         return next_time_step;
     }
@@ -366,7 +438,8 @@ double restore_transient_checkpoint(const std::string& path, TransientProblem& p
             for (std::size_t e = 0; e < state.quad8_material_histories[r].size(); ++e)
                 for (std::size_t q = 0; q < spatial.region_element_geometry(r, e).point_count; ++q)
                     read_material_point(payload, state.quad8_material_histories[r][e][q]);
-        if (!payload.at_end()) throw std::runtime_error("CAX8T checkpoint contains trailing data");
+        if (!payload.at_end())
+            throw std::runtime_error("CAX8T checkpoint contains trailing data");
         BackendAccess::restore_committed_state(problem, std::move(state));
         return next_time_step;
     }
@@ -379,7 +452,8 @@ double restore_transient_checkpoint(const std::string& path, TransientProblem& p
             for (std::size_t q = 0; q < 4; ++q)
                 read_material_point(payload, state.material_histories[region][element][q]);
     }
-    if (!payload.at_end()) throw std::runtime_error("Checkpoint payload contains trailing data");
+    if (!payload.at_end())
+        throw std::runtime_error("Checkpoint payload contains trailing data");
     BackendAccess::restore_committed_state(problem, std::move(state));
     return next_time_step;
 }

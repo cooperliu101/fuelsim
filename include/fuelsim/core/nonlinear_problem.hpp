@@ -68,26 +68,30 @@ class NonlinearProblem {
     virtual bool jacobian_sparsity_is_state_dependent() const noexcept;
     // Fixed metadata permits the solver to reuse contribution DOFs and local Jacobian patterns across callbacks.
     virtual bool contribution_metadata_is_fixed() const noexcept;
-    virtual std::pair<std::size_t, std::size_t> contribution_partition(
-        std::size_t partition, std::size_t partition_count) const;
+    virtual std::pair<std::size_t, std::size_t> contribution_partition(std::size_t partition,
+        std::size_t partition_count) const;
     virtual const std::vector<FieldDescriptor>& field_layout() const noexcept = 0;
     virtual void contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const = 0;
     virtual void contribution_jacobian_pattern(std::size_t index, std::vector<unsigned char>& pattern) const;
     virtual void sparsity_contribution_dofs(std::size_t index, std::vector<std::size_t>& dofs) const;
     virtual void sparsity_contribution_jacobian_pattern(std::size_t index, std::vector<unsigned char>& pattern) const;
-    virtual void compute_contribution(std::size_t index, const std::vector<double>& state,
-        std::vector<double>& residual, std::vector<double>* jacobian) const = 0;
+    virtual void compute_contribution(std::size_t index,
+        const std::vector<double>& state,
+        std::vector<double>& residual,
+        std::vector<double>* jacobian) const = 0;
     virtual const std::vector<DirichletCondition>& dirichlet_conditions() const noexcept = 0;
     virtual bool uses_augmented_contact() const noexcept;
-    virtual AugmentedContactUpdate update_augmented_contact_multipliers(
-        const std::vector<double>& state, std::size_t completed_updates);
+    virtual AugmentedContactUpdate update_augmented_contact_multipliers(const std::vector<double>& state,
+        std::size_t completed_updates);
     virtual void validate_state(const std::vector<double>& state) const;
     virtual std::vector<std::size_t> required_state_dofs(std::size_t first, std::size_t last) const;
     virtual void validate_local_state(std::size_t first, std::size_t last, const std::vector<double>& state) const;
     void validate_discretization() const;
     std::size_t field_index(std::size_t dof) const;
-    void evaluate_contribution(std::size_t index, const std::vector<double>& global_state,
-        ContributionWorkspace& workspace, bool linearize) const;
+    void evaluate_contribution(std::size_t index,
+        const std::vector<double>& global_state,
+        ContributionWorkspace& workspace,
+        bool linearize) const;
 
   private:
     std::shared_ptr<const void> _discretization_identity = std::make_shared<unsigned char>(0);

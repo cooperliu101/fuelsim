@@ -13,7 +13,9 @@ void hash_size(std::uint64_t& hash, std::size_t value) {
     detail::fnv1a_bytes(hash, &encoded, sizeof(encoded));
 }
 
-void hash_integer(std::uint64_t& hash, std::int64_t value) { detail::fnv1a_bytes(hash, &value, sizeof(value)); }
+void hash_integer(std::uint64_t& hash, std::int64_t value) {
+    detail::fnv1a_bytes(hash, &value, sizeof(value));
+}
 
 void hash_double(std::uint64_t& hash, double value) {
     const std::uint64_t encoded = detail::encode_double_bits(value);
@@ -41,6 +43,7 @@ void hash_region_definition(std::uint64_t& hash, const RegionDefinition& spatial
     hash_string(hash, spatial.heat_source_function);
     hash_integer(hash, static_cast<std::int64_t>(spatial.heat_source_time_evaluation));
     hash_integer(hash, static_cast<std::int64_t>(spatial.hex8_element_formulation));
+    hash_integer(hash, static_cast<std::int64_t>(spatial.hex20_element_formulation));
     hash_integer(hash, static_cast<std::int64_t>(spatial.rz_element_formulation));
 }
 
@@ -57,7 +60,8 @@ void hash_boundaries(std::uint64_t& hash, const SpatialDefinition& definition, b
         hash_double(hash, boundary.ambient_temperature);
         hash_string(hash, boundary.coefficient_function);
         hash_string(hash, boundary.ambient_temperature_function);
-        if (include_displaced_geometry) hash_integer(hash, boundary.use_displaced_geometry ? 1 : 0);
+        if (include_displaced_geometry)
+            hash_integer(hash, boundary.use_displaced_geometry ? 1 : 0);
     }
 }
 
@@ -88,6 +92,7 @@ void hash_contacts(std::uint64_t& hash, const SpatialDefinition& definition) {
         hash_double(hash, contact.penalty_factor);
         hash_integer(hash, static_cast<std::int64_t>(contact.mechanical_formulation));
         hash_integer(hash, static_cast<std::int64_t>(contact.mechanical_discretization));
+        hash_integer(hash, static_cast<std::int64_t>(contact.thermal_discretization));
         hash_integer(hash, static_cast<std::int64_t>(contact.mechanical_sliding));
         hash_integer(hash, static_cast<std::int64_t>(contact.quad8_nodal_area_rule));
         hash_double(hash, contact.penetration_tolerance);
@@ -117,16 +122,19 @@ std::uint64_t transient_problem_signature(const TransientProblem& problem) {
             }
             hash_size(hash, mesh.elements().size());
             for (const auto& e : mesh.elements())
-                for (auto n : e.nodes) hash_size(hash, n);
+                for (auto n : e.nodes)
+                    hash_size(hash, n);
         }
         for (const auto& bc : problem.definition().boundary_conditions)
             hash_integer(hash, bc.configuration_explicit ? 1 : 0);
-        for (const auto& bc : spatial.dirichlet_conditions()) hash_size(hash, bc.dof);
+        for (const auto& bc : spatial.dirichlet_conditions())
+            hash_size(hash, bc.dof);
         for (std::size_t i = spatial.volume_contribution_count(); i < spatial.sparsity_contribution_count(); ++i) {
             std::vector<std::size_t> dofs;
             spatial.sparsity_contribution_dofs(i, dofs);
             hash_size(hash, dofs.size());
-            for (auto d : dofs) hash_size(hash, d);
+            for (auto d : dofs)
+                hash_size(hash, d);
         }
         hash_contacts(hash, problem.definition());
         hash_boundaries(hash, problem.definition(), true);
@@ -137,7 +145,7 @@ std::uint64_t transient_problem_signature(const TransientProblem& problem) {
     hash_string(hash, cartesian ? (hex20 ? "cartesian_3d_hex20_u2_t1" : "cartesian_3d_hex8") : "axisymmetric_rz_quad4");
     hash_string(hash, cartesian ? "xx,yy,zz,xy,yz,xz" : "rr,zz,hoop,rz");
     if (cartesian && hex20)
-        hash_string(hash, "thermal_8_mechanical_27");
+        hash_string(hash, "hex20_region_selected_quadrature");
     else
         hash_size(hash, cartesian ? 8 : 4);
     hash_size(hash, problem.dof_count());
@@ -158,7 +166,8 @@ std::uint64_t transient_problem_signature(const TransientProblem& problem) {
                 }
                 hash_size(hash, mesh.elements().size());
                 for (const Hex20Element& element : mesh.elements())
-                    for (const std::size_t node : element.nodes) hash_size(hash, node);
+                    for (const std::size_t node : element.nodes)
+                        hash_size(hash, node);
                 continue;
             }
             const Hex8RegionMesh& mesh = assembly.region_mesh(region);
@@ -170,7 +179,8 @@ std::uint64_t transient_problem_signature(const TransientProblem& problem) {
             }
             hash_size(hash, mesh.elements().size());
             for (const Hex8Element& element : mesh.elements())
-                for (const std::size_t node : element.nodes) hash_size(hash, node);
+                for (const std::size_t node : element.nodes)
+                    hash_size(hash, node);
         }
         hash_contacts(hash, definition);
         hash_boundaries(hash, definition, false);
@@ -191,7 +201,8 @@ std::uint64_t transient_problem_signature(const TransientProblem& problem) {
         }
         hash_size(hash, mesh.elements().size());
         for (const Quad4Element& element : mesh.elements())
-            for (const std::size_t node : element.nodes) hash_size(hash, node);
+            for (const std::size_t node : element.nodes)
+                hash_size(hash, node);
     }
     hash_contacts(hash, definition);
     hash_boundaries(hash, definition, true);

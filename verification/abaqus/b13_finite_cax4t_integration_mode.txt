@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "<stdin>", line 3, in <module>
+UnicodeDecodeError: 'utf-8' codec can't decode byte 0xd4 in position 77: invalid continuation byte
+source=b13_finite_cax4t.msg
+source_sha256=c4a5d981d81855329c8bbdfdc85e21e39ef09ca4cd5098dd69699bdad5e90107

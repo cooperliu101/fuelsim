@@ -36,31 +36,42 @@ struct Projection final {
     double x = 0;
 };
 
-Projection closest(
-    const std::array<ActivePoint, 3>& points, const ActivePoint& secondary, bool first, bool last, bool mechanical) {
+Projection closest(const std::array<ActivePoint, 3>& points,
+    const ActivePoint& secondary,
+    bool first,
+    bool last,
+    bool mechanical) {
     const double ar = (points[0].r.value() + points[1].r.value()) / 2 - points[2].r.value(),
                  az = (points[0].z.value() + points[1].z.value()) / 2 - points[2].z.value(),
                  br = (points[1].r.value() - points[0].r.value()) / 2,
                  bz = (points[1].z.value() - points[0].z.value()) / 2, cr = points[2].r.value() - secondary.r.value(),
                  cz = points[2].z.value() - secondary.z.value();
-    const std::array<double, 4> f = {br * cr + bz * cz, br * br + bz * bz + 2 * (ar * cr + az * cz),
-        3 * (ar * br + az * bz), 2 * (ar * ar + az * az)};
-    const auto evaluate = [&](double x) { return ((f[3] * x + f[2]) * x + f[1]) * x + f[0]; };
-    std::vector<double> cuts = {-1, 1};
+    const std::array<double, 4> f = {br * cr + bz * cz,
+        br * br + bz * bz + 2 * (ar * cr + az * cz),
+        3 * (ar * br + az * bz),
+        2 * (ar * ar + az * az)};
+    const auto evaluate = [&](double x) {
+        return ((f[3] * x + f[2]) * x + f[1]) * x + f[0];
+    };
+    const double lower = first && mechanical ? -1.2 : -1.0, upper = last && mechanical ? 1.2 : 1.0;
+    std::vector<double> cuts = {lower, upper};
     const double discriminant = 4 * f[2] * f[2] - 12 * f[3] * f[1];
     if (f[3] > 0 && discriminant >= 0)
         for (double sign : {-1., 1.}) {
             const double x = (-2 * f[2] + sign * std::sqrt(discriminant)) / (6 * f[3]);
-            if (x > -1 && x < 1) cuts.push_back(x);
+            if (x > lower && x < upper)
+                cuts.push_back(x);
         }
     std::sort(cuts.begin(), cuts.end());
     std::vector<double> roots;
     const double tolerance = 1e-12 * (std::abs(f[0]) + std::abs(f[1]) + std::abs(f[2]) + std::abs(f[3]));
     for (double x : cuts)
-        if (std::abs(evaluate(x)) <= tolerance) roots.push_back(x);
+        if (std::abs(evaluate(x)) <= tolerance)
+            roots.push_back(x);
     for (std::size_t i = 1; i < cuts.size(); ++i) {
         double left = cuts[i - 1], right = cuts[i], fl = evaluate(left), fr = evaluate(right);
-        if (fl * fr >= 0) continue;
+        if (fl * fr >= 0)
+            continue;
         for (int iteration = 0; iteration < 60; ++iteration) {
             const double middle = (left + right) / 2, fm = evaluate(middle);
             if ((fm > 0) == (fl > 0)) {
@@ -74,7 +85,8 @@ Projection closest(
     Projection result;
     double distance = std::numeric_limits<double>::infinity();
     const auto consider = [&](double x, bool clamped) {
-        if (x >= 1 - 1e-12 && !last) return;
+        if (x >= 1 - 1e-12 && !last)
+            return;
         const double r = (ar * x + br) * x + cr, z = (az * x + bz) * x + cz, d = r * r + z * z;
         if (d < distance) {
             distance = d;
@@ -82,23 +94,27 @@ Projection closest(
         }
     };
     for (double x : roots)
-        if ((3 * f[3] * x + 2 * f[2]) * x + f[1] > 0) consider(x, false);
-    if (mechanical && first && evaluate(-1) > 0) consider(-1, true);
-    if (mechanical && last && evaluate(1) < 0) consider(1, true);
+        if ((3 * f[3] * x + 2 * f[2]) * x + f[1] > 0)
+            consider(x, false);
     return result;
 }
 } // namespace
 
 std::pair<bool, double> project_line3(const std::array<RzPoint, 3>& primary, RzPoint point) {
     std::array<ActivePoint, 3> coordinates;
-    for (std::size_t n = 0; n < 3; ++n) coordinates[n] = {primary[n].r, primary[n].z};
+    for (std::size_t n = 0; n < 3; ++n)
+        coordinates[n] = {primary[n].r, primary[n].z};
     const auto result = closest(coordinates, {point.r, point.z}, true, true, false);
     return {result.projected, result.x};
 }
 
-Line3ContactResult compute_line3_contact(const Line3ContactGeometry& geometry, const GapHeatProperties& heat,
-    const NormalContactProperties& mechanical, const std::vector<double>& state, const std::vector<double>& old,
-    const ContactPointHistory& history, bool jacobian) {
+Line3ContactResult compute_line3_contact(const Line3ContactGeometry& geometry,
+    const GapHeatProperties& heat,
+    const NormalContactProperties& mechanical,
+    const std::vector<double>& state,
+    const std::vector<double>& old,
+    const ContactPointHistory& history,
+    bool jacobian) {
     if (state.size() != 16 || old.size() != 16)
         throw std::invalid_argument("Quadratic RZ contact requires sixteen local degrees of freedom");
     std::array<adlite::Scalar, 16> v;
@@ -114,17 +130,22 @@ Line3ContactResult compute_line3_contact(const Line3ContactGeometry& geometry, c
                                                                                : 0)
                                           : geometry.coordinate;
     const auto sp = curve(secondary, xs);
-    const auto projection =
-        closest(primary, sp.position, geometry.primary_first, geometry.primary_last, geometry.mechanical);
+    const auto projection = closest(primary,
+        sp.position,
+        geometry.primary_first,
+        geometry.primary_last,
+        geometry.mechanical || geometry.nodal_heat);
     Line3ContactResult result;
-    if (!projection.projected) return result;
+    if (!projection.projected)
+        return result;
     const auto trial = curve(primary, projection.x);
     const auto dr = trial.position.r - sp.position.r, dz = trial.position.z - sp.position.z;
     const auto equation = dr * trial.tangent.r + dz * trial.tangent.z;
-    const double derivative = (trial.tangent.r * trial.tangent.r + trial.tangent.z * trial.tangent.z +
-                               dr * trial.second.r + dz * trial.second.z)
+    const double derivative = (trial.tangent.r * trial.tangent.r + trial.tangent.z * trial.tangent.z
+                               + dr * trial.second.r + dz * trial.second.z)
                                   .value();
-    if (!(derivative > 0) || !std::isfinite(derivative)) throw std::domain_error("Quadratic RZ projection is singular");
+    if (!(derivative > 0) || !std::isfinite(derivative))
+        throw std::domain_error("Quadratic RZ projection is singular");
     const adlite::Scalar x =
         projection.clamped ? adlite::Scalar(projection.x) : projection.x - (equation - equation.value()) / derivative;
     const auto pp = curve(primary, x);
@@ -144,13 +165,20 @@ Line3ContactResult compute_line3_contact(const Line3ContactGeometry& geometry, c
             h = heat.gap_conductivity / (gap.value() > heat.minimum_gap ? gap : adlite::Scalar(heat.minimum_gap));
         else {
             const auto pressure = gap.value() < 0 ? -heat.contact_penalty * gap : adlite::Scalar(0);
-            h = heat.conductance + heat.clearance_derivative * gap + heat.pressure_derivative * pressure +
-                heat.temperature_derivative * ((ts + tp) / 2 - heat.reference_temperature);
-            if (!(h.value() >= 0)) throw std::domain_error("Quadratic RZ contact conductance must be nonnegative");
+            h = heat.conductance + heat.clearance_derivative * gap + heat.pressure_derivative * pressure
+                + heat.temperature_derivative * ((ts + tp) / 2 - heat.reference_temperature);
+            if (!(h.value() >= 0))
+                throw std::domain_error("Quadratic RZ contact conductance must be nonnegative");
         }
-        const auto measure = 2 * std::acos(-1.0) * sp.position.r * adlite::hypot(sp.tangent.r, sp.tangent.z) *
-                             geometry.weight,
-                   flux = h * (ts - tp), rate = flux * measure;
+        // Native NTS heat transfer uses only temperature corner nodes. Its area
+        // integrates linear shape functions on the current corner chord, even
+        // when mechanical projection uses the full quadratic primary geometry.
+        const auto measure =
+            geometry.nodal_heat
+                ? std::acos(-1.0) * adlite::hypot(secondary[1].r - secondary[0].r, secondary[1].z - secondary[0].z)
+                      * ((2 * secondary[geometry.secondary_node].r + secondary[1 - geometry.secondary_node].r) / 3)
+                : 2 * std::acos(-1.0) * sp.position.r * adlite::hypot(sp.tangent.r, sp.tangent.z) * geometry.weight;
+        const auto flux = h * (ts - tp), rate = flux * measure;
         rows[0] += (1 - xs) / 2 * rate;
         rows[1] += (1 + xs) / 2 * rate;
         rows[2] -= (1 - x) / 2 * rate;
@@ -169,7 +197,8 @@ Line3ContactResult compute_line3_contact(const Line3ContactGeometry& geometry, c
             area += 2 * std::acos(-1.0) * p.position.r * line;
             tributary_length += line;
         }
-        if (!(area.value() > 0)) throw std::domain_error("Quadratic RZ contact node requires positive tributary area");
+        if (!(area.value() > 0))
+            throw std::domain_error("Quadratic RZ contact node requires positive tributary area");
         adlite::Scalar traction = 0, elastic = 0, total = history.total_tangential_slip;
         bool sliding = false;
         if (mechanical.friction_coefficient > 0 && pressure.value() > 0) {
@@ -208,13 +237,22 @@ Line3ContactResult compute_line3_contact(const Line3ContactGeometry& geometry, c
             rows[10 + n] -= pp.shape[n] * fr;
             rows[13 + n] -= pp.shape[n] * fz;
         }
-        result.mechanical = {true, gap.value(), pressure.value(), area.value(), tributary_length.value(),
-            (pressure * area).value(), traction.value(), (traction * area).value(), elastic.value(), sliding,
+        result.mechanical = {true,
+            gap.value(),
+            pressure.value(),
+            area.value(),
+            tributary_length.value(),
+            (pressure * area).value(),
+            traction.value(),
+            (traction * area).value(),
+            elastic.value(),
+            sliding,
             total.value()};
     }
     for (std::size_t i = 0; i < 16; ++i) {
         result.residual[i] = rows[i].value();
-        if (jacobian) rows[i].copy_derivatives(result.jacobian.data() + 16 * i, 16);
+        if (jacobian)
+            rows[i].copy_derivatives(result.jacobian.data() + 16 * i, 16);
     }
     return result;
 }

@@ -1,0 +1,22 @@
+{
+  "cax4t": {
+    "equiv_creep_final_relative_l2_percent": 3.6130783221624565,
+    "equiv_plastic_final_relative_l2_percent": 1.6797901024956305,
+    "stress_final_relative_l2_percent": 3.9386936455690114
+  },
+  "cax4rt": {
+    "equiv_creep_final_relative_l2_percent": 3.6233082030658164,
+    "equiv_plastic_final_relative_l2_percent": 1.6755121383623215,
+    "stress_final_relative_l2_percent": 3.938552704992725
+  },
+  "cax8t": {
+    "equiv_creep_final_relative_l2_percent": 3.6136095798900216,
+    "equiv_plastic_final_relative_l2_percent": 1.6804230141135998,
+    "stress_final_relative_l2_percent": 3.924887915540244
+  },
+  "cax8rt": {
+    "equiv_creep_final_relative_l2_percent": 3.6166334347069813,
+    "equiv_plastic_final_relative_l2_percent": 1.6794678779757588,
+    "stress_final_relative_l2_percent": 3.925533007617337
+  }
+}

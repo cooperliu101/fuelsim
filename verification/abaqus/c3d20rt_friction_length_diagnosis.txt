@@ -1,0 +1,6 @@
+native_normal_transfer_maximum_error 1.6643753042444587e-10
+geometric_elastic_slip_length 9.94936153005124e-06
+identified_elastic_slip_length_minimum 9.949361530050218e-06
+identified_elastic_slip_length_maximum 9.949361530054123e-06
+native_traction_replay_relative_l2 1.5768777999520981e-13
+native_traction_replay_maximum_absolute 5.934452929068357e-10

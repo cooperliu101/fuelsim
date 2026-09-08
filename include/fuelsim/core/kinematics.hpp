@@ -6,6 +6,8 @@ enum class StrainFormulation {
     finite,
 };
 
+enum class Hex20ElementFormulation { c3d20t, c3d20rt };
+
 enum class Hex8ElementFormulation {
     c3d8t,
     c3d8rt,

@@ -23,10 +23,12 @@ using solver_detail::accumulate_timing;
 using solver_detail::seconds_since;
 
 void check_petsc(PetscErrorCode code, const char* operation) {
-    if (code == PETSC_SUCCESS) return;
+    if (code == PETSC_SUCCESS)
+        return;
     const char* text = nullptr;
     const PetscErrorCode message_code = PetscErrorMessage(code, &text, nullptr);
-    if (message_code != PETSC_SUCCESS) text = nullptr;
+    if (message_code != PETSC_SUCCESS)
+        text = nullptr;
     std::string message = operation;
     message += " failed";
     if (text != nullptr) {
@@ -37,7 +39,8 @@ void check_petsc(PetscErrorCode code, const char* operation) {
 }
 
 void check_mpi(PetscMPIInt code, const char* operation) {
-    if (code == MPI_SUCCESS) return;
+    if (code == MPI_SUCCESS)
+        return;
     std::string message = operation;
     message += " failed with MPI error code ";
     message += std::to_string(code);
@@ -50,9 +53,11 @@ struct MemorySnapshot final {
 };
 
 PetscInt64 checked_memory_bytes(PetscLogDouble value) {
-    if (!std::isfinite(value) || value <= 0.0) return 0;
+    if (!std::isfinite(value) || value <= 0.0)
+        return 0;
     const PetscLogDouble maximum = static_cast<PetscLogDouble>(std::numeric_limits<PetscInt64>::max());
-    if (value >= maximum) return std::numeric_limits<PetscInt64>::max();
+    if (value >= maximum)
+        return std::numeric_limits<PetscInt64>::max();
     return static_cast<PetscInt64>(value + 0.5);
 }
 
@@ -73,15 +78,27 @@ PetscErrorCode collective_timing(const SolveTiming& local, SolveTiming& result) 
         local.total_seconds,
     };
     std::array<double, 5> maximum_seconds{};
-    PetscCallMPI(MPIU_Allreduce(local_seconds.data(), maximum_seconds.data(),
-        static_cast<MPIU_Count>(local_seconds.size()), MPI_DOUBLE, MPI_MAX, PETSC_COMM_WORLD));
-    const std::array<double, 2> local_assembly = {
-        local.maximum_residual_assembly_seconds, local.maximum_jacobian_assembly_seconds};
+    PetscCallMPI(MPIU_Allreduce(local_seconds.data(),
+        maximum_seconds.data(),
+        static_cast<MPIU_Count>(local_seconds.size()),
+        MPI_DOUBLE,
+        MPI_MAX,
+        PETSC_COMM_WORLD));
+    const std::array<double, 2> local_assembly = {local.maximum_residual_assembly_seconds,
+        local.maximum_jacobian_assembly_seconds};
     std::array<double, 2> minimum_assembly{}, maximum_assembly{};
-    PetscCallMPI(MPIU_Allreduce(local_assembly.data(), minimum_assembly.data(),
-        static_cast<MPIU_Count>(local_assembly.size()), MPI_DOUBLE, MPI_MIN, PETSC_COMM_WORLD));
-    PetscCallMPI(MPIU_Allreduce(local_assembly.data(), maximum_assembly.data(),
-        static_cast<MPIU_Count>(local_assembly.size()), MPI_DOUBLE, MPI_MAX, PETSC_COMM_WORLD));
+    PetscCallMPI(MPIU_Allreduce(local_assembly.data(),
+        minimum_assembly.data(),
+        static_cast<MPIU_Count>(local_assembly.size()),
+        MPI_DOUBLE,
+        MPI_MIN,
+        PETSC_COMM_WORLD));
+    PetscCallMPI(MPIU_Allreduce(local_assembly.data(),
+        maximum_assembly.data(),
+        static_cast<MPIU_Count>(local_assembly.size()),
+        MPI_DOUBLE,
+        MPI_MAX,
+        PETSC_COMM_WORLD));
     std::array<PetscInt64, 4> local_counts = {
         static_cast<PetscInt64>(local.residual_evaluations),
         static_cast<PetscInt64>(local.jacobian_evaluations),
@@ -89,14 +106,23 @@ PetscErrorCode collective_timing(const SolveTiming& local, SolveTiming& result) 
         static_cast<PetscInt64>(local.solve_calls),
     };
     std::array<PetscInt64, 4> maximum_counts{};
-    PetscCallMPI(MPIU_Allreduce(local_counts.data(), maximum_counts.data(),
-        static_cast<MPIU_Count>(local_counts.size()), MPIU_INT64, MPI_MAX, PETSC_COMM_WORLD));
+    PetscCallMPI(MPIU_Allreduce(local_counts.data(),
+        maximum_counts.data(),
+        static_cast<MPIU_Count>(local_counts.size()),
+        MPIU_INT64,
+        MPI_MAX,
+        PETSC_COMM_WORLD));
     const std::array<PetscInt64, 4> local_resident = {static_cast<PetscInt64>(local.initial_resident_bytes),
-        static_cast<PetscInt64>(local.setup_resident_bytes), static_cast<PetscInt64>(local.solve_resident_bytes),
+        static_cast<PetscInt64>(local.setup_resident_bytes),
+        static_cast<PetscInt64>(local.solve_resident_bytes),
         static_cast<PetscInt64>(local.final_resident_bytes)};
     std::array<PetscInt64, 4> maximum_resident{};
-    PetscCallMPI(MPIU_Allreduce(local_resident.data(), maximum_resident.data(),
-        static_cast<MPIU_Count>(local_resident.size()), MPIU_INT64, MPI_MAX, PETSC_COMM_WORLD));
+    PetscCallMPI(MPIU_Allreduce(local_resident.data(),
+        maximum_resident.data(),
+        static_cast<MPIU_Count>(local_resident.size()),
+        MPIU_INT64,
+        MPI_MAX,
+        PETSC_COMM_WORLD));
     const std::array<PetscInt64, 1> local_peak = {static_cast<PetscInt64>(local.maximum_peak_resident_bytes)};
     std::array<PetscInt64, 1> minimum_peak{}, maximum_peak{}, total_peak{};
     PetscCallMPI(MPIU_Allreduce(local_peak.data(), minimum_peak.data(), 1, MPIU_INT64, MPI_MIN, PETSC_COMM_WORLD));
@@ -140,32 +166,44 @@ struct MatrixInsertionWorkspace final {
     std::vector<double> values;
 };
 
-PetscErrorCode insert_pattern_blocks(Mat matrix, const std::vector<PetscInt>& dofs,
-    const std::vector<unsigned char>& pattern, const std::vector<double>& dense_values, InsertMode mode,
-    PetscInt ownership_begin, PetscInt ownership_end, MatrixInsertionWorkspace& workspace) {
+PetscErrorCode insert_pattern_blocks(Mat matrix,
+    const std::vector<PetscInt>& dofs,
+    const std::vector<unsigned char>& pattern,
+    const std::vector<double>& dense_values,
+    InsertMode mode,
+    PetscInt ownership_begin,
+    PetscInt ownership_end,
+    MatrixInsertionWorkspace& workspace) {
     PetscFunctionBeginUser;
     const std::size_t count = dofs.size();
-    PetscCheck(pattern.size() == count * count, PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ,
+    PetscCheck(pattern.size() == count * count,
+        PETSC_COMM_SELF,
+        PETSC_ERR_ARG_SIZ,
         "Local Jacobian pattern size does not match its DOFs");
-    PetscCheck(dense_values.size() == count * count, PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ,
+    PetscCheck(dense_values.size() == count * count,
+        PETSC_COMM_SELF,
+        PETSC_ERR_ARG_SIZ,
         "Local Jacobian value count does not match its DOFs");
     workspace.grouped_rows.assign(count, 0U);
     for (std::size_t row = 0; row < count; ++row) {
-        if (workspace.grouped_rows[row] != 0U) continue;
+        if (workspace.grouped_rows[row] != 0U)
+            continue;
         if (dofs[row] < ownership_begin || dofs[row] >= ownership_end) {
             workspace.grouped_rows[row] = 1U;
             continue;
         }
         workspace.columns.clear();
         for (std::size_t column = 0; column < count; ++column)
-            if (pattern[row * count + column] != 0U) workspace.columns.push_back(dofs[column]);
+            if (pattern[row * count + column] != 0U)
+                workspace.columns.push_back(dofs[column]);
         workspace.grouped_rows[row] = 1U;
-        if (workspace.columns.empty()) continue;
+        if (workspace.columns.empty())
+            continue;
         workspace.rows.assign(1, dofs[row]);
         workspace.local_rows.assign(1, row);
         for (std::size_t candidate = row + 1U; candidate < count; ++candidate) {
-            if (workspace.grouped_rows[candidate] != 0U || dofs[candidate] < ownership_begin ||
-                dofs[candidate] >= ownership_end)
+            if (workspace.grouped_rows[candidate] != 0U || dofs[candidate] < ownership_begin
+                || dofs[candidate] >= ownership_end)
                 continue;
             const auto first = pattern.begin() + static_cast<std::ptrdiff_t>(row * count);
             const auto candidate_first = pattern.begin() + static_cast<std::ptrdiff_t>(candidate * count);
@@ -179,9 +217,13 @@ PetscErrorCode insert_pattern_blocks(Mat matrix, const std::vector<PetscInt>& do
         for (std::size_t local = 0; contiguous_full_block && local < workspace.local_rows.size(); ++local)
             contiguous_full_block = workspace.local_rows[local] == workspace.local_rows.front() + local;
         if (contiguous_full_block) {
-            PetscCall(MatSetValues(matrix, static_cast<PetscInt>(workspace.rows.size()), workspace.rows.data(),
-                static_cast<PetscInt>(workspace.columns.size()), workspace.columns.data(),
-                dense_values.data() + workspace.local_rows.front() * count, mode));
+            PetscCall(MatSetValues(matrix,
+                static_cast<PetscInt>(workspace.rows.size()),
+                workspace.rows.data(),
+                static_cast<PetscInt>(workspace.columns.size()),
+                workspace.columns.data(),
+                dense_values.data() + workspace.local_rows.front() * count,
+                mode));
             continue;
         }
         workspace.values.clear();
@@ -190,8 +232,13 @@ PetscErrorCode insert_pattern_blocks(Mat matrix, const std::vector<PetscInt>& do
             for (std::size_t column = 0; column < count; ++column)
                 if (pattern[row * count + column] != 0U)
                     workspace.values.push_back(dense_values[local_row * count + column]);
-        PetscCall(MatSetValues(matrix, static_cast<PetscInt>(workspace.rows.size()), workspace.rows.data(),
-            static_cast<PetscInt>(workspace.columns.size()), workspace.columns.data(), workspace.values.data(), mode));
+        PetscCall(MatSetValues(matrix,
+            static_cast<PetscInt>(workspace.rows.size()),
+            workspace.rows.data(),
+            static_cast<PetscInt>(workspace.columns.size()),
+            workspace.columns.data(),
+            workspace.values.data(),
+            mode));
     }
     PetscFunctionReturn(PETSC_SUCCESS);
 }
@@ -249,7 +296,8 @@ PetscErrorCode assemble_contributions(SolverContext& context, Vec residual, Mat 
         const SolverContext::FixedContributionMetadata* fixed =
             context.fixed_contributions.empty() ? nullptr
                                                 : &context.fixed_contributions.at(entry - context.contribution_begin);
-        if (fixed == nullptr) context.problem->contribution_dofs(entry, context.contribution_workspace.dofs);
+        if (fixed == nullptr)
+            context.problem->contribution_dofs(entry, context.contribution_workspace.dofs);
         const std::vector<std::size_t>& dofs = fixed == nullptr ? context.contribution_workspace.dofs : fixed->dofs;
         const std::size_t local_count = dofs.size();
         context.contribution_workspace.resize(local_count, linearize);
@@ -261,25 +309,31 @@ PetscErrorCode assemble_contributions(SolverContext& context, Vec residual, Mat 
                 context.petsc_contribution_dofs[local] = context.problem_to_petsc[dofs[local]];
         }
         std::vector<double>* local_jacobian = linearize ? &context.contribution_workspace.jacobian : nullptr;
-        context.problem->compute_contribution(
-            entry, context.contribution_workspace.state, context.contribution_workspace.residual, local_jacobian);
-        if (context.contribution_workspace.residual.size() != local_count ||
-            (linearize && context.contribution_workspace.jacobian.size() != local_count * local_count))
+        context.problem->compute_contribution(entry,
+            context.contribution_workspace.state,
+            context.contribution_workspace.residual,
+            local_jacobian);
+        if (context.contribution_workspace.residual.size() != local_count
+            || (linearize && context.contribution_workspace.jacobian.size() != local_count * local_count))
             throw std::logic_error("NonlinearProblem contribution output has the wrong size");
         const PetscInt petsc_local_count = checked_petsc_int(local_count);
         const std::vector<PetscInt>& petsc_dof_vector =
             fixed == nullptr ? context.petsc_contribution_dofs : fixed->petsc_dofs;
         const PetscInt* petsc_dofs = petsc_dof_vector.data();
         if (!linearize) {
-            PetscCall(VecSetValues(
-                residual, petsc_local_count, petsc_dofs, context.contribution_workspace.residual.data(), ADD_VALUES));
+            PetscCall(VecSetValues(residual,
+                petsc_local_count,
+                petsc_dofs,
+                context.contribution_workspace.residual.data(),
+                ADD_VALUES));
             continue;
         }
         std::vector<double>& scaled_jacobian = context.contribution_workspace.jacobian;
         if (context.field_residual_scaling) {
             for (std::size_t row = 0; row < local_count; ++row) {
                 const std::size_t global_row = dofs[row];
-                if (context.constrained[global_row]) continue;
+                if (context.constrained[global_row])
+                    continue;
                 const std::size_t field = context.dof_fields[global_row];
                 for (std::size_t column = 0; column < local_count; ++column)
                     scaled_jacobian[row * local_count + column] *= context.field_residual_scalings[field];
@@ -289,8 +343,14 @@ PetscErrorCode assemble_contributions(SolverContext& context, Vec residual, Mat 
             context.problem->contribution_jacobian_pattern(entry, context.contribution_jacobian_pattern);
         const std::vector<unsigned char>& jacobian_pattern =
             fixed == nullptr ? context.contribution_jacobian_pattern : fixed->jacobian_pattern;
-        PetscCall(insert_pattern_blocks(jacobian, petsc_dof_vector, jacobian_pattern, scaled_jacobian, ADD_VALUES, 0,
-            checked_petsc_int(context.problem->dof_count()), context.matrix_insertion));
+        PetscCall(insert_pattern_blocks(jacobian,
+            petsc_dof_vector,
+            jacobian_pattern,
+            scaled_jacobian,
+            ADD_VALUES,
+            0,
+            checked_petsc_int(context.problem->dof_count()),
+            context.matrix_insertion));
     }
     PetscFunctionReturn(PETSC_SUCCESS);
 }
@@ -315,13 +375,16 @@ struct PetscObjects final {
     }
 };
 
-void configure_linear_solver(PetscObjects& objects, const NonlinearProblem& problem, const SolverOptions& options,
-    PetscMPIInt world_size, const SolverContext& context) {
+void configure_linear_solver(PetscObjects& objects,
+    const NonlinearProblem& problem,
+    const SolverOptions& options,
+    PetscMPIInt world_size,
+    const SolverContext& context) {
     SolverOptions::LinearSolver linear = options.linear_solver;
     if (linear == SolverOptions::LinearSolver::automatic) {
-        if (options.preconditioner == SolverOptions::Preconditioner::block_jacobi ||
-            options.preconditioner == SolverOptions::Preconditioner::field_split ||
-            options.preconditioner == SolverOptions::Preconditioner::hypre)
+        if (options.preconditioner == SolverOptions::Preconditioner::block_jacobi
+            || options.preconditioner == SolverOptions::Preconditioner::field_split
+            || options.preconditioner == SolverOptions::Preconditioner::hypre)
             linear = SolverOptions::LinearSolver::gmres;
         else
             linear = SolverOptions::LinearSolver::direct;
@@ -343,13 +406,18 @@ void configure_linear_solver(PetscObjects& objects, const NonlinearProblem& prob
     else
         check_petsc(KSPSetType(ksp, KSPGMRES), "KSPSetType GMRES");
     switch (preconditioner_type) {
-    case SolverOptions::Preconditioner::automatic: throw std::logic_error("automatic preconditioner was not resolved");
+    case SolverOptions::Preconditioner::automatic:
+        throw std::logic_error("automatic preconditioner was not resolved");
     case SolverOptions::Preconditioner::lu: {
         check_petsc(PCSetType(preconditioner, PCLU), "PCSetType LU");
         std::array<char, 64> requested_solver{};
         PetscBool solver_set = PETSC_FALSE;
-        check_petsc(PetscOptionsGetString(nullptr, nullptr, "-pc_factor_mat_solver_type", requested_solver.data(),
-                        requested_solver.size(), &solver_set),
+        check_petsc(PetscOptionsGetString(nullptr,
+                        nullptr,
+                        "-pc_factor_mat_solver_type",
+                        requested_solver.data(),
+                        requested_solver.size(),
+                        &solver_set),
             "PetscOptionsGetString factor matrix solver");
         const bool default_mumps =
             world_size > 1 || options.direct_factorization == SolverOptions::DirectFactorization::mumps;
@@ -393,8 +461,8 @@ void configure_linear_solver(PetscObjects& objects, const NonlinearProblem& prob
             "PetscObjectTypeCompare field split");
         PetscInt ownership_begin = 0;
         PetscInt ownership_end = 0;
-        check_petsc(
-            VecGetOwnershipRange(objects.state, &ownership_begin, &ownership_end), "VecGetOwnershipRange field split");
+        check_petsc(VecGetOwnershipRange(objects.state, &ownership_begin, &ownership_end),
+            "VecGetOwnershipRange field split");
         std::vector<PetscInt> thermal_indices, mechanical_indices;
         bool has_thermal_field = false, has_mechanical_field = false;
         for (const FieldDescriptor& field : problem.field_layout()) {
@@ -416,29 +484,39 @@ void configure_linear_solver(PetscObjects& objects, const NonlinearProblem& prob
             IS temperature = nullptr;
             IS mechanics = nullptr;
             try {
-                check_petsc(ISCreateGeneral(PETSC_COMM_WORLD, checked_petsc_int(thermal_indices.size()),
-                                thermal_indices.data(), PETSC_COPY_VALUES, &temperature),
+                check_petsc(ISCreateGeneral(PETSC_COMM_WORLD,
+                                checked_petsc_int(thermal_indices.size()),
+                                thermal_indices.data(),
+                                PETSC_COPY_VALUES,
+                                &temperature),
                     "ISCreateGeneral temperature");
-                check_petsc(ISCreateGeneral(PETSC_COMM_WORLD, checked_petsc_int(mechanical_indices.size()),
-                                mechanical_indices.data(), PETSC_COPY_VALUES, &mechanics),
+                check_petsc(ISCreateGeneral(PETSC_COMM_WORLD,
+                                checked_petsc_int(mechanical_indices.size()),
+                                mechanical_indices.data(),
+                                PETSC_COPY_VALUES,
+                                &mechanics),
                     "ISCreateGeneral mechanics");
-                check_petsc(
-                    PCFieldSplitSetIS(preconditioner, "temperature", temperature), "PCFieldSplitSetIS temperature");
+                check_petsc(PCFieldSplitSetIS(preconditioner, "temperature", temperature),
+                    "PCFieldSplitSetIS temperature");
                 check_petsc(PCFieldSplitSetIS(preconditioner, "mechanics", mechanics), "PCFieldSplitSetIS mechanics");
                 check_petsc(ISDestroy(&temperature), "ISDestroy temperature");
                 check_petsc(ISDestroy(&mechanics), "ISDestroy mechanics");
             } catch (...) {
-                if (temperature != nullptr) (void)ISDestroy(&temperature);
-                if (mechanics != nullptr) (void)ISDestroy(&mechanics);
+                if (temperature != nullptr)
+                    (void)ISDestroy(&temperature);
+                if (mechanics != nullptr)
+                    (void)ISDestroy(&mechanics);
                 throw;
             }
         }
-        check_petsc(
-            PCFieldSplitSetType(preconditioner, PC_COMPOSITE_MULTIPLICATIVE), "PCFieldSplitSetType multiplicative");
+        check_petsc(PCFieldSplitSetType(preconditioner, PC_COMPOSITE_MULTIPLICATIVE),
+            "PCFieldSplitSetType multiplicative");
         if (world_size >= 4) {
             PetscBool mechanics_fill_set = PETSC_FALSE;
-            check_petsc(PetscOptionsHasName(
-                            nullptr, nullptr, "-fieldsplit_mechanics_sub_pc_factor_levels", &mechanics_fill_set),
+            check_petsc(PetscOptionsHasName(nullptr,
+                            nullptr,
+                            "-fieldsplit_mechanics_sub_pc_factor_levels",
+                            &mechanics_fill_set),
                 "PetscOptionsHasName mechanics field-split ILU fill level");
             if (mechanics_fill_set == PETSC_FALSE)
                 check_petsc(PetscOptionsSetValue(nullptr, "-fieldsplit_mechanics_sub_pc_factor_levels", "1"),
@@ -450,7 +528,10 @@ void configure_linear_solver(PetscObjects& objects, const NonlinearProblem& prob
         check_petsc(PCSetType(preconditioner, PCHYPRE), "PCSetType HYPRE");
         break;
     }
-    check_petsc(KSPSetTolerances(ksp, options.linear_relative_tolerance, PETSC_DEFAULT, PETSC_DEFAULT,
+    check_petsc(KSPSetTolerances(ksp,
+                    options.linear_relative_tolerance,
+                    PETSC_DEFAULT,
+                    PETSC_DEFAULT,
                     options.maximum_linear_iterations),
         "KSPSetTolerances");
 }
@@ -467,16 +548,16 @@ PetscErrorCode gather_state(Vec state, SolverContext& context) {
     PetscFunctionReturn(PETSC_SUCCESS);
 }
 
-std::vector<double> gather_complete_state(
-    Vec state, std::size_t global_size, const std::vector<std::size_t>& petsc_to_problem) {
+std::vector<double>
+gather_complete_state(Vec state, std::size_t global_size, const std::vector<std::size_t>& petsc_to_problem) {
     VecScatter scatter = nullptr;
     Vec gathered = nullptr;
     check_petsc(VecScatterCreateToAll(state, &scatter, &gathered), "VecScatterCreateToAll final state");
     try {
-        check_petsc(
-            VecScatterBegin(scatter, state, gathered, INSERT_VALUES, SCATTER_FORWARD), "VecScatterBegin final state");
-        check_petsc(
-            VecScatterEnd(scatter, state, gathered, INSERT_VALUES, SCATTER_FORWARD), "VecScatterEnd final state");
+        check_petsc(VecScatterBegin(scatter, state, gathered, INSERT_VALUES, SCATTER_FORWARD),
+            "VecScatterBegin final state");
+        check_petsc(VecScatterEnd(scatter, state, gathered, INSERT_VALUES, SCATTER_FORWARD),
+            "VecScatterEnd final state");
         std::vector<double> result(global_size, 0.0);
         const PetscScalar* values = nullptr;
         check_petsc(VecGetArrayRead(gathered, &values), "VecGetArrayRead final state");
@@ -487,8 +568,10 @@ std::vector<double> gather_complete_state(
         check_petsc(VecDestroy(&gathered), "VecDestroy final state");
         return result;
     } catch (...) {
-        if (scatter != nullptr) (void)VecScatterDestroy(&scatter);
-        if (gathered != nullptr) (void)VecDestroy(&gathered);
+        if (scatter != nullptr)
+            (void)VecScatterDestroy(&scatter);
+        if (gathered != nullptr)
+            (void)VecDestroy(&gathered);
         throw;
     }
 }
@@ -521,8 +604,12 @@ PetscErrorCode field_norms(Vec vector, SolverContext& context, std::vector<doubl
     if (PetscGlobalSize == 1) {
         context.global_field_squared_norms = context.local_field_squared_norms;
     } else {
-        PetscCallMPI(MPIU_Allreduce(context.local_field_squared_norms.data(), context.global_field_squared_norms.data(),
-            static_cast<MPIU_Count>(context.local_field_squared_norms.size()), MPI_DOUBLE, MPI_SUM, PETSC_COMM_WORLD));
+        PetscCallMPI(MPIU_Allreduce(context.local_field_squared_norms.data(),
+            context.global_field_squared_norms.data(),
+            static_cast<MPIU_Count>(context.local_field_squared_norms.size()),
+            MPI_DOUBLE,
+            MPI_SUM,
+            PETSC_COMM_WORLD));
     }
     norms.resize(context.problem->field_layout().size());
     for (std::size_t field = 0; field < norms.size(); ++field)
@@ -599,7 +686,8 @@ PetscErrorCode assemble_callback(SNES snes, Vec state, Vec residual, Mat jacobia
             linearize ? context.timing.jacobian_callback_seconds : context.timing.residual_callback_seconds;
         std::size_t& callback_evaluations =
             linearize ? context.timing.jacobian_evaluations : context.timing.residual_evaluations;
-        if (!linearize) context.last_function_domain_error = false;
+        if (!linearize)
+            context.last_function_domain_error = false;
         const NonlinearProblem& problem = *context.problem;
         PetscCall(gather_state(state, context));
         if (linearize)
@@ -656,8 +744,12 @@ PetscErrorCode assemble_callback(SNES snes, Vec state, Vec residual, Mat jacobia
                     PetscCall(MatSetOption(jacobian, MAT_NEW_NONZERO_LOCATION_ERR, PETSC_TRUE));
                 context.pattern_locked = true;
             }
-            PetscCall(MatZeroRows(jacobian, static_cast<PetscInt>(context.constrained_dofs.size()),
-                context.constrained_dofs.data(), 1.0, nullptr, nullptr));
+            PetscCall(MatZeroRows(jacobian,
+                static_cast<PetscInt>(context.constrained_dofs.size()),
+                context.constrained_dofs.data(),
+                1.0,
+                nullptr,
+                nullptr));
         } else {
             PetscInt ownership_begin = 0;
             PetscInt ownership_end = 0;
@@ -681,7 +773,9 @@ PetscErrorCode assemble_callback(SNES snes, Vec state, Vec residual, Mat jacobia
         ++callback_evaluations;
     } catch (const std::exception& error) {
         SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_LIB, "fuelsim nonlinear assembly failed: %s", error.what());
-    } catch (...) { SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_LIB, "fuelsim nonlinear assembly failed with unknown error"); }
+    } catch (...) {
+        SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_LIB, "fuelsim nonlinear assembly failed with unknown error");
+    }
     PetscFunctionReturn(PETSC_SUCCESS);
 }
 
@@ -715,11 +809,17 @@ PetscErrorCode form_jacobian(SNES snes, Vec state, Mat jacobian, Mat preconditio
     PetscFunctionReturn(PETSC_SUCCESS);
 }
 
-PetscErrorCode field_residual_convergence_test(SNES snes, PetscInt iteration, PetscReal state_norm, PetscReal step_norm,
-    PetscReal residual_norm, SNESConvergedReason* reason, void* raw_context) {
+PetscErrorCode field_residual_convergence_test(SNES snes,
+    PetscInt iteration,
+    PetscReal state_norm,
+    PetscReal step_norm,
+    PetscReal residual_norm,
+    SNESConvergedReason* reason,
+    void* raw_context) {
     PetscFunctionBeginUser;
     PetscCall(SNESConvergedDefault(snes, iteration, state_norm, step_norm, residual_norm, reason, nullptr));
-    if (*reason != SNES_CONVERGED_ITERATING) PetscFunctionReturn(PETSC_SUCCESS);
+    if (*reason != SNES_CONVERGED_ITERATING)
+        PetscFunctionReturn(PETSC_SUCCESS);
     const SolverContext& context = *static_cast<const SolverContext*>(raw_context);
     if (!context.field_residual_convergence || context.last_function_domain_error || iteration == 0)
         PetscFunctionReturn(PETSC_SUCCESS);
@@ -732,16 +832,17 @@ PetscErrorCode field_residual_convergence_test(SNES snes, PetscInt iteration, Pe
         const double physical_tolerance = context.problem->field_layout()[field].category == FieldCategory::thermal
                                               ? context.temperature_residual_absolute_tolerance
                                               : context.mechanical_residual_absolute_tolerance;
-        const double configured_threshold = std::max(
-            physical_tolerance * context.field_residual_scalings[field], context.relative_tolerance * reference);
+        const double configured_threshold = std::max(physical_tolerance * context.field_residual_scalings[field],
+            context.relative_tolerance * reference);
         const double independent_threshold =
             std::max(numerical_residual_floor, context.residual_reduction_tolerance * reference);
-        const double threshold = std::max(configured_threshold, independent_threshold) *
-                                 (1.0 + 64.0 * std::numeric_limits<double>::epsilon());
-        converged = std::isfinite(context.latest_field_residual_norms[field]) &&
-                    context.latest_field_residual_norms[field] <= threshold && converged;
+        const double threshold = std::max(configured_threshold, independent_threshold)
+                                 * (1.0 + 64.0 * std::numeric_limits<double>::epsilon());
+        converged = std::isfinite(context.latest_field_residual_norms[field])
+                    && context.latest_field_residual_norms[field] <= threshold && converged;
     }
-    if (converged) *reason = SNES_CONVERGED_FNORM_ABS;
+    if (converged)
+        *reason = SNES_CONVERGED_FNORM_ABS;
     PetscFunctionReturn(PETSC_SUCCESS);
 }
 } // namespace
@@ -781,7 +882,8 @@ class PetscSolver::Implementation final {
         for (std::size_t field = 0; field < field_count; ++field) {
             const FieldDescriptor& descriptor = problem.field_layout()[field];
             std::fill(_context.dof_fields.begin() + static_cast<std::ptrdiff_t>(descriptor.begin),
-                _context.dof_fields.begin() + static_cast<std::ptrdiff_t>(descriptor.end), field);
+                _context.dof_fields.begin() + static_cast<std::ptrdiff_t>(descriptor.end),
+                field);
         }
         _context.problem_to_petsc.resize(problem.dof_count());
         _context.petsc_to_problem.resize(problem.dof_count());
@@ -789,8 +891,8 @@ class PetscSolver::Implementation final {
         const std::size_t field_size = field_count == 0U ? 0U : problem.field_layout().front().end;
         for (std::size_t field = 0; field < field_count; ++field) {
             const FieldDescriptor& descriptor = problem.field_layout()[field];
-            interleave_fields = interleave_fields && descriptor.begin == field * field_size &&
-                                descriptor.end == (field + 1U) * field_size;
+            interleave_fields = interleave_fields && descriptor.begin == field * field_size
+                                && descriptor.end == (field + 1U) * field_size;
         }
         for (std::size_t problem_dof = 0; problem_dof < problem.dof_count(); ++problem_dof) {
             const std::size_t petsc_dof =
@@ -830,15 +932,15 @@ class PetscSolver::Implementation final {
             interleave_fields
                 ? checked_petsc_int(field_count * (field_size * (rank + 1U) / size - field_size * rank / size))
                 : PETSC_DECIDE;
-        check_petsc(
-            VecCreateMPI(PETSC_COMM_WORLD, requested_local_count, _count, &_objects->state), "VecCreateMPI state");
+        check_petsc(VecCreateMPI(PETSC_COMM_WORLD, requested_local_count, _count, &_objects->state),
+            "VecCreateMPI state");
         check_petsc(VecDuplicate(_objects->state, &_objects->residual), "VecDuplicate residual");
         PetscInt local_count = 0;
         check_petsc(VecGetLocalSize(_objects->state, &local_count), "VecGetLocalSize state");
         PetscInt ownership_begin = 0;
         PetscInt ownership_end = 0;
-        check_petsc(
-            VecGetOwnershipRange(_objects->state, &ownership_begin, &ownership_end), "VecGetOwnershipRange state");
+        check_petsc(VecGetOwnershipRange(_objects->state, &ownership_begin, &ownership_end),
+            "VecGetOwnershipRange state");
         const std::size_t sparsity_count = problem.sparsity_contribution_count();
         std::vector<PetscInt> sparsity_dofs;
         std::vector<double> sparsity_zeros;
@@ -862,26 +964,34 @@ class PetscSolver::Implementation final {
                     sparsity_dofs[local] = _context.problem_to_petsc[contribution_dofs[local]];
                 sparsity_zeros.assign(contribution_dofs.size() * contribution_dofs.size(), 0.0);
                 problem.sparsity_contribution_jacobian_pattern(entry, sparsity_pattern);
-                check_petsc(insert_pattern_blocks(preallocator, sparsity_dofs, sparsity_pattern, sparsity_zeros,
-                                INSERT_VALUES, ownership_begin, ownership_end, sparsity_insertion),
+                check_petsc(insert_pattern_blocks(preallocator,
+                                sparsity_dofs,
+                                sparsity_pattern,
+                                sparsity_zeros,
+                                INSERT_VALUES,
+                                ownership_begin,
+                                ownership_end,
+                                sparsity_insertion),
                     "insert_pattern_blocks sparsity preallocator");
             }
             check_petsc(MatAssemblyBegin(preallocator, MAT_FINAL_ASSEMBLY), "MatAssemblyBegin sparsity preallocator");
             check_petsc(MatAssemblyEnd(preallocator, MAT_FINAL_ASSEMBLY), "MatAssemblyEnd sparsity preallocator");
             check_petsc(MatCreate(PETSC_COMM_WORLD, &_objects->jacobian), "MatCreate Jacobian");
-            check_petsc(
-                MatSetSizes(_objects->jacobian, local_count, local_count, _count, _count), "MatSetSizes Jacobian");
+            check_petsc(MatSetSizes(_objects->jacobian, local_count, local_count, _count, _count),
+                "MatSetSizes Jacobian");
             check_petsc(MatSetType(_objects->jacobian, MATAIJ), "MatSetType Jacobian");
-            check_petsc(
-                MatPreallocatorPreallocate(preallocator,
-                    problem.jacobian_sparsity_is_state_dependent() ? PETSC_FALSE : PETSC_TRUE, _objects->jacobian),
+            check_petsc(MatPreallocatorPreallocate(preallocator,
+                            problem.jacobian_sparsity_is_state_dependent() ? PETSC_FALSE : PETSC_TRUE,
+                            _objects->jacobian),
                 "MatPreallocatorPreallocate Jacobian");
             check_petsc(MatDestroy(&preallocator), "MatDestroy sparsity preallocator");
         } catch (...) {
-            if (preallocator != nullptr) (void)MatDestroy(&preallocator);
+            if (preallocator != nullptr)
+                (void)MatDestroy(&preallocator);
             throw;
         }
-        check_petsc(MatSetOption(_objects->jacobian, MAT_NEW_NONZERO_ALLOCATION_ERR,
+        check_petsc(MatSetOption(_objects->jacobian,
+                        MAT_NEW_NONZERO_ALLOCATION_ERR,
                         problem.jacobian_sparsity_is_state_dependent() ? PETSC_FALSE : PETSC_TRUE),
             "MatSetOption MAT_NEW_NONZERO_ALLOCATION_ERR");
         check_petsc(SNESCreate(PETSC_COMM_WORLD, &_objects->snes), "SNESCreate");
@@ -898,7 +1008,8 @@ class PetscSolver::Implementation final {
             if (condition.dof >= problem.dof_count())
                 throw std::out_of_range("Dirichlet condition DOF is out of range");
             const PetscInt dof = _context.problem_to_petsc[condition.dof];
-            if (dof >= ownership_begin && dof < ownership_end) _context.constrained_dofs.push_back(dof);
+            if (dof >= ownership_begin && dof < ownership_end)
+                _context.constrained_dofs.push_back(dof);
             _context.constrained[condition.dof] = true;
         }
         const std::vector<std::size_t> required_dofs =
@@ -915,8 +1026,8 @@ class PetscSolver::Implementation final {
                 _context.shadow_dofs.push_back(static_cast<std::uint32_t>(condition.dof));
         }
         std::sort(_context.shadow_dofs.begin(), _context.shadow_dofs.end());
-        _context.shadow_dofs.erase(
-            std::unique(_context.shadow_dofs.begin(), _context.shadow_dofs.end()), _context.shadow_dofs.end());
+        _context.shadow_dofs.erase(std::unique(_context.shadow_dofs.begin(), _context.shadow_dofs.end()),
+            _context.shadow_dofs.end());
         _context.state_values.resize(problem.dof_count(), std::numeric_limits<double>::quiet_NaN());
         std::vector<PetscInt> shadow_indices;
         shadow_indices.reserve(_context.shadow_dofs.size());
@@ -926,21 +1037,29 @@ class PetscSolver::Implementation final {
         IS source_indices = nullptr;
         IS destination_indices = nullptr;
         try {
-            check_petsc(ISCreateGeneral(
-                            PETSC_COMM_SELF, shadow_count, shadow_indices.data(), PETSC_COPY_VALUES, &source_indices),
+            check_petsc(ISCreateGeneral(PETSC_COMM_SELF,
+                            shadow_count,
+                            shadow_indices.data(),
+                            PETSC_COPY_VALUES,
+                            &source_indices),
                 "ISCreateGeneral shadow state");
             check_petsc(ISCreateStride(PETSC_COMM_SELF, shadow_count, 0, 1, &destination_indices),
                 "ISCreateStride shadow state");
-            check_petsc(
-                VecCreateSeq(PETSC_COMM_SELF, shadow_count, &_objects->gathered_state), "VecCreateSeq shadow state");
-            check_petsc(VecScatterCreate(_objects->state, source_indices, _objects->gathered_state, destination_indices,
+            check_petsc(VecCreateSeq(PETSC_COMM_SELF, shadow_count, &_objects->gathered_state),
+                "VecCreateSeq shadow state");
+            check_petsc(VecScatterCreate(_objects->state,
+                            source_indices,
+                            _objects->gathered_state,
+                            destination_indices,
                             &_objects->state_scatter),
                 "VecScatterCreate shadow state");
             check_petsc(ISDestroy(&source_indices), "ISDestroy shadow source");
             check_petsc(ISDestroy(&destination_indices), "ISDestroy shadow destination");
         } catch (...) {
-            if (source_indices != nullptr) (void)ISDestroy(&source_indices);
-            if (destination_indices != nullptr) (void)ISDestroy(&destination_indices);
+            if (source_indices != nullptr)
+                (void)ISDestroy(&source_indices);
+            if (destination_indices != nullptr)
+                (void)ISDestroy(&destination_indices);
             throw;
         }
         _context.state_scatter = _objects->state_scatter;
@@ -974,7 +1093,8 @@ PetscSession::PetscSession(int& argc, char**& argv, const char* help)
 }
 
 PetscSession::~PetscSession() {
-    if (!_owns_initialization) return;
+    if (!_owns_initialization)
+        return;
     PetscBool finalized = PETSC_FALSE;
     if (PetscFinalized(&finalized) == PETSC_SUCCESS && finalized == PETSC_FALSE) {
         const PetscErrorCode code = PetscFinalize();
@@ -982,12 +1102,17 @@ PetscSession::~PetscSession() {
     }
 }
 
-int PetscSession::rank() const noexcept { return _rank; }
+int PetscSession::rank() const noexcept {
+    return _rank;
+}
 
-int PetscSession::size() const noexcept { return _size; }
+int PetscSession::size() const noexcept {
+    return _size;
+}
 
 void PetscSession::collective_root_action(const std::function<void()>& action) const {
-    if (!action) throw std::invalid_argument("PetscSession collective root action must not be empty");
+    if (!action)
+        throw std::invalid_argument("PetscSession collective root action must not be empty");
     bool failed = false;
     std::string message;
     if (_rank == 0) {
@@ -1005,19 +1130,23 @@ void PetscSession::collective_root_action(const std::function<void()>& action) c
     PetscInt collective_failure[2]{};
     check_petsc(PetscGlobalMinMaxInt(PETSC_COMM_WORLD, local_failure, collective_failure),
         "PetscGlobalMinMaxInt root I/O status");
-    if (collective_failure[1] == 0) return;
+    if (collective_failure[1] == 0)
+        return;
     throw std::runtime_error(_rank == 0 ? "collective root-rank I/O failed: " + message
                                         : "collective root-rank I/O failed; see rank 0 for details");
 }
 
-PetscSolver::PetscSolver() : _impl(std::make_unique<Implementation>()) {}
+PetscSolver::PetscSolver() : _impl(std::make_unique<Implementation>()) {
+}
 
 PetscSolver::~PetscSolver() = default;
 
-SolveResult PetscSolver::solve(
-    const NonlinearProblem& problem, const std::vector<double>& initial_state, const SolverOptions& options) {
+SolveResult PetscSolver::solve(const NonlinearProblem& problem,
+    const std::vector<double>& initial_state,
+    const SolverOptions& options) {
     SolveResult result = solve_once(problem, initial_state, options);
-    if (result.converged || !options.backtracking_fallback || options.line_search != SolverOptions::LineSearch::basic)
+    if (result.converged || !options.backtracking_fallback
+        || options.line_search == SolverOptions::LineSearch::backtracking)
         return result;
     SolverOptions fallback_options = options;
     fallback_options.line_search = SolverOptions::LineSearch::backtracking;
@@ -1028,13 +1157,14 @@ SolveResult PetscSolver::solve(
     accumulate_timing(fallback.timing, result.timing);
     fallback.nonlinear_attempts = result.nonlinear_attempts + 1;
     fallback.used_backtracking_fallback = true;
-    fallback.basic_failure_category = result.failure_category;
-    fallback.basic_failure_message = result.failure_message;
+    fallback.initial_failure_category = result.failure_category;
+    fallback.initial_failure_message = result.failure_message;
     return fallback;
 }
 
-SolveResult PetscSolver::solve_once(
-    const NonlinearProblem& problem, const std::vector<double>& initial_state, const SolverOptions& options) {
+SolveResult PetscSolver::solve_once(const NonlinearProblem& problem,
+    const std::vector<double>& initial_state,
+    const SolverOptions& options) {
     if (initial_state.size() != problem.dof_count())
         throw std::invalid_argument("PetscSolver initial state size mismatch");
     const bool fixed_temperature_scale = options.temperature_residual_scale > 0.0,
@@ -1090,15 +1220,20 @@ SolveResult PetscSolver::solve_once(
     for (PetscInt index = ownership_begin; index < ownership_end; ++index)
         state_array[index - ownership_begin] = initial_state[context.petsc_to_problem[static_cast<std::size_t>(index)]];
     check_petsc(VecRestoreArray(objects.state, &state_array), "VecRestoreArray state");
-    check_petsc(SNESSetTolerances(objects.snes, options.absolute_tolerance, options.relative_tolerance,
-                    residual_scaling ? 0.0 : options.step_tolerance, options.maximum_iterations, PETSC_DEFAULT),
+    check_petsc(SNESSetTolerances(objects.snes,
+                    options.absolute_tolerance,
+                    options.relative_tolerance,
+                    residual_scaling ? 0.0 : options.step_tolerance,
+                    options.maximum_iterations,
+                    PETSC_DEFAULT),
         "SNESSetTolerances");
     check_petsc(SNESSetLagJacobian(objects.snes, options.jacobian_lag), "SNESSetLagJacobian");
     SNESLineSearch line_search = nullptr;
     check_petsc(SNESGetLineSearch(objects.snes, &line_search), "SNESGetLineSearch");
-    check_petsc(
-        SNESLineSearchSetType(line_search,
-            options.line_search == SolverOptions::LineSearch::backtracking ? SNESLINESEARCHBT : SNESLINESEARCHBASIC),
+    check_petsc(SNESLineSearchSetType(line_search,
+                    options.line_search == SolverOptions::LineSearch::backtracking     ? SNESLINESEARCHBT
+                    : options.line_search == SolverOptions::LineSearch::critical_point ? SNESLINESEARCHCP
+                                                                                       : SNESLINESEARCHBASIC),
         "SNESLineSearchSetType");
     configure_linear_solver(objects, problem, options, PetscGlobalSize, context);
     check_petsc(SNESSetFromOptions(objects.snes), "SNESSetFromOptions");
@@ -1116,7 +1251,8 @@ SolveResult PetscSolver::solve_once(
         PetscInt ordering = 0;
         check_petsc(PetscOptionsGetInt(nullptr, nullptr, "-mat_mumps_icntl_7", &ordering, nullptr),
             "PetscOptionsGetInt factor matrix ordering");
-        if (ordering != 4) direct_factorization = PETSC_FALSE;
+        if (ordering != 4)
+            direct_factorization = PETSC_FALSE;
     }
     if (direct_factorization && !objects.factor_matrix) {
         check_petsc(MatDuplicate(objects.jacobian, MAT_DO_NOT_COPY_VALUES, &objects.factor_matrix),
@@ -1128,24 +1264,28 @@ SolveResult PetscSolver::solve_once(
         check_petsc(MatAssemblyBegin(objects.factor_matrix, MAT_FINAL_ASSEMBLY), "MatAssemblyBegin factor matrix");
         check_petsc(MatAssemblyEnd(objects.factor_matrix, MAT_FINAL_ASSEMBLY), "MatAssemblyEnd factor matrix");
     }
-    check_petsc(SNESSetJacobian(objects.snes, objects.jacobian,
-                    direct_factorization ? objects.factor_matrix : objects.jacobian, form_jacobian, &context),
+    check_petsc(SNESSetJacobian(objects.snes,
+                    objects.jacobian,
+                    direct_factorization ? objects.factor_matrix : objects.jacobian,
+                    form_jacobian,
+                    &context),
         "SNESSetJacobian factor matrix");
     check_petsc(SNESSetConvergenceTest(objects.snes,
                     options.field_residual_convergence ? field_residual_convergence_test : SNESConvergedDefault,
-                    options.field_residual_convergence ? static_cast<void*>(&context) : nullptr, nullptr),
+                    options.field_residual_convergence ? static_cast<void*>(&context) : nullptr,
+                    nullptr),
         "SNESSetConvergenceTest");
     const MemorySnapshot setup_memory = memory_snapshot();
     context.timing.setup_resident_bytes = static_cast<std::size_t>(setup_memory.resident_bytes);
-    context.timing.maximum_peak_resident_bytes = std::max(
-        context.timing.maximum_peak_resident_bytes, static_cast<std::size_t>(setup_memory.maximum_resident_bytes));
+    context.timing.maximum_peak_resident_bytes = std::max(context.timing.maximum_peak_resident_bytes,
+        static_cast<std::size_t>(setup_memory.maximum_resident_bytes));
     context.timing.setup_seconds = seconds_since(setup_start);
     const SteadyClock::time_point solve_start = SteadyClock::now();
     check_petsc(SNESSolve(objects.snes, nullptr, objects.state), "SNESSolve");
     const MemorySnapshot solve_memory = memory_snapshot();
     context.timing.solve_resident_bytes = static_cast<std::size_t>(solve_memory.resident_bytes);
-    context.timing.maximum_peak_resident_bytes = std::max(
-        context.timing.maximum_peak_resident_bytes, static_cast<std::size_t>(solve_memory.maximum_resident_bytes));
+    context.timing.maximum_peak_resident_bytes = std::max(context.timing.maximum_peak_resident_bytes,
+        static_cast<std::size_t>(solve_memory.maximum_resident_bytes));
     context.timing.nonlinear_solve_seconds = seconds_since(solve_start);
     SNESConvergedReason reason = SNES_CONVERGED_ITERATING;
     PetscInt iterations = 0;
@@ -1158,16 +1298,16 @@ SolveResult PetscSolver::solve_once(
     const bool requires_explicit_residual_audit = reason == SNES_CONVERGED_SNORM_RELATIVE || reason < 0;
     if (requires_explicit_residual_audit) {
         context.last_function_domain_error = false;
-        check_petsc(
-            SNESComputeFunction(objects.snes, objects.state, objects.residual), "SNESComputeFunction final residual");
+        check_petsc(SNESComputeFunction(objects.snes, objects.state, objects.residual),
+            "SNESComputeFunction final residual");
         check_petsc(VecNorm(objects.residual, NORM_2, &residual_norm), "VecNorm final residual");
     }
     const bool final_domain_error = context.last_function_domain_error;
     std::vector<double> solution = gather_complete_state(objects.state, problem.dof_count(), context.petsc_to_problem);
     const MemorySnapshot final_memory = memory_snapshot();
     context.timing.final_resident_bytes = static_cast<std::size_t>(final_memory.resident_bytes);
-    context.timing.maximum_peak_resident_bytes = std::max(
-        context.timing.maximum_peak_resident_bytes, static_cast<std::size_t>(final_memory.maximum_resident_bytes));
+    context.timing.maximum_peak_resident_bytes = std::max(context.timing.maximum_peak_resident_bytes,
+        static_cast<std::size_t>(final_memory.maximum_resident_bytes));
     SolveResult result;
     result.state = std::move(solution);
     result.nonlinear_iterations = static_cast<int>(iterations);
@@ -1175,7 +1315,8 @@ SolveResult PetscSolver::solve_once(
     result.residual_norm = static_cast<double>(residual_norm);
     result.convergence_reason = static_cast<int>(reason);
     result.field_names.reserve(problem.field_layout().size());
-    for (const FieldDescriptor& field : problem.field_layout()) result.field_names.push_back(field.name);
+    for (const FieldDescriptor& field : problem.field_layout())
+        result.field_names.push_back(field.name);
     result.initial_field_residual_norms = context.initial_field_residual_norms;
     result.field_residual_reference_norms = context.field_residual_reference_norms;
     result.final_field_residual_norms = context.latest_unscaled_field_residual_norms;
@@ -1211,15 +1352,14 @@ SolveResult PetscSolver::solve_once(
                          : options.mechanical_residual_absolute_tolerance * result.field_residual_scalings[field],
                 options.relative_tolerance * reference);
         const double independent_field_threshold = std::max(numerical_residual_floor, fallback_reduction * reference);
-        const double field_threshold = std::max(configured_field_threshold, independent_field_threshold) *
-                                       (1.0 + 64.0 * std::numeric_limits<double>::epsilon());
+        const double field_threshold = std::max(configured_field_threshold, independent_field_threshold)
+                                       * (1.0 + 64.0 * std::numeric_limits<double>::epsilon());
         field_thresholds[field] = field_threshold;
-        fields_verified = std::isfinite(result.final_scaled_field_residual_norms[field]) &&
-                          result.final_scaled_field_residual_norms[field] <= field_threshold && fields_verified;
+        fields_verified = std::isfinite(result.final_scaled_field_residual_norms[field])
+                          && result.final_scaled_field_residual_norms[field] <= field_threshold && fields_verified;
     }
-    const bool residual_verified = std::isfinite(result.residual_norm) &&
-                                   std::isfinite(context.initial_residual_norm) &&
-                                   result.residual_norm <= residual_slack && fields_verified;
+    const bool residual_verified = std::isfinite(result.residual_norm) && std::isfinite(context.initial_residual_norm)
+                                   && result.residual_norm <= residual_slack && fields_verified;
     const bool recoverable_stopping_reason =
         reason == SNES_DIVERGED_LINE_SEARCH || reason == SNES_DIVERGED_MAX_IT || reason == SNES_DIVERGED_LOCAL_MIN;
     result.converged = residual_verified && !final_domain_error && (reason > 0 || recoverable_stopping_reason);
@@ -1255,7 +1395,8 @@ SolveResult PetscSolver::solve_once(
     PetscInt64 local_remote_shadow = 0;
     for (const std::uint32_t dof : context.shadow_dofs) {
         const PetscInt petsc_dof = context.problem_to_petsc[static_cast<std::size_t>(dof)];
-        if (petsc_dof < context.ownership_begin || petsc_dof >= context.ownership_end) ++local_remote_shadow;
+        if (petsc_dof < context.ownership_begin || petsc_dof >= context.ownership_end)
+            ++local_remote_shadow;
     }
     PetscInt64 total_remote_shadow = 0;
     check_mpi(MPIU_Allreduce(&local_shadow, &maximum_shadow, 1, MPIU_INT64, MPI_MAX, PETSC_COMM_WORLD),
@@ -1272,18 +1413,25 @@ SolveResult PetscSolver::solve_once(
 
 std::string petsc_convergence_reason_name(int reason) {
     const char* name = SNESConvergedReasons[reason];
-    if (name == nullptr) return "UNKNOWN";
+    if (name == nullptr)
+        return "UNKNOWN";
     return name;
 }
 
 const char* solve_failure_category_name(SolveFailureCategory category) noexcept {
     switch (category) {
-    case SolveFailureCategory::none: return "none";
-    case SolveFailureCategory::nonlinear_divergence: return "nonlinear_divergence";
-    case SolveFailureCategory::physical_domain: return "physical_domain";
-    case SolveFailureCategory::residual_verification: return "residual_verification";
-    case SolveFailureCategory::time_discretization: return "time_discretization";
-    case SolveFailureCategory::contact_constraint: return "contact_constraint";
+    case SolveFailureCategory::none:
+        return "none";
+    case SolveFailureCategory::nonlinear_divergence:
+        return "nonlinear_divergence";
+    case SolveFailureCategory::physical_domain:
+        return "physical_domain";
+    case SolveFailureCategory::residual_verification:
+        return "residual_verification";
+    case SolveFailureCategory::time_discretization:
+        return "time_discretization";
+    case SolveFailureCategory::contact_constraint:
+        return "contact_constraint";
     }
     return "unknown";
 }

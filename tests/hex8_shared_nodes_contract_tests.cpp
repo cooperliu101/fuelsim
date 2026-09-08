@@ -11,12 +11,14 @@
 #include <vector>
 
 int main(int argc, char** argv) {
-    if (argc != 4) return 2;
+    if (argc != 4)
+        return 2;
     try {
         const auto definition = fuelsim::read_case_input(argv[1]);
         const auto mesh = fuelsim::read_exodus_hex8(definition.mesh_file);
         const bool b35 = std::string(argv[3]) == "b35";
-        if (!b35 && std::string(argv[3]) != "b36") throw std::invalid_argument("Unknown shared-node contract");
+        if (!b35 && std::string(argv[3]) != "b36")
+            throw std::invalid_argument("Unknown shared-node contract");
         std::unique_ptr<fuelsim::SteadyProblem> steady;
         std::unique_ptr<fuelsim::TransientProblem> transient;
         if (b35)
@@ -26,7 +28,8 @@ int main(int argc, char** argv) {
         const auto& spatial = b35 ? fuelsim::cartesian::ProblemAccess::view(*steady)
                                   : fuelsim::cartesian::ProblemAccess::view(*transient);
         const auto output = fuelsim::test::read_final_exodus_results(argv[2]);
-        if (output.nodes.size() != mesh.nodes().size()) throw std::runtime_error("Shared-node result count differs");
+        if (output.nodes.size() != mesh.nodes().size())
+            throw std::runtime_error("Shared-node result count differs");
         const std::size_t dof_count = b35 ? steady->dof_count() : transient->dof_count();
         if (spatial.node_count() != mesh.nodes().size() || dof_count != 4 * mesh.nodes().size())
             throw std::runtime_error("Shared nodes do not have exactly one global four-field node per source node");
@@ -46,7 +49,8 @@ int main(int argc, char** argv) {
             }
         }
         for (std::size_t source = 0; source < mesh.nodes().size(); ++source) {
-            if (occurrences[source] == 0) throw std::runtime_error("Source node was not mapped");
+            if (occurrences[source] == 0)
+                throw std::runtime_error("Source node was not mapped");
             if (b35 && occurrences[source] != (std::abs(mesh.nodes()[source].x - 1.0) < 1.0e-12 ? 2U : 1U))
                 throw std::runtime_error("B3.5 shared interface has incorrect region ownership count");
         }
@@ -71,7 +75,8 @@ int main(int argc, char** argv) {
             for (std::size_t item = 0; item < interface_dofs.size(); ++item) {
                 const double relative = std::abs(balance[item]) / std::max(scale[item], 1.0);
                 std::cout << "b35_interface_residual_" << item << '=' << relative << '\n';
-                if (!(relative < 1.0e-8)) throw std::runtime_error("Shared interface residual is not balanced");
+                if (!(relative < 1.0e-8))
+                    throw std::runtime_error("Shared interface residual is not balanced");
             }
         }
         return 0;

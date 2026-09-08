@@ -15,8 +15,10 @@
 namespace {
 using Clock = std::chrono::steady_clock;
 
-void write_nodes(const std::string& path, const fuelsim::UnstructuredHex8Mesh& mesh,
-    const fuelsim::cartesian::SpatialAssembly& spatial, const std::vector<double>& state) {
+void write_nodes(const std::string& path,
+    const fuelsim::UnstructuredHex8Mesh& mesh,
+    const fuelsim::cartesian::SpatialAssembly& spatial,
+    const std::vector<double>& state) {
     const auto& dofs = spatial;
     std::vector<std::size_t> source_global(mesh.nodes().size(), 0U);
     std::vector<bool> present(mesh.nodes().size(), false);
@@ -32,11 +34,13 @@ void write_nodes(const std::string& path, const fuelsim::UnstructuredHex8Mesh& m
         }
     }
     std::ofstream output(path);
-    if (!output) throw std::runtime_error("Could not write B6.0 Fuelsim nodal output: " + path);
+    if (!output)
+        throw std::runtime_error("Could not write B6.0 Fuelsim nodal output: " + path);
     output << "id,x,y,z,temperature,displacement_x,displacement_y,displacement_z\n";
     output << std::scientific << std::setprecision(17);
     for (std::size_t source = 0; source < mesh.nodes().size(); ++source) {
-        if (!present[source]) throw std::runtime_error("B6.0 mesh node was not assigned a global degree of freedom");
+        if (!present[source])
+            throw std::runtime_error("B6.0 mesh node was not assigned a global degree of freedom");
         const std::size_t global = source_global[source];
         const auto& point = mesh.nodes()[source];
         output << (source + 1U) << ',' << point.x << ',' << point.y << ',' << point.z << ','
@@ -47,8 +51,10 @@ void write_nodes(const std::string& path, const fuelsim::UnstructuredHex8Mesh& m
     }
 }
 
-void write_nodes(const std::string& path, const fuelsim::UnstructuredHex20Mesh& mesh,
-    const fuelsim::cartesian::SpatialAssembly& spatial, const std::vector<double>& state) {
+void write_nodes(const std::string& path,
+    const fuelsim::UnstructuredHex20Mesh& mesh,
+    const fuelsim::cartesian::SpatialAssembly& spatial,
+    const std::vector<double>& state) {
     std::vector<std::size_t> source_global(mesh.nodes().size(), 0U);
     std::vector<bool> present(mesh.nodes().size(), false);
     std::vector<bool> temperature_active(mesh.nodes().size(), false);
@@ -72,7 +78,8 @@ void write_nodes(const std::string& path, const fuelsim::UnstructuredHex20Mesh& 
         }
     }
     std::ofstream output(path);
-    if (!output) throw std::runtime_error("Could not write B6.0 Fuelsim nodal output: " + path);
+    if (!output)
+        throw std::runtime_error("Could not write B6.0 Fuelsim nodal output: " + path);
     output << "id,x,y,z,temperature,displacement_x,displacement_y,displacement_z\n";
     output << std::scientific << std::setprecision(17);
     for (std::size_t source = 0; source < mesh.nodes().size(); ++source) {
@@ -93,15 +100,18 @@ void write_nodes(const std::string& path, const fuelsim::UnstructuredHex20Mesh& 
 
 double equivalent_stress(const fuelsim::SymmetricTensor3Values& stress) {
     const double mean = (stress.xx + stress.yy + stress.zz) / 3.0;
-    return std::sqrt(1.5 * ((stress.xx - mean) * (stress.xx - mean) + (stress.yy - mean) * (stress.yy - mean) +
-                               (stress.zz - mean) * (stress.zz - mean) +
-                               2.0 * (stress.xy * stress.xy + stress.yz * stress.yz + stress.xz * stress.xz)));
+    return std::sqrt(1.5
+                     * ((stress.xx - mean) * (stress.xx - mean) + (stress.yy - mean) * (stress.yy - mean)
+                         + (stress.zz - mean) * (stress.zz - mean)
+                         + 2.0 * (stress.xy * stress.xy + stress.yz * stress.yz + stress.xz * stress.xz)));
 }
 
-void write_material(
-    const std::string& path, const fuelsim::cartesian::SpatialAssembly& spatial, const std::vector<double>& state) {
+void write_material(const std::string& path,
+    const fuelsim::cartesian::SpatialAssembly& spatial,
+    const std::vector<double>& state) {
     std::ofstream output(path);
-    if (!output) throw std::runtime_error("Could not write B6.0 Fuelsim material output: " + path);
+    if (!output)
+        throw std::runtime_error("Could not write B6.0 Fuelsim material output: " + path);
     output << "element,integration_point,vonmises_stress,peeq,ceeq\n";
     output << std::scientific << std::setprecision(17);
     for (std::size_t region = 0; region < spatial.region_count(); ++region) {
@@ -115,10 +125,12 @@ void write_material(
     }
 }
 
-void write_material(const std::string& path, const fuelsim::cartesian::SpatialAssembly& spatial,
+void write_material(const std::string& path,
+    const fuelsim::cartesian::SpatialAssembly& spatial,
     const fuelsim::TransientProblem& problem) {
     std::ofstream output(path);
-    if (!output) throw std::runtime_error("Could not write B6.0 Fuelsim material output: " + path);
+    if (!output)
+        throw std::runtime_error("Could not write B6.0 Fuelsim material output: " + path);
     output << "element,integration_point,vonmises_stress,peeq,ceeq\n";
     output << std::scientific << std::setprecision(17);
     for (std::size_t region = 0; region < spatial.region_count(); ++region) {
@@ -134,10 +146,15 @@ void write_material(const std::string& path, const fuelsim::cartesian::SpatialAs
     }
 }
 
-void write_transient_timing(const std::string& path, const fuelsim::TransientResult& result, double setup_seconds,
-    double solver_seconds, double total_seconds, const fuelsim::TransientProblem& problem) {
+void write_transient_timing(const std::string& path,
+    const fuelsim::TransientResult& result,
+    double setup_seconds,
+    double solver_seconds,
+    double total_seconds,
+    const fuelsim::TransientProblem& problem) {
     std::ofstream output(path);
-    if (!output) throw std::runtime_error("Could not write B6.0 timing output: " + path);
+    if (!output)
+        throw std::runtime_error("Could not write B6.0 timing output: " + path);
     output << "metric\tvalue\n"
            << std::setprecision(17) << "setup_seconds\t" << setup_seconds << '\n'
            << "solver_seconds\t" << solver_seconds << '\n'
@@ -162,10 +179,15 @@ void write_transient_timing(const std::string& path, const fuelsim::TransientRes
     }
 }
 
-void write_steady_timing(const std::string& path, const fuelsim::SteadyResult& result, double setup_seconds,
-    double solver_seconds, double total_seconds, const fuelsim::SteadyProblem& problem) {
+void write_steady_timing(const std::string& path,
+    const fuelsim::SteadyResult& result,
+    double setup_seconds,
+    double solver_seconds,
+    double total_seconds,
+    const fuelsim::SteadyProblem& problem) {
     std::ofstream output(path);
-    if (!output) throw std::runtime_error("Could not write B6.0 timing output: " + path);
+    if (!output)
+        throw std::runtime_error("Could not write B6.0 timing output: " + path);
     output << "metric\tvalue\n"
            << std::setprecision(17) << "setup_seconds\t" << setup_seconds << '\n'
            << "solver_seconds\t" << solver_seconds << '\n'
@@ -258,14 +280,24 @@ int main(int argc, char** argv) {
             fuelsim::TransientProblem problem(definition.spatial, mesh);
             const auto problem_end = Clock::now();
             const auto& execution = definition.transient_execution;
-            const fuelsim::TransientTimeOptions time_options = {execution.end_time, execution.initial_time_step,
-                execution.minimum_time_step, execution.maximum_time_step, execution.growth_factor,
-                execution.cutback_factor, execution.maximum_cutbacks_per_step, execution.load_ramp_time,
-                execution.target_nonlinear_iterations, execution.iteration_window,
-                execution.time_error_relative_tolerance, execution.temperature_time_absolute_tolerance,
-                execution.displacement_time_absolute_tolerance, execution.time_error_safety_factor,
-                execution.strain_history_time_absolute_tolerance, execution.stress_history_time_absolute_tolerance,
-                execution.include_thermal_time_term, execution.use_linear_time_predictor};
+            const fuelsim::TransientTimeOptions time_options = {execution.end_time,
+                execution.initial_time_step,
+                execution.minimum_time_step,
+                execution.maximum_time_step,
+                execution.growth_factor,
+                execution.cutback_factor,
+                execution.maximum_cutbacks_per_step,
+                execution.load_ramp_time,
+                execution.target_nonlinear_iterations,
+                execution.iteration_window,
+                execution.time_error_relative_tolerance,
+                execution.temperature_time_absolute_tolerance,
+                execution.displacement_time_absolute_tolerance,
+                execution.time_error_safety_factor,
+                execution.strain_history_time_absolute_tolerance,
+                execution.stress_history_time_absolute_tolerance,
+                execution.include_thermal_time_term,
+                execution.use_linear_time_predictor};
             const auto solve_start = Clock::now();
             const fuelsim::TransientResult result = fuelsim::solve_transient(problem, time_options, options);
             const auto solve_end = Clock::now();
@@ -273,9 +305,12 @@ int main(int argc, char** argv) {
                 throw std::runtime_error(
                     "B6.0 HEX20 Fuelsim solve did not complete: " + result.last_attempt.failure_message);
             if (session.rank() == 0) {
-                write_nodes(
-                    argv[2], mesh, fuelsim::cartesian::ProblemAccess::view(problem), problem.committed_solution());
-                if (argc == 5) write_material(argv[4], fuelsim::cartesian::ProblemAccess::view(problem), problem);
+                write_nodes(argv[2],
+                    mesh,
+                    fuelsim::cartesian::ProblemAccess::view(problem),
+                    problem.committed_solution());
+                if (argc == 5)
+                    write_material(argv[4], fuelsim::cartesian::ProblemAccess::view(problem), problem);
                 const double setup_seconds = std::chrono::duration<double>(problem_end - setup_end).count();
                 const double solver_seconds = std::chrono::duration<double>(solve_end - solve_start).count();
                 const double total_seconds = std::chrono::duration<double>(solve_end - total_start).count();
@@ -316,13 +351,23 @@ int main(int argc, char** argv) {
         fuelsim::TransientProblem problem(definition.spatial, mesh);
         const auto problem_end = Clock::now();
         const auto& execution = definition.transient_execution;
-        const fuelsim::TransientTimeOptions time_options = {execution.end_time, execution.initial_time_step,
-            execution.minimum_time_step, execution.maximum_time_step, execution.growth_factor, execution.cutback_factor,
-            execution.maximum_cutbacks_per_step, execution.load_ramp_time, execution.target_nonlinear_iterations,
-            execution.iteration_window, execution.time_error_relative_tolerance,
-            execution.temperature_time_absolute_tolerance, execution.displacement_time_absolute_tolerance,
-            execution.time_error_safety_factor, execution.strain_history_time_absolute_tolerance,
-            execution.stress_history_time_absolute_tolerance, execution.include_thermal_time_term,
+        const fuelsim::TransientTimeOptions time_options = {execution.end_time,
+            execution.initial_time_step,
+            execution.minimum_time_step,
+            execution.maximum_time_step,
+            execution.growth_factor,
+            execution.cutback_factor,
+            execution.maximum_cutbacks_per_step,
+            execution.load_ramp_time,
+            execution.target_nonlinear_iterations,
+            execution.iteration_window,
+            execution.time_error_relative_tolerance,
+            execution.temperature_time_absolute_tolerance,
+            execution.displacement_time_absolute_tolerance,
+            execution.time_error_safety_factor,
+            execution.strain_history_time_absolute_tolerance,
+            execution.stress_history_time_absolute_tolerance,
+            execution.include_thermal_time_term,
             execution.use_linear_time_predictor};
         const auto solve_start = Clock::now();
         const fuelsim::TransientResult result = fuelsim::solve_transient(problem, time_options, options);

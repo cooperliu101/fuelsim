@@ -1,0 +1,16 @@
+Internal ctest changing into directory: /home/cooper/ai_project/fuelsim/build
+Test project /home/cooper/ai_project/fuelsim/build
+    Start 32: fuelsim_c3d20rt_finite_frictionless_abaqus_tests
+1/1 Test #32: fuelsim_c3d20rt_finite_frictionless_abaqus_tests ...   Passed   97.34 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Label Time Summary:
+abaqus               =  97.34 sec*proc (1 test)
+contact              =  97.34 sec*proc (1 test)
+quadratic            =  97.34 sec*proc (1 test)
+thermal              =  97.34 sec*proc (1 test)
+three-dimensional    =  97.34 sec*proc (1 test)
+transient            =  97.34 sec*proc (1 test)
+
+Total Test time (real) =  97.35 sec

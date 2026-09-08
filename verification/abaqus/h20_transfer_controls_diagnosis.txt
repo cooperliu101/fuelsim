@@ -1,0 +1,6 @@
+linear_finite_vs_small_primary_relative 0.09825224888300894
+linear_to_quadratic_reconstruction_relative 0.7284281944338131
+linear_minimum_mid_edge_transfer -0.012638665176999938
+h20_28_primary_signed_gap_probe transfer [-0.003462475499661755, -0.0, -0.0, -0.0, -0.004006656503224696, -0.0, -0.0004904018114309334, -0.0]
+h20_28_primary_signed_gap_shallow_probe transfer [-0.00346247549978034, -0.0, -0.0, -0.0, -0.004006656503250107, -0.0, -0.0004904018114902257, -0.0]
+closure_control_maximum_coefficient_difference 1.1858482945603654e-13

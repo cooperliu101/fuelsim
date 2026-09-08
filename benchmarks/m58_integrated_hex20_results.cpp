@@ -19,7 +19,8 @@ class ProgressObserver final : public fuelsim::TransientStepObserver {
     explicit ProgressObserver(bool active) : _active(active) {}
 
     void accepted_step(const fuelsim::TransientProblem&, const fuelsim::TransientAcceptedStep& step) override {
-        if (!_active) return;
+        if (!_active)
+            return;
         ++_accepted_steps;
         std::cout << "m58_hex20_progress_accepted_steps=" << _accepted_steps << '\n'
                   << "m58_hex20_progress_time=" << step.time << '\n'
@@ -60,12 +61,24 @@ fuelsim::SolverOptions solver_options(const fuelsim::FuelSimCaseDefinition& defi
 
 fuelsim::TransientTimeOptions time_options(const fuelsim::FuelSimCaseDefinition& definition) {
     const auto& input = definition.transient_execution;
-    return {input.end_time, input.initial_time_step, input.minimum_time_step, input.maximum_time_step,
-        input.growth_factor, input.cutback_factor, input.maximum_cutbacks_per_step, input.load_ramp_time,
-        input.target_nonlinear_iterations, input.iteration_window, input.time_error_relative_tolerance,
-        input.temperature_time_absolute_tolerance, input.displacement_time_absolute_tolerance,
-        input.time_error_safety_factor, input.strain_history_time_absolute_tolerance,
-        input.stress_history_time_absolute_tolerance, input.include_thermal_time_term, input.use_linear_time_predictor};
+    return {input.end_time,
+        input.initial_time_step,
+        input.minimum_time_step,
+        input.maximum_time_step,
+        input.growth_factor,
+        input.cutback_factor,
+        input.maximum_cutbacks_per_step,
+        input.load_ramp_time,
+        input.target_nonlinear_iterations,
+        input.iteration_window,
+        input.time_error_relative_tolerance,
+        input.temperature_time_absolute_tolerance,
+        input.displacement_time_absolute_tolerance,
+        input.time_error_safety_factor,
+        input.strain_history_time_absolute_tolerance,
+        input.stress_history_time_absolute_tolerance,
+        input.include_thermal_time_term,
+        input.use_linear_time_predictor};
 }
 } // namespace
 
@@ -78,8 +91,8 @@ int main(int argc, char** argv) {
     try {
         fuelsim::PetscSession session(argc, argv, "fuelsim M5.8 integrated HEX20 final-result writer\n");
         const fuelsim::FuelSimCaseDefinition definition = fuelsim::read_case_input(argv[1]);
-        if (definition.problem != fuelsim::CaseProblem::transient ||
-            definition.geometry != fuelsim::CaseGeometry::cartesian_3d)
+        if (definition.problem != fuelsim::CaseProblem::transient
+            || definition.geometry != fuelsim::CaseGeometry::cartesian_3d)
             throw std::invalid_argument("M5.8 HEX20 result writing requires a three-dimensional transient case");
         const fuelsim::UnstructuredHex20Mesh mesh = fuelsim::read_exodus_hex20(definition.mesh_file);
         fuelsim::TransientProblem problem(definition.spatial, mesh);
@@ -141,15 +154,18 @@ int main(int argc, char** argv) {
             const std::size_t source = contact_sources[node], global = source_to_global.at(source);
             if (global == std::numeric_limits<std::size_t>::max())
                 throw std::logic_error("M5.8 HEX20 contact result has an unmapped source node");
-            const double current_x = mesh.nodes()[source].x +
-                                     problem.committed_solution()[spatial.dof(fuelsim::Field::displacement_x, global)],
-                         current_y = mesh.nodes()[source].y +
-                                     problem.committed_solution()[spatial.dof(fuelsim::Field::displacement_y, global)],
+            const double current_x =
+                             mesh.nodes()[source].x
+                             + problem.committed_solution()[spatial.dof(fuelsim::Field::displacement_x, global)],
+                         current_y =
+                             mesh.nodes()[source].y
+                             + problem.committed_solution()[spatial.dof(fuelsim::Field::displacement_y, global)],
                          current_radius = std::hypot(current_x, current_y);
-            if (!(current_radius > 0.0)) throw std::domain_error("M5.8 HEX20 contact node lies on the cylinder axis");
-            radial_normal_force += (contact[node].normal_contact_force[0] * current_x +
-                                       contact[node].normal_contact_force[1] * current_y) /
-                                   current_radius;
+            if (!(current_radius > 0.0))
+                throw std::domain_error("M5.8 HEX20 contact node lies on the cylinder axis");
+            radial_normal_force +=
+                (contact[node].normal_contact_force[0] * current_x + contact[node].normal_contact_force[1] * current_y)
+                / current_radius;
         }
         if (session.rank() == 0)
             std::cout << "m58_hex20_radial_normal_contact_force=" << std::abs(radial_normal_force) << '\n';
@@ -167,10 +183,14 @@ int main(int argc, char** argv) {
                 output << source + 1 << ',' << mesh.nodes()[source].x << ',' << mesh.nodes()[source].y << ','
                        << mesh.nodes()[source].z << ',' << value.gap << ',' << value.constraint_pressure << ','
                        << value.pressure;
-                for (const double component : value.normal_contact_force) output << ',' << component;
-                for (const double component : value.tangential_contact_force) output << ',' << component;
-                for (const double component : value.tangential_slip) output << ',' << component;
-                for (const double component : value.elastic_tangential_slip) output << ',' << component;
+                for (const double component : value.normal_contact_force)
+                    output << ',' << component;
+                for (const double component : value.tangential_contact_force)
+                    output << ',' << component;
+                for (const double component : value.tangential_slip)
+                    output << ',' << component;
+                for (const double component : value.elastic_tangential_slip)
+                    output << ',' << component;
                 output << ',' << (value.projected ? 1 : 0) << ',' << (value.sliding ? 1 : 0) << ','
                        << value.primary_face << '\n';
             }

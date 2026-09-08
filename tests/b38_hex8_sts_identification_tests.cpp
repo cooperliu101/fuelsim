@@ -24,7 +24,8 @@ struct ProbeRow final {
 };
 
 bool check(bool condition, const std::string& message) {
-    if (condition) return true;
+    if (condition)
+        return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
@@ -33,35 +34,47 @@ std::vector<std::string> split(const std::string& line) {
     std::vector<std::string> result;
     std::stringstream stream(line);
     std::string value;
-    while (std::getline(stream, value, ',')) result.push_back(value);
+    while (std::getline(stream, value, ','))
+        result.push_back(value);
     return result;
 }
 
 std::vector<ProbeRow> read_probe(const std::string& path) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read the B3.8 Abaqus operator reference: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read the B3.8 Abaqus operator reference: " + path);
     std::string line;
-    if (!std::getline(input, line) ||
-        line != "step,input_local_node,input_label,output_local_node,output_label,closure_delta_m,copen_m,cpress_pa,"
-                "cnormf_x_n,cnormf_y_n,cnormf_z_n")
+    if (!std::getline(input, line)
+        || line
+               != "step,input_local_node,input_label,output_local_node,output_label,closure_delta_m,copen_m,cpress_pa,"
+                  "cnormf_x_n,cnormf_y_n,cnormf_z_n")
         throw std::runtime_error("The B3.8 Abaqus operator reference header is invalid");
     std::vector<ProbeRow> result;
     while (std::getline(input, line)) {
-        if (line.empty()) continue;
+        if (line.empty())
+            continue;
         const std::vector<std::string> values = split(line);
-        if (values.size() != 11) throw std::runtime_error("The B3.8 Abaqus operator row has the wrong width");
-        result.push_back({values[0], static_cast<std::size_t>(std::stoul(values[1])),
-            static_cast<std::size_t>(std::stoul(values[3])), std::stod(values[5]), std::stod(values[6]),
-            std::stod(values[7]), {std::stod(values[8]), std::stod(values[9]), std::stod(values[10])}});
+        if (values.size() != 11)
+            throw std::runtime_error("The B3.8 Abaqus operator row has the wrong width");
+        result.push_back({values[0],
+            static_cast<std::size_t>(std::stoul(values[1])),
+            static_cast<std::size_t>(std::stoul(values[3])),
+            std::stod(values[5]),
+            std::stod(values[6]),
+            std::stod(values[7]),
+            {std::stod(values[8]), std::stod(values[9]), std::stod(values[10])}});
     }
-    if (result.size() != 36) throw std::runtime_error("The B3.8 Abaqus operator reference must contain 36 rows");
+    if (result.size() != 36)
+        throw std::runtime_error("The B3.8 Abaqus operator reference must contain 36 rows");
     return result;
 }
 
 ProbeRow row(const std::vector<ProbeRow>& rows, const std::string& step, std::size_t output) {
-    const auto found = std::find_if(
-        rows.begin(), rows.end(), [&](const ProbeRow& value) { return value.step == step && value.output == output; });
-    if (found == rows.end()) throw std::runtime_error("The B3.8 Abaqus operator reference is incomplete");
+    const auto found = std::find_if(rows.begin(), rows.end(), [&](const ProbeRow& value) {
+        return value.step == step && value.output == output;
+    });
+    if (found == rows.end())
+        throw std::runtime_error("The B3.8 Abaqus operator reference is incomplete");
     return *found;
 }
 
@@ -104,8 +117,22 @@ Matrix4 identified_force_tangent(const std::vector<ProbeRow>& rows) {
 }
 
 Matrix4 expected_opening_operator() {
-    return {9.0 / 16.0, 3.0 / 16.0, 1.0 / 16.0, 3.0 / 16.0, 3.0 / 16.0, 9.0 / 16.0, 3.0 / 16.0, 1.0 / 16.0, 1.0 / 16.0,
-        3.0 / 16.0, 9.0 / 16.0, 3.0 / 16.0, 3.0 / 16.0, 1.0 / 16.0, 3.0 / 16.0, 9.0 / 16.0};
+    return {9.0 / 16.0,
+        3.0 / 16.0,
+        1.0 / 16.0,
+        3.0 / 16.0,
+        3.0 / 16.0,
+        9.0 / 16.0,
+        3.0 / 16.0,
+        1.0 / 16.0,
+        1.0 / 16.0,
+        3.0 / 16.0,
+        9.0 / 16.0,
+        3.0 / 16.0,
+        3.0 / 16.0,
+        1.0 / 16.0,
+        3.0 / 16.0,
+        9.0 / 16.0};
 }
 
 Matrix4 expected_force_tangent(const Matrix4& opening) {
@@ -119,10 +146,12 @@ Matrix4 expected_force_tangent(const Matrix4& opening) {
     return result;
 }
 
-bool check_abaqus_identification(
-    const std::vector<ProbeRow>& rows, const std::string& summary_path, bool finite_sliding_probe) {
+bool check_abaqus_identification(const std::vector<ProbeRow>& rows,
+    const std::string& summary_path,
+    bool finite_sliding_probe) {
     std::ifstream input(summary_path);
-    if (!input) throw std::runtime_error("Could not read the B3.8 Abaqus contact summary: " + summary_path);
+    if (!input)
+        throw std::runtime_error("Could not read the B3.8 Abaqus contact summary: " + summary_path);
     const std::string summary((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
     const Matrix4 opening = identified_opening_operator(rows), expected_opening = expected_opening_operator(),
                   force_tangent = identified_force_tangent(rows), expected_tangent = expected_force_tangent(opening);
@@ -151,31 +180,49 @@ bool check_abaqus_identification(
                  tangent_relative_tolerance = finite_sliding_probe ? 1.0e-8 : 5.0e-13,
                  tangent_absolute_tolerance = finite_sliding_probe ? 1.0e-2 : 1.0e-6,
                  base_pressure_tolerance = finite_sliding_probe ? 1.0e-8 : 1.0e-9;
-    return check(summary.find("PENALTY CONSTRAINT ENFORCEMENT WITH PENALTY STIFFNESS OF   1.00000E+08") !=
-                         std::string::npos &&
-                     summary.find("SURFACE TO SURFACE WITH THICKNESS") != std::string::npos &&
-                     summary.find("CONSTRAINT POSITION IS AT NODE") != std::string::npos &&
-                     summary.find("SUPPLEMENTARY CONSTRAINTS = NO") != std::string::npos &&
-                     summary.find("NUMBER OF INTERNAL ELEMENTS GENERATED FOR CONTACT         4") != std::string::npos,
-               "Abaqus reports four node-positioned surface-to-surface penalty constraints") &&
-           check(opening_error < opening_tolerance,
+    return check(summary.find("PENALTY CONSTRAINT ENFORCEMENT WITH PENALTY STIFFNESS OF   1.00000E+08")
+                         != std::string::npos
+                     && summary.find("SURFACE TO SURFACE WITH THICKNESS") != std::string::npos
+                     && summary.find("CONSTRAINT POSITION IS AT NODE") != std::string::npos
+                     && summary.find("SUPPLEMENTARY CONSTRAINTS = NO") != std::string::npos
+                     && summary.find("NUMBER OF INTERNAL ELEMENTS GENERATED FOR CONTACT         4")
+                            != std::string::npos,
+               "Abaqus reports four node-positioned surface-to-surface penalty constraints")
+           && check(opening_error < opening_tolerance,
                "the identified Abaqus C3D8 opening operator is the Q4 shape matrix at parent coordinates plus or "
-               "minus one half") &&
-           check(tangent_relative_l2 < tangent_relative_tolerance && tangent_maximum_error < tangent_absolute_tolerance,
-               "the Abaqus nodal-force tangent is penalty times A transpose W A with four equal quarter-face areas") &&
-           check(base_opening_error < 1.0e-16 && base_pressure_error < base_pressure_tolerance &&
-                     base_force_error < 1.0e-8 && maximum_transverse_force < 1.0e-12,
+               "minus one half")
+           && check(tangent_relative_l2 < tangent_relative_tolerance
+                        && tangent_maximum_error < tangent_absolute_tolerance,
+               "the Abaqus nodal-force tangent is penalty times A transpose W A with four equal quarter-face areas")
+           && check(base_opening_error < 1.0e-16 && base_pressure_error < base_pressure_tolerance
+                        && base_force_error < 1.0e-8 && maximum_transverse_force < 1.0e-12,
                "the Abaqus uniform-closure response has the identified opening, pressure, area, and normal direction");
 }
 
 fuelsim::UnstructuredHex8Mesh matching_mesh() {
-    const std::vector<fuelsim::CartesianPoint3> nodes = {{0.0, 0.0, 0.0}, {1.0, 0.0, 0.0}, {1.0, 1.0, 0.0},
-        {0.0, 1.0, 0.0}, {0.0, 0.0, 1.0}, {1.0, 0.0, 1.0}, {1.0, 1.0, 1.0}, {0.0, 1.0, 1.0}, {1.0, 0.0, 0.0},
-        {2.0, 0.0, 0.0}, {2.0, 1.0, 0.0}, {1.0, 1.0, 0.0}, {1.0, 0.0, 1.0}, {2.0, 0.0, 1.0}, {2.0, 1.0, 1.0},
+    const std::vector<fuelsim::CartesianPoint3> nodes = {{0.0, 0.0, 0.0},
+        {1.0, 0.0, 0.0},
+        {1.0, 1.0, 0.0},
+        {0.0, 1.0, 0.0},
+        {0.0, 0.0, 1.0},
+        {1.0, 0.0, 1.0},
+        {1.0, 1.0, 1.0},
+        {0.0, 1.0, 1.0},
+        {1.0, 0.0, 0.0},
+        {2.0, 0.0, 0.0},
+        {2.0, 1.0, 0.0},
+        {1.0, 1.0, 0.0},
+        {1.0, 0.0, 1.0},
+        {2.0, 0.0, 1.0},
+        {2.0, 1.0, 1.0},
         {1.0, 1.0, 1.0}};
-    const std::vector<fuelsim::Hex8Element> elements = {
-        {{{0, 1, 2, 3, 4, 5, 6, 7}}}, {{{8, 9, 10, 11, 12, 13, 14, 15}}}};
-    return fuelsim::UnstructuredHex8Mesh(nodes, elements, {1, 2}, {{1, "primary"}, {2, "secondary"}}, {},
+    const std::vector<fuelsim::Hex8Element> elements = {{{{0, 1, 2, 3, 4, 5, 6, 7}}},
+        {{{8, 9, 10, 11, 12, 13, 14, 15}}}};
+    return fuelsim::UnstructuredHex8Mesh(nodes,
+        elements,
+        {1, 2},
+        {{1, "primary"}, {2, "secondary"}},
+        {},
         {{10, "primary_contact", {{0, 1}}}, {20, "secondary_contact", {{1, 3}}}});
 }
 
@@ -185,8 +232,8 @@ fuelsim::ThermoelasticProperties material() {
 
 fuelsim::SpatialDefinition definition() {
     fuelsim::SpatialDefinition result;
-    result.regions = {
-        {"primary", "primary", material(), 0.0, 300.0}, {"secondary", "secondary", material(), 0.0, 300.0}};
+    result.regions = {{"primary", "primary", material(), 0.0, 300.0},
+        {"secondary", "secondary", material(), 0.0, 300.0}};
     fuelsim::ContactDefinition contact;
     contact.name = "matching_surface_contact";
     contact.primary = "primary_contact";
@@ -202,12 +249,14 @@ fuelsim::SpatialDefinition definition() {
 std::size_t global_node_for_source(const fuelsim::SteadyProblem& problem, std::size_t region, std::size_t source) {
     const auto& mesh = fuelsim::cartesian::ProblemAccess::region_mesh(problem, region);
     const auto found = std::find(mesh.source_node_ids().begin(), mesh.source_node_ids().end(), source);
-    if (found == mesh.source_node_ids().end()) throw std::logic_error("The B3.8 production node mapping failed");
-    return fuelsim::cartesian::ProblemAccess::region_node_offset(problem, region) +
-           static_cast<std::size_t>(found - mesh.source_node_ids().begin());
+    if (found == mesh.source_node_ids().end())
+        throw std::logic_error("The B3.8 production node mapping failed");
+    return fuelsim::cartesian::ProblemAccess::region_node_offset(problem, region)
+           + static_cast<std::size_t>(found - mesh.source_node_ids().begin());
 }
 
-std::array<double, 4> production_openings(const fuelsim::SteadyProblem& problem, const std::vector<double>& state,
+std::array<double, 4> production_openings(const fuelsim::SteadyProblem& problem,
+    const std::vector<double>& state,
     const std::array<std::size_t, 4>& ordered_sources) {
     const std::vector<std::size_t> sources =
         fuelsim::cartesian::ProblemAccess::contact_secondary_source_nodes(problem, 0);
@@ -216,13 +265,15 @@ std::array<double, 4> production_openings(const fuelsim::SteadyProblem& problem,
     std::array<double, 4> result{};
     for (std::size_t output = 0; output < 4; ++output) {
         const auto found = std::find(sources.begin(), sources.end(), ordered_sources[output]);
-        if (found == sources.end()) throw std::logic_error("The B3.8 production summary mapping failed");
+        if (found == sources.end())
+            throw std::logic_error("The B3.8 production summary mapping failed");
         result[output] = summaries[static_cast<std::size_t>(found - sources.begin())].gap;
     }
     return result;
 }
 
-std::array<double, 4> production_forces(const fuelsim::SteadyProblem& problem, const std::vector<double>& state,
+std::array<double, 4> production_forces(const fuelsim::SteadyProblem& problem,
+    const std::vector<double>& state,
     const std::array<std::size_t, 4>& ordered_sources) {
     const std::vector<std::size_t> sources =
         fuelsim::cartesian::ProblemAccess::contact_secondary_source_nodes(problem, 0);
@@ -231,7 +282,8 @@ std::array<double, 4> production_forces(const fuelsim::SteadyProblem& problem, c
     std::array<double, 4> result{};
     for (std::size_t output = 0; output < 4; ++output) {
         const auto found = std::find(sources.begin(), sources.end(), ordered_sources[output]);
-        if (found == sources.end()) throw std::logic_error("The B3.8 production force mapping failed");
+        if (found == sources.end())
+            throw std::logic_error("The B3.8 production force mapping failed");
         result[output] = summaries[static_cast<std::size_t>(found - sources.begin())].contact_force;
     }
     return result;
@@ -285,12 +337,14 @@ bool check_production_operator(const std::vector<ProbeRow>& rows, bool finite_sl
     std::array<double, 3> force_balance{};
     double maximum_jacobian_directional_error = 0.0;
     for (std::size_t contribution = 0; contribution < spatial.contribution_count(); ++contribution) {
-        if (spatial.contribution_type(contribution) != fuelsim::SpatialContributionType::mechanical_contact) continue;
+        if (spatial.contribution_type(contribution) != fuelsim::SpatialContributionType::mechanical_contact)
+            continue;
         ++mechanical_contributions;
         std::vector<std::size_t> local_dofs;
         spatial.contribution_dofs(contribution, local_dofs);
         std::vector<double> local_state(local_dofs.size());
-        for (std::size_t local = 0; local < local_dofs.size(); ++local) local_state[local] = base[local_dofs[local]];
+        for (std::size_t local = 0; local < local_dofs.size(); ++local)
+            local_state[local] = base[local_dofs[local]];
         std::vector<double> residual, jacobian;
         spatial.compute_contribution(contribution, local_state, nullptr, nullptr, 0.0, residual, &jacobian);
         std::vector<double> direction(local_state.size()), plus = local_state, minus = local_state;
@@ -314,7 +368,8 @@ bool check_production_operator(const std::vector<ProbeRow>& rows, bool finite_sl
             const std::size_t global = local_dofs[local];
             for (std::size_t component = 0; component < 3; ++component) {
                 const auto& field = spatial.field_layout()[component + 1];
-                if (global >= field.begin && global < field.end) force_balance[component] += residual[local];
+                if (global >= field.begin && global < field.end)
+                    force_balance[component] += residual[local];
             }
         }
         maximum_jacobian_directional_error =
@@ -337,24 +392,26 @@ bool check_production_operator(const std::vector<ProbeRow>& rows, bool finite_sl
         invalid.regions.front().strain_formulation = fuelsim::StrainFormulation::finite;
         fuelsim::SteadyProblem invalid_problem(std::move(invalid), mesh);
         (void)invalid_problem;
-    } catch (const std::invalid_argument&) { finite_strain_rejected = true; }
+    } catch (const std::invalid_argument&) {
+        finite_strain_rejected = true;
+    }
 
     const double operator_tolerance = finite_sliding_probe ? 1.0e-9 : 1.0e-12,
                  tangent_absolute_tolerance = finite_sliding_probe ? 1.0e-2 : 1.0e-6;
     return check(mechanical_contributions == 4,
-               "Fuelsim constructs four averaged constraints for one C3D8 secondary face") &&
-           check(opening_relative_l2 < operator_tolerance && opening_maximum_error < operator_tolerance,
-               "the Fuelsim opening operator reproduces the identified Abaqus operator") &&
-           check(tangent_relative_l2 < operator_tolerance && tangent_maximum_error < tangent_absolute_tolerance,
-               "the Fuelsim equivalent nodal-force tangent reproduces the identified Abaqus tangent") &&
-           check(base_opening_error < 1.0e-15 && base_force_error < 1.0e-8,
-               "the Fuelsim uniform-closure opening and nodal force reproduce Abaqus") &&
-           check(std::abs(force_balance[0]) < 1.0e-10 && std::abs(force_balance[1]) < 1.0e-10 &&
-                     std::abs(force_balance[2]) < 1.0e-10,
-               "the Fuelsim averaged constraints preserve exact action-reaction balance") &&
-           check(maximum_jacobian_directional_error < 1.0e-7,
-               "the Fuelsim averaged-constraint Jacobian matches a centered directional difference") &&
-           check(finite_strain_rejected,
+               "Fuelsim constructs four averaged constraints for one C3D8 secondary face")
+           && check(opening_relative_l2 < operator_tolerance && opening_maximum_error < operator_tolerance,
+               "the Fuelsim opening operator reproduces the identified Abaqus operator")
+           && check(tangent_relative_l2 < operator_tolerance && tangent_maximum_error < tangent_absolute_tolerance,
+               "the Fuelsim equivalent nodal-force tangent reproduces the identified Abaqus tangent")
+           && check(base_opening_error < 1.0e-15 && base_force_error < 1.0e-8,
+               "the Fuelsim uniform-closure opening and nodal force reproduce Abaqus")
+           && check(std::abs(force_balance[0]) < 1.0e-10 && std::abs(force_balance[1]) < 1.0e-10
+                        && std::abs(force_balance[2]) < 1.0e-10,
+               "the Fuelsim averaged constraints preserve exact action-reaction balance")
+           && check(maximum_jacobian_directional_error < 1.0e-7,
+               "the Fuelsim averaged-constraint Jacobian matches a centered directional difference")
+           && check(finite_strain_rejected,
                "HEX8 small-sliding surface-to-surface contact explicitly rejects finite-strain regions");
 }
 } // namespace
@@ -369,8 +426,8 @@ int main(int argc, char** argv) {
     try {
         const std::vector<ProbeRow> rows = read_probe(argv[1]);
         const bool finite_sliding_probe = argc == 4 && std::string(argv[3]) == "finite-sliding-probe";
-        const bool passed = check_abaqus_identification(rows, argv[2], finite_sliding_probe) &&
-                            check_production_operator(rows, finite_sliding_probe);
+        const bool passed = check_abaqus_identification(rows, argv[2], finite_sliding_probe)
+                            && check_production_operator(rows, finite_sliding_probe);
         if (passed && session.rank() == 0)
             std::cout << "[PASS] B3.8 HEX8 small-sliding surface-to-surface operator identification\n";
         return passed ? 0 : 1;

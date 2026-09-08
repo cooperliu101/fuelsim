@@ -35,7 +35,8 @@ struct ReferenceNode final {
 };
 
 bool check(bool condition, const std::string& message) {
-    if (condition) return true;
+    if (condition)
+        return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
@@ -54,13 +55,21 @@ CoordinateKey coordinate_key(const fuelsim::CartesianPoint3& point) {
 }
 
 fuelsim::Hex20Element append_annular_element(std::vector<fuelsim::CartesianPoint3>& nodes,
-    std::map<CoordinateKey, std::size_t>& node_map, double radius_lower, double radius_upper, double angle_lower,
-    double angle_upper, double z_lower, double z_upper) {
-    const std::array<std::array<double, 3>, 8> corners = {
-        {{radius_lower, angle_lower, z_lower}, {radius_upper, angle_lower, z_lower},
-            {radius_upper, angle_upper, z_lower}, {radius_lower, angle_upper, z_lower},
-            {radius_lower, angle_lower, z_upper}, {radius_upper, angle_lower, z_upper},
-            {radius_upper, angle_upper, z_upper}, {radius_lower, angle_upper, z_upper}}};
+    std::map<CoordinateKey, std::size_t>& node_map,
+    double radius_lower,
+    double radius_upper,
+    double angle_lower,
+    double angle_upper,
+    double z_lower,
+    double z_upper) {
+    const std::array<std::array<double, 3>, 8> corners = {{{radius_lower, angle_lower, z_lower},
+        {radius_upper, angle_lower, z_lower},
+        {radius_upper, angle_upper, z_lower},
+        {radius_lower, angle_upper, z_lower},
+        {radius_lower, angle_lower, z_upper},
+        {radius_upper, angle_lower, z_upper},
+        {radius_upper, angle_upper, z_upper},
+        {radius_lower, angle_upper, z_upper}}};
     const std::array<std::pair<std::size_t, std::size_t>, 12> edges = {
         {{0, 1}, {1, 2}, {2, 3}, {3, 0}, {0, 4}, {1, 5}, {2, 6}, {3, 7}, {4, 5}, {5, 6}, {6, 7}, {7, 4}}};
     std::array<std::array<double, 3>, 20> points{};
@@ -73,17 +82,21 @@ fuelsim::Hex20Element append_annular_element(std::vector<fuelsim::CartesianPoint
     for (std::size_t local = 0; local < points.size(); ++local) {
         const fuelsim::CartesianPoint3 point = cylindrical(points[local][0], points[local][1], points[local][2]);
         const auto inserted = node_map.emplace(coordinate_key(point), nodes.size());
-        if (inserted.second) nodes.push_back(point);
+        if (inserted.second)
+            nodes.push_back(point);
         element.nodes[local] = inserted.first->second;
     }
     return element;
 }
 
-std::vector<std::size_t> side_nodes(
-    const std::vector<fuelsim::Hex20Element>& elements, const std::vector<fuelsim::ElementSide>& sides) {
-    static constexpr std::array<std::array<std::size_t, 8>, 6> face_nodes = {
-        {{{0, 1, 5, 4, 8, 13, 16, 12}}, {{1, 2, 6, 5, 9, 14, 17, 13}}, {{2, 3, 7, 6, 10, 15, 18, 14}},
-            {{3, 0, 4, 7, 11, 12, 19, 15}}, {{0, 3, 2, 1, 11, 10, 9, 8}}, {{4, 5, 6, 7, 16, 17, 18, 19}}}};
+std::vector<std::size_t> side_nodes(const std::vector<fuelsim::Hex20Element>& elements,
+    const std::vector<fuelsim::ElementSide>& sides) {
+    static constexpr std::array<std::array<std::size_t, 8>, 6> face_nodes = {{{{0, 1, 5, 4, 8, 13, 16, 12}},
+        {{1, 2, 6, 5, 9, 14, 17, 13}},
+        {{2, 3, 7, 6, 10, 15, 18, 14}},
+        {{3, 0, 4, 7, 11, 12, 19, 15}},
+        {{0, 3, 2, 1, 11, 10, 9, 8}},
+        {{4, 5, 6, 7, 16, 17, 18, 19}}}};
     std::vector<std::size_t> result;
     for (const fuelsim::ElementSide& side : sides)
         for (const std::size_t local : face_nodes.at(side.local_side))
@@ -115,22 +128,28 @@ fuelsim::UnstructuredHex20Mesh generate_mesh() {
         secondary_contact.push_back({element, 3});
     }
     std::vector<std::size_t> primary_all, secondary_all;
-    for (const auto& entry : primary_nodes) primary_all.push_back(entry.second);
-    for (const auto& entry : secondary_nodes) secondary_all.push_back(entry.second);
+    for (const auto& entry : primary_nodes)
+        primary_all.push_back(entry.second);
+    for (const auto& entry : secondary_nodes)
+        secondary_all.push_back(entry.second);
     std::sort(primary_all.begin(), primary_all.end());
     std::sort(secondary_all.begin(), secondary_all.end());
     const std::vector<std::size_t> secondary_contact_nodes = side_nodes(elements, secondary_contact);
-    return fuelsim::UnstructuredHex20Mesh(std::move(nodes), std::move(elements), std::move(blocks),
+    return fuelsim::UnstructuredHex20Mesh(std::move(nodes),
+        std::move(elements),
+        std::move(blocks),
         {{1, "primary"}, {2, "secondary"}},
-        {{10, "primary_all", std::move(primary_all)}, {20, "secondary_all", std::move(secondary_all)},
+        {{10, "primary_all", std::move(primary_all)},
+            {20, "secondary_all", std::move(secondary_all)},
             {21, "secondary_contact_nodes", secondary_contact_nodes}},
         {{30, "primary_contact", std::move(primary_contact)}, {40, "secondary_contact", std::move(secondary_contact)}});
 }
 
 std::array<double, 3> secondary_displacement(const fuelsim::CartesianPoint3& point, const PathStep& step) {
     const double radius = std::hypot(point.x, point.y), angle = std::atan2(point.y, point.x) + step.rotation;
-    return {
-        (radius - 0.001) * std::cos(angle) - point.x, (radius - 0.001) * std::sin(angle) - point.y, step.axial_shift};
+    return {(radius - 0.001) * std::cos(angle) - point.x,
+        (radius - 0.001) * std::sin(angle) - point.y,
+        step.axial_shift};
 }
 
 void write_labels(std::ofstream& output, const std::vector<std::size_t>& nodes) {
@@ -145,7 +164,8 @@ void write_labels(std::ofstream& output, const std::vector<std::size_t>& nodes) 
 
 void write_abaqus_input(const std::string& output_path, const fuelsim::UnstructuredHex20Mesh& mesh, bool nlgeom) {
     std::ofstream output(output_path);
-    if (!output) throw std::runtime_error("Could not write H20.40 Abaqus input: " + output_path);
+    if (!output)
+        throw std::runtime_error("Could not write H20.40 Abaqus input: " + output_path);
     output << std::setprecision(16) << "*Heading\n"
            << "** H20.40 true-quadratic curved HEX20 finite-sliding friction path.\n"
            << "*Preprint, echo=NO, model=NO, history=NO, contact=YES\n"
@@ -154,14 +174,16 @@ void write_abaqus_input(const std::string& output_path, const fuelsim::Unstructu
         const fuelsim::CartesianPoint3& point = mesh.nodes()[node];
         output << node + 1 << ", " << point.x << ", " << point.y << ", " << point.z << '\n';
     }
-    constexpr std::array<std::size_t, 20> abaqus_order = {
-        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 16, 17, 18, 19, 12, 13, 14, 15};
+    constexpr std::array<std::size_t, 20> abaqus_order =
+        {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 16, 17, 18, 19, 12, 13, 14, 15};
     const auto write_block = [&](const std::string& name, std::int64_t block) {
         output << "*Element, type=C3D20, elset=" << name << '\n';
         for (std::size_t element = 0; element < mesh.elements().size(); ++element) {
-            if (mesh.element_block_ids()[element] != block) continue;
+            if (mesh.element_block_ids()[element] != block)
+                continue;
             output << element + 1;
-            for (const std::size_t local : abaqus_order) output << ", " << mesh.elements()[element].nodes[local] + 1;
+            for (const std::size_t local : abaqus_order)
+                output << ", " << mesh.elements()[element].nodes[local] + 1;
             output << '\n';
         }
     };
@@ -181,9 +203,11 @@ void write_abaqus_input(const std::string& output_path, const fuelsim::Unstructu
            << "*Friction, slip tolerance=1.e-4\n0.5,\n"
            << "*Contact Pair, interaction=CONTACT, type=SURFACE TO SURFACE, adjust=0.\n"
            << "SECONDARY_CONTACT, PRIMARY_CONTACT\n";
-    const auto secondary_all_entry = std::find_if(
-        mesh.node_sets().begin(), mesh.node_sets().end(), [](const auto& set) { return set.name == "secondary_all"; });
-    if (secondary_all_entry == mesh.node_sets().end()) throw std::logic_error("H20.40 secondary_all set is missing");
+    const auto secondary_all_entry = std::find_if(mesh.node_sets().begin(),
+        mesh.node_sets().end(),
+        [](const auto& set) { return set.name == "secondary_all"; });
+    if (secondary_all_entry == mesh.node_sets().end())
+        throw std::logic_error("H20.40 secondary_all set is missing");
     for (std::size_t step = 0; step < path.size(); ++step) {
         output << "*Step, name=" << path[step].name << ", nlgeom=" << (nlgeom ? "YES" : "NO") << ", inc=100\n"
                << "*Static\n0.025, 1., 1.e-8, 0.025\n"
@@ -210,12 +234,14 @@ std::vector<std::string> split(const std::string& line) {
     std::vector<std::string> result;
     std::istringstream stream(line);
     std::string value;
-    while (std::getline(stream, value, ',')) result.push_back(value);
+    while (std::getline(stream, value, ','))
+        result.push_back(value);
     return result;
 }
 
 double number(const std::vector<std::string>& values, std::size_t column, const std::string& input_path) {
-    if (column >= values.size()) throw std::invalid_argument("Incomplete H20.40 CSV row: " + input_path);
+    if (column >= values.size())
+        throw std::invalid_argument("Incomplete H20.40 CSV row: " + input_path);
     std::size_t parsed = 0;
     const double result = std::stod(values[column], &parsed);
     if (parsed != values[column].size() || !std::isfinite(result))
@@ -225,30 +251,37 @@ double number(const std::vector<std::string>& values, std::size_t column, const 
 
 std::size_t index_value(const std::vector<std::string>& values, std::size_t column, const std::string& input_path) {
     const double value = number(values, column, input_path);
-    if (value < 0.0 || value > static_cast<double>(std::numeric_limits<std::size_t>::max()) ||
-        std::floor(value) != value)
+    if (value < 0.0 || value > static_cast<double>(std::numeric_limits<std::size_t>::max())
+        || std::floor(value) != value)
         throw std::invalid_argument("Invalid H20.40 CSV index: " + input_path);
     return static_cast<std::size_t>(value);
 }
 
 std::vector<std::vector<ReferenceNode>> read_reference(const std::string& input_path) {
     std::ifstream input(input_path);
-    if (!input) throw std::runtime_error("Could not read H20.40 Abaqus reference: " + input_path);
+    if (!input)
+        throw std::runtime_error("Could not read H20.40 Abaqus reference: " + input_path);
     std::string line;
-    if (!std::getline(input, line) || line != "step,id,x,y,z,normal_x,normal_y,normal_z,tangential_x,tangential_y,"
-                                              "tangential_z,slip_1,slip_2,gap,pressure")
+    if (!std::getline(input, line)
+        || line
+               != "step,id,x,y,z,normal_x,normal_y,normal_z,tangential_x,tangential_y,"
+                  "tangential_z,slip_1,slip_2,gap,pressure")
         throw std::invalid_argument("Unexpected H20.40 CSV header: " + input_path);
     std::vector<std::vector<ReferenceNode>> result(path.size());
     while (std::getline(input, line)) {
-        if (line.empty()) continue;
+        if (line.empty())
+            continue;
         const std::vector<std::string> values = split(line);
         const std::size_t step = index_value(values, 0, input_path);
-        if (step == 0 || step > path.size()) throw std::invalid_argument("Invalid H20.40 CSV step: " + input_path);
+        if (step == 0 || step > path.size())
+            throw std::invalid_argument("Invalid H20.40 CSV step: " + input_path);
         result[step - 1].push_back({index_value(values, 1, input_path),
             {number(values, 2, input_path), number(values, 3, input_path), number(values, 4, input_path)},
             {number(values, 5, input_path), number(values, 6, input_path), number(values, 7, input_path)},
             {number(values, 8, input_path), number(values, 9, input_path), number(values, 10, input_path)},
-            number(values, 11, input_path), number(values, 12, input_path), number(values, 13, input_path),
+            number(values, 11, input_path),
+            number(values, 12, input_path),
+            number(values, 13, input_path),
             number(values, 14, input_path)});
     }
     return result;
@@ -276,8 +309,9 @@ fuelsim::SpatialDefinition definition(fuelsim::StrainFormulation strain) {
     return result;
 }
 
-double mechanical_contact_directional_error(
-    fuelsim::SteadyProblem& problem, const std::vector<double>& global_state, double perturbation) {
+double mechanical_contact_directional_error(fuelsim::SteadyProblem& problem,
+    const std::vector<double>& global_state,
+    double perturbation) {
     const auto& spatial = fuelsim::cartesian::ProblemAccess::view(problem);
     std::vector<double> trial_state = global_state;
     const std::vector<std::size_t> source_nodes =
@@ -296,7 +330,8 @@ double mechanical_contact_directional_error(
     for (std::size_t node = 0; node < source_nodes.size(); ++node) {
         const auto& slip = summaries[node].tangential_slip;
         const double magnitude = std::hypot(slip[0], slip[1], slip[2]);
-        if (!(magnitude > 0.0)) continue;
+        if (!(magnitude > 0.0))
+            continue;
         const std::size_t global = source_to_global.at(source_nodes[node]);
         trial_state[spatial.dof(fuelsim::Field::displacement_x, global)] +=
             sliding_trial_increment * slip[0] / magnitude;
@@ -308,7 +343,8 @@ double mechanical_contact_directional_error(
     problem.validate_state(trial_state);
     double maximum_error = 0.0;
     for (std::size_t contribution = 0; contribution < spatial.contribution_count(); ++contribution) {
-        if (spatial.contribution_type(contribution) != fuelsim::SpatialContributionType::mechanical_contact) continue;
+        if (spatial.contribution_type(contribution) != fuelsim::SpatialContributionType::mechanical_contact)
+            continue;
         std::vector<std::size_t> dofs;
         problem.contribution_dofs(contribution, dofs);
         std::vector<double> state(dofs.size()), direction(dofs.size()), plus(dofs.size()), minus(dofs.size());
@@ -320,8 +356,20 @@ double mechanical_contact_directional_error(
         }
         std::vector<double> residual, jacobian, plus_residual, minus_residual;
         spatial.compute_contribution(contribution, state, nullptr, nullptr, 0.0, residual, &jacobian);
-        spatial.compute_contribution(contribution, plus, nullptr, nullptr, 0.0, plus_residual, nullptr);
-        spatial.compute_contribution(contribution, minus, nullptr, nullptr, 0.0, minus_residual, nullptr);
+        const auto evaluate_perturbed = [&](const std::vector<double>& local, std::vector<double>& result) {
+            auto perturbed = trial_state;
+            for (std::size_t i = 0; i < dofs.size(); ++i)
+                perturbed[dofs[i]] = local[i];
+            problem.validate_state(perturbed);
+            std::vector<std::size_t> perturbed_dofs;
+            problem.contribution_dofs(contribution, perturbed_dofs);
+            if (perturbed_dofs != dofs)
+                throw std::runtime_error("Curved contact derivative crossed a candidate support transition");
+            spatial.compute_contribution(contribution, local, nullptr, nullptr, 0.0, result, nullptr);
+        };
+        evaluate_perturbed(plus, plus_residual);
+        evaluate_perturbed(minus, minus_residual);
+        problem.validate_state(trial_state);
         double difference_squared = 0.0, reference_squared = 0.0;
         for (std::size_t row = 0; row < state.size(); ++row) {
             double analytic = 0.0;
@@ -338,8 +386,10 @@ double mechanical_contact_directional_error(
     return maximum_error;
 }
 
-bool compare_case(const fuelsim::UnstructuredHex20Mesh& mesh, const std::string& reference_path,
-    fuelsim::StrainFormulation strain, const std::string& prefix) {
+bool compare_case(const fuelsim::UnstructuredHex20Mesh& mesh,
+    const std::string& reference_path,
+    fuelsim::StrainFormulation strain,
+    const std::string& prefix) {
     const std::vector<std::vector<ReferenceNode>> reference = read_reference(reference_path);
     fuelsim::SteadyProblem problem(definition(strain), mesh);
     const auto& spatial = fuelsim::cartesian::ProblemAccess::view(problem);
@@ -372,7 +422,8 @@ bool compare_case(const fuelsim::UnstructuredHex20Mesh& mesh, const std::string&
                 }
             }
             problem.validate_state(state);
-            if (increment != increments_per_step) problem.commit_internal_state(state);
+            if (increment != increments_per_step)
+                problem.commit_internal_state(state);
         }
         const std::vector<fuelsim::CartesianContactNodeSummary> actual =
             fuelsim::cartesian::ProblemAccess::summarize_contact_nodes(problem, 0, state);
@@ -380,13 +431,16 @@ bool compare_case(const fuelsim::UnstructuredHex20Mesh& mesh, const std::string&
             throw std::invalid_argument("H20.40 contact-node counts differ: " + reference_path);
         std::array<double, 3> actual_resultant{}, reference_resultant{};
         for (std::size_t node = 0; node < actual.size(); ++node) {
-            const auto found = std::find_if(reference[step].begin(), reference[step].end(),
+            const auto found = std::find_if(reference[step].begin(),
+                reference[step].end(),
                 [&](const ReferenceNode& value) { return value.source_node == source_nodes[node]; });
             if (found == reference[step].end())
                 throw std::invalid_argument("H20.40 source-node mapping is incomplete: " + reference_path);
             const fuelsim::CartesianPoint3& point = mesh.nodes().at(source_nodes[node]);
-            maximum_coordinate_difference = std::max({maximum_coordinate_difference, std::abs(point.x - found->point.x),
-                std::abs(point.y - found->point.y), std::abs(point.z - found->point.z)});
+            maximum_coordinate_difference = std::max({maximum_coordinate_difference,
+                std::abs(point.x - found->point.x),
+                std::abs(point.y - found->point.y),
+                std::abs(point.z - found->point.z)});
             const double current_angle = std::atan2(point.y, point.x) + path[step].rotation,
                          cosine = std::cos(current_angle), sine = std::sin(current_angle);
             std::array<double, 3> actual_normal{}, actual_tangent{};
@@ -406,21 +460,22 @@ bool compare_case(const fuelsim::UnstructuredHex20Mesh& mesh, const std::string&
             all_projected_and_sliding = all_projected_and_sliding && actual[node].projected && actual[node].sliding;
         }
         for (std::size_t component = 0; component < 3; ++component) {
-            if (std::abs(reference_resultant[component]) < 1.0e-10) reference_resultant[component] = 0.0;
+            if (std::abs(reference_resultant[component]) < 1.0e-10)
+                reference_resultant[component] = 0.0;
             resultant.add(actual_resultant[component], reference_resultant[component]);
         }
         problem.commit_internal_state(state);
         const auto& histories = fuelsim::cartesian::ProblemAccess::committed_contact_histories(problem).at(0);
-        all_basis_initialized = all_basis_initialized && histories.size() == actual.size() &&
-                                std::all_of(histories.begin(), histories.end(), [](const auto& history) {
-                                    return history.sliding && history.cartesian_tangent_basis_initialized;
-                                });
+        all_basis_initialized = all_basis_initialized && histories.size() == actual.size()
+                                && std::all_of(histories.begin(), histories.end(), [](const auto& history) {
+                                       return history.sliding && history.cartesian_tangent_basis_initialized;
+                                   });
         if (step + 1 == path.size())
             contact_jacobian_error = mechanical_contact_directional_error(problem, state, 1.0e-8);
     }
     fuelsim::test::print_relative_metrics(prefix + "normal_radial_nodal_force", normal_radial);
-    fuelsim::test::print_relative_metrics(
-        prefix + "tangential_circumferential_nodal_force", tangential_circumferential);
+    fuelsim::test::print_relative_metrics(prefix + "tangential_circumferential_nodal_force",
+        tangential_circumferential);
     fuelsim::test::print_relative_metrics(prefix + "tangential_axial_nodal_force", tangential_axial);
     fuelsim::test::print_relative_metrics(prefix + "complete_contact_resultant", resultant);
     fuelsim::test::print_relative_metrics(prefix + "gap", gap);
@@ -429,24 +484,24 @@ bool compare_case(const fuelsim::UnstructuredHex20Mesh& mesh, const std::string&
     std::cout << prefix << "contact_jacobian_directional_error=" << contact_jacobian_error << '\n';
     constexpr double tolerance = 1.0e-2, zero_tolerance = 1.0e-8;
     return check(maximum_coordinate_difference < 3.1e-8,
-               prefix + "uses the tracked Exodus coordinates within Abaqus output-database precision") &&
-           check(all_projected_and_sliding && all_basis_initialized,
-               prefix + "keeps every curved contact node projected and every node-centered history sliding") &&
-           check(contact_jacobian_error < 2.0e-5,
-               prefix + "curved node-centered contact Jacobian matches a centered directional difference") &&
-           check(fuelsim::test::relative_metrics_below(normal_radial, tolerance) &&
-                     normal_radial.maximum_zero_reference_difference < zero_tolerance,
-               prefix + "radial normal nodal-force metrics agree with Abaqus below 1 percent") &&
-           check(fuelsim::test::relative_metrics_below(tangential_circumferential, tolerance) &&
-                     tangential_circumferential.maximum_zero_reference_difference < zero_tolerance &&
-                     fuelsim::test::relative_metrics_below(tangential_axial, tolerance) &&
-                     tangential_axial.maximum_zero_reference_difference < zero_tolerance,
-               prefix + "two curved tangent-plane nodal-force metrics agree with Abaqus below 1 percent") &&
-           check(fuelsim::test::relative_metrics_below(resultant, tolerance) &&
-                     resultant.maximum_zero_reference_difference < zero_tolerance,
-               prefix + "complete contact-resultant metrics agree with Abaqus below 1 percent") &&
-           check(fuelsim::test::relative_metrics_below(gap, tolerance) &&
-                     fuelsim::test::relative_metrics_below(pressure, tolerance),
+               prefix + "uses the tracked Exodus coordinates within Abaqus output-database precision")
+           && check(all_projected_and_sliding && all_basis_initialized,
+               prefix + "keeps every curved contact node projected and every node-centered history sliding")
+           && check(contact_jacobian_error < 2.0e-5,
+               prefix + "curved node-centered contact Jacobian matches a centered directional difference")
+           && check(fuelsim::test::relative_metrics_below(normal_radial, tolerance)
+                        && normal_radial.maximum_zero_reference_difference < zero_tolerance,
+               prefix + "radial normal nodal-force metrics agree with Abaqus below 1 percent")
+           && check(fuelsim::test::relative_metrics_below(tangential_circumferential, tolerance)
+                        && tangential_circumferential.maximum_zero_reference_difference < zero_tolerance
+                        && fuelsim::test::relative_metrics_below(tangential_axial, tolerance)
+                        && tangential_axial.maximum_zero_reference_difference < zero_tolerance,
+               prefix + "two curved tangent-plane nodal-force metrics agree with Abaqus below 1 percent")
+           && check(fuelsim::test::relative_metrics_below(resultant, tolerance)
+                        && resultant.maximum_zero_reference_difference < zero_tolerance,
+               prefix + "complete contact-resultant metrics agree with Abaqus below 1 percent")
+           && check(fuelsim::test::relative_metrics_below(gap, tolerance)
+                        && fuelsim::test::relative_metrics_below(pressure, tolerance),
                prefix + "curved gap and pressure metrics agree with Abaqus below 1 percent");
 }
 } // namespace
@@ -470,7 +525,8 @@ int main(int argc, char** argv) {
             : mode == "finite" ? fuelsim::StrainFormulation::finite
                                : throw std::invalid_argument("Unknown H20.40 strain mode: " + mode);
         const bool passed = compare_case(mesh, argv[3], strain, "h20_40_" + mode + "_");
-        if (passed) std::cout << "[PASS] H20.40 " << mode << " curved HEX20 finite-sliding Abaqus comparison\n";
+        if (passed)
+            std::cout << "[PASS] H20.40 " << mode << " curved HEX20 finite-sliding Abaqus comparison\n";
         return passed ? 0 : 1;
     } catch (const std::exception& error) {
         std::cerr << "[FAIL] H20.40 raised: " << error.what() << '\n';

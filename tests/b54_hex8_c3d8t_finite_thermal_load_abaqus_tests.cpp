@@ -17,7 +17,8 @@ using CapacityMatrix = std::array<NodalValues, fuelsim::hex8_node_count>;
 using LoadValues = std::map<std::string, NodalValues>;
 
 bool check(bool condition, const std::string& message) {
-    if (condition) return true;
+    if (condition)
+        return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
@@ -26,13 +27,15 @@ std::vector<std::string> split_csv(const std::string& line) {
     std::vector<std::string> result;
     std::istringstream stream(line);
     std::string value;
-    while (std::getline(stream, value, ',')) result.push_back(value);
+    while (std::getline(stream, value, ','))
+        result.push_back(value);
     return result;
 }
 
 CapacityMatrix read_capacity(const std::string& path) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read Abaqus finite C3D8T capacity reference: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read Abaqus finite C3D8T capacity reference: " + path);
     std::string line;
     std::getline(input, line);
     if (line != "input_local_node,output_local_node,node,temperature_k,reaction_heat_flux_w")
@@ -45,8 +48,8 @@ CapacityMatrix read_capacity(const std::string& path) {
             throw std::invalid_argument("Unexpected Abaqus finite C3D8T capacity column count in " + path);
         const std::size_t input_node = static_cast<std::size_t>(std::stoul(values[0]));
         const std::size_t output_node = static_cast<std::size_t>(std::stoul(values[1]));
-        if (input_node < 1 || input_node > 8 || output_node < 1 || output_node > 8 ||
-            present[input_node - 1][output_node - 1])
+        if (input_node < 1 || input_node > 8 || output_node < 1 || output_node > 8
+            || present[input_node - 1][output_node - 1])
             throw std::invalid_argument("Invalid Abaqus finite C3D8T capacity row");
         present[input_node - 1][output_node - 1] = true;
         result[input_node - 1][output_node - 1] = std::stod(values[4]);
@@ -59,7 +62,8 @@ CapacityMatrix read_capacity(const std::string& path) {
 
 LoadValues read_loads(const std::string& path) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read Abaqus finite C3D8T thermal-load reference: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read Abaqus finite C3D8T thermal-load reference: " + path);
     std::string line;
     std::getline(input, line);
     if (line != "step,element,local_node,reaction_heat_flux_w")
@@ -77,15 +81,21 @@ LoadValues read_loads(const std::string& path) {
         result[values[0]][node - 1] = std::stod(values[3]);
     }
     for (const char* step : {"BODY", "SURFACE", "FILM_BASE", "FILM_ACTIVE"})
-        if (result.find(step) == result.end() ||
-            std::find(present[step].begin(), present[step].end(), false) != present[step].end())
+        if (result.find(step) == result.end()
+            || std::find(present[step].begin(), present[step].end(), false) != present[step].end())
             throw std::invalid_argument(std::string("Incomplete Abaqus finite C3D8T thermal-load step ") + step);
     return result;
 }
 
 fuelsim::Hex8Coordinates distorted_coordinates() {
-    return {{{0.00, 0.00, 0.00}, {1.20, 0.10, -0.05}, {1.10, 1.00, 0.10}, {-0.10, 0.90, 0.00}, {0.05, -0.10, 1.00},
-        {1.30, 0.00, 1.10}, {1.00, 1.20, 0.90}, {-0.20, 1.00, 1.20}}};
+    return {{{0.00, 0.00, 0.00},
+        {1.20, 0.10, -0.05},
+        {1.10, 1.00, 0.10},
+        {-0.10, 0.90, 0.00},
+        {0.05, -0.10, 1.00},
+        {1.30, 0.00, 1.10},
+        {1.00, 1.20, 0.90},
+        {-0.20, 1.00, 1.20}}};
 }
 
 std::array<double, 3> displacement(const fuelsim::CartesianPoint3& point) {
@@ -159,10 +169,14 @@ int main(int argc, char** argv) {
             NodalValues temperature = uniform;
             temperature[input] = 301.0;
             const fuelsim::Hex8LocalValues state = volume_state(coordinates, temperature);
-            const fuelsim::CartesianThermoelasticData current_data{
-                material, 0.0, 1.0, fuelsim::StrainFormulation::finite};
-            const fuelsim::CartesianThermoelasticData reference_data{
-                material, 0.0, 1.0, fuelsim::StrainFormulation::small};
+            const fuelsim::CartesianThermoelasticData current_data{material,
+                0.0,
+                1.0,
+                fuelsim::StrainFormulation::finite};
+            const fuelsim::CartesianThermoelasticData reference_data{material,
+                0.0,
+                1.0,
+                fuelsim::StrainFormulation::small};
             const fuelsim::Hex8LocalResidual current_residual =
                 fuelsim::compute_hex8_transient(current_data, geometry, state, committed, history, 1.0);
             const fuelsim::Hex8LocalResidual reference_residual =
@@ -171,10 +185,14 @@ int main(int argc, char** argv) {
             std::copy(reference_residual.begin(), reference_residual.begin() + 8, reference_capacity[input].begin());
         }
 
-        const fuelsim::CartesianThermoelasticData current_body_data{
-            material, 80.0, 1.0, fuelsim::StrainFormulation::finite};
-        const fuelsim::CartesianThermoelasticData reference_body_data{
-            material, 80.0, 1.0, fuelsim::StrainFormulation::small};
+        const fuelsim::CartesianThermoelasticData current_body_data{material,
+            80.0,
+            1.0,
+            fuelsim::StrainFormulation::finite};
+        const fuelsim::CartesianThermoelasticData reference_body_data{material,
+            80.0,
+            1.0,
+            fuelsim::StrainFormulation::small};
         const fuelsim::Hex8LocalValues uniform_state = volume_state(coordinates, uniform);
         const fuelsim::Hex8LocalResidual current_body_residual =
             fuelsim::compute_hex8_thermoelastic(current_body_data, geometry, uniform_state);
@@ -187,8 +205,11 @@ int main(int argc, char** argv) {
         const fuelsim::Quad4FaceCoordinates face_coordinates = {
             {coordinates[4], coordinates[5], coordinates[6], coordinates[7]}};
         const fuelsim::Quad4FaceGeometry face = fuelsim::make_quad4_face_geometry(face_coordinates);
-        const fuelsim::Quad4FaceBoundaryData current_flux = {
-            fuelsim::Quad4FaceBoundaryKind::surface_heat_flux, fuelsim::CartesianTractionComponent::x, 40.0, 0.0, true};
+        const fuelsim::Quad4FaceBoundaryData current_flux = {fuelsim::Quad4FaceBoundaryKind::surface_heat_flux,
+            fuelsim::CartesianTractionComponent::x,
+            40.0,
+            0.0,
+            true};
         fuelsim::Quad4FaceBoundaryData reference_flux = current_flux;
         reference_flux.use_displaced_geometry = false;
         const fuelsim::Quad4FaceLocalValues uniform_face_state = face_state(coordinates, uniform);
@@ -198,13 +219,17 @@ int main(int argc, char** argv) {
             fuelsim::compute_quad4_face_boundary(reference_flux, face, uniform_face_state);
         NodalValues surface{}, reference_surface{};
         std::copy(current_surface_residual.begin(), current_surface_residual.begin() + 4, surface.begin() + 4);
-        std::copy(
-            reference_surface_residual.begin(), reference_surface_residual.begin() + 4, reference_surface.begin() + 4);
+        std::copy(reference_surface_residual.begin(),
+            reference_surface_residual.begin() + 4,
+            reference_surface.begin() + 4);
 
         const NodalValues film_temperature = {300.0, 300.0, 300.0, 300.0, 360.0, 410.0, 445.0, 385.0};
         const fuelsim::Quad4FaceLocalValues film_face_state = face_state(coordinates, film_temperature);
-        const fuelsim::Quad4FaceBoundaryData current_film = {
-            fuelsim::Quad4FaceBoundaryKind::convection, fuelsim::CartesianTractionComponent::x, 10.0, 250.0, true};
+        const fuelsim::Quad4FaceBoundaryData current_film = {fuelsim::Quad4FaceBoundaryKind::convection,
+            fuelsim::CartesianTractionComponent::x,
+            10.0,
+            250.0,
+            true};
         fuelsim::Quad4FaceBoundaryData reference_film = current_film;
         reference_film.use_displaced_geometry = false;
         const fuelsim::Quad4FaceLocalResidual current_film_residual =
@@ -213,8 +238,9 @@ int main(int argc, char** argv) {
             fuelsim::compute_quad4_face_boundary(reference_film, face, film_face_state);
         NodalValues film{}, reference_film_values{}, abaqus_film{};
         std::copy(current_film_residual.begin(), current_film_residual.begin() + 4, film.begin() + 4);
-        std::copy(
-            reference_film_residual.begin(), reference_film_residual.begin() + 4, reference_film_values.begin() + 4);
+        std::copy(reference_film_residual.begin(),
+            reference_film_residual.begin() + 4,
+            reference_film_values.begin() + 4);
         for (std::size_t node = 0; node < 8; ++node)
             abaqus_film[node] = load_reference.at("FILM_ACTIVE")[node] - load_reference.at("FILM_BASE")[node];
 
@@ -235,19 +261,20 @@ int main(int argc, char** argv) {
                   << "b54_current_convection_relative_error=" << film_error << '\n'
                   << "b54_reference_convection_relative_error=" << reference_film_error << '\n';
         const bool passed =
-            check(capacity_error < 5.0e-7, "Abaqus and fuelsim finite-deformation capacity matrices agree") &&
-            check(body_error < 5.0e-7, "Abaqus and fuelsim finite-deformation body-source vectors agree") &&
-            check(surface_error < 5.0e-7, "Abaqus and fuelsim finite-deformation surface-flux vectors agree") &&
-            check(film_error < 5.0e-7, "Abaqus and fuelsim finite-deformation convection vectors agree") &&
-            check(reference_capacity_error > 1.0e-2,
-                "the finite-deformation capacity probe distinguishes reference integration") &&
-            check(reference_body_error > 1.0e-2,
-                "the finite-deformation body-source probe distinguishes reference integration") &&
-            check(reference_surface_error > 1.0e-2,
-                "the finite-deformation surface-flux probe distinguishes reference integration") &&
-            check(reference_film_error > 1.0e-2,
+            check(capacity_error < 5.0e-7, "Abaqus and fuelsim finite-deformation capacity matrices agree")
+            && check(body_error < 5.0e-7, "Abaqus and fuelsim finite-deformation body-source vectors agree")
+            && check(surface_error < 5.0e-7, "Abaqus and fuelsim finite-deformation surface-flux vectors agree")
+            && check(film_error < 5.0e-7, "Abaqus and fuelsim finite-deformation convection vectors agree")
+            && check(reference_capacity_error > 1.0e-2,
+                "the finite-deformation capacity probe distinguishes reference integration")
+            && check(reference_body_error > 1.0e-2,
+                "the finite-deformation body-source probe distinguishes reference integration")
+            && check(reference_surface_error > 1.0e-2,
+                "the finite-deformation surface-flux probe distinguishes reference integration")
+            && check(reference_film_error > 1.0e-2,
                 "the finite-deformation convection probe distinguishes reference integration");
-        if (passed) std::cout << "[PASS] B5.4 Abaqus C3D8T finite-deformation thermal integration\n";
+        if (passed)
+            std::cout << "[PASS] B5.4 Abaqus C3D8T finite-deformation thermal integration\n";
         return passed ? 0 : 1;
     } catch (const std::exception& error) {
         std::cerr << "[FAIL] B5.4 Abaqus C3D8T finite-deformation thermal integration raised: " << error.what() << '\n';

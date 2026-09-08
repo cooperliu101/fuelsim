@@ -1,0 +1,116 @@
+*Heading
+** Independent restrained thermal expansion: elements 1 CAX4T and 2 CAX4RT.
+** Coincident geometry, separate nodes, all displacement components constrained.
+*Preprint, echo=NO, model=NO, history=NO, contact=NO
+*Node
+1, 1, 0
+2, 2.1, 0.1
+3, 1.9, 1.2
+4, 0.9, 1
+5, 1, 0
+6, 2.1, 0.1
+7, 1.9, 1.2
+8, 0.9, 1
+*Element, type=CAX4T, elset=FULL
+1, 1, 2, 3, 4
+*Element, type=CAX4RT, elset=REDUCED
+2, 5, 6, 7, 8
+*Nset, nset=ALL
+1, 2, 3, 4, 5, 6, 7, 8
+*Material, name=SOLID
+*Elastic
+1e6, 0.25
+*Expansion, zero=600
+1e-5
+*Conductivity
+10
+*Density
+1000
+*Specific Heat
+100
+*Solid Section, elset=FULL, material=SOLID
+,
+*Solid Section, elset=REDUCED, material=SOLID
+,
+*Initial Conditions, type=TEMPERATURE
+ALL, 600
+*Step, name=HOT1, nlgeom=YES, inc=1
+*Coupled Temperature-Displacement
+0.1, 0.1, 0.1, 0.1
+*Boundary
+ALL, 1, 2, 0
+1, 11, 11, 700
+2, 11, 11, 600
+3, 11, 11, 600
+4, 11, 11, 600
+5, 11, 11, 700
+6, 11, 11, 600
+7, 11, 11, 600
+8, 11, 11, 600
+*Output, field, frequency=1
+*Node Output
+NT, U, RF, RFL
+*Element Output
+S, EE
+*Output, history, frequency=0
+*End Step
+*Step, name=HOT2, nlgeom=YES, inc=1
+*Coupled Temperature-Displacement
+0.1, 0.1, 0.1, 0.1
+*Boundary
+ALL, 1, 2, 0
+1, 11, 11, 600
+2, 11, 11, 700
+3, 11, 11, 600
+4, 11, 11, 600
+5, 11, 11, 600
+6, 11, 11, 700
+7, 11, 11, 600
+8, 11, 11, 600
+*Output, field, frequency=1
+*Node Output
+NT, U, RF, RFL
+*Element Output
+S, EE
+*Output, history, frequency=0
+*End Step
+*Step, name=HOT3, nlgeom=YES, inc=1
+*Coupled Temperature-Displacement
+0.1, 0.1, 0.1, 0.1
+*Boundary
+ALL, 1, 2, 0
+1, 11, 11, 600
+2, 11, 11, 600
+3, 11, 11, 700
+4, 11, 11, 600
+5, 11, 11, 600
+6, 11, 11, 600
+7, 11, 11, 700
+8, 11, 11, 600
+*Output, field, frequency=1
+*Node Output
+NT, U, RF, RFL
+*Element Output
+S, EE
+*Output, history, frequency=0
+*End Step
+*Step, name=HOT4, nlgeom=YES, inc=1
+*Coupled Temperature-Displacement
+0.1, 0.1, 0.1, 0.1
+*Boundary
+ALL, 1, 2, 0
+1, 11, 11, 600
+2, 11, 11, 600
+3, 11, 11, 600
+4, 11, 11, 700
+5, 11, 11, 600
+6, 11, 11, 600
+7, 11, 11, 600
+8, 11, 11, 700
+*Output, field, frequency=1
+*Node Output
+NT, U, RF, RFL
+*Element Output
+S, EE
+*Output, history, frequency=0
+*End Step

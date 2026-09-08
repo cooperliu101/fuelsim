@@ -26,13 +26,21 @@ void affine_case(double angle, bool reduced, bool finite) {
         state[16 + node] = s * a * p.x + (c * b - 1) * p.y;
         state[24 + node] = (d - 1) * p.z;
     }
-    const auto values = fuelsim::io_detail::hex8_derived_results(geometry, state, material,
-        finite ? fuelsim::StrainFormulation::finite : fuelsim::StrainFormulation::small, reduced, 1.0);
+    const auto values = fuelsim::io_detail::hex8_derived_results(geometry,
+        state,
+        material,
+        finite ? fuelsim::StrainFormulation::finite : fuelsim::StrainFormulation::small,
+        reduced,
+        1.0);
     const std::array<double, 3> gradient =
         finite ? std::array<double, 3>{c * 2 / a - s * 3 / b, s * 2 / a + c * 3 / b, 5 / d}
                : std::array<double, 3>{2, 3, 5};
     const std::array<double, 6> logarithmic = {c * c * std::log(a) + s * s * std::log(b),
-        s * s * std::log(a) + c * c * std::log(b), std::log(d), c * s * (std::log(a) - std::log(b)), 0, 0};
+        s * s * std::log(a) + c * c * std::log(b),
+        std::log(d),
+        c * s * (std::log(a) - std::log(b)),
+        0,
+        0};
     const std::array<double, 6> infinitesimal = {c * a - 1, c * b - 1, d - 1, 0.5 * s * (a - b), 0, 0};
     constexpr std::array<std::size_t, 8> material_node = {0, 1, 3, 2, 4, 5, 7, 6};
     for (std::size_t q = 0; q < 8; ++q) {
@@ -65,13 +73,21 @@ void singular_small_strain() {
     const auto values =
         fuelsim::io_detail::hex8_derived_results(geometry, state, material, fuelsim::StrainFormulation::small, true, 0);
     close(values[0][17], -1, "linearized strain at singular total deformation");
-    if (!std::isnan(values[0][11])) throw std::runtime_error("Undefined derived logarithm must be marked missing");
+    if (!std::isnan(values[0][11]))
+        throw std::runtime_error("Undefined derived logarithm must be marked missing");
     bool rejected = false;
     try {
-        fuelsim::io_detail::hex8_derived_results(
-            geometry, state, material, fuelsim::StrainFormulation::finite, true, 0);
-    } catch (const std::domain_error&) { rejected = true; }
-    if (!rejected) throw std::runtime_error("Finite-strain output must reject nonpositive geometry");
+        fuelsim::io_detail::hex8_derived_results(geometry,
+            state,
+            material,
+            fuelsim::StrainFormulation::finite,
+            true,
+            0);
+    } catch (const std::domain_error&) {
+        rejected = true;
+    }
+    if (!rejected)
+        throw std::runtime_error("Finite-strain output must reject nonpositive geometry");
 }
 } // namespace
 
@@ -79,7 +95,8 @@ int main() {
     try {
         for (bool reduced : {false, true})
             for (bool finite : {false, true})
-                for (double angle : {0.0, 0.37, 3.14159265358979323846}) affine_case(angle, reduced, finite);
+                for (double angle : {0.0, 0.37, 3.14159265358979323846})
+                    affine_case(angle, reduced, finite);
         singular_small_strain();
         return 0;
     } catch (const std::exception& error) {

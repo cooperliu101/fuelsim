@@ -1,0 +1,6 @@
+temperature_all_frame_maximum_absolute_difference 3.979039320256561e-13
+displacement_x_all_frame_maximum_absolute_difference 2.871611097781529e-17
+displacement_y_all_frame_maximum_absolute_difference 7.008520012171532e-17
+displacement_z_all_frame_maximum_absolute_difference 7.030311092792506e-17
+compared_frames 71
+compared_nodes 88

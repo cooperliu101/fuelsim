@@ -1,0 +1,5 @@
+source=b13_small_cax4t.msg
+source_sha256=2ca52f0fc9d86eae054296181def433a7c6467d58d6592f564c8fa0a9d3575d8
+Traceback (most recent call last):
+  File "<stdin>", line 3, in <module>
+UnicodeDecodeError: 'utf-8' codec can't decode byte 0xd4 in position 77: invalid continuation byte

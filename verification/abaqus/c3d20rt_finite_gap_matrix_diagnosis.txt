@@ -1,0 +1,10 @@
+diagnostic_only_native_gap_matrix
+rows [57, 60, 61, 64, 68, 69, 72, 76, 78, 80, 83, 85, 88]
+columns [2, 3, 6, 7, 10, 14, 15, 18, 21, 23, 25, 28, 30, 33, 35, 37, 40, 42, 45, 47, 49, 52, 54, 57, 60, 61, 64, 68, 69, 72, 76, 78, 80, 83, 85, 88]
+primary maximum_absolute_coefficient_difference 0.002738092520254771 relative_frobenius 0.003103677118117182 row_node 68 column_node 3
+secondary maximum_absolute_coefficient_difference 6.759009393841886e-10 relative_frobenius 9.83950466566673e-10 row_node 61 column_node 68
+all maximum_absolute_coefficient_difference 0.002738092520254771 relative_frobenius 0.002161057622592147 row_node 68 column_node 3
+native_rigid_translation_max 1.6327914575953173e-09
+predicted_rigid_translation_max 3.885780586188048e-16
+force_vs_gap_transfer_relative 7.507691048269398e-09
+force_vs_gap_transfer_maximum_absolute 6.0544462776590535e-09

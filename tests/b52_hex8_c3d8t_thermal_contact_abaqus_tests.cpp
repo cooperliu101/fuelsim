@@ -17,7 +17,8 @@ struct NodalReference final {
 };
 
 bool check(bool condition, const std::string& message) {
-    if (condition) return true;
+    if (condition)
+        return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
@@ -26,13 +27,15 @@ std::vector<std::string> split_csv(const std::string& line) {
     std::vector<std::string> result;
     std::istringstream stream(line);
     std::string value;
-    while (std::getline(stream, value, ',')) result.push_back(value);
+    while (std::getline(stream, value, ','))
+        result.push_back(value);
     return result;
 }
 
 std::array<NodalReference, 16> read_reference(const std::string& path) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read Abaqus thermal-contact reference: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read Abaqus thermal-contact reference: " + path);
     std::string line;
     std::getline(input, line);
     if (line != "node,temperature_k,reaction_heat_flux_w")
@@ -55,11 +58,19 @@ std::array<NodalReference, 16> read_reference(const std::string& path) {
 }
 
 fuelsim::Hex8Coordinates cube(double x_shift) {
-    return {{{x_shift, 0.0, 0.0}, {x_shift + 1.0, 0.0, 0.0}, {x_shift + 1.0, 1.0, 0.0}, {x_shift, 1.0, 0.0},
-        {x_shift, 0.0, 1.0}, {x_shift + 1.0, 0.0, 1.0}, {x_shift + 1.0, 1.0, 1.0}, {x_shift, 1.0, 1.0}}};
+    return {{{x_shift, 0.0, 0.0},
+        {x_shift + 1.0, 0.0, 0.0},
+        {x_shift + 1.0, 1.0, 0.0},
+        {x_shift, 1.0, 0.0},
+        {x_shift, 0.0, 1.0},
+        {x_shift + 1.0, 0.0, 1.0},
+        {x_shift + 1.0, 1.0, 1.0},
+        {x_shift, 1.0, 1.0}}};
 }
 
-double relative_error(double actual, double expected) { return std::abs(actual - expected) / std::abs(expected); }
+double relative_error(double actual, double expected) {
+    return std::abs(actual - expected) / std::abs(expected);
+}
 } // namespace
 
 int main(int argc, char** argv) {
@@ -77,8 +88,10 @@ int main(int argc, char** argv) {
         const std::array<std::size_t, 4> hot_nodes{{0, 3, 4, 7}}, cold_nodes{{9, 10, 13, 14}},
             secondary_nodes{{1, 2, 6, 5}}, primary_nodes{{8, 11, 15, 12}};
         double abaqus_hot_rate = 0.0, abaqus_cold_rate = 0.0, temperature_maximum_difference = 0.0;
-        for (std::size_t node : hot_nodes) abaqus_hot_rate += reference[node].reaction_heat_flux;
-        for (std::size_t node : cold_nodes) abaqus_cold_rate += reference[node].reaction_heat_flux;
+        for (std::size_t node : hot_nodes)
+            abaqus_hot_rate += reference[node].reaction_heat_flux;
+        for (std::size_t node : cold_nodes)
+            abaqus_cold_rate += reference[node].reaction_heat_flux;
         for (std::size_t node : hot_nodes)
             temperature_maximum_difference =
                 std::max(temperature_maximum_difference, std::abs(reference[node].temperature - hot_temperature));
@@ -86,11 +99,11 @@ int main(int argc, char** argv) {
             temperature_maximum_difference =
                 std::max(temperature_maximum_difference, std::abs(reference[node].temperature - cold_temperature));
         for (std::size_t node : secondary_nodes)
-            temperature_maximum_difference = std::max(
-                temperature_maximum_difference, std::abs(reference[node].temperature - expected_secondary_interface));
+            temperature_maximum_difference = std::max(temperature_maximum_difference,
+                std::abs(reference[node].temperature - expected_secondary_interface));
         for (std::size_t node : primary_nodes)
-            temperature_maximum_difference = std::max(
-                temperature_maximum_difference, std::abs(reference[node].temperature - expected_primary_interface));
+            temperature_maximum_difference = std::max(temperature_maximum_difference,
+                std::abs(reference[node].temperature - expected_primary_interface));
 
         const fuelsim::ThermoelasticProperties properties =
             fuelsim::test::thermoelastic(0.0, conductivity, 2.0e11, 0.25, 0.0, 300.0, 0.0, 0.0, 0.0, 2000.0, 3000.0);
@@ -105,10 +118,9 @@ int main(int argc, char** argv) {
             fuelsim::compute_hex8_thermoelastic(data, fuelsim::make_hex8_geometry(secondary_cube), states[0]);
         const fuelsim::Hex8LocalResidual primary_volume =
             fuelsim::compute_hex8_thermoelastic(data, fuelsim::make_hex8_geometry(primary_cube), states[1]);
-        const fuelsim::Quad4FaceCoordinates secondary_face = {{{1.0, 0.0, 0.0}, {1.0, 1.0, 0.0}, {1.0, 1.0, 1.0},
-                                                {1.0, 0.0, 1.0}}},
-                                            primary_face = {
-                                                {{1.1, 0.0, 0.0}, {1.1, 1.0, 0.0}, {1.1, 1.0, 1.0}, {1.1, 0.0, 1.0}}};
+        const fuelsim::Quad4FaceCoordinates
+            secondary_face = {{{1.0, 0.0, 0.0}, {1.0, 1.0, 0.0}, {1.0, 1.0, 1.0}, {1.0, 0.0, 1.0}}},
+            primary_face = {{{1.1, 0.0, 0.0}, {1.1, 1.0, 0.0}, {1.1, 1.0, 1.0}, {1.1, 0.0, 1.0}}};
         const fuelsim::Quad4FaceGeometry face_geometry = fuelsim::make_quad4_face_geometry(secondary_face);
         fuelsim::Quad4SurfaceContactLocalValues contact_state{};
         for (std::size_t node = 0; node < 4; ++node) {
@@ -118,13 +130,20 @@ int main(int argc, char** argv) {
         fuelsim::Quad4SurfaceContactLocalResidual contact_residual{};
         double value_heat_rate = 0.0, value_measure = 0.0, gap_maximum_difference = 0.0;
         for (const fuelsim::Quad4FaceQuadraturePoint& point : face_geometry.points) {
-            const fuelsim::Quad4ToQuad4HeatGeometry contact_geometry{
-                secondary_face, primary_face, point.shape, point.derivative_xi, point.derivative_eta, 1.0};
+            const fuelsim::Quad4ToQuad4HeatGeometry contact_geometry{secondary_face,
+                primary_face,
+                point.shape,
+                point.derivative_xi,
+                point.derivative_eta,
+                1.0};
             const fuelsim::Quad4SurfaceContactLocalResidual contribution =
                 fuelsim::compute_quad4_to_quad4_gap_heat({conductance * 0.1, 1.0e-6}, contact_geometry, contact_state);
-            for (std::size_t dof = 0; dof < contact_residual.size(); ++dof) contact_residual[dof] += contribution[dof];
-            const fuelsim::CartesianHeatQuadratureValue value = fuelsim::compute_quad4_to_quad4_gap_heat_value(
-                {conductance * 0.1, 1.0e-6}, contact_geometry, contact_state);
+            for (std::size_t dof = 0; dof < contact_residual.size(); ++dof)
+                contact_residual[dof] += contribution[dof];
+            const fuelsim::CartesianHeatQuadratureValue value =
+                fuelsim::compute_quad4_to_quad4_gap_heat_value({conductance * 0.1, 1.0e-6},
+                    contact_geometry,
+                    contact_state);
             value_heat_rate += value.heat_flux * value.weighted_measure;
             value_measure += value.weighted_measure;
             gap_maximum_difference = std::max(gap_maximum_difference, std::abs(value.gap - 0.1));
@@ -133,21 +152,23 @@ int main(int argc, char** argv) {
         for (std::size_t node = 0; node < 4; ++node) {
             secondary_contact_rate += contact_residual[node];
             primary_contact_rate += contact_residual[4 + node];
-            free_residual_maximum = std::max(
-                free_residual_maximum, std::abs(secondary_volume[secondary_nodes[node]] + contact_residual[node]));
-            free_residual_maximum = std::max(
-                free_residual_maximum, std::abs(primary_volume[primary_nodes[node] - 8] + contact_residual[4 + node]));
+            free_residual_maximum = std::max(free_residual_maximum,
+                std::abs(secondary_volume[secondary_nodes[node]] + contact_residual[node]));
+            free_residual_maximum = std::max(free_residual_maximum,
+                std::abs(primary_volume[primary_nodes[node] - 8] + contact_residual[4 + node]));
         }
         double fuelsim_hot_rate = 0.0, fuelsim_cold_rate = 0.0;
-        for (std::size_t node : hot_nodes) fuelsim_hot_rate += secondary_volume[node];
-        for (std::size_t node : cold_nodes) fuelsim_cold_rate += primary_volume[node - 8];
+        for (std::size_t node : hot_nodes)
+            fuelsim_hot_rate += secondary_volume[node];
+        for (std::size_t node : cold_nodes)
+            fuelsim_cold_rate += primary_volume[node - 8];
 
         const double abaqus_heat_rate_error = relative_error(abaqus_hot_rate, expected_heat_rate);
         const double fuelsim_heat_rate_error = relative_error(fuelsim_hot_rate, expected_heat_rate);
         const double code_to_code_heat_rate_error = relative_error(fuelsim_hot_rate, abaqus_hot_rate);
         const double abaqus_balance = std::abs(abaqus_hot_rate + abaqus_cold_rate);
-        const double fuelsim_balance = std::max(
-            std::abs(fuelsim_hot_rate + fuelsim_cold_rate), std::abs(secondary_contact_rate + primary_contact_rate));
+        const double fuelsim_balance = std::max(std::abs(fuelsim_hot_rate + fuelsim_cold_rate),
+            std::abs(secondary_contact_rate + primary_contact_rate));
         std::cout << "b52_temperature_maximum_absolute_difference=" << temperature_maximum_difference << '\n'
                   << "b52_abaqus_heat_rate_relative_error=" << abaqus_heat_rate_error << '\n'
                   << "b52_fuelsim_heat_rate_relative_error=" << fuelsim_heat_rate_error << '\n'
@@ -164,21 +185,22 @@ int main(int argc, char** argv) {
 
         bool passed = true;
         passed = check(temperature_maximum_difference < 2.0e-5,
-                     "Abaqus interface and boundary temperatures match the one-dimensional resistance solution") &&
-                 passed;
-        passed = check(abaqus_heat_rate_error < 1.0e-7 && fuelsim_heat_rate_error < 1.0e-7 &&
-                           code_to_code_heat_rate_error < 1.0e-7,
-                     "Abaqus and fuelsim match the fixed-gap contact heat rate") &&
-                 passed;
+                     "Abaqus interface and boundary temperatures match the one-dimensional resistance solution")
+                 && passed;
+        passed = check(abaqus_heat_rate_error < 1.0e-7 && fuelsim_heat_rate_error < 1.0e-7
+                           && code_to_code_heat_rate_error < 1.0e-7,
+                     "Abaqus and fuelsim match the fixed-gap contact heat rate")
+                 && passed;
         passed = check(abaqus_balance < 1.0e-12 && fuelsim_balance < 1.0e-11,
-                     "both codes preserve strict two-sided thermal balance") &&
-                 passed;
-        passed = check(free_residual_maximum / expected_heat_rate < 2.0e-7 &&
-                           relative_error(value_heat_rate, expected_heat_rate) < 1.0e-6 &&
-                           std::abs(value_measure - 1.0) < 1.0e-14 && gap_maximum_difference < 1.0e-14,
-                     "fuelsim volume and surface-contact kernels satisfy the matched free-node equilibrium") &&
-                 passed;
-        if (passed) std::cout << "[PASS] B5.2 Abaqus C3D8T fixed-gap thermal contact\n";
+                     "both codes preserve strict two-sided thermal balance")
+                 && passed;
+        passed = check(free_residual_maximum / expected_heat_rate < 2.0e-7
+                           && relative_error(value_heat_rate, expected_heat_rate) < 1.0e-6
+                           && std::abs(value_measure - 1.0) < 1.0e-14 && gap_maximum_difference < 1.0e-14,
+                     "fuelsim volume and surface-contact kernels satisfy the matched free-node equilibrium")
+                 && passed;
+        if (passed)
+            std::cout << "[PASS] B5.2 Abaqus C3D8T fixed-gap thermal contact\n";
         return passed ? 0 : 1;
     } catch (const std::exception& error) {
         std::cerr << "[FAIL] " << error.what() << '\n';

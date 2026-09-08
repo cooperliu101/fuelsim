@@ -40,7 +40,8 @@ struct VariantConfig final {
 };
 
 VariantConfig variant_config(const std::string& name) {
-    if (name == "production") return {name, ExpectedBehavior::coupled, 4, 100, comparison_tolerance, 7.0e-6, 2.0e-7};
+    if (name == "production")
+        return {name, ExpectedBehavior::coupled, 4, 100, comparison_tolerance, 7.0e-6, 2.0e-7};
     if (name == "elastic_displacement")
         return {name, ExpectedBehavior::elastic, 4, 100, comparison_tolerance, 1.0e-14, 1.0e-14};
     if (name == "plastic_displacement")
@@ -51,7 +52,8 @@ VariantConfig variant_config(const std::string& name) {
         return {name, ExpectedBehavior::coupled, 4, 100, comparison_tolerance, 7.0e-6, 2.0e-7};
     if (name == "coupled_pressure")
         return {name, ExpectedBehavior::coupled, 4, 100, comparison_tolerance, 7.0e-6, 2.0e-7};
-    if (name == "material_oracle") return {name, ExpectedBehavior::coupled, 1, 100, 5.0e-6, 2.0e-6, 1.0e-7};
+    if (name == "material_oracle")
+        return {name, ExpectedBehavior::coupled, 1, 100, 5.0e-6, 2.0e-6, 1.0e-7};
     throw std::invalid_argument("Unknown M4.3 comparison variant: " + name);
 }
 
@@ -64,7 +66,8 @@ bool creep_active(ExpectedBehavior behavior) noexcept {
 }
 
 bool check(bool condition, const std::string& message) {
-    if (condition) return true;
+    if (condition)
+        return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
@@ -75,19 +78,22 @@ std::vector<std::string> split_csv(const std::string& line) {
     for (;;) {
         const std::size_t end = line.find(',', begin);
         fields.push_back(line.substr(begin, end - begin));
-        if (end == std::string::npos) return fields;
+        if (end == std::string::npos)
+            return fields;
         begin = end + 1;
     }
 }
 
 std::size_t column_index(const std::vector<std::string>& header, const std::string& name) {
     const auto found = std::find(header.begin(), header.end(), name);
-    if (found == header.end()) throw std::invalid_argument("M4.3 CSV is missing column '" + name + "'");
+    if (found == header.end())
+        throw std::invalid_argument("M4.3 CSV is missing column '" + name + "'");
     return static_cast<std::size_t>(found - header.begin());
 }
 
 double csv_value(const std::vector<std::string>& fields, std::size_t column, const std::string& path) {
-    if (column >= fields.size()) throw std::invalid_argument("M4.3 CSV row is incomplete: " + path);
+    if (column >= fields.size())
+        throw std::invalid_argument("M4.3 CSV row is incomplete: " + path);
     std::size_t parsed = 0;
     const double value = std::stod(fields[column], &parsed);
     if (parsed != fields[column].size() || !std::isfinite(value))
@@ -97,8 +103,8 @@ double csv_value(const std::vector<std::string>& fields, std::size_t column, con
 
 std::size_t csv_id(const std::vector<std::string>& fields, std::size_t column, const std::string& path) {
     const double value = csv_value(fields, column, path);
-    if (value < 0.0 || value > static_cast<double>(std::numeric_limits<std::size_t>::max()) ||
-        std::floor(value) != value)
+    if (value < 0.0 || value > static_cast<double>(std::numeric_limits<std::size_t>::max())
+        || std::floor(value) != value)
         throw std::invalid_argument("M4.3 CSV element ID is invalid: " + path);
     return static_cast<std::size_t>(value);
 }
@@ -137,7 +143,8 @@ class OutputHistory final {
         const std::array<std::string, 4> components = {"rr", "zz", "hoop", "rz"};
         for (std::size_t step = 1; step <= final.step_count; ++step) {
             const auto result = fuelsim::test::read_exodus_results(path, step);
-            if (result.time <= 0.0) continue;
+            if (result.time <= 0.0)
+                continue;
             HistorySnapshot snapshot;
             snapshot.time = result.time;
             double minimum_z = result.nodes.front()[1], maximum_z = minimum_z;
@@ -153,7 +160,8 @@ class OutputHistory final {
                     snapshot.top_radial_displacement += result.nodal("displacement_r")[node];
                     snapshot.top_axial_displacement += result.nodal("displacement_z")[node];
                 }
-            if (count == 0) throw std::runtime_error("M4.3 result has no top nodes");
+            if (count == 0)
+                throw std::runtime_error("M4.3 result has no top nodes");
             snapshot.top_radial_displacement /= static_cast<double>(count);
             snapshot.top_axial_displacement /= static_cast<double>(count);
             for (std::size_t element = 0; element < expected_elements; ++element) {
@@ -166,7 +174,8 @@ class OutputHistory final {
                     value.radius += result.element("reference_r" + suffix)[element] / 4.0;
                     value.axial_coordinate += result.element("reference_z" + suffix)[element] / 4.0;
                     const double weight = result.element("reference_measure" + suffix)[element];
-                    if (!(weight > 0.0)) throw std::runtime_error("M4.3 result has nonpositive reference measure");
+                    if (!(weight > 0.0))
+                        throw std::runtime_error("M4.3 result has nonpositive reference measure");
                     total_weight += weight;
                     value.stress.rr += weight * result.element("stress_rr" + suffix)[element];
                     value.stress.zz += weight * result.element("stress_zz" + suffix)[element];
@@ -232,26 +241,37 @@ struct ReferenceSnapshot final {
 
 std::vector<ReferenceSnapshot> read_reference_history(const std::string& path) {
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not read M4.3 MOOSE history: " + path);
+    if (!input)
+        throw std::runtime_error("Could not read M4.3 MOOSE history: " + path);
     std::string line;
-    if (!std::getline(input, line)) throw std::invalid_argument("M4.3 MOOSE history is empty: " + path);
+    if (!std::getline(input, line))
+        throw std::invalid_argument("M4.3 MOOSE history is empty: " + path);
     const std::vector<std::string> header = split_csv(line);
-    const auto column = [&header](const std::string& name) { return column_index(header, name); };
+    const auto column = [&header](const std::string& name) {
+        return column_index(header, name);
+    };
     const std::size_t time = column("sample_time");
     const std::size_t id = column("id");
     const std::size_t radius = column("x");
     const std::size_t axial_coordinate = column("y");
-    const std::array<std::size_t, 4> stress = {
-        column("stress_rr"), column("stress_zz"), column("stress_hoop"), column("stress_rz")};
-    const std::array<std::size_t, 4> elastic = {
-        column("elastic_rr"), column("elastic_zz"), column("elastic_hoop"), column("elastic_rz")};
-    const std::array<std::size_t, 4> combined_inelastic = {
-        column("combined_rr"), column("combined_zz"), column("combined_hoop"), column("combined_rz")};
+    const std::array<std::size_t, 4> stress = {column("stress_rr"),
+        column("stress_zz"),
+        column("stress_hoop"),
+        column("stress_rz")};
+    const std::array<std::size_t, 4> elastic = {column("elastic_rr"),
+        column("elastic_zz"),
+        column("elastic_hoop"),
+        column("elastic_rz")};
+    const std::array<std::size_t, 4> combined_inelastic = {column("combined_rr"),
+        column("combined_zz"),
+        column("combined_hoop"),
+        column("combined_rz")};
     const std::size_t equivalent_plastic = column("effective_plastic");
     const std::size_t equivalent_creep = column("effective_creep");
     std::vector<ReferenceSnapshot> result;
     while (std::getline(input, line)) {
-        if (line.empty()) continue;
+        if (line.empty())
+            continue;
         const std::vector<std::string> fields = split_csv(line);
         ReferenceSnapshot value;
         value.time = csv_value(fields, time, path);
@@ -267,9 +287,11 @@ std::vector<ReferenceSnapshot> read_reference_history(const std::string& path) {
         value.equivalent_creep = csv_value(fields, equivalent_creep, path);
         result.push_back(value);
     }
-    if (result.empty()) throw std::invalid_argument("M4.3 MOOSE history has no transient rows: " + path);
+    if (result.empty())
+        throw std::invalid_argument("M4.3 MOOSE history has no transient rows: " + path);
     std::sort(result.begin(), result.end(), [](const ReferenceSnapshot& left, const ReferenceSnapshot& right) {
-        if (left.time != right.time) return left.time < right.time;
+        if (left.time != right.time)
+            return left.time < right.time;
         return left.element_id < right.element_id;
     });
     return result;
@@ -279,27 +301,31 @@ std::array<double, 4> stress_components(const StressValues& stress) {
     return {stress.rr, stress.zz, stress.hoop, stress.rz};
 }
 
-bool check_metrics(const std::string& name, const fuelsim::test::FieldErrorMetrics& metrics,
-    double zero_reference_tolerance, double aggregate_tolerance, double pointwise_tolerance) {
+bool check_metrics(const std::string& name,
+    const fuelsim::test::FieldErrorMetrics& metrics,
+    double zero_reference_tolerance,
+    double aggregate_tolerance,
+    double pointwise_tolerance) {
     fuelsim::test::print_relative_metrics(name, metrics);
     std::cout << name << "_maximum_absolute_difference=" << metrics.maximum_absolute_difference << '\n';
     std::cout << name << "_relative_l2_tolerance=" << aggregate_tolerance << '\n';
     std::cout << name << "_relative_absolute_peak_tolerance=" << aggregate_tolerance << '\n';
     std::cout << name << "_maximum_pointwise_relative_tolerance=" << pointwise_tolerance << '\n';
-    return check(metrics.relative_l2() < aggregate_tolerance &&
-                     metrics.relative_absolute_peak() < aggregate_tolerance &&
-                     metrics.maximum_pointwise_relative_error() < pointwise_tolerance &&
-                     metrics.maximum_zero_reference_difference < zero_reference_tolerance,
+    return check(metrics.relative_l2() < aggregate_tolerance && metrics.relative_absolute_peak() < aggregate_tolerance
+                     && metrics.maximum_pointwise_relative_error() < pointwise_tolerance
+                     && metrics.maximum_zero_reference_difference < zero_reference_tolerance,
         name + " three MOOSE metrics and zero-reference error pass");
 }
 
-void print_tensor_metric_locations(const std::string& name, const fuelsim::test::FieldErrorMetrics& metrics,
+void print_tensor_metric_locations(const std::string& name,
+    const fuelsim::test::FieldErrorMetrics& metrics,
     const std::vector<ReferenceSnapshot>& reference) {
     constexpr std::array<const char*, 4> components = {"rr", "zz", "hoop", "rz"};
     const auto print_location = [&name, &reference, &components](const std::string& metric, std::size_t flat_index) {
         const std::size_t row = flat_index / components.size();
         const std::size_t component = flat_index % components.size();
-        if (row >= reference.size()) throw std::logic_error("M4.3 metric index exceeds history size");
+        if (row >= reference.size())
+            throw std::logic_error("M4.3 metric index exceeds history size");
         std::cout << name << '_' << metric << "_time=" << reference[row].time << '\n';
         std::cout << name << '_' << metric << "_element_id=" << reference[row].element_id << '\n';
         std::cout << name << '_' << metric << "_component=" << components[component] << '\n';
@@ -309,9 +335,11 @@ void print_tensor_metric_locations(const std::string& name, const fuelsim::test:
 }
 
 const HistorySnapshot& snapshot_at(const std::vector<HistorySnapshot>& values, double time) {
-    const auto found = std::find_if(values.begin(), values.end(),
-        [time](const HistorySnapshot& value) { return std::abs(value.time - time) < time_tolerance; });
-    if (found == values.end()) throw std::invalid_argument("M4.3 accepted history misses event time");
+    const auto found = std::find_if(values.begin(), values.end(), [time](const HistorySnapshot& value) {
+        return std::abs(value.time - time) < time_tolerance;
+    });
+    if (found == values.end())
+        throw std::invalid_argument("M4.3 accepted history misses event time");
     return *found;
 }
 
@@ -321,18 +349,20 @@ bool check_load_path(const std::vector<HistorySnapshot>& snapshots, ExpectedBeha
     const HistorySnapshot& axial_reversal = snapshot_at(snapshots, 3.0);
     const HistorySnapshot& shear_reversal = snapshot_at(snapshots, 4.0);
     const HistorySnapshot& final_stretch = snapshot_at(snapshots, 5.0);
-    const auto close = [](double actual, double expected) { return std::abs(actual - expected) < 1.0e-14; };
-    bool passed = check(close(first_stretch.top_radial_displacement, 0.0) &&
-                            close(first_stretch.top_axial_displacement, 2.0e-4) &&
-                            close(positive_shear.top_radial_displacement, 2.0e-3) &&
-                            close(positive_shear.top_axial_displacement, 2.0e-4) &&
-                            close(axial_reversal.top_radial_displacement, 2.0e-3) &&
-                            close(axial_reversal.top_axial_displacement, -1.0e-4) &&
-                            close(shear_reversal.top_radial_displacement, -1.5e-3) &&
-                            close(shear_reversal.top_axial_displacement, -1.0e-4) &&
-                            close(final_stretch.top_radial_displacement, -1.5e-3) &&
-                            close(final_stretch.top_axial_displacement, 6.0e-5),
-        "M4.3 hits every noncoaxial load-path event");
+    const auto close = [](double actual, double expected) {
+        return std::abs(actual - expected) < 1.0e-14;
+    };
+    bool passed =
+        check(close(first_stretch.top_radial_displacement, 0.0) && close(first_stretch.top_axial_displacement, 2.0e-4)
+                  && close(positive_shear.top_radial_displacement, 2.0e-3)
+                  && close(positive_shear.top_axial_displacement, 2.0e-4)
+                  && close(axial_reversal.top_radial_displacement, 2.0e-3)
+                  && close(axial_reversal.top_axial_displacement, -1.0e-4)
+                  && close(shear_reversal.top_radial_displacement, -1.5e-3)
+                  && close(shear_reversal.top_axial_displacement, -1.0e-4)
+                  && close(final_stretch.top_radial_displacement, -1.5e-3)
+                  && close(final_stretch.top_axial_displacement, 6.0e-5),
+            "M4.3 hits every noncoaxial load-path event");
     const double shear = positive_shear.top_radial_displacement / positive_shear.reference_height;
     const double axial_stretch = 1.0 + positive_shear.top_axial_displacement / positive_shear.reference_height;
     const double positive_polar_rotation = std::abs(std::atan2(-shear, 1.0 + axial_stretch));
@@ -357,8 +387,9 @@ bool check_load_path(const std::vector<HistorySnapshot>& snapshots, ExpectedBeha
 
 } // namespace
 
-bool fuelsim::test::check_rz_noncoaxial(
-    const std::string& output_path, const std::string& variant_name, const std::string& history_reference_path) {
+bool fuelsim::test::check_rz_noncoaxial(const std::string& output_path,
+    const std::string& variant_name,
+    const std::string& history_reference_path) {
     const auto variant = variant_config(variant_name);
     OutputHistory observer(output_path, variant.element_count);
     bool passed = check(observer.snapshots().size() == variant.step_count, "M4.3 compares every fixed step");
@@ -366,9 +397,10 @@ bool fuelsim::test::check_rz_noncoaxial(
     const std::vector<ReferenceSnapshot> reference = read_reference_history(history_reference_path);
     const std::vector<HistorySnapshot>& actual = observer.snapshots();
     passed = check(reference.size() == actual.size() * variant.element_count,
-                 "M4.3 compares every element at every accepted step") &&
-             passed;
-    if (reference.size() != actual.size() * variant.element_count) return false;
+                 "M4.3 compares every element at every accepted step")
+             && passed;
+    if (reference.size() != actual.size() * variant.element_count)
+        return false;
     fuelsim::test::FieldErrorMetrics stress;
     fuelsim::test::FieldErrorMetrics elastic;
     fuelsim::test::FieldErrorMetrics combined_inelastic;
@@ -381,16 +413,17 @@ bool fuelsim::test::check_rz_noncoaxial(
     double maximum_coordinate_difference = 0.0;
     std::size_t reference_row = 0;
     for (std::size_t step = 0; step < actual.size(); ++step) {
-        passed = check(actual[step].elements.size() == variant.element_count,
-                     "M4.3 observer records every element per step") &&
-                 passed;
-        if (actual[step].elements.size() != variant.element_count) return false;
+        passed =
+            check(actual[step].elements.size() == variant.element_count, "M4.3 observer records every element per step")
+            && passed;
+        if (actual[step].elements.size() != variant.element_count)
+            return false;
         for (const ElementSnapshot& element : actual[step].elements) {
             const ReferenceSnapshot& expected = reference[reference_row];
             maximum_time_difference = std::max(maximum_time_difference, std::abs(actual[step].time - expected.time));
-            maximum_coordinate_difference =
-                std::max({maximum_coordinate_difference, std::abs(element.radius - expected.radius),
-                    std::abs(element.axial_coordinate - expected.axial_coordinate)});
+            maximum_coordinate_difference = std::max({maximum_coordinate_difference,
+                std::abs(element.radius - expected.radius),
+                std::abs(element.axial_coordinate - expected.axial_coordinate)});
             passed =
                 check(element.element_id == expected.element_id, "M4.3 element IDs match at every time step") && passed;
             const std::array<double, 4> actual_stress = stress_components(element.stress);
@@ -420,10 +453,12 @@ bool fuelsim::test::check_rz_noncoaxial(
             actual_combined_inelastic_tensor[4] = element.state.plastic_strain[3] + element.state.creep_strain[3];
             expected_combined_inelastic_tensor[4] = expected.combined_inelastic[3];
             stress_tensor.add(actual_stress_tensor.data(), expected_stress_tensor.data(), actual_stress_tensor.size());
-            elastic_tensor.add(
-                actual_elastic_tensor.data(), expected_elastic_tensor.data(), actual_elastic_tensor.size());
+            elastic_tensor.add(actual_elastic_tensor.data(),
+                expected_elastic_tensor.data(),
+                actual_elastic_tensor.size());
             combined_inelastic_tensor.add(actual_combined_inelastic_tensor.data(),
-                expected_combined_inelastic_tensor.data(), actual_combined_inelastic_tensor.size());
+                expected_combined_inelastic_tensor.data(),
+                actual_combined_inelastic_tensor.size());
             equivalent_plastic.add(element.state.equivalent_plastic_strain, expected.equivalent_plastic);
             equivalent_creep.add(element.state.equivalent_creep_strain, expected.equivalent_creep);
             ++reference_row;
@@ -435,11 +470,11 @@ bool fuelsim::test::check_rz_noncoaxial(
     std::cout << "m43_maximum_element_coordinate_difference=" << maximum_coordinate_difference << '\n';
     std::cout << "m43_maximum_plastic_trace=" << observer.maximum_plastic_trace() << '\n';
     std::cout << "m43_maximum_creep_trace=" << observer.maximum_creep_trace() << '\n';
-    passed = check(observer.maximum_plastic_trace() < variant.plastic_trace_tolerance &&
-                       observer.maximum_creep_trace() < variant.creep_trace_tolerance,
+    passed = check(observer.maximum_plastic_trace() < variant.plastic_trace_tolerance
+                       && observer.maximum_creep_trace() < variant.creep_trace_tolerance,
                  "M4.3 default-Rashid accumulated trace drift stays below "
-                 "its acceptance limits") &&
-             passed;
+                 "its acceptance limits")
+             && passed;
     const std::string prefix = "m43_" + variant.name + "_element_qp_average_";
     print_tensor_metric_locations(prefix + "stress", stress, reference);
     print_tensor_metric_locations(prefix + "elastic_strain", elastic, reference);
@@ -448,55 +483,62 @@ bool fuelsim::test::check_rz_noncoaxial(
     fuelsim::test::print_relative_metrics(prefix + "elastic_strain_component_diagnostic", elastic);
     fuelsim::test::print_grouped_relative_metrics(prefix + "stress_tensor", stress_tensor);
     fuelsim::test::print_grouped_relative_metrics(prefix + "elastic_strain_tensor", elastic_tensor);
-    passed = check(fuelsim::test::grouped_relative_metrics_below(stress_tensor, variant.comparison_tolerance) &&
-                       stress.maximum_zero_reference_difference < 1.0e-3,
-                 prefix + "stress complete-tensor three metrics and component zero-reference error pass") &&
-             passed;
-    passed = check(fuelsim::test::grouped_relative_metrics_below(elastic_tensor, variant.comparison_tolerance) &&
-                       elastic.maximum_zero_reference_difference < 1.0e-12,
-                 prefix + "elastic strain complete-tensor three metrics and component zero-reference error pass") &&
-             passed;
+    passed = check(fuelsim::test::grouped_relative_metrics_below(stress_tensor, variant.comparison_tolerance)
+                       && stress.maximum_zero_reference_difference < 1.0e-3,
+                 prefix + "stress complete-tensor three metrics and component zero-reference error pass")
+             && passed;
+    passed = check(fuelsim::test::grouped_relative_metrics_below(elastic_tensor, variant.comparison_tolerance)
+                       && elastic.maximum_zero_reference_difference < 1.0e-12,
+                 prefix + "elastic strain complete-tensor three metrics and component zero-reference error pass")
+             && passed;
     if (variant.behavior == ExpectedBehavior::elastic) {
         fuelsim::test::print_absolute_metrics(prefix + "combined_inelastic_strain", combined_inelastic);
         passed =
-            check(combined_inelastic.maximum_absolute_difference < 1.0e-14 &&
-                      combined_inelastic.maximum_actual < 1.0e-14 && combined_inelastic.maximum_reference < 1.0e-14,
-                "M4.3 elastic combined inelastic history stays zero") &&
-            passed;
+            check(combined_inelastic.maximum_absolute_difference < 1.0e-14
+                      && combined_inelastic.maximum_actual < 1.0e-14 && combined_inelastic.maximum_reference < 1.0e-14,
+                "M4.3 elastic combined inelastic history stays zero")
+            && passed;
     } else {
-        fuelsim::test::print_relative_metrics(
-            prefix + "combined_inelastic_strain_component_diagnostic", combined_inelastic);
-        fuelsim::test::print_grouped_relative_metrics(
-            prefix + "combined_inelastic_strain_tensor", combined_inelastic_tensor);
-        passed = check(fuelsim::test::grouped_relative_metrics_below(
-                           combined_inelastic_tensor, variant.comparison_tolerance) &&
-                           combined_inelastic.maximum_zero_reference_difference < 1.0e-12,
-                     prefix + "combined inelastic strain complete-tensor three metrics and component zero-reference "
-                              "error pass") &&
-                 passed;
+        fuelsim::test::print_relative_metrics(prefix + "combined_inelastic_strain_component_diagnostic",
+            combined_inelastic);
+        fuelsim::test::print_grouped_relative_metrics(prefix + "combined_inelastic_strain_tensor",
+            combined_inelastic_tensor);
+        passed =
+            check(fuelsim::test::grouped_relative_metrics_below(combined_inelastic_tensor, variant.comparison_tolerance)
+                      && combined_inelastic.maximum_zero_reference_difference < 1.0e-12,
+                prefix
+                    + "combined inelastic strain complete-tensor three metrics and component zero-reference "
+                      "error pass")
+            && passed;
     }
     if (plastic_active(variant.behavior))
-        passed = check_metrics(prefix + "equivalent_plastic", equivalent_plastic, 1.0e-12, variant.comparison_tolerance,
-                     variant.comparison_tolerance) &&
-                 passed;
+        passed = check_metrics(prefix + "equivalent_plastic",
+                     equivalent_plastic,
+                     1.0e-12,
+                     variant.comparison_tolerance,
+                     variant.comparison_tolerance)
+                 && passed;
     else {
         fuelsim::test::print_absolute_metrics(prefix + "equivalent_plastic", equivalent_plastic);
         passed =
-            check(equivalent_plastic.maximum_absolute_difference < 1.0e-14 &&
-                      equivalent_plastic.maximum_actual < 1.0e-14 && equivalent_plastic.maximum_reference < 1.0e-14,
-                "M4.3 inactive equivalent plastic history stays zero") &&
-            passed;
+            check(equivalent_plastic.maximum_absolute_difference < 1.0e-14
+                      && equivalent_plastic.maximum_actual < 1.0e-14 && equivalent_plastic.maximum_reference < 1.0e-14,
+                "M4.3 inactive equivalent plastic history stays zero")
+            && passed;
     }
     if (creep_active(variant.behavior))
-        passed = check_metrics(prefix + "equivalent_creep", equivalent_creep, 1.0e-12, variant.comparison_tolerance,
-                     variant.comparison_tolerance) &&
-                 passed;
+        passed = check_metrics(prefix + "equivalent_creep",
+                     equivalent_creep,
+                     1.0e-12,
+                     variant.comparison_tolerance,
+                     variant.comparison_tolerance)
+                 && passed;
     else {
         fuelsim::test::print_absolute_metrics(prefix + "equivalent_creep", equivalent_creep);
-        passed = check(equivalent_creep.maximum_absolute_difference < 1.0e-14 &&
-                           equivalent_creep.maximum_actual < 1.0e-14 && equivalent_creep.maximum_reference < 1.0e-14,
-                     "M4.3 inactive equivalent creep history stays zero") &&
-                 passed;
+        passed = check(equivalent_creep.maximum_absolute_difference < 1.0e-14
+                           && equivalent_creep.maximum_actual < 1.0e-14 && equivalent_creep.maximum_reference < 1.0e-14,
+                     "M4.3 inactive equivalent creep history stays zero")
+                 && passed;
     }
     return passed;
 }

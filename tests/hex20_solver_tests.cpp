@@ -8,6 +8,7 @@
 #include <cmath>
 #include <cstdio>
 #include <iostream>
+#include <limits>
 #include <map>
 #include <stdexcept>
 #include <string>
@@ -15,21 +16,46 @@
 
 namespace {
 bool check(bool condition, const std::string& message) {
-    if (condition) return true;
+    if (condition)
+        return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
 
 fuelsim::UnstructuredHex20Mesh unit_mesh() {
-    std::vector<fuelsim::CartesianPoint3> nodes = {{0.0, 0.0, 0.0}, {1.0, 0.0, 0.0}, {1.0, 1.0, 0.0}, {0.0, 1.0, 0.0},
-        {0.0, 0.0, 1.0}, {1.0, 0.0, 1.0}, {1.0, 1.0, 1.0}, {0.0, 1.0, 1.0}, {0.5, 0.0, 0.0}, {1.0, 0.5, 0.0},
-        {0.5, 1.0, 0.0}, {0.0, 0.5, 0.0}, {0.0, 0.0, 0.5}, {1.0, 0.0, 0.5}, {1.0, 1.0, 0.5}, {0.0, 1.0, 0.5},
-        {0.5, 0.0, 1.0}, {1.0, 0.5, 1.0}, {0.5, 1.0, 1.0}, {0.0, 0.5, 1.0}};
+    std::vector<fuelsim::CartesianPoint3> nodes = {{0.0, 0.0, 0.0},
+        {1.0, 0.0, 0.0},
+        {1.0, 1.0, 0.0},
+        {0.0, 1.0, 0.0},
+        {0.0, 0.0, 1.0},
+        {1.0, 0.0, 1.0},
+        {1.0, 1.0, 1.0},
+        {0.0, 1.0, 1.0},
+        {0.5, 0.0, 0.0},
+        {1.0, 0.5, 0.0},
+        {0.5, 1.0, 0.0},
+        {0.0, 0.5, 0.0},
+        {0.0, 0.0, 0.5},
+        {1.0, 0.0, 0.5},
+        {1.0, 1.0, 0.5},
+        {0.0, 1.0, 0.5},
+        {0.5, 0.0, 1.0},
+        {1.0, 0.5, 1.0},
+        {0.5, 1.0, 1.0},
+        {0.0, 0.5, 1.0}};
     fuelsim::Hex20Element element{};
-    for (std::size_t node = 0; node < element.nodes.size(); ++node) element.nodes[node] = node;
-    return fuelsim::UnstructuredHex20Mesh(std::move(nodes), {element}, {1}, {{1, "solid"}}, {},
-        {{10, "all", {{0, 0}, {0, 1}, {0, 2}, {0, 3}, {0, 4}, {0, 5}}}, {11, "x0", {{0, 3}}}, {12, "y0", {{0, 0}}},
-            {13, "z0", {{0, 4}}}, {14, "x1", {{0, 1}}}});
+    for (std::size_t node = 0; node < element.nodes.size(); ++node)
+        element.nodes[node] = node;
+    return fuelsim::UnstructuredHex20Mesh(std::move(nodes),
+        {element},
+        {1},
+        {{1, "solid"}},
+        {},
+        {{10, "all", {{0, 0}, {0, 1}, {0, 2}, {0, 3}, {0, 4}, {0, 5}}},
+            {11, "x0", {{0, 3}}},
+            {12, "y0", {{0, 0}}},
+            {13, "z0", {{0, 4}}},
+            {14, "x1", {{0, 1}}}});
 }
 
 fuelsim::ThermoelasticProperties material() {
@@ -37,10 +63,21 @@ fuelsim::ThermoelasticProperties material() {
 }
 
 fuelsim::Hex20Element append_cuboid(std::vector<fuelsim::CartesianPoint3>& nodes,
-    std::map<std::array<double, 3>, std::size_t>& node_map, double x0, double x1, double y0, double y1, double z0,
+    std::map<std::array<double, 3>, std::size_t>& node_map,
+    double x0,
+    double x1,
+    double y0,
+    double y1,
+    double z0,
     double z1) {
-    const std::array<fuelsim::CartesianPoint3, 8> corners = {{{x0, y0, z0}, {x1, y0, z0}, {x1, y1, z0}, {x0, y1, z0},
-        {x0, y0, z1}, {x1, y0, z1}, {x1, y1, z1}, {x0, y1, z1}}};
+    const std::array<fuelsim::CartesianPoint3, 8> corners = {{{x0, y0, z0},
+        {x1, y0, z0},
+        {x1, y1, z0},
+        {x0, y1, z0},
+        {x0, y0, z1},
+        {x1, y0, z1},
+        {x1, y1, z1},
+        {x0, y1, z1}}};
     const std::array<std::pair<std::size_t, std::size_t>, 12> edges = {
         {{0, 1}, {1, 2}, {2, 3}, {3, 0}, {0, 4}, {1, 5}, {2, 6}, {3, 7}, {4, 5}, {5, 6}, {6, 7}, {7, 4}}};
     std::array<fuelsim::CartesianPoint3, 20> points{};
@@ -54,7 +91,8 @@ fuelsim::Hex20Element append_cuboid(std::vector<fuelsim::CartesianPoint3>& nodes
     for (std::size_t local = 0; local < points.size(); ++local) {
         const std::array<double, 3> key = {points[local].x, points[local].y, points[local].z};
         const auto inserted = node_map.emplace(key, nodes.size());
-        if (inserted.second) nodes.push_back(points[local]);
+        if (inserted.second)
+            nodes.push_back(points[local]);
         element.nodes[local] = inserted.first->second;
     }
     return element;
@@ -73,6 +111,41 @@ fuelsim::SpatialDefinition definition(bool fixed_temperature) {
     return value;
 }
 
+bool test_hex20_node_set_constraints() {
+    const auto source = unit_mesh();
+    fuelsim::UnstructuredHex20Mesh mesh(source.nodes(),
+        source.elements(),
+        source.element_block_ids(),
+        source.element_blocks(),
+        {{1, "mixed", {0, 8}}, {2, "midside", {8}}, {3, "all", {0}}},
+        source.side_sets());
+    auto input = definition(false);
+    input.boundary_conditions = {
+        {"temperature", fuelsim::BoundaryConditionType::dirichlet, "mixed", fuelsim::Field::temperature, 300.0}};
+    fuelsim::SteadyProblem mixed(input, mesh);
+    bool passed = check(fuelsim::cartesian::ProblemAccess::view(mixed).dirichlet_conditions().size() == 1,
+        "HEX20 mixed node set constrains only its temperature corner");
+    input.boundary_conditions[0].boundary = "midside";
+    bool rejected = false;
+    try {
+        fuelsim::SteadyProblem invalid(input, mesh);
+    } catch (const std::invalid_argument& error) {
+        rejected = std::string(error.what()).find("no active field nodes") != std::string::npos;
+    }
+    passed = check(rejected, "HEX20 temperature constraint on midside-only node set is rejected") && passed;
+    input.boundary_conditions[0].boundary = "all";
+    fuelsim::SteadyProblem side(input, mesh);
+    passed = check(fuelsim::cartesian::ProblemAccess::view(side).dirichlet_conditions().size() == 8,
+                 "HEX20 side set takes precedence when a node set has the same name")
+             && passed;
+    input.boundary_conditions[0].boundary = "mixed";
+    input.boundary_conditions[0].field = fuelsim::Field::displacement_x;
+    fuelsim::SteadyProblem displacement(input, mesh);
+    return check(fuelsim::cartesian::ProblemAccess::view(displacement).dirichlet_conditions().size() == 2,
+               "HEX20 displacement node set retains both corner and midside nodes")
+           && passed;
+}
+
 fuelsim::SolverOptions solver_options() {
     fuelsim::SolverOptions value;
     value.absolute_tolerance = 1.0e-8;
@@ -86,37 +159,80 @@ fuelsim::SolverOptions solver_options() {
     return value;
 }
 
-bool check_uniform(const fuelsim::cartesian::SpatialAssembly& spatial, const fuelsim::UnstructuredHex20Mesh& mesh,
-    const std::vector<double>& state, double temperature) {
+bool check_uniform(const fuelsim::cartesian::SpatialAssembly& spatial,
+    const fuelsim::UnstructuredHex20Mesh& mesh,
+    const std::vector<double>& state,
+    double temperature) {
     const auto& fields = spatial.field_layout();
     const double strain = 1.0e-5 * (temperature - 300.0);
     bool passed = true;
     for (std::size_t node = 0; node < 8; ++node)
         passed =
             check(std::abs(state[fields[0].begin + spatial.global_temperature_node(0, node)] - temperature) < 3.0e-8,
-                "HEX20 corner temperature matches the uniform analytic solution") &&
-            passed;
+                "HEX20 corner temperature matches the uniform analytic solution")
+            && passed;
     for (std::size_t node = 0; node < mesh.nodes().size(); ++node) {
         const std::size_t global = spatial.global_node(0, node);
-        passed = check(std::abs(state[fields[1].begin + global] - strain * mesh.nodes()[node].x) < 3.0e-10 &&
-                           std::abs(state[fields[2].begin + global] - strain * mesh.nodes()[node].y) < 3.0e-10 &&
-                           std::abs(state[fields[3].begin + global] - strain * mesh.nodes()[node].z) < 3.0e-10,
-                     "HEX20 quadratic displacement field matches uniform free thermal expansion") &&
-                 passed;
+        passed = check(std::abs(state[fields[1].begin + global] - strain * mesh.nodes()[node].x) < 3.0e-10
+                           && std::abs(state[fields[2].begin + global] - strain * mesh.nodes()[node].y) < 3.0e-10
+                           && std::abs(state[fields[3].begin + global] - strain * mesh.nodes()[node].z) < 3.0e-10,
+                     "HEX20 quadratic displacement field matches uniform free thermal expansion")
+                 && passed;
     }
     return passed;
 }
 
-double mechanical_contact_directional_error(
-    fuelsim::SteadyProblem& problem, const std::vector<double>& global_state, double perturbation) {
+std::array<double, 2> mechanical_contact_balance(fuelsim::SteadyProblem& problem, const std::vector<double>& state) {
+    const auto& spatial = fuelsim::cartesian::ProblemAccess::view(problem);
+    std::vector<std::array<double, 3>> coordinates(spatial.field_layout()[1].end - spatial.field_layout()[1].begin);
+    for (std::size_t region = 0; region < spatial.region_count(); ++region) {
+        const auto& mesh = spatial.hex20_region_mesh(region);
+        for (std::size_t i = 0; i < mesh.nodes().size(); ++i) {
+            const auto node = spatial.global_node(region, i);
+            const auto& x = mesh.nodes()[i];
+            coordinates[node] = {x.x + state[spatial.dof(fuelsim::Field::displacement_x, node)],
+                x.y + state[spatial.dof(fuelsim::Field::displacement_y, node)],
+                x.z + state[spatial.dof(fuelsim::Field::displacement_z, node)]};
+        }
+    }
+    std::array<double, 3> force{}, moment{};
+    problem.validate_state(state);
+    for (std::size_t contribution = 0; contribution < spatial.contribution_count(); ++contribution) {
+        if (spatial.contribution_type(contribution) != fuelsim::SpatialContributionType::mechanical_contact)
+            continue;
+        std::vector<std::size_t> dofs;
+        problem.contribution_dofs(contribution, dofs);
+        std::vector<double> local(dofs.size()), residual;
+        for (std::size_t i = 0; i < dofs.size(); ++i)
+            local[i] = state[dofs[i]];
+        spatial.compute_contribution(contribution, local, nullptr, nullptr, 0.0, residual, nullptr);
+        for (std::size_t i = 0; i < dofs.size(); ++i)
+            for (std::size_t c = 0; c < 3; ++c) {
+                const auto& field = spatial.field_layout()[c + 1];
+                if (dofs[i] < field.begin || dofs[i] >= field.end)
+                    continue;
+                const auto& x = coordinates[dofs[i] - field.begin];
+                force[c] += residual[i];
+                moment[(c + 2) % 3] += x[(c + 1) % 3] * residual[i];
+                moment[(c + 1) % 3] -= x[(c + 2) % 3] * residual[i];
+            }
+    }
+    return {std::hypot(force[0], force[1], force[2]), std::hypot(moment[0], moment[1], moment[2])};
+}
+
+double mechanical_contact_directional_error(fuelsim::SteadyProblem& problem,
+    const std::vector<double>& global_state,
+    double perturbation) {
     const auto& spatial = fuelsim::cartesian::ProblemAccess::view(problem);
     double maximum_error = 0.0;
     for (std::size_t contribution = 0; contribution < spatial.contribution_count(); ++contribution) {
-        if (spatial.contribution_type(contribution) != fuelsim::SpatialContributionType::mechanical_contact) continue;
+        if (spatial.contribution_type(contribution) != fuelsim::SpatialContributionType::mechanical_contact)
+            continue;
         std::vector<std::size_t> dofs;
         problem.contribution_dofs(contribution, dofs);
         std::vector<double> local_state(dofs.size());
-        for (std::size_t local = 0; local < dofs.size(); ++local) local_state[local] = global_state[dofs[local]];
+        for (std::size_t local = 0; local < dofs.size(); ++local)
+            local_state[local] = global_state[dofs[local]];
         std::vector<double> residual, jacobian;
         spatial.compute_contribution(contribution, local_state, nullptr, nullptr, 0.0, residual, &jacobian);
         std::vector<double> direction(local_state.size()), plus = local_state, minus = local_state;
@@ -126,8 +242,20 @@ double mechanical_contact_directional_error(
             minus[local] -= perturbation * direction[local];
         }
         std::vector<double> plus_residual, minus_residual;
-        spatial.compute_contribution(contribution, plus, nullptr, nullptr, 0.0, plus_residual, nullptr);
-        spatial.compute_contribution(contribution, minus, nullptr, nullptr, 0.0, minus_residual, nullptr);
+        const auto evaluate_perturbed = [&](const std::vector<double>& local, std::vector<double>& result) {
+            auto perturbed = global_state;
+            for (std::size_t i = 0; i < dofs.size(); ++i)
+                perturbed[dofs[i]] = local[i];
+            problem.validate_state(perturbed);
+            std::vector<std::size_t> perturbed_dofs;
+            problem.contribution_dofs(contribution, perturbed_dofs);
+            if (perturbed_dofs != dofs)
+                throw std::runtime_error("Contact directional test crossed a candidate support transition");
+            spatial.compute_contribution(contribution, local, nullptr, nullptr, 0.0, result, nullptr);
+        };
+        evaluate_perturbed(plus, plus_residual);
+        evaluate_perturbed(minus, minus_residual);
+        problem.validate_state(global_state);
         double difference_squared = 0.0, reference_squared = 0.0;
         for (std::size_t row = 0; row < local_state.size(); ++row) {
             double analytic = 0.0;
@@ -142,8 +270,10 @@ double mechanical_contact_directional_error(
     return maximum_error;
 }
 
-bool test_steady_and_io(const fuelsim::PetscSession& session, const fuelsim::UnstructuredHex20Mesh& mesh,
-    const std::string& mesh_path, const std::string& results_path) {
+bool test_steady_and_io(const fuelsim::PetscSession& session,
+    const fuelsim::UnstructuredHex20Mesh& mesh,
+    const std::string& mesh_path,
+    const std::string& results_path) {
     session.collective_root_action([&]() { fuelsim::write_exodus_hex20(mesh_path, mesh); });
     const fuelsim::UnstructuredHex20Mesh restored = fuelsim::read_exodus_hex20(mesh_path);
     bool passed =
@@ -152,29 +282,58 @@ bool test_steady_and_io(const fuelsim::PetscSession& session, const fuelsim::Uns
     fuelsim::SteadyProblem problem(definition(true), restored);
     const fuelsim::SteadyResult result = fuelsim::solve_steady(problem, {1, 0.5, 4, 1.0e-6}, solver_options());
     const auto& spatial = fuelsim::cartesian::ProblemAccess::view(problem);
-    const auto partition = problem.contribution_partition(
-        static_cast<std::size_t>(session.rank()), static_cast<std::size_t>(session.size()));
+    const auto partition = problem.contribution_partition(static_cast<std::size_t>(session.rank()),
+        static_cast<std::size_t>(session.size()));
     passed = check(result.completed && result.solve.converged && problem.dof_count() == 68,
-                 "non-contact HEX20 steady problem converges with 8 temperature and 60 displacement DOFs") &&
-             check(result.solve.local_contribution_begin == partition.first &&
-                       result.solve.local_contribution_end == partition.second,
-                 "each message-passing rank owns only its exact HEX20 contribution interval") &&
-             check_uniform(spatial, restored, result.solve.state, 400.0) && passed;
+                 "non-contact HEX20 steady problem converges with 8 temperature and 60 displacement DOFs")
+             && check(result.solve.local_contribution_begin == partition.first
+                          && result.solve.local_contribution_end == partition.second,
+                 "each message-passing rank owns only its exact HEX20 contribution interval")
+             && check_uniform(spatial, restored, result.solve.state, 400.0) && passed;
     session.collective_root_action(
         [&]() { fuelsim::write_steady_results(results_path, restored, problem, result.solve.state); });
     return passed;
 }
 
-bool test_transient_restart(const fuelsim::PetscSession& session, const fuelsim::UnstructuredHex20Mesh& mesh,
-    const std::string& checkpoint_path, const std::string& results_path) {
+bool test_transient_event_roundoff(const fuelsim::UnstructuredHex20Mesh& mesh) {
+    auto spatial = definition(true);
+    spatial.boundary_conditions.back().value = 300.0;
+    spatial.boundary_conditions.back().function = "constant_temperature";
+    spatial.time_tables.emplace_back("constant_temperature",
+        std::vector<double>{0, 1, 2, 3, 4, 5, 6, 7},
+        std::vector<double>(8, 1.0));
+    fuelsim::TransientProblem problem(spatial, mesh);
+    const auto result =
+        fuelsim::solve_transient(problem, {7.0, 0.025, 0.025, 0.025, 1.0, 0.5, 2, 0.0}, solver_options());
+    bool passed = check(result.completed && result.rejected_steps.empty() && result.accepted_steps.size() == 280,
+        "Event alignment preserves 280 fixed increments without a roundoff-sized extra step");
+    for (std::size_t i = 0; i < result.accepted_steps.size(); ++i) {
+        const auto& step = result.accepted_steps[i];
+        const double subtraction_tolerance = 32.0 * std::numeric_limits<double>::epsilon() * std::max(1.0, step.time);
+        passed = check(std::abs(step.time_step - 0.025) <= subtraction_tolerance
+                           && (i + 1 == result.accepted_steps.size() || step.next_time_step == 0.025),
+                     "Event alignment retains the controller step after a rounded event endpoint")
+                 && passed;
+        if ((i + 1) % 40 == 0)
+            passed = check(step.time == static_cast<double>((i + 1) / 40),
+                         "Every integer event is committed at its exact prescribed time")
+                     && passed;
+    }
+    return passed;
+}
+
+bool test_transient_restart(const fuelsim::PetscSession& session,
+    const fuelsim::UnstructuredHex20Mesh& mesh,
+    const std::string& checkpoint_path,
+    const std::string& results_path) {
     const fuelsim::SpatialDefinition spatial = definition(false);
     fuelsim::TransientProblem problem(spatial, mesh);
     const fuelsim::TransientResult result =
         fuelsim::solve_transient(problem, {1.0, 1.0, 1.0, 1.0, 1.0, 0.5, 2, 0.0}, solver_options());
     bool passed =
         check(result.completed && result.accepted_steps.size() == 1,
-            "HEX20 Backward Euler transient accepts one physical time step") &&
-        check_uniform(fuelsim::cartesian::ProblemAccess::view(problem), mesh, problem.committed_solution(), 301.0);
+            "HEX20 Backward Euler transient accepts one physical time step")
+        && check_uniform(fuelsim::cartesian::ProblemAccess::view(problem), mesh, problem.committed_solution(), 301.0);
     const auto& history = fuelsim::cartesian::ProblemAccess::material_history(problem, 0, 0);
     passed = check(history.size() == 27, "HEX20 transient stores 27 committed material-point states") && passed;
     session.collective_root_action([&]() {
@@ -184,10 +343,10 @@ bool test_transient_restart(const fuelsim::PetscSession& session, const fuelsim:
     });
     fuelsim::TransientProblem restored(spatial, mesh);
     const double next_time_step = fuelsim::restore_transient_checkpoint(checkpoint_path, restored);
-    passed = check(next_time_step == 0.25 && restored.committed_solution() == problem.committed_solution() &&
-                       fuelsim::cartesian::ProblemAccess::material_history(restored, 0, 0).size() == 27,
-                 "HEX20 checkpoint restores the exact nodal state and all 27 material points") &&
-             passed;
+    passed = check(next_time_step == 0.25 && restored.committed_solution() == problem.committed_solution()
+                       && fuelsim::cartesian::ProblemAccess::material_history(restored, 0, 0).size() == 27,
+                 "HEX20 checkpoint restores the exact nodal state and all 27 material points")
+             && passed;
     return passed;
 }
 
@@ -201,8 +360,8 @@ bool test_multiblock_shared_nodes() {
     spatial.regions = {{"left", "left", material(), 0.0, 300.0}, {"right", "right", material(), 0.0, 300.0}};
     fuelsim::SteadyProblem problem(spatial, mesh);
     const auto& view = fuelsim::cartesian::ProblemAccess::view(problem);
-    bool passed = check(view.region_count() == 2 && view.node_count() == 32 && view.temperature_node_count() == 12 &&
-                            problem.dof_count() == 108,
+    bool passed = check(view.region_count() == 2 && view.node_count() == 32 && view.temperature_node_count() == 12
+                            && problem.dof_count() == 108,
         "two conforming HEX20 blocks share eight displacement nodes and four corner temperature nodes");
 
     std::size_t shared_displacement_nodes = 0, shared_temperature_nodes = 0;
@@ -212,18 +371,21 @@ bool test_multiblock_shared_nodes() {
         const std::size_t source = left_region.source_node_ids()[left_local];
         const auto found =
             std::find(right_region.source_node_ids().begin(), right_region.source_node_ids().end(), source);
-        if (found == right_region.source_node_ids().end()) continue;
+        if (found == right_region.source_node_ids().end())
+            continue;
         const std::size_t right_local = static_cast<std::size_t>(found - right_region.source_node_ids().begin());
         ++shared_displacement_nodes;
         passed = check(view.global_node(0, left_local) == view.global_node(1, right_local),
-                     "a shared HEX20 source node maps to one global displacement node") &&
-                 passed;
-        if (!left_region.temperature_nodes()[left_local]) continue;
+                     "a shared HEX20 source node maps to one global displacement node")
+                 && passed;
+        if (!left_region.temperature_nodes()[left_local])
+            continue;
         ++shared_temperature_nodes;
-        passed = check(right_region.temperature_nodes()[right_local] &&
-                           view.global_temperature_node(0, left_local) == view.global_temperature_node(1, right_local),
-                     "a shared HEX20 corner maps to one global temperature node") &&
-                 passed;
+        passed =
+            check(right_region.temperature_nodes()[right_local]
+                      && view.global_temperature_node(0, left_local) == view.global_temperature_node(1, right_local),
+                "a shared HEX20 corner maps to one global temperature node")
+            && passed;
     }
 
     std::vector<std::size_t> left_dofs, right_dofs;
@@ -231,20 +393,27 @@ bool test_multiblock_shared_nodes() {
     problem.contribution_dofs(1, right_dofs);
     std::size_t shared_dofs = 0;
     for (const std::size_t dof : left_dofs)
-        if (std::find(right_dofs.begin(), right_dofs.end(), dof) != right_dofs.end()) ++shared_dofs;
+        if (std::find(right_dofs.begin(), right_dofs.end(), dof) != right_dofs.end())
+            ++shared_dofs;
     return check(shared_displacement_nodes == 8 && shared_temperature_nodes == 4 && shared_dofs == 28,
-               "adjacent HEX20 contributions share exactly 24 displacement and four temperature DOFs") &&
-           passed;
+               "adjacent HEX20 contributions share exactly 24 displacement and four temperature DOFs")
+           && passed;
 }
 
 bool test_contact_projection(const fuelsim::UnstructuredHex20Mesh& mesh) {
     (void)mesh;
     std::vector<fuelsim::CartesianPoint3> nodes;
     const auto append_cube = [&nodes](double origin) {
-        const std::array<fuelsim::CartesianPoint3, 8> corners = {
-            {{origin, 0.0, 0.0}, {origin + 1.0, 0.0, 0.0}, {origin + 1.0, 1.0, 0.0}, {origin, 1.0, 0.0},
-                {origin, 0.0, 1.0}, {origin + 1.0, 0.0, 1.0}, {origin + 1.0, 1.0, 1.0}, {origin, 1.0, 1.0}}};
-        for (const auto& point : corners) nodes.push_back(point);
+        const std::array<fuelsim::CartesianPoint3, 8> corners = {{{origin, 0.0, 0.0},
+            {origin + 1.0, 0.0, 0.0},
+            {origin + 1.0, 1.0, 0.0},
+            {origin, 1.0, 0.0},
+            {origin, 0.0, 1.0},
+            {origin + 1.0, 0.0, 1.0},
+            {origin + 1.0, 1.0, 1.0},
+            {origin, 1.0, 1.0}}};
+        for (const auto& point : corners)
+            nodes.push_back(point);
         const std::array<std::pair<std::size_t, std::size_t>, 12> edges = {
             {{0, 1}, {1, 2}, {2, 3}, {3, 0}, {0, 4}, {1, 5}, {2, 6}, {3, 7}, {4, 5}, {5, 6}, {6, 7}, {7, 4}}};
         for (const auto& edge : edges) {
@@ -260,11 +429,15 @@ bool test_contact_projection(const fuelsim::UnstructuredHex20Mesh& mesh) {
         first.nodes[node] = node;
         second.nodes[node] = 20 + node;
     }
-    fuelsim::UnstructuredHex20Mesh contact_mesh(std::move(nodes), {first, second}, {1, 2},
-        {{1, "primary"}, {2, "secondary"}}, {}, {{10, "primary_right", {{0, 1}}}, {20, "secondary_left", {{1, 3}}}});
+    fuelsim::UnstructuredHex20Mesh contact_mesh(std::move(nodes),
+        {first, second},
+        {1, 2},
+        {{1, "primary"}, {2, "secondary"}},
+        {},
+        {{10, "primary_right", {{0, 1}}}, {20, "secondary_left", {{1, 3}}}});
     fuelsim::SpatialDefinition spatial;
-    spatial.regions = {
-        {"primary", "primary", material(), 0.0, 300.0}, {"secondary", "secondary", material(), 0.0, 400.0}};
+    spatial.regions = {{"primary", "primary", material(), 0.0, 300.0},
+        {"secondary", "secondary", material(), 0.0, 400.0}};
     fuelsim::ContactDefinition contact;
     contact.name = "interface";
     contact.primary = "primary_right";
@@ -290,20 +463,20 @@ bool test_contact_projection(const fuelsim::UnstructuredHex20Mesh& mesh) {
         else if (node.tributary_area < 0.0)
             ++negative_areas;
         passed = check(node.projected && node.tributary_area != 0.0 && std::abs(node.gap) < 1.0e-10,
-                     "HEX20 surface-to-surface contact projects every secondary integration point to the face") &&
-                 passed;
+                     "HEX20 surface-to-surface contact projects every secondary integration point to the face")
+                 && passed;
         area_sum += node.tributary_area;
     }
     passed = check(positive_areas == 8 && negative_areas == 0 && std::abs(area_sum - 1.0) < 1.0e-12,
-                 "HEX20 Abaqus-style averaged contact stores eight positive constraint areas") &&
-             passed;
+                 "HEX20 Abaqus-style averaged contact stores eight positive constraint areas")
+             && passed;
     const auto interface = fuelsim::cartesian::ProblemAccess::summarize_interface(problem, 0, problem.initial_state());
     passed = check(interface.projected_contact_nodes == 8 && interface.unprojected_contact_nodes == 0,
-                 "HEX20 contact validation preserves unique primary projection") &&
-             passed;
+                 "HEX20 contact validation preserves unique primary projection")
+             && passed;
     passed = check(view.contribution_count() > view.volume_contribution_count(),
-                 "HEX20 contact contributes thermal and mechanical surface kernels") &&
-             passed;
+                 "HEX20 contact contributes thermal and mechanical surface kernels")
+             && passed;
     const fuelsim::ProblemStateSnapshot snapshot = problem.capture_internal_state();
     std::vector<double> sticking_state = problem.initial_state();
     for (std::size_t local_node = 0; local_node < view.hex20_region_mesh(1).nodes().size(); ++local_node) {
@@ -315,17 +488,18 @@ bool test_contact_projection(const fuelsim::UnstructuredHex20Mesh& mesh) {
     const double sticking_jacobian_error = mechanical_contact_directional_error(problem, sticking_state, 1.0e-8);
     problem.commit_internal_state(sticking_state);
     const auto& sticking_history = fuelsim::cartesian::ProblemAccess::committed_contact_histories(problem).at(0);
-    passed = check(sticking_history.size() == 8 &&
-                       std::all_of(sticking_history.begin(), sticking_history.end(),
+    passed = check(sticking_history.size() == 8
+                       && std::all_of(sticking_history.begin(),
+                           sticking_history.end(),
                            [](const auto& history) {
-                               return !history.sliding &&
-                                      std::abs(history.cartesian_elastic_tangential_slip[1] - 1.0e-6) < 1.0e-14;
+                               return !history.sliding
+                                      && std::abs(history.cartesian_elastic_tangential_slip[1] - 1.0e-6) < 1.0e-14;
                            }),
-                 "HEX20 averaged friction commits all eight elastic sticking histories") &&
-             passed;
+                 "HEX20 averaged friction commits all eight elastic sticking histories")
+             && passed;
     passed = check(sticking_jacobian_error < 1.0e-7,
-                 "HEX20 averaged sticking-friction Jacobian matches a centered directional difference") &&
-             passed;
+                 "HEX20 averaged sticking-friction Jacobian matches a centered directional difference")
+             && passed;
     problem.restore_internal_state(snapshot, problem.initial_state());
     std::vector<double> sliding_state = problem.initial_state();
     for (std::size_t local_node = 0; local_node < view.hex20_region_mesh(1).nodes().size(); ++local_node) {
@@ -336,22 +510,24 @@ bool test_contact_projection(const fuelsim::UnstructuredHex20Mesh& mesh) {
     problem.validate_state(sliding_state);
     problem.commit_internal_state(sliding_state);
     const auto& sliding_history = fuelsim::cartesian::ProblemAccess::committed_contact_histories(problem).at(0);
-    passed = check(sliding_history.size() == 8 &&
-                       std::all_of(sliding_history.begin(), sliding_history.end(),
+    passed = check(sliding_history.size() == 8
+                       && std::all_of(sliding_history.begin(),
+                           sliding_history.end(),
                            [](const auto& history) {
                                return history.sliding && std::abs(history.cartesian_elastic_tangential_slip[1]) > 0.0;
                            }),
-                 "HEX20 surface-to-surface friction commits one sliding history at each averaged constraint") &&
-             passed;
+                 "HEX20 surface-to-surface friction commits one sliding history at each averaged constraint")
+             && passed;
     problem.restore_internal_state(snapshot, problem.initial_state());
     const auto& restored_history = fuelsim::cartesian::ProblemAccess::committed_contact_histories(problem).at(0);
     passed =
-        check(std::all_of(restored_history.begin(), restored_history.end(),
+        check(std::all_of(restored_history.begin(),
+                  restored_history.end(),
                   [](const auto& history) {
                       return !history.sliding && history.cartesian_elastic_tangential_slip == std::array<double, 3>{};
                   }),
-            "HEX20 surface-to-surface friction rollback restores every averaged-constraint history") &&
-        passed;
+            "HEX20 surface-to-surface friction rollback restores every averaged-constraint history")
+        && passed;
     fuelsim::SpatialDefinition finite_spatial = spatial;
     for (fuelsim::RegionDefinition& region : finite_spatial.regions)
         region.strain_formulation = fuelsim::StrainFormulation::finite;
@@ -367,18 +543,19 @@ bool test_contact_projection(const fuelsim::UnstructuredHex20Mesh& mesh) {
     finite_problem.validate_state(finite_sliding_state);
     finite_problem.commit_internal_state(finite_sliding_state);
     const auto& finite_histories = fuelsim::cartesian::ProblemAccess::committed_contact_histories(finite_problem).at(0);
-    passed = check(finite_histories.size() == 9 &&
-                       std::all_of(finite_histories.begin(), finite_histories.end(),
+    passed = check(finite_histories.size() == 9
+                       && std::all_of(finite_histories.begin(),
+                           finite_histories.end(),
                            [](const auto& history) {
                                const double magnitude = std::hypot(history.cartesian_elastic_tangential_slip[0],
                                    std::hypot(history.cartesian_elastic_tangential_slip[1],
                                        history.cartesian_elastic_tangential_slip[2]));
-                               return history.sliding && std::abs(history.cartesian_elastic_tangential_slip[1]) > 0.0 &&
-                                      std::abs(history.cartesian_elastic_tangential_slip[2]) > 0.0 &&
-                                      std::abs(magnitude - 1.0e-5) < 1.0e-13;
+                               return history.sliding && std::abs(history.cartesian_elastic_tangential_slip[1]) > 0.0
+                                      && std::abs(history.cartesian_elastic_tangential_slip[2]) > 0.0
+                                      && std::abs(magnitude - 1.0e-5) < 1.0e-13;
                            }),
-                 "HEX20 finite-strain surface contact commits nine biaxial sliding histories at slip_tolerance") &&
-             passed;
+                 "HEX20 finite-strain surface contact commits nine biaxial sliding histories at slip_tolerance")
+             && passed;
     fuelsim::SpatialDefinition disabled_node_to_surface = spatial;
     disabled_node_to_surface.contacts[0].mechanical_discretization =
         fuelsim::MechanicalContactDiscretization::node_to_surface;
@@ -387,10 +564,11 @@ bool test_contact_projection(const fuelsim::UnstructuredHex20Mesh& mesh) {
         (void)disabled_problem;
         passed = check(false, "C3D20T node-to-surface mechanical contact is rejected") && passed;
     } catch (const std::invalid_argument& error) {
-        passed = check(std::string(error.what()) ==
-                           "C3D20T node_to_surface mechanical contact is disabled; use surface_to_surface: interface",
-                     "C3D20T node-to-surface mechanical contact reports the disabled production path") &&
-                 passed;
+        passed =
+            check(std::string(error.what())
+                      == "C3D20T node_to_surface mechanical contact is disabled; use surface_to_surface: interface",
+                "C3D20T node-to-surface mechanical contact reports the disabled production path")
+            && passed;
     }
     return passed;
 }
@@ -401,12 +579,15 @@ bool test_surface_contact_fixed_reference_graph() {
     const fuelsim::Hex20Element primary_lower = append_cuboid(nodes, primary_nodes, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0),
                                 primary_upper = append_cuboid(nodes, primary_nodes, 0.0, 1.0, 1.0, 2.0, 0.0, 1.0),
                                 secondary = append_cuboid(nodes, secondary_nodes, 1.0, 2.0, 0.0, 2.0, 0.0, 1.0);
-    fuelsim::UnstructuredHex20Mesh mesh(std::move(nodes), {primary_lower, primary_upper, secondary}, {1, 1, 2},
-        {{1, "primary"}, {2, "secondary"}}, {},
+    fuelsim::UnstructuredHex20Mesh mesh(std::move(nodes),
+        {primary_lower, primary_upper, secondary},
+        {1, 1, 2},
+        {{1, "primary"}, {2, "secondary"}},
+        {},
         {{10, "primary_right", {{0, 1}, {1, 1}}}, {20, "secondary_left", {{2, 3}}}});
     fuelsim::SpatialDefinition spatial;
-    spatial.regions = {
-        {"primary", "primary", material(), 0.0, 300.0}, {"secondary", "secondary", material(), 0.0, 300.0}};
+    spatial.regions = {{"primary", "primary", material(), 0.0, 300.0},
+        {"secondary", "secondary", material(), 0.0, 300.0}};
     fuelsim::ContactDefinition contact;
     contact.name = "split_interface";
     contact.primary = "primary_right";
@@ -418,9 +599,11 @@ bool test_surface_contact_fixed_reference_graph() {
     const auto& view = fuelsim::cartesian::ProblemAccess::view(problem);
     const auto distinctive_dof = [&](double y) {
         const auto& region = view.hex20_region_mesh(0);
-        const auto found = std::find_if(region.nodes().begin(), region.nodes().end(),
-            [&](const auto& point) { return point.x == 1.0 && point.y == y && point.z == 0.0; });
-        if (found == region.nodes().end()) throw std::logic_error("HEX20 split-primary node was not found");
+        const auto found = std::find_if(region.nodes().begin(), region.nodes().end(), [&](const auto& point) {
+            return point.x == 1.0 && point.y == y && point.z == 0.0;
+        });
+        if (found == region.nodes().end())
+            throw std::logic_error("HEX20 split-primary node was not found");
         const std::size_t local = static_cast<std::size_t>(found - region.nodes().begin());
         return view.dof(fuelsim::Field::displacement_x, view.global_node(0, local));
     };
@@ -451,8 +634,8 @@ bool test_surface_contact_fixed_reference_graph() {
         state[view.dof(fuelsim::Field::displacement_y, global)] = 0.05;
     }
     passed = check(owner_counts(state) == reference_owners,
-                 "HEX20 averaged small-sliding reference graph remains fixed after a tangential displacement") &&
-             passed;
+                 "HEX20 averaged small-sliding reference graph remains fixed after a tangential displacement")
+             && passed;
     std::vector<double> tilted = problem.initial_state();
     for (std::size_t region = 0; region < 2; ++region)
         for (std::size_t local = 0; local < view.hex20_region_mesh(region).nodes().size(); ++local) {
@@ -464,8 +647,8 @@ bool test_surface_contact_fixed_reference_graph() {
     const fuelsim::InterfaceSummary tilted_summary =
         fuelsim::cartesian::ProblemAccess::summarize_interface(problem, 0, tilted);
     passed = check(tilted_summary.total_contact_force > 0.0 && tilted_summary.unprojected_contact_nodes == 0,
-                 "HEX20 averaged small-sliding contact remains active under a compatible interface tilt") &&
-             passed;
+                 "HEX20 averaged small-sliding contact remains active under a compatible interface tilt")
+             && passed;
     return passed;
 }
 
@@ -478,8 +661,11 @@ bool test_surface_contact_finite_sliding() {
         const fuelsim::Hex20Element primary_lower = append_cuboid(nodes, primary_nodes, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0),
                                     primary_upper = append_cuboid(nodes, primary_nodes, 0.0, 1.0, 1.0, 2.0, 0.0, 1.0),
                                     secondary = append_cuboid(nodes, secondary_nodes, 1.0, 2.0, 0.1, 0.9, 0.0, 1.0);
-        fuelsim::UnstructuredHex20Mesh mesh(std::move(nodes), {primary_lower, primary_upper, secondary}, {1, 1, 2},
-            {{1, "primary"}, {2, "secondary"}}, {},
+        fuelsim::UnstructuredHex20Mesh mesh(std::move(nodes),
+            {primary_lower, primary_upper, secondary},
+            {1, 1, 2},
+            {{1, "primary"}, {2, "secondary"}},
+            {},
             {{10, "primary_right", {{0, 1}, {1, 1}}}, {20, "secondary_left", {{2, 3}}}});
         fuelsim::SpatialDefinition spatial;
         spatial.regions = {{"primary", "primary", material(), 0.0, 300.0, -1, "", strain},
@@ -499,8 +685,9 @@ bool test_surface_contact_finite_sliding() {
         const auto& view = fuelsim::cartesian::ProblemAccess::view(problem);
         const auto distinctive_dof = [&](double y) {
             const auto& region = view.hex20_region_mesh(0);
-            const auto found = std::find_if(region.nodes().begin(), region.nodes().end(),
-                [&](const auto& point) { return point.x == 1.0 && point.y == y && point.z == 0.0; });
+            const auto found = std::find_if(region.nodes().begin(), region.nodes().end(), [&](const auto& point) {
+                return point.x == 1.0 && point.y == y && point.z == 0.0;
+            });
             if (found == region.nodes().end())
                 throw std::logic_error("HEX20 finite-sliding primary node was not found");
             return view.dof(fuelsim::Field::displacement_x,
@@ -533,42 +720,108 @@ bool test_surface_contact_finite_sliding() {
         }
         const std::array<std::size_t, 3> lower_owners = owner_counts(lower_state),
                                          upper_owners = owner_counts(upper_state);
-        passed = check(lower_owners == std::array<std::size_t, 3>{8, 0, 0} &&
-                           upper_owners == std::array<std::size_t, 3>{0, 8, 0},
+        passed = check(lower_owners == std::array<std::size_t, 3>{8, 0, 0}
+                           && upper_owners == std::array<std::size_t, 3>{0, 8, 0},
                      "HEX20 planar finite sliding uniquely transfers all eight node-centered constraints across a "
-                     "primary-face edge") &&
-                 passed;
+                     "primary-face edge")
+                 && passed;
         const fuelsim::InterfaceSummary upper_summary =
             fuelsim::cartesian::ProblemAccess::summarize_interface(problem, 0, upper_state);
         const auto upper_nodes = fuelsim::cartesian::ProblemAccess::summarize_contact_nodes(problem, 0, upper_state);
-        passed = check(upper_summary.projected_contact_nodes == 8 && upper_summary.unprojected_contact_nodes == 0 &&
-                           upper_summary.total_contact_force > 0.0 &&
-                           std::all_of(upper_nodes.begin(), upper_nodes.end(),
+        passed = check(upper_summary.projected_contact_nodes == 8 && upper_summary.unprojected_contact_nodes == 0
+                           && upper_summary.total_contact_force > 0.0
+                           && std::all_of(upper_nodes.begin(),
+                               upper_nodes.end(),
                                [](const auto& node) { return node.projected && node.primary_face == 1; }),
-                     "HEX20 finite-sliding output recovery follows the current upper primary face") &&
-                 passed;
+                     "HEX20 finite-sliding output recovery follows the current upper primary face")
+                 && passed;
         const double jacobian_error = mechanical_contact_directional_error(problem, upper_state, 1.0e-8);
         passed = check(jacobian_error < 2.0e-5,
-                     "HEX20 finite-sliding contact Jacobian matches a centered directional difference") &&
-                 passed;
+                     "HEX20 finite-sliding contact Jacobian matches a centered directional difference")
+                 && passed;
+        const auto balance = mechanical_contact_balance(problem, upper_state);
+        passed = check(balance[0] < 1.0e-8 && balance[1] < 1.0e-8,
+                     "HEX20 finite friction conserves total force and moment with a nonzero penalty gap")
+                 && passed;
+        auto curved_state = upper_state;
+        for (std::size_t region = 0; region < view.region_count(); ++region) {
+            const auto& region_mesh = view.hex20_region_mesh(region);
+            for (std::size_t i = 0; i < region_mesh.nodes().size(); ++i) {
+                const auto node = view.global_node(region, i);
+                const double y =
+                    region_mesh.nodes()[i].y + curved_state[view.dof(fuelsim::Field::displacement_y, node)];
+                const double z =
+                    region_mesh.nodes()[i].z + curved_state[view.dof(fuelsim::Field::displacement_z, node)];
+                curved_state[view.dof(fuelsim::Field::displacement_x, node)] += 1.0e-5 * y * y;
+                curved_state[view.dof(fuelsim::Field::displacement_z, node)] += 1.0e-5 * y * z;
+            }
+        }
+        problem.validate_state(curved_state);
+        passed = check(mechanical_contact_directional_error(problem, curved_state, 1.0e-8) < 2.0e-5,
+                     "HEX20 curved finite friction retains the full gap, surface-gradient and slip Jacobian")
+                 && passed;
+        problem.validate_state(upper_state);
         problem.commit_internal_state(upper_state);
+        const auto rotate = [](const std::array<double, 3>& point) {
+            const double angle = 0.2, c = std::cos(angle), s = std::sin(angle), length = std::sqrt(14.0);
+            const std::array<double, 3> axis{1.0 / length, 2.0 / length, 3.0 / length};
+            const double projection = axis[0] * point[0] + axis[1] * point[1] + axis[2] * point[2];
+            return std::array<double, 3>{c * point[0] + s * (axis[1] * point[2] - axis[2] * point[1])
+                                             + (1.0 - c) * projection * axis[0],
+                c * point[1] + s * (axis[2] * point[0] - axis[0] * point[2]) + (1.0 - c) * projection * axis[1],
+                c * point[2] + s * (axis[0] * point[1] - axis[1] * point[0]) + (1.0 - c) * projection * axis[2]};
+        };
+        auto rotated_state = upper_state;
+        for (std::size_t region = 0; region < view.region_count(); ++region) {
+            const auto& region_mesh = view.hex20_region_mesh(region);
+            for (std::size_t i = 0; i < region_mesh.nodes().size(); ++i) {
+                const auto node = view.global_node(region, i);
+                const auto& reference = region_mesh.nodes()[i];
+                const std::array<double, 3> coordinates{reference.x, reference.y, reference.z};
+                std::array<double, 3> current{};
+                for (std::size_t component = 0; component < 3; ++component)
+                    current[component] =
+                        coordinates[component] + upper_state[view.field_layout()[component + 1].begin + node];
+                const auto rotated = rotate(current);
+                for (std::size_t component = 0; component < 3; ++component)
+                    rotated_state[view.field_layout()[component + 1].begin + node] =
+                        rotated[component] - coordinates[component];
+            }
+        }
+        problem.validate_state(rotated_state);
+        const auto rotated_nodes =
+            fuelsim::cartesian::ProblemAccess::summarize_contact_nodes(problem, 0, rotated_state);
+        double rotation_slip_error = 0.0;
+        for (std::size_t i = 0; i < upper_nodes.size(); ++i) {
+            const auto expected = rotate(upper_nodes[i].tangential_slip);
+            for (std::size_t component = 0; component < 3; ++component)
+                rotation_slip_error = std::max(rotation_slip_error,
+                    std::abs(rotated_nodes[i].tangential_slip[component] - expected[component]));
+        }
+        if (rotation_slip_error >= 1.0e-10)
+            std::cerr << "Finite contact rigid-rotation slip error=" << rotation_slip_error << '\n';
+        passed = check(rotation_slip_error < 1.0e-10,
+                     "Common finite rigid rotation transports contact slip without adding relative motion")
+                 && passed;
+        problem.validate_state(upper_state);
         const auto& upper_histories = fuelsim::cartesian::ProblemAccess::committed_contact_histories(problem).at(0);
-        passed = check(upper_histories.size() == 8 &&
-                           std::all_of(upper_histories.begin(), upper_histories.end(),
+        passed = check(upper_histories.size() == 8
+                           && std::all_of(upper_histories.begin(),
+                               upper_histories.end(),
                                [](const auto& history) {
-                                   return history.sliding && history.cartesian_tangent_basis_initialized &&
-                                          std::abs(history.cartesian_elastic_tangential_slip[1]) > 0.0 &&
-                                          std::abs(history.cartesian_elastic_tangential_slip[2]) > 0.0;
+                                   return history.sliding && history.cartesian_tangent_basis_initialized
+                                          && std::abs(history.cartesian_elastic_tangential_slip[1]) > 0.0
+                                          && std::abs(history.cartesian_elastic_tangential_slip[2]) > 0.0;
                                }),
-                     "HEX20 planar finite sliding commits eight biaxial friction histories on the new primary face") &&
-                 passed;
+                     "HEX20 planar finite sliding commits eight biaxial friction histories on the new primary face")
+                 && passed;
         const std::array<std::size_t, 3> reverse_owners = owner_counts(lower_state);
         const double transported_jacobian_error = mechanical_contact_directional_error(problem, lower_state, 1.0e-8);
         passed = check(reverse_owners == std::array<std::size_t, 3>{8, 0, 0},
-                     "HEX20 planar finite sliding uniquely transfers ownership back across the primary-face edge") &&
-                 check(transported_jacobian_error < 2.0e-5,
-                     "HEX20 finite-sliding Jacobian includes the transported biaxial friction history") &&
-                 passed;
+                     "HEX20 planar finite sliding uniquely transfers ownership back across the primary-face edge")
+                 && check(transported_jacobian_error < 2.0e-5,
+                     "HEX20 finite-sliding Jacobian includes the transported biaxial friction history")
+                 && passed;
         std::vector<double> outside_state = lower_state;
         for (std::size_t local = 0; local < view.hex20_region_mesh(1).nodes().size(); ++local) {
             const std::size_t global = view.global_node(1, local);
@@ -577,20 +830,23 @@ bool test_surface_contact_finite_sliding() {
         bool outside_rejected = false;
         try {
             problem.validate_state(outside_state);
-        } catch (const std::domain_error&) { outside_rejected = true; }
+        } catch (const std::domain_error&) {
+            outside_rejected = true;
+        }
         passed = check(outside_rejected,
-                     "HEX20 finite sliding rejects a state after all constraints leave the complete primary surface") &&
-                 passed;
+                     "HEX20 finite sliding rejects a state after all constraints leave the complete primary surface")
+                 && passed;
         problem.commit_internal_state(lower_state);
         problem.restore_internal_state(initial_snapshot, problem.initial_state());
         const auto& restored = fuelsim::cartesian::ProblemAccess::committed_contact_histories(problem).at(0);
-        passed = check(std::all_of(restored.begin(), restored.end(),
+        passed = check(std::all_of(restored.begin(),
+                           restored.end(),
                            [](const auto& history) {
-                               return !history.sliding && !history.cartesian_tangent_basis_initialized &&
-                                      history.cartesian_elastic_tangential_slip == std::array<double, 3>{};
+                               return !history.sliding && !history.cartesian_tangent_basis_initialized
+                                      && history.cartesian_elastic_tangential_slip == std::array<double, 3>{};
                            }),
-                     "HEX20 finite-sliding rollback restores friction and tangent-basis histories") &&
-                 passed;
+                     "HEX20 finite-sliding rollback restores friction and tangent-basis histories")
+                 && passed;
     }
     return passed;
 }
@@ -611,8 +867,11 @@ bool test_finite_sliding_search_tree() {
     const std::size_t secondary_element = elements.size();
     elements.push_back(append_cuboid(nodes, secondary_nodes, 1.0, 2.0, 0.1, 0.9, 0.0, 1.0));
     blocks.push_back(2);
-    fuelsim::UnstructuredHex20Mesh mesh(std::move(nodes), std::move(elements), std::move(blocks),
-        {{1, "primary"}, {2, "secondary"}}, {},
+    fuelsim::UnstructuredHex20Mesh mesh(std::move(nodes),
+        std::move(elements),
+        std::move(blocks),
+        {{1, "primary"}, {2, "secondary"}},
+        {},
         {{10, "primary_right", std::move(primary_faces)}, {20, "secondary_left", {{secondary_element, 3}}}});
     fuelsim::SpatialDefinition spatial;
     spatial.regions = {{"primary", "primary", material(), 0.0, 300.0, -1, "", fuelsim::StrainFormulation::small},
@@ -639,18 +898,43 @@ bool test_finite_sliding_search_tree() {
         fuelsim::cartesian::ProblemAccess::summarize_contact_nodes(problem, 0, state);
     const fuelsim::InterfaceSummary interface =
         fuelsim::cartesian::ProblemAccess::summarize_interface(problem, 0, state);
-    const bool selected_last_face = summaries.size() == 8 && interface.total_contact_force > 0.0 &&
-                                    std::all_of(summaries.begin(), summaries.end(), [](const auto& summary) {
-                                        return summary.projected && summary.primary_face == 64;
-                                    });
+    const bool selected_last_face = summaries.size() == 8 && interface.total_contact_force > 0.0
+                                    && std::all_of(summaries.begin(), summaries.end(), [](const auto& summary) {
+                                           return summary.projected && summary.primary_face == 64;
+                                       });
     std::size_t active_contributions = 0;
     for (std::size_t contribution = view.volume_contribution_count(); contribution < view.contribution_count();
         ++contribution) {
         std::vector<std::size_t> dofs;
         problem.contribution_dofs(contribution, dofs);
-        if (!dofs.empty()) ++active_contributions;
+        if (!dofs.empty())
+            ++active_contributions;
     }
     const double jacobian_error = mechanical_contact_directional_error(problem, state, 1.0e-8);
+    const auto initial_snapshot = problem.capture_internal_state();
+    problem.commit_internal_state(state);
+    const auto& slip_histories = fuelsim::cartesian::ProblemAccess::committed_contact_histories(problem).at(0);
+    const bool geometric_slip_committed =
+        std::all_of(slip_histories.begin(), slip_histories.end(), [](const auto& history) {
+            return history.cartesian_tangent_basis_initialized
+                   && std::abs(std::abs(history.cartesian_total_tangential_slip[1]) - 64.0) < 1.0e-10
+                   && history.cartesian_elastic_tangential_slip == std::array<double, 3>{};
+        });
+    auto mixed_state = state;
+    for (std::size_t local = 0; local < view.hex20_region_mesh(1).nodes().size(); ++local) {
+        const auto global = view.global_node(1, local);
+        mixed_state[view.dof(fuelsim::Field::displacement_y, global)] = 63.5;
+    }
+    problem.validate_state(mixed_state);
+    const double mixed_jacobian_error = mechanical_contact_directional_error(problem, mixed_state, 1.0e-8);
+    problem.commit_internal_state(mixed_state);
+    const auto& reversed_histories = fuelsim::cartesian::ProblemAccess::committed_contact_histories(problem).at(0);
+    const bool geometric_slip_reversed =
+        std::all_of(reversed_histories.begin(), reversed_histories.end(), [](const auto& history) {
+            return std::abs(std::abs(history.cartesian_total_tangential_slip[1]) - 63.5) < 1.0e-10
+                   && history.cartesian_elastic_tangential_slip == std::array<double, 3>{};
+        });
+    problem.restore_internal_state(initial_snapshot, problem.initial_state());
     std::vector<double> outside_state = state;
     for (std::size_t local = 0; local < view.hex20_region_mesh(1).nodes().size(); ++local) {
         const std::size_t global = view.global_node(1, local);
@@ -659,12 +943,18 @@ bool test_finite_sliding_search_tree() {
     bool outside_rejected = false;
     try {
         problem.validate_state(outside_state);
-    } catch (const std::domain_error&) { outside_rejected = true; }
+    } catch (const std::domain_error&) {
+        outside_rejected = true;
+    }
     return check(selected_last_face && active_contributions == 8,
-               "HEX20 finite-sliding averaged constraints use the search tree to find the last of 65 primary faces") &&
-           check(jacobian_error < 2.0e-5,
-               "HEX20 finite-sliding averaged contact Jacobian matches a centered directional difference") &&
-           check(outside_rejected,
+               "HEX20 finite-sliding averaged constraints use the search tree to find the last of 65 primary faces")
+           && check(jacobian_error < 2.0e-5,
+               "HEX20 finite-sliding averaged contact Jacobian matches a centered directional difference")
+           && check(mixed_jacobian_error < 2.0e-5,
+               "HEX20 disk transfer across adjacent primary faces retains its geometric Jacobian")
+           && check(geometric_slip_committed && geometric_slip_reversed,
+               "HEX20 frictionless finite sliding accumulates and reverses geometric slip without elastic slip")
+           && check(outside_rejected,
                "HEX20 finite-sliding averaged contact rejects a state outside the complete primary surface");
 }
 
@@ -679,12 +969,19 @@ bool test_finite_sliding_end_to_end() {
                                     secondary = append_cuboid(nodes, secondary_nodes, 1.0, 2.0, 0.1, 0.9, 0.0, 1.0);
         std::vector<fuelsim::ElementSide> primary_all, secondary_all;
         for (std::size_t element = 0; element < 2; ++element)
-            for (std::size_t side = 0; side < 6; ++side) primary_all.push_back({element, side});
-        for (std::size_t side = 0; side < 6; ++side) secondary_all.push_back({2, side});
-        fuelsim::UnstructuredHex20Mesh mesh(std::move(nodes), {primary_lower, primary_upper, secondary}, {1, 1, 2},
-            {{1, "primary"}, {2, "secondary"}}, {},
-            {{10, "primary_right", {{0, 1}, {1, 1}}}, {20, "secondary_left", {{2, 3}}},
-                {30, "primary_all", std::move(primary_all)}, {40, "secondary_all", std::move(secondary_all)}});
+            for (std::size_t side = 0; side < 6; ++side)
+                primary_all.push_back({element, side});
+        for (std::size_t side = 0; side < 6; ++side)
+            secondary_all.push_back({2, side});
+        fuelsim::UnstructuredHex20Mesh mesh(std::move(nodes),
+            {primary_lower, primary_upper, secondary},
+            {1, 1, 2},
+            {{1, "primary"}, {2, "secondary"}},
+            {},
+            {{10, "primary_right", {{0, 1}, {1, 1}}},
+                {20, "secondary_left", {{2, 3}}},
+                {30, "primary_all", std::move(primary_all)},
+                {40, "secondary_all", std::move(secondary_all)}});
         fuelsim::SpatialDefinition spatial;
         spatial.regions = {{"primary", "primary", material(), 0.0, 300.0, -1, "", strain},
             {"secondary", "secondary", material(), 0.0, 300.0, -1, "", strain}};
@@ -703,16 +1000,34 @@ bool test_finite_sliding_end_to_end() {
             {fuelsim::Field::displacement_x, fuelsim::Field::displacement_y, fuelsim::Field::displacement_z})
             spatial.boundary_conditions.push_back(
                 {"fix_primary", fuelsim::BoundaryConditionType::dirichlet, "primary_all", field, 0.0});
-        spatial.boundary_conditions.push_back({"move_secondary_x", fuelsim::BoundaryConditionType::dirichlet,
-            "secondary_all", fuelsim::Field::displacement_x, -1.0e-4, true});
-        spatial.boundary_conditions.push_back({"move_secondary_y", fuelsim::BoundaryConditionType::dirichlet,
-            "secondary_all", fuelsim::Field::displacement_y, 1.0, true});
-        spatial.boundary_conditions.push_back({"move_secondary_z", fuelsim::BoundaryConditionType::dirichlet,
-            "secondary_all", fuelsim::Field::displacement_z, 2.0e-4, true});
-        spatial.boundary_conditions.push_back({"primary_temperature", fuelsim::BoundaryConditionType::dirichlet,
-            "primary_all", fuelsim::Field::temperature, 300.0});
-        spatial.boundary_conditions.push_back({"secondary_temperature", fuelsim::BoundaryConditionType::dirichlet,
-            "secondary_all", fuelsim::Field::temperature, 300.0});
+        spatial.boundary_conditions.push_back({"move_secondary_x",
+            fuelsim::BoundaryConditionType::dirichlet,
+            "secondary_all",
+            fuelsim::Field::displacement_x,
+            -1.0e-4,
+            true});
+        spatial.boundary_conditions.push_back({"move_secondary_y",
+            fuelsim::BoundaryConditionType::dirichlet,
+            "secondary_all",
+            fuelsim::Field::displacement_y,
+            1.0,
+            true});
+        spatial.boundary_conditions.push_back({"move_secondary_z",
+            fuelsim::BoundaryConditionType::dirichlet,
+            "secondary_all",
+            fuelsim::Field::displacement_z,
+            2.0e-4,
+            true});
+        spatial.boundary_conditions.push_back({"primary_temperature",
+            fuelsim::BoundaryConditionType::dirichlet,
+            "primary_all",
+            fuelsim::Field::temperature,
+            300.0});
+        spatial.boundary_conditions.push_back({"secondary_temperature",
+            fuelsim::BoundaryConditionType::dirichlet,
+            "secondary_all",
+            fuelsim::Field::temperature,
+            300.0});
         fuelsim::SteadyProblem problem(spatial, mesh);
         const fuelsim::SteadyResult result = fuelsim::solve_steady(problem, {4, 0.5, 4, 1.0e-6}, solver_options());
         const std::vector<fuelsim::CartesianContactNodeSummary> summaries =
@@ -721,20 +1036,22 @@ bool test_finite_sliding_end_to_end() {
             fuelsim::cartesian::ProblemAccess::summarize_interface(problem, 0, result.solve.state);
         const auto& histories = fuelsim::cartesian::ProblemAccess::committed_contact_histories(problem).at(0);
         passed = check(result.completed && result.solve.converged && result.rejected_steps.empty(),
-                     "HEX20 finite-sliding end-to-end load path converges without a rejected load step") &&
-                 check(summaries.size() == 8 && interface.total_contact_force > 0.0 &&
-                           std::all_of(summaries.begin(), summaries.end(),
-                               [](const auto& summary) { return summary.projected && summary.primary_face == 1; }),
-                     "HEX20 finite-sliding end-to-end solve transfers the complete secondary face") &&
-                 check(histories.size() == 8 &&
-                           std::all_of(histories.begin(), histories.end(),
-                               [](const auto& history) {
-                                   return history.sliding && history.cartesian_tangent_basis_initialized &&
-                                          std::abs(history.cartesian_elastic_tangential_slip[1]) > 0.0 &&
-                                          std::abs(history.cartesian_elastic_tangential_slip[2]) > 0.0;
-                               }),
-                     "HEX20 finite-sliding end-to-end solve commits two-component friction histories") &&
-                 passed;
+                     "HEX20 finite-sliding end-to-end load path converges without a rejected load step")
+                 && check(summaries.size() == 8 && interface.total_contact_force > 0.0
+                              && std::all_of(summaries.begin(),
+                                  summaries.end(),
+                                  [](const auto& summary) { return summary.projected && summary.primary_face == 1; }),
+                     "HEX20 finite-sliding end-to-end solve transfers the complete secondary face")
+                 && check(histories.size() == 8
+                              && std::all_of(histories.begin(),
+                                  histories.end(),
+                                  [](const auto& history) {
+                                      return history.sliding && history.cartesian_tangent_basis_initialized
+                                             && std::abs(history.cartesian_elastic_tangential_slip[1]) > 0.0
+                                             && std::abs(history.cartesian_elastic_tangential_slip[2]) > 0.0;
+                                  }),
+                     "HEX20 finite-sliding end-to-end solve commits two-component friction histories")
+                 && passed;
     }
     return passed;
 }
@@ -749,18 +1066,20 @@ int main(int argc, char** argv) {
     fuelsim::PetscSession session(argc, argv, "fuelsim HEX20-U2/T1 solver tests\n");
     const fuelsim::UnstructuredHex20Mesh mesh = unit_mesh();
     const std::string transient_results = std::string(argv[2]) + ".transient.e";
-    bool passed = test_steady_and_io(session, mesh, argv[1], argv[2]) &&
-                  test_transient_restart(session, mesh, argv[3], transient_results) && test_finite_sliding_end_to_end();
+    bool passed = test_transient_event_roundoff(mesh) && test_steady_and_io(session, mesh, argv[1], argv[2])
+                  && test_transient_restart(session, mesh, argv[3], transient_results)
+                  && test_finite_sliding_end_to_end();
     if (!mpi_only)
-        passed = test_multiblock_shared_nodes() && test_contact_projection(mesh) &&
-                 test_surface_contact_fixed_reference_graph() && test_surface_contact_finite_sliding() &&
-                 test_finite_sliding_search_tree() && passed;
+        passed = test_hex20_node_set_constraints() && test_multiblock_shared_nodes() && test_contact_projection(mesh)
+                 && test_surface_contact_fixed_reference_graph() && test_surface_contact_finite_sliding()
+                 && test_finite_sliding_search_tree() && passed;
     session.collective_root_action([&]() {
         (void)std::remove(argv[1]);
         (void)std::remove(argv[2]);
         (void)std::remove(argv[3]);
         (void)std::remove(transient_results.c_str());
     });
-    if (passed && session.rank() == 0) std::cout << "All HEX20-U2/T1 solver tests passed\n";
+    if (passed && session.rank() == 0)
+        std::cout << "All HEX20-U2/T1 solver tests passed\n";
     return passed ? 0 : 1;
 }

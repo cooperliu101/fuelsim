@@ -32,7 +32,8 @@ SymmetricTensor3Values logarithmic_strain(const Hex8QuadraturePoint& point, cons
                     largest = std::abs(left[row][column]);
                 }
         const double scale = std::max({1.0, std::abs(left[0][0]), std::abs(left[1][1]), std::abs(left[2][2])});
-        if (largest <= 1.0e-15 * scale) break;
+        if (largest <= 1.0e-15 * scale)
+            break;
         const double tau = (left[q][q] - left[p][p]) / (2.0 * left[p][q]);
         const double tangent = (tau >= 0.0 ? 1.0 : -1.0) / (std::abs(tau) + std::sqrt(1.0 + tau * tau));
         const double cosine = 1.0 / std::sqrt(1.0 + tangent * tangent), sine = tangent * cosine;
@@ -41,7 +42,8 @@ SymmetricTensor3Values logarithmic_strain(const Hex8QuadraturePoint& point, cons
         left[q][q] = aqq + tangent * apq;
         left[p][q] = left[q][p] = 0.0;
         for (std::size_t row = 0; row < 3; ++row) {
-            if (row == p || row == q) continue;
+            if (row == p || row == q)
+                continue;
             const double arp = left[row][p], arq = left[row][q];
             left[row][p] = left[p][row] = cosine * arp - sine * arq;
             left[row][q] = left[q][row] = sine * arp + cosine * arq;
@@ -74,8 +76,8 @@ Matrix3 deformation_gradient(const Hex8QuadraturePoint& point, const Hex8LocalVa
 }
 
 double determinant(const Matrix3& a) {
-    return a[0][0] * (a[1][1] * a[2][2] - a[1][2] * a[2][1]) - a[0][1] * (a[1][0] * a[2][2] - a[1][2] * a[2][0]) +
-           a[0][2] * (a[1][0] * a[2][1] - a[1][1] * a[2][0]);
+    return a[0][0] * (a[1][1] * a[2][2] - a[1][2] * a[2][1]) - a[0][1] * (a[1][0] * a[2][2] - a[1][2] * a[2][0])
+           + a[0][2] * (a[1][0] * a[2][1] - a[1][1] * a[2][0]);
 }
 
 Matrix3 inverse(const Matrix3& a, double det) {
@@ -96,7 +98,8 @@ struct PointGeometry final {
 
 PointGeometry current_geometry(const Hex8QuadraturePoint& point, const Hex8LocalValues& state, bool finite) {
     PointGeometry result{point.gradient, point.weighted_measure};
-    if (!finite) return result;
+    if (!finite)
+        return result;
     const auto f = deformation_gradient(point, state);
     const double det = determinant(f);
     if (!(det > 0.0) || !std::isfinite(det))
@@ -116,8 +119,12 @@ std::array<double, 6> components(const SymmetricTensor3Values& tensor) {
 }
 } // namespace
 
-std::array<std::array<double, 24>, 8> hex8_derived_results(const Hex8Geometry& geometry, const Hex8LocalValues& state,
-    const IsotropicThermoelasticMaterial& material, StrainFormulation formulation, bool reduced, double time) {
+std::array<std::array<double, 24>, 8> hex8_derived_results(const Hex8Geometry& geometry,
+    const Hex8LocalValues& state,
+    const IsotropicThermoelasticMaterial& material,
+    StrainFormulation formulation,
+    bool reduced,
+    double time) {
     const bool finite = formulation == StrainFormulation::finite;
     std::array<PointGeometry, 8> current{};
     double volume = 0.0, average_trace = 0.0;
@@ -141,7 +148,8 @@ std::array<std::array<double, 24>, 8> hex8_derived_results(const Hex8Geometry& g
     average_temperature /= volume;
     average_trace /= geometry.reference_volume;
     for (auto& gradient : average_gradient)
-        for (double& component : gradient) component /= volume;
+        for (double& component : gradient)
+            component /= volume;
     constexpr std::array<std::size_t, 8> material_node = {0, 1, 3, 2, 4, 5, 7, 6};
     std::array<std::array<double, 24>, 8> result{};
     for (std::size_t q = 0; q < 8; ++q) {
@@ -168,7 +176,8 @@ std::array<std::array<double, 24>, 8> hex8_derived_results(const Hex8Geometry& g
         try {
             logarithmic = components(logarithmic_strain(point, state));
         } catch (const std::domain_error&) {
-            if (finite) throw;
+            if (finite)
+                throw;
             // The linearized small-strain problem does not constrain the
             // total deformation gradient. An undefined derived logarithm
             // must not make an otherwise valid small-strain output fail.
@@ -177,14 +186,20 @@ std::array<std::array<double, 24>, 8> hex8_derived_results(const Hex8Geometry& g
         if (finite && !reduced) {
             const double correction =
                 (std::log(volume / geometry.reference_volume) - logarithmic[0] - logarithmic[1] - logarithmic[2]) / 3.0;
-            for (std::size_t component = 0; component < 3; ++component) logarithmic[component] += correction;
+            for (std::size_t component = 0; component < 3; ++component)
+                logarithmic[component] += correction;
         }
         const auto f = deformation_gradient(point, state);
-        std::array<double, 6> infinitesimal = {f[0][0] - 1, f[1][1] - 1, f[2][2] - 1, 0.5 * (f[0][1] + f[1][0]),
-            0.5 * (f[1][2] + f[2][1]), 0.5 * (f[0][2] + f[2][0])};
+        std::array<double, 6> infinitesimal = {f[0][0] - 1,
+            f[1][1] - 1,
+            f[2][2] - 1,
+            0.5 * (f[0][1] + f[1][0]),
+            0.5 * (f[1][2] + f[2][1]),
+            0.5 * (f[0][2] + f[2][0])};
         if (!reduced) {
             const double correction = (average_trace - infinitesimal[0] - infinitesimal[1] - infinitesimal[2]) / 3.0;
-            for (std::size_t component = 0; component < 3; ++component) infinitesimal[component] += correction;
+            for (std::size_t component = 0; component < 3; ++component)
+                infinitesimal[component] += correction;
         }
         for (std::size_t component = 0; component < 6; ++component) {
             values[11 + component] = logarithmic[component];

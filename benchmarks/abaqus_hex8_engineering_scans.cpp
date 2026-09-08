@@ -22,7 +22,8 @@ namespace {
 constexpr double pi = 3.141592653589793238462643383279502884;
 
 bool check(bool condition, const std::string& message) {
-    if (condition) return true;
+    if (condition)
+        return true;
     std::cerr << "[FAIL] " << message << '\n';
     return false;
 }
@@ -39,13 +40,19 @@ std::size_t node(const RegionGrid& grid, std::size_t radial, std::size_t angular
     return grid.offset + axial * grid.angular_nodes * grid.radial_nodes + angular * grid.radial_nodes + radial;
 }
 
-void append_region_nodes(std::vector<fuelsim::CartesianPoint3>& nodes, double inner_radius, double outer_radius,
-    double height, std::size_t radial_elements, std::size_t angular_elements, std::size_t axial_elements) {
+void append_region_nodes(std::vector<fuelsim::CartesianPoint3>& nodes,
+    double inner_radius,
+    double outer_radius,
+    double height,
+    std::size_t radial_elements,
+    std::size_t angular_elements,
+    std::size_t axial_elements) {
     for (std::size_t axial = 0; axial <= axial_elements; ++axial)
         for (std::size_t angular = 0; angular <= angular_elements; ++angular)
             for (std::size_t radial = 0; radial <= radial_elements; ++radial) {
-                const double radius = inner_radius + (outer_radius - inner_radius) * static_cast<double>(radial) /
-                                                         static_cast<double>(radial_elements),
+                const double radius = inner_radius
+                                      + (outer_radius - inner_radius) * static_cast<double>(radial)
+                                            / static_cast<double>(radial_elements),
                              angle = 0.5 * pi * static_cast<double>(angular) / static_cast<double>(angular_elements),
                              z = height * static_cast<double>(axial) / static_cast<double>(axial_elements);
                 nodes.push_back({radius * std::cos(angle), radius * std::sin(angle), z});
@@ -56,11 +63,21 @@ fuelsim::UnstructuredHex8Mesh engineering_mesh(const MeshDivisions& divisions) {
     constexpr double fuel_inner_radius = 1.0e-3, fuel_outer_radius = 4.0e-3, clad_inner_radius = 4.005e-3,
                      clad_outer_radius = 4.7e-3, height = 4.0e-2;
     std::vector<fuelsim::CartesianPoint3> nodes;
-    append_region_nodes(
-        nodes, fuel_inner_radius, fuel_outer_radius, height, divisions.fuel_radial, divisions.angular, divisions.axial);
+    append_region_nodes(nodes,
+        fuel_inner_radius,
+        fuel_outer_radius,
+        height,
+        divisions.fuel_radial,
+        divisions.angular,
+        divisions.axial);
     const std::size_t fuel_node_count = nodes.size();
-    append_region_nodes(
-        nodes, clad_inner_radius, clad_outer_radius, height, divisions.clad_radial, divisions.angular, divisions.axial);
+    append_region_nodes(nodes,
+        clad_inner_radius,
+        clad_outer_radius,
+        height,
+        divisions.clad_radial,
+        divisions.angular,
+        divisions.axial);
     const RegionGrid fuel{0, divisions.fuel_radial + 1, divisions.angular + 1, divisions.axial + 1},
         clad{fuel_node_count, divisions.clad_radial + 1, divisions.angular + 1, divisions.axial + 1};
     std::vector<fuelsim::Hex8Element> elements;
@@ -71,59 +88,120 @@ fuelsim::UnstructuredHex8Mesh engineering_mesh(const MeshDivisions& divisions) {
             for (std::size_t angular = 0; angular < divisions.angular; ++angular)
                 for (std::size_t radial = 0; radial < radial_elements; ++radial) {
                     const std::size_t index = elements.size();
-                    elements.push_back({{{node(grid, radial, angular, axial), node(grid, radial + 1, angular, axial),
-                        node(grid, radial + 1, angular + 1, axial), node(grid, radial, angular + 1, axial),
-                        node(grid, radial, angular, axial + 1), node(grid, radial + 1, angular, axial + 1),
-                        node(grid, radial + 1, angular + 1, axial + 1), node(grid, radial, angular + 1, axial + 1)}}});
+                    elements.push_back({{{node(grid, radial, angular, axial),
+                        node(grid, radial + 1, angular, axial),
+                        node(grid, radial + 1, angular + 1, axial),
+                        node(grid, radial, angular + 1, axial),
+                        node(grid, radial, angular, axial + 1),
+                        node(grid, radial + 1, angular, axial + 1),
+                        node(grid, radial + 1, angular + 1, axial + 1),
+                        node(grid, radial, angular + 1, axial + 1)}}});
                     blocks.push_back(block);
-                    if (block == 1 && radial == 0) sides[0].push_back({index, 3});
-                    if (block == 1 && radial + 1 == radial_elements) sides[1].push_back({index, 1});
-                    if (block == 2 && radial == 0) sides[2].push_back({index, 3});
-                    if (block == 2 && radial + 1 == radial_elements) sides[3].push_back({index, 1});
+                    if (block == 1 && radial == 0)
+                        sides[0].push_back({index, 3});
+                    if (block == 1 && radial + 1 == radial_elements)
+                        sides[1].push_back({index, 1});
+                    if (block == 2 && radial == 0)
+                        sides[2].push_back({index, 3});
+                    if (block == 2 && radial + 1 == radial_elements)
+                        sides[3].push_back({index, 1});
                     const std::size_t symmetry_offset = block == 1 ? 4 : 7;
-                    if (angular == 0) sides[symmetry_offset].push_back({index, 0});
-                    if (angular + 1 == divisions.angular) sides[symmetry_offset + 1].push_back({index, 2});
-                    if (axial == 0) sides[symmetry_offset + 2].push_back({index, 4});
+                    if (angular == 0)
+                        sides[symmetry_offset].push_back({index, 0});
+                    if (angular + 1 == divisions.angular)
+                        sides[symmetry_offset + 1].push_back({index, 2});
+                    if (axial == 0)
+                        sides[symmetry_offset + 2].push_back({index, 4});
                 }
     };
     append_elements(fuel, divisions.fuel_radial, 1);
     append_elements(clad, divisions.clad_radial, 2);
-    return fuelsim::UnstructuredHex8Mesh(std::move(nodes), std::move(elements), std::move(blocks),
-        {{1, "fuel"}, {2, "clad"}}, {},
-        {{10, "fuel_inner", sides[0]}, {11, "fuel_outer", sides[1]}, {12, "clad_inner", sides[2]},
-            {13, "clad_outer", sides[3]}, {14, "fuel_symmetry_y", sides[4]}, {15, "fuel_symmetry_x", sides[5]},
-            {16, "fuel_bottom", sides[6]}, {17, "clad_symmetry_y", sides[7]}, {18, "clad_symmetry_x", sides[8]},
+    return fuelsim::UnstructuredHex8Mesh(std::move(nodes),
+        std::move(elements),
+        std::move(blocks),
+        {{1, "fuel"}, {2, "clad"}},
+        {},
+        {{10, "fuel_inner", sides[0]},
+            {11, "fuel_outer", sides[1]},
+            {12, "clad_inner", sides[2]},
+            {13, "clad_outer", sides[3]},
+            {14, "fuel_symmetry_y", sides[4]},
+            {15, "fuel_symmetry_x", sides[5]},
+            {16, "fuel_bottom", sides[6]},
+            {17, "clad_symmetry_y", sides[7]},
+            {18, "clad_symmetry_x", sides[8]},
             {19, "clad_bottom", sides[9]}});
 }
 
-fuelsim::ThermoelasticProperties material(
-    double conductivity, double modulus, double poisson, double expansion, double density, double heat_capacity) {
-    return fuelsim::test::thermoelastic(
-        0.0, conductivity, modulus, poisson, expansion, 600.0, 0.0, 0.0, 0.0, density, heat_capacity);
+fuelsim::ThermoelasticProperties
+material(double conductivity, double modulus, double poisson, double expansion, double density, double heat_capacity) {
+    return fuelsim::test::thermoelastic(0.0,
+        conductivity,
+        modulus,
+        poisson,
+        expansion,
+        600.0,
+        0.0,
+        0.0,
+        0.0,
+        density,
+        heat_capacity);
 }
 
 fuelsim::SpatialDefinition definition(double penalty) {
     fuelsim::SpatialDefinition result;
-    result.regions = {{"fuel", "fuel", material(3.0, 2.0e11, 0.30, 1.0e-5, 1.0e4, 300.0), 0.0, 600.0, -1, "",
+    result.regions = {{"fuel",
+                          "fuel",
+                          material(3.0, 2.0e11, 0.30, 1.0e-5, 1.0e4, 300.0),
+                          0.0,
+                          600.0,
+                          -1,
+                          "",
                           fuelsim::StrainFormulation::finite},
-        {"clad", "clad", material(15.0, 1.0e11, 0.32, 5.0e-6, 6.5e3, 330.0), 0.0, 600.0, -1, "",
+        {"clad",
+            "clad",
+            material(15.0, 1.0e11, 0.32, 5.0e-6, 6.5e3, 330.0),
+            0.0,
+            600.0,
+            -1,
+            "",
             fuelsim::StrainFormulation::finite}};
     const std::vector<double> times = {0.0, 10000.0};
     result.time_tables.emplace_back("fuel_temperature", times, std::vector<double>{600.0, 1200.0});
     result.boundary_conditions = {
-        {"fuel_temperature", fuelsim::BoundaryConditionType::dirichlet, "fuel_inner", fuelsim::Field::temperature, 1.0,
-            false, "fuel_temperature"},
-        {"coolant_temperature", fuelsim::BoundaryConditionType::dirichlet, "clad_outer", fuelsim::Field::temperature,
+        {"fuel_temperature",
+            fuelsim::BoundaryConditionType::dirichlet,
+            "fuel_inner",
+            fuelsim::Field::temperature,
+            1.0,
+            false,
+            "fuel_temperature"},
+        {"coolant_temperature",
+            fuelsim::BoundaryConditionType::dirichlet,
+            "clad_outer",
+            fuelsim::Field::temperature,
             600.0},
-        {"fuel_symmetry_y", fuelsim::BoundaryConditionType::dirichlet, "fuel_symmetry_y",
-            fuelsim::Field::displacement_y, 0.0},
-        {"fuel_symmetry_x", fuelsim::BoundaryConditionType::dirichlet, "fuel_symmetry_x",
-            fuelsim::Field::displacement_x, 0.0},
+        {"fuel_symmetry_y",
+            fuelsim::BoundaryConditionType::dirichlet,
+            "fuel_symmetry_y",
+            fuelsim::Field::displacement_y,
+            0.0},
+        {"fuel_symmetry_x",
+            fuelsim::BoundaryConditionType::dirichlet,
+            "fuel_symmetry_x",
+            fuelsim::Field::displacement_x,
+            0.0},
         {"fuel_bottom", fuelsim::BoundaryConditionType::dirichlet, "fuel_bottom", fuelsim::Field::displacement_z, 0.0},
-        {"clad_symmetry_y", fuelsim::BoundaryConditionType::dirichlet, "clad_symmetry_y",
-            fuelsim::Field::displacement_y, 0.0},
-        {"clad_symmetry_x", fuelsim::BoundaryConditionType::dirichlet, "clad_symmetry_x",
-            fuelsim::Field::displacement_x, 0.0},
+        {"clad_symmetry_y",
+            fuelsim::BoundaryConditionType::dirichlet,
+            "clad_symmetry_y",
+            fuelsim::Field::displacement_y,
+            0.0},
+        {"clad_symmetry_x",
+            fuelsim::BoundaryConditionType::dirichlet,
+            "clad_symmetry_x",
+            fuelsim::Field::displacement_x,
+            0.0},
         {"clad_bottom", fuelsim::BoundaryConditionType::dirichlet, "clad_bottom", fuelsim::Field::displacement_z, 0.0},
     };
     fuelsim::ContactDefinition contact;
@@ -167,21 +245,28 @@ struct Response final {
     std::string failure;
 };
 
-Response solve_case(const MeshDivisions& divisions, double time_step, double penalty, const std::string& case_name,
+Response solve_case(const MeshDivisions& divisions,
+    double time_step,
+    double penalty,
+    const std::string& case_name,
     const std::string& reference_directory) {
     const fuelsim::SpatialDefinition case_definition = definition(penalty);
     const fuelsim::UnstructuredHex8Mesh case_mesh = engineering_mesh(divisions);
     fuelsim::TransientProblem problem(case_definition, case_mesh);
     fuelsim::test::AbaqusHex8SnapshotObserver observer;
-    const fuelsim::TransientResult solve = fuelsim::solve_transient(
-        problem, {10000.0, time_step, time_step, time_step, 1.0, 0.5, 0, 0.0}, solver_options(), &observer);
+    const fuelsim::TransientResult solve = fuelsim::solve_transient(problem,
+        {10000.0, time_step, time_step, time_step, 1.0, 0.5, 0, 0.0},
+        solver_options(),
+        &observer);
     Response response;
     response.completed = solve.completed;
     response.accepted_steps = solve.accepted_steps.size();
     response.rejected_steps = solve.rejected_steps.size();
     response.nonlinear_iterations = solve.total_nonlinear_iterations;
-    if (!solve.rejected_steps.empty()) response.failure = solve.rejected_steps.back().failure_message;
-    if (!solve.completed) return response;
+    if (!solve.rejected_steps.empty())
+        response.failure = solve.rejected_steps.back().failure_message;
+    if (!solve.completed)
+        return response;
     fuelsim::test::AbaqusHex8FullFieldOptions comparison;
     comparison.case_name = case_name;
     comparison.reference_prefix = reference_directory + "/" + case_name;
@@ -206,8 +291,11 @@ Response solve_case(const MeshDivisions& divisions, double time_step, double pen
         comparison.contact_relative_tolerance = 1.0e-2;
         comparison.contact_pointwise_relative_tolerance = 1.0e-2;
     }
-    response.full_field_passed = fuelsim::test::compare_abaqus_hex8_full_field(
-        problem, case_definition, case_mesh, observer.snapshots(), comparison);
+    response.full_field_passed = fuelsim::test::compare_abaqus_hex8_full_field(problem,
+        case_definition,
+        case_mesh,
+        observer.snapshots(),
+        comparison);
     const auto& spatial = fuelsim::cartesian::ProblemAccess::view(problem);
     const fuelsim::InterfaceSummary interface =
         fuelsim::cartesian::ProblemAccess::summarize_interface(problem, 0, solve.committed_state);
@@ -237,9 +325,11 @@ Response solve_case(const MeshDivisions& divisions, double time_step, double pen
                 const double mean = (point.stress.xx + point.stress.yy + point.stress.zz) / 3.0,
                              x = point.stress.xx - mean, y = point.stress.yy - mean, z = point.stress.zz - mean;
                 response.maximum_equivalent_stress = std::max(response.maximum_equivalent_stress,
-                    std::sqrt(1.5 * (x * x + y * y + z * z +
-                                        2.0 * (point.stress.xy * point.stress.xy + point.stress.yz * point.stress.yz +
-                                                  point.stress.xz * point.stress.xz))));
+                    std::sqrt(1.5
+                              * (x * x + y * y + z * z
+                                  + 2.0
+                                        * (point.stress.xy * point.stress.xy + point.stress.yz * point.stress.yz
+                                            + point.stress.xz * point.stress.xz))));
             }
     }
     return response;
@@ -262,13 +352,16 @@ void print_response(const std::string& name, const Response& response) {
               << "b527_" << name << "_maximum_equivalent_stress=" << response.maximum_equivalent_stress << '\n'
               << "b527_" << name << "_boundary_heat_rate=" << response.boundary_heat_rate << '\n'
               << "b527_" << name << "_stored_heat_rate=" << response.stored_heat_rate << '\n';
-    if (!response.failure.empty()) std::cout << "b527_" << name << "_failure=" << response.failure << '\n';
+    if (!response.failure.empty())
+        std::cout << "b527_" << name << "_failure=" << response.failure << '\n';
 }
 
 void write_response(const std::filesystem::path& path, const std::string& name, const Response& response) {
-    if (!path.parent_path().empty()) std::filesystem::create_directories(path.parent_path());
+    if (!path.parent_path().empty())
+        std::filesystem::create_directories(path.parent_path());
     std::ofstream output(path);
-    if (!output) throw std::runtime_error("Could not open B5.27 response output: " + path.string());
+    if (!output)
+        throw std::runtime_error("Could not open B5.27 response output: " + path.string());
     output << std::scientific << std::setprecision(17) << name << '\n'
            << response.completed << ' ' << response.full_field_passed << ' ' << response.accepted_steps << ' '
            << response.rejected_steps << ' ' << response.active_contact_nodes << ' ' << response.nonlinear_iterations
@@ -278,22 +371,25 @@ void write_response(const std::filesystem::path& path, const std::string& name, 
            << response.clad_average_temperature << ' ' << response.maximum_displacement << ' '
            << response.maximum_equivalent_stress << ' ' << response.boundary_heat_rate << ' '
            << response.stored_heat_rate << '\n';
-    if (!output) throw std::runtime_error("Could not write B5.27 response output: " + path.string());
+    if (!output)
+        throw std::runtime_error("Could not write B5.27 response output: " + path.string());
 }
 
 Response read_response(const std::filesystem::path& directory, const std::string& name) {
     const std::filesystem::path path = directory / (name + ".txt");
     std::ifstream input(path);
-    if (!input) throw std::runtime_error("Could not open B5.27 response input: " + path.string());
+    if (!input)
+        throw std::runtime_error("Could not open B5.27 response input: " + path.string());
     std::string stored_name;
     Response response;
-    input >> stored_name >> response.completed >> response.full_field_passed >> response.accepted_steps >>
-        response.rejected_steps >> response.active_contact_nodes >> response.nonlinear_iterations >>
-        response.contact_force >> response.contact_heat_rate >> response.maximum_pressure >>
-        response.maximum_penetration >> response.fuel_average_temperature >> response.clad_average_temperature >>
-        response.maximum_displacement >> response.maximum_equivalent_stress >> response.boundary_heat_rate >>
-        response.stored_heat_rate;
-    if (!input || stored_name != name) throw std::runtime_error("Invalid B5.27 response input: " + path.string());
+    input >> stored_name >> response.completed >> response.full_field_passed >> response.accepted_steps
+        >> response.rejected_steps >> response.active_contact_nodes >> response.nonlinear_iterations
+        >> response.contact_force >> response.contact_heat_rate >> response.maximum_pressure
+        >> response.maximum_penetration >> response.fuel_average_temperature >> response.clad_average_temperature
+        >> response.maximum_displacement >> response.maximum_equivalent_stress >> response.boundary_heat_rate
+        >> response.stored_heat_rate;
+    if (!input || stored_name != name)
+        throw std::runtime_error("Invalid B5.27 response input: " + path.string());
     return response;
 }
 
@@ -302,19 +398,24 @@ double relative_change(double left, double right) {
 }
 
 bool validate_case(const std::string& name, const Response& response) {
-    return check(response.completed && response.full_field_passed && response.active_contact_nodes > 0 &&
-                     response.contact_force > 0.0 && std::abs(response.contact_heat_rate) > 0.0,
-        "B5.27 " + name +
-            " completes its independent Abaqus full-field comparison with active mechanical and "
-            "thermal contact");
+    return check(response.completed && response.full_field_passed && response.active_contact_nodes > 0
+                     && response.contact_force > 0.0 && std::abs(response.contact_heat_rate) > 0.0,
+        "B5.27 " + name
+            + " completes its independent Abaqus full-field comparison with active mechanical and "
+              "thermal contact");
 }
 
 Response solve_named_case(const std::string& name, const std::string& reference_directory) {
-    if (name == "coarse") return solve_case({1, 1, 3, 2}, 1000.0, 1.0e14, "b527_coarse", reference_directory);
-    if (name == "medium") return solve_case({2, 1, 4, 3}, 1000.0, 1.0e14, "b527_medium", reference_directory);
-    if (name == "fine") return solve_case({2, 2, 6, 4}, 1000.0, 1.0e14, "b527_fine", reference_directory);
-    if (name == "half_step") return solve_case({2, 1, 4, 3}, 500.0, 1.0e14, "b527_half_step", reference_directory);
-    if (name == "low_penalty") return solve_case({2, 1, 4, 3}, 1000.0, 5.0e13, "b527_low_penalty", reference_directory);
+    if (name == "coarse")
+        return solve_case({1, 1, 3, 2}, 1000.0, 1.0e14, "b527_coarse", reference_directory);
+    if (name == "medium")
+        return solve_case({2, 1, 4, 3}, 1000.0, 1.0e14, "b527_medium", reference_directory);
+    if (name == "fine")
+        return solve_case({2, 2, 6, 4}, 1000.0, 1.0e14, "b527_fine", reference_directory);
+    if (name == "half_step")
+        return solve_case({2, 1, 4, 3}, 500.0, 1.0e14, "b527_half_step", reference_directory);
+    if (name == "low_penalty")
+        return solve_case({2, 1, 4, 3}, 1000.0, 5.0e13, "b527_low_penalty", reference_directory);
     if (name == "high_penalty")
         return solve_case({2, 1, 4, 3}, 1000.0, 2.0e14, "b527_high_penalty", reference_directory);
     throw std::invalid_argument("Unknown B5.27 case: " + name);
@@ -325,8 +426,12 @@ bool validate_aggregate(const std::filesystem::path& directory) {
                    fine = read_response(directory, "fine"), half_step = read_response(directory, "half_step"),
                    low_penalty = read_response(directory, "low_penalty"),
                    high_penalty = read_response(directory, "high_penalty");
-    const std::array<std::pair<const char*, const Response*>, 6> cases = {{{"coarse", &coarse}, {"medium", &medium},
-        {"fine", &fine}, {"half_step", &half_step}, {"low_penalty", &low_penalty}, {"high_penalty", &high_penalty}}};
+    const std::array<std::pair<const char*, const Response*>, 6> cases = {{{"coarse", &coarse},
+        {"medium", &medium},
+        {"fine", &fine},
+        {"half_step", &half_step},
+        {"low_penalty", &low_penalty},
+        {"high_penalty", &high_penalty}}};
     bool passed = true;
     for (const auto& item : cases) {
         print_response(item.first, *item.second);
@@ -352,17 +457,18 @@ bool validate_aggregate(const std::filesystem::path& directory) {
               << "b527_penalty_contact_force_relative_change=" << penalty_force_change << '\n';
     passed = check(time_temperature_change < 5.0e-2 && time_force_change < 5.0e-2 && time_stress_change < 5.0e-2,
                  "B5.27 split time-step pair changes clad temperature, contact force, and stress by less than five "
-                 "percent") &&
-             passed;
-    passed = check(medium_fine_temperature_change < 1.5e-1 && medium_fine_force_change < 1.5e-1 &&
-                       medium_fine_stress_change < 1.5e-1,
+                 "percent")
+             && passed;
+    passed = check(medium_fine_temperature_change < 1.5e-1 && medium_fine_force_change < 1.5e-1
+                       && medium_fine_stress_change < 1.5e-1,
                  "B5.27 split medium-to-fine mesh pair changes clad temperature, contact force, and stress by less "
-                 "than fifteen percent") &&
-             passed;
-    passed = check(low_penalty.maximum_penetration > medium.maximum_penetration &&
-                       medium.maximum_penetration > high_penalty.maximum_penetration && penalty_force_change < 5.0e-2,
-                 "B5.27 split penalty cases reduce penetration while preserving the engineering contact force") &&
-             passed;
+                 "than fifteen percent")
+             && passed;
+    passed =
+        check(low_penalty.maximum_penetration > medium.maximum_penetration
+                  && medium.maximum_penetration > high_penalty.maximum_penetration && penalty_force_change < 5.0e-2,
+            "B5.27 split penalty cases reduce penetration while preserving the engineering contact force")
+        && passed;
     return passed;
 }
 } // namespace
@@ -372,7 +478,8 @@ int main(int argc, char** argv) {
         std::cout << std::scientific << std::setprecision(12);
         if (argc == 3 && std::string(argv[1]) == "--aggregate-responses") {
             const bool passed = validate_aggregate(argv[2]);
-            if (passed) std::cout << "[PASS] B5.27 split response aggregation\n";
+            if (passed)
+                std::cout << "[PASS] B5.27 split response aggregation\n";
             return passed ? 0 : 1;
         }
         if (argc != 4) {
@@ -390,7 +497,8 @@ int main(int argc, char** argv) {
         print_response(name, response);
         write_response(argv[3], name, response);
         const bool passed = validate_case(name, response);
-        if (passed) std::cout << "[PASS] B5.27 " << name << " engineering-scale three-dimensional verification\n";
+        if (passed)
+            std::cout << "[PASS] B5.27 " << name << " engineering-scale three-dimensional verification\n";
         return passed ? 0 : 1;
     } catch (const std::exception& error) {
         std::cerr << "[FAIL] B5.27 engineering fuel-clad verification raised: " << error.what() << '\n';

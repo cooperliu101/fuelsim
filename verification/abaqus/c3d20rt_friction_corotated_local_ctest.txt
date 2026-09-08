@@ -1,0 +1,27 @@
+Internal ctest changing into directory: /home/cooper/ai_project/fuelsim/build
+Test project /home/cooper/ai_project/fuelsim/build
+    Start 101: fuelsim_hex20_solver_tests
+    Start  41: fuelsim_hex20_tests
+1/2 Test  #41: fuelsim_hex20_tests ..............   Passed    0.01 sec
+2/2 Test #101: fuelsim_hex20_solver_tests .......***Failed    1.94 sec
+[FAIL] HEX20 frictionless finite sliding accumulates and reverses geometric slip without elastic slip
+
+
+50% tests passed, 1 tests failed out of 2
+
+Label Time Summary:
+checkpoint           =   1.94 sec*proc (1 test)
+contact              =   1.95 sec*proc (2 tests)
+friction             =   0.01 sec*proc (1 test)
+integration          =   1.94 sec*proc (1 test)
+multiblock           =   1.94 sec*proc (1 test)
+quadratic            =   1.95 sec*proc (2 tests)
+three-dimensional    =   1.95 sec*proc (2 tests)
+unit                 =   0.01 sec*proc (1 test)
+warped-geometry      =   0.01 sec*proc (1 test)
+
+Total Test time (real) =   1.95 sec
+
+The following tests FAILED:
+	101 - fuelsim_hex20_solver_tests (Failed)
+Errors while running CTest

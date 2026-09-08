@@ -52,6 +52,7 @@ struct RegionDefinition final {
     Hex8ElementFormulation hex8_element_formulation = Hex8ElementFormulation::c3d8t;
     HeatSourceTimeEvaluation heat_source_time_evaluation = HeatSourceTimeEvaluation::end_time;
     RzElementFormulation rz_element_formulation = RzElementFormulation::quad4;
+    Hex20ElementFormulation hex20_element_formulation = Hex20ElementFormulation::c3d20t;
 };
 enum class MechanicalContactFormulation {
     penalty,
@@ -68,6 +69,8 @@ enum class MechanicalContactSliding {
     small,
     finite,
 };
+
+enum class ThermalContactDiscretization { surface_to_surface, node_to_surface };
 
 struct ContactDefinition final {
     std::string name, primary, secondary;
@@ -89,6 +92,7 @@ struct ContactDefinition final {
     double gap_conductance_pressure_derivative = 0.0;
     double gap_conductance_temperature_derivative = 0.0;
     double gap_conductance_reference_temperature = 0.0;
+    ThermalContactDiscretization thermal_discretization = ThermalContactDiscretization::surface_to_surface;
 };
 
 struct AugmentedContactUpdate final {

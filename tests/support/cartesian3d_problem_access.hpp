@@ -33,8 +33,8 @@ class ProblemAccess final {
         return view(problem).region_node_offset(index);
     }
 
-    static std::vector<CartesianContactNodeSummary> summarize_contact_nodes(
-        const SteadyProblem& problem, std::size_t contact, const std::vector<double>& state) {
+    static std::vector<CartesianContactNodeSummary>
+    summarize_contact_nodes(const SteadyProblem& problem, std::size_t contact, const std::vector<double>& state) {
         return view(problem).summarize_contact_nodes(contact, state);
     }
 
@@ -42,8 +42,8 @@ class ProblemAccess final {
         return view(problem).contact_secondary_source_nodes(contact);
     }
 
-    static InterfaceSummary summarize_interface(
-        const SteadyProblem& problem, std::size_t contact, const std::vector<double>& state) {
+    static InterfaceSummary
+    summarize_interface(const SteadyProblem& problem, std::size_t contact, const std::vector<double>& state) {
         return view(problem).summarize_interface(contact, state);
     }
 
@@ -57,8 +57,8 @@ class ProblemAccess final {
         return view(problem).committed_contact_histories();
     }
 
-    static const Hex8Geometry& region_element_geometry(
-        const SteadyProblem& problem, std::size_t region, std::size_t element) {
+    static const Hex8Geometry&
+    region_element_geometry(const SteadyProblem& problem, std::size_t region, std::size_t element) {
         return view(problem).region_element_geometry(region, element);
     }
 
@@ -88,52 +88,54 @@ class ProblemAccess final {
         return view(problem).region_node_offset(index);
     }
 
-    static std::vector<CartesianContactNodeSummary> summarize_contact_nodes(
-        const TransientProblem& problem, std::size_t contact, const std::vector<double>& state) {
+    static std::vector<CartesianContactNodeSummary>
+    summarize_contact_nodes(const TransientProblem& problem, std::size_t contact, const std::vector<double>& state) {
         return view(problem).summarize_contact_nodes(contact, state);
     }
 
-    static std::vector<std::size_t> contact_secondary_source_nodes(
-        const TransientProblem& problem, std::size_t contact) {
+    static std::vector<std::size_t> contact_secondary_source_nodes(const TransientProblem& problem,
+        std::size_t contact) {
         return view(problem).contact_secondary_source_nodes(contact);
     }
 
-    static InterfaceSummary summarize_interface(
-        const TransientProblem& problem, std::size_t contact, const std::vector<double>& state) {
+    static InterfaceSummary
+    summarize_interface(const TransientProblem& problem, std::size_t contact, const std::vector<double>& state) {
         return view(problem).summarize_interface(contact, state);
     }
 
-    static const Hex8Geometry& region_element_geometry(
-        const TransientProblem& problem, std::size_t region, std::size_t element) {
+    static const Hex8Geometry&
+    region_element_geometry(const TransientProblem& problem, std::size_t region, std::size_t element) {
         return view(problem).region_element_geometry(region, element);
     }
 
-    static std::array<SymmetricTensor3Values, 8> stress(
-        const SteadyProblem& problem, const std::vector<double>& state, std::size_t region, std::size_t element) {
+    static std::array<SymmetricTensor3Values, 8>
+    stress(const SteadyProblem& problem, const std::vector<double>& state, std::size_t region, std::size_t element) {
         return view(problem).stress(region, element, state);
     }
 
-    static std::array<SymmetricTensor3Values, 8> stress(
-        const TransientProblem& problem, std::size_t region, std::size_t element) {
+    static std::array<SymmetricTensor3Values, 8>
+    stress(const TransientProblem& problem, std::size_t region, std::size_t element) {
         std::array<SymmetricTensor3Values, 8> result{};
         const CartesianMaterialHistory& history = material_history(problem, region, element);
         if (history.size() == 1)
             result.fill(history.front().stress);
         else
-            for (std::size_t q = 0; q < result.size(); ++q) result[q] = history.at(q).stress;
+            for (std::size_t q = 0; q < result.size(); ++q)
+                result[q] = history.at(q).stress;
         return result;
     }
 
-    static const CartesianMaterialHistory& material_history(
-        const TransientProblem& problem, std::size_t region, std::size_t element) {
+    static const CartesianMaterialHistory&
+    material_history(const TransientProblem& problem, std::size_t region, std::size_t element) {
         return fuelsim::BackendAccess::cartesian_material_histories(problem).at(region).at(element);
     }
 
-    static std::array<SymmetricTensor3Values, 27> hex20_stress(
-        const TransientProblem& problem, std::size_t region, std::size_t element) {
+    static std::array<SymmetricTensor3Values, 27>
+    hex20_stress(const TransientProblem& problem, std::size_t region, std::size_t element) {
         std::array<SymmetricTensor3Values, 27> result{};
         const CartesianMaterialHistory& history = material_history(problem, region, element);
-        for (std::size_t q = 0; q < result.size(); ++q) result[q] = history.at(q).stress;
+        for (std::size_t q = 0; q < result.size(); ++q)
+            result[q] = history.at(q).stress;
         return result;
     }
 

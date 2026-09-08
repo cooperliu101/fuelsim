@@ -6,21 +6,22 @@ namespace fuelsim::cartesian_detail {
 namespace {
 ActiveMatrix3 identity_active_matrix() {
     ActiveMatrix3 result{};
-    for (std::size_t index = 0; index < 3; ++index) result[index][index] = 1.0;
+    for (std::size_t index = 0; index < 3; ++index)
+        result[index][index] = 1.0;
     return result;
 }
 } // namespace
 
 double determinant(const Matrix3& matrix) {
-    return matrix[0][0] * (matrix[1][1] * matrix[2][2] - matrix[1][2] * matrix[2][1]) -
-           matrix[0][1] * (matrix[1][0] * matrix[2][2] - matrix[1][2] * matrix[2][0]) +
-           matrix[0][2] * (matrix[1][0] * matrix[2][1] - matrix[1][1] * matrix[2][0]);
+    return matrix[0][0] * (matrix[1][1] * matrix[2][2] - matrix[1][2] * matrix[2][1])
+           - matrix[0][1] * (matrix[1][0] * matrix[2][2] - matrix[1][2] * matrix[2][0])
+           + matrix[0][2] * (matrix[1][0] * matrix[2][1] - matrix[1][1] * matrix[2][0]);
 }
 
 adlite::Scalar determinant(const ActiveMatrix3& matrix) {
-    return matrix[0][0] * (matrix[1][1] * matrix[2][2] - matrix[1][2] * matrix[2][1]) -
-           matrix[0][1] * (matrix[1][0] * matrix[2][2] - matrix[1][2] * matrix[2][0]) +
-           matrix[0][2] * (matrix[1][0] * matrix[2][1] - matrix[1][1] * matrix[2][0]);
+    return matrix[0][0] * (matrix[1][1] * matrix[2][2] - matrix[1][2] * matrix[2][1])
+           - matrix[0][1] * (matrix[1][0] * matrix[2][2] - matrix[1][2] * matrix[2][0])
+           + matrix[0][2] * (matrix[1][0] * matrix[2][1] - matrix[1][1] * matrix[2][0]);
 }
 
 Matrix3 inverse(const Matrix3& matrix, double determinant_value) {
@@ -51,7 +52,8 @@ ActiveMatrix3 multiply(const ActiveMatrix3& first, const Matrix3& second) {
     ActiveMatrix3 result{};
     for (std::size_t i = 0; i < 3; ++i)
         for (std::size_t j = 0; j < 3; ++j)
-            for (std::size_t k = 0; k < 3; ++k) result[i][j] += first[i][k] * second[k][j];
+            for (std::size_t k = 0; k < 3; ++k)
+                result[i][j] += first[i][k] * second[k][j];
     return result;
 }
 
@@ -60,7 +62,8 @@ KinematicsCore evaluate_hughes_winget_increment(const ActiveMatrix3& central_dis
     const ActiveMatrix3& hughes_winget = central_displacement_gradient;
     ActiveMatrix3 spatial_strain{};
     for (std::size_t i = 0; i < 3; ++i)
-        for (std::size_t j = 0; j < 3; ++j) spatial_strain[i][j] = 0.5 * (hughes_winget[i][j] + hughes_winget[j][i]);
+        for (std::size_t j = 0; j < 3; ++j)
+            spatial_strain[i][j] = 0.5 * (hughes_winget[i][j] + hughes_winget[j][i]);
 
     ActiveMatrix3 rotation_numerator = identity_active_matrix();
     ActiveMatrix3 rotation_denominator = identity_active_matrix();
@@ -82,31 +85,48 @@ KinematicsCore evaluate_hughes_winget_increment(const ActiveMatrix3& central_dis
     ActiveMatrix3 spatial_times_rotation{};
     for (std::size_t i = 0; i < 3; ++i)
         for (std::size_t j = 0; j < 3; ++j)
-            for (std::size_t k = 0; k < 3; ++k) spatial_times_rotation[i][j] += spatial_strain[i][k] * rotation[k][j];
+            for (std::size_t k = 0; k < 3; ++k)
+                spatial_times_rotation[i][j] += spatial_strain[i][k] * rotation[k][j];
     ActiveMatrix3 corotational_strain{};
     for (std::size_t i = 0; i < 3; ++i)
         for (std::size_t j = i; j < 3; ++j)
             for (std::size_t k = 0; k < 3; ++k)
                 corotational_strain[i][j] += rotation[k][i] * spatial_times_rotation[k][j];
-    result.strain_increment = {corotational_strain[0][0], corotational_strain[1][1], corotational_strain[2][2],
-        corotational_strain[0][1], corotational_strain[1][2], corotational_strain[0][2]};
-    result.rotation = {rotation[0][0], rotation[0][1], rotation[0][2], rotation[1][0], rotation[1][1], rotation[1][2],
-        rotation[2][0], rotation[2][1], rotation[2][2]};
+    result.strain_increment = {corotational_strain[0][0],
+        corotational_strain[1][1],
+        corotational_strain[2][2],
+        corotational_strain[0][1],
+        corotational_strain[1][2],
+        corotational_strain[0][2]};
+    result.rotation = {rotation[0][0],
+        rotation[0][1],
+        rotation[0][2],
+        rotation[1][0],
+        rotation[1][1],
+        rotation[1][2],
+        rotation[2][0],
+        rotation[2][1],
+        rotation[2][2]};
     return result;
 }
 
-KinematicsCore evaluate_kinematics(
-    const ActiveMatrix3& gradient, const Matrix3& committed_deformation, StrainFormulation strain_formulation) {
+KinematicsCore evaluate_kinematics(const ActiveMatrix3& gradient,
+    const Matrix3& committed_deformation,
+    StrainFormulation strain_formulation) {
     KinematicsCore result{};
     result.current_inverse = identity_active_matrix();
     if (strain_formulation == StrainFormulation::small) {
-        result.strain_increment = {gradient[0][0], gradient[1][1], gradient[2][2],
-            0.5 * (gradient[0][1] + gradient[1][0]), 0.5 * (gradient[1][2] + gradient[2][1]),
+        result.strain_increment = {gradient[0][0],
+            gradient[1][1],
+            gradient[2][2],
+            0.5 * (gradient[0][1] + gradient[1][0]),
+            0.5 * (gradient[1][2] + gradient[2][1]),
             0.5 * (gradient[0][2] + gradient[2][0])};
         return result;
     }
     ActiveMatrix3 current = gradient;
-    for (std::size_t direction = 0; direction < 3; ++direction) current[direction][direction] += 1.0;
+    for (std::size_t direction = 0; direction < 3; ++direction)
+        current[direction][direction] += 1.0;
     result.current_determinant = determinant(current);
     if (!std::isfinite(result.current_determinant.value()) || !(result.current_determinant.value() > 0.0))
         throw std::domain_error("Finite-strain Cartesian deformation must preserve a positive Jacobian");
@@ -131,7 +151,8 @@ KinematicsCore evaluate_kinematics(
         throw std::domain_error("Abaqus Hughes-Winget Cartesian increment has singular delta-F plus identity");
     const ActiveMatrix3 plus_inverse = inverse(deformation_sum, plus_determinant);
     for (std::size_t i = 0; i < 3; ++i)
-        for (std::size_t j = 0; j < 3; ++j) result.midpoint_inverse[i][j] = 2.0 * plus_inverse[i][j];
+        for (std::size_t j = 0; j < 3; ++j)
+            result.midpoint_inverse[i][j] = 2.0 * plus_inverse[i][j];
     ActiveMatrix3 hughes_winget{};
     for (std::size_t i = 0; i < 3; ++i)
         for (std::size_t j = 0; j < 3; ++j)
@@ -139,7 +160,8 @@ KinematicsCore evaluate_kinematics(
                 hughes_winget[i][j] += 2.0 * deformation_difference[i][k] * plus_inverse[k][j];
     ActiveMatrix3 spatial_strain{};
     for (std::size_t i = 0; i < 3; ++i)
-        for (std::size_t j = 0; j < 3; ++j) spatial_strain[i][j] = 0.5 * (hughes_winget[i][j] + hughes_winget[j][i]);
+        for (std::size_t j = 0; j < 3; ++j)
+            spatial_strain[i][j] = 0.5 * (hughes_winget[i][j] + hughes_winget[j][i]);
 
     ActiveMatrix3 rotation_numerator = identity_active_matrix();
     ActiveMatrix3 rotation_denominator = identity_active_matrix();
@@ -161,16 +183,28 @@ KinematicsCore evaluate_kinematics(
     ActiveMatrix3 spatial_times_rotation{};
     for (std::size_t i = 0; i < 3; ++i)
         for (std::size_t j = 0; j < 3; ++j)
-            for (std::size_t k = 0; k < 3; ++k) spatial_times_rotation[i][j] += spatial_strain[i][k] * rotation[k][j];
+            for (std::size_t k = 0; k < 3; ++k)
+                spatial_times_rotation[i][j] += spatial_strain[i][k] * rotation[k][j];
     ActiveMatrix3 corotational_strain{};
     for (std::size_t i = 0; i < 3; ++i)
         for (std::size_t j = i; j < 3; ++j)
             for (std::size_t k = 0; k < 3; ++k)
                 corotational_strain[i][j] += rotation[k][i] * spatial_times_rotation[k][j];
-    result.strain_increment = {corotational_strain[0][0], corotational_strain[1][1], corotational_strain[2][2],
-        corotational_strain[0][1], corotational_strain[1][2], corotational_strain[0][2]};
-    result.rotation = {rotation[0][0], rotation[0][1], rotation[0][2], rotation[1][0], rotation[1][1], rotation[1][2],
-        rotation[2][0], rotation[2][1], rotation[2][2]};
+    result.strain_increment = {corotational_strain[0][0],
+        corotational_strain[1][1],
+        corotational_strain[2][2],
+        corotational_strain[0][1],
+        corotational_strain[1][2],
+        corotational_strain[0][2]};
+    result.rotation = {rotation[0][0],
+        rotation[0][1],
+        rotation[0][2],
+        rotation[1][0],
+        rotation[1][1],
+        rotation[1][2],
+        rotation[2][0],
+        rotation[2][1],
+        rotation[2][2]};
     return result;
 }
 
@@ -179,10 +213,14 @@ MaterialFunctionContext material_context(double time, const CartesianPoint3& poi
 }
 
 CartesianStressTangent evaluate_stress_tangent(const IsotropicThermoelasticMaterial& material,
-    const std::array<double, 6>& fed_strain, double temperature, double time_step,
-    const CartesianMaterialPointState* committed_material, MaterialFunctionContext context) {
+    const std::array<double, 6>& fed_strain,
+    double temperature,
+    double time_step,
+    const CartesianMaterialPointState* committed_material,
+    MaterialFunctionContext context) {
     std::array<double, 7> seeds{};
-    for (std::size_t component = 0; component < 6; ++component) seeds[component] = fed_strain[component];
+    for (std::size_t component = 0; component < 6; ++component)
+        seeds[component] = fed_strain[component];
     seeds[6] = temperature;
     std::array<adlite::Scalar, 7> active{};
     adlite::seed_identity(seeds.data(), seeds.size(), active.data());
@@ -191,15 +229,20 @@ CartesianStressTangent evaluate_stress_tangent(const IsotropicThermoelasticMater
         committed_material == nullptr
             ? material.stress(strain, active[6], context)
             : material.response(strain, active[6], time_step, *committed_material, context).stress;
-    const std::array<const adlite::Scalar*, 6> components = {
-        &stress.xx, &stress.yy, &stress.zz, &stress.xy, &stress.yz, &stress.xz};
+    const std::array<const adlite::Scalar*, 6> components =
+        {&stress.xx, &stress.yy, &stress.zz, &stress.xy, &stress.yz, &stress.xz};
     CartesianStressTangent result{};
-    result.stress = {stress.xx.value(), stress.yy.value(), stress.zz.value(), stress.xy.value(), stress.yz.value(),
+    result.stress = {stress.xx.value(),
+        stress.yy.value(),
+        stress.zz.value(),
+        stress.xy.value(),
+        stress.yz.value(),
         stress.xz.value()};
     std::array<double, 7> derivatives{};
     for (std::size_t row = 0; row < 6; ++row) {
         components[row]->copy_derivatives(derivatives.data(), derivatives.size());
-        for (std::size_t column = 0; column < 6; ++column) result.tangent[row][column] = derivatives[column];
+        for (std::size_t column = 0; column < 6; ++column)
+            result.tangent[row][column] = derivatives[column];
         result.thermal[row] = derivatives[6];
     }
     return result;

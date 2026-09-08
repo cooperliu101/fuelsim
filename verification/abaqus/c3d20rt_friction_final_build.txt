@@ -1,0 +1,154 @@
+[  1%] Built target fuelsim_field_error_metrics
+[  2%] Built target fuelsim_exodus_result_test_support
+[  3%] Built target fuelsim_verification_matrix_tests
+[ 12%] Built target fuelsim_core
+[ 13%] Built target fuelsim_production_pcmi_abaqus
+[ 14%] Built target fuelsim_production_nts_abaqus
+[ 14%] Built target fuelsim_c3d20rt_probe_results
+[ 15%] Built target fuelsim_c3d20rt_material_results
+[ 28%] Built target fuelsim_production_result_tests
+[ 29%] Built target fuelsim_c3d20rt_contact_results
+[ 29%] Built target fuelsim_hex20_tests
+[ 30%] Linking CXX executable fuelsim_b49_hex8_c3d8t_operator_abaqus_tests
+[ 31%] Linking CXX executable fuelsim_b50_hex8_c3d8t_capacity_abaqus_tests
+[ 31%] Linking CXX executable fuelsim_b51_hex8_c3d8t_finite_heat_abaqus_tests
+[ 31%] Linking CXX executable fuelsim_b52_hex8_c3d8t_thermal_contact_abaqus_tests
+[ 32%] Built target fuelsim_b51_hex8_c3d8t_finite_heat_abaqus_tests
+[ 32%] Built target fuelsim_b50_hex8_c3d8t_capacity_abaqus_tests
+[ 32%] Linking CXX executable fuelsim_b520_hex8_c3d8t_gap_conductance_abaqus_tests
+[ 33%] Linking CXX executable fuelsim_b53_hex8_c3d8t_thermal_load_abaqus_tests
+[ 34%] Built target fuelsim_b52_hex8_c3d8t_thermal_contact_abaqus_tests
+[ 35%] Linking CXX executable fuelsim_b54_hex8_c3d8t_finite_thermal_load_abaqus_tests
+[ 35%] Built target fuelsim_b49_hex8_c3d8t_operator_abaqus_tests
+[ 35%] Linking CXX executable fuelsim_b57_hex8_c3d8t_temperature_capacity_abaqus_tests
+[ 36%] Built target fuelsim_b520_hex8_c3d8t_gap_conductance_abaqus_tests
+[ 36%] Linking CXX executable fuelsim_b528_hex8_c3d8rt_operator_abaqus_tests
+[ 36%] Built target fuelsim_b53_hex8_c3d8t_thermal_load_abaqus_tests
+[ 36%] Linking CXX executable fuelsim_b529_hex8_c3d8rt_capacity_abaqus_tests
+[ 36%] Built target fuelsim_b54_hex8_c3d8t_finite_thermal_load_abaqus_tests
+[ 36%] Linking CXX executable fuelsim_b530_hex8_c3d8rt_thermal_load_abaqus_tests
+[ 37%] Built target fuelsim_b57_hex8_c3d8t_temperature_capacity_abaqus_tests
+[ 41%] Built target fuelsim_io
+[ 42%] Built target fuelsim_solver
+[ 43%] Built target fuelsim_test_mesh_fixture
+[ 44%] Built target fuelsim_moose_test_support
+[ 45%] Linking CXX executable fuelsim_hex8_result_fields_tests
+[ 45%] Built target fuelsim_b528_hex8_c3d8rt_operator_abaqus_tests
+[ 46%] Built target fuelsim_abaqus_hex8_test_support
+[ 46%] Linking CXX executable fuelsim_m1_single_core_benchmark
+[ 47%] Built target fuelsim_b529_hex8_c3d8rt_capacity_abaqus_tests
+[ 47%] Linking CXX executable fuelsim_input_tests
+[ 48%] Built target fuelsim_b530_hex8_c3d8rt_thermal_load_abaqus_tests
+[ 48%] Linking CXX executable fuelsim_exodus_mesh_io_tests
+[ 48%] Built target fuelsim_hex8_result_fields_tests
+[ 48%] Linking CXX executable fuelsim_checkpoint_results_tests
+[ 49%] Built target fuelsim_exodus_mesh_io_tests
+[ 49%] Linking CXX executable fuelsim_m3_load_boundary_tests
+[ 49%] Built target fuelsim_m1_single_core_benchmark
+[ 49%] Linking CXX executable fuelsim_rz_contact_projection_contract_tests
+[ 50%] Built target fuelsim_input_tests
+[ 51%] Linking CXX executable fuelsim_rz_sliding_contract_tests
+[ 52%] Built target fuelsim_checkpoint_results_tests
+[ 52%] Linking CXX executable fuelsim_m58_integrated_hex8_benchmark
+[ 53%] Built target fuelsim_m3_load_boundary_tests
+[ 53%] Linking CXX executable fuelsim_b60_fuel_plate_c3d8rt_benchmark
+[ 53%] Built target fuelsim_rz_contact_projection_contract_tests
+[ 54%] Linking CXX executable fuelsim_b61_c3d20t_material_replay
+[ 54%] Built target fuelsim_rz_sliding_contract_tests
+[ 55%] Linking CXX executable fuelsim_m58_hex8_to_hex20
+[ 55%] Built target fuelsim_m58_hex8_to_hex20
+[ 56%] Linking CXX executable fuelsim_m58_integrated_hex20_results
+[ 56%] Built target fuelsim_m58_integrated_hex8_benchmark
+[ 57%] Linking CXX executable fuelsim_b549_small_c3d20t_mesh
+[ 58%] Built target fuelsim_b60_fuel_plate_c3d8rt_benchmark
+[ 58%] Linking CXX executable fuelsim_rz_restart_step_contract_tests
+[ 58%] Built target fuelsim_b549_small_c3d20t_mesh
+[ 60%] Linking CXX executable fuelsim_m54_transient_augmented_contact_tests
+[ 60%] Built target fuelsim_b61_c3d20t_material_replay
+[ 60%] Linking CXX executable fuelsim_core_tests
+[ 60%] Built target fuelsim_m58_integrated_hex20_results
+[ 61%] Linking CXX executable fuelsim_quad8_rz_tests
+[ 62%] Built target fuelsim_rz_restart_step_contract_tests
+[ 62%] Linking CXX executable fuelsim_hex8_tests
+[ 63%] Built target fuelsim_core_tests
+[ 63%] Linking CXX executable fuelsim_hex8_solver_tests
+[ 63%] Built target fuelsim_m54_transient_augmented_contact_tests
+[ 63%] Linking CXX executable fuelsim_b38_hex8_sts_identification_tests
+[ 64%] Built target fuelsim_hex8_tests
+[ 64%] Linking CXX executable fuelsim_b521_hex8_c3d8t_thermal_contact_path_abaqus_tests
+[ 64%] Built target fuelsim_quad8_rz_tests
+[ 65%] Linking CXX executable fuelsim_b522_hex8_c3d8t_faceted_thermal_contact_abaqus_tests
+[ 65%] Built target fuelsim_hex8_solver_tests
+[ 65%] Linking CXX executable fuelsim_b552_hex8_c3d8t_sts_cross_face_abaqus_tests
+[ 66%] Built target fuelsim_b38_hex8_sts_identification_tests
+[ 66%] Linking CXX executable fuelsim_b59_hex8_c3d8t_multimaterial_abaqus_tests
+[ 67%] Built target fuelsim_b521_hex8_c3d8t_thermal_contact_path_abaqus_tests
+[ 68%] Linking CXX executable fuelsim_b514_hex8_c3d8t_finite_elastic_abaqus_tests
+[ 68%] Built target fuelsim_b522_hex8_c3d8t_faceted_thermal_contact_abaqus_tests
+[ 68%] Linking CXX executable fuelsim_b519_hex8_c3d8t_finite_selective_abaqus_tests
+[ 68%] Built target fuelsim_b552_hex8_c3d8t_sts_cross_face_abaqus_tests
+[ 68%] Linking CXX executable fuelsim_hex8_sts_contract_tests
+[ 68%] Built target fuelsim_b519_hex8_c3d8t_finite_selective_abaqus_tests
+[ 68%] Linking CXX executable fuelsim_hex8_biaxial_friction_contract_tests
+[ 69%] Built target fuelsim_b59_hex8_c3d8t_multimaterial_abaqus_tests
+[ 70%] Linking CXX executable fuelsim_b41_hex8_finite_sliding_abaqus_tests
+[ 70%] Built target fuelsim_b514_hex8_c3d8t_finite_elastic_abaqus_tests
+[ 71%] Linking CXX executable fuelsim_b42_hex8_friction_objectivity_abaqus_tests
+[ 72%] Built target fuelsim_hex8_sts_contract_tests
+[ 73%] Linking CXX executable fuelsim_b44_hex8_nonmatching_partial_contact_abaqus_tests
+[ 74%] Built target fuelsim_hex8_biaxial_friction_contract_tests
+[ 74%] Linking CXX executable fuelsim_b45_hex8_nonplanar_sts_abaqus_tests
+[ 74%] Built target fuelsim_b41_hex8_finite_sliding_abaqus_tests
+[ 74%] Linking CXX executable fuelsim_b46_hex8_release_recontact_abaqus_tests
+[ 74%] Built target fuelsim_b42_hex8_friction_objectivity_abaqus_tests
+[ 74%] Linking CXX executable fuelsim_b47_hex8_scale_parameter_abaqus_tests
+[ 74%] Built target fuelsim_b44_hex8_nonmatching_partial_contact_abaqus_tests
+[ 74%] Linking CXX executable fuelsim_b48_multi_contact_contract
+[ 75%] Built target fuelsim_b46_hex8_release_recontact_abaqus_tests
+[ 76%] Built target fuelsim_hex20_solver_tests
+[ 77%] Linking CXX executable fuelsim_hex20_history_contract_tests
+[ 77%] Built target fuelsim_b45_hex8_nonplanar_sts_abaqus_tests
+[ 78%] Linking CXX executable fuelsim_h20_24_hex20_nonmatching_contact_tests
+[ 80%] Built target fuelsim_b47_hex8_scale_parameter_abaqus_tests
+[ 81%] Linking CXX executable fuelsim_hex8_shared_nodes_contract_tests
+[ 82%] Built target fuelsim_b48_multi_contact_contract
+[ 82%] Built target fuelsim_hex20_history_contract_tests
+[ 82%] Linking CXX executable fuelsim_hex8_friction_checkpoint_contract_tests
+[ 82%] Linking CXX executable fuelsim_hex20_curved_contact_contract_tests
+[ 82%] Built target fuelsim_h20_24_hex20_nonmatching_contact_tests
+[ 82%] Built target fuelsim_hex8_shared_nodes_contract_tests
+[ 82%] Linking CXX executable fuelsim_hex20_friction_transaction_33_tests
+[ 82%] Linking CXX executable fuelsim_hex20_friction_transaction_36_tests
+[ 83%] Built target fuelsim_hex8_friction_checkpoint_contract_tests
+[ 84%] Linking CXX executable fuelsim_h20_38_friction_objectivity_abaqus_tests
+[ 84%] Built target fuelsim_hex20_curved_contact_contract_tests
+[ 85%] Linking CXX executable fuelsim_h20_39_finite_sliding_abaqus_tests
+[ 86%] Built target fuelsim_hex20_friction_transaction_36_tests
+[ 87%] Linking CXX executable fuelsim_h20_40_curved_finite_sliding_abaqus_tests
+[ 88%] Built target fuelsim_hex20_friction_transaction_33_tests
+[ 89%] Linking CXX executable fuelsim_hex20_integrated_output_contract_tests
+[ 89%] Built target fuelsim_h20_38_friction_objectivity_abaqus_tests
+[ 89%] Linking CXX executable fuelsim_h20_31_hex20_curved_sts_identification_tests
+[ 90%] Built target fuelsim_h20_31_hex20_curved_sts_identification_tests
+[ 90%] Linking CXX executable fuelsim_hex8_history_contract_tests
+[ 90%] Built target fuelsim_h20_39_finite_sliding_abaqus_tests
+[ 90%] Linking CXX executable fuelsim_multi_region_tests
+[ 90%] Built target fuelsim_h20_40_curved_finite_sliding_abaqus_tests
+[ 91%] Linking CXX executable fuelsim_hex8_reduced_history_contract_tests
+[ 91%] Built target fuelsim_hex20_integrated_output_contract_tests
+[ 91%] Linking CXX executable fuelsim_m2_core_tests
+[ 92%] Built target fuelsim_hex8_history_contract_tests
+[ 92%] Linking CXX executable fuelsim_solver_tests
+[ 93%] Built target fuelsim_multi_region_tests
+[ 93%] Linking CXX executable fuelsim_mpi_equivalence_benchmark
+[ 94%] Built target fuelsim_m2_core_tests
+[ 94%] Linking CXX executable fuelsim_m21_manufactured_heat_tests
+[ 94%] Built target fuelsim_hex8_reduced_history_contract_tests
+[ 94%] Linking CXX executable fuelsim_rz_friction_history_contract_tests
+[ 95%] Built target fuelsim_solver_tests
+[ 95%] Linking CXX executable fuelsim_rz_creep_replay_contract_tests
+[ 96%] Built target fuelsim_mpi_equivalence_benchmark
+[ 96%] Built target fuelsim
+[ 97%] Built target fuelsim_m21_manufactured_heat_tests
+[ 98%] Built target fuelsim_rz_friction_history_contract_tests
+[100%] Built target fuelsim_rz_creep_replay_contract_tests

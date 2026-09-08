@@ -15,18 +15,19 @@
 #include <vector>
 
 namespace {
-bool histories_equal(
-    const std::vector<fuelsim::ContactPointHistory>& first, const std::vector<fuelsim::ContactPointHistory>& second) {
-    if (first.size() != second.size()) return false;
+bool histories_equal(const std::vector<fuelsim::ContactPointHistory>& first,
+    const std::vector<fuelsim::ContactPointHistory>& second) {
+    if (first.size() != second.size())
+        return false;
     for (std::size_t point = 0; point < first.size(); ++point)
-        if (first[point].elastic_tangential_slip != second[point].elastic_tangential_slip ||
-            first[point].sliding != second[point].sliding ||
-            first[point].normal_multiplier != second[point].normal_multiplier ||
-            first[point].cartesian_elastic_tangential_slip != second[point].cartesian_elastic_tangential_slip ||
-            first[point].cartesian_total_tangential_slip != second[point].cartesian_total_tangential_slip ||
-            first[point].cartesian_tangent_basis_initialized != second[point].cartesian_tangent_basis_initialized ||
-            first[point].cartesian_contact_normal != second[point].cartesian_contact_normal ||
-            first[point].cartesian_contact_tangent_first != second[point].cartesian_contact_tangent_first)
+        if (first[point].elastic_tangential_slip != second[point].elastic_tangential_slip
+            || first[point].sliding != second[point].sliding
+            || first[point].normal_multiplier != second[point].normal_multiplier
+            || first[point].cartesian_elastic_tangential_slip != second[point].cartesian_elastic_tangential_slip
+            || first[point].cartesian_total_tangential_slip != second[point].cartesian_total_tangential_slip
+            || first[point].cartesian_tangent_basis_initialized != second[point].cartesian_tangent_basis_initialized
+            || first[point].cartesian_contact_normal != second[point].cartesian_contact_normal
+            || first[point].cartesian_contact_tangent_first != second[point].cartesian_contact_tangent_first)
             return false;
     return true;
 }
@@ -34,7 +35,8 @@ bool histories_equal(
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 5) return 2;
+    if (argc != 5)
+        return 2;
     try {
         const auto definition = fuelsim::read_case_input(argv[1]);
         const auto mesh = fuelsim::read_exodus_hex8(definition.mesh_file);
@@ -50,8 +52,8 @@ int main(int argc, char** argv) {
             for (std::size_t local = 0; local < local_mesh.nodes().size(); ++local)
                 for (std::size_t field = 0; field < 4; ++field) {
                     const auto dof = spatial.field_layout()[field].begin + spatial.global_node(region, local);
-                    if (output.nodal(fields[field]).at(local_mesh.source_node_ids()[local]) !=
-                        original.committed_solution()[dof])
+                    if (output.nodal(fields[field]).at(local_mesh.source_node_ids()[local])
+                        != original.committed_solution()[dof])
                         throw std::runtime_error("B3.4 output and committed nodal state differ");
                 }
         }
@@ -77,22 +79,25 @@ int main(int argc, char** argv) {
                 // Summary output reevaluates the Coulomb return map at the
                 // committed state; this can round its elastic slip by one ULP.
                 // The checkpoint roundtrip below remains exactly equal.
-                const double roundoff = 4.0 * std::numeric_limits<double>::epsilon() *
-                                        std::max(std::abs(actual_elastic), std::abs(committed_elastic));
-                if (output.nodal("contact_total_slip_" + suffix).at(source[node]) !=
-                        point.cartesian_total_tangential_slip[component] ||
-                    !std::isfinite(actual_elastic) || std::abs(actual_elastic - committed_elastic) > roundoff)
+                const double roundoff = 4.0 * std::numeric_limits<double>::epsilon()
+                                        * std::max(std::abs(actual_elastic), std::abs(committed_elastic));
+                if (output.nodal("contact_total_slip_" + suffix).at(source[node])
+                        != point.cartesian_total_tangential_slip[component]
+                    || !std::isfinite(actual_elastic) || std::abs(actual_elastic - committed_elastic) > roundoff)
                     throw std::runtime_error("B3.4 output friction vectors differ from checkpoint");
             }
         }
-        if (!sliding) throw std::runtime_error("B3.4 checkpoint must contain active sliding history");
+        if (!sliding)
+            throw std::runtime_error("B3.4 checkpoint must contain active sliding history");
         fuelsim::write_transient_checkpoint(argv[4], original, 0.25);
         fuelsim::TransientProblem restored(definition.spatial, mesh);
         const double restored_step = fuelsim::restore_transient_checkpoint(argv[4], restored);
-        if (restored_step != 0.25 || restored.committed_solution() != original.committed_solution() ||
-            !histories_equal(history, fuelsim::cartesian::ProblemAccess::committed_contact_histories(restored).at(0)))
+        if (restored_step != 0.25 || restored.committed_solution() != original.committed_solution()
+            || !histories_equal(history,
+                fuelsim::cartesian::ProblemAccess::committed_contact_histories(restored).at(0)))
             throw std::runtime_error("B3.4 checkpoint changed the exact three-dimensional friction transaction");
-        if (std::remove(argv[4]) != 0) throw std::runtime_error("Could not remove B3.4 roundtrip checkpoint");
+        if (std::remove(argv[4]) != 0)
+            throw std::runtime_error("Could not remove B3.4 roundtrip checkpoint");
         return 0;
     } catch (const std::exception& error) {
         std::cerr << "[FAIL] " << error.what() << '\n';

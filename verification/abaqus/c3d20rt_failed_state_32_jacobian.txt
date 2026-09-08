@@ -1,0 +1,132 @@
+committed_time=3.85
+attempted_end_time=3.875
+directional_step=0.0001
+jacobian.temperature.residual_l2=0.00112323
+jacobian.temperature.analytic_l2=13.6369
+jacobian.temperature.finite_difference_l2=13.6369
+jacobian.temperature.difference_l2=1.06627e-07
+jacobian.temperature.relative_l2=7.81906e-09
+jacobian.temperature.maximum_absolute_difference=5.04879e-08
+jacobian.displacement_x.residual_l2=4725.22
+jacobian.displacement_x.analytic_l2=22709
+jacobian.displacement_x.finite_difference_l2=22701.8
+jacobian.displacement_x.difference_l2=30.6596
+jacobian.displacement_x.relative_l2=0.00135054
+jacobian.displacement_x.maximum_absolute_difference=20.2135
+jacobian.displacement_y.residual_l2=454679
+jacobian.displacement_y.analytic_l2=14934.4
+jacobian.displacement_y.finite_difference_l2=16664.9
+jacobian.displacement_y.difference_l2=2547.91
+jacobian.displacement_y.relative_l2=0.152891
+jacobian.displacement_y.maximum_absolute_difference=1680.37
+jacobian.displacement_z.residual_l2=7747.84
+jacobian.displacement_z.analytic_l2=22246.7
+jacobian.displacement_z.finite_difference_l2=22233.2
+jacobian.displacement_z.difference_l2=16.8187
+jacobian.displacement_z.relative_l2=0.000756467
+jacobian.displacement_z.maximum_absolute_difference=13.1417
+jacobian.check_passed=0
+directional_step=0.001
+jacobian.temperature.residual_l2=0.00112323
+jacobian.temperature.analytic_l2=13.6369
+jacobian.temperature.finite_difference_l2=13.6369
+jacobian.temperature.difference_l2=2.85593e-09
+jacobian.temperature.relative_l2=2.09427e-10
+jacobian.temperature.maximum_absolute_difference=1.24477e-09
+jacobian.displacement_x.residual_l2=4725.22
+jacobian.displacement_x.analytic_l2=22709
+jacobian.displacement_x.finite_difference_l2=22701.7
+jacobian.displacement_x.difference_l2=30.7908
+jacobian.displacement_x.relative_l2=0.00135632
+jacobian.displacement_x.maximum_absolute_difference=20.3073
+jacobian.displacement_y.residual_l2=454679
+jacobian.displacement_y.analytic_l2=14934.4
+jacobian.displacement_y.finite_difference_l2=16672
+jacobian.displacement_y.difference_l2=2557.79
+jacobian.displacement_y.relative_l2=0.153418
+jacobian.displacement_y.maximum_absolute_difference=1686.88
+jacobian.displacement_z.residual_l2=7747.84
+jacobian.displacement_z.analytic_l2=22246.7
+jacobian.displacement_z.finite_difference_l2=22233.1
+jacobian.displacement_z.difference_l2=16.937
+jacobian.displacement_z.relative_l2=0.000761794
+jacobian.displacement_z.maximum_absolute_difference=13.2357
+jacobian.check_passed=0
+directional_step=0.01
+jacobian.temperature.residual_l2=0.00112323
+jacobian.temperature.analytic_l2=13.6369
+jacobian.temperature.finite_difference_l2=13.6369
+jacobian.temperature.difference_l2=4.05457e-10
+jacobian.temperature.relative_l2=2.97324e-11
+jacobian.temperature.maximum_absolute_difference=2.527e-10
+jacobian.displacement_x.residual_l2=4725.22
+jacobian.displacement_x.analytic_l2=22709
+jacobian.displacement_x.finite_difference_l2=22701.7
+jacobian.displacement_x.difference_l2=30.7995
+jacobian.displacement_x.relative_l2=0.0013567
+jacobian.displacement_x.maximum_absolute_difference=20.3124
+jacobian.displacement_y.residual_l2=454679
+jacobian.displacement_y.analytic_l2=14934.4
+jacobian.displacement_y.finite_difference_l2=16672.5
+jacobian.displacement_y.difference_l2=2558.46
+jacobian.displacement_y.relative_l2=0.153454
+jacobian.displacement_y.maximum_absolute_difference=1687.31
+jacobian.displacement_z.residual_l2=7747.84
+jacobian.displacement_z.analytic_l2=22246.7
+jacobian.displacement_z.finite_difference_l2=22232.6
+jacobian.displacement_z.difference_l2=17.5083
+jacobian.displacement_z.relative_l2=0.000787506
+jacobian.displacement_z.maximum_absolute_difference=13.6811
+jacobian.check_passed=0
+directional_step=0.1
+jacobian.temperature.residual_l2=0.00112323
+jacobian.temperature.analytic_l2=13.6369
+jacobian.temperature.finite_difference_l2=13.6369
+jacobian.temperature.difference_l2=8.92274e-11
+jacobian.temperature.relative_l2=6.54311e-12
+jacobian.temperature.maximum_absolute_difference=5.76517e-11
+jacobian.displacement_x.residual_l2=4725.22
+jacobian.displacement_x.analytic_l2=22709
+jacobian.displacement_x.finite_difference_l2=22701.7
+jacobian.displacement_x.difference_l2=30.7638
+jacobian.displacement_x.relative_l2=0.00135513
+jacobian.displacement_x.maximum_absolute_difference=20.2889
+jacobian.displacement_y.residual_l2=454679
+jacobian.displacement_y.analytic_l2=14934.4
+jacobian.displacement_y.finite_difference_l2=16670.4
+jacobian.displacement_y.difference_l2=2555.46
+jacobian.displacement_y.relative_l2=0.153294
+jacobian.displacement_y.maximum_absolute_difference=1685.34
+jacobian.displacement_z.residual_l2=7747.84
+jacobian.displacement_z.analytic_l2=22246.7
+jacobian.displacement_z.finite_difference_l2=22228.1
+jacobian.displacement_z.difference_l2=23.1164
+jacobian.displacement_z.relative_l2=0.00103996
+jacobian.displacement_z.maximum_absolute_difference=18.0644
+jacobian.check_passed=0
+contribution_step=0.001
+contribution=0 error=2.45721e-05 scale=1186.6 relative=2.07081e-08 forward_error=5.62431e-05 backward_error=3.34789e-05
+contribution=1 error=3.48936e-05 scale=748.437 relative=4.6622e-08 forward_error=5.25083e-05 backward_error=5.73155e-05
+contribution=2 error=2.34215e-05 scale=576.14 relative=4.06525e-08 forward_error=5.28884e-05 backward_error=4.16538e-05
+contribution=3 error=2.68514e-05 scale=650.235 relative=4.12949e-08 forward_error=4.84114e-05 backward_error=6.30085e-05
+contribution=4 error=2.91052e-05 scale=975.886 relative=2.98244e-08 forward_error=0.000137988 backward_error=0.00012526
+contribution=5 error=4.16905e-05 scale=619.358 relative=6.73124e-08 forward_error=8.49153e-05 backward_error=7.94435e-05
+contribution=6 error=2.29919e-09 scale=1.39339 relative=1.65007e-09 forward_error=3.26922e-10 backward_error=4.89199e-09
+contribution=7 error=2.94303e-09 scale=2.573 relative=1.14382e-09 forward_error=1.41652e-09 backward_error=5.36382e-09
+contribution=8 error=1.9819e-09 scale=0.654884 relative=3.02634e-09 forward_error=1.29081e-09 backward_error=2.752e-09
+contribution=9 error=1.11355e-09 scale=4.27905 relative=2.60232e-10 forward_error=1.7252e-08 backward_error=1.5034e-08
+contribution=10 error=1.9251e-09 scale=1.01411 relative=1.89832e-09 forward_error=1.78622e-09 backward_error=2.273e-09
+contribution=11 error=5.76464e-10 scale=0.596283 relative=9.66762e-10 forward_error=1.2957e-09 backward_error=2.55281e-10
+contribution=12 error=0.000153619 scale=476.005 relative=3.22725e-07 forward_error=0.000781435 backward_error=0.000474532
+contribution=13 error=0.000996765 scale=113.614 relative=8.77327e-06 forward_error=0.00155131 backward_error=0.00354477
+contribution=14 error=0.000670216 scale=1241.96 relative=5.39644e-07 forward_error=0.00181826 backward_error=0.000535841
+contribution=15 error=0.0021343 scale=2353.76 relative=9.06762e-07 forward_error=0.00477138 backward_error=0.000867289
+contribution=16 error=0.000147757 scale=6046.19 relative=2.4438e-08 forward_error=0.00991693 backward_error=0.00962438
+contribution=17 error=0.00444562 scale=10575.3 relative=4.20379e-07 forward_error=0.0136772 backward_error=0.022382
+contribution=18 error=0.00103948 scale=2244.57 relative=4.63108e-07 forward_error=0.023047 backward_error=0.0250787
+contribution=19 error=0.00546223 scale=7718.61 relative=7.0767e-07 forward_error=0.0106554 backward_error=0.0018019
+contribution=20 error=2558.05 scale=5818.29 relative=0.439656 forward_error=5116.17 backward_error=0.176427
+contribution=21 error=0.000652696 scale=567.791 relative=1.14953e-06 forward_error=0.00349878 backward_error=0.00220356
+contribution=22 error=0.000558933 scale=1207.88 relative=4.62737e-07 forward_error=0.00182505 backward_error=0.0029378
+contribution=23 error=0.0119535 scale=21910.6 relative=5.45558e-07 forward_error=0.12752 backward_error=0.104145
+contribution=24 error=0.00437811 scale=5390.52 relative=8.12186e-07 forward_error=0.0742981 backward_error=0.0743676

@@ -1,0 +1,97 @@
+*Heading
+** C3D20RT independent nonaffine finite thermal operator probe, SI units.
+*Preprint, echo=NO, model=NO, history=NO, contact=NO
+*Node
+1, 0, 0, 0
+2, 1, 0, 0
+3, 1, 1, 0
+4, 0, 1, 0
+5, 0, 0, 1
+6, 1, 0, 1
+7, 1, 1, 1
+8, 0, 1, 1
+9, 0.5, 0, 0
+10, 1, 0.5, 0
+11, 0.5, 1, 0
+12, 0, 0.5, 0
+13, 0.5, 0, 1
+14, 1, 0.5, 1
+15, 0.5, 1, 1
+16, 0, 0.5, 1
+17, 0, 0, 0.5
+18, 1, 0, 0.5
+19, 1, 1, 0.5
+20, 0, 1, 0.5
+*Element, type=C3D20RT, elset=SOLID
+1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+16, 17, 18, 19, 20
+*Nset, nset=ALL, generate
+1, 20, 1
+*Material, name=SOLID
+*Elastic
+200000, 0.25
+*Conductivity
+10
+*Density
+2
+*Specific Heat
+3
+*Solid Section, elset=SOLID, material=SOLID
+,
+*Initial Conditions, type=TEMPERATURE
+ALL, 300
+*Step, name=CAPACITY, nlgeom=YES, inc=1
+*Coupled Temperature-Displacement
+1, 1, 1, 1
+*Boundary
+ALL, 2, 3, 0
+1, 1, 1, 0
+2, 1, 1, 0.2
+3, 1, 1, 0.2
+4, 1, 1, 0
+5, 1, 1, 0
+6, 1, 1, 0.2
+7, 1, 1, 0.2
+8, 1, 1, 0
+9, 1, 1, 0.15
+10, 1, 1, 0.2
+11, 1, 1, 0.15
+12, 1, 1, 0
+13, 1, 1, 0.15
+14, 1, 1, 0.2
+15, 1, 1, 0.15
+16, 1, 1, 0
+17, 1, 1, 0
+18, 1, 1, 0.2
+19, 1, 1, 0.2
+20, 1, 1, 0
+1, 11, 11, 301
+2, 11, 11, 302
+3, 11, 11, 303
+4, 11, 11, 304
+5, 11, 11, 305
+6, 11, 11, 306
+7, 11, 11, 307
+8, 11, 11, 308
+*Output, field, frequency=1
+*Node Output
+NT, U, RF, RFL
+*Element Output
+S, EE, COORD, IVOL, HFL
+*Output, history, frequency=0
+*Node Print, nset=ALL, frequency=1
+NT, RFL
+*El Print, elset=SOLID, frequency=1
+S
+HFL, IVOL
+*End Step
+*Step, name=CONDUCTION, inc=1
+*Coupled Temperature-Displacement, steady state
+1, 1, 1, 1
+*End Step
+*Step, name=SOURCE, inc=1
+*Coupled Temperature-Displacement, steady state
+1, 1, 1, 1
+*Dflux
+SOLID, BF, 10
+*End Step

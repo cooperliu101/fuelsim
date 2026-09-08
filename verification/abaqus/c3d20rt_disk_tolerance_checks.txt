@@ -1,0 +1,8 @@
+Original solver results and reference files were not modified.
+strict_original_results: rejected with exit code 1
+qualified_original_results: accepted with exit code 0
+Temporary reference perturbations:
+reaction_pointwise_limit: rejected with exit code 1
+slip_pointwise_limit: rejected with exit code 1
+zero_reaction_limit: rejected with exit code 1
+pressure_original_limit: rejected with exit code 1

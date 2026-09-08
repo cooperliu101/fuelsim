@@ -26,6 +26,7 @@ struct SolverOptions final {
     enum class LineSearch {
         backtracking,
         basic,
+        critical_point,
     };
     enum class LinearSolver {
         automatic,
@@ -98,8 +99,8 @@ struct SolveResult final {
     std::size_t nonlinear_attempts = 1, augmented_lagrangian_iterations = 0;
     double maximum_contact_penetration = 0.0;
     bool used_backtracking_fallback = false;
-    SolveFailureCategory basic_failure_category = SolveFailureCategory::none;
-    std::string basic_failure_message;
+    SolveFailureCategory initial_failure_category = SolveFailureCategory::none;
+    std::string initial_failure_message;
     std::vector<std::string> field_names;
     std::vector<double> initial_field_residual_norms, field_residual_reference_norms;
     std::vector<double> final_field_residual_norms, final_scaled_field_residual_norms;
@@ -112,12 +113,13 @@ class PetscSolver final {
     ~PetscSolver();
     PetscSolver(const PetscSolver&) = delete;
     PetscSolver& operator=(const PetscSolver&) = delete;
-    SolveResult solve(const NonlinearProblem& problem, const std::vector<double>& initial_state,
+    SolveResult solve(const NonlinearProblem& problem,
+        const std::vector<double>& initial_state,
         const SolverOptions& options = SolverOptions{});
 
   private:
-    SolveResult solve_once(
-        const NonlinearProblem& problem, const std::vector<double>& initial_state, const SolverOptions& options);
+    SolveResult
+    solve_once(const NonlinearProblem& problem, const std::vector<double>& initial_state, const SolverOptions& options);
     class Implementation;
     std::unique_ptr<Implementation> _impl;
 };

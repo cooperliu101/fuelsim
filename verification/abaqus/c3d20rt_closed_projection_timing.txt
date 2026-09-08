@@ -1,0 +1,11 @@
+Controlled external wall time; same input, CPU 0, OMP/BLAS/MKL threads=1; output enabled.
+Not an Abaqus speed qualification. Initial run series overlapped compilation and is excluded.
+controlled_1_old.time seconds=4.49 completed=true nonlinear_iterations_total=20 residual_evaluations_total=36 jacobian_evaluations_total=20
+controlled_2_new.time seconds=4.21 completed=true nonlinear_iterations_total=22 residual_evaluations_total=39 jacobian_evaluations_total=22
+controlled_3_new.time seconds=4.19 completed=true nonlinear_iterations_total=22 residual_evaluations_total=39 jacobian_evaluations_total=22
+controlled_4_old.time seconds=4.56 completed=true nonlinear_iterations_total=20 residual_evaluations_total=36 jacobian_evaluations_total=20
+old_executable_sha256=210e4e8863b18a88fd01f48a255f320718b7c1a134dc99cff80ffe0bea2dfe81
+new_executable_sha256=fd627360da69a2d0a182a0adee2d10e9be79cb73110c7b29684b5dd4cd095cd2
+input_sha256=76266b869137136e32bcea5462d2a655eff775e29c18d27009716e22e3b15afe
+Independent old/new function comparison: 40 curved/planar states; value difference 0; maximum derivative difference 2.77556e-16.
+First increment old/new maximum absolute differences: T=4.55e-13 K; ux=8.66e-16 m; uy=1.68e-15 m; uz=1.30e-15 m; gap=5.82e-16 m; pressure=6.11e-5 Pa.
