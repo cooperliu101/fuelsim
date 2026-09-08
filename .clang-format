@@ -1,9 +1,29 @@
 BasedOnStyle: LLVM
+Standard: c++17
+
+# Keep numerical expressions readable without excessive horizontal scrolling.
 IndentWidth: 4
 ContinuationIndentWidth: 4
 ColumnLimit: 120
 AlignAfterOpenBracket: DontAlign
-RemoveBracesLLVM: true
+BreakBeforeBinaryOperators: NonAssignment
+
+# Once a parameter list needs wrapping, give each parameter its own line.
+BinPackArguments: false
+BinPackParameters: false
+AllowAllArgumentsOnNextLine: false
+AllowAllParametersOfDeclarationOnNextLine: false
+
+# Preserve explicit scopes and show control flow on separate lines.
+RemoveBracesLLVM: false
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: InlineOnly
+AllowShortBlocksOnASingleLine: Never
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortLambdasOnASingleLine: Inline
+
+# Separate definitions while keeping related declarations together.
 MaxEmptyLinesToKeep: 1
 SeparateDefinitionBlocks: Always
 EmptyLineBeforeAccessModifier: LogicalBlock
@@ -11,8 +31,3 @@ EmptyLineAfterAccessModifier: Never
 DerivePointerAlignment: false
 PointerAlignment: Left
 SortIncludes: CaseSensitive
-AllowShortIfStatementsOnASingleLine: WithoutElse
-AllowShortLoopsOnASingleLine: true
-AllowShortFunctionsOnASingleLine: All
-AllowShortBlocksOnASingleLine: Always
-AllowShortCaseLabelsOnASingleLine: true
