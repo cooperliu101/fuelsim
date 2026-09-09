@@ -152,7 +152,7 @@ env \
   cmake -S . -B build \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_CXX_COMPILER="${fuelsim_toolchain_prefix}/bin/c++" \
-    -DCMAKE_PREFIX_PATH="${fuelsim_dependency_root}/adlite-0.2.1" \
+    -DCMAKE_PREFIX_PATH="${fuelsim_dependency_root}/adlite-0.2.2" \
     -DSEACASExodus_DIR="${fuelsim_dependency_root}/exodus-2024-06-27/lib/cmake/SEACASExodus"
 
 env PATH="${fuelsim_toolchain_prefix}/bin:/usr/local/bin:/usr/bin:/bin" \

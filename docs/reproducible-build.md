@@ -9,8 +9,8 @@
 ```text
 MOOSE development environment: 2026.06.16, MPICH build
 PETSc supplied by MOOSE:        3.25.2
-ADlite version:                 0.2.1
-ADlite commit:                  a0e75a887017135d5e520062bb330fcb194b4399
+ADlite version:                 0.2.2
+ADlite commit:                  6b8af513aa5abb956a1b246d4d1a5c4f5fc7d8a2
 SEACAS Exodus tag:              v2024-06-27
 ```
 
@@ -37,19 +37,18 @@ mkdir -p "${fuelsim_source_root}" "${fuelsim_build_root}" \
 
 ## 安装 ADlite
 
-从项目的内部源代码存储取得 ADlite，并把干净工作树放到
-`${fuelsim_source_root}/ADlite`。当前 ADlite 仓库没有配置可公开复现的远程
-地址，因此本文不虚构下载位置。安装脚本要求工作树没有修改，并严格拒绝不是
-固定提交的源码：
+从 ADlite 仓库取得源码，并检出下面的固定提交。安装脚本要求工作树没有修改，
+并严格拒绝不是固定提交的源码：
 
 ```bash
+git clone git@github.com:cooperliu101/ADlite.git "${fuelsim_source_root}/ADlite"
 git -C "${fuelsim_source_root}/ADlite" checkout \
-  a0e75a887017135d5e520062bb330fcb194b4399
+  6b8af513aa5abb956a1b246d4d1a5c4f5fc7d8a2
 
 ./scripts/install_adlite.sh \
   "${fuelsim_source_root}/ADlite" \
-  "${fuelsim_dependency_root}/adlite-0.2.1" \
-  "${fuelsim_build_root}/adlite-0.2.1" \
+  "${fuelsim_dependency_root}/adlite-0.2.2" \
+  "${fuelsim_build_root}/adlite-0.2.2" \
   "${fuelsim_toolchain_prefix}"
 ```
 
@@ -87,12 +86,16 @@ env \
   cmake -S . -B build \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_CXX_COMPILER="${fuelsim_toolchain_prefix}/bin/c++" \
-    -DCMAKE_PREFIX_PATH="${fuelsim_dependency_root}/adlite-0.2.1" \
+    -DCMAKE_PREFIX_PATH="${fuelsim_dependency_root}/adlite-0.2.2" \
     -DSEACASExodus_DIR="${fuelsim_dependency_root}/exodus-2024-06-27/lib/cmake/SEACASExodus" \
     -DFUELSIM_WARNINGS_AS_ERRORS=ON
-cmake --build build --parallel
-ctest --test-dir build --output-on-failure
+cmake --build build --parallel 4
+ctest --test-dir build -j4 --output-on-failure
 ```
+
+已有构建目录升级依赖时，还需在配置命令中显式指定
+`-Dadlite_DIR="${fuelsim_dependency_root}/adlite-0.2.2/lib/cmake/adlite"`，
+避免 CMake 沿用缓存中的旧版软件包路径。
 
 Fuelsim 的 Release 配置默认启用链接期跨翻译单元优化；可用
 `-DFUELSIM_ENABLE_RELEASE_IPO=OFF` 显式关闭，但这种构建不用于性能验收。只有
@@ -109,7 +112,7 @@ env \
   cmake -S . -B build-sanitize \
     -DCMAKE_BUILD_TYPE=Debug \
     -DCMAKE_CXX_COMPILER="${fuelsim_toolchain_prefix}/bin/c++" \
-    -DCMAKE_PREFIX_PATH="${fuelsim_dependency_root}/adlite-0.2.1" \
+    -DCMAKE_PREFIX_PATH="${fuelsim_dependency_root}/adlite-0.2.2" \
     -DSEACASExodus_DIR="${fuelsim_dependency_root}/exodus-2024-06-27/lib/cmake/SEACASExodus" \
     -DFUELSIM_ENABLE_SANITIZERS=ON \
     -DFUELSIM_WARNINGS_AS_ERRORS=ON
@@ -136,7 +139,7 @@ Release 任务仍使用环境默认网络模块，且所有双进程等价性测
 
 ```text
 FUELSIM_TOOLCHAIN_PREFIX = 固定 MOOSE Conda 环境的绝对路径
-FUELSIM_DEPENDENCY_ROOT  = 包含 adlite-0.2.1 和 exodus-2024-06-27 的绝对路径
+FUELSIM_DEPENDENCY_ROOT  = 包含 adlite-0.2.2 和 exodus-2024-06-27 的绝对路径
 ```
 
 Release 与检测器任务分别从空的配置目录重新运行 CMake、全量编译和全部 CTest；

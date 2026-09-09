@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-expected_commit=a0e75a887017135d5e520062bb330fcb194b4399
+expected_commit=6b8af513aa5abb956a1b246d4d1a5c4f5fc7d8a2
 
 if [[ $# -ne 4 ]]; then
     echo "Usage: $0 <adlite-source-dir> <install-prefix> <build-dir> <toolchain-prefix>" >&2
@@ -51,7 +51,7 @@ env PATH="${toolchain_prefix}/bin:/usr/local/bin:/usr/bin:/bin" \
     cmake --build "${build_dir}" --parallel 4
 
 env PATH="${toolchain_prefix}/bin:/usr/local/bin:/usr/bin:/bin" \
-    ctest --test-dir "${build_dir}" --output-on-failure
+    ctest --test-dir "${build_dir}" -j4 --output-on-failure
 
 env PATH="${toolchain_prefix}/bin:/usr/local/bin:/usr/bin:/bin" \
     cmake --install "${build_dir}"
