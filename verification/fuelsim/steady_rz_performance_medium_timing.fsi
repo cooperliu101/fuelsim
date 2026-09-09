@@ -132,8 +132,8 @@
   relative_tolerance = 1e-11
   step_tolerance = 1e-16
   maximum_iterations = 100
-  line_search = backtracking
-  backtracking_fallback = false
+  line_search = basic
+  backtracking_fallback = true
   field_residual_scaling = false
   temperature_residual_scale = 1
   mechanical_residual_scale = 100

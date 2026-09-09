@@ -62,7 +62,7 @@ def metric(actual, reference, zero_tolerance):
                       relative_maximum_absolute_error=float(difference.max()/scale.max()),
                       maximum_pointwise_relative=float((difference[nonzero]/scale[nonzero]).max()))
     result['passed']=result['zero_reference_absolute_error']<=zero_tolerance and all(
-        result.get(k,0)<.005 for k in ['relative_l2','relative_absolute_peak','maximum_pointwise_relative'])
+        result.get(k,0)<.0001 for k in ['relative_l2','relative_absolute_peak','maximum_pointwise_relative'])
     return result
 
 

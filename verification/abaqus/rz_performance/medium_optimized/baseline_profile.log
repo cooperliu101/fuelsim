@@ -1,0 +1,233 @@
+input_file=verification/fuelsim/steady_rz_performance_medium_timing.fsi
+mesh_file=/home/cooper/ai_project/fuelsim/verification/meshes/rz_performance_medium.e
+mpi_ranks=1
+  0 SNES Function norm 7.638109073994e-02
+  1 SNES Function norm 4.168528773807e-02
+  2 SNES Function norm 1.915427138160e-02
+  3 SNES Function norm 6.282728204464e-07
+  4 SNES Function norm 2.324986954148e-11
+  0 SNES Function norm 7.638109073994e-02
+  1 SNES Function norm 4.413614874900e-02
+  2 SNES Function norm 2.485696298353e-02
+  3 SNES Function norm 1.037305638618e-06
+  4 SNES Function norm 2.299888723537e-11
+  0 SNES Function norm 7.638109073993e-02
+  1 SNES Function norm 4.697237117065e-02
+  2 SNES Function norm 3.247544922925e-02
+  3 SNES Function norm 1.741794277919e-06
+  4 SNES Function norm 2.329782820203e-11
+  0 SNES Function norm 7.638109073994e-02
+  1 SNES Function norm 5.020414530747e-02
+  2 SNES Function norm 4.272743113334e-02
+  3 SNES Function norm 2.981626687877e-06
+  4 SNES Function norm 2.332389892760e-11
+  0 SNES Function norm 7.638109073993e-02
+  1 SNES Function norm 5.380512214932e-02
+  2 SNES Function norm 3.208439521442e-02
+  3 SNES Function norm 1.511712630258e-02
+  4 SNES Function norm 4.038743640891e-07
+  5 SNES Function norm 2.265698209210e-11
+  0 SNES Function norm 7.638109073994e-02
+  1 SNES Function norm 6.180792170948e-02
+  2 SNES Function norm 4.940080805373e-02
+  3 SNES Function norm 3.552145272043e-02
+  4 SNES Function norm 2.141665644841e-02
+  5 SNES Function norm 1.355481970694e-02
+  6 SNES Function norm 1.274675301636e-07
+  7 SNES Function norm 2.342576930560e-11
+  0 SNES Function norm 7.638109073988e-02
+  1 SNES Function norm 6.890927688412e-02
+  2 SNES Function norm 6.198403174700e-02
+  3 SNES Function norm 5.643127889353e-02
+  4 SNES Function norm 5.083675841590e-02
+  5 SNES Function norm 4.575845249109e-02
+  6 SNES Function norm 4.132696756921e-02
+  7 SNES Function norm 3.720545283866e-02
+  8 SNES Function norm 3.371582105638e-02
+  9 SNES Function norm 3.321828440901e-02
+ 10 SNES Function norm 3.084983347979e-02
+ 11 SNES Function norm 2.797757365304e-02
+ 12 SNES Function norm 2.538230883644e-02
+ 13 SNES Function norm 2.290773067104e-02
+ 14 SNES Function norm 2.066462446160e-02
+ 15 SNES Function norm 1.878124054128e-02
+ 16 SNES Function norm 1.695774246096e-02
+ 17 SNES Function norm 1.542631302455e-02
+ 18 SNES Function norm 1.389657752343e-02
+ 19 SNES Function norm 1.254047941596e-02
+ 20 SNES Function norm 1.144557732486e-02
+ 21 SNES Function norm 9.988367268869e-03
+ 22 SNES Function norm 9.222136626970e-06
+ 23 SNES Function norm 2.291024078685e-11
+  0 SNES Function norm 7.638109073959e-02
+  1 SNES Function norm 9.285214490238e-04
+  2 SNES Function norm 9.287348541676e-09
+  3 SNES Function norm 2.237416653212e-11
+  0 SNES Function norm 7.638109073993e-02
+  1 SNES Function norm 9.272620657726e-04
+  2 SNES Function norm 9.242393809956e-09
+  3 SNES Function norm 2.284942524908e-11
+  0 SNES Function norm 7.638109073995e-02
+  1 SNES Function norm 9.259974873369e-04
+  2 SNES Function norm 9.197918466858e-09
+  3 SNES Function norm 2.254889589018e-11
+  0 SNES Function norm 7.638109073993e-02
+  1 SNES Function norm 7.504904035924e-02
+  2 SNES Function norm 7.570618380332e-04
+  3 SNES Function norm 6.110556789081e-09
+  4 SNES Function norm 2.283642026937e-11
+  0 SNES Function norm 7.638109073993e-02
+  1 SNES Function norm 6.548723860589e-02
+  2 SNES Function norm 5.838157243801e-02
+  3 SNES Function norm 5.254273221993e-02
+  4 SNES Function norm 4.728790622587e-02
+  5 SNES Function norm 4.370062076027e-02
+  6 SNES Function norm 2.979353113179e-04
+  7 SNES Function norm 9.345599598807e-10
+  0 SNES Function norm 7.638109040943e-02
+  1 SNES Function norm 6.874181182243e-02
+  2 SNES Function norm 6.186668433716e-02
+  3 SNES Function norm 5.567925014869e-02
+  4 SNES Function norm 5.011070541992e-02
+  5 SNES Function norm 4.509913330888e-02
+  6 SNES Function norm 4.058881399819e-02
+  7 SNES Function norm 3.652960396705e-02
+  8 SNES Function norm 3.287637753376e-02
+  9 SNES Function norm 2.958852440364e-02
+ 10 SNES Function norm 2.662949759040e-02
+ 11 SNES Function norm 2.396640664933e-02
+ 12 SNES Function norm 2.156965167073e-02
+ 13 SNES Function norm 1.941259394148e-02
+ 14 SNES Function norm 1.747125959521e-02
+ 15 SNES Function norm 1.572407294145e-02
+ 16 SNES Function norm 1.415161649733e-02
+ 17 SNES Function norm 1.273836501967e-02
+ 18 SNES Function norm 1.203687879280e-02
+ 19 SNES Function norm 1.128500489087e-02
+ 20 SNES Function norm 1.055456997492e-02
+ 21 SNES Function norm 9.558832710310e-03
+ 22 SNES Function norm 8.776642628655e-03
+ 23 SNES Function norm 7.902813944645e-03
+ 24 SNES Function norm 7.112524670329e-03
+ 25 SNES Function norm 6.543096337910e-03
+ 26 SNES Function norm 5.967463339660e-03
+ 27 SNES Function norm 5.371017443846e-03
+ 28 SNES Function norm 4.833912402793e-03
+ 29 SNES Function norm 4.350518497617e-03
+ 30 SNES Function norm 3.936107610555e-03
+ 31 SNES Function norm 3.290563517456e-03
+ 32 SNES Function norm 2.893869113099e-03
+ 33 SNES Function norm 2.666642231435e-03
+ 34 SNES Function norm 1.689644304363e-03
+ 35 SNES Function norm 1.462214308844e-03
+ 36 SNES Function norm 3.091881505010e-04
+ 37 SNES Function norm 3.483318785551e-11
+  0 SNES Function norm 7.638109073992e-02
+  1 SNES Function norm 7.340417194236e-02
+  2 SNES Function norm 7.018569074972e-02
+  3 SNES Function norm 7.017000083822e-02
+  4 SNES Function norm 6.843682953925e-02
+  5 SNES Function norm 6.772167040663e-02
+  6 SNES Function norm 6.704444763005e-02
+  7 SNES Function norm 6.639160847460e-02
+  8 SNES Function norm 6.574860970616e-02
+  9 SNES Function norm 6.516043944590e-02
+ 10 SNES Function norm 6.248958367594e-02
+ 11 SNES Function norm 5.812328652434e-02
+ 12 SNES Function norm 5.237430257204e-02
+ 13 SNES Function norm 4.736155246775e-02
+ 14 SNES Function norm 3.982886566995e-02
+ 15 SNES Function norm 2.868502280097e-02
+ 16 SNES Function norm 5.241597649919e-03
+ 17 SNES Function norm 3.896417145782e-04
+ 18 SNES Function norm 4.883958165112e-11
+  0 SNES Function norm 7.638109073994e-02
+  1 SNES Function norm 5.649002088352e-02
+  2 SNES Function norm 4.043791162379e-04
+  3 SNES Function norm 1.888836880114e-09
+  4 SNES Function norm 3.885894233347e-11
+  0 SNES Function norm 7.638109073993e-02
+  1 SNES Function norm 9.548361466553e-04
+  2 SNES Function norm 1.051422548886e-08
+  3 SNES Function norm 3.861700348976e-11
+  0 SNES Function norm 7.638109073994e-02
+  1 SNES Function norm 9.541586299819e-04
+  2 SNES Function norm 1.051152282012e-08
+  3 SNES Function norm 3.945582983788e-11
+  0 SNES Function norm 7.638109073994e-02
+  1 SNES Function norm 9.535008507918e-04
+  2 SNES Function norm 1.051616310194e-08
+  3 SNES Function norm 3.588640784573e-11
+  0 SNES Function norm 7.638109073994e-02
+  1 SNES Function norm 9.528638099203e-04
+  2 SNES Function norm 1.051690142831e-08
+  3 SNES Function norm 3.747552464850e-11
+  0 SNES Function norm 7.638109073994e-02
+  1 SNES Function norm 9.522485516245e-04
+  2 SNES Function norm 1.051983631352e-08
+  3 SNES Function norm 4.275764253800e-11
+problem=steady
+completed=true
+convergence_reason=CONVERGED_FNORM_ABS
+regions=2
+contacts=1
+load_steps_completed=20
+rejected_load_steps=0
+load_cutbacks=0
+nonlinear_iterations_total=145
+linear_iterations_total=145
+residual_evaluations_total=262
+jacobian_evaluations_total=145
+used_small_strain_predictor=false
+residual_norm=4.275764253800e-11
+nonlinear_attempts=1
+linear_iterations=3
+used_backtracking_fallback=false
+augmented_lagrangian_iterations=0
+global_state_dofs=23010
+maximum_shadow_state_dofs=23010
+total_shadow_state_dofs=23010
+total_remote_shadow_state_dofs=0
+memory.initial_resident_bytes=199393280
+memory.setup_resident_bytes=199393280
+memory.solve_resident_bytes=199393280
+memory.final_resident_bytes=199393280
+memory.minimum_peak_resident_bytes=199393280
+memory.maximum_peak_resident_bytes=199393280
+memory.total_peak_resident_bytes=199393280
+residual.temperature.initial_l2=7.638109073994e-02
+residual.temperature.reference_l2=7.638109073994e-02
+residual.temperature.final_l2=5.038875730945e-12
+residual.temperature.scaling=1.000000000000e+00
+residual.temperature.final_scaled_l2=5.038875730945e-12
+residual.radial.initial_l2=3.673228933640e-09
+residual.radial.reference_l2=2.509223137555e-04
+residual.radial.final_l2=4.201695887719e-09
+residual.radial.scaling=1.000000000000e-02
+residual.radial.final_scaled_l2=4.201695887719e-11
+residual.axial.initial_l2=5.755168243023e-10
+residual.axial.reference_l2=2.680143095453e-06
+residual.axial.final_l2=6.115626990589e-10
+residual.axial.scaling=1.000000000000e-02
+residual.axial.final_scaled_l2=6.115626990589e-12
+aggregate_memory.initial_resident_bytes=199393280
+aggregate_memory.setup_resident_bytes=199393280
+aggregate_memory.solve_resident_bytes=199393280
+aggregate_memory.final_resident_bytes=199393280
+aggregate_memory.minimum_peak_resident_bytes=199393280
+aggregate_memory.maximum_peak_resident_bytes=199393280
+aggregate_memory.total_peak_resident_bytes=199393280
+failure_category=none
+petsc_workspace_setups=1
+total_seconds=7.296364338400e+01
+contact.fuel_cladding.minimum_gap=-9.969434221986e-08
+contact.fuel_cladding.maximum_contact_pressure=9.969434221986e+06
+contact.fuel_cladding.total_heat_rate=1.066533006782e+02
+contact.fuel_cladding.total_contact_force=6.640566321493e+02
+contact.fuel_cladding.total_tangential_force=0.000000000000e+00
+contact.fuel_cladding.projected_contact_nodes=65
+contact.fuel_cladding.unprojected_contact_nodes=0
+contact.fuel_cladding.active_contact_nodes=65
+real 73.66
+user 69.36
+sys 3.62

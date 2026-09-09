@@ -1,0 +1,8 @@
+PASS: 0.005% accepted, 0.02% rejected against the 0.01% threshold.
+PASS: zero-reference absolute tolerance independently enforced.
+PASS: empty and nonfinite fields rejected.
+PASS: recorded input, executable, and script SHA256 values match current files.
+PASS: complete input cards differ only in Outputs.
+PASS: --resume reused all six recorded runs without launching new jobs.
+PASS: production executable matches the pre-optimization binary.
+PASS: Python syntax checks and 8/8 related CTest cases.

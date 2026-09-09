@@ -492,6 +492,9 @@ M5.7 在同一个 150 节点瞬态有限应变例题中同时激活热接触、C
 45,630 个自由度两档 CAX4T 稳态热弹性接触模型。原 C++ 专用入口已删除。
 当前 Abaqus 精度与速度证据见
 [轴对称性能验证](verification/abaqus/rz_performance/README.md)。
+中等规模采用完整牛顿更新后，全部规定相对误差小于 0.01%，单核外部时间均值
+为 31.79 秒，Abaqus 为 41.82 秒，耗时减少 23.99%；这是同一主机上
+WSL2 与 Windows 的对照测量。
 
 ```bash
 ./build/fuelsim -i verification/fuelsim/steady_rz_performance_medium_timing.fsi

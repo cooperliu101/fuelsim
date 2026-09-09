@@ -1,7 +1,10 @@
 param([Parameter(Mandatory=$true)][string]$SourceDirectory,
       [ValidateSet('medium','large')][string]$Size='medium',
-      [switch]$Timing, [int]$Runs=1)
+      [switch]$Timing, [int]$Runs=1,
+      [string]$ResultsDirectory='')
 $ErrorActionPreference='Stop'
+if (!$ResultsDirectory) { $ResultsDirectory = $SourceDirectory }
+New-Item -ItemType Directory -Force -Path $ResultsDirectory | Out-Null
 [System.Diagnostics.Process]::GetCurrentProcess().ProcessorAffinity = [IntPtr]1
 $env:OMP_NUM_THREADS='1'
 $env:MKL_NUM_THREADS='1'
@@ -26,12 +29,12 @@ try {
     $Code=$LASTEXITCODE
     $Clock.Stop()
     if ($Code -ne 0 -or !(Test-Path "$Job.sta") -or !(Select-String "$Job.sta" -Pattern 'THE ANALYSIS HAS COMPLETED SUCCESSFULLY' -Quiet)) { throw "Abaqus failed in $Work" }
-    @("run=$Run", "external_wall_seconds=$($Clock.Elapsed.TotalSeconds.ToString('F6',[Globalization.CultureInfo]::InvariantCulture))", "cpus=1", "affinity_mask=1", "work_directory=$Work") | Set-Content (Join-Path $SourceDirectory "${Job}_run${Run}_timing.txt")
-    foreach ($Ext in @('dat','msg','sta')) { Copy-Item "$Job.$Ext" (Join-Path $SourceDirectory "${Job}_run${Run}.$Ext") }
+    @("run=$Run", "external_wall_seconds=$($Clock.Elapsed.TotalSeconds.ToString('F6',[Globalization.CultureInfo]::InvariantCulture))", "cpus=1", "affinity_mask=1", "work_directory=$Work") | Set-Content (Join-Path $ResultsDirectory "${Job}_run${Run}_timing.txt")
+    foreach ($Ext in @('dat','msg','sta')) { Copy-Item "$Job.$Ext" (Join-Path $ResultsDirectory "${Job}_run${Run}.$Ext") }
   }
   if (!$Timing) {
     & C:\SIMULIA\Commands\abaqus.bat python extract_results.py "$Job.odb" $Job
     if ($LASTEXITCODE -ne 0) { throw 'Extraction failed' }
-    foreach ($Kind in @('nodes','points','contact')) { Copy-Item "${Job}_${Kind}.csv.gz" $SourceDirectory }
+    foreach ($Kind in @('nodes','points','contact')) { Copy-Item "${Job}_${Kind}.csv.gz" $ResultsDirectory }
   }
 } finally { Pop-Location }
