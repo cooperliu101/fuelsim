@@ -1,0 +1,38 @@
+{
+  "git_revision": "db69bac19215d1319c359645cbc1be4deec4a4ed",
+  "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+  "sizes": [
+    "medium"
+  ],
+  "sha256": {
+    "build/fuelsim": "30b18fdf1d114bcc1690e6977564a0b065dc612021ea71d967da91dab54c6aab",
+    "benchmarks/run_rz_performance.py": "db63e1604cbb1355b4e7960e08fb2ab89e83d23d3dab55c29e9a156d69a9e4b8",
+    "verification/abaqus/rz_performance/run.ps1": "f649789cb7df9d057297601e617e88da26438d2258762cd1baa3a73fb1063d6d",
+    "verification/abaqus/rz_performance/compare.py": "bbd79bee878ae9be8db51e8b06002c09e032381aa79e7b44a303280bd1c9f995",
+    "verification/abaqus/rz_performance/material_contact.inc": "750d4945e330983e8d84d6cafceccf2a12b4b6291547fef0dd3ce946a3ab7efe",
+    "verification/fuelsim/steady_rz_performance_medium.fsi": "0db24a19ea81abd4cf1909f5c408ed9623c298b7d58168690205ae1415457be4",
+    "verification/fuelsim/steady_rz_performance_medium_timing.fsi": "29b3afabe1cc315438fcc29a9d3b3a414b7fecdd188de572d0e0555755a0a1b3",
+    "verification/abaqus/rz_performance/rz_performance_medium.inp": "4b4039de2242ad89cc94d7a65e08402f894041cbb5ac7857a1076f2baf766b0f",
+    "verification/abaqus/rz_performance/rz_performance_medium_timing.inp": "4695f2729e179a7beccbb40a763109ef4df488b0bae3fe8222b9ec1a92759ed6",
+    "verification/abaqus/rz_performance/rz_performance_medium_mesh.inc": "6f85d8fc0535c50b2c5ad5ce5cfc0c9bd5e9a479817ccf723817046141be1198",
+    "verification/meshes/rz_performance_medium.e": "2474721e4e17738601bc750f81dd678fde7be16aba621477b083f46af824b8c7",
+    "include/fuelsim/solver/solve_workflows.hpp": "5ce3bfd042cbbf48fa4bc6d6a3102256b22962b117bab68fa1812aa3620c3d25",
+    "src/solver/solve_workflows.cpp": "ea4a392d7b1295bf49f589a47de914c8530dc2c9f8e6c56424d623a4666752b9",
+    "src/io/case_input.cpp": "545f2f127bca2806d1f28d1b1487c5b44f4460f3b604d60d8185b4f8d271fff0",
+    "src/app/main.cpp": "05c235fe2a7f9672db71a920b4f0180feb7b3d751e7ec2829fc6b0907edbab7d",
+    "tests/solver_tests.cpp": "b4bc81d38b381e39b8d33e0fae047179408a01241ab14282909de6664d02f267",
+    "tests/input_tests.cpp": "3f8c81ddd41643ebcbddc559ad43d1b02dd7202be443efe5c8464a83c751c1cd",
+    "tests/m3_load_boundary_tests.cpp": "a558bc3364cd711abba8f66d98a292355bb68ec8ae10d61989a0911abfeaa7a0"
+  },
+  "working_tree_note": "Base revision plus the source, input, and test changes recorded by SHA256; no solver tolerance or physical definition changes.",
+  "build_configuration": [
+    "CMAKE_BUILD_TYPE:STRING=Release",
+    "CMAKE_CXX_COMPILER:UNINITIALIZED=/home/cooper/miniforge/envs/moose/bin/c++",
+    "FUELSIM_WARNINGS_AS_ERRORS:BOOL=ON",
+    "SEACASExodus_DIR:UNINITIALIZED=/home/cooper/ai_project/fuelsim-dependencies/exodus-2024-06-27/lib/cmake/SEACASExodus",
+    "adlite_DIR:UNINITIALIZED=/home/cooper/ai_project/fuelsim-dependencies/adlite-0.2.2/lib/cmake/adlite"
+  ],
+  "validation_output_sha256": {
+    "verification/fuelsim/steady_rz_performance_medium_results.e": "893d2ddf47a97626f3e98da9a9ad9839473eebafe7b90484921a9efd9ca5140e"
+  }
+}

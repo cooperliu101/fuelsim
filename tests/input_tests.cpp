@@ -242,7 +242,8 @@ bool run_tests(const std::string& input_path, const std::string& c3d8rt_path, co
                 && steady.solver.direct_factorization == fuelsim::SolverOptions::DirectFactorization::automatic
                 && steady.solver.mumps_ordering == fuelsim::SolverOptions::MumpsOrdering::automatic
                 && steady.solver.linear_relative_tolerance == 1.0e-8 && steady.solver.maximum_linear_iterations == 500
-                && steady.solver.jacobian_lag == 1 && !steady.steady_execution.use_small_strain_predictor,
+                && steady.solver.jacobian_lag == 1 && !steady.steady_execution.use_small_strain_predictor
+                && !steady.steady_execution.use_linear_load_predictor,
             "steady execution and solver fields are parsed")
         && check(transient.problem == fuelsim::CaseProblem::transient,
             "transient input selects the physical transient problem")

@@ -1,0 +1,18 @@
+{
+  "relative_error_limit": 0.0001,
+  "accuracy_passed": true,
+  "maximum_pointwise_relative_error": 4.711684377633834e-08,
+  "fuelsim_external_mean_seconds": 22.49798864053446,
+  "abaqus_external_mean_seconds": 39.7399105,
+  "fuelsim_over_abaqus": 0.5661308331465532,
+  "elapsed_time_reduction_percent": 43.38691668534468,
+  "speedup": 1.7663761474392827,
+  "fuelsim_internal_mean_seconds": 21.9931534355,
+  "abaqus_analysis_mean_seconds": 36.0,
+  "fuelsim_iterations": 46,
+  "abaqus_iterations": 52,
+  "previous_fuelsim_external_mean_seconds": 31.78562139751739,
+  "reduction_vs_previous_percent": 29.219604175202118,
+  "previous_fuelsim_iterations": 65,
+  "scope": "Medium case only; final-state fields; WSL2 Fuelsim / Windows Abaqus; one thread and CPU 0 in each OS; twenty fixed increments; one warmup and two measured runs per solver"
+}

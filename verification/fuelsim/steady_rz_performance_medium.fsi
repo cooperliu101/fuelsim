@@ -123,6 +123,7 @@
   type = steady
   load_steps = 20
   maximum_cutbacks = 0
+  use_linear_load_predictor = true
 []
 
 [Solver]

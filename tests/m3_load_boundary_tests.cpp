@@ -482,6 +482,28 @@ bool test_steady_load_cutback(const std::string& input_path) {
                                && !result.rejected_steps.empty(),
                       "steady loading bisects a failed nominal increment "
                       "and continues from the accepted state");
+    fuelsim::SteadyProblem predicted_problem(input.spatial, mesh);
+    fuelsim::SteadyLoadOptions predicted_loading{1, 0.5, 18, 1.0e-6};
+    predicted_loading.use_linear_load_predictor = true;
+    fuelsim::SolverOptions predicted_solver = solver_options;
+    predicted_solver.maximum_iterations = 1;
+    const auto predicted = fuelsim::solve_steady(predicted_problem, predicted_loading, predicted_solver);
+    std::cout << "steady_load_predictor_attempts=" << predicted.load_predictor_attempts << '\n';
+    std::cout << "steady_load_predictor_fallbacks=" << predicted.load_predictor_fallbacks << '\n';
+    bool predicted_fields_equal = true;
+    for (const auto& field : problem.field_layout()) {
+        double difference = 0.0, scale = 0.0;
+        for (std::size_t i = field.begin; i < field.end; ++i) {
+            difference = std::hypot(difference, predicted.solve.state[i] - result.solve.state[i]);
+            scale = std::hypot(scale, result.solve.state[i]);
+        }
+        const double absolute = field.category == fuelsim::FieldCategory::thermal ? 1.0e-8 : 1.0e-12;
+        predicted_fields_equal = predicted_fields_equal && difference < absolute + 1.0e-7 * scale;
+    }
+    passed = check(predicted.completed && predicted.load_predictor_attempts > 0
+                       && predicted.load_predictor_fallbacks > 0 && predicted_fields_equal,
+                 "load prediction across unequal accepted increments preserves the converged equilibrium")
+             && passed;
     fuelsim::SteadyProblem minimum_problem(input.spatial, mesh);
     fuelsim::SolverOptions minimum_solver = solver_options;
     minimum_solver.maximum_iterations = 1;

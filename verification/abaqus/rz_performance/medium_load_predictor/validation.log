@@ -1,0 +1,133 @@
+input_file=verification/fuelsim/steady_rz_performance_medium.fsi
+mesh_file=/home/cooper/ai_project/fuelsim/verification/meshes/rz_performance_medium.e
+mpi_ranks=1
+  0 SNES Function norm 7.638109073994e-02
+  1 SNES Function norm 7.739777601242e-02
+  2 SNES Function norm 9.388966195886e-06
+  3 SNES Function norm 2.306072600467e-11
+  0 SNES Function norm 7.638109073993e-02
+  1 SNES Function norm 8.452743057464e-02
+  2 SNES Function norm 1.114994423504e-05
+  3 SNES Function norm 2.261585492631e-11
+  0 SNES Function norm 1.859570352786e-01
+  1 SNES Function norm 5.412389158823e-05
+  2 SNES Function norm 2.372417442437e-11
+  0 SNES Function norm 2.070068385724e-01
+  1 SNES Function norm 6.723122855058e-05
+  2 SNES Function norm 2.597180169758e-11
+  0 SNES Function norm 2.335155751424e-01
+  1 SNES Function norm 8.636307580925e-05
+  2 SNES Function norm 3.110622889290e-11
+  0 SNES Function norm 2.590918682614e-01
+  1 SNES Function norm 1.026674651576e-04
+  2 SNES Function norm 3.360739358340e-11
+  0 SNES Function norm 2.147406572765e-01
+  1 SNES Function norm 4.576057433353e-07
+  2 SNES Function norm 2.329881079689e-11
+  0 SNES Function norm 5.550485916615e-01
+  1 SNES Function norm 8.013001539689e-07
+  2 SNES Function norm 2.294300184002e-11
+  0 SNES Function norm 1.853984338937e-03
+  1 SNES Function norm 3.679330956112e-08
+  2 SNES Function norm 2.318525504554e-11
+  0 SNES Function norm 1.851465549843e-03
+  1 SNES Function norm 3.661693299896e-08
+  2 SNES Function norm 2.234985595714e-11
+  0 SNES Function norm 8.420513300617e-01
+  1 SNES Function norm 1.684770192927e-01
+  2 SNES Function norm 3.635473359333e-02
+  3 SNES Function norm 1.002177007343e-06
+  4 SNES Function norm 2.277544490561e-11
+  0 SNES Function norm 2.242465849029e-01
+  1 SNES Function norm 7.182352262445e-06
+  2 SNES Function norm 2.355497337779e-11
+  0 SNES Function norm 5.278373775308e-01
+  1 SNES Function norm 4.342914045020e-03
+  2 SNES Function norm 1.239820662256e-03
+  3 SNES Function norm 1.520799414365e-10
+  0 SNES Function norm 5.848317409561e+00
+  1 SNES Function norm 7.879607297519e-03
+  2 SNES Function norm 3.896442249561e-04
+  3 SNES Function norm 4.625543612488e-11
+  0 SNES Function norm 1.169960054856e+00
+  1 SNES Function norm 1.841468250045e-05
+  2 SNES Function norm 3.777436640955e-11
+  0 SNES Function norm 1.947314291449e-02
+  1 SNES Function norm 9.562670511530e-08
+  2 SNES Function norm 3.928370190918e-11
+  0 SNES Function norm 1.907302088333e-03
+  1 SNES Function norm 4.186690461096e-08
+  2 SNES Function norm 3.777911683399e-11
+  0 SNES Function norm 1.905972517764e-03
+  1 SNES Function norm 4.187593573531e-08
+  2 SNES Function norm 3.715110287409e-11
+  0 SNES Function norm 1.904683430323e-03
+  1 SNES Function norm 4.188376593165e-08
+  2 SNES Function norm 3.836311617615e-11
+  0 SNES Function norm 1.903436885818e-03
+  1 SNES Function norm 4.189865832844e-08
+  2 SNES Function norm 4.027017371835e-11
+problem=steady
+completed=true
+convergence_reason=CONVERGED_FNORM_ABS
+regions=2
+contacts=1
+load_steps_completed=20
+rejected_load_steps=0
+load_cutbacks=0
+nonlinear_iterations_total=46
+linear_iterations_total=46
+residual_evaluations_total=66
+jacobian_evaluations_total=46
+used_small_strain_predictor=false
+load_predictor_attempts=18
+load_predictor_fallbacks=0
+residual_norm=4.027017371835e-11
+nonlinear_attempts=1
+linear_iterations=2
+used_backtracking_fallback=false
+augmented_lagrangian_iterations=0
+global_state_dofs=23010
+maximum_shadow_state_dofs=23010
+total_shadow_state_dofs=23010
+total_remote_shadow_state_dofs=0
+memory.initial_resident_bytes=200876032
+memory.setup_resident_bytes=200876032
+memory.solve_resident_bytes=200876032
+memory.final_resident_bytes=200876032
+memory.minimum_peak_resident_bytes=200876032
+memory.maximum_peak_resident_bytes=200876032
+memory.total_peak_resident_bytes=200876032
+residual.temperature.initial_l2=1.837156022877e-03
+residual.temperature.reference_l2=1.837156022877e-03
+residual.temperature.final_l2=4.836967751047e-12
+residual.temperature.scaling=1.000000000000e+00
+residual.temperature.final_scaled_l2=4.836967751047e-12
+residual.radial.initial_l2=4.978970484259e-02
+residual.radial.reference_l2=4.978970484259e-04
+residual.radial.final_l2=3.950149026659e-09
+residual.radial.scaling=1.000000000000e-02
+residual.radial.final_scaled_l2=3.950149026659e-11
+residual.axial.initial_l2=5.315549464736e-04
+residual.axial.reference_l2=5.315549464736e-06
+residual.axial.final_l2=6.158157273084e-10
+residual.axial.scaling=1.000000000000e-02
+residual.axial.final_scaled_l2=6.158157273084e-12
+aggregate_memory.initial_resident_bytes=200876032
+aggregate_memory.setup_resident_bytes=200876032
+aggregate_memory.solve_resident_bytes=200876032
+aggregate_memory.final_resident_bytes=200876032
+aggregate_memory.minimum_peak_resident_bytes=200876032
+aggregate_memory.maximum_peak_resident_bytes=200876032
+aggregate_memory.total_peak_resident_bytes=200876032
+failure_category=none
+petsc_workspace_setups=1
+total_seconds=2.210468227500e+01
+contact.fuel_cladding.minimum_gap=-9.969434221986e-08
+contact.fuel_cladding.maximum_contact_pressure=9.969434221986e+06
+contact.fuel_cladding.total_heat_rate=1.066533006782e+02
+contact.fuel_cladding.total_contact_force=6.640566321478e+02
+contact.fuel_cladding.total_tangential_force=0.000000000000e+00
+contact.fuel_cladding.projected_contact_nodes=65
+contact.fuel_cladding.unprojected_contact_nodes=0
+contact.fuel_cladding.active_contact_nodes=65

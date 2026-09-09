@@ -984,7 +984,8 @@ void read_executioner(const InputDocument& document, const std::string& path, Fu
                 "cutback_factor",
                 "maximum_cutbacks",
                 "minimum_load_increment",
-                "use_small_strain_predictor"});
+                "use_small_strain_predictor",
+                "use_linear_load_predictor"});
         if (executioner_type != "steady")
             value_error(document,
                 required_entry(document, executioner, "type"),
@@ -997,6 +998,8 @@ void read_executioner(const InputDocument& document, const std::string& path, Fu
             read_optional_double(document, executioner, "minimum_load_increment", 1.0e-6);
         result.steady_execution.use_small_strain_predictor =
             read_optional_bool(document, executioner, "use_small_strain_predictor", false);
+        result.steady_execution.use_linear_load_predictor =
+            read_optional_bool(document, executioner, "use_linear_load_predictor", false);
     } else {
         validate_keys(document,
             executioner,

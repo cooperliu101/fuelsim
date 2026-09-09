@@ -1,0 +1,69 @@
+Internal ctest changing into directory: /home/cooper/ai_project/fuelsim/build
+UpdateCTestConfiguration  from :/home/cooper/ai_project/fuelsim/build/DartConfiguration.tcl
+Parse Config file:/home/cooper/ai_project/fuelsim/build/DartConfiguration.tcl
+UpdateCTestConfiguration  from :/home/cooper/ai_project/fuelsim/build/DartConfiguration.tcl
+Parse Config file:/home/cooper/ai_project/fuelsim/build/DartConfiguration.tcl
+Test project /home/cooper/ai_project/fuelsim/build
+Constructing a list of tests
+Done constructing a list of tests
+Updating test list for fixtures
+Added 0 tests to meet fixture requirements
+Checking test dependency graph...
+Checking test dependency graph end
+test 5
+    Start 5: fuelsim_m3_load_boundary_tests
+
+5: Test command: /home/cooper/ai_project/fuelsim/build/fuelsim_m3_load_boundary_tests "/home/cooper/ai_project/fuelsim/tests/input_cards/rz_internal.fsi"
+5: Working Directory: /home/cooper/ai_project/fuelsim/build
+5: Environment variables:
+5:  OMP_NUM_THREADS=1
+5:  OPENBLAS_NUM_THREADS=1
+5:  MKL_NUM_THREADS=1
+5:  NUMEXPR_NUM_THREADS=1
+5: Test timeout computed to be: 1500
+5: time_control_coarse_temperature_relative_l2=9.473218058860e-03
+5: time_control_adaptive_temperature_relative_l2=4.336744064281e-04
+5: time_control_rejections=7
+5: time_control_maximum_accepted_estimate=9.419152170969e-01
+5: time_control_minimum_rejected_estimate=1.050993766534e+00
+5: time_control_maximum_rejected_estimate=2.254340632361e+01
+5: time_control_completed=1
+5: time_control_accepted_steps=12
+5: history_time_error_maximum_nodal=1.056271796975e-01
+5: history_time_error_maximum_material=8.579038668905e-01
+5: history_time_error_rejections=10
+5: history_time_error_maximum_rejected_material=1.914363628530e+00
+5: history_time_error_completed=1
+5: history_time_error_accepted_steps=65
+5: long_transient_steps=40
+5: long_transient_maximum_relative_thermal_balance=2.267220735090e-14
+5: long_transient_maximum_relative_mechanical_balance=1.000000000000e+00
+5: long_transient_maximum_absolute_mechanical_balance=1.030175109534e-13
+5: long_transient_accumulated_relative_mechanical_balance=5.619111505318e-07
+5: long_transient_maximum_interface_heat_imbalance=4.440892098501e-15
+5: long_transient_minimum_plastic_dissipation=0.000000000000e+00
+5: long_transient_minimum_creep_dissipation=0.000000000000e+00
+5: long_transient_accumulated_plastic_dissipation=2.138359364152e-04
+5: long_transient_accumulated_creep_dissipation=4.902101885080e-05
+5: steady_cutback_rejected_steps=28
+5: steady_cutback_total_cutbacks=28
+5: steady_cutback_first_attempted_load=1.000000000000e+00
+5: steady_cutback_last_attempted_load=1.000000000000e+00
+5: steady_cutback_last_failure=nonlinear_divergence
+5: steady_cutback_last_message=DIVERGED_MAX_IT
+5: steady_load_predictor_attempts=220
+5: steady_load_predictor_fallbacks=180
+5: [PASS] fuelsim M3.1 time loads and boundary test
+1/1 Test #5: fuelsim_m3_load_boundary_tests ...   Passed    4.41 sec
+
+The following tests passed:
+	fuelsim_m3_load_boundary_tests
+
+100% tests passed, 0 tests failed out of 1
+
+Label Time Summary:
+time-control    =   4.41 sec*proc (1 test)
+transaction     =   4.41 sec*proc (1 test)
+unit            =   4.41 sec*proc (1 test)
+
+Total Test time (real) =   4.42 sec

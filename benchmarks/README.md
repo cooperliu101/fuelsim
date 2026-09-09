@@ -19,7 +19,8 @@ build/fuelsim -i verification/fuelsim/steady_rz_performance_large.fsi
 `run_rz_performance.py` 顺序运行两套程序，每套先预热一次，再记录两次；
 它不会生成或修改输入卡。`--size medium` 可以只运行中等规模，
 `--results-directory` 和 `--windows-results` 指定新的证据目录。中等规模完整牛顿更新
-配置在 0.01% 精度要求下，外部时间均值为 31.79 秒，Abaqus 为 41.82 秒；
+结合载荷预测，在 0.01% 精度要求下，非线性迭代从 65 次降到 46 次；
+外部时间均值为 22.50 秒，Abaqus 为 39.74 秒；
 大规模仍保留原配置。下文原程序的命令、预条件器研究和性能记录均属于历史资料。
 
 `fuelsim_m1_single_core_benchmark` is the manual M1 linear-solver benchmark.

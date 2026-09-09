@@ -376,6 +376,8 @@ bool run_steady(const FuelSimCaseDefinition& definition,
     output.value("residual_evaluations_total", result.aggregate_timing.residual_evaluations);
     output.value("jacobian_evaluations_total", result.aggregate_timing.jacobian_evaluations);
     output.value("used_small_strain_predictor", result.used_small_strain_predictor);
+    output.value("load_predictor_attempts", result.load_predictor_attempts);
+    output.value("load_predictor_fallbacks", result.load_predictor_fallbacks);
     if (result.used_small_strain_predictor) {
         output.value("predictor_nonlinear_iterations", result.predictor_nonlinear_iterations);
         output.value("predictor_linear_iterations", result.predictor_linear_iterations);

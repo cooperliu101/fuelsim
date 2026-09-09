@@ -1,0 +1,8 @@
+PASS: all final-state relative L2, absolute-peak and pointwise metrics below 0.01%.
+PASS: prescribed-zero displacement components satisfy the separate absolute tolerance.
+PASS: output and timing cards contain identical physics and execution settings.
+PASS: all three Fuelsim runs complete 20 increments, 46 iterations, 18 predictions, zero prediction failures and zero cutbacks.
+PASS: source, input, binary and script hashes match the measured files.
+PASS: --resume reused all six recorded timing runs without new jobs.
+PASS: Release unified CTest suite, 271/271, 167.29 s.
+PASS: strengthened rollback test, 220 predictions including 180 failures, 4.42 s; final fields agree independently with baseline.

@@ -640,6 +640,7 @@ secondary 侧切向合力；轴对称为有符号标量，三维为合力向量�
   maximum_cutbacks = 12
   minimum_load_increment = 1e-6
   use_small_strain_predictor = false
+  use_linear_load_predictor = false
 []
 ```
 
@@ -647,6 +648,14 @@ secondary 侧切向合力；轴对称为有符号标量，三维为合力向量�
 上示默认值。名义载荷步失败时，执行器缩小从最近成功载荷
 到目标载荷的增量；成功的中间状态成为下一次尝试的初值。最小载荷增量会实际
 尝试一次后才报告失败。
+
+`use_linear_load_predictor` 默认为 `false`。设为 `true` 后，执行器从最近两个已接受
+的平衡解，按实际载荷因子间距线性外推下一次节点场初值。前两次成功求解不使用
+预测；载荷增量缩小后也使用实际间距重新计算预测。指定的位移和温度边界值在预测后
+重新施加，材料和接触历史不做外推。预测求解失败时先完整恢复已提交状态，再从最近
+的平衡解重试同一载荷；两次均失败才缩小载荷增量。所有尝试的迭代和耗时均计入统计，
+输出 `load_predictor_attempts` 和 `load_predictor_fallbacks` 分别记录预测尝试及其失败重试次数。
+该功能不改变载荷路径、材料积分规则或收敛容差。
 
 `use_small_strain_predictor` 默认为 `false`。设为 `true` 时，只允许一个稳态载荷
 步、至少一个有限应变区域且不能含接触。求解器先在完整载荷下求一次小应变

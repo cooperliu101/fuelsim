@@ -1,6 +1,7 @@
 #include "fuelsim/core/nonlinear_problem.hpp"
 #include "fuelsim/core/steady_problem.hpp"
 #include "fuelsim/solver/petsc_solver.hpp"
+#include "fuelsim/solver/solve_workflows.hpp"
 #include "support/jacobian_check.hpp"
 #include "support/material_factory.hpp"
 #include "support/mesh_fixture.hpp"
@@ -661,6 +662,34 @@ bool test_global_newton_safeguards() {
     return passed;
 }
 
+bool test_linear_load_predictor() {
+    const auto mesh = fuelsim::test::make_disconnected_annular_mesh({{1, "solid", 0.0, 0.004, 0.01, 3, 2}});
+    const auto definition =
+        single_region_definition(constant_material(4.0, 1.0e-5), 2.0e8, 600.0, 600.0, 0.0, 0.0, 0.0);
+    fuelsim::SteadyProblem baseline_problem(definition, mesh), predicted_problem(definition, mesh);
+    fuelsim::SteadyLoadOptions loading;
+    loading.load_steps = 5;
+    fuelsim::SolverOptions options;
+    options.line_search = fuelsim::SolverOptions::LineSearch::basic;
+    const auto baseline = fuelsim::solve_steady(baseline_problem, loading, options);
+    loading.use_linear_load_predictor = true;
+    const auto predicted = fuelsim::solve_steady(predicted_problem, loading, options);
+    bool fields_equal = true;
+    for (const auto& field : baseline_problem.field_layout()) {
+        double difference = 0.0, scale = 0.0;
+        for (std::size_t i = field.begin; i < field.end; ++i) {
+            difference = std::hypot(difference, predicted.solve.state[i] - baseline.solve.state[i]);
+            scale = std::hypot(scale, baseline.solve.state[i]);
+        }
+        const double absolute = field.category == fuelsim::FieldCategory::thermal ? 1.0e-9 : 1.0e-12;
+        fields_equal = fields_equal && difference < absolute + 1.0e-10 * scale;
+    }
+    return check(baseline.completed && predicted.completed && predicted.load_predictor_attempts == 3
+                     && predicted.load_predictor_fallbacks == 0 && predicted.total_cutbacks == 0
+                     && predicted.total_nonlinear_iterations < baseline.total_nonlinear_iterations && fields_equal,
+        "linear load prediction uses two accepted equilibria and reduces iterations without changing the solution");
+}
+
 bool test_thermal_cylinder() {
     constexpr double radius = 0.004;
     constexpr double length = 0.01;
@@ -995,6 +1024,7 @@ int main(int argc, char** argv) {
             return 0;
         }
         passed = test_global_newton_safeguards() && passed;
+        passed = test_linear_load_predictor() && passed;
         passed = test_thermal_cylinder() && passed;
         passed = test_free_thermal_expansion() && passed;
         passed = test_lame_open_ended_cylinder() && passed;

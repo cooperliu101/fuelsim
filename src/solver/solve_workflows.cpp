@@ -112,7 +112,8 @@ SteadyResult solve_steady_from_state(PetscSolver& solver,
     SteadyResult result;
     if (state.size() != problem.dof_count())
         throw std::invalid_argument("steady initial state size does not match the problem");
-    double accepted_load_factor = 0.0;
+    double accepted_load_factor = 0.0, previous_load_factor = 0.0;
+    std::vector<double> previous_state;
     for (std::size_t step = 1; step <= load_options.load_steps; ++step) {
         const double target_load_factor = static_cast<double>(step) / static_cast<double>(load_options.load_steps);
         while (accepted_load_factor < target_load_factor) {
@@ -122,28 +123,51 @@ SteadyResult solve_steady_from_state(PetscSolver& solver,
             SolveResult attempt;
             for (;;) {
                 const ProblemStateSnapshot internal_state = problem.capture_internal_state();
-                attempt = SolveResult{};
-                try {
-                    problem.set_load_factor(attempted_load_factor);
-                    attempt = solve_contact_equilibrium(solver,
-                        problem,
-                        initial_guess_with_dirichlet_values(problem, state),
-                        options);
-                    if (attempt.converged)
-                        problem.commit_internal_state(attempt.state);
-                } catch (const std::domain_error& error) {
-                    attempt.converged = false;
-                    attempt.failure_category = SolveFailureCategory::physical_domain;
-                    attempt.failure_message = error.what();
-                } catch (const std::overflow_error& error) {
-                    attempt.converged = false;
-                    attempt.failure_category = SolveFailureCategory::physical_domain;
-                    attempt.failure_message = error.what();
-                }
-                if (!attempt.converged) {
-                    problem.restore_internal_state(internal_state, state);
-                    problem.set_load_factor(accepted_load_factor);
-                }
+                const auto run_attempt = [&](const std::vector<double>& guess) {
+                    SolveResult solved;
+                    try {
+                        problem.set_load_factor(attempted_load_factor);
+                        solved = solve_contact_equilibrium(solver,
+                            problem,
+                            initial_guess_with_dirichlet_values(problem, guess),
+                            options);
+                        if (solved.converged)
+                            problem.commit_internal_state(solved.state);
+                    } catch (const std::domain_error& error) {
+                        solved.converged = false;
+                        solved.failure_category = SolveFailureCategory::physical_domain;
+                        solved.failure_message = error.what();
+                    } catch (const std::overflow_error& error) {
+                        solved.converged = false;
+                        solved.failure_category = SolveFailureCategory::physical_domain;
+                        solved.failure_message = error.what();
+                    } catch (...) {
+                        problem.restore_internal_state(internal_state, state);
+                        problem.set_load_factor(accepted_load_factor);
+                        throw;
+                    }
+                    if (!solved.converged) {
+                        problem.restore_internal_state(internal_state, state);
+                        problem.set_load_factor(accepted_load_factor);
+                    }
+                    return solved;
+                };
+                if (load_options.use_linear_load_predictor && !previous_state.empty()) {
+                    // Extrapolate nodal fields only, from two accepted equilibria.
+                    // Constitutive and contact history remain at the committed state.
+                    const double ratio = load_increment / (accepted_load_factor - previous_load_factor);
+                    std::vector<double> predicted = state;
+                    for (std::size_t dof = 0; dof < state.size(); ++dof)
+                        predicted[dof] += ratio * (state[dof] - previous_state[dof]);
+                    ++result.load_predictor_attempts;
+                    attempt = run_attempt(predicted);
+                    if (!attempt.converged) {
+                        ++result.load_predictor_fallbacks;
+                        const SolveResult fallback = run_attempt(state);
+                        solver_workflow::merge_attempt(attempt, fallback);
+                    }
+                } else
+                    attempt = run_attempt(state);
                 accumulate_timing(result.aggregate_timing, attempt.timing);
                 result.total_nonlinear_iterations += attempt.nonlinear_iterations;
                 result.total_linear_iterations += attempt.linear_iterations;
@@ -169,6 +193,10 @@ SteadyResult solve_steady_from_state(PetscSolver& solver,
                 attempted_load_factor = accepted_load_factor + load_increment;
                 ++cutbacks;
                 ++result.total_cutbacks;
+            }
+            if (load_options.use_linear_load_predictor && accepted_load_factor > 0.0) {
+                previous_load_factor = accepted_load_factor;
+                previous_state = std::move(state);
             }
             accepted_load_factor = attempted_load_factor;
             state = attempt.state;
